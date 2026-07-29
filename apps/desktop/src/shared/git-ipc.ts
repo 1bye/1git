@@ -13,6 +13,7 @@ import type {
 	FetchInput,
 	FileContentInput,
 	GetConfigInput,
+	GitOperation,
 	GitRepository,
 	GitResult,
 	HistoryInput,
@@ -142,6 +143,69 @@ export const GIT_IPC_CHANNELS = {
 	},
 } as const;
 
+/** Main-to-renderer notifications; these are not invoke channels. */
+export const GIT_IPC_EVENTS = {
+	repositoryRefresh: "git:event:repository-refresh",
+} as const;
+
+const REPOSITORY_MUTATION_OPERATIONS = new Map<string, GitOperation>([
+	[GIT_IPC_CHANNELS.sessions.initialize, "initialize-repository"],
+	[GIT_IPC_CHANNELS.sessions.clone, "clone-repository"],
+	[GIT_IPC_CHANNELS.changes.stage, "stage"],
+	[GIT_IPC_CHANNELS.changes.stageAll, "stage-all"],
+	[GIT_IPC_CHANNELS.changes.unstage, "unstage"],
+	[GIT_IPC_CHANNELS.changes.unstageAll, "unstage-all"],
+	[GIT_IPC_CHANNELS.changes.restore, "restore"],
+	[GIT_IPC_CHANNELS.changes.reset, "reset"],
+	[GIT_IPC_CHANNELS.changes.commit, "commit"],
+	[GIT_IPC_CHANNELS.branches.create, "create-branch"],
+	[GIT_IPC_CHANNELS.branches.checkout, "checkout-branch"],
+	[GIT_IPC_CHANNELS.branches.rename, "rename-branch"],
+	[GIT_IPC_CHANNELS.branches.delete, "delete-branch"],
+	[GIT_IPC_CHANNELS.branches.setUpstream, "set-upstream"],
+	[GIT_IPC_CHANNELS.branches.merge, "merge"],
+	[GIT_IPC_CHANNELS.branches.abortMerge, "abort-merge"],
+	[GIT_IPC_CHANNELS.branches.rebase, "rebase"],
+	[GIT_IPC_CHANNELS.branches.continueRebase, "continue-rebase"],
+	[GIT_IPC_CHANNELS.branches.skipRebase, "skip-rebase"],
+	[GIT_IPC_CHANNELS.branches.abortRebase, "abort-rebase"],
+	[GIT_IPC_CHANNELS.sequences.cherryPick, "cherry-pick"],
+	[GIT_IPC_CHANNELS.sequences.continueCherryPick, "continue-cherry-pick"],
+	[GIT_IPC_CHANNELS.sequences.abortCherryPick, "abort-cherry-pick"],
+	[GIT_IPC_CHANNELS.sequences.revert, "revert"],
+	[GIT_IPC_CHANNELS.sequences.continueRevert, "continue-revert"],
+	[GIT_IPC_CHANNELS.sequences.abortRevert, "abort-revert"],
+	[GIT_IPC_CHANNELS.tags.create, "create-tag"],
+	[GIT_IPC_CHANNELS.tags.delete, "delete-tag"],
+	[GIT_IPC_CHANNELS.remotes.add, "add-remote"],
+	[GIT_IPC_CHANNELS.remotes.rename, "rename-remote"],
+	[GIT_IPC_CHANNELS.remotes.setUrl, "set-remote-url"],
+	[GIT_IPC_CHANNELS.remotes.remove, "remove-remote"],
+	[GIT_IPC_CHANNELS.sync.fetch, "fetch"],
+	[GIT_IPC_CHANNELS.sync.pull, "pull"],
+	[GIT_IPC_CHANNELS.sync.push, "push"],
+	[GIT_IPC_CHANNELS.stashes.create, "stash"],
+	[GIT_IPC_CHANNELS.stashes.apply, "apply-stash"],
+	[GIT_IPC_CHANNELS.stashes.pop, "pop-stash"],
+	[GIT_IPC_CHANNELS.stashes.drop, "drop-stash"],
+	[GIT_IPC_CHANNELS.worktrees.create, "create-worktree"],
+	[GIT_IPC_CHANNELS.worktrees.move, "move-worktree"],
+	[GIT_IPC_CHANNELS.worktrees.remove, "remove-worktree"],
+	[GIT_IPC_CHANNELS.worktrees.lock, "lock-worktree"],
+	[GIT_IPC_CHANNELS.worktrees.unlock, "unlock-worktree"],
+	[GIT_IPC_CHANNELS.worktrees.prune, "prune-worktrees"],
+	[GIT_IPC_CHANNELS.worktrees.repair, "repair-worktrees"],
+	[GIT_IPC_CHANNELS.config.set, "set-config"],
+	[GIT_IPC_CHANNELS.config.unset, "unset-config"],
+]);
+const REPOSITORY_MUTATION_OPERATION_NAMES = new Set<string>(
+	REPOSITORY_MUTATION_OPERATIONS.values()
+);
+
+export const repositoryMutationOperationForChannel = (
+	channel: string
+): GitOperation | undefined => REPOSITORY_MUTATION_OPERATIONS.get(channel);
+
 export type IpcGitInput<TInput> = Omit<TInput, "signal">;
 export type IpcRepositoryCreationInput<TInput> = Omit<
 	TInput,
@@ -158,6 +222,52 @@ export interface GitOperationCancellationResult {
 	readonly operationId: GitOperationId;
 	readonly status: "cancelled" | "not-found";
 }
+
+export type RepositoryRefreshEvent =
+	| {
+			readonly occurredAt: string;
+			readonly operation: GitOperation;
+			readonly operationId?: GitOperationId;
+			readonly sessionId: RepositorySessionId;
+			readonly source: "mutation";
+	  }
+	| {
+			readonly occurredAt: string;
+			readonly sessionId: RepositorySessionId;
+			readonly source: "window-focus";
+	  };
+
+export type RepositoryRefreshListener = (event: RepositoryRefreshEvent) => void;
+
+const isNonEmptyString = (value: unknown): value is string =>
+	typeof value === "string" && value.length > 0;
+
+/** Rejects malformed event payloads before they cross into renderer code. */
+export const isRepositoryRefreshEvent = (
+	value: unknown
+): value is RepositoryRefreshEvent => {
+	if (!value || typeof value !== "object" || Array.isArray(value)) {
+		return false;
+	}
+
+	const event = value as Readonly<Record<string, unknown>>;
+	if (
+		!(isNonEmptyString(event.occurredAt) && isNonEmptyString(event.sessionId))
+	) {
+		return false;
+	}
+	if (event.source === "window-focus") {
+		return true;
+	}
+	if (
+		event.source !== "mutation" ||
+		!isNonEmptyString(event.operation) ||
+		!REPOSITORY_MUTATION_OPERATION_NAMES.has(event.operation)
+	) {
+		return false;
+	}
+	return event.operationId === undefined || isNonEmptyString(event.operationId);
+};
 
 export interface GitSessionIpcRequest {
 	readonly operationId?: GitOperationId;
@@ -290,6 +400,11 @@ export interface DesktopGitApi {
 			input: IpcGitInput<GetConfigInput>,
 			options?: GitOperationOptions
 		) => ReturnType<GitRepository["unsetConfig"]>;
+	};
+	readonly events: {
+		readonly onRepositoryRefresh: (
+			listener: RepositoryRefreshListener
+		) => () => void;
 	};
 	readonly operations: {
 		readonly cancel: (

@@ -13,7 +13,7 @@ import type {
 	TagInfo,
 	WorktreeInfo,
 } from "@1git/git";
-import { GIT_IPC_CHANNELS } from "../src/shared/git-ipc.js";
+import { GIT_IPC_CHANNELS, GIT_IPC_EVENTS } from "../src/shared/git-ipc.js";
 import type {
 	OpenedRepositorySession,
 	RepositoryManagerResult,
@@ -93,6 +93,7 @@ describe("Git IPC repository workflow", () => {
 			history,
 			snapshot,
 		});
+		expect(harness.sentRendererMessages).toEqual([]);
 	});
 
 	test("strips renderer-owned runtime and cancellation objects", async () => {
@@ -134,6 +135,7 @@ describe("Git IPC repository workflow", () => {
 				GIT_IPC_CHANNELS.changes.stage,
 				{
 					input: { paths: ["src/ipc.ts"] },
+					operationId: "stage-ipc",
 					sessionId: opened.session.id,
 				}
 			)
@@ -143,6 +145,7 @@ describe("Git IPC repository workflow", () => {
 				GIT_IPC_CHANNELS.changes.commit,
 				{
 					input: { summary: "Add typed IPC" },
+					operationId: "commit-ipc",
 					sessionId: opened.session.id,
 				}
 			)
@@ -154,6 +157,28 @@ describe("Git IPC repository workflow", () => {
 		});
 		expect(committed.commit.summary).toBe("Add typed IPC");
 		expect(committed.snapshot.files).toEqual([]);
+		expect(harness.sentRendererMessages).toEqual([
+			{
+				channel: GIT_IPC_EVENTS.repositoryRefresh,
+				payload: {
+					occurredAt: expect.any(String),
+					operation: "stage",
+					operationId: "stage-ipc",
+					sessionId: opened.session.id,
+					source: "mutation",
+				},
+			},
+			{
+				channel: GIT_IPC_EVENTS.repositoryRefresh,
+				payload: {
+					occurredAt: expect.any(String),
+					operation: "commit",
+					operationId: "commit-ipc",
+					sessionId: opened.session.id,
+					source: "mutation",
+				},
+			},
+		]);
 	});
 
 	test("creates and lists branches without exposing repository objects", async () => {
@@ -291,6 +316,26 @@ describe("Git IPC repository workflow", () => {
 			cloned,
 			initialized,
 		});
+		expect(harness.sentRendererMessages).toEqual([
+			{
+				channel: GIT_IPC_EVENTS.repositoryRefresh,
+				payload: {
+					occurredAt: expect.any(String),
+					operation: "initialize-repository",
+					sessionId: initialized.session.id,
+					source: "mutation",
+				},
+			},
+			{
+				channel: GIT_IPC_EVENTS.repositoryRefresh,
+				payload: {
+					occurredAt: expect.any(String),
+					operation: "clone-repository",
+					sessionId: cloned.session.id,
+					source: "mutation",
+				},
+			},
+		]);
 	});
 
 	test("closes a session and prevents later repository operations", async () => {

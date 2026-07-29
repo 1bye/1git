@@ -3,11 +3,17 @@ import type { IpcRenderer } from "electron";
 import {
 	type DesktopGitApi,
 	GIT_IPC_CHANNELS,
+	GIT_IPC_EVENTS,
 	type GitOperationOptions,
+	isRepositoryRefreshEvent,
 } from "../shared/git-ipc.js";
 import type { RepositorySessionId } from "../shared/repository-session.js";
 
 export type DesktopIpcInvoke = IpcRenderer["invoke"];
+export type DesktopIpcSubscribe = (
+	channel: string,
+	listener: (payload: unknown) => void
+) => () => void;
 
 const operationId = (options?: GitOperationOptions): string =>
 	options?.operationId ?? randomUUID();
@@ -39,7 +45,8 @@ const creationRequest = <TInput>(
 });
 
 export const createDesktopGitApi = (
-	invoke: DesktopIpcInvoke
+	invoke: DesktopIpcInvoke,
+	subscribe: DesktopIpcSubscribe
 ): DesktopGitApi => ({
 	branches: {
 		abortMerge: async (sessionId, options) =>
@@ -156,6 +163,14 @@ export const createDesktopGitApi = (
 				GIT_IPC_CHANNELS.config.unset,
 				inputRequest(sessionId, input, options)
 			),
+	},
+	events: {
+		onRepositoryRefresh: (listener) =>
+			subscribe(GIT_IPC_EVENTS.repositoryRefresh, (payload) => {
+				if (isRepositoryRefreshEvent(payload)) {
+					listener(payload);
+				}
+			}),
 	},
 	operations: {
 		cancel: async (id) =>

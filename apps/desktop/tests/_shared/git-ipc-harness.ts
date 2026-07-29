@@ -6,8 +6,19 @@ import type { RepositoryManager } from "../../src/main/git/repository-manager.js
 
 type RegisteredIpcHandler = Parameters<IpcMain["handle"]>[1];
 
+export interface SentRendererMessage {
+	readonly channel: string;
+	readonly payload: unknown;
+}
+
 export class GitIpcHarness {
-	private readonly authorizedSender = {};
+	private readonly messages: SentRendererMessage[] = [];
+	private readonly authorizedSender = {
+		isDestroyed: () => false,
+		send: (channel: string, payload: unknown) => {
+			this.messages.push({ channel, payload });
+		},
+	};
 	private readonly disposeRegistration: () => void;
 	private readonly handlers = new Map<string, RegisteredIpcHandler>();
 	readonly operationRegistry = new GitOperationRegistry();
@@ -37,6 +48,10 @@ export class GitIpcHarness {
 
 	get registeredChannels(): readonly string[] {
 		return [...this.handlers.keys()];
+	}
+
+	get sentRendererMessages(): readonly SentRendererMessage[] {
+		return [...this.messages];
 	}
 
 	async invoke<T>(channel: string, payload?: unknown): Promise<T> {

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { GIT_IPC_CHANNELS } from "../src/shared/git-ipc.js";
+import { GIT_IPC_CHANNELS, GIT_IPC_EVENTS } from "../src/shared/git-ipc.js";
 import { GitIpcHarness } from "./_shared/git-ipc-harness.js";
 import { createTestRepositoryManager } from "./_shared/repository-manager-fixture.js";
 
@@ -22,6 +22,14 @@ describe("Git IPC contract", () => {
 
 		expect(channelNames).not.toMatch(GENERIC_COMMAND_PATTERN);
 		expect(Object.keys(GIT_IPC_CHANNELS)).not.toContain("run");
+	});
+
+	test("keeps renderer events separate from invoke handlers", () => {
+		const channels = allChannels();
+		const events = Object.values(GIT_IPC_EVENTS);
+
+		expect(events).toEqual(["git:event:repository-refresh"]);
+		expect(events.every((event) => !channels.includes(event))).toBe(true);
 	});
 
 	test("registers every declared channel", () => {

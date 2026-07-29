@@ -9,6 +9,7 @@ import {
 } from "electron";
 import { registerGitIpc } from "./git/git-ipc.js";
 import { GitOperationRegistry } from "./git/git-operation-registry.js";
+import { publishActiveRepositoryFocus } from "./git/repository-events.js";
 import { RepositoryManager } from "./git/repository-manager.js";
 
 const MAIN_WINDOW_WIDTH = 1280;
@@ -90,6 +91,11 @@ const createMainWindow = async (): Promise<BrowserWindow> => {
 	mainWindow = window;
 
 	secureNavigation(window);
+	window.on("focus", () => {
+		if (!windowWebContents.isDestroyed()) {
+			publishActiveRepositoryFocus(windowWebContents, repositoryManager);
+		}
+	});
 	window.once("closed", () => {
 		gitOperationRegistry.abortAll(windowWebContents);
 		if (mainWindow === window) {

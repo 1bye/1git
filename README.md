@@ -69,3 +69,16 @@ const fetchResult = window.desktop.git.sync.fetch(
 await window.desktop.git.operations.cancel(operationId);
 await fetchResult;
 ```
+
+Repository views can use `useRepositoryRefresh` to debounce refresh work after
+Git mutations and when the desktop window regains focus:
+
+```tsx
+useRepositoryRefresh(sessionId, () => {
+	void refreshSnapshotAndHistory();
+});
+```
+
+The callback is scoped to the requested session and receives the structured
+mutation or window-focus event. Continuous filesystem watching is intentionally
+deferred; focus refreshes reconcile changes made while the app was inactive.

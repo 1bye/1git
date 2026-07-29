@@ -3,8 +3,13 @@ import { isValidGitOperationId } from "../src/main/git/git-operation-registry.js
 import {
 	createDesktopGitApi,
 	type DesktopIpcInvoke,
+	type DesktopIpcSubscribe,
 } from "../src/preload/git-api.js";
-import { GIT_IPC_CHANNELS } from "../src/shared/git-ipc.js";
+import {
+	GIT_IPC_CHANNELS,
+	GIT_IPC_EVENTS,
+	type RepositoryRefreshEvent,
+} from "../src/shared/git-ipc.js";
 
 interface Invocation {
 	readonly channel: string;
@@ -13,16 +18,36 @@ interface Invocation {
 
 const createRecordingApi = (): {
 	readonly api: ReturnType<typeof createDesktopGitApi>;
+	readonly emit: (channel: string, payload: unknown) => void;
 	readonly invocations: Invocation[];
+	readonly subscriberCount: (channel: string) => number;
 } => {
 	const invocations: Invocation[] = [];
+	const listeners = new Map<string, Set<(payload: unknown) => void>>();
 	const invoke: DesktopIpcInvoke = (channel, payload) => {
 		invocations.push({ channel, payload });
 		return Promise.resolve({ ok: true, value: null });
 	};
+	const subscribe: DesktopIpcSubscribe = (channel, listener) => {
+		const channelListeners = listeners.get(channel) ?? new Set();
+		channelListeners.add(listener);
+		listeners.set(channel, channelListeners);
+		return () => {
+			channelListeners.delete(listener);
+			if (channelListeners.size === 0) {
+				listeners.delete(channel);
+			}
+		};
+	};
 	return {
-		api: createDesktopGitApi(invoke),
+		api: createDesktopGitApi(invoke, subscribe),
+		emit: (channel, payload) => {
+			for (const listener of listeners.get(channel) ?? []) {
+				listener(payload);
+			}
+		},
 		invocations,
+		subscriberCount: (channel) => listeners.get(channel)?.size ?? 0,
 	};
 };
 
@@ -120,5 +145,36 @@ describe("preload Git API", () => {
 				payload: { sessionId: "session-1" },
 			},
 		]);
+	});
+
+	test("delivers validated repository events and removes subscriptions", () => {
+		const { api, emit, subscriberCount } = createRecordingApi();
+		const received: RepositoryRefreshEvent[] = [];
+		const unsubscribe = api.events.onRepositoryRefresh((refreshEvent) => {
+			received.push(refreshEvent);
+		});
+		const event: RepositoryRefreshEvent = {
+			occurredAt: "2026-07-29T18:00:00.000Z",
+			operation: "stage",
+			operationId: "stage-from-ui",
+			sessionId: "session-1",
+			source: "mutation",
+		};
+
+		emit(GIT_IPC_EVENTS.repositoryRefresh, {
+			occurredAt: "2026-07-29T18:00:00.000Z",
+			operation: "unknown-operation",
+			sessionId: "session-1",
+			source: "mutation",
+		});
+		emit(GIT_IPC_EVENTS.repositoryRefresh, event);
+		unsubscribe();
+		emit(GIT_IPC_EVENTS.repositoryRefresh, {
+			...event,
+			operation: "commit",
+		});
+
+		expect(received).toEqual([event]);
+		expect(subscriberCount(GIT_IPC_EVENTS.repositoryRefresh)).toBe(0);
 	});
 });

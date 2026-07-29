@@ -53,12 +53,15 @@ import {
 	type IpcGitInput,
 	type IpcRepositoryCreationInput,
 	type OpenRepositoryIpcInput,
+	repositoryMutationOperationForChannel,
 } from "../../shared/git-ipc.js";
 import type {
 	OpenedRepositorySession,
 	RepositoryManagerResult,
+	RepositorySessionId,
 } from "../../shared/repository-session.js";
 import { GitOperationRegistry } from "./git-operation-registry.js";
+import { publishRepositoryMutation } from "./repository-events.js";
 import type { RepositoryManager } from "./repository-manager.js";
 
 const UNAUTHORIZED_IPC_MESSAGE = "Unauthorized Git IPC sender.";
@@ -958,6 +961,77 @@ const allHandlers = (
 	...configHandlers(repositoryManager),
 ];
 
+const resultMayHaveChangedRepository = (result: unknown): boolean => {
+	if (!result || typeof result !== "object" || Array.isArray(result)) {
+		return false;
+	}
+	const resultRecord = result as Readonly<Record<string, unknown>>;
+	if (resultRecord.ok === true) {
+		return true;
+	}
+	if (
+		resultRecord.ok !== false ||
+		!resultRecord.error ||
+		typeof resultRecord.error !== "object" ||
+		Array.isArray(resultRecord.error)
+	) {
+		return false;
+	}
+	const error = resultRecord.error as Readonly<Record<string, unknown>>;
+	return error.code === "command-failed" || error.code === "conflict";
+};
+
+const openedSessionId = (result: unknown): RepositorySessionId | undefined => {
+	if (!result || typeof result !== "object" || Array.isArray(result)) {
+		return;
+	}
+	const resultRecord = result as Readonly<Record<string, unknown>>;
+	if (
+		resultRecord.ok !== true ||
+		!resultRecord.value ||
+		typeof resultRecord.value !== "object" ||
+		Array.isArray(resultRecord.value)
+	) {
+		return;
+	}
+	const value = resultRecord.value as Readonly<Record<string, unknown>>;
+	if (
+		!value.session ||
+		typeof value.session !== "object" ||
+		Array.isArray(value.session)
+	) {
+		return;
+	}
+	const session = value.session as Readonly<Record<string, unknown>>;
+	return typeof session.id === "string" && session.id.length > 0
+		? session.id
+		: undefined;
+};
+
+const mutationSessionId = (
+	channel: string,
+	payload: unknown,
+	result: unknown,
+	repositoryManager: RepositoryManager
+): RepositorySessionId | undefined => {
+	if (
+		channel === GIT_IPC_CHANNELS.sessions.clone ||
+		channel === GIT_IPC_CHANNELS.sessions.initialize
+	) {
+		return openedSessionId(result);
+	}
+
+	try {
+		const { sessionId } = parseSessionRequest(payload);
+		return repositoryManager.getSession(sessionId).ok ? sessionId : undefined;
+	} catch (error: unknown) {
+		if (error instanceof InvalidIpcRequest) {
+			return;
+		}
+		throw error;
+	}
+};
+
 /** Registers every concrete Git method and returns an idempotent disposer. */
 export const registerGitIpc = ({
 	ipcMain,
@@ -971,10 +1045,32 @@ export const registerGitIpc = ({
 			if (!isSenderAuthorized(event)) {
 				throw new Error(UNAUTHORIZED_IPC_MESSAGE);
 			}
-			return await handle(payload, {
+			const result = await handle(payload, {
 				operationRegistry,
 				owner: event.sender,
 			});
+			const operation = repositoryMutationOperationForChannel(channel);
+			if (
+				operation &&
+				resultMayHaveChangedRepository(result) &&
+				!event.sender.isDestroyed()
+			) {
+				const sessionId = mutationSessionId(
+					channel,
+					payload,
+					result,
+					repositoryManager
+				);
+				if (sessionId) {
+					const operationId = parseOptionalOperationId(payload);
+					publishRepositoryMutation(event.sender, {
+						operation,
+						...(operationId ? { operationId } : {}),
+						sessionId,
+					});
+				}
+			}
+			return result;
 		});
 	}
 
