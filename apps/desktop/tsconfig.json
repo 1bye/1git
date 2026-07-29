@@ -3,8 +3,14 @@
   "compilerOptions": {
     "jsx": "react-jsx",
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
-    "strictNullChecks": true
+    "strictNullChecks": true,
+    "types": ["bun", "node"]
   },
-  "include": ["electron.vite.config.ts", "src/**/*.ts", "src/**/*.tsx"],
+  "include": [
+    "electron.vite.config.ts",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "tests/**/*.ts"
+  ],
   "exclude": ["node_modules", "dist"]
 }

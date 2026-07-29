@@ -46,8 +46,8 @@ bun run dev
 - `bun run test`: Test all packages
 - `bun run check`: Run Biome formatting and linting
 
-Run only the desktop app with:
+Run only the desktop app and build its workspace dependencies with:
 
 ```bash
-bun run --cwd apps/desktop dev
+bun run dev --filter=@1git/desktop
 ```

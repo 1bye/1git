@@ -6,6 +6,7 @@ import {
 	nativeTheme,
 	shell,
 } from "electron";
+import { RepositoryManager } from "./git/repository-manager.js";
 
 const MAIN_WINDOW_WIDTH = 1280;
 const MAIN_WINDOW_HEIGHT = 820;
@@ -13,6 +14,7 @@ const MINIMUM_WINDOW_WIDTH = 980;
 const MINIMUM_WINDOW_HEIGHT = 640;
 const MACOS_TRAFFIC_LIGHT_X = 16;
 const MACOS_TRAFFIC_LIGHT_Y = 17;
+const repositoryManager = new RepositoryManager();
 
 const platformWindowOptions = (): BrowserWindowConstructorOptions => {
 	if (process.platform !== "darwin") {
@@ -100,6 +102,10 @@ app.on("window-all-closed", () => {
 	if (process.platform !== "darwin") {
 		app.quit();
 	}
+});
+
+app.on("before-quit", () => {
+	repositoryManager.closeAllSessions();
 });
 
 start().catch((error: unknown) => {
