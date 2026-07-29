@@ -32,6 +32,25 @@ describe("GitRepository remotes and synchronization", () => {
 		]);
 	});
 
+	test("does not persist credentials embedded in HTTP remote URLs", async () => {
+		const fixture = await fixtures.create();
+
+		const result = await fixture.repository.addRemote({
+			name: "origin",
+			url: "https://user:secret@example.com/repository.git",
+		});
+
+		expect(result).toMatchObject({
+			error: {
+				code: "invalid-input",
+				message:
+					"Remote URL must not contain credentials. Configure a Git credential helper instead.",
+			},
+			ok: false,
+		});
+		expect(await fixture.git(["remote"])).toBe("");
+	});
+
 	test("renames a remote", async () => {
 		const fixture = await fixtures.create();
 		const remotePath = await fixture.createBareRemote();

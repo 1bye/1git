@@ -147,6 +147,19 @@ describe("preload Git API", () => {
 		]);
 	});
 
+	test("requests repository selection through a dedicated channel", async () => {
+		const { api, invocations } = createRecordingApi();
+
+		await api.sessions.pickDirectory();
+
+		expect(invocations).toEqual([
+			{
+				channel: GIT_IPC_CHANNELS.sessions.pickDirectory,
+				payload: undefined,
+			},
+		]);
+	});
+
 	test("delivers validated repository events and removes subscriptions", () => {
 		const { api, emit, subscriberCount } = createRecordingApi();
 		const received: RepositoryRefreshEvent[] = [];

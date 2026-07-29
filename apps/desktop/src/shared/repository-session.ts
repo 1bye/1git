@@ -23,6 +23,11 @@ export interface RecentRepositoryRecord {
 	readonly path: string;
 }
 
+/** Result of the main-process native repository directory picker. */
+export type RepositoryDirectorySelection =
+	| { readonly status: "cancelled" }
+	| { readonly path: string; readonly status: "selected" };
+
 /** Complete serializable state owned by the repository manager. */
 export interface RepositoryManagerState {
 	readonly activeSessionId: RepositorySessionId | null;

@@ -82,6 +82,7 @@ import {
 import { fail, invalidInput, succeed, toGitError } from "./result.js";
 import {
 	requireConfigKey,
+	requireCredentialFreeRemoteUrl,
 	requireIntegerInRange,
 	requireRepositoryPaths,
 	requireRevision,
@@ -311,7 +312,7 @@ export class GitRepository {
 	): Promise<GitResult<GitRepository>> {
 		return await capture("clone-repository", async () => {
 			requireText(input.path, "Clone path", "clone-repository");
-			requireText(input.remoteUrl, "Remote URL", "clone-repository");
+			requireCredentialFreeRemoteUrl(input.remoteUrl, "clone-repository");
 			const targetPath = resolve(input.path);
 			await mkdir(dirname(targetPath), { recursive: true });
 			const process = new GitProcess(processOptions(input));
@@ -956,7 +957,7 @@ export class GitRepository {
 	): Promise<GitResult<readonly RemoteInfo[]>> {
 		return await this.mutate("add-remote", input.signal, async () => {
 			const name = requireRemoteName(input.name, "add-remote");
-			const url = requireText(input.url, "Remote URL", "add-remote");
+			const url = requireCredentialFreeRemoteUrl(input.url, "add-remote");
 			const args = ["remote", "add"];
 			if (input.fetch) {
 				args.push("-f");
@@ -985,7 +986,7 @@ export class GitRepository {
 	): Promise<GitResult<readonly RemoteInfo[]>> {
 		return await this.mutate("set-remote-url", input.signal, async () => {
 			const name = requireRemoteName(input.name, "set-remote-url");
-			const url = requireText(input.url, "Remote URL", "set-remote-url");
+			const url = requireCredentialFreeRemoteUrl(input.url, "set-remote-url");
 			const args = ["remote", "set-url"];
 			if (input.push) {
 				args.push("--push");

@@ -15,6 +15,24 @@ afterEach(async () => {
 });
 
 describe("Git IPC security and validation", () => {
+	test("does not open the native picker for an unauthorized sender", async () => {
+		let pickerOpened = false;
+		const harness = new GitIpcHarness(createTestRepositoryManager(), {
+			pickRepositoryDirectory: () => {
+				pickerOpened = true;
+				return Promise.resolve({ status: "cancelled" });
+			},
+		});
+
+		const invocation = harness.invokeUnauthorized(
+			GIT_IPC_CHANNELS.sessions.pickDirectory
+		);
+
+		await expect(invocation).rejects.toThrow("Unauthorized Git IPC sender.");
+		expect(pickerOpened).toBe(false);
+		harness.dispose();
+	});
+
 	test("rejects an unauthorized sender", async () => {
 		const harness = new GitIpcHarness(createTestRepositoryManager());
 

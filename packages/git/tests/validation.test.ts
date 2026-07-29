@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
 	requireConfigKey,
+	requireCredentialFreeRemoteUrl,
 	requireIntegerInRange,
 	requireRepositoryPaths,
 	requireRevision,
@@ -31,6 +32,50 @@ describe("public input validation", () => {
 		expect(() =>
 			requireRevision("--upload-pack=tool", "Revision", "get-commit")
 		).toThrow();
+	});
+
+	test("accepts credential-free remote URL formats", () => {
+		expect(
+			requireCredentialFreeRemoteUrl(
+				"https://example.com/owner/repository.git",
+				"clone-repository"
+			)
+		).toBe("https://example.com/owner/repository.git");
+		expect(
+			requireCredentialFreeRemoteUrl(
+				"git@example.com:owner/repository.git",
+				"clone-repository"
+			)
+		).toBe("git@example.com:owner/repository.git");
+		expect(
+			requireCredentialFreeRemoteUrl(
+				"/local/repository.git",
+				"clone-repository"
+			)
+		).toBe("/local/repository.git");
+	});
+
+	test("rejects credentials embedded in HTTP remote URLs", () => {
+		expect(() =>
+			requireCredentialFreeRemoteUrl(
+				"https://user:secret@example.com/repository.git",
+				"clone-repository"
+			)
+		).toThrow(
+			"Remote URL must not contain credentials. Configure a Git credential helper instead."
+		);
+		expect(() =>
+			requireCredentialFreeRemoteUrl(
+				"https://token@example.com/repository.git",
+				"add-remote"
+			)
+		).toThrow();
+	});
+
+	test("rejects malformed HTTP remote URLs before invoking Git", () => {
+		expect(() =>
+			requireCredentialFreeRemoteUrl("https://[invalid", "clone-repository")
+		).toThrow("Remote URL must be a valid HTTP URL.");
 	});
 
 	test("accepts repository-relative paths", () => {

@@ -45,6 +45,7 @@ import type {
 } from "@1git/git";
 import type {
 	OpenedRepositorySession,
+	RepositoryDirectorySelection,
 	RepositoryManagerResult,
 	RepositoryManagerState,
 	RepositorySessionId,
@@ -112,6 +113,7 @@ export const GIT_IPC_CHANNELS = {
 		forgetRecent: "git:sessions:forget-recent",
 		initialize: "git:sessions:initialize",
 		open: "git:sessions:open",
+		pickDirectory: "git:sessions:pick-directory",
 		state: "git:sessions:state",
 	},
 	stashes: {
@@ -513,6 +515,7 @@ export interface DesktopGitApi {
 			input: OpenRepositoryIpcInput,
 			options?: GitOperationOptions
 		) => Promise<GitResult<OpenedRepositorySession>>;
+		readonly pickDirectory: () => Promise<RepositoryDirectorySelection>;
 		readonly state: () => Promise<RepositoryManagerState>;
 	};
 	readonly stashes: {

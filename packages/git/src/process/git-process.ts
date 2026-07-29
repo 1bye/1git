@@ -55,7 +55,10 @@ export interface GitProcessOptions {
 	readonly maxOutputBytes?: number;
 }
 
-/** Executes Git without a shell and collects bounded binary-safe output. */
+/**
+ * Executes Git without a shell, preserves configured credential helpers, and
+ * collects bounded binary-safe output without allowing terminal prompts.
+ */
 export class GitProcess {
 	private readonly executable: string;
 	private readonly maxOutputBytes: number;

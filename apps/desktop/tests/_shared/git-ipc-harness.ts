@@ -3,12 +3,17 @@ import type { IpcMain, IpcMainInvokeEvent, WebContents } from "electron";
 import { registerGitIpc } from "../../src/main/git/git-ipc.js";
 import { GitOperationRegistry } from "../../src/main/git/git-operation-registry.js";
 import type { RepositoryManager } from "../../src/main/git/repository-manager.js";
+import type { RepositoryDirectorySelection } from "../../src/shared/repository-session.js";
 
 type RegisteredIpcHandler = Parameters<IpcMain["handle"]>[1];
 
 export interface SentRendererMessage {
 	readonly channel: string;
 	readonly payload: unknown;
+}
+
+export interface GitIpcHarnessOptions {
+	readonly pickRepositoryDirectory?: () => Promise<RepositoryDirectorySelection>;
 }
 
 export class GitIpcHarness {
@@ -24,7 +29,10 @@ export class GitIpcHarness {
 	readonly operationRegistry = new GitOperationRegistry();
 	readonly repositoryManager: RepositoryManager;
 
-	constructor(repositoryManager: RepositoryManager) {
+	constructor(
+		repositoryManager: RepositoryManager,
+		options: GitIpcHarnessOptions = {}
+	) {
 		this.repositoryManager = repositoryManager;
 		const ipcMain: Pick<IpcMain, "handle" | "removeHandler"> = {
 			handle: (channel, listener) => {
@@ -42,6 +50,7 @@ export class GitIpcHarness {
 			isSenderAuthorized: (event) =>
 				event.sender === (this.authorizedSender as WebContents),
 			operationRegistry: this.operationRegistry,
+			pickRepositoryDirectory: options.pickRepositoryDirectory,
 			repositoryManager,
 		});
 	}

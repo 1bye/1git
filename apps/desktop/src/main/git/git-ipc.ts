@@ -57,6 +57,7 @@ import {
 } from "../../shared/git-ipc.js";
 import type {
 	OpenedRepositorySession,
+	RepositoryDirectorySelection,
 	RepositoryManagerResult,
 	RepositorySessionId,
 } from "../../shared/repository-session.js";
@@ -70,7 +71,7 @@ type IpcMainRegistration = Pick<IpcMain, "handle" | "removeHandler">;
 
 interface GitIpcContext {
 	readonly operationRegistry: GitOperationRegistry;
-	readonly owner: object;
+	readonly owner: IpcMainInvokeEvent["sender"];
 }
 
 type GitIpcHandler = (
@@ -87,6 +88,9 @@ export interface RegisterGitIpcOptions {
 	readonly ipcMain: IpcMainRegistration;
 	readonly isSenderAuthorized: (event: IpcMainInvokeEvent) => boolean;
 	readonly operationRegistry?: GitOperationRegistry;
+	readonly pickRepositoryDirectory?: (
+		owner: IpcMainInvokeEvent["sender"]
+	) => Promise<RepositoryDirectorySelection>;
 	readonly repositoryManager: RepositoryManager;
 }
 
@@ -300,8 +304,16 @@ const parseCreationInput = <TInput>(
 };
 
 const sessionHandlers = (
-	repositoryManager: RepositoryManager
+	repositoryManager: RepositoryManager,
+	pickRepositoryDirectory: (
+		owner: IpcMainInvokeEvent["sender"]
+	) => Promise<RepositoryDirectorySelection>
 ): readonly GitIpcHandlerRegistration[] => [
+	{
+		channel: GIT_IPC_CHANNELS.sessions.pickDirectory,
+		handle: async (_payload, context) =>
+			await pickRepositoryDirectory(context.owner),
+	},
 	{
 		channel: GIT_IPC_CHANNELS.sessions.state,
 		handle: () => repositoryManager.getState(),
@@ -945,9 +957,12 @@ const configHandlers = (
 ];
 
 const allHandlers = (
-	repositoryManager: RepositoryManager
+	repositoryManager: RepositoryManager,
+	pickRepositoryDirectory: (
+		owner: IpcMainInvokeEvent["sender"]
+	) => Promise<RepositoryDirectorySelection>
 ): readonly GitIpcHandlerRegistration[] => [
-	...sessionHandlers(repositoryManager),
+	...sessionHandlers(repositoryManager, pickRepositoryDirectory),
 	...operationHandlers(),
 	...repositoryHandlers(repositoryManager),
 	...changeHandlers(repositoryManager),
@@ -1037,9 +1052,11 @@ export const registerGitIpc = ({
 	ipcMain,
 	isSenderAuthorized,
 	operationRegistry = new GitOperationRegistry(),
+	pickRepositoryDirectory = () =>
+		Promise.resolve({ status: "cancelled" } as const),
 	repositoryManager,
 }: RegisterGitIpcOptions): (() => void) => {
-	const handlers = allHandlers(repositoryManager);
+	const handlers = allHandlers(repositoryManager, pickRepositoryDirectory);
 	for (const { channel, handle } of handlers) {
 		ipcMain.handle(channel, async (event, payload: unknown) => {
 			if (!isSenderAuthorized(event)) {

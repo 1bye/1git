@@ -70,6 +70,25 @@ await window.desktop.git.operations.cancel(operationId);
 await fetchResult;
 ```
 
+Repository selection uses Electron's native directory dialog in the main
+process:
+
+```ts
+const selection = await window.desktop.git.sessions.pickDirectory();
+if (selection.status === "selected") {
+	await window.desktop.git.sessions.open({ path: selection.path });
+}
+```
+
+Recent repositories are stored in
+`app.getPath("userData")/recent-repositories.json`. The versioned file contains
+only canonical local paths and last-opened timestamps. Missing or moved paths
+are pruned and can be reopened from their new location.
+
+Git authentication remains owned by Git credential helpers and SSH agents.
+HTTP remote URLs containing embedded usernames, tokens, or passwords are
+rejected; the desktop persistence file never stores remotes or credentials.
+
 Repository views can use `useRepositoryRefresh` to debounce refresh work after
 Git mutations and when the desktop window regains focus:
 

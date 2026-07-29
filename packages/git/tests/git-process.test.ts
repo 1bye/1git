@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import { chmod, writeFile } from "node:fs/promises";
 import {
 	GitCommandFailure,
 	GitProcess,
@@ -32,6 +33,32 @@ describe("GitProcess", () => {
 		});
 
 		expect(output.stdout.toString("utf8").trim()).toHaveLength(40);
+	});
+
+	test("uses configured Git credential helpers without terminal prompts", async () => {
+		const fixture = await fixtures.create();
+		const helperPath = fixture.path("credential-helper.sh");
+		await writeFile(
+			helperPath,
+			[
+				"#!/bin/sh",
+				'if [ "$1" = "get" ]; then',
+				'  echo "username=helper-user"',
+				'  echo "password=helper-secret"',
+				"fi",
+				"",
+			].join("\n")
+		);
+		await chmod(helperPath, 0o700);
+		await fixture.git(["config", "credential.helper", `!${helperPath}`]);
+
+		const credentials = await fixture.git(
+			["credential", "fill"],
+			"protocol=https\nhost=example.com\n\n"
+		);
+
+		expect(credentials).toContain("username=helper-user");
+		expect(credentials).toContain("password=helper-secret");
 	});
 
 	test("reports non-zero Git exits", async () => {

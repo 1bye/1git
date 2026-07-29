@@ -3,6 +3,7 @@ import type { GitOperation } from "./contracts.js";
 import { invalidInput } from "./result.js";
 
 const CONFIG_KEY_PATTERN = /^[A-Za-z][A-Za-z0-9-]*(?:\.[A-Za-z0-9-]+)+$/;
+const HTTP_REMOTE_PATTERN = /^https?:\/\//i;
 const NUL_PATTERN = /\0/;
 
 /** Throws a structured error when a public string is empty or contains NUL. */
@@ -29,6 +30,32 @@ export const requireRevision = (
 	requireText(value, label, operation);
 	if (value.startsWith("-")) {
 		throw invalidInput(operation, `${label} must not begin with "-".`);
+	}
+	return value;
+};
+
+/**
+ * Prevents HTTP credentials from being written to repository configuration.
+ * Authentication remains delegated to the user's Git credential helpers.
+ */
+export const requireCredentialFreeRemoteUrl = (
+	value: string,
+	operation: GitOperation
+): string => {
+	requireText(value, "Remote URL", operation);
+	if (!HTTP_REMOTE_PATTERN.test(value)) {
+		return value;
+	}
+
+	if (!URL.canParse(value)) {
+		throw invalidInput(operation, "Remote URL must be a valid HTTP URL.");
+	}
+	const remoteUrl = new URL(value);
+	if (remoteUrl.username.length > 0 || remoteUrl.password.length > 0) {
+		throw invalidInput(
+			operation,
+			"Remote URL must not contain credentials. Configure a Git credential helper instead."
+		);
 	}
 	return value;
 };

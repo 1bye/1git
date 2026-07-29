@@ -12,7 +12,7 @@ describe("Git IPC contract", () => {
 	test("defines one unique channel for every explicit method", () => {
 		const channels = allChannels();
 
-		expect(channels).toHaveLength(65);
+		expect(channels).toHaveLength(66);
 		expect(new Set(channels).size).toBe(channels.length);
 		expect(channels.every((channel) => channel.startsWith("git:"))).toBe(true);
 	});
@@ -30,6 +30,26 @@ describe("Git IPC contract", () => {
 
 		expect(events).toEqual(["git:event:repository-refresh"]);
 		expect(events.every((event) => !channels.includes(event))).toBe(true);
+	});
+
+	test("returns native repository picker results through its explicit channel", async () => {
+		const harness = new GitIpcHarness(createTestRepositoryManager(), {
+			pickRepositoryDirectory: () =>
+				Promise.resolve({
+					path: "/repositories/selected",
+					status: "selected",
+				}),
+		});
+
+		const selection = await harness.invoke(
+			GIT_IPC_CHANNELS.sessions.pickDirectory
+		);
+
+		expect(selection).toEqual({
+			path: "/repositories/selected",
+			status: "selected",
+		});
+		harness.dispose();
 	});
 
 	test("registers every declared channel", () => {

@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import { statSync } from "node:fs";
+import { isAbsolute } from "node:path";
 import {
 	type CloneRepositoryInput,
 	type GitCallOptions,
@@ -18,6 +20,7 @@ import type {
 	RepositorySessionId,
 	RepositorySessionRecord,
 } from "../../shared/repository-session.js";
+import type { RecentRepositoryStore } from "./recent-repository-store.js";
 
 const DEFAULT_MAX_RECENT_REPOSITORIES = 12;
 const MAX_SESSION_ID_ATTEMPTS = 8;
@@ -31,6 +34,9 @@ export interface RepositoryManagerOptions {
 	readonly createSessionId?: () => string;
 	readonly maxRecentRepositories?: number;
 	readonly now?: () => Date;
+	readonly onPersistenceError?: (error: Error) => void;
+	readonly recentRepositoryStore?: RecentRepositoryStore;
+	readonly repositoryPathExists?: (path: string) => boolean;
 	readonly runtime?: GitRuntimeOptions;
 }
 
@@ -82,6 +88,25 @@ const copySessionRecord = (
 	repository: { ...record.repository },
 });
 
+const repositoryDirectoryExists = (path: string): boolean => {
+	try {
+		return isAbsolute(path) && statSync(path).isDirectory();
+	} catch {
+		return false;
+	}
+};
+
+const sameRecentRepositories = (
+	first: readonly RecentRepositoryRecord[],
+	second: readonly RecentRepositoryRecord[]
+): boolean =>
+	first.length === second.length &&
+	first.every(
+		(repository, index) =>
+			repository.path === second[index]?.path &&
+			repository.lastOpenedAt === second[index]?.lastOpenedAt
+	);
+
 /**
  * Owns GitRepository instances inside Electron's main process.
  *
@@ -92,9 +117,12 @@ export class RepositoryManager {
 	private readonly createSessionId: () => string;
 	private readonly maxRecentRepositories: number;
 	private readonly now: () => Date;
+	private readonly onPersistenceError?: (error: Error) => void;
 	private openTail: Promise<void> = Promise.resolve();
-	private recentRepositories: RecentRepositoryRecord[] = [];
+	private recentRepositories: RecentRepositoryRecord[];
+	private readonly recentRepositoryStore?: RecentRepositoryStore;
 	private readonly repositoryRoots = new Map<string, RepositorySessionId>();
+	private readonly repositoryPathExists: (path: string) => boolean;
 	private readonly runtime?: GitRuntimeOptions;
 	private readonly sessions = new Map<
 		RepositorySessionId,
@@ -111,6 +139,11 @@ export class RepositoryManager {
 		this.createSessionId = options.createSessionId ?? randomUUID;
 		this.maxRecentRepositories = maxRecentRepositories;
 		this.now = options.now ?? (() => new Date());
+		this.onPersistenceError = options.onPersistenceError;
+		this.recentRepositoryStore = options.recentRepositoryStore;
+		this.repositoryPathExists =
+			options.repositoryPathExists ?? repositoryDirectoryExists;
+		this.recentRepositories = this.loadRecentRepositories();
 		this.runtime = options.runtime;
 	}
 
@@ -235,6 +268,7 @@ export class RepositoryManager {
 
 	/** Returns a serializable snapshot of manager-owned session state. */
 	getState(): RepositoryManagerState {
+		this.pruneUnavailableRecentRepositories();
 		return {
 			activeSessionId: this.activeSessionId,
 			recentRepositories: this.recentRepositories.map((repository) => ({
@@ -273,9 +307,13 @@ export class RepositoryManager {
 
 	/** Removes a canonical repository path from recent history. */
 	forgetRecentRepository(path: string): RepositoryManagerState {
-		this.recentRepositories = this.recentRepositories.filter(
+		const repositories = this.recentRepositories.filter(
 			(repository) => repository.path !== path
 		);
+		if (repositories.length !== this.recentRepositories.length) {
+			this.recentRepositories = repositories;
+			this.persistRecentRepositories();
+		}
 		return this.getState();
 	}
 
@@ -361,6 +399,17 @@ export class RepositoryManager {
 	}
 
 	private touchRecent(path: string, lastOpenedAt: string): void {
+		if (!this.repositoryPathExists(path)) {
+			const repositories = this.recentRepositories.filter(
+				(repository) => repository.path !== path
+			);
+			if (repositories.length !== this.recentRepositories.length) {
+				this.recentRepositories = repositories;
+				this.persistRecentRepositories();
+			}
+			return;
+		}
+
 		const recentRepositories: RecentRepositoryRecord[] = [
 			{ lastOpenedAt, path },
 		];
@@ -373,5 +422,78 @@ export class RepositoryManager {
 			}
 		}
 		this.recentRepositories = recentRepositories;
+		this.persistRecentRepositories();
+	}
+
+	private loadRecentRepositories(): RecentRepositoryRecord[] {
+		if (!this.recentRepositoryStore) {
+			return [];
+		}
+
+		let repositories: readonly RecentRepositoryRecord[];
+		try {
+			repositories = this.recentRepositoryStore.load();
+		} catch (error: unknown) {
+			this.reportPersistenceError(error);
+			return [];
+		}
+
+		const available = this.availableRecentRepositories(repositories);
+		if (!sameRecentRepositories(repositories, available)) {
+			this.persistRecentRepositories(available);
+		}
+		return available;
+	}
+
+	private availableRecentRepositories(
+		repositories: readonly RecentRepositoryRecord[]
+	): RecentRepositoryRecord[] {
+		const available: RecentRepositoryRecord[] = [];
+		const paths = new Set<string>();
+		for (const repository of repositories) {
+			if (available.length >= this.maxRecentRepositories) {
+				break;
+			}
+			if (
+				paths.has(repository.path) ||
+				!isAbsolute(repository.path) ||
+				!this.repositoryPathExists(repository.path)
+			) {
+				continue;
+			}
+			paths.add(repository.path);
+			available.push({ ...repository });
+		}
+		return available;
+	}
+
+	private pruneUnavailableRecentRepositories(): void {
+		const available = this.availableRecentRepositories(this.recentRepositories);
+		if (sameRecentRepositories(this.recentRepositories, available)) {
+			return;
+		}
+		this.recentRepositories = available;
+		this.persistRecentRepositories();
+	}
+
+	private persistRecentRepositories(
+		repositories: readonly RecentRepositoryRecord[] = this.recentRepositories
+	): void {
+		if (!this.recentRepositoryStore) {
+			return;
+		}
+		try {
+			this.recentRepositoryStore.save(repositories);
+		} catch (error: unknown) {
+			this.reportPersistenceError(error);
+		}
+	}
+
+	private reportPersistenceError(error: unknown): void {
+		const persistenceError =
+			error instanceof Error
+				? error
+				: new Error(`Recent repository persistence failed: ${error}`);
+		this.onPersistenceError?.(persistenceError);
 	}
 }
