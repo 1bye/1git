@@ -18,10 +18,17 @@ export interface GitIpcHarnessOptions {
 
 export class GitIpcHarness {
 	private readonly messages: SentRendererMessage[] = [];
+	private readonly rendererListeners = new Map<
+		string,
+		Set<(payload: unknown) => void>
+	>();
 	private readonly authorizedSender = {
 		isDestroyed: () => false,
 		send: (channel: string, payload: unknown) => {
 			this.messages.push({ channel, payload });
+			for (const listener of this.rendererListeners.get(channel) ?? []) {
+				listener(payload);
+			}
 		},
 	};
 	private readonly disposeRegistration: () => void;
@@ -77,6 +84,22 @@ export class GitIpcHarness {
 
 	dispose(): void {
 		this.disposeRegistration();
+		this.rendererListeners.clear();
+	}
+
+	subscribeRenderer(
+		channel: string,
+		listener: (payload: unknown) => void
+	): () => void {
+		const listeners = this.rendererListeners.get(channel) ?? new Set();
+		listeners.add(listener);
+		this.rendererListeners.set(channel, listeners);
+		return () => {
+			listeners.delete(listener);
+			if (listeners.size === 0) {
+				this.rendererListeners.delete(channel);
+			}
+		};
 	}
 
 	async runTrackedOperation<T>(
