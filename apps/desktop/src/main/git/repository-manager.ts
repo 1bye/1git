@@ -1,9 +1,13 @@
 import { randomUUID } from "node:crypto";
 import {
+	type CloneRepositoryInput,
 	type GitCallOptions,
 	type GitError,
+	type GitOperation,
 	GitRepository,
+	type GitResult,
 	type GitRuntimeOptions,
+	type InitializeRepositoryInput,
 } from "@1git/git";
 import type {
 	OpenedRepositorySession,
@@ -33,6 +37,13 @@ export interface RepositoryManagerOptions {
 export interface OpenRepositorySessionInput extends GitCallOptions {
 	readonly path: string;
 }
+
+export type InitializeRepositorySessionInput = Omit<
+	InitializeRepositoryInput,
+	"runtime"
+>;
+
+export type CloneRepositorySessionInput = Omit<CloneRepositoryInput, "runtime">;
 
 const succeed = <T>(value: T): RepositoryManagerResult<T> => ({
 	ok: true,
@@ -107,13 +118,81 @@ export class RepositoryManager {
 	async openRepository(
 		input: OpenRepositorySessionInput
 	): Promise<RepositoryManagerResult<OpenedRepositorySession>> {
+		return await this.enqueueSessionOpen(async () =>
+			this.ownRepository(
+				await GitRepository.open({
+					path: input.path,
+					runtime: this.runtime,
+					signal: input.signal,
+				}),
+				input.signal
+			)
+		);
+	}
+
+	/** Initializes a repository and retains the resulting main-process object. */
+	async initializeRepository(
+		input: InitializeRepositorySessionInput
+	): Promise<RepositoryManagerResult<OpenedRepositorySession>> {
+		return await this.enqueueSessionOpen(async () =>
+			this.ownRepository(
+				await GitRepository.initialize({
+					...input,
+					runtime: this.runtime,
+				}),
+				input.signal
+			)
+		);
+	}
+
+	/** Clones a repository and retains the resulting main-process object. */
+	async cloneRepository(
+		input: CloneRepositorySessionInput
+	): Promise<RepositoryManagerResult<OpenedRepositorySession>> {
+		return await this.enqueueSessionOpen(async () =>
+			this.ownRepository(
+				await GitRepository.clone({
+					...input,
+					runtime: this.runtime,
+				}),
+				input.signal
+			)
+		);
+	}
+
+	/**
+	 * Runs a typed main-process operation without releasing its repository object.
+	 */
+	async performRepositoryOperation<T>(
+		sessionId: RepositorySessionId,
+		operation: GitOperation,
+		task: (repository: GitRepository) => Promise<GitResult<T>>
+	): Promise<GitResult<T>> {
+		const session = this.sessions.get(sessionId);
+		if (!session) {
+			return {
+				error: {
+					code: "not-found",
+					message: `Repository session "${sessionId}" was not found.`,
+					operation,
+					retryable: false,
+				},
+				ok: false,
+			};
+		}
+		return await task(session.repository);
+	}
+
+	private async enqueueSessionOpen<T>(
+		task: () => Promise<RepositoryManagerResult<T>>
+	): Promise<RepositoryManagerResult<T>> {
 		const previousOpen = this.openTail;
 		const gate = Promise.withResolvers<void>();
 		this.openTail = gate.promise;
 		await previousOpen;
 
 		try {
-			return await this.openRepositoryNow(input);
+			return await task();
 		} finally {
 			gate.resolve();
 		}
@@ -200,14 +279,10 @@ export class RepositoryManager {
 		return this.getState();
 	}
 
-	private async openRepositoryNow(
-		input: OpenRepositorySessionInput
+	private async ownRepository(
+		opened: GitResult<GitRepository>,
+		signal?: AbortSignal
 	): Promise<RepositoryManagerResult<OpenedRepositorySession>> {
-		const opened = await GitRepository.open({
-			path: input.path,
-			runtime: this.runtime,
-			signal: input.signal,
-		});
 		if (!opened.ok) {
 			return gitFailure(opened.error);
 		}
@@ -218,7 +293,7 @@ export class RepositoryManager {
 			? this.sessions.get(existingSessionId)
 			: undefined;
 		const repository = existingSession?.repository ?? opened.value;
-		const snapshot = await repository.getSnapshot({ signal: input.signal });
+		const snapshot = await repository.getSnapshot({ signal });
 		if (!snapshot.ok) {
 			return gitFailure(snapshot.error);
 		}

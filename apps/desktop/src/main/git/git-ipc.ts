@@ -1,0 +1,935 @@
+import type {
+	AddRemoteInput,
+	CheckoutBranchInput,
+	CloneRepositoryInput,
+	CommitInput,
+	CreateBranchInput,
+	CreateTagInput,
+	CreateWorktreeInput,
+	DeleteBranchInput,
+	DeleteTagInput,
+	DiffInput,
+	DropStashInput,
+	FetchInput,
+	FileContentInput,
+	GetConfigInput,
+	GitOperation,
+	GitRepository,
+	GitResult,
+	HistoryInput,
+	InitializeRepositoryInput,
+	LockWorktreeInput,
+	MergeInput,
+	MoveWorktreeInput,
+	PruneWorktreesInput,
+	PullInput,
+	PushInput,
+	RebaseInput,
+	RemoveRemoteInput,
+	RemoveWorktreeInput,
+	RenameBranchInput,
+	RenameRemoteInput,
+	RepairWorktreesInput,
+	ResetInput,
+	RestoreInput,
+	RevertInput,
+	RevisionSequenceInput,
+	SetConfigInput,
+	SetRemoteUrlInput,
+	SetUpstreamInput,
+	SnapshotInput,
+	StageInput,
+	StashInput,
+	StashReferenceInput,
+	WorktreePathInput,
+} from "@1git/git";
+import type { IpcMain, IpcMainInvokeEvent } from "electron";
+import {
+	GIT_IPC_CHANNELS,
+	type GitSessionInputIpcRequest,
+	type GitSessionIpcRequest,
+	type GitSessionRevisionIpcRequest,
+	type IpcGitInput,
+	type IpcRepositoryCreationInput,
+	type OpenRepositoryIpcInput,
+} from "../../shared/git-ipc.js";
+import type {
+	OpenedRepositorySession,
+	RepositoryManagerResult,
+} from "../../shared/repository-session.js";
+import type { RepositoryManager } from "./repository-manager.js";
+
+const UNAUTHORIZED_IPC_MESSAGE = "Unauthorized Git IPC sender.";
+
+type IpcMainRegistration = Pick<IpcMain, "handle" | "removeHandler">;
+type GitIpcHandler = (payload: unknown) => Promise<unknown> | unknown;
+
+interface GitIpcHandlerRegistration {
+	readonly channel: string;
+	readonly handle: GitIpcHandler;
+}
+
+export interface RegisterGitIpcOptions {
+	readonly ipcMain: IpcMainRegistration;
+	readonly isSenderAuthorized: (event: IpcMainInvokeEvent) => boolean;
+	readonly repositoryManager: RepositoryManager;
+}
+
+class InvalidIpcRequest extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = "InvalidIpcRequest";
+	}
+}
+
+const requireRecord = (
+	value: unknown,
+	label: string
+): Record<string, unknown> => {
+	if (!value || typeof value !== "object" || Array.isArray(value)) {
+		throw new InvalidIpcRequest(`${label} must be an object.`);
+	}
+	return value as Record<string, unknown>;
+};
+
+const requireString = (
+	record: Readonly<Record<string, unknown>>,
+	key: string
+): string => {
+	const value = record[key];
+	if (typeof value !== "string" || value.length === 0) {
+		throw new InvalidIpcRequest(`${key} must be a non-empty string.`);
+	}
+	return value;
+};
+
+const rendererSafeInput = (
+	input: Readonly<Record<string, unknown>>
+): Record<string, unknown> => {
+	const safeInput: Record<string, unknown> = {};
+	for (const [key, value] of Object.entries(input)) {
+		if (key !== "runtime" && key !== "signal") {
+			safeInput[key] = value;
+		}
+	}
+	return safeInput;
+};
+
+const parseSessionRequest = (payload: unknown): GitSessionIpcRequest => {
+	const request = requireRecord(payload, "Git IPC request");
+	return { sessionId: requireString(request, "sessionId") };
+};
+
+const parseSessionInputRequest = <TInput>(
+	payload: unknown
+): GitSessionInputIpcRequest<TInput> => {
+	const request = requireRecord(payload, "Git IPC request");
+	const input = rendererSafeInput(
+		requireRecord(request.input, "Git IPC input")
+	);
+	return {
+		input: input as TInput,
+		sessionId: requireString(request, "sessionId"),
+	};
+};
+
+const parseRevisionRequest = (
+	payload: unknown
+): GitSessionRevisionIpcRequest => {
+	const request = requireRecord(payload, "Git IPC request");
+	return {
+		revision: requireString(request, "revision"),
+		sessionId: requireString(request, "sessionId"),
+	};
+};
+
+const invalidGitRequest = <T>(
+	operation: GitOperation,
+	error: InvalidIpcRequest
+): GitResult<T> => ({
+	error: {
+		code: "invalid-input",
+		message: error.message,
+		operation,
+		retryable: false,
+	},
+	ok: false,
+});
+
+const repositoryHandler =
+	<T>(
+		repositoryManager: RepositoryManager,
+		operation: GitOperation,
+		task: (repository: GitRepository) => Promise<GitResult<T>>
+	): GitIpcHandler =>
+	async (payload: unknown): Promise<GitResult<T>> => {
+		try {
+			const { sessionId } = parseSessionRequest(payload);
+			return await repositoryManager.performRepositoryOperation(
+				sessionId,
+				operation,
+				task
+			);
+		} catch (error: unknown) {
+			if (error instanceof InvalidIpcRequest) {
+				return invalidGitRequest(operation, error);
+			}
+			throw error;
+		}
+	};
+
+const repositoryInputHandler =
+	<TInput, T>(
+		repositoryManager: RepositoryManager,
+		operation: GitOperation,
+		task: (repository: GitRepository, input: TInput) => Promise<GitResult<T>>
+	): GitIpcHandler =>
+	async (payload: unknown): Promise<GitResult<T>> => {
+		try {
+			const { input, sessionId } = parseSessionInputRequest<TInput>(payload);
+			return await repositoryManager.performRepositoryOperation(
+				sessionId,
+				operation,
+				async (repository) => await task(repository, input)
+			);
+		} catch (error: unknown) {
+			if (error instanceof InvalidIpcRequest) {
+				return invalidGitRequest(operation, error);
+			}
+			throw error;
+		}
+	};
+
+const repositoryRevisionHandler =
+	<T>(
+		repositoryManager: RepositoryManager,
+		operation: GitOperation,
+		task: (repository: GitRepository, revision: string) => Promise<GitResult<T>>
+	): GitIpcHandler =>
+	async (payload: unknown): Promise<GitResult<T>> => {
+		try {
+			const { revision, sessionId } = parseRevisionRequest(payload);
+			return await repositoryManager.performRepositoryOperation(
+				sessionId,
+				operation,
+				async (repository) => await task(repository, revision)
+			);
+		} catch (error: unknown) {
+			if (error instanceof InvalidIpcRequest) {
+				return invalidGitRequest(operation, error);
+			}
+			throw error;
+		}
+	};
+
+const gitResultFromManager = (
+	result: RepositoryManagerResult<OpenedRepositorySession>,
+	operation: "clone-repository" | "initialize-repository" | "open-repository"
+): GitResult<OpenedRepositorySession> => {
+	if (result.ok) {
+		return result;
+	}
+	if (result.error.code === "git-error") {
+		return { error: result.error.gitError, ok: false };
+	}
+	return {
+		error: {
+			code: "command-failed",
+			message: result.error.message,
+			operation,
+			retryable: false,
+		},
+		ok: false,
+	};
+};
+
+const parseOpenInput = (payload: unknown): OpenRepositoryIpcInput => {
+	const input = requireRecord(payload, "Open repository input");
+	return { path: requireString(input, "path") };
+};
+
+const parseCreationInput = <TInput>(
+	payload: unknown,
+	requiredKeys: readonly string[]
+): TInput => {
+	const input = rendererSafeInput(
+		requireRecord(payload, "Repository creation input")
+	);
+	for (const key of requiredKeys) {
+		requireString(input, key);
+	}
+	return input as TInput;
+};
+
+const sessionHandlers = (
+	repositoryManager: RepositoryManager
+): readonly GitIpcHandlerRegistration[] => [
+	{
+		channel: GIT_IPC_CHANNELS.sessions.state,
+		handle: () => repositoryManager.getState(),
+	},
+	{
+		channel: GIT_IPC_CHANNELS.sessions.open,
+		handle: async (payload) => {
+			try {
+				const result = await repositoryManager.openRepository(
+					parseOpenInput(payload)
+				);
+				return gitResultFromManager(result, "open-repository");
+			} catch (error: unknown) {
+				if (error instanceof InvalidIpcRequest) {
+					return invalidGitRequest("open-repository", error);
+				}
+				throw error;
+			}
+		},
+	},
+	{
+		channel: GIT_IPC_CHANNELS.sessions.initialize,
+		handle: async (payload) => {
+			try {
+				const input = parseCreationInput<
+					IpcRepositoryCreationInput<InitializeRepositoryInput>
+				>(payload, ["path"]);
+				const result = await repositoryManager.initializeRepository(input);
+				return gitResultFromManager(result, "initialize-repository");
+			} catch (error: unknown) {
+				if (error instanceof InvalidIpcRequest) {
+					return invalidGitRequest("initialize-repository", error);
+				}
+				throw error;
+			}
+		},
+	},
+	{
+		channel: GIT_IPC_CHANNELS.sessions.clone,
+		handle: async (payload) => {
+			try {
+				const input = parseCreationInput<
+					IpcRepositoryCreationInput<CloneRepositoryInput>
+				>(payload, ["path", "remoteUrl"]);
+				const result = await repositoryManager.cloneRepository(input);
+				return gitResultFromManager(result, "clone-repository");
+			} catch (error: unknown) {
+				if (error instanceof InvalidIpcRequest) {
+					return invalidGitRequest("clone-repository", error);
+				}
+				throw error;
+			}
+		},
+	},
+	{
+		channel: GIT_IPC_CHANNELS.sessions.activate,
+		handle: (payload) => {
+			const { sessionId } = parseSessionRequest(payload);
+			return repositoryManager.activateSession(sessionId);
+		},
+	},
+	{
+		channel: GIT_IPC_CHANNELS.sessions.close,
+		handle: (payload) => {
+			const { sessionId } = parseSessionRequest(payload);
+			return repositoryManager.closeSession(sessionId);
+		},
+	},
+	{
+		channel: GIT_IPC_CHANNELS.sessions.forgetRecent,
+		handle: (payload) => {
+			const request = requireRecord(payload, "Forget recent input");
+			return repositoryManager.forgetRecentRepository(
+				requireString(request, "path")
+			);
+		},
+	},
+];
+
+const repositoryHandlers = (
+	repositoryManager: RepositoryManager
+): readonly GitIpcHandlerRegistration[] => [
+	{
+		channel: GIT_IPC_CHANNELS.repository.snapshot,
+		handle: repositoryInputHandler(
+			repositoryManager,
+			"get-snapshot",
+			async (repository, input: IpcGitInput<SnapshotInput>) =>
+				await repository.getSnapshot(input)
+		),
+	},
+	{
+		channel: GIT_IPC_CHANNELS.repository.history,
+		handle: repositoryInputHandler(
+			repositoryManager,
+			"get-history",
+			async (repository, input: IpcGitInput<HistoryInput>) =>
+				await repository.getHistory(input)
+		),
+	},
+	{
+		channel: GIT_IPC_CHANNELS.repository.getCommit,
+		handle: repositoryRevisionHandler(
+			repositoryManager,
+			"get-commit",
+			async (repository, revision) => await repository.getCommit(revision)
+		),
+	},
+	{
+		channel: GIT_IPC_CHANNELS.repository.diff,
+		handle: repositoryInputHandler(
+			repositoryManager,
+			"diff",
+			async (repository, input: IpcGitInput<DiffInput>) =>
+				await repository.getDiff(input)
+		),
+	},
+	{
+		channel: GIT_IPC_CHANNELS.repository.fileContent,
+		handle: repositoryInputHandler(
+			repositoryManager,
+			"file-content",
+			async (repository, input: IpcGitInput<FileContentInput>) =>
+				await repository.getFileContent(input)
+		),
+	},
+];
+
+const changeHandlers = (
+	repositoryManager: RepositoryManager
+): readonly GitIpcHandlerRegistration[] => [
+	{
+		channel: GIT_IPC_CHANNELS.changes.stage,
+		handle: repositoryInputHandler(
+			repositoryManager,
+			"stage",
+			async (repository, input: IpcGitInput<StageInput>) =>
+				await repository.stage(input)
+		),
+	},
+	{
+		channel: GIT_IPC_CHANNELS.changes.stageAll,
+		handle: repositoryHandler(
+			repositoryManager,
+			"stage-all",
+			async (repository) => await repository.stageAll()
+		),
+	},
+	{
+		channel: GIT_IPC_CHANNELS.changes.unstage,
+		handle: repositoryInputHandler(
+			repositoryManager,
+			"unstage",
+			async (repository, input: IpcGitInput<StageInput>) =>
+				await repository.unstage(input)
+		),
+	},
+	{
+		channel: GIT_IPC_CHANNELS.changes.unstageAll,
+		handle: repositoryHandler(
+			repositoryManager,
+			"unstage-all",
+			async (repository) => await repository.unstageAll()
+		),
+	},
+	{
+		channel: GIT_IPC_CHANNELS.changes.restore,
+		handle: repositoryInputHandler(
+			repositoryManager,
+			"restore",
+			async (repository, input: IpcGitInput<RestoreInput>) =>
+				await repository.restore(input)
+		),
+	},
+	{
+		channel: GIT_IPC_CHANNELS.changes.reset,
+		handle: repositoryInputHandler(
+			repositoryManager,
+			"reset",
+			async (repository, input: IpcGitInput<ResetInput>) =>
+				await repository.reset(input)
+		),
+	},
+	{
+		channel: GIT_IPC_CHANNELS.changes.commit,
+		handle: repositoryInputHandler(
+			repositoryManager,
+			"commit",
+			async (repository, input: IpcGitInput<CommitInput>) =>
+				await repository.commit(input)
+		),
+	},
+];
+
+const branchHandlers = (
+	repositoryManager: RepositoryManager
+): readonly GitIpcHandlerRegistration[] => [
+	{
+		channel: GIT_IPC_CHANNELS.branches.list,
+		handle: repositoryHandler(
+			repositoryManager,
+			"get-branches",
+			async (repository) => await repository.getBranches()
+		),
+	},
+	{
+		channel: GIT_IPC_CHANNELS.branches.create,
+		handle: repositoryInputHandler(
+			repositoryManager,
+			"create-branch",
+			async (repository, input: IpcGitInput<CreateBranchInput>) =>
+				await repository.createBranch(input)
+		),
+	},
+	{
+		channel: GIT_IPC_CHANNELS.branches.checkout,
+		handle: repositoryInputHandler(
+			repositoryManager,
+			"checkout-branch",
+			async (repository, input: IpcGitInput<CheckoutBranchInput>) =>
+				await repository.checkoutBranch(input)
+		),
+	},
+	{
+		channel: GIT_IPC_CHANNELS.branches.rename,
+		handle: repositoryInputHandler(
+			repositoryManager,
+			"rename-branch",
+			async (repository, input: IpcGitInput<RenameBranchInput>) =>
+				await repository.renameBranch(input)
+		),
+	},
+	{
+		channel: GIT_IPC_CHANNELS.branches.delete,
+		handle: repositoryInputHandler(
+			repositoryManager,
+			"delete-branch",
+			async (repository, input: IpcGitInput<DeleteBranchInput>) =>
+				await repository.deleteBranch(input)
+		),
+	},
+	{
+		channel: GIT_IPC_CHANNELS.branches.setUpstream,
+		handle: repositoryInputHandler(
+			repositoryManager,
+			"set-upstream",
+			async (repository, input: IpcGitInput<SetUpstreamInput>) =>
+				await repository.setUpstream(input)
+		),
+	},
+	{
+		channel: GIT_IPC_CHANNELS.branches.merge,
+		handle: repositoryInputHandler(
+			repositoryManager,
+			"merge",
+			async (repository, input: IpcGitInput<MergeInput>) =>
+				await repository.merge(input)
+		),
+	},
+	{
+		channel: GIT_IPC_CHANNELS.branches.abortMerge,
+		handle: repositoryHandler(
+			repositoryManager,
+			"abort-merge",
+			async (repository) => await repository.abortMerge()
+		),
+	},
+	{
+		channel: GIT_IPC_CHANNELS.branches.rebase,
+		handle: repositoryInputHandler(
+			repositoryManager,
+			"rebase",
+			async (repository, input: IpcGitInput<RebaseInput>) =>
+				await repository.rebase(input)
+		),
+	},
+	{
+		channel: GIT_IPC_CHANNELS.branches.continueRebase,
+		handle: repositoryHandler(
+			repositoryManager,
+			"continue-rebase",
+			async (repository) => await repository.continueRebase()
+		),
+	},
+	{
+		channel: GIT_IPC_CHANNELS.branches.skipRebase,
+		handle: repositoryHandler(
+			repositoryManager,
+			"skip-rebase",
+			async (repository) => await repository.skipRebase()
+		),
+	},
+	{
+		channel: GIT_IPC_CHANNELS.branches.abortRebase,
+		handle: repositoryHandler(
+			repositoryManager,
+			"abort-rebase",
+			async (repository) => await repository.abortRebase()
+		),
+	},
+];
+
+const sequenceHandlers = (
+	repositoryManager: RepositoryManager
+): readonly GitIpcHandlerRegistration[] => [
+	{
+		channel: GIT_IPC_CHANNELS.sequences.cherryPick,
+		handle: repositoryInputHandler(
+			repositoryManager,
+			"cherry-pick",
+			async (repository, input: IpcGitInput<RevisionSequenceInput>) =>
+				await repository.cherryPick(input)
+		),
+	},
+	{
+		channel: GIT_IPC_CHANNELS.sequences.continueCherryPick,
+		handle: repositoryHandler(
+			repositoryManager,
+			"continue-cherry-pick",
+			async (repository) => await repository.continueCherryPick()
+		),
+	},
+	{
+		channel: GIT_IPC_CHANNELS.sequences.abortCherryPick,
+		handle: repositoryHandler(
+			repositoryManager,
+			"abort-cherry-pick",
+			async (repository) => await repository.abortCherryPick()
+		),
+	},
+	{
+		channel: GIT_IPC_CHANNELS.sequences.revert,
+		handle: repositoryInputHandler(
+			repositoryManager,
+			"revert",
+			async (repository, input: IpcGitInput<RevertInput>) =>
+				await repository.revert(input)
+		),
+	},
+	{
+		channel: GIT_IPC_CHANNELS.sequences.continueRevert,
+		handle: repositoryHandler(
+			repositoryManager,
+			"continue-revert",
+			async (repository) => await repository.continueRevert()
+		),
+	},
+	{
+		channel: GIT_IPC_CHANNELS.sequences.abortRevert,
+		handle: repositoryHandler(
+			repositoryManager,
+			"abort-revert",
+			async (repository) => await repository.abortRevert()
+		),
+	},
+];
+
+const tagHandlers = (
+	repositoryManager: RepositoryManager
+): readonly GitIpcHandlerRegistration[] => [
+	{
+		channel: GIT_IPC_CHANNELS.tags.list,
+		handle: repositoryHandler(
+			repositoryManager,
+			"get-tags",
+			async (repository) => await repository.getTags()
+		),
+	},
+	{
+		channel: GIT_IPC_CHANNELS.tags.create,
+		handle: repositoryInputHandler(
+			repositoryManager,
+			"create-tag",
+			async (repository, input: IpcGitInput<CreateTagInput>) =>
+				await repository.createTag(input)
+		),
+	},
+	{
+		channel: GIT_IPC_CHANNELS.tags.delete,
+		handle: repositoryInputHandler(
+			repositoryManager,
+			"delete-tag",
+			async (repository, input: IpcGitInput<DeleteTagInput>) =>
+				await repository.deleteTag(input)
+		),
+	},
+];
+
+const remoteHandlers = (
+	repositoryManager: RepositoryManager
+): readonly GitIpcHandlerRegistration[] => [
+	{
+		channel: GIT_IPC_CHANNELS.remotes.list,
+		handle: repositoryHandler(
+			repositoryManager,
+			"get-remotes",
+			async (repository) => await repository.getRemotes()
+		),
+	},
+	{
+		channel: GIT_IPC_CHANNELS.remotes.add,
+		handle: repositoryInputHandler(
+			repositoryManager,
+			"add-remote",
+			async (repository, input: IpcGitInput<AddRemoteInput>) =>
+				await repository.addRemote(input)
+		),
+	},
+	{
+		channel: GIT_IPC_CHANNELS.remotes.rename,
+		handle: repositoryInputHandler(
+			repositoryManager,
+			"rename-remote",
+			async (repository, input: IpcGitInput<RenameRemoteInput>) =>
+				await repository.renameRemote(input)
+		),
+	},
+	{
+		channel: GIT_IPC_CHANNELS.remotes.setUrl,
+		handle: repositoryInputHandler(
+			repositoryManager,
+			"set-remote-url",
+			async (repository, input: IpcGitInput<SetRemoteUrlInput>) =>
+				await repository.setRemoteUrl(input)
+		),
+	},
+	{
+		channel: GIT_IPC_CHANNELS.remotes.remove,
+		handle: repositoryInputHandler(
+			repositoryManager,
+			"remove-remote",
+			async (repository, input: IpcGitInput<RemoveRemoteInput>) =>
+				await repository.removeRemote(input)
+		),
+	},
+];
+
+const syncHandlers = (
+	repositoryManager: RepositoryManager
+): readonly GitIpcHandlerRegistration[] => [
+	{
+		channel: GIT_IPC_CHANNELS.sync.fetch,
+		handle: repositoryInputHandler(
+			repositoryManager,
+			"fetch",
+			async (repository, input: IpcGitInput<FetchInput>) =>
+				await repository.fetch(input)
+		),
+	},
+	{
+		channel: GIT_IPC_CHANNELS.sync.pull,
+		handle: repositoryInputHandler(
+			repositoryManager,
+			"pull",
+			async (repository, input: IpcGitInput<PullInput>) =>
+				await repository.pull(input)
+		),
+	},
+	{
+		channel: GIT_IPC_CHANNELS.sync.push,
+		handle: repositoryInputHandler(
+			repositoryManager,
+			"push",
+			async (repository, input: IpcGitInput<PushInput>) =>
+				await repository.push(input)
+		),
+	},
+];
+
+const stashHandlers = (
+	repositoryManager: RepositoryManager
+): readonly GitIpcHandlerRegistration[] => [
+	{
+		channel: GIT_IPC_CHANNELS.stashes.list,
+		handle: repositoryHandler(
+			repositoryManager,
+			"get-stashes",
+			async (repository) => await repository.getStashes()
+		),
+	},
+	{
+		channel: GIT_IPC_CHANNELS.stashes.create,
+		handle: repositoryInputHandler(
+			repositoryManager,
+			"stash",
+			async (repository, input: IpcGitInput<StashInput>) =>
+				await repository.stash(input)
+		),
+	},
+	{
+		channel: GIT_IPC_CHANNELS.stashes.apply,
+		handle: repositoryInputHandler(
+			repositoryManager,
+			"apply-stash",
+			async (repository, input: IpcGitInput<StashReferenceInput>) =>
+				await repository.applyStash(input)
+		),
+	},
+	{
+		channel: GIT_IPC_CHANNELS.stashes.pop,
+		handle: repositoryInputHandler(
+			repositoryManager,
+			"pop-stash",
+			async (repository, input: IpcGitInput<StashReferenceInput>) =>
+				await repository.popStash(input)
+		),
+	},
+	{
+		channel: GIT_IPC_CHANNELS.stashes.drop,
+		handle: repositoryInputHandler(
+			repositoryManager,
+			"drop-stash",
+			async (repository, input: IpcGitInput<DropStashInput>) =>
+				await repository.dropStash(input)
+		),
+	},
+];
+
+const worktreeHandlers = (
+	repositoryManager: RepositoryManager
+): readonly GitIpcHandlerRegistration[] => [
+	{
+		channel: GIT_IPC_CHANNELS.worktrees.list,
+		handle: repositoryHandler(
+			repositoryManager,
+			"get-worktrees",
+			async (repository) => await repository.getWorktrees()
+		),
+	},
+	{
+		channel: GIT_IPC_CHANNELS.worktrees.create,
+		handle: repositoryInputHandler(
+			repositoryManager,
+			"create-worktree",
+			async (repository, input: IpcGitInput<CreateWorktreeInput>) =>
+				await repository.createWorktree(input)
+		),
+	},
+	{
+		channel: GIT_IPC_CHANNELS.worktrees.move,
+		handle: repositoryInputHandler(
+			repositoryManager,
+			"move-worktree",
+			async (repository, input: IpcGitInput<MoveWorktreeInput>) =>
+				await repository.moveWorktree(input)
+		),
+	},
+	{
+		channel: GIT_IPC_CHANNELS.worktrees.remove,
+		handle: repositoryInputHandler(
+			repositoryManager,
+			"remove-worktree",
+			async (repository, input: IpcGitInput<RemoveWorktreeInput>) =>
+				await repository.removeWorktree(input)
+		),
+	},
+	{
+		channel: GIT_IPC_CHANNELS.worktrees.lock,
+		handle: repositoryInputHandler(
+			repositoryManager,
+			"lock-worktree",
+			async (repository, input: IpcGitInput<LockWorktreeInput>) =>
+				await repository.lockWorktree(input)
+		),
+	},
+	{
+		channel: GIT_IPC_CHANNELS.worktrees.unlock,
+		handle: repositoryInputHandler(
+			repositoryManager,
+			"unlock-worktree",
+			async (repository, input: IpcGitInput<WorktreePathInput>) =>
+				await repository.unlockWorktree(input)
+		),
+	},
+	{
+		channel: GIT_IPC_CHANNELS.worktrees.prune,
+		handle: repositoryInputHandler(
+			repositoryManager,
+			"prune-worktrees",
+			async (repository, input: IpcGitInput<PruneWorktreesInput>) =>
+				await repository.pruneWorktrees(input)
+		),
+	},
+	{
+		channel: GIT_IPC_CHANNELS.worktrees.repair,
+		handle: repositoryInputHandler(
+			repositoryManager,
+			"repair-worktrees",
+			async (repository, input: IpcGitInput<RepairWorktreesInput>) =>
+				await repository.repairWorktrees(input)
+		),
+	},
+];
+
+const configHandlers = (
+	repositoryManager: RepositoryManager
+): readonly GitIpcHandlerRegistration[] => [
+	{
+		channel: GIT_IPC_CHANNELS.config.get,
+		handle: repositoryInputHandler(
+			repositoryManager,
+			"get-config",
+			async (repository, input: IpcGitInput<GetConfigInput>) =>
+				await repository.getConfig(input)
+		),
+	},
+	{
+		channel: GIT_IPC_CHANNELS.config.set,
+		handle: repositoryInputHandler(
+			repositoryManager,
+			"set-config",
+			async (repository, input: IpcGitInput<SetConfigInput>) =>
+				await repository.setConfig(input)
+		),
+	},
+	{
+		channel: GIT_IPC_CHANNELS.config.unset,
+		handle: repositoryInputHandler(
+			repositoryManager,
+			"unset-config",
+			async (repository, input: IpcGitInput<GetConfigInput>) =>
+				await repository.unsetConfig(input)
+		),
+	},
+];
+
+const allHandlers = (
+	repositoryManager: RepositoryManager
+): readonly GitIpcHandlerRegistration[] => [
+	...sessionHandlers(repositoryManager),
+	...repositoryHandlers(repositoryManager),
+	...changeHandlers(repositoryManager),
+	...branchHandlers(repositoryManager),
+	...sequenceHandlers(repositoryManager),
+	...tagHandlers(repositoryManager),
+	...remoteHandlers(repositoryManager),
+	...syncHandlers(repositoryManager),
+	...stashHandlers(repositoryManager),
+	...worktreeHandlers(repositoryManager),
+	...configHandlers(repositoryManager),
+];
+
+/** Registers every concrete Git method and returns an idempotent disposer. */
+export const registerGitIpc = ({
+	ipcMain,
+	isSenderAuthorized,
+	repositoryManager,
+}: RegisterGitIpcOptions): (() => void) => {
+	const handlers = allHandlers(repositoryManager);
+	for (const { channel, handle } of handlers) {
+		ipcMain.handle(channel, async (event, payload: unknown) => {
+			if (!isSenderAuthorized(event)) {
+				throw new Error(UNAUTHORIZED_IPC_MESSAGE);
+			}
+			return await handle(payload);
+		});
+	}
+
+	let disposed = false;
+	return () => {
+		if (disposed) {
+			return;
+		}
+		disposed = true;
+		for (const { channel } of handlers) {
+			ipcMain.removeHandler(channel);
+		}
+	};
+};

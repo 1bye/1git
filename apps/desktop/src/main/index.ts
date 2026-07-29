@@ -3,9 +3,11 @@ import {
 	app,
 	BrowserWindow,
 	type BrowserWindowConstructorOptions,
+	ipcMain,
 	nativeTheme,
 	shell,
 } from "electron";
+import { registerGitIpc } from "./git/git-ipc.js";
 import { RepositoryManager } from "./git/repository-manager.js";
 
 const MAIN_WINDOW_WIDTH = 1280;
@@ -15,6 +17,12 @@ const MINIMUM_WINDOW_HEIGHT = 640;
 const MACOS_TRAFFIC_LIGHT_X = 16;
 const MACOS_TRAFFIC_LIGHT_Y = 17;
 const repositoryManager = new RepositoryManager();
+let mainWindow: BrowserWindow | null = null;
+const disposeGitIpc = registerGitIpc({
+	ipcMain,
+	isSenderAuthorized: (event) => event.sender === mainWindow?.webContents,
+	repositoryManager,
+});
 
 const platformWindowOptions = (): BrowserWindowConstructorOptions => {
 	if (process.platform !== "darwin") {
@@ -75,8 +83,14 @@ const createMainWindow = async (): Promise<BrowserWindow> => {
 		},
 		width: MAIN_WINDOW_WIDTH,
 	});
+	mainWindow = window;
 
 	secureNavigation(window);
+	window.once("closed", () => {
+		if (mainWindow === window) {
+			mainWindow = null;
+		}
+	});
 	window.once("ready-to-show", () => window.show());
 	await loadRenderer(window);
 
@@ -105,6 +119,7 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
+	disposeGitIpc();
 	repositoryManager.closeAllSessions();
 });
 
