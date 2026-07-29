@@ -34,6 +34,7 @@ bun run dev
 │   └── desktop/        # Electron + Vite + React desktop app
 └── packages/
     ├── config/         # Shared TypeScript configuration
+    ├── git/            # Structured repository-control API
     └── ui/             # Tailwind theme and shadcn components
 ```
 
@@ -42,6 +43,7 @@ bun run dev
 - `bun run dev`: Start all applications in development mode
 - `bun run build`: Build all applications
 - `bun run check-types`: Check TypeScript types across all apps
+- `bun run test`: Test all packages
 - `bun run check`: Run Biome formatting and linting
 
 Run only the desktop app with:
