@@ -51,3 +51,21 @@ Run only the desktop app and build its workspace dependencies with:
 ```bash
 bun run dev --filter=@1git/desktop
 ```
+
+## Renderer Git API
+
+The sandboxed renderer uses the typed preload API at `window.desktop.git`.
+Long-running calls use operation IDs instead of sending `AbortSignal` through
+Electron IPC:
+
+```ts
+const operationId = window.desktop.git.operations.createId();
+const fetchResult = window.desktop.git.sync.fetch(
+  sessionId,
+  { remote: "origin" },
+  { operationId }
+);
+
+await window.desktop.git.operations.cancel(operationId);
+await fetchResult;
+```

@@ -1,5 +1,12 @@
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import {
+	chmod,
+	mkdir,
+	mkdtemp,
+	realpath,
+	rm,
+	writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -70,6 +77,30 @@ export class RepositoryFixtures {
 		);
 		this.roots.add(path);
 		return path;
+	}
+
+	async createBlockingGitExecutable(): Promise<string> {
+		const root = await realpath(
+			await mkdtemp(join(tmpdir(), "1git-desktop-blocking-git-"))
+		);
+		this.roots.add(root);
+		const executablePath = join(root, "blocking-git.cjs");
+		await writeFile(
+			executablePath,
+			[
+				"#!/usr/bin/env node",
+				"const timer = setInterval(() => undefined, 1000);",
+				"const stop = () => {",
+				"  clearInterval(timer);",
+				"  process.exit(143);",
+				"};",
+				'process.on("SIGINT", stop);',
+				'process.on("SIGTERM", stop);',
+				"",
+			].join("\n")
+		);
+		await chmod(executablePath, 0o755);
+		return executablePath;
 	}
 
 	async cleanup(): Promise<void> {

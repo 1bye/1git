@@ -79,6 +79,9 @@ export const GIT_IPC_CHANNELS = {
 		set: "git:config:set",
 		unset: "git:config:unset",
 	},
+	operations: {
+		cancel: "git:operations:cancel",
+	},
 	remotes: {
 		add: "git:remotes:add",
 		list: "git:remotes:list",
@@ -145,7 +148,19 @@ export type IpcRepositoryCreationInput<TInput> = Omit<
 	"runtime" | "signal"
 >;
 
+export type GitOperationId = string;
+
+export interface GitOperationOptions {
+	readonly operationId?: GitOperationId;
+}
+
+export interface GitOperationCancellationResult {
+	readonly operationId: GitOperationId;
+	readonly status: "cancelled" | "not-found";
+}
+
 export interface GitSessionIpcRequest {
+	readonly operationId?: GitOperationId;
 	readonly sessionId: RepositorySessionId;
 }
 
@@ -162,157 +177,205 @@ export interface OpenRepositoryIpcInput {
 	readonly path: string;
 }
 
+export interface GitOperationIpcRequest {
+	readonly operationId: GitOperationId;
+}
+
 export interface DesktopGitApi {
 	readonly branches: {
 		readonly abortMerge: (
-			sessionId: RepositorySessionId
+			sessionId: RepositorySessionId,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["abortMerge"]>;
 		readonly abortRebase: (
-			sessionId: RepositorySessionId
+			sessionId: RepositorySessionId,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["abortRebase"]>;
 		readonly checkout: (
 			sessionId: RepositorySessionId,
-			input: IpcGitInput<CheckoutBranchInput>
+			input: IpcGitInput<CheckoutBranchInput>,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["checkoutBranch"]>;
 		readonly continueRebase: (
-			sessionId: RepositorySessionId
+			sessionId: RepositorySessionId,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["continueRebase"]>;
 		readonly create: (
 			sessionId: RepositorySessionId,
-			input: IpcGitInput<CreateBranchInput>
+			input: IpcGitInput<CreateBranchInput>,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["createBranch"]>;
 		readonly delete: (
 			sessionId: RepositorySessionId,
-			input: IpcGitInput<DeleteBranchInput>
+			input: IpcGitInput<DeleteBranchInput>,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["deleteBranch"]>;
 		readonly list: (
-			sessionId: RepositorySessionId
+			sessionId: RepositorySessionId,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["getBranches"]>;
 		readonly merge: (
 			sessionId: RepositorySessionId,
-			input: IpcGitInput<MergeInput>
+			input: IpcGitInput<MergeInput>,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["merge"]>;
 		readonly rebase: (
 			sessionId: RepositorySessionId,
-			input: IpcGitInput<RebaseInput>
+			input: IpcGitInput<RebaseInput>,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["rebase"]>;
 		readonly rename: (
 			sessionId: RepositorySessionId,
-			input: IpcGitInput<RenameBranchInput>
+			input: IpcGitInput<RenameBranchInput>,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["renameBranch"]>;
 		readonly setUpstream: (
 			sessionId: RepositorySessionId,
-			input: IpcGitInput<SetUpstreamInput>
+			input: IpcGitInput<SetUpstreamInput>,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["setUpstream"]>;
 		readonly skipRebase: (
-			sessionId: RepositorySessionId
+			sessionId: RepositorySessionId,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["skipRebase"]>;
 	};
 	readonly changes: {
 		readonly commit: (
 			sessionId: RepositorySessionId,
-			input: IpcGitInput<CommitInput>
+			input: IpcGitInput<CommitInput>,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["commit"]>;
 		readonly reset: (
 			sessionId: RepositorySessionId,
-			input: IpcGitInput<ResetInput>
+			input: IpcGitInput<ResetInput>,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["reset"]>;
 		readonly restore: (
 			sessionId: RepositorySessionId,
-			input: IpcGitInput<RestoreInput>
+			input: IpcGitInput<RestoreInput>,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["restore"]>;
 		readonly stage: (
 			sessionId: RepositorySessionId,
-			input: IpcGitInput<StageInput>
+			input: IpcGitInput<StageInput>,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["stage"]>;
 		readonly stageAll: (
-			sessionId: RepositorySessionId
+			sessionId: RepositorySessionId,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["stageAll"]>;
 		readonly unstage: (
 			sessionId: RepositorySessionId,
-			input: IpcGitInput<StageInput>
+			input: IpcGitInput<StageInput>,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["unstage"]>;
 		readonly unstageAll: (
-			sessionId: RepositorySessionId
+			sessionId: RepositorySessionId,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["unstageAll"]>;
 	};
 	readonly config: {
 		readonly get: (
 			sessionId: RepositorySessionId,
-			input: IpcGitInput<GetConfigInput>
+			input: IpcGitInput<GetConfigInput>,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["getConfig"]>;
 		readonly set: (
 			sessionId: RepositorySessionId,
-			input: IpcGitInput<SetConfigInput>
+			input: IpcGitInput<SetConfigInput>,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["setConfig"]>;
 		readonly unset: (
 			sessionId: RepositorySessionId,
-			input: IpcGitInput<GetConfigInput>
+			input: IpcGitInput<GetConfigInput>,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["unsetConfig"]>;
+	};
+	readonly operations: {
+		readonly cancel: (
+			operationId: GitOperationId
+		) => Promise<GitOperationCancellationResult>;
+		readonly createId: () => GitOperationId;
 	};
 	readonly remotes: {
 		readonly add: (
 			sessionId: RepositorySessionId,
-			input: IpcGitInput<AddRemoteInput>
+			input: IpcGitInput<AddRemoteInput>,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["addRemote"]>;
 		readonly list: (
-			sessionId: RepositorySessionId
+			sessionId: RepositorySessionId,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["getRemotes"]>;
 		readonly remove: (
 			sessionId: RepositorySessionId,
-			input: IpcGitInput<RemoveRemoteInput>
+			input: IpcGitInput<RemoveRemoteInput>,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["removeRemote"]>;
 		readonly rename: (
 			sessionId: RepositorySessionId,
-			input: IpcGitInput<RenameRemoteInput>
+			input: IpcGitInput<RenameRemoteInput>,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["renameRemote"]>;
 		readonly setUrl: (
 			sessionId: RepositorySessionId,
-			input: IpcGitInput<SetRemoteUrlInput>
+			input: IpcGitInput<SetRemoteUrlInput>,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["setRemoteUrl"]>;
 	};
 	readonly repository: {
 		readonly diff: (
 			sessionId: RepositorySessionId,
-			input: IpcGitInput<DiffInput>
+			input: IpcGitInput<DiffInput>,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["getDiff"]>;
 		readonly fileContent: (
 			sessionId: RepositorySessionId,
-			input: IpcGitInput<FileContentInput>
+			input: IpcGitInput<FileContentInput>,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["getFileContent"]>;
 		readonly getCommit: (
 			sessionId: RepositorySessionId,
-			revision: string
+			revision: string,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["getCommit"]>;
 		readonly history: (
 			sessionId: RepositorySessionId,
-			input?: IpcGitInput<HistoryInput>
+			input?: IpcGitInput<HistoryInput>,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["getHistory"]>;
 		readonly snapshot: (
 			sessionId: RepositorySessionId,
-			input?: IpcGitInput<SnapshotInput>
+			input?: IpcGitInput<SnapshotInput>,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["getSnapshot"]>;
 	};
 	readonly sequences: {
 		readonly abortCherryPick: (
-			sessionId: RepositorySessionId
+			sessionId: RepositorySessionId,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["abortCherryPick"]>;
 		readonly abortRevert: (
-			sessionId: RepositorySessionId
+			sessionId: RepositorySessionId,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["abortRevert"]>;
 		readonly cherryPick: (
 			sessionId: RepositorySessionId,
-			input: IpcGitInput<RevisionSequenceInput>
+			input: IpcGitInput<RevisionSequenceInput>,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["cherryPick"]>;
 		readonly continueCherryPick: (
-			sessionId: RepositorySessionId
+			sessionId: RepositorySessionId,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["continueCherryPick"]>;
 		readonly continueRevert: (
-			sessionId: RepositorySessionId
+			sessionId: RepositorySessionId,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["continueRevert"]>;
 		readonly revert: (
 			sessionId: RepositorySessionId,
-			input: IpcGitInput<RevertInput>
+			input: IpcGitInput<RevertInput>,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["revert"]>;
 	};
 	readonly sessions: {
@@ -320,99 +383,121 @@ export interface DesktopGitApi {
 			sessionId: RepositorySessionId
 		) => Promise<RepositoryManagerResult<RepositoryManagerState>>;
 		readonly clone: (
-			input: IpcRepositoryCreationInput<CloneRepositoryInput>
+			input: IpcRepositoryCreationInput<CloneRepositoryInput>,
+			options?: GitOperationOptions
 		) => Promise<GitResult<OpenedRepositorySession>>;
 		readonly close: (
 			sessionId: RepositorySessionId
 		) => Promise<RepositoryManagerResult<RepositoryManagerState>>;
 		readonly forgetRecent: (path: string) => Promise<RepositoryManagerState>;
 		readonly initialize: (
-			input: IpcRepositoryCreationInput<InitializeRepositoryInput>
+			input: IpcRepositoryCreationInput<InitializeRepositoryInput>,
+			options?: GitOperationOptions
 		) => Promise<GitResult<OpenedRepositorySession>>;
 		readonly open: (
-			input: OpenRepositoryIpcInput
+			input: OpenRepositoryIpcInput,
+			options?: GitOperationOptions
 		) => Promise<GitResult<OpenedRepositorySession>>;
 		readonly state: () => Promise<RepositoryManagerState>;
 	};
 	readonly stashes: {
 		readonly apply: (
 			sessionId: RepositorySessionId,
-			input: IpcGitInput<StashReferenceInput>
+			input: IpcGitInput<StashReferenceInput>,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["applyStash"]>;
 		readonly create: (
 			sessionId: RepositorySessionId,
-			input?: IpcGitInput<StashInput>
+			input?: IpcGitInput<StashInput>,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["stash"]>;
 		readonly drop: (
 			sessionId: RepositorySessionId,
-			input: IpcGitInput<DropStashInput>
+			input: IpcGitInput<DropStashInput>,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["dropStash"]>;
 		readonly list: (
-			sessionId: RepositorySessionId
+			sessionId: RepositorySessionId,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["getStashes"]>;
 		readonly pop: (
 			sessionId: RepositorySessionId,
-			input: IpcGitInput<StashReferenceInput>
+			input: IpcGitInput<StashReferenceInput>,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["popStash"]>;
 	};
 	readonly sync: {
 		readonly fetch: (
 			sessionId: RepositorySessionId,
-			input?: IpcGitInput<FetchInput>
+			input?: IpcGitInput<FetchInput>,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["fetch"]>;
 		readonly pull: (
 			sessionId: RepositorySessionId,
-			input?: IpcGitInput<PullInput>
+			input?: IpcGitInput<PullInput>,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["pull"]>;
 		readonly push: (
 			sessionId: RepositorySessionId,
-			input?: IpcGitInput<PushInput>
+			input?: IpcGitInput<PushInput>,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["push"]>;
 	};
 	readonly tags: {
 		readonly create: (
 			sessionId: RepositorySessionId,
-			input: IpcGitInput<CreateTagInput>
+			input: IpcGitInput<CreateTagInput>,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["createTag"]>;
 		readonly delete: (
 			sessionId: RepositorySessionId,
-			input: IpcGitInput<DeleteTagInput>
+			input: IpcGitInput<DeleteTagInput>,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["deleteTag"]>;
 		readonly list: (
-			sessionId: RepositorySessionId
+			sessionId: RepositorySessionId,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["getTags"]>;
 	};
 	readonly worktrees: {
 		readonly create: (
 			sessionId: RepositorySessionId,
-			input: IpcGitInput<CreateWorktreeInput>
+			input: IpcGitInput<CreateWorktreeInput>,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["createWorktree"]>;
 		readonly list: (
-			sessionId: RepositorySessionId
+			sessionId: RepositorySessionId,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["getWorktrees"]>;
 		readonly lock: (
 			sessionId: RepositorySessionId,
-			input: IpcGitInput<LockWorktreeInput>
+			input: IpcGitInput<LockWorktreeInput>,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["lockWorktree"]>;
 		readonly move: (
 			sessionId: RepositorySessionId,
-			input: IpcGitInput<MoveWorktreeInput>
+			input: IpcGitInput<MoveWorktreeInput>,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["moveWorktree"]>;
 		readonly prune: (
 			sessionId: RepositorySessionId,
-			input?: IpcGitInput<PruneWorktreesInput>
+			input?: IpcGitInput<PruneWorktreesInput>,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["pruneWorktrees"]>;
 		readonly remove: (
 			sessionId: RepositorySessionId,
-			input: IpcGitInput<RemoveWorktreeInput>
+			input: IpcGitInput<RemoveWorktreeInput>,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["removeWorktree"]>;
 		readonly repair: (
 			sessionId: RepositorySessionId,
-			input?: IpcGitInput<RepairWorktreesInput>
+			input?: IpcGitInput<RepairWorktreesInput>,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["repairWorktrees"]>;
 		readonly unlock: (
 			sessionId: RepositorySessionId,
-			input: IpcGitInput<WorktreePathInput>
+			input: IpcGitInput<WorktreePathInput>,
+			options?: GitOperationOptions
 		) => ReturnType<GitRepository["unlockWorktree"]>;
 	};
 }

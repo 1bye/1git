@@ -8,6 +8,7 @@ import {
 	shell,
 } from "electron";
 import { registerGitIpc } from "./git/git-ipc.js";
+import { GitOperationRegistry } from "./git/git-operation-registry.js";
 import { RepositoryManager } from "./git/repository-manager.js";
 
 const MAIN_WINDOW_WIDTH = 1280;
@@ -16,11 +17,13 @@ const MINIMUM_WINDOW_WIDTH = 980;
 const MINIMUM_WINDOW_HEIGHT = 640;
 const MACOS_TRAFFIC_LIGHT_X = 16;
 const MACOS_TRAFFIC_LIGHT_Y = 17;
+const gitOperationRegistry = new GitOperationRegistry();
 const repositoryManager = new RepositoryManager();
 let mainWindow: BrowserWindow | null = null;
 const disposeGitIpc = registerGitIpc({
 	ipcMain,
 	isSenderAuthorized: (event) => event.sender === mainWindow?.webContents,
+	operationRegistry: gitOperationRegistry,
 	repositoryManager,
 });
 
@@ -83,10 +86,12 @@ const createMainWindow = async (): Promise<BrowserWindow> => {
 		},
 		width: MAIN_WINDOW_WIDTH,
 	});
+	const windowWebContents = window.webContents;
 	mainWindow = window;
 
 	secureNavigation(window);
 	window.once("closed", () => {
+		gitOperationRegistry.abortAll(windowWebContents);
 		if (mainWindow === window) {
 			mainWindow = null;
 		}

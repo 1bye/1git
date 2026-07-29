@@ -1,5 +1,7 @@
+import type { GitOperation, GitResult } from "@1git/git";
 import type { IpcMain, IpcMainInvokeEvent, WebContents } from "electron";
 import { registerGitIpc } from "../../src/main/git/git-ipc.js";
+import { GitOperationRegistry } from "../../src/main/git/git-operation-registry.js";
 import type { RepositoryManager } from "../../src/main/git/repository-manager.js";
 
 type RegisteredIpcHandler = Parameters<IpcMain["handle"]>[1];
@@ -8,6 +10,7 @@ export class GitIpcHarness {
 	private readonly authorizedSender = {};
 	private readonly disposeRegistration: () => void;
 	private readonly handlers = new Map<string, RegisteredIpcHandler>();
+	readonly operationRegistry = new GitOperationRegistry();
 	readonly repositoryManager: RepositoryManager;
 
 	constructor(repositoryManager: RepositoryManager) {
@@ -27,6 +30,7 @@ export class GitIpcHarness {
 			ipcMain,
 			isSenderAuthorized: (event) =>
 				event.sender === (this.authorizedSender as WebContents),
+			operationRegistry: this.operationRegistry,
 			repositoryManager,
 		});
 	}
@@ -49,6 +53,19 @@ export class GitIpcHarness {
 
 	dispose(): void {
 		this.disposeRegistration();
+	}
+
+	async runTrackedOperation<T>(
+		operationId: string,
+		operation: GitOperation,
+		task: (signal: AbortSignal) => Promise<GitResult<T>>
+	): Promise<GitResult<T>> {
+		return await this.operationRegistry.run({
+			operation,
+			operationId,
+			owner: this.authorizedSender,
+			task,
+		});
 	}
 
 	private async invokeWithSender<T>(

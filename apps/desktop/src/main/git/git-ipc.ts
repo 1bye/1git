@@ -46,6 +46,7 @@ import type {
 import type { IpcMain, IpcMainInvokeEvent } from "electron";
 import {
 	GIT_IPC_CHANNELS,
+	type GitOperationIpcRequest,
 	type GitSessionInputIpcRequest,
 	type GitSessionIpcRequest,
 	type GitSessionRevisionIpcRequest,
@@ -57,12 +58,22 @@ import type {
 	OpenedRepositorySession,
 	RepositoryManagerResult,
 } from "../../shared/repository-session.js";
+import { GitOperationRegistry } from "./git-operation-registry.js";
 import type { RepositoryManager } from "./repository-manager.js";
 
 const UNAUTHORIZED_IPC_MESSAGE = "Unauthorized Git IPC sender.";
 
 type IpcMainRegistration = Pick<IpcMain, "handle" | "removeHandler">;
-type GitIpcHandler = (payload: unknown) => Promise<unknown> | unknown;
+
+interface GitIpcContext {
+	readonly operationRegistry: GitOperationRegistry;
+	readonly owner: object;
+}
+
+type GitIpcHandler = (
+	payload: unknown,
+	context: GitIpcContext
+) => Promise<unknown> | unknown;
 
 interface GitIpcHandlerRegistration {
 	readonly channel: string;
@@ -72,6 +83,7 @@ interface GitIpcHandlerRegistration {
 export interface RegisterGitIpcOptions {
 	readonly ipcMain: IpcMainRegistration;
 	readonly isSenderAuthorized: (event: IpcMainInvokeEvent) => boolean;
+	readonly operationRegistry?: GitOperationRegistry;
 	readonly repositoryManager: RepositoryManager;
 }
 
@@ -108,11 +120,24 @@ const rendererSafeInput = (
 ): Record<string, unknown> => {
 	const safeInput: Record<string, unknown> = {};
 	for (const [key, value] of Object.entries(input)) {
-		if (key !== "runtime" && key !== "signal") {
+		if (key !== "operationId" && key !== "runtime" && key !== "signal") {
 			safeInput[key] = value;
 		}
 	}
 	return safeInput;
+};
+
+const parseOptionalOperationId = (payload: unknown): string | undefined => {
+	const request = requireRecord(payload, "Git IPC request");
+	if (request.operationId === undefined) {
+		return;
+	}
+	return requireString(request, "operationId");
+};
+
+const parseOperationRequest = (payload: unknown): GitOperationIpcRequest => {
+	const request = requireRecord(payload, "Cancel operation input");
+	return { operationId: requireString(request, "operationId") };
 };
 
 const parseSessionRequest = (payload: unknown): GitSessionIpcRequest => {
@@ -156,71 +181,81 @@ const invalidGitRequest = <T>(
 	ok: false,
 });
 
+const runOperation = async <T>(
+	payload: unknown,
+	context: GitIpcContext,
+	operation: GitOperation,
+	task: (signal: AbortSignal) => Promise<GitResult<T>>
+): Promise<GitResult<T>> => {
+	try {
+		return await context.operationRegistry.run({
+			operation,
+			operationId: parseOptionalOperationId(payload),
+			owner: context.owner,
+			task,
+		});
+	} catch (error: unknown) {
+		if (error instanceof InvalidIpcRequest) {
+			return invalidGitRequest(operation, error);
+		}
+		throw error;
+	}
+};
+
 const repositoryHandler =
 	<T>(
 		repositoryManager: RepositoryManager,
 		operation: GitOperation,
-		task: (repository: GitRepository) => Promise<GitResult<T>>
+		task: (
+			repository: GitRepository,
+			signal: AbortSignal
+		) => Promise<GitResult<T>>
 	): GitIpcHandler =>
-	async (payload: unknown): Promise<GitResult<T>> => {
-		try {
+	async (payload, context): Promise<GitResult<T>> =>
+		await runOperation(payload, context, operation, async (signal) => {
 			const { sessionId } = parseSessionRequest(payload);
 			return await repositoryManager.performRepositoryOperation(
 				sessionId,
 				operation,
-				task
+				async (repository) => await task(repository, signal)
 			);
-		} catch (error: unknown) {
-			if (error instanceof InvalidIpcRequest) {
-				return invalidGitRequest(operation, error);
-			}
-			throw error;
-		}
-	};
+		});
 
 const repositoryInputHandler =
-	<TInput, T>(
+	<TInput extends object, T>(
 		repositoryManager: RepositoryManager,
 		operation: GitOperation,
 		task: (repository: GitRepository, input: TInput) => Promise<GitResult<T>>
 	): GitIpcHandler =>
-	async (payload: unknown): Promise<GitResult<T>> => {
-		try {
+	async (payload, context): Promise<GitResult<T>> =>
+		await runOperation(payload, context, operation, async (signal) => {
 			const { input, sessionId } = parseSessionInputRequest<TInput>(payload);
 			return await repositoryManager.performRepositoryOperation(
 				sessionId,
 				operation,
-				async (repository) => await task(repository, input)
+				async (repository) => await task(repository, { ...input, signal })
 			);
-		} catch (error: unknown) {
-			if (error instanceof InvalidIpcRequest) {
-				return invalidGitRequest(operation, error);
-			}
-			throw error;
-		}
-	};
+		});
 
 const repositoryRevisionHandler =
 	<T>(
 		repositoryManager: RepositoryManager,
 		operation: GitOperation,
-		task: (repository: GitRepository, revision: string) => Promise<GitResult<T>>
+		task: (
+			repository: GitRepository,
+			revision: string,
+			signal: AbortSignal
+		) => Promise<GitResult<T>>
 	): GitIpcHandler =>
-	async (payload: unknown): Promise<GitResult<T>> => {
-		try {
+	async (payload, context): Promise<GitResult<T>> =>
+		await runOperation(payload, context, operation, async (signal) => {
 			const { revision, sessionId } = parseRevisionRequest(payload);
 			return await repositoryManager.performRepositoryOperation(
 				sessionId,
 				operation,
-				async (repository) => await task(repository, revision)
+				async (repository) => await task(repository, revision, signal)
 			);
-		} catch (error: unknown) {
-			if (error instanceof InvalidIpcRequest) {
-				return invalidGitRequest(operation, error);
-			}
-			throw error;
-		}
-	};
+		});
 
 const gitResultFromManager = (
 	result: RepositoryManagerResult<OpenedRepositorySession>,
@@ -270,53 +305,57 @@ const sessionHandlers = (
 	},
 	{
 		channel: GIT_IPC_CHANNELS.sessions.open,
-		handle: async (payload) => {
-			try {
-				const result = await repositoryManager.openRepository(
-					parseOpenInput(payload)
-				);
-				return gitResultFromManager(result, "open-repository");
-			} catch (error: unknown) {
-				if (error instanceof InvalidIpcRequest) {
-					return invalidGitRequest("open-repository", error);
+		handle: async (payload, context) =>
+			await runOperation(
+				payload,
+				context,
+				"open-repository",
+				async (signal) => {
+					const result = await repositoryManager.openRepository({
+						...parseOpenInput(payload),
+						signal,
+					});
+					return gitResultFromManager(result, "open-repository");
 				}
-				throw error;
-			}
-		},
+			),
 	},
 	{
 		channel: GIT_IPC_CHANNELS.sessions.initialize,
-		handle: async (payload) => {
-			try {
-				const input = parseCreationInput<
-					IpcRepositoryCreationInput<InitializeRepositoryInput>
-				>(payload, ["path"]);
-				const result = await repositoryManager.initializeRepository(input);
-				return gitResultFromManager(result, "initialize-repository");
-			} catch (error: unknown) {
-				if (error instanceof InvalidIpcRequest) {
-					return invalidGitRequest("initialize-repository", error);
+		handle: async (payload, context) =>
+			await runOperation(
+				payload,
+				context,
+				"initialize-repository",
+				async (signal) => {
+					const input = parseCreationInput<
+						IpcRepositoryCreationInput<InitializeRepositoryInput>
+					>(payload, ["path"]);
+					const result = await repositoryManager.initializeRepository({
+						...input,
+						signal,
+					});
+					return gitResultFromManager(result, "initialize-repository");
 				}
-				throw error;
-			}
-		},
+			),
 	},
 	{
 		channel: GIT_IPC_CHANNELS.sessions.clone,
-		handle: async (payload) => {
-			try {
-				const input = parseCreationInput<
-					IpcRepositoryCreationInput<CloneRepositoryInput>
-				>(payload, ["path", "remoteUrl"]);
-				const result = await repositoryManager.cloneRepository(input);
-				return gitResultFromManager(result, "clone-repository");
-			} catch (error: unknown) {
-				if (error instanceof InvalidIpcRequest) {
-					return invalidGitRequest("clone-repository", error);
+		handle: async (payload, context) =>
+			await runOperation(
+				payload,
+				context,
+				"clone-repository",
+				async (signal) => {
+					const input = parseCreationInput<
+						IpcRepositoryCreationInput<CloneRepositoryInput>
+					>(payload, ["path", "remoteUrl"]);
+					const result = await repositoryManager.cloneRepository({
+						...input,
+						signal,
+					});
+					return gitResultFromManager(result, "clone-repository");
 				}
-				throw error;
-			}
-		},
+			),
 	},
 	{
 		channel: GIT_IPC_CHANNELS.sessions.activate,
@@ -339,6 +378,16 @@ const sessionHandlers = (
 			return repositoryManager.forgetRecentRepository(
 				requireString(request, "path")
 			);
+		},
+	},
+];
+
+const operationHandlers = (): readonly GitIpcHandlerRegistration[] => [
+	{
+		channel: GIT_IPC_CHANNELS.operations.cancel,
+		handle: (payload, context) => {
+			const { operationId } = parseOperationRequest(payload);
+			return context.operationRegistry.cancel(operationId, context.owner);
 		},
 	},
 ];
@@ -369,7 +418,8 @@ const repositoryHandlers = (
 		handle: repositoryRevisionHandler(
 			repositoryManager,
 			"get-commit",
-			async (repository, revision) => await repository.getCommit(revision)
+			async (repository, revision, signal) =>
+				await repository.getCommit(revision, { signal })
 		),
 	},
 	{
@@ -409,7 +459,7 @@ const changeHandlers = (
 		handle: repositoryHandler(
 			repositoryManager,
 			"stage-all",
-			async (repository) => await repository.stageAll()
+			async (repository, signal) => await repository.stageAll({ signal })
 		),
 	},
 	{
@@ -426,7 +476,7 @@ const changeHandlers = (
 		handle: repositoryHandler(
 			repositoryManager,
 			"unstage-all",
-			async (repository) => await repository.unstageAll()
+			async (repository, signal) => await repository.unstageAll({ signal })
 		),
 	},
 	{
@@ -466,7 +516,7 @@ const branchHandlers = (
 		handle: repositoryHandler(
 			repositoryManager,
 			"get-branches",
-			async (repository) => await repository.getBranches()
+			async (repository, signal) => await repository.getBranches({ signal })
 		),
 	},
 	{
@@ -528,7 +578,7 @@ const branchHandlers = (
 		handle: repositoryHandler(
 			repositoryManager,
 			"abort-merge",
-			async (repository) => await repository.abortMerge()
+			async (repository, signal) => await repository.abortMerge({ signal })
 		),
 	},
 	{
@@ -545,7 +595,7 @@ const branchHandlers = (
 		handle: repositoryHandler(
 			repositoryManager,
 			"continue-rebase",
-			async (repository) => await repository.continueRebase()
+			async (repository, signal) => await repository.continueRebase({ signal })
 		),
 	},
 	{
@@ -553,7 +603,7 @@ const branchHandlers = (
 		handle: repositoryHandler(
 			repositoryManager,
 			"skip-rebase",
-			async (repository) => await repository.skipRebase()
+			async (repository, signal) => await repository.skipRebase({ signal })
 		),
 	},
 	{
@@ -561,7 +611,7 @@ const branchHandlers = (
 		handle: repositoryHandler(
 			repositoryManager,
 			"abort-rebase",
-			async (repository) => await repository.abortRebase()
+			async (repository, signal) => await repository.abortRebase({ signal })
 		),
 	},
 ];
@@ -583,7 +633,8 @@ const sequenceHandlers = (
 		handle: repositoryHandler(
 			repositoryManager,
 			"continue-cherry-pick",
-			async (repository) => await repository.continueCherryPick()
+			async (repository, signal) =>
+				await repository.continueCherryPick({ signal })
 		),
 	},
 	{
@@ -591,7 +642,7 @@ const sequenceHandlers = (
 		handle: repositoryHandler(
 			repositoryManager,
 			"abort-cherry-pick",
-			async (repository) => await repository.abortCherryPick()
+			async (repository, signal) => await repository.abortCherryPick({ signal })
 		),
 	},
 	{
@@ -608,7 +659,7 @@ const sequenceHandlers = (
 		handle: repositoryHandler(
 			repositoryManager,
 			"continue-revert",
-			async (repository) => await repository.continueRevert()
+			async (repository, signal) => await repository.continueRevert({ signal })
 		),
 	},
 	{
@@ -616,7 +667,7 @@ const sequenceHandlers = (
 		handle: repositoryHandler(
 			repositoryManager,
 			"abort-revert",
-			async (repository) => await repository.abortRevert()
+			async (repository, signal) => await repository.abortRevert({ signal })
 		),
 	},
 ];
@@ -629,7 +680,7 @@ const tagHandlers = (
 		handle: repositoryHandler(
 			repositoryManager,
 			"get-tags",
-			async (repository) => await repository.getTags()
+			async (repository, signal) => await repository.getTags({ signal })
 		),
 	},
 	{
@@ -660,7 +711,7 @@ const remoteHandlers = (
 		handle: repositoryHandler(
 			repositoryManager,
 			"get-remotes",
-			async (repository) => await repository.getRemotes()
+			async (repository, signal) => await repository.getRemotes({ signal })
 		),
 	},
 	{
@@ -741,7 +792,7 @@ const stashHandlers = (
 		handle: repositoryHandler(
 			repositoryManager,
 			"get-stashes",
-			async (repository) => await repository.getStashes()
+			async (repository, signal) => await repository.getStashes({ signal })
 		),
 	},
 	{
@@ -790,7 +841,7 @@ const worktreeHandlers = (
 		handle: repositoryHandler(
 			repositoryManager,
 			"get-worktrees",
-			async (repository) => await repository.getWorktrees()
+			async (repository, signal) => await repository.getWorktrees({ signal })
 		),
 	},
 	{
@@ -894,6 +945,7 @@ const allHandlers = (
 	repositoryManager: RepositoryManager
 ): readonly GitIpcHandlerRegistration[] => [
 	...sessionHandlers(repositoryManager),
+	...operationHandlers(),
 	...repositoryHandlers(repositoryManager),
 	...changeHandlers(repositoryManager),
 	...branchHandlers(repositoryManager),
@@ -910,6 +962,7 @@ const allHandlers = (
 export const registerGitIpc = ({
 	ipcMain,
 	isSenderAuthorized,
+	operationRegistry = new GitOperationRegistry(),
 	repositoryManager,
 }: RegisterGitIpcOptions): (() => void) => {
 	const handlers = allHandlers(repositoryManager);
@@ -918,7 +971,10 @@ export const registerGitIpc = ({
 			if (!isSenderAuthorized(event)) {
 				throw new Error(UNAUTHORIZED_IPC_MESSAGE);
 			}
-			return await handle(payload);
+			return await handle(payload, {
+				operationRegistry,
+				owner: event.sender,
+			});
 		});
 	}
 
@@ -928,6 +984,7 @@ export const registerGitIpc = ({
 			return;
 		}
 		disposed = true;
+		operationRegistry.abortAll();
 		for (const { channel } of handlers) {
 			ipcMain.removeHandler(channel);
 		}
