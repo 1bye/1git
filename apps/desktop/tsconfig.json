@@ -1,0 +1,10 @@
+{
+  "extends": "@1git/config/tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "strictNullChecks": true
+  },
+  "include": ["electron.vite.config.ts", "src/**/*.ts", "src/**/*.tsx"],
+  "exclude": ["node_modules", "dist"]
+}

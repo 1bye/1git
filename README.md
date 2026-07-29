@@ -31,6 +31,10 @@ bun run dev
 ```
 1git/
 ├── apps/
+│   └── desktop/        # Electron + Vite + React desktop app
+└── packages/
+    ├── config/         # Shared TypeScript configuration
+    └── ui/             # Tailwind theme and shadcn components
 ```
 
 ## Available Scripts
@@ -39,3 +43,9 @@ bun run dev
 - `bun run build`: Build all applications
 - `bun run check-types`: Check TypeScript types across all apps
 - `bun run check`: Run Biome formatting and linting
+
+Run only the desktop app with:
+
+```bash
+bun run --cwd apps/desktop dev
+```

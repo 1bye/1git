@@ -1,0 +1,33 @@
+@import "@1git/ui/globals.css";
+@source "./**/*.{ts,tsx}";
+
+html,
+body,
+#root {
+	height: 100%;
+	margin: 0;
+	background: transparent;
+}
+
+body {
+	overflow: hidden;
+	color: var(--editor-ink);
+	user-select: none;
+	background: transparent;
+}
+
+button,
+input,
+[data-desktop-interactive] {
+	app-region: no-drag;
+	-webkit-app-region: no-drag;
+}
+
+[data-desktop-drag] {
+	app-region: drag;
+	-webkit-app-region: drag;
+}
+
+::selection {
+	background: var(--editor-selection);
+}
