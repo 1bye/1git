@@ -5,6 +5,7 @@ import {
 	formatRelativeTime,
 	getFileChangeLabel,
 	getRepositoryName,
+	getWorkspaceLabel,
 	isFilePartiallyStaged,
 	isFileStaged,
 	matchesFileFilter,
@@ -70,6 +71,13 @@ describe("workspace labels", () => {
 	test("finds repository names across POSIX and Windows paths", () => {
 		expect(getRepositoryName("/Users/example/one-git/")).toBe("one-git");
 		expect(getRepositoryName("C:\\Work\\one-git\\")).toBe("one-git");
+	});
+
+	test("labels workspace tabs with repository and branch identity", () => {
+		expect(getWorkspaceLabel("/Users/example/one-git", "feature/tabs")).toBe(
+			"one-git / feature/tabs"
+		);
+		expect(getWorkspaceLabel("/Users/example/one-git", null)).toBe("one-git");
 	});
 
 	test("formats nearby timestamps for compact desktop chrome", () => {

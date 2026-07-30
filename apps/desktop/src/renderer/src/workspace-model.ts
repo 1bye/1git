@@ -39,6 +39,14 @@ export const getRepositoryName = (root: string): string => {
 	return normalizedRoot.slice(separatorIndex + 1) || normalizedRoot;
 };
 
+export const getWorkspaceLabel = (
+	root: string,
+	branch: string | null
+): string => {
+	const repositoryName = getRepositoryName(root);
+	return branch ? `${repositoryName} / ${branch}` : repositoryName;
+};
+
 export const isFileStaged = (file: FileChange): boolean =>
 	file.indexStatus !== "unmodified" &&
 	file.indexStatus !== "untracked" &&

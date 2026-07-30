@@ -20,9 +20,13 @@ export const App = (): ReactElement => {
 			data-name="App"
 		>
 			<DesktopToolbar
-				activeSession={workspace.activeSession}
+				activeSessionId={
+					workspace.activeSession ? workspace.activeSession.id : null
+				}
 				branches={workspace.branches}
 				lastFetchedAt={workspace.lastFetchedAt}
+				onActivateWorkspace={workspace.activateWorkspace}
+				onCloseWorkspace={workspace.closeWorkspace}
 				onCreateBranch={workspace.createBranch}
 				onFetch={workspace.fetchRepository}
 				onOpenRecent={workspace.openRecentRepository}
@@ -31,9 +35,14 @@ export const App = (): ReactElement => {
 				pendingAction={workspace.pendingAction}
 				recentRepositories={workspace.manager.recentRepositories}
 				snapshot={workspace.snapshot}
+				workspaces={workspace.workspaces}
 			/>
 
-			<div className="flex min-h-0 flex-1" data-name="RepositoryWorkspace">
+			<div
+				className="flex min-h-0 flex-1"
+				data-name="RepositoryWorkspace"
+				id="repository-workspace"
+			>
 				{workspace.activeSession ? (
 					<RepositorySidebar
 						history={workspace.history}

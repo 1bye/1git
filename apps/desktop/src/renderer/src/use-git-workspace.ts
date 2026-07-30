@@ -11,6 +11,7 @@ import type {
 import { useCallback, useEffect, useState } from "react";
 import type {
 	RecentRepositoryRecord,
+	RepositoryManagerResult,
 	RepositoryManagerState,
 	RepositorySessionId,
 	RepositorySessionRecord,
@@ -26,6 +27,7 @@ export type PendingWorkspaceAction =
 	| "open"
 	| "refresh"
 	| "stage"
+	| "workspace"
 	| null;
 
 const EMPTY_MANAGER_STATE: RepositoryManagerState = {
@@ -51,13 +53,33 @@ const resultValue = <T>(result: GitResult<T>): T => {
 	return result.value;
 };
 
+const managerResultValue = <T>(result: RepositoryManagerResult<T>): T => {
+	if (!result.ok) {
+		throw new Error(result.error.message);
+	}
+	return result.value;
+};
+
 const errorMessage = (error: unknown): string =>
 	error instanceof Error ? error.message : "The repository operation failed.";
 
+interface WorkspaceSummary {
+	readonly branch: string | null;
+	readonly changedFiles: number;
+}
+
+export interface WorkspaceTabState {
+	readonly branch: string | null;
+	readonly changedFiles: number | null;
+	readonly session: RepositorySessionRecord;
+}
+
 export interface GitWorkspace {
+	readonly activateWorkspace: (sessionId: RepositorySessionId) => Promise<void>;
 	readonly activeSession: RepositorySessionRecord | null;
 	readonly branches: BranchCollection | null;
 	readonly clearError: () => void;
+	readonly closeWorkspace: (sessionId: RepositorySessionId) => Promise<void>;
 	readonly commit: (summary: string, description: string) => Promise<boolean>;
 	readonly createBranch: (name: string) => Promise<boolean>;
 	readonly diff: FileDiff | null;
@@ -84,6 +106,7 @@ export interface GitWorkspace {
 	readonly switchBranch: (name: string) => Promise<void>;
 	readonly tab: RepositoryTab;
 	readonly toggleAllFiles: () => Promise<void>;
+	readonly workspaces: readonly WorkspaceTabState[];
 }
 
 const activeSessionFromManager = (
@@ -109,7 +132,37 @@ export const useGitWorkspace = (): GitWorkspace => {
 	const [isInitialLoading, setIsInitialLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const [lastFetchedAt, setLastFetchedAt] = useState<string | null>(null);
+	const [workspaceSummaries, setWorkspaceSummaries] = useState<
+		Readonly<Record<RepositorySessionId, WorkspaceSummary>>
+	>({});
 	const activeSession = activeSessionFromManager(manager);
+
+	const rememberSnapshot = useCallback(
+		(
+			sessionId: RepositorySessionId,
+			nextSnapshot: RepositorySnapshot
+		): void => {
+			setWorkspaceSummaries((current) => ({
+				...current,
+				[sessionId]: {
+					branch: nextSnapshot.head.branch,
+					changedFiles: nextSnapshot.files.length,
+				},
+			}));
+		},
+		[]
+	);
+
+	const applySnapshot = useCallback(
+		(
+			sessionId: RepositorySessionId,
+			nextSnapshot: RepositorySnapshot
+		): void => {
+			setSnapshot(nextSnapshot);
+			rememberSnapshot(sessionId, nextSnapshot);
+		},
+		[rememberSnapshot]
+	);
 
 	const loadFileDiff = useCallback(
 		async (sessionId: RepositorySessionId, file: FileChange): Promise<void> => {
@@ -151,7 +204,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 			const nextSnapshot = resultValue(snapshotResult);
 			const nextBranches = resultValue(branchResult);
 			const nextHistory = resultValue(historyResult);
-			setSnapshot(nextSnapshot);
+			applySnapshot(session.id, nextSnapshot);
 			setBranches(nextBranches);
 			setHistory(nextHistory);
 
@@ -180,7 +233,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 				setDiff(null);
 			}
 		},
-		[loadCommitDiff, loadFileDiff, tab]
+		[applySnapshot, loadCommitDiff, loadFileDiff, tab]
 	);
 
 	const refreshManager =
@@ -269,7 +322,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 			const session =
 				nextManager.sessions.find((item) => item.id === opened.session.id) ??
 				opened.session;
-			setSnapshot(opened.snapshot);
+			applySnapshot(session.id, opened.snapshot);
 			setTabState("changes");
 			setSelectedCommitOid(null);
 			await loadSession(session);
@@ -290,6 +343,80 @@ export const useGitWorkspace = (): GitWorkspace => {
 
 	const openRecentRepository = async (path: string): Promise<void> => {
 		await openRepository(path);
+	};
+
+	const activateWorkspace = async (
+		sessionId: RepositorySessionId
+	): Promise<void> => {
+		if (manager.activeSessionId === sessionId || pendingAction) {
+			return;
+		}
+
+		setPendingAction("workspace");
+		try {
+			setError(null);
+			if (activeSession && snapshot) {
+				rememberSnapshot(activeSession.id, snapshot);
+			}
+			const nextManager = managerResultValue(
+				await window.desktop.git.sessions.activate(sessionId)
+			);
+			setManager(nextManager);
+			const session = nextManager.sessions.find(
+				(item) => item.id === sessionId
+			);
+			if (!session) {
+				throw new Error("The selected repository session is unavailable.");
+			}
+			await loadSession(session);
+		} catch (cause) {
+			setError(errorMessage(cause));
+		} finally {
+			setPendingAction(null);
+		}
+	};
+
+	const closeWorkspace = async (
+		sessionId: RepositorySessionId
+	): Promise<void> => {
+		if (pendingAction) {
+			return;
+		}
+
+		setPendingAction("workspace");
+		try {
+			setError(null);
+			const wasActive = manager.activeSessionId === sessionId;
+			const nextManager = managerResultValue(
+				await window.desktop.git.sessions.close(sessionId)
+			);
+			setManager(nextManager);
+			setWorkspaceSummaries((current) => {
+				const { [sessionId]: _closedSummary, ...remaining } = current;
+				return remaining;
+			});
+
+			if (!wasActive) {
+				return;
+			}
+
+			const nextSession = activeSessionFromManager(nextManager);
+			if (nextSession) {
+				await loadSession(nextSession);
+				return;
+			}
+
+			setSnapshot(null);
+			setBranches(null);
+			setHistory(null);
+			setDiff(null);
+			setSelectedFilePath(null);
+			setSelectedCommitOid(null);
+		} catch (cause) {
+			setError(errorMessage(cause));
+		} finally {
+			setPendingAction(null);
+		}
 	};
 
 	const selectFile = async (file: FileChange): Promise<void> => {
@@ -374,7 +501,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 						paths: [file.path],
 					});
 			const nextSnapshot = resultValue(result);
-			setSnapshot(nextSnapshot);
+			applySnapshot(activeSession.id, nextSnapshot);
 			const nextFile = nextSnapshot.files.find(
 				(item) => item.path === file.path
 			);
@@ -404,7 +531,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 				? await window.desktop.git.changes.unstageAll(activeSession.id)
 				: await window.desktop.git.changes.stageAll(activeSession.id);
 			const nextSnapshot = resultValue(result);
-			setSnapshot(nextSnapshot);
+			applySnapshot(activeSession.id, nextSnapshot);
 			const nextFile =
 				nextSnapshot.files.find((item) => item.path === selectedFilePath) ??
 				nextSnapshot.files[0];
@@ -436,7 +563,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 				summary: summary.trim(),
 			});
 			const value = resultValue(result);
-			setSnapshot(value.snapshot);
+			applySnapshot(activeSession.id, value.snapshot);
 			setHistory(
 				await window.desktop.git.repository
 					.history(activeSession.id, { limit: HISTORY_LIMIT })
@@ -466,7 +593,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 			);
 			const value = resultValue(result);
 			setBranches(value.branches);
-			setSnapshot(value.snapshot);
+			applySnapshot(activeSession.id, value.snapshot);
 			await loadSession(activeSession, value.snapshot.files[0]?.path);
 		} catch (cause) {
 			setError(errorMessage(cause));
@@ -491,7 +618,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 			);
 			const value = resultValue(result);
 			setBranches(value.branches);
-			setSnapshot(value.snapshot);
+			applySnapshot(activeSession.id, value.snapshot);
 			await loadSession(activeSession, value.snapshot.files[0]?.path);
 			return true;
 		} catch (cause) {
@@ -512,7 +639,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 			const result = await window.desktop.git.sync.fetch(activeSession.id, {
 				prune: true,
 			});
-			setSnapshot(resultValue(result).snapshot);
+			applySnapshot(activeSession.id, resultValue(result).snapshot);
 			setLastFetchedAt(new Date().toISOString());
 			await loadSession(activeSession, selectedFilePath, selectedCommitOid);
 		} catch (cause) {
@@ -522,10 +649,27 @@ export const useGitWorkspace = (): GitWorkspace => {
 		}
 	};
 
+	const workspaces = manager.sessions.map((session): WorkspaceTabState => {
+		const summary =
+			session.id === activeSession?.id && snapshot
+				? {
+						branch: snapshot.head.branch,
+						changedFiles: snapshot.files.length,
+					}
+				: workspaceSummaries[session.id];
+		return {
+			branch: summary?.branch ?? null,
+			changedFiles: summary?.changedFiles ?? null,
+			session,
+		};
+	});
+
 	return {
+		activateWorkspace,
 		activeSession,
 		branches,
 		clearError: () => setError(null),
+		closeWorkspace,
 		commit: createCommit,
 		createBranch,
 		diff,
@@ -549,6 +693,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 		switchBranch,
 		tab,
 		toggleAllFiles,
+		workspaces,
 	};
 };
 
