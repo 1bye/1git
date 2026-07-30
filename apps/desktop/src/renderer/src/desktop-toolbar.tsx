@@ -21,6 +21,7 @@ import type {
 	WorkspaceTabState,
 } from "./use-git-workspace.js";
 import { WorkspaceActionsMenu } from "./workspace-actions-menu.js";
+import { WorkspaceLiquidSurface } from "./workspace-liquid-surface.js";
 import {
 	WORKSPACE_TAB_SURFACE_GEOMETRY,
 	WorkspaceTab,
@@ -76,7 +77,7 @@ const WORKSPACE_TAB_LIST_STYLE: CSSProperties = {
 	height:
 		WORKSPACE_TAB_SURFACE_GEOMETRY.toolbarHeight +
 		WORKSPACE_TAB_SURFACE_GEOMETRY.containerOverlap,
-	paddingInline: WORKSPACE_TAB_SURFACE_GEOMETRY.shoulderWidth,
+	paddingInline: WORKSPACE_TAB_SURFACE_GEOMETRY.tabContentInset,
 	paddingTop:
 		WORKSPACE_TAB_SURFACE_GEOMETRY.toolbarHeight -
 		WORKSPACE_TAB_SURFACE_GEOMETRY.tabHeight,
@@ -179,6 +180,10 @@ export const DesktopToolbar = ({
 				data-desktop-drag
 				data-name="WorkspaceTitlebar"
 			>
+				<WorkspaceLiquidSurface
+					activeSessionId={activeSessionId}
+					isDragging={Boolean(draggingSessionId)}
+				/>
 				<RepositoryMenu
 					activeSessionId={activeSessionId}
 					isOpen={isRepositoryMenuOpen}
