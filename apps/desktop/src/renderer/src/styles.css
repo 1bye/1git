@@ -3,6 +3,10 @@
 
 :root {
 	--desktop-titlebar-controls-width: 5rem;
+	--workspace-surface-gap: 4px;
+	--workspace-surface-inset: 6px;
+	--workspace-surface-radius: 14px;
+	--workspace-tab-bridge-height: calc(var(--workspace-surface-gap) + 1px);
 }
 
 html,
@@ -81,6 +85,51 @@ button {
 
 [data-name="DesktopToolbar"] {
 	border-bottom-width: 0;
+}
+
+[data-name="RepositoryWorkspace"] {
+	margin: var(--workspace-surface-gap) var(--workspace-surface-inset)
+		var(--workspace-surface-inset);
+	border-radius: var(--workspace-surface-radius);
+	box-shadow: 0 1px 2px rgb(0 0 0 / 0.03);
+}
+
+[data-name="WorkspaceTabList"] {
+	scrollbar-width: none;
+}
+
+[data-name="WorkspaceTabList"]::-webkit-scrollbar {
+	display: none;
+}
+
+[data-name="WorkspaceTab"] {
+	transform-origin: center bottom;
+}
+
+[data-name="WorkspaceTab"][data-active="true"] {
+	z-index: 2;
+	background: var(--editor-surface);
+	border-color: var(--editor-hairline-strong);
+	box-shadow: 0 -1px 2px rgb(0 0 0 / 0.025);
+}
+
+[data-name="WorkspaceTab"][data-dragging="true"] {
+	z-index: 20;
+	cursor: grabbing;
+	box-shadow: var(--shadow-5);
+	opacity: 0.94;
+}
+
+[data-name="WorkspaceTabBridge"] {
+	position: absolute;
+	top: 100%;
+	right: -1px;
+	left: -1px;
+	height: var(--workspace-tab-bridge-height);
+	pointer-events: none;
+	background: var(--editor-surface);
+	border-right: 1px solid var(--editor-hairline-strong);
+	border-left: 1px solid var(--editor-hairline-strong);
 }
 
 [data-name="WorkspaceContent"],

@@ -30,6 +30,7 @@ export const App = (): ReactElement => {
 				onFetch={workspace.fetchRepository}
 				onOpenRecent={workspace.openRecentRepository}
 				onPickRepository={workspace.pickRepository}
+				onReorderWorkspace={workspace.reorderWorkspace}
 				onSwitchBranch={workspace.switchBranch}
 				pendingAction={workspace.pendingAction}
 				recentRepositories={workspace.manager.recentRepositories}
@@ -38,7 +39,7 @@ export const App = (): ReactElement => {
 			/>
 
 			<div
-				className="m-1.5 mt-1 flex min-h-0 flex-1 overflow-hidden rounded-xl border border-editor-hairline-strong bg-editor-surface shadow-[0_1px_2px_rgb(0_0_0/0.03)]"
+				className="flex min-h-0 flex-1 overflow-hidden border border-editor-hairline-strong bg-editor-surface"
 				data-name="RepositoryWorkspace"
 				id="repository-workspace"
 			>

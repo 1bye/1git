@@ -17,6 +17,10 @@ import type {
 } from "../../shared/repository-session.js";
 import { useRepositoryRefresh } from "./use-repository-refresh.js";
 import { isFileStaged } from "./workspace-model.js";
+import {
+	moveWorkspaceInOrder,
+	reconcileWorkspaceOrder,
+} from "./workspace-order.js";
 
 export type RepositoryTab = "changes" | "history";
 export type PendingWorkspaceAction =
@@ -91,6 +95,10 @@ export interface GitWorkspace {
 	readonly pendingAction: PendingWorkspaceAction;
 	readonly pickRepository: () => Promise<void>;
 	readonly refresh: () => Promise<void>;
+	readonly reorderWorkspace: (
+		activeSessionId: RepositorySessionId,
+		overSessionId: RepositorySessionId
+	) => void;
 	readonly selectCommit: (commit: CommitInfo) => Promise<void>;
 	readonly selectedCommitOid: string | null;
 	readonly selectedFilePath: string | null;
@@ -116,6 +124,9 @@ const activeSessionFromManager = (
 export const useGitWorkspace = (): GitWorkspace => {
 	const [manager, setManager] =
 		useState<RepositoryManagerState>(EMPTY_MANAGER_STATE);
+	const [workspaceOrder, setWorkspaceOrder] = useState<
+		readonly RepositorySessionId[]
+	>([]);
 	const [snapshot, setSnapshot] = useState<RepositorySnapshot | null>(null);
 	const [branches, setBranches] = useState<BranchCollection | null>(null);
 	const [history, setHistory] = useState<CommitPage | null>(null);
@@ -134,6 +145,15 @@ export const useGitWorkspace = (): GitWorkspace => {
 		Readonly<Record<RepositorySessionId, WorkspaceSummary>>
 	>({});
 	const activeSession = activeSessionFromManager(manager);
+	const applyManagerState = useCallback(
+		(nextManager: RepositoryManagerState): void => {
+			setManager(nextManager);
+			setWorkspaceOrder((currentOrder) =>
+				reconcileWorkspaceOrder(currentOrder, nextManager.sessions)
+			);
+		},
+		[]
+	);
 
 	const rememberSnapshot = useCallback(
 		(
@@ -237,9 +257,9 @@ export const useGitWorkspace = (): GitWorkspace => {
 	const refreshManager =
 		useCallback(async (): Promise<RepositoryManagerState> => {
 			const nextManager = await window.desktop.git.sessions.state();
-			setManager(nextManager);
+			applyManagerState(nextManager);
 			return nextManager;
-		}, []);
+		}, [applyManagerState]);
 
 	const refresh = useCallback(async (): Promise<void> => {
 		const session = activeSessionFromManager(manager);
@@ -273,7 +293,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 				if (isDisposed) {
 					return;
 				}
-				setManager(nextManager);
+				applyManagerState(nextManager);
 				const session = activeSessionFromManager(nextManager);
 				if (session) {
 					await loadSession(session);
@@ -298,7 +318,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 		return () => {
 			isDisposed = true;
 		};
-	}, [loadSession]);
+	}, [applyManagerState, loadSession]);
 
 	useRepositoryRefresh(activeSession?.id ?? null, () => {
 		refresh().catch((cause: unknown) => {
@@ -359,7 +379,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 			const nextManager = managerResultValue(
 				await window.desktop.git.sessions.activate(sessionId)
 			);
-			setManager(nextManager);
+			applyManagerState(nextManager);
 			const session = nextManager.sessions.find(
 				(item) => item.id === sessionId
 			);
@@ -388,7 +408,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 			const nextManager = managerResultValue(
 				await window.desktop.git.sessions.close(sessionId)
 			);
-			setManager(nextManager);
+			applyManagerState(nextManager);
 			setWorkspaceSummaries((current) => {
 				const { [sessionId]: _closedSummary, ...remaining } = current;
 				return remaining;
@@ -647,7 +667,27 @@ export const useGitWorkspace = (): GitWorkspace => {
 		}
 	};
 
-	const workspaces = manager.sessions.map((session): WorkspaceTabState => {
+	const reorderWorkspace = (
+		activeSessionId: RepositorySessionId,
+		overSessionId: RepositorySessionId
+	): void => {
+		setWorkspaceOrder((currentOrder) =>
+			moveWorkspaceInOrder(currentOrder, activeSessionId, overSessionId)
+		);
+	};
+	const sessionsById = new Map(
+		manager.sessions.map((session) => [session.id, session])
+	);
+	const orderedWorkspaceIds = reconcileWorkspaceOrder(
+		workspaceOrder,
+		manager.sessions
+	);
+	const workspaces: WorkspaceTabState[] = [];
+	for (const sessionId of orderedWorkspaceIds) {
+		const session = sessionsById.get(sessionId);
+		if (!session) {
+			continue;
+		}
 		const summary =
 			session.id === activeSession?.id && snapshot
 				? {
@@ -655,12 +695,12 @@ export const useGitWorkspace = (): GitWorkspace => {
 						changedFiles: snapshot.files.length,
 					}
 				: workspaceSummaries[session.id];
-		return {
+		workspaces.push({
 			branch: summary?.branch ?? null,
 			changedFiles: summary?.changedFiles ?? null,
 			session,
-		};
-	});
+		});
+	}
 
 	return {
 		activateWorkspace,
@@ -681,6 +721,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 		pendingAction,
 		pickRepository,
 		refresh,
+		reorderWorkspace,
 		selectCommit,
 		selectedCommitOid,
 		selectedFilePath,

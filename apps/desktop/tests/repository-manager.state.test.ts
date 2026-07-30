@@ -12,7 +12,7 @@ afterEach(async () => {
 });
 
 describe("RepositoryManager state", () => {
-	test("activates an existing session and moves it to the front", async () => {
+	test("activates an existing session without changing its order", async () => {
 		const firstFixture = await fixtures.create();
 		const secondFixture = await fixtures.create();
 		const manager = createTestRepositoryManager();
@@ -29,13 +29,13 @@ describe("RepositoryManager state", () => {
 
 		expect(state.activeSessionId).toBe(first.session.id);
 		expect(state.sessions.map((session) => session.id)).toEqual([
-			first.session.id,
 			second.session.id,
+			first.session.id,
 		]);
 		expect(
 			state.recentRepositories.map((repository) => repository.path)
 		).toEqual([firstFixture.repositoryPath, secondFixture.repositoryPath]);
-		expect(state.sessions[0]?.lastActivatedAt).toBe("2026-01-01T00:00:02.000Z");
+		expect(state.sessions[1]?.lastActivatedAt).toBe("2026-01-01T00:00:02.000Z");
 	});
 
 	test("returns a structured error for an unknown activation", () => {
@@ -115,11 +115,12 @@ describe("RepositoryManager state", () => {
 		const third = unwrapManagerResult(
 			await manager.openRepository({ path: thirdFixture.repositoryPath })
 		);
+		unwrapManagerResult(manager.activateSession(second.session.id));
 		unwrapManagerResult(manager.activateSession(first.session.id));
 
 		const state = unwrapManagerResult(manager.closeSession(first.session.id));
 
-		expect(state.activeSessionId).toBe(third.session.id);
+		expect(state.activeSessionId).toBe(second.session.id);
 		expect(state.sessions.map((session) => session.id)).toEqual([
 			third.session.id,
 			second.session.id,

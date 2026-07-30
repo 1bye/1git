@@ -292,7 +292,7 @@ export class RepositoryManager {
 		this.sessions.delete(sessionId);
 		this.repositoryRoots.delete(session.record.repository.root);
 		if (this.activeSessionId === sessionId) {
-			this.activeSessionId = [...this.sessions.keys()].at(-1) ?? null;
+			this.activeSessionId = this.mostRecentlyActivatedSessionId();
 		}
 		return succeed(this.getState());
 	}
@@ -386,6 +386,20 @@ export class RepositoryManager {
 		return this.now().toISOString();
 	}
 
+	private mostRecentlyActivatedSessionId(): RepositorySessionId | null {
+		let mostRecentSession: ManagedRepositorySession | null = null;
+		for (const session of this.sessions.values()) {
+			if (
+				!mostRecentSession ||
+				session.record.lastActivatedAt >=
+					mostRecentSession.record.lastActivatedAt
+			) {
+				mostRecentSession = session;
+			}
+		}
+		return mostRecentSession?.record.id ?? null;
+	}
+
 	private touchSession(
 		session: ManagedRepositorySession,
 		activatedAt: string
@@ -394,8 +408,6 @@ export class RepositoryManager {
 			...session.record,
 			lastActivatedAt: activatedAt,
 		};
-		this.sessions.delete(session.record.id);
-		this.sessions.set(session.record.id, session);
 	}
 
 	private touchRecent(path: string, lastOpenedAt: string): void {
