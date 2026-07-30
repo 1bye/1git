@@ -79,6 +79,10 @@ button {
 	background: transparent;
 }
 
+[data-name="DesktopToolbar"] {
+	border-bottom-width: 0;
+}
+
 [data-name="WorkspaceContent"],
 [data-name="RepositoryWelcome"],
 [data-name="WorkspaceLoading"] {
