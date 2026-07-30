@@ -107,10 +107,14 @@ button {
     z-index: 2;
 }
 
-[data-name="WorkspaceTab"][data-dragging="true"] {
+[data-name="WorkspaceTab"][data-dragging="true"]:not([data-overlay="true"]) {
+    opacity: 0;
+}
+
+[data-name="WorkspaceTab"][data-overlay="true"] {
     z-index: 20;
     cursor: grabbing;
-    opacity: 0.94;
+    opacity: 0.98;
 }
 
 [data-name="WorkspaceTabSurface"] {
@@ -123,7 +127,8 @@ button {
     filter: drop-shadow(0 -1px 1px rgb(0 0 0 / 0.025));
 }
 
-[data-name="WorkspaceTab"][data-dragging="true"] [data-name="WorkspaceTabSurface"] {
+[data-name="WorkspaceTab"][data-overlay="true"] [data-name="WorkspaceTabSurface"] {
+    animation: none;
     filter: drop-shadow(0 4px 8px rgb(0 0 0 / 0.12));
 }
 

@@ -1,20 +1,14 @@
 import type { BranchCollection, RepositorySnapshot } from "@1git/git";
+import { PointerActivationConstraints } from "@dnd-kit/dom";
+import { move } from "@dnd-kit/helpers";
 import {
-	closestCenter,
-	DndContext,
+	DragDropProvider,
 	type DragEndEvent,
+	DragOverlay,
 	type DragStartEvent,
 	KeyboardSensor,
 	PointerSensor,
-	useSensor,
-	useSensors,
-} from "@dnd-kit/core";
-import { restrictToHorizontalAxis } from "@dnd-kit/modifiers";
-import {
-	horizontalListSortingStrategy,
-	SortableContext,
-	sortableKeyboardCoordinates,
-} from "@dnd-kit/sortable";
+} from "@dnd-kit/react";
 import type { CSSProperties, ReactElement } from "react";
 import { useEffect, useState } from "react";
 import type {
@@ -30,6 +24,7 @@ import { WorkspaceActionsMenu } from "./workspace-actions-menu.js";
 import {
 	WORKSPACE_TAB_SURFACE_GEOMETRY,
 	WorkspaceTab,
+	WorkspaceTabOverlay,
 } from "./workspace-tab.js";
 
 export interface DesktopToolbarProps {
@@ -57,7 +52,23 @@ export interface DesktopToolbarProps {
 const WORKSPACE_MENU_WIDTH = 310;
 const WINDOW_EDGE_GAP = 12;
 const TAB_POINTER_ACTIVATION_DISTANCE = 5;
-const TAB_DRAG_MODIFIERS = [restrictToHorizontalAxis];
+const TAB_DRAG_SENSORS = [
+	PointerSensor.configure({
+		activationConstraints: [
+			new PointerActivationConstraints.Distance({
+				value: TAB_POINTER_ACTIVATION_DISTANCE,
+			}),
+		],
+	}),
+	KeyboardSensor,
+];
+const TAB_DROP_ANIMATION = {
+	duration: 240,
+	easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+} as const;
+const TAB_OVERLAY_STYLE: CSSProperties = {
+	pointerEvents: "none",
+};
 const DESKTOP_TOOLBAR_STYLE: CSSProperties = {
 	height: WORKSPACE_TAB_SURFACE_GEOMETRY.toolbarHeight,
 };
@@ -93,14 +104,6 @@ export const DesktopToolbar = ({
 	);
 	const [draggingSessionId, setDraggingSessionId] =
 		useState<RepositorySessionId | null>(null);
-	const sensors = useSensors(
-		useSensor(PointerSensor, {
-			activationConstraint: { distance: TAB_POINTER_ACTIVATION_DISTANCE },
-		}),
-		useSensor(KeyboardSensor, {
-			coordinateGetter: sortableKeyboardCoordinates,
-		})
-	);
 	const currentBranch = snapshot?.head.branch ?? "";
 	const workspaceIds = workspaces.map((workspace) => workspace.session.id);
 
@@ -138,19 +141,32 @@ export const DesktopToolbar = ({
 		);
 	};
 	const closeWorkspaceMenu = (): void => setWorkspaceMenuLeft(null);
-	const startWorkspaceDrag = (event: DragStartEvent): void => {
+	const startWorkspaceDrag = ({ operation }: DragStartEvent): void => {
 		setIsRepositoryMenuOpen(false);
 		setWorkspaceMenuLeft(null);
-		setDraggingSessionId(String(event.active.id));
+		setDraggingSessionId(operation.source ? String(operation.source.id) : null);
 	};
-	const finishWorkspaceDrag = ({ active, over }: DragEndEvent): void => {
+	const finishWorkspaceDrag = (event: DragEndEvent): void => {
 		setDraggingSessionId(null);
-		if (!over || active.id === over.id) {
+		const { source } = event.operation;
+		if (event.canceled || !source) {
 			return;
 		}
-		onReorderWorkspace(String(active.id), String(over.id));
+		const sourceSessionId = String(source.id);
+		const initialIndex = workspaceIds.indexOf(sourceSessionId);
+		const reorderedWorkspaceIds = move([...workspaceIds], event);
+		const nextIndex = reorderedWorkspaceIds.indexOf(sourceSessionId);
+		const overSessionId = workspaceIds[nextIndex];
+		if (
+			initialIndex === nextIndex ||
+			initialIndex < 0 ||
+			nextIndex < 0 ||
+			!overSessionId
+		) {
+			return;
+		}
+		onReorderWorkspace(sourceSessionId, overSessionId);
 	};
-	const cancelWorkspaceDrag = (): void => setDraggingSessionId(null);
 
 	return (
 		<header
@@ -174,45 +190,58 @@ export const DesktopToolbar = ({
 					recentRepositories={recentRepositories}
 					workspaces={workspaces}
 				/>
-				<DndContext
-					collisionDetection={closestCenter}
-					modifiers={TAB_DRAG_MODIFIERS}
-					onDragCancel={cancelWorkspaceDrag}
+				<DragDropProvider
 					onDragEnd={finishWorkspaceDrag}
 					onDragStart={startWorkspaceDrag}
-					sensors={sensors}
+					sensors={TAB_DRAG_SENSORS}
 				>
-					<SortableContext
-						items={workspaceIds}
-						strategy={horizontalListSortingStrategy}
+					<div
+						aria-label="Open repository workspaces"
+						className="flex min-w-0 flex-1 items-start gap-1 overflow-x-auto overflow-y-hidden"
+						data-dragging={draggingSessionId ? "true" : undefined}
+						data-name="WorkspaceTabList"
+						role="tablist"
+						style={WORKSPACE_TAB_LIST_STYLE}
 					>
-						<div
-							aria-label="Open repository workspaces"
-							className="flex min-w-0 flex-1 items-start gap-1 overflow-x-auto overflow-y-hidden"
-							data-dragging={draggingSessionId ? "true" : undefined}
-							data-name="WorkspaceTabList"
-							role="tablist"
-							style={WORKSPACE_TAB_LIST_STYLE}
-						>
-							{workspaces.map((workspace) => (
-								<WorkspaceTab
+						{workspaces.map((workspace, index) => (
+							<WorkspaceTab
+								index={index}
+								isActive={workspace.session.id === activeSessionId}
+								isBusy={pendingAction === "workspace"}
+								key={workspace.session.id}
+								onActivate={onActivateWorkspace}
+								onClose={onCloseWorkspace}
+								onOpenActions={openWorkspaceMenu}
+								workspace={workspace}
+							/>
+						))}
+						{workspaces.length === 0 ? (
+							<span className="px-2 pt-2 text-editor-faint text-xss">
+								Open a repository to begin
+							</span>
+						) : null}
+					</div>
+					<DragOverlay
+						dropAnimation={TAB_DROP_ANIMATION}
+						style={TAB_OVERLAY_STYLE}
+					>
+						{(source) => {
+							const workspace = workspaces.find(
+								(candidate) => candidate.session.id === String(source.id)
+							);
+							return workspace ? (
+								<WorkspaceTabOverlay
 									isActive={workspace.session.id === activeSessionId}
 									isBusy={pendingAction === "workspace"}
-									key={workspace.session.id}
 									onActivate={onActivateWorkspace}
 									onClose={onCloseWorkspace}
 									onOpenActions={openWorkspaceMenu}
 									workspace={workspace}
 								/>
-							))}
-							{workspaces.length === 0 ? (
-								<span className="px-2 pt-2 text-editor-faint text-xss">
-									Open a repository to begin
-								</span>
-							) : null}
-						</div>
-					</SortableContext>
-				</DndContext>
+							) : null;
+						}}
+					</DragOverlay>
+				</DragDropProvider>
 			</div>
 
 			{workspaceMenuLeft === null ? null : (
