@@ -129,7 +129,7 @@ const WorkspaceTabAppearance = ({
 	return (
 		<div
 			aria-hidden={isOverlay || undefined}
-			className={`group relative flex shrink-0 items-center transition-[background-color,color,opacity] ${isActive ? "text-editor-ink" : "rounded-xl text-editor-muted hover:bg-hover hover:text-editor-ink"}`}
+			className={`group relative flex shrink-0 items-center transition-[background-color,color] ${isActive ? "text-editor-ink" : "rounded-xl text-editor-muted hover:bg-hover hover:text-editor-ink"}`}
 			data-active={isActive ? "true" : undefined}
 			data-desktop-interactive
 			data-dragging={isDragging ? "true" : undefined}
