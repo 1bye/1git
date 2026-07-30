@@ -15,7 +15,7 @@ import {
 	SortableContext,
 	sortableKeyboardCoordinates,
 } from "@dnd-kit/sortable";
-import type { ReactElement } from "react";
+import type { CSSProperties, ReactElement } from "react";
 import { useEffect, useState } from "react";
 import type {
 	RecentRepositoryRecord,
@@ -27,7 +27,10 @@ import type {
 	WorkspaceTabState,
 } from "./use-git-workspace.js";
 import { WorkspaceActionsMenu } from "./workspace-actions-menu.js";
-import { WorkspaceTab } from "./workspace-tab.js";
+import {
+	WORKSPACE_TAB_SURFACE_GEOMETRY,
+	WorkspaceTab,
+} from "./workspace-tab.js";
 
 export interface DesktopToolbarProps {
 	readonly activeSessionId: RepositorySessionId | null;
@@ -55,6 +58,18 @@ const WORKSPACE_MENU_WIDTH = 310;
 const WINDOW_EDGE_GAP = 12;
 const TAB_POINTER_ACTIVATION_DISTANCE = 5;
 const TAB_DRAG_MODIFIERS = [restrictToHorizontalAxis];
+const DESKTOP_TOOLBAR_STYLE: CSSProperties = {
+	height: WORKSPACE_TAB_SURFACE_GEOMETRY.toolbarHeight,
+};
+const WORKSPACE_TAB_LIST_STYLE: CSSProperties = {
+	height:
+		WORKSPACE_TAB_SURFACE_GEOMETRY.toolbarHeight +
+		WORKSPACE_TAB_SURFACE_GEOMETRY.containerOverlap,
+	paddingInline: WORKSPACE_TAB_SURFACE_GEOMETRY.shoulderWidth,
+	paddingTop:
+		WORKSPACE_TAB_SURFACE_GEOMETRY.toolbarHeight -
+		WORKSPACE_TAB_SURFACE_GEOMETRY.tabHeight,
+};
 
 export const DesktopToolbar = ({
 	activeSessionId,
@@ -139,8 +154,9 @@ export const DesktopToolbar = ({
 
 	return (
 		<header
-			className="relative z-40 h-11.5 shrink-0 border-editor-hairline border-b bg-transparent"
+			className="relative z-40 shrink-0 border-editor-hairline border-b bg-transparent"
 			data-name="DesktopToolbar"
+			style={DESKTOP_TOOLBAR_STYLE}
 		>
 			<div
 				className="relative flex h-full min-w-0 items-stretch pl-(--desktop-titlebar-controls-width)"
@@ -172,10 +188,11 @@ export const DesktopToolbar = ({
 					>
 						<div
 							aria-label="Open repository workspaces"
-							className="flex h-[calc(100%+var(--workspace-tab-bridge-height))] min-w-0 flex-1 items-start gap-1 overflow-x-auto overflow-y-hidden pt-1.5"
+							className="flex min-w-0 flex-1 items-start gap-1 overflow-x-auto overflow-y-hidden"
 							data-dragging={draggingSessionId ? "true" : undefined}
 							data-name="WorkspaceTabList"
 							role="tablist"
+							style={WORKSPACE_TAB_LIST_STYLE}
 						>
 							{workspaces.map((workspace) => (
 								<WorkspaceTab

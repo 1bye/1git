@@ -15,6 +15,66 @@ interface WorkspaceTabProps {
 	readonly workspace: WorkspaceTabState;
 }
 
+/** Adjust the active tab and SVG shoulder geometry from this single object. */
+export const WORKSPACE_TAB_SURFACE_GEOMETRY = {
+	containerOverlap: 1,
+	outlineWidth: 1,
+	shoulderHeight: 16,
+	shoulderRoundness: 1,
+	shoulderWidth: 16,
+	tabHeight: 40,
+	tabWidth: 210,
+	toolbarHeight: 46,
+	topCornerRadius: 12,
+} as const;
+
+const createWorkspaceTabSurface = () => {
+	const {
+		containerOverlap,
+		shoulderHeight,
+		shoulderRoundness,
+		shoulderWidth,
+		tabHeight,
+		tabWidth,
+		topCornerRadius,
+	} = WORKSPACE_TAB_SURFACE_GEOMETRY;
+	const leftTabEdge = shoulderWidth;
+	const rightTabEdge = tabWidth - shoulderWidth;
+	const shoulderTop = tabHeight - shoulderHeight;
+	const shoulderBottom = tabHeight;
+	const surfaceWidth = tabWidth;
+	const surfaceHeight = tabHeight + containerOverlap;
+	const shoulderControlX = shoulderWidth * shoulderRoundness;
+	const shoulderControlY = shoulderHeight * shoulderRoundness;
+	const leftTopCornerEnd = leftTabEdge + topCornerRadius;
+	const rightTopCornerStart = rightTabEdge - topCornerRadius;
+	const outlinePath = [
+		`M 0 ${shoulderBottom}`,
+		`C ${shoulderControlX} ${shoulderBottom} ${leftTabEdge} ${shoulderTop + shoulderControlY} ${leftTabEdge} ${shoulderTop}`,
+		`V ${topCornerRadius}`,
+		`Q ${leftTabEdge} 0 ${leftTopCornerEnd} 0`,
+		`H ${rightTopCornerStart}`,
+		`Q ${rightTabEdge} 0 ${rightTabEdge} ${topCornerRadius}`,
+		`V ${shoulderTop}`,
+		`C ${rightTabEdge} ${shoulderTop + shoulderControlY} ${surfaceWidth - shoulderControlX} ${shoulderBottom} ${surfaceWidth} ${shoulderBottom}`,
+	].join(" ");
+
+	return {
+		fillPath: `${outlinePath} V ${surfaceHeight} H 0 Z`,
+		outlinePath,
+		surfaceHeight,
+		surfaceWidth,
+		viewBox: `0 0 ${surfaceWidth} ${surfaceHeight}`,
+	};
+};
+
+const WORKSPACE_TAB_SURFACE = createWorkspaceTabSurface();
+const WORKSPACE_TAB_SURFACE_STYLE: CSSProperties = {
+	height: WORKSPACE_TAB_SURFACE.surfaceHeight,
+	left: 0,
+	width: WORKSPACE_TAB_SURFACE.surfaceWidth,
+};
+
 export const WorkspaceTab = ({
 	isActive,
 	isBusy,
@@ -49,17 +109,20 @@ export const WorkspaceTab = ({
 		onOpenActions(event.currentTarget.getBoundingClientRect().left);
 	};
 	const tabStyle: CSSProperties = {
+		height: WORKSPACE_TAB_SURFACE_GEOMETRY.tabHeight,
+		paddingInline: WORKSPACE_TAB_SURFACE_GEOMETRY.shoulderWidth,
 		transform: transform
 			? `translate3d(${transform.x}px, 0, 0) scaleX(${transform.scaleX}) scaleY(${transform.scaleY})`
 			: undefined,
 		transition: transition
 			? `${transition}, box-shadow 160ms ease, opacity 160ms ease`
 			: undefined,
+		width: WORKSPACE_TAB_SURFACE_GEOMETRY.tabWidth,
 	};
 
 	return (
 		<div
-			className={`group relative flex h-10 w-[210px] min-w-[132px] shrink items-center rounded-t-xl border border-transparent border-b-0 transition-[background-color,border-color,color,box-shadow,opacity] ${isActive ? "text-editor-ink" : "text-editor-muted hover:bg-hover hover:text-editor-ink"}`}
+			className={`group relative flex shrink-0 items-center transition-[background-color,color,opacity] ${isActive ? "text-editor-ink" : "rounded-xl text-editor-muted hover:bg-hover hover:text-editor-ink"}`}
 			data-active={isActive ? "true" : undefined}
 			data-desktop-interactive
 			data-dragging={isDragging ? "true" : undefined}
@@ -122,7 +185,30 @@ export const WorkspaceTab = ({
 			>
 				<XIcon aria-hidden className="size-3" weight="bold" />
 			</button>
-			{isActive ? <span aria-hidden data-name="WorkspaceTabBridge" /> : null}
+			{isActive ? (
+				<svg
+					aria-hidden
+					data-name="WorkspaceTabSurface"
+					preserveAspectRatio="none"
+					style={WORKSPACE_TAB_SURFACE_STYLE}
+					viewBox={WORKSPACE_TAB_SURFACE.viewBox}
+				>
+					<title>Active workspace surface</title>
+					<path
+						d={WORKSPACE_TAB_SURFACE.fillPath}
+						data-name="WorkspaceTabSurfaceFill"
+					/>
+					<path
+						d={WORKSPACE_TAB_SURFACE.outlinePath}
+						data-name="WorkspaceTabSurfaceOutline"
+						fill="none"
+						strokeLinecap="round"
+						strokeLinejoin="round"
+						strokeWidth={WORKSPACE_TAB_SURFACE_GEOMETRY.outlineWidth}
+						vectorEffect="non-scaling-stroke"
+					/>
+				</svg>
+			) : null}
 		</div>
 	);
 };

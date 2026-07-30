@@ -2,30 +2,28 @@
 @source "./**/*.{ts,tsx}";
 
 :root {
-	--desktop-titlebar-controls-width: 5rem;
-	--workspace-surface-gap: 4px;
-	--workspace-surface-inset: 6px;
-	--workspace-surface-radius: 14px;
-	--workspace-tab-bridge-height: calc(var(--workspace-surface-gap) + 1px);
+    --desktop-titlebar-controls-width: 5rem;
+    --workspace-surface-inset: 6px;
+    --workspace-surface-radius: 14px;
 }
 
 html,
 body,
 #root {
-	height: 100%;
-	margin: 0;
-	background: transparent;
+    height: 100%;
+    margin: 0;
+    background: transparent;
 }
 
 body {
-	overflow: hidden;
-	font-size: 12px;
-	-webkit-font-smoothing: antialiased;
-	line-height: 1.4;
-	color: var(--editor-ink);
-	user-select: none;
-	background: transparent;
-	text-rendering: optimizeLegibility;
+    overflow: hidden;
+    font-size: 12px;
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.4;
+    color: var(--editor-ink);
+    user-select: none;
+    background: transparent;
+    text-rendering: optimizeLegibility;
 }
 
 button,
@@ -33,123 +31,141 @@ input,
 select,
 textarea,
 [data-desktop-interactive] {
-	app-region: no-drag;
-	-webkit-app-region: no-drag;
+    app-region: no-drag;
+    -webkit-app-region: no-drag;
 }
 
 [data-desktop-drag] {
-	app-region: drag;
-	-webkit-app-region: drag;
+    app-region: drag;
+    -webkit-app-region: drag;
 }
 
 ::selection {
-	background: var(--editor-selection);
+    background: var(--editor-selection);
 }
 
 button,
 input,
 select,
 textarea {
-	font: inherit;
+    font: inherit;
 }
 
 button {
-	-webkit-tap-highlight-color: transparent;
+    -webkit-tap-highlight-color: transparent;
 }
 
 ::-webkit-scrollbar {
-	width: 10px;
-	height: 10px;
+    width: 10px;
+    height: 10px;
 }
 
 ::-webkit-scrollbar-track {
-	background: transparent;
+    background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-	min-height: 36px;
-	background: rgb(0 0 0 / 0.16);
-	background-clip: padding-box;
-	border: 3px solid transparent;
-	border-radius: 999px;
+    min-height: 36px;
+    background: rgb(0 0 0 / 0.16);
+    background-clip: padding-box;
+    border: 3px solid transparent;
+    border-radius: 999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-	background: rgb(0 0 0 / 0.24);
-	background-clip: padding-box;
+    background: rgb(0 0 0 / 0.24);
+    background-clip: padding-box;
 }
 
 [data-name="App"] {
-	background: transparent;
+    background: transparent;
 }
 
 [data-name="DesktopToolbar"] {
-	border-bottom-width: 0;
+    border-bottom-width: 0;
 }
 
 [data-name="RepositoryWorkspace"] {
-	margin: var(--workspace-surface-gap) var(--workspace-surface-inset)
-		var(--workspace-surface-inset);
-	border-radius: var(--workspace-surface-radius);
-	box-shadow: 0 1px 2px rgb(0 0 0 / 0.03);
+    margin: 0 var(--workspace-surface-inset) var(--workspace-surface-inset);
+    border-radius: var(--workspace-surface-radius);
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.03);
 }
 
 [data-name="WorkspaceTabList"] {
-	scrollbar-width: none;
+    scrollbar-width: none;
 }
 
 [data-name="WorkspaceTabList"]::-webkit-scrollbar {
-	display: none;
+    display: none;
 }
 
 [data-name="WorkspaceTab"] {
-	transform-origin: center bottom;
+    transform-origin: center bottom;
 }
 
 [data-name="WorkspaceTab"][data-active="true"] {
-	z-index: 2;
-	background: var(--editor-surface);
-	border-color: var(--editor-hairline-strong);
-	box-shadow: 0 -1px 2px rgb(0 0 0 / 0.025);
+    z-index: 2;
 }
 
 [data-name="WorkspaceTab"][data-dragging="true"] {
-	z-index: 20;
-	cursor: grabbing;
-	box-shadow: var(--shadow-5);
-	opacity: 0.94;
+    z-index: 20;
+    cursor: grabbing;
+    opacity: 0.94;
 }
 
-[data-name="WorkspaceTabBridge"] {
-	position: absolute;
-	top: 100%;
-	right: -1px;
-	left: -1px;
-	height: var(--workspace-tab-bridge-height);
-	pointer-events: none;
-	background: var(--editor-surface);
-	border-right: 1px solid var(--editor-hairline-strong);
-	border-left: 1px solid var(--editor-hairline-strong);
+[data-name="WorkspaceTabSurface"] {
+    position: absolute;
+    top: 0;
+    overflow: visible;
+    pointer-events: none;
+    transform-origin: top;
+    animation: workspace-tab-connect 160ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    filter: drop-shadow(0 -1px 1px rgb(0 0 0 / 0.025));
+}
+
+[data-name="WorkspaceTab"][data-dragging="true"] [data-name="WorkspaceTabSurface"] {
+    filter: drop-shadow(0 4px 8px rgb(0 0 0 / 0.12));
+}
+
+[data-name="WorkspaceTabSurfaceFill"] {
+    fill: var(--editor-surface);
+}
+
+[data-name="WorkspaceTabSurfaceOutline"] {
+    stroke: var(--editor-hairline-strong);
+}
+
+@keyframes workspace-tab-connect {
+    from {
+        opacity: 0;
+        transform: scaleY(0.45);
+    }
+
+    to {
+        opacity: 1;
+        transform: scaleY(1);
+    }
 }
 
 [data-name="WorkspaceContent"],
 [data-name="RepositoryWelcome"],
 [data-name="WorkspaceLoading"] {
-	box-shadow: inset 1px 0 0 rgb(255 255 255 / 0.72);
+    box-shadow: inset 1px 0 0 rgb(255 255 255 / 0.72);
 }
 
 [data-name="DiffView"] [data-diffs] {
-	--diffs-bg: var(--editor-surface);
-	display: block;
+    --diffs-bg: var(--editor-surface);
+    display: block;
 }
 
 @media (prefers-reduced-motion: reduce) {
-	*,
-	*::before,
-	*::after {
-		scroll-behavior: auto !important;
-		transition-duration: 0.01ms !important;
-		animation-duration: 0.01ms !important;
-		animation-iteration-count: 1 !important;
-	}
+
+    *,
+    *::before,
+    *::after {
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+    }
 }
