@@ -10,7 +10,6 @@ import type {
 } from "@1git/git";
 import { useCallback, useEffect, useState } from "react";
 import type {
-	RecentRepositoryRecord,
 	RepositoryManagerResult,
 	RepositoryManagerState,
 	RepositorySessionId,
@@ -37,7 +36,6 @@ const EMPTY_MANAGER_STATE: RepositoryManagerState = {
 };
 
 const HISTORY_LIMIT = 100;
-const TRAILING_PATH_SEPARATOR = /[\\/]+$/;
 
 const gitErrorMessage = (error: GitError): string => {
 	if (error.details && error.details !== error.message) {
@@ -695,15 +693,4 @@ export const useGitWorkspace = (): GitWorkspace => {
 		toggleAllFiles,
 		workspaces,
 	};
-};
-
-export const recentRepositoryName = (
-	repository: RecentRepositoryRecord
-): string => {
-	const normalizedPath = repository.path.replace(TRAILING_PATH_SEPARATOR, "");
-	const separator = Math.max(
-		normalizedPath.lastIndexOf("/"),
-		normalizedPath.lastIndexOf("\\")
-	);
-	return normalizedPath.slice(separator + 1) || repository.path;
 };

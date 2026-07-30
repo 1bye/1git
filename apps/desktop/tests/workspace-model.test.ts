@@ -9,6 +9,7 @@ import {
 	isFilePartiallyStaged,
 	isFileStaged,
 	matchesFileFilter,
+	recentRepositoryName,
 } from "../src/renderer/src/workspace-model.js";
 
 const fileChange = (
@@ -78,6 +79,15 @@ describe("workspace labels", () => {
 			"one-git / feature/tabs"
 		);
 		expect(getWorkspaceLabel("/Users/example/one-git", null)).toBe("one-git");
+	});
+
+	test("uses the repository path for recent repository labels", () => {
+		expect(
+			recentRepositoryName({
+				lastOpenedAt: "2026-07-30T08:00:00.000Z",
+				path: "C:\\Work\\one-git\\",
+			})
+		).toBe("one-git");
 	});
 
 	test("formats nearby timestamps for compact desktop chrome", () => {

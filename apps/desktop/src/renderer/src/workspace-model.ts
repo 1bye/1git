@@ -1,4 +1,5 @@
 import type { FileChange, FileStatus } from "@1git/git";
+import type { RecentRepositoryRecord } from "../../shared/repository-session.js";
 
 const DATE_TIME_FORMAT = new Intl.DateTimeFormat(undefined, {
 	dateStyle: "medium",
@@ -38,6 +39,10 @@ export const getRepositoryName = (root: string): string => {
 	);
 	return normalizedRoot.slice(separatorIndex + 1) || normalizedRoot;
 };
+
+export const recentRepositoryName = (
+	repository: RecentRepositoryRecord
+): string => getRepositoryName(repository.path);
 
 export const getWorkspaceLabel = (
 	root: string,
