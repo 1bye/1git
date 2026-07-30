@@ -69,7 +69,7 @@ export const WorkspaceActionsMenu = ({
 			/>
 			<Elevated
 				aria-label="Workspace actions"
-				className="fixed top-[72px] z-50 w-[310px] overflow-hidden rounded-2xl p-1.5"
+				className="fixed top-9 z-50 w-[310px] overflow-hidden rounded-2xl p-1.5"
 				offset={2}
 				role="dialog"
 				shadowLevel={6}

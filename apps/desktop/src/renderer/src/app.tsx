@@ -24,7 +24,6 @@ export const App = (): ReactElement => {
 					workspace.activeSession ? workspace.activeSession.id : null
 				}
 				branches={workspace.branches}
-				lastFetchedAt={workspace.lastFetchedAt}
 				onActivateWorkspace={workspace.activateWorkspace}
 				onCloseWorkspace={workspace.closeWorkspace}
 				onCreateBranch={workspace.createBranch}
