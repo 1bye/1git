@@ -18,6 +18,8 @@ body {
 
 button,
 input,
+select,
+textarea,
 [data-desktop-interactive] {
 	app-region: no-drag;
 	-webkit-app-region: no-drag;
@@ -30,4 +32,63 @@ input,
 
 ::selection {
 	background: var(--editor-selection);
+}
+
+button,
+input,
+select,
+textarea {
+	font: inherit;
+}
+
+button {
+	-webkit-tap-highlight-color: transparent;
+}
+
+::-webkit-scrollbar {
+	width: 10px;
+	height: 10px;
+}
+
+::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+	min-height: 36px;
+	background: rgb(0 0 0 / 0.16);
+	background-clip: padding-box;
+	border: 3px solid transparent;
+	border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+	background: rgb(0 0 0 / 0.24);
+	background-clip: padding-box;
+}
+
+[data-name="App"] {
+	background: rgb(240 240 239 / 0.78);
+}
+
+[data-name="WorkspaceContent"],
+[data-name="RepositoryWelcome"],
+[data-name="WorkspaceLoading"] {
+	box-shadow: inset 1px 0 0 rgb(255 255 255 / 0.72);
+}
+
+[data-name="DiffView"] [data-diffs] {
+	--diffs-bg: var(--editor-surface);
+	display: block;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		scroll-behavior: auto !important;
+		transition-duration: 0.01ms !important;
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+	}
 }

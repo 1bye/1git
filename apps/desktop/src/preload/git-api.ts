@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import type { IpcRenderer } from "electron";
 import {
 	type DesktopGitApi,
@@ -16,7 +15,7 @@ export type DesktopIpcSubscribe = (
 ) => () => void;
 
 const operationId = (options?: GitOperationOptions): string =>
-	options?.operationId ?? randomUUID();
+	options?.operationId ?? globalThis.crypto.randomUUID();
 
 const sessionRequest = (
 	sessionId: RepositorySessionId,
@@ -177,7 +176,7 @@ export const createDesktopGitApi = (
 			await invoke(GIT_IPC_CHANNELS.operations.cancel, {
 				operationId: id,
 			}),
-		createId: () => randomUUID(),
+		createId: () => globalThis.crypto.randomUUID(),
 	},
 	remotes: {
 		add: async (sessionId, input, options) =>

@@ -16,7 +16,8 @@
   "dependencies": {
     "@1git/git": "workspace:*",
     "@1git/ui": "workspace:*",
-    "lucide-react": "^0.468.0",
+    "@phosphor-icons/react": "^2.1.10",
+    "@pierre/diffs": "^1.2.12",
     "react": "^19.2.4",
     "react-dom": "^19.2.4"
   },

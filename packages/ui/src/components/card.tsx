@@ -7,6 +7,7 @@ const Card = ({ className, ...props }: ComponentProps<"div">) => (
 			"flex flex-col rounded-2xl border border-editor-hairline bg-card text-card-foreground shadow-surface-2",
 			className
 		)}
+		data-name="Card"
 		data-slot="card"
 		{...props}
 	/>
@@ -18,6 +19,7 @@ const CardHeader = ({ className, ...props }: ComponentProps<"div">) => (
 			"grid auto-rows-min items-start gap-1.5 px-5 pt-5 has-data-[slot=card-action]:grid-cols-[1fr_auto]",
 			className
 		)}
+		data-name="CardHeader"
 		data-slot="card-header"
 		{...props}
 	/>
@@ -26,6 +28,7 @@ const CardHeader = ({ className, ...props }: ComponentProps<"div">) => (
 const CardTitle = ({ className, ...props }: ComponentProps<"div">) => (
 	<div
 		className={cn("font-semibold text-base tracking-[-0.01em]", className)}
+		data-name="CardTitle"
 		data-slot="card-title"
 		{...props}
 	/>
@@ -34,6 +37,7 @@ const CardTitle = ({ className, ...props }: ComponentProps<"div">) => (
 const CardDescription = ({ className, ...props }: ComponentProps<"div">) => (
 	<div
 		className={cn("text-editor-muted text-sm leading-5", className)}
+		data-name="CardDescription"
 		data-slot="card-description"
 		{...props}
 	/>
@@ -45,6 +49,7 @@ const CardAction = ({ className, ...props }: ComponentProps<"div">) => (
 			"col-start-2 row-span-2 row-start-1 self-start justify-self-end",
 			className
 		)}
+		data-name="CardAction"
 		data-slot="card-action"
 		{...props}
 	/>
@@ -53,6 +58,7 @@ const CardAction = ({ className, ...props }: ComponentProps<"div">) => (
 const CardContent = ({ className, ...props }: ComponentProps<"div">) => (
 	<div
 		className={cn("px-5 pb-5", className)}
+		data-name="CardContent"
 		data-slot="card-content"
 		{...props}
 	/>
@@ -61,6 +67,7 @@ const CardContent = ({ className, ...props }: ComponentProps<"div">) => (
 const CardFooter = ({ className, ...props }: ComponentProps<"div">) => (
 	<div
 		className={cn("flex items-center px-5 pb-5", className)}
+		data-name="CardFooter"
 		data-slot="card-footer"
 		{...props}
 	/>

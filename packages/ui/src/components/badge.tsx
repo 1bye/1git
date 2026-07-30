@@ -36,6 +36,7 @@ const Badge = ({
 	return (
 		<Component
 			className={cn(badgeVariants({ className, variant }))}
+			data-name="Badge"
 			data-slot="badge"
 			{...props}
 		/>
