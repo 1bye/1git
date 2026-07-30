@@ -1,6 +1,10 @@
 @import "@1git/ui/globals.css";
 @source "./**/*.{ts,tsx}";
 
+:root {
+	--desktop-titlebar-controls-width: 5rem;
+}
+
 html,
 body,
 #root {
@@ -11,9 +15,13 @@ body,
 
 body {
 	overflow: hidden;
+	font-size: 12px;
+	-webkit-font-smoothing: antialiased;
+	line-height: 1.4;
 	color: var(--editor-ink);
 	user-select: none;
 	background: transparent;
+	text-rendering: optimizeLegibility;
 }
 
 button,
@@ -68,7 +76,7 @@ button {
 }
 
 [data-name="App"] {
-	background: rgb(240 240 239 / 0.78);
+	background: transparent;
 }
 
 [data-name="WorkspaceContent"],

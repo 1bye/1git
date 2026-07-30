@@ -104,7 +104,7 @@ export const WorkspaceContent = ({
 						<p className="mt-3 font-medium text-[13px] text-editor-ink">
 							Select an item to inspect
 						</p>
-						<p className="mt-1 text-[11px] text-editor-faint">
+						<p className="mt-1 text-editor-faint text-xss">
 							Choose a changed file or commit from the sidebar.
 						</p>
 					</div>

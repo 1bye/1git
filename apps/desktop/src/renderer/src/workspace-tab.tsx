@@ -40,8 +40,8 @@ export const WorkspaceTab = ({
 		<div
 			className={`group relative flex h-9 min-w-0 max-w-[250px] items-center rounded-xl border transition-colors ${
 				isActive
-					? "border-editor-hairline-strong bg-white/80 text-editor-ink shadow-surface-1"
-					: "border-transparent text-editor-muted hover:bg-white/45 hover:text-editor-ink"
+					? "border-editor-hairline-strong bg-studio-glass-strong text-editor-ink shadow-surface-1"
+					: "border-transparent text-editor-muted hover:bg-hover hover:text-editor-ink"
 			}`}
 			data-name="WorkspaceTab"
 		>
@@ -65,7 +65,7 @@ export const WorkspaceTab = ({
 				) : (
 					<span className="size-1.5 shrink-0 rounded-full bg-editor-hairline-strong" />
 				)}
-				<span className="min-w-0 truncate text-[12px]">
+				<span className="min-w-0 truncate text-xss">
 					<span className={isActive ? "font-semibold" : "font-medium"}>
 						{getRepositoryName(workspace.session.repository.root)}
 					</span>
@@ -88,7 +88,7 @@ export const WorkspaceTab = ({
 			) : null}
 			<button
 				aria-label={`Close ${label}`}
-				className={`mr-1 flex size-6 shrink-0 items-center justify-center rounded-lg text-editor-faint outline-none hover:bg-editor-sunken-2 hover:text-editor-ink focus-visible:bg-editor-sunken-2 ${
+				className={`mr-1 flex size-6 shrink-0 items-center justify-center rounded-lg text-editor-faint outline-none hover:bg-active hover:text-editor-ink focus-visible:bg-active ${
 					isActive
 						? ""
 						: "opacity-0 group-focus-within:opacity-100 group-hover:opacity-100"
@@ -100,7 +100,7 @@ export const WorkspaceTab = ({
 				<XIcon aria-hidden className="size-3" weight="bold" />
 			</button>
 			{isActive ? (
-				<span className="absolute inset-x-3 -bottom-[7px] h-0.5 rounded-full bg-brand" />
+				<span className="absolute inset-x-3 bottom-0.5 h-0.5 rounded-full bg-brand" />
 			) : null}
 		</div>
 	);

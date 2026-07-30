@@ -26,10 +26,10 @@ export const CleanState = ({
 				<div className="mx-auto flex size-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-700 ring-1 ring-emerald-700/10">
 					<CheckCircleIcon aria-hidden className="size-6" weight="fill" />
 				</div>
-				<h1 className="mt-5 font-semibold text-[24px] text-editor-ink tracking-[-0.03em]">
+				<h1 className="mt-5 font-semibold text-editor-ink text-xl tracking-[-0.03em]">
 					Working tree is clean
 				</h1>
-				<p className="mx-auto mt-2 max-w-[430px] text-[13px] text-editor-muted leading-5">
+				<p className="mx-auto mt-2 max-w-[430px] text-editor-muted text-xs leading-5">
 					There are no local changes on{" "}
 					<span className="font-medium text-editor-ink">
 						{snapshot.head.branch ?? "the current branch"}
@@ -43,7 +43,7 @@ export const CleanState = ({
 							className="size-4 text-editor-faint"
 							weight="regular"
 						/>
-						<p className="mt-3 font-medium text-[12px] text-editor-ink">
+						<p className="mt-3 font-medium text-editor-ink text-xs">
 							{snapshot.head.branch ?? "Detached HEAD"}
 						</p>
 						<p className="mt-1 text-[10px] text-editor-faint">
@@ -51,7 +51,7 @@ export const CleanState = ({
 						</p>
 					</div>
 					<button
-						className="p-4 text-left outline-none hover:bg-white/70 focus-visible:bg-white"
+						className="p-4 text-left outline-none hover:bg-editor-surface focus-visible:bg-editor-surface"
 						onClick={fetchRepository}
 						type="button"
 					>
@@ -60,7 +60,7 @@ export const CleanState = ({
 							className="size-4 text-editor-faint"
 							weight="regular"
 						/>
-						<p className="mt-3 font-medium text-[12px] text-editor-ink">
+						<p className="mt-3 font-medium text-editor-ink text-xs">
 							Fetch remote
 						</p>
 						<p className="mt-1 text-[10px] text-editor-faint">

@@ -55,7 +55,7 @@ export const RepositorySidebar = ({
 	return (
 		<aside
 			aria-label="Repository activity"
-			className="flex h-full w-[346px] shrink-0 flex-col border-editor-hairline border-r bg-studio-glass-subtle backdrop-blur-2xl"
+			className="flex h-full w-[346px] shrink-0 flex-col border-editor-hairline border-r bg-transparent"
 			data-name="RepositorySidebar"
 		>
 			<div
@@ -67,8 +67,8 @@ export const RepositorySidebar = ({
 					aria-selected={tab === "changes"}
 					className={
 						tab === "changes"
-							? "relative font-semibold text-[12px] text-editor-ink after:absolute after:inset-x-5 after:bottom-0 after:h-0.5 after:rounded-full after:bg-editor-ink"
-							: "text-[12px] text-editor-faint outline-none hover:text-editor-ink focus-visible:bg-white/45"
+							? "relative font-semibold text-editor-ink text-xs after:absolute after:inset-x-5 after:bottom-0 after:h-0.5 after:rounded-full after:bg-editor-ink"
+							: "text-editor-faint text-xs outline-none hover:bg-hover hover:text-editor-ink focus-visible:bg-hover"
 					}
 					onClick={setChangesTab}
 					role="tab"
@@ -85,8 +85,8 @@ export const RepositorySidebar = ({
 					aria-selected={tab === "history"}
 					className={
 						tab === "history"
-							? "relative font-semibold text-[12px] text-editor-ink after:absolute after:inset-x-5 after:bottom-0 after:h-0.5 after:rounded-full after:bg-editor-ink"
-							: "text-[12px] text-editor-faint outline-none hover:text-editor-ink focus-visible:bg-white/45"
+							? "relative font-semibold text-editor-ink text-xs after:absolute after:inset-x-5 after:bottom-0 after:h-0.5 after:rounded-full after:bg-editor-ink"
+							: "text-editor-faint text-xs outline-none hover:bg-hover hover:text-editor-ink focus-visible:bg-hover"
 					}
 					onClick={setHistoryTab}
 					role="tab"

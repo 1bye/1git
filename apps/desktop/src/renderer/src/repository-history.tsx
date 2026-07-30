@@ -24,17 +24,17 @@ const CommitRow = ({
 				aria-current={isSelected ? "true" : undefined}
 				className={
 					isSelected
-						? "flex w-full gap-3 bg-white/78 px-3 py-3 text-left shadow-[inset_2px_0_0_var(--brand)] outline-none"
-						: "flex w-full gap-3 px-3 py-3 text-left outline-none hover:bg-white/45 focus-visible:ring-2 focus-visible:ring-brand/20 focus-visible:ring-inset"
+						? "flex w-full gap-3 bg-studio-glass-strong px-3 py-3 text-left shadow-[inset_2px_0_0_var(--brand)] outline-none"
+						: "flex w-full gap-3 px-3 py-3 text-left outline-none hover:bg-hover focus-visible:ring-2 focus-visible:ring-brand/20 focus-visible:ring-inset"
 				}
 				onClick={selectCommit}
 				type="button"
 			>
-				<span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-white/70 text-editor-muted shadow-surface-1">
+				<span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-studio-glass-strong text-editor-muted shadow-surface-1">
 					<GitCommitIcon aria-hidden className="size-3.5" weight="regular" />
 				</span>
 				<span className="min-w-0 flex-1">
-					<span className="block truncate font-medium text-[12px] text-editor-ink">
+					<span className="block truncate font-medium text-editor-ink text-xss">
 						{commit.summary}
 					</span>
 					<span className="mt-1 flex items-center justify-between gap-2 text-[10px] text-editor-faint">
@@ -73,7 +73,7 @@ export const RepositoryHistory = ({
 			/>
 		))}
 		{history?.commits.length === 0 ? (
-			<li className="px-4 py-10 text-center text-[11px] text-editor-faint">
+			<li className="px-4 py-10 text-center text-editor-faint text-xss">
 				This repository has no commits yet.
 			</li>
 		) : null}

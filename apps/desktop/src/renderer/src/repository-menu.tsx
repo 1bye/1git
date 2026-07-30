@@ -1,3 +1,4 @@
+import { Elevated } from "@1git/ui/components/elevated";
 import { Input } from "@1git/ui/components/input";
 import { CaretDownIcon } from "@phosphor-icons/react/dist/csr/CaretDown";
 import { FolderOpenIcon } from "@phosphor-icons/react/dist/csr/FolderOpen";
@@ -89,7 +90,7 @@ export const RepositoryMenu = ({
 			<button
 				aria-expanded={isOpen}
 				aria-haspopup="dialog"
-				className="flex h-8 items-center gap-2 rounded-xl px-2.5 font-semibold text-[12px] text-editor-ink outline-none transition-colors hover:bg-white/65 focus-visible:bg-white/75"
+				className="flex h-8 items-center gap-2 rounded-xl px-2.5 font-semibold text-editor-ink text-xss outline-none transition-colors hover:bg-studio-glass-hover focus-visible:bg-studio-glass-strong"
 				disabled={pendingAction === "open"}
 				onClick={toggleMenu}
 				type="button"
@@ -123,10 +124,13 @@ export const RepositoryMenu = ({
 						onClick={closeMenu}
 						type="button"
 					/>
-					<section
+					<Elevated
 						aria-label="Repositories"
-						className="absolute top-[calc(100%-3px)] left-2 z-50 w-[370px] overflow-hidden rounded-2xl border border-editor-hairline bg-white/94 p-1.5 shadow-surface-6 backdrop-blur-2xl"
+						className="absolute top-[calc(100%-3px)] left-2 z-50 w-[370px] overflow-hidden rounded-2xl p-1.5"
 						data-name="RepositoryMenuPopover"
+						offset={2}
+						role="dialog"
+						shadowLevel={6}
 					>
 						<div className="p-1.5">
 							<div className="relative">
@@ -137,7 +141,7 @@ export const RepositoryMenu = ({
 								/>
 								<Input
 									autoFocus
-									className="h-8 bg-editor-sunken pl-8 text-[12px] shadow-none"
+									className="h-8 bg-editor-sunken pl-8 text-xs shadow-none"
 									onChange={handleQueryChange}
 									placeholder="Find a repository or worktree"
 									value={query}
@@ -167,7 +171,7 @@ export const RepositoryMenu = ({
 											onClick={activateWorkspace}
 											type="button"
 										>
-											<span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-editor-sunken text-editor-muted group-hover:bg-white">
+											<span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-editor-sunken text-editor-muted group-hover:bg-surface-3">
 												<GitBranchIcon
 													aria-hidden
 													className="size-3.5"
@@ -175,7 +179,7 @@ export const RepositoryMenu = ({
 												/>
 											</span>
 											<span className="min-w-0 flex-1">
-												<span className="block truncate font-medium text-[12px] text-editor-ink">
+												<span className="block truncate font-medium text-editor-ink text-xs">
 													{getRepositoryName(workspace.session.repository.root)}
 												</span>
 												<span className="block truncate text-[10px] text-editor-faint">
@@ -217,7 +221,7 @@ export const RepositoryMenu = ({
 											onClick={openRecent}
 											type="button"
 										>
-											<span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-editor-sunken text-editor-muted group-hover:bg-white">
+											<span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-editor-sunken text-editor-muted group-hover:bg-surface-3">
 												<FolderOpenIcon
 													aria-hidden
 													className="size-3.5"
@@ -225,7 +229,7 @@ export const RepositoryMenu = ({
 												/>
 											</span>
 											<span className="min-w-0 flex-1">
-												<span className="block truncate font-medium text-[12px] text-editor-ink">
+												<span className="block truncate font-medium text-editor-ink text-xs">
 													{recentRepositoryName(repository)}
 												</span>
 												<span className="block truncate text-[10px] text-editor-faint">
@@ -241,14 +245,14 @@ export const RepositoryMenu = ({
 						{matchingWorkspaces.length === 0 &&
 						matchingRecentRepositories.length === 0 &&
 						normalizedQuery ? (
-							<p className="px-3 py-5 text-center text-[12px] text-editor-faint">
+							<p className="px-3 py-5 text-center text-editor-faint text-xs">
 								No repositories match “{query.trim()}”.
 							</p>
 						) : null}
 
 						<div className="mt-1 border-editor-hairline border-t pt-1">
 							<button
-								className="flex w-full items-center gap-3 rounded-xl px-2.5 py-2.5 text-left font-medium text-[12px] text-editor-ink outline-none transition-colors hover:bg-editor-sunken focus-visible:bg-editor-sunken"
+								className="flex w-full items-center gap-3 rounded-xl px-2.5 py-2.5 text-left font-medium text-editor-ink text-xs outline-none transition-colors hover:bg-editor-sunken focus-visible:bg-editor-sunken"
 								onClick={pickRepository}
 								type="button"
 							>
@@ -258,7 +262,7 @@ export const RepositoryMenu = ({
 								Open local repository…
 							</button>
 						</div>
-					</section>
+					</Elevated>
 				</>
 			) : null}
 		</div>

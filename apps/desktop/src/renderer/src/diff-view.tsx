@@ -69,7 +69,7 @@ export const DiffView = ({
 
 	return (
 		<section className="flex min-h-full flex-col" data-name="DiffView">
-			<header className="sticky top-0 z-20 flex min-h-14 shrink-0 items-center gap-3 border-editor-hairline border-b bg-white/88 px-5 backdrop-blur-xl">
+			<header className="sticky top-0 z-20 flex min-h-14 shrink-0 items-center gap-3 border-editor-hairline border-b bg-editor-surface/88 px-5 backdrop-blur-xl">
 				<span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-editor-sunken text-editor-muted">
 					{tab === "history" ? (
 						<GitCommitIcon aria-hidden className="size-3.5" weight="regular" />
@@ -107,7 +107,7 @@ export const DiffView = ({
 				<div className="space-y-3 p-3">
 					{parsedFiles.map((file, index) => (
 						<div
-							className="overflow-hidden rounded-xl border border-editor-hairline bg-white shadow-surface-1"
+							className="overflow-hidden rounded-xl border border-editor-hairline bg-editor-surface shadow-surface-1"
 							data-name="DiffFile"
 							key={file.cacheKey ?? `${file.name}-${index}`}
 						>
@@ -117,7 +117,7 @@ export const DiffView = ({
 									className="size-3.5 text-editor-faint"
 									weight="regular"
 								/>
-								<span className="truncate font-medium font-mono text-[11px] text-editor-muted">
+								<span className="truncate font-medium font-mono text-editor-muted text-xss">
 									{file.name}
 								</span>
 							</div>
@@ -141,7 +141,7 @@ export const DiffView = ({
 						<p className="mt-3 font-medium text-[13px] text-editor-ink">
 							No text diff available
 						</p>
-						<p className="mt-1 text-[11px] text-editor-faint">
+						<p className="mt-1 text-editor-faint text-xss">
 							The file may be binary or have no patch content.
 						</p>
 					</div>

@@ -61,7 +61,7 @@ const StageCheckbox = ({
 				className={
 					checked || mixed
 						? "flex size-4 items-center justify-center rounded-[5px] bg-editor-ink text-white shadow-sm"
-						: "size-4 rounded-[5px] border border-editor-hairline-strong bg-white/65 shadow-xs"
+						: "size-4 rounded-[5px] border border-editor-hairline-strong bg-studio-glass-strong shadow-xs"
 				}
 			>
 				{checkboxIcon}
@@ -106,8 +106,8 @@ const FileChangeRow = ({
 		<li
 			className={
 				isSelected
-					? "group flex items-center bg-white/78 shadow-[inset_2px_0_0_var(--brand)]"
-					: "group flex items-center hover:bg-white/45"
+					? "group flex items-center bg-studio-glass-strong shadow-[inset_2px_0_0_var(--brand)]"
+					: "group flex items-center hover:bg-hover"
 			}
 			data-name="FileChangeRow"
 		>
@@ -131,7 +131,7 @@ const FileChangeRow = ({
 					className="size-3.5 shrink-0 text-editor-faint"
 					weight="regular"
 				/>
-				<span className="min-w-0 flex-1 truncate text-[12px]">
+				<span className="min-w-0 flex-1 truncate text-xss">
 					<span className="text-editor-faint">{directory}</span>
 					<span className="font-medium text-editor-ink">{name}</span>
 				</span>
@@ -191,7 +191,7 @@ export const RepositoryChanges = ({
 					/>
 					<Input
 						aria-label="Filter changed files"
-						className="h-8 bg-white/55 pl-8 text-[11px]"
+						className="h-8 bg-studio-glass pl-8 text-xss"
 						onChange={handleFilterChange}
 						placeholder="Filter changed files"
 						value={filter}
@@ -206,7 +206,7 @@ export const RepositoryChanges = ({
 					mixed={stagedCount > 0 && !allStaged}
 					onChange={toggleAll}
 				/>
-				<span className="font-medium text-[11px] text-editor-muted">
+				<span className="font-medium text-editor-muted text-xss">
 					{files.length} changed {files.length === 1 ? "file" : "files"}
 				</span>
 				{stagedCount > 0 ? (
@@ -227,7 +227,7 @@ export const RepositoryChanges = ({
 					/>
 				))}
 				{files.length > 0 && visibleFiles.length === 0 ? (
-					<li className="px-4 py-8 text-center text-[11px] text-editor-faint">
+					<li className="px-4 py-8 text-center text-editor-faint text-xss">
 						No changed files match “{filter}”.
 					</li>
 				) : null}

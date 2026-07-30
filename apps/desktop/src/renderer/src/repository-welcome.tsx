@@ -40,15 +40,20 @@ export const RepositoryWelcome = ({
 						<GitBranchIcon aria-hidden className="size-5" weight="bold" />
 					)}
 				</div>
-				<h1 className="mt-5 text-center font-semibold text-[24px] text-editor-ink tracking-[-0.03em]">
+				<h1 className="mt-5 text-center font-semibold text-editor-ink text-xl tracking-[-0.03em]">
 					Open a repository
 				</h1>
-				<p className="mx-auto mt-2 max-w-[420px] text-center text-[13px] text-editor-muted leading-5">
+				<p className="mx-auto mt-2 max-w-[420px] text-center text-editor-muted text-xs leading-5">
 					Review changes, shape commits, and move through history without
 					leaving your local workspace.
 				</p>
 				<div className="mt-6 flex justify-center">
-					<Button disabled={isLoading} onClick={pickRepository} variant="brand">
+					<Button
+						disabled={isLoading}
+						onClick={pickRepository}
+						size="sm"
+						variant="brand"
+					>
 						<FolderOpenIcon aria-hidden className="size-4" weight="bold" />
 						Open local repository
 					</Button>
@@ -73,12 +78,12 @@ export const RepositoryWelcome = ({
 								};
 								return (
 									<button
-										className="group flex w-full items-center gap-3 border-editor-hairline border-b px-3.5 py-3 text-left outline-none last:border-b-0 hover:bg-white/80 focus-visible:bg-white"
+										className="group flex w-full items-center gap-3 border-editor-hairline border-b px-3.5 py-3 text-left outline-none last:border-b-0 hover:bg-editor-surface focus-visible:bg-editor-surface"
 										key={repository.path}
 										onClick={openRecent}
 										type="button"
 									>
-										<span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-white text-editor-muted shadow-surface-1">
+										<span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-surface-3 text-editor-muted shadow-surface-1">
 											<FolderOpenIcon
 												aria-hidden
 												className="size-4"
@@ -86,7 +91,7 @@ export const RepositoryWelcome = ({
 											/>
 										</span>
 										<span className="min-w-0 flex-1">
-											<span className="block truncate font-medium text-[12px] text-editor-ink">
+											<span className="block truncate font-medium text-editor-ink text-xs">
 												{recentRepositoryName(repository)}
 											</span>
 											<span className="block truncate text-[10px] text-editor-faint">

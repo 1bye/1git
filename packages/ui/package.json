@@ -6,6 +6,7 @@
   "exports": {
     "./globals.css": "./src/styles/globals.css",
     "./components/*": "./src/components/*.tsx",
+    "./lib/surface-context": "./src/lib/surface-context.tsx",
     "./lib/*": "./src/lib/*.ts",
     "./postcss.config": "./postcss.config.mjs"
   },

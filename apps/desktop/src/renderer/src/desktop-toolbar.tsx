@@ -116,29 +116,18 @@ export const DesktopToolbar = ({
 
 	return (
 		<header
-			className="relative z-40 flex h-[76px] shrink-0 items-end border-editor-hairline border-b bg-studio-glass-surface pt-7 pb-1.5 backdrop-blur-2xl"
+			className="relative z-40 h-[76px] shrink-0 border-editor-hairline border-b bg-studio-glass backdrop-blur-2xl"
 			data-name="DesktopToolbar"
 		>
 			<div
 				aria-hidden
-				className="absolute inset-x-0 top-0 h-7"
+				className="absolute inset-x-0 top-0 h-10"
 				data-desktop-drag
-			/>
-			<RepositoryMenu
-				activeSessionId={activeSessionId}
-				isOpen={isRepositoryMenuOpen}
-				onActivateWorkspace={onActivateWorkspace}
-				onOpenChange={setRepositoryMenuOpen}
-				onOpenRecent={onOpenRecent}
-				onPickRepository={onPickRepository}
-				pendingAction={pendingAction}
-				recentRepositories={recentRepositories}
-				workspaces={workspaces}
 			/>
 
 			<div
 				aria-label="Open repository workspaces"
-				className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-1.5 pb-px"
+				className="relative flex h-10 min-w-0 items-center gap-1 overflow-x-auto pr-2 pl-(--desktop-titlebar-controls-width)"
 				data-name="WorkspaceTabList"
 				role="tablist"
 			>
@@ -154,72 +143,87 @@ export const DesktopToolbar = ({
 					/>
 				))}
 				{workspaces.length === 0 ? (
-					<span className="px-2 text-[11px] text-editor-faint">
+					<span className="px-2 text-editor-faint text-xss">
 						Open a repository to begin
 					</span>
 				) : null}
 			</div>
 
-			<div aria-hidden className="h-full min-w-8 flex-1" data-desktop-drag />
-
 			<div
-				className="flex shrink-0 items-center gap-1 border-editor-hairline border-l px-2"
-				data-name="WorkspaceToolbarActions"
+				className="relative flex h-9 items-stretch border-editor-hairline border-t"
+				data-name="WorkspaceCommandBar"
 			>
-				<Button
-					aria-label="Find a repository or worktree"
-					className="h-8 gap-2 px-2.5 text-[11px]"
-					data-name="WorkspaceSearchButton"
-					onClick={openRepositoryMenu}
-					size="sm"
-					title="Find a repository or worktree (Command K)"
-					variant="ghost"
+				<RepositoryMenu
+					activeSessionId={activeSessionId}
+					isOpen={isRepositoryMenuOpen}
+					onActivateWorkspace={onActivateWorkspace}
+					onOpenChange={setRepositoryMenuOpen}
+					onOpenRecent={onOpenRecent}
+					onPickRepository={onPickRepository}
+					pendingAction={pendingAction}
+					recentRepositories={recentRepositories}
+					workspaces={workspaces}
+				/>
+				<div aria-hidden className="h-full min-w-8 flex-1" data-desktop-drag />
+				<div
+					className="flex shrink-0 items-center gap-1 border-editor-hairline border-l px-2"
+					data-name="WorkspaceToolbarActions"
 				>
-					<MagnifyingGlassIcon
-						aria-hidden
-						className="size-3.5"
-						weight="regular"
-					/>
-					<kbd className="text-[10px] text-editor-faint">⌘K</kbd>
-				</Button>
-				<Button
-					aria-label={fetchDescription}
-					className="relative"
-					data-name="SyncButton"
-					disabled={!hasActiveSession || pendingAction !== null}
-					onClick={fetchRepository}
-					size="icon-sm"
-					title={fetchDescription}
-					variant="ghost"
-				>
-					{pendingAction === "fetch" ? (
-						<SpinnerGapIcon
+					<Button
+						aria-label="Find a repository or worktree"
+						className="h-8 gap-2 px-2.5 text-xss"
+						data-name="WorkspaceSearchButton"
+						onClick={openRepositoryMenu}
+						size="sm"
+						title="Find a repository or worktree (Command K)"
+						variant="ghost"
+					>
+						<MagnifyingGlassIcon
 							aria-hidden
-							className="size-4 animate-spin"
-							weight="bold"
-						/>
-					) : (
-						<ArrowsClockwiseIcon
-							aria-hidden
-							className="size-4"
+							className="size-3.5"
 							weight="regular"
 						/>
-					)}
-					{snapshot?.head.behind ? (
-						<span className="absolute top-1 right-1 size-1.5 rounded-full bg-brand" />
-					) : null}
-				</Button>
-				<Button
-					className="h-8 px-2.5 text-[11px]"
-					data-name="AgentButton"
-					disabled
-					size="sm"
-					title="Agent workspace is coming next"
-					variant="ghost"
-				>
-					<RobotIcon aria-hidden className="size-3.5" weight="regular" />
-					Agent
-				</Button>
+						<kbd className="text-[10px] text-editor-faint">⌘K</kbd>
+					</Button>
+					<Button
+						aria-label={fetchDescription}
+						className="relative"
+						data-name="SyncButton"
+						disabled={!hasActiveSession || pendingAction !== null}
+						onClick={fetchRepository}
+						size="icon-sm"
+						title={fetchDescription}
+						variant="ghost"
+					>
+						{pendingAction === "fetch" ? (
+							<SpinnerGapIcon
+								aria-hidden
+								className="size-4 animate-spin"
+								weight="bold"
+							/>
+						) : (
+							<ArrowsClockwiseIcon
+								aria-hidden
+								className="size-4"
+								weight="regular"
+							/>
+						)}
+						{snapshot?.head.behind ? (
+							<span className="absolute top-1 right-1 size-1.5 rounded-full bg-brand" />
+						) : null}
+					</Button>
+					<Button
+						className="h-8 px-2.5 text-xss"
+						data-name="AgentButton"
+						disabled
+						size="sm"
+						title="Agent workspace is coming next"
+						variant="ghost"
+					>
+						<RobotIcon aria-hidden className="size-3.5" weight="regular" />
+						Agent
+					</Button>
+				</div>
 			</div>
 
 			{workspaceMenuLeft === null ? null : (

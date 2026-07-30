@@ -78,9 +78,17 @@
 	--editor-code-bg: #f4f4f5;
 	--editor-hairline: rgb(0 0 0 / 0.06);
 	--editor-hairline-strong: rgb(0 0 0 / 0.1);
+	--editor-radius-lg: var(--radius-lg);
+	--editor-radius-md: var(--radius-md);
+	--editor-radius-sm: var(--radius-sm);
 	--editor-focus-ring: 0 0 0 2px
 		color-mix(in oklab, var(--brand) 22%, transparent);
 	--editor-selection: color-mix(in oklab, var(--brand) 30%, transparent);
+	--editor-selection-unfocused: color-mix(
+		in oklab,
+		var(--brand) 18%,
+		transparent
+	);
 
 	--studio-glass-subtle: rgb(255 255 255 / 0.28);
 	--studio-glass-surface: rgb(255 255 255 / 0.55);
@@ -103,6 +111,17 @@
 	--input: #e5e5e5;
 	--destructive: #ef4444;
 	--destructive-light: #fef2f2;
+	--neutral-100: #f5f5f5;
+	--neutral-200: #e5e5e5;
+	--neutral-300: #d4d4d4;
+	--neutral-400: #a3a3a3;
+	--neutral-500: #737373;
+	--neutral-600: #525252;
+	--neutral-700: #404040;
+	--neutral-800: #262626;
+	--neutral-900: #171717;
+	--checker-a: #bbbbbb;
+	--checker-b: #ffffff;
 	--overlay: 0 0 0;
 	--hover: rgb(var(--overlay) / 0.06);
 	--active: rgb(var(--overlay) / 0.1);
@@ -150,6 +169,17 @@
 	--input: #404040;
 	--destructive: #f87171;
 	--destructive-light: #450a0a;
+	--neutral-100: #f5f5f5;
+	--neutral-200: #e5e5e5;
+	--neutral-300: #d4d4d4;
+	--neutral-400: #a3a3a3;
+	--neutral-500: #737373;
+	--neutral-600: #525252;
+	--neutral-700: #404040;
+	--neutral-800: #262626;
+	--neutral-900: #171717;
+	--checker-a: #1f1f1f;
+	--checker-b: #2a2a2a;
 	--overlay: 255 255 255;
 	--hover: rgb(var(--overlay) / 0.06);
 	--active: rgb(var(--overlay) / 0.1);
@@ -172,6 +202,7 @@
 
 @theme inline {
 	--font-sans: "Inter Variable", sans-serif;
+	--text-xss: 11px;
 	--color-background: var(--background);
 	--color-foreground: var(--foreground);
 	--color-card: var(--card);
@@ -208,6 +239,10 @@
 	--color-studio-glass-hover: var(--studio-glass-hover);
 	--color-studio-glass-strong: var(--studio-glass-strong);
 	--color-studio-glass-border: var(--studio-glass-border);
+	--color-preview: var(--preview-background);
+	--color-preview-foreground: var(--preview-foreground);
+	--color-preview-accent-primary: var(--preview-accent-primary);
+	--color-preview-accent-secondary: var(--preview-accent-secondary);
 	--color-surface-1: var(--surface-1);
 	--color-surface-2: var(--surface-2);
 	--color-surface-3: var(--surface-3);

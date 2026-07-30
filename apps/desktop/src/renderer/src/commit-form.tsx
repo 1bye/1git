@@ -42,7 +42,7 @@ export const CommitForm = ({
 
 	return (
 		<form
-			className="shrink-0 border-editor-hairline border-t bg-white/36 p-3 backdrop-blur-xl"
+			className="shrink-0 border-editor-hairline border-t bg-studio-glass-subtle p-3"
 			data-name="CommitForm"
 			onSubmit={submitCommit}
 		>
@@ -54,7 +54,7 @@ export const CommitForm = ({
 					Commit summary
 				</label>
 				<Input
-					className="h-8 bg-white/70 text-[12px]"
+					className="h-8 bg-studio-glass-strong text-xs"
 					disabled={isPending}
 					id="commit-summary"
 					maxLength={120}
@@ -67,7 +67,7 @@ export const CommitForm = ({
 				Commit description
 			</label>
 			<Textarea
-				className="mt-2 min-h-[72px] bg-white/70 text-[12px]"
+				className="mt-2 min-h-[72px] bg-studio-glass-strong text-xs"
 				disabled={isPending}
 				id="commit-description"
 				onChange={handleDescriptionChange}

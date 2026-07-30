@@ -1,5 +1,6 @@
 import type { BranchCollection } from "@1git/git";
 import { Button } from "@1git/ui/components/button";
+import { Elevated } from "@1git/ui/components/elevated";
 import { Input } from "@1git/ui/components/input";
 import { ArrowsClockwiseIcon } from "@phosphor-icons/react/dist/csr/ArrowsClockwise";
 import { CheckIcon } from "@phosphor-icons/react/dist/csr/Check";
@@ -66,9 +67,12 @@ export const WorkspaceActionsMenu = ({
 				onClick={onClose}
 				type="button"
 			/>
-			<section
+			<Elevated
 				aria-label="Workspace actions"
-				className="fixed top-[72px] z-50 w-[310px] overflow-hidden rounded-2xl border border-editor-hairline bg-white/94 p-1.5 shadow-surface-6 backdrop-blur-2xl"
+				className="fixed top-[72px] z-50 w-[310px] overflow-hidden rounded-2xl p-1.5"
+				offset={2}
+				role="dialog"
+				shadowLevel={6}
 				style={{ left }}
 			>
 				<div className="flex items-center gap-2.5 px-2.5 pt-2 pb-2">
@@ -79,7 +83,7 @@ export const WorkspaceActionsMenu = ({
 						<span className="block text-[10px] text-editor-faint">
 							Current branch
 						</span>
-						<span className="block truncate font-semibold text-[12px] text-editor-ink">
+						<span className="block truncate font-semibold text-editor-ink text-xs">
 							{currentBranch || "Detached HEAD"}
 						</span>
 					</span>
@@ -99,7 +103,7 @@ export const WorkspaceActionsMenu = ({
 						</label>
 						<Input
 							autoFocus
-							className="mt-2 h-8 text-[12px]"
+							className="mt-2 h-8 text-xs"
 							id="new-workspace-branch-name"
 							onChange={handleBranchNameChange}
 							placeholder="feature/my-change"
@@ -149,7 +153,7 @@ export const WorkspaceActionsMenu = ({
 											className="size-3.5 shrink-0 text-editor-faint"
 											weight="regular"
 										/>
-										<span className="min-w-0 flex-1 truncate font-medium text-[12px] text-editor-ink">
+										<span className="min-w-0 flex-1 truncate font-medium text-editor-ink text-xs">
 											{branch.name}
 										</span>
 										{branch.checkedOut ? (
@@ -165,7 +169,7 @@ export const WorkspaceActionsMenu = ({
 						</div>
 						<div className="mt-1 border-editor-hairline border-t pt-1">
 							<button
-								className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left font-medium text-[12px] text-editor-ink outline-none hover:bg-editor-sunken focus-visible:bg-editor-sunken"
+								className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left font-medium text-editor-ink text-xs outline-none hover:bg-editor-sunken focus-visible:bg-editor-sunken"
 								onClick={beginBranchCreation}
 								type="button"
 							>
@@ -177,7 +181,7 @@ export const WorkspaceActionsMenu = ({
 								Create new branch…
 							</button>
 							<button
-								className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left font-medium text-[12px] text-editor-ink outline-none hover:bg-editor-sunken focus-visible:bg-editor-sunken"
+								className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left font-medium text-editor-ink text-xs outline-none hover:bg-editor-sunken focus-visible:bg-editor-sunken"
 								disabled={pendingAction !== null}
 								onClick={fetchRepository}
 								type="button"
@@ -192,7 +196,7 @@ export const WorkspaceActionsMenu = ({
 						</div>
 					</>
 				)}
-			</section>
+			</Elevated>
 		</div>
 	);
 };

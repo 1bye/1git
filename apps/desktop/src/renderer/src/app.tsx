@@ -76,7 +76,7 @@ export const App = (): ReactElement => {
 
 			{workspace.error ? (
 				<div
-					className="absolute right-4 bottom-4 z-50 flex max-w-[440px] items-start gap-3 rounded-2xl border border-rose-200/70 bg-white/92 p-3.5 text-left shadow-surface-6 backdrop-blur-2xl"
+					className="absolute right-4 bottom-4 z-50 flex max-w-[440px] items-start gap-3 rounded-2xl border border-rose-200/70 bg-surface-3 p-3.5 text-left shadow-surface-6"
 					data-name="ErrorNotice"
 					role="alert"
 				>
@@ -84,10 +84,10 @@ export const App = (): ReactElement => {
 						<WarningCircleIcon aria-hidden className="size-4" weight="fill" />
 					</span>
 					<div className="min-w-0 flex-1">
-						<p className="font-semibold text-[12px] text-editor-ink">
+						<p className="font-semibold text-editor-ink text-xs">
 							Git operation failed
 						</p>
-						<p className="mt-1 text-[11px] text-editor-muted leading-4">
+						<p className="mt-1 text-editor-muted text-xss leading-4">
 							{workspace.error}
 						</p>
 					</div>
