@@ -81,7 +81,8 @@ const WORKSPACE_TAB_LIST_STYLE: CSSProperties = {
 	paddingInline: WORKSPACE_TAB_SURFACE_GEOMETRY.tabListInset,
 	paddingTop:
 		WORKSPACE_TAB_SURFACE_GEOMETRY.toolbarHeight -
-		WORKSPACE_TAB_SURFACE_GEOMETRY.tabHeight,
+		WORKSPACE_TAB_SURFACE_GEOMETRY.tabHeight -
+		WORKSPACE_TAB_SURFACE_GEOMETRY.tabLift,
 };
 
 export const DesktopToolbar = ({

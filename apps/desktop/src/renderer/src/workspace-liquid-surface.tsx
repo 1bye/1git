@@ -131,7 +131,10 @@ export const WorkspaceLiquidSurface = ({
 			sampleCellSize: geometry.sampleCellSize,
 			smoothingPasses: geometry.smoothingPasses,
 			surfaceWidth: measurement.surfaceWidth,
-			tabHeight: geometry.tabHeight - geometry.tabVisualInsetBlock * 2,
+			tabHeight:
+				geometry.tabHeight -
+				geometry.tabVisualInsetBlock * 2 +
+				geometry.tabSdfExtensionBlockEnd,
 			tabLeft: measurement.tabLeft + geometry.tabVisualInsetInline,
 			tabRadius: geometry.tabRadius,
 			tabTop: measurement.tabTop + geometry.tabVisualInsetBlock,
