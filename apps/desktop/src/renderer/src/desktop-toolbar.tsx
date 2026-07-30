@@ -74,10 +74,11 @@ const DESKTOP_TOOLBAR_STYLE: CSSProperties = {
 	height: WORKSPACE_TAB_SURFACE_GEOMETRY.toolbarHeight,
 };
 const WORKSPACE_TAB_LIST_STYLE: CSSProperties = {
+	columnGap: WORKSPACE_TAB_SURFACE_GEOMETRY.tabGap,
 	height:
 		WORKSPACE_TAB_SURFACE_GEOMETRY.toolbarHeight +
 		WORKSPACE_TAB_SURFACE_GEOMETRY.containerOverlap,
-	paddingInline: WORKSPACE_TAB_SURFACE_GEOMETRY.tabContentInset,
+	paddingInline: WORKSPACE_TAB_SURFACE_GEOMETRY.tabListInset,
 	paddingTop:
 		WORKSPACE_TAB_SURFACE_GEOMETRY.toolbarHeight -
 		WORKSPACE_TAB_SURFACE_GEOMETRY.tabHeight,
@@ -202,7 +203,7 @@ export const DesktopToolbar = ({
 				>
 					<div
 						aria-label="Open repository workspaces"
-						className="flex min-w-0 flex-1 items-start gap-1 overflow-x-auto overflow-y-hidden"
+						className="flex min-w-0 flex-1 items-start overflow-x-auto overflow-y-hidden"
 						data-dragging={draggingSessionId ? "true" : undefined}
 						data-name="WorkspaceTabList"
 						role="tablist"

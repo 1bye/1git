@@ -131,11 +131,11 @@ export const WorkspaceLiquidSurface = ({
 			sampleCellSize: geometry.sampleCellSize,
 			smoothingPasses: geometry.smoothingPasses,
 			surfaceWidth: measurement.surfaceWidth,
-			tabHeight: geometry.tabHeight,
-			tabLeft: measurement.tabLeft + geometry.tabContentInset,
+			tabHeight: geometry.tabHeight - geometry.tabVisualInsetBlock * 2,
+			tabLeft: measurement.tabLeft + geometry.tabVisualInsetInline,
 			tabRadius: geometry.tabRadius,
-			tabTop: measurement.tabTop,
-			tabWidth: geometry.tabWidth - geometry.tabContentInset * 2,
+			tabTop: measurement.tabTop + geometry.tabVisualInsetBlock,
+			tabWidth: geometry.tabWidth - geometry.tabVisualInsetInline * 2,
 		});
 	}, [measurement]);
 	const surfaceStyle = useMemo<CSSProperties | undefined>(() => {
