@@ -122,6 +122,22 @@ export const WorkspaceLiquidSurface = ({
 			return "";
 		}
 		const geometry = WORKSPACE_TAB_SURFACE_GEOMETRY;
+		const tabLeft = measurement.tabLeft + geometry.tabVisualInsetInline;
+		const tabWidth = geometry.tabWidth - geometry.tabVisualInsetInline * 2;
+		const tabRight = tabLeft + tabWidth;
+		const edgeClearance = Math.max(
+			0,
+			Math.min(
+				tabLeft - geometry.containerInset,
+				measurement.surfaceWidth - geometry.containerInset - tabRight
+			)
+		);
+		const edgeProgress = Math.min(1, edgeClearance / geometry.containerRadius);
+		const sdfExtension =
+			geometry.tabSdfEdgeExtensionBlockEnd +
+			(geometry.tabSdfExtensionBlockEnd -
+				geometry.tabSdfEdgeExtensionBlockEnd) *
+				edgeProgress;
 		return createWorkspaceLiquidPath({
 			blendRadius: geometry.blendRadius,
 			containerDepth: geometry.containerDepth,
@@ -132,13 +148,11 @@ export const WorkspaceLiquidSurface = ({
 			smoothingPasses: geometry.smoothingPasses,
 			surfaceWidth: measurement.surfaceWidth,
 			tabHeight:
-				geometry.tabHeight -
-				geometry.tabVisualInsetBlock * 2 +
-				geometry.tabSdfExtensionBlockEnd,
-			tabLeft: measurement.tabLeft + geometry.tabVisualInsetInline,
+				geometry.tabHeight - geometry.tabVisualInsetBlock * 2 + sdfExtension,
+			tabLeft,
 			tabRadius: geometry.tabRadius,
 			tabTop: measurement.tabTop + geometry.tabVisualInsetBlock,
-			tabWidth: geometry.tabWidth - geometry.tabVisualInsetInline * 2,
+			tabWidth,
 		});
 	}, [measurement]);
 	const surfaceStyle = useMemo<CSSProperties | undefined>(() => {

@@ -346,11 +346,18 @@ export const createWorkspaceLiquidPath = (
 		return "";
 	}
 
+	const clipLeft = input.containerInset;
+	const clipRight = input.surfaceWidth - input.containerInset;
+	const clippedTabWidth = Math.min(input.tabWidth, clipRight - clipLeft);
+	const clippedTabLeft = Math.max(
+		clipLeft,
+		Math.min(input.tabLeft, clipRight - clippedTabWidth)
+	);
 	const tab: RoundedBox = {
-		centerX: input.tabLeft + input.tabWidth / 2,
+		centerX: clippedTabLeft + clippedTabWidth / 2,
 		centerY: input.tabTop + input.tabHeight / 2,
 		halfHeight: input.tabHeight / 2,
-		halfWidth: input.tabWidth / 2,
+		halfWidth: clippedTabWidth / 2,
 		radius: input.tabRadius,
 	};
 	const container: RoundedBox = {
@@ -360,13 +367,14 @@ export const createWorkspaceLiquidPath = (
 		halfWidth: (input.surfaceWidth - input.containerInset * 2) / 2,
 		radius: input.containerRadius,
 	};
-	const clipLeft = input.containerInset;
-	const clipRight = input.surfaceWidth - input.containerInset;
+	const edgeBlendFalloff = Math.max(input.containerRadius, cellSize);
 	const fieldValue = (x: number, y: number): number => {
+		const edgeClearance = Math.max(0, Math.min(x - clipLeft, clipRight - x));
+		const edgeBlendProgress = Math.min(1, edgeClearance / edgeBlendFalloff);
 		const unionDistance = smoothMinimum(
 			signedDistanceToRoundedBox(x, y, tab),
 			signedDistanceToRoundedBox(x, y, container),
-			input.blendRadius
+			input.blendRadius * edgeBlendProgress
 		);
 		return Math.max(unionDistance, clipLeft - x, x - clipRight);
 	};

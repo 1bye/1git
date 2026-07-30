@@ -68,4 +68,57 @@ describe("workspace liquid geometry", () => {
 			surfaceWidth - containerInset
 		);
 	});
+
+	test("preserves rounded container corners when the tab reaches an edge", () => {
+		const surfaceWidth = 320;
+		const containerInset = 6;
+		const containerTop = 46;
+		const tabWidth = 188;
+		const createEdgePath = (tabLeft: number): readonly [number, number][] =>
+			pathCoordinates(
+				createWorkspaceLiquidPath({
+					blendRadius: 12,
+					containerDepth: 48,
+					containerInset,
+					containerRadius: 14,
+					containerTop,
+					sampleCellSize: 2,
+					smoothingPasses: 1,
+					surfaceWidth,
+					tabHeight: 35,
+					tabLeft,
+					tabRadius: 10,
+					tabTop: 7,
+					tabWidth,
+				})
+			);
+		const coordinatesNearCorner = (
+			coordinates: readonly [number, number][]
+		): readonly [number, number][] =>
+			coordinates.filter(
+				([, y]) => y >= containerTop - 4 && y <= containerTop + 6
+			);
+		const coordinatesInsideTabBody = (
+			coordinates: readonly [number, number][]
+		): readonly [number, number][] =>
+			coordinates.filter(([, y]) => y >= 17 && y <= 32);
+
+		const leftCoordinates = createEdgePath(-tabWidth);
+		const leftCornerX = coordinatesNearCorner(leftCoordinates).map(([x]) => x);
+		const leftBodyX = coordinatesInsideTabBody(leftCoordinates).map(([x]) => x);
+		expect(Math.min(...leftBodyX)).toBe(containerInset);
+		expect(Math.min(...leftCornerX)).toBeGreaterThan(containerInset);
+
+		const rightCoordinates = createEdgePath(surfaceWidth + tabWidth);
+		const rightCornerX = coordinatesNearCorner(rightCoordinates).map(
+			([x]) => x
+		);
+		const rightBodyX = coordinatesInsideTabBody(rightCoordinates).map(
+			([x]) => x
+		);
+		expect(Math.max(...rightBodyX)).toBe(surfaceWidth - containerInset);
+		expect(Math.max(...rightCornerX)).toBeLessThan(
+			surfaceWidth - containerInset
+		);
+	});
 });

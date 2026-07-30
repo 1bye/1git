@@ -49,6 +49,7 @@ export const WORKSPACE_TAB_SURFACE_GEOMETRY = {
   tabLift: 3,
   tabListInset: 16,
   tabRadius: 10,
+  tabSdfEdgeExtensionBlockEnd: 3,
   tabSdfExtensionBlockEnd: 16,
   tabTrailingInset: 4,
   tabVisualInsetBlock: 4,
