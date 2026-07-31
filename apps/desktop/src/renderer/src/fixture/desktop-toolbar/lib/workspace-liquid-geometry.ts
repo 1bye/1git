@@ -8,7 +8,7 @@ interface Point {
 	readonly y: number;
 }
 
-interface RoundedBox {
+export interface RoundedBox {
 	readonly centerX: number;
 	readonly centerY: number;
 	readonly halfHeight: number;
@@ -35,6 +35,15 @@ interface WorkspaceLiquidPathInput {
 	readonly tabRadius: number;
 	readonly tabTop: number;
 	readonly tabWidth: number;
+}
+
+export interface LiquidUnionPathInput {
+	readonly blendRadius: number;
+	readonly boxes: readonly RoundedBox[];
+	readonly sampleCellSize: number;
+	readonly smoothingPasses: number;
+	readonly surfaceHeight: number;
+	readonly surfaceWidth: number;
 }
 
 const CONTOUR_EDGES: readonly (readonly (readonly [number, number])[])[] = [
@@ -332,6 +341,97 @@ const loopsToPath = (
 		.filter(Boolean)
 		.join(" ");
 
+const traceDistanceField = (
+	surfaceWidth: number,
+	surfaceHeight: number,
+	cellSize: number,
+	smoothingPasses: number,
+	fieldValue: (x: number, y: number) => number
+): string => {
+	if (surfaceWidth <= 0 || surfaceHeight <= 0) {
+		return "";
+	}
+
+	const columns = Math.ceil(surfaceWidth / cellSize) + 1;
+	const rows = Math.ceil(surfaceHeight / cellSize) + 1;
+	const samples = new Float32Array(columns * rows);
+	for (let row = 0; row < rows; row += 1) {
+		const y = row * cellSize;
+		for (let column = 0; column < columns; column += 1) {
+			samples[row * columns + column] = fieldValue(column * cellSize, y);
+		}
+	}
+	const sampleAt = (column: number, row: number): number =>
+		samples[row * columns + column] ?? Number.POSITIVE_INFINITY;
+
+	const segments: Segment[] = [];
+	for (let row = 0; row < rows - 1; row += 1) {
+		for (let column = 0; column < columns - 1; column += 1) {
+			const cell: CellSamples = {
+				bottomLeft: sampleAt(column, row + 1),
+				bottomRight: sampleAt(column + 1, row + 1),
+				topLeft: sampleAt(column, row),
+				topRight: sampleAt(column + 1, row),
+				x0: column * cellSize,
+				x1: (column + 1) * cellSize,
+				y0: row * cellSize,
+				y1: (row + 1) * cellSize,
+			};
+			const mask = contourMask(
+				cell.topLeft,
+				cell.topRight,
+				cell.bottomRight,
+				cell.bottomLeft
+			);
+			if (mask === 0 || mask === 15) {
+				continue;
+			}
+			const centerDistance = fieldValue(
+				(cell.x0 + cell.x1) / 2,
+				(cell.y0 + cell.y1) / 2
+			);
+			for (const [startEdge, endEdge] of edgesForMask(mask, centerDistance)) {
+				segments.push({
+					end: pointOnCellEdge(endEdge, cell),
+					start: pointOnCellEdge(startEdge, cell),
+				});
+			}
+		}
+	}
+	return loopsToPath(
+		stitchSegments(segments, cellSize),
+		Math.max(0, smoothingPasses)
+	);
+};
+
+export const createLiquidUnionPath = (input: LiquidUnionPathInput): string => {
+	const [firstBox, ...remainingBoxes] = input.boxes;
+	if (!firstBox) {
+		return "";
+	}
+
+	const cellSize = Math.max(MINIMUM_CELL_SIZE, input.sampleCellSize);
+	const fieldValue = (x: number, y: number): number => {
+		let distance = signedDistanceToRoundedBox(x, y, firstBox);
+		for (const box of remainingBoxes) {
+			distance = smoothMinimum(
+				distance,
+				signedDistanceToRoundedBox(x, y, box),
+				input.blendRadius
+			);
+		}
+		return distance;
+	};
+
+	return traceDistanceField(
+		input.surfaceWidth,
+		input.surfaceHeight,
+		cellSize,
+		input.smoothingPasses,
+		fieldValue
+	);
+};
+
 export const createWorkspaceLiquidPath = (
 	input: WorkspaceLiquidPathInput
 ): string => {
@@ -379,54 +479,11 @@ export const createWorkspaceLiquidPath = (
 		return Math.max(unionDistance, clipLeft - x, x - clipRight);
 	};
 
-	const columns = Math.ceil(sampleWidth / cellSize) + 1;
-	const rows = Math.ceil(sampleHeight / cellSize) + 1;
-	const samples = new Float32Array(columns * rows);
-	for (let row = 0; row < rows; row += 1) {
-		const y = row * cellSize;
-		for (let column = 0; column < columns; column += 1) {
-			samples[row * columns + column] = fieldValue(column * cellSize, y);
-		}
-	}
-	const sampleAt = (column: number, row: number): number =>
-		samples[row * columns + column] ?? Number.POSITIVE_INFINITY;
-
-	const segments: Segment[] = [];
-	for (let row = 0; row < rows - 1; row += 1) {
-		for (let column = 0; column < columns - 1; column += 1) {
-			const cell: CellSamples = {
-				bottomLeft: sampleAt(column, row + 1),
-				bottomRight: sampleAt(column + 1, row + 1),
-				topLeft: sampleAt(column, row),
-				topRight: sampleAt(column + 1, row),
-				x0: column * cellSize,
-				x1: (column + 1) * cellSize,
-				y0: row * cellSize,
-				y1: (row + 1) * cellSize,
-			};
-			const mask = contourMask(
-				cell.topLeft,
-				cell.topRight,
-				cell.bottomRight,
-				cell.bottomLeft
-			);
-			if (mask === 0 || mask === 15) {
-				continue;
-			}
-			const centerDistance = fieldValue(
-				(cell.x0 + cell.x1) / 2,
-				(cell.y0 + cell.y1) / 2
-			);
-			for (const [startEdge, endEdge] of edgesForMask(mask, centerDistance)) {
-				segments.push({
-					end: pointOnCellEdge(endEdge, cell),
-					start: pointOnCellEdge(startEdge, cell),
-				});
-			}
-		}
-	}
-	return loopsToPath(
-		stitchSegments(segments, cellSize),
-		Math.max(0, input.smoothingPasses)
+	return traceDistanceField(
+		sampleWidth,
+		sampleHeight,
+		cellSize,
+		input.smoothingPasses,
+		fieldValue
 	);
 };

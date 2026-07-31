@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
+import { createWorkspaceActionsLiquidFrame } from "../src/renderer/src/fixture/desktop-toolbar/lib/workspace-actions-liquid-geometry.js";
 import {
+	createLiquidUnionPath,
 	createWorkspaceLiquidPath,
 	smoothMinimum,
 } from "../src/renderer/src/fixture/desktop-toolbar/lib/workspace-liquid-geometry.js";
@@ -38,6 +40,62 @@ describe("workspace liquid geometry", () => {
 		expect(path.endsWith(" Z")).toBe(true);
 		expect(path.match(/ Z/g)).toHaveLength(1);
 		expect(pathCoordinates(path).length).toBeGreaterThan(100);
+	});
+
+	test("fuses a tab and floating menu into one liquid contour", () => {
+		const path = createLiquidUnionPath({
+			blendRadius: 18,
+			boxes: [
+				{
+					centerX: 180,
+					centerY: 30,
+					halfHeight: 16,
+					halfWidth: 101,
+					radius: 10,
+				},
+				{
+					centerX: 180,
+					centerY: 135,
+					halfHeight: 85,
+					halfWidth: 144,
+					radius: 12,
+				},
+			],
+			sampleCellSize: 2,
+			smoothingPasses: 1,
+			surfaceHeight: 240,
+			surfaceWidth: 360,
+		});
+
+		expect(path.startsWith("M ")).toBe(true);
+		expect(path.match(/ Z/g)).toHaveLength(1);
+		expect(pathCoordinates(path).length).toBeGreaterThan(100);
+	});
+
+	test("grows the floating menu from a connected SDF seed", () => {
+		const measurement = {
+			menu: { height: 262, left: 132, top: 45, width: 288 },
+			tab: { height: 40, left: 171, top: 3, width: 210 },
+		};
+		const seedFrame = createWorkspaceActionsLiquidFrame(measurement, 0.001);
+		const openFrame = createWorkspaceActionsLiquidFrame(measurement, 1);
+		const seedCoordinates = pathCoordinates(seedFrame.path);
+		const openCoordinates = pathCoordinates(openFrame.path);
+		const horizontalSpan = (
+			coordinates: readonly [number, number][]
+		): number => {
+			const horizontalCoordinates = coordinates.map(([x]) => x);
+			return (
+				Math.max(...horizontalCoordinates) - Math.min(...horizontalCoordinates)
+			);
+		};
+
+		expect(seedFrame.path.match(/ Z/g)).toHaveLength(1);
+		expect(openFrame.path.match(/ Z/g)).toHaveLength(1);
+		expect(horizontalSpan(seedCoordinates)).toBeLessThan(
+			horizontalSpan(openCoordinates)
+		);
+		expect(seedFrame.bounds).toEqual(openFrame.bounds);
 	});
 
 	test("clips the liquid skin to the workspace inset at the right edge", () => {

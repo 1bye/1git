@@ -31,6 +31,7 @@ import {
 	WORKSPACE_TAB_SURFACE_GEOMETRY,
 } from "../constants/workspace-tab.js";
 import { RepositoryMenu } from "./repository-menu.js";
+import { WorkspaceActionsLiquidSurface } from "./workspace-actions-liquid-surface.js";
 import { WorkspaceActionsMenu } from "./workspace-actions-menu.js";
 import { WorkspaceLiquidSurface } from "./workspace-liquid-surface.js";
 import { WorkspaceTab, WorkspaceTabOverlay } from "./workspace-tab.js";
@@ -126,6 +127,8 @@ export function DesktopToolbar({
 }: DesktopToolbarProps): ReactElement {
 	const [isRepositoryMenuOpen, setIsRepositoryMenuOpen] = useState(false);
 	const [isWorkspaceMenuOpen, setIsWorkspaceMenuOpen] = useState(false);
+	const [isWorkspaceMenuSurfacePresent, setIsWorkspaceMenuSurfacePresent] =
+		useState(false);
 	const [draggingSessionId, setDraggingSessionId] =
 		useState<RepositorySessionId | null>(null);
 	const currentBranch = snapshot?.head.branch ?? "";
@@ -134,6 +137,8 @@ export function DesktopToolbar({
 		activeSessionId === null ? -1 : workspaceIds.indexOf(activeSessionId);
 	const isActiveTabDragging =
 		activeSessionId !== null && draggingSessionId === activeSessionId;
+	const isWorkspaceMenuVisualOpen =
+		isWorkspaceMenuOpen || isWorkspaceMenuSurfacePresent;
 
 	useEffect(() => {
 		const handleKeyDown = (event: KeyboardEvent): void => {
@@ -270,13 +275,10 @@ export function DesktopToolbar({
 					activeTabIndex={activeTabIndex}
 					isDragging={Boolean(draggingSessionId)}
 				/>
-				{isWorkspaceMenuOpen && activeTabIndex >= 0 ? (
-					<div
-						aria-hidden
-						className="pointer-events-none fixed inset-0 z-[3] bg-black/20"
-						data-name="WorkspaceActionsBackdrop"
-					/>
-				) : null}
+				<WorkspaceActionsLiquidSurface
+					isOpen={isWorkspaceMenuOpen && activeTabIndex >= 0}
+					onPresenceChange={setIsWorkspaceMenuSurfacePresent}
+				/>
 				<RepositoryMenu
 					activeSessionId={activeSessionId}
 					isOpen={isRepositoryMenuOpen}
@@ -315,7 +317,7 @@ export function DesktopToolbar({
 								>
 									<WorkspaceTab
 										index={index}
-										isActionsMenuOpen={isActive && isWorkspaceMenuOpen}
+										isActionsMenuOpen={isActive && isWorkspaceMenuVisualOpen}
 										isActive={isActive}
 										isBusy={pendingAction === "workspace"}
 										onActivate={onActivateWorkspace}
@@ -328,6 +330,7 @@ export function DesktopToolbar({
 											anchor={getActiveWorkspaceTab}
 											branches={branches}
 											currentBranch={currentBranch}
+											hasLiquidSurface={isWorkspaceMenuSurfacePresent}
 											onClose={closeWorkspaceMenu}
 											onCreateBranch={onCreateBranch}
 											onFetch={onFetch}

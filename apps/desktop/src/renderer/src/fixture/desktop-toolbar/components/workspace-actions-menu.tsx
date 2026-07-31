@@ -17,6 +17,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@1git/ui/components/tooltip";
+import { cn } from "@1git/ui/lib/utils";
 import { ArrowsClockwiseIcon } from "@phosphor-icons/react/dist/csr/ArrowsClockwise";
 import { CheckIcon } from "@phosphor-icons/react/dist/csr/Check";
 import { GitBranchIcon } from "@phosphor-icons/react/dist/csr/GitBranch";
@@ -24,6 +25,7 @@ import { PlusIcon } from "@phosphor-icons/react/dist/csr/Plus";
 import type {
 	ChangeEvent,
 	ComponentProps,
+	CSSProperties,
 	FormEvent,
 	ReactElement,
 	KeyboardEvent as ReactKeyboardEvent,
@@ -32,7 +34,10 @@ import type {
 import { useId, useState } from "react";
 import type { PendingWorkspaceAction } from "../../../feature/workspace/hooks/use-git-workspace.js";
 import { formatCommitDate } from "../../../feature/workspace/lib/workspace-model.js";
-import { WORKSPACE_BRANCH_TOOLTIP_DELAY_MS } from "../constants/workspace-actions-menu.js";
+import {
+	WORKSPACE_ACTIONS_LIQUID_MOTION,
+	WORKSPACE_BRANCH_TOOLTIP_DELAY_MS,
+} from "../constants/workspace-actions-menu.js";
 import { WORKSPACE_ACTIONS_MENU_ID } from "../constants/workspace-tab.js";
 import {
 	formatBranchCommitAge,
@@ -43,11 +48,17 @@ interface WorkspaceActionsMenuProps {
 	readonly anchor: ComponentProps<typeof DropdownMenuContent>["anchor"];
 	readonly branches: BranchCollection | null;
 	readonly currentBranch: string;
+	readonly hasLiquidSurface: boolean;
 	readonly onClose: () => void;
 	readonly onCreateBranch: (name: string) => Promise<boolean>;
 	readonly onFetch: () => Promise<void>;
 	readonly onSwitchBranch: (name: string) => Promise<void>;
 	readonly pendingAction: PendingWorkspaceAction;
+}
+
+interface WorkspaceActionsMenuStyle extends CSSProperties {
+	readonly "--workspace-actions-menu-content-delay": string;
+	readonly "--workspace-actions-menu-content-duration": string;
 }
 
 interface BranchMenuItemProps {
@@ -65,6 +76,11 @@ interface CreateBranchFormProps {
 	readonly onCreateBranch: (name: string) => Promise<boolean>;
 	readonly pendingAction: PendingWorkspaceAction;
 }
+
+const WORKSPACE_ACTIONS_MENU_STYLE: WorkspaceActionsMenuStyle = {
+	"--workspace-actions-menu-content-delay": `${WORKSPACE_ACTIONS_LIQUID_MOTION.contentDelayMs}ms`,
+	"--workspace-actions-menu-content-duration": `${WORKSPACE_ACTIONS_LIQUID_MOTION.contentDurationMs}ms`,
+};
 
 function BranchMenuItem({
 	branch,
@@ -240,6 +256,7 @@ export function WorkspaceActionsMenu({
 	anchor,
 	branches,
 	currentBranch,
+	hasLiquidSurface,
 	onClose,
 	onCreateBranch,
 	onFetch,
@@ -264,10 +281,15 @@ export function WorkspaceActionsMenu({
 				anchor={anchor}
 				aria-busy={isPending}
 				aria-label="Workspace actions"
-				className="w-72 min-w-72"
+				className={cn(
+					"w-72 min-w-72 data-closed:animate-none data-open:animate-none",
+					hasLiquidSurface ? "border-transparent bg-transparent" : "opacity-0"
+				)}
+				data-liquid-surface={hasLiquidSurface ? "true" : undefined}
 				data-name="WorkspaceActionsMenu"
 				id={WORKSPACE_ACTIONS_MENU_ID}
 				sideOffset={2}
+				style={WORKSPACE_ACTIONS_MENU_STYLE}
 			>
 				<DropdownMenuGroup>
 					<DropdownMenuLabel className="flex items-center gap-2 px-2 py-1.5 normal-case tracking-normal">
