@@ -1,18 +1,52 @@
 import type { BranchCollection, BranchInfo } from "@1git/git";
-import { LATEST_BRANCH_LIMIT } from "../constants/workspace-actions-menu.js";
+import {
+	LATEST_BRANCH_LIMIT,
+	WORKSPACE_BRANCH_COMMIT_AGE_UNITS,
+} from "../constants/workspace-actions-menu.js";
 
 interface WorkspaceBranchGroups {
 	readonly latestBranches: readonly BranchInfo[];
 	readonly remainingBranches: readonly BranchInfo[];
 }
 
-const committedAtTime = (branch: BranchInfo): number => {
-	if (!branch.committedAt) {
-		return Number.NEGATIVE_INFINITY;
+const BRANCH_COMMIT_RELATIVE_TIME_FORMAT = new Intl.RelativeTimeFormat(
+	undefined,
+	{ numeric: "auto" }
+);
+
+const branchCommitTime = (committedAt: string | null): number | null => {
+	if (!committedAt) {
+		return null;
 	}
 
-	const timestamp = Date.parse(branch.committedAt);
-	return Number.isNaN(timestamp) ? Number.NEGATIVE_INFINITY : timestamp;
+	const timestamp = Date.parse(committedAt);
+	return Number.isNaN(timestamp) ? null : timestamp;
+};
+
+const committedAtTime = (branch: BranchInfo): number =>
+	branchCommitTime(branch.committedAt) ?? Number.NEGATIVE_INFINITY;
+
+export const formatBranchCommitAge = (
+	committedAt: string | null,
+	nowMilliseconds = Date.now()
+): string | null => {
+	const timestamp = branchCommitTime(committedAt);
+	if (timestamp === null) {
+		return null;
+	}
+
+	const differenceMilliseconds = timestamp - nowMilliseconds;
+	for (const { milliseconds, unit } of WORKSPACE_BRANCH_COMMIT_AGE_UNITS) {
+		const magnitude = Math.abs(differenceMilliseconds) / milliseconds;
+		if (magnitude >= 1) {
+			return BRANCH_COMMIT_RELATIVE_TIME_FORMAT.format(
+				Math.round(differenceMilliseconds / milliseconds),
+				unit
+			);
+		}
+	}
+
+	return "just now";
 };
 
 export const groupWorkspaceBranches = (

@@ -1,6 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import type { BranchCollection, BranchInfo } from "@1git/git";
-import { groupWorkspaceBranches } from "../src/renderer/src/fixture/desktop-toolbar/lib/workspace-actions-menu.js";
+import {
+	formatBranchCommitAge,
+	groupWorkspaceBranches,
+} from "../src/renderer/src/fixture/desktop-toolbar/lib/workspace-actions-menu.js";
 
 const branch = (
 	name: string,
@@ -63,5 +66,29 @@ describe("workspace actions menu branches", () => {
 			"invalid",
 		]);
 		expect(result.remainingBranches).toEqual([]);
+	});
+});
+
+describe("workspace branch commit age", () => {
+	const now = Date.parse("2026-07-31T12:00:00.000Z");
+
+	test("formats recent branch commits for compact menu rows", () => {
+		expect(formatBranchCommitAge("2026-07-31T11:59:40.000Z", now)).toBe(
+			"just now"
+		);
+		expect(formatBranchCommitAge("2026-07-29T12:00:00.000Z", now)).toBe(
+			"2 days ago"
+		);
+		expect(formatBranchCommitAge("2026-07-20T12:00:00.000Z", now)).toBe(
+			"11 days ago"
+		);
+		expect(formatBranchCommitAge("2026-07-01T12:00:00.000Z", now)).toBe(
+			"last month"
+		);
+	});
+
+	test("omits missing or invalid branch commit dates", () => {
+		expect(formatBranchCommitAge(null, now)).toBeNull();
+		expect(formatBranchCommitAge("not-a-date", now)).toBeNull();
 	});
 });
