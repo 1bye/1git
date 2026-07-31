@@ -72,7 +72,7 @@ const OWNER_THUMBNAIL_TONES = [
 ] as const;
 
 const WORKSPACE_OWNER_THUMBNAIL_CLASS_NAME =
-  "shrink-0 rounded-full ring-1 ring-black/5";
+  "shrink-0 rounded-full";
 
 const WORKSPACE_TAB_STYLE: CSSProperties = {
   height: WORKSPACE_TAB_SURFACE_GEOMETRY.tabHeight,
@@ -222,10 +222,10 @@ function WorkspaceTabNameButton({
       type="button"
     >
       <span className="min-w-0 truncate text-xss">
-        <span className={cn(isActive ? "font-semibold" : "font-medium")}>
+        <span className={cn(isActive ? "font-bold" : "font-semibold")}>
           {repositoryName}
         </span>
-        {branch ? <span className="text-editor-faint"> / {branch}</span> : null}
+        {branch ? <span className="text-editor-faint font-medium"> / {branch}</span> : null}
       </span>
     </button>
   );
