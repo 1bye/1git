@@ -23,7 +23,10 @@ import type {
 	PendingWorkspaceAction,
 	WorkspaceTabState,
 } from "../../../feature/workspace/hooks/use-git-workspace.js";
-import { WORKSPACE_TAB_SURFACE_GEOMETRY } from "../constants/workspace-tab.js";
+import {
+	WORKSPACE_TAB_POINTER_DRAG_HANDLE_SELECTOR,
+	WORKSPACE_TAB_SURFACE_GEOMETRY,
+} from "../constants/workspace-tab.js";
 import { RepositoryMenu } from "./repository-menu.js";
 import { WorkspaceActionsMenu } from "./workspace-actions-menu.js";
 import { WorkspaceLiquidSurface } from "./workspace-liquid-surface.js";
@@ -61,6 +64,25 @@ const TAB_DRAG_SENSORS = [
 				value: TAB_POINTER_ACTIVATION_DISTANCE,
 			}),
 		],
+		activatorElements: (source) =>
+			source.element
+				? Array.from(
+						source.element.querySelectorAll(
+							WORKSPACE_TAB_POINTER_DRAG_HANDLE_SELECTOR
+						)
+					)
+				: [],
+		preventActivation: (event, source) => {
+			if (!(event.target instanceof Element)) {
+				return true;
+			}
+			const pointerDragHandle = event.target.closest(
+				WORKSPACE_TAB_POINTER_DRAG_HANDLE_SELECTOR
+			);
+			return !(
+				pointerDragHandle && source.element?.contains(pointerDragHandle)
+			);
+		},
 	}),
 	KeyboardSensor,
 ];

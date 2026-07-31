@@ -24,6 +24,10 @@ import {
 	moveWorkspaceInOrder,
 	reconcileWorkspaceOrder,
 } from "../lib/workspace-order.js";
+import {
+	type SessionSnapshotState,
+	snapshotForSession,
+} from "../lib/workspace-snapshot.js";
 import { useRepositoryRefresh } from "./use-repository-refresh.js";
 
 export type RepositoryTab = "changes" | "history";
@@ -133,7 +137,8 @@ export const useGitWorkspace = (): GitWorkspace => {
 	const [workspaceOrder, setWorkspaceOrder] = useState<
 		readonly RepositorySessionId[]
 	>([]);
-	const [snapshot, setSnapshot] = useState<RepositorySnapshot | null>(null);
+	const [sessionSnapshot, setSessionSnapshot] =
+		useState<SessionSnapshotState | null>(null);
 	const [branches, setBranches] = useState<BranchCollection | null>(null);
 	const [history, setHistory] = useState<CommitPage | null>(null);
 	const [diff, setDiff] = useState<FileDiff | null>(null);
@@ -151,6 +156,10 @@ export const useGitWorkspace = (): GitWorkspace => {
 		Readonly<Record<RepositorySessionId, WorkspaceSummary>>
 	>({});
 	const activeSession = activeSessionFromManager(manager);
+	const snapshot = snapshotForSession(
+		sessionSnapshot,
+		activeSession?.id ?? null
+	);
 	const applyManagerState = useCallback(
 		(nextManager: RepositoryManagerState): void => {
 			setManager(nextManager);
@@ -188,7 +197,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 			nextSnapshot: RepositorySnapshot,
 			nextOwner?: RepositoryOwner | null
 		): void => {
-			setSnapshot(nextSnapshot);
+			setSessionSnapshot({ sessionId, snapshot: nextSnapshot });
 			rememberSnapshot(sessionId, nextSnapshot, nextOwner);
 		},
 		[rememberSnapshot]
@@ -441,7 +450,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 				return;
 			}
 
-			setSnapshot(null);
+			setSessionSnapshot(null);
 			setBranches(null);
 			setHistory(null);
 			setDiff(null);
@@ -616,7 +625,11 @@ export const useGitWorkspace = (): GitWorkspace => {
 	};
 
 	const switchBranch = async (name: string): Promise<void> => {
-		if (!activeSession || pendingAction || name === snapshot?.head.branch) {
+		if (
+			!(activeSession && snapshot) ||
+			pendingAction ||
+			name === snapshot.head.branch
+		) {
 			return;
 		}
 		setPendingAction("branch");
