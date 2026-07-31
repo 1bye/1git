@@ -107,6 +107,13 @@ button {
 	z-index: 2;
 }
 
+[data-name="WorkspaceTitlebar"][data-active-tab-dragging="true"]
+	[data-name="WorkspaceTab"]:not([data-active="true"]):not(
+		[data-overlay="true"]
+	) {
+	z-index: 0;
+}
+
 [data-name="WorkspaceTitlebar"]:has(
 		[data-dnd-overlay][data-dnd-dragging] [data-overlay="true"]
 	)

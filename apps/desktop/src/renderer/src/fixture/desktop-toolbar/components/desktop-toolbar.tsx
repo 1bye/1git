@@ -133,6 +133,8 @@ export function DesktopToolbar({
 	const workspaceMenuTriggerRef = useRef<HTMLButtonElement>(null);
 	const currentBranch = snapshot?.head.branch ?? "";
 	const workspaceIds = workspaces.map((workspace) => workspace.session.id);
+	const isActiveTabDragging =
+		activeSessionId !== null && draggingSessionId === activeSessionId;
 
 	useEffect(() => {
 		const handleKeyDown = (event: KeyboardEvent): void => {
@@ -253,6 +255,7 @@ export function DesktopToolbar({
 		>
 			<div
 				className="relative flex h-full min-w-0 items-stretch pl-(--desktop-titlebar-controls-width)"
+				data-active-tab-dragging={isActiveTabDragging ? "true" : undefined}
 				data-desktop-drag
 				data-name="WorkspaceTitlebar"
 			>
