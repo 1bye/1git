@@ -176,7 +176,7 @@ export function WorkspaceActionsMenu({
 
 	return (
 		<DropdownMenuContent
-			align="start"
+			align="center"
 			aria-busy={isPending}
 			aria-label="Workspace actions"
 			className="w-64 min-w-64"
