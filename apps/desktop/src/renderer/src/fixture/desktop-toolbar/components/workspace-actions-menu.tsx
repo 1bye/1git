@@ -1,20 +1,34 @@
-import type { BranchCollection } from "@1git/git";
+import type { BranchCollection, BranchInfo } from "@1git/git";
 import { Button } from "@1git/ui/components/button";
-import { Elevated } from "@1git/ui/components/elevated";
+import {
+	DropdownMenuContent,
+	DropdownMenuGroup,
+	DropdownMenuItem,
+	DropdownMenuLabel,
+	DropdownMenuSeparator,
+	DropdownMenuSub,
+	DropdownMenuSubContent,
+	DropdownMenuSubTrigger,
+} from "@1git/ui/components/dropdown-menu";
 import { Input } from "@1git/ui/components/input";
 import { ArrowsClockwiseIcon } from "@phosphor-icons/react/dist/csr/ArrowsClockwise";
 import { CheckIcon } from "@phosphor-icons/react/dist/csr/Check";
 import { GitBranchIcon } from "@phosphor-icons/react/dist/csr/GitBranch";
 import { PlusIcon } from "@phosphor-icons/react/dist/csr/Plus";
-import type { ChangeEvent, FormEvent, ReactElement } from "react";
-import { useEffect, useRef, useState } from "react";
+import type {
+	ChangeEvent,
+	FormEvent,
+	ReactElement,
+	KeyboardEvent as ReactKeyboardEvent,
+} from "react";
+import { useState } from "react";
 import type { PendingWorkspaceAction } from "../../../feature/workspace/hooks/use-git-workspace.js";
 import { WORKSPACE_ACTIONS_MENU_ID } from "../constants/workspace-tab.js";
+import { groupWorkspaceBranches } from "../lib/workspace-actions-menu.js";
 
 interface WorkspaceActionsMenuProps {
 	readonly branches: BranchCollection | null;
 	readonly currentBranch: string;
-	readonly left: number;
 	readonly onClose: () => void;
 	readonly onCreateBranch: (name: string) => Promise<boolean>;
 	readonly onFetch: () => Promise<void>;
@@ -22,34 +36,64 @@ interface WorkspaceActionsMenuProps {
 	readonly pendingAction: PendingWorkspaceAction;
 }
 
-export function WorkspaceActionsMenu({
-	branches,
-	currentBranch,
-	left,
+interface BranchMenuItemProps {
+	readonly branch: BranchInfo;
+	readonly isPending: boolean;
+	readonly onClose: () => void;
+	readonly onSwitchBranch: (name: string) => Promise<void>;
+}
+
+interface CreateBranchFormProps {
+	readonly isPending: boolean;
+	readonly onCancel: () => void;
+	readonly onClose: () => void;
+	readonly onCreateBranch: (name: string) => Promise<boolean>;
+	readonly pendingAction: PendingWorkspaceAction;
+}
+
+function BranchMenuItem({
+	branch,
+	isPending,
+	onClose,
+	onSwitchBranch,
+}: BranchMenuItemProps): ReactElement {
+	const switchBranch = async (): Promise<void> => {
+		onClose();
+		if (!branch.checkedOut) {
+			await onSwitchBranch(branch.name);
+		}
+	};
+
+	return (
+		<DropdownMenuItem
+			aria-current={branch.checkedOut ? "true" : undefined}
+			closeOnClick
+			disabled={isPending}
+			onClick={switchBranch}
+		>
+			<span className="min-w-0 flex-1 truncate">{branch.name}</span>
+			{branch.checkedOut ? (
+				<CheckIcon aria-hidden className="size-3.5 text-brand" weight="bold" />
+			) : null}
+		</DropdownMenuItem>
+	);
+}
+
+function CreateBranchForm({
+	isPending,
+	onCancel,
 	onClose,
 	onCreateBranch,
-	onFetch,
-	onSwitchBranch,
 	pendingAction,
-}: WorkspaceActionsMenuProps): ReactElement {
-	const [isCreating, setIsCreating] = useState(false);
+}: CreateBranchFormProps): ReactElement {
 	const [branchName, setBranchName] = useState("");
-	const dialogRef = useRef<HTMLDivElement>(null);
-	const localBranches =
-		branches?.branches.filter((branch) => branch.type === "local") ?? [];
-	const isPending = pendingAction !== null;
-
-	useEffect(() => {
-		dialogRef.current?.focus();
-	}, []);
-
 	const updateBranchName = (event: ChangeEvent<HTMLInputElement>): void => {
 		setBranchName(event.target.value);
 	};
-	const beginBranchCreation = (): void => setIsCreating(true);
-	const cancelBranchCreation = (): void => {
-		setIsCreating(false);
-		setBranchName("");
+	const stopMenuNavigation = (
+		event: ReactKeyboardEvent<HTMLInputElement>
+	): void => {
+		event.stopPropagation();
 	};
 	const createBranch = async (
 		event: FormEvent<HTMLFormElement>
@@ -60,178 +104,187 @@ export function WorkspaceActionsMenu({
 			onClose();
 		}
 	};
+
+	return (
+		<form
+			aria-busy={isPending}
+			className="p-1"
+			data-name="CreateBranchForm"
+			onSubmit={createBranch}
+		>
+			<label
+				className="px-1 font-medium text-[10px] text-editor-faint"
+				htmlFor="new-workspace-branch-name"
+			>
+				New branch name
+			</label>
+			<Input
+				autoComplete="off"
+				autoFocus
+				className="mt-1.5 h-8 text-xs"
+				disabled={isPending}
+				id="new-workspace-branch-name"
+				onChange={updateBranchName}
+				onKeyDown={stopMenuNavigation}
+				placeholder="feature/my-change"
+				required
+				value={branchName}
+			/>
+			<div className="mt-2 flex justify-end gap-1">
+				<Button
+					disabled={isPending}
+					onClick={onCancel}
+					size="sm"
+					type="button"
+					variant="ghost"
+				>
+					Cancel
+				</Button>
+				<Button
+					aria-busy={pendingAction === "branch"}
+					disabled={!branchName.trim() || isPending}
+					size="sm"
+					type="submit"
+					variant="brand"
+				>
+					Create
+				</Button>
+			</div>
+		</form>
+	);
+}
+
+export function WorkspaceActionsMenu({
+	branches,
+	currentBranch,
+	onClose,
+	onCreateBranch,
+	onFetch,
+	onSwitchBranch,
+	pendingAction,
+}: WorkspaceActionsMenuProps): ReactElement {
+	const [isCreating, setIsCreating] = useState(false);
+	const { latestBranches, remainingBranches } =
+		groupWorkspaceBranches(branches);
+	const isPending = pendingAction !== null;
+	const beginBranchCreation = (): void => setIsCreating(true);
+	const cancelBranchCreation = (): void => setIsCreating(false);
 	const fetchRepository = async (): Promise<void> => {
 		onClose();
 		await onFetch();
 	};
 
 	return (
-		<div data-name="WorkspaceActionsMenu">
-			<button
-				aria-label="Close workspace actions"
-				className="fixed inset-0 z-40 cursor-default"
-				onClick={onClose}
-				tabIndex={-1}
-				type="button"
-			/>
-			<Elevated
-				aria-busy={isPending}
-				aria-label="Workspace actions"
-				className="fixed top-9 z-50 w-[310px] overflow-hidden rounded-2xl p-1.5"
-				id={WORKSPACE_ACTIONS_MENU_ID}
-				offset={2}
-				ref={dialogRef}
-				role="dialog"
-				shadowLevel={6}
-				style={{ left }}
-				tabIndex={-1}
-			>
-				<div className="flex items-center gap-2.5 px-2.5 pt-2 pb-2">
-					<span className="flex size-7 items-center justify-center rounded-lg bg-editor-sunken text-editor-muted">
-						<GitBranchIcon aria-hidden className="size-3.5" weight="regular" />
-					</span>
+		<DropdownMenuContent
+			align="start"
+			aria-busy={isPending}
+			aria-label="Workspace actions"
+			className="w-64 min-w-64"
+			data-name="WorkspaceActionsMenu"
+			id={WORKSPACE_ACTIONS_MENU_ID}
+			sideOffset={2}
+		>
+			<DropdownMenuGroup>
+				<DropdownMenuLabel className="flex items-center gap-2 px-2 py-1.5 normal-case tracking-normal">
+					<GitBranchIcon
+						aria-hidden
+						className="size-3.5 shrink-0 text-editor-faint"
+						weight="regular"
+					/>
 					<span className="min-w-0">
-						<span className="block text-[10px] text-editor-faint">
+						<span className="block font-normal text-[9px] text-editor-faint">
 							Current branch
 						</span>
 						<span className="block truncate font-semibold text-editor-ink text-xs">
 							{currentBranch || "Detached HEAD"}
 						</span>
 					</span>
-				</div>
+				</DropdownMenuLabel>
+			</DropdownMenuGroup>
 
-				{isCreating ? (
-					<form
-						aria-busy={isPending}
-						className="border-editor-hairline border-t p-2"
-						data-name="CreateBranchForm"
-						onSubmit={createBranch}
-					>
-						<label
-							className="font-medium text-[10px] text-editor-faint uppercase tracking-[0.08em]"
-							htmlFor="new-workspace-branch-name"
-						>
-							New branch name
-						</label>
-						<Input
-							autoComplete="off"
-							autoFocus
-							className="mt-2 h-8 text-xs"
+			<DropdownMenuSeparator />
+
+			{isCreating ? (
+				<CreateBranchForm
+					isPending={isPending}
+					onCancel={cancelBranchCreation}
+					onClose={onClose}
+					onCreateBranch={onCreateBranch}
+					pendingAction={pendingAction}
+				/>
+			) : (
+				<>
+					<DropdownMenuGroup>
+						<DropdownMenuLabel>Switch branch</DropdownMenuLabel>
+						{latestBranches.map((branch) => (
+							<BranchMenuItem
+								branch={branch}
+								isPending={isPending}
+								key={branch.fullName}
+								onClose={onClose}
+								onSwitchBranch={onSwitchBranch}
+							/>
+						))}
+						{latestBranches.length === 0 ? (
+							<DropdownMenuLabel className="py-2 font-normal text-xss normal-case tracking-normal">
+								No local branches available.
+							</DropdownMenuLabel>
+						) : null}
+						{remainingBranches.length > 0 ? (
+							<DropdownMenuSub>
+								<DropdownMenuSubTrigger disabled={isPending} openOnHover>
+									More
+								</DropdownMenuSubTrigger>
+								<DropdownMenuSubContent
+									align="start"
+									className="w-48 min-w-48"
+									side="left"
+									sideOffset={4}
+								>
+									{remainingBranches.map((branch) => (
+										<BranchMenuItem
+											branch={branch}
+											isPending={isPending}
+											key={branch.fullName}
+											onClose={onClose}
+											onSwitchBranch={onSwitchBranch}
+										/>
+									))}
+								</DropdownMenuSubContent>
+							</DropdownMenuSub>
+						) : null}
+					</DropdownMenuGroup>
+
+					<DropdownMenuSeparator />
+
+					<DropdownMenuGroup>
+						<DropdownMenuItem
+							closeOnClick={false}
 							disabled={isPending}
-							id="new-workspace-branch-name"
-							onChange={updateBranchName}
-							placeholder="feature/my-change"
-							required
-							value={branchName}
-						/>
-						<div className="mt-2 flex justify-end gap-1.5">
-							<Button
-								disabled={isPending}
-								onClick={cancelBranchCreation}
-								size="sm"
-								type="button"
-								variant="ghost"
-							>
-								Cancel
-							</Button>
-							<Button
-								aria-busy={pendingAction === "branch"}
-								disabled={!branchName.trim() || isPending}
-								size="sm"
-								type="submit"
-								variant="brand"
-							>
-								Create branch
-							</Button>
-						</div>
-					</form>
-				) : (
-					<>
-						<section
-							aria-labelledby="switch-branch-heading"
-							className="max-h-52 overflow-y-auto border-editor-hairline border-t pt-1"
+							onClick={beginBranchCreation}
 						>
-							<h2
-								className="px-2.5 pt-1.5 pb-1 font-medium text-[10px] text-editor-faint uppercase tracking-[0.08em]"
-								id="switch-branch-heading"
-							>
-								Switch branch
-							</h2>
-							{localBranches.length > 0 ? (
-								<ul>
-									{localBranches.map((branch) => {
-										const switchBranch = async (): Promise<void> => {
-											if (!branch.checkedOut) {
-												await onSwitchBranch(branch.name);
-											}
-											onClose();
-										};
-										return (
-											<li key={branch.fullName}>
-												<button
-													aria-current={branch.checkedOut ? "true" : undefined}
-													className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left outline-none hover:bg-editor-sunken focus-visible:bg-editor-sunken focus-visible:ring-2 focus-visible:ring-brand/20 focus-visible:ring-inset disabled:pointer-events-none disabled:opacity-50"
-													disabled={isPending}
-													onClick={switchBranch}
-													type="button"
-												>
-													<GitBranchIcon
-														aria-hidden
-														className="size-3.5 shrink-0 text-editor-faint"
-														weight="regular"
-													/>
-													<span className="min-w-0 flex-1 truncate font-medium text-editor-ink text-xs">
-														{branch.name}
-													</span>
-													{branch.checkedOut ? (
-														<CheckIcon
-															aria-hidden
-															className="size-3.5 text-brand"
-															weight="bold"
-														/>
-													) : null}
-												</button>
-											</li>
-										);
-									})}
-								</ul>
-							) : (
-								<p className="px-2.5 py-3 text-editor-faint text-xss">
-									No local branches available.
-								</p>
-							)}
-						</section>
-						<div className="mt-1 border-editor-hairline border-t pt-1">
-							<button
-								className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left font-medium text-editor-ink text-xs outline-none hover:bg-editor-sunken focus-visible:bg-editor-sunken focus-visible:ring-2 focus-visible:ring-brand/20 focus-visible:ring-inset disabled:pointer-events-none disabled:opacity-50"
-								disabled={isPending}
-								onClick={beginBranchCreation}
-								type="button"
-							>
-								<PlusIcon
-									aria-hidden
-									className="size-3.5 text-editor-faint"
-									weight="bold"
-								/>
-								Create new branch…
-							</button>
-							<button
-								className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left font-medium text-editor-ink text-xs outline-none hover:bg-editor-sunken focus-visible:bg-editor-sunken focus-visible:ring-2 focus-visible:ring-brand/20 focus-visible:ring-inset disabled:pointer-events-none disabled:opacity-50"
-								disabled={isPending}
-								onClick={fetchRepository}
-								type="button"
-							>
-								<ArrowsClockwiseIcon
-									aria-hidden
-									className="size-3.5 text-editor-faint"
-									weight="regular"
-								/>
-								Fetch remote
-							</button>
-						</div>
-					</>
-				)}
-			</Elevated>
-		</div>
+							<PlusIcon
+								aria-hidden
+								className="text-editor-faint"
+								weight="bold"
+							/>
+							Create new branch…
+						</DropdownMenuItem>
+						<DropdownMenuItem
+							closeOnClick
+							disabled={isPending}
+							onClick={fetchRepository}
+						>
+							<ArrowsClockwiseIcon
+								aria-hidden
+								className="text-editor-faint"
+								weight="regular"
+							/>
+							Fetch remote
+						</DropdownMenuItem>
+					</DropdownMenuGroup>
+				</>
+			)}
+		</DropdownMenuContent>
 	);
 }

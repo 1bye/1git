@@ -1,13 +1,9 @@
+import { DropdownMenuTrigger } from "@1git/ui/components/dropdown-menu";
 import { cn } from "@1git/ui/lib/utils";
 import { RestrictToHorizontalAxis } from "@dnd-kit/abstract/modifiers";
 import { useSortable } from "@dnd-kit/react/sortable";
 import { XIcon } from "@phosphor-icons/react/dist/csr/X";
-import type {
-	CSSProperties,
-	MouseEvent,
-	ReactElement,
-	RefCallback,
-} from "react";
+import type { CSSProperties, ReactElement, RefCallback } from "react";
 import { useState } from "react";
 import type { RepositorySessionId } from "../../../../../shared/repository-session.js";
 import type { WorkspaceTabState } from "../../../feature/workspace/hooks/use-git-workspace.js";
@@ -16,10 +12,7 @@ import {
 	getRepositoryName,
 	getWorkspaceLabel,
 } from "../../../feature/workspace/lib/workspace-model.js";
-import {
-	WORKSPACE_ACTIONS_MENU_ID,
-	WORKSPACE_TAB_SURFACE_GEOMETRY,
-} from "../constants/workspace-tab.js";
+import { WORKSPACE_TAB_SURFACE_GEOMETRY } from "../constants/workspace-tab.js";
 import { useRepositoryOwnerAvatar } from "../hooks/use-repository-owner-avatar.js";
 
 interface WorkspaceTabProps {
@@ -29,7 +22,7 @@ interface WorkspaceTabProps {
 	readonly isBusy: boolean;
 	readonly onActivate: (sessionId: RepositorySessionId) => Promise<void>;
 	readonly onClose: (sessionId: RepositorySessionId) => Promise<void>;
-	readonly onOpenActions: (trigger: HTMLButtonElement) => void;
+	readonly onOpenActions: () => void;
 	readonly workspace: WorkspaceTabState;
 }
 
@@ -48,15 +41,21 @@ interface WorkspaceOwnerThumbnailProps {
 
 interface WorkspaceTabNameButtonProps {
 	readonly branch: string | null;
-	readonly isActionsMenuOpen: boolean;
 	readonly isActive: boolean;
 	readonly isDisabled: boolean;
 	readonly isDragging: boolean;
+	readonly isMenuTrigger: boolean;
 	readonly label: string;
 	readonly onActivate: (sessionId: RepositorySessionId) => Promise<void>;
-	readonly onOpenActions: (trigger: HTMLButtonElement) => void;
+	readonly onOpenActions: () => void;
 	readonly repositoryName: string;
 	readonly sessionId: RepositorySessionId;
+}
+
+interface WorkspaceTabNameProps {
+	readonly branch: string | null;
+	readonly isActive: boolean;
+	readonly repositoryName: string;
 }
 
 interface WorkspaceChangedFilesProps {
@@ -73,10 +72,17 @@ const OWNER_THUMBNAIL_TONES = [
 ] as const;
 
 const WORKSPACE_OWNER_THUMBNAIL_CLASS_NAME = "shrink-0 rounded-full";
+const WORKSPACE_TAB_NAME_BUTTON_CLASS_NAME =
+	"relative z-10 flex h-full min-w-0 flex-1 touch-none items-center rounded-md text-left outline-none hover:text-editor-ink focus-visible:ring-2 focus-visible:ring-brand/20";
 
 const WORKSPACE_TAB_STYLE: CSSProperties = {
 	height: WORKSPACE_TAB_SURFACE_GEOMETRY.tabHeight,
 	width: WORKSPACE_TAB_SURFACE_GEOMETRY.tabWidth,
+};
+
+const WORKSPACE_TAB_MENU_OPEN_STYLE: CSSProperties = {
+	...WORKSPACE_TAB_STYLE,
+	zIndex: 4,
 };
 
 const WORKSPACE_TAB_VISUAL_STYLE: CSSProperties = {
@@ -186,54 +192,84 @@ function WorkspaceOwnerThumbnail({
 	);
 }
 
+function WorkspaceTabName({
+	branch,
+	isActive,
+	repositoryName,
+}: WorkspaceTabNameProps): ReactElement {
+	return (
+		<span className="min-w-0 truncate text-xss">
+			<span className={cn(isActive ? "font-bold" : "font-semibold")}>
+				{repositoryName}
+			</span>
+			{branch ? (
+				<span className="font-medium text-editor-faint"> / {branch}</span>
+			) : null}
+		</span>
+	);
+}
+
 function WorkspaceTabNameButton({
 	branch,
-	isActionsMenuOpen,
 	isActive,
 	isDisabled,
 	isDragging,
+	isMenuTrigger,
 	label,
 	onActivate,
 	onOpenActions,
 	repositoryName,
 	sessionId,
 }: WorkspaceTabNameButtonProps): ReactElement {
-	const selectWorkspaceOrOpenActions = async (
-		event: MouseEvent<HTMLButtonElement>
-	): Promise<void> => {
+	const selectWorkspace = async (): Promise<void> => {
 		if (isDragging) {
 			return;
 		}
-		if (!isActive) {
-			await onActivate(sessionId);
-			return;
-		}
-		onOpenActions(event.currentTarget);
+		await onActivate(sessionId);
 	};
+	const openActions = (): void => {
+		if (!isDragging) {
+			onOpenActions();
+		}
+	};
+	const name = (
+		<WorkspaceTabName
+			branch={branch}
+			isActive={isActive}
+			repositoryName={repositoryName}
+		/>
+	);
+
+	if (isMenuTrigger) {
+		return (
+			<DropdownMenuTrigger
+				aria-label={`Open actions for ${label}`}
+				className={WORKSPACE_TAB_NAME_BUTTON_CLASS_NAME}
+				data-desktop-interactive
+				data-workspace-tab-pointer-drag-handle
+				disabled={isDisabled}
+				onClick={openActions}
+				tabIndex={0}
+				title={label}
+			>
+				{name}
+			</DropdownMenuTrigger>
+		);
+	}
 
 	return (
 		<button
-			aria-controls={isActive ? WORKSPACE_ACTIONS_MENU_ID : undefined}
-			aria-expanded={isActive ? isActionsMenuOpen : undefined}
-			aria-haspopup={isActive ? "dialog" : undefined}
-			aria-label={isActive ? `Open actions for ${label}` : `Activate ${label}`}
-			className="relative z-10 flex h-full min-w-0 flex-1 touch-none items-center rounded-md text-left outline-none hover:text-editor-ink focus-visible:ring-2 focus-visible:ring-brand/20"
+			aria-label={`Activate ${label}`}
+			className={WORKSPACE_TAB_NAME_BUTTON_CLASS_NAME}
 			data-desktop-interactive
 			data-workspace-tab-pointer-drag-handle
 			disabled={isDisabled}
-			onClick={selectWorkspaceOrOpenActions}
+			onClick={selectWorkspace}
 			tabIndex={isActive ? 0 : -1}
 			title={label}
 			type="button"
 		>
-			<span className="min-w-0 truncate text-xss">
-				<span className={cn(isActive ? "font-bold" : "font-semibold")}>
-					{repositoryName}
-				</span>
-				{branch ? (
-					<span className="font-medium text-editor-faint"> / {branch}</span>
-				) : null}
-			</span>
+			{name}
 		</button>
 	);
 }
@@ -309,8 +345,20 @@ function WorkspaceTabAppearance({
 			data-overlay={isOverlay ? "true" : undefined}
 			data-workspace-session-id={workspace.session.id}
 			ref={rootRef}
-			style={WORKSPACE_TAB_STYLE}
+			style={
+				isActionsMenuOpen && !isOverlay
+					? WORKSPACE_TAB_MENU_OPEN_STYLE
+					: WORKSPACE_TAB_STYLE
+			}
 		>
+			{isActionsMenuOpen && !isOverlay ? (
+				<span
+					aria-hidden
+					className="pointer-events-none absolute z-0 bg-white"
+					data-name="WorkspaceTabMenuPill"
+					style={WORKSPACE_TAB_VISUAL_STYLE}
+				/>
+			) : null}
 			{isActive || isOverlay ? null : (
 				<span
 					aria-hidden
@@ -343,10 +391,10 @@ function WorkspaceTabAppearance({
 			</button>
 			<WorkspaceTabNameButton
 				branch={workspace.branch}
-				isActionsMenuOpen={isActionsMenuOpen}
 				isActive={isActive}
 				isDisabled={isBusy || isOverlay}
 				isDragging={isDragging}
+				isMenuTrigger={isActive && !isOverlay}
 				label={label}
 				onActivate={onActivate}
 				onOpenActions={onOpenActions}
