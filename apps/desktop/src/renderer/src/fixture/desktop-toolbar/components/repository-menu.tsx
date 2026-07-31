@@ -19,6 +19,7 @@ import {
   getRepositoryName,
   recentRepositoryName,
 } from "../../../feature/workspace/lib/workspace-model.js";
+import { AnimatedFolderOpenIcon } from "../../icons/components/animated-folder-open-icon.js";
 
 interface RepositoryMenuProps {
   readonly activeSessionId: RepositorySessionId | null;
@@ -124,10 +125,10 @@ export function RepositoryMenu({
             weight="bold"
           />
         ) : (
-          <FolderOpenIcon
+          <AnimatedFolderOpenIcon
             aria-hidden
             className="size-4 text-editor-muted"
-            weight="regular"
+            triggerRef={triggerRef}
           />
         )}
         Repos
