@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
 	createWorkspaceLiquidPath,
 	smoothMinimum,
-} from "../src/renderer/src/workspace-liquid-geometry.js";
+} from "../src/renderer/src/fixture/desktop-toolbar/lib/workspace-liquid-geometry.js";
 
 const pathCoordinates = (path: string): readonly [number, number][] =>
 	[...path.matchAll(/[ML] (-?\d+\.\d+) (-?\d+\.\d+)/g)].map((match) => [

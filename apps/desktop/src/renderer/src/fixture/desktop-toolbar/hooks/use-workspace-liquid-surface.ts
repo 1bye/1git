@@ -1,12 +1,18 @@
-import type { CSSProperties, ReactElement } from "react";
+import type { RefObject } from "react";
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { RepositorySessionId } from "../../shared/repository-session.js";
-import { createWorkspaceLiquidPath } from "./workspace-liquid-geometry.js";
-import { WORKSPACE_TAB_SURFACE_GEOMETRY } from "./workspace-tab.js";
+import type { RepositorySessionId } from "../../../../../shared/repository-session.js";
+import { WORKSPACE_TAB_SURFACE_GEOMETRY } from "../constants/workspace-tab.js";
+import { createWorkspaceLiquidPath } from "../lib/workspace-liquid-geometry.js";
 
-interface WorkspaceLiquidSurfaceProps {
+interface UseWorkspaceLiquidSurfaceOptions {
 	readonly activeSessionId: RepositorySessionId | null;
 	readonly isDragging: boolean;
+}
+
+interface WorkspaceLiquidSurfaceState {
+	readonly hostRef: RefObject<HTMLDivElement | null>;
+	readonly path: string;
+	readonly surfaceWidth: number | null;
 }
 
 interface SurfaceMeasurement {
@@ -15,11 +21,11 @@ interface SurfaceMeasurement {
 	readonly tabTop: number;
 }
 
-const POST_DRAG_TRACKING_DURATION = 260;
-const MEASUREMENT_PRECISION = 10;
+const POST_DRAG_TRACKING_DURATION_MS = 260;
+const MEASUREMENT_SCALE = 10;
 
 const roundMeasurement = (value: number): number =>
-	Math.round(value * MEASUREMENT_PRECISION) / MEASUREMENT_PRECISION;
+	Math.round(value * MEASUREMENT_SCALE) / MEASUREMENT_SCALE;
 
 const hasSameMeasurement = (
 	current: SurfaceMeasurement | null,
@@ -36,10 +42,12 @@ const findTrackedActiveTab = (
 	if (!activeSessionId) {
 		return null;
 	}
+
 	const tabs = titlebar.querySelectorAll<HTMLElement>(
 		'[data-name="WorkspaceTab"]'
 	);
 	let sourceTab: HTMLElement | null = null;
+
 	for (const tab of tabs) {
 		if (tab.dataset.workspaceSessionId !== activeSessionId) {
 			continue;
@@ -48,18 +56,21 @@ const findTrackedActiveTab = (
 			sourceTab = tab;
 			continue;
 		}
+
+		// The drag overlay is the visible tab, so the liquid surface must follow it.
 		const overlayRoot = tab.closest<HTMLElement>("[data-dnd-overlay]");
 		if (overlayRoot?.hasAttribute("data-dnd-dragging")) {
 			return tab;
 		}
 	}
+
 	return sourceTab;
 };
 
-export const WorkspaceLiquidSurface = ({
+export function useWorkspaceLiquidSurface({
 	activeSessionId,
 	isDragging,
-}: WorkspaceLiquidSurfaceProps): ReactElement => {
+}: UseWorkspaceLiquidSurfaceOptions): WorkspaceLiquidSurfaceState {
 	const hostRef = useRef<HTMLDivElement>(null);
 	const [measurement, setMeasurement] = useState<SurfaceMeasurement | null>(
 		null
@@ -70,11 +81,13 @@ export const WorkspaceLiquidSurface = ({
 		if (!(titlebar instanceof HTMLElement)) {
 			return;
 		}
+
 		const activeTab = findTrackedActiveTab(titlebar, activeSessionId);
 		if (!activeTab) {
 			setMeasurement(null);
 			return;
 		}
+
 		const titlebarBounds = titlebar.getBoundingClientRect();
 		const tabBounds = activeTab.getBoundingClientRect();
 		const nextMeasurement: SurfaceMeasurement = {
@@ -93,6 +106,7 @@ export const WorkspaceLiquidSurface = ({
 		if (!(titlebar instanceof HTMLElement)) {
 			return;
 		}
+
 		const activeTab = findTrackedActiveTab(titlebar, activeSessionId);
 		const resizeObserver = new ResizeObserver(measureSurface);
 		resizeObserver.observe(titlebar);
@@ -100,19 +114,22 @@ export const WorkspaceLiquidSurface = ({
 			resizeObserver.observe(activeTab);
 		}
 		measureSurface();
-		const trackingStartedAt = performance.now();
-		let animationFrame = 0;
+
+		const trackingStartedAtMs = performance.now();
+		let animationFrameId = 0;
 		const trackTabPosition = (): void => {
 			measureSurface();
 			const isSettling =
-				performance.now() - trackingStartedAt < POST_DRAG_TRACKING_DURATION;
+				performance.now() - trackingStartedAtMs <
+				POST_DRAG_TRACKING_DURATION_MS;
 			if (isDragging || isSettling) {
-				animationFrame = requestAnimationFrame(trackTabPosition);
+				animationFrameId = requestAnimationFrame(trackTabPosition);
 			}
 		};
-		animationFrame = requestAnimationFrame(trackTabPosition);
+		animationFrameId = requestAnimationFrame(trackTabPosition);
+
 		return () => {
-			cancelAnimationFrame(animationFrame);
+			cancelAnimationFrame(animationFrameId);
 			resizeObserver.disconnect();
 		};
 	}, [activeSessionId, isDragging, measureSurface]);
@@ -121,6 +138,7 @@ export const WorkspaceLiquidSurface = ({
 		if (!measurement) {
 			return "";
 		}
+
 		const geometry = WORKSPACE_TAB_SURFACE_GEOMETRY;
 		const tabLeft = measurement.tabLeft + geometry.tabVisualInsetInline;
 		const tabWidth = geometry.tabWidth - geometry.tabVisualInsetInline * 2;
@@ -138,6 +156,7 @@ export const WorkspaceLiquidSurface = ({
 			(geometry.tabSdfExtensionBlockEnd -
 				geometry.tabSdfEdgeExtensionBlockEnd) *
 				edgeProgress;
+
 		return createWorkspaceLiquidPath({
 			blendRadius: geometry.blendRadius,
 			containerDepth: geometry.containerDepth,
@@ -155,45 +174,10 @@ export const WorkspaceLiquidSurface = ({
 			tabWidth,
 		});
 	}, [measurement]);
-	const surfaceStyle = useMemo<CSSProperties | undefined>(() => {
-		if (!measurement) {
-			return;
-		}
-		return {
-			height:
-				WORKSPACE_TAB_SURFACE_GEOMETRY.toolbarHeight +
-				WORKSPACE_TAB_SURFACE_GEOMETRY.containerOverlap,
-			width: measurement.surfaceWidth,
-		};
-	}, [measurement]);
 
-	return (
-		<div
-			aria-hidden
-			className="pointer-events-none absolute inset-0 z-[1] overflow-visible"
-			data-name="WorkspaceLiquidSurfaceHost"
-			ref={hostRef}
-		>
-			{path && measurement ? (
-				<svg
-					className="absolute top-0 left-0 overflow-hidden"
-					data-name="WorkspaceLiquidSurface"
-					preserveAspectRatio="none"
-					style={surfaceStyle}
-					viewBox={`0 0 ${measurement.surfaceWidth} ${WORKSPACE_TAB_SURFACE_GEOMETRY.toolbarHeight + WORKSPACE_TAB_SURFACE_GEOMETRY.containerOverlap}`}
-				>
-					<title>Active workspace surface</title>
-					<path d={path} data-name="WorkspaceLiquidSurfaceFill" />
-					<path
-						d={path}
-						data-name="WorkspaceLiquidSurfaceOutline"
-						fill="none"
-						strokeLinejoin="round"
-						strokeWidth={WORKSPACE_TAB_SURFACE_GEOMETRY.outlineWidth}
-						vectorEffect="non-scaling-stroke"
-					/>
-				</svg>
-			) : null}
-		</div>
-	);
-};
+	return {
+		hostRef,
+		path,
+		surfaceWidth: measurement?.surfaceWidth ?? null,
+	};
+}

@@ -2,17 +2,20 @@ import type { RepositorySnapshot } from "@1git/git";
 import { ArrowsClockwiseIcon } from "@phosphor-icons/react/dist/csr/ArrowsClockwise";
 import { CheckCircleIcon } from "@phosphor-icons/react/dist/csr/CheckCircle";
 import { GitBranchIcon } from "@phosphor-icons/react/dist/csr/GitBranch";
+import { SpinnerGapIcon } from "@phosphor-icons/react/dist/csr/SpinnerGap";
 import type { ReactElement } from "react";
 
 interface CleanStateProps {
+	readonly isFetching: boolean;
 	readonly onFetch: () => Promise<void>;
 	readonly snapshot: RepositorySnapshot;
 }
 
-export const CleanState = ({
+export function CleanState({
+	isFetching,
 	onFetch,
 	snapshot,
-}: CleanStateProps): ReactElement => {
+}: CleanStateProps): ReactElement {
 	const fetchRepository = async (): Promise<void> => {
 		await onFetch();
 	};
@@ -51,24 +54,34 @@ export const CleanState = ({
 						</p>
 					</div>
 					<button
-						className="p-4 text-left outline-none hover:bg-editor-surface focus-visible:bg-editor-surface"
+						aria-busy={isFetching}
+						className="p-4 text-left outline-none hover:bg-editor-surface focus-visible:bg-editor-surface focus-visible:ring-2 focus-visible:ring-brand/20 focus-visible:ring-inset disabled:pointer-events-none disabled:opacity-50"
+						disabled={isFetching}
 						onClick={fetchRepository}
 						type="button"
 					>
-						<ArrowsClockwiseIcon
-							aria-hidden
-							className="size-4 text-editor-faint"
-							weight="regular"
-						/>
-						<p className="mt-3 font-medium text-editor-ink text-xs">
+						{isFetching ? (
+							<SpinnerGapIcon
+								aria-hidden
+								className="size-4 animate-spin text-editor-faint"
+								weight="bold"
+							/>
+						) : (
+							<ArrowsClockwiseIcon
+								aria-hidden
+								className="size-4 text-editor-faint"
+								weight="regular"
+							/>
+						)}
+						<span className="mt-3 block font-medium text-editor-ink text-xs">
 							Fetch remote
-						</p>
-						<p className="mt-1 text-[10px] text-editor-faint">
+						</span>
+						<span className="mt-1 block text-[10px] text-editor-faint">
 							Check for new commits
-						</p>
+						</span>
 					</button>
 				</div>
 			</div>
 		</section>
 	);
-};
+}

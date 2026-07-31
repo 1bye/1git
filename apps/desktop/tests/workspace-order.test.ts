@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
 	moveWorkspaceInOrder,
 	reconcileWorkspaceOrder,
-} from "../src/renderer/src/workspace-order.js";
+} from "../src/renderer/src/feature/workspace/lib/workspace-order.js";
 import type { RepositorySessionRecord } from "../src/shared/repository-session.js";
 
 const session = (id: string): RepositorySessionRecord => ({

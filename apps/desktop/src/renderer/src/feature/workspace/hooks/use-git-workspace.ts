@@ -14,13 +14,13 @@ import type {
 	RepositoryManagerState,
 	RepositorySessionId,
 	RepositorySessionRecord,
-} from "../../shared/repository-session.js";
-import { useRepositoryRefresh } from "./use-repository-refresh.js";
-import { isFileStaged } from "./workspace-model.js";
+} from "../../../../../shared/repository-session.js";
+import { isFileStaged } from "../lib/workspace-model.js";
 import {
 	moveWorkspaceInOrder,
 	reconcileWorkspaceOrder,
-} from "./workspace-order.js";
+} from "../lib/workspace-order.js";
+import { useRepositoryRefresh } from "./use-repository-refresh.js";
 
 export type RepositoryTab = "changes" | "history";
 export type PendingWorkspaceAction =

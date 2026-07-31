@@ -5,18 +5,19 @@ import type { ReactElement } from "react";
 import type {
 	RecentRepositoryRecord,
 	RepositorySessionRecord,
-} from "../../shared/repository-session.js";
+} from "../../../../../shared/repository-session.js";
+import type { RepositoryTab } from "../../../feature/workspace/hooks/use-git-workspace.js";
+import { getRepositoryName } from "../../../feature/workspace/lib/workspace-model.js";
 import { CleanState } from "./clean-state.js";
 import { DiffView } from "./diff-view.js";
 import { RepositoryWelcome } from "./repository-welcome.js";
-import type { RepositoryTab } from "./use-git-workspace.js";
-import { getRepositoryName } from "./workspace-model.js";
 
 interface WorkspaceContentProps {
 	readonly activeSession: RepositorySessionRecord | null;
 	readonly diff: FileDiff | null;
 	readonly historyCommit: CommitInfo | null;
-	readonly isInitialLoading: boolean;
+	readonly isFetching: boolean;
+	readonly isRepositoryLoading: boolean;
 	readonly onFetch: () => Promise<void>;
 	readonly onOpenRecent: (path: string) => Promise<void>;
 	readonly onPickRepository: () => Promise<void>;
@@ -26,11 +27,12 @@ interface WorkspaceContentProps {
 	readonly tab: RepositoryTab;
 }
 
-export const WorkspaceContent = ({
+export function WorkspaceContent({
 	activeSession,
 	diff,
 	historyCommit,
-	isInitialLoading,
+	isFetching,
+	isRepositoryLoading,
 	onFetch,
 	onOpenRecent,
 	onPickRepository,
@@ -38,11 +40,11 @@ export const WorkspaceContent = ({
 	selectedFilePath,
 	snapshot,
 	tab,
-}: WorkspaceContentProps): ReactElement => {
+}: WorkspaceContentProps): ReactElement {
 	if (!activeSession) {
 		return (
 			<RepositoryWelcome
-				isLoading={isInitialLoading}
+				isLoading={isRepositoryLoading}
 				onOpenRecent={onOpenRecent}
 				onPickRepository={onPickRepository}
 				recentRepositories={recentRepositories}
@@ -53,16 +55,23 @@ export const WorkspaceContent = ({
 	if (!snapshot) {
 		return (
 			<main
+				aria-busy="true"
 				className="flex min-h-0 flex-1 items-center justify-center bg-editor-surface"
 				data-name="WorkspaceLoading"
 			>
-				<SpinnerGapIcon
-					aria-label={`Loading ${getRepositoryName(
-						activeSession.repository.root
-					)}`}
-					className="size-5 animate-spin text-editor-faint"
-					weight="bold"
-				/>
+				<p
+					className="flex items-center gap-2 text-editor-faint text-xss"
+					role="status"
+				>
+					<SpinnerGapIcon
+						aria-hidden
+						className="size-5 animate-spin"
+						weight="bold"
+					/>
+					<span className="sr-only">
+						Loading {getRepositoryName(activeSession.repository.root)}
+					</span>
+				</p>
 			</main>
 		);
 	}
@@ -73,7 +82,11 @@ export const WorkspaceContent = ({
 				className="min-h-0 flex-1 overflow-y-auto bg-editor-surface"
 				data-name="WorkspaceContent"
 			>
-				<CleanState onFetch={onFetch} snapshot={snapshot} />
+				<CleanState
+					isFetching={isFetching}
+					onFetch={onFetch}
+					snapshot={snapshot}
+				/>
 			</main>
 		);
 	}
@@ -101,9 +114,9 @@ export const WorkspaceContent = ({
 							className="mx-auto size-6 text-editor-faint"
 							weight="regular"
 						/>
-						<p className="mt-3 font-medium text-[13px] text-editor-ink">
+						<h1 className="mt-3 font-medium text-[13px] text-editor-ink">
 							Select an item to inspect
-						</p>
+						</h1>
 						<p className="mt-1 text-editor-faint text-xss">
 							Choose a changed file or commit from the sidebar.
 						</p>
@@ -112,4 +125,4 @@ export const WorkspaceContent = ({
 			)}
 		</main>
 	);
-};
+}

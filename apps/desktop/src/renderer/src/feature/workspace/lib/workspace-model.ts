@@ -1,5 +1,5 @@
 import type { FileChange, FileStatus } from "@1git/git";
-import type { RecentRepositoryRecord } from "../../shared/repository-session.js";
+import type { RecentRepositoryRecord } from "../../../../../shared/repository-session.js";
 
 const DATE_TIME_FORMAT = new Intl.DateTimeFormat(undefined, {
 	dateStyle: "medium",

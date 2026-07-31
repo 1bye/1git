@@ -468,24 +468,298 @@ explicitly models them. Await asynchronous expectations and cleanup.
 
 ## 11. React and UI code
 
-Follow the framework and component-library conventions already present in the
-application.
+Follow the framework, rendering model, component library, styling system, and local
+conventions already present in the application. The rules below are fallbacks when
+the project does not establish a stronger convention.
 
-- Use function components and call hooks only at the top level.
-- Split components by responsibility, reuse, or independent state—not by line count
-  or because a JSX fragment can be named.
-- Keep trivial single-use markup with its owner.
-- Use context for genuinely cross-cutting state, not to avoid passing a local prop
-  through one layer.
-- Add `useMemo`, `useCallback`, or component memoization only for a demonstrated
-  identity or computation reason.
-- Use semantic HTML, accessible names, keyboard behavior, and correct labels.
-- Preserve the project's styling and class-merging conventions.
-- Separate store interfaces, providers, selectors, and fixtures only when those are
-  real boundaries in the local architecture.
+### 11.1 Component ownership and placement
 
-Keep business rules with their domain owner rather than hiding them in presentation
-components or generic UI utilities.
+Place components according to what they own, using the repository's existing
+directory vocabulary where available.
+
+A common structure is:
+
+* `ui/` for primitive, reusable, mostly stateless building blocks such as buttons,
+  inputs, dialogs, and popovers.
+* `fixture/` for standalone composed UI with little or no domain state that is
+  generally consumed as a complete piece, such as an application header.
+* `feature/` for substantial UI that owns feature state, hooks, stores, workflows,
+  or model behavior.
+
+These directory names are not mandatory. Preserve an established alternative such
+as `components/`, `screens/`, `views/`, or domain-owned component directories.
+
+A feature MAY form a self-contained boundary such as:
+
+```text
+feature/
+  index.ts
+  types.ts
+  constants.ts
+  components/
+  hooks/
+  lib/
+  stores/
+```
+
+Create only the files and directories the feature actually needs. Do not add empty
+structural folders or ceremonial `types.ts`, `constants.ts`, `lib/`, or `stores/`
+modules.
+
+Prefer ownership-first placement. A component specific to checkout belongs with
+checkout rather than in a global component bucket merely because it renders UI.
+
+### 11.2 Components
+
+Use function components. Add `"use client"` at the top of a file when the framework
+requires an explicit client boundary and the component actually needs client-side
+behavior.
+
+Use the repository's established component declaration and return-type style. In a
+project without a stronger convention, prefer a named function declaration for an
+exported component:
+
+```tsx
+export function InspectorSection({
+  action,
+  children,
+  title,
+}: InspectorSectionProps): ReactElement {
+  // ...
+}
+```
+
+Use an inline props type for a small, local component when it remains readable. Use
+a named `Props` type or interface when the contract is exported, reused, or
+substantial.
+
+Destructure props when that improves readability. Follow local ordering conventions
+rather than alphabetizing props or object keys mechanically.
+
+Set `displayName` only when the component form or tooling makes the inferred name
+unreliable, such as some `memo`, `forwardRef`, or higher-order component wrappers.
+Do not add redundant `displayName` assignments to ordinary named function
+components.
+
+Split a component when the extracted part has a meaningful responsibility, is
+reused, owns independent state or effects, defines a useful rendering boundary, or
+can be understood and tested independently.
+
+Do not split components by line count or merely because a JSX fragment can be
+named. Keep trivial, single-use markup with its owner. A large but cohesive render
+tree can be clearer than several tiny components that only forward props.
+
+### 11.3 Hooks, state, and derived values
+
+Call hooks only at the top level of React components or custom hooks.
+
+Effects MUST declare the dependencies required by their behavior. Do not suppress
+dependency warnings to force a desired execution schedule. Restructure the code or
+document a deliberate framework-supported exception when necessary.
+
+Keep state as close as practical to the component or feature that owns it. Lift
+state when multiple consumers require a shared source of truth, not preemptively.
+
+Use a custom hook when it represents reusable stateful behavior, an integration
+boundary, or a cohesive lifecycle. Do not extract a hook merely to move a few lines
+out of a component.
+
+Add `useMemo`, `useCallback`, `memo`, or equivalent memoization only when there is a
+concrete reason, such as:
+
+* An expensive computation on a relevant render path.
+* Stable identity required by a memoized child or external API.
+* An effect or subscription whose semantics depend on stable identity.
+* A measured rendering problem.
+
+Do not memoize every derived value or event handler by default. Memoization adds
+dependencies and cognitive cost and does not guarantee better performance.
+
+Compute derived data during rendering when it is cheap and follows directly from
+props or state. Avoid storing derivable values in state unless they need an
+independent lifecycle.
+
+### 11.4 Context and providers
+
+Use context for genuinely cross-cutting values or state shared across a meaningful
+subtree. Do not introduce context solely to avoid passing a local prop through one
+layer.
+
+Expose a dedicated hook when consumers need a constrained context API. When using
+the hook outside its provider is always a programming error, fail with a precise
+message:
+
+```tsx
+export function useThing(): ThingValue {
+  const value = useContext(ThingContext);
+
+  if (value === undefined) {
+    throw new Error("useThing must be used within a ThingProvider.");
+  }
+
+  return value;
+}
+```
+
+A nullable or optional context value MAY be valid when absence is part of the
+contract. Do not throw merely to enforce a pattern that the domain does not require.
+
+Keep provider scope narrow enough that ownership remains understandable. Separate
+context types, providers, selectors, and fixtures only when they are real boundaries
+in the local architecture.
+
+### 11.5 State containers
+
+Use an external store when state must be shared beyond a practical React owner,
+requires independent subscriptions, persists outside component lifecycles, or the
+application already uses a store architecture for that feature.
+
+Keep stores focused on state ownership and transitions. Business and domain rules
+SHOULD remain with their domain owner rather than being hidden inside presentation
+components or generic store utilities.
+
+When the project distinguishes state from actions, a shape such as the following is
+appropriate:
+
+```ts
+interface SelectionState {
+  selectedId: string | null;
+}
+
+interface SelectionActions {
+  select(id: string | null): void;
+}
+
+export type SelectionStore = SelectionState & SelectionActions;
+```
+
+Do not require separate `State` and `Actions` interfaces for a small store when the
+split adds no clarity or does not match local convention.
+
+Extract pure model operations into a feature or domain module when they are
+substantive, reusable, or independently testable. Keep simple one-off transitions
+inside the store that owns them.
+
+Expose selectors when they improve subscription granularity, preserve an invariant,
+or are part of the established store API. Do not create selector files around
+trivial property access without a concrete benefit.
+
+### 11.6 Styling and class names
+
+Preserve the project's styling system and class-merging conventions.
+
+When the application uses conditional utility classes, use its established merge
+helper, commonly a `cn()` function backed by tools such as `clsx` and
+`tailwind-merge`. Do not introduce a second class-name abstraction.
+
+Keep class expressions readable. Extract repeated or conceptually meaningful style
+variants into the component library's established variant mechanism. Do not create
+a styling abstraction for a single static class list.
+
+Follow automated formatting or class-sorting tools already configured by the
+project. Do not manually reorder classes according to an external convention that
+conflicts with local tooling.
+
+Avoid inline style values when they duplicate stable design tokens or established
+utility classes. Inline styles remain appropriate for genuinely dynamic values that
+cannot be represented clearly through the styling system.
+
+### 11.7 Accessibility and interaction
+
+Use semantic HTML before adding ARIA roles.
+
+Interactive elements MUST:
+
+* Have an accessible name.
+* Support the expected keyboard interaction.
+* Expose visible focus behavior.
+* Use the correct native element when one exists.
+* Associate form controls with their labels.
+* Communicate relevant disabled, expanded, selected, invalid, and busy states.
+
+Do not use a clickable `div` or `span` where a `button`, link, input, or other native
+control provides the correct semantics and behavior.
+
+Provide meaningful alternative text for informative images. Use empty alternative
+text for decorative images so assistive technology can ignore them.
+
+Keyboard behavior MUST accompany pointer behavior when the interaction is not
+already supplied by a native element. Prefer native controls over manually
+reimplementing keyboard semantics.
+
+When opening an untrusted page in a new browsing context, follow the framework and
+project's security convention for opener isolation. Do not add obsolete or
+redundant link attributes mechanically.
+
+Preserve focus intentionally when opening and closing dialogs, popovers, menus, and
+other layered interfaces. Use the component library's accessibility behavior rather
+than recreating focus management unless the task requires custom behavior.
+
+### 11.8 UI logic and effects
+
+Keep business rules with their domain owner rather than embedding them in
+presentation components, generic hooks, or UI utility modules.
+
+Components MAY coordinate presentation-specific behavior such as local visibility,
+focus, selection, animation, and interaction state. Move logic out when it defines
+a domain decision, is reused outside the component, or needs independent testing.
+
+Effects SHOULD synchronize React with an external system, such as a subscription,
+browser API, imperative widget, network lifecycle, or persisted state. Do not use an
+effect merely to transform props into state or to run control flow that can happen
+during an event or render.
+
+Event handlers SHOULD describe the user or domain operation they perform. Avoid
+handlers that only shuttle data through several UI layers without a clear owner.
+
+Comments SHOULD explain non-obvious interaction decisions, constraints, or browser
+behavior, for example why an automatically opened section must be scrolled into
+view. Do not narrate JSX or ordinary state updates.
+
+### 11.9 Public surfaces and testing
+
+Export components, hooks, providers, and types through the repository's established
+feature or package boundary. Internal feature modules SHOULD import directly from
+their source files when that is the local convention, rather than routing through a
+barrel that can hide dependency cycles.
+
+Test observable UI behavior:
+
+* What the user can see, operate, submit, or navigate.
+* Keyboard and accessibility behavior that forms part of the contract.
+* Meaningful loading, empty, error, and disabled states.
+* State transitions and domain outcomes triggered through the UI.
+* Regression cases for fixed interaction defects.
+
+Avoid tests coupled to private component structure, incidental class ordering, hook
+call sequences, or implementation-only state. Mock real external boundaries rather
+than internal components or functions solely to verify wiring.
+
+Use shared render helpers and fixtures when repetition makes them clearer. Keep
+one-off setup local to the test.
+
+### 11.10 UI completion checklist
+
+Before finishing a UI change, verify:
+
+* Is the component placed with the feature or concept that owns it?
+* Did I preserve the application's rendering, component-library, and styling
+  conventions?
+* Is each extracted component or hook a meaningful boundary rather than a fragment
+  created by size alone?
+* Is state owned at the narrowest practical boundary?
+* Are domain rules outside presentation-only code?
+* Does every effect synchronize with something external or represent a necessary
+  lifecycle?
+* Does each memoization mechanism have a concrete identity or computation reason?
+* Are semantic elements, accessible names, labels, keyboard behavior, focus, and
+  relevant states correct?
+* Are loading, empty, error, disabled, and success behavior complete where relevant?
+* Are class names composed through the established helper and variant system?
+* Do tests cover observable behavior and important interaction regressions?
+* Are client boundaries, imports, formatting, linting, type checking, and relevant
+  tests valid?
+
 
 ## 12. Completion checklist
 

@@ -69,6 +69,18 @@
       }
     }
   },
+  "overrides": [
+    {
+      "includes": ["apps/desktop/src/renderer/src/**/*.tsx"],
+      "linter": {
+        "rules": {
+          "performance": {
+            "noJsxPropsBind": "off"
+          }
+        }
+      }
+    }
+  ],
   "javascript": {
     "formatter": {
       "quoteStyle": "double"

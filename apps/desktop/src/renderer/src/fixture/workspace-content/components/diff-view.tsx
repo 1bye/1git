@@ -6,8 +6,8 @@ import { parsePatchFiles } from "@pierre/diffs";
 import { FileDiff as PierreFileDiff } from "@pierre/diffs/react";
 import type { ReactElement } from "react";
 import { useMemo } from "react";
-import type { RepositoryTab } from "./use-git-workspace.js";
-import { formatCommitDate } from "./workspace-model.js";
+import type { RepositoryTab } from "../../../feature/workspace/hooks/use-git-workspace.js";
+import { formatCommitDate } from "../../../feature/workspace/lib/workspace-model.js";
 
 const DIFF_RENDER_OPTIONS = {
 	diffIndicators: "bars",
@@ -39,12 +39,12 @@ interface DiffViewProps {
 	readonly tab: RepositoryTab;
 }
 
-export const DiffView = ({
+export function DiffView({
 	commit,
 	diff,
 	selectedFilePath,
 	tab,
-}: DiffViewProps): ReactElement => {
+}: DiffViewProps): ReactElement {
 	const parsedFiles = useMemo(
 		() =>
 			parsePatchFiles(
@@ -54,14 +54,12 @@ export const DiffView = ({
 			).flatMap((patch) => patch.files),
 		[commit?.oid, diff.patch, selectedFilePath, tab]
 	);
-	const addedLines = diff.stats.reduce(
-		(total, stat) => total + (stat.addedLines ?? 0),
-		0
-	);
-	const deletedLines = diff.stats.reduce(
-		(total, stat) => total + (stat.deletedLines ?? 0),
-		0
-	);
+	let addedLines = 0;
+	let deletedLines = 0;
+	for (const stat of diff.stats) {
+		addedLines += stat.addedLines ?? 0;
+		deletedLines += stat.deletedLines ?? 0;
+	}
 	const title =
 		tab === "history"
 			? (commit?.summary ?? "Commit")
@@ -95,8 +93,16 @@ export const DiffView = ({
 					)}
 				</div>
 				<div className="flex shrink-0 items-center gap-3 font-medium font-mono text-[10px]">
-					<span className="text-emerald-700">+{addedLines}</span>
-					<span className="text-rose-600">−{deletedLines}</span>
+					<span className="text-emerald-700">
+						<span aria-hidden>+</span>
+						{addedLines}
+						<span className="sr-only"> lines added</span>
+					</span>
+					<span className="text-rose-600">
+						<span aria-hidden>−</span>
+						{deletedLines}
+						<span className="sr-only"> lines deleted</span>
+					</span>
 					<span className="text-editor-faint">
 						{diff.stats.length} {diff.stats.length === 1 ? "file" : "files"}
 					</span>
@@ -105,11 +111,11 @@ export const DiffView = ({
 
 			{parsedFiles.length > 0 ? (
 				<div className="space-y-3 p-3">
-					{parsedFiles.map((file, index) => (
-						<div
+					{parsedFiles.map((file) => (
+						<article
 							className="overflow-hidden rounded-xl border border-editor-hairline bg-editor-surface shadow-surface-1"
 							data-name="DiffFile"
-							key={file.cacheKey ?? `${file.name}-${index}`}
+							key={file.cacheKey ?? file.name}
 						>
 							<div className="flex h-9 items-center gap-2 border-editor-hairline border-b bg-editor-sunken/65 px-3">
 								<GitDiffIcon
@@ -117,9 +123,9 @@ export const DiffView = ({
 									className="size-3.5 text-editor-faint"
 									weight="regular"
 								/>
-								<span className="truncate font-medium font-mono text-editor-muted text-xss">
+								<h2 className="truncate font-medium font-mono text-editor-muted text-xss">
 									{file.name}
-								</span>
+								</h2>
 							</div>
 							<PierreFileDiff
 								className="block"
@@ -127,7 +133,7 @@ export const DiffView = ({
 								fileDiff={file}
 								options={DIFF_RENDER_OPTIONS}
 							/>
-						</div>
+						</article>
 					))}
 				</div>
 			) : (
@@ -138,9 +144,9 @@ export const DiffView = ({
 							className="mx-auto size-6 text-editor-faint"
 							weight="regular"
 						/>
-						<p className="mt-3 font-medium text-[13px] text-editor-ink">
+						<h2 className="mt-3 font-medium text-[13px] text-editor-ink">
 							No text diff available
-						</p>
+						</h2>
 						<p className="mt-1 text-editor-faint text-xss">
 							The file may be binary or have no patch content.
 						</p>
@@ -149,4 +155,4 @@ export const DiffView = ({
 			)}
 		</section>
 	);
-};
+}

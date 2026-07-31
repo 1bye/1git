@@ -2,28 +2,28 @@
 @source "./**/*.{ts,tsx}";
 
 :root {
-    --desktop-titlebar-controls-width: 5rem;
-    --workspace-surface-inset: 6px;
-    --workspace-surface-radius: 14px;
+	--desktop-titlebar-controls-width: 5rem;
+	--workspace-surface-inset: 6px;
+	--workspace-surface-radius: 14px;
 }
 
 html,
 body,
 #root {
-    height: 100%;
-    margin: 0;
-    background: transparent;
+	height: 100%;
+	margin: 0;
+	background: transparent;
 }
 
 body {
-    overflow: hidden;
-    font-size: 12px;
-    -webkit-font-smoothing: antialiased;
-    line-height: 1.4;
-    color: var(--editor-ink);
-    user-select: none;
-    background: transparent;
-    text-rendering: optimizeLegibility;
+	overflow: hidden;
+	font-size: 12px;
+	-webkit-font-smoothing: antialiased;
+	line-height: 1.4;
+	color: var(--editor-ink);
+	user-select: none;
+	background: transparent;
+	text-rendering: optimizeLegibility;
 }
 
 button,
@@ -31,134 +31,133 @@ input,
 select,
 textarea,
 [data-desktop-interactive] {
-    app-region: no-drag;
-    -webkit-app-region: no-drag;
+	app-region: no-drag;
+	-webkit-app-region: no-drag;
 }
 
 [data-desktop-drag] {
-    app-region: drag;
-    -webkit-app-region: drag;
+	app-region: drag;
+	-webkit-app-region: drag;
 }
 
 ::selection {
-    background: var(--editor-selection);
+	background: var(--editor-selection);
 }
 
 button,
 input,
 select,
 textarea {
-    font: inherit;
+	font: inherit;
 }
 
 button {
-    -webkit-tap-highlight-color: transparent;
+	-webkit-tap-highlight-color: transparent;
 }
 
 ::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+	width: 10px;
+	height: 10px;
 }
 
 ::-webkit-scrollbar-track {
-    background: transparent;
+	background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-    min-height: 36px;
-    background: rgb(0 0 0 / 0.16);
-    background-clip: padding-box;
-    border: 3px solid transparent;
-    border-radius: 999px;
+	min-height: 36px;
+	background: rgb(0 0 0 / 0.16);
+	background-clip: padding-box;
+	border: 3px solid transparent;
+	border-radius: 999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: rgb(0 0 0 / 0.24);
-    background-clip: padding-box;
+	background: rgb(0 0 0 / 0.24);
+	background-clip: padding-box;
 }
 
 [data-name="App"] {
-    background: transparent;
+	background: transparent;
 }
 
 [data-name="DesktopToolbar"] {
-    border-bottom-width: 0;
+	border-bottom-width: 0;
 }
 
 [data-name="RepositoryWorkspace"] {
-    margin: 0 var(--workspace-surface-inset) var(--workspace-surface-inset);
-    border-radius: var(--workspace-surface-radius);
-    box-shadow: 0 1px 2px rgb(0 0 0 / 0.03);
+	margin: 0 var(--workspace-surface-inset) var(--workspace-surface-inset);
+	border-radius: var(--workspace-surface-radius);
+	box-shadow: 0 1px 2px rgb(0 0 0 / 0.03);
 }
 
 [data-name="WorkspaceTabList"] {
-    scrollbar-width: none;
+	scrollbar-width: none;
 }
 
 [data-name="WorkspaceTabList"]::-webkit-scrollbar {
-    display: none;
+	display: none;
 }
 
 [data-name="WorkspaceTab"] {
-    transform-origin: center bottom;
+	transform-origin: center bottom;
 }
 
 [data-name="WorkspaceTab"][data-active="true"] {
-    z-index: 2;
+	z-index: 2;
 }
 
 [data-name="WorkspaceTitlebar"]:has(
-        [data-dnd-overlay][data-dnd-dragging] [data-overlay="true"]
-    )
-    [data-name="WorkspaceTab"][data-dragging="true"]:not([data-overlay="true"]) {
-    opacity: 0;
+		[data-dnd-overlay][data-dnd-dragging] [data-overlay="true"]
+	)
+	[data-name="WorkspaceTab"][data-dragging="true"]:not([data-overlay="true"]) {
+	opacity: 0;
 }
 
 :where([data-dnd-overlay]:not([data-dnd-dragging]))
-    [data-name="WorkspaceTab"][data-overlay="true"] {
-    opacity: 0;
+	[data-name="WorkspaceTab"][data-overlay="true"] {
+	opacity: 0;
 }
 
 [data-name="WorkspaceTab"][data-overlay="true"] {
-    z-index: 20;
-    cursor: grabbing;
+	z-index: 20;
+	cursor: grabbing;
 }
 
 [data-name="WorkspaceTitlebar"] [data-dnd-overlay][data-dnd-dragging] {
-    --dnd-transition: translate 72ms cubic-bezier(0.22, 1, 0.36, 1) !important;
+	--dnd-transition: translate 72ms cubic-bezier(0.22, 1, 0.36, 1) !important;
 }
 
 [data-name="WorkspaceLiquidSurfaceFill"] {
-    fill: var(--editor-surface);
+	fill: var(--editor-surface);
 }
 
 [data-name="WorkspaceLiquidSurfaceOutline"] {
-    stroke: var(--editor-hairline-strong);
+	stroke: var(--editor-hairline-strong);
 }
 
 [data-name="WorkspaceContent"],
 [data-name="RepositoryWelcome"],
 [data-name="WorkspaceLoading"] {
-    box-shadow: inset 1px 0 0 rgb(255 255 255 / 0.72);
+	box-shadow: inset 1px 0 0 rgb(255 255 255 / 0.72);
 }
 
 [data-name="DiffView"] [data-diffs] {
-    --diffs-bg: var(--editor-surface);
-    display: block;
+	--diffs-bg: var(--editor-surface);
+	display: block;
 }
 
 @media (prefers-reduced-motion: reduce) {
+	[data-name="WorkspaceTitlebar"] [data-dnd-overlay][data-dnd-dragging] {
+		--dnd-transition: translate 0.01ms linear !important;
+	}
 
-    [data-name="WorkspaceTitlebar"] [data-dnd-overlay][data-dnd-dragging] {
-        --dnd-transition: translate 0.01ms linear !important;
-    }
-
-    *,
-    *::before,
-    *::after {
-        scroll-behavior: auto !important;
-        transition-duration: 0.01ms !important;
-        animation-duration: 0.01ms !important;
-        animation-iteration-count: 1 !important;
-    }
+	*,
+	*::before,
+	*::after {
+		scroll-behavior: auto !important;
+		transition-duration: 0.01ms !important;
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+	}
 }

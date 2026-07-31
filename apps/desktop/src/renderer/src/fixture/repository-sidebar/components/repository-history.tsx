@@ -1,7 +1,8 @@
 import type { CommitInfo, CommitPage } from "@1git/git";
+import { cn } from "@1git/ui/lib/utils";
 import { GitCommitIcon } from "@phosphor-icons/react/dist/csr/GitCommit";
 import type { ReactElement } from "react";
-import { formatRelativeTime } from "./workspace-model.js";
+import { formatRelativeTime } from "../../../feature/workspace/lib/workspace-model.js";
 
 interface CommitRowProps {
 	readonly commit: CommitInfo;
@@ -9,11 +10,11 @@ interface CommitRowProps {
 	readonly onSelect: (commit: CommitInfo) => Promise<void>;
 }
 
-const CommitRow = ({
+function CommitRow({
 	commit,
 	isSelected,
 	onSelect,
-}: CommitRowProps): ReactElement => {
+}: CommitRowProps): ReactElement {
 	const selectCommit = async (): Promise<void> => {
 		await onSelect(commit);
 	};
@@ -22,11 +23,12 @@ const CommitRow = ({
 		<li data-name="CommitRow">
 			<button
 				aria-current={isSelected ? "true" : undefined}
-				className={
+				className={cn(
+					"flex w-full gap-3 px-3 py-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-brand/20 focus-visible:ring-inset",
 					isSelected
-						? "flex w-full gap-3 bg-studio-glass-strong px-3 py-3 text-left shadow-[inset_2px_0_0_var(--brand)] outline-none"
-						: "flex w-full gap-3 px-3 py-3 text-left outline-none hover:bg-hover focus-visible:ring-2 focus-visible:ring-brand/20 focus-visible:ring-inset"
-				}
+						? "bg-studio-glass-strong shadow-[inset_2px_0_0_var(--brand)]"
+						: "hover:bg-hover"
+				)}
 				onClick={selectCommit}
 				type="button"
 			>
@@ -47,7 +49,7 @@ const CommitRow = ({
 			</button>
 		</li>
 	);
-};
+}
 
 interface RepositoryHistoryProps {
 	readonly history: CommitPage | null;
@@ -55,27 +57,41 @@ interface RepositoryHistoryProps {
 	readonly selectedCommitOid: string | null;
 }
 
-export const RepositoryHistory = ({
+export function RepositoryHistory({
 	history,
 	onSelectCommit,
 	selectedCommitOid,
-}: RepositoryHistoryProps): ReactElement => (
-	<ul
-		className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-1"
-		data-name="RepositoryHistory"
-	>
-		{history?.commits.map((commit) => (
-			<CommitRow
-				commit={commit}
-				isSelected={selectedCommitOid === commit.oid}
-				key={commit.oid}
-				onSelect={onSelectCommit}
-			/>
-		))}
-		{history?.commits.length === 0 ? (
-			<li className="px-4 py-10 text-center text-editor-faint text-xss">
-				This repository has no commits yet.
-			</li>
-		) : null}
-	</ul>
-);
+}: RepositoryHistoryProps): ReactElement {
+	if (!history) {
+		return (
+			<p
+				className="flex min-h-0 flex-1 items-center justify-center px-4 py-10 text-center text-editor-faint text-xss"
+				role="status"
+			>
+				Loading commit history…
+			</p>
+		);
+	}
+
+	return (
+		<ul
+			aria-label="Commit history"
+			className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-1"
+			data-name="RepositoryHistory"
+		>
+			{history.commits.map((commit) => (
+				<CommitRow
+					commit={commit}
+					isSelected={selectedCommitOid === commit.oid}
+					key={commit.oid}
+					onSelect={onSelectCommit}
+				/>
+			))}
+			{history.commits.length === 0 ? (
+				<li className="px-4 py-10 text-center text-editor-faint text-xss">
+					This repository has no commits yet.
+				</li>
+			) : null}
+		</ul>
+	);
+}

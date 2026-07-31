@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
-import type { RepositoryRefreshEvent } from "../../shared/git-ipc.js";
-import type { RepositorySessionId } from "../../shared/repository-session.js";
+import type { RepositoryRefreshEvent } from "../../../../../shared/git-ipc.js";
+import type { RepositorySessionId } from "../../../../../shared/repository-session.js";
 
 export const DEFAULT_REPOSITORY_REFRESH_DEBOUNCE_MS = 120;
 

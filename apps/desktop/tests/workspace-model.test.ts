@@ -10,7 +10,7 @@ import {
 	isFileStaged,
 	matchesFileFilter,
 	recentRepositoryName,
-} from "../src/renderer/src/workspace-model.js";
+} from "../src/renderer/src/feature/workspace/lib/workspace-model.js";
 
 const fileChange = (
 	path: string,

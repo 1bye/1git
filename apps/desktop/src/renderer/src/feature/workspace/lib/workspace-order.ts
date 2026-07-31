@@ -1,7 +1,7 @@
 import type {
 	RepositorySessionId,
 	RepositorySessionRecord,
-} from "../../shared/repository-session.js";
+} from "../../../../../shared/repository-session.js";
 
 const hasSameOrder = (
 	first: readonly RepositorySessionId[],

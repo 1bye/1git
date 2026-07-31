@@ -3,8 +3,11 @@ import { FolderOpenIcon } from "@phosphor-icons/react/dist/csr/FolderOpen";
 import { GitBranchIcon } from "@phosphor-icons/react/dist/csr/GitBranch";
 import { SpinnerGapIcon } from "@phosphor-icons/react/dist/csr/SpinnerGap";
 import type { ReactElement } from "react";
-import type { RecentRepositoryRecord } from "../../shared/repository-session.js";
-import { formatRelativeTime, recentRepositoryName } from "./workspace-model.js";
+import type { RecentRepositoryRecord } from "../../../../../shared/repository-session.js";
+import {
+	formatRelativeTime,
+	recentRepositoryName,
+} from "../../../feature/workspace/lib/workspace-model.js";
 
 interface RepositoryWelcomeProps {
 	readonly isLoading: boolean;
@@ -13,18 +16,21 @@ interface RepositoryWelcomeProps {
 	readonly recentRepositories: readonly RecentRepositoryRecord[];
 }
 
-export const RepositoryWelcome = ({
+const RECENT_REPOSITORY_LIMIT = 5;
+
+export function RepositoryWelcome({
 	isLoading,
 	onOpenRecent,
 	onPickRepository,
 	recentRepositories,
-}: RepositoryWelcomeProps): ReactElement => {
+}: RepositoryWelcomeProps): ReactElement {
 	const pickRepository = async (): Promise<void> => {
 		await onPickRepository();
 	};
 
 	return (
 		<main
+			aria-busy={isLoading}
 			className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto bg-editor-surface px-8 py-12"
 			data-name="RepositoryWelcome"
 		>
@@ -49,6 +55,7 @@ export const RepositoryWelcome = ({
 				</p>
 				<div className="mt-6 flex justify-center">
 					<Button
+						aria-busy={isLoading}
 						disabled={isLoading}
 						onClick={pickRepository}
 						size="sm"
@@ -71,43 +78,56 @@ export const RepositoryWelcome = ({
 						>
 							Recent repositories
 						</h2>
-						<div className="overflow-hidden rounded-2xl border border-editor-hairline bg-editor-sunken/60">
-							{recentRepositories.slice(0, 5).map((repository) => {
-								const openRecent = async (): Promise<void> => {
-									await onOpenRecent(repository.path);
-								};
-								return (
-									<button
-										className="group flex w-full items-center gap-3 border-editor-hairline border-b px-3.5 py-3 text-left outline-none last:border-b-0 hover:bg-editor-surface focus-visible:bg-editor-surface"
-										key={repository.path}
-										onClick={openRecent}
-										type="button"
-									>
-										<span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-surface-3 text-editor-muted shadow-surface-1">
-											<FolderOpenIcon
-												aria-hidden
-												className="size-4"
-												weight="regular"
-											/>
-										</span>
-										<span className="min-w-0 flex-1">
-											<span className="block truncate font-medium text-editor-ink text-xs">
-												{recentRepositoryName(repository)}
-											</span>
-											<span className="block truncate text-[10px] text-editor-faint">
-												{repository.path}
-											</span>
-										</span>
-										<span className="shrink-0 text-[10px] text-editor-faint">
-											{formatRelativeTime(repository.lastOpenedAt)}
-										</span>
-									</button>
-								);
-							})}
-						</div>
+						<ul className="overflow-hidden rounded-2xl border border-editor-hairline bg-editor-sunken/60">
+							{recentRepositories
+								.slice(0, RECENT_REPOSITORY_LIMIT)
+								.map((repository) => {
+									const openRecent = async (): Promise<void> => {
+										await onOpenRecent(repository.path);
+									};
+									return (
+										<li
+											className="border-editor-hairline border-b last:border-b-0"
+											key={repository.path}
+										>
+											<button
+												className="group flex w-full items-center gap-3 px-3.5 py-3 text-left outline-none hover:bg-editor-surface focus-visible:bg-editor-surface focus-visible:ring-2 focus-visible:ring-brand/20 focus-visible:ring-inset disabled:pointer-events-none disabled:opacity-50"
+												disabled={isLoading}
+												onClick={openRecent}
+												type="button"
+											>
+												<span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-surface-3 text-editor-muted shadow-surface-1">
+													<FolderOpenIcon
+														aria-hidden
+														className="size-4"
+														weight="regular"
+													/>
+												</span>
+												<span className="min-w-0 flex-1">
+													<span className="block truncate font-medium text-editor-ink text-xs">
+														{recentRepositoryName(repository)}
+													</span>
+													<span
+														className="block truncate text-[10px] text-editor-faint"
+														title={repository.path}
+													>
+														{repository.path}
+													</span>
+												</span>
+												<time
+													className="shrink-0 text-[10px] text-editor-faint"
+													dateTime={repository.lastOpenedAt}
+												>
+													{formatRelativeTime(repository.lastOpenedAt)}
+												</time>
+											</button>
+										</li>
+									);
+								})}
+						</ul>
 					</section>
 				) : null}
 			</div>
 		</main>
 	);
-};
+}
