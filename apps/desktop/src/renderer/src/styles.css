@@ -1,6 +1,12 @@
 @import "@1git/ui/globals.css";
 @source "./**/*.{ts,tsx}";
 
+@property --workspace-tab-label-leading-mask-alpha {
+	syntax: "<number>";
+	inherits: false;
+	initial-value: 1;
+}
+
 :root {
 	--desktop-titlebar-controls-width: 5rem;
 	--workspace-surface-inset: 6px;
@@ -132,27 +138,36 @@ button {
 }
 
 [data-name="WorkspaceTabLabelViewport"][data-overflowing="true"] {
+	--workspace-tab-label-leading-mask-alpha: 1;
 	-webkit-mask-image: linear-gradient(
 		to right,
-		transparent 0,
+		rgb(0 0 0 / var(--workspace-tab-label-leading-mask-alpha)) 0,
 		#000 7px,
 		#000 calc(100% - 7px),
 		transparent 100%
 	);
 	mask-image: linear-gradient(
 		to right,
-		transparent 0,
+		rgb(0 0 0 / var(--workspace-tab-label-leading-mask-alpha)) 0,
 		#000 7px,
 		#000 calc(100% - 7px),
 		transparent 100%
 	);
 	mask-repeat: no-repeat;
+	transition: --workspace-tab-label-leading-mask-alpha
+		var(--workspace-tab-label-leading-mask-fade-duration) linear;
 }
 
 [data-name="WorkspaceTabLabelTrack"] {
 	transform: translateX(0);
 	transition: transform var(--workspace-tab-label-return-duration)
 		cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+[data-name="WorkspaceTab"]:not([data-dragging="true"]):is(:hover, :focus-within)
+	[data-name="WorkspaceTabLabelViewport"][data-overflowing="true"] {
+	--workspace-tab-label-leading-mask-alpha: 0;
+	transition-delay: var(--workspace-tab-label-hover-delay);
 }
 
 [data-name="WorkspaceTab"]:not([data-dragging="true"]):is(:hover, :focus-within)
@@ -192,6 +207,7 @@ button {
 		--dnd-transition: translate 0.01ms linear !important;
 	}
 
+	[data-name="WorkspaceTabLabelViewport"],
 	[data-name="WorkspaceTabLabelTrack"] {
 		transition-delay: 0ms !important;
 	}

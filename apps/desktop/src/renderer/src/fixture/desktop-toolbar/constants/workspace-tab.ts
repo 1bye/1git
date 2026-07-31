@@ -9,6 +9,7 @@ export const WORKSPACE_TAB_REORDER_MOTION = {
 
 export const WORKSPACE_TAB_LABEL_MARQUEE = {
 	hoverDelayMs: 320,
+	leadingMaskFadeDurationMs: 90,
 	maxDurationMs: 2200,
 	minDurationMs: 700,
 	overflowTolerancePx: 1,

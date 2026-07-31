@@ -205,7 +205,7 @@ function WorkspaceTabName({
 
 	return (
 		<span
-			className="block min-w-0 flex-1 overflow-hidden text-xss"
+			className="pointer-events-none block min-w-0 flex-1 overflow-hidden text-xss"
 			data-name="WorkspaceTabLabelViewport"
 			data-overflowing={isOverflowing ? "true" : undefined}
 			ref={viewportRef}

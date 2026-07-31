@@ -8,6 +8,7 @@ import {
 
 interface WorkspaceTabLabelStyle extends CSSProperties {
 	readonly "--workspace-tab-label-hover-delay": string;
+	readonly "--workspace-tab-label-leading-mask-fade-duration": string;
 	readonly "--workspace-tab-label-marquee-duration": string;
 	readonly "--workspace-tab-label-overflow": string;
 	readonly "--workspace-tab-label-return-duration": string;
@@ -52,6 +53,7 @@ export const useOverflowingTabLabel = (): OverflowingTabLabel => {
 	const style = useMemo<WorkspaceTabLabelStyle>(
 		() => ({
 			"--workspace-tab-label-hover-delay": `${WORKSPACE_TAB_LABEL_MARQUEE.hoverDelayMs}ms`,
+			"--workspace-tab-label-leading-mask-fade-duration": `${WORKSPACE_TAB_LABEL_MARQUEE.leadingMaskFadeDurationMs}ms`,
 			"--workspace-tab-label-marquee-duration": `${getWorkspaceTabLabelMarqueeDuration(overflowPixels)}ms`,
 			"--workspace-tab-label-overflow": `${overflowPixels}px`,
 			"--workspace-tab-label-return-duration": `${WORKSPACE_TAB_LABEL_MARQUEE.returnDurationMs}ms`,
