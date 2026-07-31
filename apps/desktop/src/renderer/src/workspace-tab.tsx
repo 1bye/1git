@@ -44,17 +44,17 @@ export const WORKSPACE_TAB_SURFACE_GEOMETRY = {
   tabContentGap: 8,
   tabContentInsetBlock: 8,
   tabContentInsetInlineStart: 12,
-  tabGap: 2,
+  tabGap: 0,
   tabHeight: 40,
   tabLift: 3,
-  tabListInset: 16,
+  tabListInset: 4,
   tabRadius: 10,
   tabSdfEdgeExtensionBlockEnd: 3,
   tabSdfExtensionBlockEnd: 16,
   tabTrailingInset: 4,
   tabVisualInsetBlock: 4,
   tabVisualInsetInline: 4,
-  tabWidth: 196,
+  tabWidth: 210,
   toolbarHeight: 46,
 } as const;
 
@@ -119,7 +119,7 @@ const WorkspaceTabAppearance = ({
   return (
     <div
       aria-hidden={isOverlay || undefined}
-      className={`group relative z-[2] flex shrink-0 items-center transition-colors ${isActive ? "text-editor-ink" : "text-editor-muted hover:text-editor-ink"}`}
+      className={`group relative z-[2] flex shrink-0 items-center px-1 transition-colors ${isActive ? "text-editor-ink" : "text-editor-muted hover:text-editor-ink"}`}
       data-active={isActive ? "true" : undefined}
       data-desktop-interactive
       data-dragging={isDragging ? "true" : undefined}

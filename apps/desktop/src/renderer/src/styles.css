@@ -124,6 +124,10 @@ button {
     cursor: grabbing;
 }
 
+[data-name="WorkspaceTitlebar"] [data-dnd-overlay][data-dnd-dragging] {
+    --dnd-transition: translate 72ms cubic-bezier(0.22, 1, 0.36, 1) !important;
+}
+
 [data-name="WorkspaceLiquidSurfaceFill"] {
     fill: var(--editor-surface);
 }
@@ -144,6 +148,10 @@ button {
 }
 
 @media (prefers-reduced-motion: reduce) {
+
+    [data-name="WorkspaceTitlebar"] [data-dnd-overlay][data-dnd-dragging] {
+        --dnd-transition: translate 0.01ms linear !important;
+    }
 
     *,
     *::before,
