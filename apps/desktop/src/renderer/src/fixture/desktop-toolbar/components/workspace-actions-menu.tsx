@@ -23,6 +23,7 @@ import { GitBranchIcon } from "@phosphor-icons/react/dist/csr/GitBranch";
 import { PlusIcon } from "@phosphor-icons/react/dist/csr/Plus";
 import type {
 	ChangeEvent,
+	ComponentProps,
 	FormEvent,
 	ReactElement,
 	KeyboardEvent as ReactKeyboardEvent,
@@ -39,6 +40,7 @@ import {
 } from "../lib/workspace-actions-menu.js";
 
 interface WorkspaceActionsMenuProps {
+	readonly anchor: ComponentProps<typeof DropdownMenuContent>["anchor"];
 	readonly branches: BranchCollection | null;
 	readonly currentBranch: string;
 	readonly onClose: () => void;
@@ -235,6 +237,7 @@ function CreateBranchForm({
 }
 
 export function WorkspaceActionsMenu({
+	anchor,
 	branches,
 	currentBranch,
 	onClose,
@@ -258,6 +261,7 @@ export function WorkspaceActionsMenu({
 		<TooltipProvider delay={WORKSPACE_BRANCH_TOOLTIP_DELAY_MS}>
 			<DropdownMenuContent
 				align="center"
+				anchor={anchor}
 				aria-busy={isPending}
 				aria-label="Workspace actions"
 				className="w-72 min-w-72"

@@ -7,6 +7,12 @@
 	initial-value: 1;
 }
 
+@property --workspace-tab-label-trailing-mask-alpha {
+	syntax: "<number>";
+	inherits: false;
+	initial-value: 0;
+}
+
 :root {
 	--desktop-titlebar-controls-width: 5rem;
 	--workspace-surface-inset: 6px;
@@ -139,22 +145,26 @@ button {
 
 [data-name="WorkspaceTabLabelViewport"][data-overflowing="true"] {
 	--workspace-tab-label-leading-mask-alpha: 1;
+	--workspace-tab-label-trailing-mask-alpha: 0;
 	-webkit-mask-image: linear-gradient(
 		to right,
 		rgb(0 0 0 / var(--workspace-tab-label-leading-mask-alpha)) 0,
 		#000 7px,
 		#000 calc(100% - 7px),
-		transparent 100%
+		rgb(0 0 0 / var(--workspace-tab-label-trailing-mask-alpha)) 100%
 	);
 	mask-image: linear-gradient(
 		to right,
 		rgb(0 0 0 / var(--workspace-tab-label-leading-mask-alpha)) 0,
 		#000 7px,
 		#000 calc(100% - 7px),
-		transparent 100%
+		rgb(0 0 0 / var(--workspace-tab-label-trailing-mask-alpha)) 100%
 	);
 	mask-repeat: no-repeat;
-	transition: --workspace-tab-label-leading-mask-alpha
+	transition:
+		--workspace-tab-label-leading-mask-alpha
+		var(--workspace-tab-label-leading-mask-fade-duration) linear,
+		--workspace-tab-label-trailing-mask-alpha
 		var(--workspace-tab-label-leading-mask-fade-duration) linear;
 }
 
@@ -167,7 +177,13 @@ button {
 [data-name="WorkspaceTab"]:not([data-dragging="true"]):is(:hover, :focus-within)
 	[data-name="WorkspaceTabLabelViewport"][data-overflowing="true"] {
 	--workspace-tab-label-leading-mask-alpha: 0;
-	transition-delay: var(--workspace-tab-label-hover-delay);
+	--workspace-tab-label-trailing-mask-alpha: 1;
+	transition-delay:
+		var(--workspace-tab-label-hover-delay),
+		calc(
+			var(--workspace-tab-label-hover-delay) +
+			var(--workspace-tab-label-marquee-duration)
+		);
 }
 
 [data-name="WorkspaceTab"]:not([data-dragging="true"]):is(:hover, :focus-within)

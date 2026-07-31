@@ -69,14 +69,8 @@ const TAB_DRAG_SENSORS = [
 				value: TAB_POINTER_ACTIVATION_DISTANCE,
 			}),
 		],
-		activatorElements: (source) =>
-			source.element
-				? Array.from(
-						source.element.querySelectorAll(
-							WORKSPACE_TAB_POINTER_DRAG_HANDLE_SELECTOR
-						)
-					)
-				: [],
+		// The active label swaps to a menu trigger, so bind once to the stable tab.
+		activatorElements: (source) => [source.element],
 		preventActivation: (event, source) => {
 			if (!(event.target instanceof Element)) {
 				return true;
@@ -109,6 +103,10 @@ const WORKSPACE_TAB_LIST_STYLE: CSSProperties = {
 		WORKSPACE_TAB_SURFACE_GEOMETRY.tabHeight -
 		WORKSPACE_TAB_SURFACE_GEOMETRY.tabLift,
 };
+const getActiveWorkspaceTab = (): Element | null =>
+	document.querySelector(
+		'[data-name="WorkspaceTab"][data-active="true"]:not([data-overlay="true"])'
+	);
 
 export function DesktopToolbar({
 	activeSessionId,
@@ -327,6 +325,7 @@ export function DesktopToolbar({
 									/>
 									{isActive && isWorkspaceMenuOpen ? (
 										<WorkspaceActionsMenu
+											anchor={getActiveWorkspaceTab}
 											branches={branches}
 											currentBranch={currentBranch}
 											onClose={closeWorkspaceMenu}
