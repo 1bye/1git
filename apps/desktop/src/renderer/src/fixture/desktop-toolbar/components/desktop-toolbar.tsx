@@ -27,6 +27,7 @@ import type {
 } from "../../../feature/workspace/hooks/use-git-workspace.js";
 import {
 	WORKSPACE_TAB_POINTER_DRAG_HANDLE_SELECTOR,
+	WORKSPACE_TAB_REORDER_MOTION,
 	WORKSPACE_TAB_SURFACE_GEOMETRY,
 } from "../constants/workspace-tab.js";
 import { RepositoryMenu } from "./repository-menu.js";
@@ -90,10 +91,7 @@ const TAB_DRAG_SENSORS = [
 	}),
 	KeyboardSensor,
 ];
-const TAB_DROP_ANIMATION = {
-	duration: 240,
-	easing: "cubic-bezier(0.22, 1, 0.36, 1)",
-} as const;
+const TAB_DROP_ANIMATION = WORKSPACE_TAB_REORDER_MOTION;
 const TAB_OVERLAY_STYLE: CSSProperties = {
 	pointerEvents: "none",
 };

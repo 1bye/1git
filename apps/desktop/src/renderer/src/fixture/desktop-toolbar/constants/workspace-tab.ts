@@ -2,6 +2,20 @@ export const WORKSPACE_ACTIONS_MENU_ID = "workspace-actions-menu";
 export const WORKSPACE_TAB_POINTER_DRAG_HANDLE_SELECTOR =
 	"[data-workspace-tab-pointer-drag-handle]";
 
+export const WORKSPACE_TAB_REORDER_MOTION = {
+	duration: 240,
+	easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+} as const;
+
+export const WORKSPACE_TAB_LABEL_MARQUEE = {
+	hoverDelayMs: 320,
+	maxDurationMs: 2200,
+	minDurationMs: 700,
+	overflowTolerancePx: 1,
+	pixelsPerSecond: 48,
+	returnDurationMs: 220,
+} as const;
+
 /** Adjust the active tab and SDF fusion geometry from this single object. */
 export const WORKSPACE_TAB_SURFACE_GEOMETRY = {
 	blendRadius: 12,

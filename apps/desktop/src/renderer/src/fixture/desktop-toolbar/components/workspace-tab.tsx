@@ -12,7 +12,11 @@ import {
 	getRepositoryName,
 	getWorkspaceLabel,
 } from "../../../feature/workspace/lib/workspace-model.js";
-import { WORKSPACE_TAB_SURFACE_GEOMETRY } from "../constants/workspace-tab.js";
+import {
+	WORKSPACE_TAB_REORDER_MOTION,
+	WORKSPACE_TAB_SURFACE_GEOMETRY,
+} from "../constants/workspace-tab.js";
+import { useOverflowingTabLabel } from "../hooks/use-overflowing-tab-label.js";
 import { useRepositoryOwnerAvatar } from "../hooks/use-repository-owner-avatar.js";
 
 interface WorkspaceTabProps {
@@ -73,7 +77,7 @@ const OWNER_THUMBNAIL_TONES = [
 
 const WORKSPACE_OWNER_THUMBNAIL_CLASS_NAME = "shrink-0 rounded-full";
 const WORKSPACE_TAB_NAME_BUTTON_CLASS_NAME =
-	"relative z-10 flex h-full min-w-0 flex-1 touch-none items-center rounded-md text-left outline-none hover:text-editor-ink focus-visible:ring-2 focus-visible:ring-brand/20";
+	"relative z-10 flex h-full min-w-0 flex-1 touch-none items-center overflow-hidden rounded-md text-left outline-none hover:text-editor-ink focus-visible:ring-2 focus-visible:ring-brand/20";
 
 const WORKSPACE_TAB_STYLE: CSSProperties = {
 	height: WORKSPACE_TAB_SURFACE_GEOMETRY.tabHeight,
@@ -117,8 +121,7 @@ const WORKSPACE_TAB_TRAILING_STYLE: CSSProperties = {
 const MAX_VISIBLE_CHANGED_FILE_COUNT = 99;
 
 const WORKSPACE_TAB_SORT_TRANSITION = {
-	duration: 180,
-	easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+	...WORKSPACE_TAB_REORDER_MOTION,
 	idle: true,
 } as const;
 
@@ -197,14 +200,29 @@ function WorkspaceTabName({
 	isActive,
 	repositoryName,
 }: WorkspaceTabNameProps): ReactElement {
+	const { isOverflowing, style, trackRef, viewportRef } =
+		useOverflowingTabLabel();
+
 	return (
-		<span className="min-w-0 truncate text-xss">
-			<span className={cn(isActive ? "font-bold" : "font-semibold")}>
-				{repositoryName}
+		<span
+			className="block min-w-0 flex-1 overflow-hidden text-xss"
+			data-name="WorkspaceTabLabelViewport"
+			data-overflowing={isOverflowing ? "true" : undefined}
+			ref={viewportRef}
+			style={style}
+		>
+			<span
+				className="inline-block min-w-max whitespace-nowrap"
+				data-name="WorkspaceTabLabelTrack"
+				ref={trackRef}
+			>
+				<span className={cn(isActive ? "font-bold" : "font-semibold")}>
+					{repositoryName}
+				</span>
+				{branch ? (
+					<span className="font-medium text-editor-faint"> / {branch}</span>
+				) : null}
 			</span>
-			{branch ? (
-				<span className="font-medium text-editor-faint"> / {branch}</span>
-			) : null}
 		</span>
 	);
 }
