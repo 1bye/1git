@@ -43,6 +43,7 @@ import type {
 	StashReferenceInput,
 	WorktreePathInput,
 } from "@1git/git";
+import type { RepositoryOwnerApi } from "./repository-owner-avatar.js";
 import type {
 	OpenedRepositorySession,
 	RepositoryDirectorySelection,
@@ -623,4 +624,5 @@ export interface DesktopGitApi {
 export interface DesktopApi {
 	readonly git: DesktopGitApi;
 	readonly platform: NodeJS.Platform;
+	readonly repositoryOwners: RepositoryOwnerApi;
 }

@@ -267,6 +267,10 @@ export function DesktopToolbar({
 						{workspaces.map((workspace, index) => (
 							<WorkspaceTab
 								index={index}
+								isActionsMenuOpen={
+									workspace.session.id === activeSessionId &&
+									workspaceMenuLeft !== null
+								}
 								isActive={workspace.session.id === activeSessionId}
 								isBusy={pendingAction === "workspace"}
 								key={workspace.session.id}
@@ -295,6 +299,7 @@ export function DesktopToolbar({
 							);
 							return workspace ? (
 								<WorkspaceTabOverlay
+									isActionsMenuOpen={false}
 									isActive={workspace.session.id === activeSessionId}
 									isBusy={pendingAction === "workspace"}
 									onActivate={onActivateWorkspace}

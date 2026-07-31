@@ -15,6 +15,8 @@ import { GitOperationRegistry } from "./git/git-operation-registry.js";
 import { JsonRecentRepositoryStore } from "./git/recent-repository-store.js";
 import { publishActiveRepositoryFocus } from "./git/repository-events.js";
 import { RepositoryManager } from "./git/repository-manager.js";
+import { GithubAvatarCache } from "./repository-owners/github-avatar-cache.js";
+import { registerRepositoryOwnerIpc } from "./repository-owners/repository-owner-ipc.js";
 
 const MAIN_WINDOW_WIDTH = 1280;
 const MAIN_WINDOW_HEIGHT = 820;
@@ -23,8 +25,10 @@ const MINIMUM_WINDOW_HEIGHT = 640;
 const MACOS_TRAFFIC_LIGHT_X = 16;
 const MACOS_TRAFFIC_LIGHT_Y = 17;
 const RECENT_REPOSITORIES_FILE = "recent-repositories.json";
+const REPOSITORY_OWNER_AVATARS_DIRECTORY = "repository-owner-avatars";
 const gitOperationRegistry = new GitOperationRegistry();
 let disposeGitIpc: (() => void) | null = null;
+let disposeRepositoryOwnerIpc: (() => void) | null = null;
 let mainWindow: BrowserWindow | null = null;
 let repositoryManager: RepositoryManager | null = null;
 
@@ -149,6 +153,16 @@ const start = async (): Promise<void> => {
 		pickRepositoryDirectory,
 		repositoryManager: manager,
 	});
+	disposeRepositoryOwnerIpc = registerRepositoryOwnerIpc({
+		avatarProvider: new GithubAvatarCache({
+			cacheDirectory: join(
+				app.getPath("userData"),
+				REPOSITORY_OWNER_AVATARS_DIRECTORY
+			),
+		}),
+		ipcMain,
+		isSenderAuthorized: (event) => event.sender === mainWindow?.webContents,
+	});
 	await createMainWindow(manager);
 
 	app.on("activate", () => {
@@ -169,6 +183,7 @@ app.on("window-all-closed", () => {
 
 app.on("before-quit", () => {
 	disposeGitIpc?.();
+	disposeRepositoryOwnerIpc?.();
 	repositoryManager?.closeAllSessions();
 });
 

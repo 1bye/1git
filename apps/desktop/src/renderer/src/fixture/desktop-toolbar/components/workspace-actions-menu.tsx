@@ -9,6 +9,7 @@ import { PlusIcon } from "@phosphor-icons/react/dist/csr/Plus";
 import type { ChangeEvent, FormEvent, ReactElement } from "react";
 import { useEffect, useRef, useState } from "react";
 import type { PendingWorkspaceAction } from "../../../feature/workspace/hooks/use-git-workspace.js";
+import { WORKSPACE_ACTIONS_MENU_ID } from "../constants/workspace-tab.js";
 
 interface WorkspaceActionsMenuProps {
 	readonly branches: BranchCollection | null;
@@ -77,6 +78,7 @@ export function WorkspaceActionsMenu({
 				aria-busy={isPending}
 				aria-label="Workspace actions"
 				className="fixed top-9 z-50 w-[310px] overflow-hidden rounded-2xl p-1.5"
+				id={WORKSPACE_ACTIONS_MENU_ID}
 				offset={2}
 				ref={dialogRef}
 				role="dialog"

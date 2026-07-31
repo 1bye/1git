@@ -15,6 +15,10 @@ import type {
 	RepositorySessionId,
 	RepositorySessionRecord,
 } from "../../../../../shared/repository-session.js";
+import {
+	getRepositoryOwner,
+	type RepositoryOwner,
+} from "../lib/repository-owner.js";
 import { isFileStaged } from "../lib/workspace-model.js";
 import {
 	moveWorkspaceInOrder,
@@ -68,11 +72,13 @@ const errorMessage = (error: unknown): string =>
 interface WorkspaceSummary {
 	readonly branch: string | null;
 	readonly changedFiles: number;
+	readonly owner: RepositoryOwner | null;
 }
 
 export interface WorkspaceTabState {
 	readonly branch: string | null;
 	readonly changedFiles: number | null;
+	readonly owner: RepositoryOwner | null;
 	readonly session: RepositorySessionRecord;
 }
 
@@ -158,13 +164,18 @@ export const useGitWorkspace = (): GitWorkspace => {
 	const rememberSnapshot = useCallback(
 		(
 			sessionId: RepositorySessionId,
-			nextSnapshot: RepositorySnapshot
+			nextSnapshot: RepositorySnapshot,
+			nextOwner?: RepositoryOwner | null
 		): void => {
 			setWorkspaceSummaries((current) => ({
 				...current,
 				[sessionId]: {
 					branch: nextSnapshot.head.branch,
 					changedFiles: nextSnapshot.files.length,
+					owner:
+						nextOwner === undefined
+							? (current[sessionId]?.owner ?? null)
+							: nextOwner,
 				},
 			}));
 		},
@@ -174,10 +185,11 @@ export const useGitWorkspace = (): GitWorkspace => {
 	const applySnapshot = useCallback(
 		(
 			sessionId: RepositorySessionId,
-			nextSnapshot: RepositorySnapshot
+			nextSnapshot: RepositorySnapshot,
+			nextOwner?: RepositoryOwner | null
 		): void => {
 			setSnapshot(nextSnapshot);
-			rememberSnapshot(sessionId, nextSnapshot);
+			rememberSnapshot(sessionId, nextSnapshot, nextOwner);
 		},
 		[rememberSnapshot]
 	);
@@ -212,17 +224,22 @@ export const useGitWorkspace = (): GitWorkspace => {
 			preferredFilePath?: string | null,
 			preferredCommitOid?: string | null
 		): Promise<void> => {
-			const [snapshotResult, branchResult, historyResult] = await Promise.all([
-				window.desktop.git.repository.snapshot(session.id),
-				window.desktop.git.branches.list(session.id),
-				window.desktop.git.repository.history(session.id, {
-					limit: HISTORY_LIMIT,
-				}),
-			]);
+			const [snapshotResult, branchResult, historyResult, remotesResult] =
+				await Promise.all([
+					window.desktop.git.repository.snapshot(session.id),
+					window.desktop.git.branches.list(session.id),
+					window.desktop.git.repository.history(session.id, {
+						limit: HISTORY_LIMIT,
+					}),
+					window.desktop.git.remotes.list(session.id),
+				]);
 			const nextSnapshot = resultValue(snapshotResult);
 			const nextBranches = resultValue(branchResult);
 			const nextHistory = resultValue(historyResult);
-			applySnapshot(session.id, nextSnapshot);
+			const nextOwner = remotesResult.ok
+				? getRepositoryOwner(remotesResult.value, nextSnapshot.head.upstream)
+				: undefined;
+			applySnapshot(session.id, nextSnapshot, nextOwner);
 			setBranches(nextBranches);
 			setHistory(nextHistory);
 
@@ -693,11 +710,13 @@ export const useGitWorkspace = (): GitWorkspace => {
 				? {
 						branch: snapshot.head.branch,
 						changedFiles: snapshot.files.length,
+						owner: workspaceSummaries[session.id]?.owner ?? null,
 					}
 				: workspaceSummaries[session.id];
 		workspaces.push({
 			branch: summary?.branch ?? null,
 			changedFiles: summary?.changedFiles ?? null,
+			owner: summary?.owner ?? null,
 			session,
 		});
 	}
