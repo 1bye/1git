@@ -60,6 +60,7 @@ interface WorkspaceTabNameButtonProps {
 
 interface WorkspaceChangedFilesProps {
   readonly count: number;
+  readonly isActive: boolean;
 }
 
 const OWNER_THUMBNAIL_TONES = [
@@ -97,16 +98,17 @@ const WORKSPACE_OWNER_THUMBNAIL_STYLE: CSSProperties = {
 
 const WORKSPACE_TAB_CHANGE_BADGE_STYLE: CSSProperties = {
   height: WORKSPACE_TAB_SURFACE_GEOMETRY.tabChangeBadgeHeight,
-  marginInlineEnd: WORKSPACE_TAB_SURFACE_GEOMETRY.tabContentGap / 4,
-  marginInlineStart: WORKSPACE_TAB_SURFACE_GEOMETRY.tabContentGap,
   minWidth: WORKSPACE_TAB_SURFACE_GEOMETRY.tabChangeBadgeMinWidth,
 };
 
-const WORKSPACE_TAB_CLOSE_STYLE: CSSProperties = {
+const WORKSPACE_TAB_TRAILING_STYLE: CSSProperties = {
   height: WORKSPACE_TAB_SURFACE_GEOMETRY.tabCloseSize,
   marginInlineEnd: WORKSPACE_TAB_SURFACE_GEOMETRY.tabTrailingInset,
+  marginInlineStart: WORKSPACE_TAB_SURFACE_GEOMETRY.tabContentGap,
   width: WORKSPACE_TAB_SURFACE_GEOMETRY.tabCloseSize,
 };
+
+const MAX_VISIBLE_CHANGED_FILE_COUNT = 99;
 
 const WORKSPACE_TAB_SORT_TRANSITION = {
   duration: 180,
@@ -231,21 +233,29 @@ function WorkspaceTabNameButton({
 
 function WorkspaceChangedFiles({
   count,
+  isActive
 }: WorkspaceChangedFilesProps): ReactElement | null {
   if (count <= 0) {
     return null;
   }
 
   const label = `${count} changed ${count === 1 ? "file" : "files"}`;
+  const visibleCount =
+    count > MAX_VISIBLE_CHANGED_FILE_COUNT
+      ? `${MAX_VISIBLE_CHANGED_FILE_COUNT}+`
+      : count;
 
   return (
     <span
-      className="relative z-10 flex shrink-0 items-center justify-center rounded-full bg-amber-100 px-1 font-semibold text-[9px] text-amber-800 tabular-nums ring-1 ring-amber-700/10"
+      className={cn(
+        "pointer-events-none flex shrink-0 items-center justify-center rounded-[0.3rem] bg-amber-100 px-1 font-semibold text-[9px] text-amber-800 tabular-nums opacity-100 transition-opacity duration-150 ease-out group-focus-within/trailing:opacity-0 group-hover:opacity-0",
+        !isActive && "bg-amber-100/35 text-amber-800/65"
+      )}
       data-name="WorkspaceChangedFiles"
       style={WORKSPACE_TAB_CHANGE_BADGE_STYLE}
       title={label}
     >
-      <span aria-hidden>{count}</span>
+      <span aria-hidden>{visibleCount}</span>
       <span className="sr-only">{label}</span>
     </span>
   );
@@ -334,22 +344,24 @@ function WorkspaceTabAppearance({
         repositoryName={repositoryName}
         sessionId={workspace.session.id}
       />
-      <WorkspaceChangedFiles count={changedFileCount} />
-      <button
-        aria-label={`Close ${label}`}
-        className={cn(
-          "relative z-10 flex shrink-0 items-center justify-center rounded-lg text-editor-faint outline-none hover:bg-active hover:text-editor-ink focus-visible:bg-active focus-visible:ring-2 focus-visible:ring-brand/20",
-          !isActive &&
-          "opacity-0 group-focus-within:opacity-100 group-hover:opacity-100"
-        )}
-        disabled={isBusy || isOverlay}
-        onClick={closeWorkspace}
-        style={WORKSPACE_TAB_CLOSE_STYLE}
-        tabIndex={isActive ? 0 : -1}
-        type="button"
+      <div
+        className="group/trailing relative z-10 flex shrink-0 items-center justify-center"
+        data-name="WorkspaceTabTrailingAction"
+        style={WORKSPACE_TAB_TRAILING_STYLE}
       >
-        <XIcon aria-hidden className="size-3" weight="bold" />
-      </button>
+        <WorkspaceChangedFiles isActive={isActive} count={changedFileCount} />
+        <button
+          aria-label={`Close ${label}`}
+          className="absolute inset-0 flex items-center justify-center rounded-lg text-editor-faint opacity-0 outline-none transition-opacity duration-150 ease-out hover:bg-active hover:text-editor-ink focus-visible:bg-active focus-visible:ring-2 focus-visible:ring-brand/20 group-focus-within/trailing:opacity-100 group-hover:opacity-100"
+          data-name="WorkspaceTabClose"
+          disabled={isBusy || isOverlay}
+          onClick={closeWorkspace}
+          tabIndex={isActive ? 0 : -1}
+          type="button"
+        >
+          <XIcon aria-hidden className="size-3" weight="bold" />
+        </button>
+      </div>
     </div>
   );
 }
