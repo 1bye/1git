@@ -6,6 +6,7 @@ import { createWorkspaceLiquidPath } from "../lib/workspace-liquid-geometry.js";
 
 interface UseWorkspaceLiquidSurfaceOptions {
 	readonly activeSessionId: RepositorySessionId | null;
+	readonly activeTabIndex: number;
 	readonly isDragging: boolean;
 }
 
@@ -69,6 +70,7 @@ const findTrackedActiveTab = (
 
 export function useWorkspaceLiquidSurface({
 	activeSessionId,
+	activeTabIndex,
 	isDragging,
 }: UseWorkspaceLiquidSurfaceOptions): WorkspaceLiquidSurfaceState {
 	const hostRef = useRef<HTMLDivElement>(null);
@@ -79,6 +81,10 @@ export function useWorkspaceLiquidSurface({
 		const host = hostRef.current;
 		const titlebar = host?.parentElement;
 		if (!(titlebar instanceof HTMLElement)) {
+			return;
+		}
+		if (activeTabIndex < 0) {
+			setMeasurement(null);
 			return;
 		}
 
@@ -98,7 +104,7 @@ export function useWorkspaceLiquidSurface({
 		setMeasurement((current) =>
 			hasSameMeasurement(current, nextMeasurement) ? current : nextMeasurement
 		);
-	}, [activeSessionId]);
+	}, [activeSessionId, activeTabIndex]);
 
 	useLayoutEffect(() => {
 		const host = hostRef.current;

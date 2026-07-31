@@ -5,15 +5,18 @@ import { useWorkspaceLiquidSurface } from "../hooks/use-workspace-liquid-surface
 
 interface WorkspaceLiquidSurfaceProps {
 	readonly activeSessionId: RepositorySessionId | null;
+	readonly activeTabIndex: number;
 	readonly isDragging: boolean;
 }
 
 export function WorkspaceLiquidSurface({
 	activeSessionId,
+	activeTabIndex,
 	isDragging,
 }: WorkspaceLiquidSurfaceProps): ReactElement {
 	const { hostRef, path, surfaceWidth } = useWorkspaceLiquidSurface({
 		activeSessionId,
+		activeTabIndex,
 		isDragging,
 	});
 	const surfaceStyle: CSSProperties | undefined =
