@@ -25,7 +25,7 @@ export const WORKSPACE_ACTIONS_LIQUID_MOTION = {
 	contentDurationMs: 120,
 	openDurationMs: 240,
 	positionTrackingDurationMs: 300,
-	resizeDurationMs: 220,
+	resizeDurationMs: 260,
 	submenuCloseDurationMs: 160,
 	submenuContentDelayMs: 90,
 	submenuOpenDurationMs: 200,

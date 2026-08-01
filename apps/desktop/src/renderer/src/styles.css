@@ -257,6 +257,12 @@ button {
 		cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+[data-name="WorkspaceActionsMenuSize"] {
+	transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+	transition-duration: var(--workspace-actions-menu-resize-duration);
+	transition-property: height;
+}
+
 [data-name="WorkspaceContent"],
 [data-name="RepositoryWelcome"],
 [data-name="WorkspaceLoading"] {

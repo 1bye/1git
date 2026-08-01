@@ -68,6 +68,7 @@ interface WorkspaceActionsMenuProps {
 interface WorkspaceActionsMenuStyle extends CSSProperties {
 	readonly "--workspace-actions-menu-content-delay": string;
 	readonly "--workspace-actions-menu-content-duration": string;
+	readonly "--workspace-actions-menu-resize-duration": string;
 	readonly "--workspace-actions-submenu-content-delay": string;
 }
 
@@ -90,6 +91,7 @@ interface CreateBranchFormProps {
 const WORKSPACE_ACTIONS_MENU_STYLE: WorkspaceActionsMenuStyle = {
 	"--workspace-actions-menu-content-delay": `${WORKSPACE_ACTIONS_LIQUID_MOTION.contentDelayMs}ms`,
 	"--workspace-actions-menu-content-duration": `${WORKSPACE_ACTIONS_LIQUID_MOTION.contentDurationMs}ms`,
+	"--workspace-actions-menu-resize-duration": `${WORKSPACE_ACTIONS_LIQUID_MOTION.resizeDurationMs}ms`,
 	"--workspace-actions-submenu-content-delay": `${WORKSPACE_ACTIONS_LIQUID_MOTION.submenuContentDelayMs}ms`,
 };
 
@@ -278,7 +280,7 @@ export function WorkspaceActionsMenu({
 	pendingAction,
 }: WorkspaceActionsMenuProps): ReactElement {
 	const [isCreating, setIsCreating] = useState(false);
-	const { containerRef, contentRef } = useWorkspaceActionsMenuSize();
+	const { containerStyle, contentRef } = useWorkspaceActionsMenuSize();
 	const { latestBranches, remainingBranches } =
 		groupWorkspaceBranches(branches);
 	const isPending = pendingAction !== null;
@@ -312,7 +314,7 @@ export function WorkspaceActionsMenu({
 				<div
 					className="overflow-hidden"
 					data-name="WorkspaceActionsMenuSize"
-					ref={containerRef}
+					style={containerStyle}
 				>
 					<div data-name="WorkspaceActionsMenuNaturalSize" ref={contentRef}>
 						<DropdownMenuGroup>

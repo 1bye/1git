@@ -1,83 +1,46 @@
-import type { RefObject } from "react";
-import { useLayoutEffect, useRef } from "react";
-import { WORKSPACE_ACTIONS_LIQUID_MOTION } from "../constants/workspace-actions-menu.js";
+import type { CSSProperties, RefCallback } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 interface WorkspaceActionsMenuSizeRefs {
-	readonly containerRef: RefObject<HTMLDivElement | null>;
-	readonly contentRef: RefObject<HTMLDivElement | null>;
+	readonly containerStyle: CSSProperties | undefined;
+	readonly contentRef: RefCallback<HTMLDivElement>;
 }
 
 const HEIGHT_EPSILON = 0.5;
-const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
-const RESIZE_EASING = "cubic-bezier(0.22, 1, 0.36, 1)";
 
 export const useWorkspaceActionsMenuSize = (): WorkspaceActionsMenuSizeRefs => {
-	const containerRef = useRef<HTMLDivElement>(null);
-	const contentRef = useRef<HTMLDivElement>(null);
+	const [height, setHeight] = useState<number | null>(null);
+	const resizeObserverRef = useRef<ResizeObserver | null>(null);
 
-	useLayoutEffect(() => {
-		const container = containerRef.current;
-		const content = contentRef.current;
-		if (!(container && content)) {
+	const contentRef = useCallback((content: HTMLDivElement | null): void => {
+		resizeObserverRef.current?.disconnect();
+		resizeObserverRef.current = null;
+		if (!content) {
 			return;
 		}
 
-		let activeAnimation: Animation | null = null;
-		let measuredHeight: number | null = null;
-		const prefersReducedMotion =
-			window.matchMedia(REDUCED_MOTION_QUERY).matches;
 		const resize = (): void => {
 			const nextHeight = content.getBoundingClientRect().height;
-			if (
-				measuredHeight !== null &&
-				Math.abs(measuredHeight - nextHeight) < HEIGHT_EPSILON
-			) {
-				return;
-			}
-
-			const currentHeight = container.getBoundingClientRect().height;
-			measuredHeight = nextHeight;
-			activeAnimation?.cancel();
-			container.style.height = `${nextHeight}px`;
-			if (
-				prefersReducedMotion ||
+			setHeight((currentHeight) =>
+				currentHeight !== null &&
 				Math.abs(currentHeight - nextHeight) < HEIGHT_EPSILON
-			) {
-				container.removeAttribute("data-resizing");
-				return;
-			}
-
-			container.dataset.resizing = "true";
-			const animation = container.animate(
-				[{ height: `${currentHeight}px` }, { height: `${nextHeight}px` }],
-				{
-					duration: WORKSPACE_ACTIONS_LIQUID_MOTION.resizeDurationMs,
-					easing: RESIZE_EASING,
-				}
+					? currentHeight
+					: nextHeight
 			);
-			activeAnimation = animation;
-			animation.onfinish = () => {
-				if (activeAnimation !== animation) {
-					return;
-				}
-				activeAnimation = null;
-				container.removeAttribute("data-resizing");
-			};
-			animation.oncancel = () => {
-				if (activeAnimation === animation) {
-					activeAnimation = null;
-				}
-			};
 		};
 
 		resize();
 		const resizeObserver = new ResizeObserver(resize);
 		resizeObserver.observe(content);
-		return () => {
-			activeAnimation?.cancel();
-			resizeObserver.disconnect();
-		};
+		resizeObserverRef.current = resizeObserver;
 	}, []);
 
-	return { containerRef, contentRef };
+	useEffect(() => () => resizeObserverRef.current?.disconnect(), []);
+
+	const containerStyle = useMemo<CSSProperties | undefined>(
+		() => (height === null ? undefined : { height }),
+		[height]
+	);
+
+	return { containerStyle, contentRef };
 };
