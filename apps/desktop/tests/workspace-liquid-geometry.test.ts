@@ -75,10 +75,17 @@ describe("workspace liquid geometry", () => {
 	test("grows the floating menu from a connected SDF seed", () => {
 		const measurement = {
 			menu: { height: 262, left: 132, top: 45, width: 288 },
+			submenu: null,
 			tab: { height: 40, left: 171, top: 3, width: 210 },
 		};
-		const seedFrame = createWorkspaceActionsLiquidFrame(measurement, 0.001);
-		const openFrame = createWorkspaceActionsLiquidFrame(measurement, 1);
+		const seedFrame = createWorkspaceActionsLiquidFrame(measurement, {
+			menu: 0.001,
+			submenu: 0,
+		});
+		const openFrame = createWorkspaceActionsLiquidFrame(measurement, {
+			menu: 1,
+			submenu: 0,
+		});
 		const seedCoordinates = pathCoordinates(seedFrame.path);
 		const openCoordinates = pathCoordinates(openFrame.path);
 		const horizontalSpan = (
@@ -95,6 +102,35 @@ describe("workspace liquid geometry", () => {
 		expect(horizontalSpan(seedCoordinates)).toBeLessThan(
 			horizontalSpan(openCoordinates)
 		);
+		expect(seedFrame.bounds).toEqual(openFrame.bounds);
+	});
+
+	test("grows a submenu from its parent edge as one SDF contour", () => {
+		const measurement = {
+			menu: { height: 262, left: 220, top: 45, width: 288 },
+			submenu: {
+				menu: { height: 196, left: 24, top: 132, width: 192 },
+				side: "left" as const,
+				trigger: { height: 28, left: 228, top: 174, width: 272 },
+			},
+			tab: { height: 40, left: 259, top: 3, width: 210 },
+		};
+		const seedFrame = createWorkspaceActionsLiquidFrame(measurement, {
+			menu: 1,
+			submenu: 0.001,
+		});
+		const openFrame = createWorkspaceActionsLiquidFrame(measurement, {
+			menu: 1,
+			submenu: 1,
+		});
+		const seedCoordinates = pathCoordinates(seedFrame.path);
+		const openCoordinates = pathCoordinates(openFrame.path);
+		const minimumX = (coordinates: readonly [number, number][]): number =>
+			Math.min(...coordinates.map(([x]) => x));
+
+		expect(seedFrame.path.match(/ Z/g)).toHaveLength(1);
+		expect(openFrame.path.match(/ Z/g)).toHaveLength(1);
+		expect(minimumX(openCoordinates)).toBeLessThan(minimumX(seedCoordinates));
 		expect(seedFrame.bounds).toEqual(openFrame.bounds);
 	});
 

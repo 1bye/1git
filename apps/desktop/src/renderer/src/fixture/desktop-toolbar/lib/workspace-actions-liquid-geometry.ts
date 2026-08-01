@@ -14,7 +14,19 @@ export interface LiquidSurfaceRect {
 
 export interface WorkspaceActionsLiquidMeasurement {
 	readonly menu: LiquidSurfaceRect;
+	readonly submenu: WorkspaceActionsLiquidSubmenuMeasurement | null;
 	readonly tab: LiquidSurfaceRect;
+}
+
+export interface WorkspaceActionsLiquidSubmenuMeasurement {
+	readonly menu: LiquidSurfaceRect;
+	readonly side: "left" | "right";
+	readonly trigger: LiquidSurfaceRect;
+}
+
+export interface WorkspaceActionsLiquidProgress {
+	readonly menu: number;
+	readonly submenu: number;
 }
 
 export interface WorkspaceActionsLiquidFrame {
@@ -42,11 +54,12 @@ const roundedBoxFromRect = (
 
 export const createWorkspaceActionsLiquidFrame = (
 	measurement: WorkspaceActionsLiquidMeasurement,
-	progress: number
+	progress: WorkspaceActionsLiquidProgress
 ): WorkspaceActionsLiquidFrame => {
 	const geometry = WORKSPACE_ACTIONS_LIQUID_GEOMETRY;
 	const tabGeometry = WORKSPACE_TAB_SURFACE_GEOMETRY;
-	const normalizedProgress = clampProgress(progress);
+	const menuProgress = clampProgress(progress.menu);
+	const submenuProgress = clampProgress(progress.submenu);
 	const visualTab: LiquidSurfaceRect = {
 		height: Math.max(
 			0,
@@ -60,18 +73,31 @@ export const createWorkspaceActionsLiquidFrame = (
 		),
 	};
 	const padding = geometry.blendRadius + geometry.sampleCellSize * 2;
-	const boundsLeft = Math.min(visualTab.left, measurement.menu.left) - padding;
-	const boundsTop = Math.min(visualTab.top, measurement.menu.top) - padding;
-	const boundsRight =
+	let boundsLeft = Math.min(visualTab.left, measurement.menu.left) - padding;
+	let boundsTop = Math.min(visualTab.top, measurement.menu.top) - padding;
+	let boundsRight =
 		Math.max(
 			visualTab.left + visualTab.width,
 			measurement.menu.left + measurement.menu.width
 		) + padding;
-	const boundsBottom =
+	let boundsBottom =
 		Math.max(
 			visualTab.top + visualTab.height,
 			measurement.menu.top + measurement.menu.height
 		) + padding;
+	if (measurement.submenu) {
+		const { menu: submenuMenu } = measurement.submenu;
+		boundsLeft = Math.min(boundsLeft, submenuMenu.left - padding);
+		boundsTop = Math.min(boundsTop, submenuMenu.top - padding);
+		boundsRight = Math.max(
+			boundsRight,
+			submenuMenu.left + submenuMenu.width + padding
+		);
+		boundsBottom = Math.max(
+			boundsBottom,
+			submenuMenu.top + submenuMenu.height + padding
+		);
+	}
 	const bounds: LiquidSurfaceRect = {
 		height: boundsBottom - boundsTop,
 		left: boundsLeft,
@@ -85,12 +111,12 @@ export const createWorkspaceActionsLiquidFrame = (
 	const animatedMenuHalfHeight = interpolate(
 		seedHalfHeight,
 		finalMenuHalfHeight,
-		normalizedProgress
+		menuProgress
 	);
 	const animatedMenuHalfWidth = interpolate(
 		seedHalfWidth,
 		finalMenuHalfWidth,
-		normalizedProgress
+		menuProgress
 	);
 	const tabBox = roundedBoxFromRect(visualTab, bounds, tabGeometry.tabRadius);
 	const menuBox: RoundedBox = {
@@ -105,11 +131,48 @@ export const createWorkspaceActionsLiquidFrame = (
 		),
 	};
 
+	const boxes: RoundedBox[] = [tabBox, menuBox];
+	if (measurement.submenu) {
+		const { submenu } = measurement;
+		const finalSubmenuHalfHeight = submenu.menu.height / 2;
+		const finalSubmenuHalfWidth = submenu.menu.width / 2;
+		const connectionX =
+			submenu.side === "left"
+				? measurement.menu.left
+				: measurement.menu.left + measurement.menu.width;
+		const connectionY = submenu.trigger.top + submenu.trigger.height / 2;
+		const finalCenterX = submenu.menu.left + submenu.menu.width / 2;
+		const finalCenterY = submenu.menu.top + submenu.menu.height / 2;
+		const animatedSubmenuHalfHeight = interpolate(
+			Math.min(submenu.trigger.height / 2, finalSubmenuHalfHeight),
+			finalSubmenuHalfHeight,
+			submenuProgress
+		);
+		const animatedSubmenuHalfWidth = interpolate(
+			geometry.sampleCellSize,
+			finalSubmenuHalfWidth,
+			submenuProgress
+		);
+		boxes.push({
+			centerX:
+				interpolate(connectionX, finalCenterX, submenuProgress) - bounds.left,
+			centerY:
+				interpolate(connectionY, finalCenterY, submenuProgress) - bounds.top,
+			halfHeight: animatedSubmenuHalfHeight,
+			halfWidth: animatedSubmenuHalfWidth,
+			radius: Math.min(
+				geometry.menuRadius,
+				animatedSubmenuHalfHeight,
+				animatedSubmenuHalfWidth
+			),
+		});
+	}
+
 	return {
 		bounds,
 		path: createLiquidUnionPath({
 			blendRadius: geometry.blendRadius,
-			boxes: [tabBox, menuBox],
+			boxes,
 			sampleCellSize: geometry.sampleCellSize,
 			smoothingPasses: geometry.smoothingPasses,
 			surfaceHeight: bounds.height,

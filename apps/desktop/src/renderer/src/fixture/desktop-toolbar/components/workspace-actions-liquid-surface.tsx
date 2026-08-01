@@ -5,17 +5,25 @@ import { useWorkspaceActionsLiquidSurface } from "../hooks/use-workspace-actions
 
 interface WorkspaceActionsLiquidSurfaceProps {
 	readonly isOpen: boolean;
+	readonly isSubmenuOpen: boolean;
 	readonly onPresenceChange: (isPresent: boolean) => void;
+	readonly onSubmenuPresenceChange: (isPresent: boolean) => void;
 }
 
 export function WorkspaceActionsLiquidSurface({
 	isOpen,
+	isSubmenuOpen,
 	onPresenceChange,
+	onSubmenuPresenceChange,
 }: WorkspaceActionsLiquidSurfaceProps): ReactElement | null {
-	const { frame, progress } = useWorkspaceActionsLiquidSurface({
-		isOpen,
-		onPresenceChange,
-	});
+	const { frame, progress, submenuProgress } = useWorkspaceActionsLiquidSurface(
+		{
+			isOpen,
+			isSubmenuOpen,
+			onPresenceChange,
+			onSubmenuPresenceChange,
+		}
+	);
 	if (!frame) {
 		return null;
 	}
@@ -36,6 +44,7 @@ export function WorkspaceActionsLiquidSurface({
 			className="pointer-events-none fixed inset-0 z-[3]"
 			data-name="WorkspaceActionsLiquidLayer"
 			data-progress={progress.toFixed(3)}
+			data-submenu-progress={submenuProgress.toFixed(3)}
 		>
 			<span
 				className="absolute inset-0 bg-black"

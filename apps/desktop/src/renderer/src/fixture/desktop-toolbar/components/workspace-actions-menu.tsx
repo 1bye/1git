@@ -38,7 +38,12 @@ import {
 	WORKSPACE_ACTIONS_LIQUID_MOTION,
 	WORKSPACE_BRANCH_TOOLTIP_DELAY_MS,
 } from "../constants/workspace-actions-menu.js";
-import { WORKSPACE_ACTIONS_MENU_ID } from "../constants/workspace-tab.js";
+import {
+	WORKSPACE_ACTIONS_MENU_ID,
+	WORKSPACE_ACTIONS_SUBMENU_ID,
+	WORKSPACE_ACTIONS_SUBMENU_TRIGGER_ID,
+} from "../constants/workspace-tab.js";
+import { useWorkspaceActionsMenuSize } from "../hooks/use-workspace-actions-menu-size.js";
 import {
 	formatBranchCommitAge,
 	groupWorkspaceBranches,
@@ -49,9 +54,12 @@ interface WorkspaceActionsMenuProps {
 	readonly branches: BranchCollection | null;
 	readonly currentBranch: string;
 	readonly hasLiquidSurface: boolean;
+	readonly hasSubmenuLiquidSurface: boolean;
+	readonly isSubmenuOpen: boolean;
 	readonly onClose: () => void;
 	readonly onCreateBranch: (name: string) => Promise<boolean>;
 	readonly onFetch: () => Promise<void>;
+	readonly onSubmenuOpenChange: (isOpen: boolean) => void;
 	readonly onSwitchBranch: (name: string) => Promise<void>;
 	readonly pendingAction: PendingWorkspaceAction;
 }
@@ -59,6 +67,7 @@ interface WorkspaceActionsMenuProps {
 interface WorkspaceActionsMenuStyle extends CSSProperties {
 	readonly "--workspace-actions-menu-content-delay": string;
 	readonly "--workspace-actions-menu-content-duration": string;
+	readonly "--workspace-actions-submenu-content-delay": string;
 }
 
 interface BranchMenuItemProps {
@@ -80,6 +89,7 @@ interface CreateBranchFormProps {
 const WORKSPACE_ACTIONS_MENU_STYLE: WorkspaceActionsMenuStyle = {
 	"--workspace-actions-menu-content-delay": `${WORKSPACE_ACTIONS_LIQUID_MOTION.contentDelayMs}ms`,
 	"--workspace-actions-menu-content-duration": `${WORKSPACE_ACTIONS_LIQUID_MOTION.contentDurationMs}ms`,
+	"--workspace-actions-submenu-content-delay": `${WORKSPACE_ACTIONS_LIQUID_MOTION.submenuContentDelayMs}ms`,
 };
 
 function BranchMenuItem({
@@ -257,17 +267,24 @@ export function WorkspaceActionsMenu({
 	branches,
 	currentBranch,
 	hasLiquidSurface,
+	hasSubmenuLiquidSurface,
+	isSubmenuOpen,
 	onClose,
 	onCreateBranch,
 	onFetch,
+	onSubmenuOpenChange,
 	onSwitchBranch,
 	pendingAction,
 }: WorkspaceActionsMenuProps): ReactElement {
 	const [isCreating, setIsCreating] = useState(false);
+	const { containerRef, contentRef } = useWorkspaceActionsMenuSize();
 	const { latestBranches, remainingBranches } =
 		groupWorkspaceBranches(branches);
 	const isPending = pendingAction !== null;
-	const beginBranchCreation = (): void => setIsCreating(true);
+	const beginBranchCreation = (): void => {
+		onSubmenuOpenChange(false);
+		setIsCreating(true);
+	};
 	const cancelBranchCreation = (): void => setIsCreating(false);
 	const fetchRepository = async (): Promise<void> => {
 		onClose();
@@ -291,109 +308,141 @@ export function WorkspaceActionsMenu({
 				sideOffset={2}
 				style={WORKSPACE_ACTIONS_MENU_STYLE}
 			>
-				<DropdownMenuGroup>
-					<DropdownMenuLabel className="flex items-center gap-2 px-2 py-1.5 normal-case tracking-normal">
-						<GitBranchIcon
-							aria-hidden
-							className="size-3.5 shrink-0 text-editor-faint"
-							weight="regular"
-						/>
-						<span className="min-w-0">
-							<span className="block font-normal text-[9px] text-editor-faint">
-								Current branch
-							</span>
-							<span className="block truncate font-semibold text-editor-ink text-xs">
-								{currentBranch || "Detached HEAD"}
-							</span>
-						</span>
-					</DropdownMenuLabel>
-				</DropdownMenuGroup>
-
-				<DropdownMenuSeparator />
-
-				{isCreating ? (
-					<CreateBranchForm
-						isPending={isPending}
-						onCancel={cancelBranchCreation}
-						onClose={onClose}
-						onCreateBranch={onCreateBranch}
-						pendingAction={pendingAction}
-					/>
-				) : (
-					<>
+				<div
+					className="overflow-hidden"
+					data-name="WorkspaceActionsMenuSize"
+					ref={containerRef}
+				>
+					<div data-name="WorkspaceActionsMenuNaturalSize" ref={contentRef}>
 						<DropdownMenuGroup>
-							<DropdownMenuLabel>Switch branch</DropdownMenuLabel>
-							{latestBranches.map((branch) => (
-								<BranchMenuItem
-									branch={branch}
-									isPending={isPending}
-									isSubmenuItem={false}
-									key={branch.fullName}
-									onClose={onClose}
-									onSwitchBranch={onSwitchBranch}
+							<DropdownMenuLabel className="flex items-center gap-2 px-2 py-1.5 normal-case tracking-normal">
+								<GitBranchIcon
+									aria-hidden
+									className="size-3.5 shrink-0 text-editor-faint"
+									weight="regular"
 								/>
-							))}
-							{latestBranches.length === 0 ? (
-								<DropdownMenuLabel className="py-2 font-normal text-xss normal-case tracking-normal">
-									No local branches available.
-								</DropdownMenuLabel>
-							) : null}
-							{remainingBranches.length > 0 ? (
-								<DropdownMenuSub>
-									<DropdownMenuSubTrigger disabled={isPending} openOnHover>
-										More
-									</DropdownMenuSubTrigger>
-									<DropdownMenuSubContent
-										align="start"
-										className="w-48 min-w-48"
-										side="left"
-										sideOffset={4}
-									>
-										{remainingBranches.map((branch) => (
+								<span className="min-w-0">
+									<span className="block font-normal text-[9px] text-editor-faint">
+										Current branch
+									</span>
+									<span className="block truncate font-semibold text-editor-ink text-xs">
+										{currentBranch || "Detached HEAD"}
+									</span>
+								</span>
+							</DropdownMenuLabel>
+						</DropdownMenuGroup>
+
+						<DropdownMenuSeparator />
+
+						<div
+							data-name="WorkspaceActionsMenuView"
+							data-view={isCreating ? "create-branch" : "actions"}
+							key={isCreating ? "create-branch" : "actions"}
+						>
+							{isCreating ? (
+								<CreateBranchForm
+									isPending={isPending}
+									onCancel={cancelBranchCreation}
+									onClose={onClose}
+									onCreateBranch={onCreateBranch}
+									pendingAction={pendingAction}
+								/>
+							) : (
+								<>
+									<DropdownMenuGroup>
+										<DropdownMenuLabel>Switch branch</DropdownMenuLabel>
+										{latestBranches.map((branch) => (
 											<BranchMenuItem
 												branch={branch}
 												isPending={isPending}
-												isSubmenuItem
+												isSubmenuItem={false}
 												key={branch.fullName}
 												onClose={onClose}
 												onSwitchBranch={onSwitchBranch}
 											/>
 										))}
-									</DropdownMenuSubContent>
-								</DropdownMenuSub>
-							) : null}
-						</DropdownMenuGroup>
+										{latestBranches.length === 0 ? (
+											<DropdownMenuLabel className="py-2 font-normal text-xss normal-case tracking-normal">
+												No local branches available.
+											</DropdownMenuLabel>
+										) : null}
+										{remainingBranches.length > 0 ? (
+											<DropdownMenuSub
+												onOpenChange={onSubmenuOpenChange}
+												open={isSubmenuOpen}
+											>
+												<DropdownMenuSubTrigger
+													disabled={isPending}
+													id={WORKSPACE_ACTIONS_SUBMENU_TRIGGER_ID}
+													openOnHover
+												>
+													More
+												</DropdownMenuSubTrigger>
+												<DropdownMenuSubContent
+													align="start"
+													className={cn(
+														"w-48 min-w-48 data-closed:animate-none data-open:animate-none",
+														hasSubmenuLiquidSurface
+															? "border-transparent bg-transparent"
+															: "opacity-0"
+													)}
+													data-liquid-surface={
+														hasSubmenuLiquidSurface ? "true" : undefined
+													}
+													data-name="WorkspaceActionsSubmenu"
+													id={WORKSPACE_ACTIONS_SUBMENU_ID}
+													side="left"
+													sideOffset={4}
+													style={WORKSPACE_ACTIONS_MENU_STYLE}
+												>
+													{remainingBranches.map((branch) => (
+														<BranchMenuItem
+															branch={branch}
+															isPending={isPending}
+															isSubmenuItem
+															key={branch.fullName}
+															onClose={onClose}
+															onSwitchBranch={onSwitchBranch}
+														/>
+													))}
+												</DropdownMenuSubContent>
+											</DropdownMenuSub>
+										) : null}
+									</DropdownMenuGroup>
 
-						<DropdownMenuSeparator />
+									<DropdownMenuSeparator />
 
-						<DropdownMenuGroup>
-							<DropdownMenuItem
-								closeOnClick={false}
-								disabled={isPending}
-								onClick={beginBranchCreation}
-							>
-								<PlusIcon
-									aria-hidden
-									className="text-editor-faint"
-									weight="bold"
-								/>
-								Create new branch…
-							</DropdownMenuItem>
-							<DropdownMenuItem
-								closeOnClick
-								disabled={isPending}
-								onClick={fetchRepository}
-							>
-								<ArrowsClockwiseIcon
-									aria-hidden
-									className="text-editor-faint"
-									weight="regular"
-								/>
-								Fetch remote
-							</DropdownMenuItem>
-						</DropdownMenuGroup>
-					</>
-				)}
+									<DropdownMenuGroup>
+										<DropdownMenuItem
+											closeOnClick={false}
+											disabled={isPending}
+											onClick={beginBranchCreation}
+										>
+											<PlusIcon
+												aria-hidden
+												className="text-editor-faint"
+												weight="bold"
+											/>
+											Create new branch…
+										</DropdownMenuItem>
+										<DropdownMenuItem
+											closeOnClick
+											disabled={isPending}
+											onClick={fetchRepository}
+										>
+											<ArrowsClockwiseIcon
+												aria-hidden
+												className="text-editor-faint"
+												weight="regular"
+											/>
+											Fetch remote
+										</DropdownMenuItem>
+									</DropdownMenuGroup>
+								</>
+							)}
+						</div>
+					</div>
+				</div>
 			</DropdownMenuContent>
 		</TooltipProvider>
 	);

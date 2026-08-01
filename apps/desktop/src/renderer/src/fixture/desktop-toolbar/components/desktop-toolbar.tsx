@@ -129,6 +129,11 @@ export function DesktopToolbar({
 	const [isWorkspaceMenuOpen, setIsWorkspaceMenuOpen] = useState(false);
 	const [isWorkspaceMenuSurfacePresent, setIsWorkspaceMenuSurfacePresent] =
 		useState(false);
+	const [
+		isWorkspaceSubmenuSurfacePresent,
+		setIsWorkspaceSubmenuSurfacePresent,
+	] = useState(false);
+	const [isWorkspaceSubmenuOpen, setIsWorkspaceSubmenuOpen] = useState(false);
 	const [draggingSessionId, setDraggingSessionId] =
 		useState<RepositorySessionId | null>(null);
 	const currentBranch = snapshot?.head.branch ?? "";
@@ -145,12 +150,14 @@ export function DesktopToolbar({
 			if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
 				event.preventDefault();
 				setIsWorkspaceMenuOpen(false);
+				setIsWorkspaceSubmenuOpen(false);
 				setIsRepositoryMenuOpen(true);
 				return;
 			}
 			if (event.key === "Escape") {
 				setIsRepositoryMenuOpen(false);
 				setIsWorkspaceMenuOpen(false);
+				setIsWorkspaceSubmenuOpen(false);
 			}
 		};
 		window.addEventListener("keydown", handleKeyDown);
@@ -160,6 +167,7 @@ export function DesktopToolbar({
 	const setRepositoryMenuOpen = (isOpen: boolean): void => {
 		if (isOpen) {
 			setIsWorkspaceMenuOpen(false);
+			setIsWorkspaceSubmenuOpen(false);
 		}
 		setIsRepositoryMenuOpen(isOpen);
 	};
@@ -176,6 +184,8 @@ export function DesktopToolbar({
 		}
 		if (isOpen) {
 			setIsRepositoryMenuOpen(false);
+		} else {
+			setIsWorkspaceSubmenuOpen(false);
 		}
 		setIsWorkspaceMenuOpen(isOpen);
 	};
@@ -183,15 +193,19 @@ export function DesktopToolbar({
 		const nextIsOpen = !isWorkspaceMenuOpen;
 		if (nextIsOpen) {
 			setIsRepositoryMenuOpen(false);
+		} else {
+			setIsWorkspaceSubmenuOpen(false);
 		}
 		setIsWorkspaceMenuOpen(nextIsOpen);
 	};
 	const closeWorkspaceMenu = (): void => {
 		setIsWorkspaceMenuOpen(false);
+		setIsWorkspaceSubmenuOpen(false);
 	};
 	const startWorkspaceDrag = ({ operation }: DragStartEvent): void => {
 		setIsRepositoryMenuOpen(false);
 		setIsWorkspaceMenuOpen(false);
+		setIsWorkspaceSubmenuOpen(false);
 		setDraggingSessionId(operation.source ? String(operation.source.id) : null);
 	};
 	const finishWorkspaceDrag = (event: DragEndEvent): void => {
@@ -277,7 +291,9 @@ export function DesktopToolbar({
 				/>
 				<WorkspaceActionsLiquidSurface
 					isOpen={isWorkspaceMenuOpen && activeTabIndex >= 0}
+					isSubmenuOpen={isWorkspaceSubmenuOpen}
 					onPresenceChange={setIsWorkspaceMenuSurfacePresent}
+					onSubmenuPresenceChange={setIsWorkspaceSubmenuSurfacePresent}
 				/>
 				<RepositoryMenu
 					activeSessionId={activeSessionId}
@@ -331,9 +347,12 @@ export function DesktopToolbar({
 											branches={branches}
 											currentBranch={currentBranch}
 											hasLiquidSurface={isWorkspaceMenuSurfacePresent}
+											hasSubmenuLiquidSurface={isWorkspaceSubmenuSurfacePresent}
+											isSubmenuOpen={isWorkspaceSubmenuOpen}
 											onClose={closeWorkspaceMenu}
 											onCreateBranch={onCreateBranch}
 											onFetch={onFetch}
+											onSubmenuOpenChange={setIsWorkspaceSubmenuOpen}
 											onSwitchBranch={onSwitchBranch}
 											pendingAction={pendingAction}
 										/>
