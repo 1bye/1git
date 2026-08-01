@@ -1,10 +1,16 @@
 import { describe, expect, test } from "bun:test";
-import { createWorkspaceActionsLiquidFrame } from "../src/renderer/src/fixture/desktop-toolbar/lib/workspace-actions-liquid-geometry.js";
+import { createWorkspaceLiquidPath } from "../src/renderer/src/fixture/desktop-toolbar/lib/workspace-liquid-geometry.js";
+import { createLiquidMenuFrame } from "../src/renderer/src/fixture/liquid-menu/lib/liquid-menu-geometry.js";
 import {
 	createLiquidUnionPath,
-	createWorkspaceLiquidPath,
 	smoothMinimum,
-} from "../src/renderer/src/fixture/desktop-toolbar/lib/workspace-liquid-geometry.js";
+} from "../src/renderer/src/fixture/liquid-menu/lib/liquid-surface-geometry.js";
+
+const LIQUID_MENU_ANCHOR_GEOMETRY = {
+	insetBlock: 4,
+	insetInline: 4,
+	radius: 10,
+} as const;
 
 const pathCoordinates = (path: string): readonly [number, number][] =>
 	[...path.matchAll(/[ML] (-?\d+\.\d+) (-?\d+\.\d+)/g)].map((match) => [
@@ -74,18 +80,26 @@ describe("workspace liquid geometry", () => {
 
 	test("grows the floating menu from a connected SDF seed", () => {
 		const measurement = {
+			anchor: { height: 40, left: 171, top: 3, width: 210 },
 			menu: { height: 262, left: 132, top: 45, width: 288 },
 			submenu: null,
-			tab: { height: 40, left: 171, top: 3, width: 210 },
 		};
-		const seedFrame = createWorkspaceActionsLiquidFrame(measurement, {
-			menu: 0.001,
-			submenu: 0,
-		});
-		const openFrame = createWorkspaceActionsLiquidFrame(measurement, {
-			menu: 1,
-			submenu: 0,
-		});
+		const seedFrame = createLiquidMenuFrame(
+			measurement,
+			{
+				menu: 0.001,
+				submenu: 0,
+			},
+			LIQUID_MENU_ANCHOR_GEOMETRY
+		);
+		const openFrame = createLiquidMenuFrame(
+			measurement,
+			{
+				menu: 1,
+				submenu: 0,
+			},
+			LIQUID_MENU_ANCHOR_GEOMETRY
+		);
 		const seedCoordinates = pathCoordinates(seedFrame.path);
 		const openCoordinates = pathCoordinates(openFrame.path);
 		const horizontalSpan = (
@@ -107,22 +121,30 @@ describe("workspace liquid geometry", () => {
 
 	test("grows a submenu from its parent edge as one SDF contour", () => {
 		const measurement = {
+			anchor: { height: 40, left: 259, top: 3, width: 210 },
 			menu: { height: 262, left: 220, top: 45, width: 288 },
 			submenu: {
 				menu: { height: 196, left: 24, top: 132, width: 192 },
 				side: "left" as const,
 				trigger: { height: 28, left: 228, top: 174, width: 272 },
 			},
-			tab: { height: 40, left: 259, top: 3, width: 210 },
 		};
-		const seedFrame = createWorkspaceActionsLiquidFrame(measurement, {
-			menu: 1,
-			submenu: 0.001,
-		});
-		const openFrame = createWorkspaceActionsLiquidFrame(measurement, {
-			menu: 1,
-			submenu: 1,
-		});
+		const seedFrame = createLiquidMenuFrame(
+			measurement,
+			{
+				menu: 1,
+				submenu: 0.001,
+			},
+			LIQUID_MENU_ANCHOR_GEOMETRY
+		);
+		const openFrame = createLiquidMenuFrame(
+			measurement,
+			{
+				menu: 1,
+				submenu: 1,
+			},
+			LIQUID_MENU_ANCHOR_GEOMETRY
+		);
 		const seedCoordinates = pathCoordinates(seedFrame.path);
 		const openCoordinates = pathCoordinates(openFrame.path);
 		const minimumX = (coordinates: readonly [number, number][]): number =>
@@ -136,22 +158,30 @@ describe("workspace liquid geometry", () => {
 
 	test("grows a right-side submenu from the nearest parent edge", () => {
 		const measurement = {
+			anchor: { height: 40, left: 159, top: 3, width: 210 },
 			menu: { height: 262, left: 120, top: 45, width: 288 },
 			submenu: {
 				menu: { height: 196, left: 408, top: 132, width: 192 },
 				side: "right" as const,
 				trigger: { height: 28, left: 128, top: 174, width: 272 },
 			},
-			tab: { height: 40, left: 159, top: 3, width: 210 },
 		};
-		const seedFrame = createWorkspaceActionsLiquidFrame(measurement, {
-			menu: 1,
-			submenu: 0.001,
-		});
-		const openFrame = createWorkspaceActionsLiquidFrame(measurement, {
-			menu: 1,
-			submenu: 1,
-		});
+		const seedFrame = createLiquidMenuFrame(
+			measurement,
+			{
+				menu: 1,
+				submenu: 0.001,
+			},
+			LIQUID_MENU_ANCHOR_GEOMETRY
+		);
+		const openFrame = createLiquidMenuFrame(
+			measurement,
+			{
+				menu: 1,
+				submenu: 1,
+			},
+			LIQUID_MENU_ANCHOR_GEOMETRY
+		);
 		const seedCoordinates = pathCoordinates(seedFrame.path);
 		const openCoordinates = pathCoordinates(openFrame.path);
 		const maximumX = (coordinates: readonly [number, number][]): number =>

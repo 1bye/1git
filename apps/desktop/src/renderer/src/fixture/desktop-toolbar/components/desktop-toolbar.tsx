@@ -1,5 +1,4 @@
 import type { BranchCollection, RepositorySnapshot } from "@1git/git";
-import { DropdownMenu } from "@1git/ui/components/dropdown-menu";
 import { PointerActivationConstraints } from "@dnd-kit/dom";
 import { move } from "@dnd-kit/helpers";
 import {
@@ -25,13 +24,13 @@ import type {
 	PendingWorkspaceAction,
 	WorkspaceTabState,
 } from "../../../feature/workspace/hooks/use-git-workspace.js";
+import { LiquidMenuRoot } from "../../liquid-menu/components/liquid-menu.js";
 import {
 	WORKSPACE_TAB_POINTER_DRAG_HANDLE_SELECTOR,
 	WORKSPACE_TAB_REORDER_MOTION,
 	WORKSPACE_TAB_SURFACE_GEOMETRY,
 } from "../constants/workspace-tab.js";
 import { RepositoryMenu } from "./repository-menu.js";
-import { WorkspaceActionsLiquidSurface } from "./workspace-actions-liquid-surface.js";
 import { WorkspaceActionsMenu } from "./workspace-actions-menu.js";
 import { WorkspaceLiquidSurface } from "./workspace-liquid-surface.js";
 import { WorkspaceTab, WorkspaceTabOverlay } from "./workspace-tab.js";
@@ -59,7 +58,7 @@ interface DesktopToolbarProps {
 }
 
 type WorkspaceMenuOpenChange = NonNullable<
-	ComponentProps<typeof DropdownMenu>["onOpenChange"]
+	ComponentProps<typeof LiquidMenuRoot>["onOpenChange"]
 >;
 
 const TAB_POINTER_ACTIVATION_DISTANCE = 5;
@@ -104,6 +103,11 @@ const WORKSPACE_TAB_LIST_STYLE: CSSProperties = {
 		WORKSPACE_TAB_SURFACE_GEOMETRY.tabHeight -
 		WORKSPACE_TAB_SURFACE_GEOMETRY.tabLift,
 };
+const WORKSPACE_ACTIONS_ANCHOR_GEOMETRY = {
+	insetBlock: WORKSPACE_TAB_SURFACE_GEOMETRY.tabVisualInsetBlock,
+	insetInline: WORKSPACE_TAB_SURFACE_GEOMETRY.tabVisualInsetInline,
+	radius: WORKSPACE_TAB_SURFACE_GEOMETRY.tabRadius,
+} as const;
 const getActiveWorkspaceTab = (): Element | null =>
 	document.querySelector(
 		'[data-name="WorkspaceTab"][data-active="true"]:not([data-overlay="true"])'
@@ -129,11 +133,6 @@ export function DesktopToolbar({
 	const [isWorkspaceMenuOpen, setIsWorkspaceMenuOpen] = useState(false);
 	const [isWorkspaceMenuSurfacePresent, setIsWorkspaceMenuSurfacePresent] =
 		useState(false);
-	const [
-		isWorkspaceSubmenuSurfacePresent,
-		setIsWorkspaceSubmenuSurfacePresent,
-	] = useState(false);
-	const [isWorkspaceSubmenuOpen, setIsWorkspaceSubmenuOpen] = useState(false);
 	const [draggingSessionId, setDraggingSessionId] =
 		useState<RepositorySessionId | null>(null);
 	const currentBranch = snapshot?.head.branch ?? "";
@@ -150,14 +149,12 @@ export function DesktopToolbar({
 			if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
 				event.preventDefault();
 				setIsWorkspaceMenuOpen(false);
-				setIsWorkspaceSubmenuOpen(false);
 				setIsRepositoryMenuOpen(true);
 				return;
 			}
 			if (event.key === "Escape") {
 				setIsRepositoryMenuOpen(false);
 				setIsWorkspaceMenuOpen(false);
-				setIsWorkspaceSubmenuOpen(false);
 			}
 		};
 		window.addEventListener("keydown", handleKeyDown);
@@ -167,7 +164,6 @@ export function DesktopToolbar({
 	const setRepositoryMenuOpen = (isOpen: boolean): void => {
 		if (isOpen) {
 			setIsWorkspaceMenuOpen(false);
-			setIsWorkspaceSubmenuOpen(false);
 		}
 		setIsRepositoryMenuOpen(isOpen);
 	};
@@ -184,8 +180,6 @@ export function DesktopToolbar({
 		}
 		if (isOpen) {
 			setIsRepositoryMenuOpen(false);
-		} else {
-			setIsWorkspaceSubmenuOpen(false);
 		}
 		setIsWorkspaceMenuOpen(isOpen);
 	};
@@ -193,19 +187,15 @@ export function DesktopToolbar({
 		const nextIsOpen = !isWorkspaceMenuOpen;
 		if (nextIsOpen) {
 			setIsRepositoryMenuOpen(false);
-		} else {
-			setIsWorkspaceSubmenuOpen(false);
 		}
 		setIsWorkspaceMenuOpen(nextIsOpen);
 	};
 	const closeWorkspaceMenu = (): void => {
 		setIsWorkspaceMenuOpen(false);
-		setIsWorkspaceSubmenuOpen(false);
 	};
 	const startWorkspaceDrag = ({ operation }: DragStartEvent): void => {
 		setIsRepositoryMenuOpen(false);
 		setIsWorkspaceMenuOpen(false);
-		setIsWorkspaceSubmenuOpen(false);
 		setDraggingSessionId(operation.source ? String(operation.source.id) : null);
 	};
 	const finishWorkspaceDrag = (event: DragEndEvent): void => {
@@ -289,12 +279,6 @@ export function DesktopToolbar({
 					activeTabIndex={activeTabIndex}
 					isDragging={Boolean(draggingSessionId)}
 				/>
-				<WorkspaceActionsLiquidSurface
-					isOpen={isWorkspaceMenuOpen && activeTabIndex >= 0}
-					isSubmenuOpen={isWorkspaceSubmenuOpen}
-					onPresenceChange={setIsWorkspaceMenuSurfacePresent}
-					onSubmenuPresenceChange={setIsWorkspaceSubmenuSurfacePresent}
-				/>
 				<RepositoryMenu
 					activeSessionId={activeSessionId}
 					isOpen={isRepositoryMenuOpen}
@@ -324,12 +308,18 @@ export function DesktopToolbar({
 						{workspaces.map((workspace, index) => {
 							const isActive = workspace.session.id === activeSessionId;
 							return (
-								<DropdownMenu
+								<LiquidMenuRoot
+									anchor={getActiveWorkspaceTab}
+									anchorGeometry={WORKSPACE_ACTIONS_ANCHOR_GEOMETRY}
 									disabled={!isActive}
 									key={workspace.session.id}
 									modal
 									onOpenChange={changeWorkspaceMenu}
+									onPresenceChange={
+										isActive ? setIsWorkspaceMenuSurfacePresent : undefined
+									}
 									open={isActive && isWorkspaceMenuOpen}
+									outlineWidth={WORKSPACE_TAB_SURFACE_GEOMETRY.outlineWidth}
 								>
 									<WorkspaceTab
 										index={index}
@@ -343,21 +333,16 @@ export function DesktopToolbar({
 									/>
 									{isActive && isWorkspaceMenuOpen ? (
 										<WorkspaceActionsMenu
-											anchor={getActiveWorkspaceTab}
 											branches={branches}
 											currentBranch={currentBranch}
-											hasLiquidSurface={isWorkspaceMenuSurfacePresent}
-											hasSubmenuLiquidSurface={isWorkspaceSubmenuSurfacePresent}
-											isSubmenuOpen={isWorkspaceSubmenuOpen}
 											onClose={closeWorkspaceMenu}
 											onCreateBranch={onCreateBranch}
 											onFetch={onFetch}
-											onSubmenuOpenChange={setIsWorkspaceSubmenuOpen}
 											onSwitchBranch={onSwitchBranch}
 											pendingAction={pendingAction}
 										/>
 									) : null}
-								</DropdownMenu>
+								</LiquidMenuRoot>
 							);
 						})}
 					</div>

@@ -6,30 +6,31 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { WORKSPACE_ACTIONS_LIQUID_MOTION } from "../constants/workspace-actions-menu.js";
+import { LIQUID_MENU_MOTION } from "../constants/liquid-menu.js";
 import {
-	WORKSPACE_ACTIONS_MENU_ID,
-	WORKSPACE_ACTIONS_SUBMENU_ID,
-	WORKSPACE_ACTIONS_SUBMENU_TRIGGER_ID,
-} from "../constants/workspace-tab.js";
-import {
-	createWorkspaceActionsLiquidFrame,
-	easeWorkspaceActionsLiquidProgress,
-	type LiquidSurfaceRect,
-	type WorkspaceActionsLiquidFrame,
-	type WorkspaceActionsLiquidMeasurement,
-	type WorkspaceActionsLiquidSubmenuMeasurement,
-} from "../lib/workspace-actions-liquid-geometry.js";
+	createLiquidMenuFrame,
+	easeLiquidMenuProgress,
+	type LiquidMenuAnchorGeometry,
+	type LiquidMenuFrame,
+	type LiquidMenuMeasurement,
+	type LiquidMenuRect,
+	type LiquidMenuSubmenuMeasurement,
+} from "../lib/liquid-menu-geometry.js";
 
-interface UseWorkspaceActionsLiquidSurfaceOptions {
+interface UseLiquidMenuSurfaceOptions {
+	readonly anchor: () => Element | null;
+	readonly anchorGeometry: LiquidMenuAnchorGeometry;
 	readonly isOpen: boolean;
 	readonly isSubmenuOpen: boolean;
+	readonly menuElement: HTMLElement | null;
 	readonly onPresenceChange: (isPresent: boolean) => void;
 	readonly onSubmenuPresenceChange: (isPresent: boolean) => void;
+	readonly submenuElement: HTMLElement | null;
+	readonly submenuTriggerElement: HTMLElement | null;
 }
 
-interface WorkspaceActionsLiquidSurfaceState {
-	readonly frame: WorkspaceActionsLiquidFrame | null;
+interface LiquidMenuSurfaceState {
+	readonly frame: LiquidMenuFrame | null;
 	readonly progress: number;
 	readonly submenuProgress: number;
 }
@@ -43,8 +44,6 @@ interface UseLiquidProgressOptions {
 	readonly openDurationMs: number;
 }
 
-const ACTIVE_WORKSPACE_TAB_SELECTOR =
-	'[data-name="WorkspaceTab"][data-active="true"]:not([data-overlay="true"])';
 const MEASUREMENT_SCALE = 10;
 const MINIMUM_VISIBLE_PROGRESS = 0.001;
 const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
@@ -52,25 +51,22 @@ const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 const roundMeasurement = (value: number): number =>
 	Math.round(value * MEASUREMENT_SCALE) / MEASUREMENT_SCALE;
 
-const toLiquidRect = (bounds: DOMRect): LiquidSurfaceRect => ({
+const toLiquidRect = (bounds: DOMRect): LiquidMenuRect => ({
 	height: roundMeasurement(bounds.height),
 	left: roundMeasurement(bounds.left),
 	top: roundMeasurement(bounds.top),
 	width: roundMeasurement(bounds.width),
 });
 
-const hasSameRect = (
-	current: LiquidSurfaceRect,
-	next: LiquidSurfaceRect
-): boolean =>
+const hasSameRect = (current: LiquidMenuRect, next: LiquidMenuRect): boolean =>
 	current.height === next.height &&
 	current.left === next.left &&
 	current.top === next.top &&
 	current.width === next.width;
 
 const hasSameSubmenuMeasurement = (
-	current: WorkspaceActionsLiquidSubmenuMeasurement | null,
-	next: WorkspaceActionsLiquidSubmenuMeasurement | null
+	current: LiquidMenuSubmenuMeasurement | null,
+	next: LiquidMenuSubmenuMeasurement | null
 ): boolean => {
 	if (current === null || next === null) {
 		return current === next;
@@ -83,13 +79,13 @@ const hasSameSubmenuMeasurement = (
 };
 
 const hasSameMeasurement = (
-	current: WorkspaceActionsLiquidMeasurement | null,
-	next: WorkspaceActionsLiquidMeasurement
+	current: LiquidMenuMeasurement | null,
+	next: LiquidMenuMeasurement
 ): boolean =>
 	current !== null &&
+	hasSameRect(current.anchor, next.anchor) &&
 	hasSameRect(current.menu, next.menu) &&
-	hasSameSubmenuMeasurement(current.submenu, next.submenu) &&
-	hasSameRect(current.tab, next.tab);
+	hasSameSubmenuMeasurement(current.submenu, next.submenu);
 
 const useLiquidProgress = ({
 	closeDurationMs,
@@ -136,7 +132,7 @@ const useLiquidProgress = ({
 			const isOpening = targetProgress > startingProgress;
 			const tick = (now: number): void => {
 				const elapsedProgress = Math.min(1, (now - startedAt) / durationMs);
-				const easedProgress = easeWorkspaceActionsLiquidProgress(
+				const easedProgress = easeLiquidMenuProgress(
 					elapsedProgress,
 					isOpening
 				);
@@ -181,31 +177,32 @@ const useLiquidProgress = ({
 	return progress;
 };
 
-export const useWorkspaceActionsLiquidSurface = ({
+export const useLiquidMenuSurface = ({
+	anchor,
+	anchorGeometry,
 	isOpen,
 	isSubmenuOpen,
+	menuElement,
 	onPresenceChange,
 	onSubmenuPresenceChange,
-}: UseWorkspaceActionsLiquidSurfaceOptions): WorkspaceActionsLiquidSurfaceState => {
-	const [measurement, setMeasurement] =
-		useState<WorkspaceActionsLiquidMeasurement | null>(null);
+	submenuElement,
+	submenuTriggerElement,
+}: UseLiquidMenuSurfaceOptions): LiquidMenuSurfaceState => {
+	const [measurement, setMeasurement] = useState<LiquidMenuMeasurement | null>(
+		null
+	);
 
 	useLayoutEffect(() => {
 		if (!isOpen) {
 			return;
 		}
 
-		let menuElement: HTMLElement | null = null;
-		let submenuElement: HTMLElement | null = null;
-		let submenuTriggerElement: HTMLElement | null = null;
-		let tabElement: HTMLElement | null = null;
 		let trackingFrameId = 0;
-		const observedElements = new Set<HTMLElement>();
+		const observedElements = new Set<Element>();
 		const trackingEndsAt =
-			performance.now() +
-			WORKSPACE_ACTIONS_LIQUID_MOTION.positionTrackingDurationMs;
+			performance.now() + LIQUID_MENU_MOTION.positionTrackingDurationMs;
 		let resizeObserver: ResizeObserver;
-		const observe = (element: HTMLElement): void => {
+		const observe = (element: Element): void => {
 			if (observedElements.has(element)) {
 				return;
 			}
@@ -216,11 +213,8 @@ export const useWorkspaceActionsLiquidSurface = ({
 			readonly hasRootMeasurement: boolean;
 			readonly hasSubmenuMeasurement: boolean;
 		} => {
-			menuElement = document.getElementById(WORKSPACE_ACTIONS_MENU_ID);
-			tabElement = document.querySelector<HTMLElement>(
-				ACTIVE_WORKSPACE_TAB_SELECTOR
-			);
-			if (!(menuElement && tabElement)) {
+			const anchorElement = anchor();
+			if (!(menuElement && anchorElement)) {
 				return {
 					hasRootMeasurement: false,
 					hasSubmenuMeasurement: false,
@@ -228,32 +222,26 @@ export const useWorkspaceActionsLiquidSurface = ({
 			}
 
 			observe(menuElement);
-			observe(tabElement);
+			observe(anchorElement);
 			const nextMenuRect = toLiquidRect(menuElement.getBoundingClientRect());
-			const nextTabRect = toLiquidRect(tabElement.getBoundingClientRect());
-			let nextSubmenu: WorkspaceActionsLiquidSubmenuMeasurement | null = null;
-			if (isSubmenuOpen) {
-				submenuElement = document.getElementById(WORKSPACE_ACTIONS_SUBMENU_ID);
-				submenuTriggerElement = document.getElementById(
-					WORKSPACE_ACTIONS_SUBMENU_TRIGGER_ID
-				);
-				if (submenuElement && submenuTriggerElement) {
-					observe(submenuElement);
-					observe(submenuTriggerElement);
-					nextSubmenu = {
-						menu: toLiquidRect(submenuElement.getBoundingClientRect()),
-						side: submenuElement.dataset.side === "right" ? "right" : "left",
-						trigger: toLiquidRect(
-							submenuTriggerElement.getBoundingClientRect()
-						),
-					};
-				}
+			const nextAnchorRect = toLiquidRect(
+				anchorElement.getBoundingClientRect()
+			);
+			let nextSubmenu: LiquidMenuSubmenuMeasurement | null = null;
+			if (isSubmenuOpen && submenuElement && submenuTriggerElement) {
+				observe(submenuElement);
+				observe(submenuTriggerElement);
+				nextSubmenu = {
+					menu: toLiquidRect(submenuElement.getBoundingClientRect()),
+					side: submenuElement.dataset.side === "right" ? "right" : "left",
+					trigger: toLiquidRect(submenuTriggerElement.getBoundingClientRect()),
+				};
 			}
 			setMeasurement((current) => {
-				const nextMeasurement: WorkspaceActionsLiquidMeasurement = {
+				const nextMeasurement: LiquidMenuMeasurement = {
+					anchor: nextAnchorRect,
 					menu: nextMenuRect,
 					submenu: nextSubmenu ?? current?.submenu ?? null,
-					tab: nextTabRect,
 				};
 				return hasSameMeasurement(current, nextMeasurement)
 					? current
@@ -288,47 +276,53 @@ export const useWorkspaceActionsLiquidSurface = ({
 			resizeObserver.disconnect();
 			window.removeEventListener("resize", scheduleMeasurement);
 		};
-	}, [isOpen, isSubmenuOpen]);
+	}, [
+		anchor,
+		isOpen,
+		isSubmenuOpen,
+		menuElement,
+		submenuElement,
+		submenuTriggerElement,
+	]);
 
 	const hideMenu = useCallback((): void => setMeasurement(null), []);
 	const hideSubmenu = useCallback(
 		(): void =>
 			setMeasurement((current) =>
-				current?.submenu
-					? {
-							...current,
-							submenu: null,
-						}
-					: current
+				current?.submenu ? { ...current, submenu: null } : current
 			),
 		[]
 	);
 	const progress = useLiquidProgress({
-		closeDurationMs: WORKSPACE_ACTIONS_LIQUID_MOTION.closeDurationMs,
+		closeDurationMs: LIQUID_MENU_MOTION.closeDurationMs,
 		hasMeasurement: measurement !== null,
 		isActive: isOpen,
 		onHidden: hideMenu,
 		onPresenceChange,
-		openDurationMs: WORKSPACE_ACTIONS_LIQUID_MOTION.openDurationMs,
+		openDurationMs: LIQUID_MENU_MOTION.openDurationMs,
 	});
 	const submenuProgress = useLiquidProgress({
-		closeDurationMs: WORKSPACE_ACTIONS_LIQUID_MOTION.submenuCloseDurationMs,
+		closeDurationMs: LIQUID_MENU_MOTION.submenuCloseDurationMs,
 		hasMeasurement: measurement?.submenu !== null,
 		isActive: isOpen && isSubmenuOpen,
 		onHidden: hideSubmenu,
 		onPresenceChange: onSubmenuPresenceChange,
-		openDurationMs: WORKSPACE_ACTIONS_LIQUID_MOTION.submenuOpenDurationMs,
+		openDurationMs: LIQUID_MENU_MOTION.submenuOpenDurationMs,
 	});
 
 	const frame = useMemo(
 		() =>
 			measurement && progress > 0
-				? createWorkspaceActionsLiquidFrame(measurement, {
-						menu: progress,
-						submenu: submenuProgress,
-					})
+				? createLiquidMenuFrame(
+						measurement,
+						{
+							menu: progress,
+							submenu: submenuProgress,
+						},
+						anchorGeometry
+					)
 				: null,
-		[measurement, progress, submenuProgress]
+		[anchorGeometry, measurement, progress, submenuProgress]
 	);
 
 	return { frame, progress, submenuProgress };

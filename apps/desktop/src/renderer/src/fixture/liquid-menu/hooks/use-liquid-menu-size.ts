@@ -1,14 +1,14 @@
 import type { CSSProperties, RefCallback } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-interface WorkspaceActionsMenuSizeRefs {
+interface LiquidMenuSize {
 	readonly containerStyle: CSSProperties | undefined;
 	readonly contentRef: RefCallback<HTMLDivElement>;
 }
 
 const HEIGHT_EPSILON = 0.5;
 
-export const useWorkspaceActionsMenuSize = (): WorkspaceActionsMenuSizeRefs => {
+export const useLiquidMenuSize = (): LiquidMenuSize => {
 	const [height, setHeight] = useState<number | null>(null);
 	const resizeObserverRef = useRef<ResizeObserver | null>(null);
 

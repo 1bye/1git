@@ -1,36 +1,41 @@
-import { WORKSPACE_ACTIONS_LIQUID_GEOMETRY } from "../constants/workspace-actions-menu.js";
-import { WORKSPACE_TAB_SURFACE_GEOMETRY } from "../constants/workspace-tab.js";
+import { LIQUID_MENU_GEOMETRY } from "../constants/liquid-menu.js";
 import {
 	createLiquidUnionPath,
 	type RoundedBox,
-} from "./workspace-liquid-geometry.js";
+} from "./liquid-surface-geometry.js";
 
-export interface LiquidSurfaceRect {
+export interface LiquidMenuRect {
 	readonly height: number;
 	readonly left: number;
 	readonly top: number;
 	readonly width: number;
 }
 
-export interface WorkspaceActionsLiquidMeasurement {
-	readonly menu: LiquidSurfaceRect;
-	readonly submenu: WorkspaceActionsLiquidSubmenuMeasurement | null;
-	readonly tab: LiquidSurfaceRect;
+export interface LiquidMenuAnchorGeometry {
+	readonly insetBlock: number;
+	readonly insetInline: number;
+	readonly radius: number;
 }
 
-export interface WorkspaceActionsLiquidSubmenuMeasurement {
-	readonly menu: LiquidSurfaceRect;
+export interface LiquidMenuMeasurement {
+	readonly anchor: LiquidMenuRect;
+	readonly menu: LiquidMenuRect;
+	readonly submenu: LiquidMenuSubmenuMeasurement | null;
+}
+
+export interface LiquidMenuSubmenuMeasurement {
+	readonly menu: LiquidMenuRect;
 	readonly side: "left" | "right";
-	readonly trigger: LiquidSurfaceRect;
+	readonly trigger: LiquidMenuRect;
 }
 
-export interface WorkspaceActionsLiquidProgress {
+export interface LiquidMenuProgress {
 	readonly menu: number;
 	readonly submenu: number;
 }
 
-export interface WorkspaceActionsLiquidFrame {
-	readonly bounds: LiquidSurfaceRect;
+export interface LiquidMenuFrame {
+	readonly bounds: LiquidMenuRect;
 	readonly path: string;
 }
 
@@ -41,8 +46,8 @@ const interpolate = (start: number, end: number, progress: number): number =>
 	start + (end - start) * progress;
 
 const roundedBoxFromRect = (
-	rect: LiquidSurfaceRect,
-	bounds: LiquidSurfaceRect,
+	rect: LiquidMenuRect,
+	bounds: LiquidMenuRect,
 	radius: number
 ): RoundedBox => ({
 	centerX: rect.left - bounds.left + rect.width / 2,
@@ -52,37 +57,37 @@ const roundedBoxFromRect = (
 	radius,
 });
 
-export const createWorkspaceActionsLiquidFrame = (
-	measurement: WorkspaceActionsLiquidMeasurement,
-	progress: WorkspaceActionsLiquidProgress
-): WorkspaceActionsLiquidFrame => {
-	const geometry = WORKSPACE_ACTIONS_LIQUID_GEOMETRY;
-	const tabGeometry = WORKSPACE_TAB_SURFACE_GEOMETRY;
+export const createLiquidMenuFrame = (
+	measurement: LiquidMenuMeasurement,
+	progress: LiquidMenuProgress,
+	anchorGeometry: LiquidMenuAnchorGeometry
+): LiquidMenuFrame => {
+	const geometry = LIQUID_MENU_GEOMETRY;
 	const menuProgress = clampProgress(progress.menu);
 	const submenuProgress = clampProgress(progress.submenu);
-	const visualTab: LiquidSurfaceRect = {
+	const visualAnchor: LiquidMenuRect = {
 		height: Math.max(
 			0,
-			measurement.tab.height - tabGeometry.tabVisualInsetBlock * 2
+			measurement.anchor.height - anchorGeometry.insetBlock * 2
 		),
-		left: measurement.tab.left + tabGeometry.tabVisualInsetInline,
-		top: measurement.tab.top + tabGeometry.tabVisualInsetBlock,
+		left: measurement.anchor.left + anchorGeometry.insetInline,
+		top: measurement.anchor.top + anchorGeometry.insetBlock,
 		width: Math.max(
 			0,
-			measurement.tab.width - tabGeometry.tabVisualInsetInline * 2
+			measurement.anchor.width - anchorGeometry.insetInline * 2
 		),
 	};
 	const padding = geometry.blendRadius + geometry.sampleCellSize * 2;
-	let boundsLeft = Math.min(visualTab.left, measurement.menu.left) - padding;
-	let boundsTop = Math.min(visualTab.top, measurement.menu.top) - padding;
+	let boundsLeft = Math.min(visualAnchor.left, measurement.menu.left) - padding;
+	let boundsTop = Math.min(visualAnchor.top, measurement.menu.top) - padding;
 	let boundsRight =
 		Math.max(
-			visualTab.left + visualTab.width,
+			visualAnchor.left + visualAnchor.width,
 			measurement.menu.left + measurement.menu.width
 		) + padding;
 	let boundsBottom =
 		Math.max(
-			visualTab.top + visualTab.height,
+			visualAnchor.top + visualAnchor.height,
 			measurement.menu.top + measurement.menu.height
 		) + padding;
 	if (measurement.submenu) {
@@ -98,7 +103,7 @@ export const createWorkspaceActionsLiquidFrame = (
 			submenuMenu.top + submenuMenu.height + padding
 		);
 	}
-	const bounds: LiquidSurfaceRect = {
+	const bounds: LiquidMenuRect = {
 		height: boundsBottom - boundsTop,
 		left: boundsLeft,
 		top: boundsTop,
@@ -107,7 +112,7 @@ export const createWorkspaceActionsLiquidFrame = (
 	const finalMenuHalfHeight = measurement.menu.height / 2;
 	const finalMenuHalfWidth = measurement.menu.width / 2;
 	const seedHalfHeight = geometry.sampleCellSize;
-	const seedHalfWidth = visualTab.height / 2;
+	const seedHalfWidth = visualAnchor.height / 2;
 	const animatedMenuHalfHeight = interpolate(
 		seedHalfHeight,
 		finalMenuHalfHeight,
@@ -118,7 +123,11 @@ export const createWorkspaceActionsLiquidFrame = (
 		finalMenuHalfWidth,
 		menuProgress
 	);
-	const tabBox = roundedBoxFromRect(visualTab, bounds, tabGeometry.tabRadius);
+	const anchorBox = roundedBoxFromRect(
+		visualAnchor,
+		bounds,
+		anchorGeometry.radius
+	);
 	const menuBox: RoundedBox = {
 		centerX: measurement.menu.left - bounds.left + measurement.menu.width / 2,
 		centerY: measurement.menu.top - bounds.top + animatedMenuHalfHeight,
@@ -131,7 +140,7 @@ export const createWorkspaceActionsLiquidFrame = (
 		),
 	};
 
-	const boxes: RoundedBox[] = [tabBox, menuBox];
+	const boxes: RoundedBox[] = [anchorBox, menuBox];
 	if (measurement.submenu) {
 		const { submenu } = measurement;
 		const finalSubmenuHalfHeight = submenu.menu.height / 2;
@@ -181,7 +190,7 @@ export const createWorkspaceActionsLiquidFrame = (
 	};
 };
 
-export const easeWorkspaceActionsLiquidProgress = (
+export const easeLiquidMenuProgress = (
 	progress: number,
 	isOpening: boolean
 ): number => {

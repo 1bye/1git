@@ -1,8 +1,3 @@
-export const WORKSPACE_ACTIONS_MENU_ID = "workspace-actions-menu";
-export const WORKSPACE_ACTIONS_SUBMENU_ID =
-	"workspace-actions-branches-submenu";
-export const WORKSPACE_ACTIONS_SUBMENU_TRIGGER_ID =
-	"workspace-actions-branches-submenu-trigger";
 export const WORKSPACE_TAB_POINTER_DRAG_HANDLE_SELECTOR =
 	"[data-workspace-tab-pointer-drag-handle]";
 

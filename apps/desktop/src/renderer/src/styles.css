@@ -207,15 +207,15 @@ button {
 	stroke: var(--editor-hairline-strong);
 }
 
-[data-name="WorkspaceActionsLiquidSurfaceFill"] {
+[data-name="LiquidMenuSurfaceFill"] {
 	fill: var(--editor-surface);
 }
 
-[data-name="WorkspaceActionsLiquidSurfaceOutline"] {
+[data-name="LiquidMenuSurfaceOutline"] {
 	stroke: var(--editor-hairline-strong);
 }
 
-@keyframes workspace-actions-menu-content-in {
+@keyframes liquid-menu-content-in {
 	from {
 		opacity: 0;
 	}
@@ -225,7 +225,7 @@ button {
 	}
 }
 
-@keyframes workspace-actions-menu-view-in {
+@keyframes liquid-menu-view-in {
 	from {
 		opacity: 0;
 		transform: translateY(2px);
@@ -237,29 +237,24 @@ button {
 	}
 }
 
-[data-name="WorkspaceActionsMenu"][data-open][data-liquid-surface="true"] {
-	animation: workspace-actions-menu-content-in
-		var(--workspace-actions-menu-content-duration)
-		cubic-bezier(0.22, 1, 0.36, 1) var(--workspace-actions-menu-content-delay)
-		both;
+[data-name="LiquidMenuContent"][data-open][data-liquid-surface="true"] {
+	animation: liquid-menu-content-in var(--liquid-menu-content-duration)
+		cubic-bezier(0.22, 1, 0.36, 1) var(--liquid-menu-content-delay) both;
 }
 
-[data-name="WorkspaceActionsSubmenu"][data-open][data-liquid-surface="true"] {
-	animation: workspace-actions-menu-content-in
-		var(--workspace-actions-menu-content-duration)
-		cubic-bezier(0.22, 1, 0.36, 1)
-		var(--workspace-actions-submenu-content-delay) both;
+[data-name="LiquidMenuSubContent"][data-open][data-liquid-surface="true"] {
+	animation: liquid-menu-content-in var(--liquid-menu-content-duration)
+		cubic-bezier(0.22, 1, 0.36, 1) var(--liquid-submenu-content-delay) both;
 }
 
-[data-name="WorkspaceActionsMenuView"] {
-	animation: workspace-actions-menu-view-in
-		var(--workspace-actions-menu-content-duration)
+[data-name="LiquidMenuView"] {
+	animation: liquid-menu-view-in var(--liquid-menu-content-duration)
 		cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-[data-name="WorkspaceActionsMenuSize"] {
+[data-name="LiquidMenuAutoSize"] {
 	transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-	transition-duration: var(--workspace-actions-menu-resize-duration);
+	transition-duration: var(--liquid-menu-resize-duration);
 	transition-property: height;
 }
 
@@ -284,8 +279,8 @@ button {
 		transition-delay: 0ms !important;
 	}
 
-	[data-name="WorkspaceActionsMenu"],
-	[data-name="WorkspaceActionsSubmenu"] {
+	[data-name="LiquidMenuContent"],
+	[data-name="LiquidMenuSubContent"] {
 		animation-delay: 0ms !important;
 	}
 
