@@ -134,6 +134,37 @@ describe("workspace liquid geometry", () => {
 		expect(seedFrame.bounds).toEqual(openFrame.bounds);
 	});
 
+	test("grows a right-side submenu from the nearest parent edge", () => {
+		const measurement = {
+			menu: { height: 262, left: 120, top: 45, width: 288 },
+			submenu: {
+				menu: { height: 196, left: 408, top: 132, width: 192 },
+				side: "right" as const,
+				trigger: { height: 28, left: 128, top: 174, width: 272 },
+			},
+			tab: { height: 40, left: 159, top: 3, width: 210 },
+		};
+		const seedFrame = createWorkspaceActionsLiquidFrame(measurement, {
+			menu: 1,
+			submenu: 0.001,
+		});
+		const openFrame = createWorkspaceActionsLiquidFrame(measurement, {
+			menu: 1,
+			submenu: 1,
+		});
+		const seedCoordinates = pathCoordinates(seedFrame.path);
+		const openCoordinates = pathCoordinates(openFrame.path);
+		const maximumX = (coordinates: readonly [number, number][]): number =>
+			Math.max(...coordinates.map(([x]) => x));
+
+		expect(seedFrame.path.match(/ Z/g)).toHaveLength(1);
+		expect(openFrame.path.match(/ Z/g)).toHaveLength(1);
+		expect(maximumX(openCoordinates)).toBeGreaterThan(
+			maximumX(seedCoordinates)
+		);
+		expect(seedFrame.bounds).toEqual(openFrame.bounds);
+	});
+
 	test("clips the liquid skin to the workspace inset at the right edge", () => {
 		const surfaceWidth = 320;
 		const containerInset = 6;

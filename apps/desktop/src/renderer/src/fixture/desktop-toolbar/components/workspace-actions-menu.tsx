@@ -37,6 +37,7 @@ import { formatCommitDate } from "../../../feature/workspace/lib/workspace-model
 import {
 	WORKSPACE_ACTIONS_LIQUID_MOTION,
 	WORKSPACE_BRANCH_TOOLTIP_DELAY_MS,
+	WORKSPACE_SUBMENU_CLOSE_DELAY_MS,
 } from "../constants/workspace-actions-menu.js";
 import {
 	WORKSPACE_ACTIONS_MENU_ID,
@@ -372,6 +373,7 @@ export function WorkspaceActionsMenu({
 												open={isSubmenuOpen}
 											>
 												<DropdownMenuSubTrigger
+													closeDelay={WORKSPACE_SUBMENU_CLOSE_DELAY_MS}
 													disabled={isPending}
 													id={WORKSPACE_ACTIONS_SUBMENU_TRIGGER_ID}
 													openOnHover
@@ -391,8 +393,8 @@ export function WorkspaceActionsMenu({
 													}
 													data-name="WorkspaceActionsSubmenu"
 													id={WORKSPACE_ACTIONS_SUBMENU_ID}
-													side="left"
-													sideOffset={4}
+													side="right"
+													sideOffset={0}
 													style={WORKSPACE_ACTIONS_MENU_STYLE}
 												>
 													{remainingBranches.map((branch) => (

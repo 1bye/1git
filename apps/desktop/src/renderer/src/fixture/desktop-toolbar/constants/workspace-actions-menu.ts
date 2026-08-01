@@ -9,6 +9,7 @@ export const WORKSPACE_BRANCH_COMMIT_AGE_UNITS = [
 ] as const;
 
 export const WORKSPACE_BRANCH_TOOLTIP_DELAY_MS = 400;
+export const WORKSPACE_SUBMENU_CLOSE_DELAY_MS = 300;
 
 export const WORKSPACE_ACTIONS_LIQUID_GEOMETRY = {
 	blendRadius: 40,
