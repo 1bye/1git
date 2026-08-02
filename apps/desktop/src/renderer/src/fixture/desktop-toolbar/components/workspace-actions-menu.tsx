@@ -244,8 +244,7 @@ export function WorkspaceActionsMenu({
 		: latestBranches;
 	const hasMoreBranches = remainingBranches.length > 0;
 	const isPending = pendingAction !== null;
-	const actionsViewKey = isBranchListExpanded ? "actions-expanded" : "actions";
-	const menuViewKey = isCreating ? "create-branch" : actionsViewKey;
+	const menuViewKey = isCreating ? "create-branch" : "actions";
 	const beginBranchCreation = (): void => setIsCreating(true);
 	const cancelBranchCreation = (): void => setIsCreating(false);
 	const toggleBranchList = (): void =>
