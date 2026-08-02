@@ -2,7 +2,7 @@ import { cn } from "@1git/ui/lib/utils";
 import type { ReactElement } from "react";
 import { useState } from "react";
 import type { RepositoryOwner } from "@/feature/workspace/lib/repository-owner.js";
-import { useRepositoryOwnerAvatar } from "@/fixture/desktop-toolbar/hooks/use-repository-owner-avatar.js";
+import { useRepositoryOwnerAvatar } from "@/fixture/repository-item/hooks/use-repository-owner-avatar.js";
 
 interface RepositoryOwnerThumbnailProps {
 	readonly label: string;

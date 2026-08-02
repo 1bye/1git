@@ -1,0 +1,225 @@
+import { ContextMenuTrigger } from "@1git/ui/components/context-menu";
+import { DropdownMenuItem } from "@1git/ui/components/dropdown-menu";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@1git/ui/components/tooltip";
+import { cn } from "@1git/ui/lib/utils";
+import type {
+	ReactElement,
+	KeyboardEvent as ReactKeyboardEvent,
+	MouseEvent as ReactMouseEvent,
+	RefCallback,
+} from "react";
+import { useId } from "react";
+import type { WorkspaceTabState } from "@/feature/workspace/hooks/use-git-workspace.js";
+import { getRepositoryOwner } from "@/feature/workspace/lib/repository-owner.js";
+import {
+	formatCommitDate,
+	formatRelativeTime,
+	recentRepositoryName,
+} from "@/feature/workspace/lib/workspace-model.js";
+import { RepositoryOwnerThumbnail } from "@/fixture/repository-item/components/repository-owner-thumbnail.js";
+import type {
+	RecentRepositoryPreview,
+	RecentRepositoryRecord,
+} from "../../../../../shared/repository-session.js";
+
+type RepositoryItemVariant = "menu" | "welcome";
+
+interface RepositoryItemProps {
+	readonly asContextMenuTrigger?: boolean;
+	readonly contextOpen: boolean;
+	readonly disabled: boolean;
+	readonly onClick: (event: ReactMouseEvent<HTMLElement>) => void;
+	readonly onContextMenu?: (event: ReactMouseEvent<HTMLElement>) => void;
+	readonly onElementChange?: RefCallback<HTMLElement>;
+	readonly onKeyDown?: (event: ReactKeyboardEvent<HTMLElement>) => void;
+	readonly preview: RecentRepositoryPreview | null;
+	readonly repository: RecentRepositoryRecord;
+	readonly variant: RepositoryItemVariant;
+	readonly workspace: WorkspaceTabState | null;
+}
+
+function RepositoryTooltipDetails({
+	preview,
+}: {
+	readonly preview: RecentRepositoryPreview | null;
+}): ReactElement {
+	if (!preview) {
+		return (
+			<span className="mt-1.5 block text-[10px] opacity-65">
+				Loading repository details…
+			</span>
+		);
+	}
+
+	if (!preview.latestCommit) {
+		return (
+			<span className="mt-1.5 block text-[10px] opacity-65">
+				No commits yet
+			</span>
+		);
+	}
+
+	return (
+		<>
+			<span className="mt-1.5 line-clamp-2 block font-medium">
+				{preview.latestCommit.summary}
+			</span>
+			<span className="mt-1 block text-[10px] opacity-65">
+				Latest commit {formatCommitDate(preview.latestCommit.committedAt)} by{" "}
+				{preview.latestCommit.author.name}
+			</span>
+		</>
+	);
+}
+
+export function RepositoryItem({
+	asContextMenuTrigger = false,
+	contextOpen,
+	disabled,
+	onClick,
+	onContextMenu,
+	onElementChange,
+	onKeyDown,
+	preview,
+	repository,
+	variant,
+	workspace,
+}: RepositoryItemProps): ReactElement {
+	const tooltipId = useId();
+	const repositoryName = recentRepositoryName(repository);
+	const owner =
+		workspace?.owner ??
+		(preview
+			? getRepositoryOwner(preview.remotes, preview.head.upstream)
+			: null);
+	const branchName =
+		workspace?.branch ?? (preview ? preview.head.branch : null);
+	const thumbnailLabel = owner ? owner.namespace : repositoryName;
+	const ownerTitle = owner
+		? `${owner.namespace} on ${owner.host}`
+		: "Local repository";
+	const lastUsed = formatRelativeTime(repository.lastOpenedAt);
+	const label = `${repositoryName}${branchName ? `, branch ${branchName}` : ""}, last used ${lastUsed}${workspace ? ", open" : ""}`;
+	const content = (
+		<>
+			<RepositoryOwnerThumbnail
+				label={thumbnailLabel}
+				owner={owner}
+				size={variant === "menu" ? "sm" : "md"}
+				title={ownerTitle}
+			/>
+			<span className="flex min-w-0 flex-1 items-baseline overflow-hidden">
+				<span
+					className={cn(
+						"shrink-0 font-semibold text-editor-ink",
+						variant === "welcome" && "text-xs"
+					)}
+				>
+					{repositoryName}
+				</span>
+				{branchName ? (
+					<>
+						<span className="shrink-0 text-editor-faint">&nbsp;/&nbsp;</span>
+						<span
+							className={cn(
+								"min-w-0 truncate font-normal text-editor-muted",
+								variant === "welcome" && "text-xs"
+							)}
+						>
+							{branchName}
+						</span>
+					</>
+				) : (
+					<span className="min-w-0 truncate font-normal text-editor-faint">
+						&nbsp;/ Loading branch…
+					</span>
+				)}
+			</span>
+			<time
+				className={cn(
+					"shrink-0 font-normal text-editor-faint tabular-nums",
+					variant === "menu" ? "text-[10px]" : "text-xss"
+				)}
+				dateTime={repository.lastOpenedAt}
+				title={formatCommitDate(repository.lastOpenedAt)}
+			>
+				{lastUsed}
+			</time>
+			{workspace ? (
+				<>
+					<span
+						aria-hidden
+						className="size-1.5 shrink-0 rounded-full bg-brand"
+					/>
+					<span className="sr-only">Open repository</span>
+				</>
+			) : null}
+		</>
+	);
+	const sharedProps = {
+		"aria-describedby": tooltipId,
+		"aria-label": label,
+		"data-context-open": contextOpen ? "true" : undefined,
+		"data-name": "RepositoryItem",
+		onClick,
+		onContextMenu,
+		onKeyDown,
+		ref: onElementChange,
+	};
+	const row =
+		variant === "menu" ? (
+			<DropdownMenuItem
+				{...sharedProps}
+				className={cn(
+					"relative gap-2 transition-[background-color,opacity] duration-150",
+					contextOpen && "z-20 bg-white data-highlighted:bg-white"
+				)}
+				closeOnClick={false}
+				disabled={disabled}
+			>
+				{content}
+			</DropdownMenuItem>
+		) : (
+			<button
+				{...sharedProps}
+				className={cn(
+					"group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left outline-none transition-[background-color,opacity] duration-150 hover:bg-editor-sunken focus-visible:bg-editor-sunken focus-visible:ring-2 focus-visible:ring-editor-muted/15 disabled:pointer-events-none disabled:opacity-50",
+					contextOpen && "z-10 bg-white hover:bg-white focus-visible:bg-white"
+				)}
+				disabled={disabled}
+				type="button"
+			>
+				{content}
+			</button>
+		);
+	const trigger = asContextMenuTrigger ? (
+		<ContextMenuTrigger render={row} />
+	) : (
+		row
+	);
+
+	return (
+		<Tooltip disabled={contextOpen}>
+			<TooltipTrigger render={trigger} />
+			<TooltipContent
+				align="center"
+				className="max-w-80 items-start"
+				id={tooltipId}
+				side="right"
+				sideOffset={8}
+			>
+				<span className="min-w-0 py-1">
+					<span className="block truncate font-semibold">{repositoryName}</span>
+					<span className="mt-0.5 block break-all opacity-70">
+						{repository.path}
+					</span>
+					<RepositoryTooltipDetails preview={preview} />
+				</span>
+			</TooltipContent>
+		</Tooltip>
+	);
+}

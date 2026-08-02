@@ -6,12 +6,7 @@ import {
 } from "@1git/ui/components/dropdown-menu";
 import { Input } from "@1git/ui/components/input";
 import { Kbd } from "@1git/ui/components/kbd";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
-} from "@1git/ui/components/tooltip";
+import { TooltipProvider } from "@1git/ui/components/tooltip";
 import { cn } from "@1git/ui/lib/utils";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/dist/csr/MagnifyingGlass";
 import { PlusIcon } from "@phosphor-icons/react/dist/csr/Plus";
@@ -20,38 +15,29 @@ import type {
 	ChangeEvent,
 	ReactElement,
 	KeyboardEvent as ReactKeyboardEvent,
-	MouseEvent as ReactMouseEvent,
 } from "react";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type {
 	OpenRepositoryOptions,
 	PendingWorkspaceAction,
 	WorkspaceTabState,
 } from "@/feature/workspace/hooks/use-git-workspace.js";
-import { getRepositoryOwner } from "@/feature/workspace/lib/repository-owner.js";
-import {
-	formatCommitDate,
-	formatRelativeTime,
-	recentRepositoryName,
-} from "@/feature/workspace/lib/workspace-model.js";
-import { RepositoryOwnerThumbnail } from "@/fixture/desktop-toolbar/components/repository-owner-thumbnail.js";
+import { recentRepositoryName } from "@/feature/workspace/lib/workspace-model.js";
 import {
 	REPOSITORY_MENU_ALIGN_OFFSET,
 	REPOSITORY_MENU_ANCHOR_GEOMETRY,
-	REPOSITORY_MENU_TOOLTIP_DELAY_MS,
 } from "@/fixture/desktop-toolbar/constants/repository-menu.js";
-import { useRecentRepositoryPreviews } from "@/fixture/desktop-toolbar/hooks/use-recent-repository-previews.js";
 import { AnimatedFolderOpenIcon } from "@/fixture/icons/components/animated-folder-open-icon.js";
 import {
 	LiquidMenuContent,
 	LiquidMenuRoot,
 } from "@/fixture/liquid-menu/components/liquid-menu.js";
 import { LiquidMenuAutoSize } from "@/fixture/liquid-menu/components/liquid-menu-auto-size.js";
+import { RepositoryContextMenu } from "@/fixture/repository-item/components/repository-context-menu.js";
+import { REPOSITORY_ITEM_TOOLTIP_DELAY_MS } from "@/fixture/repository-item/constants/repository-context-menu.js";
+import { useRecentRepositoryPreviews } from "@/fixture/repository-item/hooks/use-recent-repository-previews.js";
 import { useKeyboardModifiers } from "@/hooks/use-keyboard-modifiers.js";
-import type {
-	RecentRepositoryPreview,
-	RecentRepositoryRecord,
-} from "../../../../../shared/repository-session.js";
+import type { RecentRepositoryRecord } from "../../../../../shared/repository-session.js";
 
 interface RepositoryMenuProps {
 	readonly isOpen: boolean;
@@ -67,166 +53,6 @@ interface RepositoryMenuProps {
 	readonly workspaces: readonly WorkspaceTabState[];
 }
 
-interface RecentRepositoryMenuItemProps {
-	readonly metaKey: boolean;
-	readonly onClose: () => void;
-	readonly onOpen: (
-		path: string,
-		options?: OpenRepositoryOptions
-	) => Promise<void>;
-	readonly preview: RecentRepositoryPreview | null;
-	readonly repository: RecentRepositoryRecord;
-	readonly workspace: WorkspaceTabState | null;
-}
-
-function RecentRepositoryTooltipDetails({
-	preview,
-}: {
-	readonly preview: RecentRepositoryPreview | null;
-}): ReactElement {
-	if (!preview) {
-		return (
-			<span className="mt-1.5 block text-[10px] opacity-65">
-				Loading repository details…
-			</span>
-		);
-	}
-
-	if (!preview.latestCommit) {
-		return (
-			<>
-				{preview.head.branch ? (
-					<span className="mt-1 block opacity-80">
-						Branch {preview.head.branch}
-					</span>
-				) : null}
-				<span className="mt-1.5 block text-[10px] opacity-65">
-					No commits yet
-				</span>
-			</>
-		);
-	}
-
-	return (
-		<>
-			{/*{preview.head.branch ? (
-        <span className="mt-1 block opacity-80">
-          Branch {preview.head.branch}
-        </span>
-      ) : null}*/}
-			<span className="mt-1.5 line-clamp-2 block font-medium">
-				{preview.latestCommit.summary}
-			</span>
-			<span className="mt-1 block text-[10px] opacity-65">
-				Latest commit {formatCommitDate(preview.latestCommit.committedAt)} by{" "}
-				{preview.latestCommit.author.name}
-			</span>
-		</>
-	);
-}
-
-function RecentRepositoryMenuItem({
-	metaKey,
-	onClose,
-	onOpen,
-	preview,
-	repository,
-	workspace,
-}: RecentRepositoryMenuItemProps): ReactElement {
-	const tooltipId = useId();
-	const owner =
-		workspace?.owner ??
-		(preview
-			? getRepositoryOwner(preview.remotes, preview.head.upstream)
-			: null);
-	const repositoryName = recentRepositoryName(repository);
-	const branchName =
-		workspace?.branch ?? (preview ? preview.head.branch : null);
-	const lastUsed = formatRelativeTime(repository.lastOpenedAt);
-	const ownerTitle = owner
-		? `${owner.namespace} on ${owner.host}`
-		: "Local repository";
-	const thumbnailLabel = owner ? owner.namespace : repositoryName;
-	const openRecent = async (
-		event: ReactMouseEvent<HTMLElement>
-	): Promise<void> => {
-		const openInBackground = event.metaKey || metaKey;
-		if (!openInBackground) {
-			onClose();
-		}
-		await onOpen(repository.path, { activate: !openInBackground });
-	};
-
-	const menuItem = (
-		<DropdownMenuItem
-			aria-describedby={tooltipId}
-			aria-label={`${repositoryName}${branchName ? `, branch ${branchName}` : ""}, last used ${lastUsed}${workspace ? ", open" : ""}`}
-			className="gap-2"
-			closeOnClick={false}
-			onClick={openRecent}
-		>
-			<RepositoryOwnerThumbnail
-				label={thumbnailLabel}
-				owner={owner}
-				size="sm"
-				title={ownerTitle}
-			/>
-			<span className="flex min-w-0 flex-1 items-baseline overflow-hidden">
-				<span className="shrink-0 font-semibold">{repositoryName}</span>
-				{branchName ? (
-					<>
-						<span className="shrink-0 text-editor-faint">&nbsp;/&nbsp;</span>
-						<span className="min-w-0 truncate font-normal text-editor-muted">
-							{branchName}
-						</span>
-					</>
-				) : (
-					<span className="min-w-0 truncate font-normal text-editor-faint">
-						&nbsp;/ Loading branch…
-					</span>
-				)}
-			</span>
-			<time
-				className="shrink-0 font-normal text-[10px] text-editor-faint tabular-nums"
-				dateTime={repository.lastOpenedAt}
-				title={formatCommitDate(repository.lastOpenedAt)}
-			>
-				{lastUsed}
-			</time>
-			{workspace ? (
-				<>
-					<span
-						aria-hidden
-						className="size-1.5 shrink-0 rounded-full bg-brand"
-					/>
-					<span className="sr-only">Open repository</span>
-				</>
-			) : null}
-		</DropdownMenuItem>
-	);
-
-	return (
-		<Tooltip>
-			<TooltipTrigger render={menuItem} />
-			<TooltipContent
-				align="center"
-				className="max-w-80 items-start"
-				id={tooltipId}
-				side="right"
-				sideOffset={8}
-			>
-				<span className="min-w-0 py-1">
-					<span className="block truncate font-semibold">{repositoryName}</span>
-					<span className="mt-0.5 block break-all opacity-70">
-						{repository.path}
-					</span>
-					<RecentRepositoryTooltipDetails preview={preview} />
-				</span>
-			</TooltipContent>
-		</Tooltip>
-	);
-}
-
 export function RepositoryMenu({
 	isOpen,
 	isVisible,
@@ -238,6 +64,9 @@ export function RepositoryMenu({
 	workspaces,
 }: RepositoryMenuProps): ReactElement {
 	const [query, setQuery] = useState("");
+	const [contextRepositoryPath, setContextRepositoryPath] = useState<
+		string | null
+	>(null);
 	const { metaKey } = useKeyboardModifiers();
 	const searchInputRef = useRef<HTMLInputElement>(null);
 	const triggerRef = useRef<HTMLButtonElement>(null);
@@ -274,12 +103,25 @@ export function RepositoryMenu({
 	const closeMenu = (): void => {
 		onOpenChange(false);
 		setQuery("");
+		setContextRepositoryPath(null);
 	};
 	const changeMenuOpen = (nextIsOpen: boolean): void => {
 		onOpenChange(nextIsOpen);
 		if (!nextIsOpen) {
 			setQuery("");
+			setContextRepositoryPath(null);
 		}
+	};
+	const changeRepositoryContextOpen = (
+		repositoryPath: string,
+		nextIsOpen: boolean
+	): void => {
+		setContextRepositoryPath((currentPath) => {
+			if (nextIsOpen) {
+				return repositoryPath;
+			}
+			return currentPath === repositoryPath ? null : currentPath;
+		});
 	};
 	const updateQuery = (event: ChangeEvent<HTMLInputElement>): void => {
 		setQuery(event.target.value);
@@ -301,7 +143,7 @@ export function RepositoryMenu({
 	);
 
 	return (
-		<TooltipProvider delay={REPOSITORY_MENU_TOOLTIP_DELAY_MS}>
+		<TooltipProvider delay={REPOSITORY_ITEM_TOOLTIP_DELAY_MS}>
 			<div
 				aria-hidden={isVisible ? undefined : true}
 				className={cn(
@@ -351,6 +193,10 @@ export function RepositoryMenu({
 							aria-busy={pendingAction === "open"}
 							aria-label="Repositories"
 							className="max-h-[min(70vh,32rem)] w-[370px] min-w-[370px] p-1.5"
+							data-context-open={
+								contextRepositoryPath === null ? undefined : "true"
+							}
+							data-name="RepositoryMenuContent"
 							sideOffset={8}
 						>
 							<LiquidMenuAutoSize>
@@ -388,13 +234,23 @@ export function RepositoryMenu({
 										<DropdownMenuGroup data-name="RecentRepositoryList">
 											{/*<DropdownMenuLabel>Recent</DropdownMenuLabel>*/}
 											{matchingRecentRepositories.map((repository) => (
-												<RecentRepositoryMenuItem
+												<RepositoryContextMenu
+													disabled={pendingAction === "open"}
 													key={repository.path}
 													metaKey={metaKey}
-													onClose={closeMenu}
+													onContextOpenChange={(nextIsOpen) =>
+														changeRepositoryContextOpen(
+															repository.path,
+															nextIsOpen
+														)
+													}
 													onOpen={onOpenRecent}
+													onOpenForeground={closeMenu}
+													open={contextRepositoryPath === repository.path}
+													placement="right"
 													preview={previews.get(repository.path) ?? null}
 													repository={repository}
+													variant="menu"
 													workspace={
 														workspacesByPath.get(repository.path) ?? null
 													}

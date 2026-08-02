@@ -4,7 +4,7 @@ import {
 	loadRepositoryOwnerAvatarByIdentity,
 	peekRepositoryOwnerAvatar,
 	repositoryOwnerAvatarKey,
-} from "@/fixture/desktop-toolbar/lib/repository-owner-avatar-cache.js";
+} from "@/fixture/repository-item/lib/repository-owner-avatar-cache.js";
 
 interface RepositoryOwnerAvatarState {
 	readonly dataUrl: string | null;

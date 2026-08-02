@@ -1,12 +1,7 @@
 import { Button, buttonVariants } from "@1git/ui/components/button";
 import { DropdownMenuTrigger } from "@1git/ui/components/dropdown-menu";
 import { Input } from "@1git/ui/components/input";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
-} from "@1git/ui/components/tooltip";
+import { TooltipProvider } from "@1git/ui/components/tooltip";
 import { FolderOpenIcon } from "@phosphor-icons/react/dist/csr/FolderOpen";
 import { GitBranchIcon } from "@phosphor-icons/react/dist/csr/GitBranch";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/dist/csr/MagnifyingGlass";
@@ -17,27 +12,21 @@ import type {
 	FormEvent,
 	ReactElement,
 	KeyboardEvent as ReactKeyboardEvent,
-	MouseEvent as ReactMouseEvent,
 	ReactNode,
 } from "react";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type {
 	OpenRepositoryOptions,
 	WorkspaceTabState,
 } from "@/feature/workspace/hooks/use-git-workspace.js";
-import { getRepositoryOwner } from "@/feature/workspace/lib/repository-owner.js";
-import {
-	formatCommitDate,
-	formatRelativeTime,
-	recentRepositoryName,
-} from "@/feature/workspace/lib/workspace-model.js";
-import { RepositoryOwnerThumbnail } from "@/fixture/desktop-toolbar/components/repository-owner-thumbnail.js";
-import { useRecentRepositoryPreviews } from "@/fixture/desktop-toolbar/hooks/use-recent-repository-previews.js";
+import { recentRepositoryName } from "@/feature/workspace/lib/workspace-model.js";
 import {
 	LiquidMenuContent,
 	LiquidMenuRoot,
 } from "@/fixture/liquid-menu/components/liquid-menu.js";
 import { LiquidMenuAutoSize } from "@/fixture/liquid-menu/components/liquid-menu-auto-size.js";
+import { RepositoryContextMenu } from "@/fixture/repository-item/components/repository-context-menu.js";
+import { useRecentRepositoryPreviews } from "@/fixture/repository-item/hooks/use-recent-repository-previews.js";
 import {
 	CLONE_MENU_ALIGN_OFFSET,
 	CLONE_MENU_ANCHOR_GEOMETRY,
@@ -108,96 +97,16 @@ function RepositoryListItem({
 	repository,
 	workspace,
 }: RepositoryListItemProps): ReactElement {
-	const tooltipId = useId();
-	const repositoryName = recentRepositoryName(repository);
-	const owner =
-		workspace?.owner ??
-		(preview
-			? getRepositoryOwner(preview.remotes, preview.head.upstream)
-			: null);
-	const branchName =
-		workspace?.branch ?? (preview ? preview.head.branch : null);
-	const thumbnailLabel = owner ? owner.namespace : repositoryName;
-	const ownerTitle = owner
-		? `${owner.namespace} on ${owner.host}`
-		: "Local repository";
-	const lastUsed = formatRelativeTime(repository.lastOpenedAt);
-	const openRepository = async (
-		event: ReactMouseEvent<HTMLButtonElement>
-	): Promise<void> => {
-		await onOpen(repository.path, { activate: !event.metaKey });
-	};
-	const row = (
-		<button
-			aria-describedby={tooltipId}
-			aria-label={`${repositoryName}${branchName ? `, branch ${branchName}` : ""}, last used ${lastUsed}${workspace ? ", open" : ""}`}
-			className="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left outline-none transition-colors hover:bg-editor-sunken focus-visible:bg-editor-sunken focus-visible:ring-2 focus-visible:ring-editor-muted/15 disabled:pointer-events-none disabled:opacity-50"
-			disabled={disabled}
-			onClick={openRepository}
-			type="button"
-		>
-			<RepositoryOwnerThumbnail
-				label={thumbnailLabel}
-				owner={owner}
-				size="md"
-				title={ownerTitle}
-			/>
-			<span className="flex min-w-0 flex-1 items-baseline overflow-hidden">
-				<span className="shrink-0 font-semibold text-editor-ink text-xs">
-					{repositoryName}
-				</span>
-				{branchName ? (
-					<>
-						<span className="shrink-0 text-editor-faint">&nbsp;/&nbsp;</span>
-						<span className="min-w-0 truncate text-editor-muted text-xs">
-							{branchName}
-						</span>
-					</>
-				) : null}
-			</span>
-			<time
-				className="shrink-0 text-editor-faint text-xss tabular-nums"
-				dateTime={repository.lastOpenedAt}
-				title={formatCommitDate(repository.lastOpenedAt)}
-			>
-				{lastUsed}
-			</time>
-			{workspace ? (
-				<>
-					<span
-						aria-hidden
-						className="size-1.5 shrink-0 rounded-full bg-brand"
-					/>
-					<span className="sr-only">Open repository</span>
-				</>
-			) : null}
-		</button>
-	);
-
 	return (
-		<Tooltip>
-			<TooltipTrigger render={row} />
-			<TooltipContent
-				align="center"
-				className="max-w-80 items-start"
-				id={tooltipId}
-				side="right"
-				sideOffset={8}
-			>
-				<span className="min-w-0 py-1">
-					<span className="block truncate font-semibold">{repositoryName}</span>
-					<span className="mt-0.5 block break-all opacity-70">
-						{repository.path}
-					</span>
-					{preview?.latestCommit ? (
-						<span className="mt-1.5 block text-[10px] opacity-65">
-							Latest commit {formatCommitDate(preview.latestCommit.committedAt)}{" "}
-							by {preview.latestCommit.author.name}
-						</span>
-					) : null}
-				</span>
-			</TooltipContent>
-		</Tooltip>
+		<RepositoryContextMenu
+			disabled={disabled}
+			onOpen={onOpen}
+			placement="bottom"
+			preview={preview}
+			repository={repository}
+			variant="welcome"
+			workspace={workspace}
+		/>
 	);
 }
 

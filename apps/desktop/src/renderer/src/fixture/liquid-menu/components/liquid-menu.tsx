@@ -1,3 +1,4 @@
+import { ContextMenu } from "@1git/ui/components/context-menu";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -32,6 +33,8 @@ import type { LiquidMenuAnchorGeometry } from "@/fixture/liquid-menu/lib/liquid-
 
 type DropdownMenuProps = ComponentProps<typeof DropdownMenu>;
 type DropdownMenuOpenChange = NonNullable<DropdownMenuProps["onOpenChange"]>;
+type ContextMenuProps = ComponentProps<typeof ContextMenu>;
+type ContextMenuOpenChange = NonNullable<ContextMenuProps["onOpenChange"]>;
 
 interface LiquidMenuRootProps extends Omit<DropdownMenuProps, "onOpenChange"> {
 	readonly anchor: () => Element | null;
@@ -39,6 +42,30 @@ interface LiquidMenuRootProps extends Omit<DropdownMenuProps, "onOpenChange"> {
 	readonly onOpenChange?: DropdownMenuOpenChange;
 	readonly onPresenceChange?: (isPresent: boolean) => void;
 	readonly outlineWidth?: number;
+}
+
+interface LiquidContextMenuRootProps
+	extends Omit<ContextMenuProps, "onOpenChange"> {
+	readonly anchor: () => Element | null;
+	readonly anchorGeometry: LiquidMenuAnchorGeometry;
+	readonly onOpenChange?: ContextMenuOpenChange;
+	readonly onPresenceChange?: (isPresent: boolean) => void;
+	readonly outlineWidth?: number;
+}
+
+interface UseLiquidMenuRootOptions {
+	readonly anchor: () => Element | null;
+	readonly anchorGeometry: LiquidMenuAnchorGeometry;
+	readonly defaultOpen?: boolean;
+	readonly onPresenceChange?: (isPresent: boolean) => void;
+	readonly open?: boolean;
+	readonly outlineWidth: number;
+}
+
+interface LiquidMenuRootState {
+	readonly changeOpen: (isOpen: boolean) => void;
+	readonly context: LiquidMenuContextValue;
+	readonly isOpen: boolean;
 }
 
 const assignRef = <ElementType,>(
@@ -66,16 +93,14 @@ const useMergedElementRef = <ElementType extends HTMLElement>(
 		[firstRef, secondRef]
 	);
 
-export function LiquidMenuRoot({
+const useLiquidMenuRoot = ({
 	anchor,
 	anchorGeometry,
 	defaultOpen,
-	onOpenChange,
 	onPresenceChange,
 	open,
-	outlineWidth = 1,
-	...props
-}: LiquidMenuRootProps): ReactElement {
+	outlineWidth,
+}: UseLiquidMenuRootOptions): LiquidMenuRootState => {
 	const [internalOpen, setInternalOpen] = useState(defaultOpen ?? false);
 	const [activeSubmenuId, setActiveSubmenuId] = useState<string | null>(null);
 	const activeSubmenuIdRef = useRef<string | null>(null);
@@ -105,8 +130,8 @@ export function LiquidMenuRoot({
 		},
 		[]
 	);
-	const changeOpen: DropdownMenuOpenChange = useCallback(
-		(nextIsOpen, eventDetails): void => {
+	const changeOpen = useCallback(
+		(nextIsOpen: boolean): void => {
 			if (open === undefined) {
 				setInternalOpen(nextIsOpen);
 			}
@@ -114,9 +139,8 @@ export function LiquidMenuRoot({
 				activeSubmenuIdRef.current = null;
 				setActiveSubmenuId(null);
 			}
-			onOpenChange?.(nextIsOpen, eventDetails);
 		},
-		[onOpenChange, open]
+		[open]
 	);
 	const changePresence = useCallback(
 		(isPresent: boolean): void => {
@@ -166,10 +190,67 @@ export function LiquidMenuRoot({
 		]
 	);
 
+	return { changeOpen, context, isOpen };
+};
+
+export function LiquidMenuRoot({
+	anchor,
+	anchorGeometry,
+	defaultOpen,
+	onOpenChange,
+	onPresenceChange,
+	open,
+	outlineWidth = 1,
+	...props
+}: LiquidMenuRootProps): ReactElement {
+	const state = useLiquidMenuRoot({
+		anchor,
+		anchorGeometry,
+		defaultOpen,
+		onPresenceChange,
+		open,
+		outlineWidth,
+	});
+	const changeOpen: DropdownMenuOpenChange = (nextIsOpen, eventDetails) => {
+		state.changeOpen(nextIsOpen);
+		onOpenChange?.(nextIsOpen, eventDetails);
+	};
+
 	return (
-		<LiquidMenuContext value={context}>
+		<LiquidMenuContext value={state.context}>
 			<LiquidMenuSurface />
-			<DropdownMenu onOpenChange={changeOpen} open={isOpen} {...props} />
+			<DropdownMenu onOpenChange={changeOpen} open={state.isOpen} {...props} />
+		</LiquidMenuContext>
+	);
+}
+
+export function LiquidContextMenuRoot({
+	anchor,
+	anchorGeometry,
+	defaultOpen,
+	onOpenChange,
+	onPresenceChange,
+	open,
+	outlineWidth = 1,
+	...props
+}: LiquidContextMenuRootProps): ReactElement {
+	const state = useLiquidMenuRoot({
+		anchor,
+		anchorGeometry,
+		defaultOpen,
+		onPresenceChange,
+		open,
+		outlineWidth,
+	});
+	const changeOpen: ContextMenuOpenChange = (nextIsOpen, eventDetails) => {
+		state.changeOpen(nextIsOpen);
+		onOpenChange?.(nextIsOpen, eventDetails);
+	};
+
+	return (
+		<LiquidMenuContext value={state.context}>
+			<LiquidMenuSurface />
+			<ContextMenu onOpenChange={changeOpen} open={state.isOpen} {...props} />
 		</LiquidMenuContext>
 	);
 }
@@ -202,10 +283,13 @@ export function LiquidMenuContent({
 }
 
 export function LiquidMenuSub({
+	anchor,
 	onOpenChange,
 	open,
 	...props
-}: ComponentProps<typeof DropdownMenuSub>): ReactElement {
+}: ComponentProps<typeof DropdownMenuSub> & {
+	readonly anchor?: HTMLElement | null;
+}): ReactElement {
 	const context = useLiquidMenuContext();
 	const submenuId = useId();
 	const [internalOpen, setInternalOpen] = useState(false);
@@ -233,8 +317,9 @@ export function LiquidMenuSub({
 			return;
 		}
 		context.setSubmenuElement(contentElement);
-		context.setSubmenuTriggerElement(triggerElement);
+		context.setSubmenuTriggerElement(anchor ?? triggerElement);
 	}, [
+		anchor,
 		contentElement,
 		context.activeSubmenuId,
 		context.setSubmenuElement,

@@ -3,8 +3,8 @@ import { getRepositoryOwner } from "@/feature/workspace/lib/repository-owner.js"
 import {
 	type RecentRepositoryPreviewCache,
 	recentRepositoryPreviewCache,
-} from "@/fixture/desktop-toolbar/lib/recent-repository-preview-cache.js";
-import { preloadRepositoryOwnerAvatar } from "@/fixture/desktop-toolbar/lib/repository-owner-avatar-cache.js";
+} from "@/fixture/repository-item/lib/recent-repository-preview-cache.js";
+import { preloadRepositoryOwnerAvatar } from "@/fixture/repository-item/lib/repository-owner-avatar-cache.js";
 import type {
 	RecentRepositoryPreview,
 	RecentRepositoryRecord,
