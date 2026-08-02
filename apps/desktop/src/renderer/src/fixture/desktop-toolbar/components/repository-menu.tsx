@@ -12,6 +12,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@1git/ui/components/tooltip";
+import { cn } from "@1git/ui/lib/utils";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/dist/csr/MagnifyingGlass";
 import { PlusIcon } from "@phosphor-icons/react/dist/csr/Plus";
 import { SpinnerGapIcon } from "@phosphor-icons/react/dist/csr/SpinnerGap";
@@ -54,6 +55,7 @@ import type {
 
 interface RepositoryMenuProps {
 	readonly isOpen: boolean;
+	readonly isVisible: boolean;
 	readonly onOpenChange: (isOpen: boolean) => void;
 	readonly onOpenRecent: (
 		path: string,
@@ -227,6 +229,7 @@ function RecentRepositoryMenuItem({
 
 export function RepositoryMenu({
 	isOpen,
+	isVisible,
 	onOpenChange,
 	onOpenRecent,
 	onPickRepository,
@@ -300,13 +303,21 @@ export function RepositoryMenu({
 	return (
 		<TooltipProvider delay={REPOSITORY_MENU_TOOLTIP_DELAY_MS}>
 			<div
-				className="relative flex h-full shrink-0 items-center border-editor-hairline pl-2"
+				aria-hidden={isVisible ? undefined : true}
+				className={cn(
+					"relative flex h-full shrink-0 items-center overflow-hidden border-editor-hairline opacity-100 transition-[max-width,opacity,transform,padding] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]",
+					isVisible
+						? "max-w-24 translate-x-0 pl-2"
+						: "pointer-events-none max-w-0 -translate-x-1 p-0 opacity-0"
+				)}
 				data-name="RepositoryMenu"
+				data-visible={isVisible ? "true" : "false"}
+				inert={isVisible ? undefined : true}
 			>
 				<LiquidMenuRoot
 					anchor={getMenuAnchor}
 					anchorGeometry={REPOSITORY_MENU_ANCHOR_GEOMETRY}
-					disabled={pendingAction === "open"}
+					disabled={!isVisible || pendingAction === "open"}
 					modal
 					onOpenChange={changeMenuOpen}
 					open={isOpen}

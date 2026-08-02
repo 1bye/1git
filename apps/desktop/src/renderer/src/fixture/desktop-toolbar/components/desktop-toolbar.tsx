@@ -150,10 +150,14 @@ export function DesktopToolbar({
 		activeSessionId !== null && draggingSessionId === activeSessionId;
 	const isWorkspaceMenuVisualOpen =
 		isWorkspaceMenuOpen || isWorkspaceMenuSurfacePresent;
+	const hasOpenWorkspaces = workspaces.length > 0;
 
 	useEffect(() => {
 		const handleKeyDown = (event: KeyboardEvent): void => {
 			if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+				if (!hasOpenWorkspaces) {
+					return;
+				}
 				event.preventDefault();
 				setIsWorkspaceMenuOpen(false);
 				setIsRepositoryMenuOpen(true);
@@ -166,7 +170,13 @@ export function DesktopToolbar({
 		};
 		window.addEventListener("keydown", handleKeyDown);
 		return () => window.removeEventListener("keydown", handleKeyDown);
-	}, []);
+	}, [hasOpenWorkspaces]);
+
+	useEffect(() => {
+		if (!hasOpenWorkspaces) {
+			setIsRepositoryMenuOpen(false);
+		}
+	}, [hasOpenWorkspaces]);
 
 	const setRepositoryMenuOpen = (isOpen: boolean): void => {
 		if (isOpen) {
@@ -288,6 +298,7 @@ export function DesktopToolbar({
 				/>
 				<RepositoryMenu
 					isOpen={isRepositoryMenuOpen}
+					isVisible={hasOpenWorkspaces}
 					onOpenChange={setRepositoryMenuOpen}
 					onOpenRecent={onOpenRecent}
 					onPickRepository={onPickRepository}
