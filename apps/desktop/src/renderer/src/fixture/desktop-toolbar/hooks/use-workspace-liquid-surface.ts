@@ -40,6 +40,29 @@ const hasSameMeasurement = (
 	current.tabTop === next.tabTop &&
 	current.tabWidth === next.tabWidth;
 
+const isAnimatingToMeasurement = (
+	animationFrame: number,
+	targetMeasurement: WorkspaceLiquidMeasurement | null,
+	nextMeasurement: WorkspaceLiquidMeasurement | null
+): boolean => {
+	if (animationFrame === 0) {
+		return false;
+	}
+	if (nextMeasurement === null) {
+		return targetMeasurement === null;
+	}
+	return hasSameMeasurement(targetMeasurement, nextMeasurement);
+};
+
+const getAnimationStartMeasurement = (
+	currentMeasurement: WorkspaceLiquidMeasurement | null,
+	nextMeasurement: WorkspaceLiquidMeasurement | null
+): WorkspaceLiquidMeasurement | null =>
+	currentMeasurement ??
+	(nextMeasurement
+		? createCollapsedWorkspaceLiquidMeasurement(nextMeasurement)
+		: null);
+
 const getTabSdfHeight = (
 	surfaceWidth: number,
 	tabLeft: number,
@@ -128,11 +151,11 @@ export function useWorkspaceLiquidSurface({
 			shouldFollowImmediately = false
 		): void => {
 			const currentMeasurement = measurementRef.current;
-			const isAlreadyAnimatingToTarget =
-				animationFrameRef.current !== 0 &&
-				(nextMeasurement === null
-					? targetMeasurementRef.current === null
-					: hasSameMeasurement(targetMeasurementRef.current, nextMeasurement));
+			const isAlreadyAnimatingToTarget = isAnimatingToMeasurement(
+				animationFrameRef.current,
+				targetMeasurementRef.current,
+				nextMeasurement
+			);
 			if (isAlreadyAnimatingToTarget) {
 				return;
 			}
@@ -163,14 +186,21 @@ export function useWorkspaceLiquidSurface({
 			const prefersReducedMotion = window.matchMedia(
 				"(prefers-reduced-motion: reduce)"
 			).matches;
-			if (!(shouldAnimate && currentMeasurement) || prefersReducedMotion) {
+			const animationStartMeasurement = getAnimationStartMeasurement(
+				currentMeasurement,
+				nextMeasurement
+			);
+			if (
+				!(shouldAnimate && animationStartMeasurement) ||
+				prefersReducedMotion
+			) {
 				commitMeasurement(nextMeasurement);
 				return;
 			}
 
 			const targetMeasurement =
 				nextMeasurement ??
-				createCollapsedWorkspaceLiquidMeasurement(currentMeasurement);
+				createCollapsedWorkspaceLiquidMeasurement(animationStartMeasurement);
 			const animationStartedAt = performance.now();
 			const animateFrame = (timestamp: number): void => {
 				const elapsedMs = timestamp - animationStartedAt;
@@ -183,7 +213,7 @@ export function useWorkspaceLiquidSurface({
 					targetMeasurementRef.current ?? targetMeasurement;
 				commitMeasurement(
 					interpolateWorkspaceLiquidMeasurement(
-						currentMeasurement,
+						animationStartMeasurement,
 						liveTargetMeasurement,
 						easedProgress
 					)
@@ -239,9 +269,7 @@ export function useWorkspaceLiquidSurface({
 			tabWidth,
 		};
 		const shouldAnimateSessionChange =
-			!isDragging &&
-			measurementRef.current !== null &&
-			measuredSessionIdRef.current !== activeSessionId;
+			!isDragging && measuredSessionIdRef.current !== activeSessionId;
 		measuredSessionIdRef.current = activeSessionId;
 		animateToMeasurement(
 			nextMeasurement,

@@ -288,6 +288,64 @@ function WorkspaceTabAppearance({
 					: WORKSPACE_TAB_STYLE
 			}
 		>
+			<div
+				className="relative z-[1] flex h-full min-w-0 flex-1 items-center"
+				data-name="WorkspaceTabContent"
+			>
+				<button
+					aria-controls="repository-workspace"
+					aria-label={getAccessibleTabLabel(label, workspace)}
+					aria-selected={isActive}
+					className="relative z-10 flex h-full shrink-0 cursor-default touch-none items-center outline-none focus-visible:ring-2 focus-visible:ring-brand/20 active:cursor-grabbing"
+					data-desktop-interactive
+					data-workspace-tab-pointer-drag-handle
+					disabled={isBusy || isOverlay}
+					onClick={activateWorkspace}
+					ref={handleRef}
+					role="tab"
+					style={WORKSPACE_TAB_ACTIVATOR_STYLE}
+					tabIndex={isActive ? 0 : -1}
+					title={label}
+					type="button"
+				>
+					<RepositoryOwnerThumbnail
+						label={ownerLabel}
+						owner={workspace.owner}
+						size="sm"
+						title={getOwnerTitle(workspace)}
+					/>
+				</button>
+				<WorkspaceTabNameButton
+					branch={workspace.branch}
+					isActive={isActive}
+					isDisabled={isBusy || isOverlay}
+					isDragging={isDragging}
+					isMenuTrigger={isActive && !isOverlay}
+					label={label}
+					onActivate={onActivate}
+					onOpenActions={onOpenActions}
+					repositoryName={repositoryName}
+					sessionId={workspace.session.id}
+				/>
+				<div
+					className="group/trailing relative z-10 flex shrink-0 items-center justify-center"
+					data-name="WorkspaceTabTrailingAction"
+					style={WORKSPACE_TAB_TRAILING_STYLE}
+				>
+					<WorkspaceChangedFiles count={changedFileCount} isActive={isActive} />
+					<button
+						aria-label={`Close ${label}`}
+						className="absolute inset-0 flex items-center justify-center rounded-lg text-editor-faint opacity-0 outline-none transition-opacity duration-150 ease-out hover:bg-active hover:text-editor-ink focus-visible:bg-active focus-visible:ring-2 focus-visible:ring-brand/20 group-focus-within/trailing:opacity-100 group-hover:opacity-100"
+						data-name="WorkspaceTabClose"
+						disabled={isBusy || isOverlay}
+						onClick={closeWorkspace}
+						tabIndex={isActive ? 0 : -1}
+						type="button"
+					>
+						<XIcon aria-hidden className="size-3" weight="bold" />
+					</button>
+				</div>
+			</div>
 			{isActionsMenuOpen && !isOverlay ? (
 				<span
 					aria-hidden
@@ -304,59 +362,6 @@ function WorkspaceTabAppearance({
 					style={WORKSPACE_TAB_VISUAL_STYLE}
 				/>
 			)}
-			<button
-				aria-controls="repository-workspace"
-				aria-label={getAccessibleTabLabel(label, workspace)}
-				aria-selected={isActive}
-				className="relative z-10 flex h-full shrink-0 cursor-default touch-none items-center outline-none focus-visible:ring-2 focus-visible:ring-brand/20 active:cursor-grabbing"
-				data-desktop-interactive
-				data-workspace-tab-pointer-drag-handle
-				disabled={isBusy || isOverlay}
-				onClick={activateWorkspace}
-				ref={handleRef}
-				role="tab"
-				style={WORKSPACE_TAB_ACTIVATOR_STYLE}
-				tabIndex={isActive ? 0 : -1}
-				title={label}
-				type="button"
-			>
-				<RepositoryOwnerThumbnail
-					label={ownerLabel}
-					owner={workspace.owner}
-					size="sm"
-					title={getOwnerTitle(workspace)}
-				/>
-			</button>
-			<WorkspaceTabNameButton
-				branch={workspace.branch}
-				isActive={isActive}
-				isDisabled={isBusy || isOverlay}
-				isDragging={isDragging}
-				isMenuTrigger={isActive && !isOverlay}
-				label={label}
-				onActivate={onActivate}
-				onOpenActions={onOpenActions}
-				repositoryName={repositoryName}
-				sessionId={workspace.session.id}
-			/>
-			<div
-				className="group/trailing relative z-10 flex shrink-0 items-center justify-center"
-				data-name="WorkspaceTabTrailingAction"
-				style={WORKSPACE_TAB_TRAILING_STYLE}
-			>
-				<WorkspaceChangedFiles count={changedFileCount} isActive={isActive} />
-				<button
-					aria-label={`Close ${label}`}
-					className="absolute inset-0 flex items-center justify-center rounded-lg text-editor-faint opacity-0 outline-none transition-opacity duration-150 ease-out hover:bg-active hover:text-editor-ink focus-visible:bg-active focus-visible:ring-2 focus-visible:ring-brand/20 group-focus-within/trailing:opacity-100 group-hover:opacity-100"
-					data-name="WorkspaceTabClose"
-					disabled={isBusy || isOverlay}
-					onClick={closeWorkspace}
-					tabIndex={isActive ? 0 : -1}
-					type="button"
-				>
-					<XIcon aria-hidden className="size-3" weight="bold" />
-				</button>
-			</div>
 		</div>
 	);
 }

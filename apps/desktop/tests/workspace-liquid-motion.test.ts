@@ -25,6 +25,29 @@ describe("workspace liquid motion", () => {
 		expect(collapsedMeasurement.surfaceWidth).toBe(measurement.surfaceWidth);
 	});
 
+	test("melts a new pill upward from the workspace", () => {
+		const measurement = {
+			surfaceWidth: 900,
+			tabHeight: 48,
+			tabLeft: 220,
+			tabTop: 4,
+			tabWidth: 202,
+		};
+		const collapsedMeasurement =
+			createCollapsedWorkspaceLiquidMeasurement(measurement);
+
+		const midpoint = interpolateWorkspaceLiquidMeasurement(
+			collapsedMeasurement,
+			measurement,
+			0.5
+		);
+
+		expect(midpoint.tabHeight).toBe(24);
+		expect(midpoint.tabTop).toBe(28);
+		expect(midpoint.tabLeft).toBe(measurement.tabLeft);
+		expect(midpoint.tabWidth).toBe(measurement.tabWidth);
+	});
+
 	test("interpolates a shared pill between workspace tabs", () => {
 		const measurement = interpolateWorkspaceLiquidMeasurement(
 			{

@@ -305,10 +305,10 @@ export function RepositoryMenu({
 			<div
 				aria-hidden={isVisible ? undefined : true}
 				className={cn(
-					"relative flex h-full shrink-0 items-center overflow-hidden border-editor-hairline opacity-100 transition-[max-width,opacity,transform,padding] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]",
+					"relative flex h-full shrink-0 items-center border-editor-hairline opacity-100 transition-[max-width,opacity,transform,padding] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]",
 					isVisible
-						? "max-w-24 translate-x-0 pl-2"
-						: "pointer-events-none max-w-0 -translate-x-1 p-0 opacity-0"
+						? "max-w-24 overflow-visible pl-2"
+						: "pointer-events-none max-w-0 -translate-x-1 overflow-hidden p-0 opacity-0"
 				)}
 				data-name="RepositoryMenu"
 				data-visible={isVisible ? "true" : "false"}

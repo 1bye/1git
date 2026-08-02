@@ -15,6 +15,7 @@
 
 :root {
 	--desktop-titlebar-controls-width: 5rem;
+	--workspace-tab-appearance-duration: 240ms;
 	--workspace-surface-inset: 6px;
 	--workspace-surface-radius: 14px;
 }
@@ -113,6 +114,33 @@ button {
 
 [data-name="WorkspaceTab"] {
 	transform-origin: center bottom;
+}
+
+@keyframes workspace-tab-content-melt-in {
+	from {
+		clip-path: inset(100% 0 0 round 10px);
+		opacity: 0;
+		transform: translateY(8px) scaleY(0.72);
+	}
+
+	70% {
+		clip-path: inset(0 0 0 round 10px);
+		opacity: 1;
+		transform: translateY(-1px) scaleY(1.02);
+	}
+
+	to {
+		clip-path: none;
+		opacity: 1;
+		transform: none;
+	}
+}
+
+[data-name="WorkspaceTab"]:not([data-overlay="true"])
+	> [data-name="WorkspaceTabContent"] {
+	transform-origin: center bottom;
+	animation: workspace-tab-content-melt-in
+		var(--workspace-tab-appearance-duration) cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 [data-name="WorkspaceTab"][data-active="true"] {
