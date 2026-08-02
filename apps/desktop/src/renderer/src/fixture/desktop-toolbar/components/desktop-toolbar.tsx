@@ -48,6 +48,7 @@ interface DesktopToolbarProps {
 	readonly onCloseWorkspace: (sessionId: RepositorySessionId) => Promise<void>;
 	readonly onCreateBranch: (name: string) => Promise<boolean>;
 	readonly onFetch: () => Promise<void>;
+	readonly onForgetRecent: (path: string) => Promise<void>;
 	readonly onOpenRecent: (
 		path: string,
 		options?: OpenRepositoryOptions
@@ -127,6 +128,7 @@ export function DesktopToolbar({
 	onCloseWorkspace,
 	onCreateBranch,
 	onFetch,
+	onForgetRecent,
 	onOpenRecent,
 	onPickRepository,
 	onReorderWorkspace,
@@ -299,6 +301,7 @@ export function DesktopToolbar({
 				<RepositoryMenu
 					isOpen={isRepositoryMenuOpen}
 					isVisible={hasOpenWorkspaces}
+					onForgetRecent={onForgetRecent}
 					onOpenChange={setRepositoryMenuOpen}
 					onOpenRecent={onOpenRecent}
 					onPickRepository={onPickRepository}

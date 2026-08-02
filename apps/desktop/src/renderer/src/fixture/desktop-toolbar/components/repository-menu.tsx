@@ -47,6 +47,7 @@ import type { RecentRepositoryRecord } from "../../../../../shared/repository-se
 interface RepositoryMenuProps {
 	readonly isOpen: boolean;
 	readonly isVisible: boolean;
+	readonly onForgetRecent: (path: string) => Promise<void>;
 	readonly onOpenChange: (isOpen: boolean) => void;
 	readonly onOpenRecent: (
 		path: string,
@@ -61,6 +62,7 @@ interface RepositoryMenuProps {
 export function RepositoryMenu({
 	isOpen,
 	isVisible,
+	onForgetRecent,
 	onOpenChange,
 	onOpenRecent,
 	onPickRepository,
@@ -261,6 +263,7 @@ export function RepositoryMenu({
 															isPresent
 														)
 													}
+													onForgetRecent={onForgetRecent}
 													onOpen={onOpenRecent}
 													onOpenForeground={closeMenu}
 													open={

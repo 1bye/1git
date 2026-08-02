@@ -1,15 +1,19 @@
+import { spawn } from "node:child_process";
 import { join } from "node:path";
 import {
 	app,
 	BrowserWindow,
 	type BrowserWindowConstructorOptions,
+	clipboard,
 	dialog,
 	ipcMain,
 	nativeTheme,
 	shell,
 	type WebContents,
 } from "electron";
+import type { DesktopApplication } from "../shared/desktop-integration.js";
 import type { RepositoryDirectorySelection } from "../shared/repository-session.js";
+import { registerDesktopIntegrationIpc } from "./desktop-integration/desktop-integration-ipc.js";
 import { registerGitIpc } from "./git/git-ipc.js";
 import { GitOperationRegistry } from "./git/git-operation-registry.js";
 import { JsonRecentRepositoryStore } from "./git/recent-repository-store.js";
@@ -28,9 +32,39 @@ const RECENT_REPOSITORIES_FILE = "recent-repositories.json";
 const REPOSITORY_OWNER_AVATARS_DIRECTORY = "repository-owner-avatars";
 const gitOperationRegistry = new GitOperationRegistry();
 let disposeGitIpc: (() => void) | null = null;
+let disposeDesktopIntegrationIpc: (() => void) | null = null;
 let disposeRepositoryOwnerIpc: (() => void) | null = null;
 let mainWindow: BrowserWindow | null = null;
 let repositoryManager: RepositoryManager | null = null;
+
+const MACOS_APPLICATION_NAMES: Readonly<Record<DesktopApplication, string>> = {
+	ghostty: "Ghostty",
+	zed: "Zed",
+};
+
+const openInApplication = async (
+	application: DesktopApplication,
+	path: string
+): Promise<void> => {
+	if (process.platform !== "darwin") {
+		throw new Error("Opening a repository in this application requires macOS.");
+	}
+	await new Promise<void>((resolve, reject) => {
+		const child = spawn(
+			"/usr/bin/open",
+			["-a", MACOS_APPLICATION_NAMES[application], path],
+			{
+				detached: true,
+				stdio: "ignore",
+			}
+		);
+		child.once("error", reject);
+		child.once("spawn", () => {
+			child.unref();
+			resolve();
+		});
+	});
+};
 
 const platformWindowOptions = (): BrowserWindowConstructorOptions => {
 	if (process.platform !== "darwin") {
@@ -146,6 +180,16 @@ const start = async (): Promise<void> => {
 		),
 	});
 	repositoryManager = manager;
+	disposeDesktopIntegrationIpc = registerDesktopIntegrationIpc({
+		ipcMain,
+		isSenderAuthorized: (event) => event.sender === mainWindow?.webContents,
+		operations: {
+			copyText: (text) => clipboard.writeText(text),
+			openExternal: async (url) => await shell.openExternal(url),
+			openInApplication,
+			revealPath: (path) => shell.showItemInFolder(path),
+		},
+	});
 	disposeGitIpc = registerGitIpc({
 		ipcMain,
 		isSenderAuthorized: (event) => event.sender === mainWindow?.webContents,
@@ -182,6 +226,7 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
+	disposeDesktopIntegrationIpc?.();
 	disposeGitIpc?.();
 	disposeRepositoryOwnerIpc?.();
 	repositoryManager?.closeAllSessions();

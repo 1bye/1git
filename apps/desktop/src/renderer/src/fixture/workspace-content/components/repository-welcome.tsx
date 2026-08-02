@@ -42,6 +42,7 @@ interface RepositoryWelcomeProps {
 	readonly isLoading: boolean;
 	readonly onCloneRepository: (remoteUrl: string) => Promise<boolean>;
 	readonly onCreateRepository: () => Promise<boolean>;
+	readonly onForgetRecent: (path: string) => Promise<void>;
 	readonly onOpenRecent: (
 		path: string,
 		options?: OpenRepositoryOptions
@@ -60,6 +61,7 @@ interface QuickActionProps {
 
 interface RepositoryListItemProps {
 	readonly disabled: boolean;
+	readonly onForgetRecent: (path: string) => Promise<void>;
 	readonly onOpen: (
 		path: string,
 		options?: OpenRepositoryOptions
@@ -92,6 +94,7 @@ function QuickAction({
 
 function RepositoryListItem({
 	disabled,
+	onForgetRecent,
 	onOpen,
 	preview,
 	repository,
@@ -100,6 +103,7 @@ function RepositoryListItem({
 	return (
 		<RepositoryContextMenu
 			disabled={disabled}
+			onForgetRecent={onForgetRecent}
 			onOpen={onOpen}
 			preview={preview}
 			repository={repository}
@@ -112,6 +116,7 @@ function RepositoryListItem({
 function RepositoryGroup({
 	disabled,
 	heading,
+	onForgetRecent,
 	onOpen,
 	previews,
 	repositories,
@@ -119,6 +124,7 @@ function RepositoryGroup({
 }: {
 	readonly disabled: boolean;
 	readonly heading: string;
+	readonly onForgetRecent: (path: string) => Promise<void>;
 	readonly onOpen: (
 		path: string,
 		options?: OpenRepositoryOptions
@@ -141,6 +147,7 @@ function RepositoryGroup({
 					<li key={repository.path}>
 						<RepositoryListItem
 							disabled={disabled}
+							onForgetRecent={onForgetRecent}
 							onOpen={onOpen}
 							preview={previews.get(repository.path) ?? null}
 							repository={repository}
@@ -157,6 +164,7 @@ export function RepositoryWelcome({
 	isLoading,
 	onCloneRepository,
 	onCreateRepository,
+	onForgetRecent,
 	onOpenRecent,
 	onPickRepository,
 	recentRepositories,
@@ -453,6 +461,7 @@ export function RepositoryWelcome({
 						<RepositoryGroup
 							disabled={isLoading}
 							heading="Open"
+							onForgetRecent={onForgetRecent}
 							onOpen={onOpenRecent}
 							previews={previews}
 							repositories={openRepositories}
@@ -461,6 +470,7 @@ export function RepositoryWelcome({
 						<RepositoryGroup
 							disabled={isLoading}
 							heading={openRepositories.length > 0 ? "Other" : "Repositories"}
+							onForgetRecent={onForgetRecent}
 							onOpen={onOpenRecent}
 							previews={previews}
 							repositories={otherRepositories}

@@ -103,6 +103,7 @@ export interface GitWorkspace {
 	readonly diff: FileDiff | null;
 	readonly error: string | null;
 	readonly fetchRepository: () => Promise<void>;
+	readonly forgetRecentRepository: (path: string) => Promise<void>;
 	readonly history: CommitPage | null;
 	readonly isInitialLoading: boolean;
 	readonly lastFetchedAt: string | null;
@@ -471,6 +472,15 @@ export const useGitWorkspace = (): GitWorkspace => {
 		await openRepository(path, options);
 	};
 
+	const forgetRecentRepository = async (path: string): Promise<void> => {
+		try {
+			setError(null);
+			applyManagerState(await window.desktop.git.sessions.forgetRecent(path));
+		} catch (cause) {
+			setError(errorMessage(cause));
+		}
+	};
+
 	const activateWorkspace = async (
 		sessionId: RepositorySessionId
 	): Promise<void> => {
@@ -829,6 +839,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 		diff,
 		error,
 		fetchRepository,
+		forgetRecentRepository,
 		history,
 		isInitialLoading,
 		lastFetchedAt,

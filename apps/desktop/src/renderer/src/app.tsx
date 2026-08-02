@@ -25,6 +25,7 @@ export function App(): ReactElement {
 					onCloseWorkspace={workspace.closeWorkspace}
 					onCreateBranch={workspace.createBranch}
 					onFetch={workspace.fetchRepository}
+					onForgetRecent={workspace.forgetRecentRepository}
 					onOpenRecent={workspace.openRecentRepository}
 					onPickRepository={workspace.pickRepository}
 					onReorderWorkspace={workspace.reorderWorkspace}
@@ -47,6 +48,7 @@ export function App(): ReactElement {
 							}
 							onCloneRepository={workspace.cloneRepository}
 							onCreateRepository={workspace.createRepository}
+							onForgetRecent={workspace.forgetRecentRepository}
 							onOpenRecent={workspace.openRecentRepository}
 							onPickRepository={workspace.pickRepository}
 							recentRepositories={workspace.manager.recentRepositories}

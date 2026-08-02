@@ -1,5 +1,6 @@
 import { contextBridge, type IpcRendererEvent, ipcRenderer } from "electron";
 import type { DesktopApi } from "../shared/git-ipc.js";
+import { createDesktopIntegrationApi } from "./desktop-integration-api.js";
 import { createDesktopGitApi, type DesktopIpcSubscribe } from "./git-api.js";
 import { createRepositoryOwnerApi } from "./repository-owner-api.js";
 
@@ -15,6 +16,9 @@ const desktopApi: DesktopApi = {
 	git: createDesktopGitApi(
 		async (channel, payload) => await ipcRenderer.invoke(channel, payload),
 		subscribe
+	),
+	integrations: createDesktopIntegrationApi(
+		async (channel, payload) => await ipcRenderer.invoke(channel, payload)
 	),
 	platform: process.platform,
 	repositoryOwners: createRepositoryOwnerApi(

@@ -25,6 +25,7 @@ interface WorkspaceContentProps {
 	readonly onCloneRepository: (remoteUrl: string) => Promise<boolean>;
 	readonly onCreateRepository: () => Promise<boolean>;
 	readonly onFetch: () => Promise<void>;
+	readonly onForgetRecent: (path: string) => Promise<void>;
 	readonly onOpenRecent: (
 		path: string,
 		options?: OpenRepositoryOptions
@@ -46,6 +47,7 @@ export function WorkspaceContent({
 	onCloneRepository,
 	onCreateRepository,
 	onFetch,
+	onForgetRecent,
 	onOpenRecent,
 	onPickRepository,
 	recentRepositories,
@@ -60,6 +62,7 @@ export function WorkspaceContent({
 				isLoading={isRepositoryLoading}
 				onCloneRepository={onCloneRepository}
 				onCreateRepository={onCreateRepository}
+				onForgetRecent={onForgetRecent}
 				onOpenRecent={onOpenRecent}
 				onPickRepository={onPickRepository}
 				recentRepositories={recentRepositories}
