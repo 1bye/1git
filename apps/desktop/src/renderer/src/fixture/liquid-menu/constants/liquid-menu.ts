@@ -1,7 +1,6 @@
 import type { CSSProperties } from "react";
 
 interface LiquidMenuStyle extends CSSProperties {
-	readonly "--liquid-menu-backdrop-opacity": number;
 	readonly "--liquid-menu-content-delay": string;
 	readonly "--liquid-menu-content-duration": string;
 	readonly "--liquid-menu-resize-duration": string;
@@ -31,7 +30,6 @@ export const LIQUID_MENU_MOTION = {
 export const LIQUID_SUBMENU_CLOSE_DELAY_MS = 300;
 
 export const LIQUID_MENU_STYLE: LiquidMenuStyle = {
-	"--liquid-menu-backdrop-opacity": LIQUID_MENU_MOTION.backdropOpacity,
 	"--liquid-menu-content-delay": `${LIQUID_MENU_MOTION.contentDelayMs}ms`,
 	"--liquid-menu-content-duration": `${LIQUID_MENU_MOTION.contentDurationMs}ms`,
 	"--liquid-menu-resize-duration": `${LIQUID_MENU_MOTION.resizeDurationMs}ms`,

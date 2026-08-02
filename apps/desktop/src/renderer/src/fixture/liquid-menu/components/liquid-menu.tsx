@@ -16,6 +16,7 @@ import {
 	useCallback,
 	useEffect,
 	useId,
+	useLayoutEffect,
 	useMemo,
 	useRef,
 	useState,
@@ -33,8 +34,9 @@ import {
 	useLiquidMenuContext,
 	useLiquidMenuSubContext,
 } from "@/fixture/liquid-menu/hooks/use-liquid-menu-context.js";
+import { useLiquidMenuStack } from "@/fixture/liquid-menu/hooks/use-liquid-menu-stack.js";
 import type { LiquidMenuAnchorGeometry } from "@/fixture/liquid-menu/lib/liquid-menu-geometry.js";
-import { getLiquidMenuAnchorPresentation } from "@/fixture/liquid-menu/lib/liquid-menu-layer.js";
+import { getLiquidMenuLayerZIndices } from "@/fixture/liquid-menu/lib/liquid-menu-stack.js";
 
 type DropdownMenuProps = ComponentProps<typeof DropdownMenu>;
 type DropdownMenuOpenChange = NonNullable<DropdownMenuProps["onOpenChange"]>;
@@ -44,7 +46,6 @@ type ContextMenuOpenChange = NonNullable<ContextMenuProps["onOpenChange"]>;
 interface LiquidMenuRootProps extends Omit<DropdownMenuProps, "onOpenChange"> {
 	readonly anchor: () => Element | null;
 	readonly anchorGeometry: LiquidMenuAnchorGeometry;
-	readonly obscured?: boolean;
 	readonly onOpenChange?: DropdownMenuOpenChange;
 	readonly onPresenceChange?: (isPresent: boolean) => void;
 	readonly outlineWidth?: number;
@@ -54,7 +55,6 @@ interface LiquidContextMenuRootProps
 	extends Omit<ContextMenuProps, "onOpenChange"> {
 	readonly anchor: () => Element | null;
 	readonly anchorGeometry: LiquidMenuAnchorGeometry;
-	readonly obscured?: boolean;
 	readonly onOpenChange?: ContextMenuOpenChange;
 	readonly onPresenceChange?: (isPresent: boolean) => void;
 	readonly outlineWidth?: number;
@@ -64,7 +64,6 @@ interface UseLiquidMenuRootOptions {
 	readonly anchor: () => Element | null;
 	readonly anchorGeometry: LiquidMenuAnchorGeometry;
 	readonly defaultOpen?: boolean;
-	readonly obscured: boolean;
 	readonly onPresenceChange?: (isPresent: boolean) => void;
 	readonly open?: boolean;
 	readonly outlineWidth: number;
@@ -105,11 +104,12 @@ const useLiquidMenuRoot = ({
 	anchor,
 	anchorGeometry,
 	defaultOpen,
-	obscured,
 	onPresenceChange,
 	open,
 	outlineWidth,
 }: UseLiquidMenuRootOptions): LiquidMenuRootState => {
+	const layerId = useId();
+	const stack = useLiquidMenuStack();
 	const [internalOpen, setInternalOpen] = useState(defaultOpen ?? false);
 	const [activeSubmenuId, setActiveSubmenuId] = useState<string | null>(null);
 	const activeSubmenuIdRef = useRef<string | null>(null);
@@ -122,6 +122,9 @@ const useLiquidMenuRoot = ({
 	const [submenuTriggerElement, setSubmenuTriggerElement] =
 		useState<HTMLElement | null>(null);
 	const isOpen = open ?? internalOpen;
+	const layerIndex = stack.layerIds.indexOf(layerId);
+	const isTopLayer =
+		layerIndex >= 0 && layerIndex === stack.layerIds.length - 1;
 
 	const changeSubmenuOpen = useCallback(
 		(submenuId: string, nextIsOpen: boolean): void => {
@@ -162,6 +165,14 @@ const useLiquidMenuRoot = ({
 		setHasSubmenuSurface(isPresent);
 	}, []);
 
+	useLayoutEffect(() => {
+		if (!hasSurface) {
+			return;
+		}
+		stack.showLayer(layerId);
+		return () => stack.hideLayer(layerId);
+	}, [hasSurface, layerId, stack.hideLayer, stack.showLayer]);
+
 	const context = useMemo<LiquidMenuContextValue>(
 		() => ({
 			activeSubmenuId,
@@ -169,9 +180,10 @@ const useLiquidMenuRoot = ({
 			anchorGeometry,
 			hasSubmenuSurface,
 			hasSurface,
-			isObscured: obscured,
 			isOpen,
 			isSubmenuOpen: activeSubmenuId !== null,
+			isTopLayer,
+			layerIndex,
 			menuElement,
 			onPresenceChange: changePresence,
 			onSubmenuOpenChange: changeSubmenuOpen,
@@ -192,8 +204,9 @@ const useLiquidMenuRoot = ({
 			changeSubmenuPresence,
 			hasSubmenuSurface,
 			hasSurface,
-			obscured,
 			isOpen,
+			isTopLayer,
+			layerIndex,
 			menuElement,
 			outlineWidth,
 			submenuElement,
@@ -208,7 +221,6 @@ export function LiquidMenuRoot({
 	anchor,
 	anchorGeometry,
 	defaultOpen,
-	obscured = false,
 	onOpenChange,
 	onPresenceChange,
 	open,
@@ -219,7 +231,6 @@ export function LiquidMenuRoot({
 		anchor,
 		anchorGeometry,
 		defaultOpen,
-		obscured,
 		onPresenceChange,
 		open,
 		outlineWidth,
@@ -241,7 +252,6 @@ export function LiquidContextMenuRoot({
 	anchor,
 	anchorGeometry,
 	defaultOpen,
-	obscured = false,
 	onOpenChange,
 	onPresenceChange,
 	open,
@@ -252,7 +262,6 @@ export function LiquidContextMenuRoot({
 		anchor,
 		anchorGeometry,
 		defaultOpen,
-		obscured,
 		onPresenceChange,
 		open,
 		outlineWidth,
@@ -274,21 +283,11 @@ export function LiquidMenuTrigger({
 	...props
 }: ComponentProps<typeof DropdownMenuTrigger>): ReactElement {
 	const context = useLiquidMenuContext();
-	const anchorPresentation = getLiquidMenuAnchorPresentation({
-		hasSurface: context.hasSurface,
-		isObscured: context.isObscured,
-		isOpen: context.isOpen,
-	});
+	const isActive = context.isOpen || context.hasSurface;
 
 	return (
 		<DropdownMenuTrigger
-			data-liquid-menu-anchor-obscured={context.isObscured ? "true" : undefined}
-			data-liquid-menu-anchor-promoted={
-				anchorPresentation.isPromoted ? "true" : undefined
-			}
-			data-liquid-menu-anchor-state={
-				anchorPresentation.isActive ? "active" : undefined
-			}
+			data-liquid-menu-anchor-state={isActive ? "active" : undefined}
 			{...props}
 		/>
 	);
@@ -298,21 +297,11 @@ export function LiquidContextMenuTrigger({
 	...props
 }: ComponentProps<typeof ContextMenuTrigger>): ReactElement {
 	const context = useLiquidMenuContext();
-	const anchorPresentation = getLiquidMenuAnchorPresentation({
-		hasSurface: context.hasSurface,
-		isObscured: context.isObscured,
-		isOpen: context.isOpen,
-	});
+	const isActive = context.isOpen || context.hasSurface;
 
 	return (
 		<ContextMenuTrigger
-			data-liquid-menu-anchor-obscured={context.isObscured ? "true" : undefined}
-			data-liquid-menu-anchor-promoted={
-				anchorPresentation.isPromoted ? "true" : undefined
-			}
-			data-liquid-menu-anchor-state={
-				anchorPresentation.isActive ? "active" : undefined
-			}
+			data-liquid-menu-anchor-state={isActive ? "active" : undefined}
 			{...props}
 		/>
 	);
@@ -321,12 +310,16 @@ export function LiquidContextMenuTrigger({
 export function LiquidMenuContent({
 	anchor,
 	className,
+	positionerStyle,
 	ref,
 	style,
 	...props
 }: ComponentProps<typeof DropdownMenuContent>): ReactElement {
 	const context = useLiquidMenuContext();
 	const contentRef = useMergedElementRef(ref, context.setMenuElement);
+	const { content: contentZIndex } = getLiquidMenuLayerZIndices(
+		context.layerIndex
+	);
 
 	return (
 		<DropdownMenuContent
@@ -336,9 +329,9 @@ export function LiquidMenuContent({
 				context.hasSurface ? "border-transparent bg-transparent" : "opacity-0",
 				className
 			)}
-			data-liquid-menu-obscured={context.isObscured ? "true" : undefined}
 			data-liquid-surface={context.hasSurface ? "true" : undefined}
 			data-name="LiquidMenuContent"
+			positionerStyle={{ ...positionerStyle, zIndex: contentZIndex }}
 			ref={contentRef}
 			style={{ ...LIQUID_MENU_STYLE, ...style }}
 			{...props}
@@ -433,6 +426,7 @@ export function LiquidMenuSubTrigger({
 
 export function LiquidMenuSubContent({
 	className,
+	positionerStyle,
 	ref,
 	side = "right",
 	sideOffset = 0,
@@ -442,6 +436,9 @@ export function LiquidMenuSubContent({
 	const menuContext = useLiquidMenuContext();
 	const submenuContext = useLiquidMenuSubContext();
 	const contentRef = useMergedElementRef(ref, submenuContext.setContentElement);
+	const { content: contentZIndex } = getLiquidMenuLayerZIndices(
+		menuContext.layerIndex
+	);
 
 	return (
 		<DropdownMenuSubContent
@@ -454,6 +451,7 @@ export function LiquidMenuSubContent({
 			)}
 			data-liquid-surface={menuContext.hasSubmenuSurface ? "true" : undefined}
 			data-name="LiquidMenuSubContent"
+			positionerStyle={{ ...positionerStyle, zIndex: contentZIndex }}
 			ref={contentRef}
 			side={side}
 			sideOffset={sideOffset}

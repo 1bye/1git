@@ -174,7 +174,6 @@ export function RepositoryMenu({
 					anchorGeometry={REPOSITORY_MENU_ANCHOR_GEOMETRY}
 					disabled={!isVisible || pendingAction === "open"}
 					modal
-					obscured={contextLayer !== null}
 					onOpenChange={changeMenuOpen}
 					open={isOpen}
 				>

@@ -35,8 +35,13 @@ export interface LiquidMenuProgress {
 }
 
 export interface LiquidMenuFrame {
+	readonly anchor: LiquidMenuFrameAnchor;
 	readonly bounds: LiquidMenuRect;
 	readonly path: string;
+}
+
+export interface LiquidMenuFrameAnchor extends LiquidMenuRect {
+	readonly radius: number;
 }
 
 const clampProgress = (progress: number): number =>
@@ -265,6 +270,13 @@ export const createLiquidMenuFrame = (
 	}
 
 	return {
+		anchor: {
+			height: visualAnchor.height,
+			left: visualAnchor.left - bounds.left,
+			radius: anchorGeometry.radius,
+			top: visualAnchor.top - bounds.top,
+			width: visualAnchor.width,
+		},
 		bounds,
 		path: createLiquidUnionPath({
 			blendRadius: geometry.blendRadius,

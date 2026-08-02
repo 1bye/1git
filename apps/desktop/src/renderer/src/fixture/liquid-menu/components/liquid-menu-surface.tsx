@@ -1,15 +1,24 @@
 import type { CSSProperties, ReactElement } from "react";
+import { useId } from "react";
 import { createPortal } from "react-dom";
-import { LIQUID_MENU_MOTION } from "@/fixture/liquid-menu/constants/liquid-menu.js";
 import { useLiquidMenuContext } from "@/fixture/liquid-menu/hooks/use-liquid-menu-context.js";
 import { useLiquidMenuSurface } from "@/fixture/liquid-menu/hooks/use-liquid-menu-surface.js";
+import {
+	getLiquidMenuBackdropOpacity,
+	getLiquidMenuLayerZIndices,
+} from "@/fixture/liquid-menu/lib/liquid-menu-stack.js";
+
+const getSvgMaskUrl = (maskId: string): string => `url(#${maskId})`;
 
 export function LiquidMenuSurface(): ReactElement | null {
+	const maskId = useId().replaceAll(":", "");
 	const {
 		anchor,
 		anchorGeometry,
 		isOpen,
 		isSubmenuOpen,
+		isTopLayer,
+		layerIndex,
 		menuElement,
 		onPresenceChange,
 		onSubmenuPresenceChange,
@@ -32,8 +41,20 @@ export function LiquidMenuSurface(): ReactElement | null {
 		return null;
 	}
 
-	const backdropStyle: CSSProperties = {
-		opacity: LIQUID_MENU_MOTION.backdropOpacity * progress,
+	if (layerIndex < 0) {
+		return null;
+	}
+
+	const backdropMaskId = `${maskId}-backdrop`;
+	const surfaceMaskId = `${maskId}-surface`;
+	const backdropOpacity = getLiquidMenuBackdropOpacity({
+		hasLayerBelow: layerIndex > 0,
+		isTopLayer,
+		progress,
+	});
+	const { surface: surfaceZIndex } = getLiquidMenuLayerZIndices(layerIndex);
+	const layerStyle: CSSProperties = {
+		zIndex: surfaceZIndex,
 	};
 	const surfaceStyle: CSSProperties = {
 		height: frame.bounds.height,
@@ -45,16 +66,48 @@ export function LiquidMenuSurface(): ReactElement | null {
 	return createPortal(
 		<div
 			aria-hidden
-			className="pointer-events-none fixed inset-0 z-[3]"
+			className="pointer-events-none fixed inset-0"
+			data-layer-index={layerIndex}
 			data-name="LiquidMenuLayer"
 			data-progress={progress.toFixed(3)}
 			data-submenu-progress={submenuProgress.toFixed(3)}
+			style={layerStyle}
 		>
-			<span
-				className="absolute inset-0 bg-black"
-				data-name="LiquidMenuBackdrop"
-				style={backdropStyle}
-			/>
+			{isTopLayer ? (
+				<svg
+					aria-hidden
+					className="absolute inset-0 size-full"
+					data-name="LiquidMenuBackdrop"
+					preserveAspectRatio="none"
+				>
+					<title>Dimmed application backdrop</title>
+					<defs>
+						<mask
+							height="100%"
+							id={backdropMaskId}
+							maskContentUnits="userSpaceOnUse"
+							maskUnits="userSpaceOnUse"
+							width="100%"
+							x="0"
+							y="0"
+						>
+							<rect fill="white" height="100%" width="100%" />
+							<path
+								d={frame.path}
+								fill="black"
+								transform={`translate(${frame.bounds.left} ${frame.bounds.top})`}
+							/>
+						</mask>
+					</defs>
+					<rect
+						fill="black"
+						height="100%"
+						mask={getSvgMaskUrl(backdropMaskId)}
+						opacity={backdropOpacity}
+						width="100%"
+					/>
+				</svg>
+			) : null}
 			<svg
 				aria-hidden
 				className="absolute overflow-visible"
@@ -64,7 +117,36 @@ export function LiquidMenuSurface(): ReactElement | null {
 				viewBox={`0 0 ${frame.bounds.width} ${frame.bounds.height}`}
 			>
 				<title>Menu surface</title>
-				<path d={frame.path} data-name="LiquidMenuSurfaceFill" />
+				<defs>
+					<mask
+						height={frame.bounds.height}
+						id={surfaceMaskId}
+						maskContentUnits="userSpaceOnUse"
+						maskUnits="userSpaceOnUse"
+						width={frame.bounds.width}
+						x="0"
+						y="0"
+					>
+						<rect
+							fill="white"
+							height={frame.bounds.height}
+							width={frame.bounds.width}
+						/>
+						<rect
+							fill="black"
+							height={frame.anchor.height}
+							rx={frame.anchor.radius}
+							width={frame.anchor.width}
+							x={frame.anchor.left}
+							y={frame.anchor.top}
+						/>
+					</mask>
+				</defs>
+				<path
+					d={frame.path}
+					data-name="LiquidMenuSurfaceFill"
+					mask={getSvgMaskUrl(surfaceMaskId)}
+				/>
 				<path
 					d={frame.path}
 					data-name="LiquidMenuSurfaceOutline"

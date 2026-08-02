@@ -34,7 +34,6 @@ import {
 	WORKSPACE_TAB_SURFACE_GEOMETRY,
 } from "@/fixture/desktop-toolbar/constants/workspace-tab.js";
 import { LiquidMenuRoot } from "@/fixture/liquid-menu/components/liquid-menu.js";
-import { LiquidMenuDimScope } from "@/fixture/liquid-menu/components/liquid-menu-dim-scope.js";
 import type {
 	RecentRepositoryRecord,
 	RepositorySessionId,
@@ -286,12 +285,11 @@ export function DesktopToolbar({
 			data-name="DesktopToolbar"
 			style={DESKTOP_TOOLBAR_STYLE}
 		>
-			<LiquidMenuDimScope
+			<div
 				className="relative flex h-full min-w-0 items-stretch pl-(--desktop-titlebar-controls-width)"
 				data-active-tab-dragging={isActiveTabDragging ? "true" : undefined}
 				data-desktop-drag
 				data-name="WorkspaceTitlebar"
-				overflowBlockEnd={WORKSPACE_TAB_SURFACE_GEOMETRY.containerOverlap}
 			>
 				<WorkspaceLiquidSurface
 					activeSessionId={activeSessionId}
@@ -386,7 +384,7 @@ export function DesktopToolbar({
 						}}
 					</DragOverlay>
 				</DragDropProvider>
-			</LiquidMenuDimScope>
+			</div>
 		</header>
 	);
 }

@@ -138,6 +138,13 @@ describe("workspace liquid geometry", () => {
 		);
 
 		expect(frame.path.match(/ Z/g)).toHaveLength(1);
+		expect(frame.anchor).toEqual({
+			height: 32,
+			left: 60,
+			radius: 8,
+			top: 44,
+			width: 79,
+		});
 	});
 
 	test("grows a right-side root menu from the nearest anchor edge", () => {

@@ -12,7 +12,7 @@ describe("repository context menu", () => {
 		expect(shouldOpenRepositoryInBackground(false, false)).toBe(false);
 	});
 
-	test("keeps the parent obscured until the child surface finishes closing", () => {
+	test("keeps the child layer mounted until its surface finishes closing", () => {
 		const openLayer = updateRepositoryContextLayerOpen(
 			null,
 			"/repos/one",
