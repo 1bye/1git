@@ -2,7 +2,6 @@ import {
 	DropdownMenuGroup,
 	DropdownMenuItem,
 	DropdownMenuSeparator,
-	DropdownMenuTrigger,
 } from "@1git/ui/components/dropdown-menu";
 import { Input } from "@1git/ui/components/input";
 import { Kbd } from "@1git/ui/components/kbd";
@@ -31,11 +30,17 @@ import { AnimatedFolderOpenIcon } from "@/fixture/icons/components/animated-fold
 import {
 	LiquidMenuContent,
 	LiquidMenuRoot,
+	LiquidMenuTrigger,
 } from "@/fixture/liquid-menu/components/liquid-menu.js";
 import { LiquidMenuAutoSize } from "@/fixture/liquid-menu/components/liquid-menu-auto-size.js";
 import { RepositoryContextMenu } from "@/fixture/repository-item/components/repository-context-menu.js";
 import { REPOSITORY_ITEM_TOOLTIP_DELAY_MS } from "@/fixture/repository-item/constants/repository-context-menu.js";
 import { useRecentRepositoryPreviews } from "@/fixture/repository-item/hooks/use-recent-repository-previews.js";
+import {
+	type RepositoryContextLayer,
+	updateRepositoryContextLayerOpen,
+	updateRepositoryContextLayerPresence,
+} from "@/fixture/repository-item/lib/repository-context-layer.js";
 import { useKeyboardModifiers } from "@/hooks/use-keyboard-modifiers.js";
 import type { RecentRepositoryRecord } from "../../../../../shared/repository-session.js";
 
@@ -64,9 +69,8 @@ export function RepositoryMenu({
 	workspaces,
 }: RepositoryMenuProps): ReactElement {
 	const [query, setQuery] = useState("");
-	const [contextRepositoryPath, setContextRepositoryPath] = useState<
-		string | null
-	>(null);
+	const [contextLayer, setContextLayer] =
+		useState<RepositoryContextLayer | null>(null);
 	const { metaKey } = useKeyboardModifiers();
 	const searchInputRef = useRef<HTMLInputElement>(null);
 	const triggerRef = useRef<HTMLButtonElement>(null);
@@ -103,25 +107,34 @@ export function RepositoryMenu({
 	const closeMenu = (): void => {
 		onOpenChange(false);
 		setQuery("");
-		setContextRepositoryPath(null);
+		setContextLayer(null);
 	};
 	const changeMenuOpen = (nextIsOpen: boolean): void => {
 		onOpenChange(nextIsOpen);
 		if (!nextIsOpen) {
 			setQuery("");
-			setContextRepositoryPath(null);
+			setContextLayer(null);
 		}
 	};
 	const changeRepositoryContextOpen = (
 		repositoryPath: string,
 		nextIsOpen: boolean
 	): void => {
-		setContextRepositoryPath((currentPath) => {
-			if (nextIsOpen) {
-				return repositoryPath;
-			}
-			return currentPath === repositoryPath ? null : currentPath;
-		});
+		setContextLayer((currentLayer) =>
+			updateRepositoryContextLayerOpen(currentLayer, repositoryPath, nextIsOpen)
+		);
+	};
+	const changeRepositoryContextPresence = (
+		repositoryPath: string,
+		isPresent: boolean
+	): void => {
+		setContextLayer((currentLayer) =>
+			updateRepositoryContextLayerPresence(
+				currentLayer,
+				repositoryPath,
+				isPresent
+			)
+		);
 	};
 	const updateQuery = (event: ChangeEvent<HTMLInputElement>): void => {
 		setQuery(event.target.value);
@@ -161,13 +174,15 @@ export function RepositoryMenu({
 					anchorGeometry={REPOSITORY_MENU_ANCHOR_GEOMETRY}
 					disabled={!isVisible || pendingAction === "open"}
 					modal
+					obscured={contextLayer !== null}
 					onOpenChange={changeMenuOpen}
 					open={isOpen}
 				>
-					<DropdownMenuTrigger
+					<LiquidMenuTrigger
 						aria-keyshortcuts="Meta+K Control+K"
 						aria-label="Open repositories"
-						className="relative z-10 flex h-8 items-center gap-2 rounded-lg px-2.5 font-semibold text-editor-ink text-xss outline-none transition-colors hover:bg-white focus-visible:bg-studio-glass-strong"
+						className="relative flex h-8 items-center gap-2 rounded-lg px-2.5 font-semibold text-editor-ink text-xss outline-none transition-colors duration-150 hover:bg-white focus-visible:bg-studio-glass-strong"
+						data-name="RepositoryMenuTrigger"
 						ref={triggerRef}
 					>
 						{pendingAction === "open" ? (
@@ -184,7 +199,7 @@ export function RepositoryMenu({
 							/>
 						)}
 						Repos
-					</DropdownMenuTrigger>
+					</LiquidMenuTrigger>
 
 					{isOpen ? (
 						<LiquidMenuContent
@@ -193,9 +208,6 @@ export function RepositoryMenu({
 							aria-busy={pendingAction === "open"}
 							aria-label="Repositories"
 							className="max-h-[min(70vh,32rem)] w-[370px] min-w-[370px] p-1.5"
-							data-context-open={
-								contextRepositoryPath === null ? undefined : "true"
-							}
 							data-name="RepositoryMenuContent"
 							sideOffset={8}
 						>
@@ -244,10 +256,18 @@ export function RepositoryMenu({
 															nextIsOpen
 														)
 													}
+													onContextPresenceChange={(isPresent) =>
+														changeRepositoryContextPresence(
+															repository.path,
+															isPresent
+														)
+													}
 													onOpen={onOpenRecent}
 													onOpenForeground={closeMenu}
-													open={contextRepositoryPath === repository.path}
-													placement="right"
+													open={
+														contextLayer?.repositoryPath === repository.path &&
+														contextLayer.isOpen
+													}
 													preview={previews.get(repository.path) ?? null}
 													repository={repository}
 													variant="menu"

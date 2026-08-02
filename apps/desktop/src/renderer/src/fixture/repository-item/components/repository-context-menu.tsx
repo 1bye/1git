@@ -1,8 +1,4 @@
-import type {
-	ReactElement,
-	KeyboardEvent as ReactKeyboardEvent,
-	MouseEvent as ReactMouseEvent,
-} from "react";
+import type { ReactElement, MouseEvent as ReactMouseEvent } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
 	OpenRepositoryOptions,
@@ -11,8 +7,6 @@ import type {
 import {
 	LiquidContextMenuRoot,
 	LiquidMenuContent,
-	LiquidMenuSub,
-	LiquidMenuSubContent,
 } from "@/fixture/liquid-menu/components/liquid-menu.js";
 import { RepositoryContextActions } from "@/fixture/repository-item/components/repository-context-actions.js";
 import { RepositoryItem } from "@/fixture/repository-item/components/repository-item.js";
@@ -20,28 +14,23 @@ import {
 	REPOSITORY_CONTEXT_MENU_ANCHOR_GEOMETRY,
 	REPOSITORY_CONTEXT_MENU_WIDTH_CLASS_NAME,
 } from "@/fixture/repository-item/constants/repository-context-menu.js";
-import {
-	isRepositoryContextMenuKey,
-	shouldOpenRepositoryInBackground,
-} from "@/fixture/repository-item/lib/repository-context-menu.js";
+import { shouldOpenRepositoryInBackground } from "@/fixture/repository-item/lib/repository-context-menu.js";
 import type {
 	RecentRepositoryPreview,
 	RecentRepositoryRecord,
 } from "../../../../../shared/repository-session.js";
 
-type RepositoryContextMenuPlacement = "bottom" | "right";
-
 interface RepositoryContextMenuProps {
 	readonly disabled: boolean;
 	readonly metaKey?: boolean;
 	readonly onContextOpenChange?: (isOpen: boolean) => void;
+	readonly onContextPresenceChange?: (isPresent: boolean) => void;
 	readonly onOpen: (
 		path: string,
 		options?: OpenRepositoryOptions
 	) => Promise<void>;
 	readonly onOpenForeground?: () => void;
 	readonly open?: boolean;
-	readonly placement: RepositoryContextMenuPlacement;
 	readonly preview: RecentRepositoryPreview | null;
 	readonly repository: RecentRepositoryRecord;
 	readonly variant: "menu" | "welcome";
@@ -52,10 +41,10 @@ export function RepositoryContextMenu({
 	disabled,
 	metaKey = false,
 	onContextOpenChange,
+	onContextPresenceChange,
 	onOpen,
 	onOpenForeground,
 	open,
-	placement,
 	preview,
 	repository,
 	variant,
@@ -63,10 +52,11 @@ export function RepositoryContextMenu({
 }: RepositoryContextMenuProps): ReactElement {
 	const [anchorElement, setAnchorElement] = useState<HTMLElement | null>(null);
 	const [internalOpen, setInternalOpen] = useState(false);
+	const [isPresent, setIsPresent] = useState(false);
 	const onContextOpenChangeRef = useRef(onContextOpenChange);
-	const openedFromKeyboardRef = useRef(false);
-	const submenuContentRef = useRef<HTMLDivElement>(null);
+	const onContextPresenceChangeRef = useRef(onContextPresenceChange);
 	onContextOpenChangeRef.current = onContextOpenChange;
+	onContextPresenceChangeRef.current = onContextPresenceChange;
 	const isOpen = open ?? internalOpen;
 	const getAnchor = useCallback(
 		(): Element | null => anchorElement,
@@ -81,6 +71,13 @@ export function RepositoryContextMenu({
 		},
 		[onContextOpenChange, open]
 	);
+	const changePresence = useCallback(
+		(nextIsPresent: boolean): void => {
+			setIsPresent(nextIsPresent);
+			onContextPresenceChange?.(nextIsPresent);
+		},
+		[onContextPresenceChange]
+	);
 	const openRepository = async (
 		event: ReactMouseEvent<HTMLElement>
 	): Promise<void> => {
@@ -93,36 +90,13 @@ export function RepositoryContextMenu({
 		}
 		await onOpen(repository.path, { activate: !openInBackground });
 	};
-	const openNestedContextMenu = (event: ReactMouseEvent<HTMLElement>): void => {
-		if (disabled) {
-			return;
-		}
-		openedFromKeyboardRef.current = false;
-		event.preventDefault();
-		event.stopPropagation();
-		changeOpen(true);
-	};
-	const openNestedContextMenuFromKeyboard = (
-		event: ReactKeyboardEvent<HTMLElement>
-	): void => {
-		if (!(disabled || !isRepositoryContextMenuKey(event.key, event.shiftKey))) {
-			openedFromKeyboardRef.current = true;
-			event.preventDefault();
-			event.stopPropagation();
-			changeOpen(true);
-		}
-	};
 	const item = (
 		<RepositoryItem
-			asContextMenuTrigger={placement === "bottom"}
-			contextOpen={isOpen}
+			asContextMenuTrigger
+			contextOpen={isOpen || isPresent}
 			disabled={disabled}
 			onClick={openRepository}
-			onContextMenu={placement === "right" ? openNestedContextMenu : undefined}
 			onElementChange={setAnchorElement}
-			onKeyDown={
-				placement === "right" ? openNestedContextMenuFromKeyboard : undefined
-			}
 			preview={preview}
 			repository={repository}
 			variant={variant}
@@ -141,51 +115,17 @@ export function RepositoryContextMenu({
 	useEffect(
 		() => (): void => {
 			onContextOpenChangeRef.current?.(false);
+			onContextPresenceChangeRef.current?.(false);
 		},
 		[]
 	);
-	useEffect(() => {
-		if (!(isOpen && placement === "right" && openedFromKeyboardRef.current)) {
-			return;
-		}
-		const focusFrame = requestAnimationFrame(() => {
-			submenuContentRef.current
-				?.querySelector<HTMLElement>('[data-slot="dropdown-menu-item"]')
-				?.focus();
-		});
-		return () => cancelAnimationFrame(focusFrame);
-	}, [isOpen, placement]);
-
-	if (placement === "right") {
-		return (
-			<LiquidMenuSub
-				anchor={anchorElement}
-				onOpenChange={changeOpen}
-				open={isOpen}
-			>
-				{item}
-				{isOpen ? (
-					<LiquidMenuSubContent
-						align="center"
-						anchor={getAnchor}
-						aria-label={`Actions for ${repository.path}`}
-						className={`${REPOSITORY_CONTEXT_MENU_WIDTH_CLASS_NAME} p-1.5`}
-						ref={submenuContentRef}
-						side="right"
-						sideOffset={8}
-					>
-						{actions}
-					</LiquidMenuSubContent>
-				) : null}
-			</LiquidMenuSub>
-		);
-	}
 
 	return (
 		<LiquidContextMenuRoot
 			anchor={getAnchor}
 			anchorGeometry={REPOSITORY_CONTEXT_MENU_ANCHOR_GEOMETRY}
 			onOpenChange={changeOpen}
+			onPresenceChange={changePresence}
 			open={isOpen}
 		>
 			{item}

@@ -1,4 +1,3 @@
-import { ContextMenuTrigger } from "@1git/ui/components/context-menu";
 import { DropdownMenuItem } from "@1git/ui/components/dropdown-menu";
 import {
 	Tooltip,
@@ -20,6 +19,7 @@ import {
 	formatRelativeTime,
 	recentRepositoryName,
 } from "@/feature/workspace/lib/workspace-model.js";
+import { LiquidContextMenuTrigger } from "@/fixture/liquid-menu/components/liquid-menu.js";
 import { RepositoryOwnerThumbnail } from "@/fixture/repository-item/components/repository-owner-thumbnail.js";
 import type {
 	RecentRepositoryPreview,
@@ -197,7 +197,7 @@ export function RepositoryItem({
 			</button>
 		);
 	const trigger = asContextMenuTrigger ? (
-		<ContextMenuTrigger render={row} />
+		<LiquidContextMenuTrigger render={row} />
 	) : (
 		row
 	);

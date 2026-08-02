@@ -1,10 +1,14 @@
-import { ContextMenu } from "@1git/ui/components/context-menu";
+import {
+	ContextMenu,
+	ContextMenuTrigger,
+} from "@1git/ui/components/context-menu";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuSub,
 	DropdownMenuSubContent,
 	DropdownMenuSubTrigger,
+	DropdownMenuTrigger,
 } from "@1git/ui/components/dropdown-menu";
 import { cn } from "@1git/ui/lib/utils";
 import type { ComponentProps, ReactElement, Ref, RefCallback } from "react";
@@ -30,6 +34,7 @@ import {
 	useLiquidMenuSubContext,
 } from "@/fixture/liquid-menu/hooks/use-liquid-menu-context.js";
 import type { LiquidMenuAnchorGeometry } from "@/fixture/liquid-menu/lib/liquid-menu-geometry.js";
+import { getLiquidMenuAnchorPresentation } from "@/fixture/liquid-menu/lib/liquid-menu-layer.js";
 
 type DropdownMenuProps = ComponentProps<typeof DropdownMenu>;
 type DropdownMenuOpenChange = NonNullable<DropdownMenuProps["onOpenChange"]>;
@@ -39,6 +44,7 @@ type ContextMenuOpenChange = NonNullable<ContextMenuProps["onOpenChange"]>;
 interface LiquidMenuRootProps extends Omit<DropdownMenuProps, "onOpenChange"> {
 	readonly anchor: () => Element | null;
 	readonly anchorGeometry: LiquidMenuAnchorGeometry;
+	readonly obscured?: boolean;
 	readonly onOpenChange?: DropdownMenuOpenChange;
 	readonly onPresenceChange?: (isPresent: boolean) => void;
 	readonly outlineWidth?: number;
@@ -48,6 +54,7 @@ interface LiquidContextMenuRootProps
 	extends Omit<ContextMenuProps, "onOpenChange"> {
 	readonly anchor: () => Element | null;
 	readonly anchorGeometry: LiquidMenuAnchorGeometry;
+	readonly obscured?: boolean;
 	readonly onOpenChange?: ContextMenuOpenChange;
 	readonly onPresenceChange?: (isPresent: boolean) => void;
 	readonly outlineWidth?: number;
@@ -57,6 +64,7 @@ interface UseLiquidMenuRootOptions {
 	readonly anchor: () => Element | null;
 	readonly anchorGeometry: LiquidMenuAnchorGeometry;
 	readonly defaultOpen?: boolean;
+	readonly obscured: boolean;
 	readonly onPresenceChange?: (isPresent: boolean) => void;
 	readonly open?: boolean;
 	readonly outlineWidth: number;
@@ -97,6 +105,7 @@ const useLiquidMenuRoot = ({
 	anchor,
 	anchorGeometry,
 	defaultOpen,
+	obscured,
 	onPresenceChange,
 	open,
 	outlineWidth,
@@ -160,6 +169,7 @@ const useLiquidMenuRoot = ({
 			anchorGeometry,
 			hasSubmenuSurface,
 			hasSurface,
+			isObscured: obscured,
 			isOpen,
 			isSubmenuOpen: activeSubmenuId !== null,
 			menuElement,
@@ -182,6 +192,7 @@ const useLiquidMenuRoot = ({
 			changeSubmenuPresence,
 			hasSubmenuSurface,
 			hasSurface,
+			obscured,
 			isOpen,
 			menuElement,
 			outlineWidth,
@@ -197,6 +208,7 @@ export function LiquidMenuRoot({
 	anchor,
 	anchorGeometry,
 	defaultOpen,
+	obscured = false,
 	onOpenChange,
 	onPresenceChange,
 	open,
@@ -207,6 +219,7 @@ export function LiquidMenuRoot({
 		anchor,
 		anchorGeometry,
 		defaultOpen,
+		obscured,
 		onPresenceChange,
 		open,
 		outlineWidth,
@@ -228,6 +241,7 @@ export function LiquidContextMenuRoot({
 	anchor,
 	anchorGeometry,
 	defaultOpen,
+	obscured = false,
 	onOpenChange,
 	onPresenceChange,
 	open,
@@ -238,6 +252,7 @@ export function LiquidContextMenuRoot({
 		anchor,
 		anchorGeometry,
 		defaultOpen,
+		obscured,
 		onPresenceChange,
 		open,
 		outlineWidth,
@@ -252,6 +267,54 @@ export function LiquidContextMenuRoot({
 			<LiquidMenuSurface />
 			<ContextMenu onOpenChange={changeOpen} open={state.isOpen} {...props} />
 		</LiquidMenuContext>
+	);
+}
+
+export function LiquidMenuTrigger({
+	...props
+}: ComponentProps<typeof DropdownMenuTrigger>): ReactElement {
+	const context = useLiquidMenuContext();
+	const anchorPresentation = getLiquidMenuAnchorPresentation({
+		hasSurface: context.hasSurface,
+		isObscured: context.isObscured,
+		isOpen: context.isOpen,
+	});
+
+	return (
+		<DropdownMenuTrigger
+			data-liquid-menu-anchor-obscured={context.isObscured ? "true" : undefined}
+			data-liquid-menu-anchor-promoted={
+				anchorPresentation.isPromoted ? "true" : undefined
+			}
+			data-liquid-menu-anchor-state={
+				anchorPresentation.isActive ? "active" : undefined
+			}
+			{...props}
+		/>
+	);
+}
+
+export function LiquidContextMenuTrigger({
+	...props
+}: ComponentProps<typeof ContextMenuTrigger>): ReactElement {
+	const context = useLiquidMenuContext();
+	const anchorPresentation = getLiquidMenuAnchorPresentation({
+		hasSurface: context.hasSurface,
+		isObscured: context.isObscured,
+		isOpen: context.isOpen,
+	});
+
+	return (
+		<ContextMenuTrigger
+			data-liquid-menu-anchor-obscured={context.isObscured ? "true" : undefined}
+			data-liquid-menu-anchor-promoted={
+				anchorPresentation.isPromoted ? "true" : undefined
+			}
+			data-liquid-menu-anchor-state={
+				anchorPresentation.isActive ? "active" : undefined
+			}
+			{...props}
+		/>
 	);
 }
 
@@ -273,6 +336,7 @@ export function LiquidMenuContent({
 				context.hasSurface ? "border-transparent bg-transparent" : "opacity-0",
 				className
 			)}
+			data-liquid-menu-obscured={context.isObscured ? "true" : undefined}
 			data-liquid-surface={context.hasSurface ? "true" : undefined}
 			data-name="LiquidMenuContent"
 			ref={contentRef}

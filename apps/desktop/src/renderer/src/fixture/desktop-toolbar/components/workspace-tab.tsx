@@ -1,4 +1,3 @@
-import { DropdownMenuTrigger } from "@1git/ui/components/dropdown-menu";
 import { cn } from "@1git/ui/lib/utils";
 import { RestrictToHorizontalAxis } from "@dnd-kit/abstract/modifiers";
 import { useSortable } from "@dnd-kit/react/sortable";
@@ -15,6 +14,7 @@ import {
 } from "@/fixture/desktop-toolbar/constants/workspace-tab.js";
 import { useOverflowingTabLabel } from "@/fixture/desktop-toolbar/hooks/use-overflowing-tab-label.js";
 import { useWorkspaceTabClose } from "@/fixture/desktop-toolbar/hooks/use-workspace-tab-close.js";
+import { LiquidMenuTrigger } from "@/fixture/liquid-menu/components/liquid-menu.js";
 import { RepositoryOwnerThumbnail } from "@/fixture/repository-item/components/repository-owner-thumbnail.js";
 import type { RepositorySessionId } from "../../../../../shared/repository-session.js";
 
@@ -180,7 +180,7 @@ function WorkspaceTabNameButton({
 
 	if (isMenuTrigger) {
 		return (
-			<DropdownMenuTrigger
+			<LiquidMenuTrigger
 				aria-label={`Open actions for ${label}`}
 				className={WORKSPACE_TAB_NAME_BUTTON_CLASS_NAME}
 				data-desktop-interactive
@@ -191,7 +191,7 @@ function WorkspaceTabNameButton({
 				title={label}
 			>
 				{name}
-			</DropdownMenuTrigger>
+			</LiquidMenuTrigger>
 		);
 	}
 

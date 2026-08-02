@@ -8,6 +8,7 @@ export interface LiquidMenuContextValue {
 	readonly anchorGeometry: LiquidMenuAnchorGeometry;
 	readonly hasSubmenuSurface: boolean;
 	readonly hasSurface: boolean;
+	readonly isObscured: boolean;
 	readonly isOpen: boolean;
 	readonly isSubmenuOpen: boolean;
 	readonly menuElement: HTMLElement | null;

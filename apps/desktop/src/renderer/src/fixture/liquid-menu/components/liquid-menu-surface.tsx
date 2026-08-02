@@ -1,4 +1,5 @@
 import type { CSSProperties, ReactElement } from "react";
+import { createPortal } from "react-dom";
 import { LIQUID_MENU_MOTION } from "@/fixture/liquid-menu/constants/liquid-menu.js";
 import { useLiquidMenuContext } from "@/fixture/liquid-menu/hooks/use-liquid-menu-context.js";
 import { useLiquidMenuSurface } from "@/fixture/liquid-menu/hooks/use-liquid-menu-surface.js";
@@ -41,7 +42,7 @@ export function LiquidMenuSurface(): ReactElement | null {
 		width: frame.bounds.width,
 	};
 
-	return (
+	return createPortal(
 		<div
 			aria-hidden
 			className="pointer-events-none fixed inset-0 z-[3]"
@@ -73,6 +74,7 @@ export function LiquidMenuSurface(): ReactElement | null {
 					vectorEffect="non-scaling-stroke"
 				/>
 			</svg>
-		</div>
+		</div>,
+		document.body
 	);
 }

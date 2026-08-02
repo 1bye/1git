@@ -1,5 +1,4 @@
 import { Button, buttonVariants } from "@1git/ui/components/button";
-import { DropdownMenuTrigger } from "@1git/ui/components/dropdown-menu";
 import { Input } from "@1git/ui/components/input";
 import { TooltipProvider } from "@1git/ui/components/tooltip";
 import { FolderOpenIcon } from "@phosphor-icons/react/dist/csr/FolderOpen";
@@ -23,6 +22,7 @@ import { recentRepositoryName } from "@/feature/workspace/lib/workspace-model.js
 import {
 	LiquidMenuContent,
 	LiquidMenuRoot,
+	LiquidMenuTrigger,
 } from "@/fixture/liquid-menu/components/liquid-menu.js";
 import { LiquidMenuAutoSize } from "@/fixture/liquid-menu/components/liquid-menu-auto-size.js";
 import { RepositoryContextMenu } from "@/fixture/repository-item/components/repository-context-menu.js";
@@ -101,7 +101,6 @@ function RepositoryListItem({
 		<RepositoryContextMenu
 			disabled={disabled}
 			onOpen={onOpen}
-			placement="bottom"
 			preview={preview}
 			repository={repository}
 			variant="welcome"
@@ -308,7 +307,7 @@ export function RepositoryWelcome({
 								onOpenChange={changeCloneMenuOpen}
 								open={isCloneMenuOpen}
 							>
-								<DropdownMenuTrigger
+								<LiquidMenuTrigger
 									className={buttonVariants({
 										className: `${QUICK_ACTION_WIDTH_CLASS_NAME} relative z-10 justify-start px-2.5 text-editor-muted`,
 										size: "sm",
@@ -322,7 +321,7 @@ export function RepositoryWelcome({
 										weight="duotone"
 									/>
 									Clone from URL
-								</DropdownMenuTrigger>
+								</LiquidMenuTrigger>
 								{isCloneMenuOpen ? (
 									<LiquidMenuContent
 										align="center"
