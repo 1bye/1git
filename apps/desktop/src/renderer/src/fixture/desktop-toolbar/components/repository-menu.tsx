@@ -37,7 +37,7 @@ import {
 	REPOSITORY_MENU_ANCHOR_GEOMETRY,
 	REPOSITORY_MENU_TOOLTIP_DELAY_MS,
 } from "@/fixture/desktop-toolbar/constants/repository-menu.js";
-import { useRecentRepositoryPreview } from "@/fixture/desktop-toolbar/hooks/use-recent-repository-preview.js";
+import { useRecentRepositoryPreviews } from "@/fixture/desktop-toolbar/hooks/use-recent-repository-previews.js";
 import { AnimatedFolderOpenIcon } from "@/fixture/icons/components/animated-folder-open-icon.js";
 import {
 	LiquidMenuContent,
@@ -64,6 +64,7 @@ interface RecentRepositoryMenuItemProps {
 	readonly metaKey: boolean;
 	readonly onClose: () => void;
 	readonly onOpen: (path: string) => Promise<void>;
+	readonly preview: RecentRepositoryPreview | null;
 	readonly repository: RecentRepositoryRecord;
 	readonly workspace: WorkspaceTabState | null;
 }
@@ -118,14 +119,16 @@ function RecentRepositoryMenuItem({
 	metaKey,
 	onClose,
 	onOpen,
+	preview,
 	repository,
 	workspace,
 }: RecentRepositoryMenuItemProps): ReactElement {
 	const tooltipId = useId();
-	const preview = useRecentRepositoryPreview(repository.path);
-	const owner = preview
-		? getRepositoryOwner(preview.remotes, preview.head.upstream)
-		: null;
+	const owner =
+		workspace?.owner ??
+		(preview
+			? getRepositoryOwner(preview.remotes, preview.head.upstream)
+			: null);
 	const repositoryName = recentRepositoryName(repository);
 	const branchName =
 		workspace?.branch ?? (preview ? preview.head.branch : null);
@@ -227,6 +230,7 @@ export function RepositoryMenu({
 	const searchInputRef = useRef<HTMLInputElement>(null);
 	const triggerRef = useRef<HTMLButtonElement>(null);
 	const normalizedQuery = query.trim().toLocaleLowerCase();
+	const previews = useRecentRepositoryPreviews(recentRepositories, isOpen);
 	const workspacesByPath = new Map(
 		workspaces.map((workspace) => [
 			workspace.session.repository.root,
@@ -368,6 +372,7 @@ export function RepositoryMenu({
 													metaKey={metaKey}
 													onClose={closeMenu}
 													onOpen={onOpenRecent}
+													preview={previews.get(repository.path) ?? null}
 													repository={repository}
 													workspace={
 														workspacesByPath.get(repository.path) ?? null
