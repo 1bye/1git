@@ -344,7 +344,7 @@ export function RepositoryMenu({
 										<Input
 											aria-label="Find a repository or worktree"
 											autoFocus
-											className="h-8 border-editor-hairline bg-editor-sunken pl-8 text-xs shadow-none"
+											className="h-8 bg-editor-sunken pl-8 text-xs shadow-none"
 											onChange={updateQuery}
 											onKeyDown={stopMenuNavigation}
 											placeholder="Find a repository or worktree"
