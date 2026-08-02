@@ -1,10 +1,10 @@
 import type { CSSProperties, RefObject } from "react";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
-import { WORKSPACE_TAB_LABEL_MARQUEE } from "../constants/workspace-tab.js";
+import { WORKSPACE_TAB_LABEL_MARQUEE } from "@/fixture/desktop-toolbar/constants/workspace-tab.js";
 import {
 	getWorkspaceTabLabelMarqueeDuration,
 	getWorkspaceTabLabelOverflow,
-} from "../lib/workspace-tab-label.js";
+} from "@/fixture/desktop-toolbar/lib/workspace-tab-label.js";
 
 interface WorkspaceTabLabelStyle extends CSSProperties {
 	readonly "--workspace-tab-label-hover-delay": string;

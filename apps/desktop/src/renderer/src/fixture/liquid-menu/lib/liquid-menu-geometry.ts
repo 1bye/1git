@@ -1,8 +1,8 @@
-import { LIQUID_MENU_GEOMETRY } from "../constants/liquid-menu.js";
+import { LIQUID_MENU_GEOMETRY } from "@/fixture/liquid-menu/constants/liquid-menu.js";
 import {
 	createLiquidUnionPath,
 	type RoundedBox,
-} from "./liquid-surface-geometry.js";
+} from "@/fixture/liquid-menu/lib/liquid-surface-geometry.js";
 
 export interface LiquidMenuRect {
 	readonly height: number;

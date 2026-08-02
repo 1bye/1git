@@ -4,18 +4,18 @@ import { RestrictToHorizontalAxis } from "@dnd-kit/abstract/modifiers";
 import { useSortable } from "@dnd-kit/react/sortable";
 import { XIcon } from "@phosphor-icons/react/dist/csr/X";
 import type { CSSProperties, ReactElement, RefCallback } from "react";
-import type { RepositorySessionId } from "../../../../../shared/repository-session.js";
-import type { WorkspaceTabState } from "../../../feature/workspace/hooks/use-git-workspace.js";
+import type { WorkspaceTabState } from "@/feature/workspace/hooks/use-git-workspace.js";
 import {
 	getRepositoryName,
 	getWorkspaceLabel,
-} from "../../../feature/workspace/lib/workspace-model.js";
+} from "@/feature/workspace/lib/workspace-model.js";
+import { RepositoryOwnerThumbnail } from "@/fixture/desktop-toolbar/components/repository-owner-thumbnail.js";
 import {
 	WORKSPACE_TAB_REORDER_MOTION,
 	WORKSPACE_TAB_SURFACE_GEOMETRY,
-} from "../constants/workspace-tab.js";
-import { useOverflowingTabLabel } from "../hooks/use-overflowing-tab-label.js";
-import { RepositoryOwnerThumbnail } from "./repository-owner-thumbnail.js";
+} from "@/fixture/desktop-toolbar/constants/workspace-tab.js";
+import { useOverflowingTabLabel } from "@/fixture/desktop-toolbar/hooks/use-overflowing-tab-label.js";
+import type { RepositorySessionId } from "../../../../../shared/repository-session.js";
 
 interface WorkspaceTabProps {
 	readonly index: number;

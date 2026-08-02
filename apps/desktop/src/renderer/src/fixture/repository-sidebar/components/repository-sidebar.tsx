@@ -9,9 +9,9 @@ import type { KeyboardEvent, ReactElement } from "react";
 import type {
 	PendingWorkspaceAction,
 	RepositoryTab,
-} from "../../../feature/workspace/hooks/use-git-workspace.js";
-import { RepositoryChanges } from "./repository-changes.js";
-import { RepositoryHistory } from "./repository-history.js";
+} from "@/feature/workspace/hooks/use-git-workspace.js";
+import { RepositoryChanges } from "@/fixture/repository-sidebar/components/repository-changes.js";
+import { RepositoryHistory } from "@/fixture/repository-sidebar/components/repository-history.js";
 
 interface RepositorySidebarProps {
 	readonly history: CommitPage | null;

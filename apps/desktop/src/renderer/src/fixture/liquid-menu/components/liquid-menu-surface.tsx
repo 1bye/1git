@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactElement } from "react";
-import { LIQUID_MENU_MOTION } from "../constants/liquid-menu.js";
-import { useLiquidMenuContext } from "../hooks/use-liquid-menu-context.js";
-import { useLiquidMenuSurface } from "../hooks/use-liquid-menu-surface.js";
+import { LIQUID_MENU_MOTION } from "@/fixture/liquid-menu/constants/liquid-menu.js";
+import { useLiquidMenuContext } from "@/fixture/liquid-menu/hooks/use-liquid-menu-context.js";
+import { useLiquidMenuSurface } from "@/fixture/liquid-menu/hooks/use-liquid-menu-surface.js";
 
 export function LiquidMenuSurface(): ReactElement | null {
 	const {

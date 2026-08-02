@@ -1,4 +1,4 @@
-import { WORKSPACE_TAB_LABEL_MARQUEE } from "../constants/workspace-tab.js";
+import { WORKSPACE_TAB_LABEL_MARQUEE } from "@/fixture/desktop-toolbar/constants/workspace-tab.js";
 
 export const getWorkspaceTabLabelOverflow = (
 	viewportWidth: number,

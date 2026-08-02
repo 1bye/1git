@@ -2,7 +2,7 @@ import type { BranchCollection, BranchInfo } from "@1git/git";
 import {
 	LATEST_BRANCH_LIMIT,
 	WORKSPACE_BRANCH_COMMIT_AGE_UNITS,
-} from "../constants/workspace-actions-menu.js";
+} from "@/fixture/desktop-toolbar/constants/workspace-actions-menu.js";
 
 interface WorkspaceBranchGroups {
 	readonly latestBranches: readonly BranchInfo[];

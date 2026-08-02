@@ -2,7 +2,7 @@ import type { CommitInfo, CommitPage } from "@1git/git";
 import { cn } from "@1git/ui/lib/utils";
 import { GitCommitIcon } from "@phosphor-icons/react/dist/csr/GitCommit";
 import type { ReactElement } from "react";
-import { formatRelativeTime } from "../../../feature/workspace/lib/workspace-model.js";
+import { formatRelativeTime } from "@/feature/workspace/lib/workspace-model.js";
 
 interface CommitRowProps {
 	readonly commit: CommitInfo;

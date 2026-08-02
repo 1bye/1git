@@ -3,6 +3,9 @@
   "compilerOptions": {
     "jsx": "react-jsx",
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "paths": {
+      "@/*": ["./src/renderer/src/*"]
+    },
     "strictNullChecks": true,
     "types": ["bun", "node"]
   },

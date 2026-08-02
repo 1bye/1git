@@ -27,19 +27,19 @@ import type {
 	KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import { useId, useState } from "react";
-import type { PendingWorkspaceAction } from "../../../feature/workspace/hooks/use-git-workspace.js";
-import { formatCommitDate } from "../../../feature/workspace/lib/workspace-model.js";
-import { LiquidMenuContent } from "../../liquid-menu/components/liquid-menu.js";
-import { LiquidMenuAutoSize } from "../../liquid-menu/components/liquid-menu-auto-size.js";
+import type { PendingWorkspaceAction } from "@/feature/workspace/hooks/use-git-workspace.js";
+import { formatCommitDate } from "@/feature/workspace/lib/workspace-model.js";
 import {
 	WORKSPACE_BRANCH_EXPANDED_VISIBLE_LIMIT,
 	WORKSPACE_BRANCH_MENU_ITEM_HEIGHT_PX,
 	WORKSPACE_BRANCH_TOOLTIP_DELAY_MS,
-} from "../constants/workspace-actions-menu.js";
+} from "@/fixture/desktop-toolbar/constants/workspace-actions-menu.js";
 import {
 	formatBranchCommitAge,
 	groupWorkspaceBranches,
-} from "../lib/workspace-actions-menu.js";
+} from "@/fixture/desktop-toolbar/lib/workspace-actions-menu.js";
+import { LiquidMenuContent } from "@/fixture/liquid-menu/components/liquid-menu.js";
+import { LiquidMenuAutoSize } from "@/fixture/liquid-menu/components/liquid-menu-auto-size.js";
 
 interface WorkspaceActionsMenuProps {
 	readonly branches: BranchCollection | null;

@@ -7,15 +7,15 @@ import { FunnelSimpleIcon } from "@phosphor-icons/react/dist/csr/FunnelSimple";
 import { MinusIcon } from "@phosphor-icons/react/dist/csr/Minus";
 import type { ChangeEvent, ReactElement } from "react";
 import { useState } from "react";
-import type { PendingWorkspaceAction } from "../../../feature/workspace/hooks/use-git-workspace.js";
+import type { PendingWorkspaceAction } from "@/feature/workspace/hooks/use-git-workspace.js";
 import {
 	areAllFilesStaged,
 	getFileChangeLabel,
 	isFilePartiallyStaged,
 	isFileStaged,
 	matchesFileFilter,
-} from "../../../feature/workspace/lib/workspace-model.js";
-import { CommitForm } from "./commit-form.js";
+} from "@/feature/workspace/lib/workspace-model.js";
+import { CommitForm } from "@/fixture/repository-sidebar/components/commit-form.js";
 
 interface StageCheckboxProps {
 	readonly checked: boolean;

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { RepositoryOwner } from "../../../feature/workspace/lib/repository-owner.js";
+import type { RepositoryOwner } from "@/feature/workspace/lib/repository-owner.js";
 
 interface RepositoryOwnerAvatarState {
 	readonly dataUrl: string | null;

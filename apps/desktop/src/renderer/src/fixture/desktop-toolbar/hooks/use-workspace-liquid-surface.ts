@@ -1,17 +1,17 @@
 import type { RefObject } from "react";
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { RepositorySessionId } from "../../../../../shared/repository-session.js";
 import {
 	WORKSPACE_TAB_SURFACE_GEOMETRY,
 	WORKSPACE_TAB_SURFACE_MOTION,
-} from "../constants/workspace-tab.js";
-import { createWorkspaceLiquidPath } from "../lib/workspace-liquid-geometry.js";
+} from "@/fixture/desktop-toolbar/constants/workspace-tab.js";
+import { createWorkspaceLiquidPath } from "@/fixture/desktop-toolbar/lib/workspace-liquid-geometry.js";
 import {
 	createCollapsedWorkspaceLiquidMeasurement,
 	easeWorkspaceLiquidMotion,
 	interpolateWorkspaceLiquidMeasurement,
 	type WorkspaceLiquidMeasurement,
-} from "../lib/workspace-liquid-motion.js";
+} from "@/fixture/desktop-toolbar/lib/workspace-liquid-motion.js";
+import type { RepositorySessionId } from "../../../../../shared/repository-session.js";
 
 interface UseWorkspaceLiquidSurfaceOptions {
 	readonly activeSessionId: RepositorySessionId | null;

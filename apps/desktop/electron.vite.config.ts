@@ -6,6 +6,7 @@ import { defineConfig } from "electron-vite";
 
 const directory = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(directory, "..", "..");
+const rendererSource = path.resolve(directory, "src", "renderer", "src");
 
 export default defineConfig({
 	main: {
@@ -29,6 +30,11 @@ export default defineConfig({
 			outDir: "dist/renderer",
 		},
 		plugins: [tailwindcss(), react()],
+		resolve: {
+			alias: {
+				"@": rendererSource,
+			},
+		},
 		server: {
 			fs: {
 				allow: [repositoryRoot],

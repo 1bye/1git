@@ -1,6 +1,6 @@
 import type { RefCallback } from "react";
 import { createContext, use } from "react";
-import type { LiquidMenuAnchorGeometry } from "../lib/liquid-menu-geometry.js";
+import type { LiquidMenuAnchorGeometry } from "@/fixture/liquid-menu/lib/liquid-menu-geometry.js";
 
 export interface LiquidMenuContextValue {
 	readonly activeSubmenuId: string | null;

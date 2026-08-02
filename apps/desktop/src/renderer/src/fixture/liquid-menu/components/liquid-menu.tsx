@@ -15,10 +15,11 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { LiquidMenuSurface } from "@/fixture/liquid-menu/components/liquid-menu-surface.js";
 import {
 	LIQUID_MENU_STYLE,
 	LIQUID_SUBMENU_CLOSE_DELAY_MS,
-} from "../constants/liquid-menu.js";
+} from "@/fixture/liquid-menu/constants/liquid-menu.js";
 import {
 	LiquidMenuContext,
 	type LiquidMenuContextValue,
@@ -26,9 +27,8 @@ import {
 	type LiquidMenuSubContextValue,
 	useLiquidMenuContext,
 	useLiquidMenuSubContext,
-} from "../hooks/use-liquid-menu-context.js";
-import type { LiquidMenuAnchorGeometry } from "../lib/liquid-menu-geometry.js";
-import { LiquidMenuSurface } from "./liquid-menu-surface.js";
+} from "@/fixture/liquid-menu/hooks/use-liquid-menu-context.js";
+import type { LiquidMenuAnchorGeometry } from "@/fixture/liquid-menu/lib/liquid-menu-geometry.js";
 
 type DropdownMenuProps = ComponentProps<typeof DropdownMenu>;
 type DropdownMenuOpenChange = NonNullable<DropdownMenuProps["onOpenChange"]>;

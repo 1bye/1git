@@ -3,7 +3,7 @@ import {
 	signedDistanceToRoundedBox,
 	smoothMinimum,
 	traceDistanceField,
-} from "../../liquid-menu/lib/liquid-surface-geometry.js";
+} from "@/fixture/liquid-menu/lib/liquid-surface-geometry.js";
 
 interface WorkspaceLiquidPathInput {
 	readonly blendRadius: number;

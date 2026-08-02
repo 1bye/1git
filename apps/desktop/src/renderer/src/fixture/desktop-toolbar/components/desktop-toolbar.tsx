@@ -17,23 +17,26 @@ import type {
 } from "react";
 import { useEffect, useState } from "react";
 import type {
-	RecentRepositoryRecord,
-	RepositorySessionId,
-} from "../../../../../shared/repository-session.js";
-import type {
 	PendingWorkspaceAction,
 	WorkspaceTabState,
-} from "../../../feature/workspace/hooks/use-git-workspace.js";
-import { LiquidMenuRoot } from "../../liquid-menu/components/liquid-menu.js";
+} from "@/feature/workspace/hooks/use-git-workspace.js";
+import { RepositoryMenu } from "@/fixture/desktop-toolbar/components/repository-menu.js";
+import { WorkspaceActionsMenu } from "@/fixture/desktop-toolbar/components/workspace-actions-menu.js";
+import { WorkspaceLiquidSurface } from "@/fixture/desktop-toolbar/components/workspace-liquid-surface.js";
+import {
+	WorkspaceTab,
+	WorkspaceTabOverlay,
+} from "@/fixture/desktop-toolbar/components/workspace-tab.js";
 import {
 	WORKSPACE_TAB_POINTER_DRAG_HANDLE_SELECTOR,
 	WORKSPACE_TAB_REORDER_MOTION,
 	WORKSPACE_TAB_SURFACE_GEOMETRY,
-} from "../constants/workspace-tab.js";
-import { RepositoryMenu } from "./repository-menu.js";
-import { WorkspaceActionsMenu } from "./workspace-actions-menu.js";
-import { WorkspaceLiquidSurface } from "./workspace-liquid-surface.js";
-import { WorkspaceTab, WorkspaceTabOverlay } from "./workspace-tab.js";
+} from "@/fixture/desktop-toolbar/constants/workspace-tab.js";
+import { LiquidMenuRoot } from "@/fixture/liquid-menu/components/liquid-menu.js";
+import type {
+	RecentRepositoryRecord,
+	RepositorySessionId,
+} from "../../../../../shared/repository-session.js";
 
 interface DesktopToolbarProps {
 	readonly activeSessionId: RepositorySessionId | null;
@@ -280,9 +283,7 @@ export function DesktopToolbar({
 					isDragging={Boolean(draggingSessionId)}
 				/>
 				<RepositoryMenu
-					activeSessionId={activeSessionId}
 					isOpen={isRepositoryMenuOpen}
-					onActivateWorkspace={onActivateWorkspace}
 					onOpenChange={setRepositoryMenuOpen}
 					onOpenRecent={onOpenRecent}
 					onPickRepository={onPickRepository}

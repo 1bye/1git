@@ -3,11 +3,11 @@ import { FolderOpenIcon } from "@phosphor-icons/react/dist/csr/FolderOpen";
 import { GitBranchIcon } from "@phosphor-icons/react/dist/csr/GitBranch";
 import { SpinnerGapIcon } from "@phosphor-icons/react/dist/csr/SpinnerGap";
 import type { ReactElement } from "react";
-import type { RecentRepositoryRecord } from "../../../../../shared/repository-session.js";
 import {
 	formatRelativeTime,
 	recentRepositoryName,
-} from "../../../feature/workspace/lib/workspace-model.js";
+} from "@/feature/workspace/lib/workspace-model.js";
+import type { RecentRepositoryRecord } from "../../../../../shared/repository-session.js";
 
 interface RepositoryWelcomeProps {
 	readonly isLoading: boolean;

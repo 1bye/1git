@@ -6,8 +6,8 @@ import { parsePatchFiles } from "@pierre/diffs";
 import { FileDiff as PierreFileDiff } from "@pierre/diffs/react";
 import type { ReactElement } from "react";
 import { useMemo } from "react";
-import type { RepositoryTab } from "../../../feature/workspace/hooks/use-git-workspace.js";
-import { formatCommitDate } from "../../../feature/workspace/lib/workspace-model.js";
+import type { RepositoryTab } from "@/feature/workspace/hooks/use-git-workspace.js";
+import { formatCommitDate } from "@/feature/workspace/lib/workspace-model.js";
 
 const DIFF_RENDER_OPTIONS = {
 	diffIndicators: "bars",

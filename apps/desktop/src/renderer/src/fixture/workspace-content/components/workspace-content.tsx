@@ -2,15 +2,15 @@ import type { CommitInfo, FileDiff, RepositorySnapshot } from "@1git/git";
 import { GitDiffIcon } from "@phosphor-icons/react/dist/csr/GitDiff";
 import { SpinnerGapIcon } from "@phosphor-icons/react/dist/csr/SpinnerGap";
 import type { ReactElement } from "react";
+import type { RepositoryTab } from "@/feature/workspace/hooks/use-git-workspace.js";
+import { getRepositoryName } from "@/feature/workspace/lib/workspace-model.js";
+import { CleanState } from "@/fixture/workspace-content/components/clean-state.js";
+import { DiffView } from "@/fixture/workspace-content/components/diff-view.js";
+import { RepositoryWelcome } from "@/fixture/workspace-content/components/repository-welcome.js";
 import type {
 	RecentRepositoryRecord,
 	RepositorySessionRecord,
 } from "../../../../../shared/repository-session.js";
-import type { RepositoryTab } from "../../../feature/workspace/hooks/use-git-workspace.js";
-import { getRepositoryName } from "../../../feature/workspace/lib/workspace-model.js";
-import { CleanState } from "./clean-state.js";
-import { DiffView } from "./diff-view.js";
-import { RepositoryWelcome } from "./repository-welcome.js";
 
 interface WorkspaceContentProps {
 	readonly activeSession: RepositorySessionRecord | null;

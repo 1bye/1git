@@ -6,7 +6,7 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { LIQUID_MENU_MOTION } from "../constants/liquid-menu.js";
+import { LIQUID_MENU_MOTION } from "@/fixture/liquid-menu/constants/liquid-menu.js";
 import {
 	createLiquidMenuFrame,
 	easeLiquidMenuProgress,
@@ -15,7 +15,7 @@ import {
 	type LiquidMenuMeasurement,
 	type LiquidMenuRect,
 	type LiquidMenuSubmenuMeasurement,
-} from "../lib/liquid-menu-geometry.js";
+} from "@/fixture/liquid-menu/lib/liquid-menu-geometry.js";
 
 interface UseLiquidMenuSurfaceOptions {
 	readonly anchor: () => Element | null;

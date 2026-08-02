@@ -9,26 +9,26 @@ import type {
 	RepositorySnapshot,
 } from "@1git/git";
 import { useCallback, useEffect, useState } from "react";
+import { useRepositoryRefresh } from "@/feature/workspace/hooks/use-repository-refresh.js";
+import {
+	getRepositoryOwner,
+	type RepositoryOwner,
+} from "@/feature/workspace/lib/repository-owner.js";
+import { isFileStaged } from "@/feature/workspace/lib/workspace-model.js";
+import {
+	moveWorkspaceInOrder,
+	reconcileWorkspaceOrder,
+} from "@/feature/workspace/lib/workspace-order.js";
+import {
+	type SessionSnapshotState,
+	snapshotForSession,
+} from "@/feature/workspace/lib/workspace-snapshot.js";
 import type {
 	RepositoryManagerResult,
 	RepositoryManagerState,
 	RepositorySessionId,
 	RepositorySessionRecord,
 } from "../../../../../shared/repository-session.js";
-import {
-	getRepositoryOwner,
-	type RepositoryOwner,
-} from "../lib/repository-owner.js";
-import { isFileStaged } from "../lib/workspace-model.js";
-import {
-	moveWorkspaceInOrder,
-	reconcileWorkspaceOrder,
-} from "../lib/workspace-order.js";
-import {
-	type SessionSnapshotState,
-	snapshotForSession,
-} from "../lib/workspace-snapshot.js";
-import { useRepositoryRefresh } from "./use-repository-refresh.js";
 
 export type RepositoryTab = "changes" | "history";
 export type PendingWorkspaceAction =

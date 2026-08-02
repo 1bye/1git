@@ -1,5 +1,5 @@
 import type { ReactElement, ReactNode } from "react";
-import { useLiquidMenuSize } from "../hooks/use-liquid-menu-size.js";
+import { useLiquidMenuSize } from "@/fixture/liquid-menu/hooks/use-liquid-menu-size.js";
 
 interface LiquidMenuAutoSizeProps {
 	readonly children: ReactNode;
