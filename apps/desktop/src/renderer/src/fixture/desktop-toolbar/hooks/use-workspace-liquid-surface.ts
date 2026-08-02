@@ -35,9 +35,32 @@ const hasSameMeasurement = (
 	next: WorkspaceLiquidMeasurement
 ): boolean =>
 	current?.surfaceWidth === next.surfaceWidth &&
+	current.tabHeight === next.tabHeight &&
 	current.tabLeft === next.tabLeft &&
 	current.tabTop === next.tabTop &&
 	current.tabWidth === next.tabWidth;
+
+const getTabSdfHeight = (
+	surfaceWidth: number,
+	tabLeft: number,
+	tabWidth: number
+): number => {
+	const geometry = WORKSPACE_TAB_SURFACE_GEOMETRY;
+	const tabRight = tabLeft + tabWidth;
+	const edgeClearance = Math.max(
+		0,
+		Math.min(
+			tabLeft - geometry.containerInset,
+			surfaceWidth - geometry.containerInset - tabRight
+		)
+	);
+	const edgeProgress = Math.min(1, edgeClearance / geometry.containerRadius);
+	const sdfExtension =
+		geometry.tabSdfEdgeExtensionBlockEnd +
+		(geometry.tabSdfExtensionBlockEnd - geometry.tabSdfEdgeExtensionBlockEnd) *
+			edgeProgress;
+	return geometry.tabHeight - geometry.tabVisualInsetBlock * 2 + sdfExtension;
+};
 
 const findTrackedActiveTab = (
 	titlebar: HTMLElement,
@@ -197,17 +220,23 @@ export function useWorkspaceLiquidSurface({
 		const geometry = WORKSPACE_TAB_SURFACE_GEOMETRY;
 		const titlebarBounds = titlebar.getBoundingClientRect();
 		const tabBounds = activeTab.getBoundingClientRect();
+		const surfaceWidth = roundMeasurement(titlebarBounds.width);
+		const tabLeft = roundMeasurement(
+			tabBounds.left - titlebarBounds.left + geometry.tabVisualInsetInline
+		);
+		const tabWidth = roundMeasurement(
+			Math.max(0, tabBounds.width - geometry.tabVisualInsetInline * 2)
+		);
 		const nextMeasurement: WorkspaceLiquidMeasurement = {
-			surfaceWidth: roundMeasurement(titlebarBounds.width),
-			tabLeft: roundMeasurement(
-				tabBounds.left - titlebarBounds.left + geometry.tabVisualInsetInline
+			surfaceWidth,
+			tabHeight: roundMeasurement(
+				getTabSdfHeight(surfaceWidth, tabLeft, tabWidth)
 			),
+			tabLeft,
 			tabTop: roundMeasurement(
 				tabBounds.top - titlebarBounds.top + geometry.tabVisualInsetBlock
 			),
-			tabWidth: roundMeasurement(
-				Math.max(0, tabBounds.width - geometry.tabVisualInsetInline * 2)
-			),
+			tabWidth,
 		};
 		const shouldAnimateSessionChange =
 			!isDragging &&
@@ -268,21 +297,6 @@ export function useWorkspaceLiquidSurface({
 		}
 
 		const geometry = WORKSPACE_TAB_SURFACE_GEOMETRY;
-		const tabRight = measurement.tabLeft + measurement.tabWidth;
-		const edgeClearance = Math.max(
-			0,
-			Math.min(
-				measurement.tabLeft - geometry.containerInset,
-				measurement.surfaceWidth - geometry.containerInset - tabRight
-			)
-		);
-		const edgeProgress = Math.min(1, edgeClearance / geometry.containerRadius);
-		const sdfExtension =
-			geometry.tabSdfEdgeExtensionBlockEnd +
-			(geometry.tabSdfExtensionBlockEnd -
-				geometry.tabSdfEdgeExtensionBlockEnd) *
-				edgeProgress;
-
 		return createWorkspaceLiquidPath({
 			blendRadius: geometry.blendRadius,
 			containerDepth: geometry.containerDepth,
@@ -292,8 +306,7 @@ export function useWorkspaceLiquidSurface({
 			sampleCellSize: geometry.sampleCellSize,
 			smoothingPasses: geometry.smoothingPasses,
 			surfaceWidth: measurement.surfaceWidth,
-			tabHeight:
-				geometry.tabHeight - geometry.tabVisualInsetBlock * 2 + sdfExtension,
+			tabHeight: measurement.tabHeight,
 			tabLeft: measurement.tabLeft,
 			tabRadius: geometry.tabRadius,
 			tabTop: measurement.tabTop,

@@ -1,5 +1,6 @@
 export interface WorkspaceLiquidMeasurement {
 	readonly surfaceWidth: number;
+	readonly tabHeight: number;
 	readonly tabLeft: number;
 	readonly tabTop: number;
 	readonly tabWidth: number;
@@ -48,8 +49,8 @@ export const createCollapsedWorkspaceLiquidMeasurement = (
 	measurement: WorkspaceLiquidMeasurement
 ): WorkspaceLiquidMeasurement => ({
 	...measurement,
-	tabLeft: measurement.tabLeft + measurement.tabWidth / 2,
-	tabWidth: 0,
+	tabHeight: 0,
+	tabTop: measurement.tabTop + measurement.tabHeight,
 });
 
 export const easeWorkspaceLiquidMotion = (progress: number): number => {
@@ -91,6 +92,7 @@ export const interpolateWorkspaceLiquidMeasurement = (
 	const normalizedProgress = clampProgress(progress);
 	return {
 		surfaceWidth: end.surfaceWidth,
+		tabHeight: interpolate(start.tabHeight, end.tabHeight, normalizedProgress),
 		tabLeft: interpolate(start.tabLeft, end.tabLeft, normalizedProgress),
 		tabTop: interpolate(start.tabTop, end.tabTop, normalizedProgress),
 		tabWidth: interpolate(start.tabWidth, end.tabWidth, normalizedProgress),

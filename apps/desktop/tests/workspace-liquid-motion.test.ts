@@ -6,9 +6,10 @@ import {
 } from "../src/renderer/src/fixture/desktop-toolbar/lib/workspace-liquid-motion.js";
 
 describe("workspace liquid motion", () => {
-	test("collapses the final pill toward its center", () => {
+	test("melts the final pill downward into the workspace", () => {
 		const measurement = {
 			surfaceWidth: 900,
+			tabHeight: 48,
 			tabLeft: 220,
 			tabTop: 4,
 			tabWidth: 202,
@@ -17,9 +18,10 @@ describe("workspace liquid motion", () => {
 		const collapsedMeasurement =
 			createCollapsedWorkspaceLiquidMeasurement(measurement);
 
-		expect(collapsedMeasurement.tabLeft).toBe(321);
-		expect(collapsedMeasurement.tabWidth).toBe(0);
-		expect(collapsedMeasurement.tabTop).toBe(measurement.tabTop);
+		expect(collapsedMeasurement.tabHeight).toBe(0);
+		expect(collapsedMeasurement.tabLeft).toBe(measurement.tabLeft);
+		expect(collapsedMeasurement.tabTop).toBe(52);
+		expect(collapsedMeasurement.tabWidth).toBe(measurement.tabWidth);
 		expect(collapsedMeasurement.surfaceWidth).toBe(measurement.surfaceWidth);
 	});
 
@@ -27,12 +29,14 @@ describe("workspace liquid motion", () => {
 		const measurement = interpolateWorkspaceLiquidMeasurement(
 			{
 				surfaceWidth: 800,
+				tabHeight: 48,
 				tabLeft: 100,
 				tabTop: 4,
 				tabWidth: 202,
 			},
 			{
 				surfaceWidth: 900,
+				tabHeight: 44,
 				tabLeft: 320,
 				tabTop: 6,
 				tabWidth: 180,
@@ -42,6 +46,7 @@ describe("workspace liquid motion", () => {
 
 		expect(measurement).toEqual({
 			surfaceWidth: 900,
+			tabHeight: 46,
 			tabLeft: 210,
 			tabTop: 5,
 			tabWidth: 191,
@@ -57,12 +62,14 @@ describe("workspace liquid motion", () => {
 	test("clamps animation progress before interpolating", () => {
 		const start = {
 			surfaceWidth: 800,
+			tabHeight: 48,
 			tabLeft: 100,
 			tabTop: 4,
 			tabWidth: 202,
 		};
 		const end = {
 			surfaceWidth: 800,
+			tabHeight: 48,
 			tabLeft: 320,
 			tabTop: 4,
 			tabWidth: 202,
