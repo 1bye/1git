@@ -24,6 +24,7 @@ import {
 	snapshotForSession,
 } from "@/feature/workspace/lib/workspace-snapshot.js";
 import type {
+	OpenedRepositorySession,
 	RepositoryManagerResult,
 	RepositoryManagerState,
 	RepositorySessionId,
@@ -91,9 +92,11 @@ export interface GitWorkspace {
 	readonly activeSession: RepositorySessionRecord | null;
 	readonly branches: BranchCollection | null;
 	readonly clearError: () => void;
+	readonly cloneRepository: (remoteUrl: string) => Promise<boolean>;
 	readonly closeWorkspace: (sessionId: RepositorySessionId) => Promise<void>;
 	readonly commit: (summary: string, description: string) => Promise<boolean>;
 	readonly createBranch: (name: string) => Promise<boolean>;
+	readonly createRepository: () => Promise<boolean>;
 	readonly diff: FileDiff | null;
 	readonly error: string | null;
 	readonly fetchRepository: () => Promise<void>;
@@ -352,6 +355,19 @@ export const useGitWorkspace = (): GitWorkspace => {
 		});
 	});
 
+	const finishOpeningRepository = async (
+		opened: OpenedRepositorySession
+	): Promise<void> => {
+		const nextManager = await refreshManager();
+		const session =
+			nextManager.sessions.find((item) => item.id === opened.session.id) ??
+			opened.session;
+		applySnapshot(session.id, opened.snapshot);
+		setTabState("changes");
+		setSelectedCommitOid(null);
+		await loadSession(session);
+	};
+
 	const openRepository = async (path: string): Promise<void> => {
 		if (pendingAction) {
 			return;
@@ -362,14 +378,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 			const opened = resultValue(
 				await window.desktop.git.sessions.open({ path })
 			);
-			const nextManager = await refreshManager();
-			const session =
-				nextManager.sessions.find((item) => item.id === opened.session.id) ??
-				opened.session;
-			applySnapshot(session.id, opened.snapshot);
-			setTabState("changes");
-			setSelectedCommitOid(null);
-			await loadSession(session);
+			await finishOpeningRepository(opened);
 		} catch (cause) {
 			setError(errorMessage(cause));
 		} finally {
@@ -377,6 +386,45 @@ export const useGitWorkspace = (): GitWorkspace => {
 			setIsInitialLoading(false);
 		}
 	};
+
+	const createRepositorySession = async (
+		create: (path: string) => Promise<OpenedRepositorySession>
+	): Promise<boolean> => {
+		if (pendingAction) {
+			return false;
+		}
+		setPendingAction("open");
+		try {
+			setError(null);
+			const selection = await window.desktop.git.sessions.pickDirectory();
+			if (selection.status === "cancelled") {
+				return false;
+			}
+			await finishOpeningRepository(await create(selection.path));
+			return true;
+		} catch (cause) {
+			setError(errorMessage(cause));
+			return false;
+		} finally {
+			setPendingAction(null);
+			setIsInitialLoading(false);
+		}
+	};
+
+	const cloneRepository = async (remoteUrl: string): Promise<boolean> =>
+		await createRepositorySession(async (path) =>
+			resultValue(
+				await window.desktop.git.sessions.clone({
+					path,
+					remoteUrl,
+				})
+			)
+		);
+
+	const createRepository = async (): Promise<boolean> =>
+		await createRepositorySession(async (path) =>
+			resultValue(await window.desktop.git.sessions.initialize({ path }))
+		);
 
 	const pickRepository = async (): Promise<void> => {
 		const selection = await window.desktop.git.sessions.pickDirectory();
@@ -739,9 +787,11 @@ export const useGitWorkspace = (): GitWorkspace => {
 		activeSession,
 		branches,
 		clearError: () => setError(null),
+		cloneRepository,
 		closeWorkspace,
 		commit: createCommit,
 		createBranch,
+		createRepository,
 		diff,
 		error,
 		fetchRepository,

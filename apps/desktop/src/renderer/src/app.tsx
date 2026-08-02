@@ -4,6 +4,7 @@ import { XIcon } from "@phosphor-icons/react/dist/csr/X";
 import type { ReactElement } from "react";
 import { useGitWorkspace } from "@/feature/workspace/hooks/use-git-workspace.js";
 import { DesktopToolbar } from "@/fixture/desktop-toolbar/components/desktop-toolbar.js";
+import { RepositoryWelcome } from "@/fixture/workspace-content/components/repository-welcome.js";
 
 export function App(): ReactElement {
 	const workspace = useGitWorkspace();
@@ -37,6 +38,19 @@ export function App(): ReactElement {
 				data-name="RepositoryWorkspace"
 				id="repository-workspace"
 			>
+				{workspace.activeSession ? null : (
+					<RepositoryWelcome
+						isLoading={
+							workspace.isInitialLoading || workspace.pendingAction === "open"
+						}
+						onCloneRepository={workspace.cloneRepository}
+						onCreateRepository={workspace.createRepository}
+						onOpenRecent={workspace.openRecentRepository}
+						onPickRepository={workspace.pickRepository}
+						recentRepositories={workspace.manager.recentRepositories}
+						workspaces={workspace.workspaces}
+					/>
+				)}
 				{/*{workspace.activeSession ? (
 					<RepositorySidebar
 						history={workspace.history}

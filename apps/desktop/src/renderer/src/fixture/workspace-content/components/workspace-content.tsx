@@ -2,7 +2,10 @@ import type { CommitInfo, FileDiff, RepositorySnapshot } from "@1git/git";
 import { GitDiffIcon } from "@phosphor-icons/react/dist/csr/GitDiff";
 import { SpinnerGapIcon } from "@phosphor-icons/react/dist/csr/SpinnerGap";
 import type { ReactElement } from "react";
-import type { RepositoryTab } from "@/feature/workspace/hooks/use-git-workspace.js";
+import type {
+	RepositoryTab,
+	WorkspaceTabState,
+} from "@/feature/workspace/hooks/use-git-workspace.js";
 import { getRepositoryName } from "@/feature/workspace/lib/workspace-model.js";
 import { CleanState } from "@/fixture/workspace-content/components/clean-state.js";
 import { DiffView } from "@/fixture/workspace-content/components/diff-view.js";
@@ -18,6 +21,8 @@ interface WorkspaceContentProps {
 	readonly historyCommit: CommitInfo | null;
 	readonly isFetching: boolean;
 	readonly isRepositoryLoading: boolean;
+	readonly onCloneRepository: (remoteUrl: string) => Promise<boolean>;
+	readonly onCreateRepository: () => Promise<boolean>;
 	readonly onFetch: () => Promise<void>;
 	readonly onOpenRecent: (path: string) => Promise<void>;
 	readonly onPickRepository: () => Promise<void>;
@@ -25,6 +30,7 @@ interface WorkspaceContentProps {
 	readonly selectedFilePath: string | null;
 	readonly snapshot: RepositorySnapshot | null;
 	readonly tab: RepositoryTab;
+	readonly workspaces: readonly WorkspaceTabState[];
 }
 
 export function WorkspaceContent({
@@ -33,6 +39,8 @@ export function WorkspaceContent({
 	historyCommit,
 	isFetching,
 	isRepositoryLoading,
+	onCloneRepository,
+	onCreateRepository,
 	onFetch,
 	onOpenRecent,
 	onPickRepository,
@@ -40,14 +48,18 @@ export function WorkspaceContent({
 	selectedFilePath,
 	snapshot,
 	tab,
+	workspaces,
 }: WorkspaceContentProps): ReactElement {
 	if (!activeSession) {
 		return (
 			<RepositoryWelcome
 				isLoading={isRepositoryLoading}
+				onCloneRepository={onCloneRepository}
+				onCreateRepository={onCreateRepository}
 				onOpenRecent={onOpenRecent}
 				onPickRepository={onPickRepository}
 				recentRepositories={recentRepositories}
+				workspaces={workspaces}
 			/>
 		);
 	}
