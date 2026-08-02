@@ -287,7 +287,14 @@ const gitResultFromManager = (
 
 const parseOpenInput = (payload: unknown): OpenRepositoryIpcInput => {
 	const input = requireRecord(payload, "Open repository input");
-	return { path: requireString(input, "path") };
+	const { activate } = input;
+	if (activate !== undefined && typeof activate !== "boolean") {
+		throw new InvalidIpcRequest("activate must be a boolean.");
+	}
+	return {
+		activate,
+		path: requireString(input, "path"),
+	};
 };
 
 const parseCreationInput = <TInput>(

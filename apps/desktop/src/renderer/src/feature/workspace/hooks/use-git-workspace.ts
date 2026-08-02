@@ -32,6 +32,9 @@ import type {
 } from "../../../../../shared/repository-session.js";
 
 export type RepositoryTab = "changes" | "history";
+export interface OpenRepositoryOptions {
+	readonly activate?: boolean;
+}
 export type PendingWorkspaceAction =
 	| "branch"
 	| "commit"
@@ -104,7 +107,10 @@ export interface GitWorkspace {
 	readonly isInitialLoading: boolean;
 	readonly lastFetchedAt: string | null;
 	readonly manager: RepositoryManagerState;
-	readonly openRecentRepository: (path: string) => Promise<void>;
+	readonly openRecentRepository: (
+		path: string,
+		options?: OpenRepositoryOptions
+	) => Promise<void>;
 	readonly pendingAction: PendingWorkspaceAction;
 	readonly pickRepository: () => Promise<void>;
 	readonly refresh: () => Promise<void>;
@@ -356,29 +362,38 @@ export const useGitWorkspace = (): GitWorkspace => {
 	});
 
 	const finishOpeningRepository = async (
-		opened: OpenedRepositorySession
+		opened: OpenedRepositorySession,
+		activate: boolean
 	): Promise<void> => {
 		const nextManager = await refreshManager();
 		const session =
 			nextManager.sessions.find((item) => item.id === opened.session.id) ??
 			opened.session;
+		if (!activate) {
+			rememberSnapshot(session.id, opened.snapshot);
+			return;
+		}
 		applySnapshot(session.id, opened.snapshot);
 		setTabState("changes");
 		setSelectedCommitOid(null);
 		await loadSession(session);
 	};
 
-	const openRepository = async (path: string): Promise<void> => {
+	const openRepository = async (
+		path: string,
+		options: OpenRepositoryOptions = {}
+	): Promise<void> => {
 		if (pendingAction) {
 			return;
 		}
+		const activate = options.activate ?? true;
 		setPendingAction("open");
 		try {
 			setError(null);
 			const opened = resultValue(
-				await window.desktop.git.sessions.open({ path })
+				await window.desktop.git.sessions.open({ activate, path })
 			);
-			await finishOpeningRepository(opened);
+			await finishOpeningRepository(opened, activate);
 		} catch (cause) {
 			setError(errorMessage(cause));
 		} finally {
@@ -400,7 +415,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 			if (selection.status === "cancelled") {
 				return false;
 			}
-			await finishOpeningRepository(await create(selection.path));
+			await finishOpeningRepository(await create(selection.path), true);
 			return true;
 		} catch (cause) {
 			setError(errorMessage(cause));
@@ -433,8 +448,11 @@ export const useGitWorkspace = (): GitWorkspace => {
 		}
 	};
 
-	const openRecentRepository = async (path: string): Promise<void> => {
-		await openRepository(path);
+	const openRecentRepository = async (
+		path: string,
+		options?: OpenRepositoryOptions
+	): Promise<void> => {
+		await openRepository(path, options);
 	};
 
 	const activateWorkspace = async (

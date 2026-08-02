@@ -289,6 +289,7 @@ export interface GitSessionRevisionIpcRequest extends GitSessionIpcRequest {
 }
 
 export interface OpenRepositoryIpcInput {
+	readonly activate?: boolean;
 	readonly path: string;
 }
 

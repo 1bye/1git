@@ -1,4 +1,13 @@
 import { Button } from "@1git/ui/components/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@1git/ui/components/dialog";
 import { Input } from "@1git/ui/components/input";
 import {
   Tooltip,
@@ -11,9 +20,18 @@ import { GitBranchIcon } from "@phosphor-icons/react/dist/csr/GitBranch";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/dist/csr/MagnifyingGlass";
 import { PlusIcon } from "@phosphor-icons/react/dist/csr/Plus";
 import { SpinnerGapIcon } from "@phosphor-icons/react/dist/csr/SpinnerGap";
-import type { ChangeEvent, FormEvent, ReactElement, ReactNode } from "react";
+import type {
+  ChangeEvent,
+  FormEvent,
+  ReactElement,
+  MouseEvent as ReactMouseEvent,
+  ReactNode,
+} from "react";
 import { useId, useState } from "react";
-import type { WorkspaceTabState } from "@/feature/workspace/hooks/use-git-workspace.js";
+import type {
+  OpenRepositoryOptions,
+  WorkspaceTabState,
+} from "@/feature/workspace/hooks/use-git-workspace.js";
 import { getRepositoryOwner } from "@/feature/workspace/lib/repository-owner.js";
 import {
   formatCommitDate,
@@ -31,7 +49,10 @@ interface RepositoryWelcomeProps {
   readonly isLoading: boolean;
   readonly onCloneRepository: (remoteUrl: string) => Promise<boolean>;
   readonly onCreateRepository: () => Promise<boolean>;
-  readonly onOpenRecent: (path: string) => Promise<void>;
+  readonly onOpenRecent: (
+    path: string,
+    options?: OpenRepositoryOptions
+  ) => Promise<void>;
   readonly onPickRepository: () => Promise<void>;
   readonly recentRepositories: readonly RecentRepositoryRecord[];
   readonly workspaces: readonly WorkspaceTabState[];
@@ -46,7 +67,10 @@ interface QuickActionProps {
 
 interface RepositoryListItemProps {
   readonly disabled: boolean;
-  readonly onOpen: (path: string) => Promise<void>;
+  readonly onOpen: (
+    path: string,
+    options?: OpenRepositoryOptions
+  ) => Promise<void>;
   readonly preview: RecentRepositoryPreview | null;
   readonly repository: RecentRepositoryRecord;
   readonly workspace: WorkspaceTabState | null;
@@ -94,8 +118,10 @@ function RepositoryListItem({
     ? `${owner.namespace} on ${owner.host}`
     : "Local repository";
   const lastUsed = formatRelativeTime(repository.lastOpenedAt);
-  const openRepository = async (): Promise<void> => {
-    await onOpen(repository.path);
+  const openRepository = async (
+    event: ReactMouseEvent<HTMLButtonElement>
+  ): Promise<void> => {
+    await onOpen(repository.path, { activate: !event.metaKey });
   };
   const row = (
     <button
@@ -181,7 +207,10 @@ function RepositoryGroup({
 }: {
   readonly disabled: boolean;
   readonly heading: string;
-  readonly onOpen: (path: string) => Promise<void>;
+  readonly onOpen: (
+    path: string,
+    options?: OpenRepositoryOptions
+  ) => Promise<void>;
   readonly previews: ReadonlyMap<string, RecentRepositoryPreview>;
   readonly repositories: readonly RecentRepositoryRecord[];
   readonly workspacesByPath: ReadonlyMap<string, WorkspaceTabState>;
@@ -222,7 +251,7 @@ export function RepositoryWelcome({
   workspaces,
 }: RepositoryWelcomeProps): ReactElement {
   const [cloneUrl, setCloneUrl] = useState("");
-  const [isCloneFormOpen, setIsCloneFormOpen] = useState(false);
+  const [isCloneDialogOpen, setIsCloneDialogOpen] = useState(false);
   const [query, setQuery] = useState("");
   const previews = useRecentRepositoryPreviews(recentRepositories, true);
   const normalizedQuery = query.trim().toLocaleLowerCase();
@@ -258,12 +287,18 @@ export function RepositoryWelcome({
   const updateCloneUrl = (event: ChangeEvent<HTMLInputElement>): void => {
     setCloneUrl(event.target.value);
   };
-  const showCloneForm = (): void => {
-    setIsCloneFormOpen(true);
+  const showCloneDialog = (): void => {
+    setIsCloneDialogOpen(true);
   };
-  const hideCloneForm = (): void => {
+  const hideCloneDialog = (): void => {
     setCloneUrl("");
-    setIsCloneFormOpen(false);
+    setIsCloneDialogOpen(false);
+  };
+  const changeCloneDialogOpen = (isOpen: boolean): void => {
+    setIsCloneDialogOpen(isOpen);
+    if (!isOpen) {
+      setCloneUrl("");
+    }
   };
   const pickRepository = async (): Promise<void> => {
     await onPickRepository();
@@ -280,173 +315,187 @@ export function RepositoryWelcome({
       return;
     }
     if (await onCloneRepository(remoteUrl)) {
-      hideCloneForm();
+      hideCloneDialog();
     }
   };
 
   return (
     <TooltipProvider delay={300}>
-      <main
-        aria-busy={isLoading}
-        className="min-h-0 flex-1 overflow-y-auto bg-editor-surface px-6 py-10 sm:px-10 sm:py-12"
-        data-name="RepositoryWelcome"
-      >
-        <h1 className="sr-only">Repositories</h1>
-        <div className="mx-auto grid w-full max-w-[980px] grid-cols-1 items-start gap-10 md:grid-cols-[220px_minmax(0,1fr)] md:gap-16">
-          <section aria-labelledby="quick-actions-heading">
-            <h2
-              className="mb-3 px-2.5 font-medium text-[10px] text-editor-faint uppercase tracking-[0.08em]"
-              id="quick-actions-heading"
-            >
-              Quick actions
-            </h2>
-            <div className="space-y-1">
-              <QuickAction
-                disabled={isLoading}
-                icon={<PlusIcon aria-hidden className="size-4" weight="bold" />}
-                onClick={createRepository}
+      <Dialog onOpenChange={changeCloneDialogOpen} open={isCloneDialogOpen}>
+        <main
+          aria-busy={isLoading}
+          className="min-h-0 flex-1 overflow-y-auto bg-editor-surface px-6 py-10 sm:px-10 sm:py-12"
+          data-name="RepositoryWelcome"
+        >
+          <h1 className="sr-only">Repositories</h1>
+          <div className="mx-auto grid w-full max-w-[980px] grid-cols-1 items-start gap-10 md:grid-cols-[220px_minmax(0,1fr)] md:gap-16">
+            <section aria-labelledby="quick-actions-heading">
+              <h2
+                className="mb-3 px-2.5 font-medium text-[10px] text-editor-faint uppercase tracking-[0.08em]"
+                id="quick-actions-heading"
               >
-                Create repository
-              </QuickAction>
-              <QuickAction
-                disabled={isLoading}
-                icon={
-                  <GitBranchIcon aria-hidden className="size-4" weight="bold" />
-                }
-                onClick={showCloneForm}
-              >
-                Clone from URL
-              </QuickAction>
-              <QuickAction
-                disabled={isLoading}
-                icon={
-                  <FolderOpenIcon
-                    aria-hidden
-                    className="size-4"
-                    weight="bold"
-                  />
-                }
-                onClick={pickRepository}
-              >
-                Open from disk
-              </QuickAction>
-            </div>
-
-            {isCloneFormOpen ? (
-              <form
-                className="mt-4 rounded-xl bg-editor-sunken p-2.5"
-                onSubmit={submitClone}
-              >
-                <label
-                  className="mb-1.5 block px-1 font-medium text-editor-muted text-xss"
-                  htmlFor="welcome-clone-url"
-                >
-                  Repository URL
-                </label>
-                <Input
-                  autoFocus
-                  className="h-8 bg-editor-surface text-xs shadow-none"
+                Quick actions
+              </h2>
+              <div className="space-y-1">
+                <QuickAction
                   disabled={isLoading}
-                  id="welcome-clone-url"
-                  onChange={updateCloneUrl}
-                  placeholder="https://github.com/owner/repo.git"
-                  required
-                  type="url"
-                  value={cloneUrl}
+                  icon={
+                    <PlusIcon aria-hidden className="size-4" weight="regular" />
+                  }
+                  onClick={createRepository}
+                >
+                  Create repository
+                </QuickAction>
+                <QuickAction
+                  disabled={isLoading}
+                  icon={
+                    <GitBranchIcon
+                      aria-hidden
+                      className="size-4"
+                      weight="duotone"
+                    />
+                  }
+                  onClick={showCloneDialog}
+                >
+                  Clone from URL
+                </QuickAction>
+                <QuickAction
+                  disabled={isLoading}
+                  icon={
+                    <FolderOpenIcon
+                      aria-hidden
+                      className="size-4"
+                      weight="duotone"
+                    />
+                  }
+                  onClick={pickRepository}
+                >
+                  Open from disk
+                </QuickAction>
+              </div>
+            </section>
+
+            <section aria-labelledby="all-repositories-heading">
+              <h2
+                className="mb-3 px-1 font-medium text-[10px] text-editor-faint uppercase tracking-[0.08em]"
+                id="all-repositories-heading"
+              >
+                All repositories
+              </h2>
+              <div className="relative">
+                <MagnifyingGlassIcon
+                  aria-hidden
+                  className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-editor-faint"
+                  weight="regular"
                 />
-                <div className="mt-2 flex justify-end gap-1">
+                <Input
+                  aria-label="Search all repositories"
+                  className="h-9 bg-editor-sunken pl-9 text-xs shadow-none"
+                  disabled={isLoading}
+                  onChange={updateQuery}
+                  placeholder="Search all repositories"
+                  type="search"
+                  value={query}
+                />
+              </div>
+
+              {isLoading && recentRepositories.length === 0 ? (
+                <p
+                  className="flex items-center gap-2 px-3 py-8 text-editor-faint text-xss"
+                  role="status"
+                >
+                  <SpinnerGapIcon
+                    aria-hidden
+                    className="size-4 animate-spin"
+                    weight="duotone"
+                  />
+                  Loading repositories…
+                </p>
+              ) : null}
+
+              {!isLoading && recentRepositories.length === 0 ? (
+                <p className="px-3 py-8 text-editor-faint text-xss">
+                  Repositories you open, clone, or create will appear here.
+                </p>
+              ) : null}
+
+              {recentRepositories.length > 0 &&
+                matchingRepositories.length === 0 ? (
+                <p className="px-3 py-8 text-editor-faint text-xss">
+                  No repositories match “{query.trim()}”.
+                </p>
+              ) : null}
+
+              <RepositoryGroup
+                disabled={isLoading}
+                heading="Open"
+                onOpen={onOpenRecent}
+                previews={previews}
+                repositories={openRepositories}
+                workspacesByPath={workspacesByPath}
+              />
+              <RepositoryGroup
+                disabled={isLoading}
+                heading={openRepositories.length > 0 ? "Other" : "Repositories"}
+                onOpen={onOpenRecent}
+                previews={previews}
+                repositories={otherRepositories}
+                workspacesByPath={workspacesByPath}
+              />
+            </section>
+          </div>
+        </main>
+        <DialogContent>
+          <form onSubmit={submitClone}>
+            <DialogHeader>
+              <DialogTitle>Clone repository</DialogTitle>
+              <DialogDescription>
+                Enter a Git URL, then choose the local folder where the
+                repository should be cloned.
+              </DialogDescription>
+            </DialogHeader>
+            <label
+              className="mb-1.5 block font-medium text-editor-muted text-xss"
+              htmlFor="welcome-clone-url"
+            >
+              Repository URL
+            </label>
+            <Input
+              autoFocus
+              className="bg-editor-sunken text-xs shadow-none"
+              disabled={isLoading}
+              id="welcome-clone-url"
+              onChange={updateCloneUrl}
+              placeholder="https://github.com/owner/repo.git"
+              required
+              type="url"
+              value={cloneUrl}
+            />
+            <DialogFooter>
+              <DialogClose
+                render={
                   <Button
                     disabled={isLoading}
-                    onClick={hideCloneForm}
                     size="sm"
                     type="button"
                     variant="ghost"
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    disabled={isLoading}
-                    size="sm"
-                    type="submit"
-                    variant="default"
-                  >
-                    Choose folder
-                  </Button>
-                </div>
-              </form>
-            ) : null}
-          </section>
-
-          <section aria-labelledby="all-repositories-heading">
-            <h2
-              className="mb-3 px-1 font-medium text-[10px] text-editor-faint uppercase tracking-[0.08em]"
-              id="all-repositories-heading"
-            >
-              All repositories
-            </h2>
-            <div className="relative">
-              <MagnifyingGlassIcon
-                aria-hidden
-                className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-editor-faint"
-                weight="regular"
-              />
-              <Input
-                aria-label="Search all repositories"
-                className="h-9 bg-editor-sunken pl-9 text-xs shadow-none"
-                disabled={isLoading}
-                onChange={updateQuery}
-                placeholder="Search all repositories"
-                type="search"
-                value={query}
-              />
-            </div>
-
-            {isLoading && recentRepositories.length === 0 ? (
-              <p
-                className="flex items-center gap-2 px-3 py-8 text-editor-faint text-xss"
-                role="status"
+                  />
+                }
               >
-                <SpinnerGapIcon
-                  aria-hidden
-                  className="size-4 animate-spin"
-                  weight="bold"
-                />
-                Loading repositories…
-              </p>
-            ) : null}
-
-            {!isLoading && recentRepositories.length === 0 ? (
-              <p className="px-3 py-8 text-editor-faint text-xss">
-                Repositories you open, clone, or create will appear here.
-              </p>
-            ) : null}
-
-            {recentRepositories.length > 0 &&
-              matchingRepositories.length === 0 ? (
-              <p className="px-3 py-8 text-editor-faint text-xss">
-                No repositories match “{query.trim()}”.
-              </p>
-            ) : null}
-
-            <RepositoryGroup
-              disabled={isLoading}
-              heading="Open"
-              onOpen={onOpenRecent}
-              previews={previews}
-              repositories={openRepositories}
-              workspacesByPath={workspacesByPath}
-            />
-            <RepositoryGroup
-              disabled={isLoading}
-              heading={openRepositories.length > 0 ? "Other" : "Repositories"}
-              onOpen={onOpenRecent}
-              previews={previews}
-              repositories={otherRepositories}
-              workspacesByPath={workspacesByPath}
-            />
-          </section>
-        </div>
-      </main>
+                Cancel
+              </DialogClose>
+              <Button
+                disabled={isLoading}
+                size="sm"
+                type="submit"
+                variant="default"
+              >
+                Choose folder
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </TooltipProvider>
   );
 }

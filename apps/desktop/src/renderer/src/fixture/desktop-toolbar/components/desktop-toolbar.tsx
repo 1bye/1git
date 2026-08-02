@@ -17,6 +17,7 @@ import type {
 } from "react";
 import { useEffect, useState } from "react";
 import type {
+	OpenRepositoryOptions,
 	PendingWorkspaceAction,
 	WorkspaceTabState,
 } from "@/feature/workspace/hooks/use-git-workspace.js";
@@ -47,7 +48,10 @@ interface DesktopToolbarProps {
 	readonly onCloseWorkspace: (sessionId: RepositorySessionId) => Promise<void>;
 	readonly onCreateBranch: (name: string) => Promise<boolean>;
 	readonly onFetch: () => Promise<void>;
-	readonly onOpenRecent: (path: string) => Promise<void>;
+	readonly onOpenRecent: (
+		path: string,
+		options?: OpenRepositoryOptions
+	) => Promise<void>;
 	readonly onPickRepository: () => Promise<void>;
 	readonly onReorderWorkspace: (
 		activeSessionId: RepositorySessionId,

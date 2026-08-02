@@ -42,6 +42,7 @@ export interface RepositoryManagerOptions {
 }
 
 export interface OpenRepositorySessionInput extends GitCallOptions {
+	readonly activate?: boolean;
 	readonly path: string;
 }
 
@@ -148,7 +149,7 @@ export class RepositoryManager {
 		this.runtime = options.runtime;
 	}
 
-	/** Opens, snapshots, activates, and tracks a repository by canonical root. */
+	/** Opens, snapshots, and tracks a repository, optionally activating it. */
 	async openRepository(
 		input: OpenRepositorySessionInput
 	): Promise<RepositoryManagerResult<OpenedRepositorySession>> {
@@ -159,7 +160,8 @@ export class RepositoryManager {
 					runtime: this.runtime,
 					signal: input.signal,
 				}),
-				input.signal
+				input.signal,
+				input.activate
 			)
 		);
 	}
@@ -364,7 +366,8 @@ export class RepositoryManager {
 
 	private async ownRepository(
 		opened: GitResult<GitRepository>,
-		signal?: AbortSignal
+		signal?: AbortSignal,
+		activate = true
 	): Promise<RepositoryManagerResult<OpenedRepositorySession>> {
 		if (!opened.ok) {
 			return gitFailure(opened.error);
@@ -385,9 +388,11 @@ export class RepositoryManager {
 		const session =
 			existingSession ??
 			this.createManagedSession(repository, activatedAt, repositoryRoot);
-		this.touchSession(session, activatedAt);
+		if (activate) {
+			this.touchSession(session, activatedAt);
+			this.activeSessionId = session.record.id;
+		}
 		this.touchRecent(repositoryRoot, activatedAt);
-		this.activeSessionId = session.record.id;
 
 		return succeed({
 			session: copySessionRecord(session.record),

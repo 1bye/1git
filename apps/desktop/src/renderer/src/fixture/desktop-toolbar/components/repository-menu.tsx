@@ -23,6 +23,7 @@ import type {
 } from "react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type {
+	OpenRepositoryOptions,
 	PendingWorkspaceAction,
 	WorkspaceTabState,
 } from "@/feature/workspace/hooks/use-git-workspace.js";
@@ -54,7 +55,10 @@ import type {
 interface RepositoryMenuProps {
 	readonly isOpen: boolean;
 	readonly onOpenChange: (isOpen: boolean) => void;
-	readonly onOpenRecent: (path: string) => Promise<void>;
+	readonly onOpenRecent: (
+		path: string,
+		options?: OpenRepositoryOptions
+	) => Promise<void>;
 	readonly onPickRepository: () => Promise<void>;
 	readonly pendingAction: PendingWorkspaceAction;
 	readonly recentRepositories: readonly RecentRepositoryRecord[];
@@ -64,7 +68,10 @@ interface RepositoryMenuProps {
 interface RecentRepositoryMenuItemProps {
 	readonly metaKey: boolean;
 	readonly onClose: () => void;
-	readonly onOpen: (path: string) => Promise<void>;
+	readonly onOpen: (
+		path: string,
+		options?: OpenRepositoryOptions
+	) => Promise<void>;
 	readonly preview: RecentRepositoryPreview | null;
 	readonly repository: RecentRepositoryRecord;
 	readonly workspace: WorkspaceTabState | null;
@@ -141,10 +148,11 @@ function RecentRepositoryMenuItem({
 	const openRecent = async (
 		event: ReactMouseEvent<HTMLElement>
 	): Promise<void> => {
-		if (!(event.metaKey || metaKey)) {
+		const openInBackground = event.metaKey || metaKey;
+		if (!openInBackground) {
 			onClose();
 		}
-		await onOpen(repository.path);
+		await onOpen(repository.path, { activate: !openInBackground });
 	};
 
 	const menuItem = (

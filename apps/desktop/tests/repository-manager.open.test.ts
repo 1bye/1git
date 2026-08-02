@@ -75,6 +75,25 @@ describe("RepositoryManager opening", () => {
 		expect(manager.getActiveSession()).toEqual(opened.session);
 	});
 
+	test("opens a repository in the background without activating it", async () => {
+		const fixture = await fixtures.create();
+		const manager = createTestRepositoryManager();
+
+		const opened = unwrapManagerResult(
+			await manager.openRepository({
+				activate: false,
+				path: fixture.repositoryPath,
+			})
+		);
+
+		expect(manager.getState()).toMatchObject({
+			activeSessionId: null,
+			recentRepositories: [{ path: fixture.repositoryPath }],
+			sessions: [{ id: opened.session.id }],
+		});
+		expect(manager.getActiveSession()).toBeNull();
+	});
+
 	test("deduplicates paths inside the same canonical repository", async () => {
 		const fixture = await fixtures.create();
 		const nestedFile = await fixture.write("src/nested.ts", "export {};\n");

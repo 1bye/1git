@@ -3,6 +3,7 @@ import { GitDiffIcon } from "@phosphor-icons/react/dist/csr/GitDiff";
 import { SpinnerGapIcon } from "@phosphor-icons/react/dist/csr/SpinnerGap";
 import type { ReactElement } from "react";
 import type {
+	OpenRepositoryOptions,
 	RepositoryTab,
 	WorkspaceTabState,
 } from "@/feature/workspace/hooks/use-git-workspace.js";
@@ -24,7 +25,10 @@ interface WorkspaceContentProps {
 	readonly onCloneRepository: (remoteUrl: string) => Promise<boolean>;
 	readonly onCreateRepository: () => Promise<boolean>;
 	readonly onFetch: () => Promise<void>;
-	readonly onOpenRecent: (path: string) => Promise<void>;
+	readonly onOpenRecent: (
+		path: string,
+		options?: OpenRepositoryOptions
+	) => Promise<void>;
 	readonly onPickRepository: () => Promise<void>;
 	readonly recentRepositories: readonly RecentRepositoryRecord[];
 	readonly selectedFilePath: string | null;
