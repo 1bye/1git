@@ -6,6 +6,11 @@ export const WORKSPACE_TAB_REORDER_MOTION = {
 	easing: "cubic-bezier(0.22, 1, 0.36, 1)",
 } as const;
 
+export const WORKSPACE_TAB_SURFACE_MOTION = {
+	durationMs: WORKSPACE_TAB_REORDER_MOTION.duration,
+	positionTrackingDurationMs: 260,
+} as const;
+
 export const WORKSPACE_TAB_LABEL_MARQUEE = {
 	hoverDelayMs: 320,
 	leadingMaskFadeDurationMs: 90,
