@@ -365,14 +365,26 @@ export const useGitWorkspace = (): GitWorkspace => {
 		opened: OpenedRepositorySession,
 		activate: boolean
 	): Promise<void> => {
+		if (!activate) {
+			const [nextManager, remotesResult] = await Promise.all([
+				window.desktop.git.sessions.state(),
+				window.desktop.git.remotes.list(opened.session.id),
+			]);
+			const session =
+				nextManager.sessions.find((item) => item.id === opened.session.id) ??
+				opened.session;
+			const owner = remotesResult.ok
+				? getRepositoryOwner(remotesResult.value, opened.snapshot.head.upstream)
+				: undefined;
+			applyManagerState(nextManager);
+			rememberSnapshot(session.id, opened.snapshot, owner);
+			return;
+		}
+
 		const nextManager = await refreshManager();
 		const session =
 			nextManager.sessions.find((item) => item.id === opened.session.id) ??
 			opened.session;
-		if (!activate) {
-			rememberSnapshot(session.id, opened.snapshot);
-			return;
-		}
 		applySnapshot(session.id, opened.snapshot);
 		setTabState("changes");
 		setSelectedCommitOid(null);
@@ -387,7 +399,9 @@ export const useGitWorkspace = (): GitWorkspace => {
 			return;
 		}
 		const activate = options.activate ?? true;
-		setPendingAction("open");
+		if (activate) {
+			setPendingAction("open");
+		}
 		try {
 			setError(null);
 			const opened = resultValue(
@@ -397,7 +411,9 @@ export const useGitWorkspace = (): GitWorkspace => {
 		} catch (cause) {
 			setError(errorMessage(cause));
 		} finally {
-			setPendingAction(null);
+			if (activate) {
+				setPendingAction(null);
+			}
 			setIsInitialLoading(false);
 		}
 	};
