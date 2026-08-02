@@ -1,4 +1,6 @@
 export const LATEST_BRANCH_LIMIT = 3;
+export const WORKSPACE_BRANCH_EXPANDED_VISIBLE_LIMIT = 10;
+export const WORKSPACE_BRANCH_MENU_ITEM_HEIGHT_PX = 28;
 
 export const WORKSPACE_BRANCH_COMMIT_AGE_UNITS = [
 	{ milliseconds: 31_536_000_000, unit: "year" },

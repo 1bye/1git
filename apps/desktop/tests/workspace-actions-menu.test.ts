@@ -24,7 +24,7 @@ const branch = (
 });
 
 describe("workspace actions menu branches", () => {
-	test("shows the three latest local branches and moves the rest to More", () => {
+	test("shows the three latest local branches before inline expansion", () => {
 		const branches: BranchCollection = {
 			branches: [
 				branch("oldest", "2025-01-01T00:00:00.000Z"),
