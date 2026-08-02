@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@import "@fontsource-variable/geist";
 @import "@fontsource-variable/manrope";
 @source "../../../apps/**/*.{ts,tsx}";
 @source "../**/*.{ts,tsx}";
@@ -201,6 +202,7 @@
 }
 
 @theme inline {
+	--font-kbd: "Geist Variable", sans-serif;
 	--font-sans: "Manrope Variable", sans-serif;
 	--text-xss: 11px;
 	--color-background: var(--background);

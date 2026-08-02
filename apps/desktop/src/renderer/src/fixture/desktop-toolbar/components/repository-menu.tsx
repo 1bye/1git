@@ -5,6 +5,7 @@ import {
 	DropdownMenuTrigger,
 } from "@1git/ui/components/dropdown-menu";
 import { Input } from "@1git/ui/components/input";
+import { Kbd } from "@1git/ui/components/kbd";
 import {
 	Tooltip,
 	TooltipContent,
@@ -352,12 +353,13 @@ export function RepositoryMenu({
 											type="search"
 											value={query}
 										/>
-										<kbd
+										<Kbd
 											aria-hidden
-											className="absolute top-1/2 right-2.5 -translate-y-1/2 text-[10px] text-editor-faint"
+											className="absolute top-1/2 right-2.5 -translate-y-1/2 gap-0.5 text-[10px] text-editor-faint"
 										>
-											⌘K
-										</kbd>
+											<span>⌘</span>
+											<span>K</span>
+										</Kbd>
 									</div>
 								</div>
 
