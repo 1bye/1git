@@ -335,6 +335,20 @@ const sessionHandlers = (
 			),
 	},
 	{
+		channel: GIT_IPC_CHANNELS.sessions.preview,
+		handle: async (payload, context) =>
+			await runOperation(
+				payload,
+				context,
+				"open-repository",
+				async (signal) =>
+					await repositoryManager.previewRepository({
+						...parseOpenInput(payload),
+						signal,
+					})
+			),
+	},
+	{
 		channel: GIT_IPC_CHANNELS.sessions.initialize,
 		handle: async (payload, context) =>
 			await runOperation(

@@ -13,6 +13,7 @@ import {
 } from "@1git/git";
 import type {
 	OpenedRepositorySession,
+	RecentRepositoryPreview,
 	RecentRepositoryRecord,
 	RepositoryManagerError,
 	RepositoryManagerResult,
@@ -161,6 +162,50 @@ export class RepositoryManager {
 				input.signal
 			)
 		);
+	}
+
+	/** Reads current display metadata without owning or activating a session. */
+	async previewRepository(
+		input: OpenRepositorySessionInput
+	): Promise<GitResult<RecentRepositoryPreview>> {
+		const opened = await GitRepository.open({
+			path: input.path,
+			runtime: this.runtime,
+			signal: input.signal,
+		});
+		if (!opened.ok) {
+			return { error: opened.error, ok: false };
+		}
+
+		const snapshot = await opened.value.getSnapshot({ signal: input.signal });
+		if (!snapshot.ok) {
+			return { error: snapshot.error, ok: false };
+		}
+
+		const [remotes, latestCommit] = await Promise.all([
+			opened.value.getRemotes({ signal: input.signal }),
+			snapshot.value.head.oid
+				? opened.value.getCommit(snapshot.value.head.oid, {
+						signal: input.signal,
+					})
+				: Promise.resolve(null),
+		]);
+		if (!remotes.ok) {
+			return { error: remotes.error, ok: false };
+		}
+		if (latestCommit && !latestCommit.ok) {
+			return { error: latestCommit.error, ok: false };
+		}
+
+		return {
+			ok: true,
+			value: {
+				head: snapshot.value.head,
+				latestCommit: latestCommit?.value ?? null,
+				remotes: remotes.value,
+				repository: snapshot.value.repository,
+			},
+		};
 	}
 
 	/** Initializes a repository and retains the resulting main-process object. */

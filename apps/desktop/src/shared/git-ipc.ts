@@ -46,6 +46,7 @@ import type {
 import type { RepositoryOwnerApi } from "./repository-owner-avatar.js";
 import type {
 	OpenedRepositorySession,
+	RecentRepositoryPreview,
 	RepositoryDirectorySelection,
 	RepositoryManagerResult,
 	RepositoryManagerState,
@@ -115,6 +116,7 @@ export const GIT_IPC_CHANNELS = {
 		initialize: "git:sessions:initialize",
 		open: "git:sessions:open",
 		pickDirectory: "git:sessions:pick-directory",
+		preview: "git:sessions:preview",
 		state: "git:sessions:state",
 	},
 	stashes: {
@@ -517,6 +519,10 @@ export interface DesktopGitApi {
 			options?: GitOperationOptions
 		) => Promise<GitResult<OpenedRepositorySession>>;
 		readonly pickDirectory: () => Promise<RepositoryDirectorySelection>;
+		readonly preview: (
+			input: OpenRepositoryIpcInput,
+			options?: GitOperationOptions
+		) => Promise<GitResult<RecentRepositoryPreview>>;
 		readonly state: () => Promise<RepositoryManagerState>;
 	};
 	readonly stashes: {

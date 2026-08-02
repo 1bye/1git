@@ -4,10 +4,8 @@ import { RestrictToHorizontalAxis } from "@dnd-kit/abstract/modifiers";
 import { useSortable } from "@dnd-kit/react/sortable";
 import { XIcon } from "@phosphor-icons/react/dist/csr/X";
 import type { CSSProperties, ReactElement, RefCallback } from "react";
-import { useState } from "react";
 import type { RepositorySessionId } from "../../../../../shared/repository-session.js";
 import type { WorkspaceTabState } from "../../../feature/workspace/hooks/use-git-workspace.js";
-import type { RepositoryOwner } from "../../../feature/workspace/lib/repository-owner.js";
 import {
 	getRepositoryName,
 	getWorkspaceLabel,
@@ -17,7 +15,7 @@ import {
 	WORKSPACE_TAB_SURFACE_GEOMETRY,
 } from "../constants/workspace-tab.js";
 import { useOverflowingTabLabel } from "../hooks/use-overflowing-tab-label.js";
-import { useRepositoryOwnerAvatar } from "../hooks/use-repository-owner-avatar.js";
+import { RepositoryOwnerThumbnail } from "./repository-owner-thumbnail.js";
 
 interface WorkspaceTabProps {
 	readonly index: number;
@@ -35,12 +33,6 @@ interface WorkspaceTabAppearanceProps extends Omit<WorkspaceTabProps, "index"> {
 	readonly isDragging: boolean;
 	readonly isOverlay?: boolean;
 	readonly rootRef?: RefCallback<Element>;
-}
-
-interface WorkspaceOwnerThumbnailProps {
-	readonly label: string;
-	readonly owner: RepositoryOwner | null;
-	readonly title: string;
 }
 
 interface WorkspaceTabNameButtonProps {
@@ -67,15 +59,6 @@ interface WorkspaceChangedFilesProps {
 	readonly isActive: boolean;
 }
 
-const OWNER_THUMBNAIL_TONES = [
-	"bg-sky-100 text-sky-700",
-	"bg-violet-100 text-violet-700",
-	"bg-emerald-100 text-emerald-700",
-	"bg-amber-100 text-amber-800",
-	"bg-rose-100 text-rose-700",
-] as const;
-
-const WORKSPACE_OWNER_THUMBNAIL_CLASS_NAME = "shrink-0 rounded-full";
 const WORKSPACE_TAB_NAME_BUTTON_CLASS_NAME =
 	"relative z-10 flex h-full min-w-0 flex-1 touch-none items-center overflow-hidden rounded-md text-left outline-none hover:text-editor-ink focus-visible:ring-2 focus-visible:ring-brand/20";
 
@@ -101,11 +84,6 @@ const WORKSPACE_TAB_ACTIVATOR_STYLE: CSSProperties = {
 	paddingInlineStart: WORKSPACE_TAB_SURFACE_GEOMETRY.tabContentInsetInlineStart,
 };
 
-const WORKSPACE_OWNER_THUMBNAIL_STYLE: CSSProperties = {
-	height: WORKSPACE_TAB_SURFACE_GEOMETRY.tabAvatarSize,
-	width: WORKSPACE_TAB_SURFACE_GEOMETRY.tabAvatarSize,
-};
-
 const WORKSPACE_TAB_CHANGE_BADGE_STYLE: CSSProperties = {
 	height: WORKSPACE_TAB_SURFACE_GEOMETRY.tabChangeBadgeHeight,
 	minWidth: WORKSPACE_TAB_SURFACE_GEOMETRY.tabChangeBadgeMinWidth,
@@ -125,16 +103,6 @@ const WORKSPACE_TAB_SORT_TRANSITION = {
 	idle: true,
 } as const;
 
-const getThumbnailTone = (label: string): string => {
-	let toneIndex = 0;
-	for (const character of label) {
-		toneIndex =
-			(toneIndex + (character.codePointAt(0) ?? 0)) %
-			OWNER_THUMBNAIL_TONES.length;
-	}
-	return OWNER_THUMBNAIL_TONES[toneIndex] ?? OWNER_THUMBNAIL_TONES[0];
-};
-
 const getOwnerTitle = (workspace: WorkspaceTabState): string =>
 	workspace.owner
 		? `${workspace.owner.namespace} on ${workspace.owner.host}`
@@ -145,55 +113,6 @@ const getAccessibleTabLabel = (
 	workspace: WorkspaceTabState
 ): string =>
 	workspace.owner ? `${label}, owned by ${workspace.owner.namespace}` : label;
-
-function WorkspaceOwnerThumbnail({
-	label,
-	owner,
-	title,
-}: WorkspaceOwnerThumbnailProps): ReactElement {
-	const avatarDataUrl = useRepositoryOwnerAvatar(owner);
-	const [failedDataUrl, setFailedDataUrl] = useState<string | null>(null);
-	const initial = label.trim().charAt(0).toLocaleUpperCase() || "•";
-	const showAvatar = avatarDataUrl !== null && avatarDataUrl !== failedDataUrl;
-	const hideInvalidAvatar = (): void => {
-		setFailedDataUrl(avatarDataUrl);
-	};
-
-	if (showAvatar) {
-		return (
-			<img
-				alt=""
-				aria-hidden
-				className={cn(WORKSPACE_OWNER_THUMBNAIL_CLASS_NAME, "object-cover")}
-				data-name="RepositoryOwnerThumbnail"
-				decoding="async"
-				draggable={false}
-				height={WORKSPACE_TAB_SURFACE_GEOMETRY.tabAvatarSize}
-				onError={hideInvalidAvatar}
-				src={avatarDataUrl}
-				style={WORKSPACE_OWNER_THUMBNAIL_STYLE}
-				title={title}
-				width={WORKSPACE_TAB_SURFACE_GEOMETRY.tabAvatarSize}
-			/>
-		);
-	}
-
-	return (
-		<span
-			aria-hidden
-			className={cn(
-				WORKSPACE_OWNER_THUMBNAIL_CLASS_NAME,
-				"flex items-center justify-center font-semibold text-[9px]",
-				getThumbnailTone(label)
-			)}
-			data-name="RepositoryOwnerThumbnail"
-			style={WORKSPACE_OWNER_THUMBNAIL_STYLE}
-			title={title}
-		>
-			{initial}
-		</span>
-	);
-}
 
 function WorkspaceTabName({
 	branch,
@@ -401,9 +320,10 @@ function WorkspaceTabAppearance({
 				title={label}
 				type="button"
 			>
-				<WorkspaceOwnerThumbnail
+				<RepositoryOwnerThumbnail
 					label={ownerLabel}
 					owner={workspace.owner}
+					size="sm"
 					title={getOwnerTitle(workspace)}
 				/>
 			</button>

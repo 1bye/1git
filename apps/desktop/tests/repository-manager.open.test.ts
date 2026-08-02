@@ -12,6 +12,31 @@ afterEach(async () => {
 });
 
 describe("RepositoryManager opening", () => {
+	test("previews a repository without owning or activating a session", async () => {
+		const fixture = await fixtures.create();
+		const manager = createTestRepositoryManager();
+
+		const preview = await manager.previewRepository({
+			path: fixture.repositoryPath,
+		});
+
+		expect(preview.ok).toBe(true);
+		if (!preview.ok) {
+			throw new Error(preview.error.message);
+		}
+		expect(preview.value).toMatchObject({
+			head: { branch: "main" },
+			latestCommit: { summary: "Initial commit" },
+			remotes: [],
+			repository: { root: fixture.repositoryPath },
+		});
+		expect(manager.getState()).toEqual({
+			activeSessionId: null,
+			recentRepositories: [],
+			sessions: [],
+		});
+	});
+
 	test("opens a repository and returns only serializable records", async () => {
 		const fixture = await fixtures.create();
 		const manager = createTestRepositoryManager();

@@ -90,6 +90,23 @@ describe("preload Git API", () => {
 		});
 	});
 
+	test("requests a read-only recent repository preview", async () => {
+		const { api, invocations } = createRecordingApi();
+
+		await api.sessions.preview(
+			{ path: "/repository" },
+			{ operationId: "preview-from-ui" }
+		);
+
+		expect(invocations[0]).toEqual({
+			channel: GIT_IPC_CHANNELS.sessions.preview,
+			payload: {
+				operationId: "preview-from-ui",
+				path: "/repository",
+			},
+		});
+	});
+
 	test("generates an internal ID when the caller does not supply one", async () => {
 		const { api, invocations } = createRecordingApi();
 

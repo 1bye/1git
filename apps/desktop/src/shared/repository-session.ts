@@ -1,4 +1,11 @@
-import type { GitError, RepositoryInfo, RepositorySnapshot } from "@1git/git";
+import type {
+	CommitInfo,
+	GitError,
+	HeadState,
+	RemoteInfo,
+	RepositoryInfo,
+	RepositorySnapshot,
+} from "@1git/git";
 
 /** Opaque identifier for a repository object owned by the main process. */
 export type RepositorySessionId = string;
@@ -21,6 +28,14 @@ export interface OpenedRepositorySession {
 export interface RecentRepositoryRecord {
 	readonly lastOpenedAt: string;
 	readonly path: string;
+}
+
+/** Read-only current metadata for a recent repository that is not opened as a session. */
+export interface RecentRepositoryPreview {
+	readonly head: HeadState;
+	readonly latestCommit: CommitInfo | null;
+	readonly remotes: readonly RemoteInfo[];
+	readonly repository: RepositoryInfo;
 }
 
 /** Result of the main-process native repository directory picker. */

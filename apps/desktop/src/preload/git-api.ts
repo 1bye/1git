@@ -293,6 +293,11 @@ export const createDesktopGitApi = (
 			),
 		pickDirectory: async () =>
 			await invoke(GIT_IPC_CHANNELS.sessions.pickDirectory),
+		preview: async (input, options) =>
+			await invoke(
+				GIT_IPC_CHANNELS.sessions.preview,
+				creationRequest(input, options)
+			),
 		state: async () => await invoke(GIT_IPC_CHANNELS.sessions.state),
 	},
 	stashes: {
