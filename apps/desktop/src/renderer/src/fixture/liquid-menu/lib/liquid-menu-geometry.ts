@@ -111,6 +111,8 @@ export const createLiquidMenuFrame = (
 	};
 	const finalMenuHalfHeight = measurement.menu.height / 2;
 	const finalMenuHalfWidth = measurement.menu.width / 2;
+	const anchorCenterX = visualAnchor.left + visualAnchor.width / 2;
+	const finalMenuCenterX = measurement.menu.left + measurement.menu.width / 2;
 	const seedHalfHeight = geometry.sampleCellSize;
 	const seedHalfWidth = visualAnchor.height / 2;
 	const animatedMenuHalfHeight = interpolate(
@@ -129,7 +131,8 @@ export const createLiquidMenuFrame = (
 		anchorGeometry.radius
 	);
 	const menuBox: RoundedBox = {
-		centerX: measurement.menu.left - bounds.left + measurement.menu.width / 2,
+		centerX:
+			interpolate(anchorCenterX, finalMenuCenterX, menuProgress) - bounds.left,
 		centerY: measurement.menu.top - bounds.top + animatedMenuHalfHeight,
 		halfHeight: animatedMenuHalfHeight,
 		halfWidth: animatedMenuHalfWidth,

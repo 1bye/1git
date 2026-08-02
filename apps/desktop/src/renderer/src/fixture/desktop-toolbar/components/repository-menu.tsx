@@ -148,7 +148,7 @@ export function RepositoryMenu({
         <DropdownMenuTrigger
           aria-keyshortcuts="Meta+K Control+K"
           aria-label="Open repositories"
-          className="relative z-10 flex h-8 items-center gap-2 rounded-lg px-2.5 font-semibold text-editor-ink text-xss outline-none transition-colors hover:bg-hover focus-visible:bg-studio-glass-strong"
+          className="relative z-10 flex h-8 items-center gap-2 rounded-lg px-2.5 font-semibold text-editor-ink text-xss outline-none transition-colors hover:bg-white focus-visible:bg-studio-glass-strong"
           ref={triggerRef}
         >
           {pendingAction === "open" ? (

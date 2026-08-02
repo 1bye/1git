@@ -119,6 +119,27 @@ describe("workspace liquid geometry", () => {
 		expect(seedFrame.bounds).toEqual(openFrame.bounds);
 	});
 
+	test("grows an offset menu from the center of its anchor", () => {
+		const frame = createLiquidMenuFrame(
+			{
+				anchor: { height: 32, left: 88, top: 7, width: 79 },
+				menu: { height: 212, left: 72, top: 41, width: 370 },
+				submenu: null,
+			},
+			{
+				menu: 0.001,
+				submenu: 0,
+			},
+			{
+				insetBlock: 0,
+				insetInline: 0,
+				radius: 8,
+			}
+		);
+
+		expect(frame.path.match(/ Z/g)).toHaveLength(1);
+	});
+
 	test("grows a submenu from its parent edge as one SDF contour", () => {
 		const measurement = {
 			anchor: { height: 40, left: 259, top: 3, width: 210 },
