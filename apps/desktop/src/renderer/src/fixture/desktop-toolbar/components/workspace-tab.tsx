@@ -15,6 +15,7 @@ import {
 	WORKSPACE_TAB_SURFACE_GEOMETRY,
 } from "@/fixture/desktop-toolbar/constants/workspace-tab.js";
 import { useOverflowingTabLabel } from "@/fixture/desktop-toolbar/hooks/use-overflowing-tab-label.js";
+import { useWorkspaceTabClose } from "@/fixture/desktop-toolbar/hooks/use-workspace-tab-close.js";
 import type { RepositorySessionId } from "../../../../../shared/repository-session.js";
 
 interface WorkspaceTabProps {
@@ -264,9 +265,15 @@ function WorkspaceTabAppearance({
 	const activateWorkspace = async (): Promise<void> => {
 		await onActivate(workspace.session.id);
 	};
-	const closeWorkspace = async (): Promise<void> => {
-		await onClose(workspace.session.id);
-	};
+	const {
+		finishClosing: finishClosingWorkspace,
+		isClosing,
+		startClosing: startClosingWorkspace,
+	} = useWorkspaceTabClose({
+		isOverlay,
+		onClose,
+		sessionId: workspace.session.id,
+	});
 
 	return (
 		<div
@@ -276,6 +283,7 @@ function WorkspaceTabAppearance({
 				isActive ? "text-editor-ink" : "text-editor-muted hover:text-editor-ink"
 			)}
 			data-active={isActive ? "true" : undefined}
+			data-closing={isClosing ? "true" : undefined}
 			data-desktop-interactive
 			data-dragging={isDragging ? "true" : undefined}
 			data-name="WorkspaceTab"
@@ -291,6 +299,7 @@ function WorkspaceTabAppearance({
 			<div
 				className="relative z-[1] flex h-full min-w-0 flex-1 items-center"
 				data-name="WorkspaceTabContent"
+				onAnimationEnd={finishClosingWorkspace}
 			>
 				<button
 					aria-controls="repository-workspace"
@@ -299,7 +308,7 @@ function WorkspaceTabAppearance({
 					className="relative z-10 flex h-full shrink-0 cursor-default touch-none items-center outline-none focus-visible:ring-2 focus-visible:ring-brand/20 active:cursor-grabbing"
 					data-desktop-interactive
 					data-workspace-tab-pointer-drag-handle
-					disabled={isBusy || isOverlay}
+					disabled={isBusy || isClosing || isOverlay}
 					onClick={activateWorkspace}
 					ref={handleRef}
 					role="tab"
@@ -318,7 +327,7 @@ function WorkspaceTabAppearance({
 				<WorkspaceTabNameButton
 					branch={workspace.branch}
 					isActive={isActive}
-					isDisabled={isBusy || isOverlay}
+					isDisabled={isBusy || isClosing || isOverlay}
 					isDragging={isDragging}
 					isMenuTrigger={isActive && !isOverlay}
 					label={label}
@@ -337,8 +346,8 @@ function WorkspaceTabAppearance({
 						aria-label={`Close ${label}`}
 						className="absolute inset-0 flex items-center justify-center rounded-lg text-editor-faint opacity-0 outline-none transition-opacity duration-150 ease-out hover:bg-active hover:text-editor-ink focus-visible:bg-active focus-visible:ring-2 focus-visible:ring-brand/20 group-focus-within/trailing:opacity-100 group-hover:opacity-100"
 						data-name="WorkspaceTabClose"
-						disabled={isBusy || isOverlay}
-						onClick={closeWorkspace}
+						disabled={isBusy || isClosing || isOverlay}
+						onClick={startClosingWorkspace}
 						tabIndex={isActive ? 0 : -1}
 						type="button"
 					>
