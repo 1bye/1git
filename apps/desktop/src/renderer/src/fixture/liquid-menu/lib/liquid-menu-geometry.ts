@@ -57,6 +57,81 @@ const roundedBoxFromRect = (
 	radius,
 });
 
+type LiquidMenuSide = "bottom" | "left" | "right" | "top";
+
+interface LiquidMenuPoint {
+	readonly x: number;
+	readonly y: number;
+}
+
+const getLiquidMenuSide = (
+	anchor: LiquidMenuRect,
+	menu: LiquidMenuRect
+): LiquidMenuSide => {
+	const anchorRight = anchor.left + anchor.width;
+	const anchorBottom = anchor.top + anchor.height;
+	const menuRight = menu.left + menu.width;
+	const menuBottom = menu.top + menu.height;
+	if (menu.left >= anchorRight) {
+		return "right";
+	}
+	if (menuRight <= anchor.left) {
+		return "left";
+	}
+	if (menu.top >= anchorBottom) {
+		return "bottom";
+	}
+	if (menuBottom <= anchor.top) {
+		return "top";
+	}
+
+	const horizontalOffset =
+		menu.left + menu.width / 2 - (anchor.left + anchor.width / 2);
+	const verticalOffset =
+		menu.top + menu.height / 2 - (anchor.top + anchor.height / 2);
+	if (Math.abs(horizontalOffset) > Math.abs(verticalOffset)) {
+		return horizontalOffset >= 0 ? "right" : "left";
+	}
+	return verticalOffset >= 0 ? "bottom" : "top";
+};
+
+const getAnimatedMenuCenter = (
+	side: LiquidMenuSide,
+	anchor: LiquidMenuRect,
+	menu: LiquidMenuRect,
+	halfHeight: number,
+	halfWidth: number,
+	progress: number
+): LiquidMenuPoint => {
+	const anchorCenterX = anchor.left + anchor.width / 2;
+	const anchorCenterY = anchor.top + anchor.height / 2;
+	const menuCenterX = menu.left + menu.width / 2;
+	const menuCenterY = menu.top + menu.height / 2;
+
+	switch (side) {
+		case "right":
+			return {
+				x: menu.left + halfWidth,
+				y: interpolate(anchorCenterY, menuCenterY, progress),
+			};
+		case "left":
+			return {
+				x: menu.left + menu.width - halfWidth,
+				y: interpolate(anchorCenterY, menuCenterY, progress),
+			};
+		case "top":
+			return {
+				x: interpolate(anchorCenterX, menuCenterX, progress),
+				y: menu.top + menu.height - halfHeight,
+			};
+		default:
+			return {
+				x: interpolate(anchorCenterX, menuCenterX, progress),
+				y: menu.top + halfHeight,
+			};
+	}
+};
+
 export const createLiquidMenuFrame = (
 	measurement: LiquidMenuMeasurement,
 	progress: LiquidMenuProgress,
@@ -111,18 +186,28 @@ export const createLiquidMenuFrame = (
 	};
 	const finalMenuHalfHeight = measurement.menu.height / 2;
 	const finalMenuHalfWidth = measurement.menu.width / 2;
-	const anchorCenterX = visualAnchor.left + visualAnchor.width / 2;
-	const finalMenuCenterX = measurement.menu.left + measurement.menu.width / 2;
 	const seedHalfHeight = geometry.sampleCellSize;
 	const seedHalfWidth = visualAnchor.height / 2;
+	const menuSide = getLiquidMenuSide(visualAnchor, measurement.menu);
+	const isInlineMenu = menuSide === "left" || menuSide === "right";
 	const animatedMenuHalfHeight = interpolate(
-		seedHalfHeight,
+		isInlineMenu
+			? Math.min(seedHalfWidth, finalMenuHalfHeight)
+			: seedHalfHeight,
 		finalMenuHalfHeight,
 		menuProgress
 	);
 	const animatedMenuHalfWidth = interpolate(
-		seedHalfWidth,
+		isInlineMenu ? seedHalfHeight : seedHalfWidth,
 		finalMenuHalfWidth,
+		menuProgress
+	);
+	const animatedMenuCenter = getAnimatedMenuCenter(
+		menuSide,
+		visualAnchor,
+		measurement.menu,
+		animatedMenuHalfHeight,
+		animatedMenuHalfWidth,
 		menuProgress
 	);
 	const anchorBox = roundedBoxFromRect(
@@ -131,9 +216,8 @@ export const createLiquidMenuFrame = (
 		anchorGeometry.radius
 	);
 	const menuBox: RoundedBox = {
-		centerX:
-			interpolate(anchorCenterX, finalMenuCenterX, menuProgress) - bounds.left,
-		centerY: measurement.menu.top - bounds.top + animatedMenuHalfHeight,
+		centerX: animatedMenuCenter.x - bounds.left,
+		centerY: animatedMenuCenter.y - bounds.top,
 		halfHeight: animatedMenuHalfHeight,
 		halfWidth: animatedMenuHalfWidth,
 		radius: Math.min(

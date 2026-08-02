@@ -140,6 +140,49 @@ describe("workspace liquid geometry", () => {
 		expect(frame.path.match(/ Z/g)).toHaveLength(1);
 	});
 
+	test("grows a right-side root menu from the nearest anchor edge", () => {
+		const measurement = {
+			anchor: { height: 32, left: 88, top: 96, width: 200 },
+			menu: { height: 188, left: 296, top: 18, width: 340 },
+			submenu: null,
+		};
+		const seedFrame = createLiquidMenuFrame(
+			measurement,
+			{
+				menu: 0.001,
+				submenu: 0,
+			},
+			{
+				insetBlock: 0,
+				insetInline: 0,
+				radius: 8,
+			}
+		);
+		const openFrame = createLiquidMenuFrame(
+			measurement,
+			{
+				menu: 1,
+				submenu: 0,
+			},
+			{
+				insetBlock: 0,
+				insetInline: 0,
+				radius: 8,
+			}
+		);
+		const seedCoordinates = pathCoordinates(seedFrame.path);
+		const openCoordinates = pathCoordinates(openFrame.path);
+		const maximumX = (coordinates: readonly [number, number][]): number =>
+			Math.max(...coordinates.map(([x]) => x));
+
+		expect(seedFrame.path.match(/ Z/g)).toHaveLength(1);
+		expect(openFrame.path.match(/ Z/g)).toHaveLength(1);
+		expect(maximumX(openCoordinates)).toBeGreaterThan(
+			maximumX(seedCoordinates)
+		);
+		expect(seedFrame.bounds).toEqual(openFrame.bounds);
+	});
+
 	test("grows a submenu from its parent edge as one SDF contour", () => {
 		const measurement = {
 			anchor: { height: 40, left: 259, top: 3, width: 210 },
