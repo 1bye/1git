@@ -50,9 +50,12 @@ const isEditableEventTarget = (target: EventTarget | null): boolean => {
 	);
 };
 
-const isTargetVisible = (target: CommandLensTargetSource): boolean => {
+const isTargetVisible = (
+	target: CommandLensTargetSource,
+	includeDisabled = false
+): boolean => {
 	const { element } = target;
-	if (!(element?.isConnected && !target.disabled)) {
+	if (!(element?.isConnected && (includeDisabled || !target.disabled))) {
 		return false;
 	}
 	if (element.closest("[inert]")) {
@@ -79,13 +82,14 @@ const isTargetVisible = (target: CommandLensTargetSource): boolean => {
 };
 
 const measureTarget = (
-	target: CommandLensTargetSource
+	target: CommandLensTargetSource,
+	includeDisabled = false
 ): CommandLensMeasuredTarget | null => {
 	const hasNavigationAction = Boolean(
 		target.navigationAction || target.navigationAlternateAction
 	);
 	if (
-		!isTargetVisible(target) ||
+		!isTargetVisible(target, includeDisabled) ||
 		(target.commands.length === 0 && !hasNavigationAction)
 	) {
 		return null;
@@ -247,7 +251,14 @@ export function CommandLensProvider({
 		useCallback((): readonly CommandLensMeasuredTarget[] => {
 			const measuredTargets: CommandLensMeasuredTarget[] = [];
 			for (const readTarget of targetReadersRef.current.values()) {
-				const measuredTarget = measureTarget(readTarget());
+				const target = readTarget();
+				const isSelectedNavigationTarget =
+					isNavigationActiveRef.current &&
+					target.id === selectedTargetIdRef.current;
+				const measuredTarget = measureTarget(
+					target,
+					isSelectedNavigationTarget
+				);
 				if (measuredTarget) {
 					measuredTargets.push(measuredTarget);
 				}
@@ -456,6 +467,12 @@ export function CommandLensProvider({
 			);
 			if (!target) {
 				return false;
+			}
+			const currentTarget = targetReadersRef.current.get(target.id)?.();
+			if (!currentTarget || currentTarget.disabled) {
+				event.preventDefault();
+				event.stopImmediatePropagation();
+				return true;
 			}
 			const action = getCommandLensNavigationAction(
 				target,

@@ -175,8 +175,7 @@ const getWorkspaceTabCommands = ({
 			onInvoke: activateNext,
 		},
 		{
-			allowInEditable: true,
-			key: "w",
+			key: "Backspace",
 			label: `Close ${label}`,
 			onInvoke: close,
 		}

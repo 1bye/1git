@@ -65,6 +65,9 @@ export const matchesCommandLensCommand = (
 	eventKeyMatches(event, command);
 
 const visibleKey = (key: string): string => {
+	if (key === "Backspace") {
+		return "⌫";
+	}
 	if (key === "ArrowLeft") {
 		return "←";
 	}

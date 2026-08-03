@@ -101,6 +101,16 @@ describe("command lens shortcuts", () => {
 			)
 		).toBe(false);
 	});
+
+	test("formats the workspace close shortcut without using native Cmd W", () => {
+		const command = { key: "Backspace", label: "Close workspace" } as const;
+
+		expect(
+			matchesCommandLensCommand(keyboardEvent({ key: "Backspace" }), command)
+		).toBe(true);
+		expect(formatCommandLensCommand(command)).toEqual(["⌫"]);
+		expect(commandLensAriaKeyShortcut(command)).toBe("Meta+Backspace");
+	});
 });
 
 describe("command lens geometry", () => {

@@ -252,9 +252,18 @@ export function CommandLensOverlay({
 				? getCommandLensNavigationAction(target, isOptionActive) !== null
 				: commands.length > 0
 		);
-	const selectedTarget = presentedTargets.find(
+	const selectedPresentation = presentedTargets.find(
 		({ target }) => target.id === selectedTargetId
-	)?.target;
+	);
+	const selectedTarget = selectedPresentation?.target;
+	const maskTargets = selectedPresentation
+		? [
+				...presentedTargets.filter(
+					({ target }) => target.id !== selectedPresentation.target.id
+				),
+				selectedPresentation,
+			]
+		: presentedTargets;
 	const hasOptionMode = hasCommandLensOptionMode(
 		targets.flatMap((target) => target.commands)
 	);
@@ -290,7 +299,7 @@ export function CommandLensOverlay({
 						y="0"
 					>
 						<rect fill="white" height="100%" width="100%" />
-						{presentedTargets.map(({ target }) => (
+						{maskTargets.map(({ target }) => (
 							<rect
 								fill={
 									isNavigationActive && target.id !== selectedTargetId
