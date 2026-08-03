@@ -1,4 +1,8 @@
-import type { ReactElement, MouseEvent as ReactMouseEvent } from "react";
+import type {
+	ReactElement,
+	MouseEvent as ReactMouseEvent,
+	RefCallback,
+} from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
 	OpenRepositoryOptions,
@@ -30,12 +34,14 @@ interface RepositoryContextMenuProps {
 	readonly onContextOpenChange?: (isOpen: boolean) => void;
 	readonly onContextPresenceChange?: (isPresent: boolean) => void;
 	readonly onForgetRecent: (path: string) => Promise<void>;
+	readonly onItemElementChange?: RefCallback<HTMLElement>;
 	readonly onOpen: (
 		path: string,
 		options?: OpenRepositoryOptions
 	) => Promise<void>;
 	readonly onOpenForeground?: () => void;
 	readonly open?: boolean;
+	readonly pickerValue?: unknown;
 	readonly preview: RecentRepositoryPreview | null;
 	readonly repository: RecentRepositoryRecord;
 	readonly variant: "menu" | "welcome";
@@ -49,9 +55,11 @@ export function RepositoryContextMenu({
 	onContextOpenChange,
 	onContextPresenceChange,
 	onForgetRecent,
+	onItemElementChange,
 	onOpen,
 	onOpenForeground,
 	open,
+	pickerValue,
 	preview,
 	repository,
 	variant,
@@ -72,6 +80,13 @@ export function RepositoryContextMenu({
 	const getAnchor = useCallback(
 		(): Element | null => anchorElement,
 		[anchorElement]
+	);
+	const setItemElement = useCallback(
+		(element: HTMLElement | null): void => {
+			setAnchorElement(element);
+			onItemElementChange?.(element);
+		},
+		[onItemElementChange]
 	);
 	const changeOpen = useCallback(
 		(nextIsOpen: boolean): void => {
@@ -99,6 +114,13 @@ export function RepositoryContextMenu({
 			event.metaKey,
 			metaKey
 		);
+		if (openInBackground) {
+			(
+				event as ReactMouseEvent<HTMLElement> & {
+					preventBaseUIHandler?: () => void;
+				}
+			).preventBaseUIHandler?.();
+		}
 		if (!openInBackground) {
 			onOpenForeground?.();
 		}
@@ -112,7 +134,8 @@ export function RepositoryContextMenu({
 			disabled={disabled}
 			onClick={openRepository}
 			onContextMenu={contextMenuPosition.onContextMenu}
-			onElementChange={setAnchorElement}
+			onElementChange={setItemElement}
+			pickerValue={pickerValue}
 			preview={preview}
 			repository={repository}
 			variant={variant}

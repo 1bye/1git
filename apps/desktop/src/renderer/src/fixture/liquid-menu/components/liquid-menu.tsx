@@ -1,4 +1,14 @@
 import {
+	Combobox,
+	ComboboxPopup,
+	type ComboboxPopupProps,
+	ComboboxPortal,
+	ComboboxPositioner,
+	type ComboboxPositionerProps,
+	type ComboboxRootProps,
+	ComboboxTrigger,
+} from "@1git/ui/components/combobox";
+import {
 	ContextMenu,
 	ContextMenuTrigger,
 } from "@1git/ui/components/context-menu";
@@ -11,7 +21,13 @@ import {
 	DropdownMenuTrigger,
 } from "@1git/ui/components/dropdown-menu";
 import { cn } from "@1git/ui/lib/utils";
-import type { ComponentProps, ReactElement, Ref, RefCallback } from "react";
+import type {
+	ComponentProps,
+	CSSProperties,
+	ReactElement,
+	Ref,
+	RefCallback,
+} from "react";
 import {
 	useCallback,
 	useEffect,
@@ -42,6 +58,10 @@ type DropdownMenuProps = ComponentProps<typeof DropdownMenu>;
 type DropdownMenuOpenChange = NonNullable<DropdownMenuProps["onOpenChange"]>;
 type ContextMenuProps = ComponentProps<typeof ContextMenu>;
 type ContextMenuOpenChange = NonNullable<ContextMenuProps["onOpenChange"]>;
+type ComboboxOpenChange<
+	Value,
+	Multiple extends boolean | undefined = false,
+> = NonNullable<ComboboxRootProps<Value, Multiple>["onOpenChange"]>;
 
 interface LiquidMenuRootProps extends Omit<DropdownMenuProps, "onOpenChange"> {
 	readonly anchor: () => Element | null;
@@ -58,6 +78,27 @@ interface LiquidContextMenuRootProps
 	readonly onOpenChange?: ContextMenuOpenChange;
 	readonly onPresenceChange?: (isPresent: boolean) => void;
 	readonly outlineWidth?: number;
+}
+
+interface LiquidPickerRootProps<
+	Value,
+	Multiple extends boolean | undefined = false,
+> extends Omit<ComboboxRootProps<Value, Multiple>, "onOpenChange"> {
+	readonly anchor: () => Element | null;
+	readonly anchorGeometry: LiquidMenuAnchorGeometry;
+	readonly onOpenChange?: ComboboxOpenChange<Value, Multiple>;
+	readonly onPresenceChange?: (isPresent: boolean) => void;
+	readonly outlineWidth?: number;
+}
+
+interface LiquidPickerContentProps extends ComboboxPopupProps {
+	readonly align?: ComboboxPositionerProps["align"];
+	readonly alignOffset?: ComboboxPositionerProps["alignOffset"];
+	readonly anchor?: ComboboxPositionerProps["anchor"];
+	readonly positionerClassName?: string;
+	readonly positionerStyle?: CSSProperties;
+	readonly side?: ComboboxPositionerProps["side"];
+	readonly sideOffset?: ComboboxPositionerProps["sideOffset"];
 }
 
 interface UseLiquidMenuRootOptions {
@@ -279,6 +320,43 @@ export function LiquidContextMenuRoot({
 	);
 }
 
+export function LiquidPickerRoot<
+	Value,
+	Multiple extends boolean | undefined = false,
+>({
+	anchor,
+	anchorGeometry,
+	defaultOpen,
+	onOpenChange,
+	onPresenceChange,
+	open,
+	outlineWidth = 1,
+	...props
+}: LiquidPickerRootProps<Value, Multiple>): ReactElement {
+	const state = useLiquidMenuRoot({
+		anchor,
+		anchorGeometry,
+		defaultOpen,
+		onPresenceChange,
+		open,
+		outlineWidth,
+	});
+	const changeOpen: ComboboxOpenChange<Value, Multiple> = (
+		nextIsOpen,
+		eventDetails
+	) => {
+		state.changeOpen(nextIsOpen);
+		onOpenChange?.(nextIsOpen, eventDetails);
+	};
+
+	return (
+		<LiquidMenuContext value={state.context}>
+			<LiquidMenuSurface />
+			<Combobox onOpenChange={changeOpen} open={state.isOpen} {...props} />
+		</LiquidMenuContext>
+	);
+}
+
 export function LiquidMenuTrigger({
 	...props
 }: ComponentProps<typeof DropdownMenuTrigger>): ReactElement {
@@ -287,6 +365,20 @@ export function LiquidMenuTrigger({
 
 	return (
 		<DropdownMenuTrigger
+			data-liquid-menu-anchor-state={isActive ? "active" : undefined}
+			{...props}
+		/>
+	);
+}
+
+export function LiquidPickerTrigger({
+	...props
+}: ComponentProps<typeof ComboboxTrigger>): ReactElement {
+	const context = useLiquidMenuContext();
+	const isActive = context.isOpen || context.hasSurface;
+
+	return (
+		<ComboboxTrigger
 			data-liquid-menu-anchor-state={isActive ? "active" : undefined}
 			{...props}
 		/>
@@ -336,6 +428,55 @@ export function LiquidMenuContent({
 			style={{ ...LIQUID_MENU_STYLE, ...style }}
 			{...props}
 		/>
+	);
+}
+
+export function LiquidPickerContent({
+	align = "start",
+	alignOffset = 0,
+	anchor,
+	className,
+	positionerClassName,
+	positionerStyle,
+	ref,
+	side = "bottom",
+	sideOffset = 4,
+	style,
+	...props
+}: LiquidPickerContentProps): ReactElement {
+	const context = useLiquidMenuContext();
+	const contentRef = useMergedElementRef(ref, context.setMenuElement);
+	const { content: contentZIndex } = getLiquidMenuLayerZIndices(
+		context.layerIndex
+	);
+
+	return (
+		<ComboboxPortal>
+			<ComboboxPositioner
+				align={align}
+				alignOffset={alignOffset}
+				anchor={anchor ?? context.anchor}
+				className={positionerClassName}
+				side={side}
+				sideOffset={sideOffset}
+				style={{ ...positionerStyle, zIndex: contentZIndex }}
+			>
+				<ComboboxPopup
+					className={cn(
+						"data-closed:animate-none data-open:animate-none",
+						context.hasSurface
+							? "border-transparent bg-transparent"
+							: "opacity-0",
+						className
+					)}
+					data-liquid-surface={context.hasSurface ? "true" : undefined}
+					data-name="LiquidPickerContent"
+					ref={contentRef}
+					style={{ ...LIQUID_MENU_STYLE, ...style }}
+					{...props}
+				/>
+			</ComboboxPositioner>
+		</ComboboxPortal>
 	);
 }
 

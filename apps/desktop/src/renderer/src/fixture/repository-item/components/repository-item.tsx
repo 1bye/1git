@@ -1,4 +1,4 @@
-import { DropdownMenuItem } from "@1git/ui/components/dropdown-menu";
+import { ComboboxItem } from "@1git/ui/components/combobox";
 import {
 	Tooltip,
 	TooltipContent,
@@ -39,6 +39,7 @@ interface RepositoryItemProps {
 	readonly onContextMenu?: (event: ReactMouseEvent<HTMLElement>) => void;
 	readonly onElementChange?: RefCallback<HTMLElement>;
 	readonly onKeyDown?: (event: ReactKeyboardEvent<HTMLElement>) => void;
+	readonly pickerValue?: unknown;
 	readonly preview: RecentRepositoryPreview | null;
 	readonly repository: RecentRepositoryRecord;
 	readonly variant: RepositoryItemVariant;
@@ -134,6 +135,7 @@ export function RepositoryItem({
 	onContextMenu,
 	onElementChange,
 	onKeyDown,
+	pickerValue,
 	preview,
 	repository,
 	variant,
@@ -229,17 +231,17 @@ export function RepositoryItem({
 	};
 	const row =
 		variant === "menu" ? (
-			<DropdownMenuItem
+			<ComboboxItem
 				{...sharedProps}
 				className={cn(
 					"relative gap-2 transition-[background-color,opacity] duration-150",
 					contextOpen && "z-20 bg-white data-highlighted:bg-white"
 				)}
-				closeOnClick={false}
 				disabled={disabled}
+				value={pickerValue}
 			>
 				{content}
-			</DropdownMenuItem>
+			</ComboboxItem>
 		) : (
 			<button
 				{...sharedProps}
