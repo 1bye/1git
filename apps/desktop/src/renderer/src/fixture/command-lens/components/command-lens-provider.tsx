@@ -7,6 +7,7 @@ import {
 import {
 	COMMAND_LENS_DWELL_MS,
 	COMMAND_LENS_GEOMETRY,
+	COMMAND_LENS_LAYOUT_TRACKING_MS,
 } from "@/fixture/command-lens/constants/command-lens.js";
 import {
 	CommandLensContext,
@@ -18,6 +19,7 @@ import { insetCommandLensRect } from "@/fixture/command-lens/lib/command-lens-ge
 import {
 	type CommandLensNavigationAction,
 	type CommandLensNavigationDirection,
+	getClosestCommandLensNavigationTarget,
 	getCommandLensNavigationAction,
 	getCommandLensNavigationAdvanceTarget,
 	getCommandLensNavigationTargets,
@@ -176,6 +178,8 @@ export function CommandLensProvider({
 	const targetRevisionsRef = useRef(new Map<string, string>());
 	const resizeObserverRef = useRef<ResizeObserver | null>(null);
 	const measurementFrameRef = useRef<number | null>(null);
+	const measurementRunnerRef = useRef<() => void>(() => undefined);
+	const layoutTrackingEndTimeRef = useRef(0);
 	const dwellTimerRef = useRef<number | null>(null);
 	const isMetaDownRef = useRef(false);
 	const isNavigationActiveRef = useRef(false);
@@ -225,10 +229,11 @@ export function CommandLensProvider({
 	const reconcileNavigationSelection = useCallback(
 		(
 			nextTargets: readonly CommandLensMeasuredTarget[],
-			nextIsOptionActive: boolean
-		): void => {
+			nextIsOptionActive: boolean,
+			fallbackTargets: readonly CommandLensMeasuredTarget[] = nextTargets
+		): boolean => {
 			if (!isNavigationActiveRef.current) {
-				return;
+				return false;
 			}
 			const navigationTargets = getCommandLensNavigationTargets(
 				nextTargets,
@@ -239,17 +244,37 @@ export function CommandLensProvider({
 				(target) => target.id === currentTargetId
 			);
 			if (currentTargetStillExists) {
-				return;
+				return false;
 			}
-			selectNavigationTarget(
-				getInitialCommandLensNavigationTarget(navigationTargets, null)?.id ??
-					null
+			const previousTarget = targetsRef.current.find(
+				(target) => target.id === currentTargetId
 			);
+			const fallbackNavigationTargets = getCommandLensNavigationTargets(
+				fallbackTargets,
+				nextIsOptionActive
+			);
+			const fallbackTarget = previousTarget
+				? getClosestCommandLensNavigationTarget(
+						fallbackNavigationTargets,
+						previousTarget
+					)
+				: getInitialCommandLensNavigationTarget(
+						navigationTargets.length > 0
+							? navigationTargets
+							: fallbackNavigationTargets,
+						null
+					);
+			const fallbackTargetId = fallbackTarget?.id ?? null;
+			if (fallbackTargetId === currentTargetId) {
+				return false;
+			}
+			selectNavigationTarget(fallbackTargetId);
+			return true;
 		},
 		[selectNavigationTarget]
 	);
-	const readVisibleTargets =
-		useCallback((): readonly CommandLensMeasuredTarget[] => {
+	const readVisibleTargets = useCallback(
+		(includeDisabledTargets = false): readonly CommandLensMeasuredTarget[] => {
 			const measuredTargets: CommandLensMeasuredTarget[] = [];
 			for (const readTarget of targetReadersRef.current.values()) {
 				const target = readTarget();
@@ -258,32 +283,47 @@ export function CommandLensProvider({
 					target.id === selectedTargetIdRef.current;
 				const measuredTarget = measureTarget(
 					target,
-					isSelectedNavigationTarget
+					includeDisabledTargets || isSelectedNavigationTarget
 				);
 				if (measuredTarget) {
 					measuredTargets.push(measuredTarget);
 				}
 			}
 			return measuredTargets;
-		}, []);
+		},
+		[]
+	);
 	const measureTargets = useCallback((): void => {
 		measurementFrameRef.current = null;
 		if (!isVisibleRef.current) {
 			return;
 		}
 		const nextTargets = readVisibleTargets();
-		setMeasuredTargets(nextTargets);
-		reconcileNavigationSelection(nextTargets, isOptionDownRef.current);
+		const didSelectionChange = reconcileNavigationSelection(
+			nextTargets,
+			isOptionDownRef.current,
+			readVisibleTargets(true)
+		);
+		setMeasuredTargets(didSelectionChange ? readVisibleTargets() : nextTargets);
+		if (window.performance.now() < layoutTrackingEndTimeRef.current) {
+			measurementFrameRef.current = window.requestAnimationFrame(() =>
+				measurementRunnerRef.current()
+			);
+		}
 	}, [readVisibleTargets, reconcileNavigationSelection, setMeasuredTargets]);
+	measurementRunnerRef.current = measureTargets;
 	const requestMeasurement = useCallback((): void => {
 		if (!isVisibleRef.current || measurementFrameRef.current !== null) {
 			return;
 		}
-		measurementFrameRef.current = window.requestAnimationFrame(measureTargets);
-	}, [measureTargets]);
+		measurementFrameRef.current = window.requestAnimationFrame(() =>
+			measurementRunnerRef.current()
+		);
+	}, []);
 	const hideLens = useCallback(
 		(suppressUntilMetaRelease: boolean): void => {
 			clearDwellTimer();
+			layoutTrackingEndTimeRef.current = 0;
 			if (measurementFrameRef.current !== null) {
 				window.cancelAnimationFrame(measurementFrameRef.current);
 				measurementFrameRef.current = null;
@@ -342,6 +382,8 @@ export function CommandLensProvider({
 				}
 				targetReadersRef.current.delete(id);
 				targetRevisionsRef.current.delete(id);
+				layoutTrackingEndTimeRef.current =
+					window.performance.now() + COMMAND_LENS_LAYOUT_TRACKING_MS;
 				requestMeasurement();
 			};
 		},

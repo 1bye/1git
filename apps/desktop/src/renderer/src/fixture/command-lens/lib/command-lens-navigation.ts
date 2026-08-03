@@ -57,6 +57,17 @@ const rectCenter = (
 	y: rect.top + rect.height / 2,
 });
 
+const squaredCenterDistance = (
+	first: CommandLensNavigationTarget,
+	second: CommandLensNavigationTarget
+): number => {
+	const firstCenter = rectCenter(first.rect);
+	const secondCenter = rectCenter(second.rect);
+	const horizontalDistance = firstCenter.x - secondCenter.x;
+	const verticalDistance = firstCenter.y - secondCenter.y;
+	return horizontalDistance ** 2 + verticalDistance ** 2;
+};
+
 const compareVisualOrder = (
 	first: CommandLensNavigationTarget,
 	second: CommandLensNavigationTarget
@@ -212,6 +223,32 @@ export const getNextCommandLensNavigationTarget = <
 		}
 	}
 	return findSpatialTarget(targets, currentTarget, direction) ?? currentTarget;
+};
+
+export const getClosestCommandLensNavigationTarget = <
+	Target extends CommandLensNavigationTarget,
+>(
+	targets: readonly Target[],
+	anchor: CommandLensNavigationTarget
+): Target | null => {
+	const candidates = targets.filter((target) => target.id !== anchor.id);
+	const sameGroupCandidates = candidates.filter(
+		(target) => target.navigationGroup === anchor.navigationGroup
+	);
+	const eligibleCandidates =
+		sameGroupCandidates.length > 0 ? sameGroupCandidates : candidates;
+	return (
+		eligibleCandidates.toSorted(
+			(first, second) =>
+				squaredCenterDistance(first, anchor) -
+					squaredCenterDistance(second, anchor) ||
+				Math.abs(first.navigationOrder - anchor.navigationOrder) -
+					Math.abs(second.navigationOrder - anchor.navigationOrder) ||
+				Number(first.navigationOrder < anchor.navigationOrder) -
+					Number(second.navigationOrder < anchor.navigationOrder) ||
+				compareVisualOrder(first, second)
+		)[0] ?? null
+	);
 };
 
 export const getCommandLensNavigationAdvanceTarget = <

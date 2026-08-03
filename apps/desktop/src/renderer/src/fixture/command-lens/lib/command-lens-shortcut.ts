@@ -5,6 +5,7 @@ export interface CommandLensCommand {
 	readonly label: string;
 	readonly onInvoke?: () => Promise<void> | void;
 	readonly shiftKey?: boolean;
+	readonly showInLens?: boolean;
 }
 
 const DIGIT_KEY_PATTERN = /^\d$/;
@@ -96,19 +97,22 @@ export const getCommandLensDisplayCommands = (
 	commands: readonly CommandLensCommand[],
 	isOptionActive: boolean
 ): readonly CommandLensCommand[] => {
-	const optionCommands = commands.filter((command) => command.altKey);
+	const displayCommands = commands.filter(
+		(command) => command.showInLens !== false
+	);
+	const optionCommands = displayCommands.filter((command) => command.altKey);
 	if (isOptionActive) {
 		return optionCommands;
 	}
-	const primaryCommands = commands.filter((command) => !command.altKey);
+	const primaryCommands = displayCommands.filter((command) => !command.altKey);
 	return primaryCommands.length > 0 ? primaryCommands : optionCommands;
 };
 
 export const hasCommandLensOptionMode = (
 	commands: readonly CommandLensCommand[]
 ): boolean =>
-	commands.some((command) => command.altKey) &&
-	commands.some((command) => !command.altKey);
+	commands.some((command) => command.showInLens !== false && command.altKey) &&
+	commands.some((command) => command.showInLens !== false && !command.altKey);
 
 export const commandLensAriaKeyShortcut = (
 	command: CommandLensCommand
@@ -126,6 +130,6 @@ export const commandLensCommandSignature = (
 	commands
 		.map(
 			(command) =>
-				`${commandLensAriaKeyShortcut(command)}:${command.label}:${command.allowInEditable ? "editable" : "standard"}`
+				`${commandLensAriaKeyShortcut(command)}:${command.label}:${command.allowInEditable ? "editable" : "standard"}:${command.showInLens === false ? "hidden" : "visible"}`
 		)
 		.join("|");

@@ -157,6 +157,7 @@ const getWorkspaceTabCommands = ({
 					key: shortcutKey,
 					label: `Open ${label}`,
 					onInvoke: activate,
+					showInLens: false,
 				},
 			]
 		: [];

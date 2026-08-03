@@ -1,4 +1,5 @@
 export const COMMAND_LENS_DWELL_MS = 280;
+export const COMMAND_LENS_LAYOUT_TRACKING_MS = 280;
 
 export const COMMAND_LENS_GEOMETRY = {
 	backdropInset: 2,

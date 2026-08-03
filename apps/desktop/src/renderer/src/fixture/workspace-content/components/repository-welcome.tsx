@@ -149,6 +149,7 @@ function RepositoryListItem({
 				key: shortcutKey,
 				label: `Open ${repositoryName}`,
 				onInvoke: () => onOpen(repository.path),
+				showInLens: false,
 			});
 		}
 		commands.push({
@@ -157,6 +158,7 @@ function RepositoryListItem({
 			key: shortcutKey,
 			label: `Open ${repositoryName} in the background`,
 			onInvoke: () => onOpen(repository.path, { activate: false }),
+			showInLens: false,
 		});
 	}
 

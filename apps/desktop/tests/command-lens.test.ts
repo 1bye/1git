@@ -5,6 +5,7 @@ import {
 } from "@/fixture/command-lens/lib/command-lens-geometry.js";
 import {
 	type CommandLensNavigationTarget,
+	getClosestCommandLensNavigationTarget,
 	getCommandLensNavigationAction,
 	getCommandLensNavigationAdvanceTarget,
 	getCommandLensNavigationTargets,
@@ -72,6 +73,30 @@ describe("command lens shortcuts", () => {
 			commands[1],
 		]);
 		expect(hasCommandLensOptionMode(commands)).toBe(true);
+	});
+
+	test("keeps silent number shortcuts invokable and accessible", () => {
+		const command = {
+			key: "1",
+			label: "Open first workspace",
+			showInLens: false,
+		} as const;
+		const alternateCommand = {
+			altKey: true,
+			key: "1",
+			label: "Open first workspace in background",
+			showInLens: false,
+		} as const;
+
+		expect(
+			matchesCommandLensCommand(
+				keyboardEvent({ code: "Digit1", key: "1" }),
+				command
+			)
+		).toBe(true);
+		expect(commandLensAriaKeyShortcut(command)).toBe("Meta+1");
+		expect(getCommandLensDisplayCommands([command], false)).toEqual([]);
+		expect(hasCommandLensOptionMode([command, alternateCommand])).toBe(false);
 	});
 
 	test("matches Option-modified letters by physical code", () => {
@@ -256,6 +281,20 @@ describe("command lens navigation", () => {
 		expect(
 			getNextCommandLensNavigationTarget(targets, "repo", "ArrowLeft")?.id
 		).toBe("clone");
+	});
+
+	test("keeps selection beside a removed third tab instead of returning to repos", () => {
+		const removedTab = target("tab-3", "toolbar", 3, 620, 20, "horizontal");
+		const survivingTargets = [
+			target("repos", "toolbar", 0, 20, 20, "horizontal"),
+			target("tab-1", "toolbar", 1, 220, 20, "horizontal"),
+			target("tab-2", "toolbar", 2, 420, 20, "horizontal"),
+			target("tab-4", "toolbar", 3, 620, 20, "horizontal"),
+		];
+
+		expect(
+			getClosestCommandLensNavigationTarget(survivingTargets, removedTab)?.id
+		).toBe("tab-4");
 	});
 
 	test("offers alternate navigation actions only while Option is held", () => {
