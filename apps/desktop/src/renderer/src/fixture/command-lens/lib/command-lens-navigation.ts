@@ -13,6 +13,7 @@ export type CommandLensNavigationDirection =
 export type CommandLensNavigationOrientation = "horizontal" | "vertical";
 
 export interface CommandLensNavigationAction {
+	readonly hintLabel?: string;
 	readonly label: string;
 	readonly onInvoke: () => Promise<void> | void;
 }

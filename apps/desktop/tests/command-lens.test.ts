@@ -262,6 +262,7 @@ describe("command lens navigation", () => {
 		const repository = {
 			...target("repo", "repositories", 0, 300, 140),
 			navigationAlternateAction: {
+				hintLabel: "Open in background",
 				label: "Open repo in background",
 				onInvoke: () => undefined,
 			},
@@ -275,6 +276,9 @@ describe("command lens navigation", () => {
 		);
 		expect(getCommandLensNavigationAction(repository, true)?.label).toBe(
 			"Open repo in background"
+		);
+		expect(getCommandLensNavigationAction(repository, true)?.hintLabel).toBe(
+			"Open in background"
 		);
 		expect(isCommandLensNavigationKey("ArrowDown")).toBe(true);
 		expect(isCommandLensNavigationKey("Enter")).toBe(false);

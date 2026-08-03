@@ -167,10 +167,12 @@ function RepositoryListItem({
 				hintLayout: "gutter-start",
 				id: `welcome-repository:${repository.path}`,
 				navigationAction: {
+					hintLabel: "Open",
 					label: `Open ${repositoryName}`,
 					onInvoke: () => onOpen(repository.path),
 				},
 				navigationAlternateAction: {
+					hintLabel: "Open in background",
 					label: `Open ${repositoryName} in the background`,
 					onInvoke: () => onOpen(repository.path, { activate: false }),
 				},

@@ -13,6 +13,7 @@ import {
 	getCommandLensHintRect,
 } from "@/fixture/command-lens/lib/command-lens-geometry.js";
 import {
+	type CommandLensNavigationAction,
 	type CommandLensNavigationTarget,
 	getCommandLensNavigationAction,
 } from "@/fixture/command-lens/lib/command-lens-navigation.js";
@@ -188,11 +189,13 @@ function CommandLensModeLegend({
 }
 
 function CommandLensNavigationLegend({
-	hasAlternateActions,
+	alternateAction,
 	isOptionActive,
+	primaryAction,
 }: {
-	readonly hasAlternateActions: boolean;
+	readonly alternateAction: CommandLensNavigationAction | null;
 	readonly isOptionActive: boolean;
+	readonly primaryAction: CommandLensNavigationAction | null;
 }): ReactElement {
 	return (
 		<div
@@ -212,23 +215,31 @@ function CommandLensNavigationLegend({
 				</Kbd>
 				Section
 			</span>
-			<span className="flex items-center gap-1.5">
-				<Kbd className="h-5 min-w-5 rounded-md bg-white/15 px-1 text-[10px] text-white shadow-none">
-					↵
-				</Kbd>
-				Run
-			</span>
-			{hasAlternateActions ? (
+			{primaryAction ? (
+				<span
+					className={cn(
+						"flex items-center gap-1.5",
+						isOptionActive && alternateAction && "opacity-50"
+					)}
+				>
+					<Kbd className="h-5 min-w-5 rounded-md bg-white/15 px-1 text-[10px] text-white shadow-none">
+						↵
+					</Kbd>
+					{primaryAction.hintLabel ?? "Run"}
+				</span>
+			) : null}
+			{alternateAction ? (
 				<span
 					className={cn(
 						"flex items-center gap-1.5",
 						isOptionActive && "text-white"
 					)}
 				>
-					<Kbd className="h-5 min-w-5 rounded-md bg-white/15 px-1 text-[10px] text-white shadow-none">
-						⌥
+					<Kbd className="h-5 min-w-8 gap-0.5 rounded-md bg-white/15 px-1 text-[10px] text-white shadow-none">
+						<span>⌥</span>
+						<span>↵</span>
 					</Kbd>
-					Alternate
+					{alternateAction.hintLabel ?? "Alternate"}
 				</span>
 			) : null}
 		</div>
@@ -267,9 +278,12 @@ export function CommandLensOverlay({
 	const hasOptionMode = hasCommandLensOptionMode(
 		targets.flatMap((target) => target.commands)
 	);
-	const hasAlternateActions = targets.some(
-		(target) => target.navigationAlternateAction
-	);
+	const primaryAction = selectedTarget
+		? getCommandLensNavigationAction(selectedTarget, false)
+		: null;
+	const alternateAction = selectedTarget
+		? getCommandLensNavigationAction(selectedTarget, true)
+		: null;
 	const layerStyle: CSSProperties = {
 		zIndex: COMMAND_LENS_Z_INDEX,
 	};
@@ -339,8 +353,9 @@ export function CommandLensOverlay({
 			)}
 			{isNavigationActive ? (
 				<CommandLensNavigationLegend
-					hasAlternateActions={hasAlternateActions}
+					alternateAction={alternateAction}
 					isOptionActive={isOptionActive}
+					primaryAction={primaryAction}
 				/>
 			) : null}
 			{!isNavigationActive && hasOptionMode ? (
