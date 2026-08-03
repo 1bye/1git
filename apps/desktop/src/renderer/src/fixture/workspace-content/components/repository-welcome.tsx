@@ -91,7 +91,7 @@ function QuickAction({
 	const commandLensTarget = useCommandLensTarget({
 		commands: [command],
 		disabled,
-		hintLayout: "inline-end",
+		hintLayout: "gutter-start",
 		id: commandId,
 		radius: 10,
 	});
@@ -136,10 +136,10 @@ function RepositoryListItem({
 		}
 		commands.push({
 			allowInEditable: true,
+			altKey: true,
 			key: shortcutKey,
 			label: `Open ${repositoryName} in the background`,
 			onInvoke: () => onOpen(repository.path, { activate: false }),
-			shiftKey: true,
 		});
 	}
 
@@ -331,14 +331,14 @@ export function RepositoryWelcome({
 		commands: [
 			{
 				allowInEditable: true,
+				altKey: true,
 				key: "o",
 				label: "Clone from URL",
 				onInvoke: openCloneMenu,
-				shiftKey: true,
 			},
 		],
 		disabled: isLoading,
-		hintLayout: "inline-end",
+		hintLayout: "gutter-start",
 		id: "welcome-clone-repository",
 		radius: 10,
 	});

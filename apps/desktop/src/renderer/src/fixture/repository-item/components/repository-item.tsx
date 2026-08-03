@@ -98,6 +98,9 @@ const useRepositoryItemCommandLens = ({
 	const target = useCommandLensTarget({
 		commands: commandLens?.commands ?? [],
 		disabled: disabled || !commandLens,
+		highlightInsetBlock: commandLens?.highlightInsetBlock,
+		highlightInsetInline: commandLens?.highlightInsetInline,
+		highlightOutset: commandLens?.highlightOutset,
 		hintLayout: commandLens?.hintLayout,
 		id: commandLens?.id ?? `repository-item:${repositoryPath}`,
 		placement: commandLens?.placement,

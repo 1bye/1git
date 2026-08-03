@@ -4,13 +4,17 @@ import {
 	type CommandLensMeasuredTarget,
 	CommandLensOverlay,
 } from "@/fixture/command-lens/components/command-lens-overlay.js";
-import { COMMAND_LENS_DWELL_MS } from "@/fixture/command-lens/constants/command-lens.js";
+import {
+	COMMAND_LENS_DWELL_MS,
+	COMMAND_LENS_GEOMETRY,
+} from "@/fixture/command-lens/constants/command-lens.js";
 import {
 	CommandLensContext,
 	type CommandLensContextValue,
 	type CommandLensTargetReader,
 	type CommandLensTargetSource,
 } from "@/fixture/command-lens/hooks/use-command-lens-context.js";
+import { insetCommandLensRect } from "@/fixture/command-lens/lib/command-lens-geometry.js";
 import {
 	type CommandLensCommand,
 	isCommandLensModifierKey,
@@ -75,18 +79,28 @@ const measureTarget = (
 	if (!rect) {
 		return null;
 	}
-	return {
-		commands: target.commands,
-		hintLayout: target.hintLayout ?? "floating",
-		id: target.id,
-		placement: target.placement ?? "bottom",
-		radius: target.radius ?? 12,
-		rect: {
+	const highlightRect = insetCommandLensRect(
+		{
 			height: rect.height,
 			left: rect.left,
 			top: rect.top,
 			width: rect.width,
 		},
+		target.highlightInsetBlock,
+		target.highlightInsetInline
+	);
+	if (highlightRect.width <= 0 || highlightRect.height <= 0) {
+		return null;
+	}
+	return {
+		commands: target.commands,
+		highlightOutset:
+			target.highlightOutset ?? COMMAND_LENS_GEOMETRY.backdropInset,
+		hintLayout: target.hintLayout ?? "floating",
+		id: target.id,
+		placement: target.placement ?? "bottom",
+		radius: target.radius ?? 12,
+		rect: highlightRect,
 	};
 };
 
@@ -119,12 +133,12 @@ export function CommandLensProvider({
 	const measurementFrameRef = useRef<number | null>(null);
 	const dwellTimerRef = useRef<number | null>(null);
 	const isMetaDownRef = useRef(false);
-	const isShiftDownRef = useRef(false);
+	const isOptionDownRef = useRef(false);
 	const isVisibleRef = useRef(false);
 	const isSuppressedRef = useRef(false);
 	const layerIdsRef = useRef(liquidMenuStack.layerIds);
 	const [isVisible, setIsVisible] = useState(false);
-	const [isShiftActive, setIsShiftActive] = useState(false);
+	const [isOptionActive, setIsOptionActive] = useState(false);
 	const [targets, setTargets] = useState<readonly CommandLensMeasuredTarget[]>(
 		[]
 	);
@@ -172,7 +186,7 @@ export function CommandLensProvider({
 			if (suppressUntilMetaRelease) {
 				isSuppressedRef.current = true;
 			}
-			setIsShiftActive(false);
+			setIsOptionActive(false);
 			setIsVisible(false);
 			setTargets([]);
 		},
@@ -192,7 +206,7 @@ export function CommandLensProvider({
 			return;
 		}
 		isVisibleRef.current = true;
-		setIsShiftActive(isShiftDownRef.current);
+		setIsOptionActive(isOptionDownRef.current);
 		setTargets(visibleTargets);
 		setIsVisible(true);
 	}, [readVisibleTargets]);
@@ -238,7 +252,7 @@ export function CommandLensProvider({
 				return;
 			}
 			isMetaDownRef.current = true;
-			isShiftDownRef.current = event.shiftKey;
+			isOptionDownRef.current = event.altKey;
 			isSuppressedRef.current = false;
 			clearDwellTimer();
 			if (layerIdsRef.current.length > 0) {
@@ -274,13 +288,13 @@ export function CommandLensProvider({
 		},
 		[requestMeasurement]
 	);
-	const trackShiftKeyDown = useCallback((event: KeyboardEvent): boolean => {
-		if (event.key !== "Shift") {
+	const trackOptionKeyDown = useCallback((event: KeyboardEvent): boolean => {
+		if (event.key !== "Alt") {
 			return false;
 		}
-		isShiftDownRef.current = true;
+		isOptionDownRef.current = true;
 		if (isVisibleRef.current) {
-			setIsShiftActive(true);
+			setIsOptionActive(true);
 		}
 		return true;
 	}, []);
@@ -301,13 +315,10 @@ export function CommandLensProvider({
 				startMetaDwell(event);
 				return;
 			}
-			if (trackShiftKeyDown(event)) {
+			if (trackOptionKeyDown(event)) {
 				return;
 			}
-			if (
-				!(event.metaKey && isMetaDownRef.current) ||
-				isCommandLensModifierKey(event.key)
-			) {
+			if (!event.metaKey || isCommandLensModifierKey(event.key)) {
 				return;
 			}
 
@@ -318,22 +329,22 @@ export function CommandLensProvider({
 			runMatchingCommand(event);
 		};
 		const handleKeyUp = (event: KeyboardEvent): void => {
-			if (event.key === "Shift") {
-				isShiftDownRef.current = false;
-				setIsShiftActive(false);
+			if (event.key === "Alt") {
+				isOptionDownRef.current = false;
+				setIsOptionActive(false);
 				return;
 			}
 			if (event.key !== "Meta") {
 				return;
 			}
 			isMetaDownRef.current = false;
-			isShiftDownRef.current = false;
+			isOptionDownRef.current = false;
 			isSuppressedRef.current = false;
 			hideLens(false);
 		};
 		const resetLens = (): void => {
 			isMetaDownRef.current = false;
-			isShiftDownRef.current = false;
+			isOptionDownRef.current = false;
 			isSuppressedRef.current = false;
 			hideLens(false);
 		};
@@ -366,7 +377,7 @@ export function CommandLensProvider({
 		hideLens,
 		runMatchingCommand,
 		startMetaDwell,
-		trackShiftKeyDown,
+		trackOptionKeyDown,
 	]);
 
 	useEffect(() => {
@@ -405,7 +416,7 @@ export function CommandLensProvider({
 		<CommandLensContext value={context}>
 			{children}
 			{isVisible ? (
-				<CommandLensOverlay isShiftActive={isShiftActive} targets={targets} />
+				<CommandLensOverlay isOptionActive={isOptionActive} targets={targets} />
 			) : null}
 		</CommandLensContext>
 	);

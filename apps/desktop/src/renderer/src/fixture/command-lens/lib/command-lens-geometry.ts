@@ -18,6 +18,21 @@ interface CommandLensViewport {
 const clamp = (value: number, minimum: number, maximum: number): number =>
 	Math.min(Math.max(value, minimum), Math.max(minimum, maximum));
 
+export const insetCommandLensRect = (
+	rect: CommandLensRect,
+	insetBlock = 0,
+	insetInline = 0
+): CommandLensRect => {
+	const safeBlockInset = Math.min(Math.max(insetBlock, 0), rect.height / 2);
+	const safeInlineInset = Math.min(Math.max(insetInline, 0), rect.width / 2);
+	return {
+		height: rect.height - safeBlockInset * 2,
+		left: rect.left + safeInlineInset,
+		top: rect.top + safeBlockInset,
+		width: rect.width - safeInlineInset * 2,
+	};
+};
+
 const oppositePlacement = (
 	placement: CommandLensPlacement
 ): CommandLensPlacement => {

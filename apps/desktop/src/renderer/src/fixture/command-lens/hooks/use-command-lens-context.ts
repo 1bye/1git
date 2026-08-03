@@ -8,6 +8,9 @@ import type { CommandLensCommand } from "@/fixture/command-lens/lib/command-lens
 export interface CommandLensTargetOptions {
 	readonly commands: readonly CommandLensCommand[];
 	readonly disabled?: boolean;
+	readonly highlightInsetBlock?: number;
+	readonly highlightInsetInline?: number;
+	readonly highlightOutset?: number;
 	readonly hintLayout?: CommandLensHintLayout;
 	readonly id: string;
 	readonly placement?: CommandLensPlacement;

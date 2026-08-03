@@ -1,11 +1,14 @@
 import { describe, expect, test } from "bun:test";
-import { getCommandLensHintRect } from "@/fixture/command-lens/lib/command-lens-geometry.js";
+import {
+	getCommandLensHintRect,
+	insetCommandLensRect,
+} from "@/fixture/command-lens/lib/command-lens-geometry.js";
 import {
 	commandLensAriaKeyShortcut,
 	formatCommandLensCommand,
 	getCommandLensDisplayCommands,
 	getCommandLensNumberKey,
-	hasCommandLensShiftMode,
+	hasCommandLensOptionMode,
 	matchesCommandLensCommand,
 } from "@/fixture/command-lens/lib/command-lens-shortcut.js";
 
@@ -29,28 +32,28 @@ describe("command lens shortcuts", () => {
 		expect(getCommandLensNumberKey(11, 12)).toBe("9");
 	});
 
-	test("matches shifted digits by physical code", () => {
+	test("matches Option-modified digits by physical code", () => {
 		const command = {
+			altKey: true,
 			key: "1",
 			label: "Open in background",
-			shiftKey: true,
 		} as const;
 		const event = keyboardEvent({
+			altKey: true,
 			code: "Digit1",
-			key: "!",
-			shiftKey: true,
+			key: "¡",
 		});
 
 		expect(matchesCommandLensCommand(event, command)).toBe(true);
-		expect(formatCommandLensCommand(command)).toEqual(["⇧", "1"]);
+		expect(formatCommandLensCommand(command)).toEqual(["⌥", "1"]);
 		expect(formatCommandLensCommand(command, true)).toEqual(["1"]);
-		expect(commandLensAriaKeyShortcut(command)).toBe("Meta+Shift+1");
+		expect(commandLensAriaKeyShortcut(command)).toBe("Meta+Alt+1");
 	});
 
-	test("presents one command per target for the current Shift mode", () => {
+	test("presents one command per target for the current Option mode", () => {
 		const commands = [
 			{ key: "1", label: "Open" },
-			{ key: "1", label: "Open in background", shiftKey: true },
+			{ altKey: true, key: "1", label: "Open in background" },
 		] as const;
 
 		expect(getCommandLensDisplayCommands(commands, false)).toEqual([
@@ -59,7 +62,22 @@ describe("command lens shortcuts", () => {
 		expect(getCommandLensDisplayCommands(commands, true)).toEqual([
 			commands[1],
 		]);
-		expect(hasCommandLensShiftMode(commands)).toBe(true);
+		expect(hasCommandLensOptionMode(commands)).toBe(true);
+	});
+
+	test("matches Option-modified letters by physical code", () => {
+		const command = {
+			altKey: true,
+			key: "o",
+			label: "Clone from URL",
+		} as const;
+
+		expect(
+			matchesCommandLensCommand(
+				keyboardEvent({ altKey: true, code: "KeyO", key: "ø" }),
+				command
+			)
+		).toBe(true);
 	});
 
 	test("does not capture commands with unrelated modifiers", () => {
@@ -70,7 +88,7 @@ describe("command lens shortcuts", () => {
 		).toBe(true);
 		expect(
 			matchesCommandLensCommand(
-				keyboardEvent({ altKey: true, key: "k" }),
+				keyboardEvent({ key: "k", shiftKey: true }),
 				command
 			)
 		).toBe(false);
@@ -136,5 +154,16 @@ describe("command lens geometry", () => {
 		expect(inlineHint.top).toBe(69);
 		expect(gutterHint.left).toBe(67);
 		expect(gutterHint.top).toBe(69);
+	});
+
+	test("insets a target highlight without moving its center", () => {
+		const insetRect = insetCommandLensRect(anchor, 4, 4);
+
+		expect(insetRect).toEqual({
+			height: 32,
+			left: 104,
+			top: 64,
+			width: 152,
+		});
 	});
 });

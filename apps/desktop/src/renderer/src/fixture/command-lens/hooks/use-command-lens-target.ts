@@ -23,6 +23,9 @@ export const useCommandLensTarget = (
 	optionsRef.current = options;
 	const targetRevision = [
 		options.disabled ? "disabled" : "enabled",
+		String(options.highlightInsetBlock ?? 0),
+		String(options.highlightInsetInline ?? 0),
+		String(options.highlightOutset ?? 2),
 		options.hintLayout ?? "floating",
 		options.placement ?? "bottom",
 		String(options.radius ?? 12),

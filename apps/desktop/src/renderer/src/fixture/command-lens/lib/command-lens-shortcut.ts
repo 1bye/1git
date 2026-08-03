@@ -1,5 +1,6 @@
 export interface CommandLensCommand {
 	readonly allowInEditable?: boolean;
+	readonly altKey?: boolean;
 	readonly key: string;
 	readonly label: string;
 	readonly onInvoke?: () => Promise<void> | void;
@@ -7,6 +8,7 @@ export interface CommandLensCommand {
 }
 
 const DIGIT_KEY_PATTERN = /^\d$/;
+const LETTER_KEY_PATTERN = /^[a-z]$/i;
 const MODIFIER_KEYS = new Set(["Alt", "Control", "Meta", "Shift"]);
 const MAXIMUM_NUMBERED_TARGETS = 9;
 
@@ -20,6 +22,13 @@ const eventKeyMatches = (
 	if (
 		DIGIT_KEY_PATTERN.test(command.key) &&
 		event.code === `Digit${command.key}`
+	) {
+		return true;
+	}
+	if (
+		event.altKey &&
+		LETTER_KEY_PATTERN.test(command.key) &&
+		event.code === `Key${command.key.toLocaleUpperCase()}`
 	) {
 		return true;
 	}
@@ -50,7 +59,7 @@ export const matchesCommandLensCommand = (
 	command: CommandLensCommand
 ): boolean =>
 	event.metaKey &&
-	!event.altKey &&
+	event.altKey === (command.altKey ?? false) &&
 	!event.ctrlKey &&
 	event.shiftKey === (command.shiftKey ?? false) &&
 	eventKeyMatches(event, command);
@@ -73,34 +82,40 @@ const visibleKey = (key: string): string => {
 
 export const formatCommandLensCommand = (
 	command: CommandLensCommand,
-	isShiftActive = false
+	isOptionActive = false
 ): readonly string[] => [
-	...(command.shiftKey && !isShiftActive ? ["⇧"] : []),
+	...(command.altKey && !isOptionActive ? ["⌥"] : []),
+	...(command.shiftKey ? ["⇧"] : []),
 	visibleKey(command.key),
 ];
 
 export const getCommandLensDisplayCommands = (
 	commands: readonly CommandLensCommand[],
-	isShiftActive: boolean
+	isOptionActive: boolean
 ): readonly CommandLensCommand[] => {
-	const shiftedCommands = commands.filter((command) => command.shiftKey);
-	if (isShiftActive) {
-		return shiftedCommands;
+	const optionCommands = commands.filter((command) => command.altKey);
+	if (isOptionActive) {
+		return optionCommands;
 	}
-	const primaryCommands = commands.filter((command) => !command.shiftKey);
-	return primaryCommands.length > 0 ? primaryCommands : shiftedCommands;
+	const primaryCommands = commands.filter((command) => !command.altKey);
+	return primaryCommands.length > 0 ? primaryCommands : optionCommands;
 };
 
-export const hasCommandLensShiftMode = (
+export const hasCommandLensOptionMode = (
 	commands: readonly CommandLensCommand[]
 ): boolean =>
-	commands.some((command) => command.shiftKey) &&
-	commands.some((command) => !command.shiftKey);
+	commands.some((command) => command.altKey) &&
+	commands.some((command) => !command.altKey);
 
 export const commandLensAriaKeyShortcut = (
 	command: CommandLensCommand
 ): string =>
-	["Meta", ...(command.shiftKey ? ["Shift"] : []), command.key].join("+");
+	[
+		"Meta",
+		...(command.altKey ? ["Alt"] : []),
+		...(command.shiftKey ? ["Shift"] : []),
+		command.key,
+	].join("+");
 
 export const commandLensCommandSignature = (
 	commands: readonly CommandLensCommand[]
