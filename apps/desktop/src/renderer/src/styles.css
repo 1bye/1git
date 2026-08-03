@@ -295,21 +295,64 @@ button {
 	}
 }
 
+@keyframes command-lens-selection-in {
+	from {
+		opacity: 0;
+		transform: scale(0.97);
+	}
+
+	to {
+		opacity: 1;
+		transform: none;
+	}
+}
+
 [data-name="CommandLensBackdrop"] {
 	animation: command-lens-backdrop-in 180ms ease-out both;
 }
 
 [data-name="CommandLensHint"],
+[data-name="CommandLensNavigationLegend"],
 [data-name="CommandLensModeLegend"] {
 	transform-origin: center;
 	animation: command-lens-hint-in 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+[data-name="CommandLensHint"][data-navigation-active="true"] {
+	transition:
+		opacity 140ms ease-out,
+		transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+	animation: none;
+}
+
+[data-name="CommandLensSelection"] {
+	transform-origin: center;
+	transition:
+		left 190ms cubic-bezier(0.22, 1, 0.36, 1),
+		top 190ms cubic-bezier(0.22, 1, 0.36, 1),
+		width 190ms cubic-bezier(0.22, 1, 0.36, 1),
+		height 190ms cubic-bezier(0.22, 1, 0.36, 1),
+		border-radius 190ms cubic-bezier(0.22, 1, 0.36, 1);
+	animation: command-lens-selection-in 160ms cubic-bezier(0.22, 1, 0.36, 1) both;
+	will-change: left, top, width, height, border-radius;
+}
+
 [data-name="CommandLensHint"] [data-name="Kbd"],
+[data-name="CommandLensNavigationLegend"],
 [data-name="CommandLensModeLegend"] {
 	transition:
 		background-color 120ms ease-out,
 		color 120ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	[data-name="CommandLensHint"],
+	[data-name="CommandLensNavigationLegend"],
+	[data-name="CommandLensModeLegend"],
+	[data-name="CommandLensSelection"] {
+		transition: none;
+		animation: none;
+	}
 }
 
 @keyframes liquid-menu-content-in {

@@ -103,6 +103,12 @@ const useRepositoryItemCommandLens = ({
 		highlightOutset: commandLens?.highlightOutset,
 		hintLayout: commandLens?.hintLayout,
 		id: commandLens?.id ?? `repository-item:${repositoryPath}`,
+		navigationAction: commandLens?.navigationAction,
+		navigationAlternateAction: commandLens?.navigationAlternateAction,
+		navigationDefault: commandLens?.navigationDefault,
+		navigationGroup: commandLens?.navigationGroup,
+		navigationOrder: commandLens?.navigationOrder,
+		navigationOrientation: commandLens?.navigationOrientation,
 		placement: commandLens?.placement,
 		radius: commandLens?.radius,
 	});

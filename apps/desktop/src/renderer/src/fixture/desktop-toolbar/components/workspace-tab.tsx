@@ -12,6 +12,7 @@ import {
 import { useCommandLensTarget } from "@/fixture/command-lens/hooks/use-command-lens-target.js";
 import type { CommandLensCommand } from "@/fixture/command-lens/lib/command-lens-shortcut.js";
 import {
+	WORKSPACE_COMMAND_LENS_GROUP,
 	WORKSPACE_TAB_REORDER_MOTION,
 	WORKSPACE_TAB_SURFACE_GEOMETRY,
 } from "@/fixture/desktop-toolbar/constants/workspace-tab.js";
@@ -39,6 +40,7 @@ interface WorkspaceTabAppearanceProps extends Omit<WorkspaceTabProps, "index"> {
 	readonly handleRef?: RefCallback<Element>;
 	readonly isDragging: boolean;
 	readonly isOverlay?: boolean;
+	readonly navigationOrder?: number;
 	readonly rootRef?: RefCallback<Element>;
 }
 
@@ -316,6 +318,7 @@ function WorkspaceTabAppearance({
 	isBusy,
 	isDragging,
 	isOverlay = false,
+	navigationOrder = 0,
 	onActivate,
 	onActivateNext,
 	onActivatePrevious,
@@ -360,6 +363,14 @@ function WorkspaceTabAppearance({
 		highlightOutset: 0,
 		hintLayout: "floating",
 		id: `workspace-tab:${workspace.session.id}`,
+		navigationAction: {
+			label: `Open ${label}`,
+			onInvoke: activateWorkspace,
+		},
+		navigationDefault: isActive,
+		navigationGroup: WORKSPACE_COMMAND_LENS_GROUP,
+		navigationOrder,
+		navigationOrientation: "horizontal",
 		placement: "bottom",
 		radius: WORKSPACE_TAB_SURFACE_GEOMETRY.tabRadius,
 	});
@@ -485,6 +496,7 @@ export function WorkspaceTab({
 			{...appearanceProps}
 			handleRef={handleRef}
 			isDragging={isDragging || isDropping}
+			navigationOrder={index + 1}
 			rootRef={ref}
 		/>
 	);

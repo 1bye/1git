@@ -27,6 +27,16 @@ export const useCommandLensTarget = (
 		String(options.highlightInsetInline ?? 0),
 		String(options.highlightOutset ?? 2),
 		options.hintLayout ?? "floating",
+		options.navigationAction
+			? options.navigationAction.label
+			: "derived-primary",
+		options.navigationAlternateAction
+			? options.navigationAlternateAction.label
+			: "derived-alternate",
+		options.navigationDefault ? "default" : "standard",
+		options.navigationGroup ?? options.id,
+		String(options.navigationOrder ?? 0),
+		options.navigationOrientation ?? "vertical",
 		options.placement ?? "bottom",
 		String(options.radius ?? 12),
 		commandLensCommandSignature(options.commands),

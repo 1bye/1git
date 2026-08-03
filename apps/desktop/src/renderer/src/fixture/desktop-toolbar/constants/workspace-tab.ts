@@ -1,3 +1,5 @@
+export const WORKSPACE_COMMAND_LENS_GROUP = "workspace-toolbar";
+
 export const WORKSPACE_TAB_POINTER_DRAG_HANDLE_SELECTOR =
 	"[data-workspace-tab-pointer-drag-handle]";
 

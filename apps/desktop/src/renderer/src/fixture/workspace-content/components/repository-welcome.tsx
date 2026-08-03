@@ -63,12 +63,15 @@ interface QuickActionProps {
 	readonly commandId: string;
 	readonly disabled: boolean;
 	readonly icon: ReactElement;
+	readonly navigationDefault?: boolean;
+	readonly navigationOrder: number;
 	readonly onClick: () => void;
 }
 
 interface RepositoryListItemProps {
 	readonly disabled: boolean;
 	readonly hasOpenWorkspaces: boolean;
+	readonly navigationOrder: number;
 	readonly onForgetRecent: (path: string) => Promise<void>;
 	readonly onOpen: (
 		path: string,
@@ -80,12 +83,17 @@ interface RepositoryListItemProps {
 	readonly workspace: WorkspaceTabState | null;
 }
 
+const WELCOME_ACTIONS_COMMAND_LENS_GROUP = "welcome-actions";
+const WELCOME_REPOSITORIES_COMMAND_LENS_GROUP = "welcome-repositories";
+
 function QuickAction({
 	children,
 	command,
 	commandId,
 	disabled,
 	icon,
+	navigationDefault = false,
+	navigationOrder,
 	onClick,
 }: QuickActionProps): ReactElement {
 	const commandLensTarget = useCommandLensTarget({
@@ -93,6 +101,14 @@ function QuickAction({
 		disabled,
 		hintLayout: "gutter-start",
 		id: commandId,
+		navigationAction: {
+			label: command.label,
+			onInvoke: onClick,
+		},
+		navigationDefault,
+		navigationGroup: WELCOME_ACTIONS_COMMAND_LENS_GROUP,
+		navigationOrder,
+		navigationOrientation: "vertical",
 		radius: 10,
 	});
 
@@ -116,6 +132,7 @@ function QuickAction({
 function RepositoryListItem({
 	disabled,
 	hasOpenWorkspaces,
+	navigationOrder,
 	onForgetRecent,
 	onOpen,
 	preview,
@@ -145,16 +162,23 @@ function RepositoryListItem({
 
 	return (
 		<RepositoryContextMenu
-			commandLens={
-				shortcutKey
-					? {
-							commands,
-							hintLayout: "gutter-start",
-							id: `welcome-repository:${repository.path}`,
-							radius: 12,
-						}
-					: undefined
-			}
+			commandLens={{
+				commands,
+				hintLayout: "gutter-start",
+				id: `welcome-repository:${repository.path}`,
+				navigationAction: {
+					label: `Open ${repositoryName}`,
+					onInvoke: () => onOpen(repository.path),
+				},
+				navigationAlternateAction: {
+					label: `Open ${repositoryName} in the background`,
+					onInvoke: () => onOpen(repository.path, { activate: false }),
+				},
+				navigationGroup: WELCOME_REPOSITORIES_COMMAND_LENS_GROUP,
+				navigationOrder,
+				navigationOrientation: "vertical",
+				radius: 12,
+			}}
 			disabled={disabled}
 			onForgetRecent={onForgetRecent}
 			onOpen={onOpen}
@@ -171,6 +195,7 @@ function RepositoryGroup({
 	heading,
 	onForgetRecent,
 	onOpen,
+	navigationOrdersByPath,
 	previews,
 	repositories,
 	shortcutKeysByPath,
@@ -183,6 +208,7 @@ function RepositoryGroup({
 		path: string,
 		options?: OpenRepositoryOptions
 	) => Promise<void>;
+	readonly navigationOrdersByPath: ReadonlyMap<string, number>;
 	readonly previews: ReadonlyMap<string, RecentRepositoryPreview>;
 	readonly repositories: readonly RecentRepositoryRecord[];
 	readonly shortcutKeysByPath: ReadonlyMap<string, string>;
@@ -203,6 +229,7 @@ function RepositoryGroup({
 						<RepositoryListItem
 							disabled={disabled}
 							hasOpenWorkspaces={workspacesByPath.size > 0}
+							navigationOrder={navigationOrdersByPath.get(repository.path) ?? 0}
 							onForgetRecent={onForgetRecent}
 							onOpen={onOpen}
 							preview={previews.get(repository.path) ?? null}
@@ -263,6 +290,9 @@ export function RepositoryWelcome({
 	);
 	const visibleRepositories = [...openRepositories, ...otherRepositories];
 	const numberedRepositoryCount = Math.min(visibleRepositories.length, 9);
+	const navigationOrdersByPath = new Map(
+		visibleRepositories.map((repository, index) => [repository.path, index])
+	);
 	const shortcutKeysByPath = new Map(
 		visibleRepositories
 			.slice(0, numberedRepositoryCount)
@@ -340,6 +370,13 @@ export function RepositoryWelcome({
 		disabled: isLoading,
 		hintLayout: "gutter-start",
 		id: "welcome-clone-repository",
+		navigationAction: {
+			label: "Clone from URL",
+			onInvoke: openCloneMenu,
+		},
+		navigationGroup: WELCOME_ACTIONS_COMMAND_LENS_GROUP,
+		navigationOrder: 1,
+		navigationOrientation: "vertical",
 		radius: 10,
 	});
 	const searchCommandLensTarget = useCommandLensTarget({
@@ -354,6 +391,13 @@ export function RepositoryWelcome({
 		disabled: isLoading || hasOpenWorkspaces,
 		hintLayout: "inline-end",
 		id: "welcome-search-repositories",
+		navigationAction: {
+			label: "Search repositories",
+			onInvoke: focusRepositorySearch,
+		},
+		navigationGroup: WELCOME_REPOSITORIES_COMMAND_LENS_GROUP,
+		navigationOrder: -1,
+		navigationOrientation: "vertical",
 		radius: 12,
 	});
 	const setCloneTriggerElement = useCallback(
@@ -410,6 +454,8 @@ export function RepositoryWelcome({
 								icon={
 									<PlusIcon aria-hidden className="size-4" weight="regular" />
 								}
+								navigationDefault
+								navigationOrder={0}
 								onClick={createRepository}
 							>
 								Create repository
@@ -511,6 +557,7 @@ export function RepositoryWelcome({
 										weight="duotone"
 									/>
 								}
+								navigationOrder={2}
 								onClick={pickRepository}
 							>
 								Open from disk
@@ -574,6 +621,7 @@ export function RepositoryWelcome({
 						<RepositoryGroup
 							disabled={isLoading}
 							heading="Open"
+							navigationOrdersByPath={navigationOrdersByPath}
 							onForgetRecent={onForgetRecent}
 							onOpen={onOpenRecent}
 							previews={previews}
@@ -584,6 +632,7 @@ export function RepositoryWelcome({
 						<RepositoryGroup
 							disabled={isLoading}
 							heading={openRepositories.length > 0 ? "Other" : "Repositories"}
+							navigationOrdersByPath={navigationOrdersByPath}
 							onForgetRecent={onForgetRecent}
 							onOpen={onOpenRecent}
 							previews={previews}

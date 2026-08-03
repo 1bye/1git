@@ -28,6 +28,7 @@ import {
 	REPOSITORY_MENU_ALIGN_OFFSET,
 	REPOSITORY_MENU_ANCHOR_GEOMETRY,
 } from "@/fixture/desktop-toolbar/constants/repository-menu.js";
+import { WORKSPACE_COMMAND_LENS_GROUP } from "@/fixture/desktop-toolbar/constants/workspace-tab.js";
 import { AnimatedFolderOpenIcon } from "@/fixture/icons/components/animated-folder-open-icon.js";
 import {
 	LiquidMenuContent,
@@ -171,6 +172,13 @@ export function RepositoryMenu({
 		disabled: !isVisible || pendingAction === "open",
 		hintLayout: "floating",
 		id: "repository-menu",
+		navigationAction: {
+			label: "Open repositories",
+			onInvoke: () => changeMenuOpen(true),
+		},
+		navigationGroup: WORKSPACE_COMMAND_LENS_GROUP,
+		navigationOrder: 0,
+		navigationOrientation: "horizontal",
 		placement: "bottom",
 		radius: 10,
 	});

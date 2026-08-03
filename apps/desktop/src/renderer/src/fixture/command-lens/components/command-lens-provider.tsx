@@ -16,6 +16,15 @@ import {
 } from "@/fixture/command-lens/hooks/use-command-lens-context.js";
 import { insetCommandLensRect } from "@/fixture/command-lens/lib/command-lens-geometry.js";
 import {
+	type CommandLensNavigationAction,
+	type CommandLensNavigationDirection,
+	getCommandLensNavigationAction,
+	getCommandLensNavigationTargets,
+	getInitialCommandLensNavigationTarget,
+	getNextCommandLensNavigationTarget,
+	isCommandLensNavigationKey,
+} from "@/fixture/command-lens/lib/command-lens-navigation.js";
+import {
 	type CommandLensCommand,
 	isCommandLensModifierKey,
 	matchesCommandLensCommand,
@@ -72,7 +81,13 @@ const isTargetVisible = (target: CommandLensTargetSource): boolean => {
 const measureTarget = (
 	target: CommandLensTargetSource
 ): CommandLensMeasuredTarget | null => {
-	if (!isTargetVisible(target) || target.commands.length === 0) {
+	const hasNavigationAction = Boolean(
+		target.navigationAction || target.navigationAlternateAction
+	);
+	if (
+		!isTargetVisible(target) ||
+		(target.commands.length === 0 && !hasNavigationAction)
+	) {
 		return null;
 	}
 	const rect = target.element?.getBoundingClientRect();
@@ -98,6 +113,12 @@ const measureTarget = (
 			target.highlightOutset ?? COMMAND_LENS_GEOMETRY.backdropInset,
 		hintLayout: target.hintLayout ?? "floating",
 		id: target.id,
+		navigationAction: target.navigationAction,
+		navigationAlternateAction: target.navigationAlternateAction,
+		navigationDefault: target.navigationDefault ?? false,
+		navigationGroup: target.navigationGroup ?? target.id,
+		navigationOrder: target.navigationOrder ?? 0,
+		navigationOrientation: target.navigationOrientation ?? "vertical",
 		placement: target.placement ?? "bottom",
 		radius: target.radius ?? 12,
 		rect: highlightRect,
@@ -123,6 +144,25 @@ const findInvokableCommand = (
 	return null;
 };
 
+const findFocusedTargetId = (
+	targetReaders: Iterable<CommandLensTargetReader>
+): string | null => {
+	const { activeElement } = document;
+	if (!activeElement) {
+		return null;
+	}
+	for (const readTarget of targetReaders) {
+		const target = readTarget();
+		if (
+			target.element === activeElement ||
+			target.element?.contains(activeElement)
+		) {
+			return target.id;
+		}
+	}
+	return null;
+};
+
 export function CommandLensProvider({
 	children,
 }: CommandLensProviderProps): ReactElement {
@@ -133,12 +173,17 @@ export function CommandLensProvider({
 	const measurementFrameRef = useRef<number | null>(null);
 	const dwellTimerRef = useRef<number | null>(null);
 	const isMetaDownRef = useRef(false);
+	const isNavigationActiveRef = useRef(false);
 	const isOptionDownRef = useRef(false);
 	const isVisibleRef = useRef(false);
 	const isSuppressedRef = useRef(false);
 	const layerIdsRef = useRef(liquidMenuStack.layerIds);
+	const selectedTargetIdRef = useRef<string | null>(null);
+	const targetsRef = useRef<readonly CommandLensMeasuredTarget[]>([]);
+	const [isNavigationActive, setIsNavigationActive] = useState(false);
 	const [isVisible, setIsVisible] = useState(false);
 	const [isOptionActive, setIsOptionActive] = useState(false);
+	const [selectedTargetId, setSelectedTargetId] = useState<string | null>(null);
 	const [targets, setTargets] = useState<readonly CommandLensMeasuredTarget[]>(
 		[]
 	);
@@ -151,6 +196,53 @@ export function CommandLensProvider({
 		window.clearTimeout(dwellTimerRef.current);
 		dwellTimerRef.current = null;
 	}, []);
+	const setMeasuredTargets = useCallback(
+		(nextTargets: readonly CommandLensMeasuredTarget[]): void => {
+			targetsRef.current = nextTargets;
+			setTargets(nextTargets);
+		},
+		[]
+	);
+	const selectNavigationTarget = useCallback(
+		(targetId: string | null): void => {
+			selectedTargetIdRef.current = targetId;
+			setSelectedTargetId(targetId);
+			if (!targetId) {
+				return;
+			}
+			targetReadersRef.current.get(targetId)?.().element?.scrollIntoView({
+				block: "nearest",
+				inline: "nearest",
+			});
+		},
+		[]
+	);
+	const reconcileNavigationSelection = useCallback(
+		(
+			nextTargets: readonly CommandLensMeasuredTarget[],
+			nextIsOptionActive: boolean
+		): void => {
+			if (!isNavigationActiveRef.current) {
+				return;
+			}
+			const navigationTargets = getCommandLensNavigationTargets(
+				nextTargets,
+				nextIsOptionActive
+			);
+			const currentTargetId = selectedTargetIdRef.current;
+			const currentTargetStillExists = navigationTargets.some(
+				(target) => target.id === currentTargetId
+			);
+			if (currentTargetStillExists) {
+				return;
+			}
+			selectNavigationTarget(
+				getInitialCommandLensNavigationTarget(navigationTargets, null)?.id ??
+					null
+			);
+		},
+		[selectNavigationTarget]
+	);
 	const readVisibleTargets =
 		useCallback((): readonly CommandLensMeasuredTarget[] => {
 			const measuredTargets: CommandLensMeasuredTarget[] = [];
@@ -167,8 +259,10 @@ export function CommandLensProvider({
 		if (!isVisibleRef.current) {
 			return;
 		}
-		setTargets(readVisibleTargets());
-	}, [readVisibleTargets]);
+		const nextTargets = readVisibleTargets();
+		setMeasuredTargets(nextTargets);
+		reconcileNavigationSelection(nextTargets, isOptionDownRef.current);
+	}, [readVisibleTargets, reconcileNavigationSelection, setMeasuredTargets]);
 	const requestMeasurement = useCallback((): void => {
 		if (!isVisibleRef.current || measurementFrameRef.current !== null) {
 			return;
@@ -186,7 +280,12 @@ export function CommandLensProvider({
 			if (suppressUntilMetaRelease) {
 				isSuppressedRef.current = true;
 			}
+			isNavigationActiveRef.current = false;
+			selectedTargetIdRef.current = null;
+			targetsRef.current = [];
+			setIsNavigationActive(false);
 			setIsOptionActive(false);
+			setSelectedTargetId(null);
 			setIsVisible(false);
 			setTargets([]);
 		},
@@ -206,10 +305,14 @@ export function CommandLensProvider({
 			return;
 		}
 		isVisibleRef.current = true;
+		isNavigationActiveRef.current = false;
+		selectedTargetIdRef.current = null;
+		setIsNavigationActive(false);
 		setIsOptionActive(isOptionDownRef.current);
-		setTargets(visibleTargets);
+		setSelectedTargetId(null);
+		setMeasuredTargets(visibleTargets);
 		setIsVisible(true);
-	}, [readVisibleTargets]);
+	}, [readVisibleTargets, setMeasuredTargets]);
 	const registerTarget = useCallback(
 		(id: string, readTarget: CommandLensTargetReader): (() => void) => {
 			targetReadersRef.current.set(id, readTarget);
@@ -266,6 +369,16 @@ export function CommandLensProvider({
 		},
 		[clearDwellTimer, showLens]
 	);
+	const invokeAction = useCallback(
+		(action: CommandLensNavigationAction): void => {
+			const result = action.onInvoke();
+			if (result instanceof Promise) {
+				result.catch((error: unknown) => window.reportError(error));
+			}
+			requestMeasurement();
+		},
+		[requestMeasurement]
+	);
 	const runMatchingCommand = useCallback(
 		(event: KeyboardEvent): void => {
 			const command = findInvokableCommand(
@@ -280,33 +393,100 @@ export function CommandLensProvider({
 			}
 			event.preventDefault();
 			event.stopImmediatePropagation();
-			const result = command.onInvoke();
-			if (result instanceof Promise) {
-				result.catch((error: unknown) => window.reportError(error));
-			}
-			requestMeasurement();
+			invokeAction(command);
 		},
-		[requestMeasurement]
+		[invokeAction]
 	);
-	const trackOptionKeyDown = useCallback((event: KeyboardEvent): boolean => {
-		if (event.key !== "Alt") {
-			return false;
-		}
-		isOptionDownRef.current = true;
-		if (isVisibleRef.current) {
-			setIsOptionActive(true);
-		}
-		return true;
-	}, []);
-
-	useEffect(() => {
-		if (liquidMenuStack.layerIds.length > 0) {
-			hideLens(true);
-		}
-	}, [hideLens, liquidMenuStack.layerIds]);
-
-	useEffect(() => {
-		const handleKeyDown = (event: KeyboardEvent): void => {
+	const navigateCommandLens = useCallback(
+		(
+			event: KeyboardEvent,
+			direction: CommandLensNavigationDirection
+		): boolean => {
+			if (!isVisibleRef.current || isEditableEventTarget(event.target)) {
+				return false;
+			}
+			const navigationTargets = getCommandLensNavigationTargets(
+				targetsRef.current,
+				isOptionDownRef.current
+			);
+			if (navigationTargets.length === 0) {
+				return false;
+			}
+			let nextTarget: CommandLensMeasuredTarget | null;
+			if (isNavigationActiveRef.current) {
+				const currentTargetId = selectedTargetIdRef.current;
+				nextTarget = currentTargetId
+					? getNextCommandLensNavigationTarget(
+							navigationTargets,
+							currentTargetId,
+							direction
+						)
+					: getInitialCommandLensNavigationTarget(navigationTargets, null);
+			} else {
+				const focusedTargetId = findFocusedTargetId(
+					targetReadersRef.current.values()
+				);
+				nextTarget = getInitialCommandLensNavigationTarget(
+					navigationTargets,
+					focusedTargetId
+				);
+				isNavigationActiveRef.current = true;
+				setIsNavigationActive(true);
+			}
+			if (!nextTarget) {
+				return false;
+			}
+			event.preventDefault();
+			event.stopImmediatePropagation();
+			selectNavigationTarget(nextTarget.id);
+			return true;
+		},
+		[selectNavigationTarget]
+	);
+	const runSelectedNavigationAction = useCallback(
+		(event: KeyboardEvent): boolean => {
+			if (
+				!isNavigationActiveRef.current ||
+				isEditableEventTarget(event.target)
+			) {
+				return false;
+			}
+			const target = targetsRef.current.find(
+				(candidate) => candidate.id === selectedTargetIdRef.current
+			);
+			if (!target) {
+				return false;
+			}
+			const action = getCommandLensNavigationAction(
+				target,
+				isOptionDownRef.current
+			);
+			if (!action) {
+				return false;
+			}
+			event.preventDefault();
+			event.stopImmediatePropagation();
+			invokeAction(action);
+			return true;
+		},
+		[invokeAction]
+	);
+	const trackOptionKeyDown = useCallback(
+		(event: KeyboardEvent): boolean => {
+			if (event.key !== "Alt") {
+				return false;
+			}
+			isOptionDownRef.current = true;
+			if (isVisibleRef.current) {
+				setIsOptionActive(true);
+				reconcileNavigationSelection(targetsRef.current, true);
+			}
+			return true;
+		},
+		[reconcileNavigationSelection]
+	);
+	const handleCommandLensKeyDown = useCallback(
+		(event: KeyboardEvent): void => {
 			if (event.key === "Escape") {
 				hideLens(isMetaDownRef.current);
 				return;
@@ -321,17 +501,37 @@ export function CommandLensProvider({
 			if (!event.metaKey || isCommandLensModifierKey(event.key)) {
 				return;
 			}
-
+			if (
+				isCommandLensNavigationKey(event.key) &&
+				navigateCommandLens(event, event.key)
+			) {
+				return;
+			}
+			if (event.key === "Enter" && runSelectedNavigationAction(event)) {
+				return;
+			}
 			if (!isVisibleRef.current) {
 				clearDwellTimer();
 				isSuppressedRef.current = true;
 			}
 			runMatchingCommand(event);
-		};
-		const handleKeyUp = (event: KeyboardEvent): void => {
+		},
+		[
+			clearDwellTimer,
+			hideLens,
+			navigateCommandLens,
+			runMatchingCommand,
+			runSelectedNavigationAction,
+			startMetaDwell,
+			trackOptionKeyDown,
+		]
+	);
+	const handleCommandLensKeyUp = useCallback(
+		(event: KeyboardEvent): void => {
 			if (event.key === "Alt") {
 				isOptionDownRef.current = false;
 				setIsOptionActive(false);
+				reconcileNavigationSelection(targetsRef.current, false);
 				return;
 			}
 			if (event.key !== "Meta") {
@@ -341,7 +541,17 @@ export function CommandLensProvider({
 			isOptionDownRef.current = false;
 			isSuppressedRef.current = false;
 			hideLens(false);
-		};
+		},
+		[hideLens, reconcileNavigationSelection]
+	);
+
+	useEffect(() => {
+		if (liquidMenuStack.layerIds.length > 0) {
+			hideLens(true);
+		}
+	}, [hideLens, liquidMenuStack.layerIds]);
+
+	useEffect(() => {
 		const resetLens = (): void => {
 			isMetaDownRef.current = false;
 			isOptionDownRef.current = false;
@@ -359,14 +569,14 @@ export function CommandLensProvider({
 			}
 		};
 
-		window.addEventListener("keydown", handleKeyDown, true);
-		window.addEventListener("keyup", handleKeyUp, true);
+		window.addEventListener("keydown", handleCommandLensKeyDown, true);
+		window.addEventListener("keyup", handleCommandLensKeyUp, true);
 		window.addEventListener("blur", resetLens);
 		document.addEventListener("visibilitychange", resetHiddenLens);
 		document.addEventListener("pointerdown", dismissForPointer, true);
 		return () => {
-			window.removeEventListener("keydown", handleKeyDown, true);
-			window.removeEventListener("keyup", handleKeyUp, true);
+			window.removeEventListener("keydown", handleCommandLensKeyDown, true);
+			window.removeEventListener("keyup", handleCommandLensKeyUp, true);
 			window.removeEventListener("blur", resetLens);
 			document.removeEventListener("visibilitychange", resetHiddenLens);
 			document.removeEventListener("pointerdown", dismissForPointer, true);
@@ -374,10 +584,9 @@ export function CommandLensProvider({
 		};
 	}, [
 		clearDwellTimer,
+		handleCommandLensKeyDown,
+		handleCommandLensKeyUp,
 		hideLens,
-		runMatchingCommand,
-		startMetaDwell,
-		trackOptionKeyDown,
 	]);
 
 	useEffect(() => {
@@ -416,7 +625,12 @@ export function CommandLensProvider({
 		<CommandLensContext value={context}>
 			{children}
 			{isVisible ? (
-				<CommandLensOverlay isOptionActive={isOptionActive} targets={targets} />
+				<CommandLensOverlay
+					isNavigationActive={isNavigationActive}
+					isOptionActive={isOptionActive}
+					selectedTargetId={selectedTargetId}
+					targets={targets}
+				/>
 			) : null}
 		</CommandLensContext>
 	);
