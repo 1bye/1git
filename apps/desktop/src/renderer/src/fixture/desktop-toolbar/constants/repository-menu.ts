@@ -5,3 +5,4 @@ export const REPOSITORY_MENU_ANCHOR_GEOMETRY = {
 } as const;
 
 export const REPOSITORY_MENU_ALIGN_OFFSET = -48;
+export const REPOSITORY_MENU_SIDE_OFFSET = -1;

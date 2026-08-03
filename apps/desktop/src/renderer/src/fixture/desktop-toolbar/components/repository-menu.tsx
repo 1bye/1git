@@ -32,6 +32,7 @@ import type { CommandLensCommand } from "@/fixture/command-lens/lib/command-lens
 import {
 	REPOSITORY_MENU_ALIGN_OFFSET,
 	REPOSITORY_MENU_ANCHOR_GEOMETRY,
+	REPOSITORY_MENU_SIDE_OFFSET,
 } from "@/fixture/desktop-toolbar/constants/repository-menu.js";
 import { WORKSPACE_COMMAND_LENS_GROUP } from "@/fixture/desktop-toolbar/constants/workspace-tab.js";
 import { AnimatedFolderOpenIcon } from "@/fixture/icons/components/animated-folder-open-icon.js";
@@ -511,7 +512,7 @@ export function RepositoryMenu({
 							className="max-h-[min(70vh,32rem)] w-[370px] min-w-[370px] p-1.5"
 							data-name="RepositoryMenuContent"
 							initialFocus={searchInputRef}
-							sideOffset={8}
+							sideOffset={REPOSITORY_MENU_SIDE_OFFSET}
 						>
 							<LiquidMenuAutoSize>
 								<div className="p-1">

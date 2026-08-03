@@ -87,7 +87,7 @@ function ComboboxEmpty({ className, ...props }: ComboboxPrimitive.Empty.Props) {
 	return (
 		<ComboboxPrimitive.Empty
 			className={cn(
-				"px-3 py-5 text-center text-editor-faint text-xs",
+				"px-3 py-5 text-center text-editor-faint text-xs empty:p-0",
 				className
 			)}
 			data-slot="combobox-empty"
