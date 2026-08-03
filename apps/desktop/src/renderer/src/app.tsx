@@ -5,6 +5,7 @@ import type { ReactElement } from "react";
 import { useGitWorkspace } from "@/feature/workspace/hooks/use-git-workspace.js";
 import { DesktopToolbar } from "@/fixture/desktop-toolbar/components/desktop-toolbar.js";
 import { LiquidMenuStackProvider } from "@/fixture/liquid-menu/components/liquid-menu-stack-provider.js";
+import { RepositoryWorkspace } from "@/fixture/repository-workspace/components/repository-workspace.js";
 import { RepositoryWelcome } from "@/fixture/workspace-content/components/repository-welcome.js";
 
 export function App(): ReactElement {
@@ -55,38 +56,32 @@ export function App(): ReactElement {
 							workspaces={workspace.workspaces}
 						/>
 					)}
-					{/*{workspace.activeSession ? (
-					<RepositorySidebar
-						history={workspace.history}
-						onCommit={workspace.commit}
-						onSelectCommit={workspace.selectCommit}
-						onSelectFile={workspace.selectFile}
-						onSetFileStaged={workspace.setFileStaged}
-						onSetTab={workspace.setTab}
-						onToggleAllFiles={workspace.toggleAllFiles}
-						pendingAction={workspace.pendingAction}
-						selectedCommitOid={workspace.selectedCommitOid}
-						selectedFilePath={workspace.selectedFilePath}
-						snapshot={workspace.snapshot}
-						tab={workspace.tab}
-					/>
-				) : null}
-				<WorkspaceContent
-					activeSession={workspace.activeSession}
-					diff={workspace.diff}
-					historyCommit={historyCommit}
-					isFetching={workspace.pendingAction === "fetch"}
-					isRepositoryLoading={
-						workspace.isInitialLoading || workspace.pendingAction === "open"
-					}
-					onFetch={workspace.fetchRepository}
-					onOpenRecent={workspace.openRecentRepository}
-					onPickRepository={workspace.pickRepository}
-					recentRepositories={workspace.manager.recentRepositories}
-					selectedFilePath={workspace.selectedFilePath}
-					snapshot={workspace.snapshot}
-					tab={workspace.tab}
-				/>*/}
+					{workspace.activeSession ? (
+						<RepositoryWorkspace
+							activeSession={workspace.activeSession}
+							branches={workspace.branches}
+							diff={workspace.diff}
+							history={workspace.history}
+							isFetching={workspace.pendingAction === "fetch"}
+							isLoading={
+								workspace.isInitialLoading || workspace.pendingAction === "open"
+							}
+							onCommit={workspace.commit}
+							onFetch={workspace.fetchRepository}
+							onMergeBranch={workspace.mergeBranch}
+							onSelectCommit={workspace.selectCommit}
+							onSelectFile={workspace.selectFile}
+							onSetFileStaged={workspace.setFileStaged}
+							onSetTab={workspace.setTab}
+							onStashChanges={workspace.stashChanges}
+							onToggleAllFiles={workspace.toggleAllFiles}
+							pendingAction={workspace.pendingAction}
+							selectedCommitOid={workspace.selectedCommitOid}
+							selectedFilePath={workspace.selectedFilePath}
+							snapshot={workspace.snapshot}
+							tab={workspace.tab}
+						/>
+					) : null}
 				</div>
 
 				{workspace.error ? (
