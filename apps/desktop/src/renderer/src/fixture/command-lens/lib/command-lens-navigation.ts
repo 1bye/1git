@@ -13,6 +13,7 @@ export type CommandLensNavigationDirection =
 export type CommandLensNavigationOrientation = "horizontal" | "vertical";
 
 export interface CommandLensNavigationAction {
+	readonly advanceSelection?: CommandLensNavigationDirection;
 	readonly hintLabel?: string;
 	readonly label: string;
 	readonly onInvoke: () => Promise<void> | void;
@@ -211,4 +212,22 @@ export const getNextCommandLensNavigationTarget = <
 		}
 	}
 	return findSpatialTarget(targets, currentTarget, direction) ?? currentTarget;
+};
+
+export const getCommandLensNavigationAdvanceTarget = <
+	Target extends CommandLensNavigationTarget,
+>(
+	targets: readonly Target[],
+	currentTargetId: string,
+	action: CommandLensNavigationAction
+): Target | null => {
+	if (!action.advanceSelection) {
+		return null;
+	}
+	const nextTarget = getNextCommandLensNavigationTarget(
+		targets,
+		currentTargetId,
+		action.advanceSelection
+	);
+	return nextTarget?.id === currentTargetId ? null : nextTarget;
 };

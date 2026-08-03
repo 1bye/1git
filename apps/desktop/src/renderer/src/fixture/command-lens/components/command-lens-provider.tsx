@@ -19,6 +19,7 @@ import {
 	type CommandLensNavigationAction,
 	type CommandLensNavigationDirection,
 	getCommandLensNavigationAction,
+	getCommandLensNavigationAdvanceTarget,
 	getCommandLensNavigationTargets,
 	getInitialCommandLensNavigationTarget,
 	getNextCommandLensNavigationTarget,
@@ -481,12 +482,23 @@ export function CommandLensProvider({
 			if (!action) {
 				return false;
 			}
+			const advanceTarget = getCommandLensNavigationAdvanceTarget(
+				getCommandLensNavigationTargets(
+					targetsRef.current,
+					isOptionDownRef.current
+				),
+				target.id,
+				action
+			);
 			event.preventDefault();
 			event.stopImmediatePropagation();
 			invokeAction(action);
+			if (advanceTarget) {
+				selectNavigationTarget(advanceTarget.id);
+			}
 			return true;
 		},
-		[invokeAction]
+		[invokeAction, selectNavigationTarget]
 	);
 	const trackOptionKeyDown = useCallback(
 		(event: KeyboardEvent): boolean => {

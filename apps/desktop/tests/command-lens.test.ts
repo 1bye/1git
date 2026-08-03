@@ -6,6 +6,7 @@ import {
 import {
 	type CommandLensNavigationTarget,
 	getCommandLensNavigationAction,
+	getCommandLensNavigationAdvanceTarget,
 	getCommandLensNavigationTargets,
 	getInitialCommandLensNavigationTarget,
 	getNextCommandLensNavigationTarget,
@@ -262,6 +263,7 @@ describe("command lens navigation", () => {
 		const repository = {
 			...target("repo", "repositories", 0, 300, 140),
 			navigationAlternateAction: {
+				advanceSelection: "ArrowDown" as const,
 				hintLabel: "Open in background",
 				label: "Open repo in background",
 				onInvoke: () => undefined,
@@ -280,7 +282,27 @@ describe("command lens navigation", () => {
 		expect(getCommandLensNavigationAction(repository, true)?.hintLabel).toBe(
 			"Open in background"
 		);
+		expect(
+			getCommandLensNavigationAdvanceTarget(
+				[repository, target("next-repo", "repositories", 1, 300, 180)],
+				repository.id,
+				repository.navigationAlternateAction
+			)?.id
+		).toBe("next-repo");
 		expect(isCommandLensNavigationKey("ArrowDown")).toBe(true);
 		expect(isCommandLensNavigationKey("Enter")).toBe(false);
+	});
+
+	test("does not advance beyond the final batch target", () => {
+		const repository = target("repo", "repositories", 0, 300, 140);
+		const action = {
+			advanceSelection: "ArrowDown",
+			label: "Open repo in background",
+			onInvoke: () => undefined,
+		} as const;
+
+		expect(
+			getCommandLensNavigationAdvanceTarget([repository], repository.id, action)
+		).toBeNull();
 	});
 });

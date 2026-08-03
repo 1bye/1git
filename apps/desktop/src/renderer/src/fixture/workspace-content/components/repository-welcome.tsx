@@ -172,6 +172,7 @@ function RepositoryListItem({
 					onInvoke: () => onOpen(repository.path),
 				},
 				navigationAlternateAction: {
+					advanceSelection: "ArrowDown",
 					hintLabel: "Open in background",
 					label: `Open ${repositoryName} in the background`,
 					onInvoke: () => onOpen(repository.path, { activate: false }),

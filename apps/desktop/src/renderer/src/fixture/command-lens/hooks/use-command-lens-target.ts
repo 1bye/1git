@@ -28,10 +28,10 @@ export const useCommandLensTarget = (
 		String(options.highlightOutset ?? 2),
 		options.hintLayout ?? "floating",
 		options.navigationAction
-			? `${options.navigationAction.label}:${options.navigationAction.hintLabel ?? ""}`
+			? `${options.navigationAction.label}:${options.navigationAction.hintLabel ?? ""}:${options.navigationAction.advanceSelection ?? "stay"}`
 			: "derived-primary",
 		options.navigationAlternateAction
-			? `${options.navigationAlternateAction.label}:${options.navigationAlternateAction.hintLabel ?? ""}`
+			? `${options.navigationAlternateAction.label}:${options.navigationAlternateAction.hintLabel ?? ""}:${options.navigationAlternateAction.advanceSelection ?? "stay"}`
 			: "derived-alternate",
 		options.navigationDefault ? "default" : "standard",
 		options.navigationGroup ?? options.id,
