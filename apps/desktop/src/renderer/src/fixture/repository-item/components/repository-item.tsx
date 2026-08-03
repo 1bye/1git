@@ -11,7 +11,7 @@ import type {
 	MouseEvent as ReactMouseEvent,
 	RefCallback,
 } from "react";
-import { useId } from "react";
+import { useCallback, useId } from "react";
 import type { WorkspaceTabState } from "@/feature/workspace/hooks/use-git-workspace.js";
 import { getRepositoryOwner } from "@/feature/workspace/lib/repository-owner.js";
 import {
@@ -19,6 +19,8 @@ import {
 	formatRelativeTime,
 	recentRepositoryName,
 } from "@/feature/workspace/lib/workspace-model.js";
+import type { CommandLensTargetOptions } from "@/fixture/command-lens/hooks/use-command-lens-context.js";
+import { useCommandLensTarget } from "@/fixture/command-lens/hooks/use-command-lens-target.js";
 import { LiquidContextMenuTrigger } from "@/fixture/liquid-menu/components/liquid-menu.js";
 import { RepositoryOwnerThumbnail } from "@/fixture/repository-item/components/repository-owner-thumbnail.js";
 import type {
@@ -30,6 +32,7 @@ type RepositoryItemVariant = "menu" | "welcome";
 
 interface RepositoryItemProps {
 	readonly asContextMenuTrigger?: boolean;
+	readonly commandLens?: Omit<CommandLensTargetOptions, "disabled">;
 	readonly contextOpen: boolean;
 	readonly disabled: boolean;
 	readonly onClick: (event: ReactMouseEvent<HTMLElement>) => void;
@@ -40,6 +43,13 @@ interface RepositoryItemProps {
 	readonly repository: RecentRepositoryRecord;
 	readonly variant: RepositoryItemVariant;
 	readonly workspace: WorkspaceTabState | null;
+}
+
+interface RepositoryItemCommandLensOptions {
+	readonly commandLens: RepositoryItemProps["commandLens"];
+	readonly disabled: boolean;
+	readonly onElementChange: RepositoryItemProps["onElementChange"];
+	readonly repositoryPath: string;
 }
 
 function RepositoryTooltipDetails({
@@ -76,8 +86,38 @@ function RepositoryTooltipDetails({
 	);
 }
 
+const useRepositoryItemCommandLens = ({
+	commandLens,
+	disabled,
+	onElementChange,
+	repositoryPath,
+}: RepositoryItemCommandLensOptions): {
+	readonly ariaKeyShortcuts: string | undefined;
+	readonly setElement: RefCallback<HTMLElement>;
+} => {
+	const target = useCommandLensTarget({
+		commands: commandLens?.commands ?? [],
+		disabled: disabled || !commandLens,
+		id: commandLens?.id ?? `repository-item:${repositoryPath}`,
+		placement: commandLens?.placement,
+		radius: commandLens?.radius,
+	});
+	const setElement = useCallback(
+		(element: HTMLElement | null): void => {
+			onElementChange?.(element);
+			target.ref(element);
+		},
+		[onElementChange, target.ref]
+	);
+	return {
+		ariaKeyShortcuts: target.ariaKeyShortcuts,
+		setElement,
+	};
+};
+
 export function RepositoryItem({
 	asContextMenuTrigger = false,
+	commandLens,
 	contextOpen,
 	disabled,
 	onClick,
@@ -104,6 +144,12 @@ export function RepositoryItem({
 		: "Local repository";
 	const lastUsed = formatRelativeTime(repository.lastOpenedAt);
 	const label = `${repositoryName}${branchName ? `, branch ${branchName}` : ""}, last used ${lastUsed}${workspace ? ", open" : ""}`;
+	const commandLensTarget = useRepositoryItemCommandLens({
+		commandLens,
+		disabled,
+		onElementChange,
+		repositoryPath: repository.path,
+	});
 	const content = (
 		<>
 			<RepositoryOwnerThumbnail
@@ -162,13 +208,14 @@ export function RepositoryItem({
 	);
 	const sharedProps = {
 		"aria-describedby": tooltipId,
+		"aria-keyshortcuts": commandLensTarget.ariaKeyShortcuts,
 		"aria-label": label,
 		"data-context-open": contextOpen ? "true" : undefined,
 		"data-name": "RepositoryItem",
 		onClick,
 		onContextMenu,
 		onKeyDown,
-		ref: onElementChange,
+		ref: commandLensTarget.setElement,
 	};
 	const row =
 		variant === "menu" ? (

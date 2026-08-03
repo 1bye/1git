@@ -19,6 +19,11 @@ import type {
 	WorkspaceTabState,
 } from "@/feature/workspace/hooks/use-git-workspace.js";
 import { recentRepositoryName } from "@/feature/workspace/lib/workspace-model.js";
+import { useCommandLensTarget } from "@/fixture/command-lens/hooks/use-command-lens-target.js";
+import {
+	type CommandLensCommand,
+	getCommandLensNumberKey,
+} from "@/fixture/command-lens/lib/command-lens-shortcut.js";
 import {
 	LiquidMenuContent,
 	LiquidMenuRoot,
@@ -54,6 +59,8 @@ interface RepositoryWelcomeProps {
 
 interface QuickActionProps {
 	readonly children: ReactNode;
+	readonly command: CommandLensCommand;
+	readonly commandId: string;
 	readonly disabled: boolean;
 	readonly icon: ReactElement;
 	readonly onClick: () => void;
@@ -61,6 +68,7 @@ interface QuickActionProps {
 
 interface RepositoryListItemProps {
 	readonly disabled: boolean;
+	readonly hasOpenWorkspaces: boolean;
 	readonly onForgetRecent: (path: string) => Promise<void>;
 	readonly onOpen: (
 		path: string,
@@ -68,20 +76,33 @@ interface RepositoryListItemProps {
 	) => Promise<void>;
 	readonly preview: RecentRepositoryPreview | null;
 	readonly repository: RecentRepositoryRecord;
+	readonly shortcutKey: string | null;
 	readonly workspace: WorkspaceTabState | null;
 }
 
 function QuickAction({
 	children,
+	command,
+	commandId,
 	disabled,
 	icon,
 	onClick,
 }: QuickActionProps): ReactElement {
+	const commandLensTarget = useCommandLensTarget({
+		commands: [command],
+		disabled,
+		id: commandId,
+		placement: "right",
+		radius: 10,
+	});
+
 	return (
 		<Button
+			aria-keyshortcuts={commandLensTarget.ariaKeyShortcuts}
 			className={`${QUICK_ACTION_WIDTH_CLASS_NAME} justify-start px-2.5`}
 			disabled={disabled}
 			onClick={onClick}
+			ref={commandLensTarget.ref}
 			size="sm"
 			type="button"
 			variant="ghost"
@@ -94,14 +115,46 @@ function QuickAction({
 
 function RepositoryListItem({
 	disabled,
+	hasOpenWorkspaces,
 	onForgetRecent,
 	onOpen,
 	preview,
 	repository,
+	shortcutKey,
 	workspace,
 }: RepositoryListItemProps): ReactElement {
+	const repositoryName = recentRepositoryName(repository);
+	const commands: CommandLensCommand[] = [];
+	if (shortcutKey) {
+		if (!hasOpenWorkspaces) {
+			commands.push({
+				allowInEditable: true,
+				key: shortcutKey,
+				label: `Open ${repositoryName}`,
+				onInvoke: () => onOpen(repository.path),
+			});
+		}
+		commands.push({
+			allowInEditable: true,
+			key: shortcutKey,
+			label: `Open ${repositoryName} in the background`,
+			onInvoke: () => onOpen(repository.path, { activate: false }),
+			shiftKey: true,
+		});
+	}
+
 	return (
 		<RepositoryContextMenu
+			commandLens={
+				shortcutKey
+					? {
+							commands,
+							id: `welcome-repository:${repository.path}`,
+							placement: "right",
+							radius: 12,
+						}
+					: undefined
+			}
 			disabled={disabled}
 			onForgetRecent={onForgetRecent}
 			onOpen={onOpen}
@@ -120,6 +173,7 @@ function RepositoryGroup({
 	onOpen,
 	previews,
 	repositories,
+	shortcutKeysByPath,
 	workspacesByPath,
 }: {
 	readonly disabled: boolean;
@@ -131,6 +185,7 @@ function RepositoryGroup({
 	) => Promise<void>;
 	readonly previews: ReadonlyMap<string, RecentRepositoryPreview>;
 	readonly repositories: readonly RecentRepositoryRecord[];
+	readonly shortcutKeysByPath: ReadonlyMap<string, string>;
 	readonly workspacesByPath: ReadonlyMap<string, WorkspaceTabState>;
 }): ReactElement | null {
 	if (repositories.length === 0) {
@@ -147,10 +202,12 @@ function RepositoryGroup({
 					<li key={repository.path}>
 						<RepositoryListItem
 							disabled={disabled}
+							hasOpenWorkspaces={workspacesByPath.size > 0}
 							onForgetRecent={onForgetRecent}
 							onOpen={onOpen}
 							preview={previews.get(repository.path) ?? null}
 							repository={repository}
+							shortcutKey={shortcutKeysByPath.get(repository.path) ?? null}
 							workspace={workspacesByPath.get(repository.path) ?? null}
 						/>
 					</li>
@@ -204,6 +261,16 @@ export function RepositoryWelcome({
 	const otherRepositories = matchingRepositories.filter(
 		(repository) => !workspacesByPath.has(repository.path)
 	);
+	const visibleRepositories = [...openRepositories, ...otherRepositories];
+	const numberedRepositoryCount = Math.min(visibleRepositories.length, 9);
+	const shortcutKeysByPath = new Map(
+		visibleRepositories
+			.slice(0, numberedRepositoryCount)
+			.map((repository, index) => [
+				repository.path,
+				getCommandLensNumberKey(index, numberedRepositoryCount) ?? "",
+			])
+	);
 
 	const updateQuery = (event: ChangeEvent<HTMLInputElement>): void => {
 		setQuery(event.target.value);
@@ -238,6 +305,16 @@ export function RepositoryWelcome({
 	const createRepository = async (): Promise<void> => {
 		await onCreateRepository();
 	};
+	const openCloneMenu = (): void => {
+		setCloneUrl("");
+		setIsCloneMenuOpen(true);
+	};
+	const focusRepositorySearch = (): void => {
+		setCloneUrl("");
+		setIsCloneMenuOpen(false);
+		searchInputRef.current?.focus();
+		searchInputRef.current?.select();
+	};
 	const submitClone = async (
 		event: FormEvent<HTMLFormElement>
 	): Promise<void> => {
@@ -250,6 +327,49 @@ export function RepositoryWelcome({
 			closeCloneMenu();
 		}
 	};
+	const cloneCommandLensTarget = useCommandLensTarget({
+		commands: [
+			{
+				allowInEditable: true,
+				key: "o",
+				label: "Clone from URL",
+				onInvoke: openCloneMenu,
+				shiftKey: true,
+			},
+		],
+		disabled: isLoading,
+		id: "welcome-clone-repository",
+		placement: "right",
+		radius: 10,
+	});
+	const searchCommandLensTarget = useCommandLensTarget({
+		commands: [
+			{
+				allowInEditable: true,
+				key: "k",
+				label: "Search repositories",
+				onInvoke: focusRepositorySearch,
+			},
+		],
+		disabled: isLoading || hasOpenWorkspaces,
+		id: "welcome-search-repositories",
+		placement: "bottom",
+		radius: 12,
+	});
+	const setCloneTriggerElement = useCallback(
+		(element: HTMLButtonElement | null): void => {
+			cloneTriggerRef.current = element;
+			cloneCommandLensTarget.ref(element);
+		},
+		[cloneCommandLensTarget.ref]
+	);
+	const setSearchInputElement = useCallback(
+		(element: HTMLInputElement | null): void => {
+			searchInputRef.current = element;
+			searchCommandLensTarget.ref(element);
+		},
+		[searchCommandLensTarget.ref]
+	);
 
 	useEffect(() => {
 		if (!isCloneMenuOpen) {
@@ -260,26 +380,6 @@ export function RepositoryWelcome({
 		});
 		return () => window.clearTimeout(focusTimer);
 	}, [isCloneMenuOpen]);
-
-	useEffect(() => {
-		if (hasOpenWorkspaces) {
-			return;
-		}
-		const focusRepositorySearch = (event: KeyboardEvent): void => {
-			if (
-				!((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k")
-			) {
-				return;
-			}
-			event.preventDefault();
-			setCloneUrl("");
-			setIsCloneMenuOpen(false);
-			searchInputRef.current?.focus();
-			searchInputRef.current?.select();
-		};
-		window.addEventListener("keydown", focusRepositorySearch);
-		return () => window.removeEventListener("keydown", focusRepositorySearch);
-	}, [hasOpenWorkspaces]);
 
 	return (
 		<TooltipProvider delay={300}>
@@ -299,6 +399,13 @@ export function RepositoryWelcome({
 						</h2>
 						<div className="space-y-1">
 							<QuickAction
+								command={{
+									allowInEditable: true,
+									key: "n",
+									label: "Create repository",
+									onInvoke: createRepository,
+								}}
+								commandId="welcome-create-repository"
 								disabled={isLoading}
 								icon={
 									<PlusIcon aria-hidden className="size-4" weight="regular" />
@@ -316,12 +423,13 @@ export function RepositoryWelcome({
 								open={isCloneMenuOpen}
 							>
 								<LiquidMenuTrigger
+									aria-keyshortcuts={cloneCommandLensTarget.ariaKeyShortcuts}
 									className={buttonVariants({
 										className: `${QUICK_ACTION_WIDTH_CLASS_NAME} relative z-10 justify-start px-2.5 text-editor-muted`,
 										size: "sm",
 										variant: "ghost",
 									})}
-									ref={cloneTriggerRef}
+									ref={setCloneTriggerElement}
 								>
 									<GitBranchIcon
 										aria-hidden
@@ -388,6 +496,13 @@ export function RepositoryWelcome({
 								) : null}
 							</LiquidMenuRoot>
 							<QuickAction
+								command={{
+									allowInEditable: true,
+									key: "o",
+									label: "Open from disk",
+									onInvoke: pickRepository,
+								}}
+								commandId="welcome-open-repository"
 								disabled={isLoading}
 								icon={
 									<FolderOpenIcon
@@ -417,15 +532,13 @@ export function RepositoryWelcome({
 								weight="regular"
 							/>
 							<Input
-								aria-keyshortcuts={
-									hasOpenWorkspaces ? undefined : "Meta+K Control+K"
-								}
+								aria-keyshortcuts={searchCommandLensTarget.ariaKeyShortcuts}
 								aria-label="Search all repositories"
 								className="h-9 bg-editor-sunken pl-9 text-xs shadow-none"
 								disabled={isLoading}
 								onChange={updateQuery}
 								placeholder="Search all repositories"
-								ref={searchInputRef}
+								ref={setSearchInputElement}
 								type="search"
 								value={query}
 							/>
@@ -465,6 +578,7 @@ export function RepositoryWelcome({
 							onOpen={onOpenRecent}
 							previews={previews}
 							repositories={openRepositories}
+							shortcutKeysByPath={shortcutKeysByPath}
 							workspacesByPath={workspacesByPath}
 						/>
 						<RepositoryGroup
@@ -474,6 +588,7 @@ export function RepositoryWelcome({
 							onOpen={onOpenRecent}
 							previews={previews}
 							repositories={otherRepositories}
+							shortcutKeysByPath={shortcutKeysByPath}
 							workspacesByPath={workspacesByPath}
 						/>
 					</section>

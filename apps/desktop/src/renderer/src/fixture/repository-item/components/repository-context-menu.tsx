@@ -4,6 +4,7 @@ import type {
 	OpenRepositoryOptions,
 	WorkspaceTabState,
 } from "@/feature/workspace/hooks/use-git-workspace.js";
+import type { CommandLensTargetOptions } from "@/fixture/command-lens/hooks/use-command-lens-context.js";
 import {
 	LiquidContextMenuRoot,
 	LiquidMenuContent,
@@ -23,6 +24,7 @@ import type {
 } from "../../../../../shared/repository-session.js";
 
 interface RepositoryContextMenuProps {
+	readonly commandLens?: Omit<CommandLensTargetOptions, "disabled">;
 	readonly disabled: boolean;
 	readonly metaKey?: boolean;
 	readonly onContextOpenChange?: (isOpen: boolean) => void;
@@ -41,6 +43,7 @@ interface RepositoryContextMenuProps {
 }
 
 export function RepositoryContextMenu({
+	commandLens,
 	disabled,
 	metaKey = false,
 	onContextOpenChange,
@@ -104,6 +107,7 @@ export function RepositoryContextMenu({
 	const item = (
 		<RepositoryItem
 			asContextMenuTrigger
+			commandLens={commandLens}
 			contextOpen={isOpen || isPresent}
 			disabled={disabled}
 			onClick={openRepository}

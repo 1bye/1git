@@ -22,6 +22,8 @@ import type {
 	WorkspaceTabState,
 } from "@/feature/workspace/hooks/use-git-workspace.js";
 import { recentRepositoryName } from "@/feature/workspace/lib/workspace-model.js";
+import { useCommandLensTarget } from "@/fixture/command-lens/hooks/use-command-lens-target.js";
+import type { CommandLensCommand } from "@/fixture/command-lens/lib/command-lens-shortcut.js";
 import {
 	REPOSITORY_MENU_ALIGN_OFFSET,
 	REPOSITORY_MENU_ANCHOR_GEOMETRY,
@@ -58,6 +60,14 @@ interface RepositoryMenuProps {
 	readonly recentRepositories: readonly RecentRepositoryRecord[];
 	readonly workspaces: readonly WorkspaceTabState[];
 }
+
+const REPOSITORY_MENU_COMMANDS: readonly CommandLensCommand[] = [
+	{
+		allowInEditable: true,
+		key: "k",
+		label: "Open repositories",
+	},
+];
 
 export function RepositoryMenu({
 	isOpen,
@@ -156,6 +166,20 @@ export function RepositoryMenu({
 		(): Element | null => triggerRef.current,
 		[]
 	);
+	const commandLensTarget = useCommandLensTarget({
+		commands: REPOSITORY_MENU_COMMANDS,
+		disabled: !isVisible || pendingAction === "open",
+		id: "repository-menu",
+		placement: "bottom",
+		radius: 10,
+	});
+	const setTriggerElement = useCallback(
+		(element: HTMLButtonElement | null): void => {
+			triggerRef.current = element;
+			commandLensTarget.ref(element);
+		},
+		[commandLensTarget.ref]
+	);
 
 	return (
 		<TooltipProvider delay={REPOSITORY_ITEM_TOOLTIP_DELAY_MS}>
@@ -184,7 +208,7 @@ export function RepositoryMenu({
 						aria-label="Open repositories"
 						className="relative flex h-8 items-center gap-2 rounded-lg px-2.5 font-semibold text-editor-ink text-xss outline-none transition-colors duration-150 hover:bg-white focus-visible:bg-studio-glass-strong"
 						data-name="RepositoryMenuTrigger"
-						ref={triggerRef}
+						ref={setTriggerElement}
 					>
 						{pendingAction === "open" ? (
 							<SpinnerGapIcon

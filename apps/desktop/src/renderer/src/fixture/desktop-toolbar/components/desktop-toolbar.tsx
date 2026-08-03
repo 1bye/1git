@@ -21,6 +21,7 @@ import type {
 	PendingWorkspaceAction,
 	WorkspaceTabState,
 } from "@/feature/workspace/hooks/use-git-workspace.js";
+import { getCommandLensNumberKey } from "@/fixture/command-lens/lib/command-lens-shortcut.js";
 import { RepositoryMenu } from "@/fixture/desktop-toolbar/components/repository-menu.js";
 import { WorkspaceActionsMenu } from "@/fixture/desktop-toolbar/components/workspace-actions-menu.js";
 import { WorkspaceLiquidSurface } from "@/fixture/desktop-toolbar/components/workspace-liquid-surface.js";
@@ -280,6 +281,21 @@ export function DesktopToolbar({
 		nextTab?.focus();
 		nextTab?.click();
 	};
+	const activateRelativeWorkspace = async (offset: -1 | 1): Promise<void> => {
+		if (activeTabIndex < 0 || workspaces.length === 0) {
+			return;
+		}
+		const nextIndex =
+			(activeTabIndex + offset + workspaces.length) % workspaces.length;
+		const nextWorkspace = workspaces[nextIndex];
+		if (nextWorkspace) {
+			await onActivateWorkspace(nextWorkspace.session.id);
+		}
+	};
+	const activatePreviousWorkspace = (): Promise<void> =>
+		activateRelativeWorkspace(-1);
+	const activateNextWorkspace = (): Promise<void> =>
+		activateRelativeWorkspace(1);
 
 	return (
 		<header
@@ -346,8 +362,14 @@ export function DesktopToolbar({
 										isActive={isActive}
 										isBusy={pendingAction === "workspace"}
 										onActivate={onActivateWorkspace}
+										onActivateNext={activateNextWorkspace}
+										onActivatePrevious={activatePreviousWorkspace}
 										onClose={onCloseWorkspace}
 										onOpenActions={toggleWorkspaceMenu}
+										shortcutKey={getCommandLensNumberKey(
+											index,
+											workspaces.length
+										)}
 										workspace={workspace}
 									/>
 									{isActive && isWorkspaceMenuOpen ? (
@@ -379,8 +401,11 @@ export function DesktopToolbar({
 									isActive={workspace.session.id === activeSessionId}
 									isBusy={pendingAction === "workspace"}
 									onActivate={onActivateWorkspace}
+									onActivateNext={activateNextWorkspace}
+									onActivatePrevious={activatePreviousWorkspace}
 									onClose={onCloseWorkspace}
 									onOpenActions={toggleWorkspaceMenu}
+									shortcutKey={null}
 									workspace={workspace}
 								/>
 							) : null;

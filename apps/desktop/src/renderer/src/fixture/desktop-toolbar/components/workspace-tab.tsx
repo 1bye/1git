@@ -3,11 +3,14 @@ import { RestrictToHorizontalAxis } from "@dnd-kit/abstract/modifiers";
 import { useSortable } from "@dnd-kit/react/sortable";
 import { XIcon } from "@phosphor-icons/react/dist/csr/X";
 import type { CSSProperties, ReactElement, RefCallback } from "react";
+import { useCallback } from "react";
 import type { WorkspaceTabState } from "@/feature/workspace/hooks/use-git-workspace.js";
 import {
 	getRepositoryName,
 	getWorkspaceLabel,
 } from "@/feature/workspace/lib/workspace-model.js";
+import { useCommandLensTarget } from "@/fixture/command-lens/hooks/use-command-lens-target.js";
+import type { CommandLensCommand } from "@/fixture/command-lens/lib/command-lens-shortcut.js";
 import {
 	WORKSPACE_TAB_REORDER_MOTION,
 	WORKSPACE_TAB_SURFACE_GEOMETRY,
@@ -24,8 +27,11 @@ interface WorkspaceTabProps {
 	readonly isActive: boolean;
 	readonly isBusy: boolean;
 	readonly onActivate: (sessionId: RepositorySessionId) => Promise<void>;
+	readonly onActivateNext: () => Promise<void>;
+	readonly onActivatePrevious: () => Promise<void>;
 	readonly onClose: (sessionId: RepositorySessionId) => Promise<void>;
 	readonly onOpenActions: () => void;
+	readonly shortcutKey: string | null;
 	readonly workspace: WorkspaceTabState;
 }
 
@@ -58,6 +64,16 @@ interface WorkspaceTabNameProps {
 interface WorkspaceChangedFilesProps {
 	readonly count: number;
 	readonly isActive: boolean;
+}
+
+interface WorkspaceTabCommandOptions {
+	readonly activate: () => Promise<void>;
+	readonly activateNext: () => Promise<void>;
+	readonly activatePrevious: () => Promise<void>;
+	readonly close: () => void;
+	readonly isActive: boolean;
+	readonly label: string;
+	readonly shortcutKey: string | null;
 }
 
 const WORKSPACE_TAB_NAME_BUTTON_CLASS_NAME =
@@ -104,6 +120,14 @@ const WORKSPACE_TAB_SORT_TRANSITION = {
 	idle: true,
 } as const;
 
+const getWorkspaceTabStyle = (
+	isActionsMenuOpen: boolean,
+	isOverlay: boolean
+): CSSProperties =>
+	isActionsMenuOpen && !isOverlay
+		? WORKSPACE_TAB_MENU_OPEN_STYLE
+		: WORKSPACE_TAB_STYLE;
+
 const getOwnerTitle = (workspace: WorkspaceTabState): string =>
 	workspace.owner
 		? `${workspace.owner.namespace} on ${workspace.owner.host}`
@@ -114,6 +138,49 @@ const getAccessibleTabLabel = (
 	workspace: WorkspaceTabState
 ): string =>
 	workspace.owner ? `${label}, owned by ${workspace.owner.namespace}` : label;
+
+const getWorkspaceTabCommands = ({
+	activate,
+	activateNext,
+	activatePrevious,
+	close,
+	isActive,
+	label,
+	shortcutKey,
+}: WorkspaceTabCommandOptions): readonly CommandLensCommand[] => {
+	const commands: CommandLensCommand[] = shortcutKey
+		? [
+				{
+					allowInEditable: true,
+					key: shortcutKey,
+					label: `Open ${label}`,
+					onInvoke: activate,
+				},
+			]
+		: [];
+	if (!isActive) {
+		return commands;
+	}
+	commands.push(
+		{
+			key: "ArrowLeft",
+			label: "Previous workspace",
+			onInvoke: activatePrevious,
+		},
+		{
+			key: "ArrowRight",
+			label: "Next workspace",
+			onInvoke: activateNext,
+		},
+		{
+			allowInEditable: true,
+			key: "w",
+			label: `Close ${label}`,
+			onInvoke: close,
+		}
+	);
+	return commands;
+};
 
 function WorkspaceTabName({
 	branch,
@@ -250,9 +317,12 @@ function WorkspaceTabAppearance({
 	isDragging,
 	isOverlay = false,
 	onActivate,
+	onActivateNext,
+	onActivatePrevious,
 	onClose,
 	onOpenActions,
 	rootRef,
+	shortcutKey,
 	workspace,
 }: WorkspaceTabAppearanceProps): ReactElement {
 	const repositoryName = getRepositoryName(workspace.session.repository.root);
@@ -274,10 +344,33 @@ function WorkspaceTabAppearance({
 		onClose,
 		sessionId: workspace.session.id,
 	});
+	const commandLensTarget = useCommandLensTarget({
+		commands: getWorkspaceTabCommands({
+			activate: activateWorkspace,
+			activateNext: onActivateNext,
+			activatePrevious: onActivatePrevious,
+			close: startClosingWorkspace,
+			isActive,
+			label,
+			shortcutKey,
+		}),
+		disabled: isBusy || isClosing || isOverlay,
+		id: `workspace-tab:${workspace.session.id}`,
+		placement: "bottom",
+		radius: WORKSPACE_TAB_SURFACE_GEOMETRY.tabRadius,
+	});
+	const setRootElement = useCallback(
+		(element: HTMLElement | null): void => {
+			rootRef?.(element);
+			commandLensTarget.ref(element);
+		},
+		[commandLensTarget.ref, rootRef]
+	);
 
 	return (
 		<div
 			aria-hidden={isOverlay || undefined}
+			aria-keyshortcuts={commandLensTarget.ariaKeyShortcuts}
 			className={cn(
 				"group relative z-[2] flex shrink-0 items-center px-1 transition-colors",
 				isActive ? "text-editor-ink" : "text-editor-muted hover:text-editor-ink"
@@ -289,12 +382,8 @@ function WorkspaceTabAppearance({
 			data-name="WorkspaceTab"
 			data-overlay={isOverlay ? "true" : undefined}
 			data-workspace-session-id={workspace.session.id}
-			ref={rootRef}
-			style={
-				isActionsMenuOpen && !isOverlay
-					? WORKSPACE_TAB_MENU_OPEN_STYLE
-					: WORKSPACE_TAB_STYLE
-			}
+			ref={setRootElement}
+			style={getWorkspaceTabStyle(isActionsMenuOpen, isOverlay)}
 		>
 			<div
 				className="relative z-[1] flex h-full min-w-0 flex-1 items-center"

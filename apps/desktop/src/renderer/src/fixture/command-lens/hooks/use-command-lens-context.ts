@@ -1,0 +1,40 @@
+import { createContext, use } from "react";
+import type { CommandLensPlacement } from "@/fixture/command-lens/lib/command-lens-geometry.js";
+import type { CommandLensCommand } from "@/fixture/command-lens/lib/command-lens-shortcut.js";
+
+export interface CommandLensTargetOptions {
+	readonly commands: readonly CommandLensCommand[];
+	readonly disabled?: boolean;
+	readonly id: string;
+	readonly placement?: CommandLensPlacement;
+	readonly radius?: number;
+}
+
+export interface CommandLensTargetSource extends CommandLensTargetOptions {
+	readonly element: HTMLElement | null;
+}
+
+export type CommandLensTargetReader = () => CommandLensTargetSource;
+
+export interface CommandLensContextValue {
+	readonly refreshTarget: (id: string, revision: string) => void;
+	readonly registerTarget: (
+		id: string,
+		readTarget: CommandLensTargetReader
+	) => () => void;
+	readonly requestMeasurement: () => void;
+}
+
+export const CommandLensContext = createContext<CommandLensContextValue | null>(
+	null
+);
+
+export const useCommandLensContext = (): CommandLensContextValue => {
+	const context = use(CommandLensContext);
+	if (!context) {
+		throw new Error(
+			"Command Lens targets must be used inside CommandLensProvider."
+		);
+	}
+	return context;
+};
