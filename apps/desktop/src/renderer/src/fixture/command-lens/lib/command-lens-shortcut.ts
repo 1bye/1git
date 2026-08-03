@@ -72,12 +72,30 @@ const visibleKey = (key: string): string => {
 };
 
 export const formatCommandLensCommand = (
-	command: CommandLensCommand
+	command: CommandLensCommand,
+	isShiftActive = false
 ): readonly string[] => [
-	"⌘",
-	...(command.shiftKey ? ["⇧"] : []),
+	...(command.shiftKey && !isShiftActive ? ["⇧"] : []),
 	visibleKey(command.key),
 ];
+
+export const getCommandLensDisplayCommands = (
+	commands: readonly CommandLensCommand[],
+	isShiftActive: boolean
+): readonly CommandLensCommand[] => {
+	const shiftedCommands = commands.filter((command) => command.shiftKey);
+	if (isShiftActive) {
+		return shiftedCommands;
+	}
+	const primaryCommands = commands.filter((command) => !command.shiftKey);
+	return primaryCommands.length > 0 ? primaryCommands : shiftedCommands;
+};
+
+export const hasCommandLensShiftMode = (
+	commands: readonly CommandLensCommand[]
+): boolean =>
+	commands.some((command) => command.shiftKey) &&
+	commands.some((command) => !command.shiftKey);
 
 export const commandLensAriaKeyShortcut = (
 	command: CommandLensCommand

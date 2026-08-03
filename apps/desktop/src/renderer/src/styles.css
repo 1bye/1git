@@ -299,18 +299,17 @@ button {
 	animation: command-lens-backdrop-in 180ms ease-out both;
 }
 
-[data-name="CommandLensHintSurface"],
-[data-name="CommandLensHint"] {
+[data-name="CommandLensHint"],
+[data-name="CommandLensModeLegend"] {
 	transform-origin: center;
 	animation: command-lens-hint-in 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-[data-name="CommandLensHintSurfaceFill"] {
-	fill: var(--editor-surface);
-}
-
-[data-name="CommandLensHintSurfaceOutline"] {
-	stroke: var(--editor-hairline-strong);
+[data-name="CommandLensHint"] [data-name="Kbd"],
+[data-name="CommandLensModeLegend"] {
+	transition:
+		background-color 120ms ease-out,
+		color 120ms ease-out;
 }
 
 @keyframes liquid-menu-content-in {

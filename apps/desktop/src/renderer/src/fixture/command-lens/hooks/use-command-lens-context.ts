@@ -1,10 +1,14 @@
 import { createContext, use } from "react";
-import type { CommandLensPlacement } from "@/fixture/command-lens/lib/command-lens-geometry.js";
+import type {
+	CommandLensHintLayout,
+	CommandLensPlacement,
+} from "@/fixture/command-lens/lib/command-lens-geometry.js";
 import type { CommandLensCommand } from "@/fixture/command-lens/lib/command-lens-shortcut.js";
 
 export interface CommandLensTargetOptions {
 	readonly commands: readonly CommandLensCommand[];
 	readonly disabled?: boolean;
+	readonly hintLayout?: CommandLensHintLayout;
 	readonly id: string;
 	readonly placement?: CommandLensPlacement;
 	readonly radius?: number;

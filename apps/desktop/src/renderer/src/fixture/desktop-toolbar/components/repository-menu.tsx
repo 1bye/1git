@@ -169,6 +169,7 @@ export function RepositoryMenu({
 	const commandLensTarget = useCommandLensTarget({
 		commands: REPOSITORY_MENU_COMMANDS,
 		disabled: !isVisible || pendingAction === "open",
+		hintLayout: "floating",
 		id: "repository-menu",
 		placement: "bottom",
 		radius: 10,

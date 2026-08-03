@@ -1,8 +1,4 @@
 import { COMMAND_LENS_GEOMETRY } from "@/fixture/command-lens/constants/command-lens.js";
-import {
-	createLiquidUnionPath,
-	type RoundedBox,
-} from "@/fixture/liquid-menu/lib/liquid-surface-geometry.js";
 
 export interface CommandLensRect {
 	readonly height: number;
@@ -12,13 +8,7 @@ export interface CommandLensRect {
 }
 
 export type CommandLensPlacement = "bottom" | "left" | "right" | "top";
-
-export interface CommandLensSurfaceFrame {
-	readonly anchor: CommandLensRect;
-	readonly bounds: CommandLensRect;
-	readonly hint: CommandLensRect;
-	readonly path: string;
-}
+export type CommandLensHintLayout = "floating" | "gutter-start" | "inline-end";
 
 interface CommandLensViewport {
 	readonly height: number;
@@ -50,26 +40,26 @@ const hasPlacementSpace = (
 	placement: CommandLensPlacement,
 	viewport: CommandLensViewport
 ): boolean => {
-	const { hintGap, viewportInset } = COMMAND_LENS_GEOMETRY;
+	const { floatingGap, viewportInset } = COMMAND_LENS_GEOMETRY;
 	if (placement === "bottom") {
 		return (
-			anchor.top + anchor.height + hintGap + hintHeight <=
+			anchor.top + anchor.height + floatingGap + hintHeight <=
 			viewport.height - viewportInset
 		);
 	}
 	if (placement === "top") {
-		return anchor.top - hintGap - hintHeight >= viewportInset;
+		return anchor.top - floatingGap - hintHeight >= viewportInset;
 	}
 	if (placement === "left") {
-		return anchor.left - hintGap - hintWidth >= viewportInset;
+		return anchor.left - floatingGap - hintWidth >= viewportInset;
 	}
 	return (
-		anchor.left + anchor.width + hintGap + hintWidth <=
+		anchor.left + anchor.width + floatingGap + hintWidth <=
 		viewport.width - viewportInset
 	);
 };
 
-export const getCommandLensHintRect = (
+const getFloatingHintRect = (
 	anchor: CommandLensRect,
 	hintWidth: number,
 	hintHeight: number,
@@ -85,18 +75,18 @@ export const getCommandLensHintRect = (
 	)
 		? preferredPlacement
 		: oppositePlacement(preferredPlacement);
-	const { hintGap, viewportInset } = COMMAND_LENS_GEOMETRY;
+	const { floatingGap, viewportInset } = COMMAND_LENS_GEOMETRY;
 	let left = anchor.left + (anchor.width - hintWidth) / 2;
 	let top = anchor.top + (anchor.height - hintHeight) / 2;
 
 	if (placement === "bottom") {
-		top = anchor.top + anchor.height + hintGap;
+		top = anchor.top + anchor.height + floatingGap;
 	} else if (placement === "top") {
-		top = anchor.top - hintHeight - hintGap;
+		top = anchor.top - hintHeight - floatingGap;
 	} else if (placement === "left") {
-		left = anchor.left - hintWidth - hintGap;
+		left = anchor.left - hintWidth - floatingGap;
 	} else {
-		left = anchor.left + anchor.width + hintGap;
+		left = anchor.left + anchor.width + floatingGap;
 	}
 
 	return {
@@ -115,63 +105,41 @@ export const getCommandLensHintRect = (
 	};
 };
 
-const roundedBoxFromRect = (
-	rect: CommandLensRect,
-	bounds: CommandLensRect,
-	radius: number
-): RoundedBox => ({
-	centerX: rect.left - bounds.left + rect.width / 2,
-	centerY: rect.top - bounds.top + rect.height / 2,
-	halfHeight: rect.height / 2,
-	halfWidth: rect.width / 2,
-	radius,
-});
-
-export const createCommandLensSurfaceFrame = (
+export const getCommandLensHintRect = (
 	anchor: CommandLensRect,
-	hint: CommandLensRect,
-	anchorRadius: number
-): CommandLensSurfaceFrame => {
-	const { surfacePadding } = COMMAND_LENS_GEOMETRY;
-	const left = Math.min(anchor.left, hint.left) - surfacePadding;
-	const top = Math.min(anchor.top, hint.top) - surfacePadding;
-	const right =
-		Math.max(anchor.left + anchor.width, hint.left + hint.width) +
-		surfacePadding;
-	const bottom =
-		Math.max(anchor.top + anchor.height, hint.top + hint.height) +
-		surfacePadding;
-	const bounds: CommandLensRect = {
-		height: bottom - top,
-		left,
-		top,
-		width: right - left,
-	};
-	const relativeAnchor: CommandLensRect = {
-		...anchor,
-		left: anchor.left - bounds.left,
-		top: anchor.top - bounds.top,
-	};
-	const relativeHint: CommandLensRect = {
-		...hint,
-		left: hint.left - bounds.left,
-		top: hint.top - bounds.top,
-	};
-
+	hintWidth: number,
+	hintHeight: number,
+	layout: CommandLensHintLayout,
+	preferredPlacement: CommandLensPlacement,
+	viewport: CommandLensViewport
+): CommandLensRect => {
+	if (layout === "floating") {
+		return getFloatingHintRect(
+			anchor,
+			hintWidth,
+			hintHeight,
+			preferredPlacement,
+			viewport
+		);
+	}
+	const { gutterGap, inlineInset, viewportInset } = COMMAND_LENS_GEOMETRY;
+	const left =
+		layout === "inline-end"
+			? anchor.left + anchor.width - hintWidth - inlineInset
+			: anchor.left - hintWidth - gutterGap;
+	const top = anchor.top + (anchor.height - hintHeight) / 2;
 	return {
-		anchor: relativeAnchor,
-		bounds,
-		hint: relativeHint,
-		path: createLiquidUnionPath({
-			blendRadius: COMMAND_LENS_GEOMETRY.blendRadius,
-			boxes: [
-				roundedBoxFromRect(anchor, bounds, anchorRadius),
-				roundedBoxFromRect(hint, bounds, COMMAND_LENS_GEOMETRY.hintRadius),
-			],
-			sampleCellSize: COMMAND_LENS_GEOMETRY.sampleCellSize,
-			smoothingPasses: COMMAND_LENS_GEOMETRY.smoothingPasses,
-			surfaceHeight: bounds.height,
-			surfaceWidth: bounds.width,
-		}),
+		height: hintHeight,
+		left: clamp(
+			left,
+			viewportInset,
+			viewport.width - hintWidth - viewportInset
+		),
+		top: clamp(
+			top,
+			viewportInset,
+			viewport.height - hintHeight - viewportInset
+		),
+		width: hintWidth,
 	};
 };

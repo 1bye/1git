@@ -91,8 +91,8 @@ function QuickAction({
 	const commandLensTarget = useCommandLensTarget({
 		commands: [command],
 		disabled,
+		hintLayout: "inline-end",
 		id: commandId,
-		placement: "right",
 		radius: 10,
 	});
 
@@ -149,8 +149,8 @@ function RepositoryListItem({
 				shortcutKey
 					? {
 							commands,
+							hintLayout: "gutter-start",
 							id: `welcome-repository:${repository.path}`,
-							placement: "right",
 							radius: 12,
 						}
 					: undefined
@@ -338,8 +338,8 @@ export function RepositoryWelcome({
 			},
 		],
 		disabled: isLoading,
+		hintLayout: "inline-end",
 		id: "welcome-clone-repository",
-		placement: "right",
 		radius: 10,
 	});
 	const searchCommandLensTarget = useCommandLensTarget({
@@ -352,8 +352,8 @@ export function RepositoryWelcome({
 			},
 		],
 		disabled: isLoading || hasOpenWorkspaces,
+		hintLayout: "inline-end",
 		id: "welcome-search-repositories",
-		placement: "bottom",
 		radius: 12,
 	});
 	const setCloneTriggerElement = useCallback(

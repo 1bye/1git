@@ -77,6 +77,7 @@ const measureTarget = (
 	}
 	return {
 		commands: target.commands,
+		hintLayout: target.hintLayout ?? "floating",
 		id: target.id,
 		placement: target.placement ?? "bottom",
 		radius: target.radius ?? 12,
@@ -118,10 +119,12 @@ export function CommandLensProvider({
 	const measurementFrameRef = useRef<number | null>(null);
 	const dwellTimerRef = useRef<number | null>(null);
 	const isMetaDownRef = useRef(false);
+	const isShiftDownRef = useRef(false);
 	const isVisibleRef = useRef(false);
 	const isSuppressedRef = useRef(false);
 	const layerIdsRef = useRef(liquidMenuStack.layerIds);
 	const [isVisible, setIsVisible] = useState(false);
+	const [isShiftActive, setIsShiftActive] = useState(false);
 	const [targets, setTargets] = useState<readonly CommandLensMeasuredTarget[]>(
 		[]
 	);
@@ -169,6 +172,7 @@ export function CommandLensProvider({
 			if (suppressUntilMetaRelease) {
 				isSuppressedRef.current = true;
 			}
+			setIsShiftActive(false);
 			setIsVisible(false);
 			setTargets([]);
 		},
@@ -188,6 +192,7 @@ export function CommandLensProvider({
 			return;
 		}
 		isVisibleRef.current = true;
+		setIsShiftActive(isShiftDownRef.current);
 		setTargets(visibleTargets);
 		setIsVisible(true);
 	}, [readVisibleTargets]);
@@ -233,6 +238,7 @@ export function CommandLensProvider({
 				return;
 			}
 			isMetaDownRef.current = true;
+			isShiftDownRef.current = event.shiftKey;
 			isSuppressedRef.current = false;
 			clearDwellTimer();
 			if (layerIdsRef.current.length > 0) {
@@ -268,6 +274,16 @@ export function CommandLensProvider({
 		},
 		[requestMeasurement]
 	);
+	const trackShiftKeyDown = useCallback((event: KeyboardEvent): boolean => {
+		if (event.key !== "Shift") {
+			return false;
+		}
+		isShiftDownRef.current = true;
+		if (isVisibleRef.current) {
+			setIsShiftActive(true);
+		}
+		return true;
+	}, []);
 
 	useEffect(() => {
 		if (liquidMenuStack.layerIds.length > 0) {
@@ -285,6 +301,9 @@ export function CommandLensProvider({
 				startMetaDwell(event);
 				return;
 			}
+			if (trackShiftKeyDown(event)) {
+				return;
+			}
 			if (
 				!(event.metaKey && isMetaDownRef.current) ||
 				isCommandLensModifierKey(event.key)
@@ -299,15 +318,22 @@ export function CommandLensProvider({
 			runMatchingCommand(event);
 		};
 		const handleKeyUp = (event: KeyboardEvent): void => {
+			if (event.key === "Shift") {
+				isShiftDownRef.current = false;
+				setIsShiftActive(false);
+				return;
+			}
 			if (event.key !== "Meta") {
 				return;
 			}
 			isMetaDownRef.current = false;
+			isShiftDownRef.current = false;
 			isSuppressedRef.current = false;
 			hideLens(false);
 		};
 		const resetLens = (): void => {
 			isMetaDownRef.current = false;
+			isShiftDownRef.current = false;
 			isSuppressedRef.current = false;
 			hideLens(false);
 		};
@@ -335,7 +361,13 @@ export function CommandLensProvider({
 			document.removeEventListener("pointerdown", dismissForPointer, true);
 			clearDwellTimer();
 		};
-	}, [clearDwellTimer, hideLens, runMatchingCommand, startMetaDwell]);
+	}, [
+		clearDwellTimer,
+		hideLens,
+		runMatchingCommand,
+		startMetaDwell,
+		trackShiftKeyDown,
+	]);
 
 	useEffect(() => {
 		if (!isVisible) {
@@ -372,7 +404,9 @@ export function CommandLensProvider({
 	return (
 		<CommandLensContext value={context}>
 			{children}
-			{isVisible ? <CommandLensOverlay targets={targets} /> : null}
+			{isVisible ? (
+				<CommandLensOverlay isShiftActive={isShiftActive} targets={targets} />
+			) : null}
 		</CommandLensContext>
 	);
 }

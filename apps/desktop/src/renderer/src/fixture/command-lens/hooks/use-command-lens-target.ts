@@ -23,6 +23,7 @@ export const useCommandLensTarget = (
 	optionsRef.current = options;
 	const targetRevision = [
 		options.disabled ? "disabled" : "enabled",
+		options.hintLayout ?? "floating",
 		options.placement ?? "bottom",
 		String(options.radius ?? 12),
 		commandLensCommandSignature(options.commands),

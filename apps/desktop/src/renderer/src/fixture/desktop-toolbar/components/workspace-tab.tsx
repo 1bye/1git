@@ -355,6 +355,7 @@ function WorkspaceTabAppearance({
 			shortcutKey,
 		}),
 		disabled: isBusy || isClosing || isOverlay,
+		hintLayout: "floating",
 		id: `workspace-tab:${workspace.session.id}`,
 		placement: "bottom",
 		radius: WORKSPACE_TAB_SURFACE_GEOMETRY.tabRadius,

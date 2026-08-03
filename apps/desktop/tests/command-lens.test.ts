@@ -1,12 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import {
-	createCommandLensSurfaceFrame,
-	getCommandLensHintRect,
-} from "@/fixture/command-lens/lib/command-lens-geometry.js";
+import { getCommandLensHintRect } from "@/fixture/command-lens/lib/command-lens-geometry.js";
 import {
 	commandLensAriaKeyShortcut,
 	formatCommandLensCommand,
+	getCommandLensDisplayCommands,
 	getCommandLensNumberKey,
+	hasCommandLensShiftMode,
 	matchesCommandLensCommand,
 } from "@/fixture/command-lens/lib/command-lens-shortcut.js";
 
@@ -43,8 +42,24 @@ describe("command lens shortcuts", () => {
 		});
 
 		expect(matchesCommandLensCommand(event, command)).toBe(true);
-		expect(formatCommandLensCommand(command)).toEqual(["⌘", "⇧", "1"]);
+		expect(formatCommandLensCommand(command)).toEqual(["⇧", "1"]);
+		expect(formatCommandLensCommand(command, true)).toEqual(["1"]);
 		expect(commandLensAriaKeyShortcut(command)).toBe("Meta+Shift+1");
+	});
+
+	test("presents one command per target for the current Shift mode", () => {
+		const commands = [
+			{ key: "1", label: "Open" },
+			{ key: "1", label: "Open in background", shiftKey: true },
+		] as const;
+
+		expect(getCommandLensDisplayCommands(commands, false)).toEqual([
+			commands[0],
+		]);
+		expect(getCommandLensDisplayCommands(commands, true)).toEqual([
+			commands[1],
+		]);
+		expect(hasCommandLensShiftMode(commands)).toBe(true);
 	});
 
 	test("does not capture commands with unrelated modifiers", () => {
@@ -72,7 +87,14 @@ describe("command lens geometry", () => {
 	const viewport = { height: 300, width: 400 };
 
 	test("keeps a preferred hint beside its target when there is room", () => {
-		const hint = getCommandLensHintRect(anchor, 64, 28, "right", viewport);
+		const hint = getCommandLensHintRect(
+			anchor,
+			64,
+			28,
+			"floating",
+			"right",
+			viewport
+		);
 
 		expect(hint.left).toBeGreaterThan(anchor.left + anchor.width);
 		expect(hint.top).toBe(66);
@@ -80,17 +102,39 @@ describe("command lens geometry", () => {
 
 	test("flips a hint instead of clipping it outside the viewport", () => {
 		const edgeAnchor = { ...anchor, left: 330, width: 60 };
-		const hint = getCommandLensHintRect(edgeAnchor, 72, 28, "right", viewport);
+		const hint = getCommandLensHintRect(
+			edgeAnchor,
+			72,
+			28,
+			"floating",
+			"right",
+			viewport
+		);
 
 		expect(hint.left + hint.width).toBeLessThan(edgeAnchor.left);
 	});
 
-	test("creates one liquid surface joining the target and hint", () => {
-		const hint = getCommandLensHintRect(anchor, 64, 28, "bottom", viewport);
-		const frame = createCommandLensSurfaceFrame(anchor, hint, 12);
+	test("places compact hints inside controls and in a stable list gutter", () => {
+		const inlineHint = getCommandLensHintRect(
+			anchor,
+			32,
+			22,
+			"inline-end",
+			"right",
+			viewport
+		);
+		const gutterHint = getCommandLensHintRect(
+			anchor,
+			24,
+			22,
+			"gutter-start",
+			"right",
+			viewport
+		);
 
-		expect(frame.path.length).toBeGreaterThan(0);
-		expect(frame.bounds.left).toBeLessThan(anchor.left);
-		expect(frame.bounds.top).toBeLessThan(anchor.top);
+		expect(inlineHint.left).toBe(220);
+		expect(inlineHint.top).toBe(69);
+		expect(gutterHint.left).toBe(67);
+		expect(gutterHint.top).toBe(69);
 	});
 });
