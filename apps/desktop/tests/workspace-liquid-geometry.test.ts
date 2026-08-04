@@ -3,6 +3,7 @@ import { createWorkspaceLiquidPath } from "../src/renderer/src/fixture/desktop-t
 import { createLiquidMenuFrame } from "../src/renderer/src/fixture/liquid-menu/lib/liquid-menu-geometry.js";
 import {
 	createLiquidUnionPath,
+	signedDistanceToRoundedBox,
 	smoothMinimum,
 } from "../src/renderer/src/fixture/liquid-menu/lib/liquid-surface-geometry.js";
 
@@ -19,6 +20,23 @@ const pathCoordinates = (path: string): readonly [number, number][] =>
 	]);
 
 describe("workspace liquid geometry", () => {
+	test("computes exact rounded-box distances on edges and corners", () => {
+		const box = {
+			centerX: 20,
+			centerY: 15,
+			halfHeight: 10,
+			halfWidth: 15,
+			radius: 4,
+		};
+
+		expect(signedDistanceToRoundedBox(20, 15, box)).toBe(-10);
+		expect(signedDistanceToRoundedBox(39, 15, box)).toBe(4);
+		expect(signedDistanceToRoundedBox(20, 29, box)).toBe(4);
+		expect(signedDistanceToRoundedBox(39, 29, box)).toBeCloseTo(
+			Math.sqrt(128) - 4
+		);
+	});
+
 	test("smoothly unions overlapping distance fields", () => {
 		expect(smoothMinimum(4, 4, 0)).toBe(4);
 		expect(smoothMinimum(4, 4, 16)).toBe(0);

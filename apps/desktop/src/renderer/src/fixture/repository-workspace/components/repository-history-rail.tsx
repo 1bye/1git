@@ -2,9 +2,13 @@ import type { CommitInfo, CommitPage } from "@1git/git";
 import { Input } from "@1git/ui/components/input";
 import { cn } from "@1git/ui/lib/utils";
 import { FunnelSimpleIcon } from "@phosphor-icons/react/dist/csr/FunnelSimple";
-import type { ChangeEvent, ReactElement } from "react";
+import type { ChangeEvent, ReactElement, UIEvent } from "react";
 import { useMemo, useState } from "react";
 import { formatRelativeTime } from "@/feature/workspace/lib/workspace-model.js";
+
+const INITIAL_HISTORY_COMMIT_COUNT = 24;
+const HISTORY_COMMIT_BATCH_SIZE = 24;
+const HISTORY_LOAD_AHEAD_PX = 160;
 
 interface RepositoryCommitRowProps {
 	readonly commit: CommitInfo;
@@ -56,6 +60,52 @@ interface RepositoryHistoryRailProps {
 	readonly selectedCommitOid: string | null;
 }
 
+interface RepositoryHistoryListProps {
+	readonly commits: readonly CommitInfo[];
+	readonly onSelectCommit: (commit: CommitInfo) => Promise<void>;
+	readonly selectedCommitOid: string | null;
+}
+
+function RepositoryHistoryList({
+	commits,
+	onSelectCommit,
+	selectedCommitOid,
+}: RepositoryHistoryListProps): ReactElement {
+	const [visibleCommitCount, setVisibleCommitCount] = useState(
+		INITIAL_HISTORY_COMMIT_COUNT
+	);
+	const loadMoreCommits = (event: UIEvent<HTMLUListElement>): void => {
+		const list = event.currentTarget;
+		const remainingScroll =
+			list.scrollHeight - list.scrollTop - list.clientHeight;
+		if (
+			remainingScroll > HISTORY_LOAD_AHEAD_PX ||
+			visibleCommitCount >= commits.length
+		) {
+			return;
+		}
+		setVisibleCommitCount((currentCount) =>
+			Math.min(commits.length, currentCount + HISTORY_COMMIT_BATCH_SIZE)
+		);
+	};
+
+	return (
+		<ul
+			className="min-h-0 flex-1 space-y-0.5 overflow-y-auto overscroll-contain px-1.5 pb-1.5"
+			onScroll={loadMoreCommits}
+		>
+			{commits.slice(0, visibleCommitCount).map((commit) => (
+				<RepositoryCommitRow
+					commit={commit}
+					isSelected={selectedCommitOid === commit.oid}
+					key={commit.oid}
+					onSelect={onSelectCommit}
+				/>
+			))}
+		</ul>
+	);
+}
+
 export function RepositoryHistoryRail({
 	history,
 	onSelectCommit,
@@ -78,6 +128,12 @@ export function RepositoryHistoryRail({
 	const updateQuery = (event: ChangeEvent<HTMLInputElement>): void => {
 		setQuery(event.target.value);
 	};
+	let emptyMessage = "Loading commit history…";
+	if (history) {
+		emptyMessage = query
+			? `No commits match “${query}”.`
+			: "This repository has no commits yet.";
+	}
 
 	return (
 		<aside
@@ -102,28 +158,18 @@ export function RepositoryHistoryRail({
 					/>
 				</div>
 			</div>
-			<ul className="min-h-0 flex-1 space-y-0.5 overflow-y-auto overscroll-contain px-1.5 pb-1.5">
-				{commits.map((commit) => (
-					<RepositoryCommitRow
-						commit={commit}
-						isSelected={selectedCommitOid === commit.oid}
-						key={commit.oid}
-						onSelect={onSelectCommit}
-					/>
-				))}
-				{history && commits.length === 0 ? (
-					<li className="px-4 py-10 text-center text-editor-faint text-xss">
-						{query
-							? `No commits match “${query}”.`
-							: "This repository has no commits yet."}
-					</li>
-				) : null}
-				{history ? null : (
-					<li className="px-4 py-10 text-center text-editor-faint text-xss">
-						Loading commit history…
-					</li>
-				)}
-			</ul>
+			{history && commits.length > 0 ? (
+				<RepositoryHistoryList
+					commits={commits}
+					key={`${normalizedQuery}:${commits[0]?.oid ?? ""}:${commits.length}`}
+					onSelectCommit={onSelectCommit}
+					selectedCommitOid={selectedCommitOid}
+				/>
+			) : (
+				<p className="min-h-0 flex-1 px-4 py-10 text-center text-editor-faint text-xss">
+					{emptyMessage}
+				</p>
+			)}
 		</aside>
 	);
 }

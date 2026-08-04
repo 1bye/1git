@@ -124,7 +124,11 @@ function RepositoryFileRow({
 				onClick={selectFile}
 				type="button"
 			>
-				<OverflowingLabel className="flex-1 text-[11px]" title={file.path}>
+				<OverflowingLabel
+					className="flex-1 text-[11px]"
+					deferUntilVisible
+					title={file.path}
+				>
 					<span className="font-medium text-editor-ink">{path.name}</span>
 					{path.directory ? (
 						<span

@@ -5,6 +5,7 @@ import { useOverflowingLabel } from "@/fixture/overflowing-label/hooks/use-overf
 interface OverflowingLabelProps {
 	readonly children: ReactNode;
 	readonly className?: string;
+	readonly deferUntilVisible?: boolean;
 	readonly title?: string;
 	readonly trackClassName?: string;
 }
@@ -12,10 +13,12 @@ interface OverflowingLabelProps {
 export function OverflowingLabel({
 	children,
 	className,
+	deferUntilVisible = false,
 	title,
 	trackClassName,
 }: OverflowingLabelProps): ReactElement {
-	const { isOverflowing, style, trackRef, viewportRef } = useOverflowingLabel();
+	const { isOverflowing, style, trackRef, viewportRef } =
+		useOverflowingLabel(deferUntilVisible);
 
 	return (
 		<span

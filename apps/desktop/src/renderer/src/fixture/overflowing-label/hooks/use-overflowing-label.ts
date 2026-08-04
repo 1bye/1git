@@ -21,7 +21,49 @@ interface OverflowingLabelState {
 	readonly viewportRef: RefObject<HTMLSpanElement | null>;
 }
 
-export const useOverflowingLabel = (): OverflowingLabelState => {
+const visibilityCallbacks = new Map<Element, () => void>();
+let visibilityObserver: IntersectionObserver | null = null;
+
+const stopVisibilityObserverWhenIdle = (): void => {
+	if (visibilityCallbacks.size > 0) {
+		return;
+	}
+	visibilityObserver?.disconnect();
+	visibilityObserver = null;
+};
+
+const observeOnceVisible = (
+	element: Element,
+	onVisible: () => void
+): (() => void) => {
+	visibilityObserver ??= new IntersectionObserver((entries) => {
+		for (const entry of entries) {
+			if (!entry.isIntersecting) {
+				continue;
+			}
+			const callback = visibilityCallbacks.get(entry.target);
+			if (!callback) {
+				continue;
+			}
+			visibilityCallbacks.delete(entry.target);
+			visibilityObserver?.unobserve(entry.target);
+			callback();
+		}
+		stopVisibilityObserverWhenIdle();
+	});
+	visibilityCallbacks.set(element, onVisible);
+	visibilityObserver.observe(element);
+
+	return () => {
+		visibilityCallbacks.delete(element);
+		visibilityObserver?.unobserve(element);
+		stopVisibilityObserverWhenIdle();
+	};
+};
+
+export const useOverflowingLabel = (
+	deferUntilVisible = false
+): OverflowingLabelState => {
 	const viewportRef = useRef<HTMLSpanElement>(null);
 	const trackRef = useRef<HTMLSpanElement>(null);
 	const [overflowPixels, setOverflowPixels] = useState(0);
@@ -43,12 +85,24 @@ export const useOverflowingLabel = (): OverflowingLabelState => {
 			);
 		};
 
-		measureOverflow();
-		const resizeObserver = new ResizeObserver(measureOverflow);
-		resizeObserver.observe(viewport);
-		resizeObserver.observe(track);
-		return () => resizeObserver.disconnect();
-	}, []);
+		let resizeObserver: ResizeObserver | null = null;
+		const startMeasuring = (): void => {
+			measureOverflow();
+			resizeObserver = new ResizeObserver(measureOverflow);
+			resizeObserver.observe(viewport);
+			resizeObserver.observe(track);
+		};
+		const stopWaiting = deferUntilVisible
+			? observeOnceVisible(viewport, startMeasuring)
+			: undefined;
+		if (!deferUntilVisible) {
+			startMeasuring();
+		}
+		return () => {
+			stopWaiting?.();
+			resizeObserver?.disconnect();
+		};
+	}, [deferUntilVisible]);
 
 	const style = useMemo<OverflowingLabelStyle>(
 		() => ({

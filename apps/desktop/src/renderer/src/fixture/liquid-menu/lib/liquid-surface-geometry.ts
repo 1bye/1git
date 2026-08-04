@@ -78,7 +78,12 @@ export const signedDistanceToRoundedBox = (
 	const offsetY = Math.abs(y - box.centerY) - box.halfHeight + radius;
 	const outsideX = Math.max(offsetX, 0);
 	const outsideY = Math.max(offsetY, 0);
-	const outsideDistance = Math.hypot(outsideX, outsideY);
+	let outsideDistance = outsideX;
+	if (outsideX === 0) {
+		outsideDistance = outsideY;
+	} else if (outsideY > 0) {
+		outsideDistance = Math.sqrt(outsideX * outsideX + outsideY * outsideY);
+	}
 	const insideDistance = Math.min(Math.max(offsetX, offsetY), 0);
 	return outsideDistance + insideDistance - radius;
 };
