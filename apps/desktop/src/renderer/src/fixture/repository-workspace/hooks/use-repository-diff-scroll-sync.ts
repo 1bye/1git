@@ -1,70 +1,79 @@
 import type { RefObject } from "react";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 interface UseRepositoryDiffScrollSyncOptions {
 	readonly activePath: string | null;
 	readonly containerRef: RefObject<HTMLElement | null>;
+	readonly contentKey: string;
 	readonly onActivePathChange: (path: string) => void;
 }
 
 const DIFF_FILE_SELECTOR = "[data-repository-diff-path]";
 const DIFF_HEADER_OFFSET = 58;
 
-const getActiveDiffPath = (container: HTMLElement): string | null => {
-	const anchorTop = container.getBoundingClientRect().top + DIFF_HEADER_OFFSET;
-	const files = container.querySelectorAll<HTMLElement>(DIFF_FILE_SELECTOR);
-	let closestFile: HTMLElement | null = null;
-	let closestDistance = Number.POSITIVE_INFINITY;
-
-	for (const file of files) {
-		const rect = file.getBoundingClientRect();
-		if (rect.top <= anchorTop && rect.bottom > anchorTop) {
-			return file.dataset.repositoryDiffPath ?? null;
-		}
-		const distance = Math.abs(rect.top - anchorTop);
-		if (distance < closestDistance) {
-			closestDistance = distance;
-			closestFile = file;
-		}
-	}
-
-	return closestFile?.dataset.repositoryDiffPath ?? null;
-};
-
 export const useRepositoryDiffScrollSync = ({
 	activePath,
 	containerRef,
+	contentKey,
 	onActivePathChange,
 }: UseRepositoryDiffScrollSyncOptions): void => {
+	const activePathRef = useRef(activePath);
+	const onActivePathChangeRef = useRef(onActivePathChange);
+	activePathRef.current = activePath;
+	onActivePathChangeRef.current = onActivePathChange;
+
 	useEffect(() => {
 		const container = containerRef.current;
 		if (!container) {
 			return;
 		}
-		let frameId: number | null = null;
-		const updateActivePath = (): void => {
-			frameId = null;
-			const nextPath = getActiveDiffPath(container);
-			if (nextPath && nextPath !== activePath) {
-				onActivePathChange(nextPath);
+
+		const files = container.querySelectorAll<HTMLElement>(DIFF_FILE_SELECTOR);
+		if (!(contentKey || files.length > 0)) {
+			return;
+		}
+		let intersectionObserver: IntersectionObserver | null = null;
+		const observeFiles = (containerHeight: number): void => {
+			intersectionObserver?.disconnect();
+			const bottomInset = Math.max(
+				0,
+				Math.round(containerHeight) - DIFF_HEADER_OFFSET - 1
+			);
+			intersectionObserver = new IntersectionObserver(
+				(entries) => {
+					const activeEntry = entries.find((entry) => entry.isIntersecting);
+					if (!(activeEntry?.target instanceof HTMLElement)) {
+						return;
+					}
+					const nextPath = activeEntry.target.dataset.repositoryDiffPath;
+					if (nextPath && nextPath !== activePathRef.current) {
+						activePathRef.current = nextPath;
+						onActivePathChangeRef.current(nextPath);
+					}
+				},
+				{
+					root: container,
+					rootMargin: `-${DIFF_HEADER_OFFSET}px 0px -${bottomInset}px 0px`,
+					threshold: 0,
+				}
+			);
+			for (const file of files) {
+				intersectionObserver.observe(file);
 			}
 		};
-		const scheduleUpdate = (): void => {
-			if (frameId === null) {
-				frameId = window.requestAnimationFrame(updateActivePath);
+
+		observeFiles(container.clientHeight);
+		const resizeObserver = new ResizeObserver((entries) => {
+			const [containerEntry] = entries;
+			if (containerEntry) {
+				observeFiles(containerEntry.contentRect.height);
 			}
-		};
-		const observer = new ResizeObserver(scheduleUpdate);
-		observer.observe(container);
-		container.addEventListener("scroll", scheduleUpdate, { passive: true });
-		scheduleUpdate();
+		});
+		resizeObserver.observe(container);
 
 		return () => {
-			if (frameId !== null) {
-				window.cancelAnimationFrame(frameId);
-			}
-			observer.disconnect();
-			container.removeEventListener("scroll", scheduleUpdate);
+			intersectionObserver?.disconnect();
+			resizeObserver.disconnect();
 		};
-	}, [activePath, containerRef, onActivePathChange]);
+	}, [containerRef, contentKey]);
 };

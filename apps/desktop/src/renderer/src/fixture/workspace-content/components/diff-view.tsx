@@ -2,10 +2,16 @@ import type { CommitInfo, DiffFileStat, FileChange, FileDiff } from "@1git/git";
 import { cn } from "@1git/ui/lib/utils";
 import { CaretRightIcon } from "@phosphor-icons/react/dist/csr/CaretRight";
 import { GitDiffIcon } from "@phosphor-icons/react/dist/csr/GitDiff";
-import { parsePatchFiles } from "@pierre/diffs";
-import { FileDiff as PierreFileDiff } from "@pierre/diffs/react";
+import {
+	Virtualizer as PierreDiffVirtualizer,
+	parsePatchFiles,
+} from "@pierre/diffs";
+import {
+	FileDiff as PierreFileDiff,
+	VirtualizerContext,
+} from "@pierre/diffs/react";
 import type { ReactElement } from "react";
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import type { RepositoryTab } from "@/feature/workspace/hooks/use-git-workspace.js";
 import { useRepositoryDiffScrollSync } from "@/fixture/repository-workspace/hooks/use-repository-diff-scroll-sync.js";
 import { getRepositoryDiffElementId } from "@/fixture/repository-workspace/lib/repository-navigation.js";
@@ -14,7 +20,6 @@ const DIFF_RENDER_OPTIONS = {
 	diffIndicators: "bars",
 	diffStyle: "unified",
 	disableFileHeader: true,
-	disableVirtualizationBuffers: true,
 	hunkSeparators: "metadata",
 	lineDiffType: "word-alt",
 	overflow: "scroll",
@@ -33,6 +38,17 @@ const DIFF_RENDER_OPTIONS = {
 	`,
 } as const;
 
+const DIFF_VIRTUALIZER_CONFIG = {
+	intersectionObserverMargin: 1600,
+	overscrollSize: 800,
+} as const;
+
+const DIFF_ESTIMATED_LINE_HEIGHT = 20;
+const DIFF_ESTIMATED_SEPARATOR_HEIGHT = 24;
+const DIFF_MINIMUM_BODY_HEIGHT = 64;
+const DIFF_BODY_OBSERVER_MARGIN = 1600;
+const INITIAL_MOUNTED_DIFF_COUNT = 2;
+
 type ParsedDiffFile = ReturnType<
 	typeof parsePatchFiles
 >[number]["files"][number];
@@ -50,6 +66,8 @@ type DiffFileEntryWithoutId = Omit<DiffFileEntry, "id">;
 
 interface DiffFileAccordionProps {
 	readonly entry: DiffFileEntry;
+	readonly isBodyMounted: boolean;
+	readonly onElementChange: (key: string, element: HTMLElement | null) => void;
 	readonly showTarget: boolean;
 }
 
@@ -141,19 +159,60 @@ const assignDiffElementIds = (
 
 function DiffFileAccordion({
 	entry,
+	isBodyMounted,
+	onElementChange,
 	showTarget,
 }: DiffFileAccordionProps): ReactElement {
 	const [isOpen, setIsOpen] = useState(true);
 	const bodyId = `repository-diff-body:${encodeURIComponent(entry.key)}`;
 	const addedLines = entry.stat?.addedLines;
 	const deletedLines = entry.stat?.deletedLines;
+	const setArticleElement = useCallback(
+		(element: HTMLElement | null): void => {
+			onElementChange(entry.key, element);
+		},
+		[entry.key, onElementChange]
+	);
+	const estimatedBodyHeight = entry.file
+		? Math.max(
+				DIFF_MINIMUM_BODY_HEIGHT,
+				entry.file.unifiedLineCount * DIFF_ESTIMATED_LINE_HEIGHT +
+					entry.file.hunks.length * DIFF_ESTIMATED_SEPARATOR_HEIGHT
+			)
+		: 0;
+	let bodyContent: ReactElement;
+	if (!entry.file) {
+		bodyContent = (
+			<p className="px-4 py-8 text-center text-editor-faint text-xss">
+				No text diff available for this file.
+			</p>
+		);
+	} else if (isBodyMounted) {
+		bodyContent = (
+			<PierreFileDiff
+				className="block"
+				fileDiff={entry.file}
+				options={DIFF_RENDER_OPTIONS}
+			/>
+		);
+	} else {
+		bodyContent = (
+			<div
+				aria-hidden
+				data-name="RepositoryDiffPlaceholder"
+				style={{ height: estimatedBodyHeight }}
+			/>
+		);
+	}
 
 	return (
 		<article
 			className="overflow-clip bg-editor-surface"
 			data-name="DiffFile"
+			data-repository-diff-key={entry.key}
 			data-repository-diff-path={entry.path}
 			id={entry.id}
+			ref={setArticleElement}
 		>
 			<button
 				aria-controls={bodyId}
@@ -189,18 +248,7 @@ function DiffFileAccordion({
 				</div>
 			</button>
 			<div hidden={!isOpen} id={bodyId}>
-				{entry.file ? (
-					<PierreFileDiff
-						className="block"
-						disableWorkerPool
-						fileDiff={entry.file}
-						options={DIFF_RENDER_OPTIONS}
-					/>
-				) : (
-					<p className="px-4 py-8 text-center text-editor-faint text-xss">
-						No text diff available for this file.
-					</p>
-				)}
+				{bodyContent}
 			</div>
 		</article>
 	);
@@ -226,6 +274,72 @@ export function DiffView({
 	tab,
 }: DiffViewProps): ReactElement {
 	const scrollRef = useRef<HTMLElement>(null);
+	const bodyObserverRef = useRef<IntersectionObserver | null>(null);
+	const articleElementsRef = useRef(new Map<string, HTMLElement>());
+	const [visibleEntryKeys, setVisibleEntryKeys] = useState<ReadonlySet<string>>(
+		() => new Set()
+	);
+	const [virtualizer] = useState(
+		() => new PierreDiffVirtualizer(DIFF_VIRTUALIZER_CONFIG)
+	);
+	const registerArticleElement = useCallback(
+		(key: string, element: HTMLElement | null): void => {
+			const previousElement = articleElementsRef.current.get(key);
+			if (previousElement) {
+				bodyObserverRef.current?.unobserve(previousElement);
+			}
+			if (element) {
+				articleElementsRef.current.set(key, element);
+				bodyObserverRef.current?.observe(element);
+			} else {
+				articleElementsRef.current.delete(key);
+			}
+		},
+		[]
+	);
+	const setScrollContainer = useCallback(
+		(element: HTMLElement | null): void => {
+			bodyObserverRef.current?.disconnect();
+			bodyObserverRef.current = null;
+			scrollRef.current = element;
+			if (element) {
+				virtualizer.setup(element);
+				bodyObserverRef.current = new IntersectionObserver(
+					(observerEntries) => {
+						setVisibleEntryKeys((currentKeys) => {
+							let nextKeys: Set<string> | null = null;
+							for (const observerEntry of observerEntries) {
+								if (
+									!(
+										observerEntry.isIntersecting &&
+										observerEntry.target instanceof HTMLElement
+									)
+								) {
+									continue;
+								}
+								const key = observerEntry.target.dataset.repositoryDiffKey;
+								if (key && !currentKeys.has(key)) {
+									nextKeys ??= new Set(currentKeys);
+									nextKeys.add(key);
+								}
+							}
+							return nextKeys ?? currentKeys;
+						});
+					},
+					{
+						root: element,
+						rootMargin: `${DIFF_BODY_OBSERVER_MARGIN}px 0px`,
+					}
+				);
+				for (const articleElement of articleElementsRef.current.values()) {
+					bodyObserverRef.current.observe(articleElement);
+				}
+			} else {
+				virtualizer.cleanUp();
+			}
+		},
+		[virtualizer]
+	);
 	const entries = useMemo(
 		() =>
 			assignDiffElementIds(
@@ -237,45 +351,58 @@ export function DiffView({
 			),
 		[commit?.oid, diffs, files, tab]
 	);
+	const contentKey = useMemo(
+		() => entries.map((entry) => entry.key).join("\n"),
+		[entries]
+	);
 	useRepositoryDiffScrollSync({
 		activePath: selectedFilePath,
 		containerRef: scrollRef,
+		contentKey,
 		onActivePathChange: onActiveFileChange,
 	});
 
 	return (
-		<section
-			className="h-full min-h-0 overflow-y-auto overscroll-contain"
-			data-name="DiffView"
-			ref={scrollRef}
-		>
-			{entries.length > 0 ? (
-				<div>
-					{entries.map((entry) => (
-						<DiffFileAccordion
-							entry={entry}
-							key={entry.key}
-							showTarget={diffs.length > 1}
-						/>
-					))}
-				</div>
-			) : (
-				<div className="flex min-h-full items-center justify-center px-8 py-16 text-center">
+		<VirtualizerContext.Provider value={virtualizer}>
+			<section
+				className="h-full min-h-0 overflow-y-auto overscroll-contain"
+				data-name="DiffView"
+				ref={setScrollContainer}
+			>
+				{entries.length > 0 ? (
 					<div>
-						<GitDiffIcon
-							aria-hidden
-							className="mx-auto size-6 text-editor-faint"
-							weight="duotone"
-						/>
-						<h2 className="mt-3 font-medium text-[13px] text-editor-ink">
-							No text diff available
-						</h2>
-						<p className="mt-1 text-editor-faint text-xss">
-							The changed files may be binary or have no patch content.
-						</p>
+						{entries.map((entry, index) => (
+							<DiffFileAccordion
+								entry={entry}
+								isBodyMounted={
+									index < INITIAL_MOUNTED_DIFF_COUNT ||
+									entry.path === selectedFilePath ||
+									visibleEntryKeys.has(entry.key)
+								}
+								key={entry.key}
+								onElementChange={registerArticleElement}
+								showTarget={diffs.length > 1}
+							/>
+						))}
 					</div>
-				</div>
-			)}
-		</section>
+				) : (
+					<div className="flex min-h-full items-center justify-center px-8 py-16 text-center">
+						<div>
+							<GitDiffIcon
+								aria-hidden
+								className="mx-auto size-6 text-editor-faint"
+								weight="duotone"
+							/>
+							<h2 className="mt-3 font-medium text-[13px] text-editor-ink">
+								No text diff available
+							</h2>
+							<p className="mt-1 text-editor-faint text-xss">
+								The changed files may be binary or have no patch content.
+							</p>
+						</div>
+					</div>
+				)}
+			</section>
+		</VirtualizerContext.Provider>
 	);
 }
