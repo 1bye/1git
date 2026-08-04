@@ -126,6 +126,7 @@ export function DiffView({
 			<section
 				className="h-full min-h-0 overflow-y-auto overscroll-contain"
 				data-name="DiffView"
+				data-repository-diff-viewport
 				ref={setScrollContainer}
 			>
 				{entries.length > 0 ? (

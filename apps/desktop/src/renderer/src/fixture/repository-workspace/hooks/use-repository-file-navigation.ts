@@ -7,6 +7,7 @@ import {
 	getRepositoryFileRowId,
 	groupRepositoryFiles,
 } from "@/fixture/repository-workspace/lib/repository-navigation.js";
+import { scrollElementIntoViewport } from "@/fixture/repository-workspace/lib/scroll-element-into-viewport.js";
 
 interface UseRepositoryFileNavigationOptions {
 	readonly files: readonly FileChange[];
@@ -61,10 +62,15 @@ const arrowOffset = (key: string): number | null => {
 const focusRepositoryFileRow = (path: string): void => {
 	window.requestAnimationFrame(() => {
 		const row = document.getElementById(getRepositoryFileRowId(path));
+		const viewport = row?.closest<HTMLElement>(
+			"[data-repository-file-viewport]"
+		);
 		row?.querySelector<HTMLButtonElement>("button")?.focus({
 			preventScroll: true,
 		});
-		row?.scrollIntoView({ block: "nearest" });
+		if (row && viewport) {
+			scrollElementIntoViewport(viewport, row);
+		}
 	});
 };
 

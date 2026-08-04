@@ -24,6 +24,7 @@ import { RepositoryHistoryRail } from "@/fixture/repository-workspace/components
 import { RepositoryWorkspaceToolbar } from "@/fixture/repository-workspace/components/repository-workspace-toolbar.js";
 import { useRepositoryFileNavigation } from "@/fixture/repository-workspace/hooks/use-repository-file-navigation.js";
 import { getRepositoryDiffElementId } from "@/fixture/repository-workspace/lib/repository-navigation.js";
+import { scrollElementIntoViewport } from "@/fixture/repository-workspace/lib/scroll-element-into-viewport.js";
 import { CleanState } from "@/fixture/workspace-content/components/clean-state.js";
 import { DiffView } from "@/fixture/workspace-content/components/diff-view.js";
 import type { RepositorySessionRecord } from "../../../../../shared/repository-session.js";
@@ -124,9 +125,17 @@ export function AdaptiveRepositoryWorkspace({
 	const selectFileAndReveal = useCallback(
 		async (file: FileChange): Promise<void> => {
 			await onSelectFile(file);
-			document
-				.getElementById(getRepositoryDiffElementId(file.path))
-				?.scrollIntoView({ block: "start" });
+			const diffElement = document.getElementById(
+				getRepositoryDiffElementId(file.path)
+			);
+			const diffViewport = diffElement?.closest<HTMLElement>(
+				"[data-repository-diff-viewport]"
+			);
+			if (diffElement && diffViewport) {
+				scrollElementIntoViewport(diffViewport, diffElement, {
+					block: "start",
+				});
+			}
 		},
 		[onSelectFile]
 	);
