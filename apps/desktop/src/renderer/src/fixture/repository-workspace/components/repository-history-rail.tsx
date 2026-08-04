@@ -2,7 +2,6 @@ import type { CommitInfo, CommitPage } from "@1git/git";
 import { Input } from "@1git/ui/components/input";
 import { cn } from "@1git/ui/lib/utils";
 import { FunnelSimpleIcon } from "@phosphor-icons/react/dist/csr/FunnelSimple";
-import { GitCommitIcon } from "@phosphor-icons/react/dist/csr/GitCommit";
 import type { ChangeEvent, ReactElement } from "react";
 import { useMemo, useState } from "react";
 import { formatRelativeTime } from "@/feature/workspace/lib/workspace-model.js";
@@ -27,20 +26,17 @@ function RepositoryCommitRow({
 			<button
 				aria-current={isSelected ? "true" : undefined}
 				className={cn(
-					"flex w-full gap-2.5 rounded-lg px-2 py-2.5 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-editor-muted/20",
+					"w-full rounded-lg px-3 py-2 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-editor-muted/20 focus-visible:ring-inset",
 					isSelected ? "bg-editor-sunken-2" : "hover:bg-editor-sunken"
 				)}
 				onClick={selectCommit}
 				type="button"
 			>
-				<span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-editor-sunken text-editor-muted">
-					<GitCommitIcon aria-hidden className="size-3.5" weight="duotone" />
-				</span>
-				<span className="min-w-0 flex-1">
+				<span className="block min-w-0">
 					<span className="block truncate font-medium text-editor-ink text-xss">
 						{commit.summary}
 					</span>
-					<span className="mt-1 flex items-center gap-2 text-[9px] text-editor-faint">
+					<span className="mt-0.5 flex items-center gap-2 text-[9px] text-editor-faint">
 						<span className="min-w-0 flex-1 truncate">
 							{commit.author.name}
 						</span>
@@ -106,7 +102,7 @@ export function RepositoryHistoryRail({
 					/>
 				</div>
 			</div>
-			<ul className="min-h-0 flex-1 space-y-0.5 overflow-y-auto overscroll-contain px-1 pb-1">
+			<ul className="min-h-0 flex-1 space-y-0.5 overflow-y-auto overscroll-contain px-1.5 pb-1.5">
 				{commits.map((commit) => (
 					<RepositoryCommitRow
 						commit={commit}

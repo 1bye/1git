@@ -65,9 +65,7 @@ function RepositoryStageCheckbox({
 				aria-hidden
 				className={cn(
 					"flex size-3 items-center justify-center rounded-[4px] transition-colors",
-					checked || mixed
-						? "bg-editor-ink text-white"
-						: "bg-editor-sunken-2 shadow-[inset_0_0_0_1px_var(--editor-hairline-strong)]"
+					checked || mixed ? "bg-editor-ink text-white" : "bg-editor-sunken-2"
 				)}
 			>
 				{checkboxIcon}
