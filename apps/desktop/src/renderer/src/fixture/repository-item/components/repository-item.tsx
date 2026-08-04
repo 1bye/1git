@@ -104,13 +104,12 @@ const useRepositoryItemCommandLens = ({
 		highlightOutset: commandLens?.highlightOutset,
 		hintLayout: commandLens?.hintLayout,
 		id: commandLens?.id ?? `repository-item:${repositoryPath}`,
-		navigationAction: commandLens?.navigationAction,
-		navigationAlternateAction: commandLens?.navigationAlternateAction,
 		navigationDefault: commandLens?.navigationDefault,
 		navigationGroup: commandLens?.navigationGroup,
 		navigationOrder: commandLens?.navigationOrder,
 		navigationOrientation: commandLens?.navigationOrientation,
 		placement: commandLens?.placement,
+		plainArrowNavigation: commandLens?.plainArrowNavigation,
 		radius: commandLens?.radius,
 	});
 	const setElement = useCallback(
@@ -246,7 +245,7 @@ export function RepositoryItem({
 			<button
 				{...sharedProps}
 				className={cn(
-					"group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left outline-none transition-[background-color,opacity] duration-150 hover:bg-editor-sunken focus-visible:bg-editor-sunken focus-visible:ring-2 focus-visible:ring-editor-muted/15 disabled:pointer-events-none disabled:opacity-50",
+					"group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left outline-none transition-[background-color,opacity] duration-150 hover:bg-editor-sunken focus-visible:z-10 focus-visible:bg-editor-sunken disabled:pointer-events-none disabled:opacity-50",
 					contextOpen && "z-10 bg-white hover:bg-white focus-visible:bg-white"
 				)}
 				disabled={disabled}

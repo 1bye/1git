@@ -5,12 +5,9 @@ import {
 } from "@/fixture/command-lens/lib/command-lens-geometry.js";
 import {
 	type CommandLensNavigationTarget,
-	getClosestCommandLensNavigationTarget,
-	getCommandLensNavigationAction,
-	getCommandLensNavigationAdvanceTarget,
-	getCommandLensNavigationTargets,
 	getInitialCommandLensNavigationTarget,
 	getNextCommandLensNavigationTarget,
+	getPlainArrowNavigationTargets,
 	isCommandLensNavigationKey,
 } from "@/fixture/command-lens/lib/command-lens-navigation.js";
 import {
@@ -19,6 +16,7 @@ import {
 	getCommandLensDisplayCommands,
 	getCommandLensNumberKey,
 	hasCommandLensOptionMode,
+	isCommandLensFocusedActivation,
 	matchesCommandLensCommand,
 } from "@/fixture/command-lens/lib/command-lens-shortcut.js";
 
@@ -137,6 +135,33 @@ describe("command lens shortcuts", () => {
 		expect(formatCommandLensCommand(command)).toEqual(["⌫"]);
 		expect(commandLensAriaKeyShortcut(command)).toBe("Meta+Backspace");
 	});
+
+	test("keeps repeated workspace arrows invokable after the lens hides", () => {
+		const command = { key: "ArrowRight", label: "Next workspace" } as const;
+
+		expect(
+			matchesCommandLensCommand(
+				keyboardEvent({ key: "ArrowRight", repeat: true }),
+				command
+			)
+		).toBe(true);
+	});
+
+	test("activates an arrow-focused target only with plain Cmd Enter", () => {
+		expect(
+			isCommandLensFocusedActivation(keyboardEvent({ key: "Enter" }))
+		).toBe(true);
+		expect(
+			isCommandLensFocusedActivation(
+				keyboardEvent({ altKey: true, key: "Enter" })
+			)
+		).toBe(false);
+		expect(
+			isCommandLensFocusedActivation(
+				keyboardEvent({ key: "Enter", metaKey: false })
+			)
+		).toBe(false);
+	});
 });
 
 describe("command lens geometry", () => {
@@ -224,11 +249,11 @@ describe("command lens navigation", () => {
 	): CommandLensNavigationTarget => ({
 		commands: [{ key: String(order + 1), label: `Open ${id}` }],
 		id,
-		navigationAction: { label: `Open ${id}`, onInvoke: () => undefined },
 		navigationDefault: isDefault,
 		navigationGroup: group,
 		navigationOrder: order,
 		navigationOrientation: orientation,
+		plainArrowNavigation: true,
 		rect: { height: 32, left, top, width: 160 },
 	});
 
@@ -283,65 +308,25 @@ describe("command lens navigation", () => {
 		).toBe("clone");
 	});
 
-	test("keeps selection beside a removed third tab instead of returning to repos", () => {
-		const removedTab = target("tab-3", "toolbar", 3, 620, 20, "horizontal");
-		const survivingTargets = [
-			target("repos", "toolbar", 0, 20, 20, "horizontal"),
-			target("tab-1", "toolbar", 1, 220, 20, "horizontal"),
-			target("tab-2", "toolbar", 2, 420, 20, "horizontal"),
-			target("tab-4", "toolbar", 3, 620, 20, "horizontal"),
-		];
-
-		expect(
-			getClosestCommandLensNavigationTarget(survivingTargets, removedTab)?.id
-		).toBe("tab-4");
-	});
-
-	test("offers alternate navigation actions only while Option is held", () => {
-		const primaryOnly = target("create", "actions", 0, 20, 100);
-		const repository = {
-			...target("repo", "repositories", 0, 300, 140),
-			navigationAlternateAction: {
-				advanceSelection: "ArrowDown" as const,
-				hintLabel: "Open in background",
-				label: "Open repo in background",
-				onInvoke: () => undefined,
-			},
-		};
-
-		expect(
-			getCommandLensNavigationTargets([primaryOnly, repository], true)
-		).toEqual([repository]);
-		expect(getCommandLensNavigationAction(repository, false)?.label).toBe(
-			"Open repo"
-		);
-		expect(getCommandLensNavigationAction(repository, true)?.label).toBe(
-			"Open repo in background"
-		);
-		expect(getCommandLensNavigationAction(repository, true)?.hintLabel).toBe(
-			"Open in background"
-		);
-		expect(
-			getCommandLensNavigationAdvanceTarget(
-				[repository, target("next-repo", "repositories", 1, 300, 180)],
-				repository.id,
-				repository.navigationAlternateAction
-			)?.id
-		).toBe("next-repo");
+	test("recognizes arrows as focus-navigation input", () => {
+		expect(isCommandLensNavigationKey("ArrowUp")).toBe(true);
 		expect(isCommandLensNavigationKey("ArrowDown")).toBe(true);
+		expect(isCommandLensNavigationKey("ArrowLeft")).toBe(true);
+		expect(isCommandLensNavigationKey("ArrowRight")).toBe(true);
 		expect(isCommandLensNavigationKey("Enter")).toBe(false);
 	});
 
-	test("does not advance beyond the final batch target", () => {
-		const repository = target("repo", "repositories", 0, 300, 140);
-		const action = {
-			advanceSelection: "ArrowDown",
-			label: "Open repo in background",
-			onInvoke: () => undefined,
-		} as const;
+	test("limits plain arrows to targets that opt into local focus navigation", () => {
+		const welcomeAction = target("create", "actions", 0, 20, 100);
+		const workspaceTab = {
+			...target("tab", "toolbar", 0, 200, 20, "horizontal"),
+			plainArrowNavigation: false,
+		};
 
 		expect(
-			getCommandLensNavigationAdvanceTarget([repository], repository.id, action)
-		).toBeNull();
+			getPlainArrowNavigationTargets([welcomeAction, workspaceTab]).map(
+				(item) => item.id
+			)
+		).toEqual(["create"]);
 	});
 });

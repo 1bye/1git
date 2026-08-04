@@ -429,10 +429,6 @@ export function RepositoryMenu({
 		disabled: !isVisible || pendingAction === "open",
 		hintLayout: "floating",
 		id: "repository-menu",
-		navigationAction: {
-			label: "Open repositories",
-			onInvoke: () => changeMenuOpen(true),
-		},
 		navigationGroup: WORKSPACE_COMMAND_LENS_GROUP,
 		navigationOrder: 0,
 		navigationOrientation: "horizontal",

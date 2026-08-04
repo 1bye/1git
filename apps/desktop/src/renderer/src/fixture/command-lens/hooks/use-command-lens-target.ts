@@ -27,17 +27,12 @@ export const useCommandLensTarget = (
 		String(options.highlightInsetInline ?? 0),
 		String(options.highlightOutset ?? 2),
 		options.hintLayout ?? "floating",
-		options.navigationAction
-			? `${options.navigationAction.label}:${options.navigationAction.hintLabel ?? ""}:${options.navigationAction.advanceSelection ?? "stay"}`
-			: "derived-primary",
-		options.navigationAlternateAction
-			? `${options.navigationAlternateAction.label}:${options.navigationAlternateAction.hintLabel ?? ""}:${options.navigationAlternateAction.advanceSelection ?? "stay"}`
-			: "derived-alternate",
 		options.navigationDefault ? "default" : "standard",
 		options.navigationGroup ?? options.id,
 		String(options.navigationOrder ?? 0),
 		options.navigationOrientation ?? "vertical",
 		options.placement ?? "bottom",
+		options.plainArrowNavigation ? "plain-arrows" : "command-arrows",
 		String(options.radius ?? 12),
 		commandLensCommandSignature(options.commands),
 	].join(":");

@@ -101,21 +101,18 @@ function QuickAction({
 		disabled,
 		hintLayout: "gutter-start",
 		id: commandId,
-		navigationAction: {
-			label: command.label,
-			onInvoke: onClick,
-		},
 		navigationDefault,
 		navigationGroup: WELCOME_ACTIONS_COMMAND_LENS_GROUP,
 		navigationOrder,
 		navigationOrientation: "vertical",
+		plainArrowNavigation: true,
 		radius: 10,
 	});
 
 	return (
 		<Button
 			aria-keyshortcuts={commandLensTarget.ariaKeyShortcuts}
-			className={`${QUICK_ACTION_WIDTH_CLASS_NAME} justify-start px-2.5`}
+			className={`${QUICK_ACTION_WIDTH_CLASS_NAME} justify-start px-2.5 focus-visible:bg-hover focus-visible:text-editor-ink focus-visible:ring-0`}
 			disabled={disabled}
 			onClick={onClick}
 			ref={commandLensTarget.ref}
@@ -168,20 +165,10 @@ function RepositoryListItem({
 				commands,
 				hintLayout: "gutter-start",
 				id: `welcome-repository:${repository.path}`,
-				navigationAction: {
-					hintLabel: "Open",
-					label: `Open ${repositoryName}`,
-					onInvoke: () => onOpen(repository.path),
-				},
-				navigationAlternateAction: {
-					advanceSelection: "ArrowDown",
-					hintLabel: "Open in background",
-					label: `Open ${repositoryName} in the background`,
-					onInvoke: () => onOpen(repository.path, { activate: false }),
-				},
 				navigationGroup: WELCOME_REPOSITORIES_COMMAND_LENS_GROUP,
 				navigationOrder,
 				navigationOrientation: "vertical",
+				plainArrowNavigation: true,
 				radius: 12,
 			}}
 			disabled={disabled}
@@ -375,13 +362,10 @@ export function RepositoryWelcome({
 		disabled: isLoading,
 		hintLayout: "gutter-start",
 		id: "welcome-clone-repository",
-		navigationAction: {
-			label: "Clone from URL",
-			onInvoke: openCloneMenu,
-		},
 		navigationGroup: WELCOME_ACTIONS_COMMAND_LENS_GROUP,
 		navigationOrder: 1,
 		navigationOrientation: "vertical",
+		plainArrowNavigation: true,
 		radius: 10,
 	});
 	const searchCommandLensTarget = useCommandLensTarget({
@@ -396,10 +380,6 @@ export function RepositoryWelcome({
 		disabled: isLoading || hasOpenWorkspaces,
 		hintLayout: "inline-end",
 		id: "welcome-search-repositories",
-		navigationAction: {
-			label: "Search repositories",
-			onInvoke: focusRepositorySearch,
-		},
 		navigationGroup: WELCOME_REPOSITORIES_COMMAND_LENS_GROUP,
 		navigationOrder: -1,
 		navigationOrientation: "vertical",
@@ -476,7 +456,7 @@ export function RepositoryWelcome({
 								<LiquidMenuTrigger
 									aria-keyshortcuts={cloneCommandLensTarget.ariaKeyShortcuts}
 									className={buttonVariants({
-										className: `${QUICK_ACTION_WIDTH_CLASS_NAME} relative z-10 justify-start px-2.5 text-editor-muted`,
+										className: `${QUICK_ACTION_WIDTH_CLASS_NAME} relative z-10 justify-start px-2.5 text-editor-muted focus-visible:bg-hover focus-visible:text-editor-ink focus-visible:ring-0`,
 										size: "sm",
 										variant: "ghost",
 									})}

@@ -363,10 +363,6 @@ function WorkspaceTabAppearance({
 		highlightOutset: 0,
 		hintLayout: "floating",
 		id: `workspace-tab:${workspace.session.id}`,
-		navigationAction: {
-			label: `Open ${label}`,
-			onInvoke: activateWorkspace,
-		},
 		navigationDefault: isActive,
 		navigationGroup: WORKSPACE_COMMAND_LENS_GROUP,
 		navigationOrder,

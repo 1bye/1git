@@ -1,8 +1,5 @@
 import type { CommandLensRect } from "@/fixture/command-lens/lib/command-lens-geometry.js";
-import {
-	type CommandLensCommand,
-	getCommandLensDisplayCommands,
-} from "@/fixture/command-lens/lib/command-lens-shortcut.js";
+import type { CommandLensCommand } from "@/fixture/command-lens/lib/command-lens-shortcut.js";
 
 export type CommandLensNavigationDirection =
 	| "ArrowDown"
@@ -12,22 +9,14 @@ export type CommandLensNavigationDirection =
 
 export type CommandLensNavigationOrientation = "horizontal" | "vertical";
 
-export interface CommandLensNavigationAction {
-	readonly advanceSelection?: CommandLensNavigationDirection;
-	readonly hintLabel?: string;
-	readonly label: string;
-	readonly onInvoke: () => Promise<void> | void;
-}
-
 export interface CommandLensNavigationTarget {
 	readonly commands: readonly CommandLensCommand[];
 	readonly id: string;
-	readonly navigationAction?: CommandLensNavigationAction;
-	readonly navigationAlternateAction?: CommandLensNavigationAction;
 	readonly navigationDefault: boolean;
 	readonly navigationGroup: string;
 	readonly navigationOrder: number;
 	readonly navigationOrientation: CommandLensNavigationOrientation;
+	readonly plainArrowNavigation: boolean;
 	readonly rect: CommandLensRect;
 }
 
@@ -56,17 +45,6 @@ const rectCenter = (
 	x: rect.left + rect.width / 2,
 	y: rect.top + rect.height / 2,
 });
-
-const squaredCenterDistance = (
-	first: CommandLensNavigationTarget,
-	second: CommandLensNavigationTarget
-): number => {
-	const firstCenter = rectCenter(first.rect);
-	const secondCenter = rectCenter(second.rect);
-	const horizontalDistance = firstCenter.x - secondCenter.x;
-	const verticalDistance = firstCenter.y - secondCenter.y;
-	return horizontalDistance ** 2 + verticalDistance ** 2;
-};
 
 const compareVisualOrder = (
 	first: CommandLensNavigationTarget,
@@ -134,42 +112,11 @@ export const isCommandLensNavigationKey = (
 ): key is CommandLensNavigationDirection =>
 	NAVIGATION_KEYS.has(key as CommandLensNavigationDirection);
 
-export const getCommandLensNavigationAction = (
-	target: CommandLensNavigationTarget,
-	isOptionActive: boolean
-): CommandLensNavigationAction | null => {
-	if (isOptionActive) {
-		if (target.navigationAlternateAction) {
-			return target.navigationAlternateAction;
-		}
-		if (target.navigationAction) {
-			return null;
-		}
-	} else if (target.navigationAction) {
-		return target.navigationAction;
-	}
-	const [command] = getCommandLensDisplayCommands(
-		target.commands,
-		isOptionActive
-	);
-	if (!command?.onInvoke) {
-		return null;
-	}
-	return {
-		label: command.label,
-		onInvoke: command.onInvoke,
-	};
-};
-
-export const getCommandLensNavigationTargets = <
+export const getPlainArrowNavigationTargets = <
 	Target extends CommandLensNavigationTarget,
 >(
-	targets: readonly Target[],
-	isOptionActive: boolean
-): readonly Target[] =>
-	targets.filter(
-		(target) => getCommandLensNavigationAction(target, isOptionActive) !== null
-	);
+	targets: readonly Target[]
+): readonly Target[] => targets.filter((target) => target.plainArrowNavigation);
 
 export const getInitialCommandLensNavigationTarget = <
 	Target extends CommandLensNavigationTarget,
@@ -223,48 +170,4 @@ export const getNextCommandLensNavigationTarget = <
 		}
 	}
 	return findSpatialTarget(targets, currentTarget, direction) ?? currentTarget;
-};
-
-export const getClosestCommandLensNavigationTarget = <
-	Target extends CommandLensNavigationTarget,
->(
-	targets: readonly Target[],
-	anchor: CommandLensNavigationTarget
-): Target | null => {
-	const candidates = targets.filter((target) => target.id !== anchor.id);
-	const sameGroupCandidates = candidates.filter(
-		(target) => target.navigationGroup === anchor.navigationGroup
-	);
-	const eligibleCandidates =
-		sameGroupCandidates.length > 0 ? sameGroupCandidates : candidates;
-	return (
-		eligibleCandidates.toSorted(
-			(first, second) =>
-				squaredCenterDistance(first, anchor) -
-					squaredCenterDistance(second, anchor) ||
-				Math.abs(first.navigationOrder - anchor.navigationOrder) -
-					Math.abs(second.navigationOrder - anchor.navigationOrder) ||
-				Number(first.navigationOrder < anchor.navigationOrder) -
-					Number(second.navigationOrder < anchor.navigationOrder) ||
-				compareVisualOrder(first, second)
-		)[0] ?? null
-	);
-};
-
-export const getCommandLensNavigationAdvanceTarget = <
-	Target extends CommandLensNavigationTarget,
->(
-	targets: readonly Target[],
-	currentTargetId: string,
-	action: CommandLensNavigationAction
-): Target | null => {
-	if (!action.advanceSelection) {
-		return null;
-	}
-	const nextTarget = getNextCommandLensNavigationTarget(
-		targets,
-		currentTargetId,
-		action.advanceSelection
-	);
-	return nextTarget?.id === currentTargetId ? null : nextTarget;
 };

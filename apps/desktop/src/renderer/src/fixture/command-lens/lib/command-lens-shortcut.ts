@@ -39,6 +39,16 @@ const eventKeyMatches = (
 export const isCommandLensModifierKey = (key: string): boolean =>
 	MODIFIER_KEYS.has(key);
 
+export const isCommandLensFocusedActivation = (
+	event: Pick<
+		KeyboardEvent,
+		"altKey" | "ctrlKey" | "key" | "metaKey" | "shiftKey"
+	>
+): boolean =>
+	event.metaKey &&
+	!(event.altKey || event.ctrlKey || event.shiftKey) &&
+	event.key === "Enter";
+
 export const getCommandLensNumberKey = (
 	index: number,
 	itemCount: number

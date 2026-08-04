@@ -12,11 +12,7 @@ import {
 	type CommandLensPlacement,
 	getCommandLensHintRect,
 } from "@/fixture/command-lens/lib/command-lens-geometry.js";
-import {
-	type CommandLensNavigationAction,
-	type CommandLensNavigationTarget,
-	getCommandLensNavigationAction,
-} from "@/fixture/command-lens/lib/command-lens-navigation.js";
+import type { CommandLensNavigationTarget } from "@/fixture/command-lens/lib/command-lens-navigation.js";
 import {
 	type CommandLensCommand,
 	commandLensAriaKeyShortcut,
@@ -33,17 +29,13 @@ export interface CommandLensMeasuredTarget extends CommandLensNavigationTarget {
 }
 
 interface CommandLensOverlayProps {
-	readonly isNavigationActive: boolean;
 	readonly isOptionActive: boolean;
-	readonly selectedTargetId: string | null;
 	readonly targets: readonly CommandLensMeasuredTarget[];
 }
 
 interface CommandLensHintProps {
 	readonly commands: readonly CommandLensCommand[];
-	readonly isNavigationActive: boolean;
 	readonly isOptionActive: boolean;
-	readonly isSelected: boolean;
 	readonly target: CommandLensMeasuredTarget;
 }
 
@@ -51,9 +43,7 @@ const getMaskUrl = (id: string): string => `url(#${id})`;
 
 function CommandLensHint({
 	commands,
-	isNavigationActive,
 	isOptionActive,
-	isSelected,
 	target,
 }: CommandLensHintProps): ReactElement {
 	const contentRef = useRef<HTMLDivElement>(null);
@@ -112,16 +102,10 @@ function CommandLensHint({
 	return (
 		<div
 			aria-hidden
-			className={cn(
-				"fixed flex h-6 w-max items-center gap-1",
-				isNavigationActive && !isSelected && "scale-[0.96] opacity-20",
-				isNavigationActive && isSelected && "z-[1]"
-			)}
+			className="fixed flex h-6 w-max items-center gap-1"
 			data-layout={target.hintLayout}
 			data-name="CommandLensHint"
-			data-navigation-active={isNavigationActive ? "true" : undefined}
 			data-option-active={isOptionActive ? "true" : undefined}
-			data-selected={isSelected ? "true" : undefined}
 			ref={contentRef}
 			style={contentStyle}
 		>
@@ -140,29 +124,6 @@ function CommandLensHint({
 				</Kbd>
 			))}
 		</div>
-	);
-}
-
-function CommandLensSelection({
-	target,
-}: {
-	readonly target: CommandLensMeasuredTarget;
-}): ReactElement {
-	const outset = target.highlightOutset;
-	const selectionStyle: CSSProperties = {
-		borderRadius: target.radius + outset,
-		height: target.rect.height + outset * 2,
-		left: target.rect.left - outset,
-		top: target.rect.top - outset,
-		width: target.rect.width + outset * 2,
-	};
-	return (
-		<div
-			aria-hidden
-			className="fixed bg-white/15 ring-1 ring-zinc-900/20"
-			data-name="CommandLensSelection"
-			style={selectionStyle}
-		/>
 	);
 }
 
@@ -188,68 +149,8 @@ function CommandLensModeLegend({
 	);
 }
 
-function CommandLensNavigationLegend({
-	alternateAction,
-	isOptionActive,
-	primaryAction,
-}: {
-	readonly alternateAction: CommandLensNavigationAction | null;
-	readonly isOptionActive: boolean;
-	readonly primaryAction: CommandLensNavigationAction | null;
-}): ReactElement {
-	return (
-		<div
-			aria-hidden
-			className="fixed bottom-5 left-1/2 flex -translate-x-1/2 items-center gap-3 rounded-full bg-zinc-900/88 px-3 py-1.5 font-medium text-[10px] text-white/75 backdrop-blur-md"
-			data-name="CommandLensNavigationLegend"
-		>
-			<span className="flex items-center gap-1.5">
-				<Kbd className="h-5 min-w-8 rounded-md bg-white/15 px-1 text-[10px] text-white shadow-none">
-					↑↓
-				</Kbd>
-				Move
-			</span>
-			<span className="flex items-center gap-1.5">
-				<Kbd className="h-5 min-w-8 rounded-md bg-white/15 px-1 text-[10px] text-white shadow-none">
-					←→
-				</Kbd>
-				Section
-			</span>
-			{primaryAction ? (
-				<span
-					className={cn(
-						"flex items-center gap-1.5",
-						isOptionActive && alternateAction && "opacity-50"
-					)}
-				>
-					<Kbd className="h-5 min-w-5 rounded-md bg-white/15 px-1 text-[10px] text-white shadow-none">
-						↵
-					</Kbd>
-					{primaryAction.hintLabel ?? "Run"}
-				</span>
-			) : null}
-			{alternateAction ? (
-				<span
-					className={cn(
-						"flex items-center gap-1.5",
-						isOptionActive && "text-white"
-					)}
-				>
-					<Kbd className="h-5 min-w-8 gap-0.5 rounded-md bg-white/15 px-1 text-[10px] text-white shadow-none">
-						<span>⌥</span>
-						<span>↵</span>
-					</Kbd>
-					{alternateAction.hintLabel ?? "Alternate"}
-				</span>
-			) : null}
-		</div>
-	);
-}
-
 export function CommandLensOverlay({
-	isNavigationActive,
 	isOptionActive,
-	selectedTargetId,
 	targets,
 }: CommandLensOverlayProps): ReactElement {
 	const maskId = useId().replaceAll(":", "");
@@ -258,32 +159,10 @@ export function CommandLensOverlay({
 			commands: getCommandLensDisplayCommands(target.commands, isOptionActive),
 			target,
 		}))
-		.filter(({ commands, target }) =>
-			isNavigationActive
-				? getCommandLensNavigationAction(target, isOptionActive) !== null
-				: commands.length > 0
-		);
-	const selectedPresentation = presentedTargets.find(
-		({ target }) => target.id === selectedTargetId
-	);
-	const selectedTarget = selectedPresentation?.target;
-	const maskTargets = selectedPresentation
-		? [
-				...presentedTargets.filter(
-					({ target }) => target.id !== selectedPresentation.target.id
-				),
-				selectedPresentation,
-			]
-		: presentedTargets;
+		.filter(({ commands }) => commands.length > 0);
 	const hasOptionMode = hasCommandLensOptionMode(
 		targets.flatMap((target) => target.commands)
 	);
-	const primaryAction = selectedTarget
-		? getCommandLensNavigationAction(selectedTarget, false)
-		: null;
-	const alternateAction = selectedTarget
-		? getCommandLensNavigationAction(selectedTarget, true)
-		: null;
 	const layerStyle: CSSProperties = {
 		zIndex: COMMAND_LENS_Z_INDEX,
 	};
@@ -313,13 +192,9 @@ export function CommandLensOverlay({
 						y="0"
 					>
 						<rect fill="white" height="100%" width="100%" />
-						{maskTargets.map(({ target }) => (
+						{presentedTargets.map(({ target }) => (
 							<rect
-								fill={
-									isNavigationActive && target.id !== selectedTargetId
-										? "#777"
-										: "black"
-								}
+								fill="black"
 								height={target.rect.height + target.highlightOutset * 2}
 								key={target.id}
 								rx={target.radius + target.highlightOutset}
@@ -338,27 +213,17 @@ export function CommandLensOverlay({
 					width="100%"
 				/>
 			</svg>
-			{selectedTarget ? <CommandLensSelection target={selectedTarget} /> : null}
 			{presentedTargets.map(({ commands, target }) =>
 				commands.length > 0 ? (
 					<CommandLensHint
 						commands={commands}
-						isNavigationActive={isNavigationActive}
 						isOptionActive={isOptionActive}
-						isSelected={target.id === selectedTargetId}
 						key={target.id}
 						target={target}
 					/>
 				) : null
 			)}
-			{isNavigationActive ? (
-				<CommandLensNavigationLegend
-					alternateAction={alternateAction}
-					isOptionActive={isOptionActive}
-					primaryAction={primaryAction}
-				/>
-			) : null}
-			{!isNavigationActive && hasOptionMode ? (
+			{hasOptionMode ? (
 				<CommandLensModeLegend isOptionActive={isOptionActive} />
 			) : null}
 		</div>,

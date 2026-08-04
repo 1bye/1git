@@ -3,10 +3,7 @@ import type {
 	CommandLensHintLayout,
 	CommandLensPlacement,
 } from "@/fixture/command-lens/lib/command-lens-geometry.js";
-import type {
-	CommandLensNavigationAction,
-	CommandLensNavigationOrientation,
-} from "@/fixture/command-lens/lib/command-lens-navigation.js";
+import type { CommandLensNavigationOrientation } from "@/fixture/command-lens/lib/command-lens-navigation.js";
 import type { CommandLensCommand } from "@/fixture/command-lens/lib/command-lens-shortcut.js";
 
 export interface CommandLensTargetOptions {
@@ -17,13 +14,12 @@ export interface CommandLensTargetOptions {
 	readonly highlightOutset?: number;
 	readonly hintLayout?: CommandLensHintLayout;
 	readonly id: string;
-	readonly navigationAction?: CommandLensNavigationAction;
-	readonly navigationAlternateAction?: CommandLensNavigationAction;
 	readonly navigationDefault?: boolean;
 	readonly navigationGroup?: string;
 	readonly navigationOrder?: number;
 	readonly navigationOrientation?: CommandLensNavigationOrientation;
 	readonly placement?: CommandLensPlacement;
+	readonly plainArrowNavigation?: boolean;
 	readonly radius?: number;
 }
 
