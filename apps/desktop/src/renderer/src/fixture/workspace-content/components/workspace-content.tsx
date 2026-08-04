@@ -121,6 +121,7 @@ export function WorkspaceContent({
 					diffs={diffs}
 					files={snapshot.files}
 					selectedFilePath={selectedFilePath}
+					sessionId={activeSession.id}
 					tab={tab}
 				/>
 			) : (

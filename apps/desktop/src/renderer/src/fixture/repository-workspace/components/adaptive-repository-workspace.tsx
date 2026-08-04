@@ -197,6 +197,7 @@ export function AdaptiveRepositoryWorkspace({
 				files={files}
 				onActiveFileChange={selectVisibleFile}
 				selectedFilePath={selectedFilePath}
+				sessionId={activeSession.id}
 				tab={tab}
 			/>
 		);
