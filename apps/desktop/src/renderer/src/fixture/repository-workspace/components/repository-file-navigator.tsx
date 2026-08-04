@@ -6,6 +6,7 @@ import type { ChangeEvent, ReactElement } from "react";
 import { useEffect, useRef } from "react";
 import type { PendingWorkspaceAction } from "@/feature/workspace/hooks/use-git-workspace.js";
 import { areAllFilesStaged } from "@/feature/workspace/lib/workspace-model.js";
+import { useCommandLensTarget } from "@/fixture/command-lens/hooks/use-command-lens-target.js";
 import { RepositoryFileList } from "@/fixture/repository-workspace/components/repository-file-list.js";
 import { REPOSITORY_FILE_NAVIGATOR_ID } from "@/fixture/repository-workspace/constants/repository-workspace.js";
 import type { RepositoryFileNavigation } from "@/fixture/repository-workspace/hooks/use-repository-file-navigation.js";
@@ -126,6 +127,26 @@ export function RepositoryFileRail({
 	selectedFilePath,
 }: RepositoryFileRailProps): ReactElement {
 	const allStaged = areAllFilesStaged(allFiles);
+	const commandLensTarget = useCommandLensTarget({
+		commands: [
+			{
+				key: "ArrowUp",
+				label: "Previous changed file",
+				onInvoke: navigation.selectPreviousFile,
+			},
+			{
+				key: "ArrowDown",
+				label: "Next changed file",
+				onInvoke: navigation.selectNextFile,
+			},
+		],
+		disabled: allFiles.length === 0 || selectedFilePath === null,
+		highlightOutset: 0,
+		hintLayout: "floating",
+		id: "repository-file-navigation",
+		placement: "right",
+		radius: 6,
+	});
 	const updateQuery = (event: ChangeEvent<HTMLInputElement>): void => {
 		navigation.setQuery(event.target.value);
 	};
@@ -178,6 +199,8 @@ export function RepositoryFileRail({
 					onSetStaged={onSetFileStaged}
 					query={navigation.query}
 					selectedFilePath={selectedFilePath}
+					selectedRowAriaKeyShortcuts={commandLensTarget.ariaKeyShortcuts}
+					selectedRowRef={commandLensTarget.ref}
 				/>
 			</div>
 		</aside>

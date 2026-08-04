@@ -2,7 +2,7 @@ import type { FileChange } from "@1git/git";
 import { cn } from "@1git/ui/lib/utils";
 import { CheckIcon } from "@phosphor-icons/react/dist/csr/Check";
 import { MinusIcon } from "@phosphor-icons/react/dist/csr/Minus";
-import type { ChangeEvent, ReactElement } from "react";
+import type { ChangeEvent, ReactElement, RefCallback } from "react";
 import {
 	getFileChangeLabel,
 	isFilePartiallyStaged,
@@ -10,6 +10,7 @@ import {
 } from "@/feature/workspace/lib/workspace-model.js";
 import { OverflowingLabel } from "@/fixture/overflowing-label/components/overflowing-label.js";
 import {
+	getRepositoryFileRowId,
 	groupRepositoryFiles,
 	splitRepositoryFilePath,
 } from "@/fixture/repository-workspace/lib/repository-navigation.js";
@@ -84,6 +85,8 @@ interface RepositoryFileRowProps {
 		file: FileChange,
 		shouldStage: boolean
 	) => Promise<void>;
+	readonly selectedRowAriaKeyShortcuts?: string;
+	readonly selectedRowRef?: RefCallback<HTMLElement>;
 }
 
 function RepositoryFileRow({
@@ -92,6 +95,8 @@ function RepositoryFileRow({
 	isStagingDisabled,
 	onSelect,
 	onSetStaged,
+	selectedRowAriaKeyShortcuts,
+	selectedRowRef,
 }: RepositoryFileRowProps): ReactElement {
 	const staged = isFileStaged(file);
 	const path = splitRepositoryFilePath(file.path);
@@ -102,12 +107,15 @@ function RepositoryFileRow({
 
 	return (
 		<li
+			aria-keyshortcuts={isSelected ? selectedRowAriaKeyShortcuts : undefined}
 			className={cn(
 				"group flex min-h-7 items-center rounded-md transition-colors",
 				isSelected ? "bg-editor-sunken-2" : "hover:bg-editor-sunken"
 			)}
 			data-name="RepositoryFileRow"
 			data-overflowing-label-trigger
+			id={getRepositoryFileRowId(file.path)}
+			ref={isSelected ? selectedRowRef : undefined}
 		>
 			<div className="pl-1.5">
 				<RepositoryStageCheckbox
@@ -168,6 +176,8 @@ interface RepositoryFileListProps {
 	) => Promise<void>;
 	readonly query: string;
 	readonly selectedFilePath: string | null;
+	readonly selectedRowAriaKeyShortcuts?: string;
+	readonly selectedRowRef?: RefCallback<HTMLElement>;
 }
 
 export function RepositoryFileList({
@@ -177,6 +187,8 @@ export function RepositoryFileList({
 	onSetStaged,
 	query,
 	selectedFilePath,
+	selectedRowAriaKeyShortcuts,
+	selectedRowRef,
 }: RepositoryFileListProps): ReactElement {
 	const groups = groupRepositoryFiles(files);
 	const orderedFiles = [...groups.staged, ...groups.unstaged];
@@ -202,6 +214,8 @@ export function RepositoryFileList({
 					key={file.path}
 					onSelect={onSelect}
 					onSetStaged={onSetStaged}
+					selectedRowAriaKeyShortcuts={selectedRowAriaKeyShortcuts}
+					selectedRowRef={selectedRowRef}
 				/>
 			))}
 		</ul>

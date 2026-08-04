@@ -112,6 +112,39 @@ export const REPOSITORY_DIFF_RENDER_OPTIONS = {
 			color: #586069;
 		}
 
+		[data-separator="line-info"]:not([data-expand-index])
+			[data-separator-content] {
+			cursor: pointer;
+			padding-inline-start: 32px;
+			position: relative;
+		}
+
+		[data-separator="line-info"]:not([data-expand-index])
+			[data-separator-content]::before,
+		[data-separator="line-info"]:not([data-expand-index])
+			[data-separator-content]::after {
+			border-color: currentColor;
+			border-style: solid;
+			border-width: 0 1.5px 1.5px 0;
+			content: "";
+			height: 6px;
+			left: 14px;
+			position: absolute;
+			width: 6px;
+		}
+
+		[data-separator="line-info"]:not([data-expand-index])
+			[data-separator-content]::before {
+			top: 8px;
+			transform: rotate(-135deg);
+		}
+
+		[data-separator="line-info"]:not([data-expand-index])
+			[data-separator-content]::after {
+			bottom: 8px;
+			transform: rotate(45deg);
+		}
+
 		[data-separator="line-info"] [data-expand-button] {
 			border-color: #ffffff;
 		}

@@ -11,7 +11,8 @@ import type {
 	ReactElement,
 	KeyboardEvent as ReactKeyboardEvent,
 } from "react";
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { useCommandLensTarget } from "@/fixture/command-lens/hooks/use-command-lens-target.js";
 import { MAX_COMMIT_SUMMARY_LENGTH } from "@/fixture/repository-workspace/constants/repository-workspace.js";
 
 interface RepositoryCommitDockProps {
@@ -30,7 +31,27 @@ export function RepositoryCommitDock({
 	const [description, setDescription] = useState("");
 	const [isDescriptionOpen, setIsDescriptionOpen] = useState(false);
 	const [summary, setSummary] = useState("");
+	const formRef = useRef<HTMLFormElement>(null);
 	const canCommit = stagedCount > 0 && summary.trim().length > 0 && !isPending;
+	const requestCommit = (): void => {
+		formRef.current?.requestSubmit();
+	};
+	const commandLensTarget = useCommandLensTarget({
+		commands: [
+			{
+				allowInEditable: true,
+				key: "Enter",
+				label: `Commit staged files to ${branch ?? "HEAD"}`,
+				onInvoke: requestCommit,
+			},
+		],
+		disabled: isPending,
+		highlightOutset: 0,
+		hintLayout: "floating",
+		id: "repository-commit",
+		placement: "right",
+		radius: 6,
+	});
 	const updateSummary = (event: ChangeEvent<HTMLInputElement>): void => {
 		setSummary(event.target.value);
 	};
@@ -66,6 +87,7 @@ export function RepositoryCommitDock({
 			className="group relative shrink-0 bg-editor-surface/94 p-2.5 backdrop-blur-xl"
 			data-name="RepositoryCommitDock"
 			onSubmit={submitCommit}
+			ref={formRef}
 		>
 			<label className="sr-only" htmlFor="repository-commit-summary">
 				Commit summary
@@ -147,11 +169,13 @@ export function RepositoryCommitDock({
 			</div>
 			<Button
 				aria-busy={isPending}
+				aria-keyshortcuts={commandLensTarget.ariaKeyShortcuts}
 				aria-label={`Commit ${stagedCount} staged ${
 					stagedCount === 1 ? "file" : "files"
 				} to ${branch ?? "HEAD"}`}
 				className="mt-1.5 w-full"
 				disabled={!canCommit}
+				ref={commandLensTarget.ref}
 				size="sm"
 				type="submit"
 			>

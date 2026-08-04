@@ -186,7 +186,7 @@ const DiffFileAccordionComponent = ({
 			<button
 				aria-controls={bodyId}
 				aria-expanded={isOpen}
-				className="sticky top-0 z-10 flex h-8 w-full items-center gap-2 bg-editor-surface px-3 text-left outline-none transition-colors hover:bg-editor-sunken focus-visible:bg-editor-sunken focus-visible:ring-2 focus-visible:ring-editor-muted/20 focus-visible:ring-inset"
+				className="sticky top-0 z-10 flex h-8 w-full items-center gap-2 bg-[#f6f8fa] px-3 text-left outline-none transition-colors hover:bg-[#ebeef1] focus-visible:bg-[#ebeef1] focus-visible:ring-2 focus-visible:ring-editor-muted/20 focus-visible:ring-inset"
 				data-name="RepositoryDiffFileHeader"
 				onClick={() => setIsOpen((current) => !current)}
 				type="button"

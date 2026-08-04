@@ -4,6 +4,8 @@ import type { RepositoryTab } from "@/feature/workspace/hooks/use-git-workspace.
 import {
 	filterRepositoryFiles,
 	getRepositoryFileAtOffset,
+	getRepositoryFileRowId,
+	groupRepositoryFiles,
 } from "@/fixture/repository-workspace/lib/repository-navigation.js";
 
 interface UseRepositoryFileNavigationOptions {
@@ -24,6 +26,8 @@ export interface RepositoryFileNavigation {
 	readonly openNavigator: () => void;
 	readonly query: string;
 	readonly selectFile: (file: FileChange) => void;
+	readonly selectNextFile: () => void;
+	readonly selectPreviousFile: () => void;
 	readonly setQuery: (query: string) => void;
 }
 
@@ -54,6 +58,16 @@ const arrowOffset = (key: string): number | null => {
 	return null;
 };
 
+const focusRepositoryFileRow = (path: string): void => {
+	window.requestAnimationFrame(() => {
+		const row = document.getElementById(getRepositoryFileRowId(path));
+		row?.querySelector<HTMLButtonElement>("button")?.focus({
+			preventScroll: true,
+		});
+		row?.scrollIntoView({ block: "nearest" });
+	});
+};
+
 export const useRepositoryFileNavigation = ({
 	files,
 	onRequestChanges,
@@ -72,6 +86,10 @@ export const useRepositoryFileNavigation = ({
 		() => filterRepositoryFiles(files, query),
 		[files, query]
 	);
+	const orderedVisibleFiles = useMemo(() => {
+		const groups = groupRepositoryFiles(visibleFiles);
+		return [...groups.staged, ...groups.unstaged];
+	}, [visibleFiles]);
 
 	useEffect(() => {
 		selectedPathRef.current = selectedFilePath;
@@ -141,7 +159,11 @@ export const useRepositoryFileNavigation = ({
 		[acceptPreview, performSelection]
 	);
 	const selectAtOffset = useCallback(
-		(offset: number, candidates: readonly FileChange[]): void => {
+		(
+			offset: number,
+			candidates: readonly FileChange[],
+			shouldFocus = false
+		): void => {
 			const file = getRepositoryFileAtOffset(
 				candidates,
 				previewPathRef.current,
@@ -149,10 +171,19 @@ export const useRepositoryFileNavigation = ({
 			);
 			if (file) {
 				performSelection(file);
+				if (shouldFocus) {
+					focusRepositoryFileRow(file.path);
+				}
 			}
 		},
 		[performSelection]
 	);
+	const selectNextFile = useCallback((): void => {
+		selectAtOffset(1, orderedVisibleFiles, true);
+	}, [orderedVisibleFiles, selectAtOffset]);
+	const selectPreviousFile = useCallback((): void => {
+		selectAtOffset(-1, orderedVisibleFiles, true);
+	}, [orderedVisibleFiles, selectAtOffset]);
 	const requestChangesAndOpen = useCallback(async (): Promise<void> => {
 		await onRequestChanges();
 		openNavigator();
@@ -193,28 +224,29 @@ export const useRepositoryFileNavigation = ({
 			const offset = arrowOffset(event.key);
 			if (offset !== null) {
 				event.preventDefault();
-				selectAtOffset(offset, visibleFiles);
+				selectAtOffset(offset, orderedVisibleFiles);
 			}
 		},
-		[acceptPreview, cancelPreview, selectAtOffset, visibleFiles]
+		[acceptPreview, cancelPreview, orderedVisibleFiles, selectAtOffset]
 	);
 	const handleDirectNavigationKey = useCallback(
 		(event: KeyboardEvent): void => {
 			const offset = arrowOffset(event.key);
-			const hasDirectNavigationModifiers =
-				event.altKey && !event.metaKey && !event.ctrlKey;
 			if (
 				offset === null ||
-				!hasDirectNavigationModifiers ||
+				event.altKey ||
+				event.ctrlKey ||
+				event.metaKey ||
+				event.shiftKey ||
 				tab !== "changes" ||
 				isEditableTarget(event.target)
 			) {
 				return;
 			}
 			event.preventDefault();
-			selectAtOffset(offset, files);
+			selectAtOffset(offset, orderedVisibleFiles, true);
 		},
-		[files, selectAtOffset, tab]
+		[orderedVisibleFiles, selectAtOffset, tab]
 	);
 
 	useEffect(() => {
@@ -241,11 +273,13 @@ export const useRepositoryFileNavigation = ({
 		acceptPreview,
 		cancelPreview,
 		changeOpen,
-		files: visibleFiles,
+		files: orderedVisibleFiles,
 		isOpen,
 		openNavigator,
 		query,
 		selectFile,
+		selectNextFile,
+		selectPreviousFile,
 		setQuery,
 	};
 };
