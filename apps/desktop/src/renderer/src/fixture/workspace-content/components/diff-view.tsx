@@ -1,7 +1,6 @@
 import type { CommitInfo, DiffFileStat, FileChange, FileDiff } from "@1git/git";
 import { cn } from "@1git/ui/lib/utils";
 import { CaretRightIcon } from "@phosphor-icons/react/dist/csr/CaretRight";
-import { FileCodeIcon } from "@phosphor-icons/react/dist/csr/FileCode";
 import { GitDiffIcon } from "@phosphor-icons/react/dist/csr/GitDiff";
 import { parsePatchFiles } from "@pierre/diffs";
 import { FileDiff as PierreFileDiff } from "@pierre/diffs/react";
@@ -151,7 +150,7 @@ function DiffFileAccordion({
 
 	return (
 		<article
-			className="overflow-clip border-editor-hairline border-b bg-editor-surface"
+			className="overflow-clip bg-editor-surface"
 			data-name="DiffFile"
 			data-repository-diff-path={entry.path}
 			id={entry.id}
@@ -159,7 +158,8 @@ function DiffFileAccordion({
 			<button
 				aria-controls={bodyId}
 				aria-expanded={isOpen}
-				className="sticky top-0 z-10 flex h-9 w-full items-center gap-2 border-editor-hairline border-b bg-editor-sunken/92 px-3 text-left outline-none backdrop-blur-xl transition-colors hover:bg-editor-sunken-2 focus-visible:ring-2 focus-visible:ring-editor-muted/20 focus-visible:ring-inset"
+				className="sticky top-0 z-10 flex h-9 w-full items-center gap-2 bg-editor-sunken/92 px-3 text-left outline-none backdrop-blur-xl transition-colors hover:bg-editor-sunken-2 focus-visible:ring-2 focus-visible:ring-editor-muted/20 focus-visible:ring-inset"
+				data-name="RepositoryDiffFileHeader"
 				onClick={() => setIsOpen((current) => !current)}
 				type="button"
 			>
@@ -170,11 +170,6 @@ function DiffFileAccordion({
 						isOpen && "rotate-90"
 					)}
 					weight="bold"
-				/>
-				<FileCodeIcon
-					aria-hidden
-					className="size-3.5 shrink-0 text-editor-faint"
-					weight="duotone"
 				/>
 				<h2 className="min-w-0 flex-1 truncate font-medium font-mono text-editor-muted text-xss">
 					{entry.path}

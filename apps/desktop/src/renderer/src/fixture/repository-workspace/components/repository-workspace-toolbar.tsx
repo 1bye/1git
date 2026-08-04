@@ -4,8 +4,6 @@ import type {
 	RepositorySnapshot,
 } from "@1git/git";
 import { cn } from "@1git/ui/lib/utils";
-import { GitBranchIcon } from "@phosphor-icons/react/dist/csr/GitBranch";
-import { GitCommitIcon } from "@phosphor-icons/react/dist/csr/GitCommit";
 import type { ReactElement } from "react";
 import { useCallback, useEffect } from "react";
 import type {
@@ -19,7 +17,6 @@ import type { RepositoryFileNavigation } from "@/fixture/repository-workspace/ho
 
 interface RepositoryWorkspaceToolbarProps {
 	readonly branches: BranchCollection | null;
-	readonly commitCount: number;
 	readonly navigation: RepositoryFileNavigation;
 	readonly onFetch: () => Promise<void>;
 	readonly onMergeBranch: (name: string) => Promise<boolean>;
@@ -48,7 +45,6 @@ const tabForShortcut = (key: string): RepositoryTab | null => {
 
 export function RepositoryWorkspaceToolbar({
 	branches,
-	commitCount,
 	navigation,
 	onFetch,
 	onMergeBranch,
@@ -90,12 +86,12 @@ export function RepositoryWorkspaceToolbar({
 
 	return (
 		<header
-			className="relative z-30 flex h-11 shrink-0 items-center gap-2 border-editor-hairline border-b bg-editor-surface/92 px-2.5 backdrop-blur-xl"
+			className="relative z-30 flex h-11 shrink-0 items-center gap-2 bg-editor-surface px-2.5"
 			data-name="RepositoryWorkspaceToolbar"
 		>
 			<div
 				aria-label="Repository view"
-				className="flex rounded-lg bg-editor-sunken p-0.5"
+				className="flex rounded-lg p-0.5"
 				role="tablist"
 			>
 				<button
@@ -104,7 +100,7 @@ export function RepositoryWorkspaceToolbar({
 					className={cn(
 						"h-7 rounded-md px-2.5 font-medium text-[10px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-editor-muted/20",
 						tab === "changes"
-							? "bg-white text-editor-ink shadow-surface-1"
+							? "bg-editor-sunken-2 text-editor-ink"
 							: "text-editor-faint hover:text-editor-ink"
 					)}
 					onClick={() => changeTab("changes")}
@@ -119,7 +115,7 @@ export function RepositoryWorkspaceToolbar({
 					className={cn(
 						"h-7 rounded-md px-2.5 font-medium text-[10px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-editor-muted/20",
 						tab === "history"
-							? "bg-white text-editor-ink shadow-surface-1"
+							? "bg-editor-sunken-2 text-editor-ink"
 							: "text-editor-faint hover:text-editor-ink"
 					)}
 					onClick={() => changeTab("history")}
@@ -137,30 +133,9 @@ export function RepositoryWorkspaceToolbar({
 					pendingAction={pendingAction}
 					selectedFilePath={selectedFilePath}
 				/>
-			) : (
-				<div className="flex h-8 items-center gap-2 rounded-lg bg-editor-sunken px-2.5 text-editor-muted text-xss">
-					<GitCommitIcon aria-hidden className="size-3.5" weight="duotone" />
-					<span className="text-editor-ink">{commitCount} commits</span>
-				</div>
-			)}
+			) : null}
 
-			<div className="ml-auto flex min-w-0 items-center gap-2">
-				<div className="hidden min-w-0 items-center gap-1.5 text-[10px] text-editor-faint md:flex">
-					<GitBranchIcon
-						aria-hidden
-						className="size-3.5 shrink-0"
-						weight="duotone"
-					/>
-					<span className="max-w-40 truncate">
-						{snapshot.head.branch ?? "Detached HEAD"}
-					</span>
-					{snapshot.head.ahead > 0 ? (
-						<span className="tabular-nums">↑{snapshot.head.ahead}</span>
-					) : null}
-					{snapshot.head.behind > 0 ? (
-						<span className="tabular-nums">↓{snapshot.head.behind}</span>
-					) : null}
-				</div>
+			<div className="ml-auto flex min-w-0 items-center">
 				<RepositoryQuickActions
 					allFilesStaged={areAllFilesStaged(files)}
 					branches={branches}

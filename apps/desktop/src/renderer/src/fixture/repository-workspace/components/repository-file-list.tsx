@@ -1,7 +1,6 @@
 import type { FileChange } from "@1git/git";
 import { cn } from "@1git/ui/lib/utils";
 import { CheckIcon } from "@phosphor-icons/react/dist/csr/Check";
-import { FileIcon } from "@phosphor-icons/react/dist/csr/File";
 import { MinusIcon } from "@phosphor-icons/react/dist/csr/Minus";
 import type { ChangeEvent, ReactElement } from "react";
 import {
@@ -125,15 +124,19 @@ function RepositoryFileRow({
 				onClick={selectFile}
 				type="button"
 			>
-				<FileIcon
-					aria-hidden
-					className="size-3 shrink-0 text-editor-faint"
-					weight="duotone"
-				/>
 				<span className="min-w-0 flex-1 truncate text-[11px]">
 					<span className="font-medium text-editor-ink">{path.name}</span>
 					{path.directory ? (
-						<span className="ml-1 text-editor-faint">{path.directory}</span>
+						<span
+							className={cn(
+								"ml-1 text-editor-faint transition-opacity",
+								isSelected
+									? "opacity-100"
+									: "opacity-0 group-focus-within:opacity-100 group-hover:opacity-100"
+							)}
+						>
+							{path.directory}
+						</span>
 					) : null}
 				</span>
 				<span
@@ -147,47 +150,6 @@ function RepositoryFileRow({
 					{file.worktreeStatus}
 				</span>
 			</button>
-		</li>
-	);
-}
-
-interface RepositoryFileGroupProps
-	extends Omit<RepositoryFileRowProps, "file" | "isSelected"> {
-	readonly files: readonly FileChange[];
-	readonly label: string;
-	readonly selectedFilePath: string | null;
-}
-
-function RepositoryFileGroup({
-	files,
-	isStagingDisabled,
-	label,
-	onSelect,
-	onSetStaged,
-	selectedFilePath,
-}: RepositoryFileGroupProps): ReactElement | null {
-	if (files.length === 0) {
-		return null;
-	}
-
-	return (
-		<li>
-			<div className="flex h-6 items-center px-1.5 font-medium text-[8px] text-editor-faint uppercase tracking-[0.08em]">
-				<span>{label}</span>
-				<span className="ml-auto tabular-nums">{files.length}</span>
-			</div>
-			<ul aria-label={`${label} files`}>
-				{files.map((file) => (
-					<RepositoryFileRow
-						file={file}
-						isSelected={selectedFilePath === file.path}
-						isStagingDisabled={isStagingDisabled}
-						key={file.path}
-						onSelect={onSelect}
-						onSetStaged={onSetStaged}
-					/>
-				))}
-			</ul>
 		</li>
 	);
 }
@@ -213,6 +175,7 @@ export function RepositoryFileList({
 	selectedFilePath,
 }: RepositoryFileListProps): ReactElement {
 	const groups = groupRepositoryFiles(files);
+	const orderedFiles = [...groups.staged, ...groups.unstaged];
 	if (files.length === 0) {
 		return (
 			<p className="px-4 py-8 text-center text-editor-faint text-xss">
@@ -227,22 +190,16 @@ export function RepositoryFileList({
 			className="px-1 pb-1"
 			data-name="RepositoryFileList"
 		>
-			<RepositoryFileGroup
-				files={groups.staged}
-				isStagingDisabled={isStagingDisabled}
-				label="Staged"
-				onSelect={onSelect}
-				onSetStaged={onSetStaged}
-				selectedFilePath={selectedFilePath}
-			/>
-			<RepositoryFileGroup
-				files={groups.unstaged}
-				isStagingDisabled={isStagingDisabled}
-				label="Changes"
-				onSelect={onSelect}
-				onSetStaged={onSetStaged}
-				selectedFilePath={selectedFilePath}
-			/>
+			{orderedFiles.map((file) => (
+				<RepositoryFileRow
+					file={file}
+					isSelected={selectedFilePath === file.path}
+					isStagingDisabled={isStagingDisabled}
+					key={file.path}
+					onSelect={onSelect}
+					onSetStaged={onSetStaged}
+				/>
+			))}
 		</ul>
 	);
 }

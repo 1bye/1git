@@ -156,7 +156,7 @@ export function RepositoryFileRail({
 					/>
 				</div>
 			</div>
-			<div className="flex h-7 shrink-0 items-center border-editor-hairline border-y px-1.5">
+			<div className="flex h-7 shrink-0 items-center px-2">
 				<button
 					className="flex items-center gap-1 rounded-md px-1.5 py-0.5 font-medium text-[9px] text-editor-muted outline-none hover:bg-editor-sunken hover:text-editor-ink focus-visible:ring-2 focus-visible:ring-editor-muted/20 disabled:opacity-50"
 					disabled={pendingAction !== null || allFiles.length === 0}
@@ -167,7 +167,7 @@ export function RepositoryFileRail({
 					{allStaged ? "Unstage all" : "Stage all"}
 				</button>
 				<span className="ml-auto text-[9px] text-editor-faint tabular-nums">
-					{allFiles.length} files
+					{allFiles.length}
 				</span>
 			</div>
 			<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">

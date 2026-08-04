@@ -7,8 +7,8 @@ import {
 	DropdownMenuShortcut,
 } from "@1git/ui/components/dropdown-menu";
 import { ArrowsClockwiseIcon } from "@phosphor-icons/react/dist/csr/ArrowsClockwise";
-import { CaretRightIcon } from "@phosphor-icons/react/dist/csr/CaretRight";
 import { CheckIcon } from "@phosphor-icons/react/dist/csr/Check";
+import { DotsThreeIcon } from "@phosphor-icons/react/dist/csr/DotsThree";
 import { FileCodeIcon } from "@phosphor-icons/react/dist/csr/FileCode";
 import { GitBranchIcon } from "@phosphor-icons/react/dist/csr/GitBranch";
 import { GitCommitIcon } from "@phosphor-icons/react/dist/csr/GitCommit";
@@ -79,15 +79,11 @@ export function RepositoryQuickActions({
 			modal
 		>
 			<LiquidMenuTrigger
-				className="flex h-8 items-center gap-1.5 rounded-lg px-2.5 font-medium text-editor-muted text-xss outline-none transition-colors hover:bg-editor-sunken hover:text-editor-ink focus-visible:ring-2 focus-visible:ring-editor-muted/20"
+				aria-label="Repository actions"
+				className="flex size-8 items-center justify-center rounded-lg text-editor-muted outline-none transition-colors hover:bg-editor-sunken hover:text-editor-ink focus-visible:ring-2 focus-visible:ring-editor-muted/20"
 				ref={triggerRef}
 			>
-				Quick actions
-				<CaretRightIcon
-					aria-hidden
-					className="size-3 rotate-90"
-					weight="bold"
-				/>
+				<DotsThreeIcon aria-hidden className="size-4" weight="bold" />
 			</LiquidMenuTrigger>
 			<LiquidMenuContent
 				align="end"

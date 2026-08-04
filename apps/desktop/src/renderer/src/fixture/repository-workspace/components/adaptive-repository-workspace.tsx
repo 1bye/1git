@@ -209,7 +209,6 @@ export function AdaptiveRepositoryWorkspace({
 	if (tab === "history") {
 		navigationRail = (
 			<RepositoryHistoryRail
-				branch={snapshot.head.branch}
 				history={history}
 				onSelectCommit={onSelectCommit}
 				selectedCommitOid={selectedCommitOid}
@@ -217,7 +216,7 @@ export function AdaptiveRepositoryWorkspace({
 		);
 	} else {
 		navigationRail = (
-			<div className="flex w-[310px] shrink-0 flex-col border-editor-hairline border-r bg-editor-surface">
+			<>
 				<RepositoryFileRail
 					allFiles={files}
 					navigation={navigation}
@@ -234,40 +233,42 @@ export function AdaptiveRepositoryWorkspace({
 						stagedCount={stagedCount}
 					/>
 				) : null}
-			</div>
+			</>
 		);
 	}
 
 	return (
 		<section
-			className="flex min-h-0 min-w-0 flex-1 flex-col bg-editor-surface"
+			className="flex min-h-0 min-w-0 flex-1 bg-editor-surface"
 			data-layout="adaptive"
 			data-name="AdaptiveRepositoryWorkspace"
 		>
-			<RepositoryWorkspaceToolbar
-				branches={branches}
-				commitCount={history?.commits.length ?? 0}
-				navigation={navigation}
-				onFetch={onFetch}
-				onMergeBranch={onMergeBranch}
-				onSetFileStaged={onSetFileStaged}
-				onSetTab={onSetTab}
-				onStashChanges={onStashChanges}
-				onToggleAllFiles={onToggleAllFiles}
-				pendingAction={pendingAction}
-				selectedFilePath={selectedFilePath}
-				snapshot={snapshot}
-				tab={tab}
-			/>
-			<div className="flex min-h-0 flex-1">
+			<div
+				className="flex w-[310px] shrink-0 flex-col bg-editor-surface"
+				data-name="RepositoryNavigationRail"
+			>
+				<RepositoryWorkspaceToolbar
+					branches={branches}
+					navigation={navigation}
+					onFetch={onFetch}
+					onMergeBranch={onMergeBranch}
+					onSetFileStaged={onSetFileStaged}
+					onSetTab={onSetTab}
+					onStashChanges={onStashChanges}
+					onToggleAllFiles={onToggleAllFiles}
+					pendingAction={pendingAction}
+					selectedFilePath={selectedFilePath}
+					snapshot={snapshot}
+					tab={tab}
+				/>
 				{navigationRail}
-				<main
-					className="min-h-0 min-w-0 flex-1 overflow-hidden bg-editor-surface"
-					data-name="RepositoryDiffWorkspace"
-				>
-					{mainContent}
-				</main>
 			</div>
+			<main
+				className="min-h-0 min-w-0 flex-1 overflow-hidden bg-editor-surface"
+				data-name="RepositoryDiffWorkspace"
+			>
+				{mainContent}
+			</main>
 		</section>
 	);
 }

@@ -55,14 +55,12 @@ function RepositoryCommitRow({
 }
 
 interface RepositoryHistoryRailProps {
-	readonly branch: string | null;
 	readonly history: CommitPage | null;
 	readonly onSelectCommit: (commit: CommitInfo) => Promise<void>;
 	readonly selectedCommitOid: string | null;
 }
 
 export function RepositoryHistoryRail({
-	branch,
 	history,
 	onSelectCommit,
 	selectedCommitOid,
@@ -88,28 +86,10 @@ export function RepositoryHistoryRail({
 	return (
 		<aside
 			aria-label="Commit history"
-			className="flex w-[320px] shrink-0 flex-col border-editor-hairline border-r bg-editor-surface"
+			className="flex min-h-0 flex-1 flex-col bg-editor-surface"
 			data-name="RepositoryHistoryRail"
 		>
-			<header className="flex h-11 shrink-0 items-center gap-2 border-editor-hairline border-b px-3">
-				<GitCommitIcon
-					aria-hidden
-					className="size-4 text-editor-muted"
-					weight="duotone"
-				/>
-				<div className="min-w-0">
-					<p className="truncate font-semibold text-editor-ink text-xss">
-						History
-					</p>
-					<p className="truncate text-[9px] text-editor-faint">
-						{branch ?? "Detached HEAD"}
-					</p>
-				</div>
-				<span className="ml-auto text-[10px] text-editor-faint tabular-nums">
-					{history?.commits.length ?? 0}
-				</span>
-			</header>
-			<div className="shrink-0 p-2">
+			<div className="shrink-0 px-2 py-1">
 				<div className="relative">
 					<FunnelSimpleIcon
 						aria-hidden

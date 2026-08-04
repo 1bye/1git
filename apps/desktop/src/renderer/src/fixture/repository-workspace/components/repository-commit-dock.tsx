@@ -3,7 +3,6 @@ import { Input } from "@1git/ui/components/input";
 import { Kbd } from "@1git/ui/components/kbd";
 import { Textarea } from "@1git/ui/components/textarea";
 import { cn } from "@1git/ui/lib/utils";
-import { GitCommitIcon } from "@phosphor-icons/react/dist/csr/GitCommit";
 import { PlusIcon } from "@phosphor-icons/react/dist/csr/Plus";
 import { SpinnerGapIcon } from "@phosphor-icons/react/dist/csr/SpinnerGap";
 import type {
@@ -64,23 +63,15 @@ export function RepositoryCommitDock({
 	return (
 		<form
 			aria-busy={isPending}
-			className="shrink-0 border-editor-hairline border-t bg-editor-surface/92 p-2.5 backdrop-blur-xl"
+			className="group relative shrink-0 bg-editor-surface/94 p-2.5 backdrop-blur-xl"
 			data-name="RepositoryCommitDock"
 			onSubmit={submitCommit}
 		>
-			<div className="flex items-center gap-2 px-0.5 text-[9px]">
-				<span className="min-w-0 flex-1 truncate font-medium text-editor-muted">
-					Commit to {branch ?? "HEAD"}
-				</span>
-				<span className="shrink-0 text-editor-faint tabular-nums">
-					{stagedCount} staged
-				</span>
-			</div>
 			<label className="sr-only" htmlFor="repository-commit-summary">
 				Commit summary
 			</label>
 			<Input
-				className="mt-2 h-8 bg-editor-sunken text-[11px] shadow-none"
+				className="h-8 bg-editor-sunken text-[11px] shadow-none"
 				disabled={isPending}
 				id="repository-commit-summary"
 				maxLength={MAX_COMMIT_SUMMARY_LENGTH}
@@ -141,7 +132,7 @@ export function RepositoryCommitDock({
 					/>
 					Description
 				</Button>
-				<div className="ml-auto flex items-center text-[9px] text-editor-faint">
+				<div className="ml-auto flex items-center text-[9px] text-editor-faint opacity-0 transition-opacity group-focus-within:opacity-100">
 					<Kbd className="h-5 min-w-0 gap-0.5 px-1.5 text-[9px]">
 						<span>⌘</span>
 						<span>↵</span>
@@ -164,10 +155,8 @@ export function RepositoryCommitDock({
 						className="size-3.5 animate-spin"
 						weight="bold"
 					/>
-				) : (
-					<GitCommitIcon aria-hidden className="size-3.5" weight="duotone" />
-				)}
-				Commit {stagedCount > 0 ? stagedCount : ""}
+				) : null}
+				Commit to {branch ?? "HEAD"}
 				<span className="sr-only">files</span>
 			</Button>
 		</form>
