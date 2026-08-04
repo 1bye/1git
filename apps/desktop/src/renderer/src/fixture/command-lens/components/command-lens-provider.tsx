@@ -19,6 +19,7 @@ import { insetCommandLensRect } from "@/fixture/command-lens/lib/command-lens-ge
 import {
 	type CommandLensNavigationDirection,
 	getInitialCommandLensNavigationTarget,
+	getNextCommandLensNavigationGroupTarget,
 	getNextCommandLensNavigationTarget,
 	getPlainArrowNavigationTargets,
 	isCommandLensNavigationKey,
@@ -428,6 +429,29 @@ export function CommandLensProvider({
 		},
 		[focusNavigationTarget]
 	);
+	const advanceFocusedTarget = useCallback(
+		(currentTargetId: string): void => {
+			const navigationTargets = getPlainArrowNavigationTargets(
+				readVisibleTargets()
+			);
+			const nextTarget = getNextCommandLensNavigationGroupTarget(
+				navigationTargets,
+				currentTargetId
+			);
+			const nextElement = nextTarget
+				? targetReadersRef.current.get(nextTarget.id)?.().element
+				: null;
+			if (!nextElement) {
+				return;
+			}
+			nextElement.focus({ preventScroll: true });
+			nextElement.scrollIntoView({
+				block: "nearest",
+				inline: "nearest",
+			});
+		},
+		[readVisibleTargets]
+	);
 	const activateFocusedPlainArrowTarget = useCallback(
 		(event: KeyboardEvent): boolean => {
 			if (
@@ -455,10 +479,24 @@ export function CommandLensProvider({
 			event.preventDefault();
 			event.stopImmediatePropagation();
 			hideLens(true);
-			focusedElement.click();
+			const focusedCommand = focusedTarget.commands.find(
+				(command) =>
+					command.onInvoke && matchesCommandLensCommand(event, command)
+			);
+			if (focusedCommand?.onInvoke) {
+				invokeCommand({
+					...focusedCommand,
+					onInvoke: focusedCommand.onInvoke,
+				});
+				if (focusedCommand.advanceFocus) {
+					advanceFocusedTarget(focusedTarget.id);
+				}
+			} else {
+				focusedElement.click();
+			}
 			return true;
 		},
-		[hideLens]
+		[advanceFocusedTarget, hideLens, invokeCommand]
 	);
 	const handleCommandLensMetaKeyDown = useCallback(
 		(event: KeyboardEvent): void => {

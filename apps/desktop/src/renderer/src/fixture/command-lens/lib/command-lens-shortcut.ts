@@ -1,4 +1,5 @@
 export interface CommandLensCommand {
+	readonly advanceFocus?: boolean;
 	readonly allowInEditable?: boolean;
 	readonly altKey?: boolean;
 	readonly key: string;
@@ -140,6 +141,6 @@ export const commandLensCommandSignature = (
 	commands
 		.map(
 			(command) =>
-				`${commandLensAriaKeyShortcut(command)}:${command.label}:${command.allowInEditable ? "editable" : "standard"}:${command.showInLens === false ? "hidden" : "visible"}`
+				`${commandLensAriaKeyShortcut(command)}:${command.label}:${command.allowInEditable ? "editable" : "standard"}:${command.showInLens === false ? "hidden" : "visible"}:${command.advanceFocus ? "advance" : "stay"}`
 		)
 		.join("|");

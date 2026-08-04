@@ -6,6 +6,7 @@ import {
 import {
 	type CommandLensNavigationTarget,
 	getInitialCommandLensNavigationTarget,
+	getNextCommandLensNavigationGroupTarget,
 	getNextCommandLensNavigationTarget,
 	getPlainArrowNavigationTargets,
 	isCommandLensNavigationKey,
@@ -306,6 +307,20 @@ describe("command lens navigation", () => {
 		expect(
 			getNextCommandLensNavigationTarget(targets, "repo", "ArrowLeft")?.id
 		).toBe("clone");
+	});
+
+	test("advances within a group without wrapping past its final item", () => {
+		const repositories = [
+			target("repo-1", "repositories", 0, 300, 100),
+			target("repo-2", "repositories", 1, 300, 140),
+		];
+
+		expect(
+			getNextCommandLensNavigationGroupTarget(repositories, "repo-1")?.id
+		).toBe("repo-2");
+		expect(
+			getNextCommandLensNavigationGroupTarget(repositories, "repo-2")
+		).toBeNull();
 	});
 
 	test("recognizes arrows as focus-navigation input", () => {

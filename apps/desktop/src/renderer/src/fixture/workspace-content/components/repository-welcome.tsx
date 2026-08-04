@@ -138,7 +138,16 @@ function RepositoryListItem({
 	workspace,
 }: RepositoryListItemProps): ReactElement {
 	const repositoryName = recentRepositoryName(repository);
-	const commands: CommandLensCommand[] = [];
+	const commands: CommandLensCommand[] = [
+		{
+			advanceFocus: true,
+			allowInEditable: true,
+			key: "Enter",
+			label: `Open ${repositoryName} in a background tab`,
+			onInvoke: () => onOpen(repository.path, { activate: false }),
+			showInLens: false,
+		},
+	];
 	if (shortcutKey) {
 		if (!hasOpenWorkspaces) {
 			commands.push({

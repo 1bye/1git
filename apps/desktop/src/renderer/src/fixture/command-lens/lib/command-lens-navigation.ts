@@ -171,3 +171,24 @@ export const getNextCommandLensNavigationTarget = <
 	}
 	return findSpatialTarget(targets, currentTarget, direction) ?? currentTarget;
 };
+
+export const getNextCommandLensNavigationGroupTarget = <
+	Target extends CommandLensNavigationTarget,
+>(
+	targets: readonly Target[],
+	currentTargetId: string
+): Target | null => {
+	const currentTarget = targets.find((target) => target.id === currentTargetId);
+	if (!currentTarget) {
+		return null;
+	}
+	const groupTargets = targets
+		.filter(
+			(target) => target.navigationGroup === currentTarget.navigationGroup
+		)
+		.toSorted(compareNavigationOrder);
+	const currentIndex = groupTargets.findIndex(
+		(target) => target.id === currentTarget.id
+	);
+	return groupTargets[currentIndex + 1] ?? null;
+};
