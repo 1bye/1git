@@ -126,6 +126,8 @@ export function useWorkspaceLiquidSurface({
 	const animationFrameRef = useRef(0);
 	const measurementRef = useRef<WorkspaceLiquidMeasurement | null>(null);
 	const measuredSessionIdRef = useRef<RepositorySessionId | null>(null);
+	const positionTrackingDeadlineRef = useRef(0);
+	const previousActiveTabIndexRef = useRef(activeTabIndex);
 	const targetMeasurementRef = useRef<WorkspaceLiquidMeasurement | null>(null);
 	const wasDraggingRef = useRef(false);
 	const [measurement, setMeasurement] =
@@ -295,15 +297,20 @@ export function useWorkspaceLiquidSurface({
 		measureSurface();
 
 		const shouldTrackDropSettling = wasDraggingRef.current && !isDragging;
+		const shouldTrackFirstWorkspaceOpening =
+			previousActiveTabIndexRef.current < 0 && activeTabIndex >= 0;
 		wasDraggingRef.current = isDragging;
-		const trackingStartedAtMs = performance.now();
+		previousActiveTabIndexRef.current = activeTabIndex;
+		if (shouldTrackDropSettling || shouldTrackFirstWorkspaceOpening) {
+			positionTrackingDeadlineRef.current =
+				performance.now() +
+				WORKSPACE_TAB_SURFACE_MOTION.positionTrackingDurationMs;
+		}
 		let animationFrameId = 0;
 		const trackTabPosition = (): void => {
 			measureSurface();
 			const isSettling =
-				shouldTrackDropSettling &&
-				performance.now() - trackingStartedAtMs <
-					WORKSPACE_TAB_SURFACE_MOTION.positionTrackingDurationMs;
+				performance.now() < positionTrackingDeadlineRef.current;
 			if (isDragging || isSettling) {
 				animationFrameId = requestAnimationFrame(trackTabPosition);
 			}
@@ -314,7 +321,7 @@ export function useWorkspaceLiquidSurface({
 			cancelAnimationFrame(animationFrameId);
 			resizeObserver.disconnect();
 		};
-	}, [activeSessionId, isDragging, measureSurface]);
+	}, [activeSessionId, activeTabIndex, isDragging, measureSurface]);
 
 	useLayoutEffect(
 		() => () => {
