@@ -13,16 +13,6 @@ export const WORKSPACE_TAB_SURFACE_MOTION = {
 	positionTrackingDurationMs: 260,
 } as const;
 
-export const WORKSPACE_TAB_LABEL_MARQUEE = {
-	hoverDelayMs: 320,
-	leadingMaskFadeDurationMs: 90,
-	maxDurationMs: 2200,
-	minDurationMs: 700,
-	overflowTolerancePx: 1,
-	pixelsPerSecond: 48,
-	returnDurationMs: 220,
-} as const;
-
 /** Adjust the active tab and SDF fusion geometry from this single object. */
 export const WORKSPACE_TAB_SURFACE_GEOMETRY = {
 	blendRadius: 12,

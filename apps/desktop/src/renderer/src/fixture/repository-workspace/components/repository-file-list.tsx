@@ -8,6 +8,7 @@ import {
 	isFilePartiallyStaged,
 	isFileStaged,
 } from "@/feature/workspace/lib/workspace-model.js";
+import { OverflowingLabel } from "@/fixture/overflowing-label/components/overflowing-label.js";
 import {
 	groupRepositoryFiles,
 	splitRepositoryFilePath,
@@ -106,6 +107,7 @@ function RepositoryFileRow({
 				isSelected ? "bg-editor-sunken-2" : "hover:bg-editor-sunken"
 			)}
 			data-name="RepositoryFileRow"
+			data-overflowing-label-trigger
 		>
 			<div className="pl-1.5">
 				<RepositoryStageCheckbox
@@ -122,7 +124,7 @@ function RepositoryFileRow({
 				onClick={selectFile}
 				type="button"
 			>
-				<span className="min-w-0 flex-1 truncate text-[11px]">
+				<OverflowingLabel className="flex-1 text-[11px]" title={file.path}>
 					<span className="font-medium text-editor-ink">{path.name}</span>
 					{path.directory ? (
 						<span
@@ -136,7 +138,7 @@ function RepositoryFileRow({
 							{path.directory}
 						</span>
 					) : null}
-				</span>
+				</OverflowingLabel>
 				<span
 					aria-hidden
 					className="w-3.5 shrink-0 text-center font-mono font-semibold text-[9px] text-editor-muted"

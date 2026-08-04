@@ -71,30 +71,6 @@ export function RepositoryCommitDock({
 				Commit summary
 			</label>
 			<div className="flex items-center gap-1">
-				<Button
-					aria-controls="repository-commit-description"
-					aria-expanded={isDescriptionOpen}
-					aria-label={
-						isDescriptionOpen
-							? "Hide commit description"
-							: "Show commit description"
-					}
-					className="size-8 text-editor-faint"
-					disabled={isPending}
-					onClick={() => setIsDescriptionOpen((isOpen) => !isOpen)}
-					size="icon-sm"
-					type="button"
-					variant="ghost"
-				>
-					<CaretRightIcon
-						aria-hidden
-						className={cn(
-							"size-3.5 transition-transform duration-200",
-							isDescriptionOpen && "rotate-90"
-						)}
-						weight="bold"
-					/>
-				</Button>
 				<div className="relative min-w-0 flex-1">
 					<Input
 						className="h-8 bg-editor-sunken pr-12 text-[11px] shadow-none"
@@ -116,6 +92,30 @@ export function RepositoryCommitDock({
 						<span>↵</span>
 					</Kbd>
 				</div>
+				<Button
+					aria-controls="repository-commit-description"
+					aria-expanded={isDescriptionOpen}
+					aria-label={
+						isDescriptionOpen
+							? "Hide commit description"
+							: "Show commit description"
+					}
+					className="size-8 shrink-0 text-editor-faint"
+					disabled={isPending}
+					onClick={() => setIsDescriptionOpen((isOpen) => !isOpen)}
+					size="icon-sm"
+					type="button"
+					variant="ghost"
+				>
+					<CaretRightIcon
+						aria-hidden
+						className={cn(
+							"size-3.5 transition-transform duration-200",
+							isDescriptionOpen && "rotate-90"
+						)}
+						weight="bold"
+					/>
+				</Button>
 			</div>
 			<div
 				className={cn(
@@ -127,14 +127,14 @@ export function RepositoryCommitDock({
 			>
 				<div
 					aria-hidden={isDescriptionOpen ? undefined : true}
-					className="overflow-hidden pl-9"
+					className="overflow-hidden"
 					inert={isDescriptionOpen ? undefined : true}
 				>
 					<label className="sr-only" htmlFor="repository-commit-description">
 						Commit description
 					</label>
 					<Textarea
-						className="mt-1.5 min-h-16 resize-none bg-editor-sunken text-[11px] shadow-none"
+						className="mt-1.5 min-h-16 resize-none border-0 bg-editor-sunken text-[11px] shadow-none focus-visible:border-transparent focus-visible:ring-0"
 						disabled={isPending}
 						id="repository-commit-description"
 						onChange={updateDescription}

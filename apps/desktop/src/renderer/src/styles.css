@@ -1,13 +1,13 @@
 @import "@1git/ui/globals.css";
 @source "./**/*.{ts,tsx}";
 
-@property --workspace-tab-label-leading-mask-alpha {
+@property --overflowing-label-leading-mask-alpha {
 	syntax: "<number>";
 	inherits: false;
 	initial-value: 1;
 }
 
-@property --workspace-tab-label-trailing-mask-alpha {
+@property --overflowing-label-trailing-mask-alpha {
 	syntax: "<number>";
 	inherits: false;
 	initial-value: 0;
@@ -201,56 +201,60 @@ button {
 	cursor: grabbing;
 }
 
-[data-name="WorkspaceTabLabelViewport"][data-overflowing="true"] {
-	--workspace-tab-label-leading-mask-alpha: 1;
-	--workspace-tab-label-trailing-mask-alpha: 0;
+[data-name="OverflowingLabelViewport"][data-overflowing="true"] {
+	--overflowing-label-leading-mask-alpha: 1;
+	--overflowing-label-trailing-mask-alpha: 0;
 	-webkit-mask-image: linear-gradient(
 		to right,
-		rgb(0 0 0 / var(--workspace-tab-label-leading-mask-alpha)) 0,
+		rgb(0 0 0 / var(--overflowing-label-leading-mask-alpha)) 0,
 		#000 7px,
 		#000 calc(100% - 7px),
-		rgb(0 0 0 / var(--workspace-tab-label-trailing-mask-alpha)) 100%
+		rgb(0 0 0 / var(--overflowing-label-trailing-mask-alpha)) 100%
 	);
 	mask-image: linear-gradient(
 		to right,
-		rgb(0 0 0 / var(--workspace-tab-label-leading-mask-alpha)) 0,
+		rgb(0 0 0 / var(--overflowing-label-leading-mask-alpha)) 0,
 		#000 7px,
 		#000 calc(100% - 7px),
-		rgb(0 0 0 / var(--workspace-tab-label-trailing-mask-alpha)) 100%
+		rgb(0 0 0 / var(--overflowing-label-trailing-mask-alpha)) 100%
 	);
 	mask-repeat: no-repeat;
 	transition:
-		--workspace-tab-label-leading-mask-alpha
-		var(--workspace-tab-label-leading-mask-fade-duration) linear,
-		--workspace-tab-label-trailing-mask-alpha
-		var(--workspace-tab-label-leading-mask-fade-duration) linear;
+		--overflowing-label-leading-mask-alpha
+		var(--overflowing-label-leading-mask-fade-duration) linear,
+		--overflowing-label-trailing-mask-alpha
+		var(--overflowing-label-leading-mask-fade-duration) linear;
 }
 
-[data-name="WorkspaceTabLabelTrack"] {
+[data-name="OverflowingLabelTrack"] {
 	transform: translateX(0);
-	transition: transform var(--workspace-tab-label-return-duration)
+	transition: transform var(--overflowing-label-return-duration)
 		cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-[data-name="WorkspaceTab"]:not([data-dragging="true"]):is(:hover, :focus-within)
-	[data-name="WorkspaceTabLabelViewport"][data-overflowing="true"] {
-	--workspace-tab-label-leading-mask-alpha: 0;
-	--workspace-tab-label-trailing-mask-alpha: 1;
+[data-overflowing-label-trigger]:not(
+		[data-overflowing-label-suppressed="true"]
+	):is(:hover, :focus-within)
+	[data-name="OverflowingLabelViewport"][data-overflowing="true"] {
+	--overflowing-label-leading-mask-alpha: 0;
+	--overflowing-label-trailing-mask-alpha: 1;
 	transition-delay:
-		var(--workspace-tab-label-hover-delay),
+		var(--overflowing-label-hover-delay),
 		calc(
-			var(--workspace-tab-label-hover-delay) +
-			var(--workspace-tab-label-marquee-duration)
+			var(--overflowing-label-hover-delay) +
+			var(--overflowing-label-marquee-duration)
 		);
 }
 
-[data-name="WorkspaceTab"]:not([data-dragging="true"]):is(:hover, :focus-within)
-	[data-name="WorkspaceTabLabelViewport"][data-overflowing="true"]
-	[data-name="WorkspaceTabLabelTrack"] {
-	transform: translateX(calc(0px - var(--workspace-tab-label-overflow)));
-	transition-delay: var(--workspace-tab-label-hover-delay);
+[data-overflowing-label-trigger]:not(
+		[data-overflowing-label-suppressed="true"]
+	):is(:hover, :focus-within)
+	[data-name="OverflowingLabelViewport"][data-overflowing="true"]
+	[data-name="OverflowingLabelTrack"] {
+	transform: translateX(calc(0px - var(--overflowing-label-overflow)));
+	transition-delay: var(--overflowing-label-hover-delay);
 	transition-timing-function: linear;
-	transition-duration: var(--workspace-tab-label-marquee-duration);
+	transition-duration: var(--overflowing-label-marquee-duration);
 }
 
 [data-name="WorkspaceTitlebar"] [data-dnd-overlay][data-dnd-dragging] {
@@ -383,8 +387,8 @@ button {
 		--dnd-transition: translate 0.01ms linear !important;
 	}
 
-	[data-name="WorkspaceTabLabelViewport"],
-	[data-name="WorkspaceTabLabelTrack"] {
+	[data-name="OverflowingLabelViewport"],
+	[data-name="OverflowingLabelTrack"] {
 		transition-delay: 0ms !important;
 	}
 

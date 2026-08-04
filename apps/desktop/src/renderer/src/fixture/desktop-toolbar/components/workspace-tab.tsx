@@ -16,9 +16,9 @@ import {
 	WORKSPACE_TAB_REORDER_MOTION,
 	WORKSPACE_TAB_SURFACE_GEOMETRY,
 } from "@/fixture/desktop-toolbar/constants/workspace-tab.js";
-import { useOverflowingTabLabel } from "@/fixture/desktop-toolbar/hooks/use-overflowing-tab-label.js";
 import { useWorkspaceTabClose } from "@/fixture/desktop-toolbar/hooks/use-workspace-tab-close.js";
 import { LiquidMenuTrigger } from "@/fixture/liquid-menu/components/liquid-menu.js";
+import { OverflowingLabel } from "@/fixture/overflowing-label/components/overflowing-label.js";
 import { RepositoryOwnerThumbnail } from "@/fixture/repository-item/components/repository-owner-thumbnail.js";
 import type { RepositorySessionId } from "../../../../../shared/repository-session.js";
 
@@ -189,30 +189,15 @@ function WorkspaceTabName({
 	isActive,
 	repositoryName,
 }: WorkspaceTabNameProps): ReactElement {
-	const { isOverflowing, style, trackRef, viewportRef } =
-		useOverflowingTabLabel();
-
 	return (
-		<span
-			className="pointer-events-none block min-w-0 flex-1 overflow-hidden text-xss"
-			data-name="WorkspaceTabLabelViewport"
-			data-overflowing={isOverflowing ? "true" : undefined}
-			ref={viewportRef}
-			style={style}
-		>
-			<span
-				className="inline-block min-w-max whitespace-nowrap"
-				data-name="WorkspaceTabLabelTrack"
-				ref={trackRef}
-			>
-				<span className={cn(isActive ? "font-bold" : "font-semibold")}>
-					{repositoryName}
-				</span>
-				{branch ? (
-					<span className="font-medium text-editor-faint"> / {branch}</span>
-				) : null}
+		<OverflowingLabel className="flex-1 text-xss">
+			<span className={cn(isActive ? "font-bold" : "font-semibold")}>
+				{repositoryName}
 			</span>
-		</span>
+			{branch ? (
+				<span className="font-medium text-editor-faint"> / {branch}</span>
+			) : null}
+		</OverflowingLabel>
 	);
 }
 
@@ -391,6 +376,8 @@ function WorkspaceTabAppearance({
 			data-desktop-interactive
 			data-dragging={isDragging ? "true" : undefined}
 			data-name="WorkspaceTab"
+			data-overflowing-label-suppressed={isDragging ? "true" : undefined}
+			data-overflowing-label-trigger
 			data-overlay={isOverlay ? "true" : undefined}
 			data-workspace-session-id={workspace.session.id}
 			ref={setRootElement}
