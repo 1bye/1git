@@ -23,7 +23,10 @@ import { RepositoryFileRail } from "@/fixture/repository-workspace/components/re
 import { RepositoryHistoryRail } from "@/fixture/repository-workspace/components/repository-history-rail.js";
 import { RepositoryWorkspaceToolbar } from "@/fixture/repository-workspace/components/repository-workspace-toolbar.js";
 import { useRepositoryFileNavigation } from "@/fixture/repository-workspace/hooks/use-repository-file-navigation.js";
-import { getRepositoryFilePosition } from "@/fixture/repository-workspace/lib/repository-navigation.js";
+import {
+	getRepositoryDiffElementId,
+	getRepositoryFilePosition,
+} from "@/fixture/repository-workspace/lib/repository-navigation.js";
 import { CleanState } from "@/fixture/workspace-content/components/clean-state.js";
 import { DiffView } from "@/fixture/workspace-content/components/diff-view.js";
 import type { RepositorySessionRecord } from "../../../../../shared/repository-session.js";
@@ -31,7 +34,7 @@ import type { RepositorySessionRecord } from "../../../../../shared/repository-s
 export interface AdaptiveRepositoryWorkspaceProps {
 	readonly activeSession: RepositorySessionRecord;
 	readonly branches: BranchCollection | null;
-	readonly diff: FileDiff | null;
+	readonly diffs: readonly FileDiff[];
 	readonly history: CommitPage | null;
 	readonly isFetching: boolean;
 	readonly isLoading: boolean;
@@ -98,7 +101,7 @@ const DiffEmptyState = (): ReactElement => (
 export function AdaptiveRepositoryWorkspace({
 	activeSession,
 	branches,
-	diff,
+	diffs,
 	history,
 	isFetching,
 	isLoading,
@@ -121,14 +124,37 @@ export function AdaptiveRepositoryWorkspace({
 		await onSetTab("changes");
 	}, [onSetTab]);
 	const files = snapshot?.files ?? [];
+	const selectFileAndReveal = useCallback(
+		async (file: FileChange): Promise<void> => {
+			await onSelectFile(file);
+			document
+				.getElementById(getRepositoryDiffElementId(file.path))
+				?.scrollIntoView({ block: "start" });
+		},
+		[onSelectFile]
+	);
 	const navigation = useRepositoryFileNavigation({
 		files,
 		onRequestChanges: requestChanges,
-		onSelectFile,
+		onSelectFile: selectFileAndReveal,
 		selectedFilePath,
 		sessionId: activeSession.id,
 		tab,
 	});
+	const selectVisibleFile = useCallback(
+		(path: string): void => {
+			if (path === selectedFilePath) {
+				return;
+			}
+			const file = files.find((candidate) => candidate.path === path);
+			if (file) {
+				onSelectFile(file).catch(() => {
+					// The workspace hook exposes the operation error in the app notice.
+				});
+			}
+		},
+		[files, onSelectFile, selectedFilePath]
+	);
 
 	if (!snapshot || isLoading) {
 		return (
@@ -167,11 +193,13 @@ export function AdaptiveRepositoryWorkspace({
 				snapshot={snapshot}
 			/>
 		);
-	} else if (diff) {
+	} else if (diffs.length > 0) {
 		mainContent = (
 			<DiffView
 				commit={historyCommit}
-				diff={diff}
+				diffs={diffs}
+				files={files}
+				onActiveFileChange={selectVisibleFile}
 				selectedFilePath={selectedFilePath}
 				tab={tab}
 			/>
@@ -191,7 +219,7 @@ export function AdaptiveRepositoryWorkspace({
 				selectedCommitOid={selectedCommitOid}
 			/>
 		);
-	} else if (navigation.isPinned) {
+	} else {
 		navigationRail = (
 			<RepositoryFileRail
 				allFiles={files}
@@ -230,7 +258,7 @@ export function AdaptiveRepositoryWorkspace({
 				{navigationRail}
 				<div className="flex min-w-0 flex-1 flex-col">
 					<main
-						className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-editor-surface"
+						className="min-h-0 flex-1 overflow-hidden bg-editor-surface"
 						data-name="RepositoryDiffWorkspace"
 					>
 						{mainContent}

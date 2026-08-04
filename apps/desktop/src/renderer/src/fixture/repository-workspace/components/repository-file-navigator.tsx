@@ -1,11 +1,9 @@
 import type { FileChange } from "@1git/git";
-import { Button } from "@1git/ui/components/button";
 import { Input } from "@1git/ui/components/input";
 import { Kbd } from "@1git/ui/components/kbd";
 import { CheckIcon } from "@phosphor-icons/react/dist/csr/Check";
 import { FileCodeIcon } from "@phosphor-icons/react/dist/csr/FileCode";
 import { FunnelSimpleIcon } from "@phosphor-icons/react/dist/csr/FunnelSimple";
-import { SidebarSimpleIcon } from "@phosphor-icons/react/dist/csr/SidebarSimple";
 import type { ChangeEvent, ReactElement } from "react";
 import { useEffect, useRef } from "react";
 import type { PendingWorkspaceAction } from "@/feature/workspace/hooks/use-git-workspace.js";
@@ -60,11 +58,6 @@ export function RepositoryFileNavigator({
 	const updateQuery = (event: ChangeEvent<HTMLInputElement>): void => {
 		navigation.setQuery(event.target.value);
 	};
-	const pinNavigator = (): void => {
-		navigation.setPinned(true);
-		navigation.acceptPreview();
-	};
-
 	return (
 		<div
 			className="relative"
@@ -122,20 +115,6 @@ export function RepositoryFileNavigator({
 								value={navigation.query}
 							/>
 						</div>
-						<Button
-							aria-label="Pin changed files"
-							onClick={pinNavigator}
-							size="icon-sm"
-							title="Keep files visible"
-							type="button"
-							variant="ghost"
-						>
-							<SidebarSimpleIcon
-								aria-hidden
-								className="size-3.5"
-								weight="duotone"
-							/>
-						</Button>
 					</div>
 					<div className="border-editor-hairline border-t px-1 pt-1">
 						<p
@@ -207,20 +186,6 @@ export function RepositoryFileRail({
 						value={navigation.query}
 					/>
 				</div>
-				<Button
-					aria-label="Unpin changed files"
-					onClick={() => navigation.setPinned(false)}
-					size="icon-sm"
-					title="Hide file rail"
-					type="button"
-					variant="ghost"
-				>
-					<SidebarSimpleIcon
-						aria-hidden
-						className="size-3.5 rotate-180"
-						weight="duotone"
-					/>
-				</Button>
 			</div>
 			<div className="flex h-8 shrink-0 items-center border-editor-hairline border-y px-2">
 				<button

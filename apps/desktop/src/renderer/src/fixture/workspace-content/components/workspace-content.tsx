@@ -18,7 +18,7 @@ import type {
 
 interface WorkspaceContentProps {
 	readonly activeSession: RepositorySessionRecord | null;
-	readonly diff: FileDiff | null;
+	readonly diffs: readonly FileDiff[];
 	readonly historyCommit: CommitInfo | null;
 	readonly isFetching: boolean;
 	readonly isRepositoryLoading: boolean;
@@ -40,7 +40,7 @@ interface WorkspaceContentProps {
 
 export function WorkspaceContent({
 	activeSession,
-	diff,
+	diffs,
 	historyCommit,
 	isFetching,
 	isRepositoryLoading,
@@ -115,10 +115,11 @@ export function WorkspaceContent({
 			className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-editor-surface"
 			data-name="WorkspaceContent"
 		>
-			{diff ? (
+			{diffs.length > 0 ? (
 				<DiffView
 					commit={historyCommit}
-					diff={diff}
+					diffs={diffs}
+					files={snapshot.files}
 					selectedFilePath={selectedFilePath}
 					tab={tab}
 				/>

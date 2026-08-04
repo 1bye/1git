@@ -6,6 +6,8 @@ import {
 	getFileChangeLabel,
 	getRepositoryName,
 	getWorkspaceLabel,
+	groupRepositoryDiffPaths,
+	hasFileWorkingTreeChanges,
 	isFilePartiallyStaged,
 	isFileStaged,
 	matchesFileFilter,
@@ -35,6 +37,12 @@ describe("workspace file presentation", () => {
 		expect(isFileStaged(staged)).toBe(true);
 		expect(isFilePartiallyStaged(staged)).toBe(false);
 		expect(isFilePartiallyStaged(partial)).toBe(true);
+		expect(hasFileWorkingTreeChanges(staged)).toBe(false);
+		expect(hasFileWorkingTreeChanges(partial)).toBe(true);
+		expect(groupRepositoryDiffPaths([unstaged, staged, partial])).toEqual({
+			staged: ["src/staged.ts", "src/partial.ts"],
+			working: ["src/unstaged.ts", "src/partial.ts"],
+		});
 		expect(areAllFilesStaged([staged, partial])).toBe(true);
 		expect(areAllFilesStaged([staged, unstaged])).toBe(false);
 	});

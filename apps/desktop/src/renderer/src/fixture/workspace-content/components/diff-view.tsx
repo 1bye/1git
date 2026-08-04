@@ -1,13 +1,17 @@
-import type { CommitInfo, FileDiff } from "@1git/git";
+import type { CommitInfo, DiffFileStat, FileChange, FileDiff } from "@1git/git";
+import { cn } from "@1git/ui/lib/utils";
+import { CaretRightIcon } from "@phosphor-icons/react/dist/csr/CaretRight";
 import { FileCodeIcon } from "@phosphor-icons/react/dist/csr/FileCode";
 import { GitCommitIcon } from "@phosphor-icons/react/dist/csr/GitCommit";
 import { GitDiffIcon } from "@phosphor-icons/react/dist/csr/GitDiff";
 import { parsePatchFiles } from "@pierre/diffs";
 import { FileDiff as PierreFileDiff } from "@pierre/diffs/react";
 import type { ReactElement } from "react";
-import { useMemo } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { RepositoryTab } from "@/feature/workspace/hooks/use-git-workspace.js";
 import { formatCommitDate } from "@/feature/workspace/lib/workspace-model.js";
+import { useRepositoryDiffScrollSync } from "@/fixture/repository-workspace/hooks/use-repository-diff-scroll-sync.js";
+import { getRepositoryDiffElementId } from "@/fixture/repository-workspace/lib/repository-navigation.js";
 
 const DIFF_RENDER_OPTIONS = {
 	diffIndicators: "bars",
@@ -32,47 +36,246 @@ const DIFF_RENDER_OPTIONS = {
 	`,
 } as const;
 
+type ParsedDiffFile = ReturnType<
+	typeof parsePatchFiles
+>[number]["files"][number];
+
+interface DiffFileEntry {
+	readonly file: ParsedDiffFile | null;
+	readonly id: string | undefined;
+	readonly key: string;
+	readonly path: string;
+	readonly stat: DiffFileStat | null;
+	readonly targetLabel: string;
+}
+
+type DiffFileEntryWithoutId = Omit<DiffFileEntry, "id">;
+
+interface DiffFileAccordionProps {
+	readonly entry: DiffFileEntry;
+	readonly showTarget: boolean;
+}
+
+const diffTargetLabel = (diff: FileDiff): string => {
+	if (diff.target.kind === "staged") {
+		return "Staged";
+	}
+	if (diff.target.kind === "working") {
+		return "Working tree";
+	}
+	if (diff.target.kind === "commit") {
+		return "Commit";
+	}
+	return "Comparison";
+};
+
+const statForFile = (
+	stats: readonly DiffFileStat[],
+	path: string
+): DiffFileStat | null =>
+	stats.find((stat) => stat.path === path || stat.originalPath === path) ??
+	null;
+
+const parseDiffFileEntries = (
+	diffs: readonly FileDiff[],
+	commitOid: string | undefined,
+	tab: RepositoryTab
+): readonly DiffFileEntryWithoutId[] => {
+	const entries: DiffFileEntryWithoutId[] = [];
+	for (const [diffIndex, diff] of diffs.entries()) {
+		const parsedFiles = parsePatchFiles(
+			diff.patch,
+			tab === "history" ? commitOid : `${diff.target.kind}-${diffIndex}`,
+			true
+		).flatMap((patch) => patch.files);
+		for (const file of parsedFiles) {
+			entries.push({
+				file,
+				key: `${diff.target.kind}:${diffIndex}:${file.cacheKey ?? file.name}`,
+				path: file.name,
+				stat: statForFile(diff.stats, file.name),
+				targetLabel: diffTargetLabel(diff),
+			});
+		}
+	}
+	return entries;
+};
+
+const addMissingFileEntries = (
+	entries: readonly DiffFileEntryWithoutId[],
+	files: readonly FileChange[],
+	tab: RepositoryTab
+): readonly DiffFileEntryWithoutId[] => {
+	if (tab !== "changes") {
+		return entries;
+	}
+	const knownPaths = new Set(entries.map((entry) => entry.path));
+	const nextEntries = [...entries];
+	for (const file of files) {
+		if (knownPaths.has(file.path)) {
+			continue;
+		}
+		nextEntries.push({
+			file: null,
+			key: `empty:${file.path}`,
+			path: file.path,
+			stat: null,
+			targetLabel: "Working tree",
+		});
+	}
+	return nextEntries;
+};
+
+const assignDiffElementIds = (
+	entries: readonly DiffFileEntryWithoutId[]
+): readonly DiffFileEntry[] => {
+	const seenPaths = new Set<string>();
+	return entries.map((entry) => {
+		const isFirstOccurrence = !seenPaths.has(entry.path);
+		seenPaths.add(entry.path);
+		return {
+			...entry,
+			id: isFirstOccurrence
+				? getRepositoryDiffElementId(entry.path)
+				: undefined,
+		};
+	});
+};
+
+function DiffFileAccordion({
+	entry,
+	showTarget,
+}: DiffFileAccordionProps): ReactElement {
+	const [isOpen, setIsOpen] = useState(true);
+	const bodyId = `repository-diff-body:${encodeURIComponent(entry.key)}`;
+	const addedLines = entry.stat?.addedLines;
+	const deletedLines = entry.stat?.deletedLines;
+
+	return (
+		<article
+			className="overflow-clip rounded-xl border border-editor-hairline bg-editor-surface shadow-surface-1"
+			data-name="DiffFile"
+			data-repository-diff-path={entry.path}
+			id={entry.id}
+		>
+			<button
+				aria-controls={bodyId}
+				aria-expanded={isOpen}
+				className="sticky top-14 z-10 flex h-10 w-full items-center gap-2 border-editor-hairline border-b bg-editor-sunken/92 px-3 text-left outline-none backdrop-blur-xl transition-colors hover:bg-editor-sunken-2 focus-visible:ring-2 focus-visible:ring-editor-muted/20 focus-visible:ring-inset"
+				onClick={() => setIsOpen((current) => !current)}
+				type="button"
+			>
+				<CaretRightIcon
+					aria-hidden
+					className={cn(
+						"size-3 shrink-0 text-editor-faint transition-transform duration-150",
+						isOpen && "rotate-90"
+					)}
+					weight="bold"
+				/>
+				<FileCodeIcon
+					aria-hidden
+					className="size-3.5 shrink-0 text-editor-faint"
+					weight="duotone"
+				/>
+				<h2 className="min-w-0 flex-1 truncate font-medium font-mono text-editor-muted text-xss">
+					{entry.path}
+				</h2>
+				{showTarget ? (
+					<span className="rounded-md bg-white/70 px-1.5 py-0.5 text-[9px] text-editor-faint">
+						{entry.targetLabel}
+					</span>
+				) : null}
+				<div className="flex shrink-0 items-center gap-2 font-medium font-mono text-[9px] tabular-nums">
+					{addedLines === null || addedLines === undefined ? null : (
+						<span className="text-emerald-700">+{addedLines}</span>
+					)}
+					{deletedLines === null || deletedLines === undefined ? null : (
+						<span className="text-rose-600">−{deletedLines}</span>
+					)}
+				</div>
+			</button>
+			<div hidden={!isOpen} id={bodyId}>
+				{entry.file ? (
+					<PierreFileDiff
+						className="block"
+						disableWorkerPool
+						fileDiff={entry.file}
+						options={DIFF_RENDER_OPTIONS}
+					/>
+				) : (
+					<p className="px-4 py-8 text-center text-editor-faint text-xss">
+						No text diff available for this file.
+					</p>
+				)}
+			</div>
+		</article>
+	);
+}
+
 interface DiffViewProps {
 	readonly commit: CommitInfo | null;
-	readonly diff: FileDiff;
+	readonly diffs: readonly FileDiff[];
+	readonly files?: readonly FileChange[];
+	readonly onActiveFileChange?: (path: string) => void;
 	readonly selectedFilePath: string | null;
 	readonly tab: RepositoryTab;
 }
 
+const ignoreActiveFileChange = (): void => undefined;
+
 export function DiffView({
 	commit,
-	diff,
+	diffs,
+	files = [],
+	onActiveFileChange = ignoreActiveFileChange,
 	selectedFilePath,
 	tab,
 }: DiffViewProps): ReactElement {
-	const parsedFiles = useMemo(
+	const scrollRef = useRef<HTMLElement>(null);
+	const entries = useMemo(
 		() =>
-			parsePatchFiles(
-				diff.patch,
-				tab === "history" ? commit?.oid : (selectedFilePath ?? undefined),
-				true
-			).flatMap((patch) => patch.files),
-		[commit?.oid, diff.patch, selectedFilePath, tab]
+			assignDiffElementIds(
+				addMissingFileEntries(
+					parseDiffFileEntries(diffs, commit?.oid, tab),
+					files,
+					tab
+				)
+			),
+		[commit?.oid, diffs, files, tab]
 	);
+	useRepositoryDiffScrollSync({
+		activePath: selectedFilePath,
+		containerRef: scrollRef,
+		onActivePathChange: onActiveFileChange,
+	});
+
 	let addedLines = 0;
 	let deletedLines = 0;
-	for (const stat of diff.stats) {
-		addedLines += stat.addedLines ?? 0;
-		deletedLines += stat.deletedLines ?? 0;
+	for (const diff of diffs) {
+		for (const stat of diff.stats) {
+			addedLines += stat.addedLines ?? 0;
+			deletedLines += stat.deletedLines ?? 0;
+		}
 	}
+	const fileCount = new Set(entries.map((entry) => entry.path)).size;
 	const title =
 		tab === "history"
 			? (commit?.summary ?? "Commit")
-			: (selectedFilePath ?? "Changes");
+			: `${fileCount} ${fileCount === 1 ? "changed file" : "changed files"}`;
 
 	return (
-		<section className="flex min-h-full flex-col" data-name="DiffView">
+		<section
+			className="h-full min-h-0 overflow-y-auto overscroll-contain"
+			data-name="DiffView"
+			ref={scrollRef}
+		>
 			<header className="sticky top-0 z-20 flex min-h-14 shrink-0 items-center gap-3 border-editor-hairline border-b bg-editor-surface/88 px-5 backdrop-blur-xl">
 				<span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-editor-sunken text-editor-muted">
 					{tab === "history" ? (
-						<GitCommitIcon aria-hidden className="size-3.5" weight="regular" />
+						<GitCommitIcon aria-hidden className="size-3.5" weight="duotone" />
 					) : (
-						<FileCodeIcon aria-hidden className="size-3.5" weight="regular" />
+						<GitDiffIcon aria-hidden className="size-3.5" weight="duotone" />
 					)}
 				</span>
 				<div className="min-w-0 flex-1">
@@ -86,69 +289,39 @@ export function DiffView({
 						</p>
 					) : (
 						<p className="mt-0.5 text-[10px] text-editor-faint">
-							{diff.target.kind === "staged"
-								? "Staged changes"
-								: "Working tree changes"}
+							Staged and working tree changes
 						</p>
 					)}
 				</div>
 				<div className="flex shrink-0 items-center gap-3 font-medium font-mono text-[10px]">
-					<span className="text-emerald-700">
-						<span aria-hidden>+</span>
-						{addedLines}
-						<span className="sr-only"> lines added</span>
-					</span>
-					<span className="text-rose-600">
-						<span aria-hidden>−</span>
-						{deletedLines}
-						<span className="sr-only"> lines deleted</span>
-					</span>
-					<span className="text-editor-faint">
-						{diff.stats.length} {diff.stats.length === 1 ? "file" : "files"}
-					</span>
+					<span className="text-emerald-700">+{addedLines}</span>
+					<span className="text-rose-600">−{deletedLines}</span>
 				</div>
 			</header>
 
-			{parsedFiles.length > 0 ? (
+			{entries.length > 0 ? (
 				<div className="space-y-3 p-3">
-					{parsedFiles.map((file) => (
-						<article
-							className="overflow-hidden rounded-xl border border-editor-hairline bg-editor-surface shadow-surface-1"
-							data-name="DiffFile"
-							key={file.cacheKey ?? file.name}
-						>
-							<div className="flex h-9 items-center gap-2 border-editor-hairline border-b bg-editor-sunken/65 px-3">
-								<GitDiffIcon
-									aria-hidden
-									className="size-3.5 text-editor-faint"
-									weight="regular"
-								/>
-								<h2 className="truncate font-medium font-mono text-editor-muted text-xss">
-									{file.name}
-								</h2>
-							</div>
-							<PierreFileDiff
-								className="block"
-								disableWorkerPool
-								fileDiff={file}
-								options={DIFF_RENDER_OPTIONS}
-							/>
-						</article>
+					{entries.map((entry) => (
+						<DiffFileAccordion
+							entry={entry}
+							key={entry.key}
+							showTarget={diffs.length > 1}
+						/>
 					))}
 				</div>
 			) : (
-				<div className="flex flex-1 items-center justify-center px-8 py-16 text-center">
+				<div className="flex min-h-[calc(100%-3.5rem)] items-center justify-center px-8 py-16 text-center">
 					<div>
 						<GitDiffIcon
 							aria-hidden
 							className="mx-auto size-6 text-editor-faint"
-							weight="regular"
+							weight="duotone"
 						/>
 						<h2 className="mt-3 font-medium text-[13px] text-editor-ink">
 							No text diff available
 						</h2>
 						<p className="mt-1 text-editor-faint text-xss">
-							The file may be binary or have no patch content.
+							The changed files may be binary or have no patch content.
 						</p>
 					</div>
 				</div>

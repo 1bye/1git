@@ -60,6 +60,30 @@ export const isFileStaged = (file: FileChange): boolean =>
 export const isFilePartiallyStaged = (file: FileChange): boolean =>
 	isFileStaged(file) && file.worktreeStatus !== "unmodified";
 
+export const hasFileWorkingTreeChanges = (file: FileChange): boolean =>
+	file.worktreeStatus !== "unmodified" && file.worktreeStatus !== "ignored";
+
+export interface RepositoryDiffPaths {
+	readonly staged: readonly string[];
+	readonly working: readonly string[];
+}
+
+export const groupRepositoryDiffPaths = (
+	files: readonly FileChange[]
+): RepositoryDiffPaths => {
+	const staged: string[] = [];
+	const working: string[] = [];
+	for (const file of files) {
+		if (isFileStaged(file)) {
+			staged.push(file.path);
+		}
+		if (hasFileWorkingTreeChanges(file)) {
+			working.push(file.path);
+		}
+	}
+	return { staged, working };
+};
+
 export const areAllFilesStaged = (files: readonly FileChange[]): boolean =>
 	files.length > 0 && files.every(isFileStaged);
 

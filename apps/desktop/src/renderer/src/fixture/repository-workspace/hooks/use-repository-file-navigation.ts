@@ -21,11 +21,9 @@ export interface RepositoryFileNavigation {
 	readonly changeOpen: (isOpen: boolean) => void;
 	readonly files: readonly FileChange[];
 	readonly isOpen: boolean;
-	readonly isPinned: boolean;
 	readonly openNavigator: () => void;
 	readonly query: string;
 	readonly selectFile: (file: FileChange) => void;
-	readonly setPinned: (isPinned: boolean) => void;
 	readonly setQuery: (query: string) => void;
 }
 
@@ -65,7 +63,6 @@ export const useRepositoryFileNavigation = ({
 	tab,
 }: UseRepositoryFileNavigationOptions): RepositoryFileNavigation => {
 	const [isOpen, setIsOpen] = useState(false);
-	const [isPinned, setIsPinned] = useState(false);
 	const [query, setQuery] = useState("");
 	const originalPathRef = useRef<string | null>(null);
 	const previewPathRef = useRef<string | null>(selectedFilePath);
@@ -246,11 +243,9 @@ export const useRepositoryFileNavigation = ({
 		changeOpen,
 		files: visibleFiles,
 		isOpen,
-		isPinned,
 		openNavigator,
 		query,
 		selectFile,
-		setPinned: setIsPinned,
 		setQuery,
 	};
 };

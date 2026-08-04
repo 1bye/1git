@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { FileChange, FileStatus } from "@1git/git";
 import {
 	filterRepositoryFiles,
+	getRepositoryDiffElementId,
 	getRepositoryFileAtOffset,
 	getRepositoryFilePosition,
 	groupRepositoryFiles,
@@ -60,5 +61,11 @@ describe("repository file navigation", () => {
 			directory: "",
 			name: "README.md",
 		});
+	});
+
+	test("creates stable DOM identifiers for repository paths", () => {
+		expect(getRepositoryDiffElementId("apps/desktop/app.tsx")).toBe(
+			"repository-diff:apps%2Fdesktop%2Fapp.tsx"
+		);
 	});
 });

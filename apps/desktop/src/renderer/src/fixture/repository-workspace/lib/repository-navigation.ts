@@ -11,6 +11,11 @@ export interface RepositoryFilePath {
 	readonly name: string;
 }
 
+const REPOSITORY_DIFF_ELEMENT_PREFIX = "repository-diff:";
+
+export const getRepositoryDiffElementId = (path: string): string =>
+	`${REPOSITORY_DIFF_ELEMENT_PREFIX}${encodeURIComponent(path)}`;
+
 export const filterRepositoryFiles = (
 	files: readonly FileChange[],
 	query: string

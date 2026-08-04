@@ -14,7 +14,10 @@ import {
 	getRepositoryOwner,
 	type RepositoryOwner,
 } from "@/feature/workspace/lib/repository-owner.js";
-import { isFileStaged } from "@/feature/workspace/lib/workspace-model.js";
+import {
+	groupRepositoryDiffPaths,
+	isFileStaged,
+} from "@/feature/workspace/lib/workspace-model.js";
 import {
 	moveWorkspaceInOrder,
 	reconcileWorkspaceOrder,
@@ -102,7 +105,7 @@ export interface GitWorkspace {
 	readonly commit: (summary: string, description: string) => Promise<boolean>;
 	readonly createBranch: (name: string) => Promise<boolean>;
 	readonly createRepository: () => Promise<boolean>;
-	readonly diff: FileDiff | null;
+	readonly diffs: readonly FileDiff[];
 	readonly error: string | null;
 	readonly fetchRepository: () => Promise<void>;
 	readonly forgetRecentRepository: (path: string) => Promise<void>;
@@ -155,7 +158,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 		useState<SessionSnapshotState | null>(null);
 	const [branches, setBranches] = useState<BranchCollection | null>(null);
 	const [history, setHistory] = useState<CommitPage | null>(null);
-	const [diff, setDiff] = useState<FileDiff | null>(null);
+	const [diffs, setDiffs] = useState<readonly FileDiff[]>([]);
 	const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
 	const [selectedCommitOid, setSelectedCommitOid] = useState<string | null>(
 		null
@@ -218,18 +221,36 @@ export const useGitWorkspace = (): GitWorkspace => {
 		[rememberSnapshot]
 	);
 
-	const loadFileDiff = useCallback(
-		async (sessionId: RepositorySessionId, file: FileChange): Promise<void> => {
+	const loadChangesDiff = useCallback(
+		async (
+			sessionId: RepositorySessionId,
+			files: readonly FileChange[]
+		): Promise<void> => {
 			const requestId = diffRequestIdRef.current + 1;
 			diffRequestIdRef.current = requestId;
-			const result = await window.desktop.git.repository.diff(sessionId, {
-				paths: [file.path],
-				target: { kind: isFileStaged(file) ? "staged" : "working" },
-			});
+			const paths = groupRepositoryDiffPaths(files);
+			const requests: Promise<GitResult<FileDiff>>[] = [];
+			if (paths.staged.length > 0) {
+				requests.push(
+					window.desktop.git.repository.diff(sessionId, {
+						paths: paths.staged,
+						target: { kind: "staged" },
+					})
+				);
+			}
+			if (paths.working.length > 0) {
+				requests.push(
+					window.desktop.git.repository.diff(sessionId, {
+						paths: paths.working,
+						target: { kind: "working" },
+					})
+				);
+			}
+			const results = await Promise.all(requests);
 			if (requestId !== diffRequestIdRef.current) {
 				return;
 			}
-			setDiff(resultValue(result));
+			setDiffs(results.map(resultValue));
 		},
 		[]
 	);
@@ -247,13 +268,13 @@ export const useGitWorkspace = (): GitWorkspace => {
 			if (requestId !== diffRequestIdRef.current) {
 				return;
 			}
-			setDiff(resultValue(result));
+			setDiffs([resultValue(result)]);
 		},
 		[]
 	);
 	const clearDiff = useCallback((): void => {
 		diffRequestIdRef.current += 1;
-		setDiff(null);
+		setDiffs([]);
 	}, []);
 
 	const loadSession = useCallback(
@@ -300,13 +321,13 @@ export const useGitWorkspace = (): GitWorkspace => {
 				nextSnapshot.files[0];
 			setSelectedFilePath(file?.path ?? null);
 			setSelectedCommitOid(null);
-			if (file) {
-				await loadFileDiff(session.id, file);
+			if (nextSnapshot.files.length > 0) {
+				await loadChangesDiff(session.id, nextSnapshot.files);
 			} else {
 				clearDiff();
 			}
 		},
-		[applySnapshot, clearDiff, loadCommitDiff, loadFileDiff, tab]
+		[applySnapshot, clearDiff, loadChangesDiff, loadCommitDiff, tab]
 	);
 
 	const refreshManager =
@@ -574,18 +595,14 @@ export const useGitWorkspace = (): GitWorkspace => {
 		}
 	};
 
-	const selectFile = async (file: FileChange): Promise<void> => {
+	const selectFile = (file: FileChange): Promise<void> => {
 		if (!activeSession || pendingAction === "stage") {
-			return;
+			return Promise.resolve();
 		}
+		setError(null);
 		setSelectedFilePath(file.path);
 		setSelectedCommitOid(null);
-		try {
-			setError(null);
-			await loadFileDiff(activeSession.id, file);
-		} catch (cause) {
-			setError(errorMessage(cause));
-		}
+		return Promise.resolve();
 	};
 
 	const selectCommit = async (commit: CommitInfo): Promise<void> => {
@@ -628,8 +645,8 @@ export const useGitWorkspace = (): GitWorkspace => {
 			const file = snapshot?.files[0];
 			setSelectedCommitOid(null);
 			setSelectedFilePath(file?.path ?? null);
-			if (file) {
-				await loadFileDiff(activeSession.id, file);
+			if (snapshot && snapshot.files.length > 0) {
+				await loadChangesDiff(activeSession.id, snapshot.files);
 			} else {
 				clearDiff();
 			}
@@ -660,10 +677,12 @@ export const useGitWorkspace = (): GitWorkspace => {
 			const nextFile = nextSnapshot.files.find(
 				(item) => item.path === file.path
 			);
-			if (nextFile) {
-				await loadFileDiff(activeSession.id, nextFile);
+			setSelectedFilePath(
+				nextFile?.path ?? nextSnapshot.files[0]?.path ?? null
+			);
+			if (nextSnapshot.files.length > 0) {
+				await loadChangesDiff(activeSession.id, nextSnapshot.files);
 			} else {
-				setSelectedFilePath(nextSnapshot.files[0]?.path ?? null);
 				clearDiff();
 			}
 		} catch (cause) {
@@ -691,8 +710,8 @@ export const useGitWorkspace = (): GitWorkspace => {
 				nextSnapshot.files.find((item) => item.path === selectedFilePath) ??
 				nextSnapshot.files[0];
 			setSelectedFilePath(nextFile?.path ?? null);
-			if (nextFile) {
-				await loadFileDiff(activeSession.id, nextFile);
+			if (nextSnapshot.files.length > 0) {
+				await loadChangesDiff(activeSession.id, nextSnapshot.files);
 			} else {
 				clearDiff();
 			}
@@ -725,7 +744,11 @@ export const useGitWorkspace = (): GitWorkspace => {
 					.then(resultValue)
 			);
 			setSelectedFilePath(value.snapshot.files[0]?.path ?? null);
-			clearDiff();
+			if (value.snapshot.files.length > 0) {
+				await loadChangesDiff(activeSession.id, value.snapshot.files);
+			} else {
+				clearDiff();
+			}
 			return true;
 		} catch (cause) {
 			setError(errorMessage(cause));
@@ -907,7 +930,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 		commit: createCommit,
 		createBranch,
 		createRepository,
-		diff,
+		diffs,
 		error,
 		fetchRepository,
 		forgetRecentRepository,
