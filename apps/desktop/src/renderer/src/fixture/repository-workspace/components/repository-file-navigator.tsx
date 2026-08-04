@@ -1,8 +1,6 @@
 import type { FileChange } from "@1git/git";
 import { Input } from "@1git/ui/components/input";
-import { Kbd } from "@1git/ui/components/kbd";
 import { CheckIcon } from "@phosphor-icons/react/dist/csr/Check";
-import { FileCodeIcon } from "@phosphor-icons/react/dist/csr/FileCode";
 import { FunnelSimpleIcon } from "@phosphor-icons/react/dist/csr/FunnelSimple";
 import type { ChangeEvent, ReactElement } from "react";
 import { useEffect, useRef } from "react";
@@ -13,23 +11,19 @@ import { REPOSITORY_FILE_NAVIGATOR_ID } from "@/fixture/repository-workspace/con
 import type { RepositoryFileNavigation } from "@/fixture/repository-workspace/hooks/use-repository-file-navigation.js";
 
 interface RepositoryFileNavigatorProps {
-	readonly allFiles: readonly FileChange[];
 	readonly navigation: RepositoryFileNavigation;
 	readonly onSetFileStaged: (
 		file: FileChange,
 		shouldStage: boolean
 	) => Promise<void>;
 	readonly pendingAction: PendingWorkspaceAction;
-	readonly position: number | null;
 	readonly selectedFilePath: string | null;
 }
 
 export function RepositoryFileNavigator({
-	allFiles,
 	navigation,
 	onSetFileStaged,
 	pendingAction,
-	position,
 	selectedFilePath,
 }: RepositoryFileNavigatorProps): ReactElement {
 	const containerRef = useRef<HTMLDivElement>(null);
@@ -60,36 +54,11 @@ export function RepositoryFileNavigator({
 	};
 	return (
 		<div
-			className="relative"
+			aria-keyshortcuts="Meta+P Control+P"
+			className="relative self-stretch"
 			data-name="RepositoryFileNavigator"
 			ref={containerRef}
 		>
-			<button
-				aria-controls={
-					navigation.isOpen ? REPOSITORY_FILE_NAVIGATOR_ID : undefined
-				}
-				aria-expanded={navigation.isOpen}
-				aria-haspopup="dialog"
-				aria-keyshortcuts="Meta+P Control+P"
-				className="flex h-8 items-center gap-2 rounded-lg bg-editor-sunken px-2.5 font-medium text-editor-muted text-xss outline-none transition-colors hover:bg-editor-sunken-2 hover:text-editor-ink focus-visible:ring-2 focus-visible:ring-editor-muted/20"
-				onClick={() => navigation.changeOpen(!navigation.isOpen)}
-				type="button"
-			>
-				<FileCodeIcon aria-hidden className="size-3.5" weight="duotone" />
-				<span className="text-editor-ink">
-					{allFiles.length} {allFiles.length === 1 ? "change" : "changes"}
-				</span>
-				{position ? (
-					<span className="text-editor-faint tabular-nums">
-						{position}/{allFiles.length}
-					</span>
-				) : null}
-				<Kbd className="ml-1 h-5 min-w-0 gap-0.5 bg-white px-1.5 text-[9px] text-editor-faint shadow-surface-1">
-					<span>⌘</span>
-					<span>P</span>
-				</Kbd>
-			</button>
-
 			{navigation.isOpen ? (
 				<div
 					aria-label="Changed file navigator"
@@ -143,8 +112,8 @@ export function RepositoryFileNavigator({
 	);
 }
 
-interface RepositoryFileRailProps
-	extends Omit<RepositoryFileNavigatorProps, "position"> {
+interface RepositoryFileRailProps extends RepositoryFileNavigatorProps {
+	readonly allFiles: readonly FileChange[];
 	readonly onToggleAllFiles: () => Promise<void>;
 }
 
@@ -167,19 +136,19 @@ export function RepositoryFileRail({
 	return (
 		<aside
 			aria-label="Changed files"
-			className="flex w-[310px] shrink-0 flex-col border-editor-hairline border-r bg-editor-surface"
+			className="flex min-h-0 flex-1 flex-col bg-editor-surface"
 			data-name="RepositoryFileRail"
 		>
-			<div className="flex h-11 shrink-0 items-center gap-2 px-2.5">
+			<div className="flex h-9 shrink-0 items-center px-2">
 				<div className="relative min-w-0 flex-1">
 					<FunnelSimpleIcon
 						aria-hidden
-						className="absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-editor-faint"
+						className="absolute top-1/2 left-2 size-3 -translate-y-1/2 text-editor-faint"
 						weight="duotone"
 					/>
 					<Input
 						aria-label="Filter changed files"
-						className="h-8 bg-editor-sunken pl-8 text-xss shadow-none"
+						className="h-7 bg-editor-sunken pl-7 text-[11px] shadow-none"
 						onChange={updateQuery}
 						placeholder="Filter files"
 						type="search"
@@ -187,21 +156,21 @@ export function RepositoryFileRail({
 					/>
 				</div>
 			</div>
-			<div className="flex h-8 shrink-0 items-center border-editor-hairline border-y px-2">
+			<div className="flex h-7 shrink-0 items-center border-editor-hairline border-y px-1.5">
 				<button
-					className="flex items-center gap-1.5 rounded-md px-1.5 py-1 font-medium text-[10px] text-editor-muted outline-none hover:bg-editor-sunken hover:text-editor-ink focus-visible:ring-2 focus-visible:ring-editor-muted/20 disabled:opacity-50"
+					className="flex items-center gap-1 rounded-md px-1.5 py-0.5 font-medium text-[9px] text-editor-muted outline-none hover:bg-editor-sunken hover:text-editor-ink focus-visible:ring-2 focus-visible:ring-editor-muted/20 disabled:opacity-50"
 					disabled={pendingAction !== null || allFiles.length === 0}
 					onClick={toggleAllFiles}
 					type="button"
 				>
-					<CheckIcon aria-hidden className="size-3" weight="bold" />
+					<CheckIcon aria-hidden className="size-2.5" weight="bold" />
 					{allStaged ? "Unstage all" : "Stage all"}
 				</button>
-				<span className="ml-auto text-[10px] text-editor-faint tabular-nums">
+				<span className="ml-auto text-[9px] text-editor-faint tabular-nums">
 					{allFiles.length} files
 				</span>
 			</div>
-			<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pt-1">
+			<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
 				<RepositoryFileList
 					files={navigation.files}
 					isStagingDisabled={pendingAction !== null}

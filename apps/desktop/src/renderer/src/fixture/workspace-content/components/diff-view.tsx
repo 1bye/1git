@@ -2,14 +2,12 @@ import type { CommitInfo, DiffFileStat, FileChange, FileDiff } from "@1git/git";
 import { cn } from "@1git/ui/lib/utils";
 import { CaretRightIcon } from "@phosphor-icons/react/dist/csr/CaretRight";
 import { FileCodeIcon } from "@phosphor-icons/react/dist/csr/FileCode";
-import { GitCommitIcon } from "@phosphor-icons/react/dist/csr/GitCommit";
 import { GitDiffIcon } from "@phosphor-icons/react/dist/csr/GitDiff";
 import { parsePatchFiles } from "@pierre/diffs";
 import { FileDiff as PierreFileDiff } from "@pierre/diffs/react";
 import type { ReactElement } from "react";
 import { useMemo, useRef, useState } from "react";
 import type { RepositoryTab } from "@/feature/workspace/hooks/use-git-workspace.js";
-import { formatCommitDate } from "@/feature/workspace/lib/workspace-model.js";
 import { useRepositoryDiffScrollSync } from "@/fixture/repository-workspace/hooks/use-repository-diff-scroll-sync.js";
 import { getRepositoryDiffElementId } from "@/fixture/repository-workspace/lib/repository-navigation.js";
 
@@ -153,7 +151,7 @@ function DiffFileAccordion({
 
 	return (
 		<article
-			className="overflow-clip rounded-xl border border-editor-hairline bg-editor-surface shadow-surface-1"
+			className="overflow-clip border-editor-hairline border-b bg-editor-surface"
 			data-name="DiffFile"
 			data-repository-diff-path={entry.path}
 			id={entry.id}
@@ -161,7 +159,7 @@ function DiffFileAccordion({
 			<button
 				aria-controls={bodyId}
 				aria-expanded={isOpen}
-				className="sticky top-14 z-10 flex h-10 w-full items-center gap-2 border-editor-hairline border-b bg-editor-sunken/92 px-3 text-left outline-none backdrop-blur-xl transition-colors hover:bg-editor-sunken-2 focus-visible:ring-2 focus-visible:ring-editor-muted/20 focus-visible:ring-inset"
+				className="sticky top-0 z-10 flex h-9 w-full items-center gap-2 border-editor-hairline border-b bg-editor-sunken/92 px-3 text-left outline-none backdrop-blur-xl transition-colors hover:bg-editor-sunken-2 focus-visible:ring-2 focus-visible:ring-editor-muted/20 focus-visible:ring-inset"
 				onClick={() => setIsOpen((current) => !current)}
 				type="button"
 			>
@@ -250,57 +248,14 @@ export function DiffView({
 		onActivePathChange: onActiveFileChange,
 	});
 
-	let addedLines = 0;
-	let deletedLines = 0;
-	for (const diff of diffs) {
-		for (const stat of diff.stats) {
-			addedLines += stat.addedLines ?? 0;
-			deletedLines += stat.deletedLines ?? 0;
-		}
-	}
-	const fileCount = new Set(entries.map((entry) => entry.path)).size;
-	const title =
-		tab === "history"
-			? (commit?.summary ?? "Commit")
-			: `${fileCount} ${fileCount === 1 ? "changed file" : "changed files"}`;
-
 	return (
 		<section
 			className="h-full min-h-0 overflow-y-auto overscroll-contain"
 			data-name="DiffView"
 			ref={scrollRef}
 		>
-			<header className="sticky top-0 z-20 flex min-h-14 shrink-0 items-center gap-3 border-editor-hairline border-b bg-editor-surface/88 px-5 backdrop-blur-xl">
-				<span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-editor-sunken text-editor-muted">
-					{tab === "history" ? (
-						<GitCommitIcon aria-hidden className="size-3.5" weight="duotone" />
-					) : (
-						<GitDiffIcon aria-hidden className="size-3.5" weight="duotone" />
-					)}
-				</span>
-				<div className="min-w-0 flex-1">
-					<h1 className="truncate font-semibold text-[13px] text-editor-ink">
-						{title}
-					</h1>
-					{commit ? (
-						<p className="mt-0.5 truncate text-[10px] text-editor-faint">
-							{commit.author.name} · {formatCommitDate(commit.committedAt)} ·{" "}
-							{commit.oid.slice(0, 7)}
-						</p>
-					) : (
-						<p className="mt-0.5 text-[10px] text-editor-faint">
-							Staged and working tree changes
-						</p>
-					)}
-				</div>
-				<div className="flex shrink-0 items-center gap-3 font-medium font-mono text-[10px]">
-					<span className="text-emerald-700">+{addedLines}</span>
-					<span className="text-rose-600">−{deletedLines}</span>
-				</div>
-			</header>
-
 			{entries.length > 0 ? (
-				<div className="space-y-3 p-3">
+				<div>
 					{entries.map((entry) => (
 						<DiffFileAccordion
 							entry={entry}
@@ -310,7 +265,7 @@ export function DiffView({
 					))}
 				</div>
 			) : (
-				<div className="flex min-h-[calc(100%-3.5rem)] items-center justify-center px-8 py-16 text-center">
+				<div className="flex min-h-full items-center justify-center px-8 py-16 text-center">
 					<div>
 						<GitDiffIcon
 							aria-hidden

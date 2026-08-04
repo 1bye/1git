@@ -49,7 +49,7 @@ function RepositoryStageCheckbox({
 	return (
 		<label
 			className={cn(
-				"flex size-5 shrink-0 items-center justify-center rounded-md outline-none focus-within:ring-2 focus-within:ring-editor-muted/20",
+				"flex size-4 shrink-0 items-center justify-center rounded-md outline-none focus-within:ring-2 focus-within:ring-editor-muted/20",
 				disabled && "opacity-45"
 			)}
 		>
@@ -65,7 +65,7 @@ function RepositoryStageCheckbox({
 			<span
 				aria-hidden
 				className={cn(
-					"flex size-3.5 items-center justify-center rounded-[5px] transition-colors",
+					"flex size-3 items-center justify-center rounded-[4px] transition-colors",
 					checked || mixed
 						? "bg-editor-ink text-white"
 						: "bg-editor-sunken-2 shadow-[inset_0_0_0_1px_var(--editor-hairline-strong)]"
@@ -105,12 +105,12 @@ function RepositoryFileRow({
 	return (
 		<li
 			className={cn(
-				"group flex min-h-9 items-center rounded-lg transition-colors",
+				"group flex min-h-7 items-center rounded-md transition-colors",
 				isSelected ? "bg-editor-sunken-2" : "hover:bg-editor-sunken"
 			)}
 			data-name="RepositoryFileRow"
 		>
-			<div className="pl-2">
+			<div className="pl-1.5">
 				<RepositoryStageCheckbox
 					checked={staged}
 					disabled={isStagingDisabled}
@@ -121,16 +121,16 @@ function RepositoryFileRow({
 			</div>
 			<button
 				aria-current={isSelected ? "true" : undefined}
-				className="flex min-w-0 flex-1 items-center gap-2 px-2 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-editor-muted/20 focus-visible:ring-inset"
+				className="flex min-w-0 flex-1 items-center gap-1.5 px-1.5 py-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-editor-muted/20 focus-visible:ring-inset"
 				onClick={selectFile}
 				type="button"
 			>
 				<FileIcon
 					aria-hidden
-					className="size-3.5 shrink-0 text-editor-faint"
+					className="size-3 shrink-0 text-editor-faint"
 					weight="duotone"
 				/>
-				<span className="min-w-0 flex-1 truncate text-xss">
+				<span className="min-w-0 flex-1 truncate text-[11px]">
 					<span className="font-medium text-editor-ink">{path.name}</span>
 					{path.directory ? (
 						<span className="ml-1 text-editor-faint">{path.directory}</span>
@@ -138,7 +138,7 @@ function RepositoryFileRow({
 				</span>
 				<span
 					aria-hidden
-					className="w-4 shrink-0 text-center font-mono font-semibold text-[10px] text-editor-muted"
+					className="w-3.5 shrink-0 text-center font-mono font-semibold text-[9px] text-editor-muted"
 				>
 					{getFileChangeLabel(file)}
 				</span>
@@ -172,11 +172,11 @@ function RepositoryFileGroup({
 
 	return (
 		<li>
-			<div className="flex h-7 items-center px-2 font-medium text-[9px] text-editor-faint uppercase tracking-[0.08em]">
+			<div className="flex h-6 items-center px-1.5 font-medium text-[8px] text-editor-faint uppercase tracking-[0.08em]">
 				<span>{label}</span>
 				<span className="ml-auto tabular-nums">{files.length}</span>
 			</div>
-			<ul aria-label={`${label} files`} className="space-y-0.5">
+			<ul aria-label={`${label} files`}>
 				{files.map((file) => (
 					<RepositoryFileRow
 						file={file}
@@ -224,7 +224,7 @@ export function RepositoryFileList({
 	return (
 		<ul
 			aria-label="Changed files"
-			className="space-y-1 px-1 pb-1"
+			className="px-1 pb-1"
 			data-name="RepositoryFileList"
 		>
 			<RepositoryFileGroup

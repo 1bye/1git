@@ -64,85 +64,36 @@ export function RepositoryCommitDock({
 	return (
 		<form
 			aria-busy={isPending}
-			className="shrink-0 border-editor-hairline border-t bg-editor-surface/92 px-3 py-2 backdrop-blur-xl"
+			className="shrink-0 border-editor-hairline border-t bg-editor-surface/92 p-2.5 backdrop-blur-xl"
 			data-name="RepositoryCommitDock"
 			onSubmit={submitCommit}
 		>
-			<div className="flex items-center gap-2">
-				<span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-editor-ink text-white">
-					<GitCommitIcon aria-hidden className="size-4" weight="duotone" />
+			<div className="flex items-center gap-2 px-0.5 text-[9px]">
+				<span className="min-w-0 flex-1 truncate font-medium text-editor-muted">
+					Commit to {branch ?? "HEAD"}
 				</span>
-				<div className="min-w-0 flex-1">
-					<label className="sr-only" htmlFor="repository-commit-summary">
-						Commit summary
-					</label>
-					<Input
-						className="h-8 bg-editor-sunken text-xs shadow-none"
-						disabled={isPending}
-						id="repository-commit-summary"
-						maxLength={MAX_COMMIT_SUMMARY_LENGTH}
-						onChange={updateSummary}
-						onKeyDown={submitWithShortcut}
-						placeholder={
-							stagedCount > 0
-								? "Describe these changes"
-								: "Stage files to create a commit"
-						}
-						required
-						value={summary}
-					/>
-				</div>
-				<Button
-					aria-expanded={isDescriptionOpen}
-					className="text-editor-muted"
-					onClick={() => setIsDescriptionOpen((isOpen) => !isOpen)}
-					size="sm"
-					type="button"
-					variant="ghost"
-				>
-					<PlusIcon
-						aria-hidden
-						className={cn(
-							"size-3.5 transition-transform duration-200",
-							isDescriptionOpen && "rotate-45"
-						)}
-						weight="bold"
-					/>
-					Description
-				</Button>
-				<div className="hidden items-center gap-1 text-[9px] text-editor-faint xl:flex">
-					<Kbd className="h-5 min-w-0 gap-0.5 px-1.5 text-[9px]">
-						<span>⌘</span>
-						<span>↵</span>
-					</Kbd>
-				</div>
-				<Button
-					aria-busy={isPending}
-					aria-label={`Commit ${stagedCount} staged ${
-						stagedCount === 1 ? "file" : "files"
-					} to ${branch ?? "HEAD"}`}
-					className="min-w-36"
-					disabled={!canCommit}
-					size="sm"
-					type="submit"
-				>
-					{isPending ? (
-						<SpinnerGapIcon
-							aria-hidden
-							className="size-3.5 animate-spin"
-							weight="bold"
-						/>
-					) : (
-						<GitCommitIcon aria-hidden className="size-3.5" weight="bold" />
-					)}
-					Commit
-					{stagedCount > 0 ? <span>{stagedCount}</span> : null}
-					<span className="sr-only">files</span>
-					<span className="hidden max-w-28 truncate 2xl:inline">
-						to {branch ?? "HEAD"}
-					</span>
-				</Button>
+				<span className="shrink-0 text-editor-faint tabular-nums">
+					{stagedCount} staged
+				</span>
 			</div>
+			<label className="sr-only" htmlFor="repository-commit-summary">
+				Commit summary
+			</label>
+			<Input
+				className="mt-2 h-8 bg-editor-sunken text-[11px] shadow-none"
+				disabled={isPending}
+				id="repository-commit-summary"
+				maxLength={MAX_COMMIT_SUMMARY_LENGTH}
+				onChange={updateSummary}
+				onKeyDown={submitWithShortcut}
+				placeholder={
+					stagedCount > 0
+						? "Summary (required)"
+						: "Stage files to create a commit"
+				}
+				required
+				value={summary}
+			/>
 			<div
 				className={cn(
 					"grid transition-[grid-template-rows,opacity] duration-200 ease-out",
@@ -160,17 +111,65 @@ export function RepositoryCommitDock({
 						Commit description
 					</label>
 					<Textarea
-						className="mt-2 min-h-16 resize-none bg-editor-sunken text-xs shadow-none"
+						className="mt-1.5 min-h-16 resize-none bg-editor-sunken text-[11px] shadow-none"
 						disabled={isPending}
 						id="repository-commit-description"
 						onChange={updateDescription}
 						onKeyDown={submitWithShortcut}
-						placeholder="Optional longer description"
+						placeholder="Optional description"
 						tabIndex={isDescriptionOpen ? 0 : -1}
 						value={description}
 					/>
 				</div>
 			</div>
+			<div className="mt-1.5 flex items-center">
+				<Button
+					aria-expanded={isDescriptionOpen}
+					className="-ml-2 h-7 px-2 text-[10px] text-editor-muted"
+					onClick={() => setIsDescriptionOpen((isOpen) => !isOpen)}
+					size="sm"
+					type="button"
+					variant="ghost"
+				>
+					<PlusIcon
+						aria-hidden
+						className={cn(
+							"size-3.5 transition-transform duration-200",
+							isDescriptionOpen && "rotate-45"
+						)}
+						weight="bold"
+					/>
+					Description
+				</Button>
+				<div className="ml-auto flex items-center text-[9px] text-editor-faint">
+					<Kbd className="h-5 min-w-0 gap-0.5 px-1.5 text-[9px]">
+						<span>⌘</span>
+						<span>↵</span>
+					</Kbd>
+				</div>
+			</div>
+			<Button
+				aria-busy={isPending}
+				aria-label={`Commit ${stagedCount} staged ${
+					stagedCount === 1 ? "file" : "files"
+				} to ${branch ?? "HEAD"}`}
+				className="mt-1.5 w-full"
+				disabled={!canCommit}
+				size="sm"
+				type="submit"
+			>
+				{isPending ? (
+					<SpinnerGapIcon
+						aria-hidden
+						className="size-3.5 animate-spin"
+						weight="bold"
+					/>
+				) : (
+					<GitCommitIcon aria-hidden className="size-3.5" weight="duotone" />
+				)}
+				Commit {stagedCount > 0 ? stagedCount : ""}
+				<span className="sr-only">files</span>
+			</Button>
 		</form>
 	);
 }

@@ -23,10 +23,7 @@ import { RepositoryFileRail } from "@/fixture/repository-workspace/components/re
 import { RepositoryHistoryRail } from "@/fixture/repository-workspace/components/repository-history-rail.js";
 import { RepositoryWorkspaceToolbar } from "@/fixture/repository-workspace/components/repository-workspace-toolbar.js";
 import { useRepositoryFileNavigation } from "@/fixture/repository-workspace/hooks/use-repository-file-navigation.js";
-import {
-	getRepositoryDiffElementId,
-	getRepositoryFilePosition,
-} from "@/fixture/repository-workspace/lib/repository-navigation.js";
+import { getRepositoryDiffElementId } from "@/fixture/repository-workspace/lib/repository-navigation.js";
 import { CleanState } from "@/fixture/workspace-content/components/clean-state.js";
 import { DiffView } from "@/fixture/workspace-content/components/diff-view.js";
 import type { RepositorySessionRecord } from "../../../../../shared/repository-session.js";
@@ -183,7 +180,6 @@ export function AdaptiveRepositoryWorkspace({
 	const historyCommit =
 		history?.commits.find((commit) => commit.oid === selectedCommitOid) ?? null;
 	const stagedCount = files.filter(isFileStaged).length;
-	const filePosition = getRepositoryFilePosition(files, selectedFilePath);
 	let mainContent: ReactElement;
 	if (tab === "changes" && files.length === 0) {
 		mainContent = (
@@ -221,14 +217,24 @@ export function AdaptiveRepositoryWorkspace({
 		);
 	} else {
 		navigationRail = (
-			<RepositoryFileRail
-				allFiles={files}
-				navigation={navigation}
-				onSetFileStaged={onSetFileStaged}
-				onToggleAllFiles={onToggleAllFiles}
-				pendingAction={pendingAction}
-				selectedFilePath={selectedFilePath}
-			/>
+			<div className="flex w-[310px] shrink-0 flex-col border-editor-hairline border-r bg-editor-surface">
+				<RepositoryFileRail
+					allFiles={files}
+					navigation={navigation}
+					onSetFileStaged={onSetFileStaged}
+					onToggleAllFiles={onToggleAllFiles}
+					pendingAction={pendingAction}
+					selectedFilePath={selectedFilePath}
+				/>
+				{files.length > 0 ? (
+					<RepositoryCommitDock
+						branch={snapshot.head.branch}
+						isPending={pendingAction === "commit"}
+						onCommit={onCommit}
+						stagedCount={stagedCount}
+					/>
+				) : null}
+			</div>
 		);
 	}
 
@@ -241,7 +247,6 @@ export function AdaptiveRepositoryWorkspace({
 			<RepositoryWorkspaceToolbar
 				branches={branches}
 				commitCount={history?.commits.length ?? 0}
-				filePosition={filePosition}
 				navigation={navigation}
 				onFetch={onFetch}
 				onMergeBranch={onMergeBranch}
@@ -256,22 +261,12 @@ export function AdaptiveRepositoryWorkspace({
 			/>
 			<div className="flex min-h-0 flex-1">
 				{navigationRail}
-				<div className="flex min-w-0 flex-1 flex-col">
-					<main
-						className="min-h-0 flex-1 overflow-hidden bg-editor-surface"
-						data-name="RepositoryDiffWorkspace"
-					>
-						{mainContent}
-					</main>
-					{tab === "changes" && files.length > 0 ? (
-						<RepositoryCommitDock
-							branch={snapshot.head.branch}
-							isPending={pendingAction === "commit"}
-							onCommit={onCommit}
-							stagedCount={stagedCount}
-						/>
-					) : null}
-				</div>
+				<main
+					className="min-h-0 min-w-0 flex-1 overflow-hidden bg-editor-surface"
+					data-name="RepositoryDiffWorkspace"
+				>
+					{mainContent}
+				</main>
 			</div>
 		</section>
 	);
