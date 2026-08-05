@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { mkdir, realpath, stat } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import type {
@@ -5,6 +6,7 @@ import type {
 	BranchCollection,
 	BranchMutationResult,
 	ChangeHunkInput,
+	ChangeHunkResult,
 	CheckoutBranchInput,
 	CloneRepositoryInput,
 	CommitInfo,
@@ -59,6 +61,7 @@ import type {
 	StashReferenceInput,
 	SyncResult,
 	TagInfo,
+	UndoHunkDiscardInput,
 	WorktreeInfo,
 	WorktreePathInput,
 } from "./contracts.js";
@@ -97,8 +100,16 @@ const EMPTY_HISTORY: CommitPage = {
 	nextOffset: null,
 };
 const DEFAULT_HISTORY_LIMIT = 50;
+const HUNK_DISCARD_UNDO_TTL_MS = 15_000;
 const MAX_HISTORY_LIMIT = 500;
 const MAX_HUNK_INDEX = 100_000;
+
+interface PendingHunkDiscardUndo {
+	readonly expiresAt: number;
+	readonly patch: string;
+	readonly path: string;
+	readonly token: string;
+}
 
 const capture = async <T>(
 	operation: GitOperation,
@@ -254,6 +265,7 @@ export class GitRepository {
 	readonly info: RepositoryInfo;
 	private readonly context: RepositoryContext;
 	private mutationTail: Promise<void> = Promise.resolve();
+	private pendingHunkDiscardUndo: PendingHunkDiscardUndo | null = null;
 
 	private constructor(context: RepositoryContext) {
 		this.context = context;
@@ -510,7 +522,7 @@ export class GitRepository {
 	/** Stages, unstages, or discards one path-scoped diff hunk. */
 	async changeHunk(
 		input: ChangeHunkInput
-	): Promise<GitResult<RepositorySnapshot>> {
+	): Promise<GitResult<ChangeHunkResult>> {
 		return await this.mutate("change-hunk", input.signal, async () => {
 			const path = requireRepositoryPaths([input.path], "change-hunk")[0] ?? "";
 			const hunkIndex = requireIntegerInRange(
@@ -551,6 +563,59 @@ export class GitRepository {
 				signal: input.signal,
 				stdin: patch,
 			});
+			const snapshot = await loadSnapshot(this.context, false, input.signal);
+			if (input.action !== "discard") {
+				return { snapshot, undo: null };
+			}
+
+			const expiresAt = Date.now() + HUNK_DISCARD_UNDO_TTL_MS;
+			const undo = {
+				expiresAt: new Date(expiresAt).toISOString(),
+				path,
+				token: randomUUID(),
+			};
+			this.pendingHunkDiscardUndo = {
+				expiresAt,
+				patch,
+				path,
+				token: undo.token,
+			};
+			return { snapshot, undo };
+		});
+	}
+
+	/** Restores the latest discarded worktree hunk while its token is valid. */
+	async undoHunkDiscard(
+		input: UndoHunkDiscardInput
+	): Promise<GitResult<RepositorySnapshot>> {
+		return await this.mutate("undo-hunk-discard", input.signal, async () => {
+			const token = requireText(
+				input.token,
+				"Discard undo token",
+				"undo-hunk-discard"
+			);
+			const pendingUndo = this.pendingHunkDiscardUndo;
+			if (
+				!pendingUndo ||
+				pendingUndo.token !== token ||
+				pendingUndo.expiresAt <= Date.now()
+			) {
+				if (pendingUndo?.token === token) {
+					this.pendingHunkDiscardUndo = null;
+				}
+				throw invalidInput(
+					"undo-hunk-discard",
+					"The discarded hunk can no longer be restored."
+				);
+			}
+
+			await this.context.process.run({
+				args: ["apply", "--recount", "--whitespace=nowarn"],
+				cwd: this.info.root,
+				signal: input.signal,
+				stdin: pendingUndo.patch,
+			});
+			this.pendingHunkDiscardUndo = null;
 			return await loadSnapshot(this.context, false, input.signal);
 		});
 	}

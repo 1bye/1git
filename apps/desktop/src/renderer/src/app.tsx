@@ -1,4 +1,5 @@
 import { Button } from "@1git/ui/components/button";
+import { Toaster } from "@1git/ui/components/sonner";
 import { WarningCircleIcon } from "@phosphor-icons/react/dist/csr/WarningCircle";
 import { XIcon } from "@phosphor-icons/react/dist/csr/X";
 import type { ReactElement } from "react";
@@ -6,6 +7,7 @@ import { useGitWorkspace } from "@/feature/workspace/hooks/use-git-workspace.js"
 import { CommandLensProvider } from "@/fixture/command-lens/components/command-lens-provider.js";
 import { DesktopToolbar } from "@/fixture/desktop-toolbar/components/desktop-toolbar.js";
 import { LiquidMenuStackProvider } from "@/fixture/liquid-menu/components/liquid-menu-stack-provider.js";
+import { RepositoryHunkUndoToast } from "@/fixture/repository-workspace/components/repository-hunk-undo-toast.js";
 import { RepositoryWorkspace } from "@/fixture/repository-workspace/components/repository-workspace.js";
 import { RepositoryWelcome } from "@/fixture/workspace-content/components/repository-welcome.js";
 
@@ -125,6 +127,15 @@ export function App(): ReactElement {
 							</Button>
 						</div>
 					) : null}
+					{workspace.hunkDiscardUndo ? (
+						<RepositoryHunkUndoToast
+							onDismiss={workspace.dismissHunkDiscardUndo}
+							onUndo={workspace.undoHunkDiscard}
+							path={workspace.hunkDiscardUndo.path}
+							token={workspace.hunkDiscardUndo.token}
+						/>
+					) : null}
+					<Toaster position="bottom-right" />
 				</div>
 			</CommandLensProvider>
 		</LiquidMenuStackProvider>

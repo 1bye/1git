@@ -313,6 +313,28 @@ describe("desktop Git bridge", () => {
 		expect(stagedDiff.patch).not.toContain("line 18 changed");
 		expect(workingDiff.patch).toContain("line 18 changed");
 		expect(workingDiff.patch).not.toContain("line 2 changed");
+
+		const discarded = unwrapGitResult(
+			await bridge.api.changes.changeHunk(opened.session.id, {
+				action: "discard",
+				allowDestructive: true,
+				hunkIndex: 0,
+				path: "hunks.txt",
+			})
+		);
+		expect(discarded.undo).toMatchObject({ path: "hunks.txt" });
+		unwrapGitResult(
+			await bridge.api.changes.undoHunkDiscard(opened.session.id, {
+				token: discarded.undo?.token ?? "",
+			})
+		);
+		const restoredDiff = unwrapGitResult(
+			await bridge.api.repository.diff(opened.session.id, {
+				paths: ["hunks.txt"],
+				target: { kind: "working" },
+			})
+		);
+		expect(restoredDiff.patch).toContain("line 18 changed");
 	});
 
 	test("keeps manager state structured after a bridge session closes", async () => {

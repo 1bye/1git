@@ -140,6 +140,11 @@ export const createDesktopGitApi = (
 				GIT_IPC_CHANNELS.changes.stageAll,
 				sessionRequest(sessionId, options)
 			),
+		undoHunkDiscard: async (sessionId, input, options) =>
+			await invoke(
+				GIT_IPC_CHANNELS.changes.undoHunkDiscard,
+				inputRequest(sessionId, input, options)
+			),
 		unstage: async (sessionId, input, options) =>
 			await invoke(
 				GIT_IPC_CHANNELS.changes.unstage,

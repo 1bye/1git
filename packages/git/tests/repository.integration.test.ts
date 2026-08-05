@@ -153,7 +153,7 @@ describe("GitRepository local workflow", () => {
 		);
 		expect(await fixture.git(["diff", "--cached", "--", "hunks.txt"])).toBe("");
 
-		unwrapResult(
+		const discarded = unwrapResult(
 			await fixture.repository.changeHunk({
 				action: "discard",
 				allowDestructive: true,
@@ -161,10 +161,28 @@ describe("GitRepository local workflow", () => {
 				path: "hunks.txt",
 			})
 		);
+		expect(discarded.undo).toMatchObject({ path: "hunks.txt" });
 		const worktreeContent = await fixture.read("hunks.txt");
 		expect(worktreeContent).toContain("line 2 changed");
 		expect(worktreeContent).toContain("line 18\n");
 		expect(worktreeContent).not.toContain("line 18 changed");
+
+		const undoToken = discarded.undo?.token;
+		expect(undoToken).toBeString();
+		unwrapResult(
+			await fixture.repository.undoHunkDiscard({ token: undoToken ?? "" })
+		);
+		const restoredContent = await fixture.read("hunks.txt");
+		expect(restoredContent).toContain("line 2 changed");
+		expect(restoredContent).toContain("line 18 changed");
+
+		const reusedUndo = await fixture.repository.undoHunkDiscard({
+			token: undoToken ?? "",
+		});
+		expect(reusedUndo).toMatchObject({
+			error: { code: "invalid-input", operation: "undo-hunk-discard" },
+			ok: false,
+		});
 	});
 
 	test("requires explicit consent before discarding a hunk", async () => {

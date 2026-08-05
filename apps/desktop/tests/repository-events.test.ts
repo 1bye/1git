@@ -42,6 +42,11 @@ describe("repository events", () => {
 			repositoryMutationOperationForChannel(GIT_IPC_CHANNELS.changes.commit)
 		).toBe("commit");
 		expect(
+			repositoryMutationOperationForChannel(
+				GIT_IPC_CHANNELS.changes.undoHunkDiscard
+			)
+		).toBe("undo-hunk-discard");
+		expect(
 			repositoryMutationOperationForChannel(GIT_IPC_CHANNELS.branches.merge)
 		).toBe("merge");
 		expect(

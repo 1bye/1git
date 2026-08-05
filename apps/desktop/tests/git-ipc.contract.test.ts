@@ -12,7 +12,7 @@ describe("Git IPC contract", () => {
 	test("defines one unique channel for every explicit method", () => {
 		const channels = allChannels();
 
-		expect(channels).toHaveLength(68);
+		expect(channels).toHaveLength(69);
 		expect(new Set(channels).size).toBe(channels.length);
 		expect(channels.every((channel) => channel.startsWith("git:"))).toBe(true);
 	});

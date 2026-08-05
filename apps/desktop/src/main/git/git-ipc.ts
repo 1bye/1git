@@ -42,6 +42,7 @@ import type {
 	StageInput,
 	StashInput,
 	StashReferenceInput,
+	UndoHunkDiscardInput,
 	WorktreePathInput,
 } from "@1git/git";
 import type { IpcMain, IpcMainInvokeEvent } from "electron";
@@ -523,6 +524,15 @@ const changeHandlers = (
 			repositoryManager,
 			"unstage-all",
 			async (repository, signal) => await repository.unstageAll({ signal })
+		),
+	},
+	{
+		channel: GIT_IPC_CHANNELS.changes.undoHunkDiscard,
+		handle: repositoryInputHandler(
+			repositoryManager,
+			"undo-hunk-discard",
+			async (repository, input: IpcGitInput<UndoHunkDiscardInput>) =>
+				await repository.undoHunkDiscard(input)
 		),
 	},
 	{

@@ -83,6 +83,7 @@ export type GitOperation =
 	| "stash"
 	| "unstage"
 	| "unstage-all"
+	| "undo-hunk-discard"
 	| "unlock-worktree"
 	| "unset-config";
 
@@ -375,6 +376,23 @@ export interface ChangeHunkInput extends GitCallOptions {
 	readonly allowDestructive?: boolean;
 	readonly hunkIndex: number;
 	readonly path: string;
+}
+
+/** Short-lived capability for restoring one discarded worktree hunk. */
+export interface HunkDiscardUndo {
+	readonly expiresAt: string;
+	readonly path: string;
+	readonly token: string;
+}
+
+/** Updated repository state and an optional discard undo capability. */
+export interface ChangeHunkResult {
+	readonly snapshot: RepositorySnapshot;
+	readonly undo: HunkDiscardUndo | null;
+}
+
+export interface UndoHunkDiscardInput extends GitCallOptions {
+	readonly token: string;
 }
 
 export interface RestoreInput extends GitCallOptions {

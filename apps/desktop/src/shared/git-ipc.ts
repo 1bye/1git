@@ -42,6 +42,7 @@ import type {
 	StageInput,
 	StashInput,
 	StashReferenceInput,
+	UndoHunkDiscardInput,
 	WorktreePathInput,
 } from "@1git/git";
 import type { DesktopIntegrationApi } from "./desktop-integration.js";
@@ -78,6 +79,7 @@ export const GIT_IPC_CHANNELS = {
 		restore: "git:changes:restore",
 		stage: "git:changes:stage",
 		stageAll: "git:changes:stage-all",
+		undoHunkDiscard: "git:changes:undo-hunk-discard",
 		unstage: "git:changes:unstage",
 		unstageAll: "git:changes:unstage-all",
 	},
@@ -164,6 +166,7 @@ const REPOSITORY_MUTATION_OPERATIONS = new Map<string, GitOperation>([
 	[GIT_IPC_CHANNELS.changes.stageAll, "stage-all"],
 	[GIT_IPC_CHANNELS.changes.unstage, "unstage"],
 	[GIT_IPC_CHANNELS.changes.unstageAll, "unstage-all"],
+	[GIT_IPC_CHANNELS.changes.undoHunkDiscard, "undo-hunk-discard"],
 	[GIT_IPC_CHANNELS.changes.restore, "restore"],
 	[GIT_IPC_CHANNELS.changes.reset, "reset"],
 	[GIT_IPC_CHANNELS.changes.commit, "commit"],
@@ -398,6 +401,11 @@ export interface DesktopGitApi {
 			sessionId: RepositorySessionId,
 			options?: GitOperationOptions
 		) => ReturnType<GitRepository["unstageAll"]>;
+		readonly undoHunkDiscard: (
+			sessionId: RepositorySessionId,
+			input: IpcGitInput<UndoHunkDiscardInput>,
+			options?: GitOperationOptions
+		) => ReturnType<GitRepository["undoHunkDiscard"]>;
 	};
 	readonly config: {
 		readonly get: (
