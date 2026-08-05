@@ -263,6 +263,58 @@ describe("desktop Git bridge", () => {
 		});
 	});
 
+	test("changes individual hunks through the preload bridge", async () => {
+		const bridge = createBridge();
+		const fixture = await fixtures.create();
+		const opened = unwrapGitResult(
+			await bridge.api.sessions.open({ path: fixture.repositoryPath })
+		);
+		const originalLines = Array.from(
+			{ length: 20 },
+			(_, index) => `line ${index + 1}`
+		);
+		await fixture.write("hunks.txt", `${originalLines.join("\n")}\n`);
+		unwrapGitResult(
+			await bridge.api.changes.stage(opened.session.id, {
+				paths: ["hunks.txt"],
+			})
+		);
+		unwrapGitResult(
+			await bridge.api.changes.commit(opened.session.id, {
+				summary: "Add hunk fixture",
+			})
+		);
+		const changedLines = [...originalLines];
+		changedLines[1] = "line 2 changed";
+		changedLines[17] = "line 18 changed";
+		await fixture.write("hunks.txt", `${changedLines.join("\n")}\n`);
+
+		unwrapGitResult(
+			await bridge.api.changes.changeHunk(opened.session.id, {
+				action: "stage",
+				hunkIndex: 0,
+				path: "hunks.txt",
+			})
+		);
+		const stagedDiff = unwrapGitResult(
+			await bridge.api.repository.diff(opened.session.id, {
+				paths: ["hunks.txt"],
+				target: { kind: "staged" },
+			})
+		);
+		const workingDiff = unwrapGitResult(
+			await bridge.api.repository.diff(opened.session.id, {
+				paths: ["hunks.txt"],
+				target: { kind: "working" },
+			})
+		);
+
+		expect(stagedDiff.patch).toContain("line 2 changed");
+		expect(stagedDiff.patch).not.toContain("line 18 changed");
+		expect(workingDiff.patch).toContain("line 18 changed");
+		expect(workingDiff.patch).not.toContain("line 2 changed");
+	});
+
 	test("keeps manager state structured after a bridge session closes", async () => {
 		const bridge = createBridge();
 		const fixture = await fixtures.create();

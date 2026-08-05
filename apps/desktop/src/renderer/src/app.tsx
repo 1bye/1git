@@ -71,6 +71,7 @@ export function App(): ReactElement {
 									workspace.pendingAction === "open"
 								}
 								onAmendCommit={workspace.amendCommit}
+								onChangeHunk={workspace.changeHunk}
 								onCherryPickCommit={workspace.cherryPickCommit}
 								onCommit={workspace.commit}
 								onFetch={workspace.fetchRepository}

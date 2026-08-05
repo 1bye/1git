@@ -29,6 +29,7 @@ export type GitOperation =
 	| "abort-rebase"
 	| "abort-revert"
 	| "add-remote"
+	| "change-hunk"
 	| "apply-stash"
 	| "checkout-branch"
 	| "cherry-pick"
@@ -365,6 +366,15 @@ export interface FileContentInput extends GitCallOptions {
 
 export interface StageInput extends GitCallOptions {
 	readonly paths: readonly string[];
+}
+
+export type HunkAction = "discard" | "stage" | "unstage";
+
+export interface ChangeHunkInput extends GitCallOptions {
+	readonly action: HunkAction;
+	readonly allowDestructive?: boolean;
+	readonly hunkIndex: number;
+	readonly path: string;
 }
 
 export interface RestoreInput extends GitCallOptions {

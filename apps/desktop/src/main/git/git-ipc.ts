@@ -1,5 +1,6 @@
 import type {
 	AddRemoteInput,
+	ChangeHunkInput,
 	CheckoutBranchInput,
 	CloneRepositoryInput,
 	CommitInput,
@@ -481,6 +482,15 @@ const repositoryHandlers = (
 const changeHandlers = (
 	repositoryManager: RepositoryManager
 ): readonly GitIpcHandlerRegistration[] => [
+	{
+		channel: GIT_IPC_CHANNELS.changes.changeHunk,
+		handle: repositoryInputHandler(
+			repositoryManager,
+			"change-hunk",
+			async (repository, input: IpcGitInput<ChangeHunkInput>) =>
+				await repository.changeHunk(input)
+		),
+	},
 	{
 		channel: GIT_IPC_CHANNELS.changes.stage,
 		handle: repositoryInputHandler(

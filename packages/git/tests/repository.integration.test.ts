@@ -117,6 +117,73 @@ describe("GitRepository local workflow", () => {
 		).toBe("untracked");
 	});
 
+	test("stages, unstages, and discards individual hunks", async () => {
+		const fixture = await fixtures.create();
+		const originalLines = Array.from(
+			{ length: 20 },
+			(_, index) => `line ${index + 1}`
+		);
+		await fixture.write("hunks.txt", `${originalLines.join("\n")}\n`);
+		await fixture.commitAll("add hunk fixture");
+		const changedLines = [...originalLines];
+		changedLines[1] = "line 2 changed";
+		changedLines[17] = "line 18 changed";
+		await fixture.write("hunks.txt", `${changedLines.join("\n")}\n`);
+
+		unwrapResult(
+			await fixture.repository.changeHunk({
+				action: "stage",
+				hunkIndex: 0,
+				path: "hunks.txt",
+			})
+		);
+		expect(
+			await fixture.git(["diff", "--cached", "--", "hunks.txt"])
+		).toContain("line 2 changed");
+		expect(
+			await fixture.git(["diff", "--cached", "--", "hunks.txt"])
+		).not.toContain("line 18 changed");
+
+		unwrapResult(
+			await fixture.repository.changeHunk({
+				action: "unstage",
+				hunkIndex: 0,
+				path: "hunks.txt",
+			})
+		);
+		expect(await fixture.git(["diff", "--cached", "--", "hunks.txt"])).toBe("");
+
+		unwrapResult(
+			await fixture.repository.changeHunk({
+				action: "discard",
+				allowDestructive: true,
+				hunkIndex: 1,
+				path: "hunks.txt",
+			})
+		);
+		const worktreeContent = await fixture.read("hunks.txt");
+		expect(worktreeContent).toContain("line 2 changed");
+		expect(worktreeContent).toContain("line 18\n");
+		expect(worktreeContent).not.toContain("line 18 changed");
+	});
+
+	test("requires explicit consent before discarding a hunk", async () => {
+		const fixture = await fixtures.create();
+		await fixture.write("README.md", "# Changed\n");
+
+		const result = await fixture.repository.changeHunk({
+			action: "discard",
+			hunkIndex: 0,
+			path: "README.md",
+		});
+
+		expect(result).toMatchObject({
+			error: { code: "invalid-input", operation: "change-hunk" },
+			ok: false,
+		});
+		expect(await fixture.read("README.md")).toBe("# Changed\n");
+	});
+
 	test("stages and unstages all paths", async () => {
 		const fixture = await fixtures.create();
 		await fixture.write("one.txt", "one\n");

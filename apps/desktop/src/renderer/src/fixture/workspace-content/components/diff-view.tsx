@@ -1,4 +1,9 @@
-import type { CommitInfo, FileChange, FileDiff } from "@1git/git";
+import type {
+	ChangeHunkInput,
+	CommitInfo,
+	FileChange,
+	FileDiff,
+} from "@1git/git";
 import { GitDiffIcon } from "@phosphor-icons/react/dist/csr/GitDiff";
 import type { ReactElement } from "react";
 import { useCallback, useMemo, useRef, useState } from "react";
@@ -19,13 +24,16 @@ interface DiffViewProps {
 	readonly commit: CommitInfo | null;
 	readonly diffs: readonly FileDiff[];
 	readonly files?: readonly FileChange[];
+	readonly isHunkActionPending?: boolean;
 	readonly onActiveFileChange?: (path: string) => void;
+	readonly onChangeHunk?: (input: ChangeHunkInput) => Promise<boolean>;
 	readonly selectedFilePath: string | null;
 	readonly sessionId: RepositorySessionId;
 	readonly tab: RepositoryTab;
 }
 
 const ignoreActiveFileChange = (): void => undefined;
+const ignoreHunkChange = async (): Promise<boolean> => false;
 
 const updateVisibleEntryKeys = (
 	currentKeys: ReadonlySet<string>,
@@ -61,7 +69,9 @@ export function DiffView({
 	commit,
 	diffs,
 	files = [],
+	isHunkActionPending = false,
 	onActiveFileChange = ignoreActiveFileChange,
+	onChangeHunk,
 	selectedFilePath,
 	sessionId,
 	tab,
@@ -175,6 +185,7 @@ export function DiffView({
 							: baseEntry;
 						return (
 							<DiffFileAccordion
+								areHunkActionsEnabled={onChangeHunk !== undefined}
 								entry={entry}
 								isBodyMounted={
 									isHighlighterReady &&
@@ -182,7 +193,9 @@ export function DiffView({
 										prioritizedEntryKeys.has(entry.key) ||
 										visibleEntryKeys.has(entry.key))
 								}
+								isHunkActionPending={isHunkActionPending}
 								key={entry.key}
+								onChangeHunk={onChangeHunk ?? ignoreHunkChange}
 								onElementChange={registerArticleElement}
 								onRequestExpandableFile={requestExpandableFile}
 								showTarget={diffs.length > 1}

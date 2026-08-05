@@ -1,5 +1,6 @@
 import type {
 	BranchCollection,
+	ChangeHunkInput,
 	CommitInfo,
 	CommitPage,
 	FileChange,
@@ -42,6 +43,7 @@ export interface AdaptiveRepositoryWorkspaceProps {
 		summary: string,
 		description: string
 	) => Promise<boolean>;
+	readonly onChangeHunk: (input: ChangeHunkInput) => Promise<boolean>;
 	readonly onCherryPickCommit: (
 		commit: CommitInfo,
 		branchName: string
@@ -119,6 +121,7 @@ export function AdaptiveRepositoryWorkspace({
 	isFetching,
 	isLoading,
 	onAmendCommit,
+	onChangeHunk,
 	onCherryPickCommit,
 	onCommit,
 	onFetch,
@@ -223,7 +226,9 @@ export function AdaptiveRepositoryWorkspace({
 				commit={historyCommit}
 				diffs={diffs}
 				files={files}
+				isHunkActionPending={pendingAction === "hunk"}
 				onActiveFileChange={selectVisibleFile}
+				onChangeHunk={onChangeHunk}
 				selectedFilePath={selectedFilePath}
 				sessionId={activeSession.id}
 				tab={tab}

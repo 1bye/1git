@@ -1,5 +1,6 @@
 import type {
 	BranchCollection,
+	ChangeHunkInput,
 	CommitInfo,
 	CommitPage,
 	FileChange,
@@ -44,6 +45,7 @@ export type PendingWorkspaceAction =
 	| "commit"
 	| "fetch"
 	| "history"
+	| "hunk"
 	| "merge"
 	| "open"
 	| "refresh"
@@ -111,6 +113,7 @@ export interface GitWorkspace {
 		description: string
 	) => Promise<boolean>;
 	readonly branches: BranchCollection | null;
+	readonly changeHunk: (input: ChangeHunkInput) => Promise<boolean>;
 	readonly cherryPickCommit: (
 		commit: CommitInfo,
 		branchName: string
@@ -713,6 +716,37 @@ export const useGitWorkspace = (): GitWorkspace => {
 		}
 	};
 
+	const changeHunk = async (input: ChangeHunkInput): Promise<boolean> => {
+		if (!activeSession || pendingAction) {
+			return false;
+		}
+		setPendingAction("hunk");
+		try {
+			setError(null);
+			const result = await window.desktop.git.changes.changeHunk(
+				activeSession.id,
+				input
+			);
+			const nextSnapshot = resultValue(result);
+			applySnapshot(activeSession.id, nextSnapshot);
+			const nextFile =
+				nextSnapshot.files.find((item) => item.path === input.path) ??
+				nextSnapshot.files[0];
+			setSelectedFilePath(nextFile?.path ?? null);
+			if (nextSnapshot.files.length > 0) {
+				await loadChangesDiff(activeSession.id, nextSnapshot.files);
+			} else {
+				clearDiff();
+			}
+			return true;
+		} catch (cause) {
+			setError(errorMessage(cause));
+			return false;
+		} finally {
+			setPendingAction(null);
+		}
+	};
+
 	const toggleAllFiles = async (): Promise<void> => {
 		if (!(activeSession && snapshot) || pendingAction) {
 			return;
@@ -1066,6 +1100,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 		activeSession,
 		amendCommit,
 		branches,
+		changeHunk,
 		cherryPickCommit,
 		clearError: () => setError(null),
 		cloneRepository,

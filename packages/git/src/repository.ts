@@ -4,6 +4,7 @@ import type {
 	AddRemoteInput,
 	BranchCollection,
 	BranchMutationResult,
+	ChangeHunkInput,
 	CheckoutBranchInput,
 	CloneRepositoryInput,
 	CommitInfo,
@@ -61,6 +62,7 @@ import type {
 	WorktreeInfo,
 	WorktreePathInput,
 } from "./contracts.js";
+import { selectHunkPatch } from "./hunk-patch.js";
 import type { RepositoryContext } from "./internal.js";
 import {
 	GitCommandFailure,
@@ -96,6 +98,7 @@ const EMPTY_HISTORY: CommitPage = {
 };
 const DEFAULT_HISTORY_LIMIT = 50;
 const MAX_HISTORY_LIMIT = 500;
+const MAX_HUNK_INDEX = 100_000;
 
 const capture = async <T>(
 	operation: GitOperation,
@@ -500,6 +503,54 @@ export class GitRepository {
 		return await this.mutate("stage", input.signal, async () => {
 			const paths = requireRepositoryPaths(input.paths, "stage");
 			await this.run(["add", "--", ...paths], input.signal);
+			return await loadSnapshot(this.context, false, input.signal);
+		});
+	}
+
+	/** Stages, unstages, or discards one path-scoped diff hunk. */
+	async changeHunk(
+		input: ChangeHunkInput
+	): Promise<GitResult<RepositorySnapshot>> {
+		return await this.mutate("change-hunk", input.signal, async () => {
+			const path = requireRepositoryPaths([input.path], "change-hunk")[0] ?? "";
+			const hunkIndex = requireIntegerInRange(
+				input.hunkIndex,
+				"Hunk index",
+				0,
+				MAX_HUNK_INDEX,
+				"change-hunk"
+			);
+			if (input.action === "discard" && !input.allowDestructive) {
+				throw invalidInput(
+					"change-hunk",
+					"Discarding worktree content requires allowDestructive: true."
+				);
+			}
+
+			const target =
+				input.action === "unstage"
+					? ({ kind: "staged" } as const)
+					: ({ kind: "working" } as const);
+			const diff = await loadDiff(this.context, {
+				contextLines: 3,
+				paths: [path],
+				signal: input.signal,
+				target,
+			});
+			const patch = selectHunkPatch(diff.patch, hunkIndex);
+			const args = ["apply", "--recount", "--whitespace=nowarn"];
+			if (input.action !== "discard") {
+				args.push("--cached");
+			}
+			if (input.action !== "stage") {
+				args.push("--reverse");
+			}
+			await this.context.process.run({
+				args,
+				cwd: this.info.root,
+				signal: input.signal,
+				stdin: patch,
+			});
 			return await loadSnapshot(this.context, false, input.signal);
 		});
 	}

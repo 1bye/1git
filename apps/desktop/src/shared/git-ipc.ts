@@ -1,5 +1,6 @@
 import type {
 	AddRemoteInput,
+	ChangeHunkInput,
 	CheckoutBranchInput,
 	CloneRepositoryInput,
 	CommitInput,
@@ -71,6 +72,7 @@ export const GIT_IPC_CHANNELS = {
 		skipRebase: "git:branches:skip-rebase",
 	},
 	changes: {
+		changeHunk: "git:changes:change-hunk",
 		commit: "git:changes:commit",
 		reset: "git:changes:reset",
 		restore: "git:changes:restore",
@@ -157,6 +159,7 @@ export const GIT_IPC_EVENTS = {
 const REPOSITORY_MUTATION_OPERATIONS = new Map<string, GitOperation>([
 	[GIT_IPC_CHANNELS.sessions.initialize, "initialize-repository"],
 	[GIT_IPC_CHANNELS.sessions.clone, "clone-repository"],
+	[GIT_IPC_CHANNELS.changes.changeHunk, "change-hunk"],
 	[GIT_IPC_CHANNELS.changes.stage, "stage"],
 	[GIT_IPC_CHANNELS.changes.stageAll, "stage-all"],
 	[GIT_IPC_CHANNELS.changes.unstage, "unstage"],
@@ -357,6 +360,11 @@ export interface DesktopGitApi {
 		) => ReturnType<GitRepository["skipRebase"]>;
 	};
 	readonly changes: {
+		readonly changeHunk: (
+			sessionId: RepositorySessionId,
+			input: IpcGitInput<ChangeHunkInput>,
+			options?: GitOperationOptions
+		) => ReturnType<GitRepository["changeHunk"]>;
 		readonly commit: (
 			sessionId: RepositorySessionId,
 			input: IpcGitInput<CommitInput>,

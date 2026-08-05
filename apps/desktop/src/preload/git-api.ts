@@ -110,6 +110,11 @@ export const createDesktopGitApi = (
 			),
 	},
 	changes: {
+		changeHunk: async (sessionId, input, options) =>
+			await invoke(
+				GIT_IPC_CHANNELS.changes.changeHunk,
+				inputRequest(sessionId, input, options)
+			),
 		commit: async (sessionId, input, options) =>
 			await invoke(
 				GIT_IPC_CHANNELS.changes.commit,

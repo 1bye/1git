@@ -1,5 +1,6 @@
 import { cn } from "@1git/ui/lib/utils";
 import { CaretRightIcon } from "@phosphor-icons/react/dist/csr/CaretRight";
+import { DotsThreeIcon } from "@phosphor-icons/react/dist/csr/DotsThree";
 import { FileDiff as PierreFileDiff } from "@pierre/diffs/react";
 import type { ReactElement } from "react";
 import { memo, useCallback, useLayoutEffect, useRef, useState } from "react";
@@ -7,14 +8,23 @@ import {
 	REPOSITORY_DIFF_ESTIMATED_LINE_HEIGHT,
 	REPOSITORY_DIFF_ESTIMATED_SEPARATOR_HEIGHT,
 	REPOSITORY_DIFF_ELEMENT_NAME,
+	REPOSITORY_DIFF_HUNK_ACTION_RENDER_OPTIONS,
 	REPOSITORY_DIFF_MINIMUM_BODY_HEIGHT,
 	REPOSITORY_DIFF_RENDER_OPTIONS,
 } from "@/fixture/workspace-content/constants/repository-diff.js";
 import type { RepositoryDiffFileEntry } from "@/fixture/workspace-content/lib/repository-diff-files.js";
+import {
+	HunkActionPocket,
+	type HunkActionHandler,
+	type HunkActionSelection,
+} from "./hunk-action-pocket.js";
 
 interface DiffFileAccordionProps {
+	readonly areHunkActionsEnabled: boolean;
 	readonly entry: RepositoryDiffFileEntry;
 	readonly isBodyMounted: boolean;
+	readonly isHunkActionPending: boolean;
+	readonly onChangeHunk: HunkActionHandler;
 	readonly onElementChange: (key: string, element: HTMLElement | null) => void;
 	readonly onRequestExpandableFile: (
 		entry: RepositoryDiffFileEntry
@@ -26,6 +36,13 @@ interface UnmodifiedLineInteraction {
 	readonly direction: "down" | "up";
 	readonly index: number;
 }
+
+interface HoveredDiffLine {
+	readonly lineNumber: number;
+	readonly side: "additions" | "deletions";
+}
+
+type GetHoveredDiffLine = () => HoveredDiffLine | undefined;
 
 const isElement = (value: EventTarget | undefined): value is Element =>
 	value instanceof Element;
@@ -85,15 +102,41 @@ const unmodifiedLineInteraction = (
 	};
 };
 
+const findHunkIndex = (
+	entry: RepositoryDiffFileEntry,
+	hoveredLine: HoveredDiffLine
+): number => {
+	const hunks = entry.file?.hunks ?? [];
+	return hunks.findIndex((hunk) => {
+		const start =
+			hoveredLine.side === "additions"
+				? hunk.additionStart
+				: hunk.deletionStart;
+		const count =
+			hoveredLine.side === "additions"
+				? hunk.additionCount
+				: hunk.deletionCount;
+		return (
+			hoveredLine.lineNumber >= start && hoveredLine.lineNumber < start + count
+		);
+	});
+};
+
 const DiffFileAccordionComponent = ({
+	areHunkActionsEnabled,
 	entry,
 	isBodyMounted,
+	isHunkActionPending,
+	onChangeHunk,
 	onElementChange,
 	onRequestExpandableFile,
 	showTarget,
 }: DiffFileAccordionProps): ReactElement => {
 	const [isOpen, setIsOpen] = useState(true);
 	const [isPreparingContext, setIsPreparingContext] = useState(false);
+	const [isHunkActionOpen, setIsHunkActionOpen] = useState(false);
+	const [hunkActionSelection, setHunkActionSelection] =
+		useState<HunkActionSelection | null>(null);
 	const articleElementRef = useRef<HTMLElement | null>(null);
 	const pendingExpansionRef = useRef<UnmodifiedLineInteraction | null>(null);
 	const bodyId = `repository-diff-body:${encodeURIComponent(entry.key)}`;
@@ -105,6 +148,67 @@ const DiffFileAccordionComponent = ({
 			onElementChange(entry.key, element);
 		},
 		[entry.key, onElementChange]
+	);
+	const renderHunkAction = useCallback(
+		(getHoveredLine: GetHoveredDiffLine): ReactElement => {
+			const openActions = (anchor: HTMLButtonElement): void => {
+				const hoveredLine = getHoveredLine();
+				if (!hoveredLine) {
+					return;
+				}
+				const hunkIndex = findHunkIndex(entry, hoveredLine);
+				const target =
+					entry.target.kind === "staged"
+						? "staged"
+						: entry.target.kind === "working"
+							? "working"
+							: null;
+				if (hunkIndex < 0 || !target) {
+					return;
+				}
+				const anchorRect = anchor.getBoundingClientRect();
+				setHunkActionSelection({
+					anchorRect: {
+						height: anchorRect.height,
+						left: anchorRect.left,
+						top: anchorRect.top,
+						width: anchorRect.width,
+					},
+					hunkIndex,
+					path: entry.path,
+					target,
+				});
+				setIsHunkActionOpen(true);
+			};
+
+			return (
+				<button
+					aria-label="Open actions for this hunk"
+					className="pointer-events-auto relative z-[4] flex size-5 items-center justify-center rounded-md bg-editor-ink text-white outline-none transition-transform hover:scale-105 focus-visible:ring-2 focus-visible:ring-editor-muted/30"
+					data-name="RepositoryHunkActionTrigger"
+					data-utility-button=""
+					onClick={(event) => {
+						event.preventDefault();
+						event.stopPropagation();
+						if (event.detail === 0) {
+							openActions(event.currentTarget);
+						}
+					}}
+					onPointerDown={(event) => {
+						if (event.button !== 0) {
+							return;
+						}
+						event.preventDefault();
+						event.stopPropagation();
+						openActions(event.currentTarget);
+					}}
+					type="button"
+				>
+					<DotsThreeIcon aria-hidden className="size-3.5" weight="bold" />
+				</button>
+			);
+		},
+		[entry]
 	);
 	const handleClickCapture = useCallback(
 		(event: MouseEvent): void => {
@@ -192,11 +296,19 @@ const DiffFileAccordionComponent = ({
 			</p>
 		);
 	} else if (isBodyMounted) {
+		const supportsHunkActions =
+			areHunkActionsEnabled &&
+			(entry.target.kind === "staged" || entry.target.kind === "working");
 		bodyContent = (
 			<PierreFileDiff
 				className="block"
 				fileDiff={entry.file}
-				options={REPOSITORY_DIFF_RENDER_OPTIONS}
+				options={
+					supportsHunkActions
+						? REPOSITORY_DIFF_HUNK_ACTION_RENDER_OPTIONS
+						: REPOSITORY_DIFF_RENDER_OPTIONS
+				}
+				renderGutterUtility={supportsHunkActions ? renderHunkAction : undefined}
 			/>
 		);
 	} else {
@@ -255,6 +367,20 @@ const DiffFileAccordionComponent = ({
 			<div hidden={!isOpen} id={bodyId}>
 				{bodyContent}
 			</div>
+			{hunkActionSelection ? (
+				<HunkActionPocket
+					isPending={isHunkActionPending}
+					onChangeHunk={onChangeHunk}
+					onOpenChange={setIsHunkActionOpen}
+					onPresenceChange={(isPresent) => {
+						if (!isPresent) {
+							setHunkActionSelection(null);
+						}
+					}}
+					open={isHunkActionOpen}
+					selection={hunkActionSelection}
+				/>
+			) : null}
 		</article>
 	);
 };

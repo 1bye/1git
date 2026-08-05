@@ -36,6 +36,9 @@ const createTarget = (): {
 describe("repository events", () => {
 	test("classifies repository writes without classifying queries", () => {
 		expect(
+			repositoryMutationOperationForChannel(GIT_IPC_CHANNELS.changes.changeHunk)
+		).toBe("change-hunk");
+		expect(
 			repositoryMutationOperationForChannel(GIT_IPC_CHANNELS.changes.commit)
 		).toBe("commit");
 		expect(
