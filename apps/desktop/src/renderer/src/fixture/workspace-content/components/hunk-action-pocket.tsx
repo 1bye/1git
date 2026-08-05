@@ -6,6 +6,7 @@ import {
 } from "@1git/ui/components/dropdown-menu";
 import { ArrowLeftIcon } from "@phosphor-icons/react/dist/csr/ArrowLeft";
 import { CheckIcon } from "@phosphor-icons/react/dist/csr/Check";
+import { DotsThreeIcon } from "@phosphor-icons/react/dist/csr/DotsThree";
 import { MinusIcon } from "@phosphor-icons/react/dist/csr/Minus";
 import { TrashIcon } from "@phosphor-icons/react/dist/csr/Trash";
 import type { ReactElement } from "react";
@@ -16,6 +17,8 @@ import {
 	LiquidMenuRoot,
 } from "@/fixture/liquid-menu/components/liquid-menu.js";
 import { LiquidMenuAutoSize } from "@/fixture/liquid-menu/components/liquid-menu-auto-size.js";
+import type { LiquidMenuRect } from "@/fixture/liquid-menu/lib/liquid-menu-geometry.js";
+import { getLiquidMenuLayerZIndices } from "@/fixture/liquid-menu/lib/liquid-menu-stack.js";
 import {
 	REPOSITORY_HUNK_ACTION_ANCHOR_GEOMETRY,
 	REPOSITORY_HUNK_ACTION_WIDTH_CLASS_NAME,
@@ -23,13 +26,10 @@ import {
 
 type HunkActionView = "actions" | "confirm-discard";
 
+const HUNK_ACTION_ANCHOR_Z_INDEX = getLiquidMenuLayerZIndices(0).content + 1;
+
 export interface HunkActionSelection {
-	readonly anchorRect: {
-		readonly height: number;
-		readonly left: number;
-		readonly top: number;
-		readonly width: number;
-	};
+	readonly anchorRect: LiquidMenuRect;
 	readonly hunkIndex: number;
 	readonly path: string;
 	readonly target: "staged" | "working";
@@ -88,7 +88,7 @@ export function HunkActionPocket({
 			{createPortal(
 				<span
 					aria-hidden
-					className="pointer-events-none fixed"
+					className="pointer-events-none fixed flex items-center justify-center rounded-md bg-editor-ink text-white"
 					data-name="RepositoryHunkActionAnchor"
 					ref={anchorRef}
 					style={{
@@ -96,8 +96,11 @@ export function HunkActionPocket({
 						left: selection.anchorRect.left,
 						top: selection.anchorRect.top,
 						width: selection.anchorRect.width,
+						zIndex: HUNK_ACTION_ANCHOR_Z_INDEX,
 					}}
-				/>,
+				>
+					<DotsThreeIcon aria-hidden className="size-3.5" weight="bold" />
+				</span>,
 				document.body
 			)}
 			<LiquidMenuRoot
