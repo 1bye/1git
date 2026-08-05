@@ -22,40 +22,67 @@ interface DiffFileAccordionProps {
 	readonly showTarget: boolean;
 }
 
+interface UnmodifiedLineInteraction {
+	readonly direction: "down" | "up";
+	readonly index: number;
+}
+
 const isElement = (value: EventTarget | undefined): value is Element =>
 	value instanceof Element;
 
-const visibleUnmodifiedLineLabels = (
+const visibleUnmodifiedLineSeparators = (
 	host: HTMLElement
 ): readonly HTMLElement[] => {
-	const labels = host.shadowRoot?.querySelectorAll<HTMLElement>(
-		'[data-separator="line-info"] [data-unmodified-lines]'
+	const separators = host.shadowRoot?.querySelectorAll<HTMLElement>(
+		'[data-separator="line-info"]'
 	);
-	if (!labels) {
+	if (!separators) {
 		return [];
 	}
-	return Array.from(labels).filter(
-		(label) => label.getClientRects().length > 0
+	return Array.from(separators).filter(
+		(separator) =>
+			separator.querySelector("[data-unmodified-lines]") &&
+			separator.getClientRects().length > 0
 	);
 };
 
-const unmodifiedLineInteraction = (event: MouseEvent): number | null => {
+const unmodifiedLineInteraction = (
+	event: MouseEvent
+): UnmodifiedLineInteraction | null => {
 	const path = event.composedPath();
-	const label = path.find(
+	const content = path.find(
 		(target) =>
-			isElement(target) && target.hasAttribute("data-unmodified-lines")
+			isElement(target) && target.hasAttribute("data-separator-content")
 	);
 	const host = path.find(
 		(target) =>
 			target instanceof HTMLElement &&
 			target.tagName.toLowerCase() === REPOSITORY_DIFF_ELEMENT_NAME
 	);
-	if (!(label instanceof HTMLElement && host instanceof HTMLElement)) {
+	const separator =
+		content instanceof HTMLElement
+			? content.closest<HTMLElement>('[data-separator="line-info"]')
+			: null;
+	if (
+		!(
+			content instanceof HTMLElement &&
+			host instanceof HTMLElement &&
+			separator
+		)
+	) {
 		return null;
 	}
-	const labels = visibleUnmodifiedLineLabels(host);
-	const index = labels.indexOf(label);
-	return index >= 0 ? index : null;
+	const separators = visibleUnmodifiedLineSeparators(host);
+	const index = separators.indexOf(separator);
+	if (index < 0) {
+		return null;
+	}
+	const contentRect = content.getBoundingClientRect();
+	return {
+		direction:
+			event.clientY < contentRect.top + contentRect.height / 2 ? "up" : "down",
+		index,
+	};
 };
 
 const DiffFileAccordionComponent = ({
@@ -68,7 +95,7 @@ const DiffFileAccordionComponent = ({
 	const [isOpen, setIsOpen] = useState(true);
 	const [isPreparingContext, setIsPreparingContext] = useState(false);
 	const articleElementRef = useRef<HTMLElement | null>(null);
-	const pendingExpansionIndexRef = useRef<number | null>(null);
+	const pendingExpansionRef = useRef<UnmodifiedLineInteraction | null>(null);
 	const bodyId = `repository-diff-body:${encodeURIComponent(entry.key)}`;
 	const addedLines = entry.stat?.addedLines;
 	const deletedLines = entry.stat?.deletedLines;
@@ -84,20 +111,20 @@ const DiffFileAccordionComponent = ({
 			if (!entry.file?.isPartial || isPreparingContext) {
 				return;
 			}
-			const interactionIndex = unmodifiedLineInteraction(event);
-			if (interactionIndex === null) {
+			const interaction = unmodifiedLineInteraction(event);
+			if (!interaction) {
 				return;
 			}
-			pendingExpansionIndexRef.current = interactionIndex;
+			pendingExpansionRef.current = interaction;
 			setIsPreparingContext(true);
 			void onRequestExpandableFile(entry)
 				.then((file) => {
 					if (!file) {
-						pendingExpansionIndexRef.current = null;
+						pendingExpansionRef.current = null;
 					}
 				})
 				.catch(() => {
-					pendingExpansionIndexRef.current = null;
+					pendingExpansionRef.current = null;
 				})
 				.finally(() => {
 					setIsPreparingContext(false);
@@ -123,19 +150,28 @@ const DiffFileAccordionComponent = ({
 		};
 	}, [handleClickCapture, isBodyMounted, isOpen]);
 	useLayoutEffect(() => {
-		const pendingIndex = pendingExpansionIndexRef.current;
-		if (entry.file?.isPartial !== false || pendingIndex === null) {
+		const pendingExpansion = pendingExpansionRef.current;
+		if (entry.file?.isPartial !== false || !pendingExpansion) {
 			return;
 		}
 		const animationFrameId = requestAnimationFrame(() => {
 			const host = articleElementRef.current?.querySelector<HTMLElement>(
 				REPOSITORY_DIFF_ELEMENT_NAME
 			);
-			const label = host
-				? visibleUnmodifiedLineLabels(host)[pendingIndex]
+			const separator = host
+				? visibleUnmodifiedLineSeparators(host)[pendingExpansion.index]
 				: undefined;
-			pendingExpansionIndexRef.current = null;
-			label?.click();
+			const directionButton = separator?.querySelector<HTMLElement>(
+				`[data-expand-${pendingExpansion.direction}]`
+			);
+			const fallbackButton = separator?.querySelector<HTMLElement>(
+				"[data-expand-both], [data-expand-button]"
+			);
+			const fallbackLabel = separator?.querySelector<HTMLElement>(
+				"[data-unmodified-lines]"
+			);
+			pendingExpansionRef.current = null;
+			(directionButton ?? fallbackButton ?? fallbackLabel)?.click();
 		});
 		return () => {
 			cancelAnimationFrame(animationFrameId);
@@ -186,7 +222,7 @@ const DiffFileAccordionComponent = ({
 			<button
 				aria-controls={bodyId}
 				aria-expanded={isOpen}
-				className="sticky top-0 z-10 flex h-8 w-full items-center gap-2 bg-[#f6f8fa] px-3 text-left outline-none transition-colors hover:bg-[#ebeef1] focus-visible:bg-[#ebeef1] focus-visible:ring-2 focus-visible:ring-editor-muted/20 focus-visible:ring-inset"
+				className="sticky top-0 z-10 mx-1 flex h-8 w-[calc(100%-0.5rem)] items-center gap-2 rounded-md bg-[#f6f8fa] px-3 text-left outline-none transition-colors hover:bg-[#ebeef1] focus-visible:bg-[#ebeef1] focus-visible:ring-2 focus-visible:ring-editor-muted/20 focus-visible:ring-inset"
 				data-name="RepositoryDiffFileHeader"
 				onClick={() => setIsOpen((current) => !current)}
 				type="button"

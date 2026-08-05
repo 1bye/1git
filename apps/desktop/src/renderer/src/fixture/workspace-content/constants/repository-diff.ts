@@ -1,6 +1,7 @@
 import type { BaseDiffOptions } from "@pierre/diffs";
 
 export const REPOSITORY_DIFF_ELEMENT_NAME = "diffs-container";
+export const REPOSITORY_DIFF_THEME = "github-light";
 
 export const REPOSITORY_DIFF_RENDER_OPTIONS = {
 	collapsedContextThreshold: 3,
@@ -12,7 +13,7 @@ export const REPOSITORY_DIFF_RENDER_OPTIONS = {
 	hunkSeparators: "line-info",
 	lineDiffType: "word-alt",
 	overflow: "scroll",
-	theme: "github-light",
+	theme: REPOSITORY_DIFF_THEME,
 	themeType: "light",
 	unsafeCSS: `
 		:host {
@@ -162,14 +163,10 @@ export const REPOSITORY_DIFF_RENDER_OPTIONS = {
 	`,
 } as const satisfies BaseDiffOptions;
 
-export const REPOSITORY_DIFF_VIRTUALIZER_CONFIG = {
-	intersectionObserverMargin: 1600,
-	overscrollSize: 800,
-} as const;
-
 export const REPOSITORY_DIFF_ESTIMATED_LINE_HEIGHT = 20;
 export const REPOSITORY_DIFF_ESTIMATED_SEPARATOR_HEIGHT = 32;
 export const REPOSITORY_DIFF_MINIMUM_BODY_HEIGHT = 64;
 export const REPOSITORY_DIFF_BODY_OBSERVER_MARGIN = 120;
 export const REPOSITORY_DIFF_INITIAL_MOUNTED_COUNT = 1;
+export const REPOSITORY_DIFF_SELECTED_NEIGHBOR_COUNT = 1;
 export const REPOSITORY_DIFF_EXPANDABLE_CONTEXT_LINES = 1_000_000;

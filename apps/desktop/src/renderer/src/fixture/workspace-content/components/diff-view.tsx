@@ -1,7 +1,5 @@
 import type { CommitInfo, FileChange, FileDiff } from "@1git/git";
 import { GitDiffIcon } from "@phosphor-icons/react/dist/csr/GitDiff";
-import { Virtualizer as PierreDiffVirtualizer } from "@pierre/diffs";
-import { VirtualizerContext } from "@pierre/diffs/react";
 import type { ReactElement } from "react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import type { RepositoryTab } from "@/feature/workspace/hooks/use-git-workspace.js";
@@ -10,9 +8,10 @@ import { DiffFileAccordion } from "@/fixture/workspace-content/components/diff-f
 import {
 	REPOSITORY_DIFF_BODY_OBSERVER_MARGIN,
 	REPOSITORY_DIFF_INITIAL_MOUNTED_COUNT,
-	REPOSITORY_DIFF_VIRTUALIZER_CONFIG,
+	REPOSITORY_DIFF_SELECTED_NEIGHBOR_COUNT,
 } from "@/fixture/workspace-content/constants/repository-diff.js";
 import { useExpandableRepositoryDiffFiles } from "@/fixture/workspace-content/hooks/use-expandable-repository-diff-files.js";
+import { useRepositoryDiffHighlighter } from "@/fixture/workspace-content/hooks/use-repository-diff-highlighter.js";
 import { createRepositoryDiffFileEntries } from "@/fixture/workspace-content/lib/repository-diff-files.js";
 import type { RepositorySessionId } from "../../../../../shared/repository-session.js";
 
@@ -28,6 +27,36 @@ interface DiffViewProps {
 
 const ignoreActiveFileChange = (): void => undefined;
 
+const updateVisibleEntryKeys = (
+	currentKeys: ReadonlySet<string>,
+	observerEntries: readonly IntersectionObserverEntry[]
+): ReadonlySet<string> => {
+	const nextKeys = new Set(currentKeys);
+
+	for (const observerEntry of observerEntries) {
+		if (!(observerEntry.target instanceof HTMLElement)) {
+			continue;
+		}
+		const key = observerEntry.target.dataset.repositoryDiffKey;
+		if (!key) {
+			continue;
+		}
+		if (observerEntry.isIntersecting) {
+			nextKeys.add(key);
+		} else {
+			nextKeys.delete(key);
+		}
+	}
+
+	if (
+		nextKeys.size === currentKeys.size &&
+		[...nextKeys].every((key) => currentKeys.has(key))
+	) {
+		return currentKeys;
+	}
+	return nextKeys;
+};
+
 export function DiffView({
 	commit,
 	diffs,
@@ -42,9 +71,6 @@ export function DiffView({
 	const articleElementsRef = useRef(new Map<string, HTMLElement>());
 	const [visibleEntryKeys, setVisibleEntryKeys] = useState<ReadonlySet<string>>(
 		() => new Set()
-	);
-	const [virtualizer] = useState(
-		() => new PierreDiffVirtualizer(REPOSITORY_DIFF_VIRTUALIZER_CONFIG)
 	);
 	const registerArticleElement = useCallback(
 		(key: string, element: HTMLElement | null): void => {
@@ -67,28 +93,11 @@ export function DiffView({
 			bodyObserverRef.current = null;
 			scrollRef.current = element;
 			if (element) {
-				virtualizer.setup(element);
 				bodyObserverRef.current = new IntersectionObserver(
 					(observerEntries) => {
-						setVisibleEntryKeys((currentKeys) => {
-							let nextKeys: Set<string> | null = null;
-							for (const observerEntry of observerEntries) {
-								if (
-									!(
-										observerEntry.isIntersecting &&
-										observerEntry.target instanceof HTMLElement
-									)
-								) {
-									continue;
-								}
-								const key = observerEntry.target.dataset.repositoryDiffKey;
-								if (key && !currentKeys.has(key)) {
-									nextKeys ??= new Set(currentKeys);
-									nextKeys.add(key);
-								}
-							}
-							return nextKeys ?? currentKeys;
-						});
+						setVisibleEntryKeys((currentKeys) =>
+							updateVisibleEntryKeys(currentKeys, observerEntries)
+						);
 					},
 					{
 						root: element,
@@ -98,11 +107,9 @@ export function DiffView({
 				for (const articleElement of articleElementsRef.current.values()) {
 					bodyObserverRef.current.observe(articleElement);
 				}
-			} else {
-				virtualizer.cleanUp();
 			}
 		},
-		[virtualizer]
+		[]
 	);
 	const entries = useMemo(
 		() => createRepositoryDiffFileEntries(diffs, files, commit?.oid, tab),
@@ -112,6 +119,37 @@ export function DiffView({
 		() => entries.map((entry) => entry.key).join("\n"),
 		[entries]
 	);
+	const isHighlighterReady = useRepositoryDiffHighlighter(entries);
+	const prioritizedEntryKeys = useMemo(() => {
+		const keys = new Set<string>();
+		if (!selectedFilePath) {
+			return keys;
+		}
+		for (const [index, entry] of entries.entries()) {
+			if (entry.path !== selectedFilePath) {
+				continue;
+			}
+			const firstNeighborIndex = Math.max(
+				0,
+				index - REPOSITORY_DIFF_SELECTED_NEIGHBOR_COUNT
+			);
+			const lastNeighborIndex = Math.min(
+				entries.length - 1,
+				index + REPOSITORY_DIFF_SELECTED_NEIGHBOR_COUNT
+			);
+			for (
+				let neighborIndex = firstNeighborIndex;
+				neighborIndex <= lastNeighborIndex;
+				neighborIndex += 1
+			) {
+				const neighbor = entries[neighborIndex];
+				if (neighbor) {
+					keys.add(neighbor.key);
+				}
+			}
+		}
+		return keys;
+	}, [entries, selectedFilePath]);
 	const { files: expandableFiles, requestFile: requestExpandableFile } =
 		useExpandableRepositoryDiffFiles(sessionId, contentKey);
 	useRepositoryDiffScrollSync({
@@ -122,54 +160,53 @@ export function DiffView({
 	});
 
 	return (
-		<VirtualizerContext.Provider value={virtualizer}>
-			<section
-				className="h-full min-h-0 overflow-y-auto overscroll-contain"
-				data-name="DiffView"
-				data-repository-diff-viewport
-				ref={setScrollContainer}
-			>
-				{entries.length > 0 ? (
-					<div>
-						{entries.map((baseEntry, index) => {
-							const expandedFile = expandableFiles.get(baseEntry.key);
-							const entry = expandedFile
-								? { ...baseEntry, file: expandedFile }
-								: baseEntry;
-							return (
-								<DiffFileAccordion
-									entry={entry}
-									isBodyMounted={
-										index < REPOSITORY_DIFF_INITIAL_MOUNTED_COUNT ||
-										entry.path === selectedFilePath ||
-										visibleEntryKeys.has(entry.key)
-									}
-									key={entry.key}
-									onElementChange={registerArticleElement}
-									onRequestExpandableFile={requestExpandableFile}
-									showTarget={diffs.length > 1}
-								/>
-							);
-						})}
-					</div>
-				) : (
-					<div className="flex min-h-full items-center justify-center px-8 py-16 text-center">
-						<div>
-							<GitDiffIcon
-								aria-hidden
-								className="mx-auto size-6 text-editor-faint"
-								weight="duotone"
+		<section
+			className="h-full min-h-0 overflow-y-auto overscroll-contain"
+			data-name="DiffView"
+			data-repository-diff-viewport
+			ref={setScrollContainer}
+		>
+			{entries.length > 0 ? (
+				<div>
+					{entries.map((baseEntry, index) => {
+						const expandedFile = expandableFiles.get(baseEntry.key);
+						const entry = expandedFile
+							? { ...baseEntry, file: expandedFile }
+							: baseEntry;
+						return (
+							<DiffFileAccordion
+								entry={entry}
+								isBodyMounted={
+									isHighlighterReady &&
+									(index < REPOSITORY_DIFF_INITIAL_MOUNTED_COUNT ||
+										prioritizedEntryKeys.has(entry.key) ||
+										visibleEntryKeys.has(entry.key))
+								}
+								key={entry.key}
+								onElementChange={registerArticleElement}
+								onRequestExpandableFile={requestExpandableFile}
+								showTarget={diffs.length > 1}
 							/>
-							<h2 className="mt-3 font-medium text-[13px] text-editor-ink">
-								No text diff available
-							</h2>
-							<p className="mt-1 text-editor-faint text-xss">
-								The changed files may be binary or have no patch content.
-							</p>
-						</div>
+						);
+					})}
+				</div>
+			) : (
+				<div className="flex min-h-full items-center justify-center px-8 py-16 text-center">
+					<div>
+						<GitDiffIcon
+							aria-hidden
+							className="mx-auto size-6 text-editor-faint"
+							weight="duotone"
+						/>
+						<h2 className="mt-3 font-medium text-[13px] text-editor-ink">
+							No text diff available
+						</h2>
+						<p className="mt-1 text-editor-faint text-xss">
+							The changed files may be binary or have no patch content.
+						</p>
 					</div>
-				)}
-			</section>
-		</VirtualizerContext.Provider>
+				</div>
+			)}
+		</section>
 	);
 }
