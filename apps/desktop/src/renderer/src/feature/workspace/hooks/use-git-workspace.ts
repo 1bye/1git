@@ -7,6 +7,7 @@ import type {
 	GitError,
 	GitResult,
 	RepositorySnapshot,
+	ResetMode,
 } from "@1git/git";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRepositoryRefresh } from "@/feature/workspace/hooks/use-repository-refresh.js";
@@ -42,6 +43,7 @@ export type PendingWorkspaceAction =
 	| "branch"
 	| "commit"
 	| "fetch"
+	| "history"
 	| "merge"
 	| "open"
 	| "refresh"
@@ -88,6 +90,11 @@ interface WorkspaceSummary {
 	readonly owner: RepositoryOwner | null;
 }
 
+interface HistoryActionResult {
+	readonly selectedCommitOid: string | null;
+	readonly snapshot: RepositorySnapshot;
+}
+
 export interface WorkspaceTabState {
 	readonly branch: string | null;
 	readonly changedFiles: number | null;
@@ -98,7 +105,16 @@ export interface WorkspaceTabState {
 export interface GitWorkspace {
 	readonly activateWorkspace: (sessionId: RepositorySessionId) => Promise<void>;
 	readonly activeSession: RepositorySessionRecord | null;
+	readonly amendCommit: (
+		commit: CommitInfo,
+		summary: string,
+		description: string
+	) => Promise<boolean>;
 	readonly branches: BranchCollection | null;
+	readonly cherryPickCommit: (
+		commit: CommitInfo,
+		branchName: string
+	) => Promise<boolean>;
 	readonly clearError: () => void;
 	readonly cloneRepository: (remoteUrl: string) => Promise<boolean>;
 	readonly closeWorkspace: (sessionId: RepositorySessionId) => Promise<void>;
@@ -125,6 +141,11 @@ export interface GitWorkspace {
 		activeSessionId: RepositorySessionId,
 		overSessionId: RepositorySessionId
 	) => void;
+	readonly resetToCommit: (
+		commit: CommitInfo,
+		mode: ResetMode
+	) => Promise<boolean>;
+	readonly revertCommit: (commit: CommitInfo) => Promise<boolean>;
 	readonly selectCommit: (commit: CommitInfo) => Promise<void>;
 	readonly selectedCommitOid: string | null;
 	readonly selectedFilePath: string | null;
@@ -758,6 +779,126 @@ export const useGitWorkspace = (): GitWorkspace => {
 		}
 	};
 
+	const runHistoryAction = async (
+		action: (sessionId: RepositorySessionId) => Promise<HistoryActionResult>
+	): Promise<boolean> => {
+		if (!activeSession || pendingAction) {
+			return false;
+		}
+		setPendingAction("history");
+		try {
+			setError(null);
+			const result = await action(activeSession.id);
+			applySnapshot(activeSession.id, result.snapshot);
+			await loadSession(activeSession, null, result.selectedCommitOid);
+			return true;
+		} catch (cause) {
+			setError(errorMessage(cause));
+			return false;
+		} finally {
+			setPendingAction(null);
+		}
+	};
+
+	const amendCommit = async (
+		commit: CommitInfo,
+		summary: string,
+		description: string
+	): Promise<boolean> => {
+		if (!snapshot || commit.oid !== snapshot.head.oid || !summary.trim()) {
+			return false;
+		}
+		return await runHistoryAction(async (sessionId) => {
+			const result = await window.desktop.git.changes.commit(sessionId, {
+				amend: true,
+				description: description.trim() || undefined,
+				summary: summary.trim(),
+			});
+			const value = resultValue(result);
+			return {
+				selectedCommitOid: value.commit.oid,
+				snapshot: value.snapshot,
+			};
+		});
+	};
+
+	const cherryPickCommit = async (
+		commit: CommitInfo,
+		branchName: string
+	): Promise<boolean> => {
+		const targetBranch = branches?.branches.find(
+			(branch) =>
+				branch.type === "local" &&
+				branch.name === branchName &&
+				!branch.checkedOut
+		);
+		if (!(activeSession && targetBranch) || pendingAction) {
+			return false;
+		}
+		setPendingAction("history");
+		try {
+			setError(null);
+			const checkoutResult = await window.desktop.git.branches.checkout(
+				activeSession.id,
+				{ name: targetBranch.name }
+			);
+			const checkout = resultValue(checkoutResult);
+			setBranches(checkout.branches);
+			applySnapshot(activeSession.id, checkout.snapshot);
+			const cherryPickResult = await window.desktop.git.sequences.cherryPick(
+				activeSession.id,
+				{ revisions: [commit.oid] }
+			);
+			const nextSnapshot = resultValue(cherryPickResult);
+			applySnapshot(activeSession.id, nextSnapshot);
+			await loadSession(activeSession, null, nextSnapshot.head.oid);
+			return true;
+		} catch (cause) {
+			setError(errorMessage(cause));
+			try {
+				await loadSession(activeSession);
+			} catch {
+				// Keep the original Git error visible when recovery also fails.
+			}
+			return false;
+		} finally {
+			setPendingAction(null);
+		}
+	};
+
+	const resetToCommit = async (
+		commit: CommitInfo,
+		mode: ResetMode
+	): Promise<boolean> =>
+		await runHistoryAction(async (sessionId) => {
+			const result = await window.desktop.git.changes.reset(sessionId, {
+				allowDestructive: mode === "hard",
+				mode,
+				target: commit.oid,
+			});
+			const nextSnapshot = resultValue(result);
+			return {
+				selectedCommitOid: nextSnapshot.head.oid,
+				snapshot: nextSnapshot,
+			};
+		});
+
+	const revertCommit = async (commit: CommitInfo): Promise<boolean> => {
+		if (commit.parentOids.length > 1) {
+			return false;
+		}
+		return await runHistoryAction(async (sessionId) => {
+			const result = await window.desktop.git.sequences.revert(sessionId, {
+				revisions: [commit.oid],
+			});
+			const nextSnapshot = resultValue(result);
+			return {
+				selectedCommitOid: nextSnapshot.head.oid,
+				snapshot: nextSnapshot,
+			};
+		});
+	};
+
 	const switchBranch = async (name: string): Promise<void> => {
 		if (
 			!(activeSession && snapshot) ||
@@ -923,7 +1064,9 @@ export const useGitWorkspace = (): GitWorkspace => {
 	return {
 		activateWorkspace,
 		activeSession,
+		amendCommit,
 		branches,
+		cherryPickCommit,
 		clearError: () => setError(null),
 		cloneRepository,
 		closeWorkspace,
@@ -944,6 +1087,8 @@ export const useGitWorkspace = (): GitWorkspace => {
 		pickRepository,
 		refresh,
 		reorderWorkspace,
+		resetToCommit,
+		revertCommit,
 		selectCommit,
 		selectedCommitOid,
 		selectedFilePath,

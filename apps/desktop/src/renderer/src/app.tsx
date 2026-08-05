@@ -70,9 +70,13 @@ export function App(): ReactElement {
 									workspace.isInitialLoading ||
 									workspace.pendingAction === "open"
 								}
+								onAmendCommit={workspace.amendCommit}
+								onCherryPickCommit={workspace.cherryPickCommit}
 								onCommit={workspace.commit}
 								onFetch={workspace.fetchRepository}
 								onMergeBranch={workspace.mergeBranch}
+								onResetCommit={workspace.resetToCommit}
+								onRevertCommit={workspace.revertCommit}
 								onSelectCommit={workspace.selectCommit}
 								onSelectFile={workspace.selectFile}
 								onSetFileStaged={workspace.setFileStaged}

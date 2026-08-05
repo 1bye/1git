@@ -5,6 +5,7 @@ import type {
 	FileChange,
 	FileDiff,
 	RepositorySnapshot,
+	ResetMode,
 } from "@1git/git";
 import { GitDiffIcon } from "@phosphor-icons/react/dist/csr/GitDiff";
 import { SpinnerGapIcon } from "@phosphor-icons/react/dist/csr/SpinnerGap";
@@ -36,9 +37,23 @@ export interface AdaptiveRepositoryWorkspaceProps {
 	readonly history: CommitPage | null;
 	readonly isFetching: boolean;
 	readonly isLoading: boolean;
+	readonly onAmendCommit: (
+		commit: CommitInfo,
+		summary: string,
+		description: string
+	) => Promise<boolean>;
+	readonly onCherryPickCommit: (
+		commit: CommitInfo,
+		branchName: string
+	) => Promise<boolean>;
 	readonly onCommit: (summary: string, description: string) => Promise<boolean>;
 	readonly onFetch: () => Promise<void>;
 	readonly onMergeBranch: (name: string) => Promise<boolean>;
+	readonly onResetCommit: (
+		commit: CommitInfo,
+		mode: ResetMode
+	) => Promise<boolean>;
+	readonly onRevertCommit: (commit: CommitInfo) => Promise<boolean>;
 	readonly onSelectCommit: (commit: CommitInfo) => Promise<void>;
 	readonly onSelectFile: (file: FileChange) => Promise<void>;
 	readonly onSetFileStaged: (
@@ -103,9 +118,13 @@ export function AdaptiveRepositoryWorkspace({
 	history,
 	isFetching,
 	isLoading,
+	onAmendCommit,
+	onCherryPickCommit,
 	onCommit,
 	onFetch,
 	onMergeBranch,
+	onResetCommit,
+	onRevertCommit,
 	onSelectCommit,
 	onSelectFile,
 	onSetFileStaged,
@@ -219,7 +238,15 @@ export function AdaptiveRepositoryWorkspace({
 	if (tab === "history") {
 		navigationRail = (
 			<RepositoryHistoryRail
+				branches={branches}
+				currentBranch={snapshot.head.branch}
+				headOid={snapshot.head.oid}
 				history={history}
+				isPending={pendingAction !== null}
+				onAmendCommit={onAmendCommit}
+				onCherryPickCommit={onCherryPickCommit}
+				onResetCommit={onResetCommit}
+				onRevertCommit={onRevertCommit}
 				onSelectCommit={onSelectCommit}
 				selectedCommitOid={selectedCommitOid}
 			/>
