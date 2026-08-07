@@ -77,6 +77,7 @@ export function App(): ReactElement {
 								onCherryPickCommit={workspace.cherryPickCommit}
 								onCommit={workspace.commit}
 								onDiscardFile={workspace.discardFile}
+								onDiscardFiles={workspace.discardFiles}
 								onFetch={workspace.fetchRepository}
 								onMergeBranch={workspace.mergeBranch}
 								onResetCommit={workspace.resetToCommit}
@@ -84,6 +85,7 @@ export function App(): ReactElement {
 								onSelectCommit={workspace.selectCommit}
 								onSelectFile={workspace.selectFile}
 								onSetFileStaged={workspace.setFileStaged}
+								onSetFilesStaged={workspace.setFilesStaged}
 								onSetTab={workspace.setTab}
 								onStashChanges={workspace.stashChanges}
 								onToggleAllFiles={workspace.toggleAllFiles}
@@ -130,10 +132,10 @@ export function App(): ReactElement {
 					) : null}
 					{workspace.discardUndo ? (
 						<RepositoryDiscardUndoToast
+							detail={workspace.discardUndo.detail}
 							message={workspace.discardUndo.message}
 							onDismiss={workspace.dismissDiscardUndo}
 							onUndo={workspace.undoDiscard}
-							path={workspace.discardUndo.path}
 							token={workspace.discardUndo.token}
 						/>
 					) : null}

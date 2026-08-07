@@ -11,6 +11,23 @@ export interface RepositoryFilePath {
 	readonly name: string;
 }
 
+export type RepositoryFileSelectionMode = "range" | "replace" | "toggle";
+
+export interface RepositoryFileSelection {
+	readonly activePath: string;
+	readonly anchorPath: string;
+	readonly selectedPaths: readonly string[];
+}
+
+interface UpdateRepositoryFileSelectionOptions {
+	readonly activePath: string | null;
+	readonly anchorPath: string | null;
+	readonly mode: RepositoryFileSelectionMode;
+	readonly orderedPaths: readonly string[];
+	readonly selectedPaths: ReadonlySet<string>;
+	readonly targetPath: string;
+}
+
 const REPOSITORY_DIFF_ELEMENT_PREFIX = "repository-diff:";
 const REPOSITORY_FILE_ROW_PREFIX = "repository-file:";
 
@@ -82,4 +99,69 @@ export const getRepositoryFilePosition = (
 ): number | null => {
 	const index = files.findIndex((file) => file.path === path);
 	return index < 0 ? null : index + 1;
+};
+
+const orderedSelection = (
+	orderedPaths: readonly string[],
+	selectedPaths: ReadonlySet<string>
+): readonly string[] => orderedPaths.filter((path) => selectedPaths.has(path));
+
+export const updateRepositoryFileSelection = ({
+	activePath,
+	anchorPath,
+	mode,
+	orderedPaths,
+	selectedPaths,
+	targetPath,
+}: UpdateRepositoryFileSelectionOptions): RepositoryFileSelection => {
+	if (mode === "replace") {
+		return {
+			activePath: targetPath,
+			anchorPath: targetPath,
+			selectedPaths: [],
+		};
+	}
+
+	if (mode === "range") {
+		const rangeAnchor =
+			anchorPath && orderedPaths.includes(anchorPath)
+				? anchorPath
+				: (activePath ?? targetPath);
+		const anchorIndex = orderedPaths.indexOf(rangeAnchor);
+		const targetIndex = orderedPaths.indexOf(targetPath);
+		if (anchorIndex < 0 || targetIndex < 0) {
+			return {
+				activePath: targetPath,
+				anchorPath: targetPath,
+				selectedPaths: [],
+			};
+		}
+		const startIndex = Math.min(anchorIndex, targetIndex);
+		const endIndex = Math.max(anchorIndex, targetIndex);
+		const range = orderedPaths.slice(startIndex, endIndex + 1);
+		return {
+			activePath: targetPath,
+			anchorPath: rangeAnchor,
+			selectedPaths: range.length > 1 ? range : [],
+		};
+	}
+
+	const nextSelection = new Set(selectedPaths);
+	if (nextSelection.size === 0 && activePath) {
+		nextSelection.add(activePath);
+	}
+	if (nextSelection.has(targetPath)) {
+		nextSelection.delete(targetPath);
+	} else {
+		nextSelection.add(targetPath);
+	}
+	const paths = orderedSelection(orderedPaths, nextSelection);
+	return {
+		activePath:
+			nextSelection.has(targetPath) || paths.length === 0
+				? targetPath
+				: (paths[0] ?? targetPath),
+		anchorPath: targetPath,
+		selectedPaths: paths.length > 1 ? paths : [],
+	};
 };

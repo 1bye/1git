@@ -7,6 +7,7 @@ import { useEffect, useRef } from "react";
 import type { PendingWorkspaceAction } from "@/feature/workspace/hooks/use-git-workspace.js";
 import { areAllFilesStaged } from "@/feature/workspace/lib/workspace-model.js";
 import { useCommandLensTarget } from "@/fixture/command-lens/hooks/use-command-lens-target.js";
+import { RepositoryFileBulkActions } from "@/fixture/repository-workspace/components/repository-file-bulk-actions.js";
 import { RepositoryFileList } from "@/fixture/repository-workspace/components/repository-file-list.js";
 import { REPOSITORY_FILE_NAVIGATOR_ID } from "@/fixture/repository-workspace/constants/repository-workspace.js";
 import type { RepositoryFileNavigation } from "@/fixture/repository-workspace/hooks/use-repository-file-navigation.js";
@@ -103,6 +104,7 @@ export function RepositoryFileNavigator({
 								onSetStaged={onSetFileStaged}
 								query={navigation.query}
 								selectedFilePath={selectedFilePath}
+								selectedFilePaths={navigation.selectedFilePaths}
 							/>
 						</div>
 					</div>
@@ -119,16 +121,25 @@ export function RepositoryFileNavigator({
 
 interface RepositoryFileRailProps extends RepositoryFileNavigatorProps {
 	readonly allFiles: readonly FileChange[];
+	readonly onDiscardFiles: (files: readonly FileChange[]) => Promise<boolean>;
+	readonly onSetFilesStaged: (
+		files: readonly FileChange[],
+		shouldStage: boolean
+	) => Promise<boolean>;
 	readonly onToggleAllFiles: () => Promise<void>;
+	readonly repositoryRoot: string;
 }
 
 export function RepositoryFileRail({
 	allFiles,
 	navigation,
 	onDiscardFile,
+	onDiscardFiles,
 	onSetFileStaged,
+	onSetFilesStaged,
 	onToggleAllFiles,
 	pendingAction,
+	repositoryRoot,
 	selectedFilePath,
 }: RepositoryFileRailProps): ReactElement {
 	const allStaged = areAllFilesStaged(allFiles);
@@ -162,7 +173,7 @@ export function RepositoryFileRail({
 	return (
 		<aside
 			aria-label="Changed files"
-			className="flex min-h-0 flex-1 flex-col bg-editor-surface"
+			className="relative flex min-h-0 flex-1 flex-col bg-editor-surface"
 			data-name="RepositoryFileRail"
 		>
 			<div className="flex h-9 shrink-0 items-center px-2">
@@ -209,10 +220,21 @@ export function RepositoryFileRail({
 					onSetStaged={onSetFileStaged}
 					query={navigation.query}
 					selectedFilePath={selectedFilePath}
+					selectedFilePaths={navigation.selectedFilePaths}
 					selectedRowAriaKeyShortcuts={commandLensTarget.ariaKeyShortcuts}
 					selectedRowRef={commandLensTarget.ref}
 				/>
 			</div>
+			{navigation.selectedFiles.length > 1 ? (
+				<RepositoryFileBulkActions
+					files={navigation.selectedFiles}
+					isPending={pendingAction !== null}
+					onClear={navigation.clearFileSelection}
+					onDiscard={onDiscardFiles}
+					onSetStaged={onSetFilesStaged}
+					repositoryRoot={repositoryRoot}
+				/>
+			) : null}
 		</aside>
 	);
 }

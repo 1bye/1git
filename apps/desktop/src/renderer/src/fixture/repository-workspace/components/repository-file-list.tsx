@@ -10,7 +10,12 @@ import { CheckIcon } from "@phosphor-icons/react/dist/csr/Check";
 import { MinusIcon } from "@phosphor-icons/react/dist/csr/Minus";
 import { SpinnerGapIcon } from "@phosphor-icons/react/dist/csr/SpinnerGap";
 import { TrashIcon } from "@phosphor-icons/react/dist/csr/Trash";
-import type { ChangeEvent, ReactElement, RefCallback } from "react";
+import type {
+	ChangeEvent,
+	ReactElement,
+	MouseEvent as ReactMouseEvent,
+	RefCallback,
+} from "react";
 import { useCallback, useState } from "react";
 import {
 	getFileChangeLabel,
@@ -99,11 +104,15 @@ function RepositoryStageCheckbox({
 
 interface RepositoryFileRowProps {
 	readonly file: FileChange;
+	readonly isBulkSelected: boolean;
 	readonly isDiscardDisabled: boolean;
 	readonly isSelected: boolean;
 	readonly isStagingDisabled: boolean;
 	readonly onDiscard: (file: FileChange) => Promise<boolean>;
-	readonly onSelect: (file: FileChange) => void;
+	readonly onSelect: (
+		file: FileChange,
+		mode?: "range" | "replace" | "toggle"
+	) => void;
 	readonly onSetStaged: (
 		file: FileChange,
 		shouldStage: boolean
@@ -224,6 +233,7 @@ function RepositoryFileContextActions({
 
 function RepositoryFileRow({
 	file,
+	isBulkSelected,
 	isDiscardDisabled,
 	isSelected,
 	isStagingDisabled,
@@ -264,24 +274,42 @@ function RepositoryFileRow({
 	);
 	const staged = isFileStaged(file);
 	const path = splitRepositoryFilePath(file.path);
-	const selectFile = (): void => onSelect(file);
+	const selectFile = (event: ReactMouseEvent<HTMLButtonElement>): void => {
+		let mode: "range" | "replace" | "toggle" = "replace";
+		if (event.shiftKey) {
+			mode = "range";
+		} else if (event.metaKey || event.ctrlKey) {
+			mode = "toggle";
+		}
+		onSelect(file, mode);
+	};
 	const setStaged = async (shouldStage: boolean): Promise<void> => {
 		await onSetStaged(file, shouldStage);
 	};
 	const openContextMenu = (): void => {
-		if (!isSelected) {
+		if (!(isBulkSelected || isSelected)) {
 			onSelect(file);
 		}
 	};
+	let selectionClassName = "hover:bg-editor-sunken";
+	if (isBulkSelected) {
+		selectionClassName = "z-10 bg-editor-sunken-2";
+	} else if (isSelected) {
+		selectionClassName = "bg-editor-sunken-2";
+	}
 
 	const row = (
 		<li
 			aria-keyshortcuts={isSelected ? selectedRowAriaKeyShortcuts : undefined}
 			className={cn(
 				"group relative flex min-h-7 items-center rounded-md transition-colors",
-				isSelected ? "bg-editor-sunken-2" : "hover:bg-editor-sunken",
+				selectionClassName,
+				isBulkSelected &&
+					isSelected &&
+					"ring-1 ring-editor-muted/25 ring-inset",
 				(isOpen || isPresent) && "z-20 bg-white hover:bg-white"
 			)}
+			data-bulk-selected={isBulkSelected ? "true" : undefined}
 			data-name="RepositoryFileRow"
 			data-overflowing-label-trigger
 			id={getRepositoryFileRowId(file.path)}
@@ -312,7 +340,7 @@ function RepositoryFileRow({
 						<span
 							className={cn(
 								"ml-1 text-editor-faint transition-opacity",
-								isSelected
+								isSelected || isBulkSelected
 									? "opacity-100"
 									: "opacity-0 group-focus-within:opacity-100 group-hover:opacity-100"
 							)}
@@ -376,13 +404,17 @@ interface RepositoryFileListProps {
 	readonly isDiscardDisabled: boolean;
 	readonly isStagingDisabled: boolean;
 	readonly onDiscard: (file: FileChange) => Promise<boolean>;
-	readonly onSelect: (file: FileChange) => void;
+	readonly onSelect: (
+		file: FileChange,
+		mode?: "range" | "replace" | "toggle"
+	) => void;
 	readonly onSetStaged: (
 		file: FileChange,
 		shouldStage: boolean
 	) => Promise<void>;
 	readonly query: string;
 	readonly selectedFilePath: string | null;
+	readonly selectedFilePaths: ReadonlySet<string>;
 	readonly selectedRowAriaKeyShortcuts?: string;
 	readonly selectedRowRef?: RefCallback<HTMLElement>;
 }
@@ -396,6 +428,7 @@ export function RepositoryFileList({
 	onSetStaged,
 	query,
 	selectedFilePath,
+	selectedFilePaths,
 	selectedRowAriaKeyShortcuts,
 	selectedRowRef,
 }: RepositoryFileListProps): ReactElement {
@@ -418,6 +451,7 @@ export function RepositoryFileList({
 			{orderedFiles.map((file) => (
 				<RepositoryFileRow
 					file={file}
+					isBulkSelected={selectedFilePaths.has(file.path)}
 					isDiscardDisabled={isDiscardDisabled}
 					isSelected={selectedFilePath === file.path}
 					isStagingDisabled={isStagingDisabled}

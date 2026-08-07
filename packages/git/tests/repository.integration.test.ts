@@ -253,6 +253,29 @@ describe("GitRepository local workflow", () => {
 		expect(await fixture.read("untracked.txt")).toBe("recover me\n");
 	});
 
+	test("discards and restores multiple files with one undo", async () => {
+		const fixture = await fixtures.create();
+		await fixture.write("one.txt", "one\n");
+		await fixture.write("two.txt", "two\n");
+		await fixture.commitAll("add bulk discard fixture");
+		await fixture.write("one.txt", "one changed\n");
+		await fixture.write("two.txt", "two changed\n");
+
+		const discarded = unwrapResult(
+			await fixture.repository.discardFiles({
+				allowDestructive: true,
+				paths: ["one.txt", "two.txt"],
+			})
+		);
+
+		expect(discarded.snapshot.files).toEqual([]);
+		unwrapResult(
+			await fixture.repository.undoDiscard({ token: discarded.undo.token })
+		);
+		expect(await fixture.read("one.txt")).toBe("one changed\n");
+		expect(await fixture.read("two.txt")).toBe("two changed\n");
+	});
+
 	test("requires explicit consent before discarding a file", async () => {
 		const fixture = await fixtures.create();
 		await fixture.write("README.md", "# Keep this change\n");

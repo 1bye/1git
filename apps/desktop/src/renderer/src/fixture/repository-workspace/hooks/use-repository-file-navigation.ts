@@ -6,6 +6,8 @@ import {
 	getRepositoryFileAtOffset,
 	getRepositoryFileRowId,
 	groupRepositoryFiles,
+	type RepositoryFileSelectionMode,
+	updateRepositoryFileSelection,
 } from "@/fixture/repository-workspace/lib/repository-navigation.js";
 import { scrollElementIntoViewport } from "@/fixture/repository-workspace/lib/scroll-element-into-viewport.js";
 
@@ -22,11 +24,17 @@ export interface RepositoryFileNavigation {
 	readonly acceptPreview: () => void;
 	readonly cancelPreview: () => void;
 	readonly changeOpen: (isOpen: boolean) => void;
+	readonly clearFileSelection: () => void;
 	readonly files: readonly FileChange[];
 	readonly isOpen: boolean;
 	readonly openNavigator: () => void;
 	readonly query: string;
-	readonly selectFile: (file: FileChange) => void;
+	readonly selectedFilePaths: ReadonlySet<string>;
+	readonly selectedFiles: readonly FileChange[];
+	readonly selectFile: (
+		file: FileChange,
+		mode?: RepositoryFileSelectionMode
+	) => void;
 	readonly selectNextFile: () => void;
 	readonly selectPreviousFile: () => void;
 	readonly setQuery: (query: string) => void;
@@ -43,6 +51,9 @@ const isEditableTarget = (target: EventTarget | null): boolean => {
 		target instanceof HTMLSelectElement
 	);
 };
+
+const isLiquidMenuTarget = (target: EventTarget | null): boolean =>
+	target instanceof Element && target.closest("[data-liquid-surface]") !== null;
 
 const isNavigatorShortcut = (event: KeyboardEvent): boolean =>
 	(event.metaKey || event.ctrlKey) &&
@@ -84,8 +95,13 @@ export const useRepositoryFileNavigation = ({
 }: UseRepositoryFileNavigationOptions): RepositoryFileNavigation => {
 	const [isOpen, setIsOpen] = useState(false);
 	const [query, setQuery] = useState("");
+	const [selectedFilePaths, setSelectedFilePaths] = useState<
+		ReadonlySet<string>
+	>(() => new Set());
 	const originalPathRef = useRef<string | null>(null);
 	const previewPathRef = useRef<string | null>(selectedFilePath);
+	const selectionAnchorPathRef = useRef<string | null>(selectedFilePath);
+	const selectedFilePathsRef = useRef<ReadonlySet<string>>(new Set());
 	const selectedPathRef = useRef<string | null>(selectedFilePath);
 	const previousSessionIdRef = useRef(sessionId);
 	const visibleFiles = useMemo(
@@ -96,6 +112,26 @@ export const useRepositoryFileNavigation = ({
 		const groups = groupRepositoryFiles(visibleFiles);
 		return [...groups.staged, ...groups.unstaged];
 	}, [visibleFiles]);
+	const orderedVisiblePaths = useMemo(
+		() => orderedVisibleFiles.map((file) => file.path),
+		[orderedVisibleFiles]
+	);
+	const selectedFiles = useMemo(
+		() => files.filter((file) => selectedFilePaths.has(file.path)),
+		[files, selectedFilePaths]
+	);
+	const changeSelectedFilePaths = useCallback(
+		(paths: readonly string[]): void => {
+			const nextPaths = new Set(paths);
+			selectedFilePathsRef.current = nextPaths;
+			setSelectedFilePaths(nextPaths);
+		},
+		[]
+	);
+	const clearFileSelection = useCallback((): void => {
+		changeSelectedFilePaths([]);
+		selectionAnchorPathRef.current = selectedPathRef.current;
+	}, [changeSelectedFilePaths]);
 
 	useEffect(() => {
 		selectedPathRef.current = selectedFilePath;
@@ -109,9 +145,27 @@ export const useRepositoryFileNavigation = ({
 		previousSessionIdRef.current = sessionId;
 		setIsOpen(false);
 		setQuery("");
+		changeSelectedFilePaths([]);
 		originalPathRef.current = null;
 		previewPathRef.current = null;
-	}, [sessionId]);
+		selectionAnchorPathRef.current = null;
+	}, [changeSelectedFilePaths, sessionId]);
+
+	useEffect(() => {
+		const availablePaths = new Set(files.map((file) => file.path));
+		const retainedPaths = [...selectedFilePathsRef.current].filter((path) =>
+			availablePaths.has(path)
+		);
+		if (retainedPaths.length !== selectedFilePathsRef.current.size) {
+			changeSelectedFilePaths(retainedPaths.length > 1 ? retainedPaths : []);
+		}
+		if (
+			selectionAnchorPathRef.current &&
+			!availablePaths.has(selectionAnchorPathRef.current)
+		) {
+			selectionAnchorPathRef.current = selectedFilePath;
+		}
+	}, [changeSelectedFilePaths, files, selectedFilePath]);
 
 	const performSelection = useCallback(
 		(file: FileChange): void => {
@@ -158,11 +212,30 @@ export const useRepositoryFileNavigation = ({
 		[acceptPreview, openNavigator]
 	);
 	const selectFile = useCallback(
-		(file: FileChange): void => {
-			performSelection(file);
+		(file: FileChange, mode: RepositoryFileSelectionMode = "replace"): void => {
+			const selection = updateRepositoryFileSelection({
+				activePath: selectedPathRef.current,
+				anchorPath: selectionAnchorPathRef.current,
+				mode,
+				orderedPaths: orderedVisiblePaths,
+				selectedPaths: selectedFilePathsRef.current,
+				targetPath: file.path,
+			});
+			selectionAnchorPathRef.current = selection.anchorPath;
+			changeSelectedFilePaths(selection.selectedPaths);
+			const activeFile =
+				files.find((candidate) => candidate.path === selection.activePath) ??
+				file;
+			performSelection(activeFile);
 			acceptPreview();
 		},
-		[acceptPreview, performSelection]
+		[
+			acceptPreview,
+			changeSelectedFilePaths,
+			files,
+			orderedVisiblePaths,
+			performSelection,
+		]
 	);
 	const selectAtOffset = useCallback(
 		(
@@ -237,6 +310,18 @@ export const useRepositoryFileNavigation = ({
 	);
 	const handleDirectNavigationKey = useCallback(
 		(event: KeyboardEvent): void => {
+			if (isLiquidMenuTarget(event.target)) {
+				return;
+			}
+			if (
+				event.key === "Escape" &&
+				selectedFilePathsRef.current.size > 0 &&
+				!isEditableTarget(event.target)
+			) {
+				event.preventDefault();
+				clearFileSelection();
+				return;
+			}
 			const offset = arrowOffset(event.key);
 			if (
 				offset === null ||
@@ -252,7 +337,7 @@ export const useRepositoryFileNavigation = ({
 			event.preventDefault();
 			selectAtOffset(offset, orderedVisibleFiles, true);
 		},
-		[orderedVisibleFiles, selectAtOffset, tab]
+		[clearFileSelection, orderedVisibleFiles, selectAtOffset, tab]
 	);
 
 	useEffect(() => {
@@ -279,10 +364,13 @@ export const useRepositoryFileNavigation = ({
 		acceptPreview,
 		cancelPreview,
 		changeOpen,
+		clearFileSelection,
 		files: orderedVisibleFiles,
 		isOpen,
 		openNavigator,
 		query,
+		selectedFilePaths,
+		selectedFiles,
 		selectFile,
 		selectNextFile,
 		selectPreviousFile,

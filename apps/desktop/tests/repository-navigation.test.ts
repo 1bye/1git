@@ -7,6 +7,7 @@ import {
 	getRepositoryFilePosition,
 	groupRepositoryFiles,
 	splitRepositoryFilePath,
+	updateRepositoryFileSelection,
 } from "../src/renderer/src/fixture/repository-workspace/lib/repository-navigation.js";
 
 const fileChange = (
@@ -67,5 +68,46 @@ describe("repository file navigation", () => {
 		expect(getRepositoryDiffElementId("apps/desktop/app.tsx")).toBe(
 			"repository-diff:apps%2Fdesktop%2Fapp.tsx"
 		);
+	});
+
+	test("adds, removes, and ranges file selections in visual order", () => {
+		const paths = FILES.map((file) => file.path);
+		const added = updateRepositoryFileSelection({
+			activePath: FILES[0].path,
+			anchorPath: FILES[0].path,
+			mode: "toggle",
+			orderedPaths: paths,
+			selectedPaths: new Set(),
+			targetPath: FILES[2].path,
+		});
+		expect(added).toEqual({
+			activePath: FILES[2].path,
+			anchorPath: FILES[2].path,
+			selectedPaths: [FILES[0].path, FILES[2].path],
+		});
+
+		const removed = updateRepositoryFileSelection({
+			activePath: added.activePath,
+			anchorPath: added.anchorPath,
+			mode: "toggle",
+			orderedPaths: paths,
+			selectedPaths: new Set(added.selectedPaths),
+			targetPath: FILES[2].path,
+		});
+		expect(removed).toEqual({
+			activePath: FILES[0].path,
+			anchorPath: FILES[2].path,
+			selectedPaths: [],
+		});
+
+		const range = updateRepositoryFileSelection({
+			activePath: FILES[0].path,
+			anchorPath: FILES[0].path,
+			mode: "range",
+			orderedPaths: paths,
+			selectedPaths: new Set(),
+			targetPath: FILES[2].path,
+		});
+		expect(range.selectedPaths).toEqual(paths);
 	});
 });

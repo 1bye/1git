@@ -50,6 +50,7 @@ export interface AdaptiveRepositoryWorkspaceProps {
 	) => Promise<boolean>;
 	readonly onCommit: (summary: string, description: string) => Promise<boolean>;
 	readonly onDiscardFile: (file: FileChange) => Promise<boolean>;
+	readonly onDiscardFiles: (files: readonly FileChange[]) => Promise<boolean>;
 	readonly onFetch: () => Promise<void>;
 	readonly onMergeBranch: (name: string) => Promise<boolean>;
 	readonly onResetCommit: (
@@ -63,6 +64,10 @@ export interface AdaptiveRepositoryWorkspaceProps {
 		file: FileChange,
 		shouldStage: boolean
 	) => Promise<void>;
+	readonly onSetFilesStaged: (
+		files: readonly FileChange[],
+		shouldStage: boolean
+	) => Promise<boolean>;
 	readonly onSetTab: (tab: RepositoryTab) => Promise<void>;
 	readonly onStashChanges: () => Promise<boolean>;
 	readonly onToggleAllFiles: () => Promise<void>;
@@ -126,6 +131,7 @@ export function AdaptiveRepositoryWorkspace({
 	onCherryPickCommit,
 	onCommit,
 	onDiscardFile,
+	onDiscardFiles,
 	onFetch,
 	onMergeBranch,
 	onResetCommit,
@@ -133,6 +139,7 @@ export function AdaptiveRepositoryWorkspace({
 	onSelectCommit,
 	onSelectFile,
 	onSetFileStaged,
+	onSetFilesStaged,
 	onSetTab,
 	onStashChanges,
 	onToggleAllFiles,
@@ -265,9 +272,12 @@ export function AdaptiveRepositoryWorkspace({
 					allFiles={files}
 					navigation={navigation}
 					onDiscardFile={onDiscardFile}
+					onDiscardFiles={onDiscardFiles}
 					onSetFileStaged={onSetFileStaged}
+					onSetFilesStaged={onSetFilesStaged}
 					onToggleAllFiles={onToggleAllFiles}
 					pendingAction={pendingAction}
+					repositoryRoot={activeSession.repository.root}
 					selectedFilePath={selectedFilePath}
 				/>
 				{files.length > 0 ? (

@@ -88,6 +88,9 @@ const managerResultValue = <T>(result: RepositoryManagerResult<T>): T => {
 const errorMessage = (error: unknown): string =>
 	error instanceof Error ? error.message : "The repository operation failed.";
 
+const fileNameFromPath = (path: string): string =>
+	path.split("/").at(-1) ?? path;
+
 interface WorkspaceSummary {
 	readonly branch: string | null;
 	readonly changedFiles: number;
@@ -107,6 +110,7 @@ export interface WorkspaceTabState {
 }
 
 export interface WorkspaceDiscardUndo extends DiscardUndo {
+	readonly detail: string;
 	readonly message: string;
 	readonly sessionId: RepositorySessionId;
 }
@@ -133,6 +137,7 @@ export interface GitWorkspace {
 	readonly createRepository: () => Promise<boolean>;
 	readonly diffs: readonly FileDiff[];
 	readonly discardFile: (file: FileChange) => Promise<boolean>;
+	readonly discardFiles: (files: readonly FileChange[]) => Promise<boolean>;
 	readonly discardUndo: WorkspaceDiscardUndo | null;
 	readonly dismissDiscardUndo: (token: string) => void;
 	readonly error: string | null;
@@ -167,6 +172,10 @@ export interface GitWorkspace {
 		file: FileChange,
 		shouldStage: boolean
 	) => Promise<void>;
+	readonly setFilesStaged: (
+		files: readonly FileChange[],
+		shouldStage: boolean
+	) => Promise<boolean>;
 	readonly setTab: (tab: RepositoryTab) => Promise<void>;
 	readonly snapshot: RepositorySnapshot | null;
 	readonly stashChanges: () => Promise<boolean>;
@@ -698,27 +707,28 @@ export const useGitWorkspace = (): GitWorkspace => {
 		}
 	};
 
-	const setFileStaged = async (
-		file: FileChange,
+	const setFilesStaged = async (
+		files: readonly FileChange[],
 		shouldStage: boolean
-	): Promise<void> => {
-		if (!activeSession || pendingAction) {
-			return;
+	): Promise<boolean> => {
+		if (!activeSession || pendingAction || files.length === 0) {
+			return false;
 		}
 		setPendingAction("stage");
 		try {
 			setError(null);
+			const paths = [...new Set(files.map((file) => file.path))];
 			const result = shouldStage
 				? await window.desktop.git.changes.stage(activeSession.id, {
-						paths: [file.path],
+						paths,
 					})
 				: await window.desktop.git.changes.unstage(activeSession.id, {
-						paths: [file.path],
+						paths,
 					});
 			const nextSnapshot = resultValue(result);
 			applySnapshot(activeSession.id, nextSnapshot);
 			const nextFile = nextSnapshot.files.find(
-				(item) => item.path === file.path
+				(item) => item.path === selectedFilePath
 			);
 			setSelectedFilePath(
 				nextFile?.path ?? nextSnapshot.files[0]?.path ?? null
@@ -728,11 +738,20 @@ export const useGitWorkspace = (): GitWorkspace => {
 			} else {
 				clearDiff();
 			}
+			return true;
 		} catch (cause) {
 			setError(errorMessage(cause));
+			return false;
 		} finally {
 			setPendingAction(null);
 		}
+	};
+
+	const setFileStaged = async (
+		file: FileChange,
+		shouldStage: boolean
+	): Promise<void> => {
+		await setFilesStaged([file], shouldStage);
 	};
 
 	const changeHunk = async (input: ChangeHunkInput): Promise<boolean> => {
@@ -751,6 +770,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 			if (changeResult.undo) {
 				setDiscardUndo({
 					...changeResult.undo,
+					detail: fileNameFromPath(changeResult.undo.path),
 					message: "Hunk discarded from",
 					sessionId: activeSession.id,
 				});
@@ -774,13 +794,15 @@ export const useGitWorkspace = (): GitWorkspace => {
 		}
 	};
 
-	const discardFile = async (file: FileChange): Promise<boolean> => {
-		if (!activeSession || pendingAction) {
+	const discardFiles = async (
+		files: readonly FileChange[]
+	): Promise<boolean> => {
+		if (!activeSession || pendingAction || files.length === 0) {
 			return false;
 		}
+		const discardedPaths = new Set(files.map((file) => file.path));
 		const previousFileIndex =
-			snapshot?.files.findIndex((candidate) => candidate.path === file.path) ??
-			-1;
+			snapshot?.files.findIndex((file) => discardedPaths.has(file.path)) ?? -1;
 		setPendingAction("discard");
 		try {
 			setError(null);
@@ -788,19 +810,26 @@ export const useGitWorkspace = (): GitWorkspace => {
 				activeSession.id,
 				{
 					allowDestructive: true,
-					paths: [file.path],
+					paths: [...discardedPaths],
 				}
 			);
 			const discardResult = resultValue(result);
 			const nextSnapshot = discardResult.snapshot;
 			setDiscardUndo({
 				...discardResult.undo,
-				message: "Changes discarded from",
+				detail:
+					files.length === 1
+						? fileNameFromPath(files[0]?.path ?? discardResult.undo.path)
+						: `${files.length} files`,
+				message:
+					files.length === 1 ? "Changes discarded from" : "Changes discarded",
 				sessionId: activeSession.id,
 			});
 			applySnapshot(activeSession.id, nextSnapshot);
 			const nextFile =
-				nextSnapshot.files.find((candidate) => candidate.path === file.path) ??
+				nextSnapshot.files.find(
+					(candidate) => candidate.path === selectedFilePath
+				) ??
 				nextSnapshot.files[
 					Math.min(
 						Math.max(previousFileIndex, 0),
@@ -821,6 +850,9 @@ export const useGitWorkspace = (): GitWorkspace => {
 			setPendingAction(null);
 		}
 	};
+
+	const discardFile = async (file: FileChange): Promise<boolean> =>
+		await discardFiles([file]);
 
 	const undoDiscard = async (): Promise<boolean> => {
 		const pendingUndo = discardUndo;
@@ -1248,6 +1280,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 		createRepository,
 		diffs,
 		discardFile,
+		discardFiles,
 		discardUndo,
 		dismissDiscardUndo,
 		error,
@@ -1270,6 +1303,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 		selectedFilePath,
 		selectFile,
 		setFileStaged,
+		setFilesStaged,
 		setTab,
 		snapshot,
 		stashChanges,
