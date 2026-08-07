@@ -170,19 +170,102 @@ describe("GitRepository local workflow", () => {
 		const undoToken = discarded.undo?.token;
 		expect(undoToken).toBeString();
 		unwrapResult(
-			await fixture.repository.undoHunkDiscard({ token: undoToken ?? "" })
+			await fixture.repository.undoDiscard({ token: undoToken ?? "" })
 		);
 		const restoredContent = await fixture.read("hunks.txt");
 		expect(restoredContent).toContain("line 2 changed");
 		expect(restoredContent).toContain("line 18 changed");
 
-		const reusedUndo = await fixture.repository.undoHunkDiscard({
+		const reusedUndo = await fixture.repository.undoDiscard({
 			token: undoToken ?? "",
 		});
 		expect(reusedUndo).toMatchObject({
-			error: { code: "invalid-input", operation: "undo-hunk-discard" },
+			error: { code: "invalid-input", operation: "undo-discard" },
 			ok: false,
 		});
+	});
+
+	test("discards and restores a partially staged file", async () => {
+		const fixture = await fixtures.create();
+		const originalLines = Array.from(
+			{ length: 20 },
+			(_, index) => `line ${index + 1}`
+		);
+		await fixture.write("partial.txt", `${originalLines.join("\n")}\n`);
+		await fixture.commitAll("add partial fixture");
+		const stagedLines = [...originalLines];
+		stagedLines[1] = "line 2 staged";
+		await fixture.write("partial.txt", `${stagedLines.join("\n")}\n`);
+		unwrapResult(
+			await fixture.repository.changeHunk({
+				action: "stage",
+				hunkIndex: 0,
+				path: "partial.txt",
+			})
+		);
+		const workingLines = [...stagedLines];
+		workingLines[17] = "line 18 unstaged";
+		await fixture.write("partial.txt", `${workingLines.join("\n")}\n`);
+
+		const discarded = unwrapResult(
+			await fixture.repository.discardFiles({
+				allowDestructive: true,
+				paths: ["partial.txt"],
+			})
+		);
+
+		expect(discarded.snapshot.files).toEqual([]);
+		expect(await fixture.read("partial.txt")).toBe(
+			`${originalLines.join("\n")}\n`
+		);
+
+		unwrapResult(
+			await fixture.repository.undoDiscard({ token: discarded.undo.token })
+		);
+		const stagedDiff = await fixture.git([
+			"diff",
+			"--cached",
+			"--",
+			"partial.txt",
+		]);
+		const worktreeDiff = await fixture.git(["diff", "--", "partial.txt"]);
+		expect(stagedDiff).toContain("line 2 staged");
+		expect(stagedDiff).not.toContain("line 18 unstaged");
+		expect(worktreeDiff).toContain("line 18 unstaged");
+		expect(worktreeDiff).not.toContain("line 2 staged");
+	});
+
+	test("discards and restores an untracked file", async () => {
+		const fixture = await fixtures.create();
+		await fixture.write("untracked.txt", "recover me\n");
+
+		const discarded = unwrapResult(
+			await fixture.repository.discardFiles({
+				allowDestructive: true,
+				paths: ["untracked.txt"],
+			})
+		);
+
+		expect(discarded.snapshot.files).toEqual([]);
+		unwrapResult(
+			await fixture.repository.undoDiscard({ token: discarded.undo.token })
+		);
+		expect(await fixture.read("untracked.txt")).toBe("recover me\n");
+	});
+
+	test("requires explicit consent before discarding a file", async () => {
+		const fixture = await fixtures.create();
+		await fixture.write("README.md", "# Keep this change\n");
+
+		const result = await fixture.repository.discardFiles({
+			paths: ["README.md"],
+		});
+
+		expect(result).toMatchObject({
+			error: { code: "invalid-input", operation: "discard-files" },
+			ok: false,
+		});
+		expect(await fixture.read("README.md")).toBe("# Keep this change\n");
 	});
 
 	test("requires explicit consent before discarding a hunk", async () => {

@@ -3,11 +3,11 @@ import type {
 	ChangeHunkInput,
 	CommitInfo,
 	CommitPage,
+	DiscardUndo,
 	FileChange,
 	FileDiff,
 	GitError,
 	GitResult,
-	HunkDiscardUndo,
 	RepositorySnapshot,
 	ResetMode,
 } from "@1git/git";
@@ -44,6 +44,7 @@ export interface OpenRepositoryOptions {
 export type PendingWorkspaceAction =
 	| "branch"
 	| "commit"
+	| "discard"
 	| "fetch"
 	| "history"
 	| "hunk"
@@ -105,7 +106,8 @@ export interface WorkspaceTabState {
 	readonly session: RepositorySessionRecord;
 }
 
-export interface WorkspaceHunkDiscardUndo extends HunkDiscardUndo {
+export interface WorkspaceDiscardUndo extends DiscardUndo {
+	readonly message: string;
 	readonly sessionId: RepositorySessionId;
 }
 
@@ -130,12 +132,13 @@ export interface GitWorkspace {
 	readonly createBranch: (name: string) => Promise<boolean>;
 	readonly createRepository: () => Promise<boolean>;
 	readonly diffs: readonly FileDiff[];
-	readonly dismissHunkDiscardUndo: (token: string) => void;
+	readonly discardFile: (file: FileChange) => Promise<boolean>;
+	readonly discardUndo: WorkspaceDiscardUndo | null;
+	readonly dismissDiscardUndo: (token: string) => void;
 	readonly error: string | null;
 	readonly fetchRepository: () => Promise<void>;
 	readonly forgetRecentRepository: (path: string) => Promise<void>;
 	readonly history: CommitPage | null;
-	readonly hunkDiscardUndo: WorkspaceHunkDiscardUndo | null;
 	readonly isInitialLoading: boolean;
 	readonly lastFetchedAt: string | null;
 	readonly manager: RepositoryManagerState;
@@ -170,7 +173,7 @@ export interface GitWorkspace {
 	readonly switchBranch: (name: string) => Promise<void>;
 	readonly tab: RepositoryTab;
 	readonly toggleAllFiles: () => Promise<void>;
-	readonly undoHunkDiscard: () => Promise<boolean>;
+	readonly undoDiscard: () => Promise<boolean>;
 	readonly workspaces: readonly WorkspaceTabState[];
 }
 
@@ -201,8 +204,9 @@ export const useGitWorkspace = (): GitWorkspace => {
 	const [isInitialLoading, setIsInitialLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const [lastFetchedAt, setLastFetchedAt] = useState<string | null>(null);
-	const [hunkDiscardUndo, setHunkDiscardUndo] =
-		useState<WorkspaceHunkDiscardUndo | null>(null);
+	const [discardUndo, setDiscardUndo] = useState<WorkspaceDiscardUndo | null>(
+		null
+	);
 	const [workspaceSummaries, setWorkspaceSummaries] = useState<
 		Readonly<Record<RepositorySessionId, WorkspaceSummary>>
 	>({});
@@ -310,8 +314,8 @@ export const useGitWorkspace = (): GitWorkspace => {
 		diffRequestIdRef.current += 1;
 		setDiffs([]);
 	}, []);
-	const dismissHunkDiscardUndo = useCallback((token: string): void => {
-		setHunkDiscardUndo((currentUndo) =>
+	const dismissDiscardUndo = useCallback((token: string): void => {
+		setDiscardUndo((currentUndo) =>
 			currentUndo?.token === token ? null : currentUndo
 		);
 	}, []);
@@ -745,8 +749,9 @@ export const useGitWorkspace = (): GitWorkspace => {
 			const changeResult = resultValue(result);
 			const nextSnapshot = changeResult.snapshot;
 			if (changeResult.undo) {
-				setHunkDiscardUndo({
+				setDiscardUndo({
 					...changeResult.undo,
+					message: "Hunk discarded from",
 					sessionId: activeSession.id,
 				});
 			}
@@ -769,20 +774,68 @@ export const useGitWorkspace = (): GitWorkspace => {
 		}
 	};
 
-	const undoHunkDiscard = async (): Promise<boolean> => {
-		const pendingUndo = hunkDiscardUndo;
+	const discardFile = async (file: FileChange): Promise<boolean> => {
+		if (!activeSession || pendingAction) {
+			return false;
+		}
+		const previousFileIndex =
+			snapshot?.files.findIndex((candidate) => candidate.path === file.path) ??
+			-1;
+		setPendingAction("discard");
+		try {
+			setError(null);
+			const result = await window.desktop.git.changes.discardFiles(
+				activeSession.id,
+				{
+					allowDestructive: true,
+					paths: [file.path],
+				}
+			);
+			const discardResult = resultValue(result);
+			const nextSnapshot = discardResult.snapshot;
+			setDiscardUndo({
+				...discardResult.undo,
+				message: "Changes discarded from",
+				sessionId: activeSession.id,
+			});
+			applySnapshot(activeSession.id, nextSnapshot);
+			const nextFile =
+				nextSnapshot.files.find((candidate) => candidate.path === file.path) ??
+				nextSnapshot.files[
+					Math.min(
+						Math.max(previousFileIndex, 0),
+						nextSnapshot.files.length - 1
+					)
+				];
+			setSelectedFilePath(nextFile?.path ?? null);
+			if (nextSnapshot.files.length > 0) {
+				await loadChangesDiff(activeSession.id, nextSnapshot.files);
+			} else {
+				clearDiff();
+			}
+			return true;
+		} catch (cause) {
+			setError(errorMessage(cause));
+			return false;
+		} finally {
+			setPendingAction(null);
+		}
+	};
+
+	const undoDiscard = async (): Promise<boolean> => {
+		const pendingUndo = discardUndo;
 		if (!pendingUndo || pendingAction) {
 			return false;
 		}
-		setPendingAction("hunk");
+		setPendingAction("discard");
 		try {
 			setError(null);
-			const result = await window.desktop.git.changes.undoHunkDiscard(
+			const result = await window.desktop.git.changes.undoDiscard(
 				pendingUndo.sessionId,
 				{ token: pendingUndo.token }
 			);
 			const nextSnapshot = resultValue(result);
-			setHunkDiscardUndo((currentUndo) =>
+			setDiscardUndo((currentUndo) =>
 				currentUndo?.token === pendingUndo.token ? null : currentUndo
 			);
 			if (activeSession?.id !== pendingUndo.sessionId) {
@@ -803,7 +856,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 			return true;
 		} catch (cause) {
 			setError(errorMessage(cause));
-			setHunkDiscardUndo((currentUndo) =>
+			setDiscardUndo((currentUndo) =>
 				currentUndo?.token === pendingUndo.token ? null : currentUndo
 			);
 			return false;
@@ -813,24 +866,24 @@ export const useGitWorkspace = (): GitWorkspace => {
 	};
 
 	useEffect(() => {
-		if (!hunkDiscardUndo) {
+		if (!discardUndo) {
 			return;
 		}
 		const sessionIsOpen = manager.sessions.some(
-			(session) => session.id === hunkDiscardUndo.sessionId
+			(session) => session.id === discardUndo.sessionId
 		);
-		const remainingMs = Date.parse(hunkDiscardUndo.expiresAt) - Date.now();
+		const remainingMs = Date.parse(discardUndo.expiresAt) - Date.now();
 		if (!sessionIsOpen || remainingMs <= 0) {
-			setHunkDiscardUndo(null);
+			setDiscardUndo(null);
 			return;
 		}
 		const timeoutId = globalThis.setTimeout(() => {
-			setHunkDiscardUndo((currentUndo) =>
-				currentUndo?.token === hunkDiscardUndo.token ? null : currentUndo
+			setDiscardUndo((currentUndo) =>
+				currentUndo?.token === discardUndo.token ? null : currentUndo
 			);
 		}, remainingMs);
 		return () => globalThis.clearTimeout(timeoutId);
-	}, [hunkDiscardUndo, manager.sessions]);
+	}, [discardUndo, manager.sessions]);
 
 	const toggleAllFiles = async (): Promise<void> => {
 		if (!(activeSession && snapshot) || pendingAction) {
@@ -1194,12 +1247,13 @@ export const useGitWorkspace = (): GitWorkspace => {
 		createBranch,
 		createRepository,
 		diffs,
-		dismissHunkDiscardUndo,
+		discardFile,
+		discardUndo,
+		dismissDiscardUndo,
 		error,
 		fetchRepository,
 		forgetRecentRepository,
 		history,
-		hunkDiscardUndo,
 		isInitialLoading,
 		lastFetchedAt,
 		manager,
@@ -1222,7 +1276,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 		switchBranch,
 		tab,
 		toggleAllFiles,
-		undoHunkDiscard,
+		undoDiscard,
 		workspaces,
 	};
 };

@@ -120,6 +120,11 @@ export const createDesktopGitApi = (
 				GIT_IPC_CHANNELS.changes.commit,
 				inputRequest(sessionId, input, options)
 			),
+		discardFiles: async (sessionId, input, options) =>
+			await invoke(
+				GIT_IPC_CHANNELS.changes.discardFiles,
+				inputRequest(sessionId, input, options)
+			),
 		reset: async (sessionId, input, options) =>
 			await invoke(
 				GIT_IPC_CHANNELS.changes.reset,
@@ -140,9 +145,9 @@ export const createDesktopGitApi = (
 				GIT_IPC_CHANNELS.changes.stageAll,
 				sessionRequest(sessionId, options)
 			),
-		undoHunkDiscard: async (sessionId, input, options) =>
+		undoDiscard: async (sessionId, input, options) =>
 			await invoke(
-				GIT_IPC_CHANNELS.changes.undoHunkDiscard,
+				GIT_IPC_CHANNELS.changes.undoDiscard,
 				inputRequest(sessionId, input, options)
 			),
 		unstage: async (sessionId, input, options) =>

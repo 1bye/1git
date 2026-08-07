@@ -324,7 +324,7 @@ describe("desktop Git bridge", () => {
 		);
 		expect(discarded.undo).toMatchObject({ path: "hunks.txt" });
 		unwrapGitResult(
-			await bridge.api.changes.undoHunkDiscard(opened.session.id, {
+			await bridge.api.changes.undoDiscard(opened.session.id, {
 				token: discarded.undo?.token ?? "",
 			})
 		);

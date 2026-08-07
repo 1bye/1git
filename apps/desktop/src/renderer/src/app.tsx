@@ -7,7 +7,7 @@ import { useGitWorkspace } from "@/feature/workspace/hooks/use-git-workspace.js"
 import { CommandLensProvider } from "@/fixture/command-lens/components/command-lens-provider.js";
 import { DesktopToolbar } from "@/fixture/desktop-toolbar/components/desktop-toolbar.js";
 import { LiquidMenuStackProvider } from "@/fixture/liquid-menu/components/liquid-menu-stack-provider.js";
-import { RepositoryHunkUndoToast } from "@/fixture/repository-workspace/components/repository-hunk-undo-toast.js";
+import { RepositoryDiscardUndoToast } from "@/fixture/repository-workspace/components/repository-discard-undo-toast.js";
 import { RepositoryWorkspace } from "@/fixture/repository-workspace/components/repository-workspace.js";
 import { RepositoryWelcome } from "@/fixture/workspace-content/components/repository-welcome.js";
 
@@ -76,6 +76,7 @@ export function App(): ReactElement {
 								onChangeHunk={workspace.changeHunk}
 								onCherryPickCommit={workspace.cherryPickCommit}
 								onCommit={workspace.commit}
+								onDiscardFile={workspace.discardFile}
 								onFetch={workspace.fetchRepository}
 								onMergeBranch={workspace.mergeBranch}
 								onResetCommit={workspace.resetToCommit}
@@ -127,12 +128,13 @@ export function App(): ReactElement {
 							</Button>
 						</div>
 					) : null}
-					{workspace.hunkDiscardUndo ? (
-						<RepositoryHunkUndoToast
-							onDismiss={workspace.dismissHunkDiscardUndo}
-							onUndo={workspace.undoHunkDiscard}
-							path={workspace.hunkDiscardUndo.path}
-							token={workspace.hunkDiscardUndo.token}
+					{workspace.discardUndo ? (
+						<RepositoryDiscardUndoToast
+							message={workspace.discardUndo.message}
+							onDismiss={workspace.dismissDiscardUndo}
+							onUndo={workspace.undoDiscard}
+							path={workspace.discardUndo.path}
+							token={workspace.discardUndo.token}
 						/>
 					) : null}
 					<Toaster position="bottom-right" />

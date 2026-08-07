@@ -18,6 +18,7 @@ import type { RepositoryFileNavigation } from "@/fixture/repository-workspace/ho
 interface RepositoryWorkspaceToolbarProps {
 	readonly branches: BranchCollection | null;
 	readonly navigation: RepositoryFileNavigation;
+	readonly onDiscardFile: (file: FileChange) => Promise<boolean>;
 	readonly onFetch: () => Promise<void>;
 	readonly onMergeBranch: (name: string) => Promise<boolean>;
 	readonly onSetFileStaged: (
@@ -46,6 +47,7 @@ const tabForShortcut = (key: string): RepositoryTab | null => {
 export function RepositoryWorkspaceToolbar({
 	branches,
 	navigation,
+	onDiscardFile,
 	onFetch,
 	onMergeBranch,
 	onSetFileStaged,
@@ -129,6 +131,7 @@ export function RepositoryWorkspaceToolbar({
 			{tab === "changes" ? (
 				<RepositoryFileNavigator
 					navigation={navigation}
+					onDiscardFile={onDiscardFile}
 					onSetFileStaged={onSetFileStaged}
 					pendingAction={pendingAction}
 					selectedFilePath={selectedFilePath}

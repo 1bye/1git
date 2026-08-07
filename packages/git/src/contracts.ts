@@ -44,6 +44,7 @@ export type GitOperation =
 	| "delete-branch"
 	| "delete-tag"
 	| "diff"
+	| "discard-files"
 	| "drop-stash"
 	| "fetch"
 	| "file-content"
@@ -83,7 +84,7 @@ export type GitOperation =
 	| "stash"
 	| "unstage"
 	| "unstage-all"
-	| "undo-hunk-discard"
+	| "undo-discard"
 	| "unlock-worktree"
 	| "unset-config";
 
@@ -378,8 +379,8 @@ export interface ChangeHunkInput extends GitCallOptions {
 	readonly path: string;
 }
 
-/** Short-lived capability for restoring one discarded worktree hunk. */
-export interface HunkDiscardUndo {
+/** Short-lived capability for restoring one discarded change. */
+export interface DiscardUndo {
 	readonly expiresAt: string;
 	readonly path: string;
 	readonly token: string;
@@ -388,10 +389,20 @@ export interface HunkDiscardUndo {
 /** Updated repository state and an optional discard undo capability. */
 export interface ChangeHunkResult {
 	readonly snapshot: RepositorySnapshot;
-	readonly undo: HunkDiscardUndo | null;
+	readonly undo: DiscardUndo | null;
 }
 
-export interface UndoHunkDiscardInput extends GitCallOptions {
+export interface DiscardFilesInput extends GitCallOptions {
+	readonly allowDestructive?: boolean;
+	readonly paths: readonly string[];
+}
+
+export interface DiscardFilesResult {
+	readonly snapshot: RepositorySnapshot;
+	readonly undo: DiscardUndo;
+}
+
+export interface UndoDiscardInput extends GitCallOptions {
 	readonly token: string;
 }
 

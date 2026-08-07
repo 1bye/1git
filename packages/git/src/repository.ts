@@ -20,8 +20,11 @@ import type {
 	DeleteBranchInput,
 	DeleteTagInput,
 	DiffInput,
+	DiscardFilesInput,
+	DiscardFilesResult,
 	DropStashInput,
 	FetchInput,
+	FileChange,
 	FileContent,
 	FileContentInput,
 	FileDiff,
@@ -61,7 +64,7 @@ import type {
 	StashReferenceInput,
 	SyncResult,
 	TagInfo,
-	UndoHunkDiscardInput,
+	UndoDiscardInput,
 	WorktreeInfo,
 	WorktreePathInput,
 } from "./contracts.js";
@@ -100,16 +103,25 @@ const EMPTY_HISTORY: CommitPage = {
 	nextOffset: null,
 };
 const DEFAULT_HISTORY_LIMIT = 50;
-const HUNK_DISCARD_UNDO_TTL_MS = 15_000;
+const DISCARD_UNDO_TTL_MS = 15_000;
+const EMPTY_TREE_OID = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
 const MAX_HISTORY_LIMIT = 500;
 const MAX_HUNK_INDEX = 100_000;
 
-interface PendingHunkDiscardUndo {
+interface PendingDiscardUndo {
 	readonly expiresAt: number;
-	readonly patch: string;
 	readonly path: string;
+	readonly stagedPatch: string;
 	readonly token: string;
+	readonly worktreePatch: string;
 }
+
+const matchesRequestedPath = (
+	file: FileChange,
+	requestedPaths: ReadonlySet<string>
+): boolean =>
+	requestedPaths.has(file.path) ||
+	(file.originalPath !== undefined && requestedPaths.has(file.originalPath));
 
 const capture = async <T>(
 	operation: GitOperation,
@@ -265,7 +277,7 @@ export class GitRepository {
 	readonly info: RepositoryInfo;
 	private readonly context: RepositoryContext;
 	private mutationTail: Promise<void> = Promise.resolve();
-	private pendingHunkDiscardUndo: PendingHunkDiscardUndo | null = null;
+	private pendingDiscardUndo: PendingDiscardUndo | null = null;
 
 	private constructor(context: RepositoryContext) {
 		this.context = context;
@@ -568,54 +580,201 @@ export class GitRepository {
 				return { snapshot, undo: null };
 			}
 
-			const expiresAt = Date.now() + HUNK_DISCARD_UNDO_TTL_MS;
+			const expiresAt = Date.now() + DISCARD_UNDO_TTL_MS;
 			const undo = {
 				expiresAt: new Date(expiresAt).toISOString(),
 				path,
 				token: randomUUID(),
 			};
-			this.pendingHunkDiscardUndo = {
+			this.pendingDiscardUndo = {
 				expiresAt,
-				patch,
 				path,
+				stagedPatch: "",
 				token: undo.token,
+				worktreePatch: patch,
 			};
 			return { snapshot, undo };
 		});
 	}
 
-	/** Restores the latest discarded worktree hunk while its token is valid. */
-	async undoHunkDiscard(
-		input: UndoHunkDiscardInput
+	/** Discards all staged and unstaged changes for selected paths. */
+	async discardFiles(
+		input: DiscardFilesInput
+	): Promise<GitResult<DiscardFilesResult>> {
+		return await this.mutate("discard-files", input.signal, async () => {
+			if (!input.allowDestructive) {
+				throw invalidInput(
+					"discard-files",
+					"Discarding file changes requires allowDestructive: true."
+				);
+			}
+			const requestedPaths = requireRepositoryPaths(
+				input.paths,
+				"discard-files"
+			);
+			const before = await loadSnapshot(this.context, false, input.signal);
+			const requestedPathSet = new Set(requestedPaths);
+			const selectedFiles = before.files.filter((file) =>
+				matchesRequestedPath(file, requestedPathSet)
+			);
+			if (selectedFiles.length === 0) {
+				throw invalidInput(
+					"discard-files",
+					"No changed file matches the selected path."
+				);
+			}
+			if (selectedFiles.some((file) => file.recordType === "unmerged")) {
+				throw invalidInput(
+					"discard-files",
+					"Resolve conflicted files before discarding their changes."
+				);
+			}
+
+			const affectedPaths = [
+				...new Set(
+					selectedFiles.flatMap((file) =>
+						file.originalPath ? [file.originalPath, file.path] : [file.path]
+					)
+				),
+			];
+			const stagedPatch = await this.captureDiffPatch(
+				[
+					"diff",
+					"--cached",
+					"--no-ext-diff",
+					"--no-color",
+					"--binary",
+					"--full-index",
+					before.head.unborn ? EMPTY_TREE_OID : "HEAD",
+					"--",
+					...affectedPaths,
+				],
+				input.signal
+			);
+			const trackedWorktreePatch = await this.captureDiffPatch(
+				[
+					"diff",
+					"--no-ext-diff",
+					"--no-color",
+					"--binary",
+					"--full-index",
+					"--",
+					...affectedPaths,
+				],
+				input.signal
+			);
+			const untrackedPatches = await Promise.all(
+				selectedFiles
+					.filter((file) => file.recordType === "untracked")
+					.map((file) => this.captureNoIndexPatch(file.path, input.signal))
+			);
+			const worktreePatch = [trackedWorktreePatch, ...untrackedPatches]
+				.filter(Boolean)
+				.join("\n");
+			if (!(stagedPatch || worktreePatch)) {
+				throw invalidInput(
+					"discard-files",
+					"The selected file has no discardable changes."
+				);
+			}
+
+			await this.applyPatch(worktreePatch, {
+				reverse: true,
+				signal: input.signal,
+			});
+			try {
+				await this.applyPatch(stagedPatch, {
+					reverse: true,
+					signal: input.signal,
+				});
+				try {
+					await this.applyPatch(stagedPatch, {
+						cached: true,
+						reverse: true,
+						signal: input.signal,
+					});
+				} catch (error: unknown) {
+					await this.applyPatch(stagedPatch, { signal: input.signal });
+					throw error;
+				}
+			} catch (error: unknown) {
+				await this.applyPatch(worktreePatch, { signal: input.signal });
+				throw error;
+			}
+
+			const expiresAt = Date.now() + DISCARD_UNDO_TTL_MS;
+			const undo = {
+				expiresAt: new Date(expiresAt).toISOString(),
+				path: selectedFiles[0]?.path ?? requestedPaths[0] ?? "",
+				token: randomUUID(),
+			};
+			this.pendingDiscardUndo = {
+				expiresAt,
+				path: undo.path,
+				stagedPatch,
+				token: undo.token,
+				worktreePatch,
+			};
+			return {
+				snapshot: await loadSnapshot(this.context, false, input.signal),
+				undo,
+			};
+		});
+	}
+
+	/** Restores the latest discarded change while its token is valid. */
+	async undoDiscard(
+		input: UndoDiscardInput
 	): Promise<GitResult<RepositorySnapshot>> {
-		return await this.mutate("undo-hunk-discard", input.signal, async () => {
+		return await this.mutate("undo-discard", input.signal, async () => {
 			const token = requireText(
 				input.token,
 				"Discard undo token",
-				"undo-hunk-discard"
+				"undo-discard"
 			);
-			const pendingUndo = this.pendingHunkDiscardUndo;
+			const pendingUndo = this.pendingDiscardUndo;
 			if (
 				!pendingUndo ||
 				pendingUndo.token !== token ||
 				pendingUndo.expiresAt <= Date.now()
 			) {
 				if (pendingUndo?.token === token) {
-					this.pendingHunkDiscardUndo = null;
+					this.pendingDiscardUndo = null;
 				}
 				throw invalidInput(
-					"undo-hunk-discard",
-					"The discarded hunk can no longer be restored."
+					"undo-discard",
+					"The discarded change can no longer be restored."
 				);
 			}
 
-			await this.context.process.run({
-				args: ["apply", "--recount", "--whitespace=nowarn"],
-				cwd: this.info.root,
+			await this.applyPatch(pendingUndo.stagedPatch, {
+				cached: true,
 				signal: input.signal,
-				stdin: pendingUndo.patch,
 			});
-			this.pendingHunkDiscardUndo = null;
+			try {
+				await this.applyPatch(pendingUndo.stagedPatch, {
+					signal: input.signal,
+				});
+				try {
+					await this.applyPatch(pendingUndo.worktreePatch, {
+						signal: input.signal,
+					});
+				} catch (error: unknown) {
+					await this.applyPatch(pendingUndo.stagedPatch, {
+						reverse: true,
+						signal: input.signal,
+					});
+					throw error;
+				}
+			} catch (error: unknown) {
+				await this.applyPatch(pendingUndo.stagedPatch, {
+					cached: true,
+					reverse: true,
+					signal: input.signal,
+				});
+				throw error;
+			}
+			this.pendingDiscardUndo = null;
 			return await loadSnapshot(this.context, false, input.signal);
 		});
 	}
@@ -1483,6 +1642,71 @@ export class GitRepository {
 			return await capture(operation, task);
 		} finally {
 			gate.resolve();
+		}
+	}
+
+	private async applyPatch(
+		patch: string,
+		options: {
+			readonly cached?: boolean;
+			readonly reverse?: boolean;
+			readonly signal?: AbortSignal;
+		}
+	): Promise<void> {
+		if (!patch) {
+			return;
+		}
+		const args = ["apply", "--recount", "--whitespace=nowarn"];
+		if (options.cached) {
+			args.push("--cached");
+		}
+		if (options.reverse) {
+			args.push("--reverse");
+		}
+		await this.context.process.run({
+			args,
+			cwd: this.info.root,
+			signal: options.signal,
+			stdin: patch,
+		});
+	}
+
+	private async captureDiffPatch(
+		args: readonly string[],
+		signal?: AbortSignal
+	): Promise<string> {
+		const output = await this.context.process.run({
+			args,
+			cwd: this.info.root,
+			signal,
+		});
+		return output.stdout.toString("utf8");
+	}
+
+	private async captureNoIndexPatch(
+		path: string,
+		signal?: AbortSignal
+	): Promise<string> {
+		try {
+			return await this.captureDiffPatch(
+				[
+					"diff",
+					"--no-index",
+					"--no-ext-diff",
+					"--no-color",
+					"--binary",
+					"--full-index",
+					"--",
+					"/dev/null",
+					path,
+				],
+				signal
+			);
+		} catch (error: unknown) {
+			if (error instanceof GitCommandFailure && error.exitCode === 1) {
+				return error.stdout ? `${error.stdout}\n` : "";
+			}
+			throw error;
 		}
 	}
 

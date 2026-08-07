@@ -13,6 +13,7 @@ import type { RepositoryFileNavigation } from "@/fixture/repository-workspace/ho
 
 interface RepositoryFileNavigatorProps {
 	readonly navigation: RepositoryFileNavigation;
+	readonly onDiscardFile: (file: FileChange) => Promise<boolean>;
 	readonly onSetFileStaged: (
 		file: FileChange,
 		shouldStage: boolean
@@ -23,6 +24,7 @@ interface RepositoryFileNavigatorProps {
 
 export function RepositoryFileNavigator({
 	navigation,
+	onDiscardFile,
 	onSetFileStaged,
 	pendingAction,
 	selectedFilePath,
@@ -94,7 +96,9 @@ export function RepositoryFileNavigator({
 						<div className="max-h-[min(56vh,28rem)] overflow-y-auto overscroll-contain">
 							<RepositoryFileList
 								files={navigation.files}
+								isDiscardDisabled={pendingAction !== null}
 								isStagingDisabled={pendingAction !== null}
+								onDiscard={onDiscardFile}
 								onSelect={navigation.selectFile}
 								onSetStaged={onSetFileStaged}
 								query={navigation.query}
@@ -121,6 +125,7 @@ interface RepositoryFileRailProps extends RepositoryFileNavigatorProps {
 export function RepositoryFileRail({
 	allFiles,
 	navigation,
+	onDiscardFile,
 	onSetFileStaged,
 	onToggleAllFiles,
 	pendingAction,
@@ -197,7 +202,9 @@ export function RepositoryFileRail({
 			>
 				<RepositoryFileList
 					files={navigation.files}
+					isDiscardDisabled={pendingAction !== null}
 					isStagingDisabled={pendingAction !== null}
+					onDiscard={onDiscardFile}
 					onSelect={navigation.selectFile}
 					onSetStaged={onSetFileStaged}
 					query={navigation.query}

@@ -16,4 +16,14 @@ export const REPOSITORY_HISTORY_CONTEXT_MENU_WIDTH = 280;
 export const REPOSITORY_HISTORY_CONTEXT_MENU_WIDTH_CLASS_NAME =
 	"w-[280px] min-w-[280px]";
 
+export const REPOSITORY_FILE_CONTEXT_MENU_ANCHOR_GEOMETRY = {
+	insetBlock: 0,
+	insetInline: 0,
+	radius: 6,
+} as const;
+
+export const REPOSITORY_FILE_CONTEXT_MENU_WIDTH = 260;
+export const REPOSITORY_FILE_CONTEXT_MENU_WIDTH_CLASS_NAME =
+	"w-[260px] min-w-[260px]";
+
 export const MAX_COMMIT_SUMMARY_LENGTH = 120;

@@ -49,6 +49,7 @@ export interface AdaptiveRepositoryWorkspaceProps {
 		branchName: string
 	) => Promise<boolean>;
 	readonly onCommit: (summary: string, description: string) => Promise<boolean>;
+	readonly onDiscardFile: (file: FileChange) => Promise<boolean>;
 	readonly onFetch: () => Promise<void>;
 	readonly onMergeBranch: (name: string) => Promise<boolean>;
 	readonly onResetCommit: (
@@ -124,6 +125,7 @@ export function AdaptiveRepositoryWorkspace({
 	onChangeHunk,
 	onCherryPickCommit,
 	onCommit,
+	onDiscardFile,
 	onFetch,
 	onMergeBranch,
 	onResetCommit,
@@ -262,6 +264,7 @@ export function AdaptiveRepositoryWorkspace({
 				<RepositoryFileRail
 					allFiles={files}
 					navigation={navigation}
+					onDiscardFile={onDiscardFile}
 					onSetFileStaged={onSetFileStaged}
 					onToggleAllFiles={onToggleAllFiles}
 					pendingAction={pendingAction}
@@ -292,6 +295,7 @@ export function AdaptiveRepositoryWorkspace({
 				<RepositoryWorkspaceToolbar
 					branches={branches}
 					navigation={navigation}
+					onDiscardFile={onDiscardFile}
 					onFetch={onFetch}
 					onMergeBranch={onMergeBranch}
 					onSetFileStaged={onSetFileStaged}

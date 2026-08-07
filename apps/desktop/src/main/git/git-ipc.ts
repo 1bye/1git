@@ -10,6 +10,7 @@ import type {
 	DeleteBranchInput,
 	DeleteTagInput,
 	DiffInput,
+	DiscardFilesInput,
 	DropStashInput,
 	FetchInput,
 	FileContentInput,
@@ -42,7 +43,7 @@ import type {
 	StageInput,
 	StashInput,
 	StashReferenceInput,
-	UndoHunkDiscardInput,
+	UndoDiscardInput,
 	WorktreePathInput,
 } from "@1git/git";
 import type { IpcMain, IpcMainInvokeEvent } from "electron";
@@ -493,6 +494,15 @@ const changeHandlers = (
 		),
 	},
 	{
+		channel: GIT_IPC_CHANNELS.changes.discardFiles,
+		handle: repositoryInputHandler(
+			repositoryManager,
+			"discard-files",
+			async (repository, input: IpcGitInput<DiscardFilesInput>) =>
+				await repository.discardFiles(input)
+		),
+	},
+	{
 		channel: GIT_IPC_CHANNELS.changes.stage,
 		handle: repositoryInputHandler(
 			repositoryManager,
@@ -527,12 +537,12 @@ const changeHandlers = (
 		),
 	},
 	{
-		channel: GIT_IPC_CHANNELS.changes.undoHunkDiscard,
+		channel: GIT_IPC_CHANNELS.changes.undoDiscard,
 		handle: repositoryInputHandler(
 			repositoryManager,
-			"undo-hunk-discard",
-			async (repository, input: IpcGitInput<UndoHunkDiscardInput>) =>
-				await repository.undoHunkDiscard(input)
+			"undo-discard",
+			async (repository, input: IpcGitInput<UndoDiscardInput>) =>
+				await repository.undoDiscard(input)
 		),
 	},
 	{

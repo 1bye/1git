@@ -1,14 +1,35 @@
 import type { FileChange } from "@1git/git";
+import { Button } from "@1git/ui/components/button";
+import {
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+} from "@1git/ui/components/dropdown-menu";
 import { cn } from "@1git/ui/lib/utils";
+import { ArrowLeftIcon } from "@phosphor-icons/react/dist/csr/ArrowLeft";
 import { CheckIcon } from "@phosphor-icons/react/dist/csr/Check";
 import { MinusIcon } from "@phosphor-icons/react/dist/csr/Minus";
+import { SpinnerGapIcon } from "@phosphor-icons/react/dist/csr/SpinnerGap";
+import { TrashIcon } from "@phosphor-icons/react/dist/csr/Trash";
 import type { ChangeEvent, ReactElement, RefCallback } from "react";
+import { useCallback, useState } from "react";
 import {
 	getFileChangeLabel,
 	isFilePartiallyStaged,
 	isFileStaged,
 } from "@/feature/workspace/lib/workspace-model.js";
+import {
+	LiquidContextMenuRoot,
+	LiquidContextMenuTrigger,
+	LiquidMenuContent,
+} from "@/fixture/liquid-menu/components/liquid-menu.js";
+import { LiquidMenuAutoSize } from "@/fixture/liquid-menu/components/liquid-menu-auto-size.js";
+import { useLiquidContextMenuPosition } from "@/fixture/liquid-menu/hooks/use-liquid-context-menu-position.js";
 import { OverflowingLabel } from "@/fixture/overflowing-label/components/overflowing-label.js";
+import {
+	REPOSITORY_FILE_CONTEXT_MENU_ANCHOR_GEOMETRY,
+	REPOSITORY_FILE_CONTEXT_MENU_WIDTH,
+	REPOSITORY_FILE_CONTEXT_MENU_WIDTH_CLASS_NAME,
+} from "@/fixture/repository-workspace/constants/repository-workspace.js";
 import {
 	getRepositoryFileRowId,
 	groupRepositoryFiles,
@@ -78,8 +99,10 @@ function RepositoryStageCheckbox({
 
 interface RepositoryFileRowProps {
 	readonly file: FileChange;
+	readonly isDiscardDisabled: boolean;
 	readonly isSelected: boolean;
 	readonly isStagingDisabled: boolean;
+	readonly onDiscard: (file: FileChange) => Promise<boolean>;
 	readonly onSelect: (file: FileChange) => void;
 	readonly onSetStaged: (
 		file: FileChange,
@@ -89,33 +112,180 @@ interface RepositoryFileRowProps {
 	readonly selectedRowRef?: RefCallback<HTMLElement>;
 }
 
+interface RepositoryFileContextActionsProps {
+	readonly file: FileChange;
+	readonly isDisabled: boolean;
+	readonly onDiscard: (file: FileChange) => Promise<boolean>;
+	readonly onDismiss: () => void;
+}
+
+function RepositoryFileContextActions({
+	file,
+	isDisabled,
+	onDiscard,
+	onDismiss,
+}: RepositoryFileContextActionsProps): ReactElement {
+	const [actionError, setActionError] = useState<string | null>(null);
+	const [isDiscarding, setIsDiscarding] = useState(false);
+	const [view, setView] = useState<"actions" | "confirm-discard">("actions");
+	const path = splitRepositoryFilePath(file.path);
+	const discardFile = async (): Promise<void> => {
+		setActionError(null);
+		setIsDiscarding(true);
+		try {
+			if (await onDiscard(file)) {
+				onDismiss();
+				return;
+			}
+			setActionError("The changes could not be discarded.");
+		} finally {
+			setIsDiscarding(false);
+		}
+	};
+
+	return (
+		<LiquidMenuAutoSize viewKey={view}>
+			{view === "actions" ? (
+				<DropdownMenuItem
+					className="gap-2.5 py-2"
+					closeOnClick={false}
+					disabled={isDisabled || file.recordType === "unmerged"}
+					onClick={() => setView("confirm-discard")}
+					title={
+						file.recordType === "unmerged"
+							? "Resolve conflicts before discarding changes."
+							: undefined
+					}
+					variant="destructive"
+				>
+					<TrashIcon aria-hidden weight="duotone" />
+					Discard changes…
+				</DropdownMenuItem>
+			) : (
+				<>
+					<DropdownMenuItem
+						className="gap-2.5 py-2"
+						closeOnClick={false}
+						disabled={isDiscarding}
+						onClick={() => setView("actions")}
+					>
+						<ArrowLeftIcon aria-hidden weight="bold" />
+						Discard changes
+					</DropdownMenuItem>
+					<DropdownMenuSeparator />
+					<div className="space-y-3 p-2">
+						<p className="text-[10px] text-editor-muted leading-4">
+							Discard every staged and unstaged change in{" "}
+							<span className="font-medium text-editor-ink">{path.name}</span>?
+							You can undo for 10 seconds.
+						</p>
+						{actionError ? (
+							<p
+								aria-live="polite"
+								className="text-[10px] text-destructive leading-4"
+								role="status"
+							>
+								{actionError}
+							</p>
+						) : null}
+						<div className="flex justify-end gap-1.5">
+							<Button
+								disabled={isDiscarding}
+								onClick={onDismiss}
+								size="sm"
+								type="button"
+								variant="ghost"
+							>
+								Cancel
+							</Button>
+							<Button
+								disabled={isDiscarding}
+								onClick={discardFile}
+								size="sm"
+								type="button"
+								variant="destructive"
+							>
+								{isDiscarding ? (
+									<SpinnerGapIcon
+										aria-hidden
+										className="animate-spin"
+										weight="bold"
+									/>
+								) : null}
+								Discard
+							</Button>
+						</div>
+					</div>
+				</>
+			)}
+		</LiquidMenuAutoSize>
+	);
+}
+
 function RepositoryFileRow({
 	file,
+	isDiscardDisabled,
 	isSelected,
 	isStagingDisabled,
+	onDiscard,
 	onSelect,
 	onSetStaged,
 	selectedRowAriaKeyShortcuts,
 	selectedRowRef,
 }: RepositoryFileRowProps): ReactElement {
+	const [anchorElement, setAnchorElement] = useState<HTMLElement | null>(null);
+	const [isOpen, setIsOpen] = useState(false);
+	const [isPresent, setIsPresent] = useState(false);
+	const contextMenuPosition = useLiquidContextMenuPosition({
+		anchorElement,
+		menuWidth: REPOSITORY_FILE_CONTEXT_MENU_WIDTH,
+	});
+	const getAnchor = useCallback(
+		(): Element | null => anchorElement,
+		[anchorElement]
+	);
+	const setRowElement = useCallback(
+		(element: HTMLElement | null): void => {
+			setAnchorElement(element);
+			if (isSelected) {
+				selectedRowRef?.(element);
+			}
+		},
+		[isSelected, selectedRowRef]
+	);
+	const changeOpen = useCallback(
+		(nextIsOpen: boolean): void => {
+			setIsOpen(nextIsOpen);
+			if (!nextIsOpen) {
+				contextMenuPosition.resetPointer();
+			}
+		},
+		[contextMenuPosition.resetPointer]
+	);
 	const staged = isFileStaged(file);
 	const path = splitRepositoryFilePath(file.path);
 	const selectFile = (): void => onSelect(file);
 	const setStaged = async (shouldStage: boolean): Promise<void> => {
 		await onSetStaged(file, shouldStage);
 	};
+	const openContextMenu = (): void => {
+		if (!isSelected) {
+			onSelect(file);
+		}
+	};
 
-	return (
+	const row = (
 		<li
 			aria-keyshortcuts={isSelected ? selectedRowAriaKeyShortcuts : undefined}
 			className={cn(
-				"group flex min-h-7 items-center rounded-md transition-colors",
-				isSelected ? "bg-editor-sunken-2" : "hover:bg-editor-sunken"
+				"group relative flex min-h-7 items-center rounded-md transition-colors",
+				isSelected ? "bg-editor-sunken-2" : "hover:bg-editor-sunken",
+				(isOpen || isPresent) && "z-20 bg-white hover:bg-white"
 			)}
 			data-name="RepositoryFileRow"
 			data-overflowing-label-trigger
 			id={getRepositoryFileRowId(file.path)}
-			ref={isSelected ? selectedRowRef : undefined}
+			ref={setRowElement}
 		>
 			<div className="pl-1.5">
 				<RepositoryStageCheckbox
@@ -164,11 +334,48 @@ function RepositoryFileRow({
 			</button>
 		</li>
 	);
+
+	return (
+		<LiquidContextMenuRoot
+			anchor={getAnchor}
+			anchorGeometry={REPOSITORY_FILE_CONTEXT_MENU_ANCHOR_GEOMETRY}
+			onOpenChange={changeOpen}
+			onPresenceChange={setIsPresent}
+			open={isOpen}
+		>
+			<LiquidContextMenuTrigger
+				onContextMenu={(event) => {
+					contextMenuPosition.onContextMenu(event);
+					openContextMenu();
+				}}
+				render={row}
+			/>
+			{isOpen ? (
+				<LiquidMenuContent
+					align="start"
+					alignOffset={contextMenuPosition.alignOffset + 20}
+					aria-label={`Actions for ${file.path}`}
+					className={`${REPOSITORY_FILE_CONTEXT_MENU_WIDTH_CLASS_NAME} p-1.5`}
+					side="bottom"
+					sideOffset={0}
+				>
+					<RepositoryFileContextActions
+						file={file}
+						isDisabled={isDiscardDisabled}
+						onDiscard={onDiscard}
+						onDismiss={() => changeOpen(false)}
+					/>
+				</LiquidMenuContent>
+			) : null}
+		</LiquidContextMenuRoot>
+	);
 }
 
 interface RepositoryFileListProps {
 	readonly files: readonly FileChange[];
+	readonly isDiscardDisabled: boolean;
 	readonly isStagingDisabled: boolean;
+	readonly onDiscard: (file: FileChange) => Promise<boolean>;
 	readonly onSelect: (file: FileChange) => void;
 	readonly onSetStaged: (
 		file: FileChange,
@@ -182,7 +389,9 @@ interface RepositoryFileListProps {
 
 export function RepositoryFileList({
 	files,
+	isDiscardDisabled,
 	isStagingDisabled,
+	onDiscard,
 	onSelect,
 	onSetStaged,
 	query,
@@ -209,9 +418,11 @@ export function RepositoryFileList({
 			{orderedFiles.map((file) => (
 				<RepositoryFileRow
 					file={file}
+					isDiscardDisabled={isDiscardDisabled}
 					isSelected={selectedFilePath === file.path}
 					isStagingDisabled={isStagingDisabled}
 					key={file.path}
+					onDiscard={onDiscard}
 					onSelect={onSelect}
 					onSetStaged={onSetStaged}
 					selectedRowAriaKeyShortcuts={selectedRowAriaKeyShortcuts}

@@ -10,6 +10,7 @@ import type {
 	DeleteBranchInput,
 	DeleteTagInput,
 	DiffInput,
+	DiscardFilesInput,
 	DropStashInput,
 	FetchInput,
 	FileContentInput,
@@ -42,7 +43,7 @@ import type {
 	StageInput,
 	StashInput,
 	StashReferenceInput,
-	UndoHunkDiscardInput,
+	UndoDiscardInput,
 	WorktreePathInput,
 } from "@1git/git";
 import type { DesktopIntegrationApi } from "./desktop-integration.js";
@@ -75,11 +76,12 @@ export const GIT_IPC_CHANNELS = {
 	changes: {
 		changeHunk: "git:changes:change-hunk",
 		commit: "git:changes:commit",
+		discardFiles: "git:changes:discard-files",
 		reset: "git:changes:reset",
 		restore: "git:changes:restore",
 		stage: "git:changes:stage",
 		stageAll: "git:changes:stage-all",
-		undoHunkDiscard: "git:changes:undo-hunk-discard",
+		undoDiscard: "git:changes:undo-discard",
 		unstage: "git:changes:unstage",
 		unstageAll: "git:changes:unstage-all",
 	},
@@ -162,11 +164,12 @@ const REPOSITORY_MUTATION_OPERATIONS = new Map<string, GitOperation>([
 	[GIT_IPC_CHANNELS.sessions.initialize, "initialize-repository"],
 	[GIT_IPC_CHANNELS.sessions.clone, "clone-repository"],
 	[GIT_IPC_CHANNELS.changes.changeHunk, "change-hunk"],
+	[GIT_IPC_CHANNELS.changes.discardFiles, "discard-files"],
 	[GIT_IPC_CHANNELS.changes.stage, "stage"],
 	[GIT_IPC_CHANNELS.changes.stageAll, "stage-all"],
 	[GIT_IPC_CHANNELS.changes.unstage, "unstage"],
 	[GIT_IPC_CHANNELS.changes.unstageAll, "unstage-all"],
-	[GIT_IPC_CHANNELS.changes.undoHunkDiscard, "undo-hunk-discard"],
+	[GIT_IPC_CHANNELS.changes.undoDiscard, "undo-discard"],
 	[GIT_IPC_CHANNELS.changes.restore, "restore"],
 	[GIT_IPC_CHANNELS.changes.reset, "reset"],
 	[GIT_IPC_CHANNELS.changes.commit, "commit"],
@@ -373,6 +376,11 @@ export interface DesktopGitApi {
 			input: IpcGitInput<CommitInput>,
 			options?: GitOperationOptions
 		) => ReturnType<GitRepository["commit"]>;
+		readonly discardFiles: (
+			sessionId: RepositorySessionId,
+			input: IpcGitInput<DiscardFilesInput>,
+			options?: GitOperationOptions
+		) => ReturnType<GitRepository["discardFiles"]>;
 		readonly reset: (
 			sessionId: RepositorySessionId,
 			input: IpcGitInput<ResetInput>,
@@ -401,11 +409,11 @@ export interface DesktopGitApi {
 			sessionId: RepositorySessionId,
 			options?: GitOperationOptions
 		) => ReturnType<GitRepository["unstageAll"]>;
-		readonly undoHunkDiscard: (
+		readonly undoDiscard: (
 			sessionId: RepositorySessionId,
-			input: IpcGitInput<UndoHunkDiscardInput>,
+			input: IpcGitInput<UndoDiscardInput>,
 			options?: GitOperationOptions
-		) => ReturnType<GitRepository["undoHunkDiscard"]>;
+		) => ReturnType<GitRepository["undoDiscard"]>;
 	};
 	readonly config: {
 		readonly get: (

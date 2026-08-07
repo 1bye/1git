@@ -2,10 +2,11 @@ import { showActionToast } from "@1git/ui/components/action-toast";
 import type { ReactElement } from "react";
 import { useEffect, useRef } from "react";
 
-const HUNK_DISCARD_TOAST_DURATION_MS = 10_000;
-const HUNK_DISCARD_TOAST_ID = "repository-hunk-discard";
+const DISCARD_TOAST_DURATION_MS = 10_000;
+const DISCARD_TOAST_ID = "repository-discard";
 
-interface RepositoryHunkUndoToastProps {
+interface RepositoryDiscardUndoToastProps {
+	readonly message: string;
 	readonly onDismiss: (token: string) => void;
 	readonly onUndo: () => Promise<boolean>;
 	readonly path: string;
@@ -15,12 +16,13 @@ interface RepositoryHunkUndoToastProps {
 const fileNameFromPath = (path: string): string =>
 	path.split("/").at(-1) ?? path;
 
-export function RepositoryHunkUndoToast({
+export function RepositoryDiscardUndoToast({
+	message,
 	onDismiss,
 	onUndo,
 	path,
 	token,
-}: RepositoryHunkUndoToastProps): ReactElement | null {
+}: RepositoryDiscardUndoToastProps): ReactElement | null {
 	const dismissRef = useRef(onDismiss);
 	const undoRef = useRef(onUndo);
 
@@ -40,13 +42,13 @@ export function RepositoryHunkUndoToast({
 				},
 			},
 			detail: fileNameFromPath(path),
-			duration: HUNK_DISCARD_TOAST_DURATION_MS,
-			id: HUNK_DISCARD_TOAST_ID,
-			message: "Hunk discarded from",
+			duration: DISCARD_TOAST_DURATION_MS,
+			id: DISCARD_TOAST_ID,
+			message,
 			onAutoClose: () => dismissRef.current(token),
 			onDismiss: () => dismissRef.current(token),
 		});
-	}, [path, token]);
+	}, [message, path, token]);
 
 	return null;
 }
