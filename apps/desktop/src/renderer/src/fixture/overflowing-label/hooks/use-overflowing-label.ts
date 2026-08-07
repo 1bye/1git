@@ -3,14 +3,17 @@ import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { OVERFLOWING_LABEL_MARQUEE } from "@/fixture/overflowing-label/constants/overflowing-label.js";
 import {
 	getOverflowingLabelMarqueeDuration,
+	getOverflowingLabelOffsets,
 	getOverflowingLabelOverflow,
+	type OverflowingLabelDirection,
 } from "@/fixture/overflowing-label/lib/overflowing-label.js";
 
 interface OverflowingLabelStyle extends CSSProperties {
 	readonly "--overflowing-label-hover-delay": string;
+	readonly "--overflowing-label-hover-offset": string;
 	readonly "--overflowing-label-leading-mask-fade-duration": string;
 	readonly "--overflowing-label-marquee-duration": string;
-	readonly "--overflowing-label-overflow": string;
+	readonly "--overflowing-label-rest-offset": string;
 	readonly "--overflowing-label-return-duration": string;
 }
 
@@ -62,7 +65,8 @@ const observeOnceVisible = (
 };
 
 export const useOverflowingLabel = (
-	deferUntilVisible = false
+	deferUntilVisible = false,
+	direction: OverflowingLabelDirection = "start-to-end"
 ): OverflowingLabelState => {
 	const viewportRef = useRef<HTMLSpanElement>(null);
 	const trackRef = useRef<HTMLSpanElement>(null);
@@ -104,16 +108,17 @@ export const useOverflowingLabel = (
 		};
 	}, [deferUntilVisible]);
 
-	const style = useMemo<OverflowingLabelStyle>(
-		() => ({
+	const style = useMemo<OverflowingLabelStyle>(() => {
+		const offsets = getOverflowingLabelOffsets(overflowPixels, direction);
+		return {
 			"--overflowing-label-hover-delay": `${OVERFLOWING_LABEL_MARQUEE.hoverDelayMs}ms`,
+			"--overflowing-label-hover-offset": `${offsets.hover}px`,
 			"--overflowing-label-leading-mask-fade-duration": `${OVERFLOWING_LABEL_MARQUEE.leadingMaskFadeDurationMs}ms`,
 			"--overflowing-label-marquee-duration": `${getOverflowingLabelMarqueeDuration(overflowPixels)}ms`,
-			"--overflowing-label-overflow": `${overflowPixels}px`,
+			"--overflowing-label-rest-offset": `${offsets.rest}px`,
 			"--overflowing-label-return-duration": `${OVERFLOWING_LABEL_MARQUEE.returnDurationMs}ms`,
-		}),
-		[overflowPixels]
-	);
+		};
+	}, [direction, overflowPixels]);
 
 	return {
 		isOverflowing: overflowPixels > 0,

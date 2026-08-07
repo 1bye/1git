@@ -4,9 +4,11 @@ import {
 	doesRepositoryFileContextMenuUseSelection,
 	filterRepositoryFiles,
 	getRepositoryDiffElementId,
+	getRepositoryFileAtBoundedOffset,
 	getRepositoryFileAtOffset,
 	getRepositoryFilePosition,
 	groupRepositoryFiles,
+	shouldElevateRepositoryFileSelection,
 	splitRepositoryFilePath,
 	updateRepositoryFileSelection,
 } from "../src/renderer/src/fixture/repository-workspace/lib/repository-navigation.js";
@@ -40,6 +42,21 @@ describe("repository file navigation", () => {
 		expect(getRepositoryFileAtOffset(FILES, FILES[0].path, -1)).toBe(FILES[2]);
 		expect(getRepositoryFileAtOffset(FILES, null, 1)).toBe(FILES[0]);
 		expect(getRepositoryFileAtOffset([], null, 1)).toBeNull();
+	});
+
+	test("stops range navigation at the first and last visible file", () => {
+		expect(
+			getRepositoryFileAtBoundedOffset(FILES, FILES[0].path, -1)
+		).toBeNull();
+		expect(
+			getRepositoryFileAtBoundedOffset(FILES, FILES[2].path, 1)
+		).toBeNull();
+		expect(getRepositoryFileAtBoundedOffset(FILES, FILES[1].path, -1)).toBe(
+			FILES[0]
+		);
+		expect(getRepositoryFileAtBoundedOffset(FILES, FILES[1].path, 1)).toBe(
+			FILES[2]
+		);
 	});
 
 	test("reports one-based file positions", () => {
@@ -112,6 +129,39 @@ describe("repository file navigation", () => {
 		expect(range.selectedPaths).toEqual(paths);
 	});
 
+	test("contracts and reverses a range around its fixed anchor", () => {
+		const paths = FILES.map((file) => file.path);
+		const expandedDown = updateRepositoryFileSelection({
+			activePath: FILES[1].path,
+			anchorPath: FILES[1].path,
+			mode: "range",
+			orderedPaths: paths,
+			selectedPaths: new Set(),
+			targetPath: FILES[2].path,
+		});
+		expect(expandedDown.selectedPaths).toEqual([FILES[1].path, FILES[2].path]);
+
+		const contracted = updateRepositoryFileSelection({
+			activePath: expandedDown.activePath,
+			anchorPath: FILES[1].path,
+			mode: "range",
+			orderedPaths: paths,
+			selectedPaths: new Set(expandedDown.selectedPaths),
+			targetPath: FILES[1].path,
+		});
+		expect(contracted.selectedPaths).toEqual([]);
+
+		const expandedUp = updateRepositoryFileSelection({
+			activePath: contracted.activePath,
+			anchorPath: FILES[1].path,
+			mode: "range",
+			orderedPaths: paths,
+			selectedPaths: new Set(),
+			targetPath: FILES[0].path,
+		});
+		expect(expandedUp.selectedPaths).toEqual([FILES[0].path, FILES[1].path]);
+	});
+
 	test("keeps a multi-selection only when its context menu target is selected", () => {
 		const selectedPaths = new Set([FILES[0].path, FILES[2].path]);
 
@@ -127,5 +177,11 @@ describe("repository file navigation", () => {
 				new Set([FILES[0].path])
 			)
 		).toBe(false);
+	});
+
+	test("elevates every selected row while its context menu is present", () => {
+		expect(shouldElevateRepositoryFileSelection(true, true)).toBe(true);
+		expect(shouldElevateRepositoryFileSelection(true, false)).toBe(false);
+		expect(shouldElevateRepositoryFileSelection(false, true)).toBe(false);
 	});
 });

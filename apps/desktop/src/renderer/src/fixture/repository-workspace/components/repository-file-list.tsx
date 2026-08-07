@@ -4,11 +4,12 @@ import { CheckIcon } from "@phosphor-icons/react/dist/csr/Check";
 import { MinusIcon } from "@phosphor-icons/react/dist/csr/Minus";
 import type {
 	ChangeEvent,
+	CSSProperties,
 	ReactElement,
 	MouseEvent as ReactMouseEvent,
 	RefCallback,
 } from "react";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
 	getFileChangeLabel,
 	isFilePartiallyStaged,
@@ -20,6 +21,7 @@ import {
 	LiquidMenuContent,
 } from "@/fixture/liquid-menu/components/liquid-menu.js";
 import { useLiquidContextMenuPosition } from "@/fixture/liquid-menu/hooks/use-liquid-context-menu-position.js";
+import { getLiquidMenuLayerZIndices } from "@/fixture/liquid-menu/lib/liquid-menu-stack.js";
 import { OverflowingLabel } from "@/fixture/overflowing-label/components/overflowing-label.js";
 import { RepositoryFileContextActions } from "@/fixture/repository-workspace/components/repository-file-context-actions.js";
 import {
@@ -31,8 +33,13 @@ import {
 	doesRepositoryFileContextMenuUseSelection,
 	getRepositoryFileRowId,
 	groupRepositoryFiles,
+	shouldElevateRepositoryFileSelection,
 	splitRepositoryFilePath,
 } from "@/fixture/repository-workspace/lib/repository-navigation.js";
+
+const ELEVATED_SELECTION_STYLE = {
+	zIndex: getLiquidMenuLayerZIndices(0).selection,
+} satisfies CSSProperties;
 
 interface RepositoryStageCheckboxProps {
 	readonly checked: boolean;
@@ -102,6 +109,7 @@ interface RepositoryFileRowProps {
 	readonly isBulkSelectionStart: boolean;
 	readonly isDiscardDisabled: boolean;
 	readonly isSelected: boolean;
+	readonly isSelectionContextMenuPresent: boolean;
 	readonly isStagingDisabled: boolean;
 	readonly onClearSelection: () => void;
 	readonly onDiscard: (files: readonly FileChange[]) => Promise<boolean>;
@@ -109,6 +117,7 @@ interface RepositoryFileRowProps {
 		file: FileChange,
 		mode?: "range" | "replace" | "toggle"
 	) => void;
+	readonly onSelectionContextMenuPresenceChange: (isPresent: boolean) => void;
 	readonly onSetFilesStaged: (
 		files: readonly FileChange[],
 		shouldStage: boolean
@@ -130,11 +139,13 @@ function RepositoryFileRow({
 	isBulkSelectionStart,
 	isBulkSelected,
 	isDiscardDisabled,
+	isSelectionContextMenuPresent,
 	isSelected,
 	isStagingDisabled,
 	onClearSelection,
 	onDiscard,
 	onSelect,
+	onSelectionContextMenuPresenceChange,
 	onSetStaged,
 	onSetFilesStaged,
 	repositoryRoot,
@@ -150,6 +161,10 @@ function RepositoryFileRow({
 		anchorElement,
 		menuWidth: REPOSITORY_FILE_CONTEXT_MENU_WIDTH,
 	});
+	const contextUsesSelection = doesRepositoryFileContextMenuUseSelection(
+		file.path,
+		selectedFilePaths
+	);
 	const getAnchor = useCallback(
 		(): Element | null => anchorElement,
 		[anchorElement]
@@ -166,19 +181,35 @@ function RepositoryFileRow({
 	const changeOpen = useCallback(
 		(nextIsOpen: boolean): void => {
 			setIsOpen(nextIsOpen);
+			if (nextIsOpen && contextUsesSelection) {
+				onSelectionContextMenuPresenceChange(true);
+			}
 			if (!nextIsOpen) {
 				contextMenuPosition.resetPointer();
 			}
 		},
-		[contextMenuPosition.resetPointer]
+		[
+			contextMenuPosition.resetPointer,
+			contextUsesSelection,
+			onSelectionContextMenuPresenceChange,
+		]
+	);
+	const changePresence = useCallback(
+		(nextIsPresent: boolean): void => {
+			setIsPresent(nextIsPresent);
+			if (!nextIsPresent && contextUsesSelection) {
+				onSelectionContextMenuPresenceChange(false);
+			}
+		},
+		[contextUsesSelection, onSelectionContextMenuPresenceChange]
 	);
 	const staged = isFileStaged(file);
 	const path = splitRepositoryFilePath(file.path);
-	const contextUsesSelection = doesRepositoryFileContextMenuUseSelection(
-		file.path,
-		selectedFilePaths
-	);
 	const contextFiles = contextUsesSelection ? selectedFiles : [file];
+	const shouldElevateSelection = shouldElevateRepositoryFileSelection(
+		isSelectionContextMenuPresent,
+		isBulkSelected
+	);
 	const selectFile = (event: ReactMouseEvent<HTMLButtonElement>): void => {
 		let mode: "range" | "replace" | "toggle" = "replace";
 		if (event.shiftKey) {
@@ -212,13 +243,15 @@ function RepositoryFileRow({
 				!isBulkSelected && "rounded-md",
 				isBulkSelectionStart && "rounded-t-md",
 				isBulkSelectionEnd && "rounded-b-md",
-				(isOpen || isPresent) && "z-20 rounded-md bg-white hover:bg-white"
+				(isOpen || isPresent) && "rounded-md bg-white hover:bg-white",
+				(isOpen || isPresent) && !shouldElevateSelection && "z-20"
 			)}
 			data-bulk-selected={isBulkSelected ? "true" : undefined}
 			data-name="RepositoryFileRow"
 			data-overflowing-label-trigger
 			id={getRepositoryFileRowId(file.path)}
 			ref={setRowElement}
+			style={shouldElevateSelection ? ELEVATED_SELECTION_STYLE : undefined}
 		>
 			<div className="pl-1.5">
 				<RepositoryStageCheckbox
@@ -238,6 +271,7 @@ function RepositoryFileRow({
 				<OverflowingLabel
 					className="flex-1 text-[11px]"
 					deferUntilVisible
+					direction="end-to-start"
 					title={file.path}
 				>
 					{path.directory ? (
@@ -264,7 +298,7 @@ function RepositoryFileRow({
 			anchor={getAnchor}
 			anchorGeometry={REPOSITORY_FILE_CONTEXT_MENU_ANCHOR_GEOMETRY}
 			onOpenChange={changeOpen}
-			onPresenceChange={setIsPresent}
+			onPresenceChange={changePresence}
 			open={isOpen}
 		>
 			<LiquidContextMenuTrigger
@@ -342,8 +376,15 @@ export function RepositoryFileList({
 	selectedRowAriaKeyShortcuts,
 	selectedRowRef,
 }: RepositoryFileListProps): ReactElement {
+	const [isSelectionContextMenuPresent, setSelectionContextMenuPresent] =
+		useState(false);
 	const groups = groupRepositoryFiles(files);
 	const orderedFiles = [...groups.staged, ...groups.unstaged];
+	useEffect(() => {
+		if (selectedFiles.length < 2) {
+			setSelectionContextMenuPresent(false);
+		}
+	}, [selectedFiles.length]);
 	if (files.length === 0) {
 		return (
 			<p className="px-4 py-8 text-center text-editor-faint text-xss">
@@ -377,11 +418,15 @@ export function RepositoryFileList({
 						}
 						isDiscardDisabled={isDiscardDisabled}
 						isSelected={selectedFilePath === file.path}
+						isSelectionContextMenuPresent={isSelectionContextMenuPresent}
 						isStagingDisabled={isStagingDisabled}
 						key={file.path}
 						onClearSelection={onClearSelection}
 						onDiscard={onDiscard}
 						onSelect={onSelect}
+						onSelectionContextMenuPresenceChange={
+							setSelectionContextMenuPresent
+						}
 						onSetFilesStaged={onSetFilesStaged}
 						onSetStaged={onSetStaged}
 						repositoryRoot={repositoryRoot}

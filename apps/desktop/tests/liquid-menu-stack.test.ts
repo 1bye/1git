@@ -21,8 +21,12 @@ describe("liquid menu stack", () => {
 		const parent = getLiquidMenuLayerZIndices(0);
 		const child = getLiquidMenuLayerZIndices(1);
 
+		expect(parent.backdrop).toBeLessThan(parent.selection);
+		expect(parent.selection).toBeLessThan(parent.surface);
 		expect(parent.surface).toBeLessThan(parent.content);
-		expect(parent.content).toBeLessThan(child.surface);
+		expect(parent.content).toBeLessThan(child.backdrop);
+		expect(child.backdrop).toBeLessThan(child.selection);
+		expect(child.selection).toBeLessThan(child.surface);
 		expect(child.surface).toBeLessThan(child.content);
 	});
 

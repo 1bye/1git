@@ -1,7 +1,9 @@
 import { LIQUID_MENU_MOTION } from "@/fixture/liquid-menu/constants/liquid-menu.js";
 
 export interface LiquidMenuLayerZIndices {
+	readonly backdrop: number;
 	readonly content: number;
+	readonly selection: number;
 	readonly surface: number;
 }
 
@@ -11,8 +13,8 @@ interface LiquidMenuBackdropOpacityOptions {
 	readonly progress: number;
 }
 
-const LIQUID_MENU_BASE_SURFACE_Z_INDEX = 41;
-const LIQUID_MENU_LAYER_STRIDE = 3;
+const LIQUID_MENU_BASE_BACKDROP_Z_INDEX = 41;
+const LIQUID_MENU_LAYER_STRIDE = 4;
 
 const clampProgress = (progress: number): number =>
 	Math.max(0, Math.min(1, progress));
@@ -35,12 +37,14 @@ export const getLiquidMenuLayerZIndices = (
 	layerIndex: number
 ): LiquidMenuLayerZIndices => {
 	const normalizedLayerIndex = Math.max(0, layerIndex);
-	const surface =
-		LIQUID_MENU_BASE_SURFACE_Z_INDEX +
+	const backdrop =
+		LIQUID_MENU_BASE_BACKDROP_Z_INDEX +
 		normalizedLayerIndex * LIQUID_MENU_LAYER_STRIDE;
 	return {
-		content: surface + 1,
-		surface,
+		backdrop,
+		content: backdrop + 3,
+		selection: backdrop + 1,
+		surface: backdrop + 2,
 	};
 };
 

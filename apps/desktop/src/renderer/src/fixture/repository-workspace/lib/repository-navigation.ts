@@ -93,6 +93,18 @@ export const getRepositoryFileAtOffset = (
 	return files[nextIndex] ?? null;
 };
 
+export const getRepositoryFileAtBoundedOffset = (
+	files: readonly FileChange[],
+	currentPath: string | null,
+	offset: number
+): FileChange | null => {
+	const currentIndex = files.findIndex((file) => file.path === currentPath);
+	if (currentIndex < 0) {
+		return files[offset < 0 ? files.length - 1 : 0] ?? null;
+	}
+	return files[currentIndex + offset] ?? null;
+};
+
 export const getRepositoryFilePosition = (
 	files: readonly FileChange[],
 	path: string | null
@@ -105,6 +117,11 @@ export const doesRepositoryFileContextMenuUseSelection = (
 	targetPath: string,
 	selectedPaths: ReadonlySet<string>
 ): boolean => selectedPaths.size > 1 && selectedPaths.has(targetPath);
+
+export const shouldElevateRepositoryFileSelection = (
+	isContextMenuPresent: boolean,
+	isSelected: boolean
+): boolean => isContextMenuPresent && isSelected;
 
 const orderedSelection = (
 	orderedPaths: readonly string[],

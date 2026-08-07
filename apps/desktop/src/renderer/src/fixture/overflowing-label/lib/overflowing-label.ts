@@ -1,5 +1,12 @@
 import { OVERFLOWING_LABEL_MARQUEE } from "@/fixture/overflowing-label/constants/overflowing-label.js";
 
+export type OverflowingLabelDirection = "end-to-start" | "start-to-end";
+
+export interface OverflowingLabelOffsets {
+	readonly hover: number;
+	readonly rest: number;
+}
+
 export const getOverflowingLabelOverflow = (
 	viewportWidth: number,
 	contentWidth: number
@@ -22,3 +29,11 @@ export const getOverflowingLabelMarqueeDuration = (
 		)
 	);
 };
+
+export const getOverflowingLabelOffsets = (
+	overflowPixels: number,
+	direction: OverflowingLabelDirection
+): OverflowingLabelOffsets =>
+	direction === "end-to-start"
+		? { hover: 0, rest: -overflowPixels }
+		: { hover: -overflowPixels, rest: 0 };

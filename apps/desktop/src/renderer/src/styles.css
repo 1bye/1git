@@ -226,8 +226,13 @@ button {
 		var(--overflowing-label-leading-mask-fade-duration) linear;
 }
 
+[data-name="OverflowingLabelViewport"][data-overflowing="true"][data-overflow-direction="end-to-start"] {
+	--overflowing-label-leading-mask-alpha: 0;
+	--overflowing-label-trailing-mask-alpha: 1;
+}
+
 [data-name="OverflowingLabelTrack"] {
-	transform: translateX(0);
+	transform: translateX(var(--overflowing-label-rest-offset));
 	transition: transform var(--overflowing-label-return-duration)
 		cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -235,7 +240,7 @@ button {
 [data-overflowing-label-trigger]:not(
 		[data-overflowing-label-suppressed="true"]
 	):is(:hover, :focus-within)
-	[data-name="OverflowingLabelViewport"][data-overflowing="true"] {
+	[data-name="OverflowingLabelViewport"][data-overflowing="true"][data-overflow-direction="start-to-end"] {
 	--overflowing-label-leading-mask-alpha: 0;
 	--overflowing-label-trailing-mask-alpha: 1;
 	transition-delay:
@@ -249,9 +254,23 @@ button {
 [data-overflowing-label-trigger]:not(
 		[data-overflowing-label-suppressed="true"]
 	):is(:hover, :focus-within)
+	[data-name="OverflowingLabelViewport"][data-overflowing="true"][data-overflow-direction="end-to-start"] {
+	--overflowing-label-leading-mask-alpha: 1;
+	--overflowing-label-trailing-mask-alpha: 0;
+	transition-delay:
+		calc(
+			var(--overflowing-label-hover-delay) +
+			var(--overflowing-label-marquee-duration)
+		),
+		var(--overflowing-label-hover-delay);
+}
+
+[data-overflowing-label-trigger]:not(
+		[data-overflowing-label-suppressed="true"]
+	):is(:hover, :focus-within)
 	[data-name="OverflowingLabelViewport"][data-overflowing="true"]
 	[data-name="OverflowingLabelTrack"] {
-	transform: translateX(calc(0px - var(--overflowing-label-overflow)));
+	transform: translateX(var(--overflowing-label-hover-offset));
 	transition-delay: var(--overflowing-label-hover-delay);
 	transition-timing-function: linear;
 	transition-duration: var(--overflowing-label-marquee-duration);

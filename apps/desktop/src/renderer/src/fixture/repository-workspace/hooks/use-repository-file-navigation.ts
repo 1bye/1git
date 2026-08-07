@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RepositoryTab } from "@/feature/workspace/hooks/use-git-workspace.js";
 import {
 	filterRepositoryFiles,
+	getRepositoryFileAtBoundedOffset,
 	getRepositoryFileAtOffset,
 	getRepositoryFileRowId,
 	groupRepositoryFiles,
@@ -99,6 +100,7 @@ export const useRepositoryFileNavigation = ({
 		ReadonlySet<string>
 	>(() => new Set());
 	const originalPathRef = useRef<string | null>(null);
+	const keyboardRangeAnchorPathRef = useRef<string | null>(null);
 	const previewPathRef = useRef<string | null>(selectedFilePath);
 	const selectionAnchorPathRef = useRef<string | null>(selectedFilePath);
 	const selectedFilePathsRef = useRef<ReadonlySet<string>>(new Set());
@@ -129,6 +131,7 @@ export const useRepositoryFileNavigation = ({
 		[]
 	);
 	const clearFileSelection = useCallback((): void => {
+		keyboardRangeAnchorPathRef.current = null;
 		changeSelectedFilePaths([]);
 		selectionAnchorPathRef.current = selectedPathRef.current;
 	}, [changeSelectedFilePaths]);
@@ -146,6 +149,7 @@ export const useRepositoryFileNavigation = ({
 		setIsOpen(false);
 		setQuery("");
 		changeSelectedFilePaths([]);
+		keyboardRangeAnchorPathRef.current = null;
 		originalPathRef.current = null;
 		previewPathRef.current = null;
 		selectionAnchorPathRef.current = null;
@@ -164,6 +168,12 @@ export const useRepositoryFileNavigation = ({
 			!availablePaths.has(selectionAnchorPathRef.current)
 		) {
 			selectionAnchorPathRef.current = selectedFilePath;
+		}
+		if (
+			keyboardRangeAnchorPathRef.current &&
+			!availablePaths.has(keyboardRangeAnchorPathRef.current)
+		) {
+			keyboardRangeAnchorPathRef.current = null;
 		}
 	}, [changeSelectedFilePaths, files, selectedFilePath]);
 
@@ -211,11 +221,15 @@ export const useRepositoryFileNavigation = ({
 		},
 		[acceptPreview, openNavigator]
 	);
-	const selectFile = useCallback(
-		(file: FileChange, mode: RepositoryFileSelectionMode = "replace"): void => {
+	const applyFileSelection = useCallback(
+		(
+			file: FileChange,
+			mode: RepositoryFileSelectionMode,
+			anchorPath: string | null
+		): void => {
 			const selection = updateRepositoryFileSelection({
 				activePath: selectedPathRef.current,
-				anchorPath: selectionAnchorPathRef.current,
+				anchorPath,
 				mode,
 				orderedPaths: orderedVisiblePaths,
 				selectedPaths: selectedFilePathsRef.current,
@@ -236,6 +250,13 @@ export const useRepositoryFileNavigation = ({
 			orderedVisiblePaths,
 			performSelection,
 		]
+	);
+	const selectFile = useCallback(
+		(file: FileChange, mode: RepositoryFileSelectionMode = "replace"): void => {
+			keyboardRangeAnchorPathRef.current = null;
+			applyFileSelection(file, mode, selectionAnchorPathRef.current);
+		},
+		[applyFileSelection]
 	);
 	const selectAtOffset = useCallback(
 		(
@@ -258,11 +279,33 @@ export const useRepositoryFileNavigation = ({
 		[performSelection]
 	);
 	const selectNextFile = useCallback((): void => {
+		keyboardRangeAnchorPathRef.current = null;
 		selectAtOffset(1, orderedVisibleFiles, true);
 	}, [orderedVisibleFiles, selectAtOffset]);
 	const selectPreviousFile = useCallback((): void => {
+		keyboardRangeAnchorPathRef.current = null;
 		selectAtOffset(-1, orderedVisibleFiles, true);
 	}, [orderedVisibleFiles, selectAtOffset]);
+	const selectRangeAtOffset = useCallback(
+		(offset: number): void => {
+			const file = getRepositoryFileAtBoundedOffset(
+				orderedVisibleFiles,
+				previewPathRef.current,
+				offset
+			);
+			if (!file) {
+				return;
+			}
+			const anchorPath =
+				keyboardRangeAnchorPathRef.current ??
+				previewPathRef.current ??
+				file.path;
+			keyboardRangeAnchorPathRef.current = anchorPath;
+			applyFileSelection(file, "range", anchorPath);
+			revealRepositoryFileRow(file.path);
+		},
+		[applyFileSelection, orderedVisibleFiles]
+	);
 	const requestChangesAndOpen = useCallback(async (): Promise<void> => {
 		await onRequestChanges();
 		openNavigator();
@@ -328,16 +371,26 @@ export const useRepositoryFileNavigation = ({
 				event.altKey ||
 				event.ctrlKey ||
 				event.metaKey ||
-				event.shiftKey ||
 				tab !== "changes" ||
 				isEditableTarget(event.target)
 			) {
 				return;
 			}
 			event.preventDefault();
+			if (event.shiftKey) {
+				selectRangeAtOffset(offset);
+				return;
+			}
+			keyboardRangeAnchorPathRef.current = null;
 			selectAtOffset(offset, orderedVisibleFiles, true);
 		},
-		[clearFileSelection, orderedVisibleFiles, selectAtOffset, tab]
+		[
+			clearFileSelection,
+			orderedVisibleFiles,
+			selectAtOffset,
+			selectRangeAtOffset,
+			tab,
+		]
 	);
 
 	useEffect(() => {
@@ -351,8 +404,17 @@ export const useRepositoryFileNavigation = ({
 			}
 			handleDirectNavigationKey(event);
 		};
+		const handleKeyUp = (event: KeyboardEvent): void => {
+			if (event.key === "Shift") {
+				keyboardRangeAnchorPathRef.current = null;
+			}
+		};
 		window.addEventListener("keydown", handleKeyDown, true);
-		return () => window.removeEventListener("keydown", handleKeyDown, true);
+		window.addEventListener("keyup", handleKeyUp, true);
+		return () => {
+			window.removeEventListener("keydown", handleKeyDown, true);
+			window.removeEventListener("keyup", handleKeyUp, true);
+		};
 	}, [
 		handleDirectNavigationKey,
 		handleNavigatorShortcut,

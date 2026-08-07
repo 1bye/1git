@@ -26,7 +26,7 @@ import {
 
 type HunkActionView = "actions" | "confirm-discard";
 
-const HUNK_ACTION_ANCHOR_Z_INDEX = getLiquidMenuLayerZIndices(0).content + 1;
+const HUNK_ACTION_ANCHOR_Z_INDEX = getLiquidMenuLayerZIndices(0).selection;
 
 export interface HunkActionSelection {
 	readonly anchorRect: LiquidMenuRect;
