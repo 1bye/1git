@@ -70,15 +70,15 @@ const arrowOffset = (key: string): number | null => {
 	return null;
 };
 
-const focusRepositoryFileRow = (path: string): void => {
+const revealRepositoryFileRow = (path: string): void => {
 	window.requestAnimationFrame(() => {
 		const row = document.getElementById(getRepositoryFileRowId(path));
 		const viewport = row?.closest<HTMLElement>(
 			"[data-repository-file-viewport]"
 		);
-		row?.querySelector<HTMLButtonElement>("button")?.focus({
-			preventScroll: true,
-		});
+		row
+			?.closest<HTMLUListElement>('[data-name="RepositoryFileList"]')
+			?.focus({ preventScroll: true });
 		if (row && viewport) {
 			scrollElementIntoViewport(viewport, row);
 		}
@@ -251,7 +251,7 @@ export const useRepositoryFileNavigation = ({
 			if (file) {
 				performSelection(file);
 				if (shouldFocus) {
-					focusRepositoryFileRow(file.path);
+					revealRepositoryFileRow(file.path);
 				}
 			}
 		},

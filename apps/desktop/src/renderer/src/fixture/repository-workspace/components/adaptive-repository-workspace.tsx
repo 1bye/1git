@@ -49,7 +49,6 @@ export interface AdaptiveRepositoryWorkspaceProps {
 		branchName: string
 	) => Promise<boolean>;
 	readonly onCommit: (summary: string, description: string) => Promise<boolean>;
-	readonly onDiscardFile: (file: FileChange) => Promise<boolean>;
 	readonly onDiscardFiles: (files: readonly FileChange[]) => Promise<boolean>;
 	readonly onFetch: () => Promise<void>;
 	readonly onMergeBranch: (name: string) => Promise<boolean>;
@@ -130,7 +129,6 @@ export function AdaptiveRepositoryWorkspace({
 	onChangeHunk,
 	onCherryPickCommit,
 	onCommit,
-	onDiscardFile,
 	onDiscardFiles,
 	onFetch,
 	onMergeBranch,
@@ -271,7 +269,6 @@ export function AdaptiveRepositoryWorkspace({
 				<RepositoryFileRail
 					allFiles={files}
 					navigation={navigation}
-					onDiscardFile={onDiscardFile}
 					onDiscardFiles={onDiscardFiles}
 					onSetFileStaged={onSetFileStaged}
 					onSetFilesStaged={onSetFilesStaged}
@@ -305,14 +302,16 @@ export function AdaptiveRepositoryWorkspace({
 				<RepositoryWorkspaceToolbar
 					branches={branches}
 					navigation={navigation}
-					onDiscardFile={onDiscardFile}
+					onDiscardFiles={onDiscardFiles}
 					onFetch={onFetch}
 					onMergeBranch={onMergeBranch}
 					onSetFileStaged={onSetFileStaged}
+					onSetFilesStaged={onSetFilesStaged}
 					onSetTab={onSetTab}
 					onStashChanges={onStashChanges}
 					onToggleAllFiles={onToggleAllFiles}
 					pendingAction={pendingAction}
+					repositoryRoot={activeSession.repository.root}
 					selectedFilePath={selectedFilePath}
 					snapshot={snapshot}
 					tab={tab}

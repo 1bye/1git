@@ -1,15 +1,7 @@
 import type { FileChange } from "@1git/git";
-import { Button } from "@1git/ui/components/button";
-import {
-	DropdownMenuItem,
-	DropdownMenuSeparator,
-} from "@1git/ui/components/dropdown-menu";
 import { cn } from "@1git/ui/lib/utils";
-import { ArrowLeftIcon } from "@phosphor-icons/react/dist/csr/ArrowLeft";
 import { CheckIcon } from "@phosphor-icons/react/dist/csr/Check";
 import { MinusIcon } from "@phosphor-icons/react/dist/csr/Minus";
-import { SpinnerGapIcon } from "@phosphor-icons/react/dist/csr/SpinnerGap";
-import { TrashIcon } from "@phosphor-icons/react/dist/csr/Trash";
 import type {
 	ChangeEvent,
 	ReactElement,
@@ -27,15 +19,16 @@ import {
 	LiquidContextMenuTrigger,
 	LiquidMenuContent,
 } from "@/fixture/liquid-menu/components/liquid-menu.js";
-import { LiquidMenuAutoSize } from "@/fixture/liquid-menu/components/liquid-menu-auto-size.js";
 import { useLiquidContextMenuPosition } from "@/fixture/liquid-menu/hooks/use-liquid-context-menu-position.js";
 import { OverflowingLabel } from "@/fixture/overflowing-label/components/overflowing-label.js";
+import { RepositoryFileContextActions } from "@/fixture/repository-workspace/components/repository-file-context-actions.js";
 import {
 	REPOSITORY_FILE_CONTEXT_MENU_ANCHOR_GEOMETRY,
 	REPOSITORY_FILE_CONTEXT_MENU_WIDTH,
 	REPOSITORY_FILE_CONTEXT_MENU_WIDTH_CLASS_NAME,
 } from "@/fixture/repository-workspace/constants/repository-workspace.js";
 import {
+	doesRepositoryFileContextMenuUseSelection,
 	getRepositoryFileRowId,
 	groupRepositoryFiles,
 	splitRepositoryFilePath,
@@ -105,141 +98,48 @@ function RepositoryStageCheckbox({
 interface RepositoryFileRowProps {
 	readonly file: FileChange;
 	readonly isBulkSelected: boolean;
+	readonly isBulkSelectionEnd: boolean;
+	readonly isBulkSelectionStart: boolean;
 	readonly isDiscardDisabled: boolean;
 	readonly isSelected: boolean;
 	readonly isStagingDisabled: boolean;
-	readonly onDiscard: (file: FileChange) => Promise<boolean>;
+	readonly onClearSelection: () => void;
+	readonly onDiscard: (files: readonly FileChange[]) => Promise<boolean>;
 	readonly onSelect: (
 		file: FileChange,
 		mode?: "range" | "replace" | "toggle"
 	) => void;
+	readonly onSetFilesStaged: (
+		files: readonly FileChange[],
+		shouldStage: boolean
+	) => Promise<boolean>;
 	readonly onSetStaged: (
 		file: FileChange,
 		shouldStage: boolean
 	) => Promise<void>;
+	readonly repositoryRoot: string;
+	readonly selectedFilePaths: ReadonlySet<string>;
+	readonly selectedFiles: readonly FileChange[];
 	readonly selectedRowAriaKeyShortcuts?: string;
 	readonly selectedRowRef?: RefCallback<HTMLElement>;
 }
 
-interface RepositoryFileContextActionsProps {
-	readonly file: FileChange;
-	readonly isDisabled: boolean;
-	readonly onDiscard: (file: FileChange) => Promise<boolean>;
-	readonly onDismiss: () => void;
-}
-
-function RepositoryFileContextActions({
-	file,
-	isDisabled,
-	onDiscard,
-	onDismiss,
-}: RepositoryFileContextActionsProps): ReactElement {
-	const [actionError, setActionError] = useState<string | null>(null);
-	const [isDiscarding, setIsDiscarding] = useState(false);
-	const [view, setView] = useState<"actions" | "confirm-discard">("actions");
-	const path = splitRepositoryFilePath(file.path);
-	const discardFile = async (): Promise<void> => {
-		setActionError(null);
-		setIsDiscarding(true);
-		try {
-			if (await onDiscard(file)) {
-				onDismiss();
-				return;
-			}
-			setActionError("The changes could not be discarded.");
-		} finally {
-			setIsDiscarding(false);
-		}
-	};
-
-	return (
-		<LiquidMenuAutoSize viewKey={view}>
-			{view === "actions" ? (
-				<DropdownMenuItem
-					className="gap-2.5 py-2"
-					closeOnClick={false}
-					disabled={isDisabled || file.recordType === "unmerged"}
-					onClick={() => setView("confirm-discard")}
-					title={
-						file.recordType === "unmerged"
-							? "Resolve conflicts before discarding changes."
-							: undefined
-					}
-					variant="destructive"
-				>
-					<TrashIcon aria-hidden weight="duotone" />
-					Discard changes…
-				</DropdownMenuItem>
-			) : (
-				<>
-					<DropdownMenuItem
-						className="gap-2.5 py-2"
-						closeOnClick={false}
-						disabled={isDiscarding}
-						onClick={() => setView("actions")}
-					>
-						<ArrowLeftIcon aria-hidden weight="bold" />
-						Discard changes
-					</DropdownMenuItem>
-					<DropdownMenuSeparator />
-					<div className="space-y-3 p-2">
-						<p className="text-[10px] text-editor-muted leading-4">
-							Discard every staged and unstaged change in{" "}
-							<span className="font-medium text-editor-ink">{path.name}</span>?
-							You can undo for 10 seconds.
-						</p>
-						{actionError ? (
-							<p
-								aria-live="polite"
-								className="text-[10px] text-destructive leading-4"
-								role="status"
-							>
-								{actionError}
-							</p>
-						) : null}
-						<div className="flex justify-end gap-1.5">
-							<Button
-								disabled={isDiscarding}
-								onClick={onDismiss}
-								size="sm"
-								type="button"
-								variant="ghost"
-							>
-								Cancel
-							</Button>
-							<Button
-								disabled={isDiscarding}
-								onClick={discardFile}
-								size="sm"
-								type="button"
-								variant="destructive"
-							>
-								{isDiscarding ? (
-									<SpinnerGapIcon
-										aria-hidden
-										className="animate-spin"
-										weight="bold"
-									/>
-								) : null}
-								Discard
-							</Button>
-						</div>
-					</div>
-				</>
-			)}
-		</LiquidMenuAutoSize>
-	);
-}
-
 function RepositoryFileRow({
 	file,
+	isBulkSelectionEnd,
+	isBulkSelectionStart,
 	isBulkSelected,
 	isDiscardDisabled,
 	isSelected,
 	isStagingDisabled,
+	onClearSelection,
 	onDiscard,
 	onSelect,
 	onSetStaged,
+	onSetFilesStaged,
+	repositoryRoot,
+	selectedFiles,
+	selectedFilePaths,
 	selectedRowAriaKeyShortcuts,
 	selectedRowRef,
 }: RepositoryFileRowProps): ReactElement {
@@ -274,6 +174,11 @@ function RepositoryFileRow({
 	);
 	const staged = isFileStaged(file);
 	const path = splitRepositoryFilePath(file.path);
+	const contextUsesSelection = doesRepositoryFileContextMenuUseSelection(
+		file.path,
+		selectedFilePaths
+	);
+	const contextFiles = contextUsesSelection ? selectedFiles : [file];
 	const selectFile = (event: ReactMouseEvent<HTMLButtonElement>): void => {
 		let mode: "range" | "replace" | "toggle" = "replace";
 		if (event.shiftKey) {
@@ -287,13 +192,13 @@ function RepositoryFileRow({
 		await onSetStaged(file, shouldStage);
 	};
 	const openContextMenu = (): void => {
-		if (!(isBulkSelected || isSelected)) {
+		if (!contextUsesSelection && (!isSelected || selectedFilePaths.size > 0)) {
 			onSelect(file);
 		}
 	};
 	let selectionClassName = "hover:bg-editor-sunken";
 	if (isBulkSelected) {
-		selectionClassName = "z-10 bg-editor-sunken-2";
+		selectionClassName = isSelected ? "bg-editor-sunken-2" : "bg-editor-sunken";
 	} else if (isSelected) {
 		selectionClassName = "bg-editor-sunken-2";
 	}
@@ -302,12 +207,12 @@ function RepositoryFileRow({
 		<li
 			aria-keyshortcuts={isSelected ? selectedRowAriaKeyShortcuts : undefined}
 			className={cn(
-				"group relative flex min-h-7 items-center rounded-md transition-colors",
+				"group relative flex min-h-7 items-center transition-colors",
 				selectionClassName,
-				isBulkSelected &&
-					isSelected &&
-					"ring-1 ring-editor-muted/25 ring-inset",
-				(isOpen || isPresent) && "z-20 bg-white hover:bg-white"
+				!isBulkSelected && "rounded-md",
+				isBulkSelectionStart && "rounded-t-md",
+				isBulkSelectionEnd && "rounded-b-md",
+				(isOpen || isPresent) && "z-20 rounded-md bg-white hover:bg-white"
 			)}
 			data-bulk-selected={isBulkSelected ? "true" : undefined}
 			data-name="RepositoryFileRow"
@@ -335,19 +240,10 @@ function RepositoryFileRow({
 					deferUntilVisible
 					title={file.path}
 				>
-					<span className="font-medium text-editor-ink">{path.name}</span>
 					{path.directory ? (
-						<span
-							className={cn(
-								"ml-1 text-editor-faint transition-opacity",
-								isSelected || isBulkSelected
-									? "opacity-100"
-									: "opacity-0 group-focus-within:opacity-100 group-hover:opacity-100"
-							)}
-						>
-							{path.directory}
-						</span>
+						<span className="text-editor-faint">{path.directory}</span>
 					) : null}
+					<span className="font-medium text-editor-ink">{path.name}</span>
 				</OverflowingLabel>
 				<span
 					aria-hidden
@@ -388,10 +284,13 @@ function RepositoryFileRow({
 					sideOffset={0}
 				>
 					<RepositoryFileContextActions
-						file={file}
-						isDisabled={isDiscardDisabled}
+						files={contextFiles}
+						isPending={isDiscardDisabled || isStagingDisabled}
+						onClearSelection={onClearSelection}
 						onDiscard={onDiscard}
 						onDismiss={() => changeOpen(false)}
+						onSetStaged={onSetFilesStaged}
+						repositoryRoot={repositoryRoot}
 					/>
 				</LiquidMenuContent>
 			) : null}
@@ -403,18 +302,25 @@ interface RepositoryFileListProps {
 	readonly files: readonly FileChange[];
 	readonly isDiscardDisabled: boolean;
 	readonly isStagingDisabled: boolean;
-	readonly onDiscard: (file: FileChange) => Promise<boolean>;
+	readonly onClearSelection: () => void;
+	readonly onDiscard: (files: readonly FileChange[]) => Promise<boolean>;
 	readonly onSelect: (
 		file: FileChange,
 		mode?: "range" | "replace" | "toggle"
 	) => void;
+	readonly onSetFilesStaged: (
+		files: readonly FileChange[],
+		shouldStage: boolean
+	) => Promise<boolean>;
 	readonly onSetStaged: (
 		file: FileChange,
 		shouldStage: boolean
 	) => Promise<void>;
 	readonly query: string;
+	readonly repositoryRoot: string;
 	readonly selectedFilePath: string | null;
 	readonly selectedFilePaths: ReadonlySet<string>;
+	readonly selectedFiles: readonly FileChange[];
 	readonly selectedRowAriaKeyShortcuts?: string;
 	readonly selectedRowRef?: RefCallback<HTMLElement>;
 }
@@ -423,12 +329,16 @@ export function RepositoryFileList({
 	files,
 	isDiscardDisabled,
 	isStagingDisabled,
+	onClearSelection,
 	onDiscard,
 	onSelect,
 	onSetStaged,
+	onSetFilesStaged,
 	query,
+	repositoryRoot,
 	selectedFilePath,
 	selectedFilePaths,
+	selectedFiles,
 	selectedRowAriaKeyShortcuts,
 	selectedRowRef,
 }: RepositoryFileListProps): ReactElement {
@@ -445,24 +355,43 @@ export function RepositoryFileList({
 	return (
 		<ul
 			aria-label="Changed files"
-			className="px-1 pb-1"
+			className="px-1 pb-1 outline-none"
 			data-name="RepositoryFileList"
+			tabIndex={-1}
 		>
-			{orderedFiles.map((file) => (
-				<RepositoryFileRow
-					file={file}
-					isBulkSelected={selectedFilePaths.has(file.path)}
-					isDiscardDisabled={isDiscardDisabled}
-					isSelected={selectedFilePath === file.path}
-					isStagingDisabled={isStagingDisabled}
-					key={file.path}
-					onDiscard={onDiscard}
-					onSelect={onSelect}
-					onSetStaged={onSetStaged}
-					selectedRowAriaKeyShortcuts={selectedRowAriaKeyShortcuts}
-					selectedRowRef={selectedRowRef}
-				/>
-			))}
+			{orderedFiles.map((file, index) => {
+				const isBulkSelected = selectedFilePaths.has(file.path);
+				const previousFile = orderedFiles[index - 1];
+				const nextFile = orderedFiles[index + 1];
+				return (
+					<RepositoryFileRow
+						file={file}
+						isBulkSelected={isBulkSelected}
+						isBulkSelectionEnd={
+							isBulkSelected &&
+							!(nextFile && selectedFilePaths.has(nextFile.path))
+						}
+						isBulkSelectionStart={
+							isBulkSelected &&
+							!(previousFile && selectedFilePaths.has(previousFile.path))
+						}
+						isDiscardDisabled={isDiscardDisabled}
+						isSelected={selectedFilePath === file.path}
+						isStagingDisabled={isStagingDisabled}
+						key={file.path}
+						onClearSelection={onClearSelection}
+						onDiscard={onDiscard}
+						onSelect={onSelect}
+						onSetFilesStaged={onSetFilesStaged}
+						onSetStaged={onSetStaged}
+						repositoryRoot={repositoryRoot}
+						selectedFilePaths={selectedFilePaths}
+						selectedFiles={selectedFiles}
+						selectedRowAriaKeyShortcuts={selectedRowAriaKeyShortcuts}
+						selectedRowRef={selectedRowRef}
+					/>
+				);
+			})}
 		</ul>
 	);
 }

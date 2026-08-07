@@ -18,17 +18,22 @@ import type { RepositoryFileNavigation } from "@/fixture/repository-workspace/ho
 interface RepositoryWorkspaceToolbarProps {
 	readonly branches: BranchCollection | null;
 	readonly navigation: RepositoryFileNavigation;
-	readonly onDiscardFile: (file: FileChange) => Promise<boolean>;
+	readonly onDiscardFiles: (files: readonly FileChange[]) => Promise<boolean>;
 	readonly onFetch: () => Promise<void>;
 	readonly onMergeBranch: (name: string) => Promise<boolean>;
 	readonly onSetFileStaged: (
 		file: FileChange,
 		shouldStage: boolean
 	) => Promise<void>;
+	readonly onSetFilesStaged: (
+		files: readonly FileChange[],
+		shouldStage: boolean
+	) => Promise<boolean>;
 	readonly onSetTab: (tab: RepositoryTab) => Promise<void>;
 	readonly onStashChanges: () => Promise<boolean>;
 	readonly onToggleAllFiles: () => Promise<void>;
 	readonly pendingAction: PendingWorkspaceAction;
+	readonly repositoryRoot: string;
 	readonly selectedFilePath: string | null;
 	readonly snapshot: RepositorySnapshot;
 	readonly tab: RepositoryTab;
@@ -47,14 +52,16 @@ const tabForShortcut = (key: string): RepositoryTab | null => {
 export function RepositoryWorkspaceToolbar({
 	branches,
 	navigation,
-	onDiscardFile,
+	onDiscardFiles,
 	onFetch,
 	onMergeBranch,
 	onSetFileStaged,
+	onSetFilesStaged,
 	onSetTab,
 	onStashChanges,
 	onToggleAllFiles,
 	pendingAction,
+	repositoryRoot,
 	selectedFilePath,
 	snapshot,
 	tab,
@@ -131,9 +138,11 @@ export function RepositoryWorkspaceToolbar({
 			{tab === "changes" ? (
 				<RepositoryFileNavigator
 					navigation={navigation}
-					onDiscardFile={onDiscardFile}
+					onDiscardFiles={onDiscardFiles}
 					onSetFileStaged={onSetFileStaged}
+					onSetFilesStaged={onSetFilesStaged}
 					pendingAction={pendingAction}
+					repositoryRoot={repositoryRoot}
 					selectedFilePath={selectedFilePath}
 				/>
 			) : null}

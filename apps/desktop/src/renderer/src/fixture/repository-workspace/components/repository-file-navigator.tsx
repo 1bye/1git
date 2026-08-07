@@ -7,27 +7,33 @@ import { useEffect, useRef } from "react";
 import type { PendingWorkspaceAction } from "@/feature/workspace/hooks/use-git-workspace.js";
 import { areAllFilesStaged } from "@/feature/workspace/lib/workspace-model.js";
 import { useCommandLensTarget } from "@/fixture/command-lens/hooks/use-command-lens-target.js";
-import { RepositoryFileBulkActions } from "@/fixture/repository-workspace/components/repository-file-bulk-actions.js";
 import { RepositoryFileList } from "@/fixture/repository-workspace/components/repository-file-list.js";
 import { REPOSITORY_FILE_NAVIGATOR_ID } from "@/fixture/repository-workspace/constants/repository-workspace.js";
 import type { RepositoryFileNavigation } from "@/fixture/repository-workspace/hooks/use-repository-file-navigation.js";
 
 interface RepositoryFileNavigatorProps {
 	readonly navigation: RepositoryFileNavigation;
-	readonly onDiscardFile: (file: FileChange) => Promise<boolean>;
+	readonly onDiscardFiles: (files: readonly FileChange[]) => Promise<boolean>;
 	readonly onSetFileStaged: (
 		file: FileChange,
 		shouldStage: boolean
 	) => Promise<void>;
+	readonly onSetFilesStaged: (
+		files: readonly FileChange[],
+		shouldStage: boolean
+	) => Promise<boolean>;
 	readonly pendingAction: PendingWorkspaceAction;
+	readonly repositoryRoot: string;
 	readonly selectedFilePath: string | null;
 }
 
 export function RepositoryFileNavigator({
 	navigation,
-	onDiscardFile,
+	onDiscardFiles,
 	onSetFileStaged,
+	onSetFilesStaged,
 	pendingAction,
+	repositoryRoot,
 	selectedFilePath,
 }: RepositoryFileNavigatorProps): ReactElement {
 	const containerRef = useRef<HTMLDivElement>(null);
@@ -99,12 +105,16 @@ export function RepositoryFileNavigator({
 								files={navigation.files}
 								isDiscardDisabled={pendingAction !== null}
 								isStagingDisabled={pendingAction !== null}
-								onDiscard={onDiscardFile}
+								onClearSelection={navigation.clearFileSelection}
+								onDiscard={onDiscardFiles}
 								onSelect={navigation.selectFile}
+								onSetFilesStaged={onSetFilesStaged}
 								onSetStaged={onSetFileStaged}
 								query={navigation.query}
+								repositoryRoot={repositoryRoot}
 								selectedFilePath={selectedFilePath}
 								selectedFilePaths={navigation.selectedFilePaths}
+								selectedFiles={navigation.selectedFiles}
 							/>
 						</div>
 					</div>
@@ -121,19 +131,12 @@ export function RepositoryFileNavigator({
 
 interface RepositoryFileRailProps extends RepositoryFileNavigatorProps {
 	readonly allFiles: readonly FileChange[];
-	readonly onDiscardFiles: (files: readonly FileChange[]) => Promise<boolean>;
-	readonly onSetFilesStaged: (
-		files: readonly FileChange[],
-		shouldStage: boolean
-	) => Promise<boolean>;
 	readonly onToggleAllFiles: () => Promise<void>;
-	readonly repositoryRoot: string;
 }
 
 export function RepositoryFileRail({
 	allFiles,
 	navigation,
-	onDiscardFile,
 	onDiscardFiles,
 	onSetFileStaged,
 	onSetFilesStaged,
@@ -215,26 +218,20 @@ export function RepositoryFileRail({
 					files={navigation.files}
 					isDiscardDisabled={pendingAction !== null}
 					isStagingDisabled={pendingAction !== null}
-					onDiscard={onDiscardFile}
+					onClearSelection={navigation.clearFileSelection}
+					onDiscard={onDiscardFiles}
 					onSelect={navigation.selectFile}
+					onSetFilesStaged={onSetFilesStaged}
 					onSetStaged={onSetFileStaged}
 					query={navigation.query}
+					repositoryRoot={repositoryRoot}
 					selectedFilePath={selectedFilePath}
 					selectedFilePaths={navigation.selectedFilePaths}
+					selectedFiles={navigation.selectedFiles}
 					selectedRowAriaKeyShortcuts={commandLensTarget.ariaKeyShortcuts}
 					selectedRowRef={commandLensTarget.ref}
 				/>
 			</div>
-			{navigation.selectedFiles.length > 1 ? (
-				<RepositoryFileBulkActions
-					files={navigation.selectedFiles}
-					isPending={pendingAction !== null}
-					onClear={navigation.clearFileSelection}
-					onDiscard={onDiscardFiles}
-					onSetStaged={onSetFilesStaged}
-					repositoryRoot={repositoryRoot}
-				/>
-			) : null}
 		</aside>
 	);
 }

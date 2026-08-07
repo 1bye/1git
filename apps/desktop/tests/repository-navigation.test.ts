@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { FileChange, FileStatus } from "@1git/git";
 import {
+	doesRepositoryFileContextMenuUseSelection,
 	filterRepositoryFiles,
 	getRepositoryDiffElementId,
 	getRepositoryFileAtOffset,
@@ -109,5 +110,22 @@ describe("repository file navigation", () => {
 			targetPath: FILES[2].path,
 		});
 		expect(range.selectedPaths).toEqual(paths);
+	});
+
+	test("keeps a multi-selection only when its context menu target is selected", () => {
+		const selectedPaths = new Set([FILES[0].path, FILES[2].path]);
+
+		expect(
+			doesRepositoryFileContextMenuUseSelection(FILES[2].path, selectedPaths)
+		).toBe(true);
+		expect(
+			doesRepositoryFileContextMenuUseSelection(FILES[1].path, selectedPaths)
+		).toBe(false);
+		expect(
+			doesRepositoryFileContextMenuUseSelection(
+				FILES[0].path,
+				new Set([FILES[0].path])
+			)
+		).toBe(false);
 	});
 });

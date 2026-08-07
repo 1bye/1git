@@ -101,6 +101,11 @@ export const getRepositoryFilePosition = (
 	return index < 0 ? null : index + 1;
 };
 
+export const doesRepositoryFileContextMenuUseSelection = (
+	targetPath: string,
+	selectedPaths: ReadonlySet<string>
+): boolean => selectedPaths.size > 1 && selectedPaths.has(targetPath);
+
 const orderedSelection = (
 	orderedPaths: readonly string[],
 	selectedPaths: ReadonlySet<string>

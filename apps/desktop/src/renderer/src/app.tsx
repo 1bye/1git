@@ -76,7 +76,6 @@ export function App(): ReactElement {
 								onChangeHunk={workspace.changeHunk}
 								onCherryPickCommit={workspace.cherryPickCommit}
 								onCommit={workspace.commit}
-								onDiscardFile={workspace.discardFile}
 								onDiscardFiles={workspace.discardFiles}
 								onFetch={workspace.fetchRepository}
 								onMergeBranch={workspace.mergeBranch}
