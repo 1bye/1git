@@ -13,7 +13,7 @@ interface RepositoryEventTarget {
 
 type RepositorySessionReader = Pick<RepositoryManager, "getActiveSession">;
 
-export interface RepositoryMutationNotification {
+interface RepositoryMutationNotification {
 	readonly operation: GitOperation;
 	readonly operationId?: GitOperationId;
 	readonly sessionId: RepositorySessionId;

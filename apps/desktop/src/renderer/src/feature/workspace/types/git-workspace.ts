@@ -1,0 +1,119 @@
+import type {
+	BranchCollection,
+	ChangeHunkInput,
+	CommitInfo,
+	CommitPage,
+	DiscardUndo,
+	FileChange,
+	FileDiff,
+	RepositorySnapshot,
+	ResetMode,
+} from "@1git/git";
+import type { RepositoryOwner } from "@/feature/workspace/lib/repository-owner.js";
+import type {
+	RepositoryManagerState,
+	RepositorySessionId,
+	RepositorySessionRecord,
+} from "../../../../../shared/repository-session.js";
+
+export type RepositoryTab = "changes" | "history";
+
+export interface OpenRepositoryOptions {
+	readonly activate?: boolean;
+}
+
+export type PendingWorkspaceAction =
+	| "branch"
+	| "commit"
+	| "discard"
+	| "fetch"
+	| "history"
+	| "hunk"
+	| "merge"
+	| "open"
+	| "refresh"
+	| "stage"
+	| "stash"
+	| "workspace"
+	| null;
+
+export interface WorkspaceTabState {
+	readonly branch: string | null;
+	readonly changedFiles: number | null;
+	readonly owner: RepositoryOwner | null;
+	readonly session: RepositorySessionRecord;
+}
+
+export interface WorkspaceDiscardUndo extends DiscardUndo {
+	readonly detail: string;
+	readonly message: string;
+	readonly sessionId: RepositorySessionId;
+}
+
+export interface GitWorkspace {
+	readonly activateWorkspace: (sessionId: RepositorySessionId) => Promise<void>;
+	readonly activeSession: RepositorySessionRecord | null;
+	readonly amendCommit: (
+		commit: CommitInfo,
+		summary: string,
+		description: string
+	) => Promise<boolean>;
+	readonly branches: BranchCollection | null;
+	readonly changeHunk: (input: ChangeHunkInput) => Promise<boolean>;
+	readonly cherryPickCommit: (
+		commit: CommitInfo,
+		branchName: string
+	) => Promise<boolean>;
+	readonly clearError: () => void;
+	readonly cloneRepository: (remoteUrl: string) => Promise<boolean>;
+	readonly closeWorkspace: (sessionId: RepositorySessionId) => Promise<void>;
+	readonly commit: (summary: string, description: string) => Promise<boolean>;
+	readonly createBranch: (name: string) => Promise<boolean>;
+	readonly createRepository: () => Promise<boolean>;
+	readonly diffs: readonly FileDiff[];
+	readonly discardFiles: (files: readonly FileChange[]) => Promise<boolean>;
+	readonly discardUndo: WorkspaceDiscardUndo | null;
+	readonly dismissDiscardUndo: (token: string) => void;
+	readonly error: string | null;
+	readonly fetchRepository: () => Promise<void>;
+	readonly forgetRecentRepository: (path: string) => Promise<void>;
+	readonly history: CommitPage | null;
+	readonly isInitialLoading: boolean;
+	readonly manager: RepositoryManagerState;
+	readonly mergeBranch: (name: string) => Promise<boolean>;
+	readonly openRecentRepository: (
+		path: string,
+		options?: OpenRepositoryOptions
+	) => Promise<void>;
+	readonly pendingAction: PendingWorkspaceAction;
+	readonly pickRepository: () => Promise<void>;
+	readonly reorderWorkspace: (
+		activeSessionId: RepositorySessionId,
+		overSessionId: RepositorySessionId
+	) => void;
+	readonly resetToCommit: (
+		commit: CommitInfo,
+		mode: ResetMode
+	) => Promise<boolean>;
+	readonly revertCommit: (commit: CommitInfo) => Promise<boolean>;
+	readonly selectCommit: (commit: CommitInfo) => Promise<void>;
+	readonly selectedCommitOid: string | null;
+	readonly selectedFilePath: string | null;
+	readonly selectFile: (file: FileChange) => Promise<void>;
+	readonly setFileStaged: (
+		file: FileChange,
+		shouldStage: boolean
+	) => Promise<void>;
+	readonly setFilesStaged: (
+		files: readonly FileChange[],
+		shouldStage: boolean
+	) => Promise<boolean>;
+	readonly setTab: (tab: RepositoryTab) => Promise<void>;
+	readonly snapshot: RepositorySnapshot | null;
+	readonly stashChanges: () => Promise<boolean>;
+	readonly switchBranch: (name: string) => Promise<void>;
+	readonly tab: RepositoryTab;
+	readonly toggleAllFiles: () => Promise<void>;
+	readonly undoDiscard: () => Promise<boolean>;
+	readonly workspaces: readonly WorkspaceTabState[];
+}

@@ -46,7 +46,7 @@ export type GithubAvatarFetch = (
 	init?: RequestInit
 ) => Promise<Response>;
 
-export interface GithubAvatarCacheOptions {
+interface GithubAvatarCacheOptions {
 	readonly cacheDirectory: string;
 	readonly fetch?: GithubAvatarFetch;
 	readonly now?: () => number;

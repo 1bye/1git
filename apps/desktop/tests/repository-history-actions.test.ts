@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import type { BranchCollection, BranchInfo, CommitInfo } from "@1git/git";
 import {
-	canAmendHistoryCommit,
-	canRevertHistoryCommit,
-	getCherryPickTargetBranches,
-} from "../src/renderer/src/fixture/repository-workspace/lib/repository-history-actions.js";
+	canAmendRepositoryCommit,
+	canRevertRepositoryCommit,
+	getRepositoryCherryPickTargets,
+} from "../src/renderer/src/feature/workspace/lib/repository-history-actions.js";
 
 const commit = (
 	oid: string,
@@ -40,9 +40,9 @@ const branch = (
 
 describe("repository history actions", () => {
 	test("only allows amending the current HEAD commit", () => {
-		expect(canAmendHistoryCommit(commit("head"), "head")).toBe(true);
-		expect(canAmendHistoryCommit(commit("older"), "head")).toBe(false);
-		expect(canAmendHistoryCommit(commit("head"), null)).toBe(false);
+		expect(canAmendRepositoryCommit(commit("head"), "head")).toBe(true);
+		expect(canAmendRepositoryCommit(commit("older"), "head")).toBe(false);
+		expect(canAmendRepositoryCommit(commit("head"), null)).toBe(false);
 	});
 
 	test("excludes checked-out and remote branches from cherry-pick targets", () => {
@@ -56,14 +56,16 @@ describe("repository history actions", () => {
 		};
 
 		expect(
-			getCherryPickTargetBranches(branches).map(({ name }) => name)
+			getRepositoryCherryPickTargets(branches).map(({ name }) => name)
 		).toEqual(["release"]);
-		expect(getCherryPickTargetBranches(null)).toEqual([]);
+		expect(getRepositoryCherryPickTargets(null)).toEqual([]);
 	});
 
 	test("does not offer single-parent revert behavior for merge commits", () => {
-		expect(canRevertHistoryCommit(commit("root", []))).toBe(true);
-		expect(canRevertHistoryCommit(commit("regular"))).toBe(true);
-		expect(canRevertHistoryCommit(commit("merge", ["one", "two"]))).toBe(false);
+		expect(canRevertRepositoryCommit(commit("root", []))).toBe(true);
+		expect(canRevertRepositoryCommit(commit("regular"))).toBe(true);
+		expect(canRevertRepositoryCommit(commit("merge", ["one", "two"]))).toBe(
+			false
+		);
 	});
 });

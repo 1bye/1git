@@ -46,8 +46,6 @@ import type {
 	UndoDiscardInput,
 	WorktreePathInput,
 } from "@1git/git";
-import type { DesktopIntegrationApi } from "./desktop-integration.js";
-import type { RepositoryOwnerApi } from "./repository-owner-avatar.js";
 import type {
 	OpenedRepositorySession,
 	RecentRepositoryPreview,
@@ -284,27 +282,9 @@ export const isRepositoryRefreshEvent = (
 	return event.operationId === undefined || isNonEmptyString(event.operationId);
 };
 
-export interface GitSessionIpcRequest {
-	readonly operationId?: GitOperationId;
-	readonly sessionId: RepositorySessionId;
-}
-
-export interface GitSessionInputIpcRequest<TInput>
-	extends GitSessionIpcRequest {
-	readonly input: TInput;
-}
-
-export interface GitSessionRevisionIpcRequest extends GitSessionIpcRequest {
-	readonly revision: string;
-}
-
 export interface OpenRepositoryIpcInput {
 	readonly activate?: boolean;
 	readonly path: string;
-}
-
-export interface GitOperationIpcRequest {
-	readonly operationId: GitOperationId;
 }
 
 export interface DesktopGitApi {
@@ -651,11 +631,4 @@ export interface DesktopGitApi {
 			options?: GitOperationOptions
 		) => ReturnType<GitRepository["unlockWorktree"]>;
 	};
-}
-
-export interface DesktopApi {
-	readonly git: DesktopGitApi;
-	readonly integrations: DesktopIntegrationApi;
-	readonly platform: NodeJS.Platform;
-	readonly repositoryOwners: RepositoryOwnerApi;
 }

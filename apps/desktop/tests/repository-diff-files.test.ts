@@ -3,7 +3,7 @@ import type { FileChange, FileDiff } from "@1git/git";
 import {
 	createExpandableRepositoryDiffFile,
 	createRepositoryDiffFileEntries,
-} from "../src/renderer/src/fixture/workspace-content/lib/repository-diff-files.js";
+} from "../src/renderer/src/fixture/repository-workspace/lib/repository-diff-files.js";
 
 const fullFilePatch = (
 	replacement: string

@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
 	getNextRepositoryPickerId,
 	reconcileRepositoryPickerId,
-} from "@/fixture/repository-picker/lib/repository-picker-navigation.js";
+} from "@/fixture/desktop-toolbar/lib/repository-picker-navigation.js";
 
 describe("repository picker navigation", () => {
 	test("advances through visible repositories and wraps", () => {

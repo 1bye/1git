@@ -21,19 +21,20 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { useCommandLensTarget } from "@/feature/command-lens/hooks/use-command-lens-target.js";
+import type { CommandLensCommand } from "@/feature/command-lens/lib/command-lens-shortcut.js";
+import { recentRepositoryName } from "@/feature/workspace/lib/workspace-model.js";
 import type {
 	OpenRepositoryOptions,
 	PendingWorkspaceAction,
 	WorkspaceTabState,
-} from "@/feature/workspace/hooks/use-git-workspace.js";
-import { recentRepositoryName } from "@/feature/workspace/lib/workspace-model.js";
-import { useCommandLensTarget } from "@/fixture/command-lens/hooks/use-command-lens-target.js";
-import type { CommandLensCommand } from "@/fixture/command-lens/lib/command-lens-shortcut.js";
-import {
-	REPOSITORY_MENU_ANCHOR_GEOMETRY,
-	REPOSITORY_MENU_SIDE_OFFSET,
-} from "@/fixture/desktop-toolbar/constants/repository-menu.js";
+} from "@/feature/workspace/types/git-workspace.js";
 import { WORKSPACE_COMMAND_LENS_GROUP } from "@/fixture/desktop-toolbar/constants/workspace-tab.js";
+import { useKeyboardModifiers } from "@/fixture/desktop-toolbar/hooks/use-keyboard-modifiers.js";
+import {
+	getNextRepositoryPickerId,
+	reconcileRepositoryPickerId,
+} from "@/fixture/desktop-toolbar/lib/repository-picker-navigation.js";
 import { AnimatedFolderOpenIcon } from "@/fixture/icons/components/animated-folder-open-icon.js";
 import {
 	LiquidPickerContent,
@@ -49,11 +50,6 @@ import {
 	updateRepositoryContextLayerOpen,
 	updateRepositoryContextLayerPresence,
 } from "@/fixture/repository-item/lib/repository-context-layer.js";
-import {
-	getNextRepositoryPickerId,
-	reconcileRepositoryPickerId,
-} from "@/fixture/repository-picker/lib/repository-picker-navigation.js";
-import { useKeyboardModifiers } from "@/hooks/use-keyboard-modifiers.js";
 import type { RecentRepositoryRecord } from "../../../../../shared/repository-session.js";
 
 interface RepositoryMenuProps {
@@ -87,6 +83,14 @@ type RepositoryPickerEntry = OpenLocalEntry | RepositoryEntry;
 type RepositoryPickerHighlightDetails = Parameters<
 	NonNullable<ComboboxRootProps<RepositoryPickerEntry>["onItemHighlighted"]>
 >[1];
+
+const REPOSITORY_MENU_ANCHOR_GEOMETRY = {
+	insetBlock: 0,
+	insetInline: 0,
+	radius: 8,
+} as const;
+
+const REPOSITORY_MENU_SIDE_OFFSET = -1;
 
 const OPEN_LOCAL_ENTRY: OpenLocalEntry = {
 	id: "open-local",

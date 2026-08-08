@@ -27,8 +27,8 @@ import type {
 	KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import { useId, useState } from "react";
-import type { PendingWorkspaceAction } from "@/feature/workspace/hooks/use-git-workspace.js";
 import { formatCommitDate } from "@/feature/workspace/lib/workspace-model.js";
+import type { PendingWorkspaceAction } from "@/feature/workspace/types/git-workspace.js";
 import {
 	WORKSPACE_BRANCH_EXPANDED_VISIBLE_LIMIT,
 	WORKSPACE_BRANCH_MENU_ITEM_HEIGHT_PX,

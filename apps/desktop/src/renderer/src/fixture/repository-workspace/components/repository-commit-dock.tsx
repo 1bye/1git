@@ -12,8 +12,9 @@ import type {
 	KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import { useRef, useState } from "react";
-import { useCommandLensTarget } from "@/fixture/command-lens/hooks/use-command-lens-target.js";
-import { MAX_COMMIT_SUMMARY_LENGTH } from "@/fixture/repository-workspace/constants/repository-workspace.js";
+import { useCommandLensTarget } from "@/feature/command-lens/hooks/use-command-lens-target.js";
+
+const MAX_COMMIT_SUMMARY_LENGTH = 120;
 
 interface RepositoryCommitDockProps {
 	readonly branch: string | null;

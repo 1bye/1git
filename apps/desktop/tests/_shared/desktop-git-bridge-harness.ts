@@ -1,9 +1,9 @@
 import type { RepositoryManager } from "../../src/main/git/repository-manager.js";
 import {
 	createDesktopGitApi,
-	type DesktopIpcInvoke,
 	type DesktopIpcSubscribe,
 } from "../../src/preload/git-api.js";
+import type { DesktopIpcInvoke } from "../../src/preload/ipc.js";
 import type { DesktopGitApi } from "../../src/shared/git-ipc.js";
 import { GitIpcHarness, type GitIpcHarnessOptions } from "./git-ipc-harness.js";
 

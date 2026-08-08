@@ -3,7 +3,7 @@ import {
 	type DesktopApplication,
 	type DesktopIntegrationApi,
 } from "../shared/desktop-integration.js";
-import type { DesktopIpcInvoke } from "./git-api.js";
+import type { DesktopIpcInvoke } from "./ipc.js";
 
 export const createDesktopIntegrationApi = (
 	invoke: DesktopIpcInvoke

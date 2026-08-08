@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
 	getCommandLensHintRect,
 	insetCommandLensRect,
-} from "@/fixture/command-lens/lib/command-lens-geometry.js";
+} from "@/feature/command-lens/lib/command-lens-geometry.js";
 import {
 	type CommandLensNavigationTarget,
 	getInitialCommandLensNavigationTarget,
@@ -10,7 +10,7 @@ import {
 	getNextCommandLensNavigationTarget,
 	getPlainArrowNavigationTargets,
 	isCommandLensNavigationKey,
-} from "@/fixture/command-lens/lib/command-lens-navigation.js";
+} from "@/feature/command-lens/lib/command-lens-navigation.js";
 import {
 	commandLensAriaKeyShortcut,
 	formatCommandLensCommand,
@@ -19,7 +19,7 @@ import {
 	hasCommandLensOptionMode,
 	isCommandLensFocusedActivation,
 	matchesCommandLensCommand,
-} from "@/fixture/command-lens/lib/command-lens-shortcut.js";
+} from "@/feature/command-lens/lib/command-lens-shortcut.js";
 
 const keyboardEvent = (
 	input: Partial<KeyboardEvent> & Pick<KeyboardEvent, "key">

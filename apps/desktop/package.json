@@ -7,7 +7,7 @@
   "main": "./dist/main/index.js",
   "scripts": {
     "build": "electron-vite build",
-    "check-types": "tsc --noEmit",
+    "check-types": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.electron.json && tsc --noEmit -p tsconfig.test.json",
     "dev": "electron-vite dev",
     "postinstall": "install-electron",
     "preview": "electron-vite preview",

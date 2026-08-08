@@ -7,13 +7,12 @@
       "@/*": ["./src/renderer/src/*"]
     },
     "strictNullChecks": true,
-    "types": ["bun", "node"]
+    "types": []
   },
   "include": [
-    "electron.vite.config.ts",
-    "src/**/*.ts",
-    "src/**/*.tsx",
-    "tests/**/*.ts"
+    "src/renderer/**/*.ts",
+    "src/renderer/**/*.tsx",
+    "src/shared/**/*.ts"
   ],
   "exclude": ["node_modules", "dist"]
 }

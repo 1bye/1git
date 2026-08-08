@@ -10,7 +10,6 @@ import {
 	hasFileWorkingTreeChanges,
 	isFilePartiallyStaged,
 	isFileStaged,
-	matchesFileFilter,
 	recentRepositoryName,
 } from "../src/renderer/src/feature/workspace/lib/workspace-model.js";
 
@@ -66,13 +65,6 @@ describe("workspace file presentation", () => {
 		expect(
 			getFileChangeLabel(fileChange("src/file.ts", "added", "unmodified"))
 		).toBe("A");
-	});
-
-	test("filters paths without case sensitivity or surrounding whitespace", () => {
-		const file = fileChange("Apps/Desktop/App.tsx", "unmodified", "modified");
-
-		expect(matchesFileFilter(file, " desktop ")).toBe(true);
-		expect(matchesFileFilter(file, "packages")).toBe(false);
 	});
 });
 

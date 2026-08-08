@@ -2,9 +2,9 @@ import { describe, expect, test } from "bun:test";
 import { isValidGitOperationId } from "../src/main/git/git-operation-registry.js";
 import {
 	createDesktopGitApi,
-	type DesktopIpcInvoke,
 	type DesktopIpcSubscribe,
 } from "../src/preload/git-api.js";
+import type { DesktopIpcInvoke } from "../src/preload/ipc.js";
 import {
 	GIT_IPC_CHANNELS,
 	GIT_IPC_EVENTS,

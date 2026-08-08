@@ -12,15 +12,15 @@ import type {
 	RefCallback,
 } from "react";
 import { useCallback, useId } from "react";
-import type { WorkspaceTabState } from "@/feature/workspace/hooks/use-git-workspace.js";
+import type { CommandLensTargetOptions } from "@/feature/command-lens/hooks/use-command-lens-context.js";
+import { useCommandLensTarget } from "@/feature/command-lens/hooks/use-command-lens-target.js";
 import { getRepositoryOwner } from "@/feature/workspace/lib/repository-owner.js";
 import {
 	formatCommitDate,
 	formatRelativeTime,
 	recentRepositoryName,
 } from "@/feature/workspace/lib/workspace-model.js";
-import type { CommandLensTargetOptions } from "@/fixture/command-lens/hooks/use-command-lens-context.js";
-import { useCommandLensTarget } from "@/fixture/command-lens/hooks/use-command-lens-target.js";
+import type { WorkspaceTabState } from "@/feature/workspace/types/git-workspace.js";
 import { LiquidContextMenuTrigger } from "@/fixture/liquid-menu/components/liquid-menu.js";
 import { RepositoryOwnerThumbnail } from "@/fixture/repository-item/components/repository-owner-thumbnail.js";
 import type {

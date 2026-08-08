@@ -16,12 +16,12 @@ import type {
 	KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { getCommandLensNumberKey } from "@/feature/command-lens/lib/command-lens-shortcut.js";
 import type {
 	OpenRepositoryOptions,
 	PendingWorkspaceAction,
 	WorkspaceTabState,
-} from "@/feature/workspace/hooks/use-git-workspace.js";
-import { getCommandLensNumberKey } from "@/fixture/command-lens/lib/command-lens-shortcut.js";
+} from "@/feature/workspace/types/git-workspace.js";
 import { RepositoryMenu } from "@/fixture/desktop-toolbar/components/repository-menu.js";
 import { WorkspaceActionsMenu } from "@/fixture/desktop-toolbar/components/workspace-actions-menu.js";
 import { WorkspaceLiquidSurface } from "@/fixture/desktop-toolbar/components/workspace-liquid-surface.js";

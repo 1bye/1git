@@ -432,9 +432,7 @@ button {
 	background: var(--editor-surface);
 }
 
-[data-name="WorkspaceContent"],
-[data-name="RepositoryWelcome"],
-[data-name="WorkspaceLoading"] {
+[data-name="RepositoryWelcome"] {
 	box-shadow: inset 1px 0 0 rgb(255 255 255 / 0.72);
 }
 

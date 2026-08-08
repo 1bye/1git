@@ -97,9 +97,6 @@ export const getFileChangeLabel = (file: FileChange): string => {
 	return CHANGE_LABELS[file.indexStatus];
 };
 
-export const matchesFileFilter = (file: FileChange, filter: string): boolean =>
-	file.path.toLocaleLowerCase().includes(filter.trim().toLocaleLowerCase());
-
 export const formatCommitDate = (date: string): string => {
 	const value = new Date(date);
 	return Number.isNaN(value.getTime()) ? date : DATE_TIME_FORMAT.format(value);

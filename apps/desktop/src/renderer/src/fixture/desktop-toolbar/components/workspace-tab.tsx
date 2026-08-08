@@ -4,13 +4,13 @@ import { useSortable } from "@dnd-kit/react/sortable";
 import { XIcon } from "@phosphor-icons/react/dist/csr/X";
 import type { CSSProperties, ReactElement, RefCallback } from "react";
 import { useCallback } from "react";
-import type { WorkspaceTabState } from "@/feature/workspace/hooks/use-git-workspace.js";
+import { useCommandLensTarget } from "@/feature/command-lens/hooks/use-command-lens-target.js";
+import type { CommandLensCommand } from "@/feature/command-lens/lib/command-lens-shortcut.js";
 import {
 	getRepositoryName,
 	getWorkspaceLabel,
 } from "@/feature/workspace/lib/workspace-model.js";
-import { useCommandLensTarget } from "@/fixture/command-lens/hooks/use-command-lens-target.js";
-import type { CommandLensCommand } from "@/fixture/command-lens/lib/command-lens-shortcut.js";
+import type { WorkspaceTabState } from "@/feature/workspace/types/git-workspace.js";
 import {
 	WORKSPACE_COMMAND_LENS_GROUP,
 	WORKSPACE_TAB_REORDER_MOTION,

@@ -25,12 +25,6 @@ import { getLiquidMenuLayerZIndices } from "@/fixture/liquid-menu/lib/liquid-men
 import { OverflowingLabel } from "@/fixture/overflowing-label/components/overflowing-label.js";
 import { RepositoryFileContextActions } from "@/fixture/repository-workspace/components/repository-file-context-actions.js";
 import {
-	REPOSITORY_FILE_CONTEXT_MENU_ANCHOR_GEOMETRY,
-	REPOSITORY_FILE_CONTEXT_MENU_WIDTH,
-	REPOSITORY_FILE_CONTEXT_MENU_WIDTH_CLASS_NAME,
-	REPOSITORY_FILE_SELECTION_CONTEXT_MENU_ANCHOR_GEOMETRY,
-} from "@/fixture/repository-workspace/constants/repository-workspace.js";
-import {
 	doesRepositoryFileContextMenuUseSelection,
 	getRepositoryFileRowId,
 	getRepositoryFileSelectionRunPaths,
@@ -42,6 +36,18 @@ import {
 const REPOSITORY_FILE_SELECTION_MENU_ANCHOR_SELECTOR =
 	"[data-repository-file-selection-menu-anchor]";
 const SELECTION_MENU_ANCHOR_INLINE_INSET = 12;
+const REPOSITORY_FILE_CONTEXT_MENU_ANCHOR_GEOMETRY = {
+	insetBlock: 0,
+	insetInline: 0,
+	radius: 6,
+} as const;
+const REPOSITORY_FILE_SELECTION_CONTEXT_MENU_ANCHOR_GEOMETRY = {
+	insetBlock: 0,
+	insetInline: 0,
+	radius: 1,
+} as const;
+const REPOSITORY_FILE_CONTEXT_MENU_WIDTH = 260;
+const REPOSITORY_FILE_CONTEXT_MENU_WIDTH_CLASS_NAME = "w-[260px] min-w-[260px]";
 
 const ELEVATED_SELECTION_STYLE = {
 	zIndex: getLiquidMenuLayerZIndices(0).selection,

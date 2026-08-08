@@ -3,15 +3,8 @@ import {
 	updateRepositoryContextLayerOpen,
 	updateRepositoryContextLayerPresence,
 } from "@/fixture/repository-item/lib/repository-context-layer.js";
-import { shouldOpenRepositoryInBackground } from "@/fixture/repository-item/lib/repository-context-menu.js";
 
 describe("repository context menu", () => {
-	test("keeps modifier-opened repositories in the background", () => {
-		expect(shouldOpenRepositoryInBackground(true, false)).toBe(true);
-		expect(shouldOpenRepositoryInBackground(false, true)).toBe(true);
-		expect(shouldOpenRepositoryInBackground(false, false)).toBe(false);
-	});
-
 	test("keeps the child layer mounted until its surface finishes closing", () => {
 		const openLayer = updateRepositoryContextLayerOpen(
 			null,

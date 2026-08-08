@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { createDesktopIntegrationApi } from "../src/preload/desktop-integration-api.js";
-import type { DesktopIpcInvoke } from "../src/preload/git-api.js";
+import type { DesktopIpcInvoke } from "../src/preload/ipc.js";
 import { DESKTOP_INTEGRATION_IPC_CHANNELS } from "../src/shared/desktop-integration.js";
 
 describe("preload desktop integration API", () => {

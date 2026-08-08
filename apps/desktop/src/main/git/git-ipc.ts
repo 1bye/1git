@@ -49,10 +49,7 @@ import type {
 import type { IpcMain, IpcMainInvokeEvent } from "electron";
 import {
 	GIT_IPC_CHANNELS,
-	type GitOperationIpcRequest,
-	type GitSessionInputIpcRequest,
-	type GitSessionIpcRequest,
-	type GitSessionRevisionIpcRequest,
+	type GitOperationId,
 	type IpcGitInput,
 	type IpcRepositoryCreationInput,
 	type OpenRepositoryIpcInput,
@@ -64,7 +61,7 @@ import type {
 	RepositoryManagerResult,
 	RepositorySessionId,
 } from "../../shared/repository-session.js";
-import { GitOperationRegistry } from "./git-operation-registry.js";
+import type { GitOperationRegistry } from "./git-operation-registry.js";
 import { publishRepositoryMutation } from "./repository-events.js";
 import type { RepositoryManager } from "./repository-manager.js";
 
@@ -87,10 +84,27 @@ interface GitIpcHandlerRegistration {
 	readonly handle: GitIpcHandler;
 }
 
-export interface RegisterGitIpcOptions {
+interface GitSessionIpcRequest {
+	readonly operationId?: GitOperationId;
+	readonly sessionId: RepositorySessionId;
+}
+
+interface GitSessionInputIpcRequest<TInput> extends GitSessionIpcRequest {
+	readonly input: TInput;
+}
+
+interface GitSessionRevisionIpcRequest extends GitSessionIpcRequest {
+	readonly revision: string;
+}
+
+interface GitOperationIpcRequest {
+	readonly operationId: GitOperationId;
+}
+
+interface RegisterGitIpcOptions {
 	readonly ipcMain: IpcMainRegistration;
 	readonly isSenderAuthorized: (event: IpcMainInvokeEvent) => boolean;
-	readonly operationRegistry?: GitOperationRegistry;
+	readonly operationRegistry: GitOperationRegistry;
 	readonly pickRepositoryDirectory?: (
 		owner: IpcMainInvokeEvent["sender"]
 	) => Promise<RepositoryDirectorySelection>;
@@ -1102,7 +1116,7 @@ const mutationSessionId = (
 export const registerGitIpc = ({
 	ipcMain,
 	isSenderAuthorized,
-	operationRegistry = new GitOperationRegistry(),
+	operationRegistry,
 	pickRepositoryDirectory = () =>
 		Promise.resolve({ status: "cancelled" } as const),
 	repositoryManager,

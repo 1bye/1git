@@ -27,7 +27,7 @@ export interface DesktopIntegrationOperations {
 	readonly revealPath: (path: string) => void;
 }
 
-export interface RegisterDesktopIntegrationIpcOptions {
+interface RegisterDesktopIntegrationIpcOptions {
 	readonly ipcMain: IpcMainRegistration;
 	readonly isSenderAuthorized: (event: IpcMainInvokeEvent) => boolean;
 	readonly operations: DesktopIntegrationOperations;

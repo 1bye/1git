@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { DesktopIpcInvoke } from "../src/preload/git-api.js";
+import type { DesktopIpcInvoke } from "../src/preload/ipc.js";
 import { createRepositoryOwnerApi } from "../src/preload/repository-owner-api.js";
 import { REPOSITORY_OWNER_IPC_CHANNELS } from "../src/shared/repository-owner-avatar.js";
 

@@ -1,4 +1,3 @@
-import type { IpcRenderer } from "electron";
 import {
 	type DesktopGitApi,
 	GIT_IPC_CHANNELS,
@@ -7,8 +6,8 @@ import {
 	isRepositoryRefreshEvent,
 } from "../shared/git-ipc.js";
 import type { RepositorySessionId } from "../shared/repository-session.js";
+import type { DesktopIpcInvoke } from "./ipc.js";
 
-export type DesktopIpcInvoke = IpcRenderer["invoke"];
 export type DesktopIpcSubscribe = (
 	channel: string,
 	listener: (payload: unknown) => void

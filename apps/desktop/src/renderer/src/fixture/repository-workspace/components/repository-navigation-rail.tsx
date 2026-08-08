@@ -8,11 +8,11 @@ import type {
 } from "@1git/git";
 import type { ReactElement } from "react";
 import { useCallback } from "react";
+import { isFileStaged } from "@/feature/workspace/lib/workspace-model.js";
 import type {
 	PendingWorkspaceAction,
 	RepositoryTab,
-} from "@/feature/workspace/hooks/use-git-workspace.js";
-import { isFileStaged } from "@/feature/workspace/lib/workspace-model.js";
+} from "@/feature/workspace/types/git-workspace.js";
 import { RepositoryCommitDock } from "@/fixture/repository-workspace/components/repository-commit-dock.js";
 import {
 	RepositoryFileNavigator,

@@ -17,7 +17,7 @@ import { useCallback, useRef } from "react";
 import type {
 	PendingWorkspaceAction,
 	RepositoryTab,
-} from "@/feature/workspace/hooks/use-git-workspace.js";
+} from "@/feature/workspace/types/git-workspace.js";
 import {
 	LiquidMenuContent,
 	LiquidMenuRoot,
@@ -26,7 +26,12 @@ import {
 	LiquidMenuSubTrigger,
 	LiquidMenuTrigger,
 } from "@/fixture/liquid-menu/components/liquid-menu.js";
-import { REPOSITORY_QUICK_ACTIONS_ANCHOR_GEOMETRY } from "@/fixture/repository-workspace/constants/repository-workspace.js";
+
+const REPOSITORY_QUICK_ACTIONS_ANCHOR_GEOMETRY = {
+	insetBlock: 0,
+	insetInline: 0,
+	radius: 9,
+} as const;
 
 interface RepositoryQuickActionsProps {
 	readonly allFilesStaged: boolean;

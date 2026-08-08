@@ -4,12 +4,13 @@ import { CheckIcon } from "@phosphor-icons/react/dist/csr/Check";
 import { FunnelSimpleIcon } from "@phosphor-icons/react/dist/csr/FunnelSimple";
 import type { ChangeEvent, ReactElement } from "react";
 import { useEffect, useRef } from "react";
-import type { PendingWorkspaceAction } from "@/feature/workspace/hooks/use-git-workspace.js";
+import { useCommandLensTarget } from "@/feature/command-lens/hooks/use-command-lens-target.js";
 import { areAllFilesStaged } from "@/feature/workspace/lib/workspace-model.js";
-import { useCommandLensTarget } from "@/fixture/command-lens/hooks/use-command-lens-target.js";
+import type { PendingWorkspaceAction } from "@/feature/workspace/types/git-workspace.js";
 import { RepositoryFileList } from "@/fixture/repository-workspace/components/repository-file-list.js";
-import { REPOSITORY_FILE_NAVIGATOR_ID } from "@/fixture/repository-workspace/constants/repository-workspace.js";
 import type { RepositoryFileNavigation } from "@/fixture/repository-workspace/hooks/use-repository-file-navigation.js";
+
+const REPOSITORY_FILE_NAVIGATOR_ID = "repository-file-navigator";
 
 interface RepositoryFileNavigatorProps {
 	readonly navigation: RepositoryFileNavigation;

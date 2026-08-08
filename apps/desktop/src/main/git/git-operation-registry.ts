@@ -12,7 +12,7 @@ interface ActiveGitOperation {
 	readonly owner: object;
 }
 
-export interface RunGitOperationInput<T> {
+interface RunGitOperationInput<T> {
 	readonly operation: GitOperation;
 	readonly operationId?: GitOperationId;
 	readonly owner: object;

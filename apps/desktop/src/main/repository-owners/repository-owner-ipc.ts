@@ -22,7 +22,7 @@ interface RepositoryOwnerAvatarProvider {
 	readonly get: (name: string) => Promise<RepositoryOwnerAvatarResult>;
 }
 
-export interface RegisterRepositoryOwnerIpcOptions {
+interface RegisterRepositoryOwnerIpcOptions {
 	readonly avatarProvider: RepositoryOwnerAvatarProvider;
 	readonly ipcMain: IpcMainRegistration;
 	readonly isSenderAuthorized: (event: IpcMainInvokeEvent) => boolean;

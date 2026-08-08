@@ -4,11 +4,11 @@ import type {
 	RefCallback,
 } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { CommandLensTargetOptions } from "@/feature/command-lens/hooks/use-command-lens-context.js";
 import type {
 	OpenRepositoryOptions,
 	WorkspaceTabState,
-} from "@/feature/workspace/hooks/use-git-workspace.js";
-import type { CommandLensTargetOptions } from "@/fixture/command-lens/hooks/use-command-lens-context.js";
+} from "@/feature/workspace/types/git-workspace.js";
 import {
 	LiquidContextMenuRoot,
 	LiquidMenuContent,
@@ -21,7 +21,6 @@ import {
 	REPOSITORY_CONTEXT_MENU_WIDTH,
 	REPOSITORY_CONTEXT_MENU_WIDTH_CLASS_NAME,
 } from "@/fixture/repository-item/constants/repository-context-menu.js";
-import { shouldOpenRepositoryInBackground } from "@/fixture/repository-item/lib/repository-context-menu.js";
 import type {
 	RecentRepositoryPreview,
 	RecentRepositoryRecord,
@@ -110,10 +109,7 @@ export function RepositoryContextMenu({
 	const openRepository = async (
 		event: ReactMouseEvent<HTMLElement>
 	): Promise<void> => {
-		const openInBackground = shouldOpenRepositoryInBackground(
-			event.metaKey,
-			metaKey
-		);
+		const openInBackground = event.metaKey || metaKey;
 		if (openInBackground) {
 			(
 				event as ReactMouseEvent<HTMLElement> & {

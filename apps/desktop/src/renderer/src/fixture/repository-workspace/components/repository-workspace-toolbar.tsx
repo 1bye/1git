@@ -7,11 +7,11 @@ import { CaretDownIcon } from "@phosphor-icons/react/dist/csr/CaretDown";
 import { CheckIcon } from "@phosphor-icons/react/dist/csr/Check";
 import type { ReactElement } from "react";
 import { useCallback, useEffect, useRef } from "react";
+import { areAllFilesStaged } from "@/feature/workspace/lib/workspace-model.js";
 import type {
 	PendingWorkspaceAction,
 	RepositoryTab,
-} from "@/feature/workspace/hooks/use-git-workspace.js";
-import { areAllFilesStaged } from "@/feature/workspace/lib/workspace-model.js";
+} from "@/feature/workspace/types/git-workspace.js";
 import { WORKSPACE_TAB_SURFACE_GEOMETRY } from "@/fixture/desktop-toolbar/constants/workspace-tab.js";
 import {
 	LiquidMenuContent,

@@ -1,14 +1,14 @@
 import type { ReactElement, ReactNode } from "react";
 import {
-	AdaptiveRepositoryWorkspace,
-	type AdaptiveRepositoryWorkspaceProps,
-} from "@/fixture/repository-workspace/components/adaptive-repository-workspace.js";
+	RepositoryDiffWorkspace,
+	type RepositoryDiffWorkspaceProps,
+} from "@/fixture/repository-workspace/components/repository-diff-workspace.js";
 import {
 	RepositoryNavigationRail,
 	type RepositoryNavigationRailProps,
 } from "@/fixture/repository-workspace/components/repository-navigation-rail.js";
 
-export type RepositoryWorkspaceProps = AdaptiveRepositoryWorkspaceProps &
+export type RepositoryWorkspaceProps = RepositoryDiffWorkspaceProps &
 	RepositoryNavigationRailProps & {
 		readonly titlebar: ReactNode;
 	};
@@ -25,7 +25,7 @@ export function RepositoryWorkspace({
 		>
 			<div className="flex min-w-0 flex-1 flex-col">
 				{titlebar}
-				<AdaptiveRepositoryWorkspace {...props} />
+				<RepositoryDiffWorkspace {...props} />
 			</div>
 			<RepositoryNavigationRail {...props} />
 		</section>

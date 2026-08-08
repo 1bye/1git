@@ -41,17 +41,17 @@ export interface RepositoryManagerOptions {
 	readonly runtime?: GitRuntimeOptions;
 }
 
-export interface OpenRepositorySessionInput extends GitCallOptions {
+interface OpenRepositorySessionInput extends GitCallOptions {
 	readonly activate?: boolean;
 	readonly path: string;
 }
 
-export type InitializeRepositorySessionInput = Omit<
+type InitializeRepositorySessionInput = Omit<
 	InitializeRepositoryInput,
 	"runtime"
 >;
 
-export type CloneRepositorySessionInput = Omit<CloneRepositoryInput, "runtime">;
+type CloneRepositorySessionInput = Omit<CloneRepositoryInput, "runtime">;
 
 const succeed = <T>(value: T): RepositoryManagerResult<T> => ({
 	ok: true,
