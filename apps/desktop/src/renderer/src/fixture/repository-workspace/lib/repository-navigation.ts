@@ -118,6 +118,34 @@ export const doesRepositoryFileContextMenuUseSelection = (
 	selectedPaths: ReadonlySet<string>
 ): boolean => selectedPaths.size > 1 && selectedPaths.has(targetPath);
 
+export const getRepositoryFileSelectionRunPaths = (
+	orderedPaths: readonly string[],
+	selectedPaths: ReadonlySet<string>,
+	targetPath: string
+): readonly string[] => {
+	const targetIndex = orderedPaths.indexOf(targetPath);
+	if (targetIndex < 0 || !selectedPaths.has(targetPath)) {
+		return [];
+	}
+	let startIndex = targetIndex;
+	let endIndex = targetIndex;
+	while (startIndex > 0) {
+		const previousPath = orderedPaths[startIndex - 1];
+		if (!(previousPath && selectedPaths.has(previousPath))) {
+			break;
+		}
+		startIndex -= 1;
+	}
+	while (endIndex < orderedPaths.length - 1) {
+		const nextPath = orderedPaths[endIndex + 1];
+		if (!(nextPath && selectedPaths.has(nextPath))) {
+			break;
+		}
+		endIndex += 1;
+	}
+	return orderedPaths.slice(startIndex, endIndex + 1);
+};
+
 export const shouldElevateRepositoryFileSelection = (
 	isContextMenuPresent: boolean,
 	isSelected: boolean

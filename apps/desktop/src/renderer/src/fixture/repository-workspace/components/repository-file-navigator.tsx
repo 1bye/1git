@@ -100,7 +100,10 @@ export function RepositoryFileNavigator({
 							aria-live="polite"
 							className="sr-only"
 						>{`${selectedFilePath ?? "No file"} previewed`}</p>
-						<div className="max-h-[min(56vh,28rem)] overflow-y-auto overscroll-contain">
+						<div
+							className="max-h-[min(56vh,28rem)] overflow-y-auto overscroll-contain"
+							data-repository-file-viewport
+						>
 							<RepositoryFileList
 								files={navigation.files}
 								isDiscardDisabled={pendingAction !== null}

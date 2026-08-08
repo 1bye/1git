@@ -28,18 +28,162 @@ import {
 	REPOSITORY_FILE_CONTEXT_MENU_ANCHOR_GEOMETRY,
 	REPOSITORY_FILE_CONTEXT_MENU_WIDTH,
 	REPOSITORY_FILE_CONTEXT_MENU_WIDTH_CLASS_NAME,
+	REPOSITORY_FILE_SELECTION_CONTEXT_MENU_ANCHOR_GEOMETRY,
 } from "@/fixture/repository-workspace/constants/repository-workspace.js";
 import {
 	doesRepositoryFileContextMenuUseSelection,
 	getRepositoryFileRowId,
+	getRepositoryFileSelectionRunPaths,
 	groupRepositoryFiles,
 	shouldElevateRepositoryFileSelection,
 	splitRepositoryFilePath,
 } from "@/fixture/repository-workspace/lib/repository-navigation.js";
 
+const REPOSITORY_FILE_SELECTION_MENU_ANCHOR_SELECTOR =
+	"[data-repository-file-selection-menu-anchor]";
+const SELECTION_MENU_ANCHOR_INLINE_INSET = 12;
+
 const ELEVATED_SELECTION_STYLE = {
 	zIndex: getLiquidMenuLayerZIndices(0).selection,
 } satisfies CSSProperties;
+
+const getVisibleSelectionEdgeRow = (
+	anchorElement: HTMLElement,
+	selectionRunPaths: readonly string[]
+): HTMLElement => {
+	const viewport = anchorElement.closest("[data-repository-file-viewport]");
+	const viewportBounds = viewport?.getBoundingClientRect();
+	let edgeRow = anchorElement;
+	for (const path of selectionRunPaths) {
+		const row = document.getElementById(getRepositoryFileRowId(path));
+		if (!row) {
+			continue;
+		}
+		const rowBounds = row.getBoundingClientRect();
+		const isVisible =
+			!viewportBounds ||
+			(rowBounds.bottom > viewportBounds.top &&
+				rowBounds.top < viewportBounds.bottom);
+		if (isVisible) {
+			edgeRow = row;
+		}
+	}
+	return edgeRow;
+};
+
+const positionSelectionMenuAnchor = (
+	row: HTMLElement,
+	pointerClientX: number
+): HTMLElement | null => {
+	const anchor = row.querySelector<HTMLElement>(
+		REPOSITORY_FILE_SELECTION_MENU_ANCHOR_SELECTOR
+	);
+	if (!anchor) {
+		return null;
+	}
+	const rowBounds = row.getBoundingClientRect();
+	const maximumOffset = Math.max(
+		SELECTION_MENU_ANCHOR_INLINE_INSET,
+		rowBounds.width - SELECTION_MENU_ANCHOR_INLINE_INSET
+	);
+	const offset = Math.min(
+		Math.max(
+			pointerClientX - rowBounds.left,
+			SELECTION_MENU_ANCHOR_INLINE_INSET
+		),
+		maximumOffset
+	);
+	anchor.style.left = `${offset}px`;
+	return anchor;
+};
+
+interface RepositoryFileContextMenuAnchors {
+	readonly position: HTMLElement | null;
+	readonly surface: HTMLElement | null;
+}
+
+interface GetRepositoryFileContextMenuAnchorsOptions {
+	readonly anchorElement: HTMLElement | null;
+	readonly orderedFilePaths: readonly string[];
+	readonly pointerClientX: number;
+	readonly selectedFilePaths: ReadonlySet<string>;
+	readonly targetPath: string;
+	readonly usesSelection: boolean;
+}
+
+const getRepositoryFileContextMenuAnchors = ({
+	anchorElement,
+	orderedFilePaths,
+	pointerClientX,
+	selectedFilePaths,
+	targetPath,
+	usesSelection,
+}: GetRepositoryFileContextMenuAnchorsOptions): RepositoryFileContextMenuAnchors => {
+	if (!(usesSelection && anchorElement)) {
+		return { position: anchorElement, surface: anchorElement };
+	}
+	const selectionRunPaths = getRepositoryFileSelectionRunPaths(
+		orderedFilePaths,
+		selectedFilePaths,
+		targetPath
+	);
+	const edgeRow = getVisibleSelectionEdgeRow(anchorElement, selectionRunPaths);
+	return {
+		position: edgeRow,
+		surface: positionSelectionMenuAnchor(edgeRow, pointerClientX) ?? edgeRow,
+	};
+};
+
+const getRepositoryFileSelectionMode = (
+	event: ReactMouseEvent<HTMLElement>
+): "range" | "replace" | "toggle" => {
+	if (event.shiftKey) {
+		return "range";
+	}
+	if (event.metaKey || event.ctrlKey) {
+		return "toggle";
+	}
+	return "replace";
+};
+
+const getRepositoryFileContextMenuAnchorGeometry = (
+	usesSelection: boolean
+):
+	| typeof REPOSITORY_FILE_CONTEXT_MENU_ANCHOR_GEOMETRY
+	| typeof REPOSITORY_FILE_SELECTION_CONTEXT_MENU_ANCHOR_GEOMETRY =>
+	usesSelection
+		? REPOSITORY_FILE_SELECTION_CONTEXT_MENU_ANCHOR_GEOMETRY
+		: REPOSITORY_FILE_CONTEXT_MENU_ANCHOR_GEOMETRY;
+
+interface SelectRepositoryFileForContextMenuOptions {
+	readonly file: FileChange;
+	readonly isSelected: boolean;
+	readonly onSelect: (file: FileChange) => void;
+	readonly selectedFileCount: number;
+	readonly usesSelection: boolean;
+}
+
+const selectRepositoryFileForContextMenu = ({
+	file,
+	isSelected,
+	onSelect,
+	selectedFileCount,
+	usesSelection,
+}: SelectRepositoryFileForContextMenuOptions): void => {
+	if (!usesSelection && (!isSelected || selectedFileCount > 0)) {
+		onSelect(file);
+	}
+};
+
+const getRepositoryFileSelectionClassName = (
+	isBulkSelected: boolean,
+	isSelected: boolean
+): string => {
+	if (isBulkSelected) {
+		return isSelected ? "bg-editor-sunken-2" : "bg-editor-sunken";
+	}
+	return isSelected ? "bg-editor-sunken-2" : "hover:bg-editor-sunken";
+};
 
 interface RepositoryStageCheckboxProps {
 	readonly checked: boolean;
@@ -126,6 +270,7 @@ interface RepositoryFileRowProps {
 		file: FileChange,
 		shouldStage: boolean
 	) => Promise<void>;
+	readonly orderedFilePaths: readonly string[];
 	readonly repositoryRoot: string;
 	readonly selectedFilePaths: ReadonlySet<string>;
 	readonly selectedFiles: readonly FileChange[];
@@ -148,6 +293,7 @@ function RepositoryFileRow({
 	onSelectionContextMenuPresenceChange,
 	onSetStaged,
 	onSetFilesStaged,
+	orderedFilePaths,
 	repositoryRoot,
 	selectedFiles,
 	selectedFilePaths,
@@ -155,10 +301,14 @@ function RepositoryFileRow({
 	selectedRowRef,
 }: RepositoryFileRowProps): ReactElement {
 	const [anchorElement, setAnchorElement] = useState<HTMLElement | null>(null);
+	const [positionAnchorElement, setPositionAnchorElement] =
+		useState<HTMLElement | null>(null);
+	const [surfaceAnchorElement, setSurfaceAnchorElement] =
+		useState<HTMLElement | null>(null);
 	const [isOpen, setIsOpen] = useState(false);
 	const [isPresent, setIsPresent] = useState(false);
 	const contextMenuPosition = useLiquidContextMenuPosition({
-		anchorElement,
+		anchorElement: positionAnchorElement ?? anchorElement,
 		menuWidth: REPOSITORY_FILE_CONTEXT_MENU_WIDTH,
 	});
 	const contextUsesSelection = doesRepositoryFileContextMenuUseSelection(
@@ -166,8 +316,12 @@ function RepositoryFileRow({
 		selectedFilePaths
 	);
 	const getAnchor = useCallback(
-		(): Element | null => anchorElement,
-		[anchorElement]
+		(): Element | null => surfaceAnchorElement ?? anchorElement,
+		[anchorElement, surfaceAnchorElement]
+	);
+	const getPositionAnchor = useCallback(
+		(): Element | null => positionAnchorElement ?? anchorElement,
+		[anchorElement, positionAnchorElement]
 	);
 	const setRowElement = useCallback(
 		(element: HTMLElement | null): void => {
@@ -211,28 +365,36 @@ function RepositoryFileRow({
 		isBulkSelected
 	);
 	const selectFile = (event: ReactMouseEvent<HTMLButtonElement>): void => {
-		let mode: "range" | "replace" | "toggle" = "replace";
-		if (event.shiftKey) {
-			mode = "range";
-		} else if (event.metaKey || event.ctrlKey) {
-			mode = "toggle";
-		}
-		onSelect(file, mode);
+		onSelect(file, getRepositoryFileSelectionMode(event));
 	};
 	const setStaged = async (shouldStage: boolean): Promise<void> => {
 		await onSetStaged(file, shouldStage);
 	};
-	const openContextMenu = (): void => {
-		if (!contextUsesSelection && (!isSelected || selectedFilePaths.size > 0)) {
-			onSelect(file);
-		}
+	const openContextMenu = (event: ReactMouseEvent<HTMLElement>): void => {
+		const anchors = getRepositoryFileContextMenuAnchors({
+			anchorElement,
+			orderedFilePaths,
+			pointerClientX: event.clientX,
+			selectedFilePaths,
+			targetPath: file.path,
+			usesSelection: contextUsesSelection,
+		});
+		setPositionAnchorElement(anchors.position);
+		setSurfaceAnchorElement(anchors.surface);
+		selectRepositoryFileForContextMenu({
+			file,
+			isSelected,
+			onSelect,
+			selectedFileCount: selectedFilePaths.size,
+			usesSelection: contextUsesSelection,
+		});
 	};
-	let selectionClassName = "hover:bg-editor-sunken";
-	if (isBulkSelected) {
-		selectionClassName = isSelected ? "bg-editor-sunken-2" : "bg-editor-sunken";
-	} else if (isSelected) {
-		selectionClassName = "bg-editor-sunken-2";
-	}
+	const isSingleContextMenuActive =
+		(isOpen || isPresent) && !contextUsesSelection;
+	const selectionClassName = getRepositoryFileSelectionClassName(
+		isBulkSelected,
+		isSelected
+	);
 
 	const row = (
 		<li
@@ -243,8 +405,8 @@ function RepositoryFileRow({
 				!isBulkSelected && "rounded-md",
 				isBulkSelectionStart && "rounded-t-md",
 				isBulkSelectionEnd && "rounded-b-md",
-				(isOpen || isPresent) && "rounded-md bg-white hover:bg-white",
-				(isOpen || isPresent) && !shouldElevateSelection && "z-20"
+				isSingleContextMenuActive && "rounded-md bg-white hover:bg-white",
+				isSingleContextMenuActive && !shouldElevateSelection && "z-20"
 			)}
 			data-bulk-selected={isBulkSelected ? "true" : undefined}
 			data-name="RepositoryFileRow"
@@ -253,6 +415,11 @@ function RepositoryFileRow({
 			ref={setRowElement}
 			style={shouldElevateSelection ? ELEVATED_SELECTION_STYLE : undefined}
 		>
+			<span
+				aria-hidden
+				className="pointer-events-none absolute bottom-0 left-1/2 size-px"
+				data-repository-file-selection-menu-anchor
+			/>
 			<div className="pl-1.5">
 				<RepositoryStageCheckbox
 					checked={staged}
@@ -296,7 +463,9 @@ function RepositoryFileRow({
 	return (
 		<LiquidContextMenuRoot
 			anchor={getAnchor}
-			anchorGeometry={REPOSITORY_FILE_CONTEXT_MENU_ANCHOR_GEOMETRY}
+			anchorGeometry={getRepositoryFileContextMenuAnchorGeometry(
+				contextUsesSelection
+			)}
 			onOpenChange={changeOpen}
 			onPresenceChange={changePresence}
 			open={isOpen}
@@ -304,7 +473,7 @@ function RepositoryFileRow({
 			<LiquidContextMenuTrigger
 				onContextMenu={(event) => {
 					contextMenuPosition.onContextMenu(event);
-					openContextMenu();
+					openContextMenu(event);
 				}}
 				render={row}
 			/>
@@ -312,6 +481,7 @@ function RepositoryFileRow({
 				<LiquidMenuContent
 					align="start"
 					alignOffset={contextMenuPosition.alignOffset + 20}
+					anchor={getPositionAnchor}
 					aria-label={`Actions for ${file.path}`}
 					className={`${REPOSITORY_FILE_CONTEXT_MENU_WIDTH_CLASS_NAME} p-1.5`}
 					side="bottom"
@@ -380,6 +550,7 @@ export function RepositoryFileList({
 		useState(false);
 	const groups = groupRepositoryFiles(files);
 	const orderedFiles = [...groups.staged, ...groups.unstaged];
+	const orderedFilePaths = orderedFiles.map((file) => file.path);
 	useEffect(() => {
 		if (selectedFiles.length < 2) {
 			setSelectionContextMenuPresent(false);
@@ -429,6 +600,7 @@ export function RepositoryFileList({
 						}
 						onSetFilesStaged={onSetFilesStaged}
 						onSetStaged={onSetStaged}
+						orderedFilePaths={orderedFilePaths}
 						repositoryRoot={repositoryRoot}
 						selectedFilePaths={selectedFilePaths}
 						selectedFiles={selectedFiles}

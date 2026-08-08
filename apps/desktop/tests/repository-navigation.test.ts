@@ -7,6 +7,7 @@ import {
 	getRepositoryFileAtBoundedOffset,
 	getRepositoryFileAtOffset,
 	getRepositoryFilePosition,
+	getRepositoryFileSelectionRunPaths,
 	groupRepositoryFiles,
 	shouldElevateRepositoryFileSelection,
 	splitRepositoryFilePath,
@@ -177,6 +178,18 @@ describe("repository file navigation", () => {
 				new Set([FILES[0].path])
 			)
 		).toBe(false);
+	});
+
+	test("finds the contiguous selected run around a context-menu target", () => {
+		const orderedPaths = ["a.ts", "b.ts", "c.ts", "d.ts", "e.ts"];
+		const selectedPaths = new Set(["a.ts", "c.ts", "d.ts", "e.ts"]);
+
+		expect(
+			getRepositoryFileSelectionRunPaths(orderedPaths, selectedPaths, "d.ts")
+		).toEqual(["c.ts", "d.ts", "e.ts"]);
+		expect(
+			getRepositoryFileSelectionRunPaths(orderedPaths, selectedPaths, "b.ts")
+		).toEqual([]);
 	});
 
 	test("elevates every selected row while its context menu is present", () => {
