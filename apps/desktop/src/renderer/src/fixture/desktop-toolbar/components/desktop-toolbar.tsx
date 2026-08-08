@@ -19,6 +19,7 @@ import { useEffect, useState } from "react";
 import type {
 	OpenRepositoryOptions,
 	PendingWorkspaceAction,
+	RepositoryTab,
 	WorkspaceTabState,
 } from "@/feature/workspace/hooks/use-git-workspace.js";
 import { getCommandLensNumberKey } from "@/fixture/command-lens/lib/command-lens-shortcut.js";
@@ -35,6 +36,7 @@ import {
 	WORKSPACE_TAB_SURFACE_GEOMETRY,
 } from "@/fixture/desktop-toolbar/constants/workspace-tab.js";
 import { LiquidMenuRoot } from "@/fixture/liquid-menu/components/liquid-menu.js";
+import { RepositoryWorkspaceToolbar } from "@/fixture/repository-workspace/components/repository-workspace-toolbar.js";
 import type {
 	RecentRepositoryRecord,
 	RepositorySessionId,
@@ -50,6 +52,7 @@ interface DesktopToolbarProps {
 	readonly onCreateBranch: (name: string) => Promise<boolean>;
 	readonly onFetch: () => Promise<void>;
 	readonly onForgetRecent: (path: string) => Promise<void>;
+	readonly onMergeBranch: (name: string) => Promise<boolean>;
 	readonly onOpenRecent: (
 		path: string,
 		options?: OpenRepositoryOptions
@@ -59,9 +62,13 @@ interface DesktopToolbarProps {
 		activeSessionId: RepositorySessionId,
 		overSessionId: RepositorySessionId
 	) => void;
+	readonly onSetRepositoryTab: (tab: RepositoryTab) => Promise<void>;
+	readonly onStashChanges: () => Promise<boolean>;
 	readonly onSwitchBranch: (name: string) => Promise<void>;
+	readonly onToggleAllFiles: () => Promise<void>;
 	readonly pendingAction: PendingWorkspaceAction;
 	readonly recentRepositories: readonly RecentRepositoryRecord[];
+	readonly repositoryTab: RepositoryTab;
 	readonly snapshot: RepositorySnapshot | null;
 	readonly workspaces: readonly WorkspaceTabState[];
 }
@@ -101,12 +108,16 @@ const TAB_OVERLAY_STYLE: CSSProperties = {
 const DESKTOP_TOOLBAR_STYLE: CSSProperties = {
 	height: WORKSPACE_TAB_SURFACE_GEOMETRY.toolbarHeight,
 };
+const REPOSITORY_TITLEBAR_STYLE: CSSProperties = {
+	marginRight: "var(--repository-rail-width)",
+};
 const WORKSPACE_TAB_LIST_STYLE: CSSProperties = {
 	columnGap: WORKSPACE_TAB_SURFACE_GEOMETRY.tabGap,
 	height:
 		WORKSPACE_TAB_SURFACE_GEOMETRY.toolbarHeight +
 		WORKSPACE_TAB_SURFACE_GEOMETRY.containerOverlap,
-	paddingInline: WORKSPACE_TAB_SURFACE_GEOMETRY.tabListInset,
+	paddingLeft: WORKSPACE_TAB_SURFACE_GEOMETRY.tabListInset,
+	paddingRight: WORKSPACE_TAB_SURFACE_GEOMETRY.tabListInset + 44,
 	paddingTop:
 		WORKSPACE_TAB_SURFACE_GEOMETRY.toolbarHeight -
 		WORKSPACE_TAB_SURFACE_GEOMETRY.tabHeight -
@@ -130,12 +141,17 @@ export function DesktopToolbar({
 	onCreateBranch,
 	onFetch,
 	onForgetRecent,
+	onMergeBranch,
 	onOpenRecent,
 	onPickRepository,
 	onReorderWorkspace,
+	onSetRepositoryTab,
+	onStashChanges,
 	onSwitchBranch,
+	onToggleAllFiles,
 	pendingAction,
 	recentRepositories,
+	repositoryTab,
 	snapshot,
 	workspaces,
 }: DesktopToolbarProps): ReactElement {
@@ -308,110 +324,128 @@ export function DesktopToolbar({
 				data-active-tab-dragging={isActiveTabDragging ? "true" : undefined}
 				data-desktop-drag
 				data-name="WorkspaceTitlebar"
+				style={activeSessionId ? REPOSITORY_TITLEBAR_STYLE : undefined}
 			>
 				<WorkspaceLiquidSurface
 					activeSessionId={activeSessionId}
 					activeTabIndex={activeTabIndex}
 					isDragging={Boolean(draggingSessionId)}
 				/>
-				<RepositoryMenu
-					isOpen={isRepositoryMenuOpen}
-					isVisible={hasOpenWorkspaces}
-					onForgetRecent={onForgetRecent}
-					onOpenChange={setRepositoryMenuOpen}
-					onOpenRecent={onOpenRecent}
-					onPickRepository={onPickRepository}
-					pendingAction={pendingAction}
-					recentRepositories={recentRepositories}
-					workspaces={workspaces}
-				/>
-				<DragDropProvider
-					onDragEnd={finishWorkspaceDrag}
-					onDragStart={startWorkspaceDrag}
-					sensors={TAB_DRAG_SENSORS}
-				>
-					<div
-						aria-label="Open repository workspaces"
-						aria-orientation="horizontal"
-						className="flex min-w-0 flex-1 items-start overflow-x-auto overflow-y-hidden"
-						data-dragging={draggingSessionId ? "true" : undefined}
-						data-name="WorkspaceTabList"
-						onKeyDown={navigateWorkspaceTabs}
-						role="tablist"
-						style={WORKSPACE_TAB_LIST_STYLE}
+				{snapshot ? (
+					<RepositoryWorkspaceToolbar
+						branches={branches}
+						onFetch={onFetch}
+						onMergeBranch={onMergeBranch}
+						onSetTab={onSetRepositoryTab}
+						onStashChanges={onStashChanges}
+						onToggleAllFiles={onToggleAllFiles}
+						pendingAction={pendingAction}
+						snapshot={snapshot}
+						tab={repositoryTab}
+					/>
+				) : null}
+				<div className="relative z-[2] min-w-0 flex-1">
+					<DragDropProvider
+						onDragEnd={finishWorkspaceDrag}
+						onDragStart={startWorkspaceDrag}
+						sensors={TAB_DRAG_SENSORS}
 					>
-						{workspaces.map((workspace, index) => {
-							const isActive = workspace.session.id === activeSessionId;
-							return (
-								<LiquidMenuRoot
-									anchor={getActiveWorkspaceTab}
-									anchorGeometry={WORKSPACE_ACTIONS_ANCHOR_GEOMETRY}
-									disabled={!isActive}
-									key={workspace.session.id}
-									modal
-									onOpenChange={changeWorkspaceMenu}
-									onPresenceChange={
-										isActive ? setIsWorkspaceMenuSurfacePresent : undefined
-									}
-									open={isActive && isWorkspaceMenuOpen}
-									outlineWidth={WORKSPACE_TAB_SURFACE_GEOMETRY.outlineWidth}
-								>
-									<WorkspaceTab
-										index={index}
-										isActionsMenuOpen={isActive && isWorkspaceMenuVisualOpen}
-										isActive={isActive}
+						<div
+							aria-label="Open repository workspaces"
+							aria-orientation="horizontal"
+							className="workspace-tab-repository-mask flex min-w-0 flex-1 items-start overflow-x-auto overflow-y-hidden"
+							data-dragging={draggingSessionId ? "true" : undefined}
+							data-name="WorkspaceTabList"
+							onKeyDown={navigateWorkspaceTabs}
+							role="tablist"
+							style={WORKSPACE_TAB_LIST_STYLE}
+						>
+							{workspaces.map((workspace, index) => {
+								const isActive = workspace.session.id === activeSessionId;
+								return (
+									<LiquidMenuRoot
+										anchor={getActiveWorkspaceTab}
+										anchorGeometry={WORKSPACE_ACTIONS_ANCHOR_GEOMETRY}
+										disabled={!isActive}
+										key={workspace.session.id}
+										modal
+										onOpenChange={changeWorkspaceMenu}
+										onPresenceChange={
+											isActive ? setIsWorkspaceMenuSurfacePresent : undefined
+										}
+										open={isActive && isWorkspaceMenuOpen}
+										outlineWidth={WORKSPACE_TAB_SURFACE_GEOMETRY.outlineWidth}
+									>
+										<WorkspaceTab
+											index={index}
+											isActionsMenuOpen={isActive && isWorkspaceMenuVisualOpen}
+											isActive={isActive}
+											isBusy={pendingAction === "workspace"}
+											onActivate={onActivateWorkspace}
+											onActivateNext={activateNextWorkspace}
+											onActivatePrevious={activatePreviousWorkspace}
+											onClose={onCloseWorkspace}
+											onOpenActions={toggleWorkspaceMenu}
+											shortcutKey={getCommandLensNumberKey(
+												index,
+												workspaces.length
+											)}
+											workspace={workspace}
+										/>
+										{isActive && isWorkspaceMenuOpen ? (
+											<WorkspaceActionsMenu
+												branches={branches}
+												currentBranch={currentBranch}
+												onClose={closeWorkspaceMenu}
+												onCreateBranch={onCreateBranch}
+												onFetch={onFetch}
+												onSwitchBranch={onSwitchBranch}
+												pendingAction={pendingAction}
+											/>
+										) : null}
+									</LiquidMenuRoot>
+								);
+							})}
+						</div>
+						<DragOverlay
+							dropAnimation={TAB_DROP_ANIMATION}
+							style={TAB_OVERLAY_STYLE}
+						>
+							{(source) => {
+								const workspace = workspaces.find(
+									(candidate) => candidate.session.id === String(source.id)
+								);
+								return workspace ? (
+									<WorkspaceTabOverlay
+										isActionsMenuOpen={false}
+										isActive={workspace.session.id === activeSessionId}
 										isBusy={pendingAction === "workspace"}
 										onActivate={onActivateWorkspace}
 										onActivateNext={activateNextWorkspace}
 										onActivatePrevious={activatePreviousWorkspace}
 										onClose={onCloseWorkspace}
 										onOpenActions={toggleWorkspaceMenu}
-										shortcutKey={getCommandLensNumberKey(
-											index,
-											workspaces.length
-										)}
+										shortcutKey={null}
 										workspace={workspace}
 									/>
-									{isActive && isWorkspaceMenuOpen ? (
-										<WorkspaceActionsMenu
-											branches={branches}
-											currentBranch={currentBranch}
-											onClose={closeWorkspaceMenu}
-											onCreateBranch={onCreateBranch}
-											onFetch={onFetch}
-											onSwitchBranch={onSwitchBranch}
-											pendingAction={pendingAction}
-										/>
-									) : null}
-								</LiquidMenuRoot>
-							);
-						})}
+								) : null;
+							}}
+						</DragOverlay>
+					</DragDropProvider>
+					<div className="absolute inset-y-0 right-0 z-30 flex items-center">
+						<RepositoryMenu
+							isOpen={isRepositoryMenuOpen}
+							isVisible={hasOpenWorkspaces}
+							onForgetRecent={onForgetRecent}
+							onOpenChange={setRepositoryMenuOpen}
+							onOpenRecent={onOpenRecent}
+							onPickRepository={onPickRepository}
+							pendingAction={pendingAction}
+							recentRepositories={recentRepositories}
+							workspaces={workspaces}
+						/>
 					</div>
-					<DragOverlay
-						dropAnimation={TAB_DROP_ANIMATION}
-						style={TAB_OVERLAY_STYLE}
-					>
-						{(source) => {
-							const workspace = workspaces.find(
-								(candidate) => candidate.session.id === String(source.id)
-							);
-							return workspace ? (
-								<WorkspaceTabOverlay
-									isActionsMenuOpen={false}
-									isActive={workspace.session.id === activeSessionId}
-									isBusy={pendingAction === "workspace"}
-									onActivate={onActivateWorkspace}
-									onActivateNext={activateNextWorkspace}
-									onActivatePrevious={activatePreviousWorkspace}
-									onClose={onCloseWorkspace}
-									onOpenActions={toggleWorkspaceMenu}
-									shortcutKey={null}
-									workspace={workspace}
-								/>
-							) : null;
-						}}
-					</DragOverlay>
-				</DragDropProvider>
+				</div>
 			</div>
 		</header>
 	);

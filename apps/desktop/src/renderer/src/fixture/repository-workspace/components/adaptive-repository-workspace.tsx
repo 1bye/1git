@@ -21,9 +21,11 @@ import {
 	isFileStaged,
 } from "@/feature/workspace/lib/workspace-model.js";
 import { RepositoryCommitDock } from "@/fixture/repository-workspace/components/repository-commit-dock.js";
-import { RepositoryFileRail } from "@/fixture/repository-workspace/components/repository-file-navigator.js";
+import {
+	RepositoryFileNavigator,
+	RepositoryFileRail,
+} from "@/fixture/repository-workspace/components/repository-file-navigator.js";
 import { RepositoryHistoryRail } from "@/fixture/repository-workspace/components/repository-history-rail.js";
-import { RepositoryWorkspaceToolbar } from "@/fixture/repository-workspace/components/repository-workspace-toolbar.js";
 import { useRepositoryFileNavigation } from "@/fixture/repository-workspace/hooks/use-repository-file-navigation.js";
 import { getRepositoryDiffElementId } from "@/fixture/repository-workspace/lib/repository-navigation.js";
 import { scrollElementIntoViewport } from "@/fixture/repository-workspace/lib/scroll-element-into-viewport.js";
@@ -51,7 +53,6 @@ export interface AdaptiveRepositoryWorkspaceProps {
 	readonly onCommit: (summary: string, description: string) => Promise<boolean>;
 	readonly onDiscardFiles: (files: readonly FileChange[]) => Promise<boolean>;
 	readonly onFetch: () => Promise<void>;
-	readonly onMergeBranch: (name: string) => Promise<boolean>;
 	readonly onResetCommit: (
 		commit: CommitInfo,
 		mode: ResetMode
@@ -68,7 +69,6 @@ export interface AdaptiveRepositoryWorkspaceProps {
 		shouldStage: boolean
 	) => Promise<boolean>;
 	readonly onSetTab: (tab: RepositoryTab) => Promise<void>;
-	readonly onStashChanges: () => Promise<boolean>;
 	readonly onToggleAllFiles: () => Promise<void>;
 	readonly pendingAction: PendingWorkspaceAction;
 	readonly selectedCommitOid: string | null;
@@ -131,7 +131,6 @@ export function AdaptiveRepositoryWorkspace({
 	onCommit,
 	onDiscardFiles,
 	onFetch,
-	onMergeBranch,
 	onResetCommit,
 	onRevertCommit,
 	onSelectCommit,
@@ -139,7 +138,6 @@ export function AdaptiveRepositoryWorkspace({
 	onSetFileStaged,
 	onSetFilesStaged,
 	onSetTab,
-	onStashChanges,
 	onToggleAllFiles,
 	pendingAction,
 	selectedCommitOid,
@@ -295,39 +293,29 @@ export function AdaptiveRepositoryWorkspace({
 			data-layout="adaptive"
 			data-name="AdaptiveRepositoryWorkspace"
 		>
-			<div
-				className="relative isolate flex w-[310px] shrink-0 flex-col bg-transparent"
-				data-name="RepositoryNavigationRail"
-			>
-				<div
-					aria-hidden
-					className="repository-navigation-tab-blur pointer-events-none absolute inset-x-0 top-0 -z-10 h-20"
-				/>
-				<RepositoryWorkspaceToolbar
-					branches={branches}
-					navigation={navigation}
-					onDiscardFiles={onDiscardFiles}
-					onFetch={onFetch}
-					onMergeBranch={onMergeBranch}
-					onSetFileStaged={onSetFileStaged}
-					onSetFilesStaged={onSetFilesStaged}
-					onSetTab={onSetTab}
-					onStashChanges={onStashChanges}
-					onToggleAllFiles={onToggleAllFiles}
-					pendingAction={pendingAction}
-					repositoryRoot={activeSession.repository.root}
-					selectedFilePath={selectedFilePath}
-					snapshot={snapshot}
-					tab={tab}
-				/>
-				{navigationRail}
-			</div>
 			<main
 				className="min-h-0 min-w-0 flex-1 overflow-hidden rounded-xl border border-editor-hairline-strong bg-editor-surface shadow-[0_1px_2px_rgb(0_0_0/0.03)]"
 				data-name="RepositoryDiffWorkspace"
 			>
 				{mainContent}
 			</main>
+			<div
+				className="relative flex w-(--repository-rail-width) shrink-0 flex-col bg-transparent"
+				data-name="RepositoryNavigationRail"
+			>
+				{tab === "changes" ? (
+					<RepositoryFileNavigator
+						navigation={navigation}
+						onDiscardFiles={onDiscardFiles}
+						onSetFileStaged={onSetFileStaged}
+						onSetFilesStaged={onSetFilesStaged}
+						pendingAction={pendingAction}
+						repositoryRoot={activeSession.repository.root}
+						selectedFilePath={selectedFilePath}
+					/>
+				) : null}
+				{navigationRail}
+			</div>
 		</section>
 	);
 }

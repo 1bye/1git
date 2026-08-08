@@ -15,6 +15,7 @@
 
 :root {
 	--desktop-titlebar-controls-width: 5rem;
+	--repository-rail-width: 19.375rem;
 	--workspace-tab-appearance-duration: 240ms;
 	--workspace-surface-inset: 6px;
 	--workspace-surface-radius: 14px;
@@ -103,29 +104,27 @@ button {
 	border-radius: var(--workspace-surface-radius);
 }
 
-.repository-navigation-tab-blur {
-	background: linear-gradient(
-		to bottom,
-		rgb(255 255 255 / 0.28),
-		rgb(255 255 255 / 0)
-	);
-	-webkit-backdrop-filter: blur(20px) saturate(1.08);
-	backdrop-filter: blur(20px) saturate(1.08);
-	-webkit-mask-image: linear-gradient(
-		to bottom,
-		black 0%,
-		black 28%,
-		transparent 100%
-	);
-	mask-image: linear-gradient(to bottom, black 0%, black 28%, transparent 100%);
-}
-
 [data-name="WorkspaceTabList"] {
 	scrollbar-width: none;
 }
 
 [data-name="WorkspaceTabList"]::-webkit-scrollbar {
 	display: none;
+}
+
+.workspace-tab-repository-mask {
+	-webkit-mask-image: linear-gradient(
+		to right,
+		black 0,
+		black calc(100% - 4.5rem),
+		transparent calc(100% - 2.5rem)
+	);
+	mask-image: linear-gradient(
+		to right,
+		black 0,
+		black calc(100% - 4.5rem),
+		transparent calc(100% - 2.5rem)
+	);
 }
 
 [data-name="WorkspaceTab"] {

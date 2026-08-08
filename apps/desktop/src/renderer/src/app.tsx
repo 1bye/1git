@@ -31,12 +31,17 @@ export function App(): ReactElement {
 						onCreateBranch={workspace.createBranch}
 						onFetch={workspace.fetchRepository}
 						onForgetRecent={workspace.forgetRecentRepository}
+						onMergeBranch={workspace.mergeBranch}
 						onOpenRecent={workspace.openRecentRepository}
 						onPickRepository={workspace.pickRepository}
 						onReorderWorkspace={workspace.reorderWorkspace}
+						onSetRepositoryTab={workspace.setTab}
+						onStashChanges={workspace.stashChanges}
 						onSwitchBranch={workspace.switchBranch}
+						onToggleAllFiles={workspace.toggleAllFiles}
 						pendingAction={workspace.pendingAction}
 						recentRepositories={workspace.manager.recentRepositories}
+						repositoryTab={workspace.tab}
 						snapshot={workspace.snapshot}
 						workspaces={workspace.workspaces}
 					/>
@@ -78,7 +83,6 @@ export function App(): ReactElement {
 								onCommit={workspace.commit}
 								onDiscardFiles={workspace.discardFiles}
 								onFetch={workspace.fetchRepository}
-								onMergeBranch={workspace.mergeBranch}
 								onResetCommit={workspace.resetToCommit}
 								onRevertCommit={workspace.revertCommit}
 								onSelectCommit={workspace.selectCommit}
@@ -86,7 +90,6 @@ export function App(): ReactElement {
 								onSetFileStaged={workspace.setFileStaged}
 								onSetFilesStaged={workspace.setFilesStaged}
 								onSetTab={workspace.setTab}
-								onStashChanges={workspace.stashChanges}
 								onToggleAllFiles={workspace.toggleAllFiles}
 								pendingAction={workspace.pendingAction}
 								selectedCommitOid={workspace.selectedCommitOid}

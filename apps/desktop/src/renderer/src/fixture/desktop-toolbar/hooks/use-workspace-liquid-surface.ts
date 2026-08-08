@@ -294,6 +294,11 @@ export function useWorkspaceLiquidSurface({
 		if (activeTab) {
 			resizeObserver.observe(activeTab);
 		}
+		for (const child of titlebar.children) {
+			if (child instanceof HTMLElement && child !== host) {
+				resizeObserver.observe(child);
+			}
+		}
 		measureSurface();
 
 		const shouldTrackDropSettling = wasDraggingRef.current && !isDragging;

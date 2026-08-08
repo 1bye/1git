@@ -72,7 +72,7 @@ export function RepositoryFileNavigator({
 			{navigation.isOpen ? (
 				<div
 					aria-label="Changed file navigator"
-					className="fade-in-0 zoom-in-95 absolute top-full left-0 z-40 mt-2 flex max-h-[min(68vh,34rem)] w-[350px] origin-top-left animate-in flex-col overflow-hidden rounded-2xl border border-editor-hairline-strong bg-editor-surface shadow-surface-5 duration-150"
+					className="fade-in-0 zoom-in-95 absolute top-full right-0 z-40 mt-2 flex max-h-[min(68vh,34rem)] w-[350px] origin-top-right animate-in flex-col overflow-hidden rounded-2xl border border-editor-hairline-strong bg-editor-surface shadow-surface-5 duration-150"
 					data-name="RepositoryFileNavigatorPopup"
 					id={REPOSITORY_FILE_NAVIGATOR_ID}
 					role="dialog"

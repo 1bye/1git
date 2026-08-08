@@ -30,7 +30,6 @@ import { recentRepositoryName } from "@/feature/workspace/lib/workspace-model.js
 import { useCommandLensTarget } from "@/fixture/command-lens/hooks/use-command-lens-target.js";
 import type { CommandLensCommand } from "@/fixture/command-lens/lib/command-lens-shortcut.js";
 import {
-	REPOSITORY_MENU_ALIGN_OFFSET,
 	REPOSITORY_MENU_ANCHOR_GEOMETRY,
 	REPOSITORY_MENU_SIDE_OFFSET,
 } from "@/fixture/desktop-toolbar/constants/repository-menu.js";
@@ -448,10 +447,10 @@ export function RepositoryMenu({
 			<div
 				aria-hidden={isVisible ? undefined : true}
 				className={cn(
-					"relative flex h-full shrink-0 items-center border-editor-hairline opacity-100 transition-[max-width,opacity,transform,padding] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]",
+					"relative flex h-full shrink-0 items-center justify-center border-editor-hairline opacity-100 transition-[width,opacity,transform] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]",
 					isVisible
-						? "max-w-24 overflow-visible pl-2"
-						: "pointer-events-none max-w-0 -translate-x-1 overflow-hidden p-0 opacity-0"
+						? "w-10 overflow-visible"
+						: "pointer-events-none w-0 translate-x-1 overflow-hidden opacity-0"
 				)}
 				data-name="RepositoryMenu"
 				data-visible={isVisible ? "true" : "false"}
@@ -479,9 +478,10 @@ export function RepositoryMenu({
 					<LiquidPickerTrigger
 						aria-keyshortcuts="Meta+K Control+K"
 						aria-label="Open repositories"
-						className="relative flex h-8 items-center gap-2 rounded-lg px-2.5 font-semibold text-editor-ink text-xss outline-none transition-colors duration-150 hover:bg-white focus-visible:bg-studio-glass-strong"
+						className="relative flex size-8 items-center justify-center rounded-lg text-editor-ink outline-none transition-colors duration-150 hover:bg-white focus-visible:bg-studio-glass-strong"
 						data-name="RepositoryMenuTrigger"
 						ref={setTriggerElement}
+						title="Open repositories"
 					>
 						{pendingAction === "open" ? (
 							<SpinnerGapIcon
@@ -496,13 +496,11 @@ export function RepositoryMenu({
 								triggerRef={triggerRef}
 							/>
 						)}
-						Repos
 					</LiquidPickerTrigger>
 
 					{isOpen ? (
 						<LiquidPickerContent
-							align="start"
-							alignOffset={REPOSITORY_MENU_ALIGN_OFFSET}
+							align="end"
 							aria-busy={pendingAction === "open"}
 							aria-label="Repositories"
 							className="max-h-[min(70vh,32rem)] w-[370px] min-w-[370px] p-1.5"
