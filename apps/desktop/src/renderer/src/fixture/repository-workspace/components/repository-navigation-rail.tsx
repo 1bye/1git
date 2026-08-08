@@ -129,6 +129,7 @@ export function RepositoryNavigationRail({
 			<aside
 				aria-busy="true"
 				className="w-(--repository-rail-width) shrink-0 bg-transparent"
+				data-desktop-drag
 				data-name="RepositoryNavigationRail"
 			/>
 		);
@@ -181,6 +182,7 @@ export function RepositoryNavigationRail({
 	return (
 		<aside
 			className="relative flex min-h-0 w-(--repository-rail-width) shrink-0 flex-col bg-transparent"
+			data-desktop-drag
 			data-name="RepositoryNavigationRail"
 		>
 			<RepositoryWorkspaceToolbar

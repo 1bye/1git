@@ -12,6 +12,7 @@ import type {
 	RepositoryTab,
 } from "@/feature/workspace/hooks/use-git-workspace.js";
 import { areAllFilesStaged } from "@/feature/workspace/lib/workspace-model.js";
+import { WORKSPACE_TAB_SURFACE_GEOMETRY } from "@/fixture/desktop-toolbar/constants/workspace-tab.js";
 import {
 	LiquidMenuContent,
 	LiquidMenuRoot,
@@ -94,8 +95,9 @@ export function RepositoryWorkspaceToolbar({
 
 	return (
 		<div
-			className="relative z-10 flex h-10 w-full shrink-0 items-center justify-between gap-3 px-3"
+			className="relative z-10 flex w-full shrink-0 items-center justify-between gap-2 px-2"
 			data-name="RepositoryTitlebarControls"
+			style={{ height: WORKSPACE_TAB_SURFACE_GEOMETRY.toolbarHeight }}
 		>
 			<LiquidMenuRoot
 				anchor={getAnchor}
