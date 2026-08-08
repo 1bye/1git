@@ -94,7 +94,7 @@ export function RepositoryWorkspaceToolbar({
 
 	return (
 		<div
-			className="relative z-10 flex w-56 shrink-0 items-center justify-between gap-3 px-2"
+			className="relative z-10 flex h-full w-(--repository-rail-width) shrink-0 items-center justify-between gap-3 px-3"
 			data-name="RepositoryTitlebarControls"
 		>
 			<RepositoryQuickActions

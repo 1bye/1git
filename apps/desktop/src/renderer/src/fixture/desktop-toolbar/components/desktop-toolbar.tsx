@@ -15,7 +15,7 @@ import type {
 	ReactElement,
 	KeyboardEvent as ReactKeyboardEvent,
 } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type {
 	OpenRepositoryOptions,
 	PendingWorkspaceAction,
@@ -108,16 +108,13 @@ const TAB_OVERLAY_STYLE: CSSProperties = {
 const DESKTOP_TOOLBAR_STYLE: CSSProperties = {
 	height: WORKSPACE_TAB_SURFACE_GEOMETRY.toolbarHeight,
 };
-const REPOSITORY_TITLEBAR_STYLE: CSSProperties = {
-	marginRight: "var(--repository-rail-width)",
-};
 const WORKSPACE_TAB_LIST_STYLE: CSSProperties = {
 	columnGap: WORKSPACE_TAB_SURFACE_GEOMETRY.tabGap,
 	height:
 		WORKSPACE_TAB_SURFACE_GEOMETRY.toolbarHeight +
 		WORKSPACE_TAB_SURFACE_GEOMETRY.containerOverlap,
 	paddingLeft: WORKSPACE_TAB_SURFACE_GEOMETRY.tabListInset,
-	paddingRight: WORKSPACE_TAB_SURFACE_GEOMETRY.tabListInset + 44,
+	paddingRight: WORKSPACE_TAB_SURFACE_GEOMETRY.tabListInset,
 	paddingTop:
 		WORKSPACE_TAB_SURFACE_GEOMETRY.toolbarHeight -
 		WORKSPACE_TAB_SURFACE_GEOMETRY.tabHeight -
@@ -161,6 +158,7 @@ export function DesktopToolbar({
 		useState(false);
 	const [draggingSessionId, setDraggingSessionId] =
 		useState<RepositorySessionId | null>(null);
+	const tabListRef = useRef<HTMLDivElement>(null);
 	const currentBranch = snapshot?.head.branch ?? "";
 	const workspaceIds = workspaces.map((workspace) => workspace.session.id);
 	const activeTabIndex =
@@ -196,6 +194,31 @@ export function DesktopToolbar({
 			setIsRepositoryMenuOpen(false);
 		}
 	}, [hasOpenWorkspaces]);
+
+	useLayoutEffect(() => {
+		const tabList = tabListRef.current;
+		if (!tabList) {
+			return;
+		}
+		const updateEdgeMasks = (): void => {
+			const maxScrollLeft = tabList.scrollWidth - tabList.clientWidth;
+			tabList.dataset.overflowLeading =
+				tabList.scrollLeft > 1 ? "true" : "false";
+			tabList.dataset.overflowTrailing =
+				tabList.scrollLeft < maxScrollLeft - 1 ? "true" : "false";
+		};
+		const mutationObserver = new MutationObserver(updateEdgeMasks);
+		const resizeObserver = new ResizeObserver(updateEdgeMasks);
+		mutationObserver.observe(tabList, { childList: true });
+		resizeObserver.observe(tabList);
+		tabList.addEventListener("scroll", updateEdgeMasks, { passive: true });
+		updateEdgeMasks();
+		return () => {
+			mutationObserver.disconnect();
+			resizeObserver.disconnect();
+			tabList.removeEventListener("scroll", updateEdgeMasks);
+		};
+	}, []);
 
 	const setRepositoryMenuOpen = (isOpen: boolean): void => {
 		if (isOpen) {
@@ -320,18 +343,125 @@ export function DesktopToolbar({
 			style={DESKTOP_TOOLBAR_STYLE}
 		>
 			<div
-				className="relative flex h-full min-w-0 items-stretch pl-(--desktop-titlebar-controls-width)"
-				data-active-tab-dragging={isActiveTabDragging ? "true" : undefined}
+				className="flex h-full min-w-0"
 				data-desktop-drag
-				data-name="WorkspaceTitlebar"
-				style={activeSessionId ? REPOSITORY_TITLEBAR_STYLE : undefined}
+				data-name="DesktopTitlebarLayout"
 			>
-				<WorkspaceLiquidSurface
-					activeSessionId={activeSessionId}
-					activeTabIndex={activeTabIndex}
-					isDragging={Boolean(draggingSessionId)}
-				/>
-				{snapshot ? (
+				<div
+					className="relative flex h-full min-w-0 flex-1 items-stretch pl-(--desktop-titlebar-controls-width)"
+					data-active-tab-dragging={isActiveTabDragging ? "true" : undefined}
+					data-name="WorkspaceTitlebar"
+				>
+					<WorkspaceLiquidSurface
+						activeSessionId={activeSessionId}
+						activeTabIndex={activeTabIndex}
+						isDragging={Boolean(draggingSessionId)}
+					/>
+					<RepositoryMenu
+						isOpen={isRepositoryMenuOpen}
+						isVisible={hasOpenWorkspaces}
+						onForgetRecent={onForgetRecent}
+						onOpenChange={setRepositoryMenuOpen}
+						onOpenRecent={onOpenRecent}
+						onPickRepository={onPickRepository}
+						pendingAction={pendingAction}
+						recentRepositories={recentRepositories}
+						workspaces={workspaces}
+					/>
+					<div className="relative z-[2] min-w-0 flex-1">
+						<DragDropProvider
+							onDragEnd={finishWorkspaceDrag}
+							onDragStart={startWorkspaceDrag}
+							sensors={TAB_DRAG_SENSORS}
+						>
+							<div
+								aria-label="Open repository workspaces"
+								aria-orientation="horizontal"
+								className="workspace-tab-edge-mask flex min-w-0 flex-1 items-start overflow-x-auto overflow-y-hidden"
+								data-dragging={draggingSessionId ? "true" : undefined}
+								data-name="WorkspaceTabList"
+								onKeyDown={navigateWorkspaceTabs}
+								ref={tabListRef}
+								role="tablist"
+								style={WORKSPACE_TAB_LIST_STYLE}
+							>
+								{workspaces.map((workspace, index) => {
+									const isActive = workspace.session.id === activeSessionId;
+									return (
+										<LiquidMenuRoot
+											anchor={getActiveWorkspaceTab}
+											anchorGeometry={WORKSPACE_ACTIONS_ANCHOR_GEOMETRY}
+											disabled={!isActive}
+											key={workspace.session.id}
+											modal
+											onOpenChange={changeWorkspaceMenu}
+											onPresenceChange={
+												isActive ? setIsWorkspaceMenuSurfacePresent : undefined
+											}
+											open={isActive && isWorkspaceMenuOpen}
+											outlineWidth={WORKSPACE_TAB_SURFACE_GEOMETRY.outlineWidth}
+										>
+											<WorkspaceTab
+												index={index}
+												isActionsMenuOpen={
+													isActive && isWorkspaceMenuVisualOpen
+												}
+												isActive={isActive}
+												isBusy={pendingAction === "workspace"}
+												onActivate={onActivateWorkspace}
+												onActivateNext={activateNextWorkspace}
+												onActivatePrevious={activatePreviousWorkspace}
+												onClose={onCloseWorkspace}
+												onOpenActions={toggleWorkspaceMenu}
+												shortcutKey={getCommandLensNumberKey(
+													index,
+													workspaces.length
+												)}
+												workspace={workspace}
+											/>
+											{isActive && isWorkspaceMenuOpen ? (
+												<WorkspaceActionsMenu
+													branches={branches}
+													currentBranch={currentBranch}
+													onClose={closeWorkspaceMenu}
+													onCreateBranch={onCreateBranch}
+													onFetch={onFetch}
+													onSwitchBranch={onSwitchBranch}
+													pendingAction={pendingAction}
+												/>
+											) : null}
+										</LiquidMenuRoot>
+									);
+								})}
+							</div>
+							<DragOverlay
+								dropAnimation={TAB_DROP_ANIMATION}
+								style={TAB_OVERLAY_STYLE}
+							>
+								{(source) => {
+									const workspace = workspaces.find(
+										(candidate) => candidate.session.id === String(source.id)
+									);
+									return workspace ? (
+										<WorkspaceTabOverlay
+											isActionsMenuOpen={false}
+											isActive={workspace.session.id === activeSessionId}
+											isBusy={pendingAction === "workspace"}
+											onActivate={onActivateWorkspace}
+											onActivateNext={activateNextWorkspace}
+											onActivatePrevious={activatePreviousWorkspace}
+											onClose={onCloseWorkspace}
+											onOpenActions={toggleWorkspaceMenu}
+											shortcutKey={null}
+											workspace={workspace}
+										/>
+									) : null;
+								}}
+							</DragOverlay>
+						</DragDropProvider>
+					</div>
+				</div>
+				{activeSessionId && snapshot ? (
 					<RepositoryWorkspaceToolbar
 						branches={branches}
 						onFetch={onFetch}
@@ -344,108 +474,12 @@ export function DesktopToolbar({
 						tab={repositoryTab}
 					/>
 				) : null}
-				<div className="relative z-[2] min-w-0 flex-1">
-					<DragDropProvider
-						onDragEnd={finishWorkspaceDrag}
-						onDragStart={startWorkspaceDrag}
-						sensors={TAB_DRAG_SENSORS}
-					>
-						<div
-							aria-label="Open repository workspaces"
-							aria-orientation="horizontal"
-							className="workspace-tab-repository-mask flex min-w-0 flex-1 items-start overflow-x-auto overflow-y-hidden"
-							data-dragging={draggingSessionId ? "true" : undefined}
-							data-name="WorkspaceTabList"
-							onKeyDown={navigateWorkspaceTabs}
-							role="tablist"
-							style={WORKSPACE_TAB_LIST_STYLE}
-						>
-							{workspaces.map((workspace, index) => {
-								const isActive = workspace.session.id === activeSessionId;
-								return (
-									<LiquidMenuRoot
-										anchor={getActiveWorkspaceTab}
-										anchorGeometry={WORKSPACE_ACTIONS_ANCHOR_GEOMETRY}
-										disabled={!isActive}
-										key={workspace.session.id}
-										modal
-										onOpenChange={changeWorkspaceMenu}
-										onPresenceChange={
-											isActive ? setIsWorkspaceMenuSurfacePresent : undefined
-										}
-										open={isActive && isWorkspaceMenuOpen}
-										outlineWidth={WORKSPACE_TAB_SURFACE_GEOMETRY.outlineWidth}
-									>
-										<WorkspaceTab
-											index={index}
-											isActionsMenuOpen={isActive && isWorkspaceMenuVisualOpen}
-											isActive={isActive}
-											isBusy={pendingAction === "workspace"}
-											onActivate={onActivateWorkspace}
-											onActivateNext={activateNextWorkspace}
-											onActivatePrevious={activatePreviousWorkspace}
-											onClose={onCloseWorkspace}
-											onOpenActions={toggleWorkspaceMenu}
-											shortcutKey={getCommandLensNumberKey(
-												index,
-												workspaces.length
-											)}
-											workspace={workspace}
-										/>
-										{isActive && isWorkspaceMenuOpen ? (
-											<WorkspaceActionsMenu
-												branches={branches}
-												currentBranch={currentBranch}
-												onClose={closeWorkspaceMenu}
-												onCreateBranch={onCreateBranch}
-												onFetch={onFetch}
-												onSwitchBranch={onSwitchBranch}
-												pendingAction={pendingAction}
-											/>
-										) : null}
-									</LiquidMenuRoot>
-								);
-							})}
-						</div>
-						<DragOverlay
-							dropAnimation={TAB_DROP_ANIMATION}
-							style={TAB_OVERLAY_STYLE}
-						>
-							{(source) => {
-								const workspace = workspaces.find(
-									(candidate) => candidate.session.id === String(source.id)
-								);
-								return workspace ? (
-									<WorkspaceTabOverlay
-										isActionsMenuOpen={false}
-										isActive={workspace.session.id === activeSessionId}
-										isBusy={pendingAction === "workspace"}
-										onActivate={onActivateWorkspace}
-										onActivateNext={activateNextWorkspace}
-										onActivatePrevious={activatePreviousWorkspace}
-										onClose={onCloseWorkspace}
-										onOpenActions={toggleWorkspaceMenu}
-										shortcutKey={null}
-										workspace={workspace}
-									/>
-								) : null;
-							}}
-						</DragOverlay>
-					</DragDropProvider>
-					<div className="absolute inset-y-0 right-0 z-30 flex items-center">
-						<RepositoryMenu
-							isOpen={isRepositoryMenuOpen}
-							isVisible={hasOpenWorkspaces}
-							onForgetRecent={onForgetRecent}
-							onOpenChange={setRepositoryMenuOpen}
-							onOpenRecent={onOpenRecent}
-							onPickRepository={onPickRepository}
-							pendingAction={pendingAction}
-							recentRepositories={recentRepositories}
-							workspaces={workspaces}
-						/>
-					</div>
-				</div>
+				{activeSessionId && !snapshot ? (
+					<div
+						className="w-(--repository-rail-width) shrink-0"
+						data-name="RepositoryTitlebarPlaceholder"
+					/>
+				) : null}
 			</div>
 		</header>
 	);

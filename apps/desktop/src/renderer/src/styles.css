@@ -13,6 +13,18 @@
 	initial-value: 0;
 }
 
+@property --workspace-tabs-leading-mask-alpha {
+	syntax: "<number>";
+	inherits: false;
+	initial-value: 1;
+}
+
+@property --workspace-tabs-trailing-mask-alpha {
+	syntax: "<number>";
+	inherits: false;
+	initial-value: 1;
+}
+
 :root {
 	--desktop-titlebar-controls-width: 5rem;
 	--repository-rail-width: 19.375rem;
@@ -112,19 +124,34 @@ button {
 	display: none;
 }
 
-.workspace-tab-repository-mask {
+.workspace-tab-edge-mask {
+	--workspace-tabs-leading-mask-alpha: 1;
+	--workspace-tabs-trailing-mask-alpha: 1;
 	-webkit-mask-image: linear-gradient(
 		to right,
-		black 0,
-		black calc(100% - 4.5rem),
-		transparent calc(100% - 2.5rem)
+		rgb(0 0 0 / var(--workspace-tabs-leading-mask-alpha)) 0,
+		black 2rem,
+		black calc(100% - 2rem),
+		rgb(0 0 0 / var(--workspace-tabs-trailing-mask-alpha)) 100%
 	);
 	mask-image: linear-gradient(
 		to right,
-		black 0,
-		black calc(100% - 4.5rem),
-		transparent calc(100% - 2.5rem)
+		rgb(0 0 0 / var(--workspace-tabs-leading-mask-alpha)) 0,
+		black 2rem,
+		black calc(100% - 2rem),
+		rgb(0 0 0 / var(--workspace-tabs-trailing-mask-alpha)) 100%
 	);
+	transition:
+		--workspace-tabs-leading-mask-alpha 160ms ease-out,
+		--workspace-tabs-trailing-mask-alpha 160ms ease-out;
+}
+
+.workspace-tab-edge-mask[data-overflow-leading="true"] {
+	--workspace-tabs-leading-mask-alpha: 0;
+}
+
+.workspace-tab-edge-mask[data-overflow-trailing="true"] {
+	--workspace-tabs-trailing-mask-alpha: 0;
 }
 
 [data-name="WorkspaceTab"] {

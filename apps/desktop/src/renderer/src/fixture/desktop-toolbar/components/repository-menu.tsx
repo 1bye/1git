@@ -500,7 +500,7 @@ export function RepositoryMenu({
 
 					{isOpen ? (
 						<LiquidPickerContent
-							align="end"
+							align="start"
 							aria-busy={pendingAction === "open"}
 							aria-label="Repositories"
 							className="max-h-[min(70vh,32rem)] w-[370px] min-w-[370px] p-1.5"
