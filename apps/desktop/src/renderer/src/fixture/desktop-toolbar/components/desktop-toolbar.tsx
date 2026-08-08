@@ -19,7 +19,6 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type {
 	OpenRepositoryOptions,
 	PendingWorkspaceAction,
-	RepositoryTab,
 	WorkspaceTabState,
 } from "@/feature/workspace/hooks/use-git-workspace.js";
 import { getCommandLensNumberKey } from "@/fixture/command-lens/lib/command-lens-shortcut.js";
@@ -36,7 +35,6 @@ import {
 	WORKSPACE_TAB_SURFACE_GEOMETRY,
 } from "@/fixture/desktop-toolbar/constants/workspace-tab.js";
 import { LiquidMenuRoot } from "@/fixture/liquid-menu/components/liquid-menu.js";
-import { RepositoryWorkspaceToolbar } from "@/fixture/repository-workspace/components/repository-workspace-toolbar.js";
 import type {
 	RecentRepositoryRecord,
 	RepositorySessionId,
@@ -52,7 +50,6 @@ interface DesktopToolbarProps {
 	readonly onCreateBranch: (name: string) => Promise<boolean>;
 	readonly onFetch: () => Promise<void>;
 	readonly onForgetRecent: (path: string) => Promise<void>;
-	readonly onMergeBranch: (name: string) => Promise<boolean>;
 	readonly onOpenRecent: (
 		path: string,
 		options?: OpenRepositoryOptions
@@ -62,13 +59,9 @@ interface DesktopToolbarProps {
 		activeSessionId: RepositorySessionId,
 		overSessionId: RepositorySessionId
 	) => void;
-	readonly onSetRepositoryTab: (tab: RepositoryTab) => Promise<void>;
-	readonly onStashChanges: () => Promise<boolean>;
 	readonly onSwitchBranch: (name: string) => Promise<void>;
-	readonly onToggleAllFiles: () => Promise<void>;
 	readonly pendingAction: PendingWorkspaceAction;
 	readonly recentRepositories: readonly RecentRepositoryRecord[];
-	readonly repositoryTab: RepositoryTab;
 	readonly snapshot: RepositorySnapshot | null;
 	readonly workspaces: readonly WorkspaceTabState[];
 }
@@ -138,17 +131,12 @@ export function DesktopToolbar({
 	onCreateBranch,
 	onFetch,
 	onForgetRecent,
-	onMergeBranch,
 	onOpenRecent,
 	onPickRepository,
 	onReorderWorkspace,
-	onSetRepositoryTab,
-	onStashChanges,
 	onSwitchBranch,
-	onToggleAllFiles,
 	pendingAction,
 	recentRepositories,
-	repositoryTab,
 	snapshot,
 	workspaces,
 }: DesktopToolbarProps): ReactElement {
@@ -461,25 +449,6 @@ export function DesktopToolbar({
 						</DragDropProvider>
 					</div>
 				</div>
-				{activeSessionId && snapshot ? (
-					<RepositoryWorkspaceToolbar
-						branches={branches}
-						onFetch={onFetch}
-						onMergeBranch={onMergeBranch}
-						onSetTab={onSetRepositoryTab}
-						onStashChanges={onStashChanges}
-						onToggleAllFiles={onToggleAllFiles}
-						pendingAction={pendingAction}
-						snapshot={snapshot}
-						tab={repositoryTab}
-					/>
-				) : null}
-				{activeSessionId && !snapshot ? (
-					<div
-						className="w-(--repository-rail-width) shrink-0"
-						data-name="RepositoryTitlebarPlaceholder"
-					/>
-				) : null}
 			</div>
 		</header>
 	);

@@ -7,8 +7,8 @@ import {
 	DropdownMenuShortcut,
 } from "@1git/ui/components/dropdown-menu";
 import { ArrowsClockwiseIcon } from "@phosphor-icons/react/dist/csr/ArrowsClockwise";
+import { CaretDownIcon } from "@phosphor-icons/react/dist/csr/CaretDown";
 import { CheckIcon } from "@phosphor-icons/react/dist/csr/Check";
-import { DotsThreeIcon } from "@phosphor-icons/react/dist/csr/DotsThree";
 import { FileCodeIcon } from "@phosphor-icons/react/dist/csr/FileCode";
 import { GitBranchIcon } from "@phosphor-icons/react/dist/csr/GitBranch";
 import { GitCommitIcon } from "@phosphor-icons/react/dist/csr/GitCommit";
@@ -100,25 +100,15 @@ export function RepositoryQuickActions({
 					className="size-3 shrink-0"
 					weight="duotone"
 				/>
-				<span className="max-w-16 truncate">{branchLabel}</span>
-				<ArrowsClockwiseIcon
-					aria-hidden
-					className={
-						isFetching ? "size-3 shrink-0 animate-spin" : "size-3 shrink-0"
-					}
-					weight="duotone"
-				/>
-				{head.ahead > 0 ? (
-					<span className="shrink-0">↑{head.ahead}</span>
+				<span className="max-w-24 truncate">{branchLabel}</span>
+				{isFetching ? (
+					<ArrowsClockwiseIcon
+						aria-hidden
+						className="size-3 shrink-0 animate-spin"
+						weight="duotone"
+					/>
 				) : null}
-				{head.behind > 0 ? (
-					<span className="shrink-0">↓{head.behind}</span>
-				) : null}
-				<DotsThreeIcon
-					aria-hidden
-					className="size-3.5 shrink-0"
-					weight="bold"
-				/>
+				<CaretDownIcon aria-hidden className="size-3 shrink-0" weight="bold" />
 			</LiquidMenuTrigger>
 			<LiquidMenuContent
 				align="end"

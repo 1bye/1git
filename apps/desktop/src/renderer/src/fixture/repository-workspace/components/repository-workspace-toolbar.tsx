@@ -94,22 +94,9 @@ export function RepositoryWorkspaceToolbar({
 
 	return (
 		<div
-			className="relative z-10 flex h-full w-(--repository-rail-width) shrink-0 items-center justify-between gap-3 px-3"
+			className="relative z-10 flex h-10 w-full shrink-0 items-center justify-between gap-3 px-3"
 			data-name="RepositoryTitlebarControls"
 		>
-			<RepositoryQuickActions
-				allFilesStaged={areAllFilesStaged(snapshot.files)}
-				branches={branches}
-				changedFileCount={snapshot.files.length}
-				head={snapshot.head}
-				onFetch={onFetch}
-				onMergeBranch={onMergeBranch}
-				onSetTab={onSetTab}
-				onStashChanges={onStashChanges}
-				onToggleAllFiles={onToggleAllFiles}
-				pendingAction={pendingAction}
-			/>
-
 			<LiquidMenuRoot
 				anchor={getAnchor}
 				anchorGeometry={REPOSITORY_VIEW_ANCHOR_GEOMETRY}
@@ -128,7 +115,7 @@ export function RepositoryWorkspaceToolbar({
 					/>
 				</LiquidMenuTrigger>
 				<LiquidMenuContent
-					align="end"
+					align="start"
 					aria-label="Repository view"
 					className="w-36 min-w-36 p-1"
 					sideOffset={6}
@@ -153,6 +140,19 @@ export function RepositoryWorkspaceToolbar({
 					</DropdownMenuItem>
 				</LiquidMenuContent>
 			</LiquidMenuRoot>
+
+			<RepositoryQuickActions
+				allFilesStaged={areAllFilesStaged(snapshot.files)}
+				branches={branches}
+				changedFileCount={snapshot.files.length}
+				head={snapshot.head}
+				onFetch={onFetch}
+				onMergeBranch={onMergeBranch}
+				onSetTab={onSetTab}
+				onStashChanges={onStashChanges}
+				onToggleAllFiles={onToggleAllFiles}
+				pendingAction={pendingAction}
+			/>
 		</div>
 	);
 }

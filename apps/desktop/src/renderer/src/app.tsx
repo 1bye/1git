@@ -13,6 +13,27 @@ import { RepositoryWelcome } from "@/fixture/workspace-content/components/reposi
 
 export function App(): ReactElement {
 	const workspace = useGitWorkspace();
+	const desktopToolbar = (
+		<DesktopToolbar
+			activeSessionId={
+				workspace.activeSession ? workspace.activeSession.id : null
+			}
+			branches={workspace.branches}
+			onActivateWorkspace={workspace.activateWorkspace}
+			onCloseWorkspace={workspace.closeWorkspace}
+			onCreateBranch={workspace.createBranch}
+			onFetch={workspace.fetchRepository}
+			onForgetRecent={workspace.forgetRecentRepository}
+			onOpenRecent={workspace.openRecentRepository}
+			onPickRepository={workspace.pickRepository}
+			onReorderWorkspace={workspace.reorderWorkspace}
+			onSwitchBranch={workspace.switchBranch}
+			pendingAction={workspace.pendingAction}
+			recentRepositories={workspace.manager.recentRepositories}
+			snapshot={workspace.snapshot}
+			workspaces={workspace.workspaces}
+		/>
+	);
 
 	return (
 		<LiquidMenuStackProvider>
@@ -21,84 +42,63 @@ export function App(): ReactElement {
 					className="light relative flex h-full min-h-0 flex-col overflow-hidden text-editor-ink"
 					data-name="App"
 				>
-					<DesktopToolbar
-						activeSessionId={
-							workspace.activeSession ? workspace.activeSession.id : null
-						}
-						branches={workspace.branches}
-						onActivateWorkspace={workspace.activateWorkspace}
-						onCloseWorkspace={workspace.closeWorkspace}
-						onCreateBranch={workspace.createBranch}
-						onFetch={workspace.fetchRepository}
-						onForgetRecent={workspace.forgetRecentRepository}
-						onMergeBranch={workspace.mergeBranch}
-						onOpenRecent={workspace.openRecentRepository}
-						onPickRepository={workspace.pickRepository}
-						onReorderWorkspace={workspace.reorderWorkspace}
-						onSetRepositoryTab={workspace.setTab}
-						onStashChanges={workspace.stashChanges}
-						onSwitchBranch={workspace.switchBranch}
-						onToggleAllFiles={workspace.toggleAllFiles}
-						pendingAction={workspace.pendingAction}
-						recentRepositories={workspace.manager.recentRepositories}
-						repositoryTab={workspace.tab}
-						snapshot={workspace.snapshot}
-						workspaces={workspace.workspaces}
-					/>
-
-					<div
-						className="flex min-h-0 flex-1 overflow-hidden bg-transparent"
-						data-name="RepositoryWorkspace"
-						id="repository-workspace"
-					>
-						{workspace.activeSession ? null : (
-							<RepositoryWelcome
-								isLoading={
-									workspace.isInitialLoading ||
-									workspace.pendingAction === "open"
-								}
-								onCloneRepository={workspace.cloneRepository}
-								onCreateRepository={workspace.createRepository}
-								onForgetRecent={workspace.forgetRecentRepository}
-								onOpenRecent={workspace.openRecentRepository}
-								onPickRepository={workspace.pickRepository}
-								recentRepositories={workspace.manager.recentRepositories}
-								workspaces={workspace.workspaces}
-							/>
-						)}
-						{workspace.activeSession ? (
-							<RepositoryWorkspace
-								activeSession={workspace.activeSession}
-								branches={workspace.branches}
-								diffs={workspace.diffs}
-								history={workspace.history}
-								isFetching={workspace.pendingAction === "fetch"}
-								isLoading={
-									workspace.isInitialLoading ||
-									workspace.pendingAction === "open"
-								}
-								onAmendCommit={workspace.amendCommit}
-								onChangeHunk={workspace.changeHunk}
-								onCherryPickCommit={workspace.cherryPickCommit}
-								onCommit={workspace.commit}
-								onDiscardFiles={workspace.discardFiles}
-								onFetch={workspace.fetchRepository}
-								onResetCommit={workspace.resetToCommit}
-								onRevertCommit={workspace.revertCommit}
-								onSelectCommit={workspace.selectCommit}
-								onSelectFile={workspace.selectFile}
-								onSetFileStaged={workspace.setFileStaged}
-								onSetFilesStaged={workspace.setFilesStaged}
-								onSetTab={workspace.setTab}
-								onToggleAllFiles={workspace.toggleAllFiles}
-								pendingAction={workspace.pendingAction}
-								selectedCommitOid={workspace.selectedCommitOid}
-								selectedFilePath={workspace.selectedFilePath}
-								snapshot={workspace.snapshot}
-								tab={workspace.tab}
-							/>
-						) : null}
-					</div>
+					{workspace.activeSession ? (
+						<RepositoryWorkspace
+							activeSession={workspace.activeSession}
+							branches={workspace.branches}
+							diffs={workspace.diffs}
+							history={workspace.history}
+							isFetching={workspace.pendingAction === "fetch"}
+							isLoading={
+								workspace.isInitialLoading || workspace.pendingAction === "open"
+							}
+							onAmendCommit={workspace.amendCommit}
+							onChangeHunk={workspace.changeHunk}
+							onCherryPickCommit={workspace.cherryPickCommit}
+							onCommit={workspace.commit}
+							onDiscardFiles={workspace.discardFiles}
+							onFetch={workspace.fetchRepository}
+							onMergeBranch={workspace.mergeBranch}
+							onResetCommit={workspace.resetToCommit}
+							onRevertCommit={workspace.revertCommit}
+							onSelectCommit={workspace.selectCommit}
+							onSelectFile={workspace.selectFile}
+							onSetFileStaged={workspace.setFileStaged}
+							onSetFilesStaged={workspace.setFilesStaged}
+							onSetTab={workspace.setTab}
+							onStashChanges={workspace.stashChanges}
+							onToggleAllFiles={workspace.toggleAllFiles}
+							pendingAction={workspace.pendingAction}
+							selectedCommitOid={workspace.selectedCommitOid}
+							selectedFilePath={workspace.selectedFilePath}
+							snapshot={workspace.snapshot}
+							tab={workspace.tab}
+							titlebar={desktopToolbar}
+						/>
+					) : (
+						<>
+							{desktopToolbar}
+							<div
+								className="flex min-h-0 flex-1 overflow-hidden bg-transparent"
+								data-name="RepositoryWorkspace"
+								id="repository-workspace"
+							>
+								<RepositoryWelcome
+									isLoading={
+										workspace.isInitialLoading ||
+										workspace.pendingAction === "open"
+									}
+									onCloneRepository={workspace.cloneRepository}
+									onCreateRepository={workspace.createRepository}
+									onForgetRecent={workspace.forgetRecentRepository}
+									onOpenRecent={workspace.openRecentRepository}
+									onPickRepository={workspace.pickRepository}
+									recentRepositories={workspace.manager.recentRepositories}
+									workspaces={workspace.workspaces}
+								/>
+							</div>
+						</>
+					)}
 
 					{workspace.error ? (
 						<div

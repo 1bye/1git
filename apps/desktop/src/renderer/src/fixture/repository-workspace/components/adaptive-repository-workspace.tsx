@@ -1,12 +1,9 @@
 import type {
-	BranchCollection,
 	ChangeHunkInput,
-	CommitInfo,
 	CommitPage,
 	FileChange,
 	FileDiff,
 	RepositorySnapshot,
-	ResetMode,
 } from "@1git/git";
 import { GitDiffIcon } from "@phosphor-icons/react/dist/csr/GitDiff";
 import { SpinnerGapIcon } from "@phosphor-icons/react/dist/csr/SpinnerGap";
@@ -16,60 +13,20 @@ import type {
 	PendingWorkspaceAction,
 	RepositoryTab,
 } from "@/feature/workspace/hooks/use-git-workspace.js";
-import {
-	getRepositoryName,
-	isFileStaged,
-} from "@/feature/workspace/lib/workspace-model.js";
-import { RepositoryCommitDock } from "@/fixture/repository-workspace/components/repository-commit-dock.js";
-import {
-	RepositoryFileNavigator,
-	RepositoryFileRail,
-} from "@/fixture/repository-workspace/components/repository-file-navigator.js";
-import { RepositoryHistoryRail } from "@/fixture/repository-workspace/components/repository-history-rail.js";
-import { useRepositoryFileNavigation } from "@/fixture/repository-workspace/hooks/use-repository-file-navigation.js";
-import { getRepositoryDiffElementId } from "@/fixture/repository-workspace/lib/repository-navigation.js";
-import { scrollElementIntoViewport } from "@/fixture/repository-workspace/lib/scroll-element-into-viewport.js";
+import { getRepositoryName } from "@/feature/workspace/lib/workspace-model.js";
 import { CleanState } from "@/fixture/workspace-content/components/clean-state.js";
 import { DiffView } from "@/fixture/workspace-content/components/diff-view.js";
 import type { RepositorySessionRecord } from "../../../../../shared/repository-session.js";
 
 export interface AdaptiveRepositoryWorkspaceProps {
 	readonly activeSession: RepositorySessionRecord;
-	readonly branches: BranchCollection | null;
 	readonly diffs: readonly FileDiff[];
 	readonly history: CommitPage | null;
 	readonly isFetching: boolean;
 	readonly isLoading: boolean;
-	readonly onAmendCommit: (
-		commit: CommitInfo,
-		summary: string,
-		description: string
-	) => Promise<boolean>;
 	readonly onChangeHunk: (input: ChangeHunkInput) => Promise<boolean>;
-	readonly onCherryPickCommit: (
-		commit: CommitInfo,
-		branchName: string
-	) => Promise<boolean>;
-	readonly onCommit: (summary: string, description: string) => Promise<boolean>;
-	readonly onDiscardFiles: (files: readonly FileChange[]) => Promise<boolean>;
 	readonly onFetch: () => Promise<void>;
-	readonly onResetCommit: (
-		commit: CommitInfo,
-		mode: ResetMode
-	) => Promise<boolean>;
-	readonly onRevertCommit: (commit: CommitInfo) => Promise<boolean>;
-	readonly onSelectCommit: (commit: CommitInfo) => Promise<void>;
 	readonly onSelectFile: (file: FileChange) => Promise<void>;
-	readonly onSetFileStaged: (
-		file: FileChange,
-		shouldStage: boolean
-	) => Promise<void>;
-	readonly onSetFilesStaged: (
-		files: readonly FileChange[],
-		shouldStage: boolean
-	) => Promise<boolean>;
-	readonly onSetTab: (tab: RepositoryTab) => Promise<void>;
-	readonly onToggleAllFiles: () => Promise<void>;
 	readonly pendingAction: PendingWorkspaceAction;
 	readonly selectedCommitOid: string | null;
 	readonly selectedFilePath: string | null;
@@ -120,60 +77,20 @@ const DiffEmptyState = (): ReactElement => (
 
 export function AdaptiveRepositoryWorkspace({
 	activeSession,
-	branches,
 	diffs,
 	history,
 	isFetching,
 	isLoading,
-	onAmendCommit,
 	onChangeHunk,
-	onCherryPickCommit,
-	onCommit,
-	onDiscardFiles,
 	onFetch,
-	onResetCommit,
-	onRevertCommit,
-	onSelectCommit,
 	onSelectFile,
-	onSetFileStaged,
-	onSetFilesStaged,
-	onSetTab,
-	onToggleAllFiles,
 	pendingAction,
 	selectedCommitOid,
 	selectedFilePath,
 	snapshot,
 	tab,
 }: AdaptiveRepositoryWorkspaceProps): ReactElement {
-	const requestChanges = useCallback(async (): Promise<void> => {
-		await onSetTab("changes");
-	}, [onSetTab]);
 	const files = snapshot?.files ?? [];
-	const selectFileAndReveal = useCallback(
-		async (file: FileChange): Promise<void> => {
-			await onSelectFile(file);
-			const diffElement = document.getElementById(
-				getRepositoryDiffElementId(file.path)
-			);
-			const diffViewport = diffElement?.closest<HTMLElement>(
-				"[data-repository-diff-viewport]"
-			);
-			if (diffElement && diffViewport) {
-				scrollElementIntoViewport(diffViewport, diffElement, {
-					block: "start",
-				});
-			}
-		},
-		[onSelectFile]
-	);
-	const navigation = useRepositoryFileNavigation({
-		files,
-		onRequestChanges: requestChanges,
-		onSelectFile: selectFileAndReveal,
-		selectedFilePath,
-		sessionId: activeSession.id,
-		tab,
-	});
 	const selectVisibleFile = useCallback(
 		(path: string): void => {
 			if (path === selectedFilePath) {
@@ -215,7 +132,6 @@ export function AdaptiveRepositoryWorkspace({
 
 	const historyCommit =
 		history?.commits.find((commit) => commit.oid === selectedCommitOid) ?? null;
-	const stagedCount = files.filter(isFileStaged).length;
 	let mainContent: ReactElement;
 	if (tab === "changes" && files.length === 0) {
 		mainContent = (
@@ -244,48 +160,6 @@ export function AdaptiveRepositoryWorkspace({
 	} else {
 		mainContent = <DiffEmptyState />;
 	}
-	let navigationRail: ReactElement | null = null;
-	if (tab === "history") {
-		navigationRail = (
-			<RepositoryHistoryRail
-				branches={branches}
-				currentBranch={snapshot.head.branch}
-				headOid={snapshot.head.oid}
-				history={history}
-				isPending={pendingAction !== null}
-				onAmendCommit={onAmendCommit}
-				onCherryPickCommit={onCherryPickCommit}
-				onResetCommit={onResetCommit}
-				onRevertCommit={onRevertCommit}
-				onSelectCommit={onSelectCommit}
-				selectedCommitOid={selectedCommitOid}
-			/>
-		);
-	} else {
-		navigationRail = (
-			<>
-				<RepositoryFileRail
-					allFiles={files}
-					navigation={navigation}
-					onDiscardFiles={onDiscardFiles}
-					onSetFileStaged={onSetFileStaged}
-					onSetFilesStaged={onSetFilesStaged}
-					onToggleAllFiles={onToggleAllFiles}
-					pendingAction={pendingAction}
-					repositoryRoot={activeSession.repository.root}
-					selectedFilePath={selectedFilePath}
-				/>
-				{files.length > 0 ? (
-					<RepositoryCommitDock
-						branch={snapshot.head.branch}
-						isPending={pendingAction === "commit"}
-						onCommit={onCommit}
-						stagedCount={stagedCount}
-					/>
-				) : null}
-			</>
-		);
-	}
 
 	return (
 		<section
@@ -299,23 +173,6 @@ export function AdaptiveRepositoryWorkspace({
 			>
 				{mainContent}
 			</main>
-			<div
-				className="relative flex w-(--repository-rail-width) shrink-0 flex-col bg-transparent"
-				data-name="RepositoryNavigationRail"
-			>
-				{tab === "changes" ? (
-					<RepositoryFileNavigator
-						navigation={navigation}
-						onDiscardFiles={onDiscardFiles}
-						onSetFileStaged={onSetFileStaged}
-						onSetFilesStaged={onSetFilesStaged}
-						pendingAction={pendingAction}
-						repositoryRoot={activeSession.repository.root}
-						selectedFilePath={selectedFilePath}
-					/>
-				) : null}
-				{navigationRail}
-			</div>
 		</section>
 	);
 }
