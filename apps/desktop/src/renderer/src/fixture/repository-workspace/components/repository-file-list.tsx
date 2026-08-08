@@ -180,9 +180,9 @@ const getRepositoryFileSelectionClassName = (
 	isSelected: boolean
 ): string => {
 	if (isBulkSelected) {
-		return isSelected ? "bg-editor-sunken-2" : "bg-editor-sunken";
+		return "bg-black/[0.045]";
 	}
-	return isSelected ? "bg-editor-sunken-2" : "hover:bg-editor-sunken";
+	return isSelected ? "bg-brand-softer" : "hover:bg-white/35";
 };
 
 interface RepositoryStageCheckboxProps {
@@ -237,7 +237,7 @@ function RepositoryStageCheckbox({
 				aria-hidden
 				className={cn(
 					"flex size-3 items-center justify-center rounded-[4px] transition-colors",
-					checked || mixed ? "bg-editor-ink text-white" : "bg-editor-sunken-2"
+					checked || mixed ? "bg-brand text-white" : "bg-white/35"
 				)}
 			>
 				{checkboxIcon}
@@ -402,9 +402,8 @@ function RepositoryFileRow({
 			className={cn(
 				"group relative flex min-h-7 items-center transition-colors",
 				selectionClassName,
-				!isBulkSelected && "rounded-md",
-				isBulkSelectionStart && "rounded-t-md",
-				isBulkSelectionEnd && "rounded-b-md",
+				isBulkSelectionStart && "rounded-t-sm",
+				isBulkSelectionEnd && "rounded-b-sm",
 				isSingleContextMenuActive && "rounded-md bg-white hover:bg-white",
 				isSingleContextMenuActive && !shouldElevateSelection && "z-20"
 			)}
@@ -415,6 +414,12 @@ function RepositoryFileRow({
 			ref={setRowElement}
 			style={shouldElevateSelection ? ELEVATED_SELECTION_STYLE : undefined}
 		>
+			{isSelected ? (
+				<span
+					aria-hidden
+					className="absolute inset-y-1 left-0 w-0.5 rounded-full bg-brand"
+				/>
+			) : null}
 			<span
 				aria-hidden
 				className="pointer-events-none absolute bottom-0 left-1/2 size-px"
@@ -431,7 +436,7 @@ function RepositoryFileRow({
 			</div>
 			<button
 				aria-current={isSelected ? "true" : undefined}
-				className="flex min-w-0 flex-1 items-center gap-1.5 px-1.5 py-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-editor-muted/20 focus-visible:ring-inset"
+				className="flex min-w-0 flex-1 items-center gap-1.5 px-1.5 py-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-brand/20 focus-visible:ring-inset"
 				onClick={selectFile}
 				type="button"
 			>
@@ -442,13 +447,13 @@ function RepositoryFileRow({
 					title={file.path}
 				>
 					{path.directory ? (
-						<span className="text-editor-faint">{path.directory}</span>
+						<span className="text-editor-muted/75">{path.directory}</span>
 					) : null}
 					<span className="font-medium text-editor-ink">{path.name}</span>
 				</OverflowingLabel>
 				<span
 					aria-hidden
-					className="w-3.5 shrink-0 text-center font-mono font-semibold text-[9px] text-editor-muted"
+					className="w-3.5 shrink-0 text-center font-mono font-semibold text-[10px] text-editor-muted"
 				>
 					{getFileChangeLabel(file)}
 				</span>
@@ -567,7 +572,7 @@ export function RepositoryFileList({
 	return (
 		<ul
 			aria-label="Changed files"
-			className="px-1 pb-1 outline-none"
+			className="px-1 pb-1 outline-none focus-visible:ring-2 focus-visible:ring-brand/20 focus-visible:ring-inset"
 			data-name="RepositoryFileList"
 			tabIndex={-1}
 		>

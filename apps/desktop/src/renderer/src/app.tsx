@@ -42,7 +42,7 @@ export function App(): ReactElement {
 					/>
 
 					<div
-						className="flex min-h-0 flex-1 overflow-hidden border border-editor-hairline-strong bg-editor-surface"
+						className="flex min-h-0 flex-1 overflow-hidden bg-transparent"
 						data-name="RepositoryWorkspace"
 						id="repository-workspace"
 					>

@@ -291,14 +291,18 @@ export function AdaptiveRepositoryWorkspace({
 
 	return (
 		<section
-			className="flex min-h-0 min-w-0 flex-1 bg-editor-surface"
+			className="flex min-h-0 min-w-0 flex-1 bg-transparent"
 			data-layout="adaptive"
 			data-name="AdaptiveRepositoryWorkspace"
 		>
 			<div
-				className="flex w-[310px] shrink-0 flex-col bg-editor-surface"
+				className="relative isolate flex w-[310px] shrink-0 flex-col bg-transparent"
 				data-name="RepositoryNavigationRail"
 			>
+				<div
+					aria-hidden
+					className="repository-navigation-tab-blur pointer-events-none absolute inset-x-0 top-0 -z-10 h-20"
+				/>
 				<RepositoryWorkspaceToolbar
 					branches={branches}
 					navigation={navigation}
@@ -319,7 +323,7 @@ export function AdaptiveRepositoryWorkspace({
 				{navigationRail}
 			</div>
 			<main
-				className="min-h-0 min-w-0 flex-1 overflow-hidden bg-editor-surface"
+				className="min-h-0 min-w-0 flex-1 overflow-hidden rounded-xl border border-editor-hairline-strong bg-editor-surface shadow-[0_1px_2px_rgb(0_0_0/0.03)]"
 				data-name="RepositoryDiffWorkspace"
 			>
 				{mainContent}

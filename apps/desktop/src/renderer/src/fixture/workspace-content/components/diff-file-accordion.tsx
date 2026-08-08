@@ -5,17 +5,17 @@ import { FileDiff as PierreFileDiff } from "@pierre/diffs/react";
 import type { ReactElement } from "react";
 import { memo, useCallback, useLayoutEffect, useRef, useState } from "react";
 import {
+	REPOSITORY_DIFF_ELEMENT_NAME,
 	REPOSITORY_DIFF_ESTIMATED_LINE_HEIGHT,
 	REPOSITORY_DIFF_ESTIMATED_SEPARATOR_HEIGHT,
-	REPOSITORY_DIFF_ELEMENT_NAME,
 	REPOSITORY_DIFF_HUNK_ACTION_RENDER_OPTIONS,
 	REPOSITORY_DIFF_MINIMUM_BODY_HEIGHT,
 	REPOSITORY_DIFF_RENDER_OPTIONS,
 } from "@/fixture/workspace-content/constants/repository-diff.js";
 import type { RepositoryDiffFileEntry } from "@/fixture/workspace-content/lib/repository-diff-files.js";
 import {
-	HunkActionPocket,
 	type HunkActionHandler,
+	HunkActionPocket,
 	type HunkActionSelection,
 } from "./hunk-action-pocket.js";
 
@@ -157,12 +157,10 @@ const DiffFileAccordionComponent = ({
 					return;
 				}
 				const hunkIndex = findHunkIndex(entry, hoveredLine);
-				const target =
-					entry.target.kind === "staged"
-						? "staged"
-						: entry.target.kind === "working"
-							? "working"
-							: null;
+				let target: "staged" | "working" | null = null;
+				if (entry.target.kind === "staged" || entry.target.kind === "working") {
+					target = entry.target.kind;
+				}
 				if (hunkIndex < 0 || !target) {
 					return;
 				}
@@ -221,7 +219,7 @@ const DiffFileAccordionComponent = ({
 			}
 			pendingExpansionRef.current = interaction;
 			setIsPreparingContext(true);
-			void onRequestExpandableFile(entry)
+			onRequestExpandableFile(entry)
 				.then((file) => {
 					if (!file) {
 						pendingExpansionRef.current = null;
@@ -334,7 +332,7 @@ const DiffFileAccordionComponent = ({
 			<button
 				aria-controls={bodyId}
 				aria-expanded={isOpen}
-				className="sticky top-0 z-10 mx-1 flex h-8 w-[calc(100%-0.5rem)] items-center gap-2 rounded-md bg-[#f6f8fa] px-3 text-left outline-none transition-colors hover:bg-[#ebeef1] focus-visible:bg-[#ebeef1] focus-visible:ring-2 focus-visible:ring-editor-muted/20 focus-visible:ring-inset"
+				className="sticky top-0 z-10 flex h-8 w-full items-center gap-2 bg-editor-sunken-2 px-3 text-left outline-none transition-colors hover:bg-[#e8eaed] focus-visible:bg-[#e8eaed] focus-visible:ring-2 focus-visible:ring-brand/20 focus-visible:ring-inset"
 				data-name="RepositoryDiffFileHeader"
 				onClick={() => setIsOpen((current) => !current)}
 				type="button"
@@ -347,7 +345,7 @@ const DiffFileAccordionComponent = ({
 					)}
 					weight="bold"
 				/>
-				<h2 className="min-w-0 flex-1 truncate font-medium text-editor-muted text-xss">
+				<h2 className="min-w-0 flex-1 truncate font-semibold text-editor-ink text-xss">
 					{entry.path}
 				</h2>
 				{showTarget ? (

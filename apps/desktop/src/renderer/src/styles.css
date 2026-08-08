@@ -101,7 +101,23 @@ button {
 [data-name="RepositoryWorkspace"] {
 	margin: 0 var(--workspace-surface-inset) var(--workspace-surface-inset);
 	border-radius: var(--workspace-surface-radius);
-	box-shadow: 0 1px 2px rgb(0 0 0 / 0.03);
+}
+
+.repository-navigation-tab-blur {
+	background: linear-gradient(
+		to bottom,
+		rgb(255 255 255 / 0.28),
+		rgb(255 255 255 / 0)
+	);
+	-webkit-backdrop-filter: blur(20px) saturate(1.08);
+	backdrop-filter: blur(20px) saturate(1.08);
+	-webkit-mask-image: linear-gradient(
+		to bottom,
+		black 0%,
+		black 28%,
+		transparent 100%
+	);
+	mask-image: linear-gradient(to bottom, black 0%, black 28%, transparent 100%);
 }
 
 [data-name="WorkspaceTabList"] {

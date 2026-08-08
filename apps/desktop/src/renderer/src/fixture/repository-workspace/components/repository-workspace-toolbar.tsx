@@ -95,22 +95,22 @@ export function RepositoryWorkspaceToolbar({
 
 	return (
 		<header
-			className="relative z-30 flex h-11 shrink-0 items-center gap-2 bg-editor-surface px-2.5"
+			className="relative z-30 flex h-11 shrink-0 items-center gap-2 bg-transparent px-2.5"
 			data-name="RepositoryWorkspaceToolbar"
 		>
 			<div
 				aria-label="Repository view"
-				className="flex rounded-lg p-0.5"
+				className="flex self-stretch"
 				role="tablist"
 			>
 				<button
 					aria-keyshortcuts="Meta+1 Control+1"
 					aria-selected={tab === "changes"}
 					className={cn(
-						"h-7 rounded-md px-2.5 font-medium text-[10px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-editor-muted/20",
+						"relative px-2.5 font-medium text-[10px] outline-none transition-colors after:absolute after:right-2.5 after:bottom-0 after:left-2.5 after:h-0.5 after:origin-center after:scale-x-0 after:rounded-full after:bg-brand after:transition-transform focus-visible:ring-2 focus-visible:ring-brand/20 focus-visible:ring-inset",
 						tab === "changes"
-							? "bg-editor-sunken-2 text-editor-ink"
-							: "text-editor-faint hover:text-editor-ink"
+							? "text-brand after:scale-x-100"
+							: "text-editor-muted hover:text-editor-ink"
 					)}
 					onClick={() => changeTab("changes")}
 					role="tab"
@@ -122,10 +122,10 @@ export function RepositoryWorkspaceToolbar({
 					aria-keyshortcuts="Meta+2 Control+2"
 					aria-selected={tab === "history"}
 					className={cn(
-						"h-7 rounded-md px-2.5 font-medium text-[10px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-editor-muted/20",
+						"relative px-2.5 font-medium text-[10px] outline-none transition-colors after:absolute after:right-2.5 after:bottom-0 after:left-2.5 after:h-0.5 after:origin-center after:scale-x-0 after:rounded-full after:bg-brand after:transition-transform focus-visible:ring-2 focus-visible:ring-brand/20 focus-visible:ring-inset",
 						tab === "history"
-							? "bg-editor-sunken-2 text-editor-ink"
-							: "text-editor-faint hover:text-editor-ink"
+							? "text-brand after:scale-x-100"
+							: "text-editor-muted hover:text-editor-ink"
 					)}
 					onClick={() => changeTab("history")}
 					role="tab"
@@ -152,6 +152,7 @@ export function RepositoryWorkspaceToolbar({
 					allFilesStaged={areAllFilesStaged(files)}
 					branches={branches}
 					changedFileCount={files.length}
+					head={snapshot.head}
 					onFetch={onFetch}
 					onMergeBranch={onMergeBranch}
 					onSetTab={onSetTab}

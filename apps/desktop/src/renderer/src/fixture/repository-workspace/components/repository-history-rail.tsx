@@ -140,7 +140,7 @@ export function RepositoryHistoryRail({
 	return (
 		<aside
 			aria-label="Commit history"
-			className="flex min-h-0 flex-1 flex-col bg-editor-surface"
+			className="flex min-h-0 flex-1 flex-col bg-transparent"
 			data-name="RepositoryHistoryRail"
 		>
 			<div className="shrink-0 px-2 py-1">
@@ -152,7 +152,7 @@ export function RepositoryHistoryRail({
 					/>
 					<Input
 						aria-label="Filter commit history"
-						className="h-8 bg-editor-sunken pl-8 text-xss shadow-none"
+						className="h-8 bg-white/35 pl-8 text-xss shadow-none focus-visible:bg-white/60"
 						onChange={updateQuery}
 						placeholder="Filter commits"
 						type="search"

@@ -33,6 +33,16 @@ export function RepositoryCommitDock({
 	const [summary, setSummary] = useState("");
 	const formRef = useRef<HTMLFormElement>(null);
 	const canCommit = stagedCount > 0 && summary.trim().length > 0 && !isPending;
+	let actionLabel = `Commit ${stagedCount} ${
+		stagedCount === 1 ? "file" : "files"
+	} to ${branch ?? "HEAD"}`;
+	if (isPending) {
+		actionLabel = "Committing…";
+	} else if (stagedCount === 0) {
+		actionLabel = "Stage files to commit";
+	} else if (summary.trim().length === 0) {
+		actionLabel = "Add a summary";
+	}
 	const requestCommit = (): void => {
 		formRef.current?.requestSubmit();
 	};
@@ -45,7 +55,7 @@ export function RepositoryCommitDock({
 				onInvoke: requestCommit,
 			},
 		],
-		disabled: isPending,
+		disabled: !canCommit,
 		highlightOutset: 0,
 		hintLayout: "floating",
 		id: "repository-commit",
@@ -84,7 +94,7 @@ export function RepositoryCommitDock({
 	return (
 		<form
 			aria-busy={isPending}
-			className="group relative shrink-0 bg-editor-surface/94 p-2.5 backdrop-blur-xl"
+			className="group relative shrink-0 bg-transparent p-2.5"
 			data-name="RepositoryCommitDock"
 			onSubmit={submitCommit}
 			ref={formRef}
@@ -95,7 +105,7 @@ export function RepositoryCommitDock({
 			<div className="flex items-center gap-1">
 				<div className="relative min-w-0 flex-1">
 					<Input
-						className="h-8 bg-editor-sunken pr-12 text-[11px] shadow-none"
+						className="h-8 bg-white/35 pr-12 text-[11px] shadow-none focus-visible:bg-white/60"
 						disabled={isPending}
 						id="repository-commit-summary"
 						maxLength={MAX_COMMIT_SUMMARY_LENGTH}
@@ -156,7 +166,7 @@ export function RepositoryCommitDock({
 						Commit description
 					</label>
 					<Textarea
-						className="mt-1.5 min-h-16 resize-none border-0 bg-editor-sunken text-[11px] shadow-none focus-visible:border-transparent focus-visible:ring-0"
+						className="mt-1.5 min-h-16 resize-none border-0 bg-white/35 text-[11px] shadow-none focus-visible:border-transparent focus-visible:bg-white/60 focus-visible:ring-0"
 						disabled={isPending}
 						id="repository-commit-description"
 						onChange={updateDescription}
@@ -170,14 +180,13 @@ export function RepositoryCommitDock({
 			<Button
 				aria-busy={isPending}
 				aria-keyshortcuts={commandLensTarget.ariaKeyShortcuts}
-				aria-label={`Commit ${stagedCount} staged ${
-					stagedCount === 1 ? "file" : "files"
-				} to ${branch ?? "HEAD"}`}
+				aria-label={actionLabel}
 				className="mt-1.5 w-full"
 				disabled={!canCommit}
 				ref={commandLensTarget.ref}
 				size="sm"
 				type="submit"
+				variant={canCommit || isPending ? "brand" : "secondary"}
 			>
 				{isPending ? (
 					<SpinnerGapIcon
@@ -186,8 +195,7 @@ export function RepositoryCommitDock({
 						weight="bold"
 					/>
 				) : null}
-				Commit to {branch ?? "HEAD"}
-				<span className="sr-only">files</span>
+				{actionLabel}
 			</Button>
 		</form>
 	);

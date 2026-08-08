@@ -1,4 +1,4 @@
-import type { BranchCollection } from "@1git/git";
+import type { BranchCollection, HeadState } from "@1git/git";
 import {
 	DropdownMenuGroup,
 	DropdownMenuItem,
@@ -32,6 +32,7 @@ interface RepositoryQuickActionsProps {
 	readonly allFilesStaged: boolean;
 	readonly branches: BranchCollection | null;
 	readonly changedFileCount: number;
+	readonly head: HeadState;
 	readonly onFetch: () => Promise<void>;
 	readonly onMergeBranch: (name: string) => Promise<boolean>;
 	readonly onSetTab: (tab: RepositoryTab) => Promise<void>;
@@ -44,6 +45,7 @@ export function RepositoryQuickActions({
 	allFilesStaged,
 	branches,
 	changedFileCount,
+	head,
 	onFetch,
 	onMergeBranch,
 	onSetTab,
@@ -53,6 +55,7 @@ export function RepositoryQuickActions({
 }: RepositoryQuickActionsProps): ReactElement {
 	const triggerRef = useRef<HTMLButtonElement>(null);
 	const isPending = pendingAction !== null;
+	const isFetching = pendingAction === "fetch";
 	const mergeCandidates =
 		branches?.branches.filter(
 			(branch) => branch.type === "local" && !branch.checkedOut
@@ -70,6 +73,14 @@ export function RepositoryQuickActions({
 	const showHistory = async (): Promise<void> => {
 		await onSetTab("history");
 	};
+	const branchLabel = head.branch ?? "Detached";
+	let trackingLabel = "No upstream configured";
+	if (head.upstream) {
+		trackingLabel =
+			head.ahead === 0 && head.behind === 0
+				? `Up to date with ${head.upstream}`
+				: `${head.ahead} ahead and ${head.behind} behind ${head.upstream}`;
+	}
 
 	return (
 		<LiquidMenuRoot
@@ -79,11 +90,35 @@ export function RepositoryQuickActions({
 			modal
 		>
 			<LiquidMenuTrigger
-				aria-label="Repository actions"
-				className="flex size-8 items-center justify-center rounded-lg text-editor-muted outline-none transition-colors hover:bg-editor-sunken hover:text-editor-ink focus-visible:ring-2 focus-visible:ring-editor-muted/20"
+				aria-label={`Repository actions. ${branchLabel}. ${trackingLabel}`}
+				className="flex h-7 min-w-0 max-w-36 items-center gap-1 overflow-hidden px-1 text-[9px] text-editor-muted outline-none transition-colors hover:text-editor-ink focus-visible:ring-2 focus-visible:ring-brand/20"
 				ref={triggerRef}
+				title={`${branchLabel} · ${trackingLabel}`}
 			>
-				<DotsThreeIcon aria-hidden className="size-4" weight="bold" />
+				<GitBranchIcon
+					aria-hidden
+					className="size-3 shrink-0"
+					weight="duotone"
+				/>
+				<span className="max-w-16 truncate">{branchLabel}</span>
+				<ArrowsClockwiseIcon
+					aria-hidden
+					className={
+						isFetching ? "size-3 shrink-0 animate-spin" : "size-3 shrink-0"
+					}
+					weight="duotone"
+				/>
+				{head.ahead > 0 ? (
+					<span className="shrink-0">↑{head.ahead}</span>
+				) : null}
+				{head.behind > 0 ? (
+					<span className="shrink-0">↓{head.behind}</span>
+				) : null}
+				<DotsThreeIcon
+					aria-hidden
+					className="size-3.5 shrink-0"
+					weight="bold"
+				/>
 			</LiquidMenuTrigger>
 			<LiquidMenuContent
 				align="end"

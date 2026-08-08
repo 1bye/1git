@@ -104,12 +104,13 @@ export const REPOSITORY_DIFF_RENDER_OPTIONS = {
 		}
 
 		[data-separator="line-info"] {
-			height: 32px;
+			height: 28px;
 		}
 
 		[data-separator="line-info"] [data-separator-content],
 		[data-separator="line-info"] [data-expand-button] {
 			background-color: #f6f8fa;
+			border-radius: 0;
 			color: #586069;
 		}
 
@@ -136,13 +137,13 @@ export const REPOSITORY_DIFF_RENDER_OPTIONS = {
 
 		[data-separator="line-info"]:not([data-expand-index])
 			[data-separator-content]::before {
-			top: 8px;
+			top: 6px;
 			transform: rotate(-135deg);
 		}
 
 		[data-separator="line-info"]:not([data-expand-index])
 			[data-separator-content]::after {
-			bottom: 8px;
+			bottom: 6px;
 			transform: rotate(45deg);
 		}
 
@@ -169,7 +170,7 @@ export const REPOSITORY_DIFF_HUNK_ACTION_RENDER_OPTIONS = {
 } as const satisfies FileDiffOptions<undefined>;
 
 export const REPOSITORY_DIFF_ESTIMATED_LINE_HEIGHT = 20;
-export const REPOSITORY_DIFF_ESTIMATED_SEPARATOR_HEIGHT = 32;
+export const REPOSITORY_DIFF_ESTIMATED_SEPARATOR_HEIGHT = 28;
 export const REPOSITORY_DIFF_MINIMUM_BODY_HEIGHT = 64;
 export const REPOSITORY_DIFF_BODY_OBSERVER_MARGIN = 120;
 export const REPOSITORY_DIFF_INITIAL_MOUNTED_COUNT = 1;

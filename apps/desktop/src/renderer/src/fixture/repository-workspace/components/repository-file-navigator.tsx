@@ -179,7 +179,7 @@ export function RepositoryFileRail({
 	return (
 		<aside
 			aria-label="Changed files"
-			className="relative flex min-h-0 flex-1 flex-col bg-editor-surface"
+			className="relative flex min-h-0 flex-1 flex-col bg-transparent"
 			data-name="RepositoryFileRail"
 		>
 			<div className="flex h-9 shrink-0 items-center px-2">
@@ -191,7 +191,7 @@ export function RepositoryFileRail({
 					/>
 					<Input
 						aria-label="Filter changed files"
-						className="h-7 bg-editor-sunken pl-7 text-[11px] shadow-none"
+						className="h-7 bg-white/35 pl-7 text-[11px] shadow-none focus-visible:bg-white/60"
 						onChange={updateQuery}
 						placeholder="Filter files"
 						type="search"
@@ -201,15 +201,19 @@ export function RepositoryFileRail({
 			</div>
 			<div className="flex h-7 shrink-0 items-center px-2">
 				<button
-					className="flex items-center gap-1 rounded-md px-1.5 py-0.5 font-medium text-[9px] text-editor-muted outline-none hover:bg-editor-sunken hover:text-editor-ink focus-visible:ring-2 focus-visible:ring-editor-muted/20 disabled:opacity-50"
+					className="flex h-7 items-center gap-1 px-1.5 font-medium text-[10px] text-editor-ink outline-none hover:bg-white/35 focus-visible:ring-2 focus-visible:ring-brand/20 disabled:opacity-45"
 					disabled={pendingAction !== null || allFiles.length === 0}
 					onClick={toggleAllFiles}
 					type="button"
 				>
-					<CheckIcon aria-hidden className="size-2.5" weight="bold" />
+					<CheckIcon
+						aria-hidden
+						className={allStaged ? "size-2.5 text-brand" : "size-2.5"}
+						weight="bold"
+					/>
 					{allStaged ? "Unstage all" : "Stage all"}
 				</button>
-				<span className="ml-auto text-[9px] text-editor-faint tabular-nums">
+				<span className="ml-auto text-[10px] text-editor-muted tabular-nums">
 					{allFiles.length}
 				</span>
 			</div>
