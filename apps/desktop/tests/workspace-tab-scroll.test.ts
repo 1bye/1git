@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { getWorkspaceTabRevealScrollLeft } from "../src/renderer/src/fixture/desktop-toolbar/lib/workspace-tab-scroll.js";
+import {
+	getWorkspaceTabRevealFrame,
+	getWorkspaceTabRevealScrollLeft,
+} from "../src/renderer/src/fixture/desktop-toolbar/lib/workspace-tab-scroll.js";
 
 const commonInput = {
 	currentScrollLeft: 300,
@@ -76,5 +79,47 @@ describe("workspace tab horizontal reveal", () => {
 				tabRight: 710,
 			})
 		).toBe(0);
+	});
+
+	test("animates quickly in either direction and lands exactly on target", () => {
+		const forwardFrame = getWorkspaceTabRevealFrame({
+			durationMs: 140,
+			elapsedMs: 70,
+			initialScrollLeft: 100,
+			targetScrollLeft: 500,
+		});
+		const reverseFrame = getWorkspaceTabRevealFrame({
+			durationMs: 140,
+			elapsedMs: 70,
+			initialScrollLeft: 500,
+			targetScrollLeft: 100,
+		});
+
+		expect(forwardFrame.isComplete).toBe(false);
+		expect(forwardFrame.scrollLeft).toBeGreaterThan(300);
+		expect(forwardFrame.scrollLeft).toBeLessThan(500);
+		expect(reverseFrame.scrollLeft).toBe(600 - forwardFrame.scrollLeft);
+		expect(
+			getWorkspaceTabRevealFrame({
+				durationMs: 140,
+				elapsedMs: 140,
+				initialScrollLeft: 100,
+				targetScrollLeft: 500,
+			})
+		).toEqual({
+			isComplete: true,
+			scrollLeft: 500,
+		});
+		expect(
+			getWorkspaceTabRevealFrame({
+				durationMs: 0,
+				elapsedMs: 0,
+				initialScrollLeft: 100,
+				targetScrollLeft: 500,
+			})
+		).toEqual({
+			isComplete: true,
+			scrollLeft: 500,
+		});
 	});
 });

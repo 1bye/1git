@@ -16,7 +16,10 @@ import {
 	interpolateWorkspaceLiquidMeasurement,
 	type WorkspaceLiquidMeasurement,
 } from "@/fixture/desktop-toolbar/lib/workspace-liquid-motion.js";
-import { getWorkspaceTabRevealScrollLeft } from "@/fixture/desktop-toolbar/lib/workspace-tab-scroll.js";
+import {
+	getWorkspaceTabRevealFrame,
+	getWorkspaceTabRevealScrollLeft,
+} from "@/fixture/desktop-toolbar/lib/workspace-tab-scroll.js";
 import { useReducedMotion } from "@/fixture/liquid-surface/hooks/use-reduced-motion.js";
 import { createLiquidGeometryTracker } from "@/fixture/liquid-surface/lib/track-liquid-geometry.js";
 import type { RepositorySessionId } from "../../../../../shared/repository-session.js";
@@ -32,6 +35,13 @@ interface WorkspaceLiquidSurfaceState {
 	readonly hostRef: RefObject<HTMLDivElement | null>;
 	readonly path: string;
 	readonly surfaceWidth: number | null;
+}
+
+interface WorkspaceTabRevealAnimation {
+	animationFrameId: number;
+	readonly sessionId: RepositorySessionId;
+	readonly tabList: HTMLElement;
+	readonly targetScrollLeft: number;
 }
 
 const WORKSPACE_TOP_LEFT_RADIUS_PROPERTY =
@@ -150,9 +160,60 @@ export function useWorkspaceLiquidSurface({
 	const animationFrameRef = useRef(0);
 	const measurementRef = useRef<WorkspaceLiquidMeasurement | null>(null);
 	const measuredSessionIdRef = useRef<RepositorySessionId | null>(null);
+	const tabRevealAnimationRef = useRef<WorkspaceTabRevealAnimation | null>(
+		null
+	);
 	const targetMeasurementRef = useRef<WorkspaceLiquidMeasurement | null>(null);
 	const [measurement, setMeasurement] =
 		useState<WorkspaceLiquidMeasurement | null>(null);
+	const stopWorkspaceTabReveal = useCallback((shouldFinish: boolean): void => {
+		const animation = tabRevealAnimationRef.current;
+		if (!animation) {
+			return;
+		}
+		cancelAnimationFrame(animation.animationFrameId);
+		tabRevealAnimationRef.current = null;
+		if (shouldFinish) {
+			animation.tabList.scrollLeft = animation.targetScrollLeft;
+		}
+	}, []);
+	const startWorkspaceTabReveal = useCallback(
+		(
+			tabList: HTMLElement,
+			sessionId: RepositorySessionId,
+			targetScrollLeft: number
+		): void => {
+			stopWorkspaceTabReveal(false);
+			const initialScrollLeft = tabList.scrollLeft;
+			const animationStartedAt = performance.now();
+			const animation: WorkspaceTabRevealAnimation = {
+				animationFrameId: 0,
+				sessionId,
+				tabList,
+				targetScrollLeft,
+			};
+			const animateFrame = (timestamp: number): void => {
+				if (tabRevealAnimationRef.current !== animation) {
+					return;
+				}
+				const frame = getWorkspaceTabRevealFrame({
+					durationMs: WORKSPACE_TAB_SURFACE_MOTION.offscreenRevealDurationMs,
+					elapsedMs: timestamp - animationStartedAt,
+					initialScrollLeft,
+					targetScrollLeft,
+				});
+				tabList.scrollLeft = frame.scrollLeft;
+				if (frame.isComplete) {
+					tabRevealAnimationRef.current = null;
+					return;
+				}
+				animation.animationFrameId = requestAnimationFrame(animateFrame);
+			};
+			tabRevealAnimationRef.current = animation;
+			animation.animationFrameId = requestAnimationFrame(animateFrame);
+		},
+		[stopWorkspaceTabReveal]
+	);
 	const commitMeasurement = useCallback(
 		(nextMeasurement: WorkspaceLiquidMeasurement | null): void => {
 			measurementRef.current = nextMeasurement;
@@ -173,7 +234,8 @@ export function useWorkspaceLiquidSurface({
 		(
 			nextMeasurement: WorkspaceLiquidMeasurement | null,
 			shouldAnimate: boolean,
-			shouldFollowImmediately = false
+			shouldFollowImmediately = false,
+			durationMs: number = WORKSPACE_TAB_SURFACE_MOTION.durationMs
 		): void => {
 			const currentMeasurement = measurementRef.current;
 			const isAlreadyAnimatingToTarget = isAnimatingToMeasurement(
@@ -226,10 +288,7 @@ export function useWorkspaceLiquidSurface({
 			const animationStartedAt = performance.now();
 			const animateFrame = (timestamp: number): void => {
 				const elapsedMs = timestamp - animationStartedAt;
-				const progress = Math.min(
-					1,
-					elapsedMs / WORKSPACE_TAB_SURFACE_MOTION.durationMs
-				);
+				const progress = Math.min(1, elapsedMs / durationMs);
 				const easedProgress = easeWorkspaceLiquidMotion(progress);
 				const liveTargetMeasurement =
 					targetMeasurementRef.current ?? targetMeasurement;
@@ -252,6 +311,54 @@ export function useWorkspaceLiquidSurface({
 		},
 		[commitMeasurement, prefersReducedMotion]
 	);
+	const revealActiveWorkspaceTab = useCallback(
+		(
+			titlebar: HTMLElement,
+			activeTab: HTMLElement,
+			tabList: HTMLElement,
+			sessionId: RepositorySessionId
+		): boolean => {
+			const tabBounds = activeTab.getBoundingClientRect();
+			const tabListBounds = tabList.getBoundingClientRect();
+			const initialScrollLeft = tabList.scrollLeft;
+			const targetScrollLeft = getWorkspaceTabRevealScrollLeft({
+				currentScrollLeft: initialScrollLeft,
+				maximumScrollLeft: tabList.scrollWidth - tabList.clientWidth,
+				tabLeft: tabBounds.left,
+				tabRight: tabBounds.right,
+				viewportLeft: tabListBounds.left,
+				viewportRight: tabListBounds.right,
+			});
+			const shouldAnimateReveal =
+				!prefersReducedMotion && targetScrollLeft !== initialScrollLeft;
+			if (!shouldAnimateReveal) {
+				tabList.scrollLeft = targetScrollLeft;
+				return false;
+			}
+
+			const scrollDelta = targetScrollLeft - initialScrollLeft;
+			const targetMeasurement = createWorkspaceLiquidMeasurement(
+				titlebar.getBoundingClientRect(),
+				{
+					height: tabBounds.height,
+					left: tabBounds.left - scrollDelta,
+					top: tabBounds.top,
+					width: tabBounds.width,
+				},
+				tabListBounds
+			);
+			measuredSessionIdRef.current = sessionId;
+			startWorkspaceTabReveal(tabList, sessionId, targetScrollLeft);
+			animateToMeasurement(
+				targetMeasurement,
+				true,
+				false,
+				WORKSPACE_TAB_SURFACE_MOTION.offscreenRevealDurationMs
+			);
+			return true;
+		},
+		[animateToMeasurement, prefersReducedMotion, startWorkspaceTabReveal]
+	);
 	const measureSurface = useCallback((): void => {
 		const host = hostRef.current;
 		const titlebar = host?.parentElement;
@@ -259,6 +366,7 @@ export function useWorkspaceLiquidSurface({
 			return;
 		}
 		if (activeTabIndex < 0) {
+			stopWorkspaceTabReveal(false);
 			measuredSessionIdRef.current = null;
 			animateToMeasurement(null, true);
 			return;
@@ -269,21 +377,28 @@ export function useWorkspaceLiquidSurface({
 			'[data-name="WorkspaceTabList"]'
 		);
 		if (!(activeTab && tabList)) {
+			stopWorkspaceTabReveal(false);
 			return;
 		}
 
+		const revealAnimation = tabRevealAnimationRef.current;
+		if (revealAnimation) {
+			const shouldContinueReveal =
+				revealAnimation.sessionId === activeSessionId && !isPositionTracking;
+			if (shouldContinueReveal) {
+				return;
+			}
+			stopWorkspaceTabReveal(false);
+		}
+
 		const didSessionChange = measuredSessionIdRef.current !== activeSessionId;
-		if (didSessionChange && !isPositionTracking) {
-			const tabBounds = activeTab.getBoundingClientRect();
-			const tabListBounds = tabList.getBoundingClientRect();
-			tabList.scrollLeft = getWorkspaceTabRevealScrollLeft({
-				currentScrollLeft: tabList.scrollLeft,
-				maximumScrollLeft: tabList.scrollWidth - tabList.clientWidth,
-				tabLeft: tabBounds.left,
-				tabRight: tabBounds.right,
-				viewportLeft: tabListBounds.left,
-				viewportRight: tabListBounds.right,
-			});
+		const didStartReveal =
+			didSessionChange &&
+			!isPositionTracking &&
+			activeSessionId !== null &&
+			revealActiveWorkspaceTab(titlebar, activeTab, tabList, activeSessionId);
+		if (didStartReveal) {
+			return;
 		}
 
 		const titlebarBounds = titlebar.getBoundingClientRect();
@@ -305,6 +420,8 @@ export function useWorkspaceLiquidSurface({
 		activeTabIndex,
 		animateToMeasurement,
 		isPositionTracking,
+		revealActiveWorkspaceTab,
+		stopWorkspaceTabReveal,
 	]);
 
 	useLayoutEffect(() => {
@@ -341,18 +458,22 @@ export function useWorkspaceLiquidSurface({
 	useLayoutEffect(
 		() => () => {
 			cancelAnimationFrame(animationFrameRef.current);
+			stopWorkspaceTabReveal(false);
 			clearWorkspaceCornerRadii(workspaceRootRef.current);
 		},
-		[workspaceRootRef]
+		[stopWorkspaceTabReveal, workspaceRootRef]
 	);
 	useLayoutEffect(() => {
-		if (!(prefersReducedMotion && animationFrameRef.current !== 0)) {
+		if (!prefersReducedMotion) {
 			return;
 		}
-		cancelAnimationFrame(animationFrameRef.current);
-		animationFrameRef.current = 0;
-		commitMeasurement(targetMeasurementRef.current);
-	}, [commitMeasurement, prefersReducedMotion]);
+		stopWorkspaceTabReveal(true);
+		if (animationFrameRef.current !== 0) {
+			cancelAnimationFrame(animationFrameRef.current);
+			animationFrameRef.current = 0;
+			commitMeasurement(targetMeasurementRef.current);
+		}
+	}, [commitMeasurement, prefersReducedMotion, stopWorkspaceTabReveal]);
 
 	const path = useMemo(() => {
 		if (!measurement) {
