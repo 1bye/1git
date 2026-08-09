@@ -2,7 +2,12 @@ import { cn } from "@1git/ui/lib/utils";
 import { RestrictToHorizontalAxis } from "@dnd-kit/abstract/modifiers";
 import { useSortable } from "@dnd-kit/react/sortable";
 import { XIcon } from "@phosphor-icons/react/dist/csr/X";
-import type { CSSProperties, ReactElement, RefCallback } from "react";
+import type {
+	ComponentProps,
+	CSSProperties,
+	ReactElement,
+	RefCallback,
+} from "react";
 import { useCallback, useEffect } from "react";
 import { useCommandLensTarget } from "@/feature/command-lens/hooks/use-command-lens-target.js";
 import type { CommandLensCommand } from "@/feature/command-lens/lib/command-lens-shortcut.js";
@@ -49,23 +54,28 @@ interface WorkspaceTabAppearanceProps
 	readonly rootRef?: RefCallback<Element>;
 }
 
-interface WorkspaceTabNameButtonProps {
-	readonly branch: string | null;
-	readonly isActive: boolean;
-	readonly isDisabled: boolean;
-	readonly isDragging: boolean;
-	readonly isMenuTrigger: boolean;
-	readonly label: string;
-	readonly onActivate: (sessionId: RepositorySessionId) => Promise<void>;
-	readonly onOpenActions: () => void;
-	readonly repositoryName: string;
-	readonly sessionId: RepositorySessionId;
-}
-
 interface WorkspaceTabNameProps {
 	readonly branch: string | null;
 	readonly isActive: boolean;
 	readonly repositoryName: string;
+}
+
+interface WorkspaceTabTriggerProps {
+	readonly activate: () => Promise<void>;
+	readonly handleRef?: RefCallback<Element>;
+	readonly isActive: boolean;
+	readonly isDisabled: boolean;
+	readonly isDragging: boolean;
+	readonly isOverlay: boolean;
+	readonly label: string;
+	readonly onOpenActions: () => void;
+	readonly repositoryName: string;
+	readonly workspace: WorkspaceTabState;
+}
+
+interface WorkspaceTabTriggerElementProps extends ComponentProps<"button"> {
+	readonly isActive: boolean;
+	readonly isMenuOpen: boolean;
 }
 
 interface WorkspaceChangedFilesProps {
@@ -83,8 +93,8 @@ interface WorkspaceTabCommandOptions {
 	readonly shortcutKey: string | null;
 }
 
-const WORKSPACE_TAB_NAME_BUTTON_CLASS_NAME =
-	"relative z-10 flex h-full min-w-0 flex-1 touch-none items-center overflow-hidden rounded-md text-left outline-none hover:text-editor-ink focus-visible:ring-2 focus-visible:ring-brand/20 disabled:pointer-events-none disabled:opacity-50";
+const WORKSPACE_TAB_TRIGGER_CLASS_NAME =
+	"relative z-10 flex h-full min-w-0 flex-1 touch-none items-center gap-2 overflow-hidden rounded-md text-left outline-none hover:text-editor-ink focus-visible:ring-2 focus-visible:ring-brand/20 active:cursor-grabbing disabled:pointer-events-none disabled:opacity-50";
 
 const WORKSPACE_TAB_STYLE: CSSProperties = {
 	height: WORKSPACE_TAB_SURFACE_GEOMETRY.tabHeight,
@@ -206,69 +216,122 @@ function WorkspaceTabName({
 	);
 }
 
-function WorkspaceTabNameButton({
-	branch,
+export function WorkspaceTabTriggerElement({
+	isActive,
+	isMenuOpen,
+	...props
+}: WorkspaceTabTriggerElementProps): ReactElement {
+	return (
+		<button
+			{...props}
+			aria-controls="repository-workspace"
+			aria-expanded={isActive ? isMenuOpen : undefined}
+			aria-haspopup={isActive ? props["aria-haspopup"] : undefined}
+			type="button"
+		/>
+	);
+}
+
+export function WorkspaceTabTrigger({
+	activate,
+	handleRef,
 	isActive,
 	isDisabled,
 	isDragging,
-	isMenuTrigger,
+	isOverlay,
 	label,
-	onActivate,
 	onOpenActions,
 	repositoryName,
-	sessionId,
-}: WorkspaceTabNameButtonProps): ReactElement {
-	const selectWorkspace = async (): Promise<void> => {
+	workspace,
+}: WorkspaceTabTriggerProps): ReactElement {
+	const ownerLabel = workspace.owner ? workspace.owner.name : repositoryName;
+	const triggerContent = (
+		<>
+			<RepositoryOwnerThumbnail
+				label={ownerLabel}
+				owner={workspace.owner}
+				size="sm"
+				title={getOwnerTitle(workspace)}
+			/>
+			<WorkspaceTabName
+				branch={workspace.branch}
+				isActive={isActive}
+				repositoryName={repositoryName}
+			/>
+		</>
+	);
+	const activateOrOpen = async (): Promise<void> => {
 		if (isDragging) {
 			return;
 		}
-		await onActivate(sessionId);
-	};
-	const openActions = (): void => {
-		if (!isDragging) {
+		if (isActive) {
 			onOpenActions();
+			return;
 		}
+		await activate();
 	};
-	const name = (
-		<WorkspaceTabName
-			branch={branch}
-			isActive={isActive}
-			repositoryName={repositoryName}
-		/>
-	);
 
-	if (isMenuTrigger) {
+	if (isOverlay) {
 		return (
-			<LiquidMenuTrigger
-				aria-label={`Open actions for ${label}`}
-				className={WORKSPACE_TAB_NAME_BUTTON_CLASS_NAME}
+			<button
+				aria-label={getAccessibleTabLabel(label, workspace)}
+				aria-selected={isActive}
+				className={WORKSPACE_TAB_TRIGGER_CLASS_NAME}
 				data-desktop-interactive
-				data-liquid-connected-fill="none"
 				data-workspace-tab-pointer-drag-handle
-				disabled={isDisabled}
-				onClick={openActions}
-				tabIndex={0}
+				disabled
+				role="tab"
+				style={WORKSPACE_TAB_ACTIVATOR_STYLE}
+				tabIndex={-1}
 				title={label}
+				type="button"
 			>
-				{name}
-			</LiquidMenuTrigger>
+				{triggerContent}
+			</button>
 		);
 	}
 
 	return (
-		<button
-			aria-label={`Activate ${label}`}
-			className={WORKSPACE_TAB_NAME_BUTTON_CLASS_NAME}
+		<LiquidMenuTrigger
+			aria-label={
+				isActive
+					? `Open actions for ${label}`
+					: `Activate ${getAccessibleTabLabel(label, workspace)}`
+			}
+			aria-selected={isActive}
+			className={WORKSPACE_TAB_TRIGGER_CLASS_NAME}
 			data-desktop-interactive
+			data-liquid-connected-fill="none"
 			data-workspace-tab-pointer-drag-handle
 			disabled={isDisabled}
-			onClick={selectWorkspace}
+			onClick={async (event): Promise<void> => {
+				event.preventBaseUIHandler();
+				if (event.defaultPrevented) {
+					return;
+				}
+				await activateOrOpen();
+			}}
+			onKeyDown={(event): void => {
+				if (!isActive) {
+					event.preventBaseUIHandler();
+				}
+			}}
+			onMouseDown={(event): void => event.preventBaseUIHandler()}
+			ref={handleRef}
+			render={(props, state) => (
+				<WorkspaceTabTriggerElement
+					{...props}
+					isActive={isActive}
+					isMenuOpen={state.open}
+				/>
+			)}
+			role="tab"
+			style={WORKSPACE_TAB_ACTIVATOR_STYLE}
 			tabIndex={isActive ? 0 : -1}
 			title={label}
-			type="button"
 		>
-			{name}
-		</button>
+			{triggerContent}
+		</LiquidMenuTrigger>
 	);
 }
 
@@ -324,7 +387,6 @@ function WorkspaceTabAppearance({
 		workspace.session.repository.root,
 		workspace.branch
 	);
-	const ownerLabel = workspace.owner?.name ?? repositoryName;
 	const changedFileCount = workspace.changedFiles ?? 0;
 	const activateWorkspace = async (): Promise<void> => {
 		await onActivate(workspace.session.id);
@@ -394,40 +456,17 @@ function WorkspaceTabAppearance({
 				data-name="WorkspaceTabContent"
 				onAnimationEnd={finishClosingWorkspace}
 			>
-				<button
-					aria-controls="repository-workspace"
-					aria-label={getAccessibleTabLabel(label, workspace)}
-					aria-selected={isActive}
-					className="relative z-10 flex h-full shrink-0 cursor-default touch-none items-center outline-none focus-visible:ring-2 focus-visible:ring-brand/20 active:cursor-grabbing"
-					data-desktop-interactive
-					data-workspace-tab-pointer-drag-handle
-					disabled={isBusy || isClosing || isOverlay}
-					onClick={activateWorkspace}
-					ref={handleRef}
-					role="tab"
-					style={WORKSPACE_TAB_ACTIVATOR_STYLE}
-					tabIndex={isActive ? 0 : -1}
-					title={label}
-					type="button"
-				>
-					<RepositoryOwnerThumbnail
-						label={ownerLabel}
-						owner={workspace.owner}
-						size="sm"
-						title={getOwnerTitle(workspace)}
-					/>
-				</button>
-				<WorkspaceTabNameButton
-					branch={workspace.branch}
+				<WorkspaceTabTrigger
+					activate={activateWorkspace}
+					handleRef={handleRef}
 					isActive={isActive}
-					isDisabled={isBusy || isClosing || isOverlay}
+					isDisabled={isBusy || isClosing}
 					isDragging={isDragging}
-					isMenuTrigger={isActive && !isOverlay}
+					isOverlay={isOverlay}
 					label={label}
-					onActivate={onActivate}
 					onOpenActions={onOpenActions}
 					repositoryName={repositoryName}
-					sessionId={workspace.session.id}
+					workspace={workspace}
 				/>
 				<div
 					className="group/trailing relative z-10 flex shrink-0 items-center justify-center"

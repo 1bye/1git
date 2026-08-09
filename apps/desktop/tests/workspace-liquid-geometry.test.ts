@@ -1,9 +1,14 @@
 import { describe, expect, test } from "bun:test";
+import { WORKSPACE_TAB_SURFACE_GEOMETRY } from "../src/renderer/src/fixture/desktop-toolbar/constants/workspace-tab.js";
 import {
 	createWorkspaceLiquidMeasurement,
 	createWorkspaceLiquidPath,
 	getVisibleWorkspaceTabAnchorRect,
 } from "../src/renderer/src/fixture/desktop-toolbar/lib/workspace-liquid-geometry.js";
+import {
+	interpolateWorkspaceLiquidMeasurement,
+	type WorkspaceLiquidMeasurement,
+} from "../src/renderer/src/fixture/desktop-toolbar/lib/workspace-liquid-motion.js";
 import { createLiquidMenuFrame } from "../src/renderer/src/fixture/liquid-menu/lib/liquid-menu-geometry.js";
 import {
 	createLiquidUnionPath,
@@ -22,6 +27,150 @@ const pathCoordinates = (path: string): readonly [number, number][] =>
 		Number(match[1]),
 		Number(match[2]),
 	]);
+
+type WorkspaceEdge = "left" | "right";
+
+const EDGE_PROFILE_ROW_TOLERANCE = 0.51;
+const PATH_COORDINATE_PRECISION_TOLERANCE = 0.01;
+
+const createMeasuredWorkspacePath = (
+	measurement: WorkspaceLiquidMeasurement
+): string => {
+	const geometry = WORKSPACE_TAB_SURFACE_GEOMETRY;
+	return createWorkspaceLiquidPath({
+		blendRadius: geometry.blendRadius,
+		containerDepth: geometry.containerDepth,
+		containerInset: geometry.containerInset,
+		containerRadius: geometry.containerRadius,
+		containerTop: geometry.toolbarHeight,
+		sampleCellSize: geometry.sampleCellSize,
+		smoothingPasses: geometry.smoothingPasses,
+		surfaceWidth: measurement.surfaceWidth,
+		tabHeight: measurement.tabHeight,
+		tabLeft: measurement.tabLeft,
+		tabRadius: geometry.tabRadius,
+		tabTop: measurement.tabTop,
+		tabWidth: measurement.tabWidth,
+	});
+};
+
+const createEdgeMeasurement = (
+	surfaceWidth: number,
+	edge: WorkspaceEdge,
+	tabWidth: number = WORKSPACE_TAB_SURFACE_GEOMETRY.tabWidth
+): WorkspaceLiquidMeasurement => {
+	const geometry = WORKSPACE_TAB_SURFACE_GEOMETRY;
+	const visibleTabWidth = tabWidth - geometry.tabVisualInsetInline * 2;
+	const visibleTabLeft =
+		edge === "left"
+			? geometry.containerInset
+			: surfaceWidth - geometry.containerInset - visibleTabWidth;
+	return createWorkspaceLiquidMeasurement(
+		{ height: geometry.toolbarHeight, left: 0, top: 0, width: surfaceWidth },
+		{
+			height: geometry.tabHeight,
+			left: visibleTabLeft - geometry.tabVisualInsetInline,
+			top: geometry.toolbarHeight - geometry.tabHeight - geometry.tabLift,
+			width: tabWidth,
+		},
+		{
+			height: geometry.toolbarHeight + geometry.containerOverlap,
+			left: 0,
+			top: 0,
+			width: surfaceWidth,
+		}
+	);
+};
+
+const getEdgeProfile = (
+	coordinates: readonly [number, number][],
+	edge: WorkspaceEdge,
+	top: number,
+	bottom: number
+): readonly number[] => {
+	const profile: number[] = [];
+	for (let y = top; y <= bottom; y += 1) {
+		const row = coordinates.filter(
+			([, coordinateY]) =>
+				Math.abs(coordinateY - y) <= EDGE_PROFILE_ROW_TOLERANCE
+		);
+		if (row.length === 0) {
+			continue;
+		}
+		const horizontalCoordinates = row.map(([x]) => x);
+		profile.push(
+			edge === "left"
+				? Math.min(...horizontalCoordinates)
+				: Math.max(...horizontalCoordinates)
+		);
+	}
+	return profile;
+};
+
+const getMaximumInwardRecession = (
+	profile: readonly number[],
+	edge: WorkspaceEdge
+): number => {
+	const [firstCoordinate, ...remainingCoordinates] = profile;
+	if (firstCoordinate === undefined) {
+		return Number.POSITIVE_INFINITY;
+	}
+
+	let outwardCoordinate = firstCoordinate;
+	let maximumRecession = 0;
+	for (const coordinate of remainingCoordinates) {
+		const recession =
+			edge === "left"
+				? coordinate - outwardCoordinate
+				: outwardCoordinate - coordinate;
+		maximumRecession = Math.max(maximumRecession, recession);
+		outwardCoordinate =
+			edge === "left"
+				? Math.min(outwardCoordinate, coordinate)
+				: Math.max(outwardCoordinate, coordinate);
+	}
+	return maximumRecession;
+};
+
+const expectContinuousWorkspacePath = (
+	measurement: WorkspaceLiquidMeasurement
+): readonly [number, number][] => {
+	const geometry = WORKSPACE_TAB_SURFACE_GEOMETRY;
+	const path = createMeasuredWorkspacePath(measurement);
+	const coordinates = pathCoordinates(path);
+	const joinTop = geometry.toolbarHeight - geometry.tabRadius;
+	const joinBottom = geometry.toolbarHeight + geometry.containerRadius;
+	const leftProfile = getEdgeProfile(coordinates, "left", joinTop, joinBottom);
+	const rightProfile = getEdgeProfile(
+		coordinates,
+		"right",
+		joinTop,
+		joinBottom
+	);
+	const horizontalCoordinates = coordinates.map(([x]) => x);
+
+	expect(path.match(/ Z/g)).toHaveLength(1);
+	expect(
+		coordinates.every(([x, y]) => Number.isFinite(x) && Number.isFinite(y))
+	).toBe(true);
+	expect(Math.min(...horizontalCoordinates)).toBeGreaterThanOrEqual(
+		geometry.containerInset - PATH_COORDINATE_PRECISION_TOLERANCE
+	);
+	expect(Math.max(...horizontalCoordinates)).toBeLessThanOrEqual(
+		measurement.surfaceWidth -
+			geometry.containerInset +
+			PATH_COORDINATE_PRECISION_TOLERANCE
+	);
+	expect(leftProfile.length).toBeGreaterThan(10);
+	expect(rightProfile.length).toBeGreaterThan(10);
+	expect(getMaximumInwardRecession(leftProfile, "left")).toBeLessThanOrEqual(
+		geometry.sampleCellSize
+	);
+	expect(getMaximumInwardRecession(rightProfile, "right")).toBeLessThanOrEqual(
+		geometry.sampleCellSize
+	);
+	return coordinates;
+};
 
 describe("workspace liquid geometry", () => {
 	test("intersects the workspace tab with its visible viewport", () => {
@@ -490,56 +639,93 @@ describe("workspace liquid geometry", () => {
 		);
 	});
 
-	test("preserves rounded container corners when the tab reaches an edge", () => {
-		const surfaceWidth = 320;
-		const containerInset = 6;
-		const containerTop = 46;
-		const tabWidth = 188;
-		const createEdgePath = (tabLeft: number): readonly [number, number][] =>
-			pathCoordinates(
-				createWorkspaceLiquidPath({
-					blendRadius: 12,
-					containerDepth: 48,
-					containerInset,
-					containerRadius: 14,
-					containerTop,
-					sampleCellSize: 2,
-					smoothingPasses: 1,
+	test("keeps mirrored edge connections continuous across surface widths", () => {
+		const geometry = WORKSPACE_TAB_SURFACE_GEOMETRY;
+		const expectedTabHeight =
+			geometry.tabHeight -
+			geometry.tabVisualInsetBlock * 2 +
+			geometry.tabSdfExtensionBlockEnd;
+		const surfaceWidths = [232, 233.3, 234, 235.5, 238, 240, 246, 320.5];
+
+		for (const surfaceWidth of surfaceWidths) {
+			const leftMeasurement = createEdgeMeasurement(surfaceWidth, "left");
+			const rightMeasurement = createEdgeMeasurement(surfaceWidth, "right");
+			const leftCoordinates = expectContinuousWorkspacePath(leftMeasurement);
+			const rightCoordinates = expectContinuousWorkspacePath(rightMeasurement);
+			const joinTop = geometry.toolbarHeight - geometry.tabRadius;
+			const joinBottom = geometry.toolbarHeight + geometry.containerRadius;
+			const leftProfile = getEdgeProfile(
+				leftCoordinates,
+				"left",
+				joinTop,
+				joinBottom
+			);
+			const rightProfile = getEdgeProfile(
+				rightCoordinates,
+				"right",
+				joinTop,
+				joinBottom
+			);
+
+			expect(leftMeasurement.tabHeight).toBe(expectedTabHeight);
+			expect(rightMeasurement.tabHeight).toBe(expectedTabHeight);
+			expect(leftProfile).toHaveLength(rightProfile.length);
+			for (const [index, leftCoordinate] of leftProfile.entries()) {
+				expect(leftCoordinate + (rightProfile[index] ?? 0)).toBeCloseTo(
 					surfaceWidth,
-					tabHeight: 35,
-					tabLeft,
-					tabRadius: 10,
-					tabTop: 7,
-					tabWidth,
-				})
-			);
-		const coordinatesNearCorner = (
-			coordinates: readonly [number, number][]
-		): readonly [number, number][] =>
-			coordinates.filter(
-				([, y]) => y >= containerTop - 4 && y <= containerTop + 6
-			);
-		const coordinatesInsideTabBody = (
-			coordinates: readonly [number, number][]
-		): readonly [number, number][] =>
-			coordinates.filter(([, y]) => y >= 17 && y <= 32);
+					1
+				);
+			}
+		}
+	});
 
-		const leftCoordinates = createEdgePath(-tabWidth);
-		const leftCornerX = coordinatesNearCorner(leftCoordinates).map(([x]) => x);
-		const leftBodyX = coordinatesInsideTabBody(leftCoordinates).map(([x]) => x);
-		expect(Math.min(...leftBodyX)).toBe(containerInset);
-		expect(Math.min(...leftCornerX)).toBeGreaterThan(containerInset);
+	test("stays continuous through fractional activation interpolation", () => {
+		const geometry = WORKSPACE_TAB_SURFACE_GEOMETRY;
+		const surfaceWidth = 320.5;
+		const leftMeasurement = createEdgeMeasurement(surfaceWidth, "left");
+		const rightMeasurement = createEdgeMeasurement(surfaceWidth, "right");
+		const progressValues = Array.from({ length: 21 }, (_, index) => index / 20);
 
-		const rightCoordinates = createEdgePath(surfaceWidth + tabWidth);
-		const rightCornerX = coordinatesNearCorner(rightCoordinates).map(
-			([x]) => x
-		);
-		const rightBodyX = coordinatesInsideTabBody(rightCoordinates).map(
-			([x]) => x
-		);
-		expect(Math.max(...rightBodyX)).toBe(surfaceWidth - containerInset);
-		expect(Math.max(...rightCornerX)).toBeLessThan(
-			surfaceWidth - containerInset
-		);
+		for (const progress of progressValues) {
+			const measurement = interpolateWorkspaceLiquidMeasurement(
+				leftMeasurement,
+				rightMeasurement,
+				progress
+			);
+
+			expect(measurement.tabHeight).toBe(
+				geometry.tabHeight -
+					geometry.tabVisualInsetBlock * 2 +
+					geometry.tabSdfExtensionBlockEnd
+			);
+			expectContinuousWorkspacePath(measurement);
+		}
+	});
+
+	test("stays continuous across tab widths and device-pixel snapping", () => {
+		const devicePixelRatios = [1, 1.25, 1.5, 2, 3];
+		const tabWidths = [144, 188.5, 210, 260];
+		const snap = (value: number, devicePixelRatio: number): number =>
+			Math.round(value * devicePixelRatio) / devicePixelRatio;
+
+		for (const devicePixelRatio of devicePixelRatios) {
+			for (const tabWidth of tabWidths) {
+				const surfaceWidth = snap(340.5, devicePixelRatio);
+				for (const edge of ["left", "right"] as const) {
+					const measurement = createEdgeMeasurement(
+						surfaceWidth,
+						edge,
+						snap(tabWidth, devicePixelRatio)
+					);
+					expectContinuousWorkspacePath({
+						surfaceWidth: snap(measurement.surfaceWidth, devicePixelRatio),
+						tabHeight: snap(measurement.tabHeight, devicePixelRatio),
+						tabLeft: snap(measurement.tabLeft, devicePixelRatio),
+						tabTop: snap(measurement.tabTop, devicePixelRatio),
+						tabWidth: snap(measurement.tabWidth, devicePixelRatio),
+					});
+				}
+			}
+		}
 	});
 });

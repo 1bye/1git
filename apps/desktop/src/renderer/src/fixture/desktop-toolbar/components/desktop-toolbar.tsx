@@ -1,9 +1,15 @@
 import type { BranchCollection, RepositorySnapshot } from "@1git/git";
-import { PointerActivationConstraints } from "@dnd-kit/dom";
+import type { Plugins } from "@dnd-kit/abstract";
+import {
+	AutoScroller,
+	type DragDropManager,
+	PointerActivationConstraints,
+} from "@dnd-kit/dom";
 import { move } from "@dnd-kit/helpers";
 import {
 	DragDropProvider,
 	type DragEndEvent,
+	type DragMoveEvent,
 	DragOverlay,
 	type DragStartEvent,
 	KeyboardSensor,
@@ -40,6 +46,7 @@ import {
 	WORKSPACE_TAB_REORDER_MOTION,
 	WORKSPACE_TAB_SURFACE_GEOMETRY,
 } from "@/fixture/desktop-toolbar/constants/workspace-tab.js";
+import { useWorkspaceTabDragRail } from "@/fixture/desktop-toolbar/hooks/use-workspace-tab-drag-rail.js";
 import { updateWorkspaceMenuSurfaceSession } from "@/fixture/desktop-toolbar/lib/workspace-menu-presence.js";
 import { LiquidMenuRoot } from "@/fixture/liquid-menu/components/liquid-menu.js";
 import type {
@@ -85,7 +92,8 @@ const TAB_DRAG_SENSORS = [
 				value: TAB_POINTER_ACTIVATION_DISTANCE,
 			}),
 		],
-		// The active label swaps to a menu trigger, so bind once to the stable tab.
+		// Bind once to the stable tab so every marked trigger descendant shares
+		// the same activation threshold.
 		activatorElements: (source) => [source.element],
 		preventActivation: (event, source) => {
 			if (!(event.target instanceof Element)) {
@@ -101,6 +109,14 @@ const TAB_DRAG_SENSORS = [
 	}),
 	KeyboardSensor,
 ];
+const TAB_DRAG_PLUGINS = (
+	plugins: Plugins<DragDropManager>
+): Plugins<DragDropManager> =>
+	plugins.filter((plugin) => {
+		const pluginConstructor =
+			typeof plugin === "function" ? plugin : plugin.plugin;
+		return pluginConstructor !== AutoScroller;
+	});
 const TAB_DROP_ANIMATION = WORKSPACE_TAB_REORDER_MOTION;
 const TAB_OVERLAY_STYLE: CSSProperties = {
 	pointerEvents: "none",
@@ -156,6 +172,10 @@ export function DesktopToolbar({
 	const [droppingSessionId, setDroppingSessionId] =
 		useState<RepositorySessionId | null>(null);
 	const tabListRef = useRef<HTMLDivElement>(null);
+	const { endDragRail, moveDragRail, startDragRail } = useWorkspaceTabDragRail({
+		dropAnimationDurationMs: TAB_DROP_ANIMATION.duration,
+		railRef: tabListRef,
+	});
 	const currentBranch = snapshot?.head.branch ?? "";
 	const workspaceIds = workspaces.map((workspace) => workspace.session.id);
 	const activeTabIndex =
@@ -281,13 +301,29 @@ export function DesktopToolbar({
 		},
 		[]
 	);
-	const startWorkspaceDrag = ({ operation }: DragStartEvent): void => {
+	const startWorkspaceDrag = (
+		event: DragStartEvent,
+		manager: DragDropManager
+	): void => {
+		startDragRail(event, manager);
 		setIsRepositoryMenuOpen(false);
 		setIsWorkspaceMenuOpen(false);
 		setDroppingSessionId(null);
-		setDraggingSessionId(operation.source ? String(operation.source.id) : null);
+		setDraggingSessionId(
+			event.operation.source ? String(event.operation.source.id) : null
+		);
 	};
-	const finishWorkspaceDrag = (event: DragEndEvent): void => {
+	const moveWorkspaceDrag = (
+		event: DragMoveEvent,
+		manager: DragDropManager
+	): void => {
+		moveDragRail(event, manager);
+	};
+	const finishWorkspaceDrag = (
+		event: DragEndEvent,
+		manager: DragDropManager
+	): void => {
+		endDragRail(event, manager);
 		setDraggingSessionId(null);
 		const { source } = event.operation;
 		if (event.canceled || !source) {
@@ -401,7 +437,9 @@ export function DesktopToolbar({
 					<div className="relative z-[2] min-w-0 flex-1">
 						<DragDropProvider
 							onDragEnd={finishWorkspaceDrag}
+							onDragMove={moveWorkspaceDrag}
 							onDragStart={startWorkspaceDrag}
+							plugins={TAB_DRAG_PLUGINS}
 							sensors={TAB_DRAG_SENSORS}
 						>
 							<div
@@ -428,7 +466,6 @@ export function DesktopToolbar({
 											anchor={getActiveWorkspaceTab}
 											anchorClip={getWorkspaceTabList}
 											anchorGeometry={WORKSPACE_ACTIONS_ANCHOR_GEOMETRY}
-											disabled={!isActive}
 											key={workspace.session.id}
 											modal
 											onOpenChange={changeWorkspaceMenu}

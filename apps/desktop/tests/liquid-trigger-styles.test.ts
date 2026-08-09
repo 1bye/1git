@@ -5,6 +5,8 @@ const readSource = (relativePath: string): string =>
 	readFileSync(new URL(relativePath, import.meta.url), "utf8");
 
 const styles = readSource("../src/renderer/src/styles.css");
+const IDLE_CONNECTED_TRIGGER_SELECTOR =
+	/\[data-liquid-trigger\]:not\(\s*\[data-liquid-connected-fill="none"\]\s*\)\[data-liquid-state="idle"\]:hover/;
 const OPEN_CONNECTED_TRIGGER_SELECTOR =
 	/\[data-liquid-trigger\]:not\(\s*\[data-liquid-connected-fill="none"\]\s*\)\[data-liquid-state="open"\]/;
 const CLOSING_CONNECTED_TRIGGER_SELECTOR =
@@ -33,7 +35,8 @@ describe("liquid trigger styles", () => {
 		expect(styles).toMatch(CLOSING_CONNECTED_TRIGGER_SELECTOR);
 		expect(styles).toContain('[data-name="WorkspaceTabMenuPill"]');
 		expect(styles).toContain("background-color: var(--liquid-active-trigger);");
-		expect(styles).toContain(
+		expect(styles).toMatch(IDLE_CONNECTED_TRIGGER_SELECTOR);
+		expect(styles).not.toContain(
 			'[data-liquid-trigger][data-liquid-state="idle"]:hover'
 		);
 		expect(styles).not.toContain(
@@ -60,6 +63,27 @@ describe("liquid trigger styles", () => {
 		);
 		expect(workspaceTab).toContain('data-liquid-connected-fill="none"');
 		expect(fileList).toContain('contextUsesSelection ? "none" : undefined');
+	});
+
+	test("keeps each workspace tab on one unified liquid trigger", () => {
+		const workspaceTab = readSource(
+			"../src/renderer/src/fixture/desktop-toolbar/components/workspace-tab.tsx"
+		);
+		const trigger = workspaceTab.slice(
+			workspaceTab.indexOf("function WorkspaceTabTrigger"),
+			workspaceTab.indexOf("function WorkspaceChangedFiles")
+		);
+
+		expect(trigger.match(/<LiquidMenuTrigger/g)).toHaveLength(1);
+		expect(trigger).toContain("<RepositoryOwnerThumbnail");
+		expect(trigger).toContain("<WorkspaceTabName");
+		expect(trigger).toContain("await activate();");
+		expect(trigger).toContain("onOpenActions();");
+		expect(trigger).toContain("event.defaultPrevented");
+		expect(trigger).toContain("if (!isActive)");
+		expect(trigger.match(/event\.preventBaseUIHandler\(\)/g)).toHaveLength(3);
+		expect(workspaceTab).not.toContain("WorkspaceTabNameButton");
+		expect(workspaceTab).not.toContain("isMenuTrigger");
 	});
 
 	test("animates every surfaced content variant through the shared marker", () => {

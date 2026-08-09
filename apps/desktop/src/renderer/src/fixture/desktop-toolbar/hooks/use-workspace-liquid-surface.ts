@@ -274,6 +274,7 @@ export function useWorkspaceLiquidSurface({
 		const tracker = createLiquidGeometryTracker(measureSurface);
 		tracker.setElements(trackedElements);
 		tracker.setContinuousTracking(isPositionTracking);
+		tracker.measureNow();
 
 		return tracker.disconnect;
 	}, [activeSessionId, isPositionTracking, measureSurface]);

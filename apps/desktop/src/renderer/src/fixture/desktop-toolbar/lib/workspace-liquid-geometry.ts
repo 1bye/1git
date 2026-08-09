@@ -32,6 +32,10 @@ export interface WorkspaceLiquidRect {
 
 const MINIMUM_CELL_SIZE = 1;
 const MEASUREMENT_SCALE = 10;
+const TAB_SDF_HEIGHT =
+	WORKSPACE_TAB_SURFACE_GEOMETRY.tabHeight -
+	WORKSPACE_TAB_SURFACE_GEOMETRY.tabVisualInsetBlock * 2 +
+	WORKSPACE_TAB_SURFACE_GEOMETRY.tabSdfExtensionBlockEnd;
 
 const roundMeasurement = (value: number): number =>
 	Math.round(value * MEASUREMENT_SCALE) / MEASUREMENT_SCALE;
@@ -77,28 +81,6 @@ export const getVisibleWorkspaceTabAnchorRect = (
 	);
 };
 
-const getTabSdfHeight = (
-	surfaceWidth: number,
-	tabLeft: number,
-	tabWidth: number
-): number => {
-	const geometry = WORKSPACE_TAB_SURFACE_GEOMETRY;
-	const tabRight = tabLeft + tabWidth;
-	const edgeClearance = Math.max(
-		0,
-		Math.min(
-			tabLeft - geometry.containerInset,
-			surfaceWidth - geometry.containerInset - tabRight
-		)
-	);
-	const edgeProgress = Math.min(1, edgeClearance / geometry.containerRadius);
-	const sdfExtension =
-		geometry.tabSdfEdgeExtensionBlockEnd +
-		(geometry.tabSdfExtensionBlockEnd - geometry.tabSdfEdgeExtensionBlockEnd) *
-			edgeProgress;
-	return geometry.tabHeight - geometry.tabVisualInsetBlock * 2 + sdfExtension;
-};
-
 export const createWorkspaceLiquidMeasurement = (
 	surface: WorkspaceLiquidRect,
 	tab: WorkspaceLiquidRect,
@@ -121,9 +103,7 @@ export const createWorkspaceLiquidMeasurement = (
 	const tabWidth = roundMeasurement(visibleTab.width);
 	return {
 		surfaceWidth,
-		tabHeight: roundMeasurement(
-			getTabSdfHeight(surfaceWidth, tabLeft, tabWidth)
-		),
+		tabHeight: TAB_SDF_HEIGHT,
 		tabLeft,
 		tabTop: roundMeasurement(visibleTab.top - surface.top),
 		tabWidth,
@@ -169,16 +149,13 @@ export const createWorkspaceLiquidPath = (
 		halfWidth: (input.surfaceWidth - input.containerInset * 2) / 2,
 		radius: input.containerRadius,
 	};
-	const edgeBlendFalloff = Math.max(input.containerRadius, cellSize);
 	const fieldValue = (x: number, y: number): number => {
-		const edgeClearance = Math.max(0, Math.min(x - clipLeft, clipRight - x));
-		const edgeBlendProgress = Math.min(1, edgeClearance / edgeBlendFalloff);
 		const containerDistance = signedDistanceToRoundedBox(x, y, container);
 		const unionDistance = tab
 			? smoothMinimum(
 					signedDistanceToRoundedBox(x, y, tab),
 					containerDistance,
-					input.blendRadius * edgeBlendProgress
+					input.blendRadius
 				)
 			: containerDistance;
 		return Math.max(unionDistance, clipLeft - x, x - clipRight);

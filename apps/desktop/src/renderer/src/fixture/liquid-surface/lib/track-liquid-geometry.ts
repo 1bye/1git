@@ -1,5 +1,6 @@
 export interface LiquidGeometryTracker {
 	readonly disconnect: () => void;
+	readonly measureNow: () => void;
 	readonly schedule: () => void;
 	readonly setContinuousTracking: (isActive: boolean) => void;
 	readonly setElements: (elements: readonly Element[]) => void;
@@ -132,6 +133,19 @@ export const createLiquidGeometryTracker = (
 		observedElements = [];
 		scrollAncestors = [];
 	};
+	const measureNow = (): void => {
+		if (isDisconnected) {
+			return;
+		}
+		if (animationFrameId !== null) {
+			window.cancelAnimationFrame(animationFrameId);
+			animationFrameId = null;
+		}
+		onMeasure();
+		if (isContinuousTracking) {
+			schedule();
+		}
+	};
 
 	window.addEventListener("resize", schedule, PASSIVE_LISTENER_OPTIONS);
 	window.addEventListener("scroll", schedule, PASSIVE_LISTENER_OPTIONS);
@@ -146,5 +160,11 @@ export const createLiquidGeometryTracker = (
 		PASSIVE_LISTENER_OPTIONS
 	);
 
-	return { disconnect, schedule, setContinuousTracking, setElements };
+	return {
+		disconnect,
+		measureNow,
+		schedule,
+		setContinuousTracking,
+		setElements,
+	};
 };

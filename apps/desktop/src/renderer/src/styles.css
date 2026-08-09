@@ -343,7 +343,9 @@ button {
 	stroke: var(--liquid-outline);
 }
 
-[data-liquid-trigger][data-liquid-state="idle"]:hover {
+[data-liquid-trigger]:not(
+	[data-liquid-connected-fill="none"]
+)[data-liquid-state="idle"]:hover {
 	background-color: var(--liquid-hover);
 }
 

@@ -208,6 +208,33 @@ describe("liquid geometry tracker", () => {
 		expect(measurementCount).toBe(1);
 	});
 
+	test("replaces a scheduled frame with one immediate measurement", () => {
+		let measurementCount = 0;
+		const tracker = createLiquidGeometryTracker(() => {
+			measurementCount += 1;
+		});
+		const anchor = new FakeElement(fakeWindow);
+
+		tracker.setElements([anchor as unknown as Element]);
+		expect(fakeWindow.pendingAnimationFrameCount).toBe(1);
+
+		tracker.measureNow();
+		expect(measurementCount).toBe(1);
+		expect(fakeWindow.pendingAnimationFrameCount).toBe(0);
+		fakeWindow.flushAnimationFrames();
+		expect(measurementCount).toBe(1);
+
+		tracker.setContinuousTracking(true);
+		tracker.measureNow();
+		expect(measurementCount).toBe(2);
+		expect(fakeWindow.pendingAnimationFrameCount).toBe(1);
+
+		tracker.disconnect();
+		tracker.measureNow();
+		expect(measurementCount).toBe(2);
+		expect(fakeWindow.pendingAnimationFrameCount).toBe(0);
+	});
+
 	test("shares one frame between continuous tracking and events", () => {
 		let measurementCount = 0;
 		const tracker = createLiquidGeometryTracker(() => {
