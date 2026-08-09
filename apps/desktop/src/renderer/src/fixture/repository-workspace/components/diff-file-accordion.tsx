@@ -64,6 +64,20 @@ const visibleUnmodifiedLineSeparators = (
 	);
 };
 
+const clickUnmodifiedLineExpansion = (
+	host: HTMLElement,
+	interaction: UnmodifiedLineInteraction
+): void => {
+	const separator = visibleUnmodifiedLineSeparators(host)[interaction.index];
+	const directionButton = separator?.querySelector<HTMLElement>(
+		`[data-expand-${interaction.direction}]`
+	);
+	const fallbackButton = separator?.querySelector<HTMLElement>(
+		"[data-expand-both], [data-expand-button]"
+	);
+	(directionButton ?? fallbackButton)?.click();
+};
+
 const unmodifiedLineInteraction = (
 	event: MouseEvent
 ): UnmodifiedLineInteraction | null => {
@@ -202,11 +216,21 @@ const DiffFileAccordionComponent = ({
 	);
 	const handleClickCapture = useCallback(
 		(event: MouseEvent): void => {
-			if (!entry.file?.isPartial || isPreparingContext) {
-				return;
-			}
 			const interaction = unmodifiedLineInteraction(event);
 			if (!interaction) {
+				return;
+			}
+			event.preventDefault();
+			const host = articleElementRef.current?.querySelector<HTMLElement>(
+				REPOSITORY_DIFF_ELEMENT_NAME
+			);
+			if (entry.file?.isPartial === false) {
+				if (host) {
+					clickUnmodifiedLineExpansion(host, interaction);
+				}
+				return;
+			}
+			if (isPreparingContext) {
 				return;
 			}
 			pendingExpansionRef.current = interaction;
@@ -264,20 +288,10 @@ const DiffFileAccordionComponent = ({
 			const host = articleElementRef.current?.querySelector<HTMLElement>(
 				REPOSITORY_DIFF_ELEMENT_NAME
 			);
-			const separator = host
-				? visibleUnmodifiedLineSeparators(host)[pendingExpansion.index]
-				: undefined;
-			const directionButton = separator?.querySelector<HTMLElement>(
-				`[data-expand-${pendingExpansion.direction}]`
-			);
-			const fallbackButton = separator?.querySelector<HTMLElement>(
-				"[data-expand-both], [data-expand-button]"
-			);
-			const fallbackLabel = separator?.querySelector<HTMLElement>(
-				"[data-unmodified-lines]"
-			);
 			pendingExpansionRef.current = null;
-			(directionButton ?? fallbackButton ?? fallbackLabel)?.click();
+			if (host) {
+				clickUnmodifiedLineExpansion(host, pendingExpansion);
+			}
 		});
 		return () => {
 			cancelAnimationFrame(animationFrameId);

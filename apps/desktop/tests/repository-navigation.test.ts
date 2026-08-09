@@ -8,7 +8,7 @@ import {
 	getRepositoryFileAtOffset,
 	getRepositoryFilePosition,
 	getRepositoryFileSelectionRunPaths,
-	groupRepositoryFiles,
+	orderRepositoryFilesByPath,
 	shouldElevateRepositoryFileSelection,
 	splitRepositoryFilePath,
 	updateRepositoryFileSelection,
@@ -65,11 +65,26 @@ describe("repository file navigation", () => {
 		expect(getRepositoryFilePosition(FILES, "missing.ts")).toBeNull();
 	});
 
-	test("groups staged and unstaged files in their original order", () => {
-		const groups = groupRepositoryFiles(FILES);
+	test("orders files by path without grouping them by staging state", () => {
+		const orderedPaths = orderRepositoryFilesByPath(FILES).map(
+			(file) => file.path
+		);
+		const changedStaging = FILES.map((file) => ({
+			...file,
+			indexStatus:
+				file.indexStatus === "unmodified"
+					? ("modified" as const)
+					: ("unmodified" as const),
+		}));
 
-		expect(groups.staged).toEqual([FILES[1]]);
-		expect(groups.unstaged).toEqual([FILES[0], FILES[2]]);
+		expect(orderedPaths).toEqual([
+			"apps/desktop/app.tsx",
+			"packages/git/repository.ts",
+			"README.md",
+		]);
+		expect(
+			orderRepositoryFilesByPath(changedStaging).map((file) => file.path)
+		).toEqual(orderedPaths);
 	});
 
 	test("splits file names from their parent path", () => {

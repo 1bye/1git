@@ -28,7 +28,7 @@ import {
 	doesRepositoryFileContextMenuUseSelection,
 	getRepositoryFileRowId,
 	getRepositoryFileSelectionRunPaths,
-	groupRepositoryFiles,
+	orderRepositoryFilesByPath,
 	shouldElevateRepositoryFileSelection,
 	splitRepositoryFilePath,
 } from "@/fixture/repository-workspace/lib/repository-navigation.js";
@@ -237,10 +237,10 @@ function RepositoryStageCheckbox({
 			<span
 				aria-hidden
 				className={cn(
-					"pointer-events-none flex size-3.5 items-center justify-center rounded-[4px] border transition-colors",
+					"pointer-events-none flex size-3.5 items-center justify-center rounded-[4px] transition-colors",
 					checked || mixed
-						? "border-brand bg-brand text-white"
-						: "border-editor-faint/20 bg-white/45 group-hover/checkbox:bg-white/70"
+						? "bg-brand text-white"
+						: "bg-white/45 group-hover/checkbox:bg-white/70"
 				)}
 			>
 				{checkboxIcon}
@@ -546,8 +546,7 @@ export function RepositoryFileList({
 }: RepositoryFileListProps): ReactElement {
 	const [isSelectionContextMenuPresent, setSelectionContextMenuPresent] =
 		useState(false);
-	const groups = groupRepositoryFiles(files);
-	const orderedFiles = [...groups.staged, ...groups.unstaged];
+	const orderedFiles = orderRepositoryFilesByPath(files);
 	const orderedFilePaths = orderedFiles.map((file) => file.path);
 	useEffect(() => {
 		if (selectedFiles.length < 2) {

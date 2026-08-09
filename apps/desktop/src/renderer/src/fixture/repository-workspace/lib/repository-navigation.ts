@@ -1,10 +1,4 @@
 import type { FileChange } from "@1git/git";
-import { isFileStaged } from "@/feature/workspace/lib/workspace-model.js";
-
-export interface RepositoryFileGroups {
-	readonly staged: readonly FileChange[];
-	readonly unstaged: readonly FileChange[];
-}
 
 export interface RepositoryFilePath {
 	readonly directory: string;
@@ -50,20 +44,10 @@ export const filterRepositoryFiles = (
 	);
 };
 
-export const groupRepositoryFiles = (
+export const orderRepositoryFilesByPath = (
 	files: readonly FileChange[]
-): RepositoryFileGroups => {
-	const staged: FileChange[] = [];
-	const unstaged: FileChange[] = [];
-	for (const file of files) {
-		if (isFileStaged(file)) {
-			staged.push(file);
-		} else {
-			unstaged.push(file);
-		}
-	}
-	return { staged, unstaged };
-};
+): readonly FileChange[] =>
+	files.toSorted((left, right) => left.path.localeCompare(right.path));
 
 export const splitRepositoryFilePath = (path: string): RepositoryFilePath => {
 	const separatorIndex = path.lastIndexOf("/");

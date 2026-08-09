@@ -111,6 +111,8 @@ export function LiquidMenuSurface(): ReactElement | null {
 							</mask>
 						</defs>
 						<rect
+							className="pointer-events-auto"
+							data-desktop-interactive
 							data-name="LiquidMenuBackdropFill"
 							fill="var(--liquid-dim)"
 							height="100%"

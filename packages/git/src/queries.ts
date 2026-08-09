@@ -32,6 +32,7 @@ import {
 } from "./parsers/refs.js";
 import { parseStatus } from "./parsers/status.js";
 import { parseWorktrees } from "./parsers/worktrees.js";
+import { GitCommandFailure } from "./process/git-process.js";
 
 const pathExists = async (path: string): Promise<boolean> => {
 	try {
@@ -295,12 +296,68 @@ const diffArguments = (
 	return args;
 };
 
+const loadUntrackedPathPatch = async (
+	context: RepositoryContext,
+	path: string,
+	input: DiffInput
+): Promise<string> => {
+	try {
+		const output = await context.process.run({
+			args: [
+				"diff",
+				"--no-index",
+				"--no-ext-diff",
+				"--no-color",
+				"--patch",
+				`--unified=${input.contextLines ?? 3}`,
+				"--",
+				"/dev/null",
+				path,
+			],
+			cwd: context.repository.root,
+			signal: input.signal,
+		});
+		return output.stdout.toString("utf8");
+	} catch (error: unknown) {
+		if (error instanceof GitCommandFailure && error.exitCode === 1) {
+			return error.stdout;
+		}
+		throw error;
+	}
+};
+
+const loadUntrackedPatch = async (
+	context: RepositoryContext,
+	input: DiffInput
+): Promise<string> => {
+	if (input.target.kind !== "working") {
+		return "";
+	}
+	const listArguments = ["ls-files", "--others", "--exclude-standard", "-z"];
+	if (input.paths && input.paths.length > 0) {
+		listArguments.push("--", ...input.paths);
+	}
+	const untrackedOutput = await context.process.run({
+		args: listArguments,
+		cwd: context.repository.root,
+		signal: input.signal,
+	});
+	const untrackedPaths = untrackedOutput.stdout
+		.toString("utf8")
+		.split("\0")
+		.filter(Boolean);
+	const patches = await Promise.all(
+		untrackedPaths.map((path) => loadUntrackedPathPatch(context, path, input))
+	);
+	return patches.filter(Boolean).join("\n");
+};
+
 /** Loads patch text and machine-readable line statistics for one diff target. */
 export const loadDiff = async (
 	context: RepositoryContext,
 	input: DiffInput
 ): Promise<FileDiff> => {
-	const [patchOutput, statOutput] = await Promise.all([
+	const [patchOutput, statOutput, untrackedPatch] = await Promise.all([
 		context.process.run({
 			args: diffArguments(input, "patch"),
 			cwd: context.repository.root,
@@ -311,9 +368,12 @@ export const loadDiff = async (
 			cwd: context.repository.root,
 			signal: input.signal,
 		}),
+		loadUntrackedPatch(context, input),
 	]);
 	return {
-		patch: patchOutput.stdout.toString("utf8"),
+		patch: [patchOutput.stdout.toString("utf8"), untrackedPatch]
+			.filter(Boolean)
+			.join("\n"),
 		stats: parseDiffStats(statOutput.stdout),
 		target: input.target,
 	};

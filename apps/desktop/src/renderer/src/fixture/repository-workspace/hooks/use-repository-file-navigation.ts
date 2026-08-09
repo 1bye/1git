@@ -6,7 +6,7 @@ import {
 	getRepositoryFileAtBoundedOffset,
 	getRepositoryFileAtOffset,
 	getRepositoryFileRowId,
-	groupRepositoryFiles,
+	orderRepositoryFilesByPath,
 	type RepositoryFileSelectionMode,
 	updateRepositoryFileSelection,
 } from "@/fixture/repository-workspace/lib/repository-navigation.js";
@@ -110,10 +110,10 @@ export const useRepositoryFileNavigation = ({
 		() => filterRepositoryFiles(files, query),
 		[files, query]
 	);
-	const orderedVisibleFiles = useMemo(() => {
-		const groups = groupRepositoryFiles(visibleFiles);
-		return [...groups.staged, ...groups.unstaged];
-	}, [visibleFiles]);
+	const orderedVisibleFiles = useMemo(
+		() => orderRepositoryFilesByPath(visibleFiles),
+		[visibleFiles]
+	);
 	const orderedVisiblePaths = useMemo(
 		() => orderedVisibleFiles.map((file) => file.path),
 		[orderedVisibleFiles]

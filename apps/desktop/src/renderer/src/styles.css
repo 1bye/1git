@@ -71,6 +71,11 @@ textarea,
 	-webkit-app-region: drag;
 }
 
+body:has([data-name="LiquidMenuBackdropLayer"]) [data-desktop-drag] {
+	app-region: no-drag;
+	-webkit-app-region: no-drag;
+}
+
 ::selection {
 	background: var(--editor-selection);
 }

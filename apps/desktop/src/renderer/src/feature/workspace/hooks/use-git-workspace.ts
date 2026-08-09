@@ -130,6 +130,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 		Readonly<Record<RepositorySessionId, WorkspaceSummary>>
 	>({});
 	const diffRequestIdRef = useRef(0);
+	const stagedOnFirstPresentationRef = useRef(new Set<RepositorySessionId>());
 	const managerActiveSession = activeSessionFromManager(manager);
 	const snapshotSession = sessionForSnapshot(sessionSnapshot, manager.sessions);
 	const activeSession = presentedSession(
@@ -138,6 +139,25 @@ export const useGitWorkspace = (): GitWorkspace => {
 		pendingAction === "workspace"
 	);
 	const presentedSessionId = activeSession ? activeSession.id : null;
+	const stageOnFirstPresentation = useCallback(
+		async (
+			sessionId: RepositorySessionId
+		): Promise<RepositorySnapshot | null> => {
+			if (stagedOnFirstPresentationRef.current.has(sessionId)) {
+				return null;
+			}
+			stagedOnFirstPresentationRef.current.add(sessionId);
+			try {
+				return resultValue(
+					await window.desktop.git.changes.stageAll(sessionId)
+				);
+			} catch (cause) {
+				stagedOnFirstPresentationRef.current.delete(sessionId);
+				throw cause;
+			}
+		},
+		[]
+	);
 	const snapshot = snapshotForSession(sessionSnapshot, presentedSessionId);
 	const applyManagerState = useCallback(
 		(nextManager: RepositoryManagerState): void => {
@@ -338,6 +358,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 				applyManagerState(nextManager);
 				const session = activeSessionFromManager(nextManager);
 				if (session) {
+					await stageOnFirstPresentation(session.id);
 					await loadSession(session);
 				}
 			} catch (cause) {
@@ -360,7 +381,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 		return () => {
 			isDisposed = true;
 		};
-	}, [applyManagerState, loadSession]);
+	}, [applyManagerState, loadSession, stageOnFirstPresentation]);
 
 	useRepositoryRefresh(presentedSessionId, () => {
 		refresh().catch((cause: unknown) => {
@@ -372,6 +393,8 @@ export const useGitWorkspace = (): GitWorkspace => {
 		opened: OpenedRepositorySession,
 		activate: boolean
 	): Promise<void> => {
+		const stagedSnapshot =
+			(await stageOnFirstPresentation(opened.session.id)) ?? opened.snapshot;
 		if (!activate) {
 			const [nextManager, remotesResult] = await Promise.all([
 				window.desktop.git.sessions.state(),
@@ -381,10 +404,10 @@ export const useGitWorkspace = (): GitWorkspace => {
 				nextManager.sessions.find((item) => item.id === opened.session.id) ??
 				opened.session;
 			const owner = remotesResult.ok
-				? getRepositoryOwner(remotesResult.value, opened.snapshot.head.upstream)
+				? getRepositoryOwner(remotesResult.value, stagedSnapshot.head.upstream)
 				: undefined;
 			applyManagerState(nextManager);
-			rememberSnapshot(session.id, opened.snapshot, owner);
+			rememberSnapshot(session.id, stagedSnapshot, owner);
 			return;
 		}
 
@@ -392,7 +415,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 		const session =
 			nextManager.sessions.find((item) => item.id === opened.session.id) ??
 			opened.session;
-		applySnapshot(session.id, opened.snapshot);
+		applySnapshot(session.id, stagedSnapshot);
 		setTabState("changes");
 		setSelectedCommitOid(null);
 		await loadSession(session);
@@ -510,6 +533,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 			if (!session) {
 				throw new Error("The selected repository session is unavailable.");
 			}
+			await stageOnFirstPresentation(session.id);
 			await loadSession(session);
 		} catch (cause) {
 			setError(errorMessage(cause));

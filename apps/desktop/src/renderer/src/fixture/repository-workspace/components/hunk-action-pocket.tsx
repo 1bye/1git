@@ -30,6 +30,22 @@ type HunkActionView = "actions" | "confirm-discard";
 const HUNK_ACTION_ANCHOR_Z_INDEX = getLiquidMenuLayerZIndices(0).selection;
 const HUNK_ACTION_VIEWPORT_SELECTOR = "[data-repository-diff-viewport]";
 
+const closestAcrossShadowBoundary = (
+	element: Element,
+	selector: string
+): Element | null => {
+	let current: Element | null = element;
+	while (current) {
+		const match = current.closest(selector);
+		if (match) {
+			return match;
+		}
+		const root = current.getRootNode();
+		current = root instanceof ShadowRoot ? root.host : null;
+	}
+	return null;
+};
+
 export interface HunkActionSelection {
 	readonly anchorElement: HTMLButtonElement;
 	readonly hunkIndex: number;
@@ -66,7 +82,10 @@ export function HunkActionPocket({
 	);
 	const getAnchorViewport = useCallback(
 		(): Element | null =>
-			selection.anchorElement.closest(HUNK_ACTION_VIEWPORT_SELECTOR),
+			closestAcrossShadowBoundary(
+				selection.anchorElement,
+				HUNK_ACTION_VIEWPORT_SELECTOR
+			),
 		[selection.anchorElement]
 	);
 	const changeOpen = useCallback(

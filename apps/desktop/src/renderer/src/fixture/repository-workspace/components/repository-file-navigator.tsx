@@ -74,6 +74,7 @@ export function RepositoryFileNavigator({
 				<div
 					aria-label="Changed file navigator"
 					className="fade-in-0 zoom-in-95 absolute top-full right-0 z-40 mt-2 flex max-h-[min(68vh,34rem)] w-[350px] origin-top-right animate-in flex-col overflow-hidden rounded-2xl border border-editor-hairline-strong bg-editor-surface shadow-surface-5 duration-150"
+					data-desktop-interactive
 					data-name="RepositoryFileNavigatorPopup"
 					id={REPOSITORY_FILE_NAVIGATOR_ID}
 					role="dialog"
@@ -103,6 +104,7 @@ export function RepositoryFileNavigator({
 						>{`${selectedFilePath ?? "No file"} previewed`}</p>
 						<div
 							className="max-h-[min(56vh,28rem)] overflow-y-auto overscroll-contain"
+							data-desktop-interactive
 							data-repository-file-viewport
 						>
 							<RepositoryFileList
@@ -202,7 +204,7 @@ export function RepositoryFileRail({
 			</div>
 			<div className="flex h-7 shrink-0 items-center px-2">
 				<button
-					className="flex h-7 items-center gap-1 px-1.5 font-medium text-[10px] text-editor-ink outline-none hover:bg-white/35 focus-visible:ring-2 focus-visible:ring-brand/20"
+					className="flex h-7 items-center gap-1 rounded-md px-1.5 font-medium text-[10px] text-editor-ink outline-none hover:bg-hover focus-visible:ring-2 focus-visible:ring-brand/20"
 					disabled={pendingAction !== null || allFiles.length === 0}
 					onClick={toggleAllFiles}
 					type="button"
@@ -220,6 +222,7 @@ export function RepositoryFileRail({
 			</div>
 			<div
 				className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+				data-desktop-interactive
 				data-repository-file-viewport
 			>
 				<RepositoryFileList

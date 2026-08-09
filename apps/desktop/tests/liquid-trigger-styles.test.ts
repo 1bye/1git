@@ -46,6 +46,18 @@ describe("liquid trigger styles", () => {
 		);
 	});
 
+	test("keeps the dimmed backdrop clickable across app drag regions", () => {
+		const surface = readSource(
+			"../src/renderer/src/fixture/liquid-menu/components/liquid-menu-surface.tsx"
+		);
+
+		expect(surface).toContain('className="pointer-events-auto"');
+		expect(surface).toContain("data-desktop-interactive");
+		expect(styles).toContain(
+			'body:has([data-name="LiquidMenuBackdropLayer"]) [data-desktop-drag]'
+		);
+	});
+
 	test("shares the rounded-lg anchor geometry across connected buttons", () => {
 		const consumers = [
 			"../src/renderer/src/fixture/desktop-toolbar/components/repository-menu.tsx",

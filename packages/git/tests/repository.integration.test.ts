@@ -426,6 +426,22 @@ describe("GitRepository local workflow", () => {
 		});
 	});
 
+	test("returns the complete diff for an added file", async () => {
+		const fixture = await fixtures.create();
+		await fixture.write("new file.ts", "export const first = 1;\nsecond();\n");
+
+		const diff = unwrapResult(
+			await fixture.repository.getDiff({
+				paths: ["new file.ts"],
+				target: { kind: "working" },
+			})
+		);
+
+		expect(diff.patch).toContain("new file.ts");
+		expect(diff.patch).toContain("+export const first = 1;");
+		expect(diff.patch).toContain("+second();");
+	});
+
 	test("returns a staged diff scoped to paths", async () => {
 		const fixture = await fixtures.create();
 		await fixture.write("staged.txt", "staged\n");
