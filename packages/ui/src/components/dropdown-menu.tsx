@@ -119,7 +119,7 @@ function DropdownMenuSubTrigger({
 	return (
 		<MenuPrimitive.SubmenuTrigger
 			className={cn(
-				"flex cursor-default select-none items-center gap-2 rounded-lg px-2 py-1.5 font-medium text-editor-ink text-xs outline-hidden focus:bg-editor-sunken data-highlighted:bg-editor-sunken data-open:bg-editor-sunken data-popup-open:bg-editor-sunken data-inset:pl-8 [&_svg:not([class*='size-'])]:size-3.5 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+				"flex cursor-default select-none items-center gap-2 rounded-lg px-2 py-1.5 font-medium text-editor-ink text-xs outline-hidden focus:bg-editor-sunken data-disabled:pointer-events-none data-highlighted:bg-editor-sunken data-open:bg-editor-sunken data-popup-open:bg-editor-sunken data-inset:pl-8 data-disabled:opacity-50 [&_svg:not([class*='size-'])]:size-3.5 [&_svg]:pointer-events-none [&_svg]:shrink-0",
 				className
 			)}
 			data-inset={inset}

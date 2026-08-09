@@ -8,12 +8,16 @@ import {
 } from "@/fixture/liquid-menu/lib/liquid-menu-stack.js";
 
 describe("liquid menu stack", () => {
-	test("preserves registration order without duplicating layers", () => {
+	test("promotes a reopened layer without duplicating it", () => {
 		const rootLayers = addLiquidMenuLayer([], "root");
 		const nestedLayers = addLiquidMenuLayer(rootLayers, "nested");
 
-		expect(addLiquidMenuLayer(nestedLayers, "root")).toBe(nestedLayers);
 		expect(nestedLayers).toEqual(["root", "nested"]);
+		expect(addLiquidMenuLayer(nestedLayers, "root")).toEqual([
+			"nested",
+			"root",
+		]);
+		expect(addLiquidMenuLayer(nestedLayers, "nested")).toBe(nestedLayers);
 		expect(removeLiquidMenuLayer(nestedLayers, "nested")).toEqual(["root"]);
 	});
 

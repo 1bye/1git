@@ -6,18 +6,18 @@ import type { RepositorySessionId } from "../../../../../shared/repository-sessi
 interface WorkspaceLiquidSurfaceProps {
 	readonly activeSessionId: RepositorySessionId | null;
 	readonly activeTabIndex: number;
-	readonly isDragging: boolean;
+	readonly isPositionTracking: boolean;
 }
 
 export function WorkspaceLiquidSurface({
 	activeSessionId,
 	activeTabIndex,
-	isDragging,
+	isPositionTracking,
 }: WorkspaceLiquidSurfaceProps): ReactElement {
 	const { hostRef, path, surfaceWidth } = useWorkspaceLiquidSurface({
 		activeSessionId,
 		activeTabIndex,
-		isDragging,
+		isPositionTracking,
 	});
 	const surfaceStyle: CSSProperties | undefined =
 		surfaceWidth === null

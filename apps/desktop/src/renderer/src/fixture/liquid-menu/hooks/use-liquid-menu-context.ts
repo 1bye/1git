@@ -1,11 +1,17 @@
 import type { RefCallback } from "react";
 import { createContext, use } from "react";
+import type {
+	LiquidMenuGeometry,
+	LiquidMenuMotion,
+} from "@/fixture/liquid-menu/constants/liquid-menu.js";
 import type { LiquidMenuAnchorGeometry } from "@/fixture/liquid-menu/lib/liquid-menu-geometry.js";
 
 export interface LiquidMenuContextValue {
 	readonly activeSubmenuId: string | null;
 	readonly anchor: () => Element | null;
+	readonly anchorClip: (() => Element | null) | undefined;
 	readonly anchorGeometry: LiquidMenuAnchorGeometry;
+	readonly geometry: LiquidMenuGeometry;
 	readonly hasSubmenuSurface: boolean;
 	readonly hasSurface: boolean;
 	readonly isOpen: boolean;
@@ -13,6 +19,7 @@ export interface LiquidMenuContextValue {
 	readonly isTopLayer: boolean;
 	readonly layerIndex: number;
 	readonly menuElement: HTMLElement | null;
+	readonly motion: LiquidMenuMotion;
 	readonly onPresenceChange: (isPresent: boolean) => void;
 	readonly onSubmenuOpenChange: (submenuId: string, isOpen: boolean) => void;
 	readonly onSubmenuPresenceChange: (isPresent: boolean) => void;
@@ -20,6 +27,7 @@ export interface LiquidMenuContextValue {
 	readonly setMenuElement: RefCallback<HTMLElement>;
 	readonly setSubmenuElement: RefCallback<HTMLElement>;
 	readonly setSubmenuTriggerElement: RefCallback<HTMLElement>;
+	readonly setTriggerElement: RefCallback<HTMLElement>;
 	readonly submenuElement: HTMLElement | null;
 	readonly submenuTriggerElement: HTMLElement | null;
 }

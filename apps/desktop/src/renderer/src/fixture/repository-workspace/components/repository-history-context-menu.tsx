@@ -267,9 +267,8 @@ export function RepositoryHistoryContextMenu({
 			aria-current={isSelected ? "true" : undefined}
 			className={cn(
 				"relative w-full rounded-lg px-3 py-2 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-editor-muted/20 focus-visible:ring-inset",
-				isSelected ? "bg-brand-softer" : "hover:bg-white/35",
-				(isOpen || isPresent) &&
-					"z-20 bg-white hover:bg-white focus-visible:bg-white"
+				isSelected ? "bg-brand-softer" : "hover:bg-hover",
+				(isOpen || isPresent) && "z-20"
 			)}
 			onClick={selectCommit}
 			onContextMenu={openContextMenu}

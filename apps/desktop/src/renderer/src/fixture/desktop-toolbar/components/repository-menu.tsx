@@ -482,7 +482,7 @@ export function RepositoryMenu({
 					<LiquidPickerTrigger
 						aria-keyshortcuts="Meta+K Control+K"
 						aria-label="Open repositories"
-						className="relative flex size-8 items-center justify-center rounded-lg text-editor-ink outline-none transition-colors duration-150 hover:bg-white focus-visible:bg-studio-glass-strong"
+						className="relative flex size-8 items-center justify-center rounded-lg text-editor-ink outline-none transition-colors duration-150 hover:bg-hover focus-visible:bg-hover focus-visible:ring-2 focus-visible:ring-brand/20 data-disabled:pointer-events-none data-disabled:opacity-50"
 						data-name="RepositoryMenuTrigger"
 						ref={setTriggerElement}
 						title="Open repositories"

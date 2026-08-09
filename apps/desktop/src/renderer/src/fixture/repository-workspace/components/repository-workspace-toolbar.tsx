@@ -106,7 +106,7 @@ export function RepositoryWorkspaceToolbar({
 			>
 				<LiquidMenuTrigger
 					aria-label={`Repository view: ${viewLabel}`}
-					className="flex h-7 min-w-20 items-center justify-between gap-2 rounded-lg px-2 font-medium text-[10px] text-editor-ink outline-none transition-colors hover:bg-white/35 focus-visible:ring-2 focus-visible:ring-brand/20"
+					className="flex h-7 min-w-20 items-center justify-between gap-2 rounded-lg px-2 font-medium text-[10px] text-editor-ink outline-none transition-colors hover:bg-hover focus-visible:ring-2 focus-visible:ring-brand/20"
 					ref={triggerRef}
 				>
 					{viewLabel}

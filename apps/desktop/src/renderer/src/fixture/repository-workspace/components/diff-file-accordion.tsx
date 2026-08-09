@@ -13,11 +13,11 @@ import {
 	REPOSITORY_DIFF_RENDER_OPTIONS,
 } from "@/fixture/repository-workspace/constants/repository-diff.js";
 import type { RepositoryDiffFileEntry } from "@/fixture/repository-workspace/lib/repository-diff-files.js";
-import {
-	type HunkActionHandler,
-	HunkActionPocket,
-	type HunkActionSelection,
+import type {
+	HunkActionHandler,
+	HunkActionSelection,
 } from "./hunk-action-pocket.js";
+import { HunkActionPocket } from "./hunk-action-pocket.js";
 
 interface DiffFileAccordionProps {
 	readonly areHunkActionsEnabled: boolean;
@@ -164,14 +164,8 @@ const DiffFileAccordionComponent = ({
 				if (hunkIndex < 0 || !target) {
 					return;
 				}
-				const anchorRect = anchor.getBoundingClientRect();
 				setHunkActionSelection({
-					anchorRect: {
-						height: anchorRect.height,
-						left: anchorRect.left,
-						top: anchorRect.top,
-						width: anchorRect.width,
-					},
+					anchorElement: anchor,
 					hunkIndex,
 					path: entry.path,
 					target,
@@ -251,6 +245,18 @@ const DiffFileAccordionComponent = ({
 			});
 		};
 	}, [handleClickCapture, isBodyMounted, isOpen]);
+	useLayoutEffect(() => {
+		if (
+			isHunkActionOpen &&
+			!(
+				isBodyMounted &&
+				isOpen &&
+				hunkActionSelection?.anchorElement.isConnected
+			)
+		) {
+			setIsHunkActionOpen(false);
+		}
+	});
 	useLayoutEffect(() => {
 		const pendingExpansion = pendingExpansionRef.current;
 		if (entry.file?.isPartial !== false || !pendingExpansion) {

@@ -1,11 +1,15 @@
 import { describe, expect, test } from "bun:test";
-import { createWorkspaceLiquidPath } from "../src/renderer/src/fixture/desktop-toolbar/lib/workspace-liquid-geometry.js";
+import {
+	createWorkspaceLiquidMeasurement,
+	createWorkspaceLiquidPath,
+	getVisibleWorkspaceTabAnchorRect,
+} from "../src/renderer/src/fixture/desktop-toolbar/lib/workspace-liquid-geometry.js";
 import { createLiquidMenuFrame } from "../src/renderer/src/fixture/liquid-menu/lib/liquid-menu-geometry.js";
 import {
 	createLiquidUnionPath,
 	signedDistanceToRoundedBox,
 	smoothMinimum,
-} from "../src/renderer/src/fixture/liquid-menu/lib/liquid-surface-geometry.js";
+} from "../src/renderer/src/fixture/liquid-surface/lib/liquid-surface-geometry.js";
 
 const LIQUID_MENU_ANCHOR_GEOMETRY = {
 	insetBlock: 4,
@@ -20,6 +24,154 @@ const pathCoordinates = (path: string): readonly [number, number][] =>
 	]);
 
 describe("workspace liquid geometry", () => {
+	test("intersects the workspace tab with its visible viewport", () => {
+		const viewport = { height: 47, left: 120, top: 0, width: 420 };
+
+		expect(
+			getVisibleWorkspaceTabAnchorRect(
+				{ height: 40, left: 120, top: 3, width: 210 },
+				viewport
+			)
+		).toEqual({ height: 32, left: 124, top: 7, width: 202 });
+		expect(
+			getVisibleWorkspaceTabAnchorRect(
+				{ height: 40, left: 84, top: 3, width: 210 },
+				viewport
+			)
+		).toEqual({ height: 32, left: 120, top: 7, width: 170 });
+		expect(
+			getVisibleWorkspaceTabAnchorRect(
+				{ height: 40, left: 516, top: 3, width: 210 },
+				viewport
+			)
+		).toEqual({ height: 32, left: 520, top: 7, width: 20 });
+	});
+
+	test("omits a workspace tab outside its visible viewport", () => {
+		const viewport = { height: 47, left: 120, top: 0, width: 420 };
+
+		expect(
+			getVisibleWorkspaceTabAnchorRect(
+				{ height: 40, left: -86, top: 3, width: 210 },
+				viewport
+			)
+		).toBeNull();
+		expect(
+			getVisibleWorkspaceTabAnchorRect(
+				{ height: 40, left: 536, top: 3, width: 210 },
+				viewport
+			)
+		).toBeNull();
+	});
+
+	test("tracks scroll, reorder, close, and resize measurements", () => {
+		const surface = { height: 46, left: 80, top: 0, width: 900 };
+		const viewport = { height: 47, left: 120, top: 0, width: 500 };
+		const initial = createWorkspaceLiquidMeasurement(
+			surface,
+			{ height: 40, left: 124, top: 3, width: 210 },
+			viewport
+		);
+		const scrolled = createWorkspaceLiquidMeasurement(
+			surface,
+			{ height: 40, left: 88, top: 3, width: 210 },
+			viewport
+		);
+		const reordered = createWorkspaceLiquidMeasurement(
+			surface,
+			{ height: 40, left: 334, top: 3, width: 210 },
+			viewport
+		);
+		const nextAfterClose = createWorkspaceLiquidMeasurement(
+			surface,
+			{ height: 40, left: 544, top: 3, width: 210 },
+			viewport
+		);
+		const resized = createWorkspaceLiquidMeasurement(
+			{ ...surface, width: 640 },
+			{ height: 40, left: 334, top: 3, width: 210 },
+			{ ...viewport, width: 400 }
+		);
+
+		expect(initial.tabLeft).toBe(48);
+		expect(initial.tabWidth).toBe(202);
+		expect(scrolled.tabLeft).toBe(40);
+		expect(scrolled.tabWidth).toBe(174);
+		expect(reordered.tabLeft).toBe(258);
+		expect(nextAfterClose.tabLeft).toBe(468);
+		expect(nextAfterClose.tabWidth).toBe(72);
+		expect(resized.surfaceWidth).toBe(640);
+		expect(resized.tabLeft).toBe(reordered.tabLeft);
+	});
+
+	test("keeps the workspace container while its active tab is clipped", () => {
+		const measurement = createWorkspaceLiquidMeasurement(
+			{ height: 46, left: 80, top: 0, width: 900 },
+			{ height: 40, left: -90, top: 3, width: 210 },
+			{ height: 47, left: 120, top: 0, width: 500 }
+		);
+
+		expect(measurement).toEqual({
+			surfaceWidth: 900,
+			tabHeight: 0,
+			tabLeft: 0,
+			tabTop: 46,
+			tabWidth: 0,
+		});
+	});
+
+	test("clips the open-menu anchor to the workspace tab viewport", () => {
+		const anchorClip = { height: 47, left: 120, top: 0, width: 420 };
+		const menu = { height: 262, left: 120, top: 45, width: 288 };
+		const partialFrame = createLiquidMenuFrame(
+			{
+				anchor: { height: 40, left: 84, top: 3, width: 210 },
+				anchorClip,
+				menu,
+				submenu: null,
+			},
+			{ menu: 1, submenu: 0 },
+			LIQUID_MENU_ANCHOR_GEOMETRY
+		);
+		const hiddenFrame = createLiquidMenuFrame(
+			{
+				anchor: { height: 40, left: -126, top: 3, width: 210 },
+				anchorClip,
+				menu,
+				submenu: null,
+			},
+			{ menu: 1, submenu: 0 },
+			LIQUID_MENU_ANCHOR_GEOMETRY
+		);
+		const absoluteAnchor = (
+			frame: ReturnType<typeof createLiquidMenuFrame>
+		): { height: number; left: number; top: number; width: number } => ({
+			height: frame.anchor.height,
+			left: frame.bounds.left + frame.anchor.left,
+			top: frame.bounds.top + frame.anchor.top,
+			width: frame.anchor.width,
+		});
+		const hiddenPathTop = Math.min(
+			...pathCoordinates(hiddenFrame.path).map(
+				([, top]) => top + hiddenFrame.bounds.top
+			)
+		);
+
+		expect(absoluteAnchor(partialFrame)).toEqual({
+			height: 32,
+			left: 120,
+			top: 7,
+			width: 170,
+		});
+		expect(absoluteAnchor(hiddenFrame)).toEqual({
+			height: 32,
+			left: 120,
+			top: 7,
+			width: 0,
+		});
+		expect(hiddenPathTop).toBeGreaterThanOrEqual(menu.top - 1);
+	});
+
 	test("computes exact rounded-box distances on edges and corners", () => {
 		const box = {
 			centerX: 20,
@@ -310,6 +462,31 @@ describe("workspace liquid geometry", () => {
 		);
 		expect(Math.max(...horizontalCoordinates)).toBeLessThanOrEqual(
 			surfaceWidth - containerInset
+		);
+	});
+
+	test("renders only the workspace container when the tab is fully clipped", () => {
+		const containerTop = 46;
+		const path = createWorkspaceLiquidPath({
+			blendRadius: 12,
+			containerDepth: 48,
+			containerInset: 6,
+			containerRadius: 14,
+			containerTop,
+			sampleCellSize: 2,
+			smoothingPasses: 1,
+			surfaceWidth: 320,
+			tabHeight: 0,
+			tabLeft: 120,
+			tabRadius: 10,
+			tabTop: containerTop,
+			tabWidth: 0,
+		});
+		const verticalCoordinates = pathCoordinates(path).map(([, y]) => y);
+
+		expect(path).not.toBe("");
+		expect(Math.min(...verticalCoordinates)).toBeGreaterThanOrEqual(
+			containerTop
 		);
 	});
 

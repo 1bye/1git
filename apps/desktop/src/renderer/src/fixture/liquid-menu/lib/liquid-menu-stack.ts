@@ -10,6 +10,7 @@ export interface LiquidMenuLayerZIndices {
 interface LiquidMenuBackdropOpacityOptions {
 	readonly hasLayerBelow: boolean;
 	readonly isTopLayer: boolean;
+	readonly opacity?: number;
 	readonly progress: number;
 }
 
@@ -22,8 +23,20 @@ const clampProgress = (progress: number): number =>
 export const addLiquidMenuLayer = (
 	layerIds: readonly string[],
 	layerId: string
-): readonly string[] =>
-	layerIds.includes(layerId) ? layerIds : [...layerIds, layerId];
+): readonly string[] => {
+	const currentIndex = layerIds.indexOf(layerId);
+	if (currentIndex < 0) {
+		return [...layerIds, layerId];
+	}
+	if (currentIndex === layerIds.length - 1) {
+		return layerIds;
+	}
+	return [
+		...layerIds.slice(0, currentIndex),
+		...layerIds.slice(currentIndex + 1),
+		layerId,
+	];
+};
 
 export const removeLiquidMenuLayer = (
 	layerIds: readonly string[],
@@ -51,11 +64,12 @@ export const getLiquidMenuLayerZIndices = (
 export const getLiquidMenuBackdropOpacity = ({
 	hasLayerBelow,
 	isTopLayer,
+	opacity = LIQUID_MENU_MOTION.backdropOpacity,
 	progress,
 }: LiquidMenuBackdropOpacityOptions): number => {
 	if (!isTopLayer) {
 		return 0;
 	}
 	const visibleProgress = hasLayerBelow ? 1 : clampProgress(progress);
-	return LIQUID_MENU_MOTION.backdropOpacity * visibleProgress;
+	return opacity * visibleProgress;
 };

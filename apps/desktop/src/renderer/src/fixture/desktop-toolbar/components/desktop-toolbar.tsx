@@ -15,7 +15,13 @@ import type {
 	ReactElement,
 	KeyboardEvent as ReactKeyboardEvent,
 } from "react";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+	useCallback,
+	useEffect,
+	useLayoutEffect,
+	useRef,
+	useState,
+} from "react";
 import { getCommandLensNumberKey } from "@/feature/command-lens/lib/command-lens-shortcut.js";
 import type {
 	OpenRepositoryOptions,
@@ -34,6 +40,7 @@ import {
 	WORKSPACE_TAB_REORDER_MOTION,
 	WORKSPACE_TAB_SURFACE_GEOMETRY,
 } from "@/fixture/desktop-toolbar/constants/workspace-tab.js";
+import { updateWorkspaceMenuSurfaceSession } from "@/fixture/desktop-toolbar/lib/workspace-menu-presence.js";
 import { LiquidMenuRoot } from "@/fixture/liquid-menu/components/liquid-menu.js";
 import type {
 	RecentRepositoryRecord,
@@ -142,9 +149,11 @@ export function DesktopToolbar({
 }: DesktopToolbarProps): ReactElement {
 	const [isRepositoryMenuOpen, setIsRepositoryMenuOpen] = useState(false);
 	const [isWorkspaceMenuOpen, setIsWorkspaceMenuOpen] = useState(false);
-	const [isWorkspaceMenuSurfacePresent, setIsWorkspaceMenuSurfacePresent] =
-		useState(false);
+	const [workspaceMenuSurfaceSessionId, setWorkspaceMenuSurfaceSessionId] =
+		useState<RepositorySessionId | null>(null);
 	const [draggingSessionId, setDraggingSessionId] =
+		useState<RepositorySessionId | null>(null);
+	const [droppingSessionId, setDroppingSessionId] =
 		useState<RepositorySessionId | null>(null);
 	const tabListRef = useRef<HTMLDivElement>(null);
 	const currentBranch = snapshot?.head.branch ?? "";
@@ -153,9 +162,18 @@ export function DesktopToolbar({
 		activeSessionId === null ? -1 : workspaceIds.indexOf(activeSessionId);
 	const isActiveTabDragging =
 		activeSessionId !== null && draggingSessionId === activeSessionId;
+	const isWorkspaceTabPositionTracking =
+		draggingSessionId !== null || droppingSessionId !== null;
+	const isWorkspaceMenuSurfacePresent =
+		activeSessionId !== null &&
+		workspaceMenuSurfaceSessionId === activeSessionId;
 	const isWorkspaceMenuVisualOpen =
 		isWorkspaceMenuOpen || isWorkspaceMenuSurfacePresent;
 	const hasOpenWorkspaces = workspaces.length > 0;
+	const getWorkspaceTabList = useCallback(
+		(): Element | null => tabListRef.current,
+		[]
+	);
 
 	useEffect(() => {
 		const handleKeyDown = (event: KeyboardEvent): void => {
@@ -240,9 +258,33 @@ export function DesktopToolbar({
 	const closeWorkspaceMenu = (): void => {
 		setIsWorkspaceMenuOpen(false);
 	};
+	const changeWorkspaceDropState = useCallback(
+		(sessionId: RepositorySessionId, isDropping: boolean): void => {
+			setDroppingSessionId((currentSessionId) => {
+				if (isDropping) {
+					return sessionId;
+				}
+				return currentSessionId === sessionId ? null : currentSessionId;
+			});
+		},
+		[]
+	);
+	const changeWorkspaceMenuSurfacePresence = useCallback(
+		(sessionId: RepositorySessionId, isPresent: boolean): void => {
+			setWorkspaceMenuSurfaceSessionId((currentSessionId) =>
+				updateWorkspaceMenuSurfaceSession(
+					currentSessionId,
+					sessionId,
+					isPresent
+				)
+			);
+		},
+		[]
+	);
 	const startWorkspaceDrag = ({ operation }: DragStartEvent): void => {
 		setIsRepositoryMenuOpen(false);
 		setIsWorkspaceMenuOpen(false);
+		setDroppingSessionId(null);
 		setDraggingSessionId(operation.source ? String(operation.source.id) : null);
 	};
 	const finishWorkspaceDrag = (event: DragEndEvent): void => {
@@ -343,7 +385,7 @@ export function DesktopToolbar({
 					<WorkspaceLiquidSurface
 						activeSessionId={activeSessionId}
 						activeTabIndex={activeTabIndex}
-						isDragging={Boolean(draggingSessionId)}
+						isPositionTracking={isWorkspaceTabPositionTracking}
 					/>
 					<RepositoryMenu
 						isOpen={isRepositoryMenuOpen}
@@ -375,17 +417,22 @@ export function DesktopToolbar({
 							>
 								{workspaces.map((workspace, index) => {
 									const isActive = workspace.session.id === activeSessionId;
+									const changeSurfacePresence = (isPresent: boolean): void => {
+										changeWorkspaceMenuSurfacePresence(
+											workspace.session.id,
+											isPresent
+										);
+									};
 									return (
 										<LiquidMenuRoot
 											anchor={getActiveWorkspaceTab}
+											anchorClip={getWorkspaceTabList}
 											anchorGeometry={WORKSPACE_ACTIONS_ANCHOR_GEOMETRY}
 											disabled={!isActive}
 											key={workspace.session.id}
 											modal
 											onOpenChange={changeWorkspaceMenu}
-											onPresenceChange={
-												isActive ? setIsWorkspaceMenuSurfacePresent : undefined
-											}
+											onPresenceChange={changeSurfacePresence}
 											open={isActive && isWorkspaceMenuOpen}
 											outlineWidth={WORKSPACE_TAB_SURFACE_GEOMETRY.outlineWidth}
 										>
@@ -400,6 +447,7 @@ export function DesktopToolbar({
 												onActivateNext={activateNextWorkspace}
 												onActivatePrevious={activatePreviousWorkspace}
 												onClose={onCloseWorkspace}
+												onDropStateChange={changeWorkspaceDropState}
 												onOpenActions={toggleWorkspaceMenu}
 												shortcutKey={getCommandLensNumberKey(
 													index,

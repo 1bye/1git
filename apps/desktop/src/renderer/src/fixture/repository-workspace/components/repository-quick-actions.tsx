@@ -96,7 +96,7 @@ export function RepositoryQuickActions({
 		>
 			<LiquidMenuTrigger
 				aria-label={`Repository actions. ${branchLabel}. ${trackingLabel}`}
-				className="flex h-7 min-w-0 max-w-36 items-center gap-1 overflow-hidden px-1 text-[9px] text-editor-muted outline-none transition-colors hover:text-editor-ink focus-visible:ring-2 focus-visible:ring-brand/20"
+				className="flex h-7 min-w-0 max-w-36 items-center gap-1 overflow-hidden rounded-lg px-1 text-[9px] text-editor-muted outline-none transition-colors hover:bg-hover hover:text-editor-ink focus-visible:ring-2 focus-visible:ring-brand/20 data-disabled:pointer-events-none data-disabled:opacity-50"
 				ref={triggerRef}
 				title={`${branchLabel} · ${trackingLabel}`}
 			>

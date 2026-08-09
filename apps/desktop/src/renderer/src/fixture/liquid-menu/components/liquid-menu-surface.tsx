@@ -14,12 +14,15 @@ export function LiquidMenuSurface(): ReactElement | null {
 	const maskId = useId().replaceAll(":", "");
 	const {
 		anchor,
+		anchorClip,
 		anchorGeometry,
+		geometry,
 		isOpen,
 		isSubmenuOpen,
 		isTopLayer,
 		layerIndex,
 		menuElement,
+		motion,
 		onPresenceChange,
 		onSubmenuPresenceChange,
 		outlineWidth,
@@ -28,10 +31,13 @@ export function LiquidMenuSurface(): ReactElement | null {
 	} = useLiquidMenuContext();
 	const { frame, progress, submenuProgress } = useLiquidMenuSurface({
 		anchor,
+		anchorClip,
 		anchorGeometry,
+		geometry,
 		isOpen,
 		isSubmenuOpen,
 		menuElement,
+		motion,
 		onPresenceChange,
 		onSubmenuPresenceChange,
 		submenuElement,
@@ -50,6 +56,7 @@ export function LiquidMenuSurface(): ReactElement | null {
 	const backdropOpacity = getLiquidMenuBackdropOpacity({
 		hasLayerBelow: layerIndex > 0,
 		isTopLayer,
+		opacity: motion.backdropOpacity,
 		progress,
 	});
 	const { backdrop: backdropZIndex, surface: surfaceZIndex } =
@@ -104,7 +111,8 @@ export function LiquidMenuSurface(): ReactElement | null {
 							</mask>
 						</defs>
 						<rect
-							fill="black"
+							data-name="LiquidMenuBackdropFill"
+							fill="var(--liquid-dim)"
 							height="100%"
 							mask={getSvgMaskUrl(backdropMaskId)}
 							opacity={backdropOpacity}

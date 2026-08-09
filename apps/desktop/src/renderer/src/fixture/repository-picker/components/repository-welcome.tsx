@@ -469,7 +469,7 @@ export function RepositoryWelcome({
 								<LiquidMenuTrigger
 									aria-keyshortcuts={cloneCommandLensTarget.ariaKeyShortcuts}
 									className={buttonVariants({
-										className: `${QUICK_ACTION_WIDTH_CLASS_NAME} relative z-10 justify-start px-2.5 text-editor-muted focus-visible:bg-hover focus-visible:text-editor-ink focus-visible:ring-0`,
+										className: `${QUICK_ACTION_WIDTH_CLASS_NAME} relative z-10 justify-start px-2.5 text-editor-muted focus-visible:bg-hover focus-visible:text-editor-ink focus-visible:ring-2 focus-visible:ring-brand/20 active:scale-100`,
 										size: "sm",
 										variant: "ghost",
 									})}

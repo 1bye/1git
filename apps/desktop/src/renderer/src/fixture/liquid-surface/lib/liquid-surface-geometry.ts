@@ -1,5 +1,5 @@
 /**
- * Generates CPU SDF → marching-squares SVG geometry, inspired by Arlan's MIT-licensed
+ * Generates the CPU SDF → marching-squares SVG geometry, inspired by Arlan's MIT-licensed
  * Liquid UI study: https://www.arlan.me/vault/liquid-ui
  */
 

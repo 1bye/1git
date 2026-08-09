@@ -3,7 +3,7 @@ import { RestrictToHorizontalAxis } from "@dnd-kit/abstract/modifiers";
 import { useSortable } from "@dnd-kit/react/sortable";
 import { XIcon } from "@phosphor-icons/react/dist/csr/X";
 import type { CSSProperties, ReactElement, RefCallback } from "react";
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import { useCommandLensTarget } from "@/feature/command-lens/hooks/use-command-lens-target.js";
 import type { CommandLensCommand } from "@/feature/command-lens/lib/command-lens-shortcut.js";
 import {
@@ -31,12 +31,17 @@ interface WorkspaceTabProps {
 	readonly onActivateNext: () => Promise<void>;
 	readonly onActivatePrevious: () => Promise<void>;
 	readonly onClose: (sessionId: RepositorySessionId) => Promise<void>;
+	readonly onDropStateChange: (
+		sessionId: RepositorySessionId,
+		isDropping: boolean
+	) => void;
 	readonly onOpenActions: () => void;
 	readonly shortcutKey: string | null;
 	readonly workspace: WorkspaceTabState;
 }
 
-interface WorkspaceTabAppearanceProps extends Omit<WorkspaceTabProps, "index"> {
+interface WorkspaceTabAppearanceProps
+	extends Omit<WorkspaceTabProps, "index" | "onDropStateChange"> {
 	readonly handleRef?: RefCallback<Element>;
 	readonly isDragging: boolean;
 	readonly isOverlay?: boolean;
@@ -79,7 +84,7 @@ interface WorkspaceTabCommandOptions {
 }
 
 const WORKSPACE_TAB_NAME_BUTTON_CLASS_NAME =
-	"relative z-10 flex h-full min-w-0 flex-1 touch-none items-center overflow-hidden rounded-md text-left outline-none hover:text-editor-ink focus-visible:ring-2 focus-visible:ring-brand/20";
+	"relative z-10 flex h-full min-w-0 flex-1 touch-none items-center overflow-hidden rounded-md text-left outline-none hover:text-editor-ink focus-visible:ring-2 focus-visible:ring-brand/20 disabled:pointer-events-none disabled:opacity-50";
 
 const WORKSPACE_TAB_STYLE: CSSProperties = {
 	height: WORKSPACE_TAB_SURFACE_GEOMETRY.tabHeight,
@@ -238,6 +243,7 @@ function WorkspaceTabNameButton({
 				aria-label={`Open actions for ${label}`}
 				className={WORKSPACE_TAB_NAME_BUTTON_CLASS_NAME}
 				data-desktop-interactive
+				data-liquid-connected-fill="none"
 				data-workspace-tab-pointer-drag-handle
 				disabled={isDisabled}
 				onClick={openActions}
@@ -445,7 +451,7 @@ function WorkspaceTabAppearance({
 			{isActionsMenuOpen && !isOverlay ? (
 				<span
 					aria-hidden
-					className="pointer-events-none absolute z-0 bg-white"
+					className="pointer-events-none absolute z-0"
 					data-name="WorkspaceTabMenuPill"
 					style={WORKSPACE_TAB_VISUAL_STYLE}
 				/>
@@ -464,6 +470,7 @@ function WorkspaceTabAppearance({
 
 export function WorkspaceTab({
 	index,
+	onDropStateChange,
 	...appearanceProps
 }: WorkspaceTabProps): ReactElement {
 	const { handleRef, isDragging, isDropping, ref } = useSortable({
@@ -473,6 +480,12 @@ export function WorkspaceTab({
 		modifiers: [RestrictToHorizontalAxis],
 		transition: WORKSPACE_TAB_SORT_TRANSITION,
 	});
+	const sessionId = appearanceProps.workspace.session.id;
+
+	useEffect(() => {
+		onDropStateChange(sessionId, isDropping);
+		return () => onDropStateChange(sessionId, false);
+	}, [isDropping, onDropStateChange, sessionId]);
 
 	return (
 		<WorkspaceTabAppearance
@@ -486,7 +499,7 @@ export function WorkspaceTab({
 }
 
 export function WorkspaceTabOverlay(
-	props: Omit<WorkspaceTabProps, "index">
+	props: Omit<WorkspaceTabProps, "index" | "onDropStateChange">
 ): ReactElement {
 	return <WorkspaceTabAppearance {...props} isDragging isOverlay />;
 }

@@ -188,7 +188,7 @@ const getRepositoryFileSelectionClassName = (
 	if (isBulkSelected) {
 		return "bg-black/[0.045]";
 	}
-	return isSelected ? "bg-brand-softer" : "hover:bg-white/35";
+	return isSelected ? "bg-brand-softer" : "hover:bg-hover";
 };
 
 interface RepositoryStageCheckboxProps {
@@ -410,7 +410,7 @@ function RepositoryFileRow({
 				selectionClassName,
 				isBulkSelectionStart && "rounded-t-sm",
 				isBulkSelectionEnd && "rounded-b-sm",
-				isSingleContextMenuActive && "rounded-md bg-white hover:bg-white",
+				isSingleContextMenuActive && "rounded-md",
 				isSingleContextMenuActive && !shouldElevateSelection && "z-20"
 			)}
 			data-bulk-selected={isBulkSelected ? "true" : undefined}
@@ -482,6 +482,7 @@ function RepositoryFileRow({
 			open={isOpen}
 		>
 			<LiquidContextMenuTrigger
+				data-liquid-connected-fill={contextUsesSelection ? "none" : undefined}
 				onContextMenu={(event) => {
 					contextMenuPosition.onContextMenu(event);
 					openContextMenu(event);

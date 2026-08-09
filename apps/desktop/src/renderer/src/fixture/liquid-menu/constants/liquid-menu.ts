@@ -7,31 +7,51 @@ interface LiquidMenuStyle extends CSSProperties {
 	readonly "--liquid-submenu-content-delay": string;
 }
 
-export const LIQUID_MENU_GEOMETRY = {
+export interface LiquidMenuGeometry {
+	readonly blendRadius: number;
+	readonly menuRadius: number;
+	readonly sampleCellSize: number;
+	readonly smoothingPasses: number;
+}
+
+export interface LiquidMenuMotion {
+	readonly backdropOpacity: number;
+	readonly closeDurationMs: number;
+	readonly contentDelayMs: number;
+	readonly contentDurationMs: number;
+	readonly openDurationMs: number;
+	readonly resizeDurationMs: number;
+	readonly submenuCloseDurationMs: number;
+	readonly submenuContentDelayMs: number;
+	readonly submenuOpenDurationMs: number;
+}
+
+export const LIQUID_MENU_GEOMETRY: LiquidMenuGeometry = {
 	blendRadius: 40,
 	menuRadius: 16,
 	sampleCellSize: 2,
 	smoothingPasses: 1,
-} as const;
+};
 
-export const LIQUID_MENU_MOTION = {
+export const LIQUID_MENU_MOTION: LiquidMenuMotion = {
 	backdropOpacity: 0.2,
 	closeDurationMs: 180,
 	contentDelayMs: 120,
 	contentDurationMs: 120,
 	openDurationMs: 240,
-	positionTrackingDurationMs: 300,
 	resizeDurationMs: 260,
 	submenuCloseDurationMs: 160,
 	submenuContentDelayMs: 90,
 	submenuOpenDurationMs: 200,
-} as const;
+};
 
 export const LIQUID_SUBMENU_CLOSE_DELAY_MS = 300;
 
-export const LIQUID_MENU_STYLE: LiquidMenuStyle = {
-	"--liquid-menu-content-delay": `${LIQUID_MENU_MOTION.contentDelayMs}ms`,
-	"--liquid-menu-content-duration": `${LIQUID_MENU_MOTION.contentDurationMs}ms`,
-	"--liquid-menu-resize-duration": `${LIQUID_MENU_MOTION.resizeDurationMs}ms`,
-	"--liquid-submenu-content-delay": `${LIQUID_MENU_MOTION.submenuContentDelayMs}ms`,
-};
+export const getLiquidMenuStyle = (
+	motion: LiquidMenuMotion
+): LiquidMenuStyle => ({
+	"--liquid-menu-content-delay": `${motion.contentDelayMs}ms`,
+	"--liquid-menu-content-duration": `${motion.contentDurationMs}ms`,
+	"--liquid-menu-resize-duration": `${motion.resizeDurationMs}ms`,
+	"--liquid-submenu-content-delay": `${motion.submenuContentDelayMs}ms`,
+});

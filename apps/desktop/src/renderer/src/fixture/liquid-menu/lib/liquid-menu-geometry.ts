@@ -1,8 +1,11 @@
-import { LIQUID_MENU_GEOMETRY } from "@/fixture/liquid-menu/constants/liquid-menu.js";
+import {
+	LIQUID_MENU_GEOMETRY,
+	type LiquidMenuGeometry,
+} from "@/fixture/liquid-menu/constants/liquid-menu.js";
 import {
 	createLiquidUnionPath,
 	type RoundedBox,
-} from "@/fixture/liquid-menu/lib/liquid-surface-geometry.js";
+} from "@/fixture/liquid-surface/lib/liquid-surface-geometry.js";
 
 export interface LiquidMenuRect {
 	readonly height: number;
@@ -19,6 +22,7 @@ export interface LiquidMenuAnchorGeometry {
 
 export interface LiquidMenuMeasurement {
 	readonly anchor: LiquidMenuRect;
+	readonly anchorClip?: LiquidMenuRect | null;
 	readonly menu: LiquidMenuRect;
 	readonly submenu: LiquidMenuSubmenuMeasurement | null;
 }
@@ -43,6 +47,24 @@ export interface LiquidMenuFrame {
 export interface LiquidMenuFrameAnchor extends LiquidMenuRect {
 	readonly radius: number;
 }
+
+export const clipLiquidMenuRect = (
+	rect: LiquidMenuRect,
+	clip: LiquidMenuRect
+): LiquidMenuRect => {
+	const clipRight = clip.left + clip.width;
+	const clipBottom = clip.top + clip.height;
+	const left = Math.min(Math.max(rect.left, clip.left), clipRight);
+	const top = Math.min(Math.max(rect.top, clip.top), clipBottom);
+	const right = Math.max(left, Math.min(rect.left + rect.width, clipRight));
+	const bottom = Math.max(top, Math.min(rect.top + rect.height, clipBottom));
+	return {
+		height: bottom - top,
+		left,
+		top,
+		width: right - left,
+	};
+};
 
 const clampProgress = (progress: number): number =>
 	Math.max(0, Math.min(1, progress));
@@ -140,12 +162,12 @@ const getAnimatedMenuCenter = (
 export const createLiquidMenuFrame = (
 	measurement: LiquidMenuMeasurement,
 	progress: LiquidMenuProgress,
-	anchorGeometry: LiquidMenuAnchorGeometry
+	anchorGeometry: LiquidMenuAnchorGeometry,
+	geometry: LiquidMenuGeometry = LIQUID_MENU_GEOMETRY
 ): LiquidMenuFrame => {
-	const geometry = LIQUID_MENU_GEOMETRY;
 	const menuProgress = clampProgress(progress.menu);
 	const submenuProgress = clampProgress(progress.submenu);
-	const visualAnchor: LiquidMenuRect = {
+	const insetAnchor: LiquidMenuRect = {
 		height: Math.max(
 			0,
 			measurement.anchor.height - anchorGeometry.insetBlock * 2
@@ -157,6 +179,9 @@ export const createLiquidMenuFrame = (
 			measurement.anchor.width - anchorGeometry.insetInline * 2
 		),
 	};
+	const visualAnchor = measurement.anchorClip
+		? clipLiquidMenuRect(insetAnchor, measurement.anchorClip)
+		: insetAnchor;
 	const padding = geometry.blendRadius + geometry.sampleCellSize * 2;
 	let boundsLeft = Math.min(visualAnchor.left, measurement.menu.left) - padding;
 	let boundsTop = Math.min(visualAnchor.top, measurement.menu.top) - padding;
@@ -232,7 +257,10 @@ export const createLiquidMenuFrame = (
 		),
 	};
 
-	const boxes: RoundedBox[] = [anchorBox, menuBox];
+	const hasVisibleAnchor = visualAnchor.width > 0 && visualAnchor.height > 0;
+	const boxes: RoundedBox[] = hasVisibleAnchor
+		? [anchorBox, menuBox]
+		: [menuBox];
 	if (measurement.submenu) {
 		const { submenu } = measurement;
 		const finalSubmenuHalfHeight = submenu.menu.height / 2;

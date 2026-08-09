@@ -10,7 +10,6 @@ export const WORKSPACE_TAB_REORDER_MOTION = {
 
 export const WORKSPACE_TAB_SURFACE_MOTION = {
 	durationMs: WORKSPACE_TAB_REORDER_MOTION.duration,
-	positionTrackingDurationMs: 260,
 } as const;
 
 /** Adjust the active tab and SDF fusion geometry from this single object. */

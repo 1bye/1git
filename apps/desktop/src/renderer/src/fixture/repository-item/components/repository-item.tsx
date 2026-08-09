@@ -234,7 +234,7 @@ export function RepositoryItem({
 				{...sharedProps}
 				className={cn(
 					"relative gap-2 transition-[background-color,opacity] duration-150",
-					contextOpen && "z-20 bg-white data-highlighted:bg-white"
+					contextOpen && "z-20"
 				)}
 				disabled={disabled}
 				value={pickerValue}
@@ -245,8 +245,8 @@ export function RepositoryItem({
 			<button
 				{...sharedProps}
 				className={cn(
-					"group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left outline-none transition-[background-color,opacity] duration-150 hover:bg-editor-sunken focus-visible:z-10 focus-visible:bg-editor-sunken disabled:pointer-events-none disabled:opacity-50",
-					contextOpen && "z-10 bg-white hover:bg-white focus-visible:bg-white"
+					"group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left outline-none transition-[background-color,opacity] duration-150 hover:bg-hover focus-visible:z-10 focus-visible:bg-hover focus-visible:ring-2 focus-visible:ring-brand/20 disabled:pointer-events-none disabled:opacity-50",
+					contextOpen && "z-10"
 				)}
 				disabled={disabled}
 				type="button"

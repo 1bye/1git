@@ -27,6 +27,11 @@
 
 :root {
 	--desktop-titlebar-controls-width: 5rem;
+	--liquid-active-trigger: var(--liquid-surface);
+	--liquid-dim: #000;
+	--liquid-hover: var(--hover);
+	--liquid-outline: var(--editor-hairline-strong);
+	--liquid-surface: var(--editor-surface);
 	--repository-rail-width: 19.375rem;
 	--workspace-tab-appearance-duration: 240ms;
 	--workspace-surface-inset: 6px;
@@ -323,19 +328,33 @@ button {
 }
 
 [data-name="WorkspaceLiquidSurfaceFill"] {
-	fill: var(--editor-surface);
+	fill: var(--liquid-surface);
 }
 
 [data-name="WorkspaceLiquidSurfaceOutline"] {
-	stroke: var(--editor-hairline-strong);
+	stroke: var(--liquid-outline);
 }
 
 [data-name="LiquidMenuSurfaceFill"] {
-	fill: var(--editor-surface);
+	fill: var(--liquid-surface);
 }
 
 [data-name="LiquidMenuSurfaceOutline"] {
-	stroke: var(--editor-hairline-strong);
+	stroke: var(--liquid-outline);
+}
+
+[data-liquid-trigger][data-liquid-state="idle"]:hover {
+	background-color: var(--liquid-hover);
+}
+
+[data-liquid-trigger]:not(
+	[data-liquid-connected-fill="none"]
+)[data-liquid-state="open"],
+[data-liquid-trigger]:not(
+	[data-liquid-connected-fill="none"]
+)[data-liquid-state="closing"],
+[data-name="WorkspaceTabMenuPill"] {
+	background-color: var(--liquid-active-trigger);
 }
 
 @keyframes command-lens-backdrop-in {
@@ -407,14 +426,13 @@ button {
 	}
 }
 
-[data-name="LiquidMenuContent"][data-open][data-liquid-surface="true"] {
+[data-liquid-content][data-open][data-liquid-surface="true"] {
 	animation: liquid-menu-content-in var(--liquid-menu-content-duration)
 		cubic-bezier(0.22, 1, 0.36, 1) var(--liquid-menu-content-delay) both;
 }
 
-[data-name="LiquidMenuSubContent"][data-open][data-liquid-surface="true"] {
-	animation: liquid-menu-content-in var(--liquid-menu-content-duration)
-		cubic-bezier(0.22, 1, 0.36, 1) var(--liquid-submenu-content-delay) both;
+[data-name="LiquidMenuSubContent"][data-liquid-content][data-open][data-liquid-surface="true"] {
+	animation-delay: var(--liquid-submenu-content-delay);
 }
 
 [data-name="LiquidMenuView"] {
@@ -426,10 +444,6 @@ button {
 	transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 	transition-duration: var(--liquid-menu-resize-duration);
 	transition-property: height;
-}
-
-[data-name="RepositoryMenuTrigger"][data-liquid-menu-anchor-state="active"] {
-	background: var(--editor-surface);
 }
 
 [data-name="RepositoryWelcome"] {
@@ -451,8 +465,7 @@ button {
 		transition-delay: 0ms !important;
 	}
 
-	[data-name="LiquidMenuContent"],
-	[data-name="LiquidMenuSubContent"] {
+	[data-liquid-content] {
 		animation-delay: 0ms !important;
 	}
 

@@ -6,7 +6,10 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { LIQUID_MENU_MOTION } from "@/fixture/liquid-menu/constants/liquid-menu.js";
+import type {
+	LiquidMenuGeometry,
+	LiquidMenuMotion,
+} from "@/fixture/liquid-menu/constants/liquid-menu.js";
 import {
 	createLiquidMenuFrame,
 	easeLiquidMenuProgress,
@@ -16,13 +19,21 @@ import {
 	type LiquidMenuRect,
 	type LiquidMenuSubmenuMeasurement,
 } from "@/fixture/liquid-menu/lib/liquid-menu-geometry.js";
+import { useReducedMotion } from "@/fixture/liquid-surface/hooks/use-reduced-motion.js";
+import {
+	createLiquidGeometryTracker,
+	type LiquidGeometryTracker,
+} from "@/fixture/liquid-surface/lib/track-liquid-geometry.js";
 
 interface UseLiquidMenuSurfaceOptions {
 	readonly anchor: () => Element | null;
+	readonly anchorClip: (() => Element | null) | undefined;
 	readonly anchorGeometry: LiquidMenuAnchorGeometry;
+	readonly geometry: LiquidMenuGeometry;
 	readonly isOpen: boolean;
 	readonly isSubmenuOpen: boolean;
 	readonly menuElement: HTMLElement | null;
+	readonly motion: LiquidMenuMotion;
 	readonly onPresenceChange: (isPresent: boolean) => void;
 	readonly onSubmenuPresenceChange: (isPresent: boolean) => void;
 	readonly submenuElement: HTMLElement | null;
@@ -37,7 +48,25 @@ interface LiquidMenuSurfaceState {
 
 interface LiquidMenuRootMeasurement {
 	readonly anchor: LiquidMenuRect;
+	readonly anchorClip: LiquidMenuRect | null;
 	readonly menu: LiquidMenuRect;
+}
+
+interface LiquidMenuMeasurementElements {
+	readonly anchor: Element | null;
+	readonly anchorClip: Element | null;
+	readonly menu: HTMLElement | null;
+	readonly submenu: HTMLElement | null;
+	readonly submenuTrigger: HTMLElement | null;
+}
+
+interface ResolveLiquidMenuMeasurementElementsOptions {
+	readonly anchor: () => Element | null;
+	readonly anchorClip: (() => Element | null) | undefined;
+	readonly isSubmenuOpen: boolean;
+	readonly menu: HTMLElement | null;
+	readonly submenu: HTMLElement | null;
+	readonly submenuTrigger: HTMLElement | null;
 }
 
 interface MeasurementStability<Measurement> {
@@ -57,7 +86,6 @@ interface UseLiquidProgressOptions {
 
 const MEASUREMENT_SCALE = 10;
 const MINIMUM_VISIBLE_PROGRESS = 0.001;
-const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 const REQUIRED_STABLE_POSITION_FRAMES = 2;
 
 const roundMeasurement = (value: number): number =>
@@ -69,6 +97,64 @@ const toLiquidRect = (bounds: DOMRect): LiquidMenuRect => ({
 	top: roundMeasurement(bounds.top),
 	width: roundMeasurement(bounds.width),
 });
+
+const isElement = (element: Element | null): element is Element =>
+	element !== null;
+
+const getTrackedElements = ({
+	anchor,
+	anchorClip,
+	menu,
+	submenu,
+	submenuTrigger,
+}: LiquidMenuMeasurementElements): readonly Element[] =>
+	[anchor, anchorClip, menu, submenu, submenuTrigger].filter(isElement);
+
+const resolveMeasurementElements = ({
+	anchor,
+	anchorClip,
+	isSubmenuOpen,
+	menu,
+	submenu,
+	submenuTrigger,
+}: ResolveLiquidMenuMeasurementElementsOptions): LiquidMenuMeasurementElements => ({
+	anchor: anchor(),
+	anchorClip: anchorClip?.() ?? null,
+	menu,
+	submenu: isSubmenuOpen ? submenu : null,
+	submenuTrigger: isSubmenuOpen ? submenuTrigger : null,
+});
+
+const readRootMeasurement = ({
+	anchor,
+	anchorClip,
+	menu,
+}: LiquidMenuMeasurementElements): LiquidMenuRootMeasurement | null => {
+	if (!(anchor && menu)) {
+		return null;
+	}
+	return {
+		anchor: toLiquidRect(anchor.getBoundingClientRect()),
+		anchorClip: anchorClip
+			? toLiquidRect(anchorClip.getBoundingClientRect())
+			: null,
+		menu: toLiquidRect(menu.getBoundingClientRect()),
+	};
+};
+
+const readSubmenuMeasurement = ({
+	submenu,
+	submenuTrigger,
+}: LiquidMenuMeasurementElements): LiquidMenuSubmenuMeasurement | null => {
+	if (!(submenu && submenuTrigger)) {
+		return null;
+	}
+	return {
+		menu: toLiquidRect(submenu.getBoundingClientRect()),
+		side: submenu.dataset.side === "right" ? "right" : "left",
+		trigger: toLiquidRect(submenuTrigger.getBoundingClientRect()),
+	};
+};
 
 const hasSameRect = (current: LiquidMenuRect, next: LiquidMenuRect): boolean =>
 	current.height === next.height &&
@@ -90,12 +176,23 @@ const hasSameSubmenuMeasurement = (
 	);
 };
 
+const hasSameOptionalRect = (
+	current: LiquidMenuRect | null | undefined,
+	next: LiquidMenuRect | null | undefined
+): boolean => {
+	if (current === null || current === undefined) {
+		return next === null || next === undefined;
+	}
+	return next !== null && next !== undefined && hasSameRect(current, next);
+};
+
 const hasSameRootMeasurement = (
 	current: LiquidMenuRootMeasurement | null,
 	next: LiquidMenuRootMeasurement
 ): boolean =>
 	current !== null &&
 	hasSameRect(current.anchor, next.anchor) &&
+	hasSameOptionalRect(current.anchorClip, next.anchorClip) &&
 	hasSameRect(current.menu, next.menu);
 
 const hasSameMeasurement = (
@@ -104,16 +201,16 @@ const hasSameMeasurement = (
 ): boolean =>
 	current !== null &&
 	hasSameRect(current.anchor, next.anchor) &&
+	hasSameOptionalRect(current.anchorClip, next.anchorClip) &&
 	hasSameRect(current.menu, next.menu) &&
 	hasSameSubmenuMeasurement(current.submenu, next.submenu);
 
 const advanceMeasurementStability = <Measurement>(
 	stability: MeasurementStability<Measurement>,
 	nextMeasurement: Measurement,
-	shouldAdvance: boolean,
 	hasSameValue: (current: Measurement | null, next: Measurement) => boolean
 ): boolean => {
-	if (stability.isStable || !shouldAdvance) {
+	if (stability.isStable) {
 		return stability.isStable;
 	}
 	if (hasSameValue(stability.candidate, nextMeasurement)) {
@@ -135,8 +232,10 @@ const useLiquidProgress = ({
 	onPresenceChange,
 	openDurationMs,
 }: UseLiquidProgressOptions): number => {
+	const prefersReducedMotion = useReducedMotion();
 	const [progress, setProgress] = useState(0);
 	const animationFrameRef = useRef(0);
+	const isPresentRef = useRef(false);
 	const onHiddenRef = useRef(onHidden);
 	const onPresenceChangeRef = useRef(onPresenceChange);
 	const progressRef = useRef(0);
@@ -147,13 +246,20 @@ const useLiquidProgress = ({
 		progressRef.current = nextProgress;
 		setProgress(nextProgress);
 	}, []);
+	const changePresence = useCallback((isPresent: boolean): void => {
+		if (isPresentRef.current === isPresent) {
+			return;
+		}
+		isPresentRef.current = isPresent;
+		onPresenceChangeRef.current(isPresent);
+	}, []);
 
 	const animateProgress = useCallback(
 		(targetProgress: number, durationMs: number): void => {
 			cancelAnimationFrame(animationFrameRef.current);
 			let startingProgress = progressRef.current;
 			if (targetProgress > 0) {
-				onPresenceChangeRef.current(true);
+				changePresence(true);
 				if (startingProgress === 0) {
 					startingProgress = MINIMUM_VISIBLE_PROGRESS;
 					updateProgress(startingProgress);
@@ -163,7 +269,7 @@ const useLiquidProgress = ({
 				updateProgress(targetProgress);
 				if (targetProgress === 0) {
 					onHiddenRef.current();
-					onPresenceChangeRef.current(false);
+					changePresence(false);
 				}
 				return;
 			}
@@ -186,21 +292,21 @@ const useLiquidProgress = ({
 				}
 				if (targetProgress === 0) {
 					onHiddenRef.current();
-					onPresenceChangeRef.current(false);
+					changePresence(false);
 				}
 			};
 			animationFrameRef.current = requestAnimationFrame(tick);
 		},
-		[updateProgress]
+		[changePresence, updateProgress]
 	);
 
 	useEffect(() => {
-		const prefersReducedMotion =
-			window.matchMedia(REDUCED_MOTION_QUERY).matches;
 		if (isActive) {
 			if (hasMeasurement) {
 				animateProgress(1, prefersReducedMotion ? 0 : openDurationMs);
+				return;
 			}
+			animateProgress(0, 0);
 			return;
 		}
 		animateProgress(0, prefersReducedMotion ? 0 : closeDurationMs);
@@ -210,19 +316,29 @@ const useLiquidProgress = ({
 		hasMeasurement,
 		isActive,
 		openDurationMs,
+		prefersReducedMotion,
 	]);
 
-	useEffect(() => () => cancelAnimationFrame(animationFrameRef.current), []);
+	useEffect(
+		() => (): void => {
+			cancelAnimationFrame(animationFrameRef.current);
+			changePresence(false);
+		},
+		[changePresence]
+	);
 
 	return progress;
 };
 
 export const useLiquidMenuSurface = ({
 	anchor,
+	anchorClip,
 	anchorGeometry,
+	geometry,
 	isOpen,
 	isSubmenuOpen,
 	menuElement,
+	motion,
 	onPresenceChange,
 	onSubmenuPresenceChange,
 	submenuElement,
@@ -239,7 +355,6 @@ export const useLiquidMenuSurface = ({
 			return;
 		}
 
-		let trackingFrameId = 0;
 		const rootStability: MeasurementStability<LiquidMenuRootMeasurement> = {
 			candidate: null,
 			consecutiveFrames: 0,
@@ -251,17 +366,7 @@ export const useLiquidMenuSurface = ({
 				consecutiveFrames: 0,
 				isStable: positionedSubmenuElementRef.current === submenuElement,
 			};
-		const observedElements = new Set<Element>();
-		const trackingEndsAt =
-			performance.now() + LIQUID_MENU_MOTION.positionTrackingDurationMs;
-		let resizeObserver: ResizeObserver;
-		const observe = (element: Element): void => {
-			if (observedElements.has(element)) {
-				return;
-			}
-			observedElements.add(element);
-			resizeObserver.observe(element);
-		};
+		let tracker: LiquidGeometryTracker;
 		const commitRootMeasurement = (
 			nextRootMeasurement: LiquidMenuRootMeasurement
 		): void => {
@@ -291,94 +396,65 @@ export const useLiquidMenuSurface = ({
 					: nextMeasurement;
 			});
 		};
-		const measure = (
-			advancePositionStability: boolean
-		): {
-			readonly hasRootMeasurement: boolean;
-			readonly hasSubmenuMeasurement: boolean;
-		} => {
-			const anchorElement = anchor();
-			if (!(menuElement && anchorElement)) {
-				return {
-					hasRootMeasurement: false,
-					hasSubmenuMeasurement: false,
-				};
+		const measure = (): void => {
+			const elements = resolveMeasurementElements({
+				anchor,
+				anchorClip,
+				isSubmenuOpen,
+				menu: menuElement,
+				submenu: submenuElement,
+				submenuTrigger: submenuTriggerElement,
+			});
+			tracker.setElements(getTrackedElements(elements));
+			const nextRootMeasurement = readRootMeasurement(elements);
+			if (!nextRootMeasurement) {
+				positionedMenuElementRef.current = null;
+				positionedSubmenuElementRef.current = null;
+				setMeasurement((current) => (current ? null : current));
+				return;
 			}
-
-			observe(menuElement);
-			observe(anchorElement);
-			const nextMenuRect = toLiquidRect(menuElement.getBoundingClientRect());
-			const nextAnchorRect = toLiquidRect(
-				anchorElement.getBoundingClientRect()
-			);
-			const nextRootMeasurement: LiquidMenuRootMeasurement = {
-				anchor: nextAnchorRect,
-				menu: nextMenuRect,
-			};
 			const hasStableRootMeasurement = advanceMeasurementStability(
 				rootStability,
 				nextRootMeasurement,
-				advancePositionStability,
 				hasSameRootMeasurement
 			);
 			if (hasStableRootMeasurement) {
-				positionedMenuElementRef.current = menuElement;
+				positionedMenuElementRef.current = elements.menu;
 				commitRootMeasurement(nextRootMeasurement);
 			}
 
-			if (isSubmenuOpen && submenuElement && submenuTriggerElement) {
-				observe(submenuElement);
-				observe(submenuTriggerElement);
-				const nextSubmenuMeasurement: LiquidMenuSubmenuMeasurement = {
-					menu: toLiquidRect(submenuElement.getBoundingClientRect()),
-					side: submenuElement.dataset.side === "right" ? "right" : "left",
-					trigger: toLiquidRect(submenuTriggerElement.getBoundingClientRect()),
-				};
-				if (
-					advanceMeasurementStability(
-						submenuStability,
-						nextSubmenuMeasurement,
-						advancePositionStability,
-						hasSameSubmenuMeasurement
-					)
-				) {
-					positionedSubmenuElementRef.current = submenuElement;
-					commitSubmenuMeasurement(nextSubmenuMeasurement);
-				}
+			const nextSubmenuMeasurement = readSubmenuMeasurement(elements);
+			if (isSubmenuOpen && !nextSubmenuMeasurement) {
+				positionedSubmenuElementRef.current = null;
+				setMeasurement((current) =>
+					current?.submenu ? { ...current, submenu: null } : current
+				);
 			}
-			return {
-				hasRootMeasurement: hasStableRootMeasurement,
-				hasSubmenuMeasurement: submenuStability.isStable,
-			};
-		};
-		resizeObserver = new ResizeObserver(() => {
-			measure(false);
-		});
-		const trackInitialPosition = (): void => {
-			const { hasRootMeasurement, hasSubmenuMeasurement } = measure(true);
-			const isWaitingForExpectedMeasurement =
-				!hasRootMeasurement || (isSubmenuOpen && !hasSubmenuMeasurement);
 			if (
-				performance.now() < trackingEndsAt ||
-				isWaitingForExpectedMeasurement
+				nextSubmenuMeasurement &&
+				advanceMeasurementStability(
+					submenuStability,
+					nextSubmenuMeasurement,
+					hasSameSubmenuMeasurement
+				)
 			) {
-				trackingFrameId = requestAnimationFrame(trackInitialPosition);
+				positionedSubmenuElementRef.current = elements.submenu;
+				commitSubmenuMeasurement(nextSubmenuMeasurement);
 			}
-		};
-		const scheduleMeasurement = (): void => {
-			cancelAnimationFrame(trackingFrameId);
-			trackingFrameId = requestAnimationFrame(trackInitialPosition);
+			const isWaitingForExpectedMeasurement =
+				!hasStableRootMeasurement ||
+				(isSubmenuOpen && !submenuStability.isStable);
+			if (isWaitingForExpectedMeasurement) {
+				tracker.schedule();
+			}
 		};
 
-		trackingFrameId = requestAnimationFrame(trackInitialPosition);
-		window.addEventListener("resize", scheduleMeasurement);
-		return () => {
-			cancelAnimationFrame(trackingFrameId);
-			resizeObserver.disconnect();
-			window.removeEventListener("resize", scheduleMeasurement);
-		};
+		tracker = createLiquidGeometryTracker(measure);
+		tracker.schedule();
+		return tracker.disconnect;
 	}, [
 		anchor,
+		anchorClip,
 		isOpen,
 		isSubmenuOpen,
 		menuElement,
@@ -398,20 +474,20 @@ export const useLiquidMenuSurface = ({
 		);
 	}, []);
 	const progress = useLiquidProgress({
-		closeDurationMs: LIQUID_MENU_MOTION.closeDurationMs,
+		closeDurationMs: motion.closeDurationMs,
 		hasMeasurement: measurement !== null,
 		isActive: isOpen,
 		onHidden: hideMenu,
 		onPresenceChange,
-		openDurationMs: LIQUID_MENU_MOTION.openDurationMs,
+		openDurationMs: motion.openDurationMs,
 	});
 	const submenuProgress = useLiquidProgress({
-		closeDurationMs: LIQUID_MENU_MOTION.submenuCloseDurationMs,
-		hasMeasurement: measurement?.submenu !== null,
+		closeDurationMs: motion.submenuCloseDurationMs,
+		hasMeasurement: Boolean(measurement?.submenu),
 		isActive: isOpen && isSubmenuOpen,
 		onHidden: hideSubmenu,
 		onPresenceChange: onSubmenuPresenceChange,
-		openDurationMs: LIQUID_MENU_MOTION.submenuOpenDurationMs,
+		openDurationMs: motion.submenuOpenDurationMs,
 	});
 
 	const frame = useMemo(
@@ -423,10 +499,11 @@ export const useLiquidMenuSurface = ({
 							menu: progress,
 							submenu: submenuProgress,
 						},
-						anchorGeometry
+						anchorGeometry,
+						geometry
 					)
 				: null,
-		[anchorGeometry, measurement, progress, submenuProgress]
+		[anchorGeometry, geometry, measurement, progress, submenuProgress]
 	);
 
 	return { frame, progress, submenuProgress };
