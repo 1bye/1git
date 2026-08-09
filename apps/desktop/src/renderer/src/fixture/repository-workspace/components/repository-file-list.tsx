@@ -224,12 +224,7 @@ function RepositoryStageCheckbox({
 	}
 
 	return (
-		<label
-			className={cn(
-				"group/checkbox relative flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-md outline-none focus-within:ring-2 focus-within:ring-editor-muted/20",
-				disabled && "opacity-45"
-			)}
-		>
+		<label className="group/checkbox relative flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-md outline-none focus-within:ring-2 focus-within:ring-editor-muted/20">
 			<input
 				aria-label={label}
 				checked={checked}

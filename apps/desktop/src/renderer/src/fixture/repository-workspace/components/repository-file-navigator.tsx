@@ -202,7 +202,7 @@ export function RepositoryFileRail({
 			</div>
 			<div className="flex h-7 shrink-0 items-center px-2">
 				<button
-					className="flex h-7 items-center gap-1 px-1.5 font-medium text-[10px] text-editor-ink outline-none hover:bg-white/35 focus-visible:ring-2 focus-visible:ring-brand/20 disabled:opacity-45"
+					className="flex h-7 items-center gap-1 px-1.5 font-medium text-[10px] text-editor-ink outline-none hover:bg-white/35 focus-visible:ring-2 focus-visible:ring-brand/20"
 					disabled={pendingAction !== null || allFiles.length === 0}
 					onClick={toggleAllFiles}
 					type="button"

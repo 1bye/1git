@@ -165,13 +165,20 @@ const DiffFileAccordionComponent = ({
 				if (hunkIndex < 0 || !target) {
 					return;
 				}
-				setHunkActionSelection({
+				const selection = {
 					anchorElement: anchor,
 					hunkIndex,
 					path: entry.path,
 					target,
-				});
-				setIsHunkActionOpen(true);
+				} as const;
+				// Mount after the originating click has passed document-level dismiss handlers.
+				window.setTimeout(() => {
+					if (!anchor.isConnected) {
+						return;
+					}
+					setHunkActionSelection(selection);
+					setIsHunkActionOpen(true);
+				}, 0);
 			};
 
 			return (

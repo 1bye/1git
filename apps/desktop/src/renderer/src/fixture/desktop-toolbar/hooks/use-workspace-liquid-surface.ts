@@ -458,6 +458,7 @@ export function useWorkspaceLiquidSurface({
 	useLayoutEffect(
 		() => () => {
 			cancelAnimationFrame(animationFrameRef.current);
+			animationFrameRef.current = 0;
 			stopWorkspaceTabReveal(false);
 			clearWorkspaceCornerRadii(workspaceRootRef.current);
 		},

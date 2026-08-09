@@ -16,14 +16,14 @@ const STATUS_CLASS_NAMES: Readonly<Record<FileStatus, string>> = {
 	untracked: "border-[#1a7f37] text-[#1a7f37]",
 };
 
-const STATUS_SYMBOLS: Readonly<Record<FileStatus, string>> = {
+const STATUS_SYMBOLS: Readonly<Record<FileStatus, string | null>> = {
 	added: "+",
 	copied: "→",
 	deleted: "−",
-	ignored: "·",
-	modified: "•",
+	ignored: null,
+	modified: null,
 	renamed: "→",
-	"type-changed": "•",
+	"type-changed": null,
 	unmerged: "!",
 	unmodified: "−",
 	untracked: "+",
@@ -43,13 +43,15 @@ export function RepositoryFileStatus({
 		<span
 			aria-hidden
 			className={cn(
-				"inline-flex size-4 shrink-0 items-center justify-center rounded-[3px] border-[1.5px] font-mono font-semibold text-[11px] leading-none",
+				"inline-flex size-3 shrink-0 items-center justify-center rounded-[2px] border font-mono font-semibold text-[9px] leading-none",
 				STATUS_CLASS_NAMES[status],
 				className
 			)}
 			title={status}
 		>
-			{STATUS_SYMBOLS[status]}
+			{STATUS_SYMBOLS[status] ?? (
+				<span className="block size-1 rounded-full bg-current" />
+			)}
 		</span>
 	);
 }
