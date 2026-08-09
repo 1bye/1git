@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactElement } from "react";
+import type { CSSProperties, ReactElement, RefObject } from "react";
 import { WORKSPACE_TAB_SURFACE_GEOMETRY } from "@/fixture/desktop-toolbar/constants/workspace-tab.js";
 import { useWorkspaceLiquidSurface } from "@/fixture/desktop-toolbar/hooks/use-workspace-liquid-surface.js";
 import type { RepositorySessionId } from "../../../../../shared/repository-session.js";
@@ -7,17 +7,20 @@ interface WorkspaceLiquidSurfaceProps {
 	readonly activeSessionId: RepositorySessionId | null;
 	readonly activeTabIndex: number;
 	readonly isPositionTracking: boolean;
+	readonly workspaceRootRef: RefObject<HTMLElement | null>;
 }
 
 export function WorkspaceLiquidSurface({
 	activeSessionId,
 	activeTabIndex,
 	isPositionTracking,
+	workspaceRootRef,
 }: WorkspaceLiquidSurfaceProps): ReactElement {
 	const { hostRef, path, surfaceWidth } = useWorkspaceLiquidSurface({
 		activeSessionId,
 		activeTabIndex,
 		isPositionTracking,
+		workspaceRootRef,
 	});
 	const surfaceStyle: CSSProperties | undefined =
 		surfaceWidth === null

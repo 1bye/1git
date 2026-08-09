@@ -20,6 +20,7 @@ import type {
 	CSSProperties,
 	ReactElement,
 	KeyboardEvent as ReactKeyboardEvent,
+	RefObject,
 } from "react";
 import {
 	useCallback,
@@ -77,6 +78,7 @@ interface DesktopToolbarProps {
 	readonly pendingAction: PendingWorkspaceAction;
 	readonly recentRepositories: readonly RecentRepositoryRecord[];
 	readonly snapshot: RepositorySnapshot | null;
+	readonly workspaceRootRef: RefObject<HTMLElement | null>;
 	readonly workspaces: readonly WorkspaceTabState[];
 }
 
@@ -161,6 +163,7 @@ export function DesktopToolbar({
 	pendingAction,
 	recentRepositories,
 	snapshot,
+	workspaceRootRef,
 	workspaces,
 }: DesktopToolbarProps): ReactElement {
 	const [isRepositoryMenuOpen, setIsRepositoryMenuOpen] = useState(false);
@@ -422,6 +425,7 @@ export function DesktopToolbar({
 						activeSessionId={activeSessionId}
 						activeTabIndex={activeTabIndex}
 						isPositionTracking={isWorkspaceTabPositionTracking}
+						workspaceRootRef={workspaceRootRef}
 					/>
 					<RepositoryMenu
 						isOpen={isRepositoryMenuOpen}

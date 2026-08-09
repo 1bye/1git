@@ -1,5 +1,6 @@
 export interface WorkspaceLiquidMeasurement {
 	readonly surfaceWidth: number;
+	readonly tabFullWidth: number;
 	readonly tabHeight: number;
 	readonly tabLeft: number;
 	readonly tabTop: number;
@@ -92,6 +93,11 @@ export const interpolateWorkspaceLiquidMeasurement = (
 	const normalizedProgress = clampProgress(progress);
 	return {
 		surfaceWidth: end.surfaceWidth,
+		tabFullWidth: interpolate(
+			start.tabFullWidth,
+			end.tabFullWidth,
+			normalizedProgress
+		),
 		tabHeight: interpolate(start.tabHeight, end.tabHeight, normalizedProgress),
 		tabLeft: interpolate(start.tabLeft, end.tabLeft, normalizedProgress),
 		tabTop: interpolate(start.tabTop, end.tabTop, normalizedProgress),

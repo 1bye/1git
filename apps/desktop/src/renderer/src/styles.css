@@ -119,6 +119,21 @@ button {
 [data-name="RepositoryWorkspace"] {
 	margin: 0 var(--workspace-surface-inset) var(--workspace-surface-inset);
 	border-radius: var(--workspace-surface-radius);
+	border-top-left-radius: var(
+		--workspace-liquid-container-top-left-radius,
+		var(--workspace-surface-radius)
+	);
+}
+
+[data-name="RepositoryDiffWorkspace"] {
+	border-top-left-radius: var(
+		--workspace-liquid-container-top-left-radius,
+		var(--workspace-surface-radius)
+	);
+	border-top-right-radius: var(
+		--workspace-liquid-container-top-right-radius,
+		var(--workspace-surface-radius)
+	);
 }
 
 [data-name="WorkspaceTabList"] {

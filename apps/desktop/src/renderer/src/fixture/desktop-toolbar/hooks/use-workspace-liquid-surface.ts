@@ -7,6 +7,8 @@ import {
 import {
 	createWorkspaceLiquidMeasurement,
 	createWorkspaceLiquidPath,
+	getWorkspaceLiquidCornerRadius,
+	getWorkspaceLiquidEdgeConnections,
 } from "@/fixture/desktop-toolbar/lib/workspace-liquid-geometry.js";
 import {
 	createCollapsedWorkspaceLiquidMeasurement,
@@ -14,6 +16,7 @@ import {
 	interpolateWorkspaceLiquidMeasurement,
 	type WorkspaceLiquidMeasurement,
 } from "@/fixture/desktop-toolbar/lib/workspace-liquid-motion.js";
+import { getWorkspaceTabRevealScrollLeft } from "@/fixture/desktop-toolbar/lib/workspace-tab-scroll.js";
 import { useReducedMotion } from "@/fixture/liquid-surface/hooks/use-reduced-motion.js";
 import { createLiquidGeometryTracker } from "@/fixture/liquid-surface/lib/track-liquid-geometry.js";
 import type { RepositorySessionId } from "../../../../../shared/repository-session.js";
@@ -22,6 +25,7 @@ interface UseWorkspaceLiquidSurfaceOptions {
 	readonly activeSessionId: RepositorySessionId | null;
 	readonly activeTabIndex: number;
 	readonly isPositionTracking: boolean;
+	readonly workspaceRootRef: RefObject<HTMLElement | null>;
 }
 
 interface WorkspaceLiquidSurfaceState {
@@ -30,11 +34,51 @@ interface WorkspaceLiquidSurfaceState {
 	readonly surfaceWidth: number | null;
 }
 
+const WORKSPACE_TOP_LEFT_RADIUS_PROPERTY =
+	"--workspace-liquid-container-top-left-radius";
+const WORKSPACE_TOP_RIGHT_RADIUS_PROPERTY =
+	"--workspace-liquid-container-top-right-radius";
+
+const setWorkspaceCornerRadii = (
+	workspaceRoot: HTMLElement | null,
+	measurement: WorkspaceLiquidMeasurement | null
+): void => {
+	if (!workspaceRoot) {
+		return;
+	}
+	const { containerRadius } = WORKSPACE_TAB_SURFACE_GEOMETRY;
+	const edgeConnections = measurement
+		? getWorkspaceLiquidEdgeConnections(measurement)
+		: { left: 0, right: 0 };
+	const leftRadius = getWorkspaceLiquidCornerRadius(
+		containerRadius,
+		edgeConnections.left
+	);
+	const rightRadius = getWorkspaceLiquidCornerRadius(
+		containerRadius,
+		edgeConnections.right
+	);
+	workspaceRoot.style.setProperty(
+		WORKSPACE_TOP_LEFT_RADIUS_PROPERTY,
+		`${leftRadius}px`
+	);
+	workspaceRoot.style.setProperty(
+		WORKSPACE_TOP_RIGHT_RADIUS_PROPERTY,
+		`${rightRadius}px`
+	);
+};
+
+const clearWorkspaceCornerRadii = (workspaceRoot: HTMLElement | null): void => {
+	workspaceRoot?.style.removeProperty(WORKSPACE_TOP_LEFT_RADIUS_PROPERTY);
+	workspaceRoot?.style.removeProperty(WORKSPACE_TOP_RIGHT_RADIUS_PROPERTY);
+};
+
 const hasSameMeasurement = (
 	current: WorkspaceLiquidMeasurement | null,
 	next: WorkspaceLiquidMeasurement
 ): boolean =>
 	current?.surfaceWidth === next.surfaceWidth &&
+	current.tabFullWidth === next.tabFullWidth &&
 	current.tabHeight === next.tabHeight &&
 	current.tabLeft === next.tabLeft &&
 	current.tabTop === next.tabTop &&
@@ -99,6 +143,7 @@ export function useWorkspaceLiquidSurface({
 	activeSessionId,
 	activeTabIndex,
 	isPositionTracking,
+	workspaceRootRef,
 }: UseWorkspaceLiquidSurfaceOptions): WorkspaceLiquidSurfaceState {
 	const prefersReducedMotion = useReducedMotion();
 	const hostRef = useRef<HTMLDivElement>(null);
@@ -111,6 +156,7 @@ export function useWorkspaceLiquidSurface({
 	const commitMeasurement = useCallback(
 		(nextMeasurement: WorkspaceLiquidMeasurement | null): void => {
 			measurementRef.current = nextMeasurement;
+			setWorkspaceCornerRadii(workspaceRootRef.current, nextMeasurement);
 			setMeasurement((currentMeasurement) => {
 				if (
 					nextMeasurement &&
@@ -121,7 +167,7 @@ export function useWorkspaceLiquidSurface({
 				return nextMeasurement;
 			});
 		},
-		[]
+		[workspaceRootRef]
 	);
 	const animateToMeasurement = useCallback(
 		(
@@ -226,6 +272,20 @@ export function useWorkspaceLiquidSurface({
 			return;
 		}
 
+		const didSessionChange = measuredSessionIdRef.current !== activeSessionId;
+		if (didSessionChange && !isPositionTracking) {
+			const tabBounds = activeTab.getBoundingClientRect();
+			const tabListBounds = tabList.getBoundingClientRect();
+			tabList.scrollLeft = getWorkspaceTabRevealScrollLeft({
+				currentScrollLeft: tabList.scrollLeft,
+				maximumScrollLeft: tabList.scrollWidth - tabList.clientWidth,
+				tabLeft: tabBounds.left,
+				tabRight: tabBounds.right,
+				viewportLeft: tabListBounds.left,
+				viewportRight: tabListBounds.right,
+			});
+		}
+
 		const titlebarBounds = titlebar.getBoundingClientRect();
 		const tabBounds = activeTab.getBoundingClientRect();
 		const nextMeasurement = createWorkspaceLiquidMeasurement(
@@ -233,8 +293,7 @@ export function useWorkspaceLiquidSurface({
 			tabBounds,
 			tabList.getBoundingClientRect()
 		);
-		const shouldAnimateSessionChange =
-			!isPositionTracking && measuredSessionIdRef.current !== activeSessionId;
+		const shouldAnimateSessionChange = !isPositionTracking && didSessionChange;
 		measuredSessionIdRef.current = activeSessionId;
 		animateToMeasurement(
 			nextMeasurement,
@@ -282,8 +341,9 @@ export function useWorkspaceLiquidSurface({
 	useLayoutEffect(
 		() => () => {
 			cancelAnimationFrame(animationFrameRef.current);
+			clearWorkspaceCornerRadii(workspaceRootRef.current);
 		},
-		[]
+		[workspaceRootRef]
 	);
 	useLayoutEffect(() => {
 		if (!(prefersReducedMotion && animationFrameRef.current !== 0)) {
@@ -309,6 +369,7 @@ export function useWorkspaceLiquidSurface({
 			sampleCellSize: geometry.sampleCellSize,
 			smoothingPasses: geometry.smoothingPasses,
 			surfaceWidth: measurement.surfaceWidth,
+			tabFullWidth: measurement.tabFullWidth,
 			tabHeight: measurement.tabHeight,
 			tabLeft: measurement.tabLeft,
 			tabRadius: geometry.tabRadius,

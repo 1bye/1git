@@ -9,6 +9,7 @@ describe("workspace liquid motion", () => {
 	test("melts the final pill downward into the workspace", () => {
 		const measurement = {
 			surfaceWidth: 900,
+			tabFullWidth: 202,
 			tabHeight: 48,
 			tabLeft: 220,
 			tabTop: 4,
@@ -22,12 +23,14 @@ describe("workspace liquid motion", () => {
 		expect(collapsedMeasurement.tabLeft).toBe(measurement.tabLeft);
 		expect(collapsedMeasurement.tabTop).toBe(52);
 		expect(collapsedMeasurement.tabWidth).toBe(measurement.tabWidth);
+		expect(collapsedMeasurement.tabFullWidth).toBe(measurement.tabFullWidth);
 		expect(collapsedMeasurement.surfaceWidth).toBe(measurement.surfaceWidth);
 	});
 
 	test("melts a new pill upward from the workspace", () => {
 		const measurement = {
 			surfaceWidth: 900,
+			tabFullWidth: 202,
 			tabHeight: 48,
 			tabLeft: 220,
 			tabTop: 4,
@@ -52,6 +55,7 @@ describe("workspace liquid motion", () => {
 		const measurement = interpolateWorkspaceLiquidMeasurement(
 			{
 				surfaceWidth: 800,
+				tabFullWidth: 202,
 				tabHeight: 48,
 				tabLeft: 100,
 				tabTop: 4,
@@ -59,6 +63,7 @@ describe("workspace liquid motion", () => {
 			},
 			{
 				surfaceWidth: 900,
+				tabFullWidth: 180,
 				tabHeight: 44,
 				tabLeft: 320,
 				tabTop: 6,
@@ -69,6 +74,7 @@ describe("workspace liquid motion", () => {
 
 		expect(measurement).toEqual({
 			surfaceWidth: 900,
+			tabFullWidth: 191,
 			tabHeight: 46,
 			tabLeft: 210,
 			tabTop: 5,
@@ -85,6 +91,7 @@ describe("workspace liquid motion", () => {
 	test("clamps animation progress before interpolating", () => {
 		const start = {
 			surfaceWidth: 800,
+			tabFullWidth: 202,
 			tabHeight: 48,
 			tabLeft: 100,
 			tabTop: 4,
@@ -92,6 +99,7 @@ describe("workspace liquid motion", () => {
 		};
 		const end = {
 			surfaceWidth: 800,
+			tabFullWidth: 202,
 			tabHeight: 48,
 			tabLeft: 320,
 			tabTop: 4,

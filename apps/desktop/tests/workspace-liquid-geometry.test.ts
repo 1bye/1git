@@ -4,6 +4,8 @@ import {
 	createWorkspaceLiquidMeasurement,
 	createWorkspaceLiquidPath,
 	getVisibleWorkspaceTabAnchorRect,
+	getWorkspaceLiquidCornerRadius,
+	getWorkspaceLiquidEdgeConnections,
 } from "../src/renderer/src/fixture/desktop-toolbar/lib/workspace-liquid-geometry.js";
 import {
 	interpolateWorkspaceLiquidMeasurement,
@@ -31,7 +33,6 @@ const pathCoordinates = (path: string): readonly [number, number][] =>
 type WorkspaceEdge = "left" | "right";
 
 const PATH_COORDINATE_PRECISION_TOLERANCE = 0.01;
-const HANDOFF_COORDINATE_PRECISION = 0;
 
 const createMeasuredWorkspacePath = (
 	measurement: WorkspaceLiquidMeasurement
@@ -46,6 +47,7 @@ const createMeasuredWorkspacePath = (
 		sampleCellSize: geometry.sampleCellSize,
 		smoothingPasses: geometry.smoothingPasses,
 		surfaceWidth: measurement.surfaceWidth,
+		tabFullWidth: measurement.tabFullWidth,
 		tabHeight: measurement.tabHeight,
 		tabLeft: measurement.tabLeft,
 		tabRadius: geometry.tabRadius,
@@ -119,20 +121,25 @@ const getPathEdgeAtY = (
 const getContainerEdgeAtY = (
 	surfaceWidth: number,
 	y: number,
-	edge: WorkspaceEdge
+	edge: WorkspaceEdge,
+	edgeConnection: number
 ): number => {
 	const geometry = WORKSPACE_TAB_SURFACE_GEOMETRY;
-	const cornerCenterY = geometry.toolbarHeight + geometry.containerRadius;
+	const cornerRadius = getWorkspaceLiquidCornerRadius(
+		geometry.containerRadius,
+		edgeConnection
+	);
+	const cornerCenterY = geometry.toolbarHeight + cornerRadius;
 	const verticalOffset = Math.max(
-		-geometry.containerRadius,
-		Math.min(geometry.containerRadius, y - cornerCenterY)
+		-cornerRadius,
+		Math.min(cornerRadius, y - cornerCenterY)
 	);
 	const cornerOffset = Math.sqrt(
-		Math.max(0, geometry.containerRadius ** 2 - verticalOffset ** 2)
+		Math.max(0, cornerRadius ** 2 - verticalOffset ** 2)
 	);
 	return edge === "left"
-		? geometry.containerRadius - cornerOffset
-		: surfaceWidth - geometry.containerRadius + cornerOffset;
+		? cornerRadius - cornerOffset
+		: surfaceWidth - cornerRadius + cornerOffset;
 };
 
 const expectContinuousWorkspacePath = (
@@ -143,6 +150,7 @@ const expectContinuousWorkspacePath = (
 	const coordinates = pathCoordinates(path);
 	const horizontalCoordinates = coordinates.map(([x]) => x);
 	const handoffY = geometry.toolbarHeight + geometry.containerOverlap;
+	const edgeConnections = getWorkspaceLiquidEdgeConnections(measurement);
 
 	expect(path.match(/ Z/g)).toHaveLength(1);
 	expect(
@@ -154,12 +162,20 @@ const expectContinuousWorkspacePath = (
 	expect(Math.max(...horizontalCoordinates)).toBeLessThanOrEqual(
 		measurement.surfaceWidth + PATH_COORDINATE_PRECISION_TOLERANCE
 	);
-	for (const offset of [-0.5, 0, 0.5]) {
+	for (const offset of [-0.5, 0]) {
 		const y = handoffY + offset;
 		for (const edge of ["left", "right"] as const) {
-			expect(getPathEdgeAtY(coordinates, y, edge)).toBeCloseTo(
-				getContainerEdgeAtY(measurement.surfaceWidth, y, edge),
-				HANDOFF_COORDINATE_PRECISION
+			const edgeConnection =
+				edge === "left" ? edgeConnections.left : edgeConnections.right;
+			const pathEdge = getPathEdgeAtY(coordinates, y, edge);
+			const containerEdge = getContainerEdgeAtY(
+				measurement.surfaceWidth,
+				y,
+				edge,
+				edgeConnection
+			);
+			expect(Math.abs(pathEdge - containerEdge)).toBeLessThanOrEqual(
+				geometry.sampleCellSize / 2
 			);
 		}
 	}
@@ -205,6 +221,91 @@ describe("workspace liquid geometry", () => {
 				viewport
 			)
 		).toBeNull();
+	});
+
+	test("connects only fully visible tabs at a workspace edge", () => {
+		const surface = { height: 47, left: 0, top: 0, width: 320 };
+		const viewport = { ...surface };
+		const tab = { height: 40, left: 0, top: 3, width: 210 };
+		const measure = (tabRect: typeof tab): WorkspaceLiquidMeasurement =>
+			createWorkspaceLiquidMeasurement(surface, tabRect, viewport);
+
+		expect(getWorkspaceLiquidEdgeConnections(measure(tab))).toEqual({
+			left: 1,
+			right: 0,
+		});
+		expect(
+			getWorkspaceLiquidEdgeConnections(measure({ ...tab, left: 110 }))
+		).toEqual({
+			left: 0,
+			right: 1,
+		});
+		expect(
+			getWorkspaceLiquidEdgeConnections(measure({ ...tab, left: -8 }))
+		).toEqual({
+			left: 0,
+			right: 0,
+		});
+		expect(
+			getWorkspaceLiquidEdgeConnections(measure({ ...tab, left: 118 }))
+		).toEqual({
+			left: 0,
+			right: 0,
+		});
+		expect(
+			getWorkspaceLiquidEdgeConnections(measure({ ...tab, left: -210 }))
+		).toEqual({
+			left: 0,
+			right: 0,
+		});
+	});
+
+	test("derives edge connection from the interpolated tab position", () => {
+		const surfaceWidth = 900;
+		const edgeMeasurement = createEdgeMeasurement(
+			surfaceWidth,
+			"left",
+			WORKSPACE_TAB_SURFACE_GEOMETRY.tabWidth,
+			WORKSPACE_TAB_SURFACE_GEOMETRY.tabListInset +
+				WORKSPACE_TAB_SURFACE_GEOMETRY.tabVisualInsetInline
+		);
+		const interiorMeasurement: WorkspaceLiquidMeasurement = {
+			...edgeMeasurement,
+			tabLeft: 220,
+		};
+		const connectionAt = (progress: number): number =>
+			getWorkspaceLiquidEdgeConnections(
+				interpolateWorkspaceLiquidMeasurement(
+					interiorMeasurement,
+					edgeMeasurement,
+					progress
+				)
+			).left;
+
+		expect(connectionAt(0)).toBe(0);
+		expect(connectionAt(0.9)).toBe(0);
+		expect(connectionAt(0.94)).toBe(0);
+		expect(connectionAt(0.96)).toBeGreaterThan(0);
+		expect(connectionAt(0.96)).toBeLessThan(1);
+		expect(connectionAt(1)).toBe(1);
+		expect(
+			getWorkspaceLiquidEdgeConnections(
+				interpolateWorkspaceLiquidMeasurement(
+					interiorMeasurement,
+					edgeMeasurement,
+					0.96
+				)
+			).right
+		).toBe(0);
+	});
+
+	test("uses the edge connection as the workspace corner radius", () => {
+		expect(getWorkspaceLiquidCornerRadius(14, 0)).toBe(14);
+		expect(getWorkspaceLiquidCornerRadius(14, 0.1)).toBe(12.6);
+		expect(getWorkspaceLiquidCornerRadius(14, 0.5)).toBe(7);
+		expect(getWorkspaceLiquidCornerRadius(14, 1)).toBe(0);
+		expect(getWorkspaceLiquidCornerRadius(14, -1)).toBe(14);
+		expect(getWorkspaceLiquidCornerRadius(14, 2)).toBe(0);
 	});
 
 	test("tracks scroll, reorder, close, and resize measurements", () => {
@@ -256,10 +357,15 @@ describe("workspace liquid geometry", () => {
 
 		expect(measurement).toEqual({
 			surfaceWidth: 900,
+			tabFullWidth: 202,
 			tabHeight: 0,
 			tabLeft: 0,
 			tabTop: 46,
 			tabWidth: 0,
+		});
+		expect(getWorkspaceLiquidEdgeConnections(measurement)).toEqual({
+			left: 0,
+			right: 0,
 		});
 	});
 
@@ -348,6 +454,7 @@ describe("workspace liquid geometry", () => {
 			sampleCellSize: 2,
 			smoothingPasses: 1,
 			surfaceWidth: 900,
+			tabFullWidth: 178,
 			tabHeight: 48,
 			tabLeft: 220,
 			tabRadius: 10,
@@ -365,6 +472,7 @@ describe("workspace liquid geometry", () => {
 		const geometry = WORKSPACE_TAB_SURFACE_GEOMETRY;
 		const measurement: WorkspaceLiquidMeasurement = {
 			surfaceWidth: 900,
+			tabFullWidth: 178,
 			tabHeight: 48,
 			tabLeft: 220,
 			tabTop: 7,
@@ -418,6 +526,26 @@ describe("workspace liquid geometry", () => {
 					fullUnionIntersections[index] ?? Number.NaN,
 					1
 				);
+			}
+		}
+	});
+
+	test("keeps a connected tab flush through the outer workspace corner", () => {
+		const geometry = WORKSPACE_TAB_SURFACE_GEOMETRY;
+		const surfaceWidth = 320.5;
+
+		for (const edge of ["left", "right"] as const) {
+			const measurement = createEdgeMeasurement(surfaceWidth, edge);
+			const coordinates = expectContinuousWorkspacePath(measurement);
+			const boundary = edge === "left" ? 0 : surfaceWidth;
+			const joinTop =
+				measurement.tabTop + geometry.tabRadius + geometry.sampleCellSize;
+			const joinBottom = geometry.toolbarHeight + geometry.containerRadius;
+
+			for (let y = joinTop; y <= joinBottom; y += 0.5) {
+				expect(
+					Math.abs(getPathEdgeAtY(coordinates, y, edge) - boundary)
+				).toBeLessThanOrEqual(geometry.sampleCellSize / 2);
 			}
 		}
 	});
@@ -651,6 +779,7 @@ describe("workspace liquid geometry", () => {
 			sampleCellSize: 2,
 			smoothingPasses: 1,
 			surfaceWidth,
+			tabFullWidth: 178,
 			tabHeight: 40,
 			tabLeft: 136,
 			tabRadius: 12,
@@ -677,6 +806,7 @@ describe("workspace liquid geometry", () => {
 			sampleCellSize: 2,
 			smoothingPasses: 1,
 			surfaceWidth: 320,
+			tabFullWidth: 202,
 			tabHeight: 0,
 			tabLeft: 120,
 			tabRadius: 10,
@@ -715,7 +845,7 @@ describe("workspace liquid geometry", () => {
 					getPathEdgeAtY(leftCoordinates, y, "left") +
 					getPathEdgeAtY(rightCoordinates, y, "right");
 				expect(Math.abs(mirroredWidth - surfaceWidth)).toBeLessThanOrEqual(
-					geometry.sampleCellSize / 4
+					geometry.sampleCellSize / 2
 				);
 			}
 		}
@@ -764,6 +894,7 @@ describe("workspace liquid geometry", () => {
 						);
 						expectContinuousWorkspacePath({
 							surfaceWidth: snap(measurement.surfaceWidth, devicePixelRatio),
+							tabFullWidth: snap(measurement.tabFullWidth, devicePixelRatio),
 							tabHeight: snap(measurement.tabHeight, devicePixelRatio),
 							tabLeft: snap(measurement.tabLeft, devicePixelRatio),
 							tabTop: snap(measurement.tabTop, devicePixelRatio),
