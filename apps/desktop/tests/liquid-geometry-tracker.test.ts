@@ -95,8 +95,40 @@ class FakeResizeObserver {
 	}
 }
 
+class FakeMutationObserver {
+	static latest: FakeMutationObserver | null = null;
+
+	readonly observedElements = new Set<Node>();
+	private readonly callback: MutationCallback;
+	isDisconnected = false;
+
+	constructor(callback: MutationCallback) {
+		this.callback = callback;
+		FakeMutationObserver.latest = this;
+	}
+
+	disconnect(): void {
+		this.isDisconnected = true;
+		this.observedElements.clear();
+	}
+
+	emit(): void {
+		this.callback([], this as unknown as MutationObserver);
+	}
+
+	observe(element: Node): void {
+		this.isDisconnected = false;
+		this.observedElements.add(element);
+	}
+
+	takeRecords(): MutationRecord[] {
+		return [];
+	}
+}
+
 const GLOBAL_NAMES = [
 	"Element",
+	"MutationObserver",
 	"ResizeObserver",
 	"ShadowRoot",
 	"window",
@@ -127,6 +159,7 @@ beforeEach(() => {
 	fakeWindow = new FakeWindow();
 	Object.defineProperties(globalThis, {
 		Element: { configurable: true, value: FakeElement },
+		MutationObserver: { configurable: true, value: FakeMutationObserver },
 		ResizeObserver: { configurable: true, value: FakeResizeObserver },
 		ShadowRoot: { configurable: true, value: FakeShadowRoot },
 		window: { configurable: true, value: fakeWindow },
@@ -144,6 +177,7 @@ afterEach(() => {
 	}
 	originalDescriptors.clear();
 	FakeResizeObserver.latest = null;
+	FakeMutationObserver.latest = null;
 });
 
 describe("liquid geometry tracker", () => {
@@ -171,6 +205,7 @@ describe("liquid geometry tracker", () => {
 		fakeWindow.dispatchEvent(new Event("resize"));
 		fakeWindow.visualViewport.dispatchEvent(new Event("scroll"));
 		getLatestResizeObserver().emit();
+		FakeMutationObserver.latest?.emit();
 		expect(fakeWindow.pendingAnimationFrameCount).toBe(1);
 		fakeWindow.flushAnimationFrames();
 		expect(measurementCount).toBe(2);
@@ -201,6 +236,7 @@ describe("liquid geometry tracker", () => {
 		tracker.disconnect();
 		expect(fakeWindow.pendingAnimationFrameCount).toBe(0);
 		expect(getLatestResizeObserver().isDisconnected).toBe(true);
+		expect(FakeMutationObserver.latest?.isDisconnected).toBe(true);
 		secondScroller.dispatchEvent(new Event("scroll"));
 		fakeWindow.dispatchEvent(new Event("resize"));
 		fakeWindow.visualViewport.dispatchEvent(new Event("resize"));
@@ -232,6 +268,28 @@ describe("liquid geometry tracker", () => {
 		tracker.disconnect();
 		tracker.measureNow();
 		expect(measurementCount).toBe(2);
+		expect(fakeWindow.pendingAnimationFrameCount).toBe(0);
+	});
+
+	test("remeasures when tracked children are inserted or removed", () => {
+		let measurementCount = 0;
+		const tracker = createLiquidGeometryTracker(() => {
+			measurementCount += 1;
+		});
+		const tabList = new FakeElement(fakeWindow);
+
+		tracker.setElements([tabList as unknown as Element]);
+		fakeWindow.flushAnimationFrames();
+		expect(measurementCount).toBe(1);
+
+		FakeMutationObserver.latest?.emit();
+		FakeMutationObserver.latest?.emit();
+		expect(fakeWindow.pendingAnimationFrameCount).toBe(1);
+		fakeWindow.flushAnimationFrames();
+		expect(measurementCount).toBe(2);
+
+		tracker.disconnect();
+		FakeMutationObserver.latest?.emit();
 		expect(fakeWindow.pendingAnimationFrameCount).toBe(0);
 	});
 

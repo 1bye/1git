@@ -87,15 +87,18 @@ export const groupRepositoryDiffPaths = (
 export const areAllFilesStaged = (files: readonly FileChange[]): boolean =>
 	files.length > 0 && files.every(isFileStaged);
 
-export const getFileChangeLabel = (file: FileChange): string => {
+export const getFileChangeStatus = (file: FileChange): FileStatus => {
 	if (file.recordType === "untracked") {
-		return CHANGE_LABELS.untracked;
+		return "untracked";
 	}
 	if (file.worktreeStatus !== "unmodified") {
-		return CHANGE_LABELS[file.worktreeStatus];
+		return file.worktreeStatus;
 	}
-	return CHANGE_LABELS[file.indexStatus];
+	return file.indexStatus;
 };
+
+export const getFileChangeLabel = (file: FileChange): string =>
+	CHANGE_LABELS[getFileChangeStatus(file)];
 
 export const formatCommitDate = (date: string): string => {
 	const value = new Date(date);

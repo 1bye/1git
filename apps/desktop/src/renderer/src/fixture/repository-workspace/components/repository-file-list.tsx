@@ -11,7 +11,6 @@ import type {
 } from "react";
 import { useCallback, useEffect, useState } from "react";
 import {
-	getFileChangeLabel,
 	isFilePartiallyStaged,
 	isFileStaged,
 } from "@/feature/workspace/lib/workspace-model.js";
@@ -24,6 +23,7 @@ import { useLiquidContextMenuPosition } from "@/fixture/liquid-menu/hooks/use-li
 import { getLiquidMenuLayerZIndices } from "@/fixture/liquid-menu/lib/liquid-menu-stack.js";
 import { OverflowingLabel } from "@/fixture/overflowing-label/components/overflowing-label.js";
 import { RepositoryFileContextActions } from "@/fixture/repository-workspace/components/repository-file-context-actions.js";
+import { RepositoryFileStatus } from "@/fixture/repository-workspace/components/repository-file-status.js";
 import {
 	doesRepositoryFileContextMenuUseSelection,
 	getRepositoryFileRowId,
@@ -226,14 +226,14 @@ function RepositoryStageCheckbox({
 	return (
 		<label
 			className={cn(
-				"flex size-4 shrink-0 items-center justify-center rounded-md outline-none focus-within:ring-2 focus-within:ring-editor-muted/20",
+				"group/checkbox relative flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-md outline-none focus-within:ring-2 focus-within:ring-editor-muted/20",
 				disabled && "opacity-45"
 			)}
 		>
 			<input
 				aria-label={label}
 				checked={checked}
-				className="sr-only"
+				className="absolute inset-0 cursor-pointer opacity-0 disabled:cursor-default"
 				disabled={disabled}
 				onChange={changeChecked}
 				ref={setIndeterminate}
@@ -242,8 +242,10 @@ function RepositoryStageCheckbox({
 			<span
 				aria-hidden
 				className={cn(
-					"flex size-3 items-center justify-center rounded-[4px] transition-colors",
-					checked || mixed ? "bg-brand text-white" : "bg-white/35"
+					"pointer-events-none flex size-3.5 items-center justify-center rounded-[4px] border transition-colors",
+					checked || mixed
+						? "border-brand bg-brand text-white"
+						: "border-editor-faint/20 bg-white/45 group-hover/checkbox:bg-white/70"
 				)}
 			>
 				{checkboxIcon}
@@ -406,10 +408,10 @@ function RepositoryFileRow({
 		<li
 			aria-keyshortcuts={isSelected ? selectedRowAriaKeyShortcuts : undefined}
 			className={cn(
-				"group relative flex min-h-7 items-center transition-colors",
+				"group relative flex min-h-7 items-center rounded-md transition-colors",
 				selectionClassName,
-				isBulkSelectionStart && "rounded-t-sm",
-				isBulkSelectionEnd && "rounded-b-sm",
+				isBulkSelectionStart && "rounded-t-md",
+				isBulkSelectionEnd && "rounded-b-md",
 				isSingleContextMenuActive && "rounded-md",
 				isSingleContextMenuActive && !shouldElevateSelection && "z-20"
 			)}
@@ -420,12 +422,6 @@ function RepositoryFileRow({
 			ref={setRowElement}
 			style={shouldElevateSelection ? ELEVATED_SELECTION_STYLE : undefined}
 		>
-			{isSelected ? (
-				<span
-					aria-hidden
-					className="absolute inset-y-1 left-0 w-0.5 rounded-full bg-brand"
-				/>
-			) : null}
 			<span
 				aria-hidden
 				className="pointer-events-none absolute bottom-0 left-1/2 size-px"
@@ -457,12 +453,7 @@ function RepositoryFileRow({
 					) : null}
 					<span className="font-medium text-editor-ink">{path.name}</span>
 				</OverflowingLabel>
-				<span
-					aria-hidden
-					className="w-3.5 shrink-0 text-center font-mono font-semibold text-[10px] text-editor-muted"
-				>
-					{getFileChangeLabel(file)}
-				</span>
+				<RepositoryFileStatus file={file} />
 				<span className="sr-only">
 					Index status {file.indexStatus}; working tree status{" "}
 					{file.worktreeStatus}

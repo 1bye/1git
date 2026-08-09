@@ -18,6 +18,7 @@ import type {
 	HunkActionSelection,
 } from "./hunk-action-pocket.js";
 import { HunkActionPocket } from "./hunk-action-pocket.js";
+import { RepositoryFileStatus } from "./repository-file-status.js";
 
 interface DiffFileAccordionProps {
 	readonly areHunkActionsEnabled: boolean;
@@ -182,16 +183,6 @@ const DiffFileAccordionComponent = ({
 					onClick={(event) => {
 						event.preventDefault();
 						event.stopPropagation();
-						if (event.detail === 0) {
-							openActions(event.currentTarget);
-						}
-					}}
-					onPointerDown={(event) => {
-						if (event.button !== 0) {
-							return;
-						}
-						event.preventDefault();
-						event.stopPropagation();
 						openActions(event.currentTarget);
 					}}
 					type="button"
@@ -338,7 +329,7 @@ const DiffFileAccordionComponent = ({
 			<button
 				aria-controls={bodyId}
 				aria-expanded={isOpen}
-				className="sticky top-0 z-10 flex h-8 w-full items-center gap-2 bg-editor-sunken-2 px-3 text-left outline-none transition-colors hover:bg-[#e8eaed] focus-visible:bg-[#e8eaed] focus-visible:ring-2 focus-visible:ring-brand/20 focus-visible:ring-inset"
+				className="sticky top-0 z-10 flex h-8 w-full items-center gap-2 bg-editor-surface px-3 text-left outline-none transition-colors hover:bg-hover focus-visible:bg-hover focus-visible:ring-2 focus-visible:ring-brand/20 focus-visible:ring-inset"
 				data-name="RepositoryDiffFileHeader"
 				onClick={() => setIsOpen((current) => !current)}
 				type="button"
@@ -367,6 +358,7 @@ const DiffFileAccordionComponent = ({
 						<span className="text-[#cb2431]">−{deletedLines}</span>
 					)}
 				</div>
+				{entry.change ? <RepositoryFileStatus file={entry.change} /> : null}
 			</button>
 			<div hidden={!isOpen} id={bodyId}>
 				{bodyContent}

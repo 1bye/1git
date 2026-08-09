@@ -4,6 +4,7 @@ import {
 	areAllFilesStaged,
 	formatRelativeTime,
 	getFileChangeLabel,
+	getFileChangeStatus,
 	getRepositoryName,
 	getWorkspaceLabel,
 	groupRepositoryDiffPaths,
@@ -65,6 +66,9 @@ describe("workspace file presentation", () => {
 		expect(
 			getFileChangeLabel(fileChange("src/file.ts", "added", "unmodified"))
 		).toBe("A");
+		expect(
+			getFileChangeStatus(fileChange("src/file.ts", "modified", "deleted"))
+		).toBe("deleted");
 	});
 });
 

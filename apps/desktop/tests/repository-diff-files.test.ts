@@ -56,6 +56,7 @@ describe("repository diff files", () => {
 			targetLabel: "Working tree",
 		});
 		expect(entries[1]).toMatchObject({
+			change: missingFile,
 			file: null,
 			path: "binary.png",
 			target: { kind: "working" },

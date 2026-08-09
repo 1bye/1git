@@ -4,6 +4,7 @@ import type { RepositoryTab } from "@/feature/workspace/types/git-workspace.js";
 import { getRepositoryDiffElementId } from "@/fixture/repository-workspace/lib/repository-navigation.js";
 
 export interface RepositoryDiffFileEntry {
+	readonly change: FileChange | null;
 	readonly file: FileDiffMetadata | null;
 	readonly id: string | undefined;
 	readonly key: string;
@@ -13,7 +14,10 @@ export interface RepositoryDiffFileEntry {
 	readonly targetLabel: string;
 }
 
-type RepositoryDiffFileEntryWithoutId = Omit<RepositoryDiffFileEntry, "id">;
+type RepositoryDiffFileEntryWithoutId = Omit<
+	RepositoryDiffFileEntry,
+	"change" | "id"
+>;
 
 const REPOSITORY_DIFF_HASH_MODULUS = 2_147_483_647;
 const REPOSITORY_DIFF_HASH_MULTIPLIER = 31;
@@ -104,14 +108,17 @@ const addMissingFileEntries = (
 };
 
 const assignDiffElementIds = (
-	entries: readonly RepositoryDiffFileEntryWithoutId[]
+	entries: readonly RepositoryDiffFileEntryWithoutId[],
+	files: readonly FileChange[]
 ): readonly RepositoryDiffFileEntry[] => {
 	const seenPaths = new Set<string>();
+	const changesByPath = new Map(files.map((file) => [file.path, file]));
 	return entries.map((entry) => {
 		const isFirstOccurrence = !seenPaths.has(entry.path);
 		seenPaths.add(entry.path);
 		return {
 			...entry,
+			change: changesByPath.get(entry.path) ?? null,
 			id: isFirstOccurrence
 				? getRepositoryDiffElementId(entry.path)
 				: undefined,
@@ -130,7 +137,8 @@ export const createRepositoryDiffFileEntries = (
 			parseDiffFileEntries(diffs, commitOid, tab),
 			files,
 			tab
-		)
+		),
+		files
 	);
 
 export const createExpandableRepositoryDiffFile = (

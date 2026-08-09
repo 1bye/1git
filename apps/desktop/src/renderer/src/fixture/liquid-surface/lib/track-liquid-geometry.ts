@@ -74,6 +74,7 @@ export const createLiquidGeometryTracker = (
 		});
 	};
 	const resizeObserver = new ResizeObserver(schedule);
+	const mutationObserver = new MutationObserver(schedule);
 	const updateScrollAncestors = (elements: readonly Element[]): void => {
 		const nextScrollAncestors = dedupeElements(
 			elements.flatMap(getScrollAncestors)
@@ -103,8 +104,10 @@ export const createLiquidGeometryTracker = (
 		const didElementsChange = !hasSameElements(observedElements, nextElements);
 		if (didElementsChange) {
 			resizeObserver.disconnect();
+			mutationObserver.disconnect();
 			for (const element of nextElements) {
 				resizeObserver.observe(element);
+				mutationObserver.observe(element, { childList: true });
 			}
 			observedElements = nextElements;
 		}
@@ -123,6 +126,7 @@ export const createLiquidGeometryTracker = (
 			animationFrameId = null;
 		}
 		resizeObserver.disconnect();
+		mutationObserver.disconnect();
 		for (const ancestor of scrollAncestors) {
 			ancestor.removeEventListener("scroll", schedule);
 		}
