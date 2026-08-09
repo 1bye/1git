@@ -41,7 +41,8 @@ interface TriggerFixture {
 
 const createTriggerFixture = (
 	isActive: boolean,
-	isDragging = false
+	isDragging = false,
+	isDisabled = false
 ): TriggerFixture => {
 	let activationCount = 0;
 	let openCount = 0;
@@ -51,7 +52,7 @@ const createTriggerFixture = (
 			return Promise.resolve();
 		},
 		isActive,
-		isDisabled: false,
+		isDisabled,
 		isDragging,
 		isOverlay: false,
 		label: "example / main",
@@ -231,5 +232,13 @@ describe("workspace tab trigger", () => {
 
 		expect(canceledFixture.getOpenCount()).toBe(0);
 		expect(draggingFixture.getActivationCount()).toBe(0);
+	});
+
+	test("blocks busy workspace tabs without fading their contents", () => {
+		const fixture = createTriggerFixture(false, false, true);
+
+		expect(fixture.props.disabled).toBe(true);
+		expect(fixture.props.className).toContain("disabled:pointer-events-none");
+		expect(fixture.props.className).not.toContain("disabled:opacity");
 	});
 });

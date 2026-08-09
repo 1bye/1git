@@ -361,6 +361,67 @@ describe("workspace liquid geometry", () => {
 		expect(pathCoordinates(path).length).toBeGreaterThan(100);
 	});
 
+	test("preserves the full liquid tab union above the seam band", () => {
+		const geometry = WORKSPACE_TAB_SURFACE_GEOMETRY;
+		const measurement: WorkspaceLiquidMeasurement = {
+			surfaceWidth: 900,
+			tabHeight: 48,
+			tabLeft: 220,
+			tabTop: 7,
+			tabWidth: 178,
+		};
+		const workspacePath = createMeasuredWorkspacePath(measurement);
+		const fullUnionPath = createLiquidUnionPath({
+			blendRadius: geometry.blendRadius,
+			boxes: [
+				{
+					centerX: measurement.tabLeft + measurement.tabWidth / 2,
+					centerY: measurement.tabTop + measurement.tabHeight / 2,
+					halfHeight: measurement.tabHeight / 2,
+					halfWidth: measurement.tabWidth / 2,
+					radius: geometry.tabRadius,
+				},
+				{
+					centerX: measurement.surfaceWidth / 2,
+					centerY: geometry.toolbarHeight + geometry.containerDepth / 2,
+					halfHeight: geometry.containerDepth / 2,
+					halfWidth: measurement.surfaceWidth / 2,
+					radius: geometry.containerRadius,
+				},
+			],
+			sampleCellSize: geometry.sampleCellSize,
+			smoothingPasses: geometry.smoothingPasses,
+			surfaceHeight:
+				geometry.toolbarHeight +
+				geometry.containerDepth +
+				geometry.blendRadius +
+				geometry.sampleCellSize * 2,
+			surfaceWidth: measurement.surfaceWidth,
+		});
+		const workspaceCoordinates = pathCoordinates(workspacePath);
+		const fullUnionCoordinates = pathCoordinates(fullUnionPath);
+
+		for (const y of [37, 39, 41, 43, 45]) {
+			const workspaceIntersections = getHorizontalPathIntersections(
+				workspaceCoordinates,
+				y
+			);
+			const fullUnionIntersections = getHorizontalPathIntersections(
+				fullUnionCoordinates,
+				y
+			);
+
+			expect(workspaceIntersections).toHaveLength(2);
+			expect(fullUnionIntersections).toHaveLength(2);
+			for (const [index, intersection] of workspaceIntersections.entries()) {
+				expect(intersection).toBeCloseTo(
+					fullUnionIntersections[index] ?? Number.NaN,
+					1
+				);
+			}
+		}
+	});
+
 	test("fuses a tab and floating menu into one liquid contour", () => {
 		const path = createLiquidUnionPath({
 			blendRadius: 18,

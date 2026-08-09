@@ -153,7 +153,7 @@ export const createWorkspaceLiquidPath = (
 		radius: input.containerRadius,
 	};
 	const handoffY = input.containerTop + input.containerOverlap;
-	const handoffDepth = Math.max(cellSize, input.blendRadius);
+	const blendDepth = Math.max(cellSize, input.blendRadius);
 	const fieldValue = (x: number, y: number): number => {
 		const containerDistance = signedDistanceToRoundedBox(x, y, container);
 		const unionDistance = tab
@@ -165,11 +165,19 @@ export const createWorkspaceLiquidPath = (
 			: containerDistance;
 		const rawHandoffProgress = Math.max(
 			0,
-			Math.min(1, (handoffY - y) / handoffDepth)
+			Math.min(1, (handoffY - y) / blendDepth)
 		);
-		// The SVG ends at the DOM workspace surface, so both fields must share
-		// the same contour and tangent at that handoff.
-		const liquidWeight = smoothStep(rawHandoffProgress);
+		// Keep the full liquid union through the tab, while converging the outer
+		// corners to the DOM workspace contour at the SVG handoff.
+		const edgeClearance = Math.max(0, Math.min(x - clipLeft, clipRight - x));
+		const rawInteriorProgress = Math.max(
+			0,
+			Math.min(1, (edgeClearance - input.containerRadius) / blendDepth)
+		);
+		const interiorLiquidWeight = smoothStep(rawInteriorProgress);
+		const handoffLiquidWeight = smoothStep(rawHandoffProgress);
+		const liquidWeight =
+			handoffLiquidWeight + interiorLiquidWeight * (1 - handoffLiquidWeight);
 		const handoffDistance =
 			containerDistance + (unionDistance - containerDistance) * liquidWeight;
 		return Math.max(handoffDistance, clipLeft - x, x - clipRight);

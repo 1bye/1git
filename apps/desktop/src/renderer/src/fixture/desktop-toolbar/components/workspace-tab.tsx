@@ -95,7 +95,7 @@ interface WorkspaceTabCommandOptions {
 }
 
 const WORKSPACE_TAB_TRIGGER_CLASS_NAME =
-	"relative z-10 flex h-full min-w-0 flex-1 touch-none items-center gap-2 overflow-hidden rounded-md text-left outline-none hover:text-editor-ink focus-visible:ring-2 focus-visible:ring-brand/20 active:cursor-grabbing disabled:pointer-events-none disabled:opacity-50";
+	"relative z-10 flex h-full min-w-0 flex-1 touch-none items-center gap-2 overflow-hidden rounded-md text-left outline-none hover:text-editor-ink focus-visible:ring-2 focus-visible:ring-brand/20 active:cursor-grabbing disabled:pointer-events-none";
 
 const WORKSPACE_TAB_ENTRY_ANIMATION_NAME = "workspace-tab-content-melt-in";
 
