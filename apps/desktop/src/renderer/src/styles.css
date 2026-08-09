@@ -207,7 +207,7 @@ button {
 	}
 }
 
-[data-name="WorkspaceTab"]:not([data-overlay="true"])
+[data-name="WorkspaceTab"][data-entering="true"]:not([data-overlay="true"])
 	> [data-name="WorkspaceTabContent"] {
 	transform-origin: center bottom;
 	animation: workspace-tab-content-melt-in

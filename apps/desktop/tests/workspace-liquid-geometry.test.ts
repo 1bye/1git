@@ -30,8 +30,8 @@ const pathCoordinates = (path: string): readonly [number, number][] =>
 
 type WorkspaceEdge = "left" | "right";
 
-const EDGE_PROFILE_ROW_TOLERANCE = 0.51;
 const PATH_COORDINATE_PRECISION_TOLERANCE = 0.01;
+const HANDOFF_COORDINATE_PRECISION = 0;
 
 const createMeasuredWorkspacePath = (
 	measurement: WorkspaceLiquidMeasurement
@@ -40,7 +40,7 @@ const createMeasuredWorkspacePath = (
 	return createWorkspaceLiquidPath({
 		blendRadius: geometry.blendRadius,
 		containerDepth: geometry.containerDepth,
-		containerInset: geometry.containerInset,
+		containerOverlap: geometry.containerOverlap,
 		containerRadius: geometry.containerRadius,
 		containerTop: geometry.toolbarHeight,
 		sampleCellSize: geometry.sampleCellSize,
@@ -57,14 +57,15 @@ const createMeasuredWorkspacePath = (
 const createEdgeMeasurement = (
 	surfaceWidth: number,
 	edge: WorkspaceEdge,
-	tabWidth: number = WORKSPACE_TAB_SURFACE_GEOMETRY.tabWidth
+	tabWidth: number = WORKSPACE_TAB_SURFACE_GEOMETRY.tabWidth,
+	edgeClearance = 0
 ): WorkspaceLiquidMeasurement => {
 	const geometry = WORKSPACE_TAB_SURFACE_GEOMETRY;
 	const visibleTabWidth = tabWidth - geometry.tabVisualInsetInline * 2;
 	const visibleTabLeft =
 		edge === "left"
-			? geometry.containerInset
-			: surfaceWidth - geometry.containerInset - visibleTabWidth;
+			? edgeClearance
+			: surfaceWidth - edgeClearance - visibleTabWidth;
 	return createWorkspaceLiquidMeasurement(
 		{ height: geometry.toolbarHeight, left: 0, top: 0, width: surfaceWidth },
 		{
@@ -82,54 +83,56 @@ const createEdgeMeasurement = (
 	);
 };
 
-const getEdgeProfile = (
+const getHorizontalPathIntersections = (
 	coordinates: readonly [number, number][],
-	edge: WorkspaceEdge,
-	top: number,
-	bottom: number
+	y: number
 ): readonly number[] => {
-	const profile: number[] = [];
-	for (let y = top; y <= bottom; y += 1) {
-		const row = coordinates.filter(
-			([, coordinateY]) =>
-				Math.abs(coordinateY - y) <= EDGE_PROFILE_ROW_TOLERANCE
-		);
-		if (row.length === 0) {
+	const intersections: number[] = [];
+	for (const [index, start] of coordinates.entries()) {
+		const end = coordinates[(index + 1) % coordinates.length];
+		if (!end) {
 			continue;
 		}
-		const horizontalCoordinates = row.map(([x]) => x);
-		profile.push(
-			edge === "left"
-				? Math.min(...horizontalCoordinates)
-				: Math.max(...horizontalCoordinates)
-		);
+		const crossesRow =
+			(start[1] <= y && end[1] > y) || (end[1] <= y && start[1] > y);
+		if (!crossesRow) {
+			continue;
+		}
+		const progress = (y - start[1]) / (end[1] - start[1]);
+		intersections.push(start[0] + (end[0] - start[0]) * progress);
 	}
-	return profile;
+	return intersections.sort((first, second) => first - second);
 };
 
-const getMaximumInwardRecession = (
-	profile: readonly number[],
+const getPathEdgeAtY = (
+	coordinates: readonly [number, number][],
+	y: number,
 	edge: WorkspaceEdge
 ): number => {
-	const [firstCoordinate, ...remainingCoordinates] = profile;
-	if (firstCoordinate === undefined) {
-		return Number.POSITIVE_INFINITY;
-	}
+	const intersections = getHorizontalPathIntersections(coordinates, y);
+	expect(intersections).toHaveLength(2);
+	return edge === "left"
+		? (intersections[0] ?? Number.NaN)
+		: (intersections.at(-1) ?? Number.NaN);
+};
 
-	let outwardCoordinate = firstCoordinate;
-	let maximumRecession = 0;
-	for (const coordinate of remainingCoordinates) {
-		const recession =
-			edge === "left"
-				? coordinate - outwardCoordinate
-				: outwardCoordinate - coordinate;
-		maximumRecession = Math.max(maximumRecession, recession);
-		outwardCoordinate =
-			edge === "left"
-				? Math.min(outwardCoordinate, coordinate)
-				: Math.max(outwardCoordinate, coordinate);
-	}
-	return maximumRecession;
+const getContainerEdgeAtY = (
+	surfaceWidth: number,
+	y: number,
+	edge: WorkspaceEdge
+): number => {
+	const geometry = WORKSPACE_TAB_SURFACE_GEOMETRY;
+	const cornerCenterY = geometry.toolbarHeight + geometry.containerRadius;
+	const verticalOffset = Math.max(
+		-geometry.containerRadius,
+		Math.min(geometry.containerRadius, y - cornerCenterY)
+	);
+	const cornerOffset = Math.sqrt(
+		Math.max(0, geometry.containerRadius ** 2 - verticalOffset ** 2)
+	);
+	return edge === "left"
+		? geometry.containerRadius - cornerOffset
+		: surfaceWidth - geometry.containerRadius + cornerOffset;
 };
 
 const expectContinuousWorkspacePath = (
@@ -138,37 +141,28 @@ const expectContinuousWorkspacePath = (
 	const geometry = WORKSPACE_TAB_SURFACE_GEOMETRY;
 	const path = createMeasuredWorkspacePath(measurement);
 	const coordinates = pathCoordinates(path);
-	const joinTop = geometry.toolbarHeight - geometry.tabRadius;
-	const joinBottom = geometry.toolbarHeight + geometry.containerRadius;
-	const leftProfile = getEdgeProfile(coordinates, "left", joinTop, joinBottom);
-	const rightProfile = getEdgeProfile(
-		coordinates,
-		"right",
-		joinTop,
-		joinBottom
-	);
 	const horizontalCoordinates = coordinates.map(([x]) => x);
+	const handoffY = geometry.toolbarHeight + geometry.containerOverlap;
 
 	expect(path.match(/ Z/g)).toHaveLength(1);
 	expect(
 		coordinates.every(([x, y]) => Number.isFinite(x) && Number.isFinite(y))
 	).toBe(true);
 	expect(Math.min(...horizontalCoordinates)).toBeGreaterThanOrEqual(
-		geometry.containerInset - PATH_COORDINATE_PRECISION_TOLERANCE
+		-PATH_COORDINATE_PRECISION_TOLERANCE
 	);
 	expect(Math.max(...horizontalCoordinates)).toBeLessThanOrEqual(
-		measurement.surfaceWidth -
-			geometry.containerInset +
-			PATH_COORDINATE_PRECISION_TOLERANCE
+		measurement.surfaceWidth + PATH_COORDINATE_PRECISION_TOLERANCE
 	);
-	expect(leftProfile.length).toBeGreaterThan(10);
-	expect(rightProfile.length).toBeGreaterThan(10);
-	expect(getMaximumInwardRecession(leftProfile, "left")).toBeLessThanOrEqual(
-		geometry.sampleCellSize
-	);
-	expect(getMaximumInwardRecession(rightProfile, "right")).toBeLessThanOrEqual(
-		geometry.sampleCellSize
-	);
+	for (const offset of [-0.5, 0, 0.5]) {
+		const y = handoffY + offset;
+		for (const edge of ["left", "right"] as const) {
+			expect(getPathEdgeAtY(coordinates, y, edge)).toBeCloseTo(
+				getContainerEdgeAtY(measurement.surfaceWidth, y, edge),
+				HANDOFF_COORDINATE_PRECISION
+			);
+		}
+	}
 	return coordinates;
 };
 
@@ -346,18 +340,18 @@ describe("workspace liquid geometry", () => {
 
 	test("traces a fused tab and workspace as one SVG contour", () => {
 		const path = createWorkspaceLiquidPath({
-			blendRadius: 16,
+			blendRadius: 12,
 			containerDepth: 48,
-			containerInset: 6,
+			containerOverlap: 1,
 			containerRadius: 14,
 			containerTop: 46,
 			sampleCellSize: 2,
 			smoothingPasses: 1,
 			surfaceWidth: 900,
-			tabHeight: 40,
+			tabHeight: 48,
 			tabLeft: 220,
-			tabRadius: 12,
-			tabTop: 6,
+			tabRadius: 10,
+			tabTop: 7,
 			tabWidth: 178,
 		});
 
@@ -585,13 +579,12 @@ describe("workspace liquid geometry", () => {
 		expect(seedFrame.bounds).toEqual(openFrame.bounds);
 	});
 
-	test("clips the liquid skin to the workspace inset at the right edge", () => {
+	test("clips the liquid skin to the workspace bounds", () => {
 		const surfaceWidth = 320;
-		const containerInset = 6;
 		const path = createWorkspaceLiquidPath({
 			blendRadius: 16,
 			containerDepth: 48,
-			containerInset,
+			containerOverlap: 1,
 			containerRadius: 14,
 			containerTop: 46,
 			sampleCellSize: 2,
@@ -606,11 +599,9 @@ describe("workspace liquid geometry", () => {
 		const coordinates = pathCoordinates(path);
 		const horizontalCoordinates = coordinates.map(([x]) => x);
 
-		expect(Math.min(...horizontalCoordinates)).toBeGreaterThanOrEqual(
-			containerInset
-		);
+		expect(Math.min(...horizontalCoordinates)).toBeGreaterThanOrEqual(0);
 		expect(Math.max(...horizontalCoordinates)).toBeLessThanOrEqual(
-			surfaceWidth - containerInset
+			surfaceWidth
 		);
 	});
 
@@ -619,7 +610,7 @@ describe("workspace liquid geometry", () => {
 		const path = createWorkspaceLiquidPath({
 			blendRadius: 12,
 			containerDepth: 48,
-			containerInset: 6,
+			containerOverlap: 1,
 			containerRadius: 14,
 			containerTop,
 			sampleCellSize: 2,
@@ -652,28 +643,18 @@ describe("workspace liquid geometry", () => {
 			const rightMeasurement = createEdgeMeasurement(surfaceWidth, "right");
 			const leftCoordinates = expectContinuousWorkspacePath(leftMeasurement);
 			const rightCoordinates = expectContinuousWorkspacePath(rightMeasurement);
-			const joinTop = geometry.toolbarHeight - geometry.tabRadius;
-			const joinBottom = geometry.toolbarHeight + geometry.containerRadius;
-			const leftProfile = getEdgeProfile(
-				leftCoordinates,
-				"left",
-				joinTop,
-				joinBottom
-			);
-			const rightProfile = getEdgeProfile(
-				rightCoordinates,
-				"right",
-				joinTop,
-				joinBottom
-			);
+			const joinTop = geometry.toolbarHeight - geometry.blendRadius;
+			const joinBottom =
+				geometry.toolbarHeight + geometry.containerRadius - 0.5;
 
 			expect(leftMeasurement.tabHeight).toBe(expectedTabHeight);
 			expect(rightMeasurement.tabHeight).toBe(expectedTabHeight);
-			expect(leftProfile).toHaveLength(rightProfile.length);
-			for (const [index, leftCoordinate] of leftProfile.entries()) {
-				expect(leftCoordinate + (rightProfile[index] ?? 0)).toBeCloseTo(
-					surfaceWidth,
-					1
+			for (let y = joinTop + 0.25; y <= joinBottom; y += 0.5) {
+				const mirroredWidth =
+					getPathEdgeAtY(leftCoordinates, y, "left") +
+					getPathEdgeAtY(rightCoordinates, y, "right");
+				expect(Math.abs(mirroredWidth - surfaceWidth)).toBeLessThanOrEqual(
+					geometry.sampleCellSize / 4
 				);
 			}
 		}
@@ -704,6 +685,7 @@ describe("workspace liquid geometry", () => {
 
 	test("stays continuous across tab widths and device-pixel snapping", () => {
 		const devicePixelRatios = [1, 1.25, 1.5, 2, 3];
+		const edgeClearances = [0, 4, 8, 14];
 		const tabWidths = [144, 188.5, 210, 260];
 		const snap = (value: number, devicePixelRatio: number): number =>
 			Math.round(value * devicePixelRatio) / devicePixelRatio;
@@ -711,19 +693,22 @@ describe("workspace liquid geometry", () => {
 		for (const devicePixelRatio of devicePixelRatios) {
 			for (const tabWidth of tabWidths) {
 				const surfaceWidth = snap(340.5, devicePixelRatio);
-				for (const edge of ["left", "right"] as const) {
-					const measurement = createEdgeMeasurement(
-						surfaceWidth,
-						edge,
-						snap(tabWidth, devicePixelRatio)
-					);
-					expectContinuousWorkspacePath({
-						surfaceWidth: snap(measurement.surfaceWidth, devicePixelRatio),
-						tabHeight: snap(measurement.tabHeight, devicePixelRatio),
-						tabLeft: snap(measurement.tabLeft, devicePixelRatio),
-						tabTop: snap(measurement.tabTop, devicePixelRatio),
-						tabWidth: snap(measurement.tabWidth, devicePixelRatio),
-					});
+				for (const edgeClearance of edgeClearances) {
+					for (const edge of ["left", "right"] as const) {
+						const measurement = createEdgeMeasurement(
+							surfaceWidth,
+							edge,
+							snap(tabWidth, devicePixelRatio),
+							snap(edgeClearance, devicePixelRatio)
+						);
+						expectContinuousWorkspacePath({
+							surfaceWidth: snap(measurement.surfaceWidth, devicePixelRatio),
+							tabHeight: snap(measurement.tabHeight, devicePixelRatio),
+							tabLeft: snap(measurement.tabLeft, devicePixelRatio),
+							tabTop: snap(measurement.tabTop, devicePixelRatio),
+							tabWidth: snap(measurement.tabWidth, devicePixelRatio),
+						});
+					}
 				}
 			}
 		}

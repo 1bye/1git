@@ -18,6 +18,7 @@ import {
 	LiquidMenuRoot,
 	LiquidMenuTrigger,
 } from "@/fixture/liquid-menu/components/liquid-menu.js";
+import { LIQUID_MENU_CONNECTED_BUTTON_ANCHOR_GEOMETRY } from "@/fixture/liquid-menu/constants/liquid-menu.js";
 import { RepositoryQuickActions } from "@/fixture/repository-workspace/components/repository-quick-actions.js";
 
 interface RepositoryWorkspaceToolbarProps {
@@ -31,12 +32,6 @@ interface RepositoryWorkspaceToolbarProps {
 	readonly snapshot: RepositorySnapshot;
 	readonly tab: RepositoryTab;
 }
-
-const REPOSITORY_VIEW_ANCHOR_GEOMETRY = {
-	insetBlock: 0,
-	insetInline: 0,
-	radius: 8,
-} as const;
 
 const tabForShortcut = (key: string): RepositoryTab | null => {
 	if (key === "1") {
@@ -101,7 +96,7 @@ export function RepositoryWorkspaceToolbar({
 		>
 			<LiquidMenuRoot
 				anchor={getAnchor}
-				anchorGeometry={REPOSITORY_VIEW_ANCHOR_GEOMETRY}
+				anchorGeometry={LIQUID_MENU_CONNECTED_BUTTON_ANCHOR_GEOMETRY}
 				modal
 			>
 				<LiquidMenuTrigger

@@ -30,7 +30,9 @@ import {
 	reconcileWorkspaceOrder,
 } from "@/feature/workspace/lib/workspace-order.js";
 import {
+	presentedSession,
 	type SessionSnapshotState,
+	sessionForSnapshot,
 	snapshotForSession,
 } from "@/feature/workspace/lib/workspace-snapshot.js";
 import type {
@@ -128,11 +130,15 @@ export const useGitWorkspace = (): GitWorkspace => {
 		Readonly<Record<RepositorySessionId, WorkspaceSummary>>
 	>({});
 	const diffRequestIdRef = useRef(0);
-	const activeSession = activeSessionFromManager(manager);
-	const snapshot = snapshotForSession(
-		sessionSnapshot,
-		activeSession?.id ?? null
+	const managerActiveSession = activeSessionFromManager(manager);
+	const snapshotSession = sessionForSnapshot(sessionSnapshot, manager.sessions);
+	const activeSession = presentedSession(
+		managerActiveSession,
+		snapshotSession,
+		pendingAction === "workspace"
 	);
+	const presentedSessionId = activeSession ? activeSession.id : null;
+	const snapshot = snapshotForSession(sessionSnapshot, presentedSessionId);
 	const applyManagerState = useCallback(
 		(nextManager: RepositoryManagerState): void => {
 			setManager(nextManager);
@@ -356,7 +362,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 		};
 	}, [applyManagerState, loadSession]);
 
-	useRepositoryRefresh(activeSession?.id ?? null, () => {
+	useRepositoryRefresh(presentedSessionId, () => {
 		refresh().catch((cause: unknown) => {
 			setError(errorMessage(cause));
 		});

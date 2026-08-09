@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { LIQUID_MENU_CONNECTED_BUTTON_ANCHOR_GEOMETRY } from "@/fixture/liquid-menu/constants/liquid-menu.js";
 import {
 	clipLiquidMenuRect,
 	createLiquidMenuFrame,
@@ -58,6 +59,20 @@ describe("liquid menu anchor clipping", () => {
 			top: 24,
 			width: 76,
 		});
+	});
+
+	test("preserves the shared connected-button radius", () => {
+		const frame = createLiquidMenuFrame(
+			{
+				anchor: { height: 28, left: 100, top: 20, width: 80 },
+				menu: { height: 120, left: 100, top: 54, width: 180 },
+				submenu: null,
+			},
+			{ menu: 1, submenu: 0 },
+			LIQUID_MENU_CONNECTED_BUTTON_ANCHOR_GEOMETRY
+		);
+
+		expect(frame.anchor.radius).toBe(10);
 	});
 
 	test("leaves no anchor cutout when fully clipped", () => {

@@ -10,7 +10,7 @@ import {
 interface WorkspaceLiquidPathInput {
 	readonly blendRadius: number;
 	readonly containerDepth: number;
-	readonly containerInset: number;
+	readonly containerOverlap: number;
 	readonly containerRadius: number;
 	readonly containerTop: number;
 	readonly sampleCellSize: number;
@@ -39,6 +39,9 @@ const TAB_SDF_HEIGHT =
 
 const roundMeasurement = (value: number): number =>
 	Math.round(value * MEASUREMENT_SCALE) / MEASUREMENT_SCALE;
+
+const smoothStep = (progress: number): number =>
+	progress * progress * (3 - 2 * progress);
 
 const intersectWorkspaceLiquidRects = (
 	first: WorkspaceLiquidRect,
@@ -120,12 +123,12 @@ export const createWorkspaceLiquidPath = (
 		input.containerDepth +
 		input.blendRadius +
 		cellSize * 2;
-	if (sampleWidth <= input.containerInset * 2 || sampleHeight <= 0) {
+	if (sampleWidth <= 0 || sampleHeight <= 0) {
 		return "";
 	}
 
-	const clipLeft = input.containerInset;
-	const clipRight = input.surfaceWidth - input.containerInset;
+	const clipLeft = 0;
+	const clipRight = input.surfaceWidth;
 	const hasVisibleTab = input.tabHeight > 0 && input.tabWidth > 0;
 	let tab: RoundedBox | null = null;
 	if (hasVisibleTab) {
@@ -146,9 +149,11 @@ export const createWorkspaceLiquidPath = (
 		centerX: input.surfaceWidth / 2,
 		centerY: input.containerTop + input.containerDepth / 2,
 		halfHeight: input.containerDepth / 2,
-		halfWidth: (input.surfaceWidth - input.containerInset * 2) / 2,
+		halfWidth: input.surfaceWidth / 2,
 		radius: input.containerRadius,
 	};
+	const handoffY = input.containerTop + input.containerOverlap;
+	const handoffDepth = Math.max(cellSize, input.blendRadius);
 	const fieldValue = (x: number, y: number): number => {
 		const containerDistance = signedDistanceToRoundedBox(x, y, container);
 		const unionDistance = tab
@@ -158,7 +163,16 @@ export const createWorkspaceLiquidPath = (
 					input.blendRadius
 				)
 			: containerDistance;
-		return Math.max(unionDistance, clipLeft - x, x - clipRight);
+		const rawHandoffProgress = Math.max(
+			0,
+			Math.min(1, (handoffY - y) / handoffDepth)
+		);
+		// The SVG ends at the DOM workspace surface, so both fields must share
+		// the same contour and tangent at that handoff.
+		const liquidWeight = smoothStep(rawHandoffProgress);
+		const handoffDistance =
+			containerDistance + (unionDistance - containerDistance) * liquidWeight;
+		return Math.max(handoffDistance, clipLeft - x, x - clipRight);
 	};
 
 	return traceDistanceField(

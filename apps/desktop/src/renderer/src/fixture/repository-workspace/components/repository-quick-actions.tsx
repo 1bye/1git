@@ -26,12 +26,7 @@ import {
 	LiquidMenuSubTrigger,
 	LiquidMenuTrigger,
 } from "@/fixture/liquid-menu/components/liquid-menu.js";
-
-const REPOSITORY_QUICK_ACTIONS_ANCHOR_GEOMETRY = {
-	insetBlock: 0,
-	insetInline: 0,
-	radius: 9,
-} as const;
+import { LIQUID_MENU_CONNECTED_BUTTON_ANCHOR_GEOMETRY } from "@/fixture/liquid-menu/constants/liquid-menu.js";
 
 interface RepositoryQuickActionsProps {
 	readonly allFilesStaged: boolean;
@@ -90,7 +85,7 @@ export function RepositoryQuickActions({
 	return (
 		<LiquidMenuRoot
 			anchor={getAnchor}
-			anchorGeometry={REPOSITORY_QUICK_ACTIONS_ANCHOR_GEOMETRY}
+			anchorGeometry={LIQUID_MENU_CONNECTED_BUTTON_ANCHOR_GEOMETRY}
 			disabled={isPending}
 			modal
 		>

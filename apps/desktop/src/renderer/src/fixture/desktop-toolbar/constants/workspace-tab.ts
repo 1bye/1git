@@ -16,7 +16,6 @@ export const WORKSPACE_TAB_SURFACE_MOTION = {
 export const WORKSPACE_TAB_SURFACE_GEOMETRY = {
 	blendRadius: 12,
 	containerDepth: 48,
-	containerInset: 6,
 	containerOverlap: 1,
 	containerRadius: 14,
 	outlineWidth: 1,

@@ -11,6 +11,8 @@ const OPEN_CONNECTED_TRIGGER_SELECTOR =
 	/\[data-liquid-trigger\]:not\(\s*\[data-liquid-connected-fill="none"\]\s*\)\[data-liquid-state="open"\]/;
 const CLOSING_CONNECTED_TRIGGER_SELECTOR =
 	/\[data-liquid-trigger\]:not\(\s*\[data-liquid-connected-fill="none"\]\s*\)\[data-liquid-state="closing"\]/;
+const CONNECTED_BUTTON_GEOMETRY =
+	"anchorGeometry={LIQUID_MENU_CONNECTED_BUTTON_ANCHOR_GEOMETRY}";
 
 describe("liquid trigger styles", () => {
 	test("uses the hover token while triggers are idle", () => {
@@ -42,6 +44,20 @@ describe("liquid trigger styles", () => {
 		expect(styles).not.toContain(
 			'[data-name="RepositoryMenuTrigger"][data-liquid-menu-anchor-state="active"]'
 		);
+	});
+
+	test("shares the rounded-lg anchor geometry across connected buttons", () => {
+		const consumers = [
+			"../src/renderer/src/fixture/desktop-toolbar/components/repository-menu.tsx",
+			"../src/renderer/src/fixture/repository-workspace/components/repository-workspace-toolbar.tsx",
+			"../src/renderer/src/fixture/repository-workspace/components/repository-quick-actions.tsx",
+		];
+
+		for (const consumer of consumers) {
+			const source = readSource(consumer);
+			expect(source).toContain("LIQUID_MENU_CONNECTED_BUTTON_ANCHOR_GEOMETRY");
+			expect(source).toContain(CONNECTED_BUTTON_GEOMETRY);
+		}
 	});
 
 	test("exposes semantic color tokens for surface consumers", () => {

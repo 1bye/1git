@@ -26,6 +26,12 @@ export interface LiquidMenuMotion {
 	readonly submenuOpenDurationMs: number;
 }
 
+export const LIQUID_MENU_CONNECTED_BUTTON_ANCHOR_GEOMETRY = {
+	insetBlock: 0,
+	insetInline: 0,
+	radius: 10,
+} as const;
+
 export const LIQUID_MENU_GEOMETRY: LiquidMenuGeometry = {
 	blendRadius: 40,
 	menuRadius: 16,

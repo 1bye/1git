@@ -42,6 +42,7 @@ import {
 	LiquidPickerTrigger,
 } from "@/fixture/liquid-menu/components/liquid-menu.js";
 import { LiquidMenuAutoSize } from "@/fixture/liquid-menu/components/liquid-menu-auto-size.js";
+import { LIQUID_MENU_CONNECTED_BUTTON_ANCHOR_GEOMETRY } from "@/fixture/liquid-menu/constants/liquid-menu.js";
 import { RepositoryContextMenu } from "@/fixture/repository-item/components/repository-context-menu.js";
 import { REPOSITORY_ITEM_TOOLTIP_DELAY_MS } from "@/fixture/repository-item/constants/repository-context-menu.js";
 import { useRecentRepositoryPreviews } from "@/fixture/repository-item/hooks/use-recent-repository-previews.js";
@@ -83,12 +84,6 @@ type RepositoryPickerEntry = OpenLocalEntry | RepositoryEntry;
 type RepositoryPickerHighlightDetails = Parameters<
 	NonNullable<ComboboxRootProps<RepositoryPickerEntry>["onItemHighlighted"]>
 >[1];
-
-const REPOSITORY_MENU_ANCHOR_GEOMETRY = {
-	insetBlock: 0,
-	insetInline: 0,
-	radius: 8,
-} as const;
 
 const REPOSITORY_MENU_SIDE_OFFSET = -1;
 
@@ -462,7 +457,7 @@ export function RepositoryMenu({
 			>
 				<LiquidPickerRoot<RepositoryPickerEntry>
 					anchor={getMenuAnchor}
-					anchorGeometry={REPOSITORY_MENU_ANCHOR_GEOMETRY}
+					anchorGeometry={LIQUID_MENU_CONNECTED_BUTTON_ANCHOR_GEOMETRY}
 					autoHighlight
 					disabled={!isVisible || pendingAction === "open"}
 					filter={null}

@@ -303,7 +303,7 @@ export function useWorkspaceLiquidSurface({
 		return createWorkspaceLiquidPath({
 			blendRadius: geometry.blendRadius,
 			containerDepth: geometry.containerDepth,
-			containerInset: geometry.containerInset,
+			containerOverlap: geometry.containerOverlap,
 			containerRadius: geometry.containerRadius,
 			containerTop: geometry.toolbarHeight,
 			sampleCellSize: geometry.sampleCellSize,

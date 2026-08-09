@@ -5,10 +5,11 @@ import { XIcon } from "@phosphor-icons/react/dist/csr/X";
 import type {
 	ComponentProps,
 	CSSProperties,
+	AnimationEvent as ReactAnimationEvent,
 	ReactElement,
 	RefCallback,
 } from "react";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useCommandLensTarget } from "@/feature/command-lens/hooks/use-command-lens-target.js";
 import type { CommandLensCommand } from "@/feature/command-lens/lib/command-lens-shortcut.js";
 import {
@@ -95,6 +96,8 @@ interface WorkspaceTabCommandOptions {
 
 const WORKSPACE_TAB_TRIGGER_CLASS_NAME =
 	"relative z-10 flex h-full min-w-0 flex-1 touch-none items-center gap-2 overflow-hidden rounded-md text-left outline-none hover:text-editor-ink focus-visible:ring-2 focus-visible:ring-brand/20 active:cursor-grabbing disabled:pointer-events-none disabled:opacity-50";
+
+const WORKSPACE_TAB_ENTRY_ANIMATION_NAME = "workspace-tab-content-melt-in";
 
 const WORKSPACE_TAB_STYLE: CSSProperties = {
 	height: WORKSPACE_TAB_SURFACE_GEOMETRY.tabHeight,
@@ -400,6 +403,19 @@ function WorkspaceTabAppearance({
 		onClose,
 		sessionId: workspace.session.id,
 	});
+	const [isEntering, setIsEntering] = useState(!isOverlay);
+	const finishTabContentAnimation = async (
+		event: ReactAnimationEvent<HTMLDivElement>
+	): Promise<void> => {
+		if (
+			event.target === event.currentTarget &&
+			event.animationName === WORKSPACE_TAB_ENTRY_ANIMATION_NAME
+		) {
+			setIsEntering(false);
+			return;
+		}
+		await finishClosingWorkspace(event);
+	};
 	const commandLensTarget = useCommandLensTarget({
 		commands: getWorkspaceTabCommands({
 			activate: activateWorkspace,
@@ -443,6 +459,7 @@ function WorkspaceTabAppearance({
 			data-closing={isClosing ? "true" : undefined}
 			data-desktop-interactive
 			data-dragging={isDragging ? "true" : undefined}
+			data-entering={isEntering ? "true" : undefined}
 			data-name="WorkspaceTab"
 			data-overflowing-label-suppressed={isDragging ? "true" : undefined}
 			data-overflowing-label-trigger
@@ -454,7 +471,7 @@ function WorkspaceTabAppearance({
 			<div
 				className="relative z-[1] flex h-full min-w-0 flex-1 items-center"
 				data-name="WorkspaceTabContent"
-				onAnimationEnd={finishClosingWorkspace}
+				onAnimationEnd={finishTabContentAnimation}
 			>
 				<WorkspaceTabTrigger
 					activate={activateWorkspace}
