@@ -17,40 +17,26 @@ import {
 	LiquidMenuRoot,
 } from "@/fixture/liquid-menu/components/liquid-menu.js";
 import { LiquidMenuAutoSize } from "@/fixture/liquid-menu/components/liquid-menu-auto-size.js";
+import type { LiquidMenuRect } from "@/fixture/liquid-menu/lib/liquid-menu-geometry.js";
 import { getLiquidMenuLayerZIndices } from "@/fixture/liquid-menu/lib/liquid-menu-stack.js";
 import { createLiquidGeometryTracker } from "@/fixture/liquid-surface/lib/track-liquid-geometry.js";
 import {
 	REPOSITORY_HUNK_ACTION_ANCHOR_GEOMETRY,
 	REPOSITORY_HUNK_ACTION_WIDTH_CLASS_NAME,
 } from "@/fixture/repository-workspace/constants/repository-diff.js";
-import { measureHunkActionAnchor } from "@/fixture/repository-workspace/lib/hunk-action-anchor.js";
+import { measureHunkActionSelection } from "@/fixture/repository-workspace/lib/hunk-action-anchor.js";
 
 type HunkActionView = "actions" | "confirm-discard";
 
 const HUNK_ACTION_ANCHOR_Z_INDEX = getLiquidMenuLayerZIndices(0).selection;
-const HUNK_ACTION_VIEWPORT_SELECTOR = "[data-repository-diff-viewport]";
-
-const closestAcrossShadowBoundary = (
-	element: Element,
-	selector: string
-): Element | null => {
-	let current: Element | null = element;
-	while (current) {
-		const match = current.closest(selector);
-		if (match) {
-			return match;
-		}
-		const root = current.getRootNode();
-		current = root instanceof ShadowRoot ? root.host : null;
-	}
-	return null;
-};
 
 export interface HunkActionSelection {
+	readonly anchorBounds: LiquidMenuRect;
 	readonly anchorElement: HTMLButtonElement;
 	readonly hunkIndex: number;
 	readonly path: string;
 	readonly target: "staged" | "working";
+	readonly viewportElement: HTMLElement;
 }
 
 export type HunkActionHandler = (input: ChangeHunkInput) => Promise<boolean>;
@@ -76,17 +62,9 @@ export function HunkActionPocket({
 	const [actionError, setActionError] = useState<string | null>(null);
 	const anchorRef = useRef<HTMLSpanElement | null>(null);
 	const getAnchor = useCallback((): Element | null => anchorRef.current, []);
-	const getSurfaceAnchor = useCallback(
-		(): Element | null => selection.anchorElement,
-		[selection.anchorElement]
-	);
 	const getAnchorViewport = useCallback(
-		(): Element | null =>
-			closestAcrossShadowBoundary(
-				selection.anchorElement,
-				HUNK_ACTION_VIEWPORT_SELECTOR
-			),
-		[selection.anchorElement]
+		(): Element | null => selection.viewportElement,
+		[selection.viewportElement]
 	);
 	const changeOpen = useCallback(
 		(nextIsOpen: boolean): void => {
@@ -100,9 +78,10 @@ export function HunkActionPocket({
 	);
 	const positionAnchor = useCallback(
 		(anchor: HTMLSpanElement): void => {
-			const measurement = measureHunkActionAnchor(
+			const measurement = measureHunkActionSelection(
 				selection.anchorElement,
-				getAnchorViewport()
+				selection.anchorBounds,
+				selection.viewportElement
 			);
 			if (!measurement) {
 				anchor.style.visibility = "hidden";
@@ -123,7 +102,12 @@ export function HunkActionPocket({
 			anchor.style.visibility = "visible";
 			anchor.style.width = `${bounds.width}px`;
 		},
-		[changeOpen, getAnchorViewport, selection.anchorElement]
+		[
+			changeOpen,
+			selection.anchorBounds,
+			selection.anchorElement,
+			selection.viewportElement,
+		]
 	);
 	const setAnchorElement = useCallback(
 		(anchor: HTMLSpanElement | null): void => {
@@ -142,14 +126,13 @@ export function HunkActionPocket({
 		const tracker = createLiquidGeometryTracker(() => {
 			positionAnchor(anchor);
 		});
-		const viewport = getAnchorViewport();
-		tracker.setElements(
-			viewport
-				? [selection.anchorElement, viewport, anchor]
-				: [selection.anchorElement, anchor]
-		);
+		const trackedElements = [selection.viewportElement, anchor];
+		if (selection.anchorElement.isConnected) {
+			trackedElements.push(selection.anchorElement);
+		}
+		tracker.setElements(trackedElements);
 		return tracker.disconnect;
-	}, [getAnchorViewport, positionAnchor, selection.anchorElement]);
+	}, [positionAnchor, selection.anchorElement, selection.viewportElement]);
 	const runAction = async (action: HunkAction): Promise<void> => {
 		setActionError(null);
 		const succeeded = await onChangeHunk({
@@ -182,7 +165,7 @@ export function HunkActionPocket({
 				document.body
 			)}
 			<LiquidMenuRoot
-				anchor={getSurfaceAnchor}
+				anchor={getAnchor}
 				anchorClip={getAnchorViewport}
 				anchorGeometry={REPOSITORY_HUNK_ACTION_ANCHOR_GEOMETRY}
 				disabled={isPending}

@@ -53,6 +53,7 @@ describe("liquid trigger styles", () => {
 
 		expect(surface).toContain('className="pointer-events-auto"');
 		expect(surface).toContain("data-desktop-interactive");
+		expect(surface).toContain("onBackdropPress(event.nativeEvent)");
 		expect(styles).toContain(
 			'body:has([data-name="LiquidMenuBackdropLayer"]) [data-desktop-drag]'
 		);

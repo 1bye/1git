@@ -20,6 +20,10 @@ import {
 	DropdownMenuSubTrigger,
 	DropdownMenuTrigger,
 } from "@1git/ui/components/dropdown-menu";
+import {
+	createMenuOutsidePressEventDetails,
+	createOutsidePressEventDetails,
+} from "@1git/ui/lib/base-ui-event-details";
 import { cn } from "@1git/ui/lib/utils";
 import type {
 	ComponentProps,
@@ -338,10 +342,13 @@ export function LiquidMenuRoot({
 		state.changeOpen(nextIsOpen);
 		onOpenChange?.(nextIsOpen, eventDetails);
 	};
+	const dismissFromBackdrop = (event: PointerEvent): void => {
+		changeOpen(false, createMenuOutsidePressEventDetails(event));
+	};
 
 	return (
 		<LiquidMenuContext value={state.context}>
-			<LiquidMenuSurface />
+			<LiquidMenuSurface onBackdropPress={dismissFromBackdrop} />
 			<DropdownMenu onOpenChange={changeOpen} open={state.isOpen} {...props} />
 		</LiquidMenuContext>
 	);
@@ -375,10 +382,13 @@ export function LiquidContextMenuRoot({
 		state.changeOpen(nextIsOpen);
 		onOpenChange?.(nextIsOpen, eventDetails);
 	};
+	const dismissFromBackdrop = (event: PointerEvent): void => {
+		changeOpen(false, createOutsidePressEventDetails(event));
+	};
 
 	return (
 		<LiquidMenuContext value={state.context}>
-			<LiquidMenuSurface />
+			<LiquidMenuSurface onBackdropPress={dismissFromBackdrop} />
 			<ContextMenu onOpenChange={changeOpen} open={state.isOpen} {...props} />
 		</LiquidMenuContext>
 	);
@@ -418,10 +428,14 @@ export function LiquidPickerRoot<
 		state.changeOpen(nextIsOpen);
 		onOpenChange?.(nextIsOpen, eventDetails);
 	};
+	const dismissFromBackdrop = (event: PointerEvent): void => {
+		state.changeOpen(false);
+		onOpenChange?.(false, createOutsidePressEventDetails(event));
+	};
 
 	return (
 		<LiquidMenuContext value={state.context}>
-			<LiquidMenuSurface />
+			<LiquidMenuSurface onBackdropPress={dismissFromBackdrop} />
 			<Combobox onOpenChange={changeOpen} open={state.isOpen} {...props} />
 		</LiquidMenuContext>
 	);

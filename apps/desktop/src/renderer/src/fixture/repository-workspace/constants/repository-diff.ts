@@ -169,13 +169,23 @@ export const REPOSITORY_DIFF_HUNK_ACTION_RENDER_OPTIONS = {
 	enableGutterUtility: true,
 } as const satisfies FileDiffOptions<undefined>;
 
+export const REPOSITORY_DIFF_EXPANDED_RENDER_OPTIONS = {
+	...REPOSITORY_DIFF_RENDER_OPTIONS,
+	expandUnchanged: true,
+} as const satisfies BaseDiffOptions;
+
+export const REPOSITORY_DIFF_EXPANDED_HUNK_ACTION_RENDER_OPTIONS = {
+	...REPOSITORY_DIFF_HUNK_ACTION_RENDER_OPTIONS,
+	expandUnchanged: true,
+} as const satisfies FileDiffOptions<undefined>;
+
 export const REPOSITORY_DIFF_ESTIMATED_LINE_HEIGHT = 20;
 export const REPOSITORY_DIFF_ESTIMATED_SEPARATOR_HEIGHT = 28;
 export const REPOSITORY_DIFF_MINIMUM_BODY_HEIGHT = 64;
 export const REPOSITORY_DIFF_BODY_OBSERVER_MARGIN = 120;
 export const REPOSITORY_DIFF_INITIAL_MOUNTED_COUNT = 1;
 export const REPOSITORY_DIFF_SELECTED_NEIGHBOR_COUNT = 1;
-export const REPOSITORY_DIFF_EXPANDABLE_CONTEXT_LINES = 1_000_000;
+export const REPOSITORY_DIFF_EXPANDABLE_CONTEXT_LINES = 2_147_483_647;
 
 export const REPOSITORY_HUNK_ACTION_ANCHOR_GEOMETRY = {
 	insetBlock: 0,

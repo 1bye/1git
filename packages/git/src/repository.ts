@@ -105,6 +105,7 @@ const EMPTY_HISTORY: CommitPage = {
 const DEFAULT_HISTORY_LIMIT = 50;
 const DISCARD_UNDO_TTL_MS = 15_000;
 const EMPTY_TREE_OID = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
+const MAX_DIFF_CONTEXT_LINES = 2_147_483_647;
 const MAX_HISTORY_LIMIT = 500;
 const MAX_HUNK_INDEX = 100_000;
 
@@ -491,7 +492,7 @@ export class GitRepository {
 				input.contextLines ?? 3,
 				"Context lines",
 				0,
-				1000,
+				MAX_DIFF_CONTEXT_LINES,
 				"diff"
 			);
 			if (input.target.kind === "commit") {

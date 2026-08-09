@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { measureHunkActionAnchor } from "../src/renderer/src/fixture/repository-workspace/lib/hunk-action-anchor.js";
+import {
+	measureHunkActionAnchor,
+	measureHunkActionBounds,
+	measureHunkActionSelection,
+} from "../src/renderer/src/fixture/repository-workspace/lib/hunk-action-anchor.js";
 
 const geometryElement = (
 	rect: {
@@ -63,5 +67,44 @@ describe("hunk action anchor", () => {
 			measureHunkActionAnchor(connected, geometryElement(rect, false))
 		).toBeNull();
 		expect(measureHunkActionAnchor(connected, null)).toBeNull();
+	});
+
+	test("keeps a captured anchor after Pierre removes its hover utility", () => {
+		const viewport = geometryElement({
+			height: 240,
+			left: 96,
+			top: 24,
+			width: 320,
+		});
+
+		expect(
+			measureHunkActionBounds(
+				{ height: 20, left: 88, top: 42, width: 20 },
+				viewport
+			)
+		).toEqual({
+			anchor: { height: 20, left: 88, top: 42, width: 20 },
+			visibleAnchor: { height: 20, left: 96, top: 42, width: 12 },
+		});
+	});
+
+	test("falls back when Pierre leaves a connected zero-sized utility", () => {
+		const viewport = geometryElement({
+			height: 240,
+			left: 80,
+			top: 24,
+			width: 320,
+		});
+
+		expect(
+			measureHunkActionSelection(
+				geometryElement({ height: 0, left: 0, top: 0, width: 0 }),
+				{ height: 20, left: 88, top: 42, width: 20 },
+				viewport
+			)
+		).toEqual({
+			anchor: { height: 20, left: 88, top: 42, width: 20 },
+			visibleAnchor: { height: 20, left: 88, top: 42, width: 20 },
+		});
 	});
 });

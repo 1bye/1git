@@ -5,19 +5,20 @@ import { FileDiff as PierreFileDiff } from "@pierre/diffs/react";
 import type { ReactElement } from "react";
 import { memo, useCallback, useLayoutEffect, useRef, useState } from "react";
 import {
-	REPOSITORY_DIFF_ELEMENT_NAME,
 	REPOSITORY_DIFF_ESTIMATED_LINE_HEIGHT,
 	REPOSITORY_DIFF_ESTIMATED_SEPARATOR_HEIGHT,
+	REPOSITORY_DIFF_EXPANDED_HUNK_ACTION_RENDER_OPTIONS,
+	REPOSITORY_DIFF_EXPANDED_RENDER_OPTIONS,
 	REPOSITORY_DIFF_HUNK_ACTION_RENDER_OPTIONS,
 	REPOSITORY_DIFF_MINIMUM_BODY_HEIGHT,
 	REPOSITORY_DIFF_RENDER_OPTIONS,
 } from "@/fixture/repository-workspace/constants/repository-diff.js";
 import type { RepositoryDiffFileEntry } from "@/fixture/repository-workspace/lib/repository-diff-files.js";
-import type {
-	HunkActionHandler,
-	HunkActionSelection,
+import {
+	type HunkActionHandler,
+	type HunkActionSelection,
+	HunkActionPocket,
 } from "./hunk-action-pocket.js";
-import { HunkActionPocket } from "./hunk-action-pocket.js";
 import { RepositoryFileStatus } from "./repository-file-status.js";
 
 interface DiffFileAccordionProps {
@@ -33,11 +34,6 @@ interface DiffFileAccordionProps {
 	readonly showTarget: boolean;
 }
 
-interface UnmodifiedLineInteraction {
-	readonly direction: "down" | "up";
-	readonly index: number;
-}
-
 interface HoveredDiffLine {
 	readonly lineNumber: number;
 	readonly side: "additions" | "deletions";
@@ -48,73 +44,14 @@ type GetHoveredDiffLine = () => HoveredDiffLine | undefined;
 const isElement = (value: EventTarget | undefined): value is Element =>
 	value instanceof Element;
 
-const visibleUnmodifiedLineSeparators = (
-	host: HTMLElement
-): readonly HTMLElement[] => {
-	const separators = host.shadowRoot?.querySelectorAll<HTMLElement>(
-		'[data-separator="line-info"]'
-	);
-	if (!separators) {
-		return [];
-	}
-	return Array.from(separators).filter(
-		(separator) =>
-			separator.querySelector("[data-unmodified-lines]") &&
-			separator.getClientRects().length > 0
-	);
-};
-
-const clickUnmodifiedLineExpansion = (
-	host: HTMLElement,
-	interaction: UnmodifiedLineInteraction
-): void => {
-	const separator = visibleUnmodifiedLineSeparators(host)[interaction.index];
-	const directionButton = separator?.querySelector<HTMLElement>(
-		`[data-expand-${interaction.direction}]`
-	);
-	const fallbackButton = separator?.querySelector<HTMLElement>(
-		"[data-expand-both], [data-expand-button]"
-	);
-	(directionButton ?? fallbackButton)?.click();
-};
-
-const unmodifiedLineInteraction = (
-	event: MouseEvent
-): UnmodifiedLineInteraction | null => {
+const isUnmodifiedLineInteraction = (event: MouseEvent): boolean => {
 	const path = event.composedPath();
-	const content = path.find(
+	return path.some(
 		(target) =>
-			isElement(target) && target.hasAttribute("data-separator-content")
+			isElement(target) &&
+			(target.hasAttribute("data-separator-content") ||
+				target.hasAttribute("data-unmodified-lines"))
 	);
-	const host = path.find(
-		(target) =>
-			target instanceof HTMLElement &&
-			target.tagName.toLowerCase() === REPOSITORY_DIFF_ELEMENT_NAME
-	);
-	const separator =
-		content instanceof HTMLElement
-			? content.closest<HTMLElement>('[data-separator="line-info"]')
-			: null;
-	if (
-		!(
-			content instanceof HTMLElement &&
-			host instanceof HTMLElement &&
-			separator
-		)
-	) {
-		return null;
-	}
-	const separators = visibleUnmodifiedLineSeparators(host);
-	const index = separators.indexOf(separator);
-	if (index < 0) {
-		return null;
-	}
-	const contentRect = content.getBoundingClientRect();
-	return {
-		direction:
-			event.clientY < contentRect.top + contentRect.height / 2 ? "up" : "down",
-		index,
-	};
 };
 
 const findHunkIndex = (
@@ -149,11 +86,12 @@ const DiffFileAccordionComponent = ({
 }: DiffFileAccordionProps): ReactElement => {
 	const [isOpen, setIsOpen] = useState(true);
 	const [isPreparingContext, setIsPreparingContext] = useState(false);
+	const [isUnmodifiedContextExpanded, setIsUnmodifiedContextExpanded] =
+		useState(false);
 	const [isHunkActionOpen, setIsHunkActionOpen] = useState(false);
 	const [hunkActionSelection, setHunkActionSelection] =
 		useState<HunkActionSelection | null>(null);
 	const articleElementRef = useRef<HTMLElement | null>(null);
-	const pendingExpansionRef = useRef<UnmodifiedLineInteraction | null>(null);
 	const bodyId = `repository-diff-body:${encodeURIComponent(entry.key)}`;
 	const addedLines = entry.stat?.addedLines;
 	const deletedLines = entry.stat?.deletedLines;
@@ -179,17 +117,28 @@ const DiffFileAccordionComponent = ({
 				if (hunkIndex < 0 || !target) {
 					return;
 				}
+				const viewportElement = articleElementRef.current?.closest<HTMLElement>(
+					"[data-repository-diff-viewport]"
+				);
+				if (!viewportElement) {
+					return;
+				}
+				const anchorRect = anchor.getBoundingClientRect();
 				const selection = {
+					anchorBounds: {
+						height: anchorRect.height,
+						left: anchorRect.left,
+						top: anchorRect.top,
+						width: anchorRect.width,
+					},
 					anchorElement: anchor,
 					hunkIndex,
 					path: entry.path,
 					target,
+					viewportElement,
 				} as const;
 				// Mount after the originating click has passed document-level dismiss handlers.
 				window.setTimeout(() => {
-					if (!anchor.isConnected) {
-						return;
-					}
 					setHunkActionSelection(selection);
 					setIsHunkActionOpen(true);
 				}, 0);
@@ -216,34 +165,20 @@ const DiffFileAccordionComponent = ({
 	);
 	const handleClickCapture = useCallback(
 		(event: MouseEvent): void => {
-			const interaction = unmodifiedLineInteraction(event);
-			if (!interaction) {
+			if (!isUnmodifiedLineInteraction(event)) {
 				return;
 			}
 			event.preventDefault();
-			const host = articleElementRef.current?.querySelector<HTMLElement>(
-				REPOSITORY_DIFF_ELEMENT_NAME
-			);
+			setIsUnmodifiedContextExpanded(true);
 			if (entry.file?.isPartial === false) {
-				if (host) {
-					clickUnmodifiedLineExpansion(host, interaction);
-				}
 				return;
 			}
 			if (isPreparingContext) {
 				return;
 			}
-			pendingExpansionRef.current = interaction;
 			setIsPreparingContext(true);
 			onRequestExpandableFile(entry)
-				.then((file) => {
-					if (!file) {
-						pendingExpansionRef.current = null;
-					}
-				})
-				.catch(() => {
-					pendingExpansionRef.current = null;
-				})
+				.catch(() => undefined)
 				.finally(() => {
 					setIsPreparingContext(false);
 				});
@@ -254,49 +189,22 @@ const DiffFileAccordionComponent = ({
 		if (!(isBodyMounted && isOpen)) {
 			return;
 		}
-		const host = articleElementRef.current?.querySelector<HTMLElement>(
-			REPOSITORY_DIFF_ELEMENT_NAME
-		);
-		if (!host) {
+		const article = articleElementRef.current;
+		if (!article) {
 			return;
 		}
-		host.addEventListener("click", handleClickCapture, { capture: true });
+		article.addEventListener("click", handleClickCapture, { capture: true });
 		return () => {
-			host.removeEventListener("click", handleClickCapture, {
+			article.removeEventListener("click", handleClickCapture, {
 				capture: true,
 			});
 		};
 	}, [handleClickCapture, isBodyMounted, isOpen]);
 	useLayoutEffect(() => {
-		if (
-			isHunkActionOpen &&
-			!(
-				isBodyMounted &&
-				isOpen &&
-				hunkActionSelection?.anchorElement.isConnected
-			)
-		) {
+		if (isHunkActionOpen && !(isBodyMounted && isOpen && hunkActionSelection)) {
 			setIsHunkActionOpen(false);
 		}
 	});
-	useLayoutEffect(() => {
-		const pendingExpansion = pendingExpansionRef.current;
-		if (entry.file?.isPartial !== false || !pendingExpansion) {
-			return;
-		}
-		const animationFrameId = requestAnimationFrame(() => {
-			const host = articleElementRef.current?.querySelector<HTMLElement>(
-				REPOSITORY_DIFF_ELEMENT_NAME
-			);
-			pendingExpansionRef.current = null;
-			if (host) {
-				clickUnmodifiedLineExpansion(host, pendingExpansion);
-			}
-		});
-		return () => {
-			cancelAnimationFrame(animationFrameId);
-		};
-	}, [entry.file]);
 	const estimatedBodyHeight = entry.file
 		? Math.max(
 				REPOSITORY_DIFF_MINIMUM_BODY_HEIGHT,
@@ -321,8 +229,12 @@ const DiffFileAccordionComponent = ({
 				fileDiff={entry.file}
 				options={
 					supportsHunkActions
-						? REPOSITORY_DIFF_HUNK_ACTION_RENDER_OPTIONS
-						: REPOSITORY_DIFF_RENDER_OPTIONS
+						? isUnmodifiedContextExpanded
+							? REPOSITORY_DIFF_EXPANDED_HUNK_ACTION_RENDER_OPTIONS
+							: REPOSITORY_DIFF_HUNK_ACTION_RENDER_OPTIONS
+						: isUnmodifiedContextExpanded
+							? REPOSITORY_DIFF_EXPANDED_RENDER_OPTIONS
+							: REPOSITORY_DIFF_RENDER_OPTIONS
 				}
 				renderGutterUtility={supportsHunkActions ? renderHunkAction : undefined}
 			/>

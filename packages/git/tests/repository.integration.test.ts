@@ -426,6 +426,31 @@ describe("GitRepository local workflow", () => {
 		});
 	});
 
+	test("can request complete context for a changed file", async () => {
+		const fixture = await fixtures.create();
+		const originalLines = Array.from(
+			{ length: 2005 },
+			(_, index) => `line ${index + 1}`
+		);
+		await fixture.write("long.txt", `${originalLines.join("\n")}\n`);
+		await fixture.commitAll("add long file");
+		const changedLines = [...originalLines];
+		changedLines[1002] = "changed middle line";
+		await fixture.write("long.txt", `${changedLines.join("\n")}\n`);
+
+		const diff = unwrapResult(
+			await fixture.repository.getDiff({
+				contextLines: 2_147_483_647,
+				paths: ["long.txt"],
+				target: { kind: "working" },
+			})
+		);
+
+		expect(diff.patch).toContain(" line 1\n");
+		expect(diff.patch).toContain("+changed middle line\n");
+		expect(diff.patch).toContain(" line 2005\n");
+	});
+
 	test("returns the complete diff for an added file", async () => {
 		const fixture = await fixtures.create();
 		await fixture.write("new file.ts", "export const first = 1;\nsecond();\n");

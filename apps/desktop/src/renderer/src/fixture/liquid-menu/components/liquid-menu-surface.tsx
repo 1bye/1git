@@ -10,7 +10,13 @@ import {
 
 const getSvgMaskUrl = (maskId: string): string => `url(#${maskId})`;
 
-export function LiquidMenuSurface(): ReactElement | null {
+interface LiquidMenuSurfaceProps {
+	readonly onBackdropPress: (event: PointerEvent) => void;
+}
+
+export function LiquidMenuSurface({
+	onBackdropPress,
+}: LiquidMenuSurfaceProps): ReactElement | null {
 	const maskId = useId().replaceAll(":", "");
 	const {
 		anchor,
@@ -117,6 +123,11 @@ export function LiquidMenuSurface(): ReactElement | null {
 							fill="var(--liquid-dim)"
 							height="100%"
 							mask={getSvgMaskUrl(backdropMaskId)}
+							onPointerDown={(event) => {
+								event.preventDefault();
+								event.stopPropagation();
+								onBackdropPress(event.nativeEvent);
+							}}
 							opacity={backdropOpacity}
 							width="100%"
 						/>
