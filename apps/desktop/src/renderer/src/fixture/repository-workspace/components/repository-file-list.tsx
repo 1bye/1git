@@ -5,6 +5,7 @@ import { PointerActivationConstraints, PointerSensor } from "@dnd-kit/dom";
 import {
 	DragDropProvider,
 	type DragEndEvent,
+	type DragStartEvent,
 	useDraggable,
 	useDroppable,
 } from "@dnd-kit/react";
@@ -232,6 +233,7 @@ const getRepositoryFileSelectionClassName = (
 interface RepositoryFileStageGroupProps {
 	readonly children: ReactNode;
 	readonly disabled: boolean;
+	readonly dragSourceGroup: RepositoryFileStageGroup | null;
 	readonly files: readonly FileChange[];
 	readonly group: RepositoryFileStageGroup;
 	readonly onSetFilesStaged: (
@@ -243,6 +245,7 @@ interface RepositoryFileStageGroupProps {
 function RepositoryFileStageGroup({
 	children,
 	disabled,
+	dragSourceGroup,
 	files,
 	group,
 	onSetFilesStaged,
@@ -256,6 +259,12 @@ function RepositoryFileStageGroup({
 	const label = group === "staged" ? "Staged" : "Unstaged";
 	const shouldStage = group === "unstaged";
 	const actionLabel = shouldStage ? "Stage all" : "Unstage all";
+	const isDropDestination =
+		dragSourceGroup !== null && dragSourceGroup !== group;
+	const showDropWell = isDropDestination && isDropTarget;
+	const dropLabel = group === "staged" ? "Drop to stage" : "Drop to unstage";
+	const releaseLabel =
+		group === "staged" ? "Release to stage" : "Release to unstage";
 	const setGroupStaged = async (): Promise<void> => {
 		await onSetFilesStaged(files, shouldStage);
 	};
@@ -264,19 +273,25 @@ function RepositoryFileStageGroup({
 		<section
 			aria-label={`${label} files`}
 			className={cn(
-				"min-h-10 rounded-lg px-1 pb-1 transition-colors",
-				isDropTarget && "bg-brand-softer"
+				"min-h-10 rounded-lg px-1 pb-1 transition-[opacity] duration-150 motion-reduce:transition-none",
+				dragSourceGroup !== null && !isDropDestination && "opacity-55"
 			)}
 			data-file-stage-group={group}
 			data-name="RepositoryFileStageGroup"
+			data-repository-file-drop-target={showDropWell ? "true" : undefined}
 			ref={ref}
 		>
-			<header className="sticky top-0 z-10 flex h-7 items-center px-1.5 font-medium text-[10px] text-editor-muted">
-				<span>{label}</span>
+			<header
+				className={cn(
+					"sticky top-0 z-10 flex h-7 items-center px-1.5 font-medium text-[10px] text-editor-muted transition-colors",
+					showDropWell && "text-brand"
+				)}
+			>
+				<span>{showDropWell ? dropLabel : label}</span>
 				<span className="ml-1 tabular-nums">{files.length}</span>
 				<LiquidMenuRoot
 					anchorGeometry={LIQUID_MENU_CONNECTED_BUTTON_ANCHOR_GEOMETRY}
-					disabled={disabled || files.length === 0}
+					disabled={disabled || dragSourceGroup !== null || files.length === 0}
 					modal
 				>
 					<LiquidMenuTrigger
@@ -302,6 +317,26 @@ function RepositoryFileStageGroup({
 					</LiquidMenuContent>
 				</LiquidMenuRoot>
 			</header>
+			<div
+				aria-hidden
+				className={cn(
+					"grid transition-[grid-template-rows,opacity] duration-150 ease-out motion-reduce:transition-none",
+					showDropWell
+						? "grid-rows-[1fr] opacity-100"
+						: "grid-rows-[0fr] opacity-0"
+				)}
+			>
+				<div className="overflow-hidden">
+					<div className="mx-1 mb-1 flex h-8 items-center justify-center gap-1.5 rounded-lg bg-brand-softer font-medium text-[10px] text-brand shadow-inner">
+						{group === "staged" ? (
+							<CheckIcon aria-hidden className="size-3" weight="bold" />
+						) : (
+							<MinusIcon aria-hidden className="size-3" weight="bold" />
+						)}
+						{releaseLabel}
+					</div>
+				</div>
+			</div>
 			<ul
 				aria-label={`${label} changed files`}
 				className="outline-none"
@@ -654,6 +689,8 @@ export function RepositoryFileList({
 }: RepositoryFileListProps): ReactElement {
 	const [isSelectionContextMenuPresent, setSelectionContextMenuPresent] =
 		useState(false);
+	const [dragSourceGroup, setDragSourceGroup] =
+		useState<RepositoryFileStageGroup | null>(null);
 	const groups = groupRepositoryFilesByStaging(files);
 	const totalGroups = groupRepositoryFilesByStaging(allFiles ?? files);
 	const orderedFiles = [...groups.staged, ...groups.unstaged];
@@ -671,7 +708,18 @@ export function RepositoryFileList({
 		);
 	}
 
+	const startFileDrag = (event: DragStartEvent): void => {
+		const sourceFile = orderedFiles.find(
+			(file) => file.path === String(event.operation.source?.id)
+		);
+		if (!sourceFile) {
+			setDragSourceGroup(null);
+			return;
+		}
+		setDragSourceGroup(isFileStaged(sourceFile) ? "staged" : "unstaged");
+	};
 	const finishFileDrag = (event: DragEndEvent): void => {
+		setDragSourceGroup(null);
 		const {
 			canceled,
 			operation: { source, target },
@@ -738,11 +786,13 @@ export function RepositoryFileList({
 	return (
 		<DragDropProvider
 			onDragEnd={finishFileDrag}
+			onDragStart={startFileDrag}
 			sensors={REPOSITORY_FILE_DRAG_SENSORS}
 		>
 			<div data-name="RepositoryFileListGroups">
 				<RepositoryFileStageGroup
 					disabled={isStagingDisabled}
+					dragSourceGroup={dragSourceGroup}
 					files={totalGroups.staged}
 					group="staged"
 					onSetFilesStaged={onSetFilesStaged}
@@ -751,6 +801,7 @@ export function RepositoryFileList({
 				</RepositoryFileStageGroup>
 				<RepositoryFileStageGroup
 					disabled={isStagingDisabled}
+					dragSourceGroup={dragSourceGroup}
 					files={totalGroups.unstaged}
 					group="unstaged"
 					onSetFilesStaged={onSetFilesStaged}
