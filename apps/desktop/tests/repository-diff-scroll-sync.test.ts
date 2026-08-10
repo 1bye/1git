@@ -1,7 +1,16 @@
 import { describe, expect, it } from "bun:test";
-import { getRepositoryDiffScrollEndPath } from "@/fixture/repository-workspace/hooks/use-repository-diff-scroll-sync.js";
+import {
+	getRepositoryDiffScrollEndPath,
+	scrollRepositoryDiffPathIntoView,
+} from "@/fixture/repository-workspace/hooks/use-repository-diff-scroll-sync.js";
 
 const paths = ["first.ts", "middle.ts", "last.ts"] as const;
+
+const fileElement = (path: string, top: number): HTMLElement =>
+	({
+		dataset: { repositoryDiffPath: path },
+		getBoundingClientRect: () => ({ bottom: top + 30, top }),
+	}) as unknown as HTMLElement;
 
 describe("repository diff scroll synchronization", () => {
 	it("selects the last file at the bottom of an overflowing diff", () => {
@@ -51,5 +60,29 @@ describe("repository diff scroll synchronization", () => {
 				paths
 			)
 		).toBeNull();
+	});
+
+	it("scrolls an externally selected file to the diff viewport start", () => {
+		const files = [fileElement("first.ts", 120), fileElement("middle.ts", 420)];
+		const container = {
+			getBoundingClientRect: () => ({ bottom: 700, top: 100 }),
+			querySelectorAll: () => files,
+			scrollTop: 200,
+		} as unknown as HTMLElement;
+
+		expect(scrollRepositoryDiffPathIntoView(container, "middle.ts")).toBe(true);
+		expect(container.scrollTop).toBe(520);
+	});
+
+	it("does not move the viewport when the selected diff file is absent", () => {
+		const container = {
+			querySelectorAll: () => [fileElement("first.ts", 120)],
+			scrollTop: 200,
+		} as unknown as HTMLElement;
+
+		expect(scrollRepositoryDiffPathIntoView(container, "missing.ts")).toBe(
+			false
+		);
+		expect(container.scrollTop).toBe(200);
 	});
 });

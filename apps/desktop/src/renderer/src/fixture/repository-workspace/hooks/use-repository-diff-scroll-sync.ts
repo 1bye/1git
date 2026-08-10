@@ -1,5 +1,6 @@
 import type { RefObject } from "react";
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
+import { scrollElementIntoViewport } from "@/fixture/repository-workspace/lib/scroll-element-into-viewport.js";
 
 interface UseRepositoryDiffScrollSyncOptions {
 	readonly activePath: string | null;
@@ -30,6 +31,20 @@ export const getRepositoryDiffScrollEndPath = (
 	return hasScrollableOverflow && isAtScrollEnd ? (paths.at(-1) ?? null) : null;
 };
 
+export const scrollRepositoryDiffPathIntoView = (
+	container: HTMLElement,
+	path: string
+): boolean => {
+	const file = [
+		...container.querySelectorAll<HTMLElement>(DIFF_FILE_SELECTOR),
+	].find((candidate) => candidate.dataset.repositoryDiffPath === path);
+	if (!file) {
+		return false;
+	}
+	scrollElementIntoViewport(container, file, { block: "start" });
+	return true;
+};
+
 export const useRepositoryDiffScrollSync = ({
 	activePath,
 	containerRef,
@@ -37,9 +52,37 @@ export const useRepositoryDiffScrollSync = ({
 	onActivePathChange,
 }: UseRepositoryDiffScrollSyncOptions): void => {
 	const activePathRef = useRef(activePath);
+	const observedActivePathRef = useRef<string | null>(null);
 	const onActivePathChangeRef = useRef(onActivePathChange);
+	const synchronizingActivePathRef = useRef<string | null>(null);
 	activePathRef.current = activePath;
 	onActivePathChangeRef.current = onActivePathChange;
+
+	useLayoutEffect(() => {
+		const container = containerRef.current;
+		if (!(container && activePath && contentKey)) {
+			synchronizingActivePathRef.current = null;
+			return;
+		}
+		const wasObservedPath = observedActivePathRef.current === activePath;
+		observedActivePathRef.current = null;
+		if (wasObservedPath) {
+			return;
+		}
+		synchronizingActivePathRef.current = activePath;
+		if (!scrollRepositoryDiffPathIntoView(container, activePath)) {
+			synchronizingActivePathRef.current = null;
+			return;
+		}
+		const frameId = requestAnimationFrame(() => {
+			if (synchronizingActivePathRef.current === activePath) {
+				synchronizingActivePathRef.current = null;
+			}
+		});
+		return () => {
+			cancelAnimationFrame(frameId);
+		};
+	}, [activePath, containerRef, contentKey]);
 
 	useEffect(() => {
 		const container = containerRef.current;
@@ -56,8 +99,15 @@ export const useRepositoryDiffScrollSync = ({
 			return path ? [path] : [];
 		});
 		const changeActivePath = (path: string | null): void => {
+			if (synchronizingActivePathRef.current) {
+				if (path === synchronizingActivePathRef.current) {
+					synchronizingActivePathRef.current = null;
+				}
+				return;
+			}
 			if (path && path !== activePathRef.current) {
 				activePathRef.current = path;
+				observedActivePathRef.current = path;
 				onActivePathChangeRef.current(path);
 			}
 		};

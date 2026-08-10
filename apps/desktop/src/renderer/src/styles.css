@@ -374,6 +374,11 @@ button {
 	transition: top 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+body:has([data-name="CommandLensLayer"])
+	[data-name="RepositoryFileLiquidSurface"][data-moving="true"] {
+	transition-duration: 0ms;
+}
+
 [data-name="RepositoryFileLiquidSurfaceFill"] {
 	fill: var(--liquid-surface);
 }
