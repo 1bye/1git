@@ -28,7 +28,10 @@ export function RepositoryWorkspace({
 			id="repository-workspace"
 			ref={ref}
 		>
-			<RepositoryFileLiquidSurface selectedFilePath={selectedFilePath} />
+			<RepositoryFileLiquidSurface
+				files={props.snapshot?.files}
+				selectedFilePath={selectedFilePath}
+			/>
 			<div className="flex min-w-0 flex-1 flex-col">
 				{titlebar}
 				<RepositoryDiffWorkspace

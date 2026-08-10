@@ -1,4 +1,5 @@
 import type { FileChange } from "@1git/git";
+import { isFileStaged } from "@/feature/workspace/lib/workspace-model.js";
 
 export interface RepositoryFilePath {
 	readonly directory: string;
@@ -11,6 +12,11 @@ export interface RepositoryFileSelection {
 	readonly activePath: string;
 	readonly anchorPath: string;
 	readonly selectedPaths: readonly string[];
+}
+
+export interface RepositoryFileStageGroups {
+	readonly staged: readonly FileChange[];
+	readonly unstaged: readonly FileChange[];
 }
 
 interface UpdateRepositoryFileSelectionOptions {
@@ -48,6 +54,30 @@ export const orderRepositoryFilesByPath = (
 	files: readonly FileChange[]
 ): readonly FileChange[] =>
 	files.toSorted((left, right) => left.path.localeCompare(right.path));
+
+export const groupRepositoryFilesByStaging = (
+	files: readonly FileChange[]
+): RepositoryFileStageGroups => {
+	const staged: FileChange[] = [];
+	const unstaged: FileChange[] = [];
+	for (const file of orderRepositoryFilesByPath(files)) {
+		(isFileStaged(file) ? staged : unstaged).push(file);
+	}
+	return { staged, unstaged };
+};
+
+export const orderRepositoryFilesByStaging = (
+	files: readonly FileChange[]
+): readonly FileChange[] => {
+	const groups = groupRepositoryFilesByStaging(files);
+	return [...groups.staged, ...groups.unstaged];
+};
+
+export const shouldStageRepositoryFileDrop = (
+	file: FileChange,
+	targetShouldStage: boolean
+): boolean | null =>
+	isFileStaged(file) === targetShouldStage ? null : targetShouldStage;
 
 export const splitRepositoryFilePath = (path: string): RepositoryFilePath => {
 	const separatorIndex = path.lastIndexOf("/");

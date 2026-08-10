@@ -8,8 +8,11 @@ import {
 	getRepositoryFileAtOffset,
 	getRepositoryFilePosition,
 	getRepositoryFileSelectionRunPaths,
+	groupRepositoryFilesByStaging,
 	orderRepositoryFilesByPath,
+	orderRepositoryFilesByStaging,
 	shouldElevateRepositoryFileSelection,
+	shouldStageRepositoryFileDrop,
 	splitRepositoryFilePath,
 	updateRepositoryFileSelection,
 } from "../src/renderer/src/fixture/repository-workspace/lib/repository-navigation.js";
@@ -85,6 +88,32 @@ describe("repository file navigation", () => {
 		expect(
 			orderRepositoryFilesByPath(changedStaging).map((file) => file.path)
 		).toEqual(orderedPaths);
+	});
+
+	test("groups staged and unstaged files while sorting each group by path", () => {
+		const groups = groupRepositoryFilesByStaging(FILES);
+
+		expect(groups.staged.map((file) => file.path)).toEqual([
+			"packages/git/repository.ts",
+		]);
+		expect(groups.unstaged.map((file) => file.path)).toEqual([
+			"apps/desktop/app.tsx",
+			"README.md",
+		]);
+		expect(
+			orderRepositoryFilesByStaging(FILES).map((file) => file.path)
+		).toEqual([
+			"packages/git/repository.ts",
+			"apps/desktop/app.tsx",
+			"README.md",
+		]);
+	});
+
+	test("only stages a dropped file when it changes groups", () => {
+		expect(shouldStageRepositoryFileDrop(FILES[0], true)).toBe(true);
+		expect(shouldStageRepositoryFileDrop(FILES[0], false)).toBeNull();
+		expect(shouldStageRepositoryFileDrop(FILES[1], false)).toBe(false);
+		expect(shouldStageRepositoryFileDrop(FILES[1], true)).toBeNull();
 	});
 
 	test("splits file names from their parent path", () => {

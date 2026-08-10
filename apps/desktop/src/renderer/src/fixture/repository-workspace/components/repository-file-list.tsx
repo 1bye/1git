@@ -1,19 +1,21 @@
 import type { FileChange } from "@1git/git";
 import { cn } from "@1git/ui/lib/utils";
-import { CheckIcon } from "@phosphor-icons/react/dist/csr/Check";
-import { MinusIcon } from "@phosphor-icons/react/dist/csr/Minus";
+import { PointerActivationConstraints, PointerSensor } from "@dnd-kit/dom";
+import {
+	DragDropProvider,
+	type DragEndEvent,
+	useDraggable,
+	useDroppable,
+} from "@dnd-kit/react";
 import type {
-	ChangeEvent,
 	CSSProperties,
 	ReactElement,
 	MouseEvent as ReactMouseEvent,
+	ReactNode,
 	RefCallback,
 } from "react";
 import { useCallback, useEffect, useState } from "react";
-import {
-	isFilePartiallyStaged,
-	isFileStaged,
-} from "@/feature/workspace/lib/workspace-model.js";
+import { isFileStaged } from "@/feature/workspace/lib/workspace-model.js";
 import {
 	LiquidContextMenuRoot,
 	LiquidContextMenuTrigger,
@@ -28,8 +30,9 @@ import {
 	doesRepositoryFileContextMenuUseSelection,
 	getRepositoryFileRowId,
 	getRepositoryFileSelectionRunPaths,
-	orderRepositoryFilesByPath,
+	groupRepositoryFilesByStaging,
 	shouldElevateRepositoryFileSelection,
+	shouldStageRepositoryFileDrop,
 	splitRepositoryFilePath,
 } from "@/fixture/repository-workspace/lib/repository-navigation.js";
 
@@ -48,6 +51,34 @@ const REPOSITORY_FILE_SELECTION_CONTEXT_MENU_ANCHOR_GEOMETRY = {
 } as const;
 const REPOSITORY_FILE_CONTEXT_MENU_WIDTH = 260;
 const REPOSITORY_FILE_CONTEXT_MENU_WIDTH_CLASS_NAME = "w-[260px] min-w-[260px]";
+const REPOSITORY_FILE_DRAG_TYPE = "repository-file";
+const REPOSITORY_FILE_DRAG_ACTIVATION_DISTANCE = 5;
+const REPOSITORY_FILE_DRAG_SENSORS = [
+	PointerSensor.configure({
+		activationConstraints: [
+			new PointerActivationConstraints.Distance({
+				value: REPOSITORY_FILE_DRAG_ACTIVATION_DISTANCE,
+			}),
+		],
+	}),
+];
+
+type RepositoryFileStageGroup = "staged" | "unstaged";
+
+const repositoryFileStageGroupId = (group: RepositoryFileStageGroup): string =>
+	`repository-file-stage-group:${group}`;
+
+const getRepositoryFileStageGroupFromId = (
+	id: string
+): RepositoryFileStageGroup | null => {
+	if (id === repositoryFileStageGroupId("staged")) {
+		return "staged";
+	}
+	if (id === repositoryFileStageGroupId("unstaged")) {
+		return "unstaged";
+	}
+	return null;
+};
 
 const ELEVATED_SELECTION_STYLE = {
 	zIndex: getLiquidMenuLayerZIndices(0).selection,
@@ -191,61 +222,84 @@ const getRepositoryFileSelectionClassName = (
 	return isSelected ? "bg-brand-softer" : "hover:bg-hover";
 };
 
-interface RepositoryStageCheckboxProps {
-	readonly checked: boolean;
+interface RepositoryFileStageGroupProps {
+	readonly children: ReactNode;
+	readonly count: number;
 	readonly disabled: boolean;
-	readonly label: string;
-	readonly mixed?: boolean;
-	readonly onChange: (checked: boolean) => Promise<void>;
+	readonly group: RepositoryFileStageGroup;
 }
 
-function RepositoryStageCheckbox({
-	checked,
+function RepositoryFileStageGroup({
+	children,
+	count,
 	disabled,
-	label,
-	mixed = false,
-	onChange,
-}: RepositoryStageCheckboxProps): ReactElement {
-	const changeChecked = async (
-		event: ChangeEvent<HTMLInputElement>
-	): Promise<void> => {
-		await onChange(event.target.checked);
-	};
-	const setIndeterminate = (input: HTMLInputElement | null): void => {
-		if (input) {
-			input.indeterminate = mixed;
-		}
-	};
-	let checkboxIcon: ReactElement | null = null;
-	if (mixed) {
-		checkboxIcon = <MinusIcon className="size-2.5" weight="bold" />;
-	} else if (checked) {
-		checkboxIcon = <CheckIcon className="size-2.5" weight="bold" />;
-	}
+	group,
+}: RepositoryFileStageGroupProps): ReactElement {
+	const { isDropTarget, ref } = useDroppable({
+		accept: REPOSITORY_FILE_DRAG_TYPE,
+		disabled,
+		id: repositoryFileStageGroupId(group),
+		type: "repository-file-stage-group",
+	});
+	const label = group === "staged" ? "Staged" : "Unstaged";
 
 	return (
-		<label className="group/checkbox relative flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-md outline-none focus-within:ring-2 focus-within:ring-editor-muted/20">
-			<input
-				aria-label={label}
-				checked={checked}
-				className="absolute inset-0 cursor-pointer opacity-0 disabled:cursor-default"
-				disabled={disabled}
-				onChange={changeChecked}
-				ref={setIndeterminate}
-				type="checkbox"
-			/>
-			<span
-				aria-hidden
-				className={cn(
-					"pointer-events-none flex size-3.5 items-center justify-center rounded-[4px] transition-colors",
-					checked || mixed
-						? "bg-brand text-white"
-						: "bg-white/45 group-hover/checkbox:bg-white/70"
-				)}
+		<section
+			aria-label={`${label} files`}
+			className={cn(
+				"min-h-10 rounded-lg px-1 pb-1 transition-colors",
+				isDropTarget && "bg-brand-softer"
+			)}
+			data-file-stage-group={group}
+			data-name="RepositoryFileStageGroup"
+			ref={ref}
+		>
+			<header className="sticky top-0 z-10 flex h-6 items-center bg-editor-sunken/90 px-1.5 font-medium text-[10px] text-editor-muted backdrop-blur-md">
+				<span>{label}</span>
+				<span className="ml-auto tabular-nums">{count}</span>
+			</header>
+			<ul
+				aria-label={`${label} changed files`}
+				className="outline-none"
+				data-name="RepositoryFileList"
+				tabIndex={-1}
 			>
-				{checkboxIcon}
-			</span>
-		</label>
+				{children}
+			</ul>
+		</section>
+	);
+}
+
+interface RepositoryFileStageButtonProps {
+	readonly disabled: boolean;
+	readonly file: FileChange;
+	readonly onSetStaged: (
+		file: FileChange,
+		shouldStage: boolean
+	) => Promise<void>;
+}
+
+function RepositoryFileStageButton({
+	disabled,
+	file,
+	onSetStaged,
+}: RepositoryFileStageButtonProps): ReactElement {
+	const staged = isFileStaged(file);
+	const toggleStaged = async (): Promise<void> => {
+		await onSetStaged(file, !staged);
+	};
+
+	return (
+		<button
+			aria-label={staged ? `Unstage ${file.path}` : `Stage ${file.path}`}
+			className="ml-0.5 flex size-5 shrink-0 items-center justify-center rounded-md outline-none hover:bg-hover focus-visible:ring-2 focus-visible:ring-brand/20 disabled:cursor-default disabled:opacity-50"
+			disabled={disabled}
+			onClick={toggleStaged}
+			title={staged ? "Unstage file" : "Stage file"}
+			type="button"
+		>
+			<RepositoryFileStatus file={file} />
+		</button>
 	);
 }
 
@@ -294,8 +348,8 @@ function RepositoryFileRow({
 	onDiscard,
 	onSelect,
 	onSelectionContextMenuPresenceChange,
-	onSetStaged,
 	onSetFilesStaged,
+	onSetStaged,
 	orderedFilePaths,
 	repositoryRoot,
 	selectedFiles,
@@ -303,6 +357,15 @@ function RepositoryFileRow({
 	selectedRowAriaKeyShortcuts,
 	selectedRowRef,
 }: RepositoryFileRowProps): ReactElement {
+	const {
+		handleRef,
+		isDragging,
+		ref: draggableRef,
+	} = useDraggable({
+		disabled: isStagingDisabled,
+		id: file.path,
+		type: REPOSITORY_FILE_DRAG_TYPE,
+	});
 	const [anchorElement, setAnchorElement] = useState<HTMLElement | null>(null);
 	const [positionAnchorElement, setPositionAnchorElement] =
 		useState<HTMLElement | null>(null);
@@ -328,12 +391,13 @@ function RepositoryFileRow({
 	);
 	const setRowElement = useCallback(
 		(element: HTMLElement | null): void => {
+			draggableRef(element);
 			setAnchorElement(element);
 			if (isSelected) {
 				selectedRowRef?.(element);
 			}
 		},
-		[isSelected, selectedRowRef]
+		[draggableRef, isSelected, selectedRowRef]
 	);
 	const changeOpen = useCallback(
 		(nextIsOpen: boolean): void => {
@@ -360,7 +424,6 @@ function RepositoryFileRow({
 		},
 		[contextUsesSelection, onSelectionContextMenuPresenceChange]
 	);
-	const staged = isFileStaged(file);
 	const path = splitRepositoryFilePath(file.path);
 	const contextFiles = contextUsesSelection ? selectedFiles : [file];
 	const shouldElevateSelection = shouldElevateRepositoryFileSelection(
@@ -369,9 +432,6 @@ function RepositoryFileRow({
 	);
 	const selectFile = (event: ReactMouseEvent<HTMLButtonElement>): void => {
 		onSelect(file, getRepositoryFileSelectionMode(event));
-	};
-	const setStaged = async (shouldStage: boolean): Promise<void> => {
-		await onSetStaged(file, shouldStage);
 	};
 	const openContextMenu = (event: ReactMouseEvent<HTMLElement>): void => {
 		const anchors = getRepositoryFileContextMenuAnchors({
@@ -403,15 +463,17 @@ function RepositoryFileRow({
 		<li
 			aria-keyshortcuts={isSelected ? selectedRowAriaKeyShortcuts : undefined}
 			className={cn(
-				"group relative flex min-h-7 items-center rounded-md transition-colors",
+				"group relative flex min-h-7 items-center rounded-md transition-[background-color,opacity]",
 				selectionClassName,
 				isBulkSelectionStart && "rounded-t-md",
 				isBulkSelectionEnd && "rounded-b-md",
 				isSingleContextMenuActive && "rounded-md",
-				isSingleContextMenuActive && !shouldElevateSelection && "z-20"
+				isSingleContextMenuActive && !shouldElevateSelection && "z-20",
+				isDragging && "opacity-45"
 			)}
 			data-active={isSelected ? "true" : undefined}
 			data-bulk-selected={isBulkSelected ? "true" : undefined}
+			data-dragging={isDragging ? "true" : undefined}
 			data-name="RepositoryFileRow"
 			data-overflowing-label-trigger
 			id={getRepositoryFileRowId(file.path)}
@@ -423,19 +485,19 @@ function RepositoryFileRow({
 				className="pointer-events-none absolute bottom-0 left-1/2 size-px"
 				data-repository-file-selection-menu-anchor
 			/>
-			<div className="pl-1.5">
-				<RepositoryStageCheckbox
-					checked={staged}
-					disabled={isStagingDisabled}
-					label={staged ? `Unstage ${file.path}` : `Stage ${file.path}`}
-					mixed={isFilePartiallyStaged(file)}
-					onChange={setStaged}
-				/>
-			</div>
+			<RepositoryFileStageButton
+				disabled={isStagingDisabled}
+				file={file}
+				onSetStaged={onSetStaged}
+			/>
 			<button
 				aria-current={isSelected ? "true" : undefined}
-				className="flex min-w-0 flex-1 items-center gap-1.5 px-1.5 py-1 text-left outline-none"
+				className={cn(
+					"flex min-w-0 flex-1 cursor-grab items-center gap-1.5 px-1.5 py-1 text-left outline-none active:cursor-grabbing",
+					isStagingDisabled && "cursor-default active:cursor-default"
+				)}
 				onClick={selectFile}
+				ref={handleRef}
 				type="button"
 			>
 				<OverflowingLabel
@@ -449,7 +511,6 @@ function RepositoryFileRow({
 					) : null}
 					<span className="font-medium text-editor-ink">{path.name}</span>
 				</OverflowingLabel>
-				<RepositoryFileStatus file={file} />
 				<span className="sr-only">
 					Index status {file.indexStatus}; working tree status{" "}
 					{file.worktreeStatus}
@@ -547,7 +608,8 @@ export function RepositoryFileList({
 }: RepositoryFileListProps): ReactElement {
 	const [isSelectionContextMenuPresent, setSelectionContextMenuPresent] =
 		useState(false);
-	const orderedFiles = orderRepositoryFilesByPath(files);
+	const groups = groupRepositoryFilesByStaging(files);
+	const orderedFiles = [...groups.staged, ...groups.unstaged];
 	const orderedFilePaths = orderedFiles.map((file) => file.path);
 	useEffect(() => {
 		if (selectedFiles.length < 2) {
@@ -562,51 +624,91 @@ export function RepositoryFileList({
 		);
 	}
 
+	const finishFileDrag = (event: DragEndEvent): void => {
+		const {
+			canceled,
+			operation: { source, target },
+		} = event;
+		if (canceled || !(source && target)) {
+			return;
+		}
+		const targetGroup = getRepositoryFileStageGroupFromId(String(target.id));
+		const file = orderedFiles.find(
+			(candidate) => candidate.path === String(source.id)
+		);
+		if (!(targetGroup && file)) {
+			return;
+		}
+		const shouldStage = shouldStageRepositoryFileDrop(
+			file,
+			targetGroup === "staged"
+		);
+		if (shouldStage === null) {
+			return;
+		}
+		onSetStaged(file, shouldStage).catch(() => {
+			// The workspace displays the Git operation failure.
+		});
+	};
+	const rows = orderedFiles.map((file, index) => {
+		const isBulkSelected = selectedFilePaths.has(file.path);
+		const previousFile = orderedFiles[index - 1];
+		const nextFile = orderedFiles[index + 1];
+		return (
+			<RepositoryFileRow
+				file={file}
+				isBulkSelected={isBulkSelected}
+				isBulkSelectionEnd={
+					isBulkSelected && !(nextFile && selectedFilePaths.has(nextFile.path))
+				}
+				isBulkSelectionStart={
+					isBulkSelected &&
+					!(previousFile && selectedFilePaths.has(previousFile.path))
+				}
+				isDiscardDisabled={isDiscardDisabled}
+				isSelected={selectedFilePath === file.path}
+				isSelectionContextMenuPresent={isSelectionContextMenuPresent}
+				isStagingDisabled={isStagingDisabled}
+				key={file.path}
+				onClearSelection={onClearSelection}
+				onDiscard={onDiscard}
+				onSelect={onSelect}
+				onSelectionContextMenuPresenceChange={setSelectionContextMenuPresent}
+				onSetFilesStaged={onSetFilesStaged}
+				onSetStaged={onSetStaged}
+				orderedFilePaths={orderedFilePaths}
+				repositoryRoot={repositoryRoot}
+				selectedFilePaths={selectedFilePaths}
+				selectedFiles={selectedFiles}
+				selectedRowAriaKeyShortcuts={selectedRowAriaKeyShortcuts}
+				selectedRowRef={selectedRowRef}
+			/>
+		);
+	});
+	const stagedRows = rows.slice(0, groups.staged.length);
+	const unstagedRows = rows.slice(groups.staged.length);
+
 	return (
-		<ul
-			aria-label="Changed files"
-			className="px-1 pb-1 outline-none"
-			data-name="RepositoryFileList"
-			tabIndex={-1}
+		<DragDropProvider
+			onDragEnd={finishFileDrag}
+			sensors={REPOSITORY_FILE_DRAG_SENSORS}
 		>
-			{orderedFiles.map((file, index) => {
-				const isBulkSelected = selectedFilePaths.has(file.path);
-				const previousFile = orderedFiles[index - 1];
-				const nextFile = orderedFiles[index + 1];
-				return (
-					<RepositoryFileRow
-						file={file}
-						isBulkSelected={isBulkSelected}
-						isBulkSelectionEnd={
-							isBulkSelected &&
-							!(nextFile && selectedFilePaths.has(nextFile.path))
-						}
-						isBulkSelectionStart={
-							isBulkSelected &&
-							!(previousFile && selectedFilePaths.has(previousFile.path))
-						}
-						isDiscardDisabled={isDiscardDisabled}
-						isSelected={selectedFilePath === file.path}
-						isSelectionContextMenuPresent={isSelectionContextMenuPresent}
-						isStagingDisabled={isStagingDisabled}
-						key={file.path}
-						onClearSelection={onClearSelection}
-						onDiscard={onDiscard}
-						onSelect={onSelect}
-						onSelectionContextMenuPresenceChange={
-							setSelectionContextMenuPresent
-						}
-						onSetFilesStaged={onSetFilesStaged}
-						onSetStaged={onSetStaged}
-						orderedFilePaths={orderedFilePaths}
-						repositoryRoot={repositoryRoot}
-						selectedFilePaths={selectedFilePaths}
-						selectedFiles={selectedFiles}
-						selectedRowAriaKeyShortcuts={selectedRowAriaKeyShortcuts}
-						selectedRowRef={selectedRowRef}
-					/>
-				);
-			})}
-		</ul>
+			<div data-name="RepositoryFileListGroups">
+				<RepositoryFileStageGroup
+					count={groups.staged.length}
+					disabled={isStagingDisabled}
+					group="staged"
+				>
+					{stagedRows}
+				</RepositoryFileStageGroup>
+				<RepositoryFileStageGroup
+					count={groups.unstaged.length}
+					disabled={isStagingDisabled}
+					group="unstaged"
+				>
+					{unstagedRows}
+				</RepositoryFileStageGroup>
+			</div>
+		</DragDropProvider>
 	);
 }

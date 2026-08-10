@@ -1,7 +1,10 @@
 import type { FileChange, FileStatus } from "@1git/git";
 import { cn } from "@1git/ui/lib/utils";
 import type { ReactElement } from "react";
-import { getFileChangeStatus } from "@/feature/workspace/lib/workspace-model.js";
+import {
+	getFileChangeStatus,
+	isFilePartiallyStaged,
+} from "@/feature/workspace/lib/workspace-model.js";
 
 const STATUS_CLASS_NAMES: Readonly<Record<FileStatus, string>> = {
 	added: "border-[#1a7f37] text-[#1a7f37]",
@@ -39,19 +42,23 @@ export function RepositoryFileStatus({
 	file,
 }: RepositoryFileStatusProps): ReactElement {
 	const status = getFileChangeStatus(file);
+	const isPartiallyStaged = isFilePartiallyStaged(file);
 	return (
 		<span
 			aria-hidden
 			className={cn(
-				"inline-flex size-3 shrink-0 items-center justify-center rounded-[2px] border font-mono font-semibold text-[9px] leading-none",
+				"relative inline-flex size-3 shrink-0 items-center justify-center rounded-[2px] border font-mono font-semibold text-[9px] leading-none",
 				STATUS_CLASS_NAMES[status],
 				className
 			)}
-			title={status}
+			title={isPartiallyStaged ? `${status}, partially staged` : status}
 		>
 			{STATUS_SYMBOLS[status] ?? (
 				<span className="block size-1 rounded-full bg-current" />
 			)}
+			{isPartiallyStaged ? (
+				<span className="absolute -right-0.5 -bottom-0.5 size-1 rounded-full bg-brand ring-1 ring-editor-surface" />
+			) : null}
 		</span>
 	);
 }

@@ -1,6 +1,5 @@
 import { Button } from "@1git/ui/components/button";
 import { Input } from "@1git/ui/components/input";
-import { Kbd } from "@1git/ui/components/kbd";
 import { Textarea } from "@1git/ui/components/textarea";
 import { cn } from "@1git/ui/lib/utils";
 import { CaretRightIcon } from "@phosphor-icons/react/dist/csr/CaretRight";

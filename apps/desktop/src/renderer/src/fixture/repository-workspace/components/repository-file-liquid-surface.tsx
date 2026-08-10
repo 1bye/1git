@@ -1,3 +1,4 @@
+import type { FileChange } from "@1git/git";
 import type { CSSProperties, ReactElement } from "react";
 import { useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createLiquidGeometryTracker } from "@/fixture/liquid-surface/lib/track-liquid-geometry.js";
@@ -10,6 +11,7 @@ import {
 import { getRepositoryFileRowId } from "@/fixture/repository-workspace/lib/repository-navigation.js";
 
 interface RepositoryFileLiquidSurfaceProps {
+	readonly files?: readonly FileChange[];
 	readonly selectedFilePath: string | null;
 }
 
@@ -48,11 +50,13 @@ const hasSameMeasurement = (
 };
 
 export function RepositoryFileLiquidSurface({
+	files,
 	selectedFilePath,
 }: RepositoryFileLiquidSurfaceProps): ReactElement {
 	const clipPathId = useId();
 	const hostRef = useRef<HTMLDivElement>(null);
 	const previousSelectedFilePathRef = useRef(selectedFilePath);
+	const selectedFile = files?.find((file) => file.path === selectedFilePath);
 	const [isMoving, setIsMoving] = useState(false);
 	const [measurement, setMeasurement] =
 		useState<RepositoryFileLiquidMeasurement | null>(null);
@@ -92,7 +96,7 @@ export function RepositoryFileLiquidSurface({
 			"[data-repository-file-viewport]"
 		);
 		const fileList = viewport?.querySelector<HTMLElement>(
-			'[data-name="RepositoryFileList"]'
+			'[data-name="RepositoryFileListGroups"]'
 		);
 		if (
 			!(
@@ -102,7 +106,7 @@ export function RepositoryFileLiquidSurface({
 				fileRail &&
 				viewport &&
 				fileList &&
-				selectedFilePath
+				selectedFile
 			)
 		) {
 			setMeasurement(null);
@@ -110,7 +114,7 @@ export function RepositoryFileLiquidSurface({
 		}
 
 		const rowSelector = `#${CSS.escape(
-			getRepositoryFileRowId(selectedFilePath)
+			getRepositoryFileRowId(selectedFile.path)
 		)}`;
 		const measure = (): void => {
 			const row = fileList.querySelector<HTMLElement>(rowSelector);
@@ -140,7 +144,7 @@ export function RepositoryFileLiquidSurface({
 		]);
 		tracker.measureNow();
 		return tracker.disconnect;
-	}, [selectedFilePath]);
+	}, [selectedFile]);
 
 	const path = useMemo(
 		() =>
