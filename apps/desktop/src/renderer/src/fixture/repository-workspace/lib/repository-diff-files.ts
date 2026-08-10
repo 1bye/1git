@@ -1,5 +1,9 @@
 import type { DiffFileStat, DiffTarget, FileChange, FileDiff } from "@1git/git";
-import { type FileDiffMetadata, parsePatchFiles } from "@pierre/diffs";
+import {
+	type FileDiffMetadata,
+	parseDiffFromFile,
+	parsePatchFiles,
+} from "@pierre/diffs";
 import type { RepositoryTab } from "@/feature/workspace/types/git-workspace.js";
 import { getRepositoryDiffElementId } from "@/fixture/repository-workspace/lib/repository-navigation.js";
 
@@ -21,6 +25,7 @@ type RepositoryDiffFileEntryWithoutId = Omit<
 
 const REPOSITORY_DIFF_HASH_MODULUS = 2_147_483_647;
 const REPOSITORY_DIFF_HASH_MULTIPLIER = 31;
+const REPOSITORY_DIFF_CONTEXT_LINES = 3;
 
 const hashRepositoryDiffPatch = (patch: string): string => {
 	let hash = 0;
@@ -156,8 +161,18 @@ export const createExpandableRepositoryDiffFile = (
 	if (!file) {
 		return null;
 	}
-	return {
-		...file,
-		isPartial: false,
-	};
+	return parseDiffFromFile(
+		{
+			cacheKey: `${cacheKeyPrefix}:old`,
+			contents: file.deletionLines.join(""),
+			name: file.prevName ?? file.name,
+		},
+		{
+			cacheKey: `${cacheKeyPrefix}:new`,
+			contents: file.additionLines.join(""),
+			name: file.name,
+		},
+		{ context: REPOSITORY_DIFF_CONTEXT_LINES },
+		true
+	);
 };

@@ -7,8 +7,6 @@ import { memo, useCallback, useLayoutEffect, useRef, useState } from "react";
 import {
 	REPOSITORY_DIFF_ESTIMATED_LINE_HEIGHT,
 	REPOSITORY_DIFF_ESTIMATED_SEPARATOR_HEIGHT,
-	REPOSITORY_DIFF_EXPANDED_HUNK_ACTION_RENDER_OPTIONS,
-	REPOSITORY_DIFF_EXPANDED_RENDER_OPTIONS,
 	REPOSITORY_DIFF_HUNK_ACTION_RENDER_OPTIONS,
 	REPOSITORY_DIFF_MINIMUM_BODY_HEIGHT,
 	REPOSITORY_DIFF_RENDER_OPTIONS,
@@ -49,7 +47,8 @@ const isUnmodifiedLineInteraction = (event: MouseEvent): boolean => {
 	return path.some(
 		(target) =>
 			isElement(target) &&
-			(target.hasAttribute("data-separator-content") ||
+			(target.hasAttribute("data-expand-button") ||
+				target.hasAttribute("data-separator-content") ||
 				target.hasAttribute("data-unmodified-lines"))
 	);
 };
@@ -86,8 +85,6 @@ const DiffFileAccordionComponent = ({
 }: DiffFileAccordionProps): ReactElement => {
 	const [isOpen, setIsOpen] = useState(true);
 	const [isPreparingContext, setIsPreparingContext] = useState(false);
-	const [isUnmodifiedContextExpanded, setIsUnmodifiedContextExpanded] =
-		useState(false);
 	const [isHunkActionOpen, setIsHunkActionOpen] = useState(false);
 	const [hunkActionSelection, setHunkActionSelection] =
 		useState<HunkActionSelection | null>(null);
@@ -168,8 +165,6 @@ const DiffFileAccordionComponent = ({
 			if (!isUnmodifiedLineInteraction(event)) {
 				return;
 			}
-			event.preventDefault();
-			setIsUnmodifiedContextExpanded(true);
 			if (entry.file?.isPartial === false) {
 				return;
 			}
@@ -229,12 +224,8 @@ const DiffFileAccordionComponent = ({
 				fileDiff={entry.file}
 				options={
 					supportsHunkActions
-						? isUnmodifiedContextExpanded
-							? REPOSITORY_DIFF_EXPANDED_HUNK_ACTION_RENDER_OPTIONS
-							: REPOSITORY_DIFF_HUNK_ACTION_RENDER_OPTIONS
-						: isUnmodifiedContextExpanded
-							? REPOSITORY_DIFF_EXPANDED_RENDER_OPTIONS
-							: REPOSITORY_DIFF_RENDER_OPTIONS
+						? REPOSITORY_DIFF_HUNK_ACTION_RENDER_OPTIONS
+						: REPOSITORY_DIFF_RENDER_OPTIONS
 				}
 				renderGutterUtility={supportsHunkActions ? renderHunkAction : undefined}
 			/>

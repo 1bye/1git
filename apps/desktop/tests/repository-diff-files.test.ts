@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { FileChange, FileDiff } from "@1git/git";
+import { DiffHunksRenderer } from "@pierre/diffs";
+import { REPOSITORY_DIFF_RENDER_OPTIONS } from "../src/renderer/src/fixture/repository-workspace/constants/repository-diff.js";
 import {
 	createExpandableRepositoryDiffFile,
 	createRepositoryDiffFileEntries,
@@ -18,6 +20,31 @@ index 0000000..1111111 100644
 +${replacement}
  four
  five
+`;
+
+const fullFilePatchWithSeparatedChanges = `diff --git a/app.ts b/app.ts
+index 0000000..1111111 100644
+--- a/app.ts
++++ b/app.ts
+@@ -1,16 +1,16 @@
+ one
+-two
++TWO
+ three
+ four
+ five
+ six
+ seven
+ eight
+ nine
+ ten
+ eleven
+ twelve
+ thirteen
+ fourteen
+-fifteen
++FIFTEEN
+ sixteen
 `;
 
 const createDiff = (patch: string): FileDiff => ({
@@ -91,5 +118,39 @@ describe("repository diff files", () => {
 		expect(file?.isPartial).toBe(false);
 		expect(file?.additionLines).toHaveLength(5);
 		expect(file?.deletionLines).toHaveLength(5);
+	});
+
+	test("keeps full file contents collapsed for incremental expansion", () => {
+		const file = createExpandableRepositoryDiffFile(
+			createDiff(fullFilePatchWithSeparatedChanges),
+			"app.ts",
+			"app.ts:expanded"
+		);
+
+		expect(file).not.toBeNull();
+		expect(file?.isPartial).toBe(false);
+		expect(file?.additionLines).toHaveLength(16);
+		expect(file?.hunks).toHaveLength(2);
+		expect(file?.hunks[1]?.collapsedBefore).toBe(6);
+		expect(REPOSITORY_DIFF_RENDER_OPTIONS).toMatchObject({
+			expandUnchanged: false,
+			expansionLineCount: 20,
+		});
+	});
+
+	test("expands uncounted context twenty lines at a time", () => {
+		const renderer = new DiffHunksRenderer(REPOSITORY_DIFF_RENDER_OPTIONS);
+
+		renderer.expandHunk(1, "down");
+		expect(renderer.getExpandedHunk(1)).toEqual({
+			fromEnd: 20,
+			fromStart: 0,
+		});
+
+		renderer.expandHunk(1, "down");
+		expect(renderer.getExpandedHunk(1)).toEqual({
+			fromEnd: 40,
+			fromStart: 0,
+		});
 	});
 });
