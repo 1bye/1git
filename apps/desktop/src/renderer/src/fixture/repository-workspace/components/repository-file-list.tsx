@@ -410,6 +410,7 @@ function RepositoryFileRow({
 				isSingleContextMenuActive && "rounded-md",
 				isSingleContextMenuActive && !shouldElevateSelection && "z-20"
 			)}
+			data-active={isSelected ? "true" : undefined}
 			data-bulk-selected={isBulkSelected ? "true" : undefined}
 			data-name="RepositoryFileRow"
 			data-overflowing-label-trigger
@@ -433,7 +434,7 @@ function RepositoryFileRow({
 			</div>
 			<button
 				aria-current={isSelected ? "true" : undefined}
-				className="flex min-w-0 flex-1 items-center gap-1.5 px-1.5 py-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-brand/20 focus-visible:ring-inset"
+				className="flex min-w-0 flex-1 items-center gap-1.5 px-1.5 py-1 text-left outline-none"
 				onClick={selectFile}
 				type="button"
 			>
@@ -564,7 +565,7 @@ export function RepositoryFileList({
 	return (
 		<ul
 			aria-label="Changed files"
-			className="px-1 pb-1 outline-none focus-visible:ring-2 focus-visible:ring-brand/20 focus-visible:ring-inset"
+			className="px-1 pb-1 outline-none"
 			data-name="RepositoryFileList"
 			tabIndex={-1}
 		>

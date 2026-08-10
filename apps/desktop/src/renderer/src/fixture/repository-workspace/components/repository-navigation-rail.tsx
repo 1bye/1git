@@ -181,7 +181,7 @@ export function RepositoryNavigationRail({
 
 	return (
 		<aside
-			className="relative flex min-h-0 w-(--repository-rail-width) shrink-0 flex-col bg-transparent"
+			className="relative isolate z-20 flex min-h-0 w-(--repository-rail-width) shrink-0 flex-col bg-transparent"
 			data-desktop-drag
 			data-name="RepositoryNavigationRail"
 		>

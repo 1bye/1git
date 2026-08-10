@@ -3,6 +3,7 @@ import {
 	RepositoryDiffWorkspace,
 	type RepositoryDiffWorkspaceProps,
 } from "@/fixture/repository-workspace/components/repository-diff-workspace.js";
+import { RepositoryFileLiquidSurface } from "@/fixture/repository-workspace/components/repository-file-liquid-surface.js";
 import {
 	RepositoryNavigationRail,
 	type RepositoryNavigationRailProps,
@@ -16,21 +17,29 @@ export type RepositoryWorkspaceProps = RepositoryDiffWorkspaceProps &
 
 export function RepositoryWorkspace({
 	ref,
+	selectedFilePath,
 	titlebar,
 	...props
 }: RepositoryWorkspaceProps): ReactElement {
 	return (
 		<section
-			className="flex min-h-0 flex-1 overflow-hidden bg-transparent"
+			className="relative isolate flex min-h-0 flex-1 overflow-hidden bg-transparent"
 			data-name="RepositoryWorkspace"
 			id="repository-workspace"
 			ref={ref}
 		>
+			<RepositoryFileLiquidSurface selectedFilePath={selectedFilePath} />
 			<div className="flex min-w-0 flex-1 flex-col">
 				{titlebar}
-				<RepositoryDiffWorkspace {...props} />
+				<RepositoryDiffWorkspace
+					{...props}
+					selectedFilePath={selectedFilePath}
+				/>
 			</div>
-			<RepositoryNavigationRail {...props} />
+			<RepositoryNavigationRail
+				{...props}
+				selectedFilePath={selectedFilePath}
+			/>
 		</section>
 	);
 }
