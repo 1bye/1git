@@ -162,7 +162,6 @@ export function RepositoryNavigationRail({
 					onDiscardFiles={onDiscardFiles}
 					onSetFileStaged={onSetFileStaged}
 					onSetFilesStaged={onSetFilesStaged}
-					onToggleAllFiles={onToggleAllFiles}
 					pendingAction={pendingAction}
 					repositoryRoot={activeSession.repository.root}
 					selectedFilePath={selectedFilePath}

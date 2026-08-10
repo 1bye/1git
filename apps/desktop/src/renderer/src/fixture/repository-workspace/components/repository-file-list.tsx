@@ -1,4 +1,5 @@
 import type { FileChange } from "@1git/git";
+import { DropdownMenuItem } from "@1git/ui/components/dropdown-menu";
 import { cn } from "@1git/ui/lib/utils";
 import { PointerActivationConstraints, PointerSensor } from "@dnd-kit/dom";
 import {
@@ -7,6 +8,9 @@ import {
 	useDraggable,
 	useDroppable,
 } from "@dnd-kit/react";
+import { CheckIcon } from "@phosphor-icons/react/dist/csr/Check";
+import { DotsThreeIcon } from "@phosphor-icons/react/dist/csr/DotsThree";
+import { MinusIcon } from "@phosphor-icons/react/dist/csr/Minus";
 import type {
 	CSSProperties,
 	ReactElement,
@@ -20,7 +24,10 @@ import {
 	LiquidContextMenuRoot,
 	LiquidContextMenuTrigger,
 	LiquidMenuContent,
+	LiquidMenuRoot,
+	LiquidMenuTrigger,
 } from "@/fixture/liquid-menu/components/liquid-menu.js";
+import { LIQUID_MENU_CONNECTED_BUTTON_ANCHOR_GEOMETRY } from "@/fixture/liquid-menu/constants/liquid-menu.js";
 import { useLiquidContextMenuPosition } from "@/fixture/liquid-menu/hooks/use-liquid-context-menu-position.js";
 import { getLiquidMenuLayerZIndices } from "@/fixture/liquid-menu/lib/liquid-menu-stack.js";
 import { OverflowingLabel } from "@/fixture/overflowing-label/components/overflowing-label.js";
@@ -224,16 +231,21 @@ const getRepositoryFileSelectionClassName = (
 
 interface RepositoryFileStageGroupProps {
 	readonly children: ReactNode;
-	readonly count: number;
 	readonly disabled: boolean;
+	readonly files: readonly FileChange[];
 	readonly group: RepositoryFileStageGroup;
+	readonly onSetFilesStaged: (
+		files: readonly FileChange[],
+		shouldStage: boolean
+	) => Promise<boolean>;
 }
 
 function RepositoryFileStageGroup({
 	children,
-	count,
 	disabled,
+	files,
 	group,
+	onSetFilesStaged,
 }: RepositoryFileStageGroupProps): ReactElement {
 	const { isDropTarget, ref } = useDroppable({
 		accept: REPOSITORY_FILE_DRAG_TYPE,
@@ -242,6 +254,11 @@ function RepositoryFileStageGroup({
 		type: "repository-file-stage-group",
 	});
 	const label = group === "staged" ? "Staged" : "Unstaged";
+	const shouldStage = group === "unstaged";
+	const actionLabel = shouldStage ? "Stage all" : "Unstage all";
+	const setGroupStaged = async (): Promise<void> => {
+		await onSetFilesStaged(files, shouldStage);
+	};
 
 	return (
 		<section
@@ -254,9 +271,36 @@ function RepositoryFileStageGroup({
 			data-name="RepositoryFileStageGroup"
 			ref={ref}
 		>
-			<header className="sticky top-0 z-10 flex h-6 items-center bg-editor-sunken/90 px-1.5 font-medium text-[10px] text-editor-muted backdrop-blur-md">
+			<header className="sticky top-0 z-10 flex h-7 items-center px-1.5 font-medium text-[10px] text-editor-muted">
 				<span>{label}</span>
-				<span className="ml-auto tabular-nums">{count}</span>
+				<span className="ml-1 tabular-nums">{files.length}</span>
+				<LiquidMenuRoot
+					anchorGeometry={LIQUID_MENU_CONNECTED_BUTTON_ANCHOR_GEOMETRY}
+					disabled={disabled || files.length === 0}
+					modal
+				>
+					<LiquidMenuTrigger
+						aria-label={`Actions for ${label.toLowerCase()} files`}
+						className="ml-auto flex size-6 items-center justify-center rounded-lg text-editor-muted outline-none transition-colors hover:bg-hover hover:text-editor-ink focus-visible:ring-2 focus-visible:ring-brand/20 data-disabled:pointer-events-none data-disabled:text-editor-faint"
+					>
+						<DotsThreeIcon aria-hidden className="size-3.5" weight="bold" />
+					</LiquidMenuTrigger>
+					<LiquidMenuContent
+						align="end"
+						aria-label={`${label} file actions`}
+						className="min-w-36 p-1"
+						sideOffset={4}
+					>
+						<DropdownMenuItem closeOnClick onClick={setGroupStaged}>
+							{shouldStage ? (
+								<CheckIcon aria-hidden weight="bold" />
+							) : (
+								<MinusIcon aria-hidden weight="bold" />
+							)}
+							{actionLabel}
+						</DropdownMenuItem>
+					</LiquidMenuContent>
+				</LiquidMenuRoot>
 			</header>
 			<ul
 				aria-label={`${label} changed files`}
@@ -563,6 +607,7 @@ function RepositoryFileRow({
 }
 
 interface RepositoryFileListProps {
+	readonly allFiles?: readonly FileChange[];
 	readonly files: readonly FileChange[];
 	readonly isDiscardDisabled: boolean;
 	readonly isStagingDisabled: boolean;
@@ -590,6 +635,7 @@ interface RepositoryFileListProps {
 }
 
 export function RepositoryFileList({
+	allFiles,
 	files,
 	isDiscardDisabled,
 	isStagingDisabled,
@@ -609,6 +655,7 @@ export function RepositoryFileList({
 	const [isSelectionContextMenuPresent, setSelectionContextMenuPresent] =
 		useState(false);
 	const groups = groupRepositoryFilesByStaging(files);
+	const totalGroups = groupRepositoryFilesByStaging(allFiles ?? files);
 	const orderedFiles = [...groups.staged, ...groups.unstaged];
 	const orderedFilePaths = orderedFiles.map((file) => file.path);
 	useEffect(() => {
@@ -695,16 +742,18 @@ export function RepositoryFileList({
 		>
 			<div data-name="RepositoryFileListGroups">
 				<RepositoryFileStageGroup
-					count={groups.staged.length}
 					disabled={isStagingDisabled}
+					files={totalGroups.staged}
 					group="staged"
+					onSetFilesStaged={onSetFilesStaged}
 				>
 					{stagedRows}
 				</RepositoryFileStageGroup>
 				<RepositoryFileStageGroup
-					count={groups.unstaged.length}
 					disabled={isStagingDisabled}
+					files={totalGroups.unstaged}
 					group="unstaged"
+					onSetFilesStaged={onSetFilesStaged}
 				>
 					{unstagedRows}
 				</RepositoryFileStageGroup>
