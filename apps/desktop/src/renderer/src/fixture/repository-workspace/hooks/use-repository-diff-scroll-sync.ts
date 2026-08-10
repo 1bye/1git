@@ -10,6 +10,25 @@ interface UseRepositoryDiffScrollSyncOptions {
 
 const DIFF_FILE_SELECTOR = "[data-repository-diff-path]";
 const DIFF_HEADER_OFFSET = 58;
+const SCROLL_END_EPSILON = 1;
+
+interface RepositoryDiffScrollPosition {
+	readonly clientHeight: number;
+	readonly scrollHeight: number;
+	readonly scrollTop: number;
+}
+
+export const getRepositoryDiffScrollEndPath = (
+	position: RepositoryDiffScrollPosition,
+	paths: readonly string[]
+): string | null => {
+	const hasScrollableOverflow =
+		position.scrollHeight > position.clientHeight + SCROLL_END_EPSILON;
+	const isAtScrollEnd =
+		position.scrollTop + position.clientHeight >=
+		position.scrollHeight - SCROLL_END_EPSILON;
+	return hasScrollableOverflow && isAtScrollEnd ? (paths.at(-1) ?? null) : null;
+};
 
 export const useRepositoryDiffScrollSync = ({
 	activePath,
@@ -32,6 +51,21 @@ export const useRepositoryDiffScrollSync = ({
 		if (!(contentKey || files.length > 0)) {
 			return;
 		}
+		const filePaths = [...files].flatMap((file) => {
+			const path = file.dataset.repositoryDiffPath;
+			return path ? [path] : [];
+		});
+		const changeActivePath = (path: string | null): void => {
+			if (path && path !== activePathRef.current) {
+				activePathRef.current = path;
+				onActivePathChangeRef.current(path);
+			}
+		};
+		const getScrollEndPath = (): string | null =>
+			getRepositoryDiffScrollEndPath(container, filePaths);
+		const handleScroll = (): void => {
+			changeActivePath(getScrollEndPath());
+		};
 		let intersectionObserver: IntersectionObserver | null = null;
 		const observeFiles = (containerHeight: number): void => {
 			intersectionObserver?.disconnect();
@@ -41,15 +75,18 @@ export const useRepositoryDiffScrollSync = ({
 			);
 			intersectionObserver = new IntersectionObserver(
 				(entries) => {
+					const scrollEndPath = getScrollEndPath();
+					if (scrollEndPath) {
+						changeActivePath(scrollEndPath);
+						return;
+					}
 					const activeEntry = entries.find((entry) => entry.isIntersecting);
 					if (!(activeEntry?.target instanceof HTMLElement)) {
 						return;
 					}
-					const nextPath = activeEntry.target.dataset.repositoryDiffPath;
-					if (nextPath && nextPath !== activePathRef.current) {
-						activePathRef.current = nextPath;
-						onActivePathChangeRef.current(nextPath);
-					}
+					changeActivePath(
+						activeEntry.target.dataset.repositoryDiffPath ?? null
+					);
 				},
 				{
 					root: container,
@@ -62,6 +99,7 @@ export const useRepositoryDiffScrollSync = ({
 			}
 		};
 
+		container.addEventListener("scroll", handleScroll, { passive: true });
 		observeFiles(container.clientHeight);
 		const resizeObserver = new ResizeObserver((entries) => {
 			const [containerEntry] = entries;
@@ -72,6 +110,7 @@ export const useRepositoryDiffScrollSync = ({
 		resizeObserver.observe(container);
 
 		return () => {
+			container.removeEventListener("scroll", handleScroll);
 			intersectionObserver?.disconnect();
 			resizeObserver.disconnect();
 		};

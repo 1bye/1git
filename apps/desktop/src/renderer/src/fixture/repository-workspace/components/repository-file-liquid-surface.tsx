@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactElement } from "react";
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createLiquidGeometryTracker } from "@/fixture/liquid-surface/lib/track-liquid-geometry.js";
 import {
 	createRepositoryFileLiquidMeasurement,
@@ -34,6 +34,8 @@ const hasSameMeasurement = (
 	}
 	return (
 		current.canvasEdgeX === next.canvasEdgeX &&
+		current.clipBottom === next.clipBottom &&
+		current.clipTop === next.clipTop &&
 		current.rowHeight === next.rowHeight &&
 		current.rowLeft === next.rowLeft &&
 		current.rowTop === next.rowTop &&
@@ -48,6 +50,7 @@ const hasSameMeasurement = (
 export function RepositoryFileLiquidSurface({
 	selectedFilePath,
 }: RepositoryFileLiquidSurfaceProps): ReactElement {
+	const clipPathId = useId();
 	const hostRef = useRef<HTMLDivElement>(null);
 	const previousSelectedFilePathRef = useRef(selectedFilePath);
 	const [isMoving, setIsMoving] = useState(false);
@@ -170,7 +173,25 @@ export function RepositoryFileLiquidSurface({
 					viewBox={`0 0 ${measurement.surfaceWidth} ${measurement.surfaceHeight}`}
 				>
 					<title>Active file liquid surface</title>
-					<path d={path} data-name="RepositoryFileLiquidSurfaceFill" />
+					<defs>
+						<clipPath id={clipPathId}>
+							<rect
+								height={
+									measurement.surfaceHeight -
+									measurement.clipTop -
+									measurement.clipBottom
+								}
+								width={measurement.surfaceWidth}
+								x="0"
+								y={measurement.clipTop}
+							/>
+						</clipPath>
+					</defs>
+					<path
+						clipPath={`url(#${clipPathId})`}
+						d={path}
+						data-name="RepositoryFileLiquidSurfaceFill"
+					/>
 				</svg>
 			) : null}
 		</div>

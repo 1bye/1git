@@ -49,6 +49,8 @@ describe("repository file liquid geometry", () => {
 		}
 		expect(measurement).toEqual({
 			canvasEdgeX: 16,
+			clipBottom: 0,
+			clipTop: 0,
 			rowHeight: 28,
 			rowLeft: 20,
 			rowTop: 18,
@@ -71,7 +73,7 @@ describe("repository file liquid geometry", () => {
 		);
 	});
 
-	it("clips the surface to the visible file viewport", () => {
+	it("keeps a closed surface and reports viewport clipping separately", () => {
 		const measurement = createRepositoryFileLiquidMeasurement(
 			surface,
 			canvas,
@@ -85,11 +87,48 @@ describe("repository file liquid geometry", () => {
 		);
 
 		expect(measurement).toMatchObject({
+			clipBottom: 0,
+			clipTop: 26,
 			rowHeight: 28,
-			rowTop: -8,
-			surfaceHeight: 38,
-			surfaceTop: 110,
+			rowTop: 18,
+			surfaceHeight: 64,
+			surfaceTop: 84,
 		});
+		if (!measurement) {
+			throw new Error("Expected a partially visible file measurement.");
+		}
+		const path = createRepositoryFileLiquidPath(measurement);
+		expect(path).toStartWith("M ");
+		expect(path).toEndWith(" Z");
+		expect(path).not.toContain("NaN");
+	});
+
+	it("keeps the first row geometry closed behind the viewport clip", () => {
+		const measurement = createRepositoryFileLiquidMeasurement(
+			surface,
+			canvas,
+			{
+				height: 28,
+				left: 1004,
+				top: viewport.top,
+				width: 292,
+			},
+			viewport
+		);
+
+		expect(measurement).toMatchObject({
+			clipBottom: 0,
+			clipTop: 18,
+			rowTop: 18,
+			surfaceHeight: 64,
+			surfaceTop: 92,
+		});
+		if (!measurement) {
+			throw new Error("Expected the first file surface measurement.");
+		}
+		const path = createRepositoryFileLiquidPath(measurement);
+		expect(path).toStartWith("M ");
+		expect(path).toEndWith(" Z");
 	});
 
 	it("omits rows outside the visible file viewport", () => {
