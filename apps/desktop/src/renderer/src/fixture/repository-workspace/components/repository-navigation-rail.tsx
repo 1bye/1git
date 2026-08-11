@@ -8,6 +8,7 @@ import type {
 } from "@1git/git";
 import type { ReactElement } from "react";
 import { useCallback } from "react";
+import type { RepositoryRecoveryAction } from "@/feature/workspace/lib/repository-recovery.js";
 import type { RepositorySyncAction } from "@/feature/workspace/lib/repository-sync.js";
 import { isFileStaged } from "@/feature/workspace/lib/workspace-model.js";
 import type {
@@ -44,6 +45,8 @@ export interface RepositoryNavigationRailProps {
 	readonly onCommit: (summary: string, description: string) => Promise<boolean>;
 	readonly onDiscardFiles: (files: readonly FileChange[]) => Promise<boolean>;
 	readonly onMergeBranch: (name: string) => Promise<boolean>;
+	readonly onOpenInEditor: () => Promise<void>;
+	readonly onRecover: (action: RepositoryRecoveryAction) => Promise<boolean>;
 	readonly onResetCommit: (
 		commit: CommitInfo,
 		mode: ResetMode
@@ -82,6 +85,8 @@ export function RepositoryNavigationRail({
 	onCancelSync,
 	onDiscardFiles,
 	onMergeBranch,
+	onOpenInEditor,
+	onRecover,
 	onResetCommit,
 	onRevertCommit,
 	onSelectCommit,
@@ -193,6 +198,8 @@ export function RepositoryNavigationRail({
 				branches={branches}
 				onCancelSync={onCancelSync}
 				onMergeBranch={onMergeBranch}
+				onOpenInEditor={onOpenInEditor}
+				onRecover={onRecover}
 				onSetTab={onSetTab}
 				onStashChanges={onStashChanges}
 				onSync={onSync}

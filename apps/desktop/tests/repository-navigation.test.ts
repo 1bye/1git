@@ -94,6 +94,7 @@ describe("repository file navigation", () => {
 	test("groups staged and unstaged files while sorting each group by path", () => {
 		const groups = groupRepositoryFilesByStaging(FILES);
 
+		expect(groups.conflicted).toEqual([]);
 		expect(groups.staged.map((file) => file.path)).toEqual([
 			"packages/git/repository.ts",
 		]);
@@ -104,6 +105,27 @@ describe("repository file navigation", () => {
 		expect(
 			orderRepositoryFilesByStaging(FILES).map((file) => file.path)
 		).toEqual([
+			"packages/git/repository.ts",
+			"apps/desktop/app.tsx",
+			"README.md",
+		]);
+	});
+
+	test("keeps conflicted files in a distinct leading group", () => {
+		const conflict = {
+			...fileChange("src/conflicted.ts", "unmerged", "unmerged"),
+			recordType: "unmerged" as const,
+		};
+		const groups = groupRepositoryFilesByStaging([...FILES, conflict]);
+
+		expect(groups.conflicted).toEqual([conflict]);
+		expect(groups.staged).toEqual([FILES[1]]);
+		expect(
+			orderRepositoryFilesByStaging([...FILES, conflict]).map(
+				(file) => file.path
+			)
+		).toEqual([
+			"src/conflicted.ts",
 			"packages/git/repository.ts",
 			"apps/desktop/app.tsx",
 			"README.md",

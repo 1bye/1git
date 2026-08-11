@@ -22,7 +22,10 @@ import type {
 } from "react";
 import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { isFileStaged } from "@/feature/workspace/lib/workspace-model.js";
+import {
+	isFileConflicted,
+	isFileStaged,
+} from "@/feature/workspace/lib/workspace-model.js";
 import {
 	LiquidContextMenuRoot,
 	LiquidContextMenuTrigger,
@@ -78,7 +81,25 @@ const REPOSITORY_FILE_DRAG_SENSORS = [
 	}),
 ];
 
-type RepositoryFileStageGroup = "staged" | "unstaged";
+type RepositoryFileStageGroup = "conflicted" | "staged" | "unstaged";
+
+const repositoryFileStageGroupLabel = (
+	group: RepositoryFileStageGroup
+): string => {
+	if (group === "conflicted") {
+		return "Conflicted";
+	}
+	return group === "staged" ? "Staged" : "Unstaged";
+};
+
+const repositoryFileStageGroup = (
+	file: FileChange
+): RepositoryFileStageGroup => {
+	if (isFileConflicted(file)) {
+		return "conflicted";
+	}
+	return isFileStaged(file) ? "staged" : "unstaged";
+};
 
 const repositoryFileStageGroupId = (group: RepositoryFileStageGroup): string =>
 	`repository-file-stage-group:${group}`;
@@ -309,8 +330,9 @@ function RepositoryFileStageHeader({
 	onSetFilesStaged,
 	showDropWell,
 }: RepositoryFileStageHeaderProps): ReactElement {
-	const label = group === "staged" ? "Staged" : "Unstaged";
-	const shouldStage = group === "unstaged";
+	const label =
+		group === "conflicted" ? "Conflicts" : repositoryFileStageGroupLabel(group);
+	const shouldStage = group !== "staged";
 	const actionLabel = shouldStage ? "Stage all" : "Unstage all";
 	const dropLabel = group === "staged" ? "Drop to stage" : "Drop to unstage";
 	const setGroupStaged = async (): Promise<void> => {
@@ -371,7 +393,7 @@ function RepositoryFileStageGroup({
 }: RepositoryFileStageGroupProps): ReactElement {
 	const { isDropTarget, ref } = useDroppable({
 		accept: REPOSITORY_FILE_DRAG_TYPE,
-		disabled,
+		disabled: disabled || group === "conflicted",
 		id: repositoryFileStageGroupId(group),
 		type: "repository-file-stage-group",
 	});
@@ -398,7 +420,7 @@ function RepositoryFileStageGroup({
 
 	return (
 		<section
-			aria-label={`${group === "staged" ? "Staged" : "Unstaged"} files`}
+			aria-label={`${repositoryFileStageGroupLabel(group)} files`}
 			className={cn(
 				"min-h-10 rounded-lg px-1 pb-1 transition-[opacity] duration-150 motion-reduce:transition-none",
 				dragSourceGroup !== null && !isDropDestination && "opacity-55"
@@ -443,9 +465,7 @@ function RepositoryFileStageGroup({
 				</div>
 			</div>
 			<ul
-				aria-label={`${
-					group === "staged" ? "Staged" : "Unstaged"
-				} changed files`}
+				aria-label={`${repositoryFileStageGroupLabel(group)} changed files`}
 				className="outline-none"
 				data-name="RepositoryFileList"
 				tabIndex={-1}
@@ -809,7 +829,7 @@ export function RepositoryFileList({
 }: RepositoryFileListProps): ReactElement {
 	const [listElement, setListElement] = useState<HTMLDivElement | null>(null);
 	const [stickyGroup, setStickyGroup] =
-		useState<RepositoryFileStageGroup>("staged");
+		useState<RepositoryFileStageGroup | null>(null);
 	const [stickyLayer, setStickyLayer] = useState<HTMLElement | null>(null);
 	const [isSelectionContextMenuPresent, setSelectionContextMenuPresent] =
 		useState(false);
@@ -825,8 +845,15 @@ export function RepositoryFileList({
 		sourceFiles,
 		stageProjection
 	);
-	const orderedFiles = [...groups.staged, ...groups.unstaged];
+	const orderedFiles = [
+		...groups.conflicted,
+		...groups.staged,
+		...groups.unstaged,
+	];
 	const orderedFilePaths = orderedFiles.map((file) => file.path);
+	const conflictedFileCount = groups.conflicted.length;
+	const stagedFileCount = groups.staged.length;
+	const unstagedFileCount = groups.unstaged.length;
 	useLayoutEffect(() => {
 		if (!listElement) {
 			return;
@@ -840,29 +867,38 @@ export function RepositoryFileList({
 		const nextStickyLayer = scrollArea?.querySelector<HTMLElement>(
 			"[data-repository-file-sticky-layer]"
 		);
-		const unstagedGroup = listElement.querySelector<HTMLElement>(
-			'[data-file-stage-group="unstaged"]'
-		);
-		const stagedGroup = listElement.querySelector<HTMLElement>(
-			'[data-file-stage-group="staged"]'
-		);
-		const hasCurrentGroupLayout =
-			stagedGroup?.dataset.fileStageGroupCount ===
-				String(groups.staged.length) &&
-			unstagedGroup?.dataset.fileStageGroupCount ===
-				String(groups.unstaged.length);
-		if (
-			!(viewport && nextStickyLayer && unstagedGroup && hasCurrentGroupLayout)
-		) {
+		const groupElements = [
+			...listElement.querySelectorAll<HTMLElement>("[data-file-stage-group]"),
+		];
+		const groupCounts: Readonly<Record<RepositoryFileStageGroup, number>> = {
+			conflicted: conflictedFileCount,
+			staged: stagedFileCount,
+			unstaged: unstagedFileCount,
+		};
+		const hasCurrentGroupLayout = groupElements.every((groupElement) => {
+			const group = groupElement.dataset
+				.fileStageGroup as RepositoryFileStageGroup;
+			return (
+				groupElement.dataset.fileStageGroupCount === String(groupCounts[group])
+			);
+		});
+		if (!(viewport && nextStickyLayer && hasCurrentGroupLayout)) {
 			return;
 		}
 		setStickyLayer(nextStickyLayer);
 		const updateStickyGroup = (): void => {
-			const nextGroup =
-				unstagedGroup.getBoundingClientRect().top <=
-				viewport.getBoundingClientRect().top
-					? "unstaged"
-					: "staged";
+			const viewportTop = viewport.getBoundingClientRect().top;
+			let nextGroup: RepositoryFileStageGroup | null = null;
+			for (const groupElement of groupElements) {
+				if (groupElement.getBoundingClientRect().top <= viewportTop + 1) {
+					nextGroup = groupElement.dataset
+						.fileStageGroup as RepositoryFileStageGroup;
+				}
+			}
+			nextGroup ??=
+				(groupElements[0]?.dataset.fileStageGroup as
+					| RepositoryFileStageGroup
+					| undefined) ?? null;
 			setStickyGroup((currentGroup) =>
 				currentGroup === nextGroup ? currentGroup : nextGroup
 			);
@@ -872,7 +908,7 @@ export function RepositoryFileList({
 		return () => {
 			viewport.removeEventListener("scroll", updateStickyGroup);
 		};
-	}, [groups.staged.length, groups.unstaged.length, listElement]);
+	}, [conflictedFileCount, listElement, stagedFileCount, unstagedFileCount]);
 	useEffect(() => {
 		if (selectedFiles.length < 2) {
 			setSelectionContextMenuPresent(false);
@@ -902,7 +938,7 @@ export function RepositoryFileList({
 			setDragSourceGroup(null);
 			return;
 		}
-		setDragSourceGroup(isFileStaged(sourceFile) ? "staged" : "unstaged");
+		setDragSourceGroup(repositoryFileStageGroup(sourceFile));
 	};
 	const finishFileDrag = async (event: DragEndEvent): Promise<void> => {
 		setDragSourceGroup(null);
@@ -984,8 +1020,11 @@ export function RepositoryFileList({
 			/>
 		);
 	});
-	const stagedRows = rows.slice(0, groups.staged.length);
-	const unstagedRows = rows.slice(groups.staged.length);
+	const conflictedRows = rows.slice(0, groups.conflicted.length);
+	const stagedStart = groups.conflicted.length;
+	const unstagedStart = stagedStart + groups.staged.length;
+	const stagedRows = rows.slice(stagedStart, unstagedStart);
+	const unstagedRows = rows.slice(unstagedStart);
 
 	return (
 		<DragDropProvider
@@ -994,6 +1033,19 @@ export function RepositoryFileList({
 			sensors={REPOSITORY_FILE_DRAG_SENSORS}
 		>
 			<div data-name="RepositoryFileListGroups" ref={setListElement}>
+				{groups.conflicted.length > 0 ? (
+					<RepositoryFileStageGroup
+						disabled={isStagingDisabled}
+						dragSourceGroup={dragSourceGroup}
+						files={totalGroups.conflicted}
+						group="conflicted"
+						isSticky={stickyGroup === "conflicted"}
+						onSetFilesStaged={onSetFilesStaged}
+						stickyLayer={stickyLayer}
+					>
+						{conflictedRows}
+					</RepositoryFileStageGroup>
+				) : null}
 				<RepositoryFileStageGroup
 					disabled={isStagingDisabled}
 					dragSourceGroup={dragSourceGroup}

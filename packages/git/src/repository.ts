@@ -1065,6 +1065,16 @@ export class GitRepository {
 		});
 	}
 
+	/** Continues an in-progress merge after conflicts are resolved. */
+	async continueMerge(
+		options: GitCallOptions = {}
+	): Promise<GitResult<RepositorySnapshot>> {
+		return await this.mutate("continue-merge", options.signal, async () => {
+			await this.run(["merge", "--continue"], options.signal);
+			return await loadSnapshot(this.context, false, options.signal);
+		});
+	}
+
 	/** Rebases a branch onto an upstream, optionally through an explicit `onto`. */
 	async rebase(input: RebaseInput): Promise<GitResult<RepositorySnapshot>> {
 		return await this.mutate("rebase", input.signal, async () => {

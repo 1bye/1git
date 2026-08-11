@@ -36,6 +36,7 @@ export type GitOperation =
 	| "clone-repository"
 	| "commit"
 	| "continue-cherry-pick"
+	| "continue-merge"
 	| "continue-rebase"
 	| "continue-revert"
 	| "create-branch"

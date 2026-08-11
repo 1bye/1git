@@ -7,6 +7,7 @@ import { CaretDownIcon } from "@phosphor-icons/react/dist/csr/CaretDown";
 import { CheckIcon } from "@phosphor-icons/react/dist/csr/Check";
 import type { ReactElement } from "react";
 import { useCallback, useEffect, useRef } from "react";
+import type { RepositoryRecoveryAction } from "@/feature/workspace/lib/repository-recovery.js";
 import type { RepositorySyncAction } from "@/feature/workspace/lib/repository-sync.js";
 import { areAllFilesStaged } from "@/feature/workspace/lib/workspace-model.js";
 import type {
@@ -26,6 +27,8 @@ interface RepositoryWorkspaceToolbarProps {
 	readonly branches: BranchCollection | null;
 	readonly onCancelSync: () => Promise<void>;
 	readonly onMergeBranch: (name: string) => Promise<boolean>;
+	readonly onOpenInEditor: () => Promise<void>;
+	readonly onRecover: (action: RepositoryRecoveryAction) => Promise<boolean>;
 	readonly onSetTab: (tab: RepositoryTab) => Promise<void>;
 	readonly onStashChanges: () => Promise<boolean>;
 	readonly onSync: () => Promise<void>;
@@ -50,6 +53,8 @@ export function RepositoryWorkspaceToolbar({
 	branches,
 	onCancelSync,
 	onMergeBranch,
+	onOpenInEditor,
+	onRecover,
 	onSetTab,
 	onStashChanges,
 	onSync,
@@ -151,10 +156,13 @@ export function RepositoryWorkspaceToolbar({
 				head={snapshot.head}
 				onCancelSync={onCancelSync}
 				onMergeBranch={onMergeBranch}
+				onOpenInEditor={onOpenInEditor}
+				onRecover={onRecover}
 				onSetTab={onSetTab}
 				onStashChanges={onStashChanges}
 				onSync={onSync}
 				onToggleAllFiles={onToggleAllFiles}
+				operationState={snapshot.operationState}
 				pendingAction={pendingAction}
 				syncAction={syncAction}
 			/>

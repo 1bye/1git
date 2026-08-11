@@ -1,4 +1,8 @@
-import type { BranchCollection, HeadState } from "@1git/git";
+import type {
+	BranchCollection,
+	HeadState,
+	RepositoryOperationState,
+} from "@1git/git";
 import {
 	DropdownMenuGroup,
 	DropdownMenuItem,
@@ -12,9 +16,15 @@ import { CheckIcon } from "@phosphor-icons/react/dist/csr/Check";
 import { FileCodeIcon } from "@phosphor-icons/react/dist/csr/FileCode";
 import { GitBranchIcon } from "@phosphor-icons/react/dist/csr/GitBranch";
 import { GitCommitIcon } from "@phosphor-icons/react/dist/csr/GitCommit";
+import { PlayIcon } from "@phosphor-icons/react/dist/csr/Play";
+import { SkipForwardIcon } from "@phosphor-icons/react/dist/csr/SkipForward";
 import { XIcon } from "@phosphor-icons/react/dist/csr/X";
 import type { ReactElement } from "react";
 import { useCallback, useRef } from "react";
+import {
+	getRepositoryRecovery,
+	type RepositoryRecoveryAction,
+} from "@/feature/workspace/lib/repository-recovery.js";
 import {
 	isRepositorySyncActionKind,
 	type RepositorySyncAction,
@@ -41,12 +51,94 @@ interface RepositoryQuickActionsProps {
 	readonly head: HeadState;
 	readonly onCancelSync: () => Promise<void>;
 	readonly onMergeBranch: (name: string) => Promise<boolean>;
+	readonly onOpenInEditor: () => Promise<void>;
+	readonly onRecover: (action: RepositoryRecoveryAction) => Promise<boolean>;
 	readonly onSetTab: (tab: RepositoryTab) => Promise<void>;
 	readonly onStashChanges: () => Promise<boolean>;
 	readonly onSync: () => Promise<void>;
 	readonly onToggleAllFiles: () => Promise<void>;
+	readonly operationState: RepositoryOperationState;
 	readonly pendingAction: PendingWorkspaceAction;
 	readonly syncAction: RepositorySyncAction;
+}
+
+interface RepositoryRecoveryMenuGroupProps {
+	readonly isPending: boolean;
+	readonly onOpenInEditor: () => Promise<void>;
+	readonly onRecover: (action: RepositoryRecoveryAction) => Promise<boolean>;
+	readonly operationState: RepositoryOperationState;
+	readonly supportsEditor: boolean;
+}
+
+const recoveryActionLabel = (action: RepositoryRecoveryAction): string => {
+	if (action === "continue") {
+		return "Continue";
+	}
+	if (action === "skip") {
+		return "Skip";
+	}
+	return "Abort";
+};
+
+function RepositoryRecoveryMenuGroup({
+	isPending,
+	onOpenInEditor,
+	onRecover,
+	operationState,
+	supportsEditor,
+}: RepositoryRecoveryMenuGroupProps): ReactElement | null {
+	const recovery = getRepositoryRecovery(operationState);
+	if (!recovery) {
+		return null;
+	}
+
+	return (
+		<>
+			<DropdownMenuGroup>
+				<DropdownMenuLabel>{recovery.label}</DropdownMenuLabel>
+				{recovery.actions.map((action) => (
+					<DropdownMenuItem
+						closeOnClick
+						disabled={isPending}
+						key={action}
+						onClick={async () => {
+							await onRecover(action);
+						}}
+					>
+						{action === "continue" ? (
+							<PlayIcon
+								aria-hidden
+								className="text-editor-faint"
+								weight="fill"
+							/>
+						) : null}
+						{action === "skip" ? (
+							<SkipForwardIcon
+								aria-hidden
+								className="text-editor-faint"
+								weight="fill"
+							/>
+						) : null}
+						{action === "abort" ? (
+							<XIcon aria-hidden className="text-[#cf222e]" weight="bold" />
+						) : null}
+						{recoveryActionLabel(action)}
+					</DropdownMenuItem>
+				))}
+				{supportsEditor ? (
+					<DropdownMenuItem closeOnClick onClick={onOpenInEditor}>
+						<FileCodeIcon
+							aria-hidden
+							className="text-editor-faint"
+							weight="duotone"
+						/>
+						Open in Zed
+					</DropdownMenuItem>
+				) : null}
+			</DropdownMenuGroup>
+			<DropdownMenuSeparator />
+		</>
+	);
 }
 
 export function RepositoryQuickActions({
@@ -56,16 +148,20 @@ export function RepositoryQuickActions({
 	head,
 	onCancelSync,
 	onMergeBranch,
+	onOpenInEditor,
+	onRecover,
 	onSetTab,
 	onStashChanges,
 	onSync,
 	onToggleAllFiles,
+	operationState,
 	pendingAction,
 	syncAction,
 }: RepositoryQuickActionsProps): ReactElement {
 	const triggerRef = useRef<HTMLButtonElement>(null);
 	const isPending = pendingAction !== null;
 	const isSyncPending = isRepositorySyncActionKind(pendingAction);
+	const recovery = getRepositoryRecovery(operationState);
 	const mergeCandidates =
 		branches?.branches.filter(
 			(branch) => branch.type === "local" && !branch.checkedOut
@@ -131,12 +227,20 @@ export function RepositoryQuickActions({
 				className="w-64 min-w-64 p-1.5"
 				sideOffset={4}
 			>
+				<RepositoryRecoveryMenuGroup
+					isPending={isPending}
+					onOpenInEditor={onOpenInEditor}
+					onRecover={onRecover}
+					operationState={operationState}
+					supportsEditor={window.desktop.platform === "darwin"}
+				/>
 				<DropdownMenuGroup>
 					<DropdownMenuLabel>Repository</DropdownMenuLabel>
 					<DropdownMenuItem
 						closeOnClick
 						disabled={
 							(isPending && !isSyncPending) ||
+							recovery !== null ||
 							(!isSyncPending && syncAction.disabledReason !== null)
 						}
 						onClick={synchronizeRepository}
@@ -157,7 +261,7 @@ export function RepositoryQuickActions({
 					</DropdownMenuItem>
 					<DropdownMenuItem
 						closeOnClick
-						disabled={isPending || changedFileCount === 0}
+						disabled={isPending || recovery !== null || changedFileCount === 0}
 						onClick={stashChanges}
 					>
 						<FileCodeIcon
@@ -169,7 +273,7 @@ export function RepositoryQuickActions({
 					</DropdownMenuItem>
 					{mergeCandidates.length > 0 ? (
 						<LiquidMenuSub>
-							<LiquidMenuSubTrigger disabled={isPending}>
+							<LiquidMenuSubTrigger disabled={isPending || recovery !== null}>
 								<GitBranchIcon
 									aria-hidden
 									className="text-editor-faint"

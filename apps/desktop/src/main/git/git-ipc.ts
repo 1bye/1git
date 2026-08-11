@@ -662,6 +662,14 @@ const branchHandlers = (
 		),
 	},
 	{
+		channel: GIT_IPC_CHANNELS.branches.continueMerge,
+		handle: repositoryHandler(
+			repositoryManager,
+			"continue-merge",
+			async (repository, signal) => await repository.continueMerge({ signal })
+		),
+	},
+	{
 		channel: GIT_IPC_CHANNELS.branches.rebase,
 		handle: repositoryInputHandler(
 			repositoryManager,

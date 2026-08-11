@@ -62,6 +62,11 @@ export const createDesktopGitApi = (
 				GIT_IPC_CHANNELS.branches.checkout,
 				inputRequest(sessionId, input, options)
 			),
+		continueMerge: async (sessionId, options) =>
+			await invoke(
+				GIT_IPC_CHANNELS.branches.continueMerge,
+				sessionRequest(sessionId, options)
+			),
 		continueRebase: async (sessionId, options) =>
 			await invoke(
 				GIT_IPC_CHANNELS.branches.continueRebase,

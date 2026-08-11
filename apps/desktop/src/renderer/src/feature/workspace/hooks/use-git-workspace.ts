@@ -8,6 +8,7 @@ import type {
 	GitError,
 	GitResult,
 	RemoteInfo,
+	RepositoryOperationState,
 	RepositorySnapshot,
 	ResetMode,
 	SyncResult,
@@ -23,6 +24,12 @@ import {
 	getRepositoryOwner,
 	type RepositoryOwner,
 } from "@/feature/workspace/lib/repository-owner.js";
+import {
+	isRepositoryRecoveryActionAllowed,
+	type RepositoryRecoveryAction,
+	repositoryRecoveryErrorMessage,
+	shouldStageFilesOnFirstPresentation,
+} from "@/feature/workspace/lib/repository-recovery.js";
 import {
 	getRepositorySyncAction,
 	getRepositorySyncSteps,
@@ -147,6 +154,47 @@ const syncErrorMessage = (error: GitError): string => {
 const syncFailureMayHaveChangedRepository = (error: GitError): boolean =>
 	error.code === "command-failed" || error.code === "conflict";
 
+const runRepositoryRecovery = async (
+	sessionId: RepositorySessionId,
+	operationState: RepositoryOperationState,
+	action: RepositoryRecoveryAction
+): Promise<GitResult<RepositorySnapshot>> => {
+	if (operationState === "merge") {
+		if (action === "continue") {
+			return await window.desktop.git.branches.continueMerge(sessionId);
+		}
+		if (action === "abort") {
+			return await window.desktop.git.branches.abortMerge(sessionId);
+		}
+	}
+	if (operationState === "rebase") {
+		if (action === "continue") {
+			return await window.desktop.git.branches.continueRebase(sessionId);
+		}
+		if (action === "skip") {
+			return await window.desktop.git.branches.skipRebase(sessionId);
+		}
+		return await window.desktop.git.branches.abortRebase(sessionId);
+	}
+	if (operationState === "cherry-pick") {
+		if (action === "continue") {
+			return await window.desktop.git.sequences.continueCherryPick(sessionId);
+		}
+		if (action === "abort") {
+			return await window.desktop.git.sequences.abortCherryPick(sessionId);
+		}
+	}
+	if (operationState === "revert") {
+		if (action === "continue") {
+			return await window.desktop.git.sequences.continueRevert(sessionId);
+		}
+		if (action === "abort") {
+			return await window.desktop.git.sequences.abortRevert(sessionId);
+		}
+	}
+	throw new Error("This recovery action is not valid for the Git operation.");
+};
+
 export const useGitWorkspace = (): GitWorkspace => {
 	const [manager, setManager] =
 		useState<RepositoryManagerState>(EMPTY_MANAGER_STATE);
@@ -198,13 +246,21 @@ export const useGitWorkspace = (): GitWorkspace => {
 	presentedSessionIdRef.current = presentedSessionId;
 	const stageOnFirstPresentation = useCallback(
 		async (
-			sessionId: RepositorySessionId
+			sessionId: RepositorySessionId,
+			initialSnapshot?: RepositorySnapshot
 		): Promise<RepositorySnapshot | null> => {
 			if (stagedOnFirstPresentationRef.current.has(sessionId)) {
 				return null;
 			}
 			stagedOnFirstPresentationRef.current.add(sessionId);
 			try {
+				const currentSnapshot =
+					initialSnapshot ?? (await repositorySnapshot(sessionId));
+				if (
+					!shouldStageFilesOnFirstPresentation(currentSnapshot.operationState)
+				) {
+					return currentSnapshot;
+				}
 				return resultValue(
 					await window.desktop.git.changes.stageAll(sessionId)
 				);
@@ -440,8 +496,13 @@ export const useGitWorkspace = (): GitWorkspace => {
 				applyManagerState(nextManager);
 				const session = activeSessionFromManager(nextManager);
 				if (session) {
-					await stageOnFirstPresentation(session.id);
-					await loadSession(session);
+					const nextSnapshot = await stageOnFirstPresentation(session.id);
+					await loadSession(
+						session,
+						undefined,
+						undefined,
+						nextSnapshot ?? undefined
+					);
 				}
 			} catch (cause) {
 				if (!isDisposed) {
@@ -483,7 +544,8 @@ export const useGitWorkspace = (): GitWorkspace => {
 		activate: boolean
 	): Promise<void> => {
 		const stagedSnapshot =
-			(await stageOnFirstPresentation(opened.session.id)) ?? opened.snapshot;
+			(await stageOnFirstPresentation(opened.session.id, opened.snapshot)) ??
+			opened.snapshot;
 		if (!activate) {
 			const [nextManager, remotesResult] = await Promise.all([
 				window.desktop.git.sessions.state(),
@@ -507,7 +569,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 		applySnapshot(session.id, stagedSnapshot);
 		setTabState("changes");
 		setSelectedCommitOid(null);
-		await loadSession(session);
+		await loadSession(session, undefined, undefined, stagedSnapshot);
 	};
 
 	const openRepository = async (
@@ -641,8 +703,13 @@ export const useGitWorkspace = (): GitWorkspace => {
 			if (!session) {
 				throw new Error("The selected repository session is unavailable.");
 			}
-			await stageOnFirstPresentation(session.id);
-			await loadSession(session);
+			const nextSnapshot = await stageOnFirstPresentation(session.id);
+			await loadSession(
+				session,
+				undefined,
+				undefined,
+				nextSnapshot ?? undefined
+			);
 		} catch (cause) {
 			setError(errorMessage(cause));
 		} finally {
@@ -1435,6 +1502,63 @@ export const useGitWorkspace = (): GitWorkspace => {
 		}
 	};
 
+	const recoverRepository = async (
+		action: RepositoryRecoveryAction
+	): Promise<boolean> => {
+		if (
+			!(activeSession && snapshot) ||
+			pendingAction ||
+			!isRepositoryRecoveryActionAllowed(snapshot.operationState, action)
+		) {
+			return false;
+		}
+		const { operationState } = snapshot;
+		setPendingAction("recovery");
+		try {
+			setError(null);
+			const result = await runRepositoryRecovery(
+				activeSession.id,
+				operationState,
+				action
+			);
+			if (!result.ok) {
+				await loadSession(activeSession, selectedFilePath, selectedCommitOid);
+				setError(
+					repositoryRecoveryErrorMessage(result.error, operationState, action)
+				);
+				return false;
+			}
+			applySnapshot(activeSession.id, result.value);
+			await loadSession(
+				activeSession,
+				selectedFilePath,
+				selectedCommitOid,
+				result.value
+			);
+			return true;
+		} catch (cause) {
+			setError(`Could not ${action} the Git operation. ${errorMessage(cause)}`);
+			return false;
+		} finally {
+			setPendingAction(null);
+		}
+	};
+
+	const openRepositoryInEditor = async (): Promise<void> => {
+		if (!activeSession) {
+			return;
+		}
+		try {
+			setError(null);
+			await window.desktop.integrations.openInApplication(
+				"zed",
+				activeSession.repository.root
+			);
+		} catch {
+			setError("The repository could not be opened in Zed.");
+		}
+	};
+
 	const stashChanges = async (): Promise<boolean> => {
 		if (
 			!(activeSession && snapshot) ||
@@ -1539,8 +1663,10 @@ export const useGitWorkspace = (): GitWorkspace => {
 		manager,
 		mergeBranch,
 		openRecentRepository,
+		openRepositoryInEditor,
 		pendingAction: visiblePendingAction,
 		pickRepository,
+		recoverRepository,
 		reorderWorkspace,
 		resetToCommit,
 		revertCommit,

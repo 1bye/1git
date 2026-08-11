@@ -61,6 +61,7 @@ export const GIT_IPC_CHANNELS = {
 		abortMerge: "git:branches:abort-merge",
 		abortRebase: "git:branches:abort-rebase",
 		checkout: "git:branches:checkout",
+		continueMerge: "git:branches:continue-merge",
 		continueRebase: "git:branches:continue-rebase",
 		create: "git:branches:create",
 		delete: "git:branches:delete",
@@ -178,6 +179,7 @@ const REPOSITORY_MUTATION_OPERATIONS = new Map<string, GitOperation>([
 	[GIT_IPC_CHANNELS.branches.setUpstream, "set-upstream"],
 	[GIT_IPC_CHANNELS.branches.merge, "merge"],
 	[GIT_IPC_CHANNELS.branches.abortMerge, "abort-merge"],
+	[GIT_IPC_CHANNELS.branches.continueMerge, "continue-merge"],
 	[GIT_IPC_CHANNELS.branches.rebase, "rebase"],
 	[GIT_IPC_CHANNELS.branches.continueRebase, "continue-rebase"],
 	[GIT_IPC_CHANNELS.branches.skipRebase, "skip-rebase"],
@@ -302,6 +304,10 @@ export interface DesktopGitApi {
 			input: IpcGitInput<CheckoutBranchInput>,
 			options?: GitOperationOptions
 		) => ReturnType<GitRepository["checkoutBranch"]>;
+		readonly continueMerge: (
+			sessionId: RepositorySessionId,
+			options?: GitOperationOptions
+		) => ReturnType<GitRepository["continueMerge"]>;
 		readonly continueRebase: (
 			sessionId: RepositorySessionId,
 			options?: GitOperationOptions

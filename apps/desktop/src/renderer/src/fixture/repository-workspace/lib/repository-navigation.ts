@@ -1,5 +1,8 @@
 import type { FileChange } from "@1git/git";
-import { isFileStaged } from "@/feature/workspace/lib/workspace-model.js";
+import {
+	isFileConflicted,
+	isFileStaged,
+} from "@/feature/workspace/lib/workspace-model.js";
 
 export interface RepositoryFilePath {
 	readonly directory: string;
@@ -15,6 +18,7 @@ export interface RepositoryFileSelection {
 }
 
 export interface RepositoryFileStageGroups {
+	readonly conflicted: readonly FileChange[];
 	readonly staged: readonly FileChange[];
 	readonly unstaged: readonly FileChange[];
 }
@@ -64,14 +68,19 @@ export const groupRepositoryFilesByStaging = (
 	files: readonly FileChange[],
 	projection?: RepositoryFileStageProjection | null
 ): RepositoryFileStageGroups => {
+	const conflicted: FileChange[] = [];
 	const staged: FileChange[] = [];
 	const unstaged: FileChange[] = [];
 	for (const file of orderRepositoryFilesByPath(files)) {
+		if (isFileConflicted(file)) {
+			conflicted.push(file);
+			continue;
+		}
 		const stagedFile =
 			projection?.path === file.path ? projection.staged : isFileStaged(file);
 		(stagedFile ? staged : unstaged).push(file);
 	}
-	return { staged, unstaged };
+	return { conflicted, staged, unstaged };
 };
 
 export const hasRepositoryFileStageProjectionSettled = (
@@ -86,7 +95,7 @@ export const orderRepositoryFilesByStaging = (
 	files: readonly FileChange[]
 ): readonly FileChange[] => {
 	const groups = groupRepositoryFilesByStaging(files);
-	return [...groups.staged, ...groups.unstaged];
+	return [...groups.conflicted, ...groups.staged, ...groups.unstaged];
 };
 
 export const shouldStageRepositoryFileDrop = (

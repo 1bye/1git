@@ -9,6 +9,7 @@ import {
 	getWorkspaceLabel,
 	groupRepositoryDiffPaths,
 	hasFileWorkingTreeChanges,
+	isFileConflicted,
 	isFilePartiallyStaged,
 	isFileStaged,
 	recentRepositoryName,
@@ -57,6 +58,22 @@ describe("workspace file presentation", () => {
 
 		expect(isFileStaged(untracked)).toBe(false);
 		expect(getFileChangeLabel(untracked)).toBe("?");
+	});
+
+	test("routes conflicted files to one inspectable working diff", () => {
+		const conflicted = fileChange(
+			"src/conflicted.ts",
+			"unmerged",
+			"unmerged",
+			"unmerged"
+		);
+
+		expect(isFileConflicted(conflicted)).toBe(true);
+		expect(isFileStaged(conflicted)).toBe(false);
+		expect(groupRepositoryDiffPaths([conflicted])).toEqual({
+			staged: [],
+			working: ["src/conflicted.ts"],
+		});
 	});
 
 	test("prefers the working tree status for the visible change label", () => {

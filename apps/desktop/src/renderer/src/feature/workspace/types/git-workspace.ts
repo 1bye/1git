@@ -10,6 +10,7 @@ import type {
 	ResetMode,
 } from "@1git/git";
 import type { RepositoryOwner } from "@/feature/workspace/lib/repository-owner.js";
+import type { RepositoryRecoveryAction } from "@/feature/workspace/lib/repository-recovery.js";
 import type {
 	RepositorySyncAction,
 	RepositorySyncActionKind,
@@ -39,6 +40,7 @@ export type PendingWorkspaceAction =
 	| "pull"
 	| "push"
 	| "refresh"
+	| "recovery"
 	| "stage"
 	| "stash"
 	| "sync"
@@ -95,8 +97,12 @@ export interface GitWorkspace {
 		path: string,
 		options?: OpenRepositoryOptions
 	) => Promise<void>;
+	readonly openRepositoryInEditor: () => Promise<void>;
 	readonly pendingAction: PendingWorkspaceAction;
 	readonly pickRepository: () => Promise<void>;
+	readonly recoverRepository: (
+		action: RepositoryRecoveryAction
+	) => Promise<boolean>;
 	readonly reorderWorkspace: (
 		activeSessionId: RepositorySessionId,
 		overSessionId: RepositorySessionId

@@ -65,6 +65,8 @@ export function App(): ReactElement {
 							onCommit={workspace.commit}
 							onDiscardFiles={workspace.discardFiles}
 							onMergeBranch={workspace.mergeBranch}
+							onOpenInEditor={workspace.openRepositoryInEditor}
+							onRecover={workspace.recoverRepository}
 							onResetCommit={workspace.resetToCommit}
 							onRevertCommit={workspace.revertCommit}
 							onSelectCommit={workspace.selectCommit}

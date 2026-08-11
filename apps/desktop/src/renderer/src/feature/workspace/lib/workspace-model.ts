@@ -53,9 +53,13 @@ export const getWorkspaceLabel = (
 };
 
 export const isFileStaged = (file: FileChange): boolean =>
+	!isFileConflicted(file) &&
 	file.indexStatus !== "unmodified" &&
 	file.indexStatus !== "untracked" &&
 	file.indexStatus !== "ignored";
+
+export const isFileConflicted = (file: FileChange): boolean =>
+	file.recordType === "unmerged";
 
 export const isFilePartiallyStaged = (file: FileChange): boolean =>
 	isFileStaged(file) && file.worktreeStatus !== "unmodified";
@@ -74,6 +78,10 @@ export const groupRepositoryDiffPaths = (
 	const staged: string[] = [];
 	const working: string[] = [];
 	for (const file of files) {
+		if (isFileConflicted(file)) {
+			working.push(file.path);
+			continue;
+		}
 		if (isFileStaged(file)) {
 			staged.push(file.path);
 		}

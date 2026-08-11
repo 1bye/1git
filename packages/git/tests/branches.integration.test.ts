@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import { GitRepository } from "../src/repository.js";
 import {
 	RepositoryFixtures,
 	unwrapResult,
@@ -191,6 +192,41 @@ describe("GitRepository branches and commit sequences", () => {
 		});
 		expect(conflictedSnapshot.operationState).toBe("merge");
 		expect(aborted.operationState).toBe("normal");
+	});
+
+	test("restores a conflicted merge and continues after resolution", async () => {
+		const fixture = await fixtures.create();
+		unwrapResult(
+			await fixture.repository.createBranch({
+				checkout: true,
+				name: "feature/recover",
+			})
+		);
+		await fixture.write("README.md", "feature\n");
+		await fixture.commitAll("feature change");
+		unwrapResult(await fixture.repository.checkoutBranch({ name: "main" }));
+		await fixture.write("README.md", "main\n");
+		await fixture.commitAll("main change");
+		await fixture.repository.merge({ revision: "feature/recover" });
+
+		const reopened = unwrapResult(
+			await GitRepository.open({ path: fixture.repositoryPath })
+		);
+		const interrupted = unwrapResult(await reopened.getSnapshot());
+		await fixture.write("README.md", "resolved\n");
+		unwrapResult(await reopened.stage({ paths: ["README.md"] }));
+		const recovered = unwrapResult(await reopened.continueMerge());
+
+		expect(interrupted.operationState).toBe("merge");
+		expect(interrupted.files).toContainEqual(
+			expect.objectContaining({
+				path: "README.md",
+				recordType: "unmerged",
+			})
+		);
+		expect(recovered.operationState).toBe("normal");
+		expect(recovered.files).toEqual([]);
+		expect(await fixture.read("README.md")).toBe("resolved\n");
 	});
 
 	test("rebases a feature branch onto main", async () => {

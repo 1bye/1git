@@ -137,6 +137,8 @@ Liquid menu.
 
 ## Phase 2 — Make interrupted operations recoverable
 
+Status: completed on 2026-08-11.
+
 ### User experience
 
 Show recovery controls only while an operation is interrupted. Reuse the file
