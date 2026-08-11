@@ -209,8 +209,7 @@ export function RepositoryFileRail({
 			aria-label="Changed files"
 			className="relative z-20 flex min-h-0 flex-1 flex-col bg-transparent"
 			data-name="RepositoryFileRail"
-			data-repository-file-liquid-rail="changes"
-			data-state="open"
+			data-repository-file-liquid-rail
 		>
 			<div className="flex h-9 shrink-0 items-center px-2">
 				<div className="relative min-w-0 flex-1">

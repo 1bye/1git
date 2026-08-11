@@ -10,8 +10,6 @@ import {
 import { getRepositoryFileRowId } from "@/fixture/repository-workspace/lib/repository-navigation.js";
 
 interface RepositoryFileLiquidSurfaceProps {
-	readonly railKind: "changes" | "revision";
-	readonly railState: "closed" | "open";
 	readonly selectedFilePath: string | null;
 }
 
@@ -62,8 +60,6 @@ const hasSameMeasurement = (
 };
 
 export function RepositoryFileLiquidSurface({
-	railKind,
-	railState,
 	selectedFilePath,
 }: RepositoryFileLiquidSurfaceProps): ReactElement {
 	const clipPathId = useId();
@@ -99,7 +95,7 @@ export function RepositoryFileLiquidSurface({
 			'[data-name="RepositoryDiffWorkspace"]'
 		);
 		const fileRail = workspace?.querySelector<HTMLElement>(
-			`[data-repository-file-liquid-rail="${railKind}"][data-state="${railState}"]`
+			"[data-repository-file-liquid-rail]"
 		);
 		const viewport = fileRail?.querySelector<HTMLElement>(
 			"[data-repository-file-viewport]"
@@ -169,31 +165,9 @@ export function RepositoryFileLiquidSurface({
 			...(stickyLayer ? [stickyLayer] : []),
 			...(row ? [row] : []),
 		]);
-		const startTransitionTracking = (event: TransitionEvent): void => {
-			if (event.target === fileRail && event.propertyName === "transform") {
-				tracker.setContinuousTracking(true);
-			}
-		};
-		const finishTransitionTracking = (event: TransitionEvent): void => {
-			if (event.target === fileRail && event.propertyName === "transform") {
-				tracker.setContinuousTracking(false);
-				tracker.schedule();
-			}
-		};
-		fileRail.addEventListener("transitionrun", startTransitionTracking);
-		fileRail.addEventListener("transitioncancel", finishTransitionTracking);
-		fileRail.addEventListener("transitionend", finishTransitionTracking);
 		tracker.measureNow();
-		return () => {
-			fileRail.removeEventListener("transitionrun", startTransitionTracking);
-			fileRail.removeEventListener(
-				"transitioncancel",
-				finishTransitionTracking
-			);
-			fileRail.removeEventListener("transitionend", finishTransitionTracking);
-			tracker.disconnect();
-		};
-	}, [railKind, railState, selectedFilePath]);
+		return tracker.disconnect;
+	}, [selectedFilePath]);
 
 	const path = useMemo(
 		() =>
