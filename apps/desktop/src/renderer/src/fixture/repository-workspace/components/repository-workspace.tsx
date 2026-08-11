@@ -35,24 +35,22 @@ export function RepositoryWorkspace({
 			<RepositoryFileLiquidSurface selectedFilePath={selectedFilePath} />
 			<div className="flex min-w-0 flex-1 flex-col">
 				{titlebar}
-				<div className="flex min-h-0 min-w-0 flex-1">
-					<RepositoryDiffWorkspace
-						{...props}
-						selectedFilePath={selectedFilePath}
-					/>
-					<RepositoryRevisionFileRail
-						diffs={props.diffs}
-						isPending={props.pendingAction !== null}
-						onApplyStash={props.onApplyStash}
-						onDropStash={props.onDropStash}
-						onPopStash={props.onPopStash}
-						onSelectFile={props.onSelectRevisionFile}
-						selectedFilePath={selectedFilePath}
-						selectedStash={selectedStash}
-						tab={props.tab}
-					/>
-				</div>
+				<RepositoryDiffWorkspace
+					{...props}
+					selectedFilePath={selectedFilePath}
+				/>
 			</div>
+			<RepositoryRevisionFileRail
+				diffs={props.diffs}
+				isPending={props.pendingAction !== null}
+				onApplyStash={props.onApplyStash}
+				onDropStash={props.onDropStash}
+				onPopStash={props.onPopStash}
+				onSelectFile={props.onSelectRevisionFile}
+				selectedFilePath={selectedFilePath}
+				selectedStash={selectedStash}
+				tab={props.tab}
+			/>
 			<RepositoryNavigationRail
 				{...props}
 				selectedFilePath={selectedFilePath}

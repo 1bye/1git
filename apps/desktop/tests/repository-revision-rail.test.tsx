@@ -59,6 +59,10 @@ describe("repository revision rails", () => {
 		);
 
 		expect(markup).toContain('aria-label="Files in commit"');
+		expect(markup).toContain('data-state="open"');
+		expect(markup).toContain('data-repository-file-liquid-rail="true"');
+		expect(markup).toContain("transition-[width,opacity]");
+		expect(markup).toContain("w-(--repository-context-rail-width)");
 		expect(markup).toContain('aria-current="true"');
 		expect(markup).toContain("src/");
 		expect(markup).toContain("app.ts");
@@ -81,5 +85,26 @@ describe("repository revision rails", () => {
 		expect(markup).toContain("Shelf layout");
 		expect(markup).toContain("Navigation polish");
 		expect(markup.match(/aria-current="true"/g)).toHaveLength(1);
+	});
+
+	test("keeps the contextual rail mounted but inert in changes", () => {
+		const markup = renderToStaticMarkup(
+			<RepositoryRevisionFileRail
+				diffs={[]}
+				isPending={false}
+				onApplyStash={succeed}
+				onDropStash={succeed}
+				onPopStash={succeed}
+				onSelectFile={selectFile}
+				selectedFilePath={null}
+				selectedStash={null}
+				tab="changes"
+			/>
+		);
+
+		expect(markup).toContain('data-state="closed"');
+		expect(markup).toContain('aria-hidden="true"');
+		expect(markup).toContain("pointer-events-none w-0");
+		expect(markup).not.toContain("data-repository-file-liquid-rail");
 	});
 });

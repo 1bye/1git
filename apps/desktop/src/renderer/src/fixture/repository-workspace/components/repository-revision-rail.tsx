@@ -59,6 +59,16 @@ interface RepositoryStashActionsProps {
 	readonly stash: StashInfo;
 }
 
+const revisionFileRailLabel = (tab: RepositoryTab): string => {
+	if (tab === "history") {
+		return "Files in commit";
+	}
+	if (tab === "stashes") {
+		return "Files in stash";
+	}
+	return "Files in revision";
+};
+
 function RepositoryStashActions({
 	isPending,
 	onApply,
@@ -175,98 +185,114 @@ export function RepositoryRevisionFileRail({
 	selectedFilePath,
 	selectedStash,
 	tab,
-}: RepositoryRevisionFileRailProps): ReactElement | null {
-	if (tab === "changes") {
-		return null;
-	}
+}: RepositoryRevisionFileRailProps): ReactElement {
+	const isOpen = tab !== "changes";
 	const stats = diffs[0]?.stats ?? [];
-	const label = tab === "history" ? "Files in commit" : "Files in stash";
+	const label = revisionFileRailLabel(tab);
 
 	return (
 		<aside
+			aria-hidden={isOpen ? undefined : true}
 			aria-label={label}
-			className="fade-in slide-in-from-right-2 relative z-20 flex min-h-0 w-60 shrink-0 animate-in flex-col border-editor-hairline border-r bg-white/20 duration-150"
-			data-name="RepositoryRevisionFileRail"
-			data-repository-file-liquid-rail
-		>
-			<header className="flex h-9 shrink-0 items-center justify-between px-3 text-[10px] text-editor-muted">
-				<span>{label}</span>
-				<span className="tabular-nums">{stats.length}</span>
-			</header>
-			{stats.length > 0 ? (
-				<ScrollArea className="min-h-0 flex-1" overflowEdgeThreshold={1}>
-					<ScrollAreaViewport className="min-h-0" data-repository-file-viewport>
-						<ScrollAreaContent>
-							<ul
-								className="space-y-0.5 px-1.5 pb-1.5"
-								data-repository-file-list
-							>
-								{stats.map((stat) => {
-									const path = splitRepositoryFilePath(stat.path);
-									const isSelected = selectedFilePath === stat.path;
-									return (
-										<li
-											className="relative flex min-h-7 items-center rounded-lg"
-											id={getRepositoryFileRowId(stat.path)}
-											key={stat.path}
-										>
-											<button
-												aria-current={isSelected ? "true" : undefined}
-												className={cn(
-													"flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-1 text-left outline-none transition-colors hover:bg-hover focus-visible:ring-2 focus-visible:ring-brand/20 focus-visible:ring-inset",
-													isSelected && "relative z-20"
-												)}
-												onClick={async () => await onSelectFile(stat.path)}
-												type="button"
-											>
-												<OverflowingLabel
-													className="min-w-0 flex-1 text-[11px]"
-													deferUntilVisible
-													direction="end-to-start"
-													title={stat.path}
-												>
-													{path.directory ? (
-														<span className="text-editor-muted/75">
-															{path.directory}
-														</span>
-													) : null}
-													<span className="font-medium text-editor-ink">
-														{path.name}
-													</span>
-												</OverflowingLabel>
-												<span className="flex shrink-0 items-center gap-1 font-medium text-[9px] tabular-nums">
-													<span className="text-[#1a7f37]">
-														+{stat.addedLines ?? "–"}
-													</span>
-													<span className="text-[#cf222e]">
-														−{stat.deletedLines ?? "–"}
-													</span>
-												</span>
-											</button>
-										</li>
-									);
-								})}
-							</ul>
-						</ScrollAreaContent>
-					</ScrollAreaViewport>
-					<ScrollBar />
-				</ScrollArea>
-			) : (
-				<p className="min-h-0 flex-1 px-4 py-10 text-center text-editor-faint text-xss">
-					{tab === "stashes" && !selectedStash
-						? "Select a stash to inspect."
-						: "This revision has no changed files."}
-				</p>
+			className={cn(
+				"relative z-20 min-h-0 shrink-0 overflow-hidden bg-transparent opacity-0 transition-[width,opacity] duration-200 ease-out motion-reduce:transition-none",
+				isOpen
+					? "w-(--repository-context-rail-width) opacity-100"
+					: "pointer-events-none w-0"
 			)}
-			{tab === "stashes" && selectedStash ? (
-				<RepositoryStashActions
-					isPending={isPending}
-					onApply={onApplyStash}
-					onDrop={onDropStash}
-					onPop={onPopStash}
-					stash={selectedStash}
-				/>
-			) : null}
+			data-name="RepositoryRevisionFileRail"
+			data-repository-file-liquid-rail={isOpen ? "true" : undefined}
+			data-state={isOpen ? "open" : "closed"}
+			inert={isOpen ? undefined : true}
+		>
+			<div
+				className={cn(
+					"absolute inset-y-0 right-0 flex w-(--repository-context-rail-width) flex-col opacity-0 transition-[transform,opacity] duration-150 ease-out motion-reduce:transition-none",
+					isOpen ? "translate-x-0 opacity-100" : "translate-x-2"
+				)}
+			>
+				<header className="flex h-9 shrink-0 items-center justify-between px-3 text-[10px] text-editor-muted">
+					<span>{label}</span>
+					<span className="tabular-nums">{stats.length}</span>
+				</header>
+				{stats.length > 0 ? (
+					<ScrollArea className="min-h-0 flex-1" overflowEdgeThreshold={1}>
+						<ScrollAreaViewport
+							className="min-h-0"
+							data-repository-file-viewport
+						>
+							<ScrollAreaContent>
+								<ul
+									className="space-y-0.5 px-1.5 pb-1.5"
+									data-repository-file-list
+								>
+									{stats.map((stat) => {
+										const path = splitRepositoryFilePath(stat.path);
+										const isSelected = selectedFilePath === stat.path;
+										return (
+											<li
+												className="relative flex min-h-7 items-center rounded-lg"
+												id={getRepositoryFileRowId(stat.path)}
+												key={stat.path}
+											>
+												<button
+													aria-current={isSelected ? "true" : undefined}
+													className={cn(
+														"flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-1 text-left outline-none transition-colors hover:bg-hover focus-visible:ring-2 focus-visible:ring-brand/20 focus-visible:ring-inset",
+														isSelected && "relative z-20"
+													)}
+													onClick={async () => await onSelectFile(stat.path)}
+													type="button"
+												>
+													<OverflowingLabel
+														className="min-w-0 flex-1 text-[11px]"
+														deferUntilVisible
+														direction="end-to-start"
+														title={stat.path}
+													>
+														{path.directory ? (
+															<span className="text-editor-muted/75">
+																{path.directory}
+															</span>
+														) : null}
+														<span className="font-medium text-editor-ink">
+															{path.name}
+														</span>
+													</OverflowingLabel>
+													<span className="flex shrink-0 items-center gap-1 font-medium text-[9px] tabular-nums">
+														<span className="text-[#1a7f37]">
+															+{stat.addedLines ?? "–"}
+														</span>
+														<span className="text-[#cf222e]">
+															−{stat.deletedLines ?? "–"}
+														</span>
+													</span>
+												</button>
+											</li>
+										);
+									})}
+								</ul>
+							</ScrollAreaContent>
+						</ScrollAreaViewport>
+						<ScrollBar />
+					</ScrollArea>
+				) : (
+					<p className="min-h-0 flex-1 px-4 py-10 text-center text-editor-faint text-xss">
+						{tab === "stashes" && !selectedStash
+							? "Select a stash to inspect."
+							: "This revision has no changed files."}
+					</p>
+				)}
+				{tab === "stashes" && selectedStash ? (
+					<RepositoryStashActions
+						isPending={isPending}
+						onApply={onApplyStash}
+						onDrop={onDropStash}
+						onPop={onPopStash}
+						stash={selectedStash}
+					/>
+				) : null}
+			</div>
 		</aside>
 	);
 }
