@@ -37,6 +37,12 @@
 	initial-value: 1;
 }
 
+@property --repository-file-liquid-mask-fade-height {
+	syntax: "<length>";
+	inherits: false;
+	initial-value: 0px;
+}
+
 :root {
 	--desktop-titlebar-controls-width: 5rem;
 	--liquid-active-trigger: var(--liquid-surface);
@@ -197,14 +203,16 @@ button {
 	-webkit-mask-image: linear-gradient(
 		to bottom,
 		rgb(0 0 0 / var(--repository-files-leading-mask-alpha)) 0,
-		black 1.5rem,
+		rgb(0 0 0 / var(--repository-files-leading-mask-alpha)) 1.75rem,
+		black 3.25rem,
 		black calc(100% - 1.5rem),
 		rgb(0 0 0 / var(--repository-files-trailing-mask-alpha)) 100%
 	);
 	mask-image: linear-gradient(
 		to bottom,
 		rgb(0 0 0 / var(--repository-files-leading-mask-alpha)) 0,
-		black 1.5rem,
+		rgb(0 0 0 / var(--repository-files-leading-mask-alpha)) 1.75rem,
+		black 3.25rem,
 		black calc(100% - 1.5rem),
 		rgb(0 0 0 / var(--repository-files-trailing-mask-alpha)) 100%
 	);
@@ -410,12 +418,41 @@ button {
 }
 
 [data-name="RepositoryFileLiquidSurface"] {
+	--repository-file-liquid-mask-fade-height: 0px;
+	transition: --repository-file-liquid-mask-fade-height 120ms ease-out;
 	animation: repository-file-liquid-reveal 150ms cubic-bezier(0.22, 1, 0.36, 1)
 		both;
 }
 
+[data-name="RepositoryFileLiquidSurface"][data-header-masked="true"] {
+	-webkit-mask-image: linear-gradient(
+		to bottom,
+		transparent 0 var(--repository-file-liquid-header-mask-bottom),
+		black
+			calc(
+				var(--repository-file-liquid-header-mask-bottom) +
+				var(--repository-file-liquid-mask-fade-height)
+			)
+	);
+	mask-image: linear-gradient(
+		to bottom,
+		transparent 0 var(--repository-file-liquid-header-mask-bottom),
+		black
+			calc(
+				var(--repository-file-liquid-header-mask-bottom) +
+				var(--repository-file-liquid-mask-fade-height)
+			)
+	);
+}
+
+[data-name="RepositoryFileLiquidSurface"][data-overflow-y-start="true"] {
+	--repository-file-liquid-mask-fade-height: 1.5rem;
+}
+
 [data-name="RepositoryFileLiquidSurface"][data-moving="true"] {
-	transition: top 180ms cubic-bezier(0.22, 1, 0.36, 1);
+	transition:
+		top 180ms cubic-bezier(0.22, 1, 0.36, 1),
+		--repository-file-liquid-mask-fade-height 120ms ease-out;
 }
 
 [data-name="RepositoryFileRow"] > button {

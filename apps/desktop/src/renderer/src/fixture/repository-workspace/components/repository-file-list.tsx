@@ -20,7 +20,8 @@ import type {
 	ReactNode,
 	RefCallback,
 } from "react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { isFileStaged } from "@/feature/workspace/lib/workspace-model.js";
 import {
 	LiquidContextMenuRoot,
@@ -278,10 +279,84 @@ interface RepositoryFileStageGroupProps {
 	readonly dragSourceGroup: RepositoryFileStageGroup | null;
 	readonly files: readonly FileChange[];
 	readonly group: RepositoryFileStageGroup;
+	readonly isSticky: boolean;
 	readonly onSetFilesStaged: (
 		files: readonly FileChange[],
 		shouldStage: boolean
 	) => Promise<boolean>;
+	readonly stickyLayer: HTMLElement | null;
+}
+
+interface RepositoryFileStageHeaderProps {
+	readonly disabled: boolean;
+	readonly dragSourceGroup: RepositoryFileStageGroup | null;
+	readonly files: readonly FileChange[];
+	readonly group: RepositoryFileStageGroup;
+	readonly isOverlay?: boolean;
+	readonly onSetFilesStaged: (
+		files: readonly FileChange[],
+		shouldStage: boolean
+	) => Promise<boolean>;
+	readonly showDropWell: boolean;
+}
+
+function RepositoryFileStageHeader({
+	disabled,
+	dragSourceGroup,
+	files,
+	group,
+	isOverlay = false,
+	onSetFilesStaged,
+	showDropWell,
+}: RepositoryFileStageHeaderProps): ReactElement {
+	const label = group === "staged" ? "Staged" : "Unstaged";
+	const shouldStage = group === "unstaged";
+	const actionLabel = shouldStage ? "Stage all" : "Unstage all";
+	const dropLabel = group === "staged" ? "Drop to stage" : "Drop to unstage";
+	const setGroupStaged = async (): Promise<void> => {
+		await onSetFilesStaged(files, shouldStage);
+	};
+
+	return (
+		<header
+			className={cn(
+				"flex h-7 items-center px-1.5 font-medium text-[10px] text-editor-muted transition-colors",
+				isOverlay && "pointer-events-auto mx-1",
+				showDropWell && "text-brand"
+			)}
+			data-repository-file-sticky-header={isOverlay ? "true" : undefined}
+		>
+			<span>{showDropWell ? dropLabel : label}</span>
+			<span className="ml-1 tabular-nums">{files.length}</span>
+			<LiquidMenuRoot
+				anchorGeometry={LIQUID_MENU_CONNECTED_BUTTON_ANCHOR_GEOMETRY}
+				disabled={disabled || dragSourceGroup !== null || files.length === 0}
+				modal
+			>
+				<LiquidMenuTrigger
+					aria-label={`Actions for ${label.toLowerCase()} files`}
+					className="ml-auto flex size-6 items-center justify-center rounded-lg text-editor-muted outline-none transition-colors hover:bg-hover hover:text-editor-ink focus-visible:ring-2 focus-visible:ring-brand/20 data-disabled:pointer-events-none data-disabled:text-editor-faint"
+				>
+					<DotsThreeIcon aria-hidden className="size-3.5" weight="bold" />
+				</LiquidMenuTrigger>
+				<LiquidMenuContent
+					align="end"
+					aria-label={`${label} file actions`}
+					className="min-w-36 p-1"
+					sideOffset={4}
+				>
+					<DropdownMenuItem closeOnClick onClick={setGroupStaged}>
+						{shouldStage ? (
+							<CheckIcon aria-hidden weight="bold" />
+						) : (
+							<MinusIcon aria-hidden weight="bold" />
+						)}
+						{actionLabel}
+					</DropdownMenuItem>
+				</LiquidMenuContent>
+			</LiquidMenuRoot>
+		</header>
+	);
 }
 
 function RepositoryFileStageGroup({
@@ -290,7 +365,9 @@ function RepositoryFileStageGroup({
 	dragSourceGroup,
 	files,
 	group,
+	isSticky,
 	onSetFilesStaged,
+	stickyLayer,
 }: RepositoryFileStageGroupProps): ReactElement {
 	const { isDropTarget, ref } = useDroppable({
 		accept: REPOSITORY_FILE_DRAG_TYPE,
@@ -298,67 +375,53 @@ function RepositoryFileStageGroup({
 		id: repositoryFileStageGroupId(group),
 		type: "repository-file-stage-group",
 	});
-	const label = group === "staged" ? "Staged" : "Unstaged";
-	const shouldStage = group === "unstaged";
-	const actionLabel = shouldStage ? "Stage all" : "Unstage all";
 	const isDropDestination =
 		dragSourceGroup !== null && dragSourceGroup !== group;
 	const showDropWell = isDropDestination && isDropTarget;
-	const dropLabel = group === "staged" ? "Drop to stage" : "Drop to unstage";
 	const releaseLabel =
 		group === "staged" ? "Release to stage" : "Release to unstage";
-	const setGroupStaged = async (): Promise<void> => {
-		await onSetFilesStaged(files, shouldStage);
-	};
+	const stickyHeader =
+		isSticky && stickyLayer
+			? createPortal(
+					<RepositoryFileStageHeader
+						disabled={disabled}
+						dragSourceGroup={dragSourceGroup}
+						files={files}
+						group={group}
+						isOverlay
+						onSetFilesStaged={onSetFilesStaged}
+						showDropWell={showDropWell}
+					/>,
+					stickyLayer
+				)
+			: null;
 
 	return (
 		<section
-			aria-label={`${label} files`}
+			aria-label={`${group === "staged" ? "Staged" : "Unstaged"} files`}
 			className={cn(
 				"min-h-10 rounded-lg px-1 pb-1 transition-[opacity] duration-150 motion-reduce:transition-none",
 				dragSourceGroup !== null && !isDropDestination && "opacity-55"
 			)}
 			data-file-stage-group={group}
+			data-file-stage-group-count={files.length}
 			data-name="RepositoryFileStageGroup"
 			data-repository-file-drop-target={showDropWell ? "true" : undefined}
 			ref={ref}
 		>
-			<header
-				className={cn(
-					"flex h-7 items-center px-1.5 font-medium text-[10px] text-editor-muted transition-colors",
-					showDropWell && "text-brand"
-				)}
-			>
-				<span>{showDropWell ? dropLabel : label}</span>
-				<span className="ml-1 tabular-nums">{files.length}</span>
-				<LiquidMenuRoot
-					anchorGeometry={LIQUID_MENU_CONNECTED_BUTTON_ANCHOR_GEOMETRY}
-					disabled={disabled || dragSourceGroup !== null || files.length === 0}
-					modal
-				>
-					<LiquidMenuTrigger
-						aria-label={`Actions for ${label.toLowerCase()} files`}
-						className="ml-auto flex size-6 items-center justify-center rounded-lg text-editor-muted outline-none transition-colors hover:bg-hover hover:text-editor-ink focus-visible:ring-2 focus-visible:ring-brand/20 data-disabled:pointer-events-none data-disabled:text-editor-faint"
-					>
-						<DotsThreeIcon aria-hidden className="size-3.5" weight="bold" />
-					</LiquidMenuTrigger>
-					<LiquidMenuContent
-						align="end"
-						aria-label={`${label} file actions`}
-						className="min-w-36 p-1"
-						sideOffset={4}
-					>
-						<DropdownMenuItem closeOnClick onClick={setGroupStaged}>
-							{shouldStage ? (
-								<CheckIcon aria-hidden weight="bold" />
-							) : (
-								<MinusIcon aria-hidden weight="bold" />
-							)}
-							{actionLabel}
-						</DropdownMenuItem>
-					</LiquidMenuContent>
-				</LiquidMenuRoot>
-			</header>
+			{stickyHeader}
+			{isSticky && stickyLayer ? (
+				<div aria-hidden className="h-7" data-repository-file-sticky-spacer />
+			) : (
+				<RepositoryFileStageHeader
+					disabled={disabled}
+					dragSourceGroup={dragSourceGroup}
+					files={files}
+					group={group}
+					onSetFilesStaged={onSetFilesStaged}
+					showDropWell={showDropWell}
+				/>
+			)}
 			<div
 				aria-hidden
 				className={cn(
@@ -380,7 +443,9 @@ function RepositoryFileStageGroup({
 				</div>
 			</div>
 			<ul
-				aria-label={`${label} changed files`}
+				aria-label={`${
+					group === "staged" ? "Staged" : "Unstaged"
+				} changed files`}
 				className="outline-none"
 				data-name="RepositoryFileList"
 				tabIndex={-1}
@@ -742,6 +807,10 @@ export function RepositoryFileList({
 	selectedRowAriaKeyShortcuts,
 	selectedRowRef,
 }: RepositoryFileListProps): ReactElement {
+	const [listElement, setListElement] = useState<HTMLDivElement | null>(null);
+	const [stickyGroup, setStickyGroup] =
+		useState<RepositoryFileStageGroup>("staged");
+	const [stickyLayer, setStickyLayer] = useState<HTMLElement | null>(null);
 	const [isSelectionContextMenuPresent, setSelectionContextMenuPresent] =
 		useState(false);
 	const [dragSourceGroup, setDragSourceGroup] =
@@ -758,6 +827,52 @@ export function RepositoryFileList({
 	);
 	const orderedFiles = [...groups.staged, ...groups.unstaged];
 	const orderedFilePaths = orderedFiles.map((file) => file.path);
+	useLayoutEffect(() => {
+		if (!listElement) {
+			return;
+		}
+		const scrollArea = listElement.closest<HTMLElement>(
+			'[data-name="RepositoryFileScrollArea"]'
+		);
+		const viewport = scrollArea?.querySelector<HTMLElement>(
+			"[data-repository-file-viewport]"
+		);
+		const nextStickyLayer = scrollArea?.querySelector<HTMLElement>(
+			"[data-repository-file-sticky-layer]"
+		);
+		const unstagedGroup = listElement.querySelector<HTMLElement>(
+			'[data-file-stage-group="unstaged"]'
+		);
+		const stagedGroup = listElement.querySelector<HTMLElement>(
+			'[data-file-stage-group="staged"]'
+		);
+		const hasCurrentGroupLayout =
+			stagedGroup?.dataset.fileStageGroupCount ===
+				String(groups.staged.length) &&
+			unstagedGroup?.dataset.fileStageGroupCount ===
+				String(groups.unstaged.length);
+		if (
+			!(viewport && nextStickyLayer && unstagedGroup && hasCurrentGroupLayout)
+		) {
+			return;
+		}
+		setStickyLayer(nextStickyLayer);
+		const updateStickyGroup = (): void => {
+			const nextGroup =
+				unstagedGroup.getBoundingClientRect().top <=
+				viewport.getBoundingClientRect().top
+					? "unstaged"
+					: "staged";
+			setStickyGroup((currentGroup) =>
+				currentGroup === nextGroup ? currentGroup : nextGroup
+			);
+		};
+		updateStickyGroup();
+		viewport.addEventListener("scroll", updateStickyGroup, { passive: true });
+		return () => {
+			viewport.removeEventListener("scroll", updateStickyGroup);
+		};
+	}, [groups.staged.length, groups.unstaged.length, listElement]);
 	useEffect(() => {
 		if (selectedFiles.length < 2) {
 			setSelectionContextMenuPresent(false);
@@ -878,13 +993,15 @@ export function RepositoryFileList({
 			onDragStart={startFileDrag}
 			sensors={REPOSITORY_FILE_DRAG_SENSORS}
 		>
-			<div data-name="RepositoryFileListGroups">
+			<div data-name="RepositoryFileListGroups" ref={setListElement}>
 				<RepositoryFileStageGroup
 					disabled={isStagingDisabled}
 					dragSourceGroup={dragSourceGroup}
 					files={totalGroups.staged}
 					group="staged"
+					isSticky={stickyGroup === "staged"}
 					onSetFilesStaged={onSetFilesStaged}
+					stickyLayer={stickyLayer}
 				>
 					{stagedRows}
 				</RepositoryFileStageGroup>
@@ -893,7 +1010,9 @@ export function RepositoryFileList({
 					dragSourceGroup={dragSourceGroup}
 					files={totalGroups.unstaged}
 					group="unstaged"
+					isSticky={stickyGroup === "unstaged"}
 					onSetFilesStaged={onSetFilesStaged}
+					stickyLayer={stickyLayer}
 				>
 					{unstagedRows}
 				</RepositoryFileStageGroup>

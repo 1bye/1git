@@ -17,6 +17,16 @@ interface RepositoryFileLiquidSurfaceProps {
 
 const FILE_SURFACE_MOTION_DURATION_MS = 180;
 
+interface RepositoryFileLiquidSurfaceMeasurement
+	extends RepositoryFileLiquidMeasurement {
+	readonly hasLeadingOverflow: boolean;
+	readonly headerMaskBottom: number;
+}
+
+interface RepositoryFileLiquidSurfaceStyle extends CSSProperties {
+	readonly "--repository-file-liquid-header-mask-bottom": string;
+}
+
 const getRect = (element: Element): RepositoryFileLiquidRect => {
 	const bounds = element.getBoundingClientRect();
 	return {
@@ -28,8 +38,8 @@ const getRect = (element: Element): RepositoryFileLiquidRect => {
 };
 
 const hasSameMeasurement = (
-	current: RepositoryFileLiquidMeasurement | null,
-	next: RepositoryFileLiquidMeasurement | null
+	current: RepositoryFileLiquidSurfaceMeasurement | null,
+	next: RepositoryFileLiquidSurfaceMeasurement | null
 ): boolean => {
 	if (!(current && next)) {
 		return current === next;
@@ -38,6 +48,8 @@ const hasSameMeasurement = (
 		current.canvasEdgeX === next.canvasEdgeX &&
 		current.clipBottom === next.clipBottom &&
 		current.clipTop === next.clipTop &&
+		current.hasLeadingOverflow === next.hasLeadingOverflow &&
+		current.headerMaskBottom === next.headerMaskBottom &&
 		current.rowHeight === next.rowHeight &&
 		current.rowLeft === next.rowLeft &&
 		current.rowTop === next.rowTop &&
@@ -59,7 +71,7 @@ export function RepositoryFileLiquidSurface({
 	const selectedFile = files?.find((file) => file.path === selectedFilePath);
 	const [isMoving, setIsMoving] = useState(false);
 	const [measurement, setMeasurement] =
-		useState<RepositoryFileLiquidMeasurement | null>(null);
+		useState<RepositoryFileLiquidSurfaceMeasurement | null>(null);
 
 	useLayoutEffect(() => {
 		const previousSelectedFilePath = previousSelectedFilePathRef.current;
@@ -95,6 +107,9 @@ export function RepositoryFileLiquidSurface({
 		const viewport = fileRail?.querySelector<HTMLElement>(
 			"[data-repository-file-viewport]"
 		);
+		const stickyLayer = fileRail?.querySelector<HTMLElement>(
+			"[data-repository-file-sticky-layer]"
+		);
 		const fileList = viewport?.querySelector<HTMLElement>(
 			'[data-name="RepositoryFileListGroups"]'
 		);
@@ -105,6 +120,7 @@ export function RepositoryFileLiquidSurface({
 				canvas &&
 				fileRail &&
 				viewport &&
+				stickyLayer &&
 				fileList &&
 				selectedFile
 			)
@@ -118,13 +134,28 @@ export function RepositoryFileLiquidSurface({
 		)}`;
 		const measure = (): void => {
 			const row = fileList.querySelector<HTMLElement>(rowSelector);
-			const nextMeasurement = row
+			const workspaceRect = getRect(workspace);
+			const baseMeasurement = row
 				? createRepositoryFileLiquidMeasurement(
-						getRect(workspace),
+						workspaceRect,
 						getRect(canvas),
 						getRect(row),
 						getRect(viewport)
 					)
+				: null;
+			const nextMeasurement = baseMeasurement
+				? {
+						...baseMeasurement,
+						hasLeadingOverflow: viewport.scrollTop > 1,
+						headerMaskBottom:
+							Math.round(
+								Math.max(
+									0,
+									stickyLayer.getBoundingClientRect().bottom -
+										(workspaceRect.top + baseMeasurement.surfaceTop)
+								) * 10
+							) / 10,
+					}
 				: null;
 			setMeasurement((currentMeasurement) =>
 				hasSameMeasurement(currentMeasurement, nextMeasurement)
@@ -139,6 +170,7 @@ export function RepositoryFileLiquidSurface({
 			canvas,
 			fileRail,
 			viewport,
+			stickyLayer,
 			fileList,
 			...(row ? [row] : []),
 		]);
@@ -153,11 +185,12 @@ export function RepositoryFileLiquidSurface({
 	);
 	const surfaceStyle = measurement
 		? ({
+				"--repository-file-liquid-header-mask-bottom": `${measurement.headerMaskBottom}px`,
 				height: measurement.surfaceHeight,
 				left: measurement.surfaceLeft,
 				top: measurement.surfaceTop,
 				width: measurement.surfaceWidth,
-			} satisfies CSSProperties)
+			} satisfies RepositoryFileLiquidSurfaceStyle)
 		: undefined;
 
 	return (
@@ -170,8 +203,14 @@ export function RepositoryFileLiquidSurface({
 			{measurement && path ? (
 				<svg
 					className="absolute overflow-hidden"
+					data-header-masked={
+						measurement.headerMaskBottom > 0 ? "true" : undefined
+					}
 					data-moving={isMoving ? "true" : undefined}
 					data-name="RepositoryFileLiquidSurface"
+					data-overflow-y-start={
+						measurement.hasLeadingOverflow ? "true" : undefined
+					}
 					preserveAspectRatio="none"
 					style={surfaceStyle}
 					viewBox={`0 0 ${measurement.surfaceWidth} ${measurement.surfaceHeight}`}

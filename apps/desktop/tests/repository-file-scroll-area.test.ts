@@ -10,6 +10,9 @@ const fileNavigator = readSource(
 const fileList = readSource(
 	"../src/renderer/src/fixture/repository-workspace/components/repository-file-list.tsx"
 );
+const fileLiquidSurface = readSource(
+	"../src/renderer/src/fixture/repository-workspace/components/repository-file-liquid-surface.tsx"
+);
 const scrollArea = readSource(
 	"../../../packages/ui/src/components/scroll-area.tsx"
 );
@@ -22,6 +25,7 @@ describe("repository file scroll area", () => {
 			"overflowEdgeThreshold={{ yEnd: 1, yStart: 1 }}"
 		);
 		expect(fileNavigator).toContain("<ScrollBar />");
+		expect(fileNavigator).toContain("data-repository-file-sticky-layer");
 		expect(fileNavigator).not.toContain("MutationObserver");
 		expect(fileNavigator).not.toContain("ResizeObserver");
 		expect(scrollArea).toContain('data-slot="scroll-area-viewport"');
@@ -35,12 +39,27 @@ describe("repository file scroll area", () => {
 		);
 		expect(styles).toContain("mask-image: linear-gradient(");
 		expect(styles).toContain('[data-slot="scroll-area-viewport"]');
+		expect(styles).toContain(
+			"var(--repository-files-leading-mask-alpha)) 1.75rem"
+		);
+		expect(styles).toContain("black 3.25rem");
 		expect(styles).not.toContain("backdrop-filter: blur(10px)");
 		expect(styles).not.toContain(
 			"color-mix(in srgb, var(--background) 28%, transparent)"
 		);
+		expect(fileList).toContain("createPortal(");
+		expect(fileList).toContain("data-repository-file-sticky-spacer");
+		expect(fileList).toContain("data-repository-file-sticky-header");
 		expect(fileList).not.toContain("sticky top-0 z-10");
 		expect(fileList).not.toContain("backdrop-blur-sm");
 		expect(styles).not.toContain(".repository-file-edge-mask");
+		expect(fileLiquidSurface).toContain(
+			'"[data-repository-file-sticky-layer]"'
+		);
+		expect(fileLiquidSurface).toContain("headerMaskBottom");
+		expect(fileLiquidSurface).toContain("hasLeadingOverflow");
+		expect(styles).toContain(
+			"--repository-file-liquid-mask-fade-height 120ms ease-out"
+		);
 	});
 });

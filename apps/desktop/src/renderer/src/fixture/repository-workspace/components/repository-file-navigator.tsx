@@ -32,6 +32,10 @@ function RepositoryFileViewport({
 			data-name="RepositoryFileScrollArea"
 			overflowEdgeThreshold={{ yEnd: 1, yStart: 1 }}
 		>
+			<div
+				className="pointer-events-none absolute top-0 right-2 left-0 z-10 h-7"
+				data-repository-file-sticky-layer
+			/>
 			<ScrollAreaViewport
 				className="max-h-[inherit] min-h-0"
 				data-repository-file-viewport
