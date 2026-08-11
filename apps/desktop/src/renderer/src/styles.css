@@ -25,6 +25,18 @@
 	initial-value: 1;
 }
 
+@property --repository-files-leading-mask-alpha {
+	syntax: "<number>";
+	inherits: false;
+	initial-value: 1;
+}
+
+@property --repository-files-trailing-mask-alpha {
+	syntax: "<number>";
+	inherits: false;
+	initial-value: 1;
+}
+
 :root {
 	--desktop-titlebar-controls-width: 5rem;
 	--liquid-active-trigger: var(--liquid-surface);
@@ -177,6 +189,36 @@ button {
 
 .workspace-tab-edge-mask[data-overflow-trailing="true"] {
 	--workspace-tabs-trailing-mask-alpha: 0;
+}
+
+.repository-file-edge-mask {
+	--repository-files-leading-mask-alpha: 1;
+	--repository-files-trailing-mask-alpha: 1;
+	-webkit-mask-image: linear-gradient(
+		to bottom,
+		rgb(0 0 0 / var(--repository-files-leading-mask-alpha)) 0,
+		black 1.5rem,
+		black calc(100% - 1.5rem),
+		rgb(0 0 0 / var(--repository-files-trailing-mask-alpha)) 100%
+	);
+	mask-image: linear-gradient(
+		to bottom,
+		rgb(0 0 0 / var(--repository-files-leading-mask-alpha)) 0,
+		black 1.5rem,
+		black calc(100% - 1.5rem),
+		rgb(0 0 0 / var(--repository-files-trailing-mask-alpha)) 100%
+	);
+	transition:
+		--repository-files-leading-mask-alpha 120ms ease-out,
+		--repository-files-trailing-mask-alpha 120ms ease-out;
+}
+
+.repository-file-edge-mask[data-overflow-leading="true"] {
+	--repository-files-leading-mask-alpha: 0;
+}
+
+.repository-file-edge-mask[data-overflow-trailing="true"] {
+	--repository-files-trailing-mask-alpha: 0;
 }
 
 [data-name="WorkspaceTab"] {

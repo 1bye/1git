@@ -7,6 +7,7 @@ import {
 	getRepositoryFileAtBoundedOffset,
 	getRepositoryFileAtOffset,
 	getRepositoryFilePosition,
+	getRepositoryFileScrollEdges,
 	getRepositoryFileSelectionRunPaths,
 	groupRepositoryFilesByStaging,
 	hasRepositoryFileStageProjectionSettled,
@@ -67,6 +68,25 @@ describe("repository file navigation", () => {
 	test("reports one-based file positions", () => {
 		expect(getRepositoryFilePosition(FILES, FILES[1].path)).toBe(2);
 		expect(getRepositoryFilePosition(FILES, "missing.ts")).toBeNull();
+	});
+
+	test("shows edge masks only away from the matching scroll boundary", () => {
+		expect(getRepositoryFileScrollEdges(0, 600, 300)).toEqual({
+			leading: false,
+			trailing: true,
+		});
+		expect(getRepositoryFileScrollEdges(150, 600, 300)).toEqual({
+			leading: true,
+			trailing: true,
+		});
+		expect(getRepositoryFileScrollEdges(300, 600, 300)).toEqual({
+			leading: true,
+			trailing: false,
+		});
+		expect(getRepositoryFileScrollEdges(0, 300, 300)).toEqual({
+			leading: false,
+			trailing: false,
+		});
 	});
 
 	test("orders files by path without grouping them by staging state", () => {

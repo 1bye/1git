@@ -1,14 +1,69 @@
 import type { FileChange } from "@1git/git";
 import { Input } from "@1git/ui/components/input";
 import { FunnelSimpleIcon } from "@phosphor-icons/react/dist/csr/FunnelSimple";
-import type { ChangeEvent, ReactElement } from "react";
-import { useEffect, useRef } from "react";
+import type { ChangeEvent, ReactElement, ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { useCommandLensTarget } from "@/feature/command-lens/hooks/use-command-lens-target.js";
 import type { PendingWorkspaceAction } from "@/feature/workspace/types/git-workspace.js";
 import { RepositoryFileList } from "@/fixture/repository-workspace/components/repository-file-list.js";
 import type { RepositoryFileNavigation } from "@/fixture/repository-workspace/hooks/use-repository-file-navigation.js";
+import { getRepositoryFileScrollEdges } from "@/fixture/repository-workspace/lib/repository-navigation.js";
 
 const REPOSITORY_FILE_NAVIGATOR_ID = "repository-file-navigator";
+
+interface RepositoryFileViewportProps {
+	readonly children: ReactNode;
+	readonly className: string;
+}
+
+function RepositoryFileViewport({
+	children,
+	className,
+}: RepositoryFileViewportProps): ReactElement {
+	const viewportRef = useRef<HTMLDivElement>(null);
+
+	useLayoutEffect(() => {
+		const viewport = viewportRef.current;
+		if (!viewport) {
+			return;
+		}
+		const updateEdgeMasks = (): void => {
+			const edges = getRepositoryFileScrollEdges(
+				viewport.scrollTop,
+				viewport.scrollHeight,
+				viewport.clientHeight
+			);
+			viewport.dataset.overflowLeading = String(edges.leading);
+			viewport.dataset.overflowTrailing = String(edges.trailing);
+		};
+		const mutationObserver = new MutationObserver(updateEdgeMasks);
+		const resizeObserver = new ResizeObserver(updateEdgeMasks);
+		mutationObserver.observe(viewport, { childList: true, subtree: true });
+		resizeObserver.observe(viewport);
+		const content = viewport.firstElementChild;
+		if (content) {
+			resizeObserver.observe(content);
+		}
+		viewport.addEventListener("scroll", updateEdgeMasks, { passive: true });
+		updateEdgeMasks();
+		return () => {
+			mutationObserver.disconnect();
+			resizeObserver.disconnect();
+			viewport.removeEventListener("scroll", updateEdgeMasks);
+		};
+	}, []);
+
+	return (
+		<div
+			className={`repository-file-edge-mask ${className}`}
+			data-desktop-interactive
+			data-repository-file-viewport
+			ref={viewportRef}
+		>
+			{children}
+		</div>
+	);
+}
 
 interface RepositoryFileNavigatorProps {
 	readonly navigation: RepositoryFileNavigation;
@@ -100,11 +155,7 @@ export function RepositoryFileNavigator({
 							aria-live="polite"
 							className="sr-only"
 						>{`${selectedFilePath ?? "No file"} previewed`}</p>
-						<div
-							className="max-h-[min(56vh,28rem)] overflow-y-auto overscroll-contain"
-							data-desktop-interactive
-							data-repository-file-viewport
-						>
+						<RepositoryFileViewport className="max-h-[min(56vh,28rem)] overflow-y-auto overscroll-contain">
 							<RepositoryFileList
 								files={navigation.files}
 								isDiscardDisabled={pendingAction !== null}
@@ -120,7 +171,7 @@ export function RepositoryFileNavigator({
 								selectedFilePaths={navigation.selectedFilePaths}
 								selectedFiles={navigation.selectedFiles}
 							/>
-						</div>
+						</RepositoryFileViewport>
 					</div>
 					<footer className="flex h-8 shrink-0 items-center gap-3 border-editor-hairline border-t px-3 text-[9px] text-editor-faint">
 						<span>↑↓ Preview</span>
@@ -194,11 +245,7 @@ export function RepositoryFileRail({
 					/>
 				</div>
 			</div>
-			<div
-				className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
-				data-desktop-interactive
-				data-repository-file-viewport
-			>
+			<RepositoryFileViewport className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
 				<RepositoryFileList
 					allFiles={allFiles}
 					files={navigation.files}
@@ -217,7 +264,7 @@ export function RepositoryFileRail({
 					selectedRowAriaKeyShortcuts={commandLensTarget.ariaKeyShortcuts}
 					selectedRowRef={commandLensTarget.ref}
 				/>
-			</div>
+			</RepositoryFileViewport>
 		</aside>
 	);
 }
