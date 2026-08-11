@@ -69,6 +69,13 @@ describe("repository revision rails", () => {
 		expect(markup).toContain("app.ts");
 		expect(markup).toContain("+3");
 		expect(markup).toContain("−1");
+		expect(markup).toContain(
+			'data-repository-revision-navigation-group="files"'
+		);
+		expect(markup).toContain(
+			'data-repository-revision-navigation-item="src/app.ts"'
+		);
+		expect(markup).toContain('tabindex="0"');
 	});
 
 	test("shows saved work with the selected stash", () => {
@@ -86,6 +93,12 @@ describe("repository revision rails", () => {
 		expect(markup).toContain("Shelf layout");
 		expect(markup).toContain("Navigation polish");
 		expect(markup.match(/aria-current="true"/g)).toHaveLength(1);
+		expect(markup).toContain(
+			'data-repository-revision-navigation-group="revisions"'
+		);
+		expect(markup).toContain(
+			'data-repository-revision-navigation-item="stash-two"'
+		);
 	});
 
 	test("keeps stash actions above the revision files", () => {

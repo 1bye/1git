@@ -6,9 +6,21 @@ import type {
 } from "@1git/git";
 import { Input } from "@1git/ui/components/input";
 import { FunnelSimpleIcon } from "@phosphor-icons/react/dist/csr/FunnelSimple";
-import type { ChangeEvent, ReactElement, UIEvent } from "react";
+import type {
+	ChangeEvent,
+	ReactElement,
+	KeyboardEvent as ReactKeyboardEvent,
+	UIEvent,
+} from "react";
 import { useMemo, useState } from "react";
 import { RepositoryHistoryContextMenu } from "@/fixture/repository-workspace/components/repository-history-context-menu.js";
+import {
+	focusRepositoryRevisionNavigationGroup,
+	focusRepositoryRevisionNavigationItem,
+	getRepositoryRevisionNavigationGroupTarget,
+	getRepositoryRevisionNavigationItemKey,
+	getRepositoryRevisionNavigationTarget,
+} from "@/fixture/repository-workspace/lib/repository-revision-navigation.js";
 
 const INITIAL_HISTORY_COMMIT_COUNT = 24;
 const HISTORY_COMMIT_BATCH_SIZE = 24;
@@ -59,6 +71,7 @@ function RepositoryHistoryList({
 	const [visibleCommitCount, setVisibleCommitCount] = useState(
 		INITIAL_HISTORY_COMMIT_COUNT
 	);
+	const commitOids = commits.map((commit) => commit.oid);
 	const loadMoreCommits = (event: UIEvent<HTMLUListElement>): void => {
 		const list = event.currentTarget;
 		const remainingScroll =
@@ -73,10 +86,72 @@ function RepositoryHistoryList({
 			Math.min(commits.length, currentCount + HISTORY_COMMIT_BATCH_SIZE)
 		);
 	};
+	const navigateCommits = (
+		event: ReactKeyboardEvent<HTMLButtonElement>
+	): void => {
+		if (
+			event.altKey ||
+			event.ctrlKey ||
+			event.metaKey ||
+			event.shiftKey ||
+			event.defaultPrevented
+		) {
+			return;
+		}
+		const currentOid = getRepositoryRevisionNavigationItemKey(event.target);
+		if (!currentOid) {
+			return;
+		}
+		const targetGroup = getRepositoryRevisionNavigationGroupTarget(
+			"revisions",
+			event.key
+		);
+		if (targetGroup) {
+			event.preventDefault();
+			focusRepositoryRevisionNavigationGroup(event.currentTarget, targetGroup);
+			return;
+		}
+		const targetOid = getRepositoryRevisionNavigationTarget(
+			commitOids,
+			currentOid,
+			event.key
+		);
+		if (!targetOid) {
+			return;
+		}
+		event.preventDefault();
+		if (targetOid === currentOid) {
+			return;
+		}
+		const targetIndex = commitOids.indexOf(targetOid);
+		const targetCommit = commits[targetIndex];
+		if (!targetCommit) {
+			return;
+		}
+		const list = event.currentTarget.closest<HTMLUListElement>(
+			'[data-repository-revision-navigation-group="revisions"]'
+		);
+		if (!list) {
+			return;
+		}
+		if (targetIndex >= visibleCommitCount) {
+			setVisibleCommitCount(targetIndex + 1);
+			window.requestAnimationFrame(() => {
+				focusRepositoryRevisionNavigationItem(list, targetOid);
+			});
+		} else {
+			focusRepositoryRevisionNavigationItem(list, targetOid);
+		}
+		onSelectCommit(targetCommit).catch(() => {
+			// The workspace hook reports selection errors in the app notice.
+		});
+	};
 
 	return (
 		<ul
 			className="min-h-0 flex-1 space-y-0.5 overflow-y-auto overscroll-contain px-1.5 pb-1.5"
+			data-repository-revision-navigation-group="revisions"
+			data-repository-revision-navigation-viewport
 			onScroll={loadMoreCommits}
 		>
 			{commits.slice(0, visibleCommitCount).map((commit) => (
@@ -90,6 +165,7 @@ function RepositoryHistoryList({
 						isSelected={selectedCommitOid === commit.oid}
 						onAmend={onAmendCommit}
 						onCherryPick={onCherryPickCommit}
+						onNavigate={navigateCommits}
 						onReset={onResetCommit}
 						onRevert={onRevertCommit}
 						onSelect={onSelectCommit}

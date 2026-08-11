@@ -8,7 +8,11 @@ import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/dist/csr/ArrowC
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/dist/csr/ClockCounterClockwise";
 import { GitBranchIcon } from "@phosphor-icons/react/dist/csr/GitBranch";
 import { PencilSimpleIcon } from "@phosphor-icons/react/dist/csr/PencilSimple";
-import type { ReactElement, MouseEvent as ReactMouseEvent } from "react";
+import type {
+	ReactElement,
+	KeyboardEvent as ReactKeyboardEvent,
+	MouseEvent as ReactMouseEvent,
+} from "react";
 import { useCallback, useState } from "react";
 import {
 	canAmendRepositoryCommit,
@@ -58,13 +62,17 @@ interface RepositoryHistoryContextMenuProps {
 		commit: CommitInfo,
 		branchName: string
 	) => Promise<boolean>;
+	readonly onNavigate: (event: ReactKeyboardEvent<HTMLButtonElement>) => void;
 	readonly onReset: (commit: CommitInfo, mode: ResetMode) => Promise<boolean>;
 	readonly onRevert: (commit: CommitInfo) => Promise<boolean>;
 	readonly onSelect: (commit: CommitInfo) => Promise<void>;
 }
 
 interface RepositoryHistoryContextActionsProps
-	extends Omit<RepositoryHistoryContextMenuProps, "isSelected" | "onSelect"> {
+	extends Omit<
+		RepositoryHistoryContextMenuProps,
+		"isSelected" | "onNavigate" | "onSelect"
+	> {
 	readonly onDismiss: () => void;
 }
 
@@ -227,6 +235,7 @@ export function RepositoryHistoryContextMenu({
 	isSelected,
 	onAmend,
 	onCherryPick,
+	onNavigate,
 	onReset,
 	onRevert,
 	onSelect,
@@ -270,9 +279,12 @@ export function RepositoryHistoryContextMenu({
 				isSelected ? "bg-brand-softer" : "hover:bg-hover",
 				(isOpen || isPresent) && "z-20"
 			)}
+			data-repository-revision-navigation-item={commit.oid}
 			onClick={selectCommit}
 			onContextMenu={openContextMenu}
+			onKeyDown={onNavigate}
 			ref={setAnchorElement}
+			tabIndex={isSelected ? 0 : -1}
 			type="button"
 		>
 			<span className="block min-w-0">

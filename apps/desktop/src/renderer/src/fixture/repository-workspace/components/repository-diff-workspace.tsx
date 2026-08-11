@@ -178,7 +178,7 @@ export function RepositoryDiffWorkspace({
 			data-name="AdaptiveRepositoryWorkspace"
 		>
 			<main
-				className="min-h-0 min-w-0 flex-1 overflow-hidden rounded-xl border border-editor-hairline-strong bg-editor-surface shadow-[0_1px_2px_rgb(0_0_0/0.03)]"
+				className="min-h-0 min-w-0 flex-1 overflow-hidden rounded-xl bg-editor-surface shadow-[0_1px_2px_rgb(0_0_0/0.03)]"
 				data-name="RepositoryDiffWorkspace"
 			>
 				{mainContent}

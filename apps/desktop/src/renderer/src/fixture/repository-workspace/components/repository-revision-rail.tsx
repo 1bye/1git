@@ -15,7 +15,7 @@ import { cn } from "@1git/ui/lib/utils";
 import { ArrowLeftIcon } from "@phosphor-icons/react/dist/csr/ArrowLeft";
 import { DotsThreeIcon } from "@phosphor-icons/react/dist/csr/DotsThree";
 import { TrashIcon } from "@phosphor-icons/react/dist/csr/Trash";
-import type { ReactElement } from "react";
+import type { ReactElement, KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useCallback, useRef, useState } from "react";
 import { formatRelativeTime } from "@/feature/workspace/lib/workspace-model.js";
 import type { RepositoryTab } from "@/feature/workspace/types/git-workspace.js";
@@ -32,6 +32,13 @@ import {
 	getRepositoryFileRowId,
 	splitRepositoryFilePath,
 } from "@/fixture/repository-workspace/lib/repository-navigation.js";
+import {
+	focusRepositoryRevisionNavigationGroup,
+	focusRepositoryRevisionNavigationItem,
+	getRepositoryRevisionNavigationGroupTarget,
+	getRepositoryRevisionNavigationItemKey,
+	getRepositoryRevisionNavigationTarget,
+} from "@/fixture/repository-workspace/lib/repository-revision-navigation.js";
 
 interface RepositoryRevisionFileRailProps {
 	readonly diffs: readonly FileDiff[];
@@ -189,7 +196,56 @@ export function RepositoryRevisionFileRail({
 }: RepositoryRevisionFileRailProps): ReactElement {
 	const isOpen = tab !== "changes";
 	const stats = diffs[0]?.stats ?? [];
+	const paths = stats.map((stat) => stat.path);
 	const label = revisionFileRailLabel(tab);
+	const navigateFiles = (
+		event: ReactKeyboardEvent<HTMLButtonElement>
+	): void => {
+		if (
+			event.altKey ||
+			event.ctrlKey ||
+			event.metaKey ||
+			event.shiftKey ||
+			event.defaultPrevented
+		) {
+			return;
+		}
+		const currentPath = getRepositoryRevisionNavigationItemKey(event.target);
+		if (!currentPath) {
+			return;
+		}
+		const targetGroup = getRepositoryRevisionNavigationGroupTarget(
+			"files",
+			event.key
+		);
+		if (targetGroup) {
+			event.preventDefault();
+			focusRepositoryRevisionNavigationGroup(event.currentTarget, targetGroup);
+			return;
+		}
+		const targetPath = getRepositoryRevisionNavigationTarget(
+			paths,
+			currentPath,
+			event.key
+		);
+		if (!targetPath) {
+			return;
+		}
+		event.preventDefault();
+		if (targetPath === currentPath) {
+			return;
+		}
+		const list = event.currentTarget.closest<HTMLUListElement>(
+			'[data-repository-revision-navigation-group="files"]'
+		);
+		if (!list) {
+			return;
+		}
+		focusRepositoryRevisionNavigationItem(list, targetPath);
+		onSelectFile(targetPath).catch(() => {
+			// The workspace hook reports selection errors in the app notice.
+		});
+	};
 
 	return (
 		<aside
@@ -236,11 +292,13 @@ export function RepositoryRevisionFileRail({
 						<ScrollAreaViewport
 							className="min-h-0"
 							data-repository-file-viewport
+							data-repository-revision-navigation-viewport
 						>
 							<ScrollAreaContent>
 								<ul
 									className="space-y-0.5 px-1.5 pb-1.5"
 									data-repository-file-list
+									data-repository-revision-navigation-group="files"
 								>
 									{stats.map((stat) => {
 										const path = splitRepositoryFilePath(stat.path);
@@ -257,7 +315,10 @@ export function RepositoryRevisionFileRail({
 														"flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-1 text-left outline-none transition-colors hover:bg-hover focus-visible:ring-2 focus-visible:ring-brand/20 focus-visible:ring-inset",
 														isSelected && "relative z-20"
 													)}
+													data-repository-revision-navigation-item={stat.path}
 													onClick={async () => await onSelectFile(stat.path)}
+													onKeyDown={navigateFiles}
+													tabIndex={isSelected ? 0 : -1}
 													type="button"
 												>
 													<OverflowingLabel
@@ -310,6 +371,60 @@ export function RepositoryStashRail({
 	selectedStashOid,
 	stashes,
 }: RepositoryStashRailProps): ReactElement {
+	const stashOids = stashes.map((stash) => stash.oid);
+	const navigateStashes = (
+		event: ReactKeyboardEvent<HTMLButtonElement>
+	): void => {
+		if (
+			event.altKey ||
+			event.ctrlKey ||
+			event.metaKey ||
+			event.shiftKey ||
+			event.defaultPrevented
+		) {
+			return;
+		}
+		const currentOid = getRepositoryRevisionNavigationItemKey(event.target);
+		if (!currentOid) {
+			return;
+		}
+		const targetGroup = getRepositoryRevisionNavigationGroupTarget(
+			"revisions",
+			event.key
+		);
+		if (targetGroup) {
+			event.preventDefault();
+			focusRepositoryRevisionNavigationGroup(event.currentTarget, targetGroup);
+			return;
+		}
+		const targetOid = getRepositoryRevisionNavigationTarget(
+			stashOids,
+			currentOid,
+			event.key
+		);
+		if (!targetOid) {
+			return;
+		}
+		event.preventDefault();
+		if (targetOid === currentOid) {
+			return;
+		}
+		const targetStash = stashes.find((stash) => stash.oid === targetOid);
+		if (!targetStash) {
+			return;
+		}
+		const list = event.currentTarget.closest<HTMLUListElement>(
+			'[data-repository-revision-navigation-group="revisions"]'
+		);
+		if (!list) {
+			return;
+		}
+		focusRepositoryRevisionNavigationItem(list, targetOid);
+		onSelectStash(targetStash).catch(() => {
+			// The workspace hook reports selection errors in the app notice.
+		});
+	};
+
 	return (
 		<aside
 			aria-label="Stash shelf"
@@ -322,9 +437,15 @@ export function RepositoryStashRail({
 			</header>
 			{stashes.length > 0 ? (
 				<ScrollArea className="min-h-0 flex-1" overflowEdgeThreshold={1}>
-					<ScrollAreaViewport className="min-h-0">
+					<ScrollAreaViewport
+						className="min-h-0"
+						data-repository-revision-navigation-viewport
+					>
 						<ScrollAreaContent>
-							<ul className="space-y-0.5 px-1.5 pb-1.5">
+							<ul
+								className="space-y-0.5 px-1.5 pb-1.5"
+								data-repository-revision-navigation-group="revisions"
+							>
 								{stashes.map((stash) => {
 									const isSelected = selectedStashOid === stash.oid;
 									return (
@@ -335,8 +456,11 @@ export function RepositoryStashRail({
 													"w-full rounded-lg px-3 py-2 text-left outline-none transition-colors hover:bg-hover focus-visible:ring-2 focus-visible:ring-brand/20 focus-visible:ring-inset",
 													isSelected && "bg-brand-softer"
 												)}
+												data-repository-revision-navigation-item={stash.oid}
 												disabled={isPending}
 												onClick={async () => await onSelectStash(stash)}
+												onKeyDown={navigateStashes}
+												tabIndex={isSelected ? 0 : -1}
 												type="button"
 											>
 												<span className="block truncate font-medium text-editor-ink text-xss">
