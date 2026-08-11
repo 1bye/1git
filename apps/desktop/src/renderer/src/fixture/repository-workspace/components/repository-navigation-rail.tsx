@@ -3,10 +3,12 @@ import type {
 	CommitInfo,
 	CommitPage,
 	FileChange,
+	FileDiff,
 	RepositorySnapshot,
 	ResetMode,
 	StashInfo,
 } from "@1git/git";
+import { cn } from "@1git/ui/lib/utils";
 import type { ReactElement } from "react";
 import { useCallback } from "react";
 import type { RepositoryRecoveryAction } from "@/feature/workspace/lib/repository-recovery.js";
@@ -22,7 +24,10 @@ import {
 	RepositoryFileRail,
 } from "@/fixture/repository-workspace/components/repository-file-navigator.js";
 import { RepositoryHistoryRail } from "@/fixture/repository-workspace/components/repository-history-rail.js";
-import { RepositoryStashRail } from "@/fixture/repository-workspace/components/repository-revision-rail.js";
+import {
+	RepositoryRevisionFileRail,
+	RepositoryStashRail,
+} from "@/fixture/repository-workspace/components/repository-revision-rail.js";
 import { RepositoryWorkspaceToolbar } from "@/fixture/repository-workspace/components/repository-workspace-toolbar.js";
 import { useRepositoryFileNavigation } from "@/fixture/repository-workspace/hooks/use-repository-file-navigation.js";
 import { getRepositoryDiffElementId } from "@/fixture/repository-workspace/lib/repository-navigation.js";
@@ -32,8 +37,10 @@ import type { RepositorySessionRecord } from "../../../../../shared/repository-s
 export interface RepositoryNavigationRailProps {
 	readonly activeSession: RepositorySessionRecord;
 	readonly branches: BranchCollection | null;
+	readonly diffs: readonly FileDiff[];
 	readonly history: CommitPage | null;
 	readonly isLoading: boolean;
+	readonly isRevisionDetailOpen: boolean;
 	readonly onAmendCommit: (
 		commit: CommitInfo,
 		summary: string,
@@ -57,8 +64,10 @@ export interface RepositoryNavigationRailProps {
 		mode: ResetMode
 	) => Promise<boolean>;
 	readonly onRevertCommit: (commit: CommitInfo) => Promise<boolean>;
+	readonly onRevisionDetailOpenChange: (isOpen: boolean) => void;
 	readonly onSelectCommit: (commit: CommitInfo) => Promise<void>;
 	readonly onSelectFile: (file: FileChange) => Promise<void>;
+	readonly onSelectRevisionFile: (path: string) => Promise<void>;
 	readonly onSelectStash: (stash: StashInfo) => Promise<void>;
 	readonly onSetFileStaged: (
 		file: FileChange,
@@ -85,8 +94,10 @@ export interface RepositoryNavigationRailProps {
 export function RepositoryNavigationRail({
 	activeSession,
 	branches,
+	diffs,
 	history,
 	isLoading,
+	isRevisionDetailOpen,
 	onAmendCommit,
 	onApplyStash,
 	onCherryPickCommit,
@@ -100,8 +111,10 @@ export function RepositoryNavigationRail({
 	onRecover,
 	onResetCommit,
 	onRevertCommit,
+	onRevisionDetailOpenChange,
 	onSelectCommit,
 	onSelectFile,
+	onSelectRevisionFile,
 	onSelectStash,
 	onSetFileStaged,
 	onSetFilesStaged,
@@ -147,6 +160,36 @@ export function RepositoryNavigationRail({
 		sessionId: activeSession.id,
 		tab,
 	});
+	const selectedCommit =
+		history?.commits.find((commit) => commit.oid === selectedCommitOid) ?? null;
+	const selectedStash =
+		stashes.find((stash) => stash.oid === selectedStashOid) ?? null;
+	const isRevisionTab = tab === "history" || tab === "stashes";
+	const isStackOpen = isRevisionTab && isRevisionDetailOpen;
+	const revisionTitle =
+		(tab === "history" ? selectedCommit?.summary : selectedStash?.summary) ??
+		"Selected revision";
+	const selectCommitAndOpen = useCallback(
+		async (commit: CommitInfo): Promise<void> => {
+			if (commit.oid !== selectedCommitOid) {
+				await onSelectCommit(commit);
+			}
+			onRevisionDetailOpenChange(true);
+		},
+		[onRevisionDetailOpenChange, onSelectCommit, selectedCommitOid]
+	);
+	const selectStashAndOpen = useCallback(
+		async (stash: StashInfo): Promise<void> => {
+			if (stash.oid !== selectedStashOid) {
+				await onSelectStash(stash);
+			}
+			onRevisionDetailOpenChange(true);
+		},
+		[onRevisionDetailOpenChange, onSelectStash, selectedStashOid]
+	);
+	const closeRevisionDetail = useCallback((): void => {
+		onRevisionDetailOpenChange(false);
+	}, [onRevisionDetailOpenChange]);
 
 	if (!(snapshot && syncAction) || isLoading) {
 		return (
@@ -173,7 +216,7 @@ export function RepositoryNavigationRail({
 				onCherryPickCommit={onCherryPickCommit}
 				onResetCommit={onResetCommit}
 				onRevertCommit={onRevertCommit}
-				onSelectCommit={onSelectCommit}
+				onSelectCommit={selectCommitAndOpen}
 				selectedCommitOid={selectedCommitOid}
 			/>
 		);
@@ -181,7 +224,7 @@ export function RepositoryNavigationRail({
 		content = (
 			<RepositoryStashRail
 				isPending={pendingAction !== null}
-				onSelectStash={onSelectStash}
+				onSelectStash={selectStashAndOpen}
 				selectedStashOid={selectedStashOid}
 				stashes={stashes}
 			/>
@@ -247,7 +290,35 @@ export function RepositoryNavigationRail({
 					selectedFilePath={selectedFilePath}
 				/>
 			) : null}
-			{content}
+			<div className="relative min-h-0 flex-1 overflow-hidden">
+				<div
+					aria-hidden={isStackOpen ? true : undefined}
+					className={cn(
+						"absolute inset-0 flex min-h-0 flex-col transition-[transform,opacity] duration-200 ease-out motion-reduce:transition-none",
+						isStackOpen
+							? "-translate-x-2 scale-[0.985] opacity-25"
+							: "translate-x-0 scale-100 opacity-100"
+					)}
+					data-name="RepositoryRevisionMasterLayer"
+					inert={isStackOpen ? true : undefined}
+				>
+					{content}
+				</div>
+				<RepositoryRevisionFileRail
+					diffs={diffs}
+					isOpen={isStackOpen}
+					isPending={pendingAction !== null}
+					onApplyStash={onApplyStash}
+					onBack={closeRevisionDetail}
+					onDropStash={onDropStash}
+					onPopStash={onPopStash}
+					onSelectFile={onSelectRevisionFile}
+					revisionTitle={revisionTitle}
+					selectedFilePath={selectedFilePath}
+					selectedStash={selectedStash}
+					tab={tab}
+				/>
+			</div>
 		</aside>
 	);
 }

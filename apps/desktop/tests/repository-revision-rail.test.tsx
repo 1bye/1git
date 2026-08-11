@@ -41,17 +41,21 @@ const STASHES: readonly StashInfo[] = [
 const succeed = async (): Promise<boolean> => true;
 const selectFile = async (): Promise<void> => undefined;
 const selectStash = async (): Promise<void> => undefined;
+const doNothing = (): void => undefined;
 
 describe("repository revision rails", () => {
-	test("shows revision files between the diff and history list", () => {
+	test("shows revision files in the stacked history detail", () => {
 		const markup = renderToStaticMarkup(
 			<RepositoryRevisionFileRail
 				diffs={[REVISION_DIFF]}
+				isOpen
 				isPending={false}
 				onApplyStash={succeed}
+				onBack={doNothing}
 				onDropStash={succeed}
 				onPopStash={succeed}
 				onSelectFile={selectFile}
+				revisionTitle="Build the stacked rail"
 				selectedFilePath="src/app.ts"
 				selectedStash={null}
 				tab="history"
@@ -60,9 +64,11 @@ describe("repository revision rails", () => {
 
 		expect(markup).toContain('aria-label="Files in commit"');
 		expect(markup).toContain('data-state="open"');
-		expect(markup).toContain('data-repository-file-liquid-rail="true"');
-		expect(markup).toContain("transition-[width,opacity]");
-		expect(markup).toContain("w-(--repository-context-rail-width)");
+		expect(markup).toContain('data-repository-file-liquid-rail="revision"');
+		expect(markup).toContain('aria-label="Back to History"');
+		expect(markup).toContain("Build the stacked rail");
+		expect(markup).toContain("transition-[transform,opacity]");
+		expect(markup).toContain("translate-x-0");
 		expect(markup).toContain('aria-current="true"');
 		expect(markup).toContain("src/");
 		expect(markup).toContain("app.ts");
@@ -91,11 +97,14 @@ describe("repository revision rails", () => {
 		const markup = renderToStaticMarkup(
 			<RepositoryRevisionFileRail
 				diffs={[]}
+				isOpen={false}
 				isPending={false}
 				onApplyStash={succeed}
+				onBack={doNothing}
 				onDropStash={succeed}
 				onPopStash={succeed}
 				onSelectFile={selectFile}
+				revisionTitle="Selected revision"
 				selectedFilePath={null}
 				selectedStash={null}
 				tab="changes"
@@ -104,7 +113,7 @@ describe("repository revision rails", () => {
 
 		expect(markup).toContain('data-state="closed"');
 		expect(markup).toContain('aria-hidden="true"');
-		expect(markup).toContain("pointer-events-none w-0");
+		expect(markup).toContain("pointer-events-none translate-x-full");
 		expect(markup).not.toContain("data-repository-file-liquid-rail");
 	});
 });

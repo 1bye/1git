@@ -50,7 +50,6 @@
 	--liquid-hover: var(--hover);
 	--liquid-outline: var(--editor-hairline-strong);
 	--liquid-surface: var(--editor-surface);
-	--repository-context-rail-width: 15rem;
 	--repository-rail-width: 19.375rem;
 	--workspace-tab-appearance-duration: 240ms;
 	--workspace-surface-inset: 6px;

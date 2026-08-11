@@ -1,4 +1,5 @@
 import type { ReactElement, ReactNode, Ref } from "react";
+import { useState } from "react";
 import {
 	RepositoryDiffWorkspace,
 	type RepositoryDiffWorkspaceProps,
@@ -8,13 +9,20 @@ import {
 	RepositoryNavigationRail,
 	type RepositoryNavigationRailProps,
 } from "@/fixture/repository-workspace/components/repository-navigation-rail.js";
-import { RepositoryRevisionFileRail } from "@/fixture/repository-workspace/components/repository-revision-rail.js";
 
 export type RepositoryWorkspaceProps = RepositoryDiffWorkspaceProps &
-	RepositoryNavigationRailProps & {
+	Omit<
+		RepositoryNavigationRailProps,
+		"isRevisionDetailOpen" | "onRevisionDetailOpenChange"
+	> & {
 		readonly ref?: Ref<HTMLElement>;
 		readonly titlebar: ReactNode;
 	};
+
+interface RevisionDetailState {
+	readonly contextKey: string;
+	readonly isOpen: boolean;
+}
 
 export function RepositoryWorkspace({
 	ref,
@@ -22,8 +30,18 @@ export function RepositoryWorkspace({
 	titlebar,
 	...props
 }: RepositoryWorkspaceProps): ReactElement {
-	const selectedStash =
-		props.stashes.find((stash) => stash.oid === props.selectedStashOid) ?? null;
+	const revisionContextKey = `${props.activeSession.id}:${props.tab}`;
+	const [revisionDetail, setRevisionDetail] = useState<RevisionDetailState>({
+		contextKey: revisionContextKey,
+		isOpen: false,
+	});
+	const isRevisionDetailOpen =
+		revisionDetail.contextKey === revisionContextKey &&
+		revisionDetail.isOpen &&
+		props.tab !== "changes";
+	const changeRevisionDetailOpen = (isOpen: boolean): void => {
+		setRevisionDetail({ contextKey: revisionContextKey, isOpen });
+	};
 
 	return (
 		<section
@@ -32,7 +50,13 @@ export function RepositoryWorkspace({
 			id="repository-workspace"
 			ref={ref}
 		>
-			<RepositoryFileLiquidSurface selectedFilePath={selectedFilePath} />
+			<RepositoryFileLiquidSurface
+				railKind={props.tab === "changes" ? "changes" : "revision"}
+				railState={
+					props.tab === "changes" || isRevisionDetailOpen ? "open" : "closed"
+				}
+				selectedFilePath={selectedFilePath}
+			/>
 			<div className="flex min-w-0 flex-1 flex-col">
 				{titlebar}
 				<RepositoryDiffWorkspace
@@ -40,19 +64,10 @@ export function RepositoryWorkspace({
 					selectedFilePath={selectedFilePath}
 				/>
 			</div>
-			<RepositoryRevisionFileRail
-				diffs={props.diffs}
-				isPending={props.pendingAction !== null}
-				onApplyStash={props.onApplyStash}
-				onDropStash={props.onDropStash}
-				onPopStash={props.onPopStash}
-				onSelectFile={props.onSelectRevisionFile}
-				selectedFilePath={selectedFilePath}
-				selectedStash={selectedStash}
-				tab={props.tab}
-			/>
 			<RepositoryNavigationRail
 				{...props}
+				isRevisionDetailOpen={isRevisionDetailOpen}
+				onRevisionDetailOpenChange={changeRevisionDetailOpen}
 				selectedFilePath={selectedFilePath}
 			/>
 		</section>
