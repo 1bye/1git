@@ -374,6 +374,29 @@ button {
 	transition: top 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+[data-name="RepositoryFileRow"] > button {
+	transform-origin: center;
+	transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+	transition-duration: 120ms;
+	transition-property: opacity, transform;
+}
+
+[data-name="RepositoryFileRow"][data-dragging="true"] > button {
+	opacity: 0.18;
+	transform: scale3d(0.84, 0.68, 1);
+}
+
+[data-name="RepositoryWorkspace"]:has(
+		[data-name="RepositoryFileRow"][data-active="true"]:is(
+				[data-dragging="true"],
+				[data-drag-settling="true"]
+			)
+	)
+	[data-name="RepositoryFileLiquidSurface"] {
+	animation: repository-file-liquid-reveal 120ms cubic-bezier(0.4, 0, 0.2, 1)
+		reverse both;
+}
+
 body:has([data-name="CommandLensLayer"])
 	[data-name="RepositoryFileLiquidSurface"][data-moving="true"] {
 	transition-duration: 0ms;
