@@ -4,20 +4,35 @@ import { CheckCircleIcon } from "@phosphor-icons/react/dist/csr/CheckCircle";
 import { GitBranchIcon } from "@phosphor-icons/react/dist/csr/GitBranch";
 import { SpinnerGapIcon } from "@phosphor-icons/react/dist/csr/SpinnerGap";
 import type { ReactElement } from "react";
+import {
+	isRepositorySyncActionKind,
+	type RepositorySyncAction,
+	repositorySyncProgressLabel,
+} from "@/feature/workspace/lib/repository-sync.js";
+import type { PendingWorkspaceAction } from "@/feature/workspace/types/git-workspace.js";
 
 interface RepositoryCleanStateProps {
-	readonly isFetching: boolean;
-	readonly onFetch: () => Promise<void>;
+	readonly onCancelSync: () => Promise<void>;
+	readonly onSync: () => Promise<void>;
+	readonly pendingAction: PendingWorkspaceAction;
 	readonly snapshot: RepositorySnapshot;
+	readonly syncAction: RepositorySyncAction;
 }
 
 export function CleanState({
-	isFetching,
-	onFetch,
+	onCancelSync,
+	onSync,
+	pendingAction,
 	snapshot,
+	syncAction,
 }: RepositoryCleanStateProps): ReactElement {
-	const fetchRepository = async (): Promise<void> => {
-		await onFetch();
+	const isSyncPending = isRepositorySyncActionKind(pendingAction);
+	const synchronizeRepository = async (): Promise<void> => {
+		if (isSyncPending) {
+			await onCancelSync();
+		} else {
+			await onSync();
+		}
 	};
 
 	return (
@@ -54,13 +69,17 @@ export function CleanState({
 						</p>
 					</div>
 					<button
-						aria-busy={isFetching}
+						aria-busy={isSyncPending}
 						className="p-4 text-left outline-none hover:bg-editor-surface focus-visible:bg-editor-surface focus-visible:ring-2 focus-visible:ring-brand/20 focus-visible:ring-inset disabled:pointer-events-none disabled:opacity-50"
-						disabled={isFetching}
-						onClick={fetchRepository}
+						disabled={
+							(pendingAction !== null && !isSyncPending) ||
+							(!isSyncPending && syncAction.disabledReason !== null)
+						}
+						onClick={synchronizeRepository}
+						title={syncAction.disabledReason ?? syncAction.description}
 						type="button"
 					>
-						{isFetching ? (
+						{isSyncPending ? (
 							<SpinnerGapIcon
 								aria-hidden
 								className="size-4 animate-spin text-editor-faint"
@@ -74,10 +93,14 @@ export function CleanState({
 							/>
 						)}
 						<span className="mt-3 block font-medium text-editor-ink text-xs">
-							Fetch remote
+							{isSyncPending
+								? `Cancel ${repositorySyncProgressLabel(pendingAction).toLowerCase()}`
+								: syncAction.label}
 						</span>
 						<span className="mt-1 block text-[10px] text-editor-faint">
-							Check for new commits
+							{isSyncPending
+								? "Stop this operation"
+								: (syncAction.disabledReason ?? syncAction.description)}
 						</span>
 					</button>
 				</div>

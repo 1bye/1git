@@ -11,6 +11,10 @@ import type {
 } from "@1git/git";
 import type { RepositoryOwner } from "@/feature/workspace/lib/repository-owner.js";
 import type {
+	RepositorySyncAction,
+	RepositorySyncActionKind,
+} from "@/feature/workspace/lib/repository-sync.js";
+import type {
 	RepositoryManagerState,
 	RepositorySessionId,
 	RepositorySessionRecord,
@@ -31,9 +35,13 @@ export type PendingWorkspaceAction =
 	| "hunk"
 	| "merge"
 	| "open"
+	| "publish"
+	| "pull"
+	| "push"
 	| "refresh"
 	| "stage"
 	| "stash"
+	| "sync"
 	| "workspace"
 	| null;
 
@@ -41,6 +49,7 @@ export interface WorkspaceTabState {
 	readonly branch: string | null;
 	readonly changedFiles: number | null;
 	readonly owner: RepositoryOwner | null;
+	readonly pendingSyncAction: RepositorySyncActionKind | null;
 	readonly session: RepositorySessionRecord;
 }
 
@@ -59,6 +68,8 @@ export interface GitWorkspace {
 		description: string
 	) => Promise<boolean>;
 	readonly branches: BranchCollection | null;
+	readonly cancelSync: () => Promise<void>;
+	readonly canRetrySync: boolean;
 	readonly changeHunk: (input: ChangeHunkInput) => Promise<boolean>;
 	readonly cherryPickCommit: (
 		commit: CommitInfo,
@@ -75,7 +86,6 @@ export interface GitWorkspace {
 	readonly discardUndo: WorkspaceDiscardUndo | null;
 	readonly dismissDiscardUndo: (token: string) => void;
 	readonly error: string | null;
-	readonly fetchRepository: () => Promise<void>;
 	readonly forgetRecentRepository: (path: string) => Promise<void>;
 	readonly history: CommitPage | null;
 	readonly isInitialLoading: boolean;
@@ -112,6 +122,8 @@ export interface GitWorkspace {
 	readonly snapshot: RepositorySnapshot | null;
 	readonly stashChanges: () => Promise<boolean>;
 	readonly switchBranch: (name: string) => Promise<void>;
+	readonly syncAction: RepositorySyncAction | null;
+	readonly syncRepository: () => Promise<void>;
 	readonly tab: RepositoryTab;
 	readonly toggleAllFiles: () => Promise<void>;
 	readonly undoDiscard: () => Promise<boolean>;

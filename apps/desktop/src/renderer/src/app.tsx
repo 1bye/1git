@@ -24,17 +24,19 @@ export function App(): ReactElement {
 			}
 			branches={workspace.branches}
 			onActivateWorkspace={workspace.activateWorkspace}
+			onCancelSync={workspace.cancelSync}
 			onCloseWorkspace={workspace.closeWorkspace}
 			onCreateBranch={workspace.createBranch}
-			onFetch={workspace.fetchRepository}
 			onForgetRecent={workspace.forgetRecentRepository}
 			onOpenRecent={workspace.openRecentRepository}
 			onPickRepository={workspace.pickRepository}
 			onReorderWorkspace={workspace.reorderWorkspace}
 			onSwitchBranch={workspace.switchBranch}
+			onSync={workspace.syncRepository}
 			pendingAction={workspace.pendingAction}
 			recentRepositories={workspace.manager.recentRepositories}
 			snapshot={workspace.snapshot}
+			syncAction={workspace.syncAction}
 			workspaceRootRef={workspaceRootRef}
 			workspaces={workspace.workspaces}
 		/>
@@ -53,16 +55,15 @@ export function App(): ReactElement {
 							branches={workspace.branches}
 							diffs={workspace.diffs}
 							history={workspace.history}
-							isFetching={workspace.pendingAction === "fetch"}
 							isLoading={
 								workspace.isInitialLoading || workspace.pendingAction === "open"
 							}
 							onAmendCommit={workspace.amendCommit}
+							onCancelSync={workspace.cancelSync}
 							onChangeHunk={workspace.changeHunk}
 							onCherryPickCommit={workspace.cherryPickCommit}
 							onCommit={workspace.commit}
 							onDiscardFiles={workspace.discardFiles}
-							onFetch={workspace.fetchRepository}
 							onMergeBranch={workspace.mergeBranch}
 							onResetCommit={workspace.resetToCommit}
 							onRevertCommit={workspace.revertCommit}
@@ -72,12 +73,14 @@ export function App(): ReactElement {
 							onSetFilesStaged={workspace.setFilesStaged}
 							onSetTab={workspace.setTab}
 							onStashChanges={workspace.stashChanges}
+							onSync={workspace.syncRepository}
 							onToggleAllFiles={workspace.toggleAllFiles}
 							pendingAction={workspace.pendingAction}
 							ref={setWorkspaceRoot}
 							selectedCommitOid={workspace.selectedCommitOid}
 							selectedFilePath={workspace.selectedFilePath}
 							snapshot={workspace.snapshot}
+							syncAction={workspace.syncAction}
 							tab={workspace.tab}
 							titlebar={desktopToolbar}
 						/>
@@ -128,6 +131,15 @@ export function App(): ReactElement {
 									{workspace.error}
 								</p>
 							</div>
+							{workspace.canRetrySync ? (
+								<Button
+									onClick={workspace.syncRepository}
+									size="sm"
+									variant="secondary"
+								>
+									Retry
+								</Button>
+							) : null}
 							<Button
 								aria-label="Dismiss error"
 								className="-mt-1 -mr-1"

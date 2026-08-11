@@ -1,6 +1,7 @@
 import { cn } from "@1git/ui/lib/utils";
 import { RestrictToHorizontalAxis } from "@dnd-kit/abstract/modifiers";
 import { useSortable } from "@dnd-kit/react/sortable";
+import { SpinnerGapIcon } from "@phosphor-icons/react/dist/csr/SpinnerGap";
 import { XIcon } from "@phosphor-icons/react/dist/csr/X";
 import type {
 	ComponentProps,
@@ -12,6 +13,10 @@ import type {
 import { useCallback, useEffect, useState } from "react";
 import { useCommandLensTarget } from "@/feature/command-lens/hooks/use-command-lens-target.js";
 import type { CommandLensCommand } from "@/feature/command-lens/lib/command-lens-shortcut.js";
+import {
+	type RepositorySyncActionKind,
+	repositorySyncProgressLabel,
+} from "@/feature/workspace/lib/repository-sync.js";
 import {
 	getRepositoryName,
 	getWorkspaceLabel,
@@ -82,6 +87,7 @@ interface WorkspaceTabTriggerElementProps extends ComponentProps<"button"> {
 interface WorkspaceChangedFilesProps {
 	readonly count: number;
 	readonly isActive: boolean;
+	readonly pendingSyncAction: RepositorySyncActionKind | null;
 }
 
 interface WorkspaceTabCommandOptions {
@@ -341,7 +347,28 @@ export function WorkspaceTabTrigger({
 function WorkspaceChangedFiles({
 	count,
 	isActive,
+	pendingSyncAction,
 }: WorkspaceChangedFilesProps): ReactElement | null {
+	if (pendingSyncAction) {
+		const label = repositorySyncProgressLabel(pendingSyncAction);
+		return (
+			<span
+				className="pointer-events-none flex shrink-0 items-center justify-center text-editor-muted"
+				data-name="WorkspaceSyncProgress"
+				role="status"
+				style={WORKSPACE_TAB_CHANGE_BADGE_STYLE}
+				title={label}
+			>
+				<SpinnerGapIcon
+					aria-hidden
+					className="size-3 animate-spin"
+					weight="bold"
+				/>
+				<span className="sr-only">{label}</span>
+			</span>
+		);
+	}
+
 	if (count <= 0) {
 		return null;
 	}
@@ -490,7 +517,11 @@ function WorkspaceTabAppearance({
 					data-name="WorkspaceTabTrailingAction"
 					style={WORKSPACE_TAB_TRAILING_STYLE}
 				>
-					<WorkspaceChangedFiles count={changedFileCount} isActive={isActive} />
+					<WorkspaceChangedFiles
+						count={changedFileCount}
+						isActive={isActive}
+						pendingSyncAction={workspace.pendingSyncAction}
+					/>
 					<button
 						aria-label={`Close ${label}`}
 						className="absolute inset-0 flex items-center justify-center rounded-lg text-editor-faint opacity-0 outline-none transition-opacity duration-150 ease-out hover:bg-active hover:text-editor-ink focus-visible:bg-active focus-visible:ring-2 focus-visible:ring-brand/20 group-focus-within/trailing:opacity-100 group-hover:opacity-100"

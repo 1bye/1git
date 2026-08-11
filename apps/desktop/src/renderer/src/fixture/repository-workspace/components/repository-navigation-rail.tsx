@@ -8,6 +8,7 @@ import type {
 } from "@1git/git";
 import type { ReactElement } from "react";
 import { useCallback } from "react";
+import type { RepositorySyncAction } from "@/feature/workspace/lib/repository-sync.js";
 import { isFileStaged } from "@/feature/workspace/lib/workspace-model.js";
 import type {
 	PendingWorkspaceAction,
@@ -35,13 +36,13 @@ export interface RepositoryNavigationRailProps {
 		summary: string,
 		description: string
 	) => Promise<boolean>;
+	readonly onCancelSync: () => Promise<void>;
 	readonly onCherryPickCommit: (
 		commit: CommitInfo,
 		branchName: string
 	) => Promise<boolean>;
 	readonly onCommit: (summary: string, description: string) => Promise<boolean>;
 	readonly onDiscardFiles: (files: readonly FileChange[]) => Promise<boolean>;
-	readonly onFetch: () => Promise<void>;
 	readonly onMergeBranch: (name: string) => Promise<boolean>;
 	readonly onResetCommit: (
 		commit: CommitInfo,
@@ -60,11 +61,13 @@ export interface RepositoryNavigationRailProps {
 	) => Promise<boolean>;
 	readonly onSetTab: (tab: RepositoryTab) => Promise<void>;
 	readonly onStashChanges: () => Promise<boolean>;
+	readonly onSync: () => Promise<void>;
 	readonly onToggleAllFiles: () => Promise<void>;
 	readonly pendingAction: PendingWorkspaceAction;
 	readonly selectedCommitOid: string | null;
 	readonly selectedFilePath: string | null;
 	readonly snapshot: RepositorySnapshot | null;
+	readonly syncAction: RepositorySyncAction | null;
 	readonly tab: RepositoryTab;
 }
 
@@ -76,8 +79,8 @@ export function RepositoryNavigationRail({
 	onAmendCommit,
 	onCherryPickCommit,
 	onCommit,
+	onCancelSync,
 	onDiscardFiles,
-	onFetch,
 	onMergeBranch,
 	onResetCommit,
 	onRevertCommit,
@@ -87,11 +90,13 @@ export function RepositoryNavigationRail({
 	onSetFilesStaged,
 	onSetTab,
 	onStashChanges,
+	onSync,
 	onToggleAllFiles,
 	pendingAction,
 	selectedCommitOid,
 	selectedFilePath,
 	snapshot,
+	syncAction,
 	tab,
 }: RepositoryNavigationRailProps): ReactElement {
 	const files = snapshot?.files ?? [];
@@ -124,7 +129,7 @@ export function RepositoryNavigationRail({
 		tab,
 	});
 
-	if (!snapshot || isLoading) {
+	if (!(snapshot && syncAction) || isLoading) {
 		return (
 			<aside
 				aria-busy="true"
@@ -186,13 +191,15 @@ export function RepositoryNavigationRail({
 		>
 			<RepositoryWorkspaceToolbar
 				branches={branches}
-				onFetch={onFetch}
+				onCancelSync={onCancelSync}
 				onMergeBranch={onMergeBranch}
 				onSetTab={onSetTab}
 				onStashChanges={onStashChanges}
+				onSync={onSync}
 				onToggleAllFiles={onToggleAllFiles}
 				pendingAction={pendingAction}
 				snapshot={snapshot}
+				syncAction={syncAction}
 				tab={tab}
 			/>
 			{tab === "changes" ? (

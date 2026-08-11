@@ -9,6 +9,7 @@ import { GitDiffIcon } from "@phosphor-icons/react/dist/csr/GitDiff";
 import { SpinnerGapIcon } from "@phosphor-icons/react/dist/csr/SpinnerGap";
 import type { ReactElement } from "react";
 import { useCallback } from "react";
+import type { RepositorySyncAction } from "@/feature/workspace/lib/repository-sync.js";
 import { getRepositoryName } from "@/feature/workspace/lib/workspace-model.js";
 import type {
 	PendingWorkspaceAction,
@@ -22,15 +23,16 @@ export interface RepositoryDiffWorkspaceProps {
 	readonly activeSession: RepositorySessionRecord;
 	readonly diffs: readonly FileDiff[];
 	readonly history: CommitPage | null;
-	readonly isFetching: boolean;
 	readonly isLoading: boolean;
+	readonly onCancelSync: () => Promise<void>;
 	readonly onChangeHunk: (input: ChangeHunkInput) => Promise<boolean>;
-	readonly onFetch: () => Promise<void>;
 	readonly onSelectFile: (file: FileChange) => Promise<void>;
+	readonly onSync: () => Promise<void>;
 	readonly pendingAction: PendingWorkspaceAction;
 	readonly selectedCommitOid: string | null;
 	readonly selectedFilePath: string | null;
 	readonly snapshot: RepositorySnapshot | null;
+	readonly syncAction: RepositorySyncAction | null;
 	readonly tab: RepositoryTab;
 }
 
@@ -79,15 +81,16 @@ export function RepositoryDiffWorkspace({
 	activeSession,
 	diffs,
 	history,
-	isFetching,
 	isLoading,
+	onCancelSync,
 	onChangeHunk,
-	onFetch,
 	onSelectFile,
+	onSync,
 	pendingAction,
 	selectedCommitOid,
 	selectedFilePath,
 	snapshot,
+	syncAction,
 	tab,
 }: RepositoryDiffWorkspaceProps): ReactElement {
 	const files = snapshot?.files ?? [];
@@ -133,12 +136,14 @@ export function RepositoryDiffWorkspace({
 	const historyCommit =
 		history?.commits.find((commit) => commit.oid === selectedCommitOid) ?? null;
 	let mainContent: ReactElement;
-	if (tab === "changes" && files.length === 0) {
+	if (tab === "changes" && files.length === 0 && syncAction) {
 		mainContent = (
 			<CleanState
-				isFetching={isFetching}
-				onFetch={onFetch}
+				onCancelSync={onCancelSync}
+				onSync={onSync}
+				pendingAction={pendingAction}
 				snapshot={snapshot}
+				syncAction={syncAction}
 			/>
 		);
 	} else if (diffs.length > 0) {

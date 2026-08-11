@@ -30,6 +30,7 @@ import {
 	useState,
 } from "react";
 import { getCommandLensNumberKey } from "@/feature/command-lens/lib/command-lens-shortcut.js";
+import type { RepositorySyncAction } from "@/feature/workspace/lib/repository-sync.js";
 import type {
 	OpenRepositoryOptions,
 	PendingWorkspaceAction,
@@ -61,9 +62,9 @@ interface DesktopToolbarProps {
 	readonly onActivateWorkspace: (
 		sessionId: RepositorySessionId
 	) => Promise<void>;
+	readonly onCancelSync: () => Promise<void>;
 	readonly onCloseWorkspace: (sessionId: RepositorySessionId) => Promise<void>;
 	readonly onCreateBranch: (name: string) => Promise<boolean>;
-	readonly onFetch: () => Promise<void>;
 	readonly onForgetRecent: (path: string) => Promise<void>;
 	readonly onOpenRecent: (
 		path: string,
@@ -75,9 +76,11 @@ interface DesktopToolbarProps {
 		overSessionId: RepositorySessionId
 	) => void;
 	readonly onSwitchBranch: (name: string) => Promise<void>;
+	readonly onSync: () => Promise<void>;
 	readonly pendingAction: PendingWorkspaceAction;
 	readonly recentRepositories: readonly RecentRepositoryRecord[];
 	readonly snapshot: RepositorySnapshot | null;
+	readonly syncAction: RepositorySyncAction | null;
 	readonly workspaceRootRef: RefObject<HTMLElement | null>;
 	readonly workspaces: readonly WorkspaceTabState[];
 }
@@ -152,17 +155,19 @@ export function DesktopToolbar({
 	activeSessionId,
 	branches,
 	onActivateWorkspace,
+	onCancelSync,
 	onCloseWorkspace,
 	onCreateBranch,
-	onFetch,
 	onForgetRecent,
 	onOpenRecent,
 	onPickRepository,
 	onReorderWorkspace,
 	onSwitchBranch,
+	onSync,
 	pendingAction,
 	recentRepositories,
 	snapshot,
+	syncAction,
 	workspaceRootRef,
 	workspaces,
 }: DesktopToolbarProps): ReactElement {
@@ -496,15 +501,17 @@ export function DesktopToolbar({
 												)}
 												workspace={workspace}
 											/>
-											{isActive && isWorkspaceMenuOpen ? (
+											{isActive && isWorkspaceMenuOpen && syncAction ? (
 												<WorkspaceActionsMenu
 													branches={branches}
 													currentBranch={currentBranch}
+													onCancelSync={onCancelSync}
 													onClose={closeWorkspaceMenu}
 													onCreateBranch={onCreateBranch}
-													onFetch={onFetch}
 													onSwitchBranch={onSwitchBranch}
+													onSync={onSync}
 													pendingAction={pendingAction}
+													syncAction={syncAction}
 												/>
 											) : null}
 										</LiquidMenuRoot>

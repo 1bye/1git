@@ -7,8 +7,10 @@ import type {
 	FileDiff,
 	GitError,
 	GitResult,
+	RemoteInfo,
 	RepositorySnapshot,
 	ResetMode,
+	SyncResult,
 } from "@1git/git";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRepositoryRefresh } from "@/feature/workspace/hooks/use-repository-refresh.js";
@@ -21,6 +23,13 @@ import {
 	getRepositoryOwner,
 	type RepositoryOwner,
 } from "@/feature/workspace/lib/repository-owner.js";
+import {
+	getRepositorySyncAction,
+	getRepositorySyncSteps,
+	type RepositorySyncAction,
+	type RepositorySyncActionKind,
+	type RepositorySyncStep,
+} from "@/feature/workspace/lib/repository-sync.js";
 import {
 	groupRepositoryDiffPaths,
 	isFileStaged,
@@ -80,6 +89,13 @@ const managerResultValue = <T>(result: RepositoryManagerResult<T>): T => {
 	return result.value;
 };
 
+const repositorySnapshot = async (
+	sessionId: RepositorySessionId,
+	knownSnapshot?: RepositorySnapshot
+): Promise<RepositorySnapshot> =>
+	knownSnapshot ??
+	resultValue(await window.desktop.git.repository.snapshot(sessionId));
+
 const errorMessage = (error: unknown): string =>
 	error instanceof Error ? error.message : "The repository operation failed.";
 
@@ -97,11 +113,39 @@ interface HistoryActionResult {
 	readonly snapshot: RepositorySnapshot;
 }
 
+interface ActiveRepositorySync {
+	cancelRequested: boolean;
+	operationId: string | null;
+	repositoryMayHaveChanged: boolean;
+}
+
+interface RepositorySyncFailure {
+	readonly message: string;
+}
+
 const activeSessionFromManager = (
 	manager: RepositoryManagerState
 ): RepositorySessionRecord | null =>
 	manager.sessions.find((session) => session.id === manager.activeSessionId) ??
 	null;
+
+const syncErrorMessage = (error: GitError): string => {
+	switch (error.code) {
+		case "authentication-required":
+			return "Authentication is required. Check your Git credentials and retry.";
+		case "conflict":
+			return "Sync stopped because the branch has conflicts.";
+		case "dirty-worktree":
+			return "Local changes block this operation. Commit or stash them, then retry.";
+		case "repository-locked":
+			return "Another Git operation is using this repository. Retry when it finishes.";
+		default:
+			return error.message;
+	}
+};
+
+const syncFailureMayHaveChangedRepository = (error: GitError): boolean =>
+	error.code === "command-failed" || error.code === "conflict";
 
 export const useGitWorkspace = (): GitWorkspace => {
 	const [manager, setManager] =
@@ -112,6 +156,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 	const [sessionSnapshot, setSessionSnapshot] =
 		useState<SessionSnapshotState | null>(null);
 	const [branches, setBranches] = useState<BranchCollection | null>(null);
+	const [remotes, setRemotes] = useState<readonly RemoteInfo[]>([]);
 	const [history, setHistory] = useState<CommitPage | null>(null);
 	const [diffs, setDiffs] = useState<readonly FileDiff[]>([]);
 	const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
@@ -123,6 +168,12 @@ export const useGitWorkspace = (): GitWorkspace => {
 		useState<PendingWorkspaceAction>(null);
 	const [isInitialLoading, setIsInitialLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
+	const [syncFailures, setSyncFailures] = useState<
+		Readonly<Record<RepositorySessionId, RepositorySyncFailure>>
+	>({});
+	const [pendingSyncActions, setPendingSyncActions] = useState<
+		Readonly<Partial<Record<RepositorySessionId, RepositorySyncActionKind>>>
+	>({});
 	const [discardUndo, setDiscardUndo] = useState<WorkspaceDiscardUndo | null>(
 		null
 	);
@@ -131,6 +182,11 @@ export const useGitWorkspace = (): GitWorkspace => {
 	>({});
 	const diffRequestIdRef = useRef(0);
 	const stagedOnFirstPresentationRef = useRef(new Set<RepositorySessionId>());
+	const activeSyncsRef = useRef(
+		new Map<RepositorySessionId, ActiveRepositorySync>()
+	);
+	const ignoredRefreshOperationIdsRef = useRef(new Set<string>());
+	const presentedSessionIdRef = useRef<RepositorySessionId | null>(null);
 	const managerActiveSession = activeSessionFromManager(manager);
 	const snapshotSession = sessionForSnapshot(sessionSnapshot, manager.sessions);
 	const activeSession = presentedSession(
@@ -139,6 +195,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 		pendingAction === "workspace"
 	);
 	const presentedSessionId = activeSession ? activeSession.id : null;
+	presentedSessionIdRef.current = presentedSessionId;
 	const stageOnFirstPresentation = useCallback(
 		async (
 			sessionId: RepositorySessionId
@@ -159,6 +216,17 @@ export const useGitWorkspace = (): GitWorkspace => {
 		[]
 	);
 	const snapshot = snapshotForSession(sessionSnapshot, presentedSessionId);
+	const syncAction = snapshot
+		? getRepositorySyncAction(snapshot.head, remotes)
+		: null;
+	const pendingSyncAction = presentedSessionId
+		? (pendingSyncActions[presentedSessionId] ?? null)
+		: null;
+	const visiblePendingAction = pendingAction ?? pendingSyncAction;
+	const syncFailure = presentedSessionId
+		? (syncFailures[presentedSessionId] ?? null)
+		: null;
+	const visibleError = syncFailure?.message ?? error;
 	const applyManagerState = useCallback(
 		(nextManager: RepositoryManagerState): void => {
 			setManager(nextManager);
@@ -279,26 +347,28 @@ export const useGitWorkspace = (): GitWorkspace => {
 		async (
 			session: RepositorySessionRecord,
 			preferredFilePath?: string | null,
-			preferredCommitOid?: string | null
+			preferredCommitOid?: string | null,
+			knownSnapshot?: RepositorySnapshot
 		): Promise<void> => {
-			const [snapshotResult, branchResult, historyResult, remotesResult] =
+			const [nextSnapshot, branchResult, historyResult, remotesResult] =
 				await Promise.all([
-					window.desktop.git.repository.snapshot(session.id),
+					repositorySnapshot(session.id, knownSnapshot),
 					window.desktop.git.branches.list(session.id),
 					window.desktop.git.repository.history(session.id, {
 						limit: HISTORY_LIMIT,
 					}),
 					window.desktop.git.remotes.list(session.id),
 				]);
-			const nextSnapshot = resultValue(snapshotResult);
 			const nextBranches = resultValue(branchResult);
 			const nextHistory = resultValue(historyResult);
+			const nextRemotes = remotesResult.ok ? remotesResult.value : [];
 			const nextOwner = remotesResult.ok
-				? getRepositoryOwner(remotesResult.value, nextSnapshot.head.upstream)
+				? getRepositoryOwner(nextRemotes, nextSnapshot.head.upstream)
 				: undefined;
 			applySnapshot(session.id, nextSnapshot, nextOwner);
 			setBranches(nextBranches);
 			setHistory(nextHistory);
+			setRemotes(nextRemotes);
 
 			if (tab === "history") {
 				const commit =
@@ -395,7 +465,14 @@ export const useGitWorkspace = (): GitWorkspace => {
 		};
 	}, [applyManagerState, loadSession, stageOnFirstPresentation]);
 
-	useRepositoryRefresh(presentedSessionId, () => {
+	useRepositoryRefresh(presentedSessionId, (refreshEvent) => {
+		if (
+			refreshEvent.source === "mutation" &&
+			refreshEvent.operationId &&
+			ignoredRefreshOperationIdsRef.current.delete(refreshEvent.operationId)
+		) {
+			return;
+		}
 		refresh().catch((cause: unknown) => {
 			setError(errorMessage(cause));
 		});
@@ -522,6 +599,25 @@ export const useGitWorkspace = (): GitWorkspace => {
 		}
 	};
 
+	const cancelSyncForSession = async (
+		sessionId: RepositorySessionId
+	): Promise<void> => {
+		const activeSync = activeSyncsRef.current.get(sessionId);
+		if (!activeSync) {
+			return;
+		}
+		activeSync.cancelRequested = true;
+		if (activeSync.operationId) {
+			await window.desktop.git.operations.cancel(activeSync.operationId);
+		}
+	};
+
+	const cancelSync = async (): Promise<void> => {
+		if (activeSession) {
+			await cancelSyncForSession(activeSession.id);
+		}
+	};
+
 	const activateWorkspace = async (
 		sessionId: RepositorySessionId
 	): Promise<void> => {
@@ -564,6 +660,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 		setPendingAction("workspace");
 		try {
 			setError(null);
+			await cancelSyncForSession(sessionId);
 			const wasActive = manager.activeSessionId === sessionId;
 			const nextManager = managerResultValue(
 				await window.desktop.git.sessions.close(sessionId)
@@ -573,6 +670,17 @@ export const useGitWorkspace = (): GitWorkspace => {
 				const { [sessionId]: _closedSummary, ...remaining } = current;
 				return remaining;
 			});
+			setPendingSyncActions((current) => {
+				const next = { ...current };
+				delete next[sessionId];
+				return next;
+			});
+			setSyncFailures((current) => {
+				const next = { ...current };
+				delete next[sessionId];
+				return next;
+			});
+			activeSyncsRef.current.delete(sessionId);
 
 			if (!wasActive) {
 				return;
@@ -586,6 +694,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 
 			setSessionSnapshot(null);
 			setBranches(null);
+			setRemotes([]);
 			setHistory(null);
 			clearDiff();
 			setSelectedFilePath(null);
@@ -1100,23 +1209,204 @@ export const useGitWorkspace = (): GitWorkspace => {
 		}
 	};
 
-	const fetchRepository = async (): Promise<void> => {
-		if (!activeSession || pendingAction) {
+	const invokeRepositorySyncStep = async (
+		sessionId: RepositorySessionId,
+		activeSync: ActiveRepositorySync,
+		step: RepositorySyncStep
+	): Promise<SyncResult | null> => {
+		if (activeSync.cancelRequested) {
+			return null;
+		}
+
+		const operationId = window.desktop.git.operations.createId();
+		activeSync.operationId = operationId;
+		ignoredRefreshOperationIdsRef.current.add(operationId);
+
+		let result: GitResult<SyncResult>;
+		try {
+			if (step.kind === "fetch") {
+				result = await window.desktop.git.sync.fetch(sessionId, step.input, {
+					operationId,
+				});
+			} else if (step.kind === "pull") {
+				result = await window.desktop.git.sync.pull(sessionId, step.input, {
+					operationId,
+				});
+			} else {
+				result = await window.desktop.git.sync.push(sessionId, step.input, {
+					operationId,
+				});
+			}
+		} catch (cause) {
+			ignoredRefreshOperationIdsRef.current.delete(operationId);
+			throw cause;
+		}
+
+		if (result.ok) {
+			activeSync.repositoryMayHaveChanged = true;
+			return activeSync.cancelRequested ? null : result.value;
+		}
+
+		if (syncFailureMayHaveChangedRepository(result.error)) {
+			activeSync.repositoryMayHaveChanged = true;
+		} else {
+			ignoredRefreshOperationIdsRef.current.delete(operationId);
+		}
+		if (activeSync.cancelRequested && result.error.code === "aborted") {
+			return null;
+		}
+		throw new Error(syncErrorMessage(result.error));
+	};
+
+	const runRepositorySyncSteps = async (
+		sessionId: RepositorySessionId,
+		activeSync: ActiveRepositorySync,
+		steps: readonly RepositorySyncStep[],
+		index = 0
+	): Promise<RepositorySnapshot | undefined> => {
+		const step = steps[index];
+		if (!step) {
 			return;
 		}
-		setPendingAction("fetch");
-		try {
-			setError(null);
-			const result = await window.desktop.git.sync.fetch(activeSession.id, {
-				prune: true,
-			});
-			applySnapshot(activeSession.id, resultValue(result).snapshot);
-			await loadSession(activeSession, selectedFilePath, selectedCommitOid);
-		} catch (cause) {
-			setError(errorMessage(cause));
-		} finally {
-			setPendingAction(null);
+		const result = await invokeRepositorySyncStep(sessionId, activeSync, step);
+		if (!result) {
+			return;
 		}
+		const laterSnapshot = await runRepositorySyncSteps(
+			sessionId,
+			activeSync,
+			steps,
+			index + 1
+		);
+		return laterSnapshot ?? result.snapshot;
+	};
+
+	const setRepositorySyncFailure = (
+		sessionId: RepositorySessionId,
+		message: string
+	): void => {
+		setSyncFailures((current) => ({
+			...current,
+			[sessionId]: { message },
+		}));
+	};
+
+	const beginRepositorySync = (
+		sessionId: RepositorySessionId,
+		action: RepositorySyncAction
+	): ActiveRepositorySync => {
+		const activeSync: ActiveRepositorySync = {
+			cancelRequested: false,
+			operationId: null,
+			repositoryMayHaveChanged: false,
+		};
+		activeSyncsRef.current.set(sessionId, activeSync);
+		setPendingSyncActions((current) => ({
+			...current,
+			[sessionId]: action.kind,
+		}));
+		setSyncFailures((current) => {
+			const next = { ...current };
+			delete next[sessionId];
+			return next;
+		});
+		setError(null);
+		return activeSync;
+	};
+
+	const finishRepositorySync = (
+		sessionId: RepositorySessionId,
+		activeSync: ActiveRepositorySync,
+		failureMessage: string | null
+	): void => {
+		if (failureMessage) {
+			setRepositorySyncFailure(sessionId, failureMessage);
+		}
+		if (activeSyncsRef.current.get(sessionId) === activeSync) {
+			activeSyncsRef.current.delete(sessionId);
+		}
+		setPendingSyncActions((current) => {
+			const next = { ...current };
+			delete next[sessionId];
+			return next;
+		});
+	};
+
+	const refreshAfterRepositorySync = async (
+		session: RepositorySessionRecord,
+		activeSync: ActiveRepositorySync,
+		latestSnapshot?: RepositorySnapshot
+	): Promise<void> => {
+		if (!activeSync.repositoryMayHaveChanged) {
+			return;
+		}
+		if (presentedSessionIdRef.current === session.id) {
+			await loadSession(
+				session,
+				selectedFilePath,
+				selectedCommitOid,
+				latestSnapshot
+			);
+			return;
+		}
+		if (latestSnapshot) {
+			rememberSnapshot(session.id, latestSnapshot);
+		}
+	};
+
+	const performRepositorySync = async (
+		session: RepositorySessionRecord,
+		action: RepositorySyncAction,
+		steps: readonly RepositorySyncStep[]
+	): Promise<void> => {
+		const activeSync = beginRepositorySync(session.id, action);
+		let failureMessage: string | null = null;
+		let latestSnapshot: RepositorySnapshot | undefined;
+		try {
+			latestSnapshot = await runRepositorySyncSteps(
+				session.id,
+				activeSync,
+				steps
+			);
+		} catch (cause) {
+			if (!activeSync.cancelRequested) {
+				failureMessage = errorMessage(cause);
+			}
+		}
+
+		try {
+			await refreshAfterRepositorySync(session, activeSync, latestSnapshot);
+		} catch (cause) {
+			if (!activeSync.cancelRequested) {
+				failureMessage = errorMessage(cause);
+			}
+		}
+		finishRepositorySync(session.id, activeSync, failureMessage);
+	};
+
+	const syncRepository = async (): Promise<void> => {
+		if (
+			!(activeSession && snapshot && syncAction) ||
+			pendingAction ||
+			activeSyncsRef.current.has(activeSession.id)
+		) {
+			return;
+		}
+		const { disabledReason } = syncAction;
+		const blockedMessage =
+			snapshot.operationState === "normal"
+				? disabledReason
+				: "Finish the current Git operation before syncing.";
+		if (blockedMessage) {
+			setRepositorySyncFailure(activeSession.id, blockedMessage);
+			return;
+		}
+
+		const steps = getRepositorySyncSteps(syncAction, snapshot.head.branch);
+		if (steps.length === 0) {
+			return;
+		}
+		await performRepositorySync(activeSession, syncAction, steps);
 	};
 
 	const mergeBranch = async (name: string): Promise<boolean> => {
@@ -1204,6 +1494,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 			branch: summary?.branch ?? null,
 			changedFiles: summary?.changedFiles ?? null,
 			owner: summary?.owner ?? null,
+			pendingSyncAction: pendingSyncActions[session.id] ?? null,
 			session,
 		});
 	}
@@ -1213,9 +1504,25 @@ export const useGitWorkspace = (): GitWorkspace => {
 		activeSession,
 		amendCommit,
 		branches,
+		cancelSync,
+		canRetrySync: Boolean(
+			syncFailure &&
+				syncAction &&
+				!syncAction.disabledReason &&
+				!pendingSyncAction
+		),
 		changeHunk,
 		cherryPickCommit,
-		clearError: () => setError(null),
+		clearError: () => {
+			setError(null);
+			if (presentedSessionId) {
+				setSyncFailures((current) => {
+					const next = { ...current };
+					delete next[presentedSessionId];
+					return next;
+				});
+			}
+		},
 		cloneRepository,
 		closeWorkspace,
 		commit: createCommit,
@@ -1225,15 +1532,14 @@ export const useGitWorkspace = (): GitWorkspace => {
 		discardFiles,
 		discardUndo,
 		dismissDiscardUndo,
-		error,
-		fetchRepository,
+		error: visibleError,
 		forgetRecentRepository,
 		history,
 		isInitialLoading,
 		manager,
 		mergeBranch,
 		openRecentRepository,
-		pendingAction,
+		pendingAction: visiblePendingAction,
 		pickRepository,
 		reorderWorkspace,
 		resetToCommit,
@@ -1248,6 +1554,8 @@ export const useGitWorkspace = (): GitWorkspace => {
 		snapshot,
 		stashChanges,
 		switchBranch,
+		syncAction,
+		syncRepository,
 		tab,
 		toggleAllFiles,
 		undoDiscard,

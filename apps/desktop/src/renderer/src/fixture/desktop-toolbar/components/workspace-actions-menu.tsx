@@ -19,6 +19,7 @@ import { CaretRightIcon } from "@phosphor-icons/react/dist/csr/CaretRight";
 import { CheckIcon } from "@phosphor-icons/react/dist/csr/Check";
 import { GitBranchIcon } from "@phosphor-icons/react/dist/csr/GitBranch";
 import { PlusIcon } from "@phosphor-icons/react/dist/csr/Plus";
+import { XIcon } from "@phosphor-icons/react/dist/csr/X";
 import type {
 	ChangeEvent,
 	CSSProperties,
@@ -27,6 +28,11 @@ import type {
 	KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import { useId, useState } from "react";
+import {
+	isRepositorySyncActionKind,
+	type RepositorySyncAction,
+	repositorySyncProgressLabel,
+} from "@/feature/workspace/lib/repository-sync.js";
 import { formatCommitDate } from "@/feature/workspace/lib/workspace-model.js";
 import type { PendingWorkspaceAction } from "@/feature/workspace/types/git-workspace.js";
 import {
@@ -44,11 +50,13 @@ import { LiquidMenuAutoSize } from "@/fixture/liquid-menu/components/liquid-menu
 interface WorkspaceActionsMenuProps {
 	readonly branches: BranchCollection | null;
 	readonly currentBranch: string;
+	readonly onCancelSync: () => Promise<void>;
 	readonly onClose: () => void;
 	readonly onCreateBranch: (name: string) => Promise<boolean>;
-	readonly onFetch: () => Promise<void>;
 	readonly onSwitchBranch: (name: string) => Promise<void>;
+	readonly onSync: () => Promise<void>;
 	readonly pendingAction: PendingWorkspaceAction;
+	readonly syncAction: RepositorySyncAction;
 }
 
 interface BranchMenuItemProps {
@@ -64,6 +72,14 @@ interface CreateBranchFormProps {
 	readonly onClose: () => void;
 	readonly onCreateBranch: (name: string) => Promise<boolean>;
 	readonly pendingAction: PendingWorkspaceAction;
+}
+
+interface RepositorySyncMenuItemProps {
+	readonly onCancelSync: () => Promise<void>;
+	readonly onClose: () => void;
+	readonly onSync: () => Promise<void>;
+	readonly pendingAction: PendingWorkspaceAction;
+	readonly syncAction: RepositorySyncAction;
 }
 
 function BranchMenuItem({
@@ -225,14 +241,60 @@ const EXPANDED_BRANCH_LIST_STYLE: CSSProperties = {
 		WORKSPACE_BRANCH_MENU_ITEM_HEIGHT_PX,
 };
 
+function RepositorySyncMenuItem({
+	onCancelSync,
+	onClose,
+	onSync,
+	pendingAction,
+	syncAction,
+}: RepositorySyncMenuItemProps): ReactElement {
+	const isPending = pendingAction !== null;
+	const isSyncPending = isRepositorySyncActionKind(pendingAction);
+	const synchronizeRepository = async (): Promise<void> => {
+		onClose();
+		if (isSyncPending) {
+			await onCancelSync();
+		} else {
+			await onSync();
+		}
+	};
+
+	return (
+		<DropdownMenuItem
+			closeOnClick
+			disabled={
+				(isPending && !isSyncPending) ||
+				(!isSyncPending && syncAction.disabledReason !== null)
+			}
+			onClick={synchronizeRepository}
+			title={syncAction.disabledReason ?? syncAction.description}
+		>
+			{isSyncPending ? (
+				<XIcon aria-hidden className="text-editor-faint" weight="bold" />
+			) : (
+				<ArrowsClockwiseIcon
+					aria-hidden
+					className="text-editor-faint"
+					weight="regular"
+				/>
+			)}
+			{isSyncPending
+				? `Cancel ${repositorySyncProgressLabel(pendingAction).toLowerCase()}`
+				: syncAction.label}
+		</DropdownMenuItem>
+	);
+}
+
 export function WorkspaceActionsMenu({
 	branches,
 	currentBranch,
+	onCancelSync,
 	onClose,
 	onCreateBranch,
-	onFetch,
+	onSync,
 	onSwitchBranch,
 	pendingAction,
+	syncAction,
 }: WorkspaceActionsMenuProps): ReactElement {
 	const [isCreating, setIsCreating] = useState(false);
 	const [isBranchListExpanded, setIsBranchListExpanded] = useState(false);
@@ -249,10 +311,6 @@ export function WorkspaceActionsMenu({
 	const cancelBranchCreation = (): void => setIsCreating(false);
 	const toggleBranchList = (): void =>
 		setIsBranchListExpanded((isExpanded) => !isExpanded);
-	const fetchRepository = async (): Promise<void> => {
-		onClose();
-		await onFetch();
-	};
 
 	return (
 		<TooltipProvider delay={WORKSPACE_BRANCH_TOOLTIP_DELAY_MS}>
@@ -342,18 +400,13 @@ export function WorkspaceActionsMenu({
 									/>
 									Create new branch…
 								</DropdownMenuItem>
-								<DropdownMenuItem
-									closeOnClick
-									disabled={isPending}
-									onClick={fetchRepository}
-								>
-									<ArrowsClockwiseIcon
-										aria-hidden
-										className="text-editor-faint"
-										weight="regular"
-									/>
-									Fetch remote
-								</DropdownMenuItem>
+								<RepositorySyncMenuItem
+									onCancelSync={onCancelSync}
+									onClose={onClose}
+									onSync={onSync}
+									pendingAction={pendingAction}
+									syncAction={syncAction}
+								/>
 							</DropdownMenuGroup>
 						</>
 					)}
