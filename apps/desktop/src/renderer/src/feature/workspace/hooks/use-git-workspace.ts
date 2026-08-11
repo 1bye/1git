@@ -257,6 +257,18 @@ export const useGitWorkspace = (): GitWorkspace => {
 		diffRequestIdRef.current += 1;
 		setDiffs([]);
 	}, []);
+	const refreshChangesDiff = useCallback(
+		(sessionId: RepositorySessionId, files: readonly FileChange[]): void => {
+			if (files.length === 0) {
+				clearDiff();
+				return;
+			}
+			loadChangesDiff(sessionId, files).catch((cause: unknown) => {
+				setError(errorMessage(cause));
+			});
+		},
+		[clearDiff, loadChangesDiff]
+	);
 	const dismissDiscardUndo = useCallback((token: string): void => {
 		setDiscardUndo((currentUndo) =>
 			currentUndo?.token === token ? null : currentUndo
@@ -671,11 +683,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 			setSelectedFilePath(
 				nextFile?.path ?? nextSnapshot.files[0]?.path ?? null
 			);
-			if (nextSnapshot.files.length > 0) {
-				await loadChangesDiff(activeSession.id, nextSnapshot.files);
-			} else {
-				clearDiff();
-			}
+			refreshChangesDiff(activeSession.id, nextSnapshot.files);
 			return true;
 		} catch (cause) {
 			setError(errorMessage(cause));
@@ -688,9 +696,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 	const setFileStaged = async (
 		file: FileChange,
 		shouldStage: boolean
-	): Promise<void> => {
-		await setFilesStaged([file], shouldStage);
-	};
+	): Promise<boolean> => await setFilesStaged([file], shouldStage);
 
 	const changeHunk = async (input: ChangeHunkInput): Promise<boolean> => {
 		if (!activeSession || pendingAction) {

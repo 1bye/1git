@@ -386,6 +386,10 @@ button {
 	transform: scale3d(0.84, 0.68, 1);
 }
 
+[data-name="RepositoryFileRow"][data-drag-landing="true"] > button {
+	opacity: 0;
+}
+
 [data-name="RepositoryWorkspace"]:has(
 		[data-name="RepositoryFileRow"][data-active="true"]:is(
 				[data-dragging="true"],

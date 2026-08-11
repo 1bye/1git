@@ -53,7 +53,7 @@ export interface RepositoryNavigationRailProps {
 	readonly onSetFileStaged: (
 		file: FileChange,
 		shouldStage: boolean
-	) => Promise<void>;
+	) => Promise<boolean>;
 	readonly onSetFilesStaged: (
 		files: readonly FileChange[],
 		shouldStage: boolean

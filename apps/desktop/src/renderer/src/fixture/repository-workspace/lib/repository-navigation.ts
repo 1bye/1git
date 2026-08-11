@@ -19,6 +19,11 @@ export interface RepositoryFileStageGroups {
 	readonly unstaged: readonly FileChange[];
 }
 
+export interface RepositoryFileStageProjection {
+	readonly path: string;
+	readonly staged: boolean;
+}
+
 interface UpdateRepositoryFileSelectionOptions {
 	readonly activePath: string | null;
 	readonly anchorPath: string | null;
@@ -56,14 +61,25 @@ export const orderRepositoryFilesByPath = (
 	files.toSorted((left, right) => left.path.localeCompare(right.path));
 
 export const groupRepositoryFilesByStaging = (
-	files: readonly FileChange[]
+	files: readonly FileChange[],
+	projection?: RepositoryFileStageProjection | null
 ): RepositoryFileStageGroups => {
 	const staged: FileChange[] = [];
 	const unstaged: FileChange[] = [];
 	for (const file of orderRepositoryFilesByPath(files)) {
-		(isFileStaged(file) ? staged : unstaged).push(file);
+		const stagedFile =
+			projection?.path === file.path ? projection.staged : isFileStaged(file);
+		(stagedFile ? staged : unstaged).push(file);
 	}
 	return { staged, unstaged };
+};
+
+export const hasRepositoryFileStageProjectionSettled = (
+	files: readonly FileChange[],
+	projection: RepositoryFileStageProjection
+): boolean => {
+	const projectedFile = files.find((file) => file.path === projection.path);
+	return !projectedFile || isFileStaged(projectedFile) === projection.staged;
 };
 
 export const orderRepositoryFilesByStaging = (

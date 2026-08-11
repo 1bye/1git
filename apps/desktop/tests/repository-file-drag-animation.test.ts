@@ -15,16 +15,31 @@ describe("repository file drag animation", () => {
 			'[data-name="RepositoryFileRow"][data-dragging="true"] > button'
 		);
 		expect(styles).toContain("transform: scale3d(0.84, 0.68, 1);");
+		expect(fileList).toContain(
+			"const isDragFeedbackActive = isRepositoryFileDragFeedbackActive("
+		);
 		expect(fileList).not.toContain('isDragging && "opacity-45"');
 	});
 
-	test("retracts the active SDF until a cross-group drop settles", () => {
+	test("projects the destination and uses a stable dropping overlay", () => {
+		expect(fileList).toContain("<DragOverlay");
+		expect(fileList).toContain(
+			"setStageProjection({ path: file.path, staged: shouldStage });"
+		);
+		expect(fileList).toContain("<RepositoryFileDragOverlay file={file} />");
+		expect(fileList).toContain("await animateRepositoryFileDrop(context);");
+		expect(styles).toContain(
+			'[data-name="RepositoryFileRow"][data-drag-landing="true"] > button'
+		);
+	});
+
+	test("retracts the active SDF until the Git mutation settles", () => {
 		expect(styles).toContain(
 			'[data-name="RepositoryFileRow"][data-active="true"]:is('
 		);
 		expect(styles).toContain('[data-drag-settling="true"]');
 		expect(fileList).toContain(
-			'data-drag-settling={isDragSettling ? "true" : undefined}'
+			"data-drag-settling={getBooleanDataAttribute(isDragSettling)}"
 		);
 		expect(fileList).toContain("await onSetStaged(file, shouldStage);");
 	});

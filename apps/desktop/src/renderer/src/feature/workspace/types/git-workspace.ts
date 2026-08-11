@@ -103,7 +103,7 @@ export interface GitWorkspace {
 	readonly setFileStaged: (
 		file: FileChange,
 		shouldStage: boolean
-	) => Promise<void>;
+	) => Promise<boolean>;
 	readonly setFilesStaged: (
 		files: readonly FileChange[],
 		shouldStage: boolean

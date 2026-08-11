@@ -9,6 +9,7 @@ import {
 	getRepositoryFilePosition,
 	getRepositoryFileSelectionRunPaths,
 	groupRepositoryFilesByStaging,
+	hasRepositoryFileStageProjectionSettled,
 	orderRepositoryFilesByPath,
 	orderRepositoryFilesByStaging,
 	shouldElevateRepositoryFileSelection,
@@ -131,6 +132,55 @@ describe("repository file navigation", () => {
 		expect(getRepositoryDiffElementId("apps/desktop/app.tsx")).toBe(
 			"repository-diff:apps%2Fdesktop%2Fapp.tsx"
 		);
+	});
+
+	test("projects a file into its pending staging group", () => {
+		const projectedStaged = groupRepositoryFilesByStaging(FILES, {
+			path: FILES[0].path,
+			staged: true,
+		});
+		const projectedUnstaged = groupRepositoryFilesByStaging(FILES, {
+			path: FILES[1].path,
+			staged: false,
+		});
+
+		expect(projectedStaged.staged.map((file) => file.path)).toEqual([
+			"apps/desktop/app.tsx",
+			"packages/git/repository.ts",
+		]);
+		expect(projectedStaged.unstaged.map((file) => file.path)).toEqual([
+			"README.md",
+		]);
+		expect(projectedUnstaged.staged).toEqual([]);
+		expect(projectedUnstaged.unstaged.map((file) => file.path)).toEqual([
+			"apps/desktop/app.tsx",
+			"packages/git/repository.ts",
+			"README.md",
+		]);
+		expect(
+			hasRepositoryFileStageProjectionSettled(FILES, {
+				path: FILES[0].path,
+				staged: true,
+			})
+		).toBe(false);
+		expect(
+			hasRepositoryFileStageProjectionSettled(projectedStaged.staged, {
+				path: FILES[0].path,
+				staged: true,
+			})
+		).toBe(false);
+		expect(
+			hasRepositoryFileStageProjectionSettled(
+				[
+					{
+						...FILES[0],
+						indexStatus: "modified",
+						worktreeStatus: "unmodified",
+					},
+				],
+				{ path: FILES[0].path, staged: true }
+			)
+		).toBe(true);
 	});
 
 	test("adds, removes, and ranges file selections in visual order", () => {
