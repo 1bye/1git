@@ -21,15 +21,23 @@ describe("repository file drag animation", () => {
 		expect(fileList).not.toContain('isDragging && "opacity-45"');
 	});
 
-	test("projects the destination and uses a stable dropping overlay", () => {
+	test("projects and animates the real destination row", () => {
 		expect(fileList).toContain("<DragOverlay");
+		expect(fileList).toContain("dropAnimation={null}");
 		expect(fileList).toContain(
 			"setStageProjection({ path: file.path, staged: shouldStage });"
 		);
 		expect(fileList).toContain("<RepositoryFileDragOverlay file={file} />");
-		expect(fileList).toContain("await animateRepositoryFileDrop(context);");
+		expect(fileList).not.toContain("animateRepositoryFileDrop");
 		expect(styles).toContain(
 			'[data-name="RepositoryFileRow"][data-drag-landing="true"] > button'
+		);
+		expect(styles).toContain("@keyframes repository-file-row-land");
+		expect(styles).toContain(
+			'[data-name="RepositoryFileRow"][data-drag-landing="true"] > button {\n\t\tanimation: none;'
+		);
+		expect(styles).not.toContain(
+			'[data-name="RepositoryFileRow"][data-drag-landing="true"] > button {\n\topacity: 0;'
 		);
 	});
 

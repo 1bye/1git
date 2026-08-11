@@ -1,11 +1,7 @@
 import type { FileChange } from "@1git/git";
 import { DropdownMenuItem } from "@1git/ui/components/dropdown-menu";
 import { cn } from "@1git/ui/lib/utils";
-import {
-	type DropAnimationFunction,
-	PointerActivationConstraints,
-	PointerSensor,
-} from "@dnd-kit/dom";
+import { PointerActivationConstraints, PointerSensor } from "@dnd-kit/dom";
 import {
 	DragDropProvider,
 	type DragEndEvent,
@@ -68,8 +64,6 @@ const REPOSITORY_FILE_CONTEXT_MENU_WIDTH = 260;
 const REPOSITORY_FILE_CONTEXT_MENU_WIDTH_CLASS_NAME = "w-[260px] min-w-[260px]";
 const REPOSITORY_FILE_DRAG_TYPE = "repository-file";
 const REPOSITORY_FILE_DRAG_ACTIVATION_DISTANCE = 5;
-const REPOSITORY_FILE_DROP_ANIMATION_DURATION_MS = 180;
-const REPOSITORY_FILE_DROP_ANIMATION_EASING = "cubic-bezier(0.22, 1, 0.36, 1)";
 const REPOSITORY_FILE_DRAG_OVERLAY_STYLE = {
 	pointerEvents: "none",
 } satisfies CSSProperties;
@@ -102,59 +96,12 @@ const getRepositoryFileStageGroupFromId = (
 
 const isRepositoryFileDragFeedbackActive = (
 	isDragging: boolean,
-	isDropping: boolean
-): boolean => isDragging || isDropping;
+	isDropping: boolean,
+	isLanding: boolean
+): boolean => (isDragging || isDropping) && !isLanding;
 
 const getBooleanDataAttribute = (value: boolean): "true" | undefined =>
 	value ? "true" : undefined;
-
-const animateRepositoryFileDrop: DropAnimationFunction = async ({
-	feedbackElement,
-	source,
-	translate,
-}) => {
-	const target = document.getElementById(
-		getRepositoryFileRowId(String(source.id))
-	);
-	if (!target) {
-		return;
-	}
-	const currentBounds = feedbackElement.getBoundingClientRect();
-	const targetBounds = target.getBoundingClientRect();
-	if (
-		currentBounds.width === 0 ||
-		currentBounds.height === 0 ||
-		targetBounds.width === 0 ||
-		targetBounds.height === 0
-	) {
-		return;
-	}
-	const finalTranslate = {
-		x: translate.x + targetBounds.left - currentBounds.left,
-		y: translate.y + targetBounds.top - currentBounds.top,
-	};
-	const reducedMotion = window.matchMedia(
-		"(prefers-reduced-motion: reduce)"
-	).matches;
-	const animation = feedbackElement.animate(
-		{
-			translate: [
-				`${translate.x}px ${translate.y}px`,
-				`${finalTranslate.x}px ${finalTranslate.y}px`,
-			],
-		},
-		{
-			duration: reducedMotion ? 0 : REPOSITORY_FILE_DROP_ANIMATION_DURATION_MS,
-			easing: REPOSITORY_FILE_DROP_ANIMATION_EASING,
-			fill: "forwards",
-		}
-	);
-	try {
-		await animation.finished;
-	} catch {
-		// dnd-kit owns cleanup when a new drag or unmount cancels this animation.
-	}
-};
 
 interface RepositoryFileDragOverlayProps {
 	readonly file: FileChange;
@@ -554,7 +501,8 @@ function RepositoryFileRow({
 	const [isPresent, setIsPresent] = useState(false);
 	const isDragFeedbackActive = isRepositoryFileDragFeedbackActive(
 		isDragging,
-		isDropping
+		isDropping,
+		isDragLanding
 	);
 	const contextMenuPosition = useLiquidContextMenuPosition({
 		anchorElement: positionAnchorElement ?? anchorElement,
@@ -810,18 +758,6 @@ export function RepositoryFileList({
 	);
 	const orderedFiles = [...groups.staged, ...groups.unstaged];
 	const orderedFilePaths = orderedFiles.map((file) => file.path);
-	const finishFileDropAnimation = useCallback<DropAnimationFunction>(
-		async (context) => {
-			try {
-				await animateRepositoryFileDrop(context);
-			} finally {
-				setLandingFilePath((currentPath) =>
-					currentPath === String(context.source.id) ? null : currentPath
-				);
-			}
-		},
-		[]
-	);
 	useEffect(() => {
 		if (selectedFiles.length < 2) {
 			setSelectionContextMenuPresent(false);
@@ -889,6 +825,9 @@ export function RepositoryFileList({
 				);
 			}
 			setSettlingFilePath((currentPath) =>
+				currentPath === file.path ? null : currentPath
+			);
+			setLandingFilePath((currentPath) =>
 				currentPath === file.path ? null : currentPath
 			);
 		}
@@ -960,7 +899,7 @@ export function RepositoryFileList({
 				</RepositoryFileStageGroup>
 			</div>
 			<DragOverlay
-				dropAnimation={finishFileDropAnimation}
+				dropAnimation={null}
 				style={REPOSITORY_FILE_DRAG_OVERLAY_STYLE}
 			>
 				{(source) => {
