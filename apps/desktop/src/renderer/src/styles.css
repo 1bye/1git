@@ -191,7 +191,7 @@ button {
 	--workspace-tabs-trailing-mask-alpha: 0;
 }
 
-.repository-file-edge-mask {
+[data-name="RepositoryFileScrollArea"] [data-slot="scroll-area-viewport"] {
 	--repository-files-leading-mask-alpha: 1;
 	--repository-files-trailing-mask-alpha: 1;
 	-webkit-mask-image: linear-gradient(
@@ -213,11 +213,13 @@ button {
 		--repository-files-trailing-mask-alpha 120ms ease-out;
 }
 
-.repository-file-edge-mask[data-overflow-leading="true"] {
+[data-name="RepositoryFileScrollArea"][data-overflow-y-start]
+	[data-slot="scroll-area-viewport"] {
 	--repository-files-leading-mask-alpha: 0;
 }
 
-.repository-file-edge-mask[data-overflow-trailing="true"] {
+[data-name="RepositoryFileScrollArea"][data-overflow-y-end]
+	[data-slot="scroll-area-viewport"] {
 	--repository-files-trailing-mask-alpha: 0;
 }
 

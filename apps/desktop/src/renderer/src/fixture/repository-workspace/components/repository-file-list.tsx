@@ -325,7 +325,7 @@ function RepositoryFileStageGroup({
 		>
 			<header
 				className={cn(
-					"sticky top-0 z-10 flex h-7 items-center px-1.5 font-medium text-[10px] text-editor-muted transition-colors",
+					"flex h-7 items-center px-1.5 font-medium text-[10px] text-editor-muted transition-colors",
 					showDropWell && "text-brand"
 				)}
 			>

@@ -1,13 +1,18 @@
 import type { FileChange } from "@1git/git";
 import { Input } from "@1git/ui/components/input";
+import {
+	ScrollArea,
+	ScrollAreaContent,
+	ScrollAreaViewport,
+	ScrollBar,
+} from "@1git/ui/components/scroll-area";
 import { FunnelSimpleIcon } from "@phosphor-icons/react/dist/csr/FunnelSimple";
 import type { ChangeEvent, ReactElement, ReactNode } from "react";
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useCommandLensTarget } from "@/feature/command-lens/hooks/use-command-lens-target.js";
 import type { PendingWorkspaceAction } from "@/feature/workspace/types/git-workspace.js";
 import { RepositoryFileList } from "@/fixture/repository-workspace/components/repository-file-list.js";
 import type { RepositoryFileNavigation } from "@/fixture/repository-workspace/hooks/use-repository-file-navigation.js";
-import { getRepositoryFileScrollEdges } from "@/fixture/repository-workspace/lib/repository-navigation.js";
 
 const REPOSITORY_FILE_NAVIGATOR_ID = "repository-file-navigator";
 
@@ -20,48 +25,21 @@ function RepositoryFileViewport({
 	children,
 	className,
 }: RepositoryFileViewportProps): ReactElement {
-	const viewportRef = useRef<HTMLDivElement>(null);
-
-	useLayoutEffect(() => {
-		const viewport = viewportRef.current;
-		if (!viewport) {
-			return;
-		}
-		const updateEdgeMasks = (): void => {
-			const edges = getRepositoryFileScrollEdges(
-				viewport.scrollTop,
-				viewport.scrollHeight,
-				viewport.clientHeight
-			);
-			viewport.dataset.overflowLeading = String(edges.leading);
-			viewport.dataset.overflowTrailing = String(edges.trailing);
-		};
-		const mutationObserver = new MutationObserver(updateEdgeMasks);
-		const resizeObserver = new ResizeObserver(updateEdgeMasks);
-		mutationObserver.observe(viewport, { childList: true, subtree: true });
-		resizeObserver.observe(viewport);
-		const content = viewport.firstElementChild;
-		if (content) {
-			resizeObserver.observe(content);
-		}
-		viewport.addEventListener("scroll", updateEdgeMasks, { passive: true });
-		updateEdgeMasks();
-		return () => {
-			mutationObserver.disconnect();
-			resizeObserver.disconnect();
-			viewport.removeEventListener("scroll", updateEdgeMasks);
-		};
-	}, []);
-
 	return (
-		<div
-			className={`repository-file-edge-mask ${className}`}
+		<ScrollArea
+			className={className}
 			data-desktop-interactive
-			data-repository-file-viewport
-			ref={viewportRef}
+			data-name="RepositoryFileScrollArea"
+			overflowEdgeThreshold={{ yEnd: 1, yStart: 1 }}
 		>
-			{children}
-		</div>
+			<ScrollAreaViewport
+				className="max-h-[inherit] min-h-0"
+				data-repository-file-viewport
+			>
+				<ScrollAreaContent>{children}</ScrollAreaContent>
+			</ScrollAreaViewport>
+			<ScrollBar />
+		</ScrollArea>
 	);
 }
 
@@ -155,7 +133,7 @@ export function RepositoryFileNavigator({
 							aria-live="polite"
 							className="sr-only"
 						>{`${selectedFilePath ?? "No file"} previewed`}</p>
-						<RepositoryFileViewport className="max-h-[min(56vh,28rem)] overflow-y-auto overscroll-contain">
+						<RepositoryFileViewport className="max-h-[min(56vh,28rem)]">
 							<RepositoryFileList
 								files={navigation.files}
 								isDiscardDisabled={pendingAction !== null}
@@ -245,7 +223,7 @@ export function RepositoryFileRail({
 					/>
 				</div>
 			</div>
-			<RepositoryFileViewport className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+			<RepositoryFileViewport className="min-h-0 flex-1">
 				<RepositoryFileList
 					allFiles={allFiles}
 					files={navigation.files}
