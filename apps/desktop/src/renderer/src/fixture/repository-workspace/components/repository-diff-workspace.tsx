@@ -1,6 +1,5 @@
 import type {
 	ChangeHunkInput,
-	CommitPage,
 	FileChange,
 	FileDiff,
 	RepositorySnapshot,
@@ -22,15 +21,16 @@ import type { RepositorySessionRecord } from "../../../../../shared/repository-s
 export interface RepositoryDiffWorkspaceProps {
 	readonly activeSession: RepositorySessionRecord;
 	readonly diffs: readonly FileDiff[];
-	readonly history: CommitPage | null;
 	readonly isLoading: boolean;
 	readonly onCancelSync: () => Promise<void>;
 	readonly onChangeHunk: (input: ChangeHunkInput) => Promise<boolean>;
 	readonly onSelectFile: (file: FileChange) => Promise<void>;
+	readonly onSelectRevisionFile: (path: string) => Promise<void>;
 	readonly onSync: () => Promise<void>;
 	readonly pendingAction: PendingWorkspaceAction;
 	readonly selectedCommitOid: string | null;
 	readonly selectedFilePath: string | null;
+	readonly selectedStashOid: string | null;
 	readonly snapshot: RepositorySnapshot | null;
 	readonly syncAction: RepositorySyncAction | null;
 	readonly tab: RepositoryTab;
@@ -80,15 +80,16 @@ const DiffEmptyState = (): ReactElement => (
 export function RepositoryDiffWorkspace({
 	activeSession,
 	diffs,
-	history,
 	isLoading,
 	onCancelSync,
 	onChangeHunk,
 	onSelectFile,
+	onSelectRevisionFile,
 	onSync,
 	pendingAction,
 	selectedCommitOid,
 	selectedFilePath,
+	selectedStashOid,
 	snapshot,
 	syncAction,
 	tab,
@@ -99,6 +100,12 @@ export function RepositoryDiffWorkspace({
 			if (path === selectedFilePath) {
 				return;
 			}
+			if (tab !== "changes") {
+				onSelectRevisionFile(path).catch(() => {
+					// The workspace hook exposes the operation error in the app notice.
+				});
+				return;
+			}
 			const file = files.find((candidate) => candidate.path === path);
 			if (file) {
 				onSelectFile(file).catch(() => {
@@ -106,7 +113,7 @@ export function RepositoryDiffWorkspace({
 				});
 			}
 		},
-		[files, onSelectFile, selectedFilePath]
+		[files, onSelectFile, onSelectRevisionFile, selectedFilePath, tab]
 	);
 
 	if (!snapshot || isLoading) {
@@ -133,8 +140,6 @@ export function RepositoryDiffWorkspace({
 		);
 	}
 
-	const historyCommit =
-		history?.commits.find((commit) => commit.oid === selectedCommitOid) ?? null;
 	let mainContent: ReactElement;
 	if (tab === "changes" && files.length === 0 && syncAction) {
 		mainContent = (
@@ -149,18 +154,18 @@ export function RepositoryDiffWorkspace({
 	} else if (diffs.length > 0) {
 		mainContent = (
 			<DiffView
-				commit={historyCommit}
 				diffs={diffs}
-				files={files}
+				files={tab === "changes" ? files : []}
 				isHunkActionPending={pendingAction === "hunk"}
 				onActiveFileChange={selectVisibleFile}
 				onChangeHunk={onChangeHunk}
+				revisionOid={selectedCommitOid ?? selectedStashOid ?? undefined}
 				selectedFilePath={selectedFilePath}
 				sessionId={activeSession.id}
 				tab={tab}
 			/>
 		);
-	} else if (selectedFilePath || selectedCommitOid) {
+	} else if (selectedFilePath || selectedCommitOid || selectedStashOid) {
 		mainContent = <DiffLoadingState />;
 	} else {
 		mainContent = <DiffEmptyState />;

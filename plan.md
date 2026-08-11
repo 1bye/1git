@@ -170,29 +170,35 @@ groups and current Liquid menus rather than adding a recovery screen.
 
 ## Phase 3 — Add a small stash shelf
 
+Status: completed on 2026-08-11.
+
 ### User experience
 
-Place stash actions in the existing repository/branch Liquid menu.
+Keep fast stash actions in the existing repository/branch Liquid menu and expose
+saved work through the repository view selector.
 
 - `Stash changes`
-- A compact list of existing stashes
+- `Stashes` opens a compact saved-work list in the right rail
+- Selecting a stash reveals its changed files in a contextual rail beside the diff
 - `Apply`, `Pop`, and `Drop`
 - A branch-switch guard that offers `Stash and switch` when local changes prevent
   switching
 
-Do not create a separate stash page.
+Do not create a standalone full-page stash manager.
 
 ### Work
 
 - Reuse the existing stash IPC operations.
 - Keep stash identity and timestamps in the workspace domain, not component-local
   state.
+- Reuse the existing commit-ish diff request for stash previews.
 - Confirm `Drop` and explain when `Pop` keeps a stash after conflicts.
 - Refresh changes and branch state atomically after applying or popping.
 
 ### Exit criteria
 
 - Users can temporarily clear, restore, and remove work.
+- Users can inspect a stash and each file inside it before restoring anything.
 - A failed apply/pop preserves both working-tree changes and the stash.
 - Stash actions remain available without adding permanent rail controls.
 

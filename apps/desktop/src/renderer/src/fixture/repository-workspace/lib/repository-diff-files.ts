@@ -37,7 +37,13 @@ const hashRepositoryDiffPatch = (patch: string): string => {
 	return hash.toString(36);
 };
 
-const diffTargetLabel = (diff: FileDiff): string => {
+const diffTargetLabel = (diff: FileDiff, tab: RepositoryTab): string => {
+	if (tab === "stashes") {
+		return "Stash";
+	}
+	if (tab === "history") {
+		return "Commit";
+	}
 	if (diff.target.kind === "staged") {
 		return "Staged";
 	}
@@ -67,9 +73,9 @@ const parseDiffFileEntries = (
 		const patchKey = hashRepositoryDiffPatch(diff.patch);
 		const parsedFiles = parsePatchFiles(
 			diff.patch,
-			tab === "history"
-				? `${commitOid}:${patchKey}`
-				: `${diff.target.kind}-${diffIndex}:${patchKey}`,
+			tab === "changes"
+				? `${diff.target.kind}-${diffIndex}:${patchKey}`
+				: `${commitOid}:${patchKey}`,
 			true
 		).flatMap((patch) => patch.files);
 		for (const file of parsedFiles) {
@@ -79,7 +85,7 @@ const parseDiffFileEntries = (
 				path: file.name,
 				stat: statForFile(diff.stats, file.name),
 				target: diff.target,
-				targetLabel: diffTargetLabel(diff),
+				targetLabel: diffTargetLabel(diff, tab),
 			});
 		}
 	}

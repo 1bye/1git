@@ -107,6 +107,38 @@ describe("repository diff files", () => {
 		expect(first[0]?.key).not.toBe(second[0]?.key);
 	});
 
+	test("keeps stash revision file keys scoped to the selected stash", () => {
+		const diff = {
+			...createDiff(fullFilePatch("THREE")),
+			target: {
+				base: "stash-one^1",
+				head: "stash-one",
+				kind: "range",
+			},
+		} as const;
+		const first = createRepositoryDiffFileEntries(
+			[diff],
+			[],
+			"stash-one",
+			"stashes"
+		);
+		const second = createRepositoryDiffFileEntries(
+			[diff],
+			[],
+			"stash-two",
+			"stashes"
+		);
+
+		expect(first).toHaveLength(1);
+		expect(first[0]?.key).not.toBe(second[0]?.key);
+		expect(first[0]?.targetLabel).toBe("Stash");
+		expect(first[0]?.target).toEqual({
+			base: "stash-one^1",
+			head: "stash-one",
+			kind: "range",
+		});
+	});
+
 	test("upgrades a full-context patch for native hunk expansion", () => {
 		const file = createExpandableRepositoryDiffFile(
 			createDiff(fullFilePatch("THREE")),

@@ -31,6 +31,7 @@ export function App(): ReactElement {
 			onOpenRecent={workspace.openRecentRepository}
 			onPickRepository={workspace.pickRepository}
 			onReorderWorkspace={workspace.reorderWorkspace}
+			onStashAndSwitchBranch={workspace.stashAndSwitchBranch}
 			onSwitchBranch={workspace.switchBranch}
 			onSync={workspace.syncRepository}
 			pendingAction={workspace.pendingAction}
@@ -59,18 +60,23 @@ export function App(): ReactElement {
 								workspace.isInitialLoading || workspace.pendingAction === "open"
 							}
 							onAmendCommit={workspace.amendCommit}
+							onApplyStash={workspace.applyStash}
 							onCancelSync={workspace.cancelSync}
 							onChangeHunk={workspace.changeHunk}
 							onCherryPickCommit={workspace.cherryPickCommit}
 							onCommit={workspace.commit}
 							onDiscardFiles={workspace.discardFiles}
+							onDropStash={workspace.dropStash}
 							onMergeBranch={workspace.mergeBranch}
 							onOpenInEditor={workspace.openRepositoryInEditor}
+							onPopStash={workspace.popStash}
 							onRecover={workspace.recoverRepository}
 							onResetCommit={workspace.resetToCommit}
 							onRevertCommit={workspace.revertCommit}
 							onSelectCommit={workspace.selectCommit}
 							onSelectFile={workspace.selectFile}
+							onSelectRevisionFile={workspace.selectRevisionFile}
+							onSelectStash={workspace.selectStash}
 							onSetFileStaged={workspace.setFileStaged}
 							onSetFilesStaged={workspace.setFilesStaged}
 							onSetTab={workspace.setTab}
@@ -81,7 +87,9 @@ export function App(): ReactElement {
 							ref={setWorkspaceRoot}
 							selectedCommitOid={workspace.selectedCommitOid}
 							selectedFilePath={workspace.selectedFilePath}
+							selectedStashOid={workspace.selectedStashOid}
 							snapshot={workspace.snapshot}
+							stashes={workspace.stashes}
 							syncAction={workspace.syncAction}
 							tab={workspace.tab}
 							titlebar={desktopToolbar}

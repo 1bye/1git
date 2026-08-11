@@ -349,6 +349,34 @@ describe("GitRepository stash", () => {
 		expect(stashes).toEqual([]);
 	});
 
+	test("keeps a stash when pop produces conflicts", async () => {
+		const fixture = await fixtures.create();
+		await fixture.write("README.md", "stashed\n");
+		unwrapResult(
+			await fixture.repository.stash({ message: "keep on conflict" })
+		);
+		await fixture.write("README.md", "current\n");
+		await fixture.commitAll("competing change");
+
+		const result = await fixture.repository.popStash({
+			reference: "stash@{0}",
+		});
+		const stashes = unwrapResult(await fixture.repository.getStashes());
+		const snapshot = unwrapResult(await fixture.repository.getSnapshot());
+
+		expect(result).toMatchObject({
+			error: { code: "conflict", operation: "pop-stash" },
+			ok: false,
+		});
+		expect(stashes).toHaveLength(1);
+		expect(snapshot.files).toContainEqual(
+			expect.objectContaining({
+				path: "README.md",
+				recordType: "unmerged",
+			})
+		);
+	});
+
 	test("drops a stash", async () => {
 		const fixture = await fixtures.create();
 		await fixture.write("README.md", "stashed\n");

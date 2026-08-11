@@ -1,4 +1,3 @@
-import type { FileChange } from "@1git/git";
 import type { CSSProperties, ReactElement } from "react";
 import { useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createLiquidGeometryTracker } from "@/fixture/liquid-surface/lib/track-liquid-geometry.js";
@@ -11,7 +10,6 @@ import {
 import { getRepositoryFileRowId } from "@/fixture/repository-workspace/lib/repository-navigation.js";
 
 interface RepositoryFileLiquidSurfaceProps {
-	readonly files?: readonly FileChange[];
 	readonly selectedFilePath: string | null;
 }
 
@@ -62,13 +60,11 @@ const hasSameMeasurement = (
 };
 
 export function RepositoryFileLiquidSurface({
-	files,
 	selectedFilePath,
 }: RepositoryFileLiquidSurfaceProps): ReactElement {
 	const clipPathId = useId();
 	const hostRef = useRef<HTMLDivElement>(null);
 	const previousSelectedFilePathRef = useRef(selectedFilePath);
-	const selectedFile = files?.find((file) => file.path === selectedFilePath);
 	const [isMoving, setIsMoving] = useState(false);
 	const [measurement, setMeasurement] =
 		useState<RepositoryFileLiquidSurfaceMeasurement | null>(null);
@@ -95,14 +91,11 @@ export function RepositoryFileLiquidSurface({
 	useLayoutEffect(() => {
 		const host = hostRef.current;
 		const workspace = host?.parentElement;
-		const rail = workspace?.querySelector<HTMLElement>(
-			'[data-name="RepositoryNavigationRail"]'
-		);
 		const canvas = workspace?.querySelector<HTMLElement>(
 			'[data-name="RepositoryDiffWorkspace"]'
 		);
-		const fileRail = rail?.querySelector<HTMLElement>(
-			'[data-name="RepositoryFileRail"]'
+		const fileRail = workspace?.querySelector<HTMLElement>(
+			"[data-repository-file-liquid-rail]"
 		);
 		const viewport = fileRail?.querySelector<HTMLElement>(
 			"[data-repository-file-viewport]"
@@ -111,18 +104,16 @@ export function RepositoryFileLiquidSurface({
 			"[data-repository-file-sticky-layer]"
 		);
 		const fileList = viewport?.querySelector<HTMLElement>(
-			'[data-name="RepositoryFileListGroups"]'
+			"[data-repository-file-list]"
 		);
 		if (
 			!(
 				workspace &&
-				rail &&
 				canvas &&
 				fileRail &&
 				viewport &&
-				stickyLayer &&
 				fileList &&
-				selectedFile
+				selectedFilePath
 			)
 		) {
 			setMeasurement(null);
@@ -130,7 +121,7 @@ export function RepositoryFileLiquidSurface({
 		}
 
 		const rowSelector = `#${CSS.escape(
-			getRepositoryFileRowId(selectedFile.path)
+			getRepositoryFileRowId(selectedFilePath)
 		)}`;
 		const measure = (): void => {
 			const row = fileList.querySelector<HTMLElement>(rowSelector);
@@ -147,14 +138,15 @@ export function RepositoryFileLiquidSurface({
 				? {
 						...baseMeasurement,
 						hasLeadingOverflow: viewport.scrollTop > 1,
-						headerMaskBottom:
-							Math.round(
-								Math.max(
-									0,
-									stickyLayer.getBoundingClientRect().bottom -
-										(workspaceRect.top + baseMeasurement.surfaceTop)
-								) * 10
-							) / 10,
+						headerMaskBottom: stickyLayer
+							? Math.round(
+									Math.max(
+										0,
+										stickyLayer.getBoundingClientRect().bottom -
+											(workspaceRect.top + baseMeasurement.surfaceTop)
+									) * 10
+								) / 10
+							: 0,
 					}
 				: null;
 			setMeasurement((currentMeasurement) =>
@@ -166,17 +158,16 @@ export function RepositoryFileLiquidSurface({
 		const row = fileList.querySelector<HTMLElement>(rowSelector);
 		const tracker = createLiquidGeometryTracker(measure);
 		tracker.setElements([
-			rail,
 			canvas,
 			fileRail,
 			viewport,
-			stickyLayer,
 			fileList,
+			...(stickyLayer ? [stickyLayer] : []),
 			...(row ? [row] : []),
 		]);
 		tracker.measureNow();
 		return tracker.disconnect;
-	}, [selectedFile]);
+	}, [selectedFilePath]);
 
 	const path = useMemo(
 		() =>

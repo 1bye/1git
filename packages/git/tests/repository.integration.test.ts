@@ -486,6 +486,11 @@ describe("GitRepository local workflow", () => {
 
 	test("returns commit and range diffs", async () => {
 		const fixture = await fixtures.create();
+		const rootDiff = unwrapResult(
+			await fixture.repository.getDiff({
+				target: { kind: "commit", revision: "HEAD" },
+			})
+		);
 		await fixture.write("feature.txt", "feature\n");
 		await fixture.commitAll("feature");
 
@@ -500,8 +505,29 @@ describe("GitRepository local workflow", () => {
 			})
 		);
 
+		expect(rootDiff.patch).toContain("README.md");
 		expect(commitDiff.patch).toContain("feature.txt");
 		expect(rangeDiff.patch).toContain("feature.txt");
+	});
+
+	test("returns a normal first-parent diff for merge commits", async () => {
+		const fixture = await fixtures.create();
+		await fixture.git(["checkout", "-b", "feature"]);
+		await fixture.write("feature.txt", "feature\n");
+		await fixture.commitAll("feature");
+		await fixture.git(["checkout", "main"]);
+		await fixture.write("main.txt", "main\n");
+		await fixture.commitAll("main");
+		await fixture.git(["merge", "--no-ff", "feature", "-m", "merge"]);
+
+		const diff = unwrapResult(
+			await fixture.repository.getDiff({
+				target: { kind: "commit", revision: "HEAD" },
+			})
+		);
+
+		expect(diff.patch).toContain("diff --git a/feature.txt b/feature.txt");
+		expect(diff.patch).not.toContain("diff --cc");
 	});
 
 	test("loads UTF-8 file content at a revision", async () => {

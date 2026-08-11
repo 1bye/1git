@@ -1032,7 +1032,11 @@ export function RepositoryFileList({
 			onDragStart={startFileDrag}
 			sensors={REPOSITORY_FILE_DRAG_SENSORS}
 		>
-			<div data-name="RepositoryFileListGroups" ref={setListElement}>
+			<div
+				data-name="RepositoryFileListGroups"
+				data-repository-file-list
+				ref={setListElement}
+			>
 				{groups.conflicted.length > 0 ? (
 					<RepositoryFileStageGroup
 						disabled={isStagingDisabled}

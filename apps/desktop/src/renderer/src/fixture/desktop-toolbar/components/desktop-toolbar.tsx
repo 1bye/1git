@@ -30,6 +30,7 @@ import {
 	useState,
 } from "react";
 import { getCommandLensNumberKey } from "@/feature/command-lens/lib/command-lens-shortcut.js";
+import type { BranchSwitchResult } from "@/feature/workspace/lib/repository-stash.js";
 import type { RepositorySyncAction } from "@/feature/workspace/lib/repository-sync.js";
 import type {
 	OpenRepositoryOptions,
@@ -75,7 +76,8 @@ interface DesktopToolbarProps {
 		activeSessionId: RepositorySessionId,
 		overSessionId: RepositorySessionId
 	) => void;
-	readonly onSwitchBranch: (name: string) => Promise<void>;
+	readonly onStashAndSwitchBranch: (name: string) => Promise<boolean>;
+	readonly onSwitchBranch: (name: string) => Promise<BranchSwitchResult>;
 	readonly onSync: () => Promise<void>;
 	readonly pendingAction: PendingWorkspaceAction;
 	readonly recentRepositories: readonly RecentRepositoryRecord[];
@@ -162,6 +164,7 @@ export function DesktopToolbar({
 	onOpenRecent,
 	onPickRepository,
 	onReorderWorkspace,
+	onStashAndSwitchBranch,
 	onSwitchBranch,
 	onSync,
 	pendingAction,
@@ -508,6 +511,7 @@ export function DesktopToolbar({
 													onCancelSync={onCancelSync}
 													onClose={closeWorkspaceMenu}
 													onCreateBranch={onCreateBranch}
+													onStashAndSwitchBranch={onStashAndSwitchBranch}
 													onSwitchBranch={onSwitchBranch}
 													onSync={onSync}
 													pendingAction={pendingAction}

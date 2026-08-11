@@ -1,9 +1,4 @@
-import type {
-	ChangeHunkInput,
-	CommitInfo,
-	FileChange,
-	FileDiff,
-} from "@1git/git";
+import type { ChangeHunkInput, FileChange, FileDiff } from "@1git/git";
 import { GitDiffIcon } from "@phosphor-icons/react/dist/csr/GitDiff";
 import type { ReactElement } from "react";
 import { useCallback, useMemo, useRef, useState } from "react";
@@ -21,12 +16,12 @@ import { createRepositoryDiffFileEntries } from "@/fixture/repository-workspace/
 import type { RepositorySessionId } from "../../../../../shared/repository-session.js";
 
 interface DiffViewProps {
-	readonly commit: CommitInfo | null;
 	readonly diffs: readonly FileDiff[];
 	readonly files?: readonly FileChange[];
 	readonly isHunkActionPending?: boolean;
 	readonly onActiveFileChange?: (path: string) => void;
 	readonly onChangeHunk?: (input: ChangeHunkInput) => Promise<boolean>;
+	readonly revisionOid?: string;
 	readonly selectedFilePath: string | null;
 	readonly sessionId: RepositorySessionId;
 	readonly tab: RepositoryTab;
@@ -66,12 +61,12 @@ const updateVisibleEntryKeys = (
 };
 
 export function DiffView({
-	commit,
 	diffs,
 	files = [],
 	isHunkActionPending = false,
 	onActiveFileChange = ignoreActiveFileChange,
 	onChangeHunk,
+	revisionOid,
 	selectedFilePath,
 	sessionId,
 	tab,
@@ -122,8 +117,8 @@ export function DiffView({
 		[]
 	);
 	const entries = useMemo(
-		() => createRepositoryDiffFileEntries(diffs, files, commit?.oid, tab),
-		[commit?.oid, diffs, files, tab]
+		() => createRepositoryDiffFileEntries(diffs, files, revisionOid, tab),
+		[diffs, files, revisionOid, tab]
 	);
 	const contentKey = useMemo(
 		() => entries.map((entry) => entry.key).join("\n"),

@@ -1,4 +1,8 @@
-import type { BranchCollection, RepositorySnapshot } from "@1git/git";
+import type {
+	BranchCollection,
+	RepositorySnapshot,
+	StashInfo,
+} from "@1git/git";
 import {
 	DropdownMenuItem,
 	DropdownMenuShortcut,
@@ -25,9 +29,12 @@ import { RepositoryQuickActions } from "@/fixture/repository-workspace/component
 
 interface RepositoryWorkspaceToolbarProps {
 	readonly branches: BranchCollection | null;
+	readonly onApplyStash: (stash: StashInfo) => Promise<boolean>;
 	readonly onCancelSync: () => Promise<void>;
+	readonly onDropStash: (stash: StashInfo) => Promise<boolean>;
 	readonly onMergeBranch: (name: string) => Promise<boolean>;
 	readonly onOpenInEditor: () => Promise<void>;
+	readonly onPopStash: (stash: StashInfo) => Promise<boolean>;
 	readonly onRecover: (action: RepositoryRecoveryAction) => Promise<boolean>;
 	readonly onSetTab: (tab: RepositoryTab) => Promise<void>;
 	readonly onStashChanges: () => Promise<boolean>;
@@ -35,6 +42,7 @@ interface RepositoryWorkspaceToolbarProps {
 	readonly onToggleAllFiles: () => Promise<void>;
 	readonly pendingAction: PendingWorkspaceAction;
 	readonly snapshot: RepositorySnapshot;
+	readonly stashes: readonly StashInfo[];
 	readonly syncAction: RepositorySyncAction;
 	readonly tab: RepositoryTab;
 }
@@ -46,14 +54,26 @@ const tabForShortcut = (key: string): RepositoryTab | null => {
 	if (key === "2") {
 		return "history";
 	}
+	if (key === "3") {
+		return "stashes";
+	}
 	return null;
+};
+
+const REPOSITORY_TAB_LABELS: Readonly<Record<RepositoryTab, string>> = {
+	changes: "Changes",
+	history: "History",
+	stashes: "Stashes",
 };
 
 export function RepositoryWorkspaceToolbar({
 	branches,
+	onApplyStash,
 	onCancelSync,
+	onDropStash,
 	onMergeBranch,
 	onOpenInEditor,
+	onPopStash,
 	onRecover,
 	onSetTab,
 	onStashChanges,
@@ -61,6 +81,7 @@ export function RepositoryWorkspaceToolbar({
 	onToggleAllFiles,
 	pendingAction,
 	snapshot,
+	stashes,
 	syncAction,
 	tab,
 }: RepositoryWorkspaceToolbarProps): ReactElement {
@@ -96,7 +117,7 @@ export function RepositoryWorkspaceToolbar({
 			// The workspace hook exposes the operation error in the app notice.
 		});
 	};
-	const viewLabel = tab === "changes" ? "Changes" : "History";
+	const viewLabel = REPOSITORY_TAB_LABELS[tab];
 
 	return (
 		<div
@@ -146,6 +167,15 @@ export function RepositoryWorkspaceToolbar({
 						History
 						<DropdownMenuShortcut>⌘2</DropdownMenuShortcut>
 					</DropdownMenuItem>
+					<DropdownMenuItem closeOnClick onClick={() => selectTab("stashes")}>
+						<CheckIcon
+							aria-hidden
+							className={tab === "stashes" ? "opacity-100" : "opacity-0"}
+							weight="bold"
+						/>
+						Stashes
+						<DropdownMenuShortcut>⌘3</DropdownMenuShortcut>
+					</DropdownMenuItem>
 				</LiquidMenuContent>
 			</LiquidMenuRoot>
 
@@ -154,9 +184,12 @@ export function RepositoryWorkspaceToolbar({
 				branches={branches}
 				changedFileCount={snapshot.files.length}
 				head={snapshot.head}
+				onApplyStash={onApplyStash}
 				onCancelSync={onCancelSync}
+				onDropStash={onDropStash}
 				onMergeBranch={onMergeBranch}
 				onOpenInEditor={onOpenInEditor}
+				onPopStash={onPopStash}
 				onRecover={onRecover}
 				onSetTab={onSetTab}
 				onStashChanges={onStashChanges}
@@ -164,6 +197,7 @@ export function RepositoryWorkspaceToolbar({
 				onToggleAllFiles={onToggleAllFiles}
 				operationState={snapshot.operationState}
 				pendingAction={pendingAction}
+				stashes={stashes}
 				syncAction={syncAction}
 			/>
 		</div>

@@ -277,7 +277,16 @@ const diffArguments = (
 	input: DiffInput,
 	format: "numstat" | "patch"
 ): string[] => {
-	const args = ["diff", "--no-ext-diff", "--no-color", "--find-renames"];
+	const isCommit = input.target.kind === "commit";
+	const args = [
+		isCommit ? "show" : "diff",
+		"--no-ext-diff",
+		"--no-color",
+		"--find-renames",
+	];
+	if (isCommit) {
+		args.push("--format=", "--first-parent", "--root");
+	}
 	if (format === "numstat") {
 		args.push("--numstat", "-z");
 	} else {
@@ -286,7 +295,7 @@ const diffArguments = (
 	if (input.target.kind === "staged") {
 		args.push("--cached");
 	} else if (input.target.kind === "commit") {
-		args.push(`${input.target.revision}^!`);
+		args.push(input.target.revision);
 	} else if (input.target.kind === "range") {
 		args.push(`${input.target.base}..${input.target.head}`);
 	}

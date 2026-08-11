@@ -11,6 +11,7 @@ import type {
 	RepositoryOperationState,
 	RepositorySnapshot,
 	ResetMode,
+	StashInfo,
 	SyncResult,
 } from "@1git/git";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -30,6 +31,14 @@ import {
 	repositoryRecoveryErrorMessage,
 	shouldStageFilesOnFirstPresentation,
 } from "@/feature/workspace/lib/repository-recovery.js";
+import {
+	type BranchSwitchResult,
+	combineRepositoryStashDiffs,
+	type RepositoryStashAction,
+	repositoryStashDiffTargets,
+	repositoryStashErrorMessage,
+	shouldOfferStashAndSwitch,
+} from "@/feature/workspace/lib/repository-stash.js";
 import {
 	getRepositorySyncAction,
 	getRepositorySyncSteps,
@@ -108,6 +117,9 @@ const errorMessage = (error: unknown): string =>
 
 const fileNameFromPath = (path: string): string =>
 	path.split("/").at(-1) ?? path;
+
+const firstDiffPath = (diff: FileDiff | null): string | null =>
+	diff?.stats[0]?.path ?? null;
 
 interface WorkspaceSummary {
 	readonly branch: string | null;
@@ -206,11 +218,13 @@ export const useGitWorkspace = (): GitWorkspace => {
 	const [branches, setBranches] = useState<BranchCollection | null>(null);
 	const [remotes, setRemotes] = useState<readonly RemoteInfo[]>([]);
 	const [history, setHistory] = useState<CommitPage | null>(null);
+	const [stashes, setStashes] = useState<readonly StashInfo[]>([]);
 	const [diffs, setDiffs] = useState<readonly FileDiff[]>([]);
 	const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
 	const [selectedCommitOid, setSelectedCommitOid] = useState<string | null>(
 		null
 	);
+	const [selectedStashOid, setSelectedStashOid] = useState<string | null>(null);
 	const [tab, setTabState] = useState<RepositoryTab>("changes");
 	const [pendingAction, setPendingAction] =
 		useState<PendingWorkspaceAction>(null);
@@ -229,6 +243,8 @@ export const useGitWorkspace = (): GitWorkspace => {
 		Readonly<Record<RepositorySessionId, WorkspaceSummary>>
 	>({});
 	const diffRequestIdRef = useRef(0);
+	const selectedStashOidRef = useRef(selectedStashOid);
+	selectedStashOidRef.current = selectedStashOid;
 	const stagedOnFirstPresentationRef = useRef(new Set<RepositorySessionId>());
 	const activeSyncsRef = useRef(
 		new Map<RepositorySessionId, ActiveRepositorySync>()
@@ -360,20 +376,42 @@ export const useGitWorkspace = (): GitWorkspace => {
 		[]
 	);
 
-	const loadCommitDiff = useCallback(
+	const loadRevisionDiff = useCallback(
 		async (
 			sessionId: RepositorySessionId,
-			commit: CommitInfo
-		): Promise<void> => {
+			kind: "commit" | "stash",
+			revision: string
+		): Promise<FileDiff | null> => {
 			const requestId = diffRequestIdRef.current + 1;
 			diffRequestIdRef.current = requestId;
-			const result = await window.desktop.git.repository.diff(sessionId, {
-				target: { kind: "commit", revision: commit.oid },
-			});
-			if (requestId !== diffRequestIdRef.current) {
-				return;
+			let diff: FileDiff;
+			if (kind === "commit") {
+				diff = resultValue(
+					await window.desktop.git.repository.diff(sessionId, {
+						target: { kind: "commit", revision },
+					})
+				);
+			} else {
+				const [trackedTarget, untrackedTarget] =
+					repositoryStashDiffTargets(revision);
+				const [trackedResult, untrackedResult] = await Promise.all([
+					window.desktop.git.repository.diff(sessionId, {
+						target: trackedTarget,
+					}),
+					window.desktop.git.repository.diff(sessionId, {
+						target: untrackedTarget,
+					}),
+				]);
+				diff = combineRepositoryStashDiffs(
+					resultValue(trackedResult),
+					untrackedResult.ok ? untrackedResult.value : null
+				);
 			}
-			setDiffs([resultValue(result)]);
+			if (requestId !== diffRequestIdRef.current) {
+				return null;
+			}
+			setDiffs([diff]);
+			return diff;
 		},
 		[]
 	);
@@ -381,6 +419,25 @@ export const useGitWorkspace = (): GitWorkspace => {
 		diffRequestIdRef.current += 1;
 		setDiffs([]);
 	}, []);
+	const presentRevision = useCallback(
+		async (
+			sessionId: RepositorySessionId,
+			kind: "commit" | "stash",
+			revision: string | null
+		): Promise<void> => {
+			setSelectedCommitOid(kind === "commit" ? revision : null);
+			setSelectedStashOid(kind === "stash" ? revision : null);
+			setSelectedFilePath(null);
+			clearDiff();
+			if (!revision) {
+				return;
+			}
+			setSelectedFilePath(
+				firstDiffPath(await loadRevisionDiff(sessionId, kind, revision))
+			);
+		},
+		[clearDiff, loadRevisionDiff]
+	);
 	const refreshChangesDiff = useCallback(
 		(sessionId: RepositorySessionId, files: readonly FileChange[]): void => {
 			if (files.length === 0) {
@@ -406,15 +463,21 @@ export const useGitWorkspace = (): GitWorkspace => {
 			preferredCommitOid?: string | null,
 			knownSnapshot?: RepositorySnapshot
 		): Promise<void> => {
-			const [nextSnapshot, branchResult, historyResult, remotesResult] =
-				await Promise.all([
-					repositorySnapshot(session.id, knownSnapshot),
-					window.desktop.git.branches.list(session.id),
-					window.desktop.git.repository.history(session.id, {
-						limit: HISTORY_LIMIT,
-					}),
-					window.desktop.git.remotes.list(session.id),
-				]);
+			const [
+				nextSnapshot,
+				branchResult,
+				historyResult,
+				remotesResult,
+				stashesResult,
+			] = await Promise.all([
+				repositorySnapshot(session.id, knownSnapshot),
+				window.desktop.git.branches.list(session.id),
+				window.desktop.git.repository.history(session.id, {
+					limit: HISTORY_LIMIT,
+				}),
+				window.desktop.git.remotes.list(session.id),
+				window.desktop.git.stashes.list(session.id),
+			]);
 			const nextBranches = resultValue(branchResult);
 			const nextHistory = resultValue(historyResult);
 			const nextRemotes = remotesResult.ok ? remotesResult.value : [];
@@ -425,18 +488,22 @@ export const useGitWorkspace = (): GitWorkspace => {
 			setBranches(nextBranches);
 			setHistory(nextHistory);
 			setRemotes(nextRemotes);
+			const nextStashes = resultValue(stashesResult);
+			setStashes(nextStashes);
 
 			if (tab === "history") {
 				const commit =
 					nextHistory.commits.find((item) => item.oid === preferredCommitOid) ??
 					nextHistory.commits[0];
-				setSelectedCommitOid(commit?.oid ?? null);
-				setSelectedFilePath(null);
-				if (commit) {
-					await loadCommitDiff(session.id, commit);
-				} else {
-					clearDiff();
-				}
+				await presentRevision(session.id, "commit", commit?.oid ?? null);
+				return;
+			}
+			if (tab === "stashes") {
+				const stash =
+					nextStashes.find(
+						(item) => item.oid === selectedStashOidRef.current
+					) ?? nextStashes[0];
+				await presentRevision(session.id, "stash", stash?.oid ?? null);
 				return;
 			}
 
@@ -445,13 +512,14 @@ export const useGitWorkspace = (): GitWorkspace => {
 				nextSnapshot.files[0];
 			setSelectedFilePath(file?.path ?? null);
 			setSelectedCommitOid(null);
+			setSelectedStashOid(null);
 			if (nextSnapshot.files.length > 0) {
 				await loadChangesDiff(session.id, nextSnapshot.files);
 			} else {
 				clearDiff();
 			}
 		},
-		[applySnapshot, clearDiff, loadChangesDiff, loadCommitDiff, tab]
+		[applySnapshot, clearDiff, loadChangesDiff, presentRevision, tab]
 	);
 
 	const refreshManager =
@@ -569,6 +637,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 		applySnapshot(session.id, stagedSnapshot);
 		setTabState("changes");
 		setSelectedCommitOid(null);
+		setSelectedStashOid(null);
 		await loadSession(session, undefined, undefined, stagedSnapshot);
 	};
 
@@ -766,6 +835,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 			clearDiff();
 			setSelectedFilePath(null);
 			setSelectedCommitOid(null);
+			setSelectedStashOid(null);
 		} catch (cause) {
 			setError(errorMessage(cause));
 		} finally {
@@ -780,6 +850,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 		setError(null);
 		setSelectedFilePath(file.path);
 		setSelectedCommitOid(null);
+		setSelectedStashOid(null);
 		return Promise.resolve();
 	};
 
@@ -787,14 +858,32 @@ export const useGitWorkspace = (): GitWorkspace => {
 		if (!activeSession) {
 			return;
 		}
-		setSelectedCommitOid(commit.oid);
-		setSelectedFilePath(null);
 		try {
 			setError(null);
-			await loadCommitDiff(activeSession.id, commit);
+			await presentRevision(activeSession.id, "commit", commit.oid);
 		} catch (cause) {
 			setError(errorMessage(cause));
 		}
+	};
+
+	const selectStash = async (stash: StashInfo): Promise<void> => {
+		if (!activeSession) {
+			return;
+		}
+		try {
+			setError(null);
+			await presentRevision(activeSession.id, "stash", stash.oid);
+		} catch (cause) {
+			setError(errorMessage(cause));
+		}
+	};
+
+	const selectRevisionFile = (path: string): Promise<void> => {
+		if (!activeSession || tab === "changes") {
+			return Promise.resolve();
+		}
+		setSelectedFilePath(path);
+		return Promise.resolve();
 	};
 
 	const setTab = async (nextTab: RepositoryTab): Promise<void> => {
@@ -810,18 +899,18 @@ export const useGitWorkspace = (): GitWorkspace => {
 			setError(null);
 			if (nextTab === "history") {
 				const commit = history?.commits[0];
-				setSelectedFilePath(null);
-				setSelectedCommitOid(commit?.oid ?? null);
-				if (commit) {
-					await loadCommitDiff(activeSession.id, commit);
-				} else {
-					clearDiff();
-				}
+				await presentRevision(activeSession.id, "commit", commit?.oid ?? null);
+				return;
+			}
+			if (nextTab === "stashes") {
+				const [stash] = stashes;
+				await presentRevision(activeSession.id, "stash", stash?.oid ?? null);
 				return;
 			}
 
 			const file = snapshot?.files[0];
 			setSelectedCommitOid(null);
+			setSelectedStashOid(null);
 			setSelectedFilePath(file?.path ?? null);
 			if (snapshot && snapshot.files.length > 0) {
 				await loadChangesDiff(activeSession.id, snapshot.files);
@@ -1223,13 +1312,13 @@ export const useGitWorkspace = (): GitWorkspace => {
 		});
 	};
 
-	const switchBranch = async (name: string): Promise<void> => {
+	const switchBranch = async (name: string): Promise<BranchSwitchResult> => {
 		if (
 			!(activeSession && snapshot) ||
 			pendingAction ||
 			name === snapshot.head.branch
 		) {
-			return;
+			return "failed";
 		}
 		setPendingAction("branch");
 		try {
@@ -1238,12 +1327,26 @@ export const useGitWorkspace = (): GitWorkspace => {
 				activeSession.id,
 				{ name }
 			);
-			const value = resultValue(result);
+			if (!result.ok) {
+				if (shouldOfferStashAndSwitch(result.error)) {
+					return "needs-stash";
+				}
+				setError(result.error.message);
+				return "failed";
+			}
+			const { value } = result;
 			setBranches(value.branches);
 			applySnapshot(activeSession.id, value.snapshot);
-			await loadSession(activeSession, value.snapshot.files[0]?.path);
+			await loadSession(
+				activeSession,
+				value.snapshot.files[0]?.path,
+				undefined,
+				value.snapshot
+			);
+			return "switched";
 		} catch (cause) {
 			setError(errorMessage(cause));
+			return "failed";
 		} finally {
 			setPendingAction(null);
 		}
@@ -1575,7 +1678,145 @@ export const useGitWorkspace = (): GitWorkspace => {
 			});
 			const nextSnapshot = resultValue(result);
 			applySnapshot(activeSession.id, nextSnapshot);
-			await loadSession(activeSession);
+			await loadSession(
+				activeSession,
+				selectedFilePath,
+				selectedCommitOid,
+				nextSnapshot
+			);
+			return true;
+		} catch (cause) {
+			setError(errorMessage(cause));
+			return false;
+		} finally {
+			setPendingAction(null);
+		}
+	};
+
+	const applyRepositoryStash = async (
+		stash: StashInfo,
+		action: RepositoryStashAction
+	): Promise<boolean> => {
+		if (
+			!(activeSession && snapshot) ||
+			pendingAction ||
+			snapshot.operationState !== "normal"
+		) {
+			return false;
+		}
+		setPendingAction("stash");
+		try {
+			setError(null);
+			const result =
+				action === "apply"
+					? await window.desktop.git.stashes.apply(activeSession.id, {
+							reference: stash.reference,
+						})
+					: await window.desktop.git.stashes.pop(activeSession.id, {
+							reference: stash.reference,
+						});
+			if (!result.ok) {
+				await loadSession(activeSession, selectedFilePath, selectedCommitOid);
+				setError(repositoryStashErrorMessage(result.error, action));
+				return false;
+			}
+			applySnapshot(activeSession.id, result.value);
+			await loadSession(
+				activeSession,
+				selectedFilePath,
+				selectedCommitOid,
+				result.value
+			);
+			return true;
+		} catch (cause) {
+			setError(errorMessage(cause));
+			return false;
+		} finally {
+			setPendingAction(null);
+		}
+	};
+
+	const applyStash = async (stash: StashInfo): Promise<boolean> =>
+		await applyRepositoryStash(stash, "apply");
+
+	const popStash = async (stash: StashInfo): Promise<boolean> =>
+		await applyRepositoryStash(stash, "pop");
+
+	const dropStash = async (stash: StashInfo): Promise<boolean> => {
+		if (!(activeSession && snapshot) || pendingAction) {
+			return false;
+		}
+		setPendingAction("stash");
+		try {
+			setError(null);
+			const result = await window.desktop.git.stashes.drop(activeSession.id, {
+				reference: stash.reference,
+			});
+			const nextStashes = resultValue(result);
+			setStashes(nextStashes);
+			applySnapshot(activeSession.id, {
+				...snapshot,
+				stashCount: nextStashes.length,
+			});
+			if (tab === "stashes" && selectedStashOid === stash.oid) {
+				const [nextStash] = nextStashes;
+				await presentRevision(
+					activeSession.id,
+					"stash",
+					nextStash?.oid ?? null
+				);
+			}
+			return true;
+		} catch (cause) {
+			setError(errorMessage(cause));
+			return false;
+		} finally {
+			setPendingAction(null);
+		}
+	};
+
+	const stashAndSwitchBranch = async (name: string): Promise<boolean> => {
+		if (
+			!(activeSession && snapshot) ||
+			pendingAction ||
+			snapshot.operationState !== "normal" ||
+			name === snapshot.head.branch
+		) {
+			return false;
+		}
+		setPendingAction("branch");
+		try {
+			setError(null);
+			const stashedSnapshot = resultValue(
+				await window.desktop.git.stashes.create(activeSession.id, {
+					includeUntracked: true,
+					message: `Switch from ${snapshot.head.branch ?? "detached HEAD"} to ${name}`,
+				})
+			);
+			const checkoutResult = await window.desktop.git.branches.checkout(
+				activeSession.id,
+				{ name }
+			);
+			if (!checkoutResult.ok) {
+				await loadSession(
+					activeSession,
+					selectedFilePath,
+					selectedCommitOid,
+					stashedSnapshot
+				);
+				setError(
+					`Changes were stashed, but the branch could not be switched. ${checkoutResult.error.message}`
+				);
+				return false;
+			}
+			setBranches(checkoutResult.value.branches);
+			applySnapshot(activeSession.id, checkoutResult.value.snapshot);
+			await loadSession(
+				activeSession,
+				checkoutResult.value.snapshot.files[0]?.path,
+				undefined,
+				checkoutResult.value.snapshot
+			);
 			return true;
 		} catch (cause) {
 			setError(errorMessage(cause));
@@ -1627,6 +1868,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 		activateWorkspace,
 		activeSession,
 		amendCommit,
+		applyStash,
 		branches,
 		cancelSync,
 		canRetrySync: Boolean(
@@ -1656,6 +1898,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 		discardFiles,
 		discardUndo,
 		dismissDiscardUndo,
+		dropStash,
 		error: visibleError,
 		forgetRecentRepository,
 		history,
@@ -1666,6 +1909,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 		openRepositoryInEditor,
 		pendingAction: visiblePendingAction,
 		pickRepository,
+		popStash,
 		recoverRepository,
 		reorderWorkspace,
 		resetToCommit,
@@ -1673,12 +1917,17 @@ export const useGitWorkspace = (): GitWorkspace => {
 		selectCommit,
 		selectedCommitOid,
 		selectedFilePath,
+		selectedStashOid,
 		selectFile,
+		selectRevisionFile,
+		selectStash,
 		setFileStaged,
 		setFilesStaged,
 		setTab,
 		snapshot,
+		stashAndSwitchBranch,
 		stashChanges,
+		stashes,
 		switchBranch,
 		syncAction,
 		syncRepository,

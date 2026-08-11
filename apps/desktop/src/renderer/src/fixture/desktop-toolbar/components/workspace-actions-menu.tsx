@@ -17,6 +17,7 @@ import { cn } from "@1git/ui/lib/utils";
 import { ArrowsClockwiseIcon } from "@phosphor-icons/react/dist/csr/ArrowsClockwise";
 import { CaretRightIcon } from "@phosphor-icons/react/dist/csr/CaretRight";
 import { CheckIcon } from "@phosphor-icons/react/dist/csr/Check";
+import { FileCodeIcon } from "@phosphor-icons/react/dist/csr/FileCode";
 import { GitBranchIcon } from "@phosphor-icons/react/dist/csr/GitBranch";
 import { PlusIcon } from "@phosphor-icons/react/dist/csr/Plus";
 import { XIcon } from "@phosphor-icons/react/dist/csr/X";
@@ -28,6 +29,7 @@ import type {
 	KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import { useId, useState } from "react";
+import type { BranchSwitchResult } from "@/feature/workspace/lib/repository-stash.js";
 import {
 	isRepositorySyncActionKind,
 	type RepositorySyncAction,
@@ -53,7 +55,8 @@ interface WorkspaceActionsMenuProps {
 	readonly onCancelSync: () => Promise<void>;
 	readonly onClose: () => void;
 	readonly onCreateBranch: (name: string) => Promise<boolean>;
-	readonly onSwitchBranch: (name: string) => Promise<void>;
+	readonly onStashAndSwitchBranch: (name: string) => Promise<boolean>;
+	readonly onSwitchBranch: (name: string) => Promise<BranchSwitchResult>;
 	readonly onSync: () => Promise<void>;
 	readonly pendingAction: PendingWorkspaceAction;
 	readonly syncAction: RepositorySyncAction;
@@ -63,7 +66,8 @@ interface BranchMenuItemProps {
 	readonly branch: BranchInfo;
 	readonly isPending: boolean;
 	readonly onClose: () => void;
-	readonly onSwitchBranch: (name: string) => Promise<void>;
+	readonly onNeedsStash: (branch: BranchInfo) => void;
+	readonly onSwitchBranch: (name: string) => Promise<BranchSwitchResult>;
 }
 
 interface CreateBranchFormProps {
@@ -82,19 +86,51 @@ interface RepositorySyncMenuItemProps {
 	readonly syncAction: RepositorySyncAction;
 }
 
+interface StashAndSwitchConfirmationProps {
+	readonly branch: BranchInfo;
+	readonly isPending: boolean;
+	readonly onCancel: () => void;
+	readonly onClose: () => void;
+	readonly onStashAndSwitchBranch: (name: string) => Promise<boolean>;
+}
+
+interface WorkspaceBranchActionsProps {
+	readonly branchListId: string;
+	readonly hasMoreBranches: boolean;
+	readonly isBranchListExpanded: boolean;
+	readonly isPending: boolean;
+	readonly onBeginBranchCreation: () => void;
+	readonly onCancelSync: () => Promise<void>;
+	readonly onClose: () => void;
+	readonly onNeedsStash: (branch: BranchInfo) => void;
+	readonly onSwitchBranch: (name: string) => Promise<BranchSwitchResult>;
+	readonly onSync: () => Promise<void>;
+	readonly onToggleBranchList: () => void;
+	readonly pendingAction: PendingWorkspaceAction;
+	readonly syncAction: RepositorySyncAction;
+	readonly visibleBranches: readonly BranchInfo[];
+}
+
 function BranchMenuItem({
 	branch,
 	isPending,
 	onClose,
+	onNeedsStash,
 	onSwitchBranch,
 }: BranchMenuItemProps): ReactElement {
 	const commitAge = formatBranchCommitAge(branch.committedAt);
 	const tooltipId = useId();
 	const switchBranch = async (): Promise<void> => {
-		onClose();
-		if (!branch.checkedOut) {
-			await onSwitchBranch(branch.name);
+		if (branch.checkedOut) {
+			onClose();
+			return;
 		}
+		const result = await onSwitchBranch(branch.name);
+		if (result === "needs-stash") {
+			onNeedsStash(branch);
+			return;
+		}
+		onClose();
 	};
 	const menuItemLabel = [
 		branch.name,
@@ -108,7 +144,7 @@ function BranchMenuItem({
 			aria-current={branch.checkedOut ? "true" : undefined}
 			aria-describedby={branch.committedAt && commitAge ? tooltipId : undefined}
 			aria-label={menuItemLabel}
-			closeOnClick
+			closeOnClick={false}
 			disabled={isPending}
 			onClick={switchBranch}
 		>
@@ -157,6 +193,51 @@ function BranchMenuItem({
 				</span>
 			</TooltipContent>
 		</Tooltip>
+	);
+}
+
+function StashAndSwitchConfirmation({
+	branch,
+	isPending,
+	onCancel,
+	onClose,
+	onStashAndSwitchBranch,
+}: StashAndSwitchConfirmationProps): ReactElement {
+	const stashAndSwitch = async (): Promise<void> => {
+		if (await onStashAndSwitchBranch(branch.name)) {
+			onClose();
+		}
+	};
+
+	return (
+		<div className="p-1">
+			<p className="px-1 font-medium text-xs">Stash local changes?</p>
+			<p className="mt-1 px-1 text-editor-muted text-xss leading-4">
+				Your changes will be kept in the stash shelf before switching to{" "}
+				<span className="font-medium text-editor-ink">{branch.name}</span>.
+			</p>
+			<div className="mt-2 flex justify-end gap-1">
+				<Button
+					disabled={isPending}
+					onClick={onCancel}
+					size="sm"
+					type="button"
+					variant="ghost"
+				>
+					Cancel
+				</Button>
+				<Button
+					disabled={isPending}
+					onClick={stashAndSwitch}
+					size="sm"
+					type="button"
+					variant="brand"
+				>
+					<FileCodeIcon aria-hidden weight="duotone" />
+					Stash and switch
+				</Button>
+			</div>
+		</div>
 	);
 }
 
@@ -285,12 +366,104 @@ function RepositorySyncMenuItem({
 	);
 }
 
+function WorkspaceBranchActions({
+	branchListId,
+	hasMoreBranches,
+	isBranchListExpanded,
+	isPending,
+	onBeginBranchCreation,
+	onCancelSync,
+	onClose,
+	onNeedsStash,
+	onSwitchBranch,
+	onSync,
+	onToggleBranchList,
+	pendingAction,
+	syncAction,
+	visibleBranches,
+}: WorkspaceBranchActionsProps): ReactElement {
+	return (
+		<>
+			<div
+				className={
+					isBranchListExpanded
+						? "overflow-y-auto overscroll-contain"
+						: undefined
+				}
+				id={branchListId}
+				style={isBranchListExpanded ? EXPANDED_BRANCH_LIST_STYLE : undefined}
+			>
+				<DropdownMenuGroup>
+					{visibleBranches.map((branch) => (
+						<BranchMenuItem
+							branch={branch}
+							isPending={isPending}
+							key={branch.fullName}
+							onClose={onClose}
+							onNeedsStash={onNeedsStash}
+							onSwitchBranch={onSwitchBranch}
+						/>
+					))}
+					{visibleBranches.length === 0 ? (
+						<DropdownMenuLabel className="py-2 font-normal text-xss normal-case tracking-normal">
+							No local branches available.
+						</DropdownMenuLabel>
+					) : null}
+				</DropdownMenuGroup>
+			</div>
+			{hasMoreBranches ? (
+				<DropdownMenuItem
+					aria-controls={branchListId}
+					aria-expanded={isBranchListExpanded}
+					aria-label={
+						isBranchListExpanded ? "Show fewer branches" : "Show all branches"
+					}
+					closeOnClick={false}
+					disabled={isPending}
+					onClick={onToggleBranchList}
+				>
+					More
+					<CaretRightIcon
+						aria-hidden
+						className={cn(
+							"ml-auto transition-transform duration-200 motion-reduce:transition-none",
+							isBranchListExpanded && "rotate-90"
+						)}
+						weight="bold"
+					/>
+				</DropdownMenuItem>
+			) : null}
+
+			<DropdownMenuSeparator />
+
+			<DropdownMenuGroup>
+				<DropdownMenuItem
+					closeOnClick={false}
+					disabled={isPending}
+					onClick={onBeginBranchCreation}
+				>
+					<PlusIcon aria-hidden className="text-editor-faint" weight="bold" />
+					Create new branch…
+				</DropdownMenuItem>
+				<RepositorySyncMenuItem
+					onCancelSync={onCancelSync}
+					onClose={onClose}
+					onSync={onSync}
+					pendingAction={pendingAction}
+					syncAction={syncAction}
+				/>
+			</DropdownMenuGroup>
+		</>
+	);
+}
+
 export function WorkspaceActionsMenu({
 	branches,
 	currentBranch,
 	onCancelSync,
 	onClose,
 	onCreateBranch,
+	onStashAndSwitchBranch,
 	onSync,
 	onSwitchBranch,
 	pendingAction,
@@ -298,6 +471,7 @@ export function WorkspaceActionsMenu({
 }: WorkspaceActionsMenuProps): ReactElement {
 	const [isCreating, setIsCreating] = useState(false);
 	const [isBranchListExpanded, setIsBranchListExpanded] = useState(false);
+	const [switchTarget, setSwitchTarget] = useState<BranchInfo | null>(null);
 	const branchListId = useId();
 	const { latestBranches, remainingBranches } =
 		groupWorkspaceBranches(branches);
@@ -306,11 +480,55 @@ export function WorkspaceActionsMenu({
 		: latestBranches;
 	const hasMoreBranches = remainingBranches.length > 0;
 	const isPending = pendingAction !== null;
-	const menuViewKey = isCreating ? "create-branch" : "actions";
 	const beginBranchCreation = (): void => setIsCreating(true);
 	const cancelBranchCreation = (): void => setIsCreating(false);
+	const cancelStashAndSwitch = (): void => setSwitchTarget(null);
 	const toggleBranchList = (): void =>
 		setIsBranchListExpanded((isExpanded) => !isExpanded);
+	let menuViewKey = "actions";
+	let content: ReactElement;
+	if (isCreating) {
+		menuViewKey = "create-branch";
+		content = (
+			<CreateBranchForm
+				isPending={isPending}
+				onCancel={cancelBranchCreation}
+				onClose={onClose}
+				onCreateBranch={onCreateBranch}
+				pendingAction={pendingAction}
+			/>
+		);
+	} else if (switchTarget) {
+		menuViewKey = "stash-and-switch";
+		content = (
+			<StashAndSwitchConfirmation
+				branch={switchTarget}
+				isPending={isPending}
+				onCancel={cancelStashAndSwitch}
+				onClose={onClose}
+				onStashAndSwitchBranch={onStashAndSwitchBranch}
+			/>
+		);
+	} else {
+		content = (
+			<WorkspaceBranchActions
+				branchListId={branchListId}
+				hasMoreBranches={hasMoreBranches}
+				isBranchListExpanded={isBranchListExpanded}
+				isPending={isPending}
+				onBeginBranchCreation={beginBranchCreation}
+				onCancelSync={onCancelSync}
+				onClose={onClose}
+				onNeedsStash={setSwitchTarget}
+				onSwitchBranch={onSwitchBranch}
+				onSync={onSync}
+				onToggleBranchList={toggleBranchList}
+				pendingAction={pendingAction}
+				syncAction={syncAction}
+				visibleBranches={visibleBranches}
+			/>
+		);
+	}
 
 	return (
 		<TooltipProvider delay={WORKSPACE_BRANCH_TOOLTIP_DELAY_MS}>
@@ -321,96 +539,7 @@ export function WorkspaceActionsMenu({
 				className="w-72 min-w-72"
 				sideOffset={2}
 			>
-				<LiquidMenuAutoSize viewKey={menuViewKey}>
-					{isCreating ? (
-						<CreateBranchForm
-							isPending={isPending}
-							onCancel={cancelBranchCreation}
-							onClose={onClose}
-							onCreateBranch={onCreateBranch}
-							pendingAction={pendingAction}
-						/>
-					) : (
-						<>
-							<div
-								className={
-									isBranchListExpanded
-										? "overflow-y-auto overscroll-contain"
-										: undefined
-								}
-								id={branchListId}
-								style={
-									isBranchListExpanded ? EXPANDED_BRANCH_LIST_STYLE : undefined
-								}
-							>
-								<DropdownMenuGroup>
-									{visibleBranches.map((branch) => (
-										<BranchMenuItem
-											branch={branch}
-											isPending={isPending}
-											key={branch.fullName}
-											onClose={onClose}
-											onSwitchBranch={onSwitchBranch}
-										/>
-									))}
-									{visibleBranches.length === 0 ? (
-										<DropdownMenuLabel className="py-2 font-normal text-xss normal-case tracking-normal">
-											No local branches available.
-										</DropdownMenuLabel>
-									) : null}
-								</DropdownMenuGroup>
-							</div>
-							{hasMoreBranches ? (
-								<DropdownMenuItem
-									aria-controls={branchListId}
-									aria-expanded={isBranchListExpanded}
-									aria-label={
-										isBranchListExpanded
-											? "Show fewer branches"
-											: "Show all branches"
-									}
-									closeOnClick={false}
-									disabled={isPending}
-									onClick={toggleBranchList}
-								>
-									More
-									<CaretRightIcon
-										aria-hidden
-										className={cn(
-											"ml-auto transition-transform duration-200 motion-reduce:transition-none",
-											isBranchListExpanded && "rotate-90"
-										)}
-										weight="bold"
-									/>
-								</DropdownMenuItem>
-							) : null}
-
-							<DropdownMenuSeparator />
-
-							<DropdownMenuGroup>
-								<DropdownMenuItem
-									closeOnClick={false}
-									disabled={isPending}
-									onClick={beginBranchCreation}
-								>
-									<PlusIcon
-										aria-hidden
-										className="text-editor-faint"
-										weight="bold"
-									/>
-									Create new branch…
-								</DropdownMenuItem>
-								<RepositorySyncMenuItem
-									onCancelSync={onCancelSync}
-									onClose={onClose}
-									onSync={onSync}
-									pendingAction={pendingAction}
-									syncAction={syncAction}
-								/>
-							</DropdownMenuGroup>
-						</>
-					)}
-				</LiquidMenuAutoSize>
+				<LiquidMenuAutoSize viewKey={menuViewKey}>{content}</LiquidMenuAutoSize>
 			</LiquidMenuContent>
 		</TooltipProvider>
 	);

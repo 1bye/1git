@@ -2,6 +2,7 @@ import type {
 	BranchCollection,
 	HeadState,
 	RepositoryOperationState,
+	StashInfo,
 } from "@1git/git";
 import {
 	DropdownMenuGroup,
@@ -43,15 +44,19 @@ import {
 	LiquidMenuTrigger,
 } from "@/fixture/liquid-menu/components/liquid-menu.js";
 import { LIQUID_MENU_CONNECTED_BUTTON_ANCHOR_GEOMETRY } from "@/fixture/liquid-menu/constants/liquid-menu.js";
+import { RepositoryStashMenu } from "@/fixture/repository-workspace/components/repository-stash-menu.js";
 
 interface RepositoryQuickActionsProps {
 	readonly allFilesStaged: boolean;
 	readonly branches: BranchCollection | null;
 	readonly changedFileCount: number;
 	readonly head: HeadState;
+	readonly onApplyStash: (stash: StashInfo) => Promise<boolean>;
 	readonly onCancelSync: () => Promise<void>;
+	readonly onDropStash: (stash: StashInfo) => Promise<boolean>;
 	readonly onMergeBranch: (name: string) => Promise<boolean>;
 	readonly onOpenInEditor: () => Promise<void>;
+	readonly onPopStash: (stash: StashInfo) => Promise<boolean>;
 	readonly onRecover: (action: RepositoryRecoveryAction) => Promise<boolean>;
 	readonly onSetTab: (tab: RepositoryTab) => Promise<void>;
 	readonly onStashChanges: () => Promise<boolean>;
@@ -59,6 +64,7 @@ interface RepositoryQuickActionsProps {
 	readonly onToggleAllFiles: () => Promise<void>;
 	readonly operationState: RepositoryOperationState;
 	readonly pendingAction: PendingWorkspaceAction;
+	readonly stashes: readonly StashInfo[];
 	readonly syncAction: RepositorySyncAction;
 }
 
@@ -146,9 +152,12 @@ export function RepositoryQuickActions({
 	branches,
 	changedFileCount,
 	head,
+	onApplyStash,
 	onCancelSync,
+	onDropStash,
 	onMergeBranch,
 	onOpenInEditor,
+	onPopStash,
 	onRecover,
 	onSetTab,
 	onStashChanges,
@@ -156,6 +165,7 @@ export function RepositoryQuickActions({
 	onToggleAllFiles,
 	operationState,
 	pendingAction,
+	stashes,
 	syncAction,
 }: RepositoryQuickActionsProps): ReactElement {
 	const triggerRef = useRef<HTMLButtonElement>(null);
@@ -271,6 +281,13 @@ export function RepositoryQuickActions({
 						/>
 						Stash changes
 					</DropdownMenuItem>
+					<RepositoryStashMenu
+						isPending={isPending || recovery !== null}
+						onApply={onApplyStash}
+						onDrop={onDropStash}
+						onPop={onPopStash}
+						stashes={stashes}
+					/>
 					{mergeCandidates.length > 0 ? (
 						<LiquidMenuSub>
 							<LiquidMenuSubTrigger disabled={isPending || recovery !== null}>

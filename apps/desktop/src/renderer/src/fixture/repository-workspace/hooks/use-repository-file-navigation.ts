@@ -319,12 +319,12 @@ export const useRepositoryFileNavigation = ({
 			if (files.length === 0) {
 				return true;
 			}
-			if (tab === "history") {
+			if (tab === "changes") {
+				openNavigator();
+			} else {
 				requestChangesAndOpen().catch(() => {
 					// The workspace hook exposes the operation error in the app notice.
 				});
-			} else {
-				openNavigator();
 			}
 			return true;
 		},

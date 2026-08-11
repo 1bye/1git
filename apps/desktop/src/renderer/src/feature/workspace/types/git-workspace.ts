@@ -8,9 +8,11 @@ import type {
 	FileDiff,
 	RepositorySnapshot,
 	ResetMode,
+	StashInfo,
 } from "@1git/git";
 import type { RepositoryOwner } from "@/feature/workspace/lib/repository-owner.js";
 import type { RepositoryRecoveryAction } from "@/feature/workspace/lib/repository-recovery.js";
+import type { BranchSwitchResult } from "@/feature/workspace/lib/repository-stash.js";
 import type {
 	RepositorySyncAction,
 	RepositorySyncActionKind,
@@ -21,7 +23,7 @@ import type {
 	RepositorySessionRecord,
 } from "../../../../../shared/repository-session.js";
 
-export type RepositoryTab = "changes" | "history";
+export type RepositoryTab = "changes" | "history" | "stashes";
 
 export interface OpenRepositoryOptions {
 	readonly activate?: boolean;
@@ -69,6 +71,7 @@ export interface GitWorkspace {
 		summary: string,
 		description: string
 	) => Promise<boolean>;
+	readonly applyStash: (stash: StashInfo) => Promise<boolean>;
 	readonly branches: BranchCollection | null;
 	readonly cancelSync: () => Promise<void>;
 	readonly canRetrySync: boolean;
@@ -87,6 +90,7 @@ export interface GitWorkspace {
 	readonly discardFiles: (files: readonly FileChange[]) => Promise<boolean>;
 	readonly discardUndo: WorkspaceDiscardUndo | null;
 	readonly dismissDiscardUndo: (token: string) => void;
+	readonly dropStash: (stash: StashInfo) => Promise<boolean>;
 	readonly error: string | null;
 	readonly forgetRecentRepository: (path: string) => Promise<void>;
 	readonly history: CommitPage | null;
@@ -100,6 +104,7 @@ export interface GitWorkspace {
 	readonly openRepositoryInEditor: () => Promise<void>;
 	readonly pendingAction: PendingWorkspaceAction;
 	readonly pickRepository: () => Promise<void>;
+	readonly popStash: (stash: StashInfo) => Promise<boolean>;
 	readonly recoverRepository: (
 		action: RepositoryRecoveryAction
 	) => Promise<boolean>;
@@ -115,7 +120,10 @@ export interface GitWorkspace {
 	readonly selectCommit: (commit: CommitInfo) => Promise<void>;
 	readonly selectedCommitOid: string | null;
 	readonly selectedFilePath: string | null;
+	readonly selectedStashOid: string | null;
 	readonly selectFile: (file: FileChange) => Promise<void>;
+	readonly selectRevisionFile: (path: string) => Promise<void>;
+	readonly selectStash: (stash: StashInfo) => Promise<void>;
 	readonly setFileStaged: (
 		file: FileChange,
 		shouldStage: boolean
@@ -126,8 +134,10 @@ export interface GitWorkspace {
 	) => Promise<boolean>;
 	readonly setTab: (tab: RepositoryTab) => Promise<void>;
 	readonly snapshot: RepositorySnapshot | null;
+	readonly stashAndSwitchBranch: (name: string) => Promise<boolean>;
 	readonly stashChanges: () => Promise<boolean>;
-	readonly switchBranch: (name: string) => Promise<void>;
+	readonly stashes: readonly StashInfo[];
+	readonly switchBranch: (name: string) => Promise<BranchSwitchResult>;
 	readonly syncAction: RepositorySyncAction | null;
 	readonly syncRepository: () => Promise<void>;
 	readonly tab: RepositoryTab;

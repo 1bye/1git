@@ -5,6 +5,7 @@ import type {
 	FileChange,
 	RepositorySnapshot,
 	ResetMode,
+	StashInfo,
 } from "@1git/git";
 import type { ReactElement } from "react";
 import { useCallback } from "react";
@@ -21,6 +22,7 @@ import {
 	RepositoryFileRail,
 } from "@/fixture/repository-workspace/components/repository-file-navigator.js";
 import { RepositoryHistoryRail } from "@/fixture/repository-workspace/components/repository-history-rail.js";
+import { RepositoryStashRail } from "@/fixture/repository-workspace/components/repository-revision-rail.js";
 import { RepositoryWorkspaceToolbar } from "@/fixture/repository-workspace/components/repository-workspace-toolbar.js";
 import { useRepositoryFileNavigation } from "@/fixture/repository-workspace/hooks/use-repository-file-navigation.js";
 import { getRepositoryDiffElementId } from "@/fixture/repository-workspace/lib/repository-navigation.js";
@@ -37,6 +39,7 @@ export interface RepositoryNavigationRailProps {
 		summary: string,
 		description: string
 	) => Promise<boolean>;
+	readonly onApplyStash: (stash: StashInfo) => Promise<boolean>;
 	readonly onCancelSync: () => Promise<void>;
 	readonly onCherryPickCommit: (
 		commit: CommitInfo,
@@ -44,8 +47,10 @@ export interface RepositoryNavigationRailProps {
 	) => Promise<boolean>;
 	readonly onCommit: (summary: string, description: string) => Promise<boolean>;
 	readonly onDiscardFiles: (files: readonly FileChange[]) => Promise<boolean>;
+	readonly onDropStash: (stash: StashInfo) => Promise<boolean>;
 	readonly onMergeBranch: (name: string) => Promise<boolean>;
 	readonly onOpenInEditor: () => Promise<void>;
+	readonly onPopStash: (stash: StashInfo) => Promise<boolean>;
 	readonly onRecover: (action: RepositoryRecoveryAction) => Promise<boolean>;
 	readonly onResetCommit: (
 		commit: CommitInfo,
@@ -54,6 +59,7 @@ export interface RepositoryNavigationRailProps {
 	readonly onRevertCommit: (commit: CommitInfo) => Promise<boolean>;
 	readonly onSelectCommit: (commit: CommitInfo) => Promise<void>;
 	readonly onSelectFile: (file: FileChange) => Promise<void>;
+	readonly onSelectStash: (stash: StashInfo) => Promise<void>;
 	readonly onSetFileStaged: (
 		file: FileChange,
 		shouldStage: boolean
@@ -69,7 +75,9 @@ export interface RepositoryNavigationRailProps {
 	readonly pendingAction: PendingWorkspaceAction;
 	readonly selectedCommitOid: string | null;
 	readonly selectedFilePath: string | null;
+	readonly selectedStashOid: string | null;
 	readonly snapshot: RepositorySnapshot | null;
+	readonly stashes: readonly StashInfo[];
 	readonly syncAction: RepositorySyncAction | null;
 	readonly tab: RepositoryTab;
 }
@@ -80,17 +88,21 @@ export function RepositoryNavigationRail({
 	history,
 	isLoading,
 	onAmendCommit,
+	onApplyStash,
 	onCherryPickCommit,
 	onCommit,
 	onCancelSync,
 	onDiscardFiles,
+	onDropStash,
 	onMergeBranch,
 	onOpenInEditor,
+	onPopStash,
 	onRecover,
 	onResetCommit,
 	onRevertCommit,
 	onSelectCommit,
 	onSelectFile,
+	onSelectStash,
 	onSetFileStaged,
 	onSetFilesStaged,
 	onSetTab,
@@ -100,7 +112,9 @@ export function RepositoryNavigationRail({
 	pendingAction,
 	selectedCommitOid,
 	selectedFilePath,
+	selectedStashOid,
 	snapshot,
+	stashes,
 	syncAction,
 	tab,
 }: RepositoryNavigationRailProps): ReactElement {
@@ -163,6 +177,15 @@ export function RepositoryNavigationRail({
 				selectedCommitOid={selectedCommitOid}
 			/>
 		);
+	} else if (tab === "stashes") {
+		content = (
+			<RepositoryStashRail
+				isPending={pendingAction !== null}
+				onSelectStash={onSelectStash}
+				selectedStashOid={selectedStashOid}
+				stashes={stashes}
+			/>
+		);
 	} else {
 		content = (
 			<>
@@ -196,9 +219,12 @@ export function RepositoryNavigationRail({
 		>
 			<RepositoryWorkspaceToolbar
 				branches={branches}
+				onApplyStash={onApplyStash}
 				onCancelSync={onCancelSync}
+				onDropStash={onDropStash}
 				onMergeBranch={onMergeBranch}
 				onOpenInEditor={onOpenInEditor}
+				onPopStash={onPopStash}
 				onRecover={onRecover}
 				onSetTab={onSetTab}
 				onStashChanges={onStashChanges}
@@ -206,6 +232,7 @@ export function RepositoryNavigationRail({
 				onToggleAllFiles={onToggleAllFiles}
 				pendingAction={pendingAction}
 				snapshot={snapshot}
+				stashes={stashes}
 				syncAction={syncAction}
 				tab={tab}
 			/>
