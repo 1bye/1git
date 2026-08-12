@@ -5,6 +5,7 @@ import type {
 } from "@1git/git";
 import {
 	DropdownMenuCheckboxItem,
+	DropdownMenuGroup,
 	DropdownMenuItem,
 	DropdownMenuLabel,
 	DropdownMenuSeparator,
@@ -70,6 +71,29 @@ const REPOSITORY_TAB_LABELS: Readonly<Record<RepositoryTab, string>> = {
 	history: "History",
 	stashes: "Stashes",
 };
+
+interface RepositoryDiffOptionsProps {
+	readonly ignoreWhitespace: boolean;
+	readonly onSetIgnoreWhitespace: (ignoreWhitespace: boolean) => void;
+}
+
+export function RepositoryDiffOptions({
+	ignoreWhitespace,
+	onSetIgnoreWhitespace,
+}: RepositoryDiffOptionsProps): ReactElement {
+	return (
+		<DropdownMenuGroup>
+			<DropdownMenuLabel>Diff</DropdownMenuLabel>
+			<DropdownMenuCheckboxItem
+				checked={ignoreWhitespace}
+				closeOnClick={false}
+				onCheckedChange={onSetIgnoreWhitespace}
+			>
+				Ignore whitespace
+			</DropdownMenuCheckboxItem>
+		</DropdownMenuGroup>
+	);
+}
 
 export function RepositoryWorkspaceToolbar({
 	branches,
@@ -184,14 +208,10 @@ export function RepositoryWorkspaceToolbar({
 						<DropdownMenuShortcut>⌘3</DropdownMenuShortcut>
 					</DropdownMenuItem>
 					<DropdownMenuSeparator />
-					<DropdownMenuLabel>Diff</DropdownMenuLabel>
-					<DropdownMenuCheckboxItem
-						checked={ignoreWhitespace}
-						closeOnClick={false}
-						onCheckedChange={onSetIgnoreWhitespace}
-					>
-						Ignore whitespace
-					</DropdownMenuCheckboxItem>
+					<RepositoryDiffOptions
+						ignoreWhitespace={ignoreWhitespace}
+						onSetIgnoreWhitespace={onSetIgnoreWhitespace}
+					/>
 				</LiquidMenuContent>
 			</LiquidMenuRoot>
 
