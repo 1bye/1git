@@ -53,6 +53,7 @@ import {
 	repositoryRecoveryErrorMessage,
 	shouldStageFilesOnFirstPresentation,
 } from "@/feature/workspace/lib/repository-recovery.js";
+import { getRepositoryRevisionPresentation } from "@/feature/workspace/lib/repository-revision-presentation.js";
 import {
 	type BranchSwitchResult,
 	combineRepositoryStashDiffs,
@@ -530,8 +531,6 @@ export const useGitWorkspace = (): GitWorkspace => {
 			if (requestId !== diffRequestIdRef.current) {
 				return null;
 			}
-			setDiffs([diff]);
-			setVisibleBranchComparison(null);
 			return diff;
 		},
 		[ignoreWhitespace]
@@ -541,24 +540,40 @@ export const useGitWorkspace = (): GitWorkspace => {
 		setDiffs([]);
 		setVisibleBranchComparison(null);
 	}, []);
+	const presentDiff = useCallback((diff: FileDiff | null): boolean => {
+		if (!diff) {
+			return false;
+		}
+		setDiffs([diff]);
+		setVisibleBranchComparison(null);
+		return true;
+	}, []);
 	const presentRevision = useCallback(
 		async (
 			sessionId: RepositorySessionId,
 			kind: "commit" | "stash",
 			revision: string | null
 		): Promise<void> => {
-			setSelectedCommitOid(kind === "commit" ? revision : null);
-			setSelectedStashOid(kind === "stash" ? revision : null);
-			setSelectedFilePath(null);
-			clearDiff();
 			if (!revision) {
+				setSelectedCommitOid(null);
+				setSelectedStashOid(null);
+				setSelectedFilePath(null);
+				clearDiff();
 				return;
 			}
-			setSelectedFilePath(
-				firstDiffPath(await loadRevisionDiff(sessionId, kind, revision))
+			const nextPresentation = getRepositoryRevisionPresentation(
+				kind,
+				revision,
+				await loadRevisionDiff(sessionId, kind, revision)
 			);
+			if (!(nextPresentation && presentDiff(nextPresentation.diff))) {
+				return;
+			}
+			setSelectedCommitOid(nextPresentation.selectedCommitOid);
+			setSelectedStashOid(nextPresentation.selectedStashOid);
+			setSelectedFilePath(nextPresentation.selectedFilePath);
 		},
-		[clearDiff, loadRevisionDiff]
+		[clearDiff, loadRevisionDiff, presentDiff]
 	);
 	const refreshChangesDiff = useCallback(
 		(sessionId: RepositorySessionId, files: readonly FileChange[]): void => {
@@ -1883,20 +1898,24 @@ export const useGitWorkspace = (): GitWorkspace => {
 				return;
 			}
 			if (tab === "history" && selectedCommitOid) {
-				await loadRevisionDiff(
-					activeSession.id,
-					"commit",
-					selectedCommitOid,
-					nextIgnoreWhitespace
+				presentDiff(
+					await loadRevisionDiff(
+						activeSession.id,
+						"commit",
+						selectedCommitOid,
+						nextIgnoreWhitespace
+					)
 				);
 				return;
 			}
 			if (tab === "stashes" && selectedStashOid) {
-				await loadRevisionDiff(
-					activeSession.id,
-					"stash",
-					selectedStashOid,
-					nextIgnoreWhitespace
+				presentDiff(
+					await loadRevisionDiff(
+						activeSession.id,
+						"stash",
+						selectedStashOid,
+						nextIgnoreWhitespace
+					)
 				);
 				return;
 			}

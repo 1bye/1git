@@ -133,7 +133,7 @@ export function DiffView({
 		() => entries.map((entry) => entry.key).join("\n"),
 		[entries]
 	);
-	const isHighlighterReady = useRepositoryDiffHighlighter(entries);
+	useRepositoryDiffHighlighter(entries);
 	const prioritizedEntryKeys = useMemo(() => {
 		const keys = new Set<string>();
 		if (!selectedFilePath) {
@@ -193,10 +193,9 @@ export function DiffView({
 								entry={entry}
 								ignoreWhitespace={ignoreWhitespace}
 								isBodyMounted={
-									isHighlighterReady &&
-									(index < REPOSITORY_DIFF_INITIAL_MOUNTED_COUNT ||
-										prioritizedEntryKeys.has(entry.key) ||
-										visibleEntryKeys.has(entry.key))
+									index < REPOSITORY_DIFF_INITIAL_MOUNTED_COUNT ||
+									prioritizedEntryKeys.has(entry.key) ||
+									visibleEntryKeys.has(entry.key)
 								}
 								isHunkActionPending={isHunkActionPending}
 								key={entry.key}
