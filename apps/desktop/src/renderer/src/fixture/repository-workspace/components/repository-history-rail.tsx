@@ -41,6 +41,10 @@ interface RepositoryHistoryRailProps {
 		commit: CommitInfo,
 		branchName: string
 	) => Promise<boolean>;
+	readonly onCreateBranch: (
+		name: string,
+		startPoint?: string
+	) => Promise<boolean>;
 	readonly onResetCommit: (
 		commit: CommitInfo,
 		mode: ResetMode
@@ -63,6 +67,7 @@ function RepositoryHistoryList({
 	isPending,
 	onAmendCommit,
 	onCherryPickCommit,
+	onCreateBranch,
 	onResetCommit,
 	onRevertCommit,
 	onSelectCommit,
@@ -165,6 +170,7 @@ function RepositoryHistoryList({
 						isSelected={selectedCommitOid === commit.oid}
 						onAmend={onAmendCommit}
 						onCherryPick={onCherryPickCommit}
+						onCreateBranch={onCreateBranch}
 						onNavigate={navigateCommits}
 						onReset={onResetCommit}
 						onRevert={onRevertCommit}
@@ -184,6 +190,7 @@ export function RepositoryHistoryRail({
 	isPending,
 	onAmendCommit,
 	onCherryPickCommit,
+	onCreateBranch,
 	onResetCommit,
 	onRevertCommit,
 	onSelectCommit,
@@ -246,6 +253,7 @@ export function RepositoryHistoryRail({
 					key={`${normalizedQuery}:${commits[0]?.oid ?? ""}:${commits.length}`}
 					onAmendCommit={onAmendCommit}
 					onCherryPickCommit={onCherryPickCommit}
+					onCreateBranch={onCreateBranch}
 					onResetCommit={onResetCommit}
 					onRevertCommit={onRevertCommit}
 					onSelectCommit={onSelectCommit}

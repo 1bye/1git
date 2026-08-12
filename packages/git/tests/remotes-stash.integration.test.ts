@@ -168,6 +168,34 @@ describe("GitRepository remotes and synchronization", () => {
 		).toContain("refs/heads/main");
 	});
 
+	test("changes the upstream to an existing remote branch", async () => {
+		const fixture = await fixtures.create();
+		const remotePath = await fixture.createBareRemote();
+		unwrapResult(
+			await fixture.repository.addRemote({
+				name: "origin",
+				url: remotePath,
+			})
+		);
+		unwrapResult(
+			await fixture.repository.push({
+				branch: "main",
+				remote: "origin",
+			})
+		);
+		const result = unwrapResult(
+			await fixture.repository.setUpstream({
+				branch: "main",
+				upstream: "origin/main",
+			})
+		);
+
+		expect(result.snapshot.head.upstream).toBe("origin/main");
+		expect(
+			result.branches.branches.find(({ name }) => name === "main")?.upstream
+		).toBe("origin/main");
+	});
+
 	test("fetches all remotes and returns tracking branches", async () => {
 		const fixture = await fixtures.create();
 		const remotePath = await fixture.createBareRemote();

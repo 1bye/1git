@@ -42,6 +42,30 @@ describe("GitRepository branches and commit sequences", () => {
 		expect(result.branches.current).toBe("feature/checked-out");
 	});
 
+	test("creates and checks out a branch from a selected commit", async () => {
+		const fixture = await fixtures.create();
+		unwrapResult(
+			await fixture.repository.createBranch({
+				checkout: true,
+				name: "source",
+			})
+		);
+		await fixture.write("source.txt", "source\n");
+		const sourceOid = await fixture.commitAll("source");
+		unwrapResult(await fixture.repository.checkoutBranch({ name: "main" }));
+
+		const result = unwrapResult(
+			await fixture.repository.createBranch({
+				checkout: true,
+				name: "from-history",
+				startPoint: sourceOid,
+			})
+		);
+
+		expect(result.snapshot.head.branch).toBe("from-history");
+		expect(result.snapshot.head.oid).toBe(sourceOid);
+	});
+
 	test("switches between existing branches", async () => {
 		const fixture = await fixtures.create();
 		unwrapResult(

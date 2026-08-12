@@ -65,17 +65,23 @@ interface DesktopToolbarProps {
 	) => Promise<void>;
 	readonly onCancelSync: () => Promise<void>;
 	readonly onCloseWorkspace: (sessionId: RepositorySessionId) => Promise<void>;
-	readonly onCreateBranch: (name: string) => Promise<boolean>;
+	readonly onCreateBranch: (
+		name: string,
+		startPoint?: string
+	) => Promise<boolean>;
+	readonly onDeleteBranch: (name: string) => Promise<boolean>;
 	readonly onForgetRecent: (path: string) => Promise<void>;
 	readonly onOpenRecent: (
 		path: string,
 		options?: OpenRepositoryOptions
 	) => Promise<void>;
 	readonly onPickRepository: () => Promise<void>;
+	readonly onRenameBranch: (newName: string) => Promise<boolean>;
 	readonly onReorderWorkspace: (
 		activeSessionId: RepositorySessionId,
 		overSessionId: RepositorySessionId
 	) => void;
+	readonly onSetBranchUpstream: (upstream: string) => Promise<boolean>;
 	readonly onStashAndSwitchBranch: (name: string) => Promise<boolean>;
 	readonly onSwitchBranch: (name: string) => Promise<BranchSwitchResult>;
 	readonly onSync: () => Promise<void>;
@@ -160,10 +166,13 @@ export function DesktopToolbar({
 	onCancelSync,
 	onCloseWorkspace,
 	onCreateBranch,
+	onDeleteBranch,
 	onForgetRecent,
 	onOpenRecent,
 	onPickRepository,
 	onReorderWorkspace,
+	onRenameBranch,
+	onSetBranchUpstream,
 	onStashAndSwitchBranch,
 	onSwitchBranch,
 	onSync,
@@ -511,6 +520,9 @@ export function DesktopToolbar({
 													onCancelSync={onCancelSync}
 													onClose={closeWorkspaceMenu}
 													onCreateBranch={onCreateBranch}
+													onDeleteBranch={onDeleteBranch}
+													onRenameBranch={onRenameBranch}
+													onSetBranchUpstream={onSetBranchUpstream}
 													onStashAndSwitchBranch={onStashAndSwitchBranch}
 													onSwitchBranch={onSwitchBranch}
 													onSync={onSync}

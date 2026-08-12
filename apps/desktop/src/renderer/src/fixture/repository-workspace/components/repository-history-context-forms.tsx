@@ -156,6 +156,75 @@ export function AmendCommitForm({
 	);
 }
 
+interface CreateBranchAtCommitFormProps {
+	readonly commit: CommitInfo;
+	readonly isPending: boolean;
+	readonly onBack: () => void;
+	readonly onCreate: (name: string) => Promise<boolean>;
+}
+
+export function CreateBranchAtCommitForm({
+	commit,
+	isPending,
+	onBack,
+	onCreate,
+}: CreateBranchAtCommitFormProps): ReactElement {
+	const [branchName, setBranchName] = useState("");
+	const [actionError, setActionError] = useState<string | null>(null);
+	const submit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
+		event.preventDefault();
+		setActionError(null);
+		if (!(await onCreate(branchName))) {
+			setActionError("The branch could not be created.");
+		}
+	};
+
+	return (
+		<>
+			<HistoryMenuBack label="Create branch here" onBack={onBack} />
+			<form className="space-y-2 p-1" onSubmit={submit}>
+				<p className="px-1 text-[10px] text-editor-faint leading-4">
+					Create and switch at {commit.oid.slice(0, 7)}.
+				</p>
+				<Input
+					aria-label="New branch name"
+					autoComplete="off"
+					autoFocus
+					className="h-8 bg-editor-sunken text-xs shadow-none"
+					disabled={isPending}
+					onChange={(event) => setBranchName(event.target.value)}
+					onKeyDown={stopMenuNavigation}
+					placeholder="feature/my-change"
+					required
+					value={branchName}
+				/>
+				<div className="flex justify-end gap-1.5">
+					<Button
+						disabled={isPending}
+						onClick={onBack}
+						size="sm"
+						type="button"
+						variant="ghost"
+					>
+						Cancel
+					</Button>
+					<Button
+						disabled={isPending || !branchName.trim()}
+						size="sm"
+						type="submit"
+						variant="brand"
+					>
+						Create and switch
+					</Button>
+				</div>
+			</form>
+			{actionError ? (
+				<HistoryActionStatus>{actionError}</HistoryActionStatus>
+			) : null}
+		</>
+	);
+}
+
 interface ResetCommitFormProps {
 	readonly branch: string | null;
 	readonly commit: CommitInfo;

@@ -41,11 +41,18 @@ describe("GitRepository worktrees", () => {
 				path,
 			})
 		);
+		const branches = unwrapResult(await fixture.repository.getBranches());
 
 		expect(worktrees).toHaveLength(2);
 		expect(worktrees.find((worktree) => worktree.path === path)).toMatchObject({
 			branch: "feature/worktree",
 			detached: false,
+		});
+		expect(
+			branches.branches.find(({ name }) => name === "feature/worktree")
+		).toMatchObject({
+			checkedOut: false,
+			worktreePath: path,
 		});
 	});
 

@@ -27,10 +27,13 @@ export function App(): ReactElement {
 			onCancelSync={workspace.cancelSync}
 			onCloseWorkspace={workspace.closeWorkspace}
 			onCreateBranch={workspace.createBranch}
+			onDeleteBranch={workspace.deleteBranch}
 			onForgetRecent={workspace.forgetRecentRepository}
 			onOpenRecent={workspace.openRecentRepository}
 			onPickRepository={workspace.pickRepository}
+			onRenameBranch={workspace.renameBranch}
 			onReorderWorkspace={workspace.reorderWorkspace}
+			onSetBranchUpstream={workspace.setBranchUpstream}
 			onStashAndSwitchBranch={workspace.stashAndSwitchBranch}
 			onSwitchBranch={workspace.switchBranch}
 			onSync={workspace.syncRepository}
@@ -65,6 +68,7 @@ export function App(): ReactElement {
 							onChangeHunk={workspace.changeHunk}
 							onCherryPickCommit={workspace.cherryPickCommit}
 							onCommit={workspace.commit}
+							onCreateBranch={workspace.createBranch}
 							onDiscardFiles={workspace.discardFiles}
 							onDropStash={workspace.dropStash}
 							onMergeBranch={workspace.mergeBranch}

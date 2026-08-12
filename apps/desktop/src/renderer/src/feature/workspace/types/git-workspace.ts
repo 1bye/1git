@@ -84,8 +84,12 @@ export interface GitWorkspace {
 	readonly cloneRepository: (remoteUrl: string) => Promise<boolean>;
 	readonly closeWorkspace: (sessionId: RepositorySessionId) => Promise<void>;
 	readonly commit: (summary: string, description: string) => Promise<boolean>;
-	readonly createBranch: (name: string) => Promise<boolean>;
+	readonly createBranch: (
+		name: string,
+		startPoint?: string
+	) => Promise<boolean>;
 	readonly createRepository: () => Promise<boolean>;
+	readonly deleteBranch: (name: string) => Promise<boolean>;
 	readonly diffs: readonly FileDiff[];
 	readonly discardFiles: (files: readonly FileChange[]) => Promise<boolean>;
 	readonly discardUndo: WorkspaceDiscardUndo | null;
@@ -108,6 +112,7 @@ export interface GitWorkspace {
 	readonly recoverRepository: (
 		action: RepositoryRecoveryAction
 	) => Promise<boolean>;
+	readonly renameBranch: (newName: string) => Promise<boolean>;
 	readonly reorderWorkspace: (
 		activeSessionId: RepositorySessionId,
 		overSessionId: RepositorySessionId
@@ -124,6 +129,7 @@ export interface GitWorkspace {
 	readonly selectFile: (file: FileChange) => Promise<void>;
 	readonly selectRevisionFile: (path: string) => Promise<void>;
 	readonly selectStash: (stash: StashInfo) => Promise<void>;
+	readonly setBranchUpstream: (upstream: string) => Promise<boolean>;
 	readonly setFileStaged: (
 		file: FileChange,
 		shouldStage: boolean

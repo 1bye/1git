@@ -46,6 +46,10 @@ export interface RepositoryNavigationRailProps {
 		branchName: string
 	) => Promise<boolean>;
 	readonly onCommit: (summary: string, description: string) => Promise<boolean>;
+	readonly onCreateBranch: (
+		name: string,
+		startPoint?: string
+	) => Promise<boolean>;
 	readonly onDiscardFiles: (files: readonly FileChange[]) => Promise<boolean>;
 	readonly onDropStash: (stash: StashInfo) => Promise<boolean>;
 	readonly onMergeBranch: (name: string) => Promise<boolean>;
@@ -90,6 +94,7 @@ export function RepositoryNavigationRail({
 	onAmendCommit,
 	onApplyStash,
 	onCherryPickCommit,
+	onCreateBranch,
 	onCommit,
 	onCancelSync,
 	onDiscardFiles,
@@ -171,6 +176,7 @@ export function RepositoryNavigationRail({
 				isPending={pendingAction !== null}
 				onAmendCommit={onAmendCommit}
 				onCherryPickCommit={onCherryPickCommit}
+				onCreateBranch={onCreateBranch}
 				onResetCommit={onResetCommit}
 				onRevertCommit={onRevertCommit}
 				onSelectCommit={onSelectCommit}

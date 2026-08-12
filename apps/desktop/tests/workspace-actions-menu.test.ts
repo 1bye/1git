@@ -21,6 +21,7 @@ const branch = (
 	summary: "",
 	type,
 	upstream: null,
+	worktreePath: null,
 });
 
 describe("workspace actions menu branches", () => {

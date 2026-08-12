@@ -204,6 +204,8 @@ Do not create a standalone full-page stash manager.
 
 ## Phase 4 — Complete the branch lifecycle
 
+Status: completed on 2026-08-12.
+
 ### User experience
 
 Extend the existing branch/worktree quick action instead of adding a branch

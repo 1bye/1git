@@ -14,6 +14,7 @@ export const BRANCH_FORMAT = [
 	"%(upstream:track,nobracket)",
 	"%(committerdate:iso-strict)",
 	"%(subject)",
+	"%(worktreepath)",
 ].join("%00");
 
 export const TAG_FORMAT = [
@@ -57,6 +58,7 @@ export const parseBranches = (output: Buffer | string): BranchCollection => {
 			trackingValue,
 			committedAtValue,
 			summary,
+			worktreePathValue,
 		] = record.split("\0");
 		if (!(fullName && name && oid)) {
 			continue;
@@ -80,6 +82,7 @@ export const parseBranches = (output: Buffer | string): BranchCollection => {
 			summary: summary ?? "",
 			type,
 			upstream: upstreamValue || null,
+			worktreePath: worktreePathValue || null,
 		});
 	}
 	return {

@@ -17,6 +17,7 @@ describe("parseBranches", () => {
 				"",
 				"2026-01-02T03:04:05Z",
 				"Initial",
+				"/repo",
 			])
 		);
 
@@ -27,6 +28,30 @@ describe("parseBranches", () => {
 			name: "main",
 			remote: null,
 			type: "local",
+			worktreePath: "/repo",
+		});
+	});
+
+	test("records a linked worktree without treating it as the current branch", () => {
+		const branches = parseBranches(
+			record([
+				"refs/heads/linked",
+				"linked",
+				OID_A,
+				" ",
+				"",
+				"",
+				"2026-01-02T03:04:05Z",
+				"Linked",
+				"/repo-linked",
+			])
+		);
+
+		expect(branches.current).toBeNull();
+		expect(branches.branches[0]).toMatchObject({
+			checkedOut: false,
+			name: "linked",
+			worktreePath: "/repo-linked",
 		});
 	});
 

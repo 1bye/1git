@@ -32,10 +32,11 @@ import { LiquidMenuAutoSize } from "@/fixture/liquid-menu/components/liquid-menu
 import { useLiquidContextMenuPosition } from "@/fixture/liquid-menu/hooks/use-liquid-context-menu-position.js";
 import {
 	AmendCommitForm,
+	CreateBranchAtCommitForm,
 	ResetCommitForm,
 } from "@/fixture/repository-workspace/components/repository-history-context-forms.js";
 
-type HistoryMenuView = "actions" | "amend" | "reset";
+type HistoryMenuView = "actions" | "amend" | "branch" | "reset";
 
 const REPOSITORY_HISTORY_CONTEXT_MENU_ANCHOR_GEOMETRY = {
 	insetBlock: 0,
@@ -62,6 +63,10 @@ interface RepositoryHistoryContextMenuProps {
 		commit: CommitInfo,
 		branchName: string
 	) => Promise<boolean>;
+	readonly onCreateBranch: (
+		name: string,
+		startPoint?: string
+	) => Promise<boolean>;
 	readonly onNavigate: (event: ReactKeyboardEvent<HTMLButtonElement>) => void;
 	readonly onReset: (commit: CommitInfo, mode: ResetMode) => Promise<boolean>;
 	readonly onRevert: (commit: CommitInfo) => Promise<boolean>;
@@ -84,6 +89,7 @@ function RepositoryHistoryContextActions({
 	isPending,
 	onAmend,
 	onCherryPick,
+	onCreateBranch,
 	onDismiss,
 	onReset,
 	onRevert,
@@ -142,6 +148,25 @@ function RepositoryHistoryContextActions({
 		);
 	}
 
+	if (view === "branch") {
+		return (
+			<LiquidMenuAutoSize viewKey="branch">
+				<CreateBranchAtCommitForm
+					commit={commit}
+					isPending={isPending}
+					onBack={() => setView("actions")}
+					onCreate={async (name) => {
+						const succeeded = await onCreateBranch(name, commit.oid);
+						if (succeeded) {
+							onDismiss();
+						}
+						return succeeded;
+					}}
+				/>
+			</LiquidMenuAutoSize>
+		);
+	}
+
 	return (
 		<LiquidMenuAutoSize viewKey="actions">
 			<DropdownMenuItem
@@ -183,6 +208,15 @@ function RepositoryHistoryContextActions({
 					))}
 				</LiquidMenuSubContent>
 			</LiquidMenuSub>
+			<DropdownMenuItem
+				className="gap-2.5 py-2"
+				closeOnClick={false}
+				disabled={isPending}
+				onClick={() => setView("branch")}
+			>
+				<GitBranchIcon aria-hidden weight="duotone" />
+				Create branch here…
+			</DropdownMenuItem>
 			<DropdownMenuItem
 				className="gap-2.5 py-2"
 				closeOnClick={false}
@@ -235,6 +269,7 @@ export function RepositoryHistoryContextMenu({
 	isSelected,
 	onAmend,
 	onCherryPick,
+	onCreateBranch,
 	onNavigate,
 	onReset,
 	onRevert,
@@ -327,6 +362,7 @@ export function RepositoryHistoryContextMenu({
 						isPending={isPending}
 						onAmend={onAmend}
 						onCherryPick={onCherryPick}
+						onCreateBranch={onCreateBranch}
 						onDismiss={() => changeOpen(false)}
 						onReset={onReset}
 						onRevert={onRevert}

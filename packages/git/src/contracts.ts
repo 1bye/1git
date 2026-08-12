@@ -216,6 +216,7 @@ export interface BranchInfo {
 	readonly summary: string;
 	readonly type: "local" | "remote";
 	readonly upstream: string | null;
+	readonly worktreePath: string | null;
 }
 
 /** Local and remote-tracking branch collection. */

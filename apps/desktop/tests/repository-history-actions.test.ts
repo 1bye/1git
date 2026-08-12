@@ -36,6 +36,7 @@ const branch = (
 	summary: "",
 	type,
 	upstream: null,
+	worktreePath: null,
 });
 
 describe("repository history actions", () => {

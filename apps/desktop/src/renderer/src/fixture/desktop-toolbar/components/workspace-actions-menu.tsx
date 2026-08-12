@@ -6,7 +6,6 @@ import {
 	DropdownMenuLabel,
 	DropdownMenuSeparator,
 } from "@1git/ui/components/dropdown-menu";
-import { Input } from "@1git/ui/components/input";
 import {
 	Tooltip,
 	TooltipContent,
@@ -19,16 +18,20 @@ import { CaretRightIcon } from "@phosphor-icons/react/dist/csr/CaretRight";
 import { CheckIcon } from "@phosphor-icons/react/dist/csr/Check";
 import { FileCodeIcon } from "@phosphor-icons/react/dist/csr/FileCode";
 import { GitBranchIcon } from "@phosphor-icons/react/dist/csr/GitBranch";
+import { LinkSimpleIcon } from "@phosphor-icons/react/dist/csr/LinkSimple";
+import { PencilSimpleIcon } from "@phosphor-icons/react/dist/csr/PencilSimple";
 import { PlusIcon } from "@phosphor-icons/react/dist/csr/Plus";
+import { TrashIcon } from "@phosphor-icons/react/dist/csr/Trash";
 import { XIcon } from "@phosphor-icons/react/dist/csr/X";
-import type {
-	ChangeEvent,
-	CSSProperties,
-	FormEvent,
-	ReactElement,
-	KeyboardEvent as ReactKeyboardEvent,
-} from "react";
+import type { CSSProperties, ReactElement } from "react";
 import { useId, useState } from "react";
+import {
+	getRepositoryCurrentBranch,
+	getRepositoryDeletableBranches,
+	getRepositoryRemoteBranches,
+	repositoryBranchSwitchDisabledReason,
+	repositoryBranchTrackingLabel,
+} from "@/feature/workspace/lib/repository-branches.js";
 import type { BranchSwitchResult } from "@/feature/workspace/lib/repository-stash.js";
 import {
 	isRepositorySyncActionKind,
@@ -37,6 +40,12 @@ import {
 } from "@/feature/workspace/lib/repository-sync.js";
 import { formatCommitDate } from "@/feature/workspace/lib/workspace-model.js";
 import type { PendingWorkspaceAction } from "@/feature/workspace/types/git-workspace.js";
+import {
+	CreateBranchForm,
+	DeleteBranchView,
+	RenameBranchForm,
+	SetBranchUpstreamView,
+} from "@/fixture/desktop-toolbar/components/workspace-branch-action-views.js";
 import {
 	WORKSPACE_BRANCH_EXPANDED_VISIBLE_LIMIT,
 	WORKSPACE_BRANCH_MENU_ITEM_HEIGHT_PX,
@@ -54,7 +63,13 @@ interface WorkspaceActionsMenuProps {
 	readonly currentBranch: string;
 	readonly onCancelSync: () => Promise<void>;
 	readonly onClose: () => void;
-	readonly onCreateBranch: (name: string) => Promise<boolean>;
+	readonly onCreateBranch: (
+		name: string,
+		startPoint?: string
+	) => Promise<boolean>;
+	readonly onDeleteBranch: (name: string) => Promise<boolean>;
+	readonly onRenameBranch: (newName: string) => Promise<boolean>;
+	readonly onSetBranchUpstream: (upstream: string) => Promise<boolean>;
 	readonly onStashAndSwitchBranch: (name: string) => Promise<boolean>;
 	readonly onSwitchBranch: (name: string) => Promise<BranchSwitchResult>;
 	readonly onSync: () => Promise<void>;
@@ -62,20 +77,20 @@ interface WorkspaceActionsMenuProps {
 	readonly syncAction: RepositorySyncAction;
 }
 
+type WorkspaceBranchMenuView =
+	| "actions"
+	| "create"
+	| "delete"
+	| "rename"
+	| "upstream";
+
 interface BranchMenuItemProps {
 	readonly branch: BranchInfo;
+	readonly currentBranch: string;
 	readonly isPending: boolean;
 	readonly onClose: () => void;
 	readonly onNeedsStash: (branch: BranchInfo) => void;
 	readonly onSwitchBranch: (name: string) => Promise<BranchSwitchResult>;
-}
-
-interface CreateBranchFormProps {
-	readonly isPending: boolean;
-	readonly onCancel: () => void;
-	readonly onClose: () => void;
-	readonly onCreateBranch: (name: string) => Promise<boolean>;
-	readonly pendingAction: PendingWorkspaceAction;
 }
 
 interface RepositorySyncMenuItemProps {
@@ -96,10 +111,16 @@ interface StashAndSwitchConfirmationProps {
 
 interface WorkspaceBranchActionsProps {
 	readonly branchListId: string;
+	readonly currentBranch: string;
+	readonly currentBranchInfo: BranchInfo | null;
+	readonly deletableBranchCount: number;
 	readonly hasMoreBranches: boolean;
 	readonly isBranchListExpanded: boolean;
 	readonly isPending: boolean;
 	readonly onBeginBranchCreation: () => void;
+	readonly onBeginBranchDeletion: () => void;
+	readonly onBeginBranchRename: () => void;
+	readonly onBeginSetUpstream: () => void;
 	readonly onCancelSync: () => Promise<void>;
 	readonly onClose: () => void;
 	readonly onNeedsStash: (branch: BranchInfo) => void;
@@ -107,12 +128,14 @@ interface WorkspaceBranchActionsProps {
 	readonly onSync: () => Promise<void>;
 	readonly onToggleBranchList: () => void;
 	readonly pendingAction: PendingWorkspaceAction;
+	readonly remoteBranchCount: number;
 	readonly syncAction: RepositorySyncAction;
 	readonly visibleBranches: readonly BranchInfo[];
 }
 
 function BranchMenuItem({
 	branch,
+	currentBranch,
 	isPending,
 	onClose,
 	onNeedsStash,
@@ -120,9 +143,17 @@ function BranchMenuItem({
 }: BranchMenuItemProps): ReactElement {
 	const commitAge = formatBranchCommitAge(branch.committedAt);
 	const tooltipId = useId();
+	const isCurrent = branch.name === currentBranch;
+	const disabledReason = repositoryBranchSwitchDisabledReason(
+		branch,
+		currentBranch
+	);
 	const switchBranch = async (): Promise<void> => {
-		if (branch.checkedOut) {
+		if (isCurrent) {
 			onClose();
+			return;
+		}
+		if (disabledReason) {
 			return;
 		}
 		const result = await onSwitchBranch(branch.name);
@@ -134,21 +165,23 @@ function BranchMenuItem({
 	};
 	const menuItemLabel = [
 		branch.name,
-		branch.checkedOut ? "current branch" : null,
+		isCurrent ? "current branch" : null,
+		disabledReason,
 		commitAge ? `last commit ${commitAge}` : null,
 	]
 		.filter(Boolean)
 		.join(", ");
 	const menuItem = (
 		<DropdownMenuItem
-			aria-current={branch.checkedOut ? "true" : undefined}
+			aria-current={isCurrent ? "true" : undefined}
 			aria-describedby={branch.committedAt && commitAge ? tooltipId : undefined}
 			aria-label={menuItemLabel}
 			closeOnClick={false}
-			disabled={isPending}
+			disabled={isPending || disabledReason !== null}
 			onClick={switchBranch}
+			title={disabledReason ?? undefined}
 		>
-			{branch.checkedOut ? (
+			{isCurrent ? (
 				<CheckIcon aria-hidden className="text-brand" weight="bold" />
 			) : (
 				<GitBranchIcon
@@ -241,81 +274,6 @@ function StashAndSwitchConfirmation({
 	);
 }
 
-function CreateBranchForm({
-	isPending,
-	onCancel,
-	onClose,
-	onCreateBranch,
-	pendingAction,
-}: CreateBranchFormProps): ReactElement {
-	const [branchName, setBranchName] = useState("");
-	const updateBranchName = (event: ChangeEvent<HTMLInputElement>): void => {
-		setBranchName(event.target.value);
-	};
-	const stopMenuNavigation = (
-		event: ReactKeyboardEvent<HTMLInputElement>
-	): void => {
-		event.stopPropagation();
-	};
-	const createBranch = async (
-		event: FormEvent<HTMLFormElement>
-	): Promise<void> => {
-		event.preventDefault();
-		const didCreate = await onCreateBranch(branchName);
-		if (didCreate) {
-			onClose();
-		}
-	};
-
-	return (
-		<form
-			aria-busy={isPending}
-			className="p-1"
-			data-name="CreateBranchForm"
-			onSubmit={createBranch}
-		>
-			<label
-				className="px-1 font-medium text-[10px] text-editor-faint"
-				htmlFor="new-workspace-branch-name"
-			>
-				New branch name
-			</label>
-			<Input
-				autoComplete="off"
-				autoFocus
-				className="mt-1.5 h-8 text-xs"
-				disabled={isPending}
-				id="new-workspace-branch-name"
-				onChange={updateBranchName}
-				onKeyDown={stopMenuNavigation}
-				placeholder="feature/my-change"
-				required
-				value={branchName}
-			/>
-			<div className="mt-2 flex justify-end gap-1">
-				<Button
-					disabled={isPending}
-					onClick={onCancel}
-					size="sm"
-					type="button"
-					variant="ghost"
-				>
-					Cancel
-				</Button>
-				<Button
-					aria-busy={pendingAction === "branch"}
-					disabled={!branchName.trim() || isPending}
-					size="sm"
-					type="submit"
-					variant="brand"
-				>
-					Create
-				</Button>
-			</div>
-		</form>
-	);
-}
-
 const EXPANDED_BRANCH_LIST_STYLE: CSSProperties = {
 	maxHeight:
 		WORKSPACE_BRANCH_EXPANDED_VISIBLE_LIMIT *
@@ -368,10 +326,16 @@ function RepositorySyncMenuItem({
 
 function WorkspaceBranchActions({
 	branchListId,
+	currentBranch,
+	currentBranchInfo,
+	deletableBranchCount,
 	hasMoreBranches,
 	isBranchListExpanded,
 	isPending,
 	onBeginBranchCreation,
+	onBeginBranchDeletion,
+	onBeginBranchRename,
+	onBeginSetUpstream,
 	onCancelSync,
 	onClose,
 	onNeedsStash,
@@ -379,11 +343,21 @@ function WorkspaceBranchActions({
 	onSync,
 	onToggleBranchList,
 	pendingAction,
+	remoteBranchCount,
 	syncAction,
 	visibleBranches,
 }: WorkspaceBranchActionsProps): ReactElement {
 	return (
 		<>
+			<DropdownMenuLabel className="flex flex-col gap-0.5 py-2 font-normal normal-case tracking-normal">
+				<span className="truncate font-medium text-editor-ink">
+					{currentBranch || "Detached HEAD"}
+				</span>
+				<span className="truncate text-[9px] text-editor-faint">
+					{repositoryBranchTrackingLabel(currentBranchInfo)}
+				</span>
+			</DropdownMenuLabel>
+			<DropdownMenuSeparator />
 			<div
 				className={
 					isBranchListExpanded
@@ -397,6 +371,7 @@ function WorkspaceBranchActions({
 					{visibleBranches.map((branch) => (
 						<BranchMenuItem
 							branch={branch}
+							currentBranch={currentBranch}
 							isPending={isPending}
 							key={branch.fullName}
 							onClose={onClose}
@@ -445,6 +420,50 @@ function WorkspaceBranchActions({
 					<PlusIcon aria-hidden className="text-editor-faint" weight="bold" />
 					Create new branch…
 				</DropdownMenuItem>
+				<DropdownMenuItem
+					closeOnClick={false}
+					disabled={isPending || currentBranchInfo === null}
+					onClick={onBeginBranchRename}
+				>
+					<PencilSimpleIcon
+						aria-hidden
+						className="text-editor-faint"
+						weight="duotone"
+					/>
+					Rename current branch…
+				</DropdownMenuItem>
+				<DropdownMenuItem
+					closeOnClick={false}
+					disabled={
+						isPending || currentBranchInfo === null || remoteBranchCount === 0
+					}
+					onClick={onBeginSetUpstream}
+					title={
+						remoteBranchCount === 0
+							? "Fetch a remote branch before setting upstream."
+							: undefined
+					}
+				>
+					<LinkSimpleIcon
+						aria-hidden
+						className="text-editor-faint"
+						weight="duotone"
+					/>
+					Set upstream…
+				</DropdownMenuItem>
+				<DropdownMenuItem
+					closeOnClick={false}
+					disabled={isPending || deletableBranchCount === 0}
+					onClick={onBeginBranchDeletion}
+				>
+					<TrashIcon
+						aria-hidden
+						className="text-editor-faint"
+						weight="duotone"
+					/>
+					Delete branch…
+				</DropdownMenuItem>
+				<DropdownMenuSeparator />
 				<RepositorySyncMenuItem
 					onCancelSync={onCancelSync}
 					onClose={onClose}
@@ -463,39 +482,78 @@ export function WorkspaceActionsMenu({
 	onCancelSync,
 	onClose,
 	onCreateBranch,
+	onDeleteBranch,
+	onRenameBranch,
+	onSetBranchUpstream,
 	onStashAndSwitchBranch,
 	onSync,
 	onSwitchBranch,
 	pendingAction,
 	syncAction,
 }: WorkspaceActionsMenuProps): ReactElement {
-	const [isCreating, setIsCreating] = useState(false);
+	const [view, setView] = useState<WorkspaceBranchMenuView>("actions");
 	const [isBranchListExpanded, setIsBranchListExpanded] = useState(false);
 	const [switchTarget, setSwitchTarget] = useState<BranchInfo | null>(null);
 	const branchListId = useId();
 	const { latestBranches, remainingBranches } =
 		groupWorkspaceBranches(branches);
+	const currentBranchInfo = getRepositoryCurrentBranch(branches);
+	const deletableBranches = getRepositoryDeletableBranches(branches);
+	const remoteBranches = getRepositoryRemoteBranches(branches);
 	const visibleBranches = isBranchListExpanded
 		? [...latestBranches, ...remainingBranches]
 		: latestBranches;
 	const hasMoreBranches = remainingBranches.length > 0;
 	const isPending = pendingAction !== null;
-	const beginBranchCreation = (): void => setIsCreating(true);
-	const cancelBranchCreation = (): void => setIsCreating(false);
+	const showActions = (): void => setView("actions");
 	const cancelStashAndSwitch = (): void => setSwitchTarget(null);
 	const toggleBranchList = (): void =>
 		setIsBranchListExpanded((isExpanded) => !isExpanded);
 	let menuViewKey = "actions";
 	let content: ReactElement;
-	if (isCreating) {
+	if (view === "create") {
 		menuViewKey = "create-branch";
 		content = (
 			<CreateBranchForm
 				isPending={isPending}
-				onCancel={cancelBranchCreation}
+				onCancel={showActions}
 				onClose={onClose}
 				onCreateBranch={onCreateBranch}
 				pendingAction={pendingAction}
+			/>
+		);
+	} else if (view === "rename") {
+		menuViewKey = "rename-branch";
+		content = (
+			<RenameBranchForm
+				currentBranch={currentBranch}
+				isPending={isPending}
+				onBack={showActions}
+				onClose={onClose}
+				onRenameBranch={onRenameBranch}
+			/>
+		);
+	} else if (view === "upstream") {
+		menuViewKey = "set-upstream";
+		content = (
+			<SetBranchUpstreamView
+				currentUpstream={currentBranchInfo?.upstream ?? null}
+				isPending={isPending}
+				onBack={showActions}
+				onClose={onClose}
+				onSetBranchUpstream={onSetBranchUpstream}
+				remoteBranches={remoteBranches}
+			/>
+		);
+	} else if (view === "delete") {
+		menuViewKey = "delete-branch";
+		content = (
+			<DeleteBranchView
+				branches={deletableBranches}
+				isPending={isPending}
+				onBack={showActions}
+				onClose={onClose}
+				onDeleteBranch={onDeleteBranch}
 			/>
 		);
 	} else if (switchTarget) {
@@ -513,10 +571,16 @@ export function WorkspaceActionsMenu({
 		content = (
 			<WorkspaceBranchActions
 				branchListId={branchListId}
+				currentBranch={currentBranch}
+				currentBranchInfo={currentBranchInfo}
+				deletableBranchCount={deletableBranches.length}
 				hasMoreBranches={hasMoreBranches}
 				isBranchListExpanded={isBranchListExpanded}
 				isPending={isPending}
-				onBeginBranchCreation={beginBranchCreation}
+				onBeginBranchCreation={() => setView("create")}
+				onBeginBranchDeletion={() => setView("delete")}
+				onBeginBranchRename={() => setView("rename")}
+				onBeginSetUpstream={() => setView("upstream")}
 				onCancelSync={onCancelSync}
 				onClose={onClose}
 				onNeedsStash={setSwitchTarget}
@@ -524,6 +588,7 @@ export function WorkspaceActionsMenu({
 				onSync={onSync}
 				onToggleBranchList={toggleBranchList}
 				pendingAction={pendingAction}
+				remoteBranchCount={remoteBranches.length}
 				syncAction={syncAction}
 				visibleBranches={visibleBranches}
 			/>

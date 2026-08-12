@@ -1,5 +1,6 @@
 import type {
 	BranchCollection,
+	BranchMutationResult,
 	ChangeHunkInput,
 	CommitInfo,
 	CommitPage,
@@ -16,6 +17,13 @@ import type {
 } from "@1git/git";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRepositoryRefresh } from "@/feature/workspace/hooks/use-repository-refresh.js";
+import {
+	getRepositoryCurrentBranch,
+	getRepositoryDeletableBranches,
+	getRepositoryLocalBranch,
+	getRepositoryRemoteBranches,
+	repositoryBranchSwitchDisabledReason,
+} from "@/feature/workspace/lib/repository-branches.js";
 import {
 	canAmendRepositoryCommit,
 	canRevertRepositoryCommit,
@@ -1313,10 +1321,16 @@ export const useGitWorkspace = (): GitWorkspace => {
 	};
 
 	const switchBranch = async (name: string): Promise<BranchSwitchResult> => {
+		const targetBranch = getRepositoryLocalBranch(branches, name);
 		if (
 			!(activeSession && snapshot) ||
 			pendingAction ||
-			name === snapshot.head.branch
+			!targetBranch ||
+			name === snapshot.head.branch ||
+			repositoryBranchSwitchDisabledReason(
+				targetBranch,
+				snapshot.head.branch
+			) !== null
 		) {
 			return "failed";
 		}
@@ -1352,24 +1366,26 @@ export const useGitWorkspace = (): GitWorkspace => {
 		}
 	};
 
-	const createBranch = async (name: string): Promise<boolean> => {
-		if (!activeSession || pendingAction || !name.trim()) {
+	const runBranchMutation = async (
+		action: (
+			sessionId: RepositorySessionId
+		) => Promise<GitResult<BranchMutationResult>>
+	): Promise<boolean> => {
+		if (!activeSession || pendingAction) {
 			return false;
 		}
 		setPendingAction("branch");
 		try {
 			setError(null);
-			const result = await window.desktop.git.branches.create(
-				activeSession.id,
-				{
-					checkout: true,
-					name: name.trim(),
-				}
-			);
-			const value = resultValue(result);
+			const value = resultValue(await action(activeSession.id));
 			setBranches(value.branches);
 			applySnapshot(activeSession.id, value.snapshot);
-			await loadSession(activeSession, value.snapshot.files[0]?.path);
+			await loadSession(
+				activeSession,
+				selectedFilePath,
+				selectedCommitOid,
+				value.snapshot
+			);
 			return true;
 		} catch (cause) {
 			setError(errorMessage(cause));
@@ -1377,6 +1393,71 @@ export const useGitWorkspace = (): GitWorkspace => {
 		} finally {
 			setPendingAction(null);
 		}
+	};
+
+	const createBranch = async (
+		name: string,
+		startPoint?: string
+	): Promise<boolean> => {
+		const branchName = name.trim();
+		if (!branchName) {
+			return false;
+		}
+		return await runBranchMutation(
+			async (sessionId) =>
+				await window.desktop.git.branches.create(sessionId, {
+					checkout: true,
+					name: branchName,
+					startPoint,
+				})
+		);
+	};
+
+	const renameBranch = async (newName: string): Promise<boolean> => {
+		const currentBranch = getRepositoryCurrentBranch(branches);
+		const branchName = newName.trim();
+		if (!(currentBranch && branchName) || branchName === currentBranch.name) {
+			return false;
+		}
+		return await runBranchMutation(
+			async (sessionId) =>
+				await window.desktop.git.branches.rename(sessionId, {
+					currentName: currentBranch.name,
+					newName: branchName,
+				})
+		);
+	};
+
+	const deleteBranch = async (name: string): Promise<boolean> => {
+		const targetBranch = getRepositoryDeletableBranches(branches).find(
+			(branch) => branch.name === name
+		);
+		if (!targetBranch) {
+			return false;
+		}
+		return await runBranchMutation(
+			async (sessionId) =>
+				await window.desktop.git.branches.delete(sessionId, {
+					name: targetBranch.name,
+				})
+		);
+	};
+
+	const setBranchUpstream = async (upstream: string): Promise<boolean> => {
+		const currentBranch = getRepositoryCurrentBranch(branches);
+		const remoteBranch = getRepositoryRemoteBranches(branches).find(
+			(branch) => branch.name === upstream
+		);
+		if (!(currentBranch && remoteBranch)) {
+			return false;
+		}
+		return await runBranchMutation(
+			async (sessionId) =>
+				await window.desktop.git.branches.setUpstream(sessionId, {
+					branch: currentBranch.name,
+					upstream: remoteBranch.name,
+				})
+		);
 	};
 
 	const invokeRepositorySyncStep = async (
@@ -1776,11 +1857,17 @@ export const useGitWorkspace = (): GitWorkspace => {
 	};
 
 	const stashAndSwitchBranch = async (name: string): Promise<boolean> => {
+		const targetBranch = getRepositoryLocalBranch(branches, name);
 		if (
 			!(activeSession && snapshot) ||
 			pendingAction ||
+			!targetBranch ||
 			snapshot.operationState !== "normal" ||
-			name === snapshot.head.branch
+			name === snapshot.head.branch ||
+			repositoryBranchSwitchDisabledReason(
+				targetBranch,
+				snapshot.head.branch
+			) !== null
 		) {
 			return false;
 		}
@@ -1894,6 +1981,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 		commit: createCommit,
 		createBranch,
 		createRepository,
+		deleteBranch,
 		diffs,
 		discardFiles,
 		discardUndo,
@@ -1911,6 +1999,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 		pickRepository,
 		popStash,
 		recoverRepository,
+		renameBranch,
 		reorderWorkspace,
 		resetToCommit,
 		revertCommit,
@@ -1921,6 +2010,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 		selectFile,
 		selectRevisionFile,
 		selectStash,
+		setBranchUpstream,
 		setFileStaged,
 		setFilesStaged,
 		setTab,
