@@ -418,6 +418,16 @@ button {
 	}
 }
 
+@keyframes repository-revision-liquid-reveal {
+	from {
+		clip-path: inset(0 0 0 100%);
+	}
+
+	to {
+		clip-path: inset(0);
+	}
+}
+
 [data-name="RepositoryFileLiquidSurface"] {
 	--repository-file-liquid-mask-fade-height: 0px;
 	transition: --repository-file-liquid-mask-fade-height 120ms ease-out;
@@ -495,13 +505,28 @@ button {
 		reverse both;
 }
 
+[data-name="RepositoryFileLiquidSurfaceFill"] {
+	fill: var(--liquid-surface);
+}
+
+[data-name="RepositoryRevisionLiquidSurface"] {
+	animation: repository-revision-liquid-reveal 150ms
+		cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+[data-name="RepositoryRevisionLiquidSurface"][data-moving="true"] {
+	transition: top 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 body:has([data-name="CommandLensLayer"])
-	[data-name="RepositoryFileLiquidSurface"][data-moving="true"] {
+	[data-name="RepositoryFileLiquidSurface"][data-moving="true"],
+body:has([data-name="CommandLensLayer"])
+	[data-name="RepositoryRevisionLiquidSurface"][data-moving="true"] {
 	transition-duration: 0ms;
 }
 
-[data-name="RepositoryFileLiquidSurfaceFill"] {
-	fill: var(--liquid-surface);
+[data-name="RepositoryRevisionLiquidSurfaceFill"] {
+	fill: var(--editor-sunken-2);
 }
 
 [data-name="RepositoryFileRail"]

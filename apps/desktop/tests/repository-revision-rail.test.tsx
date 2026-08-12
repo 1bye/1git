@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import type { FileDiff, StashInfo } from "@1git/git";
+import type { CommitInfo, FileDiff, StashInfo } from "@1git/git";
 import { renderToStaticMarkup } from "react-dom/server";
 import { LiquidMenuStackProvider } from "../src/renderer/src/fixture/liquid-menu/components/liquid-menu-stack-provider.js";
+import { RepositoryHistoryRail } from "../src/renderer/src/fixture/repository-workspace/components/repository-history-rail.js";
 import {
 	RepositoryRevisionFileRail,
 	RepositoryStashRail,
@@ -54,6 +55,29 @@ const STASHES: readonly StashInfo[] = [
 	},
 ];
 
+const COMMITS: readonly CommitInfo[] = [
+	{
+		author: { email: "yurii@example.com", name: "Yurii Hulyk" },
+		authoredAt: "2026-08-11T10:00:00.000Z",
+		body: "",
+		committedAt: "2026-08-11T10:00:00.000Z",
+		committer: { email: "yurii@example.com", name: "Yurii Hulyk" },
+		oid: "commit-one",
+		parentOids: ["parent-oid"],
+		summary: "Connect revision selection",
+	},
+	{
+		author: { email: "yurii@example.com", name: "Yurii Hulyk" },
+		authoredAt: "2026-08-11T09:00:00.000Z",
+		body: "",
+		committedAt: "2026-08-11T09:00:00.000Z",
+		committer: { email: "yurii@example.com", name: "Yurii Hulyk" },
+		oid: "commit-two",
+		parentOids: ["older-parent-oid"],
+		summary: "Polish revision navigation",
+	},
+];
+
 const REVISION_ENTRIES = createRepositoryDiffFileEntries(
 	[REVISION_DIFF],
 	[],
@@ -62,6 +86,7 @@ const REVISION_ENTRIES = createRepositoryDiffFileEntries(
 );
 
 const succeed = async (): Promise<boolean> => true;
+const selectCommit = async (): Promise<void> => undefined;
 const selectFile = async (): Promise<void> => undefined;
 const selectStash = async (): Promise<void> => undefined;
 
@@ -127,6 +152,36 @@ describe("repository revision rails", () => {
 		expect(markup).toContain(
 			'data-repository-revision-navigation-item="stash-two"'
 		);
+		expect(markup).toContain('data-repository-revision-liquid-active="true"');
+		expect(markup).not.toContain("bg-brand-softer");
+	});
+
+	test("marks the selected commit as the liquid revision anchor", () => {
+		const markup = renderToStaticMarkup(
+			<LiquidMenuStackProvider>
+				<RepositoryHistoryRail
+					branches={null}
+					currentBranch="main"
+					headOid="commit-one"
+					history={{ commits: COMMITS, hasMore: false, nextOffset: null }}
+					isPending={false}
+					onAmendCommit={succeed}
+					onCherryPickCommit={succeed}
+					onCreateBranch={succeed}
+					onResetCommit={succeed}
+					onRevertCommit={succeed}
+					onSelectCommit={selectCommit}
+					selectedCommitOid="commit-two"
+				/>
+			</LiquidMenuStackProvider>
+		);
+
+		expect(markup.match(/aria-current="true"/g)).toHaveLength(1);
+		expect(markup).toContain('data-repository-revision-liquid-active="true"');
+		expect(markup).toContain(
+			'data-repository-revision-navigation-item="commit-two"'
+		);
+		expect(markup).not.toContain("bg-brand-softer");
 	});
 
 	test("keeps stash actions above the revision files", () => {

@@ -447,9 +447,12 @@ export function RepositoryStashRail({
 											<button
 												aria-current={isSelected ? "true" : undefined}
 												className={cn(
-													"w-full rounded-lg px-3 py-2 text-left outline-none transition-colors hover:bg-hover focus-visible:ring-2 focus-visible:ring-brand/20 focus-visible:ring-inset",
-													isSelected && "bg-brand-softer"
+													"w-full rounded-lg px-3 py-2 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand/20 focus-visible:ring-inset",
+													isSelected ? "relative z-20" : "hover:bg-hover"
 												)}
+												data-repository-revision-liquid-active={
+													isSelected ? "true" : undefined
+												}
 												data-repository-revision-navigation-item={stash.oid}
 												disabled={isPending}
 												onClick={async () => await onSelectStash(stash)}

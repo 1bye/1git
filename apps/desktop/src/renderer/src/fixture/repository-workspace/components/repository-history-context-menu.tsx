@@ -311,9 +311,10 @@ export function RepositoryHistoryContextMenu({
 			aria-current={isSelected ? "true" : undefined}
 			className={cn(
 				"relative w-full rounded-lg px-3 py-2 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-editor-muted/20 focus-visible:ring-inset",
-				isSelected ? "bg-brand-softer" : "hover:bg-hover",
-				(isOpen || isPresent) && "z-20"
+				!isSelected && "hover:bg-hover",
+				(isSelected || isOpen || isPresent) && "z-20"
 			)}
+			data-repository-revision-liquid-active={isSelected ? "true" : undefined}
 			data-repository-revision-navigation-item={commit.oid}
 			onClick={selectCommit}
 			onContextMenu={openContextMenu}

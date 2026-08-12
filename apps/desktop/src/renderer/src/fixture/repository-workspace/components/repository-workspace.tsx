@@ -8,6 +8,7 @@ import {
 	RepositoryNavigationRail,
 	type RepositoryNavigationRailProps,
 } from "@/fixture/repository-workspace/components/repository-navigation-rail.js";
+import { RepositoryRevisionLiquidSurface } from "@/fixture/repository-workspace/components/repository-revision-liquid-surface.js";
 
 export type RepositoryWorkspaceProps = Omit<
 	RepositoryDiffWorkspaceProps,
@@ -26,6 +27,12 @@ export function RepositoryWorkspace({
 }: RepositoryWorkspaceProps): ReactElement {
 	const selectedStash =
 		props.stashes.find((stash) => stash.oid === props.selectedStashOid) ?? null;
+	let selectedRevisionKey: string | null = null;
+	if (props.tab === "history") {
+		selectedRevisionKey = props.selectedCommitOid;
+	} else if (props.tab === "stashes") {
+		selectedRevisionKey = props.selectedStashOid;
+	}
 
 	return (
 		<section
@@ -34,6 +41,9 @@ export function RepositoryWorkspace({
 			id="repository-workspace"
 			ref={ref}
 		>
+			<RepositoryRevisionLiquidSurface
+				selectedRevisionKey={selectedRevisionKey}
+			/>
 			<RepositoryFileLiquidSurface selectedFilePath={selectedFilePath} />
 			<div className="flex min-w-0 flex-1 flex-col">
 				{titlebar}
