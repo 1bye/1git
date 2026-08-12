@@ -32,6 +32,9 @@ describe("repository file item presentation", () => {
 
 		expect(counts).toContain("+12");
 		expect(counts).toContain("−3");
+		expect(counts).toContain("grid-cols-2");
+		expect(counts).toContain("w-[9ch]");
+		expect(counts.match(/text-right/g)).toHaveLength(2);
 		expect(binary).toContain("+–");
 		expect(binary).toContain("−–");
 	});

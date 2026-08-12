@@ -1,5 +1,12 @@
-import type { DiffFileStat, DiffTarget, FileChange, FileDiff } from "@1git/git";
+import type {
+	DiffFileStat,
+	DiffTarget,
+	FileChange,
+	FileDiff,
+	FileStatus,
+} from "@1git/git";
 import {
+	type ChangeTypes,
 	type FileDiffMetadata,
 	parseDiffFromFile,
 	parsePatchFiles,
@@ -27,6 +34,21 @@ type RepositoryDiffFileEntryWithoutId = Omit<
 const REPOSITORY_DIFF_HASH_MODULUS = 2_147_483_647;
 const REPOSITORY_DIFF_HASH_MULTIPLIER = 31;
 const REPOSITORY_DIFF_CONTEXT_LINES = 3;
+
+const REVISION_FILE_STATUS_BY_CHANGE_TYPE: Readonly<
+	Record<ChangeTypes, FileStatus>
+> = {
+	change: "modified",
+	deleted: "deleted",
+	new: "added",
+	"rename-changed": "renamed",
+	"rename-pure": "renamed",
+};
+
+export const getRepositoryRevisionFileStatus = (
+	file: FileDiffMetadata | null
+): FileStatus =>
+	file ? REVISION_FILE_STATUS_BY_CHANGE_TYPE[file.type] : "modified";
 
 const hashRepositoryDiffPatch = (patch: string): string => {
 	let hash = 0;
@@ -57,12 +79,18 @@ const diffTargetLabel = (diff: FileDiff, tab: RepositoryTab): string => {
 	return "Comparison";
 };
 
-const statForFile = (
-	stats: readonly DiffFileStat[],
-	path: string
-): DiffFileStat | null =>
-	stats.find((stat) => stat.path === path || stat.originalPath === path) ??
-	null;
+const createStatsByPath = (
+	stats: readonly DiffFileStat[]
+): ReadonlyMap<string, DiffFileStat> => {
+	const statsByPath = new Map<string, DiffFileStat>();
+	for (const stat of stats) {
+		statsByPath.set(stat.path, stat);
+		if (stat.originalPath) {
+			statsByPath.set(stat.originalPath, stat);
+		}
+	}
+	return statsByPath;
+};
 
 const parseDiffFileEntries = (
 	diffs: readonly FileDiff[],
@@ -72,6 +100,7 @@ const parseDiffFileEntries = (
 	const entries: RepositoryDiffFileEntryWithoutId[] = [];
 	for (const [diffIndex, diff] of diffs.entries()) {
 		const patchKey = hashRepositoryDiffPatch(diff.patch);
+		const statsByPath = createStatsByPath(diff.stats);
 		const parsedFiles = parsePatchFiles(
 			diff.patch,
 			tab === "changes"
@@ -85,7 +114,7 @@ const parseDiffFileEntries = (
 				key: `${diff.target.kind}:${diffIndex}:${file.cacheKey ?? file.name}`,
 				patchOmittedReason: diff.patchOmittedReason,
 				path: file.name,
-				stat: statForFile(diff.stats, file.name),
+				stat: statsByPath.get(file.name) ?? null,
 				target: diff.target,
 				targetLabel: diffTargetLabel(diff, tab),
 			});
@@ -180,6 +209,14 @@ export const createRepositoryDiffFileEntries = (
 		),
 		files
 	);
+
+export const getSelectedRepositoryDiffEntryKey = (
+	entries: readonly RepositoryDiffFileEntry[],
+	selectedPath: string | null
+): string | null =>
+	selectedPath
+		? (entries.find((entry) => entry.path === selectedPath)?.key ?? null)
+		: null;
 
 export const createExpandableRepositoryDiffFile = (
 	diff: FileDiff,

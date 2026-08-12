@@ -53,16 +53,16 @@ export function RepositoryFileStats({
 	return (
 		<span
 			className={cn(
-				"flex shrink-0 items-center gap-1 font-medium font-mono text-[9px] tabular-nums",
+				"grid w-[9ch] shrink-0 grid-cols-2 items-center font-medium font-mono text-[9px] tabular-nums",
 				className
 			)}
 		>
-			{addedLabel === undefined ? null : (
-				<span className="text-[#1a7f37]">+{addedLabel}</span>
-			)}
-			{deletedLabel === undefined ? null : (
-				<span className="text-[#cf222e]">−{deletedLabel}</span>
-			)}
+			<span className="text-right text-[#1a7f37]">
+				{addedLabel === undefined ? null : `+${addedLabel}`}
+			</span>
+			<span className="text-right text-[#cf222e]">
+				{deletedLabel === undefined ? null : `−${deletedLabel}`}
+			</span>
 		</span>
 	);
 }

@@ -32,17 +32,17 @@ const STATUS_SYMBOLS: Readonly<Record<FileStatus, string | null>> = {
 	untracked: "+",
 };
 
-interface RepositoryFileStatusProps {
+interface RepositoryFileStatusBadgeProps {
 	readonly className?: string;
-	readonly file: FileChange;
+	readonly isPartiallyStaged?: boolean;
+	readonly status: FileStatus;
 }
 
-export function RepositoryFileStatus({
+export function RepositoryFileStatusBadge({
 	className,
-	file,
-}: RepositoryFileStatusProps): ReactElement {
-	const status = getFileChangeStatus(file);
-	const isPartiallyStaged = isFilePartiallyStaged(file);
+	isPartiallyStaged = false,
+	status,
+}: RepositoryFileStatusBadgeProps): ReactElement {
 	return (
 		<span
 			aria-hidden
@@ -62,5 +62,23 @@ export function RepositoryFileStatus({
 				<span className="absolute -right-0.5 -bottom-0.5 size-1 rounded-full bg-brand ring-1 ring-editor-surface" />
 			) : null}
 		</span>
+	);
+}
+
+interface RepositoryFileStatusProps {
+	readonly className?: string;
+	readonly file: FileChange;
+}
+
+export function RepositoryFileStatus({
+	className,
+	file,
+}: RepositoryFileStatusProps): ReactElement {
+	return (
+		<RepositoryFileStatusBadge
+			className={className}
+			isPartiallyStaged={isFilePartiallyStaged(file)}
+			status={getFileChangeStatus(file)}
+		/>
 	);
 }

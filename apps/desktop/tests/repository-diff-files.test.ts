@@ -5,6 +5,8 @@ import { REPOSITORY_DIFF_RENDER_OPTIONS } from "../src/renderer/src/fixture/repo
 import {
 	createExpandableRepositoryDiffFile,
 	createRepositoryDiffFileEntries,
+	getRepositoryRevisionFileStatus,
+	getSelectedRepositoryDiffEntryKey,
 } from "../src/renderer/src/fixture/repository-workspace/lib/repository-diff-files.js";
 
 const fullFilePatch = (
@@ -164,6 +166,67 @@ describe("repository diff files", () => {
 			head: "stash-one",
 			kind: "range",
 		});
+	});
+
+	test("matches rename statistics by current and original path", () => {
+		const diff = {
+			patch: `diff --git a/old.ts b/new.ts
+similarity index 90%
+rename from old.ts
+rename to new.ts
+index 1111111..2222222 100644
+--- a/old.ts
++++ b/new.ts
+@@ -1 +1 @@
+-old
++new
+`,
+			stats: [
+				{
+					addedLines: 1,
+					deletedLines: 1,
+					originalPath: "old.ts",
+					path: "new.ts",
+				},
+			],
+			target: { kind: "working" },
+		} as const satisfies FileDiff;
+
+		const [entry] = createRepositoryDiffFileEntries(
+			[diff],
+			[],
+			undefined,
+			"changes"
+		);
+
+		expect(entry?.stat).toBe(diff.stats[0]);
+	});
+
+	test("maps parsed revision changes to the shared file status language", () => {
+		const modified = createRepositoryDiffFileEntries(
+			[createDiff(fullFilePatch("THREE"))],
+			[],
+			"commit-one",
+			"history"
+		)[0]?.file;
+
+		expect(getRepositoryRevisionFileStatus(modified ?? null)).toBe("modified");
+		expect(getRepositoryRevisionFileStatus(null)).toBe("modified");
+	});
+
+	test("prioritizes only the selected diff entry", () => {
+		const entries = createRepositoryDiffFileEntries(
+			[createDiff(fullFilePatch("THREE"))],
+			[],
+			"commit-one",
+			"history"
+		);
+
+		expect(getSelectedRepositoryDiffEntryKey(entries, "app.ts")).toBe(
+			entries[0]?.key ?? null
+		);
+		expect(getSelectedRepositoryDiffEntryKey(entries, "missing.ts")).toBeNull();
+		expect(getSelectedRepositoryDiffEntryKey(entries, null)).toBeNull();
 	});
 
 	test("upgrades a full-context patch for native hunk expansion", () => {

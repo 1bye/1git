@@ -1,34 +1,33 @@
-import type { ChangeHunkInput, FileChange, FileDiff } from "@1git/git";
+import type { ChangeHunkInput, FileDiff } from "@1git/git";
 import { GitDiffIcon } from "@phosphor-icons/react/dist/csr/GitDiff";
 import type { ReactElement } from "react";
 import { useCallback, useMemo, useRef, useState } from "react";
-import type { RepositoryTab } from "@/feature/workspace/types/git-workspace.js";
 import { DiffFileAccordion } from "@/fixture/repository-workspace/components/diff-file-accordion.js";
 import {
 	REPOSITORY_DIFF_BODY_OBSERVER_MARGIN,
 	REPOSITORY_DIFF_INITIAL_MOUNTED_COUNT,
-	REPOSITORY_DIFF_SELECTED_NEIGHBOR_COUNT,
 } from "@/fixture/repository-workspace/constants/repository-diff.js";
 import { useExpandableRepositoryDiffFiles } from "@/fixture/repository-workspace/hooks/use-expandable-repository-diff-files.js";
 import { useRepositoryDiffHighlighter } from "@/fixture/repository-workspace/hooks/use-repository-diff-highlighter.js";
 import { useRepositoryDiffScrollSync } from "@/fixture/repository-workspace/hooks/use-repository-diff-scroll-sync.js";
-import { createRepositoryDiffFileEntries } from "@/fixture/repository-workspace/lib/repository-diff-files.js";
+import {
+	getSelectedRepositoryDiffEntryKey,
+	type RepositoryDiffFileEntry,
+} from "@/fixture/repository-workspace/lib/repository-diff-files.js";
 import type { RepositorySessionId } from "../../../../../shared/repository-session.js";
 
 interface DiffViewProps {
 	readonly diffs: readonly FileDiff[];
 	readonly emptyDescription?: string;
 	readonly emptyTitle?: string;
-	readonly files?: readonly FileChange[];
+	readonly entries: readonly RepositoryDiffFileEntry[];
 	readonly ignoreWhitespace?: boolean;
 	readonly isHunkActionPending?: boolean;
 	readonly onActiveFileChange?: (path: string) => void;
 	readonly onChangeHunk?: (input: ChangeHunkInput) => Promise<boolean>;
 	readonly onOpenFile?: (path: string) => Promise<void>;
-	readonly revisionOid?: string;
 	readonly selectedFilePath: string | null;
 	readonly sessionId: RepositorySessionId;
-	readonly tab: RepositoryTab;
 }
 
 const ignoreActiveFileChange = (): void => undefined;
@@ -67,22 +66,33 @@ const updateVisibleEntryKeys = (
 
 export function DiffView({
 	diffs,
+	entries,
 	emptyDescription = "The changed files may be binary or have no patch content.",
 	emptyTitle = "No text diff available",
-	files = [],
 	isHunkActionPending = false,
 	ignoreWhitespace = false,
 	onActiveFileChange = ignoreActiveFileChange,
 	onChangeHunk,
 	onOpenFile = ignoreOpenFile,
-	revisionOid,
 	selectedFilePath,
 	sessionId,
-	tab,
 }: DiffViewProps): ReactElement {
 	const scrollRef = useRef<HTMLElement>(null);
 	const bodyObserverRef = useRef<IntersectionObserver | null>(null);
 	const articleElementsRef = useRef(new Map<string, HTMLElement>());
+	const onChangeHunkRef = useRef(onChangeHunk ?? ignoreHunkChange);
+	const onOpenFileRef = useRef(onOpenFile);
+	onChangeHunkRef.current = onChangeHunk ?? ignoreHunkChange;
+	onOpenFileRef.current = onOpenFile;
+	const changeHunk = useCallback(
+		(input: ChangeHunkInput): Promise<boolean> =>
+			onChangeHunkRef.current(input),
+		[]
+	);
+	const openFile = useCallback(
+		(path: string): Promise<void> => onOpenFileRef.current(path),
+		[]
+	);
 	const [visibleEntryKeys, setVisibleEntryKeys] = useState<ReadonlySet<string>>(
 		() => new Set()
 	);
@@ -125,45 +135,15 @@ export function DiffView({
 		},
 		[]
 	);
-	const entries = useMemo(
-		() => createRepositoryDiffFileEntries(diffs, files, revisionOid, tab),
-		[diffs, files, revisionOid, tab]
-	);
 	const contentKey = useMemo(
 		() => entries.map((entry) => entry.key).join("\n"),
 		[entries]
 	);
 	useRepositoryDiffHighlighter(entries);
-	const prioritizedEntryKeys = useMemo(() => {
-		const keys = new Set<string>();
-		if (!selectedFilePath) {
-			return keys;
-		}
-		for (const [index, entry] of entries.entries()) {
-			if (entry.path !== selectedFilePath) {
-				continue;
-			}
-			const firstNeighborIndex = Math.max(
-				0,
-				index - REPOSITORY_DIFF_SELECTED_NEIGHBOR_COUNT
-			);
-			const lastNeighborIndex = Math.min(
-				entries.length - 1,
-				index + REPOSITORY_DIFF_SELECTED_NEIGHBOR_COUNT
-			);
-			for (
-				let neighborIndex = firstNeighborIndex;
-				neighborIndex <= lastNeighborIndex;
-				neighborIndex += 1
-			) {
-				const neighbor = entries[neighborIndex];
-				if (neighbor) {
-					keys.add(neighbor.key);
-				}
-			}
-		}
-		return keys;
-	}, [entries, selectedFilePath]);
+	const selectedEntryKey = useMemo(
+		() => getSelectedRepositoryDiffEntryKey(entries, selectedFilePath),
+		[entries, selectedFilePath]
+	);
 	const { files: expandableFiles, requestFile: requestExpandableFile } =
 		useExpandableRepositoryDiffFiles(sessionId, contentKey, ignoreWhitespace);
 	useRepositoryDiffScrollSync({
@@ -194,14 +174,14 @@ export function DiffView({
 								ignoreWhitespace={ignoreWhitespace}
 								isBodyMounted={
 									index < REPOSITORY_DIFF_INITIAL_MOUNTED_COUNT ||
-									prioritizedEntryKeys.has(entry.key) ||
+									selectedEntryKey === entry.key ||
 									visibleEntryKeys.has(entry.key)
 								}
 								isHunkActionPending={isHunkActionPending}
 								key={entry.key}
-								onChangeHunk={onChangeHunk ?? ignoreHunkChange}
+								onChangeHunk={changeHunk}
 								onElementChange={registerArticleElement}
-								onOpenFile={onOpenFile}
+								onOpenFile={openFile}
 								onRequestExpandableFile={requestExpandableFile}
 								sessionId={sessionId}
 								showTarget={diffs.length > 1}

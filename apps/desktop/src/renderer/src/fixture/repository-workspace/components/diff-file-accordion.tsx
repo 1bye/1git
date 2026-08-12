@@ -320,7 +320,6 @@ const DiffFileAccordionComponent = ({
 				) : null}
 				<RepositoryFileStats
 					addedLines={addedLines}
-					className="gap-1.5"
 					deletedLines={deletedLines}
 				/>
 				{entry.change ? <RepositoryFileStatus file={entry.change} /> : null}

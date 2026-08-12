@@ -10,7 +10,7 @@ import { GitDiffIcon } from "@phosphor-icons/react/dist/csr/GitDiff";
 import { SpinnerGapIcon } from "@phosphor-icons/react/dist/csr/SpinnerGap";
 import { XIcon } from "@phosphor-icons/react/dist/csr/X";
 import type { ReactElement } from "react";
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import type {
 	RepositoryBranchComparison,
 	RepositoryCleanAction,
@@ -23,7 +23,10 @@ import type {
 import { CleanState } from "@/fixture/repository-workspace/components/clean-state.js";
 import { DiffView } from "@/fixture/repository-workspace/components/diff-view.js";
 import { RepositoryRevisionFileRail } from "@/fixture/repository-workspace/components/repository-revision-rail.js";
+import { createRepositoryDiffFileEntries } from "@/fixture/repository-workspace/lib/repository-diff-files.js";
 import type { RepositorySessionRecord } from "../../../../../shared/repository-session.js";
+
+const EMPTY_FILE_CHANGES: readonly FileChange[] = [];
 
 export interface RepositoryDiffWorkspaceProps {
 	readonly activeSession: RepositorySessionRecord;
@@ -123,6 +126,12 @@ export function RepositoryDiffWorkspace({
 }: RepositoryDiffWorkspaceProps): ReactElement {
 	const files = snapshot?.files ?? [];
 	const isPending = Boolean(pendingAction);
+	const revisionOid = selectedCommitOid ?? selectedStashOid ?? undefined;
+	const diffFiles = tab === "changes" ? files : EMPTY_FILE_CHANGES;
+	const diffEntries = useMemo(
+		() => createRepositoryDiffFileEntries(diffs, diffFiles, revisionOid, tab),
+		[diffFiles, diffs, revisionOid, tab]
+	);
 	const selectVisibleFile = useCallback(
 		(path: string): void => {
 			if (path === selectedFilePath) {
@@ -229,16 +238,14 @@ export function RepositoryDiffWorkspace({
 							: undefined
 					}
 					emptyTitle={branchComparison ? "Branches match" : undefined}
-					files={tab === "changes" ? files : []}
+					entries={diffEntries}
 					ignoreWhitespace={ignoreWhitespace}
 					isHunkActionPending={pendingAction === "hunk"}
 					onActiveFileChange={selectVisibleFile}
 					onChangeHunk={branchComparison ? undefined : onChangeHunk}
 					onOpenFile={onOpenFile}
-					revisionOid={selectedCommitOid ?? selectedStashOid ?? undefined}
 					selectedFilePath={selectedFilePath}
 					sessionId={activeSession.id}
-					tab={tab}
 				/>
 			</div>
 		);
@@ -262,6 +269,7 @@ export function RepositoryDiffWorkspace({
 			</main>
 			<RepositoryRevisionFileRail
 				diffs={diffs}
+				entries={diffEntries}
 				isPending={isPending}
 				onApplyStash={onApplyStash}
 				onDropStash={onDropStash}

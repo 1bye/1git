@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import {
 	createRepositoryFileLiquidMeasurement,
 	createRepositoryFileLiquidPath,
+	hasSameRepositoryFileLiquidPathGeometry,
 	type RepositoryFileLiquidRect,
 } from "@/fixture/repository-workspace/lib/repository-file-liquid-geometry.js";
 
@@ -129,6 +130,75 @@ describe("repository file liquid geometry", () => {
 		const path = createRepositoryFileLiquidPath(measurement);
 		expect(path).toStartWith("M ");
 		expect(path).toEndWith(" Z");
+	});
+
+	it("reuses path geometry when only row placement and clipping change", () => {
+		const firstRow = createRepositoryFileLiquidMeasurement(
+			surface,
+			canvas,
+			{
+				height: 28,
+				left: 1004,
+				top: viewport.top,
+				width: 292,
+			},
+			viewport
+		);
+		const laterRow = createRepositoryFileLiquidMeasurement(
+			surface,
+			canvas,
+			{
+				height: 28,
+				left: 1004,
+				top: 420,
+				width: 292,
+			},
+			viewport
+		);
+
+		if (!(firstRow && laterRow)) {
+			throw new Error("Expected both file surface measurements.");
+		}
+		expect(firstRow.surfaceTop).not.toBe(laterRow.surfaceTop);
+		expect(firstRow.clipTop).not.toBe(laterRow.clipTop);
+		expect(hasSameRepositoryFileLiquidPathGeometry(firstRow, laterRow)).toBe(
+			true
+		);
+		expect(createRepositoryFileLiquidPath(firstRow)).toBe(
+			createRepositoryFileLiquidPath(laterRow)
+		);
+	});
+
+	it("invalidates path geometry when row dimensions change", () => {
+		const regularRow = createRepositoryFileLiquidMeasurement(
+			surface,
+			canvas,
+			{
+				height: 28,
+				left: 1004,
+				top: 220,
+				width: 292,
+			},
+			viewport
+		);
+		const resizedRow = createRepositoryFileLiquidMeasurement(
+			surface,
+			canvas,
+			{
+				height: 32,
+				left: 1004,
+				top: 220,
+				width: 292,
+			},
+			viewport
+		);
+
+		if (!(regularRow && resizedRow)) {
+			throw new Error("Expected both file surface measurements.");
+		}
+		expect(
+			hasSameRepositoryFileLiquidPathGeometry(regularRow, resizedRow)
+		).toBe(false);
 	});
 
 	it("omits rows outside the visible file viewport", () => {

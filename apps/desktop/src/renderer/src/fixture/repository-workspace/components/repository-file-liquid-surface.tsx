@@ -4,6 +4,7 @@ import { createLiquidGeometryTracker } from "@/fixture/liquid-surface/lib/track-
 import {
 	createRepositoryFileLiquidMeasurement,
 	createRepositoryFileLiquidPath,
+	hasSameRepositoryFileLiquidPathGeometry,
 	type RepositoryFileLiquidMeasurement,
 	type RepositoryFileLiquidRect,
 } from "@/fixture/repository-workspace/lib/repository-file-liquid-geometry.js";
@@ -23,6 +24,11 @@ interface RepositoryFileLiquidSurfaceMeasurement
 
 interface RepositoryFileLiquidSurfaceStyle extends CSSProperties {
 	readonly "--repository-file-liquid-header-mask-bottom": string;
+}
+
+interface RepositoryFileLiquidPathCache {
+	readonly measurement: RepositoryFileLiquidMeasurement;
+	readonly path: string;
 }
 
 const getRect = (element: Element): RepositoryFileLiquidRect => {
@@ -64,6 +70,7 @@ export function RepositoryFileLiquidSurface({
 }: RepositoryFileLiquidSurfaceProps): ReactElement {
 	const clipPathId = useId();
 	const hostRef = useRef<HTMLDivElement>(null);
+	const pathCacheRef = useRef<RepositoryFileLiquidPathCache | null>(null);
 	const previousSelectedFilePathRef = useRef(selectedFilePath);
 	const [isMoving, setIsMoving] = useState(false);
 	const [measurement, setMeasurement] =
@@ -169,11 +176,24 @@ export function RepositoryFileLiquidSurface({
 		return tracker.disconnect;
 	}, [selectedFilePath]);
 
-	const path = useMemo(
-		() =>
-			measurement ? createRepositoryFileLiquidPath(measurement) : undefined,
-		[measurement]
-	);
+	const path = useMemo(() => {
+		if (!measurement) {
+			return;
+		}
+		const cachedPath = pathCacheRef.current;
+		if (
+			cachedPath &&
+			hasSameRepositoryFileLiquidPathGeometry(
+				cachedPath.measurement,
+				measurement
+			)
+		) {
+			return cachedPath.path;
+		}
+		const nextPath = createRepositoryFileLiquidPath(measurement);
+		pathCacheRef.current = { measurement, path: nextPath };
+		return nextPath;
+	}, [measurement]);
 	const surfaceStyle = measurement
 		? ({
 				"--repository-file-liquid-header-mask-bottom": `${measurement.headerMaskBottom}px`,

@@ -6,9 +6,24 @@ import {
 	RepositoryRevisionFileRail,
 	RepositoryStashRail,
 } from "../src/renderer/src/fixture/repository-workspace/components/repository-revision-rail.js";
+import { createRepositoryDiffFileEntries } from "../src/renderer/src/fixture/repository-workspace/lib/repository-diff-files.js";
 
 const REVISION_DIFF: FileDiff = {
-	patch: "",
+	patch: `diff --git a/src/app.ts b/src/app.ts
+index 1111111..2222222 100644
+--- a/src/app.ts
++++ b/src/app.ts
+@@ -1 +1 @@
+-old
++new
+diff --git a/README.md b/README.md
+new file mode 100644
+index 0000000..3333333
+--- /dev/null
++++ b/README.md
+@@ -0,0 +1 @@
++readme
+`,
 	stats: [
 		{
 			addedLines: 3,
@@ -39,6 +54,13 @@ const STASHES: readonly StashInfo[] = [
 	},
 ];
 
+const REVISION_ENTRIES = createRepositoryDiffFileEntries(
+	[REVISION_DIFF],
+	[],
+	"revision-oid",
+	"history"
+);
+
 const succeed = async (): Promise<boolean> => true;
 const selectFile = async (): Promise<void> => undefined;
 const selectStash = async (): Promise<void> => undefined;
@@ -48,6 +70,7 @@ describe("repository revision rails", () => {
 		const markup = renderToStaticMarkup(
 			<RepositoryRevisionFileRail
 				diffs={[REVISION_DIFF]}
+				entries={REVISION_ENTRIES}
 				isPending={false}
 				onApplyStash={succeed}
 				onDropStash={succeed}
@@ -69,8 +92,10 @@ describe("repository revision rails", () => {
 		expect(markup).toContain('aria-current="true"');
 		expect(markup).toContain("src/");
 		expect(markup).toContain("app.ts");
-		expect(markup).toContain("+3");
-		expect(markup).toContain("−1");
+		expect(markup).toContain('data-status="modified"');
+		expect(markup).toContain('data-status="added"');
+		expect(markup).not.toContain("+3");
+		expect(markup).not.toContain("−1");
 		expect(markup).toContain(
 			'data-repository-revision-navigation-group="files"'
 		);
@@ -109,6 +134,7 @@ describe("repository revision rails", () => {
 			<LiquidMenuStackProvider>
 				<RepositoryRevisionFileRail
 					diffs={[REVISION_DIFF]}
+					entries={REVISION_ENTRIES}
 					isPending={false}
 					onApplyStash={succeed}
 					onDropStash={succeed}
@@ -134,6 +160,7 @@ describe("repository revision rails", () => {
 		const markup = renderToStaticMarkup(
 			<RepositoryRevisionFileRail
 				diffs={[]}
+				entries={[]}
 				isPending={false}
 				onApplyStash={succeed}
 				onDropStash={succeed}

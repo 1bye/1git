@@ -28,14 +28,20 @@ const isScrollAncestor = (element: Element): boolean => {
 	);
 };
 
-const getScrollAncestors = (element: Element): readonly Element[] => {
+const getScrollAncestors = (
+	elements: readonly Element[]
+): readonly Element[] => {
 	const ancestors: Element[] = [];
-	let ancestor = getParentElement(element);
-	while (ancestor) {
-		if (isScrollAncestor(ancestor)) {
-			ancestors.push(ancestor);
+	const visitedAncestors = new Set<Element>();
+	for (const element of elements) {
+		let ancestor = getParentElement(element);
+		while (ancestor && !visitedAncestors.has(ancestor)) {
+			visitedAncestors.add(ancestor);
+			if (isScrollAncestor(ancestor)) {
+				ancestors.push(ancestor);
+			}
+			ancestor = getParentElement(ancestor);
 		}
-		ancestor = getParentElement(ancestor);
 	}
 	return ancestors;
 };
@@ -76,9 +82,7 @@ export const createLiquidGeometryTracker = (
 	const resizeObserver = new ResizeObserver(schedule);
 	const mutationObserver = new MutationObserver(schedule);
 	const updateScrollAncestors = (elements: readonly Element[]): void => {
-		const nextScrollAncestors = dedupeElements(
-			elements.flatMap(getScrollAncestors)
-		);
+		const nextScrollAncestors = getScrollAncestors(elements);
 		if (hasSameElements(scrollAncestors, nextScrollAncestors)) {
 			return;
 		}

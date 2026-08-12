@@ -29,6 +29,7 @@ class FakeShadowRoot {
 
 class FakeWindow extends EventTarget {
 	readonly visualViewport = new EventTarget();
+	computedStyleReadCount = 0;
 	private animationFrameId = 0;
 	private readonly animationFrames = new Map<number, FrameRequestCallback>();
 
@@ -45,6 +46,7 @@ class FakeWindow extends EventTarget {
 	}
 
 	getComputedStyle = (element: Element): CSSStyleDeclaration => {
+		this.computedStyleReadCount += 1;
 		const { overflow } = element as unknown as FakeElement;
 		return {
 			overflow,
@@ -210,6 +212,22 @@ describe("liquid geometry tracker", () => {
 		fakeWindow.flushAnimationFrames();
 		expect(measurementCount).toBe(2);
 
+		tracker.disconnect();
+	});
+
+	test("reads shared scroll ancestor styles once per subscription update", () => {
+		const scrollAncestor = new FakeElement(fakeWindow, "auto");
+		const sharedParent = new FakeElement(fakeWindow, "visible", scrollAncestor);
+		const anchor = new FakeElement(fakeWindow, "visible", sharedParent);
+		const menu = new FakeElement(fakeWindow, "visible", sharedParent);
+		const tracker = createLiquidGeometryTracker(() => undefined);
+
+		tracker.setElements([
+			anchor as unknown as Element,
+			menu as unknown as Element,
+		]);
+
+		expect(fakeWindow.computedStyleReadCount).toBe(2);
 		tracker.disconnect();
 	});
 
