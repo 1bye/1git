@@ -49,17 +49,17 @@ describe("repository file liquid geometry", () => {
 			throw new Error("Expected a visible file surface measurement.");
 		}
 		expect(measurement).toEqual({
-			canvasEdgeX: 16,
+			canvasEdgeX: 20,
 			clipBottom: 0,
 			clipTop: 0,
 			rowHeight: 28,
-			rowLeft: 20,
-			rowTop: 18,
+			rowLeft: 24,
+			rowTop: 22,
 			rowWidth: 292,
-			surfaceHeight: 64,
-			surfaceLeft: 964,
-			surfaceTop: 162,
-			surfaceWidth: 330,
+			surfaceHeight: 72,
+			surfaceLeft: 960,
+			surfaceTop: 158,
+			surfaceWidth: 338,
 		});
 		const path = createRepositoryFileLiquidPath(measurement);
 		const canvasBoundaryYs = getPathCoordinates(path)
@@ -89,11 +89,11 @@ describe("repository file liquid geometry", () => {
 
 		expect(measurement).toMatchObject({
 			clipBottom: 0,
-			clipTop: 26,
+			clipTop: 30,
 			rowHeight: 28,
-			rowTop: 18,
-			surfaceHeight: 64,
-			surfaceTop: 84,
+			rowTop: 22,
+			surfaceHeight: 72,
+			surfaceTop: 80,
 		});
 		if (!measurement) {
 			throw new Error("Expected a partially visible file measurement.");
@@ -119,10 +119,10 @@ describe("repository file liquid geometry", () => {
 
 		expect(measurement).toMatchObject({
 			clipBottom: 0,
-			clipTop: 18,
-			rowTop: 18,
-			surfaceHeight: 64,
-			surfaceTop: 92,
+			clipTop: 22,
+			rowTop: 22,
+			surfaceHeight: 72,
+			surfaceTop: 88,
 		});
 		if (!measurement) {
 			throw new Error("Expected the first file surface measurement.");

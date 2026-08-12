@@ -21,7 +21,7 @@ export interface RepositoryFileLiquidMeasurement {
 	readonly surfaceWidth: number;
 }
 
-const BLEND_RADIUS = 16;
+const BLEND_RADIUS = 20;
 const CANVAS_OVERLAP = BLEND_RADIUS;
 const MEASUREMENT_SCALE = 10;
 const ROW_RADIUS = 8;

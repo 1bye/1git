@@ -154,6 +154,7 @@ describe("repository revision rails", () => {
 		);
 		expect(markup).toContain('data-repository-revision-liquid-active="true"');
 		expect(markup).not.toContain("bg-brand-softer");
+		expect(markup).not.toContain("focus-visible:ring-inset");
 	});
 
 	test("marks the selected commit as the liquid revision anchor", () => {
@@ -182,6 +183,7 @@ describe("repository revision rails", () => {
 			'data-repository-revision-navigation-item="commit-two"'
 		);
 		expect(markup).not.toContain("bg-brand-softer");
+		expect(markup).not.toContain("focus-visible:ring-inset");
 	});
 
 	test("keeps stash actions above the revision files", () => {

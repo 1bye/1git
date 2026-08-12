@@ -447,7 +447,7 @@ export function RepositoryStashRail({
 											<button
 												aria-current={isSelected ? "true" : undefined}
 												className={cn(
-													"w-full rounded-lg px-3 py-2 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand/20 focus-visible:ring-inset",
+													"w-full rounded-lg px-3 py-2 text-left outline-none transition-colors",
 													isSelected ? "relative z-20" : "hover:bg-hover"
 												)}
 												data-repository-revision-liquid-active={

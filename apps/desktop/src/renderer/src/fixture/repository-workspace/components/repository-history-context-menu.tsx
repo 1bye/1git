@@ -310,7 +310,7 @@ export function RepositoryHistoryContextMenu({
 		<button
 			aria-current={isSelected ? "true" : undefined}
 			className={cn(
-				"relative w-full rounded-lg px-3 py-2 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-editor-muted/20 focus-visible:ring-inset",
+				"relative w-full rounded-lg px-3 py-2 text-left outline-none transition-colors",
 				!isSelected && "hover:bg-hover",
 				(isSelected || isOpen || isPresent) && "z-20"
 			)}
