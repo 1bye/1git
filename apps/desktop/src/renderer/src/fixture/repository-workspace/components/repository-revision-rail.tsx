@@ -27,11 +27,11 @@ import {
 } from "@/fixture/liquid-menu/components/liquid-menu.js";
 import { LiquidMenuAutoSize } from "@/fixture/liquid-menu/components/liquid-menu-auto-size.js";
 import { LIQUID_MENU_CONNECTED_BUTTON_ANCHOR_GEOMETRY } from "@/fixture/liquid-menu/constants/liquid-menu.js";
-import { OverflowingLabel } from "@/fixture/overflowing-label/components/overflowing-label.js";
 import {
-  getRepositoryFileRowId,
-  splitRepositoryFilePath,
-} from "@/fixture/repository-workspace/lib/repository-navigation.js";
+  RepositoryFilePath,
+  RepositoryFileStats,
+} from "@/fixture/repository-workspace/components/repository-file-item.js";
+import { getRepositoryFileRowId } from "@/fixture/repository-workspace/lib/repository-navigation.js";
 import {
   focusRepositoryRevisionNavigationGroup,
   focusRepositoryRevisionNavigationItem,
@@ -301,7 +301,6 @@ export function RepositoryRevisionFileRail({
                   data-repository-revision-navigation-group="files"
                 >
                   {stats.map((stat) => {
-                    const path = splitRepositoryFilePath(stat.path);
                     const isSelected = selectedFilePath === stat.path;
                     return (
                       <li
@@ -312,7 +311,7 @@ export function RepositoryRevisionFileRail({
                         <button
                           aria-current={isSelected ? "true" : undefined}
                           className={cn(
-                            "flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-1 text-left outline-none transition-colors hover:bg-hover focus-visible:ring-2 focus-visible:ring-brand/20 focus-visible:ring-inset",
+                            "flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-1 text-left outline-none transition-colors hover:bg-hover",
                             isSelected && "relative z-20"
                           )}
                           data-repository-revision-navigation-item={stat.path}
@@ -321,29 +320,12 @@ export function RepositoryRevisionFileRail({
                           tabIndex={isSelected ? 0 : -1}
                           type="button"
                         >
-                          <OverflowingLabel
-                            className="min-w-0 flex-1 text-[11px]"
-                            deferUntilVisible
-                            direction="end-to-start"
-                            title={stat.path}
-                          >
-                            {path.directory ? (
-                              <span className="text-editor-muted/75">
-                                {path.directory}
-                              </span>
-                            ) : null}
-                            <span className="font-medium text-editor-ink">
-                              {path.name}
-                            </span>
-                          </OverflowingLabel>
-                          <span className="flex shrink-0 items-center gap-1 font-medium text-[9px] tabular-nums">
-                            <span className="text-[#1a7f37]">
-                              +{stat.addedLines ?? "–"}
-                            </span>
-                            <span className="text-[#cf222e]">
-                              −{stat.deletedLines ?? "–"}
-                            </span>
-                          </span>
+                          <RepositoryFilePath path={stat.path} />
+                          <RepositoryFileStats
+                            addedLines={stat.addedLines}
+                            deletedLines={stat.deletedLines}
+                            unavailableLabel="–"
+                          />
                         </button>
                       </li>
                     );

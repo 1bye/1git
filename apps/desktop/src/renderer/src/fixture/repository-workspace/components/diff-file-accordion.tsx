@@ -17,6 +17,7 @@ import {
 	type HunkActionSelection,
 	HunkActionPocket,
 } from "./hunk-action-pocket.js";
+import { RepositoryFileStats } from "./repository-file-item.js";
 import { RepositoryFileStatus } from "./repository-file-status.js";
 import { RepositoryImageDiff } from "./repository-image-diff.js";
 import { getRepositoryDiffPreviewKind } from "@/fixture/repository-workspace/lib/repository-diff-preview.js";
@@ -317,14 +318,11 @@ const DiffFileAccordionComponent = ({
 						{entry.targetLabel}
 					</span>
 				) : null}
-				<div className="flex shrink-0 items-center gap-1.5 font-medium font-mono text-[9px] tabular-nums">
-					{addedLines === null || addedLines === undefined ? null : (
-						<span className="text-[#22863a]">+{addedLines}</span>
-					)}
-					{deletedLines === null || deletedLines === undefined ? null : (
-						<span className="text-[#cb2431]">−{deletedLines}</span>
-					)}
-				</div>
+				<RepositoryFileStats
+					addedLines={addedLines}
+					className="gap-1.5"
+					deletedLines={deletedLines}
+				/>
 				{entry.change ? <RepositoryFileStatus file={entry.change} /> : null}
 			</button>
 			<div hidden={!isOpen} id={bodyId}>

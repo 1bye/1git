@@ -78,6 +78,7 @@ describe("repository revision rails", () => {
 			'data-repository-revision-navigation-item="src/app.ts"'
 		);
 		expect(markup).toContain('tabindex="0"');
+		expect(markup).not.toContain("focus-visible:ring-inset");
 	});
 
 	test("shows saved work with the selected stash", () => {

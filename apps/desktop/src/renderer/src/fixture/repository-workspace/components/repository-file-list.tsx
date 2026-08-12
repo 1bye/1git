@@ -36,8 +36,8 @@ import {
 import { LIQUID_MENU_CONNECTED_BUTTON_ANCHOR_GEOMETRY } from "@/fixture/liquid-menu/constants/liquid-menu.js";
 import { useLiquidContextMenuPosition } from "@/fixture/liquid-menu/hooks/use-liquid-context-menu-position.js";
 import { getLiquidMenuLayerZIndices } from "@/fixture/liquid-menu/lib/liquid-menu-stack.js";
-import { OverflowingLabel } from "@/fixture/overflowing-label/components/overflowing-label.js";
 import { RepositoryFileContextActions } from "@/fixture/repository-workspace/components/repository-file-context-actions.js";
+import { RepositoryFilePath } from "@/fixture/repository-workspace/components/repository-file-item.js";
 import { RepositoryFileStatus } from "@/fixture/repository-workspace/components/repository-file-status.js";
 import {
 	doesRepositoryFileContextMenuUseSelection,
@@ -48,7 +48,6 @@ import {
 	type RepositoryFileStageProjection,
 	shouldElevateRepositoryFileSelection,
 	shouldStageRepositoryFileDrop,
-	splitRepositoryFilePath,
 } from "@/fixture/repository-workspace/lib/repository-navigation.js";
 
 const REPOSITORY_FILE_SELECTION_MENU_ANCHOR_SELECTOR =
@@ -132,19 +131,17 @@ interface RepositoryFileDragOverlayProps {
 function RepositoryFileDragOverlay({
 	file,
 }: RepositoryFileDragOverlayProps): ReactElement {
-	const path = splitRepositoryFilePath(file.path);
 	return (
 		<div
 			aria-hidden
 			className="flex h-full w-full items-center rounded-md bg-editor-surface pr-0.5 shadow-surface-3 ring-1 ring-black/5"
 			data-name="RepositoryFileDragOverlay"
 		>
-			<span className="flex min-w-0 flex-1 items-center overflow-hidden whitespace-nowrap px-1.5 py-0.5 text-[11px]">
-				{path.directory ? (
-					<span className="text-editor-muted/75">{path.directory}</span>
-				) : null}
-				<span className="font-medium text-editor-ink">{path.name}</span>
-			</span>
+			<RepositoryFilePath
+				className="px-1.5 py-0.5"
+				deferUntilVisible={false}
+				path={file.path}
+			/>
 			<span className="ml-0.5 flex size-5 shrink-0 items-center justify-center">
 				<RepositoryFileStatus file={file} />
 			</span>
@@ -640,7 +637,6 @@ function RepositoryFileRow({
 		},
 		[contextUsesSelection, onSelectionContextMenuPresenceChange]
 	);
-	const path = splitRepositoryFilePath(file.path);
 	const contextFiles = contextUsesSelection ? selectedFiles : [file];
 	const shouldElevateSelection = shouldElevateRepositoryFileSelection(
 		isSelectionContextMenuPresent,
@@ -713,17 +709,7 @@ function RepositoryFileRow({
 				ref={handleRef}
 				type="button"
 			>
-				<OverflowingLabel
-					className="flex-1 text-[11px]"
-					deferUntilVisible
-					direction="end-to-start"
-					title={file.path}
-				>
-					{path.directory ? (
-						<span className="text-editor-muted/75">{path.directory}</span>
-					) : null}
-					<span className="font-medium text-editor-ink">{path.name}</span>
-				</OverflowingLabel>
+				<RepositoryFilePath path={file.path} />
 				<span className="sr-only">
 					Index status {file.indexStatus}; working tree status{" "}
 					{file.worktreeStatus}
