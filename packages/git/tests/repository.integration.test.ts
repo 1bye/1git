@@ -504,10 +504,21 @@ describe("GitRepository local workflow", () => {
 				target: { base: "HEAD~1", head: "HEAD", kind: "range" },
 			})
 		);
+		const mergeBaseDiff = unwrapResult(
+			await fixture.repository.getDiff({
+				target: {
+					base: "HEAD~1",
+					head: "HEAD",
+					kind: "range",
+					mergeBase: true,
+				},
+			})
+		);
 
 		expect(rootDiff.patch).toContain("README.md");
 		expect(commitDiff.patch).toContain("feature.txt");
 		expect(rangeDiff.patch).toContain("feature.txt");
+		expect(mergeBaseDiff.patch).toContain("feature.txt");
 	});
 
 	test("returns a normal first-parent diff for merge commits", async () => {
@@ -528,6 +539,30 @@ describe("GitRepository local workflow", () => {
 
 		expect(diff.patch).toContain("diff --git a/feature.txt b/feature.txt");
 		expect(diff.patch).not.toContain("diff --cc");
+	});
+
+	test("compares a topic branch from its merge base", async () => {
+		const fixture = await fixtures.create();
+		await fixture.git(["checkout", "-b", "feature"]);
+		await fixture.write("feature.txt", "feature\n");
+		await fixture.commitAll("feature");
+		await fixture.git(["checkout", "main"]);
+		await fixture.write("main.txt", "main\n");
+		await fixture.commitAll("main");
+
+		const comparison = unwrapResult(
+			await fixture.repository.getDiff({
+				target: {
+					base: "main",
+					head: "feature",
+					kind: "range",
+					mergeBase: true,
+				},
+			})
+		);
+
+		expect(comparison.patch).toContain("feature.txt");
+		expect(comparison.patch).not.toContain("main.txt");
 	});
 
 	test("loads UTF-8 file content at a revision", async () => {

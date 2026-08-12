@@ -7,6 +7,7 @@ const remote = (
 	fetchUrl: string,
 	pushUrl = fetchUrl
 ): RemoteInfo => ({
+	defaultBranch: null,
 	fetchUrls: [fetchUrl],
 	name,
 	pushUrls: [pushUrl],

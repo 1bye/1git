@@ -237,6 +237,7 @@ export interface TagInfo {
 
 /** Named remote and all configured fetch/push URLs. */
 export interface RemoteInfo {
+	readonly defaultBranch: string | null;
 	readonly fetchUrls: readonly string[];
 	readonly name: string;
 	readonly pushUrls: readonly string[];
@@ -284,6 +285,7 @@ export type DiffTarget =
 			readonly base: string;
 			readonly head: string;
 			readonly kind: "range";
+			readonly mergeBase?: boolean;
 	  }
 	| { readonly kind: "staged" }
 	| { readonly kind: "working" };

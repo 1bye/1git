@@ -248,6 +248,25 @@ const loadRemoteUrls = async (
 		.filter((url) => url.length > 0);
 };
 
+const loadRemoteDefaultBranch = async (
+	context: RepositoryContext,
+	name: string,
+	signal?: AbortSignal
+): Promise<string | null> => {
+	const output = await context.process.run({
+		args: [
+			"for-each-ref",
+			"--format=%(symref:short)",
+			`refs/remotes/${name}/HEAD`,
+		],
+		cwd: context.repository.root,
+		signal,
+	});
+	const reference = output.stdout.toString("utf8").trim();
+	const prefix = `${name}/`;
+	return reference.startsWith(prefix) ? reference.slice(prefix.length) : null;
+};
+
 /** Loads configured remotes without parsing human-oriented `remote -v` output. */
 export const loadRemotes = async (
 	context: RepositoryContext,
@@ -264,11 +283,12 @@ export const loadRemotes = async (
 		.filter((name) => name.length > 0);
 	return await Promise.all(
 		names.map(async (name): Promise<RemoteInfo> => {
-			const [fetchUrls, pushUrls] = await Promise.all([
+			const [defaultBranch, fetchUrls, pushUrls] = await Promise.all([
+				loadRemoteDefaultBranch(context, name, signal),
 				loadRemoteUrls(context, name, false, signal),
 				loadRemoteUrls(context, name, true, signal),
 			]);
-			return { fetchUrls, name, pushUrls };
+			return { defaultBranch, fetchUrls, name, pushUrls };
 		})
 	);
 };
@@ -297,7 +317,8 @@ const diffArguments = (
 	} else if (input.target.kind === "commit") {
 		args.push(input.target.revision);
 	} else if (input.target.kind === "range") {
-		args.push(`${input.target.base}..${input.target.head}`);
+		const separator = input.target.mergeBase ? "..." : "..";
+		args.push(`${input.target.base}${separator}${input.target.head}`);
 	}
 	if (input.paths && input.paths.length > 0) {
 		args.push("--", ...input.paths);

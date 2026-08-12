@@ -56,7 +56,9 @@ export function App(): ReactElement {
 					{workspace.activeSession ? (
 						<RepositoryWorkspace
 							activeSession={workspace.activeSession}
+							branchComparison={workspace.branchComparison}
 							branches={workspace.branches}
+							cleanAction={workspace.cleanAction}
 							diffs={workspace.diffs}
 							history={workspace.history}
 							isLoading={
@@ -67,13 +69,16 @@ export function App(): ReactElement {
 							onCancelSync={workspace.cancelSync}
 							onChangeHunk={workspace.changeHunk}
 							onCherryPickCommit={workspace.cherryPickCommit}
+							onCloseBranchComparison={workspace.closeBranchComparison}
 							onCommit={workspace.commit}
 							onCreateBranch={workspace.createBranch}
 							onDiscardFiles={workspace.discardFiles}
 							onDropStash={workspace.dropStash}
 							onMergeBranch={workspace.mergeBranch}
+							onOpenBranchComparison={workspace.openBranchComparison}
 							onOpenInEditor={workspace.openRepositoryInEditor}
 							onPopStash={workspace.popStash}
+							onPreviewBranchComparison={workspace.previewBranchComparison}
 							onRecover={workspace.recoverRepository}
 							onResetCommit={workspace.resetToCommit}
 							onRevertCommit={workspace.revertCommit}

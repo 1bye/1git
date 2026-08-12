@@ -2,38 +2,79 @@ import type { RepositorySnapshot } from "@1git/git";
 import { ArrowsClockwiseIcon } from "@phosphor-icons/react/dist/csr/ArrowsClockwise";
 import { CheckCircleIcon } from "@phosphor-icons/react/dist/csr/CheckCircle";
 import { GitBranchIcon } from "@phosphor-icons/react/dist/csr/GitBranch";
+import { GitPullRequestIcon } from "@phosphor-icons/react/dist/csr/GitPullRequest";
 import { SpinnerGapIcon } from "@phosphor-icons/react/dist/csr/SpinnerGap";
 import type { ReactElement } from "react";
+import type { RepositoryCleanAction } from "@/feature/workspace/lib/repository-clean-state.js";
 import {
 	isRepositorySyncActionKind,
-	type RepositorySyncAction,
 	repositorySyncProgressLabel,
 } from "@/feature/workspace/lib/repository-sync.js";
 import type { PendingWorkspaceAction } from "@/feature/workspace/types/git-workspace.js";
 
 interface RepositoryCleanStateProps {
+	readonly cleanAction: RepositoryCleanAction;
 	readonly onCancelSync: () => Promise<void>;
+	readonly onPreviewComparison: () => Promise<void>;
 	readonly onSync: () => Promise<void>;
 	readonly pendingAction: PendingWorkspaceAction;
 	readonly snapshot: RepositorySnapshot;
-	readonly syncAction: RepositorySyncAction;
 }
 
 export function CleanState({
 	onCancelSync,
+	onPreviewComparison,
 	onSync,
 	pendingAction,
 	snapshot,
-	syncAction,
+	cleanAction,
 }: RepositoryCleanStateProps): ReactElement {
 	const isSyncPending = isRepositorySyncActionKind(pendingAction);
-	const synchronizeRepository = async (): Promise<void> => {
+	const performPrimaryAction = async (): Promise<void> => {
 		if (isSyncPending) {
 			await onCancelSync();
-		} else {
+			return;
+		}
+		if (cleanAction.kind === "sync") {
 			await onSync();
+		} else if (cleanAction.kind === "preview-comparison") {
+			await onPreviewComparison();
 		}
 	};
+	const isComparisonAction = cleanAction.kind !== "sync";
+	const isActionPending = pendingAction === "refresh";
+	let actionIcon = (
+		<ArrowsClockwiseIcon
+			aria-hidden
+			className="size-4 text-editor-faint"
+			weight="regular"
+		/>
+	);
+	if (isComparisonAction) {
+		actionIcon = (
+			<GitPullRequestIcon
+				aria-hidden
+				className="size-4 text-editor-faint"
+				weight="regular"
+			/>
+		);
+	}
+	if (isSyncPending || isActionPending) {
+		actionIcon = (
+			<SpinnerGapIcon
+				aria-hidden
+				className="size-4 animate-spin text-editor-faint"
+				weight="bold"
+			/>
+		);
+	}
+	let actionLabel = cleanAction.label;
+	if (isActionPending) {
+		actionLabel = "Preparing preview";
+	}
+	if (isSyncPending) {
+		actionLabel = `Cancel ${repositorySyncProgressLabel(pendingAction).toLowerCase()}`;
+	}
 
 	return (
 		<section
@@ -69,38 +110,24 @@ export function CleanState({
 						</p>
 					</div>
 					<button
-						aria-busy={isSyncPending}
+						aria-busy={isSyncPending || isActionPending}
 						className="p-4 text-left outline-none hover:bg-editor-surface focus-visible:bg-editor-surface focus-visible:ring-2 focus-visible:ring-brand/20 focus-visible:ring-inset disabled:pointer-events-none disabled:opacity-50"
 						disabled={
 							(pendingAction !== null && !isSyncPending) ||
-							(!isSyncPending && syncAction.disabledReason !== null)
+							(!isSyncPending && cleanAction.disabledReason !== null)
 						}
-						onClick={synchronizeRepository}
-						title={syncAction.disabledReason ?? syncAction.description}
+						onClick={performPrimaryAction}
+						title={cleanAction.disabledReason ?? cleanAction.description}
 						type="button"
 					>
-						{isSyncPending ? (
-							<SpinnerGapIcon
-								aria-hidden
-								className="size-4 animate-spin text-editor-faint"
-								weight="bold"
-							/>
-						) : (
-							<ArrowsClockwiseIcon
-								aria-hidden
-								className="size-4 text-editor-faint"
-								weight="regular"
-							/>
-						)}
+						{actionIcon}
 						<span className="mt-3 block font-medium text-editor-ink text-xs">
-							{isSyncPending
-								? `Cancel ${repositorySyncProgressLabel(pendingAction).toLowerCase()}`
-								: syncAction.label}
+							{actionLabel}
 						</span>
 						<span className="mt-1 block text-[10px] text-editor-faint">
 							{isSyncPending
 								? "Stop this operation"
-								: (syncAction.disabledReason ?? syncAction.description)}
+								: (cleanAction.disabledReason ?? cleanAction.description)}
 						</span>
 					</button>
 				</div>

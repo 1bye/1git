@@ -25,6 +25,7 @@ describe("GitRepository remotes and synchronization", () => {
 
 		expect(remotes).toEqual([
 			{
+				defaultBranch: null,
 				fetchUrls: [remotePath],
 				name: "origin",
 				pushUrls: [remotePath],
@@ -166,6 +167,18 @@ describe("GitRepository remotes and synchronization", () => {
 		expect(
 			await fixture.git(["ls-remote", "--heads", "origin", "main"])
 		).toContain("refs/heads/main");
+	});
+
+	test("reports the fetched remote default branch", async () => {
+		const fixture = await fixtures.create();
+		const remotePath = await fixture.createBareRemote();
+		await fixture.git(["remote", "add", "origin", remotePath]);
+		await fixture.git(["push", "--set-upstream", "origin", "main"]);
+		await fixture.git(["remote", "set-head", "origin", "main"]);
+
+		const remotes = unwrapResult(await fixture.repository.getRemotes());
+
+		expect(remotes[0]?.defaultBranch).toBe("main");
 	});
 
 	test("changes the upstream to an existing remote branch", async () => {

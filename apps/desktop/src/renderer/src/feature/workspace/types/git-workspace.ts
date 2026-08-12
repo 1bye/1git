@@ -10,6 +10,10 @@ import type {
 	ResetMode,
 	StashInfo,
 } from "@1git/git";
+import type {
+	RepositoryBranchComparison,
+	RepositoryCleanAction,
+} from "@/feature/workspace/lib/repository-clean-state.js";
 import type { RepositoryOwner } from "@/feature/workspace/lib/repository-owner.js";
 import type { RepositoryRecoveryAction } from "@/feature/workspace/lib/repository-recovery.js";
 import type { BranchSwitchResult } from "@/feature/workspace/lib/repository-stash.js";
@@ -72,6 +76,7 @@ export interface GitWorkspace {
 		description: string
 	) => Promise<boolean>;
 	readonly applyStash: (stash: StashInfo) => Promise<boolean>;
+	readonly branchComparison: RepositoryBranchComparison | null;
 	readonly branches: BranchCollection | null;
 	readonly cancelSync: () => Promise<void>;
 	readonly canRetrySync: boolean;
@@ -80,8 +85,10 @@ export interface GitWorkspace {
 		commit: CommitInfo,
 		branchName: string
 	) => Promise<boolean>;
+	readonly cleanAction: RepositoryCleanAction | null;
 	readonly clearError: () => void;
 	readonly cloneRepository: (remoteUrl: string) => Promise<boolean>;
+	readonly closeBranchComparison: () => void;
 	readonly closeWorkspace: (sessionId: RepositorySessionId) => Promise<void>;
 	readonly commit: (summary: string, description: string) => Promise<boolean>;
 	readonly createBranch: (
@@ -101,6 +108,7 @@ export interface GitWorkspace {
 	readonly isInitialLoading: boolean;
 	readonly manager: RepositoryManagerState;
 	readonly mergeBranch: (name: string) => Promise<boolean>;
+	readonly openBranchComparison: () => Promise<void>;
 	readonly openRecentRepository: (
 		path: string,
 		options?: OpenRepositoryOptions
@@ -109,6 +117,7 @@ export interface GitWorkspace {
 	readonly pendingAction: PendingWorkspaceAction;
 	readonly pickRepository: () => Promise<void>;
 	readonly popStash: (stash: StashInfo) => Promise<boolean>;
+	readonly previewBranchComparison: () => Promise<void>;
 	readonly recoverRepository: (
 		action: RepositoryRecoveryAction
 	) => Promise<boolean>;

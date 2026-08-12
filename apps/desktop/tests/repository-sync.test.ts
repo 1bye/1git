@@ -22,6 +22,7 @@ const remote = (
 	name: string,
 	{ canPush = true }: { readonly canPush?: boolean } = {}
 ): RemoteInfo => ({
+	defaultBranch: null,
 	fetchUrls: [`https://example.com/${name}.git`],
 	name,
 	pushUrls: canPush ? [`https://example.com/${name}.git`] : [],

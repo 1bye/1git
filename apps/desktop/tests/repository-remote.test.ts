@@ -1,11 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import type { RemoteInfo } from "@1git/git";
 import {
+	getGithubPullRequestUrl,
 	getGithubRepositoryUrl,
 	getPreferredRepositoryRemoteUrl,
-} from "@/fixture/repository-item/lib/repository-remote.js";
+	getRepositoryWebUrl,
+} from "@/feature/workspace/lib/repository-remote.js";
 
 const remote = (name: string, url: string): RemoteInfo => ({
+	defaultBranch: null,
 	fetchUrls: [url],
 	name,
 	pushUrls: [url],
@@ -49,5 +52,24 @@ describe("repository remote", () => {
 		expect(
 			getGithubRepositoryUrl("https://gitlab.com/openai/codex.git")
 		).toBeNull();
+	});
+
+	test("creates secure browser URLs for other hosted remotes", () => {
+		expect(
+			getRepositoryWebUrl("git@gitlab.example.com:platform/desktop.git")
+		).toBe("https://gitlab.example.com/platform/desktop");
+		expect(getRepositoryWebUrl("/tmp/repository.git")).toBeNull();
+	});
+
+	test("creates a GitHub comparison URL without provider API state", () => {
+		expect(
+			getGithubPullRequestUrl(
+				"git@github.com:openai/codex.git",
+				"main",
+				"feature/clean-state"
+			)
+		).toBe(
+			"https://github.com/openai/codex/compare/main...feature%2Fclean-state?expand=1"
+		);
 	});
 });

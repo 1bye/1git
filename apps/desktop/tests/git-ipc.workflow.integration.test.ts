@@ -233,6 +233,7 @@ describe("Git IPC repository workflow", () => {
 
 		expect(remotes).toEqual([
 			{
+				defaultBranch: null,
 				fetchUrls: [remote.repositoryPath],
 				name: "origin",
 				pushUrls: [remote.repositoryPath],

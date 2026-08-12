@@ -4,11 +4,16 @@ import type {
 	FileDiff,
 	RepositorySnapshot,
 } from "@1git/git";
+import { ArrowSquareOutIcon } from "@phosphor-icons/react/dist/csr/ArrowSquareOut";
 import { GitDiffIcon } from "@phosphor-icons/react/dist/csr/GitDiff";
 import { SpinnerGapIcon } from "@phosphor-icons/react/dist/csr/SpinnerGap";
+import { XIcon } from "@phosphor-icons/react/dist/csr/X";
 import type { ReactElement } from "react";
 import { useCallback } from "react";
-import type { RepositorySyncAction } from "@/feature/workspace/lib/repository-sync.js";
+import type {
+	RepositoryBranchComparison,
+	RepositoryCleanAction,
+} from "@/feature/workspace/lib/repository-clean-state.js";
 import { getRepositoryName } from "@/feature/workspace/lib/workspace-model.js";
 import type {
 	PendingWorkspaceAction,
@@ -20,10 +25,15 @@ import type { RepositorySessionRecord } from "../../../../../shared/repository-s
 
 export interface RepositoryDiffWorkspaceProps {
 	readonly activeSession: RepositorySessionRecord;
+	readonly branchComparison: RepositoryBranchComparison | null;
+	readonly cleanAction: RepositoryCleanAction | null;
 	readonly diffs: readonly FileDiff[];
 	readonly isLoading: boolean;
 	readonly onCancelSync: () => Promise<void>;
 	readonly onChangeHunk: (input: ChangeHunkInput) => Promise<boolean>;
+	readonly onCloseBranchComparison: () => void;
+	readonly onOpenBranchComparison: () => Promise<void>;
+	readonly onPreviewBranchComparison: () => Promise<void>;
 	readonly onSelectFile: (file: FileChange) => Promise<void>;
 	readonly onSelectRevisionFile: (path: string) => Promise<void>;
 	readonly onSync: () => Promise<void>;
@@ -32,7 +42,6 @@ export interface RepositoryDiffWorkspaceProps {
 	readonly selectedFilePath: string | null;
 	readonly selectedStashOid: string | null;
 	readonly snapshot: RepositorySnapshot | null;
-	readonly syncAction: RepositorySyncAction | null;
 	readonly tab: RepositoryTab;
 }
 
@@ -79,19 +88,23 @@ const DiffEmptyState = (): ReactElement => (
 
 export function RepositoryDiffWorkspace({
 	activeSession,
+	branchComparison,
+	cleanAction,
 	diffs,
 	isLoading,
 	onCancelSync,
+	onCloseBranchComparison,
 	onChangeHunk,
 	onSelectFile,
 	onSelectRevisionFile,
+	onOpenBranchComparison,
+	onPreviewBranchComparison,
 	onSync,
 	pendingAction,
 	selectedCommitOid,
 	selectedFilePath,
 	selectedStashOid,
 	snapshot,
-	syncAction,
 	tab,
 }: RepositoryDiffWorkspaceProps): ReactElement {
 	const files = snapshot?.files ?? [];
@@ -100,7 +113,7 @@ export function RepositoryDiffWorkspace({
 			if (path === selectedFilePath) {
 				return;
 			}
-			if (tab !== "changes") {
+			if (tab !== "changes" || branchComparison) {
 				onSelectRevisionFile(path).catch(() => {
 					// The workspace hook exposes the operation error in the app notice.
 				});
@@ -113,7 +126,14 @@ export function RepositoryDiffWorkspace({
 				});
 			}
 		},
-		[files, onSelectFile, onSelectRevisionFile, selectedFilePath, tab]
+		[
+			branchComparison,
+			files,
+			onSelectFile,
+			onSelectRevisionFile,
+			selectedFilePath,
+			tab,
+		]
 	);
 
 	if (!snapshot || isLoading) {
@@ -141,29 +161,69 @@ export function RepositoryDiffWorkspace({
 	}
 
 	let mainContent: ReactElement;
-	if (tab === "changes" && files.length === 0 && syncAction) {
+	if (
+		tab === "changes" &&
+		files.length === 0 &&
+		cleanAction &&
+		!branchComparison
+	) {
 		mainContent = (
 			<CleanState
+				cleanAction={cleanAction}
 				onCancelSync={onCancelSync}
+				onPreviewComparison={onPreviewBranchComparison}
 				onSync={onSync}
 				pendingAction={pendingAction}
 				snapshot={snapshot}
-				syncAction={syncAction}
 			/>
 		);
 	} else if (diffs.length > 0) {
 		mainContent = (
-			<DiffView
-				diffs={diffs}
-				files={tab === "changes" ? files : []}
-				isHunkActionPending={pendingAction === "hunk"}
-				onActiveFileChange={selectVisibleFile}
-				onChangeHunk={onChangeHunk}
-				revisionOid={selectedCommitOid ?? selectedStashOid ?? undefined}
-				selectedFilePath={selectedFilePath}
-				sessionId={activeSession.id}
-				tab={tab}
-			/>
+			<div className="flex h-full min-h-0 flex-col">
+				{branchComparison ? (
+					<header className="flex h-11 shrink-0 items-center gap-3 px-4 text-xs">
+						<p className="min-w-0 flex-1 truncate text-editor-muted">
+							<span className="font-medium text-editor-ink">
+								{branchComparison.baseBranch}
+							</span>{" "}
+							into {branchComparison.headBranch}
+						</p>
+						<button
+							className="flex h-7 items-center gap-1.5 rounded-lg px-2.5 font-medium outline-none hover:bg-hover focus-visible:ring-2 focus-visible:ring-brand/20"
+							onClick={onOpenBranchComparison}
+							type="button"
+						>
+							<ArrowSquareOutIcon aria-hidden className="size-3.5" />
+							{branchComparison.browserActionLabel}
+						</button>
+						<button
+							aria-label="Close branch comparison"
+							className="flex size-7 items-center justify-center rounded-lg text-editor-muted outline-none hover:bg-hover hover:text-editor-ink focus-visible:ring-2 focus-visible:ring-brand/20"
+							onClick={onCloseBranchComparison}
+							type="button"
+						>
+							<XIcon aria-hidden className="size-3.5" weight="bold" />
+						</button>
+					</header>
+				) : null}
+				<DiffView
+					diffs={diffs}
+					emptyDescription={
+						branchComparison
+							? `No changes between ${branchComparison.baseBranch} and ${branchComparison.headBranch}.`
+							: undefined
+					}
+					emptyTitle={branchComparison ? "Branches match" : undefined}
+					files={tab === "changes" ? files : []}
+					isHunkActionPending={pendingAction === "hunk"}
+					onActiveFileChange={selectVisibleFile}
+					onChangeHunk={branchComparison ? undefined : onChangeHunk}
+					revisionOid={selectedCommitOid ?? selectedStashOid ?? undefined}
+					selectedFilePath={selectedFilePath}
+					sessionId={activeSession.id}
+					tab={tab}
+				/>
+			</div>
 		);
 	} else if (selectedFilePath || selectedCommitOid || selectedStashOid) {
 		mainContent = <DiffLoadingState />;

@@ -238,6 +238,8 @@ confirmation.
 
 ## Phase 5 — Make the clean state useful
 
+Status: completed on 2026-08-12.
+
 ### User experience
 
 The clean canvas should answer “what next?” without becoming a dashboard.

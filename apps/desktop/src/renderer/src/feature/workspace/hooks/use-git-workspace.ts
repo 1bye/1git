@@ -25,6 +25,12 @@ import {
 	repositoryBranchSwitchDisabledReason,
 } from "@/feature/workspace/lib/repository-branches.js";
 import {
+	getRepositoryBranchComparison,
+	getRepositoryCleanAction,
+	type RepositoryBranchComparison,
+	type RepositoryCleanAction,
+} from "@/feature/workspace/lib/repository-clean-state.js";
+import {
 	canAmendRepositoryCommit,
 	canRevertRepositoryCommit,
 	getRepositoryCherryPickTargets,
@@ -129,6 +135,79 @@ const fileNameFromPath = (path: string): string =>
 const firstDiffPath = (diff: FileDiff | null): string | null =>
 	diff?.stats[0]?.path ?? null;
 
+const openExternalBranchComparison = async (
+	comparison: RepositoryBranchComparison | null
+): Promise<void> => {
+	if (comparison) {
+		await window.desktop.integrations.openExternal(comparison.browserUrl);
+	}
+};
+
+interface BranchComparisonPreviewOptions {
+	readonly comparison: RepositoryBranchComparison | null;
+	readonly isBlocked: boolean;
+	readonly onError: (message: string | null) => void;
+	readonly onPendingChange: (action: PendingWorkspaceAction) => void;
+	readonly onPresent: (
+		comparison: RepositoryBranchComparison,
+		diff: FileDiff
+	) => void;
+	readonly sessionId?: RepositorySessionId | null;
+}
+
+interface RepositoryCleanPresentation {
+	readonly action: RepositoryCleanAction | null;
+	readonly comparison: RepositoryBranchComparison | null;
+}
+
+const getRepositoryCleanPresentation = (
+	snapshot: RepositorySnapshot | null,
+	remotes: readonly RemoteInfo[],
+	syncAction: RepositorySyncAction | null
+): RepositoryCleanPresentation => {
+	const comparison = snapshot
+		? getRepositoryBranchComparison(snapshot.head, remotes)
+		: null;
+	return {
+		action: syncAction
+			? getRepositoryCleanAction(syncAction, comparison)
+			: null,
+		comparison,
+	};
+};
+
+const previewRepositoryBranchComparison = async ({
+	comparison,
+	isBlocked,
+	onError,
+	onPendingChange,
+	onPresent,
+	sessionId,
+}: BranchComparisonPreviewOptions): Promise<void> => {
+	if (!(comparison && sessionId) || isBlocked) {
+		return;
+	}
+	onPendingChange("refresh");
+	try {
+		onError(null);
+		const diff = resultValue(
+			await window.desktop.git.repository.diff(sessionId, {
+				target: {
+					base: comparison.baseRevision,
+					head: "HEAD",
+					kind: "range",
+					mergeBase: true,
+				},
+			})
+		);
+		onPresent(comparison, diff);
+	} catch (cause) {
+		onError(errorMessage(cause));
+	} finally {
+		onPendingChange(null);
+	}
+};
+
 interface WorkspaceSummary {
 	readonly branch: string | null;
 	readonly changedFiles: number;
@@ -228,6 +307,8 @@ export const useGitWorkspace = (): GitWorkspace => {
 	const [history, setHistory] = useState<CommitPage | null>(null);
 	const [stashes, setStashes] = useState<readonly StashInfo[]>([]);
 	const [diffs, setDiffs] = useState<readonly FileDiff[]>([]);
+	const [visibleBranchComparison, setVisibleBranchComparison] =
+		useState<RepositoryBranchComparison | null>(null);
 	const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
 	const [selectedCommitOid, setSelectedCommitOid] = useState<string | null>(
 		null
@@ -299,6 +380,8 @@ export const useGitWorkspace = (): GitWorkspace => {
 	const syncAction = snapshot
 		? getRepositorySyncAction(snapshot.head, remotes)
 		: null;
+	const { action: cleanAction, comparison: branchComparison } =
+		getRepositoryCleanPresentation(snapshot, remotes, syncAction);
 	const pendingSyncAction = presentedSessionId
 		? (pendingSyncActions[presentedSessionId] ?? null)
 		: null;
@@ -380,6 +463,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 				return;
 			}
 			setDiffs(results.map(resultValue));
+			setVisibleBranchComparison(null);
 		},
 		[]
 	);
@@ -419,6 +503,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 				return null;
 			}
 			setDiffs([diff]);
+			setVisibleBranchComparison(null);
 			return diff;
 		},
 		[]
@@ -426,6 +511,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 	const clearDiff = useCallback((): void => {
 		diffRequestIdRef.current += 1;
 		setDiffs([]);
+		setVisibleBranchComparison(null);
 	}, []);
 	const presentRevision = useCallback(
 		async (
@@ -887,7 +973,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 	};
 
 	const selectRevisionFile = (path: string): Promise<void> => {
-		if (!activeSession || tab === "changes") {
+		if (!activeSession || (tab === "changes" && !visibleBranchComparison)) {
 			return Promise.resolve();
 		}
 		setSelectedFilePath(path);
@@ -1660,6 +1746,38 @@ export const useGitWorkspace = (): GitWorkspace => {
 		await performRepositorySync(activeSession, syncAction, steps);
 	};
 
+	const previewBranchComparison = async (): Promise<void> => {
+		await previewRepositoryBranchComparison({
+			comparison: branchComparison,
+			isBlocked: pendingAction !== null,
+			onError: setError,
+			onPendingChange: setPendingAction,
+			onPresent: (comparison, diff) => {
+				setDiffs([diff]);
+				setVisibleBranchComparison(comparison);
+				setSelectedFilePath(firstDiffPath(diff));
+				setSelectedCommitOid(null);
+				setSelectedStashOid(null);
+			},
+			sessionId: activeSession?.id,
+		});
+	};
+
+	const openBranchComparison = async (): Promise<void> => {
+		const comparison = visibleBranchComparison ?? branchComparison;
+		try {
+			setError(null);
+			await openExternalBranchComparison(comparison);
+		} catch (cause) {
+			setError(errorMessage(cause));
+		}
+	};
+
+	const closeBranchComparison = (): void => {
+		clearDiff();
+		setSelectedFilePath(null);
+	};
+
 	const mergeBranch = async (name: string): Promise<boolean> => {
 		if (
 			!(activeSession && snapshot) ||
@@ -1956,6 +2074,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 		activeSession,
 		amendCommit,
 		applyStash,
+		branchComparison: visibleBranchComparison,
 		branches,
 		cancelSync,
 		canRetrySync: Boolean(
@@ -1966,6 +2085,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 		),
 		changeHunk,
 		cherryPickCommit,
+		cleanAction,
 		clearError: () => {
 			setError(null);
 			if (presentedSessionId) {
@@ -1977,6 +2097,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 			}
 		},
 		cloneRepository,
+		closeBranchComparison,
 		closeWorkspace,
 		commit: createCommit,
 		createBranch,
@@ -1993,11 +2114,13 @@ export const useGitWorkspace = (): GitWorkspace => {
 		isInitialLoading,
 		manager,
 		mergeBranch,
+		openBranchComparison,
 		openRecentRepository,
 		openRepositoryInEditor,
 		pendingAction: visiblePendingAction,
 		pickRepository,
 		popStash,
+		previewBranchComparison,
 		recoverRepository,
 		renameBranch,
 		reorderWorkspace,

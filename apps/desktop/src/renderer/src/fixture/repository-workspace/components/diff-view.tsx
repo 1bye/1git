@@ -17,6 +17,8 @@ import type { RepositorySessionId } from "../../../../../shared/repository-sessi
 
 interface DiffViewProps {
 	readonly diffs: readonly FileDiff[];
+	readonly emptyDescription?: string;
+	readonly emptyTitle?: string;
 	readonly files?: readonly FileChange[];
 	readonly isHunkActionPending?: boolean;
 	readonly onActiveFileChange?: (path: string) => void;
@@ -62,6 +64,8 @@ const updateVisibleEntryKeys = (
 
 export function DiffView({
 	diffs,
+	emptyDescription = "The changed files may be binary or have no patch content.",
+	emptyTitle = "No text diff available",
 	files = [],
 	isHunkActionPending = false,
 	onActiveFileChange = ignoreActiveFileChange,
@@ -166,7 +170,7 @@ export function DiffView({
 
 	return (
 		<section
-			className="h-full min-h-0 overflow-y-auto overscroll-contain"
+			className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
 			data-name="DiffView"
 			data-repository-diff-viewport
 			ref={setScrollContainer}
@@ -207,10 +211,10 @@ export function DiffView({
 							weight="duotone"
 						/>
 						<h2 className="mt-3 font-medium text-[13px] text-editor-ink">
-							No text diff available
+							{emptyTitle}
 						</h2>
 						<p className="mt-1 text-editor-faint text-xss">
-							The changed files may be binary or have no patch content.
+							{emptyDescription}
 						</p>
 					</div>
 				</div>
