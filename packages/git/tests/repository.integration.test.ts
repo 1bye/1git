@@ -426,6 +426,25 @@ describe("GitRepository local workflow", () => {
 		});
 	});
 
+	test("can ignore whitespace-only changes", async () => {
+		const fixture = await fixtures.create();
+		await fixture.write("README.md", "#   Test repository\n");
+
+		const ordinary = unwrapResult(
+			await fixture.repository.getDiff({ target: { kind: "working" } })
+		);
+		const ignoringWhitespace = unwrapResult(
+			await fixture.repository.getDiff({
+				ignoreWhitespace: true,
+				target: { kind: "working" },
+			})
+		);
+
+		expect(ordinary.patch).toContain("README.md");
+		expect(ignoringWhitespace.patch).toBe("");
+		expect(ignoringWhitespace.stats[0]?.path).toBe("README.md");
+	});
+
 	test("can request complete context for a changed file", async () => {
 		const fixture = await fixtures.create();
 		const originalLines = Array.from(
@@ -570,7 +589,7 @@ describe("GitRepository local workflow", () => {
 		const content = unwrapResult(
 			await fixture.repository.getFileContent({
 				path: "README.md",
-				revision: "HEAD",
+				source: { kind: "revision", revision: "HEAD" },
 			})
 		);
 
@@ -589,12 +608,37 @@ describe("GitRepository local workflow", () => {
 		const content = unwrapResult(
 			await fixture.repository.getFileContent({
 				path: "binary.bin",
-				revision: "HEAD",
+				source: { kind: "revision", revision: "HEAD" },
 			})
 		);
 
 		expect(content.encoding).toBe("base64");
 		expect(Buffer.from(content.content, "base64")).toEqual(
+			Buffer.from([0xff, 0xfe, 0x00, 0x81])
+		);
+
+		await fixture.write("binary.bin", new Uint8Array([0x89, 0x50, 0x4e, 0x47]));
+		const working = unwrapResult(
+			await fixture.repository.getFileContent({
+				path: "binary.bin",
+				source: { kind: "working" },
+			})
+		);
+		const object = unwrapResult(
+			await fixture.repository.getFileContent({
+				path: "binary.bin",
+				source: {
+					kind: "object",
+					objectId: await fixture.git(["rev-parse", "HEAD:binary.bin"]),
+				},
+			})
+		);
+
+		expect(working.revision).toBe("WORKTREE");
+		expect(Buffer.from(working.content, "base64")).toEqual(
+			Buffer.from([0x89, 0x50, 0x4e, 0x47])
+		);
+		expect(Buffer.from(object.content, "base64")).toEqual(
 			Buffer.from([0xff, 0xfe, 0x00, 0x81])
 		);
 	});

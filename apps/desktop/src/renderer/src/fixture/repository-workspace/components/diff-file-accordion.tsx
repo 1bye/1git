@@ -18,18 +18,24 @@ import {
 	HunkActionPocket,
 } from "./hunk-action-pocket.js";
 import { RepositoryFileStatus } from "./repository-file-status.js";
+import { RepositoryImageDiff } from "./repository-image-diff.js";
+import { getRepositoryDiffPreviewKind } from "@/fixture/repository-workspace/lib/repository-diff-preview.js";
+import type { RepositorySessionId } from "../../../../../shared/repository-session.js";
 
 interface DiffFileAccordionProps {
 	readonly areHunkActionsEnabled: boolean;
 	readonly entry: RepositoryDiffFileEntry;
 	readonly isBodyMounted: boolean;
 	readonly isHunkActionPending: boolean;
+	readonly ignoreWhitespace: boolean;
 	readonly onChangeHunk: HunkActionHandler;
 	readonly onElementChange: (key: string, element: HTMLElement | null) => void;
+	readonly onOpenFile: (path: string) => Promise<void>;
 	readonly onRequestExpandableFile: (
 		entry: RepositoryDiffFileEntry
 	) => Promise<unknown>;
 	readonly showTarget: boolean;
+	readonly sessionId: RepositorySessionId;
 }
 
 interface HoveredDiffLine {
@@ -78,10 +84,13 @@ const DiffFileAccordionComponent = ({
 	entry,
 	isBodyMounted,
 	isHunkActionPending,
+	ignoreWhitespace,
 	onChangeHunk,
 	onElementChange,
+	onOpenFile,
 	onRequestExpandableFile,
 	showTarget,
+	sessionId,
 }: DiffFileAccordionProps): ReactElement => {
 	const [isOpen, setIsOpen] = useState(true);
 	const [isPreparingContext, setIsPreparingContext] = useState(false);
@@ -207,14 +216,48 @@ const DiffFileAccordionComponent = ({
 					entry.file.hunks.length * REPOSITORY_DIFF_ESTIMATED_SEPARATOR_HEIGHT
 			)
 		: 0;
+	const previewKind = getRepositoryDiffPreviewKind({
+		file: entry.file,
+		ignoreWhitespace,
+		patchOmittedReason: entry.patchOmittedReason,
+		path: entry.path,
+		stat: entry.stat,
+	});
 	let bodyContent: ReactElement;
-	if (!entry.file) {
+	if (previewKind === "image") {
 		bodyContent = (
-			<p className="px-4 py-8 text-center text-editor-faint text-xss">
-				No text diff available for this file.
-			</p>
+			<RepositoryImageDiff
+				entry={entry}
+				onOpenFile={onOpenFile}
+				sessionId={sessionId}
+			/>
 		);
-	} else if (isBodyMounted) {
+	} else if (previewKind !== "text") {
+		const message =
+			previewKind === "large"
+				? "This diff is too large to preview safely."
+				: previewKind === "binary"
+					? "Binary files cannot be displayed as text."
+					: previewKind === "rename"
+						? `Renamed from ${entry.file?.prevName ?? "the previous path"}.`
+						: previewKind === "ignored-whitespace"
+							? "No changes remain when whitespace is ignored."
+							: "No text preview is available for this file.";
+		bodyContent = (
+			<div className="px-4 py-8 text-center">
+				<p className="text-editor-faint text-xss">{message}</p>
+				{previewKind === "ignored-whitespace" ? null : (
+					<button
+						className="mt-2 rounded-lg px-2.5 py-1.5 font-medium text-editor-muted text-xss outline-none hover:bg-hover hover:text-editor-ink focus-visible:ring-2 focus-visible:ring-brand/20"
+						onClick={() => onOpenFile(entry.path)}
+						type="button"
+					>
+						Open in Zed
+					</button>
+				)}
+			</div>
+		);
+	} else if (entry.file && isBodyMounted) {
 		const supportsHunkActions =
 			areHunkActionsEnabled &&
 			(entry.target.kind === "staged" || entry.target.kind === "working");

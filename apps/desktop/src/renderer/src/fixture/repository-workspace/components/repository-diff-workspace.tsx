@@ -28,11 +28,13 @@ export interface RepositoryDiffWorkspaceProps {
 	readonly branchComparison: RepositoryBranchComparison | null;
 	readonly cleanAction: RepositoryCleanAction | null;
 	readonly diffs: readonly FileDiff[];
+	readonly ignoreWhitespace: boolean;
 	readonly isLoading: boolean;
 	readonly onCancelSync: () => Promise<void>;
 	readonly onChangeHunk: (input: ChangeHunkInput) => Promise<boolean>;
 	readonly onCloseBranchComparison: () => void;
 	readonly onOpenBranchComparison: () => Promise<void>;
+	readonly onOpenFile: (path: string) => Promise<void>;
 	readonly onPreviewBranchComparison: () => Promise<void>;
 	readonly onSelectFile: (file: FileChange) => Promise<void>;
 	readonly onSelectRevisionFile: (path: string) => Promise<void>;
@@ -91,6 +93,7 @@ export function RepositoryDiffWorkspace({
 	branchComparison,
 	cleanAction,
 	diffs,
+	ignoreWhitespace,
 	isLoading,
 	onCancelSync,
 	onCloseBranchComparison,
@@ -98,6 +101,7 @@ export function RepositoryDiffWorkspace({
 	onSelectFile,
 	onSelectRevisionFile,
 	onOpenBranchComparison,
+	onOpenFile,
 	onPreviewBranchComparison,
 	onSync,
 	pendingAction,
@@ -215,9 +219,11 @@ export function RepositoryDiffWorkspace({
 					}
 					emptyTitle={branchComparison ? "Branches match" : undefined}
 					files={tab === "changes" ? files : []}
+					ignoreWhitespace={ignoreWhitespace}
 					isHunkActionPending={pendingAction === "hunk"}
 					onActiveFileChange={selectVisibleFile}
 					onChangeHunk={branchComparison ? undefined : onChangeHunk}
+					onOpenFile={onOpenFile}
 					revisionOid={selectedCommitOid ?? selectedStashOid ?? undefined}
 					selectedFilePath={selectedFilePath}
 					sessionId={activeSession.id}

@@ -4,7 +4,10 @@ import type {
 	StashInfo,
 } from "@1git/git";
 import {
+	DropdownMenuCheckboxItem,
 	DropdownMenuItem,
+	DropdownMenuLabel,
+	DropdownMenuSeparator,
 	DropdownMenuShortcut,
 } from "@1git/ui/components/dropdown-menu";
 import { CaretDownIcon } from "@phosphor-icons/react/dist/csr/CaretDown";
@@ -29,6 +32,7 @@ import { RepositoryQuickActions } from "@/fixture/repository-workspace/component
 
 interface RepositoryWorkspaceToolbarProps {
 	readonly branches: BranchCollection | null;
+	readonly ignoreWhitespace: boolean;
 	readonly onApplyStash: (stash: StashInfo) => Promise<boolean>;
 	readonly onCancelSync: () => Promise<void>;
 	readonly onDropStash: (stash: StashInfo) => Promise<boolean>;
@@ -36,6 +40,7 @@ interface RepositoryWorkspaceToolbarProps {
 	readonly onOpenInEditor: () => Promise<void>;
 	readonly onPopStash: (stash: StashInfo) => Promise<boolean>;
 	readonly onRecover: (action: RepositoryRecoveryAction) => Promise<boolean>;
+	readonly onSetIgnoreWhitespace: (ignoreWhitespace: boolean) => void;
 	readonly onSetTab: (tab: RepositoryTab) => Promise<void>;
 	readonly onStashChanges: () => Promise<boolean>;
 	readonly onSync: () => Promise<void>;
@@ -68,6 +73,7 @@ const REPOSITORY_TAB_LABELS: Readonly<Record<RepositoryTab, string>> = {
 
 export function RepositoryWorkspaceToolbar({
 	branches,
+	ignoreWhitespace,
 	onApplyStash,
 	onCancelSync,
 	onDropStash,
@@ -75,6 +81,7 @@ export function RepositoryWorkspaceToolbar({
 	onOpenInEditor,
 	onPopStash,
 	onRecover,
+	onSetIgnoreWhitespace,
 	onSetTab,
 	onStashChanges,
 	onSync,
@@ -176,6 +183,15 @@ export function RepositoryWorkspaceToolbar({
 						Stashes
 						<DropdownMenuShortcut>⌘3</DropdownMenuShortcut>
 					</DropdownMenuItem>
+					<DropdownMenuSeparator />
+					<DropdownMenuLabel>Diff</DropdownMenuLabel>
+					<DropdownMenuCheckboxItem
+						checked={ignoreWhitespace}
+						closeOnClick={false}
+						onCheckedChange={onSetIgnoreWhitespace}
+					>
+						Ignore whitespace
+					</DropdownMenuCheckboxItem>
 				</LiquidMenuContent>
 			</LiquidMenuRoot>
 

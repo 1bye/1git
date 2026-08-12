@@ -90,6 +90,33 @@ describe("repository diff files", () => {
 		});
 	});
 
+	test("keeps missing staged previews attached to the index", () => {
+		const stagedFile = {
+			...missingFile,
+			indexStatus: "modified",
+			worktreeStatus: "unmodified",
+		} as const;
+		const entries = createRepositoryDiffFileEntries(
+			[
+				{
+					patch: "",
+					patchOmittedReason: "too-large",
+					stats: [],
+					target: { kind: "staged" },
+				},
+			],
+			[stagedFile],
+			undefined,
+			"changes"
+		);
+
+		expect(entries[0]).toMatchObject({
+			patchOmittedReason: "too-large",
+			target: { kind: "staged" },
+			targetLabel: "Staged",
+		});
+	});
+
 	test("invalidates parsed file keys when a working patch changes", () => {
 		const first = createRepositoryDiffFileEntries(
 			[createDiff(fullFilePatch("THREE"))],

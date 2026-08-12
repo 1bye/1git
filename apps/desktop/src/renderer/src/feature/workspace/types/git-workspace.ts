@@ -105,6 +105,7 @@ export interface GitWorkspace {
 	readonly error: string | null;
 	readonly forgetRecentRepository: (path: string) => Promise<void>;
 	readonly history: CommitPage | null;
+	readonly ignoreWhitespace: boolean;
 	readonly isInitialLoading: boolean;
 	readonly manager: RepositoryManagerState;
 	readonly mergeBranch: (name: string) => Promise<boolean>;
@@ -113,6 +114,7 @@ export interface GitWorkspace {
 		path: string,
 		options?: OpenRepositoryOptions
 	) => Promise<void>;
+	readonly openRepositoryFileInEditor: (path: string) => Promise<void>;
 	readonly openRepositoryInEditor: () => Promise<void>;
 	readonly pendingAction: PendingWorkspaceAction;
 	readonly pickRepository: () => Promise<void>;
@@ -147,6 +149,7 @@ export interface GitWorkspace {
 		files: readonly FileChange[],
 		shouldStage: boolean
 	) => Promise<boolean>;
+	readonly setIgnoreWhitespace: (ignoreWhitespace: boolean) => void;
 	readonly setTab: (tab: RepositoryTab) => Promise<void>;
 	readonly snapshot: RepositorySnapshot | null;
 	readonly stashAndSwitchBranch: (name: string) => Promise<boolean>;

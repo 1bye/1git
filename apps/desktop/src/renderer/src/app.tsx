@@ -61,6 +61,7 @@ export function App(): ReactElement {
 							cleanAction={workspace.cleanAction}
 							diffs={workspace.diffs}
 							history={workspace.history}
+							ignoreWhitespace={workspace.ignoreWhitespace}
 							isLoading={
 								workspace.isInitialLoading || workspace.pendingAction === "open"
 							}
@@ -76,6 +77,7 @@ export function App(): ReactElement {
 							onDropStash={workspace.dropStash}
 							onMergeBranch={workspace.mergeBranch}
 							onOpenBranchComparison={workspace.openBranchComparison}
+							onOpenFile={workspace.openRepositoryFileInEditor}
 							onOpenInEditor={workspace.openRepositoryInEditor}
 							onPopStash={workspace.popStash}
 							onPreviewBranchComparison={workspace.previewBranchComparison}
@@ -88,6 +90,7 @@ export function App(): ReactElement {
 							onSelectStash={workspace.selectStash}
 							onSetFileStaged={workspace.setFileStaged}
 							onSetFilesStaged={workspace.setFilesStaged}
+							onSetIgnoreWhitespace={workspace.setIgnoreWhitespace}
 							onSetTab={workspace.setTab}
 							onStashChanges={workspace.stashChanges}
 							onSync={workspace.syncRepository}

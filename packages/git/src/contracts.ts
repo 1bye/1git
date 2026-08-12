@@ -274,6 +274,7 @@ export interface DiffFileStat {
 /** Patch text and structured per-file statistics. */
 export interface FileDiff {
 	readonly patch: string;
+	readonly patchOmittedReason?: "too-large";
 	readonly stats: readonly DiffFileStat[];
 	readonly target: DiffTarget;
 }
@@ -361,13 +362,20 @@ export interface CommitInput extends GitCallOptions {
 
 export interface DiffInput extends GitCallOptions {
 	readonly contextLines?: number;
+	readonly ignoreWhitespace?: boolean;
 	readonly paths?: readonly string[];
 	readonly target: DiffTarget;
 }
 
+export type FileContentSource =
+	| { readonly kind: "object"; readonly objectId: string }
+	| { readonly kind: "revision"; readonly revision: string }
+	| { readonly kind: "working" };
+
 export interface FileContentInput extends GitCallOptions {
 	readonly path: string;
-	readonly revision: string;
+	readonly revision?: string;
+	readonly source?: FileContentSource;
 }
 
 export interface StageInput extends GitCallOptions {

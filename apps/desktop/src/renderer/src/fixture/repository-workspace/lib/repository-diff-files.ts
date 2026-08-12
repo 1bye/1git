@@ -12,6 +12,7 @@ export interface RepositoryDiffFileEntry {
 	readonly file: FileDiffMetadata | null;
 	readonly id: string | undefined;
 	readonly key: string;
+	readonly patchOmittedReason: FileDiff["patchOmittedReason"];
 	readonly path: string;
 	readonly stat: DiffFileStat | null;
 	readonly target: DiffTarget;
@@ -82,8 +83,29 @@ const parseDiffFileEntries = (
 			entries.push({
 				file,
 				key: `${diff.target.kind}:${diffIndex}:${file.cacheKey ?? file.name}`,
+				patchOmittedReason: diff.patchOmittedReason,
 				path: file.name,
 				stat: statForFile(diff.stats, file.name),
+				target: diff.target,
+				targetLabel: diffTargetLabel(diff, tab),
+			});
+		}
+		const parsedPaths = new Set(
+			parsedFiles.flatMap((file) => [file.name, file.prevName].filter(Boolean))
+		);
+		for (const stat of diff.stats) {
+			if (
+				parsedPaths.has(stat.path) ||
+				parsedPaths.has(stat.originalPath ?? "")
+			) {
+				continue;
+			}
+			entries.push({
+				file: null,
+				key: `${diff.target.kind}:${diffIndex}:stat:${stat.path}`,
+				patchOmittedReason: diff.patchOmittedReason,
+				path: stat.path,
+				stat,
 				target: diff.target,
 				targetLabel: diffTargetLabel(diff, tab),
 			});
@@ -94,6 +116,7 @@ const parseDiffFileEntries = (
 
 const addMissingFileEntries = (
 	entries: readonly RepositoryDiffFileEntryWithoutId[],
+	diffs: readonly FileDiff[],
 	files: readonly FileChange[],
 	tab: RepositoryTab
 ): readonly RepositoryDiffFileEntryWithoutId[] => {
@@ -106,13 +129,18 @@ const addMissingFileEntries = (
 		if (knownPaths.has(file.path)) {
 			continue;
 		}
+		const target = {
+			kind: file.worktreeStatus === "unmodified" ? "staged" : "working",
+		} as const;
 		nextEntries.push({
 			file: null,
 			key: `empty:${file.path}`,
+			patchOmittedReason: diffs.find((diff) => diff.target.kind === target.kind)
+				?.patchOmittedReason,
 			path: file.path,
 			stat: null,
-			target: { kind: "working" },
-			targetLabel: "Working tree",
+			target,
+			targetLabel: target.kind === "working" ? "Working tree" : "Staged",
 		});
 	}
 	return nextEntries;
@@ -146,6 +174,7 @@ export const createRepositoryDiffFileEntries = (
 	assignDiffElementIds(
 		addMissingFileEntries(
 			parseDiffFileEntries(diffs, commitOid, tab),
+			diffs,
 			files,
 			tab
 		),

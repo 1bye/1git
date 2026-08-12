@@ -1,11 +1,12 @@
-import { access } from "node:fs/promises";
-import { join } from "node:path";
+import { access, readFile, realpath, stat } from "node:fs/promises";
+import { isAbsolute, join, relative, resolve } from "node:path";
 import type {
 	BranchCollection,
 	CommitInfo,
 	CommitPage,
 	DiffInput,
 	FileContent,
+	FileContentSource,
 	FileDiff,
 	HistoryInput,
 	RemoteInfo,
@@ -32,7 +33,9 @@ import {
 } from "./parsers/refs.js";
 import { parseStatus } from "./parsers/status.js";
 import { parseWorktrees } from "./parsers/worktrees.js";
-import { GitCommandFailure } from "./process/git-process.js";
+import { GitCommandFailure, GitProcessFailure } from "./process/git-process.js";
+
+const MAX_FILE_CONTENT_BYTES = 10 * 1024 * 1024;
 
 const pathExists = async (path: string): Promise<boolean> => {
 	try {
@@ -311,6 +314,9 @@ const diffArguments = (
 		args.push("--numstat", "-z");
 	} else {
 		args.push("--patch", `--unified=${input.contextLines ?? 3}`);
+		if (input.ignoreWhitespace) {
+			args.push("--ignore-all-space");
+		}
 	}
 	if (input.target.kind === "staged") {
 		args.push("--cached");
@@ -340,6 +346,7 @@ const loadUntrackedPathPatch = async (
 				"--no-color",
 				"--patch",
 				`--unified=${input.contextLines ?? 3}`,
+				...(input.ignoreWhitespace ? ["--ignore-all-space"] : []),
 				"--",
 				"/dev/null",
 				path,
@@ -387,62 +394,139 @@ export const loadDiff = async (
 	context: RepositoryContext,
 	input: DiffInput
 ): Promise<FileDiff> => {
-	const [patchOutput, statOutput, untrackedPatch] = await Promise.all([
-		context.process.run({
-			args: diffArguments(input, "patch"),
-			cwd: context.repository.root,
-			signal: input.signal,
-		}),
-		context.process.run({
-			args: diffArguments(input, "numstat"),
-			cwd: context.repository.root,
-			signal: input.signal,
-		}),
-		loadUntrackedPatch(context, input),
-	]);
-	return {
-		patch: [patchOutput.stdout.toString("utf8"), untrackedPatch]
-			.filter(Boolean)
-			.join("\n"),
-		stats: parseDiffStats(statOutput.stdout),
-		target: input.target,
-	};
+	const statRequest = context.process.run({
+		args: diffArguments(input, "numstat"),
+		cwd: context.repository.root,
+		signal: input.signal,
+	});
+	try {
+		const [patchOutput, statOutput, untrackedPatch] = await Promise.all([
+			context.process.run({
+				args: diffArguments(input, "patch"),
+				cwd: context.repository.root,
+				signal: input.signal,
+			}),
+			statRequest,
+			loadUntrackedPatch(context, input),
+		]);
+		return {
+			patch: [patchOutput.stdout.toString("utf8"), untrackedPatch]
+				.filter(Boolean)
+				.join("\n"),
+			stats: parseDiffStats(statOutput.stdout),
+			target: input.target,
+		};
+	} catch (error: unknown) {
+		if (
+			error instanceof GitProcessFailure &&
+			error.reason === "output-too-large"
+		) {
+			const statOutput = await statRequest;
+			return {
+				patch: "",
+				patchOmittedReason: "too-large",
+				stats: parseDiffStats(statOutput.stdout),
+				target: input.target,
+			};
+		}
+		throw error;
+	}
 };
 
-/** Loads one blob and selects UTF-8 or base64 representation. */
-export const loadFileContent = async (
+const requirePreviewSize = (sizeBytes: number): void => {
+	if (sizeBytes > MAX_FILE_CONTENT_BYTES) {
+		throw new GitProcessFailure(
+			"output-too-large",
+			"The file is too large to preview."
+		);
+	}
+};
+
+const loadWorkingFile = async (
 	context: RepositoryContext,
-	revision: string,
-	path: string,
+	path: string
+): Promise<Buffer> => {
+	const resolvedPath = await realpath(resolve(context.repository.root, path));
+	const relativePath = relative(context.repository.root, resolvedPath);
+	if (
+		relativePath === ".." ||
+		relativePath.startsWith("../") ||
+		relativePath.startsWith("..\\") ||
+		isAbsolute(relativePath)
+	) {
+		throw new Error("The file preview path leaves the repository.");
+	}
+	const fileStat = await stat(resolvedPath);
+	requirePreviewSize(fileStat.size);
+	return await readFile(resolvedPath);
+};
+
+const loadGitObject = async (
+	context: RepositoryContext,
+	object: string,
 	signal?: AbortSignal
-): Promise<FileContent> => {
+): Promise<{ readonly content: Buffer; readonly oid: string }> => {
 	const resolved = await context.process.run({
-		args: ["rev-parse", "--verify", `${revision}^{commit}`],
+		args: ["rev-parse", "--verify", object],
 		cwd: context.repository.root,
 		signal,
 	});
 	const oid = resolved.stdout.toString("utf8").trim();
-	const output = await context.process.run({
-		args: ["show", `${oid}:${path}`],
+	const type = await context.process.run({
+		args: ["cat-file", "-t", oid],
 		cwd: context.repository.root,
 		signal,
 	});
+	if (type.stdout.toString("utf8").trim() !== "blob") {
+		throw new Error("The requested preview source is not a file.");
+	}
+	const size = await context.process.run({
+		args: ["cat-file", "-s", oid],
+		cwd: context.repository.root,
+		signal,
+	});
+	requirePreviewSize(Number(size.stdout.toString("utf8").trim()));
+	const output = await context.process.run({
+		args: ["cat-file", "blob", oid],
+		cwd: context.repository.root,
+		signal,
+	});
+	return { content: output.stdout, oid };
+};
+
+/** Loads one bounded file source and selects UTF-8 or base64 representation. */
+export const loadFileContent = async (
+	context: RepositoryContext,
+	source: FileContentSource,
+	path: string,
+	signal?: AbortSignal
+): Promise<FileContent> => {
+	let content: Buffer;
+	let revision: string;
+	if (source.kind === "working") {
+		content = await loadWorkingFile(context, path);
+		revision = "WORKTREE";
+	} else {
+		const object =
+			source.kind === "object" ? source.objectId : `${source.revision}:${path}`;
+		({ content, oid: revision } = await loadGitObject(context, object, signal));
+	}
 	const decoder = new TextDecoder("utf-8", { fatal: true });
 	try {
 		return {
-			content: decoder.decode(output.stdout),
+			content: decoder.decode(content),
 			encoding: "utf8",
 			path,
-			revision: oid,
-			sizeBytes: output.stdout.byteLength,
+			revision,
+			sizeBytes: content.byteLength,
 		};
 	} catch {
 		return {
-			content: output.stdout.toString("base64"),
+			content: content.toString("base64"),
 			encoding: "base64",
 			path,
-			revision: oid,
-			sizeBytes: output.stdout.byteLength,
+			revision,
+			sizeBytes: content.byteLength,
 		};
 	}
 };

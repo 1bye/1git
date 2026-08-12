@@ -145,6 +145,7 @@ const openExternalBranchComparison = async (
 
 interface BranchComparisonPreviewOptions {
 	readonly comparison: RepositoryBranchComparison | null;
+	readonly ignoreWhitespace: boolean;
 	readonly isBlocked: boolean;
 	readonly onError: (message: string | null) => void;
 	readonly onPendingChange: (action: PendingWorkspaceAction) => void;
@@ -178,6 +179,7 @@ const getRepositoryCleanPresentation = (
 
 const previewRepositoryBranchComparison = async ({
 	comparison,
+	ignoreWhitespace,
 	isBlocked,
 	onError,
 	onPendingChange,
@@ -192,6 +194,7 @@ const previewRepositoryBranchComparison = async ({
 		onError(null);
 		const diff = resultValue(
 			await window.desktop.git.repository.diff(sessionId, {
+				ignoreWhitespace,
 				target: {
 					base: comparison.baseRevision,
 					head: "HEAD",
@@ -307,6 +310,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 	const [history, setHistory] = useState<CommitPage | null>(null);
 	const [stashes, setStashes] = useState<readonly StashInfo[]>([]);
 	const [diffs, setDiffs] = useState<readonly FileDiff[]>([]);
+	const [ignoreWhitespace, setIgnoreWhitespaceState] = useState(false);
 	const [visibleBranchComparison, setVisibleBranchComparison] =
 		useState<RepositoryBranchComparison | null>(null);
 	const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
@@ -436,7 +440,8 @@ export const useGitWorkspace = (): GitWorkspace => {
 	const loadChangesDiff = useCallback(
 		async (
 			sessionId: RepositorySessionId,
-			files: readonly FileChange[]
+			files: readonly FileChange[],
+			requestIgnoreWhitespace = ignoreWhitespace
 		): Promise<void> => {
 			const requestId = diffRequestIdRef.current + 1;
 			diffRequestIdRef.current = requestId;
@@ -445,6 +450,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 			if (paths.staged.length > 0) {
 				requests.push(
 					window.desktop.git.repository.diff(sessionId, {
+						ignoreWhitespace: requestIgnoreWhitespace,
 						paths: paths.staged,
 						target: { kind: "staged" },
 					})
@@ -453,6 +459,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 			if (paths.working.length > 0) {
 				requests.push(
 					window.desktop.git.repository.diff(sessionId, {
+						ignoreWhitespace: requestIgnoreWhitespace,
 						paths: paths.working,
 						target: { kind: "working" },
 					})
@@ -465,14 +472,15 @@ export const useGitWorkspace = (): GitWorkspace => {
 			setDiffs(results.map(resultValue));
 			setVisibleBranchComparison(null);
 		},
-		[]
+		[ignoreWhitespace]
 	);
 
 	const loadRevisionDiff = useCallback(
 		async (
 			sessionId: RepositorySessionId,
 			kind: "commit" | "stash",
-			revision: string
+			revision: string,
+			requestIgnoreWhitespace = ignoreWhitespace
 		): Promise<FileDiff | null> => {
 			const requestId = diffRequestIdRef.current + 1;
 			diffRequestIdRef.current = requestId;
@@ -480,6 +488,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 			if (kind === "commit") {
 				diff = resultValue(
 					await window.desktop.git.repository.diff(sessionId, {
+						ignoreWhitespace: requestIgnoreWhitespace,
 						target: { kind: "commit", revision },
 					})
 				);
@@ -488,9 +497,11 @@ export const useGitWorkspace = (): GitWorkspace => {
 					repositoryStashDiffTargets(revision);
 				const [trackedResult, untrackedResult] = await Promise.all([
 					window.desktop.git.repository.diff(sessionId, {
+						ignoreWhitespace: requestIgnoreWhitespace,
 						target: trackedTarget,
 					}),
 					window.desktop.git.repository.diff(sessionId, {
+						ignoreWhitespace: requestIgnoreWhitespace,
 						target: untrackedTarget,
 					}),
 				]);
@@ -506,7 +517,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 			setVisibleBranchComparison(null);
 			return diff;
 		},
-		[]
+		[ignoreWhitespace]
 	);
 	const clearDiff = useCallback((): void => {
 		diffRequestIdRef.current += 1;
@@ -1749,6 +1760,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 	const previewBranchComparison = async (): Promise<void> => {
 		await previewRepositoryBranchComparison({
 			comparison: branchComparison,
+			ignoreWhitespace,
 			isBlocked: pendingAction !== null,
 			onError: setError,
 			onPendingChange: setPendingAction,
@@ -1760,6 +1772,61 @@ export const useGitWorkspace = (): GitWorkspace => {
 				setSelectedStashOid(null);
 			},
 			sessionId: activeSession?.id,
+		});
+	};
+
+	const setIgnoreWhitespace = (nextIgnoreWhitespace: boolean): void => {
+		if (nextIgnoreWhitespace === ignoreWhitespace) {
+			return;
+		}
+		setIgnoreWhitespaceState(nextIgnoreWhitespace);
+		if (!activeSession) {
+			return;
+		}
+		const refreshDiff = async (): Promise<void> => {
+			if (visibleBranchComparison) {
+				const diff = resultValue(
+					await window.desktop.git.repository.diff(activeSession.id, {
+						ignoreWhitespace: nextIgnoreWhitespace,
+						target: {
+							base: visibleBranchComparison.baseRevision,
+							head: "HEAD",
+							kind: "range",
+							mergeBase: true,
+						},
+					})
+				);
+				setDiffs([diff]);
+				return;
+			}
+			if (tab === "history" && selectedCommitOid) {
+				await loadRevisionDiff(
+					activeSession.id,
+					"commit",
+					selectedCommitOid,
+					nextIgnoreWhitespace
+				);
+				return;
+			}
+			if (tab === "stashes" && selectedStashOid) {
+				await loadRevisionDiff(
+					activeSession.id,
+					"stash",
+					selectedStashOid,
+					nextIgnoreWhitespace
+				);
+				return;
+			}
+			if (snapshot?.files.length) {
+				await loadChangesDiff(
+					activeSession.id,
+					snapshot.files,
+					nextIgnoreWhitespace
+				);
+			}
+		};
+		refreshDiff().catch((cause: unknown) => {
+			setError(errorMessage(cause));
 		});
 	};
 
@@ -1858,6 +1925,23 @@ export const useGitWorkspace = (): GitWorkspace => {
 			);
 		} catch {
 			setError("The repository could not be opened in Zed.");
+		}
+	};
+
+	const openRepositoryFileInEditor = async (path: string): Promise<void> => {
+		if (!activeSession) {
+			return;
+		}
+		try {
+			setError(null);
+			const { root } = activeSession.repository;
+			const repositoryRoot = root.endsWith("/") ? root.slice(0, -1) : root;
+			await window.desktop.integrations.openInApplication(
+				"zed",
+				`${repositoryRoot}/${path}`
+			);
+		} catch {
+			setError("The file could not be opened in Zed.");
 		}
 	};
 
@@ -2111,11 +2195,13 @@ export const useGitWorkspace = (): GitWorkspace => {
 		error: visibleError,
 		forgetRecentRepository,
 		history,
+		ignoreWhitespace,
 		isInitialLoading,
 		manager,
 		mergeBranch,
 		openBranchComparison,
 		openRecentRepository,
+		openRepositoryFileInEditor,
 		openRepositoryInEditor,
 		pendingAction: visiblePendingAction,
 		pickRepository,
@@ -2136,6 +2222,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 		setBranchUpstream,
 		setFileStaged,
 		setFilesStaged,
+		setIgnoreWhitespace,
 		setTab,
 		snapshot,
 		stashAndSwitchBranch,

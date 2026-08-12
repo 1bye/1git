@@ -274,6 +274,8 @@ workflows in the browser.
 
 ## Phase 6 — Finish essential diff modes
 
+Status: completed on 2026-08-12.
+
 Only add modes that materially improve review or staging.
 
 ### Work

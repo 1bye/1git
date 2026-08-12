@@ -27,6 +27,7 @@ import type {
 	FileChange,
 	FileContent,
 	FileContentInput,
+	FileContentSource,
 	FileDiff,
 	GetConfigInput,
 	GitCallOptions,
@@ -513,14 +514,47 @@ export class GitRepository {
 	async getFileContent(
 		input: FileContentInput
 	): Promise<GitResult<FileContent>> {
-		return await this.read("file-content", async () =>
-			loadFileContent(
+		return await this.read("file-content", async () => {
+			const requestedSource =
+				input.source ??
+				(input.revision
+					? { kind: "revision", revision: input.revision }
+					: null);
+			if (!requestedSource) {
+				throw invalidInput(
+					"file-content",
+					"A file content source is required."
+				);
+			}
+			let source: FileContentSource;
+			if (requestedSource.kind === "object") {
+				source = {
+					kind: "object",
+					objectId: requireRevision(
+						requestedSource.objectId,
+						"Object ID",
+						"file-content"
+					),
+				};
+			} else if (requestedSource.kind === "revision") {
+				source = {
+					kind: "revision",
+					revision: requireRevision(
+						requestedSource.revision,
+						"Revision",
+						"file-content"
+					),
+				};
+			} else {
+				source = requestedSource;
+			}
+			return await loadFileContent(
 				this.context,
-				requireRevision(input.revision, "Revision", "file-content"),
+				source,
 				requireRepositoryPaths([input.path], "file-content")[0] ?? "",
 				input.signal
-			)
-		);
+			);
+		});
 	}
 
 	/** Stages selected repository-relative paths. */

@@ -29,7 +29,8 @@ const EMPTY_EXPANDED_FILES = new Map<string, FileDiffMetadata>();
 
 export const useExpandableRepositoryDiffFiles = (
 	sessionId: RepositorySessionId,
-	contentKey: string
+	contentKey: string,
+	ignoreWhitespace: boolean
 ): UseExpandableRepositoryDiffFilesResult => {
 	const [state, setState] = useState<ExpandableDiffFileState>({
 		contentKey,
@@ -60,6 +61,7 @@ export const useExpandableRepositoryDiffFiles = (
 			const request = (async (): Promise<FileDiffMetadata | null> => {
 				const result = await window.desktop.git.repository.diff(sessionId, {
 					contextLines: REPOSITORY_DIFF_EXPANDABLE_CONTEXT_LINES,
+					ignoreWhitespace,
 					paths: [entry.path],
 					target: entry.target,
 				});
@@ -97,7 +99,7 @@ export const useExpandableRepositoryDiffFiles = (
 				pendingRequestsRef.current.delete(requestKey);
 			}
 		},
-		[contentKey, sessionId]
+		[contentKey, ignoreWhitespace, sessionId]
 	);
 	return { files, requestFile };
 };

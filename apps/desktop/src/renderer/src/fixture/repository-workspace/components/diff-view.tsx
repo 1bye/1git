@@ -20,9 +20,11 @@ interface DiffViewProps {
 	readonly emptyDescription?: string;
 	readonly emptyTitle?: string;
 	readonly files?: readonly FileChange[];
+	readonly ignoreWhitespace?: boolean;
 	readonly isHunkActionPending?: boolean;
 	readonly onActiveFileChange?: (path: string) => void;
 	readonly onChangeHunk?: (input: ChangeHunkInput) => Promise<boolean>;
+	readonly onOpenFile?: (path: string) => Promise<void>;
 	readonly revisionOid?: string;
 	readonly selectedFilePath: string | null;
 	readonly sessionId: RepositorySessionId;
@@ -31,6 +33,7 @@ interface DiffViewProps {
 
 const ignoreActiveFileChange = (): void => undefined;
 const ignoreHunkChange = async (): Promise<boolean> => false;
+const ignoreOpenFile = async (): Promise<void> => undefined;
 
 const updateVisibleEntryKeys = (
 	currentKeys: ReadonlySet<string>,
@@ -68,8 +71,10 @@ export function DiffView({
 	emptyTitle = "No text diff available",
 	files = [],
 	isHunkActionPending = false,
+	ignoreWhitespace = false,
 	onActiveFileChange = ignoreActiveFileChange,
 	onChangeHunk,
+	onOpenFile = ignoreOpenFile,
 	revisionOid,
 	selectedFilePath,
 	sessionId,
@@ -160,7 +165,7 @@ export function DiffView({
 		return keys;
 	}, [entries, selectedFilePath]);
 	const { files: expandableFiles, requestFile: requestExpandableFile } =
-		useExpandableRepositoryDiffFiles(sessionId, contentKey);
+		useExpandableRepositoryDiffFiles(sessionId, contentKey, ignoreWhitespace);
 	useRepositoryDiffScrollSync({
 		activePath: selectedFilePath,
 		containerRef: scrollRef,
@@ -186,6 +191,7 @@ export function DiffView({
 							<DiffFileAccordion
 								areHunkActionsEnabled={onChangeHunk !== undefined}
 								entry={entry}
+								ignoreWhitespace={ignoreWhitespace}
 								isBodyMounted={
 									isHighlighterReady &&
 									(index < REPOSITORY_DIFF_INITIAL_MOUNTED_COUNT ||
@@ -196,7 +202,9 @@ export function DiffView({
 								key={entry.key}
 								onChangeHunk={onChangeHunk ?? ignoreHunkChange}
 								onElementChange={registerArticleElement}
+								onOpenFile={onOpenFile}
 								onRequestExpandableFile={requestExpandableFile}
+								sessionId={sessionId}
 								showTarget={diffs.length > 1}
 							/>
 						);

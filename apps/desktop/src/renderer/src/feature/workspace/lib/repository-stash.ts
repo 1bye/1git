@@ -17,6 +17,8 @@ export const combineRepositoryStashDiffs = (
 	untracked: FileDiff | null
 ): FileDiff => ({
 	patch: [tracked.patch, untracked?.patch].filter(Boolean).join("\n"),
+	patchOmittedReason:
+		tracked.patchOmittedReason ?? untracked?.patchOmittedReason,
 	stats: untracked ? [...tracked.stats, ...untracked.stats] : tracked.stats,
 	target: tracked.target,
 });

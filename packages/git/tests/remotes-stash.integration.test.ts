@@ -306,7 +306,7 @@ describe("GitRepository remotes and synchronization", () => {
 		const content = unwrapResult(
 			await cloned.getFileContent({
 				path: "remote-change.txt",
-				revision: "HEAD",
+				source: { kind: "revision", revision: "HEAD" },
 			})
 		);
 

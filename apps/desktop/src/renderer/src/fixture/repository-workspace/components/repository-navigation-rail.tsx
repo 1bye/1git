@@ -33,6 +33,7 @@ export interface RepositoryNavigationRailProps {
 	readonly activeSession: RepositorySessionRecord;
 	readonly branches: BranchCollection | null;
 	readonly history: CommitPage | null;
+	readonly ignoreWhitespace: boolean;
 	readonly isLoading: boolean;
 	readonly onAmendCommit: (
 		commit: CommitInfo,
@@ -72,6 +73,7 @@ export interface RepositoryNavigationRailProps {
 		files: readonly FileChange[],
 		shouldStage: boolean
 	) => Promise<boolean>;
+	readonly onSetIgnoreWhitespace: (ignoreWhitespace: boolean) => void;
 	readonly onSetTab: (tab: RepositoryTab) => Promise<void>;
 	readonly onStashChanges: () => Promise<boolean>;
 	readonly onSync: () => Promise<void>;
@@ -90,6 +92,7 @@ export function RepositoryNavigationRail({
 	activeSession,
 	branches,
 	history,
+	ignoreWhitespace,
 	isLoading,
 	onAmendCommit,
 	onApplyStash,
@@ -110,6 +113,7 @@ export function RepositoryNavigationRail({
 	onSelectStash,
 	onSetFileStaged,
 	onSetFilesStaged,
+	onSetIgnoreWhitespace,
 	onSetTab,
 	onStashChanges,
 	onSync,
@@ -225,6 +229,7 @@ export function RepositoryNavigationRail({
 		>
 			<RepositoryWorkspaceToolbar
 				branches={branches}
+				ignoreWhitespace={ignoreWhitespace}
 				onApplyStash={onApplyStash}
 				onCancelSync={onCancelSync}
 				onDropStash={onDropStash}
@@ -232,6 +237,7 @@ export function RepositoryNavigationRail({
 				onOpenInEditor={onOpenInEditor}
 				onPopStash={onPopStash}
 				onRecover={onRecover}
+				onSetIgnoreWhitespace={onSetIgnoreWhitespace}
 				onSetTab={onSetTab}
 				onStashChanges={onStashChanges}
 				onSync={onSync}
