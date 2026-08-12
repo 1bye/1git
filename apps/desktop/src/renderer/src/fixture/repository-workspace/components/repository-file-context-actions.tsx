@@ -19,7 +19,6 @@ import {
 	isFileStaged,
 } from "@/feature/workspace/lib/workspace-model.js";
 import { LiquidMenuAutoSize } from "@/fixture/liquid-menu/components/liquid-menu-auto-size.js";
-import { splitRepositoryFilePath } from "@/fixture/repository-workspace/lib/repository-navigation.js";
 
 const TRAILING_PATH_SEPARATOR = /[\\/]+$/;
 
@@ -41,7 +40,7 @@ const absoluteFilePath = (root: string, path: string): string =>
 
 interface RepositoryFileDiscardConfirmationProps {
 	readonly actionError: string | null;
-	readonly discardTarget: string;
+	readonly discardTargets: readonly string[];
 	readonly isPending: boolean;
 	readonly onBack: () => void;
 	readonly onDiscard: () => Promise<void>;
@@ -50,12 +49,16 @@ interface RepositoryFileDiscardConfirmationProps {
 
 function RepositoryFileDiscardConfirmation({
 	actionError,
-	discardTarget,
+	discardTargets,
 	isPending,
 	onBack,
 	onDiscard,
 	onDismiss,
 }: RepositoryFileDiscardConfirmationProps): ReactElement {
+	const targetLabel =
+		discardTargets.length === 1
+			? (discardTargets[0] ?? "selected file")
+			: `${discardTargets.length} selected files`;
 	return (
 		<>
 			<DropdownMenuItem
@@ -69,11 +72,17 @@ function RepositoryFileDiscardConfirmation({
 			</DropdownMenuItem>
 			<DropdownMenuSeparator />
 			<div className="space-y-3 p-2">
-				<p className="text-[10px] text-editor-muted leading-4">
-					Discard every staged and unstaged change in{" "}
-					<span className="font-medium text-editor-ink">{discardTarget}</span>?
-					You can undo for 10 seconds.
-				</p>
+				<div className="text-[10px] text-editor-muted leading-4">
+					<p>Discard every staged and unstaged change in:</p>
+					<ul className="mt-1 max-h-20 overflow-y-auto rounded-md bg-editor-sunken px-2 py-1 font-medium text-editor-ink">
+						{discardTargets.map((target) => (
+							<li className="truncate" key={target} title={target}>
+								{target}
+							</li>
+						))}
+					</ul>
+					<p className="mt-1">You can undo for 10 seconds.</p>
+				</div>
 				{actionError ? (
 					<p
 						aria-live="polite"
@@ -94,6 +103,7 @@ function RepositoryFileDiscardConfirmation({
 						Cancel
 					</Button>
 					<Button
+						aria-label={`Discard changes in ${targetLabel}`}
 						disabled={isPending}
 						onClick={onDiscard}
 						size="sm"
@@ -172,17 +182,14 @@ export function RepositoryFileContextActions({
 			return succeeded;
 		}, "The selected changes could not be discarded.");
 	};
-	const singleFileName = splitRepositoryFilePath(files[0]?.path ?? "").name;
-	const discardTarget = isMultiple
-		? `${files.length} selected files`
-		: singleFileName;
+	const discardTargets = files.map((file) => file.path);
 
 	return (
 		<LiquidMenuAutoSize viewKey={view}>
 			{view === "confirm-discard" ? (
 				<RepositoryFileDiscardConfirmation
 					actionError={actionError}
-					discardTarget={discardTarget}
+					discardTargets={discardTargets}
 					isPending={isPending}
 					onBack={() => setView("actions")}
 					onDiscard={discardFiles}

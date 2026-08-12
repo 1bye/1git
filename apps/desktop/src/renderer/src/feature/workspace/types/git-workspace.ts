@@ -14,6 +14,10 @@ import type {
 	RepositoryBranchComparison,
 	RepositoryCleanAction,
 } from "@/feature/workspace/lib/repository-clean-state.js";
+import type {
+	RepositoryCommitIdentity,
+	RepositoryCommitIdentityRequirement,
+} from "@/feature/workspace/lib/repository-commit-identity.js";
 import type { RepositoryOwner } from "@/feature/workspace/lib/repository-owner.js";
 import type { RepositoryRecoveryAction } from "@/feature/workspace/lib/repository-recovery.js";
 import type { BranchSwitchResult } from "@/feature/workspace/lib/repository-stash.js";
@@ -90,7 +94,12 @@ export interface GitWorkspace {
 	readonly cloneRepository: (remoteUrl: string) => Promise<boolean>;
 	readonly closeBranchComparison: () => void;
 	readonly closeWorkspace: (sessionId: RepositorySessionId) => Promise<void>;
-	readonly commit: (summary: string, description: string) => Promise<boolean>;
+	readonly commit: (
+		summary: string,
+		description: string,
+		identity?: RepositoryCommitIdentity
+	) => Promise<boolean>;
+	readonly commitIdentity: RepositoryCommitIdentityRequirement | null;
 	readonly createBranch: (
 		name: string,
 		startPoint?: string

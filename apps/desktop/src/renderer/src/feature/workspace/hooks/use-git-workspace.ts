@@ -31,6 +31,14 @@ import {
 	type RepositoryCleanAction,
 } from "@/feature/workspace/lib/repository-clean-state.js";
 import {
+	commitIdentityForSession,
+	hasRepositoryCommitIdentity,
+	normalizeRepositoryCommitIdentity,
+	type RepositoryCommitIdentity,
+	type RepositoryCommitIdentityRequirement,
+	readRepositoryCommitIdentity,
+} from "@/feature/workspace/lib/repository-commit-identity.js";
+import {
 	canAmendRepositoryCommit,
 	canRevertRepositoryCommit,
 	getRepositoryCherryPickTargets,
@@ -332,6 +340,8 @@ export const useGitWorkspace = (): GitWorkspace => {
 	const [discardUndo, setDiscardUndo] = useState<WorkspaceDiscardUndo | null>(
 		null
 	);
+	const [commitIdentityRequirement, setCommitIdentityRequirement] =
+		useState<RepositoryCommitIdentityRequirement | null>(null);
 	const [workspaceSummaries, setWorkspaceSummaries] = useState<
 		Readonly<Record<RepositorySessionId, WorkspaceSummary>>
 	>({});
@@ -339,6 +349,9 @@ export const useGitWorkspace = (): GitWorkspace => {
 	const selectedStashOidRef = useRef(selectedStashOid);
 	selectedStashOidRef.current = selectedStashOid;
 	const stagedOnFirstPresentationRef = useRef(new Set<RepositorySessionId>());
+	const validatedCommitIdentitySessionsRef = useRef(
+		new Set<RepositorySessionId>()
+	);
 	const activeSyncsRef = useRef(
 		new Map<RepositorySessionId, ActiveRepositorySync>()
 	);
@@ -394,6 +407,10 @@ export const useGitWorkspace = (): GitWorkspace => {
 		? (syncFailures[presentedSessionId] ?? null)
 		: null;
 	const visibleError = syncFailure?.message ?? error;
+	const commitIdentity = commitIdentityForSession(
+		commitIdentityRequirement,
+		presentedSessionId
+	);
 	const applyManagerState = useCallback(
 		(nextManager: RepositoryManagerState): void => {
 			setManager(nextManager);
@@ -922,6 +939,10 @@ export const useGitWorkspace = (): GitWorkspace => {
 				return next;
 			});
 			activeSyncsRef.current.delete(sessionId);
+			validatedCommitIdentitySessionsRef.current.delete(sessionId);
+			setCommitIdentityRequirement((current) =>
+				current?.sessionId === sessionId ? null : current
+			);
 
 			if (!wasActive) {
 				return;
@@ -1258,9 +1279,65 @@ export const useGitWorkspace = (): GitWorkspace => {
 		}
 	};
 
+	const requireCommitIdentity = async (
+		sessionId: RepositorySessionId
+	): Promise<boolean> => {
+		if (validatedCommitIdentitySessionsRef.current.has(sessionId)) {
+			return true;
+		}
+		const identity = await readRepositoryCommitIdentity(
+			async (key) =>
+				resultValue(
+					await window.desktop.git.config.get(sessionId, {
+						key,
+						scope: "effective",
+					})
+				).value
+		);
+		if (hasRepositoryCommitIdentity(identity)) {
+			validatedCommitIdentitySessionsRef.current.add(sessionId);
+			return true;
+		}
+		setCommitIdentityRequirement({ ...identity, sessionId });
+		return false;
+	};
+
+	const saveCommitIdentity = async (
+		sessionId: RepositorySessionId,
+		identity: RepositoryCommitIdentity
+	): Promise<void> => {
+		const normalizedIdentity = normalizeRepositoryCommitIdentity(
+			identity.name,
+			identity.email
+		);
+		if (!hasRepositoryCommitIdentity(normalizedIdentity)) {
+			throw new Error("Enter both an author name and email address.");
+		}
+		const results = await Promise.all([
+			window.desktop.git.config.set(sessionId, {
+				key: "user.name",
+				scope: "local",
+				value: normalizedIdentity.name,
+			}),
+			window.desktop.git.config.set(sessionId, {
+				key: "user.email",
+				scope: "local",
+				value: normalizedIdentity.email,
+			}),
+		]);
+		for (const result of results) {
+			resultValue(result);
+		}
+		validatedCommitIdentitySessionsRef.current.add(sessionId);
+		setCommitIdentityRequirement((current) =>
+			current?.sessionId === sessionId ? null : current
+		);
+	};
+
 	const createCommit = async (
 		summary: string,
-		description: string
+		description: string,
+		identity?: RepositoryCommitIdentity
 	): Promise<boolean> => {
 		if (!(activeSession && snapshot) || pendingAction || !summary.trim()) {
 			return false;
@@ -1268,6 +1345,12 @@ export const useGitWorkspace = (): GitWorkspace => {
 		setPendingAction("commit");
 		try {
 			setError(null);
+			if (identity) {
+				await saveCommitIdentity(activeSession.id, identity);
+			}
+			if (!(await requireCommitIdentity(activeSession.id))) {
+				return false;
+			}
 			const result = await window.desktop.git.changes.commit(activeSession.id, {
 				description: description.trim() || undefined,
 				summary: summary.trim(),
@@ -2184,6 +2267,7 @@ export const useGitWorkspace = (): GitWorkspace => {
 		closeBranchComparison,
 		closeWorkspace,
 		commit: createCommit,
+		commitIdentity,
 		createBranch,
 		createRepository,
 		deleteBranch,

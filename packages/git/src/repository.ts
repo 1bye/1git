@@ -66,6 +66,7 @@ import type {
 	SyncResult,
 	TagInfo,
 	UndoDiscardInput,
+	UnsetConfigInput,
 	WorktreeInfo,
 	WorktreePathInput,
 } from "./contracts.js";
@@ -91,6 +92,8 @@ import {
 import { fail, invalidInput, succeed, toGitError } from "./result.js";
 import {
 	requireConfigKey,
+	requireConfigReadScope,
+	requireConfigScope,
 	requireCredentialFreeRemoteUrl,
 	requireIntegerInRange,
 	requireRepositoryPaths,
@@ -1597,14 +1600,20 @@ export class GitRepository {
 		});
 	}
 
-	/** Reads a local or worktree-specific configuration value. */
+	/** Reads an effective, local, or worktree-specific configuration value. */
 	async getConfig(input: GetConfigInput): Promise<GitResult<ConfigValue>> {
 		return await this.read("get-config", async () => {
 			const key = requireConfigKey(input.key, "get-config");
-			const scope = input.scope ?? "local";
+			const scope = requireConfigReadScope(
+				input.scope ?? "local",
+				"get-config"
+			);
 			try {
 				const output = await this.context.process.run({
-					args: ["config", `--${scope}`, "--get", key],
+					args:
+						scope === "effective"
+							? ["config", "--get", key]
+							: ["config", `--${scope}`, "--get", key],
 					cwd: this.info.root,
 					signal: input.signal,
 				});
@@ -1631,17 +1640,17 @@ export class GitRepository {
 				"Configuration value",
 				"set-config"
 			);
-			const scope = input.scope ?? "local";
+			const scope = requireConfigScope(input.scope ?? "local", "set-config");
 			await this.run(["config", `--${scope}`, key, value], input.signal);
 			return { key, scope, value };
 		});
 	}
 
 	/** Removes all matching local or worktree-specific configuration values. */
-	async unsetConfig(input: GetConfigInput): Promise<GitResult<ConfigValue>> {
+	async unsetConfig(input: UnsetConfigInput): Promise<GitResult<ConfigValue>> {
 		return await this.mutate("unset-config", input.signal, async () => {
 			const key = requireConfigKey(input.key, "unset-config");
-			const scope = input.scope ?? "local";
+			const scope = requireConfigScope(input.scope ?? "local", "unset-config");
 			try {
 				await this.run(
 					["config", `--${scope}`, "--unset-all", key],

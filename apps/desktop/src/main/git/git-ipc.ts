@@ -44,6 +44,7 @@ import type {
 	StashInput,
 	StashReferenceInput,
 	UndoDiscardInput,
+	UnsetConfigInput,
 	WorktreePathInput,
 } from "@1git/git";
 import type { IpcMain, IpcMainInvokeEvent } from "electron";
@@ -1023,7 +1024,7 @@ const configHandlers = (
 		handle: repositoryInputHandler(
 			repositoryManager,
 			"unset-config",
-			async (repository, input: IpcGitInput<GetConfigInput>) =>
+			async (repository, input: IpcGitInput<UnsetConfigInput>) =>
 				await repository.unsetConfig(input)
 		),
 	},

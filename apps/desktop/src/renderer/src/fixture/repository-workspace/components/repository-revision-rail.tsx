@@ -155,6 +155,7 @@ function RepositoryStashActions({
 										Permanently remove “{stash.summary}”?
 									</DropdownMenuLabel>
 									<DropdownMenuItem
+										aria-label={`Drop stash ${stash.summary}`}
 										closeOnClick
 										disabled={isPending}
 										onClick={async () => await onDrop(stash)}

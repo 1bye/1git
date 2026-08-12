@@ -89,6 +89,7 @@ function RepositoryStashMenuItem({
 								Permanently remove “{stash.summary}”?
 							</DropdownMenuLabel>
 							<DropdownMenuItem
+								aria-label={`Drop stash ${stash.summary}`}
 								className="text-destructive focus:text-destructive"
 								closeOnClick
 								disabled={isPending}

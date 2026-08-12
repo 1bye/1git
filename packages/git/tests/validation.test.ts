@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import {
 	requireConfigKey,
+	requireConfigReadScope,
+	requireConfigScope,
 	requireCredentialFreeRemoteUrl,
 	requireIntegerInRange,
 	requireRepositoryPaths,
@@ -115,6 +117,13 @@ describe("public input validation", () => {
 	test("rejects invalid configuration keys", () => {
 		expect(() => requireConfigKey("user", "get-config")).toThrow();
 		expect(() => requireConfigKey(".user.email", "get-config")).toThrow();
+	});
+
+	test("restricts configuration scope at runtime", () => {
+		expect(requireConfigReadScope("effective", "get-config")).toBe("effective");
+		expect(requireConfigScope("local", "set-config")).toBe("local");
+		expect(() => requireConfigScope("global", "set-config")).toThrow();
+		expect(() => requireConfigReadScope("system", "get-config")).toThrow();
 	});
 
 	test("accepts integers inside inclusive bounds", () => {

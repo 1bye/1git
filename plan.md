@@ -303,6 +303,8 @@ Only add modes that materially improve review or staging.
 
 ## Phase 7 — Product hardening
 
+Status: completed on 2026-08-12.
+
 This phase closes cross-workflow gaps; it is not a visual redesign.
 
 ### Work

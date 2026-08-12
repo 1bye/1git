@@ -658,3 +658,24 @@ body:has([data-name="CommandLensLayer"])
 		animation-iteration-count: 1 !important;
 	}
 }
+
+@media (forced-colors: active) {
+	[data-name="RepositoryFileStatus"] {
+		forced-color-adjust: auto;
+		border-color: currentColor;
+	}
+
+	[data-name="RepositoryFileRail"]
+		[data-name="RepositoryFileRow"][data-active="true"],
+	[data-repository-revision-navigation-item][aria-current="true"] {
+		outline: 2px solid Highlight;
+		outline-offset: -2px;
+	}
+
+	[data-name="WorkspaceTab"][data-active="true"] {
+		color: CanvasText;
+		outline: 2px solid Highlight;
+		outline-offset: -4px;
+		forced-color-adjust: auto;
+	}
+}

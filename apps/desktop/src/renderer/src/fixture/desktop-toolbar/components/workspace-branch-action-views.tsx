@@ -319,6 +319,7 @@ export function DeleteBranchView({
 						Cancel
 					</Button>
 					<Button
+						aria-label={`Delete branch ${targetBranch.name}`}
 						disabled={isPending}
 						onClick={deleteBranch}
 						size="sm"

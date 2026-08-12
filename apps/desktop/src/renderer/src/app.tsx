@@ -59,6 +59,7 @@ export function App(): ReactElement {
 							branchComparison={workspace.branchComparison}
 							branches={workspace.branches}
 							cleanAction={workspace.cleanAction}
+							commitIdentity={workspace.commitIdentity}
 							diffs={workspace.diffs}
 							history={workspace.history}
 							ignoreWhitespace={workspace.ignoreWhitespace}

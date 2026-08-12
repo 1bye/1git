@@ -591,18 +591,26 @@ export interface RepairWorktreesInput extends GitCallOptions {
 }
 
 export type GitConfigScope = "local" | "worktree";
+export type GitConfigReadScope = GitConfigScope | "effective";
 
 export interface GetConfigInput extends GitCallOptions {
+	readonly key: string;
+	readonly scope?: GitConfigReadScope;
+}
+
+export interface SetConfigInput extends GitCallOptions {
+	readonly key: string;
+	readonly scope?: GitConfigScope;
+	readonly value: string;
+}
+
+export interface UnsetConfigInput extends GitCallOptions {
 	readonly key: string;
 	readonly scope?: GitConfigScope;
 }
 
-export interface SetConfigInput extends GetConfigInput {
-	readonly value: string;
-}
-
 export interface ConfigValue {
 	readonly key: string;
-	readonly scope: GitConfigScope;
+	readonly scope: GitConfigReadScope;
 	readonly value: string | null;
 }

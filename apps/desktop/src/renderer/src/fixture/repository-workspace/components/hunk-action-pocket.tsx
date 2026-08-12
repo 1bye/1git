@@ -207,6 +207,7 @@ export function HunkActionPocket({
 									Cancel
 								</Button>
 								<Button
+									aria-label={`Discard hunk ${selection.hunkIndex + 1} in ${selection.path}`}
 									disabled={isPending}
 									onClick={() => runAction("discard")}
 									size="sm"

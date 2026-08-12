@@ -1,5 +1,9 @@
 import { isAbsolute, normalize, sep } from "node:path";
-import type { GitOperation } from "./contracts.js";
+import type {
+	GitConfigReadScope,
+	GitConfigScope,
+	GitOperation,
+} from "./contracts.js";
 import { invalidInput } from "./result.js";
 
 const CONFIG_KEY_PATTERN = /^[A-Za-z][A-Za-z0-9-]*(?:\.[A-Za-z0-9-]+)+$/;
@@ -98,6 +102,28 @@ export const requireConfigKey = (
 		);
 	}
 	return key;
+};
+
+/** Restricts read configuration scope before it becomes a Git option. */
+export const requireConfigReadScope = (
+	scope: unknown,
+	operation: GitOperation
+): GitConfigReadScope => {
+	if (scope === "effective" || scope === "local" || scope === "worktree") {
+		return scope;
+	}
+	throw invalidInput(operation, "Configuration read scope is not supported.");
+};
+
+/** Restricts write configuration scope before it becomes a Git option. */
+export const requireConfigScope = (
+	scope: unknown,
+	operation: GitOperation
+): GitConfigScope => {
+	if (scope === "local" || scope === "worktree") {
+		return scope;
+	}
+	throw invalidInput(operation, "Configuration write scope is not supported.");
 };
 
 /** Validates positive bounded integer input. */

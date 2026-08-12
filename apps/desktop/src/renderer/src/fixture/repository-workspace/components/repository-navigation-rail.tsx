@@ -9,6 +9,7 @@ import type {
 } from "@1git/git";
 import type { ReactElement } from "react";
 import { useCallback } from "react";
+import type { RepositoryCommitIdentity } from "@/feature/workspace/lib/repository-commit-identity.js";
 import type { RepositoryRecoveryAction } from "@/feature/workspace/lib/repository-recovery.js";
 import type { RepositorySyncAction } from "@/feature/workspace/lib/repository-sync.js";
 import { isFileStaged } from "@/feature/workspace/lib/workspace-model.js";
@@ -32,6 +33,7 @@ import type { RepositorySessionRecord } from "../../../../../shared/repository-s
 export interface RepositoryNavigationRailProps {
 	readonly activeSession: RepositorySessionRecord;
 	readonly branches: BranchCollection | null;
+	readonly commitIdentity: RepositoryCommitIdentity | null;
 	readonly history: CommitPage | null;
 	readonly ignoreWhitespace: boolean;
 	readonly isLoading: boolean;
@@ -46,7 +48,11 @@ export interface RepositoryNavigationRailProps {
 		commit: CommitInfo,
 		branchName: string
 	) => Promise<boolean>;
-	readonly onCommit: (summary: string, description: string) => Promise<boolean>;
+	readonly onCommit: (
+		summary: string,
+		description: string,
+		identity?: RepositoryCommitIdentity
+	) => Promise<boolean>;
 	readonly onCreateBranch: (
 		name: string,
 		startPoint?: string
@@ -91,6 +97,7 @@ export interface RepositoryNavigationRailProps {
 export function RepositoryNavigationRail({
 	activeSession,
 	branches,
+	commitIdentity,
 	history,
 	ignoreWhitespace,
 	isLoading,
@@ -212,6 +219,7 @@ export function RepositoryNavigationRail({
 				{files.length > 0 ? (
 					<RepositoryCommitDock
 						branch={snapshot.head.branch}
+						commitIdentity={commitIdentity}
 						isPending={pendingAction === "commit"}
 						onCommit={onCommit}
 						stagedCount={stagedCount}

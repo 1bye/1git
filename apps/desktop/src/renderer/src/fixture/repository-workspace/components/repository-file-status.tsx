@@ -51,6 +51,8 @@ export function RepositoryFileStatus({
 				STATUS_CLASS_NAMES[status],
 				className
 			)}
+			data-name="RepositoryFileStatus"
+			data-status={status}
 			title={isPartiallyStaged ? `${status}, partially staged` : status}
 		>
 			{STATUS_SYMBOLS[status] ?? (

@@ -716,6 +716,32 @@ describe("GitRepository local workflow", () => {
 		expect(removed.value).toBeNull();
 	});
 
+	test("reads effective configuration without changing the write scope", async () => {
+		const fixture = await fixtures.create();
+		await fixture.git(["config", "--local", "onegit.effective", "repository"]);
+
+		const effective = unwrapResult(
+			await fixture.repository.getConfig({
+				key: "onegit.effective",
+				scope: "effective",
+			})
+		);
+		const local = unwrapResult(
+			await fixture.repository.getConfig({ key: "onegit.effective" })
+		);
+
+		expect(effective).toEqual({
+			key: "onegit.effective",
+			scope: "effective",
+			value: "repository",
+		});
+		expect(local).toEqual({
+			key: "onegit.effective",
+			scope: "local",
+			value: "repository",
+		});
+	});
+
 	test("returns aborted results without invoking Git", async () => {
 		const fixture = await fixtures.create();
 		const controller = new AbortController();

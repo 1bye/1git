@@ -44,6 +44,7 @@ import type {
 	StashInput,
 	StashReferenceInput,
 	UndoDiscardInput,
+	UnsetConfigInput,
 	WorktreePathInput,
 } from "@1git/git";
 import type {
@@ -414,7 +415,7 @@ export interface DesktopGitApi {
 		) => ReturnType<GitRepository["setConfig"]>;
 		readonly unset: (
 			sessionId: RepositorySessionId,
-			input: IpcGitInput<GetConfigInput>,
+			input: IpcGitInput<UnsetConfigInput>,
 			options?: GitOperationOptions
 		) => ReturnType<GitRepository["unsetConfig"]>;
 	};

@@ -290,6 +290,7 @@ export function ResetCommitForm({
 						Cancel
 					</Button>
 					<Button
+						aria-label={`Reset ${branch ?? "the current branch"} to ${commit.oid.slice(0, 7)} using ${mode} mode`}
 						disabled={isPending}
 						size="sm"
 						type="submit"
