@@ -44,7 +44,7 @@ const selectFile = async (): Promise<void> => undefined;
 const selectStash = async (): Promise<void> => undefined;
 
 describe("repository revision rails", () => {
-	test("shows revision files between the diff and history list", () => {
+	test("shows revision files on the contextual canvas shelf", () => {
 		const markup = renderToStaticMarkup(
 			<RepositoryRevisionFileRail
 				diffs={[REVISION_DIFF]}
@@ -62,7 +62,9 @@ describe("repository revision rails", () => {
 		expect(markup).toContain('aria-label="Files in commit"');
 		expect(markup).toContain('data-state="open"');
 		expect(markup).toContain('data-repository-file-liquid-rail="true"');
-		expect(markup).toContain("transition-[width,opacity]");
+		expect(markup).toContain('data-repository-context-shelf=""');
+		expect(markup).toContain("bg-editor-sunken");
+		expect(markup).toContain("transition-[width]");
 		expect(markup).toContain("w-(--repository-context-rail-width)");
 		expect(markup).toContain('aria-current="true"');
 		expect(markup).toContain("src/");

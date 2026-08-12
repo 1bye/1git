@@ -92,7 +92,7 @@ export function RepositoryFileLiquidSurface({
 		const host = hostRef.current;
 		const workspace = host?.parentElement;
 		const canvas = workspace?.querySelector<HTMLElement>(
-			'[data-name="RepositoryDiffWorkspace"]'
+			'[data-name="RepositoryDiffCanvas"]'
 		);
 		const fileRail = workspace?.querySelector<HTMLElement>(
 			"[data-repository-file-liquid-rail]"

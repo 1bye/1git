@@ -149,7 +149,7 @@ button {
 	);
 }
 
-[data-name="RepositoryDiffWorkspace"] {
+[data-name="AdaptiveRepositoryWorkspace"] {
 	border-top-left-radius: var(
 		--workspace-liquid-container-top-left-radius,
 		var(--workspace-surface-radius)

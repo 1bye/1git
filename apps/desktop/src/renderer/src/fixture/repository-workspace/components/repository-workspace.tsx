@@ -8,9 +8,11 @@ import {
 	RepositoryNavigationRail,
 	type RepositoryNavigationRailProps,
 } from "@/fixture/repository-workspace/components/repository-navigation-rail.js";
-import { RepositoryRevisionFileRail } from "@/fixture/repository-workspace/components/repository-revision-rail.js";
 
-export type RepositoryWorkspaceProps = RepositoryDiffWorkspaceProps &
+export type RepositoryWorkspaceProps = Omit<
+	RepositoryDiffWorkspaceProps,
+	"selectedStash"
+> &
 	RepositoryNavigationRailProps & {
 		readonly ref?: Ref<HTMLElement>;
 		readonly titlebar: ReactNode;
@@ -38,19 +40,9 @@ export function RepositoryWorkspace({
 				<RepositoryDiffWorkspace
 					{...props}
 					selectedFilePath={selectedFilePath}
+					selectedStash={selectedStash}
 				/>
 			</div>
-			<RepositoryRevisionFileRail
-				diffs={props.diffs}
-				isPending={props.pendingAction !== null}
-				onApplyStash={props.onApplyStash}
-				onDropStash={props.onDropStash}
-				onPopStash={props.onPopStash}
-				onSelectFile={props.onSelectRevisionFile}
-				selectedFilePath={selectedFilePath}
-				selectedStash={selectedStash}
-				tab={props.tab}
-			/>
 			<RepositoryNavigationRail
 				{...props}
 				selectedFilePath={selectedFilePath}

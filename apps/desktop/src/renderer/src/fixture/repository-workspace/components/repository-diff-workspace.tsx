@@ -3,6 +3,7 @@ import type {
 	FileChange,
 	FileDiff,
 	RepositorySnapshot,
+	StashInfo,
 } from "@1git/git";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react/dist/csr/ArrowSquareOut";
 import { GitDiffIcon } from "@phosphor-icons/react/dist/csr/GitDiff";
@@ -21,6 +22,7 @@ import type {
 } from "@/feature/workspace/types/git-workspace.js";
 import { CleanState } from "@/fixture/repository-workspace/components/clean-state.js";
 import { DiffView } from "@/fixture/repository-workspace/components/diff-view.js";
+import { RepositoryRevisionFileRail } from "@/fixture/repository-workspace/components/repository-revision-rail.js";
 import type { RepositorySessionRecord } from "../../../../../shared/repository-session.js";
 
 export interface RepositoryDiffWorkspaceProps {
@@ -30,11 +32,14 @@ export interface RepositoryDiffWorkspaceProps {
 	readonly diffs: readonly FileDiff[];
 	readonly ignoreWhitespace: boolean;
 	readonly isLoading: boolean;
+	readonly onApplyStash: (stash: StashInfo) => Promise<boolean>;
 	readonly onCancelSync: () => Promise<void>;
 	readonly onChangeHunk: (input: ChangeHunkInput) => Promise<boolean>;
 	readonly onCloseBranchComparison: () => void;
+	readonly onDropStash: (stash: StashInfo) => Promise<boolean>;
 	readonly onOpenBranchComparison: () => Promise<void>;
 	readonly onOpenFile: (path: string) => Promise<void>;
+	readonly onPopStash: (stash: StashInfo) => Promise<boolean>;
 	readonly onPreviewBranchComparison: () => Promise<void>;
 	readonly onSelectFile: (file: FileChange) => Promise<void>;
 	readonly onSelectRevisionFile: (path: string) => Promise<void>;
@@ -42,6 +47,7 @@ export interface RepositoryDiffWorkspaceProps {
 	readonly pendingAction: PendingWorkspaceAction;
 	readonly selectedCommitOid: string | null;
 	readonly selectedFilePath: string | null;
+	readonly selectedStash: StashInfo | null;
 	readonly selectedStashOid: string | null;
 	readonly snapshot: RepositorySnapshot | null;
 	readonly tab: RepositoryTab;
@@ -95,23 +101,28 @@ export function RepositoryDiffWorkspace({
 	diffs,
 	ignoreWhitespace,
 	isLoading,
+	onApplyStash,
 	onCancelSync,
 	onCloseBranchComparison,
 	onChangeHunk,
+	onDropStash,
 	onSelectFile,
 	onSelectRevisionFile,
 	onOpenBranchComparison,
 	onOpenFile,
+	onPopStash,
 	onPreviewBranchComparison,
 	onSync,
 	pendingAction,
 	selectedCommitOid,
 	selectedFilePath,
 	selectedStashOid,
+	selectedStash,
 	snapshot,
 	tab,
 }: RepositoryDiffWorkspaceProps): ReactElement {
 	const files = snapshot?.files ?? [];
+	const isPending = Boolean(pendingAction);
 	const selectVisibleFile = useCallback(
 		(path: string): void => {
 			if (path === selectedFilePath) {
@@ -239,16 +250,27 @@ export function RepositoryDiffWorkspace({
 
 	return (
 		<section
-			className="flex min-h-0 min-w-0 flex-1 bg-transparent"
+			className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden rounded-xl bg-editor-surface shadow-[0_1px_2px_rgb(0_0_0/0.03)]"
 			data-layout="adaptive"
 			data-name="AdaptiveRepositoryWorkspace"
 		>
 			<main
-				className="min-h-0 min-w-0 flex-1 overflow-hidden rounded-xl bg-editor-surface shadow-[0_1px_2px_rgb(0_0_0/0.03)]"
-				data-name="RepositoryDiffWorkspace"
+				className="relative z-0 min-h-0 min-w-0 flex-1 overflow-hidden bg-editor-surface"
+				data-name="RepositoryDiffCanvas"
 			>
 				{mainContent}
 			</main>
+			<RepositoryRevisionFileRail
+				diffs={diffs}
+				isPending={isPending}
+				onApplyStash={onApplyStash}
+				onDropStash={onDropStash}
+				onPopStash={onPopStash}
+				onSelectFile={onSelectRevisionFile}
+				selectedFilePath={selectedFilePath}
+				selectedStash={selectedStash}
+				tab={tab}
+			/>
 		</section>
 	);
 }
