@@ -5,11 +5,9 @@ import { FileDiff as PierreFileDiff } from "@pierre/diffs/react";
 import type { ReactElement } from "react";
 import { memo, useCallback, useLayoutEffect, useRef, useState } from "react";
 import {
-	REPOSITORY_DIFF_ESTIMATED_LINE_HEIGHT,
-	REPOSITORY_DIFF_ESTIMATED_SEPARATOR_HEIGHT,
 	REPOSITORY_DIFF_HUNK_ACTION_RENDER_OPTIONS,
-	REPOSITORY_DIFF_MINIMUM_BODY_HEIGHT,
 	REPOSITORY_DIFF_RENDER_OPTIONS,
+	REPOSITORY_DIFF_VIRTUAL_METRICS,
 } from "@/fixture/repository-workspace/constants/repository-diff.js";
 import type { RepositoryDiffFileEntry } from "@/fixture/repository-workspace/lib/repository-diff-files.js";
 import {
@@ -26,11 +24,9 @@ import type { RepositorySessionId } from "../../../../../shared/repository-sessi
 interface DiffFileAccordionProps {
 	readonly areHunkActionsEnabled: boolean;
 	readonly entry: RepositoryDiffFileEntry;
-	readonly isBodyMounted: boolean;
 	readonly isHunkActionPending: boolean;
 	readonly ignoreWhitespace: boolean;
 	readonly onChangeHunk: HunkActionHandler;
-	readonly onElementChange: (key: string, element: HTMLElement | null) => void;
 	readonly onOpenFile: (path: string) => Promise<void>;
 	readonly onRequestExpandableFile: (
 		entry: RepositoryDiffFileEntry
@@ -83,11 +79,9 @@ const findHunkIndex = (
 const DiffFileAccordionComponent = ({
 	areHunkActionsEnabled,
 	entry,
-	isBodyMounted,
 	isHunkActionPending,
 	ignoreWhitespace,
 	onChangeHunk,
-	onElementChange,
 	onOpenFile,
 	onRequestExpandableFile,
 	showTarget,
@@ -102,13 +96,6 @@ const DiffFileAccordionComponent = ({
 	const bodyId = `repository-diff-body:${encodeURIComponent(entry.key)}`;
 	const addedLines = entry.stat?.addedLines;
 	const deletedLines = entry.stat?.deletedLines;
-	const setArticleElement = useCallback(
-		(element: HTMLElement | null): void => {
-			articleElementRef.current = element;
-			onElementChange(entry.key, element);
-		},
-		[entry.key, onElementChange]
-	);
 	const renderHunkAction = useCallback(
 		(getHoveredLine: GetHoveredDiffLine): ReactElement => {
 			const openActions = (anchor: HTMLButtonElement): void => {
@@ -191,7 +178,7 @@ const DiffFileAccordionComponent = ({
 		[entry, isPreparingContext, onRequestExpandableFile]
 	);
 	useLayoutEffect(() => {
-		if (!(isBodyMounted && isOpen)) {
+		if (!isOpen) {
 			return;
 		}
 		const article = articleElementRef.current;
@@ -204,19 +191,12 @@ const DiffFileAccordionComponent = ({
 				capture: true,
 			});
 		};
-	}, [handleClickCapture, isBodyMounted, isOpen]);
+	}, [handleClickCapture, isOpen]);
 	useLayoutEffect(() => {
-		if (isHunkActionOpen && !(isBodyMounted && isOpen && hunkActionSelection)) {
+		if (isHunkActionOpen && !(isOpen && hunkActionSelection)) {
 			setIsHunkActionOpen(false);
 		}
 	});
-	const estimatedBodyHeight = entry.file
-		? Math.max(
-				REPOSITORY_DIFF_MINIMUM_BODY_HEIGHT,
-				entry.file.unifiedLineCount * REPOSITORY_DIFF_ESTIMATED_LINE_HEIGHT +
-					entry.file.hunks.length * REPOSITORY_DIFF_ESTIMATED_SEPARATOR_HEIGHT
-			)
-		: 0;
 	const previewKind = getRepositoryDiffPreviewKind({
 		file: entry.file,
 		ignoreWhitespace,
@@ -258,7 +238,7 @@ const DiffFileAccordionComponent = ({
 				)}
 			</div>
 		);
-	} else if (entry.file && isBodyMounted) {
+	} else if (entry.file) {
 		const supportsHunkActions =
 			areHunkActionsEnabled &&
 			(entry.target.kind === "staged" || entry.target.kind === "working");
@@ -266,6 +246,7 @@ const DiffFileAccordionComponent = ({
 			<PierreFileDiff
 				className="block"
 				fileDiff={entry.file}
+				metrics={REPOSITORY_DIFF_VIRTUAL_METRICS}
 				options={
 					supportsHunkActions
 						? REPOSITORY_DIFF_HUNK_ACTION_RENDER_OPTIONS
@@ -275,13 +256,7 @@ const DiffFileAccordionComponent = ({
 			/>
 		);
 	} else {
-		bodyContent = (
-			<div
-				aria-hidden
-				data-name="RepositoryDiffPlaceholder"
-				style={{ height: estimatedBodyHeight }}
-			/>
-		);
+		bodyContent = <div />;
 	}
 
 	return (
@@ -292,7 +267,7 @@ const DiffFileAccordionComponent = ({
 			data-repository-diff-key={entry.key}
 			data-repository-diff-path={entry.path}
 			id={entry.id}
-			ref={setArticleElement}
+			ref={articleElementRef}
 		>
 			<button
 				aria-controls={bodyId}

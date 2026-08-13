@@ -1,4 +1,8 @@
-import type { BaseDiffOptions, FileDiffOptions } from "@pierre/diffs";
+import type {
+	BaseDiffOptions,
+	FileDiffOptions,
+	VirtualFileMetrics,
+} from "@pierre/diffs";
 
 export const REPOSITORY_DIFF_THEME = "github-light";
 export const REPOSITORY_DIFF_ELEMENT_NAME = "diffs-container";
@@ -169,11 +173,14 @@ export const REPOSITORY_DIFF_HUNK_ACTION_RENDER_OPTIONS = {
 	enableGutterUtility: true,
 } as const satisfies FileDiffOptions<undefined>;
 
-export const REPOSITORY_DIFF_ESTIMATED_LINE_HEIGHT = 20;
-export const REPOSITORY_DIFF_ESTIMATED_SEPARATOR_HEIGHT = 28;
-export const REPOSITORY_DIFF_MINIMUM_BODY_HEIGHT = 64;
-export const REPOSITORY_DIFF_BODY_OBSERVER_MARGIN = 120;
-export const REPOSITORY_DIFF_INITIAL_MOUNTED_COUNT = 1;
+export const REPOSITORY_DIFF_VIRTUAL_METRICS = {
+	diffHeaderHeight: 0,
+	hunkLineCount: 50,
+	hunkSeparatorHeight: 28,
+	lineHeight: 20,
+	spacing: 4,
+} as const satisfies VirtualFileMetrics;
+
 export const REPOSITORY_DIFF_EXPANDABLE_CONTEXT_LINES = 2_147_483_647;
 
 export const REPOSITORY_HUNK_ACTION_ANCHOR_GEOMETRY = {

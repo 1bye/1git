@@ -1,10 +1,14 @@
 import { describe, expect, it } from "bun:test";
 import {
+	createRepositoryDiffActivePathScheduler,
 	getRepositoryDiffScrollEndPath,
 	scrollRepositoryDiffPathIntoView,
 } from "@/fixture/repository-workspace/hooks/use-repository-diff-scroll-sync.js";
 
 const paths = ["first.ts", "middle.ts", "last.ts"] as const;
+
+const waitForTimers = (delayMs: number): Promise<void> =>
+	new Promise((resolve) => globalThis.setTimeout(resolve, delayMs));
 
 const fileElement = (path: string, top: number): HTMLElement =>
 	({
@@ -13,6 +17,27 @@ const fileElement = (path: string, top: number): HTMLElement =>
 	}) as unknown as HTMLElement;
 
 describe("repository diff scroll synchronization", () => {
+	it("coalesces rapid active-file changes to the latest path", async () => {
+		const committedPaths: string[] = [];
+		const scheduler = createRepositoryDiffActivePathScheduler(
+			(path) => committedPaths.push(path),
+			5
+		);
+
+		scheduler.schedule("first.ts");
+		scheduler.schedule("middle.ts");
+		scheduler.schedule("last.ts");
+		expect(committedPaths).toEqual([]);
+
+		await waitForTimers(10);
+		expect(committedPaths).toEqual(["last.ts"]);
+
+		scheduler.schedule("first.ts");
+		scheduler.cancel();
+		await waitForTimers(10);
+		expect(committedPaths).toEqual(["last.ts"]);
+	});
+
 	it("selects the last file at the bottom of an overflowing diff", () => {
 		expect(
 			getRepositoryDiffScrollEndPath(

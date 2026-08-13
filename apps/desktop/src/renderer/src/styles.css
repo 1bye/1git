@@ -656,6 +656,10 @@ body:has([data-name="CommandLensLayer"])
 	display: block;
 }
 
+[data-name="DiffView"]::-webkit-scrollbar-track {
+	margin-block: 8px;
+}
+
 @media (prefers-reduced-motion: reduce) {
 	[data-name="WorkspaceTitlebar"] [data-dnd-overlay][data-dnd-dragging] {
 		--dnd-transition: translate 0.01ms linear !important;

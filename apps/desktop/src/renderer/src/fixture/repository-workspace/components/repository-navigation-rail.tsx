@@ -8,7 +8,7 @@ import type {
 	StashInfo,
 } from "@1git/git";
 import type { ReactElement } from "react";
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import type { RepositoryCommitIdentity } from "@/feature/workspace/lib/repository-commit-identity.js";
 import type { RepositoryRecoveryAction } from "@/feature/workspace/lib/repository-recovery.js";
 import type { RepositorySyncAction } from "@/feature/workspace/lib/repository-sync.js";
@@ -135,12 +135,37 @@ export function RepositoryNavigationRail({
 	tab,
 }: RepositoryNavigationRailProps): ReactElement {
 	const files = snapshot?.files ?? [];
+	const discardFilesRef = useRef(onDiscardFiles);
+	const selectFileRef = useRef(onSelectFile);
+	const setFileStagedRef = useRef(onSetFileStaged);
+	const setFilesStagedRef = useRef(onSetFilesStaged);
+	discardFilesRef.current = onDiscardFiles;
+	selectFileRef.current = onSelectFile;
+	setFileStagedRef.current = onSetFileStaged;
+	setFilesStagedRef.current = onSetFilesStaged;
+	const discardFiles = useCallback(
+		(filesToDiscard: readonly FileChange[]): Promise<boolean> =>
+			discardFilesRef.current(filesToDiscard),
+		[]
+	);
+	const setFileStaged = useCallback(
+		(file: FileChange, shouldStage: boolean): Promise<boolean> =>
+			setFileStagedRef.current(file, shouldStage),
+		[]
+	);
+	const setFilesStaged = useCallback(
+		(
+			filesToStage: readonly FileChange[],
+			shouldStage: boolean
+		): Promise<boolean> => setFilesStagedRef.current(filesToStage, shouldStage),
+		[]
+	);
 	const requestChanges = useCallback(async (): Promise<void> => {
 		await onSetTab("changes");
 	}, [onSetTab]);
 	const selectFileAndReveal = useCallback(
 		async (file: FileChange): Promise<void> => {
-			await onSelectFile(file);
+			await selectFileRef.current(file);
 			const diffElement = document.getElementById(
 				getRepositoryDiffElementId(file.path)
 			);
@@ -153,7 +178,7 @@ export function RepositoryNavigationRail({
 				});
 			}
 		},
-		[onSelectFile]
+		[]
 	);
 	const navigation = useRepositoryFileNavigation({
 		files,
@@ -209,9 +234,9 @@ export function RepositoryNavigationRail({
 				<RepositoryFileRail
 					allFiles={files}
 					navigation={navigation}
-					onDiscardFiles={onDiscardFiles}
-					onSetFileStaged={onSetFileStaged}
-					onSetFilesStaged={onSetFilesStaged}
+					onDiscardFiles={discardFiles}
+					onSetFileStaged={setFileStaged}
+					onSetFilesStaged={setFilesStaged}
 					pendingAction={pendingAction}
 					repositoryRoot={activeSession.repository.root}
 					selectedFilePath={selectedFilePath}
@@ -259,9 +284,9 @@ export function RepositoryNavigationRail({
 			{tab === "changes" ? (
 				<RepositoryFileNavigator
 					navigation={navigation}
-					onDiscardFiles={onDiscardFiles}
-					onSetFileStaged={onSetFileStaged}
-					onSetFilesStaged={onSetFilesStaged}
+					onDiscardFiles={discardFiles}
+					onSetFileStaged={setFileStaged}
+					onSetFilesStaged={setFilesStaged}
 					pendingAction={pendingAction}
 					repositoryRoot={activeSession.repository.root}
 					selectedFilePath={selectedFilePath}

@@ -20,7 +20,14 @@ import type {
 	ReactNode,
 	RefCallback,
 } from "react";
-import { useCallback, useEffect, useLayoutEffect, useState } from "react";
+import {
+	memo,
+	useCallback,
+	useEffect,
+	useLayoutEffect,
+	useMemo,
+	useState,
+} from "react";
 import { createPortal } from "react-dom";
 import {
 	isFileConflicted,
@@ -767,6 +774,8 @@ function RepositoryFileRow({
 	);
 }
 
+const MemoizedRepositoryFileRow = memo(RepositoryFileRow);
+
 interface RepositoryFileListProps {
 	readonly allFiles?: readonly FileChange[];
 	readonly files: readonly FileChange[];
@@ -826,17 +835,22 @@ export function RepositoryFileList({
 	const [stageProjection, setStageProjection] =
 		useState<RepositoryFileStageProjection | null>(null);
 	const sourceFiles = allFiles ?? files;
-	const groups = groupRepositoryFilesByStaging(files, stageProjection);
-	const totalGroups = groupRepositoryFilesByStaging(
-		sourceFiles,
-		stageProjection
+	const groups = useMemo(
+		() => groupRepositoryFilesByStaging(files, stageProjection),
+		[files, stageProjection]
 	);
-	const orderedFiles = [
-		...groups.conflicted,
-		...groups.staged,
-		...groups.unstaged,
-	];
-	const orderedFilePaths = orderedFiles.map((file) => file.path);
+	const totalGroups = useMemo(
+		() => groupRepositoryFilesByStaging(sourceFiles, stageProjection),
+		[sourceFiles, stageProjection]
+	);
+	const orderedFiles = useMemo(
+		() => [...groups.conflicted, ...groups.staged, ...groups.unstaged],
+		[groups]
+	);
+	const orderedFilePaths = useMemo(
+		() => orderedFiles.map((file) => file.path),
+		[orderedFiles]
+	);
 	const conflictedFileCount = groups.conflicted.length;
 	const stagedFileCount = groups.staged.length;
 	const unstagedFileCount = groups.unstaged.length;
@@ -974,7 +988,7 @@ export function RepositoryFileList({
 		const previousFile = orderedFiles[index - 1];
 		const nextFile = orderedFiles[index + 1];
 		return (
-			<RepositoryFileRow
+			<MemoizedRepositoryFileRow
 				file={file}
 				isBulkSelected={isBulkSelected}
 				isBulkSelectionEnd={

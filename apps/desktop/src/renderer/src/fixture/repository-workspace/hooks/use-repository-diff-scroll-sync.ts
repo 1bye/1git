@@ -10,6 +10,7 @@ interface UseRepositoryDiffScrollSyncOptions {
 }
 
 const DIFF_FILE_SELECTOR = "[data-repository-diff-path]";
+const ACTIVE_PATH_SETTLE_MS = 80;
 const DIFF_HEADER_OFFSET = 58;
 const SCROLL_END_EPSILON = 1;
 
@@ -18,6 +19,46 @@ interface RepositoryDiffScrollPosition {
 	readonly scrollHeight: number;
 	readonly scrollTop: number;
 }
+
+interface RepositoryDiffActivePathScheduler {
+	readonly cancel: () => void;
+	readonly flush: () => void;
+	readonly schedule: (path: string) => void;
+}
+
+export const createRepositoryDiffActivePathScheduler = (
+	onCommit: (path: string) => void,
+	settleMs = ACTIVE_PATH_SETTLE_MS
+): RepositoryDiffActivePathScheduler => {
+	let pendingPath: string | null = null;
+	let settleTimer: ReturnType<typeof globalThis.setTimeout> | null = null;
+	const cancel = (): void => {
+		if (settleTimer !== null) {
+			globalThis.clearTimeout(settleTimer);
+			settleTimer = null;
+		}
+		pendingPath = null;
+	};
+	const flush = (): void => {
+		if (settleTimer !== null) {
+			globalThis.clearTimeout(settleTimer);
+			settleTimer = null;
+		}
+		const path = pendingPath;
+		pendingPath = null;
+		if (path) {
+			onCommit(path);
+		}
+	};
+	const schedule = (path: string): void => {
+		pendingPath = path;
+		if (settleTimer !== null) {
+			globalThis.clearTimeout(settleTimer);
+		}
+		settleTimer = globalThis.setTimeout(flush, settleMs);
+	};
+	return { cancel, flush, schedule };
+};
 
 export const getRepositoryDiffScrollEndPath = (
 	position: RepositoryDiffScrollPosition,
@@ -54,11 +95,14 @@ export const useRepositoryDiffScrollSync = ({
 	const activePathRef = useRef(activePath);
 	const observedActivePathRef = useRef<string | null>(null);
 	const onActivePathChangeRef = useRef(onActivePathChange);
+	const activePathSchedulerRef =
+		useRef<RepositoryDiffActivePathScheduler | null>(null);
 	const synchronizingActivePathRef = useRef<string | null>(null);
 	activePathRef.current = activePath;
 	onActivePathChangeRef.current = onActivePathChange;
 
 	useLayoutEffect(() => {
+		activePathSchedulerRef.current?.cancel();
 		const container = containerRef.current;
 		if (!(container && activePath && contentKey)) {
 			synchronizingActivePathRef.current = null;
@@ -111,10 +155,23 @@ export const useRepositoryDiffScrollSync = ({
 				onActivePathChangeRef.current(path);
 			}
 		};
+		const activePathScheduler =
+			createRepositoryDiffActivePathScheduler(changeActivePath);
+		activePathSchedulerRef.current = activePathScheduler;
+		const scheduleActivePathChange = (path: string | null): void => {
+			if (synchronizingActivePathRef.current) {
+				changeActivePath(path);
+				return;
+			}
+			if (!path) {
+				return;
+			}
+			activePathScheduler.schedule(path);
+		};
 		const getScrollEndPath = (): string | null =>
 			getRepositoryDiffScrollEndPath(container, filePaths);
 		const handleScroll = (): void => {
-			changeActivePath(getScrollEndPath());
+			scheduleActivePathChange(getScrollEndPath());
 		};
 		let intersectionObserver: IntersectionObserver | null = null;
 		const observeFiles = (containerHeight: number): void => {
@@ -127,14 +184,14 @@ export const useRepositoryDiffScrollSync = ({
 				(entries) => {
 					const scrollEndPath = getScrollEndPath();
 					if (scrollEndPath) {
-						changeActivePath(scrollEndPath);
+						scheduleActivePathChange(scrollEndPath);
 						return;
 					}
 					const activeEntry = entries.find((entry) => entry.isIntersecting);
 					if (!(activeEntry?.target instanceof HTMLElement)) {
 						return;
 					}
-					changeActivePath(
+					scheduleActivePathChange(
 						activeEntry.target.dataset.repositoryDiffPath ?? null
 					);
 				},
@@ -150,6 +207,7 @@ export const useRepositoryDiffScrollSync = ({
 		};
 
 		container.addEventListener("scroll", handleScroll, { passive: true });
+		container.addEventListener("scrollend", activePathScheduler.flush);
 		observeFiles(container.clientHeight);
 		const resizeObserver = new ResizeObserver((entries) => {
 			const [containerEntry] = entries;
@@ -161,6 +219,11 @@ export const useRepositoryDiffScrollSync = ({
 
 		return () => {
 			container.removeEventListener("scroll", handleScroll);
+			container.removeEventListener("scrollend", activePathScheduler.flush);
+			activePathScheduler.cancel();
+			if (activePathSchedulerRef.current === activePathScheduler) {
+				activePathSchedulerRef.current = null;
+			}
 			intersectionObserver?.disconnect();
 			resizeObserver.disconnect();
 		};
