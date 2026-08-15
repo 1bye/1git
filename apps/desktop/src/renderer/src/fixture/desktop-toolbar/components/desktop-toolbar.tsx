@@ -444,18 +444,7 @@ export function DesktopToolbar({
 						isPositionTracking={isWorkspaceTabPositionTracking}
 						workspaceRootRef={workspaceRootRef}
 					/>
-					<RepositoryMenu
-						isOpen={isRepositoryMenuOpen}
-						isVisible={hasOpenWorkspaces}
-						onForgetRecent={onForgetRecent}
-						onOpenChange={setRepositoryMenuOpen}
-						onOpenRecent={onOpenRecent}
-						onPickRepository={onPickRepository}
-						pendingAction={pendingAction}
-						recentRepositories={recentRepositories}
-						workspaces={workspaces}
-					/>
-					<div className="relative z-[2] min-w-0 flex-1">
+					<div className="relative z-[2] flex w-fit min-w-0 max-w-full items-stretch">
 						<DragDropProvider
 							onDragEnd={finishWorkspaceDrag}
 							onDragMove={moveWorkspaceDrag}
@@ -466,7 +455,7 @@ export function DesktopToolbar({
 							<div
 								aria-label="Open repository workspaces"
 								aria-orientation="horizontal"
-								className="workspace-tab-edge-mask flex min-w-0 flex-1 items-start overflow-x-auto overflow-y-hidden"
+								className="workspace-tab-edge-mask flex min-w-0 flex-[1_1_auto] items-start overflow-x-auto overflow-y-hidden"
 								data-dragging={draggingSessionId ? "true" : undefined}
 								data-name="WorkspaceTabList"
 								onKeyDown={navigateWorkspaceTabs}
@@ -534,6 +523,18 @@ export function DesktopToolbar({
 									);
 								})}
 							</div>
+							<RepositoryMenu
+								isOpen={isRepositoryMenuOpen}
+								isVisible={hasOpenWorkspaces}
+								navigationOrder={workspaces.length + 1}
+								onForgetRecent={onForgetRecent}
+								onOpenChange={setRepositoryMenuOpen}
+								onOpenRecent={onOpenRecent}
+								onPickRepository={onPickRepository}
+								pendingAction={pendingAction}
+								recentRepositories={recentRepositories}
+								workspaces={workspaces}
+							/>
 							<DragOverlay
 								dropAnimation={TAB_DROP_ANIMATION}
 								style={TAB_OVERLAY_STYLE}
