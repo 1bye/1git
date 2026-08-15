@@ -1,6 +1,7 @@
 import { Button, buttonVariants } from "@1git/ui/components/button";
 import { Input } from "@1git/ui/components/input";
 import { TooltipProvider } from "@1git/ui/components/tooltip";
+import { cn } from "@1git/ui/lib/utils";
 import { FolderOpenIcon } from "@phosphor-icons/react/dist/csr/FolderOpen";
 import { GitBranchIcon } from "@phosphor-icons/react/dist/csr/GitBranch";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/dist/csr/MagnifyingGlass";
@@ -224,7 +225,7 @@ function RepositoryGroup({
   }
 
   return (
-    <section className="mt-6 first:mt-5">
+    <section className="mt-3 first:mt-4">
       {heading && <h3 className="mb-1 px-3 font-medium text-[10px] text-editor-faint uppercase tracking-[0.08em]">
         {heading}
       </h3>}
@@ -468,11 +469,13 @@ export function RepositoryWelcome({
               >
                 <LiquidMenuTrigger
                   aria-keyshortcuts={cloneCommandLensTarget.ariaKeyShortcuts}
-                  className={buttonVariants({
-                    className: `${QUICK_ACTION_WIDTH_CLASS_NAME} relative z-10 justify-start px-2.5 text-editor-muted focus-visible:bg-hover focus-visible:text-editor-ink focus-visible:ring-2 focus-visible:ring-brand/20 active:scale-100`,
-                    size: "sm",
-                    variant: "ghost",
-                  })}
+                  className={cn(
+                    buttonVariants({
+                      className: `${QUICK_ACTION_WIDTH_CLASS_NAME} relative z-10 justify-start px-2.5 text-editor-muted focus-visible:bg-hover focus-visible:text-editor-ink focus-visible:ring-2 focus-visible:ring-brand/20 active:scale-100`,
+                      size: "sm",
+                      variant: "ghost",
+                    })
+                  )}
                   ref={setCloneTriggerElement}
                 >
                   <GitBranchIcon
