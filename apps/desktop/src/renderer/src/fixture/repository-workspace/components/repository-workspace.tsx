@@ -45,6 +45,10 @@ export function RepositoryWorkspace({
 				selectedRevisionKey={selectedRevisionKey}
 			/>
 			<RepositoryFileLiquidSurface selectedFilePath={selectedFilePath} />
+			<RepositoryNavigationRail
+				{...props}
+				selectedFilePath={selectedFilePath}
+			/>
 			<div className="flex min-w-0 flex-1 flex-col">
 				{titlebar}
 				<RepositoryDiffWorkspace
@@ -53,10 +57,6 @@ export function RepositoryWorkspace({
 					selectedStash={selectedStash}
 				/>
 			</div>
-			<RepositoryNavigationRail
-				{...props}
-				selectedFilePath={selectedFilePath}
-			/>
 		</section>
 	);
 }

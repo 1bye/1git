@@ -76,13 +76,10 @@ export function App(): ReactElement {
 							onCreateBranch={workspace.createBranch}
 							onDiscardFiles={workspace.discardFiles}
 							onDropStash={workspace.dropStash}
-							onMergeBranch={workspace.mergeBranch}
 							onOpenBranchComparison={workspace.openBranchComparison}
 							onOpenFile={workspace.openRepositoryFileInEditor}
-							onOpenInEditor={workspace.openRepositoryInEditor}
 							onPopStash={workspace.popStash}
 							onPreviewBranchComparison={workspace.previewBranchComparison}
-							onRecover={workspace.recoverRepository}
 							onResetCommit={workspace.resetToCommit}
 							onRevertCommit={workspace.revertCommit}
 							onSelectCommit={workspace.selectCommit}
@@ -93,9 +90,7 @@ export function App(): ReactElement {
 							onSetFilesStaged={workspace.setFilesStaged}
 							onSetIgnoreWhitespace={workspace.setIgnoreWhitespace}
 							onSetTab={workspace.setTab}
-							onStashChanges={workspace.stashChanges}
 							onSync={workspace.syncRepository}
-							onToggleAllFiles={workspace.toggleAllFiles}
 							pendingAction={workspace.pendingAction}
 							ref={setWorkspaceRoot}
 							selectedCommitOid={workspace.selectedCommitOid}

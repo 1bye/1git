@@ -1,4 +1,5 @@
 import type { BranchCollection, RepositorySnapshot } from "@1git/git";
+import { cn } from "@1git/ui/lib/utils";
 import type { Plugins } from "@dnd-kit/abstract";
 import {
 	AutoScroller,
@@ -434,7 +435,10 @@ export function DesktopToolbar({
 				data-name="DesktopTitlebarLayout"
 			>
 				<div
-					className="relative flex h-full min-w-0 flex-1 items-stretch pl-(--desktop-titlebar-controls-width)"
+					className={cn(
+						"relative flex h-full min-w-0 flex-1 items-stretch",
+						activeSessionId === null && "pl-(--desktop-titlebar-controls-width)"
+					)}
 					data-active-tab-dragging={isActiveTabDragging ? "true" : undefined}
 					data-name="WorkspaceTitlebar"
 				>

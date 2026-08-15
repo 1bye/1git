@@ -19,7 +19,6 @@ describe("liquid trigger styles", () => {
 		const consumers = [
 			"../src/renderer/src/fixture/desktop-toolbar/components/repository-menu.tsx",
 			"../src/renderer/src/fixture/repository-workspace/components/repository-workspace-toolbar.tsx",
-			"../src/renderer/src/fixture/repository-workspace/components/repository-quick-actions.tsx",
 			"../src/renderer/src/fixture/repository-item/components/repository-item.tsx",
 			"../src/renderer/src/fixture/repository-workspace/components/repository-history-context-menu.tsx",
 			"../src/renderer/src/fixture/repository-workspace/components/repository-file-list.tsx",
@@ -63,7 +62,6 @@ describe("liquid trigger styles", () => {
 		const consumers = [
 			"../src/renderer/src/fixture/desktop-toolbar/components/repository-menu.tsx",
 			"../src/renderer/src/fixture/repository-workspace/components/repository-workspace-toolbar.tsx",
-			"../src/renderer/src/fixture/repository-workspace/components/repository-quick-actions.tsx",
 		];
 
 		for (const consumer of consumers) {

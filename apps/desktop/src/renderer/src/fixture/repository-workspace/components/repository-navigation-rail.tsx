@@ -10,7 +10,6 @@ import type {
 import type { ReactElement } from "react";
 import { useCallback, useRef } from "react";
 import type { RepositoryCommitIdentity } from "@/feature/workspace/lib/repository-commit-identity.js";
-import type { RepositoryRecoveryAction } from "@/feature/workspace/lib/repository-recovery.js";
 import type { RepositorySyncAction } from "@/feature/workspace/lib/repository-sync.js";
 import { isFileStaged } from "@/feature/workspace/lib/workspace-model.js";
 import type {
@@ -40,8 +39,6 @@ export interface RepositoryNavigationRailProps {
 		summary: string,
 		description: string
 	) => Promise<boolean>;
-	readonly onApplyStash: (stash: StashInfo) => Promise<boolean>;
-	readonly onCancelSync: () => Promise<void>;
 	readonly onCherryPickCommit: (
 		commit: CommitInfo,
 		branchName: string
@@ -56,11 +53,6 @@ export interface RepositoryNavigationRailProps {
 		startPoint?: string
 	) => Promise<boolean>;
 	readonly onDiscardFiles: (files: readonly FileChange[]) => Promise<boolean>;
-	readonly onDropStash: (stash: StashInfo) => Promise<boolean>;
-	readonly onMergeBranch: (name: string) => Promise<boolean>;
-	readonly onOpenInEditor: () => Promise<void>;
-	readonly onPopStash: (stash: StashInfo) => Promise<boolean>;
-	readonly onRecover: (action: RepositoryRecoveryAction) => Promise<boolean>;
 	readonly onResetCommit: (
 		commit: CommitInfo,
 		mode: ResetMode
@@ -79,9 +71,6 @@ export interface RepositoryNavigationRailProps {
 	) => Promise<boolean>;
 	readonly onSetIgnoreWhitespace: (ignoreWhitespace: boolean) => void;
 	readonly onSetTab: (tab: RepositoryTab) => Promise<void>;
-	readonly onStashChanges: () => Promise<boolean>;
-	readonly onSync: () => Promise<void>;
-	readonly onToggleAllFiles: () => Promise<void>;
 	readonly pendingAction: PendingWorkspaceAction;
 	readonly selectedCommitOid: string | null;
 	readonly selectedFilePath: string | null;
@@ -100,17 +89,10 @@ export function RepositoryNavigationRail({
 	ignoreWhitespace,
 	isLoading,
 	onAmendCommit,
-	onApplyStash,
 	onCherryPickCommit,
 	onCreateBranch,
 	onCommit,
-	onCancelSync,
 	onDiscardFiles,
-	onDropStash,
-	onMergeBranch,
-	onOpenInEditor,
-	onPopStash,
-	onRecover,
 	onResetCommit,
 	onRevertCommit,
 	onSelectCommit,
@@ -120,9 +102,6 @@ export function RepositoryNavigationRail({
 	onSetFilesStaged,
 	onSetIgnoreWhitespace,
 	onSetTab,
-	onStashChanges,
-	onSync,
-	onToggleAllFiles,
 	pendingAction,
 	selectedCommitOid,
 	selectedFilePath,
@@ -248,24 +227,9 @@ export function RepositoryNavigationRail({
 			data-name="RepositoryNavigationRail"
 		>
 			<RepositoryWorkspaceToolbar
-				branches={branches}
 				ignoreWhitespace={ignoreWhitespace}
-				onApplyStash={onApplyStash}
-				onCancelSync={onCancelSync}
-				onDropStash={onDropStash}
-				onMergeBranch={onMergeBranch}
-				onOpenInEditor={onOpenInEditor}
-				onPopStash={onPopStash}
-				onRecover={onRecover}
 				onSetIgnoreWhitespace={onSetIgnoreWhitespace}
 				onSetTab={onSetTab}
-				onStashChanges={onStashChanges}
-				onSync={onSync}
-				onToggleAllFiles={onToggleAllFiles}
-				pendingAction={pendingAction}
-				snapshot={snapshot}
-				stashes={stashes}
-				syncAction={syncAction}
 				tab={tab}
 			/>
 			{tab === "changes" ? (

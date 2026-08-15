@@ -1,8 +1,3 @@
-import type {
-	BranchCollection,
-	RepositorySnapshot,
-	StashInfo,
-} from "@1git/git";
 import {
 	DropdownMenuCheckboxItem,
 	DropdownMenuGroup,
@@ -15,13 +10,7 @@ import { CaretDownIcon } from "@phosphor-icons/react/dist/csr/CaretDown";
 import { CheckIcon } from "@phosphor-icons/react/dist/csr/Check";
 import type { ReactElement } from "react";
 import { useCallback, useEffect, useRef } from "react";
-import type { RepositoryRecoveryAction } from "@/feature/workspace/lib/repository-recovery.js";
-import type { RepositorySyncAction } from "@/feature/workspace/lib/repository-sync.js";
-import { areAllFilesStaged } from "@/feature/workspace/lib/workspace-model.js";
-import type {
-	PendingWorkspaceAction,
-	RepositoryTab,
-} from "@/feature/workspace/types/git-workspace.js";
+import type { RepositoryTab } from "@/feature/workspace/types/git-workspace.js";
 import { WORKSPACE_TAB_SURFACE_GEOMETRY } from "@/fixture/desktop-toolbar/constants/workspace-tab.js";
 import {
 	LiquidMenuContent,
@@ -29,27 +18,11 @@ import {
 	LiquidMenuTrigger,
 } from "@/fixture/liquid-menu/components/liquid-menu.js";
 import { LIQUID_MENU_CONNECTED_BUTTON_ANCHOR_GEOMETRY } from "@/fixture/liquid-menu/constants/liquid-menu.js";
-import { RepositoryQuickActions } from "@/fixture/repository-workspace/components/repository-quick-actions.js";
 
 interface RepositoryWorkspaceToolbarProps {
-	readonly branches: BranchCollection | null;
 	readonly ignoreWhitespace: boolean;
-	readonly onApplyStash: (stash: StashInfo) => Promise<boolean>;
-	readonly onCancelSync: () => Promise<void>;
-	readonly onDropStash: (stash: StashInfo) => Promise<boolean>;
-	readonly onMergeBranch: (name: string) => Promise<boolean>;
-	readonly onOpenInEditor: () => Promise<void>;
-	readonly onPopStash: (stash: StashInfo) => Promise<boolean>;
-	readonly onRecover: (action: RepositoryRecoveryAction) => Promise<boolean>;
 	readonly onSetIgnoreWhitespace: (ignoreWhitespace: boolean) => void;
 	readonly onSetTab: (tab: RepositoryTab) => Promise<void>;
-	readonly onStashChanges: () => Promise<boolean>;
-	readonly onSync: () => Promise<void>;
-	readonly onToggleAllFiles: () => Promise<void>;
-	readonly pendingAction: PendingWorkspaceAction;
-	readonly snapshot: RepositorySnapshot;
-	readonly stashes: readonly StashInfo[];
-	readonly syncAction: RepositorySyncAction;
 	readonly tab: RepositoryTab;
 }
 
@@ -96,24 +69,9 @@ export function RepositoryDiffOptions({
 }
 
 export function RepositoryWorkspaceToolbar({
-	branches,
 	ignoreWhitespace,
-	onApplyStash,
-	onCancelSync,
-	onDropStash,
-	onMergeBranch,
-	onOpenInEditor,
-	onPopStash,
-	onRecover,
 	onSetIgnoreWhitespace,
 	onSetTab,
-	onStashChanges,
-	onSync,
-	onToggleAllFiles,
-	pendingAction,
-	snapshot,
-	stashes,
-	syncAction,
 	tab,
 }: RepositoryWorkspaceToolbarProps): ReactElement {
 	const triggerRef = useRef<HTMLButtonElement>(null);
@@ -152,7 +110,7 @@ export function RepositoryWorkspaceToolbar({
 
 	return (
 		<div
-			className="relative z-10 flex w-full shrink-0 items-center justify-between gap-2 px-2"
+			className="relative z-10 flex w-full shrink-0 items-center gap-2 pr-2 pl-(--desktop-titlebar-controls-width)"
 			data-name="RepositoryTitlebarControls"
 			style={{ height: WORKSPACE_TAB_SURFACE_GEOMETRY.toolbarHeight }}
 		>
@@ -214,28 +172,6 @@ export function RepositoryWorkspaceToolbar({
 					/>
 				</LiquidMenuContent>
 			</LiquidMenuRoot>
-
-			<RepositoryQuickActions
-				allFilesStaged={areAllFilesStaged(snapshot.files)}
-				branches={branches}
-				changedFileCount={snapshot.files.length}
-				head={snapshot.head}
-				onApplyStash={onApplyStash}
-				onCancelSync={onCancelSync}
-				onDropStash={onDropStash}
-				onMergeBranch={onMergeBranch}
-				onOpenInEditor={onOpenInEditor}
-				onPopStash={onPopStash}
-				onRecover={onRecover}
-				onSetTab={onSetTab}
-				onStashChanges={onStashChanges}
-				onSync={onSync}
-				onToggleAllFiles={onToggleAllFiles}
-				operationState={snapshot.operationState}
-				pendingAction={pendingAction}
-				stashes={stashes}
-				syncAction={syncAction}
-			/>
 		</div>
 	);
 }
