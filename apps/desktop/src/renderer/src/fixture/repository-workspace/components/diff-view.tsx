@@ -53,6 +53,16 @@ const isUnmodifiedLineInteraction = (event: MouseEvent): boolean =>
 					target.hasAttribute("data-unmodified-lines"))
 		);
 
+const isDiffHeaderInteraction = (event: MouseEvent): boolean =>
+	event
+		.composedPath()
+		.some(
+			(target) => isElement(target) && target.hasAttribute("data-diffs-header")
+		);
+
+const isButtonInteraction = (event: MouseEvent): boolean =>
+	event.composedPath().some((target) => target instanceof HTMLButtonElement);
+
 const getDiffHost = (event: MouseEvent): HTMLElement | null => {
 	const host = event
 		.composedPath()
@@ -128,6 +138,7 @@ export function DiffView({
 		renderGutterUtility,
 		renderHeaderMetadata,
 		renderHeaderPrefix,
+		toggleItemCollapsed,
 	} = useRepositoryCodeViewControls({
 		areHunkActionsEnabled: onChangeHunk !== undefined,
 		entriesByKey,
@@ -213,11 +224,18 @@ export function DiffView({
 			return;
 		}
 		const handleClick = (event: MouseEvent): void => {
-			if (!isUnmodifiedLineInteraction(event)) {
+			const isHeaderInteraction = isDiffHeaderInteraction(event);
+			if (!(isHeaderInteraction || isUnmodifiedLineInteraction(event))) {
 				return;
 			}
 			const host = getDiffHost(event);
 			const entryKey = host?.dataset.repositoryDiffKey;
+			if (isHeaderInteraction) {
+				if (entryKey && !isButtonInteraction(event)) {
+					toggleItemCollapsed(entryKey);
+				}
+				return;
+			}
 			const entry = entryKey
 				? entriesByKeyRef.current.get(entryKey)
 				: undefined;
@@ -243,7 +261,7 @@ export function DiffView({
 		return () => {
 			container.removeEventListener("click", handleClick, { capture: true });
 		};
-	}, [requestExpandableFile]);
+	}, [requestExpandableFile, toggleItemCollapsed]);
 
 	if (entries.length === 0) {
 		return (

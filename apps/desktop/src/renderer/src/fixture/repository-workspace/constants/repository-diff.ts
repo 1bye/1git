@@ -41,10 +41,15 @@ export const REPOSITORY_DIFF_RENDER_OPTIONS = {
 		}
 
 		[data-diffs-header="default"] {
+			cursor: pointer;
 			gap: 8px;
 			height: 32px;
 			min-height: 32px;
 			padding-inline: 12px;
+		}
+
+		[data-change-icon] {
+			display: none;
 		}
 
 		[data-header-content] {

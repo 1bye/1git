@@ -14,7 +14,10 @@ import {
 	getNextRepositoryCodeViewItemVersion,
 	type RepositoryCodeViewAnnotation,
 } from "@/fixture/repository-workspace/lib/repository-code-view.js";
-import type { RepositoryDiffFileEntry } from "@/fixture/repository-workspace/lib/repository-diff-files.js";
+import {
+	getRepositoryRevisionFileStatus,
+	type RepositoryDiffFileEntry,
+} from "@/fixture/repository-workspace/lib/repository-diff-files.js";
 import type { RepositorySessionId } from "../../../../../shared/repository-session.js";
 import {
 	type HunkActionHandler,
@@ -23,7 +26,10 @@ import {
 } from "./hunk-action-pocket.js";
 import { RepositoryCodeViewPreview } from "./repository-code-view-preview.js";
 import { RepositoryFileStats } from "./repository-file-item.js";
-import { RepositoryFileStatus } from "./repository-file-status.js";
+import {
+	RepositoryFileStatus,
+	RepositoryFileStatusBadge,
+} from "./repository-file-status.js";
 
 interface RepositoryCodeViewControlsProps {
 	readonly areHunkActionsEnabled: boolean;
@@ -56,6 +62,7 @@ interface RepositoryCodeViewControls {
 	readonly renderHeaderPrefix: (
 		item: CodeViewItem<RepositoryCodeViewAnnotation>
 	) => ReactElement;
+	readonly toggleItemCollapsed: (itemId: string) => void;
 }
 
 interface RepositoryDiffCollapseButtonProps {
@@ -163,14 +170,30 @@ export function useRepositoryCodeViewControls({
 	);
 
 	const renderHeaderPrefix = useCallback(
-		(item: CodeViewItem<RepositoryCodeViewAnnotation>): ReactElement => (
-			<RepositoryDiffCollapseButton
-				collapsed={item.collapsed === true}
-				itemId={item.id}
-				onToggle={toggleItemCollapsed}
-			/>
-		),
-		[toggleItemCollapsed]
+		(item: CodeViewItem<RepositoryCodeViewAnnotation>): ReactElement => {
+			const entry = entriesByKey.get(item.id);
+			let fileStatus: ReactElement | null = null;
+			if (entry?.change) {
+				fileStatus = <RepositoryFileStatus file={entry.change} />;
+			} else if (entry) {
+				fileStatus = (
+					<RepositoryFileStatusBadge
+						status={getRepositoryRevisionFileStatus(entry.file)}
+					/>
+				);
+			}
+			return (
+				<span className="inline-flex shrink-0 items-center gap-2">
+					<RepositoryDiffCollapseButton
+						collapsed={item.collapsed === true}
+						itemId={item.id}
+						onToggle={toggleItemCollapsed}
+					/>
+					{fileStatus}
+				</span>
+			);
+		},
+		[entriesByKey, toggleItemCollapsed]
 	);
 
 	const renderHeaderMetadata = useCallback(
@@ -190,7 +213,6 @@ export function useRepositoryCodeViewControls({
 						addedLines={entry.stat?.addedLines}
 						deletedLines={entry.stat?.deletedLines}
 					/>
-					{entry.change ? <RepositoryFileStatus file={entry.change} /> : null}
 				</>
 			);
 		},
@@ -303,5 +325,6 @@ export function useRepositoryCodeViewControls({
 		renderGutterUtility,
 		renderHeaderMetadata,
 		renderHeaderPrefix,
+		toggleItemCollapsed,
 	};
 }
