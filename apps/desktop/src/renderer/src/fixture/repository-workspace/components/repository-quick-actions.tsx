@@ -303,25 +303,27 @@ export function RepositoryQuickActions({
 								side="right"
 								sideOffset={4}
 							>
-								<DropdownMenuLabel>Choose a branch</DropdownMenuLabel>
-								{mergeCandidates.map((branch) => (
-									<DropdownMenuItem
-										closeOnClick
-										key={branch.fullName}
-										onClick={async () => {
-											await onMergeBranch(branch.name);
-										}}
-									>
-										<GitBranchIcon
-											aria-hidden
-											className="text-editor-faint"
-											weight="regular"
-										/>
-										<span className="min-w-0 flex-1 truncate">
-											{branch.name}
-										</span>
-									</DropdownMenuItem>
-								))}
+								<DropdownMenuGroup>
+									<DropdownMenuLabel>Choose a branch</DropdownMenuLabel>
+									{mergeCandidates.map((branch) => (
+										<DropdownMenuItem
+											closeOnClick
+											key={branch.fullName}
+											onClick={async () => {
+												await onMergeBranch(branch.name);
+											}}
+										>
+											<GitBranchIcon
+												aria-hidden
+												className="text-editor-faint"
+												weight="regular"
+											/>
+											<span className="min-w-0 flex-1 truncate">
+												{branch.name}
+											</span>
+										</DropdownMenuItem>
+									))}
+								</DropdownMenuGroup>
 							</LiquidMenuSubContent>
 						</LiquidMenuSub>
 					) : null}

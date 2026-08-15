@@ -349,14 +349,14 @@ function WorkspaceBranchActions({
 }: WorkspaceBranchActionsProps): ReactElement {
 	return (
 		<>
-			<DropdownMenuLabel className="flex flex-col gap-0.5 py-2 font-normal normal-case tracking-normal">
+			<div className="flex flex-col gap-0.5 px-2 py-2 font-normal text-[10px]">
 				<span className="truncate font-medium text-editor-ink">
 					{currentBranch || "Detached HEAD"}
 				</span>
 				<span className="truncate text-[9px] text-editor-faint">
 					{repositoryBranchTrackingLabel(currentBranchInfo)}
 				</span>
-			</DropdownMenuLabel>
+			</div>
 			<DropdownMenuSeparator />
 			<div
 				className={

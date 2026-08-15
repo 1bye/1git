@@ -1,7 +1,6 @@
 import type { StashInfo } from "@1git/git";
 import {
 	DropdownMenuItem,
-	DropdownMenuLabel,
 	DropdownMenuSeparator,
 } from "@1git/ui/components/dropdown-menu";
 import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/dist/csr/ArrowCounterClockwise";
@@ -85,9 +84,9 @@ function RepositoryStashMenuItem({
 								Keep stash
 							</DropdownMenuItem>
 							<DropdownMenuSeparator />
-							<DropdownMenuLabel className="py-2 font-normal text-xss normal-case leading-4 tracking-normal">
+							<p className="px-2 py-2 font-normal text-editor-faint text-xss leading-4">
 								Permanently remove “{stash.summary}”?
-							</DropdownMenuLabel>
+							</p>
 							<DropdownMenuItem
 								aria-label={`Drop stash ${stash.summary}`}
 								className="text-destructive focus:text-destructive"

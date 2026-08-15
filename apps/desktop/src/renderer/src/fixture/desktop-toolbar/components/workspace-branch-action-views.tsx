@@ -1,6 +1,7 @@
 import type { BranchInfo } from "@1git/git";
 import { Button } from "@1git/ui/components/button";
 import {
+	DropdownMenuGroup,
 	DropdownMenuItem,
 	DropdownMenuLabel,
 	DropdownMenuSeparator,
@@ -222,28 +223,30 @@ export function SetBranchUpstreamView({
 	return (
 		<>
 			<WorkspaceMenuBack label="Set upstream" onBack={onBack} />
-			<DropdownMenuLabel>Remote branch</DropdownMenuLabel>
-			<div className="max-h-64 overflow-y-auto overscroll-contain">
-				{remoteBranches.map((branch) => (
-					<DropdownMenuItem
-						closeOnClick={false}
-						disabled={isPending || branch.name === currentUpstream}
-						key={branch.fullName}
-						onClick={async () => await chooseUpstream(branch.name)}
-					>
-						{branch.name === currentUpstream ? (
-							<CheckIcon aria-hidden className="text-brand" weight="bold" />
-						) : (
-							<LinkSimpleIcon
-								aria-hidden
-								className="text-editor-faint"
-								weight="regular"
-							/>
-						)}
-						<span className="min-w-0 flex-1 truncate">{branch.name}</span>
-					</DropdownMenuItem>
-				))}
-			</div>
+			<DropdownMenuGroup>
+				<DropdownMenuLabel>Remote branch</DropdownMenuLabel>
+				<div className="max-h-64 overflow-y-auto overscroll-contain">
+					{remoteBranches.map((branch) => (
+						<DropdownMenuItem
+							closeOnClick={false}
+							disabled={isPending || branch.name === currentUpstream}
+							key={branch.fullName}
+							onClick={async () => await chooseUpstream(branch.name)}
+						>
+							{branch.name === currentUpstream ? (
+								<CheckIcon aria-hidden className="text-brand" weight="bold" />
+							) : (
+								<LinkSimpleIcon
+									aria-hidden
+									className="text-editor-faint"
+									weight="regular"
+								/>
+							)}
+							<span className="min-w-0 flex-1 truncate">{branch.name}</span>
+						</DropdownMenuItem>
+					))}
+				</div>
+			</DropdownMenuGroup>
 		</>
 	);
 }
@@ -274,24 +277,26 @@ export function DeleteBranchView({
 		return (
 			<>
 				<WorkspaceMenuBack label="Delete branch" onBack={onBack} />
-				<DropdownMenuLabel>Choose a local branch</DropdownMenuLabel>
-				<div className="max-h-64 overflow-y-auto overscroll-contain">
-					{branches.map((branch) => (
-						<DropdownMenuItem
-							closeOnClick={false}
-							disabled={isPending}
-							key={branch.fullName}
-							onClick={() => setTargetBranch(branch)}
-						>
-							<GitBranchIcon
-								aria-hidden
-								className="text-editor-faint"
-								weight="regular"
-							/>
-							<span className="min-w-0 flex-1 truncate">{branch.name}</span>
-						</DropdownMenuItem>
-					))}
-				</div>
+				<DropdownMenuGroup>
+					<DropdownMenuLabel>Choose a local branch</DropdownMenuLabel>
+					<div className="max-h-64 overflow-y-auto overscroll-contain">
+						{branches.map((branch) => (
+							<DropdownMenuItem
+								closeOnClick={false}
+								disabled={isPending}
+								key={branch.fullName}
+								onClick={() => setTargetBranch(branch)}
+							>
+								<GitBranchIcon
+									aria-hidden
+									className="text-editor-faint"
+									weight="regular"
+								/>
+								<span className="min-w-0 flex-1 truncate">{branch.name}</span>
+							</DropdownMenuItem>
+						))}
+					</div>
+				</DropdownMenuGroup>
 			</>
 		);
 	}
