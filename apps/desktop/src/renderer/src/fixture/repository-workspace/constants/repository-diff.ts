@@ -1,17 +1,16 @@
 import type {
 	BaseDiffOptions,
-	FileDiffOptions,
+	CodeViewLayout,
 	VirtualFileMetrics,
 } from "@pierre/diffs";
 
 export const REPOSITORY_DIFF_THEME = "github-light";
-export const REPOSITORY_DIFF_ELEMENT_NAME = "diffs-container";
 
 export const REPOSITORY_DIFF_RENDER_OPTIONS = {
 	collapsedContextThreshold: 3,
 	diffIndicators: "bars",
 	diffStyle: "unified",
-	disableFileHeader: true,
+	disableFileHeader: false,
 	expandUnchanged: false,
 	expansionLineCount: 20,
 	hunkSeparators: "line-info",
@@ -39,6 +38,50 @@ export const REPOSITORY_DIFF_RENDER_OPTIONS = {
 			--diffs-light: #24292e;
 			--diffs-light-bg: #ffffff;
 			--diffs-line-height: 20px;
+		}
+
+		[data-diffs-header="default"] {
+			gap: 8px;
+			height: 32px;
+			min-height: 32px;
+			padding-inline: 12px;
+		}
+
+		[data-header-content] {
+			flex: 1;
+			gap: 8px;
+		}
+
+		[data-header-content] [data-title] {
+			font-size: 11px;
+			font-weight: 600;
+		}
+
+		[data-diffs-header="default"] [data-metadata] {
+			gap: 8px;
+		}
+
+		[data-additions-count],
+		[data-deletions-count] {
+			display: none;
+		}
+
+		[data-file] {
+			--diffs-code-grid: 0 1fr;
+		}
+
+		[data-file] [data-code] {
+			padding-bottom: 0;
+		}
+
+		[data-file] [data-column-number],
+		[data-file] [data-line] {
+			display: none;
+		}
+
+		[data-file] [data-annotation-content] {
+			left: 0;
+			width: 100%;
 		}
 
 		pre {
@@ -168,18 +211,19 @@ export const REPOSITORY_DIFF_RENDER_OPTIONS = {
 	`,
 } as const satisfies BaseDiffOptions;
 
-export const REPOSITORY_DIFF_HUNK_ACTION_RENDER_OPTIONS = {
-	...REPOSITORY_DIFF_RENDER_OPTIONS,
-	enableGutterUtility: true,
-} as const satisfies FileDiffOptions<undefined>;
-
 export const REPOSITORY_DIFF_VIRTUAL_METRICS = {
-	diffHeaderHeight: 0,
-	hunkLineCount: 50,
+	diffHeaderHeight: 32,
+	hunkLineCount: 1,
 	hunkSeparatorHeight: 28,
 	lineHeight: 20,
 	spacing: 4,
 } as const satisfies VirtualFileMetrics;
+
+export const REPOSITORY_DIFF_CODE_VIEW_LAYOUT = {
+	gap: 1,
+	paddingBottom: 0,
+	paddingTop: 0,
+} as const satisfies CodeViewLayout;
 
 export const REPOSITORY_DIFF_EXPANDABLE_CONTEXT_LINES = 2_147_483_647;
 

@@ -1,20 +1,46 @@
 import { describe, expect, it } from "bun:test";
 import {
 	createRepositoryDiffActivePathScheduler,
-	getRepositoryDiffScrollEndPath,
-	scrollRepositoryDiffPathIntoView,
+	getRepositoryCodeViewActiveEntry,
 } from "@/fixture/repository-workspace/hooks/use-repository-diff-scroll-sync.js";
+import type { RepositoryDiffFileEntry } from "@/fixture/repository-workspace/lib/repository-diff-files.js";
 
 const paths = ["first.ts", "middle.ts", "last.ts"] as const;
+const entries = paths.map(
+	(path): RepositoryDiffFileEntry => ({
+		change: null,
+		file: null,
+		id: undefined,
+		key: path,
+		patchOmittedReason: undefined,
+		path,
+		stat: null,
+		target: { kind: "working" },
+		targetLabel: "Working tree",
+	})
+);
 
 const waitForTimers = (delayMs: number): Promise<void> =>
 	new Promise((resolve) => globalThis.setTimeout(resolve, delayMs));
 
-const fileElement = (path: string, top: number): HTMLElement =>
-	({
-		dataset: { repositoryDiffPath: path },
-		getBoundingClientRect: () => ({ bottom: top + 30, top }),
-	}) as unknown as HTMLElement;
+const createViewer = ({
+	height = 600,
+	scrollHeight = 1600,
+	tops = [0, 400, 900],
+}: {
+	readonly height?: number;
+	readonly scrollHeight?: number;
+	readonly tops?: readonly number[];
+} = {}) => {
+	const topsById = new Map(
+		entries.map((entry, index) => [entry.key, tops[index]])
+	);
+	return {
+		getHeight: () => height,
+		getScrollHeight: () => scrollHeight,
+		getTopForItem: (id: string) => topsById.get(id),
+	};
+};
 
 describe("repository diff scroll synchronization", () => {
 	it("coalesces rapid active-file changes to the latest path", async () => {
@@ -38,76 +64,35 @@ describe("repository diff scroll synchronization", () => {
 		expect(committedPaths).toEqual(["last.ts"]);
 	});
 
+	it("selects the item whose top owns the sticky header position", () => {
+		expect(
+			getRepositoryCodeViewActiveEntry(entries, createViewer(), 0)?.path
+		).toBe("first.ts");
+		expect(
+			getRepositoryCodeViewActiveEntry(entries, createViewer(), 360)?.path
+		).toBe("middle.ts");
+		expect(
+			getRepositoryCodeViewActiveEntry(entries, createViewer(), 850)?.path
+		).toBe("last.ts");
+	});
+
 	it("selects the last file at the bottom of an overflowing diff", () => {
 		expect(
-			getRepositoryDiffScrollEndPath(
-				{
-					clientHeight: 600,
-					scrollHeight: 1600,
-					scrollTop: 1000,
-				},
-				paths
-			)
+			getRepositoryCodeViewActiveEntry(entries, createViewer(), 1000)?.path
 		).toBe("last.ts");
 	});
 
-	it("tolerates fractional scroll positions at the bottom", () => {
+	it("does not force the last file in a non-scrollable diff", () => {
 		expect(
-			getRepositoryDiffScrollEndPath(
-				{
-					clientHeight: 600,
-					scrollHeight: 1600,
-					scrollTop: 999.4,
-				},
-				paths
-			)
-		).toBe("last.ts");
+			getRepositoryCodeViewActiveEntry(
+				entries,
+				createViewer({ height: 600, scrollHeight: 600 }),
+				0
+			)?.path
+		).toBe("first.ts");
 	});
 
-	it("leaves normal and non-scrollable positions to intersection sync", () => {
-		expect(
-			getRepositoryDiffScrollEndPath(
-				{
-					clientHeight: 600,
-					scrollHeight: 1600,
-					scrollTop: 800,
-				},
-				paths
-			)
-		).toBeNull();
-		expect(
-			getRepositoryDiffScrollEndPath(
-				{
-					clientHeight: 600,
-					scrollHeight: 600,
-					scrollTop: 0,
-				},
-				paths
-			)
-		).toBeNull();
-	});
-
-	it("scrolls an externally selected file to the diff viewport start", () => {
-		const files = [fileElement("first.ts", 120), fileElement("middle.ts", 420)];
-		const container = {
-			getBoundingClientRect: () => ({ bottom: 700, top: 100 }),
-			querySelectorAll: () => files,
-			scrollTop: 200,
-		} as unknown as HTMLElement;
-
-		expect(scrollRepositoryDiffPathIntoView(container, "middle.ts")).toBe(true);
-		expect(container.scrollTop).toBe(520);
-	});
-
-	it("does not move the viewport when the selected diff file is absent", () => {
-		const container = {
-			querySelectorAll: () => [fileElement("first.ts", 120)],
-			scrollTop: 200,
-		} as unknown as HTMLElement;
-
-		expect(scrollRepositoryDiffPathIntoView(container, "missing.ts")).toBe(
-			false
-		);
-		expect(container.scrollTop).toBe(200);
+	it("handles an empty CodeView", () => {
+		expect(getRepositoryCodeViewActiveEntry([], createViewer(), 0)).toBeNull();
 	});
 });

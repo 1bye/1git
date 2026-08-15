@@ -26,8 +26,6 @@ import { RepositoryHistoryRail } from "@/fixture/repository-workspace/components
 import { RepositoryStashRail } from "@/fixture/repository-workspace/components/repository-revision-rail.js";
 import { RepositoryWorkspaceToolbar } from "@/fixture/repository-workspace/components/repository-workspace-toolbar.js";
 import { useRepositoryFileNavigation } from "@/fixture/repository-workspace/hooks/use-repository-file-navigation.js";
-import { getRepositoryDiffElementId } from "@/fixture/repository-workspace/lib/repository-navigation.js";
-import { scrollElementIntoViewport } from "@/fixture/repository-workspace/lib/scroll-element-into-viewport.js";
 import type { RepositorySessionRecord } from "../../../../../shared/repository-session.js";
 
 export interface RepositoryNavigationRailProps {
@@ -166,17 +164,6 @@ export function RepositoryNavigationRail({
 	const selectFileAndReveal = useCallback(
 		async (file: FileChange): Promise<void> => {
 			await selectFileRef.current(file);
-			const diffElement = document.getElementById(
-				getRepositoryDiffElementId(file.path)
-			);
-			const diffViewport = diffElement?.closest<HTMLElement>(
-				"[data-repository-diff-viewport]"
-			);
-			if (diffElement && diffViewport) {
-				scrollElementIntoViewport(diffViewport, diffElement, {
-					block: "start",
-				});
-			}
 		},
 		[]
 	);

@@ -1,24 +1,26 @@
-import type { RefObject } from "react";
-import { useEffect, useLayoutEffect, useRef } from "react";
-import { scrollElementIntoViewport } from "@/fixture/repository-workspace/lib/scroll-element-into-viewport.js";
+import type { CodeView } from "@pierre/diffs";
+import type { CodeViewHandle } from "@pierre/diffs/react";
+import {
+	type RefObject,
+	useCallback,
+	useEffect,
+	useLayoutEffect,
+	useRef,
+} from "react";
+import type { RepositoryCodeViewAnnotation } from "@/fixture/repository-workspace/lib/repository-code-view.js";
+import type { RepositoryDiffFileEntry } from "@/fixture/repository-workspace/lib/repository-diff-files.js";
 
 interface UseRepositoryDiffScrollSyncOptions {
 	readonly activePath: string | null;
-	readonly containerRef: RefObject<HTMLElement | null>;
 	readonly contentKey: string;
+	readonly entries: readonly RepositoryDiffFileEntry[];
 	readonly onActivePathChange: (path: string) => void;
+	readonly viewerRef: RefObject<CodeViewHandle<RepositoryCodeViewAnnotation> | null>;
 }
 
-const DIFF_FILE_SELECTOR = "[data-repository-diff-path]";
 const ACTIVE_PATH_SETTLE_MS = 80;
 const DIFF_HEADER_OFFSET = 58;
 const SCROLL_END_EPSILON = 1;
-
-interface RepositoryDiffScrollPosition {
-	readonly clientHeight: number;
-	readonly scrollHeight: number;
-	readonly scrollTop: number;
-}
 
 interface RepositoryDiffActivePathScheduler {
 	readonly cancel: () => void;
@@ -60,51 +62,77 @@ export const createRepositoryDiffActivePathScheduler = (
 	return { cancel, flush, schedule };
 };
 
-export const getRepositoryDiffScrollEndPath = (
-	position: RepositoryDiffScrollPosition,
-	paths: readonly string[]
-): string | null => {
-	const hasScrollableOverflow =
-		position.scrollHeight > position.clientHeight + SCROLL_END_EPSILON;
-	const isAtScrollEnd =
-		position.scrollTop + position.clientHeight >=
-		position.scrollHeight - SCROLL_END_EPSILON;
-	return hasScrollableOverflow && isAtScrollEnd ? (paths.at(-1) ?? null) : null;
-};
-
-export const scrollRepositoryDiffPathIntoView = (
-	container: HTMLElement,
-	path: string
-): boolean => {
-	const file = [
-		...container.querySelectorAll<HTMLElement>(DIFF_FILE_SELECTOR),
-	].find((candidate) => candidate.dataset.repositoryDiffPath === path);
-	if (!file) {
-		return false;
+export const getRepositoryCodeViewActiveEntry = (
+	entries: readonly RepositoryDiffFileEntry[],
+	viewer: Pick<
+		CodeView<RepositoryCodeViewAnnotation>,
+		"getHeight" | "getScrollHeight" | "getTopForItem"
+	>,
+	scrollTop: number
+): RepositoryDiffFileEntry | null => {
+	if (entries.length === 0) {
+		return null;
 	}
-	scrollElementIntoViewport(container, file, { block: "start" });
-	return true;
+	if (
+		viewer.getScrollHeight() > viewer.getHeight() + SCROLL_END_EPSILON &&
+		scrollTop + viewer.getHeight() >=
+			viewer.getScrollHeight() - SCROLL_END_EPSILON
+	) {
+		return entries.at(-1) ?? null;
+	}
+	const viewportTop = scrollTop + DIFF_HEADER_OFFSET;
+	let low = 0;
+	let high = entries.length - 1;
+	let activeIndex = 0;
+	while (low <= high) {
+		const middle = Math.floor((low + high) / 2);
+		const entry = entries[middle];
+		const itemTop = entry ? viewer.getTopForItem(entry.key) : undefined;
+		if (itemTop === undefined || itemTop > viewportTop) {
+			high = middle - 1;
+		} else {
+			activeIndex = middle;
+			low = middle + 1;
+		}
+	}
+	return entries[activeIndex] ?? null;
 };
 
 export const useRepositoryDiffScrollSync = ({
 	activePath,
-	containerRef,
 	contentKey,
+	entries,
 	onActivePathChange,
-}: UseRepositoryDiffScrollSyncOptions): void => {
+	viewerRef,
+}: UseRepositoryDiffScrollSyncOptions): ((
+	scrollTop: number,
+	viewer: CodeView<RepositoryCodeViewAnnotation>
+) => void) => {
 	const activePathRef = useRef(activePath);
+	const entriesRef = useRef(entries);
 	const observedActivePathRef = useRef<string | null>(null);
 	const onActivePathChangeRef = useRef(onActivePathChange);
-	const activePathSchedulerRef =
-		useRef<RepositoryDiffActivePathScheduler | null>(null);
 	const synchronizingActivePathRef = useRef<string | null>(null);
+	const schedulerRef = useRef<RepositoryDiffActivePathScheduler | null>(null);
 	activePathRef.current = activePath;
+	entriesRef.current = entries;
 	onActivePathChangeRef.current = onActivePathChange;
 
+	if (schedulerRef.current === null) {
+		schedulerRef.current = createRepositoryDiffActivePathScheduler((path) => {
+			if (path === activePathRef.current) {
+				return;
+			}
+			activePathRef.current = path;
+			observedActivePathRef.current = path;
+			onActivePathChangeRef.current(path);
+		});
+	}
+
 	useLayoutEffect(() => {
-		activePathSchedulerRef.current?.cancel();
-		const container = containerRef.current;
-		if (!(container && activePath && contentKey)) {
+		const scheduler = schedulerRef.current;
+		scheduler?.cancel();
+		if (!(activePath && contentKey)) {
 			synchronizingActivePathRef.current = null;
 			return;
 		}
@@ -113,119 +141,56 @@ export const useRepositoryDiffScrollSync = ({
 		if (wasObservedPath) {
 			return;
 		}
-		synchronizingActivePathRef.current = activePath;
-		if (!scrollRepositoryDiffPathIntoView(container, activePath)) {
+		const entry = entriesRef.current.find(
+			(candidate) => candidate.path === activePath
+		);
+		if (!entry) {
 			synchronizingActivePathRef.current = null;
 			return;
 		}
+		synchronizingActivePathRef.current = activePath;
+		viewerRef.current?.scrollTo({
+			align: "start",
+			behavior: "instant",
+			id: entry.key,
+			type: "item",
+		});
 		const frameId = requestAnimationFrame(() => {
 			if (synchronizingActivePathRef.current === activePath) {
 				synchronizingActivePathRef.current = null;
 			}
 		});
-		return () => {
-			cancelAnimationFrame(frameId);
-		};
-	}, [activePath, containerRef, contentKey]);
+		return () => cancelAnimationFrame(frameId);
+	}, [activePath, contentKey, viewerRef]);
 
-	useEffect(() => {
-		const container = containerRef.current;
-		if (!container) {
-			return;
-		}
+	useEffect(
+		() => () => {
+			schedulerRef.current?.cancel();
+		},
+		[]
+	);
 
-		const files = container.querySelectorAll<HTMLElement>(DIFF_FILE_SELECTOR);
-		if (!(contentKey || files.length > 0)) {
-			return;
-		}
-		const filePaths = [...files].flatMap((file) => {
-			const path = file.dataset.repositoryDiffPath;
-			return path ? [path] : [];
-		});
-		const changeActivePath = (path: string | null): void => {
+	return useCallback(
+		(
+			scrollTop: number,
+			viewer: CodeView<RepositoryCodeViewAnnotation>
+		): void => {
+			const entry = getRepositoryCodeViewActiveEntry(
+				entriesRef.current,
+				viewer,
+				scrollTop
+			);
+			if (!entry) {
+				return;
+			}
 			if (synchronizingActivePathRef.current) {
-				if (path === synchronizingActivePathRef.current) {
+				if (entry.path === synchronizingActivePathRef.current) {
 					synchronizingActivePathRef.current = null;
 				}
 				return;
 			}
-			if (path && path !== activePathRef.current) {
-				activePathRef.current = path;
-				observedActivePathRef.current = path;
-				onActivePathChangeRef.current(path);
-			}
-		};
-		const activePathScheduler =
-			createRepositoryDiffActivePathScheduler(changeActivePath);
-		activePathSchedulerRef.current = activePathScheduler;
-		const scheduleActivePathChange = (path: string | null): void => {
-			if (synchronizingActivePathRef.current) {
-				changeActivePath(path);
-				return;
-			}
-			if (!path) {
-				return;
-			}
-			activePathScheduler.schedule(path);
-		};
-		const getScrollEndPath = (): string | null =>
-			getRepositoryDiffScrollEndPath(container, filePaths);
-		const handleScroll = (): void => {
-			scheduleActivePathChange(getScrollEndPath());
-		};
-		let intersectionObserver: IntersectionObserver | null = null;
-		const observeFiles = (containerHeight: number): void => {
-			intersectionObserver?.disconnect();
-			const bottomInset = Math.max(
-				0,
-				Math.round(containerHeight) - DIFF_HEADER_OFFSET - 1
-			);
-			intersectionObserver = new IntersectionObserver(
-				(entries) => {
-					const scrollEndPath = getScrollEndPath();
-					if (scrollEndPath) {
-						scheduleActivePathChange(scrollEndPath);
-						return;
-					}
-					const activeEntry = entries.find((entry) => entry.isIntersecting);
-					if (!(activeEntry?.target instanceof HTMLElement)) {
-						return;
-					}
-					scheduleActivePathChange(
-						activeEntry.target.dataset.repositoryDiffPath ?? null
-					);
-				},
-				{
-					root: container,
-					rootMargin: `-${DIFF_HEADER_OFFSET}px 0px -${bottomInset}px 0px`,
-					threshold: 0,
-				}
-			);
-			for (const file of files) {
-				intersectionObserver.observe(file);
-			}
-		};
-
-		container.addEventListener("scroll", handleScroll, { passive: true });
-		container.addEventListener("scrollend", activePathScheduler.flush);
-		observeFiles(container.clientHeight);
-		const resizeObserver = new ResizeObserver((entries) => {
-			const [containerEntry] = entries;
-			if (containerEntry) {
-				observeFiles(containerEntry.contentRect.height);
-			}
-		});
-		resizeObserver.observe(container);
-
-		return () => {
-			container.removeEventListener("scroll", handleScroll);
-			container.removeEventListener("scrollend", activePathScheduler.flush);
-			activePathScheduler.cancel();
-			if (activePathSchedulerRef.current === activePathScheduler) {
-				activePathSchedulerRef.current = null;
-			}
-			intersectionObserver?.disconnect();
-			resizeObserver.disconnect();
-		};
-	}, [containerRef, contentKey]);
+			schedulerRef.current?.schedule(entry.path);
+		},
+		[]
+	);
 };
