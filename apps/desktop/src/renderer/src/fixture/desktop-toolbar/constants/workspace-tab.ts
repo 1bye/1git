@@ -13,12 +13,15 @@ export const WORKSPACE_TAB_SURFACE_MOTION = {
 	offscreenRevealDurationMs: 140,
 } as const;
 
+const WORKSPACE_CONTAINER_RADIUS = 14;
+
 /** Adjust the active tab and SDF fusion geometry from this single object. */
 export const WORKSPACE_TAB_SURFACE_GEOMETRY = {
 	blendRadius: 12,
 	containerDepth: 48,
 	containerOverlap: 1,
-	containerRadius: 14,
+	containerRadius: WORKSPACE_CONTAINER_RADIUS,
+	containerRenderDepth: WORKSPACE_CONTAINER_RADIUS,
 	outlineWidth: 1,
 	sampleCellSize: 2,
 	smoothingPasses: 1,

@@ -28,7 +28,7 @@ export function WorkspaceLiquidSurface({
 			: {
 					height:
 						WORKSPACE_TAB_SURFACE_GEOMETRY.toolbarHeight +
-						WORKSPACE_TAB_SURFACE_GEOMETRY.containerOverlap,
+						WORKSPACE_TAB_SURFACE_GEOMETRY.containerRenderDepth,
 					width: surfaceWidth,
 				};
 
@@ -46,7 +46,7 @@ export function WorkspaceLiquidSurface({
 					data-name="WorkspaceLiquidSurface"
 					preserveAspectRatio="none"
 					style={surfaceStyle}
-					viewBox={`0 0 ${surfaceWidth} ${WORKSPACE_TAB_SURFACE_GEOMETRY.toolbarHeight + WORKSPACE_TAB_SURFACE_GEOMETRY.containerOverlap}`}
+					viewBox={`0 0 ${surfaceWidth} ${WORKSPACE_TAB_SURFACE_GEOMETRY.toolbarHeight + WORKSPACE_TAB_SURFACE_GEOMETRY.containerRenderDepth}`}
 				>
 					<title>Active workspace surface</title>
 					<path d={path} data-name="WorkspaceLiquidSurfaceFill" />

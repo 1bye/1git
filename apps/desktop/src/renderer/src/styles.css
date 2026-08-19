@@ -168,6 +168,23 @@ button {
 	display: none;
 }
 
+[data-name="RepositoryNavigationRail"]
+	:is(
+		[data-repository-file-viewport],
+		[data-repository-revision-navigation-viewport]
+	) {
+	scrollbar-width: none;
+}
+
+[data-name="RepositoryNavigationRail"]
+	:is(
+		[data-repository-file-viewport],
+		[data-repository-revision-navigation-viewport]
+	)::-webkit-scrollbar,
+[data-name="RepositoryNavigationRail"] [data-slot="scroll-area-scrollbar"] {
+	display: none;
+}
+
 .workspace-tab-edge-mask {
 	--workspace-tabs-leading-mask-alpha: 1;
 	--workspace-tabs-trailing-mask-alpha: 1;

@@ -533,6 +533,9 @@ describe("workspace liquid geometry", () => {
 	test("keeps a connected tab flush through the outer workspace corner", () => {
 		const geometry = WORKSPACE_TAB_SURFACE_GEOMETRY;
 		const surfaceWidth = 320.5;
+		expect(geometry.containerRenderDepth).toBeGreaterThanOrEqual(
+			geometry.containerRadius
+		);
 
 		for (const edge of ["left", "right"] as const) {
 			const measurement = createEdgeMeasurement(surfaceWidth, edge);
