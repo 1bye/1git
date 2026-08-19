@@ -128,7 +128,7 @@ describe("repository file liquid geometry", () => {
 		);
 	});
 
-	it("keeps an inset history row connected to its right-side shelf", () => {
+	it("connects an inset history row without widening its trailing edge", () => {
 		const measurement = createRepositoryFileLiquidMeasurement(
 			surface,
 			{
@@ -156,12 +156,18 @@ describe("repository file liquid geometry", () => {
 		}
 		const path = createRepositoryFileLiquidPath(measurement);
 		const rowConnectionX = measurement.rowLeft + measurement.rowWidth;
+		const rowConnectionYs = getPathCoordinates(path)
+			.filter(([x]) => Math.abs(x - rowConnectionX) <= 2)
+			.map(([, y]) => y);
 		const connectorCenterX = (rowConnectionX + measurement.canvasEdgeX) / 2;
 		const connectorYs = getPathCoordinates(path)
 			.filter(([x]) => Math.abs(x - connectorCenterX) <= 2)
 			.map(([, y]) => y);
 		expect(path.match(/M /g)).toHaveLength(1);
 		expect(path).not.toContain("NaN");
+		expect(
+			Math.max(...rowConnectionYs) - Math.min(...rowConnectionYs)
+		).toBeLessThanOrEqual(measurement.rowHeight * 1.05);
 		expect(Math.max(...connectorYs) - Math.min(...connectorYs)).toBeGreaterThan(
 			measurement.rowHeight * 0.9
 		);

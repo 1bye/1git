@@ -29,7 +29,7 @@ const BLEND_RADIUS = 20;
 const CANVAS_OVERLAP = BLEND_RADIUS;
 const MEASUREMENT_SCALE = 10;
 const ROW_RADIUS = 8;
-const CONNECTOR_OVERLAP = ROW_RADIUS;
+const CONNECTION_GAP = ROW_RADIUS / 2;
 const SAMPLE_CELL_SIZE = 2;
 const SMOOTHING_PASSES = 1;
 const SURFACE_PADDING = BLEND_RADIUS + SAMPLE_CELL_SIZE;
@@ -104,6 +104,11 @@ export const createRepositoryFileLiquidPath = (
 	const connectionLeft = Math.min(measurement.canvasEdgeX, rowConnectionX);
 	const connectionRight = Math.max(measurement.canvasEdgeX, rowConnectionX);
 	const connectionGap = connectionRight - connectionLeft;
+	const rowExtension = Math.max(0, connectionGap - CONNECTION_GAP);
+	const rowCenterX =
+		measurement.rowLeft +
+		measurement.rowWidth / 2 +
+		(measurement.canvasSide === "left" ? -rowExtension / 2 : rowExtension / 2);
 	const boxes: RoundedBox[] = [
 		{
 			centerX: (canvasLeft + canvasRight) / 2,
@@ -113,22 +118,13 @@ export const createRepositoryFileLiquidPath = (
 			radius: 0,
 		},
 		{
-			centerX: measurement.rowLeft + measurement.rowWidth / 2,
+			centerX: rowCenterX,
 			centerY: rowCenterY,
 			halfHeight: measurement.rowHeight / 2,
-			halfWidth: measurement.rowWidth / 2,
+			halfWidth: measurement.rowWidth / 2 + rowExtension / 2,
 			radius: ROW_RADIUS,
 		},
 	];
-	if (connectionGap > BLEND_RADIUS / 2) {
-		boxes.push({
-			centerX: (connectionLeft + connectionRight) / 2,
-			centerY: rowCenterY,
-			halfHeight: measurement.rowHeight / 2,
-			halfWidth: connectionGap / 2 + CONNECTOR_OVERLAP,
-			radius: ROW_RADIUS,
-		});
-	}
 
 	return createLiquidUnionPath({
 		blendRadius: BLEND_RADIUS,
