@@ -420,7 +420,7 @@ button {
 
 @keyframes repository-revision-liquid-reveal {
 	from {
-		clip-path: inset(0 0 0 100%);
+		clip-path: inset(0 100% 0 0);
 	}
 
 	to {

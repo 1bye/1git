@@ -261,12 +261,6 @@ export function RepositoryDiffWorkspace({
 			data-layout="adaptive"
 			data-name="AdaptiveRepositoryWorkspace"
 		>
-			<main
-				className="relative z-0 min-h-0 min-w-0 flex-1 overflow-hidden bg-editor-surface"
-				data-name="RepositoryDiffCanvas"
-			>
-				{mainContent}
-			</main>
 			<RepositoryRevisionFileRail
 				diffs={diffs}
 				entries={diffEntries}
@@ -279,6 +273,12 @@ export function RepositoryDiffWorkspace({
 				selectedStash={selectedStash}
 				tab={tab}
 			/>
+			<main
+				className="relative z-0 min-h-0 min-w-0 flex-1 overflow-hidden bg-editor-surface"
+				data-name="RepositoryDiffCanvas"
+			>
+				{mainContent}
+			</main>
 		</section>
 	);
 }

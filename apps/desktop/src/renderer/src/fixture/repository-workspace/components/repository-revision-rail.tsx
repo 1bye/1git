@@ -277,7 +277,7 @@ export function RepositoryRevisionFileRail({
 			data-state={isOpen ? "open" : "closed"}
 			inert={isOpen ? undefined : true}
 		>
-			<div className="absolute inset-y-0 right-0 flex w-(--repository-context-rail-width) flex-col">
+			<div className="absolute inset-y-0 left-0 flex w-(--repository-context-rail-width) flex-col">
 				<header
 					className="relative z-20 flex shrink-0 items-center justify-end px-2"
 					data-desktop-drag

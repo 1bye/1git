@@ -1,4 +1,7 @@
-import { createLiquidUnionPath } from "@/fixture/liquid-surface/lib/liquid-surface-geometry.js";
+import {
+	createLiquidUnionPath,
+	type RoundedBox,
+} from "@/fixture/liquid-surface/lib/liquid-surface-geometry.js";
 
 export interface RepositoryFileLiquidRect {
 	readonly height: number;
@@ -9,6 +12,7 @@ export interface RepositoryFileLiquidRect {
 
 export interface RepositoryFileLiquidMeasurement {
 	readonly canvasEdgeX: number;
+	readonly canvasSide: "left" | "right";
 	readonly clipBottom: number;
 	readonly clipTop: number;
 	readonly rowHeight: number;
@@ -25,6 +29,7 @@ const BLEND_RADIUS = 20;
 const CANVAS_OVERLAP = BLEND_RADIUS;
 const MEASUREMENT_SCALE = 10;
 const ROW_RADIUS = 8;
+const CONNECTOR_OVERLAP = ROW_RADIUS;
 const SAMPLE_CELL_SIZE = 2;
 const SMOOTHING_PASSES = 1;
 const SURFACE_PADDING = BLEND_RADIUS + SAMPLE_CELL_SIZE;
@@ -46,10 +51,19 @@ export const createRepositoryFileLiquidMeasurement = (
 		return null;
 	}
 
+	const canvasCenter = canvas.left + canvas.width / 2;
 	const canvasRight = canvas.left + canvas.width;
+	const rowCenter = row.left + row.width / 2;
 	const rowRight = row.left + row.width;
-	const surfaceLeft = canvasRight - CANVAS_OVERLAP;
-	const surfaceRight = rowRight + SURFACE_PADDING;
+	const canvasSide = canvasCenter < rowCenter ? "left" : "right";
+	const surfaceLeft =
+		canvasSide === "left"
+			? canvasRight - CANVAS_OVERLAP
+			: row.left - SURFACE_PADDING;
+	const surfaceRight =
+		canvasSide === "left"
+			? rowRight + SURFACE_PADDING
+			: canvas.left + CANVAS_OVERLAP;
 	const surfaceTop = row.top - SURFACE_PADDING;
 	const surfaceBottom = rowBottom + SURFACE_PADDING;
 	if (surfaceRight <= surfaceLeft || surfaceBottom <= surfaceTop) {
@@ -57,7 +71,10 @@ export const createRepositoryFileLiquidMeasurement = (
 	}
 
 	return {
-		canvasEdgeX: roundMeasurement(canvasRight - surfaceLeft),
+		canvasEdgeX: roundMeasurement(
+			(canvasSide === "left" ? canvasRight : canvas.left) - surfaceLeft
+		),
+		canvasSide,
 		clipBottom: roundMeasurement(Math.max(0, surfaceBottom - viewportBottom)),
 		clipTop: roundMeasurement(Math.max(0, viewport.top - surfaceTop)),
 		rowHeight: roundMeasurement(row.height),
@@ -75,27 +92,47 @@ export const createRepositoryFileLiquidPath = (
 	measurement: RepositoryFileLiquidMeasurement
 ): string => {
 	const rowCenterY = measurement.rowTop + measurement.rowHeight / 2;
-	const canvasLeft = -BLEND_RADIUS;
-	const canvasRight = measurement.canvasEdgeX;
+	const rowRight = measurement.rowLeft + measurement.rowWidth;
+	const canvasLeft =
+		measurement.canvasSide === "left" ? -BLEND_RADIUS : measurement.canvasEdgeX;
+	const canvasRight =
+		measurement.canvasSide === "left"
+			? measurement.canvasEdgeX
+			: measurement.surfaceWidth + BLEND_RADIUS;
+	const rowConnectionX =
+		measurement.canvasSide === "left" ? measurement.rowLeft : rowRight;
+	const connectionLeft = Math.min(measurement.canvasEdgeX, rowConnectionX);
+	const connectionRight = Math.max(measurement.canvasEdgeX, rowConnectionX);
+	const connectionGap = connectionRight - connectionLeft;
+	const boxes: RoundedBox[] = [
+		{
+			centerX: (canvasLeft + canvasRight) / 2,
+			centerY: measurement.surfaceHeight / 2,
+			halfHeight: measurement.surfaceHeight / 2 + BLEND_RADIUS,
+			halfWidth: (canvasRight - canvasLeft) / 2,
+			radius: 0,
+		},
+		{
+			centerX: measurement.rowLeft + measurement.rowWidth / 2,
+			centerY: rowCenterY,
+			halfHeight: measurement.rowHeight / 2,
+			halfWidth: measurement.rowWidth / 2,
+			radius: ROW_RADIUS,
+		},
+	];
+	if (connectionGap > BLEND_RADIUS / 2) {
+		boxes.push({
+			centerX: (connectionLeft + connectionRight) / 2,
+			centerY: rowCenterY,
+			halfHeight: measurement.rowHeight / 2,
+			halfWidth: connectionGap / 2 + CONNECTOR_OVERLAP,
+			radius: ROW_RADIUS,
+		});
+	}
 
 	return createLiquidUnionPath({
 		blendRadius: BLEND_RADIUS,
-		boxes: [
-			{
-				centerX: (canvasLeft + canvasRight) / 2,
-				centerY: measurement.surfaceHeight / 2,
-				halfHeight: measurement.surfaceHeight / 2 + BLEND_RADIUS,
-				halfWidth: (canvasRight - canvasLeft) / 2,
-				radius: 0,
-			},
-			{
-				centerX: measurement.rowLeft + measurement.rowWidth / 2,
-				centerY: rowCenterY,
-				halfHeight: measurement.rowHeight / 2,
-				halfWidth: measurement.rowWidth / 2,
-				radius: ROW_RADIUS,
-			},
-		],
+		boxes,
 		sampleCellSize: SAMPLE_CELL_SIZE,
 		smoothingPasses: SMOOTHING_PASSES,
 		surfaceHeight: measurement.surfaceHeight,
@@ -108,6 +145,7 @@ export const hasSameRepositoryFileLiquidPathGeometry = (
 	next: RepositoryFileLiquidMeasurement
 ): boolean =>
 	current.canvasEdgeX === next.canvasEdgeX &&
+	current.canvasSide === next.canvasSide &&
 	current.rowHeight === next.rowHeight &&
 	current.rowLeft === next.rowLeft &&
 	current.rowTop === next.rowTop &&

@@ -10,6 +10,12 @@ const surface = readSource(
 const workspace = readSource(
 	"../src/renderer/src/fixture/repository-workspace/components/repository-workspace.tsx"
 );
+const diffWorkspace = readSource(
+	"../src/renderer/src/fixture/repository-workspace/components/repository-diff-workspace.tsx"
+);
+const revisionRail = readSource(
+	"../src/renderer/src/fixture/repository-workspace/components/repository-revision-rail.tsx"
+);
 const styles = readSource("../src/renderer/src/styles.css");
 
 describe("repository revision liquid surface", () => {
@@ -24,11 +30,25 @@ describe("repository revision liquid surface", () => {
 	});
 
 	test("reveals from the revision row toward the shelf", () => {
+		const revisionReveal = styles.slice(
+			styles.indexOf("@keyframes repository-revision-liquid-reveal"),
+			styles.indexOf('[data-name="RepositoryFileLiquidSurface"]')
+		);
 		expect(styles).toContain("@keyframes repository-revision-liquid-reveal");
-		expect(styles).toContain("clip-path: inset(0 0 0 100%);");
+		expect(revisionReveal).toContain("clip-path: inset(0 100% 0 0);");
+		expect(revisionReveal).not.toContain("clip-path: inset(0 0 0 100%);");
 		expect(styles).toContain(
 			'[data-name="RepositoryRevisionLiquidSurfaceFill"]'
 		);
 		expect(styles).toContain("fill: var(--editor-sunken-2);");
+	});
+
+	test("places the revision file shelf before the diff canvas", () => {
+		expect(diffWorkspace.indexOf("<RepositoryRevisionFileRail")).toBeLessThan(
+			diffWorkspace.indexOf('data-name="RepositoryDiffCanvas"')
+		);
+		expect(revisionRail).toContain(
+			'className="absolute inset-y-0 left-0 flex w-(--repository-context-rail-width) flex-col"'
+		);
 	});
 });

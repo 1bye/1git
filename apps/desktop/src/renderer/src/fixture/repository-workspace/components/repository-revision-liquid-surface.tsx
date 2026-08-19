@@ -46,6 +46,7 @@ const hasSameMeasurement = (
 	}
 	return (
 		current.canvasEdgeX === next.canvasEdgeX &&
+		current.canvasSide === next.canvasSide &&
 		current.clipBottom === next.clipBottom &&
 		current.clipTop === next.clipTop &&
 		current.rowHeight === next.rowHeight &&
