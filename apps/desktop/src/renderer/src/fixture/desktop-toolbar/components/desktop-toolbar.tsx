@@ -456,6 +456,18 @@ export function DesktopToolbar({
 							plugins={TAB_DRAG_PLUGINS}
 							sensors={TAB_DRAG_SENSORS}
 						>
+							<RepositoryMenu
+								isOpen={isRepositoryMenuOpen}
+								isVisible={hasOpenWorkspaces}
+								navigationOrder={0}
+								onForgetRecent={onForgetRecent}
+								onOpenChange={setRepositoryMenuOpen}
+								onOpenRecent={onOpenRecent}
+								onPickRepository={onPickRepository}
+								pendingAction={pendingAction}
+								recentRepositories={recentRepositories}
+								workspaces={workspaces}
+							/>
 							<div
 								aria-label="Open repository workspaces"
 								aria-orientation="horizontal"
@@ -527,18 +539,6 @@ export function DesktopToolbar({
 									);
 								})}
 							</div>
-							<RepositoryMenu
-								isOpen={isRepositoryMenuOpen}
-								isVisible={hasOpenWorkspaces}
-								navigationOrder={workspaces.length + 1}
-								onForgetRecent={onForgetRecent}
-								onOpenChange={setRepositoryMenuOpen}
-								onOpenRecent={onOpenRecent}
-								onPickRepository={onPickRepository}
-								pendingAction={pendingAction}
-								recentRepositories={recentRepositories}
-								workspaces={workspaces}
-							/>
 							<DragOverlay
 								dropAnimation={TAB_DROP_ANIMATION}
 								style={TAB_OVERLAY_STYLE}

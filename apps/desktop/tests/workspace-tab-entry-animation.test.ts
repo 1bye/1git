@@ -43,4 +43,11 @@ describe("workspace tab entry animation", () => {
 		expect(animationHandler).toContain("setIsEntering(false);");
 		expect(animationHandler).toContain("await finishClosingWorkspace(event);");
 	});
+
+	test("keeps the repository menu fixed before the scrollable tabs", () => {
+		expect(desktopToolbar.indexOf("<RepositoryMenu")).toBeLessThan(
+			desktopToolbar.indexOf('data-name="WorkspaceTabList"')
+		);
+		expect(desktopToolbar).toContain("navigationOrder={0}");
+	});
 });
