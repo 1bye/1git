@@ -5,8 +5,8 @@
     "jsxImportSource": "@gpuix/react",
     "lib": ["ESNext"],
     "strictNullChecks": true,
-    "types": ["bun", "node", "react"]
+    "types": ["bun", "react"]
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts"],
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
   "exclude": ["node_modules", "dist"]
 }
