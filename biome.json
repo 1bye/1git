@@ -71,11 +71,26 @@
   },
   "overrides": [
     {
-      "includes": ["apps/desktop/src/renderer/src/**/*.tsx"],
+      "includes": [
+        "apps/desktop/src/renderer/src/**/*.tsx",
+        "apps/gpuix/src/**/*.tsx"
+      ],
       "linter": {
         "rules": {
           "performance": {
             "noJsxPropsBind": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["apps/gpuix/src/**/*.tsx"],
+      "linter": {
+        "rules": {
+          "a11y": {
+            "noNoninteractiveElementInteractions": "off",
+            "noNoninteractiveTabindex": "off",
+            "noStaticElementInteractions": "off"
           }
         }
       }
