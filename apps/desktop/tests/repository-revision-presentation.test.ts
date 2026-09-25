@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
+
 import type { FileDiff } from "@1git/git";
+
 import { getRepositoryRevisionPresentation } from "../src/renderer/src/feature/workspace/lib/repository-revision-presentation.js";
 
 const DIFF: FileDiff = {

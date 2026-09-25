@@ -1,4 +1,5 @@
 import { isAbsolute, normalize, sep } from "node:path";
+
 import type {
 	GitConfigReadScope,
 	GitConfigScope,

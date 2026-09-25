@@ -16,15 +16,16 @@ import { DotsThreeIcon } from "@phosphor-icons/react/dist/csr/DotsThree";
 import { TrashIcon } from "@phosphor-icons/react/dist/csr/Trash";
 import type { ReactElement, KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useCallback, useMemo, useRef, useState } from "react";
+
 import { formatRelativeTime } from "@/feature/workspace/lib/workspace-model.js";
 import type { RepositoryTab } from "@/feature/workspace/types/git-workspace.js";
 import { WORKSPACE_TAB_SURFACE_GEOMETRY } from "@/fixture/desktop-toolbar/constants/workspace-tab.js";
+import { LiquidMenuAutoSize } from "@/fixture/liquid-menu/components/liquid-menu-auto-size.js";
 import {
 	LiquidMenuContent,
 	LiquidMenuRoot,
 	LiquidMenuTrigger,
 } from "@/fixture/liquid-menu/components/liquid-menu.js";
-import { LiquidMenuAutoSize } from "@/fixture/liquid-menu/components/liquid-menu-auto-size.js";
 import { LIQUID_MENU_CONNECTED_BUTTON_ANCHOR_GEOMETRY } from "@/fixture/liquid-menu/constants/liquid-menu.js";
 import { RepositoryFilePath } from "@/fixture/repository-workspace/components/repository-file-item.js";
 import { RepositoryFileStatusBadge } from "@/fixture/repository-workspace/components/repository-file-status.js";

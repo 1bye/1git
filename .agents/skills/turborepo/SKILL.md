@@ -1,18 +1,25 @@
 ---
 name: turborepo
 description: |
-  Turborepo monorepo build system guidance. Triggers on: turbo.json, task pipelines,
-  dependsOn, caching, remote cache, the "turbo" CLI, --filter, --affected, CI optimization, environment
-  variables, internal packages, monorepo structure/best practices, and boundaries.
-
-  Use when user: configures tasks/workflows/pipelines, creates packages, sets up
-  monorepo, shares code between apps, runs changed/affected packages, debugs cache,
-  or has apps/packages directories.
+  Configure or troubleshoot Turborepo in a TypeScript monorepo: turbo.json,
+  package tasks, dependency graphs, caching, filters, affected packages, and CI.
+  Use for projects that already use Turbo or explicitly request its adoption.
+  An apps/packages directory layout alone does not require Turborepo.
 metadata:
   version: 2.10.7-canary.1
 ---
 
 # Turborepo Skill
+
+## Local scope
+
+Use the project's installed Turbo version, package manager, and scripts. The
+source metadata identifies a canary snapshot, not a dependency recommendation.
+Confirm flags and config fields against the installed CLI before adopting them.
+Derive task inputs and outputs from real build behavior; `dist/**` and `.next/**`
+below are examples. Preserve valid repository-wide tasks and existing tooling
+when a focused change does not require restructuring them. Remote-cache setup
+is optional and requires the project's chosen service and authorization.
 
 Build system for JavaScript/TypeScript monorepos. Turborepo caches task outputs and runs tasks in parallel based on dependency graph.
 

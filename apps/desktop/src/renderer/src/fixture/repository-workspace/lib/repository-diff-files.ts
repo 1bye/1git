@@ -11,6 +11,7 @@ import {
 	parseDiffFromFile,
 	parsePatchFiles,
 } from "@pierre/diffs";
+
 import type { RepositoryTab } from "@/feature/workspace/types/git-workspace.js";
 import { getRepositoryDiffElementId } from "@/fixture/repository-workspace/lib/repository-navigation.js";
 

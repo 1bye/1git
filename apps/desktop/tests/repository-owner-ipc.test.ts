@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
+
 import type { IpcMainInvokeEvent } from "electron";
+
 import { registerRepositoryOwnerIpc } from "../src/main/repository-owners/repository-owner-ipc.js";
 import { REPOSITORY_OWNER_IPC_CHANNELS } from "../src/shared/repository-owner-avatar.js";
 

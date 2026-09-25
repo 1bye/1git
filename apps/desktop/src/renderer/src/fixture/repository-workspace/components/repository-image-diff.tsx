@@ -2,11 +2,13 @@ import type { FileContent, GitResult } from "@1git/git";
 import { Button } from "@1git/ui/components/button";
 import { ImageBrokenIcon } from "@phosphor-icons/react/dist/csr/ImageBroken";
 import { type ReactElement, useEffect, useState } from "react";
+
 import type { RepositoryDiffFileEntry } from "@/fixture/repository-workspace/lib/repository-diff-files.js";
 import {
 	getRepositoryImageMimeType,
 	getRepositoryImagePreviewSources,
 } from "@/fixture/repository-workspace/lib/repository-diff-preview.js";
+
 import type { RepositorySessionId } from "../../../../../shared/repository-session.js";
 
 interface RepositoryImageDiffProps {

@@ -1,4 +1,5 @@
 import type { HeadState, RemoteInfo } from "@1git/git";
+
 import {
 	getGithubPullRequestUrl,
 	getPreferredRepositoryRemote,

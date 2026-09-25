@@ -1,4 +1,5 @@
 import type { IpcMainInvokeEvent } from "electron";
+
 import {
 	REPOSITORY_OWNER_IPC_CHANNELS,
 	type RepositoryOwnerAvatarResult,

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+
 import { updateWorkspaceMenuSurfaceSession } from "../src/renderer/src/fixture/desktop-toolbar/lib/workspace-menu-presence.js";
 
 describe("workspace menu surface presence", () => {

@@ -11,6 +11,7 @@ import type {
 	RefCallback,
 } from "react";
 import { useCallback, useEffect, useState } from "react";
+
 import { useCommandLensTarget } from "@/feature/command-lens/hooks/use-command-lens-target.js";
 import type { CommandLensCommand } from "@/feature/command-lens/lib/command-lens-shortcut.js";
 import {
@@ -31,6 +32,7 @@ import { useWorkspaceTabClose } from "@/fixture/desktop-toolbar/hooks/use-worksp
 import { LiquidMenuTrigger } from "@/fixture/liquid-menu/components/liquid-menu.js";
 import { OverflowingLabel } from "@/fixture/overflowing-label/components/overflowing-label.js";
 import { RepositoryOwnerThumbnail } from "@/fixture/repository-item/components/repository-owner-thumbnail.js";
+
 import type { RepositorySessionId } from "../../../../../shared/repository-session.js";
 
 interface WorkspaceTabProps {
@@ -51,8 +53,10 @@ interface WorkspaceTabProps {
 	readonly workspace: WorkspaceTabState;
 }
 
-interface WorkspaceTabAppearanceProps
-	extends Omit<WorkspaceTabProps, "index" | "onDropStateChange"> {
+interface WorkspaceTabAppearanceProps extends Omit<
+	WorkspaceTabProps,
+	"index" | "onDropStateChange"
+> {
 	readonly handleRef?: RefCallback<Element>;
 	readonly isDragging: boolean;
 	readonly isOverlay?: boolean;

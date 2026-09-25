@@ -47,6 +47,7 @@ import type {
 	UnsetConfigInput,
 	WorktreePathInput,
 } from "@1git/git";
+
 import type {
 	OpenedRepositorySession,
 	RecentRepositoryPreview,

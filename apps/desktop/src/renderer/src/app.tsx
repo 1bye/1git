@@ -3,6 +3,7 @@ import { Toaster } from "@1git/ui/components/sonner";
 import { WarningCircleIcon } from "@phosphor-icons/react/dist/csr/WarningCircle";
 import { XIcon } from "@phosphor-icons/react/dist/csr/X";
 import { type ReactElement, useCallback, useRef } from "react";
+
 import { CommandLensProvider } from "@/feature/command-lens/components/command-lens-provider.js";
 import { useGitWorkspace } from "@/feature/workspace/hooks/use-git-workspace.js";
 import { DesktopToolbar } from "@/fixture/desktop-toolbar/components/desktop-toolbar.js";

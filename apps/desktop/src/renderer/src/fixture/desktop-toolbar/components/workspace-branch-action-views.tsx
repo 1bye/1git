@@ -18,6 +18,7 @@ import type {
 	KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import { useState } from "react";
+
 import type { PendingWorkspaceAction } from "@/feature/workspace/types/git-workspace.js";
 
 const stopMenuNavigation = (

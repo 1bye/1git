@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+
 import { WORKSPACE_TAB_SURFACE_GEOMETRY } from "../src/renderer/src/fixture/desktop-toolbar/constants/workspace-tab.js";
 import {
 	createWorkspaceLiquidMeasurement,

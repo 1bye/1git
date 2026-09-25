@@ -7,6 +7,7 @@ import {
 	useLayoutEffect,
 	useRef,
 } from "react";
+
 import type { RepositoryCodeViewAnnotation } from "@/fixture/repository-workspace/lib/repository-code-view.js";
 import type { RepositoryDiffFileEntry } from "@/fixture/repository-workspace/lib/repository-diff-files.js";
 

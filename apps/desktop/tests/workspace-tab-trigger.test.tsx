@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
+
 import type { ComponentProps, ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+
 import type { WorkspaceTabState } from "../src/renderer/src/feature/workspace/types/git-workspace.js";
 import {
 	WorkspaceTabTrigger,

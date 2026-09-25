@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
+
 import { RecentRepositoryPreviewCache } from "@/fixture/repository-item/lib/recent-repository-preview-cache.js";
+
 import type { RecentRepositoryPreview } from "../src/shared/repository-session.js";
 
 const createPreview = (path: string): RecentRepositoryPreview => ({

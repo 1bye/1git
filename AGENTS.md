@@ -1,14 +1,12 @@
-# Ultracite Code Standards
+# 1git Code Standards
 
-This project uses **Ultracite**, a zero-config preset that enforces strict code quality standards through automated formatting and linting.
+Use Oxlint for linting and Oxfmt for formatting. Read the installed workflow guides below for TypeScript, React, desktop, and workspace work.
 
 ## Quick Reference
 
-- **Format code**: `bun x ultracite fix`
-- **Check for issues**: `bun x ultracite check`
-- **Diagnose setup**: `bun x ultracite doctor`
-
-Biome (the underlying engine) provides robust linting and formatting. Most issues are automatically fixable.
+- **Check code**: `bun run check`
+- **Fix lint and formatting**: `bun run fix`
+- **Check types**: `bun run check-types`
 
 ---
 
@@ -110,17 +108,14 @@ Write code that is **accessible, performant, type-safe, and maintainable**. Focu
 - Don't use `.only` or `.skip` in committed code
 - Keep test suites reasonably flat - avoid excessive `describe` nesting
 
-## When Biome Can't Help
+## Manual Review
 
-Biome's linter will catch most issues automatically. Focus your attention on:
+Review business logic, naming, architecture, edge cases, accessibility, and documentation beyond automated checks.
 
-1. **Business logic correctness** - Biome can't validate your algorithms
-2. **Meaningful naming** - Use descriptive names for functions, variables, and types
-3. **Architecture decisions** - Component structure, data flow, and API design
-4. **Edge cases** - Handle boundary conditions and error states
-5. **User experience** - Accessibility, performance, and usability considerations
-6. **Documentation** - Add comments for complex logic, but prefer self-documenting code
+<!-- workflow:begin -->
+## TypeScript workflow
 
----
-
-Most formatting and common issues are automatically fixed by Biome. Run `bun x ultracite fix` before committing to ensure compliance.
+For TypeScript work, read `.agents/workflow/AGENTS.md`.
+For runtime and stack work, read `.agents/workflow/stacks.md`.
+Preserve this project's specific instructions and existing tooling.
+<!-- workflow:end -->

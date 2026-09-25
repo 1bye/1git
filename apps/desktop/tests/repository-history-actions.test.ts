@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
+
 import type { BranchCollection, BranchInfo, CommitInfo } from "@1git/git";
+
 import {
 	canAmendRepositoryCommit,
 	canRevertRepositoryCommit,

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { chmod, writeFile } from "node:fs/promises";
+
 import {
 	GitCommandFailure,
 	GitProcess,

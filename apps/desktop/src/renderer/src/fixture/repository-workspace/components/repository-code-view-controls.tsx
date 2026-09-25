@@ -10,6 +10,7 @@ import type {
 import type { CodeViewHandle } from "@pierre/diffs/react";
 import type { ReactElement, RefObject } from "react";
 import { useCallback, useState } from "react";
+
 import {
 	getNextRepositoryCodeViewItemVersion,
 	type RepositoryCodeViewAnnotation,
@@ -18,6 +19,7 @@ import {
 	getRepositoryRevisionFileStatus,
 	type RepositoryDiffFileEntry,
 } from "@/fixture/repository-workspace/lib/repository-diff-files.js";
+
 import type { RepositorySessionId } from "../../../../../shared/repository-session.js";
 import {
 	type HunkActionHandler,

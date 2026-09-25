@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+
 import { createRepositoryRefreshDebouncer } from "../src/renderer/src/feature/workspace/hooks/use-repository-refresh.js";
 import type { RepositoryRefreshEvent } from "../src/shared/git-ipc.js";
 

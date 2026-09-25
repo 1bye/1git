@@ -1,5 +1,6 @@
 import type { CSSProperties, ReactElement } from "react";
 import { useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+
 import { createLiquidGeometryTracker } from "@/fixture/liquid-surface/lib/track-liquid-geometry.js";
 import {
 	createRepositoryFileLiquidMeasurement,
@@ -76,8 +77,8 @@ export function RepositoryRevisionLiquidSurface({
 		previousRevisionKeyRef.current = selectedRevisionKey;
 		const shouldMove = Boolean(
 			previousRevisionKey &&
-				selectedRevisionKey &&
-				previousRevisionKey !== selectedRevisionKey
+			selectedRevisionKey &&
+			previousRevisionKey !== selectedRevisionKey
 		);
 		setIsMoving(shouldMove);
 		if (!shouldMove) {

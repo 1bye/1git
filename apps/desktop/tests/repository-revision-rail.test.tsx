@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
+
 import type { CommitInfo, FileDiff, StashInfo } from "@1git/git";
 import { renderToStaticMarkup } from "react-dom/server";
+
 import { LiquidMenuStackProvider } from "../src/renderer/src/fixture/liquid-menu/components/liquid-menu-stack-provider.js";
 import { RepositoryHistoryRail } from "../src/renderer/src/fixture/repository-workspace/components/repository-history-rail.js";
 import {

@@ -1,5 +1,6 @@
 import type { FileChange } from "@1git/git";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
 import type { RepositoryTab } from "@/feature/workspace/types/git-workspace.js";
 import {
 	filterRepositoryFiles,

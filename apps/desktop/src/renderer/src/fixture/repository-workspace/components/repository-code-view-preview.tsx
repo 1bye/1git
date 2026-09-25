@@ -1,6 +1,8 @@
 import type { ReactElement } from "react";
+
 import type { RepositoryDiffFileEntry } from "@/fixture/repository-workspace/lib/repository-diff-files.js";
 import type { RepositoryDiffPreviewKind } from "@/fixture/repository-workspace/lib/repository-diff-preview.js";
+
 import type { RepositorySessionId } from "../../../../../shared/repository-session.js";
 import { RepositoryImageDiff } from "./repository-image-diff.js";
 

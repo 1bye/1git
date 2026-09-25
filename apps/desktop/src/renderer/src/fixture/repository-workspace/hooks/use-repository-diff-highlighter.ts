@@ -1,5 +1,6 @@
 import { getFiletypeFromFileName, preloadHighlighter } from "@pierre/diffs";
 import { useEffect, useMemo } from "react";
+
 import { REPOSITORY_DIFF_THEME } from "@/fixture/repository-workspace/constants/repository-diff.js";
 import type { RepositoryDiffFileEntry } from "@/fixture/repository-workspace/lib/repository-diff-files.js";
 

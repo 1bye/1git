@@ -9,6 +9,7 @@ import type {
 } from "@1git/git";
 import type { ReactElement } from "react";
 import { useCallback, useRef } from "react";
+
 import type { RepositoryCommitIdentity } from "@/feature/workspace/lib/repository-commit-identity.js";
 import type { RepositorySyncAction } from "@/feature/workspace/lib/repository-sync.js";
 import { isFileStaged } from "@/feature/workspace/lib/workspace-model.js";
@@ -25,6 +26,7 @@ import { RepositoryHistoryRail } from "@/fixture/repository-workspace/components
 import { RepositoryStashRail } from "@/fixture/repository-workspace/components/repository-revision-rail.js";
 import { RepositoryWorkspaceToolbar } from "@/fixture/repository-workspace/components/repository-workspace-toolbar.js";
 import { useRepositoryFileNavigation } from "@/fixture/repository-workspace/hooks/use-repository-file-navigation.js";
+
 import type { RepositorySessionRecord } from "../../../../../shared/repository-session.js";
 
 export interface RepositoryNavigationRailProps {

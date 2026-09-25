@@ -41,6 +41,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+
 import { LiquidMenuSurface } from "@/fixture/liquid-menu/components/liquid-menu-surface.js";
 import {
 	getLiquidMenuStyle,
@@ -82,21 +83,21 @@ interface LiquidRootSurfaceProps {
 }
 
 export interface LiquidMenuRootProps
-	extends Omit<DropdownMenuProps, "onOpenChange">,
-		LiquidRootSurfaceProps {
+	extends Omit<DropdownMenuProps, "onOpenChange">, LiquidRootSurfaceProps {
 	readonly onOpenChange?: DropdownMenuOpenChange;
 }
 
 export interface LiquidContextMenuRootProps
-	extends Omit<ContextMenuProps, "onOpenChange">,
-		LiquidRootSurfaceProps {
+	extends Omit<ContextMenuProps, "onOpenChange">, LiquidRootSurfaceProps {
 	readonly onOpenChange?: ContextMenuOpenChange;
 }
 
 export interface LiquidPickerRootProps<
 	Value,
 	Multiple extends boolean | undefined = false,
-> extends Omit<ComboboxRootProps<Value, Multiple>, "onOpenChange">,
+>
+	extends
+		Omit<ComboboxRootProps<Value, Multiple>, "onOpenChange">,
 		LiquidRootSurfaceProps {
 	readonly onOpenChange?: ComboboxOpenChange<Value, Multiple>;
 }

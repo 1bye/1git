@@ -48,6 +48,7 @@ import type {
 	WorktreePathInput,
 } from "@1git/git";
 import type { IpcMain, IpcMainInvokeEvent } from "electron";
+
 import {
 	GIT_IPC_CHANNELS,
 	type GitOperationId,

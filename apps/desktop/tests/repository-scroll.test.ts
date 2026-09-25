@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+
 import { scrollElementIntoViewport } from "../src/renderer/src/fixture/repository-workspace/lib/scroll-element-into-viewport.js";
 
 const rect = (top: number, bottom: number): DOMRect =>

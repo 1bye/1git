@@ -4,6 +4,7 @@ import type { CodeViewItem, CodeViewOptions } from "@pierre/diffs";
 import { CodeView, type CodeViewHandle } from "@pierre/diffs/react";
 import type { ReactElement } from "react";
 import { useCallback, useLayoutEffect, useMemo, useRef } from "react";
+
 import {
 	REPOSITORY_DIFF_CODE_VIEW_LAYOUT,
 	REPOSITORY_DIFF_RENDER_OPTIONS,
@@ -18,6 +19,7 @@ import {
 	type RepositoryCodeViewAnnotation,
 } from "@/fixture/repository-workspace/lib/repository-code-view.js";
 import type { RepositoryDiffFileEntry } from "@/fixture/repository-workspace/lib/repository-diff-files.js";
+
 import type { RepositorySessionId } from "../../../../../shared/repository-session.js";
 import { useRepositoryCodeViewControls } from "./repository-code-view-controls.js";
 

@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
+
 import type { GitResult, RepositorySnapshot } from "@1git/git";
+
 import { GIT_IPC_CHANNELS } from "../src/shared/git-ipc.js";
 import type { OpenedRepositorySession } from "../src/shared/repository-session.js";
 import { GitIpcHarness } from "./_shared/git-ipc-harness.js";

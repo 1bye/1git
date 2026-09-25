@@ -362,7 +362,7 @@ Do not add these until real usage proves they are necessary:
 - Validation passes:
 
 ```bash
-bun x ultracite check
+bun run check
 bun run --cwd apps/desktop check-types
 bun run --cwd apps/desktop test
 bun run --cwd apps/desktop build

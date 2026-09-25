@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { rename } from "node:fs/promises";
 import { join } from "node:path";
+
 import type { RecentRepositoryStore } from "../src/main/git/recent-repository-store.js";
 import type { RecentRepositoryRecord } from "../src/shared/repository-session.js";
 import {

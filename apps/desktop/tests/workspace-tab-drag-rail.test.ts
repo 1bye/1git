@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
+
 import type { DragDropManager } from "@dnd-kit/dom";
+
 import {
 	createWorkspaceTabDragRailController,
 	createWorkspaceTabDragRailFrame,

@@ -10,6 +10,7 @@ import { CaretDownIcon } from "@phosphor-icons/react/dist/csr/CaretDown";
 import { CheckIcon } from "@phosphor-icons/react/dist/csr/Check";
 import type { ReactElement } from "react";
 import { useCallback, useEffect, useRef } from "react";
+
 import type { RepositoryTab } from "@/feature/workspace/types/git-workspace.js";
 import { WORKSPACE_TAB_SURFACE_GEOMETRY } from "@/fixture/desktop-toolbar/constants/workspace-tab.js";
 import {

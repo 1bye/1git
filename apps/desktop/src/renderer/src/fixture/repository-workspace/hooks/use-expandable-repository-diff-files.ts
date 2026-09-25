@@ -6,11 +6,13 @@ import {
 	useRef,
 	useState,
 } from "react";
+
 import { REPOSITORY_DIFF_EXPANDABLE_CONTEXT_LINES } from "@/fixture/repository-workspace/constants/repository-diff.js";
 import {
 	createExpandableRepositoryDiffFile,
 	type RepositoryDiffFileEntry,
 } from "@/fixture/repository-workspace/lib/repository-diff-files.js";
+
 import type { RepositorySessionId } from "../../../../../shared/repository-session.js";
 
 interface ExpandableDiffFileState {

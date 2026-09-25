@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
+
 import type { GitError } from "@1git/git";
+
 import {
 	combineRepositoryStashDiffs,
 	repositoryStashDiffTargets,

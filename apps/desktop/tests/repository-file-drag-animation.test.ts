@@ -11,8 +11,8 @@ const fileList = readSource(
 
 describe("repository file drag animation", () => {
 	test("compresses only the dragged row content", () => {
-		expect(styles).toContain(
-			'[data-name="RepositoryFileRow"][data-dragging="true"] > button'
+		expect(styles).toMatch(
+			/\[data-name="RepositoryFileRow"\]\[data-dragging="true"\]\s*>\s*button/
 		);
 		expect(styles).toContain("transform: scale3d(0.84, 0.68, 1);");
 		expect(fileList).toContain(
@@ -29,15 +29,15 @@ describe("repository file drag animation", () => {
 		);
 		expect(fileList).toContain("<RepositoryFileDragOverlay file={file} />");
 		expect(fileList).not.toContain("animateRepositoryFileDrop");
-		expect(styles).toContain(
-			'[data-name="RepositoryFileRow"][data-drag-landing="true"] > button'
+		expect(styles).toMatch(
+			/\[data-name="RepositoryFileRow"\]\[data-drag-landing="true"\]\s*>\s*button/
 		);
 		expect(styles).toContain("@keyframes repository-file-row-land");
-		expect(styles).toContain(
-			'[data-name="RepositoryFileRow"][data-drag-landing="true"] > button {\n\t\tanimation: none;'
+		expect(styles).toMatch(
+			/\[data-name="RepositoryFileRow"\]\[data-drag-landing="true"\]\s*>\s*button\s*\{\s*animation:\s*none;/
 		);
-		expect(styles).not.toContain(
-			'[data-name="RepositoryFileRow"][data-drag-landing="true"] > button {\n\topacity: 0;'
+		expect(styles).not.toMatch(
+			/\[data-name="RepositoryFileRow"\]\[data-drag-landing="true"\]\s*>\s*button\s*\{\s*opacity:\s*0;/
 		);
 	});
 

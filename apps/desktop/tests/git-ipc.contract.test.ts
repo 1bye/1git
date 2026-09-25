@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+
 import { GIT_IPC_CHANNELS, GIT_IPC_EVENTS } from "../src/shared/git-ipc.js";
 import { GitIpcHarness } from "./_shared/git-ipc-harness.js";
 import { createTestRepositoryManager } from "./_shared/repository-manager-fixture.js";

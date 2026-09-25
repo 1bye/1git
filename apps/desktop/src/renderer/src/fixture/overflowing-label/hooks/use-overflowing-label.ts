@@ -1,5 +1,6 @@
 import type { CSSProperties, RefObject } from "react";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
+
 import { OVERFLOWING_LABEL_MARQUEE } from "@/fixture/overflowing-label/constants/overflowing-label.js";
 import {
 	getOverflowingLabelMarqueeDuration,

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+
 import { parseDiffStats } from "../src/parsers/diff.js";
 
 describe("parseDiffStats", () => {

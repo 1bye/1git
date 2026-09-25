@@ -11,6 +11,7 @@ import { SpinnerGapIcon } from "@phosphor-icons/react/dist/csr/SpinnerGap";
 import { XIcon } from "@phosphor-icons/react/dist/csr/X";
 import type { ReactElement } from "react";
 import { useCallback, useMemo } from "react";
+
 import type {
 	RepositoryBranchComparison,
 	RepositoryCleanAction,
@@ -24,6 +25,7 @@ import { CleanState } from "@/fixture/repository-workspace/components/clean-stat
 import { DiffView } from "@/fixture/repository-workspace/components/diff-view.js";
 import { RepositoryRevisionFileRail } from "@/fixture/repository-workspace/components/repository-revision-rail.js";
 import { createRepositoryDiffFileEntries } from "@/fixture/repository-workspace/lib/repository-diff-files.js";
+
 import type { RepositorySessionRecord } from "../../../../../shared/repository-session.js";
 
 const EMPTY_FILE_CHANGES: readonly FileChange[] = [];

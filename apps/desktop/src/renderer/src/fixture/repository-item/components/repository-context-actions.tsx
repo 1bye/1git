@@ -15,6 +15,7 @@ import { TerminalWindowIcon } from "@phosphor-icons/react/dist/csr/TerminalWindo
 import { TrashIcon } from "@phosphor-icons/react/dist/csr/Trash";
 import type { ReactElement, ReactNode } from "react";
 import { useState } from "react";
+
 import {
 	getGithubRepositoryUrl,
 	getPreferredRepositoryRemoteUrl,
@@ -30,6 +31,7 @@ import {
 	RepositoryWorktreeList,
 } from "@/fixture/repository-item/components/repository-context-worktrees.js";
 import { useRepositoryWorktrees } from "@/fixture/repository-item/hooks/use-repository-worktrees.js";
+
 import type {
 	RecentRepositoryPreview,
 	RecentRepositoryRecord,

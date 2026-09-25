@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
+
 import type { RemoteInfo } from "@1git/git";
+
 import {
 	getGithubPullRequestUrl,
 	getGithubRepositoryUrl,

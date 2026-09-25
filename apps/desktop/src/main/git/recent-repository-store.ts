@@ -8,6 +8,7 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { dirname } from "node:path";
+
 import type { RecentRepositoryRecord } from "../../shared/repository-session.js";
 
 const RECENT_REPOSITORY_FILE_VERSION = 1;

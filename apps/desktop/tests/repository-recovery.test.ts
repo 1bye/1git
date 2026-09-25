@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
+
 import type { GitError, RepositoryOperationState } from "@1git/git";
+
 import {
 	getRepositoryRecovery,
 	isRepositoryRecoveryActionAllowed,
@@ -21,11 +23,14 @@ describe("repository recovery", () => {
 		["rebase", ["continue", "skip", "abort"]],
 		["cherry-pick", ["continue", "abort"]],
 		["revert", ["continue", "abort"]],
-	] as const)("offers only valid actions for %s", (operationState, expectedActions) => {
-		expect(getRepositoryRecovery(operationState)?.actions ?? null).toEqual(
-			expectedActions
-		);
-	});
+	] as const)(
+		"offers only valid actions for %s",
+		(operationState, expectedActions) => {
+			expect(getRepositoryRecovery(operationState)?.actions ?? null).toEqual(
+				expectedActions
+			);
+		}
+	);
 
 	test("rejects actions outside the current operation", () => {
 		expect(isRepositoryRecoveryActionAllowed("merge", "skip")).toBe(false);

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+
 import { parseStatus } from "../src/parsers/status.js";
 
 const OID_A = "a".repeat(40);

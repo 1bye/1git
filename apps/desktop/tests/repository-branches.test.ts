@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
+
 import type { BranchCollection, BranchInfo } from "@1git/git";
+
 import {
 	getRepositoryCurrentBranch,
 	getRepositoryDeletableBranches,

@@ -14,6 +14,7 @@ import { TrashIcon } from "@phosphor-icons/react/dist/csr/Trash";
 import { XIcon } from "@phosphor-icons/react/dist/csr/X";
 import type { ReactElement } from "react";
 import { useState } from "react";
+
 import {
 	hasFileWorkingTreeChanges,
 	isFileStaged,

@@ -1,10 +1,12 @@
 import { describe, expect, test } from "bun:test";
+
 import { renderToStaticMarkup } from "react-dom/server";
+
+import { LiquidMenuStackProvider } from "../src/renderer/src/fixture/liquid-menu/components/liquid-menu-stack-provider.js";
 import {
 	LiquidMenuRoot,
 	LiquidMenuTrigger,
 } from "../src/renderer/src/fixture/liquid-menu/components/liquid-menu.js";
-import { LiquidMenuStackProvider } from "../src/renderer/src/fixture/liquid-menu/components/liquid-menu-stack-provider.js";
 
 const ANCHOR_GEOMETRY = {
 	insetBlock: 0,

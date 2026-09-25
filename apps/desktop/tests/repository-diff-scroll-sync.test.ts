@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+
 import {
 	createRepositoryDiffActivePathScheduler,
 	getRepositoryCodeViewActiveEntry,
@@ -6,19 +7,17 @@ import {
 import type { RepositoryDiffFileEntry } from "@/fixture/repository-workspace/lib/repository-diff-files.js";
 
 const paths = ["first.ts", "middle.ts", "last.ts"] as const;
-const entries = paths.map(
-	(path): RepositoryDiffFileEntry => ({
-		change: null,
-		file: null,
-		id: undefined,
-		key: path,
-		patchOmittedReason: undefined,
-		path,
-		stat: null,
-		target: { kind: "working" },
-		targetLabel: "Working tree",
-	})
-);
+const entries = paths.map((path): RepositoryDiffFileEntry => ({
+	change: null,
+	file: null,
+	id: undefined,
+	key: path,
+	patchOmittedReason: undefined,
+	path,
+	stat: null,
+	target: { kind: "working" },
+	targetLabel: "Working tree",
+}));
 
 const waitForTimers = (delayMs: number): Promise<void> =>
 	new Promise((resolve) => globalThis.setTimeout(resolve, delayMs));

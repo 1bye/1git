@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { join } from "node:path";
+
 import {
 	app,
 	BrowserWindow,
@@ -11,6 +12,7 @@ import {
 	shell,
 	type WebContents,
 } from "electron";
+
 import type { DesktopApplication } from "../shared/desktop-integration.js";
 import type { RepositoryDirectorySelection } from "../shared/repository-session.js";
 import { registerDesktopIntegrationIpc } from "./desktop-integration/desktop-integration-ipc.js";

@@ -1,5 +1,7 @@
 import type { ComponentPropsWithoutRef, ReactElement, RefObject } from "react";
+
 import { useDwellAnimation } from "@/fixture/icons/hooks/use-dwell-animation.js";
+
 import "../icons.css";
 
 const FOLDER_FLAP_ANIMATION_NAME = "animated-folder-open-icon-flap";

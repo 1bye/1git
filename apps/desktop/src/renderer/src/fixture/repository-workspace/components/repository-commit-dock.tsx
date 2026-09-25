@@ -11,6 +11,7 @@ import type {
 	KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import { useEffect, useRef, useState } from "react";
+
 import { useCommandLensTarget } from "@/feature/command-lens/hooks/use-command-lens-target.js";
 import type { RepositoryCommitIdentity } from "@/feature/workspace/lib/repository-commit-identity.js";
 

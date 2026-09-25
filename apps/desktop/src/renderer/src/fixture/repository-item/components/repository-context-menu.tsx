@@ -4,6 +4,7 @@ import type {
 	RefCallback,
 } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
+
 import type { CommandLensTargetOptions } from "@/feature/command-lens/hooks/use-command-lens-context.js";
 import type {
 	OpenRepositoryOptions,
@@ -21,6 +22,7 @@ import {
 	REPOSITORY_CONTEXT_MENU_WIDTH,
 	REPOSITORY_CONTEXT_MENU_WIDTH_CLASS_NAME,
 } from "@/fixture/repository-item/constants/repository-context-menu.js";
+
 import type {
 	RecentRepositoryPreview,
 	RecentRepositoryRecord,

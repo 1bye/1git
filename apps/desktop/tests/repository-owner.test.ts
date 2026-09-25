@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
+
 import type { RemoteInfo } from "@1git/git";
+
 import { getRepositoryOwner } from "../src/renderer/src/feature/workspace/lib/repository-owner.js";
 
 const remote = (

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+
 import { parseWorktrees } from "../src/parsers/worktrees.js";
 
 const OID = "a".repeat(40);

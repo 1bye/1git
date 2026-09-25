@@ -1,5 +1,6 @@
 import type { AnimationEvent as ReactAnimationEvent } from "react";
 import { useState } from "react";
+
 import type { RepositorySessionId } from "../../../../../shared/repository-session.js";
 
 interface UseWorkspaceTabCloseOptions {

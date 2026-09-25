@@ -1,6 +1,8 @@
 import type { CSSProperties, ReactElement, RefObject } from "react";
+
 import { WORKSPACE_TAB_SURFACE_GEOMETRY } from "@/fixture/desktop-toolbar/constants/workspace-tab.js";
 import { useWorkspaceLiquidSurface } from "@/fixture/desktop-toolbar/hooks/use-workspace-liquid-surface.js";
+
 import type { RepositorySessionId } from "../../../../../shared/repository-session.js";
 
 interface WorkspaceLiquidSurfaceProps {

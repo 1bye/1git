@@ -5,7 +5,7 @@ This project was created with [Better-T-Stack](https://github.com/AmanVarshney01
 ## Features
 
 - **TypeScript** - For type safety and improved developer experience
-- **Biome** - Linting and formatting
+- **Oxlint and Oxfmt** - Linting and formatting
 - **Turborepo** - Optimized monorepo build system
 
 ## Getting Started
@@ -44,7 +44,8 @@ bun run dev
 - `bun run build`: Build all applications
 - `bun run check-types`: Check TypeScript types across all apps
 - `bun run test`: Test all packages
-- `bun run check`: Run Biome formatting and linting
+- `bun run check`: Run Oxlint and check Oxfmt formatting
+- `bun run fix`: Fix lint issues and format files
 
 Run only the desktop app and build its workspace dependencies with:
 

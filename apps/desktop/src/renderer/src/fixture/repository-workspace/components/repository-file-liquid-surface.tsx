@@ -1,5 +1,6 @@
 import type { CSSProperties, ReactElement } from "react";
 import { useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+
 import { createLiquidGeometryTracker } from "@/fixture/liquid-surface/lib/track-liquid-geometry.js";
 import {
 	createRepositoryFileLiquidMeasurement,
@@ -16,8 +17,7 @@ interface RepositoryFileLiquidSurfaceProps {
 
 const FILE_SURFACE_MOTION_DURATION_MS = 180;
 
-interface RepositoryFileLiquidSurfaceMeasurement
-	extends RepositoryFileLiquidMeasurement {
+interface RepositoryFileLiquidSurfaceMeasurement extends RepositoryFileLiquidMeasurement {
 	readonly hasLeadingOverflow: boolean;
 	readonly headerMaskBottom: number;
 }

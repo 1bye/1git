@@ -1,5 +1,6 @@
 import { access, readFile, realpath, stat } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve } from "node:path";
+
 import type {
 	BranchCollection,
 	CommitInfo,

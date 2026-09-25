@@ -1,8 +1,8 @@
 {
   "name": "@1git/gpuix-stylesheet",
   "version": "0.0.1",
-  "description": "Small typed stylesheet helpers for GPUix",
   "private": true,
+  "description": "Small typed stylesheet helpers for GPUix",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
@@ -11,13 +11,13 @@
     "check-types": "tsc --noEmit -p tsconfig.json",
     "test": "bun test"
   },
-  "peerDependencies": {
-    "@gpuix/react": "^0.8.0"
-  },
   "devDependencies": {
     "@1git/config": "workspace:*",
     "@gpuix/react": "0.8.0",
     "@types/bun": "^1.3.5",
     "typescript": "^6.0.3"
+  },
+  "peerDependencies": {
+    "@gpuix/react": "^0.8.0"
   }
 }

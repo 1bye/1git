@@ -16,6 +16,7 @@ import type {
 	SyncResult,
 } from "@1git/git";
 import { useCallback, useEffect, useRef, useState } from "react";
+
 import { useRepositoryRefresh } from "@/feature/workspace/hooks/use-repository-refresh.js";
 import {
 	getRepositoryCurrentBranch,
@@ -91,6 +92,7 @@ import type {
 	WorkspaceDiscardUndo,
 	WorkspaceTabState,
 } from "@/feature/workspace/types/git-workspace.js";
+
 import type {
 	OpenedRepositorySession,
 	RepositoryManagerResult,
@@ -2265,9 +2267,9 @@ export const useGitWorkspace = (): GitWorkspace => {
 		cancelSync,
 		canRetrySync: Boolean(
 			syncFailure &&
-				syncAction &&
-				!syncAction.disabledReason &&
-				!pendingSyncAction
+			syncAction &&
+			!syncAction.disabledReason &&
+			!pendingSyncAction
 		),
 		changeHunk,
 		cherryPickCommit,

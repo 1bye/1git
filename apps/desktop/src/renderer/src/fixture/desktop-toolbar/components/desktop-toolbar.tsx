@@ -30,6 +30,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+
 import { getCommandLensNumberKey } from "@/feature/command-lens/lib/command-lens-shortcut.js";
 import type { BranchSwitchResult } from "@/feature/workspace/lib/repository-stash.js";
 import type { RepositorySyncAction } from "@/feature/workspace/lib/repository-sync.js";
@@ -53,6 +54,7 @@ import {
 import { useWorkspaceTabDragRail } from "@/fixture/desktop-toolbar/hooks/use-workspace-tab-drag-rail.js";
 import { updateWorkspaceMenuSurfaceSession } from "@/fixture/desktop-toolbar/lib/workspace-menu-presence.js";
 import { LiquidMenuRoot } from "@/fixture/liquid-menu/components/liquid-menu.js";
+
 import type {
 	RecentRepositoryRecord,
 	RepositorySessionId,

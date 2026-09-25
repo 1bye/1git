@@ -10,6 +10,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+
 import type { GitResult } from "../../src/contracts.js";
 import { GitProcess } from "../../src/process/git-process.js";
 import { GitRepository } from "../../src/repository.js";

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+
 import type { RepositoryRefreshEvent } from "../../../../../shared/git-ipc.js";
 import type { RepositorySessionId } from "../../../../../shared/repository-session.js";
 

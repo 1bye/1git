@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
+
 import { DropdownMenu } from "@1git/ui/components/dropdown-menu";
 import { renderToStaticMarkup } from "react-dom/server";
+
 import { LiquidMenuStackProvider } from "../src/renderer/src/fixture/liquid-menu/components/liquid-menu-stack-provider.js";
 import {
 	RepositoryDiffOptions,

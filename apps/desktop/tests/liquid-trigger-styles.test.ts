@@ -120,10 +120,8 @@ describe("liquid trigger styles", () => {
 		expect(styles).toContain(
 			'[data-name="LiquidMenuSubContent"][data-liquid-content][data-open][data-liquid-surface="true"]'
 		);
-		expect(styles).toContain(
-			`[data-liquid-content] {
-		animation-delay: 0ms !important;
-	}`
+		expect(styles).toMatch(
+			/\[data-liquid-content\]\s*\{\s*animation-delay:\s*0ms\s*!important;/
 		);
 	});
 

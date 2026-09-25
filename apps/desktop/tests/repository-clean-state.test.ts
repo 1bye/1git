@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
+
 import type { HeadState, RemoteInfo } from "@1git/git";
+
 import {
 	getRepositoryBranchComparison,
 	getRepositoryCleanAction,

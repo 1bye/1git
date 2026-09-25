@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
+
 import type { HeadState, RepositorySnapshot } from "@1git/git";
 import { renderToStaticMarkup } from "react-dom/server";
+
 import { getRepositoryCleanAction } from "../src/renderer/src/feature/workspace/lib/repository-clean-state.js";
 import { getRepositorySyncAction } from "../src/renderer/src/feature/workspace/lib/repository-sync.js";
 import { CleanState } from "../src/renderer/src/fixture/repository-workspace/components/clean-state.js";

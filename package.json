@@ -11,17 +11,21 @@
     "build": "turbo run build",
     "check-types": "turbo run check-types",
     "test": "turbo run test",
-    "check": "ultracite check",
-    "fix": "ultracite fix"
+    "check": "bun run lint && bun run format:check",
+    "fix": "bun run lint:fix && bun run format",
+    "lint": "oxlint .",
+    "lint:fix": "oxlint . --fix",
+    "format": "oxfmt .",
+    "format:check": "oxfmt --check ."
   },
   "devDependencies": {
     "@1git/config": "workspace:*",
-    "@biomejs/biome": "2.5.3",
     "@types/node": "^22.20.1",
     "lefthook": "latest",
+    "oxfmt": "0.70.0",
+    "oxlint": "1.85.0",
     "turbo": "^2.10.7",
-    "typescript": "^6.0.3",
-    "ultracite": "7.9.4"
+    "typescript": "^6.0.3"
   },
   "packageManager": "bun@1.3.13"
 }

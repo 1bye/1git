@@ -1,4 +1,5 @@
 import type { CodeViewItem } from "@pierre/diffs";
+
 import type { RepositoryDiffFileEntry } from "@/fixture/repository-workspace/lib/repository-diff-files.js";
 import {
 	getRepositoryDiffPreviewKind,

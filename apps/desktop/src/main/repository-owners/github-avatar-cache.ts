@@ -8,6 +8,7 @@ import {
 	writeFile,
 } from "node:fs/promises";
 import { join } from "node:path";
+
 import type { RepositoryOwnerAvatarResult } from "../../shared/repository-owner-avatar.js";
 
 const CACHE_VERSION = 1;

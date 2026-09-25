@@ -1,5 +1,6 @@
 import type { RefCallback } from "react";
 import { useCallback, useLayoutEffect, useRef } from "react";
+
 import {
 	type CommandLensTargetOptions,
 	useCommandLensContext,

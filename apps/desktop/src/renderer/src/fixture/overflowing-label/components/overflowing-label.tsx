@@ -1,5 +1,6 @@
 import { cn } from "@1git/ui/lib/utils";
 import type { ReactElement, ReactNode } from "react";
+
 import { useOverflowingLabel } from "@/fixture/overflowing-label/hooks/use-overflowing-label.js";
 import type { OverflowingLabelDirection } from "@/fixture/overflowing-label/lib/overflowing-label.js";
 

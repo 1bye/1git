@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+
 import { parseBranches, parseStashes, parseTags } from "../src/parsers/refs.js";
 
 const OID_A = "a".repeat(40);

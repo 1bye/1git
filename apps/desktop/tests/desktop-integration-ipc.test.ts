@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
+
 import type { IpcMainInvokeEvent } from "electron";
+
 import {
 	type DesktopIntegrationOperations,
 	registerDesktopIntegrationIpc,

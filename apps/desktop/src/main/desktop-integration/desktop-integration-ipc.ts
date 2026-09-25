@@ -1,5 +1,7 @@
 import { isAbsolute } from "node:path";
+
 import type { IpcMainInvokeEvent } from "electron";
+
 import {
 	DESKTOP_INTEGRATION_IPC_CHANNELS,
 	type DesktopApplication,

@@ -6,6 +6,7 @@ import type {
 } from "@dnd-kit/react";
 import type { RefObject } from "react";
 import { useCallback, useLayoutEffect, useRef } from "react";
+
 import {
 	createWorkspaceTabDragRailController,
 	refreshWorkspaceTabDragCollisions,

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { join } from "node:path";
+
 import type {
 	BranchCollection,
 	BranchMutationResult,
@@ -13,6 +14,7 @@ import type {
 	TagInfo,
 	WorktreeInfo,
 } from "@1git/git";
+
 import { GIT_IPC_CHANNELS, GIT_IPC_EVENTS } from "../src/shared/git-ipc.js";
 import type {
 	OpenedRepositorySession,

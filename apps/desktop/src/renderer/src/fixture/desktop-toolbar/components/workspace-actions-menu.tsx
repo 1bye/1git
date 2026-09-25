@@ -25,6 +25,7 @@ import { TrashIcon } from "@phosphor-icons/react/dist/csr/Trash";
 import { XIcon } from "@phosphor-icons/react/dist/csr/X";
 import type { CSSProperties, ReactElement } from "react";
 import { useId, useState } from "react";
+
 import {
 	getRepositoryCurrentBranch,
 	getRepositoryDeletableBranches,
@@ -55,8 +56,8 @@ import {
 	formatBranchCommitAge,
 	groupWorkspaceBranches,
 } from "@/fixture/desktop-toolbar/lib/workspace-actions-menu.js";
-import { LiquidMenuContent } from "@/fixture/liquid-menu/components/liquid-menu.js";
 import { LiquidMenuAutoSize } from "@/fixture/liquid-menu/components/liquid-menu-auto-size.js";
+import { LiquidMenuContent } from "@/fixture/liquid-menu/components/liquid-menu.js";
 
 interface WorkspaceActionsMenuProps {
 	readonly branches: BranchCollection | null;

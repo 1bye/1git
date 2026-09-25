@@ -3,8 +3,7 @@ export interface RepositoryCommitIdentity {
 	readonly name: string;
 }
 
-export interface RepositoryCommitIdentityRequirement
-	extends RepositoryCommitIdentity {
+export interface RepositoryCommitIdentityRequirement extends RepositoryCommitIdentity {
 	readonly sessionId: string;
 }
 

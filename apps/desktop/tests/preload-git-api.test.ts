@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+
 import { isValidGitOperationId } from "../src/main/git/git-operation-registry.js";
 import {
 	createDesktopGitApi,

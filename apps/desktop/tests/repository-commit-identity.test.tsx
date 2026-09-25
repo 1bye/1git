@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
+
 import { renderToStaticMarkup } from "react-dom/server";
+
 import { CommandLensContext } from "../src/renderer/src/feature/command-lens/hooks/use-command-lens-context.js";
 import {
 	hasRepositoryCommitIdentity,

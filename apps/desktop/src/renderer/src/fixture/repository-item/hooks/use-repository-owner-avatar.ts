@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+
 import type { RepositoryOwner } from "@/feature/workspace/lib/repository-owner.js";
 import {
 	loadRepositoryOwnerAvatarByIdentity,

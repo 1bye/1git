@@ -180,7 +180,7 @@ export const refreshWorkspaceTabDragCollisions = (
 const isOverlayPresent = (overlay: HTMLElement | null): boolean =>
 	Boolean(
 		overlay?.hasAttribute("data-dnd-dragging") ||
-			overlay?.hasAttribute("data-dnd-dropping")
+		overlay?.hasAttribute("data-dnd-dropping")
 	);
 
 const shouldTrackDragRail = (

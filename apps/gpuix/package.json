@@ -1,8 +1,8 @@
 {
   "name": "@1git/gpuix",
   "version": "0.0.1",
-  "description": "Empty GPUix shell for 1git",
   "private": true,
+  "description": "Empty GPUix shell for 1git",
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",

@@ -1,5 +1,6 @@
 import type { ReactElement, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
 import {
 	type CommandLensMeasuredTarget,
 	CommandLensOverlay,
@@ -431,9 +432,8 @@ export function CommandLensProvider({
 	);
 	const advanceFocusedTarget = useCallback(
 		(currentTargetId: string): void => {
-			const navigationTargets = getPlainArrowNavigationTargets(
-				readVisibleTargets()
-			);
+			const navigationTargets =
+				getPlainArrowNavigationTargets(readVisibleTargets());
 			const nextTarget = getNextCommandLensNavigationGroupTarget(
 				navigationTargets,
 				currentTargetId

@@ -5,6 +5,7 @@ import { GitBranchIcon } from "@phosphor-icons/react/dist/csr/GitBranch";
 import { GitPullRequestIcon } from "@phosphor-icons/react/dist/csr/GitPullRequest";
 import { SpinnerGapIcon } from "@phosphor-icons/react/dist/csr/SpinnerGap";
 import type { ReactElement } from "react";
+
 import type { RepositoryCleanAction } from "@/feature/workspace/lib/repository-clean-state.js";
 import {
 	isRepositorySyncActionKind,

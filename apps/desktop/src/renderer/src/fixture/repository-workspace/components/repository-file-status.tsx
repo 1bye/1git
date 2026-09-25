@@ -1,6 +1,7 @@
 import type { FileChange, FileStatus } from "@1git/git";
 import { cn } from "@1git/ui/lib/utils";
 import type { ReactElement } from "react";
+
 import {
 	getFileChangeStatus,
 	isFilePartiallyStaged,

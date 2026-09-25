@@ -1,4 +1,5 @@
 import type { FileChange } from "@1git/git";
+
 import {
 	isFileConflicted,
 	isFileStaged,

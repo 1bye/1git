@@ -1,8 +1,8 @@
 {
   "name": "@1git/git",
   "version": "0.0.0",
-  "description": "Structured repository control for 1git applications",
   "private": true,
+  "description": "Structured repository control for 1git applications",
   "type": "module",
   "exports": {
     ".": {

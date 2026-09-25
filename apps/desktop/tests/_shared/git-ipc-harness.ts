@@ -1,5 +1,6 @@
 import type { GitOperation, GitResult } from "@1git/git";
 import type { IpcMain, IpcMainInvokeEvent, WebContents } from "electron";
+
 import { registerGitIpc } from "../../src/main/git/git-ipc.js";
 import { GitOperationRegistry } from "../../src/main/git/git-operation-registry.js";
 import type { RepositoryManager } from "../../src/main/git/repository-manager.js";

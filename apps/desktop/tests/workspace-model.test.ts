@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
+
 import type { FileChange, FileStatus } from "@1git/git";
+
 import {
 	areAllFilesStaged,
 	formatRelativeTime,

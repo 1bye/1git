@@ -1,4 +1,5 @@
 import type { GitOperation } from "@1git/git";
+
 import {
 	GIT_IPC_EVENTS,
 	type GitOperationId,

@@ -1,4 +1,5 @@
 import type { BranchCollection, BranchInfo } from "@1git/git";
+
 import {
 	LATEST_BRANCH_LIMIT,
 	WORKSPACE_BRANCH_COMMIT_AGE_UNITS,

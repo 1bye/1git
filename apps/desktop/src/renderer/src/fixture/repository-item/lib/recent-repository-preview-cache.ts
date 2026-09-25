@@ -2,6 +2,7 @@ import {
 	RECENT_REPOSITORY_PREVIEW_CACHE_LIMIT,
 	RECENT_REPOSITORY_PREVIEW_CACHE_TTL_MS,
 } from "@/fixture/repository-item/constants/repository-context-menu.js";
+
 import type { RecentRepositoryPreview } from "../../../../../shared/repository-session.js";
 
 interface RecentRepositoryPreviewCacheEntry {

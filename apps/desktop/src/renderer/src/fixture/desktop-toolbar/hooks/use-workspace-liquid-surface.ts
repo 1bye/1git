@@ -1,5 +1,6 @@
 import type { RefObject } from "react";
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
+
 import {
 	WORKSPACE_TAB_SURFACE_GEOMETRY,
 	WORKSPACE_TAB_SURFACE_MOTION,
@@ -22,6 +23,7 @@ import {
 } from "@/fixture/desktop-toolbar/lib/workspace-tab-scroll.js";
 import { useReducedMotion } from "@/fixture/liquid-surface/hooks/use-reduced-motion.js";
 import { createLiquidGeometryTracker } from "@/fixture/liquid-surface/lib/track-liquid-geometry.js";
+
 import type { RepositorySessionId } from "../../../../../shared/repository-session.js";
 
 interface UseWorkspaceLiquidSurfaceOptions {

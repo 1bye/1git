@@ -10,6 +10,7 @@ import type {
 	ResetMode,
 	StashInfo,
 } from "@1git/git";
+
 import type {
 	RepositoryBranchComparison,
 	RepositoryCleanAction,
@@ -25,6 +26,7 @@ import type {
 	RepositorySyncAction,
 	RepositorySyncActionKind,
 } from "@/feature/workspace/lib/repository-sync.js";
+
 import type {
 	RepositoryManagerState,
 	RepositorySessionId,

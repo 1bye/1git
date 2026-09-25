@@ -1,8 +1,8 @@
 {
   "name": "@1git/desktop",
   "version": "0.0.1",
-  "description": "Native desktop shell for 1git",
   "private": true,
+  "description": "Native desktop shell for 1git",
   "type": "module",
   "main": "./dist/main/index.js",
   "scripts": {

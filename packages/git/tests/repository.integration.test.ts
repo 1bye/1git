@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { join } from "node:path";
+
 import { GitRepository } from "../src/repository.js";
 import {
 	RepositoryFixtures,

@@ -1,5 +1,6 @@
 import { cn } from "@1git/ui/lib/utils";
 import type { ReactElement } from "react";
+
 import { OverflowingLabel } from "@/fixture/overflowing-label/components/overflowing-label.js";
 import { splitRepositoryFilePath } from "@/fixture/repository-workspace/lib/repository-navigation.js";
 

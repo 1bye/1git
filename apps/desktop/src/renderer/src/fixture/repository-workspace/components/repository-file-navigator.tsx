@@ -9,6 +9,7 @@ import {
 import { FunnelSimpleIcon } from "@phosphor-icons/react/dist/csr/FunnelSimple";
 import type { ChangeEvent, ReactElement, ReactNode } from "react";
 import { useEffect, useRef } from "react";
+
 import { useCommandLensTarget } from "@/feature/command-lens/hooks/use-command-lens-target.js";
 import type { PendingWorkspaceAction } from "@/feature/workspace/types/git-workspace.js";
 import { RepositoryFileList } from "@/fixture/repository-workspace/components/repository-file-list.js";

@@ -6,53 +6,53 @@ type NamedStyles = Record<string, StyleDesc | StyleFactory>;
 export type StyleInput = StyleDesc | false | null | undefined;
 
 const create = <const Styles extends NamedStyles>(styles: Styles): Styles =>
-  styles;
+	styles;
 
 const mergeInteractionStyles = (
-  base: StyleDesc["hover"],
-  override: StyleDesc["hover"]
+	base: StyleDesc["hover"],
+	override: StyleDesc["hover"]
 ): StyleDesc["hover"] => {
-  if (!base) {
-    return override;
-  }
+	if (!base) {
+		return override;
+	}
 
-  if (!override) {
-    return base;
-  }
+	if (!override) {
+		return base;
+	}
 
-  return { ...base, ...override };
+	return { ...base, ...override };
 };
 
 const compose = (...styles: readonly StyleInput[]): StyleDesc => {
-  let composed: StyleDesc | undefined;
+	let composed: StyleDesc | undefined;
 
-  for (const style of styles) {
-    if (!style) {
-      continue;
-    }
-    if (!composed) {
-      composed = style;
-      continue;
-    }
+	for (const style of styles) {
+		if (!style) {
+			continue;
+		}
+		if (!composed) {
+			composed = style;
+			continue;
+		}
 
-    const active = mergeInteractionStyles(composed.active, style.active);
-    const hover = mergeInteractionStyles(composed.hover, style.hover);
-    composed = {
-      ...composed,
-      ...style,
-    };
-    if (active) {
-      composed.active = active;
-    }
-    if (hover) {
-      composed.hover = hover;
-    }
-  }
+		const active = mergeInteractionStyles(composed.active, style.active);
+		const hover = mergeInteractionStyles(composed.hover, style.hover);
+		composed = {
+			...composed,
+			...style,
+		};
+		if (active) {
+			composed.active = active;
+		}
+		if (hover) {
+			composed.hover = hover;
+		}
+	}
 
-  return composed ?? {};
+	return composed ?? {};
 };
 
 export const StyleSheet = {
-  compose,
-  create,
+	compose,
+	create,
 } as const;

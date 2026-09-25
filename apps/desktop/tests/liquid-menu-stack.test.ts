@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+
 import { LIQUID_MENU_MOTION } from "@/fixture/liquid-menu/constants/liquid-menu.js";
 import {
 	addLiquidMenuLayer,

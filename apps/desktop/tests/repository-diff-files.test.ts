@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
+
 import type { FileChange, FileDiff } from "@1git/git";
 import { DiffHunksRenderer } from "@pierre/diffs";
+
 import { REPOSITORY_DIFF_RENDER_OPTIONS } from "../src/renderer/src/fixture/repository-workspace/constants/repository-diff.js";
 import {
 	createExpandableRepositoryDiffFile,

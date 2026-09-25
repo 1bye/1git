@@ -1,4 +1,5 @@
 import { contextBridge, type IpcRendererEvent, ipcRenderer } from "electron";
+
 import type { DesktopApi } from "../shared/desktop-api.js";
 import { createDesktopIntegrationApi } from "./desktop-integration-api.js";
 import { createDesktopGitApi, type DesktopIpcSubscribe } from "./git-api.js";

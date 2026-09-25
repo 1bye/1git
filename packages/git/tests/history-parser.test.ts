@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+
 import {
 	HISTORY_FIELD_SEPARATOR,
 	HISTORY_RECORD_SEPARATOR,
