@@ -2,10 +2,11 @@ import { workspaceLayout as layout } from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { Button } from "@1git/gpuix-ui/button";
 import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
-import { useEffect, useRef, type Dispatch } from "react";
+import { useEffect, useRef, useState, type Dispatch } from "react";
 
 import { appTokens } from "../../styles/tokens";
 import { WorkspaceTab } from "./workspace-tab";
+import { WorkspaceTabIcon } from "./workspace-tab-icon";
 import {
 	WorkspaceTabsModel,
 	type WorkspaceTabsAction,
@@ -36,11 +37,11 @@ const styles = StyleSheet.create({
 		overflowY: "hidden",
 	},
 	add: {
-		width: 28,
-		height: 28,
+		width: layout.tabCloseSize,
+		height: layout.tabCloseSize,
 		marginLeft: 4,
 		marginRight: 4,
-		marginBottom: 8,
+		marginBottom: layout.tabContentInsetBlock,
 		paddingLeft: 0,
 		paddingRight: 0,
 	},
@@ -59,6 +60,9 @@ export function WorkspaceTabs({
 	const strip = useRef<PublicInstance>(null);
 	const addButton = useRef<PublicInstance>(null);
 	const focusRequested = useRef(false);
+	const [focusVisible, setFocusVisible] = useState(true);
+	const onPointerDown = (): void => setFocusVisible(false);
+	const onKeyboardInput = (): void => setFocusVisible(true);
 
 	const focusTab = (id: string): void => {
 		const tab = tabs.current.get(id);
@@ -104,6 +108,9 @@ export function WorkspaceTabs({
 						key={tab.id}
 						tab={tab}
 						active={state.activeId === tab.id}
+						focusVisible={focusVisible}
+						onPointerDown={onPointerDown}
+						onKeyboardInput={onKeyboardInput}
 						tabRef={(instance) => {
 							if (instance) tabs.current.set(tab.id, instance);
 							else tabs.current.delete(tab.id);
@@ -136,14 +143,16 @@ export function WorkspaceTabs({
 				tokens={appTokens}
 				variant="ghost"
 				size="sm"
+				focusVisible={focusVisible}
+				onMouseDown={onPointerDown}
+				onKeyDown={onKeyboardInput}
 				style={styles.add}
-				textStyle={{ fontSize: 20 }}
 				onPress={() => {
 					focusRequested.current = true;
 					dispatch({ type: "add" });
 				}}
 			>
-				+
+				<WorkspaceTabIcon name="add" testId="add-workspace-icon" />
 			</Button>
 		</div>
 	);

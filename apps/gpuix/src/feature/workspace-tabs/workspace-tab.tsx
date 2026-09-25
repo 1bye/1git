@@ -6,6 +6,7 @@ import type { EventPayload, PublicInstance } from "@gpuix/react";
 import { useRef, useState, type Ref } from "react";
 
 import { appTokens } from "../../styles/tokens";
+import { WorkspaceTabIcon } from "./workspace-tab-icon";
 import type { WorkspaceTabRecord } from "./workspace-tabs-model";
 
 const {
@@ -29,17 +30,28 @@ const styles = StyleSheet.create({
 		height,
 		pointerEvents: "none",
 	},
-	trigger: {
+	content: {
 		position: "absolute",
 		top: 4,
 		left: inset,
-		width: width - inset * 2 - layout.tabCloseSize,
+		width: width - inset * 2,
 		height: height - 8,
 		display: "flex",
 		flexDirection: "row",
 		alignItems: "center",
 		gap: layout.tabContentGap,
 		paddingLeft: layout.tabContentGap,
+		paddingRight: layout.tabContentGap,
+	},
+	trigger: {
+		display: "flex",
+		flexDirection: "row",
+		alignItems: "center",
+		gap: layout.tabContentGap,
+		flexGrow: 1,
+		flexShrink: 1,
+		minWidth: 0,
+		height: layout.tabCloseSize,
 		borderWidth: 1,
 		borderColor: "transparent",
 		borderRadius: 6,
@@ -58,19 +70,35 @@ const styles = StyleSheet.create({
 		flexShrink: 0,
 	},
 	initial: { fontSize: 9, color: lightColors.editorMuted },
-	label: (active: boolean) => ({
+	label: {
+		display: "flex",
+		flexDirection: "row",
+		alignItems: "center",
+		flexShrink: 1,
+		minWidth: 0,
+		overflow: "hidden",
+		whiteSpace: "nowrap",
+		textOverflow: "ellipsis",
+	},
+	name: (active: boolean) => ({
 		flexShrink: 1,
 		minWidth: 0,
 		fontSize: 11,
 		whiteSpace: "nowrap",
 		textOverflow: "ellipsis",
 		color: active ? lightColors.editorInk : lightColors.editorMuted,
-		fontWeight: active ? 700 : 600,
+		fontWeight: 500,
 	}),
+	branch: {
+		flexShrink: 1,
+		minWidth: 0,
+		fontSize: 11,
+		fontWeight: 400,
+		color: lightColors.editorMuted,
+		whiteSpace: "nowrap",
+		textOverflow: "ellipsis",
+	},
 	close: {
-		position: "absolute",
-		right: inset,
-		top: layout.tabContentInsetBlock,
 		width: layout.tabCloseSize,
 		height: layout.tabCloseSize,
 		paddingLeft: 0,
@@ -82,6 +110,9 @@ const styles = StyleSheet.create({
 export function WorkspaceTab({
 	tab,
 	active,
+	focusVisible,
+	onPointerDown,
+	onKeyboardInput,
 	tabRef,
 	onActivate,
 	onClose,
@@ -89,6 +120,9 @@ export function WorkspaceTab({
 }: {
 	tab: WorkspaceTabRecord;
 	active: boolean;
+	focusVisible: boolean;
+	onPointerDown: () => void;
+	onKeyboardInput: () => void;
 	tabRef: Ref<PublicInstance>;
 	onActivate: () => void;
 	onClose: () => void;
@@ -99,6 +133,7 @@ export function WorkspaceTab({
 	const spaceArmed = useRef(false);
 	const label = tab.branch ? `${tab.name} / ${tab.branch}` : tab.name;
 	const onKeyDown = (event: EventPayload): void => {
+		onKeyboardInput();
 		if (event.modifiers?.cmd || event.modifiers?.ctrl || event.modifiers?.alt)
 			return;
 		if (
@@ -123,56 +158,76 @@ export function WorkspaceTab({
 			onMouseLeave={() => setHovered(false)}
 		>
 			{active ? <svg source={activeSurface} style={styles.surface} /> : null}
-			<div
-				ref={tabRef}
-				testId={tab.id}
-				role="tab"
-				aria-label={label}
-				aria-selected={active}
-				tabIndex={active ? 0 : -1}
-				style={StyleSheet.compose(
-					styles.trigger,
-					!active && styles.inactive,
-					focused && styles.focused
-				)}
-				onClick={onActivate}
-				onKeyDown={onKeyDown}
-				onKeyUp={(event) => {
-					if (event.key !== "space") return;
-					const activate = spaceArmed.current;
-					spaceArmed.current = false;
-					if (activate) onActivate();
-				}}
-				onFocus={() => setFocused(true)}
-				onBlur={() => {
-					spaceArmed.current = false;
-					setFocused(false);
-				}}
-			>
-				<div style={styles.avatar}>
-					<Text tokens={appTokens} style={styles.initial}>
-						{tab.name[0]?.toUpperCase()}
-					</Text>
+			<div testId={`content-${tab.id}`} style={styles.content}>
+				<div
+					ref={tabRef}
+					testId={tab.id}
+					role="tab"
+					aria-label={label}
+					aria-selected={active}
+					tabIndex={active ? 0 : -1}
+					style={StyleSheet.compose(
+						styles.trigger,
+						!active && styles.inactive,
+						focused && focusVisible && styles.focused
+					)}
+					onClick={onActivate}
+					onMouseDown={onPointerDown}
+					onKeyDown={onKeyDown}
+					onKeyUp={(event) => {
+						if (event.key !== "space") return;
+						const activate = spaceArmed.current;
+						spaceArmed.current = false;
+						if (activate) onActivate();
+					}}
+					onFocus={() => setFocused(true)}
+					onBlur={() => {
+						spaceArmed.current = false;
+						setFocused(false);
+					}}
+				>
+					<div testId={`avatar-${tab.id}`} style={styles.avatar}>
+						<Text tokens={appTokens} style={styles.initial}>
+							{tab.name[0]?.toUpperCase()}
+						</Text>
+					</div>
+					<div testId={`label-${tab.id}`} style={styles.label}>
+						<Text
+							testId={`name-${tab.id}`}
+							tokens={appTokens}
+							style={styles.name(active)}
+						>
+							{tab.name}
+						</Text>
+						{tab.branch ? (
+							<Text
+								testId={`branch-${tab.id}`}
+								tokens={appTokens}
+								style={styles.branch}
+							>
+								{` / ${tab.branch}`}
+							</Text>
+						) : null}
+					</div>
 				</div>
-				<Text tokens={appTokens} style={styles.label(active)}>
-					{label}
-				</Text>
+				<Button
+					testId={`close-${tab.id}`}
+					aria-label={`Close ${label}`}
+					tokens={appTokens}
+					variant="ghost"
+					size="sm"
+					focusVisible={focusVisible}
+					onMouseDown={onPointerDown}
+					onKeyDown={onKeyboardInput}
+					tabIndex={active ? 0 : -1}
+					onPress={onClose}
+					style={StyleSheet.compose(styles.close, {
+						opacity: active || hovered || focused ? 1 : 0,
+					})}
+				>
+					<WorkspaceTabIcon name="close" testId={`close-icon-${tab.id}`} />
+				</Button>
 			</div>
-			<Button
-				testId={`close-${tab.id}`}
-				aria-label={`Close ${label}`}
-				tokens={appTokens}
-				variant="ghost"
-				size="sm"
-				tabIndex={active ? 0 : -1}
-				onPress={onClose}
-				style={StyleSheet.compose(styles.close, {
-					opacity: active || hovered || focused ? 1 : 0,
-				})}
-				textStyle={{ fontSize: 16, color: lightColors.editorMuted }}
-			>
-				×
-			</Button>
 		</div>
 	);
 }

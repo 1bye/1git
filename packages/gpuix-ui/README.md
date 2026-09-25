@@ -63,6 +63,8 @@ render(<App />, {
 | `variant` | `primary`, `secondary`, `ghost` | `primary` |
 | `size` | `sm`, `md` | `md` |
 | `disabled` | Blocks activation and removes the button from the Tab order | `false` |
+| `focusVisible` | Show the ring when focused; a parent can gate this by pointer/keyboard input without changing focus or activation | `true` |
+| `onMouseDown`, `onKeyDown` | Native input notifications, e.g. to track focus visibility; `onKeyDown` runs before built-in activation | — |
 | `onPress` | `() => void`; mouse click, Enter press, or Space release | — |
 | `style` | GPUIX `StyleDesc` for the root | — |
 | `textStyle` | GPUIX `StyleDesc` for generated text labels | — |
@@ -76,6 +78,25 @@ Key repeats do not repeatedly activate the button. Space is cancelled by blur or
 disabling the button. Focus is visibly outlined. Caller styles override the base
 appearance; focus, keyboard-press, and disabled styles are applied afterward.
 Disabled buttons suppress native hover and active styles.
+
+For keyboard-only rings, track input in the owning component. Share that state
+across related controls when clicks move focus between them, as in a tab strip:
+
+```tsx
+const [focusVisible, setFocusVisible] = useState(true);
+
+<Button
+  focusVisible={focusVisible}
+  onMouseDown={() => setFocusVisible(false)}
+  onKeyDown={() => setFocusVisible(true)}
+  onPress={handleCommit}
+>
+  Commit
+</Button>;
+```
+
+Import `useState` from React. These handlers observe native input; `onPress`
+still owns activation. `focusVisible` only gates the ring, not keyboard access.
 
 Plain text children are joined into one label, including interpolated numbers.
 Custom children retain their own styling. Give icon-only or custom-content

@@ -10,6 +10,7 @@ import { flushSync, handleGpuixEvent } from "@gpuix/react";
 import { createTestRoot, type TestRoot } from "@gpuix/react/testing";
 
 import { App } from "../../src/app";
+import { WorkspaceTabs } from "../../src/feature/workspace-tabs/workspace-tabs";
 import { windowOptions } from "../../src/window-options";
 
 let root: TestRoot;
@@ -67,6 +68,78 @@ it("uses the shared shell geometry and paints only the workspace opaque", () => 
 	expect(windowOptions.windowBackground).toBe("blurred");
 });
 
+it("aligns lightweight labels and icons without shifting when selection changes", () => {
+	const avatar = bounds("avatar-workspace-1");
+	const label = bounds("label-workspace-1");
+	const close = bounds("close-workspace-1");
+	const closeIcon = bounds("close-icon-workspace-1");
+	const addIcon = bounds("add-workspace-icon");
+	const centerY = avatar.y + avatar.height / 2;
+	expect(label.x - avatar.x - avatar.width).toBe(workspaceLayout.tabContentGap);
+	expect(label.y + label.height / 2).toBe(centerY);
+	expect(close.y + close.height / 2).toBe(centerY);
+	expect(closeIcon.y + closeIcon.height / 2).toBe(centerY);
+	expect(addIcon.y + addIcon.height / 2).toBe(centerY);
+	expect(bounds("name-workspace-1").y).toBe(bounds("branch-workspace-1").y);
+	expect(element("content-workspace-1").style).toMatchObject({
+		paddingLeft: 8,
+		paddingRight: 8,
+		gap: 8,
+	});
+	expect(element("close-workspace-1").style).toMatchObject({
+		width: 24,
+		height: 24,
+	});
+	expect(closeIcon).toMatchObject({ width: 14, height: 14 });
+	expect(element("name-workspace-1").style.fontWeight).toBe(500);
+	expect(element("branch-workspace-1").style).toMatchObject({
+		fontWeight: 400,
+		color: lightColors.editorMuted,
+	});
+
+	click("add-workspace");
+	expect(element("name-workspace-1").style.fontWeight).toBe(500);
+	expect(element("close-workspace-1").style.opacity).toBe(0);
+	expect(bounds("label-workspace-1")).toEqual(label);
+	expect(bounds("close-workspace-1")).toEqual(close);
+});
+
+it("shows a focus ring when Tab first enters the window", () => {
+	root.renderer.simulateKeystrokes("tab");
+	expect(root.renderer.getFocusedElementId()).toBe(element("workspace-1").id);
+	flushSync(() =>
+		handleGpuixEvent(
+			{ elementId: element("workspace-1").id, eventType: "focus" },
+			root.renderer
+		)
+	);
+	expect(element("workspace-1").style.borderColor).toBe(lightColors.brand);
+});
+
+it("keeps long repository and branch labels on one line clear of the close target", () => {
+	const name = "an-extremely-long-repository-name-that-needs-truncation";
+	const branch = "feature/this-is-a-long-branch-name";
+	root.render(
+		<WorkspaceTabs
+			state={{
+				tabs: [{ id: "long", name, branch }],
+				activeId: "long",
+				nextId: 2,
+			}}
+			dispatch={() => {}}
+		/>
+	);
+	const repository = bounds("name-long");
+	const branchLabel = bounds("branch-long");
+	const close = bounds("close-long");
+	expect(repository.y).toBe(branchLabel.y);
+	expect(repository.x + repository.width).toBeLessThanOrEqual(branchLabel.x);
+	expect(branchLabel.x + branchLabel.width).toBeLessThan(close.x);
+	expect(element("name-long").style.textOverflow).toBe("ellipsis");
+	expect(element("branch-long").style.textOverflow).toBe("ellipsis");
+	expect(selectedTabs()).toEqual([`${name} / ${branch}`]);
+});
+
 it("adds and activates tabs without closing on activation, and recovers focus after the last close", () => {
 	click("add-workspace");
 	expect(selectedTabs()).toEqual(["Workspace 2"]);
@@ -107,6 +180,66 @@ it("moves selection with arrows and Home/End and closes using Delete", () => {
 	expect(root.renderer.getFocusedElementId()).toBe(
 		element("close-workspace-2").id
 	);
+});
+
+it("hides pointer focus rings and restores them when navigating with the keyboard", () => {
+	click("workspace-1");
+	flushSync(() =>
+		handleGpuixEvent(
+			{ elementId: element("workspace-1").id, eventType: "focus" },
+			root.renderer
+		)
+	);
+	expect(element("workspace-1").style.borderColor).toBe("transparent");
+
+	root.renderer.simulateKeystrokes("tab");
+	flushSync(() =>
+		handleGpuixEvent(
+			{ elementId: element("close-workspace-1").id, eventType: "focus" },
+			root.renderer
+		)
+	);
+	expect(element("close-workspace-1").style.borderColor).toBe(
+		lightColors.brand
+	);
+
+	click("add-workspace");
+	flushSync(() =>
+		handleGpuixEvent(
+			{ elementId: element("workspace-2").id, eventType: "focus" },
+			root.renderer
+		)
+	);
+	expect(element("workspace-2").style.borderColor).toBe("transparent");
+	root.renderer.simulateKeystrokes("left");
+	flushSync(() =>
+		handleGpuixEvent(
+			{ elementId: element("workspace-1").id, eventType: "focus" },
+			root.renderer
+		)
+	);
+	expect(element("workspace-1").style.borderColor).toBe(lightColors.brand);
+
+	click("close-workspace-1");
+	flushSync(() =>
+		handleGpuixEvent(
+			{ elementId: element("workspace-2").id, eventType: "focus" },
+			root.renderer
+		)
+	);
+	expect(element("workspace-2").style.borderColor).toBe("transparent");
+	click("close-workspace-2");
+	flushSync(() =>
+		handleGpuixEvent(
+			{ elementId: element("add-workspace").id, eventType: "focus" },
+			root.renderer
+		)
+	);
+	expect(element("add-workspace").style.borderColor).toBe("transparent");
+	root.renderer.nativeSimulateKeyDown(element("add-workspace").id, "space");
+	expect(element("add-workspace").style.borderColor).toBe(lightColors.brand);
+	root.renderer.nativeSimulateKeyUp(element("add-workspace").id, "space");
+	expect(selectedTabs()).toEqual(["Workspace 3"]);
 });
 
 it("scrolls overflowing tabs into view while keeping the add action reachable", () => {

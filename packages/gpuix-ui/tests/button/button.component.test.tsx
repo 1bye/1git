@@ -179,6 +179,53 @@ it("blocks disabled mouse and keyboard activation and skips the Tab order", () =
 	expect(disabled.style.active).toBeUndefined();
 });
 
+it("lets callers gate the focus ring and observe input without replacing activation", () => {
+	let pointerDowns = 0;
+	const keys: string[] = [];
+	let presses = 0;
+	const render = (focusVisible: boolean): void =>
+		root.render(
+			<Button
+				testId="button"
+				focusVisible={focusVisible}
+				onMouseDown={() => {
+					pointerDowns += 1;
+				}}
+				onKeyDown={(event) => {
+					if (event.key) keys.push(event.key);
+				}}
+				onPress={() => {
+					presses += 1;
+				}}
+			>
+				Commit
+			</Button>
+		);
+	render(false);
+	const button = elementByTestId(root.renderer, "button");
+	clickElement(root.renderer, "button");
+	expect(pointerDowns).toBe(1);
+	expect(presses).toBe(1);
+	flushSync(() =>
+		handleGpuixEvent(
+			{ elementId: button.id, eventType: "focus" },
+			root.renderer
+		)
+	);
+	expect(elementByTestId(root.renderer, "button").style.borderColor).toBe(
+		"transparent"
+	);
+	expect(root.renderer.getFocusedElementId()).toBe(button.id);
+
+	render(true);
+	expect(elementByTestId(root.renderer, "button").style.borderColor).toBe(
+		"#c4b5fd"
+	);
+	root.renderer.nativeSimulateKeyDown(button.id, "enter");
+	expect(keys).toEqual(["enter"]);
+	expect(presses).toBe(2);
+});
+
 it("cancels a pending press when disabled between key down and key up", () => {
 	let presses = 0;
 	const onPress = () => {

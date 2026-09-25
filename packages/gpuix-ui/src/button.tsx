@@ -13,6 +13,8 @@ export interface ButtonProps extends Pick<
 	| "testId"
 	| "tabIndex"
 	| "autoFocus"
+	| "onMouseDown"
+	| "onKeyDown"
 	| "aria-label"
 	| "aria-description"
 	| "aria-id"
@@ -20,6 +22,8 @@ export interface ButtonProps extends Pick<
 	variant?: "primary" | "secondary" | "ghost";
 	size?: "sm" | "md";
 	disabled?: boolean;
+	/** Gate the ring by input modality without removing keyboard focus or activation. */
+	focusVisible?: boolean;
 	onPress?: () => void;
 	style?: StyleDesc;
 	textStyle?: StyleDesc;
@@ -80,7 +84,9 @@ export function Button({
 	variant = "primary",
 	size = "md",
 	disabled = false,
+	focusVisible = true,
 	onPress,
+	onKeyDown,
 	style,
 	textStyle,
 	tokens = defaultTokens,
@@ -108,7 +114,7 @@ export function Button({
 		appearance,
 		styles[size](tokens),
 		style,
-		!disabled && focused && styles.focused(tokens),
+		!disabled && focused && focusVisible && styles.focused(tokens),
 		!disabled && spacePressed && appearance.active,
 		disabled && styles.disabled
 	);
@@ -145,6 +151,7 @@ export function Button({
 				if (!disabled) onPress?.();
 			}}
 			onKeyDown={(event) => {
+				onKeyDown?.(event);
 				if (disabled || event.isHeld) return;
 				if (event.key === "enter") onPress?.();
 				if (event.key === "space") {
