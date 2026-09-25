@@ -39,6 +39,8 @@ this guide. For React or TSX work, also read `react.md` beside this file.
 
 ## Ownership and types
 
+- Organize by owning domain or feature first, then by technical role within that
+  boundary. Preserve an established project layout during focused changes.
 - Place behavior, types, schemas, and constants with the concept that owns them.
   Share code when real consumers need it; avoid generic dumping grounds.
 - Use precise domain names and explicit units such as `timeoutMs`. Extract files

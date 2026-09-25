@@ -16,9 +16,42 @@ For new UI boundaries, use these meanings:
 | `feature/` | Substantial feature state, workflows, hooks, or model behavior | Checkout, editor timeline, search workflow |
 
 Keep feature-specific components with their feature. Preserve equivalent existing
-directory names rather than renaming a repository during a focused change.
+directory names, including `feature/` or `features/`, rather than renaming a
+repository during a focused change.
 `fixture/` here means UI composition; keep test fixtures with the tests they serve.
-Create only directories and files the feature needs.
+
+## Feature structure
+
+Group by named feature first, then by responsibility within it. A feature can
+contain several independently consumed or reusable components that share hooks,
+logic, helpers, or state. A single main component is optional.
+
+```text
+features/
+  workspace-tabs/
+    workspace-tabs.tsx   # Optional main feature component
+    components/          # Components owned by this feature
+    hooks/               # Feature-specific React hooks
+    lib/                 # Feature model and domain behavior
+    utils/               # Pure helpers, when distinct from lib/
+    stores/              # Feature state containers
+    types.ts             # Contracts shared within the feature
+    constants.ts         # Feature-specific constants
+    index.ts             # Optional public exports
+```
+
+- Create only the files and directories the feature needs; every role shown is
+  optional. Do not add empty folders, ceremonial role files, or a wrapper component
+  just to provide a single entry point.
+- Keep related components, hooks, logic, helpers, and state inside their feature.
+  Share them across features only when real consumers justify a shared owner.
+- Use `lib/` for cohesive model/domain behavior and `utils/` for small pure helpers
+  when that distinction is useful. Follow existing conventions; do not create both
+  for the same role. Keep trivial helpers, types, and constants with their owner
+  until a separate module has a clear responsibility.
+- Import internal modules directly from their source files. When the project uses
+  a feature public entry point, expose only its intended exports through an
+  optional `index.ts`; do not add barrels to every internal directory.
 
 ## Components and files
 

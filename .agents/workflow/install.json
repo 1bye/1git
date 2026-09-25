@@ -9,8 +9,8 @@
   "oxlint": false,
   "biome": false,
   "files": {
-    ".agents/workflow/AGENTS.md": "a17422510bebc727a82454bffef6b3be0bb23945a0972abb09f99d98962a5331",
-    ".agents/workflow/react.md": "2bb97bf9cc5f27066125b0c435189e031c45fc9413146cec24fb36b40774c495",
+    ".agents/workflow/AGENTS.md": "9d01c9639772e7c00e689a75be8f31609469b9425007a4a69194ff711b8167dd",
+    ".agents/workflow/react.md": "3865b601f4d92e636f66ab3aecd0931d863cd55c0ee3b3b285368a029a9be966",
     ".agents/workflow/testing.md": "5937298e141904eaba43b790b751008ff5a26bb62057bca52c4cf1bd2b788788",
     ".agents/workflow/stacks.md": "00b0119e5e40a8408cbdb877af7e3338a1299c6e7a2a8ed7e44d54f54306e778",
     ".agents/workflow/configs/README.md": "1d57b96ef1c8f0657cf28caf567793965bceef1afa8d4488890dd783a299ab47",
