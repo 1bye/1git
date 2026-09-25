@@ -3,6 +3,10 @@
 Small, typed helpers for defining and composing GPUIX styles. The package adds
 no theme or styling runtime: styles remain plain GPUIX `StyleDesc` objects.
 
+This package is checked against GPUIX `0.10.0`. Install `@gpuix/react` and
+`@gpuix/native` at that same exact version. GPUIX 0.10 retains the React
+`StyleDesc` re-export, so the stylesheet API is unchanged.
+
 ## Usage
 
 Add the package as a workspace dependency:

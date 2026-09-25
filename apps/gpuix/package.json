@@ -2,7 +2,7 @@
   "name": "@1git/gpuix",
   "version": "0.0.1",
   "private": true,
-  "description": "Empty GPUix shell for 1git",
+  "description": "GPUIX shell and component showcase for 1git",
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
@@ -11,8 +11,10 @@
     "start": "bun dist/main.js"
   },
   "dependencies": {
+    "@1git/gpuix-ui": "workspace:*",
     "@1git/gpuix-stylesheet": "workspace:*",
-    "@gpuix/react": "0.8.0",
+    "@gpuix/native": "0.10.0",
+    "@gpuix/react": "0.10.0",
     "react": "^19.2.4"
   },
   "devDependencies": {

@@ -1,0 +1,11 @@
+{
+  "extends": "@1git/config/tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "jsxImportSource": "@gpuix/react",
+    "lib": ["ESNext"],
+    "types": ["react"]
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "exclude": ["node_modules", "dist"]
+}

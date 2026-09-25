@@ -1,15 +1,14 @@
-import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { render } from "@gpuix/react";
 
-const styles = StyleSheet.create({
-	root: {
-		height: "100%",
-		width: "100%",
-	},
-});
+import { App } from "./app";
 
-render(<div style={styles.root} />, {
+render(<App />, {
 	focus: process.env.GPUIX_BACKGROUND !== "1",
+	onKeyDown(event, renderer) {
+		if (event.key !== "tab") return;
+		if (event.modifiers?.shift) renderer.focusPrevious?.();
+		else renderer.focusNext?.();
+	},
 	height: 820,
 	title: "1git",
 	width: 1280,

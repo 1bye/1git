@@ -1,0 +1,168 @@
+import { StyleSheet } from "@1git/gpuix-stylesheet";
+import type { Props, StyleDesc } from "@gpuix/react";
+import { Children, useEffect, useRef, useState } from "react";
+
+import { Text } from "./text";
+
+/** An action control with mouse, Enter, and Space activation. Custom content needs an accessible name. */
+export interface ButtonProps extends Pick<
+	Props,
+	| "children"
+	| "ref"
+	| "testId"
+	| "tabIndex"
+	| "autoFocus"
+	| "aria-label"
+	| "aria-description"
+	| "aria-id"
+> {
+	variant?: "primary" | "secondary" | "ghost";
+	size?: "sm" | "md";
+	disabled?: boolean;
+	onPress?: () => void;
+	style?: StyleDesc;
+	textStyle?: StyleDesc;
+}
+
+const styles = StyleSheet.create({
+	root: {
+		display: "flex",
+		alignItems: "center",
+		justifyContent: "center",
+		gap: 8,
+		borderRadius: 6,
+		borderWidth: 1,
+		borderColor: "transparent",
+		flexShrink: 0,
+		cursor: "pointer",
+		userSelect: "none",
+	},
+	primary: {
+		backgroundColor: "#6366f1",
+		hover: { backgroundColor: "#7375f4" },
+		active: { backgroundColor: "#4f46e5" },
+	},
+	secondary: {
+		backgroundColor: "#27272a",
+		borderColor: "#3f3f46",
+		hover: { backgroundColor: "#343438" },
+		active: { backgroundColor: "#202023" },
+	},
+	ghost: {
+		backgroundColor: "transparent",
+		hover: { backgroundColor: "#27272a" },
+		active: { backgroundColor: "#202023" },
+	},
+	sm: { height: 28, paddingLeft: 10, paddingRight: 10 },
+	md: { height: 34, paddingLeft: 14, paddingRight: 14 },
+	focused: { borderColor: "#c4b5fd" },
+	disabled: { opacity: 0.45, cursor: "not-allowed" },
+	label: { color: "#fafafa" },
+});
+
+/** Owns activation and focus behavior; plain text children receive the built-in label styles. */
+export function Button({
+	variant = "primary",
+	size = "md",
+	disabled = false,
+	onPress,
+	style,
+	textStyle,
+	children,
+	tabIndex = 0,
+	autoFocus,
+	"aria-label": ariaLabel,
+	...props
+}: ButtonProps) {
+	const [focused, setFocused] = useState(false);
+	const [spacePressed, setSpacePressed] = useState(false);
+	// Native key down/up can share a React batch; activation must update synchronously.
+	const spaceArmed = useRef(false);
+
+	useEffect(() => {
+		if (disabled) {
+			spaceArmed.current = false;
+			setSpacePressed(false);
+		}
+	}, [disabled]);
+
+	const appearance = styles[variant];
+	const rootStyle = StyleSheet.compose(
+		styles.root,
+		appearance,
+		styles[size],
+		style,
+		!disabled && focused && styles.focused,
+		!disabled && spacePressed && appearance.active,
+		disabled && styles.disabled
+	);
+
+	// Removing these states keeps a disabled button from responding visually to the pointer.
+	const { hover: _hover, active: _active, ...restStyle } = rootStyle;
+	const childNodes = Children.toArray(children);
+	const isTextOnly = childNodes.every(
+		(child) => typeof child === "string" || typeof child === "number"
+	);
+	const label = childNodes
+		.filter((child) => typeof child === "string" || typeof child === "number")
+		.join("");
+
+	return (
+		<div
+			{...props}
+			role="button"
+			aria-label={ariaLabel ?? (label || undefined)}
+			tabIndex={disabled ? undefined : tabIndex}
+			autoFocus={!disabled && autoFocus}
+			style={disabled ? restStyle : rootStyle}
+			onFocus={() => setFocused(true)}
+			onBlur={() => {
+				spaceArmed.current = false;
+				setFocused(false);
+				setSpacePressed(false);
+			}}
+			onClick={() => {
+				if (!disabled) onPress?.();
+			}}
+			onKeyDown={(event) => {
+				if (disabled || event.isHeld) return;
+				if (event.key === "enter") onPress?.();
+				if (event.key === "space") {
+					spaceArmed.current = true;
+					setSpacePressed(true);
+				}
+			}}
+			onKeyUp={(event) => {
+				if (event.key !== "space") return;
+				const shouldPress = spaceArmed.current;
+				spaceArmed.current = false;
+				setSpacePressed(false);
+				if (!disabled && shouldPress) onPress?.();
+			}}
+		>
+			{isTextOnly ? (
+				<Text
+					size={size === "sm" ? "sm" : "md"}
+					weight="medium"
+					style={StyleSheet.compose(styles.label, textStyle)}
+				>
+					{label}
+				</Text>
+			) : (
+				Children.map(children, (child) =>
+					typeof child === "string" || typeof child === "number" ? (
+						<Text
+							size={size === "sm" ? "sm" : "md"}
+							weight="medium"
+							style={StyleSheet.compose(styles.label, textStyle)}
+						>
+							{child}
+						</Text>
+					) : (
+						child
+					)
+				)
+			)}
+		</div>
+	);
+}
