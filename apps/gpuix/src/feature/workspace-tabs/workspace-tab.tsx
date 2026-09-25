@@ -11,7 +11,8 @@ import { WorkspaceTabIcon } from "./workspace-tab-icon";
 import type { WorkspaceTabRecord } from "./workspace-tabs-model";
 
 const { tabWidth: width, tabHeight: height, tabRadius: radius } = layout;
-const visualInset = 4;
+// Adjacent tabs each contribute half of the 4px surface gap.
+const visualInset = 2;
 const shoulder = 12;
 const focusBorderWidth = 1;
 // Curved shoulders extend beyond the visual body without consuming content space.

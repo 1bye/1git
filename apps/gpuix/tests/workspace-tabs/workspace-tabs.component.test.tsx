@@ -116,19 +116,29 @@ it("reduces the upper tab inset without shrinking controls or changing bottom sp
 	expect(windowOptions.trafficLightY).toBe(13);
 });
 
-it("keeps neighboring tab surfaces close without changing slot width", () => {
+it("matches the 4px bottom gap between neighboring tab surfaces without changing slot width", () => {
 	root.render(<App key="adjacent-tabs" initialTabCount={3} />);
 	const first = bounds("slot-workspace-1");
 	const second = bounds("slot-workspace-2");
 	const hover = bounds("hover-workspace-1");
+	const nextHover = bounds("hover-workspace-2");
 	const nextAvatar = bounds("avatar-workspace-2");
 
+	expect(nextHover.x - hover.x - hover.width).toBe(4);
+	expect(bounds("workspace").y - nextHover.y - nextHover.height).toBe(4);
 	expect(second.x - first.x).toBe(210);
 	expect(first.width).toBe(210);
-	expect(hover.x - first.x).toBe(4);
-	expect(hover.width).toBe(202);
-	expect(nextAvatar.x - hover.x - hover.width).toBe(20);
+	expect(hover.x - first.x).toBe(2);
+	expect(hover.width).toBe(206);
+	expect(nextAvatar.x - hover.x - hover.width).toBe(16);
 	expect(bounds("avatar-workspace-1").x - hover.x).toBe(12);
+
+	click("workspace-2");
+	const active = bounds("surface-workspace-2");
+	const thirdHover = bounds("hover-workspace-3");
+	const shoulder = workspaceLayout.tabContentInsetInlineStart;
+	expect(active.x + shoulder - hover.x - hover.width).toBe(4);
+	expect(thirdHover.x - (active.x + active.width - shoulder)).toBe(4);
 });
 
 it("highlights the whole inactive tab across its padding, label, and close target", () => {
