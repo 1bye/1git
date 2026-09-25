@@ -11,8 +11,8 @@ bun run --cwd apps/gpuix dev
 Both GPUIX packages stay pinned to `0.10.0`. This app runs on Bun, React 19,
 and GPUIX, not the DOM or Electron. The window uses native macOS blur and
 traffic lights, with a translucent light tint and an opaque white workspace.
-The connected tab silhouette is static; it does not port the desktop's liquid
-animation machinery.
+The connected tab silhouette keeps its shape while moving; it does not port
+the desktop's liquid shape-morphing machinery.
 
 ## Local native patch
 
@@ -65,10 +65,12 @@ does not register that font with GPUIX.
 ## Tabs
 
 - Click a tab to activate it; + adds and selects a new workspace.
-- Drag a tab horizontally to preview its new slot; release to commit, or
-  Escape to cancel. A 5px threshold avoids accidental drags. Tabs snap between
-  slots, and overflow scrolls while holding near an edge. This does not detach
-  tabs into new windows or add animated/floating drag previews.
+- Drag a tab horizontally: after a 5px threshold it follows the pointer directly
+  while neighbors slide aside. Release commits and settles into the new slot;
+  Escape animates back without changing the order. GPUIX `motion.div` animates
+  explicit positions over 240ms with the desktop's `[0.22, 1, 0.36, 1]` easing.
+  Overflow scrolls while holding near an edge. This does not detach tabs into
+  new windows or animate their entrance/exit.
 - Shift+Left/Right reorders the focused tab, without wrapping at the ends.
 - Close with × or Delete/Backspace while its tab is focused.
 - Left/Right wrap between tabs; Home/End select the first/last.
@@ -84,7 +86,7 @@ dragging immediately; + adds more. `1git / main` is sample metadata, not a
 detected Git repository. New workspaces are numbered in memory; restarting
 resets the preview. There is no
 repository picker, Git access, sidebar, persistence, theme switch,
-or tab animation yet. Cmd+W remains the native Close Window command.
+or entrance/exit animation yet. Cmd+W remains the native Close Window command.
 
 ## Verification
 
@@ -97,7 +99,9 @@ bun x oxfmt --check apps/gpuix
 ```
 
 Tests include pure tab transitions and real GPUIX native layout, accessibility,
-clicks, keyboard focus, captured reordering, cancellation, and overflow. These
+clicks, keyboard focus, captured reordering, cancellation, and overflow. The
+native motion clock also checks intermediate positions, settling, reversal,
+and grabbing a moving tab without a jump. These
 app tests use the patched addon and require macOS graphics access. They dispatch
 GPUI events, not physical AppKit events: manually check that tab drags keep the
 window still and empty-titlebar drags move it after restarting the app.

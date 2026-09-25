@@ -1,5 +1,5 @@
 /**
- * Covers: tab surface/hover geometry, clicks, captured drag reordering, keyboard/focus, and overflow.
+ * Covers: tab geometry, clicks, animated captured reordering, keyboard/focus, and overflow.
  * Real: app, UI controls, React, and GPUIX native layout/events/accessibility.
  * Doubles: sample workspace records and focus/blur notifications for inactive offscreen windows.
  * Requires: GPUIX native test renderer with macOS or Windows graphics access.
@@ -21,6 +21,7 @@ beforeEach(() => {
 		height: 640,
 		onKeyDown: windowOptions.onKeyDown,
 	});
+	root.renderer.clockPause();
 	root.render(<App />);
 });
 afterEach(() => root.unmount());
@@ -43,6 +44,13 @@ const click = (testId: string): void => {
 		box.x + box.width / 2,
 		box.y + box.height / 2
 	);
+};
+const advanceMotion = (milliseconds = 240): void => {
+	root.renderer.flush();
+	root.renderer.clockFastForward(milliseconds);
+	root.renderer.flush();
+	root.renderer.dispatchNativeEvents();
+	root.renderer.flush();
 };
 const selectedTabs = () =>
 	Object.values(root.renderer.getA11yTree().nodes ?? {})
@@ -385,12 +393,13 @@ it("previews reordering with captured moves and commits on release outside the s
 	root.renderer.nativeSimulateMouseMove(x + 2, y, 0);
 	expect(order()).toEqual(["workspace-1", "workspace-2", "workspace-3"]);
 	root.renderer.nativeSimulateMouseMove(x + 420, y, 0);
+	advanceMotion();
 	expect(order()).toEqual(["workspace-2", "workspace-3", "workspace-1"]);
 	expect(element("workspace-1").id).toBe(id);
 	expect(selectedTabs()).toEqual(["1git / main"]);
 	root.renderer.nativeSimulateMouseUp(x + 420, 300);
 	expect(order()).toEqual(["workspace-2", "workspace-3", "workspace-1"]);
-	expect(element("slot-workspace-1").style.opacity).not.toBe(0.8);
+	advanceMotion();
 
 	click("workspace-2");
 	expect(selectedTabs()).toEqual(["Workspace 2"]);
@@ -405,6 +414,7 @@ it("cancels the preview on Escape and keeps close/add controls out of a tab drag
 	root.renderer.nativeSimulateMouseDown(x, y);
 	root.renderer.nativeSimulateMouseMove(x + 420, y, 0);
 	root.renderer.nativeSimulateKeyDown(element("workspace-1").id, "escape");
+	advanceMotion();
 	expect(order()).toEqual(["workspace-1", "workspace-2", "workspace-3"]);
 	const close = bounds("close-workspace-3");
 	root.renderer.nativeSimulateMouseUp(close.x + 12, close.y + 12);
@@ -414,6 +424,7 @@ it("cancels the preview on Escape and keeps close/add controls out of a tab drag
 	root.renderer.nativeSimulateMouseMove(x + 420, y, 0);
 	const add = bounds("add-workspace");
 	root.renderer.nativeSimulateMouseUp(add.x + 12, add.y + 12);
+	advanceMotion();
 	expect(root.renderer.findByTestId("workspace-4")).toBeUndefined();
 	click("close-workspace-2");
 	expect(root.renderer.findByTestId("workspace-2")).toBeUndefined();
@@ -450,6 +461,7 @@ it("ignores the old tab's blur when grabbing another tab, but cancels on the gra
 		)
 	);
 	root.renderer.nativeSimulateMouseMove(x + 420, y, 0);
+	advanceMotion();
 	expect(order()).toEqual(["workspace-2", "workspace-3", "workspace-1"]);
 	flushSync(() =>
 		handleGpuixEvent(
@@ -458,6 +470,7 @@ it("ignores the old tab's blur when grabbing another tab, but cancels on the gra
 		)
 	);
 	root.renderer.nativeSimulateMouseUp(x + 420, 300);
+	advanceMotion();
 	expect(order()).toEqual(["workspace-1", "workspace-2", "workspace-3"]);
 });
 
@@ -468,14 +481,135 @@ it("reorders from the padded tab surface and with Shift+Arrow, keeping focus", (
 	root.renderer.nativeSimulateMouseDown(slot.x + 40, slot.y + 2);
 	root.renderer.nativeSimulateMouseMove(slot.x + 250, slot.y + 2, 0);
 	root.renderer.nativeSimulateMouseUp(slot.x + 250, 300);
+	advanceMotion();
 	expect(order()).toEqual(["workspace-2", "workspace-1", "workspace-3"]);
 	root.renderer.simulateKeystrokes("shift-right");
+	advanceMotion();
 	expect(order()).toEqual(["workspace-2", "workspace-3", "workspace-1"]);
 	expect(root.renderer.getFocusedElementId()).toBe(element("workspace-1").id);
 	root.renderer.simulateKeystrokes("shift-right");
+	advanceMotion();
 	expect(order()).toEqual(["workspace-2", "workspace-3", "workspace-1"]);
 	root.renderer.simulateKeystrokes("shift-left");
+	advanceMotion();
 	expect(order()).toEqual(["workspace-2", "workspace-1", "workspace-3"]);
+});
+
+it("follows the pointer immediately, slides neighbors, and settles on release", () => {
+	root.render(<App key="animated-drag" initialTabCount={3} />);
+	const first = bounds("slot-workspace-1");
+	const second = bounds("slot-workspace-2");
+	const x = first.x + 40;
+	const y = first.y + 12;
+	const id = element("workspace-1").id;
+
+	root.renderer.nativeSimulateMouseDown(x, y);
+	root.renderer.nativeSimulateMouseMove(x + 2, y, 0);
+	expect(bounds("slot-workspace-1").x).toBe(first.x);
+	root.renderer.nativeSimulateMouseMove(x + 40, y, 0);
+	expect(bounds("slot-workspace-1").x).toBe(first.x + 40);
+	expect(bounds("slot-workspace-2").x).toBe(second.x);
+	root.renderer.nativeSimulateMouseMove(x + 150, y, 0);
+	expect(bounds("slot-workspace-1").x).toBe(first.x + 150);
+	expect(bounds("slot-workspace-2").x).toBe(second.x);
+	advanceMotion(60);
+	expect(bounds("slot-workspace-2").x).toBeGreaterThan(first.x);
+	expect(bounds("slot-workspace-2").x).toBeLessThan(second.x);
+	expect(bounds("slot-workspace-1").x).toBe(first.x + 150);
+	advanceMotion(180);
+	expect(bounds("slot-workspace-2").x).toBe(first.x);
+
+	root.renderer.nativeSimulateMouseUp(x + 150, y);
+	expect(bounds("slot-workspace-1").x).toBe(first.x + 150);
+	advanceMotion(60);
+	expect(bounds("slot-workspace-1").x).toBeGreaterThan(first.x + 150);
+	expect(bounds("slot-workspace-1").x).toBeLessThan(second.x);
+	advanceMotion(180);
+	expect(bounds("slot-workspace-1").x).toBe(second.x);
+	expect(order()).toEqual(["workspace-2", "workspace-1", "workspace-3"]);
+	expect(element("workspace-1").id).toBe(id);
+	expect(selectedTabs()).toEqual(["1git / main"]);
+});
+
+it("retargets sliding neighbors from their visible positions and animates Escape home", () => {
+	root.render(<App key="animated-cancel" initialTabCount={3} />);
+	const first = bounds("slot-workspace-1");
+	const second = bounds("slot-workspace-2");
+	const x = first.x + 40;
+	const y = first.y + 12;
+	root.renderer.nativeSimulateMouseDown(x, y);
+	root.renderer.nativeSimulateMouseMove(x + 150, y, 0);
+	advanceMotion(60);
+	const neighborDuringSlide = bounds("slot-workspace-2").x;
+
+	root.renderer.nativeSimulateMouseMove(x + 40, y, 0);
+	expect(bounds("slot-workspace-2").x).toBe(neighborDuringSlide);
+	advanceMotion(60);
+	expect(bounds("slot-workspace-2").x).toBeGreaterThan(neighborDuringSlide);
+	expect(bounds("slot-workspace-2").x).toBeLessThan(second.x);
+	root.renderer.nativeSimulateKeyDown(element("workspace-1").id, "escape");
+	expect(bounds("slot-workspace-1").x).toBe(first.x + 40);
+	advanceMotion(60);
+	expect(bounds("slot-workspace-1").x).toBeGreaterThan(first.x);
+	expect(bounds("slot-workspace-1").x).toBeLessThan(first.x + 40);
+	advanceMotion(180);
+	expect(bounds("slot-workspace-1").x).toBe(first.x);
+	expect(bounds("slot-workspace-2").x).toBe(second.x);
+	root.renderer.nativeSimulateMouseUp(x + 40, y);
+	expect(order()).toEqual(["workspace-1", "workspace-2", "workspace-3"]);
+});
+
+it("grabs a settling tab at its visible position without jumping to the destination", () => {
+	root.render(<App key="interrupt-settle" initialTabCount={3} />);
+	const first = bounds("slot-workspace-1");
+	const x = first.x + 40;
+	const y = first.y + 12;
+	root.renderer.nativeSimulateMouseDown(x, y);
+	root.renderer.nativeSimulateMouseMove(x + 150, y, 0);
+	root.renderer.nativeSimulateMouseUp(x + 150, y);
+	advanceMotion(60);
+	const duringSettle = bounds("slot-workspace-1").x;
+
+	root.renderer.nativeSimulateMouseDown(duringSettle + 40, y);
+	advanceMotion();
+	expect(bounds("slot-workspace-1").x).toBe(duringSettle);
+	root.renderer.nativeSimulateMouseMove(duringSettle + 42, y, 0);
+	expect(bounds("slot-workspace-1").x).toBe(duringSettle);
+	root.renderer.nativeSimulateMouseMove(duringSettle + 60, y, 0);
+	expect(bounds("slot-workspace-1").x).toBe(duringSettle + 20);
+	root.renderer.nativeSimulateMouseUp(duringSettle + 60, 300);
+	advanceMotion();
+	expect(bounds("slot-workspace-1").x).toBe(first.x + workspaceLayout.tabWidth);
+	expect(order()).toEqual(["workspace-2", "workspace-1", "workspace-3"]);
+});
+
+it("keeps scrolled drag coordinates stable and reveals the whole tab after settling", () => {
+	root.render(<App key="scrolled-drag" initialTabCount={8} />);
+	root.renderer.nativeSimulateKeyDown(element("workspace-1").id, "end");
+	root.renderer.flush();
+	const last = bounds("slot-workspace-8");
+	const stripId = element("workspace-tabs").id;
+	const offset = root.renderer.getScrollOffset(stripId)?.[0];
+	const x = last.x + 40;
+	const y = last.y + 12;
+	expect(offset).toBeLessThan(0);
+
+	root.renderer.nativeSimulateMouseDown(x, y);
+	root.renderer.nativeSimulateMouseMove(x - 150, y, 0);
+	expect(bounds("slot-workspace-8").x).toBe(last.x - 150);
+	root.renderer.nativeSimulateMouseUp(x - 150, 300);
+	expect(bounds("slot-workspace-8").x).toBe(last.x - 150);
+	expect(root.renderer.getScrollOffset(stripId)?.[0]).toBe(offset);
+	advanceMotion();
+	expect(bounds("slot-workspace-8").x).toBe(last.x - workspaceLayout.tabWidth);
+	expect(bounds("slot-workspace-7").x).toBe(last.x);
+	expect(selectedTabs()).toEqual(["Workspace 8"]);
+	const viewportLeft = workspaceLayout.desktopTitlebarControlsWidth;
+	expect(bounds("slot-workspace-8").x).toBeGreaterThanOrEqual(viewportLeft);
+	const close = bounds("close-workspace-8");
+	expect(close.x + close.width).toBeLessThanOrEqual(
+		viewportLeft + bounds("workspace-tabs").width
+	);
 });
 
 it("autoscrolls during an overflow drag and stops after release", async () => {
@@ -495,6 +629,13 @@ it("autoscrolls during an overflow drag and stops after release", async () => {
 	await Bun.sleep(60);
 	root.renderer.flush();
 	expect(root.renderer.getScrollOffset(stripId)).toEqual(after);
+	advanceMotion();
+	const viewportLeft = workspaceLayout.desktopTitlebarControlsWidth;
+	expect(bounds("slot-workspace-9").x).toBeGreaterThanOrEqual(viewportLeft);
+	const close = bounds("close-workspace-9");
+	expect(close.x + close.width).toBeLessThanOrEqual(
+		viewportLeft + bounds("workspace-tabs").width
+	);
 });
 
 it("shows focus and cancels Space activation after a blur notification", () => {

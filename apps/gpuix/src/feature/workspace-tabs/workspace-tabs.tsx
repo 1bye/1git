@@ -38,6 +38,12 @@ const styles = StyleSheet.create({
 		overflowX: "scroll",
 		overflowY: "hidden",
 	},
+	rail: {
+		position: "relative",
+		height: layout.tabHeight,
+		flexShrink: 0,
+		pointerEvents: "none",
+	},
 	add: {
 		width: layout.tabCloseSize,
 		height: layout.tabCloseSize,
@@ -64,7 +70,18 @@ export function WorkspaceTabs({
 	const focusRequested = useRef(false);
 	const [focusVisible, setFocusVisible] = useState(true);
 	const drag = useWorkspaceTabDrag(state, dispatch, strip);
-	const { draggingId } = drag;
+	const { draggingId, settlingId } = drag;
+	// GPUIX paints in child order. Keep the moving surface above its neighbors
+	// without reparenting it and losing pointer capture or keyboard focus.
+	const frontId = draggingId ?? settlingId ?? state.activeId;
+	const positionedTabs = drag.tabs
+		.map((tab, index) => ({
+			tab,
+			left: tab.id === draggingId ? drag.left : index * layout.tabWidth,
+		}))
+		.sort(
+			(a, b) => Number(a.tab.id === frontId) - Number(b.tab.id === frontId)
+		);
 	const onPointerDown = (): void => {
 		drag.resetInput();
 		setFocusVisible(false);
@@ -89,7 +106,7 @@ export function WorkspaceTabs({
 			if (target) renderer.focusElement?.(target.id);
 		}
 		const index = state.tabs.findIndex((tab) => tab.id === state.activeId);
-		if (draggingId) return;
+		if (draggingId || settlingId) return;
 		if (!strip.current || index < 0) return;
 		const viewport = renderer.getElementBounds?.(strip.current.id);
 		if (!viewport) return;
@@ -103,7 +120,7 @@ export function WorkspaceTabs({
 			Math.min(left, -offset)
 		);
 		renderer.scrollTo?.(strip.current.id, -nextOffset, 0);
-	}, [renderer, state, draggingId]);
+	}, [renderer, state, draggingId, settlingId]);
 
 	return (
 		<div testId="workspace-toolbar" style={styles.toolbar}>
@@ -125,57 +142,67 @@ export function WorkspaceTabs({
 				aria-label="Workspaces"
 				style={styles.tabs}
 			>
-				{drag.tabs.map((tab) => (
-					<WorkspaceTab
-						key={tab.id}
-						tab={tab}
-						active={state.activeId === tab.id}
-						focusVisible={focusVisible}
-						onPointerDown={onPointerDown}
-						dragging={drag.draggingId === tab.id}
-						onTabMouseDown={(event) => {
-							onPointerDown();
-							drag.onMouseDown(tab.id, event);
-							if (event.button === 0) focusTab(tab.id);
-						}}
-						onTabMouseMove={drag.onMouseMove}
-						onTabMouseUp={drag.onMouseUp}
-						onCancelDrag={() => drag.cancel(tab.id)}
-						onKeyboardInput={onKeyboardInput}
-						tabRef={(instance) => {
-							if (instance) tabs.current.set(tab.id, instance);
-							else tabs.current.delete(tab.id);
-						}}
-						onActivate={() => {
-							if (drag.shouldSuppressClick()) return;
-							dispatch({ type: "activate", id: tab.id });
-							focusTab(tab.id);
-						}}
-						onClose={() => {
-							if (drag.shouldSuppressClick()) return;
-							focusRequested.current = true;
-							dispatch({ type: "close", id: tab.id });
-						}}
-						onNavigate={(key) => {
-							const id = WorkspaceTabsModel.destination(
-								state.tabs,
-								tab.id,
-								key
-							);
-							if (!id) return;
-							dispatch({ type: "activate", id });
-							focusTab(id);
-						}}
-						onReorder={(key) => {
-							drag.cancel();
-							const index = state.tabs.findIndex((item) => item.id === tab.id);
-							const neighbor = state.tabs[index + (key === "left" ? -1 : 1)];
-							if (!neighbor) return;
-							dispatch({ type: "reorder", id: tab.id, overId: neighbor.id });
-							focusTab(tab.id);
-						}}
-					/>
-				))}
+				<div
+					style={StyleSheet.compose(styles.rail, {
+						width: state.tabs.length * layout.tabWidth,
+					})}
+				>
+					{positionedTabs.map(({ tab, left }) => (
+						<WorkspaceTab
+							key={tab.id}
+							tab={tab}
+							active={state.activeId === tab.id}
+							focusVisible={focusVisible}
+							onPointerDown={onPointerDown}
+							dragging={drag.draggingId === tab.id}
+							left={left}
+							onMotionComplete={() => drag.onMotionComplete(tab.id)}
+							onTabMouseDown={(event, frame) => {
+								onPointerDown();
+								drag.onMouseDown(tab.id, event, frame);
+								if (event.button === 0) focusTab(tab.id);
+							}}
+							onTabMouseMove={drag.onMouseMove}
+							onTabMouseUp={drag.onMouseUp}
+							onCancelDrag={() => drag.cancel(tab.id)}
+							onKeyboardInput={onKeyboardInput}
+							tabRef={(instance) => {
+								if (instance) tabs.current.set(tab.id, instance);
+								else tabs.current.delete(tab.id);
+							}}
+							onActivate={() => {
+								if (drag.shouldSuppressClick()) return;
+								dispatch({ type: "activate", id: tab.id });
+								focusTab(tab.id);
+							}}
+							onClose={() => {
+								if (drag.shouldSuppressClick()) return;
+								focusRequested.current = true;
+								dispatch({ type: "close", id: tab.id });
+							}}
+							onNavigate={(key) => {
+								const id = WorkspaceTabsModel.destination(
+									state.tabs,
+									tab.id,
+									key
+								);
+								if (!id) return;
+								dispatch({ type: "activate", id });
+								focusTab(id);
+							}}
+							onReorder={(key) => {
+								drag.cancel();
+								const index = state.tabs.findIndex(
+									(item) => item.id === tab.id
+								);
+								const neighbor = state.tabs[index + (key === "left" ? -1 : 1)];
+								if (!neighbor) return;
+								dispatch({ type: "reorder", id: tab.id, overId: neighbor.id });
+								focusTab(tab.id);
+							}}
+						/>
+					))}
+				</div>
 				<div
 					testId="empty-titlebar"
 					windowDrag

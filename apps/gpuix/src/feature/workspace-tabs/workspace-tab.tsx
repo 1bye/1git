@@ -2,7 +2,7 @@ import { lightColors } from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { Button } from "@1git/gpuix-ui/button";
 import { Text } from "@1git/gpuix-ui/text";
-import type { EventPayload, PublicInstance } from "@gpuix/react";
+import { motion, type EventPayload, type PublicInstance } from "@gpuix/react";
 import { useRef, useState, type Ref } from "react";
 
 import { appTokens } from "../../styles/tokens";
@@ -22,6 +22,7 @@ const outline = `M0 ${height} Q${shoulder} ${height} ${shoulder} ${height - shou
 const activeSurface = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${surfaceWidth} ${height}"><path d="${outline} Z" fill="${lightColors.editorSurface}"/></svg>`;
 
 const styles = StyleSheet.create({
+	frame: { position: "absolute", top: 0, width, height, pointerEvents: "none" },
 	root: { position: "relative", width, height, flexShrink: 0 },
 	surface: {
 		color: lightColors.editorSurface,
@@ -130,6 +131,8 @@ export function WorkspaceTab({
 	onTabMouseUp,
 	onCancelDrag,
 	dragging,
+	left,
+	onMotionComplete,
 	onKeyboardInput,
 	tabRef,
 	onActivate,
@@ -141,11 +144,13 @@ export function WorkspaceTab({
 	active: boolean;
 	focusVisible: boolean;
 	onPointerDown: () => void;
-	onTabMouseDown: (event: EventPayload) => void;
+	onTabMouseDown: (event: EventPayload, frame: PublicInstance | null) => void;
 	onTabMouseMove: (event: EventPayload) => void;
 	onTabMouseUp: (event: EventPayload) => void;
 	onCancelDrag: () => void;
 	dragging: boolean;
+	left: number;
+	onMotionComplete: () => void;
 	onKeyboardInput: () => void;
 	tabRef: Ref<PublicInstance>;
 	onActivate: () => void;
@@ -153,6 +158,7 @@ export function WorkspaceTab({
 	onNavigate: (key: string) => void;
 	onReorder: (key: string) => void;
 }) {
+	const frame = useRef<PublicInstance>(null);
 	const [focused, setFocused] = useState(false);
 	const [hoverTargets, setHoverTargets] = useState({
 		slot: false,
@@ -163,6 +169,9 @@ export function WorkspaceTab({
 	const hovered = Object.values(hoverTargets).some(Boolean);
 	const spaceArmed = useRef(false);
 	const label = tab.branch ? `${tab.name} / ${tab.branch}` : tab.name;
+	const onMouseDown = (event: EventPayload): void => {
+		onTabMouseDown(event, frame.current);
+	};
 	// GPUIX hitboxes do not bubble hover through interactive children.
 	const hoverEvents = (target: keyof typeof hoverTargets) => ({
 		onMouseEnter: () =>
@@ -201,123 +210,132 @@ export function WorkspaceTab({
 	};
 
 	return (
-		<div
-			testId={`slot-${tab.id}`}
-			style={StyleSheet.compose(styles.root, dragging && { opacity: 0.8 })}
-			{...hoverEvents("slot")}
+		<motion.div
+			ref={frame}
+			style={styles.frame}
+			initial={false}
+			animate={{ left }}
+			transition={{ duration: dragging ? 0 : 0.24, ease: [0.22, 1, 0.36, 1] }}
+			onMotionComplete={onMotionComplete}
 		>
 			<div
-				testId={`drag-${tab.id}`}
-				style={{
-					position: "absolute",
-					top: 0,
-					left: 0,
-					width:
-						width -
-						visualInset -
-						layout.tabContentInsetTop -
-						layout.tabCloseSize,
-					height,
-					cursor: dragging ? "grabbing" : "grab",
-				}}
-				onMouseDown={onTabMouseDown}
-				onMouseMove={onTabMouseMove}
-				onMouseUp={onTabMouseUp}
-				onClick={onActivate}
-				{...hoverEvents("drag")}
-			/>
-			{active ? (
-				<svg
-					testId={`surface-${tab.id}`}
-					source={activeSurface}
-					style={styles.surface}
-				/>
-			) : null}
-			<div
-				testId={`hover-${tab.id}`}
-				style={StyleSheet.compose(styles.hover, {
-					opacity: !active && hovered && !dragging ? 1 : 0,
-				})}
-			/>
-			<div
-				testId={`content-${tab.id}`}
-				style={StyleSheet.compose(styles.content, { pointerEvents: "none" })}
+				testId={`slot-${tab.id}`}
+				style={styles.root}
+				{...hoverEvents("slot")}
 			>
 				<div
-					ref={tabRef}
-					testId={tab.id}
-					role="tab"
-					aria-label={label}
-					aria-description="Drag to reorder, or press Shift+Left or Shift+Right."
-					aria-selected={active}
-					tabIndex={active ? 0 : -1}
-					style={StyleSheet.compose(
-						styles.trigger,
-						{ cursor: dragging ? "grabbing" : "grab", userSelect: "none" },
-						focused && focusVisible && styles.focused
-					)}
-					onClick={onActivate}
-					onMouseDown={onTabMouseDown}
+					testId={`drag-${tab.id}`}
+					style={{
+						position: "absolute",
+						top: 0,
+						left: 0,
+						width:
+							width -
+							visualInset -
+							layout.tabContentInsetTop -
+							layout.tabCloseSize,
+						height,
+						cursor: dragging ? "grabbing" : "grab",
+					}}
+					onMouseDown={onMouseDown}
 					onMouseMove={onTabMouseMove}
 					onMouseUp={onTabMouseUp}
-					{...hoverEvents("trigger")}
-					onKeyDown={onKeyDown}
-					onKeyUp={(event) => {
-						if (event.key !== "space") return;
-						const activate = spaceArmed.current;
-						spaceArmed.current = false;
-						if (activate) onActivate();
-					}}
-					onFocus={() => setFocused(true)}
-					onBlur={() => {
-						onCancelDrag();
-						spaceArmed.current = false;
-						setFocused(false);
-					}}
-				>
-					<div testId={`avatar-${tab.id}`} style={styles.avatar}>
-						<Text tokens={appTokens} style={styles.initial}>
-							{tab.name[0]?.toUpperCase()}
-						</Text>
-					</div>
-					<div testId={`label-${tab.id}`} style={styles.label}>
-						<Text
-							testId={`name-${tab.id}`}
-							tokens={appTokens}
-							style={styles.name(active)}
-						>
-							{tab.name}
-						</Text>
-						{tab.branch ? (
-							<Text
-								testId={`branch-${tab.id}`}
-								tokens={appTokens}
-								style={styles.branch}
-							>
-								{` / ${tab.branch}`}
-							</Text>
-						) : null}
-					</div>
-				</div>
-				<Button
-					testId={`close-${tab.id}`}
-					aria-label={`Close ${label}`}
-					tokens={appTokens}
-					variant="ghost"
-					size="sm"
-					focusVisible={focusVisible}
-					onMouseDown={onPointerDown}
-					onKeyDown={onKeyboardInput}
-					tabIndex={active ? 0 : -1}
-					onPress={onClose}
-					{...hoverEvents("close")}
-					style={StyleSheet.compose(styles.close, {
-						opacity: active || hovered || focused ? 1 : 0,
+					onClick={onActivate}
+					{...hoverEvents("drag")}
+				/>
+				{active ? (
+					<svg
+						testId={`surface-${tab.id}`}
+						source={activeSurface}
+						style={styles.surface}
+					/>
+				) : null}
+				<div
+					testId={`hover-${tab.id}`}
+					style={StyleSheet.compose(styles.hover, {
+						opacity: !active && hovered && !dragging ? 1 : 0,
 					})}
+				/>
+				<div
+					testId={`content-${tab.id}`}
+					style={StyleSheet.compose(styles.content, { pointerEvents: "none" })}
 				>
-					<WorkspaceTabIcon name="close" testId={`close-icon-${tab.id}`} />
-				</Button>
+					<div
+						ref={tabRef}
+						testId={tab.id}
+						role="tab"
+						aria-label={label}
+						aria-description="Drag to reorder, or press Shift+Left or Shift+Right."
+						aria-selected={active}
+						tabIndex={active ? 0 : -1}
+						style={StyleSheet.compose(
+							styles.trigger,
+							{ cursor: dragging ? "grabbing" : "grab", userSelect: "none" },
+							focused && focusVisible && styles.focused
+						)}
+						onClick={onActivate}
+						onMouseDown={onMouseDown}
+						onMouseMove={onTabMouseMove}
+						onMouseUp={onTabMouseUp}
+						{...hoverEvents("trigger")}
+						onKeyDown={onKeyDown}
+						onKeyUp={(event) => {
+							if (event.key !== "space") return;
+							const activate = spaceArmed.current;
+							spaceArmed.current = false;
+							if (activate) onActivate();
+						}}
+						onFocus={() => setFocused(true)}
+						onBlur={() => {
+							onCancelDrag();
+							spaceArmed.current = false;
+							setFocused(false);
+						}}
+					>
+						<div testId={`avatar-${tab.id}`} style={styles.avatar}>
+							<Text tokens={appTokens} style={styles.initial}>
+								{tab.name[0]?.toUpperCase()}
+							</Text>
+						</div>
+						<div testId={`label-${tab.id}`} style={styles.label}>
+							<Text
+								testId={`name-${tab.id}`}
+								tokens={appTokens}
+								style={styles.name(active)}
+							>
+								{tab.name}
+							</Text>
+							{tab.branch ? (
+								<Text
+									testId={`branch-${tab.id}`}
+									tokens={appTokens}
+									style={styles.branch}
+								>
+									{` / ${tab.branch}`}
+								</Text>
+							) : null}
+						</div>
+					</div>
+					<Button
+						testId={`close-${tab.id}`}
+						aria-label={`Close ${label}`}
+						tokens={appTokens}
+						variant="ghost"
+						size="sm"
+						focusVisible={focusVisible}
+						onMouseDown={onPointerDown}
+						onKeyDown={onKeyboardInput}
+						tabIndex={active ? 0 : -1}
+						onPress={onClose}
+						{...hoverEvents("close")}
+						style={StyleSheet.compose(styles.close, {
+							opacity: active || hovered || focused ? 1 : 0,
+						})}
+					>
+						<WorkspaceTabIcon name="close" testId={`close-icon-${tab.id}`} />
+					</Button>
+				</div>
 			</div>
-		</div>
+		</motion.div>
 	);
 }
