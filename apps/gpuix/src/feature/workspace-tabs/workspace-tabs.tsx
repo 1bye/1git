@@ -1,0 +1,150 @@
+import { workspaceLayout as layout } from "@1git/design-tokens";
+import { StyleSheet } from "@1git/gpuix-stylesheet";
+import { Button } from "@1git/gpuix-ui/button";
+import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
+import { useEffect, useRef, type Dispatch } from "react";
+
+import { appTokens } from "../../styles/tokens";
+import { WorkspaceTab } from "./workspace-tab";
+import {
+	WorkspaceTabsModel,
+	type WorkspaceTabsAction,
+	type WorkspaceTabsState,
+} from "./workspace-tabs-model";
+
+const styles = StyleSheet.create({
+	toolbar: {
+		width: "100%",
+		display: "flex",
+		flexDirection: "row",
+		alignItems: "end",
+		height: layout.toolbarHeight,
+		flexShrink: 0,
+		paddingLeft: layout.desktopTitlebarControlsWidth,
+		paddingRight: layout.workspaceSurfaceInset,
+	},
+	tabs: {
+		display: "flex",
+		flexDirection: "row",
+		alignItems: "end",
+		minWidth: 0,
+		flexGrow: 1,
+		flexBasis: 0,
+		flexShrink: 1,
+		height: layout.toolbarHeight,
+		overflowX: "scroll",
+		overflowY: "hidden",
+	},
+	add: {
+		width: 28,
+		height: 28,
+		marginLeft: 4,
+		marginRight: 4,
+		marginBottom: 8,
+		paddingLeft: 0,
+		paddingRight: 0,
+	},
+});
+
+/** Horizontal, roving-focus tab strip. State transitions stay in the app's reducer. */
+export function WorkspaceTabs({
+	state,
+	dispatch,
+}: {
+	state: WorkspaceTabsState;
+	dispatch: Dispatch<WorkspaceTabsAction>;
+}) {
+	const renderer = useGpuixRequired();
+	const tabs = useRef(new Map<string, PublicInstance>());
+	const strip = useRef<PublicInstance>(null);
+	const addButton = useRef<PublicInstance>(null);
+	const focusRequested = useRef(false);
+
+	const focusTab = (id: string): void => {
+		const tab = tabs.current.get(id);
+		if (!tab) return;
+		renderer.focusElement?.(tab.id);
+	};
+
+	useEffect(() => {
+		if (focusRequested.current) {
+			focusRequested.current = false;
+			const target = state.activeId
+				? tabs.current.get(state.activeId)
+				: addButton.current;
+			if (target) renderer.focusElement?.(target.id);
+		}
+		const index = state.tabs.findIndex((tab) => tab.id === state.activeId);
+		if (!strip.current || index < 0) return;
+		const viewport = renderer.getElementBounds?.(strip.current.id);
+		if (!viewport) return;
+		const offset = renderer.getScrollOffset?.(strip.current.id)?.[0] ?? 0;
+		const left = index * layout.tabWidth;
+		// GPUIX 0.10 scrollIntoView can leave a new horizontal tab offscreen.
+		// Known fixed-width slots let us reveal the entire tab, including its close control.
+		const nextOffset = Math.max(
+			0,
+			left + layout.tabWidth - viewport.width,
+			Math.min(left, -offset)
+		);
+		renderer.scrollTo?.(strip.current.id, -nextOffset, 0);
+	}, [renderer, state]);
+
+	return (
+		<div testId="workspace-toolbar" style={styles.toolbar}>
+			<div
+				ref={strip}
+				testId="workspace-tabs"
+				role="tablist"
+				aria-label="Workspaces"
+				style={styles.tabs}
+			>
+				{state.tabs.map((tab) => (
+					<WorkspaceTab
+						key={tab.id}
+						tab={tab}
+						active={state.activeId === tab.id}
+						tabRef={(instance) => {
+							if (instance) tabs.current.set(tab.id, instance);
+							else tabs.current.delete(tab.id);
+						}}
+						onActivate={() => {
+							dispatch({ type: "activate", id: tab.id });
+							focusTab(tab.id);
+						}}
+						onClose={() => {
+							focusRequested.current = true;
+							dispatch({ type: "close", id: tab.id });
+						}}
+						onNavigate={(key) => {
+							const id = WorkspaceTabsModel.destination(
+								state.tabs,
+								tab.id,
+								key
+							);
+							if (!id) return;
+							dispatch({ type: "activate", id });
+							focusTab(id);
+						}}
+					/>
+				))}
+			</div>
+			<Button
+				ref={addButton}
+				testId="add-workspace"
+				aria-label="New workspace"
+				tokens={appTokens}
+				variant="ghost"
+				size="sm"
+				style={styles.add}
+				textStyle={{ fontSize: 20 }}
+				onPress={() => {
+					focusRequested.current = true;
+					dispatch({ type: "add" });
+				}}
+			>
+				+
+			</Button>
+		</div>
+	);
+}

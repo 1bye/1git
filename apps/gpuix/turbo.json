@@ -1,0 +1,7 @@
+{
+  "extends": ["//"],
+  "tasks": {
+    "dev": { "passThroughEnv": ["GPUIX_BACKGROUND"] },
+    "test": { "cache": false }
+  }
+}

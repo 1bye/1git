@@ -1,0 +1,6 @@
+{
+  "extends": ["//"],
+  "tasks": {
+    "generate": { "outputs": ["src/light.css"] }
+  }
+}

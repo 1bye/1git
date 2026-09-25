@@ -1,3 +1,5 @@
+import { workspaceLayout } from "@1git/design-tokens";
+
 export const WORKSPACE_COMMAND_LENS_GROUP = "workspace-toolbar";
 
 export const WORKSPACE_TAB_POINTER_DRAG_HANDLE_SELECTOR =
@@ -13,7 +15,7 @@ export const WORKSPACE_TAB_SURFACE_MOTION = {
 	offscreenRevealDurationMs: 140,
 } as const;
 
-const WORKSPACE_CONTAINER_RADIUS = 14;
+const WORKSPACE_CONTAINER_RADIUS = workspaceLayout.workspaceSurfaceRadius;
 
 /** Adjust the active tab and SDF fusion geometry from this single object. */
 export const WORKSPACE_TAB_SURFACE_GEOMETRY = {
@@ -25,22 +27,22 @@ export const WORKSPACE_TAB_SURFACE_GEOMETRY = {
 	outlineWidth: 1,
 	sampleCellSize: 2,
 	smoothingPasses: 1,
-	tabAvatarSize: 14,
+	tabAvatarSize: workspaceLayout.tabAvatarSize,
 	tabChangeBadgeHeight: 18,
 	tabChangeBadgeMinWidth: 18,
-	tabCloseSize: 24,
-	tabContentGap: 8,
-	tabContentInsetBlock: 8,
-	tabContentInsetInlineStart: 12,
+	tabCloseSize: workspaceLayout.tabCloseSize,
+	tabContentGap: workspaceLayout.tabContentGap,
+	tabContentInsetBlock: workspaceLayout.tabContentInsetBlock,
+	tabContentInsetInlineStart: workspaceLayout.tabContentInsetInlineStart,
 	tabGap: 0,
-	tabHeight: 40,
+	tabHeight: workspaceLayout.tabHeight,
 	tabLift: 3,
 	tabListInset: 4,
-	tabRadius: 10,
+	tabRadius: workspaceLayout.tabRadius,
 	tabSdfExtensionBlockEnd: 16,
 	tabTrailingInset: 4,
 	tabVisualInsetBlock: 4,
 	tabVisualInsetInline: 4,
-	tabWidth: 210,
-	toolbarHeight: 46,
+	tabWidth: workspaceLayout.tabWidth,
+	toolbarHeight: workspaceLayout.toolbarHeight,
 } as const;

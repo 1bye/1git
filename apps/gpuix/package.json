@@ -2,15 +2,17 @@
   "name": "@1git/gpuix",
   "version": "0.0.1",
   "private": true,
-  "description": "GPUIX shell and component showcase for 1git",
+  "description": "Native GPUIX workspace shell for 1git",
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "check-types": "tsc --noEmit -p tsconfig.json",
+    "check-types": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json",
     "dev": "bun --hot src/main.tsx",
-    "start": "bun dist/main.js"
+    "start": "bun dist/main.js",
+    "test": "bun test tests"
   },
   "dependencies": {
+    "@1git/design-tokens": "workspace:*",
     "@1git/gpuix-ui": "workspace:*",
     "@1git/gpuix-stylesheet": "workspace:*",
     "@gpuix/native": "0.10.0",

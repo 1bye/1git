@@ -44,7 +44,6 @@
 }
 
 :root {
-    --desktop-titlebar-controls-width: 5rem;
     --liquid-active-trigger: var(--liquid-surface);
     --liquid-dim: #000;
     --liquid-hover: var(--hover);
@@ -53,8 +52,6 @@
     --repository-context-rail-width: 15rem;
     --repository-rail-width: 19.375rem;
     --workspace-tab-appearance-duration: 240ms;
-    --workspace-surface-inset: 6px;
-    --workspace-surface-radius: 14px;
 }
 
 html,
