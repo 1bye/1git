@@ -1,6 +1,11 @@
 {
   "extends": ["//"],
   "tasks": {
+    "example": {
+      "cache": false,
+      "persistent": true,
+      "passThroughEnv": ["GPUIX_BACKGROUND"]
+    },
     "test": {
       "cache": false
     }

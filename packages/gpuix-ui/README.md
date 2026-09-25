@@ -243,17 +243,31 @@ const customTokens: UiTokens = {
 ```
 
 Controls resolve their stylesheet functions on every render. Passing a new
-selection updates colors and layout without remounting controls. There is no
-global registry, subscription, settings UI, or persistence; mutating the shared
-presets does not trigger rendering. A future provider can supply the selection
-without changing these stylesheet definitions.
+selection updates colors and layout without remounting controls. The library
+has no global registry, subscription, or persisted settings; mutating the shared
+presets does not trigger rendering. The example owns its selection in local React
+state. A future provider can supply it without changing these style definitions.
+
+## Interactive example
+
+The [example app](example/README.md) lives in `example/` at this package's root.
+It demonstrates every Button variant/size, Text size/weight/tone, and controlled,
+uncontrolled, and disabled Selects. Palette and density controls update the
+whole playground while preserving its interaction state.
+
+```bash
+bun run --cwd packages/gpuix-ui example
+```
+
+The example runs directly with Bun hot reload and uses the existing package
+dependencies. It is not part of the library's public exports.
 
 ## Development
 
 ```bash
 bun run --cwd packages/gpuix-ui check-types
 bun run --cwd packages/gpuix-ui test
-bun run --cwd apps/gpuix dev
+bun run --cwd packages/gpuix-ui example
 ```
 
 Tests run offline against React and the real GPUIX native test renderer. They
@@ -262,5 +276,5 @@ explicitly. Native test results are not cached by Turbo. The focus test supplies
 focus/blur notifications at the native event boundary because inactive offscreen
 GPUI windows suppress those notifications. A regression test also batches key
 events at that boundary, matching a live window's asynchronous delivery. Other
-tested input uses native hit testing and keyboard dispatch. The app provides an
-interactive component showcase.
+tested input uses native hit testing and keyboard dispatch. The example has its
+own native interaction tests and is included in the package's type check.
