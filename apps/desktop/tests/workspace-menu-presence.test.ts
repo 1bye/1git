@@ -6,6 +6,7 @@ describe("workspace menu surface presence", () => {
 	test("does not let an old closing workspace clear a newer surface", () => {
 		const oldSessionId = "old-session";
 		const nextSessionId = "next-session";
+
 		const nextSurface = updateWorkspaceMenuSurfaceSession(
 			oldSessionId,
 			nextSessionId,

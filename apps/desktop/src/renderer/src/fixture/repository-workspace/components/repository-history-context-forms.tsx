@@ -95,9 +95,11 @@ export function AmendCommitForm({
 	const [summary, setSummary] = useState(commit.summary);
 	const [description, setDescription] = useState(commit.body);
 	const [actionError, setActionError] = useState<string | null>(null);
+
 	const submit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
 		event.preventDefault();
 		setActionError(null);
+
 		if (!(await onAmend(summary, description))) {
 			setActionError("The commit could not be amended.");
 		}
@@ -171,9 +173,11 @@ export function CreateBranchAtCommitForm({
 }: CreateBranchAtCommitFormProps): ReactElement {
 	const [branchName, setBranchName] = useState("");
 	const [actionError, setActionError] = useState<string | null>(null);
+
 	const submit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
 		event.preventDefault();
 		setActionError(null);
+
 		if (!(await onCreate(branchName))) {
 			setActionError("The branch could not be created.");
 		}
@@ -242,13 +246,16 @@ export function ResetCommitForm({
 }: ResetCommitFormProps): ReactElement {
 	const [mode, setMode] = useState<ResetMode>("mixed");
 	const [actionError, setActionError] = useState<string | null>(null);
+
 	const submit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
 		event.preventDefault();
 		setActionError(null);
+
 		if (!(await onReset(mode))) {
 			setActionError("The branch could not be reset.");
 		}
 	};
+
 	const selectedMode = RESET_MODE_DETAILS[mode];
 
 	return (

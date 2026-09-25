@@ -80,16 +80,21 @@ export function RepositoryFileNavigator({
 		if (!navigation.isOpen) {
 			return;
 		}
+
 		const focusFrame = window.requestAnimationFrame(() => {
 			inputRef.current?.focus();
 		});
+
 		const closeOnOutsidePointer = (event: PointerEvent): void => {
 			const { target } = event;
+
 			if (target instanceof Node && !containerRef.current?.contains(target)) {
 				navigation.acceptPreview();
 			}
 		};
+
 		window.addEventListener("pointerdown", closeOnOutsidePointer, true);
+
 		return () => {
 			window.cancelAnimationFrame(focusFrame);
 			window.removeEventListener("pointerdown", closeOnOutsidePointer, true);
@@ -99,6 +104,7 @@ export function RepositoryFileNavigator({
 	const updateQuery = (event: ChangeEvent<HTMLInputElement>): void => {
 		navigation.setQuery(event.target.value);
 	};
+
 	return (
 		<div
 			aria-keyshortcuts="Meta+P Control+P"
@@ -201,6 +207,7 @@ export function RepositoryFileRail({
 		placement: "right",
 		radius: 6,
 	});
+
 	const updateQuery = (event: ChangeEvent<HTMLInputElement>): void => {
 		navigation.setQuery(event.target.value);
 	};

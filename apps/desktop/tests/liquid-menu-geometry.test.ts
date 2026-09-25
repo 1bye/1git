@@ -95,6 +95,7 @@ describe("liquid menu anchor clipping", () => {
 			width: 0,
 		});
 		const coordinates = pathCoordinates(frame.path);
+
 		expect(
 			Math.min(...coordinates.map(([x]) => x)) + frame.bounds.left
 		).toBeGreaterThanOrEqual(99);

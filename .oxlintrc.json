@@ -3,12 +3,7 @@
   "categories": {
     "correctness": "error"
   },
-  "plugins": [
-    "react",
-    "typescript",
-    "unicorn",
-    "oxc"
-  ],
+  "plugins": ["react", "typescript", "unicorn", "oxc"],
   "rules": {
     "react/refs": "off",
     "react/set-state-in-effect": "off",
@@ -21,12 +16,32 @@
         "maxEOF": 0
       }
     ],
-    "@stylistic/padded-blocks": [
-      "error",
-      "never"
-    ],
+    "@stylistic/padded-blocks": ["error", "never"],
     "shadcn/no-raw-colors": "error",
-    "shadcn/no-unknown-classes": "error"
+    "shadcn/no-unknown-classes": "error",
+    "@stylistic/padding-line-between-statements": [
+      "error",
+      {
+        "blankLine": "always",
+        "prev": ["const", "let", "var"],
+        "next": "*"
+      },
+      {
+        "blankLine": "any",
+        "prev": ["singleline-const", "singleline-let", "singleline-var"],
+        "next": ["singleline-const", "singleline-let", "singleline-var"]
+      },
+      {
+        "blankLine": "always",
+        "prev": "*",
+        "next": ["return", "throw", "if", "for", "while", "do", "switch", "try"]
+      },
+      {
+        "blankLine": "always",
+        "prev": ["if", "for", "while", "do", "switch", "try"],
+        "next": "*"
+      }
+    ]
   },
   "ignorePatterns": [
     ".agents/**",
@@ -34,10 +49,7 @@
     "**/dev-dist/**",
     "**/*.gen.ts"
   ],
-  "jsPlugins": [
-    "@stylistic/eslint-plugin",
-    "@shadcn/lint"
-  ],
+  "jsPlugins": ["@stylistic/eslint-plugin", "@shadcn/lint"],
   "settings": {
     "shadcn": {
       "ui": "@1git/ui/components"

@@ -31,19 +31,24 @@ export function CleanState({
 	cleanAction,
 }: RepositoryCleanStateProps): ReactElement {
 	const isSyncPending = isRepositorySyncActionKind(pendingAction);
+
 	const performPrimaryAction = async (): Promise<void> => {
 		if (isSyncPending) {
 			await onCancelSync();
+
 			return;
 		}
+
 		if (cleanAction.kind === "sync") {
 			await onSync();
 		} else if (cleanAction.kind === "preview-comparison") {
 			await onPreviewComparison();
 		}
 	};
+
 	const isComparisonAction = cleanAction.kind !== "sync";
 	const isActionPending = pendingAction === "refresh";
+
 	let actionIcon = (
 		<ArrowsClockwiseIcon
 			aria-hidden
@@ -51,6 +56,7 @@ export function CleanState({
 			weight="regular"
 		/>
 	);
+
 	if (isComparisonAction) {
 		actionIcon = (
 			<GitPullRequestIcon
@@ -60,6 +66,7 @@ export function CleanState({
 			/>
 		);
 	}
+
 	if (isSyncPending || isActionPending) {
 		actionIcon = (
 			<SpinnerGapIcon
@@ -69,10 +76,13 @@ export function CleanState({
 			/>
 		);
 	}
+
 	let actionLabel = cleanAction.label;
+
 	if (isActionPending) {
 		actionLabel = "Preparing preview";
 	}
+
 	if (isSyncPending) {
 		actionLabel = `Cancel ${repositorySyncProgressLabel(pendingAction).toLowerCase()}`;
 	}

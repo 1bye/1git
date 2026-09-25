@@ -51,6 +51,7 @@ const openInApplication = async (
 	if (process.platform !== "darwin") {
 		throw new Error("Opening a repository in this application requires macOS.");
 	}
+
 	await new Promise<void>((resolve, reject) => {
 		const child = spawn(
 			"/usr/bin/open",
@@ -60,6 +61,7 @@ const openInApplication = async (
 				stdio: "ignore",
 			}
 		);
+
 		child.once("error", reject);
 		child.once("spawn", () => {
 			child.unref();
@@ -89,6 +91,7 @@ const secureNavigation = (window: BrowserWindow): void => {
 		if (url.startsWith("https://")) {
 			shell.openExternal(url).catch((error: unknown) => {
 				const failure = error instanceof Error ? error.message : String(error);
+
 				process.stderr.write(`Could not open external URL: ${failure}\n`);
 			});
 		}
@@ -103,6 +106,7 @@ const loadRenderer = async (window: BrowserWindow): Promise<void> => {
 
 	if (developmentUrl) {
 		await window.loadURL(developmentUrl);
+
 		return;
 	}
 
@@ -113,15 +117,19 @@ const pickRepositoryDirectory = async (
 	sender: WebContents
 ): Promise<RepositoryDirectorySelection> => {
 	const parentWindow = BrowserWindow.fromWebContents(sender);
+
 	if (!parentWindow || parentWindow.isDestroyed()) {
 		return { status: "cancelled" };
 	}
+
 	const result = await dialog.showOpenDialog(parentWindow, {
 		buttonLabel: "Open Repository",
 		properties: ["openDirectory"],
 		title: "Open Git Repository",
 	});
+
 	const [path] = result.filePaths;
+
 	return result.canceled || !path
 		? { status: "cancelled" }
 		: { path, status: "selected" };
@@ -147,7 +155,9 @@ const createMainWindow = async (
 		},
 		width: MAIN_WINDOW_WIDTH,
 	});
+
 	const windowWebContents = window.webContents;
+
 	mainWindow = window;
 
 	secureNavigation(window);
@@ -158,6 +168,7 @@ const createMainWindow = async (
 	});
 	window.once("closed", () => {
 		gitOperationRegistry.abortAll(windowWebContents);
+
 		if (mainWindow === window) {
 			mainWindow = null;
 		}
@@ -181,6 +192,7 @@ const start = async (): Promise<void> => {
 			join(app.getPath("userData"), RECENT_REPOSITORIES_FILE)
 		),
 	});
+
 	repositoryManager = manager;
 	disposeDesktopIntegrationIpc = registerDesktopIntegrationIpc({
 		ipcMain,
@@ -215,6 +227,7 @@ const start = async (): Promise<void> => {
 		if (BrowserWindow.getAllWindows().length === 0) {
 			createMainWindow(manager).catch((error: unknown) => {
 				const failure = error instanceof Error ? error.message : String(error);
+
 				process.stderr.write(`Could not recreate desktop window: ${failure}\n`);
 			});
 		}
@@ -239,6 +252,7 @@ start().catch((error: unknown) => {
 		error instanceof Error
 			? error
 			: new Error(`Desktop startup failed: ${error}`);
+
 	process.stderr.write(`${failure.stack ?? failure.message}\n`);
 	app.quit();
 });

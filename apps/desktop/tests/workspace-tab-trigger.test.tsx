@@ -48,9 +48,11 @@ const createTriggerFixture = (
 ): TriggerFixture => {
 	let activationCount = 0;
 	let openCount = 0;
+
 	const element = WorkspaceTabTrigger({
 		activate: (): Promise<void> => {
 			activationCount += 1;
+
 			return Promise.resolve();
 		},
 		isActive,
@@ -64,10 +66,13 @@ const createTriggerFixture = (
 		repositoryName: "example",
 		workspace: WORKSPACE,
 	});
+
 	const props = element.props as LiquidTriggerProps;
+
 	if (!(props.onClick && props.onKeyDown)) {
 		throw new Error("Expected the workspace liquid trigger handlers.");
 	}
+
 	return {
 		click: props.onClick,
 		element,
@@ -86,6 +91,7 @@ const createClickEvent = (
 	readonly wasBaseHandlerPrevented: () => boolean;
 } => {
 	let baseHandlerPrevented = false;
+
 	return {
 		event: {
 			defaultPrevented,
@@ -103,6 +109,7 @@ const createKeyDownEvent = (): {
 	readonly wasBaseHandlerPrevented: () => boolean;
 } => {
 	let baseHandlerPrevented = false;
+
 	return {
 		event: {
 			preventBaseUIHandler: (): void => {
@@ -142,20 +149,24 @@ describe("workspace tab trigger", () => {
 		const active = createTriggerFixture(true);
 		const inactiveRender = inactive.props.render;
 		const activeRender = active.props.render;
+
 		if (
 			typeof inactiveRender !== "function" ||
 			typeof activeRender !== "function"
 		) {
 			throw new Error("Expected stable workspace trigger render callbacks.");
 		}
+
 		const inactiveTriggerElement = inactiveRender(
 			{},
 			{ disabled: false, open: false }
 		);
+
 		const activeTriggerElement = activeRender(
 			{},
 			{ disabled: false, open: false }
 		);
+
 		const closedMarkup = renderToStaticMarkup(
 			<WorkspaceTabTriggerElement
 				aria-controls="workspace-menu"
@@ -166,6 +177,7 @@ describe("workspace tab trigger", () => {
 				role="tab"
 			/>
 		);
+
 		const openMarkup = renderToStaticMarkup(
 			<WorkspaceTabTriggerElement
 				aria-controls="workspace-menu"

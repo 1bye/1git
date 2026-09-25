@@ -19,8 +19,10 @@ export class DesktopGitBridgeHarness {
 		this.ipc = new GitIpcHarness(repositoryManager, options);
 		const invoke: DesktopIpcInvoke = async (channel, payload) =>
 			await this.ipc.invoke(channel, payload);
+
 		const subscribe: DesktopIpcSubscribe = (channel, listener) =>
 			this.ipc.subscribeRenderer(channel, listener);
+
 		this.api = createDesktopGitApi(invoke, subscribe);
 	}
 

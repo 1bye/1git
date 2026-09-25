@@ -36,6 +36,7 @@ const parseTracking = (
 ): { readonly ahead: number; readonly behind: number } => {
 	const aheadMatch = AHEAD_PATTERN.exec(value);
 	const behindMatch = BEHIND_PATTERN.exec(value);
+
 	return {
 		ahead: Number.parseInt(aheadMatch?.[1] ?? "0", 10),
 		behind: Number.parseInt(behindMatch?.[1] ?? "0", 10),
@@ -45,10 +46,12 @@ const parseTracking = (
 /** Parses local and remote refs emitted by `git for-each-ref`. */
 export const parseBranches = (output: Buffer | string): BranchCollection => {
 	const branches: BranchInfo[] = [];
+
 	for (const record of output.toString().split("\n")) {
 		if (!record) {
 			continue;
 		}
+
 		const [
 			fullName,
 			name,
@@ -60,16 +63,21 @@ export const parseBranches = (output: Buffer | string): BranchCollection => {
 			summary,
 			worktreePathValue,
 		] = record.split("\0");
+
 		if (!(fullName && name && oid)) {
 			continue;
 		}
+
 		if (fullName.endsWith("/HEAD")) {
 			continue;
 		}
+
 		const type = fullName.startsWith("refs/remotes/") ? "remote" : "local";
 		const tracking = parseTracking(trackingValue ?? "");
+
 		const remoteMatch =
 			type === "remote" ? REMOTE_REF_PATTERN.exec(fullName) : null;
+
 		branches.push({
 			ahead: tracking.ahead,
 			behind: tracking.behind,
@@ -85,6 +93,7 @@ export const parseBranches = (output: Buffer | string): BranchCollection => {
 			worktreePath: worktreePathValue || null,
 		});
 	}
+
 	return {
 		branches,
 		current:
@@ -96,15 +105,19 @@ export const parseBranches = (output: Buffer | string): BranchCollection => {
 /** Parses tag refs emitted by `git for-each-ref`. */
 export const parseTags = (output: Buffer | string): readonly TagInfo[] => {
 	const tags: TagInfo[] = [];
+
 	for (const record of output.toString().split("\n")) {
 		if (!record) {
 			continue;
 		}
+
 		const [name, oid, objectType, peeledOid, createdAt, message] =
 			record.split("\0");
+
 		if (!(name && oid && objectType)) {
 			continue;
 		}
+
 		tags.push({
 			createdAt: createdAt || null,
 			message: message ?? "",
@@ -114,20 +127,25 @@ export const parseTags = (output: Buffer | string): readonly TagInfo[] => {
 			type: objectType === "tag" ? "annotated" : "lightweight",
 		});
 	}
+
 	return tags;
 };
 
 /** Parses stash entries emitted by `git stash list`. */
 export const parseStashes = (output: Buffer | string): readonly StashInfo[] => {
 	const stashes: StashInfo[] = [];
+
 	for (const record of output.toString().split("\n")) {
 		if (!record) {
 			continue;
 		}
+
 		const [reference, oid, createdAt, summary] = record.split("\0");
+
 		if (!(reference && oid && createdAt)) {
 			continue;
 		}
+
 		stashes.push({
 			createdAt,
 			oid,
@@ -135,5 +153,6 @@ export const parseStashes = (output: Buffer | string): readonly StashInfo[] => {
 			summary: summary ?? "",
 		});
 	}
+
 	return stashes;
 };

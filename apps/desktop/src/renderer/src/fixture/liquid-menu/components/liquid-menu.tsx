@@ -138,8 +138,10 @@ const assignRef = <ElementType,>(
 ): void => {
 	if (typeof ref === "function") {
 		ref(value);
+
 		return;
 	}
+
 	if (ref) {
 		ref.current = value;
 	}
@@ -175,28 +177,38 @@ const useLiquidMenuRoot = ({
 	const activeSubmenuIdRef = useRef<string | null>(null);
 	const [hasSurface, setHasSurface] = useState(false);
 	const [hasSubmenuSurface, setHasSubmenuSurface] = useState(false);
+
 	const [triggerElement, setTriggerElement] = useState<HTMLElement | null>(
 		null
 	);
+
 	const [menuElement, setMenuElement] = useState<HTMLElement | null>(null);
+
 	const [submenuElement, setSubmenuElement] = useState<HTMLElement | null>(
 		null
 	);
+
 	const [submenuTriggerElement, setSubmenuTriggerElement] =
 		useState<HTMLElement | null>(null);
+
 	const isOpen = open ?? internalOpen;
 	const layerIndex = stack.layerIds.indexOf(layerId);
+
 	const isTopLayer =
 		layerIndex >= 0 && layerIndex === stack.layerIds.length - 1;
+
 	const readTriggerElement = useCallback(
 		(): Element | null => triggerElement,
 		[triggerElement]
 	);
+
 	const resolvedAnchor = anchor ?? readTriggerElement;
+
 	const resolvedGeometry = useMemo<LiquidMenuGeometry>(
 		() => ({ ...LIQUID_MENU_GEOMETRY, ...geometry }),
 		[geometry]
 	);
+
 	const resolvedMotion = useMemo<LiquidMenuMotion>(
 		() => ({ ...LIQUID_MENU_MOTION, ...motion }),
 		[motion]
@@ -209,8 +221,10 @@ const useLiquidMenuRoot = ({
 				setActiveSubmenuId(submenuId);
 				setSubmenuElement(null);
 				setSubmenuTriggerElement(null);
+
 				return;
 			}
+
 			if (activeSubmenuIdRef.current === submenuId) {
 				activeSubmenuIdRef.current = null;
 				setActiveSubmenuId(null);
@@ -218,11 +232,13 @@ const useLiquidMenuRoot = ({
 		},
 		[]
 	);
+
 	const changeOpen = useCallback(
 		(nextIsOpen: boolean): void => {
 			if (open === undefined) {
 				setInternalOpen(nextIsOpen);
 			}
+
 			if (!nextIsOpen) {
 				activeSubmenuIdRef.current = null;
 				setActiveSubmenuId(null);
@@ -230,6 +246,7 @@ const useLiquidMenuRoot = ({
 		},
 		[open]
 	);
+
 	const changePresence = useCallback(
 		(isPresent: boolean): void => {
 			setHasSurface(isPresent);
@@ -237,6 +254,7 @@ const useLiquidMenuRoot = ({
 		},
 		[onPresenceChange]
 	);
+
 	const changeSubmenuPresence = useCallback((isPresent: boolean): void => {
 		setHasSubmenuSurface(isPresent);
 	}, []);
@@ -245,7 +263,9 @@ const useLiquidMenuRoot = ({
 		if (!hasSurface) {
 			return;
 		}
+
 		stack.showLayer(layerId);
+
 		return () => stack.hideLayer(layerId);
 	}, [hasSurface, layerId, stack.hideLayer, stack.showLayer]);
 
@@ -312,6 +332,7 @@ const getLiquidTriggerState = (
 	if (context.isOpen) {
 		return "open";
 	}
+
 	return context.hasSurface ? "closing" : "idle";
 };
 
@@ -339,10 +360,12 @@ export function LiquidMenuRoot({
 		open,
 		outlineWidth,
 	});
+
 	const changeOpen: DropdownMenuOpenChange = (nextIsOpen, eventDetails) => {
 		state.changeOpen(nextIsOpen);
 		onOpenChange?.(nextIsOpen, eventDetails);
 	};
+
 	const dismissFromBackdrop = (event: PointerEvent): void => {
 		changeOpen(false, createMenuOutsidePressEventDetails(event));
 	};
@@ -379,10 +402,12 @@ export function LiquidContextMenuRoot({
 		open,
 		outlineWidth,
 	});
+
 	const changeOpen: ContextMenuOpenChange = (nextIsOpen, eventDetails) => {
 		state.changeOpen(nextIsOpen);
 		onOpenChange?.(nextIsOpen, eventDetails);
 	};
+
 	const dismissFromBackdrop = (event: PointerEvent): void => {
 		changeOpen(false, createOutsidePressEventDetails(event));
 	};
@@ -422,6 +447,7 @@ export function LiquidPickerRoot<
 		open,
 		outlineWidth,
 	});
+
 	const changeOpen: ComboboxOpenChange<Value, Multiple> = (
 		nextIsOpen,
 		eventDetails
@@ -429,6 +455,7 @@ export function LiquidPickerRoot<
 		state.changeOpen(nextIsOpen);
 		onOpenChange?.(nextIsOpen, eventDetails);
 	};
+
 	const dismissFromBackdrop = (event: PointerEvent): void => {
 		state.changeOpen(false);
 		onOpenChange?.(false, createOutsidePressEventDetails(event));
@@ -503,6 +530,7 @@ export function LiquidMenuContent({
 }: ComponentProps<typeof DropdownMenuContent>): ReactElement {
 	const context = useLiquidMenuContext();
 	const contentRef = useMergedElementRef(ref, context.setMenuElement);
+
 	const { content: contentZIndex } = getLiquidMenuLayerZIndices(
 		context.layerIndex
 	);
@@ -541,6 +569,7 @@ export function LiquidPickerContent({
 }: LiquidPickerContentProps): ReactElement {
 	const context = useLiquidMenuContext();
 	const contentRef = useMergedElementRef(ref, context.setMenuElement);
+
 	const { content: contentZIndex } = getLiquidMenuLayerZIndices(
 		context.layerIndex
 	);
@@ -587,19 +616,24 @@ export function LiquidMenuSub({
 	const context = useLiquidMenuContext();
 	const submenuId = useId();
 	const [internalOpen, setInternalOpen] = useState(false);
+
 	const [contentElement, setContentElement] = useState<HTMLElement | null>(
 		null
 	);
+
 	const [triggerElement, setTriggerElement] = useState<HTMLElement | null>(
 		null
 	);
+
 	const isOpen = open ?? internalOpen;
+
 	const changeOpen: NonNullable<
 		ComponentProps<typeof DropdownMenuSub>["onOpenChange"]
 	> = (nextIsOpen, eventDetails): void => {
 		if (open === undefined) {
 			setInternalOpen(nextIsOpen);
 		}
+
 		onOpenChange?.(nextIsOpen, eventDetails);
 	};
 
@@ -610,6 +644,7 @@ export function LiquidMenuSub({
 		if (!(isOpen && context.activeSubmenuId === submenuId)) {
 			return;
 		}
+
 		context.setSubmenuElement(contentElement);
 		context.setSubmenuTriggerElement(anchor ?? triggerElement);
 	}, [
@@ -673,6 +708,7 @@ export function LiquidMenuSubContent({
 	const menuContext = useLiquidMenuContext();
 	const submenuContext = useLiquidMenuSubContext();
 	const contentRef = useMergedElementRef(ref, submenuContext.setContentElement);
+
 	const { content: contentZIndex } = getLiquidMenuLayerZIndices(
 		menuContext.layerIndex
 	);

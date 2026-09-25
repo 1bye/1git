@@ -45,6 +45,7 @@ describe("GitRepository branches and commit sequences", () => {
 
 	test("creates and checks out a branch from a selected commit", async () => {
 		const fixture = await fixtures.create();
+
 		unwrapResult(
 			await fixture.repository.createBranch({
 				checkout: true,
@@ -53,6 +54,7 @@ describe("GitRepository branches and commit sequences", () => {
 		);
 		await fixture.write("source.txt", "source\n");
 		const sourceOid = await fixture.commitAll("source");
+
 		unwrapResult(await fixture.repository.checkoutBranch({ name: "main" }));
 
 		const result = unwrapResult(
@@ -69,6 +71,7 @@ describe("GitRepository branches and commit sequences", () => {
 
 	test("switches between existing branches", async () => {
 		const fixture = await fixtures.create();
+
 		unwrapResult(
 			await fixture.repository.createBranch({
 				checkout: true,
@@ -99,6 +102,7 @@ describe("GitRepository branches and commit sequences", () => {
 
 	test("renames a named branch without switching", async () => {
 		const fixture = await fixtures.create();
+
 		unwrapResult(await fixture.repository.createBranch({ name: "before" }));
 
 		const result = unwrapResult(
@@ -116,6 +120,7 @@ describe("GitRepository branches and commit sequences", () => {
 
 	test("deletes a merged branch", async () => {
 		const fixture = await fixtures.create();
+
 		unwrapResult(await fixture.repository.createBranch({ name: "finished" }));
 
 		const result = unwrapResult(
@@ -129,6 +134,7 @@ describe("GitRepository branches and commit sequences", () => {
 
 	test("requires force to delete an unmerged branch", async () => {
 		const fixture = await fixtures.create();
+
 		unwrapResult(
 			await fixture.repository.createBranch({
 				checkout: true,
@@ -142,6 +148,7 @@ describe("GitRepository branches and commit sequences", () => {
 		const rejected = await fixture.repository.deleteBranch({
 			name: "unmerged",
 		});
+
 		const deleted = unwrapResult(
 			await fixture.repository.deleteBranch({
 				force: true,
@@ -168,6 +175,7 @@ describe("GitRepository branches and commit sequences", () => {
 
 	test("fast-forwards a branch", async () => {
 		const fixture = await fixtures.create();
+
 		unwrapResult(
 			await fixture.repository.createBranch({
 				checkout: true,
@@ -176,6 +184,7 @@ describe("GitRepository branches and commit sequences", () => {
 		);
 		await fixture.write("feature.txt", "feature\n");
 		const featureOid = await fixture.commitAll("feature");
+
 		unwrapResult(await fixture.repository.checkoutBranch({ name: "main" }));
 
 		const snapshot = unwrapResult(
@@ -191,6 +200,7 @@ describe("GitRepository branches and commit sequences", () => {
 
 	test("reports merge conflicts and can abort them", async () => {
 		const fixture = await fixtures.create();
+
 		unwrapResult(
 			await fixture.repository.createBranch({
 				checkout: true,
@@ -206,9 +216,11 @@ describe("GitRepository branches and commit sequences", () => {
 		const conflict = await fixture.repository.merge({
 			revision: "feature/conflict",
 		});
+
 		const conflictedSnapshot = unwrapResult(
 			await fixture.repository.getSnapshot()
 		);
+
 		const aborted = unwrapResult(await fixture.repository.abortMerge());
 
 		expect(conflict).toMatchObject({
@@ -221,6 +233,7 @@ describe("GitRepository branches and commit sequences", () => {
 
 	test("restores a conflicted merge and continues after resolution", async () => {
 		const fixture = await fixtures.create();
+
 		unwrapResult(
 			await fixture.repository.createBranch({
 				checkout: true,
@@ -237,7 +250,9 @@ describe("GitRepository branches and commit sequences", () => {
 		const reopened = unwrapResult(
 			await GitRepository.open({ path: fixture.repositoryPath })
 		);
+
 		const interrupted = unwrapResult(await reopened.getSnapshot());
+
 		await fixture.write("README.md", "resolved\n");
 		unwrapResult(await reopened.stage({ paths: ["README.md"] }));
 		const recovered = unwrapResult(await reopened.continueMerge());
@@ -256,6 +271,7 @@ describe("GitRepository branches and commit sequences", () => {
 
 	test("rebases a feature branch onto main", async () => {
 		const fixture = await fixtures.create();
+
 		unwrapResult(
 			await fixture.repository.createBranch({
 				checkout: true,
@@ -283,6 +299,7 @@ describe("GitRepository branches and commit sequences", () => {
 
 	test("cherry-picks a commit", async () => {
 		const fixture = await fixtures.create();
+
 		unwrapResult(
 			await fixture.repository.createBranch({
 				checkout: true,
@@ -291,6 +308,7 @@ describe("GitRepository branches and commit sequences", () => {
 		);
 		await fixture.write("picked.txt", "picked\n");
 		const pickedOid = await fixture.commitAll("picked");
+
 		unwrapResult(await fixture.repository.checkoutBranch({ name: "main" }));
 
 		const snapshot = unwrapResult(
@@ -303,6 +321,7 @@ describe("GitRepository branches and commit sequences", () => {
 
 	test("reverts a commit", async () => {
 		const fixture = await fixtures.create();
+
 		await fixture.write("reverted.txt", "remove later\n");
 		const revertedOid = await fixture.commitAll("add reverted file");
 
@@ -349,6 +368,7 @@ describe("GitRepository tags", () => {
 
 	test("deletes tags", async () => {
 		const fixture = await fixtures.create();
+
 		unwrapResult(await fixture.repository.createTag({ name: "temporary" }));
 
 		const tags = unwrapResult(

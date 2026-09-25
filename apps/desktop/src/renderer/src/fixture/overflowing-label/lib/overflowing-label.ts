@@ -12,6 +12,7 @@ export const getOverflowingLabelOverflow = (
 	contentWidth: number
 ): number => {
 	const overflow = contentWidth - viewportWidth;
+
 	return overflow > OVERFLOWING_LABEL_MARQUEE.overflowTolerancePx
 		? Math.ceil(overflow)
 		: 0;
@@ -22,6 +23,7 @@ export const getOverflowingLabelMarqueeDuration = (
 ): number => {
 	const travelDuration =
 		(overflowPixels / OVERFLOWING_LABEL_MARQUEE.pixelsPerSecond) * 1000;
+
 	return Math.round(
 		Math.min(
 			OVERFLOWING_LABEL_MARQUEE.maxDurationMs,

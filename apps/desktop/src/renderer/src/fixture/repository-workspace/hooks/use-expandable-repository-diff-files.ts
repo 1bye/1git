@@ -38,12 +38,16 @@ export const useExpandableRepositoryDiffFiles = (
 		contentKey,
 		files: EMPTY_EXPANDED_FILES,
 	});
+
 	const pendingRequestsRef = useRef(
 		new Map<string, Promise<FileDiffMetadata | null>>()
 	);
+
 	const files =
 		state.contentKey === contentKey ? state.files : EMPTY_EXPANDED_FILES;
+
 	const filesRef = useRef(files);
+
 	useEffect(() => {
 		filesRef.current = files;
 	}, [files]);
@@ -52,14 +56,18 @@ export const useExpandableRepositoryDiffFiles = (
 			entry: RepositoryDiffFileEntry
 		): Promise<FileDiffMetadata | null> => {
 			const loadedFile = filesRef.current.get(entry.key);
+
 			if (loadedFile) {
 				return loadedFile;
 			}
+
 			const requestKey = `${sessionId}:${contentKey}:${entry.key}`;
 			const pendingRequest = pendingRequestsRef.current.get(requestKey);
+
 			if (pendingRequest) {
 				return await pendingRequest;
 			}
+
 			const request = (async (): Promise<FileDiffMetadata | null> => {
 				const result = await window.desktop.git.repository.diff(sessionId, {
 					contextLines: REPOSITORY_DIFF_EXPANDABLE_CONTEXT_LINES,
@@ -67,34 +75,44 @@ export const useExpandableRepositoryDiffFiles = (
 					paths: [entry.path],
 					target: entry.target,
 				});
+
 				if (!result.ok) {
 					return null;
 				}
+
 				const file = createExpandableRepositoryDiffFile(
 					result.value,
 					entry.path,
 					`${entry.key}:expanded`
 				);
+
 				if (!file) {
 					return null;
 				}
+
 				startTransition(() => {
 					setState((current) => {
 						const currentFiles =
 							current.contentKey === contentKey
 								? current.files
 								: EMPTY_EXPANDED_FILES;
+
 						const nextFiles = new Map(currentFiles);
+
 						nextFiles.set(entry.key, file);
+
 						return {
 							contentKey,
 							files: nextFiles,
 						};
 					});
 				});
+
 				return file;
 			})();
+
 			pendingRequestsRef.current.set(requestKey, request);
+
 			try {
 				return await request;
 			} finally {
@@ -103,5 +121,6 @@ export const useExpandableRepositoryDiffFiles = (
 		},
 		[contentKey, ignoreWhitespace, sessionId]
 	);
+
 	return { files, requestFile };
 };

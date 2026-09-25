@@ -27,6 +27,7 @@ describe("hunk action anchor", () => {
 			top: 42,
 			width: 20,
 		});
+
 		const viewport = geometryElement({
 			height: 240,
 			left: 96,
@@ -47,6 +48,7 @@ describe("hunk action anchor", () => {
 			top: 42,
 			width: 20,
 		});
+
 		const viewport = geometryElement({
 			height: 240,
 			left: 96,

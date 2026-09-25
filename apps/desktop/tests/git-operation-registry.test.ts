@@ -23,8 +23,10 @@ const waitForAbort =
 		await new Promise<GitResult<never>>((resolve) => {
 			if (signal.aborted) {
 				resolve(abortedResult(operation));
+
 				return;
 			}
+
 			signal.addEventListener(
 				"abort",
 				() => resolve(abortedResult(operation)),
@@ -55,6 +57,7 @@ describe("GitOperationRegistry", () => {
 	test("cancels only operations owned by the requesting sender", async () => {
 		const registry = new GitOperationRegistry();
 		const owner = {};
+
 		const pending = registry.run({
 			operation: "fetch",
 			operationId: "fetch-1",
@@ -78,6 +81,7 @@ describe("GitOperationRegistry", () => {
 	test("rejects duplicate active operation IDs", async () => {
 		const registry = new GitOperationRegistry();
 		const owner = {};
+
 		const first = registry.run({
 			operation: "fetch",
 			operationId: "shared-id",
@@ -113,6 +117,7 @@ describe("GitOperationRegistry", () => {
 			owner: {},
 			task: () => {
 				taskStarted = true;
+
 				return Promise.resolve({ ok: true, value: "unexpected" });
 			},
 		});
@@ -131,12 +136,14 @@ describe("GitOperationRegistry", () => {
 		const registry = new GitOperationRegistry();
 		const firstOwner = {};
 		const secondOwner = {};
+
 		const first = registry.run({
 			operation: "fetch",
 			operationId: "first",
 			owner: firstOwner,
 			task: waitForAbort("fetch"),
 		});
+
 		const second = registry.run({
 			operation: "push",
 			operationId: "second",

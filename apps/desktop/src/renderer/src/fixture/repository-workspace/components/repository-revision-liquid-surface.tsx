@@ -20,16 +20,21 @@ interface RepositoryRevisionLiquidPathCache {
 }
 
 const REVISION_SURFACE_MOTION_DURATION_MS = 180;
+
 const REVISION_LIST_SELECTOR =
 	'[data-repository-revision-navigation-group="revisions"]';
+
 const REVISION_ROW_SELECTOR = '[data-repository-revision-liquid-active="true"]';
+
 const REVISION_SHELF_SELECTOR =
 	'[data-repository-context-shelf][data-state="open"]';
+
 const REVISION_VIEWPORT_SELECTOR =
 	"[data-repository-revision-navigation-viewport]";
 
 const getRect = (element: Element): RepositoryFileLiquidRect => {
 	const bounds = element.getBoundingClientRect();
+
 	return {
 		height: bounds.height,
 		left: bounds.left,
@@ -45,6 +50,7 @@ const hasSameMeasurement = (
 	if (!(current && next)) {
 		return current === next;
 	}
+
 	return (
 		current.canvasEdgeX === next.canvasEdgeX &&
 		current.canvasSide === next.canvasSide &&
@@ -69,24 +75,30 @@ export function RepositoryRevisionLiquidSurface({
 	const pathCacheRef = useRef<RepositoryRevisionLiquidPathCache | null>(null);
 	const previousRevisionKeyRef = useRef(selectedRevisionKey);
 	const [isMoving, setIsMoving] = useState(false);
+
 	const [measurement, setMeasurement] =
 		useState<RepositoryFileLiquidMeasurement | null>(null);
 
 	useLayoutEffect(() => {
 		const previousRevisionKey = previousRevisionKeyRef.current;
+
 		previousRevisionKeyRef.current = selectedRevisionKey;
 		const shouldMove = Boolean(
 			previousRevisionKey &&
 			selectedRevisionKey &&
 			previousRevisionKey !== selectedRevisionKey
 		);
+
 		setIsMoving(shouldMove);
+
 		if (!shouldMove) {
 			return;
 		}
+
 		const motionTimeout = window.setTimeout(() => {
 			setIsMoving(false);
 		}, REVISION_SURFACE_MOTION_DURATION_MS);
+
 		return () => {
 			window.clearTimeout(motionTimeout);
 		};
@@ -95,19 +107,24 @@ export function RepositoryRevisionLiquidSurface({
 	useLayoutEffect(() => {
 		const host = hostRef.current;
 		const workspace = host?.parentElement;
+
 		const shelf = workspace?.querySelector<HTMLElement>(
 			REVISION_SHELF_SELECTOR
 		);
+
 		const revisionList = workspace?.querySelector<HTMLElement>(
 			REVISION_LIST_SELECTOR
 		);
+
 		const viewport = revisionList?.closest<HTMLElement>(
 			REVISION_VIEWPORT_SELECTOR
 		);
+
 		if (
 			!(workspace && shelf && revisionList && viewport && selectedRevisionKey)
 		) {
 			setMeasurement(null);
+
 			return;
 		}
 
@@ -115,6 +132,7 @@ export function RepositoryRevisionLiquidSurface({
 			const row = revisionList.querySelector<HTMLElement>(
 				REVISION_ROW_SELECTOR
 			);
+
 			const nextMeasurement = row
 				? createRepositoryFileLiquidMeasurement(
 						getRect(workspace),
@@ -123,14 +141,17 @@ export function RepositoryRevisionLiquidSurface({
 						getRect(viewport)
 					)
 				: null;
+
 			setMeasurement((currentMeasurement) =>
 				hasSameMeasurement(currentMeasurement, nextMeasurement)
 					? currentMeasurement
 					: nextMeasurement
 			);
 		};
+
 		const row = revisionList.querySelector<HTMLElement>(REVISION_ROW_SELECTOR);
 		const tracker = createLiquidGeometryTracker(measure);
+
 		tracker.setElements([
 			workspace,
 			shelf,
@@ -139,6 +160,7 @@ export function RepositoryRevisionLiquidSurface({
 			...(row ? [row] : []),
 		]);
 		tracker.measureNow();
+
 		return tracker.disconnect;
 	}, [selectedRevisionKey]);
 
@@ -146,7 +168,9 @@ export function RepositoryRevisionLiquidSurface({
 		if (!measurement) {
 			return;
 		}
+
 		const cachedPath = pathCacheRef.current;
+
 		if (
 			cachedPath &&
 			hasSameRepositoryFileLiquidPathGeometry(
@@ -156,10 +180,14 @@ export function RepositoryRevisionLiquidSurface({
 		) {
 			return cachedPath.path;
 		}
+
 		const nextPath = createRepositoryFileLiquidPath(measurement);
+
 		pathCacheRef.current = { measurement, path: nextPath };
+
 		return nextPath;
 	}, [measurement]);
+
 	const surfaceStyle = measurement
 		? ({
 				height: measurement.surfaceHeight,

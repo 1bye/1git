@@ -25,12 +25,15 @@ export const addLiquidMenuLayer = (
 	layerId: string
 ): readonly string[] => {
 	const currentIndex = layerIds.indexOf(layerId);
+
 	if (currentIndex < 0) {
 		return [...layerIds, layerId];
 	}
+
 	if (currentIndex === layerIds.length - 1) {
 		return layerIds;
 	}
+
 	return [
 		...layerIds.slice(0, currentIndex),
 		...layerIds.slice(currentIndex + 1),
@@ -43,6 +46,7 @@ export const removeLiquidMenuLayer = (
 	layerId: string
 ): readonly string[] => {
 	const nextLayerIds = layerIds.filter((candidate) => candidate !== layerId);
+
 	return nextLayerIds.length === layerIds.length ? layerIds : nextLayerIds;
 };
 
@@ -50,9 +54,11 @@ export const getLiquidMenuLayerZIndices = (
 	layerIndex: number
 ): LiquidMenuLayerZIndices => {
 	const normalizedLayerIndex = Math.max(0, layerIndex);
+
 	const backdrop =
 		LIQUID_MENU_BASE_BACKDROP_Z_INDEX +
 		normalizedLayerIndex * LIQUID_MENU_LAYER_STRIDE;
+
 	return {
 		backdrop,
 		content: backdrop + 3,
@@ -70,6 +76,8 @@ export const getLiquidMenuBackdropOpacity = ({
 	if (!isTopLayer) {
 		return 0;
 	}
+
 	const visibleProgress = hasLayerBelow ? 1 : clampProgress(progress);
+
 	return opacity * visibleProgress;
 };

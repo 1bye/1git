@@ -28,7 +28,9 @@ export function RepositoryWorkspace({
 }: RepositoryWorkspaceProps): ReactElement {
 	const selectedStash =
 		props.stashes.find((stash) => stash.oid === props.selectedStashOid) ?? null;
+
 	let selectedRevisionKey: string | null = null;
+
 	if (props.tab === "history") {
 		selectedRevisionKey = props.selectedCommitOid;
 	} else if (props.tab === "stashes") {

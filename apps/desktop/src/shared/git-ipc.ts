@@ -215,6 +215,7 @@ const REPOSITORY_MUTATION_OPERATIONS = new Map<string, GitOperation>([
 	[GIT_IPC_CHANNELS.config.set, "set-config"],
 	[GIT_IPC_CHANNELS.config.unset, "unset-config"],
 ]);
+
 const REPOSITORY_MUTATION_OPERATION_NAMES = new Set<string>(
 	REPOSITORY_MUTATION_OPERATIONS.values()
 );
@@ -268,14 +269,17 @@ export const isRepositoryRefreshEvent = (
 	}
 
 	const event = value as Readonly<Record<string, unknown>>;
+
 	if (
 		!(isNonEmptyString(event.occurredAt) && isNonEmptyString(event.sessionId))
 	) {
 		return false;
 	}
+
 	if (event.source === "window-focus") {
 		return true;
 	}
+
 	if (
 		event.source !== "mutation" ||
 		!isNonEmptyString(event.operation) ||
@@ -283,6 +287,7 @@ export const isRepositoryRefreshEvent = (
 	) {
 		return false;
 	}
+
 	return event.operationId === undefined || isNonEmptyString(event.operationId);
 };
 

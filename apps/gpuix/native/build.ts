@@ -19,8 +19,10 @@ if (process.platform !== "darwin" || process.arch !== "arm64") {
 }
 
 const source = resolve(appDirectory, ".cache/native-source");
+
 const run = async (cmd: string[], cwd = source): Promise<void> => {
 	const child = Bun.spawn(cmd, { cwd, stdout: "inherit", stderr: "inherit" });
+
 	if ((await child.exited) !== 0)
 		throw new Error(`Native build failed: ${cmd.join(" ")}`);
 };
@@ -33,6 +35,7 @@ if (
 	process.stdout.write("Local GPUIX native build is up to date.\n");
 } else {
 	await mkdir(nativeDirectory, { recursive: true });
+
 	if (!existsSync(source)) {
 		await run(
 			[
@@ -47,13 +50,16 @@ if (
 		);
 		await run(["git", "checkout", "--detach", nativeRevision]);
 	}
+
 	const head = Bun.spawn(["git", "rev-parse", "HEAD"], { cwd: source });
 	const revision = (await new Response(head.stdout).text()).trim();
+
 	if ((await head.exited) !== 0 || revision !== nativeRevision) {
 		throw new Error(
 			`Unexpected checkout at ${source}; move it aside and rebuild.`
 		);
 	}
+
 	await run(["git", "submodule", "update", "--init", "--depth", "1", "zed"]);
 	const patched = Bun.spawn(
 		["git", "apply", "--reverse", "--check", patchPath],
@@ -63,10 +69,12 @@ if (
 			stderr: "ignore",
 		}
 	);
+
 	if ((await patched.exited) !== 0) {
 		await run(["git", "apply", "--check", patchPath]);
 		await run(["git", "apply", patchPath]);
 	}
+
 	// Build only the addon; keep using the matching published JS runtime and loader.
 	await run(
 		[

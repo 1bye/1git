@@ -22,6 +22,7 @@ export const reconcileWorkspaceOrder = (
 			nextOrder.push(sessionId);
 		}
 	}
+
 	for (const session of sessions) {
 		if (availableSessionIds.delete(session.id)) {
 			nextOrder.push(session.id);
@@ -38,15 +39,19 @@ export const moveWorkspaceInOrder = (
 ): readonly RepositorySessionId[] => {
 	const activeIndex = currentOrder.indexOf(activeSessionId);
 	const overIndex = currentOrder.indexOf(overSessionId);
+
 	if (activeIndex < 0 || overIndex < 0 || activeIndex === overIndex) {
 		return currentOrder;
 	}
 
 	const nextOrder = [...currentOrder];
 	const [movedSessionId] = nextOrder.splice(activeIndex, 1);
+
 	if (!movedSessionId) {
 		return currentOrder;
 	}
+
 	nextOrder.splice(overIndex, 0, movedSessionId);
+
 	return nextOrder;
 };

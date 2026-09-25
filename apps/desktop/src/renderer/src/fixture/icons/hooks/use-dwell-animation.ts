@@ -24,6 +24,7 @@ export function useDwellAnimation({
 
 	useEffect(() => {
 		const icon = iconRef.current;
+
 		if (!icon) {
 			return;
 		}
@@ -46,6 +47,7 @@ export function useDwellAnimation({
 		const scheduleAnimation = (): void => {
 			const prefersReducedMotion =
 				window.matchMedia(REDUCED_MOTION_QUERY).matches;
+
 			if (
 				!(isArmed && isHovered) ||
 				isPlaying ||
@@ -57,6 +59,7 @@ export function useDwellAnimation({
 
 			dwellTimeout = setTimeout(() => {
 				dwellTimeout = undefined;
+
 				if (
 					!(isArmed && isHovered) ||
 					isPlaying ||

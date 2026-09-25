@@ -66,10 +66,12 @@ export function CreateBranchForm({
 	pendingAction,
 }: CreateBranchFormProps): ReactElement {
 	const [branchName, setBranchName] = useState("");
+
 	const createBranch = async (
 		event: FormEvent<HTMLFormElement>
 	): Promise<void> => {
 		event.preventDefault();
+
 		if (await onCreateBranch(branchName)) {
 			onClose();
 		}
@@ -140,10 +142,12 @@ export function RenameBranchForm({
 	onRenameBranch,
 }: RenameBranchFormProps): ReactElement {
 	const [branchName, setBranchName] = useState(currentBranch);
+
 	const renameBranch = async (
 		event: FormEvent<HTMLFormElement>
 	): Promise<void> => {
 		event.preventDefault();
+
 		if (await onRenameBranch(branchName)) {
 			onClose();
 		}
@@ -268,6 +272,7 @@ export function DeleteBranchView({
 	onDeleteBranch,
 }: DeleteBranchViewProps): ReactElement {
 	const [targetBranch, setTargetBranch] = useState<BranchInfo | null>(null);
+
 	const deleteBranch = async (): Promise<void> => {
 		if (targetBranch && (await onDeleteBranch(targetBranch.name))) {
 			onClose();

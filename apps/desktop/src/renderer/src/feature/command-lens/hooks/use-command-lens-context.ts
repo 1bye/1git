@@ -45,10 +45,12 @@ export const CommandLensContext = createContext<CommandLensContextValue | null>(
 
 export const useCommandLensContext = (): CommandLensContextValue => {
 	const context = use(CommandLensContext);
+
 	if (!context) {
 		throw new Error(
 			"Command Lens targets must be used inside CommandLensProvider."
 		);
 	}
+
 	return context;
 };

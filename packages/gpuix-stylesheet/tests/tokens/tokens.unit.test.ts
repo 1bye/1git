@@ -53,10 +53,12 @@ it("resolves palette and density independently without changing earlier styles",
 		dark: { background: "#111111", text: "#ffffff" },
 		light: { background: "#ffffff", text: "#111111" },
 	});
+
 	const densities = Tokens.create({
 		compact: { padding: 8 },
 		comfortable: { padding: 12 },
 	});
+
 	type UiTokens = {
 		colors: TokenSet<typeof palettes>;
 		layout: TokenSet<typeof densities>;
@@ -73,14 +75,17 @@ it("resolves palette and density independently without changing earlier styles",
 		colors: palettes.dark,
 		layout: densities.compact,
 	});
+
 	const recolored = styles.root({
 		colors: palettes.light,
 		layout: densities.compact,
 	});
+
 	const resized = styles.root({
 		colors: palettes.light,
 		layout: densities.comfortable,
 	});
+
 	const customized = styles.root({
 		colors: { ...palettes.light, text: "#123456" },
 		layout: { padding: 10 },

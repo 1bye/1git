@@ -56,6 +56,7 @@ describe("GitRepository remotes and synchronization", () => {
 	test("renames a remote", async () => {
 		const fixture = await fixtures.create();
 		const remotePath = await fixture.createBareRemote();
+
 		unwrapResult(
 			await fixture.repository.addRemote({
 				name: "origin",
@@ -77,6 +78,7 @@ describe("GitRepository remotes and synchronization", () => {
 		const fixture = await fixtures.create();
 		const firstRemote = await fixture.createBareRemote("first.git");
 		const secondRemote = await fixture.createBareRemote("second.git");
+
 		unwrapResult(
 			await fixture.repository.addRemote({
 				name: "origin",
@@ -105,6 +107,7 @@ describe("GitRepository remotes and synchronization", () => {
 		const fixture = await fixtures.create();
 		const fetchRemote = await fixture.createBareRemote("fetch.git");
 		const pushRemote = await fixture.createBareRemote("push.git");
+
 		unwrapResult(
 			await fixture.repository.addRemote({
 				name: "origin",
@@ -127,6 +130,7 @@ describe("GitRepository remotes and synchronization", () => {
 	test("removes a remote", async () => {
 		const fixture = await fixtures.create();
 		const remotePath = await fixture.createBareRemote();
+
 		unwrapResult(
 			await fixture.repository.addRemote({
 				name: "origin",
@@ -144,6 +148,7 @@ describe("GitRepository remotes and synchronization", () => {
 	test("pushes and establishes upstream tracking", async () => {
 		const fixture = await fixtures.create();
 		const remotePath = await fixture.createBareRemote();
+
 		unwrapResult(
 			await fixture.repository.addRemote({
 				name: "origin",
@@ -173,6 +178,7 @@ describe("GitRepository remotes and synchronization", () => {
 	test("reports the fetched remote default branch", async () => {
 		const fixture = await fixtures.create();
 		const remotePath = await fixture.createBareRemote();
+
 		await fixture.git(["remote", "add", "origin", remotePath]);
 		await fixture.git(["push", "--set-upstream", "origin", "main"]);
 		await fixture.git(["remote", "set-head", "origin", "main"]);
@@ -185,6 +191,7 @@ describe("GitRepository remotes and synchronization", () => {
 	test("changes the upstream to an existing remote branch", async () => {
 		const fixture = await fixtures.create();
 		const remotePath = await fixture.createBareRemote();
+
 		unwrapResult(
 			await fixture.repository.addRemote({
 				name: "origin",
@@ -213,6 +220,7 @@ describe("GitRepository remotes and synchronization", () => {
 	test("fetches all remotes and returns tracking branches", async () => {
 		const fixture = await fixtures.create();
 		const remotePath = await fixture.createBareRemote();
+
 		unwrapResult(
 			await fixture.repository.addRemote({
 				name: "origin",
@@ -230,6 +238,7 @@ describe("GitRepository remotes and synchronization", () => {
 		const result = unwrapResult(
 			await fixture.repository.fetch({ prune: true, remote: "origin" })
 		);
+
 		const branches = unwrapResult(await fixture.repository.getBranches());
 
 		expect(result.operation).toBe("fetch");
@@ -241,6 +250,7 @@ describe("GitRepository remotes and synchronization", () => {
 	test("clones a repository into a structured session", async () => {
 		const fixture = await fixtures.create();
 		const remotePath = await fixture.createBareRemote();
+
 		unwrapResult(
 			await fixture.repository.addRemote({
 				name: "origin",
@@ -261,6 +271,7 @@ describe("GitRepository remotes and synchronization", () => {
 				remoteUrl: remotePath,
 			})
 		);
+
 		const snapshot = unwrapResult(await cloned.getSnapshot());
 
 		expect(snapshot.head.branch).toBe("main");
@@ -270,6 +281,7 @@ describe("GitRepository remotes and synchronization", () => {
 	test("pulls new commits from a local remote", async () => {
 		const fixture = await fixtures.create();
 		const remotePath = await fixture.createBareRemote();
+
 		unwrapResult(
 			await fixture.repository.addRemote({
 				name: "origin",
@@ -289,6 +301,7 @@ describe("GitRepository remotes and synchronization", () => {
 				remoteUrl: remotePath,
 			})
 		);
+
 		await fixture.write("remote-change.txt", "remote\n");
 		await fixture.commitAll("remote change");
 		unwrapResult(
@@ -304,6 +317,7 @@ describe("GitRepository remotes and synchronization", () => {
 				strategy: "fast-forward-only",
 			})
 		);
+
 		const content = unwrapResult(
 			await cloned.getFileContent({
 				path: "remote-change.txt",
@@ -335,11 +349,13 @@ describe("GitRepository remotes and synchronization", () => {
 describe("GitRepository stash", () => {
 	test("creates and lists a named stash", async () => {
 		const fixture = await fixtures.create();
+
 		await fixture.write("README.md", "changed\n");
 
 		const snapshot = unwrapResult(
 			await fixture.repository.stash({ message: "desktop work" })
 		);
+
 		const stashes = unwrapResult(await fixture.repository.getStashes());
 
 		expect(snapshot.files).toEqual([]);
@@ -349,6 +365,7 @@ describe("GitRepository stash", () => {
 
 	test("includes untracked paths when requested", async () => {
 		const fixture = await fixtures.create();
+
 		await fixture.write("untracked.txt", "untracked\n");
 
 		unwrapResult(
@@ -365,12 +382,14 @@ describe("GitRepository stash", () => {
 
 	test("applies a stash without removing it", async () => {
 		const fixture = await fixtures.create();
+
 		await fixture.write("README.md", "stashed\n");
 		unwrapResult(await fixture.repository.stash({ message: "apply me" }));
 
 		const snapshot = unwrapResult(
 			await fixture.repository.applyStash({ reference: "stash@{0}" })
 		);
+
 		const stashes = unwrapResult(await fixture.repository.getStashes());
 
 		expect(snapshot.files[0]?.path).toBe("README.md");
@@ -379,12 +398,14 @@ describe("GitRepository stash", () => {
 
 	test("pops a stash and removes it", async () => {
 		const fixture = await fixtures.create();
+
 		await fixture.write("README.md", "stashed\n");
 		unwrapResult(await fixture.repository.stash({ message: "pop me" }));
 
 		const snapshot = unwrapResult(
 			await fixture.repository.popStash({ reference: "stash@{0}" })
 		);
+
 		const stashes = unwrapResult(await fixture.repository.getStashes());
 
 		expect(snapshot.files[0]?.path).toBe("README.md");
@@ -393,6 +414,7 @@ describe("GitRepository stash", () => {
 
 	test("keeps a stash when pop produces conflicts", async () => {
 		const fixture = await fixtures.create();
+
 		await fixture.write("README.md", "stashed\n");
 		unwrapResult(
 			await fixture.repository.stash({ message: "keep on conflict" })
@@ -403,6 +425,7 @@ describe("GitRepository stash", () => {
 		const result = await fixture.repository.popStash({
 			reference: "stash@{0}",
 		});
+
 		const stashes = unwrapResult(await fixture.repository.getStashes());
 		const snapshot = unwrapResult(await fixture.repository.getSnapshot());
 
@@ -421,6 +444,7 @@ describe("GitRepository stash", () => {
 
 	test("drops a stash", async () => {
 		const fixture = await fixtures.create();
+
 		await fixture.write("README.md", "stashed\n");
 		unwrapResult(await fixture.repository.stash({ message: "drop me" }));
 
@@ -433,6 +457,7 @@ describe("GitRepository stash", () => {
 
 	test("stashes only selected paths", async () => {
 		const fixture = await fixtures.create();
+
 		await fixture.write("README.md", "selected\n");
 		await fixture.write("other.txt", "other\n");
 

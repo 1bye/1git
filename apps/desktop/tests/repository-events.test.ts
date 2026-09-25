@@ -24,6 +24,7 @@ const createTarget = (): {
 	};
 } => {
 	const events: SentEvent[] = [];
+
 	return {
 		events,
 		target: {
@@ -100,9 +101,11 @@ describe("repository events", () => {
 
 	test("publishes focus refreshes only for an active repository", () => {
 		const { events, target } = createTarget();
+
 		const inactiveManager = {
 			getActiveSession: () => null,
 		} satisfies Pick<RepositoryManager, "getActiveSession">;
+
 		const activeManager = {
 			getActiveSession: () => ({
 				id: "session-1",

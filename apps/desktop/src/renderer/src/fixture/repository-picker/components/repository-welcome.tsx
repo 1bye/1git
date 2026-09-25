@@ -145,6 +145,7 @@ function RepositoryListItem({
 	workspace,
 }: RepositoryListItemProps): ReactElement {
 	const repositoryName = recentRepositoryName(repository);
+
 	const commands: CommandLensCommand[] = [
 		{
 			advanceFocus: true,
@@ -155,6 +156,7 @@ function RepositoryListItem({
 			showInLens: false,
 		},
 	];
+
 	if (shortcutKey) {
 		if (!hasOpenWorkspaces) {
 			commands.push({
@@ -165,6 +167,7 @@ function RepositoryListItem({
 				showInLens: false,
 			});
 		}
+
 		commands.push({
 			allowInEditable: true,
 			altKey: true,
@@ -273,18 +276,22 @@ export function RepositoryWelcome({
 	const previews = useRecentRepositoryPreviews(recentRepositories, true);
 	const hasOpenWorkspaces = workspaces.length > 0;
 	const normalizedQuery = query.trim().toLocaleLowerCase();
+
 	const workspacesByPath = new Map(
 		workspaces.map((workspace) => [
 			workspace.session.repository.root,
 			workspace,
 		])
 	);
+
 	const matchingRepositories = recentRepositories.filter((repository) => {
 		const repositoryName = recentRepositoryName(repository);
 		const preview = previews.get(repository.path);
 		const workspace = workspacesByPath.get(repository.path);
+
 		const branchName =
 			workspace?.branch ?? (preview ? preview.head.branch : null);
+
 		return (
 			!normalizedQuery ||
 			repositoryName.toLocaleLowerCase().includes(normalizedQuery) ||
@@ -292,17 +299,22 @@ export function RepositoryWelcome({
 			branchName?.toLocaleLowerCase().includes(normalizedQuery)
 		);
 	});
+
 	const openRepositories = matchingRepositories.filter((repository) =>
 		workspacesByPath.has(repository.path)
 	);
+
 	const otherRepositories = matchingRepositories.filter(
 		(repository) => !workspacesByPath.has(repository.path)
 	);
+
 	const visibleRepositories = [...openRepositories, ...otherRepositories];
 	const numberedRepositoryCount = Math.min(visibleRepositories.length, 9);
+
 	const navigationOrdersByPath = new Map(
 		visibleRepositories.map((repository, index) => [repository.path, index])
 	);
+
 	const shortcutKeysByPath = new Map(
 		visibleRepositories
 			.slice(0, numberedRepositoryCount)
@@ -315,19 +327,24 @@ export function RepositoryWelcome({
 	const updateQuery = (event: ChangeEvent<HTMLInputElement>): void => {
 		setQuery(event.target.value);
 	};
+
 	const updateCloneUrl = (event: ChangeEvent<HTMLInputElement>): void => {
 		setCloneUrl(event.target.value);
 	};
+
 	const closeCloneMenu = (): void => {
 		setCloneUrl("");
 		setIsCloneMenuOpen(false);
 	};
+
 	const changeCloneMenuOpen = (isOpen: boolean): void => {
 		setIsCloneMenuOpen(isOpen);
+
 		if (!isOpen) {
 			setCloneUrl("");
 		}
 	};
+
 	const stopCloneMenuNavigation = (
 		event: ReactKeyboardEvent<HTMLInputElement>
 	): void => {
@@ -335,38 +352,47 @@ export function RepositoryWelcome({
 			event.stopPropagation();
 		}
 	};
+
 	const getCloneMenuAnchor = useCallback(
 		(): Element | null => cloneTriggerRef.current,
 		[]
 	);
+
 	const pickRepository = async (): Promise<void> => {
 		await onPickRepository();
 	};
+
 	const createRepository = async (): Promise<void> => {
 		await onCreateRepository();
 	};
+
 	const openCloneMenu = (): void => {
 		setCloneUrl("");
 		setIsCloneMenuOpen(true);
 	};
+
 	const focusRepositorySearch = (): void => {
 		setCloneUrl("");
 		setIsCloneMenuOpen(false);
 		searchInputRef.current?.focus();
 		searchInputRef.current?.select();
 	};
+
 	const submitClone = async (
 		event: FormEvent<HTMLFormElement>
 	): Promise<void> => {
 		event.preventDefault();
 		const remoteUrl = cloneUrl.trim();
+
 		if (!remoteUrl) {
 			return;
 		}
+
 		if (await onCloneRepository(remoteUrl)) {
 			closeCloneMenu();
 		}
 	};
+
 	const cloneCommandLensTarget = useCommandLensTarget({
 		commands: [
 			{
@@ -386,6 +412,7 @@ export function RepositoryWelcome({
 		plainArrowNavigation: true,
 		radius: 10,
 	});
+
 	const searchCommandLensTarget = useCommandLensTarget({
 		commands: [
 			{
@@ -403,6 +430,7 @@ export function RepositoryWelcome({
 		navigationOrientation: "vertical",
 		radius: 12,
 	});
+
 	const setCloneTriggerElement = useCallback(
 		(element: HTMLButtonElement | null): void => {
 			cloneTriggerRef.current = element;
@@ -410,6 +438,7 @@ export function RepositoryWelcome({
 		},
 		[cloneCommandLensTarget.ref]
 	);
+
 	const setSearchInputElement = useCallback(
 		(element: HTMLInputElement | null): void => {
 			searchInputRef.current = element;
@@ -422,9 +451,11 @@ export function RepositoryWelcome({
 		if (!isCloneMenuOpen) {
 			return;
 		}
+
 		const focusTimer = window.setTimeout(() => {
 			cloneInputRef.current?.focus();
 		});
+
 		return () => window.clearTimeout(focusTimer);
 	}, [isCloneMenuOpen]);
 

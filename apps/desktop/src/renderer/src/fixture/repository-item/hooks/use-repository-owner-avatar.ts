@@ -18,9 +18,11 @@ export function useRepositoryOwnerAvatar(
 	const host = owner?.host.toLowerCase() ?? null;
 	const name = owner?.name ?? null;
 	const requestKey = repositoryOwnerAvatarKey(owner);
+
 	const [avatar, setAvatar] = useState<RepositoryOwnerAvatarState | null>(
 		() => {
 			const cached = peekRepositoryOwnerAvatar(owner);
+
 			return requestKey && cached !== undefined
 				? { dataUrl: cached, requestKey }
 				: null;
@@ -33,8 +35,10 @@ export function useRepositoryOwnerAvatar(
 		}
 
 		let isDisposed = false;
+
 		const loadAvatar = async (): Promise<void> => {
 			const dataUrl = await loadRepositoryOwnerAvatarByIdentity(host, name);
+
 			if (!isDisposed) {
 				setAvatar({
 					dataUrl,
@@ -42,6 +46,7 @@ export function useRepositoryOwnerAvatar(
 				});
 			}
 		};
+
 		loadAvatar().catch(() => {
 			if (!isDisposed) {
 				setAvatar({ dataUrl: null, requestKey });
@@ -56,5 +61,6 @@ export function useRepositoryOwnerAvatar(
 	if (avatar?.requestKey === requestKey) {
 		return avatar.dataUrl;
 	}
+
 	return peekRepositoryOwnerAvatar(owner) ?? null;
 }

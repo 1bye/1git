@@ -12,8 +12,10 @@ const createStore = async (): Promise<{
 	readonly store: JsonRecentRepositoryStore;
 }> => {
 	const root = await mkdtemp(join(tmpdir(), "1git-recent-store-"));
+
 	roots.add(root);
 	const filePath = join(root, "state", "recent-repositories.json");
+
 	return {
 		filePath,
 		store: new JsonRecentRepositoryStore(filePath),
@@ -38,6 +40,7 @@ describe("JsonRecentRepositoryStore", () => {
 
 	test("round-trips a versioned recent repository document", async () => {
 		const { filePath, store } = await createStore();
+
 		const repositories = [
 			{
 				lastOpenedAt: "2026-07-29T18:00:00.000Z",
@@ -56,6 +59,7 @@ describe("JsonRecentRepositoryStore", () => {
 			repositories,
 			version: 1,
 		});
+
 		if (process.platform !== "win32") {
 			expect((await stat(filePath)).mode % 0o1000).toBe(0o600);
 		}
@@ -63,6 +67,7 @@ describe("JsonRecentRepositoryStore", () => {
 
 	test("persists only paths and timestamps", async () => {
 		const { filePath, store } = await createStore();
+
 		const repositoryWithSecrets = {
 			lastOpenedAt: "2026-07-29T18:00:00.000Z",
 			password: "secret-password",
@@ -89,6 +94,7 @@ describe("JsonRecentRepositoryStore", () => {
 
 	test("ignores malformed documents and invalid records", async () => {
 		const { filePath, store } = await createStore();
+
 		store.save([]);
 		await writeFile(filePath, "{broken json");
 		expect(store.load()).toEqual([]);
@@ -118,6 +124,7 @@ describe("JsonRecentRepositoryStore", () => {
 
 	test("ignores unsupported document versions", async () => {
 		const { filePath, store } = await createStore();
+
 		store.save([]);
 		await writeFile(filePath, JSON.stringify({ repositories: [], version: 2 }));
 

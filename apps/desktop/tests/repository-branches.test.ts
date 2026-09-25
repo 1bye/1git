@@ -59,6 +59,7 @@ describe("repository branch actions", () => {
 
 	test("blocks switching to a branch checked out in another worktree", () => {
 		const linked = branches.branches.find(({ name }) => name === "linked");
+
 		expect(linked).toBeDefined();
 		expect(
 			repositoryBranchSwitchDisabledReason(linked as BranchInfo, "main")

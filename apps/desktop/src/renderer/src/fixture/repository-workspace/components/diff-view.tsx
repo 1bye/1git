@@ -72,6 +72,7 @@ const getDiffHost = (event: MouseEvent): HTMLElement | null => {
 			(target) =>
 				target instanceof HTMLElement && target.tagName === "DIFFS-CONTAINER"
 		);
+
 	return host instanceof HTMLElement ? host : null;
 };
 
@@ -89,12 +90,15 @@ export function DiffView({
 	sessionId,
 }: DiffViewProps): ReactElement {
 	const scrollRef = useRef<HTMLDivElement | null>(null);
+
 	const viewerRef = useRef<CodeViewHandle<RepositoryCodeViewAnnotation> | null>(
 		null
 	);
+
 	const preparingContextRef = useRef(new Set<string>());
 	const onChangeHunkRef = useRef(onChangeHunk ?? ignoreHunkChange);
 	const onOpenFileRef = useRef(onOpenFile);
+
 	onChangeHunkRef.current = onChangeHunk ?? ignoreHunkChange;
 	onOpenFileRef.current = onOpenFile;
 	const changeHunk = useCallback(
@@ -102,10 +106,12 @@ export function DiffView({
 			onChangeHunkRef.current(input),
 		[]
 	);
+
 	const openFile = useCallback(
 		(path: string): Promise<void> => onOpenFileRef.current(path),
 		[]
 	);
+
 	const contentKey = useMemo(
 		() =>
 			`${sessionId}:${ignoreWhitespace ? "ignore-whitespace" : "keep-whitespace"}\n${entries
@@ -113,27 +119,34 @@ export function DiffView({
 				.join("\n")}`,
 		[entries, ignoreWhitespace, sessionId]
 	);
+
 	useRepositoryDiffHighlighter(entries);
 	const { files: expandableFiles, requestFile: requestExpandableFile } =
 		useExpandableRepositoryDiffFiles(sessionId, contentKey, ignoreWhitespace);
+
 	const renderedEntries = useMemo(
 		() =>
 			entries.map((entry) => {
 				const expandedFile = expandableFiles.get(entry.key);
+
 				return expandedFile ? { ...entry, file: expandedFile } : entry;
 			}),
 		[entries, expandableFiles]
 	);
+
 	const entriesByKey = useMemo(
 		() => new Map(renderedEntries.map((entry) => [entry.key, entry])),
 		[renderedEntries]
 	);
+
 	const entriesByKeyRef = useRef(entriesByKey);
+
 	entriesByKeyRef.current = entriesByKey;
 	const codeViewItems = useMemo(
 		() => createRepositoryCodeViewItems(renderedEntries, ignoreWhitespace),
 		[ignoreWhitespace, renderedEntries]
 	);
+
 	const {
 		hunkActionPocket,
 		renderAnnotation,
@@ -151,6 +164,7 @@ export function DiffView({
 		showTarget: diffs.length > 1,
 		viewerRef,
 	});
+
 	const codeViewOptions = useMemo(
 		() =>
 			({
@@ -165,15 +179,20 @@ export function DiffView({
 						node.removeAttribute("data-repository-diff-key");
 						node.removeAttribute("data-repository-diff-path");
 						node.removeAttribute("id");
+
 						return;
 					}
+
 					const entry = entriesByKeyRef.current.get(context.item.id);
+
 					if (!entry) {
 						return;
 					}
+
 					node.dataset.name = "DiffFile";
 					node.dataset.repositoryDiffKey = entry.key;
 					node.dataset.repositoryDiffPath = entry.path;
+
 					if (entry.id) {
 						node.id = entry.id;
 					} else {
@@ -184,6 +203,7 @@ export function DiffView({
 			}) satisfies CodeViewOptions<RepositoryCodeViewAnnotation>,
 		[]
 	);
+
 	const handleCodeViewScroll = useRepositoryDiffScrollSync({
 		activePath: selectedFilePath,
 		contentKey,
@@ -194,53 +214,69 @@ export function DiffView({
 
 	useLayoutEffect(() => {
 		const viewer = viewerRef.current;
+
 		if (!viewer) {
 			return;
 		}
+
 		for (const nextItem of codeViewItems) {
 			const currentItem = viewer.getItem(nextItem.id);
+
 			if (!(currentItem && currentItem.type === nextItem.type)) {
 				continue;
 			}
+
 			let contentMatches = false;
+
 			if (currentItem.type === "diff" && nextItem.type === "diff") {
 				contentMatches = currentItem.fileDiff === nextItem.fileDiff;
 			} else if (currentItem.type === "file" && nextItem.type === "file") {
 				contentMatches = currentItem.file === nextItem.file;
 			}
+
 			if (contentMatches) {
 				continue;
 			}
+
 			const updatedItem: CodeViewItem<RepositoryCodeViewAnnotation> = {
 				...nextItem,
 				collapsed: currentItem.collapsed,
 				version: getNextRepositoryCodeViewItemVersion(currentItem),
 			};
+
 			viewer.updateItem(updatedItem);
 		}
 	}, [codeViewItems]);
 
 	useLayoutEffect(() => {
 		const container = scrollRef.current;
+
 		if (!container) {
 			return;
 		}
+
 		const handleClick = (event: MouseEvent): void => {
 			const isHeaderInteraction = isDiffHeaderInteraction(event);
+
 			if (!(isHeaderInteraction || isUnmodifiedLineInteraction(event))) {
 				return;
 			}
+
 			const host = getDiffHost(event);
 			const entryKey = host?.dataset.repositoryDiffKey;
+
 			if (isHeaderInteraction) {
 				if (entryKey && !isButtonInteraction(event)) {
 					toggleItemCollapsed(entryKey);
 				}
+
 				return;
 			}
+
 			const entry = entryKey
 				? entriesByKeyRef.current.get(entryKey)
 				: undefined;
+
 			if (
 				!(host && entryKey && entry) ||
 				entry.file?.isPartial === false ||
@@ -248,18 +284,22 @@ export function DiffView({
 			) {
 				return;
 			}
+
 			preparingContextRef.current.add(entryKey);
 			host.ariaBusy = "true";
 			requestExpandableFile(entry)
 				.catch(() => undefined)
 				.finally(() => {
 					preparingContextRef.current.delete(entryKey);
+
 					if (host.dataset.repositoryDiffKey === entryKey) {
 						host.removeAttribute("aria-busy");
 					}
 				});
 		};
+
 		container.addEventListener("click", handleClick, { capture: true });
+
 		return () => {
 			container.removeEventListener("click", handleClick, { capture: true });
 		};
@@ -289,6 +329,7 @@ export function DiffView({
 				className="relative min-h-0 flex-1 overflow-y-auto overflow-x-clip overscroll-contain [contain:strict] [overflow-anchor:none] [will-change:scroll-position] [&_diffs-container]:overflow-clip [&_diffs-container]:[contain:layout_paint_style]"
 				containerRef={(element) => {
 					scrollRef.current = element;
+
 					if (element) {
 						element.dataset.name = "DiffView";
 						element.toggleAttribute("data-repository-diff-viewport", true);

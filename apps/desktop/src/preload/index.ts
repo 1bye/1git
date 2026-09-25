@@ -9,7 +9,9 @@ const subscribe: DesktopIpcSubscribe = (channel, listener) => {
 	const handleEvent = (_event: IpcRendererEvent, payload: unknown): void => {
 		listener(payload);
 	};
+
 	ipcRenderer.on(channel, handleEvent);
+
 	return () => ipcRenderer.removeListener(channel, handleEvent);
 };
 

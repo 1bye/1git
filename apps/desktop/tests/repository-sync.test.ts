@@ -66,6 +66,7 @@ describe("repository sync action", () => {
 
 	test("explains why an untracked branch cannot be published", () => {
 		const noRemote = getRepositorySyncAction(head({ upstream: null }), []);
+
 		const noCommit = getRepositorySyncAction(
 			head({ oid: null, unborn: true, upstream: null }),
 			[remote("origin")]

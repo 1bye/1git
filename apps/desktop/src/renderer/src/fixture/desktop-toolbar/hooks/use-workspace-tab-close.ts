@@ -25,12 +25,15 @@ export const useWorkspaceTabClose = ({
 	sessionId,
 }: UseWorkspaceTabCloseOptions): WorkspaceTabCloseState => {
 	const [isClosing, setIsClosing] = useState(false);
+
 	const startClosing = (): void => {
 		if (isClosing || isOverlay) {
 			return;
 		}
+
 		setIsClosing(true);
 	};
+
 	const finishClosing = async (
 		event: ReactAnimationEvent<HTMLDivElement>
 	): Promise<void> => {
@@ -41,6 +44,7 @@ export const useWorkspaceTabClose = ({
 		) {
 			return;
 		}
+
 		await onClose(sessionId);
 		setIsClosing(false);
 	};

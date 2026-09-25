@@ -30,6 +30,7 @@ export const showActionToast = ({
 			const dismissToast = (): void => {
 				toast.dismiss(toastId);
 			};
+
 			const runAction = (): void => {
 				action.onClick();
 				dismissToast();

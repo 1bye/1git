@@ -189,9 +189,11 @@ const getWorkspaceTabCommands = ({
 				},
 			]
 		: [];
+
 	if (!isActive) {
 		return commands;
 	}
+
 	commands.push(
 		{
 			key: "ArrowLeft",
@@ -209,6 +211,7 @@ const getWorkspaceTabCommands = ({
 			onInvoke: close,
 		}
 	);
+
 	return commands;
 };
 
@@ -258,6 +261,7 @@ export function WorkspaceTabTrigger({
 	workspace,
 }: WorkspaceTabTriggerProps): ReactElement {
 	const ownerLabel = workspace.owner ? workspace.owner.name : repositoryName;
+
 	const triggerContent = (
 		<>
 			<RepositoryOwnerThumbnail
@@ -273,14 +277,18 @@ export function WorkspaceTabTrigger({
 			/>
 		</>
 	);
+
 	const activateOrOpen = async (): Promise<void> => {
 		if (isDragging) {
 			return;
 		}
+
 		if (isActive) {
 			onOpenActions();
+
 			return;
 		}
+
 		await activate();
 	};
 
@@ -319,9 +327,11 @@ export function WorkspaceTabTrigger({
 			disabled={isDisabled}
 			onClick={async (event): Promise<void> => {
 				event.preventBaseUIHandler();
+
 				if (event.defaultPrevented) {
 					return;
 				}
+
 				await activateOrOpen();
 			}}
 			onKeyDown={(event): void => {
@@ -355,6 +365,7 @@ function WorkspaceChangedFiles({
 }: WorkspaceChangedFilesProps): ReactElement | null {
 	if (pendingSyncAction) {
 		const label = repositorySyncProgressLabel(pendingSyncAction);
+
 		return (
 			<span
 				className="pointer-events-none flex shrink-0 items-center justify-center text-editor-muted"
@@ -378,6 +389,7 @@ function WorkspaceChangedFiles({
 	}
 
 	const label = `${count} changed ${count === 1 ? "file" : "files"}`;
+
 	const visibleCount =
 		count > MAX_VISIBLE_CHANGED_FILE_COUNT
 			? `${MAX_VISIBLE_CHANGED_FILE_COUNT}+`
@@ -417,14 +429,18 @@ function WorkspaceTabAppearance({
 	workspace,
 }: WorkspaceTabAppearanceProps): ReactElement {
 	const repositoryName = getRepositoryName(workspace.session.repository.root);
+
 	const label = getWorkspaceLabel(
 		workspace.session.repository.root,
 		workspace.branch
 	);
+
 	const changedFileCount = workspace.changedFiles ?? 0;
+
 	const activateWorkspace = async (): Promise<void> => {
 		await onActivate(workspace.session.id);
 	};
+
 	const {
 		finishClosing: finishClosingWorkspace,
 		isClosing,
@@ -434,7 +450,9 @@ function WorkspaceTabAppearance({
 		onClose,
 		sessionId: workspace.session.id,
 	});
+
 	const [isEntering, setIsEntering] = useState(!isOverlay);
+
 	const finishTabContentAnimation = async (
 		event: ReactAnimationEvent<HTMLDivElement>
 	): Promise<void> => {
@@ -443,10 +461,13 @@ function WorkspaceTabAppearance({
 			event.animationName === WORKSPACE_TAB_ENTRY_ANIMATION_NAME
 		) {
 			setIsEntering(false);
+
 			return;
 		}
+
 		await finishClosingWorkspace(event);
 	};
+
 	const commandLensTarget = useCommandLensTarget({
 		commands: getWorkspaceTabCommands({
 			activate: activateWorkspace,
@@ -470,6 +491,7 @@ function WorkspaceTabAppearance({
 		placement: "bottom",
 		radius: WORKSPACE_TAB_SURFACE_GEOMETRY.tabRadius,
 	});
+
 	const setRootElement = useCallback(
 		(element: HTMLElement | null): void => {
 			rootRef?.(element);
@@ -571,10 +593,12 @@ export function WorkspaceTab({
 		modifiers: [RestrictToHorizontalAxis],
 		transition: WORKSPACE_TAB_SORT_TRANSITION,
 	});
+
 	const sessionId = appearanceProps.workspace.session.id;
 
 	useEffect(() => {
 		onDropStateChange(sessionId, isDropping);
+
 		return () => onDropStateChange(sessionId, false);
 	}, [isDropping, onDropStateChange, sessionId]);
 

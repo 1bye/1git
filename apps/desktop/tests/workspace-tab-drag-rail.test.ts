@@ -21,7 +21,9 @@ class FakeAnimationFrames {
 
 	flush(frameTime: number): void {
 		const callbacks = [...this.frames.values()];
+
 		this.frames.clear();
+
 		for (const callback of callbacks) {
 			callback(frameTime);
 		}
@@ -34,6 +36,7 @@ class FakeAnimationFrames {
 	request = (callback: FrameRequestCallback): number => {
 		this.frameId += 1;
 		this.frames.set(this.frameId, callback);
+
 		return this.frameId;
 	};
 }
@@ -47,7 +50,9 @@ class FakeStyle {
 
 	removeProperty(name: string): string {
 		const previousValue = this.getPropertyValue(name);
+
 		this.properties.delete(name);
+
 		return previousValue;
 	}
 
@@ -70,6 +75,7 @@ class FakeDragRailElement {
 
 	getBoundingClientRect(): DOMRect {
 		const { left, right } = this.bounds;
+
 		return {
 			bottom: 40,
 			height: 40,
@@ -201,21 +207,25 @@ describe("workspace tab drag rail frame", () => {
 			pointerX: 560,
 			railBounds: { left: 100, right: 500 },
 		};
+
 		const metrics = {
 			clientWidth: 400,
 			scrollLeft: 200,
 			scrollWidth: 1000,
 		};
+
 		const shortFrame = createWorkspaceTabDragRailFrame({
 			...common,
 			elapsedMs: 8,
 			scrollMetrics: metrics,
 		});
+
 		const doubleFrame = createWorkspaceTabDragRailFrame({
 			...common,
 			elapsedMs: 16,
 			scrollMetrics: metrics,
 		});
+
 		const cappedFrame = createWorkspaceTabDragRailFrame({
 			...common,
 			elapsedMs: 1000,
@@ -249,6 +259,7 @@ describe("workspace tab drag rail controller", () => {
 		const rail = new FakeDragRailElement(100, 500);
 		const overlay = new FakeDragRailElement(80, 290);
 		const collisionRefreshScrollPositions: number[] = [];
+
 		overlay.attributes.add("data-dnd-dragging");
 		const controller = createWorkspaceTabDragRailController({
 			cancelFrame: frames.cancel,
@@ -310,6 +321,7 @@ describe("workspace tab drag rail controller", () => {
 		const frames = new FakeAnimationFrames();
 		const rail = new FakeDragRailElement(100, 500);
 		const overlay = new FakeDragRailElement(70, 280);
+
 		overlay.attributes.add("data-dnd-dragging");
 		const controller = createWorkspaceTabDragRailController({
 			cancelFrame: frames.cancel,
@@ -343,6 +355,7 @@ describe("workspace tab drag rail controller", () => {
 		const frames = new FakeAnimationFrames();
 		const rail = new FakeDragRailElement(100, 500);
 		const overlay = new FakeDragRailElement(70, 280);
+
 		overlay.attributes.add("data-dnd-dragging");
 		const controller = createWorkspaceTabDragRailController({
 			cancelFrame: frames.cancel,
@@ -369,6 +382,7 @@ describe("workspace tab drag rail controller", () => {
 
 test("refreshes droppable geometry before forcing a synchronous collision", () => {
 	const calls: string[] = [];
+
 	const manager = {
 		collisionObserver: {
 			forceUpdate: (immediate: boolean) => {

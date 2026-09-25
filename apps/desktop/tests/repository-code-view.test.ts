@@ -41,12 +41,14 @@ describe("repository CodeView items", () => {
 		if (!textFile) {
 			throw new Error("Expected the fixture patch to contain a file");
 		}
+
 		const [item] = createRepositoryCodeViewItems(
 			[createEntry("app.ts", textFile)],
 			false
 		);
 
 		expect(item?.type).toBe("diff");
+
 		if (item?.type === "diff") {
 			expect(item.fileDiff).toBe(textFile);
 		}
@@ -59,6 +61,7 @@ describe("repository CodeView items", () => {
 		);
 
 		expect(item?.type).toBe("file");
+
 		if (item?.type === "file") {
 			expect(item.annotations?.[0]).toMatchObject({
 				lineNumber: 0,

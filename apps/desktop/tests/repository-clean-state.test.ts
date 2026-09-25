@@ -33,9 +33,11 @@ describe("repository clean-state action", () => {
 	test("keeps synchronization ahead of branch comparison", () => {
 		const repositoryHead = head({ ahead: 2 });
 		const repositoryRemote = remote();
+
 		const comparison = getRepositoryBranchComparison(repositoryHead, [
 			repositoryRemote,
 		]);
+
 		const action = getRepositoryCleanAction(
 			getRepositorySyncAction(repositoryHead, [repositoryRemote]),
 			comparison
@@ -47,9 +49,11 @@ describe("repository clean-state action", () => {
 	test("previews an up-to-date topic branch against the remote default", () => {
 		const repositoryHead = head();
 		const repositoryRemote = remote();
+
 		const comparison = getRepositoryBranchComparison(repositoryHead, [
 			repositoryRemote,
 		]);
+
 		const action = getRepositoryCleanAction(
 			getRepositorySyncAction(repositoryHead, [repositoryRemote]),
 			comparison
@@ -71,12 +75,15 @@ describe("repository clean-state action", () => {
 
 	test("opens the remote for a comparison on an unsupported provider", () => {
 		const repositoryHead = head();
+
 		const repositoryRemote = remote(
 			"git@gitlab.example.com:platform/desktop.git"
 		);
+
 		const comparison = getRepositoryBranchComparison(repositoryHead, [
 			repositoryRemote,
 		]);
+
 		expect(comparison?.browserUrl).toBe(
 			"https://gitlab.example.com/platform/desktop"
 		);
@@ -86,9 +93,11 @@ describe("repository clean-state action", () => {
 	test("fetches on the configured default branch", () => {
 		const repositoryHead = head({ branch: "main", upstream: "origin/main" });
 		const repositoryRemote = remote();
+
 		const comparison = getRepositoryBranchComparison(repositoryHead, [
 			repositoryRemote,
 		]);
+
 		const action = getRepositoryCleanAction(
 			getRepositorySyncAction(repositoryHead, [repositoryRemote]),
 			comparison

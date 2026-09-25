@@ -14,10 +14,12 @@ const createHarness = (isAuthorized = true) => {
 	const handlers = new Map<string, Handler>();
 	const removedChannels: string[] = [];
 	const requests: string[] = [];
+
 	const dispose = registerRepositoryOwnerIpc({
 		avatarProvider: {
 			get: (name) => {
 				requests.push(name);
+
 				return Promise.resolve({
 					dataUrl: "data:image/png;base64,AQID",
 					status: "available" as const,
@@ -35,13 +37,17 @@ const createHarness = (isAuthorized = true) => {
 		},
 		isSenderAuthorized: () => isAuthorized,
 	});
+
 	const invoke = async (payload: unknown): Promise<unknown> => {
 		const handler = handlers.get(REPOSITORY_OWNER_IPC_CHANNELS.avatar);
+
 		if (!handler) {
 			throw new Error("Repository owner avatar handler is unavailable.");
 		}
+
 		return await handler({} as IpcMainInvokeEvent, payload);
 	};
+
 	return { dispose, invoke, removedChannels, requests };
 };
 

@@ -46,20 +46,24 @@ export const LiquidMenuSubContext =
 
 export const useLiquidMenuContext = (): LiquidMenuContextValue => {
 	const context = use(LiquidMenuContext);
+
 	if (!context) {
 		throw new Error(
 			"Liquid menu components must be used inside LiquidMenuRoot."
 		);
 	}
+
 	return context;
 };
 
 export const useLiquidMenuSubContext = (): LiquidMenuSubContextValue => {
 	const context = use(LiquidMenuSubContext);
+
 	if (!context) {
 		throw new Error(
 			"Liquid submenu components must be used inside LiquidMenuSub."
 		);
 	}
+
 	return context;
 };

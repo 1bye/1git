@@ -24,10 +24,12 @@ interface RepositoryWorktreesState {
 const resultValue = <Value>(result: GitResult<Value>): Value => {
 	if (!result.ok) {
 		const { details, message } = result.error;
+
 		throw new Error(
 			details && details !== message ? `${message} ${details}` : message
 		);
 	}
+
 	return result.value;
 };
 
@@ -46,17 +48,21 @@ export const useRepositoryWorktrees = (
 		setError(null);
 		setView("actions");
 	};
+
 	const showCreate = (): void => {
 		setError(null);
 		setView("create");
 	};
+
 	const showList = async (): Promise<void> => {
 		if (!sessionId) {
 			return;
 		}
+
 		setError(null);
 		setIsLoading(true);
 		setView("list");
+
 		try {
 			setWorktrees(
 				resultValue(await window.desktop.git.worktrees.list(sessionId))
@@ -67,6 +73,7 @@ export const useRepositoryWorktrees = (
 			setIsLoading(false);
 		}
 	};
+
 	const create = async ({
 		newBranch,
 		path,
@@ -74,8 +81,10 @@ export const useRepositoryWorktrees = (
 		if (!sessionId) {
 			return false;
 		}
+
 		setError(null);
 		setIsLoading(true);
+
 		try {
 			setWorktrees(
 				resultValue(
@@ -86,9 +95,11 @@ export const useRepositoryWorktrees = (
 				)
 			);
 			setView("list");
+
 			return true;
 		} catch (cause) {
 			setError(errorMessage(cause));
+
 			return false;
 		} finally {
 			setIsLoading(false);

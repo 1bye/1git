@@ -75,6 +75,7 @@ describe("repository file navigation", () => {
 		const orderedPaths = orderRepositoryFilesByPath(FILES).map(
 			(file) => file.path
 		);
+
 		const changedStaging = FILES.map((file) => ({
 			...file,
 			indexStatus:
@@ -118,6 +119,7 @@ describe("repository file navigation", () => {
 			...fileChange("src/conflicted.ts", "unmerged", "unmerged"),
 			recordType: "unmerged" as const,
 		};
+
 		const groups = groupRepositoryFilesByStaging([...FILES, conflict]);
 
 		expect(groups.conflicted).toEqual([conflict]);
@@ -163,6 +165,7 @@ describe("repository file navigation", () => {
 			path: FILES[0].path,
 			staged: true,
 		});
+
 		const projectedUnstaged = groupRepositoryFilesByStaging(FILES, {
 			path: FILES[1].path,
 			staged: false,
@@ -209,6 +212,7 @@ describe("repository file navigation", () => {
 
 	test("adds, removes, and ranges file selections in visual order", () => {
 		const paths = FILES.map((file) => file.path);
+
 		const added = updateRepositoryFileSelection({
 			activePath: FILES[0].path,
 			anchorPath: FILES[0].path,
@@ -217,6 +221,7 @@ describe("repository file navigation", () => {
 			selectedPaths: new Set(),
 			targetPath: FILES[2].path,
 		});
+
 		expect(added).toEqual({
 			activePath: FILES[2].path,
 			anchorPath: FILES[2].path,
@@ -231,6 +236,7 @@ describe("repository file navigation", () => {
 			selectedPaths: new Set(added.selectedPaths),
 			targetPath: FILES[2].path,
 		});
+
 		expect(removed).toEqual({
 			activePath: FILES[0].path,
 			anchorPath: FILES[2].path,
@@ -245,11 +251,13 @@ describe("repository file navigation", () => {
 			selectedPaths: new Set(),
 			targetPath: FILES[2].path,
 		});
+
 		expect(range.selectedPaths).toEqual(paths);
 	});
 
 	test("contracts and reverses a range around its fixed anchor", () => {
 		const paths = FILES.map((file) => file.path);
+
 		const expandedDown = updateRepositoryFileSelection({
 			activePath: FILES[1].path,
 			anchorPath: FILES[1].path,
@@ -258,6 +266,7 @@ describe("repository file navigation", () => {
 			selectedPaths: new Set(),
 			targetPath: FILES[2].path,
 		});
+
 		expect(expandedDown.selectedPaths).toEqual([FILES[1].path, FILES[2].path]);
 
 		const contracted = updateRepositoryFileSelection({
@@ -268,6 +277,7 @@ describe("repository file navigation", () => {
 			selectedPaths: new Set(expandedDown.selectedPaths),
 			targetPath: FILES[1].path,
 		});
+
 		expect(contracted.selectedPaths).toEqual([]);
 
 		const expandedUp = updateRepositoryFileSelection({
@@ -278,6 +288,7 @@ describe("repository file navigation", () => {
 			selectedPaths: new Set(),
 			targetPath: FILES[0].path,
 		});
+
 		expect(expandedUp.selectedPaths).toEqual([FILES[0].path, FILES[1].path]);
 	});
 

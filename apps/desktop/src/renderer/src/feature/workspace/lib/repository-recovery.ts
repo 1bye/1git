@@ -51,15 +51,20 @@ export const repositoryRecoveryErrorMessage = (
 	if (error.code === "conflict") {
 		return "Conflicts remain. Resolve them, stage the files, then continue.";
 	}
+
 	if (error.code === "dirty-worktree") {
 		return "Local changes still block this operation. Review the conflicted files and retry.";
 	}
+
 	if (error.code === "repository-locked") {
 		return "Another Git operation is using this repository. Retry when it finishes.";
 	}
+
 	const recovery = getRepositoryRecovery(operationState);
+
 	const operationLabel = recovery
 		? recovery.label.toLowerCase()
 		: "Git operation";
+
 	return `Could not ${action} the ${operationLabel}. ${error.message}`;
 };

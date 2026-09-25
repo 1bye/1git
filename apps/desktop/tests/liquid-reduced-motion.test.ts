@@ -13,6 +13,7 @@ const createMediaQuery = (): {
 } => {
 	let listener: (() => void) | null = null;
 	let removeCount = 0;
+
 	const mediaQuery: ReducedMotionMediaQuery & { matches: boolean } = {
 		addEventListener: (_type, nextListener) => {
 			listener = nextListener;
@@ -22,9 +23,11 @@ const createMediaQuery = (): {
 			if (listener === removedListener) {
 				listener = null;
 			}
+
 			removeCount += 1;
 		},
 	};
+
 	return {
 		mediaQuery,
 		notify: () => listener?.(),
@@ -40,6 +43,7 @@ describe("liquid reduced motion", () => {
 	test("tracks live preference changes and removes its listener", () => {
 		const source = createMediaQuery();
 		const values: boolean[] = [];
+
 		const unsubscribe = subscribeReducedMotionPreference(
 			(matches) => values.push(matches),
 			source.mediaQuery

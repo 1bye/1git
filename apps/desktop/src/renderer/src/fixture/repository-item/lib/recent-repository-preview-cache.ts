@@ -46,9 +46,11 @@ export class RecentRepositoryPreviewCache {
 				"Recent repository preview cache limit must be positive."
 			);
 		}
+
 		if (!(Number.isFinite(ttlMs) && ttlMs > 0)) {
 			throw new Error("Recent repository preview cache TTL must be positive.");
 		}
+
 		this.loader = loader;
 		this.maxEntries = maxEntries;
 		this.now = now;
@@ -61,17 +63,21 @@ export class RecentRepositoryPreviewCache {
 
 	async load(path: string): Promise<RecentRepositoryPreview | null> {
 		const cached = this.entries.get(path);
+
 		if (cached && cached.expiresAt > this.now()) {
 			return cached.preview;
 		}
 
 		const pending = this.pending.get(path);
+
 		if (pending) {
 			return await pending;
 		}
 
 		const request = this.loadAndRemember(path);
+
 		this.pending.set(path, request);
+
 		try {
 			return await request;
 		} finally {
@@ -83,6 +89,7 @@ export class RecentRepositoryPreviewCache {
 		path: string
 	): Promise<RecentRepositoryPreview | null> {
 		const preview = await this.loader(path);
+
 		if (!preview) {
 			return null;
 		}
@@ -92,13 +99,17 @@ export class RecentRepositoryPreviewCache {
 			expiresAt: this.now() + this.ttlMs,
 			preview,
 		});
+
 		while (this.entries.size > this.maxEntries) {
 			const oldestPath = this.entries.keys().next().value;
+
 			if (oldestPath === undefined) {
 				break;
 			}
+
 			this.entries.delete(oldestPath);
 		}
+
 		return preview;
 	}
 }
@@ -106,6 +117,7 @@ export class RecentRepositoryPreviewCache {
 export const recentRepositoryPreviewCache = new RecentRepositoryPreviewCache({
 	loader: async (path) => {
 		const result = await window.desktop.git.sessions.preview({ path });
+
 		return result.ok ? result.value : null;
 	},
 });

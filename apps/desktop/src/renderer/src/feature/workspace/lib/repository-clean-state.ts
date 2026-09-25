@@ -38,20 +38,26 @@ export const getRepositoryBranchComparison = (
 	if (!(head.branch && head.oid)) {
 		return null;
 	}
+
 	const remote = getPreferredRepositoryRemote(remotes, head.upstream);
+
 	if (!remote?.defaultBranch || remote.defaultBranch === head.branch) {
 		return null;
 	}
+
 	const remoteUrl = getPreferredRepositoryRemoteUrl([remote], head.upstream);
 	const repositoryUrl = getRepositoryWebUrl(remoteUrl);
+
 	if (!repositoryUrl) {
 		return null;
 	}
+
 	const pullRequestUrl = getGithubPullRequestUrl(
 		remoteUrl,
 		remote.defaultBranch,
 		head.branch
 	);
+
 	return {
 		baseBranch: remote.defaultBranch,
 		baseRevision: `${remote.name}/${remote.defaultBranch}`,
@@ -74,6 +80,7 @@ export const getRepositoryCleanAction = (
 			syncAction,
 		};
 	}
+
 	return {
 		description: `Compare ${comparison.headBranch} with ${comparison.baseBranch}`,
 		disabledReason: null,

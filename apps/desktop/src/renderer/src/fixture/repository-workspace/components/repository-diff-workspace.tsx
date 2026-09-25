@@ -130,22 +130,28 @@ export function RepositoryDiffWorkspace({
 	const isPending = Boolean(pendingAction);
 	const revisionOid = selectedCommitOid ?? selectedStashOid ?? undefined;
 	const diffFiles = tab === "changes" ? files : EMPTY_FILE_CHANGES;
+
 	const diffEntries = useMemo(
 		() => createRepositoryDiffFileEntries(diffs, diffFiles, revisionOid, tab),
 		[diffFiles, diffs, revisionOid, tab]
 	);
+
 	const selectVisibleFile = useCallback(
 		(path: string): void => {
 			if (path === selectedFilePath) {
 				return;
 			}
+
 			if (tab !== "changes" || branchComparison) {
 				onSelectRevisionFile(path).catch(() => {
 					// The workspace hook exposes the operation error in the app notice.
 				});
+
 				return;
 			}
+
 			const file = files.find((candidate) => candidate.path === path);
+
 			if (file) {
 				onSelectFile(file).catch(() => {
 					// The workspace hook exposes the operation error in the app notice.
@@ -187,6 +193,7 @@ export function RepositoryDiffWorkspace({
 	}
 
 	let mainContent: ReactElement;
+
 	if (
 		tab === "changes" &&
 		files.length === 0 &&

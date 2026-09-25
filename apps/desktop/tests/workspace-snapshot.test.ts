@@ -47,6 +47,7 @@ const session = (id: string): RepositorySessionRecord => ({
 describe("workspace snapshot ownership", () => {
 	test("does not expose a previous workspace snapshot after activation changes", () => {
 		const firstWorkspaceSnapshot = snapshot("movement1");
+
 		const state = {
 			sessionId: "workspace-1",
 			snapshot: firstWorkspaceSnapshot,
@@ -64,20 +65,24 @@ describe("workspace snapshot ownership", () => {
 		const firstSnapshot = snapshot("movement1");
 		const secondSnapshot = snapshot("movement2");
 		const sessions = [firstSession, secondSession];
+
 		const previousState = {
 			sessionId: firstSession.id,
 			snapshot: firstSnapshot,
 		};
+
 		const nextState = {
 			sessionId: secondSession.id,
 			snapshot: secondSnapshot,
 		};
 
 		const previousSnapshotSession = sessionForSnapshot(previousState, sessions);
+
 		expect(previousSnapshotSession).toBe(firstSession);
 		expect(previousSnapshotSession?.id).toBe(firstSession.id);
 
 		const nextSnapshotSession = sessionForSnapshot(nextState, sessions);
+
 		expect(nextSnapshotSession).toBe(secondSession);
 		expect(nextSnapshotSession?.id).toBe(secondSession.id);
 	});

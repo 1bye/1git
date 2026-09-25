@@ -55,6 +55,7 @@ const loadImagePreview = async ({
 		entry.target,
 		entry.change
 	);
+
 	const [before, after] = await Promise.all([
 		sources.before
 			? window.desktop.git.repository.fileContent(sessionId, {
@@ -69,14 +70,17 @@ const loadImagePreview = async ({
 				})
 			: null,
 	]);
+
 	const failure = [before, after].find((result) => result && !result.ok);
 	let error: string | null = null;
+
 	if (failure && !failure.ok) {
 		error =
 			failure.error.code === "output-too-large"
 				? "This image is too large to preview."
 				: failure.error.message;
 	}
+
 	return {
 		after: after ? imageDataUrl(after, mimeType) : null,
 		before: before ? imageDataUrl(before, mimeType) : null,
@@ -100,20 +104,26 @@ export function RepositoryImageDiff({
 				error: "This image format cannot be previewed.",
 				isLoading: false,
 			});
+
 			return;
 		}
+
 		let isCurrent = true;
+
 		const load = async (): Promise<void> => {
 			const nextState = await loadImagePreview({
 				entry,
 				mimeType,
 				sessionId,
 			});
+
 			if (!isCurrent) {
 				return;
 			}
+
 			setState(nextState);
 		};
+
 		setState(EMPTY_PREVIEW_STATE);
 		load().catch((cause: unknown) => {
 			if (isCurrent) {
@@ -125,6 +135,7 @@ export function RepositoryImageDiff({
 				});
 			}
 		});
+
 		return () => {
 			isCurrent = false;
 		};
@@ -140,6 +151,7 @@ export function RepositoryImageDiff({
 			</p>
 		);
 	}
+
 	const images = [
 		state.before ? { label: "Before", source: state.before } : null,
 		state.after ? { label: "After", source: state.after } : null,

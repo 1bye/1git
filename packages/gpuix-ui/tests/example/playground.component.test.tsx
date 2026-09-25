@@ -12,6 +12,7 @@ import { densities, palettes } from "../../src/tokens";
 import { clickElement, elementByTestId } from "../_shared/native-elements";
 
 let root: TestRoot;
+
 beforeEach(() => {
 	root = createTestRoot({ width: 1120, height: 800 });
 	root.render(<ExampleApp />);
@@ -79,6 +80,7 @@ it("keeps uncontrolled selection and disabled examples working after a keyboard 
 	).toBeUndefined();
 
 	const light = elementByTestId(root.renderer, "palette-light");
+
 	root.renderer.nativeSimulateKeystrokes(light.id, "enter");
 	expect(
 		elementByTestId(root.renderer, "playground").style.backgroundColor

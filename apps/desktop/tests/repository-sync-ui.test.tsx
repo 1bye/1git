@@ -38,6 +38,7 @@ describe("repository clean-state sync action", () => {
 	test("shows the state-aware next action", () => {
 		const repositorySnapshot = snapshot(head({ ahead: 2 }));
 		const syncAction = getRepositorySyncAction(repositorySnapshot.head, []);
+
 		const markup = renderToStaticMarkup(
 			<CleanState
 				cleanAction={getRepositoryCleanAction(syncAction, null)}
@@ -56,6 +57,7 @@ describe("repository clean-state sync action", () => {
 	test("turns the same action into cancellation while syncing", () => {
 		const repositorySnapshot = snapshot(head({ ahead: 2, behind: 1 }));
 		const syncAction = getRepositorySyncAction(repositorySnapshot.head, []);
+
 		const markup = renderToStaticMarkup(
 			<CleanState
 				cleanAction={getRepositoryCleanAction(syncAction, null)}
@@ -75,6 +77,7 @@ describe("repository clean-state sync action", () => {
 	test("explains a disabled publish action without adding another control", () => {
 		const repositorySnapshot = snapshot(head({ upstream: null }));
 		const syncAction = getRepositorySyncAction(repositorySnapshot.head, []);
+
 		const markup = renderToStaticMarkup(
 			<CleanState
 				cleanAction={getRepositoryCleanAction(syncAction, null)}
@@ -98,7 +101,9 @@ describe("repository clean-state sync action", () => {
 				upstream: "origin/feature/clean-state",
 			})
 		);
+
 		const syncAction = getRepositorySyncAction(repositorySnapshot.head, []);
+
 		const markup = renderToStaticMarkup(
 			<CleanState
 				cleanAction={getRepositoryCleanAction(syncAction, {

@@ -16,9 +16,11 @@ const mutationEvent = (
 describe("repository refresh debouncer", () => {
 	test("coalesces a burst to the latest event for each session", () => {
 		const received: RepositoryRefreshEvent[] = [];
+
 		const debouncer = createRepositoryRefreshDebouncer((event) => {
 			received.push(event);
 		});
+
 		const latestFirstSession = mutationEvent("session-1", "commit");
 		const secondSession = mutationEvent("session-2", "stage");
 
@@ -33,6 +35,7 @@ describe("repository refresh debouncer", () => {
 
 	test("dispose cancels pending refreshes", () => {
 		const received: RepositoryRefreshEvent[] = [];
+
 		const debouncer = createRepositoryRefreshDebouncer((event) => {
 			received.push(event);
 		});

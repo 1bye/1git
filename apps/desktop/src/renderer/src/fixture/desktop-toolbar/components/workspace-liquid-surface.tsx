@@ -24,6 +24,7 @@ export function WorkspaceLiquidSurface({
 		isPositionTracking,
 		workspaceRootRef,
 	});
+
 	const surfaceStyle: CSSProperties | undefined =
 		surfaceWidth === null
 			? undefined

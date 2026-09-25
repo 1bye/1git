@@ -8,12 +8,22 @@
       "error",
       {
         "blankLine": "always",
-        "prev": "*",
-        "next": "return"
+        "prev": ["const", "let", "var"],
+        "next": "*"
+      },
+      {
+        "blankLine": "any",
+        "prev": ["singleline-const", "singleline-let", "singleline-var"],
+        "next": ["singleline-const", "singleline-let", "singleline-var"]
       },
       {
         "blankLine": "always",
-        "prev": ["multiline-const", "multiline-let", "multiline-var"],
+        "prev": "*",
+        "next": ["return", "throw", "if", "for", "while", "do", "switch", "try"]
+      },
+      {
+        "blankLine": "always",
+        "prev": ["if", "for", "while", "do", "switch", "try"],
         "next": "*"
       }
     ],

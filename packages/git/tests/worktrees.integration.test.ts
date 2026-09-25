@@ -42,6 +42,7 @@ describe("GitRepository worktrees", () => {
 				path,
 			})
 		);
+
 		const branches = unwrapResult(await fixture.repository.getBranches());
 
 		expect(worktrees).toHaveLength(2);
@@ -111,6 +112,7 @@ describe("GitRepository worktrees", () => {
 	test("locks and unlocks an existing worktree", async () => {
 		const fixture = await fixtures.create();
 		const path = fixture.path("lock-later");
+
 		unwrapResult(
 			await fixture.repository.createWorktree({
 				newBranch: "feature/lock-later",
@@ -124,6 +126,7 @@ describe("GitRepository worktrees", () => {
 				reason: "maintenance",
 			})
 		);
+
 		const unlocked = unwrapResult(
 			await fixture.repository.unlockWorktree({ path })
 		);
@@ -141,6 +144,7 @@ describe("GitRepository worktrees", () => {
 		const fixture = await fixtures.create();
 		const path = fixture.path("before-move");
 		const newPath = fixture.path("after-move");
+
 		unwrapResult(
 			await fixture.repository.createWorktree({
 				newBranch: "feature/move",
@@ -159,6 +163,7 @@ describe("GitRepository worktrees", () => {
 	test("removes a clean worktree", async () => {
 		const fixture = await fixtures.create();
 		const path = fixture.path("remove-worktree");
+
 		unwrapResult(
 			await fixture.repository.createWorktree({
 				newBranch: "feature/remove",
@@ -177,6 +182,7 @@ describe("GitRepository worktrees", () => {
 	test("requires force to remove a dirty worktree", async () => {
 		const fixture = await fixtures.create();
 		const path = fixture.path("dirty-worktree");
+
 		unwrapResult(
 			await fixture.repository.createWorktree({
 				newBranch: "feature/dirty",
@@ -186,6 +192,7 @@ describe("GitRepository worktrees", () => {
 		await writeFile(`${path}/dirty.txt`, "dirty\n");
 
 		const rejected = await fixture.repository.removeWorktree({ path });
+
 		const removed = unwrapResult(
 			await fixture.repository.removeWorktree({ force: true, path })
 		);
@@ -197,6 +204,7 @@ describe("GitRepository worktrees", () => {
 	test("prunes metadata for a manually removed worktree", async () => {
 		const fixture = await fixtures.create();
 		const path = fixture.path("stale-worktree");
+
 		unwrapResult(
 			await fixture.repository.createWorktree({
 				newBranch: "feature/stale",
@@ -206,6 +214,7 @@ describe("GitRepository worktrees", () => {
 		await rm(path, { force: true, recursive: true });
 
 		const before = unwrapResult(await fixture.repository.getWorktrees());
+
 		const after = unwrapResult(
 			await fixture.repository.pruneWorktrees({ expire: "now" })
 		);
@@ -220,6 +229,7 @@ describe("GitRepository worktrees", () => {
 		const fixture = await fixtures.create();
 		const path = fixture.path("manual-before");
 		const newPath = fixture.path("manual-after");
+
 		unwrapResult(
 			await fixture.repository.createWorktree({
 				newBranch: "feature/repair",

@@ -34,6 +34,7 @@ export interface WorkspaceLiquidRect {
 const MINIMUM_CELL_SIZE = 1;
 const MEASUREMENT_SCALE = 10;
 const EDGE_CONTAINMENT_TOLERANCE = 0.5;
+
 const TAB_SDF_HEIGHT =
 	WORKSPACE_TAB_SURFACE_GEOMETRY.tabHeight -
 	WORKSPACE_TAB_SURFACE_GEOMETRY.tabVisualInsetBlock * 2 +
@@ -57,6 +58,7 @@ const insetWorkspaceTabRect = (
 	tab: WorkspaceLiquidRect
 ): WorkspaceLiquidRect => {
 	const geometry = WORKSPACE_TAB_SURFACE_GEOMETRY;
+
 	return {
 		height: Math.max(0, tab.height - geometry.tabVisualInsetBlock * 2),
 		left: tab.left + geometry.tabVisualInsetInline,
@@ -70,18 +72,23 @@ const intersectWorkspaceLiquidRects = (
 	second: WorkspaceLiquidRect
 ): WorkspaceLiquidRect | null => {
 	const left = Math.max(first.left, second.left);
+
 	const right = Math.min(
 		first.left + Math.max(0, first.width),
 		second.left + Math.max(0, second.width)
 	);
+
 	const top = Math.max(first.top, second.top);
+
 	const bottom = Math.min(
 		first.top + Math.max(0, first.height),
 		second.top + Math.max(0, second.height)
 	);
+
 	if (right <= left || bottom <= top) {
 		return null;
 	}
+
 	return {
 		height: bottom - top,
 		left,
@@ -98,11 +105,14 @@ export const getVisibleWorkspaceTabAnchorRect = (
 
 const edgeConnectionFromClearance = (clearance: number): number => {
 	const geometry = WORKSPACE_TAB_SURFACE_GEOMETRY;
+
 	const connectedClearance =
 		geometry.tabListInset + geometry.tabVisualInsetInline;
+
 	const progress = clampProgress(
 		(clearance - connectedClearance) / geometry.blendRadius
 	);
+
 	return 1 - smoothStep(progress);
 };
 
@@ -117,6 +127,7 @@ export const getWorkspaceLiquidEdgeConnections = (
 		measurement.tabLeft >= -EDGE_CONTAINMENT_TOLERANCE &&
 		measurement.tabLeft + measurement.tabWidth <=
 			measurement.surfaceWidth + EDGE_CONTAINMENT_TOLERANCE;
+
 	if (!isFullyVisible) {
 		return { left: 0, right: 0 };
 	}
@@ -134,6 +145,7 @@ export const getWorkspaceLiquidCornerRadius = (
 	edgeConnection: number
 ): number => {
 	const normalizedConnection = clampProgress(edgeConnection);
+
 	return containerRadius * (1 - normalizedConnection);
 };
 
@@ -152,6 +164,7 @@ const signedDistanceToCornerRoundedBox = (
 	const isRight = x >= box.centerX;
 	const isBottom = y >= box.centerY;
 	let cornerRadius: number;
+
 	if (isRight) {
 		cornerRadius = isBottom ? box.bottomRightRadius : box.topRightRadius;
 	} else {
@@ -176,6 +189,7 @@ export const createWorkspaceLiquidMeasurement = (
 	const surfaceWidth = roundMeasurement(surface.width);
 	const fullTab = insetWorkspaceTabRect(tab);
 	const visibleTab = getVisibleWorkspaceTabAnchorRect(tab, tabListViewport);
+
 	if (!visibleTab) {
 		return {
 			surfaceWidth,
@@ -189,6 +203,7 @@ export const createWorkspaceLiquidMeasurement = (
 
 	const tabLeft = roundMeasurement(visibleTab.left - surface.left);
 	const tabWidth = roundMeasurement(visibleTab.width);
+
 	return {
 		surfaceWidth,
 		tabFullWidth: roundMeasurement(fullTab.width),
@@ -204,13 +219,16 @@ export const createWorkspaceLiquidPath = (
 ): string => {
 	const { left: leftEdgeConnection, right: rightEdgeConnection } =
 		getWorkspaceLiquidEdgeConnections(input);
+
 	const cellSize = Math.max(MINIMUM_CELL_SIZE, input.sampleCellSize);
 	const sampleWidth = Math.max(0, input.surfaceWidth);
+
 	const sampleHeight =
 		input.containerTop +
 		input.containerDepth +
 		input.blendRadius +
 		cellSize * 2;
+
 	if (sampleWidth <= 0 || sampleHeight <= 0) {
 		return "";
 	}
@@ -219,19 +237,26 @@ export const createWorkspaceLiquidPath = (
 	const clipRight = input.surfaceWidth;
 	const hasVisibleTab = input.tabHeight > 0 && input.tabWidth > 0;
 	let tab: CornerRoundedBox | null = null;
+
 	if (hasVisibleTab) {
 		const clippedTabWidth = Math.min(input.tabWidth, clipRight - clipLeft);
+
 		const clippedTabLeft = Math.max(
 			clipLeft,
 			Math.min(input.tabLeft, clipRight - clippedTabWidth)
 		);
+
 		const clippedTabRight = clippedTabLeft + clippedTabWidth;
+
 		const connectedTabLeft =
 			clippedTabLeft * (1 - leftEdgeConnection) + clipLeft * leftEdgeConnection;
+
 		const connectedTabRight =
 			clippedTabRight * (1 - rightEdgeConnection) +
 			clipRight * rightEdgeConnection;
+
 		const connectedTabWidth = connectedTabRight - connectedTabLeft;
+
 		tab = {
 			bottomLeftRadius: getWorkspaceLiquidCornerRadius(
 				input.tabRadius,
@@ -250,6 +275,7 @@ export const createWorkspaceLiquidPath = (
 			topRightRadius: input.tabRadius,
 		};
 	}
+
 	const container: CornerRoundedBox = {
 		bottomLeftRadius: input.containerRadius,
 		bottomRightRadius: input.containerRadius,
@@ -267,10 +293,13 @@ export const createWorkspaceLiquidPath = (
 			rightEdgeConnection
 		),
 	};
+
 	const handoffY = input.containerTop + input.containerOverlap;
 	const blendDepth = Math.max(cellSize, input.blendRadius);
+
 	const fieldValue = (x: number, y: number): number => {
 		const containerDistance = signedDistanceToCornerRoundedBox(x, y, container);
+
 		const unionDistance = tab
 			? smoothMinimum(
 					signedDistanceToCornerRoundedBox(x, y, tab),
@@ -278,33 +307,44 @@ export const createWorkspaceLiquidPath = (
 					input.blendRadius
 				)
 			: containerDistance;
+
 		const rawHandoffProgress = Math.max(
 			0,
 			Math.min(1, (handoffY - y) / blendDepth)
 		);
+
 		// Keep the full liquid union through the tab, while converging the outer
 		// corners to the DOM workspace contour at the SVG handoff.
 		const edgeClearance = Math.max(0, Math.min(x - clipLeft, clipRight - x));
+
 		const rawInteriorProgress = Math.max(
 			0,
 			Math.min(1, (edgeClearance - input.containerRadius) / blendDepth)
 		);
+
 		const interiorLiquidWeight = smoothStep(rawInteriorProgress);
 		const handoffLiquidWeight = smoothStep(rawHandoffProgress);
+
 		const connectedEdgeWeight =
 			x < input.surfaceWidth / 2 ? leftEdgeConnection : rightEdgeConnection;
+
 		const rawConnectedProgress = clampProgress(
 			(input.containerTop - y) / Math.max(1, input.containerOverlap)
 		);
+
 		const connectedLiquidWeight =
 			connectedEdgeWeight * smoothStep(rawConnectedProgress);
+
 		const connectedInteriorLiquidWeight =
 			interiorLiquidWeight + connectedLiquidWeight * (1 - interiorLiquidWeight);
+
 		const liquidWeight =
 			handoffLiquidWeight +
 			connectedInteriorLiquidWeight * (1 - handoffLiquidWeight);
+
 		const handoffDistance =
 			containerDistance + (unionDistance - containerDistance) * liquidWeight;
+
 		return Math.max(handoffDistance, clipLeft - x, x - clipRight);
 	};
 

@@ -7,15 +7,19 @@ const readSource = (relativePath: string): string =>
 const surface = readSource(
 	"../src/renderer/src/fixture/repository-workspace/components/repository-revision-liquid-surface.tsx"
 );
+
 const workspace = readSource(
 	"../src/renderer/src/fixture/repository-workspace/components/repository-workspace.tsx"
 );
+
 const diffWorkspace = readSource(
 	"../src/renderer/src/fixture/repository-workspace/components/repository-diff-workspace.tsx"
 );
+
 const revisionRail = readSource(
 	"../src/renderer/src/fixture/repository-workspace/components/repository-revision-rail.tsx"
 );
+
 const styles = readSource("../src/renderer/src/styles.css");
 
 describe("repository revision liquid surface", () => {
@@ -34,6 +38,7 @@ describe("repository revision liquid surface", () => {
 			styles.indexOf("@keyframes repository-revision-liquid-reveal"),
 			styles.indexOf('[data-name="RepositoryFileLiquidSurface"]')
 		);
+
 		expect(styles).toContain("@keyframes repository-revision-liquid-reveal");
 		expect(revisionReveal).toContain("clip-path: inset(0 100% 0 0);");
 		expect(revisionReveal).not.toContain("clip-path: inset(0 0 0 100%);");

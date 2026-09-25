@@ -89,13 +89,17 @@ this guide. For React or TSX work, also read `react.md` beside this file.
 - Separate logical phases with one blank line: configuration, validation,
   execution, and results.
 - Keep closely related short declarations together. Separate multiline
-  declarations from subsequent operations or control flow.
-- Add a blank line before a return after other work. Do not pad a short guard
-  clause or the edges of a block.
+  declarations and declaration groups from subsequent operations.
+- Separate `if`, loops, `switch`, and `try` statements from surrounding statements
+  with one blank line. Add a blank line before `return` or `throw` after other
+  work. Do not pad a short guard clause or the edges of a block.
 - Keep pipelines, argument lists, and object definitions cohesive. Do not add
   blank lines between every statement or property.
 - Apply logical grouping while writing or refactoring. The formatter does not
   decide which operations belong together.
+- Use the default [Oxlint spacing rules](configs/README.md#oxlint-spacing-and-shadcn)
+  to enforce structural gaps. Ensure `@stylistic/eslint-plugin` and its rules are
+  loaded by the active project config; a reference template alone has no effect.
 
 ## Tooling and verification
 

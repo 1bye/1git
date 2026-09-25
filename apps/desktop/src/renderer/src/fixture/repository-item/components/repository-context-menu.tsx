@@ -71,17 +71,21 @@ export function RepositoryContextMenu({
 	const [isPresent, setIsPresent] = useState(false);
 	const onContextOpenChangeRef = useRef(onContextOpenChange);
 	const onContextPresenceChangeRef = useRef(onContextPresenceChange);
+
 	onContextOpenChangeRef.current = onContextOpenChange;
 	onContextPresenceChangeRef.current = onContextPresenceChange;
 	const isOpen = open ?? internalOpen;
+
 	const contextMenuPosition = useLiquidContextMenuPosition({
 		anchorElement,
 		menuWidth: REPOSITORY_CONTEXT_MENU_WIDTH,
 	});
+
 	const getAnchor = useCallback(
 		(): Element | null => anchorElement,
 		[anchorElement]
 	);
+
 	const setItemElement = useCallback(
 		(element: HTMLElement | null): void => {
 			setAnchorElement(element);
@@ -89,18 +93,22 @@ export function RepositoryContextMenu({
 		},
 		[onItemElementChange]
 	);
+
 	const changeOpen = useCallback(
 		(nextIsOpen: boolean): void => {
 			if (open === undefined) {
 				setInternalOpen(nextIsOpen);
 			}
+
 			if (!nextIsOpen) {
 				contextMenuPosition.resetPointer();
 			}
+
 			onContextOpenChange?.(nextIsOpen);
 		},
 		[contextMenuPosition.resetPointer, onContextOpenChange, open]
 	);
+
 	const changePresence = useCallback(
 		(nextIsPresent: boolean): void => {
 			setIsPresent(nextIsPresent);
@@ -108,10 +116,12 @@ export function RepositoryContextMenu({
 		},
 		[onContextPresenceChange]
 	);
+
 	const openRepository = async (
 		event: ReactMouseEvent<HTMLElement>
 	): Promise<void> => {
 		const openInBackground = event.metaKey || metaKey;
+
 		if (openInBackground) {
 			(
 				event as ReactMouseEvent<HTMLElement> & {
@@ -119,11 +129,14 @@ export function RepositoryContextMenu({
 				}
 			).preventBaseUIHandler?.();
 		}
+
 		if (!openInBackground) {
 			onOpenForeground?.();
 		}
+
 		await onOpen(repository.path, { activate: !openInBackground });
 	};
+
 	const item = (
 		<RepositoryItem
 			asContextMenuTrigger
@@ -140,6 +153,7 @@ export function RepositoryContextMenu({
 			workspace={workspace}
 		/>
 	);
+
 	const actions = (
 		<RepositoryContextActions
 			onDismiss={() => changeOpen(false)}

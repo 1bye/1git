@@ -27,8 +27,11 @@ export const createRepositoryRefreshDebouncer = (
 			clearTimeout(timeout);
 			timeout = undefined;
 		}
+
 		const events = [...pendingEvents.values()];
+
 		pendingEvents.clear();
+
 		for (const event of events) {
 			onRefresh(event);
 		}
@@ -36,9 +39,11 @@ export const createRepositoryRefreshDebouncer = (
 
 	const schedule = (event: RepositoryRefreshEvent): void => {
 		pendingEvents.set(event.sessionId, event);
+
 		if (timeout !== undefined) {
 			clearTimeout(timeout);
 		}
+
 		timeout = setTimeout(flush, delayMs);
 	};
 
@@ -47,6 +52,7 @@ export const createRepositoryRefreshDebouncer = (
 			clearTimeout(timeout);
 			timeout = undefined;
 		}
+
 		pendingEvents.clear();
 	};
 
@@ -78,6 +84,7 @@ export const useRepositoryRefresh = (
 				onRefreshRef.current(event);
 			}
 		}, delayMs);
+
 		const unsubscribe = window.desktop.git.events.onRepositoryRefresh(
 			debouncer.schedule
 		);

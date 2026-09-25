@@ -14,6 +14,7 @@ export const getRepositoryCurrentBranch = (
 	if (!branches?.current) {
 		return null;
 	}
+
 	return getRepositoryLocalBranch(branches, branches.current);
 };
 
@@ -39,9 +40,11 @@ export const repositoryBranchSwitchDisabledReason = (
 	if (branch.name === currentBranch) {
 		return null;
 	}
+
 	if (branch.worktreePath) {
 		return "This branch is checked out in another worktree.";
 	}
+
 	return null;
 };
 
@@ -51,14 +54,18 @@ export const repositoryBranchTrackingLabel = (
 	if (!branch?.upstream) {
 		return "No upstream";
 	}
+
 	if (branch.ahead === 0 && branch.behind === 0) {
 		return branch.upstream;
 	}
+
 	if (branch.ahead > 0 && branch.behind > 0) {
 		return `${branch.upstream} · ${branch.ahead} ahead · ${branch.behind} behind`;
 	}
+
 	if (branch.ahead > 0) {
 		return `${branch.upstream} · ${branch.ahead} ahead`;
 	}
+
 	return `${branch.upstream} · ${branch.behind} behind`;
 };

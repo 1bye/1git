@@ -41,6 +41,7 @@ const MAX_FILE_CONTENT_BYTES = 10 * 1024 * 1024;
 const pathExists = async (path: string): Promise<boolean> => {
 	try {
 		await access(path);
+
 		return true;
 	} catch {
 		return false;
@@ -58,18 +59,23 @@ const loadOperationState = async (
 			pathExists(join(gitDirectory, "CHERRY_PICK_HEAD")),
 			pathExists(join(gitDirectory, "REVERT_HEAD")),
 		]);
+
 	if (merge) {
 		return "merge";
 	}
+
 	if (rebaseMerge || rebaseApply) {
 		return "rebase";
 	}
+
 	if (cherryPick) {
 		return "cherry-pick";
 	}
+
 	if (revert) {
 		return "revert";
 	}
+
 	return "normal";
 };
 
@@ -87,9 +93,11 @@ export const loadSnapshot = async (
 		"--untracked-files=all",
 		"-z",
 	];
+
 	if (includeIgnored) {
 		args.push("--ignored=matching");
 	}
+
 	const [output, operationState] = await Promise.all([
 		context.process.run({
 			args,
@@ -98,7 +106,9 @@ export const loadSnapshot = async (
 		}),
 		loadOperationState(context.repository.gitDirectory),
 	]);
+
 	const status = parseStatus(output.stdout);
+
 	return {
 		files: status.files,
 		head: status.head,
@@ -115,6 +125,7 @@ export const loadHistory = async (
 ): Promise<CommitPage> => {
 	const limit = input.limit ?? 50;
 	const offset = input.offset ?? 0;
+
 	const args = [
 		"log",
 		"--no-decorate",
@@ -122,20 +133,25 @@ export const loadHistory = async (
 		`--skip=${offset}`,
 		`--format=${HISTORY_RECORD_SEPARATOR}${HISTORY_FORMAT}`,
 	];
+
 	if (input.revision) {
 		args.push(input.revision);
 	}
+
 	if (input.paths && input.paths.length > 0) {
 		args.push("--", ...input.paths);
 	}
+
 	const output = await context.process.run({
 		args,
 		cwd: context.repository.root,
 		signal: input.signal,
 	});
+
 	const records = parseHistory(output.stdout);
 	const hasMore = records.length > limit;
 	const commits = hasMore ? records.slice(0, limit) : records;
+
 	return {
 		commits,
 		hasMore,
@@ -160,10 +176,13 @@ export const loadCommit = async (
 		cwd: context.repository.root,
 		signal,
 	});
+
 	const [commit] = parseHistory(output.stdout);
+
 	if (!commit) {
 		throw new Error(`Git returned no commit metadata for "${revision}".`);
 	}
+
 	return commit;
 };
 
@@ -183,6 +202,7 @@ export const loadBranches = async (
 		cwd: context.repository.root,
 		signal,
 	});
+
 	return parseBranches(output.stdout);
 };
 
@@ -201,6 +221,7 @@ export const loadTags = async (
 		cwd: context.repository.root,
 		signal,
 	});
+
 	return parseTags(output.stdout);
 };
 
@@ -214,6 +235,7 @@ export const loadStashes = async (
 		cwd: context.repository.root,
 		signal,
 	});
+
 	return parseStashes(output.stdout);
 };
 
@@ -227,6 +249,7 @@ export const loadWorktrees = async (
 		cwd: context.repository.root,
 		signal,
 	});
+
 	return parseWorktrees(output.stdout);
 };
 
@@ -237,15 +260,18 @@ const loadRemoteUrls = async (
 	signal?: AbortSignal
 ): Promise<readonly string[]> => {
 	const args = ["remote", "get-url"];
+
 	if (push) {
 		args.push("--push");
 	}
+
 	args.push("--all", name);
 	const output = await context.process.run({
 		args,
 		cwd: context.repository.root,
 		signal,
 	});
+
 	return output.stdout
 		.toString("utf8")
 		.split("\n")
@@ -266,8 +292,10 @@ const loadRemoteDefaultBranch = async (
 		cwd: context.repository.root,
 		signal,
 	});
+
 	const reference = output.stdout.toString("utf8").trim();
 	const prefix = `${name}/`;
+
 	return reference.startsWith(prefix) ? reference.slice(prefix.length) : null;
 };
 
@@ -281,10 +309,12 @@ export const loadRemotes = async (
 		cwd: context.repository.root,
 		signal,
 	});
+
 	const names = output.stdout
 		.toString("utf8")
 		.split("\n")
 		.filter((name) => name.length > 0);
+
 	return await Promise.all(
 		names.map(async (name): Promise<RemoteInfo> => {
 			const [defaultBranch, fetchUrls, pushUrls] = await Promise.all([
@@ -292,6 +322,7 @@ export const loadRemotes = async (
 				loadRemoteUrls(context, name, false, signal),
 				loadRemoteUrls(context, name, true, signal),
 			]);
+
 			return { defaultBranch, fetchUrls, name, pushUrls };
 		})
 	);
@@ -302,34 +333,42 @@ const diffArguments = (
 	format: "numstat" | "patch"
 ): string[] => {
 	const isCommit = input.target.kind === "commit";
+
 	const args = [
 		isCommit ? "show" : "diff",
 		"--no-ext-diff",
 		"--no-color",
 		"--find-renames",
 	];
+
 	if (isCommit) {
 		args.push("--format=", "--first-parent", "--root");
 	}
+
 	if (format === "numstat") {
 		args.push("--numstat", "-z");
 	} else {
 		args.push("--patch", `--unified=${input.contextLines ?? 3}`);
+
 		if (input.ignoreWhitespace) {
 			args.push("--ignore-all-space");
 		}
 	}
+
 	if (input.target.kind === "staged") {
 		args.push("--cached");
 	} else if (input.target.kind === "commit") {
 		args.push(input.target.revision);
 	} else if (input.target.kind === "range") {
 		const separator = input.target.mergeBase ? "..." : "..";
+
 		args.push(`${input.target.base}${separator}${input.target.head}`);
 	}
+
 	if (input.paths && input.paths.length > 0) {
 		args.push("--", ...input.paths);
 	}
+
 	return args;
 };
 
@@ -355,11 +394,13 @@ const loadUntrackedPathPatch = async (
 			cwd: context.repository.root,
 			signal: input.signal,
 		});
+
 		return output.stdout.toString("utf8");
 	} catch (error: unknown) {
 		if (error instanceof GitCommandFailure && error.exitCode === 1) {
 			return error.stdout;
 		}
+
 		throw error;
 	}
 };
@@ -371,22 +412,28 @@ const loadUntrackedPatch = async (
 	if (input.target.kind !== "working") {
 		return "";
 	}
+
 	const listArguments = ["ls-files", "--others", "--exclude-standard", "-z"];
+
 	if (input.paths && input.paths.length > 0) {
 		listArguments.push("--", ...input.paths);
 	}
+
 	const untrackedOutput = await context.process.run({
 		args: listArguments,
 		cwd: context.repository.root,
 		signal: input.signal,
 	});
+
 	const untrackedPaths = untrackedOutput.stdout
 		.toString("utf8")
 		.split("\0")
 		.filter(Boolean);
+
 	const patches = await Promise.all(
 		untrackedPaths.map((path) => loadUntrackedPathPatch(context, path, input))
 	);
+
 	return patches.filter(Boolean).join("\n");
 };
 
@@ -400,6 +447,7 @@ export const loadDiff = async (
 		cwd: context.repository.root,
 		signal: input.signal,
 	});
+
 	try {
 		const [patchOutput, statOutput, untrackedPatch] = await Promise.all([
 			context.process.run({
@@ -410,6 +458,7 @@ export const loadDiff = async (
 			statRequest,
 			loadUntrackedPatch(context, input),
 		]);
+
 		return {
 			patch: [patchOutput.stdout.toString("utf8"), untrackedPatch]
 				.filter(Boolean)
@@ -423,6 +472,7 @@ export const loadDiff = async (
 			error.reason === "output-too-large"
 		) {
 			const statOutput = await statRequest;
+
 			return {
 				patch: "",
 				patchOmittedReason: "too-large",
@@ -430,6 +480,7 @@ export const loadDiff = async (
 				target: input.target,
 			};
 		}
+
 		throw error;
 	}
 };
@@ -449,6 +500,7 @@ const loadWorkingFile = async (
 ): Promise<Buffer> => {
 	const resolvedPath = await realpath(resolve(context.repository.root, path));
 	const relativePath = relative(context.repository.root, resolvedPath);
+
 	if (
 		relativePath === ".." ||
 		relativePath.startsWith("../") ||
@@ -457,8 +509,11 @@ const loadWorkingFile = async (
 	) {
 		throw new Error("The file preview path leaves the repository.");
 	}
+
 	const fileStat = await stat(resolvedPath);
+
 	requirePreviewSize(fileStat.size);
+
 	return await readFile(resolvedPath);
 };
 
@@ -472,26 +527,32 @@ const loadGitObject = async (
 		cwd: context.repository.root,
 		signal,
 	});
+
 	const oid = resolved.stdout.toString("utf8").trim();
+
 	const type = await context.process.run({
 		args: ["cat-file", "-t", oid],
 		cwd: context.repository.root,
 		signal,
 	});
+
 	if (type.stdout.toString("utf8").trim() !== "blob") {
 		throw new Error("The requested preview source is not a file.");
 	}
+
 	const size = await context.process.run({
 		args: ["cat-file", "-s", oid],
 		cwd: context.repository.root,
 		signal,
 	});
+
 	requirePreviewSize(Number(size.stdout.toString("utf8").trim()));
 	const output = await context.process.run({
 		args: ["cat-file", "blob", oid],
 		cwd: context.repository.root,
 		signal,
 	});
+
 	return { content: output.stdout, oid };
 };
 
@@ -504,15 +565,19 @@ export const loadFileContent = async (
 ): Promise<FileContent> => {
 	let content: Buffer;
 	let revision: string;
+
 	if (source.kind === "working") {
 		content = await loadWorkingFile(context, path);
 		revision = "WORKTREE";
 	} else {
 		const object =
 			source.kind === "object" ? source.objectId : `${source.revision}:${path}`;
+
 		({ content, oid: revision } = await loadGitObject(context, object, signal));
 	}
+
 	const decoder = new TextDecoder("utf-8", { fatal: true });
+
 	try {
 		return {
 			content: decoder.decode(content),

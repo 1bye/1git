@@ -34,7 +34,9 @@ const parseRecentRepository = (
 	if (!isRecord(value)) {
 		return null;
 	}
+
 	const { lastOpenedAt, path } = value;
+
 	if (
 		typeof path !== "string" ||
 		path.length === 0 ||
@@ -43,16 +45,19 @@ const parseRecentRepository = (
 	) {
 		return null;
 	}
+
 	return { lastOpenedAt, path };
 };
 
 const parseDocument = (content: string): RecentRepositoryDocument | null => {
 	let value: unknown;
+
 	try {
 		value = JSON.parse(content);
 	} catch {
 		return null;
 	}
+
 	if (
 		!isRecord(value) ||
 		value.version !== RECENT_REPOSITORY_FILE_VERSION ||
@@ -62,12 +67,15 @@ const parseDocument = (content: string): RecentRepositoryDocument | null => {
 	}
 
 	const repositories: RecentRepositoryRecord[] = [];
+
 	for (const candidate of value.repositories) {
 		const repository = parseRecentRepository(candidate);
+
 		if (repository) {
 			repositories.push(repository);
 		}
 	}
+
 	return {
 		repositories,
 		version: RECENT_REPOSITORY_FILE_VERSION,
@@ -90,19 +98,23 @@ export class JsonRecentRepositoryStore implements RecentRepositoryStore {
 		if (filePath.length === 0) {
 			throw new Error("Recent repository file path must not be empty.");
 		}
+
 		this.filePath = filePath;
 	}
 
 	load(): readonly RecentRepositoryRecord[] {
 		let content: string;
+
 		try {
 			content = readFileSync(this.filePath, "utf8");
 		} catch (error: unknown) {
 			if (isMissingFile(error)) {
 				return [];
 			}
+
 			throw error;
 		}
+
 		return parseDocument(content)?.repositories ?? [];
 	}
 
@@ -114,8 +126,10 @@ export class JsonRecentRepositoryStore implements RecentRepositoryStore {
 			})),
 			version: RECENT_REPOSITORY_FILE_VERSION,
 		};
+
 		const directory = dirname(this.filePath);
 		const temporaryPath = `${this.filePath}.${process.pid}.${randomUUID()}.tmp`;
+
 		mkdirSync(directory, { mode: DIRECTORY_MODE, recursive: true });
 
 		try {
@@ -128,6 +142,7 @@ export class JsonRecentRepositoryStore implements RecentRepositoryStore {
 			chmodSync(this.filePath, FILE_MODE);
 		} catch (error: unknown) {
 			rmSync(temporaryPath, { force: true });
+
 			throw error;
 		}
 	}

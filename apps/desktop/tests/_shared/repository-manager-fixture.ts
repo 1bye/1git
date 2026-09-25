@@ -46,8 +46,10 @@ export class RepositoryFixtures {
 		const root = await realpath(
 			await mkdtemp(join(tmpdir(), "1git-desktop-manager-"))
 		);
+
 		this.roots.add(root);
 		const repositoryPath = join(root, "repository");
+
 		await mkdir(repositoryPath);
 		await runGit(repositoryPath, ["init", "--initial-branch=main"]);
 		await runGit(repositoryPath, ["config", "user.name", "1git Test"]);
@@ -65,8 +67,10 @@ export class RepositoryFixtures {
 			root,
 			write: async (relativePath: string, content: string): Promise<string> => {
 				const path = join(canonicalRepositoryPath, relativePath);
+
 				await mkdir(join(path, ".."), { recursive: true });
 				await writeFile(path, content);
+
 				return path;
 			},
 		};
@@ -76,7 +80,9 @@ export class RepositoryFixtures {
 		const path = await realpath(
 			await mkdtemp(join(tmpdir(), "1git-desktop-not-repository-"))
 		);
+
 		this.roots.add(path);
+
 		return path;
 	}
 
@@ -84,8 +90,10 @@ export class RepositoryFixtures {
 		const root = await realpath(
 			await mkdtemp(join(tmpdir(), "1git-desktop-blocking-git-"))
 		);
+
 		this.roots.add(root);
 		const executablePath = join(root, "blocking-git.cjs");
+
 		await writeFile(
 			executablePath,
 			[
@@ -101,6 +109,7 @@ export class RepositoryFixtures {
 			].join("\n")
 		);
 		await chmod(executablePath, 0o755);
+
 		return executablePath;
 	}
 
@@ -119,19 +128,23 @@ export const createTestRepositoryManager = (
 ): RepositoryManager => {
 	let nextId = 0;
 	let currentTime = TEST_START_TIME;
+
 	return new RepositoryManager({
 		...options,
 		createSessionId:
 			options.createSessionId ??
 			(() => {
 				nextId += 1;
+
 				return `session-${nextId}`;
 			}),
 		now:
 			options.now ??
 			(() => {
 				const now = new Date(currentTime);
+
 				currentTime += 1000;
+
 				return now;
 			}),
 	});
@@ -143,5 +156,6 @@ export const unwrapManagerResult = <T>(
 	if (!result.ok) {
 		throw new Error(result.error.message);
 	}
+
 	return result.value;
 };

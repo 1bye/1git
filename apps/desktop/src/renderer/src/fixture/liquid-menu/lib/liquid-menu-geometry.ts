@@ -58,6 +58,7 @@ export const clipLiquidMenuRect = (
 	const top = Math.min(Math.max(rect.top, clip.top), clipBottom);
 	const right = Math.max(left, Math.min(rect.left + rect.width, clipRight));
 	const bottom = Math.max(top, Math.min(rect.top + rect.height, clipBottom));
+
 	return {
 		height: bottom - top,
 		left,
@@ -99,26 +100,33 @@ const getLiquidMenuSide = (
 	const anchorBottom = anchor.top + anchor.height;
 	const menuRight = menu.left + menu.width;
 	const menuBottom = menu.top + menu.height;
+
 	if (menu.left >= anchorRight) {
 		return "right";
 	}
+
 	if (menuRight <= anchor.left) {
 		return "left";
 	}
+
 	if (menu.top >= anchorBottom) {
 		return "bottom";
 	}
+
 	if (menuBottom <= anchor.top) {
 		return "top";
 	}
 
 	const horizontalOffset =
 		menu.left + menu.width / 2 - (anchor.left + anchor.width / 2);
+
 	const verticalOffset =
 		menu.top + menu.height / 2 - (anchor.top + anchor.height / 2);
+
 	if (Math.abs(horizontalOffset) > Math.abs(verticalOffset)) {
 		return horizontalOffset >= 0 ? "right" : "left";
 	}
+
 	return verticalOffset >= 0 ? "bottom" : "top";
 };
 
@@ -167,6 +175,7 @@ export const createLiquidMenuFrame = (
 ): LiquidMenuFrame => {
 	const menuProgress = clampProgress(progress.menu);
 	const submenuProgress = clampProgress(progress.submenu);
+
 	const insetAnchor: LiquidMenuRect = {
 		height: Math.max(
 			0,
@@ -179,24 +188,30 @@ export const createLiquidMenuFrame = (
 			measurement.anchor.width - anchorGeometry.insetInline * 2
 		),
 	};
+
 	const visualAnchor = measurement.anchorClip
 		? clipLiquidMenuRect(insetAnchor, measurement.anchorClip)
 		: insetAnchor;
+
 	const padding = geometry.blendRadius + geometry.sampleCellSize * 2;
 	let boundsLeft = Math.min(visualAnchor.left, measurement.menu.left) - padding;
 	let boundsTop = Math.min(visualAnchor.top, measurement.menu.top) - padding;
+
 	let boundsRight =
 		Math.max(
 			visualAnchor.left + visualAnchor.width,
 			measurement.menu.left + measurement.menu.width
 		) + padding;
+
 	let boundsBottom =
 		Math.max(
 			visualAnchor.top + visualAnchor.height,
 			measurement.menu.top + measurement.menu.height
 		) + padding;
+
 	if (measurement.submenu) {
 		const { menu: submenuMenu } = measurement.submenu;
+
 		boundsLeft = Math.min(boundsLeft, submenuMenu.left - padding);
 		boundsTop = Math.min(boundsTop, submenuMenu.top - padding);
 		boundsRight = Math.max(
@@ -208,18 +223,21 @@ export const createLiquidMenuFrame = (
 			submenuMenu.top + submenuMenu.height + padding
 		);
 	}
+
 	const bounds: LiquidMenuRect = {
 		height: boundsBottom - boundsTop,
 		left: boundsLeft,
 		top: boundsTop,
 		width: boundsRight - boundsLeft,
 	};
+
 	const finalMenuHalfHeight = measurement.menu.height / 2;
 	const finalMenuHalfWidth = measurement.menu.width / 2;
 	const seedHalfHeight = geometry.sampleCellSize;
 	const seedHalfWidth = visualAnchor.height / 2;
 	const menuSide = getLiquidMenuSide(visualAnchor, measurement.menu);
 	const isInlineMenu = menuSide === "left" || menuSide === "right";
+
 	const animatedMenuHalfHeight = interpolate(
 		isInlineMenu
 			? Math.min(seedHalfWidth, finalMenuHalfHeight)
@@ -227,11 +245,13 @@ export const createLiquidMenuFrame = (
 		finalMenuHalfHeight,
 		menuProgress
 	);
+
 	const animatedMenuHalfWidth = interpolate(
 		isInlineMenu ? seedHalfHeight : seedHalfWidth,
 		finalMenuHalfWidth,
 		menuProgress
 	);
+
 	const animatedMenuCenter = getAnimatedMenuCenter(
 		menuSide,
 		visualAnchor,
@@ -240,11 +260,13 @@ export const createLiquidMenuFrame = (
 		animatedMenuHalfWidth,
 		menuProgress
 	);
+
 	const anchorBox = roundedBoxFromRect(
 		visualAnchor,
 		bounds,
 		anchorGeometry.radius
 	);
+
 	const menuBox: RoundedBox = {
 		centerX: animatedMenuCenter.x - bounds.left,
 		centerY: animatedMenuCenter.y - bounds.top,
@@ -258,30 +280,37 @@ export const createLiquidMenuFrame = (
 	};
 
 	const hasVisibleAnchor = visualAnchor.width > 0 && visualAnchor.height > 0;
+
 	const boxes: RoundedBox[] = hasVisibleAnchor
 		? [anchorBox, menuBox]
 		: [menuBox];
+
 	if (measurement.submenu) {
 		const { submenu } = measurement;
 		const finalSubmenuHalfHeight = submenu.menu.height / 2;
 		const finalSubmenuHalfWidth = submenu.menu.width / 2;
+
 		const connectionX =
 			submenu.side === "left"
 				? measurement.menu.left
 				: measurement.menu.left + measurement.menu.width;
+
 		const connectionY = submenu.trigger.top + submenu.trigger.height / 2;
 		const finalCenterX = submenu.menu.left + submenu.menu.width / 2;
 		const finalCenterY = submenu.menu.top + submenu.menu.height / 2;
+
 		const animatedSubmenuHalfHeight = interpolate(
 			Math.min(submenu.trigger.height / 2, finalSubmenuHalfHeight),
 			finalSubmenuHalfHeight,
 			submenuProgress
 		);
+
 		const animatedSubmenuHalfWidth = interpolate(
 			geometry.sampleCellSize,
 			finalSubmenuHalfWidth,
 			submenuProgress
 		);
+
 		boxes.push({
 			centerX:
 				interpolate(connectionX, finalCenterX, submenuProgress) - bounds.left,
@@ -322,6 +351,7 @@ export const easeLiquidMenuProgress = (
 	isOpening: boolean
 ): number => {
 	const normalizedProgress = clampProgress(progress);
+
 	return isOpening
 		? 1 - (1 - normalizedProgress) ** 3
 		: normalizedProgress ** 2;

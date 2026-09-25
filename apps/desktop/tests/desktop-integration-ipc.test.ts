@@ -17,18 +17,22 @@ const createHarness = (isAuthorized = true) => {
 	const handlers = new Map<string, Handler>();
 	const removedChannels: string[] = [];
 	const requests: string[] = [];
+
 	const operations: DesktopIntegrationOperations = {
 		copyText: (text) => requests.push(`copy:${text}`),
 		openExternal: (url) => {
 			requests.push(`external:${url}`);
+
 			return Promise.resolve();
 		},
 		openInApplication: (application, path) => {
 			requests.push(`${application}:${path}`);
+
 			return Promise.resolve();
 		},
 		revealPath: (path) => requests.push(`reveal:${path}`),
 	};
+
 	const dispose = registerDesktopIntegrationIpc({
 		ipcMain: {
 			handle: (channel, handler) => {
@@ -42,16 +46,20 @@ const createHarness = (isAuthorized = true) => {
 		isSenderAuthorized: () => isAuthorized,
 		operations,
 	});
+
 	const invoke = async (
 		channel: string,
 		payload: unknown
 	): Promise<unknown> => {
 		const handler = handlers.get(channel);
+
 		if (!handler) {
 			throw new Error(`Desktop integration handler is unavailable: ${channel}`);
 		}
+
 		return await handler({} as IpcMainInvokeEvent, payload);
 	};
+
 	return { dispose, invoke, removedChannels, requests };
 };
 

@@ -205,6 +205,7 @@ describe("repository revision rails", () => {
 				/>
 			</LiquidMenuStackProvider>
 		);
+
 		const headerEnd = markup.indexOf("</header>");
 
 		expect(markup).toContain("height:46px");

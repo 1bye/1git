@@ -18,7 +18,9 @@ const bridges = new Set<DesktopGitBridgeHarness>();
 
 const createBridge = (): DesktopGitBridgeHarness => {
 	const bridge = new DesktopGitBridgeHarness(createTestRepositoryManager());
+
 	bridges.add(bridge);
+
 	return bridge;
 };
 
@@ -26,6 +28,7 @@ const unwrapGitResult = <T>(result: GitResult<T>): T => {
 	if (!result.ok) {
 		throw new Error(result.error.message);
 	}
+
 	return result.value;
 };
 
@@ -33,6 +36,7 @@ afterEach(async () => {
 	for (const bridge of bridges) {
 		bridge.dispose();
 	}
+
 	bridges.clear();
 	await fixtures.cleanup();
 });
@@ -44,12 +48,14 @@ describe("desktop Git bridge", () => {
 		const missingSession = await bridge.invokeRaw<
 			GitResult<RepositorySnapshot>
 		>(GIT_IPC_CHANNELS.repository.snapshot, { input: {} });
+
 		const malformedInput = await bridge.invokeRaw<
 			GitResult<RepositorySnapshot>
 		>(GIT_IPC_CHANNELS.repository.snapshot, {
 			input: "not-an-object",
 			sessionId: "session-1",
 		});
+
 		const malformedOperationId = await bridge.invokeRaw<
 			GitResult<RepositorySnapshot>
 		>(GIT_IPC_CHANNELS.repository.snapshot, {
@@ -127,6 +133,7 @@ describe("desktop Git bridge", () => {
 		const firstBridge = createBridge();
 		const secondBridge = createBridge();
 		const fixture = await fixtures.create();
+
 		const opened = unwrapGitResult(
 			await firstBridge.api.sessions.open({ path: fixture.repositoryPath })
 		);
@@ -134,12 +141,15 @@ describe("desktop Git bridge", () => {
 		const snapshot = await secondBridge.api.repository.snapshot(
 			opened.session.id
 		);
+
 		const stage = await secondBridge.api.changes.stage(opened.session.id, {
 			paths: ["README.md"],
 		});
+
 		const commit = await secondBridge.api.changes.commit(opened.session.id, {
 			summary: "Must not commit",
 		});
+
 		const activation = await secondBridge.api.sessions.activate(
 			opened.session.id
 		);
@@ -171,6 +181,7 @@ describe("desktop Git bridge", () => {
 		const bridge = createBridge();
 		const fixture = await fixtures.create();
 		const refreshEvents: RepositoryRefreshEvent[] = [];
+
 		const unsubscribe = bridge.api.events.onRepositoryRefresh((event) => {
 			refreshEvents.push(event);
 		});
@@ -178,9 +189,11 @@ describe("desktop Git bridge", () => {
 		const opened = unwrapGitResult(
 			await bridge.api.sessions.open({ path: fixture.repositoryPath })
 		);
+
 		const initialSnapshot = unwrapGitResult(
 			await bridge.api.repository.snapshot(opened.session.id)
 		);
+
 		await fixture.write(
 			"src/bridge.ts",
 			"export const crossedBridge = true;\n"
@@ -188,22 +201,27 @@ describe("desktop Git bridge", () => {
 		const workingSnapshot = unwrapGitResult(
 			await bridge.api.repository.snapshot(opened.session.id)
 		);
+
 		const stagedSnapshot = unwrapGitResult(
 			await bridge.api.changes.stage(opened.session.id, {
 				paths: ["src/bridge.ts"],
 			})
 		);
+
 		const committed = unwrapGitResult(
 			await bridge.api.changes.commit(opened.session.id, {
 				summary: "Test complete desktop bridge",
 			})
 		);
+
 		const finalSnapshot = unwrapGitResult(
 			await bridge.api.repository.snapshot(opened.session.id)
 		);
+
 		const history = unwrapGitResult(
 			await bridge.api.repository.history(opened.session.id, { limit: 10 })
 		);
+
 		unsubscribe();
 
 		expect(initialSnapshot.files).toEqual([]);
@@ -268,13 +286,16 @@ describe("desktop Git bridge", () => {
 	test("changes individual hunks through the preload bridge", async () => {
 		const bridge = createBridge();
 		const fixture = await fixtures.create();
+
 		const opened = unwrapGitResult(
 			await bridge.api.sessions.open({ path: fixture.repositoryPath })
 		);
+
 		const originalLines = Array.from(
 			{ length: 20 },
 			(_, index) => `line ${index + 1}`
 		);
+
 		await fixture.write("hunks.txt", `${originalLines.join("\n")}\n`);
 		unwrapGitResult(
 			await bridge.api.changes.stage(opened.session.id, {
@@ -287,6 +308,7 @@ describe("desktop Git bridge", () => {
 			})
 		);
 		const changedLines = [...originalLines];
+
 		changedLines[1] = "line 2 changed";
 		changedLines[17] = "line 18 changed";
 		await fixture.write("hunks.txt", `${changedLines.join("\n")}\n`);
@@ -304,6 +326,7 @@ describe("desktop Git bridge", () => {
 				target: { kind: "staged" },
 			})
 		);
+
 		const workingDiff = unwrapGitResult(
 			await bridge.api.repository.diff(opened.session.id, {
 				paths: ["hunks.txt"],
@@ -324,6 +347,7 @@ describe("desktop Git bridge", () => {
 				path: "hunks.txt",
 			})
 		);
+
 		expect(discarded.undo).toMatchObject({ path: "hunks.txt" });
 		unwrapGitResult(
 			await bridge.api.changes.undoDiscard(opened.session.id, {
@@ -336,17 +360,20 @@ describe("desktop Git bridge", () => {
 				target: { kind: "working" },
 			})
 		);
+
 		expect(restoredDiff.patch).toContain("line 18 changed");
 	});
 
 	test("keeps manager state structured after a bridge session closes", async () => {
 		const bridge = createBridge();
 		const fixture = await fixtures.create();
+
 		const opened = unwrapGitResult(
 			await bridge.api.sessions.open({ path: fixture.repositoryPath })
 		);
 
 		const state = await bridge.api.sessions.close(opened.session.id);
+
 		const laterSnapshot = await bridge.api.repository.snapshot(
 			opened.session.id
 		);

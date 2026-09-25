@@ -17,9 +17,11 @@ describe("RepositoryManager state", () => {
 		const firstFixture = await fixtures.create();
 		const secondFixture = await fixtures.create();
 		const manager = createTestRepositoryManager();
+
 		const first = unwrapManagerResult(
 			await manager.openRepository({ path: firstFixture.repositoryPath })
 		);
+
 		const second = unwrapManagerResult(
 			await manager.openRepository({ path: secondFixture.repositoryPath })
 		);
@@ -57,6 +59,7 @@ describe("RepositoryManager state", () => {
 	test("gets a serializable session without exposing its owner object", async () => {
 		const fixture = await fixtures.create();
 		const manager = createTestRepositoryManager();
+
 		const opened = unwrapManagerResult(
 			await manager.openRepository({ path: fixture.repositoryPath })
 		);
@@ -86,9 +89,11 @@ describe("RepositoryManager state", () => {
 		const firstFixture = await fixtures.create();
 		const secondFixture = await fixtures.create();
 		const manager = createTestRepositoryManager();
+
 		const first = unwrapManagerResult(
 			await manager.openRepository({ path: firstFixture.repositoryPath })
 		);
+
 		const second = unwrapManagerResult(
 			await manager.openRepository({ path: secondFixture.repositoryPath })
 		);
@@ -107,15 +112,19 @@ describe("RepositoryManager state", () => {
 		const secondFixture = await fixtures.create();
 		const thirdFixture = await fixtures.create();
 		const manager = createTestRepositoryManager();
+
 		const first = unwrapManagerResult(
 			await manager.openRepository({ path: firstFixture.repositoryPath })
 		);
+
 		const second = unwrapManagerResult(
 			await manager.openRepository({ path: secondFixture.repositoryPath })
 		);
+
 		const third = unwrapManagerResult(
 			await manager.openRepository({ path: thirdFixture.repositoryPath })
 		);
+
 		unwrapManagerResult(manager.activateSession(second.session.id));
 		unwrapManagerResult(manager.activateSession(first.session.id));
 
@@ -131,6 +140,7 @@ describe("RepositoryManager state", () => {
 	test("retains recent repositories after the last session closes", async () => {
 		const fixture = await fixtures.create();
 		const manager = createTestRepositoryManager();
+
 		const opened = unwrapManagerResult(
 			await manager.openRepository({ path: fixture.repositoryPath })
 		);
@@ -160,6 +170,7 @@ describe("RepositoryManager state", () => {
 		const firstFixture = await fixtures.create();
 		const secondFixture = await fixtures.create();
 		const thirdFixture = await fixtures.create();
+
 		const manager = createTestRepositoryManager({
 			maxRecentRepositories: 2,
 		});
@@ -176,6 +187,7 @@ describe("RepositoryManager state", () => {
 	test("forgets a recent path without closing its active session", async () => {
 		const fixture = await fixtures.create();
 		const manager = createTestRepositoryManager();
+
 		const opened = unwrapManagerResult(
 			await manager.openRepository({ path: fixture.repositoryPath })
 		);
@@ -191,6 +203,7 @@ describe("RepositoryManager state", () => {
 		const firstFixture = await fixtures.create();
 		const secondFixture = await fixtures.create();
 		const manager = createTestRepositoryManager();
+
 		await manager.openRepository({ path: firstFixture.repositoryPath });
 		await manager.openRepository({ path: secondFixture.repositoryPath });
 

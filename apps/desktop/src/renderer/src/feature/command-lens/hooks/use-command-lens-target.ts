@@ -21,6 +21,7 @@ export const useCommandLensTarget = (
 	const context = useCommandLensContext();
 	const elementRef = useRef<HTMLElement | null>(null);
 	const optionsRef = useRef(options);
+
 	optionsRef.current = options;
 	const targetRevision = [
 		options.disabled ? "disabled" : "enabled",

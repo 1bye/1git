@@ -22,9 +22,11 @@ describe("RepositoryManager opening", () => {
 		});
 
 		expect(preview.ok).toBe(true);
+
 		if (!preview.ok) {
 			throw new Error(preview.error.message);
 		}
+
 		expect(preview.value).toMatchObject({
 			head: { branch: "main" },
 			latestCommit: { summary: "Initial commit" },
@@ -103,6 +105,7 @@ describe("RepositoryManager opening", () => {
 		const first = unwrapManagerResult(
 			await manager.openRepository({ path: fixture.repositoryPath })
 		);
+
 		const second = unwrapManagerResult(
 			await manager.openRepository({ path: nestedFile })
 		);
@@ -123,6 +126,7 @@ describe("RepositoryManager opening", () => {
 			manager.openRepository({ path: fixture.repositoryPath }),
 			manager.openRepository({ path: fixture.repositoryPath }),
 		]);
+
 		const first = unwrapManagerResult(firstResult);
 		const second = unwrapManagerResult(secondResult);
 
@@ -138,6 +142,7 @@ describe("RepositoryManager opening", () => {
 		const first = unwrapManagerResult(
 			await manager.openRepository({ path: firstFixture.repositoryPath })
 		);
+
 		const second = unwrapManagerResult(
 			await manager.openRepository({ path: secondFixture.repositoryPath })
 		);
@@ -152,10 +157,13 @@ describe("RepositoryManager opening", () => {
 		const secondFixture = await fixtures.create();
 		const candidates = ["session", "", "session", "second-session"];
 		let candidateIndex = 0;
+
 		const manager = createTestRepositoryManager({
 			createSessionId: () => {
 				const candidate = candidates[candidateIndex] ?? "fallback";
+
 				candidateIndex += 1;
+
 				return candidate;
 			},
 		});
@@ -163,6 +171,7 @@ describe("RepositoryManager opening", () => {
 		const first = unwrapManagerResult(
 			await manager.openRepository({ path: firstFixture.repositoryPath })
 		);
+
 		const second = unwrapManagerResult(
 			await manager.openRepository({ path: secondFixture.repositoryPath })
 		);
@@ -195,6 +204,7 @@ describe("RepositoryManager opening", () => {
 		const fixture = await fixtures.create();
 		const manager = createTestRepositoryManager();
 		const controller = new AbortController();
+
 		controller.abort();
 
 		const result = await manager.openRepository({

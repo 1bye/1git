@@ -28,6 +28,7 @@ const applyWorktreeEntry = (worktree: MutableWorktree, entry: string): void => {
 	const separator = entry.indexOf(" ");
 	const key = separator < 0 ? entry : entry.slice(0, separator);
 	const value = separator < 0 ? "" : entry.slice(separator + 1);
+
 	switch (key) {
 		case "worktree":
 			worktree.path = value;
@@ -56,9 +57,11 @@ const applyWorktreeEntry = (worktree: MutableWorktree, entry: string): void => {
 
 const parseWorktreeRecord = (record: string): WorktreeInfo | null => {
 	const worktree = emptyWorktree();
+
 	for (const entry of record.split("\0")) {
 		applyWorktreeEntry(worktree, entry);
 	}
+
 	return worktree.path ? worktree : null;
 };
 
@@ -67,14 +70,18 @@ export const parseWorktrees = (
 	output: Buffer | string
 ): readonly WorktreeInfo[] => {
 	const worktrees: WorktreeInfo[] = [];
+
 	for (const record of output.toString().split("\0\0")) {
 		if (!record) {
 			continue;
 		}
+
 		const worktree = parseWorktreeRecord(record);
+
 		if (worktree) {
 			worktrees.push(worktree);
 		}
 	}
+
 	return worktrees;
 };

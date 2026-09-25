@@ -53,11 +53,13 @@ export const getRepositoryRevisionFileStatus = (
 
 const hashRepositoryDiffPatch = (patch: string): string => {
 	let hash = 0;
+
 	for (const character of patch) {
 		hash =
 			(hash * REPOSITORY_DIFF_HASH_MULTIPLIER + character.charCodeAt(0)) %
 			REPOSITORY_DIFF_HASH_MODULUS;
 	}
+
 	return hash.toString(36);
 };
 
@@ -65,18 +67,23 @@ const diffTargetLabel = (diff: FileDiff, tab: RepositoryTab): string => {
 	if (tab === "stashes") {
 		return "Stash";
 	}
+
 	if (tab === "history") {
 		return "Commit";
 	}
+
 	if (diff.target.kind === "staged") {
 		return "Staged";
 	}
+
 	if (diff.target.kind === "working") {
 		return "Working tree";
 	}
+
 	if (diff.target.kind === "commit") {
 		return "Commit";
 	}
+
 	return "Comparison";
 };
 
@@ -84,12 +91,15 @@ const createStatsByPath = (
 	stats: readonly DiffFileStat[]
 ): ReadonlyMap<string, DiffFileStat> => {
 	const statsByPath = new Map<string, DiffFileStat>();
+
 	for (const stat of stats) {
 		statsByPath.set(stat.path, stat);
+
 		if (stat.originalPath) {
 			statsByPath.set(stat.originalPath, stat);
 		}
 	}
+
 	return statsByPath;
 };
 
@@ -99,9 +109,11 @@ const parseDiffFileEntries = (
 	tab: RepositoryTab
 ): readonly RepositoryDiffFileEntryWithoutId[] => {
 	const entries: RepositoryDiffFileEntryWithoutId[] = [];
+
 	for (const [diffIndex, diff] of diffs.entries()) {
 		const patchKey = hashRepositoryDiffPatch(diff.patch);
 		const statsByPath = createStatsByPath(diff.stats);
+
 		const parsedFiles = parsePatchFiles(
 			diff.patch,
 			tab === "changes"
@@ -109,6 +121,7 @@ const parseDiffFileEntries = (
 				: `${commitOid}:${patchKey}`,
 			true
 		).flatMap((patch) => patch.files);
+
 		for (const file of parsedFiles) {
 			entries.push({
 				file,
@@ -120,9 +133,11 @@ const parseDiffFileEntries = (
 				targetLabel: diffTargetLabel(diff, tab),
 			});
 		}
+
 		const parsedPaths = new Set(
 			parsedFiles.flatMap((file) => [file.name, file.prevName].filter(Boolean))
 		);
+
 		for (const stat of diff.stats) {
 			if (
 				parsedPaths.has(stat.path) ||
@@ -130,6 +145,7 @@ const parseDiffFileEntries = (
 			) {
 				continue;
 			}
+
 			entries.push({
 				file: null,
 				key: `${diff.target.kind}:${diffIndex}:stat:${stat.path}`,
@@ -141,6 +157,7 @@ const parseDiffFileEntries = (
 			});
 		}
 	}
+
 	return entries;
 };
 
@@ -153,15 +170,19 @@ const addMissingFileEntries = (
 	if (tab !== "changes") {
 		return entries;
 	}
+
 	const knownPaths = new Set(entries.map((entry) => entry.path));
 	const nextEntries = [...entries];
+
 	for (const file of files) {
 		if (knownPaths.has(file.path)) {
 			continue;
 		}
+
 		const target = {
 			kind: file.worktreeStatus === "unmodified" ? "staged" : "working",
 		} as const;
+
 		nextEntries.push({
 			file: null,
 			key: `empty:${file.path}`,
@@ -173,6 +194,7 @@ const addMissingFileEntries = (
 			targetLabel: target.kind === "working" ? "Working tree" : "Staged",
 		});
 	}
+
 	return nextEntries;
 };
 
@@ -182,9 +204,12 @@ const assignDiffElementIds = (
 ): readonly RepositoryDiffFileEntry[] => {
 	const seenPaths = new Set<string>();
 	const changesByPath = new Map(files.map((file) => [file.path, file]));
+
 	return entries.map((entry) => {
 		const isFirstOccurrence = !seenPaths.has(entry.path);
+
 		seenPaths.add(entry.path);
+
 		return {
 			...entry,
 			change: changesByPath.get(entry.path) ?? null,
@@ -227,13 +252,16 @@ export const createExpandableRepositoryDiffFile = (
 	const parsedFiles = parsePatchFiles(diff.patch, cacheKeyPrefix, true).flatMap(
 		(patch) => patch.files
 	);
+
 	const file =
 		parsedFiles.find(
 			(candidate) => candidate.name === path || candidate.prevName === path
 		) ?? parsedFiles[0];
+
 	if (!file) {
 		return null;
 	}
+
 	return parseDiffFromFile(
 		{
 			cacheKey: `${cacheKeyPrefix}:old`,

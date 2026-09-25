@@ -11,18 +11,23 @@ const PASSIVE_LISTENER_OPTIONS = { passive: true } as const;
 
 const getParentElement = (element: Element): Element | null => {
 	const parent = element.assignedSlot ?? element.parentNode;
+
 	if (parent instanceof ShadowRoot) {
 		return parent.host;
 	}
+
 	return parent instanceof Element ? parent : null;
 };
 
 const isScrollAncestor = (element: Element): boolean => {
 	const view = element.ownerDocument.defaultView;
+
 	if (!view) {
 		return false;
 	}
+
 	const style = view.getComputedStyle(element);
+
 	return SCROLLABLE_OVERFLOW.test(
 		`${style.overflow}${style.overflowX}${style.overflowY}`
 	);
@@ -33,16 +38,21 @@ const getScrollAncestors = (
 ): readonly Element[] => {
 	const ancestors: Element[] = [];
 	const visitedAncestors = new Set<Element>();
+
 	for (const element of elements) {
 		let ancestor = getParentElement(element);
+
 		while (ancestor && !visitedAncestors.has(ancestor)) {
 			visitedAncestors.add(ancestor);
+
 			if (isScrollAncestor(ancestor)) {
 				ancestors.push(ancestor);
 			}
+
 			ancestor = getParentElement(ancestor);
 		}
 	}
+
 	return ancestors;
 };
 
@@ -71,69 +81,92 @@ export const createLiquidGeometryTracker = (
 		if (isDisconnected || animationFrameId !== null) {
 			return;
 		}
+
 		animationFrameId = window.requestAnimationFrame(() => {
 			animationFrameId = null;
 			onMeasure();
+
 			if (isContinuousTracking) {
 				schedule();
 			}
 		});
 	};
+
 	const resizeObserver = new ResizeObserver(schedule);
 	const mutationObserver = new MutationObserver(schedule);
+
 	const updateScrollAncestors = (elements: readonly Element[]): void => {
 		const nextScrollAncestors = getScrollAncestors(elements);
+
 		if (hasSameElements(scrollAncestors, nextScrollAncestors)) {
 			return;
 		}
+
 		for (const ancestor of scrollAncestors) {
 			ancestor.removeEventListener("scroll", schedule);
 		}
+
 		for (const ancestor of nextScrollAncestors) {
 			ancestor.addEventListener("scroll", schedule, PASSIVE_LISTENER_OPTIONS);
 		}
+
 		scrollAncestors = nextScrollAncestors;
 	};
+
 	const setContinuousTracking = (isActive: boolean): void => {
 		isContinuousTracking = isActive;
+
 		if (isActive) {
 			schedule();
 		}
 	};
+
 	const setElements = (elements: readonly Element[]): void => {
 		if (isDisconnected) {
 			return;
 		}
+
 		const nextElements = dedupeElements(elements);
 		const didElementsChange = !hasSameElements(observedElements, nextElements);
+
 		if (didElementsChange) {
 			resizeObserver.disconnect();
 			mutationObserver.disconnect();
+
 			for (const element of nextElements) {
 				resizeObserver.observe(element);
 				mutationObserver.observe(element, { childList: true });
 			}
+
 			observedElements = nextElements;
 		}
+
 		updateScrollAncestors(nextElements);
+
 		if (didElementsChange) {
 			schedule();
 		}
 	};
+
 	const disconnect = (): void => {
 		if (isDisconnected) {
 			return;
 		}
+
 		isDisconnected = true;
+
 		if (animationFrameId !== null) {
 			window.cancelAnimationFrame(animationFrameId);
 			animationFrameId = null;
 		}
+
 		resizeObserver.disconnect();
 		mutationObserver.disconnect();
+
 		for (const ancestor of scrollAncestors) {
 			ancestor.removeEventListener("scroll", schedule);
 		}
+
 		window.removeEventListener("resize", schedule);
 		window.removeEventListener("scroll", schedule);
 		visualViewport?.removeEventListener("resize", schedule);
@@ -141,15 +174,19 @@ export const createLiquidGeometryTracker = (
 		observedElements = [];
 		scrollAncestors = [];
 	};
+
 	const measureNow = (): void => {
 		if (isDisconnected) {
 			return;
 		}
+
 		if (animationFrameId !== null) {
 			window.cancelAnimationFrame(animationFrameId);
 			animationFrameId = null;
 		}
+
 		onMeasure();
+
 		if (isContinuousTracking) {
 			schedule();
 		}

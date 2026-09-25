@@ -23,6 +23,7 @@ const sampleCubicBezier = (
 	secondControlPoint: number
 ): number => {
 	const inverseProgress = 1 - progress;
+
 	return (
 		3 * inverseProgress ** 2 * progress * firstControlPoint +
 		3 * inverseProgress * progress ** 2 * secondControlPoint +
@@ -36,6 +37,7 @@ const sampleCubicBezierDerivative = (
 	secondControlPoint: number
 ): number => {
 	const inverseProgress = 1 - progress;
+
 	return (
 		3 * inverseProgress ** 2 * firstControlPoint +
 		6 * inverseProgress * progress * (secondControlPoint - firstControlPoint) +
@@ -65,14 +67,17 @@ export const easeWorkspaceLiquidMotion = (progress: number): number => {
 				EASING_CONTROL_POINT_1_X,
 				EASING_CONTROL_POINT_2_X
 			) - normalizedProgress;
+
 		const horizontalDerivative = sampleCubicBezierDerivative(
 			curveProgress,
 			EASING_CONTROL_POINT_1_X,
 			EASING_CONTROL_POINT_2_X
 		);
+
 		if (Math.abs(horizontalDerivative) < MINIMUM_EASING_DERIVATIVE) {
 			break;
 		}
+
 		curveProgress = clampProgress(
 			curveProgress - horizontalError / horizontalDerivative
 		);
@@ -91,6 +96,7 @@ export const interpolateWorkspaceLiquidMeasurement = (
 	progress: number
 ): WorkspaceLiquidMeasurement => {
 	const normalizedProgress = clampProgress(progress);
+
 	return {
 		surfaceWidth: end.surfaceWidth,
 		tabFullWidth: interpolate(

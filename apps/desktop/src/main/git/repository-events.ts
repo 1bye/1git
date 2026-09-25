@@ -36,6 +36,7 @@ export const publishRepositoryMutation = (
 		sessionId: notification.sessionId,
 		source: "mutation",
 	};
+
 	target.send(GIT_IPC_EVENTS.repositoryRefresh, event);
 };
 
@@ -45,6 +46,7 @@ export const publishActiveRepositoryFocus = (
 	now: () => string = currentTimestamp
 ): boolean => {
 	const activeSession = repositoryManager.getActiveSession();
+
 	if (!activeSession) {
 		return false;
 	}
@@ -54,5 +56,6 @@ export const publishActiveRepositoryFocus = (
 		sessionId: activeSession.id,
 		source: "window-focus",
 	});
+
 	return true;
 };

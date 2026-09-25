@@ -12,6 +12,7 @@ describe("repository context menu", () => {
 			"/repos/one",
 			true
 		);
+
 		const closingLayer = updateRepositoryContextLayerOpen(
 			openLayer,
 			"/repos/one",

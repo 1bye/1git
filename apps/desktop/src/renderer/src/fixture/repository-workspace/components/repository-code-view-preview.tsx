@@ -20,15 +20,19 @@ const previewMessage = (
 	if (previewKind === "large") {
 		return "This diff is too large to preview safely.";
 	}
+
 	if (previewKind === "binary") {
 		return "Binary files cannot be displayed as text.";
 	}
+
 	if (previewKind === "rename") {
 		return `Renamed from ${entry.file?.prevName ?? "the previous path"}.`;
 	}
+
 	if (previewKind === "ignored-whitespace") {
 		return "No changes remain when whitespace is ignored.";
 	}
+
 	return "No text preview is available for this file.";
 };
 

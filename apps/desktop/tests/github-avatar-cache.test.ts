@@ -13,7 +13,9 @@ const AVATAR_DATA_URL = "data:image/png;base64,AQID";
 
 const createCacheDirectory = async (): Promise<string> => {
 	const root = await mkdtemp(join(tmpdir(), "1git-avatar-cache-"));
+
 	roots.add(root);
+
 	return join(root, "avatars");
 };
 
@@ -21,6 +23,7 @@ const successfulFetch =
 	(requests: string[]): GithubAvatarFetch =>
 	(url) => {
 		requests.push(url);
+
 		if (url.startsWith("https://api.github.com/users/")) {
 			return Promise.resolve(
 				Response.json({
@@ -28,6 +31,7 @@ const successfulFetch =
 				})
 			);
 		}
+
 		return Promise.resolve(
 			new Response(Uint8Array.from([1, 2, 3]), {
 				headers: { "content-type": "image/png" },
@@ -47,6 +51,7 @@ afterEach(async () => {
 describe("GithubAvatarCache", () => {
 	test("fetches an account avatar and reuses it from memory", async () => {
 		const requests: string[] = [];
+
 		const cache = new GithubAvatarCache({
 			cacheDirectory: await createCacheDirectory(),
 			fetch: successfulFetch(requests),
@@ -66,10 +71,12 @@ describe("GithubAvatarCache", () => {
 	test("reuses a fresh avatar from disk without another request", async () => {
 		const requests: string[] = [];
 		const cacheDirectory = await createCacheDirectory();
+
 		const firstCache = new GithubAvatarCache({
 			cacheDirectory,
 			fetch: successfulFetch(requests),
 		});
+
 		await firstCache.get("openai");
 
 		const secondCache = new GithubAvatarCache({
@@ -89,11 +96,13 @@ describe("GithubAvatarCache", () => {
 
 	test("falls back to a stale disk avatar while offline", async () => {
 		const cacheDirectory = await createCacheDirectory();
+
 		const firstCache = new GithubAvatarCache({
 			cacheDirectory,
 			fetch: successfulFetch([]),
 			now: () => 0,
 		});
+
 		await firstCache.get("openai");
 
 		const offlineCache = new GithubAvatarCache({
@@ -110,12 +119,15 @@ describe("GithubAvatarCache", () => {
 
 	test("rejects avatar URLs outside GitHub-controlled hosts", async () => {
 		let requestCount = 0;
+
 		const fetch: GithubAvatarFetch = () => {
 			requestCount += 1;
+
 			return Promise.resolve(
 				Response.json({ avatar_url: "https://example.com/avatar.png" })
 			);
 		};
+
 		const cache = new GithubAvatarCache({
 			cacheDirectory: await createCacheDirectory(),
 			fetch,
@@ -127,10 +139,12 @@ describe("GithubAvatarCache", () => {
 
 	test("rejects malformed owner names without making a request", async () => {
 		let requestCount = 0;
+
 		const cache = new GithubAvatarCache({
 			cacheDirectory: await createCacheDirectory(),
 			fetch: () => {
 				requestCount += 1;
+
 				return Promise.resolve(new Response());
 			},
 		});

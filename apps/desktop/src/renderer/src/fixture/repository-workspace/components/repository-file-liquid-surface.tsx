@@ -33,6 +33,7 @@ interface RepositoryFileLiquidPathCache {
 
 const getRect = (element: Element): RepositoryFileLiquidRect => {
 	const bounds = element.getBoundingClientRect();
+
 	return {
 		height: bounds.height,
 		left: bounds.left,
@@ -48,6 +49,7 @@ const hasSameMeasurement = (
 	if (!(current && next)) {
 		return current === next;
 	}
+
 	return (
 		current.canvasEdgeX === next.canvasEdgeX &&
 		current.canvasSide === next.canvasSide &&
@@ -74,23 +76,29 @@ export function RepositoryFileLiquidSurface({
 	const pathCacheRef = useRef<RepositoryFileLiquidPathCache | null>(null);
 	const previousSelectedFilePathRef = useRef(selectedFilePath);
 	const [isMoving, setIsMoving] = useState(false);
+
 	const [measurement, setMeasurement] =
 		useState<RepositoryFileLiquidSurfaceMeasurement | null>(null);
 
 	useLayoutEffect(() => {
 		const previousSelectedFilePath = previousSelectedFilePathRef.current;
+
 		previousSelectedFilePathRef.current = selectedFilePath;
 		const shouldMove =
 			previousSelectedFilePath !== null &&
 			selectedFilePath !== null &&
 			previousSelectedFilePath !== selectedFilePath;
+
 		setIsMoving(shouldMove);
+
 		if (!shouldMove) {
 			return;
 		}
+
 		const motionTimeout = window.setTimeout(() => {
 			setIsMoving(false);
 		}, FILE_SURFACE_MOTION_DURATION_MS);
+
 		return () => {
 			window.clearTimeout(motionTimeout);
 		};
@@ -99,21 +107,27 @@ export function RepositoryFileLiquidSurface({
 	useLayoutEffect(() => {
 		const host = hostRef.current;
 		const workspace = host?.parentElement;
+
 		const canvas = workspace?.querySelector<HTMLElement>(
 			'[data-name="RepositoryDiffCanvas"]'
 		);
+
 		const fileRail = workspace?.querySelector<HTMLElement>(
 			"[data-repository-file-liquid-rail]"
 		);
+
 		const viewport = fileRail?.querySelector<HTMLElement>(
 			"[data-repository-file-viewport]"
 		);
+
 		const stickyLayer = fileRail?.querySelector<HTMLElement>(
 			"[data-repository-file-sticky-layer]"
 		);
+
 		const fileList = viewport?.querySelector<HTMLElement>(
 			"[data-repository-file-list]"
 		);
+
 		if (
 			!(
 				workspace &&
@@ -125,15 +139,18 @@ export function RepositoryFileLiquidSurface({
 			)
 		) {
 			setMeasurement(null);
+
 			return;
 		}
 
 		const rowSelector = `#${CSS.escape(
 			getRepositoryFileRowId(selectedFilePath)
 		)}`;
+
 		const measure = (): void => {
 			const row = fileList.querySelector<HTMLElement>(rowSelector);
 			const workspaceRect = getRect(workspace);
+
 			const baseMeasurement = row
 				? createRepositoryFileLiquidMeasurement(
 						workspaceRect,
@@ -142,6 +159,7 @@ export function RepositoryFileLiquidSurface({
 						getRect(viewport)
 					)
 				: null;
+
 			const nextMeasurement = baseMeasurement
 				? {
 						...baseMeasurement,
@@ -157,14 +175,17 @@ export function RepositoryFileLiquidSurface({
 							: 0,
 					}
 				: null;
+
 			setMeasurement((currentMeasurement) =>
 				hasSameMeasurement(currentMeasurement, nextMeasurement)
 					? currentMeasurement
 					: nextMeasurement
 			);
 		};
+
 		const row = fileList.querySelector<HTMLElement>(rowSelector);
 		const tracker = createLiquidGeometryTracker(measure);
+
 		tracker.setElements([
 			canvas,
 			fileRail,
@@ -174,6 +195,7 @@ export function RepositoryFileLiquidSurface({
 			...(row ? [row] : []),
 		]);
 		tracker.measureNow();
+
 		return tracker.disconnect;
 	}, [selectedFilePath]);
 
@@ -181,7 +203,9 @@ export function RepositoryFileLiquidSurface({
 		if (!measurement) {
 			return;
 		}
+
 		const cachedPath = pathCacheRef.current;
+
 		if (
 			cachedPath &&
 			hasSameRepositoryFileLiquidPathGeometry(
@@ -191,10 +215,14 @@ export function RepositoryFileLiquidSurface({
 		) {
 			return cachedPath.path;
 		}
+
 		const nextPath = createRepositoryFileLiquidPath(measurement);
+
 		pathCacheRef.current = { measurement, path: nextPath };
+
 		return nextPath;
 	}, [measurement]);
+
 	const surfaceStyle = measurement
 		? ({
 				"--repository-file-liquid-header-mask-bottom": `${measurement.headerMaskBottom}px`,

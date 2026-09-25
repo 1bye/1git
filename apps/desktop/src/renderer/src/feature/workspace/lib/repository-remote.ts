@@ -22,6 +22,7 @@ const parseRemoteWebLocation = (
 	}
 
 	const scpStyleMatch = SCP_STYLE_REMOTE_PATTERN.exec(remoteUrl);
+
 	if (scpStyleMatch?.[1] && scpStyleMatch[2]) {
 		return {
 			host: scpStyleMatch[1].toLowerCase(),
@@ -31,12 +32,14 @@ const parseRemoteWebLocation = (
 
 	try {
 		const parsedUrl = new URL(remoteUrl);
+
 		if (
 			!HOSTED_REMOTE_PROTOCOLS.has(parsedUrl.protocol) ||
 			parsedUrl.hostname === ""
 		) {
 			return null;
 		}
+
 		return {
 			host: parsedUrl.hostname.toLowerCase(),
 			path: parsedUrl.pathname,
@@ -51,17 +54,21 @@ export const getPreferredRepositoryRemote = (
 	upstream: string | null
 ): RemoteInfo | null => {
 	const upstreamRemoteName = upstream?.split("/", 1)[0] ?? null;
+
 	const preferredRemoteNames = ["origin", upstreamRemoteName].filter(
 		(name): name is string => name !== null
 	);
+
 	const visitedNames = new Set<string>();
 
 	for (const name of preferredRemoteNames) {
 		if (visitedNames.has(name)) {
 			continue;
 		}
+
 		visitedNames.add(name);
 		const remote = remotes.find((candidate) => candidate.name === name);
+
 		if (remote && getRemoteUrl(remote)) {
 			return remote;
 		}
@@ -79,6 +86,7 @@ export const getPreferredRepositoryRemoteUrl = (
 	upstream: string | null
 ): string | null => {
 	const remote = getPreferredRepositoryRemote(remotes, upstream);
+
 	return remote ? getRemoteUrl(remote) : null;
 };
 
@@ -86,12 +94,15 @@ export const getRepositoryWebUrl = (
 	remoteUrl: string | null
 ): string | null => {
 	const location = parseRemoteWebLocation(remoteUrl);
+
 	if (!location) {
 		return null;
 	}
+
 	const path = location.path
 		.replace(LEADING_SLASH_PATTERN, "")
 		.replace(GIT_SUFFIX_PATTERN, "");
+
 	return path ? `https://${location.host}/${path}` : null;
 };
 
@@ -99,9 +110,11 @@ export const getGithubRepositoryUrl = (
 	remoteUrl: string | null
 ): string | null => {
 	const repositoryUrl = getRepositoryWebUrl(remoteUrl);
+
 	if (!repositoryUrl || new URL(repositoryUrl).hostname !== GITHUB_HOST) {
 		return null;
 	}
+
 	return repositoryUrl;
 };
 
@@ -111,9 +124,12 @@ export const getGithubPullRequestUrl = (
 	headBranch: string
 ): string | null => {
 	const repositoryUrl = getGithubRepositoryUrl(remoteUrl);
+
 	if (!repositoryUrl) {
 		return null;
 	}
+
 	const comparison = `${encodeURIComponent(baseBranch)}...${encodeURIComponent(headBranch)}`;
+
 	return `${repositoryUrl}/compare/${comparison}?expand=1`;
 };

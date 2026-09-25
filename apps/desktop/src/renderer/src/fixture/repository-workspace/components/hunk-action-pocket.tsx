@@ -63,13 +63,16 @@ export function HunkActionPocket({
 	const [actionError, setActionError] = useState<string | null>(null);
 	const anchorRef = useRef<HTMLSpanElement | null>(null);
 	const getAnchor = useCallback((): Element | null => anchorRef.current, []);
+
 	const getAnchorViewport = useCallback(
 		(): Element | null => selection.viewportElement,
 		[selection.viewportElement]
 	);
+
 	const changeOpen = useCallback(
 		(nextIsOpen: boolean): void => {
 			onOpenChange(nextIsOpen);
+
 			if (!nextIsOpen) {
 				setActionError(null);
 				setView("actions");
@@ -77,6 +80,7 @@ export function HunkActionPocket({
 		},
 		[onOpenChange]
 	);
+
 	const positionAnchor = useCallback(
 		(anchor: HTMLSpanElement): void => {
 			const measurement = measureHunkActionSelection(
@@ -84,18 +88,26 @@ export function HunkActionPocket({
 				selection.anchorBounds,
 				selection.viewportElement
 			);
+
 			if (!measurement) {
 				anchor.style.visibility = "hidden";
 				changeOpen(false);
+
 				return;
 			}
+
 			const { anchor: bounds, visibleAnchor } = measurement;
+
 			const clipBottom =
 				bounds.top + bounds.height - (visibleAnchor.top + visibleAnchor.height);
+
 			const clipLeft = visibleAnchor.left - bounds.left;
+
 			const clipRight =
 				bounds.left + bounds.width - (visibleAnchor.left + visibleAnchor.width);
+
 			const clipTop = visibleAnchor.top - bounds.top;
+
 			anchor.style.clipPath = `inset(${clipTop}px ${clipRight}px ${clipBottom}px ${clipLeft}px)`;
 			anchor.style.height = `${bounds.height}px`;
 			anchor.style.left = `${bounds.left}px`;
@@ -110,28 +122,37 @@ export function HunkActionPocket({
 			selection.viewportElement,
 		]
 	);
+
 	const setAnchorElement = useCallback(
 		(anchor: HTMLSpanElement | null): void => {
 			anchorRef.current = anchor;
+
 			if (anchor) {
 				positionAnchor(anchor);
 			}
 		},
 		[positionAnchor]
 	);
+
 	useLayoutEffect(() => {
 		const anchor = anchorRef.current;
+
 		if (!anchor) {
 			return;
 		}
+
 		const tracker = createLiquidGeometryTracker(() => {
 			positionAnchor(anchor);
 		});
+
 		const trackedElements = [selection.viewportElement, anchor];
+
 		if (selection.anchorElement.isConnected) {
 			trackedElements.push(selection.anchorElement);
 		}
+
 		tracker.setElements(trackedElements);
+
 		return tracker.disconnect;
 	}, [positionAnchor, selection.anchorElement, selection.viewportElement]);
 	const runAction = async (action: HunkAction): Promise<void> => {
@@ -142,10 +163,13 @@ export function HunkActionPocket({
 			hunkIndex: selection.hunkIndex,
 			path: selection.path,
 		});
+
 		if (succeeded) {
 			changeOpen(false);
+
 			return;
 		}
+
 		setActionError("The hunk changed before the action could be applied.");
 	};
 

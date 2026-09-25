@@ -37,7 +37,9 @@ const parseGithubOwnerName = (payload: unknown): string | null => {
 	if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
 		return null;
 	}
+
 	const { host, name } = payload as Readonly<Record<string, unknown>>;
+
 	if (
 		typeof host !== "string" ||
 		host.trim().toLowerCase() !== GITHUB_HOST ||
@@ -46,6 +48,7 @@ const parseGithubOwnerName = (payload: unknown): string | null => {
 	) {
 		return null;
 	}
+
 	return name.trim();
 };
 
@@ -60,7 +63,9 @@ export const registerRepositoryOwnerIpc = ({
 			if (!isSenderAuthorized(event)) {
 				throw new Error(UNAUTHORIZED_IPC_MESSAGE);
 			}
+
 			const ownerName = parseGithubOwnerName(payload);
+
 			return ownerName
 				? await avatarProvider.get(ownerName)
 				: unavailableResult();
@@ -68,10 +73,12 @@ export const registerRepositoryOwnerIpc = ({
 	);
 
 	let disposed = false;
+
 	return () => {
 		if (disposed) {
 			return;
 		}
+
 		disposed = true;
 		ipcMain.removeHandler(REPOSITORY_OWNER_IPC_CHANNELS.avatar);
 	};

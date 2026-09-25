@@ -39,7 +39,9 @@ export const useWorkspaceTabDragRail = ({
 	const controllerRef = useRef<ReturnType<
 		typeof createWorkspaceTabDragRailController
 	> | null>(null);
+
 	const managerRef = useRef<DragDropManager | null>(null);
+
 	useLayoutEffect(() => {
 		const controller = createWorkspaceTabDragRailController({
 			cancelFrame: (frameId) => window.cancelAnimationFrame(frameId),
@@ -50,10 +52,13 @@ export const useWorkspaceTabDragRail = ({
 			getRail: () => railRef.current,
 			getRailMaskImage: (rail) => {
 				const styles = window.getComputedStyle(rail);
+
 				if (styles.maskImage && styles.maskImage !== "none") {
 					return styles.maskImage;
 				}
+
 				const webkitMaskImage = styles.getPropertyValue("-webkit-mask-image");
+
 				return webkitMaskImage && webkitMaskImage !== "none"
 					? webkitMaskImage
 					: null;
@@ -66,7 +71,9 @@ export const useWorkspaceTabDragRail = ({
 			},
 			requestFrame: (callback) => window.requestAnimationFrame(callback),
 		});
+
 		controllerRef.current = controller;
+
 		return () => {
 			controllerRef.current = null;
 			managerRef.current = null;
@@ -79,12 +86,14 @@ export const useWorkspaceTabDragRail = ({
 			managerRef.current = manager;
 			const sourceEvent =
 				event.nativeEvent ?? event.operation.activatorEvent ?? undefined;
+
 			controllerRef.current?.start(
 				isPointerDrag(sourceEvent) ? event.operation.position.current.x : null
 			);
 		},
 		[]
 	);
+
 	const moveDragRail = useCallback(
 		(event: DragMoveEvent, manager: DragDropManager): void => {
 			managerRef.current = manager;
@@ -94,6 +103,7 @@ export const useWorkspaceTabDragRail = ({
 		},
 		[]
 	);
+
 	const endDragRail = useCallback(
 		(_event: DragEndEvent, manager: DragDropManager): void => {
 			managerRef.current = manager;

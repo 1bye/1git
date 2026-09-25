@@ -13,12 +13,14 @@ import { Button } from "../../src/button";
 import { clickElement, elementByTestId } from "../_shared/native-elements";
 
 let root: TestRoot;
+
 beforeEach(() => {
 	root = createTestRoot({
 		width: 500,
 		height: 240,
 		onKeyDown(event, renderer) {
 			if (event.key !== "tab") return;
+
 			if (event.modifiers?.shift) renderer.focusPrevious?.();
 			else renderer.focusNext?.();
 		},
@@ -30,6 +32,7 @@ afterEach(() => {
 
 it("activates exactly once when Space down/up arrive in one React batch", () => {
 	let presses = 0;
+
 	root.render(
 		<Button
 			testId="button"
@@ -62,6 +65,7 @@ it("activates exactly once when Space down/up arrive in one React batch", () => 
 
 it("activates by mouse, Enter, and Space release", () => {
 	let presses = 0;
+
 	root.render(
 		<Button
 			testId="button"
@@ -87,6 +91,7 @@ it("activates by mouse, Enter, and Space release", () => {
 
 it("ignores key repeats and Space release without an initial press", () => {
 	let presses = 0;
+
 	root.render(
 		<Button
 			testId="button"
@@ -113,6 +118,7 @@ it("ignores key repeats and Space release without an initial press", () => {
 
 it("shows focus and cancels an armed Space press when focus notifications arrive", () => {
 	let presses = 0;
+
 	root.render(
 		<div style={{ display: "flex", gap: 10 }}>
 			<Button
@@ -153,6 +159,7 @@ it("shows focus and cancels an armed Space press when focus notifications arrive
 
 it("blocks disabled mouse and keyboard activation and skips the Tab order", () => {
 	let presses = 0;
+
 	root.render(
 		<div style={{ display: "flex", gap: 10 }}>
 			<Button
@@ -183,6 +190,7 @@ it("lets callers gate the focus ring and observe input without replacing activat
 	let pointerDowns = 0;
 	const keys: string[] = [];
 	let presses = 0;
+
 	const render = (focusVisible: boolean): void =>
 		root.render(
 			<Button
@@ -201,8 +209,10 @@ it("lets callers gate the focus ring and observe input without replacing activat
 				Commit
 			</Button>
 		);
+
 	render(false);
 	const button = elementByTestId(root.renderer, "button");
+
 	clickElement(root.renderer, "button");
 	expect(pointerDowns).toBe(1);
 	expect(presses).toBe(1);
@@ -228,9 +238,11 @@ it("lets callers gate the focus ring and observe input without replacing activat
 
 it("cancels a pending press when disabled between key down and key up", () => {
 	let presses = 0;
+
 	const onPress = () => {
 		presses += 1;
 	};
+
 	root.render(
 		<Button testId="button" onPress={onPress}>
 			Commit
@@ -255,11 +267,14 @@ it("cancels a pending press when disabled between key down and key up", () => {
 
 it("forwards the native ref and styles text and root separately without mutating inputs", () => {
 	const ref = createRef<PublicInstance>();
+
 	const style = {
 		backgroundColor: "#112233",
 		hover: { opacity: 0.8 },
 	} as const;
+
 	const textStyle = { color: "#abcdef" } as const;
+
 	root.render(
 		<Button ref={ref} testId="button" style={style} textStyle={textStyle}>
 			Commit

@@ -39,6 +39,7 @@ export class GitOperationRegistry {
 		task,
 	}: RunGitOperationInput<T>): Promise<GitResult<T>> {
 		const id = operationId ?? this.nextOperationId();
+
 		if (!isValidGitOperationId(id)) {
 			return {
 				error: {
@@ -50,6 +51,7 @@ export class GitOperationRegistry {
 				ok: false,
 			};
 		}
+
 		if (this.activeOperations.has(id)) {
 			return {
 				error: {
@@ -66,7 +68,9 @@ export class GitOperationRegistry {
 			controller: new AbortController(),
 			owner,
 		};
+
 		this.activeOperations.set(id, activeOperation);
+
 		try {
 			return await task(activeOperation.controller.signal);
 		} finally {
@@ -81,29 +85,36 @@ export class GitOperationRegistry {
 		owner: object
 	): GitOperationCancellationResult {
 		const activeOperation = this.activeOperations.get(operationId);
+
 		if (!activeOperation || activeOperation.owner !== owner) {
 			return { operationId, status: "not-found" };
 		}
+
 		activeOperation.controller.abort();
+
 		return { operationId, status: "cancelled" };
 	}
 
 	abortAll(owner?: object): number {
 		let abortedCount = 0;
+
 		for (const activeOperation of this.activeOperations.values()) {
 			if (owner === undefined || activeOperation.owner === owner) {
 				activeOperation.controller.abort();
 				abortedCount += 1;
 			}
 		}
+
 		return abortedCount;
 	}
 
 	private nextOperationId(): GitOperationId {
 		let operationId = randomUUID();
+
 		while (this.activeOperations.has(operationId)) {
 			operationId = randomUUID();
 		}
+
 		return operationId;
 	}
 }

@@ -37,6 +37,7 @@ afterEach(async () => {
 describe("RepositoryManager recent repository persistence", () => {
 	test("restores available paths and removes stale or duplicate records", async () => {
 		const fixture = await fixtures.create();
+
 		const store = new MemoryRecentRepositoryStore([
 			{
 				lastOpenedAt: "2026-01-01T00:00:02.000Z",
@@ -75,9 +76,11 @@ describe("RepositoryManager recent repository persistence", () => {
 	test("persists canonical paths for the next manager instance", async () => {
 		const fixture = await fixtures.create();
 		const store = new MemoryRecentRepositoryStore();
+
 		const manager = createTestRepositoryManager({
 			recentRepositoryStore: store,
 		});
+
 		const nestedFile = await fixture.write(
 			"nested/file.txt",
 			"repository content\n"
@@ -100,12 +103,15 @@ describe("RepositoryManager recent repository persistence", () => {
 		const fixture = await fixtures.create();
 		const movedPath = join(fixture.root, "moved-repository");
 		const store = new MemoryRecentRepositoryStore();
+
 		const manager = createTestRepositoryManager({
 			recentRepositoryStore: store,
 		});
+
 		const opened = unwrapManagerResult(
 			await manager.openRepository({ path: fixture.repositoryPath })
 		);
+
 		unwrapManagerResult(manager.closeSession(opened.session.id));
 		await rename(fixture.repositoryPath, movedPath);
 
@@ -114,6 +120,7 @@ describe("RepositoryManager recent repository persistence", () => {
 		const reopened = unwrapManagerResult(
 			await manager.openRepository({ path: movedPath })
 		);
+
 		expect(reopened.session.repository.root).toBe(movedPath);
 		expect(manager.getState().recentRepositories).toEqual([
 			{
@@ -126,9 +133,11 @@ describe("RepositoryManager recent repository persistence", () => {
 	test("persists explicit recent-repository removal", async () => {
 		const fixture = await fixtures.create();
 		const store = new MemoryRecentRepositoryStore();
+
 		const manager = createTestRepositoryManager({
 			recentRepositoryStore: store,
 		});
+
 		await manager.openRepository({ path: fixture.repositoryPath });
 
 		manager.forgetRecentRepository(fixture.repositoryPath);
@@ -140,12 +149,14 @@ describe("RepositoryManager recent repository persistence", () => {
 	test("reports storage failures without breaking repository opening", async () => {
 		const fixture = await fixtures.create();
 		const errors: Error[] = [];
+
 		const store: RecentRepositoryStore = {
 			load: () => [],
 			save: () => {
 				throw new Error("disk unavailable");
 			},
 		};
+
 		const manager = createTestRepositoryManager({
 			onPersistenceError: (error) => {
 				errors.push(error);
@@ -163,6 +174,7 @@ describe("RepositoryManager recent repository persistence", () => {
 
 	test("reports loading failures and starts with empty recent state", () => {
 		const errors: Error[] = [];
+
 		const store: RecentRepositoryStore = {
 			load: () => {
 				throw new Error("state unreadable");

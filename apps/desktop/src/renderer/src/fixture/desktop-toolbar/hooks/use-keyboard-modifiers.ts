@@ -13,6 +13,7 @@ const NO_KEYBOARD_MODIFIERS: KeyboardModifiers = {
 	metaKey: false,
 	shiftKey: false,
 };
+
 const modifierListeners = new Set<() => void>();
 let keyboardModifiers = NO_KEYBOARD_MODIFIERS;
 
@@ -42,6 +43,7 @@ const setKeyboardModifiers = (nextModifiers: KeyboardModifiers): void => {
 	if (hasSameModifiers(keyboardModifiers, nextModifiers)) {
 		return;
 	}
+
 	keyboardModifiers = nextModifiers;
 	notifyModifierListeners();
 };
@@ -62,6 +64,7 @@ const resetHiddenModifiers = (): void => {
 
 const subscribeToKeyboardModifiers = (listener: () => void): (() => void) => {
 	modifierListeners.add(listener);
+
 	if (modifierListeners.size === 1) {
 		window.addEventListener("keydown", updateModifiers);
 		window.addEventListener("keyup", updateModifiers);
@@ -71,9 +74,11 @@ const subscribeToKeyboardModifiers = (listener: () => void): (() => void) => {
 
 	return () => {
 		modifierListeners.delete(listener);
+
 		if (modifierListeners.size !== 0) {
 			return;
 		}
+
 		window.removeEventListener("keydown", updateModifiers);
 		window.removeEventListener("keyup", updateModifiers);
 		window.removeEventListener("blur", resetModifiers);

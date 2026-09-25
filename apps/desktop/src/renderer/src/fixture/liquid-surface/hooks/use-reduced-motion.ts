@@ -15,6 +15,7 @@ const getReducedMotionMediaQuery = (): ReducedMotionMediaQuery | null => {
 	) {
 		return null;
 	}
+
 	return window.matchMedia(REDUCED_MOTION_QUERY);
 };
 
@@ -29,11 +30,14 @@ export const subscribeReducedMotionPreference = (
 	if (!mediaQuery) {
 		return () => undefined;
 	}
+
 	const changePreference = (): void => {
 		onChange(mediaQuery.matches);
 	};
+
 	mediaQuery.addEventListener("change", changePreference);
 	changePreference();
+
 	return () => mediaQuery.removeEventListener("change", changePreference);
 };
 

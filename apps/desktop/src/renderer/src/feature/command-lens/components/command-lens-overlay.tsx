@@ -48,6 +48,7 @@ function CommandLensHint({
 	target,
 }: CommandLensHintProps): ReactElement {
 	const contentRef = useRef<HTMLDivElement>(null);
+
 	const [contentSize, setContentSize] = useState<{
 		readonly height: number;
 		readonly width: number;
@@ -55,11 +56,14 @@ function CommandLensHint({
 
 	useLayoutEffect(() => {
 		const content = contentRef.current;
+
 		if (!content) {
 			return;
 		}
+
 		const updateSize = (): void => {
 			const rect = content.getBoundingClientRect();
+
 			setContentSize((currentSize) => {
 				if (
 					currentSize?.height === rect.height &&
@@ -67,12 +71,16 @@ function CommandLensHint({
 				) {
 					return currentSize;
 				}
+
 				return { height: rect.height, width: rect.width };
 			});
 		};
+
 		updateSize();
 		const observer = new ResizeObserver(updateSize);
+
 		observer.observe(content);
+
 		return () => observer.disconnect();
 	}, []);
 
@@ -80,6 +88,7 @@ function CommandLensHint({
 		if (!contentSize) {
 			return null;
 		}
+
 		return getCommandLensHintRect(
 			target.rect,
 			contentSize.width,
@@ -89,6 +98,7 @@ function CommandLensHint({
 			{ height: window.innerHeight, width: window.innerWidth }
 		);
 	}, [contentSize, target.hintLayout, target.placement, target.rect]);
+
 	const contentStyle: CSSProperties = hintRect
 		? {
 				left: hintRect.left,
@@ -155,15 +165,18 @@ export function CommandLensOverlay({
 	targets,
 }: CommandLensOverlayProps): ReactElement {
 	const maskId = useId().replaceAll(":", "");
+
 	const presentedTargets = targets
 		.map((target) => ({
 			commands: getCommandLensDisplayCommands(target.commands, isOptionActive),
 			target,
 		}))
 		.filter(({ commands }) => commands.length > 0);
+
 	const hasOptionMode = hasCommandLensOptionMode(
 		targets.flatMap((target) => target.commands)
 	);
+
 	const layerStyle: CSSProperties = {
 		zIndex: COMMAND_LENS_Z_INDEX,
 	};

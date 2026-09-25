@@ -17,6 +17,7 @@ export const peekRepositoryOwnerAvatar = (
 	owner: RepositoryOwner | null
 ): string | null | undefined => {
 	const key = repositoryOwnerAvatarKey(owner);
+
 	return key ? avatarDataUrls.get(key) : null;
 };
 
@@ -25,14 +26,17 @@ export const loadRepositoryOwnerAvatarByIdentity = async (
 	name: string
 ): Promise<string | null> => {
 	const key = avatarKey(host, name);
+
 	if (!key) {
 		return null;
 	}
+
 	if (avatarDataUrls.has(key)) {
 		return avatarDataUrls.get(key) ?? null;
 	}
 
 	const pending = pendingAvatars.get(key);
+
 	if (pending) {
 		return await pending;
 	}
@@ -44,10 +48,14 @@ export const loadRepositoryOwnerAvatarByIdentity = async (
 		})
 		.then((result) => (result.status === "available" ? result.dataUrl : null))
 		.catch(() => null);
+
 	pendingAvatars.set(key, request);
+
 	try {
 		const dataUrl = await request;
+
 		avatarDataUrls.set(key, dataUrl);
+
 		return dataUrl;
 	} finally {
 		pendingAvatars.delete(key);

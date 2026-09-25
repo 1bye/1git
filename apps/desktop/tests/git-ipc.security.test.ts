@@ -19,9 +19,11 @@ afterEach(async () => {
 describe("Git IPC security and validation", () => {
 	test("does not open the native picker for an unauthorized sender", async () => {
 		let pickerOpened = false;
+
 		const harness = new GitIpcHarness(createTestRepositoryManager(), {
 			pickRepositoryDirectory: () => {
 				pickerOpened = true;
+
 				return Promise.resolve({ status: "cancelled" });
 			},
 		});
@@ -105,6 +107,7 @@ describe("Git IPC security and validation", () => {
 
 	test("cancels an active operation through its sender-scoped ID", async () => {
 		const harness = new GitIpcHarness(createTestRepositoryManager());
+
 		const pending = harness.runTrackedOperation(
 			"fetch-from-renderer",
 			"fetch",
@@ -162,11 +165,13 @@ describe("Git IPC security and validation", () => {
 	test("cancels a live Git child process through the preload protocol", async () => {
 		const fixture = await fixtures.create();
 		const executable = await fixtures.createBlockingGitExecutable();
+
 		const harness = new GitIpcHarness(
 			createTestRepositoryManager({
 				runtime: { executable },
 			})
 		);
+
 		const opening = harness.invoke<GitResult<OpenedRepositorySession>>(
 			GIT_IPC_CHANNELS.sessions.open,
 			{
@@ -180,6 +185,7 @@ describe("Git IPC security and validation", () => {
 			GIT_IPC_CHANNELS.operations.cancel,
 			{ operationId: "blocked-open" }
 		);
+
 		const result = await opening;
 
 		expect(cancellation).toEqual({

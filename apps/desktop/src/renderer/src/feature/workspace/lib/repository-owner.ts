@@ -18,6 +18,7 @@ export interface RepositoryOwner {
 
 const parseRemoteLocation = (remoteUrl: string): RemoteLocation | null => {
 	const scpStyleMatch = SCP_STYLE_REMOTE_PATTERN.exec(remoteUrl);
+
 	if (scpStyleMatch?.[1] && scpStyleMatch[2]) {
 		return {
 			host: scpStyleMatch[1].toLowerCase(),
@@ -27,12 +28,14 @@ const parseRemoteLocation = (remoteUrl: string): RemoteLocation | null => {
 
 	try {
 		const parsedUrl = new URL(remoteUrl);
+
 		if (
 			!HOSTED_REMOTE_PROTOCOLS.has(parsedUrl.protocol) ||
 			parsedUrl.hostname === ""
 		) {
 			return null;
 		}
+
 		return {
 			host: parsedUrl.hostname.toLowerCase(),
 			path: parsedUrl.pathname,
@@ -44,8 +47,10 @@ const parseRemoteLocation = (remoteUrl: string): RemoteLocation | null => {
 
 const ownerFromRemote = (remote: RemoteInfo): RepositoryOwner | null => {
 	const remoteUrls = [...remote.fetchUrls, ...remote.pushUrls];
+
 	for (const remoteUrl of remoteUrls) {
 		const location = parseRemoteLocation(remoteUrl);
+
 		if (!location) {
 			continue;
 		}
@@ -54,6 +59,7 @@ const ownerFromRemote = (remote: RemoteInfo): RepositoryOwner | null => {
 		const repositoryName = pathSegments.at(-1)?.replace(GIT_SUFFIX_PATTERN, "");
 		const namespaceSegments = pathSegments.slice(0, -1);
 		const ownerName = namespaceSegments.at(-1);
+
 		if (!(repositoryName && ownerName)) {
 			continue;
 		}
@@ -74,18 +80,23 @@ export const getRepositoryOwner = (
 	upstream: string | null
 ): RepositoryOwner | null => {
 	const upstreamRemoteName = upstream?.split("/", 1)[0] ?? null;
+
 	const preferredRemoteNames = ["origin", upstreamRemoteName].filter(
 		(remoteName): remoteName is string => remoteName !== null
 	);
+
 	const visitedRemoteNames = new Set<string>();
 
 	for (const remoteName of preferredRemoteNames) {
 		const remote = remotes.find((candidate) => candidate.name === remoteName);
+
 		if (!remote || visitedRemoteNames.has(remote.name)) {
 			continue;
 		}
+
 		visitedRemoteNames.add(remote.name);
 		const owner = ownerFromRemote(remote);
+
 		if (owner) {
 			return owner;
 		}
@@ -95,7 +106,9 @@ export const getRepositoryOwner = (
 		if (visitedRemoteNames.has(remote.name)) {
 			continue;
 		}
+
 		const owner = ownerFromRemote(remote);
+
 		if (owner) {
 			return owner;
 		}

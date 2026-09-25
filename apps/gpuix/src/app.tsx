@@ -11,6 +11,7 @@ export function App({ initialTabCount = 1 }: { initialTabCount?: number }) {
 		initialTabCount,
 		WorkspaceTabsModel.create
 	);
+
 	const activeTab = state.tabs.find((tab) => tab.id === state.activeId);
 
 	return (

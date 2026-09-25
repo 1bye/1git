@@ -3,6 +3,7 @@ import type { CommitInfo } from "../contracts.js";
 export const HISTORY_FIELD_SEPARATOR = "\x1f";
 export const HISTORY_RECORD_SEPARATOR = "\x1e";
 const LEADING_NEWLINE_PATTERN = /^\n/;
+
 export const HISTORY_FORMAT = [
 	"%H",
 	"%P",
@@ -24,15 +25,18 @@ export const parseHistory = (
 		.toString()
 		.split(HISTORY_RECORD_SEPARATOR)
 		.filter((record) => record.length > 0);
+
 	const commits: CommitInfo[] = [];
 
 	for (const record of records) {
 		const fields = record
 			.replace(LEADING_NEWLINE_PATTERN, "")
 			.split(HISTORY_FIELD_SEPARATOR);
+
 		if (fields.length < 10) {
 			continue;
 		}
+
 		const [
 			oid,
 			parents,
@@ -45,6 +49,7 @@ export const parseHistory = (
 			summary,
 			...bodyParts
 		] = fields;
+
 		if (
 			!(
 				oid &&
@@ -60,6 +65,7 @@ export const parseHistory = (
 		) {
 			continue;
 		}
+
 		commits.push({
 			author: { email: authorEmail, name: authorName },
 			authoredAt,

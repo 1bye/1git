@@ -27,6 +27,7 @@ const FILE_STATUS: Readonly<Record<string, FileStatus>> = {
 	T: "type-changed",
 	U: "unmerged",
 };
+
 const BRANCH_AB_PATTERN = /^# branch\.ab \+(\d+) -(\d+)$/;
 
 const statusFromCode = (code: string): FileStatus =>
@@ -38,23 +39,29 @@ const takeFields = (
 ): { readonly fields: readonly string[]; readonly remainder: string } => {
 	const fields: string[] = [];
 	let offset = 0;
+
 	for (let index = 0; index < count; index += 1) {
 		const separator = value.indexOf(" ", offset);
+
 		if (separator < 0) {
 			return { fields, remainder: "" };
 		}
+
 		fields.push(value.slice(offset, separator));
 		offset = separator + 1;
 	}
+
 	return { fields, remainder: value.slice(offset) };
 };
 
 const ordinaryChange = (record: string): FileChange | null => {
 	const { fields, remainder: path } = takeFields(record.slice(2), 7);
 	const [xy, submodule, , , , headOid, indexOid] = fields;
+
 	if (!(xy && submodule && headOid && indexOid && path)) {
 		return null;
 	}
+
 	return {
 		headOid,
 		indexOid,
@@ -72,9 +79,11 @@ const renamedChange = (
 ): FileChange | null => {
 	const { fields, remainder: path } = takeFields(record.slice(2), 8);
 	const [xy, submodule, , , , headOid, indexOid, score] = fields;
+
 	if (!(xy && submodule && headOid && indexOid && score && path)) {
 		return null;
 	}
+
 	return {
 		headOid,
 		indexOid,
@@ -91,9 +100,11 @@ const renamedChange = (
 const unmergedChange = (record: string): FileChange | null => {
 	const { fields, remainder: path } = takeFields(record.slice(2), 9);
 	const [xy, submodule] = fields;
+
 	if (!(xy && submodule && path)) {
 		return null;
 	}
+
 	return {
 		indexStatus: "unmerged",
 		path,
@@ -117,29 +128,42 @@ const simpleChange = (
 const applyHeader = (record: string, status: StatusAccumulator): boolean => {
 	if (record.startsWith("# branch.oid ")) {
 		const value = record.slice("# branch.oid ".length);
+
 		status.oid = value === "(initial)" ? null : value;
+
 		return true;
 	}
+
 	if (record.startsWith("# branch.head ")) {
 		const value = record.slice("# branch.head ".length);
+
 		status.branch = value === "(detached)" ? null : value;
+
 		return true;
 	}
+
 	if (record.startsWith("# branch.upstream ")) {
 		status.upstream = record.slice("# branch.upstream ".length);
+
 		return true;
 	}
+
 	if (record.startsWith("# branch.ab ")) {
 		const match = BRANCH_AB_PATTERN.exec(record);
+
 		status.ahead = Number.parseInt(match?.[1] ?? "0", 10);
 		status.behind = Number.parseInt(match?.[2] ?? "0", 10);
+
 		return true;
 	}
+
 	if (record.startsWith("# stash ")) {
 		status.stashCount =
 			Number.parseInt(record.slice("# stash ".length), 10) || 0;
+
 		return true;
 	}
+
 	return false;
 };
 
@@ -148,24 +172,30 @@ const parseChangeRecord = (
 	index: number
 ): { readonly change: FileChange | null; readonly consumedRecords: number } => {
 	const record = records[index] ?? "";
+
 	if (record.startsWith("1 ")) {
 		return { change: ordinaryChange(record), consumedRecords: 1 };
 	}
+
 	if (record.startsWith("2 ")) {
 		return {
 			change: renamedChange(record, records[index + 1] ?? ""),
 			consumedRecords: 2,
 		};
 	}
+
 	if (record.startsWith("u ")) {
 		return { change: unmergedChange(record), consumedRecords: 1 };
 	}
+
 	if (record.startsWith("? ")) {
 		return { change: simpleChange(record, "untracked"), consumedRecords: 1 };
 	}
+
 	if (record.startsWith("! ")) {
 		return { change: simpleChange(record, "ignored"), consumedRecords: 1 };
 	}
+
 	return { change: null, consumedRecords: 1 };
 };
 
@@ -173,6 +203,7 @@ const parseChangeRecord = (
 export const parseStatus = (output: Buffer | string): ParsedStatus => {
 	const records = output.toString().split("\0");
 	const files: FileChange[] = [];
+
 	const status: StatusAccumulator = {
 		ahead: 0,
 		behind: 0,
@@ -184,14 +215,19 @@ export const parseStatus = (output: Buffer | string): ParsedStatus => {
 
 	for (let index = 0; index < records.length; index += 1) {
 		const record = records[index] ?? "";
+
 		if (!record) {
 			continue;
 		}
+
 		if (applyHeader(record, status)) {
 			continue;
 		}
+
 		const parsed = parseChangeRecord(records, index);
+
 		index += parsed.consumedRecords - 1;
+
 		if (parsed.change) {
 			files.push(parsed.change);
 		}

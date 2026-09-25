@@ -8,5 +8,6 @@ export const updateWorkspaceMenuSurfaceSession = (
 	if (isPresent) {
 		return sessionId;
 	}
+
 	return currentSessionId === sessionId ? null : currentSessionId;
 };

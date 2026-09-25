@@ -32,11 +32,13 @@ const THUMBNAIL_SIZE_PIXELS = {
 
 const getThumbnailTone = (label: string): string => {
 	let toneIndex = 0;
+
 	for (const character of label) {
 		toneIndex =
 			(toneIndex + (character.codePointAt(0) ?? 0)) %
 			OWNER_THUMBNAIL_TONES.length;
 	}
+
 	return OWNER_THUMBNAIL_TONES[toneIndex] ?? OWNER_THUMBNAIL_TONES[0];
 };
 
@@ -50,9 +52,11 @@ export function RepositoryOwnerThumbnail({
 	const [failedDataUrl, setFailedDataUrl] = useState<string | null>(null);
 	const initial = label.trim().charAt(0).toLocaleUpperCase() || "•";
 	const showAvatar = avatarDataUrl !== null && avatarDataUrl !== failedDataUrl;
+
 	const hideInvalidAvatar = (): void => {
 		setFailedDataUrl(avatarDataUrl);
 	};
+
 	const sizeClassName = THUMBNAIL_SIZE_CLASS_NAMES[size];
 
 	if (showAvatar) {

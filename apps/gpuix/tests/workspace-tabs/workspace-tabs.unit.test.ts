@@ -10,6 +10,7 @@ import { WorkspaceTabsModel as Model } from "../../src/feature/workspace-tabs/li
 
 it("creates independent state and preserves identity for ignored actions", () => {
 	const state = Model.create();
+
 	expect(Model.create()).not.toBe(state);
 	expect(Model.reduce(state, { type: "activate", id: "missing" })).toBe(state);
 	expect(Model.reduce(state, { type: "close", id: "missing" })).toBe(state);
@@ -32,10 +33,12 @@ it("adds unique tabs without mutating the input and keeps the active tab on an i
 
 it("seeds a multi-tab preview with the first tab active and fresh IDs for +", () => {
 	const state = Model.create(8);
+
 	expect(state.tabs).toHaveLength(8);
 	expect(new Set(state.tabs.map((tab) => tab.id)).size).toBe(8);
 	expect(state.activeId).toBe("workspace-1");
 	expect(Model.reduce(state, { type: "add" }).activeId).toBe("workspace-9");
+
 	for (const count of [0, -1, 1.5, Number.POSITIVE_INFINITY]) {
 		expect(() => Model.create(count)).toThrow("positive integer");
 	}
@@ -45,6 +48,7 @@ it("closes to the right, then left, then empty, and can reopen from empty", () =
 	let state = Model.reduce(Model.reduce(Model.create(), { type: "add" }), {
 		type: "add",
 	});
+
 	state = Model.reduce(state, { type: "activate", id: "workspace-2" });
 	state = Model.reduce(state, { type: "close", id: "workspace-2" });
 	expect(state.activeId).toBe("workspace-3");
@@ -58,6 +62,7 @@ it("closes to the right, then left, then empty, and can reopen from empty", () =
 
 it("wraps arrow navigation and supports Home/End without accepting unrelated keys", () => {
 	const { tabs } = Model.reduce(Model.create(), { type: "add" });
+
 	expect(Model.destination(tabs, "workspace-1", "left")).toBe("workspace-2");
 	expect(Model.destination(tabs, "workspace-2", "right")).toBe("workspace-1");
 	expect(Model.destination(tabs, "workspace-2", "home")).toBe("workspace-1");
@@ -70,12 +75,14 @@ it("reorders in either direction without changing selection or mutating the orig
 	const initial = Model.reduce(Model.reduce(Model.create(), { type: "add" }), {
 		type: "add",
 	});
+
 	Object.freeze(initial.tabs);
 	const moved = Model.reduce(initial, {
 		type: "reorder",
 		id: "workspace-1",
 		overId: "workspace-3",
 	});
+
 	expect(moved.tabs.map((tab) => tab.id)).toEqual([
 		"workspace-2",
 		"workspace-3",

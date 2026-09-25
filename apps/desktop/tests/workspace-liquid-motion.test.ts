@@ -37,6 +37,7 @@ describe("workspace liquid motion", () => {
 			tabTop: 4,
 			tabWidth: 202,
 		};
+
 		const collapsedMeasurement =
 			createCollapsedWorkspaceLiquidMeasurement(measurement);
 
@@ -98,6 +99,7 @@ describe("workspace liquid motion", () => {
 			tabTop: 4,
 			tabWidth: 202,
 		};
+
 		const end = {
 			surfaceWidth: 800,
 			tabFullWidth: 202,

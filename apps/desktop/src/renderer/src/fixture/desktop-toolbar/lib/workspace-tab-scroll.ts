@@ -36,11 +36,13 @@ export const getWorkspaceTabRevealScrollLeft = ({
 	viewportRight,
 }: WorkspaceTabScrollInput): number => {
 	let scrollDelta = 0;
+
 	if (tabLeft < viewportLeft) {
 		scrollDelta = tabLeft - viewportLeft;
 	} else if (tabRight > viewportRight) {
 		scrollDelta = tabRight - viewportRight;
 	}
+
 	return clampScrollLeft(currentScrollLeft + scrollDelta, maximumScrollLeft);
 };
 
@@ -52,6 +54,7 @@ export const getWorkspaceTabRevealFrame = ({
 }: WorkspaceTabRevealFrameInput): WorkspaceTabRevealFrame => {
 	const progress = durationMs <= 0 ? 1 : clampProgress(elapsedMs / durationMs);
 	const easedProgress = easeWorkspaceLiquidMotion(progress);
+
 	return {
 		isComplete: progress === 1,
 		scrollLeft:

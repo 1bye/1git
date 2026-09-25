@@ -23,6 +23,7 @@ export const requireText = (
 			`${label} must be non-empty and contain no NUL.`
 		);
 	}
+
 	return value;
 };
 
@@ -33,9 +34,11 @@ export const requireRevision = (
 	operation: GitOperation
 ): string => {
 	requireText(value, label, operation);
+
 	if (value.startsWith("-")) {
 		throw invalidInput(operation, `${label} must not begin with "-".`);
 	}
+
 	return value;
 };
 
@@ -48,6 +51,7 @@ export const requireCredentialFreeRemoteUrl = (
 	operation: GitOperation
 ): string => {
 	requireText(value, "Remote URL", operation);
+
 	if (!HTTP_REMOTE_PATTERN.test(value)) {
 		return value;
 	}
@@ -55,13 +59,16 @@ export const requireCredentialFreeRemoteUrl = (
 	if (!URL.canParse(value)) {
 		throw invalidInput(operation, "Remote URL must be a valid HTTP URL.");
 	}
+
 	const remoteUrl = new URL(value);
+
 	if (remoteUrl.username.length > 0 || remoteUrl.password.length > 0) {
 		throw invalidInput(
 			operation,
 			"Remote URL must not contain credentials. Configure a Git credential helper instead."
 		);
 	}
+
 	return value;
 };
 
@@ -73,11 +80,14 @@ export const requireRepositoryPaths = (
 	if (paths.length === 0) {
 		throw invalidInput(operation, "At least one repository path is required.");
 	}
+
 	const uniquePaths = new Set<string>();
+
 	for (const path of paths) {
 		requireText(path, "Repository path", operation);
 		const normalized = normalize(path);
 		const segments = normalized.split(sep);
+
 		if (isAbsolute(path) || normalized === ".." || segments.includes("..")) {
 			throw invalidInput(
 				operation,
@@ -85,8 +95,10 @@ export const requireRepositoryPaths = (
 				"invalid-path"
 			);
 		}
+
 		uniquePaths.add(path);
 	}
+
 	return [...uniquePaths];
 };
 
@@ -96,12 +108,14 @@ export const requireConfigKey = (
 	operation: GitOperation
 ): string => {
 	requireText(key, "Configuration key", operation);
+
 	if (!CONFIG_KEY_PATTERN.test(key)) {
 		throw invalidInput(
 			operation,
 			`"${key}" is not a valid Git configuration key.`
 		);
 	}
+
 	return key;
 };
 
@@ -113,6 +127,7 @@ export const requireConfigReadScope = (
 	if (scope === "effective" || scope === "local" || scope === "worktree") {
 		return scope;
 	}
+
 	throw invalidInput(operation, "Configuration read scope is not supported.");
 };
 
@@ -124,6 +139,7 @@ export const requireConfigScope = (
 	if (scope === "local" || scope === "worktree") {
 		return scope;
 	}
+
 	throw invalidInput(operation, "Configuration write scope is not supported.");
 };
 
@@ -141,5 +157,6 @@ export const requireIntegerInRange = (
 			`${label} must be an integer from ${minimum} to ${maximum}.`
 		);
 	}
+
 	return value;
 };

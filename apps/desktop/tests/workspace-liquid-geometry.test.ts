@@ -39,6 +39,7 @@ const createMeasuredWorkspacePath = (
 	measurement: WorkspaceLiquidMeasurement
 ): string => {
 	const geometry = WORKSPACE_TAB_SURFACE_GEOMETRY;
+
 	return createWorkspaceLiquidPath({
 		blendRadius: geometry.blendRadius,
 		containerDepth: geometry.containerDepth,
@@ -65,10 +66,12 @@ const createEdgeMeasurement = (
 ): WorkspaceLiquidMeasurement => {
 	const geometry = WORKSPACE_TAB_SURFACE_GEOMETRY;
 	const visibleTabWidth = tabWidth - geometry.tabVisualInsetInline * 2;
+
 	const visibleTabLeft =
 		edge === "left"
 			? edgeClearance
 			: surfaceWidth - edgeClearance - visibleTabWidth;
+
 	return createWorkspaceLiquidMeasurement(
 		{ height: geometry.toolbarHeight, left: 0, top: 0, width: surfaceWidth },
 		{
@@ -91,19 +94,26 @@ const getHorizontalPathIntersections = (
 	y: number
 ): readonly number[] => {
 	const intersections: number[] = [];
+
 	for (const [index, start] of coordinates.entries()) {
 		const end = coordinates[(index + 1) % coordinates.length];
+
 		if (!end) {
 			continue;
 		}
+
 		const crossesRow =
 			(start[1] <= y && end[1] > y) || (end[1] <= y && start[1] > y);
+
 		if (!crossesRow) {
 			continue;
 		}
+
 		const progress = (y - start[1]) / (end[1] - start[1]);
+
 		intersections.push(start[0] + (end[0] - start[0]) * progress);
 	}
+
 	return intersections.sort((first, second) => first - second);
 };
 
@@ -113,7 +123,9 @@ const getPathEdgeAtY = (
 	edge: WorkspaceEdge
 ): number => {
 	const intersections = getHorizontalPathIntersections(coordinates, y);
+
 	expect(intersections).toHaveLength(2);
+
 	return edge === "left"
 		? (intersections[0] ?? Number.NaN)
 		: (intersections.at(-1) ?? Number.NaN);
@@ -126,18 +138,23 @@ const getContainerEdgeAtY = (
 	edgeConnection: number
 ): number => {
 	const geometry = WORKSPACE_TAB_SURFACE_GEOMETRY;
+
 	const cornerRadius = getWorkspaceLiquidCornerRadius(
 		geometry.containerRadius,
 		edgeConnection
 	);
+
 	const cornerCenterY = geometry.toolbarHeight + cornerRadius;
+
 	const verticalOffset = Math.max(
 		-cornerRadius,
 		Math.min(cornerRadius, y - cornerCenterY)
 	);
+
 	const cornerOffset = Math.sqrt(
 		Math.max(0, cornerRadius ** 2 - verticalOffset ** 2)
 	);
+
 	return edge === "left"
 		? cornerRadius - cornerOffset
 		: surfaceWidth - cornerRadius + cornerOffset;
@@ -163,23 +180,29 @@ const expectContinuousWorkspacePath = (
 	expect(Math.max(...horizontalCoordinates)).toBeLessThanOrEqual(
 		measurement.surfaceWidth + PATH_COORDINATE_PRECISION_TOLERANCE
 	);
+
 	for (const offset of [-0.5, 0]) {
 		const y = handoffY + offset;
+
 		for (const edge of ["left", "right"] as const) {
 			const edgeConnection =
 				edge === "left" ? edgeConnections.left : edgeConnections.right;
+
 			const pathEdge = getPathEdgeAtY(coordinates, y, edge);
+
 			const containerEdge = getContainerEdgeAtY(
 				measurement.surfaceWidth,
 				y,
 				edge,
 				edgeConnection
 			);
+
 			expect(Math.abs(pathEdge - containerEdge)).toBeLessThanOrEqual(
 				geometry.sampleCellSize / 2
 			);
 		}
 	}
+
 	return coordinates;
 };
 
@@ -228,6 +251,7 @@ describe("workspace liquid geometry", () => {
 		const surface = { height: 47, left: 0, top: 0, width: 320 };
 		const viewport = { ...surface };
 		const tab = { height: 40, left: 0, top: 3, width: 210 };
+
 		const measure = (tabRect: typeof tab): WorkspaceLiquidMeasurement =>
 			createWorkspaceLiquidMeasurement(surface, tabRect, viewport);
 
@@ -263,6 +287,7 @@ describe("workspace liquid geometry", () => {
 
 	test("derives edge connection from the interpolated tab position", () => {
 		const surfaceWidth = 900;
+
 		const edgeMeasurement = createEdgeMeasurement(
 			surfaceWidth,
 			"left",
@@ -270,10 +295,12 @@ describe("workspace liquid geometry", () => {
 			WORKSPACE_TAB_SURFACE_GEOMETRY.tabListInset +
 				WORKSPACE_TAB_SURFACE_GEOMETRY.tabVisualInsetInline
 		);
+
 		const interiorMeasurement: WorkspaceLiquidMeasurement = {
 			...edgeMeasurement,
 			tabLeft: 220,
 		};
+
 		const connectionAt = (progress: number): number =>
 			getWorkspaceLiquidEdgeConnections(
 				interpolateWorkspaceLiquidMeasurement(
@@ -312,26 +339,31 @@ describe("workspace liquid geometry", () => {
 	test("tracks scroll, reorder, close, and resize measurements", () => {
 		const surface = { height: 46, left: 80, top: 0, width: 900 };
 		const viewport = { height: 47, left: 120, top: 0, width: 500 };
+
 		const initial = createWorkspaceLiquidMeasurement(
 			surface,
 			{ height: 40, left: 124, top: 3, width: 210 },
 			viewport
 		);
+
 		const scrolled = createWorkspaceLiquidMeasurement(
 			surface,
 			{ height: 40, left: 88, top: 3, width: 210 },
 			viewport
 		);
+
 		const reordered = createWorkspaceLiquidMeasurement(
 			surface,
 			{ height: 40, left: 334, top: 3, width: 210 },
 			viewport
 		);
+
 		const nextAfterClose = createWorkspaceLiquidMeasurement(
 			surface,
 			{ height: 40, left: 544, top: 3, width: 210 },
 			viewport
 		);
+
 		const resized = createWorkspaceLiquidMeasurement(
 			{ ...surface, width: 640 },
 			{ height: 40, left: 334, top: 3, width: 210 },
@@ -373,6 +405,7 @@ describe("workspace liquid geometry", () => {
 	test("clips the open-menu anchor to the workspace tab viewport", () => {
 		const anchorClip = { height: 47, left: 120, top: 0, width: 420 };
 		const menu = { height: 262, left: 120, top: 45, width: 288 };
+
 		const partialFrame = createLiquidMenuFrame(
 			{
 				anchor: { height: 40, left: 84, top: 3, width: 210 },
@@ -383,6 +416,7 @@ describe("workspace liquid geometry", () => {
 			{ menu: 1, submenu: 0 },
 			LIQUID_MENU_ANCHOR_GEOMETRY
 		);
+
 		const hiddenFrame = createLiquidMenuFrame(
 			{
 				anchor: { height: 40, left: -126, top: 3, width: 210 },
@@ -393,6 +427,7 @@ describe("workspace liquid geometry", () => {
 			{ menu: 1, submenu: 0 },
 			LIQUID_MENU_ANCHOR_GEOMETRY
 		);
+
 		const absoluteAnchor = (
 			frame: ReturnType<typeof createLiquidMenuFrame>
 		): { height: number; left: number; top: number; width: number } => ({
@@ -401,6 +436,7 @@ describe("workspace liquid geometry", () => {
 			top: frame.bounds.top + frame.anchor.top,
 			width: frame.anchor.width,
 		});
+
 		const hiddenPathTop = Math.min(
 			...pathCoordinates(hiddenFrame.path).map(
 				([, top]) => top + hiddenFrame.bounds.top
@@ -471,6 +507,7 @@ describe("workspace liquid geometry", () => {
 
 	test("preserves the full liquid tab union above the seam band", () => {
 		const geometry = WORKSPACE_TAB_SURFACE_GEOMETRY;
+
 		const measurement: WorkspaceLiquidMeasurement = {
 			surfaceWidth: 900,
 			tabFullWidth: 178,
@@ -479,7 +516,9 @@ describe("workspace liquid geometry", () => {
 			tabTop: 7,
 			tabWidth: 178,
 		};
+
 		const workspacePath = createMeasuredWorkspacePath(measurement);
+
 		const fullUnionPath = createLiquidUnionPath({
 			blendRadius: geometry.blendRadius,
 			boxes: [
@@ -507,6 +546,7 @@ describe("workspace liquid geometry", () => {
 				geometry.sampleCellSize * 2,
 			surfaceWidth: measurement.surfaceWidth,
 		});
+
 		const workspaceCoordinates = pathCoordinates(workspacePath);
 		const fullUnionCoordinates = pathCoordinates(fullUnionPath);
 
@@ -515,6 +555,7 @@ describe("workspace liquid geometry", () => {
 				workspaceCoordinates,
 				y
 			);
+
 			const fullUnionIntersections = getHorizontalPathIntersections(
 				fullUnionCoordinates,
 				y
@@ -522,6 +563,7 @@ describe("workspace liquid geometry", () => {
 
 			expect(workspaceIntersections).toHaveLength(2);
 			expect(fullUnionIntersections).toHaveLength(2);
+
 			for (const [index, intersection] of workspaceIntersections.entries()) {
 				expect(intersection).toBeCloseTo(
 					fullUnionIntersections[index] ?? Number.NaN,
@@ -534,6 +576,7 @@ describe("workspace liquid geometry", () => {
 	test("keeps a connected tab flush through the outer workspace corner", () => {
 		const geometry = WORKSPACE_TAB_SURFACE_GEOMETRY;
 		const surfaceWidth = 320.5;
+
 		expect(geometry.containerRenderDepth).toBeGreaterThanOrEqual(
 			geometry.containerRadius
 		);
@@ -542,8 +585,10 @@ describe("workspace liquid geometry", () => {
 			const measurement = createEdgeMeasurement(surfaceWidth, edge);
 			const coordinates = expectContinuousWorkspacePath(measurement);
 			const boundary = edge === "left" ? 0 : surfaceWidth;
+
 			const joinTop =
 				measurement.tabTop + geometry.tabRadius + geometry.sampleCellSize;
+
 			const joinBottom = geometry.toolbarHeight + geometry.containerRadius;
 
 			for (let y = joinTop; y <= joinBottom; y += 0.5) {
@@ -590,6 +635,7 @@ describe("workspace liquid geometry", () => {
 			menu: { height: 262, left: 132, top: 45, width: 288 },
 			submenu: null,
 		};
+
 		const seedFrame = createLiquidMenuFrame(
 			measurement,
 			{
@@ -598,6 +644,7 @@ describe("workspace liquid geometry", () => {
 			},
 			LIQUID_MENU_ANCHOR_GEOMETRY
 		);
+
 		const openFrame = createLiquidMenuFrame(
 			measurement,
 			{
@@ -606,12 +653,15 @@ describe("workspace liquid geometry", () => {
 			},
 			LIQUID_MENU_ANCHOR_GEOMETRY
 		);
+
 		const seedCoordinates = pathCoordinates(seedFrame.path);
 		const openCoordinates = pathCoordinates(openFrame.path);
+
 		const horizontalSpan = (
 			coordinates: readonly [number, number][]
 		): number => {
 			const horizontalCoordinates = coordinates.map(([x]) => x);
+
 			return (
 				Math.max(...horizontalCoordinates) - Math.min(...horizontalCoordinates)
 			);
@@ -659,6 +709,7 @@ describe("workspace liquid geometry", () => {
 			menu: { height: 188, left: 296, top: 18, width: 340 },
 			submenu: null,
 		};
+
 		const seedFrame = createLiquidMenuFrame(
 			measurement,
 			{
@@ -671,6 +722,7 @@ describe("workspace liquid geometry", () => {
 				radius: 8,
 			}
 		);
+
 		const openFrame = createLiquidMenuFrame(
 			measurement,
 			{
@@ -683,8 +735,10 @@ describe("workspace liquid geometry", () => {
 				radius: 8,
 			}
 		);
+
 		const seedCoordinates = pathCoordinates(seedFrame.path);
 		const openCoordinates = pathCoordinates(openFrame.path);
+
 		const maximumX = (coordinates: readonly [number, number][]): number =>
 			Math.max(...coordinates.map(([x]) => x));
 
@@ -706,6 +760,7 @@ describe("workspace liquid geometry", () => {
 				trigger: { height: 28, left: 228, top: 174, width: 272 },
 			},
 		};
+
 		const seedFrame = createLiquidMenuFrame(
 			measurement,
 			{
@@ -714,6 +769,7 @@ describe("workspace liquid geometry", () => {
 			},
 			LIQUID_MENU_ANCHOR_GEOMETRY
 		);
+
 		const openFrame = createLiquidMenuFrame(
 			measurement,
 			{
@@ -722,8 +778,10 @@ describe("workspace liquid geometry", () => {
 			},
 			LIQUID_MENU_ANCHOR_GEOMETRY
 		);
+
 		const seedCoordinates = pathCoordinates(seedFrame.path);
 		const openCoordinates = pathCoordinates(openFrame.path);
+
 		const minimumX = (coordinates: readonly [number, number][]): number =>
 			Math.min(...coordinates.map(([x]) => x));
 
@@ -743,6 +801,7 @@ describe("workspace liquid geometry", () => {
 				trigger: { height: 28, left: 128, top: 174, width: 272 },
 			},
 		};
+
 		const seedFrame = createLiquidMenuFrame(
 			measurement,
 			{
@@ -751,6 +810,7 @@ describe("workspace liquid geometry", () => {
 			},
 			LIQUID_MENU_ANCHOR_GEOMETRY
 		);
+
 		const openFrame = createLiquidMenuFrame(
 			measurement,
 			{
@@ -759,8 +819,10 @@ describe("workspace liquid geometry", () => {
 			},
 			LIQUID_MENU_ANCHOR_GEOMETRY
 		);
+
 		const seedCoordinates = pathCoordinates(seedFrame.path);
 		const openCoordinates = pathCoordinates(openFrame.path);
+
 		const maximumX = (coordinates: readonly [number, number][]): number =>
 			Math.max(...coordinates.map(([x]) => x));
 
@@ -774,6 +836,7 @@ describe("workspace liquid geometry", () => {
 
 	test("clips the liquid skin to the workspace bounds", () => {
 		const surfaceWidth = 320;
+
 		const path = createWorkspaceLiquidPath({
 			blendRadius: 16,
 			containerDepth: 48,
@@ -790,6 +853,7 @@ describe("workspace liquid geometry", () => {
 			tabTop: 6,
 			tabWidth: 178,
 		});
+
 		const coordinates = pathCoordinates(path);
 		const horizontalCoordinates = coordinates.map(([x]) => x);
 
@@ -801,6 +865,7 @@ describe("workspace liquid geometry", () => {
 
 	test("renders only the workspace container when the tab is fully clipped", () => {
 		const containerTop = 46;
+
 		const path = createWorkspaceLiquidPath({
 			blendRadius: 12,
 			containerDepth: 48,
@@ -817,6 +882,7 @@ describe("workspace liquid geometry", () => {
 			tabTop: containerTop,
 			tabWidth: 0,
 		});
+
 		const verticalCoordinates = pathCoordinates(path).map(([, y]) => y);
 
 		expect(path).not.toBe("");
@@ -827,10 +893,12 @@ describe("workspace liquid geometry", () => {
 
 	test("keeps mirrored edge connections continuous across surface widths", () => {
 		const geometry = WORKSPACE_TAB_SURFACE_GEOMETRY;
+
 		const expectedTabHeight =
 			geometry.tabHeight -
 			geometry.tabVisualInsetBlock * 2 +
 			geometry.tabSdfExtensionBlockEnd;
+
 		const surfaceWidths = [232, 233.3, 234, 235.5, 238, 240, 246, 320.5];
 
 		for (const surfaceWidth of surfaceWidths) {
@@ -839,15 +907,18 @@ describe("workspace liquid geometry", () => {
 			const leftCoordinates = expectContinuousWorkspacePath(leftMeasurement);
 			const rightCoordinates = expectContinuousWorkspacePath(rightMeasurement);
 			const joinTop = geometry.toolbarHeight - geometry.blendRadius;
+
 			const joinBottom =
 				geometry.toolbarHeight + geometry.containerRadius - 0.5;
 
 			expect(leftMeasurement.tabHeight).toBe(expectedTabHeight);
 			expect(rightMeasurement.tabHeight).toBe(expectedTabHeight);
+
 			for (let y = joinTop + 0.25; y <= joinBottom; y += 0.5) {
 				const mirroredWidth =
 					getPathEdgeAtY(leftCoordinates, y, "left") +
 					getPathEdgeAtY(rightCoordinates, y, "right");
+
 				expect(Math.abs(mirroredWidth - surfaceWidth)).toBeLessThanOrEqual(
 					geometry.sampleCellSize / 2
 				);
@@ -882,12 +953,14 @@ describe("workspace liquid geometry", () => {
 		const devicePixelRatios = [1, 1.25, 1.5, 2, 3];
 		const edgeClearances = [0, 4, 8, 14];
 		const tabWidths = [144, 188.5, 210, 260];
+
 		const snap = (value: number, devicePixelRatio: number): number =>
 			Math.round(value * devicePixelRatio) / devicePixelRatio;
 
 		for (const devicePixelRatio of devicePixelRatios) {
 			for (const tabWidth of tabWidths) {
 				const surfaceWidth = snap(340.5, devicePixelRatio);
+
 				for (const edgeClearance of edgeClearances) {
 					for (const edge of ["left", "right"] as const) {
 						const measurement = createEdgeMeasurement(
@@ -896,6 +969,7 @@ describe("workspace liquid geometry", () => {
 							snap(tabWidth, devicePixelRatio),
 							snap(edgeClearance, devicePixelRatio)
 						);
+
 						expectContinuousWorkspacePath({
 							surfaceWidth: snap(measurement.surfaceWidth, devicePixelRatio),
 							tabFullWidth: snap(measurement.tabFullWidth, devicePixelRatio),

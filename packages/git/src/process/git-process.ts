@@ -74,6 +74,7 @@ export class GitProcess {
 		}
 
 		const child = this.spawn(input);
+
 		return await this.collect(child, input);
 	}
 
@@ -90,22 +91,27 @@ export class GitProcess {
 			const cleanup = (): void => {
 				input.signal?.removeEventListener("abort", handleAbort);
 			};
+
 			const rejectOnce = (error: Error): void => {
 				if (settled) {
 					return;
 				}
+
 				settled = true;
 				cleanup();
 				reject(error);
 			};
+
 			const handleAbort = (): void => {
 				child.kill("SIGTERM");
 				rejectOnce(
 					new GitProcessFailure("aborted", "Git operation was aborted.")
 				);
 			};
+
 			const collectChunk = (target: Buffer[], chunk: Buffer): void => {
 				outputBytes += chunk.byteLength;
+
 				if (outputBytes > this.maxOutputBytes) {
 					child.kill("SIGTERM");
 					rejectOnce(
@@ -114,8 +120,10 @@ export class GitProcess {
 							`Git output exceeded ${this.maxOutputBytes} bytes.`
 						)
 					);
+
 					return;
 				}
+
 				target.push(chunk);
 			};
 
@@ -129,6 +137,7 @@ export class GitProcess {
 			child.once("error", (error: NodeJS.ErrnoException) => {
 				const reason: GitProcessFailureReason =
 					error.code === "ENOENT" ? "git-not-found" : "spawn-failed";
+
 				rejectOnce(
 					new GitProcessFailure(
 						reason,
@@ -143,10 +152,12 @@ export class GitProcess {
 				if (settled) {
 					return;
 				}
+
 				settled = true;
 				cleanup();
 				const stdout = Buffer.concat(stdoutChunks);
 				const stderr = Buffer.concat(stderrChunks);
+
 				if (exitCode !== 0) {
 					reject(
 						new GitCommandFailure(
@@ -155,8 +166,10 @@ export class GitProcess {
 							stdout.toString("utf8").trim()
 						)
 					);
+
 					return;
 				}
+
 				resolve({ stderr, stdout });
 			});
 

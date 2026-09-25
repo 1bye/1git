@@ -89,6 +89,7 @@ describe("workspace tab horizontal reveal", () => {
 			initialScrollLeft: 100,
 			targetScrollLeft: 500,
 		});
+
 		const reverseFrame = getWorkspaceTabRevealFrame({
 			durationMs: 140,
 			elapsedMs: 70,

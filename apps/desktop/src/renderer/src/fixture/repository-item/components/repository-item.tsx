@@ -114,6 +114,7 @@ const useRepositoryItemCommandLens = ({
 		plainArrowNavigation: commandLens?.plainArrowNavigation,
 		radius: commandLens?.radius,
 	});
+
 	const setElement = useCallback(
 		(element: HTMLElement | null): void => {
 			onElementChange?.(element);
@@ -121,6 +122,7 @@ const useRepositoryItemCommandLens = ({
 		},
 		[onElementChange, target.ref]
 	);
+
 	return {
 		ariaKeyShortcuts: target.ariaKeyShortcuts,
 		setElement,
@@ -144,25 +146,32 @@ export function RepositoryItem({
 }: RepositoryItemProps): ReactElement {
 	const tooltipId = useId();
 	const repositoryName = recentRepositoryName(repository);
+
 	const owner =
 		workspace?.owner ??
 		(preview
 			? getRepositoryOwner(preview.remotes, preview.head.upstream)
 			: null);
+
 	const branchName =
 		workspace?.branch ?? (preview ? preview.head.branch : null);
+
 	const thumbnailLabel = owner ? owner.namespace : repositoryName;
+
 	const ownerTitle = owner
 		? `${owner.namespace} on ${owner.host}`
 		: "Local repository";
+
 	const lastUsed = formatRelativeTime(repository.lastOpenedAt);
 	const label = `${repositoryName}${branchName ? `, branch ${branchName}` : ""}, last used ${lastUsed}${workspace ? ", open" : ""}`;
+
 	const commandLensTarget = useRepositoryItemCommandLens({
 		commandLens,
 		disabled,
 		onElementChange,
 		repositoryPath: repository.path,
 	});
+
 	const content = (
 		<>
 			<RepositoryOwnerThumbnail
@@ -219,6 +228,7 @@ export function RepositoryItem({
 			) : null}
 		</>
 	);
+
 	const sharedProps = {
 		"aria-describedby": tooltipId,
 		"aria-keyshortcuts": commandLensTarget.ariaKeyShortcuts,
@@ -230,6 +240,7 @@ export function RepositoryItem({
 		onKeyDown,
 		ref: commandLensTarget.setElement,
 	};
+
 	const row =
 		variant === "menu" ? (
 			<ComboboxItem
@@ -256,6 +267,7 @@ export function RepositoryItem({
 				{content}
 			</button>
 		);
+
 	const trigger = asContextMenuTrigger ? (
 		<LiquidContextMenuTrigger render={row} />
 	) : (

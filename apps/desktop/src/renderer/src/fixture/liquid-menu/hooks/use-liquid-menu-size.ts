@@ -15,12 +15,14 @@ export const useLiquidMenuSize = (): LiquidMenuSize => {
 	const contentRef = useCallback((content: HTMLDivElement | null): void => {
 		resizeObserverRef.current?.disconnect();
 		resizeObserverRef.current = null;
+
 		if (!content) {
 			return;
 		}
 
 		const resize = (): void => {
 			const nextHeight = content.getBoundingClientRect().height;
+
 			setHeight((currentHeight) =>
 				currentHeight !== null &&
 				Math.abs(currentHeight - nextHeight) < HEIGHT_EPSILON
@@ -31,6 +33,7 @@ export const useLiquidMenuSize = (): LiquidMenuSize => {
 
 		resize();
 		const resizeObserver = new ResizeObserver(resize);
+
 		resizeObserver.observe(content);
 		resizeObserverRef.current = resizeObserver;
 	}, []);

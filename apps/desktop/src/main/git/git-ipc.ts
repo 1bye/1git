@@ -127,6 +127,7 @@ const requireRecord = (
 	if (!value || typeof value !== "object" || Array.isArray(value)) {
 		throw new InvalidIpcRequest(`${label} must be an object.`);
 	}
+
 	return value as Record<string, unknown>;
 };
 
@@ -135,9 +136,11 @@ const requireString = (
 	key: string
 ): string => {
 	const value = record[key];
+
 	if (typeof value !== "string" || value.length === 0) {
 		throw new InvalidIpcRequest(`${key} must be a non-empty string.`);
 	}
+
 	return value;
 };
 
@@ -145,29 +148,35 @@ const rendererSafeInput = (
 	input: Readonly<Record<string, unknown>>
 ): Record<string, unknown> => {
 	const safeInput: Record<string, unknown> = {};
+
 	for (const [key, value] of Object.entries(input)) {
 		if (key !== "operationId" && key !== "runtime" && key !== "signal") {
 			safeInput[key] = value;
 		}
 	}
+
 	return safeInput;
 };
 
 const parseOptionalOperationId = (payload: unknown): string | undefined => {
 	const request = requireRecord(payload, "Git IPC request");
+
 	if (request.operationId === undefined) {
 		return;
 	}
+
 	return requireString(request, "operationId");
 };
 
 const parseOperationRequest = (payload: unknown): GitOperationIpcRequest => {
 	const request = requireRecord(payload, "Cancel operation input");
+
 	return { operationId: requireString(request, "operationId") };
 };
 
 const parseSessionRequest = (payload: unknown): GitSessionIpcRequest => {
 	const request = requireRecord(payload, "Git IPC request");
+
 	return { sessionId: requireString(request, "sessionId") };
 };
 
@@ -175,9 +184,11 @@ const parseSessionInputRequest = <TInput>(
 	payload: unknown
 ): GitSessionInputIpcRequest<TInput> => {
 	const request = requireRecord(payload, "Git IPC request");
+
 	const input = rendererSafeInput(
 		requireRecord(request.input, "Git IPC input")
 	);
+
 	return {
 		input: input as TInput,
 		sessionId: requireString(request, "sessionId"),
@@ -188,6 +199,7 @@ const parseRevisionRequest = (
 	payload: unknown
 ): GitSessionRevisionIpcRequest => {
 	const request = requireRecord(payload, "Git IPC request");
+
 	return {
 		revision: requireString(request, "revision"),
 		sessionId: requireString(request, "sessionId"),
@@ -224,6 +236,7 @@ const runOperation = async <T>(
 		if (error instanceof InvalidIpcRequest) {
 			return invalidGitRequest(operation, error);
 		}
+
 		throw error;
 	}
 };
@@ -240,6 +253,7 @@ const repositoryHandler =
 	async (payload, context): Promise<GitResult<T>> =>
 		await runOperation(payload, context, operation, async (signal) => {
 			const { sessionId } = parseSessionRequest(payload);
+
 			return await repositoryManager.performRepositoryOperation(
 				sessionId,
 				operation,
@@ -256,6 +270,7 @@ const repositoryInputHandler =
 	async (payload, context): Promise<GitResult<T>> =>
 		await runOperation(payload, context, operation, async (signal) => {
 			const { input, sessionId } = parseSessionInputRequest<TInput>(payload);
+
 			return await repositoryManager.performRepositoryOperation(
 				sessionId,
 				operation,
@@ -276,6 +291,7 @@ const repositoryRevisionHandler =
 	async (payload, context): Promise<GitResult<T>> =>
 		await runOperation(payload, context, operation, async (signal) => {
 			const { revision, sessionId } = parseRevisionRequest(payload);
+
 			return await repositoryManager.performRepositoryOperation(
 				sessionId,
 				operation,
@@ -290,9 +306,11 @@ const gitResultFromManager = (
 	if (result.ok) {
 		return result;
 	}
+
 	if (result.error.code === "git-error") {
 		return { error: result.error.gitError, ok: false };
 	}
+
 	return {
 		error: {
 			code: "command-failed",
@@ -307,9 +325,11 @@ const gitResultFromManager = (
 const parseOpenInput = (payload: unknown): OpenRepositoryIpcInput => {
 	const input = requireRecord(payload, "Open repository input");
 	const { activate } = input;
+
 	if (activate !== undefined && typeof activate !== "boolean") {
 		throw new InvalidIpcRequest("activate must be a boolean.");
 	}
+
 	return {
 		activate,
 		path: requireString(input, "path"),
@@ -323,9 +343,11 @@ const parseCreationInput = <TInput>(
 	const input = rendererSafeInput(
 		requireRecord(payload, "Repository creation input")
 	);
+
 	for (const key of requiredKeys) {
 		requireString(input, key);
 	}
+
 	return input as TInput;
 };
 
@@ -356,6 +378,7 @@ const sessionHandlers = (
 						...parseOpenInput(payload),
 						signal,
 					});
+
 					return gitResultFromManager(result, "open-repository");
 				}
 			),
@@ -385,10 +408,12 @@ const sessionHandlers = (
 					const input = parseCreationInput<
 						IpcRepositoryCreationInput<InitializeRepositoryInput>
 					>(payload, ["path"]);
+
 					const result = await repositoryManager.initializeRepository({
 						...input,
 						signal,
 					});
+
 					return gitResultFromManager(result, "initialize-repository");
 				}
 			),
@@ -404,10 +429,12 @@ const sessionHandlers = (
 					const input = parseCreationInput<
 						IpcRepositoryCreationInput<CloneRepositoryInput>
 					>(payload, ["path", "remoteUrl"]);
+
 					const result = await repositoryManager.cloneRepository({
 						...input,
 						signal,
 					});
+
 					return gitResultFromManager(result, "clone-repository");
 				}
 			),
@@ -416,6 +443,7 @@ const sessionHandlers = (
 		channel: GIT_IPC_CHANNELS.sessions.activate,
 		handle: (payload) => {
 			const { sessionId } = parseSessionRequest(payload);
+
 			return repositoryManager.activateSession(sessionId);
 		},
 	},
@@ -423,6 +451,7 @@ const sessionHandlers = (
 		channel: GIT_IPC_CHANNELS.sessions.close,
 		handle: (payload) => {
 			const { sessionId } = parseSessionRequest(payload);
+
 			return repositoryManager.closeSession(sessionId);
 		},
 	},
@@ -430,6 +459,7 @@ const sessionHandlers = (
 		channel: GIT_IPC_CHANNELS.sessions.forgetRecent,
 		handle: (payload) => {
 			const request = requireRecord(payload, "Forget recent input");
+
 			return repositoryManager.forgetRecentRepository(
 				requireString(request, "path")
 			);
@@ -442,6 +472,7 @@ const operationHandlers = (): readonly GitIpcHandlerRegistration[] => [
 		channel: GIT_IPC_CHANNELS.operations.cancel,
 		handle: (payload, context) => {
 			const { operationId } = parseOperationRequest(payload);
+
 			return context.operationRegistry.cancel(operationId, context.owner);
 		},
 	},
@@ -1055,10 +1086,13 @@ const resultMayHaveChangedRepository = (result: unknown): boolean => {
 	if (!result || typeof result !== "object" || Array.isArray(result)) {
 		return false;
 	}
+
 	const resultRecord = result as Readonly<Record<string, unknown>>;
+
 	if (resultRecord.ok === true) {
 		return true;
 	}
+
 	if (
 		resultRecord.ok !== false ||
 		!resultRecord.error ||
@@ -1067,7 +1101,9 @@ const resultMayHaveChangedRepository = (result: unknown): boolean => {
 	) {
 		return false;
 	}
+
 	const error = resultRecord.error as Readonly<Record<string, unknown>>;
+
 	return error.code === "command-failed" || error.code === "conflict";
 };
 
@@ -1075,7 +1111,9 @@ const openedSessionId = (result: unknown): RepositorySessionId | undefined => {
 	if (!result || typeof result !== "object" || Array.isArray(result)) {
 		return;
 	}
+
 	const resultRecord = result as Readonly<Record<string, unknown>>;
+
 	if (
 		resultRecord.ok !== true ||
 		!resultRecord.value ||
@@ -1084,7 +1122,9 @@ const openedSessionId = (result: unknown): RepositorySessionId | undefined => {
 	) {
 		return;
 	}
+
 	const value = resultRecord.value as Readonly<Record<string, unknown>>;
+
 	if (
 		!value.session ||
 		typeof value.session !== "object" ||
@@ -1092,7 +1132,9 @@ const openedSessionId = (result: unknown): RepositorySessionId | undefined => {
 	) {
 		return;
 	}
+
 	const session = value.session as Readonly<Record<string, unknown>>;
+
 	return typeof session.id === "string" && session.id.length > 0
 		? session.id
 		: undefined;
@@ -1113,11 +1155,13 @@ const mutationSessionId = (
 
 	try {
 		const { sessionId } = parseSessionRequest(payload);
+
 		return repositoryManager.getSession(sessionId).ok ? sessionId : undefined;
 	} catch (error: unknown) {
 		if (error instanceof InvalidIpcRequest) {
 			return;
 		}
+
 		throw error;
 	}
 };
@@ -1132,16 +1176,20 @@ export const registerGitIpc = ({
 	repositoryManager,
 }: RegisterGitIpcOptions): (() => void) => {
 	const handlers = allHandlers(repositoryManager, pickRepositoryDirectory);
+
 	for (const { channel, handle } of handlers) {
 		ipcMain.handle(channel, async (event, payload: unknown) => {
 			if (!isSenderAuthorized(event)) {
 				throw new Error(UNAUTHORIZED_IPC_MESSAGE);
 			}
+
 			const result = await handle(payload, {
 				operationRegistry,
 				owner: event.sender,
 			});
+
 			const operation = repositoryMutationOperationForChannel(channel);
+
 			if (
 				operation &&
 				resultMayHaveChangedRepository(result) &&
@@ -1153,8 +1201,10 @@ export const registerGitIpc = ({
 					result,
 					repositoryManager
 				);
+
 				if (sessionId) {
 					const operationId = parseOptionalOperationId(payload);
+
 					publishRepositoryMutation(event.sender, {
 						operation,
 						...(operationId ? { operationId } : {}),
@@ -1162,17 +1212,21 @@ export const registerGitIpc = ({
 					});
 				}
 			}
+
 			return result;
 		});
 	}
 
 	let disposed = false;
+
 	return () => {
 		if (disposed) {
 			return;
 		}
+
 		disposed = true;
 		operationRegistry.abortAll();
+
 		for (const { channel } of handlers) {
 			ipcMain.removeHandler(channel);
 		}

@@ -12,10 +12,13 @@ it("exposes the same color and layout values to CSS consumers", async () => {
 	const css = await Bun.file(
 		new URL("../../src/light.css", import.meta.url)
 	).text();
+
 	for (const [name, value] of Object.entries(lightColors)) {
 		const variable = name.replace(/([a-z])([A-Z0-9])/g, "$1-$2").toLowerCase();
+
 		expect(css).toContain(`--${variable}: ${value};`);
 	}
+
 	expect(css).toContain(
 		`--workspace-surface-radius: ${workspaceLayout.workspaceSurfaceRadius}px;`
 	);

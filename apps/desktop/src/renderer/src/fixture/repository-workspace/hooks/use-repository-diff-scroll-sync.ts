@@ -35,31 +35,41 @@ export const createRepositoryDiffActivePathScheduler = (
 ): RepositoryDiffActivePathScheduler => {
 	let pendingPath: string | null = null;
 	let settleTimer: ReturnType<typeof globalThis.setTimeout> | null = null;
+
 	const cancel = (): void => {
 		if (settleTimer !== null) {
 			globalThis.clearTimeout(settleTimer);
 			settleTimer = null;
 		}
+
 		pendingPath = null;
 	};
+
 	const flush = (): void => {
 		if (settleTimer !== null) {
 			globalThis.clearTimeout(settleTimer);
 			settleTimer = null;
 		}
+
 		const path = pendingPath;
+
 		pendingPath = null;
+
 		if (path) {
 			onCommit(path);
 		}
 	};
+
 	const schedule = (path: string): void => {
 		pendingPath = path;
+
 		if (settleTimer !== null) {
 			globalThis.clearTimeout(settleTimer);
 		}
+
 		settleTimer = globalThis.setTimeout(flush, settleMs);
 	};
+
 	return { cancel, flush, schedule };
 };
 
@@ -74,6 +84,7 @@ export const getRepositoryCodeViewActiveEntry = (
 	if (entries.length === 0) {
 		return null;
 	}
+
 	if (
 		viewer.getScrollHeight() > viewer.getHeight() + SCROLL_END_EPSILON &&
 		scrollTop + viewer.getHeight() >=
@@ -81,14 +92,17 @@ export const getRepositoryCodeViewActiveEntry = (
 	) {
 		return entries.at(-1) ?? null;
 	}
+
 	const viewportTop = scrollTop + DIFF_HEADER_OFFSET;
 	let low = 0;
 	let high = entries.length - 1;
 	let activeIndex = 0;
+
 	while (low <= high) {
 		const middle = Math.floor((low + high) / 2);
 		const entry = entries[middle];
 		const itemTop = entry ? viewer.getTopForItem(entry.key) : undefined;
+
 		if (itemTop === undefined || itemTop > viewportTop) {
 			high = middle - 1;
 		} else {
@@ -96,6 +110,7 @@ export const getRepositoryCodeViewActiveEntry = (
 			low = middle + 1;
 		}
 	}
+
 	return entries[activeIndex] ?? null;
 };
 
@@ -115,6 +130,7 @@ export const useRepositoryDiffScrollSync = ({
 	const onActivePathChangeRef = useRef(onActivePathChange);
 	const synchronizingActivePathRef = useRef<string | null>(null);
 	const schedulerRef = useRef<RepositoryDiffActivePathScheduler | null>(null);
+
 	activePathRef.current = activePath;
 	entriesRef.current = entries;
 	onActivePathChangeRef.current = onActivePathChange;
@@ -124,6 +140,7 @@ export const useRepositoryDiffScrollSync = ({
 			if (path === activePathRef.current) {
 				return;
 			}
+
 			activePathRef.current = path;
 			observedActivePathRef.current = path;
 			onActivePathChangeRef.current(path);
@@ -132,23 +149,33 @@ export const useRepositoryDiffScrollSync = ({
 
 	useLayoutEffect(() => {
 		const scheduler = schedulerRef.current;
+
 		scheduler?.cancel();
+
 		if (!(activePath && contentKey)) {
 			synchronizingActivePathRef.current = null;
+
 			return;
 		}
+
 		const wasObservedPath = observedActivePathRef.current === activePath;
+
 		observedActivePathRef.current = null;
+
 		if (wasObservedPath) {
 			return;
 		}
+
 		const entry = entriesRef.current.find(
 			(candidate) => candidate.path === activePath
 		);
+
 		if (!entry) {
 			synchronizingActivePathRef.current = null;
+
 			return;
 		}
+
 		synchronizingActivePathRef.current = activePath;
 		viewerRef.current?.scrollTo({
 			align: "start",
@@ -161,6 +188,7 @@ export const useRepositoryDiffScrollSync = ({
 				synchronizingActivePathRef.current = null;
 			}
 		});
+
 		return () => cancelAnimationFrame(frameId);
 	}, [activePath, contentKey, viewerRef]);
 
@@ -181,15 +209,19 @@ export const useRepositoryDiffScrollSync = ({
 				viewer,
 				scrollTop
 			);
+
 			if (!entry) {
 				return;
 			}
+
 			if (synchronizingActivePathRef.current) {
 				if (entry.path === synchronizingActivePathRef.current) {
 					synchronizingActivePathRef.current = null;
 				}
+
 				return;
 			}
+
 			schedulerRef.current?.schedule(entry.path);
 		},
 		[]

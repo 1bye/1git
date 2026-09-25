@@ -42,6 +42,7 @@ describe("repository stash policy", () => {
 				kind: "range",
 			},
 		} as const;
+
 		const untracked = {
 			patch: "untracked patch",
 			stats: [{ addedLines: 2, deletedLines: 0, path: "new.ts" }],

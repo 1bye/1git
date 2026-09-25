@@ -5,12 +5,16 @@ const readSource = (relativePath: string): string =>
 	readFileSync(new URL(relativePath, import.meta.url), "utf8");
 
 const styles = readSource("../src/renderer/src/styles.css");
+
 const IDLE_CONNECTED_TRIGGER_SELECTOR =
 	/\[data-liquid-trigger\]:not\(\s*\[data-liquid-connected-fill="none"\]\s*\)\[data-liquid-state="idle"\]:hover/;
+
 const OPEN_CONNECTED_TRIGGER_SELECTOR =
 	/\[data-liquid-trigger\]:not\(\s*\[data-liquid-connected-fill="none"\]\s*\)\[data-liquid-state="open"\]/;
+
 const CLOSING_CONNECTED_TRIGGER_SELECTOR =
 	/\[data-liquid-trigger\]:not\(\s*\[data-liquid-connected-fill="none"\]\s*\)\[data-liquid-state="closing"\]/;
+
 const CONNECTED_BUTTON_GEOMETRY =
 	"anchorGeometry={LIQUID_MENU_CONNECTED_BUTTON_ANCHOR_GEOMETRY}";
 
@@ -26,6 +30,7 @@ describe("liquid trigger styles", () => {
 
 		for (const consumer of consumers) {
 			const source = readSource(consumer);
+
 			expect(source).toContain("hover:bg-hover");
 			expect(source).not.toContain("hover:bg-white");
 		}
@@ -66,6 +71,7 @@ describe("liquid trigger styles", () => {
 
 		for (const consumer of consumers) {
 			const source = readSource(consumer);
+
 			expect(source).toContain("LIQUID_MENU_CONNECTED_BUTTON_ANCHOR_GEOMETRY");
 			expect(source).toContain(CONNECTED_BUTTON_GEOMETRY);
 		}
@@ -85,9 +91,11 @@ describe("liquid trigger styles", () => {
 		const workspaceTab = readSource(
 			"../src/renderer/src/fixture/desktop-toolbar/components/workspace-tab.tsx"
 		);
+
 		const fileList = readSource(
 			"../src/renderer/src/fixture/repository-workspace/components/repository-file-list.tsx"
 		);
+
 		expect(workspaceTab).toContain('data-liquid-connected-fill="none"');
 		expect(fileList).toContain('contextUsesSelection ? "none" : undefined');
 	});
@@ -96,6 +104,7 @@ describe("liquid trigger styles", () => {
 		const workspaceTab = readSource(
 			"../src/renderer/src/fixture/desktop-toolbar/components/workspace-tab.tsx"
 		);
+
 		const trigger = workspaceTab.slice(
 			workspaceTab.indexOf("function WorkspaceTabTrigger"),
 			workspaceTab.indexOf("function WorkspaceChangedFiles")
@@ -129,6 +138,7 @@ describe("liquid trigger styles", () => {
 		const dropdownMenu = readSource(
 			"../../../packages/ui/src/components/dropdown-menu.tsx"
 		);
+
 		const submenuTrigger = dropdownMenu.slice(
 			dropdownMenu.indexOf("function DropdownMenuSubTrigger"),
 			dropdownMenu.indexOf("function DropdownMenuSubContent")

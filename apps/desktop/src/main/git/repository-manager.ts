@@ -136,6 +136,7 @@ export class RepositoryManager {
 	constructor(options: RepositoryManagerOptions = {}) {
 		const maxRecentRepositories =
 			options.maxRecentRepositories ?? DEFAULT_MAX_RECENT_REPOSITORIES;
+
 		if (!Number.isInteger(maxRecentRepositories) || maxRecentRepositories < 1) {
 			throw new Error("maxRecentRepositories must be a positive integer.");
 		}
@@ -177,11 +178,13 @@ export class RepositoryManager {
 			runtime: this.runtime,
 			signal: input.signal,
 		});
+
 		if (!opened.ok) {
 			return { error: opened.error, ok: false };
 		}
 
 		const snapshot = await opened.value.getSnapshot({ signal: input.signal });
+
 		if (!snapshot.ok) {
 			return { error: snapshot.error, ok: false };
 		}
@@ -194,9 +197,11 @@ export class RepositoryManager {
 					})
 				: Promise.resolve(null),
 		]);
+
 		if (!remotes.ok) {
 			return { error: remotes.error, ok: false };
 		}
+
 		if (latestCommit && !latestCommit.ok) {
 			return { error: latestCommit.error, ok: false };
 		}
@@ -251,6 +256,7 @@ export class RepositoryManager {
 		task: (repository: GitRepository) => Promise<GitResult<T>>
 	): Promise<GitResult<T>> {
 		const session = this.sessions.get(sessionId);
+
 		if (!session) {
 			return {
 				error: {
@@ -262,6 +268,7 @@ export class RepositoryManager {
 				ok: false,
 			};
 		}
+
 		return await task(session.repository);
 	}
 
@@ -270,6 +277,7 @@ export class RepositoryManager {
 	): Promise<RepositoryManagerResult<T>> {
 		const previousOpen = this.openTail;
 		const gate = Promise.withResolvers<void>();
+
 		this.openTail = gate.promise;
 		await previousOpen;
 
@@ -285,14 +293,17 @@ export class RepositoryManager {
 		sessionId: RepositorySessionId
 	): RepositoryManagerResult<RepositoryManagerState> {
 		const session = this.sessions.get(sessionId);
+
 		if (!session) {
 			return missingSession(sessionId);
 		}
 
 		const activatedAt = this.timestamp();
+
 		this.touchSession(session, activatedAt);
 		this.touchRecent(session.record.repository.root, activatedAt);
 		this.activeSessionId = sessionId;
+
 		return succeed(this.getState());
 	}
 
@@ -301,6 +312,7 @@ export class RepositoryManager {
 		sessionId: RepositorySessionId
 	): RepositoryManagerResult<RepositorySessionRecord> {
 		const session = this.sessions.get(sessionId);
+
 		return session
 			? succeed(copySessionRecord(session.record))
 			: missingSession(sessionId);
@@ -311,13 +323,16 @@ export class RepositoryManager {
 		if (!this.activeSessionId) {
 			return null;
 		}
+
 		const session = this.sessions.get(this.activeSessionId);
+
 		return session ? copySessionRecord(session.record) : null;
 	}
 
 	/** Returns a serializable snapshot of manager-owned session state. */
 	getState(): RepositoryManagerState {
 		this.pruneUnavailableRecentRepositories();
+
 		return {
 			activeSessionId: this.activeSessionId,
 			recentRepositories: this.recentRepositories.map((repository) => ({
@@ -334,15 +349,18 @@ export class RepositoryManager {
 		sessionId: RepositorySessionId
 	): RepositoryManagerResult<RepositoryManagerState> {
 		const session = this.sessions.get(sessionId);
+
 		if (!session) {
 			return missingSession(sessionId);
 		}
 
 		this.sessions.delete(sessionId);
 		this.repositoryRoots.delete(session.record.repository.root);
+
 		if (this.activeSessionId === sessionId) {
 			this.activeSessionId = this.mostRecentlyActivatedSessionId();
 		}
+
 		return succeed(this.getState());
 	}
 
@@ -351,6 +369,7 @@ export class RepositoryManager {
 		this.sessions.clear();
 		this.repositoryRoots.clear();
 		this.activeSessionId = null;
+
 		return this.getState();
 	}
 
@@ -359,10 +378,12 @@ export class RepositoryManager {
 		const repositories = this.recentRepositories.filter(
 			(repository) => repository.path !== path
 		);
+
 		if (repositories.length !== this.recentRepositories.length) {
 			this.recentRepositories = repositories;
 			this.persistRecentRepositories();
 		}
+
 		return this.getState();
 	}
 
@@ -377,23 +398,29 @@ export class RepositoryManager {
 
 		const repositoryRoot = opened.value.info.root;
 		const existingSessionId = this.repositoryRoots.get(repositoryRoot);
+
 		const existingSession = existingSessionId
 			? this.sessions.get(existingSessionId)
 			: undefined;
+
 		const repository = existingSession?.repository ?? opened.value;
 		const snapshot = await repository.getSnapshot({ signal });
+
 		if (!snapshot.ok) {
 			return gitFailure(snapshot.error);
 		}
 
 		const activatedAt = this.timestamp();
+
 		const session =
 			existingSession ??
 			this.createManagedSession(repository, activatedAt, repositoryRoot);
+
 		if (activate) {
 			this.touchSession(session, activatedAt);
 			this.activeSessionId = session.record.id;
 		}
+
 		this.touchRecent(repositoryRoot, activatedAt);
 
 		return succeed({
@@ -408,6 +435,7 @@ export class RepositoryManager {
 		repositoryRoot: string
 	): ManagedRepositorySession {
 		const id = this.nextSessionId();
+
 		const session: ManagedRepositorySession = {
 			record: {
 				id,
@@ -417,20 +445,25 @@ export class RepositoryManager {
 			},
 			repository,
 		};
+
 		this.sessions.set(id, session);
 		this.repositoryRoots.set(repositoryRoot, id);
+
 		return session;
 	}
 
 	private nextSessionId(): RepositorySessionId {
 		let attempts = 0;
+
 		while (attempts < MAX_SESSION_ID_ATTEMPTS) {
 			attempts += 1;
 			const candidate = this.createSessionId();
+
 			if (candidate.length > 0 && !this.sessions.has(candidate)) {
 				return candidate;
 			}
 		}
+
 		throw new Error("Could not create a unique repository session ID.");
 	}
 
@@ -440,6 +473,7 @@ export class RepositoryManager {
 
 	private mostRecentlyActivatedSessionId(): RepositorySessionId | null {
 		let mostRecentSession: ManagedRepositorySession | null = null;
+
 		for (const session of this.sessions.values()) {
 			if (
 				!mostRecentSession ||
@@ -449,6 +483,7 @@ export class RepositoryManager {
 				mostRecentSession = session;
 			}
 		}
+
 		return mostRecentSession?.record.id ?? null;
 	}
 
@@ -467,16 +502,19 @@ export class RepositoryManager {
 			const repositories = this.recentRepositories.filter(
 				(repository) => repository.path !== path
 			);
+
 			if (repositories.length !== this.recentRepositories.length) {
 				this.recentRepositories = repositories;
 				this.persistRecentRepositories();
 			}
+
 			return;
 		}
 
 		const recentRepositories: RecentRepositoryRecord[] = [
 			{ lastOpenedAt, path },
 		];
+
 		for (const repository of this.recentRepositories) {
 			if (
 				repository.path !== path &&
@@ -485,6 +523,7 @@ export class RepositoryManager {
 				recentRepositories.push(repository);
 			}
 		}
+
 		this.recentRepositories = recentRepositories;
 		this.persistRecentRepositories();
 	}
@@ -495,17 +534,21 @@ export class RepositoryManager {
 		}
 
 		let repositories: readonly RecentRepositoryRecord[];
+
 		try {
 			repositories = this.recentRepositoryStore.load();
 		} catch (error: unknown) {
 			this.reportPersistenceError(error);
+
 			return [];
 		}
 
 		const available = this.availableRecentRepositories(repositories);
+
 		if (!sameRecentRepositories(repositories, available)) {
 			this.persistRecentRepositories(available);
 		}
+
 		return available;
 	}
 
@@ -514,10 +557,12 @@ export class RepositoryManager {
 	): RecentRepositoryRecord[] {
 		const available: RecentRepositoryRecord[] = [];
 		const paths = new Set<string>();
+
 		for (const repository of repositories) {
 			if (available.length >= this.maxRecentRepositories) {
 				break;
 			}
+
 			if (
 				paths.has(repository.path) ||
 				!isAbsolute(repository.path) ||
@@ -525,17 +570,21 @@ export class RepositoryManager {
 			) {
 				continue;
 			}
+
 			paths.add(repository.path);
 			available.push({ ...repository });
 		}
+
 		return available;
 	}
 
 	private pruneUnavailableRecentRepositories(): void {
 		const available = this.availableRecentRepositories(this.recentRepositories);
+
 		if (sameRecentRepositories(this.recentRepositories, available)) {
 			return;
 		}
+
 		this.recentRepositories = available;
 		this.persistRecentRepositories();
 	}
@@ -546,6 +595,7 @@ export class RepositoryManager {
 		if (!this.recentRepositoryStore) {
 			return;
 		}
+
 		try {
 			this.recentRepositoryStore.save(repositories);
 		} catch (error: unknown) {
@@ -558,6 +608,7 @@ export class RepositoryManager {
 			error instanceof Error
 				? error
 				: new Error(`Recent repository persistence failed: ${error}`);
+
 		this.onPersistenceError?.(persistenceError);
 	}
 }

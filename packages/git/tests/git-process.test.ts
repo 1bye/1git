@@ -17,6 +17,7 @@ afterEach(async () => {
 describe("GitProcess", () => {
 	test("executes Git without a shell", async () => {
 		const gitProcess = new GitProcess();
+
 		const output = await gitProcess.run({
 			args: ["--version"],
 			cwd: process.cwd(),
@@ -27,6 +28,7 @@ describe("GitProcess", () => {
 
 	test("passes stdin to Git", async () => {
 		const gitProcess = new GitProcess();
+
 		const output = await gitProcess.run({
 			args: ["hash-object", "--stdin"],
 			cwd: process.cwd(),
@@ -39,6 +41,7 @@ describe("GitProcess", () => {
 	test("uses configured Git credential helpers without terminal prompts", async () => {
 		const fixture = await fixtures.create();
 		const helperPath = fixture.path("credential-helper.sh");
+
 		await writeFile(
 			helperPath,
 			[
@@ -80,9 +83,11 @@ describe("GitProcess", () => {
 
 		try {
 			await gitProcess.run({ args: ["--version"], cwd: process.cwd() });
+
 			throw new Error("Expected the Git process to fail.");
 		} catch (error: unknown) {
 			expect(error).toBeInstanceOf(GitProcessFailure);
+
 			if (error instanceof GitProcessFailure) {
 				expect(error.reason).toBe("git-not-found");
 			}
@@ -92,6 +97,7 @@ describe("GitProcess", () => {
 	test("rejects an already aborted operation", async () => {
 		const gitProcess = new GitProcess();
 		const controller = new AbortController();
+
 		controller.abort();
 
 		try {
@@ -100,9 +106,11 @@ describe("GitProcess", () => {
 				cwd: process.cwd(),
 				signal: controller.signal,
 			});
+
 			throw new Error("Expected the Git process to abort.");
 		} catch (error: unknown) {
 			expect(error).toBeInstanceOf(GitProcessFailure);
+
 			if (error instanceof GitProcessFailure) {
 				expect(error.reason).toBe("aborted");
 			}
@@ -111,6 +119,7 @@ describe("GitProcess", () => {
 
 	test("bounds collected stdout and stderr", async () => {
 		const fixture = await fixtures.create();
+
 		await fixture.write("large.txt", "x".repeat(4096));
 		await fixture.commitAll("large file");
 		const gitProcess = new GitProcess({ maxOutputBytes: 32 });
@@ -120,9 +129,11 @@ describe("GitProcess", () => {
 				args: ["show", "HEAD:large.txt"],
 				cwd: fixture.repositoryPath,
 			});
+
 			throw new Error("Expected output collection to stop.");
 		} catch (error: unknown) {
 			expect(error).toBeInstanceOf(GitProcessFailure);
+
 			if (error instanceof GitProcessFailure) {
 				expect(error.reason).toBe("output-too-large");
 			}

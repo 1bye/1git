@@ -151,8 +151,10 @@ export function RepositoryMenu({
 	workspaces,
 }: RepositoryMenuProps): ReactElement {
 	const [query, setQuery] = useState("");
+
 	const [contextLayer, setContextLayer] =
 		useState<RepositoryContextLayer | null>(null);
+
 	const { metaKey } = useKeyboardModifiers();
 	const searchInputRef = useRef<HTMLInputElement>(null);
 	const triggerRef = useRef<HTMLButtonElement>(null);
@@ -162,6 +164,7 @@ export function RepositoryMenu({
 	const previousVisibleEntryIdsRef = useRef<readonly string[]>([]);
 	const normalizedQuery = query.trim().toLocaleLowerCase();
 	const previews = useRecentRepositoryPreviews(recentRepositories, isOpen);
+
 	const workspacesByPath = useMemo(
 		() =>
 			new Map(
@@ -172,6 +175,7 @@ export function RepositoryMenu({
 			),
 		[workspaces]
 	);
+
 	const repositoryEntries = useMemo<readonly RepositoryEntry[]>(
 		() =>
 			recentRepositories.map((repository) => ({
@@ -181,14 +185,17 @@ export function RepositoryMenu({
 			})),
 		[recentRepositories]
 	);
+
 	const allEntries = useMemo<readonly RepositoryPickerEntry[]>(
 		() => [...repositoryEntries, OPEN_LOCAL_ENTRY],
 		[repositoryEntries]
 	);
+
 	const matchingRepositoryEntries = useMemo(
 		() =>
 			repositoryEntries.filter(({ repository }) => {
 				const workspace = workspacesByPath.get(repository.path);
+
 				return (
 					!normalizedQuery ||
 					recentRepositoryName(repository)
@@ -200,10 +207,12 @@ export function RepositoryMenu({
 			}),
 		[normalizedQuery, repositoryEntries, workspacesByPath]
 	);
+
 	const isOpenLocalVisible =
 		!normalizedQuery ||
 		"open local repository".includes(normalizedQuery) ||
 		"open from disk".includes(normalizedQuery);
+
 	const visibleEntries = useMemo<readonly RepositoryPickerEntry[]>(
 		() =>
 			isOpenLocalVisible
@@ -211,10 +220,12 @@ export function RepositoryMenu({
 				: matchingRepositoryEntries,
 		[isOpenLocalVisible, matchingRepositoryEntries]
 	);
+
 	const visibleEntryIds = useMemo(
 		() => visibleEntries.map((entry) => entry.id),
 		[visibleEntries]
 	);
+
 	const visibleRepositoryEntryIds = useMemo(
 		() => matchingRepositoryEntries.map((entry) => entry.id),
 		[matchingRepositoryEntries]
@@ -224,9 +235,11 @@ export function RepositoryMenu({
 		if (!isOpen) {
 			return;
 		}
+
 		const focusTimer = window.setTimeout(() => {
 			searchInputRef.current?.focus();
 		});
+
 		return () => window.clearTimeout(focusTimer);
 	}, [isOpen]);
 
@@ -235,9 +248,11 @@ export function RepositoryMenu({
 		setQuery("");
 		setContextLayer(null);
 	}, [onOpenChange]);
+
 	const changeMenuOpen = useCallback(
 		(nextIsOpen: boolean): void => {
 			onOpenChange(nextIsOpen);
+
 			if (!nextIsOpen) {
 				setQuery("");
 				setContextLayer(null);
@@ -248,25 +263,32 @@ export function RepositoryMenu({
 		},
 		[onOpenChange]
 	);
+
 	const pickRepository = useCallback(async (): Promise<void> => {
 		closeMenu();
 		await onPickRepository();
 	}, [closeMenu, onPickRepository]);
+
 	const setPickerItemElement = useCallback(
 		(entryId: string, element: HTMLElement | null): void => {
 			if (element) {
 				pickerItemElementsRef.current.set(entryId, element);
+
 				return;
 			}
+
 			pickerItemElementsRef.current.delete(entryId);
 		},
 		[]
 	);
+
 	const highlightPickerEntry = useCallback((entryId: string): void => {
 		const element = pickerItemElementsRef.current.get(entryId);
+
 		if (!element) {
 			return;
 		}
+
 		element.dispatchEvent(
 			new PointerEvent("pointermove", {
 				bubbles: true,
@@ -275,19 +297,23 @@ export function RepositoryMenu({
 		);
 		element.scrollIntoView({ block: "nearest" });
 	}, []);
+
 	const changeHighlightedEntry = useCallback(
 		(
 			entry: RepositoryPickerEntry | undefined,
 			eventDetails: RepositoryPickerHighlightDetails
 		): void => {
 			const entryId = entry ? entry.id : null;
+
 			highlightedEntryIdRef.current = entryId;
+
 			if (entryId && eventDetails.reason !== "none") {
 				preferredEntryIdRef.current = entryId;
 			}
 		},
 		[]
 	);
+
 	const changeRepositoryContextOpen = useCallback(
 		(repositoryPath: string, nextIsOpen: boolean): void => {
 			setContextLayer((currentLayer) =>
@@ -297,15 +323,20 @@ export function RepositoryMenu({
 					nextIsOpen
 				)
 			);
+
 			if (nextIsOpen) {
 				const entryId = repositoryEntryId(repositoryPath);
+
 				preferredEntryIdRef.current = entryId;
+
 				return;
 			}
+
 			window.requestAnimationFrame(() => searchInputRef.current?.focus());
 		},
 		[]
 	);
+
 	const changeRepositoryContextPresence = useCallback(
 		(repositoryPath: string, isPresent: boolean): void => {
 			setContextLayer((currentLayer) =>
@@ -318,20 +349,24 @@ export function RepositoryMenu({
 		},
 		[]
 	);
+
 	const openHighlightedRepositoryInBackground = useCallback(
 		async (entry: RepositoryEntry): Promise<void> => {
 			const nextEntryId = getNextRepositoryPickerId(
 				visibleRepositoryEntryIds,
 				entry.id
 			);
+
 			if (nextEntryId) {
 				preferredEntryIdRef.current = nextEntryId;
 				window.requestAnimationFrame(() => highlightPickerEntry(nextEntryId));
 			}
+
 			await onOpenRecent(entry.repository.path, { activate: false });
 		},
 		[highlightPickerEntry, onOpenRecent, visibleRepositoryEntryIds]
 	);
+
 	const navigatePickerBoundary = useCallback(
 		(event: ReactKeyboardEvent<HTMLInputElement>): boolean => {
 			if (
@@ -340,18 +375,23 @@ export function RepositoryMenu({
 			) {
 				return false;
 			}
+
 			const entry =
 				event.key === "Home" ? visibleEntries[0] : visibleEntries.at(-1);
+
 			if (!entry) {
 				return false;
 			}
+
 			consumePickerKey(event);
 			preferredEntryIdRef.current = entry.id;
 			highlightPickerEntry(entry.id);
+
 			return true;
 		},
 		[highlightPickerEntry, visibleEntries]
 	);
+
 	const openHighlightedRepositoryContext = useCallback(
 		(
 			event: ReactKeyboardEvent<HTMLInputElement>,
@@ -364,31 +404,41 @@ export function RepositoryMenu({
 			) {
 				return false;
 			}
+
 			consumePickerKey(event);
 			changeRepositoryContextOpen(entry.repository.path, true);
+
 			return true;
 		},
 		[changeRepositoryContextOpen]
 	);
+
 	const handlePickerKeyDown = useCallback(
 		async (event: ReactKeyboardEvent<HTMLInputElement>): Promise<void> => {
 			if (navigatePickerBoundary(event)) {
 				return;
 			}
+
 			const highlightedEntry = visibleEntries.find(
 				(entry) => entry.id === highlightedEntryIdRef.current
 			);
+
 			if (openHighlightedRepositoryContext(event, highlightedEntry)) {
 				return;
 			}
+
 			if (event.key !== "Enter" || !event.metaKey) {
 				return;
 			}
+
 			consumePickerKey(event);
+
 			if (highlightedEntry?.kind === "repository") {
 				await openHighlightedRepositoryInBackground(highlightedEntry);
+
 				return;
 			}
+
 			if (highlightedEntry?.kind === "open-local") {
 				await pickRepository();
 			}
@@ -406,17 +456,21 @@ export function RepositoryMenu({
 		if (!isOpen) {
 			return;
 		}
+
 		const nextEntryId = reconcileRepositoryPickerId(
 			previousVisibleEntryIdsRef.current,
 			visibleEntryIds,
 			preferredEntryIdRef.current
 		);
+
 		previousVisibleEntryIdsRef.current = visibleEntryIds;
 		preferredEntryIdRef.current = nextEntryId;
+
 		if (nextEntryId && nextEntryId !== highlightedEntryIdRef.current) {
 			const frame = window.requestAnimationFrame(() =>
 				highlightPickerEntry(nextEntryId)
 			);
+
 			return () => window.cancelAnimationFrame(frame);
 		}
 	}, [highlightPickerEntry, isOpen, visibleEntryIds]);
@@ -425,6 +479,7 @@ export function RepositoryMenu({
 		(): Element | null => triggerRef.current,
 		[]
 	);
+
 	const commandLensTarget = useCommandLensTarget({
 		commands: REPOSITORY_MENU_COMMANDS,
 		disabled: !isVisible || pendingAction === "open",
@@ -436,6 +491,7 @@ export function RepositoryMenu({
 		placement: "bottom",
 		radius: 10,
 	});
+
 	const setTriggerElement = useCallback(
 		(element: HTMLButtonElement | null): void => {
 			triggerRef.current = element;
@@ -544,6 +600,7 @@ export function RepositoryMenu({
 								<ComboboxList data-name="RecentRepositoryList">
 									{matchingRepositoryEntries.map((entry) => {
 										const { repository } = entry;
+
 										return (
 											<RepositoryContextMenu
 												disabled={pendingAction === "open"}

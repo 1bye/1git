@@ -65,14 +65,18 @@ export function RepositoryContextActions({
 	const [actionError, setActionError] = useState<string | null>(null);
 	const worktreeState = useRepositoryWorktrees(workspace?.session.id ?? null);
 	const repositoryName = recentRepositoryName(repository);
+
 	const remoteUrl = getPreferredRepositoryRemoteUrl(
 		preview?.remotes ?? [],
 		preview?.head.upstream ?? null
 	);
+
 	const githubUrl = getGithubRepositoryUrl(remoteUrl);
 	const supportsMacosApplications = window.desktop.platform === "darwin";
+
 	const perform = async (action: () => Promise<void>): Promise<void> => {
 		setActionError(null);
+
 		try {
 			await action();
 			onDismiss();
@@ -80,32 +84,38 @@ export function RepositoryContextActions({
 			setActionError(errorMessage(error));
 		}
 	};
+
 	const openRepository = async (): Promise<void> => {
 		await perform(async () => {
 			onOpenForeground?.();
 			await onOpen(repository.path, { activate: true });
 		});
 	};
+
 	const openRepositoryInBackground = async (): Promise<void> => {
 		await perform(async () => {
 			await onOpen(repository.path, { activate: false });
 		});
 	};
+
 	const copyText = async (text: string): Promise<void> => {
 		await perform(async () => {
 			await window.desktop.integrations.copyText(text);
 		});
 	};
+
 	const openExternal = async (url: string): Promise<void> => {
 		await perform(async () => {
 			await window.desktop.integrations.openExternal(url);
 		});
 	};
+
 	const revealRepository = async (): Promise<void> => {
 		await perform(async () => {
 			await window.desktop.integrations.revealPath(repository.path);
 		});
 	};
+
 	const openInApplication = async (
 		application: "ghostty" | "zed"
 	): Promise<void> => {
@@ -116,11 +126,13 @@ export function RepositoryContextActions({
 			);
 		});
 	};
+
 	const forgetRepository = async (): Promise<void> => {
 		await perform(async () => {
 			await onForgetRecent(repository.path);
 		});
 	};
+
 	const actionItem = (
 		label: string,
 		icon: ReactNode,

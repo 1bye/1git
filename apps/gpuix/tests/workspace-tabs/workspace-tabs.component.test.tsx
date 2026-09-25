@@ -15,6 +15,7 @@ import { workspaceLayout } from "../../src/styles/workspace-layout";
 import { windowOptions } from "../../src/window-options";
 
 let root: TestRoot;
+
 beforeEach(() => {
 	root = createTestRoot({
 		width: 980,
@@ -28,34 +29,43 @@ afterEach(() => root.unmount());
 
 const element = (testId: string) => {
 	const found = root.renderer.findByTestId(testId);
+
 	if (!found) throw new Error(`Missing element: ${testId}`);
 
 	return found;
 };
+
 const bounds = (testId: string) => {
 	const found = root.renderer.getElementBounds(element(testId).id);
+
 	if (!found) throw new Error(`Missing bounds: ${testId}`);
 
 	return found;
 };
+
 const tabViewport = () => {
 	const strip = element("workspace-tabs");
 	const box = bounds("workspace-tabs");
 	const { paddingLeft = 0 } = strip.style;
+
 	if (typeof paddingLeft !== "number")
 		throw new Error("Expected tab viewport padding in pixels");
+
 	const offset = root.renderer.getScrollOffset(strip.id)?.[0] ?? 0;
 
 	// GPUIX reports the scrolled content origin (including padding), but the outer width.
 	return { ...box, x: box.x - paddingLeft - offset };
 };
+
 const click = (testId: string): void => {
 	const box = bounds(testId);
+
 	root.renderer.nativeSimulateClick(
 		box.x + box.width / 2,
 		box.y + box.height / 2
 	);
 };
+
 const advanceMotion = (milliseconds = 240): void => {
 	root.renderer.flush();
 	root.renderer.clockFastForward(milliseconds);
@@ -63,6 +73,7 @@ const advanceMotion = (milliseconds = 240): void => {
 	root.renderer.dispatchNativeEvents();
 	root.renderer.flush();
 };
+
 const selectedTabs = () =>
 	Object.values(root.renderer.getA11yTree().nodes ?? {})
 		.filter((node) => node.aria?.role === "Tab" && node.aria.selected)
@@ -103,6 +114,7 @@ it("aligns lightweight labels and icons without shifting when selection changes"
 	const closeIcon = bounds("close-icon-workspace-1");
 	const addIcon = bounds("add-workspace-icon");
 	const centerY = avatar.y + avatar.height / 2;
+
 	expect(label.x - avatar.x - avatar.width).toBe(workspaceLayout.tabContentGap);
 	expect(label.y + label.height / 2).toBe(centerY);
 	expect(close.y + close.height / 2).toBe(centerY);
@@ -164,6 +176,7 @@ it("matches the 4px bottom gap between neighboring tab surfaces without changing
 	const active = bounds("surface-workspace-2");
 	const thirdHover = bounds("hover-workspace-3");
 	const shoulder = workspaceLayout.tabContentInsetInlineStart;
+
 	expect(active.x + shoulder - hover.x - hover.width).toBe(4);
 	expect(thirdHover.x - (active.x + active.width - shoulder)).toBe(4);
 });
@@ -181,6 +194,7 @@ it("keeps the first active tab's entire curved surface inside the scroll viewpor
 it("reveals both curved shoulders when selecting overflow tabs at either edge", () => {
 	root.render(<App key="overflow-tab-curves" initialTabCount={8} />);
 	const viewport = tabViewport();
+
 	root.renderer.nativeSimulateKeyDown(element("workspace-1").id, "end");
 	root.renderer.flush();
 	const last = bounds("surface-workspace-8");
@@ -203,6 +217,7 @@ it("highlights the whole inactive tab across its padding, label, and close targe
 	const close = bounds("close-workspace-2");
 	const label = bounds("label-workspace-2");
 	const avatar = bounds("avatar-workspace-2");
+
 	expect(hover.height).toBe(32);
 	expect(hover.x + hover.width).toBeGreaterThan(close.x + close.width);
 	expect(element("hover-workspace-2").style.opacity).toBe(0);
@@ -229,6 +244,7 @@ it("highlights the whole inactive tab across its padding, label, and close targe
 	expect(element("hover-workspace-2").style.opacity).toBe(0);
 	expect(element("close-workspace-2").style.opacity).toBe(0);
 	const active = bounds("workspace-1");
+
 	root.renderer.nativeSimulateMouseMove(active.x + 20, active.y + 12);
 	expect(element("hover-workspace-1").style.opacity).toBe(0);
 });
@@ -237,10 +253,13 @@ it("gives the close icon equal top and right gaps within the tab surface", () =>
 	const surface = bounds("surface-workspace-1");
 	const icon = bounds("close-icon-workspace-1");
 	const topGap = icon.y - surface.y;
+
 	// The right wall sits inside the connected silhouette's curved shoulder.
 	const rightEdge =
 		surface.x + surface.width - workspaceLayout.tabContentInsetInlineStart;
+
 	const rightGap = rightEdge - icon.x - icon.width;
+
 	// Equal SVG-box insets also give this symmetric glyph equal visible ink gaps (~12px).
 	expect(rightGap).toBe(topGap);
 	expect(rightGap).toBe(9);
@@ -261,6 +280,7 @@ it("shows a focus ring when Tab first enters the window", () => {
 it("keeps long repository and branch labels on one line clear of the close target", () => {
 	const name = "an-extremely-long-repository-name-that-needs-truncation";
 	const branch = "feature/this-is-a-long-branch-name";
+
 	root.render(
 		<WorkspaceTabs
 			state={{
@@ -274,6 +294,7 @@ it("keeps long repository and branch labels on one line clear of the close targe
 	const repository = bounds("name-long");
 	const branchLabel = bounds("branch-long");
 	const close = bounds("close-long");
+
 	expect(repository.y).toBe(branchLabel.y);
 	expect(repository.x + repository.width).toBeLessThanOrEqual(branchLabel.x);
 	expect(branchLabel.x + branchLabel.width).toBeLessThan(close.x);
@@ -386,9 +407,11 @@ it("hides pointer focus rings and restores them when navigating with the keyboar
 
 it("scrolls overflowing tabs into view while keeping the add action reachable", () => {
 	for (let index = 0; index < 8; index += 1) click("add-workspace");
+
 	const strip = bounds("workspace-tabs");
 	const viewportLeft = workspaceLayout.desktopTitlebarControlsWidth;
 	const active = bounds("workspace-9");
+
 	expect(
 		bounds("add-workspace").x + bounds("add-workspace").width
 	).toBeLessThan(980);
@@ -397,6 +420,7 @@ it("scrolls overflowing tabs into view while keeping the add action reachable", 
 		viewportLeft + strip.width
 	);
 	const close = bounds("close-workspace-9");
+
 	expect(close.x + close.width).toBeLessThanOrEqual(viewportLeft + strip.width);
 	expect(
 		root.renderer.getScrollOffset(element("workspace-tabs").id)?.[0]
@@ -409,6 +433,7 @@ it("scrolls overflowing tabs into view while keeping the add action reachable", 
 it("starts the preview overflowing and lets + add and reveal more tabs", () => {
 	root.render(<App key="multi-tab-preview" initialTabCount={8} />);
 	const strip = bounds("workspace-tabs");
+
 	expect(element("workspace-8")).toBeDefined();
 	expect(bounds("workspace-8").x).toBeGreaterThan(strip.x + strip.width);
 	expect(selectedTabs()).toEqual(["1git / main"]);
@@ -416,6 +441,7 @@ it("starts the preview overflowing and lets + add and reveal more tabs", () => {
 	click("add-workspace");
 	expect(selectedTabs()).toEqual(["Workspace 9"]);
 	const added = bounds("workspace-9");
+
 	expect(added.x).toBeGreaterThanOrEqual(
 		workspaceLayout.desktopTitlebarControlsWidth
 	);
@@ -459,18 +485,21 @@ it("cancels the preview on Escape and keeps close/add controls out of a tab drag
 	const first = bounds("workspace-1");
 	const x = first.x + 20;
 	const y = first.y + first.height / 2;
+
 	root.renderer.nativeSimulateMouseDown(x, y);
 	root.renderer.nativeSimulateMouseMove(x + 420, y, 0);
 	root.renderer.nativeSimulateKeyDown(element("workspace-1").id, "escape");
 	advanceMotion();
 	expect(order()).toEqual(["workspace-1", "workspace-2", "workspace-3"]);
 	const close = bounds("close-workspace-3");
+
 	root.renderer.nativeSimulateMouseUp(close.x + 12, close.y + 12);
 	expect(order()).toEqual(["workspace-1", "workspace-2", "workspace-3"]);
 
 	root.renderer.nativeSimulateMouseDown(x, y);
 	root.renderer.nativeSimulateMouseMove(x + 420, y, 0);
 	const add = bounds("add-workspace");
+
 	root.renderer.nativeSimulateMouseUp(add.x + 12, add.y + 12);
 	advanceMotion();
 	expect(root.renderer.findByTestId("workspace-4")).toBeUndefined();
@@ -484,11 +513,13 @@ it("does not reorder when a drag starts on close or with a non-primary button", 
 	const first = bounds("workspace-1");
 	const x = first.x + 20;
 	const y = first.y + first.height / 2;
+
 	root.renderer.nativeSimulateMouseDown(x, y, 2);
 	root.renderer.nativeSimulateMouseMove(x + 420, y, 2);
 	root.renderer.nativeSimulateMouseUp(x + 420, y, 2);
 	expect(order()).toEqual(["workspace-1", "workspace-2", "workspace-3"]);
 	const close = bounds("close-workspace-1");
+
 	root.renderer.nativeSimulateMouseDown(close.x + 12, close.y + 12);
 	root.renderer.nativeSimulateMouseMove(x + 420, 300, 0);
 	root.renderer.nativeSimulateMouseUp(x + 420, 300);
@@ -501,6 +532,7 @@ it("ignores the old tab's blur when grabbing another tab, but cancels on the gra
 	const first = bounds("workspace-1");
 	const x = first.x + 20;
 	const y = first.y + first.height / 2;
+
 	root.renderer.nativeSimulateMouseDown(x, y);
 	flushSync(() =>
 		handleGpuixEvent(
@@ -526,6 +558,7 @@ it("reorders from the padded tab surface and with Shift+Arrow, keeping focus", (
 	click("add-workspace");
 	click("add-workspace");
 	const slot = bounds("slot-workspace-1");
+
 	root.renderer.nativeSimulateMouseDown(slot.x + 40, slot.y + 2);
 	root.renderer.nativeSimulateMouseMove(slot.x + 250, slot.y + 2, 0);
 	root.renderer.nativeSimulateMouseUp(slot.x + 250, 300);
@@ -585,6 +618,7 @@ it("retargets sliding neighbors from their visible positions and animates Escape
 	const second = bounds("slot-workspace-2");
 	const x = first.x + 40;
 	const y = first.y + 12;
+
 	root.renderer.nativeSimulateMouseDown(x, y);
 	root.renderer.nativeSimulateMouseMove(x + 150, y, 0);
 	advanceMotion(60);
@@ -612,6 +646,7 @@ it("grabs a settling tab at its visible position without jumping to the destinat
 	const first = bounds("slot-workspace-1");
 	const x = first.x + 40;
 	const y = first.y + 12;
+
 	root.renderer.nativeSimulateMouseDown(x, y);
 	root.renderer.nativeSimulateMouseMove(x + 150, y, 0);
 	root.renderer.nativeSimulateMouseUp(x + 150, y);
@@ -640,6 +675,7 @@ it("keeps scrolled drag coordinates stable and reveals the whole tab after settl
 	const offset = root.renderer.getScrollOffset(stripId)?.[0];
 	const x = last.x + 40;
 	const y = last.y + 12;
+
 	expect(offset).toBeLessThan(0);
 
 	root.renderer.nativeSimulateMouseDown(x, y);
@@ -653,8 +689,10 @@ it("keeps scrolled drag coordinates stable and reveals the whole tab after settl
 	expect(bounds("slot-workspace-7").x).toBe(last.x);
 	expect(selectedTabs()).toEqual(["Workspace 8"]);
 	const viewportLeft = workspaceLayout.desktopTitlebarControlsWidth;
+
 	expect(bounds("slot-workspace-8").x).toBeGreaterThanOrEqual(viewportLeft);
 	const close = bounds("close-workspace-8");
+
 	expect(close.x + close.width).toBeLessThanOrEqual(
 		viewportLeft + bounds("workspace-tabs").width
 	);
@@ -662,9 +700,11 @@ it("keeps scrolled drag coordinates stable and reveals the whole tab after settl
 
 it("autoscrolls during an overflow drag and stops after release", async () => {
 	for (let index = 0; index < 8; index += 1) click("add-workspace");
+
 	const tab = bounds("workspace-9");
 	const stripId = element("workspace-tabs").id;
 	const before = root.renderer.getScrollOffset(stripId)?.[0] ?? 0;
+
 	root.renderer.nativeSimulateMouseDown(tab.x + 20, tab.y + 12);
 	root.renderer.nativeSimulateMouseMove(85, tab.y + 12, 0);
 	await Bun.sleep(120);
@@ -674,13 +714,16 @@ it("autoscrolls during an overflow drag and stops after release", async () => {
 	);
 	root.renderer.nativeSimulateMouseUp(85, 300);
 	const after = root.renderer.getScrollOffset(stripId);
+
 	await Bun.sleep(60);
 	root.renderer.flush();
 	expect(root.renderer.getScrollOffset(stripId)).toEqual(after);
 	advanceMotion();
 	const viewportLeft = workspaceLayout.desktopTitlebarControlsWidth;
+
 	expect(bounds("slot-workspace-9").x).toBeGreaterThanOrEqual(viewportLeft);
 	const close = bounds("close-workspace-9");
+
 	expect(close.x + close.width).toBeLessThanOrEqual(
 		viewportLeft + bounds("workspace-tabs").width
 	);
@@ -689,6 +732,7 @@ it("autoscrolls during an overflow drag and stops after release", async () => {
 it("shows focus and cancels Space activation after a blur notification", () => {
 	click("add-workspace");
 	const first = element("workspace-1");
+
 	root.renderer.nativeSimulateKeyDown(first.id, "space");
 	// Offscreen windows have focus handles but do not emit active-window focus notifications.
 	flushSync(() =>

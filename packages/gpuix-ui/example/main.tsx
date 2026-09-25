@@ -9,6 +9,7 @@ render(<ExampleApp />, {
 	height: 800,
 	onKeyDown(event, renderer) {
 		if (event.key !== "tab") return;
+
 		if (event.modifiers?.shift) renderer.focusPrevious?.();
 		else renderer.focusNext?.();
 	},

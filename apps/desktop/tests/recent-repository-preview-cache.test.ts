@@ -29,9 +29,11 @@ describe("RecentRepositoryPreviewCache", () => {
 	test("deduplicates concurrent repository preview requests", async () => {
 		const pending = Promise.withResolvers<RecentRepositoryPreview | null>();
 		let loadCount = 0;
+
 		const cache = new RecentRepositoryPreviewCache({
 			loader: async () => {
 				loadCount += 1;
+
 				return await pending.promise;
 			},
 		});
@@ -39,6 +41,7 @@ describe("RecentRepositoryPreviewCache", () => {
 		const first = cache.load("/repo");
 		const second = cache.load("/repo");
 		const preview = createPreview("/repo");
+
 		pending.resolve(preview);
 
 		expect(await Promise.all([first, second])).toEqual([preview, preview]);
@@ -49,9 +52,11 @@ describe("RecentRepositoryPreviewCache", () => {
 	test("serves stale data while refreshing an expired preview", async () => {
 		let now = 0;
 		let loadCount = 0;
+
 		const cache = new RecentRepositoryPreviewCache({
 			loader: (path) => {
 				loadCount += 1;
+
 				return Promise.resolve(createPreview(`${path}-${loadCount}`));
 			},
 			now: () => now,
@@ -59,6 +64,7 @@ describe("RecentRepositoryPreviewCache", () => {
 		});
 
 		const first = await cache.load("/repo");
+
 		now = 11;
 		const stale = cache.peek("/repo");
 		const refreshed = await cache.load("/repo");

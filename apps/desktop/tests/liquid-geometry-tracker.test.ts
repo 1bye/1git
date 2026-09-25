@@ -40,7 +40,9 @@ class FakeWindow extends EventTarget {
 
 	flushAnimationFrames(): void {
 		const frames = [...this.animationFrames.values()];
+
 		this.animationFrames.clear();
+
 		for (const frame of frames) {
 			frame(0);
 		}
@@ -49,6 +51,7 @@ class FakeWindow extends EventTarget {
 	getComputedStyle = (element: Element): CSSStyleDeclaration => {
 		this.computedStyleReadCount += 1;
 		const { overflow } = element as unknown as FakeElement;
+
 		return {
 			overflow,
 			overflowX: overflow,
@@ -63,6 +66,7 @@ class FakeWindow extends EventTarget {
 	requestAnimationFrame = (callback: FrameRequestCallback): number => {
 		this.animationFrameId += 1;
 		this.animationFrames.set(this.animationFrameId, callback);
+
 		return this.animationFrameId;
 	};
 }
@@ -136,19 +140,23 @@ const GLOBAL_NAMES = [
 	"ShadowRoot",
 	"window",
 ] as const;
+
 const originalDescriptors = new Map<
 	(typeof GLOBAL_NAMES)[number],
 	PropertyDescriptor | undefined
 >();
+
 let fakeWindow: FakeWindow;
 
 const getLatestResizeObserver = (): FakeResizeObserver => {
 	const observer = FakeResizeObserver.latest;
+
 	if (!observer) {
 		throw new Error(
 			"Expected the liquid geometry tracker to create an observer."
 		);
 	}
+
 	return observer;
 };
 
@@ -159,6 +167,7 @@ beforeEach(() => {
 			Object.getOwnPropertyDescriptor(globalThis, name)
 		);
 	}
+
 	fakeWindow = new FakeWindow();
 	Object.defineProperties(globalThis, {
 		Element: { configurable: true, value: FakeElement },
@@ -172,12 +181,14 @@ beforeEach(() => {
 afterEach(() => {
 	for (const name of GLOBAL_NAMES) {
 		const descriptor = originalDescriptors.get(name);
+
 		if (descriptor) {
 			Object.defineProperty(globalThis, name, descriptor);
 		} else {
 			Reflect.deleteProperty(globalThis, name);
 		}
 	}
+
 	originalDescriptors.clear();
 	FakeResizeObserver.latest = null;
 	FakeMutationObserver.latest = null;
@@ -189,6 +200,7 @@ describe("liquid geometry tracker", () => {
 		const scrollAncestor = new FakeElement(fakeWindow, "auto");
 		const anchor = new FakeElement(fakeWindow, "visible", scrollAncestor);
 		const menu = new FakeElement(fakeWindow, "visible", scrollAncestor);
+
 		const tracker = createLiquidGeometryTracker(() => {
 			measurementCount += 1;
 		});
@@ -237,6 +249,7 @@ describe("liquid geometry tracker", () => {
 		const firstScroller = new FakeElement(fakeWindow, "auto");
 		const secondScroller = new FakeElement(fakeWindow, "scroll");
 		const anchor = new FakeElement(fakeWindow, "visible", firstScroller);
+
 		const tracker = createLiquidGeometryTracker(() => {
 			measurementCount += 1;
 		});
@@ -265,9 +278,11 @@ describe("liquid geometry tracker", () => {
 
 	test("replaces a scheduled frame with one immediate measurement", () => {
 		let measurementCount = 0;
+
 		const tracker = createLiquidGeometryTracker(() => {
 			measurementCount += 1;
 		});
+
 		const anchor = new FakeElement(fakeWindow);
 
 		tracker.setElements([anchor as unknown as Element]);
@@ -292,9 +307,11 @@ describe("liquid geometry tracker", () => {
 
 	test("remeasures when tracked children are inserted or removed", () => {
 		let measurementCount = 0;
+
 		const tracker = createLiquidGeometryTracker(() => {
 			measurementCount += 1;
 		});
+
 		const tabList = new FakeElement(fakeWindow);
 
 		tracker.setElements([tabList as unknown as Element]);
@@ -314,6 +331,7 @@ describe("liquid geometry tracker", () => {
 
 	test("shares one frame between continuous tracking and events", () => {
 		let measurementCount = 0;
+
 		const tracker = createLiquidGeometryTracker(() => {
 			measurementCount += 1;
 		});

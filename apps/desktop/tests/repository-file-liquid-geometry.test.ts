@@ -13,12 +13,14 @@ const surface: RepositoryFileLiquidRect = {
 	top: 40,
 	width: 1280,
 };
+
 const canvas: RepositoryFileLiquidRect = {
 	height: 700,
 	left: 20,
 	top: 90,
 	width: 980,
 };
+
 const viewport: RepositoryFileLiquidRect = {
 	height: 500,
 	left: 1000,
@@ -49,6 +51,7 @@ describe("repository file liquid geometry", () => {
 		if (!measurement) {
 			throw new Error("Expected a visible file surface measurement.");
 		}
+
 		expect(measurement).toEqual({
 			canvasEdgeX: 20,
 			canvasSide: "left",
@@ -64,9 +67,11 @@ describe("repository file liquid geometry", () => {
 			surfaceWidth: 338,
 		});
 		const path = createRepositoryFileLiquidPath(measurement);
+
 		const canvasBoundaryYs = getPathCoordinates(path)
 			.filter(([x]) => x === measurement?.canvasEdgeX)
 			.map(([, y]) => y);
+
 		expect(path).toStartWith("M ");
 		expect(path).toEndWith(" Z");
 		expect(path).not.toContain("NaN");
@@ -102,6 +107,7 @@ describe("repository file liquid geometry", () => {
 		if (!measurement) {
 			throw new Error("Expected a mirrored file surface measurement.");
 		}
+
 		expect(measurement).toEqual({
 			canvasEdgeX: 318,
 			canvasSide: "right",
@@ -117,9 +123,11 @@ describe("repository file liquid geometry", () => {
 			surfaceWidth: 338,
 		});
 		const path = createRepositoryFileLiquidPath(measurement);
+
 		const canvasBoundaryYs = getPathCoordinates(path)
 			.filter(([x]) => x === measurement.canvasEdgeX)
 			.map(([, y]) => y);
+
 		expect(path).toStartWith("M ");
 		expect(path).toEndWith(" Z");
 		expect(path).not.toContain("NaN");
@@ -155,15 +163,20 @@ describe("repository file liquid geometry", () => {
 		if (!measurement) {
 			throw new Error("Expected a history surface measurement.");
 		}
+
 		const path = createRepositoryFileLiquidPath(measurement);
 		const rowConnectionX = measurement.rowLeft + measurement.rowWidth;
+
 		const rowConnectionYs = getPathCoordinates(path)
 			.filter(([x]) => Math.abs(x - rowConnectionX) <= 2)
 			.map(([, y]) => y);
+
 		const connectorCenterX = (rowConnectionX + measurement.canvasEdgeX) / 2;
+
 		const connectorYs = getPathCoordinates(path)
 			.filter(([x]) => Math.abs(x - connectorCenterX) <= 2)
 			.map(([, y]) => y);
+
 		expect(path.match(/M /g)).toHaveLength(1);
 		expect(path).not.toContain("NaN");
 		expect(
@@ -195,10 +208,13 @@ describe("repository file liquid geometry", () => {
 			surfaceHeight: 72,
 			surfaceTop: 80,
 		});
+
 		if (!measurement) {
 			throw new Error("Expected a partially visible file measurement.");
 		}
+
 		const path = createRepositoryFileLiquidPath(measurement);
+
 		expect(path).toStartWith("M ");
 		expect(path).toEndWith(" Z");
 		expect(path).not.toContain("NaN");
@@ -224,10 +240,13 @@ describe("repository file liquid geometry", () => {
 			surfaceHeight: 72,
 			surfaceTop: 88,
 		});
+
 		if (!measurement) {
 			throw new Error("Expected the first file surface measurement.");
 		}
+
 		const path = createRepositoryFileLiquidPath(measurement);
+
 		expect(path).toStartWith("M ");
 		expect(path).toEndWith(" Z");
 	});
@@ -244,6 +263,7 @@ describe("repository file liquid geometry", () => {
 			},
 			viewport
 		);
+
 		const laterRow = createRepositoryFileLiquidMeasurement(
 			surface,
 			canvas,
@@ -259,6 +279,7 @@ describe("repository file liquid geometry", () => {
 		if (!(firstRow && laterRow)) {
 			throw new Error("Expected both file surface measurements.");
 		}
+
 		expect(firstRow.surfaceTop).not.toBe(laterRow.surfaceTop);
 		expect(firstRow.clipTop).not.toBe(laterRow.clipTop);
 		expect(hasSameRepositoryFileLiquidPathGeometry(firstRow, laterRow)).toBe(
@@ -281,6 +302,7 @@ describe("repository file liquid geometry", () => {
 			},
 			viewport
 		);
+
 		const resizedRow = createRepositoryFileLiquidMeasurement(
 			surface,
 			canvas,
@@ -296,6 +318,7 @@ describe("repository file liquid geometry", () => {
 		if (!(regularRow && resizedRow)) {
 			throw new Error("Expected both file surface measurements.");
 		}
+
 		expect(
 			hasSameRepositoryFileLiquidPathGeometry(regularRow, resizedRow)
 		).toBe(false);
@@ -313,6 +336,7 @@ describe("repository file liquid geometry", () => {
 			},
 			viewport
 		);
+
 		const belowViewport = createRepositoryFileLiquidMeasurement(
 			surface,
 			canvas,

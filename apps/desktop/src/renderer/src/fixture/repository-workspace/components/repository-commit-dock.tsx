@@ -35,15 +35,19 @@ const commitActionLabel = ({
 	if (isPending) {
 		return "Committing…";
 	}
+
 	if (hasCommitIdentityRequirement) {
 		return "Save identity and commit";
 	}
+
 	if (stagedCount === 0) {
 		return "Stage files to commit";
 	}
+
 	if (summary.trim().length === 0) {
 		return "Add a summary";
 	}
+
 	return `Commit ${stagedCount} ${stagedCount === 1 ? "file" : "files"} to ${branch ?? "HEAD"}`;
 };
 
@@ -134,6 +138,7 @@ export function RepositoryCommitDock({
 	const [name, setName] = useState(commitIdentity?.name ?? "");
 	const [summary, setSummary] = useState("");
 	const formRef = useRef<HTMLFormElement>(null);
+
 	useEffect(() => {
 		if (commitIdentity) {
 			setEmail(commitIdentity.email);
@@ -143,11 +148,13 @@ export function RepositoryCommitDock({
 	const hasRequiredIdentity =
 		commitIdentity === null ||
 		(name.trim().length > 0 && email.trim().length > 0);
+
 	const canCommit =
 		stagedCount > 0 &&
 		summary.trim().length > 0 &&
 		hasRequiredIdentity &&
 		!isPending;
+
 	const actionLabel = commitActionLabel({
 		branch,
 		hasCommitIdentityRequirement: commitIdentity !== null,
@@ -155,9 +162,11 @@ export function RepositoryCommitDock({
 		stagedCount,
 		summary,
 	});
+
 	const requestCommit = (): void => {
 		formRef.current?.requestSubmit();
 	};
+
 	const commandLensTarget = useCommandLensTarget({
 		commands: [
 			{
@@ -174,36 +183,45 @@ export function RepositoryCommitDock({
 		placement: "right",
 		radius: 6,
 	});
+
 	const updateSummary = (event: ChangeEvent<HTMLInputElement>): void => {
 		setSummary(event.target.value);
 	};
+
 	const updateDescription = (event: ChangeEvent<HTMLTextAreaElement>): void => {
 		setDescription(event.target.value);
 	};
+
 	const updateEmail = (event: ChangeEvent<HTMLInputElement>): void => {
 		setEmail(event.target.value);
 	};
+
 	const updateName = (event: ChangeEvent<HTMLInputElement>): void => {
 		setName(event.target.value);
 	};
+
 	const submitCommit = async (
 		event: FormEvent<HTMLFormElement>
 	): Promise<void> => {
 		event.preventDefault();
+
 		if (!canCommit) {
 			return;
 		}
+
 		const didCommit = await onCommit(
 			summary,
 			description,
 			commitIdentity ? { email: email.trim(), name: name.trim() } : undefined
 		);
+
 		if (didCommit) {
 			setSummary("");
 			setDescription("");
 			setIsDescriptionOpen(false);
 		}
 	};
+
 	const submitWithShortcut = (
 		event: ReactKeyboardEvent<HTMLInputElement | HTMLTextAreaElement>
 	): void => {

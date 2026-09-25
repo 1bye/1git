@@ -145,25 +145,34 @@ function BranchMenuItem({
 	const commitAge = formatBranchCommitAge(branch.committedAt);
 	const tooltipId = useId();
 	const isCurrent = branch.name === currentBranch;
+
 	const disabledReason = repositoryBranchSwitchDisabledReason(
 		branch,
 		currentBranch
 	);
+
 	const switchBranch = async (): Promise<void> => {
 		if (isCurrent) {
 			onClose();
+
 			return;
 		}
+
 		if (disabledReason) {
 			return;
 		}
+
 		const result = await onSwitchBranch(branch.name);
+
 		if (result === "needs-stash") {
 			onNeedsStash(branch);
+
 			return;
 		}
+
 		onClose();
 	};
+
 	const menuItemLabel = [
 		branch.name,
 		isCurrent ? "current branch" : null,
@@ -172,6 +181,7 @@ function BranchMenuItem({
 	]
 		.filter(Boolean)
 		.join(", ");
+
 	const menuItem = (
 		<DropdownMenuItem
 			aria-current={isCurrent ? "true" : undefined}
@@ -290,8 +300,10 @@ function RepositorySyncMenuItem({
 }: RepositorySyncMenuItemProps): ReactElement {
 	const isPending = pendingAction !== null;
 	const isSyncPending = isRepositorySyncActionKind(pendingAction);
+
 	const synchronizeRepository = async (): Promise<void> => {
 		onClose();
+
 		if (isSyncPending) {
 			await onCancelSync();
 		} else {
@@ -496,22 +508,29 @@ export function WorkspaceActionsMenu({
 	const [isBranchListExpanded, setIsBranchListExpanded] = useState(false);
 	const [switchTarget, setSwitchTarget] = useState<BranchInfo | null>(null);
 	const branchListId = useId();
+
 	const { latestBranches, remainingBranches } =
 		groupWorkspaceBranches(branches);
+
 	const currentBranchInfo = getRepositoryCurrentBranch(branches);
 	const deletableBranches = getRepositoryDeletableBranches(branches);
 	const remoteBranches = getRepositoryRemoteBranches(branches);
+
 	const visibleBranches = isBranchListExpanded
 		? [...latestBranches, ...remainingBranches]
 		: latestBranches;
+
 	const hasMoreBranches = remainingBranches.length > 0;
 	const isPending = pendingAction !== null;
 	const showActions = (): void => setView("actions");
 	const cancelStashAndSwitch = (): void => setSwitchTarget(null);
+
 	const toggleBranchList = (): void =>
 		setIsBranchListExpanded((isExpanded) => !isExpanded);
+
 	let menuViewKey = "actions";
 	let content: ReactElement;
+
 	if (view === "create") {
 		menuViewKey = "create-branch";
 		content = (

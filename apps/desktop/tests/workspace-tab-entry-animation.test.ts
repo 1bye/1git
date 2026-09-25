@@ -5,9 +5,11 @@ const readSource = (relativePath: string): string =>
 	readFileSync(new URL(relativePath, import.meta.url), "utf8");
 
 const styles = readSource("../src/renderer/src/styles.css");
+
 const workspaceTab = readSource(
 	"../src/renderer/src/fixture/desktop-toolbar/components/workspace-tab.tsx"
 );
+
 const desktopToolbar = readSource(
 	"../src/renderer/src/fixture/desktop-toolbar/components/desktop-toolbar.tsx"
 );

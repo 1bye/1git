@@ -18,6 +18,7 @@ const buttonVariants = ["primary", "secondary", "ghost"] as const;
 const textSizes = ["lg", "md", "sm"] as const;
 const textWeights = ["regular", "medium", "semibold"] as const;
 const textTones = ["default", "muted", "danger"] as const;
+
 const branches = [
 	{ value: "main", label: "Main branch" },
 	{ value: "develop", label: "Development" },
@@ -108,10 +109,12 @@ export function ExampleApp() {
 	const [density, setDensity] = useState<keyof typeof densities>("comfortable");
 	const [presses, setPresses] = useState(0);
 	const [branch, setBranch] = useState("main");
+
 	const tokens: UiTokens = {
 		colors: palettes[palette],
 		layout: densities[density],
 	};
+
 	const onPress = () => setPresses((count) => count + 1);
 
 	return (

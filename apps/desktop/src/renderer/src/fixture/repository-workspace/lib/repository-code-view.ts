@@ -26,6 +26,7 @@ export const createRepositoryCodeViewItems = (
 			path: entry.path,
 			stat: entry.stat,
 		});
+
 		if (previewKind === "text" && entry.file) {
 			return {
 				fileDiff: entry.file,
@@ -34,8 +35,10 @@ export const createRepositoryCodeViewItems = (
 				version: 0,
 			};
 		}
+
 		const repositoryPreviewKind =
 			previewKind === "text" ? "unsupported" : previewKind;
+
 		return {
 			annotations: [
 				{

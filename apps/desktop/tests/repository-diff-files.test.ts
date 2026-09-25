@@ -100,6 +100,7 @@ describe("repository diff files", () => {
 			indexStatus: "modified",
 			worktreeStatus: "unmodified",
 		} as const;
+
 		const entries = createRepositoryDiffFileEntries(
 			[
 				{
@@ -128,6 +129,7 @@ describe("repository diff files", () => {
 			undefined,
 			"changes"
 		);
+
 		const second = createRepositoryDiffFileEntries(
 			[createDiff(fullFilePatch("OTHER"))],
 			[],
@@ -147,12 +149,14 @@ describe("repository diff files", () => {
 				kind: "range",
 			},
 		} as const;
+
 		const first = createRepositoryDiffFileEntries(
 			[diff],
 			[],
 			"stash-one",
 			"stashes"
 		);
+
 		const second = createRepositoryDiffFileEntries(
 			[diff],
 			[],

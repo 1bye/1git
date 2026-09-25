@@ -19,6 +19,7 @@ export function LiquidMenuSurface({
 	onBackdropPress,
 }: LiquidMenuSurfaceProps): ReactElement | null {
 	const maskId = useId().replaceAll(":", "");
+
 	const {
 		anchor,
 		anchorClip,
@@ -36,6 +37,7 @@ export function LiquidMenuSurface({
 		submenuElement,
 		submenuTriggerElement,
 	} = useLiquidMenuContext();
+
 	const { frame, progress, submenuProgress } = useLiquidMenuSurface({
 		anchor,
 		anchorClip,
@@ -50,6 +52,7 @@ export function LiquidMenuSurface({
 		submenuElement,
 		submenuTriggerElement,
 	});
+
 	if (!frame) {
 		return null;
 	}
@@ -60,20 +63,25 @@ export function LiquidMenuSurface({
 
 	const backdropMaskId = `${maskId}-backdrop`;
 	const surfaceMaskId = `${maskId}-surface`;
+
 	const backdropOpacity = getLiquidMenuBackdropOpacity({
 		hasLayerBelow: layerIndex > 0,
 		isTopLayer,
 		opacity: motion.backdropOpacity,
 		progress,
 	});
+
 	const { backdrop: backdropZIndex, surface: surfaceZIndex } =
 		getLiquidMenuLayerZIndices(layerIndex);
+
 	const backdropLayerStyle: CSSProperties = {
 		zIndex: backdropZIndex,
 	};
+
 	const surfaceLayerStyle: CSSProperties = {
 		zIndex: surfaceZIndex,
 	};
+
 	const surfaceStyle: CSSProperties = {
 		height: frame.bounds.height,
 		left: frame.bounds.left,

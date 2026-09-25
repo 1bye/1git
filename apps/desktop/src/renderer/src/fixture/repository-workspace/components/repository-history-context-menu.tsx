@@ -44,7 +44,9 @@ const REPOSITORY_HISTORY_CONTEXT_MENU_ANCHOR_GEOMETRY = {
 	insetInline: 0,
 	radius: 8,
 } as const;
+
 const REPOSITORY_HISTORY_CONTEXT_MENU_WIDTH = 280;
+
 const REPOSITORY_HISTORY_CONTEXT_MENU_WIDTH_CLASS_NAME =
 	"w-[280px] min-w-[280px]";
 
@@ -97,15 +99,19 @@ function RepositoryHistoryContextActions({
 	const [view, setView] = useState<HistoryMenuView>("actions");
 	const [actionError, setActionError] = useState<string | null>(null);
 	const cherryPickTargets = getRepositoryCherryPickTargets(branches);
+
 	const perform = async (
 		action: () => Promise<boolean>,
 		error: string
 	): Promise<void> => {
 		setActionError(null);
+
 		if (await action()) {
 			onDismiss();
+
 			return;
 		}
+
 		setActionError(error);
 	};
 
@@ -117,9 +123,11 @@ function RepositoryHistoryContextActions({
 					isPending={isPending}
 					onAmend={async (summary, description) => {
 						const succeeded = await onAmend(commit, summary, description);
+
 						if (succeeded) {
 							onDismiss();
 						}
+
 						return succeeded;
 					}}
 					onBack={() => setView("actions")}
@@ -138,9 +146,11 @@ function RepositoryHistoryContextActions({
 					onBack={() => setView("actions")}
 					onReset={async (mode) => {
 						const succeeded = await onReset(commit, mode);
+
 						if (succeeded) {
 							onDismiss();
 						}
+
 						return succeeded;
 					}}
 				/>
@@ -157,9 +167,11 @@ function RepositoryHistoryContextActions({
 					onBack={() => setView("actions")}
 					onCreate={async (name) => {
 						const succeeded = await onCreateBranch(name, commit.oid);
+
 						if (succeeded) {
 							onDismiss();
 						}
+
 						return succeeded;
 					}}
 				/>
@@ -278,34 +290,42 @@ export function RepositoryHistoryContextMenu({
 	const [anchorElement, setAnchorElement] = useState<HTMLElement | null>(null);
 	const [isOpen, setIsOpen] = useState(false);
 	const [isPresent, setIsPresent] = useState(false);
+
 	const contextMenuPosition = useLiquidContextMenuPosition({
 		anchorElement,
 		menuWidth: REPOSITORY_HISTORY_CONTEXT_MENU_WIDTH,
 	});
+
 	const getAnchor = useCallback(
 		(): Element | null => anchorElement,
 		[anchorElement]
 	);
+
 	const changeOpen = useCallback(
 		(nextIsOpen: boolean): void => {
 			setIsOpen(nextIsOpen);
+
 			if (!nextIsOpen) {
 				contextMenuPosition.resetPointer();
 			}
 		},
 		[contextMenuPosition.resetPointer]
 	);
+
 	const selectCommit = async (): Promise<void> => {
 		await onSelect(commit);
 	};
+
 	const openContextMenu = (event: ReactMouseEvent<HTMLButtonElement>): void => {
 		contextMenuPosition.onContextMenu(event);
+
 		if (!isSelected) {
 			onSelect(commit).catch(() => {
 				// The workspace hook reports selection errors in the app notice.
 			});
 		}
 	};
+
 	const row = (
 		<button
 			aria-current={isSelected ? "true" : undefined}

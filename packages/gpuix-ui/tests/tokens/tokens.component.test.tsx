@@ -25,6 +25,7 @@ import {
 import { elementByTestId } from "../_shared/native-elements";
 
 let root: TestRoot;
+
 beforeEach(() => {
 	root = createTestRoot({ width: 600, height: 400 });
 });
@@ -49,6 +50,7 @@ function TokenControls({ tokens }: { tokens: UiTokens }) {
 it("updates colors and layout independently on rerender without changing defaults", () => {
 	root.render(<TokenControls tokens={defaultTokens} />);
 	const initialButtonId = elementByTestId(root.renderer, "button").id;
+
 	expect(elementByTestId(root.renderer, "button").style).toMatchObject({
 		backgroundColor: palettes.dark.surface,
 		height: densities.comfortable.controlHeight,
@@ -99,6 +101,7 @@ it("accepts custom values while retaining final caller style overrides", () => {
 		colors: { ...palettes.light, accent: "#123456", onAccent: "#fedcba" },
 		layout: { ...densities.compact, smallControlHeight: 32 },
 	};
+
 	root.render(
 		<Button
 			tokens={tokens}
@@ -144,6 +147,7 @@ function TokenSelect({ tokens }: { tokens: UiTokens }) {
 it("updates every styled Select part while the popup remains open", () => {
 	root.render(<TokenSelect tokens={defaultTokens} />);
 	const initialPopupId = elementByTestId(root.renderer, "content").id;
+
 	expect(elementByTestId(root.renderer, "content").style.backgroundColor).toBe(
 		palettes.dark.overlay
 	);

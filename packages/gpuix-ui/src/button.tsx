@@ -111,6 +111,7 @@ export function Button({
 	}, [disabled]);
 
 	const appearance = styles[variant](tokens);
+
 	const rootStyle = StyleSheet.compose(
 		styles.root(tokens),
 		appearance,
@@ -120,6 +121,7 @@ export function Button({
 		!disabled && spacePressed && appearance.active,
 		disabled && styles.disabled
 	);
+
 	const labelStyle = StyleSheet.compose(
 		styles.label(tokens, variant),
 		textStyle
@@ -128,9 +130,11 @@ export function Button({
 	// Removing these states keeps a disabled button from responding visually to the pointer.
 	const { hover: _hover, active: _active, ...restStyle } = rootStyle;
 	const childNodes = Children.toArray(children);
+
 	const isTextOnly = childNodes.every(
 		(child) => typeof child === "string" || typeof child === "number"
 	);
+
 	const label = childNodes
 		.filter((child) => typeof child === "string" || typeof child === "number")
 		.join("");
@@ -154,8 +158,11 @@ export function Button({
 			}}
 			onKeyDown={(event) => {
 				onKeyDown?.(event);
+
 				if (disabled || event.isHeld) return;
+
 				if (event.key === "enter") onPress?.();
+
 				if (event.key === "space") {
 					spaceArmed.current = true;
 					setSpacePressed(true);
@@ -163,9 +170,12 @@ export function Button({
 			}}
 			onKeyUp={(event) => {
 				if (event.key !== "space") return;
+
 				const shouldPress = spaceArmed.current;
+
 				spaceArmed.current = false;
 				setSpacePressed(false);
+
 				if (!disabled && shouldPress) onPress?.();
 			}}
 		>

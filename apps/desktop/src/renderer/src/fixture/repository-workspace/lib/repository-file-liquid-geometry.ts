@@ -47,6 +47,7 @@ export const createRepositoryFileLiquidMeasurement = (
 	const viewportBottom = viewport.top + viewport.height;
 	const visibleTop = Math.max(row.top, viewport.top);
 	const visibleBottom = Math.min(rowBottom, viewportBottom);
+
 	if (visibleBottom <= visibleTop) {
 		return null;
 	}
@@ -56,16 +57,20 @@ export const createRepositoryFileLiquidMeasurement = (
 	const rowCenter = row.left + row.width / 2;
 	const rowRight = row.left + row.width;
 	const canvasSide = canvasCenter < rowCenter ? "left" : "right";
+
 	const surfaceLeft =
 		canvasSide === "left"
 			? canvasRight - CANVAS_OVERLAP
 			: row.left - SURFACE_PADDING;
+
 	const surfaceRight =
 		canvasSide === "left"
 			? rowRight + SURFACE_PADDING
 			: canvas.left + CANVAS_OVERLAP;
+
 	const surfaceTop = row.top - SURFACE_PADDING;
 	const surfaceBottom = rowBottom + SURFACE_PADDING;
+
 	if (surfaceRight <= surfaceLeft || surfaceBottom <= surfaceTop) {
 		return null;
 	}
@@ -93,22 +98,28 @@ export const createRepositoryFileLiquidPath = (
 ): string => {
 	const rowCenterY = measurement.rowTop + measurement.rowHeight / 2;
 	const rowRight = measurement.rowLeft + measurement.rowWidth;
+
 	const canvasLeft =
 		measurement.canvasSide === "left" ? -BLEND_RADIUS : measurement.canvasEdgeX;
+
 	const canvasRight =
 		measurement.canvasSide === "left"
 			? measurement.canvasEdgeX
 			: measurement.surfaceWidth + BLEND_RADIUS;
+
 	const rowConnectionX =
 		measurement.canvasSide === "left" ? measurement.rowLeft : rowRight;
+
 	const connectionLeft = Math.min(measurement.canvasEdgeX, rowConnectionX);
 	const connectionRight = Math.max(measurement.canvasEdgeX, rowConnectionX);
 	const connectionGap = connectionRight - connectionLeft;
 	const rowExtension = Math.max(0, connectionGap - CONNECTION_GAP);
+
 	const rowCenterX =
 		measurement.rowLeft +
 		measurement.rowWidth / 2 +
 		(measurement.canvasSide === "left" ? -rowExtension / 2 : rowExtension / 2);
+
 	const boxes: RoundedBox[] = [
 		{
 			centerX: (canvasLeft + canvasRight) / 2,

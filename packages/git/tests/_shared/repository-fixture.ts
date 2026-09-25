@@ -29,6 +29,7 @@ export const unwrapResult = <T>(result: GitResult<T>): T => {
 			`${result.error.operation}: ${result.error.message}\n${result.error.details ?? ""}`
 		);
 	}
+
 	return result.value;
 };
 
@@ -56,11 +57,13 @@ export class RepositoryFixture {
 		const sandboxPath = await realpath(createdSandboxPath);
 		const requestedRepositoryPath = join(sandboxPath, "repository");
 		const process = new GitProcess();
+
 		await process.run({
 			args: ["init", "--initial-branch=main", "--", requestedRepositoryPath],
 			cwd: sandboxPath,
 		});
 		const repositoryPath = await realpath(requestedRepositoryPath);
+
 		await process.run({
 			args: ["config", "--local", "user.name", TEST_USER_NAME],
 			cwd: repositoryPath,
@@ -69,6 +72,7 @@ export class RepositoryFixture {
 			args: ["config", "--local", "user.email", TEST_USER_EMAIL],
 			cwd: repositoryPath,
 		});
+
 		if (options.initialCommit !== false) {
 			await writeFile(join(repositoryPath, "README.md"), "# Test repository\n");
 			await process.run({
@@ -80,9 +84,11 @@ export class RepositoryFixture {
 				cwd: repositoryPath,
 			});
 		}
+
 		const repository = unwrapResult(
 			await GitRepository.open({ path: repositoryPath })
 		);
+
 		return new RepositoryFixture(sandboxPath, repositoryPath, repository);
 	}
 
@@ -96,6 +102,7 @@ export class RepositoryFixture {
 
 	async write(path: string, content: string | Uint8Array): Promise<void> {
 		const absolutePath = join(this.repositoryPath, path);
+
 		await mkdir(dirname(absolutePath), { recursive: true });
 		await writeFile(absolutePath, content);
 	}
@@ -110,6 +117,7 @@ export class RepositoryFixture {
 
 	async rename(currentPath: string, newPath: string): Promise<void> {
 		const absoluteNewPath = join(this.repositoryPath, newPath);
+
 		await mkdir(dirname(absoluteNewPath), { recursive: true });
 		await rename(join(this.repositoryPath, currentPath), absoluteNewPath);
 	}
@@ -120,21 +128,25 @@ export class RepositoryFixture {
 			cwd: this.repositoryPath,
 			stdin,
 		});
+
 		return output.stdout.toString("utf8").trimEnd();
 	}
 
 	async commitAll(summary: string): Promise<string> {
 		await this.git(["add", "--all"]);
 		await this.git(["commit", "-m", summary]);
+
 		return await this.git(["rev-parse", "HEAD"]);
 	}
 
 	async createBareRemote(name = "remote.git"): Promise<string> {
 		const path = this.path(name);
+
 		await this.process.run({
 			args: ["init", "--bare", "--initial-branch=main", "--", path],
 			cwd: this.sandboxPath,
 		});
+
 		return path;
 	}
 }
@@ -147,12 +159,15 @@ export class RepositoryFixtures {
 		options: RepositoryFixtureOptions = {}
 	): Promise<RepositoryFixture> {
 		const fixture = await RepositoryFixture.create(options);
+
 		this.fixtures.push(fixture);
+
 		return fixture;
 	}
 
 	async cleanup(): Promise<void> {
 		const fixtures = this.fixtures.splice(0);
+
 		await Promise.all(fixtures.map((fixture) => fixture.cleanup()));
 	}
 }

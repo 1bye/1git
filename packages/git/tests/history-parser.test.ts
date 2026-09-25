@@ -91,6 +91,7 @@ describe("parseHistory", () => {
 			"summary",
 			"body",
 		] as const;
+
 		const commits = parseHistory(
 			`${record([OID_A, ...baseFields])}${record([OID_B, ...baseFields])}`
 		);

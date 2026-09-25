@@ -107,6 +107,7 @@ const EMPTY_HISTORY: CommitPage = {
 	hasMore: false,
 	nextOffset: null,
 };
+
 const DEFAULT_HISTORY_LIMIT = 50;
 const DISCARD_UNDO_TTL_MS = 15_000;
 const EMPTY_TREE_OID = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
@@ -150,6 +151,7 @@ const processOptions = (input: {
 const existingDirectory = async (path: string): Promise<string> => {
 	const absolutePath = resolve(path);
 	const pathStat = await stat(absolutePath);
+
 	return await realpath(
 		pathStat.isDirectory() ? absolutePath : dirname(absolutePath)
 	);
@@ -161,12 +163,15 @@ const loadRepositoryInfo = async (
 	signal?: AbortSignal
 ): Promise<RepositoryInfo> => {
 	const cwd = await existingDirectory(path);
+
 	const bareOutput = await process.run({
 		args: ["rev-parse", "--is-bare-repository"],
 		cwd,
 		signal,
 	});
+
 	const isBare = bareOutput.stdout.toString("utf8").trim() === "true";
+
 	if (isBare) {
 		throw invalidInput(
 			"open-repository",
@@ -174,12 +179,15 @@ const loadRepositoryInfo = async (
 			"bare-repository"
 		);
 	}
+
 	const rootOutput = await process.run({
 		args: ["rev-parse", "--show-toplevel"],
 		cwd,
 		signal,
 	});
+
 	const root = await realpath(rootOutput.stdout.toString("utf8").trim());
+
 	const [gitDirectoryOutput, commonDirectoryOutput, shallowOutput] =
 		await Promise.all([
 			process.run({
@@ -198,6 +206,7 @@ const loadRepositoryInfo = async (
 				signal,
 			}),
 		]);
+
 	return {
 		commonDirectory: commonDirectoryOutput.stdout.toString("utf8").trim(),
 		gitDirectory: gitDirectoryOutput.stdout.toString("utf8").trim(),
@@ -222,6 +231,7 @@ const requireBranchName = async (
 		cwd: context.repository.root,
 		signal,
 	});
+
 	return name;
 };
 
@@ -237,6 +247,7 @@ const requireTagName = async (
 		cwd: context.repository.root,
 		signal,
 	});
+
 	return name;
 };
 
@@ -247,6 +258,7 @@ const requireRevisions = (
 	if (revisions.length === 0) {
 		throw invalidInput(operation, "At least one revision is required.");
 	}
+
 	return revisions.map((revision) =>
 		requireRevision(revision, "Revision", operation)
 	);
@@ -260,6 +272,7 @@ const branchResult = async (
 		loadBranches(context, signal),
 		loadSnapshot(context, false, signal),
 	]);
+
 	return { branches, snapshot };
 };
 
@@ -270,6 +283,7 @@ const syncResult = async (
 	signal?: AbortSignal
 ): Promise<SyncResult> => {
 	const snapshot = await loadSnapshot(context, false, signal);
+
 	return {
 		branch: snapshot.head.branch,
 		operation,
@@ -297,11 +311,13 @@ export class GitRepository {
 		return await capture("open-repository", async () => {
 			requireText(input.path, "Repository path", "open-repository");
 			const process = new GitProcess(processOptions(input));
+
 			const repository = await loadRepositoryInfo(
 				process,
 				input.path,
 				input.signal
 			);
+
 			return new GitRepository({ process, repository });
 		});
 	}
@@ -313,9 +329,11 @@ export class GitRepository {
 		return await capture("initialize-repository", async () => {
 			requireText(input.path, "Repository path", "initialize-repository");
 			const targetPath = resolve(input.path);
+
 			await mkdir(dirname(targetPath), { recursive: true });
 			const process = new GitProcess(processOptions(input));
 			const args = ["init"];
+
 			if (input.initialBranch) {
 				requireRevision(
 					input.initialBranch,
@@ -324,6 +342,7 @@ export class GitRepository {
 				);
 				args.push(`--initial-branch=${input.initialBranch}`);
 			}
+
 			args.push("--", targetPath);
 			await process.run({
 				args,
@@ -335,6 +354,7 @@ export class GitRepository {
 				targetPath,
 				input.signal
 			);
+
 			return new GitRepository({ process, repository });
 		});
 	}
@@ -347,13 +367,16 @@ export class GitRepository {
 			requireText(input.path, "Clone path", "clone-repository");
 			requireCredentialFreeRemoteUrl(input.remoteUrl, "clone-repository");
 			const targetPath = resolve(input.path);
+
 			await mkdir(dirname(targetPath), { recursive: true });
 			const process = new GitProcess(processOptions(input));
 			const args = ["clone"];
+
 			if (input.branch) {
 				requireRevision(input.branch, "Branch", "clone-repository");
 				args.push("--branch", input.branch);
 			}
+
 			if (input.depth !== undefined) {
 				requireIntegerInRange(
 					input.depth,
@@ -364,9 +387,11 @@ export class GitRepository {
 				);
 				args.push(`--depth=${input.depth}`);
 			}
+
 			if (input.recurseSubmodules) {
 				args.push("--recurse-submodules");
 			}
+
 			args.push("--", input.remoteUrl, targetPath);
 			await process.run({
 				args,
@@ -378,6 +403,7 @@ export class GitRepository {
 				targetPath,
 				input.signal
 			);
+
 			return new GitRepository({ process, repository });
 		});
 	}
@@ -401,6 +427,7 @@ export class GitRepository {
 				MAX_HISTORY_LIMIT,
 				"get-history"
 			);
+
 			const offset = requireIntegerInRange(
 				input.offset ?? 0,
 				"History offset",
@@ -408,16 +435,21 @@ export class GitRepository {
 				Number.MAX_SAFE_INTEGER,
 				"get-history"
 			);
+
 			const paths = input.paths
 				? requireRepositoryPaths(input.paths, "get-history")
 				: undefined;
+
 			const revision = input.revision
 				? requireRevision(input.revision, "Revision", "get-history")
 				: undefined;
+
 			const snapshot = await loadSnapshot(this.context, false, input.signal);
+
 			if (snapshot.head.unborn) {
 				return EMPTY_HISTORY;
 			}
+
 			return await loadHistory(this.context, {
 				...input,
 				limit,
@@ -493,6 +525,7 @@ export class GitRepository {
 			const paths = input.paths
 				? requireRepositoryPaths(input.paths, "diff")
 				: undefined;
+
 			const contextLines = requireIntegerInRange(
 				input.contextLines ?? 3,
 				"Context lines",
@@ -500,12 +533,14 @@ export class GitRepository {
 				MAX_DIFF_CONTEXT_LINES,
 				"diff"
 			);
+
 			if (input.target.kind === "commit") {
 				requireRevision(input.target.revision, "Revision", "diff");
 			} else if (input.target.kind === "range") {
 				requireRevision(input.target.base, "Base revision", "diff");
 				requireRevision(input.target.head, "Head revision", "diff");
 			}
+
 			return await loadDiff(this.context, {
 				...input,
 				contextLines,
@@ -524,13 +559,16 @@ export class GitRepository {
 				(input.revision
 					? { kind: "revision", revision: input.revision }
 					: null);
+
 			if (!requestedSource) {
 				throw invalidInput(
 					"file-content",
 					"A file content source is required."
 				);
 			}
+
 			let source: FileContentSource;
+
 			if (requestedSource.kind === "object") {
 				source = {
 					kind: "object",
@@ -552,6 +590,7 @@ export class GitRepository {
 			} else {
 				source = requestedSource;
 			}
+
 			return await loadFileContent(
 				this.context,
 				source,
@@ -565,7 +604,9 @@ export class GitRepository {
 	async stage(input: StageInput): Promise<GitResult<RepositorySnapshot>> {
 		return await this.mutate("stage", input.signal, async () => {
 			const paths = requireRepositoryPaths(input.paths, "stage");
+
 			await this.run(["add", "--", ...paths], input.signal);
+
 			return await loadSnapshot(this.context, false, input.signal);
 		});
 	}
@@ -576,6 +617,7 @@ export class GitRepository {
 	): Promise<GitResult<ChangeHunkResult>> {
 		return await this.mutate("change-hunk", input.signal, async () => {
 			const path = requireRepositoryPaths([input.path], "change-hunk")[0] ?? "";
+
 			const hunkIndex = requireIntegerInRange(
 				input.hunkIndex,
 				"Hunk index",
@@ -583,6 +625,7 @@ export class GitRepository {
 				MAX_HUNK_INDEX,
 				"change-hunk"
 			);
+
 			if (input.action === "discard" && !input.allowDestructive) {
 				throw invalidInput(
 					"change-hunk",
@@ -594,20 +637,25 @@ export class GitRepository {
 				input.action === "unstage"
 					? ({ kind: "staged" } as const)
 					: ({ kind: "working" } as const);
+
 			const diff = await loadDiff(this.context, {
 				contextLines: 3,
 				paths: [path],
 				signal: input.signal,
 				target,
 			});
+
 			const patch = selectHunkPatch(diff.patch, hunkIndex);
 			const args = ["apply", "--recount", "--whitespace=nowarn"];
+
 			if (input.action !== "discard") {
 				args.push("--cached");
 			}
+
 			if (input.action !== "stage") {
 				args.push("--reverse");
 			}
+
 			await this.context.process.run({
 				args,
 				cwd: this.info.root,
@@ -615,16 +663,19 @@ export class GitRepository {
 				stdin: patch,
 			});
 			const snapshot = await loadSnapshot(this.context, false, input.signal);
+
 			if (input.action !== "discard") {
 				return { snapshot, undo: null };
 			}
 
 			const expiresAt = Date.now() + DISCARD_UNDO_TTL_MS;
+
 			const undo = {
 				expiresAt: new Date(expiresAt).toISOString(),
 				path,
 				token: randomUUID(),
 			};
+
 			this.pendingDiscardUndo = {
 				expiresAt,
 				path,
@@ -632,6 +683,7 @@ export class GitRepository {
 				token: undo.token,
 				worktreePatch: patch,
 			};
+
 			return { snapshot, undo };
 		});
 	}
@@ -647,21 +699,26 @@ export class GitRepository {
 					"Discarding file changes requires allowDestructive: true."
 				);
 			}
+
 			const requestedPaths = requireRepositoryPaths(
 				input.paths,
 				"discard-files"
 			);
+
 			const before = await loadSnapshot(this.context, false, input.signal);
 			const requestedPathSet = new Set(requestedPaths);
+
 			const selectedFiles = before.files.filter((file) =>
 				matchesRequestedPath(file, requestedPathSet)
 			);
+
 			if (selectedFiles.length === 0) {
 				throw invalidInput(
 					"discard-files",
 					"No changed file matches the selected path."
 				);
 			}
+
 			if (selectedFiles.some((file) => file.recordType === "unmerged")) {
 				throw invalidInput(
 					"discard-files",
@@ -676,6 +733,7 @@ export class GitRepository {
 					)
 				),
 			];
+
 			const stagedPatch = await this.captureDiffPatch(
 				[
 					"diff",
@@ -690,6 +748,7 @@ export class GitRepository {
 				],
 				input.signal
 			);
+
 			const trackedWorktreePatch = await this.captureDiffPatch(
 				[
 					"diff",
@@ -702,14 +761,17 @@ export class GitRepository {
 				],
 				input.signal
 			);
+
 			const untrackedPatches = await Promise.all(
 				selectedFiles
 					.filter((file) => file.recordType === "untracked")
 					.map((file) => this.captureNoIndexPatch(file.path, input.signal))
 			);
+
 			const worktreePatch = [trackedWorktreePatch, ...untrackedPatches]
 				.filter(Boolean)
 				.join("\n");
+
 			if (!(stagedPatch || worktreePatch)) {
 				throw invalidInput(
 					"discard-files",
@@ -721,11 +783,13 @@ export class GitRepository {
 				reverse: true,
 				signal: input.signal,
 			});
+
 			try {
 				await this.applyPatch(stagedPatch, {
 					reverse: true,
 					signal: input.signal,
 				});
+
 				try {
 					await this.applyPatch(stagedPatch, {
 						cached: true,
@@ -734,19 +798,23 @@ export class GitRepository {
 					});
 				} catch (error: unknown) {
 					await this.applyPatch(stagedPatch, { signal: input.signal });
+
 					throw error;
 				}
 			} catch (error: unknown) {
 				await this.applyPatch(worktreePatch, { signal: input.signal });
+
 				throw error;
 			}
 
 			const expiresAt = Date.now() + DISCARD_UNDO_TTL_MS;
+
 			const undo = {
 				expiresAt: new Date(expiresAt).toISOString(),
 				path: selectedFiles[0]?.path ?? requestedPaths[0] ?? "",
 				token: randomUUID(),
 			};
+
 			this.pendingDiscardUndo = {
 				expiresAt,
 				path: undo.path,
@@ -754,6 +822,7 @@ export class GitRepository {
 				token: undo.token,
 				worktreePatch,
 			};
+
 			return {
 				snapshot: await loadSnapshot(this.context, false, input.signal),
 				undo,
@@ -771,7 +840,9 @@ export class GitRepository {
 				"Discard undo token",
 				"undo-discard"
 			);
+
 			const pendingUndo = this.pendingDiscardUndo;
+
 			if (
 				!pendingUndo ||
 				pendingUndo.token !== token ||
@@ -780,6 +851,7 @@ export class GitRepository {
 				if (pendingUndo?.token === token) {
 					this.pendingDiscardUndo = null;
 				}
+
 				throw invalidInput(
 					"undo-discard",
 					"The discarded change can no longer be restored."
@@ -790,10 +862,12 @@ export class GitRepository {
 				cached: true,
 				signal: input.signal,
 			});
+
 			try {
 				await this.applyPatch(pendingUndo.stagedPatch, {
 					signal: input.signal,
 				});
+
 				try {
 					await this.applyPatch(pendingUndo.worktreePatch, {
 						signal: input.signal,
@@ -803,6 +877,7 @@ export class GitRepository {
 						reverse: true,
 						signal: input.signal,
 					});
+
 					throw error;
 				}
 			} catch (error: unknown) {
@@ -811,9 +886,12 @@ export class GitRepository {
 					reverse: true,
 					signal: input.signal,
 				});
+
 				throw error;
 			}
+
 			this.pendingDiscardUndo = null;
+
 			return await loadSnapshot(this.context, false, input.signal);
 		});
 	}
@@ -824,6 +902,7 @@ export class GitRepository {
 	): Promise<GitResult<RepositorySnapshot>> {
 		return await this.mutate("stage-all", options.signal, async () => {
 			await this.run(["add", "--all"], options.signal);
+
 			return await loadSnapshot(this.context, false, options.signal);
 		});
 	}
@@ -833,6 +912,7 @@ export class GitRepository {
 		return await this.mutate("unstage", input.signal, async () => {
 			const paths = requireRepositoryPaths(input.paths, "unstage");
 			const snapshot = await loadSnapshot(this.context, false, input.signal);
+
 			if (snapshot.head.unborn) {
 				await this.run(
 					["rm", "--cached", "--ignore-unmatch", "--", ...paths],
@@ -841,6 +921,7 @@ export class GitRepository {
 			} else {
 				await this.run(["restore", "--staged", "--", ...paths], input.signal);
 			}
+
 			return await loadSnapshot(this.context, false, input.signal);
 		});
 	}
@@ -851,6 +932,7 @@ export class GitRepository {
 	): Promise<GitResult<RepositorySnapshot>> {
 		return await this.mutate("unstage-all", options.signal, async () => {
 			const snapshot = await loadSnapshot(this.context, false, options.signal);
+
 			if (snapshot.head.unborn) {
 				await this.run(
 					["rm", "-r", "--cached", "--ignore-unmatch", "--", "."],
@@ -859,6 +941,7 @@ export class GitRepository {
 			} else {
 				await this.run(["restore", "--staged", "--", ":/"], options.signal);
 			}
+
 			return await loadSnapshot(this.context, false, options.signal);
 		});
 	}
@@ -868,26 +951,33 @@ export class GitRepository {
 		return await this.mutate("restore", input.signal, async () => {
 			const paths = requireRepositoryPaths(input.paths, "restore");
 			const restoreWorktree = input.worktree ?? !input.staged;
+
 			if (restoreWorktree && !input.allowDestructive) {
 				throw invalidInput(
 					"restore",
 					"Restoring worktree content requires allowDestructive: true."
 				);
 			}
+
 			const args = ["restore"];
+
 			if (input.source) {
 				args.push(
 					`--source=${requireRevision(input.source, "Source", "restore")}`
 				);
 			}
+
 			if (input.staged) {
 				args.push("--staged");
 			}
+
 			if (restoreWorktree) {
 				args.push("--worktree");
 			}
+
 			args.push("--", ...paths);
 			await this.run(args, input.signal);
+
 			return await loadSnapshot(this.context, false, input.signal);
 		});
 	}
@@ -901,12 +991,15 @@ export class GitRepository {
 					"Hard reset requires allowDestructive: true."
 				);
 			}
+
 			const target = requireRevision(
 				input.target ?? "HEAD",
 				"Reset target",
 				"reset"
 			);
+
 			await this.run(["reset", `--${input.mode}`, target], input.signal);
+
 			return await loadSnapshot(this.context, false, input.signal);
 		});
 	}
@@ -916,26 +1009,34 @@ export class GitRepository {
 		return await this.mutate("commit", input.signal, async () => {
 			const summary = requireText(input.summary.trim(), "Summary", "commit");
 			const description = input.description?.trim() ?? "";
+
 			if (description.includes("\0")) {
 				throw invalidInput("commit", "Description must contain no NUL.");
 			}
+
 			const args = ["commit", "-F", "-"];
+
 			if (input.allowEmpty) {
 				args.push("--allow-empty");
 			}
+
 			if (input.amend) {
 				args.push("--amend");
 			}
+
 			if (input.noVerify) {
 				args.push("--no-verify");
 			}
+
 			if (input.signoff) {
 				args.push("--signoff");
 			}
+
 			const message =
 				description.length > 0
 					? `${summary}\n\n${description}\n`
 					: `${summary}\n`;
+
 			await this.context.process.run({
 				args,
 				cwd: this.info.root,
@@ -946,6 +1047,7 @@ export class GitRepository {
 				loadCommit(this.context, "HEAD", input.signal),
 				loadSnapshot(this.context, false, input.signal),
 			]);
+
 			return { commit, snapshot };
 		});
 	}
@@ -961,19 +1063,25 @@ export class GitRepository {
 				"create-branch",
 				input.signal
 			);
+
 			const args = input.checkout ? ["switch"] : ["branch"];
+
 			if (input.force) {
 				args.push(input.checkout ? "-C" : "--force");
 			} else if (input.checkout) {
 				args.push("-c");
 			}
+
 			args.push(name);
+
 			if (input.startPoint) {
 				args.push(
 					requireRevision(input.startPoint, "Start point", "create-branch")
 				);
 			}
+
 			await this.run(args, input.signal);
+
 			return await branchResult(this.context, input.signal);
 		});
 	}
@@ -989,12 +1097,16 @@ export class GitRepository {
 				"checkout-branch",
 				input.signal
 			);
+
 			const args = ["switch"];
+
 			if (input.force) {
 				args.push("--discard-changes");
 			}
+
 			args.push("--", name);
 			await this.run(args, input.signal);
+
 			return await branchResult(this.context, input.signal);
 		});
 	}
@@ -1010,7 +1122,9 @@ export class GitRepository {
 				"rename-branch",
 				input.signal
 			);
+
 			const args = ["branch", input.force ? "-M" : "-m"];
+
 			if (input.currentName) {
 				args.push(
 					await requireBranchName(
@@ -1021,8 +1135,10 @@ export class GitRepository {
 					)
 				);
 			}
+
 			args.push(newName);
 			await this.run(args, input.signal);
+
 			return await branchResult(this.context, input.signal);
 		});
 	}
@@ -1038,10 +1154,12 @@ export class GitRepository {
 				"delete-branch",
 				input.signal
 			);
+
 			await this.run(
 				["branch", input.force ? "-D" : "-d", "--", name],
 				input.signal
 			);
+
 			return await branchResult(this.context, input.signal);
 		});
 	}
@@ -1056,7 +1174,9 @@ export class GitRepository {
 				"Upstream",
 				"set-upstream"
 			);
+
 			const args = ["branch", `--set-upstream-to=${upstream}`];
+
 			if (input.branch) {
 				args.push(
 					await requireBranchName(
@@ -1067,7 +1187,9 @@ export class GitRepository {
 					)
 				);
 			}
+
 			await this.run(args, input.signal);
+
 			return await branchResult(this.context, input.signal);
 		});
 	}
@@ -1076,19 +1198,24 @@ export class GitRepository {
 	async merge(input: MergeInput): Promise<GitResult<RepositorySnapshot>> {
 		return await this.mutate("merge", input.signal, async () => {
 			const args = ["merge", "--no-edit"];
+
 			if (input.fastForward === "only") {
 				args.push("--ff-only");
 			} else if (input.fastForward === "prevent") {
 				args.push("--no-ff");
 			}
+
 			if (input.squash) {
 				args.push("--squash");
 			}
+
 			if (input.message) {
 				args.push("-m", requireText(input.message, "Merge message", "merge"));
 			}
+
 			args.push(requireRevision(input.revision, "Revision", "merge"));
 			await this.run(args, input.signal);
+
 			return await loadSnapshot(this.context, false, input.signal);
 		});
 	}
@@ -1099,6 +1226,7 @@ export class GitRepository {
 	): Promise<GitResult<RepositorySnapshot>> {
 		return await this.mutate("abort-merge", options.signal, async () => {
 			await this.run(["merge", "--abort"], options.signal);
+
 			return await loadSnapshot(this.context, false, options.signal);
 		});
 	}
@@ -1109,6 +1237,7 @@ export class GitRepository {
 	): Promise<GitResult<RepositorySnapshot>> {
 		return await this.mutate("continue-merge", options.signal, async () => {
 			await this.run(["merge", "--continue"], options.signal);
+
 			return await loadSnapshot(this.context, false, options.signal);
 		});
 	}
@@ -1117,20 +1246,26 @@ export class GitRepository {
 	async rebase(input: RebaseInput): Promise<GitResult<RepositorySnapshot>> {
 		return await this.mutate("rebase", input.signal, async () => {
 			const args = ["rebase"];
+
 			if (input.autosquash) {
 				args.push("--autosquash");
 			}
+
 			if (input.onto) {
 				args.push(
 					"--onto",
 					requireRevision(input.onto, "Onto revision", "rebase")
 				);
 			}
+
 			args.push(requireRevision(input.upstream, "Upstream", "rebase"));
+
 			if (input.branch) {
 				args.push(requireRevision(input.branch, "Branch", "rebase"));
 			}
+
 			await this.run(args, input.signal);
+
 			return await loadSnapshot(this.context, false, input.signal);
 		});
 	}
@@ -1165,6 +1300,7 @@ export class GitRepository {
 				["cherry-pick", ...requireRevisions(input.revisions, "cherry-pick")],
 				input.signal
 			);
+
 			return await loadSnapshot(this.context, false, input.signal);
 		});
 	}
@@ -1195,11 +1331,14 @@ export class GitRepository {
 	async revert(input: RevertInput): Promise<GitResult<RepositorySnapshot>> {
 		return await this.mutate("revert", input.signal, async () => {
 			const args = ["revert", "--no-edit"];
+
 			if (input.noCommit) {
 				args.push("--no-commit");
 			}
+
 			args.push(...requireRevisions(input.revisions, "revert"));
 			await this.run(args, input.signal);
+
 			return await loadSnapshot(this.context, false, input.signal);
 		});
 	}
@@ -1237,10 +1376,13 @@ export class GitRepository {
 				"create-tag",
 				input.signal
 			);
+
 			const args = ["tag"];
+
 			if (input.force) {
 				args.push("--force");
 			}
+
 			if (input.message !== undefined) {
 				args.push(
 					"-a",
@@ -1248,13 +1390,17 @@ export class GitRepository {
 					requireText(input.message, "Tag message", "create-tag")
 				);
 			}
+
 			args.push(name);
+
 			if (input.revision) {
 				args.push(
 					requireRevision(input.revision, "Tag revision", "create-tag")
 				);
 			}
+
 			await this.run(args, input.signal);
+
 			return await loadTags(this.context, input.signal);
 		});
 	}
@@ -1270,7 +1416,9 @@ export class GitRepository {
 				"delete-tag",
 				input.signal
 			);
+
 			await this.run(["tag", "--delete", "--", name], input.signal);
+
 			return await loadTags(this.context, input.signal);
 		});
 	}
@@ -1283,11 +1431,14 @@ export class GitRepository {
 			const name = requireRemoteName(input.name, "add-remote");
 			const url = requireCredentialFreeRemoteUrl(input.url, "add-remote");
 			const args = ["remote", "add"];
+
 			if (input.fetch) {
 				args.push("-f");
 			}
+
 			args.push("--", name, url);
 			await this.run(args, input.signal);
+
 			return await loadRemotes(this.context, input.signal);
 		});
 	}
@@ -1299,7 +1450,9 @@ export class GitRepository {
 		return await this.mutate("rename-remote", input.signal, async () => {
 			const currentName = requireRemoteName(input.currentName, "rename-remote");
 			const newName = requireRemoteName(input.newName, "rename-remote");
+
 			await this.run(["remote", "rename", currentName, newName], input.signal);
+
 			return await loadRemotes(this.context, input.signal);
 		});
 	}
@@ -1312,14 +1465,18 @@ export class GitRepository {
 			const name = requireRemoteName(input.name, "set-remote-url");
 			const url = requireCredentialFreeRemoteUrl(input.url, "set-remote-url");
 			const args = ["remote", "set-url"];
+
 			if (input.push) {
 				args.push("--push");
 			}
+
 			if (input.add) {
 				args.push("--add");
 			}
+
 			args.push(name, url);
 			await this.run(args, input.signal);
+
 			return await loadRemotes(this.context, input.signal);
 		});
 	}
@@ -1330,7 +1487,9 @@ export class GitRepository {
 	): Promise<GitResult<readonly RemoteInfo[]>> {
 		return await this.mutate("remove-remote", input.signal, async () => {
 			const name = requireRemoteName(input.name, "remove-remote");
+
 			await this.run(["remote", "remove", name], input.signal);
+
 			return await loadRemotes(this.context, input.signal);
 		});
 	}
@@ -1339,21 +1498,27 @@ export class GitRepository {
 	async fetch(input: FetchInput = {}): Promise<GitResult<SyncResult>> {
 		return await this.mutate("fetch", input.signal, async () => {
 			const args = ["fetch"];
+
 			if (input.prune) {
 				args.push("--prune");
 			}
+
 			if (input.tags) {
 				args.push("--tags");
 			}
+
 			const remote = input.remote
 				? requireRemoteName(input.remote, "fetch")
 				: null;
+
 			if (remote) {
 				args.push(remote);
 			} else {
 				args.push("--all");
 			}
+
 			await this.run(args, input.signal);
+
 			return await syncResult(this.context, "fetch", remote, input.signal);
 		});
 	}
@@ -1363,6 +1528,7 @@ export class GitRepository {
 		return await this.mutate("pull", input.signal, async () => {
 			const args = ["pull"];
 			const strategy = input.strategy ?? "fast-forward-only";
+
 			if (strategy === "fast-forward-only") {
 				args.push("--ff-only");
 			} else if (strategy === "rebase") {
@@ -1370,18 +1536,23 @@ export class GitRepository {
 			} else {
 				args.push("--no-rebase");
 			}
+
 			const remote = input.remote
 				? requireRemoteName(input.remote, "pull")
 				: null;
+
 			if (remote) {
 				args.push(remote);
+
 				if (input.branch) {
 					args.push(requireRevision(input.branch, "Branch", "pull"));
 				}
 			} else if (input.branch) {
 				throw invalidInput("pull", "A branch requires an explicit remote.");
 			}
+
 			await this.run(args, input.signal);
+
 			return await syncResult(this.context, "pull", remote, input.signal);
 		});
 	}
@@ -1390,20 +1561,26 @@ export class GitRepository {
 	async push(input: PushInput = {}): Promise<GitResult<SyncResult>> {
 		return await this.mutate("push", input.signal, async () => {
 			const args = ["push"];
+
 			if (input.forceWithLease) {
 				args.push("--force-with-lease");
 			}
+
 			if (input.tags) {
 				args.push("--tags");
 			}
+
 			if (input.setUpstream) {
 				args.push("--set-upstream");
 			}
+
 			const remote = input.remote
 				? requireRemoteName(input.remote, "push")
 				: null;
+
 			if (remote) {
 				args.push(remote);
+
 				if (input.branch) {
 					args.push(requireRevision(input.branch, "Branch", "push"));
 				}
@@ -1413,7 +1590,9 @@ export class GitRepository {
 					"A branch or setUpstream requires an explicit remote."
 				);
 			}
+
 			await this.run(args, input.signal);
+
 			return await syncResult(this.context, "push", remote, input.signal);
 		});
 	}
@@ -1422,22 +1601,29 @@ export class GitRepository {
 	async stash(input: StashInput = {}): Promise<GitResult<RepositorySnapshot>> {
 		return await this.mutate("stash", input.signal, async () => {
 			const args = ["stash", "push"];
+
 			if (input.includeUntracked) {
 				args.push("--include-untracked");
 			}
+
 			if (input.keepIndex) {
 				args.push("--keep-index");
 			}
+
 			if (input.staged) {
 				args.push("--staged");
 			}
+
 			if (input.message) {
 				args.push("-m", requireText(input.message, "Stash message", "stash"));
 			}
+
 			if (input.paths) {
 				args.push("--", ...requireRepositoryPaths(input.paths, "stash"));
 			}
+
 			await this.run(args, input.signal);
+
 			return await loadSnapshot(this.context, false, input.signal);
 		});
 	}
@@ -1466,7 +1652,9 @@ export class GitRepository {
 				"Stash reference",
 				"drop-stash"
 			);
+
 			await this.run(["stash", "drop", reference], input.signal);
+
 			return await loadStashes(this.context, input.signal);
 		});
 	}
@@ -1482,13 +1670,17 @@ export class GitRepository {
 					"detach and newBranch are mutually exclusive."
 				);
 			}
+
 			const args = ["worktree", "add"];
+
 			if (input.force) {
 				args.push("--force");
 			}
+
 			if (input.detach) {
 				args.push("--detach");
 			}
+
 			if (input.newBranch) {
 				args.push(
 					"-b",
@@ -1500,6 +1692,7 @@ export class GitRepository {
 					)
 				);
 			}
+
 			if (input.lockReason !== undefined) {
 				args.push(
 					"--lock",
@@ -1507,13 +1700,17 @@ export class GitRepository {
 					requireText(input.lockReason, "Lock reason", "create-worktree")
 				);
 			}
+
 			args.push(resolve(input.path));
+
 			if (input.revision) {
 				args.push(
 					requireRevision(input.revision, "Revision", "create-worktree")
 				);
 			}
+
 			await this.run(args, input.signal);
+
 			return await loadWorktrees(this.context, input.signal);
 		});
 	}
@@ -1527,6 +1724,7 @@ export class GitRepository {
 				["worktree", "move", resolve(input.path), resolve(input.newPath)],
 				input.signal
 			);
+
 			return await loadWorktrees(this.context, input.signal);
 		});
 	}
@@ -1537,11 +1735,14 @@ export class GitRepository {
 	): Promise<GitResult<readonly WorktreeInfo[]>> {
 		return await this.mutate("remove-worktree", input.signal, async () => {
 			const args = ["worktree", "remove"];
+
 			if (input.force) {
 				args.push("--force");
 			}
+
 			args.push(resolve(input.path));
 			await this.run(args, input.signal);
+
 			return await loadWorktrees(this.context, input.signal);
 		});
 	}
@@ -1552,14 +1753,17 @@ export class GitRepository {
 	): Promise<GitResult<readonly WorktreeInfo[]>> {
 		return await this.mutate("lock-worktree", input.signal, async () => {
 			const args = ["worktree", "lock"];
+
 			if (input.reason) {
 				args.push(
 					"--reason",
 					requireText(input.reason, "Lock reason", "lock-worktree")
 				);
 			}
+
 			args.push(resolve(input.path));
 			await this.run(args, input.signal);
+
 			return await loadWorktrees(this.context, input.signal);
 		});
 	}
@@ -1570,6 +1774,7 @@ export class GitRepository {
 	): Promise<GitResult<readonly WorktreeInfo[]>> {
 		return await this.mutate("unlock-worktree", input.signal, async () => {
 			await this.run(["worktree", "unlock", resolve(input.path)], input.signal);
+
 			return await loadWorktrees(this.context, input.signal);
 		});
 	}
@@ -1580,12 +1785,15 @@ export class GitRepository {
 	): Promise<GitResult<readonly WorktreeInfo[]>> {
 		return await this.mutate("prune-worktrees", input.signal, async () => {
 			const args = ["worktree", "prune"];
+
 			if (input.expire) {
 				args.push(
 					`--expire=${requireText(input.expire, "Expiry", "prune-worktrees")}`
 				);
 			}
+
 			await this.run(args, input.signal);
+
 			return await loadWorktrees(this.context, input.signal);
 		});
 	}
@@ -1596,7 +1804,9 @@ export class GitRepository {
 	): Promise<GitResult<readonly WorktreeInfo[]>> {
 		return await this.mutate("repair-worktrees", input.signal, async () => {
 			const paths = input.paths?.map((path) => resolve(path)) ?? [];
+
 			await this.run(["worktree", "repair", ...paths], input.signal);
+
 			return await loadWorktrees(this.context, input.signal);
 		});
 	}
@@ -1605,10 +1815,12 @@ export class GitRepository {
 	async getConfig(input: GetConfigInput): Promise<GitResult<ConfigValue>> {
 		return await this.read("get-config", async () => {
 			const key = requireConfigKey(input.key, "get-config");
+
 			const scope = requireConfigReadScope(
 				input.scope ?? "local",
 				"get-config"
 			);
+
 			try {
 				const output = await this.context.process.run({
 					args:
@@ -1618,6 +1830,7 @@ export class GitRepository {
 					cwd: this.info.root,
 					signal: input.signal,
 				});
+
 				return {
 					key,
 					scope,
@@ -1627,6 +1840,7 @@ export class GitRepository {
 				if (error instanceof GitCommandFailure && error.exitCode === 1) {
 					return { key, scope, value: null };
 				}
+
 				throw error;
 			}
 		});
@@ -1636,13 +1850,17 @@ export class GitRepository {
 	async setConfig(input: SetConfigInput): Promise<GitResult<ConfigValue>> {
 		return await this.mutate("set-config", input.signal, async () => {
 			const key = requireConfigKey(input.key, "set-config");
+
 			const value = requireText(
 				input.value,
 				"Configuration value",
 				"set-config"
 			);
+
 			const scope = requireConfigScope(input.scope ?? "local", "set-config");
+
 			await this.run(["config", `--${scope}`, key, value], input.signal);
+
 			return { key, scope, value };
 		});
 	}
@@ -1652,6 +1870,7 @@ export class GitRepository {
 		return await this.mutate("unset-config", input.signal, async () => {
 			const key = requireConfigKey(input.key, "unset-config");
 			const scope = requireConfigScope(input.scope ?? "local", "unset-config");
+
 			try {
 				await this.run(
 					["config", `--${scope}`, "--unset-all", key],
@@ -1662,6 +1881,7 @@ export class GitRepository {
 					throw error;
 				}
 			}
+
 			return { key, scope, value: null };
 		});
 	}
@@ -1671,7 +1891,9 @@ export class GitRepository {
 		task: () => Promise<T>
 	): Promise<GitResult<T>> {
 		const pendingMutation = this.mutationTail;
+
 		await pendingMutation;
+
 		return await capture(operation, task);
 	}
 
@@ -1682,10 +1904,13 @@ export class GitRepository {
 	): Promise<GitResult<T>> {
 		const previousMutation = this.mutationTail;
 		const gate = Promise.withResolvers<void>();
+
 		this.mutationTail = gate.promise;
 		await previousMutation;
+
 		if (signal?.aborted) {
 			gate.resolve();
+
 			return fail({
 				code: "aborted",
 				message: "Git operation was aborted.",
@@ -1693,6 +1918,7 @@ export class GitRepository {
 				retryable: false,
 			});
 		}
+
 		try {
 			return await capture(operation, task);
 		} finally {
@@ -1711,13 +1937,17 @@ export class GitRepository {
 		if (!patch) {
 			return;
 		}
+
 		const args = ["apply", "--recount", "--whitespace=nowarn"];
+
 		if (options.cached) {
 			args.push("--cached");
 		}
+
 		if (options.reverse) {
 			args.push("--reverse");
 		}
+
 		await this.context.process.run({
 			args,
 			cwd: this.info.root,
@@ -1735,6 +1965,7 @@ export class GitRepository {
 			cwd: this.info.root,
 			signal,
 		});
+
 		return output.stdout.toString("utf8");
 	}
 
@@ -1761,6 +1992,7 @@ export class GitRepository {
 			if (error instanceof GitCommandFailure && error.exitCode === 1) {
 				return error.stdout ? `${error.stdout}\n` : "";
 			}
+
 			throw error;
 		}
 	}
@@ -1783,6 +2015,7 @@ export class GitRepository {
 	): Promise<GitResult<RepositorySnapshot>> {
 		return await this.mutate(operation, options.signal, async () => {
 			await this.run(["rebase", action], options.signal);
+
 			return await loadSnapshot(this.context, false, options.signal);
 		});
 	}
@@ -1799,6 +2032,7 @@ export class GitRepository {
 	): Promise<GitResult<RepositorySnapshot>> {
 		return await this.mutate(operation, options.signal, async () => {
 			await this.run([command, action], options.signal);
+
 			return await loadSnapshot(this.context, false, options.signal);
 		});
 	}
@@ -1810,11 +2044,14 @@ export class GitRepository {
 	): Promise<GitResult<RepositorySnapshot>> {
 		return await this.mutate(operation, input.signal, async () => {
 			const args = ["stash", action];
+
 			if (input.reinstateIndex) {
 				args.push("--index");
 			}
+
 			args.push(requireRevision(input.reference, "Stash reference", operation));
 			await this.run(args, input.signal);
+
 			return await loadSnapshot(this.context, false, input.signal);
 		});
 	}

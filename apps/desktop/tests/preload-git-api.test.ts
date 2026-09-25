@@ -25,21 +25,28 @@ const createRecordingApi = (): {
 } => {
 	const invocations: Invocation[] = [];
 	const listeners = new Map<string, Set<(payload: unknown) => void>>();
+
 	const invoke: DesktopIpcInvoke = (channel, payload) => {
 		invocations.push({ channel, payload });
+
 		return Promise.resolve({ ok: true, value: null });
 	};
+
 	const subscribe: DesktopIpcSubscribe = (channel, listener) => {
 		const channelListeners = listeners.get(channel) ?? new Set();
+
 		channelListeners.add(listener);
 		listeners.set(channel, channelListeners);
+
 		return () => {
 			channelListeners.delete(listener);
+
 			if (channelListeners.size === 0) {
 				listeners.delete(channel);
 			}
 		};
 	};
+
 	return {
 		api: createDesktopGitApi(invoke, subscribe),
 		emit: (channel, payload) => {
@@ -114,6 +121,7 @@ describe("preload Git API", () => {
 		await api.sync.fetch("session-1");
 
 		const payload = invocations[0]?.payload;
+
 		if (
 			!payload ||
 			typeof payload !== "object" ||
@@ -121,6 +129,7 @@ describe("preload Git API", () => {
 		) {
 			throw new Error("Expected an operation ID in the preload payload.");
 		}
+
 		expect(isValidGitOperationId(String(payload.operationId))).toBe(true);
 		expect(invocations[0]).toMatchObject({
 			channel: GIT_IPC_CHANNELS.sync.fetch,
@@ -181,9 +190,11 @@ describe("preload Git API", () => {
 	test("delivers validated repository events and removes subscriptions", () => {
 		const { api, emit, subscriberCount } = createRecordingApi();
 		const received: RepositoryRefreshEvent[] = [];
+
 		const unsubscribe = api.events.onRepositoryRefresh((refreshEvent) => {
 			received.push(refreshEvent);
 		});
+
 		const event: RepositoryRefreshEvent = {
 			occurredAt: "2026-07-29T18:00:00.000Z",
 			operation: "stage",

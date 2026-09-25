@@ -60,24 +60,30 @@ import {
 
 const REPOSITORY_FILE_SELECTION_MENU_ANCHOR_SELECTOR =
 	"[data-repository-file-selection-menu-anchor]";
+
 const SELECTION_MENU_ANCHOR_INLINE_INSET = 12;
+
 const REPOSITORY_FILE_CONTEXT_MENU_ANCHOR_GEOMETRY = {
 	insetBlock: 0,
 	insetInline: 0,
 	radius: 6,
 } as const;
+
 const REPOSITORY_FILE_SELECTION_CONTEXT_MENU_ANCHOR_GEOMETRY = {
 	insetBlock: 0,
 	insetInline: 0,
 	radius: 1,
 } as const;
+
 const REPOSITORY_FILE_CONTEXT_MENU_WIDTH = 260;
 const REPOSITORY_FILE_CONTEXT_MENU_WIDTH_CLASS_NAME = "w-[260px] min-w-[260px]";
 const REPOSITORY_FILE_DRAG_TYPE = "repository-file";
 const REPOSITORY_FILE_DRAG_ACTIVATION_DISTANCE = 5;
+
 const REPOSITORY_FILE_DRAG_OVERLAY_STYLE = {
 	pointerEvents: "none",
 } satisfies CSSProperties;
+
 const REPOSITORY_FILE_DRAG_SENSORS = [
 	PointerSensor.configure({
 		activationConstraints: [
@@ -96,6 +102,7 @@ const repositoryFileStageGroupLabel = (
 	if (group === "conflicted") {
 		return "Conflicted";
 	}
+
 	return group === "staged" ? "Staged" : "Unstaged";
 };
 
@@ -105,6 +112,7 @@ const repositoryFileStageGroup = (
 	if (isFileConflicted(file)) {
 		return "conflicted";
 	}
+
 	return isFileStaged(file) ? "staged" : "unstaged";
 };
 
@@ -117,9 +125,11 @@ const getRepositoryFileStageGroupFromId = (
 	if (id === repositoryFileStageGroupId("staged")) {
 		return "staged";
 	}
+
 	if (id === repositoryFileStageGroupId("unstaged")) {
 		return "unstaged";
 	}
+
 	return null;
 };
 
@@ -168,20 +178,26 @@ const getVisibleSelectionEdgeRow = (
 	const viewport = anchorElement.closest("[data-repository-file-viewport]");
 	const viewportBounds = viewport?.getBoundingClientRect();
 	let edgeRow = anchorElement;
+
 	for (const path of selectionRunPaths) {
 		const row = document.getElementById(getRepositoryFileRowId(path));
+
 		if (!row) {
 			continue;
 		}
+
 		const rowBounds = row.getBoundingClientRect();
+
 		const isVisible =
 			!viewportBounds ||
 			(rowBounds.bottom > viewportBounds.top &&
 				rowBounds.top < viewportBounds.bottom);
+
 		if (isVisible) {
 			edgeRow = row;
 		}
 	}
+
 	return edgeRow;
 };
 
@@ -192,14 +208,18 @@ const positionSelectionMenuAnchor = (
 	const anchor = row.querySelector<HTMLElement>(
 		REPOSITORY_FILE_SELECTION_MENU_ANCHOR_SELECTOR
 	);
+
 	if (!anchor) {
 		return null;
 	}
+
 	const rowBounds = row.getBoundingClientRect();
+
 	const maximumOffset = Math.max(
 		SELECTION_MENU_ANCHOR_INLINE_INSET,
 		rowBounds.width - SELECTION_MENU_ANCHOR_INLINE_INSET
 	);
+
 	const offset = Math.min(
 		Math.max(
 			pointerClientX - rowBounds.left,
@@ -207,7 +227,9 @@ const positionSelectionMenuAnchor = (
 		),
 		maximumOffset
 	);
+
 	anchor.style.left = `${offset}px`;
+
 	return anchor;
 };
 
@@ -236,12 +258,15 @@ const getRepositoryFileContextMenuAnchors = ({
 	if (!(usesSelection && anchorElement)) {
 		return { position: anchorElement, surface: anchorElement };
 	}
+
 	const selectionRunPaths = getRepositoryFileSelectionRunPaths(
 		orderedFilePaths,
 		selectedFilePaths,
 		targetPath
 	);
+
 	const edgeRow = getVisibleSelectionEdgeRow(anchorElement, selectionRunPaths);
+
 	return {
 		position: edgeRow,
 		surface: positionSelectionMenuAnchor(edgeRow, pointerClientX) ?? edgeRow,
@@ -254,9 +279,11 @@ const getRepositoryFileSelectionMode = (
 	if (event.shiftKey) {
 		return "range";
 	}
+
 	if (event.metaKey || event.ctrlKey) {
 		return "toggle";
 	}
+
 	return "replace";
 };
 
@@ -296,6 +323,7 @@ const getRepositoryFileSelectionClassName = (
 	if (isBulkSelected) {
 		return "bg-black/[0.045]";
 	}
+
 	return isSelected ? "bg-brand-softer" : "hover:bg-hover";
 };
 
@@ -337,9 +365,11 @@ function RepositoryFileStageHeader({
 }: RepositoryFileStageHeaderProps): ReactElement {
 	const label =
 		group === "conflicted" ? "Conflicts" : repositoryFileStageGroupLabel(group);
+
 	const shouldStage = group !== "staged";
 	const actionLabel = shouldStage ? "Stage all" : "Unstage all";
 	const dropLabel = group === "staged" ? "Drop to stage" : "Drop to unstage";
+
 	const setGroupStaged = async (): Promise<void> => {
 		await onSetFilesStaged(files, shouldStage);
 	};
@@ -402,11 +432,15 @@ function RepositoryFileStageGroup({
 		id: repositoryFileStageGroupId(group),
 		type: "repository-file-stage-group",
 	});
+
 	const isDropDestination =
 		dragSourceGroup !== null && dragSourceGroup !== group;
+
 	const showDropWell = isDropDestination && isDropTarget;
+
 	const releaseLabel =
 		group === "staged" ? "Release to stage" : "Release to unstage";
+
 	const stickyHeader =
 		isSticky && stickyLayer
 			? createPortal(
@@ -496,6 +530,7 @@ function RepositoryFileStageButton({
 	onSetStaged,
 }: RepositoryFileStageButtonProps): ReactElement {
 	const staged = isFileStaged(file);
+
 	const toggleStaged = async (): Promise<void> => {
 		await onSetStaged(file, !staged);
 	};
@@ -582,50 +617,64 @@ function RepositoryFileRow({
 		id: file.path,
 		type: REPOSITORY_FILE_DRAG_TYPE,
 	});
+
 	const [anchorElement, setAnchorElement] = useState<HTMLElement | null>(null);
+
 	const [positionAnchorElement, setPositionAnchorElement] =
 		useState<HTMLElement | null>(null);
+
 	const [surfaceAnchorElement, setSurfaceAnchorElement] =
 		useState<HTMLElement | null>(null);
+
 	const [isOpen, setIsOpen] = useState(false);
 	const [isPresent, setIsPresent] = useState(false);
+
 	const isDragFeedbackActive = isRepositoryFileDragFeedbackActive(
 		isDragging,
 		isDropping,
 		isDragLanding
 	);
+
 	const contextMenuPosition = useLiquidContextMenuPosition({
 		anchorElement: positionAnchorElement ?? anchorElement,
 		menuWidth: REPOSITORY_FILE_CONTEXT_MENU_WIDTH,
 	});
+
 	const contextUsesSelection = doesRepositoryFileContextMenuUseSelection(
 		file.path,
 		selectedFilePaths
 	);
+
 	const getAnchor = useCallback(
 		(): Element | null => surfaceAnchorElement ?? anchorElement,
 		[anchorElement, surfaceAnchorElement]
 	);
+
 	const getPositionAnchor = useCallback(
 		(): Element | null => positionAnchorElement ?? anchorElement,
 		[anchorElement, positionAnchorElement]
 	);
+
 	const setRowElement = useCallback(
 		(element: HTMLElement | null): void => {
 			draggableRef(element);
 			setAnchorElement(element);
+
 			if (isSelected) {
 				selectedRowRef?.(element);
 			}
 		},
 		[draggableRef, isSelected, selectedRowRef]
 	);
+
 	const changeOpen = useCallback(
 		(nextIsOpen: boolean): void => {
 			setIsOpen(nextIsOpen);
+
 			if (nextIsOpen && contextUsesSelection) {
 				onSelectionContextMenuPresenceChange(true);
 			}
+
 			if (!nextIsOpen) {
 				contextMenuPosition.resetPointer();
 			}
@@ -636,23 +685,29 @@ function RepositoryFileRow({
 			onSelectionContextMenuPresenceChange,
 		]
 	);
+
 	const changePresence = useCallback(
 		(nextIsPresent: boolean): void => {
 			setIsPresent(nextIsPresent);
+
 			if (!nextIsPresent && contextUsesSelection) {
 				onSelectionContextMenuPresenceChange(false);
 			}
 		},
 		[contextUsesSelection, onSelectionContextMenuPresenceChange]
 	);
+
 	const contextFiles = contextUsesSelection ? selectedFiles : [file];
+
 	const shouldElevateSelection = shouldElevateRepositoryFileSelection(
 		isSelectionContextMenuPresent,
 		isBulkSelected
 	);
+
 	const selectFile = (event: ReactMouseEvent<HTMLButtonElement>): void => {
 		onSelect(file, getRepositoryFileSelectionMode(event));
 	};
+
 	const openContextMenu = (event: ReactMouseEvent<HTMLElement>): void => {
 		const anchors = getRepositoryFileContextMenuAnchors({
 			anchorElement,
@@ -662,6 +717,7 @@ function RepositoryFileRow({
 			targetPath: file.path,
 			usesSelection: contextUsesSelection,
 		});
+
 		setPositionAnchorElement(anchors.position);
 		setSurfaceAnchorElement(anchors.surface);
 		selectRepositoryFileForContextMenu({
@@ -672,8 +728,10 @@ function RepositoryFileRow({
 			usesSelection: contextUsesSelection,
 		});
 	};
+
 	const isSingleContextMenuActive =
 		(isOpen || isPresent) && !contextUsesSelection;
+
 	const selectionClassName = getRepositoryFileSelectionClassName(
 		isBulkSelected,
 		isSelected
@@ -824,78 +882,102 @@ export function RepositoryFileList({
 	selectedRowRef,
 }: RepositoryFileListProps): ReactElement {
 	const [listElement, setListElement] = useState<HTMLDivElement | null>(null);
+
 	const [stickyGroup, setStickyGroup] =
 		useState<RepositoryFileStageGroup | null>(null);
+
 	const [stickyLayer, setStickyLayer] = useState<HTMLElement | null>(null);
+
 	const [isSelectionContextMenuPresent, setSelectionContextMenuPresent] =
 		useState(false);
+
 	const [dragSourceGroup, setDragSourceGroup] =
 		useState<RepositoryFileStageGroup | null>(null);
+
 	const [settlingFilePath, setSettlingFilePath] = useState<string | null>(null);
 	const [landingFilePath, setLandingFilePath] = useState<string | null>(null);
+
 	const [stageProjection, setStageProjection] =
 		useState<RepositoryFileStageProjection | null>(null);
+
 	const sourceFiles = allFiles ?? files;
+
 	const groups = useMemo(
 		() => groupRepositoryFilesByStaging(files, stageProjection),
 		[files, stageProjection]
 	);
+
 	const totalGroups = useMemo(
 		() => groupRepositoryFilesByStaging(sourceFiles, stageProjection),
 		[sourceFiles, stageProjection]
 	);
+
 	const orderedFiles = useMemo(
 		() => [...groups.conflicted, ...groups.staged, ...groups.unstaged],
 		[groups]
 	);
+
 	const orderedFilePaths = useMemo(
 		() => orderedFiles.map((file) => file.path),
 		[orderedFiles]
 	);
+
 	const conflictedFileCount = groups.conflicted.length;
 	const stagedFileCount = groups.staged.length;
 	const unstagedFileCount = groups.unstaged.length;
+
 	useLayoutEffect(() => {
 		if (!listElement) {
 			return;
 		}
+
 		const scrollArea = listElement.closest<HTMLElement>(
 			'[data-name="RepositoryFileScrollArea"]'
 		);
+
 		const viewport = scrollArea?.querySelector<HTMLElement>(
 			"[data-repository-file-viewport]"
 		);
+
 		const nextStickyLayer = scrollArea?.querySelector<HTMLElement>(
 			"[data-repository-file-sticky-layer]"
 		);
+
 		const groupElements = [
 			...listElement.querySelectorAll<HTMLElement>("[data-file-stage-group]"),
 		];
+
 		const groupCounts: Readonly<Record<RepositoryFileStageGroup, number>> = {
 			conflicted: conflictedFileCount,
 			staged: stagedFileCount,
 			unstaged: unstagedFileCount,
 		};
+
 		const hasCurrentGroupLayout = groupElements.every((groupElement) => {
 			const group = groupElement.dataset
 				.fileStageGroup as RepositoryFileStageGroup;
+
 			return (
 				groupElement.dataset.fileStageGroupCount === String(groupCounts[group])
 			);
 		});
+
 		if (!(viewport && nextStickyLayer && hasCurrentGroupLayout)) {
 			return;
 		}
+
 		setStickyLayer(nextStickyLayer);
 		const updateStickyGroup = (): void => {
 			const viewportTop = viewport.getBoundingClientRect().top;
 			let nextGroup: RepositoryFileStageGroup | null = null;
+
 			for (const groupElement of groupElements) {
 				if (groupElement.getBoundingClientRect().top <= viewportTop + 1) {
 					nextGroup = groupElement.dataset
 						.fileStageGroup as RepositoryFileStageGroup;
 				}
 			}
+
 			nextGroup ??=
 				(groupElements[0]?.dataset.fileStageGroup as
 					| RepositoryFileStageGroup
@@ -904,8 +986,10 @@ export function RepositoryFileList({
 				currentGroup === nextGroup ? currentGroup : nextGroup
 			);
 		};
+
 		updateStickyGroup();
 		viewport.addEventListener("scroll", updateStickyGroup, { passive: true });
+
 		return () => {
 			viewport.removeEventListener("scroll", updateStickyGroup);
 		};
@@ -919,10 +1003,12 @@ export function RepositoryFileList({
 		if (!stageProjection) {
 			return;
 		}
+
 		if (hasRepositoryFileStageProjectionSettled(sourceFiles, stageProjection)) {
 			setStageProjection(null);
 		}
 	}, [sourceFiles, stageProjection]);
+
 	if (files.length === 0) {
 		return (
 			<p className="px-4 py-8 text-center text-editor-faint text-xss">
@@ -935,39 +1021,51 @@ export function RepositoryFileList({
 		const sourceFile = orderedFiles.find(
 			(file) => file.path === String(event.operation.source?.id)
 		);
+
 		if (!sourceFile) {
 			setDragSourceGroup(null);
+
 			return;
 		}
+
 		setDragSourceGroup(repositoryFileStageGroup(sourceFile));
 	};
+
 	const finishFileDrag = async (event: DragEndEvent): Promise<void> => {
 		setDragSourceGroup(null);
 		const {
 			canceled,
 			operation: { source, target },
 		} = event;
+
 		if (canceled || !(source && target)) {
 			return;
 		}
+
 		const targetGroup = getRepositoryFileStageGroupFromId(String(target.id));
+
 		const file = orderedFiles.find(
 			(candidate) => candidate.path === String(source.id)
 		);
+
 		if (!(targetGroup && file)) {
 			return;
 		}
+
 		const shouldStage = shouldStageRepositoryFileDrop(
 			file,
 			targetGroup === "staged"
 		);
+
 		if (shouldStage === null) {
 			return;
 		}
+
 		setStageProjection({ path: file.path, staged: shouldStage });
 		setLandingFilePath(file.path);
 		setSettlingFilePath(file.path);
 		let didStage = false;
+
 		try {
 			didStage = await onSetStaged(file, shouldStage);
 		} finally {
@@ -976,6 +1074,7 @@ export function RepositoryFileList({
 					currentProjection?.path === file.path ? null : currentProjection
 				);
 			}
+
 			setSettlingFilePath((currentPath) =>
 				currentPath === file.path ? null : currentPath
 			);
@@ -984,10 +1083,12 @@ export function RepositoryFileList({
 			);
 		}
 	};
+
 	const rows = orderedFiles.map((file, index) => {
 		const isBulkSelected = selectedFilePaths.has(file.path);
 		const previousFile = orderedFiles[index - 1];
 		const nextFile = orderedFiles[index + 1];
+
 		return (
 			<MemoizedRepositoryFileRow
 				file={file}
@@ -1021,6 +1122,7 @@ export function RepositoryFileList({
 			/>
 		);
 	});
+
 	const conflictedRows = rows.slice(0, groups.conflicted.length);
 	const stagedStart = groups.conflicted.length;
 	const unstagedStart = stagedStart + groups.staged.length;
@@ -1082,6 +1184,7 @@ export function RepositoryFileList({
 					const file = sourceFiles.find(
 						(candidate) => candidate.path === String(source.id)
 					);
+
 					return file ? <RepositoryFileDragOverlay file={file} /> : null;
 				}}
 			</DragOverlay>

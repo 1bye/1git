@@ -32,6 +32,7 @@ const stopVisibilityObserverWhenIdle = (): void => {
 	if (visibilityCallbacks.size > 0) {
 		return;
 	}
+
 	visibilityObserver?.disconnect();
 	visibilityObserver = null;
 };
@@ -45,14 +46,18 @@ const observeOnceVisible = (
 			if (!entry.isIntersecting) {
 				continue;
 			}
+
 			const callback = visibilityCallbacks.get(entry.target);
+
 			if (!callback) {
 				continue;
 			}
+
 			visibilityCallbacks.delete(entry.target);
 			visibilityObserver?.unobserve(entry.target);
 			callback();
 		}
+
 		stopVisibilityObserverWhenIdle();
 	});
 	visibilityCallbacks.set(element, onVisible);
@@ -76,6 +81,7 @@ export const useOverflowingLabel = (
 	useLayoutEffect(() => {
 		const viewport = viewportRef.current;
 		const track = trackRef.current;
+
 		if (!(viewport && track)) {
 			return;
 		}
@@ -85,24 +91,29 @@ export const useOverflowingLabel = (
 				viewport.clientWidth,
 				track.scrollWidth
 			);
+
 			setOverflowPixels((currentOverflow) =>
 				currentOverflow === nextOverflow ? currentOverflow : nextOverflow
 			);
 		};
 
 		let resizeObserver: ResizeObserver | null = null;
+
 		const startMeasuring = (): void => {
 			measureOverflow();
 			resizeObserver = new ResizeObserver(measureOverflow);
 			resizeObserver.observe(viewport);
 			resizeObserver.observe(track);
 		};
+
 		const stopWaiting = deferUntilVisible
 			? observeOnceVisible(viewport, startMeasuring)
 			: undefined;
+
 		if (!deferUntilVisible) {
 			startMeasuring();
 		}
+
 		return () => {
 			stopWaiting?.();
 			resizeObserver?.disconnect();
@@ -111,6 +122,7 @@ export const useOverflowingLabel = (
 
 	const style = useMemo<OverflowingLabelStyle>(() => {
 		const offsets = getOverflowingLabelOffsets(overflowPixels, direction);
+
 		return {
 			"--overflowing-label-hover-delay": `${OVERFLOWING_LABEL_MARQUEE.hoverDelayMs}ms`,
 			"--overflowing-label-hover-offset": `${offsets.hover}px`,

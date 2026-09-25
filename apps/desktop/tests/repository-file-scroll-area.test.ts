@@ -7,15 +7,19 @@ const readSource = (relativePath: string): string =>
 const fileNavigator = readSource(
 	"../src/renderer/src/fixture/repository-workspace/components/repository-file-navigator.tsx"
 );
+
 const fileList = readSource(
 	"../src/renderer/src/fixture/repository-workspace/components/repository-file-list.tsx"
 );
+
 const fileLiquidSurface = readSource(
 	"../src/renderer/src/fixture/repository-workspace/components/repository-file-liquid-surface.tsx"
 );
+
 const scrollArea = readSource(
 	"../../../packages/ui/src/components/scroll-area.tsx"
 );
+
 const styles = readSource("../src/renderer/src/styles.css");
 
 describe("repository file scroll area", () => {

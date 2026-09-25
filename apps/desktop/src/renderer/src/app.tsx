@@ -15,9 +15,11 @@ import { RepositoryWorkspace } from "@/fixture/repository-workspace/components/r
 export function App(): ReactElement {
 	const workspace = useGitWorkspace();
 	const workspaceRootRef = useRef<HTMLElement>(null);
+
 	const setWorkspaceRoot = useCallback((element: HTMLElement | null): void => {
 		workspaceRootRef.current = element;
 	}, []);
+
 	const desktopToolbar = (
 		<DesktopToolbar
 			activeSessionId={

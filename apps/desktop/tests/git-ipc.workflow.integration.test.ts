@@ -35,13 +35,16 @@ afterEach(async () => {
 	for (const harness of harnesses) {
 		harness.dispose();
 	}
+
 	harnesses.clear();
 	await fixtures.cleanup();
 });
 
 const createHarness = (): GitIpcHarness => {
 	const harness = new GitIpcHarness(createTestRepositoryManager());
+
 	harnesses.add(harness);
+
 	return harness;
 };
 
@@ -49,6 +52,7 @@ const unwrapGitResult = <T>(result: GitResult<T>): T => {
 	if (!result.ok) {
 		throw new Error(result.error.message);
 	}
+
 	return result.value;
 };
 
@@ -60,10 +64,12 @@ const openFixture = async (
 	readonly root: string;
 }> => {
 	const fixture = await fixtures.create();
+
 	const result = await harness.invoke<GitResult<OpenedRepositorySession>>(
 		GIT_IPC_CHANNELS.sessions.open,
 		{ path: fixture.repositoryPath }
 	);
+
 	return {
 		opened: unwrapGitResult(result),
 		repositoryPath: fixture.repositoryPath,
@@ -82,6 +88,7 @@ describe("Git IPC repository workflow", () => {
 				{ input: {}, sessionId: opened.session.id }
 			)
 		);
+
 		const history = unwrapGitResult(
 			await harness.invoke<GitResult<CommitPage>>(
 				GIT_IPC_CHANNELS.repository.history,
@@ -124,12 +131,14 @@ describe("Git IPC repository workflow", () => {
 	test("stages and commits changes through explicit channels", async () => {
 		const harness = createHarness();
 		const fixture = await fixtures.create();
+
 		const opened = unwrapGitResult(
 			await harness.invoke<GitResult<OpenedRepositorySession>>(
 				GIT_IPC_CHANNELS.sessions.open,
 				{ path: fixture.repositoryPath }
 			)
 		);
+
 		await fixture.write("src/ipc.ts", "export const ipc = true;\n");
 
 		const staged = unwrapGitResult(
@@ -142,6 +151,7 @@ describe("Git IPC repository workflow", () => {
 				}
 			)
 		);
+
 		const committed = unwrapGitResult(
 			await harness.invoke<GitResult<CommitResult>>(
 				GIT_IPC_CHANNELS.changes.commit,
@@ -196,6 +206,7 @@ describe("Git IPC repository workflow", () => {
 				}
 			)
 		);
+
 		const branches = unwrapGitResult(
 			await harness.invoke<GitResult<BranchCollection>>(
 				GIT_IPC_CHANNELS.branches.list,
@@ -226,6 +237,7 @@ describe("Git IPC repository workflow", () => {
 				}
 			)
 		);
+
 		const fetched = unwrapGitResult(
 			await harness.invoke<GitResult<SyncResult>>(GIT_IPC_CHANNELS.sync.fetch, {
 				input: { remote: "origin" },
@@ -260,6 +272,7 @@ describe("Git IPC repository workflow", () => {
 				}
 			)
 		);
+
 		const config = unwrapGitResult(
 			await harness.invoke<GitResult<ConfigValue>>(
 				GIT_IPC_CHANNELS.config.set,
@@ -269,6 +282,7 @@ describe("Git IPC repository workflow", () => {
 				}
 			)
 		);
+
 		const worktrees = unwrapGitResult(
 			await harness.invoke<GitResult<readonly WorktreeInfo[]>>(
 				GIT_IPC_CHANNELS.worktrees.create,
@@ -303,6 +317,7 @@ describe("Git IPC repository workflow", () => {
 				{ initialBranch: "trunk", path: initializePath }
 			)
 		);
+
 		const cloned = unwrapGitResult(
 			await harness.invoke<GitResult<OpenedRepositorySession>>(
 				GIT_IPC_CHANNELS.sessions.clone,
@@ -351,6 +366,7 @@ describe("Git IPC repository workflow", () => {
 				{ sessionId: opened.session.id }
 			)
 		);
+
 		const result = await harness.invoke<GitResult<RepositorySnapshot>>(
 			GIT_IPC_CHANNELS.repository.snapshot,
 			{ input: {}, sessionId: opened.session.id }

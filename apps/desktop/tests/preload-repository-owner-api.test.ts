@@ -10,10 +10,13 @@ describe("preload repository owner API", () => {
 			readonly channel: string;
 			readonly payload: unknown;
 		}[] = [];
+
 		const invoke: DesktopIpcInvoke = (channel, payload) => {
 			invocations.push({ channel, payload });
+
 			return Promise.resolve({ status: "unavailable" });
 		};
+
 		const api = createRepositoryOwnerApi(invoke);
 
 		await api.avatar({ host: "github.com", name: "openai" });

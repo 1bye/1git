@@ -21,6 +21,7 @@ const branchCommitTime = (committedAt: string | null): number | null => {
 	}
 
 	const timestamp = Date.parse(committedAt);
+
 	return Number.isNaN(timestamp) ? null : timestamp;
 };
 
@@ -32,13 +33,16 @@ export const formatBranchCommitAge = (
 	nowMilliseconds = Date.now()
 ): string | null => {
 	const timestamp = branchCommitTime(committedAt);
+
 	if (timestamp === null) {
 		return null;
 	}
 
 	const differenceMilliseconds = timestamp - nowMilliseconds;
+
 	for (const { milliseconds, unit } of WORKSPACE_BRANCH_COMMIT_AGE_UNITS) {
 		const magnitude = Math.abs(differenceMilliseconds) / milliseconds;
+
 		if (magnitude >= 1) {
 			return BRANCH_COMMIT_RELATIVE_TIME_FORMAT.format(
 				Math.round(differenceMilliseconds / milliseconds),

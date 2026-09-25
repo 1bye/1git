@@ -27,6 +27,7 @@ export class GitIpcHarness {
 		isDestroyed: () => false,
 		send: (channel: string, payload: unknown) => {
 			this.messages.push({ channel, payload });
+
 			for (const listener of this.rendererListeners.get(channel) ?? []) {
 				listener(payload);
 			}
@@ -47,12 +48,14 @@ export class GitIpcHarness {
 				if (this.handlers.has(channel)) {
 					throw new Error(`Duplicate IPC handler for "${channel}".`);
 				}
+
 				this.handlers.set(channel, listener);
 			},
 			removeHandler: (channel) => {
 				this.handlers.delete(channel);
 			},
 		};
+
 		this.disposeRegistration = registerGitIpc({
 			ipcMain,
 			isSenderAuthorized: (event) =>
@@ -93,10 +96,13 @@ export class GitIpcHarness {
 		listener: (payload: unknown) => void
 	): () => void {
 		const listeners = this.rendererListeners.get(channel) ?? new Set();
+
 		listeners.add(listener);
 		this.rendererListeners.set(channel, listeners);
+
 		return () => {
 			listeners.delete(listener);
+
 			if (listeners.size === 0) {
 				this.rendererListeners.delete(channel);
 			}
@@ -122,12 +128,15 @@ export class GitIpcHarness {
 		payload: unknown
 	): Promise<T> {
 		const handler = this.handlers.get(channel);
+
 		if (!handler) {
 			throw new Error(`No IPC handler registered for "${channel}".`);
 		}
+
 		const event = {
 			sender,
 		} as unknown as IpcMainInvokeEvent;
+
 		return (await handler(event, payload)) as T;
 	}
 }

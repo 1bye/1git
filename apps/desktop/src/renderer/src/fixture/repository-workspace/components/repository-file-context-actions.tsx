@@ -60,6 +60,7 @@ function RepositoryFileDiscardConfirmation({
 		discardTargets.length === 1
 			? (discardTargets[0] ?? "selected file")
 			: `${discardTargets.length} selected files`;
+
 	return (
 		<>
 			<DropdownMenuItem
@@ -142,28 +143,36 @@ export function RepositoryFileContextActions({
 	const canUnstage = files.some(isFileStaged);
 	const hasConflict = files.some((file) => file.recordType === "unmerged");
 	const supportsZed = window.desktop.platform === "darwin";
+
 	const run = async (
 		action: () => Promise<boolean | undefined>,
 		errorMessage: string
 	): Promise<void> => {
 		setActionError(null);
+
 		try {
 			const succeeded = await action();
+
 			if (succeeded === false) {
 				setActionError(errorMessage);
+
 				return;
 			}
+
 			onDismiss();
 		} catch {
 			setActionError(errorMessage);
 		}
 	};
+
 	const copyPaths = async (): Promise<undefined> => {
 		const paths = files.map((file) =>
 			absoluteFilePath(repositoryRoot, file.path)
 		);
+
 		await window.desktop.integrations.copyText(paths.join("\n"));
 	};
+
 	const openInZed = async (): Promise<undefined> => {
 		await Promise.all(
 			files.map((file) =>
@@ -174,15 +183,19 @@ export function RepositoryFileContextActions({
 			)
 		);
 	};
+
 	const discardFiles = async (): Promise<void> => {
 		await run(async () => {
 			const succeeded = await onDiscard(files);
+
 			if (succeeded) {
 				onClearSelection();
 			}
+
 			return succeeded;
 		}, "The selected changes could not be discarded.");
 	};
+
 	const discardTargets = files.map((file) => file.path);
 
 	return (

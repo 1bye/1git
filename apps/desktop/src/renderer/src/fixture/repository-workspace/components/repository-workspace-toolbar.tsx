@@ -31,12 +31,15 @@ const tabForShortcut = (key: string): RepositoryTab | null => {
 	if (key === "1") {
 		return "changes";
 	}
+
 	if (key === "2") {
 		return "history";
 	}
+
 	if (key === "3") {
 		return "stashes";
 	}
+
 	return null;
 };
 
@@ -77,6 +80,7 @@ export function RepositoryWorkspaceToolbar({
 }: RepositoryWorkspaceToolbarProps): ReactElement {
 	const triggerRef = useRef<HTMLButtonElement>(null);
 	const getAnchor = useCallback((): Element | null => triggerRef.current, []);
+
 	const changeTab = useCallback(
 		async (nextTab: RepositoryTab): Promise<void> => {
 			await onSetTab(nextTab);
@@ -89,16 +93,21 @@ export function RepositoryWorkspaceToolbar({
 			if (!(event.metaKey || event.ctrlKey) || event.altKey) {
 				return;
 			}
+
 			const nextTab = tabForShortcut(event.key);
+
 			if (!nextTab) {
 				return;
 			}
+
 			event.preventDefault();
 			changeTab(nextTab).catch(() => {
 				// The workspace hook exposes the operation error in the app notice.
 			});
 		};
+
 		window.addEventListener("keydown", switchView);
+
 		return () => window.removeEventListener("keydown", switchView);
 	}, [changeTab]);
 
@@ -107,6 +116,7 @@ export function RepositoryWorkspaceToolbar({
 			// The workspace hook exposes the operation error in the app notice.
 		});
 	};
+
 	const viewLabel = REPOSITORY_TAB_LABELS[tab];
 
 	return (

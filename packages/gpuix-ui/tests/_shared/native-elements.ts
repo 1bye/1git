@@ -5,6 +5,7 @@ export function elementByTestId(
 	testId: string
 ): TestElement {
 	const element = renderer.findByTestId(testId);
+
 	if (!element) throw new Error(`Missing native test element: ${testId}`);
 
 	return element;
@@ -13,6 +14,7 @@ export function elementByTestId(
 export function clickElement(renderer: TestRenderer, testId: string): void {
 	const element = elementByTestId(renderer, testId);
 	const bounds = renderer.getElementBounds(element.id);
+
 	if (!bounds) throw new Error(`Missing native bounds: ${testId}`);
 
 	renderer.nativeSimulateClick(

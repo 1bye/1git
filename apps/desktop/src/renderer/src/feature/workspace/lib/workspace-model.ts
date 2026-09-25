@@ -34,10 +34,12 @@ const CHANGE_LABELS: Readonly<Record<FileStatus, string>> = {
 
 export const getRepositoryName = (root: string): string => {
 	const normalizedRoot = root.replace(TRAILING_PATH_SEPARATOR, "");
+
 	const separatorIndex = Math.max(
 		normalizedRoot.lastIndexOf("/"),
 		normalizedRoot.lastIndexOf("\\")
 	);
+
 	return normalizedRoot.slice(separatorIndex + 1) || normalizedRoot;
 };
 
@@ -50,6 +52,7 @@ export const getWorkspaceLabel = (
 	branch: string | null
 ): string => {
 	const repositoryName = getRepositoryName(root);
+
 	return branch ? `${repositoryName} / ${branch}` : repositoryName;
 };
 
@@ -78,18 +81,22 @@ export const groupRepositoryDiffPaths = (
 ): RepositoryDiffPaths => {
 	const staged: string[] = [];
 	const working: string[] = [];
+
 	for (const file of files) {
 		if (isFileConflicted(file)) {
 			working.push(file.path);
 			continue;
 		}
+
 		if (isFileStaged(file)) {
 			staged.push(file.path);
 		}
+
 		if (hasFileWorkingTreeChanges(file)) {
 			working.push(file.path);
 		}
 	}
+
 	return { staged, working };
 };
 
@@ -100,9 +107,11 @@ export const getFileChangeStatus = (file: FileChange): FileStatus => {
 	if (file.recordType === "untracked") {
 		return "untracked";
 	}
+
 	if (file.worktreeStatus !== "unmodified") {
 		return file.worktreeStatus;
 	}
+
 	return file.indexStatus;
 };
 
@@ -111,6 +120,7 @@ export const getFileChangeLabel = (file: FileChange): string =>
 
 export const formatCommitDate = (date: string): string => {
 	const value = new Date(date);
+
 	return Number.isNaN(value.getTime()) ? date : DATE_TIME_FORMAT.format(value);
 };
 
@@ -119,13 +129,16 @@ export const formatRelativeTime = (
 	nowMilliseconds = Date.now()
 ): string => {
 	const value = new Date(date).getTime();
+
 	if (Number.isNaN(value)) {
 		return date;
 	}
 
 	const differenceMilliseconds = value - nowMilliseconds;
+
 	for (const { milliseconds, unit } of RELATIVE_TIME_UNITS) {
 		const magnitude = Math.abs(differenceMilliseconds) / milliseconds;
+
 		if (magnitude >= 1) {
 			return RELATIVE_TIME_FORMAT.format(
 				Math.round(differenceMilliseconds / milliseconds),

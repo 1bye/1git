@@ -11,9 +11,11 @@ const nearestScrollDelta = (
 	if (elementRect.top < visibleTop) {
 		return elementRect.top - visibleTop;
 	}
+
 	if (elementRect.bottom > visibleBottom) {
 		return elementRect.bottom - visibleBottom;
 	}
+
 	return 0;
 };
 
@@ -25,10 +27,12 @@ export const scrollElementIntoViewport = (
 	const viewportRect = viewport.getBoundingClientRect();
 	const elementRect = element.getBoundingClientRect();
 	const visibleTop = viewportRect.top + offset;
+
 	const delta =
 		block === "start"
 			? elementRect.top - visibleTop
 			: nearestScrollDelta(elementRect, visibleTop, viewportRect.bottom);
+
 	if (delta !== 0) {
 		viewport.scrollTop += delta;
 	}

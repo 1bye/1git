@@ -10,10 +10,13 @@ describe("preload desktop integration API", () => {
 			readonly channel: string;
 			readonly payload: unknown;
 		}[] = [];
+
 		const invoke: DesktopIpcInvoke = (channel, payload) => {
 			invocations.push({ channel, payload });
+
 			return Promise.resolve();
 		};
+
 		const api = createDesktopIntegrationApi(invoke);
 
 		await api.copyText("repository");

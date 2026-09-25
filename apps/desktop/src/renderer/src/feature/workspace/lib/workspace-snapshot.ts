@@ -24,6 +24,7 @@ export function sessionForSnapshot(
 	if (!state) {
 		return null;
 	}
+
 	return sessions.find((session) => session.id === state.sessionId) ?? null;
 }
 
@@ -35,5 +36,6 @@ export function presentedSession(
 	if (isWorkspaceTransitionPending && snapshotSession) {
 		return snapshotSession;
 	}
+
 	return managerActiveSession;
 }

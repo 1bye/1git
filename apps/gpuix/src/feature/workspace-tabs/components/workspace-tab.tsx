@@ -162,18 +162,22 @@ export function WorkspaceTab({
 }: WorkspaceTabProps) {
 	const frame = useRef<PublicInstance>(null);
 	const [focused, setFocused] = useState(false);
+
 	const [hoverTargets, setHoverTargets] = useState({
 		slot: false,
 		drag: false,
 		trigger: false,
 		close: false,
 	});
+
 	const hovered = Object.values(hoverTargets).some(Boolean);
 	const spaceArmed = useRef(false);
 	const label = tab.branch ? `${tab.name} / ${tab.branch}` : tab.name;
+
 	const onMouseDown = (event: EventPayload): void => {
 		onTabMouseDown(event, frame.current);
 	};
+
 	// GPUIX hitboxes do not bubble hover through interactive children.
 	const hoverEvents = (target: keyof typeof hoverTargets) => ({
 		onMouseEnter: () =>
@@ -181,21 +185,28 @@ export function WorkspaceTab({
 		onMouseLeave: () =>
 			setHoverTargets((current) => ({ ...current, [target]: false })),
 	});
+
 	const onKeyDown = (event: EventPayload): void => {
 		onKeyboardInput();
+
 		if (event.key === "escape") {
 			onCancelDrag();
+
 			return;
 		}
+
 		if (event.modifiers?.cmd || event.modifiers?.ctrl || event.modifiers?.alt)
 			return;
+
 		if (
 			event.modifiers?.shift &&
 			(event.key === "left" || event.key === "right")
 		) {
 			onReorder(event.key);
+
 			return;
 		}
+
 		if (
 			event.key === "left" ||
 			event.key === "right" ||
@@ -203,11 +214,16 @@ export function WorkspaceTab({
 			event.key === "end"
 		) {
 			onNavigate(event.key);
+
 			return;
 		}
+
 		if (event.isHeld) return;
+
 		if (event.key === "enter") onActivate();
+
 		if (event.key === "space") spaceArmed.current = true;
+
 		if (event.key === "backspace" || event.key === "delete") onClose();
 	};
 
@@ -283,8 +299,11 @@ export function WorkspaceTab({
 						onKeyDown={onKeyDown}
 						onKeyUp={(event) => {
 							if (event.key !== "space") return;
+
 							const activate = spaceArmed.current;
+
 							spaceArmed.current = false;
+
 							if (activate) onActivate();
 						}}
 						onFocus={() => setFocused(true)}

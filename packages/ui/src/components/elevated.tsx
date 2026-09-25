@@ -38,6 +38,7 @@ const Elevated = forwardRef<HTMLDivElement, ElevatedProps>(
 	({ offset, shadowLevel, className, children, ...props }, ref) => {
 		const substrate = useSurface();
 		const level = Math.min(substrate + offset, 8);
+
 		return (
 			<SurfaceProvider value={level}>
 				<div
@@ -51,6 +52,7 @@ const Elevated = forwardRef<HTMLDivElement, ElevatedProps>(
 		);
 	}
 );
+
 Elevated.displayName = "Elevated";
 
 export { Elevated };

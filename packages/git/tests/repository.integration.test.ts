@@ -16,6 +16,7 @@ afterEach(async () => {
 describe("GitRepository local workflow", () => {
 	test("opens a repository from a nested file path", async () => {
 		const fixture = await fixtures.create();
+
 		await fixture.write("src/nested.ts", "export const value = 1;\n");
 
 		const repository = unwrapResult(
@@ -44,12 +45,14 @@ describe("GitRepository local workflow", () => {
 
 	test("initializes a repository with a selected initial branch", async () => {
 		const fixture = await fixtures.create();
+
 		const initialized = unwrapResult(
 			await GitRepository.initialize({
 				initialBranch: "trunk",
 				path: fixture.path("initialized"),
 			})
 		);
+
 		const snapshot = unwrapResult(await initialized.getSnapshot());
 
 		expect(snapshot.head).toMatchObject({
@@ -61,6 +64,7 @@ describe("GitRepository local workflow", () => {
 
 	test("reports untracked, staged, and modified paths", async () => {
 		const fixture = await fixtures.create();
+
 		await fixture.write("README.md", "# Changed\n");
 		await fixture.write("new file.txt", "new\n");
 		await fixture.write("staged.txt", "staged\n");
@@ -76,10 +80,12 @@ describe("GitRepository local workflow", () => {
 
 	test("includes ignored paths only when requested", async () => {
 		const fixture = await fixtures.create();
+
 		await fixture.write(".gitignore", "ignored.txt\n");
 		await fixture.write("ignored.txt", "ignored\n");
 
 		const normal = unwrapResult(await fixture.repository.getSnapshot());
+
 		const withIgnored = unwrapResult(
 			await fixture.repository.getSnapshot({ includeIgnored: true })
 		);
@@ -97,12 +103,14 @@ describe("GitRepository local workflow", () => {
 
 	test("stages and unstages selected paths", async () => {
 		const fixture = await fixtures.create();
+
 		await fixture.write("one.txt", "one\n");
 		await fixture.write("two.txt", "two\n");
 
 		const staged = unwrapResult(
 			await fixture.repository.stage({ paths: ["one.txt"] })
 		);
+
 		const unstaged = unwrapResult(
 			await fixture.repository.unstage({ paths: ["one.txt"] })
 		);
@@ -120,13 +128,16 @@ describe("GitRepository local workflow", () => {
 
 	test("stages, unstages, and discards individual hunks", async () => {
 		const fixture = await fixtures.create();
+
 		const originalLines = Array.from(
 			{ length: 20 },
 			(_, index) => `line ${index + 1}`
 		);
+
 		await fixture.write("hunks.txt", `${originalLines.join("\n")}\n`);
 		await fixture.commitAll("add hunk fixture");
 		const changedLines = [...originalLines];
+
 		changedLines[1] = "line 2 changed";
 		changedLines[17] = "line 18 changed";
 		await fixture.write("hunks.txt", `${changedLines.join("\n")}\n`);
@@ -162,24 +173,29 @@ describe("GitRepository local workflow", () => {
 				path: "hunks.txt",
 			})
 		);
+
 		expect(discarded.undo).toMatchObject({ path: "hunks.txt" });
 		const worktreeContent = await fixture.read("hunks.txt");
+
 		expect(worktreeContent).toContain("line 2 changed");
 		expect(worktreeContent).toContain("line 18\n");
 		expect(worktreeContent).not.toContain("line 18 changed");
 
 		const undoToken = discarded.undo?.token;
+
 		expect(undoToken).toBeString();
 		unwrapResult(
 			await fixture.repository.undoDiscard({ token: undoToken ?? "" })
 		);
 		const restoredContent = await fixture.read("hunks.txt");
+
 		expect(restoredContent).toContain("line 2 changed");
 		expect(restoredContent).toContain("line 18 changed");
 
 		const reusedUndo = await fixture.repository.undoDiscard({
 			token: undoToken ?? "",
 		});
+
 		expect(reusedUndo).toMatchObject({
 			error: { code: "invalid-input", operation: "undo-discard" },
 			ok: false,
@@ -188,13 +204,16 @@ describe("GitRepository local workflow", () => {
 
 	test("discards and restores a partially staged file", async () => {
 		const fixture = await fixtures.create();
+
 		const originalLines = Array.from(
 			{ length: 20 },
 			(_, index) => `line ${index + 1}`
 		);
+
 		await fixture.write("partial.txt", `${originalLines.join("\n")}\n`);
 		await fixture.commitAll("add partial fixture");
 		const stagedLines = [...originalLines];
+
 		stagedLines[1] = "line 2 staged";
 		await fixture.write("partial.txt", `${stagedLines.join("\n")}\n`);
 		unwrapResult(
@@ -205,6 +224,7 @@ describe("GitRepository local workflow", () => {
 			})
 		);
 		const workingLines = [...stagedLines];
+
 		workingLines[17] = "line 18 unstaged";
 		await fixture.write("partial.txt", `${workingLines.join("\n")}\n`);
 
@@ -229,7 +249,9 @@ describe("GitRepository local workflow", () => {
 			"--",
 			"partial.txt",
 		]);
+
 		const worktreeDiff = await fixture.git(["diff", "--", "partial.txt"]);
+
 		expect(stagedDiff).toContain("line 2 staged");
 		expect(stagedDiff).not.toContain("line 18 unstaged");
 		expect(worktreeDiff).toContain("line 18 unstaged");
@@ -238,6 +260,7 @@ describe("GitRepository local workflow", () => {
 
 	test("discards and restores an untracked file", async () => {
 		const fixture = await fixtures.create();
+
 		await fixture.write("untracked.txt", "recover me\n");
 
 		const discarded = unwrapResult(
@@ -256,6 +279,7 @@ describe("GitRepository local workflow", () => {
 
 	test("discards and restores multiple files with one undo", async () => {
 		const fixture = await fixtures.create();
+
 		await fixture.write("one.txt", "one\n");
 		await fixture.write("two.txt", "two\n");
 		await fixture.commitAll("add bulk discard fixture");
@@ -279,6 +303,7 @@ describe("GitRepository local workflow", () => {
 
 	test("requires explicit consent before discarding a file", async () => {
 		const fixture = await fixtures.create();
+
 		await fixture.write("README.md", "# Keep this change\n");
 
 		const result = await fixture.repository.discardFiles({
@@ -294,6 +319,7 @@ describe("GitRepository local workflow", () => {
 
 	test("requires explicit consent before discarding a hunk", async () => {
 		const fixture = await fixtures.create();
+
 		await fixture.write("README.md", "# Changed\n");
 
 		const result = await fixture.repository.changeHunk({
@@ -311,6 +337,7 @@ describe("GitRepository local workflow", () => {
 
 	test("stages and unstages all paths", async () => {
 		const fixture = await fixtures.create();
+
 		await fixture.write("one.txt", "one\n");
 		await fixture.write("two.txt", "two\n");
 
@@ -327,6 +354,7 @@ describe("GitRepository local workflow", () => {
 
 	test("unstages paths in an unborn repository", async () => {
 		const fixture = await fixtures.create({ initialCommit: false });
+
 		await fixture.write("first.txt", "first\n");
 		unwrapResult(await fixture.repository.stage({ paths: ["first.txt"] }));
 
@@ -342,6 +370,7 @@ describe("GitRepository local workflow", () => {
 
 	test("creates a structured commit and refreshes the snapshot", async () => {
 		const fixture = await fixtures.create();
+
 		await fixture.write("feature.txt", "feature\n");
 		unwrapResult(await fixture.repository.stage({ paths: ["feature.txt"] }));
 
@@ -370,6 +399,7 @@ describe("GitRepository local workflow", () => {
 
 	test("returns paginated history", async () => {
 		const fixture = await fixtures.create();
+
 		await fixture.write("one.txt", "one\n");
 		await fixture.commitAll("second");
 		await fixture.write("two.txt", "two\n");
@@ -378,6 +408,7 @@ describe("GitRepository local workflow", () => {
 		const firstPage = unwrapResult(
 			await fixture.repository.getHistory({ limit: 2 })
 		);
+
 		const secondPage = unwrapResult(
 			await fixture.repository.getHistory({
 				limit: 2,
@@ -414,6 +445,7 @@ describe("GitRepository local workflow", () => {
 
 	test("returns a working-tree diff and statistics", async () => {
 		const fixture = await fixtures.create();
+
 		await fixture.write("README.md", "# Updated\nSecond line\n");
 
 		const diff = unwrapResult(
@@ -429,11 +461,13 @@ describe("GitRepository local workflow", () => {
 
 	test("can ignore whitespace-only changes", async () => {
 		const fixture = await fixtures.create();
+
 		await fixture.write("README.md", "#   Test repository\n");
 
 		const ordinary = unwrapResult(
 			await fixture.repository.getDiff({ target: { kind: "working" } })
 		);
+
 		const ignoringWhitespace = unwrapResult(
 			await fixture.repository.getDiff({
 				ignoreWhitespace: true,
@@ -448,13 +482,16 @@ describe("GitRepository local workflow", () => {
 
 	test("can request complete context for a changed file", async () => {
 		const fixture = await fixtures.create();
+
 		const originalLines = Array.from(
 			{ length: 2005 },
 			(_, index) => `line ${index + 1}`
 		);
+
 		await fixture.write("long.txt", `${originalLines.join("\n")}\n`);
 		await fixture.commitAll("add long file");
 		const changedLines = [...originalLines];
+
 		changedLines[1002] = "changed middle line";
 		await fixture.write("long.txt", `${changedLines.join("\n")}\n`);
 
@@ -473,6 +510,7 @@ describe("GitRepository local workflow", () => {
 
 	test("returns the complete diff for an added file", async () => {
 		const fixture = await fixtures.create();
+
 		await fixture.write("new file.ts", "export const first = 1;\nsecond();\n");
 
 		const diff = unwrapResult(
@@ -489,6 +527,7 @@ describe("GitRepository local workflow", () => {
 
 	test("returns a staged diff scoped to paths", async () => {
 		const fixture = await fixtures.create();
+
 		await fixture.write("staged.txt", "staged\n");
 		await fixture.write("ignored-by-scope.txt", "other\n");
 		unwrapResult(await fixture.repository.stageAll());
@@ -506,11 +545,13 @@ describe("GitRepository local workflow", () => {
 
 	test("returns commit and range diffs", async () => {
 		const fixture = await fixtures.create();
+
 		const rootDiff = unwrapResult(
 			await fixture.repository.getDiff({
 				target: { kind: "commit", revision: "HEAD" },
 			})
 		);
+
 		await fixture.write("feature.txt", "feature\n");
 		await fixture.commitAll("feature");
 
@@ -519,11 +560,13 @@ describe("GitRepository local workflow", () => {
 				target: { kind: "commit", revision: "HEAD" },
 			})
 		);
+
 		const rangeDiff = unwrapResult(
 			await fixture.repository.getDiff({
 				target: { base: "HEAD~1", head: "HEAD", kind: "range" },
 			})
 		);
+
 		const mergeBaseDiff = unwrapResult(
 			await fixture.repository.getDiff({
 				target: {
@@ -543,6 +586,7 @@ describe("GitRepository local workflow", () => {
 
 	test("returns a normal first-parent diff for merge commits", async () => {
 		const fixture = await fixtures.create();
+
 		await fixture.git(["checkout", "-b", "feature"]);
 		await fixture.write("feature.txt", "feature\n");
 		await fixture.commitAll("feature");
@@ -563,6 +607,7 @@ describe("GitRepository local workflow", () => {
 
 	test("compares a topic branch from its merge base", async () => {
 		const fixture = await fixtures.create();
+
 		await fixture.git(["checkout", "-b", "feature"]);
 		await fixture.write("feature.txt", "feature\n");
 		await fixture.commitAll("feature");
@@ -587,6 +632,7 @@ describe("GitRepository local workflow", () => {
 
 	test("loads UTF-8 file content at a revision", async () => {
 		const fixture = await fixtures.create();
+
 		const content = unwrapResult(
 			await fixture.repository.getFileContent({
 				path: "README.md",
@@ -603,6 +649,7 @@ describe("GitRepository local workflow", () => {
 
 	test("encodes binary file content as base64", async () => {
 		const fixture = await fixtures.create();
+
 		await fixture.write("binary.bin", new Uint8Array([0xff, 0xfe, 0x00, 0x81]));
 		await fixture.commitAll("binary");
 
@@ -625,6 +672,7 @@ describe("GitRepository local workflow", () => {
 				source: { kind: "working" },
 			})
 		);
+
 		const object = unwrapResult(
 			await fixture.repository.getFileContent({
 				path: "binary.bin",
@@ -646,12 +694,14 @@ describe("GitRepository local workflow", () => {
 
 	test("requires explicit consent before restoring worktree content", async () => {
 		const fixture = await fixtures.create();
+
 		await fixture.write("README.md", "discard me\n");
 
 		const rejected = await fixture.repository.restore({
 			allowDestructive: false,
 			paths: ["README.md"],
 		});
+
 		const restored = unwrapResult(
 			await fixture.repository.restore({
 				allowDestructive: true,
@@ -669,6 +719,7 @@ describe("GitRepository local workflow", () => {
 
 	test("requires explicit consent before hard reset", async () => {
 		const fixture = await fixtures.create();
+
 		await fixture.write("README.md", "changed\n");
 		await fixture.commitAll("changed");
 
@@ -676,6 +727,7 @@ describe("GitRepository local workflow", () => {
 			mode: "hard",
 			target: "HEAD~1",
 		});
+
 		const reset = unwrapResult(
 			await fixture.repository.reset({
 				allowDestructive: true,
@@ -698,15 +750,18 @@ describe("GitRepository local workflow", () => {
 		const missing = unwrapResult(
 			await fixture.repository.getConfig({ key: "onegit.test-value" })
 		);
+
 		const written = unwrapResult(
 			await fixture.repository.setConfig({
 				key: "onegit.test-value",
 				value: "hello",
 			})
 		);
+
 		const read = unwrapResult(
 			await fixture.repository.getConfig({ key: "onegit.test-value" })
 		);
+
 		const removed = unwrapResult(
 			await fixture.repository.unsetConfig({ key: "onegit.test-value" })
 		);
@@ -719,6 +774,7 @@ describe("GitRepository local workflow", () => {
 
 	test("reads effective configuration without changing the write scope", async () => {
 		const fixture = await fixtures.create();
+
 		await fixture.git(["config", "--local", "onegit.effective", "repository"]);
 
 		const effective = unwrapResult(
@@ -727,6 +783,7 @@ describe("GitRepository local workflow", () => {
 				scope: "effective",
 			})
 		);
+
 		const local = unwrapResult(
 			await fixture.repository.getConfig({ key: "onegit.effective" })
 		);
@@ -746,6 +803,7 @@ describe("GitRepository local workflow", () => {
 	test("returns aborted results without invoking Git", async () => {
 		const fixture = await fixtures.create();
 		const controller = new AbortController();
+
 		controller.abort();
 
 		const result = await fixture.repository.stageAll({
@@ -760,6 +818,7 @@ describe("GitRepository local workflow", () => {
 
 	test("serializes concurrent mutations", async () => {
 		const fixture = await fixtures.create();
+
 		await fixture.write("one.txt", "one\n");
 		await fixture.write("two.txt", "two\n");
 
@@ -767,6 +826,7 @@ describe("GitRepository local workflow", () => {
 			fixture.repository.stage({ paths: ["one.txt"] }),
 			fixture.repository.stage({ paths: ["two.txt"] }),
 		]);
+
 		const snapshot = unwrapResult(await fixture.repository.getSnapshot());
 
 		expect(one.ok).toBe(true);

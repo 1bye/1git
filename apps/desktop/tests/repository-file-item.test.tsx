@@ -24,6 +24,7 @@ describe("repository file item presentation", () => {
 		const counts = renderToStaticMarkup(
 			<RepositoryFileStats addedLines={12} deletedLines={3} />
 		);
+
 		const binary = renderToStaticMarkup(
 			<RepositoryFileStats
 				addedLines={null}

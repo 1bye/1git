@@ -38,6 +38,7 @@ describe("StyleSheet", () => {
 			hover: { backgroundColor: "#222222", opacity: 0.9 },
 			padding: 8,
 		} as const;
+
 		const selected = {
 			active: { backgroundColor: "#555555" },
 			backgroundColor: "#333333",

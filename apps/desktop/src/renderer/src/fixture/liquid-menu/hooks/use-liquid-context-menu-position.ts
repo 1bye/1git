@@ -27,6 +27,7 @@ export const useLiquidContextMenuPosition = ({
 }: UseLiquidContextMenuPositionOptions): LiquidContextMenuPosition => {
 	const [pointerClientX, setPointerClientX] = useState<number | null>(null);
 	const anchorRect = anchorElement?.getBoundingClientRect();
+
 	const alignOffset = anchorRect
 		? getConstrainedMenuAlignOffset({
 				anchorLeft: anchorRect.left,
@@ -36,6 +37,7 @@ export const useLiquidContextMenuPosition = ({
 				pointerClientX,
 			})
 		: 0;
+
 	const capturePointer = useCallback(
 		(event: ReactMouseEvent<HTMLElement>): void => {
 			setPointerClientX(
@@ -47,6 +49,7 @@ export const useLiquidContextMenuPosition = ({
 		},
 		[]
 	);
+
 	const resetPointer = useCallback((): void => {
 		setPointerClientX(null);
 	}, []);

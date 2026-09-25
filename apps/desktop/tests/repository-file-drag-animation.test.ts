@@ -5,6 +5,7 @@ const readSource = (relativePath: string): string =>
 	readFileSync(new URL(relativePath, import.meta.url), "utf8");
 
 const styles = readSource("../src/renderer/src/styles.css");
+
 const fileList = readSource(
 	"../src/renderer/src/fixture/repository-workspace/components/repository-file-list.tsx"
 );

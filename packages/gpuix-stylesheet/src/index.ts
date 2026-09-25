@@ -64,10 +64,12 @@ export class StyleSheet {
 			if (!style) {
 				continue;
 			}
+
 			if (!composed) {
 				composed = style;
 				continue;
 			}
+
 			if (!ownsComposedStyle) {
 				composed = Object.assign({}, composed);
 				ownsComposedStyle = true;
@@ -77,6 +79,7 @@ export class StyleSheet {
 				composed.active,
 				style.active
 			);
+
 			const hover = StyleSheet.mergeInteractionStyles(
 				composed.hover,
 				style.hover
@@ -89,6 +92,7 @@ export class StyleSheet {
 			} else {
 				delete composed.active;
 			}
+
 			if (hover) {
 				composed.hover = hover;
 			} else {

@@ -15,6 +15,7 @@ export const getRepositoryRevisionPresentation = (
 	if (!diff) {
 		return null;
 	}
+
 	return {
 		diff,
 		selectedCommitOid: kind === "commit" ? revision : null,

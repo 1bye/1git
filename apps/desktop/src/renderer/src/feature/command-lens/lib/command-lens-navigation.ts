@@ -26,6 +26,7 @@ const NAVIGATION_KEYS = new Set<CommandLensNavigationDirection>([
 	"ArrowRight",
 	"ArrowUp",
 ]);
+
 const CROSS_AXIS_WEIGHT = 2;
 
 const isHorizontalDirection = (
@@ -70,16 +71,21 @@ const spatialScore = (
 	const currentCenter = rectCenter(current.rect);
 	const candidateCenter = rectCenter(candidate.rect);
 	const horizontal = isHorizontalDirection(direction);
+
 	const primaryDelta = horizontal
 		? candidateCenter.x - currentCenter.x
 		: candidateCenter.y - currentCenter.y;
+
 	const forward = isForwardDirection(direction);
+
 	if ((forward && primaryDelta <= 0) || (!forward && primaryDelta >= 0)) {
 		return null;
 	}
+
 	const crossDelta = horizontal
 		? Math.abs(candidateCenter.y - currentCenter.y)
 		: Math.abs(candidateCenter.x - currentCenter.x);
+
 	return Math.abs(primaryDelta) + crossDelta * CROSS_AXIS_WEIGHT;
 };
 
@@ -90,6 +96,7 @@ const findSpatialTarget = <Target extends CommandLensNavigationTarget>(
 ): Target | null => {
 	let bestTarget: Target | null = null;
 	let bestScore = Number.POSITIVE_INFINITY;
+
 	for (const candidate of targets) {
 		if (
 			candidate.id === current.id ||
@@ -97,13 +104,17 @@ const findSpatialTarget = <Target extends CommandLensNavigationTarget>(
 		) {
 			continue;
 		}
+
 		const score = spatialScore(current, candidate, direction);
+
 		if (score === null || score >= bestScore) {
 			continue;
 		}
+
 		bestScore = score;
 		bestTarget = candidate;
 	}
+
 	return bestTarget;
 };
 
@@ -128,11 +139,14 @@ export const getInitialCommandLensNavigationTarget = <
 		const preferredTarget = targets.find(
 			(target) => target.id === preferredTargetId
 		);
+
 		if (preferredTarget) {
 			return preferredTarget;
 		}
 	}
+
 	const defaultTarget = targets.find((target) => target.navigationDefault);
+
 	return defaultTarget ?? targets.toSorted(compareVisualOrder)[0] ?? null;
 };
 
@@ -144,31 +158,40 @@ export const getNextCommandLensNavigationTarget = <
 	direction: CommandLensNavigationDirection
 ): Target | null => {
 	const currentTarget = targets.find((target) => target.id === currentTargetId);
+
 	if (!currentTarget) {
 		return getInitialCommandLensNavigationTarget(targets, null);
 	}
+
 	const horizontal = isHorizontalDirection(direction);
+
 	const followsGroupOrientation =
 		(horizontal && currentTarget.navigationOrientation === "horizontal") ||
 		(!horizontal && currentTarget.navigationOrientation === "vertical");
+
 	if (followsGroupOrientation) {
 		const groupTargets = targets
 			.filter(
 				(target) => target.navigationGroup === currentTarget.navigationGroup
 			)
 			.toSorted(compareNavigationOrder);
+
 		const currentIndex = groupTargets.findIndex(
 			(target) => target.id === currentTarget.id
 		);
+
 		const nextIndex = currentIndex + (isForwardDirection(direction) ? 1 : -1);
 		const nextTarget = groupTargets[nextIndex];
+
 		if (nextTarget) {
 			return nextTarget;
 		}
+
 		if (currentTarget.navigationOrientation === "horizontal") {
 			return currentTarget;
 		}
 	}
+
 	return findSpatialTarget(targets, currentTarget, direction) ?? currentTarget;
 };
 
@@ -179,16 +202,20 @@ export const getNextCommandLensNavigationGroupTarget = <
 	currentTargetId: string
 ): Target | null => {
 	const currentTarget = targets.find((target) => target.id === currentTargetId);
+
 	if (!currentTarget) {
 		return null;
 	}
+
 	const groupTargets = targets
 		.filter(
 			(target) => target.navigationGroup === currentTarget.navigationGroup
 		)
 		.toSorted(compareNavigationOrder);
+
 	const currentIndex = groupTargets.findIndex(
 		(target) => target.id === currentTarget.id
 	);
+
 	return groupTargets[currentIndex + 1] ?? null;
 };

@@ -47,6 +47,7 @@ export function RepositoryFileStats({
 }: RepositoryFileStatsProps): ReactElement | null {
 	const addedLabel = addedLines ?? unavailableLabel;
 	const deletedLabel = deletedLines ?? unavailableLabel;
+
 	if (addedLabel === undefined && deletedLabel === undefined) {
 		return null;
 	}

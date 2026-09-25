@@ -27,13 +27,16 @@ export const measureHunkActionBounds = (
 	if (!viewportElement?.isConnected) {
 		return null;
 	}
+
 	const visibleAnchor = clipLiquidMenuRect(
 		anchor,
 		toLiquidMenuRect(viewportElement.getBoundingClientRect())
 	);
+
 	if (visibleAnchor.width <= 0 || visibleAnchor.height <= 0) {
 		return null;
 	}
+
 	return { anchor, visibleAnchor };
 };
 
@@ -44,6 +47,7 @@ export const measureHunkActionAnchor = (
 	if (!anchorElement.isConnected) {
 		return null;
 	}
+
 	return measureHunkActionBounds(
 		toLiquidMenuRect(anchorElement.getBoundingClientRect()),
 		viewportElement

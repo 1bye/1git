@@ -28,10 +28,12 @@ export const getConstrainedMenuAlignOffset = ({
 	pointerClientX,
 }: ConstrainedMenuAlignOffsetInput): number => {
 	const minimumLeft = anchorLeft + inlineInset;
+
 	const maximumLeft = Math.max(
 		minimumLeft,
 		anchorLeft + anchorWidth - menuWidth - inlineInset
 	);
+
 	const preferredLeft =
 		pointerClientX === null
 			? anchorLeft + (anchorWidth - menuWidth) / 2

@@ -42,6 +42,7 @@ const requireRecord = (
 	if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
 		throw new TypeError(`${label} must be an object.`);
 	}
+
 	return payload as Readonly<Record<string, unknown>>;
 };
 
@@ -50,40 +51,50 @@ const requireString = (
 	property: string
 ): string => {
 	const value = record[property];
+
 	if (typeof value !== "string" || value.length === 0) {
 		throw new TypeError(`${property} must be a non-empty string.`);
 	}
+
 	return value;
 };
 
 const requireRepositoryPath = (payload: unknown): string => {
 	const request = requireRecord(payload, "Repository path input");
 	const path = requireString(request, "path");
+
 	if (!isAbsolute(path) || path.includes("\0")) {
 		throw new TypeError("path must be an absolute filesystem path.");
 	}
+
 	return path;
 };
 
 const requireExternalUrl = (payload: unknown): string => {
 	const request = requireRecord(payload, "External URL input");
 	const value = requireString(request, "url");
+
 	if (!URL.canParse(value)) {
 		throw new TypeError("url must be a valid HTTPS URL.");
 	}
+
 	const url = new URL(value);
+
 	if (url.protocol !== "https:") {
 		throw new TypeError("url must be a valid HTTPS URL.");
 	}
+
 	return url.toString();
 };
 
 const requireCopyText = (payload: unknown): string => {
 	const request = requireRecord(payload, "Copy text input");
 	const text = requireString(request, "text");
+
 	if (text.length > MAXIMUM_COPY_TEXT_LENGTH) {
 		throw new TypeError("text exceeds the maximum copy length.");
 	}
+
 	return text;
 };
 
@@ -91,9 +102,11 @@ const requireApplication = (
 	request: Readonly<Record<string, unknown>>
 ): DesktopApplication => {
 	const application = requireString(request, "application");
+
 	if (!DESKTOP_APPLICATIONS.has(application as DesktopApplication)) {
 		throw new TypeError("application is not supported.");
 	}
+
 	return application as DesktopApplication;
 };
 
@@ -110,6 +123,7 @@ export const registerDesktopIntegrationIpc = ({
 			if (!isSenderAuthorized(event)) {
 				throw new Error(UNAUTHORIZED_IPC_MESSAGE);
 			}
+
 			await handle(payload);
 		});
 	};
@@ -126,6 +140,7 @@ export const registerDesktopIntegrationIpc = ({
 			const request = requireRecord(payload, "Open in application input");
 			const application = requireApplication(request);
 			const path = requireRepositoryPath(request);
+
 			await operations.openInApplication(application, path);
 		}
 	);
@@ -135,11 +150,14 @@ export const registerDesktopIntegrationIpc = ({
 
 	const channels = Object.values(DESKTOP_INTEGRATION_IPC_CHANNELS);
 	let disposed = false;
+
 	return () => {
 		if (disposed) {
 			return;
 		}
+
 		disposed = true;
+
 		for (const channel of channels) {
 			ipcMain.removeHandler(channel);
 		}

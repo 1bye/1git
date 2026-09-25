@@ -11,6 +11,7 @@ export const updateRepositoryContextLayerOpen = (
 	if (isOpen) {
 		return { isOpen: true, repositoryPath };
 	}
+
 	return currentLayer?.repositoryPath === repositoryPath
 		? { ...currentLayer, isOpen: false }
 		: currentLayer;
@@ -24,7 +25,9 @@ export const updateRepositoryContextLayerPresence = (
 	if (isPresent) {
 		return currentLayer;
 	}
+
 	const shouldRemoveLayer =
 		currentLayer?.repositoryPath === repositoryPath && !currentLayer.isOpen;
+
 	return shouldRemoveLayer ? null : currentLayer;
 };

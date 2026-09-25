@@ -118,6 +118,7 @@ export function RepositoryNavigationRail({
 	const selectFileRef = useRef(onSelectFile);
 	const setFileStagedRef = useRef(onSetFileStaged);
 	const setFilesStagedRef = useRef(onSetFilesStaged);
+
 	discardFilesRef.current = onDiscardFiles;
 	selectFileRef.current = onSelectFile;
 	setFileStagedRef.current = onSetFileStaged;
@@ -127,11 +128,13 @@ export function RepositoryNavigationRail({
 			discardFilesRef.current(filesToDiscard),
 		[]
 	);
+
 	const setFileStaged = useCallback(
 		(file: FileChange, shouldStage: boolean): Promise<boolean> =>
 			setFileStagedRef.current(file, shouldStage),
 		[]
 	);
+
 	const setFilesStaged = useCallback(
 		(
 			filesToStage: readonly FileChange[],
@@ -139,15 +142,18 @@ export function RepositoryNavigationRail({
 		): Promise<boolean> => setFilesStagedRef.current(filesToStage, shouldStage),
 		[]
 	);
+
 	const requestChanges = useCallback(async (): Promise<void> => {
 		await onSetTab("changes");
 	}, [onSetTab]);
+
 	const selectFileAndReveal = useCallback(
 		async (file: FileChange): Promise<void> => {
 			await selectFileRef.current(file);
 		},
 		[]
 	);
+
 	const navigation = useRepositoryFileNavigation({
 		files,
 		onRequestChanges: requestChanges,
@@ -170,6 +176,7 @@ export function RepositoryNavigationRail({
 
 	const stagedCount = files.filter(isFileStaged).length;
 	let content: ReactElement;
+
 	if (tab === "history") {
 		content = (
 			<RepositoryHistoryRail

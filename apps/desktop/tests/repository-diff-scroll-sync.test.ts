@@ -7,6 +7,7 @@ import {
 import type { RepositoryDiffFileEntry } from "@/fixture/repository-workspace/lib/repository-diff-files.js";
 
 const paths = ["first.ts", "middle.ts", "last.ts"] as const;
+
 const entries = paths.map((path): RepositoryDiffFileEntry => ({
 	change: null,
 	file: null,
@@ -34,6 +35,7 @@ const createViewer = ({
 	const topsById = new Map(
 		entries.map((entry, index) => [entry.key, tops[index]])
 	);
+
 	return {
 		getHeight: () => height,
 		getScrollHeight: () => scrollHeight,
@@ -44,6 +46,7 @@ const createViewer = ({
 describe("repository diff scroll synchronization", () => {
 	it("coalesces rapid active-file changes to the latest path", async () => {
 		const committedPaths: string[] = [];
+
 		const scheduler = createRepositoryDiffActivePathScheduler(
 			(path) => committedPaths.push(path),
 			5

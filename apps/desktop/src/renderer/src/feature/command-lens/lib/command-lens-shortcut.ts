@@ -27,6 +27,7 @@ const eventKeyMatches = (
 	) {
 		return true;
 	}
+
 	if (
 		event.altKey &&
 		LETTER_KEY_PATTERN.test(command.key) &&
@@ -34,6 +35,7 @@ const eventKeyMatches = (
 	) {
 		return true;
 	}
+
 	return normalizeKey(event.key) === normalizeKey(command.key);
 };
 
@@ -57,12 +59,15 @@ export const getCommandLensNumberKey = (
 	if (index < 0 || index >= itemCount || itemCount <= 0) {
 		return null;
 	}
+
 	if (index < MAXIMUM_NUMBERED_TARGETS - 1) {
 		return String(index + 1);
 	}
+
 	if (index === itemCount - 1) {
 		return String(MAXIMUM_NUMBERED_TARGETS);
 	}
+
 	return null;
 };
 
@@ -80,18 +85,23 @@ const visibleKey = (key: string): string => {
 	if (key === "Backspace") {
 		return "⌫";
 	}
+
 	if (key === "ArrowLeft") {
 		return "←";
 	}
+
 	if (key === "ArrowRight") {
 		return "→";
 	}
+
 	if (key === "ArrowUp") {
 		return "↑";
 	}
+
 	if (key === "ArrowDown") {
 		return "↓";
 	}
+
 	return key.toLocaleUpperCase();
 };
 
@@ -111,11 +121,15 @@ export const getCommandLensDisplayCommands = (
 	const displayCommands = commands.filter(
 		(command) => command.showInLens !== false
 	);
+
 	const optionCommands = displayCommands.filter((command) => command.altKey);
+
 	if (isOptionActive) {
 		return optionCommands;
 	}
+
 	const primaryCommands = displayCommands.filter((command) => !command.altKey);
+
 	return primaryCommands.length > 0 ? primaryCommands : optionCommands;
 };
 

@@ -16,6 +16,7 @@ const IMAGE_MIME_TYPES: Readonly<Record<string, string>> = {
 	png: "image/png",
 	webp: "image/webp",
 };
+
 const NULL_OBJECT_ID_PATTERN = /^0+$/;
 
 export type RepositoryDiffPreviewKind =
@@ -54,12 +55,14 @@ export const getRepositoryDiffPreviewKind = ({
 	if (patchOmittedReason === "too-large") {
 		return "large";
 	}
+
 	if (
 		getRepositoryImageMimeType(path) &&
 		(stat?.addedLines === null || file?.hunks.length === 0)
 	) {
 		return "image";
 	}
+
 	if (
 		stat?.addedLines === null ||
 		stat?.deletedLines === null ||
@@ -67,15 +70,19 @@ export const getRepositoryDiffPreviewKind = ({
 	) {
 		return "binary";
 	}
+
 	if (file?.type === "rename-pure") {
 		return "rename";
 	}
+
 	if (file && file.hunks.length > 0) {
 		return "text";
 	}
+
 	if (ignoreWhitespace) {
 		return "ignored-whitespace";
 	}
+
 	return "unsupported";
 };
 
@@ -92,12 +99,14 @@ export const getRepositoryImagePreviewSources = (
 	change: FileChange | null
 ): RepositoryImagePreviewSources => {
 	const before = objectSource(file?.prevObjectId);
+
 	if (
 		file?.type === "deleted" ||
 		(target.kind === "working" && change?.worktreeStatus === "deleted")
 	) {
 		return { after: null, before };
 	}
+
 	return {
 		after:
 			target.kind === "working"

@@ -35,8 +35,10 @@ export const repositoryStashErrorMessage = (
 			? "The stash produced conflicts and was kept. Resolve the conflicts, then drop it when it is no longer needed."
 			: "The stash was kept because applying it produced conflicts. Resolve the conflicted files before continuing.";
 	}
+
 	if (error.code === "repository-locked") {
 		return "Another Git operation is using this repository. Retry when it finishes.";
 	}
+
 	return error.message;
 };

@@ -42,6 +42,7 @@ const branchLabel = (worktree: WorktreeInfo): string => {
 	if (worktree.branch) {
 		return worktree.branch.replace(BRANCH_REFERENCE_PREFIX, "");
 	}
+
 	return worktree.detached ? "Detached HEAD" : "No branch";
 };
 
@@ -168,17 +169,22 @@ export function RepositoryWorktreeCreate({
 	const trimmedPath = path.trim();
 	const isAbsolutePath = ABSOLUTE_PATH_PATTERN.test(trimmedPath);
 	const canCreate = Boolean(trimmedPath && isAbsolutePath && !isLoading);
+
 	const updatePath = (event: ChangeEvent<HTMLInputElement>): void => {
 		setPath(event.target.value);
 	};
+
 	const updateNewBranch = (event: ChangeEvent<HTMLInputElement>): void => {
 		setNewBranch(event.target.value);
 	};
+
 	const submit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
 		event.preventDefault();
+
 		if (!canCreate) {
 			return;
 		}
+
 		await onCreate({
 			newBranch: newBranch.trim() || undefined,
 			path: trimmedPath,

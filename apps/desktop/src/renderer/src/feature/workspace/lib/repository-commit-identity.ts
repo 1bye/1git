@@ -30,6 +30,7 @@ export const readRepositoryCommitIdentity = async (
 		readValue("user.name"),
 		readValue("user.email"),
 	]);
+
 	return normalizeRepositoryCommitIdentity(name, email);
 };
 

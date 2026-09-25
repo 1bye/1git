@@ -52,9 +52,11 @@ export const filterRepositoryFiles = (
 	query: string
 ): readonly FileChange[] => {
 	const normalizedQuery = query.trim().toLocaleLowerCase();
+
 	if (!normalizedQuery) {
 		return files;
 	}
+
 	return files.filter((file) =>
 		file.path.toLocaleLowerCase().includes(normalizedQuery)
 	);
@@ -72,15 +74,19 @@ export const groupRepositoryFilesByStaging = (
 	const conflicted: FileChange[] = [];
 	const staged: FileChange[] = [];
 	const unstaged: FileChange[] = [];
+
 	for (const file of orderRepositoryFilesByPath(files)) {
 		if (isFileConflicted(file)) {
 			conflicted.push(file);
 			continue;
 		}
+
 		const stagedFile =
 			projection?.path === file.path ? projection.staged : isFileStaged(file);
+
 		(stagedFile ? staged : unstaged).push(file);
 	}
+
 	return { conflicted, staged, unstaged };
 };
 
@@ -89,6 +95,7 @@ export const hasRepositoryFileStageProjectionSettled = (
 	projection: RepositoryFileStageProjection
 ): boolean => {
 	const projectedFile = files.find((file) => file.path === projection.path);
+
 	return !projectedFile || isFileStaged(projectedFile) === projection.staged;
 };
 
@@ -96,6 +103,7 @@ export const orderRepositoryFilesByStaging = (
 	files: readonly FileChange[]
 ): readonly FileChange[] => {
 	const groups = groupRepositoryFilesByStaging(files);
+
 	return [...groups.conflicted, ...groups.staged, ...groups.unstaged];
 };
 
@@ -107,9 +115,11 @@ export const shouldStageRepositoryFileDrop = (
 
 export const splitRepositoryFilePath = (path: string): RepositoryFilePath => {
 	const separatorIndex = path.lastIndexOf("/");
+
 	if (separatorIndex < 0) {
 		return { directory: "", name: path };
 	}
+
 	return {
 		directory: path.slice(0, separatorIndex + 1),
 		name: path.slice(separatorIndex + 1),
@@ -124,12 +134,16 @@ export const getRepositoryFileAtOffset = (
 	if (files.length === 0) {
 		return null;
 	}
+
 	const currentIndex = files.findIndex((file) => file.path === currentPath);
 	let startingIndex = currentIndex;
+
 	if (currentIndex < 0) {
 		startingIndex = offset < 0 ? 0 : -1;
 	}
+
 	const nextIndex = (startingIndex + offset + files.length * 2) % files.length;
+
 	return files[nextIndex] ?? null;
 };
 
@@ -139,9 +153,11 @@ export const getRepositoryFileAtBoundedOffset = (
 	offset: number
 ): FileChange | null => {
 	const currentIndex = files.findIndex((file) => file.path === currentPath);
+
 	if (currentIndex < 0) {
 		return files[offset < 0 ? files.length - 1 : 0] ?? null;
 	}
+
 	return files[currentIndex + offset] ?? null;
 };
 
@@ -150,6 +166,7 @@ export const getRepositoryFilePosition = (
 	path: string | null
 ): number | null => {
 	const index = files.findIndex((file) => file.path === path);
+
 	return index < 0 ? null : index + 1;
 };
 
@@ -164,25 +181,34 @@ export const getRepositoryFileSelectionRunPaths = (
 	targetPath: string
 ): readonly string[] => {
 	const targetIndex = orderedPaths.indexOf(targetPath);
+
 	if (targetIndex < 0 || !selectedPaths.has(targetPath)) {
 		return [];
 	}
+
 	let startIndex = targetIndex;
 	let endIndex = targetIndex;
+
 	while (startIndex > 0) {
 		const previousPath = orderedPaths[startIndex - 1];
+
 		if (!(previousPath && selectedPaths.has(previousPath))) {
 			break;
 		}
+
 		startIndex -= 1;
 	}
+
 	while (endIndex < orderedPaths.length - 1) {
 		const nextPath = orderedPaths[endIndex + 1];
+
 		if (!(nextPath && selectedPaths.has(nextPath))) {
 			break;
 		}
+
 		endIndex += 1;
 	}
+
 	return orderedPaths.slice(startIndex, endIndex + 1);
 };
 
@@ -217,8 +243,10 @@ export const updateRepositoryFileSelection = ({
 			anchorPath && orderedPaths.includes(anchorPath)
 				? anchorPath
 				: (activePath ?? targetPath);
+
 		const anchorIndex = orderedPaths.indexOf(rangeAnchor);
 		const targetIndex = orderedPaths.indexOf(targetPath);
+
 		if (anchorIndex < 0 || targetIndex < 0) {
 			return {
 				activePath: targetPath,
@@ -226,9 +254,11 @@ export const updateRepositoryFileSelection = ({
 				selectedPaths: [],
 			};
 		}
+
 		const startIndex = Math.min(anchorIndex, targetIndex);
 		const endIndex = Math.max(anchorIndex, targetIndex);
 		const range = orderedPaths.slice(startIndex, endIndex + 1);
+
 		return {
 			activePath: targetPath,
 			anchorPath: rangeAnchor,
@@ -237,15 +267,19 @@ export const updateRepositoryFileSelection = ({
 	}
 
 	const nextSelection = new Set(selectedPaths);
+
 	if (nextSelection.size === 0 && activePath) {
 		nextSelection.add(activePath);
 	}
+
 	if (nextSelection.has(targetPath)) {
 		nextSelection.delete(targetPath);
 	} else {
 		nextSelection.add(targetPath);
 	}
+
 	const paths = orderedSelection(orderedPaths, nextSelection);
+
 	return {
 		activePath:
 			nextSelection.has(targetPath) || paths.length === 0

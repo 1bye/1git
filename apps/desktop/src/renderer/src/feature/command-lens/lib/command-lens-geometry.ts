@@ -25,6 +25,7 @@ export const insetCommandLensRect = (
 ): CommandLensRect => {
 	const safeBlockInset = Math.min(Math.max(insetBlock, 0), rect.height / 2);
 	const safeInlineInset = Math.min(Math.max(insetInline, 0), rect.width / 2);
+
 	return {
 		height: rect.height - safeBlockInset * 2,
 		left: rect.left + safeInlineInset,
@@ -39,12 +40,15 @@ const oppositePlacement = (
 	if (placement === "bottom") {
 		return "top";
 	}
+
 	if (placement === "top") {
 		return "bottom";
 	}
+
 	if (placement === "left") {
 		return "right";
 	}
+
 	return "left";
 };
 
@@ -56,18 +60,22 @@ const hasPlacementSpace = (
 	viewport: CommandLensViewport
 ): boolean => {
 	const { floatingGap, viewportInset } = COMMAND_LENS_GEOMETRY;
+
 	if (placement === "bottom") {
 		return (
 			anchor.top + anchor.height + floatingGap + hintHeight <=
 			viewport.height - viewportInset
 		);
 	}
+
 	if (placement === "top") {
 		return anchor.top - floatingGap - hintHeight >= viewportInset;
 	}
+
 	if (placement === "left") {
 		return anchor.left - floatingGap - hintWidth >= viewportInset;
 	}
+
 	return (
 		anchor.left + anchor.width + floatingGap + hintWidth <=
 		viewport.width - viewportInset
@@ -90,6 +98,7 @@ const getFloatingHintRect = (
 	)
 		? preferredPlacement
 		: oppositePlacement(preferredPlacement);
+
 	const { floatingGap, viewportInset } = COMMAND_LENS_GEOMETRY;
 	let left = anchor.left + (anchor.width - hintWidth) / 2;
 	let top = anchor.top + (anchor.height - hintHeight) / 2;
@@ -137,12 +146,16 @@ export const getCommandLensHintRect = (
 			viewport
 		);
 	}
+
 	const { gutterGap, inlineInset, viewportInset } = COMMAND_LENS_GEOMETRY;
+
 	const left =
 		layout === "inline-end"
 			? anchor.left + anchor.width - hintWidth - inlineInset
 			: anchor.left - hintWidth - gutterGap;
+
 	const top = anchor.top + (anchor.height - hintHeight) / 2;
+
 	return {
 		height: hintHeight,
 		left: clamp(

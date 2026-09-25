@@ -22,16 +22,19 @@ const MAX_AVATAR_BYTES = 1_000_000;
 const MAX_CACHE_DATA_URL_LENGTH = 1_400_000;
 const REQUEST_TIMEOUT_MS = 5000;
 const USER_AGENT = "1git-desktop";
+
 const ALLOWED_AVATAR_HOSTS = new Set([
 	"avatars.githubusercontent.com",
 	"github.com",
 ]);
+
 const ALLOWED_IMAGE_TYPES = new Set([
 	"image/gif",
 	"image/jpeg",
 	"image/png",
 	"image/webp",
 ]);
+
 const IMAGE_DATA_URL_PATTERN =
 	/^data:image\/(?:gif|jpeg|png|webp);base64,[a-z\d+/=]+$/i;
 
@@ -65,16 +68,19 @@ const parseCacheRecord = (
 	expectedLogin: string
 ): GithubAvatarCacheRecord | null => {
 	let value: unknown;
+
 	try {
 		value = JSON.parse(content);
 	} catch {
 		return null;
 	}
+
 	if (!isRecord(value)) {
 		return null;
 	}
 
 	const { cachedAt, dataUrl, login, version } = value;
+
 	if (
 		version !== CACHE_VERSION ||
 		login !== expectedLogin ||
@@ -97,12 +103,14 @@ const avatarUrlFromAccount = (value: unknown): URL | null => {
 
 	try {
 		const avatarUrl = new URL(value.avatar_url);
+
 		if (
 			avatarUrl.protocol !== "https:" ||
 			!ALLOWED_AVATAR_HOSTS.has(avatarUrl.hostname)
 		) {
 			return null;
 		}
+
 		return avatarUrl;
 	} catch {
 		return null;
@@ -111,15 +119,19 @@ const avatarUrlFromAccount = (value: unknown): URL | null => {
 
 const contentTypeFromResponse = (response: Response): string | null => {
 	const contentType = response.headers.get("content-type");
+
 	return contentType?.split(";", 1)[0]?.trim().toLowerCase() ?? null;
 };
 
 const exceedsDeclaredSize = (response: Response): boolean => {
 	const contentLength = response.headers.get("content-length");
+
 	if (!contentLength) {
 		return false;
 	}
+
 	const size = Number(contentLength);
+
 	return Number.isFinite(size) && size > MAX_AVATAR_BYTES;
 };
 
@@ -141,6 +153,7 @@ export class GithubAvatarCache {
 		if (cacheDirectory.length === 0) {
 			throw new Error("GitHub avatar cache directory must not be empty.");
 		}
+
 		this.cacheDirectory = cacheDirectory;
 		this.fetch = fetch;
 		this.now = now;
@@ -148,22 +161,27 @@ export class GithubAvatarCache {
 
 	async get(login: string): Promise<RepositoryOwnerAvatarResult> {
 		const normalizedLogin = login.trim().toLowerCase();
+
 		if (!GITHUB_LOGIN_PATTERN.test(normalizedLogin)) {
 			return unavailableResult();
 		}
 
 		const memoryRecord = this.memory.get(normalizedLogin);
+
 		if (memoryRecord && this.isFresh(memoryRecord)) {
 			return { dataUrl: memoryRecord.dataUrl, status: "available" };
 		}
 
 		const pending = this.inFlight.get(normalizedLogin);
+
 		if (pending) {
 			return await pending;
 		}
 
 		const request = this.load(normalizedLogin);
+
 		this.inFlight.set(normalizedLogin, request);
+
 		try {
 			return await request;
 		} finally {
@@ -173,6 +191,7 @@ export class GithubAvatarCache {
 
 	private cacheFilePath(login: string): string {
 		const key = createHash("sha256").update(login).digest("hex");
+
 		return join(this.cacheDirectory, `${key}.json`);
 	}
 
@@ -190,12 +209,14 @@ export class GithubAvatarCache {
 					signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
 				}
 			);
+
 			if (!accountResponse.ok) {
 				return null;
 			}
 
 			const account: unknown = await accountResponse.json();
 			const avatarUrl = avatarUrlFromAccount(account);
+
 			if (!avatarUrl) {
 				return null;
 			}
@@ -208,7 +229,9 @@ export class GithubAvatarCache {
 				redirect: "error",
 				signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
 			});
+
 			const contentType = contentTypeFromResponse(avatarResponse);
+
 			if (
 				!(
 					avatarResponse.ok &&
@@ -221,9 +244,11 @@ export class GithubAvatarCache {
 			}
 
 			const bytes = Buffer.from(await avatarResponse.arrayBuffer());
+
 			if (bytes.byteLength === 0 || bytes.byteLength > MAX_AVATAR_BYTES) {
 				return null;
 			}
+
 			return `data:${contentType};base64,${bytes.toString("base64")}`;
 		} catch {
 			return null;
@@ -236,12 +261,15 @@ export class GithubAvatarCache {
 
 	private async load(login: string): Promise<RepositoryOwnerAvatarResult> {
 		const diskRecord = await this.read(login);
+
 		if (diskRecord && this.isFresh(diskRecord)) {
 			this.memory.set(login, diskRecord);
+
 			return { dataUrl: diskRecord.dataUrl, status: "available" };
 		}
 
 		const dataUrl = await this.fetchAvatarDataUrl(login);
+
 		if (dataUrl) {
 			const record: GithubAvatarCacheRecord = {
 				cachedAt: this.now(),
@@ -249,21 +277,26 @@ export class GithubAvatarCache {
 				login,
 				version: CACHE_VERSION,
 			};
+
 			this.memory.set(login, record);
 			await this.write(record);
+
 			return { dataUrl, status: "available" };
 		}
 
 		if (diskRecord) {
 			this.memory.set(login, diskRecord);
+
 			return { dataUrl: diskRecord.dataUrl, status: "available" };
 		}
+
 		return unavailableResult();
 	}
 
 	private async read(login: string): Promise<GithubAvatarCacheRecord | null> {
 		try {
 			const content = await readFile(this.cacheFilePath(login), "utf8");
+
 			return parseCacheRecord(content, login);
 		} catch {
 			return null;
@@ -273,6 +306,7 @@ export class GithubAvatarCache {
 	private async write(record: GithubAvatarCacheRecord): Promise<void> {
 		const filePath = this.cacheFilePath(record.login);
 		const temporaryPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
+
 		try {
 			await mkdir(this.cacheDirectory, {
 				mode: DIRECTORY_MODE,

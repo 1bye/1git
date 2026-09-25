@@ -11,6 +11,7 @@ import {
 import { RepositoryCommitDock } from "../src/renderer/src/fixture/repository-workspace/components/repository-commit-dock.js";
 
 const commit = async (): Promise<boolean> => true;
+
 const commandLensContext = {
 	refreshTarget: (): void => undefined,
 	registerTarget: (): (() => void) => () => undefined,
@@ -46,8 +47,10 @@ describe("repository commit identity", () => {
 
 	test("reads both effective identity fields concurrently", async () => {
 		const requestedKeys: string[] = [];
+
 		const identity = await readRepositoryCommitIdentity((key) => {
 			requestedKeys.push(key);
+
 			return Promise.resolve(
 				key === "user.name" ? "  Ada  " : " ada@example.com "
 			);

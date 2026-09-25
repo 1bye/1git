@@ -54,11 +54,13 @@ export const getRepositorySyncAction = (
 	if (!head.upstream) {
 		const remote = preferredPushRemote(remotes);
 		let disabledReason: string | null = null;
+
 		if (!(head.branch && head.oid)) {
 			disabledReason = "Create or check out a branch with a commit first.";
 		} else if (!remote) {
 			disabledReason = "Add a remote before publishing this branch.";
 		}
+
 		return {
 			description: remote
 				? `Publish ${head.branch ?? "the current branch"} to ${remote.name}`
@@ -129,6 +131,7 @@ export const getRepositorySyncSteps = (
 			if (!(action.remoteName && branch)) {
 				return [];
 			}
+
 			return [
 				{
 					input: {

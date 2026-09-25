@@ -78,15 +78,18 @@ const findHunkIndex = (
 	hoveredLine: GetHoveredLineResult<"diff">
 ): number => {
 	const hunks = entry.file?.hunks ?? [];
+
 	return hunks.findIndex((hunk) => {
 		const start =
 			hoveredLine.side === "additions"
 				? hunk.additionStart
 				: hunk.deletionStart;
+
 		const count =
 			hoveredLine.side === "additions"
 				? hunk.additionCount
 				: hunk.deletionCount;
+
 		return (
 			hoveredLine.lineNumber >= start && hoveredLine.lineNumber < start + count
 		);
@@ -141,6 +144,7 @@ export function useRepositoryCodeViewControls({
 	viewerRef,
 }: RepositoryCodeViewControlsProps): RepositoryCodeViewControls {
 	const [isHunkActionOpen, setIsHunkActionOpen] = useState(false);
+
 	const [hunkActionSelection, setHunkActionSelection] =
 		useState<HunkActionSelection | null>(null);
 
@@ -149,21 +153,27 @@ export function useRepositoryCodeViewControls({
 			const viewerHandle = viewerRef.current;
 			const viewer = viewerHandle?.getInstance();
 			const item = viewerHandle?.getItem(itemId);
+
 			if (!(viewerHandle && viewer && item)) {
 				return;
 			}
+
 			const itemTop = viewer.getTopForItem(itemId);
+
 			item.collapsed = item.collapsed !== true;
 			item.version = getNextRepositoryCodeViewItemVersion(item);
+
 			if (!viewerHandle.updateItem(item)) {
 				return;
 			}
+
 			if (
 				item.collapsed &&
 				hunkActionSelection?.path === entriesByKey.get(itemId)?.path
 			) {
 				setIsHunkActionOpen(false);
 			}
+
 			if (itemTop !== undefined && itemTop < viewer.getScrollTop()) {
 				viewer.scrollTo({ align: "start", id: item.id, type: "item" });
 			}
@@ -175,6 +185,7 @@ export function useRepositoryCodeViewControls({
 		(item: CodeViewItem<RepositoryCodeViewAnnotation>): ReactElement => {
 			const entry = entriesByKey.get(item.id);
 			let fileStatus: ReactElement | null = null;
+
 			if (entry?.change) {
 				fileStatus = <RepositoryFileStatus file={entry.change} />;
 			} else if (entry) {
@@ -184,6 +195,7 @@ export function useRepositoryCodeViewControls({
 					/>
 				);
 			}
+
 			return (
 				<span className="inline-flex shrink-0 items-center gap-2">
 					<RepositoryDiffCollapseButton
@@ -201,9 +213,11 @@ export function useRepositoryCodeViewControls({
 	const renderHeaderMetadata = useCallback(
 		(item: CodeViewItem<RepositoryCodeViewAnnotation>): ReactElement | null => {
 			const entry = entriesByKey.get(item.id);
+
 			if (!entry) {
 				return null;
 			}
+
 			return (
 				<>
 					{showTarget ? (
@@ -230,9 +244,11 @@ export function useRepositoryCodeViewControls({
 		): ReactElement | null => {
 			const entry = entriesByKey.get(item.id);
 			const { metadata } = annotation;
+
 			if (!(entry && metadata?.kind === "preview")) {
 				return null;
 			}
+
 			return (
 				<RepositoryCodeViewPreview
 					entry={entry}
@@ -253,13 +269,16 @@ export function useRepositoryCodeViewControls({
 			item: CodeViewItem<RepositoryCodeViewAnnotation>
 		): ReactElement | null => {
 			const entry = entriesByKey.get(item.id);
+
 			const target =
 				entry?.target.kind === "staged" || entry?.target.kind === "working"
 					? entry.target.kind
 					: null;
+
 			if (!(areHunkActionsEnabled && item.type === "diff" && entry && target)) {
 				return null;
 			}
+
 			return (
 				<button
 					aria-label="Open actions for this hunk"
@@ -270,17 +289,23 @@ export function useRepositoryCodeViewControls({
 						event.preventDefault();
 						event.stopPropagation();
 						const hoveredLine = getHoveredLine();
+
 						if (!isHoveredDiffLine(hoveredLine)) {
 							return;
 						}
+
 						const hunkIndex = findHunkIndex(entry, hoveredLine);
+
 						const viewportElement = viewerRef.current
 							?.getInstance()
 							?.getContainerElement();
+
 						if (hunkIndex < 0 || !viewportElement) {
 							return;
 						}
+
 						const anchorRect = event.currentTarget.getBoundingClientRect();
+
 						const selection: HunkActionSelection = {
 							anchorBounds: {
 								height: anchorRect.height,
@@ -294,6 +319,7 @@ export function useRepositoryCodeViewControls({
 							target,
 							viewportElement,
 						};
+
 						window.setTimeout(() => {
 							setHunkActionSelection(selection);
 							setIsHunkActionOpen(true);

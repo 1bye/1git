@@ -20,6 +20,7 @@ export const windowOptions: RenderOptions = {
 			event.modifiers?.alt
 		)
 			return;
+
 		if (event.modifiers?.shift) renderer.focusPrevious?.();
 		else renderer.focusNext?.();
 	},

@@ -12,6 +12,7 @@ import { elementByTestId } from "../_shared/native-elements";
 
 it("paints text with explicit color and allows typography overrides", () => {
 	const root = createTestRoot({ width: 400, height: 200 });
+
 	try {
 		root.render(
 			<Text

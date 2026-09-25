@@ -74,9 +74,11 @@ const revisionFileRailLabel = (tab: RepositoryTab): string => {
 	if (tab === "history") {
 		return "Files in commit";
 	}
+
 	if (tab === "stashes") {
 		return "Files in stash";
 	}
+
 	return "Files in revision";
 };
 
@@ -91,8 +93,10 @@ function RepositoryStashActions({
 	const [isConfirmingDrop, setIsConfirmingDrop] = useState(false);
 	const [isOpen, setIsOpen] = useState(false);
 	const getAnchor = useCallback((): Element | null => triggerRef.current, []);
+
 	const changeOpen = (nextIsOpen: boolean): void => {
 		setIsOpen(nextIsOpen);
+
 		if (!nextIsOpen) {
 			setIsConfirmingDrop(false);
 		}
@@ -203,6 +207,7 @@ export function RepositoryRevisionFileRail({
 	const stats = diffs[0]?.stats ?? [];
 	const paths = stats.map((stat) => stat.path);
 	const label = revisionFileRailLabel(tab);
+
 	const statusByPath = useMemo(
 		() =>
 			new Map(
@@ -213,6 +218,7 @@ export function RepositoryRevisionFileRail({
 			),
 		[entries]
 	);
+
 	const navigateFiles = (
 		event: ReactKeyboardEvent<HTMLButtonElement>
 	): void => {
@@ -225,37 +231,49 @@ export function RepositoryRevisionFileRail({
 		) {
 			return;
 		}
+
 		const currentPath = getRepositoryRevisionNavigationItemKey(event.target);
+
 		if (!currentPath) {
 			return;
 		}
+
 		const targetGroup = getRepositoryRevisionNavigationGroupTarget(
 			"files",
 			event.key
 		);
+
 		if (targetGroup) {
 			event.preventDefault();
 			focusRepositoryRevisionNavigationGroup(event.currentTarget, targetGroup);
+
 			return;
 		}
+
 		const targetPath = getRepositoryRevisionNavigationTarget(
 			paths,
 			currentPath,
 			event.key
 		);
+
 		if (!targetPath) {
 			return;
 		}
+
 		event.preventDefault();
+
 		if (targetPath === currentPath) {
 			return;
 		}
+
 		const list = event.currentTarget.closest<HTMLUListElement>(
 			'[data-repository-revision-navigation-group="files"]'
 		);
+
 		if (!list) {
 			return;
 		}
+
 		focusRepositoryRevisionNavigationItem(list, targetPath);
 		onSelectFile(targetPath).catch(() => {
 			// The workspace hook reports selection errors in the app notice.
@@ -316,6 +334,7 @@ export function RepositoryRevisionFileRail({
 								>
 									{stats.map((stat) => {
 										const isSelected = selectedFilePath === stat.path;
+
 										return (
 											<li
 												className="relative flex min-h-7 items-center rounded-lg"
@@ -366,6 +385,7 @@ export function RepositoryStashRail({
 	stashes,
 }: RepositoryStashRailProps): ReactElement {
 	const stashOids = stashes.map((stash) => stash.oid);
+
 	const navigateStashes = (
 		event: ReactKeyboardEvent<HTMLButtonElement>
 	): void => {
@@ -378,41 +398,55 @@ export function RepositoryStashRail({
 		) {
 			return;
 		}
+
 		const currentOid = getRepositoryRevisionNavigationItemKey(event.target);
+
 		if (!currentOid) {
 			return;
 		}
+
 		const targetGroup = getRepositoryRevisionNavigationGroupTarget(
 			"revisions",
 			event.key
 		);
+
 		if (targetGroup) {
 			event.preventDefault();
 			focusRepositoryRevisionNavigationGroup(event.currentTarget, targetGroup);
+
 			return;
 		}
+
 		const targetOid = getRepositoryRevisionNavigationTarget(
 			stashOids,
 			currentOid,
 			event.key
 		);
+
 		if (!targetOid) {
 			return;
 		}
+
 		event.preventDefault();
+
 		if (targetOid === currentOid) {
 			return;
 		}
+
 		const targetStash = stashes.find((stash) => stash.oid === targetOid);
+
 		if (!targetStash) {
 			return;
 		}
+
 		const list = event.currentTarget.closest<HTMLUListElement>(
 			'[data-repository-revision-navigation-group="revisions"]'
 		);
+
 		if (!list) {
 			return;
 		}
+
 		focusRepositoryRevisionNavigationItem(list, targetOid);
 		onSelectStash(targetStash).catch(() => {
 			// The workspace hook reports selection errors in the app notice.
@@ -442,6 +476,7 @@ export function RepositoryStashRail({
 							>
 								{stashes.map((stash) => {
 									const isSelected = selectedStashOid === stash.oid;
+
 									return (
 										<li key={stash.oid}>
 											<button

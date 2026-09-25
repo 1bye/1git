@@ -60,27 +60,34 @@ const getScrollVelocity = (
 	if (pointerX === null) {
 		return 0;
 	}
+
 	const railWidth = Math.max(0, railBounds.right - railBounds.left);
 	const threshold = Math.min(DEFAULT_EDGE_THRESHOLD, railWidth / 2);
+
 	if (threshold <= 0) {
 		return 0;
 	}
+
 	if (pointerX < railBounds.left + threshold) {
 		const progress = clamp(
 			(railBounds.left + threshold - pointerX) / threshold,
 			0,
 			1
 		);
+
 		return -DEFAULT_MAX_SCROLL_SPEED * progress;
 	}
+
 	if (pointerX > railBounds.right - threshold) {
 		const progress = clamp(
 			(pointerX - (railBounds.right - threshold)) / threshold,
 			0,
 			1
 		);
+
 		return DEFAULT_MAX_SCROLL_SPEED * progress;
 	}
+
 	return 0;
 };
 
@@ -92,21 +99,26 @@ export const createWorkspaceTabDragRailFrame = ({
 	scrollMetrics,
 }: WorkspaceTabDragRailFrameInput): WorkspaceTabDragRailFrame => {
 	const overlayWidth = Math.max(0, overlayBounds.right - overlayBounds.left);
+
 	const clipInsetLeft = clamp(
 		railBounds.left - overlayBounds.left,
 		0,
 		overlayWidth
 	);
+
 	const clipInsetRight = clamp(
 		overlayBounds.right - railBounds.right,
 		0,
 		overlayWidth - clipInsetLeft
 	);
+
 	const maxScrollLeft = Math.max(
 		0,
 		scrollMetrics.scrollWidth - scrollMetrics.clientWidth
 	);
+
 	const frameDeltaMs = clamp(elapsedMs, 0, DEFAULT_MAX_FRAME_DELTA_MS);
+
 	const scrollDelta =
 		getScrollVelocity(pointerX, railBounds) *
 		(frameDeltaMs / MILLISECONDS_PER_SECOND);
@@ -130,6 +142,7 @@ const getClipPath = ({
 	if (clipInsetLeft === 0 && clipInsetRight === 0) {
 		return null;
 	}
+
 	return `inset(-100vh ${roundClipInset(
 		clipInsetRight
 	)}px -100vh ${roundClipInset(clipInsetLeft)}px)`;
@@ -174,6 +187,7 @@ export const refreshWorkspaceTabDragCollisions = (
 	for (const droppable of manager.registry.droppables) {
 		droppable.refreshShape();
 	}
+
 	manager.collisionObserver.forceUpdate(true);
 };
 
@@ -238,6 +252,7 @@ export const createWorkspaceTabDragRailController = ({
 				currentOverlay.style.removeProperty(property);
 			}
 		}
+
 		appliedOverlayStyleKey = null;
 		currentOverlay = null;
 	};
@@ -250,15 +265,21 @@ export const createWorkspaceTabDragRailController = ({
 			clearOverlayClip();
 			currentOverlay = overlay;
 		}
+
 		const { clipPath, maskImage, maskPosition, maskSize } = overlayStyle;
+
 		const overlayStyleKey = [clipPath, maskImage, maskPosition, maskSize].join(
 			"|"
 		);
+
 		if (!overlay || appliedOverlayStyleKey === overlayStyleKey) {
 			return;
 		}
+
 		const { style } = overlay;
+
 		setStyleProperty(style, "clip-path", clipPath);
+
 		for (const prefix of ["", "-webkit-"]) {
 			setStyleProperty(
 				style,
@@ -274,6 +295,7 @@ export const createWorkspaceTabDragRailController = ({
 				maskImage ? "no-repeat" : null
 			);
 		}
+
 		appliedOverlayStyleKey = overlayStyleKey;
 	};
 
@@ -281,6 +303,7 @@ export const createWorkspaceTabDragRailController = ({
 		if (disconnected || animationFrameId !== 0) {
 			return;
 		}
+
 		animationFrameId = requestFrame(updateFrame);
 	};
 
@@ -289,9 +312,11 @@ export const createWorkspaceTabDragRailController = ({
 		const rail = getRail();
 		const overlay = getOverlay();
 		const overlayPresent = isOverlayPresent(overlay);
+
 		if (!dragActive && postDragTrackingStartedAt === null) {
 			postDragTrackingStartedAt = frameTime;
 		}
+
 		const shouldTrack = shouldTrackDragRail(
 			dragActive,
 			overlayPresent,
@@ -299,17 +324,21 @@ export const createWorkspaceTabDragRailController = ({
 			postDragTrackingStartedAt,
 			postDragTrackingDurationMs
 		);
+
 		if (!(shouldTrack && rail && overlay)) {
 			clearOverlayClip();
 			previousFrameTime = shouldTrack ? frameTime : null;
+
 			if (shouldTrack) {
 				scheduleFrame();
 			}
+
 			return;
 		}
 
 		const elapsedMs =
 			previousFrameTime === null ? 0 : frameTime - previousFrameTime;
+
 		const frame = createWorkspaceTabDragRailFrame({
 			elapsedMs,
 			overlayBounds: overlay.getBoundingClientRect(),
@@ -317,11 +346,14 @@ export const createWorkspaceTabDragRailController = ({
 			railBounds: rail.getBoundingClientRect(),
 			scrollMetrics: rail,
 		});
+
 		applyOverlayClip(overlay, getOverlayStyle(frame, getRailMaskImage(rail)));
+
 		if (frame.scrollLeft !== rail.scrollLeft) {
 			rail.scrollLeft = frame.scrollLeft;
 			refreshCollisions();
 		}
+
 		previousFrameTime = frameTime;
 		scheduleFrame();
 	};
@@ -334,10 +366,12 @@ export const createWorkspaceTabDragRailController = ({
 			pointerX = null;
 			postDragTrackingStartedAt = null;
 			previousFrameTime = null;
+
 			if (animationFrameId !== 0) {
 				cancelFrame(animationFrameId);
 				animationFrameId = 0;
 			}
+
 			clearOverlayClip();
 		},
 		end: (): void => {
@@ -351,6 +385,7 @@ export const createWorkspaceTabDragRailController = ({
 			if (!(dragActive && pointerDriven)) {
 				return;
 			}
+
 			pointerX = nextPointerX;
 			scheduleFrame();
 		},

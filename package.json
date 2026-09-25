@@ -12,7 +12,7 @@
     "check-types": "turbo run check-types",
     "test": "turbo run test",
     "check": "bun run lint && bun run format:check",
-    "fix": "bun run lint:fix && bun run format",
+    "fix": "bun run format && bun run lint:fix",
     "lint": "oxlint .",
     "lint:fix": "oxlint . --fix",
     "format": "oxfmt .",

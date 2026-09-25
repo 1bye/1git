@@ -18,6 +18,7 @@ import {
 import { clickElement, elementByTestId } from "../_shared/native-elements";
 
 let root: TestRoot;
+
 beforeEach(() => {
 	root = createTestRoot({ width: 500, height: 400 });
 });
@@ -113,6 +114,7 @@ it("does not open a disabled select", () => {
 
 it("supports an uncontrolled value and a placeholder", () => {
 	const values: string[] = [];
+
 	root.render(
 		<Select onValueChange={(value) => values.push(value)}>
 			<SelectTrigger testId="trigger" aria-label="Branch">

@@ -79,21 +79,27 @@ function RepositoryHistoryList({
 	const [visibleCommitCount, setVisibleCommitCount] = useState(
 		INITIAL_HISTORY_COMMIT_COUNT
 	);
+
 	const commitOids = commits.map((commit) => commit.oid);
+
 	const loadMoreCommits = (event: UIEvent<HTMLUListElement>): void => {
 		const list = event.currentTarget;
+
 		const remainingScroll =
 			list.scrollHeight - list.scrollTop - list.clientHeight;
+
 		if (
 			remainingScroll > HISTORY_LOAD_AHEAD_PX ||
 			visibleCommitCount >= commits.length
 		) {
 			return;
 		}
+
 		setVisibleCommitCount((currentCount) =>
 			Math.min(commits.length, currentCount + HISTORY_COMMIT_BATCH_SIZE)
 		);
 	};
+
 	const navigateCommits = (
 		event: ReactKeyboardEvent<HTMLButtonElement>
 	): void => {
@@ -106,42 +112,56 @@ function RepositoryHistoryList({
 		) {
 			return;
 		}
+
 		const currentOid = getRepositoryRevisionNavigationItemKey(event.target);
+
 		if (!currentOid) {
 			return;
 		}
+
 		const targetGroup = getRepositoryRevisionNavigationGroupTarget(
 			"revisions",
 			event.key
 		);
+
 		if (targetGroup) {
 			event.preventDefault();
 			focusRepositoryRevisionNavigationGroup(event.currentTarget, targetGroup);
+
 			return;
 		}
+
 		const targetOid = getRepositoryRevisionNavigationTarget(
 			commitOids,
 			currentOid,
 			event.key
 		);
+
 		if (!targetOid) {
 			return;
 		}
+
 		event.preventDefault();
+
 		if (targetOid === currentOid) {
 			return;
 		}
+
 		const targetIndex = commitOids.indexOf(targetOid);
 		const targetCommit = commits[targetIndex];
+
 		if (!targetCommit) {
 			return;
 		}
+
 		const list = event.currentTarget.closest<HTMLUListElement>(
 			'[data-repository-revision-navigation-group="revisions"]'
 		);
+
 		if (!list) {
 			return;
 		}
+
 		if (targetIndex >= visibleCommitCount) {
 			setVisibleCommitCount(targetIndex + 1);
 			window.requestAnimationFrame(() => {
@@ -150,6 +170,7 @@ function RepositoryHistoryList({
 		} else {
 			focusRepositoryRevisionNavigationItem(list, targetOid);
 		}
+
 		onSelectCommit(targetCommit).catch(() => {
 			// The workspace hook reports selection errors in the app notice.
 		});
@@ -201,11 +222,14 @@ export function RepositoryHistoryRail({
 }: RepositoryHistoryRailProps): ReactElement {
 	const [query, setQuery] = useState("");
 	const normalizedQuery = query.trim().toLocaleLowerCase();
+
 	const commits = useMemo(() => {
 		const allCommits = history?.commits ?? [];
+
 		if (!normalizedQuery) {
 			return allCommits;
 		}
+
 		return allCommits.filter(
 			(commit) =>
 				commit.summary.toLocaleLowerCase().includes(normalizedQuery) ||
@@ -213,10 +237,13 @@ export function RepositoryHistoryRail({
 				commit.oid.toLocaleLowerCase().startsWith(normalizedQuery)
 		);
 	}, [history?.commits, normalizedQuery]);
+
 	const updateQuery = (event: ChangeEvent<HTMLInputElement>): void => {
 		setQuery(event.target.value);
 	};
+
 	let emptyMessage = "Loading commit history…";
+
 	if (history) {
 		emptyMessage = query
 			? `No commits match “${query}”.`

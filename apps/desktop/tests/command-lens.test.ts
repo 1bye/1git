@@ -48,6 +48,7 @@ describe("command lens shortcuts", () => {
 			key: "1",
 			label: "Open in background",
 		} as const;
+
 		const event = keyboardEvent({
 			altKey: true,
 			code: "Digit1",
@@ -81,6 +82,7 @@ describe("command lens shortcuts", () => {
 			label: "Open first workspace",
 			showInLens: false,
 		} as const;
+
 		const alternateCommand = {
 			altKey: true,
 			key: "1",
@@ -173,6 +175,7 @@ describe("command lens geometry", () => {
 		top: 60,
 		width: 160,
 	};
+
 	const viewport = { height: 300, width: 400 };
 
 	test("keeps a preferred hint beside its target when there is room", () => {
@@ -191,6 +194,7 @@ describe("command lens geometry", () => {
 
 	test("flips a hint instead of clipping it outside the viewport", () => {
 		const edgeAnchor = { ...anchor, left: 330, width: 60 };
+
 		const hint = getCommandLensHintRect(
 			edgeAnchor,
 			72,
@@ -212,6 +216,7 @@ describe("command lens geometry", () => {
 			"right",
 			viewport
 		);
+
 		const gutterHint = getCommandLensHintRect(
 			anchor,
 			24,
@@ -278,6 +283,7 @@ describe("command lens navigation", () => {
 			target("create", "actions", 0, 20, 100),
 			target("clone", "actions", 1, 20, 140),
 		];
+
 		const tabs = [
 			target("tab-1", "tabs", 0, 200, 20, "horizontal"),
 			target("tab-2", "tabs", 1, 380, 20, "horizontal"),
@@ -334,6 +340,7 @@ describe("command lens navigation", () => {
 
 	test("limits plain arrows to targets that opt into local focus navigation", () => {
 		const welcomeAction = target("create", "actions", 0, 20, 100);
+
 		const workspaceTab = {
 			...target("tab", "toolbar", 0, 200, 20, "horizontal"),
 			plainArrowNavigation: false,

@@ -18,16 +18,19 @@ export function LiquidMenuStackProvider({
 	children,
 }: LiquidMenuStackProviderProps): ReactElement {
 	const [layerIds, setLayerIds] = useState<readonly string[]>([]);
+
 	const showLayer = useCallback((layerId: string): void => {
 		setLayerIds((currentLayerIds) =>
 			addLiquidMenuLayer(currentLayerIds, layerId)
 		);
 	}, []);
+
 	const hideLayer = useCallback((layerId: string): void => {
 		setLayerIds((currentLayerIds) =>
 			removeLiquidMenuLayer(currentLayerIds, layerId)
 		);
 	}, []);
+
 	const context = useMemo<LiquidMenuStackContextValue>(
 		() => ({
 			hideLayer,
