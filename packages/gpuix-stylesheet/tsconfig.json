@@ -1,0 +1,10 @@
+{
+  "extends": "@1git/config/tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ESNext"],
+    "strictNullChecks": true,
+    "types": ["bun"]
+  },
+  "include": ["src/**/*.ts", "tests/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}

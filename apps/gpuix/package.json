@@ -11,6 +11,7 @@
     "start": "bun dist/main.js"
   },
   "dependencies": {
+    "@1git/gpuix-stylesheet": "workspace:*",
     "@gpuix/react": "0.8.0",
     "react": "^19.2.4"
   },
