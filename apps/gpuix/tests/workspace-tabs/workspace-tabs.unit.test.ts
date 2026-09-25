@@ -6,7 +6,7 @@
  */
 import { expect, it } from "bun:test";
 
-import { WorkspaceTabsModel as Model } from "../../src/feature/workspace-tabs/workspace-tabs-model";
+import { WorkspaceTabsModel as Model } from "../../src/feature/workspace-tabs/lib/workspace-tabs-model";
 
 it("creates independent state and preserves identity for ignored actions", () => {
 	const state = Model.create();

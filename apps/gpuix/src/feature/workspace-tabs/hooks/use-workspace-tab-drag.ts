@@ -12,12 +12,12 @@ import {
   type RefObject,
 } from "react";
 
-import { workspaceLayout as layout } from "../../styles/workspace-layout";
+import { workspaceLayout as layout } from "../../../styles/workspace-layout";
 import {
   WorkspaceTabsModel,
   type WorkspaceTabsAction,
   type WorkspaceTabsState,
-} from "./workspace-tabs-model";
+} from "../lib/workspace-tabs-model";
 
 const dragThreshold = 5;
 const scrollEdge = 28;

@@ -56,6 +56,28 @@ The native setup remains app-owned, following the Turborepo workflow.
 - `src/styles/tokens.ts`: shared desktop colors adapted to `gpuix-ui`.
 - `src/styles/workspace-layout.ts`: native top-spacing override; 36px tabs in a 42px toolbar, preserving shared bottom spacing and control sizes.
 
+The tab feature groups its modules by responsibility, following
+`.agents/workflow/react.md`:
+
+```text
+src/feature/workspace-tabs/
+  workspace-tabs.tsx
+  components/
+    workspace-tab.tsx
+    workspace-tab-icon.tsx
+  hooks/
+    use-workspace-tab-drag.ts
+  lib/
+    workspace-tabs-model.ts
+```
+
+The main feature component coordinates focus, selection, and scrolling; its
+components own presentation and local interaction state. The hook owns the drag
+lifecycle, and the model owns pure transitions and their contracts. Modules use
+direct imports without barrel files. Tests remain in `tests/workspace-tabs/`.
+
+`fixture/app-shell.tsx` stays a stateless composition. Reusable UI primitives
+already live in `packages/gpuix-ui`, so there is no duplicate app-local `ui/`.
 The reusable controls and stylesheet package remain independent of app features.
 `@1git/design-tokens` supplies shared colors and shell dimensions to both
 Electron (generated CSS and numeric constants) and GPUIX (plain values).

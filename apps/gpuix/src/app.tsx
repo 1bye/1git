@@ -1,7 +1,7 @@
 import { useReducer } from "react";
 
 import { WorkspaceTabs } from "./feature/workspace-tabs/workspace-tabs";
-import { WorkspaceTabsModel } from "./feature/workspace-tabs/workspace-tabs-model";
+import { WorkspaceTabsModel } from "./feature/workspace-tabs/lib/workspace-tabs-model";
 import { AppShell } from "./fixture/app-shell";
 
 /** Owns one window's in-memory workspaces; no Git or persistence side effects yet. */

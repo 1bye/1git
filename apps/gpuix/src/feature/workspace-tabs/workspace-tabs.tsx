@@ -5,14 +5,14 @@ import { useEffect, useRef, useState, type Dispatch } from "react";
 
 import { appTokens } from "../../styles/tokens";
 import { workspaceLayout as layout } from "../../styles/workspace-layout";
-import { WorkspaceTab } from "./workspace-tab";
-import { WorkspaceTabIcon } from "./workspace-tab-icon";
-import { useWorkspaceTabDrag } from "./use-workspace-tab-drag";
+import { WorkspaceTab } from "./components/workspace-tab";
+import { WorkspaceTabIcon } from "./components/workspace-tab-icon";
+import { useWorkspaceTabDrag } from "./hooks/use-workspace-tab-drag";
 import {
 	WorkspaceTabsModel,
 	type WorkspaceTabsAction,
 	type WorkspaceTabsState,
-} from "./workspace-tabs-model";
+} from "./lib/workspace-tabs-model";
 
 const styles = StyleSheet.create({
 	toolbar: {
