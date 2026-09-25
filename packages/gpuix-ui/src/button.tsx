@@ -3,6 +3,7 @@ import type { Props, StyleDesc } from "@gpuix/react";
 import { Children, useEffect, useRef, useState } from "react";
 
 import { Text } from "./text";
+import { defaultTokens, type UiTokens } from "./tokens";
 
 /** An action control with mouse, Enter, and Space activation. Custom content needs an accessible name. */
 export interface ButtonProps extends Pick<
@@ -22,42 +23,56 @@ export interface ButtonProps extends Pick<
 	onPress?: () => void;
 	style?: StyleDesc;
 	textStyle?: StyleDesc;
+	tokens?: UiTokens;
 }
 
 const styles = StyleSheet.create({
-	root: {
+	root: ({ layout }: UiTokens) => ({
 		display: "flex",
 		alignItems: "center",
 		justifyContent: "center",
-		gap: 8,
+		gap: layout.gap,
 		borderRadius: 6,
 		borderWidth: 1,
 		borderColor: "transparent",
 		flexShrink: 0,
 		cursor: "pointer",
 		userSelect: "none",
-	},
-	primary: {
-		backgroundColor: "#6366f1",
-		hover: { backgroundColor: "#7375f4" },
-		active: { backgroundColor: "#4f46e5" },
-	},
-	secondary: {
-		backgroundColor: "#27272a",
-		borderColor: "#3f3f46",
-		hover: { backgroundColor: "#343438" },
-		active: { backgroundColor: "#202023" },
-	},
-	ghost: {
+	}),
+	primary: ({ colors }: UiTokens) => ({
+		backgroundColor: colors.accent,
+		hover: { backgroundColor: colors.accentHover },
+		active: { backgroundColor: colors.accentPressed },
+	}),
+	secondary: ({ colors }: UiTokens) => ({
+		backgroundColor: colors.surface,
+		borderColor: colors.border,
+		hover: { backgroundColor: colors.surfaceHover },
+		active: { backgroundColor: colors.surfacePressed },
+	}),
+	ghost: ({ colors }: UiTokens) => ({
 		backgroundColor: "transparent",
-		hover: { backgroundColor: "#27272a" },
-		active: { backgroundColor: "#202023" },
-	},
-	sm: { height: 28, paddingLeft: 10, paddingRight: 10 },
-	md: { height: 34, paddingLeft: 14, paddingRight: 14 },
-	focused: { borderColor: "#c4b5fd" },
+		hover: { backgroundColor: colors.surface },
+		active: { backgroundColor: colors.surfacePressed },
+	}),
+	sm: ({ layout }: UiTokens) => ({
+		height: layout.smallControlHeight,
+		paddingLeft: layout.smallControlPadding,
+		paddingRight: layout.smallControlPadding,
+	}),
+	md: ({ layout }: UiTokens) => ({
+		height: layout.controlHeight,
+		paddingLeft: layout.controlPadding,
+		paddingRight: layout.controlPadding,
+	}),
+	focused: ({ colors }: UiTokens) => ({ borderColor: colors.focusRing }),
 	disabled: { opacity: 0.45, cursor: "not-allowed" },
-	label: { color: "#fafafa" },
+	label: (
+		{ colors }: UiTokens,
+		variant: NonNullable<ButtonProps["variant"]>
+	) => ({
+		color: variant === "primary" ? colors.onAccent : colors.textControl,
+	}),
 });
 
 /** Owns activation and focus behavior; plain text children receive the built-in label styles. */
@@ -68,6 +83,7 @@ export function Button({
 	onPress,
 	style,
 	textStyle,
+	tokens = defaultTokens,
 	children,
 	tabIndex = 0,
 	autoFocus,
@@ -86,15 +102,19 @@ export function Button({
 		}
 	}, [disabled]);
 
-	const appearance = styles[variant];
+	const appearance = styles[variant](tokens);
 	const rootStyle = StyleSheet.compose(
-		styles.root,
+		styles.root(tokens),
 		appearance,
-		styles[size],
+		styles[size](tokens),
 		style,
-		!disabled && focused && styles.focused,
+		!disabled && focused && styles.focused(tokens),
 		!disabled && spacePressed && appearance.active,
 		disabled && styles.disabled
+	);
+	const labelStyle = StyleSheet.compose(
+		styles.label(tokens, variant),
+		textStyle
 	);
 
 	// Removing these states keeps a disabled button from responding visually to the pointer.
@@ -142,9 +162,10 @@ export function Button({
 		>
 			{isTextOnly ? (
 				<Text
+					tokens={tokens}
 					size={size === "sm" ? "sm" : "md"}
 					weight="medium"
-					style={StyleSheet.compose(styles.label, textStyle)}
+					style={labelStyle}
 				>
 					{label}
 				</Text>
@@ -152,9 +173,10 @@ export function Button({
 				Children.map(children, (child) =>
 					typeof child === "string" || typeof child === "number" ? (
 						<Text
+							tokens={tokens}
 							size={size === "sm" ? "sm" : "md"}
 							weight="medium"
-							style={StyleSheet.compose(styles.label, textStyle)}
+							style={labelStyle}
 						>
 							{child}
 						</Text>

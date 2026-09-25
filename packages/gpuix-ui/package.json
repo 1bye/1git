@@ -7,7 +7,8 @@
   "exports": {
     "./button": "./src/button.tsx",
     "./text": "./src/text.tsx",
-    "./select": "./src/select.tsx"
+    "./select": "./src/select.tsx",
+    "./tokens": "./src/tokens.ts"
   },
   "scripts": {
     "check-types": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json",

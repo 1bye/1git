@@ -1,7 +1,8 @@
 # @1git/gpuix-ui
 
 Styled React controls for GPUIX, built with `@1git/gpuix-stylesheet`. Includes
-Button, Text, and Select with fixed dark colors. No theme provider is required.
+Button, Text, and Select with named color and density presets. Controls default
+to dark colors and comfortable sizing. No theme provider is required.
 
 ## Setup
 
@@ -65,6 +66,7 @@ render(<App />, {
 | `onPress` | `() => void`; mouse click, Enter press, or Space release | — |
 | `style` | GPUIX `StyleDesc` for the root | — |
 | `textStyle` | GPUIX `StyleDesc` for generated text labels | — |
+| `tokens` | Explicit `UiTokens` selection | `defaultTokens` |
 | `aria-label` | Accessible name; inferred from direct string/number children | — |
 | `aria-description`, `aria-id` | Native accessibility metadata | — |
 | `ref` | GPUIX `PublicInstance` ref, not a DOM element | — |
@@ -102,6 +104,7 @@ buttons an explicit accessible name:
 | `tone` | `default`, `muted`, `danger` | `default` |
 | `weight` | `regular` (400), `medium` (500), `semibold` (600) | `regular` |
 | `style` | Final GPUIX style overrides | — |
+| `tokens` | Explicit `UiTokens` selection | `defaultTokens` |
 
 Other GPUIX host props, including refs and accessibility metadata, pass through.
 Text segments are joined before rendering because separate native text nodes do
@@ -144,10 +147,10 @@ their full supported props.
 | Component | Main props |
 | --- | --- |
 | `Select` | `value`, `defaultValue`, `onValueChange`, `open`, `defaultOpen`, `onOpenChange`, `disabled`, `items` |
-| `SelectTrigger` | `disabled`, `asChild`, `style`, host props/ref; provide `aria-label` |
-| `SelectValue` | `placeholder`, `children` override, `style`, host props/ref |
-| `SelectContent` | `side`, `align`, `sideOffset` (default 6px), `alignOffset`, `collisionPadding`, `onEscapeKeyDown`, host props/ref |
-| `SelectItem` | Required `value`, `disabled`, `asChild`, `children`, `style`, host props/ref |
+| `SelectTrigger` | `tokens`, `disabled`, `asChild`, `style`, host props/ref; provide `aria-label` |
+| `SelectValue` | `tokens`, `placeholder`, `children` override, `style`, host props/ref |
+| `SelectContent` | `tokens`, `side`, `align`, `sideOffset` (default 6px), `alignOffset`, `collisionPadding`, `onEscapeKeyDown`, host props/ref |
+| `SelectItem` | `tokens`, required `value`, `disabled`, `asChild`, `children`, `style`, host props/ref |
 
 Omit `value` and use `defaultValue` for an uncontrolled select. The root's
 `items` maps values to displayed labels; without it, `SelectValue` displays the
@@ -178,6 +181,72 @@ its headless Select does not automatically expose expanded/selected state to
 assistive technology. These wrappers do not claim complete accessibility for
 those states. Native keyboard behavior and visible disabled/focus states are
 implemented independently of that upstream limitation.
+
+## Design tokens
+
+The `/tokens` entry point exports:
+
+- `palettes`: `dark` and `light` semantic color presets.
+- `densities`: `compact` and `comfortable` layout presets.
+- `UiTokens`: a readonly `{ colors, layout }` contract, also accepting custom values.
+- `defaultTokens`: `palettes.dark` with `densities.comfortable`, preserving the
+  original appearance. Treat this as immutable, not a global theme setter.
+
+Palette and density are independent. Pass a selection explicitly:
+
+```tsx
+import { densities, palettes, type UiTokens } from "@1git/gpuix-ui/tokens";
+
+const tokens: UiTokens = {
+  colors: palettes.light,
+  layout: densities.compact,
+};
+
+<Button tokens={tokens}>Commit</Button>
+<Text tokens={tokens} tone="muted">Ready</Text>
+```
+
+The palette defines background, text/muted/control text, danger, accent and its
+interaction states, borders/focus, surfaces, fields, popup backgrounds,
+selection/highlight colors, and shadow color. Density defines control heights
+and horizontal padding (including small buttons), gaps, item height/padding,
+menu padding/gap, and page/section/content spacing. Component `size` still selects
+the small or medium button within the chosen density. Typography, radii, and
+popup limits remain fixed; no font scaling or automatic system-theme detection
+is implemented.
+
+Select has no token provider. Pass the same selection to each **styled part**;
+the headless `Select` root takes no `tokens` prop:
+
+```tsx
+<Select defaultValue="main">
+  <SelectTrigger tokens={tokens} aria-label="Branch">
+    <SelectValue tokens={tokens} />
+  </SelectTrigger>
+  <SelectContent tokens={tokens}>
+    <SelectItem tokens={tokens} value="main">main</SelectItem>
+  </SelectContent>
+</Select>
+```
+
+Button forwards tokens to its generated labels. Custom React children keep their
+own styling and must receive tokens explicitly where needed. Existing `style`
+and `textStyle` overrides keep their documented precedence.
+
+Custom values do not require new presets:
+
+```ts
+const customTokens: UiTokens = {
+  colors: { ...palettes.dark, accent: "#2563eb" },
+  layout: { ...densities.comfortable, controlHeight: 40 },
+};
+```
+
+Controls resolve their stylesheet functions on every render. Passing a new
+selection updates colors and layout without remounting controls. There is no
+global registry, subscription, settings UI, or persistence; mutating the shared
+presets does not trigger rendering. A future provider can supply the selection
+without changing these stylesheet definitions.
 
 ## Development
 

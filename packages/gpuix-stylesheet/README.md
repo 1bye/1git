@@ -1,7 +1,8 @@
 # @1git/gpuix-stylesheet
 
-Small, typed helpers for defining and composing GPUIX styles. The package adds
-no theme or styling runtime: styles remain plain GPUIX `StyleDesc` objects.
+Small, typed helpers for defining named design-token presets and composing GPUIX
+styles. The package adds no theme or styling runtime: tokens remain plain values
+and styles remain plain GPUIX `StyleDesc` objects.
 
 This package is checked against GPUIX `0.10.0`. Install `@gpuix/react` and
 `@gpuix/native` at that same exact version. GPUIX 0.10 retains the React
@@ -49,6 +50,89 @@ const style = StyleSheet.compose(
 Conditional values that resolve to `false`, `null`, or `undefined` are ignored.
 
 ## API
+
+### `Tokens.create`
+
+```ts
+import { Tokens } from "@1git/gpuix-stylesheet";
+
+const palettes = Tokens.create({
+  dark: { background: "#161618", text: "#ededf0" },
+  light: { background: "#ffffff", text: "#18181b" },
+});
+
+const densities = Tokens.create({
+  compact: { control: { height: 28, padding: 8 }, gap: 4 },
+  comfortable: { control: { height: 36, padding: 12 }, gap: 8 },
+});
+```
+
+Defines a named collection of presets and returns the supplied object unchanged.
+Every preset in a collection must have the same nested token keys and compatible
+value kinds. Values can be strings, numbers, booleans, or nested named groups;
+arrays, functions, `null`, and `undefined` are not supported. Categories are not
+hard-coded: use separate collections for palettes, density, typography, or other
+independent settings.
+
+Preset names and inferred literal values are preserved. Inline definitions are
+inferred as readonly by TypeScript, but `create` does not freeze, clone, register,
+or mutate the object. Treat definitions as immutable; no active preset is stored.
+
+```ts
+// TypeScript error: every preset must provide `text`.
+Tokens.create({ dark: { text: "#ffffff" }, light: {} });
+
+// TypeScript error: `padding` cannot change from a number to a string.
+Tokens.create({ compact: { padding: 8 }, comfortable: { padding: "12" } });
+```
+
+These are compile-time checks, not runtime validation. Strings are not parsed as
+colors, font names, or lengths. Validate external configuration before using it.
+
+### `TokenSet`
+
+```ts
+import { StyleSheet, type TokenSet } from "@1git/gpuix-stylesheet";
+
+type UiTokens = {
+  colors: TokenSet<typeof palettes>;
+  layout: TokenSet<typeof densities>;
+};
+
+const styles = StyleSheet.create({
+  root: ({ colors, layout }: UiTokens) => ({
+    backgroundColor: colors.background,
+    color: colors.text,
+    height: layout.control.height,
+    padding: layout.control.padding,
+    gap: layout.gap,
+  }),
+});
+
+const tokens: UiTokens = {
+  colors: palettes.dark,
+  layout: densities.compact,
+};
+
+const rootStyle = styles.root(tokens);
+```
+
+`TokenSet<typeof presets>` extracts the readonly token shape, widening literal
+values to `string`, `number`, or `boolean`. This allows custom values, not just
+the built-in presets:
+
+```ts
+const customColors: TokenSet<typeof palettes> = {
+  ...palettes.dark,
+  text: "#dbeafe",
+};
+```
+
+Resolve token-dependent styles during rendering. Selecting a different palette
+or density and rendering again produces updated styles without changing the
+stylesheet definitions. Existing style objects do not update automatically.
+State, providers, settings persistence, and rerender notifications belong to
+the consuming application, not this package.
 
 ### `StyleSheet.create`
 
