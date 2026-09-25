@@ -65,6 +65,7 @@ render(<App />, {
 | `disabled` | Blocks activation and removes the button from the Tab order | `false` |
 | `focusVisible` | Show the ring when focused; a parent can gate this by pointer/keyboard input without changing focus or activation | `true` |
 | `onMouseDown`, `onKeyDown` | Native input notifications, e.g. to track focus visibility; `onKeyDown` runs before built-in activation | — |
+| `onMouseEnter`, `onMouseLeave` | Native hover notifications, e.g. to coordinate a surrounding tab's highlight | — |
 | `onPress` | `() => void`; mouse click, Enter press, or Space release | — |
 | `style` | GPUIX `StyleDesc` for the root | — |
 | `textStyle` | GPUIX `StyleDesc` for generated text labels | — |

@@ -10,15 +10,15 @@ import { workspaceLayout as layout } from "../../styles/workspace-layout";
 import { WorkspaceTabIcon } from "./workspace-tab-icon";
 import type { WorkspaceTabRecord } from "./workspace-tabs-model";
 
-const {
-	tabWidth: width,
-	tabHeight: height,
-	tabRadius: radius,
-	tabContentInsetInlineStart: inset,
-} = layout;
-// The connected silhouette stays static as slots reorder.
-const outline = `M0 ${height} Q${inset} ${height} ${inset} ${height - inset} V${radius} Q${inset} 0 ${inset + radius} 0 H${width - inset - radius} Q${width - inset} 0 ${width - inset} ${radius} V${height - inset} Q${width - inset} ${height} ${width} ${height}`;
-const activeSurface = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}"><path d="${outline} Z" fill="${lightColors.editorSurface}"/></svg>`;
+const { tabWidth: width, tabHeight: height, tabRadius: radius } = layout;
+const visualInset = 4;
+const shoulder = 12;
+const focusBorderWidth = 1;
+// Curved shoulders extend beyond the visual body without consuming content space.
+const surfaceOutset = shoulder - visualInset;
+const surfaceWidth = width + surfaceOutset * 2;
+const outline = `M0 ${height} Q${shoulder} ${height} ${shoulder} ${height - shoulder} V${radius} Q${shoulder} 0 ${shoulder + radius} 0 H${surfaceWidth - shoulder - radius} Q${surfaceWidth - shoulder} 0 ${surfaceWidth - shoulder} ${radius} V${height - shoulder} Q${surfaceWidth - shoulder} ${height} ${surfaceWidth} ${height}`;
+const activeSurface = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${surfaceWidth} ${height}"><path d="${outline} Z" fill="${lightColors.editorSurface}"/></svg>`;
 
 const styles = StyleSheet.create({
 	root: { position: "relative", width, height, flexShrink: 0 },
@@ -26,22 +26,32 @@ const styles = StyleSheet.create({
 		color: lightColors.editorSurface,
 		position: "absolute",
 		top: 0,
-		left: 0,
-		width,
+		left: -surfaceOutset,
+		width: surfaceWidth,
 		height,
+		pointerEvents: "none",
+	},
+	hover: {
+		position: "absolute",
+		top: 0,
+		left: visualInset,
+		width: width - visualInset * 2,
+		height: layout.tabContentInsetTop * 2 + layout.tabCloseSize,
+		borderRadius: radius,
+		backgroundColor: lightColors.editorHairline,
 		pointerEvents: "none",
 	},
 	content: {
 		position: "absolute",
 		top: layout.tabContentInsetTop,
-		left: inset,
-		width: width - inset * 2,
+		left: visualInset,
+		width: width - visualInset * 2,
 		height: layout.tabCloseSize,
 		display: "flex",
 		flexDirection: "row",
 		alignItems: "center",
 		gap: layout.tabContentGap,
-		paddingLeft: layout.tabContentGap,
+		paddingLeft: layout.tabContentInsetInlineStart - focusBorderWidth,
 		paddingRight: layout.tabContentInsetTop,
 	},
 	trigger: {
@@ -53,14 +63,14 @@ const styles = StyleSheet.create({
 		flexShrink: 1,
 		minWidth: 0,
 		height: layout.tabCloseSize,
-		borderWidth: 1,
+		borderWidth: focusBorderWidth,
 		borderColor: "transparent",
 		borderRadius: 6,
 		cursor: "pointer",
 	},
-	inactive: { hover: { backgroundColor: lightColors.editorHairline } },
 	focused: { borderColor: lightColors.brand },
 	avatar: {
+		pointerEvents: "none",
 		width: layout.tabAvatarSize,
 		height: layout.tabAvatarSize,
 		borderRadius: 4,
@@ -104,6 +114,7 @@ const styles = StyleSheet.create({
 		height: layout.tabCloseSize,
 		paddingLeft: 0,
 		paddingRight: 0,
+		hover: { backgroundColor: lightColors.editorHairline },
 	},
 });
 
@@ -142,9 +153,22 @@ export function WorkspaceTab({
 	onReorder: (key: string) => void;
 }) {
 	const [focused, setFocused] = useState(false);
-	const [hovered, setHovered] = useState(false);
+	const [hoverTargets, setHoverTargets] = useState({
+		slot: false,
+		drag: false,
+		trigger: false,
+		close: false,
+	});
+	const hovered = Object.values(hoverTargets).some(Boolean);
 	const spaceArmed = useRef(false);
 	const label = tab.branch ? `${tab.name} / ${tab.branch}` : tab.name;
+	// GPUIX hitboxes do not bubble hover through interactive children.
+	const hoverEvents = (target: keyof typeof hoverTargets) => ({
+		onMouseEnter: () =>
+			setHoverTargets((current) => ({ ...current, [target]: true })),
+		onMouseLeave: () =>
+			setHoverTargets((current) => ({ ...current, [target]: false })),
+	});
 	const onKeyDown = (event: EventPayload): void => {
 		onKeyboardInput();
 		if (event.key === "escape") {
@@ -179,8 +203,7 @@ export function WorkspaceTab({
 		<div
 			testId={`slot-${tab.id}`}
 			style={StyleSheet.compose(styles.root, dragging && { opacity: 0.8 })}
-			onMouseEnter={() => setHovered(true)}
-			onMouseLeave={() => setHovered(false)}
+			{...hoverEvents("slot")}
 		>
 			<div
 				testId={`drag-${tab.id}`}
@@ -189,7 +212,10 @@ export function WorkspaceTab({
 					top: 0,
 					left: 0,
 					width:
-						width - inset - layout.tabContentInsetTop - layout.tabCloseSize,
+						width -
+						visualInset -
+						layout.tabContentInsetTop -
+						layout.tabCloseSize,
 					height,
 					cursor: dragging ? "grabbing" : "grab",
 				}}
@@ -197,6 +223,7 @@ export function WorkspaceTab({
 				onMouseMove={onTabMouseMove}
 				onMouseUp={onTabMouseUp}
 				onClick={onActivate}
+				{...hoverEvents("drag")}
 			/>
 			{active ? (
 				<svg
@@ -205,6 +232,12 @@ export function WorkspaceTab({
 					style={styles.surface}
 				/>
 			) : null}
+			<div
+				testId={`hover-${tab.id}`}
+				style={StyleSheet.compose(styles.hover, {
+					opacity: !active && hovered && !dragging ? 1 : 0,
+				})}
+			/>
 			<div
 				testId={`content-${tab.id}`}
 				style={StyleSheet.compose(styles.content, { pointerEvents: "none" })}
@@ -220,13 +253,13 @@ export function WorkspaceTab({
 					style={StyleSheet.compose(
 						styles.trigger,
 						{ cursor: dragging ? "grabbing" : "grab", userSelect: "none" },
-						!active && styles.inactive,
 						focused && focusVisible && styles.focused
 					)}
 					onClick={onActivate}
 					onMouseDown={onTabMouseDown}
 					onMouseMove={onTabMouseMove}
 					onMouseUp={onTabMouseUp}
+					{...hoverEvents("trigger")}
 					onKeyDown={onKeyDown}
 					onKeyUp={(event) => {
 						if (event.key !== "space") return;
@@ -276,6 +309,7 @@ export function WorkspaceTab({
 					onKeyDown={onKeyboardInput}
 					tabIndex={active ? 0 : -1}
 					onPress={onClose}
+					{...hoverEvents("close")}
 					style={StyleSheet.compose(styles.close, {
 						opacity: active || hovered || focused ? 1 : 0,
 					})}

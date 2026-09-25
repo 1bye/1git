@@ -1,5 +1,5 @@
 /**
- * Covers: native tab clicks, captured drag reordering, keyboard/focus, and overflow layout.
+ * Covers: tab surface/hover geometry, clicks, captured drag reordering, keyboard/focus, and overflow.
  * Real: app, UI controls, React, and GPUIX native layout/events/accessibility.
  * Doubles: sample workspace records and focus/blur notifications for inactive offscreen windows.
  * Requires: GPUIX native test renderer with macOS or Windows graphics access.
@@ -83,7 +83,7 @@ it("aligns lightweight labels and icons without shifting when selection changes"
 	expect(addIcon.y + addIcon.height / 2).toBe(centerY);
 	expect(bounds("name-workspace-1").y).toBe(bounds("branch-workspace-1").y);
 	expect(element("content-workspace-1").style).toMatchObject({
-		paddingLeft: 8,
+		paddingLeft: 11,
 		paddingRight: 4,
 		gap: 8,
 	});
@@ -114,6 +114,57 @@ it("reduces the upper tab inset without shrinking controls or changing bottom sp
 	expect(element("add-workspace").style.height).toBe(24);
 	expect(element("add-workspace").style.marginBottom).toBe(8);
 	expect(windowOptions.trafficLightY).toBe(13);
+});
+
+it("keeps neighboring tab surfaces close without changing slot width", () => {
+	root.render(<App key="adjacent-tabs" initialTabCount={3} />);
+	const first = bounds("slot-workspace-1");
+	const second = bounds("slot-workspace-2");
+	const hover = bounds("hover-workspace-1");
+	const nextAvatar = bounds("avatar-workspace-2");
+
+	expect(second.x - first.x).toBe(210);
+	expect(first.width).toBe(210);
+	expect(hover.x - first.x).toBe(4);
+	expect(hover.width).toBe(202);
+	expect(nextAvatar.x - hover.x - hover.width).toBe(20);
+	expect(bounds("avatar-workspace-1").x - hover.x).toBe(12);
+});
+
+it("highlights the whole inactive tab across its padding, label, and close target", () => {
+	root.render(<App key="hover-tabs" initialTabCount={3} />);
+	const hover = bounds("hover-workspace-2");
+	const close = bounds("close-workspace-2");
+	const label = bounds("label-workspace-2");
+	const avatar = bounds("avatar-workspace-2");
+	expect(hover.height).toBe(32);
+	expect(hover.x + hover.width).toBeGreaterThan(close.x + close.width);
+	expect(element("hover-workspace-2").style.opacity).toBe(0);
+
+	for (const [x, y] of [
+		[hover.x + 2, hover.y + 2],
+		[avatar.x + 7, avatar.y + 7],
+		[label.x + 10, label.y + label.height / 2],
+		[close.x - 2, close.y + 12],
+		[close.x + 12, close.y + 12],
+		[hover.x + hover.width - 2, hover.y + 2],
+	] as const) {
+		root.renderer.nativeSimulateMouseMove(x, y);
+		expect(
+			element("hover-workspace-2").style.opacity,
+			`hover at ${x}, ${y}`
+		).toBe(1);
+		expect(element("close-workspace-2").style.opacity).toBe(1);
+		expect(bounds("label-workspace-2")).toEqual(label);
+		expect(bounds("close-workspace-2")).toEqual(close);
+	}
+
+	root.renderer.nativeSimulateMouseMove(500, 300);
+	expect(element("hover-workspace-2").style.opacity).toBe(0);
+	expect(element("close-workspace-2").style.opacity).toBe(0);
+	const active = bounds("workspace-1");
+	root.renderer.nativeSimulateMouseMove(active.x + 20, active.y + 12);
+	expect(element("hover-workspace-1").style.opacity).toBe(0);
 });
 
 it("gives the close icon equal top and right gaps within the tab surface", () => {

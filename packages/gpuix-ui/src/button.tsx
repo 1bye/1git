@@ -14,6 +14,8 @@ export interface ButtonProps extends Pick<
 	| "tabIndex"
 	| "autoFocus"
 	| "onMouseDown"
+	| "onMouseEnter"
+	| "onMouseLeave"
 	| "onKeyDown"
 	| "aria-label"
 	| "aria-description"
