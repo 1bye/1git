@@ -10,7 +10,7 @@ export const windowOptions: RenderOptions = {
 	titlebarTransparent: true,
 	windowBackground: "blurred",
 	trafficLightX: 16,
-	trafficLightY: 17,
+	trafficLightY: 13,
 	onKeyDown(event, renderer) {
 		if (
 			event.key !== "tab" ||

@@ -21,6 +21,7 @@ animation machinery.
 - `src/fixture/app-shell.tsx`: toolbar and blank workspace composition.
 - `src/feature/workspace-tabs/`: tab UI, focus, scrolling, and pure state transitions.
 - `src/styles/tokens.ts`: shared desktop colors adapted to `gpuix-ui`.
+- `src/styles/workspace-layout.ts`: native top-spacing override; 36px tabs in a 42px toolbar, preserving shared bottom spacing and control sizes.
 
 The reusable controls and stylesheet package remain independent of app features.
 `@1git/design-tokens` supplies shared colors and shell dimensions to both

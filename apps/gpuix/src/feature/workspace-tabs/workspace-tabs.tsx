@@ -1,10 +1,10 @@
-import { workspaceLayout as layout } from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { Button } from "@1git/gpuix-ui/button";
 import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
 import { useEffect, useRef, useState, type Dispatch } from "react";
 
 import { appTokens } from "../../styles/tokens";
+import { workspaceLayout as layout } from "../../styles/workspace-layout";
 import { WorkspaceTab } from "./workspace-tab";
 import { WorkspaceTabIcon } from "./workspace-tab-icon";
 import {

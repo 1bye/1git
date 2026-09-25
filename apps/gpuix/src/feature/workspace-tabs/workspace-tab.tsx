@@ -1,4 +1,4 @@
-import { lightColors, workspaceLayout as layout } from "@1git/design-tokens";
+import { lightColors } from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { Button } from "@1git/gpuix-ui/button";
 import { Text } from "@1git/gpuix-ui/text";
@@ -6,6 +6,7 @@ import type { EventPayload, PublicInstance } from "@gpuix/react";
 import { useRef, useState, type Ref } from "react";
 
 import { appTokens } from "../../styles/tokens";
+import { workspaceLayout as layout } from "../../styles/workspace-layout";
 import { WorkspaceTabIcon } from "./workspace-tab-icon";
 import type { WorkspaceTabRecord } from "./workspace-tabs-model";
 
@@ -32,16 +33,16 @@ const styles = StyleSheet.create({
 	},
 	content: {
 		position: "absolute",
-		top: 4,
+		top: layout.tabContentInsetTop,
 		left: inset,
 		width: width - inset * 2,
-		height: height - 8,
+		height: layout.tabCloseSize,
 		display: "flex",
 		flexDirection: "row",
 		alignItems: "center",
 		gap: layout.tabContentGap,
 		paddingLeft: layout.tabContentGap,
-		paddingRight: layout.tabContentGap,
+		paddingRight: layout.tabContentInsetTop,
 	},
 	trigger: {
 		display: "flex",
@@ -157,7 +158,13 @@ export function WorkspaceTab({
 			onMouseEnter={() => setHovered(true)}
 			onMouseLeave={() => setHovered(false)}
 		>
-			{active ? <svg source={activeSurface} style={styles.surface} /> : null}
+			{active ? (
+				<svg
+					testId={`surface-${tab.id}`}
+					source={activeSurface}
+					style={styles.surface}
+				/>
+			) : null}
 			<div testId={`content-${tab.id}`} style={styles.content}>
 				<div
 					ref={tabRef}
