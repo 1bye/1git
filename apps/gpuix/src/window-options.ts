@@ -8,6 +8,7 @@ export const windowOptions: RenderOptions = {
 	minHeight: 640,
 	title: "1git",
 	titlebarTransparent: true,
+	appOwnsTitlebarDrag: true,
 	windowBackground: "blurred",
 	trafficLightX: 16,
 	trafficLightY: 13,

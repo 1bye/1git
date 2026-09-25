@@ -1,5 +1,5 @@
 /**
- * Covers: tab identity, activation, close neighbors, empty state, and keyboard destinations.
+ * Covers: tab identity, activation, reordering, close neighbors, empty state, and keyboard destinations.
  * Real: workspace tab model.
  * Doubles: none.
  * Requires: none.
@@ -30,6 +30,17 @@ it("adds unique tabs without mutating the input and keeps the active tab on an i
 	expect(Model.reduce(closed, { type: "add" }).activeId).toBe("workspace-3");
 });
 
+it("seeds a multi-tab preview with the first tab active and fresh IDs for +", () => {
+	const state = Model.create(8);
+	expect(state.tabs).toHaveLength(8);
+	expect(new Set(state.tabs.map((tab) => tab.id)).size).toBe(8);
+	expect(state.activeId).toBe("workspace-1");
+	expect(Model.reduce(state, { type: "add" }).activeId).toBe("workspace-9");
+	for (const count of [0, -1, 1.5, Number.POSITIVE_INFINITY]) {
+		expect(() => Model.create(count)).toThrow("positive integer");
+	}
+});
+
 it("closes to the right, then left, then empty, and can reopen from empty", () => {
 	let state = Model.reduce(Model.reduce(Model.create(), { type: "add" }), {
 		type: "add",
@@ -53,4 +64,56 @@ it("wraps arrow navigation and supports Home/End without accepting unrelated key
 	expect(Model.destination(tabs, "workspace-1", "end")).toBe("workspace-2");
 	expect(Model.destination(tabs, "workspace-1", "tab")).toBeUndefined();
 	expect(Model.destination([], "workspace-1", "right")).toBeUndefined();
+});
+
+it("reorders in either direction without changing selection or mutating the original tabs", () => {
+	const initial = Model.reduce(Model.reduce(Model.create(), { type: "add" }), {
+		type: "add",
+	});
+	Object.freeze(initial.tabs);
+	const moved = Model.reduce(initial, {
+		type: "reorder",
+		id: "workspace-1",
+		overId: "workspace-3",
+	});
+	expect(moved.tabs.map((tab) => tab.id)).toEqual([
+		"workspace-2",
+		"workspace-3",
+		"workspace-1",
+	]);
+	expect(moved.activeId).toBe(initial.activeId);
+	expect(moved.nextId).toBe(initial.nextId);
+	expect(
+		Model.reduce(moved, {
+			type: "reorder",
+			id: "workspace-1",
+			overId: "workspace-2",
+		})
+	).toEqual(initial);
+	expect(initial.tabs.map((tab) => tab.id)).toEqual([
+		"workspace-1",
+		"workspace-2",
+		"workspace-3",
+	]);
+	expect(
+		Model.reduce(initial, {
+			type: "reorder",
+			id: "missing",
+			overId: "workspace-1",
+		})
+	).toBe(initial);
+	expect(
+		Model.reduce(initial, {
+			type: "reorder",
+			id: "workspace-1",
+			overId: "missing",
+		})
+	).toBe(initial);
+	expect(
+		Model.reduce(initial, {
+			type: "reorder",
+			id: "workspace-1",
+			overId: "workspace-1",
+		})
+	).toBe(initial);
 });

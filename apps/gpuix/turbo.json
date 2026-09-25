@@ -1,7 +1,14 @@
 {
   "extends": ["//"],
   "tasks": {
-    "dev": { "passThroughEnv": ["GPUIX_BACKGROUND"] },
+    "dev": {
+      "dependsOn": ["^build", "build:native"],
+      "passThroughEnv": ["GPUIX_BACKGROUND"]
+    },
+    "build:native": {
+      "cache": false,
+      "passThroughEnv": ["CARGO_HOME", "RUSTUP_HOME", "DEVELOPER_DIR"]
+    },
     "test": { "cache": false }
   }
 }

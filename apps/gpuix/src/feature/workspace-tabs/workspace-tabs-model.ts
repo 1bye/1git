@@ -16,18 +16,31 @@ export interface WorkspaceTabsState {
 export type WorkspaceTabsAction =
 	| { type: "add" }
 	| { type: "activate"; id: string }
+	| { type: "reorder"; id: string; overId: string }
 	| { type: "close"; id: string };
 
 /** Pure tab transitions; closing the active tab selects its right neighbor, then its left. */
 export class WorkspaceTabsModel {
 	private constructor() {}
 
-	static create(): WorkspaceTabsState {
-		return {
+	/** Seed at least one sample workspace; extra tabs use the same action as +. */
+	static create(initialTabCount = 1): WorkspaceTabsState {
+		if (!Number.isInteger(initialTabCount) || initialTabCount < 1) {
+			throw new Error("Initial tab count must be a positive integer");
+		}
+		let state: WorkspaceTabsState = {
 			tabs: [{ id: "workspace-1", name: "1git", branch: "main" }],
 			activeId: "workspace-1",
 			nextId: 2,
 		};
+		for (let index = 1; index < initialTabCount; index += 1) {
+			state = WorkspaceTabsModel.reduce(state, { type: "add" });
+		}
+
+		return WorkspaceTabsModel.reduce(state, {
+			type: "activate",
+			id: "workspace-1",
+		});
 	}
 
 	static reduce(
@@ -53,6 +66,16 @@ export class WorkspaceTabsModel {
 			return state.activeId === action.id
 				? state
 				: { ...state, activeId: action.id };
+		}
+		if (action.type === "reorder") {
+			const target = state.tabs.findIndex((tab) => tab.id === action.overId);
+			const tab = state.tabs[index];
+			if (!tab || target < 0 || target === index) return state;
+			const tabs = [...state.tabs];
+			tabs.splice(index, 1);
+			tabs.splice(target, 0, tab);
+
+			return { ...state, tabs };
 		}
 
 		const tabs = state.tabs.filter((tab) => tab.id !== action.id);

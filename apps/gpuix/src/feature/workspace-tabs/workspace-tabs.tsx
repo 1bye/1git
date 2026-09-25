@@ -7,6 +7,7 @@ import { appTokens } from "../../styles/tokens";
 import { workspaceLayout as layout } from "../../styles/workspace-layout";
 import { WorkspaceTab } from "./workspace-tab";
 import { WorkspaceTabIcon } from "./workspace-tab-icon";
+import { useWorkspaceTabDrag } from "./use-workspace-tab-drag";
 import {
 	WorkspaceTabsModel,
 	type WorkspaceTabsAction,
@@ -15,6 +16,7 @@ import {
 
 const styles = StyleSheet.create({
 	toolbar: {
+		position: "relative",
 		width: "100%",
 		display: "flex",
 		flexDirection: "row",
@@ -61,8 +63,16 @@ export function WorkspaceTabs({
 	const addButton = useRef<PublicInstance>(null);
 	const focusRequested = useRef(false);
 	const [focusVisible, setFocusVisible] = useState(true);
-	const onPointerDown = (): void => setFocusVisible(false);
-	const onKeyboardInput = (): void => setFocusVisible(true);
+	const drag = useWorkspaceTabDrag(state, dispatch, strip);
+	const { draggingId } = drag;
+	const onPointerDown = (): void => {
+		drag.resetInput();
+		setFocusVisible(false);
+	};
+	const onKeyboardInput = (): void => {
+		drag.resetInput();
+		setFocusVisible(true);
+	};
 
 	const focusTab = (id: string): void => {
 		const tab = tabs.current.get(id);
@@ -79,6 +89,7 @@ export function WorkspaceTabs({
 			if (target) renderer.focusElement?.(target.id);
 		}
 		const index = state.tabs.findIndex((tab) => tab.id === state.activeId);
+		if (draggingId) return;
 		if (!strip.current || index < 0) return;
 		const viewport = renderer.getElementBounds?.(strip.current.id);
 		if (!viewport) return;
@@ -92,10 +103,21 @@ export function WorkspaceTabs({
 			Math.min(left, -offset)
 		);
 		renderer.scrollTo?.(strip.current.id, -nextOffset, 0);
-	}, [renderer, state]);
+	}, [renderer, state, draggingId]);
 
 	return (
 		<div testId="workspace-toolbar" style={styles.toolbar}>
+			<div
+				testId="window-drag-region"
+				windowDrag
+				style={{
+					position: "absolute",
+					top: 0,
+					left: 0,
+					width: "100%",
+					height: layout.toolbarHeight - layout.tabHeight,
+				}}
+			/>
 			<div
 				ref={strip}
 				testId="workspace-tabs"
@@ -103,23 +125,34 @@ export function WorkspaceTabs({
 				aria-label="Workspaces"
 				style={styles.tabs}
 			>
-				{state.tabs.map((tab) => (
+				{drag.tabs.map((tab) => (
 					<WorkspaceTab
 						key={tab.id}
 						tab={tab}
 						active={state.activeId === tab.id}
 						focusVisible={focusVisible}
 						onPointerDown={onPointerDown}
+						dragging={drag.draggingId === tab.id}
+						onTabMouseDown={(event) => {
+							onPointerDown();
+							drag.onMouseDown(tab.id, event);
+							if (event.button === 0) focusTab(tab.id);
+						}}
+						onTabMouseMove={drag.onMouseMove}
+						onTabMouseUp={drag.onMouseUp}
+						onCancelDrag={() => drag.cancel(tab.id)}
 						onKeyboardInput={onKeyboardInput}
 						tabRef={(instance) => {
 							if (instance) tabs.current.set(tab.id, instance);
 							else tabs.current.delete(tab.id);
 						}}
 						onActivate={() => {
+							if (drag.shouldSuppressClick()) return;
 							dispatch({ type: "activate", id: tab.id });
 							focusTab(tab.id);
 						}}
 						onClose={() => {
+							if (drag.shouldSuppressClick()) return;
 							focusRequested.current = true;
 							dispatch({ type: "close", id: tab.id });
 						}}
@@ -133,8 +166,21 @@ export function WorkspaceTabs({
 							dispatch({ type: "activate", id });
 							focusTab(id);
 						}}
+						onReorder={(key) => {
+							drag.cancel();
+							const index = state.tabs.findIndex((item) => item.id === tab.id);
+							const neighbor = state.tabs[index + (key === "left" ? -1 : 1)];
+							if (!neighbor) return;
+							dispatch({ type: "reorder", id: tab.id, overId: neighbor.id });
+							focusTab(tab.id);
+						}}
 					/>
 				))}
+				<div
+					testId="empty-titlebar"
+					windowDrag
+					style={{ flexGrow: 1, flexShrink: 0, height: "100%" }}
+				/>
 			</div>
 			<Button
 				ref={addButton}
@@ -148,6 +194,7 @@ export function WorkspaceTabs({
 				onKeyDown={onKeyboardInput}
 				style={styles.add}
 				onPress={() => {
+					if (drag.shouldSuppressClick()) return;
 					focusRequested.current = true;
 					dispatch({ type: "add" });
 				}}

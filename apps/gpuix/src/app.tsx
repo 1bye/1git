@@ -5,10 +5,10 @@ import { WorkspaceTabsModel } from "./feature/workspace-tabs/workspace-tabs-mode
 import { AppShell } from "./fixture/app-shell";
 
 /** Owns one window's in-memory workspaces; no Git or persistence side effects yet. */
-export function App() {
+export function App({ initialTabCount = 1 }: { initialTabCount?: number }) {
 	const [state, dispatch] = useReducer(
 		WorkspaceTabsModel.reduce,
-		undefined,
+		initialTabCount,
 		WorkspaceTabsModel.create
 	);
 	const activeTab = state.tabs.find((tab) => tab.id === state.activeId);

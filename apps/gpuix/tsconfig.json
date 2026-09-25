@@ -7,6 +7,6 @@
     "strictNullChecks": true,
     "types": ["bun", "react"]
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "include": ["src/**/*.ts", "src/**/*.tsx", "native/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }

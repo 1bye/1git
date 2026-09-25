@@ -4,6 +4,7 @@ Native workspace shell, replacing the earlier component showcase. The showcase
 is still available in `packages/gpuix-ui/example`.
 
 ```sh
+bun run --cwd apps/gpuix build:native
 bun run --cwd apps/gpuix dev
 ```
 
@@ -12,6 +13,38 @@ and GPUIX, not the DOM or Electron. The window uses native macOS blur and
 traffic lights, with a translucent light tint and an opaque white workspace.
 The connected tab silhouette is static; it does not port the desktop's liquid
 animation machinery.
+
+## Local native patch
+
+The app currently requires Apple Silicon macOS, Rust **1.97.1**, and Xcode
+with its Metal toolchain. The first `build:native` downloads and compiles
+GPUIX; later runs reuse the build. Cargo uses the upstream lockfile and Rust
+toolchain pin. Install the Metal component with
+`xcodebuild -downloadComponent MetalToolchain` if Xcode reports it missing.
+
+`native/titlebar-drag.patch` applies to GPUIX 0.10.0 commit
+`9fcd628863e354e9c58019fc3bf38981a1e64158`, including its pinned GPUI submodule
+`81c99f816b4a5f69d3c014774068034c24d1d7af`. It exposes GPUI's existing
+`appOwnsTitlebarDrag` window option and a `windowDrag` host prop. The latter
+starts native window movement synchronously during mouse down; double-click
+zooms. JavaScript callbacks cannot reliably retain AppKit's current event.
+Empty titlebar space and the upper gutter are drag regions; tab and close
+targets are separate. Window movability and native tiling remain enabled.
+
+The published dependencies are unchanged. `native/preload.ts` selects the
+release addon through `NAPI_RS_NATIVE_LIBRARY_PATH` before GPUIX loads.
+Source, build outputs, and the patch fingerprint live in ignored `.cache/`;
+there is no public fork, committed binary, or `node_modules` modification.
+Missing/stale builds fail with a rebuild command, not an unpatched fallback.
+Restart `dev` after a native rebuild: hot reload cannot unload a native addon.
+The root Turbo dev task builds the addon first; direct app commands require
+the explicit setup command above. `build` only emits the app's TypeScript.
+
+To change the patch, update the checked-in patch and move the old
+`.cache/native-source` aside before rebuilding if it no longer applies.
+Do not develop changes only inside the ignored checkout. To upgrade GPUIX,
+update both dependency pins and `native/config.ts`, then rebase the patch.
+The native setup remains app-owned, following the Turborepo workflow.
 
 ## Structure
 
@@ -32,6 +65,11 @@ does not register that font with GPUIX.
 ## Tabs
 
 - Click a tab to activate it; + adds and selects a new workspace.
+- Drag a tab horizontally to preview its new slot; release to commit, or
+  Escape to cancel. A 5px threshold avoids accidental drags. Tabs snap between
+  slots, and overflow scrolls while holding near an edge. This does not detach
+  tabs into new windows or add animated/floating drag previews.
+- Shift+Left/Right reorders the focused tab, without wrapping at the ends.
 - Close with × or Delete/Backspace while its tab is focused.
 - Left/Right wrap between tabs; Home/End select the first/last.
 - Enter and Space activate a focused tab. Tab/Shift+Tab traverse the active
@@ -41,9 +79,11 @@ does not register that font with GPUIX.
 - Closing the active tab selects the right neighbor, then the left. Closing the
   last tab leaves the white workspace and focuses +.
 
-`1git / main` is initial sample metadata, not a detected Git repository.
-New workspaces are numbered in memory; restarting resets them. There is no
-repository picker, Git access, sidebar, persistence, theme switch, reordering,
+The window temporarily starts with eight sample tabs to try scrolling and
+dragging immediately; + adds more. `1git / main` is sample metadata, not a
+detected Git repository. New workspaces are numbered in memory; restarting
+resets the preview. There is no
+repository picker, Git access, sidebar, persistence, theme switch,
 or tab animation yet. Cmd+W remains the native Close Window command.
 
 ## Verification
@@ -57,6 +97,9 @@ bun x oxfmt --check apps/gpuix
 ```
 
 Tests include pure tab transitions and real GPUIX native layout, accessibility,
-clicks, keyboard focus, and overflow. Native tests require macOS or Windows
-graphics access. Offscreen screenshots do not capture macOS vibrancy; compare
+clicks, keyboard focus, captured reordering, cancellation, and overflow. These
+app tests use the patched addon and require macOS graphics access. They dispatch
+GPUI events, not physical AppKit events: manually check that tab drags keep the
+window still and empty-titlebar drags move it after restarting the app.
+Offscreen screenshots do not capture macOS vibrancy; compare
 the running window on macOS when adjusting blur/material appearance.

@@ -6,10 +6,11 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "build:native": "bun native/build.ts",
     "check-types": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json",
-    "dev": "bun --hot src/main.tsx",
-    "start": "bun dist/main.js",
-    "test": "bun test tests"
+    "dev": "bun --preload ./native/preload.ts --hot src/main.tsx",
+    "start": "bun --preload ./native/preload.ts dist/main.js",
+    "test": "bun test --preload ./native/preload.ts tests"
   },
   "dependencies": {
     "@1git/design-tokens": "workspace:*",

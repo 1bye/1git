@@ -16,7 +16,7 @@ const {
 	tabRadius: radius,
 	tabContentInsetInlineStart: inset,
 } = layout;
-// A static connected silhouette. Liquid morphing and drag geometry are intentionally deferred.
+// The connected silhouette stays static as slots reorder.
 const outline = `M0 ${height} Q${inset} ${height} ${inset} ${height - inset} V${radius} Q${inset} 0 ${inset + radius} 0 H${width - inset - radius} Q${width - inset} 0 ${width - inset} ${radius} V${height - inset} Q${width - inset} ${height} ${width} ${height}`;
 const activeSurface = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}"><path d="${outline} Z" fill="${lightColors.editorSurface}"/></svg>`;
 
@@ -113,21 +113,33 @@ export function WorkspaceTab({
 	active,
 	focusVisible,
 	onPointerDown,
+	onTabMouseDown,
+	onTabMouseMove,
+	onTabMouseUp,
+	onCancelDrag,
+	dragging,
 	onKeyboardInput,
 	tabRef,
 	onActivate,
 	onClose,
 	onNavigate,
+	onReorder,
 }: {
 	tab: WorkspaceTabRecord;
 	active: boolean;
 	focusVisible: boolean;
 	onPointerDown: () => void;
+	onTabMouseDown: (event: EventPayload) => void;
+	onTabMouseMove: (event: EventPayload) => void;
+	onTabMouseUp: (event: EventPayload) => void;
+	onCancelDrag: () => void;
+	dragging: boolean;
 	onKeyboardInput: () => void;
 	tabRef: Ref<PublicInstance>;
 	onActivate: () => void;
 	onClose: () => void;
 	onNavigate: (key: string) => void;
+	onReorder: (key: string) => void;
 }) {
 	const [focused, setFocused] = useState(false);
 	const [hovered, setHovered] = useState(false);
@@ -135,8 +147,19 @@ export function WorkspaceTab({
 	const label = tab.branch ? `${tab.name} / ${tab.branch}` : tab.name;
 	const onKeyDown = (event: EventPayload): void => {
 		onKeyboardInput();
+		if (event.key === "escape") {
+			onCancelDrag();
+			return;
+		}
 		if (event.modifiers?.cmd || event.modifiers?.ctrl || event.modifiers?.alt)
 			return;
+		if (
+			event.modifiers?.shift &&
+			(event.key === "left" || event.key === "right")
+		) {
+			onReorder(event.key);
+			return;
+		}
 		if (
 			event.key === "left" ||
 			event.key === "right" ||
@@ -154,10 +177,27 @@ export function WorkspaceTab({
 
 	return (
 		<div
-			style={styles.root}
+			testId={`slot-${tab.id}`}
+			style={StyleSheet.compose(styles.root, dragging && { opacity: 0.8 })}
 			onMouseEnter={() => setHovered(true)}
 			onMouseLeave={() => setHovered(false)}
 		>
+			<div
+				testId={`drag-${tab.id}`}
+				style={{
+					position: "absolute",
+					top: 0,
+					left: 0,
+					width:
+						width - inset - layout.tabContentInsetTop - layout.tabCloseSize,
+					height,
+					cursor: dragging ? "grabbing" : "grab",
+				}}
+				onMouseDown={onTabMouseDown}
+				onMouseMove={onTabMouseMove}
+				onMouseUp={onTabMouseUp}
+				onClick={onActivate}
+			/>
 			{active ? (
 				<svg
 					testId={`surface-${tab.id}`}
@@ -165,21 +205,28 @@ export function WorkspaceTab({
 					style={styles.surface}
 				/>
 			) : null}
-			<div testId={`content-${tab.id}`} style={styles.content}>
+			<div
+				testId={`content-${tab.id}`}
+				style={StyleSheet.compose(styles.content, { pointerEvents: "none" })}
+			>
 				<div
 					ref={tabRef}
 					testId={tab.id}
 					role="tab"
 					aria-label={label}
+					aria-description="Drag to reorder, or press Shift+Left or Shift+Right."
 					aria-selected={active}
 					tabIndex={active ? 0 : -1}
 					style={StyleSheet.compose(
 						styles.trigger,
+						{ cursor: dragging ? "grabbing" : "grab", userSelect: "none" },
 						!active && styles.inactive,
 						focused && focusVisible && styles.focused
 					)}
 					onClick={onActivate}
-					onMouseDown={onPointerDown}
+					onMouseDown={onTabMouseDown}
+					onMouseMove={onTabMouseMove}
+					onMouseUp={onTabMouseUp}
 					onKeyDown={onKeyDown}
 					onKeyUp={(event) => {
 						if (event.key !== "space") return;
@@ -189,6 +236,7 @@ export function WorkspaceTab({
 					}}
 					onFocus={() => setFocused(true)}
 					onBlur={() => {
+						onCancelDrag();
 						spaceArmed.current = false;
 						setFocused(false);
 					}}

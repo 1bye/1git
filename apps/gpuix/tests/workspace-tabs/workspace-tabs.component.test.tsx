@@ -1,5 +1,5 @@
 /**
- * Covers: native tab clicks, keyboard/focus behavior, empty recovery, and overflow layout.
+ * Covers: native tab clicks, captured drag reordering, keyboard/focus, and overflow layout.
  * Real: app, UI controls, React, and GPUIX native layout/events/accessibility.
  * Doubles: sample workspace records and focus/blur notifications for inactive offscreen windows.
  * Requires: GPUIX native test renderer with macOS or Windows graphics access.
@@ -287,6 +287,153 @@ it("scrolls overflowing tabs into view while keeping the add action reachable", 
 	root.renderer.simulateKeystrokes("home");
 	expect(bounds("workspace-1").x).toBeGreaterThanOrEqual(viewportLeft);
 	expect(selectedTabs()).toEqual(["1git / main"]);
+});
+
+it("starts the preview overflowing and lets + add and reveal more tabs", () => {
+	root.render(<App key="multi-tab-preview" initialTabCount={8} />);
+	const strip = bounds("workspace-tabs");
+	expect(element("workspace-8")).toBeDefined();
+	expect(bounds("workspace-8").x).toBeGreaterThan(strip.x + strip.width);
+	expect(selectedTabs()).toEqual(["1git / main"]);
+
+	click("add-workspace");
+	expect(selectedTabs()).toEqual(["Workspace 9"]);
+	const added = bounds("workspace-9");
+	expect(added.x).toBeGreaterThanOrEqual(
+		workspaceLayout.desktopTitlebarControlsWidth
+	);
+	expect(added.x + added.width).toBeLessThanOrEqual(strip.x + strip.width);
+	click("close-workspace-9");
+	expect(selectedTabs()).toEqual(["Workspace 8"]);
+});
+
+const order = (): string[] =>
+	["workspace-1", "workspace-2", "workspace-3"].sort(
+		(a, b) => bounds(`slot-${a}`).x - bounds(`slot-${b}`).x
+	);
+
+it("previews reordering with captured moves and commits on release outside the strip", () => {
+	click("add-workspace");
+	click("add-workspace");
+	const first = bounds("workspace-1");
+	const x = first.x + 20;
+	const y = first.y + first.height / 2;
+	const id = element("workspace-1").id;
+
+	root.renderer.nativeSimulateMouseDown(x, y);
+	root.renderer.nativeSimulateMouseMove(x + 2, y, 0);
+	expect(order()).toEqual(["workspace-1", "workspace-2", "workspace-3"]);
+	root.renderer.nativeSimulateMouseMove(x + 420, y, 0);
+	expect(order()).toEqual(["workspace-2", "workspace-3", "workspace-1"]);
+	expect(element("workspace-1").id).toBe(id);
+	expect(selectedTabs()).toEqual(["1git / main"]);
+	root.renderer.nativeSimulateMouseUp(x + 420, 300);
+	expect(order()).toEqual(["workspace-2", "workspace-3", "workspace-1"]);
+	expect(element("slot-workspace-1").style.opacity).not.toBe(0.8);
+
+	click("workspace-2");
+	expect(selectedTabs()).toEqual(["Workspace 2"]);
+});
+
+it("cancels the preview on Escape and keeps close/add controls out of a tab drag", () => {
+	click("add-workspace");
+	click("add-workspace");
+	const first = bounds("workspace-1");
+	const x = first.x + 20;
+	const y = first.y + first.height / 2;
+	root.renderer.nativeSimulateMouseDown(x, y);
+	root.renderer.nativeSimulateMouseMove(x + 420, y, 0);
+	root.renderer.nativeSimulateKeyDown(element("workspace-1").id, "escape");
+	expect(order()).toEqual(["workspace-1", "workspace-2", "workspace-3"]);
+	const close = bounds("close-workspace-3");
+	root.renderer.nativeSimulateMouseUp(close.x + 12, close.y + 12);
+	expect(order()).toEqual(["workspace-1", "workspace-2", "workspace-3"]);
+
+	root.renderer.nativeSimulateMouseDown(x, y);
+	root.renderer.nativeSimulateMouseMove(x + 420, y, 0);
+	const add = bounds("add-workspace");
+	root.renderer.nativeSimulateMouseUp(add.x + 12, add.y + 12);
+	expect(root.renderer.findByTestId("workspace-4")).toBeUndefined();
+	click("close-workspace-2");
+	expect(root.renderer.findByTestId("workspace-2")).toBeUndefined();
+});
+
+it("does not reorder when a drag starts on close or with a non-primary button", () => {
+	click("add-workspace");
+	click("add-workspace");
+	const first = bounds("workspace-1");
+	const x = first.x + 20;
+	const y = first.y + first.height / 2;
+	root.renderer.nativeSimulateMouseDown(x, y, 2);
+	root.renderer.nativeSimulateMouseMove(x + 420, y, 2);
+	root.renderer.nativeSimulateMouseUp(x + 420, y, 2);
+	expect(order()).toEqual(["workspace-1", "workspace-2", "workspace-3"]);
+	const close = bounds("close-workspace-1");
+	root.renderer.nativeSimulateMouseDown(close.x + 12, close.y + 12);
+	root.renderer.nativeSimulateMouseMove(x + 420, 300, 0);
+	root.renderer.nativeSimulateMouseUp(x + 420, 300);
+	expect(order()).toEqual(["workspace-1", "workspace-2", "workspace-3"]);
+});
+
+it("ignores the old tab's blur when grabbing another tab, but cancels on the grabbed tab's blur", () => {
+	click("add-workspace");
+	click("add-workspace");
+	const first = bounds("workspace-1");
+	const x = first.x + 20;
+	const y = first.y + first.height / 2;
+	root.renderer.nativeSimulateMouseDown(x, y);
+	flushSync(() =>
+		handleGpuixEvent(
+			{ elementId: element("workspace-3").id, eventType: "blur" },
+			root.renderer
+		)
+	);
+	root.renderer.nativeSimulateMouseMove(x + 420, y, 0);
+	expect(order()).toEqual(["workspace-2", "workspace-3", "workspace-1"]);
+	flushSync(() =>
+		handleGpuixEvent(
+			{ elementId: element("workspace-1").id, eventType: "blur" },
+			root.renderer
+		)
+	);
+	root.renderer.nativeSimulateMouseUp(x + 420, 300);
+	expect(order()).toEqual(["workspace-1", "workspace-2", "workspace-3"]);
+});
+
+it("reorders from the padded tab surface and with Shift+Arrow, keeping focus", () => {
+	click("add-workspace");
+	click("add-workspace");
+	const slot = bounds("slot-workspace-1");
+	root.renderer.nativeSimulateMouseDown(slot.x + 40, slot.y + 2);
+	root.renderer.nativeSimulateMouseMove(slot.x + 250, slot.y + 2, 0);
+	root.renderer.nativeSimulateMouseUp(slot.x + 250, 300);
+	expect(order()).toEqual(["workspace-2", "workspace-1", "workspace-3"]);
+	root.renderer.simulateKeystrokes("shift-right");
+	expect(order()).toEqual(["workspace-2", "workspace-3", "workspace-1"]);
+	expect(root.renderer.getFocusedElementId()).toBe(element("workspace-1").id);
+	root.renderer.simulateKeystrokes("shift-right");
+	expect(order()).toEqual(["workspace-2", "workspace-3", "workspace-1"]);
+	root.renderer.simulateKeystrokes("shift-left");
+	expect(order()).toEqual(["workspace-2", "workspace-1", "workspace-3"]);
+});
+
+it("autoscrolls during an overflow drag and stops after release", async () => {
+	for (let index = 0; index < 8; index += 1) click("add-workspace");
+	const tab = bounds("workspace-9");
+	const stripId = element("workspace-tabs").id;
+	const before = root.renderer.getScrollOffset(stripId)?.[0] ?? 0;
+	root.renderer.nativeSimulateMouseDown(tab.x + 20, tab.y + 12);
+	root.renderer.nativeSimulateMouseMove(85, tab.y + 12, 0);
+	await Bun.sleep(120);
+	root.renderer.flush();
+	expect(root.renderer.getScrollOffset(stripId)?.[0] ?? 0).toBeGreaterThan(
+		before
+	);
+	root.renderer.nativeSimulateMouseUp(85, 300);
+	const after = root.renderer.getScrollOffset(stripId);
+	await Bun.sleep(60);
+	root.renderer.flush();
+	expect(root.renderer.getScrollOffset(stripId)).toEqual(after);
 });
 
 it("shows focus and cancels Space activation after a blur notification", () => {
