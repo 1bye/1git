@@ -3,16 +3,67 @@
   "categories": {
     "correctness": "error"
   },
-  "plugins": ["react", "typescript", "unicorn", "oxc"],
+  "plugins": [
+    "react",
+    "typescript",
+    "unicorn",
+    "oxc"
+  ],
   "rules": {
     "react/refs": "off",
     "react/set-state-in-effect": "off",
-    "react-hooks/exhaustive-deps": "warn"
+    "react-hooks/exhaustive-deps": "warn",
+    "@stylistic/no-multiple-empty-lines": [
+      "error",
+      {
+        "max": 1,
+        "maxBOF": 0,
+        "maxEOF": 0
+      }
+    ],
+    "@stylistic/padded-blocks": [
+      "error",
+      "never"
+    ],
+    "shadcn/no-raw-colors": "error",
+    "shadcn/no-unknown-classes": "error"
   },
   "ignorePatterns": [
     ".agents/**",
     "**/dist/**",
     "**/dev-dist/**",
     "**/*.gen.ts"
+  ],
+  "jsPlugins": [
+    "@stylistic/eslint-plugin",
+    "@shadcn/lint"
+  ],
+  "settings": {
+    "shadcn": {
+      "ui": "@1git/ui/components"
+    }
+  },
+  "overrides": [
+    {
+      "files": [
+        "apps/desktop/src/renderer/src/app.tsx",
+        "apps/desktop/src/renderer/src/feature/command-lens/components/command-lens-overlay.tsx",
+        "apps/desktop/src/renderer/src/fixture/desktop-toolbar/components/workspace-tab.tsx",
+        "apps/desktop/src/renderer/src/fixture/liquid-menu/components/liquid-menu-surface.tsx",
+        "apps/desktop/src/renderer/src/fixture/repository-workspace/components/clean-state.tsx"
+      ],
+      "rules": {
+        "shadcn/no-raw-colors": "off"
+      }
+    },
+    {
+      "files": [
+        "apps/desktop/src/renderer/src/fixture/icons/components/animated-folder-open-icon.tsx",
+        "packages/ui/src/components/sonner.tsx"
+      ],
+      "rules": {
+        "shadcn/no-unknown-classes": "off"
+      }
+    }
   ]
 }

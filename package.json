@@ -20,6 +20,8 @@
   },
   "devDependencies": {
     "@1git/config": "workspace:*",
+    "@shadcn/lint": "0.2.0",
+    "@stylistic/eslint-plugin": "5.10.0",
     "@types/node": "^22.20.1",
     "lefthook": "latest",
     "oxfmt": "0.70.0",
