@@ -54,7 +54,7 @@ The native setup remains app-owned, following the Turborepo workflow.
 - `src/fixture/app-shell.tsx`: toolbar and blank workspace composition.
 - `src/feature/workspace-tabs/`: tab UI, focus, scrolling, and pure state transitions.
 - `src/styles/tokens.ts`: shared desktop colors adapted to `gpuix-ui`.
-- `src/styles/workspace-layout.ts`: native top-spacing override; 36px tabs in a 42px toolbar, preserving shared bottom spacing and control sizes.
+- `src/styles/workspace-layout.ts`: native chrome spacing; a 96px traffic-light area and 36px tabs in a 42px toolbar, preserving shared bottom spacing and control sizes.
 
 The tab feature groups its modules by responsibility, following
 `.agents/workflow/react.md`:

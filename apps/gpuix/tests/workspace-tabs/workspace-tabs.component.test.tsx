@@ -38,6 +38,17 @@ const bounds = (testId: string) => {
 
 	return found;
 };
+const tabViewport = () => {
+	const strip = element("workspace-tabs");
+	const box = bounds("workspace-tabs");
+	const { paddingLeft = 0 } = strip.style;
+	if (typeof paddingLeft !== "number")
+		throw new Error("Expected tab viewport padding in pixels");
+	const offset = root.renderer.getScrollOffset(strip.id)?.[0] ?? 0;
+
+	// GPUIX reports the scrolled content origin (including padding), but the outer width.
+	return { ...box, x: box.x - paddingLeft - offset };
+};
 const click = (testId: string): void => {
 	const box = bounds(testId);
 	root.renderer.nativeSimulateClick(
@@ -75,6 +86,14 @@ it("uses the native shell geometry and paints only the workspace opaque", () => 
 	);
 	expect(selectedTabs()).toEqual(["1git / main"]);
 	expect(windowOptions.windowBackground).toBe("blurred");
+});
+
+it("leaves extra room after the traffic lights without moving the controls or workspace", () => {
+	expect(bounds("workspace-tabs").x).toBe(96);
+	expect(bounds("slot-workspace-1").x).toBe(96);
+	expect(windowOptions.trafficLightX).toBe(16);
+	expect(windowOptions.trafficLightY).toBe(13);
+	expect(bounds("workspace").x).toBe(6);
 });
 
 it("aligns lightweight labels and icons without shifting when selection changes", () => {
@@ -147,6 +166,35 @@ it("matches the 4px bottom gap between neighboring tab surfaces without changing
 	const shoulder = workspaceLayout.tabContentInsetInlineStart;
 	expect(active.x + shoulder - hover.x - hover.width).toBe(4);
 	expect(thirdHover.x - (active.x + active.width - shoulder)).toBe(4);
+});
+
+it("keeps the first active tab's entire curved surface inside the scroll viewport", () => {
+	root.render(<App key="first-tab-curve" initialTabCount={8} />);
+	const viewport = tabViewport();
+	const surface = bounds("surface-workspace-1");
+
+	expect(surface.x).toBeGreaterThanOrEqual(viewport.x);
+	expect(surface.x).toBeLessThan(bounds("slot-workspace-1").x);
+	expect(surface.y + surface.height).toBe(bounds("workspace").y);
+});
+
+it("reveals both curved shoulders when selecting overflow tabs at either edge", () => {
+	root.render(<App key="overflow-tab-curves" initialTabCount={8} />);
+	const viewport = tabViewport();
+	root.renderer.nativeSimulateKeyDown(element("workspace-1").id, "end");
+	root.renderer.flush();
+	const last = bounds("surface-workspace-8");
+
+	expect(last.x + last.width).toBeLessThanOrEqual(viewport.x + viewport.width);
+	root.renderer.scrollTo(element("workspace-tabs").id, -430, 0);
+	click("workspace-3");
+	advanceMotion();
+	expect(selectedTabs()).toEqual(["Workspace 3"]);
+	expect(bounds("surface-workspace-3").x).toBeGreaterThanOrEqual(viewport.x);
+	root.renderer.simulateKeystrokes("home");
+	root.renderer.flush();
+	expect(bounds("surface-workspace-1").x).toBeGreaterThanOrEqual(viewport.x);
+	expect(bounds("slot-workspace-1").x).toBe(96);
 });
 
 it("highlights the whole inactive tab across its padding, label, and close target", () => {
