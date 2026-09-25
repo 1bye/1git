@@ -2,13 +2,13 @@
   "name": "@1git/gpuix-stylesheet",
   "version": "0.0.1",
   "private": true,
-  "description": "Small typed stylesheet helpers for GPUix",
+  "description": "Small typed stylesheet helpers for GPUIX",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
   },
   "scripts": {
-    "check-types": "tsc --noEmit -p tsconfig.json",
+    "check-types": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json",
     "test": "bun test"
   },
   "devDependencies": {
