@@ -36,7 +36,7 @@ const styles = StyleSheet.create({
 		flexShrink: 1,
 		height: layout.toolbarHeight,
 		// Keep both shoulders inside the scroll clip without moving the tab bodies.
-		paddingLeft: layout.tabSurfaceOutset - 4,
+		paddingLeft: layout.tabSurfaceOutset,
 		paddingRight: layout.tabSurfaceOutset,
 		overflowX: "scroll",
 		overflowY: "hidden",
@@ -62,9 +62,11 @@ const styles = StyleSheet.create({
 export function WorkspaceTabs({
 	state,
 	dispatch,
+	titlebarInset = layout.desktopTitlebarControlsWidth,
 }: {
 	state: WorkspaceTabsState;
 	dispatch: Dispatch<WorkspaceTabsAction>;
+	titlebarInset?: number;
 }) {
 	const renderer = useGpuixRequired();
 	const tabs = useRef(new Map<string, PublicInstance>());
@@ -74,6 +76,7 @@ export function WorkspaceTabs({
 	const [focusVisible, setFocusVisible] = useState(true);
 	const drag = useWorkspaceTabDrag(state, dispatch, strip);
 	const { draggingId, settlingId } = drag;
+	const activeIndex = state.tabs.findIndex((tab) => tab.id === state.activeId);
 	// GPUIX paints in child order. Keep the moving surface above its neighbors
 	// without reparenting it and losing pointer capture or keyboard focus.
 	const frontId = draggingId ?? settlingId ?? state.activeId;
@@ -115,18 +118,16 @@ export function WorkspaceTabs({
 			if (target) renderer.focusElement?.(target.id);
 		}
 
-		const index = state.tabs.findIndex((tab) => tab.id === state.activeId);
-
 		if (draggingId || settlingId) return;
 
-		if (!strip.current || index < 0) return;
+		if (!strip.current || activeIndex < 0) return;
 
 		const viewport = renderer.getElementBounds?.(strip.current.id);
 
 		if (!viewport) return;
 
 		const offset = renderer.getScrollOffset?.(strip.current.id)?.[0] ?? 0;
-		const left = index * layout.tabWidth;
+		const left = activeIndex * layout.tabWidth;
 		const visibleWidth = viewport.width - layout.tabSurfaceOutset * 2;
 
 		// GPUIX 0.10 scrollIntoView can leave a new horizontal tab offscreen.
@@ -138,10 +139,22 @@ export function WorkspaceTabs({
 		);
 
 		renderer.scrollTo?.(strip.current.id, -nextOffset, 0);
-	}, [renderer, state, draggingId, settlingId]);
+	}, [
+		renderer,
+		state.activeId,
+		state.tabs.length,
+		activeIndex,
+		draggingId,
+		settlingId,
+	]);
 
 	return (
-		<div testId="workspace-toolbar" style={styles.toolbar}>
+		<div
+			testId="workspace-toolbar"
+			style={StyleSheet.compose(styles.toolbar, {
+				paddingLeft: titlebarInset - layout.tabSurfaceOutset,
+			})}
+		>
 			<div
 				testId="window-drag-region"
 				windowDrag

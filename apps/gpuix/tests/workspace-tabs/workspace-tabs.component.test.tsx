@@ -1,6 +1,6 @@
 /**
  * Covers: tab geometry, clicks, animated captured reordering, keyboard/focus, and overflow.
- * Real: app, UI controls, React, and GPUIX native layout/events/accessibility.
+ * Real: isolated tab shell, UI controls, React, and GPUIX native layout/events/accessibility.
  * Doubles: sample workspace records and focus/blur notifications for inactive offscreen windows.
  * Requires: GPUIX native test renderer with macOS or Windows graphics access.
  */
@@ -9,12 +9,35 @@ import { lightColors } from "@1git/design-tokens";
 import { flushSync, handleGpuixEvent } from "@gpuix/react";
 import { createTestRoot, type TestRoot } from "@gpuix/react/testing";
 
-import { App } from "../../src/app";
+import { useReducer } from "react";
+
+import { AppShell } from "../../src/fixture/app-shell";
+import { RepositoryWorkspaceModel } from "../../src/feature/repository-workspace/lib/repository-workspace-model";
+import { WorkspaceTabsModel } from "../../src/feature/workspace-tabs/lib/workspace-tabs-model";
 import { WorkspaceTabs } from "../../src/feature/workspace-tabs/workspace-tabs";
 import { workspaceLayout } from "../../src/styles/workspace-layout";
 import { windowOptions } from "../../src/window-options";
 
 let root: TestRoot;
+
+// Keep the tab strip's full-width geometry regressions independent of workspace content.
+// The integrated sidebar + tab layout is exercised in repository-workspace tests.
+function App({ initialTabCount = 1 }: { initialTabCount?: number }) {
+	const [state, dispatch] = useReducer(
+		WorkspaceTabsModel.reduce,
+		initialTabCount,
+		WorkspaceTabsModel.create
+	);
+
+	const active = state.tabs.find((tab) => tab.id === state.activeId);
+
+	return (
+		<AppShell
+			toolbar={<WorkspaceTabs state={state} dispatch={dispatch} />}
+			workspaceLabel={active ? `${active.name} workspace` : "No workspace open"}
+		/>
+	);
+}
 
 beforeEach(() => {
 	root = createTestRoot({
@@ -284,7 +307,14 @@ it("keeps long repository and branch labels on one line clear of the close targe
 	root.render(
 		<WorkspaceTabs
 			state={{
-				tabs: [{ id: "long", name, branch }],
+				tabs: [
+					{
+						id: "long",
+						name,
+						branch,
+						workspace: RepositoryWorkspaceModel.create(),
+					},
+				],
 				activeId: "long",
 				nextId: 2,
 			}}

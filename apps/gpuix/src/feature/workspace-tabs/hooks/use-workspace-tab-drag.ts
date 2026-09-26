@@ -126,7 +126,7 @@ export function useWorkspaceTabDrag(
 
 		if (!viewport) return;
 
-		const left = layout.desktopTitlebarControlsWidth;
+		const left = viewport.x + scrollOffset();
 		const visibleWidth = viewport.width - layout.tabSurfaceOutset * 2;
 		let delta = 0;
 
@@ -184,13 +184,15 @@ export function useWorkspaceTabDrag(
 
 			const bounds = frame && renderer.getElementBounds?.(frame.id);
 
-			if (!bounds) return;
+			const viewport =
+				strip.current && renderer.getElementBounds?.(strip.current.id);
+
+			if (!bounds || !viewport) return;
 
 			const startScroll = scrollOffset();
 
 			// Sample and hold the visible position, including below the drag threshold.
-			const startLeft =
-				bounds.x - layout.desktopTitlebarControlsWidth + startScroll;
+			const startLeft = bounds.x - viewport.x;
 
 			gesture.current = {
 				id,

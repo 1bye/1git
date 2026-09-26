@@ -1,8 +1,15 @@
+import {
+	RepositoryWorkspaceModel,
+	type RepositoryWorkspaceState,
+	type RepositoryWorkspaceAction,
+} from "../../repository-workspace/lib/repository-workspace-model";
+
 /** A shell tab, not a Git session. Repository integration will supply real metadata later. */
 export interface WorkspaceTabRecord {
 	readonly id: string;
 	readonly name: string;
 	readonly branch?: string;
+	readonly workspace: RepositoryWorkspaceState;
 }
 
 /** In-memory tabs and their active selection belong to one app instance. */
@@ -17,6 +24,7 @@ export type WorkspaceTabsAction =
 	| { type: "add" }
 	| { type: "activate"; id: string }
 	| { type: "reorder"; id: string; overId: string }
+	| { type: "workspace"; id: string; action: RepositoryWorkspaceAction }
 	| { type: "close"; id: string };
 
 /** Pure tab transitions; closing the active tab selects its right neighbor, then its left. */
@@ -30,7 +38,14 @@ export class WorkspaceTabsModel {
 		}
 
 		let state: WorkspaceTabsState = {
-			tabs: [{ id: "workspace-1", name: "1git", branch: "main" }],
+			tabs: [
+				{
+					id: "workspace-1",
+					name: "1git",
+					branch: "main",
+					workspace: RepositoryWorkspaceModel.create(),
+				},
+			],
 			activeId: "workspace-1",
 			nextId: 2,
 		};
@@ -53,6 +68,7 @@ export class WorkspaceTabsModel {
 			const tab = {
 				id: `workspace-${state.nextId}`,
 				name: `Workspace ${state.nextId}`,
+				workspace: RepositoryWorkspaceModel.create(),
 			};
 
 			return {
@@ -65,6 +81,26 @@ export class WorkspaceTabsModel {
 		const index = state.tabs.findIndex((tab) => tab.id === action.id);
 
 		if (index === -1) return state;
+
+		if (action.type === "workspace") {
+			const tab = state.tabs[index];
+
+			if (!tab) return state;
+
+			const workspace = RepositoryWorkspaceModel.reduce(
+				tab.workspace,
+				action.action
+			);
+
+			if (workspace === tab.workspace) return state;
+
+			return {
+				...state,
+				tabs: state.tabs.map((item) =>
+					item.id === tab.id ? { ...tab, workspace } : item
+				),
+			};
+		}
 
 		if (action.type === "activate") {
 			return state.activeId === action.id

@@ -50,9 +50,10 @@ The native setup remains app-owned, following the Turborepo workflow.
 
 - `src/main.tsx`: native boot and hot reload.
 - `src/window-options.ts`: window chrome and Tab/Shift+Tab traversal.
-- `src/app.tsx`: one window's in-memory tab state.
-- `src/fixture/app-shell.tsx`: toolbar and blank workspace composition.
+- `src/app.tsx`: one window's in-memory tabs and per-tab workspace state.
+- `src/fixture/app-shell.tsx`: stateless sidebar, toolbar, and content composition.
 - `src/feature/workspace-tabs/`: tab UI, focus, scrolling, and pure state transitions.
+- `src/feature/repository-workspace/`: sample sidebar views, row navigation, empty diff, and pure workspace transitions.
 - `src/styles/tokens.ts`: shared desktop colors adapted to `gpuix-ui`.
 - `src/styles/workspace-layout.ts`: native chrome spacing; a 96px traffic-light area and 36px tabs in a 42px toolbar, preserving shared bottom spacing and control sizes.
 
@@ -107,8 +108,30 @@ The window temporarily starts with eight sample tabs to try scrolling and
 dragging immediately; + adds more. `1git / main` is sample metadata, not a
 detected Git repository. New workspaces are numbered in memory; restarting
 resets the preview. There is no
-repository picker, Git access, sidebar, persistence, theme switch,
+repository picker, Git access, persistence, theme switch,
 or entrance/exit animation yet. Cmd+W remains the native Close Window command.
+
+## Workspace preview
+
+The desktop-style 310px translucent sidebar spans the window height. The
+Changes/History/Stashes selector sits beside the traffic lights; workspace tabs
+sit above the white, rounded diff surface to its right. The native app reuses
+the desktop's color tokens and Phosphor Light icons.
+
+- Changes shows 30 sample files grouped into Staged and Unstaged, with status
+  letters and addition/deletion counts. These are display-only, not staging controls.
+- History shows sample commit summaries; Stashes shows sample saved work.
+- Click a row to select it. Up/Down, Home/End, and Page Up/Down navigate and
+  reveal rows. Enter/Space select a focused row. Tab/Shift+Tab move between the
+  selector, the list's single keyboard stop, and workspace tab controls.
+- The selector supports its native keyboard navigation and restores trigger
+  focus when closed. Mouse wheel/trackpad scroll the list independently of tabs.
+- Every tab keeps its view, each view's selected row, and each view's scroll
+  offset. Reordering preserves that state; closing a tab discards it. New tabs
+  start fresh. Nothing is persisted across restarts.
+- Selection updates the diff header; the panel explicitly remains an empty
+  sample-data preview. No file reads, Git commands, staging, commits, or stash
+  mutations are performed.
 
 ## Verification
 
@@ -123,7 +146,9 @@ bun x oxfmt --check apps/gpuix
 Tests include pure tab transitions and real GPUIX native layout, accessibility,
 clicks, keyboard focus, captured reordering, cancellation, and overflow. The
 native motion clock also checks intermediate positions, settling, reversal,
-and grabbing a moving tab without a jump. These
+and grabbing a moving tab without a jump. Workspace tests cover sidebar/diff
+geometry, all three views, row selection, keyboard reveal, wheel scrolling,
+per-tab restoration, closing/reopening, and dragging in the narrower strip. These
 app tests use the patched addon and require macOS graphics access. They dispatch
 GPUI events, not physical AppKit events: manually check that tab drags keep the
 window still and empty-titlebar drags move it after restarting the app.
