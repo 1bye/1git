@@ -103,6 +103,12 @@ it("shows both stages of a file without changing HEAD, index content or working 
 	]);
 	expect(sections[0]?.patch).toContain("-const value = 2;\n+const value = 3;");
 	expect(sections[1]?.patch).toContain("-const value = 1;\n+const value = 2;");
+	expect(sections[0]?.stats).toEqual([
+		{ path: "file.ts", addedLines: 1, deletedLines: 1 },
+	]);
+	expect(sections[1]?.stats).toEqual([
+		{ path: "file.ts", addedLines: 1, deletedLines: 1 },
+	]);
 	expect(await git("rev-parse", "HEAD")).toBe(head);
 	expect(await git("ls-files", "--stage", "-z")).toBe(index);
 	expect(await readFile(join(repository, "file.ts"), "utf8")).toBe(
@@ -114,10 +120,16 @@ it("handles untracked and empty files on an unborn branch, deletions and pure re
 	await writeFile(join(repository, "new.txt"), "new content");
 	await writeFile(join(repository, "empty.txt"), "");
 	expect((await read("new.txt"))[0]?.patch).toContain("+new content");
+	expect((await read("new.txt"))[0]?.stats).toEqual([
+		{ path: "new.txt", addedLines: 1, deletedLines: 0 },
+	]);
 	expect((await read("new.txt"))[0]?.patch).toContain(
 		"No newline at end of file"
 	);
 	expect((await read("empty.txt"))[0]?.message).toBeNull();
+	expect((await read("empty.txt"))[0]?.stats).toEqual([
+		{ path: "empty.txt", addedLines: 0, deletedLines: 0 },
+	]);
 	await git("add", "new.txt", "empty.txt");
 	expect((await read("new.txt"))[0]?.target).toBe("staged");
 	await git("commit", "-m", "Fixture");
@@ -127,6 +139,14 @@ it("handles untracked and empty files on an unborn branch, deletions and pure re
 	expect(rename?.target).toBe("staged");
 	expect(rename?.patch).toContain("rename from new.txt");
 	expect(rename?.patch).toContain("rename to renamed.txt");
+	expect(rename?.stats).toEqual([
+		{
+			path: "renamed.txt",
+			originalPath: "new.txt",
+			addedLines: 0,
+			deletedLines: 0,
+		},
+	]);
 	await git("commit", "-m", "Rename fixture");
 	await unlink(join(repository, "renamed.txt"));
 	expect((await read("renamed.txt"))[0]?.patch).toContain("-new content");
@@ -166,6 +186,9 @@ it("reports binary and oversized files explicitly without handing partial patche
 
 	expect(binary?.message).toContain("Binary file");
 	expect(binary?.patch).toBe("");
+	expect(binary?.stats).toEqual([
+		{ path: "binary.bin", addedLines: null, deletedLines: null },
+	]);
 
 	for (const name of ["large.txt", "many-lines.txt"]) {
 		const section = (await read(name))[0];

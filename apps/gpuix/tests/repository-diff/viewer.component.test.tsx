@@ -1,5 +1,5 @@
 /**
- * Covers: virtualized diff painting, selection, staged/unstaged switching, scrolling, loading/errors and stale reads.
+ * Covers: file-header identity/counts, virtualized diff painting, selection, comparison switching, scrolling and stale reads.
  * Real: app lifecycle, GPUIX patch parsing/layout, text painting and input events.
  * Doubles: repository status, diff reader and native folder selection.
  * Requires: patched GPUIX native renderer with macOS graphics access.
@@ -66,11 +66,15 @@ const settle = async (): Promise<void> => {
 	root.renderer.flush();
 };
 
-const showDiff = (readDiff: typeof Reader.read): void => {
+const showDiff = (
+	readDiff: typeof Reader.read,
+	path = "example.ts",
+	width = 980
+): void => {
 	root.render(
 		<div
 			style={{
-				width: "100%",
+				width,
 				height: "100%",
 				display: "flex",
 				flexDirection: "column",
@@ -78,7 +82,7 @@ const showDiff = (readDiff: typeof Reader.read): void => {
 		>
 			<RepositoryDiff
 				root="/test/project"
-				change={changedFile("example.ts", { indexStatus: "modified" })}
+				change={changedFile(path, { indexStatus: "modified" })}
 				refreshing={false}
 				statusError={null}
 				readDiff={readDiff}
@@ -91,13 +95,23 @@ it("paints real line numbers and separate comparisons with keyboard-operable con
 	const reader = mock<typeof Reader.read>(async () => ({
 		ok: true,
 		value: [
-			diffSection("working"),
-			diffSection("staged", diffPatch("example.ts", "const staged = 2;")),
+			diffSection("working", diffPatch(), [
+				{ path: "example.ts", addedLines: 1, deletedLines: 1 },
+			]),
+			diffSection(
+				"staged",
+				diffPatch(
+					"example.ts",
+					"const staged = 2;\n+const extra = true;"
+				).replace("+10,2", "+10,3"),
+				[{ path: "example.ts", addedLines: 2, deletedLines: 1 }]
+			),
 		],
 	}));
 
 	showDiff(reader);
 	expect(root.renderer.getAllText()).toContain("Loading diff…");
+	expect(root.renderer.findByTestId("diff-stats")).toBeUndefined();
 	await settle();
 	const text = root.renderer.getPaintedText();
 
@@ -111,6 +125,10 @@ it("paints real line numbers and separate comparisons with keyboard-operable con
 	expect(root.renderer.getAllText()).not.toContain("Index → working tree");
 	expect(root.renderer.getAllText()).not.toContain("Read-only");
 	expect(text.filter((value) => value === "example.ts")).toHaveLength(1);
+	expect(root.renderer.findByTestId("diff-directory")).toBeUndefined();
+	expect(element("diff-stats").customProps?.["aria-label"]).toBe(
+		"1 added line, 1 deleted line"
+	);
 	expect(element("diff-viewport").customProps?.["aria-label"]).toBe(
 		"Unstaged file diff"
 	);
@@ -120,10 +138,50 @@ it("paints real line numbers and separate comparisons with keyboard-operable con
 		"Staged file diff"
 	);
 	expect(root.renderer.getPaintedText()).toContain("const staged = 2;");
+	expect(element("diff-stats").customProps?.["aria-label"]).toBe(
+		"2 added lines, 1 deleted line"
+	);
 	expect(root.renderer.getPaintedText()).not.toContain("const value = 2;");
 	click("diff-working");
 	expect(root.renderer.getPaintedText()).toContain("const value = 2;");
+	expect(element("diff-stats").customProps?.["aria-label"]).toBe(
+		"1 added line, 1 deleted line"
+	);
 	expect(reader).toHaveBeenCalledTimes(1);
+});
+
+it("preserves the filename and totals before truncating a long folder in the compact header", async () => {
+	const directory = `apps/web/${"nested/".repeat(20)}components`;
+	const path = `${directory}/work-collection.tsx`;
+
+	showDiff(
+		async () => ({
+			ok: true,
+			value: [
+				diffSection("working", diffPatch(path), [
+					{ path, addedLines: 1, deletedLines: 1 },
+				]),
+			],
+		}),
+		path,
+		360
+	);
+	await settle();
+
+	expect(root.renderer.getAllText()).toContain("work-collection.tsx");
+	expect(root.renderer.getAllText()).toContain(directory);
+	expect(root.renderer.getPaintedText()).toContain("work-collection.tsx");
+	expect(element("diff-identity").customProps?.["aria-label"]).toBe(path);
+	expect(element("diff-header").style.height).toBe(36);
+	expect(bounds("diff-directory").x).toBeGreaterThanOrEqual(
+		bounds("diff-filename").x + bounds("diff-filename").width
+	);
+	expect(
+		bounds("diff-directory").x + bounds("diff-directory").width
+	).toBeLessThanOrEqual(bounds("diff-stats").x);
+	expect(
+		bounds("diff-stats").x + bounds("diff-stats").width
+	).toBeLessThanOrEqual(348);
 });
 
 it("scrolls vertically and horizontally by keyboard and trackpad with the comparison toolbar pinned", async () => {
@@ -275,6 +333,7 @@ it("shows errors with retry and explanatory notices instead of fake or partial d
 	showDiff(reader);
 	await settle();
 	expect(root.renderer.getAllText()).toContain("Repository disappeared");
+	expect(root.renderer.findByTestId("diff-stats")).toBeUndefined();
 	expect(root.renderer.findByTestId("diff-viewport-content")).toBeUndefined();
 	reader.mockResolvedValue({
 		ok: true,
@@ -282,6 +341,7 @@ it("shows errors with retry and explanatory notices instead of fake or partial d
 			{
 				target: "working",
 				patch: "",
+				stats: [{ path: "example.ts", addedLines: null, deletedLines: null }],
 				message: "Binary file — text diff unavailable.",
 			},
 		],
@@ -292,6 +352,7 @@ it("shows errors with retry and explanatory notices instead of fake or partial d
 		"Binary file — text diff unavailable."
 	);
 	expect(root.renderer.findByTestId("diff-viewport-content")).toBeUndefined();
+	expect(root.renderer.findByTestId("diff-stats")).toBeUndefined();
 });
 
 it("cancels stale selection reads, refreshes the selected path and never reloads for draft/checkbox changes", async () => {

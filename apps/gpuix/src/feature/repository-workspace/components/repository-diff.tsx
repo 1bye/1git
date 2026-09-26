@@ -79,14 +79,40 @@ const styles = StyleSheet.create({
 		borderBottomWidth: 1,
 		borderColor: lightColors.editorHairline,
 	},
+	identity: {
+		display: "flex",
+		flexDirection: "row",
+		alignItems: "center",
+		gap: 6,
+		flexGrow: 1,
+		minWidth: 0,
+		overflow: "hidden",
+	},
 	filename: {
 		fontSize: 11,
-		color: lightColors.editorMuted,
-		flexGrow: 1,
+		color: lightColors.editorInk,
+		flexShrink: 0,
+		maxWidth: "100%",
+		overflow: "hidden",
+		whiteSpace: "nowrap",
+		textOverflow: "ellipsis",
+	},
+	directory: {
+		fontSize: 10,
+		color: lightColors.editorFaint,
 		minWidth: 0,
 		overflow: "hidden",
 		whiteSpace: "nowrap",
 		textOverflow: "ellipsis",
+	},
+	stats: {
+		display: "flex",
+		flexDirection: "row",
+		alignItems: "center",
+		gap: 6,
+		flexShrink: 0,
+		marginLeft: 6,
+		fontSize: 10,
 	},
 	hint: { fontSize: 10, color: lightColors.editorFaint },
 	message: {
@@ -128,6 +154,11 @@ export function RepositoryDiff({
 		result?.sections.find((entry) => entry.target === target) ??
 		result?.sections[0];
 
+	const stats = section?.stats.find((entry) => entry.path === change.path);
+	const slash = change.path.lastIndexOf("/");
+	const filename = change.path.slice(slash + 1);
+	const directory = slash < 0 ? "" : change.path.slice(0, slash);
+
 	const message = statusError
 		? "Repository status could not be refreshed. Use Refresh to try again."
 		: (result?.error ?? (!result ? "Loading diff…" : null));
@@ -135,9 +166,21 @@ export function RepositoryDiff({
 	return (
 		<>
 			<div testId="diff-header" style={styles.header}>
-				<text testId="diff-filename" style={styles.filename}>
-					{change.path}
-				</text>
+				<div
+					testId="diff-identity"
+					role="group"
+					aria-label={change.path}
+					style={styles.identity}
+				>
+					<text testId="diff-filename" style={styles.filename}>
+						{filename}
+					</text>
+					{directory ? (
+						<text testId="diff-directory" style={styles.directory}>
+							{directory}
+						</text>
+					) : null}
+				</div>
 				{result && result.sections.length > 1
 					? result.sections.map((entry) => (
 							<Button
@@ -162,6 +205,21 @@ export function RepositoryDiff({
 							</Button>
 						))
 					: null}
+				{stats?.addedLines != null && stats.deletedLines != null ? (
+					<div
+						testId="diff-stats"
+						role="group"
+						aria-label={`${stats.addedLines} added ${stats.addedLines === 1 ? "line" : "lines"}, ${stats.deletedLines} deleted ${stats.deletedLines === 1 ? "line" : "lines"}`}
+						style={styles.stats}
+					>
+						<text
+							style={{ color: diffTheme.diffAdd }}
+						>{`+${stats.addedLines}`}</text>
+						<text
+							style={{ color: diffTheme.diffDel }}
+						>{`−${stats.deletedLines}`}</text>
+					</div>
+				) : null}
 			</div>
 			{message ? (
 				<div

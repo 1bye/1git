@@ -19,6 +19,7 @@ export type ChangeDiffTarget = "working" | "staged";
 export interface RepositoryDiffSection {
 	readonly target: ChangeDiffTarget;
 	readonly patch: string;
+	readonly stats: FileDiff["stats"];
 	readonly message: string | null;
 }
 
@@ -43,6 +44,7 @@ export class RepositoryDiff {
 					{
 						target: "working",
 						patch: "",
+						stats: [],
 						message:
 							"This file has merge conflicts. A conflict-aware diff viewer is not available yet.",
 					},
@@ -141,6 +143,7 @@ export class RepositoryDiff {
 		return {
 			target,
 			patch: message ? "" : patch,
+			stats: diff.stats,
 			message,
 		};
 	}

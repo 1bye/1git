@@ -375,10 +375,11 @@ const diffArguments = (
 	return args;
 };
 
-const loadUntrackedPathPatch = async (
+const loadUntrackedPathDiff = async (
 	context: RepositoryContext,
 	path: string,
-	input: DiffInput
+	input: DiffInput,
+	format: "numstat" | "patch"
 ): Promise<string> => {
 	try {
 		const output = await context.process.run({
@@ -389,7 +390,7 @@ const loadUntrackedPathPatch = async (
 				"--no-ext-diff",
 				"--no-textconv",
 				"--no-color",
-				"--patch",
+				...(format === "numstat" ? ["--numstat", "-z"] : ["--patch"]),
 				`--unified=${input.contextLines ?? 3}`,
 				...(input.ignoreWhitespace ? ["--ignore-all-space"] : []),
 				"--",
@@ -410,12 +411,12 @@ const loadUntrackedPathPatch = async (
 	}
 };
 
-const loadUntrackedPatch = async (
+const loadUntrackedDiff = async (
 	context: RepositoryContext,
 	input: DiffInput
-): Promise<string> => {
+): Promise<Pick<FileDiff, "patch" | "stats">> => {
 	if (input.target.kind !== "working") {
-		return "";
+		return { patch: "", stats: [] };
 	}
 
 	const listArguments = [
@@ -441,11 +442,32 @@ const loadUntrackedPatch = async (
 		.split("\0")
 		.filter(Boolean);
 
-	const patches = await Promise.all(
-		untrackedPaths.map((path) => loadUntrackedPathPatch(context, path, input))
+	const diffs = await Promise.all(
+		untrackedPaths.map(async (path) => {
+			const [patch, counts] = await Promise.all([
+				loadUntrackedPathDiff(context, path, input, "patch"),
+				loadUntrackedPathDiff(context, path, input, "numstat"),
+			]);
+
+			return {
+				patch,
+				// --no-index compares /dev/null to this path; it is not a rename.
+				stats: parseDiffStats(counts).map(({ addedLines, deletedLines }) => ({
+					path,
+					addedLines,
+					deletedLines,
+				})),
+			};
+		})
 	);
 
-	return patches.filter(Boolean).join("\n");
+	return {
+		patch: diffs
+			.map((diff) => diff.patch)
+			.filter(Boolean)
+			.join("\n"),
+		stats: diffs.flatMap((diff) => diff.stats),
+	};
 };
 
 /** Loads patch text and machine-readable line statistics for one diff target. */
@@ -460,21 +482,21 @@ export const loadDiff = async (
 	});
 
 	try {
-		const [patchOutput, statOutput, untrackedPatch] = await Promise.all([
+		const [patchOutput, statOutput, untracked] = await Promise.all([
 			context.process.run({
 				args: diffArguments(input, "patch"),
 				cwd: context.repository.root,
 				signal: input.signal,
 			}),
 			statRequest,
-			loadUntrackedPatch(context, input),
+			loadUntrackedDiff(context, input),
 		]);
 
 		return {
-			patch: [patchOutput.stdout.toString("utf8"), untrackedPatch]
+			patch: [patchOutput.stdout.toString("utf8"), untracked.patch]
 				.filter(Boolean)
 				.join("\n"),
-			stats: parseDiffStats(statOutput.stdout),
+			stats: [...parseDiffStats(statOutput.stdout), ...untracked.stats],
 			target: input.target,
 		};
 	} catch (error: unknown) {

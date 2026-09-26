@@ -161,6 +161,10 @@ unified diff, with old/new line numbers, hunk headers, addition/deletion colors,
 syntax highlighting and selectable text. A local native bridge preserves keyboard
 scrolling while using GPUIX's virtualized list; no additional diff library is needed.
 
+- A compact header shows the filename first, a muted folder path, and added/deleted
+  line counts for the displayed comparison. Folder text yields to the filename
+  and totals on narrow panes. Counts come from Git (including untracked files);
+  binary files and unavailable counts show no misleading zero totals.
 - **Unstaged** compares the index to the working tree; **Staged** compares HEAD
   to the index. A partially staged file offers a compact switch beside the filename;
   files with only one comparison show no switch. Technical comparison labels and
