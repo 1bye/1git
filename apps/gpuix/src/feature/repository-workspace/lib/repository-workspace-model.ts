@@ -43,6 +43,7 @@ export interface RepositoryRevisionState extends RepositoryListState {
 /** Each workspace owns commit inclusion independently of its viewed row and scroll offsets. */
 export interface RepositoryWorkspaceState {
 	readonly preview: boolean;
+	readonly branchPending: boolean;
 	readonly entries: WorkspaceEntries;
 	readonly repository: {
 		readonly root: string;
@@ -84,6 +85,8 @@ export interface RepositoryWorkspaceState {
 
 /** Presentation transitions; no filesystem, Git mutations, or persistent storage effects. */
 export type RepositoryWorkspaceAction =
+	| { type: "branch-started" }
+	| { type: "branch-finished"; snapshot?: RepositorySnapshot; error?: string }
 	| { type: "commit-started" }
 	| { type: "commit-failed"; message: string; uncertain?: boolean }
 	| {
@@ -159,6 +162,7 @@ export class RepositoryWorkspaceModel {
 
 		return {
 			preview,
+			branchPending: false,
 			entries,
 			repository: null,
 			commit: { pending: false, error: null, notice: null, needsReview: false },
@@ -233,7 +237,7 @@ export class RepositoryWorkspaceModel {
 		return (
 			!!state.repository &&
 			!state.preview &&
-			!state.commit.pending &&
+			!RepositoryWorkspaceModel.isBusy(state) &&
 			!state.commit.needsReview &&
 			!state.commitMessage.includes("\0") &&
 			RepositoryWorkspaceModel.canPreviewCommit(state) &&
@@ -241,10 +245,33 @@ export class RepositoryWorkspaceModel {
 		);
 	}
 
+	static isBusy(state: RepositoryWorkspaceState): boolean {
+		return state.commit.pending || state.branchPending;
+	}
+
 	static reduce(
 		state: RepositoryWorkspaceState,
 		action: RepositoryWorkspaceAction
 	): RepositoryWorkspaceState {
+		if (action.type === "branch-started")
+			return { ...state, branchPending: true, loading: false };
+
+		if (action.type === "branch-finished") {
+			const next = { ...state, branchPending: false };
+
+			return action.snapshot
+				? RepositoryWorkspaceModel.reduce(next, {
+						type: "loaded",
+						snapshot: action.snapshot,
+					})
+				: {
+						...next,
+						error:
+							action.error ??
+							"Refresh to confirm the current branch before continuing.",
+					};
+		}
+
 		if (action.type === "commit-started")
 			return {
 				...state,
@@ -301,7 +328,7 @@ export class RepositoryWorkspaceModel {
 		}
 
 		if (
-			state.commit.pending &&
+			RepositoryWorkspaceModel.isBusy(state) &&
 			(action.type === "loading" ||
 				action.type === "loaded" ||
 				action.type === "load-error" ||

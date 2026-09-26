@@ -39,7 +39,9 @@ export function useRepositoryAutoRefresh(
 				state.tabs.some(
 					(tab) =>
 						tab.workspace.repository?.root === root &&
-						(tab.workspace.commit.pending || tab.workspace.loading)
+						(tab.workspace.commit.pending ||
+							tab.workspace.branchPending ||
+							tab.workspace.loading)
 				)
 			);
 		}
@@ -121,7 +123,9 @@ export function useRepositoryAutoRefresh(
 				state.tabs.some(
 					(tab) =>
 						tab.workspace.repository?.root === root &&
-						(tab.workspace.loading || tab.workspace.commit.pending)
+						(tab.workspace.loading ||
+							tab.workspace.branchPending ||
+							tab.workspace.commit.pending)
 				)
 			);
 			const stop = watchRepository(

@@ -12,7 +12,10 @@ import type {
 	WorkspaceTabsState,
 } from "../../workspace-tabs/lib/workspace-tabs-model";
 import { RepositoryReader } from "../lib/repository-reader";
-import type { RepositoryWorkspaceAction } from "../lib/repository-workspace-model";
+import {
+	RepositoryWorkspaceModel,
+	type RepositoryWorkspaceAction,
+} from "../lib/repository-workspace-model";
 
 /** Owns native picking and cancellable reads; results always belong to the requesting tab. */
 export function useRepositoryConnection(
@@ -33,7 +36,8 @@ export function useRepositoryConnection(
 		for (const [id, request] of requests.current) {
 			if (
 				!state.tabs.some(
-					(tab) => tab.id === id && !tab.workspace.commit.pending
+					(tab) =>
+						tab.id === id && !RepositoryWorkspaceModel.isBusy(tab.workspace)
 				)
 			) {
 				request.abort();
@@ -63,7 +67,8 @@ export function useRepositoryConnection(
 		if (
 			!mounted.current ||
 			!tabs.current.some(
-				(tab) => tab.id === id && !tab.workspace.commit.pending
+				(tab) =>
+					tab.id === id && !RepositoryWorkspaceModel.isBusy(tab.workspace)
 			)
 		)
 			return;

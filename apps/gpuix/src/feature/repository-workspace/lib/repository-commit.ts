@@ -5,7 +5,7 @@ import {
 	type GitResult,
 } from "@1git/git";
 
-/** The app's only Git write boundary: explicit selected-file commits, never staging on checkbox changes. */
+/** Explicit selected-file commits; checkbox changes never mutate Git staging. */
 export class RepositoryCommit {
 	private constructor() {}
 

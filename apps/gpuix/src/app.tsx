@@ -12,7 +12,8 @@ import { useRepositoryHistory } from "./feature/repository-workspace/hooks/use-r
 import { RepositoryStashes } from "./feature/repository-workspace/lib/repository-stashes";
 import { useRepositoryStashes } from "./feature/repository-workspace/hooks/use-repository-stashes";
 import { useRepositoryConnection } from "./feature/repository-workspace/hooks/use-repository-connection";
-import { useRepositoryCommit } from "./feature/repository-workspace/hooks/use-repository-commit";
+import { useRepositoryMutations } from "./feature/repository-workspace/hooks/use-repository-mutations";
+import { RepositoryBranches } from "./feature/workspace-tabs/lib/repository-branches";
 import { RepositoryCommit } from "./feature/repository-workspace/lib/repository-commit";
 import {
 	RepositoryWorkspaceModel,
@@ -33,6 +34,8 @@ export function App({
 	readStashes = RepositoryStashes.read,
 	readStashFiles = RepositoryStashes.readFiles,
 	writeCommit = RepositoryCommit.write,
+	readBranches = RepositoryBranches.read,
+	writeBranch = RepositoryBranches.write,
 	watchRepository,
 }: {
 	initialTabCount?: number;
@@ -44,6 +47,8 @@ export function App({
 	readStashes?: typeof RepositoryStashes.read;
 	readStashFiles?: typeof RepositoryStashes.readFiles;
 	writeCommit?: typeof RepositoryCommit.write;
+	readBranches?: typeof RepositoryBranches.read;
+	writeBranch?: typeof RepositoryBranches.write;
 	watchRepository?: typeof RepositoryWatcher.watch;
 }) {
 	const [state, dispatch] = useReducer(
@@ -54,7 +59,14 @@ export function App({
 	);
 
 	const connection = useRepositoryConnection(state, dispatch, readRepository);
-	const commits = useRepositoryCommit(state, dispatch, writeCommit);
+
+	const mutations = useRepositoryMutations(
+		state,
+		dispatch,
+		writeCommit,
+		writeBranch,
+		readRepository
+	);
 
 	useRepositoryAutoRefresh(state, dispatch, readRepository, watchRepository);
 
@@ -111,7 +123,7 @@ export function App({
 						history={history}
 						stashes={stashes}
 						onCommit={() => {
-							void commits.commit(activeTab.id);
+							void mutations.commit(activeTab.id);
 						}}
 						onRefresh={() => {
 							void connection.refresh(activeTab.id);
@@ -122,7 +134,15 @@ export function App({
 					/>
 				) : undefined
 			}
-			toolbar={<WorkspaceTabs state={state} dispatch={dispatch} />}
+			toolbar={
+				<WorkspaceTabs
+					state={state}
+					dispatch={dispatch}
+					readBranches={readBranches}
+					readRepository={readRepository}
+					onChangeBranch={mutations.changeBranch}
+				/>
+			}
 			workspaceLabel={
 				activeTab ? `${activeTab.name} workspace` : "No workspace open"
 			}
@@ -132,7 +152,9 @@ export function App({
 					key={`${activeTab.id}:${revision?.id ?? "changes"}:${comparison.path}`}
 					root={workspace.repository.root}
 					change={comparison}
-					refreshing={workspace.loading || workspace.commit.pending}
+					refreshing={
+						workspace.loading || RepositoryWorkspaceModel.isBusy(workspace)
+					}
 					statusError={workspace.error}
 					readDiff={readDiff}
 				/>

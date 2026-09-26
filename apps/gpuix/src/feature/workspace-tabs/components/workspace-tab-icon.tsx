@@ -18,7 +18,7 @@ const styles = StyleSheet.create({
 	},
 });
 
-/** The tab strip's two Phosphor Light glyphs, rendered as native SVG masks. */
+/** The tab strip's Phosphor Light glyphs, rendered as native SVG masks. */
 export function WorkspaceTabIcon({
 	name,
 	testId,

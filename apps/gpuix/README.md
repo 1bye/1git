@@ -91,10 +91,12 @@ src/feature/workspace-tabs/
   components/
     workspace-tab.tsx
     workspace-tab-icon.tsx
+    workspace-menu.tsx
   hooks/
     use-workspace-tab-drag.ts
   lib/
     workspace-tabs-model.ts
+    repository-branches.ts
 ```
 
 The main feature component coordinates focus, selection, and scrolling; its
@@ -112,7 +114,9 @@ does not register that font with GPUIX.
 
 ## Tabs
 
-- Click a tab to activate it; + adds and selects a new workspace.
+- Click an inactive tab to activate it; click the active connected tab to open
+  its branch/worktree menu. + adds and selects
+  a new workspace. Dragging never opens the menu.
 - Drag a tab horizontally: after a 5px threshold it follows the pointer directly
   while neighbors slide aside. Release commits and settles into the new slot;
   Escape animates back without changing the order. GPUIX `motion.div` animates
@@ -122,7 +126,8 @@ does not register that font with GPUIX.
 - Shift+Left/Right reorders the focused tab, without wrapping at the ends.
 - Close with × or Delete/Backspace while its tab is focused.
 - Left/Right wrap between tabs; Home/End select the first/last.
-- Enter and Space activate a focused tab. Tab/Shift+Tab traverse the active
+- Enter and Space activate a focused tab or open its menu when already active;
+  Down also opens the active tab's menu. Tab/Shift+Tab traverse the active
   tab, its close action, and the add action, with a visible focus outline.
 - Horizontal trackpad scrolling handles overflow; selection reveals the entire
   tab and close control.
@@ -133,6 +138,34 @@ The window starts with one empty workspace. + opens another empty tab so each
 repository keeps its own state. Nothing is restored after restarting. Cmd+W
 remains the native Close Window command. There is no theme switch or tab
 entrance/exit animation yet.
+
+### Workspace menu
+
+The native floating layer dims the window with a translucent black backdrop and
+reuses the active tab's SVG silhouette and label above it. The original tab stays
+in place. The menu opens directly from the copied tab with a 160ms height/opacity
+animation, centered beneath it and shifted inward at window edges. It overlays
+the content without moving the sidebar; there is no chevron. Backdrop clicks are
+consumed, so dismissing the menu never activates dimmed controls underneath.
+Search filters local branches and existing worktrees. Up/Down moves through
+available results, Enter activates, and Escape/outside-click dismisses the menu.
+Keyboard dismissal returns focus to the tab; Tab dismisses and continues traversal.
+This is not a port of the Electron liquid SVG morph.
+
+- Switch a local branch in this working directory, or explicitly create and
+  switch to a new branch based on the current HEAD.
+- Branch changes require a clean tree and no ongoing Git operation. Fresh status
+  and HEAD/branch identity are checked before writing. No force checkout,
+  auto-stash, reset, or discard is used. Dirty-tree handling offers no automatic
+  resolution yet. Git also rejects branches checked out in another worktree.
+- Existing worktrees open in separate tabs; an already-open canonical root reuses
+  its tab. No worktree directories are created or removed by this menu. Remote
+  branch checkout and worktree creation are not included yet.
+- Tabs showing the same folder share its branch. The window-owned mutation hook
+  serializes commits and branch changes for that root, pauses reads, and prevents
+  closing affected tabs while writing. A fresh snapshot updates every matching
+  tab after success or failure, preserving drafts. Failed refresh blocks further
+  writes until the user refreshes successfully.
 
 ## Opening a repository
 

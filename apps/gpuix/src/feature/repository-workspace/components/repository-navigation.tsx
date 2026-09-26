@@ -5,9 +5,10 @@ import { Button } from "@1git/gpuix-ui/button";
 import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
 import { useRef, useState } from "react";
 
-import type {
-	RepositoryWorkspaceAction,
-	RepositoryWorkspaceState,
+import {
+	RepositoryWorkspaceModel,
+	type RepositoryWorkspaceAction,
+	type RepositoryWorkspaceState,
 } from "../lib/repository-workspace-model";
 import { repositoryViews, type RepositoryView } from "../types";
 import { RepositoryList } from "./repository-list";
@@ -182,7 +183,7 @@ export function RepositoryNavigation({
 				view === "changes"
 					? {
 							ids: state.includedFileIds,
-							disabled: state.commit.pending,
+							disabled: RepositoryWorkspaceModel.isBusy(state),
 							onChange: (id, included) =>
 								onAction({ type: "include-file", id, included }),
 						}
@@ -301,7 +302,7 @@ export function RepositoryNavigation({
 						variant="ghost"
 						size="sm"
 						tokens={appTokens}
-						disabled={state.loading || state.commit.pending}
+						disabled={state.loading || RepositoryWorkspaceModel.isBusy(state)}
 						onPress={onRefresh}
 						style={{ width: 26, height: 26, paddingLeft: 0, paddingRight: 0 }}
 					>
@@ -358,7 +359,8 @@ export function RepositoryNavigation({
 										: "indeterminate"
 							}
 							disabled={
-								state.entries.changes.length === 0 || state.commit.pending
+								state.entries.changes.length === 0 ||
+								RepositoryWorkspaceModel.isBusy(state)
 							}
 							onCheckedChange={(included) =>
 								onAction({ type: "include-all", included })

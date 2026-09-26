@@ -3,12 +3,13 @@ import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { Button } from "@1git/gpuix-ui/button";
 import { Text } from "@1git/gpuix-ui/text";
 import { motion, type EventPayload, type PublicInstance } from "@gpuix/react";
-import { useRef, useState, type Ref } from "react";
+import { useRef, useState, type Ref, type ReactNode } from "react";
 
 import { appTokens } from "../../../styles/tokens";
 import { workspaceLayout as layout } from "../../../styles/workspace-layout";
 import type { WorkspaceTabRecord } from "../lib/workspace-tabs-model";
 import { WorkspaceTabIcon } from "./workspace-tab-icon";
+import { RepositoryWorkspaceModel } from "../../repository-workspace/lib/repository-workspace-model";
 
 const { tabWidth: width, tabHeight: height, tabRadius: radius } = layout;
 // Adjacent tabs each contribute half of the 4px surface gap.
@@ -121,6 +122,10 @@ const styles = StyleSheet.create({
 });
 
 interface WorkspaceTabProps {
+	children?: ReactNode;
+	menuAvailable?: boolean;
+	menuOpen?: boolean;
+	onDismissMenu?: () => void;
 	tab: WorkspaceTabRecord;
 	active: boolean;
 	focusVisible: boolean;
@@ -134,6 +139,7 @@ interface WorkspaceTabProps {
 	onMotionComplete: () => void;
 	onKeyboardInput: () => void;
 	tabRef: Ref<PublicInstance>;
+	frameRef?: (instance: PublicInstance | null) => void;
 	onActivate: () => void;
 	onClose: () => void;
 	onNavigate: (key: string) => void;
@@ -142,6 +148,10 @@ interface WorkspaceTabProps {
 
 /** Repository-shaped tab with independent activation and close targets. */
 export function WorkspaceTab({
+	children,
+	menuAvailable = false,
+	menuOpen = false,
+	onDismissMenu,
 	tab,
 	active,
 	focusVisible,
@@ -155,6 +165,7 @@ export function WorkspaceTab({
 	onMotionComplete,
 	onKeyboardInput,
 	tabRef,
+	frameRef,
 	onActivate,
 	onClose,
 	onNavigate,
@@ -190,6 +201,7 @@ export function WorkspaceTab({
 		onKeyboardInput();
 
 		if (event.key === "escape") {
+			onDismissMenu?.();
 			onCancelDrag();
 
 			return;
@@ -220,7 +232,11 @@ export function WorkspaceTab({
 
 		if (event.isHeld) return;
 
-		if (event.key === "enter") onActivate();
+		if (
+			event.key === "enter" ||
+			(event.key === "down" && active && menuAvailable)
+		)
+			onActivate();
 
 		if (event.key === "space") spaceArmed.current = true;
 
@@ -229,7 +245,10 @@ export function WorkspaceTab({
 
 	return (
 		<motion.div
-			ref={frame}
+			ref={(instance) => {
+				frame.current = instance;
+				frameRef?.(instance);
+			}}
 			style={styles.frame}
 			initial={false}
 			animate={{ left }}
@@ -283,7 +302,12 @@ export function WorkspaceTab({
 						testId={tab.id}
 						role="tab"
 						aria-label={label}
-						aria-description="Drag to reorder, or press Shift+Left or Shift+Right."
+						aria-description={
+							menuAvailable
+								? "Click the active tab or press Enter or Down for branches. Drag to reorder, or press Shift+Left or Shift+Right."
+								: "Drag to reorder, or press Shift+Left or Shift+Right."
+						}
+						aria-expanded={menuAvailable ? menuOpen : undefined}
 						aria-selected={active}
 						tabIndex={active ? 0 : -1}
 						style={StyleSheet.compose(
@@ -313,34 +337,12 @@ export function WorkspaceTab({
 							setFocused(false);
 						}}
 					>
-						<div testId={`avatar-${tab.id}`} style={styles.avatar}>
-							<Text tokens={appTokens} style={styles.initial}>
-								{tab.name[0]?.toUpperCase()}
-							</Text>
-						</div>
-						<div testId={`label-${tab.id}`} style={styles.label}>
-							<Text
-								testId={`name-${tab.id}`}
-								tokens={appTokens}
-								style={styles.name(active)}
-							>
-								{tab.name}
-							</Text>
-							{tab.branch ? (
-								<Text
-									testId={`branch-${tab.id}`}
-									tokens={appTokens}
-									style={styles.branch}
-								>
-									{` / ${tab.branch}`}
-								</Text>
-							) : null}
-						</div>
+						<WorkspaceTabLabel tab={tab} active={active} id={tab.id} />
 					</div>
 					<Button
 						testId={`close-${tab.id}`}
 						aria-label={`Close ${label}`}
-						disabled={tab.workspace.commit.pending}
+						disabled={RepositoryWorkspaceModel.isBusy(tab.workspace)}
 						tokens={appTokens}
 						variant="ghost"
 						size="sm"
@@ -357,7 +359,96 @@ export function WorkspaceTab({
 						<WorkspaceTabIcon name="close" testId={`close-icon-${tab.id}`} />
 					</Button>
 				</div>
+				{children}
 			</div>
 		</motion.div>
+	);
+}
+
+function WorkspaceTabLabel({
+	tab,
+	active,
+	id,
+}: {
+	tab: WorkspaceTabRecord;
+	active: boolean;
+	id: string;
+}) {
+	return (
+		<>
+			<div testId={`avatar-${id}`} style={styles.avatar}>
+				<Text tokens={appTokens} style={styles.initial}>
+					{tab.name[0]?.toUpperCase()}
+				</Text>
+			</div>
+			<div testId={`label-${id}`} style={styles.label}>
+				<Text
+					testId={`name-${id}`}
+					tokens={appTokens}
+					style={styles.name(active)}
+				>
+					{tab.name}
+				</Text>
+				{tab.branch ? (
+					<Text
+						testId={`branch-${id}`}
+						tokens={appTokens}
+						style={styles.branch}
+					>{` / ${tab.branch}`}</Text>
+				) : null}
+			</div>
+		</>
+	);
+}
+
+/** The same tab silhouette and label above the menu backdrop; dismisses without closing the workspace. */
+export function WorkspaceTabPreview({
+	tab,
+	onClose,
+}: {
+	tab: WorkspaceTabRecord;
+	onClose: () => void;
+}) {
+	return (
+		<div
+			testId="workspace-menu-tab"
+			role="button"
+			aria-label="Close workspace menu"
+			style={styles.root}
+			onClick={onClose}
+			onKeyDown={(event) => {
+				if (
+					event.key === "escape" ||
+					event.key === "enter" ||
+					event.key === "space"
+				)
+					onClose();
+			}}
+		>
+			<svg
+				testId="workspace-menu-tab-surface"
+				source={activeSurface}
+				style={styles.surface}
+			/>
+			<div
+				style={StyleSheet.compose(styles.content, { pointerEvents: "none" })}
+			>
+				<div
+					style={StyleSheet.compose(styles.trigger, { pointerEvents: "none" })}
+				>
+					<WorkspaceTabLabel tab={tab} active id={`menu-${tab.id}`} />
+				</div>
+				<div
+					style={StyleSheet.compose(styles.close, {
+						display: "flex",
+						alignItems: "center",
+						justifyContent: "center",
+						pointerEvents: "none",
+					})}
+				>
+					<WorkspaceTabIcon name="close" />
+				</div>
+			</div>
+		</div>
 	);
 }

@@ -1,3 +1,4 @@
+import type { RepositorySnapshot } from "@1git/git";
 import {
 	RepositoryWorkspaceModel,
 	type RepositoryWorkspaceState,
@@ -23,6 +24,7 @@ export interface WorkspaceTabsState {
 /** Tab mutations are independent of the renderer and never perform filesystem work. */
 export type WorkspaceTabsAction =
 	| { type: "add" }
+	| { type: "open-worktree"; snapshot: RepositorySnapshot }
 	| { type: "activate"; id: string }
 	| { type: "reorder"; id: string; overId: string }
 	| { type: "workspace"; id: string; action: RepositoryWorkspaceAction }
@@ -66,6 +68,34 @@ export class WorkspaceTabsModel {
 		state: WorkspaceTabsState,
 		action: WorkspaceTabsAction
 	): WorkspaceTabsState {
+		if (action.type === "open-worktree") {
+			const existing = state.tabs.find(
+				(tab) =>
+					tab.workspace.repository?.root === action.snapshot.repository.root
+			);
+
+			if (existing) return { ...state, activeId: existing.id };
+
+			const workspace = RepositoryWorkspaceModel.reduce(
+				RepositoryWorkspaceModel.create(),
+				{ type: "loaded", snapshot: action.snapshot }
+			);
+
+			const tab: WorkspaceTabRecord = {
+				id: `workspace-${state.nextId}`,
+				name: workspace.repository?.name ?? "Workspace",
+				branch: workspace.repository?.branch,
+				workspace,
+			};
+
+			return {
+				...state,
+				tabs: [...state.tabs, tab],
+				activeId: tab.id,
+				nextId: state.nextId + 1,
+			};
+		}
+
 		if (action.type === "add") {
 			const tab = {
 				id: `workspace-${state.nextId}`,
@@ -132,7 +162,10 @@ export class WorkspaceTabsModel {
 			return { ...state, tabs };
 		}
 
-		if (state.tabs[index]?.workspace.commit.pending) return state;
+		const closing = state.tabs[index];
+
+		if (closing && RepositoryWorkspaceModel.isBusy(closing.workspace))
+			return state;
 
 		const tabs = state.tabs.filter((tab) => tab.id !== action.id);
 

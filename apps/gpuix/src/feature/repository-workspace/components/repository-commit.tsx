@@ -107,7 +107,7 @@ export function RepositoryCommit({
 				}
 				placeholder="Commit message…"
 				value={state.commitMessage}
-				readOnly={state.commit.pending}
+				readOnly={RepositoryWorkspaceModel.isBusy(state)}
 				onValueChange={(value) => {
 					setPreviewed(false);
 					onAction({ type: "edit-commit-message", value });

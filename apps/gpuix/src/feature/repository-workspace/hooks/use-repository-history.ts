@@ -18,6 +18,7 @@ export function useRepositoryHistory(
 		state?.view === "history" &&
 		!state.loading &&
 		!state.commit.pending &&
+		!state.branchPending &&
 		!state.preview;
 
 	const root = active ? state.repository?.root : undefined;
