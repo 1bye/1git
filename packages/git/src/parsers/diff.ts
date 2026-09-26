@@ -1,4 +1,55 @@
-import type { DiffFileStat } from "../contracts.js";
+import type { CommitFileChange, DiffFileStat } from "../contracts.js";
+
+const rawHeader = /^:\d{6} \d{6} ([a-f0-9]+) ([a-f0-9]+) ([ADMRCT])\d*$/u;
+
+/** NUL-delimited raw diffs preserve spaces, tabs, newlines, and both rename paths. */
+export const parseCommitFiles = (
+	output: Buffer
+): readonly CommitFileChange[] => {
+	const segments = output.toString("utf8").split("\0");
+	const files: CommitFileChange[] = [];
+
+	if (segments.at(-1) !== "")
+		throw new Error("Git returned an incomplete committed file record.");
+
+	for (let index = 0; index < segments.length - 1; index += 1) {
+		const match = rawHeader.exec(segments[index] ?? "");
+
+		if (!match)
+			throw new Error("Git returned an invalid committed file record.");
+
+		const [, beforeOid, afterOid, status] = match;
+		const firstPath = segments[++index];
+		const renamed = status === "R" || status === "C";
+		const path = renamed ? segments[++index] : firstPath;
+
+		if (
+			!beforeOid ||
+			!afterOid ||
+			!path ||
+			!firstPath ||
+			!(
+				status === "A" ||
+				status === "D" ||
+				status === "M" ||
+				status === "R" ||
+				status === "C" ||
+				status === "T"
+			)
+		)
+			throw new Error("Git returned an incomplete committed file record.");
+
+		files.push({
+			path,
+			status,
+			beforeOid,
+			afterOid,
+			...(renamed && { originalPath: firstPath }),
+		});
+	}
+
+	return files;
+};
 
 const parseCount = (value: string | undefined): number | null => {
 	if (!value || value === "-") {

@@ -46,7 +46,7 @@ const styles = StyleSheet.create({
 	hint: { fontSize: 11, color: lightColors.editorFaint },
 });
 
-/** Intentionally empty preview surface; selection is real, diff content is not wired yet. */
+/** Empty, sample-only and not-yet-connected views without invented repository data. */
 export function RepositoryDiffEmpty({
 	selected,
 	revision,
@@ -96,9 +96,21 @@ export function RepositoryDiffEmpty({
 			hint =
 				workspace.error ??
 				"Choose a local repository to view its changed files.";
-		} else if (view !== "changes") {
-			heading = `${view === "history" ? "History" : "Stashes"} comes next`;
-			hint = "Only Changes is connected to Git for now.";
+		} else if (view === "history") {
+			heading = !workspace.repository.head
+				? "No commits yet"
+				: revision
+					? "Select a file to inspect"
+					: "Select a commit to inspect";
+			hint = !workspace.repository.head
+				? "This repository has no committed history."
+				: revision?.filesLoaded && !revision.files.length
+					? "This commit has no file changes compared with its first parent."
+					: "Choose a commit and a changed file. History is read-only.";
+		} else if (view === "stashes") {
+			heading = "Stashes comes next";
+			hint =
+				"Changes and History are connected to Git. Stashes are not wired yet.";
 		} else {
 			if (selected) heading = "Diff preview comes next";
 			else if (workspace.loading) heading = "Reading repository…";

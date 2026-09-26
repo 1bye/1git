@@ -6,6 +6,7 @@ import {
 } from "@1git/git";
 
 import { imageLimits } from "./image-preview";
+import type { CommitFileSelection } from "../types";
 import {
 	RepositoryImage,
 	type RepositoryImageComparison,
@@ -20,10 +21,11 @@ export const diffLimits = {
 
 /** Index-to-working-tree and HEAD-to-index are intentionally separate comparisons. */
 export type ChangeDiffTarget = "working" | "staged";
+export type DiffSelection = FileChange | CommitFileSelection;
 
 /** One read-only comparison, ready for the native diff element or an explanatory notice. */
 export interface RepositoryDiffSection {
-	readonly target: ChangeDiffTarget;
+	readonly target: ChangeDiffTarget | "commit";
 	readonly patch: string;
 	readonly stats: FileDiff["stats"];
 	readonly message: string | null;
@@ -41,9 +43,12 @@ export class RepositoryDiff {
 
 	static async read(
 		root: string,
-		change: FileChange,
+		change: DiffSelection,
 		signal: AbortSignal
 	): Promise<GitResult<readonly RepositoryDiffSection[]>> {
+		if ("commit" in change)
+			return await RepositoryDiff.readCommit(root, change, signal);
+
 		if (change.recordType === "unmerged")
 			return {
 				ok: true,
@@ -136,10 +141,60 @@ export class RepositoryDiff {
 		return { ok: true, value: sections };
 	}
 
+	/** Shares the existing viewer and image decoder for immutable, first-parent comparisons. */
+	private static async readCommit(
+		root: string,
+		file: CommitFileSelection,
+		signal: AbortSignal
+	): Promise<GitResult<readonly RepositoryDiffSection[]>> {
+		const image = RepositoryImage.supports(file.path);
+
+		const opened = await GitRepository.open({
+			path: root,
+			signal,
+			runtime: { maxOutputBytes: image ? imageLimits.bytes : diffLimits.bytes },
+		});
+
+		if (!opened.ok) return opened;
+
+		const preview = image
+			? await RepositoryImage.readCommit(opened.value, file, signal)
+			: undefined;
+
+		if (preview && !preview.svg)
+			return {
+				ok: true,
+				value: [
+					{
+						target: "commit",
+						patch: "",
+						stats: [],
+						message: null,
+						image: preview,
+					},
+				],
+			};
+
+		const result = await opened.value.getDiff({
+			target: { kind: "commit", revision: file.commit },
+			paths: file.originalPath ? [file.originalPath, file.path] : [file.path],
+			signal,
+		});
+
+		if (!result.ok) return result;
+
+		return {
+			ok: true,
+			value: [
+				{ ...RepositoryDiff.section(result.value, "commit"), image: preview },
+			],
+		};
+	}
+
 	/** Rejects unsafe-sized or unsupported input before it reaches native parsing; never shows partial content as complete. */
 	static section(
 		diff: FileDiff,
-		target: ChangeDiffTarget
+		target: RepositoryDiffSection["target"]
 	): RepositoryDiffSection {
 		const { patch } = diff;
 		const lines = patch.split("\n");
@@ -165,7 +220,9 @@ export class RepositoryDiff {
 			message = "Binary file — text diff unavailable.";
 		} else if (!patch.trim()) {
 			message =
-				"No remaining changes in this comparison. Refresh Changes if this file was edited elsewhere.";
+				target === "commit"
+					? "No textual changes in this committed file."
+					: "No remaining changes in this comparison. Refresh Changes if this file was edited elsewhere.";
 		} else if (!hunkHeader.test(patch) && !fileHeader.test(patch)) {
 			message = "Git returned a patch format this viewer does not support.";
 		}

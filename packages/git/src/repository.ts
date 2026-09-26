@@ -11,6 +11,7 @@ import type {
 	CheckoutBranchInput,
 	CloneRepositoryInput,
 	CommitInfo,
+	CommitFileChange,
 	CommitInput,
 	CommitPage,
 	CommitResult,
@@ -81,6 +82,7 @@ import {
 import {
 	loadBranches,
 	loadCommit,
+	loadCommitFiles,
 	loadDiff,
 	loadFileContent,
 	loadHistory,
@@ -444,10 +446,11 @@ export class GitRepository {
 				? requireRevision(input.revision, "Revision", "get-history")
 				: undefined;
 
-			const snapshot = await loadSnapshot(this.context, false, input.signal);
+			// Explicit revisions stay browseable even after checkout to an unborn branch.
+			if (!revision) {
+				const snapshot = await loadSnapshot(this.context, false, input.signal);
 
-			if (snapshot.head.unborn) {
-				return EMPTY_HISTORY;
+				if (snapshot.head.unborn) return EMPTY_HISTORY;
 			}
 
 			return await loadHistory(this.context, {
@@ -469,6 +472,20 @@ export class GitRepository {
 			loadCommit(
 				this.context,
 				requireRevision(revision, "Revision", "get-commit"),
+				options.signal
+			)
+		);
+	}
+
+	/** Returns paths and blob identities relative to the first parent, including root commits. */
+	async getCommitFiles(
+		revision: string,
+		options: GitCallOptions = {}
+	): Promise<GitResult<readonly CommitFileChange[]>> {
+		return await this.read("get-commit-files", async () =>
+			loadCommitFiles(
+				this.context,
+				requireRevision(revision, "Revision", "get-commit-files"),
 				options.signal
 			)
 		);

@@ -15,6 +15,7 @@ import {
 } from "../lib/repository-workspace-model";
 import type { RevisionView } from "../types";
 import { RepositoryList } from "./repository-list";
+import { RepositoryReadNotice } from "./repository-read-notice";
 
 const dividerHeight = 9;
 
@@ -59,11 +60,15 @@ export function RepositoryRevisions({
 	state,
 	onAction,
 	children,
+	loadingFiles = false,
+	onRetryFiles,
 }: {
 	view: RevisionView;
 	state: RepositoryWorkspaceState;
 	onAction: (action: RepositoryWorkspaceAction) => void;
 	children: ReactNode;
+	loadingFiles?: boolean;
+	onRetryFiles?: () => void;
 }) {
 	const renderer = useGpuixRequired();
 	const container = useRef<PublicInstance>(null);
@@ -213,17 +218,30 @@ export function RepositoryRevisions({
 					entries={revision?.files ?? []}
 					state={current.files}
 					emptyMessage={
-						revision
-							? "No file changes in this revision."
-							: view === "history"
-								? "Select a commit to see its files."
-								: "Select a stash to see its files."
+						loadingFiles
+							? "Reading committed files…"
+							: revision?.filesError
+								? "Could not read committed files."
+								: revision
+									? "No file changes in this revision."
+									: view === "history"
+										? "Select a commit to see its files."
+										: "Select a stash to see its files."
 					}
 					onSelect={(id) =>
 						onAction({ type: "select-revision-file", view, id })
 					}
 					onScroll={(y) => onAction({ type: "scroll-revision-files", view, y })}
 				/>
+				{revision?.filesError && onRetryFiles ? (
+					<RepositoryReadNotice
+						testId="retry-history-files"
+						loading={loadingFiles}
+						error={revision.filesError}
+						onPress={onRetryFiles}
+						label="Retry"
+					/>
+				) : null}
 			</div>
 		</div>
 	);

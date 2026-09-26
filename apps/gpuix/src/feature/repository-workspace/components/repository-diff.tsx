@@ -1,4 +1,3 @@
-import type { FileChange } from "@1git/git";
 import { lightColors } from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { Button } from "@1git/gpuix-ui/button";
@@ -10,7 +9,8 @@ import { appTokens } from "../../../styles/tokens";
 import { useRepositoryDiff } from "../hooks/use-repository-diff";
 import {
 	RepositoryDiff as DiffReader,
-	type ChangeDiffTarget,
+	type DiffSelection,
+	type RepositoryDiffSection,
 } from "../lib/repository-diff";
 import {
 	RepositoryImageMetadata,
@@ -140,7 +140,7 @@ export function RepositoryDiff({
 	readDiff = DiffReader.read,
 }: {
 	root: string;
-	change: FileChange;
+	change: DiffSelection;
 	refreshing: boolean;
 	statusError: string | null;
 	readDiff?: typeof DiffReader.read;
@@ -152,7 +152,9 @@ export function RepositoryDiff({
 		readDiff
 	);
 
-	const [target, setTarget] = useState<ChangeDiffTarget>("working");
+	const [target, setTarget] =
+		useState<RepositoryDiffSection["target"]>("working");
+
 	const [sourcePath, setSourcePath] = useState<string | null>(null);
 
 	const section =
@@ -294,9 +296,11 @@ export function RepositoryDiff({
 					theme={diffTheme}
 					tokens={appTokens}
 					aria-label={
-						section.target === "working"
-							? "Unstaged file diff"
-							: "Staged file diff"
+						section.target === "commit"
+							? "Committed file diff"
+							: section.target === "working"
+								? "Unstaged file diff"
+								: "Staged file diff"
 					}
 				/>
 			) : null}

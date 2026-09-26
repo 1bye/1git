@@ -14,6 +14,8 @@ import { RepositoryList } from "./repository-list";
 import { RepositoryCommit } from "./repository-commit";
 import { RepositoryRevisions } from "./repository-revisions";
 import { appTokens } from "../../../styles/tokens";
+import type { useRepositoryHistory } from "../hooks/use-repository-history";
+import { RepositoryReadNotice } from "./repository-read-notice";
 
 const styles = StyleSheet.create({
 	navigation: {
@@ -99,7 +101,14 @@ function emptyListMessage(state: RepositoryWorkspaceState): string {
 		return "No changed files";
 	}
 
-	if (state.view !== "changes") return "Not connected to Git yet";
+	if (state.view === "stashes") return "Not connected to Git yet";
+
+	if (state.view === "history")
+		return state.repository
+			? state.history.nextOffset === 0
+				? ""
+				: "No commits yet"
+			: "Open a repository to see history";
 
 	if (state.loading) return "Reading repository…";
 
@@ -116,11 +125,13 @@ export function RepositoryNavigation({
 	state,
 	onAction,
 	onRefresh,
+	history,
 }: {
 	workspaceId: string;
 	state: RepositoryWorkspaceState;
 	onAction: (action: RepositoryWorkspaceAction) => void;
 	onRefresh: () => void;
+	history?: ReturnType<typeof useRepositoryHistory>;
 }) {
 	const renderer = useGpuixRequired();
 	const pills = useRef(new Map<RepositoryView, PublicInstance>());
@@ -167,6 +178,11 @@ export function RepositoryNavigation({
 			}
 			onSelect={(id) => onAction({ type: "select", view, id })}
 			onScroll={(y) => onAction({ type: "scroll", view, y })}
+			onEndReached={
+				view === "history" && !state.history.error
+					? history?.loadMore
+					: undefined
+			}
 		/>
 	);
 
@@ -337,8 +353,22 @@ export function RepositoryNavigation({
 						view={view}
 						state={state}
 						onAction={onAction}
+						loadingFiles={history?.loadingFiles}
+						onRetryFiles={history?.retryFiles}
 					>
 						{list}
+						{view === "history" &&
+						state.repository &&
+						history &&
+						state.history.nextOffset !== null ? (
+							<RepositoryReadNotice
+								testId="load-history"
+								loading={history.loading}
+								error={state.history.error}
+								onPress={history.loadMore}
+								label="Load more commits"
+							/>
+						) : null}
 					</RepositoryRevisions>
 				)}
 				{view === "changes" && (state.preview || state.repository) ? (
@@ -346,7 +376,11 @@ export function RepositoryNavigation({
 				) : (
 					<div style={styles.footer}>
 						<text style={styles.faint}>
-							{state.preview ? "Sample data" : "Read-only preview"}
+							{state.preview
+								? "Sample data"
+								: view === "history"
+									? "Read-only · first-parent diffs"
+									: "Read-only preview"}
 						</text>
 						<text style={styles.faint}>↑ ↓ Navigate</text>
 					</div>

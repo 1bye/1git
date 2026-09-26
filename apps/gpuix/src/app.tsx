@@ -1,12 +1,17 @@
-import { useReducer } from "react";
+import { useCallback, useReducer } from "react";
 
 import { RepositoryNavigation } from "./feature/repository-workspace/components/repository-navigation";
 import { RepositoryDiffEmpty } from "./feature/repository-workspace/components/repository-diff-empty";
 import { RepositoryDiff } from "./feature/repository-workspace/components/repository-diff";
 import { RepositoryDiff as DiffReader } from "./feature/repository-workspace/lib/repository-diff";
 import { RepositoryReader } from "./feature/repository-workspace/lib/repository-reader";
+import { RepositoryHistory } from "./feature/repository-workspace/lib/repository-history";
+import { useRepositoryHistory } from "./feature/repository-workspace/hooks/use-repository-history";
 import { useRepositoryConnection } from "./feature/repository-workspace/hooks/use-repository-connection";
-import { RepositoryWorkspaceModel } from "./feature/repository-workspace/lib/repository-workspace-model";
+import {
+	RepositoryWorkspaceModel,
+	type RepositoryWorkspaceAction,
+} from "./feature/repository-workspace/lib/repository-workspace-model";
 import { WorkspaceTabs } from "./feature/workspace-tabs/workspace-tabs";
 import { WorkspaceTabsModel } from "./feature/workspace-tabs/lib/workspace-tabs-model";
 import { AppShell } from "./fixture/app-shell";
@@ -17,11 +22,15 @@ export function App({
 	preview = false,
 	readRepository = RepositoryReader.read,
 	readDiff = DiffReader.read,
+	readHistory = RepositoryHistory.read,
+	readCommitFiles = RepositoryHistory.readFiles,
 }: {
 	initialTabCount?: number;
 	preview?: boolean;
 	readRepository?: typeof RepositoryReader.read;
 	readDiff?: typeof DiffReader.read;
+	readHistory?: typeof RepositoryHistory.read;
+	readCommitFiles?: typeof RepositoryHistory.readFiles;
 }) {
 	const [state, dispatch] = useReducer(
 		WorkspaceTabsModel.reduce,
@@ -34,6 +43,20 @@ export function App({
 
 	const activeTab = state.tabs.find((tab) => tab.id === state.activeId);
 	const workspace = activeTab?.workspace;
+
+	const workspaceAction = useCallback(
+		(id: string, action: RepositoryWorkspaceAction): void =>
+			dispatch({ type: "workspace", id, action }),
+		[]
+	);
+
+	const history = useRepositoryHistory(
+		activeTab?.id,
+		workspace,
+		workspaceAction,
+		readHistory,
+		readCommitFiles
+	);
 
 	const revision =
 		workspace && workspace.view !== "changes"
@@ -50,6 +73,7 @@ export function App({
 		workspace?.view === "changes" ? workspace.entries.changes : revision?.files;
 
 	const selected = files?.find((file) => file.id === selectedId);
+	const comparison = selected?.change ?? selected?.commitFile;
 
 	return (
 		<AppShell
@@ -59,6 +83,7 @@ export function App({
 						key={activeTab.id}
 						workspaceId={activeTab.id}
 						state={workspace}
+						history={history}
 						onRefresh={() => {
 							void connection.refresh(activeTab.id);
 						}}
@@ -73,14 +98,11 @@ export function App({
 				activeTab ? `${activeTab.name} workspace` : "No workspace open"
 			}
 		>
-			{activeTab &&
-			workspace?.repository &&
-			workspace.view === "changes" &&
-			selected?.change ? (
+			{activeTab && workspace?.repository && comparison ? (
 				<RepositoryDiff
-					key={`${activeTab.id}:${selected.id}`}
+					key={`${activeTab.id}:${revision?.id ?? "changes"}:${comparison.path}`}
 					root={workspace.repository.root}
-					change={selected.change}
+					change={comparison}
 					refreshing={workspace.loading}
 					statusError={workspace.error}
 					readDiff={readDiff}

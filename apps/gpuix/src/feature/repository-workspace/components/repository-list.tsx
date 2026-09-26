@@ -120,6 +120,7 @@ function RepositoryRow({
 						? `${entry.title}, ${entry.statusDescription ?? (entry.status === "A" ? "added" : entry.status === "D" ? "deleted" : "modified")}`
 						: entry.title
 				}
+				aria-description={entry.detail}
 				aria-selected={selected}
 				tabIndex={tabbable ? 0 : -1}
 				onMouseDown={() => setKeyboard(false)}
@@ -200,6 +201,7 @@ export function RepositoryList({
 	inclusion,
 	onSelect,
 	onScroll,
+	onEndReached,
 }: {
 	entries: readonly WorkspaceEntry[];
 	label: string;
@@ -212,6 +214,7 @@ export function RepositoryList({
 	};
 	onSelect: (id: string) => void;
 	onScroll: (y: number) => void;
+	onEndReached?: () => void;
 }) {
 	const renderer = useGpuixRequired();
 	const viewport = useRef<PublicInstance>(null);
@@ -235,6 +238,21 @@ export function RepositoryList({
 		const y = renderer.getScrollOffset?.(viewport.current.id)?.[1] ?? 0;
 
 		onScroll(y);
+
+		if (onEndReached) {
+			const box = renderer.getElementBounds?.(viewport.current.id);
+			const last = entries.at(-1);
+			const row = last && rows.current.get(last.id);
+			const bounds = row && renderer.getElementBounds?.(row.id);
+
+			if (
+				box &&
+				bounds &&
+				bounds.y + bounds.height <=
+					box.y - y + box.height + revisionRowHeight * 3
+			)
+				onEndReached();
+		}
 	};
 
 	const reveal = (row: PublicInstance): void => {

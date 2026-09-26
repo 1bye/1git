@@ -1,15 +1,15 @@
-import type { FileChange } from "@1git/git";
 import { useEffect, useState } from "react";
 
 import {
 	RepositoryDiff,
 	type RepositoryDiffSection,
+	type DiffSelection,
 } from "../lib/repository-diff";
 
 /** Active-file read lifecycle; selection, refresh, view/tab changes and unmount cancel stale work. */
 export function useRepositoryDiff(
 	root: string,
-	change: FileChange,
+	change: DiffSelection,
 	paused: boolean,
 	readDiff: typeof RepositoryDiff.read
 ) {
@@ -17,7 +17,7 @@ export function useRepositoryDiff(
 
 	const [result, setResult] = useState<{
 		root: string;
-		change: FileChange;
+		change: DiffSelection;
 		retry: number;
 		sections: readonly RepositoryDiffSection[];
 		error: string | null;

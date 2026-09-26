@@ -148,11 +148,35 @@ entrance/exit animation yet.
 - **Checkboxes are planned commit inclusion, not Git staging.** They neither stage
   nor unstage files. The composer remains preview-only: Command+Enter/the button
   never creates a commit, even with a connected repository. Drafts and inclusion
-  are in-memory only. History and Stashes are not connected yet; those views
-  never substitute sample records for live data.
+  are in-memory only. History is read-only; Stashes is not connected yet.
+  Unavailable views never substitute sample records for live data.
 
 Git must be installed on PATH. The app imports the existing workspace Git package;
 the Turbo build/dev tasks build dependencies first. No Electron IPC is involved.
+
+## Browsing History
+
+- History lazily loads real commits reachable from the last refreshed HEAD, with
+  the summary, author, authored date and short SHA. Scroll near the end for the
+  next 50 commits, or use **Load more commits**. Pagination is anchored to that
+  HEAD, so external commits cannot shift page offsets while browsing.
+- Select a commit in the upper sidebar to read its changed paths, then select a
+  path below to view its diff. File lists are fetched on demand without loading
+  every patch; completed lists/pages are retained for the workspace tab's lifetime.
+- Committed diffs compare with the first parent (the empty tree for root commits).
+  Merge commits use the same first-parent comparison, not a combined/conflict diff.
+  Empty commits and unborn repositories have explicit empty states.
+- The existing native text diff and PNG/JPEG/WebP/SVG previews are reused. Image
+  versions come from the exact committed blobs, independently of the current index
+  or working files. SVG **Preview / Source**, original metadata, size limits and
+  binary/unsupported notices work here too. There are no staging or commit actions.
+- Each workspace keeps its selected commit/file, list scroll offsets and divider
+  size across tab/view switches. Changing commits clears the file selection/scroll.
+  Pending reads are cancelled on view/tab changes, refresh or close; errors expose
+  Retry without discarding loaded pages. Nothing is persisted across restarts.
+- Refresh keeps cached History when HEAD is unchanged. A different HEAD resets
+  pagination and selection to the new snapshot. Stashes, automatic refresh and Git
+  writes are still deferred.
 
 ## Read-only file diffs
 

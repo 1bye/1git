@@ -1,6 +1,11 @@
-import type { FileChange } from "@1git/git";
+import type { CommitFileChange, CommitInfo, FileChange } from "@1git/git";
 
-/** Repository navigation views; only Changes currently reads live repository data. */
+/** Immutable committed comparison, never an index or working-tree selection. */
+export interface CommitFileSelection extends CommitFileChange {
+	readonly commit: string;
+}
+
+/** Repository navigation views; Changes and History read live repository data. */
 export type RepositoryView = "changes" | "history" | "stashes";
 
 /** Views whose selected revision owns a second file list. */
@@ -15,11 +20,15 @@ export interface WorkspaceEntry {
 	readonly statusDescription?: string;
 	/** Original Git status, present only for live Changes rows. */
 	readonly change?: FileChange;
+	readonly commitFile?: CommitFileSelection;
 }
 
 /** Commit or stash presentation with its own changed files. */
 export interface WorkspaceRevision extends WorkspaceEntry {
 	readonly files: readonly WorkspaceEntry[];
+	readonly commit?: CommitInfo;
+	readonly filesLoaded?: boolean;
+	readonly filesError?: string;
 }
 
 /** Lists owned by a workspace; unavailable live views remain empty, never sample-filled. */

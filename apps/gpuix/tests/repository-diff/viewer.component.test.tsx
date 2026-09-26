@@ -20,6 +20,7 @@ import {
 import { diffPatch, diffSection } from "../_shared/diff-patch";
 import { ImagePreviewDecoder } from "../../src/feature/repository-workspace/lib/image-preview";
 import { rasterContent, svgContent } from "../_shared/image-content";
+import { emptyHistory } from "../_shared/history-page";
 
 let root: TestRoot;
 
@@ -400,7 +401,9 @@ it("cancels stale selection reads, refreshes the selected path and never reloads
 	);
 
 	spyOn(root.renderer, "promptForPaths").mockResolvedValue(["/test/project"]);
-	root.render(<App readRepository={status} readDiff={reader} />);
+	root.render(
+		<App readRepository={status} readDiff={reader} readHistory={emptyHistory} />
+	);
 	click("open-repository");
 	await settle();
 	expect(reader).not.toHaveBeenCalled();

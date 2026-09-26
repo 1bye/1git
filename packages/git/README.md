@@ -37,7 +37,7 @@ type GitResult<T> =
 
 - Repository sessions: open, initialize, clone, cancellation, bounded output
 - State: snapshot, HEAD/tracking, active operation, changes, stashes
-- History: paginated commits, commit metadata, file content, structured diffs
+- History: paginated commits, commit metadata, committed file lists, file content, structured diffs
 - Index and commits: stage, unstage, restore, reset, commit, amend
 - Branches: create, switch, rename, delete, set upstream
 - Sequences: merge, rebase, cherry-pick, revert, continue/skip/abort
@@ -50,6 +50,14 @@ Mutations on one `GitRepository` instance are serialized. Reads wait for the
 last queued mutation, so callers receive coherent post-mutation state.
 Destructive worktree restore and hard reset require explicit
 `allowDestructive: true`.
+
+`getCommitFiles(revision, { signal })` returns a commit's changed paths, status,
+optional rename source, and before/after blob OIDs without loading patches. Diffs
+are relative to the first parent, or the empty tree for root commits. All-zero OIDs
+identify an absent side. Use `getDiff({ target: { kind: "commit", revision }, paths })`
+for a selected path and `getFileContent({ path, source: { kind: "object", objectId } })`
+for its immutable bytes. `getHistory({ revision, offset, limit })` can anchor pages
+to an OID independently of later HEAD or working-tree changes.
 
 ## Tests
 

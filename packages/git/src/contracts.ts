@@ -51,6 +51,7 @@ export type GitOperation =
 	| "file-content"
 	| "get-branches"
 	| "get-commit"
+	| "get-commit-files"
 	| "get-config"
 	| "get-history"
 	| "get-remotes"
@@ -182,6 +183,15 @@ export interface RepositorySnapshot {
 export interface GitIdentity {
 	readonly email: string;
 	readonly name: string;
+}
+
+/** A committed path compared with the commit's first parent (empty tree for roots). */
+export interface CommitFileChange {
+	readonly path: string;
+	readonly originalPath?: string;
+	readonly status: "A" | "D" | "M" | "R" | "C" | "T";
+	readonly beforeOid: string;
+	readonly afterOid: string;
 }
 
 /** Structured commit metadata. */

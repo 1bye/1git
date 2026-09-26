@@ -11,6 +11,7 @@ import { App } from "../../src/app";
 import type { RepositoryReader } from "../../src/feature/repository-workspace/lib/repository-reader";
 import type { RepositoryDiff } from "../../src/feature/repository-workspace/lib/repository-diff";
 import { windowOptions } from "../../src/window-options";
+import { emptyHistory } from "../_shared/history-page";
 import {
 	changedFile,
 	repositorySnapshot,
@@ -76,7 +77,13 @@ it("opens real-status rows and refreshes without staging, clearing drafts or rep
 		"/test/project",
 	]);
 
-	root.render(<App readDiff={readDiff} readRepository={reader} />);
+	root.render(
+		<App
+			readDiff={readDiff}
+			readRepository={reader}
+			readHistory={emptyHistory}
+		/>
+	);
 	expect(root.renderer.findByTestId("commit-composer")).toBeUndefined();
 	click("open-repository");
 	await settle();
@@ -116,7 +123,8 @@ it("opens real-status rows and refreshes without staging, clearing drafts or rep
 	expect(element("commit-message").customProps?.value).toBe("hi");
 	expect(reader).toHaveBeenCalledTimes(2);
 	click("view-history");
-	expect(root.renderer.getAllText()).toContain("Not connected to Git yet");
+	await settle();
+	expect(root.renderer.getAllText()).toContain("No commits yet");
 	expect(root.renderer.getAllText()).not.toContain("Sample data");
 	click("view-stashes");
 	expect(root.renderer.getAllText()).toContain("Stashes comes next");

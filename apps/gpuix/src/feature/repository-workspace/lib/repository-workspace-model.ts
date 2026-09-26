@@ -1,7 +1,13 @@
 import { basename } from "node:path";
-import type { FileChange, FileStatus, RepositorySnapshot } from "@1git/git";
+import type {
+	CommitPage,
+	FileChange,
+	FileStatus,
+	RepositorySnapshot,
+} from "@1git/git";
 
 import { sampleEntries } from "./sample-workspace";
+import { RepositoryHistory } from "./repository-history";
 import type {
 	RepositoryView,
 	RevisionView,
@@ -38,7 +44,12 @@ export interface RepositoryWorkspaceState {
 		readonly root: string;
 		readonly name: string;
 		readonly branch: string;
+		readonly head: string | null;
 	} | null;
+	readonly history: {
+		readonly nextOffset: number | null;
+		readonly error: string | null;
+	};
 	readonly loading: boolean;
 	readonly error: string | null;
 	readonly view: RepositoryView;
@@ -53,6 +64,28 @@ export interface RepositoryWorkspaceState {
 
 /** Presentation transitions; no filesystem, Git mutations, or persistent storage effects. */
 export type RepositoryWorkspaceAction =
+	| {
+			type: "history-page";
+			root: string;
+			head: string;
+			offset: number;
+			page: CommitPage;
+	  }
+	| { type: "history-error"; root: string; head: string; message: string }
+	| {
+			type: "history-files";
+			root: string;
+			head: string;
+			commit: string;
+			files: readonly WorkspaceEntry[];
+	  }
+	| {
+			type: "history-files-error";
+			root: string;
+			head: string;
+			commit: string;
+			message: string;
+	  }
 	| { type: "loading" }
 	| { type: "load-error"; message: string }
 	| { type: "loaded"; snapshot: RepositorySnapshot }
@@ -79,6 +112,7 @@ export class RepositoryWorkspaceModel {
 			preview,
 			entries,
 			repository: null,
+			history: { nextOffset: 0, error: null },
 			loading: false,
 			error: null,
 			view: "changes",
@@ -116,6 +150,70 @@ export class RepositoryWorkspaceModel {
 		state: RepositoryWorkspaceState,
 		action: RepositoryWorkspaceAction
 	): RepositoryWorkspaceState {
+		if (
+			action.type === "history-page" ||
+			action.type === "history-error" ||
+			action.type === "history-files" ||
+			action.type === "history-files-error"
+		) {
+			if (
+				state.repository?.root !== action.root ||
+				state.repository.head !== action.head
+			)
+				return state;
+
+			if (action.type === "history-error")
+				return {
+					...state,
+					history: { ...state.history, error: action.message },
+				};
+
+			if (action.type === "history-page") {
+				if (state.history.nextOffset !== action.offset) return state;
+
+				const known = new Set(state.entries.history.map((entry) => entry.id));
+
+				const entries = [
+					...state.entries.history,
+					...action.page.commits
+						.filter((commit) => !known.has(commit.oid))
+						.map(RepositoryHistory.entry),
+				];
+
+				return {
+					...state,
+					history: { nextOffset: action.page.nextOffset, error: null },
+					entries: { ...state.entries, history: entries },
+					views: {
+						...state.views,
+						history: {
+							...state.views.history,
+							selectedId:
+								state.views.history.selectedId ?? entries[0]?.id ?? null,
+						},
+					},
+				};
+			}
+
+			const entries = state.entries.history.map((entry) =>
+				entry.id !== action.commit
+					? entry
+					: action.type === "history-files"
+						? {
+								...entry,
+								files: action.files,
+								filesLoaded: true,
+								filesError: undefined,
+							}
+						: { ...entry, filesError: action.message }
+			);
+
+			return {
+				...state,
+				entries: { ...state.entries, history: entries },
+			};
+		}
+
 		if (action.type === "loading")
 			return { ...state, loading: true, error: null };
 
@@ -135,6 +233,9 @@ export class RepositoryWorkspaceModel {
 			const sameRepository =
 				state.repository?.root === snapshot.repository.root;
 
+			const sameHistory =
+				sameRepository && state.repository?.head === snapshot.head.oid;
+
 			const selectedId = state.views.changes.selectedId;
 
 			const branch = snapshot.head.detached
@@ -150,8 +251,16 @@ export class RepositoryWorkspaceModel {
 					root: snapshot.repository.root,
 					name: basename(snapshot.repository.root),
 					branch,
+					head: snapshot.head.oid,
 				},
-				entries: { changes, history: [], stashes: [] },
+				history: sameHistory
+					? state.history
+					: { nextOffset: snapshot.head.oid ? 0 : null, error: null },
+				entries: {
+					changes,
+					history: sameHistory ? state.entries.history : [],
+					stashes: [],
+				},
 				includedFileIds: changes
 					.filter(
 						(entry) =>
@@ -162,6 +271,14 @@ export class RepositoryWorkspaceModel {
 					.map((entry) => entry.id),
 				views: {
 					...state.views,
+					history: sameHistory
+						? state.views.history
+						: {
+								...state.views.history,
+								selectedId: null,
+								scrollY: 0,
+								files: { selectedId: null, scrollY: 0 },
+							},
 					changes: {
 						selectedId: changes.some((entry) => entry.id === selectedId)
 							? selectedId

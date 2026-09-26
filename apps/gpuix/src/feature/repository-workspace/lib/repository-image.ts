@@ -4,6 +4,7 @@ import type { FileChange, FileContentSource, GitRepository } from "@1git/git";
 
 import type { ChangeDiffTarget } from "./repository-diff";
 import { ImagePreviewDecoder, type ImagePreview } from "./image-preview";
+import type { CommitFileSelection } from "../types";
 
 /** One available Git version, including a recoverable read/decode failure. Null sides mean absent files. */
 export type RepositoryImageSide =
@@ -27,6 +28,49 @@ export class RepositoryImage {
 
 	static supports(path: string): boolean {
 		return imageExtension.test(path);
+	}
+
+	/** Committed images come from immutable blobs, never the current index or working tree. */
+	static async readCommit(
+		repository: GitRepository,
+		file: CommitFileSelection,
+		signal: AbortSignal
+	): Promise<RepositoryImageComparison> {
+		const read = async (oid: string): Promise<RepositoryImageSide | null> => {
+			if (nullObjectId.test(oid)) return null;
+
+			try {
+				const result = await repository.getFileContent({
+					path: file.path,
+					source: { kind: "object", objectId: oid },
+					signal,
+				});
+
+				if (!result.ok) return { image: null, error: result.error.message };
+
+				return {
+					image: await ImagePreviewDecoder.prepare(result.value, signal),
+					error: null,
+				};
+			} catch (error) {
+				signal.throwIfAborted();
+
+				return {
+					image: null,
+					error:
+						error instanceof Error
+							? error.message
+							: "Could not preview this image.",
+				};
+			}
+		};
+
+		const [before, after] = await Promise.all([
+			read(file.beforeOid),
+			read(file.afterOid),
+		]);
+
+		return { before, after, svg: svgExtension.test(file.path) };
 	}
 
 	static async read(

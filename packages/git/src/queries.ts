@@ -4,6 +4,7 @@ import { isAbsolute, join, relative, resolve } from "node:path";
 import type {
 	BranchCollection,
 	CommitInfo,
+	CommitFileChange,
 	CommitPage,
 	DiffInput,
 	FileContent,
@@ -18,7 +19,7 @@ import type {
 	WorktreeInfo,
 } from "./contracts.js";
 import type { RepositoryContext } from "./internal.js";
-import { parseDiffStats } from "./parsers/diff.js";
+import { parseCommitFiles, parseDiffStats } from "./parsers/diff.js";
 import {
 	HISTORY_FORMAT,
 	HISTORY_RECORD_SEPARATOR,
@@ -184,6 +185,34 @@ export const loadCommit = async (
 	}
 
 	return commit;
+};
+
+/** Lists committed paths and blob identities without reading their patches. */
+export const loadCommitFiles = async (
+	context: RepositoryContext,
+	revision: string,
+	signal?: AbortSignal
+): Promise<readonly CommitFileChange[]> => {
+	const output = await context.process.run({
+		args: [
+			"show",
+			"--format=",
+			"--raw",
+			"-z",
+			"--no-abbrev",
+			"--first-parent",
+			"--root",
+			"--find-renames",
+			"--no-ext-diff",
+			"--no-textconv",
+			revision,
+			"--",
+		],
+		cwd: context.repository.root,
+		signal,
+	});
+
+	return parseCommitFiles(output.stdout);
 };
 
 /** Loads local and remote-tracking branches. */
