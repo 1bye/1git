@@ -1,7 +1,7 @@
 # @1git/gpuix-ui
 
 Styled React controls for GPUIX, built with `@1git/gpuix-stylesheet`. Includes
-Button, Text, and Select with named color and density presets. Controls default
+Button, Checkbox, Text, and Select with named color and density presets. Controls default
 to dark colors and comfortable sizing. No theme provider is required.
 
 ## Setup
@@ -22,6 +22,7 @@ TypeScript configuration. Imports use explicit entry points:
 
 ```tsx
 import { Button } from "@1git/gpuix-ui/button";
+import { Checkbox } from "@1git/gpuix-ui/checkbox";
 import { Text } from "@1git/gpuix-ui/text";
 import {
   Select,
@@ -108,6 +109,61 @@ buttons an explicit accessible name:
   <FolderIcon />
 </Button>
 ```
+
+## Checkbox
+
+A controlled, standalone checkbox. Compose visible labels beside it and always
+provide `aria-label`. It has no internal checked state or Git-specific behavior.
+
+```tsx
+const [included, setIncluded] = useState(true);
+
+<Checkbox
+  aria-label="Include README.md in commit"
+  checked={included}
+  onCheckedChange={setIncluded}
+  tokens={tokens}
+/>
+```
+
+`CheckboxProps` and `CheckboxState` are exported from `/checkbox`.
+
+| Prop | Values / purpose | Default |
+| --- | --- | --- |
+| `checked` | Required `boolean` or `"indeterminate"` | — |
+| `onCheckedChange` | Required `(checked: boolean) => void`; mixed activates to `true` | — |
+| `aria-label` | Required accessible name | — |
+| `disabled` | Blocks input, dims the control, removes it from Tab order | `false` |
+| `tokens` | Explicit palette and density | `defaultTokens` |
+| `style` | Root `StyleDesc`; state/focus/disabled styling applies afterward | — |
+| `ref`, `testId`, `tabIndex`, `autoFocus` | Native host props | Tab index `0` |
+| `onFocus`, `onBlur`, `onMouseDown`, `onKeyDown` | Observe input without replacing built-in behavior | — |
+| `onMouseEnter`, `onMouseLeave` | Coordinate hover with surrounding UI | — |
+| `aria-description`, `aria-id` | Additional native accessibility metadata | — |
+
+The 14px mark sits inside a density-sized hit target (24px compact, 28px
+comfortable). Pointer clicks toggle once; Space toggles on release. Repeats,
+modified Space, and unarmed releases do not toggle. Blur or disabling cancels
+a pending Space press. Focus rings appear for keyboard use, not pointer clicks.
+
+For an all-files control, derive its state from inclusion:
+
+```tsx
+<Checkbox
+  aria-label="Include all changed files in commit"
+  checked={includedCount === 0 ? false : includedCount === fileCount ? true : "indeterminate"}
+  disabled={fileCount === 0}
+  onCheckedChange={setAllIncluded}
+/>
+```
+
+The component emits `aria-checked` (`true`, `false`, or `"mixed"`) and a textual
+state via `aria-valuetext`. This workspace's Bun patch forwards `aria-checked`;
+the native app's pinned Rust patch exposes it to AccessKit. A stock GPUIX 0.10.0
+addon, including the standalone gallery, only receives the textual state and
+checkbox role. Native checked/mixed semantics require the patched addon. Disabled
+input is blocked and described as unavailable; native `aria-disabled` remains an
+upstream limitation.
 
 ## Text
 
@@ -273,7 +329,7 @@ state. A future provider can supply it without changing these style definitions.
 ## Interactive example
 
 The [example app](example/README.md) lives in `example/` at this package's root.
-It demonstrates every Button variant/size, Text size/weight/tone, and controlled,
+It demonstrates every Button variant/size, mixed/checked/disabled Checkboxes, Text size/weight/tone, and controlled,
 uncontrolled, and disabled Selects. Palette and density controls update the
 whole playground while preserving its interaction state.
 

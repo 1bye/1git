@@ -6,6 +6,7 @@
   "type": "module",
   "exports": {
     "./button": "./src/button.tsx",
+    "./checkbox": "./src/checkbox.tsx",
     "./text": "./src/text.tsx",
     "./select": "./src/select.tsx",
     "./tokens": "./src/tokens.ts"

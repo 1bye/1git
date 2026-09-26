@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 
 import {
 	appDirectory,
+	checkboxPatchPath,
 	buildIdPath,
 	nativeBuildId,
 	nativeDirectory,
@@ -61,18 +62,18 @@ if (
 	}
 
 	await run(["git", "submodule", "update", "--init", "--depth", "1", "zed"]);
-	const patched = Bun.spawn(
-		["git", "apply", "--reverse", "--check", patchPath],
-		{
+
+	for (const patch of [patchPath, checkboxPatchPath]) {
+		const patched = Bun.spawn(["git", "apply", "--reverse", "--check", patch], {
 			cwd: source,
 			stdout: "ignore",
 			stderr: "ignore",
-		}
-	);
+		});
 
-	if ((await patched.exited) !== 0) {
-		await run(["git", "apply", "--check", patchPath]);
-		await run(["git", "apply", patchPath]);
+		if ((await patched.exited) !== 0) {
+			await run(["git", "apply", "--check", patch]);
+			await run(["git", "apply", patch]);
+		}
 	}
 
 	// Build only the addon; keep using the matching published JS runtime and loader.

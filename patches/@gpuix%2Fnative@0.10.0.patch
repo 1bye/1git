@@ -1,0 +1,24 @@
+diff --git a/dist/host.d.ts b/dist/host.d.ts
+index cc6b7ef926c5c3122fff6107341913364a215710..5fc28e1c34993b5b40b86fed73b8251138b727fc 100644
+--- a/dist/host.d.ts
++++ b/dist/host.d.ts
+@@ -332,6 +332,7 @@ export interface HostProps {
+     "aria-id"?: string;
+     "aria-expanded"?: boolean;
+     "aria-selected"?: boolean;
++    "aria-checked"?: boolean | "mixed";
+     /** String value reported to assistive technology. */
+     "aria-valuetext"?: string;
+     /** Heading level, 1-based. */
+diff --git a/dist/mutations.js b/dist/mutations.js
+index 7d0eda6cb58127462067cb9d5a442a9ea606c671..bff327212b692998481685ee792146ab87e3bb2d 100644
+--- a/dist/mutations.js
++++ b/dist/mutations.js
+@@ -102,6 +102,7 @@ export const UNIVERSAL_PROPS = new Set([
+     "aria-id",
+     "aria-expanded",
+     "aria-selected",
++    "aria-checked",
+     "aria-valuetext",
+     "aria-level",
+ ]);

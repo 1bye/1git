@@ -152,6 +152,9 @@
       },
     },
   },
+  "patchedDependencies": {
+    "@gpuix/native@0.10.0": "patches/@gpuix%2Fnative@0.10.0.patch",
+  },
   "packages": {
     "@1git/config": ["@1git/config@workspace:packages/config"],
 

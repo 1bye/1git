@@ -25,8 +25,14 @@ it("switches palette and density independently while preserving demo state", () 
 	clickElement(root.renderer, "button-primary-md");
 	clickElement(root.renderer, "branch-select");
 	clickElement(root.renderer, "branch-select-develop");
+	clickElement(root.renderer, "checkbox-example");
 	expect(root.renderer.getPaintedText()).toContain("Activated 1 times");
 	expect(root.renderer.getPaintedText()).toContain("Selected: develop");
+	expect(
+		elementByTestId(root.renderer, "checkbox-example").customProps?.[
+			"aria-checked"
+		]
+	).toBe(true);
 
 	clickElement(root.renderer, "palette-light");
 	expect(
@@ -65,6 +71,11 @@ it("switches palette and density independently while preserving demo state", () 
 		densities.comfortable.controlHeight
 	);
 	clickElement(root.renderer, "reset-count");
+	expect(
+		elementByTestId(root.renderer, "checkbox-example").customProps?.[
+			"aria-checked"
+		]
+	).toBe(true);
 	expect(root.renderer.getPaintedText()).toContain("Activated 0 times");
 });
 

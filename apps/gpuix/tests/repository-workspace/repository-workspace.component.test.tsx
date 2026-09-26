@@ -1,5 +1,5 @@
 /**
- * Covers: integrated workspace geometry, view/row selection, keyboard, scrolling, tab isolation and dragging.
+ * Covers: workspace geometry, unified file list, commit inclusion, view/row selection, keyboard, scrolling, tab isolation and dragging.
  * Real: App, view pills, GPUIX layout, hit testing, focus and accessibility.
  * Doubles: sample repository data; focus notification for inactive offscreen windows.
  * Requires: patched GPUIX native test renderer with macOS graphics access.
@@ -11,6 +11,7 @@ import { createTestRoot, type TestRoot } from "@gpuix/react/testing";
 
 import { App } from "../../src/app";
 import { windowOptions } from "../../src/window-options";
+import { sampleEntries } from "../../src/feature/repository-workspace/lib/sample-workspace";
 
 let root: TestRoot;
 
@@ -63,9 +64,111 @@ const key = (testId: string, value: string): void => {
 const scrollY = () =>
 	root.renderer.getScrollOffset(element("repository-list").id)?.[1] ?? 0;
 
+const checked = (testId: string) =>
+	element(testId).customProps?.["aria-checked"];
+
+it("shows one filename-first list with aligned checkboxes instead of groups or line counts", () => {
+	expect(root.renderer.findByTestId("group-Staged")).toBeUndefined();
+	expect(root.renderer.findByTestId("group-Unstaged")).toBeUndefined();
+	expect(root.renderer.findByTestId("changes-summary")).toBeUndefined();
+	expect(root.renderer.getAllText()).toContain("30 of 30 selected");
+	expect(checked("include-all")).toBe(true);
+	expect(bounds("include-src/app.tsx").x).toBe(
+		bounds("include-src/styles/tokens.ts").x
+	);
+	expect(bounds("include-all").x).toBe(bounds("include-src/app.tsx").x);
+	expect(element("directory-src/app.tsx").style.color).toBe(
+		lightColors.editorFaint
+	);
+	expect(element("status-src/app.tsx").style.color).toBe(lightColors.brand);
+	expect(root.renderer.findByTestId("directory-README.md")).toBeUndefined();
+	expect(
+		element("filename-src/assets/legacy-icon.svg").style.textDecoration
+	).toBe("line-through");
+
+	for (const entry of sampleEntries.changes)
+		expect(checked(`include-${entry.id}`)).toBe(true);
+});
+
+it("toggles inclusion without selecting a file and derives the all/none/mixed header", () => {
+	click("include-src/app.tsx");
+	expect(selected()).toEqual([]);
+	expect(checked("include-src/app.tsx")).toBe(false);
+	expect(checked("include-all")).toBe("mixed");
+	expect(root.renderer.getAllText()).toContain("29 of 30 selected");
+	click("entry-src/styles/tokens.ts");
+	expect(selected()).toEqual(["src/styles/tokens.ts, added"]);
+	expect(checked("include-src/styles/tokens.ts")).toBe(true);
+	click("include-src/app.tsx");
+	expect(selected()).toEqual(["src/styles/tokens.ts, added"]);
+	expect(checked("include-all")).toBe(true);
+	click("include-all");
+	expect(root.renderer.getAllText()).toContain("0 of 30 selected");
+	click("include-src/app.tsx");
+	expect(checked("include-all")).toBe("mixed");
+	click("include-all");
+	expect(root.renderer.getAllText()).toContain("30 of 30 selected");
+	expect(selected()).toEqual(["src/styles/tokens.ts, added"]);
+});
+
+it("keeps inclusion through view changes and reorders, isolates tabs, and resets new workspaces", () => {
+	click("include-src/app.tsx");
+	changeView("history");
+	changeView("changes");
+	expect(checked("include-src/app.tsx")).toBe(false);
+	click("workspace-2");
+	expect(checked("include-src/app.tsx")).toBe(true);
+	click("workspace-1");
+	key("workspace-1", "shift-right");
+	expect(checked("include-src/app.tsx")).toBe(false);
+	click("close-workspace-1");
+	click("add-workspace");
+	expect(checked("include-src/app.tsx")).toBe(true);
+});
+
+it("uses Space on the focused checkbox without changing the viewed file", () => {
+	click("entry-src/app.tsx");
+	key("entry-src/app.tsx", "tab");
+	expect(root.renderer.getFocusedElementId()).toBe(
+		element("include-src/app.tsx").id
+	);
+	key("include-src/app.tsx", "space");
+	expect(checked("include-src/app.tsx")).toBe(true);
+	root.renderer.nativeSimulateKeyUp(element("include-src/app.tsx").id, "space");
+	root.renderer.flush();
+	expect(checked("include-src/app.tsx")).toBe(false);
+	expect(selected()).toEqual(["src/app.tsx, modified"]);
+	key("include-src/app.tsx", "down");
+	expect(selected()).toEqual(["src/styles/tokens.ts, added"]);
+	key("entry-src/styles/tokens.ts", "end");
+	key("entry-tsconfig.json", "tab");
+	expect(root.renderer.getFocusedElementId()).toBe(
+		element("include-tsconfig.json").id
+	);
+	expect(scrollY()).toBeLessThan(0);
+});
+
+it("exposes checked, unchecked and mixed state through the patched native accessibility bridge", () => {
+	const state = () =>
+		Object.values(root.renderer.getA11yTree().nodes ?? {}).find(
+			(node) => node.aria?.label === "Include all changed files in commit"
+		)?.aria;
+
+	expect(state()).toMatchObject({ role: "CheckBox", toggled: "True" });
+	click("include-src/app.tsx");
+	expect(state()).toMatchObject({ toggled: "Mixed" });
+	click("include-all");
+	click("include-all");
+	expect(state()).toMatchObject({ toggled: "False" });
+});
+
 const selected = () =>
 	Object.values(root.renderer.getA11yTree().nodes ?? {})
-		.filter((node) => node.aria?.role === "ListBoxOption" && node.aria.selected)
+		.filter(
+			(node) =>
+				["ListBoxOption", "GridCell"].includes(node.aria?.role ?? "") &&
+				node.aria?.selected
+		)
 		.map((node) => node.aria?.label);
 
 const selectedView = () =>
@@ -199,7 +302,7 @@ it("keeps the full-width tab rail above navigation contained in the rounded work
 
 it("selects file rows by pointer and keyboard, exposing selection and a truthful empty diff", () => {
 	click("entry-src/app.tsx");
-	expect(element("entry-src/app.tsx").style.backgroundColor).toBe(
+	expect(element("row-src/app.tsx").style.backgroundColor).toBe(
 		lightColors.editorSunken2
 	);
 	expect(selected()).toEqual(["src/app.tsx, modified"]);
@@ -286,7 +389,7 @@ it("preserves wheel scrolling without a selection and isolates tab state", () =>
 	click("workspace-1");
 	expect(scrollY()).toBe(savedY);
 	expect(selected()).toEqual([]);
-	expect(root.renderer.getAllText()).toContain("Working tree");
+	expect(root.renderer.getAllText()).toContain("30 of 30 selected");
 	click("workspace-2");
 	expect(selected()).toEqual(["Keep workspace selection per tab"]);
 	expect(root.renderer.getAllText()).toContain("Recent commits");
@@ -306,7 +409,7 @@ it("supports arrow-key pill selection and entry/exit with Tab", () => {
 	flushSync(() =>
 		handleGpuixEvent({ elementId: row.id, eventType: "focus" }, root.renderer)
 	);
-	expect(element("entry-commit-1").style.borderColor).toBe(lightColors.brand);
+	expect(element("row-commit-1").style.borderColor).toBe(lightColors.brand);
 	root.renderer.simulateKeystrokes("tab");
 	root.renderer.flush();
 	expect(root.renderer.getFocusedElementId()).toBe(element("workspace-1").id);
@@ -318,6 +421,8 @@ it("reveals the remembered row when keyboard focus returns after scrolling it of
 	root.renderer.flush();
 	expect(scrollY()).toBe(0);
 	key("view-changes", "tab");
+	expect(root.renderer.getFocusedElementId()).toBe(element("include-all").id);
+	key("include-all", "tab");
 	const row = element("entry-tsconfig.json");
 
 	expect(root.renderer.getFocusedElementId()).toBe(row.id);

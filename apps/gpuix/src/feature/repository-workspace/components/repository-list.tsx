@@ -1,11 +1,12 @@
 import { lightColors } from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
+import { Checkbox } from "@1git/gpuix-ui/checkbox";
 import {
 	useGpuixRequired,
 	type EventPayload,
 	type PublicInstance,
 } from "@gpuix/react";
-import { Fragment, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
 	RepositoryWorkspaceModel,
@@ -17,8 +18,10 @@ import {
 	type RepositoryView,
 	type WorkspaceEntry,
 } from "../lib/sample-workspace";
+import { RepositoryChangeLabel } from "./repository-change-details";
+import { appTokens } from "../../../styles/tokens";
 
-const fileRowHeight = 30;
+const fileRowHeight = 28;
 const revisionRowHeight = 48;
 
 const styles = StyleSheet.create({
@@ -34,16 +37,6 @@ const styles = StyleSheet.create({
 		paddingLeft: 6,
 		paddingRight: 6,
 		paddingBottom: 6,
-	},
-	group: {
-		display: "flex",
-		flexDirection: "row",
-		alignItems: "center",
-		justifyContent: "space-between",
-		height: 30,
-		paddingLeft: 8,
-		paddingRight: 8,
-		flexShrink: 0,
 	},
 	row: {
 		display: "flex",
@@ -75,24 +68,12 @@ const styles = StyleSheet.create({
 		textOverflow: "ellipsis",
 		pointerEvents: "none",
 	},
-	muted: {
-		fontSize: 10,
-		color: lightColors.editorMuted,
-		pointerEvents: "none",
-	},
 	detail: {
 		fontSize: 9,
 		color: lightColors.editorFaint,
 		whiteSpace: "nowrap",
 		textOverflow: "ellipsis",
 		overflowX: "hidden",
-		pointerEvents: "none",
-	},
-	status: {
-		width: 12,
-		flexShrink: 0,
-		fontSize: 10,
-		fontWeight: 500,
 		pointerEvents: "none",
 	},
 });
@@ -105,6 +86,8 @@ function RepositoryRow({
 	onSelect,
 	onKeyDown,
 	onReveal,
+	included,
+	onInclude,
 }: {
 	entry: WorkspaceEntry;
 	selected: boolean;
@@ -113,91 +96,100 @@ function RepositoryRow({
 	onSelect: () => void;
 	onKeyDown: (event: EventPayload) => void;
 	onReveal: () => void;
+	included: boolean;
+	onInclude: (included: boolean) => void;
 }) {
 	const [focused, setFocused] = useState(false);
 	const [keyboard, setKeyboard] = useState(true);
-
-	const statusColor =
-		entry.status === "A"
-			? "#1a7f37"
-			: entry.status === "D"
-				? "#cf222e"
-				: "#9a6700";
+	const [hovered, setHovered] = useState(false);
 
 	return (
 		<div
-			ref={rowRef}
-			testId={`entry-${entry.id}`}
-			role="option"
-			aria-label={
-				entry.status
-					? `${entry.title}, ${entry.status === "A" ? "added" : entry.status === "D" ? "deleted" : "modified"}`
-					: entry.title
-			}
-			aria-selected={selected}
-			tabIndex={tabbable ? 0 : -1}
-			onMouseDown={() => setKeyboard(false)}
-			onClick={onSelect}
-			onFocus={() => {
-				setFocused(true);
-				onReveal();
-			}}
-			onBlur={() => {
-				setFocused(false);
-				setKeyboard(true);
-			}}
-			onKeyDown={(event) => {
-				setKeyboard(true);
-				onKeyDown(event);
-			}}
+			role={entry.status ? "row" : "presentation"}
+			testId={`row-${entry.id}`}
 			style={StyleSheet.compose(
 				styles.row,
+				!!entry.status && { borderRadius: 4, paddingRight: 4, gap: 4 },
 				!!entry.detail && { height: revisionRowHeight },
+				hovered && { backgroundColor: lightColors.editorHairline },
 				selected && styles.selected,
 				focused && keyboard && styles.focused
 			)}
 		>
-			{entry.status ? (
-				<text style={StyleSheet.compose(styles.status, { color: statusColor })}>
-					{entry.status}
-				</text>
-			) : null}
 			<div
+				ref={rowRef}
+				testId={`entry-${entry.id}`}
+				role={entry.status ? "gridcell" : "option"}
+				aria-label={
+					entry.status
+						? `${entry.title}, ${entry.status === "A" ? "added" : entry.status === "D" ? "deleted" : "modified"}`
+						: entry.title
+				}
+				aria-selected={selected}
+				tabIndex={tabbable ? 0 : -1}
+				onMouseDown={() => setKeyboard(false)}
+				onClick={onSelect}
+				onMouseEnter={() => setHovered(true)}
+				onMouseLeave={() => setHovered(false)}
+				onFocus={() => {
+					setFocused(true);
+					onReveal();
+				}}
+				onBlur={() => {
+					setFocused(false);
+					setKeyboard(true);
+				}}
+				onKeyDown={(event) => {
+					setKeyboard(true);
+					onKeyDown(event);
+				}}
 				style={{
 					display: "flex",
-					flexDirection: "column",
+					flexDirection: "row",
+					alignItems: "center",
 					flexGrow: 1,
 					minWidth: 0,
-					gap: 4,
-					pointerEvents: "none",
+					height: "100%",
 				}}
 			>
-				<text style={styles.label}>{entry.title}</text>
-				{entry.detail ? (
-					<text style={styles.detail}>{entry.detail}</text>
-				) : null}
+				{entry.status ? (
+					<RepositoryChangeLabel entry={entry} />
+				) : (
+					<div
+						style={{
+							display: "flex",
+							flexDirection: "column",
+							flexGrow: 1,
+							minWidth: 0,
+							gap: 4,
+							pointerEvents: "none",
+						}}
+					>
+						<text style={styles.label}>{entry.title}</text>
+						{entry.detail ? (
+							<text style={styles.detail}>{entry.detail}</text>
+						) : null}
+					</div>
+				)}
 			</div>
-			{entry.added !== undefined ? (
-				<text
-					style={{
-						fontSize: 9,
-						color: "#1a7f37",
-						width: 26,
-						textAlign: "right",
-						pointerEvents: "none",
-					}}
-				>{`+${entry.added}`}</text>
-			) : null}
-			{entry.deleted !== undefined ? (
-				<text
-					style={{
-						fontSize: 9,
-						color: "#cf222e",
-						width: 22,
-						textAlign: "right",
-						pointerEvents: "none",
-					}}
-				>{`−${entry.deleted}`}</text>
+			{entry.status ? (
+				<div role="gridcell" style={{ flexShrink: 0 }}>
+					<Checkbox
+						testId={`include-${entry.id}`}
+						aria-label={`Include ${entry.title} in commit`}
+						checked={included}
+						onCheckedChange={onInclude}
+						tokens={appTokens}
+						tabIndex={tabbable ? 0 : -1}
+						onFocus={onReveal}
+						onMouseEnter={() => setHovered(true)}
+						onMouseLeave={() => setHovered(false)}
+						onKeyDown={(event) => {
+							if (event.key !== "space" && event.key !== "enter")
+								onKeyDown(event);
+						}}
+					/>
+				</div>
 			) : null}
 		</div>
 	);
@@ -207,10 +199,12 @@ function RepositoryRow({
 export function RepositoryList({
 	view,
 	state,
+	includedFileIds,
 	onAction,
 }: {
 	view: RepositoryView;
 	state: RepositoryWorkspaceState["views"][RepositoryView];
+	includedFileIds: readonly string[];
 	onAction: (action: RepositoryWorkspaceAction) => void;
 }) {
 	const renderer = useGpuixRequired();
@@ -218,7 +212,8 @@ export function RepositoryList({
 	const rows = useRef(new Map<string, PublicInstance>());
 	const initialScroll = useRef(state.scrollY);
 	const entries = sampleEntries[view];
-	const focusId = state.selectedId ?? entries[0]?.id;
+
+	const [focusId, setFocusId] = useState(state.selectedId ?? entries[0]?.id);
 
 	useEffect(() => {
 		if (viewport.current)
@@ -233,11 +228,10 @@ export function RepositoryList({
 		onAction({ type: "scroll", view, y });
 	};
 
-	const revealRow = (id: string): void => {
-		const row = rows.current.get(id);
+	const reveal = (row: PublicInstance): void => {
 		const node = viewport.current;
 		const box = node && renderer.getElementBounds?.(node.id);
-		const target = row && renderer.getElementBounds?.(row.id);
+		const target = renderer.getElementBounds?.(row.id);
 
 		if (!node || !box || !target) return;
 
@@ -254,12 +248,19 @@ export function RepositoryList({
 		saveScroll();
 	};
 
+	const revealRow = (id: string): void => {
+		const row = rows.current.get(id);
+
+		if (row) reveal(row);
+	};
+
 	const select = (id: string, reveal: boolean): void => {
 		const row = rows.current.get(id);
 
 		if (!row) return;
 
 		onAction({ type: "select", view, id });
+		setFocusId(id);
 		renderer.focusElement?.(row.id);
 
 		if (reveal) revealRow(id);
@@ -302,7 +303,7 @@ export function RepositoryList({
 		<div
 			ref={viewport}
 			testId="repository-list"
-			role="listbox"
+			role={view === "changes" ? "grid" : "listbox"}
 			aria-label={
 				view === "changes"
 					? "Changed files"
@@ -314,29 +315,27 @@ export function RepositoryList({
 			style={styles.viewport}
 		>
 			<div style={styles.list}>
-				{entries.map((entry, index) => (
-					<Fragment key={entry.id}>
-						{entry.group && entry.group !== entries[index - 1]?.group ? (
-							<div style={styles.group}>
-								<text style={styles.muted}>{entry.group}</text>
-								<text style={styles.detail}>
-									{entries.filter((item) => item.group === entry.group).length}
-								</text>
-							</div>
-						) : null}
-						<RepositoryRow
-							entry={entry}
-							selected={state.selectedId === entry.id}
-							tabbable={focusId === entry.id}
-							rowRef={(node) => {
-								if (node) rows.current.set(entry.id, node);
-								else rows.current.delete(entry.id);
-							}}
-							onSelect={() => select(entry.id, false)}
-							onReveal={() => revealRow(entry.id)}
-							onKeyDown={(event) => navigate(entry.id, event)}
-						/>
-					</Fragment>
+				{entries.map((entry) => (
+					<RepositoryRow
+						key={entry.id}
+						entry={entry}
+						selected={state.selectedId === entry.id}
+						included={includedFileIds.includes(entry.id)}
+						onInclude={(included) =>
+							onAction({ type: "include-file", id: entry.id, included })
+						}
+						tabbable={focusId === entry.id}
+						rowRef={(node) => {
+							if (node) rows.current.set(entry.id, node);
+							else rows.current.delete(entry.id);
+						}}
+						onSelect={() => select(entry.id, false)}
+						onReveal={() => {
+							setFocusId(entry.id);
+							revealRow(entry.id);
+						}}
+						onKeyDown={(event) => navigate(entry.id, event)}
+					/>
 				))}
 			</div>
 		</div>

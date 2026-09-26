@@ -1,5 +1,6 @@
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { Button } from "@1git/gpuix-ui/button";
+import { Checkbox, type CheckboxState } from "@1git/gpuix-ui/checkbox";
 import {
 	Select,
 	SelectContent,
@@ -109,6 +110,7 @@ export function ExampleApp() {
 	const [density, setDensity] = useState<keyof typeof densities>("comfortable");
 	const [presses, setPresses] = useState(0);
 	const [branch, setBranch] = useState("main");
+	const [included, setIncluded] = useState<CheckboxState>("indeterminate");
 
 	const tokens: UiTokens = {
 		colors: palettes[palette],
@@ -221,6 +223,28 @@ export function ExampleApp() {
 					<Text tokens={tokens} testId="press-count" tone="muted" size="sm">
 						Activated {presses} times
 					</Text>
+					<Text tokens={tokens} weight="semibold">
+						Checkbox
+					</Text>
+					<div style={styles.row(tokens)}>
+						<Checkbox
+							testId="checkbox-example"
+							aria-label="Include changes"
+							checked={included}
+							onCheckedChange={setIncluded}
+							tokens={tokens}
+						/>
+						<Text tokens={tokens} size="sm">
+							Include changes
+						</Text>
+						<Checkbox
+							aria-label="Unavailable inclusion"
+							checked={false}
+							onCheckedChange={() => {}}
+							disabled
+							tokens={tokens}
+						/>
+					</div>
 				</div>
 				<div style={styles.panel(tokens)}>
 					<Text tokens={tokens} weight="semibold">

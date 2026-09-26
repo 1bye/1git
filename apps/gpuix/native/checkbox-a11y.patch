@@ -1,0 +1,19 @@
+diff --git a/packages/native/src/accessibility.rs b/packages/native/src/accessibility.rs
+--- a/packages/native/src/accessibility.rs
++++ b/packages/native/src/accessibility.rs
+@@ -54,6 +54,15 @@ where
+     if let Some(selected) = bool_prop(props, "aria-selected") {
+         el = el.aria_selected(selected);
+     }
++    let checked = match props.get("aria-checked") {
++        Some(serde_json::Value::Bool(true)) => Some(gpui::Toggled::True),
++        Some(serde_json::Value::Bool(false)) => Some(gpui::Toggled::False),
++        Some(serde_json::Value::String(value)) if value == "mixed" => Some(gpui::Toggled::Mixed),
++        _ => None,
++    };
++    if let Some(checked) = checked {
++        el = el.aria_toggled(checked);
++    }
+     if let Some(level) = usize_prop(props, "aria-level") {
+         el = el.aria_level(level);
+     }

@@ -6,10 +6,7 @@ export interface WorkspaceEntry {
 	readonly id: string;
 	readonly title: string;
 	readonly detail?: string;
-	readonly group?: string;
 	readonly status?: "M" | "A" | "D";
-	readonly added?: number;
-	readonly deleted?: number;
 }
 
 /** Reuses the desktop's three views without exposing unfinished Git commands. */
@@ -71,10 +68,7 @@ export const sampleEntries: Readonly<
 	changes: paths.map((path, index) => ({
 		id: path,
 		title: path,
-		group: index < 5 ? "Staged" : "Unstaged",
 		status: index === 19 ? "D" : index % 4 === 1 ? "A" : "M",
-		added: index === 19 ? 0 : index * 3 + 2,
-		deleted: index % 4 === 1 ? 0 : index + 1,
 	})),
 	history: Array.from({ length: 24 }, (_, index) => ({
 		id: `commit-${index + 1}`,

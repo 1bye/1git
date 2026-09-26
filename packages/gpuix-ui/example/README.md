@@ -21,6 +21,8 @@ with native graphics access.
 - Activate all Button variants in small and medium sizes. Watch the counter,
   try the disabled button, and reset the counter.
 - Compare Text sizes, weights, and tones.
+- Toggle the mixed Checkbox to checked and unchecked; compare the disabled one.
+  Checkbox state survives palette and density changes.
 - Use the controlled branch Select, the uncontrolled placeholder Select, and
   the disabled Select. The archived option is disabled in each dropdown.
 - Use Tab / Shift+Tab to focus, Enter / Space to activate, arrow keys to navigate

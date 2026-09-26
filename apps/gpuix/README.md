@@ -4,6 +4,7 @@ Native workspace shell, replacing the earlier component showcase. The showcase
 is still available in `packages/gpuix-ui/example`.
 
 ```sh
+bun install
 bun run --cwd apps/gpuix build:native
 bun run --cwd apps/gpuix dev
 ```
@@ -14,7 +15,7 @@ traffic lights, with a translucent light tint and an opaque white workspace.
 The connected tab silhouette keeps its shape while moving; it does not port
 the desktop's liquid shape-morphing machinery.
 
-## Local native patch
+## Local native patches
 
 The app currently requires Apple Silicon macOS, Rust **1.97.1**, and Xcode
 with its Metal toolchain. The first `build:native` downloads and compiles
@@ -31,10 +32,15 @@ zooms. JavaScript callbacks cannot reliably retain AppKit's current event.
 Empty titlebar space and the upper gutter are drag regions; tab and close
 targets are separate. Window movability and native tiling remain enabled.
 
-The published dependencies are unchanged. `native/preload.ts` selects the
+`native/checkbox-a11y.patch` maps `aria-checked` to GPUI's existing
+checked/unchecked/mixed accessibility state. The root Bun patch in
+`patches/@gpuix%2Fnative@0.10.0.patch` adds that prop to the published JavaScript
+bridge and TypeScript host contract; `bun install` reapplies it reproducibly.
+Dependency versions stay pinned. `native/preload.ts` selects the
 release addon through `NAPI_RS_NATIVE_LIBRARY_PATH` before GPUIX loads.
-Source, build outputs, and the patch fingerprint live in ignored `.cache/`;
-there is no public fork, committed binary, or `node_modules` modification.
+Native source, build outputs, and the patch fingerprint live in ignored `.cache/`;
+there is no public fork or committed binary. Both Rust patches participate in
+the build fingerprint and are applied independently.
 Missing/stale builds fail with a rebuild command, not an unpatched fallback.
 Restart `dev` after a native rebuild: hot reload cannot unload a native addon.
 The root Turbo dev task builds the addon first; direct app commands require
@@ -119,17 +125,24 @@ pills and lists beside the diff panel. A hairline divider separates navigation
 within the same white surface without taking width away from the tab rail. The native app
 reuses the desktop's color tokens and Phosphor Light icons.
 
-- Changes shows 30 sample files grouped into Staged and Unstaged, with status
-  letters and addition/deletion counts. These are display-only, not staging controls.
+- Changes shows one list of 30 sample files, all initially included in the planned
+  commit. Compact rows prioritize filenames over muted paths, with status icons,
+  struck-through deleted filenames, and right-aligned inclusion checkboxes.
+- Clicking a filename selects its diff; clicking a checkbox only changes inclusion.
+  The header shows “N of 30 selected” and an all/none/mixed checkbox. Activating
+  the mixed state includes all files. Unchecking never discards a file's changes.
 - History shows sample commit summaries; Stashes shows sample saved work.
 - Click a row to select it. Up/Down, Home/End, and Page Up/Down navigate and
   reveal rows. Enter/Space select a focused row. Tab/Shift+Tab move between the
-  active view pill, the list's single keyboard stop, and workspace tab controls.
+  active view pill, include-all checkbox, focused file and its checkbox, and
+  workspace tab controls. Space releases toggle a focused checkbox without
+  changing the viewed file. Arrow navigation from a checkbox returns to file
+  navigation; offscreen keyboard targets are revealed.
 - Three rounded pills switch views directly. Left/Right wrap between them;
   Home/End select the first/last. Enter/Space activate the focused pill. Only the
   active pill is in the Tab order, with a keyboard-only focus outline.
   Mouse wheel/trackpad scroll the list independently of tabs.
-- Every tab keeps its view, each view's selected row, and each view's scroll
+- Every tab keeps its included files, view, each view's selected row, and scroll
   offset. Reordering preserves that state; closing a tab discards it. New tabs
   start fresh. Nothing is persisted across restarts.
 - Selection updates the diff header; the panel explicitly remains an empty
@@ -150,7 +163,8 @@ Tests include pure tab transitions and real GPUIX native layout, accessibility,
 clicks, keyboard focus, captured reordering, cancellation, and overflow. The
 native motion clock also checks intermediate positions, settling, reversal,
 and grabbing a moving tab without a jump. Workspace tests cover navigation/diff
-geometry, all three views, row selection, keyboard reveal, wheel scrolling,
+geometry, all three views, inclusion independent of diff selection, select-all/mixed
+state, native checkbox accessibility, row selection, keyboard reveal, wheel scrolling,
 per-tab restoration, closing/reopening, and dragging in the full-width strip. These
 app tests use the patched addon and require macOS graphics access. They dispatch
 GPUI events, not physical AppKit events: manually check that tab drags keep the

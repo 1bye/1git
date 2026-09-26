@@ -1,5 +1,5 @@
 /**
- * Covers: per-view/per-tab selection and scroll, lifecycle cleanup, and keyboard destinations.
+ * Covers: per-view/per-tab selection and scroll, commit inclusion, lifecycle cleanup, and keyboard destinations.
  * Real: workspace and tab models.
  * Doubles: display-only sample data.
  * Requires: none.
@@ -9,6 +9,49 @@ import { expect, it } from "bun:test";
 import { RepositoryWorkspaceModel as Model } from "../../src/feature/repository-workspace/lib/repository-workspace-model";
 import { sampleEntries } from "../../src/feature/repository-workspace/lib/sample-workspace";
 import { WorkspaceTabsModel as Tabs } from "../../src/feature/workspace-tabs/lib/workspace-tabs-model";
+
+it("includes every changed file initially and changes inclusion independently of viewed files", () => {
+	const initial = Model.create();
+
+	const state = Model.reduce(initial, {
+		type: "include-file",
+		id: "src/app.tsx",
+		included: false,
+	});
+
+	expect(initial.includedFileIds).toEqual(
+		sampleEntries.changes.map((entry) => entry.id)
+	);
+	expect(state.includedFileIds).toHaveLength(29);
+	expect(state.includedFileIds).not.toContain("src/app.tsx");
+	expect(state.views).toBe(initial.views);
+	expect(
+		Model.reduce(state, { type: "include-file", id: "missing", included: true })
+	).toBe(state);
+	expect(
+		Model.reduce(state, {
+			type: "include-file",
+			id: "src/app.tsx",
+			included: false,
+		})
+	).toBe(state);
+	expect(
+		Model.reduce(state, { type: "include-all", included: true }).includedFileIds
+	).toEqual(initial.includedFileIds);
+	const empty = Model.reduce(state, { type: "include-all", included: false });
+
+	expect(empty.includedFileIds).toEqual([]);
+	expect(Model.reduce(empty, { type: "include-all", included: false })).toBe(
+		empty
+	);
+	expect(
+		Model.reduce(empty, {
+			type: "include-file",
+			id: "src/app.tsx",
+			included: true,
+		}).includedFileIds
+	).toEqual(["src/app.tsx"]);
+});
 
 it("remembers independent view selections and offsets without mutating the previous state", () => {
 	const initial = Model.create();
@@ -33,7 +76,10 @@ it("remembers independent view selections and offsets without mutating the previ
 	});
 	expect(state.views.history.selectedId).toBe("commit-2");
 	expect(state.views.stashes.selectedId).toBeNull();
-	expect(initial.views.changes).toEqual({ selectedId: null, scrollY: 0 });
+	expect(initial.views.changes).toEqual({
+		selectedId: null,
+		scrollY: 0,
+	});
 	expect(Model.create().views).not.toBe(initial.views);
 });
 
