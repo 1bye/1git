@@ -1,3 +1,9 @@
+/**
+ * Covers: branch tracking destinations, tags and stash record parsing.
+ * Real: Git output parsers.
+ * Doubles: explicit NUL-delimited Git output strings.
+ * Requires: none.
+ */
 import { describe, expect, test } from "bun:test";
 
 import { parseBranches, parseStashes, parseTags } from "../src/parsers/refs.js";
@@ -93,6 +99,30 @@ describe("parseBranches", () => {
 
 		expect(branches.branches[0]?.ahead).toBe(7);
 		expect(branches.branches[0]?.behind).toBe(0);
+	});
+
+	test("keeps the configured remote and full ref independent of the display label", () => {
+		const branches = parseBranches(
+			record([
+				"refs/heads/topic/ui",
+				"topic/ui",
+				OID_A,
+				"*",
+				"custom/tracking/ui",
+				"ahead 1",
+				"",
+				"",
+				"/repo",
+				"team/upstream",
+				"refs/heads/release/ui",
+			])
+		);
+
+		expect(branches.branches[0]).toMatchObject({
+			upstream: "custom/tracking/ui",
+			upstreamRemote: "team/upstream",
+			upstreamRef: "refs/heads/release/ui",
+		});
 	});
 
 	test("parses remote-tracking branch ownership", () => {

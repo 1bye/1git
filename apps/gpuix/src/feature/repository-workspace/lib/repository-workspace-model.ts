@@ -44,9 +44,10 @@ export interface RepositoryRevisionState extends RepositoryListState {
 export interface RepositoryWorkspaceState {
 	readonly preview: boolean;
 	readonly branchPending: boolean;
-	readonly fetch: {
-		readonly pending: boolean;
+	readonly sync: {
+		readonly pending: "fetch" | "pull" | "push" | "publish" | null;
 		readonly error: string | null;
+		readonly notice: string | null;
 		readonly fetchedAt: number | null;
 		readonly version: number;
 	};
@@ -91,13 +92,17 @@ export interface RepositoryWorkspaceState {
 
 /** Presentation transitions; no filesystem, Git mutations, or persistent storage effects. */
 export type RepositoryWorkspaceAction =
-	| { type: "fetch-started" }
 	| {
-			type: "fetch-finished";
+			type: "sync-started";
+			kind: NonNullable<RepositoryWorkspaceState["sync"]["pending"]>;
+	  }
+	| {
+			type: "sync-finished";
 			snapshot?: RepositorySnapshot;
 			error: string | null;
 			fetchedAt: number | null;
 			refreshError?: string;
+			notice?: string;
 	  }
 	| { type: "branch-started" }
 	| { type: "branch-finished"; snapshot?: RepositorySnapshot; error?: string }
@@ -177,7 +182,13 @@ export class RepositoryWorkspaceModel {
 		return {
 			preview,
 			branchPending: false,
-			fetch: { pending: false, error: null, fetchedAt: null, version: 0 },
+			sync: {
+				pending: null,
+				error: null,
+				notice: null,
+				fetchedAt: null,
+				version: 0,
+			},
 			entries,
 			repository: null,
 			commit: { pending: false, error: null, notice: null, needsReview: false },
@@ -261,28 +272,36 @@ export class RepositoryWorkspaceModel {
 	}
 
 	static isBusy(state: RepositoryWorkspaceState): boolean {
-		return state.commit.pending || state.branchPending || state.fetch.pending;
+		return (
+			state.commit.pending || state.branchPending || state.sync.pending !== null
+		);
 	}
 
 	static reduce(
 		state: RepositoryWorkspaceState,
 		action: RepositoryWorkspaceAction
 	): RepositoryWorkspaceState {
-		if (action.type === "fetch-started")
+		if (action.type === "sync-started")
 			return {
 				...state,
 				loading: false,
-				fetch: { ...state.fetch, pending: true, error: null },
+				sync: {
+					...state.sync,
+					pending: action.kind,
+					error: null,
+					notice: null,
+				},
 			};
 
-		if (action.type === "fetch-finished") {
+		if (action.type === "sync-finished") {
 			const next = {
 				...state,
-				fetch: {
-					pending: false,
+				sync: {
+					pending: null,
 					error: action.error,
-					fetchedAt: action.fetchedAt ?? state.fetch.fetchedAt,
-					version: state.fetch.version + 1,
+					notice: action.notice ?? null,
+					fetchedAt: action.fetchedAt ?? state.sync.fetchedAt,
+					version: state.sync.version + 1,
 				},
 			};
 
@@ -617,9 +636,15 @@ export class RepositoryWorkspaceModel {
 				loading: false,
 				error: null,
 				watchError: sameRepository ? state.watchError : null,
-				fetch: sameRepository
-					? state.fetch
-					: { pending: false, error: null, fetchedAt: null, version: 0 },
+				sync: sameRepository
+					? state.sync
+					: {
+							pending: null,
+							error: null,
+							notice: null,
+							fetchedAt: null,
+							version: 0,
+						},
 				repository: {
 					root: snapshot.repository.root,
 					gitDirectory: snapshot.repository.gitDirectory,

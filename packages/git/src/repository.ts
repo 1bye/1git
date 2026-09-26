@@ -68,6 +68,7 @@ import type {
 	StashInput,
 	StashReferenceInput,
 	SyncResult,
+	SyncBranchInput,
 	TagInfo,
 	UndoDiscardInput,
 	UnsetConfigInput,
@@ -76,6 +77,7 @@ import type {
 } from "./contracts.js";
 import { selectHunkPatch } from "./hunk-patch.js";
 import { SelectedCommit } from "./selected-commit.js";
+import { BranchSync } from "./branch-sync.js";
 import type { RepositoryContext } from "./internal.js";
 import {
 	GitCommandFailure,
@@ -1626,6 +1628,15 @@ export class GitRepository {
 
 			return await syncResult(this.context, "push", remote, input.signal);
 		});
+	}
+
+	/** Synchronizes exactly the reviewed branch, with fresh identity and destination checks. */
+	async syncBranch(input: SyncBranchInput): Promise<GitResult<SyncResult>> {
+		return await this.mutate(
+			input.kind === "pull" ? "pull" : "push",
+			input.signal,
+			async () => await BranchSync.run(this.context, input)
+		);
 	}
 
 	/** Saves working changes to a new stash entry. */

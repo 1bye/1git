@@ -1,16 +1,52 @@
-import { GitRepository, type GitResult, type SyncResult } from "@1git/git";
+import {
+	GitRepository,
+	type GitResult,
+	type SyncResult,
+	type SyncBranchInput,
+} from "@1git/git";
 
-const fetchTimeoutMs = 120_000;
+const syncTimeoutMs = 120_000;
 
-/** Explicit, cancellable fetches using existing Git credentials; never integrates or publishes commits. */
+/** A menu-selected destination; the window adds the reviewed local branch identity. */
+export type SyncChoice = Pick<SyncBranchInput, "kind" | "remote" | "remoteRef">;
+export type SyncKind = "fetch" | SyncChoice["kind"];
+
+/** Explicit, bounded synchronization using existing Git credentials and guarded branch operations. */
 export class RepositorySync {
 	private constructor() {}
+
+	static async write(
+		root: string,
+		input: Omit<SyncBranchInput, "signal">,
+		signal: AbortSignal
+	): Promise<GitResult<SyncResult>> {
+		const timeout = AbortSignal.timeout(syncTimeoutMs);
+		const request = AbortSignal.any([signal, timeout]);
+		const opened = await GitRepository.open({ path: root, signal: request });
+
+		if (!opened.ok) return opened;
+
+		const result = await opened.value.syncBranch({ ...input, signal: request });
+
+		if (!result.ok && timeout.aborted && !signal.aborted)
+			return {
+				ok: false,
+				error: {
+					...result.error,
+					message:
+						"Synchronization timed out. It may have completed; review status before retrying.",
+					retryable: true,
+				},
+			};
+
+		return result;
+	}
 
 	static async fetch(
 		root: string,
 		signal: AbortSignal
 	): Promise<GitResult<SyncResult>> {
-		const timeout = AbortSignal.timeout(fetchTimeoutMs);
+		const timeout = AbortSignal.timeout(syncTimeoutMs);
 		const request = AbortSignal.any([signal, timeout]);
 		const opened = await GitRepository.open({ path: root, signal: request });
 

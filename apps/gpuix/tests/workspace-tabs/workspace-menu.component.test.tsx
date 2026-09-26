@@ -1,5 +1,5 @@
 /**
- * Covers: branch menus, inline creation, keyboard navigation, worktree tabs, cancellable fetch and shared sync status.
+ * Covers: branch menus, inline creation, keyboard navigation, worktree tabs, cancellable sync and explicit publishing.
  * Real: App, reducers, window-owned mutation coordination, GPUIX layout and events.
  * Doubles: Git boundaries and folder picker, with isolated in-memory repository snapshots.
  * Requires: patched GPUIX renderer and macOS graphics access.
@@ -53,6 +53,8 @@ const collection = () => ({
 			upstream: snapshot.head.upstream,
 			ahead: snapshot.head.ahead,
 			behind: snapshot.head.behind,
+			upstreamRemote: snapshot.head.upstream ? "origin" : null,
+			upstreamRef: snapshot.head.upstream ? "refs/heads/main" : null,
 		},
 		branch("feature/ui"),
 		branch("feature/linked", "/test/linked"),
@@ -113,6 +115,18 @@ const fetchRepository = mock<typeof RepositorySync.fetch>(async () => ({
 	},
 }));
 
+const writeSyncRepository = mock<typeof RepositorySync.write>(
+	async (_root, input) => ({
+		ok: true,
+		value: {
+			operation: input.kind === "pull" ? "pull" : "push",
+			remote: input.remote,
+			branch: snapshot.head.branch,
+			snapshot,
+		},
+	})
+);
+
 beforeEach(() => {
 	snapshot = repositorySnapshot();
 	remotes = [];
@@ -120,6 +134,7 @@ beforeEach(() => {
 	readRepository.mockClear();
 	writeBranch.mockClear();
 	fetchRepository.mockClear();
+	writeSyncRepository.mockClear();
 	root = createTestRoot({
 		width: 980,
 		height: 640,
@@ -177,6 +192,7 @@ const open = async (): Promise<void> => {
 			readBranches={readBranches}
 			writeBranch={writeBranch}
 			fetchRepository={fetchRepository}
+			writeSyncRepository={writeSyncRepository}
 			readDiff={async () => ({ ok: true, value: [] })}
 		/>
 	);
@@ -401,7 +417,7 @@ it("keeps unsafe actions disabled without a persistent explanation or empty foot
 		"Commit or stash changes"
 	);
 	const menuBox = bounds("workspace-menu");
-	const action = bounds("fetch-repository");
+	const action = bounds("push-repository");
 
 	expect(
 		menuBox.y + menuBox.height - action.y - action.height
@@ -607,6 +623,8 @@ it("fetches a dirty repository explicitly and refreshes tracking without losing 
 	expect(fetchRepository).not.toHaveBeenCalled();
 	root.renderer.simulateKeystrokes("up");
 	await settle();
+	root.renderer.simulateKeystrokes("up");
+	await settle();
 	expect(root.renderer.getFocusedElementId()).toBe(
 		element("fetch-repository").id
 	);
@@ -795,4 +813,195 @@ it("reports a failed post-fetch refresh without treating the successful fetch as
 	await menu();
 	expect(root.renderer.findByTestId("branch-notice")).toBeUndefined();
 	expect(root.renderer.getAllText()).toContain("Fetched just now");
+});
+
+it("pulls from the displayed upstream, refreshes HEAD and preserves the commit draft", async () => {
+	remotes = [origin];
+	const previousHead = "a".repeat(40);
+
+	snapshot = {
+		...snapshot,
+		head: {
+			...snapshot.head,
+			oid: previousHead,
+			upstream: "origin/main",
+			behind: 2,
+		},
+	};
+
+	writeSyncRepository.mockImplementationOnce(async (_root, input) => {
+		snapshot = {
+			...snapshot,
+			head: { ...snapshot.head, oid: "b".repeat(40), behind: 0 },
+		};
+
+		return {
+			ok: true,
+			value: {
+				operation: "pull",
+				remote: input.remote,
+				branch: "main",
+				snapshot,
+			},
+		};
+	});
+	await open();
+	click("commit-message");
+	root.renderer.simulateKeystrokes("d r a f t");
+	await menu();
+	expect(root.renderer.getAllText()).toContain("2 behind");
+	click("pull-repository");
+	await settle();
+	await settle();
+	expect(writeSyncRepository.mock.calls[0]?.slice(0, 2)).toEqual([
+		"/test/project",
+		{
+			kind: "pull",
+			remote: "origin",
+			remoteRef: "refs/heads/main",
+			expectedHead: previousHead,
+			expectedBranch: "main",
+		},
+	]);
+	expect(root.renderer.getAllText()).toContain("Pull complete.");
+	expect(root.renderer.getAllText()).not.toContain("2 behind");
+	root.renderer.simulateKeystrokes("escape");
+	await settle();
+	expect(element("commit-message").customProps?.value).toBe("draft");
+});
+
+it("allows Push with dirty files while Pull stays disabled and file inclusion is preserved", async () => {
+	remotes = [origin];
+	snapshot = repositorySnapshot([changedFile("a.ts"), changedFile("b.ts")]);
+	snapshot = {
+		...snapshot,
+		head: { ...snapshot.head, upstream: "origin/main", ahead: 2 },
+	};
+	await open();
+	click("include-b.ts");
+	await menu();
+	click("pull-repository");
+	expect(writeSyncRepository).not.toHaveBeenCalled();
+	root.renderer.simulateKeystrokes("up");
+	await settle();
+	expect(root.renderer.getFocusedElementId()).toBe(
+		element("push-repository").id
+	);
+	root.renderer.simulateKeystrokes("enter");
+	await settle();
+	await settle();
+	expect(writeSyncRepository.mock.calls[0]?.[1]).toMatchObject({
+		kind: "push",
+		remote: "origin",
+		remoteRef: "refs/heads/main",
+	});
+	expect(root.renderer.getAllText()).toContain("Push complete.");
+	root.renderer.simulateKeystrokes("escape");
+	await settle();
+	expect(element("include-b.ts").customProps?.["aria-checked"]).toBe(false);
+});
+
+it("requires choosing and confirming a remote before publishing and supports Escape without writing", async () => {
+	remotes = [origin, { ...origin, name: "upstream" }];
+	await open();
+	await menu();
+	click("push-repository");
+	await settle();
+	expect(element("publish-remotes")).toBeTruthy();
+	click("confirm-publish");
+	expect(writeSyncRepository).not.toHaveBeenCalled();
+	root.renderer.simulateKeystrokes("down");
+	await settle();
+	root.renderer.simulateKeystrokes("down");
+	await settle();
+	root.renderer.simulateKeystrokes("enter");
+	await settle();
+	expect(root.renderer.getAllText()).toContain("Publish to upstream");
+	root.renderer.simulateKeystrokes("escape");
+	await settle();
+	expect(root.renderer.findByTestId("publish-remotes")).toBeUndefined();
+	expect(writeSyncRepository).not.toHaveBeenCalled();
+	click("push-repository");
+	await settle();
+	click("publish-remote-upstream");
+	click("confirm-publish");
+	await settle();
+	await settle();
+	expect(writeSyncRepository).toHaveBeenCalledTimes(1);
+	expect(writeSyncRepository.mock.calls[0]?.[1]).toMatchObject({
+		kind: "publish",
+		remote: "upstream",
+		remoteRef: "refs/heads/main",
+		expectedBranch: "main",
+	});
+	expect(root.renderer.getAllText()).toContain("Branch published.");
+});
+
+it("blocks diverged pulls and detached publication without issuing a write", async () => {
+	remotes = [origin];
+	snapshot = {
+		...snapshot,
+		head: { ...snapshot.head, upstream: "origin/main", ahead: 1, behind: 1 },
+	};
+	await open();
+	await menu();
+	click("pull-repository");
+	expect(root.renderer.getAllText()).toContain("Diverged");
+	expect(writeSyncRepository).not.toHaveBeenCalled();
+	root.renderer.simulateKeystrokes("escape");
+	await settle();
+	snapshot = {
+		...snapshot,
+		head: { ...snapshot.head, branch: null, detached: true, upstream: null },
+	};
+	click("refresh-repository");
+	await settle();
+	await menu();
+	click("push-repository");
+	click("pull-repository");
+	expect(root.renderer.findByTestId("publish-remotes")).toBeUndefined();
+	expect(writeSyncRepository).not.toHaveBeenCalled();
+});
+
+it("keeps a pending push locked across menu closure and reports uncertain cancellation without automatic retry", async () => {
+	remotes = [origin];
+	snapshot = {
+		...snapshot,
+		head: { ...snapshot.head, upstream: "origin/main", ahead: 1 },
+	};
+	const pending =
+		Promise.withResolvers<Awaited<ReturnType<typeof RepositorySync.write>>>();
+
+	writeSyncRepository.mockImplementationOnce(() => pending.promise);
+	await open();
+	await menu();
+	click("push-repository");
+	await settle();
+	expect(root.renderer.getAllText()).toContain("Pushing…");
+	root.renderer.simulateKeystrokes("escape");
+	await settle();
+	click("close-workspace-1");
+	expect(element("workspace-1")).toBeTruthy();
+	await menu();
+	click("fetch-repository");
+	click("pull-repository");
+	click("create-branch");
+	expect(fetchRepository).not.toHaveBeenCalled();
+	expect(root.renderer.findByTestId("branch-name")).toBeUndefined();
+	click("push-repository");
+	expect(writeSyncRepository.mock.calls[0]?.[2].aborted).toBe(true);
+	pending.resolve({
+		ok: false,
+		error: {
+			code: "aborted",
+			operation: "push",
+			message: "Aborted",
+			retryable: false,
+		},
+	});
+	await settle();
+	await settle();
+	expect(root.renderer.getAllText().join(" ")).toContain("may have completed");
+	expect(writeSyncRepository).toHaveBeenCalledTimes(1);
+	expect(readRepository).toHaveBeenCalledTimes(2);
 });

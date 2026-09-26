@@ -10,20 +10,25 @@ import {
 } from "../lib/repository-workspace-model";
 import { RepositoryCommit } from "../lib/repository-commit";
 import { RepositoryReader } from "../lib/repository-reader";
-import { RepositorySync } from "../lib/repository-sync";
+import {
+	RepositorySync,
+	type SyncChoice,
+	type SyncKind,
+} from "../lib/repository-sync";
 import {
 	RepositoryBranches,
 	type BranchRequest,
 } from "../../workspace-tabs/lib/repository-branches";
 
-/** Window-owned operations survive menus; fetches lock shared refs across linked worktrees. */
+/** Window-owned operations survive menus; synchronization locks shared refs across linked worktrees. */
 export function useRepositoryMutations(
 	state: WorkspaceTabsState,
 	dispatch: Dispatch<WorkspaceTabsAction>,
 	writeCommit = RepositoryCommit.write,
 	writeBranch = RepositoryBranches.write,
 	readRepository = RepositoryReader.read,
-	fetchRepository = RepositorySync.fetch
+	fetchRepository = RepositorySync.fetch,
+	writeSyncRepository = RepositorySync.write
 ) {
 	const tabs = useRef(state.tabs);
 
@@ -32,7 +37,10 @@ export function useRepositoryMutations(
 	);
 
 	const mounted = useRef(true);
-	const fetches = useRef(new Map<string, AbortController>());
+
+	const syncs = useRef(
+		new Map<string, { controller: AbortController; kind: SyncKind }>()
+	);
 
 	useLayoutEffect(() => {
 		tabs.current = state.tabs;
@@ -40,31 +48,31 @@ export function useRepositoryMutations(
 		for (const tab of state.tabs) {
 			const repository = tab.workspace.repository;
 
-			const operation =
-				repository &&
-				(fetches.current.has(repository.commonDirectory)
-					? "fetch-started"
-					: pending.current.get(repository.root));
+			const sync = repository && syncs.current.get(repository.commonDirectory);
+			const operation = repository && pending.current.get(repository.root);
 
-			if (operation && !RepositoryWorkspaceModel.isBusy(tab.workspace))
+			if (
+				(operation || sync) &&
+				!RepositoryWorkspaceModel.isBusy(tab.workspace)
+			)
 				dispatch({
 					type: "workspace",
 					id: tab.id,
-					action: {
-						type: operation,
-					},
+					action: sync
+						? { type: "sync-started", kind: sync.kind }
+						: { type: operation ?? "commit-started" },
 				});
 		}
 	}, [state.tabs, dispatch]);
 
 	useEffect(() => {
 		mounted.current = true;
-		const requests = fetches.current;
+		const requests = syncs.current;
 
 		return () => {
 			mounted.current = false;
 
-			for (const request of requests.values()) request.abort();
+			for (const request of requests.values()) request.controller.abort();
 		};
 	}, []);
 
@@ -77,7 +85,7 @@ export function useRepositoryMutations(
 			!repository ||
 			!RepositoryWorkspaceModel.canCommit(workspace) ||
 			pending.current.has(repository.root) ||
-			fetches.current.has(repository.commonDirectory)
+			syncs.current.has(repository.commonDirectory)
 		)
 			return;
 
@@ -151,7 +159,7 @@ export function useRepositoryMutations(
 			workspace.error ||
 			workspace.commit.needsReview ||
 			pending.current.has(repository.root) ||
-			fetches.current.has(repository.commonDirectory)
+			syncs.current.has(repository.commonDirectory)
 		)
 			return "Wait for the current operation or refresh this workspace before switching branches.";
 
@@ -209,11 +217,28 @@ export function useRepositoryMutations(
 		return error;
 	};
 
-	const fetch = async (id: string): Promise<void> => {
-		const repository = tabs.current.find((tab) => tab.id === id)?.workspace
-			.repository;
+	const synchronize = async (
+		id: string,
+		choice: { kind: "fetch" } | SyncChoice
+	): Promise<void> => {
+		const workspace = tabs.current.find((tab) => tab.id === id)?.workspace;
+		const repository = workspace?.repository;
 
-		if (!repository || fetches.current.has(repository.commonDirectory)) return;
+		if (
+			!workspace ||
+			!repository ||
+			syncs.current.has(repository.commonDirectory)
+		)
+			return;
+
+		if (
+			choice.kind !== "fetch" &&
+			(!repository.head ||
+				!repository.branchName ||
+				workspace.error ||
+				workspace.commit.needsReview)
+		)
+			return;
 
 		const related = tabs.current.filter(
 			(tab) =>
@@ -233,7 +258,10 @@ export function useRepositoryMutations(
 
 		const controller = new AbortController();
 
-		fetches.current.set(repository.commonDirectory, controller);
+		syncs.current.set(repository.commonDirectory, {
+			controller,
+			kind: choice.kind,
+		});
 
 		const send = (action: RepositoryWorkspaceAction, root?: string): void => {
 			if (!mounted.current) return;
@@ -248,28 +276,54 @@ export function useRepositoryMutations(
 			}
 		};
 
-		send({ type: "fetch-started" });
+		send({ type: "sync-started", kind: choice.kind });
 		let error: string | null = null;
 		let fetchedAt: number | null = null;
+		let notice: string | undefined;
+
+		const cancelledMessage =
+			choice.kind === "fetch"
+				? "Fetch cancelled."
+				: "Synchronization stopped. It may have completed; review status before retrying.";
 
 		try {
-			const result = await fetchRepository(repository.root, controller.signal);
+			const result =
+				choice.kind === "fetch"
+					? await fetchRepository(repository.root, controller.signal)
+					: await writeSyncRepository(
+							repository.root,
+							{
+								...choice,
+								expectedHead: repository.head ?? "",
+								expectedBranch: repository.branchName ?? "",
+							},
+							controller.signal
+						);
 
-			if (result.ok) fetchedAt = Date.now();
-			else
+			if (result.ok) {
+				if (choice.kind === "fetch" || choice.kind === "pull")
+					fetchedAt = Date.now();
+
+				if (choice.kind !== "fetch")
+					notice = {
+						pull: "Pull complete.",
+						push: "Push complete.",
+						publish: "Branch published.",
+					}[choice.kind];
+			} else
 				error =
 					result.error.code === "aborted" && controller.signal.aborted
-						? "Fetch cancelled."
+						? cancelledMessage
 						: [result.error.message, result.error.details]
 								.filter(Boolean)
 								.join("\n");
 		} catch {
 			error = controller.signal.aborted
-				? "Fetch cancelled."
-				: "Could not complete fetch. Check your connection and credentials, then retry.";
+				? cancelledMessage
+				: "Could not confirm synchronization. Review status and remote tracking before retrying.";
 		}
 
-		// A failed or cancelled multi-remote fetch can still update some refs. Re-read every open worktree.
+		// Failed or cancelled sync can still change refs. Re-read every open worktree before unlocking.
 		const roots = new Set(
 			tabs.current.flatMap((tab) =>
 				tab.workspace.repository?.commonDirectory === repository.commonDirectory
@@ -291,27 +345,29 @@ export function useRepositoryMutations(
 					);
 
 					outcomes.set(root, {
-						type: "fetch-finished",
+						type: "sync-finished",
 						error,
 						fetchedAt,
+						notice,
 						...(refreshed.ok
 							? { snapshot: refreshed.value }
 							: { refreshError: refreshed.error.message }),
 					});
 				} catch {
 					outcomes.set(root, {
-						type: "fetch-finished",
+						type: "sync-finished",
 						error,
 						fetchedAt,
+						notice,
 						refreshError:
-							"Refresh this workspace to confirm its status after fetching.",
+							"Refresh this workspace to confirm its status after synchronization.",
 					});
 				}
 			})
 		);
-		fetches.current.delete(repository.commonDirectory);
+		syncs.current.delete(repository.commonDirectory);
 
-		// Include tabs opened while the post-fetch reads were running, without leaving them locked.
+		// Include tabs opened while the post-sync reads were running, without leaving them locked.
 		for (const tab of tabs.current) {
 			if (
 				tab.workspace.repository?.commonDirectory === repository.commonDirectory
@@ -321,17 +377,29 @@ export function useRepositoryMutations(
 
 		for (const root of roots)
 			send(
-				outcomes.get(root) ?? { type: "fetch-finished", error, fetchedAt },
+				outcomes.get(root) ?? {
+					type: "sync-finished",
+					error,
+					fetchedAt,
+					notice,
+				},
 				root
 			);
 	};
 
-	const cancelFetch = (id: string): void => {
+	const cancelSync = (id: string): void => {
 		const repository = tabs.current.find((tab) => tab.id === id)?.workspace
 			.repository;
 
-		if (repository) fetches.current.get(repository.commonDirectory)?.abort();
+		if (repository)
+			syncs.current.get(repository.commonDirectory)?.controller.abort();
 	};
 
-	return { commit, changeBranch, fetch, cancelFetch };
+	return {
+		commit,
+		changeBranch,
+		fetch: (id: string) => synchronize(id, { kind: "fetch" }),
+		synchronize,
+		cancelSync,
+	};
 }

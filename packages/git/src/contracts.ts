@@ -227,6 +227,9 @@ export interface BranchInfo {
 	readonly type: "local" | "remote";
 	readonly upstream: string | null;
 	readonly worktreePath: string | null;
+	/** Exact configured destination; do not infer it by splitting the upstream display label. */
+	readonly upstreamRemote?: string | null;
+	readonly upstreamRef?: string | null;
 }
 
 /** Local and remote-tracking branch collection. */
@@ -328,6 +331,15 @@ export interface SyncResult {
 	readonly operation: "fetch" | "pull" | "push";
 	readonly remote: string | null;
 	readonly snapshot: RepositorySnapshot;
+}
+
+/** Guarded single-branch sync for an explicit UI action; never forces or auto-stashes. */
+export interface SyncBranchInput extends GitCallOptions {
+	readonly kind: "pull" | "push" | "publish";
+	readonly expectedHead: string;
+	readonly expectedBranch: string;
+	readonly remote: string;
+	readonly remoteRef: string;
 }
 
 export interface OpenRepositoryInput extends GitCallOptions {

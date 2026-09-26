@@ -38,6 +38,7 @@ export function App({
 	readBranches = RepositoryBranches.read,
 	writeBranch = RepositoryBranches.write,
 	fetchRepository = RepositorySync.fetch,
+	writeSyncRepository = RepositorySync.write,
 	watchRepository,
 }: {
 	initialTabCount?: number;
@@ -52,6 +53,7 @@ export function App({
 	readBranches?: typeof RepositoryBranches.read;
 	writeBranch?: typeof RepositoryBranches.write;
 	fetchRepository?: typeof RepositorySync.fetch;
+	writeSyncRepository?: typeof RepositorySync.write;
 	watchRepository?: typeof RepositoryWatcher.watch;
 }) {
 	const [state, dispatch] = useReducer(
@@ -69,7 +71,8 @@ export function App({
 		writeCommit,
 		writeBranch,
 		readRepository,
-		fetchRepository
+		fetchRepository,
+		writeSyncRepository
 	);
 
 	useRepositoryAutoRefresh(state, dispatch, readRepository, watchRepository);
@@ -146,7 +149,8 @@ export function App({
 					readRepository={readRepository}
 					onChangeBranch={mutations.changeBranch}
 					onFetch={mutations.fetch}
-					onCancelFetch={mutations.cancelFetch}
+					onSync={mutations.synchronize}
+					onCancelSync={mutations.cancelSync}
 				/>
 			}
 			workspaceLabel={

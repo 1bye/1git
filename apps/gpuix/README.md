@@ -151,7 +151,7 @@ The compact desktop-style menu shows the current branch/upstream, three local
 branches ordered by latest commit, relative commit ages, and a More row to expand
 the scrollable list. Existing worktrees remain available below the branches.
 Create new branch opens an inline form; Cancel/Escape returns to the actions.
-There is no permanent search field or Close footer. Rename/delete/upstream/Pull/Push
+There is no permanent search field or Close footer. Rename/delete/upstream-editing
 actions stay hidden until their GPUIX workflows are implemented.
 Up/Down moves through enabled rows, Enter activates, and Escape/outside-click dismisses the menu.
 Keyboard dismissal returns focus to the tab; Tab dismisses and continues traversal.
@@ -172,24 +172,35 @@ This is not a port of the Electron liquid SVG morph.
   tab after success or failure, preserving drafts. Failed refresh blocks further
   writes until the user refreshes successfully.
 
-### Fetch and sync status
+### Remote synchronization
 
 - **Fetch** is an explicit action in the tab menu. It uses `@1git/git` to fetch
   configured remotes, including with uncommitted changes. Opening a menu or
   refreshing local status never contacts a remote. No remote means a disabled
   action, not a successful no-op.
-- The menu shows **Fetching… / Cancel**, the time of the last successful fetch,
+- **Pull** updates the current branch from its configured upstream, fast-forward
+  only. It requires a clean working tree, an existing commit, and no active Git
+  operation. Diverged histories are rejected without starting a merge or rebase.
+- **Push** sends the reviewed HEAD to that branch's exact upstream destination.
+  It never forces, mirrors, automatically pushes tags, or writes other branches.
+  Uncommitted changes can remain in place. Multiple push URLs are rejected.
+- Without an upstream, **Publish branch…** replaces Push. Choose a configured
+  remote explicitly, then confirm. It publishes the current branch under the same
+  name and sets its upstream; opening the picker or cancelling never writes.
+- The menu shows operation progress and **Cancel/Stop**, the last successful fetch,
   and current upstream/ahead/behind counts. These counts describe the last known
   remote refs; Fetch updates them. The action survives dismissing the menu;
   errors stay available when it reopens, and retry is explicit.
-- Fetch uses existing Git credentials and a two-minute deadline. Cancellation
-  aborts the Git request; closing the window also aborts it. No sign-in UI,
-  background fetch schedule, Pull, Push, force, or automatic stash is added.
-- During fetch, affected tabs pause repository reads and block competing writes
+- Sync uses existing Git credentials and a two-minute deadline. Cancellation
+  aborts the Git request; closing the window also aborts it. A stopped or timed-out
+  write may already have completed: review status before explicitly retrying.
+  There is no sign-in UI, background schedule, force push, rebase, or automatic stash.
+- During synchronization, affected tabs pause repository reads and block competing writes
   and tab closure. Tabs sharing the same Git common directory, including linked
   worktrees, share the pending operation and last-fetch status. Every open root
   is refreshed afterward, even on failure/cancellation because some remotes may
-  already have updated. Drafts, file inclusion, and local branches are retained.
+  already have updated. Drafts and file inclusion are retained. Pull deliberately
+  advances the current branch; Fetch and Push do not change working files.
   A failed status refresh blocks writes until a successful manual refresh.
 
 ## Opening a repository
@@ -500,10 +511,12 @@ window still and empty-titlebar drags move it after restarting the app.
 Offscreen screenshots do not capture macOS vibrancy; compare
 the running window on macOS when adjusting blur/material appearance.
 
-Fetch tests exercise native menu/keyboard activation, dirty-tree fetching,
-cancellation across worktree tabs, retry, pending locks, refresh failures and
-window cleanup. Offline Git fixtures use a temporary bare remote and clones to
-verify tracking updates with unchanged HEAD, index bytes, and working files.
+Sync tests exercise native menu/keyboard activation, dirty-tree fetching/pushing,
+explicit publish confirmation, cancellation across worktree tabs, retry, pending
+locks, refresh failures and window cleanup. Offline Git fixtures use temporary
+bare remotes and clones to verify tracking, fast-forward-only pulls, exact push
+destinations, publish/upstream setup, config overrides, stale-branch rejection,
+non-fast-forward rejection, and preservation of dirty files and index bytes.
 They do not exercise hosted authentication or a real network connection.
 
 Connection component tests replace the OS picker and repository/diff readers while

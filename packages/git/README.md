@@ -59,6 +59,26 @@ for a selected path and `getFileContent({ path, source: { kind: "object", object
 for its immutable bytes. `getHistory({ revision, offset, limit })` can anchor pages
 to an OID independently of later HEAD or working-tree changes.
 
+## Guarded single-branch synchronization
+
+`syncBranch({ kind, expectedHead, expectedBranch, remote, remoteRef, signal })`
+provides a conservative UI workflow alongside the general `pull`/`push` methods.
+The kind is `pull`, `push`, or `publish`. Supply the reviewed HEAD OID and local
+branch name. For an existing upstream, use `BranchInfo.upstreamRemote` and
+`upstreamRef`; do not infer a destination by splitting the display label.
+
+Pull requires a clean working tree and fast-forwards only, without rebase or
+autostash. Push sends the reviewed OID to the explicit upstream branch with no
+force, mirror, automatic tags, or recursive submodule pushes. Publish requires
+no existing upstream, sends the current branch to the same name on the explicitly
+chosen remote, and sets tracking. Push and Publish reject multiple push URLs.
+All three reject detached/unborn HEAD, stale branch identity and active operations.
+
+The API uses configured credentials and hooks; callers provide deadlines and
+serialize separate instances that share a Git common directory. It does not lock
+out external Git processes. Always refresh after completion or failure. Cancelling
+a command does not roll back a completed remote write; never retry automatically.
+
 ## Selected-file commits
 
 `commitFiles({ paths, message, expectedHead, expectedBranch })` commits current

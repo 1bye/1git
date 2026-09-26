@@ -18,6 +18,7 @@ import { WorkspaceTabIcon } from "./workspace-tab-icon";
 import { WorkspaceMenuModel } from "../lib/workspace-menu-model";
 import { RepositoryReader } from "../../repository-workspace/lib/repository-reader";
 import { RepositoryWorkspaceModel } from "../../repository-workspace/lib/repository-workspace-model";
+import type { SyncChoice } from "../../repository-workspace/lib/repository-sync";
 import {
 	RepositoryBranches,
 	type BranchRequest,
@@ -160,7 +161,8 @@ export interface WorkspaceMenuActions {
 		choice: Pick<BranchRequest, "kind" | "name">
 	) => Promise<string | null>;
 	onFetch?: (id: string) => Promise<void>;
-	onCancelFetch?: (id: string) => void;
+	onSync?: (id: string, choice: SyncChoice) => Promise<void>;
+	onCancelSync?: (id: string) => void;
 }
 
 /** An attached workspace picker: branch writes stay with the window, not this transient surface. */
@@ -173,7 +175,8 @@ export function WorkspaceMenu({
 	readRepository,
 	onChangeBranch,
 	onFetch,
-	onCancelFetch,
+	onSync,
+	onCancelSync,
 }: WorkspaceMenuActions & {
 	tab: WorkspaceTabRecord;
 	anchor: PublicInstance | undefined;
@@ -191,6 +194,8 @@ export function WorkspaceMenu({
 	const [error, setError] = useState<string | null>(null);
 	const [name, setName] = useState("");
 	const [creating, setCreating] = useState(false);
+	const [publishing, setPublishing] = useState(false);
+	const [selectedRemote, setSelectedRemote] = useState<string | null>(null);
 	const [expanded, setExpanded] = useState(false);
 	const [opening, setOpening] = useState(false);
 	const mounted = useRef(true);
@@ -205,13 +210,17 @@ export function WorkspaceMenu({
 	const busy = opening || RepositoryWorkspaceModel.isBusy(tab.workspace);
 
 	const {
-		pending: fetching,
-		version: fetchVersion,
+		pending: syncKind,
+		version: syncVersion,
 		fetchedAt,
-		error: fetchError,
-	} = tab.workspace.fetch;
+		error: syncError,
+		notice: syncNotice,
+	} = tab.workspace.sync;
 
-	const showFetch = !!onFetch && !!onCancelFetch;
+	const fetching = syncKind === "fetch";
+
+	const showFetch = !!onFetch && !!onCancelSync;
+	const showSync = !!onSync && !!onCancelSync;
 
 	const blocked =
 		tab.workspace.entries.changes.length > 0 ||
@@ -230,7 +239,7 @@ export function WorkspaceMenu({
 	}, []);
 
 	useEffect(() => {
-		if (!root || fetching) return;
+		if (!root || syncKind) return;
 
 		const controller = new AbortController();
 
@@ -255,7 +264,7 @@ export function WorkspaceMenu({
 		void load();
 
 		return () => controller.abort();
-	}, [root, head, branch, readBranches, fetching, fetchVersion]);
+	}, [root, head, branch, readBranches, syncKind, syncVersion]);
 
 	const branches = WorkspaceMenuModel.recentBranches(data?.branches);
 
@@ -269,6 +278,43 @@ export function WorkspaceMenu({
 
 	const canFetch =
 		showFetch && !busy && !tab.workspace.loading && !!data?.remotes.length;
+
+	const hasUpstream =
+		!!currentBranch?.upstreamRemote || !!currentBranch?.upstream;
+
+	const targetRemote = data?.remotes.find(
+		(remote) => remote.name === currentBranch?.upstreamRemote
+	);
+
+	const remoteRef = currentBranch?.upstreamRef;
+
+	const diverged =
+		!!currentBranch && currentBranch.ahead > 0 && currentBranch.behind > 0;
+
+	const canSync =
+		showSync &&
+		!busy &&
+		!!branch &&
+		!!head &&
+		!!currentBranch &&
+		repository?.operation === "normal" &&
+		!tab.workspace.loading &&
+		!tab.workspace.error &&
+		!tab.workspace.commit.needsReview;
+
+	const canPull =
+		canSync && !!targetRemote && !!remoteRef && !blocked && !diverged;
+
+	const canPush =
+		canSync &&
+		!!targetRemote &&
+		!!remoteRef &&
+		targetRemote.pushUrls.length === 1;
+
+	const canPublish =
+		canSync &&
+		!hasUpstream &&
+		!!data?.remotes.some((remote) => remote.pushUrls.length === 1);
 
 	let fetchStatus = "";
 
@@ -298,23 +344,56 @@ export function WorkspaceMenu({
 
 	if (showFetch && (fetching || canFetch)) enabledIds.push("fetch-repository");
 
+	if (showSync && (syncKind === "pull" || canPull))
+		enabledIds.push("pull-repository");
+
+	if (
+		showSync &&
+		(syncKind === "push" ||
+			syncKind === "publish" ||
+			(hasUpstream ? canPush : canPublish))
+	)
+		enabledIds.push("push-repository");
+
+	if (publishing) {
+		enabledIds.length = 0;
+
+		if (!busy) {
+			for (const remote of data?.remotes ?? []) {
+				if (remote.pushUrls.length === 1)
+					enabledIds.push(`publish-remote-${remote.name}`);
+			}
+
+			enabledIds.push("cancel-publish");
+
+			if (selectedRemote && canPublish) enabledIds.push("confirm-publish");
+		}
+	}
+
 	const notice =
 		error ??
-		fetchError ??
+		syncError ??
 		tab.workspace.error ??
-		(busy && !fetching ? "Updating workspace…" : null);
+		syncNotice ??
+		(busy && !syncKind ? "Updating workspace…" : null);
 
 	// Fixed header/action rows surround a scrollable list; the expanded menu stays inside the window.
 	const contentHeight = creating
 		? createFormHeight
-		: menuPadding * 2 +
-			headerHeight +
-			separatorHeight * 2 +
-			rowHeight +
-			(showFetch ? separatorHeight + rowHeight : 0) +
-			Math.max(1, visibleBranches.length + worktrees.length) * rowHeight +
-			(hasMore ? rowHeight : 0) +
-			(worktrees.length ? sectionLabelHeight : 0);
+		: publishing
+			? menuPadding * 2 +
+				headerHeight +
+				separatorHeight * 2 +
+				rowHeight * ((data?.remotes.length ?? 0) + 1)
+			: menuPadding * 2 +
+				headerHeight +
+				separatorHeight * 2 +
+				rowHeight +
+				(showFetch ? separatorHeight + rowHeight : 0) +
+				(showSync ? rowHeight * 2 : 0) +
+				Math.max(1, visibleBranches.length + worktrees.length) * rowHeight +
+				(hasMore ? rowHeight : 0) +
+				(worktrees.length ? sectionLabelHeight : 0);
 
 	const menuHeight = Math.min(
 		maxMenuHeight,
@@ -327,6 +406,7 @@ export function WorkspaceMenu({
 
 	const showActions = (): void => {
 		setCreating(false);
+		setPublishing(false);
 		setError(null);
 
 		if (dialog.current) renderer.focusElement?.(dialog.current.id);
@@ -334,7 +414,8 @@ export function WorkspaceMenu({
 
 	const onKeyDown = (event: EventPayload): void => {
 		if (event.key === "escape" || event.key === "tab") {
-			if (event.key === "escape" && creating && !busy) showActions();
+			if (event.key === "escape" && (creating || publishing) && !busy)
+				showActions();
 			else onClose();
 
 			return;
@@ -364,7 +445,11 @@ export function WorkspaceMenu({
 			if (
 				!list.current ||
 				next === "create-branch" ||
-				next === "fetch-repository"
+				next === "fetch-repository" ||
+				next === "pull-repository" ||
+				next === "push-repository" ||
+				next === "cancel-publish" ||
+				next === "confirm-publish"
 			)
 				return;
 
@@ -399,6 +484,20 @@ export function WorkspaceMenu({
 
 		if (message) setError(message);
 		else onClose();
+	};
+
+	const synchronize = (kind: "pull" | "push"): void => {
+		if (syncKind === kind) {
+			onCancelSync?.(tab.id);
+
+			return;
+		}
+
+		if (!targetRemote || !remoteRef || !(kind === "pull" ? canPull : canPush))
+			return;
+
+		setError(null);
+		void onSync?.(tab.id, { kind, remote: targetRemote.name, remoteRef });
 	};
 
 	const openWorktree = async (path: string): Promise<void> => {
@@ -527,6 +626,87 @@ export function WorkspaceMenu({
 								</Button>
 							</div>
 						</div>
+					) : publishing ? (
+						<>
+							<div style={styles.header}>
+								<Text tokens={appTokens} style={styles.heading}>
+									Publish branch
+								</Text>
+								<Text
+									tokens={appTokens}
+									style={styles.muted}
+								>{`Choose a remote for ${branch ?? "this branch"}`}</Text>
+							</div>
+							<div style={styles.separator} />
+							<div ref={list} style={styles.list} testId="publish-remotes">
+								{data?.remotes.map((remote) => (
+									<Button
+										key={remote.name}
+										testId={`publish-remote-${remote.name}`}
+										ref={(node) => {
+											const id = `publish-remote-${remote.name}`;
+
+											if (node) rows.current.set(id, node);
+											else rows.current.delete(id);
+										}}
+										tokens={appTokens}
+										variant="ghost"
+										size="sm"
+										style={styles.row}
+										disabled={busy || remote.pushUrls.length !== 1}
+										aria-label={`${remote.name}${selectedRemote === remote.name ? ", selected" : ""}`}
+										onPress={() => setSelectedRemote(remote.name)}
+									>
+										<WorkspaceTabIcon
+											name={selectedRemote === remote.name ? "check" : "branch"}
+										/>
+										<Text tokens={appTokens} style={styles.label}>
+											{remote.name}
+										</Text>
+									</Button>
+								))}
+							</div>
+							<div style={styles.separator} />
+							<div style={styles.footer}>
+								<Button
+									testId="cancel-publish"
+									ref={(node) => {
+										if (node) rows.current.set("cancel-publish", node);
+										else rows.current.delete("cancel-publish");
+									}}
+									tokens={appTokens}
+									variant="ghost"
+									size="sm"
+									disabled={busy}
+									onPress={showActions}
+								>
+									Cancel
+								</Button>
+								<Button
+									testId="confirm-publish"
+									ref={(node) => {
+										if (node) rows.current.set("confirm-publish", node);
+										else rows.current.delete("confirm-publish");
+									}}
+									tokens={appTokens}
+									size="sm"
+									disabled={!canPublish || !selectedRemote}
+									onPress={() => {
+										if (!branch || !selectedRemote || !canPublish) return;
+
+										setError(null);
+										setPublishing(false);
+										void onSync?.(tab.id, {
+											kind: "publish",
+											remote: selectedRemote,
+											remoteRef: `refs/heads/${branch}`,
+										});
+									}}
+								>
+									{selectedRemote ? `Publish to ${selectedRemote}` : "Publish"}
+								</Button>
+							</div>
+						</>
 					) : (
 						<>
 							<div style={styles.header}>
@@ -718,7 +898,7 @@ export function WorkspaceMenu({
 												: "Refresh remote refs without changing your files or local branch"
 										}
 										onPress={() => {
-											if (fetching) onCancelFetch?.(tab.id);
+											if (fetching) onCancelSync?.(tab.id);
 											else {
 												setError(null);
 												void onFetch?.(tab.id);
@@ -735,6 +915,105 @@ export function WorkspaceMenu({
 											style={styles.detail}
 										>
 											{fetchStatus}
+										</Text>
+									</Button>
+								</>
+							) : null}
+							{showSync ? (
+								<>
+									<Button
+										testId="pull-repository"
+										ref={(node) => {
+											if (node) rows.current.set("pull-repository", node);
+											else rows.current.delete("pull-repository");
+										}}
+										tokens={appTokens}
+										variant="ghost"
+										size="sm"
+										style={styles.row}
+										disabled={syncKind !== "pull" && !canPull}
+										aria-label={
+											syncKind === "pull"
+												? "Stop pull"
+												: "Pull upstream, fast-forward only"
+										}
+										aria-description={
+											blocked
+												? "Requires a clean working tree and no ongoing Git operation"
+												: "Updates this branch without merging, rebasing or stashing"
+										}
+										onPress={() => synchronize("pull")}
+									>
+										<WorkspaceTabIcon name="pull" />
+										<Text tokens={appTokens} style={styles.label}>
+											{syncKind === "pull" ? "Pulling…" : "Pull"}
+										</Text>
+										<Text tokens={appTokens} style={styles.detail}>
+											{syncKind === "pull"
+												? "Stop"
+												: diverged
+													? "Diverged"
+													: !hasUpstream
+														? "No upstream"
+														: currentBranch?.behind
+															? `${currentBranch.behind} behind`
+															: ""}
+										</Text>
+									</Button>
+									<Button
+										testId="push-repository"
+										ref={(node) => {
+											if (node) rows.current.set("push-repository", node);
+											else rows.current.delete("push-repository");
+										}}
+										tokens={appTokens}
+										variant="ghost"
+										size="sm"
+										style={styles.row}
+										disabled={
+											syncKind !== "push" &&
+											syncKind !== "publish" &&
+											!(hasUpstream ? canPush : canPublish)
+										}
+										aria-label={
+											syncKind === "push" || syncKind === "publish"
+												? "Stop push"
+												: hasUpstream
+													? "Push current branch to upstream"
+													: "Publish branch"
+										}
+										onPress={() => {
+											if (syncKind === "publish") onCancelSync?.(tab.id);
+											else if (hasUpstream || syncKind === "push")
+												synchronize("push");
+											else {
+												setPublishing(true);
+												setSelectedRemote(null);
+												setError(null);
+
+												if (dialog.current)
+													renderer.focusElement?.(dialog.current.id);
+											}
+										}}
+									>
+										<WorkspaceTabIcon name="push" />
+										<Text tokens={appTokens} style={styles.label}>
+											{syncKind === "push"
+												? "Pushing…"
+												: syncKind === "publish"
+													? "Publishing…"
+													: hasUpstream
+														? "Push"
+														: "Publish branch…"}
+										</Text>
+										<Text tokens={appTokens} style={styles.detail}>
+											{syncKind === "push" || syncKind === "publish"
+												? "Stop"
+												: !data?.remotes.length
+													? "No remote"
+													: currentBranch?.ahead
+														? `${currentBranch.ahead} ahead`
+														: ""}
 										</Text>
 									</Button>
 								</>
