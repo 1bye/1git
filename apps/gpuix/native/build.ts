@@ -5,6 +5,8 @@ import { resolve } from "node:path";
 import {
 	appDirectory,
 	activationPatchPath,
+	closePatchPath,
+	closePlatformPatchPath,
 	checkboxPatchPath,
 	diffPatchPath,
 	buildIdPath,
@@ -65,21 +67,44 @@ if (
 
 	await run(["git", "submodule", "update", "--init", "--depth", "1", "zed"]);
 
-	for (const patch of [
+	const patches = [
 		patchPath,
 		checkboxPatchPath,
 		diffPatchPath,
 		activationPatchPath,
-	]) {
+		closePatchPath,
+		closePlatformPatchPath,
+	];
+
+	// Later patches can change an earlier patch's context. Unwind known patches
+	// in reverse order before applying the pinned stack, preserving unrelated edits.
+	for (const patch of patches.toReversed()) {
+		const patchDirectory =
+			patch === closePlatformPatchPath ? resolve(source, "zed") : source;
+
+		const applied = Bun.spawn(["git", "apply", "--reverse", "--check", patch], {
+			cwd: patchDirectory,
+			stdout: "ignore",
+			stderr: "ignore",
+		});
+
+		if ((await applied.exited) === 0)
+			await run(["git", "apply", "--reverse", patch], patchDirectory);
+	}
+
+	for (const patch of patches) {
+		const patchDirectory =
+			patch === closePlatformPatchPath ? resolve(source, "zed") : source;
+
 		const patched = Bun.spawn(["git", "apply", "--reverse", "--check", patch], {
-			cwd: source,
+			cwd: patchDirectory,
 			stdout: "ignore",
 			stderr: "ignore",
 		});
 
 		if ((await patched.exited) !== 0) {
-			await run(["git", "apply", "--check", patch]);
-			await run(["git", "apply", patch]);
+			await run(["git", "apply", "--check", patch], patchDirectory);
+			await run(["git", "apply", patch], patchDirectory);
 		}
 	}
 

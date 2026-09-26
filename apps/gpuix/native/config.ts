@@ -17,6 +17,14 @@ export const activationPatchPath = resolve(
 	"window-activation.patch"
 );
 export const nativeLibrary = resolve(nativeDirectory, "gpuix-native.node");
+export const closePatchPath = resolve(
+	import.meta.dir,
+	"close-protection.patch"
+);
+export const closePlatformPatchPath = resolve(
+	import.meta.dir,
+	"close-platform.patch"
+);
 export const buildIdPath = resolve(nativeDirectory, "build-id");
 /** Changing the patch, revision, or host invalidates the local binary. */
 export const nativeBuildId = createHash("sha256")
@@ -25,5 +33,7 @@ export const nativeBuildId = createHash("sha256")
 	.update(readFileSync(checkboxPatchPath))
 	.update(readFileSync(diffPatchPath))
 	.update(readFileSync(activationPatchPath))
+	.update(readFileSync(closePatchPath))
+	.update(readFileSync(closePlatformPatchPath))
 	.update(`${process.platform}-${process.arch}-release-v1`)
 	.digest("hex");

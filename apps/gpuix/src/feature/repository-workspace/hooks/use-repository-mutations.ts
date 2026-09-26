@@ -9,6 +9,7 @@ import {
 	type RepositoryWorkspaceAction,
 } from "../lib/repository-workspace-model";
 import { RepositoryCommit } from "../lib/repository-commit";
+import { useCloseProtection } from "./use-close-protection";
 import { RepositoryReader } from "../lib/repository-reader";
 import {
 	RepositorySync,
@@ -28,8 +29,15 @@ export function useRepositoryMutations(
 	writeBranch = RepositoryBranches.write,
 	readRepository = RepositoryReader.read,
 	fetchRepository = RepositorySync.fetch,
-	writeSyncRepository = RepositorySync.write
+	writeSyncRepository = RepositorySync.write,
+	beforeCloseRelease?: () => void
 ) {
+	const closeProtection = useCloseProtection(
+		state.tabs.some((tab) => RepositoryWorkspaceModel.isBusy(tab.workspace)),
+		state.tabs,
+		beforeCloseRelease
+	);
+
 	const tabs = useRef(state.tabs);
 
 	const pending = useRef(
@@ -113,6 +121,7 @@ export function useRepositoryMutations(
 		};
 
 		pending.current.set(root, "commit-started");
+		closeProtection.block();
 		send({ type: "commit-started" });
 
 		try {
@@ -173,6 +182,7 @@ export function useRepositoryMutations(
 		};
 
 		pending.current.set(repository.root, "branch-started");
+		closeProtection.block();
 		send({ type: "branch-started" });
 		let error: string | null = null;
 
@@ -262,6 +272,7 @@ export function useRepositoryMutations(
 			controller,
 			kind: choice.kind,
 		});
+		closeProtection.block();
 
 		const send = (action: RepositoryWorkspaceAction, root?: string): void => {
 			if (!mounted.current) return;
@@ -396,6 +407,7 @@ export function useRepositoryMutations(
 	};
 
 	return {
+		closeProtection,
 		commit,
 		changeBranch,
 		fetch: (id: string) => synchronize(id, { kind: "fetch" }),

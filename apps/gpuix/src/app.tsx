@@ -22,6 +22,7 @@ import { useRepositoryConnection } from "./feature/repository-workspace/hooks/us
 import { useRepositoryMutations } from "./feature/repository-workspace/hooks/use-repository-mutations";
 import { RepositoryBranches } from "./feature/workspace-tabs/lib/repository-branches";
 import { RepositoryCommit } from "./feature/repository-workspace/lib/repository-commit";
+import { RepositoryCloseNotice } from "./feature/repository-workspace/components/repository-close-notice";
 import { RepositorySync } from "./feature/repository-workspace/lib/repository-sync";
 import {
 	RepositoryWorkspaceModel,
@@ -93,7 +94,8 @@ export function App({
 		writeBranch,
 		readRepository,
 		fetchRepository,
-		writeSyncRepository
+		writeSyncRepository,
+		session.retry
 	);
 
 	useRepositoryAutoRefresh(state, dispatch, readRepository, watchRepository);
@@ -178,6 +180,13 @@ export function App({
 				activeTab ? `${activeTab.name} workspace` : "No workspace open"
 			}
 		>
+			{mutations.closeProtection.requested ? (
+				<RepositoryCloseNotice
+					state={state}
+					onDismiss={mutations.closeProtection.dismiss}
+					onStop={mutations.cancelSync}
+				/>
+			) : null}
 			{session.error ? (
 				<div style={{ padding: 10, flexShrink: 0, gap: 6 }}>
 					<text

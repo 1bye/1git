@@ -56,6 +56,12 @@ there is no public fork or committed binary. All native patches participate in
 the build fingerprint and are applied independently.
 Missing/stale builds fail with a rebuild command, not an unpatched fallback.
 Restart `dev` after a native rebuild: hot reload cannot unload a native addon.
+
+`native/close-protection.patch` and `native/close-platform.patch` add a synchronous
+macOS close/quit veto, including the red close button, Close Window action and
+AppKit termination (Quit menu, Cmd-Q and Dock Quit). They reuse GPUI's window
+callback and add a pre-termination callback to the pinned macOS platform.
+The build unwinds known patches in reverse order before reapplying the stack.
 The root Turbo dev task builds the addon first; direct app commands require
 the explicit setup command above. `build` only emits the app's TypeScript.
 
@@ -170,7 +176,8 @@ entrance/exit animation yet.
   should use different `GPUIX_SESSION_PATH` values.
 - Writes are debounced by 200ms, atomically replaced, and synchronously flushed
   on unmount and GPUIX's normal process-exit path. Force-killing or crashing may
-  lose the last debounce interval; this does not add a quit guard for Git writes.
+  lose the last debounce interval. Completed operations flush drafts before
+  releasing the close guard.
 - Invalid, unsupported, unreadable or oversized saved files are preserved, with a
   visible error and autosaving disabled until repaired and restarted. Write failures
   retain the in-memory draft and expose Retry. The session has a 1 MiB size limit.
@@ -230,7 +237,8 @@ This is not a port of the Electron liquid SVG morph.
   remote refs; Fetch updates them. The action survives dismissing the menu;
   errors stay available when it reopens, and retry is explicit.
 - Sync uses existing Git credentials and a two-minute deadline. Cancellation
-  aborts the Git request; closing the window also aborts it. A stopped or timed-out
+  aborts the Git request; normal window closure is blocked until it settles and
+  status is refreshed. A stopped or timed-out
   write may already have completed: review status before explicitly retrying.
   There is no sign-in UI, background schedule, force push, rebase, or automatic stash.
 - During synchronization, affected tabs pause repository reads and block competing writes
@@ -314,8 +322,13 @@ the Turbo build/dev tasks build dependencies first. No Electron IPC is involved.
   a refresh and review. Partial-hunk selection is not implemented.
 - During a write, the composer, inclusion checkboxes, refresh and affected tab-close
   actions are disabled. View/tab switches remain usable; they do not cancel a write.
-  Duplicate submissions are blocked across tabs for the same repository. Keep the
-  app/window open until completion; quitting is not intercepted.
+  Duplicate submissions are blocked across tabs for the same repository. Normal
+  close/quit is vetoed until all open workspaces finish their operations and
+  required refreshes. A blocked attempt shows window-wide progress, including
+  background tabs; it never queues a later quit. Synchronization offers Stop,
+  but commits and branch changes have no unsafe force-cancel button. Dismissal
+  keeps working without cancelling anything. Force Quit, crashes and OS kills
+  cannot be prevented. Do not hot-reload/restart development code during writes.
 - Confirmed success clears only the submitting tab's message and refreshes Changes
   and History state in every open tab for that repository. Other drafts and excluded
   checkbox choices survive. A failed commit keeps the draft and shows Git's error.
@@ -347,7 +360,8 @@ the Turbo build/dev tasks build dependencies first. No Electron IPC is involved.
   and selects its first file, including cached commits, without moving keyboard
   focus out of the commit list. Empty commits keep the file selection empty.
   Pending reads are cancelled on view/tab changes, refresh or close; errors expose
-  Retry without discarding loaded pages. History selection and pages are not persisted across restarts.
+  Retry without discarding loaded pages. History selection is persisted as session
+  intent; Git pages are always reloaded after restart.
 - Refresh keeps cached History when HEAD is unchanged. A different HEAD resets
   pagination to the new snapshot. Automatic refresh retains the selected commit
   and file when they remain in the refreshed page; explicit refresh and successful
