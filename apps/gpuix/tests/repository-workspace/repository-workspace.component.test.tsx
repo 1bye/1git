@@ -1,5 +1,5 @@
 /**
- * Covers: workspace geometry, commit inclusion, stacked revision/files navigation, splitter resizing, keyboard, independent scrolling, tab isolation and dragging.
+ * Covers: workspace geometry, commit inclusion/drafts, stacked revision/files navigation, splitter resizing, keyboard, independent scrolling, tab isolation and dragging.
  * Real: App, view pills, GPUIX layout, hit testing, focus and accessibility.
  * Doubles: sample repository data; focus notification for inactive offscreen windows.
  * Requires: patched GPUIX native test renderer with macOS graphics access.
@@ -66,6 +66,119 @@ const scrollY = () =>
 
 const checked = (testId: string) =>
 	element(testId).customProps?.["aria-checked"];
+
+it("pins the composer below the scrolling Changes list and hides it in revision views", () => {
+	const composer = bounds("commit-composer");
+	const list = bounds("repository-list");
+
+	expect(list.y + list.height).toBeLessThanOrEqual(composer.y);
+	expect(
+		bounds("commit-notice").y + bounds("commit-notice").height
+	).toBeLessThanOrEqual(
+		bounds("repository-navigation").y + bounds("repository-navigation").height
+	);
+	expect(element("commit-message").style.height).toBe(100);
+	expect(root.renderer.getPaintedText()).toContain("Commit message…");
+	key("entry-src/app.tsx", "end");
+	expect(scrollY()).toBeLessThan(0);
+	expect(bounds("commit-composer")).toEqual(composer);
+	expect(
+		bounds("entry-tsconfig.json").y + bounds("entry-tsconfig.json").height
+	).toBeLessThanOrEqual(composer.y);
+	changeView("history");
+	expect(root.renderer.findByTestId("commit-composer")).toBeUndefined();
+	changeView("stashes");
+	expect(root.renderer.findByTestId("commit-composer")).toBeUndefined();
+	changeView("changes");
+	expect(bounds("commit-composer")).toEqual(composer);
+});
+
+it("edits multiline drafts, previews by shortcut or click, and never clears included files or draft text", () => {
+	click("commit-preview");
+	expect(root.renderer.getAllText()).toContain(
+		"Preview only · no repository connected"
+	);
+	click("commit-message");
+	root.renderer.simulateKeystrokes("h i enter enter b o d y");
+	root.renderer.flush();
+	expect(element("commit-message").customProps?.value).toBe("hi\n\nbody");
+	expect(root.renderer.getAllText()).toContain(
+		"Preview only · no repository connected"
+	);
+	root.renderer.simulateKeystrokes("cmd-enter");
+	root.renderer.flush();
+	expect(element("commit-message").customProps?.value).toBe("hi\n\nbody");
+	expect(root.renderer.getAllText()).toContain(
+		"Preview only — no commit created."
+	);
+	expect(checked("include-all")).toBe(true);
+	root.renderer.simulateKeystrokes("x");
+	root.renderer.flush();
+	click("commit-preview");
+	expect(root.renderer.getAllText()).toContain(
+		"Preview only — no commit created."
+	);
+	expect(element("commit-message").customProps?.value).toBe("hi\n\nbodyx");
+	click("commit-message");
+	root.renderer.simulateKeystrokes("cmd-down x");
+	root.renderer.flush();
+	click("include-all");
+	expect(root.renderer.getAllText()).toContain("Commit 0 files");
+	expect(element("commit-preview").customProps?.tabIndex).toBeUndefined();
+	key("commit-message", "cmd-enter");
+	expect(root.renderer.getAllText()).toContain(
+		"Preview only · no repository connected"
+	);
+	click("commit-message");
+	root.renderer.simulateKeystrokes("cmd-a space");
+	root.renderer.flush();
+	click("include-src/app.tsx");
+	expect(root.renderer.getAllText()).toContain("Commit 1 file");
+	click("commit-preview");
+	expect(root.renderer.getAllText()).toContain(
+		"Preview only · no repository connected"
+	);
+});
+
+it("restores each tab's draft across views and reordering, and starts new tabs empty", () => {
+	click("commit-message");
+	root.renderer.simulateKeystrokes("o n e");
+	root.renderer.flush();
+	changeView("history");
+	changeView("changes");
+	expect(element("commit-message").customProps?.value).toBe("one");
+	click("workspace-2");
+	expect(element("commit-message").customProps?.value).toBe("");
+	click("commit-message");
+	root.renderer.simulateKeystrokes("t w o");
+	root.renderer.flush();
+	click("workspace-1");
+	key("workspace-1", "shift-right");
+	expect(element("commit-message").customProps?.value).toBe("one");
+	click("workspace-2");
+	expect(element("commit-message").customProps?.value).toBe("two");
+	click("close-workspace-2");
+	click("add-workspace");
+	expect(element("commit-message").customProps?.value).toBe("");
+});
+
+it("traverses from file inclusion into the editor and preview action with Tab", () => {
+	key("include-src/app.tsx", "tab");
+	expect(root.renderer.getFocusedElementId()).toBe(
+		element("commit-message").id
+	);
+	root.renderer.simulateKeystrokes("a");
+	root.renderer.flush();
+	root.renderer.simulateKeystrokes("tab");
+	root.renderer.flush();
+	expect(root.renderer.getFocusedElementId()).toBe(
+		element("commit-preview").id
+	);
+	key("commit-preview", "shift-tab");
+	expect(root.renderer.getFocusedElementId()).toBe(
+		element("commit-message").id
+	);
+});
 
 it("shows one filename-first list with aligned checkboxes instead of groups or line counts", () => {
 	expect(root.renderer.findByTestId("group-Staged")).toBeUndefined();
@@ -320,7 +433,9 @@ it("keeps the full-width tab rail above navigation contained in the rounded work
 	expect(element("workspace").style.backgroundColor).toBe(
 		lightColors.editorSurface
 	);
-	expect(root.renderer.getAllText()).toContain("Sample data");
+	expect(root.renderer.getAllText()).toContain(
+		"Preview only · no repository connected"
+	);
 	expect(root.renderer.getAllText()).toContain("Select an item to inspect");
 });
 
@@ -372,7 +487,7 @@ it("reveals keyboard selections outside the viewport and keeps navigation clampe
 	expect(selected()).toEqual(["tsconfig.json, added"]);
 	const last = bounds("entry-tsconfig.json");
 
-	expect(last.y + last.height).toBeLessThanOrEqual(602);
+	expect(last.y + last.height).toBeLessThanOrEqual(bounds("commit-composer").y);
 	expect(last.y).toBeGreaterThanOrEqual(bounds("repository-list").y);
 	key("entry-tsconfig.json", "down");
 	expect(selected()).toEqual(["tsconfig.json, added"]);
@@ -625,7 +740,7 @@ it("reveals the remembered row when keyboard focus returns after scrolling it of
 	expect(scrollY()).toBeLessThan(0);
 	expect(
 		bounds("entry-tsconfig.json").y + bounds("entry-tsconfig.json").height
-	).toBeLessThanOrEqual(602);
+	).toBeLessThanOrEqual(bounds("commit-composer").y);
 });
 
 it("keeps tab dragging across the full-width strip and preserves the workspace selection", () => {

@@ -131,6 +131,15 @@ reuses the desktop's color tokens and Phosphor Light icons.
 - Clicking a filename selects its diff; clicking a checkbox only changes inclusion.
   The header shows “N of 30 selected” and an all/none/mixed checkbox. Activating
   the mixed state includes all files. Unchecking never discards a file's changes.
+- Changes pins a compact commit composer below the independently scrolling list.
+  One native multiline field holds a first-line summary and optional details after
+  a blank line. Enter adds a newline; Command+Enter or the file-count button
+  previews the action only when the summary is nonblank and files are included.
+  A persistent notice makes clear that no repository is connected. Previewing
+  creates no commit and leaves the draft and included files intact.
+  Each workspace tab retains its draft through view switches and reordering;
+  closing it or restarting the app discards that in-memory draft. History and
+  Stashes do not show the composer. No separate description field is needed.
 - History and Stashes stack two independently scrolling lists within the existing
   navigation width: revisions above and their files below. Selecting a revision
   populates the lower list; its title and metadata stay only in the sidebar. Those file
@@ -143,8 +152,9 @@ reuses the desktop's color tokens and Phosphor Light icons.
   cancels an active drag. Each view remembers its own split per workspace tab.
 - Click a row to select it. Up/Down, Home/End, and Page Up/Down navigate and
   reveal rows. Enter/Space select a focused row. Tab/Shift+Tab move between the
-  active view pill, include-all checkbox, focused file and its checkbox, and
-  workspace tab controls. Space releases toggle a focused checkbox without
+  active view pill, include-all checkbox, focused file and its checkbox, the
+  commit editor and enabled preview action, and workspace tab controls.
+  Space releases toggle a focused checkbox without
   changing the viewed file. Arrow navigation from a checkbox returns to file
   navigation; offscreen keyboard targets are revealed. In History/Stashes, Tab
   traverses the revision list, divider, and file list before leaving navigation.

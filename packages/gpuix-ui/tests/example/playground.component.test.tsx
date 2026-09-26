@@ -22,6 +22,9 @@ afterEach(() => {
 });
 
 it("switches palette and density independently while preserving demo state", () => {
+	const editor = elementByTestId(root.renderer, "textarea-example");
+
+	root.renderer.nativeSimulateKeystrokes(editor.id, "h i enter b");
 	clickElement(root.renderer, "button-primary-md");
 	clickElement(root.renderer, "branch-select");
 	clickElement(root.renderer, "branch-select-develop");
@@ -59,6 +62,15 @@ it("switches palette and density independently while preserving demo state", () 
 	expect(elementByTestId(root.renderer, "branch-select").style.height).toBe(
 		densities.compact.controlHeight
 	);
+	expect(
+		elementByTestId(root.renderer, "textarea-example").style
+	).toMatchObject({
+		backgroundColor: palettes.light.field,
+		padding: densities.compact.fieldPadding,
+	});
+	expect(
+		elementByTestId(root.renderer, "textarea-example").customProps?.value
+	).toBe("hi\nb");
 	expect(root.renderer.getPaintedText()).toContain("Activated 1 times");
 	expect(root.renderer.getPaintedText()).toContain("Selected: develop");
 

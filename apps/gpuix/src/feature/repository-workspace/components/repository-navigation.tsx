@@ -14,6 +14,7 @@ import {
 	type RepositoryView,
 } from "../lib/sample-workspace";
 import { RepositoryList } from "./repository-list";
+import { RepositoryCommit } from "./repository-commit";
 import { RepositoryRevisions } from "./repository-revisions";
 import { appTokens } from "../../../styles/tokens";
 
@@ -285,10 +286,14 @@ export function RepositoryNavigation({
 						{list}
 					</RepositoryRevisions>
 				)}
-				<div style={styles.footer}>
-					<text style={styles.faint}>Sample data</text>
-					<text style={styles.faint}>↑ ↓ Navigate</text>
-				</div>
+				{view === "changes" ? (
+					<RepositoryCommit state={state} onAction={onAction} />
+				) : (
+					<div style={styles.footer}>
+						<text style={styles.faint}>Sample data</text>
+						<text style={styles.faint}>↑ ↓ Navigate</text>
+					</div>
+				)}
 			</div>
 		</div>
 	);

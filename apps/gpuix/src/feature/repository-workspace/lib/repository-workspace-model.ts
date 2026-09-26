@@ -29,6 +29,7 @@ export interface RepositoryRevisionState extends RepositoryListState {
 /** Each workspace owns commit inclusion independently of its viewed row and scroll offsets. */
 export interface RepositoryWorkspaceState {
 	readonly view: RepositoryView;
+	readonly commitMessage: string;
 	readonly includedFileIds: readonly string[];
 	readonly views: {
 		readonly changes: RepositoryListState;
@@ -40,6 +41,7 @@ export interface RepositoryWorkspaceState {
 /** Preview-only transitions; no filesystem, Git, or persistent storage effects. */
 export type RepositoryWorkspaceAction =
 	| { type: "view"; view: RepositoryView }
+	| { type: "edit-commit-message"; value: string }
 	| { type: "select"; view: RepositoryView; id: string }
 	| { type: "include-file"; id: string; included: boolean }
 	| { type: "include-all"; included: boolean }
@@ -55,6 +57,7 @@ export class RepositoryWorkspaceModel {
 	static create(): RepositoryWorkspaceState {
 		return {
 			view: "changes",
+			commitMessage: "",
 			includedFileIds: sampleEntries.changes.map((entry) => entry.id),
 			views: {
 				changes: { selectedId: null, scrollY: 0 },
@@ -74,10 +77,24 @@ export class RepositoryWorkspaceModel {
 		};
 	}
 
+	/** The preview requires a first-line summary and at least one included file. */
+	static canPreviewCommit(state: RepositoryWorkspaceState): boolean {
+		return (
+			(state.commitMessage.split("\n", 1)[0]?.trim().length ?? 0) > 0 &&
+			state.includedFileIds.length > 0
+		);
+	}
+
 	static reduce(
 		state: RepositoryWorkspaceState,
 		action: RepositoryWorkspaceAction
 	): RepositoryWorkspaceState {
+		if (action.type === "edit-commit-message") {
+			return state.commitMessage === action.value
+				? state
+				: { ...state, commitMessage: action.value };
+		}
+
 		if (action.type === "view") {
 			return state.view === action.view
 				? state

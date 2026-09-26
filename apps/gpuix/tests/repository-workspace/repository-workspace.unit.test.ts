@@ -1,5 +1,5 @@
 /**
- * Covers: per-view/per-tab selection and scroll, revision file ownership, split limits, commit inclusion, lifecycle cleanup, and keyboard destinations.
+ * Covers: per-view/per-tab selection and scroll, revision file ownership, split limits, commit inclusion/drafts, lifecycle cleanup, and keyboard destinations.
  * Real: workspace and tab models.
  * Doubles: display-only sample data.
  * Requires: none.
@@ -9,6 +9,43 @@ import { expect, it } from "bun:test";
 import { RepositoryWorkspaceModel as Model } from "../../src/feature/repository-workspace/lib/repository-workspace-model";
 import { sampleEntries } from "../../src/feature/repository-workspace/lib/sample-workspace";
 import { WorkspaceTabsModel as Tabs } from "../../src/feature/workspace-tabs/lib/workspace-tabs-model";
+
+it("preserves draft text verbatim and requires a first-line summary and included files for preview", () => {
+	const initial = Model.create();
+	const value = "Refine navigation\n\nKeep the composer visible.\n";
+	const draft = Model.reduce(initial, { type: "edit-commit-message", value });
+
+	expect(draft.commitMessage).toBe(value);
+	expect(initial.commitMessage).toBe("");
+	expect(draft.views).toBe(initial.views);
+	expect(Model.reduce(draft, { type: "edit-commit-message", value })).toBe(
+		draft
+	);
+	expect(Model.canPreviewCommit(draft)).toBe(true);
+	expect(Model.canPreviewCommit(initial)).toBe(false);
+
+	for (const emptySummary of [" ", "\nBody only", " \r\nBody only"]) {
+		expect(
+			Model.canPreviewCommit(
+				Model.reduce(draft, {
+					type: "edit-commit-message",
+					value: emptySummary,
+				})
+			)
+		).toBe(false);
+	}
+
+	const excluded = Model.reduce(draft, {
+		type: "include-all",
+		included: false,
+	});
+
+	expect(Model.canPreviewCommit(excluded)).toBe(false);
+	expect(excluded.commitMessage).toBe(value);
+	expect(
+		Model.reduce(draft, { type: "view", view: "history" }).commitMessage
+	).toBe(value);
+});
 
 it("includes every changed file initially and changes inclusion independently of viewed files", () => {
 	const initial = Model.create();

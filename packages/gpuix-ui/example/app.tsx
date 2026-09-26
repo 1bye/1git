@@ -10,6 +10,7 @@ import {
 	type SelectProps,
 } from "@1git/gpuix-ui/select";
 import { Text } from "@1git/gpuix-ui/text";
+import { Textarea } from "@1git/gpuix-ui/textarea";
 import { densities, palettes, type UiTokens } from "@1git/gpuix-ui/tokens";
 import { useState } from "react";
 
@@ -111,6 +112,7 @@ export function ExampleApp() {
 	const [presses, setPresses] = useState(0);
 	const [branch, setBranch] = useState("main");
 	const [included, setIncluded] = useState<CheckboxState>("indeterminate");
+	const [message, setMessage] = useState("");
 
 	const tokens: UiTokens = {
 		colors: palettes[palette],
@@ -302,6 +304,20 @@ export function ExampleApp() {
 						disabled
 					/>
 				</div>
+			</div>
+			<div style={styles.stack(tokens)}>
+				<Text tokens={tokens} weight="semibold">
+					Textarea
+				</Text>
+				<Textarea
+					testId="textarea-example"
+					aria-label="Example message"
+					placeholder="Write a message…"
+					value={message}
+					onValueChange={setMessage}
+					tokens={tokens}
+					style={{ width: 360 }}
+				/>
 			</div>
 			<Text tokens={tokens} tone="muted" size="sm">
 				Tab / Shift+Tab to focus · Enter / Space to activate · Arrow keys in

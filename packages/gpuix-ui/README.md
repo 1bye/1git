@@ -1,7 +1,7 @@
 # @1git/gpuix-ui
 
 Styled React controls for GPUIX, built with `@1git/gpuix-stylesheet`. Includes
-Button, Checkbox, Text, and Select with named color and density presets. Controls default
+Button, Checkbox, Text, Textarea, and Select with named color and density presets. Controls default
 to dark colors and comfortable sizing. No theme provider is required.
 
 ## Setup
@@ -24,6 +24,7 @@ TypeScript configuration. Imports use explicit entry points:
 import { Button } from "@1git/gpuix-ui/button";
 import { Checkbox } from "@1git/gpuix-ui/checkbox";
 import { Text } from "@1git/gpuix-ui/text";
+import { Textarea } from "@1git/gpuix-ui/textarea";
 import {
   Select,
   SelectContent,
@@ -189,6 +190,57 @@ Text segments are joined before rendering because separate native text nodes do
 not behave like inline HTML. Rich React elements are not accepted as text
 children. The component sets its own color: GPUIX does not inherit a text color
 from a parent container.
+
+## Textarea
+
+A controlled multiline editor using GPUIX's native typing, selection, clipboard,
+scrolling and undo. Supply an accessible name; the placeholder is only a hint.
+
+```tsx
+import { useState } from "react";
+import { Textarea } from "@1git/gpuix-ui/textarea";
+
+const [message, setMessage] = useState("");
+
+<Textarea
+  aria-label="Commit message"
+  placeholder="Commit message…"
+  value={message}
+  onValueChange={setMessage}
+  minRows={3}
+  maxRows={6}
+  tokens={tokens}
+/>;
+```
+
+`TextareaProps` is exported from `/textarea`.
+
+| Prop | Values / purpose | Default |
+| --- | --- | --- |
+| `value` | Required complete string, including newlines | — |
+| `onValueChange` | Required `(value: string) => void` after native edits | — |
+| `aria-label` | Required accessible name | — |
+| `placeholder` | Hint shown when empty | — |
+| `minRows`, `maxRows` | Native editor height bounds; longer content scrolls | `3`, `6` |
+| `readOnly` | Native read-only editing mode | `false` |
+| `tokens` | Field colors, padding, caret and focus outline | `defaultTokens` |
+| `style` | Native style overrides; focus outline applies afterward | — |
+| `theme` | Native theme override, including caret color | Token accent caret |
+| `ref`, `testId`, `tabIndex`, `autoFocus` | Native host props | Tab index `0` |
+| `onFocus`, `onBlur`, `onKeyDown`, `onKeyUp` | Native input notifications | — |
+| `onSubmit` | Native Enter submission; see below | — |
+| `aria-description`, `aria-id` | Additional accessibility metadata | — |
+
+Remaining native textarea host props pass through, except children and `onChange`;
+use `onValueChange` instead. Text defaults to 14px with 20px line height. Focus is
+outlined, including pointer focus, without changing the editor's dimensions.
+The native accessibility role is `MultilineTextInput`.
+
+Without `onSubmit`, Enter inserts a newline. Providing `onSubmit` changes Enter
+to submission; Shift+Enter still inserts a newline. For a Command+Enter action,
+leave `onSubmit` unset and handle the modified key through `onKeyDown`, as the
+app's preview composer does. Bind Tab at the window boundary as shown in Setup.
+There is no custom text-editing engine, internal draft storage, or Git behavior.
 
 ## Select
 
