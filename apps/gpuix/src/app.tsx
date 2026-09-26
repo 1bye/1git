@@ -1,12 +1,11 @@
 import { useReducer } from "react";
 
-import { RepositorySidebar } from "./feature/repository-workspace/components/repository-sidebar";
+import { RepositoryNavigation } from "./feature/repository-workspace/components/repository-navigation";
 import { RepositoryDiffEmpty } from "./feature/repository-workspace/components/repository-diff-empty";
 import { sampleEntries } from "./feature/repository-workspace/lib/sample-workspace";
 import { WorkspaceTabs } from "./feature/workspace-tabs/workspace-tabs";
 import { WorkspaceTabsModel } from "./feature/workspace-tabs/lib/workspace-tabs-model";
 import { AppShell } from "./fixture/app-shell";
-import { workspaceLayout as layout } from "./styles/workspace-layout";
 
 /** Owns one window's in-memory workspaces; no Git or persistence side effects yet. */
 export function App({ initialTabCount = 1 }: { initialTabCount?: number }) {
@@ -27,9 +26,9 @@ export function App({ initialTabCount = 1 }: { initialTabCount?: number }) {
 
 	return (
 		<AppShell
-			sidebar={
+			navigation={
 				activeTab && workspace ? (
-					<RepositorySidebar
+					<RepositoryNavigation
 						key={activeTab.id}
 						workspaceId={activeTab.id}
 						state={workspace}
@@ -39,17 +38,7 @@ export function App({ initialTabCount = 1 }: { initialTabCount?: number }) {
 					/>
 				) : undefined
 			}
-			toolbar={
-				<WorkspaceTabs
-					state={state}
-					dispatch={dispatch}
-					titlebarInset={
-						activeTab
-							? layout.workspaceSurfaceInset + layout.tabSurfaceOutset
-							: layout.desktopTitlebarControlsWidth
-					}
-				/>
-			}
+			toolbar={<WorkspaceTabs state={state} dispatch={dispatch} />}
 			workspaceLabel={
 				activeTab ? `${activeTab.name} workspace` : "No workspace open"
 			}

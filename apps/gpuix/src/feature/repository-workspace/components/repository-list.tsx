@@ -61,8 +61,8 @@ const styles = StyleSheet.create({
 		hover: { backgroundColor: lightColors.editorHairline },
 	},
 	selected: {
-		backgroundColor: lightColors.studioGlassHover,
-		hover: { backgroundColor: lightColors.studioGlassHover },
+		backgroundColor: lightColors.editorSunken2,
+		hover: { backgroundColor: lightColors.editorSunken2 },
 	},
 	focused: { borderColor: lightColors.brand },
 	label: {

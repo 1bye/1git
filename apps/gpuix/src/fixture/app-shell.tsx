@@ -5,22 +5,23 @@ import type { ReactNode } from "react";
 const styles = StyleSheet.create({
 	root: {
 		display: "flex",
-		flexDirection: "row",
+		flexDirection: "column",
 		width: "100%",
 		height: "100%",
 		// Keep dark text legible even when macOS supplies a dark vibrancy backdrop.
 		backgroundColor: lightColors.studioGlassStrong,
 		userSelect: "none",
 	},
-	main: {
+	content: {
 		display: "flex",
 		flexDirection: "column",
 		flexGrow: 1,
 		minWidth: 0,
+		minHeight: 0,
 	},
 	workspace: {
 		display: "flex",
-		flexDirection: "column",
+		flexDirection: "row",
 		flexGrow: 1,
 		minHeight: 0,
 		marginLeft: workspaceLayout.workspaceSurfaceInset,
@@ -28,6 +29,8 @@ const styles = StyleSheet.create({
 		marginBottom: workspaceLayout.workspaceSurfaceInset,
 		borderRadius: workspaceLayout.workspaceSurfaceRadius,
 		backgroundColor: lightColors.editorSurface,
+		overflowX: "hidden",
+		overflowY: "hidden",
 	},
 });
 
@@ -35,27 +38,25 @@ const styles = StyleSheet.create({
 export function AppShell({
 	toolbar,
 	workspaceLabel,
-	sidebar,
+	navigation,
 	children,
 }: {
 	toolbar: ReactNode;
 	workspaceLabel: string;
-	sidebar?: ReactNode;
+	navigation?: ReactNode;
 	children?: ReactNode;
 }) {
 	return (
 		<div testId="app-shell" style={styles.root}>
-			{sidebar}
-			<div style={styles.main}>
-				{toolbar}
-				<div
-					testId="workspace"
-					role="tabpanel"
-					aria-label={workspaceLabel}
-					style={styles.workspace}
-				>
-					{children}
-				</div>
+			{toolbar}
+			<div
+				testId="workspace"
+				role="tabpanel"
+				aria-label={workspaceLabel}
+				style={styles.workspace}
+			>
+				{navigation}
+				<div style={styles.content}>{children}</div>
 			</div>
 		</div>
 	);

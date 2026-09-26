@@ -62,11 +62,9 @@ const styles = StyleSheet.create({
 export function WorkspaceTabs({
 	state,
 	dispatch,
-	titlebarInset = layout.desktopTitlebarControlsWidth,
 }: {
 	state: WorkspaceTabsState;
 	dispatch: Dispatch<WorkspaceTabsAction>;
-	titlebarInset?: number;
 }) {
 	const renderer = useGpuixRequired();
 	const tabs = useRef(new Map<string, PublicInstance>());
@@ -149,12 +147,7 @@ export function WorkspaceTabs({
 	]);
 
 	return (
-		<div
-			testId="workspace-toolbar"
-			style={StyleSheet.compose(styles.toolbar, {
-				paddingLeft: titlebarInset - layout.tabSurfaceOutset,
-			})}
-		>
+		<div testId="workspace-toolbar" style={styles.toolbar}>
 			<div
 				testId="window-drag-region"
 				windowDrag

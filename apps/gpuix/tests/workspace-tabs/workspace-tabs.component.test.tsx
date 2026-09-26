@@ -21,7 +21,7 @@ import { windowOptions } from "../../src/window-options";
 let root: TestRoot;
 
 // Keep the tab strip's full-width geometry regressions independent of workspace content.
-// The integrated sidebar + tab layout is exercised in repository-workspace tests.
+// The integrated navigation + tab layout is exercised in repository-workspace tests.
 function App({ initialTabCount = 1 }: { initialTabCount?: number }) {
 	const [state, dispatch] = useReducer(
 		WorkspaceTabsModel.reduce,

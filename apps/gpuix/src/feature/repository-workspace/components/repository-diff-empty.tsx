@@ -73,7 +73,7 @@ export function RepositoryDiffEmpty({
 						? "Use + to create a sample workspace."
 						: selected
 							? "This workspace uses sample data. No repository is connected."
-							: "Choose a changed file, commit, or stash from the sidebar."}
+							: "Choose a changed file, commit, or stash from the list."}
 				</text>
 			</div>
 		</>
