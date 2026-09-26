@@ -1,12 +1,20 @@
 /** Views supported by the in-memory workspace preview. */
 export type RepositoryView = "changes" | "history" | "stashes";
 
+/** Read-only views whose selected revision owns a second file list. */
+export type RevisionView = Exclude<RepositoryView, "changes">;
+
 /** Display-only entries; these never refer to files or revisions on disk. */
 export interface WorkspaceEntry {
 	readonly id: string;
 	readonly title: string;
 	readonly detail?: string;
 	readonly status?: "M" | "A" | "D";
+}
+
+/** A display-only commit or stash with its own changed files. */
+export interface WorkspaceRevision extends WorkspaceEntry {
+	readonly files: readonly WorkspaceEntry[];
 }
 
 /** Reuses the desktop's three views without exposing unfinished Git commands. */
@@ -61,10 +69,27 @@ const summaries = [
 	"Scaffold the native workspace",
 ];
 
+function revisionFiles(index: number): readonly WorkspaceEntry[] {
+	return Array.from(
+		{ length: index === 0 ? 18 : 3 + (index % 6) },
+		(_, offset) => {
+			const path = paths[(index * 3 + offset) % paths.length] ?? "README.md";
+
+			return {
+				id: path,
+				title: path,
+				status: offset === 2 ? "D" : offset % 4 === 1 ? "A" : "M",
+			};
+		}
+	);
+}
+
 /** Fixed, clearly labeled preview data with enough rows to exercise scrolling. */
-export const sampleEntries: Readonly<
-	Record<RepositoryView, readonly WorkspaceEntry[]>
-> = {
+export const sampleEntries: {
+	readonly changes: readonly WorkspaceEntry[];
+	readonly history: readonly WorkspaceRevision[];
+	readonly stashes: readonly WorkspaceRevision[];
+} = {
 	changes: paths.map((path, index) => ({
 		id: path,
 		title: path,
@@ -74,6 +99,7 @@ export const sampleEntries: Readonly<
 		id: `commit-${index + 1}`,
 		title: summaries[index % summaries.length] ?? "Update workspace",
 		detail: `Sample author · ${index + 1}h ago · ${(0xa31f29c - index * 137).toString(16)}`,
+		files: index === 23 ? [] : revisionFiles(index),
 	})),
 	stashes: [
 		"Sidebar layout exploration",
@@ -86,5 +112,6 @@ export const sampleEntries: Readonly<
 		id: `stash-${index + 1}`,
 		title,
 		detail: `stash@{${index}} · main · ${index + 1}d ago`,
+		files: index === 5 ? [] : revisionFiles(index),
 	})),
 };

@@ -1,7 +1,11 @@
 import { lightColors } from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 
-import type { WorkspaceEntry } from "../lib/sample-workspace";
+import type {
+	RepositoryView,
+	WorkspaceEntry,
+	WorkspaceRevision,
+} from "../lib/sample-workspace";
 import { RepositoryIcon } from "./repository-icon";
 
 const styles = StyleSheet.create({
@@ -42,11 +46,39 @@ const styles = StyleSheet.create({
 /** Intentionally empty preview surface; selection is real, diff content is not wired yet. */
 export function RepositoryDiffEmpty({
 	selected,
+	revision,
+	view = "changes",
 	hasWorkspace = true,
 }: {
 	selected?: WorkspaceEntry;
+	revision?: WorkspaceRevision;
+	view?: RepositoryView;
 	hasWorkspace?: boolean;
 }) {
+	let heading = "Select an item to inspect";
+	let hint = "Choose a changed file, commit, or stash from the list.";
+
+	if (!hasWorkspace) {
+		heading = "No workspace open";
+		hint = "Use + to create a sample workspace.";
+	} else if (selected) {
+		heading = "Diff preview comes next";
+		hint = "This workspace uses sample data. No repository is connected.";
+	} else if (view !== "changes") {
+		const kind = view === "history" ? "commit" : "stash";
+
+		heading = revision
+			? revision.files.length === 0
+				? "No file changes"
+				: "Select a file to inspect"
+			: `Select a ${kind} to inspect`;
+		hint = revision
+			? revision.files.length === 0
+				? `This sample ${kind} has no changed files.`
+				: `Choose a file below the ${kind} list. This is sample data.`
+			: `Choose a ${kind} to see its files. No repository is connected.`;
+	}
+
 	return (
 		<>
 			{selected ? (
@@ -61,20 +93,8 @@ export function RepositoryDiffEmpty({
 			) : null}
 			<div testId="diff-empty" style={styles.empty}>
 				<RepositoryIcon name="diff" />
-				<text style={styles.heading}>
-					{!hasWorkspace
-						? "No workspace open"
-						: selected
-							? "Diff preview comes next"
-							: "Select an item to inspect"}
-				</text>
-				<text style={styles.hint}>
-					{!hasWorkspace
-						? "Use + to create a sample workspace."
-						: selected
-							? "This workspace uses sample data. No repository is connected."
-							: "Choose a changed file, commit, or stash from the list."}
-				</text>
+				<text style={styles.heading}>{heading}</text>
+				<text style={styles.hint}>{hint}</text>
 			</div>
 		</>
 	);

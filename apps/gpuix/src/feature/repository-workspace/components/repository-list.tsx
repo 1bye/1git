@@ -10,14 +10,9 @@ import { useEffect, useRef, useState } from "react";
 
 import {
 	RepositoryWorkspaceModel,
-	type RepositoryWorkspaceAction,
-	type RepositoryWorkspaceState,
+	type RepositoryListState,
 } from "../lib/repository-workspace-model";
-import {
-	sampleEntries,
-	type RepositoryView,
-	type WorkspaceEntry,
-} from "../lib/sample-workspace";
+import type { WorkspaceEntry } from "../lib/sample-workspace";
 import { RepositoryChangeLabel } from "./repository-change-details";
 import { appTokens } from "../../../styles/tokens";
 
@@ -96,8 +91,8 @@ function RepositoryRow({
 	onSelect: () => void;
 	onKeyDown: (event: EventPayload) => void;
 	onReveal: () => void;
-	included: boolean;
-	onInclude: (included: boolean) => void;
+	included?: boolean;
+	onInclude?: (included: boolean) => void;
 }) {
 	const [focused, setFocused] = useState(false);
 	const [keyboard, setKeyboard] = useState(true);
@@ -105,7 +100,7 @@ function RepositoryRow({
 
 	return (
 		<div
-			role={entry.status ? "row" : "presentation"}
+			role={onInclude ? "row" : "presentation"}
 			testId={`row-${entry.id}`}
 			style={StyleSheet.compose(
 				styles.row,
@@ -119,7 +114,7 @@ function RepositoryRow({
 			<div
 				ref={rowRef}
 				testId={`entry-${entry.id}`}
-				role={entry.status ? "gridcell" : "option"}
+				role={onInclude ? "gridcell" : "option"}
 				aria-label={
 					entry.status
 						? `${entry.title}, ${entry.status === "A" ? "added" : entry.status === "D" ? "deleted" : "modified"}`
@@ -172,12 +167,12 @@ function RepositoryRow({
 					</div>
 				)}
 			</div>
-			{entry.status ? (
+			{onInclude ? (
 				<div role="gridcell" style={{ flexShrink: 0 }}>
 					<Checkbox
 						testId={`include-${entry.id}`}
 						aria-label={`Include ${entry.title} in commit`}
-						checked={included}
+						checked={included ?? false}
 						onCheckedChange={onInclude}
 						tokens={appTokens}
 						tabIndex={tabbable ? 0 : -1}
@@ -195,23 +190,33 @@ function RepositoryRow({
 	);
 }
 
-/** Native scrolling and roving row focus; remount per tab/view to restore that view's viewport. */
+/** Shared file/revision list with native scrolling and roving focus; remount when its data owner changes. */
 export function RepositoryList({
-	view,
+	entries,
+	label,
+	testId = "repository-list",
+	emptyMessage,
 	state,
-	includedFileIds,
-	onAction,
+	inclusion,
+	onSelect,
+	onScroll,
 }: {
-	view: RepositoryView;
-	state: RepositoryWorkspaceState["views"][RepositoryView];
-	includedFileIds: readonly string[];
-	onAction: (action: RepositoryWorkspaceAction) => void;
+	entries: readonly WorkspaceEntry[];
+	label: string;
+	testId?: string;
+	emptyMessage: string;
+	state: RepositoryListState;
+	inclusion?: {
+		ids: readonly string[];
+		onChange: (id: string, included: boolean) => void;
+	};
+	onSelect: (id: string) => void;
+	onScroll: (y: number) => void;
 }) {
 	const renderer = useGpuixRequired();
 	const viewport = useRef<PublicInstance>(null);
 	const rows = useRef(new Map<string, PublicInstance>());
 	const initialScroll = useRef(state.scrollY);
-	const entries = sampleEntries[view];
 
 	const [focusId, setFocusId] = useState(state.selectedId ?? entries[0]?.id);
 
@@ -225,7 +230,7 @@ export function RepositoryList({
 
 		const y = renderer.getScrollOffset?.(viewport.current.id)?.[1] ?? 0;
 
-		onAction({ type: "scroll", view, y });
+		onScroll(y);
 	};
 
 	const reveal = (row: PublicInstance): void => {
@@ -259,7 +264,7 @@ export function RepositoryList({
 
 		if (!row) return;
 
-		onAction({ type: "select", view, id });
+		onSelect(id);
 		setFocusId(id);
 		renderer.focusElement?.(row.id);
 
@@ -287,10 +292,10 @@ export function RepositoryList({
 			? (renderer.getElementBounds?.(viewport.current.id)?.height ?? 0)
 			: 0;
 
-		const rowHeight = view === "changes" ? fileRowHeight : revisionRowHeight;
+		const rowHeight = entries[0]?.detail ? revisionRowHeight : fileRowHeight;
 
 		const next = RepositoryWorkspaceModel.destination(
-			view,
+			entries,
 			id,
 			key,
 			Math.max(1, Math.floor(height / rowHeight) - 1)
@@ -302,27 +307,26 @@ export function RepositoryList({
 	return (
 		<div
 			ref={viewport}
-			testId="repository-list"
-			role={view === "changes" ? "grid" : "listbox"}
-			aria-label={
-				view === "changes"
-					? "Changed files"
-					: view === "history"
-						? "Commit history"
-						: "Saved stashes"
-			}
+			testId={testId}
+			role={inclusion ? "grid" : "listbox"}
+			aria-label={label}
 			onScroll={saveScroll}
 			style={styles.viewport}
 		>
 			<div style={styles.list}>
+				{entries.length === 0 ? (
+					<text style={{ ...styles.detail, padding: 14 }}>{emptyMessage}</text>
+				) : null}
 				{entries.map((entry) => (
 					<RepositoryRow
 						key={entry.id}
 						entry={entry}
 						selected={state.selectedId === entry.id}
-						included={includedFileIds.includes(entry.id)}
-						onInclude={(included) =>
-							onAction({ type: "include-file", id: entry.id, included })
+						included={inclusion?.ids.includes(entry.id)}
+						onInclude={
+							inclusion
+								? (included) => inclusion.onChange(entry.id, included)
+								: undefined
 						}
 						tabbable={focusId === entry.id}
 						rowRef={(node) => {

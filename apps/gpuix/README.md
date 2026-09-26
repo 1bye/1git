@@ -131,19 +131,30 @@ reuses the desktop's color tokens and Phosphor Light icons.
 - Clicking a filename selects its diff; clicking a checkbox only changes inclusion.
   The header shows “N of 30 selected” and an all/none/mixed checkbox. Activating
   the mixed state includes all files. Unchecking never discards a file's changes.
-- History shows sample commit summaries; Stashes shows sample saved work.
+- History and Stashes stack two independently scrolling lists within the existing
+  navigation width: revisions above and their files below. Selecting a revision
+  populates the lower list; its title and metadata stay only in the sidebar. Those file
+  rows reuse the Changes styling without inclusion checkboxes; selecting a file
+  updates the diff header. Changing revisions clears the previous file selection
+  and file-list scroll. The last sample revision in each view has no changed files
+  so the empty state can be tried too.
+- Drag the horizontal divider to resize the two lists. Tab focuses it; Up/Down
+  adjust in 5% steps, Home/End choose the 25%/75% limits. Escape or focus loss
+  cancels an active drag. Each view remembers its own split per workspace tab.
 - Click a row to select it. Up/Down, Home/End, and Page Up/Down navigate and
   reveal rows. Enter/Space select a focused row. Tab/Shift+Tab move between the
   active view pill, include-all checkbox, focused file and its checkbox, and
   workspace tab controls. Space releases toggle a focused checkbox without
   changing the viewed file. Arrow navigation from a checkbox returns to file
-  navigation; offscreen keyboard targets are revealed.
+  navigation; offscreen keyboard targets are revealed. In History/Stashes, Tab
+  traverses the revision list, divider, and file list before leaving navigation.
 - Three rounded pills switch views directly. Left/Right wrap between them;
   Home/End select the first/last. Enter/Space activate the focused pill. Only the
   active pill is in the Tab order, with a keyboard-only focus outline.
   Mouse wheel/trackpad scroll the list independently of tabs.
-- Every tab keeps its included files, view, each view's selected row, and scroll
-  offset. Reordering preserves that state; closing a tab discards it. New tabs
+- Every tab keeps its included files, view, each view's selected row and scroll
+  offset, plus revision file selection/scroll and split proportions.
+  Reordering preserves that state; closing a tab discards it. New tabs
   start fresh. Nothing is persisted across restarts.
 - Selection updates the diff header; the panel explicitly remains an empty
   sample-data preview. No file reads, Git commands, staging, commits, or stash
@@ -165,7 +176,8 @@ native motion clock also checks intermediate positions, settling, reversal,
 and grabbing a moving tab without a jump. Workspace tests cover navigation/diff
 geometry, all three views, inclusion independent of diff selection, select-all/mixed
 state, native checkbox accessibility, row selection, keyboard reveal, wheel scrolling,
-per-tab restoration, closing/reopening, and dragging in the full-width strip. These
+stacked revision/file selection, independent scrolling, splitter dragging/cancellation
+and keyboard limits, per-tab restoration, closing/reopening, and dragging in the full-width strip. These
 app tests use the patched addon and require macOS graphics access. They dispatch
 GPUI events, not physical AppKit events: manually check that tab drags keep the
 window still and empty-titlebar drags move it after restarting the app.

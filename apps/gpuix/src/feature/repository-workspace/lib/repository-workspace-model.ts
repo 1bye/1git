@@ -1,18 +1,40 @@
-import { sampleEntries, type RepositoryView } from "./sample-workspace";
+import {
+	sampleEntries,
+	type RepositoryView,
+	type RevisionView,
+	type WorkspaceEntry,
+	type WorkspaceRevision,
+} from "./sample-workspace";
+
+/** Sidebar proportions leave both revision and file lists usable at the minimum window height. */
+export const revisionSplit = {
+	initial: 0.5,
+	min: 0.25,
+	max: 0.75,
+	step: 0.05,
+} as const;
+
+/** Selection and native vertical scroll offset for one independently scrolling list. */
+export interface RepositoryListState {
+	readonly selectedId: string | null;
+	readonly scrollY: number;
+}
+
+/** A revision view preserves its file selection and sidebar split within its workspace tab. */
+export interface RepositoryRevisionState extends RepositoryListState {
+	readonly files: RepositoryListState;
+	readonly splitRatio: number;
+}
 
 /** Each workspace owns commit inclusion independently of its viewed row and scroll offsets. */
 export interface RepositoryWorkspaceState {
 	readonly view: RepositoryView;
 	readonly includedFileIds: readonly string[];
-	readonly views: Readonly<
-		Record<
-			RepositoryView,
-			{
-				readonly selectedId: string | null;
-				readonly scrollY: number;
-			}
-		>
-	>;
+	readonly views: {
+		readonly changes: RepositoryListState;
+		readonly history: RepositoryRevisionState;
+		readonly stashes: RepositoryRevisionState;
+	};
 }
 
 /** Preview-only transitions; no filesystem, Git, or persistent storage effects. */
@@ -21,7 +43,10 @@ export type RepositoryWorkspaceAction =
 	| { type: "select"; view: RepositoryView; id: string }
 	| { type: "include-file"; id: string; included: boolean }
 	| { type: "include-all"; included: boolean }
-	| { type: "scroll"; view: RepositoryView; y: number };
+	| { type: "scroll"; view: RepositoryView; y: number }
+	| { type: "select-revision-file"; view: RevisionView; id: string }
+	| { type: "scroll-revision-files"; view: RevisionView; y: number }
+	| { type: "resize-revisions"; view: RevisionView; ratio: number };
 
 /** Pure workspace UI state, owned by the containing tab's lifetime. */
 export class RepositoryWorkspaceModel {
@@ -33,8 +58,18 @@ export class RepositoryWorkspaceModel {
 			includedFileIds: sampleEntries.changes.map((entry) => entry.id),
 			views: {
 				changes: { selectedId: null, scrollY: 0 },
-				history: { selectedId: null, scrollY: 0 },
-				stashes: { selectedId: null, scrollY: 0 },
+				history: {
+					selectedId: null,
+					scrollY: 0,
+					splitRatio: revisionSplit.initial,
+					files: { selectedId: null, scrollY: 0 },
+				},
+				stashes: {
+					selectedId: null,
+					scrollY: 0,
+					splitRatio: revisionSplit.initial,
+					files: { selectedId: null, scrollY: 0 },
+				},
 			},
 		};
 	}
@@ -77,6 +112,59 @@ export class RepositoryWorkspaceModel {
 			};
 		}
 
+		if (action.type === "resize-revisions") {
+			if (!Number.isFinite(action.ratio)) return state;
+
+			const current = state.views[action.view];
+
+			const splitRatio = Math.max(
+				revisionSplit.min,
+				Math.min(revisionSplit.max, action.ratio)
+			);
+
+			if (current.splitRatio === splitRatio) return state;
+
+			return {
+				...state,
+				views: { ...state.views, [action.view]: { ...current, splitRatio } },
+			};
+		}
+
+		if (
+			action.type === "select-revision-file" ||
+			action.type === "scroll-revision-files"
+		) {
+			const current = state.views[action.view];
+			const revision = RepositoryWorkspaceModel.revision(state, action.view);
+
+			if (!revision) return state;
+
+			let files = current.files;
+
+			if (action.type === "select-revision-file") {
+				if (
+					files.selectedId === action.id ||
+					!revision.files.some((file) => file.id === action.id)
+				)
+					return state;
+
+				files = { ...files, selectedId: action.id };
+			} else {
+				if (!Number.isFinite(action.y)) return state;
+
+				const scrollY = Math.min(0, action.y);
+
+				if (files.scrollY === scrollY) return state;
+
+				files = { ...files, scrollY };
+			}
+
+			return {
+				...state,
+				views: { ...state.views, [action.view]: { ...current, files } },
+			};
+		}
+
 		const current = state.views[action.view];
 
 		if (action.type === "select") {
@@ -90,7 +178,13 @@ export class RepositoryWorkspaceModel {
 				...state,
 				views: {
 					...state.views,
-					[action.view]: { ...current, selectedId: action.id },
+					[action.view]: {
+						...current,
+						selectedId: action.id,
+						...(action.view !== "changes" && {
+							files: { selectedId: null, scrollY: 0 },
+						}),
+					},
 				},
 			};
 		}
@@ -108,13 +202,11 @@ export class RepositoryWorkspaceModel {
 	}
 
 	static destination(
-		view: RepositoryView,
+		entries: readonly WorkspaceEntry[],
 		id: string,
 		key: string,
 		pageSize: number
 	): string | undefined {
-		const entries = sampleEntries[view];
-
 		const index = entries.findIndex((entry) => entry.id === id);
 
 		if (index < 0) return undefined;
@@ -136,5 +228,15 @@ export class RepositoryWorkspaceModel {
 
 		return entries[Math.max(0, Math.min(entries.length - 1, index + offset))]
 			?.id;
+	}
+
+	/** Selected sample revision; never resolves a real Git object. */
+	static revision(
+		state: RepositoryWorkspaceState,
+		view: RevisionView
+	): WorkspaceRevision | undefined {
+		return sampleEntries[view].find(
+			(entry) => entry.id === state.views[view].selectedId
+		);
 	}
 }

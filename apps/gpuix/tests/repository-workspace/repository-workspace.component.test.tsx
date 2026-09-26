@@ -1,5 +1,5 @@
 /**
- * Covers: workspace geometry, unified file list, commit inclusion, view/row selection, keyboard, scrolling, tab isolation and dragging.
+ * Covers: workspace geometry, commit inclusion, stacked revision/files navigation, splitter resizing, keyboard, independent scrolling, tab isolation and dragging.
  * Real: App, view pills, GPUIX layout, hit testing, focus and accessibility.
  * Doubles: sample repository data; focus notification for inactive offscreen windows.
  * Requires: patched GPUIX native test renderer with macOS graphics access.
@@ -412,7 +412,173 @@ it("supports arrow-key pill selection and entry/exit with Tab", () => {
 	expect(element("row-commit-1").style.borderColor).toBe(lightColors.brand);
 	root.renderer.simulateKeystrokes("tab");
 	root.renderer.flush();
+	expect(root.renderer.getFocusedElementId()).toBe(
+		element("revision-divider").id
+	);
+	root.renderer.simulateKeystrokes("tab");
+	root.renderer.flush();
 	expect(root.renderer.getFocusedElementId()).toBe(element("workspace-1").id);
+});
+
+it("stacks revision files without checkboxes and shows contextual selection and empty placeholders", () => {
+	for (const view of ["history", "stashes"] as const) {
+		changeView(view);
+		const first = sampleEntries[view][0];
+
+		if (!first) throw new Error("Missing sample revision");
+
+		expect(bounds("revision-files-pane").y).toBeGreaterThan(
+			bounds("revision-pane").y
+		);
+		expect(bounds("revision-files-pane").width).toBe(
+			bounds("revision-pane").width
+		);
+		expect(root.renderer.getAllText()).toContain(
+			view === "history"
+				? "Select a commit to see its files."
+				: "Select a stash to see its files."
+		);
+		click(`entry-${first.id}`);
+		expect(root.renderer.getAllText()).toContain("Select a file to inspect");
+		expect(root.renderer.findByTestId("revision-header")).toBeUndefined();
+		expect(root.renderer.findByTestId("diff-header")).toBeUndefined();
+		expect(root.renderer.findByTestId("include-all")).toBeUndefined();
+		expect(root.renderer.findByTestId("include-src/app.tsx")).toBeUndefined();
+		click("entry-src/app.tsx");
+		expect(selected()).toEqual([first.title, "src/app.tsx, modified"]);
+		expect(root.renderer.getAllText()).toContain("Diff preview comes next");
+		expect(bounds("diff-header").y).toBe(bounds("workspace").y);
+		click(`entry-${sampleEntries[view][1]?.id}`);
+		expect(root.renderer.findByTestId("diff-selection")).toBeUndefined();
+		expect(root.renderer.findByTestId("entry-src/app.tsx")).toBeUndefined();
+		key(`entry-${sampleEntries[view][1]?.id}`, "end");
+		expect(root.renderer.getAllText()).toContain(
+			"No file changes in this revision."
+		);
+		expect(root.renderer.getAllText()).toContain("No file changes");
+	}
+});
+
+it("navigates revision files by keyboard and scrolls each pane independently, preserving them across views and tabs", () => {
+	changeView("history");
+	click("entry-commit-1");
+	key("entry-commit-1", "tab");
+	expect(root.renderer.getFocusedElementId()).toBe(
+		element("revision-divider").id
+	);
+	key("revision-divider", "tab");
+	expect(root.renderer.getFocusedElementId()).toBe(
+		element("entry-src/app.tsx").id
+	);
+	key("entry-src/app.tsx", "end");
+	const filesY = root.renderer.getScrollOffset(
+		element("revision-files").id
+	)?.[1];
+
+	expect(filesY).toBeLessThan(0);
+	expect(scrollY()).toBe(0);
+	expect(selected()).toEqual([
+		"Refine workspace tab spacing",
+		"src/assets/file.svg, added",
+	]);
+	const filesPane = bounds("revision-files-pane");
+	const last = bounds("entry-src/assets/file.svg");
+
+	expect(last.y + last.height).toBeLessThanOrEqual(
+		filesPane.y + filesPane.height
+	);
+	const top = bounds("revision-pane");
+
+	root.renderer.nativeSimulateScrollWheel(top.x + 80, top.y + 50, 0, -150);
+	root.renderer.flush();
+	const revisionsY = scrollY();
+
+	expect(revisionsY).toBeLessThan(0);
+	expect(root.renderer.getScrollOffset(element("revision-files").id)?.[1]).toBe(
+		filesY
+	);
+	changeView("stashes");
+	click("entry-stash-1");
+	click("entry-src/styles/tokens.ts");
+	changeView("history");
+	expect(scrollY()).toBe(revisionsY);
+	expect(root.renderer.getScrollOffset(element("revision-files").id)?.[1]).toBe(
+		filesY
+	);
+	expect(selected()).toEqual([
+		"Refine workspace tab spacing",
+		"src/assets/file.svg, added",
+	]);
+	click("workspace-2");
+	changeView("history");
+	expect(selected()).toEqual([]);
+	click("workspace-1");
+	expect(selected()).toEqual([
+		"Refine workspace tab spacing",
+		"src/assets/file.svg, added",
+	]);
+	changeView("stashes");
+	expect(selected()).toEqual([
+		"Sidebar layout exploration",
+		"src/styles/tokens.ts, added",
+	]);
+});
+
+it("resizes with captured dragging and keyboard limits, cancels with Escape, and remembers the split per view and tab", () => {
+	changeView("history");
+	const divider = bounds("revision-divider");
+	const x = divider.x + 100;
+	const y = divider.y + divider.height / 2;
+
+	root.renderer.nativeSimulateMouseDown(x, y);
+	root.renderer.nativeSimulateMouseMove(700, y + 60, 0);
+	root.renderer.flush();
+	expect(bounds("revision-divider").y).toBeCloseTo(divider.y + 60, 0);
+	root.renderer.nativeSimulateMouseUp(700, y + 60);
+	root.renderer.flush();
+	const movedY = bounds("revision-divider").y;
+
+	root.renderer.nativeSimulateMouseDown(x, movedY + 4);
+	root.renderer.nativeSimulateMouseMove(x, movedY - 70, 0);
+	root.renderer.flush();
+	key("revision-divider", "escape");
+	root.renderer.nativeSimulateMouseUp(x, movedY - 70);
+	root.renderer.flush();
+	expect(bounds("revision-divider").y).toBeCloseTo(movedY, 0);
+	key("revision-divider", "home");
+	expect(element("revision-divider").customProps?.["aria-valuetext"]).toBe(
+		"25% for revisions"
+	);
+	key("revision-divider", "up");
+	expect(element("revision-divider").customProps?.["aria-valuetext"]).toBe(
+		"25% for revisions"
+	);
+	key("revision-divider", "end");
+	key("revision-divider", "down");
+	expect(element("revision-divider").customProps?.["aria-valuetext"]).toBe(
+		"75% for revisions"
+	);
+	key("revision-divider", "up");
+	expect(element("revision-divider").customProps?.["aria-valuetext"]).toBe(
+		"70% for revisions"
+	);
+	changeView("stashes");
+	expect(element("revision-divider").customProps?.["aria-valuetext"]).toBe(
+		"50% for revisions"
+	);
+	changeView("history");
+	expect(element("revision-divider").customProps?.["aria-valuetext"]).toBe(
+		"70% for revisions"
+	);
+	click("workspace-2");
+	changeView("history");
+	expect(element("revision-divider").customProps?.["aria-valuetext"]).toBe(
+		"50% for revisions"
+	);
+	click("workspace-1");
+	expect(element("revision-divider").customProps?.["aria-valuetext"]).toBe(
+		"70% for revisions"
+	);
 });
 
 it("reveals the remembered row when keyboard focus returns after scrolling it offscreen", () => {

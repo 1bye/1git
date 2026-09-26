@@ -14,6 +14,7 @@ import {
 	type RepositoryView,
 } from "../lib/sample-workspace";
 import { RepositoryList } from "./repository-list";
+import { RepositoryRevisions } from "./repository-revisions";
 import { appTokens } from "../../../styles/tokens";
 
 const styles = StyleSheet.create({
@@ -121,6 +122,39 @@ export function RepositoryNavigation({
 
 		if (pill) renderer.focusElement?.(pill.id);
 	};
+
+	const list = (
+		<RepositoryList
+			key={`${workspaceId}:${view}`}
+			entries={sampleEntries[view]}
+			label={
+				view === "changes"
+					? "Changed files"
+					: view === "history"
+						? "Commit history"
+						: "Saved stashes"
+			}
+			emptyMessage={
+				view === "changes"
+					? "No changed files"
+					: view === "history"
+						? "No commits yet"
+						: "No stashed changes"
+			}
+			state={state.views[view]}
+			inclusion={
+				view === "changes"
+					? {
+							ids: state.includedFileIds,
+							onChange: (id, included) =>
+								onAction({ type: "include-file", id, included }),
+						}
+					: undefined
+			}
+			onSelect={(id) => onAction({ type: "select", view, id })}
+			onScroll={(y) => onAction({ type: "scroll", view, y })}
+		/>
+	);
 
 	return (
 		<div
@@ -239,13 +273,18 @@ export function RepositoryNavigation({
 						<text style={styles.faint}>{sampleEntries[view].length}</text>
 					)}
 				</div>
-				<RepositoryList
-					key={`${workspaceId}:${view}`}
-					view={view}
-					state={state.views[view]}
-					includedFileIds={state.includedFileIds}
-					onAction={onAction}
-				/>
+				{view === "changes" ? (
+					list
+				) : (
+					<RepositoryRevisions
+						key={view}
+						view={view}
+						state={state}
+						onAction={onAction}
+					>
+						{list}
+					</RepositoryRevisions>
+				)}
 				<div style={styles.footer}>
 					<text style={styles.faint}>Sample data</text>
 					<text style={styles.faint}>↑ ↓ Navigate</text>
