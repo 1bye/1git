@@ -295,7 +295,7 @@ export function RepositoryNavigation({
 						</div>
 					))}
 				</div>
-				{state.repository ? (
+				{state.repository || state.repositoryPath ? (
 					<Button
 						testId="refresh-repository"
 						aria-label="Refresh repository"
@@ -408,7 +408,8 @@ export function RepositoryNavigation({
 						) : null}
 					</RepositoryRevisions>
 				)}
-				{view === "changes" && (state.preview || state.repository) ? (
+				{view === "changes" &&
+				(state.preview || state.repository || state.repositoryPath) ? (
 					<RepositoryCommit
 						state={state}
 						onAction={onAction}

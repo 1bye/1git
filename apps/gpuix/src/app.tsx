@@ -1,4 +1,11 @@
 import { useCallback, useReducer } from "react";
+import { Button } from "@1git/gpuix-ui/button";
+import { appTokens } from "./styles/tokens";
+import {
+	WorkspaceSession,
+	type WorkspaceSessionDocument,
+} from "./feature/workspace-tabs/lib/workspace-session";
+import { useWorkspaceSession } from "./feature/workspace-tabs/hooks/use-workspace-session";
 
 import { RepositoryNavigation } from "./feature/repository-workspace/components/repository-navigation";
 import { RepositoryDiffEmpty } from "./feature/repository-workspace/components/repository-diff-empty";
@@ -28,6 +35,9 @@ import { AppShell } from "./fixture/app-shell";
 export function App({
 	initialTabCount = 1,
 	preview = false,
+	initialSession,
+	sessionError,
+	saveSession,
 	readRepository = RepositoryReader.read,
 	readDiff = DiffReader.read,
 	readHistory = RepositoryHistory.read,
@@ -43,6 +53,9 @@ export function App({
 }: {
 	initialTabCount?: number;
 	preview?: boolean;
+	initialSession?: WorkspaceSessionDocument;
+	sessionError?: string;
+	saveSession?: (document: WorkspaceSessionDocument) => void;
 	readRepository?: typeof RepositoryReader.read;
 	readDiff?: typeof DiffReader.read;
 	readHistory?: typeof RepositoryHistory.read;
@@ -58,9 +71,17 @@ export function App({
 }) {
 	const [state, dispatch] = useReducer(
 		WorkspaceTabsModel.reduce,
-		{ initialTabCount, preview },
+		{ initialTabCount, preview, initialSession },
 		(options) =>
-			WorkspaceTabsModel.create(options.initialTabCount, options.preview)
+			options.initialSession && !options.preview
+				? WorkspaceSession.restore(options.initialSession)
+				: WorkspaceTabsModel.create(options.initialTabCount, options.preview)
+	);
+
+	const session = useWorkspaceSession(
+		state,
+		saveSession,
+		preview ? undefined : sessionError
 	);
 
 	const connection = useRepositoryConnection(state, dispatch, readRepository);
@@ -157,6 +178,28 @@ export function App({
 				activeTab ? `${activeTab.name} workspace` : "No workspace open"
 			}
 		>
+			{session.error ? (
+				<div style={{ padding: 10, flexShrink: 0, gap: 6 }}>
+					<text
+						testId="session-notice"
+						role="alert"
+						style={{ fontSize: 11, color: appTokens.colors.textMuted }}
+					>
+						{session.error}
+					</text>
+					{saveSession ? (
+						<Button
+							testId="retry-session-save"
+							tokens={appTokens}
+							size="sm"
+							variant="ghost"
+							onPress={session.retry}
+						>
+							Retry saving session
+						</Button>
+					) : null}
+				</div>
+			) : null}
 			{activeTab && workspace?.repository && comparison ? (
 				<RepositoryDiff
 					key={`${activeTab.id}:${revision?.id ?? "changes"}:${comparison.path}`}
@@ -177,7 +220,11 @@ export function App({
 					workspace={workspace}
 					picking={connection.pickingId !== null}
 					onOpen={() => {
-						if (activeTab) void connection.open(activeTab.id);
+						if (!activeTab) return;
+
+						if (workspace?.repositoryPath)
+							void connection.refresh(activeTab.id);
+						else void connection.open(activeTab.id);
 					}}
 				/>
 			)}

@@ -92,8 +92,11 @@ export function RepositoryDiffEmpty({
 		if (!workspace.repository) {
 			heading = workspace.loading
 				? "Reading repository…"
-				: "Open a Git repository";
+				: workspace.repositoryPath
+					? "Repository unavailable"
+					: "Open a Git repository";
 			hint =
+				workspace.repositoryPath ??
 				workspace.error ??
 				"Choose a local repository to view its changed files.";
 		} else if (view === "history") {
@@ -155,7 +158,11 @@ export function RepositoryDiffEmpty({
 						disabled={picking || workspace.loading}
 						onPress={onOpen}
 					>
-						{picking ? "Opening…" : "Open repository…"}
+						{picking
+							? "Opening…"
+							: workspace.repositoryPath
+								? "Retry repository"
+								: "Open repository…"}
 					</Button>
 				) : null}
 			</div>

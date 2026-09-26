@@ -43,6 +43,8 @@ export interface RepositoryRevisionState extends RepositoryListState {
 /** Each workspace owns commit inclusion independently of its viewed row and scroll offsets. */
 export interface RepositoryWorkspaceState {
 	readonly preview: boolean;
+	/** Saved root retained even while unavailable; fresh metadata still comes from repository reads. */
+	readonly repositoryPath: string | null;
 	readonly branchPending: boolean;
 	readonly sync: {
 		readonly pending: "fetch" | "pull" | "push" | "publish" | null;
@@ -181,6 +183,7 @@ export class RepositoryWorkspaceModel {
 
 		return {
 			preview,
+			repositoryPath: null,
 			branchPending: false,
 			sync: {
 				pending: null,
@@ -633,6 +636,7 @@ export class RepositoryWorkspaceModel {
 			return {
 				...state,
 				preview: false,
+				repositoryPath: snapshot.repository.root,
 				loading: false,
 				error: null,
 				watchError: sameRepository ? state.watchError : null,

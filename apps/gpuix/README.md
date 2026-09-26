@@ -134,10 +134,40 @@ does not register that font with GPUIX.
 - Closing the active tab selects the right neighbor, then the left. Closing the
   last tab leaves the white workspace and focuses +.
 
-The window starts with one empty workspace. + opens another empty tab so each
-repository keeps its own state. Nothing is restored after restarting. Cmd+W
+On first launch the window starts with one empty workspace. Later launches restore
+the saved tabs and drafts. + opens another empty tab so each repository keeps its
+own state. Cmd+W
 remains the native Close Window command. There is no theme switch or tab
 entrance/exit animation yet.
+
+### Session restoration
+
+- Open repository/worktree roots, tab order, active tab, empty tabs and commit
+  drafts survive restarts. Duplicate tabs for the same root retain separate drafts.
+  Closing a tab intentionally removes it and its draft from the saved session;
+  closing the window retains the remaining tabs. Successful commits save the cleared draft.
+- Every restored root is read again. Branches, status, files, inclusion checkboxes,
+  History/Stashes caches, diffs and pending Git operations are never deserialized.
+  Startup neither checks out a branch nor contacts a remote or resumes a write.
+- Missing/unavailable folders stay in their tab with an editable draft and
+  **Retry repository**. Slow reads cannot steal the active tab; closing a restored
+  tab cancels its read. Restore failures do not erase the saved root or draft.
+- On macOS the file is `~/Library/Application Support/1git-gpuix/session.json`,
+  separate from Electron's data. Windows uses `%APPDATA%/1git-gpuix/session.json`;
+  Linux uses `$XDG_STATE_HOME/1git-gpuix/session.json` (default `~/.local/state`).
+  Set `GPUIX_SESSION_PATH` to an isolated file for development/testing.
+- The versioned JSON contains local paths and **plaintext draft text**, not
+  credentials, remote URLs or file contents. New directories/files use owner-only
+  permissions on POSIX. Use one app process per session file; separate instances
+  should use different `GPUIX_SESSION_PATH` values.
+- Writes are debounced by 200ms, atomically replaced, and synchronously flushed
+  on unmount and GPUIX's normal process-exit path. Force-killing or crashing may
+  lose the last debounce interval; this does not add a quit guard for Git writes.
+- Invalid, unsupported, unreadable or oversized saved files are preserved, with a
+  visible error and autosaving disabled until repaired and restarted. Write failures
+  retain the in-memory draft and expose Retry. The session has a 1 MiB size limit.
+- `GPUIX_PREVIEW=1` neither reads nor writes sessions. Tests inject the session and
+  storage boundary or use temporary files; they never access real application data.
 
 ### Workspace menu
 
@@ -222,7 +252,8 @@ This is not a port of the Electron liquid SVG morph.
   tab or unmounting cancels pending reads and ignores late picker/read results.
 - **Checkboxes select whole files for the next commit, not Git staging.** Toggling
   them neither stages nor unstages files. Command+Enter/the composer button creates
-  a real commit in a connected repository. Drafts and inclusion are in-memory only.
+  a real commit in a connected repository. Drafts are saved with the session;
+  inclusion choices remain in-memory only.
   History and Stashes are read-only.
   Unavailable views never substitute sample records for live data.
 
@@ -308,7 +339,7 @@ the Turbo build/dev tasks build dependencies first. No Electron IPC is involved.
   and selects its first file, including cached commits, without moving keyboard
   focus out of the commit list. Empty commits keep the file selection empty.
   Pending reads are cancelled on view/tab changes, refresh or close; errors expose
-  Retry without discarding loaded pages. Nothing is persisted across restarts.
+  Retry without discarding loaded pages. History selection and pages are not persisted across restarts.
 - Refresh keeps cached History when HEAD is unchanged. A different HEAD resets
   pagination to the new snapshot. Automatic refresh retains the selected commit
   and file when they remain in the refreshed page; explicit refresh and successful
@@ -530,8 +561,15 @@ The separate,
 uncached `test:integration` task uses the real Git CLI with disposable repositories
 to check mixed status, unusual filenames, nested folders, worktrees, clean/unborn
 HEAD and errors, and verifies staged content and HEAD are unchanged. It requires
-Git and writable temporary storage, but no graphics access or network. The
+Git and writable temporary storage, but no network. The session-exit integration
+test also requires native macOS graphics access. The
 physical native directory dialog still needs a manual check on macOS.
+
+Session tests cover schema validation, duplicate/linked roots, independent drafts,
+tab order/activation, fresh out-of-order repository reads, missing-folder retry,
+read cancellation, debounced saves and failure feedback, preview isolation, private
+atomic files and preservation of corrupt sessions. A separate Bun/native process
+edits a draft and calls `process.exit` before the debounce to verify final flushing.
 
 Automatic-refresh tests additionally exercise real atomic saves, index and HEAD
 changes, shared worktree stash refs, watcher cleanup and the absence of status

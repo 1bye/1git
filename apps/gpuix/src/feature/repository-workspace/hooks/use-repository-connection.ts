@@ -1,5 +1,6 @@
 import { useGpuixRequired } from "@gpuix/react";
 import {
+	useCallback,
 	useEffect,
 	useLayoutEffect,
 	useRef,
@@ -59,50 +60,69 @@ export function useRepositoryConnection(
 		};
 	}, []);
 
-	const send = (id: string, action: RepositoryWorkspaceAction): void => {
-		if (mounted.current) dispatch({ type: "workspace", id, action });
-	};
+	const send = useCallback(
+		(id: string, action: RepositoryWorkspaceAction): void => {
+			if (mounted.current) dispatch({ type: "workspace", id, action });
+		},
+		[dispatch]
+	);
 
-	const read = async (id: string, path: string): Promise<void> => {
-		if (
-			!mounted.current ||
-			!tabs.current.some(
-				(tab) =>
-					tab.id === id && !RepositoryWorkspaceModel.isBusy(tab.workspace)
+	const read = useCallback(
+		async (id: string, path: string): Promise<void> => {
+			if (
+				!mounted.current ||
+				!tabs.current.some(
+					(tab) =>
+						tab.id === id && !RepositoryWorkspaceModel.isBusy(tab.workspace)
+				)
 			)
-		)
-			return;
+				return;
 
-		requests.current.get(id)?.abort();
-		const request = new AbortController();
+			requests.current.get(id)?.abort();
+			const request = new AbortController();
 
-		requests.current.set(id, request);
-		send(id, { type: "loading" });
+			requests.current.set(id, request);
+			send(id, { type: "loading" });
 
-		try {
-			const result = await readRepository(path, request.signal);
+			try {
+				const result = await readRepository(path, request.signal);
 
-			if (request.signal.aborted) return;
+				if (request.signal.aborted) return;
 
-			send(
-				id,
-				result.ok
-					? { type: "loaded", snapshot: result.value }
-					: { type: "load-error", message: result.error.message }
-			);
-		} catch (error) {
-			if (!request.signal.aborted)
-				send(id, {
-					type: "load-error",
-					message:
-						error instanceof Error
-							? error.message
-							: "Could not read this repository.",
-				});
-		} finally {
-			if (requests.current.get(id) === request) requests.current.delete(id);
+				send(
+					id,
+					result.ok
+						? { type: "loaded", snapshot: result.value }
+						: { type: "load-error", message: result.error.message }
+				);
+			} catch (error) {
+				if (!request.signal.aborted)
+					send(id, {
+						type: "load-error",
+						message:
+							error instanceof Error
+								? error.message
+								: "Could not read this repository.",
+					});
+			} finally {
+				if (requests.current.get(id) === request) requests.current.delete(id);
+			}
+		},
+		[readRepository, send]
+	);
+
+	useEffect(() => {
+		for (const tab of tabs.current) {
+			const workspace = tab.workspace;
+
+			if (
+				!workspace.repository &&
+				workspace.repositoryPath &&
+				workspace.loading
+			)
+				void read(tab.id, workspace.repositoryPath);
 		}
-	};
+	}, [read]);
 
 	const open = async (id: string): Promise<void> => {
 		if (picking.current) return;
@@ -141,10 +161,10 @@ export function useRepositoryConnection(
 	};
 
 	const refresh = async (id: string): Promise<void> => {
-		const repository = tabs.current.find((tab) => tab.id === id)?.workspace
-			.repository;
+		const workspace = tabs.current.find((tab) => tab.id === id)?.workspace;
+		const path = workspace?.repository?.root ?? workspace?.repositoryPath;
 
-		if (repository) await read(id, repository.root);
+		if (path) await read(id, path);
 	};
 
 	return { open, refresh, pickingId };
