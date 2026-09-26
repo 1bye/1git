@@ -146,6 +146,14 @@ entrance/exit animation yet.
   drafts survive restarts. Duplicate tabs for the same root retain separate drafts.
   Closing a tab intentionally removes it and its draft from the saved session;
   closing the window retains the remaining tabs. Successful commits save the cleared draft.
+- Each tab remembers Changes/History/Stashes, its selected changed file, commit,
+  stash and revision file. Paths and immutable revision IDs are checked against
+  fresh data; missing revision files fall back to the first available file.
+  History lazily searches its previous loaded range plus one page (up to 10,000
+  commits), then falls back to the newest commit if the saved ID is absent.
+  Older session files remain supported; invalid optional navigation is ignored
+  without losing roots or drafts. Scroll positions and inclusion checkboxes are
+  not persisted.
 - Every restored root is read again. Branches, status, files, inclusion checkboxes,
   History/Stashes caches, diffs and pending Git operations are never deserialized.
   Startup neither checks out a branch nor contacts a remote or resumes a write.

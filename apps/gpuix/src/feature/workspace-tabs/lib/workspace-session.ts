@@ -1,6 +1,18 @@
 import { basename, isAbsolute } from "node:path";
 import { RepositoryWorkspaceModel } from "../../repository-workspace/lib/repository-workspace-model";
 import type { WorkspaceTabsState } from "./workspace-tabs-model";
+import type { RepositoryView } from "../../repository-workspace/types";
+
+/** Stable navigation intent, separate from Git data and commit inclusion. */
+interface WorkspaceNavigation {
+	readonly view: RepositoryView;
+	readonly changes: string | null;
+	readonly history: string | null;
+	readonly historyFile: string | null;
+	readonly historyLimit: number;
+	readonly stashes: string | null;
+	readonly stashFile: string | null;
+}
 
 /** Versioned local session intent; never contains Git snapshots, credentials or pending operations. */
 export interface WorkspaceSessionDocument {
@@ -9,11 +21,14 @@ export interface WorkspaceSessionDocument {
 		readonly id: string;
 		readonly path: string | null;
 		readonly draft: string;
+		readonly navigation?: WorkspaceNavigation;
 	}[];
 	readonly activeId: string | null;
 }
 
 const tabIdPattern = /^workspace-([1-9]\d*)$/;
+const historyRestoreExtraRows = 50;
+const historyRestoreMaxRows = 10000;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
 	typeof value === "object" && value !== null && !Array.isArray(value);
@@ -21,6 +36,47 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 /** Projects persistent tab intent into fresh, disconnected workspaces for read-only restoration. */
 export class WorkspaceSession {
 	private constructor() {}
+
+	private static navigation(value: unknown): WorkspaceNavigation | undefined {
+		if (!isRecord(value)) return undefined;
+
+		const {
+			view,
+			changes,
+			history,
+			historyFile,
+			historyLimit,
+			stashes,
+			stashFile,
+		} = value;
+
+		const isSelection = (item: unknown): item is string | null =>
+			item === null || (typeof item === "string" && !item.includes("\0"));
+
+		if (
+			(view !== "changes" && view !== "history" && view !== "stashes") ||
+			!isSelection(changes) ||
+			!isSelection(history) ||
+			!isSelection(historyFile) ||
+			!isSelection(stashes) ||
+			!isSelection(stashFile) ||
+			typeof historyLimit !== "number" ||
+			!Number.isSafeInteger(historyLimit) ||
+			historyLimit < 0 ||
+			historyLimit > historyRestoreMaxRows
+		)
+			return undefined;
+
+		return {
+			view,
+			changes,
+			history,
+			historyFile,
+			historyLimit,
+			stashes,
+			stashFile,
+		};
+	}
 
 	static parse(content: string): WorkspaceSessionDocument {
 		const value: unknown = JSON.parse(content);
@@ -51,7 +107,12 @@ export class WorkspaceSession {
 				throw new Error("The saved session contains an invalid workspace.");
 
 			ids.add(tab.id);
-			tabs.push({ id: tab.id, path: tab.path, draft: tab.draft });
+			tabs.push({
+				id: tab.id,
+				path: tab.path,
+				draft: tab.draft,
+				navigation: WorkspaceSession.navigation(tab.navigation),
+			});
 		}
 
 		return {
@@ -71,6 +132,20 @@ export class WorkspaceSession {
 				id,
 				path: workspace.repository?.root ?? workspace.repositoryPath,
 				draft: workspace.commitMessage,
+				navigation: {
+					view: workspace.view,
+					changes: workspace.views.changes.selectedId,
+					history: workspace.views.history.selectedId,
+					historyFile: workspace.views.history.files.selectedId,
+					historyLimit:
+						workspace.restoreHistoryLimit ??
+						Math.min(
+							historyRestoreMaxRows,
+							workspace.entries.history.length + historyRestoreExtraRows
+						),
+					stashes: workspace.views.stashes.selectedId,
+					stashFile: workspace.views.stashes.files.selectedId,
+				},
 			})),
 			activeId: state.activeId,
 		};
@@ -79,7 +154,7 @@ export class WorkspaceSession {
 	static restore(document: WorkspaceSessionDocument): WorkspaceTabsState {
 		return {
 			preview: false,
-			tabs: document.tabs.map(({ id, path, draft }) => ({
+			tabs: document.tabs.map(({ id, path, draft, navigation }) => ({
 				id,
 				name: path ? basename(path) : "Open repository",
 				workspace: {
@@ -87,6 +162,7 @@ export class WorkspaceSession {
 					repositoryPath: path,
 					loading: path !== null,
 					commitMessage: draft,
+					...(navigation ? WorkspaceSession.restoreNavigation(navigation) : {}),
 				},
 			})),
 			activeId: document.activeId,
@@ -95,6 +171,30 @@ export class WorkspaceSession {
 					Math.max(next, Number(tab.id.slice("workspace-".length)) + 1),
 				1
 			),
+		};
+	}
+
+	private static restoreNavigation(navigation: WorkspaceNavigation) {
+		const { views } = RepositoryWorkspaceModel.create();
+
+		return {
+			view: navigation.view,
+			restoreHistoryLimit: navigation.history
+				? navigation.historyLimit
+				: undefined,
+			views: {
+				changes: { ...views.changes, selectedId: navigation.changes },
+				history: {
+					...views.history,
+					selectedId: navigation.history,
+					files: { ...views.history.files, selectedId: navigation.historyFile },
+				},
+				stashes: {
+					...views.stashes,
+					selectedId: navigation.stashes,
+					files: { ...views.stashes.files, selectedId: navigation.stashFile },
+				},
+			},
 		};
 	}
 }

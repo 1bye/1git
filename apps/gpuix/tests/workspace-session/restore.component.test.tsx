@@ -14,6 +14,11 @@ import {
 	changedFile,
 } from "../_shared/repository-snapshot";
 import { windowOptions } from "../../src/window-options";
+import {
+	commitInfo,
+	committedFiles,
+	historyPage,
+} from "../_shared/history-page";
 
 let root: TestRoot;
 
@@ -76,6 +81,62 @@ const read: typeof RepositoryReader.read = async (path) => {
 		},
 	};
 };
+
+it("restores History, loads the saved older commit and its selected file before saving navigation", async () => {
+	const commit = commitInfo(60).oid;
+	const save = mock<(document: WorkspaceSessionDocument) => void>(() => {});
+
+	const pages = mock(async (_root: string, _head: string, offset: number) => ({
+		ok: true as const,
+		value: historyPage(offset, 50, true),
+	}));
+
+	root.render(
+		<App
+			initialSession={{
+				version: 1,
+				activeId: "workspace-1",
+				tabs: [
+					{
+						id: "workspace-1",
+						path: "/test/project",
+						draft: "Keep",
+						navigation: {
+							view: "history",
+							changes: "fresh.ts",
+							history: commit,
+							historyFile: "src/file-2.ts",
+							historyLimit: 150,
+							stashes: null,
+							stashFile: null,
+						},
+					},
+				],
+			}}
+			readRepository={read}
+			readHistory={pages}
+			readCommitFiles={async (_path, oid) => ({
+				ok: true,
+				value: committedFiles(oid),
+			})}
+			readDiff={async () => ({ ok: true, value: [] })}
+			saveSession={save}
+		/>
+	);
+
+	for (let attempt = 0; attempt < 20; attempt++) await settle();
+
+	expect(node(`entry-${commit}`).customProps?.["aria-selected"]).toBe(true);
+	expect(node("entry-src/file-2.ts").customProps?.["aria-selected"]).toBe(true);
+	expect(pages.mock.calls.map((call) => call[2])).toEqual([0, 50]);
+	root.unmount();
+	expect(save.mock.calls.at(-1)?.[0].tabs[0]?.navigation).toMatchObject({
+		view: "history",
+		history: commit,
+		historyFile: "src/file-2.ts",
+		changes: "fresh.ts",
+	});
+});
 
 it("restores order and the active tab immediately, reads each saved root and keeps drafts when reads complete out of order", async () => {
 	const linked = Promise.withResolvers<Awaited<ReturnType<typeof read>>>();

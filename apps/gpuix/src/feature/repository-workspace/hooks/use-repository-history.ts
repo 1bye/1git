@@ -29,6 +29,7 @@ export function useRepositoryHistory(
 
 	const nextOffset = state?.history.nextOffset;
 	const error = state?.history.error;
+	const restoring = state?.restoreHistoryLimit !== undefined;
 
 	const revision = state?.entries.history.find(
 		(entry) => entry.id === state.views.history.selectedId
@@ -161,8 +162,8 @@ export function useRepositoryHistory(
 	}, [key]);
 
 	useEffect(() => {
-		if (nextOffset === 0 && !error) void loadMore();
-	}, [nextOffset, error, loadMore]);
+		if ((nextOffset === 0 || restoring) && !error) void loadMore();
+	}, [nextOffset, restoring, error, loadMore]);
 
 	useEffect(() => {
 		return () => {

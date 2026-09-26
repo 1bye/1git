@@ -42,6 +42,8 @@ export interface RepositoryRevisionState extends RepositoryListState {
 
 /** Each workspace owns commit inclusion independently of its viewed row and scroll offsets. */
 export interface RepositoryWorkspaceState {
+	/** Bounded lazy history search for a restored selection; cleared once resolved. */
+	readonly restoreHistoryLimit?: number;
 	readonly preview: boolean;
 	/** Saved root retained even while unavailable; fresh metadata still comes from repository reads. */
 	readonly repositoryPath: string | null;
@@ -482,7 +484,7 @@ export class RepositoryWorkspaceModel {
 			const selectFirstFile =
 				action.type === "stash-files" &&
 				current.selectedId === action.oid &&
-				current.files.selectedId === null;
+				!action.files.some((file) => file.id === current.files.selectedId);
 
 			return {
 				...state,
@@ -539,12 +541,20 @@ export class RepositoryWorkspaceModel {
 
 				const history = state.views.history;
 
-				const retained = entries.some(
-					(entry) => entry.id === history.selectedId
-				);
+				const found = entries.some((entry) => entry.id === history.selectedId);
+
+				const searching =
+					!found &&
+					action.page.nextOffset !== null &&
+					action.page.nextOffset < (state.restoreHistoryLimit ?? 0);
+
+				const retained = found || searching;
 
 				return {
 					...state,
+					restoreHistoryLimit: searching
+						? state.restoreHistoryLimit
+						: undefined,
 					history: { nextOffset: action.page.nextOffset, error: null },
 					entries: { ...state.entries, history: entries },
 					views: {
@@ -581,7 +591,7 @@ export class RepositoryWorkspaceModel {
 			const selectFirstFile =
 				action.type === "history-files" &&
 				history.selectedId === action.commit &&
-				history.files.selectedId === null;
+				!action.files.some((file) => file.id === history.files.selectedId);
 
 			return {
 				...state,
@@ -620,6 +630,9 @@ export class RepositoryWorkspaceModel {
 			const sameRepository =
 				state.repository?.root === snapshot.repository.root;
 
+			const restoring =
+				!state.repository && state.repositoryPath === snapshot.repository.root;
+
 			const sameHistory =
 				sameRepository && state.repository?.head === snapshot.head.oid;
 
@@ -636,6 +649,10 @@ export class RepositoryWorkspaceModel {
 			return {
 				...state,
 				preview: false,
+				restoreHistoryLimit:
+					(restoring || retainHistory) && snapshot.head.oid
+						? state.restoreHistoryLimit
+						: undefined,
 				repositoryPath: snapshot.repository.root,
 				loading: false,
 				error: null,
@@ -686,22 +703,24 @@ export class RepositoryWorkspaceModel {
 					.map((entry) => entry.id),
 				views: {
 					...state.views,
-					stashes: sameRepository
-						? state.views.stashes
-						: {
-								...state.views.stashes,
-								selectedId: null,
-								scrollY: 0,
-								files: { selectedId: null, scrollY: 0 },
-							},
-					history: retainHistory
-						? state.views.history
-						: {
-								...state.views.history,
-								selectedId: null,
-								scrollY: 0,
-								files: { selectedId: null, scrollY: 0 },
-							},
+					stashes:
+						sameRepository || restoring
+							? state.views.stashes
+							: {
+									...state.views.stashes,
+									selectedId: null,
+									scrollY: 0,
+									files: { selectedId: null, scrollY: 0 },
+								},
+					history:
+						retainHistory || (restoring && snapshot.head.oid !== null)
+							? state.views.history
+							: {
+									...state.views.history,
+									selectedId: null,
+									scrollY: 0,
+									files: { selectedId: null, scrollY: 0 },
+								},
 					changes: {
 						selectedId: changes.some((entry) => entry.id === selectedId)
 							? selectedId
@@ -822,6 +841,8 @@ export class RepositoryWorkspaceModel {
 
 			return {
 				...state,
+				restoreHistoryLimit:
+					action.view === "history" ? undefined : state.restoreHistoryLimit,
 				views: {
 					...state.views,
 					[action.view]: {
