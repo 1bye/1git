@@ -42,7 +42,7 @@ const styles = StyleSheet.create({
 		hover: { backgroundColor: lightColors.editorSunken },
 	},
 	header: {
-		height: 32,
+		height: 28,
 		flexShrink: 0,
 		paddingLeft: 14,
 		paddingRight: 14,

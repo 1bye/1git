@@ -217,6 +217,30 @@ it("shows three separate compact pills on one row with one selected view", () =>
 	);
 });
 
+it("tightens sidebar headers without shrinking pills, file rows or checkbox targets", () => {
+	expect(element("row-src/app.tsx").style.height).toBe(28);
+	expect(element("include-all").style).toMatchObject({ width: 24, height: 24 });
+	expect(element("include-src/app.tsx").style).toMatchObject({
+		width: 24,
+		height: 24,
+	});
+
+	for (const view of ["changes", "history", "stashes"] as const) {
+		changeView(view);
+		const toolbar = bounds("repository-views");
+
+		expect(toolbar.height).toBe(36);
+		expect(element(`view-${view}`).style.height).toBe(26);
+		expect(bounds("repository-list").y - toolbar.y - toolbar.height).toBe(24);
+
+		if (view !== "changes") {
+			expect(bounds("revision-files").y - bounds("revision-files-pane").y).toBe(
+				28
+			);
+		}
+	}
+});
+
 it("wraps pill arrows, supports Home/End and Enter/Space, and ignores modified navigation", () => {
 	key("view-changes", "left");
 	expect(selectedView()).toEqual(["Stashes"]);
@@ -349,12 +373,14 @@ it("reveals keyboard selections outside the viewport and keeps navigation clampe
 	const last = bounds("entry-tsconfig.json");
 
 	expect(last.y + last.height).toBeLessThanOrEqual(602);
-	expect(last.y).toBeGreaterThanOrEqual(118);
+	expect(last.y).toBeGreaterThanOrEqual(bounds("repository-list").y);
 	key("entry-tsconfig.json", "down");
 	expect(selected()).toEqual(["tsconfig.json, added"]);
 	key("entry-tsconfig.json", "home");
 	expect(selected()).toEqual(["src/app.tsx, modified"]);
-	expect(bounds("entry-src/app.tsx").y).toBeGreaterThanOrEqual(118);
+	expect(bounds("entry-src/app.tsx").y).toBeGreaterThanOrEqual(
+		bounds("repository-list").y
+	);
 	key("entry-src/app.tsx", "pagedown");
 	expect(selected()).not.toEqual(["src/app.tsx, modified"]);
 });
