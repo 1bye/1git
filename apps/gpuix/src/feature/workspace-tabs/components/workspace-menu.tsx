@@ -14,6 +14,8 @@ import { useEffect, useRef, useState, type Dispatch } from "react";
 import { appTokens } from "../../../styles/tokens";
 import { workspaceLayout } from "../../../styles/workspace-layout";
 import { WorkspaceTabPreview } from "./workspace-tab";
+import { WorkspaceTabIcon } from "./workspace-tab-icon";
+import { WorkspaceMenuModel } from "../lib/workspace-menu-model";
 import { RepositoryReader } from "../../repository-workspace/lib/repository-reader";
 import { RepositoryWorkspaceModel } from "../../repository-workspace/lib/repository-workspace-model";
 import {
@@ -28,8 +30,16 @@ import type {
 
 const { colors } = appTokens;
 const maxMenuHeight = 370;
-const menuWidth = 320;
+const menuWidth = 288;
 const windowInset = 8;
+const recentBranchCount = 3;
+const rowHeight = 28;
+const menuPadding = 4;
+const headerHeight = 48;
+const separatorHeight = 9;
+const sectionLabelHeight = 24;
+const noticeHeight = 56;
+const createFormHeight = 150;
 
 const styles = StyleSheet.create({
 	surface: {
@@ -43,12 +53,43 @@ const styles = StyleSheet.create({
 		width: menuWidth,
 		display: "flex",
 		flexDirection: "column",
-		padding: 10,
-		gap: 8,
+		padding: menuPadding,
 		overflow: "hidden",
+	},
+	header: {
+		height: headerHeight,
+		flexShrink: 0,
+		display: "flex",
+		flexDirection: "column",
+		justifyContent: "center",
+		paddingLeft: 8,
+		paddingRight: 8,
+		gap: 2,
+	},
+	separator: {
+		height: 1,
+		flexShrink: 0,
+		marginTop: 4,
+		marginBottom: 4,
+		backgroundColor: colors.border,
 	},
 	heading: { fontSize: 12, fontWeight: 500 },
 	muted: { fontSize: 11, color: colors.textMuted },
+	detail: {
+		fontSize: 10,
+		color: colors.textMuted,
+		whiteSpace: "nowrap",
+		textOverflow: "ellipsis",
+		minWidth: 0,
+		maxWidth: "45%",
+		flexShrink: 0,
+	},
+	sectionLabel: {
+		height: sectionLabelHeight,
+		flexShrink: 0,
+		paddingLeft: 8,
+		justifyContent: "center",
+	},
 	input: {
 		width: "100%",
 		height: 30,
@@ -68,20 +109,22 @@ const styles = StyleSheet.create({
 		overflowY: "scroll",
 		display: "flex",
 		flexDirection: "column",
-		gap: 2,
 	},
 	row: {
 		width: "100%",
-		height: 30,
+		height: rowHeight,
 		flexDirection: "row",
-		justifyContent: "space-between",
+		justifyContent: "flex-start",
 		paddingLeft: 8,
 		paddingRight: 8,
+		gap: 8,
+		borderRadius: 5,
 	},
 	label: {
 		fontSize: 12,
 		minWidth: 0,
 		flexShrink: 1,
+		flexGrow: 1,
 		whiteSpace: "nowrap",
 		textOverflow: "ellipsis",
 	},
@@ -91,6 +134,21 @@ const styles = StyleSheet.create({
 		justifyContent: "space-between",
 		gap: 6,
 		flexShrink: 0,
+	},
+	form: {
+		display: "flex",
+		flexDirection: "column",
+		gap: 10,
+		padding: 8,
+		flexGrow: 1,
+		minHeight: 0,
+		overflowY: "scroll",
+	},
+	notice: {
+		height: noticeHeight,
+		flexShrink: 0,
+		padding: 8,
+		overflowY: "scroll",
 	},
 });
 
@@ -127,11 +185,13 @@ export function WorkspaceMenu({
 
 	const [data, setData] = useState<WorkspaceBranches | null>(null);
 	const [error, setError] = useState<string | null>(null);
-	const [query, setQuery] = useState("");
+	const [name, setName] = useState("");
 	const [creating, setCreating] = useState(false);
+	const [expanded, setExpanded] = useState(false);
 	const [opening, setOpening] = useState(false);
 	const mounted = useRef(true);
-	const input = useRef<PublicInstance>(null);
+	const dialog = useRef<PublicInstance>(null);
+	const list = useRef<PublicInstance>(null);
 	const rows = useRef(new Map<string, PublicInstance>());
 	const request = useRef<AbortController | null>(null);
 	const repository = tab.workspace.repository;
@@ -162,6 +222,7 @@ export function WorkspaceMenu({
 		const controller = new AbortController();
 
 		setData(null);
+		setError(null);
 		const load = async (): Promise<void> => {
 			try {
 				const result = await readBranches(root, controller.signal);
@@ -183,32 +244,34 @@ export function WorkspaceMenu({
 		return () => controller.abort();
 	}, [root, head, branch, readBranches]);
 
-	const needle = query.trim().toLowerCase();
+	const branches = WorkspaceMenuModel.recentBranches(data?.branches);
 
-	const branches =
-		data?.branches.branches.filter(
-			(item) =>
-				item.type === "local" && item.name.toLowerCase().includes(needle)
-		) ?? [];
+	const visibleBranches = expanded
+		? branches
+		: branches.slice(0, recentBranchCount);
+
+	const hasMore = branches.length > recentBranchCount;
+	const currentBranch = branches.find((item) => item.name === branch);
+	const canCreate = !busy && !blocked && data !== null;
 
 	const worktrees =
-		data?.worktrees.filter(
-			(item) =>
-				item.path !== root &&
-				!item.prunable &&
-				`${item.branch ?? ""} ${item.path}`.toLowerCase().includes(needle)
-		) ?? [];
+		data?.worktrees.filter((item) => item.path !== root && !item.prunable) ??
+		[];
 
-	const enabledIds = branches
+	const enabledIds = visibleBranches
 		.filter(
 			(item) =>
 				!busy && (item.name === branch || (!blocked && !item.worktreePath))
 		)
 		.map((item) => `branch-${item.name}`);
 
+	if (!busy && hasMore) enabledIds.push("more-branches");
+
 	if (!busy)
 		for (const worktree of worktrees)
 			enabledIds.push(`worktree-${worktree.path}`);
+
+	if (canCreate) enabledIds.push("create-branch");
 
 	const notice =
 		error ??
@@ -218,26 +281,50 @@ export function WorkspaceMenu({
 				? "Commit or stash changes and resolve any Git operation before switching. Refresh if needed."
 				: null);
 
-	const menuHeight = creating
-		? 210
-		: Math.min(
-				maxMenuHeight,
-				112 +
-					Math.max(1, branches.length + worktrees.length) * 32 +
-					(worktrees.length ? 22 : 0) +
-					(notice ? 55 : 0)
-			);
+	// Fixed header/action rows surround a scrollable list; the expanded menu stays inside the window.
+	const contentHeight = creating
+		? createFormHeight
+		: menuPadding * 2 +
+			headerHeight +
+			separatorHeight * 2 +
+			rowHeight +
+			Math.max(1, visibleBranches.length + worktrees.length) * rowHeight +
+			(hasMore ? rowHeight : 0) +
+			(worktrees.length ? sectionLabelHeight : 0);
 
-	const onKeyDown = (event: EventPayload, id?: string): void => {
+	const menuHeight = Math.min(
+		maxMenuHeight,
+		windowSize.height -
+			(anchorBounds?.y ?? 0) -
+			workspaceLayout.tabHeight -
+			windowInset,
+		contentHeight + (notice ? noticeHeight : 0)
+	);
+
+	const showActions = (): void => {
+		setCreating(false);
+		setError(null);
+
+		if (dialog.current) renderer.focusElement?.(dialog.current.id);
+	};
+
+	const onKeyDown = (event: EventPayload): void => {
 		if (event.key === "escape" || event.key === "tab") {
-			onClose();
+			if (event.key === "escape" && creating && !busy) showActions();
+			else onClose();
 
 			return;
 		}
 
-		if (event.key !== "down" && event.key !== "up") return;
+		if (creating || (event.key !== "down" && event.key !== "up")) return;
 
-		const index = id ? enabledIds.indexOf(id) : event.key === "down" ? -1 : 0;
+		const focused = renderer.getFocusedElementId?.();
+
+		const focusedIndex = enabledIds.findIndex(
+			(id) => rows.current.get(id)?.id === focused
+		);
+
+		const index = focusedIndex < 0 && event.key === "up" ? 0 : focusedIndex;
 
 		const next =
 			enabledIds[
@@ -249,7 +336,24 @@ export function WorkspaceMenu({
 
 		if (node) {
 			renderer.focusElement?.(node.id);
-			renderer.scrollIntoView?.(node.id);
+
+			if (!list.current || next === "create-branch") return;
+
+			const viewport = renderer.getElementBounds?.(list.current.id);
+			const target = renderer.getElementBounds?.(node.id);
+
+			if (!viewport || !target) return;
+
+			const offset = renderer.getScrollOffset?.(list.current.id)?.[1] ?? 0;
+			// As in RepositoryList, GPUIX bounds include the scroll offset; recover the clip origin.
+			const top = viewport.y - offset;
+
+			const delta =
+				target.y < top
+					? target.y - top
+					: Math.max(0, target.y + target.height - top - viewport.height);
+
+			renderer.scrollTo?.(list.current.id, 0, offset - delta);
 		}
 	};
 
@@ -331,56 +435,98 @@ export function WorkspaceMenu({
 				onClick={onClose}
 			/>
 			<div
+				ref={dialog}
 				testId="workspace-menu"
 				role="dialog"
 				aria-label="Workspace branches"
+				tabIndex={-1}
+				autoFocus
+				onKeyDown={onKeyDown}
 				style={StyleSheet.compose(styles.surface, {
 					left: menuLeft,
 					top: anchorBounds.y + workspaceLayout.tabHeight - 1,
 				})}
 			>
 				<motion.div
-					style={styles.body}
+					style={StyleSheet.compose(styles.body, { height: menuHeight })}
 					initial={{ height: 0, opacity: 0 }}
 					animate={{ height: menuHeight, opacity: 1 }}
 					transition={{ duration: 0.16, ease: "easeOut" }}
 				>
-					<Text tokens={appTokens} style={styles.heading}>
-						{creating ? "Create branch" : "Switch branch"}
-					</Text>
-					<input
-						ref={input}
-						testId="branch-search"
-						autoFocus
-						aria-label={
-							creating ? "New branch name" : "Search branches and worktrees"
-						}
-						placeholder={
-							creating ? "New branch name…" : "Search branches and worktrees…"
-						}
-						value={query}
-						readOnly={busy}
-						style={styles.input}
-						onChange={(event) => setQuery(event.value ?? "")}
-						onKeyDown={(event) => onKeyDown(event)}
-						onSubmit={() => {
-							if (creating) void change(query);
-						}}
-					/>
-					<div style={styles.list}>
-						{creating ? (
-							<Text
-								tokens={appTokens}
-								style={styles.muted}
-							>{`Create from ${repository?.branch ?? "HEAD"} and switch this workspace to it.`}</Text>
-						) : (
-							<>
+					{creating ? (
+						<div style={styles.form}>
+							<Text tokens={appTokens} style={styles.heading}>
+								Create new branch
+							</Text>
+							<input
+								testId="branch-name"
+								autoFocus
+								aria-label="New branch name"
+								placeholder="New branch name…"
+								value={name}
+								readOnly={busy}
+								style={styles.input}
+								onChange={(event) => setName(event.value ?? "")}
+								onSubmit={() => {
+									void change(name);
+								}}
+							/>
+							<Text tokens={appTokens} style={styles.muted}>
+								{`Create from ${repository?.branch ?? "HEAD"} and switch this workspace to it.`}
+							</Text>
+							<div style={styles.footer}>
+								<Button
+									testId="cancel-create-branch"
+									tokens={appTokens}
+									variant="ghost"
+									size="sm"
+									disabled={busy}
+									onPress={showActions}
+								>
+									Cancel
+								</Button>
+								<Button
+									testId="create-branch"
+									tokens={appTokens}
+									size="sm"
+									disabled={!canCreate || !name.trim()}
+									onPress={() => {
+										void change(name);
+									}}
+								>
+									Create and switch
+								</Button>
+							</div>
+						</div>
+					) : (
+						<>
+							<div style={styles.header}>
+								<Text
+									tokens={appTokens}
+									style={StyleSheet.compose(styles.label, styles.heading, {
+										flexGrow: 0,
+									})}
+								>
+									{branch ?? "Detached HEAD"}
+								</Text>
+								<Text
+									testId="branch-tracking"
+									tokens={appTokens}
+									style={StyleSheet.compose(styles.label, styles.muted, {
+										flexGrow: 0,
+									})}
+								>
+									{data ? WorkspaceMenuModel.trackingLabel(currentBranch) : ""}
+								</Text>
+							</div>
+							<div style={styles.separator} />
+							<div ref={list} testId="workspace-menu-list" style={styles.list}>
 								{!data && !error ? (
 									<Text tokens={appTokens} style={styles.muted}>
 										Loading branches…
 									</Text>
 								) : null}
-								{branches.map((item) => {
+								{visibleBranches.map((item) => {
 									const id = `branch-${item.name}`;
 									const current = item.name === branch;
 
@@ -400,29 +546,69 @@ export function WorkspaceMenu({
 												busy || (!current && (blocked || !!item.worktreePath))
 											}
 											aria-label={`${item.name}${current ? ", current branch" : ""}`}
-											onKeyDown={(event) => onKeyDown(event, id)}
+											aria-description={
+												!current && item.worktreePath
+													? "Checked out in another worktree"
+													: item.summary
+											}
 											onPress={() => {
 												if (current) onClose();
 												else void change(item.name);
 											}}
 										>
+											<WorkspaceTabIcon
+												name={current ? "check" : "branch"}
+												color={current ? colors.accent : colors.textMuted}
+											/>
 											<Text tokens={appTokens} style={styles.label}>
 												{item.name}
 											</Text>
-											<Text tokens={appTokens} style={styles.muted}>
-												{current
-													? "Current"
-													: item.worktreePath
-														? "Other worktree"
-														: ""}
+											<Text tokens={appTokens} style={styles.detail}>
+												{!current && item.worktreePath
+													? "Other worktree"
+													: WorkspaceMenuModel.commitAge(item.committedAt)}
 											</Text>
 										</Button>
 									);
 								})}
+								{data && !branches.length ? (
+									<div style={styles.sectionLabel}>
+										<Text tokens={appTokens} style={styles.muted}>
+											No local branches available.
+										</Text>
+									</div>
+								) : null}
+								{hasMore ? (
+									<Button
+										testId="more-branches"
+										ref={(node) => {
+											if (node) rows.current.set("more-branches", node);
+											else rows.current.delete("more-branches");
+										}}
+										tokens={appTokens}
+										variant="ghost"
+										size="sm"
+										style={styles.row}
+										disabled={busy}
+										aria-label={
+											expanded ? "Show fewer branches" : "Show all branches"
+										}
+										onPress={() => setExpanded((value) => !value)}
+									>
+										<Text tokens={appTokens} style={styles.label}>
+											More
+										</Text>
+										<WorkspaceTabIcon
+											name={expanded ? "caretDown" : "caretRight"}
+										/>
+									</Button>
+								) : null}
 								{worktrees.length ? (
-									<Text tokens={appTokens} style={styles.muted}>
-										Open worktree in a tab
-									</Text>
+									<div style={styles.sectionLabel}>
+										<Text tokens={appTokens} style={styles.muted}>
+											Worktrees
+										</Text>
+									</div>
 								) : null}
 								{worktrees.map((item) => {
 									const id = `worktree-${item.path}`;
@@ -440,69 +626,61 @@ export function WorkspaceMenu({
 											size="sm"
 											style={styles.row}
 											disabled={busy}
+											aria-label={`Open ${item.branch?.replace(/^refs\/heads\//, "") ?? "detached HEAD"} worktree`}
 											aria-description={item.path}
-											onKeyDown={(event) => onKeyDown(event, id)}
 											onPress={() => {
 												void openWorktree(item.path);
 											}}
 										>
+											<WorkspaceTabIcon name="branch" />
 											<Text tokens={appTokens} style={styles.label}>
 												{item.branch?.replace(/^refs\/heads\//, "") ??
 													"Detached HEAD"}
 											</Text>
-											<Text tokens={appTokens} style={styles.muted}>
+											<Text tokens={appTokens} style={styles.detail}>
 												{basename(item.path)}
 											</Text>
 										</Button>
 									);
 								})}
-								{data && !branches.length && !worktrees.length ? (
-									<Text tokens={appTokens} style={styles.muted}>
-										No matching branches or worktrees.
-									</Text>
-								) : null}
-							</>
-						)}
-					</div>
-					{notice ? (
-						<Text
-							testId="branch-notice"
-							tokens={appTokens}
-							style={styles.muted}
-						>
-							{notice}
-						</Text>
-					) : null}
-					<div style={styles.footer}>
-						<Button
-							tokens={appTokens}
-							variant="ghost"
-							size="sm"
-							onKeyDown={(event) => onKeyDown(event)}
-							onPress={onClose}
-						>
-							Close
-						</Button>
-						<Button
-							testId="create-branch"
-							tokens={appTokens}
-							variant="secondary"
-							size="sm"
-							disabled={busy || blocked || (creating && !query.trim())}
-							onKeyDown={(event) => onKeyDown(event)}
-							onPress={() => {
-								if (creating) void change(query);
-								else {
+							</div>
+							<div style={styles.separator} />
+							<Button
+								testId="create-branch"
+								ref={(node) => {
+									if (node) rows.current.set("create-branch", node);
+									else rows.current.delete("create-branch");
+								}}
+								tokens={appTokens}
+								variant="ghost"
+								size="sm"
+								style={styles.row}
+								disabled={!canCreate}
+								aria-label="Create new branch"
+								onPress={() => {
 									setCreating(true);
-									setQuery("");
-
-									if (input.current) renderer.focusElement?.(input.current.id);
-								}
-							}}
-						>
-							{creating ? "Create and switch" : "New branch…"}
-						</Button>
-					</div>
+									setName("");
+									setError(null);
+								}}
+							>
+								<WorkspaceTabIcon name="add" />
+								<Text tokens={appTokens} style={styles.label}>
+									Create new branch…
+								</Text>
+							</Button>
+						</>
+					)}
+					{notice ? (
+						<div style={styles.notice}>
+							<Text
+								testId="branch-notice"
+								tokens={appTokens}
+								style={styles.muted}
+							>
+								{notice}
+							</Text>
+						</div>
+					) : null}
 				</motion.div>
 			</div>
 			<div

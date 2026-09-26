@@ -147,8 +147,13 @@ in place. The menu opens directly from the copied tab with a 160ms height/opacit
 animation, centered beneath it and shifted inward at window edges. It overlays
 the content without moving the sidebar; there is no chevron. Backdrop clicks are
 consumed, so dismissing the menu never activates dimmed controls underneath.
-Search filters local branches and existing worktrees. Up/Down moves through
-available results, Enter activates, and Escape/outside-click dismisses the menu.
+The compact desktop-style menu shows the current branch/upstream, three local
+branches ordered by latest commit, relative commit ages, and a More row to expand
+the scrollable list. Existing worktrees remain available below the branches.
+Create new branch opens an inline form; Cancel/Escape returns to the actions.
+There is no permanent search field or Close footer. Rename/delete/upstream/sync
+actions stay hidden until their GPUIX workflows are implemented.
+Up/Down moves through enabled rows, Enter activates, and Escape/outside-click dismisses the menu.
 Keyboard dismissal returns focus to the tab; Tab dismisses and continues traversal.
 This is not a port of the Electron liquid SVG morph.
 

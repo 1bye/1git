@@ -1,5 +1,5 @@
 /**
- * Covers: lifted tab/backdrop geometry, centered menus, native interaction, branch writes and worktree tab identity.
+ * Covers: compact recent-branch menus, inline creation, lifted tab/backdrop geometry, keyboard navigation and worktree tabs.
  * Real: App, reducers, window-owned mutation coordination, GPUIX layout and events.
  * Doubles: Git boundaries and folder picker, with isolated in-memory repository snapshots.
  * Requires: patched GPUIX renderer and macOS graphics access.
@@ -160,7 +160,7 @@ const menu = async (): Promise<void> => {
 	await settle();
 };
 
-it("opens only the active tab's menu below the strip, with searchable branches and Escape focus restoration", async () => {
+it("opens only the active tab's compact menu with branch context and Escape focus restoration", async () => {
 	await open();
 	click("add-workspace");
 	await settle();
@@ -172,9 +172,11 @@ it("opens only the active tab's menu below the strip, with searchable branches a
 		bounds("slot-workspace-1").y + bounds("slot-workspace-1").height - 1
 	);
 	expect(bounds("workspace-menu").height).toBeGreaterThan(180);
-	root.renderer.simulateKeystrokes("f e a t u r e / u i");
-	await settle();
-	expect(root.renderer.findByTestId("branch-main")).toBeUndefined();
+	expect(root.renderer.findByTestId("branch-search")).toBeUndefined();
+	expect(root.renderer.getAllText()).toContain("No upstream");
+	expect(root.renderer.getAllText()).not.toContain("Switch branch");
+	expect(root.renderer.getAllText()).not.toContain("Close");
+	expect(bounds("branch-feature/ui").y - bounds("branch-main").y).toBe(28);
 	expect(element("branch-feature/ui")).toBeTruthy();
 	root.renderer.simulateKeystrokes("escape");
 	await settle();
@@ -185,7 +187,7 @@ it("opens only the active tab's menu below the strip, with searchable branches a
 it("switches a branch using native keyboard navigation and refreshes the tab label", async () => {
 	await open();
 	await menu();
-	root.renderer.simulateKeystrokes("f e a t u r e / u i");
+	root.renderer.simulateKeystrokes("down");
 	await settle();
 	root.renderer.simulateKeystrokes("down");
 	await settle();
@@ -207,7 +209,9 @@ it("creates and switches explicitly, preserving a commit draft", async () => {
 	root.renderer.simulateKeystrokes("d r a f t");
 	await menu();
 	click("create-branch");
+	await settle();
 	root.renderer.simulateKeystrokes("f e a t / n e w");
+	await settle();
 	click("create-branch");
 	await settle();
 	expect(writeBranch.mock.calls[0]?.[1]).toMatchObject({
@@ -216,6 +220,120 @@ it("creates and switches explicitly, preserving a commit draft", async () => {
 	});
 	expect(root.renderer.getAllText()).toContain(" / feat/new");
 	expect(element("commit-message").customProps?.value).toBe("draft");
+});
+
+it("shows the three newest local branches and expands, scrolls, and collapses the rest", async () => {
+	const now = Date.now();
+
+	const branches = Array.from({ length: 16 }, (_, index) => ({
+		...branch(index === 0 ? "main" : `feature/${index}`),
+		committedAt: new Date(now - index * 3_600_000).toISOString(),
+		upstream: index === 0 ? "origin/main" : null,
+		ahead: index === 0 ? 2 : 0,
+	}));
+
+	readBranches.mockImplementationOnce(async () => ({
+		ok: true,
+		value: {
+			branches: {
+				current: "main",
+				branches: [
+					...branches.toReversed(),
+					{ ...branch("origin/remote"), type: "remote" },
+				],
+			},
+			worktrees: [],
+		},
+	}));
+	await open();
+	await menu();
+	expect(root.renderer.getAllText()).toContain("origin/main · 2 ahead");
+	expect(root.renderer.getAllText()).toContain("just now");
+	expect(bounds("branch-main").y).toBeLessThan(bounds("branch-feature/1").y);
+	expect(bounds("branch-feature/1").y).toBeLessThan(
+		bounds("branch-feature/2").y
+	);
+	expect(root.renderer.findByTestId("branch-feature/3")).toBeUndefined();
+	expect(root.renderer.findByTestId("branch-origin/remote")).toBeUndefined();
+	const collapsedHeight = bounds("workspace-menu").height;
+
+	click("more-branches");
+	await settle();
+	expect(element("branch-feature/15")).toBeTruthy();
+	expect(bounds("workspace-menu").height).toBeGreaterThan(collapsedHeight);
+	expect(bounds("workspace-menu").height).toBeLessThanOrEqual(370);
+	root.renderer.simulateKeystrokes("up");
+	await settle();
+	expect(root.renderer.getFocusedElementId()).toBe(
+		element("branch-feature/15").id
+	);
+	const list = bounds("workspace-menu-list");
+	const last = bounds("branch-feature/15");
+
+	const offset =
+		root.renderer.getScrollOffset(element("workspace-menu-list").id)?.[1] ?? 0;
+
+	expect(last.y).toBeGreaterThanOrEqual(list.y - offset);
+	expect(last.y + last.height).toBeLessThanOrEqual(
+		list.y - offset + list.height
+	);
+	root.renderer.simulateKeystrokes("down");
+	await settle();
+	root.renderer.simulateKeystrokes("enter");
+	await settle();
+	expect(root.renderer.findByTestId("branch-feature/3")).toBeUndefined();
+	expect(bounds("workspace-menu").height).toBe(collapsedHeight);
+	expect(writeBranch).not.toHaveBeenCalled();
+});
+
+it("replaces the actions with an inline form and returns with Cancel or Escape without writing", async () => {
+	await open();
+	await menu();
+	click("create-branch");
+	await settle();
+	expect(root.renderer.findByTestId("branch-main")).toBeUndefined();
+	expect(root.renderer.getFocusedElementId()).toBe(element("branch-name").id);
+	root.renderer.simulateKeystrokes("space enter");
+	await settle();
+	expect(writeBranch).not.toHaveBeenCalled();
+	root.renderer.simulateKeystrokes("escape");
+	await settle();
+	expect(root.renderer.findByTestId("branch-name")).toBeUndefined();
+	expect(element("branch-main")).toBeTruthy();
+	root.renderer.simulateKeystrokes("up");
+	await settle();
+	root.renderer.simulateKeystrokes("enter");
+	await settle();
+	expect(element("branch-name")).toBeTruthy();
+	click("cancel-create-branch");
+	await settle();
+	expect(element("branch-main")).toBeTruthy();
+	expect(writeBranch).not.toHaveBeenCalled();
+});
+
+it("keeps empty and failed branch lists dismissible", async () => {
+	readBranches.mockImplementationOnce(async () => ({
+		ok: true,
+		value: { branches: { branches: [], current: null }, worktrees: [] },
+	}));
+	snapshot = { ...snapshot, head: { ...snapshot.head, branch: null } };
+	await open();
+	await menu();
+	expect(root.renderer.getAllText()).toContain("Detached HEAD");
+	expect(root.renderer.getAllText()).toContain("No local branches available.");
+	expect(root.renderer.findByTestId("more-branches")).toBeUndefined();
+	root.renderer.simulateKeystrokes("escape");
+	await settle();
+	readBranches.mockImplementationOnce(async () => {
+		throw new Error("Unavailable");
+	});
+	await menu();
+	expect(root.renderer.getAllText().join(" ")).toContain(
+		"Could not load branches"
+	);
+	root.renderer.simulateKeystrokes("escape");
+	await settle();
+	expect(root.renderer.findByTestId("workspace-menu")).toBeUndefined();
 });
 
 it("opens an existing worktree and reuses its tab on a second open", async () => {
@@ -283,7 +401,7 @@ it("keeps the window-owned write locked if its menu closes while switching", asy
 	await menu();
 	click("branch-feature/ui");
 	await settle();
-	root.renderer.nativeSimulateKeyDown(element("branch-search").id, "escape");
+	root.renderer.nativeSimulateKeyDown(element("workspace-menu").id, "escape");
 	await settle();
 	click("close-workspace-1");
 	await settle();
@@ -398,16 +516,14 @@ it("updates every tab for the same folder after a branch switch", async () => {
 	).toHaveLength(2);
 });
 
-it("opens with Down, wraps Up from search to the last result, and dismisses with Tab", async () => {
+it("opens with Down, wraps Up to the final action, and dismisses with Tab", async () => {
 	await open();
 	root.renderer.nativeSimulateKeyDown(element("workspace-1").id, "down");
 	await settle();
 	expect(element("workspace-menu")).toBeTruthy();
 	root.renderer.simulateKeystrokes("up");
 	await settle();
-	expect(root.renderer.getFocusedElementId()).toBe(
-		element("worktree-/test/linked").id
-	);
+	expect(root.renderer.getFocusedElementId()).toBe(element("create-branch").id);
 	root.renderer.simulateKeystrokes("tab");
 	await settle();
 	expect(root.renderer.findByTestId("workspace-menu")).toBeUndefined();
