@@ -1,5 +1,5 @@
 /**
- * Covers: file-header identity/counts, virtualized diff painting, selection, comparison switching, scrolling and stale reads.
+ * Covers: file headers, native image comparisons, SVG source switching, virtualized diff painting, scrolling and stale reads.
  * Real: app lifecycle, GPUIX patch parsing/layout, text painting and input events.
  * Doubles: repository status, diff reader and native folder selection.
  * Requires: patched GPUIX native renderer with macOS graphics access.
@@ -16,6 +16,8 @@ import {
 	repositorySnapshot,
 } from "../_shared/repository-snapshot";
 import { diffPatch, diffSection } from "../_shared/diff-patch";
+import { ImagePreviewDecoder } from "../../src/feature/repository-workspace/lib/image-preview";
+import { rasterContent, svgContent } from "../_shared/image-content";
 
 let root: TestRoot;
 
@@ -412,3 +414,153 @@ it("cancels stale selection reads, refreshes the selected path and never reloads
 	expect(reader.mock.calls[2]?.[2].aborted).toBe(true);
 	expect(root.renderer.findByTestId("diff-viewport-content")).toBeUndefined();
 });
+
+it("shows image comparisons with metadata and keyboard-operable SVG source switching", async () => {
+	const path = "assets/art.svg";
+
+	const image = await ImagePreviewDecoder.prepare(
+		svgContent(),
+		new AbortController().signal
+	);
+
+	const before = { image, error: null };
+	const after = { image: { ...image, width: 64 }, error: null };
+
+	const reader = mock<typeof Reader.read>(async () => ({
+		ok: true,
+		value: [
+			{
+				...diffSection("working", diffPatch(path), [
+					{ path, addedLines: 1, deletedLines: 1 },
+				]),
+				image: { before, after, svg: true },
+			},
+			{
+				...diffSection("staged", diffPatch(path)),
+				image: { before: null, after: before, svg: true },
+			},
+		],
+	}));
+
+	showDiff(reader, path, 500);
+	await settle();
+	expect(root.renderer.findByTestId("diff-stats")).toBeUndefined();
+	expect(root.renderer.findByTestId("diff-viewport")).toBeUndefined();
+	expect(element("image-metadata").customProps?.["aria-label"]).toBe(
+		`Before: 32 × 16 · ${image.sizeBytes} B → After: 64 × 16 · ${image.sizeBytes} B`
+	);
+	expect(bounds("image-metadata").y).toBeLessThan(bounds("diff-header").height);
+	expect(
+		bounds("image-metadata").x + bounds("image-metadata").width
+	).toBeLessThanOrEqual(500);
+	expect(root.renderer.getAllText()).toContain("Before");
+	expect(root.renderer.getAllText()).toContain("After");
+	expect(element("image-after-pixels").customProps?.alt).toBe(
+		`After version of ${path}`
+	);
+	expect(element("image-after-pixels").customProps?.objectFit).toBe("contain");
+	expect(bounds("image-before").width).toBeCloseTo(bounds("image-after").width);
+	expect(bounds("image-before").x + bounds("image-before").width).toBeLessThan(
+		bounds("image-after").x
+	);
+	key("image-mode-source", "enter");
+	expect(root.renderer.findByTestId("image-preview")).toBeUndefined();
+	expect(root.renderer.findByTestId("image-metadata")).toBeUndefined();
+	expect(root.renderer.findByTestId("diff-viewport")).toBeDefined();
+	expect(root.renderer.findByTestId("diff-stats")).toBeDefined();
+	key("image-mode-preview", "enter");
+	key("diff-staged", "enter");
+	expect(root.renderer.findByTestId("image-before")).toBeUndefined();
+	expect(root.renderer.getAllText()).toContain("Added");
+	expect(root.renderer.getAllText()).not.toContain("After");
+	expect(element("image-metadata").customProps?.["aria-label"]).toBe(
+		`32 × 16 · ${image.sizeBytes} B`
+	);
+	expect(bounds("image-after").width).toBeGreaterThan(450);
+	expect(reader).toHaveBeenCalledTimes(1);
+});
+
+it("shows failures per image side without inventing missing versions or text counts", async () => {
+	const image = await ImagePreviewDecoder.prepare(
+		await rasterContent(),
+		new AbortController().signal
+	);
+
+	showDiff(
+		async () => ({
+			ok: true,
+			value: [
+				{
+					...diffSection("working"),
+					image: {
+						before: { image, error: null },
+						after: { image: null, error: "Image is too large to preview." },
+						svg: false,
+					},
+				},
+			],
+		}),
+		"image.png"
+	);
+	await settle();
+	expect(root.renderer.findByTestId("image-before-pixels")).toBeDefined();
+	expect(root.renderer.findByTestId("image-after-pixels")).toBeUndefined();
+	expect(root.renderer.getAllText()).toContain(
+		"Image is too large to preview."
+	);
+	expect(root.renderer.findByTestId("image-mode-source")).toBeUndefined();
+	expect(root.renderer.findByTestId("diff-stats")).toBeUndefined();
+	expect(root.renderer.getAllText()).toContain("Before");
+	expect(root.renderer.getAllText()).not.toContain("Deleted");
+});
+
+it.each(["added", "deleted"] as const)(
+	"labels %s images and puts their metadata in the file header",
+	async (status) => {
+		const image = await ImagePreviewDecoder.prepare(
+			await rasterContent(),
+			new AbortController().signal
+		);
+
+		const side = { image, error: null };
+		const added = status === "added";
+
+		showDiff(
+			async () => ({
+				ok: true,
+				value: [
+					{
+						...diffSection("working"),
+						image: {
+							before: added ? null : side,
+							after: added ? side : null,
+							svg: false,
+						},
+					},
+				],
+			}),
+			"assets/image.png"
+		);
+		await settle();
+
+		const metadata = `${image.width} × ${image.height} · ${image.sizeBytes} B`;
+		const header = bounds("diff-header");
+		const details = bounds("image-metadata");
+		const label = bounds(`image-${added ? "after" : "before"}-label`);
+		const preview = bounds(`image-${added ? "after" : "before"}-viewport`);
+
+		expect(root.renderer.getAllText()).toContain(added ? "Added" : "Deleted");
+		expect(root.renderer.getAllText()).not.toContain(
+			added ? "After" : "Before"
+		);
+		expect(
+			root.renderer.getAllText().filter((text) => text === metadata)
+		).toHaveLength(1);
+		expect(details.x + details.width).toBeCloseTo(header.width - 12);
+		expect(details.y + details.height).toBeLessThanOrEqual(header.height);
+		expect(label.x + label.width / 2).toBeCloseTo(
+			preview.x + preview.width / 2
+		);
+		expect(root.renderer.findByTestId("diff-stats")).toBeUndefined();
+	}
+);

@@ -12,6 +12,10 @@ import {
 	RepositoryDiff as DiffReader,
 	type ChangeDiffTarget,
 } from "../lib/repository-diff";
+import {
+	RepositoryImageMetadata,
+	RepositoryImagePreview,
+} from "./repository-image-preview";
 
 const diffTheme: GpuixTheme = {
 	appearance: "light",
@@ -149,12 +153,15 @@ export function RepositoryDiff({
 	);
 
 	const [target, setTarget] = useState<ChangeDiffTarget>("working");
+	const [sourcePath, setSourcePath] = useState<string | null>(null);
 
 	const section =
 		result?.sections.find((entry) => entry.target === target) ??
 		result?.sections[0];
 
 	const stats = section?.stats.find((entry) => entry.path === change.path);
+	const showSource = section?.image?.svg && sourcePath === change.path;
+	const showImage = section?.image && !showSource;
 	const slash = change.path.lastIndexOf("/");
 	const filename = change.path.slice(slash + 1);
 	const directory = slash < 0 ? "" : change.path.slice(0, slash);
@@ -205,7 +212,38 @@ export function RepositoryDiff({
 							</Button>
 						))
 					: null}
-				{stats?.addedLines != null && stats.deletedLines != null ? (
+				{section?.image?.svg
+					? (["Preview", "Source"] as const).map((mode) => (
+							<Button
+								key={mode}
+								testId={`image-mode-${mode.toLowerCase()}`}
+								size="sm"
+								variant="ghost"
+								tokens={appTokens}
+								aria-label={`${mode} SVG${(mode === "Source") === !!showSource ? ", selected" : ""}`}
+								style={{
+									height: 26,
+									borderRadius: 13,
+									backgroundColor:
+										(mode === "Source") === !!showSource
+											? lightColors.editorSunken2
+											: "transparent",
+								}}
+								textStyle={{ fontSize: 11 }}
+								onPress={() =>
+									setSourcePath(mode === "Source" ? change.path : null)
+								}
+							>
+								{mode}
+							</Button>
+						))
+					: null}
+				{showImage && section?.image ? (
+					<RepositoryImageMetadata comparison={section.image} />
+				) : null}
+				{!showImage &&
+				stats?.addedLines != null &&
+				stats.deletedLines != null ? (
 					<div
 						testId="diff-stats"
 						role="group"
@@ -240,6 +278,8 @@ export function RepositoryDiff({
 						</Button>
 					) : null}
 				</div>
+			) : showImage && section?.image ? (
+				<RepositoryImagePreview comparison={section.image} path={change.path} />
 			) : section?.message ? (
 				<div style={styles.message} role="status">
 					<text style={styles.hint}>{section.message}</text>

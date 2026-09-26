@@ -1,8 +1,8 @@
 /**
- * Covers: real staged/unstaged patches, special paths, renames/deletions, binary/large files and safe read-only execution.
+ * Covers: staged/unstaged patches and image versions, special paths, renames/deletions, binary/large files and read-only execution.
  * Real: RepositoryDiff, shared Git backend and disposable Git repositories.
  * Doubles: none.
- * Requires: Git on PATH and writable temporary storage; no network or graphics.
+ * Requires: Git, Sharp and writable temporary storage; no network or graphics.
  */
 import { afterEach, beforeEach, expect, it } from "bun:test";
 import { execFile } from "node:child_process";
@@ -10,6 +10,7 @@ import {
 	mkdtemp,
 	readFile,
 	realpath,
+	symlink,
 	rm,
 	unlink,
 	writeFile,
@@ -22,6 +23,11 @@ import {
 	diffLimits,
 } from "../../src/feature/repository-workspace/lib/repository-diff";
 import { RepositoryReader } from "../../src/feature/repository-workspace/lib/repository-reader";
+import {
+	previewPixel,
+	rasterContent,
+	svgContent,
+} from "../_shared/image-content";
 
 const execute = promisify(execFile);
 let repository: string;
@@ -196,4 +202,96 @@ it("reports binary and oversized files explicitly without handing partial patche
 		expect(section?.message).toContain("too large");
 		expect(section?.patch).toBe("");
 	}
+});
+
+it("previews the correct HEAD/index/worktree image bytes without writing Git state", async () => {
+	const headImage = await rasterContent("png", "red");
+	const indexImage = await rasterContent("png", "lime");
+	const workingImage = await rasterContent("png", "blue");
+
+	await writeFile(
+		join(repository, "image.png"),
+		Buffer.from(headImage.content, "base64")
+	);
+	await git("add", "image.png");
+	await git("commit", "-m", "Image fixture");
+	await writeFile(
+		join(repository, "image.png"),
+		Buffer.from(indexImage.content, "base64")
+	);
+	await git("add", "image.png");
+	await writeFile(
+		join(repository, "image.png"),
+		Buffer.from(workingImage.content, "base64")
+	);
+	const index = await git("ls-files", "--stage", "-z");
+	const head = await git("rev-parse", "HEAD");
+	const sections = await read("image.png");
+
+	const working = sections.find(
+		(section) => section.target === "working"
+	)?.image;
+
+	const staged = sections.find((section) => section.target === "staged")?.image;
+
+	expect(await previewPixel(working?.before?.image?.src ?? "")).toEqual([
+		0, 255, 0, 255,
+	]);
+	expect(await previewPixel(working?.after?.image?.src ?? "")).toEqual([
+		0, 0, 255, 255,
+	]);
+	expect(await previewPixel(staged?.before?.image?.src ?? "")).toEqual([
+		255, 0, 0, 255,
+	]);
+	expect(staged?.after).toBe(working?.before);
+	expect(await git("ls-files", "--stage", "-z")).toBe(index);
+	expect(await git("rev-parse", "HEAD")).toBe(head);
+});
+
+it("shows the available image side for additions, renames and deletions", async () => {
+	const content = await rasterContent();
+
+	await writeFile(
+		join(repository, "new.png"),
+		Buffer.from(content.content, "base64")
+	);
+	const untracked = (await read("new.png"))[0]?.image;
+
+	expect(untracked?.before).toBeNull();
+	expect(untracked?.after?.image?.width).toBe(32);
+	await git("add", "new.png");
+	expect((await read("new.png"))[0]?.image?.before).toBeNull();
+	await git("commit", "-m", "Image fixture");
+	await git("mv", "new.png", "renamed.png");
+	const renamed = (await read("renamed.png"))[0]?.image;
+
+	expect(renamed?.before?.image?.src).toBe(renamed?.after?.image?.src);
+	await git("commit", "-m", "Rename image");
+	await unlink(join(repository, "renamed.png"));
+	const deleted = (await read("renamed.png"))[0]?.image;
+
+	expect(deleted?.before?.image?.width).toBe(32);
+	expect(deleted?.after).toBeNull();
+	await git("add", "renamed.png");
+	expect((await read("renamed.png"))[0]?.image?.after).toBeNull();
+});
+
+it("keeps SVG source diffs even when preview validation fails and rejects working symlinks", async () => {
+	await writeFile(join(repository, "image.svg"), svgContent().content);
+	const valid = (await read("image.svg"))[0];
+
+	expect(valid?.image?.after?.image?.width).toBe(32);
+	expect(valid?.patch).toContain("+<svg");
+	await writeFile(
+		join(repository, "image.svg"),
+		'<svg xmlns="http://www.w3.org/2000/svg"><image href="file:///etc/passwd"/></svg>'
+	);
+	const unsafe = (await read("image.svg"))[0];
+
+	expect(unsafe?.image?.after?.error).toContain("external resources");
+	expect(unsafe?.patch).toContain("file:///etc/passwd");
+	await symlink("image.svg", join(repository, "link.svg"));
+	expect((await read("link.svg"))[0]?.image?.after?.error).toContain(
+		"Symbolic links"
+	);
 });

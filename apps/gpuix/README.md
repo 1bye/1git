@@ -172,8 +172,9 @@ scrolling while using GPUIX's virtualized list; no additional diff library is ne
   does not change checkboxes or Git staging. The first available comparison opens
   automatically, preferring Unstaged.
 - New/untracked files, deletions, empty files, renames and mode changes use the
-  same viewer. Binary files and merge conflicts have explicit notices instead of
-  misleading text. Image previews and conflict resolution are not implemented.
+  same viewer. PNG, JPEG, WebP and SVG files have image previews, described below.
+  Other binary files and merge conflicts have explicit notices instead of
+  misleading text. Conflict resolution is not implemented.
 - The native list owns vertical scrolling and only builds rows near the viewport;
   its surrounding viewport owns horizontal scrolling only. There are no competing
   vertical scroll containers. Focus the viewer with Tab and use arrows,
@@ -199,6 +200,40 @@ scrolling while using GPUIX's virtualized list; no additional diff library is ne
 The shared Git diff commands treat requested paths literally and disable external
 diff/text-conversion drivers, returning raw patches without invoking those tools.
 Reading a diff never stages, unstages, discards or commits changes.
+
+### Image previews
+
+- PNG, JPEG, static WebP and self-contained SVG files open in a centered native
+  image view. Modified images show **Before** and **After** side by side; new and
+  deleted files show only the available version with a centered **Added** or
+  **Deleted** caption. The file header's right side shows original dimensions
+  (after EXIF orientation) and byte sizes instead of line counts, labeled
+  Before/After when both versions exist.
+- SVG files have keyboard-operable **Preview / Source** controls in the existing
+  header. Source uses the same native text diff, including when SVG preview
+  validation fails. Staged/Unstaged switching selects the corresponding image
+  comparison without changing Git staging or commit inclusion.
+- Before/after bytes come from the status snapshot's HEAD/index blob IDs and a
+  bounded working-file read. A per-read cache shares index pixels between both
+  comparisons. Refresh reads new versions; selection/tab changes cancel Git
+  reads and discard late decoding results. Each failed side shows its own error;
+  Refresh retries reads. Missing versions are not treated as decode failures.
+- Sharp prepares bounded, oriented PNG preview pixels off the UI thread; GPUIX
+  still displays them using its native `<img>` with aspect-preserving containment.
+  The subtle transparency checkerboard is composed into preview pixels only,
+  never the source file. Saxes validates SVG XML before decoding. No WebView or
+  browser renderer is introduced and no native GPUIX rebuild is required.
+- Limits: **8 MiB input**, **16 megapixels**, **8192 px per side**, and a maximum
+  **2048 px preview edge**. SVG additionally allows at most **512 KiB / 10,000
+  elements**. Sharp retains its decoder safety checks and a three-second pixel
+  processing timeout; this is not a whole-operation deadline for SVG parsing.
+  Already-running native work may finish after cancellation, but its result is
+  discarded. No cross-file preview cache is retained.
+- SVG previews reject external/embedded image references, scripts, foreign
+  documents, animation, DTDs, processing instructions, CSS escapes and at-rules.
+  Internal fragment references and gradients are supported. Animated WebP and
+  working-tree symbolic links show an explanation. Browser-dependent SVG features
+  are not guaranteed to match browser rendering; Source remains available.
 
 ## Workspace preview
 

@@ -5,6 +5,12 @@ import {
 	type GitResult,
 } from "@1git/git";
 
+import { imageLimits } from "./image-preview";
+import {
+	RepositoryImage,
+	type RepositoryImageComparison,
+} from "./repository-image";
+
 /** Limits native parsing/layout and Git output without silently truncating a patch. */
 export const diffLimits = {
 	bytes: 512 * 1024,
@@ -21,6 +27,7 @@ export interface RepositoryDiffSection {
 	readonly patch: string;
 	readonly stats: FileDiff["stats"];
 	readonly message: string | null;
+	readonly image?: RepositoryImageComparison;
 }
 
 const combinedPatch = /^(?:diff --(?:cc|combined) |@@@)/m;
@@ -51,10 +58,12 @@ export class RepositoryDiff {
 				],
 			};
 
+		const image = RepositoryImage.supports(change.path);
+
 		const opened = await GitRepository.open({
 			path: root,
 			signal,
-			runtime: { maxOutputBytes: diffLimits.bytes },
+			runtime: { maxOutputBytes: image ? imageLimits.bytes : diffLimits.bytes },
 		});
 
 		if (!opened.ok) return opened;
@@ -72,8 +81,26 @@ export class RepositoryDiff {
 
 		if (!targets.length) targets.push("working");
 
+		const images = image
+			? await RepositoryImage.read(opened.value, root, change, targets, signal)
+			: null;
+
 		const results = await Promise.all(
 			targets.map(async (target) => {
+				const preview = images?.get(target);
+
+				if (preview && !preview.svg)
+					return {
+						ok: true as const,
+						value: {
+							target,
+							patch: "",
+							stats: [],
+							message: null,
+							image: preview,
+						},
+					};
+
 				// The old name is needed for rename detection in the index, but not for the working-tree comparison.
 				const paths =
 					target === "staged" && change.originalPath
@@ -90,7 +117,10 @@ export class RepositoryDiff {
 
 				return {
 					ok: true,
-					value: RepositoryDiff.section(result.value, target),
+					value: {
+						...RepositoryDiff.section(result.value, target),
+						image: preview,
+					},
 				} as const;
 			})
 		);
