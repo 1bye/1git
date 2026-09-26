@@ -141,7 +141,7 @@ const [included, setIncluded] = useState(true);
 | `onMouseEnter`, `onMouseLeave` | Coordinate hover with surrounding UI | — |
 | `aria-description`, `aria-id` | Additional native accessibility metadata | — |
 
-The 14px mark sits inside a density-sized hit target (24px compact, 28px
+The 12px box and 10px mark sit inside a density-sized hit target (24px compact, 28px
 comfortable). Pointer clicks toggle once; Space toggles on release. Repeats,
 modified Space, and unarmed releases do not toggle. Blur or disabling cancels
 a pending Space press. Focus rings appear for keyboard use, not pointer clicks.

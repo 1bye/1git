@@ -204,9 +204,16 @@ it("forwards refs and metadata and updates token styles without changing checked
 		height: 24,
 		borderRadius: 8,
 	});
-	expect(
-		root.renderer.getElement(checkbox.children[0] ?? -1)?.style.backgroundColor
-	).toBe(palettes.light.accent);
+	const box = root.renderer.getElement(checkbox.children[0] ?? -1);
+	const mark = root.renderer.getElement(box?.children[0] ?? -1);
+
+	expect(box?.style).toMatchObject({
+		width: 12,
+		height: 12,
+		borderRadius: 2,
+		backgroundColor: palettes.light.accent,
+	});
+	expect(mark?.style).toMatchObject({ width: 10, height: 10 });
 	expect(checkbox.customProps).toMatchObject({
 		"aria-checked": "mixed",
 		"aria-description": "Next commit",
