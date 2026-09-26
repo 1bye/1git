@@ -2,6 +2,8 @@ import { useReducer } from "react";
 
 import { RepositoryNavigation } from "./feature/repository-workspace/components/repository-navigation";
 import { RepositoryDiffEmpty } from "./feature/repository-workspace/components/repository-diff-empty";
+import { RepositoryDiff } from "./feature/repository-workspace/components/repository-diff";
+import { RepositoryDiff as DiffReader } from "./feature/repository-workspace/lib/repository-diff";
 import { RepositoryReader } from "./feature/repository-workspace/lib/repository-reader";
 import { useRepositoryConnection } from "./feature/repository-workspace/hooks/use-repository-connection";
 import { RepositoryWorkspaceModel } from "./feature/repository-workspace/lib/repository-workspace-model";
@@ -14,10 +16,12 @@ export function App({
 	initialTabCount = 1,
 	preview = false,
 	readRepository = RepositoryReader.read,
+	readDiff = DiffReader.read,
 }: {
 	initialTabCount?: number;
 	preview?: boolean;
 	readRepository?: typeof RepositoryReader.read;
+	readDiff?: typeof DiffReader.read;
 }) {
 	const [state, dispatch] = useReducer(
 		WorkspaceTabsModel.reduce,
@@ -69,17 +73,31 @@ export function App({
 				activeTab ? `${activeTab.name} workspace` : "No workspace open"
 			}
 		>
-			<RepositoryDiffEmpty
-				selected={selected}
-				revision={revision}
-				view={workspace?.view}
-				hasWorkspace={!!activeTab}
-				workspace={workspace}
-				picking={connection.pickingId !== null}
-				onOpen={() => {
-					if (activeTab) void connection.open(activeTab.id);
-				}}
-			/>
+			{activeTab &&
+			workspace?.repository &&
+			workspace.view === "changes" &&
+			selected?.change ? (
+				<RepositoryDiff
+					key={`${activeTab.id}:${selected.id}`}
+					root={workspace.repository.root}
+					change={selected.change}
+					refreshing={workspace.loading}
+					statusError={workspace.error}
+					readDiff={readDiff}
+				/>
+			) : (
+				<RepositoryDiffEmpty
+					selected={selected}
+					revision={revision}
+					view={workspace?.view}
+					hasWorkspace={!!activeTab}
+					workspace={workspace}
+					picking={connection.pickingId !== null}
+					onOpen={() => {
+						if (activeTab) void connection.open(activeTab.id);
+					}}
+				/>
+			)}
 		</AppShell>
 	);
 }

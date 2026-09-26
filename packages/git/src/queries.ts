@@ -334,9 +334,12 @@ const diffArguments = (
 ): string[] => {
 	const isCommit = input.target.kind === "commit";
 
+	// UI paths are filenames, not patterns; previews must not execute configured external converters.
 	const args = [
+		"--literal-pathspecs",
 		isCommit ? "show" : "diff",
 		"--no-ext-diff",
+		"--no-textconv",
 		"--no-color",
 		"--find-renames",
 	];
@@ -380,9 +383,11 @@ const loadUntrackedPathPatch = async (
 	try {
 		const output = await context.process.run({
 			args: [
+				"--literal-pathspecs",
 				"diff",
 				"--no-index",
 				"--no-ext-diff",
+				"--no-textconv",
 				"--no-color",
 				"--patch",
 				`--unified=${input.contextLines ?? 3}`,
@@ -413,7 +418,13 @@ const loadUntrackedPatch = async (
 		return "";
 	}
 
-	const listArguments = ["ls-files", "--others", "--exclude-standard", "-z"];
+	const listArguments = [
+		"--literal-pathspecs",
+		"ls-files",
+		"--others",
+		"--exclude-standard",
+		"-z",
+	];
 
 	if (input.paths && input.paths.length > 0) {
 		listArguments.push("--", ...input.paths);

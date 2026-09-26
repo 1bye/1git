@@ -361,6 +361,7 @@ export class RepositoryWorkspaceModel {
 		return {
 			id: file.path,
 			title: file.path,
+			change: file,
 			status,
 			statusDescription: `${file.originalPath ? `renamed from ${file.originalPath}; ` : ""}index: ${file.indexStatus}; working tree: ${file.worktreeStatus}${file.submodule !== "N..." ? "; submodule changes" : ""}`,
 		};

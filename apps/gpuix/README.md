@@ -37,10 +37,17 @@ targets are separate. Window movability and native tiling remain enabled.
 checked/unchecked/mixed accessibility state. The root Bun patch in
 `patches/@gpuix%2Fnative@0.10.0.patch` adds that prop to the published JavaScript
 bridge and TypeScript host contract; `bun install` reapplies it reproducibly.
+
+`native/diff-scroll.patch` connects GPUIX's existing native diff list to the
+pixel-scroll API used for keyboard navigation, in both live and test renderers.
+It honors a zero-height native file header for application-owned chrome and
+avoids redundant horizontal-overflow wrappers around explicitly non-shrinking
+children, preserving full-width diff backgrounds. Parsing, highlighting and
+virtualization stay in GPUIX; no JavaScript diff renderer is introduced.
 Dependency versions stay pinned. `native/preload.ts` selects the
 release addon through `NAPI_RS_NATIVE_LIBRARY_PATH` before GPUIX loads.
 Native source, build outputs, and the patch fingerprint live in ignored `.cache/`;
-there is no public fork or committed binary. Both Rust patches participate in
+there is no public fork or committed binary. All native patches participate in
 the build fingerprint and are applied independently.
 Missing/stale builds fail with a rebuild command, not an unpatched fallback.
 Restart `dev` after a native rebuild: hot reload cannot unload a native addon.
@@ -60,7 +67,7 @@ The native setup remains app-owned, following the Turborepo workflow.
 - `src/app.tsx`: one window's in-memory tabs and per-tab workspace state.
 - `src/fixture/app-shell.tsx`: full-width toolbar and contained navigation/content composition.
 - `src/feature/workspace-tabs/`: tab UI, focus, scrolling, and pure state transitions.
-- `src/feature/repository-workspace/`: repository picking/status reads, navigation views, empty diff, and pure workspace transitions.
+- `src/feature/repository-workspace/`: repository picking/status reads, native file diffs, navigation views, and pure workspace transitions.
 - `src/styles/tokens.ts`: shared desktop colors adapted to `gpuix-ui`.
 - `src/styles/workspace-layout.ts`: native chrome spacing; a 96px traffic-light area and 36px tabs in a 42px toolbar, preserving shared bottom spacing and control sizes.
 
@@ -136,11 +143,49 @@ entrance/exit animation yet.
 - **Checkboxes are planned commit inclusion, not Git staging.** They neither stage
   nor unstage files. The composer remains preview-only: Command+Enter/the button
   never creates a commit, even with a connected repository. Drafts and inclusion
-  are in-memory only. Real diffs, History and Stashes are not connected yet; those
-  views never substitute sample records for live data.
+  are in-memory only. History and Stashes are not connected yet; those views
+  never substitute sample records for live data.
 
 Git must be installed on PATH. The app imports the existing workspace Git package;
 the Turbo build/dev tasks build dependencies first. No Electron IPC is involved.
+
+## Read-only file diffs
+
+Selecting a live Changes row reads only that file and displays GPUIX's native
+unified diff, with old/new line numbers, hunk headers, addition/deletion colors,
+syntax highlighting and selectable text. A local native bridge preserves keyboard
+scrolling while using GPUIX's virtualized list; no additional diff library is needed.
+
+- **Unstaged** compares the index to the working tree; **Staged** compares HEAD
+  to the index. A partially staged file offers a compact switch beside the filename;
+  files with only one comparison show no switch. Technical comparison labels and
+  the read-only badge are omitted. Switching the view
+  does not change checkboxes or Git staging. The first available comparison opens
+  automatically, preferring Unstaged.
+- New/untracked files, deletions, empty files, renames and mode changes use the
+  same viewer. Binary files and merge conflicts have explicit notices instead of
+  misleading text. Image previews and conflict resolution are not implemented.
+- The native list owns vertical scrolling and only builds rows near the viewport;
+  its surrounding viewport owns horizontal scrolling only. There are no competing
+  vertical scroll containers. Focus the viewer with Tab and use arrows,
+  Page Up/Down, Home/End or Space; trackpad scrolling works independently of the
+  file list. Drag to select text and use Command+C to copy. Comparisons and file
+  selections start at the top; scroll restoration across selections is deferred.
+- Refreshing repository status reloads the selected diff. Changing the file,
+  view or workspace cancels the previous read; late results cannot replace a
+  newer selection. Failures have a retry action. Repository-refresh failures hide
+  the old diff until status can be read again.
+- Preview limits are **512 KiB of Git output per command, 2,000 patch lines, and
+  4,000 characters per line**. Oversized patches are omitted in full with an
+  explanation, not silently truncated. These limits still bound parsing and syntax
+  highlighting work even though row rendering is now virtualized.
+- The light diff theme uses muted green/red markers and washes, a calmer syntax
+  palette, and shared application surface/text tokens. GPUIX still controls row
+  and word-highlight opacity; these are not separate theme settings upstream.
+
+The shared Git diff commands treat requested paths literally and disable external
+diff/text-conversion drivers, returning raw patches without invoking those tools.
+Reading a diff never stages, unstages, discards or commits changes.
 
 ## Workspace preview
 
@@ -229,7 +274,7 @@ window still and empty-titlebar drags move it after restarting the app.
 Offscreen screenshots do not capture macOS vibrancy; compare
 the running window on macOS when adjusting blur/material appearance.
 
-Connection component tests replace the OS picker and repository reader while
+Connection component tests replace the OS picker and repository/diff readers while
 exercising the real lifecycle and native UI. They cover cancellation, late results,
 loading/errors, refresh reconciliation and preview-only commits. The separate,
 uncached `test:integration` task uses the real Git CLI with disposable repositories
@@ -237,3 +282,11 @@ to check mixed status, unusual filenames, nested folders, worktrees, clean/unbor
 HEAD and errors, and verifies staged content and HEAD are unchanged. It requires
 Git and writable temporary storage, but no graphics access or network. The
 physical native directory dialog still needs a manual check on macOS.
+
+Diff tests cover native line-number/text painting, comparison switching,
+keyboard/trackpad scrolling on both axes, a bounded painted-row count for 1,800-line
+patches, full-width backgrounds, text selection without gutters, native scroll-state
+cleanup, errors/retry, stale reads, refresh and preview guards.
+Real-Git integration tests also cover both sides of a partially staged file,
+untracked/empty/deleted/renamed paths, literal special filenames, disabled external
+drivers and oversized/binary patches, without changing HEAD or staged content.

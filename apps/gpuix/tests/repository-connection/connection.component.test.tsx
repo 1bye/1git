@@ -9,6 +9,7 @@ import { createTestRoot, type TestRoot } from "@gpuix/react/testing";
 
 import { App } from "../../src/app";
 import type { RepositoryReader } from "../../src/feature/repository-workspace/lib/repository-reader";
+import type { RepositoryDiff } from "../../src/feature/repository-workspace/lib/repository-diff";
 import { windowOptions } from "../../src/window-options";
 import {
 	changedFile,
@@ -16,6 +17,11 @@ import {
 } from "../_shared/repository-snapshot";
 
 let root: TestRoot;
+
+const readDiff: typeof RepositoryDiff.read = async () => ({
+	ok: true,
+	value: [],
+});
 
 beforeEach(() => {
 	root = createTestRoot({
@@ -70,7 +76,7 @@ it("opens real-status rows and refreshes without staging, clearing drafts or rep
 		"/test/project",
 	]);
 
-	root.render(<App readRepository={reader} />);
+	root.render(<App readDiff={readDiff} readRepository={reader} />);
 	expect(root.renderer.findByTestId("commit-composer")).toBeUndefined();
 	click("open-repository");
 	await settle();
@@ -129,7 +135,7 @@ it("handles cancellation, picker failures and invalid repositories with a retry"
 
 	const picker = spyOn(root.renderer, "promptForPaths").mockResolvedValue(null);
 
-	root.render(<App readRepository={reader} />);
+	root.render(<App readDiff={readDiff} readRepository={reader} />);
 	click("open-repository");
 	await settle();
 	expect(reader).not.toHaveBeenCalled();
@@ -156,7 +162,7 @@ it("shows refresh errors alongside previous data, then repairs focus after a sel
 	}));
 
 	spyOn(root.renderer, "promptForPaths").mockResolvedValue(["/test/project"]);
-	root.render(<App readRepository={reader} />);
+	root.render(<App readDiff={readDiff} readRepository={reader} />);
 	click("open-repository");
 	await settle();
 	click("entry-a.ts");
@@ -185,7 +191,9 @@ it("keeps pending reads attached to their tab and cancels them on close", async 
 	const reader = mock<typeof RepositoryReader.read>(() => pending.promise);
 
 	spyOn(root.renderer, "promptForPaths").mockResolvedValue(["/test/project"]);
-	root.render(<App readRepository={reader} initialTabCount={2} />);
+	root.render(
+		<App readDiff={readDiff} readRepository={reader} initialTabCount={2} />
+	);
 	click("open-repository");
 	await settle();
 	expect(root.renderer.getAllText()).toContain("Reading repository…");
@@ -212,7 +220,7 @@ it("ignores a picker result after its tab closes and never reads for a removed t
 		value: repositorySnapshot(),
 	}));
 
-	root.render(<App readRepository={reader} />);
+	root.render(<App readDiff={readDiff} readRepository={reader} />);
 	click("open-repository");
 	click("close-workspace-1");
 	click("add-workspace");
@@ -229,7 +237,9 @@ it("loads in the background without replacing the active tab and aborts reads on
 	const reader = mock<typeof RepositoryReader.read>(() => pending.promise);
 
 	spyOn(root.renderer, "promptForPaths").mockResolvedValue(["/test/project"]);
-	root.render(<App readRepository={reader} initialTabCount={2} />);
+	root.render(
+		<App readDiff={readDiff} readRepository={reader} initialTabCount={2} />
+	);
 	click("open-repository");
 	await settle();
 	click("workspace-2");

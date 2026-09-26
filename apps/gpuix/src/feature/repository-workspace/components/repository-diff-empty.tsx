@@ -109,7 +109,7 @@ export function RepositoryDiffEmpty({
 					: "Working tree clean";
 
 			hint =
-				"Live repository status. Diffs and Git writes are not connected yet.";
+				"Choose a changed file to see its read-only diff. Git writes remain disabled.";
 		}
 	}
 

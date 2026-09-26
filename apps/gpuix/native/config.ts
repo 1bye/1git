@@ -11,6 +11,7 @@ export const checkboxPatchPath = resolve(
 	import.meta.dir,
 	"checkbox-a11y.patch"
 );
+export const diffPatchPath = resolve(import.meta.dir, "diff-scroll.patch");
 export const nativeLibrary = resolve(nativeDirectory, "gpuix-native.node");
 export const buildIdPath = resolve(nativeDirectory, "build-id");
 /** Changing the patch, revision, or host invalidates the local binary. */
@@ -18,5 +19,6 @@ export const nativeBuildId = createHash("sha256")
 	.update(nativeRevision)
 	.update(readFileSync(patchPath))
 	.update(readFileSync(checkboxPatchPath))
+	.update(readFileSync(diffPatchPath))
 	.update(`${process.platform}-${process.arch}-release-v1`)
 	.digest("hex");

@@ -1,3 +1,5 @@
+import type { FileChange } from "@1git/git";
+
 /** Repository navigation views; only Changes currently reads live repository data. */
 export type RepositoryView = "changes" | "history" | "stashes";
 
@@ -11,6 +13,8 @@ export interface WorkspaceEntry {
 	readonly detail?: string;
 	readonly status?: "M" | "A" | "D" | "R" | "C" | "U" | "T";
 	readonly statusDescription?: string;
+	/** Original Git status, present only for live Changes rows. */
+	readonly change?: FileChange;
 }
 
 /** Commit or stash presentation with its own changed files. */

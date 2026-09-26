@@ -1,0 +1,163 @@
+diff --git a/README.md b/README.md
+index d527ed5..ff0c94b 100644
+--- a/README.md
++++ b/README.md
+@@ -2439,6 +2447,11 @@ renderer owns its layout. Tune that card with the `mdCode*` metrics.
+ 
+ ### `<diff>`
+ 
++The 1git local patch exposes the native list through `scrollTo`, `getScrollOffset`
++and `getListScrollTop` when `scroll` is enabled, including in the test renderer.
++Set `theme.metrics.diffFileHeaderHeight: 0` to omit the built-in file chrome
++when a dedicated viewer provides its own pinned filename/comparison controls.
++
+ A unified diff viewer. It **flows** with its parent by default, so a parent
+ list can be the only scroller. Collapsing a file removes its rows rather than hiding
+ them, so a collapsed 10k-line file costs one row.
+diff --git a/packages/native/src/custom_elements/diff.rs b/packages/native/src/custom_elements/diff.rs
+index 7a76710..775cfa1 100644
+--- a/packages/native/src/custom_elements/diff.rs
++++ b/packages/native/src/custom_elements/diff.rs
+@@ -252,6 +252,8 @@ impl CustomElement for DiffElement {
+         let metrics = theme.metrics;
+ 
+         if data.rows.is_empty() {
++            self.list_state = None;
++            self.list_metrics = None;
+             // Through `custom_surface` like the non-empty branch, or an empty
+             // diff would be the one state with no automation bounds and no
+             // click or hover events.
+@@ -434,6 +436,10 @@ impl CustomElement for DiffElement {
+         self.list_metrics = None;
+         self.data = None;
+     }
++
++    fn scroll_state(&self) -> Option<gpui::ListState> {
++        self.list_state.clone()
++    }
+ }
+ 
+ // ── Row rendering ────────────────────────────────────────────────────
+@@ -506,6 +512,10 @@ fn render_row(data: &DiffData, ix: usize, ctx: RowContext) -> gpui::AnyElement {
+ 
+     match row {
+         DiffRow::FileHeader { file } => {
++            // A zero-height header lets a dedicated viewer provide its own pinned chrome.
++            if m.diff_file_header_height == 0.0 {
++                return gpui::div().h_0().flex_none().into_any_element();
++            }
+             let Some(file_diff) = data.files.get(file as usize) else {
+                 return gpui::Empty.into_any_element();
+             };
+diff --git a/packages/native/src/custom_elements/mod.rs b/packages/native/src/custom_elements/mod.rs
+index fc78124..167bc1b 100644
+--- a/packages/native/src/custom_elements/mod.rs
++++ b/packages/native/src/custom_elements/mod.rs
+@@ -224,6 +224,11 @@ pub trait CustomElement: 'static {
+     /// Clean up resources (GPUI entities, subscriptions, etc.)
+     fn destroy(&mut self);
+ 
++    /// Native list owned by a custom element, for the existing pixel-scroll API.
++    fn scroll_state(&self) -> Option<gpui::ListState> {
++        None
++    }
++
+     /// Current live GPU image on `<img>`, if any.
+     fn live_image(&self) -> Option<std::sync::Arc<gpui::RenderImage>> {
+         None
+@@ -384,6 +389,17 @@ impl CustomElementRegistry {
+         entry.element.render(ctx, window, cx)
+     }
+ 
++    /// Look up a custom element's native list without duplicating its scroll state.
++    pub fn scroll_state(&self, id: u64) -> Option<gpui::ListState> {
++        self.instances.get(&id)?.element.scroll_state()
++    }
++
++    pub fn scroll_states(&self) -> impl Iterator<Item = (u64, gpui::ListState)> + '_ {
++        self.instances.iter().filter_map(|(&id, entry)| {
++            entry.element.scroll_state().map(|state| (id, state))
++        })
++    }
++
+     /// Store a decoded image on an `<img>` host node, creating the adapter if needed.
+     pub fn set_live_image(
+         &mut self,
+diff --git a/packages/native/src/renderer.rs b/packages/native/src/renderer.rs
+index b1710c3..8f188bd 100644
+--- a/packages/native/src/renderer.rs
++++ b/packages/native/src/renderer.rs
+@@ -3938,7 +3938,7 @@ impl GpuixView {
+     /// list resting at its very end); the viewport height is what lets a
+     /// caller convert that into a position relative to the trailing rows.
+     pub(crate) fn virtual_list_scroll_top(&self, id: u64) -> Option<[f64; 3]> {
+-        let state = &self.virtual_lists.get(&id)?.state;
++        let state = self.native_list_state(id)?;
+         let top = state.logical_scroll_top();
+         Some([
+             top.item_ix as f64,
+@@ -3947,21 +3947,23 @@ impl GpuixView {
+         ])
+     }
+ 
++    fn native_list_state(&self, id: u64) -> Option<gpui::ListState> {
++        self.virtual_lists.get(&id).map(|entry| entry.state.clone())
++            .or_else(|| self.custom_registry.scroll_state(id))
++    }
++
+     pub(crate) fn set_virtual_list_offset(&self, id: u64, x: f32, y: f32) -> bool {
+-        let Some(entry) = self.virtual_lists.get(&id) else {
++        let Some(state) = self.native_list_state(id) else {
+             return false;
+         };
+-        entry
+-            .state
++        state
+             .set_offset_from_scrollbar(gpui::point(gpui::px(x), gpui::px(y)));
+         true
+     }
+ 
+     pub(crate) fn virtual_list_offset(&self, id: u64) -> Option<[f64; 2]> {
+         let offset = self
+-            .virtual_lists
+-            .get(&id)?
+-            .state
++            .native_list_state(id)?
+             .scroll_px_offset_for_scrollbar();
+         Some([
+             f64::from(f32::from(offset.x)),
+@@ -4799,6 +4801,7 @@ impl gpui::Render for GpuixView {
+             for (&id, entry) in &self.virtual_lists {
+                 states.insert(id, entry.state.clone());
+             }
++            states.extend(self.custom_registry.scroll_states());
+         });
+         // One-shot: a queued scroll for a list that did not build this frame
+         // would otherwise fire on some later frame, against child indices that
+@@ -5463,8 +5483,13 @@ pub(crate) fn build_host_container(
+     // Children
+     let child_ids: Vec<u64> = element.children.clone();
+     for child_id in child_ids {
++        // An explicitly non-shrinking child already forms the overflow content.
++        // Wrapping it again makes percentage widths resolve against an intrinsic box.
++        let non_shrinking = ctx.tree.elements.get(&child_id)
++            .and_then(|child| child.style.as_deref())
++            .is_some_and(|style| style.flex_shrink == Some(0.0));
+         let child = build_element(child_id, ctx, window, cx);
+-        el = if overflow_x_only {
++        el = if overflow_x_only && !non_shrinking {
+             el.child(gpui::div().flex_none().child(child))
+         } else {
+             el.child(child)
+diff --git a/.changeset/1git-diff-scroll.md b/.changeset/1git-diff-scroll.md
+new file mode 100644
+--- /dev/null
++++ b/.changeset/1git-diff-scroll.md
+@@ -0,0 +1,7 @@
++---
++"@gpuix/native": patch
++---
++
++Expose the native diff list through existing pixel-scroll controls and honor a
++zero-height file header for application-owned chrome. Uses existing GPUI
++ListState APIs; no GPUI fork change is needed. Local 1git patch, not a release.
