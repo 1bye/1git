@@ -87,6 +87,7 @@ export const loadSnapshot = async (
 	signal?: AbortSignal
 ): Promise<RepositorySnapshot> => {
 	const args = [
+		"--no-optional-locks",
 		"status",
 		"--porcelain=v2",
 		"--branch",

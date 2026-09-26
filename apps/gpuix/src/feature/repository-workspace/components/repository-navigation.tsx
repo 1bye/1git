@@ -319,6 +319,15 @@ export function RepositoryNavigation({
 					</Button>
 				) : null}
 			</div>
+			{state.watchError ? (
+				<text
+					testId="repository-watch-notice"
+					role="status"
+					style={{ ...styles.muted, padding: 10, flexShrink: 0 }}
+				>
+					{state.watchError}
+				</text>
+			) : null}
 			{state.loading || state.error ? (
 				<text
 					testId="repository-notice"

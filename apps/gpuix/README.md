@@ -59,6 +59,12 @@ Restart `dev` after a native rebuild: hot reload cannot unload a native addon.
 The root Turbo dev task builds the addon first; direct app commands require
 the explicit setup command above. `build` only emits the app's TypeScript.
 
+`native/window-activation.patch` forwards GPUI's window activation observation
+through the existing native event bridge. The auto-refresh hook registers one
+`windowActivated` handler using `@gpuix/native/host`'s renderer-scoped event map
+(`elementId: 0`) and removes it on unmount. Moving focus between controls does
+not trigger repository refreshes. No polling of the foreground application is used.
+
 To change the patch, update the checked-in patch and move the old
 `.cache/native-source` aside before rebuilding if it no longer applies.
 Do not develop changes only inside the ignored checkout. To upgrade GPUIX,
@@ -139,10 +145,10 @@ entrance/exit animation yet.
   records share one row per path, including untracked files, deletions, renames,
   conflicts and type changes. Ignored files are omitted. Accessible row labels
   retain both index and worktree status. A clean tree has an explicit empty state.
-- Use the refresh icon beside the view pills after external edits. There is no
-  filesystem watcher or automatic polling yet. Refresh retains the draft, selected
-  path, and existing checkbox choices; removed paths disappear and new paths start
-  included. On failure the previous data stays visible with a stale-data notice.
+- External edits refresh automatically; the refresh icon remains available.
+  Refresh retains the draft, selected path, and existing checkbox choices;
+  removed paths disappear and new paths start included. On failure the previous
+  data stays visible with a stale-data notice.
 - Reads belong to their original tab, even after switching/reordering. Closing a
   tab or unmounting cancels pending reads and ignores late picker/read results.
 - **Checkboxes select whole files for the next commit, not Git staging.** Toggling
@@ -153,6 +159,34 @@ entrance/exit animation yet.
 
 Git must be installed on PATH. The app imports the existing workspace Git package;
 the Turbo build/dev tasks build dependencies first. No Electron IPC is involved.
+
+### Automatic refresh
+
+- A recursive filesystem subscription watches each open working tree and its
+  private/shared Git directories, including linked worktrees. Tabs sharing a root
+  share one subscription and one background status read. Returning to the native
+  window also requests an update, covering missed filesystem events.
+- Events are debounced for 250 ms, with a one-second ceiling for sustained bursts.
+  Only one background read per root runs at a time; events during it queue one
+  follow-up. Git objects, logs and temporary lock churn are ignored. Status uses
+  `--no-optional-locks` so its own index-stat refresh cannot trigger a read loop.
+  Ignored working-tree build outputs can still cause a coalesced read; there is
+  no periodic repository scan or extra watcher dependency.
+- Changes and the selected working diff update quietly without replacing the
+  mounted native diff list, preserving its scroll anchor. Drafts, checkbox choices,
+  list scroll and available selections remain intact. History reloads after HEAD
+  changes; a selected commit/file is retained when present in the refreshed page.
+  Stashes reload even when HEAD is unchanged and retain selection by immutable OID.
+  History/Stashes queries remain lazy while their views are hidden.
+- Any tab's commit or explicit repository read pauses background work for that
+  root and aborts stale reads. Queued changes are drained after completion.
+  Automatic refresh never clears an uncertain-commit review safeguard: that still
+  requires an explicit refresh and inspection of History.
+- Closing the last tab, unmounting or hot reloading closes watchers, removes the
+  activation handler, cancels timers and aborts reads. If watching cannot start or
+  fails, a notice directs the user to manual/focus refresh. Sample preview mode
+  has no watchers. The application entry point supplies the filesystem boundary;
+  native component tests inject notifications without observing real repositories.
 
 ## Committing selected files
 
@@ -207,8 +241,9 @@ the Turbo build/dev tasks build dependencies first. No Electron IPC is involved.
   Pending reads are cancelled on view/tab changes, refresh or close; errors expose
   Retry without discarding loaded pages. Nothing is persisted across restarts.
 - Refresh keeps cached History when HEAD is unchanged. A different HEAD resets
-  pagination and selection to the new snapshot. Successful app commits refresh
-  this state; automatic refresh after external changes is still deferred.
+  pagination to the new snapshot. Automatic refresh retains the selected commit
+  and file when they remain in the refreshed page; explicit refresh and successful
+  app commits reset selection when HEAD changes.
 
 ## Browsing Stashes
 
@@ -420,6 +455,13 @@ to check mixed status, unusual filenames, nested folders, worktrees, clean/unbor
 HEAD and errors, and verifies staged content and HEAD are unchanged. It requires
 Git and writable temporary storage, but no graphics access or network. The
 physical native directory dialog still needs a manual check on macOS.
+
+Automatic-refresh tests additionally exercise real atomic saves, index and HEAD
+changes, shared worktree stash refs, watcher cleanup and the absence of status
+feedback loops. macOS filesystem events require execution outside a restricted
+sandbox. Native tests inject the activation event and check coalescing, shared
+subscriptions, draft/inclusion preservation, diff scroll and commit cancellation;
+physical app switching should still be checked after restarting the native app.
 
 Diff tests cover native line-number/text painting, comparison switching,
 keyboard/trackpad scrolling on both axes, a bounded painted-row count for 1,800-line

@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 
 import {
 	appDirectory,
+	activationPatchPath,
 	checkboxPatchPath,
 	diffPatchPath,
 	buildIdPath,
@@ -64,7 +65,12 @@ if (
 
 	await run(["git", "submodule", "update", "--init", "--depth", "1", "zed"]);
 
-	for (const patch of [patchPath, checkboxPatchPath, diffPatchPath]) {
+	for (const patch of [
+		patchPath,
+		checkboxPatchPath,
+		diffPatchPath,
+		activationPatchPath,
+	]) {
 		const patched = Bun.spawn(["git", "apply", "--reverse", "--check", patch], {
 			cwd: source,
 			stdout: "ignore",

@@ -5,6 +5,8 @@ import { RepositoryDiffEmpty } from "./feature/repository-workspace/components/r
 import { RepositoryDiff } from "./feature/repository-workspace/components/repository-diff";
 import { RepositoryDiff as DiffReader } from "./feature/repository-workspace/lib/repository-diff";
 import { RepositoryReader } from "./feature/repository-workspace/lib/repository-reader";
+import type { RepositoryWatcher } from "./feature/repository-workspace/lib/repository-watcher";
+import { useRepositoryAutoRefresh } from "./feature/repository-workspace/hooks/use-repository-auto-refresh";
 import { RepositoryHistory } from "./feature/repository-workspace/lib/repository-history";
 import { useRepositoryHistory } from "./feature/repository-workspace/hooks/use-repository-history";
 import { RepositoryStashes } from "./feature/repository-workspace/lib/repository-stashes";
@@ -31,6 +33,7 @@ export function App({
 	readStashes = RepositoryStashes.read,
 	readStashFiles = RepositoryStashes.readFiles,
 	writeCommit = RepositoryCommit.write,
+	watchRepository,
 }: {
 	initialTabCount?: number;
 	preview?: boolean;
@@ -41,6 +44,7 @@ export function App({
 	readStashes?: typeof RepositoryStashes.read;
 	readStashFiles?: typeof RepositoryStashes.readFiles;
 	writeCommit?: typeof RepositoryCommit.write;
+	watchRepository?: typeof RepositoryWatcher.watch;
 }) {
 	const [state, dispatch] = useReducer(
 		WorkspaceTabsModel.reduce,
@@ -51,6 +55,8 @@ export function App({
 
 	const connection = useRepositoryConnection(state, dispatch, readRepository);
 	const commits = useRepositoryCommit(state, dispatch, writeCommit);
+
+	useRepositoryAutoRefresh(state, dispatch, readRepository, watchRepository);
 
 	const activeTab = state.tabs.find((tab) => tab.id === state.activeId);
 	const workspace = activeTab?.workspace;

@@ -13,6 +13,78 @@ import {
 	historyPage,
 } from "../_shared/history-page";
 
+it("keeps the selected immutable commit and file while refreshing history after an external commit", () => {
+	const snapshot = repositorySnapshot();
+
+	const source = {
+		root: snapshot.repository.root,
+		head: snapshot.head.oid ?? "",
+	};
+
+	let state = Model.reduce(Model.create(), { type: "loaded", snapshot });
+
+	state = Model.reduce(state, {
+		type: "history-page",
+		...source,
+		offset: 0,
+		page: historyPage(),
+	});
+	state = Model.reduce(state, {
+		type: "history-files",
+		...source,
+		commit: commitInfo().oid,
+		files: committedFiles(commitInfo().oid),
+	});
+	state = Model.reduce(state, { type: "scroll", view: "history", y: -80 });
+	const selection = state.views.history;
+	const cached = state.entries.history[0];
+
+	const refreshed = {
+		...snapshot,
+		head: { ...snapshot.head, oid: "c".repeat(40) },
+	};
+
+	state = Model.reduce(state, {
+		type: "loaded",
+		snapshot: refreshed,
+		automatic: true,
+	});
+	expect(state.views.history).toBe(selection);
+	expect(state.history.nextOffset).toBe(0);
+	state = Model.reduce(state, {
+		type: "history-page",
+		root: source.root,
+		head: refreshed.head.oid,
+		offset: 0,
+		page: {
+			commits: [commitInfo(99), ...historyPage().commits],
+			nextOffset: null,
+			hasMore: false,
+		},
+	});
+	expect(state.entries.history[0]?.id).toBe(commitInfo(99).oid);
+	expect(state.entries.history[1]).toBe(cached);
+	expect(state.views.history).toEqual(selection);
+	state = Model.reduce(state, {
+		type: "loaded",
+		snapshot: {
+			...refreshed,
+			head: { ...refreshed.head, oid: "d".repeat(40) },
+		},
+		automatic: true,
+	});
+	state = Model.reduce(state, {
+		type: "history-page",
+		root: source.root,
+		head: "d".repeat(40),
+		offset: 0,
+		page: historyPage(77, 1),
+	});
+	expect(state.views.history.selectedId).toBe(commitInfo(77).oid);
+	expect(state.views.history.files.selectedId).toBeNull();
+	expect(state.views.history.scrollY).toBe(0);
+});
+
 it("appends pages without losing selection or scroll, and preserves history on same-HEAD refresh", () => {
 	const snapshot = repositorySnapshot();
 

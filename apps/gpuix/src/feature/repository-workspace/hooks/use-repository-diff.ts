@@ -26,7 +26,6 @@ export function useRepositoryDiff(
 	useEffect(() => {
 		if (paused) return;
 
-		setResult(null);
 		const controller = new AbortController();
 
 		const read = async (): Promise<void> => {
@@ -65,10 +64,14 @@ export function useRepositoryDiff(
 	const current =
 		!paused &&
 		result?.root === root &&
-		result.change === change &&
+		result.change.path === change.path &&
+		("commit" in result.change ? result.change.commit : null) ===
+			("commit" in change ? change.commit : null) &&
 		result.retry === retry
 			? result
 			: null;
 
+	// Keep the native list mounted while re-reading the same file. It preserves its
+	// logical scroll anchor when its patch changes; a new selection never reuses it.
 	return { result: current, retry: () => setRetry((value) => value + 1) };
 }
