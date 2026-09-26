@@ -75,6 +75,16 @@ export function RepositoryCommit({
 		? null
 		: RepositoryWorkspaceModel.commitBlockReason(state);
 
+	const noticeText = !sample
+		? state.commit.pending
+			? "Committing checked files. Please keep the app open."
+			: (state.commit.error ?? state.commit.notice ?? blocked)
+		: previewed
+			? "Preview only — no commit created."
+			: state.repository
+				? "Preview only · Git writes disabled"
+				: "Preview only · no repository connected";
+
 	const count = state.includedFileIds.length;
 	const label = `Commit ${count} ${count === 1 ? "file" : "files"}`;
 
@@ -137,70 +147,62 @@ export function RepositoryCommit({
 					{state.commit.pending ? "Committing…" : label}
 				</Button>
 			</div>
-			<div
-				key={state.commit.error ?? state.commit.notice ?? "hint"}
-				ref={notice}
-				testId="commit-notice-scroll"
-				tabIndex={hasDetails ? 0 : -1}
-				aria-label={hasDetails ? "Commit details" : undefined}
-				aria-description={
-					hasDetails
-						? "Use arrow keys or Page Up and Page Down to read all details."
-						: undefined
-				}
-				onFocus={() => setNoticeFocused(true)}
-				onBlur={() => setNoticeFocused(false)}
-				style={StyleSheet.compose(
-					styles.notice,
-					hasDetails &&
-						noticeFocused && { borderColor: appTokens.colors.focusRing }
-				)}
-				onKeyDown={(event) => {
-					const element = notice.current;
+			{noticeText ? (
+				<div
+					key={state.commit.error ?? state.commit.notice ?? "hint"}
+					ref={notice}
+					testId="commit-notice-scroll"
+					tabIndex={hasDetails ? 0 : -1}
+					aria-label={hasDetails ? "Commit details" : undefined}
+					aria-description={
+						hasDetails
+							? "Use arrow keys or Page Up and Page Down to read all details."
+							: undefined
+					}
+					onFocus={() => setNoticeFocused(true)}
+					onBlur={() => setNoticeFocused(false)}
+					style={StyleSheet.compose(
+						styles.notice,
+						hasDetails &&
+							noticeFocused && { borderColor: appTokens.colors.focusRing }
+					)}
+					onKeyDown={(event) => {
+						const element = notice.current;
 
-					if (
-						!element ||
-						event.modifiers?.cmd ||
-						event.modifiers?.ctrl ||
-						event.modifiers?.alt ||
-						event.modifiers?.shift
-					)
-						return;
+						if (
+							!element ||
+							event.modifiers?.cmd ||
+							event.modifiers?.ctrl ||
+							event.modifiers?.alt ||
+							event.modifiers?.shift
+						)
+							return;
 
-					const [, y = 0] = renderer.getScrollOffset?.(element.id) ?? [0, 0];
-					const page = renderer.getElementBounds?.(element.id)?.height ?? 64;
-					let next = y;
+						const [, y = 0] = renderer.getScrollOffset?.(element.id) ?? [0, 0];
+						const page = renderer.getElementBounds?.(element.id)?.height ?? 64;
+						let next = y;
 
-					if (event.key === "down") next -= 14;
-					else if (event.key === "up") next += 14;
-					else if (event.key === "pagedown" || event.key === "space")
-						next -= page;
-					else if (event.key === "pageup") next += page;
-					else if (event.key === "home") next = 0;
-					else if (event.key === "end") next = -Number.MAX_SAFE_INTEGER;
+						if (event.key === "down") next -= 14;
+						else if (event.key === "up") next += 14;
+						else if (event.key === "pagedown" || event.key === "space")
+							next -= page;
+						else if (event.key === "pageup") next += page;
+						else if (event.key === "home") next = 0;
+						else if (event.key === "end") next = -Number.MAX_SAFE_INTEGER;
 
-					if (next !== y) renderer.scrollTo?.(element.id, 0, Math.min(0, next));
-				}}
-			>
-				<text
-					testId="commit-notice"
-					role={state.commit.error ? "alert" : "status"}
-					style={styles.hint}
+						if (next !== y)
+							renderer.scrollTo?.(element.id, 0, Math.min(0, next));
+					}}
 				>
-					{!sample
-						? state.commit.pending
-							? "Committing checked files. Please keep the app open."
-							: (state.commit.error ??
-								state.commit.notice ??
-								blocked ??
-								"Whole-file commit · excluded staging is preserved")
-						: previewed
-							? "Preview only — no commit created."
-							: state.repository
-								? "Preview only · Git writes disabled"
-								: "Preview only · no repository connected"}
-				</text>
-			</div>
+					<text
+						testId="commit-notice"
+						role={state.commit.error ? "alert" : "status"}
+						style={styles.hint}
+					>
+						{noticeText}
+					</text>
+				</div>
+			) : null}
 		</div>
 	);
 }

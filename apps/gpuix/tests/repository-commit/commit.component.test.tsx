@@ -91,6 +91,10 @@ it("commits only checked paths once, prevents edits/close while pending, clears 
 		/>
 	);
 	await open();
+	expect(root.renderer.getAllText().join(" ")).not.toContain(
+		"Whole-file commit · excluded staging is preserved"
+	);
+	expect(root.renderer.findByTestId("commit-notice-scroll")).toBeUndefined();
 	click("include-b.ts");
 	message("f i x enter enter d e t a i l s");
 	root.renderer.simulateKeystrokes("cmd-enter");
