@@ -1,5 +1,5 @@
 /**
- * Covers: native-preview guards, binary/empty/conflict notices and horizontal extent.
+ * Covers: native-preview guards, binary/empty/conflict notices.
  * Real: diff presentation model.
  * Doubles: explicit Git patches, no repository I/O.
  * Requires: none.
@@ -77,13 +77,4 @@ it("omits oversized patches in full rather than rendering a misleading truncated
 			"working"
 		).message
 	).toContain("too large");
-});
-
-it("accounts for tabs and wide glyphs when reserving horizontal scroll space", () => {
-	const narrow = diffSection("working", diffPatch("a", "x".repeat(80)));
-	const wide = diffSection("working", diffPatch("a", "界".repeat(80)));
-	const tabs = diffSection("working", diffPatch("a", "\t".repeat(80)));
-
-	expect(wide.contentWidth).toBeGreaterThan(narrow.contentWidth);
-	expect(tabs.contentWidth).toBeGreaterThan(wide.contentWidth);
 });

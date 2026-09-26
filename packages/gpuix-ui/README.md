@@ -1,7 +1,7 @@
 # @1git/gpuix-ui
 
 Styled React controls for GPUIX, built with `@1git/gpuix-stylesheet`. Includes
-Button, Checkbox, Text, Textarea, and Select with named color and density presets. Controls default
+Button, Checkbox, Text, Textarea, Select, and a native DiffView. Controls use named color and density presets and default
 to dark colors and comfortable sizing. No theme provider is required.
 
 ## Setup
@@ -48,6 +48,74 @@ render(<App />, {
   },
 });
 ```
+
+## DiffView
+
+Read-only unified diff with native virtualization, syntax highlighting, selection,
+and keyboard/trackpad scrolling. Git reads and filename/comparison toolbars stay
+with the application. Import from `@1git/gpuix-ui/diff-view`.
+
+**Requires the local release addon** built by `bun run --cwd apps/gpuix build:native`,
+and the existing workspace Bun package patch. Launch with the app's native preload;
+the published GPUIX binary alone does not support the new layout/theme props.
+Restart after rebuilding native code. Other controls do not require this diff patch.
+
+```tsx
+import { DiffView } from "@1git/gpuix-ui/diff-view";
+
+<DiffView
+  patch={patch}
+  aria-label="Unstaged changes"
+  showFileHeader={false}
+  style={{ height: 480 }}
+  theme={{
+    appearance: "light",
+    fontMono: "Menlo",
+    diffAdd: "#568362",       // markers and line numbers
+    diffDel: "#b2676b",
+    diffAddBg: "#f5f8f5",     // whole-row backgrounds
+    diffDelBg: "#fcf5f5",
+    diffAddWordBg: "#d9e8da", // changed words only
+    diffDelWordBg: "#f1dadd",
+    metrics: {
+      diffTextSize: 11,
+      diffLineHeight: 20,
+      diffRowPaddingX: 14,
+      diffGutterWidth: 30,
+      diffMarkerWidth: 18,
+    },
+  }}
+/>
+```
+
+`DiffViewProps` is exported from `/diff-view`.
+
+| Prop | Purpose | Default |
+| --- | --- | --- |
+| `patch` | Complete unified Git patch | Required |
+| `aria-label` | Accessible name for the focusable viewer | Required |
+| `showFileHeader` | Render native filename/stat rows; hide when the app owns its toolbar | `true` |
+| `wordDiff` | Highlight changed words within paired lines | `true` |
+| `theme` | GPUIX palette, syntax, fonts and `metrics`; four local background overrides accept CSS colors with alpha | Native dark theme |
+| `style` | Outer viewport size/layout; provide a bounded height or flex parent | Fill available space |
+| `tokens` | `UiTokens` used for the focus outline; code colors come from `theme` | `defaultTokens` |
+| `collapsedPaths` | Paths whose bodies are hidden | None |
+| `maxLines` | Limit displayed code rows and show a Show more control | Unlimited |
+| `onToggleFile` | Native event with file path in `event.value` | — |
+| `onShowMore` | Native event with hidden count in `event.value`; clear/increase `maxLines` to expand | — |
+| `onLineClick` | Native event with `value`, `oldLine`, `newLine` | — |
+| `testId` | Viewport test ID; native content uses `${testId}-content` | — |
+
+Native measurement accounts for font shaping and visible rows; hidden filenames
+and patch metadata never widen the pane. Short backgrounds fill the viewport;
+long lines scroll horizontally without wrapping. Measurements are reused while
+scrolling or recoloring. Rendering remains one native host node, not a React node
+per diff line. Do not put this bounded viewer inside another vertical scroller.
+
+Tab focuses the viewer; arrows, Page Up/Down, Space and Home/End scroll. Drag-select
+and Command+C copy code without gutters. Pass `key={comparisonId}` when a new
+file/comparison should reset viewport state. The app remains responsible for
+patch-size limits, loading, errors, binary-file notices and any Git operations.
 
 ## Button
 

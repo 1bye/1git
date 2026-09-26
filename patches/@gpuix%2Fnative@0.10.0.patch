@@ -1,8 +1,20 @@
 diff --git a/dist/host.d.ts b/dist/host.d.ts
-index cc6b7ef926c5c3122fff6107341913364a215710..5fc28e1c34993b5b40b86fed73b8251138b727fc 100644
+index cc6b7ef926c5c3122fff6107341913364a215710..e58daeb6c03c95ebacf36ec5ea7da46c9ccaf6cc 100644
 --- a/dist/host.d.ts
 +++ b/dist/host.d.ts
-@@ -332,6 +332,7 @@ export interface HostProps {
+@@ -223,6 +223,11 @@ export interface GpuixTheme {
+     diffAdd?: string;
+     diffDel?: string;
+     diffHunkBg?: string;
++    /** 1git native patch: independent row and word backgrounds, including alpha. */
++    diffAddBg?: string;
++    diffDelBg?: string;
++    diffAddWordBg?: string;
++    diffDelWordBg?: string;
+     fontSans?: string;
+     fontMono?: string;
+     syntax?: SyntaxTheme;
+@@ -332,6 +337,7 @@ export interface HostProps {
      "aria-id"?: string;
      "aria-expanded"?: boolean;
      "aria-selected"?: boolean;
@@ -10,8 +22,19 @@ index cc6b7ef926c5c3122fff6107341913364a215710..5fc28e1c34993b5b40b86fed73b82511
      /** String value reported to assistive technology. */
      "aria-valuetext"?: string;
      /** Heading level, 1-based. */
+@@ -415,6 +421,10 @@ export interface CodeProps extends HostProps {
+     theme?: GpuixTheme;
+ }
+ export interface DiffProps extends HostProps {
++    /** 1git native patch: omit file-header rows entirely. Defaults to true. */
++    showFileHeader?: boolean;
++    /** 1git native patch: cached native text measurement for horizontal overflow. */
++    autoWidth?: boolean;
+     /** A unified git patch (the output of `git diff`). */
+     patch?: string;
+     /** Highlight the words that changed inside paired +/- lines. */
 diff --git a/dist/mutations.js b/dist/mutations.js
-index 7d0eda6cb58127462067cb9d5a442a9ea606c671..bff327212b692998481685ee792146ab87e3bb2d 100644
+index 7d0eda6cb58127462067cb9d5a442a9ea606c671..f63d3f59cdea800ddfb3fa421d7130b75d2c1e2e 100644
 --- a/dist/mutations.js
 +++ b/dist/mutations.js
 @@ -102,6 +102,7 @@ export const UNIVERSAL_PROPS = new Set([

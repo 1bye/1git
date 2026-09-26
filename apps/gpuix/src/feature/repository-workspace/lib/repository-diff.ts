@@ -20,7 +20,6 @@ export interface RepositoryDiffSection {
 	readonly target: ChangeDiffTarget;
 	readonly patch: string;
 	readonly message: string | null;
-	readonly contentWidth: number;
 }
 
 const combinedPatch = /^(?:diff --(?:cc|combined) |@@@)/m;
@@ -44,7 +43,6 @@ export class RepositoryDiff {
 					{
 						target: "working",
 						patch: "",
-						contentWidth: 0,
 						message:
 							"This file has merge conflicts. A conflict-aware diff viewer is not available yet.",
 					},
@@ -140,24 +138,10 @@ export class RepositoryDiff {
 			message = "Git returned a patch format this viewer does not support.";
 		}
 
-		// Native diff lines do not wrap. Reserve enough width for tabs/wide glyphs so horizontal scrolling can reveal them.
-		let columns = 0;
-
-		if (!message)
-			for (const line of lines) {
-				let width = 0;
-
-				for (const char of line)
-					width += char === "\t" ? 8 : char.charCodeAt(0) > 127 ? 2 : 1;
-
-				columns = Math.max(columns, width);
-			}
-
 		return {
 			target,
 			patch: message ? "" : patch,
 			message,
-			contentWidth: columns * 7 + 160,
 		};
 	}
 }

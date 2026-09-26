@@ -2,20 +2,15 @@ import type { FileChange } from "@1git/git";
 import { lightColors } from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { Button } from "@1git/gpuix-ui/button";
-import {
-	useGpuixRequired,
-	type GpuixTheme,
-	type PublicInstance,
-	type EventPayload,
-} from "@gpuix/react";
-import { useRef, useState } from "react";
+import { DiffView } from "@1git/gpuix-ui/diff-view";
+import type { GpuixTheme } from "@gpuix/react";
+import { useState } from "react";
 
 import { appTokens } from "../../../styles/tokens";
 import { useRepositoryDiff } from "../hooks/use-repository-diff";
 import {
 	RepositoryDiff as DiffReader,
 	type ChangeDiffTarget,
-	type RepositoryDiffSection,
 } from "../lib/repository-diff";
 
 const diffTheme: GpuixTheme = {
@@ -28,6 +23,10 @@ const diffTheme: GpuixTheme = {
 	accent: lightColors.brand,
 	diffAdd: "#568362",
 	diffDel: "#b2676b",
+	diffAddBg: "#f5f8f5",
+	diffDelBg: "#fcf5f5",
+	diffAddWordBg: "#d9e8da",
+	diffDelWordBg: "#f1dadd",
 	diffHunkBg: lightColors.editorSunken,
 	fontMono: "Menlo",
 	syntax: {
@@ -59,7 +58,6 @@ const diffTheme: GpuixTheme = {
 	metrics: {
 		diffTextSize: 11,
 		diffLineHeight: 20,
-		diffFileHeaderHeight: 0,
 		diffHunkHeaderHeight: 26,
 		diffRowPaddingX: 14,
 		diffGutterWidth: 30,
@@ -101,104 +99,7 @@ const styles = StyleSheet.create({
 		padding: 24,
 		gap: 12,
 	},
-	viewport: {
-		flexGrow: 1,
-		minHeight: 0,
-		minWidth: 0,
-		overflowX: "scroll",
-		overflowY: "hidden",
-		borderWidth: 1,
-		borderColor: "transparent",
-		userSelect: "text",
-	},
 });
-
-function DiffContent({ section }: { section: RepositoryDiffSection }) {
-	const renderer = useGpuixRequired();
-	const viewport = useRef<PublicInstance>(null);
-	const content = useRef<PublicInstance>(null);
-	const [focused, setFocused] = useState(false);
-
-	const navigate = (event: EventPayload): void => {
-		const node = viewport.current;
-
-		if (
-			!node ||
-			!content.current ||
-			event.modifiers?.cmd ||
-			event.modifiers?.ctrl ||
-			event.modifiers?.alt ||
-			event.modifiers?.shift
-		)
-			return;
-
-		const [x = 0] = renderer.getScrollOffset?.(node.id) ?? [0];
-		const [, y = 0] = renderer.getScrollOffset?.(content.current.id) ?? [0, 0];
-		const page = renderer.getElementBounds?.(node.id)?.height ?? 0;
-		let nextX = x;
-		let nextY = y;
-
-		if (event.key === "down") nextY -= 20;
-		else if (event.key === "up") nextY += 20;
-		else if (event.key === "pagedown" || event.key === "space") nextY -= page;
-		else if (event.key === "pageup") nextY += page;
-		else if (event.key === "home") nextY = 0;
-		// GPUI clamps this to the native list's measured/estimated bottom.
-		else if (event.key === "end") nextY = -Number.MAX_SAFE_INTEGER;
-		else if (event.key === "right") nextX -= 40;
-		else if (event.key === "left") nextX += 40;
-		else return;
-
-		if (nextX !== x) renderer.scrollTo?.(node.id, Math.min(0, nextX), 0);
-
-		if (nextY !== y)
-			renderer.scrollTo?.(content.current.id, 0, Math.min(0, nextY));
-	};
-
-	if (section.message)
-		return (
-			<div style={styles.message} role="status">
-				<text style={styles.hint}>{section.message}</text>
-			</div>
-		);
-
-	return (
-		<div
-			ref={viewport}
-			testId="diff-viewport"
-			role="region"
-			aria-label={
-				section.target === "working" ? "Unstaged file diff" : "Staged file diff"
-			}
-			aria-description="Read-only. Use arrows, Page Up, Page Down, Home and End to scroll. Select text and press Command C to copy."
-			tabIndex={0}
-			onFocus={() => setFocused(true)}
-			onBlur={() => setFocused(false)}
-			onKeyDown={navigate}
-			style={StyleSheet.compose(
-				styles.viewport,
-				focused && { borderColor: lightColors.brand }
-			)}
-		>
-			{/* Each axis has one owner: GPUI's virtual list on Y, this viewport on X. */}
-			<diff
-				ref={content}
-				testId="native-diff"
-				patch={section.patch}
-				wordDiff
-				scroll
-				theme={diffTheme}
-				style={{
-					width: "100%",
-					height: "100%",
-					minWidth: section.contentWidth,
-					flexShrink: 0,
-					userSelect: "text",
-				}}
-			/>
-		</div>
-	);
-}
 
 /** Read-only native diff with explicit index/worktree comparisons and cancellable loading. */
 export function RepositoryDiff({
@@ -281,8 +182,24 @@ export function RepositoryDiff({
 						</Button>
 					) : null}
 				</div>
+			) : section?.message ? (
+				<div style={styles.message} role="status">
+					<text style={styles.hint}>{section.message}</text>
+				</div>
 			) : section ? (
-				<DiffContent key={section.target} section={section} />
+				<DiffView
+					key={section.target}
+					testId="diff-viewport"
+					patch={section.patch}
+					showFileHeader={false}
+					theme={diffTheme}
+					tokens={appTokens}
+					aria-label={
+						section.target === "working"
+							? "Unstaged file diff"
+							: "Staged file diff"
+					}
+				/>
 			) : null}
 		</>
 	);

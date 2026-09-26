@@ -137,11 +137,11 @@ it("scrolls vertically and horizontally by keyboard and trackpad with the compar
 	await settle();
 	const header = bounds("diff-header");
 	const viewport = element("diff-viewport").id;
-	const native = element("native-diff").id;
+	const native = element("diff-viewport-content").id;
 
 	// A regression to flow layout builds/paints all 1,800 rows, even below the clip.
 	expect(root.renderer.getPaintedText().length).toBeLessThan(300);
-	expect(bounds("native-diff").height).toBeLessThanOrEqual(
+	expect(bounds("diff-viewport-content").height).toBeLessThanOrEqual(
 		bounds("diff-viewport").height
 	);
 	expect(root.renderer.findByTestId("diff-working")).toBeUndefined();
@@ -179,9 +179,9 @@ it("scrolls vertically and horizontally by keyboard and trackpad with the compar
 it("selects code without copying gutters in the virtualized view", async () => {
 	showDiff(async () => ({ ok: true, value: [diffSection("working")] }));
 	await settle();
-	const box = bounds("native-diff");
+	const box = bounds("diff-viewport-content");
 
-	expect(box.width).toBeGreaterThanOrEqual(bounds("diff-viewport").width);
+	expect(box.width).toBeCloseTo(bounds("diff-viewport").width, 0);
 	const selected = root.renderer.dragSelect(
 		box.x + 100,
 		box.y + 76,
@@ -192,6 +192,25 @@ it("selects code without copying gutters in the virtualized view", async () => {
 	expect(selected).toContain("value = 2;");
 	expect(selected).not.toContain("11");
 	expect(selected).not.toContain("+");
+});
+
+it("fits short code to the viewport regardless of hidden patch metadata", async () => {
+	const path = `${"nested/".repeat(50)}short.ts`;
+
+	showDiff(async () => ({
+		ok: true,
+		value: [diffSection("working", diffPatch(path))],
+	}));
+	await settle();
+	expect(bounds("diff-viewport-content").width).toBeCloseTo(
+		bounds("diff-viewport").width,
+		0
+	);
+	key("diff-viewport", "right");
+	expect(
+		root.renderer.getScrollOffset(element("diff-viewport").id)?.[0]
+	).toBeCloseTo(0);
+	expect(root.renderer.getPaintedText()).not.toContain(path);
 });
 
 it("releases the native scroll state for empty, flow-layout and unmounted diffs", () => {
@@ -229,14 +248,13 @@ it("shows errors with retry and explanatory notices instead of fake or partial d
 	showDiff(reader);
 	await settle();
 	expect(root.renderer.getAllText()).toContain("Repository disappeared");
-	expect(root.renderer.findByTestId("native-diff")).toBeUndefined();
+	expect(root.renderer.findByTestId("diff-viewport-content")).toBeUndefined();
 	reader.mockResolvedValue({
 		ok: true,
 		value: [
 			{
 				target: "working",
 				patch: "",
-				contentWidth: 0,
 				message: "Binary file — text diff unavailable.",
 			},
 		],
@@ -246,7 +264,7 @@ it("shows errors with retry and explanatory notices instead of fake or partial d
 	expect(root.renderer.getAllText()).toContain(
 		"Binary file — text diff unavailable."
 	);
-	expect(root.renderer.findByTestId("native-diff")).toBeUndefined();
+	expect(root.renderer.findByTestId("diff-viewport-content")).toBeUndefined();
 });
 
 it("cancels stale selection reads, refreshes the selected path and never reloads for draft/checkbox changes", async () => {
@@ -304,5 +322,5 @@ it("cancels stale selection reads, refreshes the selected path and never reloads
 	expect(element("commit-message").customProps?.value).toBe("draft");
 	click("view-history");
 	expect(reader.mock.calls[2]?.[2].aborted).toBe(true);
-	expect(root.renderer.findByTestId("native-diff")).toBeUndefined();
+	expect(root.renderer.findByTestId("diff-viewport-content")).toBeUndefined();
 });

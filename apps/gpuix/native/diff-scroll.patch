@@ -1,54 +1,3 @@
-diff --git a/README.md b/README.md
-index d527ed5..ff0c94b 100644
---- a/README.md
-+++ b/README.md
-@@ -2439,6 +2447,11 @@ renderer owns its layout. Tune that card with the `mdCode*` metrics.
- 
- ### `<diff>`
- 
-+The 1git local patch exposes the native list through `scrollTo`, `getScrollOffset`
-+and `getListScrollTop` when `scroll` is enabled, including in the test renderer.
-+Set `theme.metrics.diffFileHeaderHeight: 0` to omit the built-in file chrome
-+when a dedicated viewer provides its own pinned filename/comparison controls.
-+
- A unified diff viewer. It **flows** with its parent by default, so a parent
- list can be the only scroller. Collapsing a file removes its rows rather than hiding
- them, so a collapsed 10k-line file costs one row.
-diff --git a/packages/native/src/custom_elements/diff.rs b/packages/native/src/custom_elements/diff.rs
-index 7a76710..775cfa1 100644
---- a/packages/native/src/custom_elements/diff.rs
-+++ b/packages/native/src/custom_elements/diff.rs
-@@ -252,6 +252,8 @@ impl CustomElement for DiffElement {
-         let metrics = theme.metrics;
- 
-         if data.rows.is_empty() {
-+            self.list_state = None;
-+            self.list_metrics = None;
-             // Through `custom_surface` like the non-empty branch, or an empty
-             // diff would be the one state with no automation bounds and no
-             // click or hover events.
-@@ -434,6 +436,10 @@ impl CustomElement for DiffElement {
-         self.list_metrics = None;
-         self.data = None;
-     }
-+
-+    fn scroll_state(&self) -> Option<gpui::ListState> {
-+        self.list_state.clone()
-+    }
- }
- 
- // ── Row rendering ────────────────────────────────────────────────────
-@@ -506,6 +512,10 @@ fn render_row(data: &DiffData, ix: usize, ctx: RowContext) -> gpui::AnyElement {
- 
-     match row {
-         DiffRow::FileHeader { file } => {
-+            // A zero-height header lets a dedicated viewer provide its own pinned chrome.
-+            if m.diff_file_header_height == 0.0 {
-+                return gpui::div().h_0().flex_none().into_any_element();
-+            }
-             let Some(file_diff) = data.files.get(file as usize) else {
-                 return gpui::Empty.into_any_element();
-             };
 diff --git a/packages/native/src/custom_elements/mod.rs b/packages/native/src/custom_elements/mod.rs
 index fc78124..167bc1b 100644
 --- a/packages/native/src/custom_elements/mod.rs
@@ -56,7 +5,7 @@ index fc78124..167bc1b 100644
 @@ -224,6 +224,11 @@ pub trait CustomElement: 'static {
      /// Clean up resources (GPUI entities, subscriptions, etc.)
      fn destroy(&mut self);
- 
+
 +    /// Native list owned by a custom element, for the existing pixel-scroll API.
 +    fn scroll_state(&self) -> Option<gpui::ListState> {
 +        None
@@ -68,7 +17,7 @@ index fc78124..167bc1b 100644
 @@ -384,6 +389,17 @@ impl CustomElementRegistry {
          entry.element.render(ctx, window, cx)
      }
- 
+
 +    /// Look up a custom element's native list without duplicating its scroll state.
 +    pub fn scroll_state(&self, id: u64) -> Option<gpui::ListState> {
 +        self.instances.get(&id)?.element.scroll_state()
@@ -99,7 +48,7 @@ index b1710c3..8f188bd 100644
 @@ -3947,21 +3947,23 @@ impl GpuixView {
          ])
      }
- 
+
 +    fn native_list_state(&self, id: u64) -> Option<gpui::ListState> {
 +        self.virtual_lists.get(&id).map(|entry| entry.state.clone())
 +            .or_else(|| self.custom_registry.scroll_state(id))
@@ -116,7 +65,7 @@ index b1710c3..8f188bd 100644
              .set_offset_from_scrollbar(gpui::point(gpui::px(x), gpui::px(y)));
          true
      }
- 
+
      pub(crate) fn virtual_list_offset(&self, id: u64) -> Option<[f64; 2]> {
          let offset = self
 -            .virtual_lists
@@ -161,3 +110,377 @@ new file mode 100644
 +Expose the native diff list through existing pixel-scroll controls and honor a
 +zero-height file header for application-owned chrome. Uses existing GPUI
 +ListState APIs; no GPUI fork change is needed. Local 1git patch, not a release.
+diff --git a/packages/native/src/custom_elements/diff.rs b/packages/native/src/custom_elements/diff.rs
+index 7a76710..d3b9cf2 100644
+--- a/packages/native/src/custom_elements/diff.rs
++++ b/packages/native/src/custom_elements/diff.rs
+@@ -108,6 +108,10 @@ pub struct DiffElement {
+     patch: String,
+     show_word_diff: bool,
+     scroll: bool,
++    hide_file_header: bool,
++    auto_width: bool,
++    /// Native shaping runs once per patch/font/layout change, never per wheel frame.
++    measured_width: Option<(u64, f32)>,
+     max_lines: Option<usize>,
+     collapsed: HashSet<String>,
+     theme: Theme,
+@@ -139,7 +143,10 @@ impl DiffElement {
+         }
+         let highlights = files.iter().map(file_highlight).collect();
+         let collapsed = self.collapsed.clone();
+-        let rows = flatten_rows(&files, |path| collapsed.contains(path), self.max_lines);
++        let mut rows = flatten_rows(&files, |path| collapsed.contains(path), self.max_lines);
++        if self.hide_file_header {
++            rows.retain(|row| !matches!(row, DiffRow::FileHeader { .. }));
++        }
+
+         let data = Rc::new(DiffData {
+             files,
+@@ -161,11 +168,69 @@ impl DiffElement {
+         self.patch.hash(&mut hasher);
+         self.show_word_diff.hash(&mut hasher);
+         self.max_lines.hash(&mut hasher);
++        self.hide_file_header.hash(&mut hasher);
+         let mut paths: Vec<&String> = self.collapsed.iter().collect();
+         paths.sort();
+         paths.hash(&mut hasher);
+         hasher.finish()
+     }
++
++    fn content_width(&mut self, data: &DiffData, window: &gpui::Window) -> f32 {
++        use std::hash::{Hash, Hasher};
++        let mut hasher = std::collections::hash_map::DefaultHasher::new();
++        self.fingerprint.hash(&mut hasher);
++        self.theme.font_mono.hash(&mut hasher);
++        self.theme.font_sans.hash(&mut hasher);
++        self.theme.metrics.hash_into(&mut hasher);
++        let key = hasher.finish();
++        if let Some((previous, width)) = self.measured_width {
++            if previous == key {
++                return width;
++            }
++        }
++
++        let m = &self.theme.metrics;
++        let measure = |text: &str, family: &str, size: f32| -> f32 {
++            let run = gpui::TextRun {
++                len: text.len(),
++                font: gpui::font(family.to_string()),
++                color: self.theme.text,
++                background_color: None,
++                underline: None,
++                strikethrough: None,
++            };
++            window.text_system().shape_line(text.to_string().into(), px(size), &[run], None).width.into()
++        };
++        let mut width: f32 = 0.0;
++        // Measure only rows the parser actually displays. Hidden file paths and
++        // Git metadata must not create thousands of pixels of empty scroll space.
++        for row in &data.rows {
++            let row_width = match *row {
++                DiffRow::Line { file, hunk, line } => {
++                    let file = &data.files[file as usize];
++                    let line = &file.hunks[hunk as usize].lines[line as usize];
++                    measure(&line.text, &self.theme.font_mono, m.diff_text_size)
++                        + m.diff_accent_bar_width + 2.0 * gutter_width(file, m)
++                        + m.diff_marker_width + 2.0 * m.diff_row_padding_x
++                }
++                DiffRow::HunkHeader { file, hunk } => {
++                    measure(&data.files[file as usize].hunks[hunk as usize].header,
++                        &self.theme.font_mono, m.diff_text_size) + 2.0 * m.diff_row_padding_x
++                }
++                DiffRow::Notice { file, notice } => {
++                    file_notices(&data.files[file as usize]).get(notice as usize)
++                        .map(|text| measure(text, &self.theme.font_sans, m.diff_text_size)
++                            + 2.0 * m.diff_row_padding_x).unwrap_or(0.0)
++                }
++                // File labels are clipped inside their header; they do not size the code pane.
++                _ => 0.0,
++            };
++            width = width.max(row_width);
++        }
++        let width = width.ceil();
++        self.measured_width = Some((key, width));
++        width
++    }
+ }
+
+ /// A patch only carries the lines its hunks cover, so a file's real line
+@@ -242,7 +307,7 @@ impl CustomElement for DiffElement {
+     fn render(
+         &mut self,
+         ctx: CustomRenderContext,
+-        _window: &mut gpui::Window,
++        window: &mut gpui::Window,
+         _cx: &mut gpui::Context<crate::renderer::GpuixView>,
+     ) -> gpui::AnyElement {
+         use gpui::prelude::*;
+@@ -252,6 +317,8 @@ impl CustomElement for DiffElement {
+         let metrics = theme.metrics;
+
+         if data.rows.is_empty() {
++            self.list_state = None;
++            self.list_metrics = None;
+             // Through `custom_surface` like the non-empty branch, or an empty
+             // diff would be the one state with no automation bounds and no
+             // click or hover events.
+@@ -377,9 +444,13 @@ impl CustomElement for DiffElement {
+             container = container.min_h_0();
+         }
+
+-        super::custom_surface(container, &ctx)
+-            .child(body)
+-            .into_any_element()
++        let mut surface = super::custom_surface(container, &ctx);
++        if self.auto_width {
++            // Taffy resolves width:100% against the viewport; this native minimum
++            // only adds horizontal overflow when shaped text actually needs it.
++            surface = surface.min_w(px(self.content_width(&data, window)));
++        }
++        surface.child(body).into_any_element()
+     }
+
+     fn set_prop(&mut self, key: &str, value: serde_json::Value) {
+@@ -387,6 +458,8 @@ impl CustomElement for DiffElement {
+             "patch" => self.patch = value.as_str().unwrap_or("").to_string(),
+             "wordDiff" => self.show_word_diff = value.as_bool().unwrap_or(false),
+             "scroll" => self.scroll = value.as_bool().unwrap_or(false),
++            "showFileHeader" => self.hide_file_header = value.as_bool() == Some(false),
++            "autoWidth" => self.auto_width = value.as_bool().unwrap_or(false),
+             "maxLines" => {
+                 self.max_lines = value.as_u64().map(|n| n as usize);
+             }
+@@ -411,6 +484,8 @@ impl CustomElement for DiffElement {
+             "patch",
+             "wordDiff",
+             "scroll",
++            "showFileHeader",
++            "autoWidth",
+             "maxLines",
+             "collapsedPaths",
+             "theme",
+@@ -433,6 +508,11 @@ impl CustomElement for DiffElement {
+         self.list_state = None;
+         self.list_metrics = None;
+         self.data = None;
++        self.measured_width = None;
++    }
++
++    fn scroll_state(&self) -> Option<gpui::ListState> {
++        self.list_state.clone()
+     }
+ }
+
+@@ -506,6 +586,10 @@ fn render_row(data: &DiffData, ix: usize, ctx: RowContext) -> gpui::AnyElement {
+
+     match row {
+         DiffRow::FileHeader { file } => {
++            // A zero-height header lets a dedicated viewer provide its own pinned chrome.
++            if m.diff_file_header_height == 0.0 {
++                return gpui::div().h_0().flex_none().into_any_element();
++            }
+             let Some(file_diff) = data.files.get(file as usize) else {
+                 return gpui::Empty.into_any_element();
+             };
+@@ -524,7 +608,8 @@ fn render_row(data: &DiffData, ix: usize, ctx: RowContext) -> gpui::AnyElement {
+                 .flex()
+                 .items_center()
+                 .px(px(m.diff_row_padding_x))
+-                .text_size(px(11.0))
++                .font_family(theme.font_sans.clone())
++                .text_size(px(m.diff_text_size))
+                 .text_color(theme.text_faint)
+                 .child(crate::text::chrome_text(SharedString::from(text), None))
+                 .into_any_element()
+@@ -545,7 +630,7 @@ fn render_row(data: &DiffData, ix: usize, ctx: RowContext) -> gpui::AnyElement {
+                 .px(px(m.diff_row_padding_x))
+                 .bg(theme.diff_hunk_bg)
+                 .font_family(theme.font_mono.clone())
+-                .text_size(px(11.0))
++                .text_size(px(m.diff_text_size))
+                 .text_color(theme.text_faint)
+                 .child(crate::text::chrome_text(SharedString::from(header), None))
+                 .into_any_element()
+@@ -727,8 +812,9 @@ fn diff_line_row(
+             .pl(px(m.diff_accent_bar_width
+                 + 2.0 * gutter_px
+                 + m.diff_marker_width
+-                + 12.0))
+-            .text_size(px(10.5))
++                + m.diff_row_padding_x))
++            .font_family(theme.font_mono.clone())
++            .text_size(px(m.diff_text_size))
+             .text_color(theme.text_faint)
+             .italic()
+             .child(crate::text::chrome_text(
+@@ -739,10 +825,8 @@ fn diff_line_row(
+     }
+
+     // Row tints: 5.5% washes over the pane tone, sampled from Comet.
+-    let mut add_bg = theme.diff_add;
+-    add_bg.a = 0.055;
+-    let mut del_bg = theme.diff_del;
+-    del_bg.a = 0.055;
++    let add_bg = theme.diff_add_bg;
++    let del_bg = theme.diff_del_bg;
+
+     let (marker, marker_color, row_bg, accent, number_color) = match line.kind {
+         LineKind::Add => (
+@@ -796,11 +880,10 @@ fn diff_line_row(
+     let word_wash: Option<Box<dyn Fn(&gpui::TextLayout, &mut gpui::Window)>> =
+         if show_word_diff && !line.word_ranges.is_empty() {
+             let ranges = line.word_ranges.clone();
+-            let mut tint = match line.kind {
+-                LineKind::Add => theme.diff_add,
+-                _ => theme.diff_del,
++            let tint = match line.kind {
++                LineKind::Add => theme.diff_add_word_bg,
++                _ => theme.diff_del_word_bg,
+             };
+-            tint.a = 0.28;
+             Some(Box::new(move |layout, window| {
+                 for range in &ranges {
+                     for rect in range_rects(layout, range, 1.0, 1.5) {
+@@ -892,7 +975,7 @@ fn diff_line_row(
+                 .flex_1()
+                 .min_w_0()
+                 .overflow_hidden()
+-                .pl(px(12.0))
++                .px(px(m.diff_row_padding_x))
+                 .font_family(theme.font_mono.clone())
+                 .text_size(px(m.diff_text_size))
+                 .whitespace_nowrap()
+diff --git a/packages/native/src/theme.rs b/packages/native/src/theme.rs
+index e952167..c93ae00 100644
+--- a/packages/native/src/theme.rs
++++ b/packages/native/src/theme.rs
+@@ -465,6 +465,10 @@ pub struct Theme {
+     pub diff_del: Hsla,
+     /// Diff hunk-header wash.
+     pub diff_hunk_bg: Hsla,
++    pub diff_add_bg: Hsla,
++    pub diff_del_bg: Hsla,
++    pub diff_add_word_bg: Hsla,
++    pub diff_del_word_bg: Hsla,
+     /// Paint-only syntax colours.
+     pub syntax: SyntaxPalette,
+     /// UI font family.
+@@ -493,6 +497,10 @@ impl Theme {
+             diff_add: oklch(0.765, 0.177, 163.223),
+             diff_del: oklch(0.704, 0.191, 22.216),
+             diff_hunk_bg: hsla(0.6, 0.35, 0.6, 0.05),
++            diff_add_bg: with_alpha(oklch(0.765, 0.177, 163.223), 0.055),
++            diff_del_bg: with_alpha(oklch(0.704, 0.191, 22.216), 0.055),
++            diff_add_word_bg: with_alpha(oklch(0.765, 0.177, 163.223), 0.28),
++            diff_del_word_bg: with_alpha(oklch(0.704, 0.191, 22.216), 0.28),
+             syntax: SyntaxPalette::dark(neutral(0.922), neutral(0.60), oklch(0.704, 0.191, 22.216)),
+             font_sans: system_sans().to_string(),
+             font_mono: system_mono().to_string(),
+@@ -516,6 +524,10 @@ impl Theme {
+             diff_add: oklch(0.596, 0.145, 163.225),
+             diff_del: oklch(0.577, 0.245, 27.325),
+             diff_hunk_bg: hsla(0.6, 0.35, 0.35, 0.07),
++            diff_add_bg: with_alpha(oklch(0.596, 0.145, 163.225), 0.055),
++            diff_del_bg: with_alpha(oklch(0.577, 0.245, 27.325), 0.055),
++            diff_add_word_bg: with_alpha(oklch(0.596, 0.145, 163.225), 0.28),
++            diff_del_word_bg: with_alpha(oklch(0.577, 0.245, 27.325), 0.28),
+             syntax: SyntaxPalette::dark(neutral(0.25), neutral(0.48), oklch(0.505, 0.213, 27.518)),
+             font_sans: system_sans().to_string(),
+             font_mono: system_mono().to_string(),
+@@ -541,6 +553,14 @@ impl Theme {
+         set(&mut self.diff_add, &o.diff_add);
+         set(&mut self.diff_del, &o.diff_del);
+         set(&mut self.diff_hunk_bg, &o.diff_hunk_bg);
++        self.diff_add_bg = with_alpha(self.diff_add, 0.055);
++        self.diff_del_bg = with_alpha(self.diff_del, 0.055);
++        self.diff_add_word_bg = with_alpha(self.diff_add, 0.28);
++        self.diff_del_word_bg = with_alpha(self.diff_del, 0.28);
++        set(&mut self.diff_add_bg, &o.diff_add_bg);
++        set(&mut self.diff_del_bg, &o.diff_del_bg);
++        set(&mut self.diff_add_word_bg, &o.diff_add_word_bg);
++        set(&mut self.diff_del_word_bg, &o.diff_del_word_bg);
+         if let Some(font) = &o.font_mono {
+             self.font_mono = font.clone();
+         }
+@@ -657,6 +677,10 @@ pub struct ThemeOverride {
+     pub diff_add: Option<String>,
+     pub diff_del: Option<String>,
+     pub diff_hunk_bg: Option<String>,
++    pub diff_add_bg: Option<String>,
++    pub diff_del_bg: Option<String>,
++    pub diff_add_word_bg: Option<String>,
++    pub diff_del_word_bg: Option<String>,
+     pub font_sans: Option<String>,
+     pub font_mono: Option<String>,
+     pub syntax: Option<SyntaxOverride>,
+diff --git a/packages/native/js/host.ts b/packages/native/js/host.ts
+index fee74a2..e58aa7b 100644
+--- a/packages/native/js/host.ts
++++ b/packages/native/js/host.ts
+@@ -323,6 +323,11 @@ export interface GpuixTheme {
+   diffAdd?: string
+   diffDel?: string
+   diffHunkBg?: string
++  /** Local native patch: independent row and word backgrounds, including alpha. */
++  diffAddBg?: string
++  diffDelBg?: string
++  diffAddWordBg?: string
++  diffDelWordBg?: string
+   fontSans?: string
+   fontMono?: string
+   syntax?: SyntaxTheme
+@@ -552,6 +557,10 @@ export interface CodeProps extends HostProps {
+
+ // Props for the <diff> custom element — a unified diff viewer.
+ export interface DiffProps extends HostProps {
++  /** Local native patch: omit file-header rows entirely. Defaults to true. */
++  showFileHeader?: boolean
++  /** Local native patch: size horizontal overflow from cached native text measurement. */
++  autoWidth?: boolean
+   /** A unified git patch (the output of `git diff`). */
+   patch?: string
+   /** Highlight the words that changed inside paired +/- lines. */
+diff --git a/README.md b/README.md
+index 6cc6e28..5729b7b 100644
+--- a/README.md
++++ b/README.md
+@@ -2447,6 +2447,24 @@ renderer owns its layout. Tune that card with the `mdCode*` metrics.
+
+ ### `<diff>`
+
++The 1git `diff-view` patch adds `showFileHeader` (default `true`) to remove
++native file-header rows, and `autoWidth` (default `false`) to derive the minimum
++width from GPUI-shaped visible text. Set `width: '100%'`, `flexShrink: 0` inside
++an X-only viewport to fill short diffs and scroll long ones. Measurement is
++cached per patch, collapsed/truncated row set, font and metrics; scrolling and
++color changes do not remeasure. File paths remain clipped in native headers
++and do not expand the code width. `diffRowPaddingX` also controls code padding.
++
++`theme.diffAddBg`, `diffDelBg`, `diffAddWordBg` and `diffDelWordBg` accept CSS
++colors (including alpha) independently of markers and syntax. Omitted values
++preserve the existing marker-derived washes. Hunk/notice text uses `diffTextSize`.
++These are local pinned-patch APIs, not upstream GPUIX guarantees.
++
++The 1git local patch exposes the native list through `scrollTo`, `getScrollOffset`
++and `getListScrollTop` when `scroll` is enabled, including in the test renderer.
++Set `theme.metrics.diffFileHeaderHeight: 0` to omit the built-in file chrome
++when a dedicated viewer provides its own pinned filename/comparison controls.
++
+ A unified diff viewer. It **flows** with its parent by default, so a parent
+ list can be the only scroller. Collapsing a file removes its rows rather than hiding
+ them, so a collapsed 10k-line file costs one row.
+diff --git a/.changeset/1git-diff-view.md b/.changeset/1git-diff-view.md
+new file mode 100644
+index 0000000..a06ead8
+--- /dev/null
++++ b/.changeset/1git-diff-view.md
+@@ -0,0 +1,8 @@
++---
++"@gpuix/native": patch
++---
++
++Add explicit file-header visibility, cached native diff width measurement and
++independent row/word colors for 1git's read-only viewer. Uses the existing GPUI
++TextSystem::shape_line and Taffy min-width APIs; no GPUI fork change is needed.
++This is a local patch, not a release.

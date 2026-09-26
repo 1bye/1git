@@ -40,10 +40,15 @@ bridge and TypeScript host contract; `bun install` reapplies it reproducibly.
 
 `native/diff-scroll.patch` connects GPUIX's existing native diff list to the
 pixel-scroll API used for keyboard navigation, in both live and test renderers.
-It honors a zero-height native file header for application-owned chrome and
+It offers explicit file-header visibility for application-owned chrome and
 avoids redundant horizontal-overflow wrappers around explicitly non-shrinking
 children, preserving full-width diff backgrounds. Parsing, highlighting and
 virtualization stay in GPUIX; no JavaScript diff renderer is introduced.
+The patch also measures displayed text through GPUI's text shaper, caches the
+width per patch/font/metrics, and exposes independent row and word backgrounds.
+These APIs are wrapped by `@1git/gpuix-ui/diff-view`; the Git feature only owns
+loading, notices and its filename/comparison toolbar. Hidden patch metadata does
+not contribute to horizontal overflow. Short diffs fill the viewport.
 Dependency versions stay pinned. `native/preload.ts` selects the
 release addon through `NAPI_RS_NATIVE_LIBRARY_PATH` before GPUIX loads.
 Native source, build outputs, and the patch fingerprint live in ignored `.cache/`;
@@ -180,8 +185,10 @@ scrolling while using GPUIX's virtualized list; no additional diff library is ne
   explanation, not silently truncated. These limits still bound parsing and syntax
   highlighting work even though row rendering is now virtualized.
 - The light diff theme uses muted green/red markers and washes, a calmer syntax
-  palette, and shared application surface/text tokens. GPUIX still controls row
-  and word-highlight opacity; these are not separate theme settings upstream.
+  palette, and shared application surface/text tokens. The local native patch
+  exposes `diffAddBg`, `diffDelBg`, `diffAddWordBg`, and `diffDelWordBg` theme
+  colors (including alpha), independently of marker colors. Header visibility
+  uses `showFileHeader`, not a zero-height header.
 
 The shared Git diff commands treat requested paths literally and disable external
 diff/text-conversion drivers, returning raw patches without invoking those tools.
