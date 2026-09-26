@@ -6,6 +6,7 @@
  */
 import { afterEach, beforeEach, expect, it, mock, spyOn } from "bun:test";
 import { createTestRoot, type TestRoot } from "@gpuix/react/testing";
+import { flushSync, handleGpuixEvent } from "@gpuix/react";
 import { App } from "../../src/app";
 import type { RepositoryDiff as Reader } from "../../src/feature/repository-workspace/lib/repository-diff";
 import { RepositoryDiff } from "../../src/feature/repository-workspace/components/repository-diff";
@@ -139,6 +140,12 @@ it("scrolls vertically and horizontally by keyboard and trackpad with the compar
 	const viewport = element("diff-viewport").id;
 	const native = element("diff-viewport-content").id;
 
+	// Offscreen focus handles need the active-window notification delivered explicitly.
+	root.renderer.focusElement(viewport);
+	flushSync(() =>
+		handleGpuixEvent({ elementId: viewport, eventType: "focus" }, root.renderer)
+	);
+
 	// A regression to flow layout builds/paints all 1,800 rows, even below the clip.
 	expect(root.renderer.getPaintedText().length).toBeLessThan(300);
 	expect(bounds("diff-viewport-content").height).toBeLessThanOrEqual(
@@ -147,6 +154,7 @@ it("scrolls vertically and horizontally by keyboard and trackpad with the compar
 	expect(root.renderer.findByTestId("diff-working")).toBeUndefined();
 	expect(root.renderer.findByTestId("diff-staged")).toBeUndefined();
 	key("diff-viewport", "pagedown");
+	expect(element("diff-viewport").style.borderColor).toBe("transparent");
 	expect(root.renderer.getScrollOffset(native)?.[1]).toBeLessThan(0);
 	key("diff-viewport", "right");
 	expect(root.renderer.getScrollOffset(viewport)?.[0]).toBeLessThan(0);
@@ -192,6 +200,25 @@ it("selects code without copying gutters in the virtualized view", async () => {
 	expect(selected).toContain("value = 2;");
 	expect(selected).not.toContain("11");
 	expect(selected).not.toContain("+");
+});
+
+it("shows new-file code without a redundant status row or a pointer focus ring", async () => {
+	const patch =
+		"diff --git a/new.ts b/new.ts\nnew file mode 100644\n--- /dev/null\n+++ b/new.ts\n@@ -0,0 +1,1 @@\n+const added = true;\n";
+
+	showDiff(async () => ({ ok: true, value: [diffSection("working", patch)] }));
+	await settle();
+	expect(root.renderer.getPaintedText()).not.toContain("New file");
+	expect(root.renderer.getPaintedText()).toContain("@@ -0,0 +1,1 @@");
+	expect(root.renderer.getPaintedText()).toContain("const added = true;");
+	click("diff-viewport");
+	flushSync(() =>
+		handleGpuixEvent(
+			{ elementId: element("diff-viewport").id, eventType: "focus" },
+			root.renderer
+		)
+	);
+	expect(element("diff-viewport").style.borderColor).toBe("transparent");
 });
 
 it("fits short code to the viewport regardless of hidden patch metadata", async () => {

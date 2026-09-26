@@ -441,11 +441,33 @@ index fee74a2..e58aa7b 100644
    /** A unified git patch (the output of `git diff`). */
    patch?: string
    /** Highlight the words that changed inside paired +/- lines. */
+diff --git a/packages/native/src/diff/mod.rs b/packages/native/src/diff/mod.rs
+index bc505da..dbb7250 100644
+--- a/packages/native/src/diff/mod.rs
++++ b/packages/native/src/diff/mod.rs
+@@ -284,11 +284,15 @@ pub fn parse_patch(patch: &str) -> Vec<FileDiff> {
+     files
+ }
+
+-/// Derived notice rows: new / deleted / renamed / binary plus parser notices.
++/// Derived notices for empty / deleted / renamed / binary files plus parser notices.
+ pub fn file_notices(file: &FileDiff) -> Vec<String> {
+     let mut notices = Vec::new();
+     match file.status {
+-        FileStatus::Added => notices.push("New file".to_string()),
++        // Added lines already identify a new text file. Only an empty file needs a notice.
++        FileStatus::Added if file.hunks.is_empty() && !file.binary => {
++            notices.push("Empty file".to_string());
++        }
++        FileStatus::Added => {}
+         FileStatus::Deleted => notices.push("Deleted file".to_string()),
+         FileStatus::Renamed => {
+             let from = file.old_path.as_deref().unwrap_or("?");
 diff --git a/README.md b/README.md
-index 6cc6e28..5729b7b 100644
+index 6cc6e28..ff74921 100644
 --- a/README.md
 +++ b/README.md
-@@ -2447,6 +2447,24 @@ renderer owns its layout. Tune that card with the `mdCode*` metrics.
+@@ -2447,6 +2447,26 @@ renderer owns its layout. Tune that card with the `mdCode*` metrics.
 
  ### `<diff>`
 
@@ -461,6 +483,8 @@ index 6cc6e28..5729b7b 100644
 +colors (including alpha) independently of markers and syntax. Omitted values
 +preserve the existing marker-derived washes. Hunk/notice text uses `diffTextSize`.
 +These are local pinned-patch APIs, not upstream GPUIX guarantees.
++New text files start directly at their hunk, without a redundant "New file" row.
++Empty files, binary files, renames and mode changes retain informative notices.
 +
 +The 1git local patch exposes the native list through `scrollTo`, `getScrollOffset`
 +and `getListScrollTop` when `scroll` is enabled, including in the test renderer.
@@ -472,10 +496,10 @@ index 6cc6e28..5729b7b 100644
  them, so a collapsed 10k-line file costs one row.
 diff --git a/.changeset/1git-diff-view.md b/.changeset/1git-diff-view.md
 new file mode 100644
-index 0000000..a06ead8
+index 0000000..88ce898
 --- /dev/null
 +++ b/.changeset/1git-diff-view.md
-@@ -0,0 +1,8 @@
+@@ -0,0 +1,9 @@
 +---
 +"@gpuix/native": patch
 +---
@@ -484,3 +508,4 @@ index 0000000..a06ead8
 +independent row/word colors for 1git's read-only viewer. Uses the existing GPUI
 +TextSystem::shape_line and Taffy min-width APIs; no GPUI fork change is needed.
 +This is a local patch, not a release.
++Omit the redundant new-text-file status row; retain empty/binary/metadata notices.

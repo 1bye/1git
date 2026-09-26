@@ -27,6 +27,8 @@ export interface DiffViewProps extends Pick<
 	/** Styles the bounded viewport, not individual code rows; use theme.metrics for those. */
 	style?: StyleDesc;
 	tokens?: UiTokens;
+	/** Show the focus outline. Disabling it keeps keyboard focus and navigation. */
+	focusVisible?: boolean;
 	testId?: string;
 }
 
@@ -56,6 +58,7 @@ export function DiffView({
 	theme,
 	wordDiff = true,
 	showFileHeader = true,
+	focusVisible = true,
 	style,
 	tokens = defaultTokens,
 	testId,
@@ -118,7 +121,7 @@ export function DiffView({
 			style={StyleSheet.compose(
 				styles.viewport,
 				style,
-				focused && { borderColor: tokens.colors.focusRing }
+				focused && focusVisible && { borderColor: tokens.colors.focusRing }
 			)}
 		>
 			{/* Each axis has one owner: the native list on Y, this viewport on X. */}

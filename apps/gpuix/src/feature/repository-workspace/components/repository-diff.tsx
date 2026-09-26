@@ -192,6 +192,7 @@ export function RepositoryDiff({
 					testId="diff-viewport"
 					patch={section.patch}
 					showFileHeader={false}
+					focusVisible={false}
 					theme={diffTheme}
 					tokens={appTokens}
 					aria-label={

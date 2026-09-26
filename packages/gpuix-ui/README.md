@@ -99,6 +99,7 @@ import { DiffView } from "@1git/gpuix-ui/diff-view";
 | `theme` | GPUIX palette, syntax, fonts and `metrics`; four local background overrides accept CSS colors with alpha | Native dark theme |
 | `style` | Outer viewport size/layout; provide a bounded height or flex parent | Fill available space |
 | `tokens` | `UiTokens` used for the focus outline; code colors come from `theme` | `defaultTokens` |
+| `focusVisible` | Show the focus outline; `false` keeps keyboard focus/navigation without the ring | `true` |
 | `collapsedPaths` | Paths whose bodies are hidden | None |
 | `maxLines` | Limit displayed code rows and show a Show more control | Unlimited |
 | `onToggleFile` | Native event with file path in `event.value` | — |
@@ -116,6 +117,8 @@ Tab focuses the viewer; arrows, Page Up/Down, Space and Home/End scroll. Drag-se
 and Command+C copy code without gutters. Pass `key={comparisonId}` when a new
 file/comparison should reset viewport state. The app remains responsible for
 patch-size limits, loading, errors, binary-file notices and any Git operations.
+New text files start at the hunk without a "New file" status row. Empty and
+binary files, renames and mode changes retain their useful native notices.
 
 ## Button
 

@@ -65,6 +65,28 @@ it("removes native file headers without hiding hunk headers or the Show more con
 	expect(root.renderer.getPaintedText()).toContain("example.ts");
 });
 
+it("keeps informative notices for empty, binary and renamed files", () => {
+	const added = "diff --git a/new.ts b/new.ts\nnew file mode 100644\n";
+
+	show({ showFileHeader: false, patch: added });
+	expect(root.renderer.getPaintedText()).toContain("Empty file");
+	expect(root.renderer.getPaintedText()).not.toContain("New file");
+	show({
+		showFileHeader: false,
+		patch: `${added}Binary files /dev/null and b/new.ts differ\n`,
+	});
+	expect(root.renderer.getPaintedText()).toContain(
+		"Binary file — contents not shown"
+	);
+	expect(root.renderer.getPaintedText()).not.toContain("Empty file");
+	show({
+		showFileHeader: false,
+		patch:
+			"diff --git a/old.ts b/new.ts\nsimilarity index 100%\nrename from old.ts\nrename to new.ts\n",
+	});
+	expect(root.renderer.getPaintedText()).toContain("Renamed from old.ts");
+});
+
 it("remeasures native glyphs for content/font/spacing changes, but colors keep geometry stable", () => {
 	const patch = diffPatch("test.txt", "x".repeat(100));
 	const metrics = { diffTextSize: 10, diffRowPaddingX: 10 };

@@ -189,6 +189,8 @@ scrolling while using GPUIX's virtualized list; no additional diff library is ne
   exposes `diffAddBg`, `diffDelBg`, `diffAddWordBg`, and `diffDelWordBg` theme
   colors (including alpha), independently of marker colors. Header visibility
   uses `showFileHeader`, not a zero-height header.
+  The app disables the pane-wide focus ring without disabling keyboard scrolling.
+  New text files omit the redundant "New file" row; empty/binary/metadata notices remain.
 
 The shared Git diff commands treat requested paths literally and disable external
 diff/text-conversion drivers, returning raw patches without invoking those tools.
