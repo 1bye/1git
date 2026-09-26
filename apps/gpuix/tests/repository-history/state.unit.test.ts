@@ -125,3 +125,84 @@ it("invalidates history for changed HEAD and rejects results from the old snapsh
 	});
 	expect(state.history.nextOffset).toBeNull();
 });
+
+it("selects the first loaded or cached commit file without overriding manual selection or accepting another commit's files", () => {
+	const snapshot = repositorySnapshot();
+
+	const source = {
+		root: snapshot.repository.root,
+		head: snapshot.head.oid ?? "",
+	};
+
+	const commit = commitInfo().oid;
+	const other = commitInfo(1).oid;
+	const files = committedFiles(commit);
+	let state = Model.reduce(Model.create(), { type: "loaded", snapshot });
+
+	state = Model.reduce(state, {
+		type: "history-page",
+		...source,
+		offset: 0,
+		page: historyPage(0, 2),
+	});
+	state = Model.reduce(state, {
+		type: "history-files",
+		...source,
+		commit,
+		files,
+	});
+	expect(state.views.history.files).toEqual({
+		selectedId: files[0]?.id ?? null,
+		scrollY: 0,
+	});
+
+	state = Model.reduce(state, {
+		type: "select-revision-file",
+		view: "history",
+		id: "src/file-3.ts",
+	});
+	state = Model.reduce(state, {
+		type: "scroll-revision-files",
+		view: "history",
+		y: -80,
+	});
+	const chosen = state.views.history.files;
+
+	state = Model.reduce(state, {
+		type: "history-files",
+		...source,
+		commit,
+		files,
+	});
+	expect(state.views.history.files).toBe(chosen);
+	state = Model.reduce(state, { type: "select", view: "history", id: other });
+	expect(state.views.history.files).toEqual({ selectedId: null, scrollY: 0 });
+	state = Model.reduce(state, {
+		type: "history-files",
+		...source,
+		commit,
+		files,
+	});
+	expect(state.views.history.files.selectedId).toBeNull();
+	state = Model.reduce(state, {
+		type: "history-files-error",
+		...source,
+		commit: other,
+		message: "Read failed",
+	});
+	expect(state.views.history.files.selectedId).toBeNull();
+	state = Model.reduce(state, {
+		type: "history-files",
+		...source,
+		commit: other,
+		files: [],
+	});
+	expect(state.views.history.files.selectedId).toBeNull();
+	state = Model.reduce(state, { type: "select", view: "history", id: commit });
+	expect(state.views.history.files).toEqual({
+		selectedId: files[0]?.id ?? null,
+		scrollY: 0,
+	});
+	state = Model.reduce(state, { type: "select", view: "history", id: other });
+	expect(state.views.history.files).toEqual({ selectedId: null, scrollY: 0 });
+});

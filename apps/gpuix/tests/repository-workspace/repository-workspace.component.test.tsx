@@ -509,12 +509,18 @@ it("restores per-view scroll and selection after switching through History and S
 	click("entry-commit-2");
 	changeView("stashes");
 	click("entry-stash-2");
-	expect(selected()).toEqual(["Keyboard navigation polish"]);
+	expect(selected()).toEqual([
+		"Keyboard navigation polish",
+		"src/main.tsx, modified",
+	]);
 	changeView("changes");
 	expect(scrollY()).toBe(savedY);
 	expect(selected()).toEqual(["tsconfig.json, added"]);
 	changeView("history");
-	expect(selected()).toEqual(["Add smooth tab reordering"]);
+	expect(selected()).toEqual([
+		"Add smooth tab reordering",
+		"src/main.tsx, modified",
+	]);
 });
 
 it("preserves wheel scrolling without a selection and isolates tab state", () => {
@@ -532,7 +538,10 @@ it("preserves wheel scrolling without a selection and isolates tab state", () =>
 	expect(selected()).toEqual([]);
 	expect(root.renderer.getAllText()).toContain("30 of 30 selected");
 	click("workspace-2");
-	expect(selected()).toEqual(["Keep workspace selection per tab"]);
+	expect(selected()).toEqual([
+		"Keep workspace selection per tab",
+		"src/feature/workspace/sidebar.tsx, modified",
+	]);
 	expect(root.renderer.getAllText()).toContain("Recent commits");
 });
 
@@ -580,9 +589,11 @@ it("stacks revision files without checkboxes and shows contextual selection and 
 				: "Select a stash to see its files."
 		);
 		click(`entry-${first.id}`);
-		expect(root.renderer.getAllText()).toContain("Select a file to inspect");
 		expect(root.renderer.findByTestId("revision-header")).toBeUndefined();
-		expect(root.renderer.findByTestId("diff-header")).toBeUndefined();
+
+		expect(selected()).toEqual([first.title, "src/app.tsx, modified"]);
+		expect(root.renderer.findByTestId("diff-header")).toBeDefined();
+
 		expect(root.renderer.findByTestId("include-all")).toBeUndefined();
 		expect(root.renderer.findByTestId("include-src/app.tsx")).toBeUndefined();
 		click("entry-src/app.tsx");
@@ -590,7 +601,9 @@ it("stacks revision files without checkboxes and shows contextual selection and 
 		expect(root.renderer.getAllText()).toContain("Diff preview comes next");
 		expect(bounds("diff-header").y).toBe(bounds("workspace").y);
 		click(`entry-${sampleEntries[view][1]?.id}`);
-		expect(root.renderer.findByTestId("diff-selection")).toBeUndefined();
+
+		expect(root.renderer.getAllText()).toContain("src/main.tsx");
+
 		expect(root.renderer.findByTestId("entry-src/app.tsx")).toBeUndefined();
 		key(`entry-${sampleEntries[view][1]?.id}`, "end");
 		expect(root.renderer.getAllText()).toContain(

@@ -108,9 +108,15 @@ export function RepositoryDiffEmpty({
 					? "This commit has no file changes compared with its first parent."
 					: "Choose a commit and a changed file. History is read-only.";
 		} else if (view === "stashes") {
-			heading = "Stashes comes next";
+			heading = revision
+				? "Select a file to inspect"
+				: workspace.stashes.loaded
+					? "No stashed changes"
+					: "Select a stash to inspect";
 			hint =
-				"Changes and History are connected to Git. Stashes are not wired yet.";
+				revision?.filesLoaded && !revision.files.length
+					? "This stash has no file changes compared with its base."
+					: "Inspect saved tracked and untracked files. Stashes are read-only; apply, pop and drop are not enabled.";
 		} else {
 			if (selected) heading = "Diff preview comes next";
 			else if (workspace.loading) heading = "Reading repository…";

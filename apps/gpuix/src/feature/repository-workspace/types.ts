@@ -1,11 +1,16 @@
-import type { CommitFileChange, CommitInfo, FileChange } from "@1git/git";
+import type {
+	CommitFileChange,
+	CommitInfo,
+	FileChange,
+	StashInfo,
+} from "@1git/git";
 
 /** Immutable committed comparison, never an index or working-tree selection. */
 export interface CommitFileSelection extends CommitFileChange {
 	readonly commit: string;
 }
 
-/** Repository navigation views; Changes and History read live repository data. */
+/** Read-only repository navigation views. */
 export type RepositoryView = "changes" | "history" | "stashes";
 
 /** Views whose selected revision owns a second file list. */
@@ -27,6 +32,7 @@ export interface WorkspaceEntry {
 export interface WorkspaceRevision extends WorkspaceEntry {
 	readonly files: readonly WorkspaceEntry[];
 	readonly commit?: CommitInfo;
+	readonly stash?: StashInfo;
 	readonly filesLoaded?: boolean;
 	readonly filesError?: string;
 }

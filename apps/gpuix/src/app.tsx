@@ -7,6 +7,8 @@ import { RepositoryDiff as DiffReader } from "./feature/repository-workspace/lib
 import { RepositoryReader } from "./feature/repository-workspace/lib/repository-reader";
 import { RepositoryHistory } from "./feature/repository-workspace/lib/repository-history";
 import { useRepositoryHistory } from "./feature/repository-workspace/hooks/use-repository-history";
+import { RepositoryStashes } from "./feature/repository-workspace/lib/repository-stashes";
+import { useRepositoryStashes } from "./feature/repository-workspace/hooks/use-repository-stashes";
 import { useRepositoryConnection } from "./feature/repository-workspace/hooks/use-repository-connection";
 import {
 	RepositoryWorkspaceModel,
@@ -24,6 +26,8 @@ export function App({
 	readDiff = DiffReader.read,
 	readHistory = RepositoryHistory.read,
 	readCommitFiles = RepositoryHistory.readFiles,
+	readStashes = RepositoryStashes.read,
+	readStashFiles = RepositoryStashes.readFiles,
 }: {
 	initialTabCount?: number;
 	preview?: boolean;
@@ -31,6 +35,8 @@ export function App({
 	readDiff?: typeof DiffReader.read;
 	readHistory?: typeof RepositoryHistory.read;
 	readCommitFiles?: typeof RepositoryHistory.readFiles;
+	readStashes?: typeof RepositoryStashes.read;
+	readStashFiles?: typeof RepositoryStashes.readFiles;
 }) {
 	const [state, dispatch] = useReducer(
 		WorkspaceTabsModel.reduce,
@@ -56,6 +62,14 @@ export function App({
 		workspaceAction,
 		readHistory,
 		readCommitFiles
+	);
+
+	const stashes = useRepositoryStashes(
+		activeTab?.id,
+		workspace,
+		workspaceAction,
+		readStashes,
+		readStashFiles
 	);
 
 	const revision =
@@ -84,6 +98,7 @@ export function App({
 						workspaceId={activeTab.id}
 						state={workspace}
 						history={history}
+						stashes={stashes}
 						onRefresh={() => {
 							void connection.refresh(activeTab.id);
 						}}

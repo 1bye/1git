@@ -11,7 +11,7 @@
     "dev": "bun --preload ./native/preload.ts --hot src/main.tsx",
     "start": "bun --preload ./native/preload.ts dist/main.js",
     "test": "bun test --preload ./native/preload.ts --path-ignore-patterns '**/*.integration.test.ts' tests",
-    "test:integration": "bun test tests/repository-connection/repository-reader.integration.test.ts tests/repository-diff/repository-diff.integration.test.ts tests/repository-history/history.integration.test.ts"
+    "test:integration": "bun test tests/repository-connection/repository-reader.integration.test.ts tests/repository-diff/repository-diff.integration.test.ts tests/repository-history/history.integration.test.ts tests/repository-stashes/stashes.integration.test.ts"
   },
   "dependencies": {
     "@1git/git": "workspace:*",

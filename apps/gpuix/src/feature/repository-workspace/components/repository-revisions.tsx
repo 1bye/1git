@@ -219,9 +219,9 @@ export function RepositoryRevisions({
 					state={current.files}
 					emptyMessage={
 						loadingFiles
-							? "Reading committed files…"
+							? "Reading saved files…"
 							: revision?.filesError
-								? "Could not read committed files."
+								? "Could not read saved files."
 								: revision
 									? "No file changes in this revision."
 									: view === "history"
@@ -235,7 +235,7 @@ export function RepositoryRevisions({
 				/>
 				{revision?.filesError && onRetryFiles ? (
 					<RepositoryReadNotice
-						testId="retry-history-files"
+						testId={`retry-${view}-files`}
 						loading={loadingFiles}
 						error={revision.filesError}
 						onPress={onRetryFiles}

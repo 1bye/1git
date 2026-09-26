@@ -133,10 +133,11 @@ it("loads commits lazily, pages near the scroll end, and preserves selection and
 		element(`entry-${commitInfo().oid}`).customProps?.["aria-description"]
 	).toContain("Test Author");
 	click(`entry-${commitInfo(1).oid}`);
-	await settle();
-	click("entry-src/file-0.ts");
-	await settle();
-	expect(diffs.mock.calls[0]?.[1]).toEqual(
+	await waitFor(() => !!root.renderer.findByTestId("diff-viewport"));
+	expect(element("entry-src/file-0.ts").customProps?.["aria-selected"]).toBe(
+		true
+	);
+	expect(diffs.mock.calls.at(-1)?.[1]).toEqual(
 		committedFiles(commitInfo(1).oid)[0]?.commitFile
 	);
 	expect(root.renderer.getPaintedText()).toContain("const committed = true;");
@@ -311,5 +312,70 @@ it("does not request history for unborn HEAD and refreshes an updated HEAD from 
 	await settle();
 	await settle();
 	expect(pages.mock.calls[1]?.slice(1, 3)).toEqual(["f".repeat(40), 0]);
+	await waitFor(() => !!root.renderer.findByTestId("diff-viewport"));
+	expect(element("entry-src/file-0.ts").customProps?.["aria-selected"]).toBe(
+		true
+	);
+});
+
+it("previews the first file for pointer, keyboard and cached commit selections without stealing focus", async () => {
+	const pages = mock<typeof RepositoryHistory.read>(async () => ({
+		ok: true,
+		value: historyPage(0, 3),
+	}));
+
+	const files = mock<typeof RepositoryHistory.readFiles>(
+		async (_root, commit) => ({
+			ok: true,
+			value: commit === commitInfo(2).oid ? [] : committedFiles(commit),
+		})
+	);
+
+	const diffs = mock(readDiff);
+
+	root.render(
+		<App
+			readRepository={readRepository}
+			readHistory={pages}
+			readCommitFiles={files}
+			readDiff={diffs}
+		/>
+	);
+	await openHistory();
+	await waitFor(() => !!root.renderer.findByTestId("diff-viewport"));
+	click("entry-src/file-1.ts");
+	await settle();
+	click(`entry-${commitInfo(1).oid}`);
+	await waitFor(() => !!root.renderer.findByTestId("diff-viewport"));
+	expect(element("entry-src/file-0.ts").customProps?.["aria-selected"]).toBe(
+		true
+	);
+	expect(root.renderer.getFocusedElementId()).toBe(
+		element(`entry-${commitInfo(1).oid}`).id
+	);
+
+	root.renderer.nativeSimulateKeyDown(
+		element(`entry-${commitInfo(1).oid}`).id,
+		"up"
+	);
+	root.renderer.flush();
+	await settle();
+	expect(element("entry-src/file-0.ts").customProps?.["aria-selected"]).toBe(
+		true
+	);
+	expect(root.renderer.getFocusedElementId()).toBe(
+		element(`entry-${commitInfo().oid}`).id
+	);
+	expect(files).toHaveBeenCalledTimes(2);
+	expect(diffs.mock.calls.at(-1)?.[1]).toEqual(
+		committedFiles(commitInfo().oid)[0]?.commitFile
+	);
+	expect(root.renderer.getPaintedText()).toContain("const committed = true;");
+
+	click(`entry-${commitInfo(2).oid}`);
+	await waitFor(() =>
+		root.renderer.getAllText().includes("No file changes in this revision.")
+	);
 	expect(root.renderer.findByTestId("diff-viewport")).toBeUndefined();
+	expect(root.renderer.findByTestId("entry-src/file-0.ts")).toBeUndefined();
 });

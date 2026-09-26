@@ -148,7 +148,7 @@ entrance/exit animation yet.
 - **Checkboxes are planned commit inclusion, not Git staging.** They neither stage
   nor unstage files. The composer remains preview-only: Command+Enter/the button
   never creates a commit, even with a connected repository. Drafts and inclusion
-  are in-memory only. History is read-only; Stashes is not connected yet.
+  are in-memory only. History and Stashes are read-only.
   Unavailable views never substitute sample records for live data.
 
 Git must be installed on PATH. The app imports the existing workspace Git package;
@@ -160,8 +160,9 @@ the Turbo build/dev tasks build dependencies first. No Electron IPC is involved.
   the summary, author, authored date and short SHA. Scroll near the end for the
   next 50 commits, or use **Load more commits**. Pagination is anchored to that
   HEAD, so external commits cannot shift page offsets while browsing.
-- Select a commit in the upper sidebar to read its changed paths, then select a
-  path below to view its diff. File lists are fetched on demand without loading
+- Select a commit in the upper sidebar to read its changed paths and automatically
+  preview its first changed file. Choose any other path below to inspect it.
+  File lists are fetched on demand without loading
   every patch; completed lists/pages are retained for the workspace tab's lifetime.
 - Committed diffs compare with the first parent (the empty tree for root commits).
   Merge commits use the same first-parent comparison, not a combined/conflict diff.
@@ -171,12 +172,32 @@ the Turbo build/dev tasks build dependencies first. No Electron IPC is involved.
   or working files. SVG **Preview / Source**, original metadata, size limits and
   binary/unsupported notices work here too. There are no staging or commit actions.
 - Each workspace keeps its selected commit/file, list scroll offsets and divider
-  size across tab/view switches. Changing commits clears the file selection/scroll.
+  size across tab/view switches. Changing commits resets the file list to the top
+  and selects its first file, including cached commits, without moving keyboard
+  focus out of the commit list. Empty commits keep the file selection empty.
   Pending reads are cancelled on view/tab changes, refresh or close; errors expose
   Retry without discarding loaded pages. Nothing is persisted across restarts.
 - Refresh keeps cached History when HEAD is unchanged. A different HEAD resets
-  pagination and selection to the new snapshot. Stashes, automatic refresh and Git
+  pagination and selection to the new snapshot. Automatic refresh and Git
   writes are still deferred.
+
+## Browsing Stashes
+
+- Stashes lazily lists saved work with Git's summary (including the original branch),
+  creation date and stash reference. Select a stash to automatically preview its
+  first file; mouse/keyboard selection, the split sidebar and per-tab scroll state
+  work the same way as History.
+- Tracked files compare the saved working tree with the stash's original base,
+  combining staged and unstaged changes. The optional untracked snapshot is also
+  included. This is a saved-content preview, not a reconstruction of staging choices.
+  Text, image and SVG previews read immutable Git objects, never today's working files.
+- Refresh reloads the stash list even if HEAD is unchanged. Selection and cached
+  files follow object IDs, not `stash@{n}` labels, which Git can renumber. Removed
+  stashes disappear; the first remaining stash is selected if necessary.
+- Files load on demand. Leaving the view, refreshing or closing/switching tabs
+  cancels pending reads; late results are ignored. Empty and failed reads have
+  explicit states and retry controls. No Apply, Pop, Drop or stash creation actions
+  are exposed, and reading never changes the index, working tree or stash reflog.
 
 ## Read-only file diffs
 
@@ -306,7 +327,8 @@ reuses the desktop's color tokens and Phosphor Light icons.
   populates the lower list; its title and metadata stay only in the sidebar. Those file
   rows reuse the Changes styling without inclusion checkboxes; selecting a file
   updates the diff header. Changing revisions clears the previous file selection
-  and file-list scroll. The last sample revision in each view has no changed files
+  and file-list scroll; History then selects its first changed file automatically.
+  The last sample revision in each view has no changed files
   so the empty state can be tried too.
 - Drag the horizontal divider to resize the two lists. Tab focuses it; Up/Down
   adjust in 5% steps, Home/End choose the 25%/75% limits. Escape or focus loss

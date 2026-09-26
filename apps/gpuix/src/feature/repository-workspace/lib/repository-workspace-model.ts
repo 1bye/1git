@@ -4,10 +4,12 @@ import type {
 	FileChange,
 	FileStatus,
 	RepositorySnapshot,
+	StashInfo,
 } from "@1git/git";
 
 import { sampleEntries } from "./sample-workspace";
 import { RepositoryHistory } from "./repository-history";
+import { RepositoryStashes } from "./repository-stashes";
 import type {
 	RepositoryView,
 	RevisionView,
@@ -50,6 +52,11 @@ export interface RepositoryWorkspaceState {
 		readonly nextOffset: number | null;
 		readonly error: string | null;
 	};
+	readonly stashes: {
+		readonly generation: number;
+		readonly loaded: boolean;
+		readonly error: string | null;
+	};
 	readonly loading: boolean;
 	readonly error: string | null;
 	readonly view: RepositoryView;
@@ -64,6 +71,27 @@ export interface RepositoryWorkspaceState {
 
 /** Presentation transitions; no filesystem, Git mutations, or persistent storage effects. */
 export type RepositoryWorkspaceAction =
+	| {
+			type: "stashes-loaded";
+			root: string;
+			generation: number;
+			stashes: readonly StashInfo[];
+	  }
+	| { type: "stashes-error"; root: string; generation: number; message: string }
+	| {
+			type: "stash-files";
+			root: string;
+			generation: number;
+			oid: string;
+			files: readonly WorkspaceEntry[];
+	  }
+	| {
+			type: "stash-files-error";
+			root: string;
+			generation: number;
+			oid: string;
+			message: string;
+	  }
 	| {
 			type: "history-page";
 			root: string;
@@ -113,6 +141,7 @@ export class RepositoryWorkspaceModel {
 			entries,
 			repository: null,
 			history: { nextOffset: 0, error: null },
+			stashes: { generation: 0, loaded: false, error: null },
 			loading: false,
 			error: null,
 			view: "changes",
@@ -150,6 +179,99 @@ export class RepositoryWorkspaceModel {
 		state: RepositoryWorkspaceState,
 		action: RepositoryWorkspaceAction
 	): RepositoryWorkspaceState {
+		if (
+			action.type === "stashes-loaded" ||
+			action.type === "stashes-error" ||
+			action.type === "stash-files" ||
+			action.type === "stash-files-error"
+		) {
+			if (
+				state.loading ||
+				state.repository?.root !== action.root ||
+				state.stashes.generation !== action.generation
+			)
+				return state;
+
+			if (action.type === "stashes-error")
+				return {
+					...state,
+					stashes: { ...state.stashes, error: action.message },
+				};
+
+			const current = state.views.stashes;
+
+			if (action.type === "stashes-loaded") {
+				const cached = new Map(
+					state.entries.stashes.map((entry) => [entry.id, entry])
+				);
+
+				const entries = action.stashes.map((stash) => {
+					const previous = cached.get(stash.oid);
+
+					return {
+						...RepositoryStashes.entry(stash),
+						files: previous?.files ?? [],
+						filesLoaded: previous?.filesLoaded,
+					};
+				});
+
+				const selected =
+					entries.find((entry) => entry.id === current.selectedId) ??
+					entries[0];
+
+				const sameSelection = selected?.id === current.selectedId;
+
+				return {
+					...state,
+					stashes: { ...state.stashes, loaded: true, error: null },
+					entries: { ...state.entries, stashes: entries },
+					views: {
+						...state.views,
+						stashes: {
+							...current,
+							selectedId: selected?.id ?? null,
+							scrollY: sameSelection ? current.scrollY : 0,
+							files: sameSelection
+								? current.files
+								: { selectedId: selected?.files[0]?.id ?? null, scrollY: 0 },
+						},
+					},
+				};
+			}
+
+			const entries = state.entries.stashes.map((entry) =>
+				entry.id !== action.oid
+					? entry
+					: action.type === "stash-files"
+						? {
+								...entry,
+								files: action.files,
+								filesLoaded: true,
+								filesError: undefined,
+							}
+						: { ...entry, filesError: action.message }
+			);
+
+			const selectFirstFile =
+				action.type === "stash-files" &&
+				current.selectedId === action.oid &&
+				current.files.selectedId === null;
+
+			return {
+				...state,
+				entries: { ...state.entries, stashes: entries },
+				views: selectFirstFile
+					? {
+							...state.views,
+							stashes: {
+								...current,
+								files: { selectedId: action.files[0]?.id ?? null, scrollY: 0 },
+							},
+						}
+					: state.views,
+			};
+		}
+
 		if (
 			action.type === "history-page" ||
 			action.type === "history-error" ||
@@ -208,9 +330,25 @@ export class RepositoryWorkspaceModel {
 						: { ...entry, filesError: action.message }
 			);
 
+			const history = state.views.history;
+
+			const selectFirstFile =
+				action.type === "history-files" &&
+				history.selectedId === action.commit &&
+				history.files.selectedId === null;
+
 			return {
 				...state,
 				entries: { ...state.entries, history: entries },
+				views: selectFirstFile
+					? {
+							...state.views,
+							history: {
+								...history,
+								files: { selectedId: action.files[0]?.id ?? null, scrollY: 0 },
+							},
+						}
+					: state.views,
 			};
 		}
 
@@ -256,10 +394,15 @@ export class RepositoryWorkspaceModel {
 				history: sameHistory
 					? state.history
 					: { nextOffset: snapshot.head.oid ? 0 : null, error: null },
+				stashes: {
+					generation: state.stashes.generation + 1,
+					loaded: false,
+					error: null,
+				},
 				entries: {
 					changes,
 					history: sameHistory ? state.entries.history : [],
-					stashes: [],
+					stashes: sameRepository ? state.entries.stashes : [],
 				},
 				includedFileIds: changes
 					.filter(
@@ -271,6 +414,14 @@ export class RepositoryWorkspaceModel {
 					.map((entry) => entry.id),
 				views: {
 					...state.views,
+					stashes: sameRepository
+						? state.views.stashes
+						: {
+								...state.views.stashes,
+								selectedId: null,
+								scrollY: 0,
+								files: { selectedId: null, scrollY: 0 },
+							},
 					history: sameHistory
 						? state.views.history
 						: {
@@ -399,7 +550,13 @@ export class RepositoryWorkspaceModel {
 						...current,
 						selectedId: action.id,
 						...(action.view !== "changes" && {
-							files: { selectedId: null, scrollY: 0 },
+							files: {
+								selectedId:
+									state.entries[action.view].find(
+										(entry) => entry.id === action.id
+									)?.files[0]?.id ?? null,
+								scrollY: 0,
+							},
 						}),
 					},
 				},

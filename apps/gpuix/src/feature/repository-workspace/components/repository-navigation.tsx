@@ -15,6 +15,7 @@ import { RepositoryCommit } from "./repository-commit";
 import { RepositoryRevisions } from "./repository-revisions";
 import { appTokens } from "../../../styles/tokens";
 import type { useRepositoryHistory } from "../hooks/use-repository-history";
+import type { useRepositoryStashes } from "../hooks/use-repository-stashes";
 import { RepositoryReadNotice } from "./repository-read-notice";
 
 const styles = StyleSheet.create({
@@ -101,7 +102,12 @@ function emptyListMessage(state: RepositoryWorkspaceState): string {
 		return "No changed files";
 	}
 
-	if (state.view === "stashes") return "Not connected to Git yet";
+	if (state.view === "stashes")
+		return state.repository
+			? state.stashes.loaded
+				? "No stashed changes"
+				: ""
+			: "Open a repository to see stashes";
 
 	if (state.view === "history")
 		return state.repository
@@ -126,18 +132,21 @@ export function RepositoryNavigation({
 	onAction,
 	onRefresh,
 	history,
+	stashes,
 }: {
 	workspaceId: string;
 	state: RepositoryWorkspaceState;
 	onAction: (action: RepositoryWorkspaceAction) => void;
 	onRefresh: () => void;
 	history?: ReturnType<typeof useRepositoryHistory>;
+	stashes?: ReturnType<typeof useRepositoryStashes>;
 }) {
 	const renderer = useGpuixRequired();
 	const pills = useRef(new Map<RepositoryView, PublicInstance>());
 	const [focusedView, setFocusedView] = useState<RepositoryView | null>(null);
 	const [pointerFocus, setPointerFocus] = useState<RepositoryView | null>(null);
 	const { view } = state;
+	const revisionReader = view === "history" ? history : stashes;
 	const label = repositoryViews.find((item) => item.value === view)?.label;
 
 	const heading =
@@ -353,10 +362,22 @@ export function RepositoryNavigation({
 						view={view}
 						state={state}
 						onAction={onAction}
-						loadingFiles={history?.loadingFiles}
-						onRetryFiles={history?.retryFiles}
+						loadingFiles={revisionReader?.loadingFiles}
+						onRetryFiles={revisionReader?.retryFiles}
 					>
 						{list}
+						{view === "stashes" &&
+						state.repository &&
+						stashes &&
+						(!state.stashes.loaded || state.stashes.error) ? (
+							<RepositoryReadNotice
+								testId="load-stashes"
+								loading={stashes.loading}
+								error={state.stashes.error}
+								onPress={stashes.retry}
+								label="Load stashes"
+							/>
+						) : null}
 						{view === "history" &&
 						state.repository &&
 						history &&

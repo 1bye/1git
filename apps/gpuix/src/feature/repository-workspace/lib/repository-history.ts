@@ -1,5 +1,6 @@
 import {
 	GitRepository,
+	type CommitFileChange,
 	type CommitInfo,
 	type CommitPage,
 	type GitResult,
@@ -47,15 +48,22 @@ export class RepositoryHistory {
 
 		return {
 			ok: true,
-			value: result.value.map((file) => ({
-				id: file.path,
-				title: file.path,
-				status: file.status,
-				statusDescription: file.originalPath
-					? `renamed from ${file.originalPath}`
-					: undefined,
-				commitFile: { ...file, commit },
-			})),
+			value: result.value.map((file) =>
+				RepositoryHistory.fileEntry(file, commit)
+			),
+		};
+	}
+
+	/** Immutable file comparison shared by commits and saved stash snapshots. */
+	static fileEntry(file: CommitFileChange, commit: string): WorkspaceEntry {
+		return {
+			id: file.path,
+			title: file.path,
+			status: file.status,
+			statusDescription: file.originalPath
+				? `renamed from ${file.originalPath}`
+				: undefined,
+			commitFile: { ...file, commit },
 		};
 	}
 

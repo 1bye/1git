@@ -222,7 +222,7 @@ it("scopes file selection and scrolling to the selected revision and resets them
 	});
 
 	expect(switched.views.history.files).toEqual({
-		selectedId: null,
+		selectedId: sampleEntries.history[1]?.files[0]?.id ?? null,
 		scrollY: 0,
 	});
 	expect(state.views.history.files.scrollY).toBe(-80);

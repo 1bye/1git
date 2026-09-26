@@ -82,6 +82,7 @@ it("opens real-status rows and refreshes without staging, clearing drafts or rep
 			readDiff={readDiff}
 			readRepository={reader}
 			readHistory={emptyHistory}
+			readStashes={async () => ({ ok: true, value: [] })}
 		/>
 	);
 	expect(root.renderer.findByTestId("commit-composer")).toBeUndefined();
@@ -127,7 +128,8 @@ it("opens real-status rows and refreshes without staging, clearing drafts or rep
 	expect(root.renderer.getAllText()).toContain("No commits yet");
 	expect(root.renderer.getAllText()).not.toContain("Sample data");
 	click("view-stashes");
-	expect(root.renderer.getAllText()).toContain("Stashes comes next");
+	await settle();
+	expect(root.renderer.getAllText()).toContain("No stashed changes");
 });
 
 it("handles cancellation, picker failures and invalid repositories with a retry", async () => {
