@@ -1,10 +1,14 @@
-import {
-	sampleEntries,
-	type RepositoryView,
-	type RevisionView,
-	type WorkspaceEntry,
-	type WorkspaceRevision,
-} from "./sample-workspace";
+import { basename } from "node:path";
+import type { FileChange, FileStatus, RepositorySnapshot } from "@1git/git";
+
+import { sampleEntries } from "./sample-workspace";
+import type {
+	RepositoryView,
+	RevisionView,
+	WorkspaceEntry,
+	WorkspaceEntries,
+	WorkspaceRevision,
+} from "../types";
 
 /** Sidebar proportions leave both revision and file lists usable at the minimum window height. */
 export const revisionSplit = {
@@ -28,6 +32,15 @@ export interface RepositoryRevisionState extends RepositoryListState {
 
 /** Each workspace owns commit inclusion independently of its viewed row and scroll offsets. */
 export interface RepositoryWorkspaceState {
+	readonly preview: boolean;
+	readonly entries: WorkspaceEntries;
+	readonly repository: {
+		readonly root: string;
+		readonly name: string;
+		readonly branch: string;
+	} | null;
+	readonly loading: boolean;
+	readonly error: string | null;
 	readonly view: RepositoryView;
 	readonly commitMessage: string;
 	readonly includedFileIds: readonly string[];
@@ -38,8 +51,11 @@ export interface RepositoryWorkspaceState {
 	};
 }
 
-/** Preview-only transitions; no filesystem, Git, or persistent storage effects. */
+/** Presentation transitions; no filesystem, Git mutations, or persistent storage effects. */
 export type RepositoryWorkspaceAction =
+	| { type: "loading" }
+	| { type: "load-error"; message: string }
+	| { type: "loaded"; snapshot: RepositorySnapshot }
 	| { type: "view"; view: RepositoryView }
 	| { type: "edit-commit-message"; value: string }
 	| { type: "select"; view: RepositoryView; id: string }
@@ -54,11 +70,20 @@ export type RepositoryWorkspaceAction =
 export class RepositoryWorkspaceModel {
 	private constructor() {}
 
-	static create(): RepositoryWorkspaceState {
+	static create(preview = false): RepositoryWorkspaceState {
+		const entries: WorkspaceEntries = preview
+			? sampleEntries
+			: { changes: [], history: [], stashes: [] };
+
 		return {
+			preview,
+			entries,
+			repository: null,
+			loading: false,
+			error: null,
 			view: "changes",
 			commitMessage: "",
-			includedFileIds: sampleEntries.changes.map((entry) => entry.id),
+			includedFileIds: entries.changes.map((entry) => entry.id),
 			views: {
 				changes: { selectedId: null, scrollY: 0 },
 				history: {
@@ -80,6 +105,8 @@ export class RepositoryWorkspaceModel {
 	/** The preview requires a first-line summary and at least one included file. */
 	static canPreviewCommit(state: RepositoryWorkspaceState): boolean {
 		return (
+			!state.loading &&
+			!state.error &&
 			(state.commitMessage.split("\n", 1)[0]?.trim().length ?? 0) > 0 &&
 			state.includedFileIds.length > 0
 		);
@@ -89,6 +116,62 @@ export class RepositoryWorkspaceModel {
 		state: RepositoryWorkspaceState,
 		action: RepositoryWorkspaceAction
 	): RepositoryWorkspaceState {
+		if (action.type === "loading")
+			return { ...state, loading: true, error: null };
+
+		if (action.type === "load-error")
+			return { ...state, loading: false, error: action.message };
+
+		if (action.type === "loaded") {
+			const { snapshot } = action;
+
+			const changes = snapshot.files
+				.filter((file) => file.recordType !== "ignored")
+				.map(RepositoryWorkspaceModel.fileEntry);
+
+			const previous = new Set(state.entries.changes.map((entry) => entry.id));
+			const included = new Set(state.includedFileIds);
+
+			const sameRepository =
+				state.repository?.root === snapshot.repository.root;
+
+			const selectedId = state.views.changes.selectedId;
+
+			const branch = snapshot.head.detached
+				? `detached ${snapshot.head.oid?.slice(0, 7) ?? "HEAD"}`
+				: (snapshot.head.branch ?? "unborn HEAD");
+
+			return {
+				...state,
+				preview: false,
+				loading: false,
+				error: null,
+				repository: {
+					root: snapshot.repository.root,
+					name: basename(snapshot.repository.root),
+					branch,
+				},
+				entries: { changes, history: [], stashes: [] },
+				includedFileIds: changes
+					.filter(
+						(entry) =>
+							!sameRepository ||
+							!previous.has(entry.id) ||
+							included.has(entry.id)
+					)
+					.map((entry) => entry.id),
+				views: {
+					...state.views,
+					changes: {
+						selectedId: changes.some((entry) => entry.id === selectedId)
+							? selectedId
+							: null,
+						scrollY: changes.length ? state.views.changes.scrollY : 0,
+					},
+				},
+			};
+		}
+
 		if (action.type === "edit-commit-message") {
 			return state.commitMessage === action.value
 				? state
@@ -103,7 +186,7 @@ export class RepositoryWorkspaceModel {
 
 		if (action.type === "include-file") {
 			if (
-				!sampleEntries.changes.some((entry) => entry.id === action.id) ||
+				!state.entries.changes.some((entry) => entry.id === action.id) ||
 				state.includedFileIds.includes(action.id) === action.included
 			)
 				return state;
@@ -117,14 +200,14 @@ export class RepositoryWorkspaceModel {
 		}
 
 		if (action.type === "include-all") {
-			const count = action.included ? sampleEntries.changes.length : 0;
+			const count = action.included ? state.entries.changes.length : 0;
 
 			if (state.includedFileIds.length === count) return state;
 
 			return {
 				...state,
 				includedFileIds: action.included
-					? sampleEntries.changes.map((entry) => entry.id)
+					? state.entries.changes.map((entry) => entry.id)
 					: [],
 			};
 		}
@@ -187,7 +270,7 @@ export class RepositoryWorkspaceModel {
 		if (action.type === "select") {
 			if (
 				current.selectedId === action.id ||
-				!sampleEntries[action.view].some((entry) => entry.id === action.id)
+				!state.entries[action.view].some((entry) => entry.id === action.id)
 			)
 				return state;
 
@@ -247,13 +330,39 @@ export class RepositoryWorkspaceModel {
 			?.id;
 	}
 
-	/** Selected sample revision; never resolves a real Git object. */
+	/** Selected revision from the workspace's presentation data. */
 	static revision(
 		state: RepositoryWorkspaceState,
 		view: RevisionView
 	): WorkspaceRevision | undefined {
-		return sampleEntries[view].find(
+		return state.entries[view].find(
 			(entry) => entry.id === state.views[view].selectedId
 		);
+	}
+
+	/** Collapses index and worktree records into one row while retaining both statuses for accessibility. */
+	static fileEntry(file: FileChange): WorkspaceEntry {
+		const symbols: Partial<Record<FileStatus, WorkspaceEntry["status"]>> = {
+			added: "A",
+			untracked: "A",
+			deleted: "D",
+			renamed: "R",
+			copied: "C",
+			unmerged: "U",
+			"type-changed": "T",
+			modified: "M",
+		};
+
+		const status =
+			file.recordType === "unmerged"
+				? "U"
+				: (symbols[file.worktreeStatus] ?? symbols[file.indexStatus] ?? "M");
+
+		return {
+			id: file.path,
+			title: file.path,
+			status,
+			statusDescription: `${file.originalPath ? `renamed from ${file.originalPath}; ` : ""}index: ${file.indexStatus}; working tree: ${file.worktreeStatus}${file.submodule !== "N..." ? "; submodule changes" : ""}`,
+		};
 	}
 }

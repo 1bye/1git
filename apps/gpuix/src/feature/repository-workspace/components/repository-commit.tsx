@@ -90,7 +90,7 @@ export function RepositoryCommit({
 				<Button
 					testId="commit-preview"
 					aria-label={`Preview: ${label}`}
-					aria-description="Preview only. No repository is connected and no Git commit will be created."
+					aria-description="Preview only. Checkbox choices do not stage files and no Git commit will be created."
 					size="sm"
 					tokens={appTokens}
 					textStyle={styles.label}
@@ -103,7 +103,9 @@ export function RepositoryCommit({
 			<text testId="commit-notice" role="status" style={styles.hint}>
 				{previewed
 					? "Preview only — no commit created."
-					: "Preview only · no repository connected"}
+					: state.repository
+						? "Preview only · Git writes disabled"
+						: "Preview only · no repository connected"}
 			</text>
 		</div>
 	);

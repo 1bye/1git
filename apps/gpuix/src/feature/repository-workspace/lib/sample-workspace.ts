@@ -1,31 +1,4 @@
-/** Views supported by the in-memory workspace preview. */
-export type RepositoryView = "changes" | "history" | "stashes";
-
-/** Read-only views whose selected revision owns a second file list. */
-export type RevisionView = Exclude<RepositoryView, "changes">;
-
-/** Display-only entries; these never refer to files or revisions on disk. */
-export interface WorkspaceEntry {
-	readonly id: string;
-	readonly title: string;
-	readonly detail?: string;
-	readonly status?: "M" | "A" | "D";
-}
-
-/** A display-only commit or stash with its own changed files. */
-export interface WorkspaceRevision extends WorkspaceEntry {
-	readonly files: readonly WorkspaceEntry[];
-}
-
-/** Reuses the desktop's three views without exposing unfinished Git commands. */
-export const repositoryViews: readonly {
-	value: RepositoryView;
-	label: string;
-}[] = [
-	{ value: "changes", label: "Changes" },
-	{ value: "history", label: "History" },
-	{ value: "stashes", label: "Stashes" },
-];
+import type { WorkspaceEntries, WorkspaceEntry } from "../types";
 
 const paths = [
 	"src/app.tsx",
@@ -85,11 +58,7 @@ function revisionFiles(index: number): readonly WorkspaceEntry[] {
 }
 
 /** Fixed, clearly labeled preview data with enough rows to exercise scrolling. */
-export const sampleEntries: {
-	readonly changes: readonly WorkspaceEntry[];
-	readonly history: readonly WorkspaceRevision[];
-	readonly stashes: readonly WorkspaceRevision[];
-} = {
+export const sampleEntries: WorkspaceEntries = {
 	changes: paths.map((path, index) => ({
 		id: path,
 		title: path,

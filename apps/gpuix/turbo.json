@@ -3,12 +3,14 @@
   "tasks": {
     "dev": {
       "dependsOn": ["^build", "build:native"],
-      "passThroughEnv": ["GPUIX_BACKGROUND"]
+      "passThroughEnv": ["GPUIX_BACKGROUND", "GPUIX_PREVIEW"]
     },
     "build:native": {
       "cache": false,
       "passThroughEnv": ["CARGO_HOME", "RUSTUP_HOME", "DEVELOPER_DIR"]
     },
-    "test": { "cache": false }
+    "test": { "cache": false },
+    "check-types": { "dependsOn": ["^build"] },
+    "test:integration": { "dependsOn": ["^build"], "cache": false }
   }
 }

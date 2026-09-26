@@ -10,9 +10,11 @@
     "check-types": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json",
     "dev": "bun --preload ./native/preload.ts --hot src/main.tsx",
     "start": "bun --preload ./native/preload.ts dist/main.js",
-    "test": "bun test --preload ./native/preload.ts tests"
+    "test": "bun test --preload ./native/preload.ts --path-ignore-patterns '**/*.integration.test.ts' tests",
+    "test:integration": "bun test tests/repository-connection/repository-reader.integration.test.ts"
   },
   "dependencies": {
+    "@1git/git": "workspace:*",
     "@1git/design-tokens": "workspace:*",
     "@1git/gpuix-ui": "workspace:*",
     "@1git/gpuix-stylesheet": "workspace:*",

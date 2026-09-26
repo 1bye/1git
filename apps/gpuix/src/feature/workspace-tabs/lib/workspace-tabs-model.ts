@@ -4,7 +4,7 @@ import {
 	type RepositoryWorkspaceAction,
 } from "../../repository-workspace/lib/repository-workspace-model";
 
-/** A shell tab, not a Git session. Repository integration will supply real metadata later. */
+/** A workspace tab with presentation state and optional live repository metadata. */
 export interface WorkspaceTabRecord {
 	readonly id: string;
 	readonly name: string;
@@ -14,6 +14,7 @@ export interface WorkspaceTabRecord {
 
 /** In-memory tabs and their active selection belong to one app instance. */
 export interface WorkspaceTabsState {
+	readonly preview: boolean;
 	readonly tabs: readonly WorkspaceTabRecord[];
 	readonly activeId: string | null;
 	readonly nextId: number;
@@ -31,19 +32,20 @@ export type WorkspaceTabsAction =
 export class WorkspaceTabsModel {
 	private constructor() {}
 
-	/** Seed at least one sample workspace; extra tabs use the same action as +. */
-	static create(initialTabCount = 1): WorkspaceTabsState {
+	/** Seed empty workspaces; preview mode explicitly opts into sample data. */
+	static create(initialTabCount = 1, preview = false): WorkspaceTabsState {
 		if (!Number.isInteger(initialTabCount) || initialTabCount < 1) {
 			throw new Error("Initial tab count must be a positive integer");
 		}
 
 		let state: WorkspaceTabsState = {
+			preview,
 			tabs: [
 				{
 					id: "workspace-1",
-					name: "1git",
-					branch: "main",
-					workspace: RepositoryWorkspaceModel.create(),
+					name: preview ? "1git" : "Open repository",
+					branch: preview ? "main" : undefined,
+					workspace: RepositoryWorkspaceModel.create(preview),
 				},
 			],
 			activeId: "workspace-1",
@@ -68,10 +70,11 @@ export class WorkspaceTabsModel {
 			const tab = {
 				id: `workspace-${state.nextId}`,
 				name: `Workspace ${state.nextId}`,
-				workspace: RepositoryWorkspaceModel.create(),
+				workspace: RepositoryWorkspaceModel.create(state.preview),
 			};
 
 			return {
+				...state,
 				tabs: [...state.tabs, tab],
 				activeId: tab.id,
 				nextId: state.nextId + 1,
@@ -97,7 +100,14 @@ export class WorkspaceTabsModel {
 			return {
 				...state,
 				tabs: state.tabs.map((item) =>
-					item.id === tab.id ? { ...tab, workspace } : item
+					item.id === tab.id
+						? {
+								...tab,
+								workspace,
+								name: workspace.repository?.name ?? tab.name,
+								branch: workspace.repository?.branch ?? tab.branch,
+							}
+						: item
 				),
 			};
 		}

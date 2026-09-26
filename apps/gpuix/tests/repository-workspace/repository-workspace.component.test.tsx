@@ -22,7 +22,7 @@ beforeEach(() => {
 		onKeyDown: windowOptions.onKeyDown,
 	});
 	root.renderer.clockPause();
-	root.render(<App initialTabCount={2} />);
+	root.render(<App preview initialTabCount={2} />);
 });
 afterEach(() => root.unmount());
 
@@ -461,7 +461,7 @@ it("selects file rows by pointer and keyboard, exposing selection and a truthful
 });
 
 it("fits four tab bodies at minimum width and reveals the selected tab's shoulders", () => {
-	root.render(<App key="wide-rail" initialTabCount={8} />);
+	root.render(<App preview key="wide-rail" initialTabCount={8} />);
 	click("entry-src/app.tsx");
 	const strip = bounds("workspace-tabs");
 	const fourth = bounds("slot-workspace-4");

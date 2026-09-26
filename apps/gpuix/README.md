@@ -5,6 +5,7 @@ is still available in `packages/gpuix-ui/example`.
 
 ```sh
 bun install
+bunx turbo run build --filter=@1git/gpuix
 bun run --cwd apps/gpuix build:native
 bun run --cwd apps/gpuix dev
 ```
@@ -59,7 +60,7 @@ The native setup remains app-owned, following the Turborepo workflow.
 - `src/app.tsx`: one window's in-memory tabs and per-tab workspace state.
 - `src/fixture/app-shell.tsx`: full-width toolbar and contained navigation/content composition.
 - `src/feature/workspace-tabs/`: tab UI, focus, scrolling, and pure state transitions.
-- `src/feature/repository-workspace/`: sample navigation views, row navigation, empty diff, and pure workspace transitions.
+- `src/feature/repository-workspace/`: repository picking/status reads, navigation views, empty diff, and pure workspace transitions.
 - `src/styles/tokens.ts`: shared desktop colors adapted to `gpuix-ui`.
 - `src/styles/workspace-layout.ts`: native chrome spacing; a 96px traffic-light area and 36px tabs in a 42px toolbar, preserving shared bottom spacing and control sizes.
 
@@ -110,14 +111,47 @@ does not register that font with GPUIX.
 - Closing the active tab selects the right neighbor, then the left. Closing the
   last tab leaves the white workspace and focuses +.
 
-The window temporarily starts with eight sample tabs to try scrolling and
-dragging immediately; + adds more. `1git / main` is sample metadata, not a
-detected Git repository. New workspaces are numbered in memory; restarting
-resets the preview. There is no
-repository picker, Git access, persistence, theme switch,
-or entrance/exit animation yet. Cmd+W remains the native Close Window command.
+The window starts with one empty workspace. + opens another empty tab so each
+repository keeps its own state. Nothing is restored after restarting. Cmd+W
+remains the native Close Window command. There is no theme switch or tab
+entrance/exit animation yet.
+
+## Opening a repository
+
+- Choose **Open repository…** and select a folder in the native directory picker.
+  A subfolder resolves to its Git root; linked worktrees and unborn/detached HEAD
+  are supported. Cancelling leaves the workspace unchanged. Invalid folders,
+  bare repositories, missing Git and read failures show an error with a retry.
+- The tab shows the repository name and branch. Changes uses the existing
+  `@1git/git` backend to read real status asynchronously: staged and unstaged
+  records share one row per path, including untracked files, deletions, renames,
+  conflicts and type changes. Ignored files are omitted. Accessible row labels
+  retain both index and worktree status. A clean tree has an explicit empty state.
+- Use the refresh icon beside the view pills after external edits. There is no
+  filesystem watcher or automatic polling yet. Refresh retains the draft, selected
+  path, and existing checkbox choices; removed paths disappear and new paths start
+  included. On failure the previous data stays visible with a stale-data notice.
+- Reads belong to their original tab, even after switching/reordering. Closing a
+  tab or unmounting cancels pending reads and ignores late picker/read results.
+- **Checkboxes are planned commit inclusion, not Git staging.** They neither stage
+  nor unstage files. The composer remains preview-only: Command+Enter/the button
+  never creates a commit, even with a connected repository. Drafts and inclusion
+  are in-memory only. Real diffs, History and Stashes are not connected yet; those
+  views never substitute sample records for live data.
+
+Git must be installed on PATH. The app imports the existing workspace Git package;
+the Turbo build/dev tasks build dependencies first. No Electron IPC is involved.
 
 ## Workspace preview
+
+To try the original sample layout, scrolling and dragging without opening Git:
+
+```sh
+GPUIX_PREVIEW=1 bun run --cwd apps/gpuix dev
+```
+
+This explicit mode starts with eight sample tabs. The behaviors below describe
+that preview; normal startup reads real Changes only after a repository is chosen.
 
 Workspace tabs span the titlebar after the traffic lights. Inside the rounded
 content container below, a 310px navigation pane holds compact Changes/History/Stashes
@@ -167,14 +201,15 @@ reuses the desktop's color tokens and Phosphor Light icons.
   Reordering preserves that state; closing a tab discards it. New tabs
   start fresh. Nothing is persisted across restarts.
 - Selection updates the diff header; the panel explicitly remains an empty
-  sample-data preview. No file reads, Git commands, staging, commits, or stash
-  mutations are performed.
+  sample-data preview. This mode performs no Git commands, staging, commits, or
+  stash mutations.
 
 ## Verification
 
 ```sh
 bun run --cwd apps/gpuix check-types
 bun run --cwd apps/gpuix test
+bun run --cwd apps/gpuix test:integration
 bun run --cwd apps/gpuix build
 bun x oxlint apps/gpuix
 bun x oxfmt --check apps/gpuix
@@ -193,3 +228,12 @@ GPUI events, not physical AppKit events: manually check that tab drags keep the
 window still and empty-titlebar drags move it after restarting the app.
 Offscreen screenshots do not capture macOS vibrancy; compare
 the running window on macOS when adjusting blur/material appearance.
+
+Connection component tests replace the OS picker and repository reader while
+exercising the real lifecycle and native UI. They cover cancellation, late results,
+loading/errors, refresh reconciliation and preview-only commits. The separate,
+uncached `test:integration` task uses the real Git CLI with disposable repositories
+to check mixed status, unusual filenames, nested folders, worktrees, clean/unborn
+HEAD and errors, and verifies staged content and HEAD are unchanged. It requires
+Git and writable temporary storage, but no graphics access or network. The
+physical native directory dialog still needs a manual check on macOS.

@@ -32,7 +32,7 @@ it("adds unique tabs without mutating the input and keeps the active tab on an i
 });
 
 it("seeds a multi-tab preview with the first tab active and fresh IDs for +", () => {
-	const state = Model.create(8);
+	const state = Model.create(8, true);
 
 	expect(state.tabs).toHaveLength(8);
 	expect(new Set(state.tabs.map((tab) => tab.id)).size).toBe(8);

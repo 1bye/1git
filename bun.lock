@@ -52,6 +52,7 @@
       "version": "0.0.1",
       "dependencies": {
         "@1git/design-tokens": "workspace:*",
+        "@1git/git": "workspace:*",
         "@1git/gpuix-stylesheet": "workspace:*",
         "@1git/gpuix-ui": "workspace:*",
         "@gpuix/native": "0.10.0",

@@ -1,7 +1,7 @@
 import { lightColors } from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 
-import type { WorkspaceEntry } from "../lib/sample-workspace";
+import type { WorkspaceEntry } from "../types";
 
 const addedColor = "#1a7f37";
 
@@ -9,6 +9,10 @@ const statusSymbols = {
 	M: '<circle cx="8" cy="8" r="1.5" fill="currentColor" stroke="none"/>',
 	A: '<path d="M5 8h6M8 5v6"/>',
 	D: '<path d="M5 8h6"/>',
+	R: '<path d="M5 8h6m-3-3 3 3-3 3"/>',
+	C: '<path d="M6 6h5v5H6zM4 9V4h5"/>',
+	U: '<path d="M8 5v4m0 2h.01"/>',
+	T: '<path d="M5 5h6M8 5v6"/>',
 };
 
 const styles = StyleSheet.create({

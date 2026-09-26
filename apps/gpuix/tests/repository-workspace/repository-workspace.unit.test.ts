@@ -11,7 +11,7 @@ import { sampleEntries } from "../../src/feature/repository-workspace/lib/sample
 import { WorkspaceTabsModel as Tabs } from "../../src/feature/workspace-tabs/lib/workspace-tabs-model";
 
 it("preserves draft text verbatim and requires a first-line summary and included files for preview", () => {
-	const initial = Model.create();
+	const initial = Model.create(true);
 	const value = "Refine navigation\n\nKeep the composer visible.\n";
 	const draft = Model.reduce(initial, { type: "edit-commit-message", value });
 
@@ -48,7 +48,7 @@ it("preserves draft text verbatim and requires a first-line summary and included
 });
 
 it("includes every changed file initially and changes inclusion independently of viewed files", () => {
-	const initial = Model.create();
+	const initial = Model.create(true);
 
 	const state = Model.reduce(initial, {
 		type: "include-file",
@@ -91,7 +91,7 @@ it("includes every changed file initially and changes inclusion independently of
 });
 
 it("remembers independent view selections and offsets without mutating the previous state", () => {
-	const initial = Model.create();
+	const initial = Model.create(true);
 
 	let state = Model.reduce(initial, {
 		type: "select",
@@ -117,11 +117,11 @@ it("remembers independent view selections and offsets without mutating the previ
 		selectedId: null,
 		scrollY: 0,
 	});
-	expect(Model.create().views).not.toBe(initial.views);
+	expect(Model.create(true).views).not.toBe(initial.views);
 });
 
 it("rejects invalid entries and scroll offsets and preserves identity for no-ops", () => {
-	const state = Model.create();
+	const state = Model.create(true);
 
 	expect(Model.reduce(state, { type: "view", view: "changes" })).toBe(state);
 	expect(
@@ -165,7 +165,7 @@ it("clamps row navigation and supports pages, Home, and End", () => {
 });
 
 it("scopes file selection and scrolling to the selected revision and resets them when it changes", () => {
-	const initial = Model.create();
+	const initial = Model.create(true);
 
 	expect(
 		Model.reduce(initial, {
@@ -236,7 +236,7 @@ it("scopes file selection and scrolling to the selected revision and resets them
 });
 
 it("clamps split proportions independently per view without disturbing selections", () => {
-	const initial = Model.create();
+	const initial = Model.create(true);
 
 	const state = Model.reduce(initial, {
 		type: "resize-revisions",
@@ -268,7 +268,7 @@ it("clamps split proportions independently per view without disturbing selection
 });
 
 it("keeps state attached to tab IDs across activation and reorder and removes it on close", () => {
-	let state = Tabs.create(2);
+	let state = Tabs.create(2, true);
 
 	state = Tabs.reduce(state, {
 		type: "workspace",
@@ -300,5 +300,5 @@ it("keeps state attached to tab IDs across activation and reorder and removes it
 		})
 	).toBe(state);
 	state = Tabs.reduce(state, { type: "add" });
-	expect(state.tabs.at(-1)?.workspace).toEqual(Model.create());
+	expect(state.tabs.at(-1)?.workspace).toEqual(Model.create(true));
 });

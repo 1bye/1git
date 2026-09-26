@@ -12,7 +12,7 @@ import {
 	RepositoryWorkspaceModel,
 	type RepositoryListState,
 } from "../lib/repository-workspace-model";
-import type { WorkspaceEntry } from "../lib/sample-workspace";
+import type { WorkspaceEntry } from "../types";
 import { RepositoryChangeLabel } from "./repository-change-details";
 import { appTokens } from "../../../styles/tokens";
 
@@ -117,7 +117,7 @@ function RepositoryRow({
 				role={onInclude ? "gridcell" : "option"}
 				aria-label={
 					entry.status
-						? `${entry.title}, ${entry.status === "A" ? "added" : entry.status === "D" ? "deleted" : "modified"}`
+						? `${entry.title}, ${entry.statusDescription ?? (entry.status === "A" ? "added" : entry.status === "D" ? "deleted" : "modified")}`
 						: entry.title
 				}
 				aria-selected={selected}
@@ -219,6 +219,10 @@ export function RepositoryList({
 	const initialScroll = useRef(state.scrollY);
 
 	const [focusId, setFocusId] = useState(state.selectedId ?? entries[0]?.id);
+
+	const tabbableId = entries.some((entry) => entry.id === focusId)
+		? focusId
+		: (state.selectedId ?? entries[0]?.id);
 
 	useEffect(() => {
 		if (viewport.current)
@@ -328,7 +332,7 @@ export function RepositoryList({
 								? (included) => inclusion.onChange(entry.id, included)
 								: undefined
 						}
-						tabbable={focusId === entry.id}
+						tabbable={tabbableId === entry.id}
 						rowRef={(node) => {
 							if (node) rows.current.set(entry.id, node);
 							else rows.current.delete(entry.id);

@@ -13,7 +13,7 @@ import {
 	type RepositoryWorkspaceAction,
 	type RepositoryWorkspaceState,
 } from "../lib/repository-workspace-model";
-import type { RevisionView } from "../lib/sample-workspace";
+import type { RevisionView } from "../types";
 import { RepositoryList } from "./repository-list";
 
 const dividerHeight = 9;

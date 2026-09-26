@@ -26,7 +26,7 @@ function App({ initialTabCount = 1 }: { initialTabCount?: number }) {
 	const [state, dispatch] = useReducer(
 		WorkspaceTabsModel.reduce,
 		initialTabCount,
-		WorkspaceTabsModel.create
+		(count) => WorkspaceTabsModel.create(count, true)
 	);
 
 	const active = state.tabs.find((tab) => tab.id === state.activeId);
@@ -307,6 +307,7 @@ it("keeps long repository and branch labels on one line clear of the close targe
 	root.render(
 		<WorkspaceTabs
 			state={{
+				preview: true,
 				tabs: [
 					{
 						id: "long",
