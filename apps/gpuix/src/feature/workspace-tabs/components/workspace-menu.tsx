@@ -159,6 +159,8 @@ export interface WorkspaceMenuActions {
 		id: string,
 		choice: Pick<BranchRequest, "kind" | "name">
 	) => Promise<string | null>;
+	onFetch?: (id: string) => Promise<void>;
+	onCancelFetch?: (id: string) => void;
 }
 
 /** An attached workspace picker: branch writes stay with the window, not this transient surface. */
@@ -170,6 +172,8 @@ export function WorkspaceMenu({
 	readBranches,
 	readRepository,
 	onChangeBranch,
+	onFetch,
+	onCancelFetch,
 }: WorkspaceMenuActions & {
 	tab: WorkspaceTabRecord;
 	anchor: PublicInstance | undefined;
@@ -200,6 +204,15 @@ export function WorkspaceMenu({
 	const branch = repository?.branchName;
 	const busy = opening || RepositoryWorkspaceModel.isBusy(tab.workspace);
 
+	const {
+		pending: fetching,
+		version: fetchVersion,
+		fetchedAt,
+		error: fetchError,
+	} = tab.workspace.fetch;
+
+	const showFetch = !!onFetch && !!onCancelFetch;
+
 	const blocked =
 		tab.workspace.entries.changes.length > 0 ||
 		repository?.operation !== "normal" ||
@@ -217,7 +230,7 @@ export function WorkspaceMenu({
 	}, []);
 
 	useEffect(() => {
-		if (!root) return;
+		if (!root || fetching) return;
 
 		const controller = new AbortController();
 
@@ -242,7 +255,7 @@ export function WorkspaceMenu({
 		void load();
 
 		return () => controller.abort();
-	}, [root, head, branch, readBranches]);
+	}, [root, head, branch, readBranches, fetching, fetchVersion]);
 
 	const branches = WorkspaceMenuModel.recentBranches(data?.branches);
 
@@ -253,6 +266,16 @@ export function WorkspaceMenu({
 	const hasMore = branches.length > recentBranchCount;
 	const currentBranch = branches.find((item) => item.name === branch);
 	const canCreate = !busy && !blocked && data !== null;
+
+	const canFetch =
+		showFetch && !busy && !tab.workspace.loading && !!data?.remotes.length;
+
+	let fetchStatus = "";
+
+	if (fetching) fetchStatus = "Cancel";
+	else if (data && !data.remotes.length) fetchStatus = "No remote";
+	else if (fetchedAt)
+		fetchStatus = `Fetched ${WorkspaceMenuModel.commitAge(new Date(fetchedAt).toISOString())}`;
 
 	const worktrees =
 		data?.worktrees.filter((item) => item.path !== root && !item.prunable) ??
@@ -273,13 +296,13 @@ export function WorkspaceMenu({
 
 	if (canCreate) enabledIds.push("create-branch");
 
+	if (showFetch && (fetching || canFetch)) enabledIds.push("fetch-repository");
+
 	const notice =
 		error ??
-		(busy
-			? "Updating workspace…"
-			: blocked
-				? "Commit or stash changes and resolve any Git operation before switching. Refresh if needed."
-				: null);
+		fetchError ??
+		tab.workspace.error ??
+		(busy && !fetching ? "Updating workspace…" : null);
 
 	// Fixed header/action rows surround a scrollable list; the expanded menu stays inside the window.
 	const contentHeight = creating
@@ -288,6 +311,7 @@ export function WorkspaceMenu({
 			headerHeight +
 			separatorHeight * 2 +
 			rowHeight +
+			(showFetch ? separatorHeight + rowHeight : 0) +
 			Math.max(1, visibleBranches.length + worktrees.length) * rowHeight +
 			(hasMore ? rowHeight : 0) +
 			(worktrees.length ? sectionLabelHeight : 0);
@@ -337,7 +361,12 @@ export function WorkspaceMenu({
 		if (node) {
 			renderer.focusElement?.(node.id);
 
-			if (!list.current || next === "create-branch") return;
+			if (
+				!list.current ||
+				next === "create-branch" ||
+				next === "fetch-repository"
+			)
+				return;
 
 			const viewport = renderer.getElementBounds?.(list.current.id);
 			const target = renderer.getElementBounds?.(node.id);
@@ -668,6 +697,48 @@ export function WorkspaceMenu({
 									Create new branch…
 								</Text>
 							</Button>
+							{showFetch ? (
+								<>
+									<div style={styles.separator} />
+									<Button
+										testId="fetch-repository"
+										ref={(node) => {
+											if (node) rows.current.set("fetch-repository", node);
+											else rows.current.delete("fetch-repository");
+										}}
+										tokens={appTokens}
+										variant="ghost"
+										size="sm"
+										style={styles.row}
+										disabled={!fetching && !canFetch}
+										aria-label={fetching ? "Cancel fetch" : "Fetch all remotes"}
+										aria-description={
+											data && !data.remotes.length
+												? "No remote configured"
+												: "Refresh remote refs without changing your files or local branch"
+										}
+										onPress={() => {
+											if (fetching) onCancelFetch?.(tab.id);
+											else {
+												setError(null);
+												void onFetch?.(tab.id);
+											}
+										}}
+									>
+										<WorkspaceTabIcon name={fetching ? "close" : "sync"} />
+										<Text tokens={appTokens} style={styles.label}>
+											{fetching ? "Fetching…" : "Fetch"}
+										</Text>
+										<Text
+											testId="fetch-status"
+											tokens={appTokens}
+											style={styles.detail}
+										>
+											{fetchStatus}
+										</Text>
+									</Button>
+								</>
+							) : null}
 						</>
 					)}
 					{notice ? (

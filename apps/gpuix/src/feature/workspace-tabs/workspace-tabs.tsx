@@ -70,6 +70,8 @@ export function WorkspaceTabs({
 	readBranches,
 	readRepository,
 	onChangeBranch,
+	onFetch,
+	onCancelFetch,
 }: {
 	state: WorkspaceTabsState;
 	dispatch: Dispatch<WorkspaceTabsAction>;
@@ -283,6 +285,8 @@ export function WorkspaceTabs({
 									readBranches={readBranches}
 									readRepository={readRepository}
 									onChangeBranch={onChangeBranch}
+									onFetch={onFetch}
+									onCancelFetch={onCancelFetch}
 									onClose={() => {
 										setMenuId(null);
 										focusRequested.current = true;

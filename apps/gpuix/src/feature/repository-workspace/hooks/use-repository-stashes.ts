@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { RepositoryStashes } from "../lib/repository-stashes";
-import type {
-	RepositoryWorkspaceAction,
-	RepositoryWorkspaceState,
+import {
+	RepositoryWorkspaceModel,
+	type RepositoryWorkspaceAction,
+	type RepositoryWorkspaceState,
 } from "../lib/repository-workspace-model";
 
 /** Reads the active stash view lazily; tab state owns snapshots and refresh generations. */
@@ -17,8 +18,7 @@ export function useRepositoryStashes(
 	const active =
 		state?.view === "stashes" &&
 		!state.loading &&
-		!state.commit.pending &&
-		!state.branchPending &&
+		!RepositoryWorkspaceModel.isBusy(state) &&
 		!state.preview;
 
 	const root = active ? state.repository?.root : undefined;

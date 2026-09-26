@@ -44,6 +44,12 @@ export interface RepositoryRevisionState extends RepositoryListState {
 export interface RepositoryWorkspaceState {
 	readonly preview: boolean;
 	readonly branchPending: boolean;
+	readonly fetch: {
+		readonly pending: boolean;
+		readonly error: string | null;
+		readonly fetchedAt: number | null;
+		readonly version: number;
+	};
 	readonly entries: WorkspaceEntries;
 	readonly repository: {
 		readonly root: string;
@@ -85,6 +91,14 @@ export interface RepositoryWorkspaceState {
 
 /** Presentation transitions; no filesystem, Git mutations, or persistent storage effects. */
 export type RepositoryWorkspaceAction =
+	| { type: "fetch-started" }
+	| {
+			type: "fetch-finished";
+			snapshot?: RepositorySnapshot;
+			error: string | null;
+			fetchedAt: number | null;
+			refreshError?: string;
+	  }
 	| { type: "branch-started" }
 	| { type: "branch-finished"; snapshot?: RepositorySnapshot; error?: string }
 	| { type: "commit-started" }
@@ -163,6 +177,7 @@ export class RepositoryWorkspaceModel {
 		return {
 			preview,
 			branchPending: false,
+			fetch: { pending: false, error: null, fetchedAt: null, version: 0 },
 			entries,
 			repository: null,
 			commit: { pending: false, error: null, notice: null, needsReview: false },
@@ -246,13 +261,44 @@ export class RepositoryWorkspaceModel {
 	}
 
 	static isBusy(state: RepositoryWorkspaceState): boolean {
-		return state.commit.pending || state.branchPending;
+		return state.commit.pending || state.branchPending || state.fetch.pending;
 	}
 
 	static reduce(
 		state: RepositoryWorkspaceState,
 		action: RepositoryWorkspaceAction
 	): RepositoryWorkspaceState {
+		if (action.type === "fetch-started")
+			return {
+				...state,
+				loading: false,
+				fetch: { ...state.fetch, pending: true, error: null },
+			};
+
+		if (action.type === "fetch-finished") {
+			const next = {
+				...state,
+				fetch: {
+					pending: false,
+					error: action.error,
+					fetchedAt: action.fetchedAt ?? state.fetch.fetchedAt,
+					version: state.fetch.version + 1,
+				},
+			};
+
+			const refreshed = action.snapshot
+				? RepositoryWorkspaceModel.reduce(next, {
+						type: "loaded",
+						snapshot: action.snapshot,
+						automatic: true,
+					})
+				: next;
+
+			return action.refreshError
+				? { ...refreshed, error: action.refreshError }
+				: refreshed;
+		}
+
 		if (action.type === "branch-started")
 			return { ...state, branchPending: true, loading: false };
 
@@ -571,6 +617,9 @@ export class RepositoryWorkspaceModel {
 				loading: false,
 				error: null,
 				watchError: sameRepository ? state.watchError : null,
+				fetch: sameRepository
+					? state.fetch
+					: { pending: false, error: null, fetchedAt: null, version: 0 },
 				repository: {
 					root: snapshot.repository.root,
 					gitDirectory: snapshot.repository.gitDirectory,

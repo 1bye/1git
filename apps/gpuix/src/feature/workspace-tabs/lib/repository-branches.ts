@@ -3,12 +3,14 @@ import {
 	type BranchCollection,
 	type BranchMutationResult,
 	type GitResult,
+	type RemoteInfo,
 	type WorktreeInfo,
 } from "@1git/git";
 
 export interface WorkspaceBranches {
 	readonly branches: BranchCollection;
 	readonly worktrees: readonly WorktreeInfo[];
+	readonly remotes: readonly RemoteInfo[];
 }
 
 export interface BranchRequest {
@@ -30,18 +32,25 @@ export class RepositoryBranches {
 
 		if (!opened.ok) return opened;
 
-		const [branches, worktrees] = await Promise.all([
+		const [branches, worktrees, remotes] = await Promise.all([
 			opened.value.getBranches({ signal }),
 			opened.value.getWorktrees({ signal }),
+			opened.value.getRemotes({ signal }),
 		]);
 
 		if (!branches.ok) return branches;
 
 		if (!worktrees.ok) return worktrees;
 
+		if (!remotes.ok) return remotes;
+
 		return {
 			ok: true,
-			value: { branches: branches.value, worktrees: worktrees.value },
+			value: {
+				branches: branches.value,
+				worktrees: worktrees.value,
+				remotes: remotes.value,
+			},
 		};
 	}
 

@@ -1,16 +1,17 @@
 /**
- * Covers: compact recent-branch menus, inline creation, lifted tab/backdrop geometry, keyboard navigation and worktree tabs.
+ * Covers: branch menus, inline creation, keyboard navigation, worktree tabs, cancellable fetch and shared sync status.
  * Real: App, reducers, window-owned mutation coordination, GPUIX layout and events.
  * Doubles: Git boundaries and folder picker, with isolated in-memory repository snapshots.
  * Requires: patched GPUIX renderer and macOS graphics access.
  */
 import { afterEach, beforeEach, expect, it, mock, spyOn } from "bun:test";
 import { createTestRoot, type TestRoot } from "@gpuix/react/testing";
-import type { BranchInfo, RepositorySnapshot } from "@1git/git";
+import type { BranchInfo, RemoteInfo, RepositorySnapshot } from "@1git/git";
 import { App } from "../../src/app";
 import { windowOptions } from "../../src/window-options";
 import { RepositoryBranches } from "../../src/feature/workspace-tabs/lib/repository-branches";
 import type { RepositoryReader } from "../../src/feature/repository-workspace/lib/repository-reader";
+import type { RepositorySync } from "../../src/feature/repository-workspace/lib/repository-sync";
 import {
 	repositorySnapshot,
 	changedFile,
@@ -18,6 +19,14 @@ import {
 
 let root: TestRoot;
 let snapshot: RepositorySnapshot;
+let remotes: readonly RemoteInfo[];
+
+const origin: RemoteInfo = {
+	name: "origin",
+	fetchUrls: ["/test/remote"],
+	pushUrls: ["/test/remote"],
+	defaultBranch: "main",
+};
 
 const branch = (
 	name: string,
@@ -39,7 +48,12 @@ const branch = (
 
 const collection = () => ({
 	branches: [
-		branch("main", "/test/project"),
+		{
+			...branch("main", "/test/project"),
+			upstream: snapshot.head.upstream,
+			ahead: snapshot.head.ahead,
+			behind: snapshot.head.behind,
+		},
 		branch("feature/ui"),
 		branch("feature/linked", "/test/linked"),
 	],
@@ -50,6 +64,7 @@ const readBranches = mock<typeof RepositoryBranches.read>(async () => ({
 	ok: true,
 	value: {
 		branches: collection(),
+		remotes,
 		worktrees: [
 			{
 				path: "/test/linked",
@@ -88,11 +103,23 @@ const writeBranch = mock<typeof RepositoryBranches.write>(
 	}
 );
 
+const fetchRepository = mock<typeof RepositorySync.fetch>(async () => ({
+	ok: true,
+	value: {
+		operation: "fetch",
+		remote: null,
+		branch: snapshot.head.branch,
+		snapshot,
+	},
+}));
+
 beforeEach(() => {
 	snapshot = repositorySnapshot();
+	remotes = [];
 	readBranches.mockClear();
 	readRepository.mockClear();
 	writeBranch.mockClear();
+	fetchRepository.mockClear();
 	root = createTestRoot({
 		width: 980,
 		height: 640,
@@ -149,6 +176,8 @@ const open = async (): Promise<void> => {
 			readRepository={readRepository}
 			readBranches={readBranches}
 			writeBranch={writeBranch}
+			fetchRepository={fetchRepository}
+			readDiff={async () => ({ ok: true, value: [] })}
 		/>
 	);
 	click("open-repository");
@@ -243,6 +272,7 @@ it("shows the three newest local branches and expands, scrolls, and collapses th
 				],
 			},
 			worktrees: [],
+			remotes: [],
 		},
 	}));
 	await open();
@@ -314,7 +344,11 @@ it("replaces the actions with an inline form and returns with Cancel or Escape w
 it("keeps empty and failed branch lists dismissible", async () => {
 	readBranches.mockImplementationOnce(async () => ({
 		ok: true,
-		value: { branches: { branches: [], current: null }, worktrees: [] },
+		value: {
+			branches: { branches: [], current: null },
+			worktrees: [],
+			remotes: [],
+		},
 	}));
 	snapshot = { ...snapshot, head: { ...snapshot.head, branch: null } };
 	await open();
@@ -353,16 +387,25 @@ it("opens an existing worktree and reuses its tab on a second open", async () =>
 	expect(writeBranch).not.toHaveBeenCalled();
 });
 
-it("blocks dirty-tree switching and branches already checked out elsewhere", async () => {
+it("keeps unsafe actions disabled without a persistent explanation or empty footer", async () => {
 	snapshot = repositorySnapshot([changedFile("a.txt")]);
 	await open();
 	await menu();
 	click("branch-feature/ui");
 	click("branch-feature/linked");
+	click("create-branch");
 	expect(writeBranch).not.toHaveBeenCalled();
-	expect(root.renderer.getAllText().join(" ")).toContain(
+	expect(root.renderer.findByTestId("branch-name")).toBeUndefined();
+	expect(root.renderer.findByTestId("branch-notice")).toBeUndefined();
+	expect(root.renderer.getAllText().join(" ")).not.toContain(
 		"Commit or stash changes"
 	);
+	const menuBox = bounds("workspace-menu");
+	const action = bounds("fetch-repository");
+
+	expect(
+		menuBox.y + menuBox.height - action.y - action.height
+	).toBeLessThanOrEqual(6);
 	click("add-workspace");
 	await settle();
 	expect(root.renderer.findByTestId("workspace-menu")).toBeUndefined();
@@ -530,4 +573,226 @@ it("opens with Down, wraps Up to the final action, and dismisses with Tab", asyn
 	expect(root.renderer.getFocusedElementId()).toBe(
 		element("close-workspace-1").id
 	);
+});
+
+it("does not fetch on open and disables Fetch when no remote is configured", async () => {
+	await open();
+	await menu();
+	expect(root.renderer.getAllText()).toContain("No remote");
+	click("fetch-repository");
+	await settle();
+	expect(fetchRepository).not.toHaveBeenCalled();
+});
+
+it("fetches a dirty repository explicitly and refreshes tracking without losing drafts or inclusion", async () => {
+	remotes = [origin];
+	snapshot = repositorySnapshot([changedFile("a.ts"), changedFile("b.ts")]);
+	fetchRepository.mockImplementationOnce(async () => {
+		snapshot = {
+			...snapshot,
+			head: { ...snapshot.head, upstream: "origin/main", ahead: 2, behind: 3 },
+		};
+
+		return {
+			ok: true,
+			value: { operation: "fetch", remote: null, branch: "main", snapshot },
+		};
+	});
+	await open();
+	click("include-b.ts");
+	click("entry-b.ts");
+	click("commit-message");
+	root.renderer.simulateKeystrokes("d r a f t");
+	await menu();
+	expect(fetchRepository).not.toHaveBeenCalled();
+	root.renderer.simulateKeystrokes("up");
+	await settle();
+	expect(root.renderer.getFocusedElementId()).toBe(
+		element("fetch-repository").id
+	);
+	root.renderer.simulateKeystrokes("enter");
+	await settle();
+	await settle();
+	expect(fetchRepository).toHaveBeenCalledTimes(1);
+	expect(fetchRepository.mock.calls[0]?.[0]).toBe("/test/project");
+	expect(readRepository).toHaveBeenCalledTimes(2);
+	expect(root.renderer.getAllText()).toContain(
+		"origin/main · 2 ahead · 3 behind"
+	);
+	expect(root.renderer.getAllText()).toContain("Fetched just now");
+	expect(element("workspace-menu")).toBeTruthy();
+	root.renderer.simulateKeystrokes("escape");
+	await settle();
+	expect(element("commit-message").customProps?.value).toBe("draft");
+	expect(element("include-b.ts").customProps?.["aria-checked"]).toBe(false);
+	expect(element("entry-b.ts").customProps?.["aria-selected"]).toBe(true);
+	expect(root.renderer.getAllText()).toContain(" / main");
+	expect(writeBranch).not.toHaveBeenCalled();
+});
+
+it("keeps fetch alive across menu dismissal, locks related worktrees and cancels from either tab", async () => {
+	remotes = [origin];
+	const pending =
+		Promise.withResolvers<Awaited<ReturnType<typeof RepositorySync.fetch>>>();
+
+	fetchRepository.mockImplementationOnce(() => pending.promise);
+	await open();
+	await menu();
+	click("worktree-/test/linked");
+	await settle();
+	click("workspace-1");
+	await settle();
+	await menu();
+	click("fetch-repository");
+	await settle();
+	expect(root.renderer.getAllText()).toContain("Fetching…");
+	const signal = fetchRepository.mock.calls[0]?.[1];
+
+	expect(signal?.aborted).toBe(false);
+	root.renderer.simulateKeystrokes("escape");
+	await settle();
+	click("close-workspace-1");
+	await settle();
+	expect(element("workspace-1")).toBeTruthy();
+	click("workspace-2");
+	await settle();
+	click("close-workspace-2");
+	await settle();
+	expect(element("workspace-2")).toBeTruthy();
+	click("workspace-2");
+	await settle();
+	expect(root.renderer.getAllText()).toContain("Fetching…");
+	click("create-branch");
+	expect(root.renderer.findByTestId("branch-name")).toBeUndefined();
+	click("fetch-repository");
+	expect(signal?.aborted).toBe(true);
+	expect(fetchRepository).toHaveBeenCalledTimes(1);
+	pending.resolve({
+		ok: false,
+		error: {
+			code: "aborted",
+			operation: "fetch",
+			message: "Aborted",
+			retryable: true,
+		},
+	});
+	await settle();
+	await settle();
+	expect(root.renderer.getAllText()).toContain("Fetch cancelled.");
+	expect(root.renderer.getAllText()).not.toContain("Fetched just now");
+	expect(readRepository.mock.calls.map(([path]) => path)).toEqual(
+		expect.arrayContaining(["/test/project", "/test/linked"])
+	);
+	root.renderer.simulateKeystrokes("escape");
+	await settle();
+	click("workspace-1");
+	await settle();
+	await menu();
+	expect(root.renderer.getAllText()).toContain("Fetch cancelled.");
+	click("fetch-repository");
+	await settle();
+	await settle();
+	expect(fetchRepository).toHaveBeenCalledTimes(2);
+	expect(root.renderer.getAllText()).toContain("Fetched just now");
+});
+
+it("retains fetch failures on reopen, refreshes partial results and permits an explicit retry", async () => {
+	remotes = [origin];
+	fetchRepository.mockImplementationOnce(async () => {
+		snapshot = {
+			...snapshot,
+			head: { ...snapshot.head, upstream: "origin/main", behind: 1 },
+		};
+
+		return {
+			ok: false,
+			error: {
+				code: "authentication-required",
+				operation: "fetch",
+				message: "Authentication required for one remote.",
+				retryable: true,
+			},
+		};
+	});
+	await open();
+	await menu();
+	click("fetch-repository");
+	await settle();
+	await settle();
+	expect(root.renderer.getAllText()).toContain(
+		"Authentication required for one remote."
+	);
+	expect(root.renderer.getAllText()).toContain("origin/main · 1 behind");
+	expect(root.renderer.getAllText()).not.toContain("Fetched just now");
+	root.renderer.simulateKeystrokes("escape");
+	await settle();
+	await menu();
+	expect(root.renderer.getAllText()).toContain(
+		"Authentication required for one remote."
+	);
+	expect(fetchRepository).toHaveBeenCalledTimes(1);
+	click("fetch-repository");
+	await settle();
+	await settle();
+	expect(fetchRepository).toHaveBeenCalledTimes(2);
+	expect(root.renderer.findByTestId("branch-notice")).toBeUndefined();
+	expect(root.renderer.getAllText()).toContain("Fetched just now");
+});
+
+it("aborts a pending fetch when its window unmounts", async () => {
+	remotes = [origin];
+	const pending =
+		Promise.withResolvers<Awaited<ReturnType<typeof RepositorySync.fetch>>>();
+
+	fetchRepository.mockImplementationOnce(() => pending.promise);
+	await open();
+	await menu();
+	click("fetch-repository");
+	await settle();
+	const signal = fetchRepository.mock.calls[0]?.[1];
+
+	root.unmount();
+	expect(signal?.aborted).toBe(true);
+	pending.resolve({
+		ok: false,
+		error: {
+			code: "aborted",
+			operation: "fetch",
+			message: "Aborted",
+			retryable: true,
+		},
+	});
+	await Bun.sleep(0);
+	expect(readRepository).toHaveBeenCalledTimes(1);
+});
+
+it("reports a failed post-fetch refresh without treating the successful fetch as a failure or enabling branch writes", async () => {
+	remotes = [origin];
+	await open();
+	await menu();
+	readRepository.mockImplementationOnce(async () => ({
+		ok: false,
+		error: {
+			code: "command-failed",
+			operation: "get-snapshot",
+			message: "Status could not be refreshed.",
+			retryable: true,
+		},
+	}));
+	click("fetch-repository");
+	await settle();
+	await settle();
+	expect(root.renderer.getAllText()).toContain(
+		"Status could not be refreshed."
+	);
+	expect(root.renderer.getAllText()).toContain("Fetched just now");
+	click("branch-feature/ui");
+	expect(writeBranch).not.toHaveBeenCalled();
+	root.renderer.simulateKeystrokes("escape");
+	await settle();
+	click("refresh-repository");
+	await settle();
+	await menu();
+	expect(root.renderer.findByTestId("branch-notice")).toBeUndefined();
+	expect(root.renderer.getAllText()).toContain("Fetched just now");
 });

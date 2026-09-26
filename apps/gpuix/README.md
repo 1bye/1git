@@ -151,7 +151,7 @@ The compact desktop-style menu shows the current branch/upstream, three local
 branches ordered by latest commit, relative commit ages, and a More row to expand
 the scrollable list. Existing worktrees remain available below the branches.
 Create new branch opens an inline form; Cancel/Escape returns to the actions.
-There is no permanent search field or Close footer. Rename/delete/upstream/sync
+There is no permanent search field or Close footer. Rename/delete/upstream/Pull/Push
 actions stay hidden until their GPUIX workflows are implemented.
 Up/Down moves through enabled rows, Enter activates, and Escape/outside-click dismisses the menu.
 Keyboard dismissal returns focus to the tab; Tab dismisses and continues traversal.
@@ -171,6 +171,26 @@ This is not a port of the Electron liquid SVG morph.
   closing affected tabs while writing. A fresh snapshot updates every matching
   tab after success or failure, preserving drafts. Failed refresh blocks further
   writes until the user refreshes successfully.
+
+### Fetch and sync status
+
+- **Fetch** is an explicit action in the tab menu. It uses `@1git/git` to fetch
+  configured remotes, including with uncommitted changes. Opening a menu or
+  refreshing local status never contacts a remote. No remote means a disabled
+  action, not a successful no-op.
+- The menu shows **Fetching… / Cancel**, the time of the last successful fetch,
+  and current upstream/ahead/behind counts. These counts describe the last known
+  remote refs; Fetch updates them. The action survives dismissing the menu;
+  errors stay available when it reopens, and retry is explicit.
+- Fetch uses existing Git credentials and a two-minute deadline. Cancellation
+  aborts the Git request; closing the window also aborts it. No sign-in UI,
+  background fetch schedule, Pull, Push, force, or automatic stash is added.
+- During fetch, affected tabs pause repository reads and block competing writes
+  and tab closure. Tabs sharing the same Git common directory, including linked
+  worktrees, share the pending operation and last-fetch status. Every open root
+  is refreshed afterward, even on failure/cancellation because some remotes may
+  already have updated. Drafts, file inclusion, and local branches are retained.
+  A failed status refresh blocks writes until a successful manual refresh.
 
 ## Opening a repository
 
@@ -479,6 +499,12 @@ GPUI events, not physical AppKit events: manually check that tab drags keep the
 window still and empty-titlebar drags move it after restarting the app.
 Offscreen screenshots do not capture macOS vibrancy; compare
 the running window on macOS when adjusting blur/material appearance.
+
+Fetch tests exercise native menu/keyboard activation, dirty-tree fetching,
+cancellation across worktree tabs, retry, pending locks, refresh failures and
+window cleanup. Offline Git fixtures use a temporary bare remote and clones to
+verify tracking updates with unchanged HEAD, index bytes, and working files.
+They do not exercise hosted authentication or a real network connection.
 
 Connection component tests replace the OS picker and repository/diff readers while
 exercising the real lifecycle and native UI. They cover cancellation, late results,

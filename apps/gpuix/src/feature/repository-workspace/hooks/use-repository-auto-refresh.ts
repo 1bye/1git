@@ -12,7 +12,10 @@ import type {
 import type { RepositoryReader } from "../lib/repository-reader";
 import { RepositoryRefresh } from "../lib/repository-refresh";
 import type { RepositoryWatcher } from "../lib/repository-watcher";
-import type { RepositoryWorkspaceAction } from "../lib/repository-workspace-model";
+import {
+	RepositoryWorkspaceModel,
+	type RepositoryWorkspaceAction,
+} from "../lib/repository-workspace-model";
 
 /** Shares one watcher/read queue per root, suspending it for any tab's explicit read or write. */
 export function useRepositoryAutoRefresh(
@@ -39,8 +42,7 @@ export function useRepositoryAutoRefresh(
 				state.tabs.some(
 					(tab) =>
 						tab.workspace.repository?.root === root &&
-						(tab.workspace.commit.pending ||
-							tab.workspace.branchPending ||
+						(RepositoryWorkspaceModel.isBusy(tab.workspace) ||
 							tab.workspace.loading)
 				)
 			);
@@ -124,8 +126,7 @@ export function useRepositoryAutoRefresh(
 					(tab) =>
 						tab.workspace.repository?.root === root &&
 						(tab.workspace.loading ||
-							tab.workspace.branchPending ||
-							tab.workspace.commit.pending)
+							RepositoryWorkspaceModel.isBusy(tab.workspace))
 				)
 			);
 			const stop = watchRepository(

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { RepositoryHistory } from "../lib/repository-history";
-import type {
-	RepositoryWorkspaceAction,
-	RepositoryWorkspaceState,
+import {
+	RepositoryWorkspaceModel,
+	type RepositoryWorkspaceAction,
+	type RepositoryWorkspaceState,
 } from "../lib/repository-workspace-model";
 
 /** Loads only the active tab/view; completed pages and file lists live in workspace state. */
@@ -17,8 +18,7 @@ export function useRepositoryHistory(
 	const active =
 		state?.view === "history" &&
 		!state.loading &&
-		!state.commit.pending &&
-		!state.branchPending &&
+		!RepositoryWorkspaceModel.isBusy(state) &&
 		!state.preview;
 
 	const root = active ? state.repository?.root : undefined;

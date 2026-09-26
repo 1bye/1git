@@ -15,6 +15,7 @@ import { useRepositoryConnection } from "./feature/repository-workspace/hooks/us
 import { useRepositoryMutations } from "./feature/repository-workspace/hooks/use-repository-mutations";
 import { RepositoryBranches } from "./feature/workspace-tabs/lib/repository-branches";
 import { RepositoryCommit } from "./feature/repository-workspace/lib/repository-commit";
+import { RepositorySync } from "./feature/repository-workspace/lib/repository-sync";
 import {
 	RepositoryWorkspaceModel,
 	type RepositoryWorkspaceAction,
@@ -36,6 +37,7 @@ export function App({
 	writeCommit = RepositoryCommit.write,
 	readBranches = RepositoryBranches.read,
 	writeBranch = RepositoryBranches.write,
+	fetchRepository = RepositorySync.fetch,
 	watchRepository,
 }: {
 	initialTabCount?: number;
@@ -49,6 +51,7 @@ export function App({
 	writeCommit?: typeof RepositoryCommit.write;
 	readBranches?: typeof RepositoryBranches.read;
 	writeBranch?: typeof RepositoryBranches.write;
+	fetchRepository?: typeof RepositorySync.fetch;
 	watchRepository?: typeof RepositoryWatcher.watch;
 }) {
 	const [state, dispatch] = useReducer(
@@ -65,7 +68,8 @@ export function App({
 		dispatch,
 		writeCommit,
 		writeBranch,
-		readRepository
+		readRepository,
+		fetchRepository
 	);
 
 	useRepositoryAutoRefresh(state, dispatch, readRepository, watchRepository);
@@ -141,6 +145,8 @@ export function App({
 					readBranches={readBranches}
 					readRepository={readRepository}
 					onChangeBranch={mutations.changeBranch}
+					onFetch={mutations.fetch}
+					onCancelFetch={mutations.cancelFetch}
 				/>
 			}
 			workspaceLabel={
