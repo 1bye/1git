@@ -223,6 +223,16 @@ Reading a diff never stages, unstages, discards or commits changes.
   The subtle transparency checkerboard is composed into preview pixels only,
   never the source file. Saxes validates SVG XML before decoding. No WebView or
   browser renderer is introduced and no native GPUIX rebuild is required.
+- SVGs rasterize from vectors at the fitted viewport resolution, not their small
+  intrinsic bitmap size. GPUIX 0.10 exposes logical bounds but no display scale;
+  this macOS app uses a bounded **2× backing** for both Retina and 1× displays.
+  Bounds are sampled every 100 ms, then rendering waits for 100 ms of stable size.
+  Each visible side permits one decode at a time and discards obsolete results.
+  A sharp initial preview remains visible while the fitted version is prepared.
+  Validated SVG source stays with the selected image; resizing does not reread Git.
+  The original dimensions remain in the header, and checker squares stay about
+  eight logical pixels wide (rounded to backing pixels). Preview/Source changes
+  and unmount stop sampling and cancel pending work.
 - Limits: **8 MiB input**, **16 megapixels**, **8192 px per side**, and a maximum
   **2048 px preview edge**. SVG additionally allows at most **512 KiB / 10,000
   elements**. Sharp retains its decoder safety checks and a three-second pixel

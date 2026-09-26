@@ -1,6 +1,7 @@
 import { lightColors } from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 
+import { useSvgPreview } from "../hooks/use-svg-preview";
 import type {
 	RepositoryImageComparison,
 	RepositoryImageSide,
@@ -88,6 +89,7 @@ function ImageVersion({
 	path: string;
 }) {
 	const { image, error } = side;
+	const preview = useSvgPreview(image);
 
 	return (
 		<div
@@ -108,11 +110,15 @@ function ImageVersion({
 					{label}
 				</text>
 			</div>
-			<div testId={`image-${version}-viewport`} style={styles.viewport}>
+			<div
+				ref={preview.viewport}
+				testId={`image-${version}-viewport`}
+				style={styles.viewport}
+			>
 				{image ? (
 					<img
 						testId={`image-${version}-pixels`}
-						src={image.src}
+						src={preview.src}
 						alt={`${label} version of ${path}`}
 						objectFit="contain"
 						style={styles.image}
@@ -123,6 +129,11 @@ function ImageVersion({
 					</text>
 				)}
 			</div>
+			{preview.error ? (
+				<text role="status" style={styles.error}>
+					{preview.error}
+				</text>
+			) : null}
 		</div>
 	);
 }

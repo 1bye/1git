@@ -19,6 +19,15 @@ export interface ImagePreview {
 	readonly width: number;
 	readonly height: number;
 	readonly sizeBytes: number;
+	/** Validated source retained only for this selected image, so resize never rereads Git. */
+	readonly svg?: FileContent;
+}
+
+/** Available image space in logical pixels and the desired backing-pixel scale. */
+export interface ImagePreviewViewport {
+	readonly width: number;
+	readonly height: number;
+	readonly pixelRatio: number;
 }
 
 const svgNamespace = "http://www.w3.org/2000/svg";
@@ -34,9 +43,9 @@ const forbiddenElements = new Set([
 	"set",
 ]);
 
-const checker = Buffer.from(
-	'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="#fafafa"/><path d="M0 0h8v8H0zM8 8h8v8H8z" fill="#eeeeef"/></svg>'
-);
+const svgBaseDensity = 72;
+const svgMaxDensity = 100_000;
+const checkerSquareSize = 8;
 
 const validateCss = (value: string): void => {
 	// Escapes and at-rules could disguise external URLs; this static preview accepts neither.
@@ -136,9 +145,21 @@ export class ImagePreviewDecoder {
 
 	static async prepare(
 		content: FileContent,
-		signal: AbortSignal
+		signal: AbortSignal,
+		viewport?: ImagePreviewViewport
 	): Promise<ImagePreview> {
 		signal.throwIfAborted();
+
+		if (
+			viewport &&
+			Object.values(viewport).some(
+				(value) => !Number.isFinite(value) || value <= 0
+			)
+		)
+			throw new Error(
+				"Image preview viewport must have positive, finite dimensions and pixel ratio."
+			);
+
 		const bytes = Buffer.from(content.content, content.encoding);
 
 		if (bytes.length > imageLimits.bytes)
@@ -154,10 +175,10 @@ export class ImagePreviewDecoder {
 
 		if (!raster) ImagePreviewDecoder.validateSvg(bytes);
 
-		const decoder = sharp(bytes, {
+		let decoder = sharp(bytes, {
 			limitInputPixels: imageLimits.pixels,
 			failOn: "warning",
-			density: 72,
+			density: svgBaseDensity,
 		}).timeout({ seconds: imageLimits.decodeSeconds });
 
 		const metadata = await decoder.metadata();
@@ -180,32 +201,65 @@ export class ImagePreviewDecoder {
 		if ((metadata.pages ?? 1) > 1)
 			throw new Error("Animated images are not supported in this preview yet.");
 
+		const svg = metadata.format === "svg";
+		let previewWidth: number = imageLimits.previewDimension;
+		let previewHeight: number = imageLimits.previewDimension;
+		let logicalWidth: number | null = null;
+
+		if (svg) {
+			const fit = Math.min(
+				(viewport?.width ?? imageLimits.previewDimension) / width,
+				(viewport?.height ?? imageLimits.previewDimension) / height
+			);
+
+			const scale = Math.min(
+				fit * (viewport?.pixelRatio ?? 1),
+				imageLimits.previewDimension / width,
+				imageLimits.previewDimension / height,
+				svgMaxDensity / svgBaseDensity
+			);
+
+			previewWidth = Math.max(1, Math.round(width * scale));
+			previewHeight = Math.max(1, Math.round(height * scale));
+			logicalWidth = width * fit;
+			// Rasterize vectors at the target resolution; resizing a natural-size bitmap loses detail.
+			decoder = sharp(bytes, {
+				limitInputPixels: imageLimits.pixels,
+				failOn: "warning",
+				density: Math.max(1, svgBaseDensity * scale),
+			}).timeout({ seconds: imageLimits.decodeSeconds });
+		}
+
 		signal.throwIfAborted();
 		const preview = await decoder
 			.autoOrient()
 			.resize({
-				width: imageLimits.previewDimension,
-				height: imageLimits.previewDimension,
+				width: previewWidth,
+				height: previewHeight,
 				fit: "inside",
-				withoutEnlargement: true,
+				withoutEnlargement: !svg,
 			})
 			.png()
 			.toBuffer({ resolveWithObject: true });
 
 		signal.throwIfAborted();
 		// Bake the transparency grid into preview pixels, not hundreds of retained UI cells.
-		const tile =
-			preview.info.width < 16 || preview.info.height < 16
-				? await sharp(checker)
-						.extract({
-							left: 0,
-							top: 0,
-							width: Math.min(16, preview.info.width),
-							height: Math.min(16, preview.info.height),
-						})
-						.png()
-						.toBuffer()
-				: checker;
+		const square = logicalWidth
+			? Math.min(
+					Math.max(preview.info.width, preview.info.height),
+					Math.max(
+						1,
+						Math.round((checkerSquareSize * preview.info.width) / logicalWidth)
+					)
+				)
+			: checkerSquareSize;
+
+		const tileWidth = Math.min(square * 2, preview.info.width);
+		const tileHeight = Math.min(square * 2, preview.info.height);
+
+		const checker = Buffer.from(
+			`<svg xmlns="http://www.w3.org/2000/svg" width="${tileWidth}" height="${tileHeight}"><rect width="100%" height="100%" fill="#fafafa"/><path d="M0 0h${square}v${square}H0zM${square} ${square}h${square}v${square}H${square}z" fill="#eeeeef"/></svg>`
+		);
 
 		const pixels = await sharp({
 			create: {
@@ -215,7 +269,10 @@ export class ImagePreviewDecoder {
 				background: "#fafafa",
 			},
 		})
-			.composite([{ input: tile, tile: true }, { input: preview.data }])
+			.composite([
+				{ input: checker, tile: true, gravity: "northwest" },
+				{ input: preview.data },
+			])
 			.png()
 			.toBuffer();
 
@@ -226,6 +283,7 @@ export class ImagePreviewDecoder {
 			width,
 			height,
 			sizeBytes: bytes.length,
+			...(svg ? { svg: content } : {}),
 		};
 	}
 }

@@ -1,5 +1,5 @@
 /**
- * Covers: bounded image decoding, orientation, transparency and static SVG resource policy.
+ * Covers: bounded image decoding, display-sized SVG pixels, orientation, transparency and static SVG resource policy.
  * Real: Sharp and Saxes with in-memory image content.
  * Doubles: no repository, network or native UI.
  * Requires: installed Sharp platform binary.
@@ -49,6 +49,100 @@ it("shows transparency over a subtle checkerboard and handles tiny images", asyn
 		expect(pixel[3]).toBe(255);
 		expect(pixel[0]).toBeGreaterThanOrEqual(238);
 		expect(pixel[0]).toBeLessThanOrEqual(250);
+	}
+});
+
+it("rasterizes small SVG vectors at the fitted Retina size without changing original metadata", async () => {
+	const content = svgContent(
+		'<svg xmlns="http://www.w3.org/2000/svg" width="24" height="12"><circle cx="12" cy="6" r="5" fill="red"/></svg>'
+	);
+
+	const image = await ImagePreviewDecoder.prepare(
+		content,
+		new AbortController().signal,
+		{
+			width: 500,
+			height: 400,
+			pixelRatio: 2,
+		}
+	);
+
+	const output = await sharp(
+		Buffer.from(image.src.split(",")[1] ?? "", "base64")
+	).metadata();
+
+	expect([output.width, output.height]).toEqual([1000, 500]);
+	expect([image.width, image.height]).toEqual([24, 12]);
+	expect(image.sizeBytes).toBe(content.sizeBytes);
+	expect(image.svg).toEqual(content);
+});
+
+it("keeps SVG checker squares at eight logical pixels across display sizes and render limits", async () => {
+	const content = svgContent(
+		'<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"/>'
+	);
+
+	for (const [width, pixelRatio] of [
+		[200, 1],
+		[500, 2],
+		[4096, 2],
+	] as const) {
+		const image = await ImagePreviewDecoder.prepare(
+			content,
+			new AbortController().signal,
+			{
+				width,
+				height: width,
+				pixelRatio,
+			}
+		);
+
+		const { data, info } = await sharp(
+			Buffer.from(image.src.split(",")[1] ?? "", "base64")
+		)
+			.ensureAlpha()
+			.raw()
+			.toBuffer({ resolveWithObject: true });
+
+		const square = Math.round((8 * info.width) / width);
+
+		expect(info.width).toBe(
+			Math.min(width * pixelRatio, imageLimits.previewDimension)
+		);
+		expect(data[0]).toBe(238);
+		expect(data[(square - 1) * 4]).toBe(238);
+		expect(data[square * 4]).toBe(250);
+		expect(data[3]).toBe(255);
+	}
+});
+
+it("provides a sharp bounded initial SVG preview and rejects invalid viewport sizes", async () => {
+	const content = svgContent();
+
+	const image = await ImagePreviewDecoder.prepare(
+		content,
+		new AbortController().signal
+	);
+
+	const output = await sharp(
+		Buffer.from(image.src.split(",")[1] ?? "", "base64")
+	).metadata();
+
+	expect(output.width).toBe(imageLimits.previewDimension);
+	expect(output.height).toBe(imageLimits.previewDimension / 2);
+
+	for (const viewport of [
+		{ width: 0, height: 10, pixelRatio: 2 },
+		{ width: 100, height: Number.NaN, pixelRatio: 2 },
+		{ width: 100, height: 100, pixelRatio: Number.POSITIVE_INFINITY },
+	]) {
+		await expect(
+			ImagePreviewDecoder.prepare(
+				content,
+				new AbortController().signal,
+				viewport
+			)
+		).rejects.toThrow("viewport");
 	}
 });
 

@@ -7,9 +7,11 @@
 import { afterEach, beforeEach, expect, it, mock, spyOn } from "bun:test";
 import { createTestRoot, type TestRoot } from "@gpuix/react/testing";
 import { flushSync, handleGpuixEvent } from "@gpuix/react";
+import sharp from "sharp";
 import { App } from "../../src/app";
 import type { RepositoryDiff as Reader } from "../../src/feature/repository-workspace/lib/repository-diff";
 import { RepositoryDiff } from "../../src/feature/repository-workspace/components/repository-diff";
+import { RepositoryImagePreview } from "../../src/feature/repository-workspace/components/repository-image-preview";
 import { windowOptions } from "../../src/window-options";
 import {
 	changedFile,
@@ -66,6 +68,26 @@ const key = (id: string, key: string): void => {
 const settle = async (): Promise<void> => {
 	await Bun.sleep(0);
 	root.renderer.flush();
+};
+
+const waitFor = async (ready: () => boolean): Promise<void> => {
+	const deadline = performance.now() + 3000;
+
+	while (!ready()) {
+		if (performance.now() > deadline)
+			throw new Error("Timed out waiting for preview pixels.");
+
+		await Bun.sleep(25);
+		root.renderer.flush();
+	}
+};
+
+const imageSource = (): string => {
+	const src = element("image-after-pixels").customProps?.src;
+
+	if (typeof src !== "string") throw new Error("Missing preview pixels.");
+
+	return src;
 };
 
 const showDiff = (
@@ -512,6 +534,138 @@ it("shows failures per image side without inventing missing versions or text cou
 	expect(root.renderer.findByTestId("diff-stats")).toBeUndefined();
 	expect(root.renderer.getAllText()).toContain("Before");
 	expect(root.renderer.getAllText()).not.toContain("Deleted");
+});
+
+it("rerasterizes SVGs at fitted Retina size after resize without rereading Git or rerendering while idle", async () => {
+	const image = await ImagePreviewDecoder.prepare(
+		svgContent(),
+		new AbortController().signal
+	);
+
+	const path = "assets/image.svg";
+	const change = changedFile(path);
+	const decoder = spyOn(ImagePreviewDecoder, "prepare");
+
+	const reader = mock<typeof Reader.read>(async () => ({
+		ok: true,
+		value: [
+			{
+				...diffSection("working", diffPatch(path)),
+				image: { before: null, after: { image, error: null }, svg: true },
+			},
+		],
+	}));
+
+	const render = (width: number) =>
+		root.render(
+			<div
+				style={{
+					width,
+					height: "100%",
+					display: "flex",
+					flexDirection: "column",
+				}}
+			>
+				<RepositoryDiff
+					root="/test/project"
+					change={change}
+					refreshing={false}
+					statusError={null}
+					readDiff={reader}
+				/>
+			</div>
+		);
+
+	render(600);
+	await settle();
+	await waitFor(() => imageSource() !== image.src);
+	const firstSrc = imageSource();
+
+	const first = await sharp(
+		Buffer.from(firstSrc.split(",")[1] ?? "", "base64")
+	).metadata();
+
+	expect(first.width).toBe(Math.ceil(bounds("image-after-viewport").width) * 2);
+	expect(first.height).toBe(Math.round((first.width ?? 0) / 2));
+	expect(root.renderer.getAllText()).toContain(
+		`32 × 16 · ${image.sizeBytes} B`
+	);
+	expect(decoder).toHaveBeenCalledTimes(1);
+
+	render(400);
+	await waitFor(() => imageSource() !== firstSrc);
+	const resized = await sharp(
+		Buffer.from(imageSource().split(",")[1] ?? "", "base64")
+	).metadata();
+
+	expect(resized.width).toBe(
+		Math.ceil(bounds("image-after-viewport").width) * 2
+	);
+	expect(reader).toHaveBeenCalledTimes(1);
+	expect(decoder).toHaveBeenCalledTimes(2);
+	await Bun.sleep(350);
+	root.renderer.flush();
+	expect(decoder).toHaveBeenCalledTimes(2);
+	key("image-mode-source", "enter");
+	await Bun.sleep(350);
+	expect(decoder).toHaveBeenCalledTimes(2);
+});
+
+it("serializes resize decoding, ignores obsolete pixels and cancels after the preview unmounts", async () => {
+	const image = await ImagePreviewDecoder.prepare(
+		svgContent(),
+		new AbortController().signal
+	);
+
+	const pending: {
+		signal: AbortSignal;
+		resolve: (value: typeof image) => void;
+	}[] = [];
+
+	const decoder = spyOn(ImagePreviewDecoder, "prepare").mockImplementation(
+		(_content, signal) =>
+			new Promise((resolve) => {
+				pending.push({ signal, resolve });
+			})
+	);
+
+	const comparison = { before: null, after: { image, error: null }, svg: true };
+
+	const render = (width: number) =>
+		root.render(
+			<div
+				style={{
+					width,
+					height: "100%",
+					display: "flex",
+					flexDirection: "column",
+				}}
+			>
+				<RepositoryImagePreview comparison={comparison} path="art.svg" />
+			</div>
+		);
+
+	render(600);
+	await waitFor(() => pending.length === 1);
+	render(400);
+	await waitFor(() => pending[0]?.signal.aborted === true);
+	await Bun.sleep(250);
+	expect(decoder).toHaveBeenCalledTimes(1);
+	pending[0]?.resolve({ ...image, src: "obsolete-pixels" });
+	await waitFor(() => pending.length === 2);
+	expect(imageSource()).toBe(image.src);
+	pending[1]?.resolve({ ...image, src: "current-pixels" });
+	await waitFor(() => imageSource() === "current-pixels");
+
+	render(500);
+	await waitFor(() => pending.length === 3);
+	root.render(<text>Source view</text>);
+	expect(pending[2]?.signal.aborted).toBe(true);
+	pending[2]?.resolve({ ...image, src: "late-pixels" });
+	await Bun.sleep(250);
+	root.renderer.flush();
+	expect(root.renderer.findByTestId("image-preview")).toBeUndefined();
+	expect(decoder).toHaveBeenCalledTimes(3);
 });
 
 it.each(["added", "deleted"] as const)(
