@@ -370,6 +370,22 @@ export interface CommitInput extends GitCallOptions {
 	readonly summary: string;
 }
 
+/** Commits current whole-file contents, preserving excluded index entries. Partially staged selections are rejected. */
+export interface CommitFilesInput extends GitCallOptions {
+	readonly paths: readonly string[];
+	readonly message: string;
+	readonly expectedHead: string | null;
+	readonly expectedBranch: string | null;
+}
+
+/** A confirmed write is distinct from a failed refresh or an indeterminate Git process outcome. */
+export interface CommitFilesResult {
+	readonly outcome: "committed" | "unknown";
+	readonly oid: string | null;
+	readonly snapshot: RepositorySnapshot | null;
+	readonly warning: string | null;
+}
+
 export interface DiffInput extends GitCallOptions {
 	readonly contextLines?: number;
 	readonly ignoreWhitespace?: boolean;

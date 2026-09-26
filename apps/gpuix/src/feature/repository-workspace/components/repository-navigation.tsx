@@ -133,6 +133,7 @@ export function RepositoryNavigation({
 	onRefresh,
 	history,
 	stashes,
+	onCommit,
 }: {
 	workspaceId: string;
 	state: RepositoryWorkspaceState;
@@ -140,6 +141,7 @@ export function RepositoryNavigation({
 	onRefresh: () => void;
 	history?: ReturnType<typeof useRepositoryHistory>;
 	stashes?: ReturnType<typeof useRepositoryStashes>;
+	onCommit?: () => void;
 }) {
 	const renderer = useGpuixRequired();
 	const pills = useRef(new Map<RepositoryView, PublicInstance>());
@@ -180,6 +182,7 @@ export function RepositoryNavigation({
 				view === "changes"
 					? {
 							ids: state.includedFileIds,
+							disabled: state.commit.pending,
 							onChange: (id, included) =>
 								onAction({ type: "include-file", id, included }),
 						}
@@ -298,7 +301,7 @@ export function RepositoryNavigation({
 						variant="ghost"
 						size="sm"
 						tokens={appTokens}
-						disabled={state.loading}
+						disabled={state.loading || state.commit.pending}
 						onPress={onRefresh}
 						style={{ width: 26, height: 26, paddingLeft: 0, paddingRight: 0 }}
 					>
@@ -345,7 +348,9 @@ export function RepositoryNavigation({
 										? true
 										: "indeterminate"
 							}
-							disabled={state.entries.changes.length === 0}
+							disabled={
+								state.entries.changes.length === 0 || state.commit.pending
+							}
 							onCheckedChange={(included) =>
 								onAction({ type: "include-all", included })
 							}
@@ -393,7 +398,11 @@ export function RepositoryNavigation({
 					</RepositoryRevisions>
 				)}
 				{view === "changes" && (state.preview || state.repository) ? (
-					<RepositoryCommit state={state} onAction={onAction} />
+					<RepositoryCommit
+						state={state}
+						onAction={onAction}
+						onCommit={onCommit}
+					/>
 				) : (
 					<div style={styles.footer}>
 						<text style={styles.faint}>

@@ -132,6 +132,8 @@ export class WorkspaceTabsModel {
 			return { ...state, tabs };
 		}
 
+		if (state.tabs[index]?.workspace.commit.pending) return state;
+
 		const tabs = state.tabs.filter((tab) => tab.id !== action.id);
 
 		const activeId =

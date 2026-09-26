@@ -7,6 +7,8 @@ export interface GitCommandInput {
 	readonly cwd: string;
 	readonly signal?: AbortSignal;
 	readonly stdin?: string | Uint8Array;
+	/** Internal per-command index override; never changes the host process environment. */
+	readonly indexFile?: string;
 }
 
 export interface GitCommandOutput {
@@ -87,6 +89,7 @@ export class GitProcess {
 			const stderrChunks: Buffer[] = [];
 			let outputBytes = 0;
 			let settled = false;
+			let stopped: GitProcessFailure | null = null;
 
 			const cleanup = (): void => {
 				input.signal?.removeEventListener("abort", handleAbort);
@@ -103,22 +106,23 @@ export class GitProcess {
 			};
 
 			const handleAbort = (): void => {
-				child.kill("SIGTERM");
-				rejectOnce(
-					new GitProcessFailure("aborted", "Git operation was aborted.")
+				stopped ??= new GitProcessFailure(
+					"aborted",
+					"Git operation was aborted."
 				);
+				child.kill("SIGTERM");
 			};
 
 			const collectChunk = (target: Buffer[], chunk: Buffer): void => {
+				if (stopped) return;
+
 				outputBytes += chunk.byteLength;
 
 				if (outputBytes > this.maxOutputBytes) {
 					child.kill("SIGTERM");
-					rejectOnce(
-						new GitProcessFailure(
-							"output-too-large",
-							`Git output exceeded ${this.maxOutputBytes} bytes.`
-						)
+					stopped = new GitProcessFailure(
+						"output-too-large",
+						`Git output exceeded ${this.maxOutputBytes} bytes.`
 					);
 
 					return;
@@ -150,6 +154,13 @@ export class GitProcess {
 			});
 			child.once("close", (exitCode) => {
 				if (settled) {
+					return;
+				}
+
+				// Writes must finish exiting before callers clean up locks or temporary indexes.
+				if (stopped) {
+					rejectOnce(stopped);
+
 					return;
 				}
 
@@ -189,6 +200,7 @@ export class GitProcess {
 				cwd: input.cwd,
 				env: {
 					...process.env,
+					...(input.indexFile ? { GIT_INDEX_FILE: input.indexFile } : {}),
 					GIT_EDITOR: "true",
 					GIT_PAGER: "cat",
 					GIT_SEQUENCE_EDITOR: "true",

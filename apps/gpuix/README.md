@@ -145,14 +145,43 @@ entrance/exit animation yet.
   included. On failure the previous data stays visible with a stale-data notice.
 - Reads belong to their original tab, even after switching/reordering. Closing a
   tab or unmounting cancels pending reads and ignores late picker/read results.
-- **Checkboxes are planned commit inclusion, not Git staging.** They neither stage
-  nor unstage files. The composer remains preview-only: Command+Enter/the button
-  never creates a commit, even with a connected repository. Drafts and inclusion
-  are in-memory only. History and Stashes are read-only.
+- **Checkboxes select whole files for the next commit, not Git staging.** Toggling
+  them neither stages nor unstages files. Command+Enter/the composer button creates
+  a real commit in a connected repository. Drafts and inclusion are in-memory only.
+  History and Stashes are read-only.
   Unavailable views never substitute sample records for live data.
 
 Git must be installed on PATH. The app imports the existing workspace Git package;
 the Turbo build/dev tasks build dependencies first. No Electron IPC is involved.
+
+## Committing selected files
+
+- Write a first-line summary, with optional details after a blank line, then use
+  **Commit N files** or **Command+Enter**. The commit uses the checked files' current
+  whole-file contents. Excluded staged and working-tree changes remain excluded;
+  checkbox toggles themselves never write Git state.
+- The backend acquires the repository's index lock, prepares a temporary index,
+  and uses Git's selected-path commit operation. Configured hooks and signing run
+  normally. On success it installs the updated index, retaining excluded staging.
+  Hook/signing failures keep the original index and draft; hook programs may still
+  perform their own configured filesystem side effects.
+- Selected partially staged files are intentionally blocked: stage or unstage the
+  whole file using Git and refresh, or uncheck it. Submodules, unresolved conflicts,
+  active merge/rebase operations, and ambiguous file/directory changes are also
+  blocked. HEAD and branch are rechecked before committing; stale state requires
+  a refresh and review. Partial-hunk selection is not implemented.
+- During a write, the composer, inclusion checkboxes, refresh and affected tab-close
+  actions are disabled. View/tab switches remain usable; they do not cancel a write.
+  Duplicate submissions are blocked across tabs for the same repository. Keep the
+  app/window open until completion; quitting is not intercepted.
+- Confirmed success clears only the submitting tab's message and refreshes Changes
+  and History state in every open tab for that repository. Other drafts and excluded
+  checkbox choices survive. A failed commit keeps the draft and shows Git's error.
+- If the write outcome cannot be confirmed, or a post-commit refresh/index update
+  fails, the app shows a warning and blocks further submissions until an explicit
+  refresh. Inspect History before retrying an uncertain operation. Recovery warnings
+  include the retained temporary index location; never blindly recommit.
+- Explicit `GPUIX_PREVIEW=1` sample mode remains preview-only and performs no writes.
 
 ## Browsing History
 
@@ -178,8 +207,8 @@ the Turbo build/dev tasks build dependencies first. No Electron IPC is involved.
   Pending reads are cancelled on view/tab changes, refresh or close; errors expose
   Retry without discarding loaded pages. Nothing is persisted across restarts.
 - Refresh keeps cached History when HEAD is unchanged. A different HEAD resets
-  pagination and selection to the new snapshot. Automatic refresh and Git
-  writes are still deferred.
+  pagination and selection to the new snapshot. Successful app commits refresh
+  this state; automatic refresh after external changes is still deferred.
 
 ## Browsing Stashes
 
@@ -380,7 +409,12 @@ the running window on macOS when adjusting blur/material appearance.
 
 Connection component tests replace the OS picker and repository/diff readers while
 exercising the real lifecycle and native UI. They cover cancellation, late results,
-loading/errors, refresh reconciliation and preview-only commits. The separate,
+loading/errors and refresh reconciliation. Commit component tests replace the Git
+write boundary and exercise native button/keyboard submission, pending-state guards,
+errors, partial staging, uncertain outcomes and cross-tab refresh. The Git package's
+selected-commit integration tests use real disposable repositories to verify index
+preservation, hooks, special paths, first commits, worktrees and recovery outcomes.
+The separate,
 uncached `test:integration` task uses the real Git CLI with disposable repositories
 to check mixed status, unusual filenames, nested folders, worktrees, clean/unborn
 HEAD and errors, and verifies staged content and HEAD are unchanged. It requires

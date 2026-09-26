@@ -83,6 +83,7 @@ function RepositoryRow({
 	onReveal,
 	included,
 	onInclude,
+	inclusionDisabled,
 }: {
 	entry: WorkspaceEntry;
 	selected: boolean;
@@ -93,6 +94,7 @@ function RepositoryRow({
 	onReveal: () => void;
 	included?: boolean;
 	onInclude?: (included: boolean) => void;
+	inclusionDisabled?: boolean;
 }) {
 	const [focused, setFocused] = useState(false);
 	const [keyboard, setKeyboard] = useState(true);
@@ -174,6 +176,7 @@ function RepositoryRow({
 						testId={`include-${entry.id}`}
 						aria-label={`Include ${entry.title} in commit`}
 						checked={included ?? false}
+						disabled={inclusionDisabled}
 						onCheckedChange={onInclude}
 						tokens={appTokens}
 						tabIndex={tabbable ? 0 : -1}
@@ -210,6 +213,7 @@ export function RepositoryList({
 	state: RepositoryListState;
 	inclusion?: {
 		ids: readonly string[];
+		disabled?: boolean;
 		onChange: (id: string, included: boolean) => void;
 	};
 	onSelect: (id: string) => void;
@@ -345,6 +349,7 @@ export function RepositoryList({
 						entry={entry}
 						selected={state.selectedId === entry.id}
 						included={inclusion?.ids.includes(entry.id)}
+						inclusionDisabled={inclusion?.disabled}
 						onInclude={
 							inclusion
 								? (included) => inclusion.onChange(entry.id, included)

@@ -340,6 +340,7 @@ export function WorkspaceTab({
 					<Button
 						testId={`close-${tab.id}`}
 						aria-label={`Close ${label}`}
+						disabled={tab.workspace.commit.pending}
 						tokens={appTokens}
 						variant="ghost"
 						size="sm"

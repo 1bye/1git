@@ -14,7 +14,12 @@ export function useRepositoryStashes(
 	readStashes = RepositoryStashes.read,
 	readFiles = RepositoryStashes.readFiles
 ) {
-	const active = state?.view === "stashes" && !state.loading && !state.preview;
+	const active =
+		state?.view === "stashes" &&
+		!state.loading &&
+		!state.commit.pending &&
+		!state.preview;
+
 	const root = active ? state.repository?.root : undefined;
 	const generation = state?.stashes.generation;
 

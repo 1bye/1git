@@ -10,6 +10,8 @@ import { useRepositoryHistory } from "./feature/repository-workspace/hooks/use-r
 import { RepositoryStashes } from "./feature/repository-workspace/lib/repository-stashes";
 import { useRepositoryStashes } from "./feature/repository-workspace/hooks/use-repository-stashes";
 import { useRepositoryConnection } from "./feature/repository-workspace/hooks/use-repository-connection";
+import { useRepositoryCommit } from "./feature/repository-workspace/hooks/use-repository-commit";
+import { RepositoryCommit } from "./feature/repository-workspace/lib/repository-commit";
 import {
 	RepositoryWorkspaceModel,
 	type RepositoryWorkspaceAction,
@@ -18,7 +20,7 @@ import { WorkspaceTabs } from "./feature/workspace-tabs/workspace-tabs";
 import { WorkspaceTabsModel } from "./feature/workspace-tabs/lib/workspace-tabs-model";
 import { AppShell } from "./fixture/app-shell";
 
-/** Owns one window's in-memory workspaces; Git access is read-only. */
+/** Owns one window's workspaces, cancellable reads and explicit commit transactions. */
 export function App({
 	initialTabCount = 1,
 	preview = false,
@@ -28,6 +30,7 @@ export function App({
 	readCommitFiles = RepositoryHistory.readFiles,
 	readStashes = RepositoryStashes.read,
 	readStashFiles = RepositoryStashes.readFiles,
+	writeCommit = RepositoryCommit.write,
 }: {
 	initialTabCount?: number;
 	preview?: boolean;
@@ -37,6 +40,7 @@ export function App({
 	readCommitFiles?: typeof RepositoryHistory.readFiles;
 	readStashes?: typeof RepositoryStashes.read;
 	readStashFiles?: typeof RepositoryStashes.readFiles;
+	writeCommit?: typeof RepositoryCommit.write;
 }) {
 	const [state, dispatch] = useReducer(
 		WorkspaceTabsModel.reduce,
@@ -46,6 +50,7 @@ export function App({
 	);
 
 	const connection = useRepositoryConnection(state, dispatch, readRepository);
+	const commits = useRepositoryCommit(state, dispatch, writeCommit);
 
 	const activeTab = state.tabs.find((tab) => tab.id === state.activeId);
 	const workspace = activeTab?.workspace;
@@ -99,6 +104,9 @@ export function App({
 						state={workspace}
 						history={history}
 						stashes={stashes}
+						onCommit={() => {
+							void commits.commit(activeTab.id);
+						}}
 						onRefresh={() => {
 							void connection.refresh(activeTab.id);
 						}}
@@ -118,7 +126,7 @@ export function App({
 					key={`${activeTab.id}:${revision?.id ?? "changes"}:${comparison.path}`}
 					root={workspace.repository.root}
 					change={comparison}
-					refreshing={workspace.loading}
+					refreshing={workspace.loading || workspace.commit.pending}
 					statusError={workspace.error}
 					readDiff={readDiff}
 				/>

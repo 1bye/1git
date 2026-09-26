@@ -13,6 +13,8 @@ import type {
 	CommitInfo,
 	CommitFileChange,
 	CommitInput,
+	CommitFilesInput,
+	CommitFilesResult,
 	CommitPage,
 	CommitResult,
 	ConfigValue,
@@ -73,6 +75,7 @@ import type {
 	WorktreePathInput,
 } from "./contracts.js";
 import { selectHunkPatch } from "./hunk-patch.js";
+import { SelectedCommit } from "./selected-commit.js";
 import type { RepositoryContext } from "./internal.js";
 import {
 	GitCommandFailure,
@@ -1019,6 +1022,17 @@ export class GitRepository {
 
 			return await loadSnapshot(this.context, false, input.signal);
 		});
+	}
+
+	/** Commits selected whole files without including or discarding excluded staged work. */
+	async commitFiles(
+		input: CommitFilesInput
+	): Promise<GitResult<CommitFilesResult>> {
+		return await this.mutate(
+			"commit",
+			input.signal,
+			async () => await SelectedCommit.run(this.context, input)
+		);
 	}
 
 	/** Creates a commit from the current index. */

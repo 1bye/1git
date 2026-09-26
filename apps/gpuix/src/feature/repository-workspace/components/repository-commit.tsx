@@ -2,7 +2,8 @@ import { lightColors } from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { Button } from "@1git/gpuix-ui/button";
 import { Textarea } from "@1git/gpuix-ui/textarea";
-import { useState } from "react";
+import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
+import { useRef, useState } from "react";
 
 import { appTokens } from "../../../styles/tokens";
 import {
@@ -37,24 +38,51 @@ const styles = StyleSheet.create({
 		height: 24,
 	},
 	hint: { fontSize: 9, color: lightColors.editorFaint },
+	notice: {
+		maxHeight: 64,
+		flexShrink: 0,
+		overflowY: "scroll",
+		overflowX: "hidden",
+		borderWidth: 1,
+		borderColor: "transparent",
+	},
 	label: { fontSize: 11, fontWeight: 500 },
 });
 
-/** In-memory commit composer: previewing never writes Git data or clears the draft. */
+/** Whole-file commit composer; only explicit sample mode remains preview-only. */
 export function RepositoryCommit({
 	state,
 	onAction,
+	onCommit,
 }: {
 	state: RepositoryWorkspaceState;
 	onAction: (action: RepositoryWorkspaceAction) => void;
+	onCommit?: () => void;
 }) {
 	const [previewed, setPreviewed] = useState(false);
+	const [noticeFocused, setNoticeFocused] = useState(false);
+	const notice = useRef<PublicInstance>(null);
+	const renderer = useGpuixRequired();
+	const hasDetails = !!state.commit.error || state.commit.needsReview;
 	const canPreview = RepositoryWorkspaceModel.canPreviewCommit(state);
+	const sample = state.preview;
+
+	const canSubmit = sample
+		? canPreview
+		: RepositoryWorkspaceModel.canCommit(state);
+
+	const blocked = sample
+		? null
+		: RepositoryWorkspaceModel.commitBlockReason(state);
+
 	const count = state.includedFileIds.length;
 	const label = `Commit ${count} ${count === 1 ? "file" : "files"}`;
 
-	const preview = (): void => {
-		if (canPreview) setPreviewed(true);
+	const submit = (): void => {
+		if (!canSubmit) return;
+
+		if (sample) setPreviewed(true);
+		else onCommit?.();
 	};
 
 	return (
@@ -62,9 +90,14 @@ export function RepositoryCommit({
 			<Textarea
 				testId="commit-message"
 				aria-label="Commit message"
-				aria-description="First line is the summary. Add a blank line for optional details. Command Enter previews; no commit is created."
+				aria-description={
+					sample
+						? "First line is the summary. Add a blank line for optional details. Command Enter previews; no commit is created."
+						: "First line is the summary. Add a blank line for optional details. Command Enter commits the checked whole files."
+				}
 				placeholder="Commit message…"
 				value={state.commitMessage}
+				readOnly={state.commit.pending}
 				onValueChange={(value) => {
 					setPreviewed(false);
 					onAction({ type: "edit-commit-message", value });
@@ -82,31 +115,92 @@ export function RepositoryCommit({
 						!event.modifiers.shift &&
 						!event.isHeld
 					)
-						preview();
+						submit();
 				}}
 			/>
 			<div style={styles.actions}>
 				<text style={styles.hint}>⌘ Enter</text>
 				<Button
-					testId="commit-preview"
-					aria-label={`Preview: ${label}`}
-					aria-description="Preview only. Checkbox choices do not stage files and no Git commit will be created."
+					testId={sample ? "commit-preview" : "commit-submit"}
+					aria-label={sample ? `Preview: ${label}` : label}
+					aria-description={
+						sample
+							? "Preview only. Checkbox choices do not stage files and no Git commit will be created."
+							: "Commit the checked whole files. Excluded files and their staging are preserved."
+					}
 					size="sm"
 					tokens={appTokens}
 					textStyle={styles.label}
-					disabled={!canPreview}
-					onPress={preview}
+					disabled={!canSubmit}
+					onPress={submit}
 				>
-					{label}
+					{state.commit.pending ? "Committing…" : label}
 				</Button>
 			</div>
-			<text testId="commit-notice" role="status" style={styles.hint}>
-				{previewed
-					? "Preview only — no commit created."
-					: state.repository
-						? "Preview only · Git writes disabled"
-						: "Preview only · no repository connected"}
-			</text>
+			<div
+				key={state.commit.error ?? state.commit.notice ?? "hint"}
+				ref={notice}
+				testId="commit-notice-scroll"
+				tabIndex={hasDetails ? 0 : -1}
+				aria-label={hasDetails ? "Commit details" : undefined}
+				aria-description={
+					hasDetails
+						? "Use arrow keys or Page Up and Page Down to read all details."
+						: undefined
+				}
+				onFocus={() => setNoticeFocused(true)}
+				onBlur={() => setNoticeFocused(false)}
+				style={StyleSheet.compose(
+					styles.notice,
+					hasDetails &&
+						noticeFocused && { borderColor: appTokens.colors.focusRing }
+				)}
+				onKeyDown={(event) => {
+					const element = notice.current;
+
+					if (
+						!element ||
+						event.modifiers?.cmd ||
+						event.modifiers?.ctrl ||
+						event.modifiers?.alt ||
+						event.modifiers?.shift
+					)
+						return;
+
+					const [, y = 0] = renderer.getScrollOffset?.(element.id) ?? [0, 0];
+					const page = renderer.getElementBounds?.(element.id)?.height ?? 64;
+					let next = y;
+
+					if (event.key === "down") next -= 14;
+					else if (event.key === "up") next += 14;
+					else if (event.key === "pagedown" || event.key === "space")
+						next -= page;
+					else if (event.key === "pageup") next += page;
+					else if (event.key === "home") next = 0;
+					else if (event.key === "end") next = -Number.MAX_SAFE_INTEGER;
+
+					if (next !== y) renderer.scrollTo?.(element.id, 0, Math.min(0, next));
+				}}
+			>
+				<text
+					testId="commit-notice"
+					role={state.commit.error ? "alert" : "status"}
+					style={styles.hint}
+				>
+					{!sample
+						? state.commit.pending
+							? "Committing checked files. Please keep the app open."
+							: (state.commit.error ??
+								state.commit.notice ??
+								blocked ??
+								"Whole-file commit · excluded staging is preserved")
+						: previewed
+							? "Preview only — no commit created."
+							: state.repository
+								? "Preview only · Git writes disabled"
+								: "Preview only · no repository connected"}
+				</text>
+			</div>
 		</div>
 	);
 }

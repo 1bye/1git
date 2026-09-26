@@ -14,7 +14,12 @@ export function useRepositoryHistory(
 	readHistory = RepositoryHistory.read,
 	readFiles = RepositoryHistory.readFiles
 ) {
-	const active = state?.view === "history" && !state.loading && !state.preview;
+	const active =
+		state?.view === "history" &&
+		!state.loading &&
+		!state.commit.pending &&
+		!state.preview;
+
 	const root = active ? state.repository?.root : undefined;
 	const head = active ? state.repository?.head : undefined;
 

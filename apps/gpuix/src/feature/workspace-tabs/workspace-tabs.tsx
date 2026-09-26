@@ -202,7 +202,8 @@ export function WorkspaceTabs({
 								focusTab(tab.id);
 							}}
 							onClose={() => {
-								if (drag.shouldSuppressClick()) return;
+								if (drag.shouldSuppressClick() || tab.workspace.commit.pending)
+									return;
 
 								focusRequested.current = true;
 								dispatch({ type: "close", id: tab.id });

@@ -59,6 +59,29 @@ for a selected path and `getFileContent({ path, source: { kind: "object", object
 for its immutable bytes. `getHistory({ revision, offset, limit })` can anchor pages
 to an OID independently of later HEAD or working-tree changes.
 
+## Selected-file commits
+
+`commitFiles({ paths, message, expectedHead, expectedBranch })` commits current
+whole-file contents at exact changed paths. Pass the last reviewed snapshot's
+`head.oid` and `head.branch` (including `null` for unborn/detached states as applicable).
+Unlike `commit`, it does not commit the entire staging area: excluded index entries
+and working files are retained. Renames include their old path automatically.
+
+The operation holds the real index lock and prepares an alternate index for
+Git's `commit --only`. Hooks and configured signing are honored. Partial staging
+in selected files, submodules, conflicts, active operations, stale HEAD/branch,
+and paths that could include unchecked directory descendants are rejected.
+It stops honoring cancellation once index preparation starts; let it finish before
+closing its owner. Reads and writes on the same repository instance stay serialized.
+
+`GitResult<CommitFilesResult>` separates ordinary preflight/command failures from
+post-write recovery. An `ok` result has `outcome: "committed" | "unknown"`, optional
+`oid`/`snapshot`, and an optional `warning`. A confirmed commit remains successful
+even if refresh fails. An uncertain outcome or index-install failure retains recovery
+files and explains where to find them. Do not automatically retry; inspect History
+and the warning first. Ordinary rejected commits leave the original index untouched;
+configured hooks can have their own filesystem side effects.
+
 ## Tests
 
 ```bash

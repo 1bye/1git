@@ -1,9 +1,11 @@
 import { basename } from "node:path";
 import type {
 	CommitPage,
+	CommitFilesResult,
 	FileChange,
 	FileStatus,
 	RepositorySnapshot,
+	RepositoryOperationState,
 	StashInfo,
 } from "@1git/git";
 
@@ -47,7 +49,15 @@ export interface RepositoryWorkspaceState {
 		readonly name: string;
 		readonly branch: string;
 		readonly head: string | null;
+		readonly branchName: string | null;
+		readonly operation: RepositoryOperationState;
 	} | null;
+	readonly commit: {
+		readonly pending: boolean;
+		readonly error: string | null;
+		readonly notice: string | null;
+		readonly needsReview: boolean;
+	};
 	readonly history: {
 		readonly nextOffset: number | null;
 		readonly error: string | null;
@@ -71,6 +81,13 @@ export interface RepositoryWorkspaceState {
 
 /** Presentation transitions; no filesystem, Git mutations, or persistent storage effects. */
 export type RepositoryWorkspaceAction =
+	| { type: "commit-started" }
+	| { type: "commit-failed"; message: string; uncertain?: boolean }
+	| {
+			type: "commit-finished";
+			result: CommitFilesResult;
+			submittedMessage?: string;
+	  }
 	| {
 			type: "stashes-loaded";
 			root: string;
@@ -140,6 +157,7 @@ export class RepositoryWorkspaceModel {
 			preview,
 			entries,
 			repository: null,
+			commit: { pending: false, error: null, notice: null, needsReview: false },
 			history: { nextOffset: 0, error: null },
 			stashes: { generation: 0, loaded: false, error: null },
 			loading: false,
@@ -175,10 +193,119 @@ export class RepositoryWorkspaceModel {
 		);
 	}
 
+	/** A whole-file action never silently replaces a user's partial staging choice. */
+	static commitBlockReason(state: RepositoryWorkspaceState): string | null {
+		if (state.repository?.operation !== "normal" && state.repository)
+			return "Finish the current Git operation before committing here.";
+
+		if (
+			state.entries.changes.some(
+				(entry) => entry.change?.recordType === "unmerged"
+			)
+		)
+			return "Resolve merge conflicts before committing.";
+
+		for (const entry of state.entries.changes) {
+			if (!state.includedFileIds.includes(entry.id) || !entry.change) continue;
+
+			const file = entry.change;
+
+			if (file.submodule !== "N...")
+				return "Commit selected submodule changes in Git first.";
+
+			if (
+				file.recordType !== "untracked" &&
+				file.indexStatus !== "unmodified" &&
+				file.worktreeStatus !== "unmodified"
+			)
+				return "A selected file is partially staged. Stage or unstage it in Git, then refresh, or uncheck it.";
+		}
+
+		return null;
+	}
+
+	static canCommit(state: RepositoryWorkspaceState): boolean {
+		return (
+			!!state.repository &&
+			!state.preview &&
+			!state.commit.pending &&
+			!state.commit.needsReview &&
+			!state.commitMessage.includes("\0") &&
+			RepositoryWorkspaceModel.canPreviewCommit(state) &&
+			!RepositoryWorkspaceModel.commitBlockReason(state)
+		);
+	}
+
 	static reduce(
 		state: RepositoryWorkspaceState,
 		action: RepositoryWorkspaceAction
 	): RepositoryWorkspaceState {
+		if (action.type === "commit-started")
+			return {
+				...state,
+				loading: false,
+				commit: {
+					pending: true,
+					error: null,
+					notice: null,
+					needsReview: false,
+				},
+			};
+
+		if (action.type === "commit-failed")
+			return {
+				...state,
+				commit: {
+					pending: false,
+					error: action.message,
+					notice: null,
+					needsReview: action.uncertain ?? false,
+				},
+			};
+
+		if (action.type === "commit-finished") {
+			const next = { ...state, commit: { ...state.commit, pending: false } };
+
+			const refreshed = action.result.snapshot
+				? RepositoryWorkspaceModel.reduce(next, {
+						type: "loaded",
+						snapshot: action.result.snapshot,
+					})
+				: next;
+
+			const confirmed = action.result.outcome === "committed";
+
+			return {
+				...refreshed,
+				commitMessage:
+					confirmed && action.submittedMessage === state.commitMessage
+						? ""
+						: state.commitMessage,
+				commit: {
+					pending: false,
+					error: null,
+					needsReview:
+						!confirmed || !!action.result.warning || !action.result.snapshot,
+					notice:
+						action.result.warning ??
+						(confirmed
+							? `Committed${action.result.oid ? ` ${action.result.oid.slice(0, 7)}` : ""}.`
+							: "Commit outcome uncertain. Inspect History before retrying."),
+				},
+			};
+		}
+
+		if (
+			state.commit.pending &&
+			(action.type === "loading" ||
+				action.type === "loaded" ||
+				action.type === "load-error" ||
+				action.type === "edit-commit-message" ||
+				action.type === "include-file" ||
+				action.type === "include-all")
+		)
+			return state;
+
 		if (
 			action.type === "stashes-loaded" ||
 			action.type === "stashes-error" ||
@@ -390,7 +517,10 @@ export class RepositoryWorkspaceModel {
 					name: basename(snapshot.repository.root),
 					branch,
 					head: snapshot.head.oid,
+					branchName: snapshot.head.branch,
+					operation: snapshot.operationState,
 				},
+				commit: { ...state.commit, needsReview: false },
 				history: sameHistory
 					? state.history
 					: { nextOffset: snapshot.head.oid ? 0 : null, error: null },
@@ -443,7 +573,11 @@ export class RepositoryWorkspaceModel {
 		if (action.type === "edit-commit-message") {
 			return state.commitMessage === action.value
 				? state
-				: { ...state, commitMessage: action.value };
+				: {
+						...state,
+						commitMessage: action.value,
+						commit: RepositoryWorkspaceModel.editedCommit(state),
+					};
 		}
 
 		if (action.type === "view") {
@@ -464,6 +598,7 @@ export class RepositoryWorkspaceModel {
 				includedFileIds: action.included
 					? [...state.includedFileIds, action.id]
 					: state.includedFileIds.filter((id) => id !== action.id),
+				commit: RepositoryWorkspaceModel.editedCommit(state),
 			};
 		}
 
@@ -477,6 +612,7 @@ export class RepositoryWorkspaceModel {
 				includedFileIds: action.included
 					? state.entries.changes.map((entry) => entry.id)
 					: [],
+				commit: RepositoryWorkspaceModel.editedCommit(state),
 			};
 		}
 
@@ -573,6 +709,14 @@ export class RepositoryWorkspaceModel {
 			...state,
 			views: { ...state.views, [action.view]: { ...current, scrollY } },
 		};
+	}
+
+	private static editedCommit(
+		state: RepositoryWorkspaceState
+	): RepositoryWorkspaceState["commit"] {
+		return state.commit.needsReview
+			? state.commit
+			: { ...state.commit, error: null, notice: null };
 	}
 
 	static destination(

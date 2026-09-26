@@ -103,10 +103,7 @@ it("opens real-status rows and refreshes without staging, clearing drafts or rep
 	click("commit-message");
 	root.renderer.simulateKeystrokes("h i");
 	root.renderer.flush();
-	click("commit-preview");
-	expect(root.renderer.getAllText()).toContain(
-		"Preview only — no commit created."
-	);
+	expect(root.renderer.findByTestId("commit-submit")).toBeDefined();
 	reader.mockResolvedValue({
 		ok: true,
 		value: repositorySnapshot([

@@ -127,7 +127,7 @@ export function RepositoryDiffEmpty({
 					: "Working tree clean";
 
 			hint =
-				"Choose a changed file to see its read-only diff. Git writes remain disabled.";
+				"Choose a file to inspect its diff. Check the whole files you want to commit.";
 		}
 	}
 

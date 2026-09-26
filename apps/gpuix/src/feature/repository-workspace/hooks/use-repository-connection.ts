@@ -31,7 +31,11 @@ export function useRepositoryConnection(
 		tabs.current = state.tabs;
 
 		for (const [id, request] of requests.current) {
-			if (!state.tabs.some((tab) => tab.id === id)) {
+			if (
+				!state.tabs.some(
+					(tab) => tab.id === id && !tab.workspace.commit.pending
+				)
+			) {
 				request.abort();
 				requests.current.delete(id);
 			}
@@ -56,7 +60,13 @@ export function useRepositoryConnection(
 	};
 
 	const read = async (id: string, path: string): Promise<void> => {
-		if (!mounted.current || !tabs.current.some((tab) => tab.id === id)) return;
+		if (
+			!mounted.current ||
+			!tabs.current.some(
+				(tab) => tab.id === id && !tab.workspace.commit.pending
+			)
+		)
+			return;
 
 		requests.current.get(id)?.abort();
 		const request = new AbortController();
