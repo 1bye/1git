@@ -454,6 +454,12 @@ Reading a diff never stages, unstages, discards or commits changes.
 
 ### Changes file actions
 
+- Click selects one file; Command-click toggles files and Shift-click selects a
+  range. Shift+Arrow extends the range. The diff follows the last clicked file;
+  highlighted files are independent of the commit inclusion checkboxes.
+- Right-click within a selection keeps the group; right-click outside it selects
+  just that file. The group menu includes/excludes files from the commit, copies
+  their relative paths, or discards their changes together.
 - Right-click or Control-click a file, or press Shift+F10 on its focused row.
   The pinned macOS addon displays an actual AppKit context menu; there are no
   three-dot controls, custom menu surfaces, or dimmed menu backdrops.
@@ -462,7 +468,7 @@ Reading a diff never stages, unstages, discards or commits changes.
   repository path; errors remain visible in the menu.
 - **Discard changes…** requires a native macOS warning dialog (Cancel is the
   default) and removes both staged
-  and unstaged changes for the selected file, irrespective of commit checkboxes.
+  and unstaged changes for the selected files, irrespective of commit checkboxes.
   It is unavailable during Git operations; conflicts, renames, submodules and
   non-regular working files require external handling. Branch identity is checked
   again before writing. Closing and competing app writes are blocked through refresh.
@@ -473,6 +479,7 @@ Reading a diff never stages, unstages, discards or commits changes.
   automatically deleted. Recovery is manual using the included instructions;
   do not force a patch over subsequent edits. External Git/editor processes are
   not locked, so avoid concurrent writes during discard.
+  Every selected path is validated and backed up before any file is changed.
 
 Native menu tracking and confirmation run synchronously on the AppKit main
 thread. No Git write starts until a menu choice and confirmation have returned.

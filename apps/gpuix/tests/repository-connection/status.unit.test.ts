@@ -62,6 +62,8 @@ it("reconciles paths without losing exclusions, selected files, scroll or drafts
 	expect(state.includedFileIds).toEqual(["new file.ts"]);
 	expect(state.views.changes).toEqual({
 		selectedId: "src/keep.ts",
+		selectedIds: ["src/keep.ts"],
+		anchorId: "src/keep.ts",
 		scrollY: -60,
 	});
 	expect(state.commitMessage).toBe("Draft\n\nDetails");
@@ -83,7 +85,12 @@ it("reconciles paths without losing exclusions, selected files, scroll or drafts
 		snapshot: repositorySnapshot(),
 	});
 
-	expect(clean.views.changes).toEqual({ selectedId: null, scrollY: 0 });
+	expect(clean.views.changes).toEqual({
+		selectedId: null,
+		selectedIds: [],
+		anchorId: undefined,
+		scrollY: 0,
+	});
 	expect(clean.includedFileIds).toEqual([]);
 	expect(clean.commitMessage).toBe(state.commitMessage);
 	expect(clean.error).toBeNull();

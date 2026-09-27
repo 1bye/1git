@@ -9,10 +9,10 @@ import { RepositoryConflicts } from "./repository-conflicts";
 
 const execute = promisify(execFile);
 
-/** Captured branch identity for a confirmed single-file discard. */
+/** Captured branch identity and exact paths for a confirmed discard batch. */
 export interface FileDiscardRequest {
 	kind: "discard";
-	path: string;
+	paths: readonly string[];
 	expectedHead: string | null;
 	expectedBranch: string | null;
 }
@@ -76,7 +76,7 @@ export class RepositoryFileActions {
 		const directory = join(parent, randomUUID());
 
 		const result = await opened.value.discardFiles({
-			paths: [request.path],
+			paths: request.paths,
 			allowDestructive: true,
 			recovery: {
 				directory,

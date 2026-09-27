@@ -842,47 +842,49 @@ export class GitRepository {
 					before.operationState !== "normal" ||
 					before.head.oid !== input.recovery.expectedHead ||
 					before.head.branch !== input.recovery.expectedBranch ||
-					selectedFiles.length !== 1 ||
+					selectedFiles.length !== requestedPathSet.size ||
 					selectedFiles.some(
-						(file) => file.originalPath || file.submodule.startsWith("S")
+						(file) =>
+							!requestedPathSet.has(file.path) ||
+							file.originalPath ||
+							file.submodule.startsWith("S") ||
+							file.indexStatus === "type-changed" ||
+							file.worktreeStatus === "type-changed"
 					)
 				)
 					throw invalidInput(
 						"discard-files",
-						"Refresh first. Discard supports individual ordinary files outside Git operations."
+						"Refresh first. Every selected path must still be an ordinary changed file outside Git operations."
 					);
 
-				const path = selectedFiles[0]?.path;
+				for (const { path } of selectedFiles) {
+					const absolute = resolve(this.info.root, path);
 
-				if (!path)
-					throw invalidInput("discard-files", "Select a changed file.");
-
-				const absolute = resolve(this.info.root, path);
-
-				try {
-					if (
-						!(await lstat(absolute)).isFile() ||
-						(await realpath(absolute)) !== absolute
-					)
-						throw invalidInput(
-							"discard-files",
-							"Symbolic links and non-regular files require external Git handling."
-						);
-				} catch (error) {
-					if (
-						!(
-							error instanceof Error &&
-							"code" in error &&
-							error.code === "ENOENT"
+					try {
+						if (
+							!(await lstat(absolute)).isFile() ||
+							(await realpath(absolute)) !== absolute
 						)
-					)
-						throw error;
+							throw invalidInput(
+								"discard-files",
+								"Symbolic links and non-regular files require external Git handling."
+							);
+					} catch (error) {
+						if (
+							!(
+								error instanceof Error &&
+								"code" in error &&
+								error.code === "ENOENT"
+							)
+						)
+							throw error;
 
-					if ((await realpath(dirname(absolute))) !== dirname(absolute))
-						throw invalidInput(
-							"discard-files",
-							"The file parent is not a regular repository directory."
-						);
+						if ((await realpath(dirname(absolute))) !== dirname(absolute))
+							throw invalidInput(
+								"discard-files",
+								"The file parent is not a regular repository directory."
+							);
+					}
 				}
 			}
 
@@ -922,7 +924,7 @@ export class GitRepository {
 
 			const worktreePatch = [trackedWorktreePatch, ...untrackedPatches]
 				.filter(Boolean)
-				.join("\n");
+				.join("");
 
 			if (!(stagedPatch || worktreePatch)) {
 				throw invalidInput(
@@ -960,6 +962,18 @@ export class GitRepository {
 					{ flag: "wx", mode: 0o600 }
 				);
 			}
+
+			await this.applyPatch(worktreePatch, {
+				check: true,
+				reverse: true,
+				signal: input.signal,
+			});
+			await this.applyPatch(stagedPatch, {
+				check: true,
+				cached: true,
+				reverse: true,
+				signal: input.signal,
+			});
 
 			await this.applyPatch(worktreePatch, {
 				reverse: true,
@@ -2182,6 +2196,7 @@ export class GitRepository {
 	private async applyPatch(
 		patch: string,
 		options: {
+			readonly check?: boolean;
 			readonly cached?: boolean;
 			readonly reverse?: boolean;
 			readonly signal?: AbortSignal;
@@ -2192,6 +2207,8 @@ export class GitRepository {
 		}
 
 		const args = ["apply", "--recount", "--whitespace=nowarn"];
+
+		if (options.check) args.push("--check");
 
 		if (options.cached) {
 			args.push("--cached");

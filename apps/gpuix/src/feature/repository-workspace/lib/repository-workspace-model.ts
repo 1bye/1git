@@ -32,6 +32,9 @@ export const revisionSplit = {
 /** Selection and native vertical scroll offset for one independently scrolling list. */
 export interface RepositoryListState {
 	readonly selectedId: string | null;
+	/** Changes-only highlight selection, independent of commit inclusion and diff focus. */
+	readonly selectedIds?: readonly string[];
+	readonly anchorId?: string;
 	readonly scrollY: number;
 }
 
@@ -200,7 +203,13 @@ export type RepositoryWorkspaceAction =
 	| { type: "watch-error"; message: string }
 	| { type: "view"; view: RepositoryView }
 	| { type: "edit-commit-message"; value: string }
-	| { type: "select"; view: RepositoryView; id: string }
+	| {
+			type: "select";
+			view: RepositoryView;
+			id: string;
+			mode?: "toggle" | "range" | "context";
+	  }
+	| { type: "include-files"; ids: readonly string[]; included: boolean }
 	| { type: "include-file"; id: string; included: boolean }
 	| { type: "include-all"; included: boolean }
 	| { type: "scroll"; view: RepositoryView; y: number }
@@ -543,6 +552,7 @@ export class RepositoryWorkspaceModel {
 				action.type === "load-error" ||
 				action.type === "edit-commit-message" ||
 				action.type === "include-file" ||
+				action.type === "include-files" ||
 				action.type === "include-all")
 		)
 			return state;
@@ -862,6 +872,18 @@ export class RepositoryWorkspaceModel {
 									files: { selectedId: null, scrollY: 0 },
 								},
 					changes: {
+						...(state.views.changes.selectedIds
+							? {
+									selectedIds: state.views.changes.selectedIds.filter((id) =>
+										changes.some((entry) => entry.id === id)
+									),
+									anchorId: changes.some(
+										(entry) => entry.id === state.views.changes.anchorId
+									)
+										? state.views.changes.anchorId
+										: undefined,
+								}
+							: {}),
 						selectedId: changes.some((entry) => entry.id === selectedId)
 							? selectedId
 							: null,
@@ -885,6 +907,21 @@ export class RepositoryWorkspaceModel {
 			return state.view === action.view
 				? state
 				: { ...state, view: action.view };
+		}
+
+		if (action.type === "include-files") {
+			const targets = new Set(action.ids);
+			const included = new Set(state.includedFileIds);
+
+			return {
+				...state,
+				includedFileIds: state.entries.changes
+					.filter((entry) =>
+						targets.has(entry.id) ? action.included : included.has(entry.id)
+					)
+					.map((entry) => entry.id),
+				commit: RepositoryWorkspaceModel.editedCommit(state),
+			};
 		}
 
 		if (action.type === "include-file") {
@@ -973,6 +1010,53 @@ export class RepositoryWorkspaceModel {
 		const current = state.views[action.view];
 
 		if (action.type === "select") {
+			if (action.view === "changes") {
+				const entries = state.entries.changes;
+
+				if (!entries.some((entry) => entry.id === action.id)) return state;
+
+				const ids =
+					current.selectedIds ??
+					(current.selectedId ? [current.selectedId] : []);
+
+				if (action.mode === "context" && ids.includes(action.id)) return state;
+
+				let selectedIds = [action.id];
+				let anchorId = action.id;
+
+				if (action.mode === "toggle")
+					selectedIds = ids.includes(action.id)
+						? ids.filter((id) => id !== action.id)
+						: [...ids, action.id];
+
+				if (action.mode === "range") {
+					anchorId = current.anchorId ?? current.selectedId ?? action.id;
+					const anchor = Math.max(
+						0,
+						entries.findIndex((entry) => entry.id === anchorId)
+					);
+
+					const target = entries.findIndex((entry) => entry.id === action.id);
+
+					selectedIds = entries
+						.slice(Math.min(anchor, target), Math.max(anchor, target) + 1)
+						.map((entry) => entry.id);
+				}
+
+				return {
+					...state,
+					views: {
+						...state.views,
+						changes: {
+							...current,
+							selectedId: action.id,
+							selectedIds,
+							anchorId,
+						},
+					},
+				};
+			}
+
 			if (
 				current.selectedId === action.id ||
 				!state.entries[action.view].some((entry) => entry.id === action.id)
@@ -988,15 +1072,13 @@ export class RepositoryWorkspaceModel {
 					[action.view]: {
 						...current,
 						selectedId: action.id,
-						...(action.view !== "changes" && {
-							files: {
-								selectedId:
-									state.entries[action.view].find(
-										(entry) => entry.id === action.id
-									)?.files[0]?.id ?? null,
-								scrollY: 0,
-							},
-						}),
+						files: {
+							selectedId:
+								state.entries[action.view].find(
+									(entry) => entry.id === action.id
+								)?.files[0]?.id ?? null,
+							scrollY: 0,
+						},
 					},
 				},
 			};

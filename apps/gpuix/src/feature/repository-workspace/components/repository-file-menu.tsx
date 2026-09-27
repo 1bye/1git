@@ -17,6 +17,8 @@ export interface FileMenuActions {
 	canDiscard: boolean;
 	discard: (request: FileDiscardRequest) => Promise<string | null>;
 	open?: typeof RepositoryFileActions.open;
+	selection?: (id: string) => readonly WorkspaceEntry[];
+	include?: (ids: readonly string[], included: boolean) => void;
 }
 
 /** AppKit context menu only: no on-screen trigger or custom floating surface. */
@@ -41,30 +43,68 @@ export function RepositoryFileMenu({
 		setError(null);
 
 		try {
+			const selected = actions.selection?.(entry.id) ?? [entry];
+
+			const files = selected.flatMap((item) =>
+				item.change ? [item.change] : []
+			);
+
+			if (!files.length) return;
+
+			const paths = files.map((item) => item.path);
+			const multiple = files.length > 1;
+
+			// Let the row selection paint before AppKit starts its synchronous tracking loop.
+			await new Promise<void>((resolve) => setTimeout(resolve, 0));
 			const disabled = actions.disabled;
+
 			const canDiscard =
 				actions.canDiscard &&
-				!file.originalPath &&
-				!file.submodule.startsWith("S") &&
-				file.recordType !== "unmerged" &&
-				file.indexStatus !== "type-changed" &&
-				file.worktreeStatus !== "type-changed";
+				files.length === selected.length &&
+				files.every(
+					(item) =>
+						!item.originalPath &&
+						!item.submodule.startsWith("S") &&
+						item.recordType !== "unmerged" &&
+						item.indexStatus !== "type-changed" &&
+						item.worktreeStatus !== "type-changed"
+				);
+
 			const bounds = renderer.getElementBounds?.(event.elementId);
-			const enabled = [
-				!disabled && file.worktreeStatus !== "deleted",
-				!disabled && file.worktreeStatus !== "deleted",
-				!disabled,
-				!disabled && canDiscard,
-			];
+
+			const enabled = multiple
+				? [
+						!disabled && !!actions.include,
+						!disabled && !!actions.include,
+						!disabled,
+						!disabled && canDiscard,
+					]
+				: [
+						!disabled && file.worktreeStatus !== "deleted",
+						!disabled && file.worktreeStatus !== "deleted",
+						!disabled,
+						!disabled && canDiscard,
+						!disabled && !!actions.include,
+						!disabled && !!actions.include,
+					];
 
 			const choice = NativeFileMenu.show(
 				renderer,
-				[
-					"Open in editor",
-					"Reveal in Finder",
-					"Copy relative path",
-					"Discard changes…",
-				],
+				multiple
+					? [
+							`Include ${files.length} files in commit`,
+							`Exclude ${files.length} files from commit`,
+							"Copy relative paths",
+							`Discard changes to ${files.length} files…`,
+						]
+					: [
+							"Open in editor",
+							"Reveal in Finder",
+							"Copy relative path",
+							"Discard changes…",
+							"Include file in commit",
+							"Exclude file from commit",
+						],
 				enabled,
 				event.x ?? bounds?.x ?? 0,
 				event.y ?? (bounds ? bounds.y + bounds.height : 0)
@@ -73,15 +113,26 @@ export function RepositoryFileMenu({
 			if (choice < 0 || !enabled[choice]) return;
 
 			if (choice === 3) {
-				if (!NativeFileMenu.confirm(renderer, file.path)) return;
+				if (
+					!NativeFileMenu.confirm(
+						renderer,
+						multiple ? `${files.length} files` : file.path
+					)
+				)
+					return;
 
 				setError(
 					await actions.discard({
 						kind: "discard",
-						path: file.path,
+						paths,
 						expectedHead: actions.head,
 						expectedBranch: actions.branch,
 					})
+				);
+			} else if ((multiple && choice < 2) || choice >= 4) {
+				actions.include?.(
+					selected.map((item) => item.id),
+					choice === 0 || choice === 4
 				);
 			} else {
 				const kind = (["editor", "finder", "copy"] as const)[choice];
@@ -89,7 +140,7 @@ export function RepositoryFileMenu({
 				if (kind)
 					await (actions.open ?? RepositoryFileActions.open)(
 						actions.root,
-						file.path,
+						kind === "copy" ? paths.join("\n") : file.path,
 						kind
 					);
 			}

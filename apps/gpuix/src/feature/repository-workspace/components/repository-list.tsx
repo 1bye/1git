@@ -94,7 +94,7 @@ function RepositoryRow({
 	selected: boolean;
 	tabbable: boolean;
 	rowRef: (node: PublicInstance | null) => void;
-	onSelect: () => void;
+	onSelect: (event: EventPayload) => void;
 	onKeyDown: (event: EventPayload) => void;
 	onReveal: () => void;
 	included?: boolean;
@@ -134,7 +134,7 @@ function RepositoryRow({
 				onMouseDown={() => setKeyboard(false)}
 				onClick={(event) => {
 					if (event.modifiers?.ctrl && onMenu) onMenu(event);
-					else onSelect();
+					else onSelect(event);
 				}}
 				onAuxClick={(event) => {
 					if (event.button === 2 || event.isRightClick) onMenu?.(event);
@@ -243,7 +243,7 @@ export function RepositoryList({
 		disabled?: boolean;
 		onChange: (id: string, included: boolean) => void;
 	};
-	onSelect: (id: string) => void;
+	onSelect: (id: string, mode?: "toggle" | "range" | "context") => void;
 	onScroll: (y: number) => void;
 	onEndReached?: () => void;
 	fileActions?: FileMenuActions;
@@ -313,12 +313,16 @@ export function RepositoryList({
 		if (row) reveal(row);
 	};
 
-	const select = (id: string, reveal: boolean): void => {
+	const select = (
+		id: string,
+		reveal: boolean,
+		mode?: "toggle" | "range" | "context"
+	): void => {
 		const row = rows.current.get(id);
 
 		if (!row) return;
 
-		onSelect(id);
+		onSelect(id, mode);
 		setFocusId(id);
 		renderer.focusElement?.(row.id);
 
@@ -330,7 +334,7 @@ export function RepositoryList({
 			event.modifiers?.cmd ||
 			event.modifiers?.ctrl ||
 			event.modifiers?.alt ||
-			event.modifiers?.shift
+			(event.modifiers?.shift && !inclusion)
 		)
 			return;
 
@@ -355,7 +359,7 @@ export function RepositoryList({
 			Math.max(1, Math.floor(height / rowHeight) - 1)
 		);
 
-		if (next) select(next, true);
+		if (next) select(next, true, event.modifiers?.shift ? "range" : undefined);
 	};
 
 	return (
@@ -364,6 +368,7 @@ export function RepositoryList({
 			testId={testId}
 			role={inclusion ? "grid" : "listbox"}
 			aria-label={label}
+			aria-multiselectable={inclusion ? true : undefined}
 			onScroll={saveScroll}
 			style={styles.viewport}
 		>
@@ -375,8 +380,30 @@ export function RepositoryList({
 					<RepositoryRow
 						key={entry.id}
 						entry={entry}
-						fileActions={fileActions}
-						selected={state.selectedId === entry.id}
+						fileActions={
+							fileActions
+								? {
+										...fileActions,
+										selection: (id) => {
+											const ids =
+												state.selectedIds ??
+												(state.selectedId ? [state.selectedId] : []);
+
+											if (ids.includes(id))
+												return entries.filter((item) => ids.includes(item.id));
+
+											select(id, false, "context");
+
+											return [entry];
+										},
+									}
+								: undefined
+						}
+						selected={
+							inclusion && state.selectedIds
+								? state.selectedIds.includes(entry.id)
+								: state.selectedId === entry.id
+						}
 						included={inclusion?.ids.includes(entry.id)}
 						inclusionDisabled={inclusion?.disabled}
 						onInclude={
@@ -389,7 +416,19 @@ export function RepositoryList({
 							if (node) rows.current.set(entry.id, node);
 							else rows.current.delete(entry.id);
 						}}
-						onSelect={() => select(entry.id, false)}
+						onSelect={(event) =>
+							select(
+								entry.id,
+								false,
+								inclusion
+									? event.modifiers?.shift
+										? "range"
+										: event.modifiers?.cmd
+											? "toggle"
+											: undefined
+									: undefined
+							)
+						}
 						onReveal={() => {
 							setFocusId(entry.id);
 							revealRow(entry.id);

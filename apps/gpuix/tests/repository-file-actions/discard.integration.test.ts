@@ -23,6 +23,7 @@ const execute = promisify(execFile);
 let root: string;
 let repository: GitRepository;
 let head: string;
+
 const git = async (...args: string[]) =>
 	(
 		await execute("git", args, {
@@ -56,12 +57,12 @@ afterEach(async () => {
 	await rm(root, { recursive: true, force: true });
 });
 const discard = (
-	path: string,
+	path: string | readonly string[],
 	directory = join(root, ".git", "recovery"),
 	expectedHead = head
 ) =>
 	repository.discardFiles({
-		paths: [path],
+		paths: typeof path === "string" ? [path] : path,
 		allowDestructive: true,
 		recovery: { directory, expectedHead, expectedBranch: "main" },
 	});
@@ -112,4 +113,45 @@ it("rejects symbolic links without changing their target", async () => {
 	await symlink("a.txt", join(root, "link"));
 	expect((await discard("link")).ok).toBe(false);
 	expect(await readFile(join(root, "a.txt"), "utf8")).toBe("base\n");
+});
+
+it("backs up the entire batch and restores tracked, staged and new files together", async () => {
+	await writeFile(join(root, "a.txt"), "staged\n");
+	await git("add", "a.txt");
+	await writeFile(join(root, "a.txt"), "working\n");
+	const data = Buffer.from([0, 255, 10, 3]);
+
+	await writeFile(join(root, "new.bin"), data);
+	await writeFile(join(root, "keep.txt"), "keep\n");
+	const result = await discard(["a.txt", "new.bin"]);
+
+	if (!result.ok) throw new Error(JSON.stringify(result.error));
+
+	expect(result.ok).toBe(true);
+	expect(await readFile(join(root, "a.txt"), "utf8")).toBe("base\n");
+	expect(await Bun.file(join(root, "new.bin")).exists()).toBe(false);
+	const manifest = JSON.parse(
+		await readFile(join(root, ".git/recovery/recovery.json"), "utf8")
+	);
+
+	expect(manifest.paths.sort()).toEqual(["a.txt", "new.bin"]);
+	await git("apply", "--cached", ".git/recovery/staged.patch");
+	await git("apply", ".git/recovery/staged.patch");
+	await git("apply", ".git/recovery/working.patch");
+	expect(await git("show", ":a.txt")).toBe("staged");
+	expect(await readFile(join(root, "a.txt"), "utf8")).toBe("working\n");
+	expect(await readFile(join(root, "new.bin"))).toEqual(data);
+	expect(await readFile(join(root, "keep.txt"), "utf8")).toBe("keep\n");
+});
+
+it("rejects the entire batch if any path is stale or unsupported", async () => {
+	await writeFile(join(root, "a.txt"), "preserve\n");
+	await symlink("a.txt", join(root, "link"));
+	expect((await discard(["a.txt", "missing.txt"])).ok).toBe(false);
+	expect((await discard(["a.txt", "link"])).ok).toBe(false);
+	expect(await readFile(join(root, "a.txt"), "utf8")).toBe("preserve\n");
+	expect(await git("show", ":a.txt")).toBe("base");
+	expect(
+		await Bun.file(join(root, ".git/recovery/recovery.json")).exists()
+	).toBe(false);
 });

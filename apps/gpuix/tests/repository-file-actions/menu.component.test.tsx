@@ -50,7 +50,7 @@ const settle = async () => {
 	root.renderer.flush();
 };
 
-const click = async (id: string, button = 0) => {
+const click = async (id: string, button = 0, modifiers = "") => {
 	const element = root.renderer.findByTestId(id);
 	const box = element && root.renderer.getElementBounds(element.id);
 
@@ -59,7 +59,8 @@ const click = async (id: string, button = 0) => {
 	root.renderer.nativeSimulateClick(
 		box.x + box.width / 2,
 		box.y + box.height / 2,
-		button
+		button,
+		modifiers
 	);
 	await settle();
 };
@@ -108,6 +109,43 @@ it("opens by right click and copies the relative path without Git writes", async
 	expect(discard).not.toHaveBeenCalled();
 });
 
+it("keeps multi-selection separate from inclusion and targets the right-clicked group", async () => {
+	const discard = mock<typeof RepositoryFileActions.discard>(async () => {
+		throw new Error("Test only");
+	});
+
+	root.render(
+		<App
+			initialSession={{
+				version: 1,
+				activeId: "workspace-1",
+				tabs: [{ id: "workspace-1", path: "/test", draft: "" }],
+			}}
+			readRepository={async () => ({
+				ok: true,
+				value: repositorySnapshot([
+					changedFile("a.txt"),
+					changedFile("b.txt"),
+					changedFile("c.txt"),
+				]),
+			})}
+			discardFile={discard}
+		/>
+	);
+	await settle();
+	await click("entry-a.txt");
+	await click("entry-c.txt", 0, "shift");
+	choice = 3;
+	confirmed = true;
+	await click("entry-b.txt", 2);
+	expect(discard.mock.calls[0]?.[1].paths).toEqual(["a.txt", "b.txt", "c.txt"]);
+	await click("entry-b.txt", 0, "cmd");
+	await click("entry-a.txt", 2);
+	expect(discard.mock.calls[1]?.[1].paths).toEqual(["a.txt", "c.txt"]);
+	await click("entry-b.txt", 2);
+	expect(discard.mock.calls[2]?.[1].paths).toEqual(["b.txt"]);
+});
+
 it("requires a separate confirmation and captures the reviewed branch", async () => {
 	choice = 3;
 	const discard = mock(async () => null);
@@ -127,7 +165,7 @@ it("requires a separate confirmation and captures the reviewed branch", async ()
 	await click("entry-a.txt", 2);
 	expect(discard).toHaveBeenCalledWith({
 		kind: "discard",
-		path: "a.txt",
+		paths: ["a.txt"],
 		expectedHead: "head",
 		expectedBranch: "main",
 	});
@@ -182,7 +220,7 @@ it("opens from the keyboard and keeps discard disabled during Git operations", a
 	root.renderer.focusElement(row.id);
 	root.renderer.nativeSimulateKeyDown(row.id, "shift-f10");
 	await settle();
-	expect(enabledItems).toEqual([true, true, true, false]);
+	expect(enabledItems).toEqual([true, true, true, false, false, false]);
 	expect(discard).not.toHaveBeenCalled();
 });
 

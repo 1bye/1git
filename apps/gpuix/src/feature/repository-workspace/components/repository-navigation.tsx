@@ -199,6 +199,8 @@ export function RepositoryNavigation({
 								state.commit.needsReview,
 							canDiscard: state.repository.operation === "normal",
 							discard: onDiscard,
+							include: (ids, included) =>
+								onAction({ type: "include-files", ids, included }),
 							open: openFile,
 						}
 					: undefined
@@ -222,7 +224,7 @@ export function RepositoryNavigation({
 						}
 					: undefined
 			}
-			onSelect={(id) => onAction({ type: "select", view, id })}
+			onSelect={(id, mode) => onAction({ type: "select", view, id, mode })}
 			onScroll={(y) => onAction({ type: "scroll", view, y })}
 			onEndReached={
 				view === "history" && !state.history.error

@@ -665,7 +665,7 @@ export function useRepositoryMutations(
 					notice: error
 						? undefined
 						: request.kind === "discard"
-							? `Discarded ${request.path}. Recovery backup saved.`
+							? `Discarded ${request.paths.length} ${request.paths.length === 1 ? "file" : "files"}. Recovery backup saved.`
 							: request.kind === "abort"
 								? "Operation aborted."
 								: snapshot?.operationState === "normal"

@@ -81,7 +81,7 @@ new file mode 100644
 +        anyhow::ensure!(main_thread == YES, "Confirmation requires the main thread");
 +        let alert: id = msg_send![class!(NSAlert), new];
 +        let _: () = msg_send![alert, setMessageText: crate::ns_string(&format!("Discard changes to {path}?"))];
-+        let _: () = msg_send![alert, setInformativeText: crate::ns_string("Removes all staged and unstaged changes to this file. New files are removed. A recovery backup is saved on disk first.")];
++        let _: () = msg_send![alert, setInformativeText: crate::ns_string("Removes all staged and unstaged changes to the selected files. New files are removed. A recovery backup of the entire selection is saved on disk first.")];
 +        let _: () = msg_send![alert, setAlertStyle: 0_u64];
 +        let _: id = msg_send![alert, addButtonWithTitle: crate::ns_string("Cancel")];
 +        let _: id = msg_send![alert, addButtonWithTitle: crate::ns_string("Discard changes")];

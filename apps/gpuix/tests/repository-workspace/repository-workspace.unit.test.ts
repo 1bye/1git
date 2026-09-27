@@ -10,6 +10,63 @@ import { RepositoryWorkspaceModel as Model } from "../../src/feature/repository-
 import { sampleEntries } from "../../src/feature/repository-workspace/lib/sample-workspace";
 import { WorkspaceTabsModel as Tabs } from "../../src/feature/workspace-tabs/lib/workspace-tabs-model";
 
+it("highlights ranges independently of commit inclusion and preserves context selections", () => {
+	const initial = Model.create(true);
+	const ids = sampleEntries.changes.slice(0, 3).map((entry) => entry.id);
+	const first = ids[0]!;
+	const last = ids[2]!;
+
+	const clicked = Model.reduce(initial, {
+		type: "select",
+		view: "changes",
+		id: first,
+	});
+
+	const range = Model.reduce(clicked, {
+		type: "select",
+		view: "changes",
+		id: last,
+		mode: "range",
+	});
+
+	expect(range.views.changes.selectedIds).toEqual(ids);
+	expect(range.views.changes.selectedId).toBe(last);
+	expect(range.includedFileIds).toBe(initial.includedFileIds);
+	expect(
+		Model.reduce(range, {
+			type: "select",
+			view: "changes",
+			id: first,
+			mode: "context",
+		})
+	).toBe(range);
+	const excluded = Model.reduce(range, {
+		type: "include-files",
+		ids,
+		included: false,
+	});
+
+	expect(excluded.views).toBe(range.views);
+
+	for (const id of ids) expect(excluded.includedFileIds).not.toContain(id);
+
+	const included = Model.reduce(excluded, {
+		type: "include-files",
+		ids,
+		included: true,
+	});
+
+	expect(included.includedFileIds).toEqual(initial.includedFileIds);
+	const toggled = Model.reduce(range, {
+		type: "select",
+		view: "changes",
+		id: first,
+		mode: "toggle",
+	});
+
+	expect(toggled.views.changes.selectedIds).toEqual(ids.slice(1));
+});
+
 it("preserves draft text verbatim and requires a first-line summary and included files for preview", () => {
 	const initial = Model.create(true);
 	const value = "Refine navigation\n\nKeep the composer visible.\n";
@@ -108,6 +165,8 @@ it("remembers independent view selections and offsets without mutating the previ
 	});
 	state = Model.reduce(state, { type: "view", view: "changes" });
 	expect(state.views.changes).toEqual({
+		selectedIds: ["src/app.tsx"],
+		anchorId: "src/app.tsx",
 		selectedId: "src/app.tsx",
 		scrollY: -240,
 	});
