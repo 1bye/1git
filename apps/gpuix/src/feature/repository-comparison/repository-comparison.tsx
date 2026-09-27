@@ -34,12 +34,35 @@ const styles = StyleSheet.create({
 	toolbar: {
 		display: "flex",
 		flexShrink: 0,
-		padding: 8,
-		gap: 8,
 		flexDirection: "row",
 		alignItems: "center",
 		borderBottomWidth: 1,
 		borderColor: appTokens.colors.border,
+	},
+	back: {
+		width: 310,
+		flexShrink: 0,
+		padding: 8,
+		display: "flex",
+		flexDirection: "row",
+		alignItems: "center",
+	},
+	controls: {
+		display: "flex",
+		flexDirection: "row",
+		flexGrow: 1,
+		flexBasis: 0,
+		minWidth: 0,
+		padding: 8,
+		justifyContent: "center",
+		alignItems: "center",
+	},
+	branchPair: {
+		display: "flex",
+		flexDirection: "row",
+		alignItems: "center",
+		gap: 8,
+		maxWidth: "100%",
 	},
 	body: {
 		display: "flex",
@@ -99,64 +122,80 @@ export function RepositoryComparison({
 	...readers
 }: { request: ComparisonRequest; onClose: () => void } & Readers) {
 	const [branch, setBranch] = useState("");
-	const selected = request.branches.find((item) => item.value === branch);
+
+	const initialBase = request.branches.find(
+		(item) => item.label === request.baseName && item.oid === request.base
+	) ?? { value: "HEAD", label: request.baseName, oid: request.base };
+
+	const options = request.branches.includes(initialBase)
+		? request.branches
+		: [initialBase, ...request.branches];
+
+	const [base, setBase] = useState(initialBase.value);
+	const selected = options.find((item) => item.value === branch);
+
+	const selectedBase =
+		options.find((item) => item.value === base) ?? initialBase;
 
 	return (
 		<div testId="branch-comparison" style={styles.root}>
 			<div testId="comparison-toolbar" style={styles.toolbar}>
-				<Button
-					testId="close-comparison"
-					tokens={appTokens}
-					variant="secondary"
-					size="sm"
-					onPress={onClose}
-				>
-					Back
-				</Button>
-				<Text tokens={appTokens} style={{ fontSize: 11 }}>
-					Into {request.baseName}
-				</Text>
-				<Select
-					value={branch}
-					onValueChange={setBranch}
-					items={request.branches}
-				>
-					<SelectTrigger
-						testId="comparison-branch"
-						aria-label="Compare branch"
+				<div style={styles.back}>
+					<Button
+						testId="close-comparison"
 						tokens={appTokens}
+						variant="secondary"
+						size="sm"
+						onPress={onClose}
 					>
-						<SelectValue
-							tokens={appTokens}
-							placeholder="Choose a branch…"
-							style={{ fontSize: 11 }}
+						Back
+					</Button>
+				</div>
+				<div style={styles.controls}>
+					<div testId="comparison-branch-pair" style={styles.branchPair}>
+						<ComparisonBranchPicker
+							side="base"
+							value={base}
+							options={options}
+							onChange={setBase}
 						/>
-					</SelectTrigger>
-					<SelectContent tokens={appTokens}>
-						{request.branches.map((item) => (
-							<SelectItem
-								key={item.value}
-								testId={`compare-option-${item.value}`}
-								value={item.value}
-								tokens={appTokens}
-								style={{ fontSize: 11 }}
-							>
-								{item.label}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-				<Text
-					tokens={appTokens}
-					style={{ fontSize: 10, color: appTokens.colors.textMuted }}
-				>
-					Read-only snapshot
-				</Text>
+						<Text tokens={appTokens} aria-hidden style={{ flexShrink: 0 }}>
+							←
+						</Text>
+						<ComparisonBranchPicker
+							side="incoming"
+							value={branch}
+							options={options}
+							onChange={setBranch}
+						/>
+						<Button
+							testId="swap-comparison"
+							aria-label="Swap base and incoming branches"
+							tokens={appTokens}
+							variant="ghost"
+							size="sm"
+							disabled={!selected}
+							style={{
+								width: 28,
+								flexShrink: 0,
+								paddingLeft: 0,
+								paddingRight: 0,
+							}}
+							onPress={() => {
+								setBase(branch);
+								setBranch(base);
+							}}
+						>
+							⇄
+						</Button>
+					</div>
+				</div>
 			</div>
 			{selected ? (
 				<ComparisonResults
-					key={`${request.root}:${request.base}:${selected.value}:${selected.oid}`}
+					key={`${request.root}:${selectedBase.oid}:${selected.value}:${selected.oid}`}
 					request={request}
+					base={selectedBase.oid}
 					head={selected.oid}
 					{...readers}
 				/>
@@ -171,14 +210,63 @@ export function RepositoryComparison({
 	);
 }
 
+function ComparisonBranchPicker({
+	side,
+	value,
+	options,
+	onChange,
+}: {
+	side: "base" | "incoming";
+	value: string;
+	options: ComparisonRequest["branches"];
+	onChange: (value: string) => void;
+}) {
+	return (
+		<Select value={value} onValueChange={onChange} items={options}>
+			<SelectTrigger
+				testId={side === "base" ? "comparison-base" : "comparison-branch"}
+				aria-label={side === "base" ? "Base branch" : "Incoming branch"}
+				tokens={appTokens}
+				style={{ width: 160, minWidth: 80, flexShrink: 1 }}
+			>
+				<SelectValue
+					tokens={appTokens}
+					placeholder="Choose a branch…"
+					style={{
+						fontSize: 11,
+						minWidth: 0,
+						whiteSpace: "nowrap",
+						overflow: "hidden",
+						textOverflow: "ellipsis",
+					}}
+				/>
+			</SelectTrigger>
+			<SelectContent tokens={appTokens}>
+				{options.map((item) => (
+					<SelectItem
+						key={item.value}
+						testId={`${side === "base" ? "base" : "compare"}-option-${item.value}`}
+						value={item.value}
+						tokens={appTokens}
+						style={{ fontSize: 11 }}
+					>
+						{item.label}
+					</SelectItem>
+				))}
+			</SelectContent>
+		</Select>
+	);
+}
+
 function ComparisonResults({
 	request,
+	base,
 	head,
 	readComparison = Reader.read,
 	readHistory = RepositoryHistory.read,
 	readCommitFiles = RepositoryHistory.readFiles,
 	readDiff = DiffReader.read,
-}: { request: ComparisonRequest; head: string } & Readers) {
+}: { request: ComparisonRequest; base: string; head: string } & Readers) {
 	const [comparison, setComparison] = useState<BranchComparison | null>(null);
 	const [page, setPage] = useState<CommitPage | null>(null);
 	const [offset, setOffset] = useState(0);
@@ -202,7 +290,7 @@ function ComparisonResults({
 			try {
 				const result = await readComparison(
 					request.root,
-					request.base,
+					base,
 					head,
 					controller.signal
 				);
@@ -224,7 +312,7 @@ function ComparisonResults({
 		void load();
 
 		return () => controller.abort();
-	}, [request, head, readComparison, retry]);
+	}, [request, base, head, readComparison, retry]);
 
 	useEffect(() => {
 		if (!comparison) return;

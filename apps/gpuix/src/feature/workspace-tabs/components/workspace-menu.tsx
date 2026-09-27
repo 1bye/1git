@@ -493,13 +493,11 @@ export function WorkspaceMenu({
 				root: repository.root,
 				base: head,
 				baseName: branch ?? "HEAD",
-				branches: data.branches.branches
-					.filter((item) => item.fullName !== `refs/heads/${branch}`)
-					.map((item) => ({
-						value: item.fullName,
-						label: item.name,
-						oid: item.oid,
-					})),
+				branches: data.branches.branches.map((item) => ({
+					value: item.fullName,
+					label: item.name,
+					oid: item.oid,
+				})),
 			},
 		});
 		onClose();

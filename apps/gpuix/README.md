@@ -371,11 +371,13 @@ the Turbo build/dev tasks build dependencies first. No Electron IPC is involved.
 
 ## Comparing branches
 
-- Open the active tab menu and choose **Compare**, then choose a local or
-  remote-tracking branch. This is a read-only snapshot; it does not fetch,
+- Open the active tab menu and choose **Compare**. The centered selectors above
+  the preview choose the base (left) and incoming branch (right); the swap button
+  reverses them. Both offer local and remote-tracking branches. The base initially
+  uses the workspace's HEAD. This is a read-only snapshot; it does not fetch,
   switch branches, merge, or change the index or working files.
 - Incoming commits are those reachable from the selected branch but not the
-  current HEAD, loaded in pages of 50. **All branch changes** shows the combined
+  selected base, loaded in pages of 50. **All branch changes** shows the combined
   changes from their common ancestor to the selected branch. This is not a
   preview of the eventual merge result or a conflict check.
 - Select an individual commit to browse its first-parent changes. File selection

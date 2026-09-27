@@ -166,6 +166,8 @@ it("keeps the toolbar horizontal and the lists beside a full-height preview", as
 	const body = bounds("comparison-body");
 	const sidebar = bounds("comparison-sidebar");
 	const preview = bounds("comparison-preview");
+	const pair = bounds("comparison-branch-pair");
+	const base = bounds("comparison-base");
 	const commits = bounds("comparison-commits");
 	const all = bounds("comparison-all-files");
 	const files = bounds("comparison-files");
@@ -174,6 +176,11 @@ it("keeps the toolbar horizontal and the lists beside a full-height preview", as
 		Math.abs(back.y + back.height / 2 - picker.y - picker.height / 2)
 	).toBeLessThan(2);
 	expect(back.width).toBeLessThan(100);
+	expect(pair.x + pair.width / 2).toBeCloseTo(preview.x + preview.width / 2, 0);
+	expect(base.x + base.width).toBeLessThan(picker.x);
+	expect(root.renderer.getAllText().join(" ")).not.toContain(
+		"Read-only snapshot"
+	);
 	expect(preview.x).toBeGreaterThanOrEqual(sidebar.x + sidebar.width - 1);
 	expect(preview.y).toBeCloseTo(sidebar.y, 0);
 	expect(body.height).toBeGreaterThan(500);
@@ -186,6 +193,33 @@ it("keeps the toolbar horizontal and the lists beside a full-height preview", as
 	expect(header.x).toBeGreaterThanOrEqual(sidebar.x + sidebar.width - 1);
 	expect(header.y).toBeCloseTo(preview.y, 0);
 	expect(root.renderer.getPaintedText().join(" ")).toContain("const value = 2");
+});
+
+it("changes either endpoint and swaps the complete branch selection", async () => {
+	show();
+	await choose("feature");
+	click("comparison-base");
+	await settle();
+	click("base-option-other");
+	await settle();
+	expect(readComparison.mock.calls.at(-1)?.slice(0, 3)).toEqual([
+		"/test",
+		"other-head",
+		"head",
+	]);
+	click("swap-comparison");
+	await settle();
+	expect(readComparison.mock.calls.at(-1)?.slice(0, 3)).toEqual([
+		"/test",
+		"head",
+		"other-head",
+	]);
+	await choose("HEAD");
+	expect(readComparison.mock.calls.at(-1)?.slice(0, 3)).toEqual([
+		"/test",
+		"head",
+		"base",
+	]);
 });
 
 it("selects the first combined file, previews a commit and returns to all files", async () => {
