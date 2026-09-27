@@ -10,6 +10,11 @@ import {
 } from "../lib/repository-workspace-model";
 import { RepositoryCommit } from "../lib/repository-commit";
 import { useCloseProtection } from "./use-close-protection";
+import {
+	RepositoryStashes,
+	type StashWriteRequest,
+	type StashRequest,
+} from "../lib/repository-stashes";
 import { RepositoryReader } from "../lib/repository-reader";
 import {
 	RepositorySync,
@@ -30,7 +35,8 @@ export function useRepositoryMutations(
 	readRepository = RepositoryReader.read,
 	fetchRepository = RepositorySync.fetch,
 	writeSyncRepository = RepositorySync.write,
-	beforeCloseRelease?: () => void
+	beforeCloseRelease?: () => void,
+	writeStash = RepositoryStashes.write
 ) {
 	const closeProtection = useCloseProtection(
 		state.tabs.some((tab) => RepositoryWorkspaceModel.isBusy(tab.workspace)),
@@ -45,6 +51,7 @@ export function useRepositoryMutations(
 	);
 
 	const mounted = useRef(true);
+	const stashWrites = useRef(new Map<string, StashRequest["kind"]>());
 
 	const syncs = useRef(
 		new Map<string, { controller: AbortController; kind: SyncKind }>()
@@ -59,16 +66,21 @@ export function useRepositoryMutations(
 			const sync = repository && syncs.current.get(repository.commonDirectory);
 			const operation = repository && pending.current.get(repository.root);
 
+			const stash =
+				repository && stashWrites.current.get(repository.commonDirectory);
+
 			if (
-				(operation || sync) &&
+				(operation || sync || stash) &&
 				!RepositoryWorkspaceModel.isBusy(tab.workspace)
 			)
 				dispatch({
 					type: "workspace",
 					id: tab.id,
-					action: sync
-						? { type: "sync-started", kind: sync.kind }
-						: { type: operation ?? "commit-started" },
+					action: stash
+						? { type: "stash-started", kind: stash }
+						: sync
+							? { type: "sync-started", kind: sync.kind }
+							: { type: operation ?? "commit-started" },
 				});
 		}
 	}, [state.tabs, dispatch]);
@@ -93,6 +105,7 @@ export function useRepositoryMutations(
 			!repository ||
 			!RepositoryWorkspaceModel.canCommit(workspace) ||
 			pending.current.has(repository.root) ||
+			stashWrites.current.has(repository.commonDirectory) ||
 			syncs.current.has(repository.commonDirectory)
 		)
 			return;
@@ -168,6 +181,7 @@ export function useRepositoryMutations(
 			workspace.error ||
 			workspace.commit.needsReview ||
 			pending.current.has(repository.root) ||
+			stashWrites.current.has(repository.commonDirectory) ||
 			syncs.current.has(repository.commonDirectory)
 		)
 			return "Wait for the current operation or refresh this workspace before switching branches.";
@@ -237,6 +251,7 @@ export function useRepositoryMutations(
 		if (
 			!workspace ||
 			!repository ||
+			stashWrites.current.has(repository.commonDirectory) ||
 			syncs.current.has(repository.commonDirectory)
 		)
 			return;
@@ -398,6 +413,153 @@ export function useRepositoryMutations(
 			);
 	};
 
+	const stash = async (
+		id: string,
+		request: StashWriteRequest
+	): Promise<boolean> => {
+		const workspace = tabs.current.find((tab) => tab.id === id)?.workspace;
+		const repository = workspace?.repository;
+
+		if (
+			!workspace ||
+			!repository ||
+			workspace.preview ||
+			workspace.error ||
+			workspace.commit.needsReview ||
+			stashWrites.current.has(repository.commonDirectory) ||
+			syncs.current.has(repository.commonDirectory)
+		)
+			return false;
+
+		const related = tabs.current.filter(
+			(tab) =>
+				tab.workspace.repository?.commonDirectory === repository.commonDirectory
+		);
+
+		if (
+			related.some(
+				(tab) =>
+					tab.workspace.loading ||
+					RepositoryWorkspaceModel.isBusy(tab.workspace) ||
+					(tab.workspace.repository &&
+						pending.current.has(tab.workspace.repository.root))
+			)
+		)
+			return false;
+
+		stashWrites.current.set(repository.commonDirectory, request.kind);
+		closeProtection.block();
+
+		for (const tab of related)
+			dispatch({
+				type: "workspace",
+				id: tab.id,
+				action: { type: "stash-started", kind: request.kind },
+			});
+
+		let error: string | null = null;
+
+		try {
+			const result = await writeStash(repository.root, request);
+
+			if (!result.ok)
+				error = [result.error.message, result.error.details]
+					.filter(Boolean)
+					.join("\n");
+		} catch {
+			error =
+				"Could not confirm the stash action. Review Changes and Stashes before retrying; it may have completed.";
+		}
+
+		const roots = new Set(
+			tabs.current.flatMap((tab) =>
+				tab.workspace.repository?.commonDirectory === repository.commonDirectory
+					? [tab.workspace.repository.root]
+					: []
+			)
+		);
+
+		const outcomes = new Map<string, RepositoryWorkspaceAction>();
+
+		await Promise.all(
+			[...roots].map(async (root) => {
+				try {
+					const result = await readRepository(
+						root,
+						new AbortController().signal
+					);
+
+					outcomes.set(root, {
+						type: "stash-finished",
+						error,
+						...(result.ok
+							? { snapshot: result.value }
+							: { refreshError: result.error.message }),
+						notice: error
+							? undefined
+							: {
+									create: "Changes stashed.",
+									apply: "Stash applied and kept.",
+									delete: "Stash deleted.",
+								}[request.kind],
+					});
+				} catch {
+					outcomes.set(root, {
+						type: "stash-finished",
+						error,
+						refreshError:
+							"Refresh to confirm the repository after the stash action.",
+					});
+				}
+			})
+		);
+		stashWrites.current.delete(repository.commonDirectory);
+
+		if (!mounted.current) return false;
+
+		let refreshed = true;
+
+		for (const tab of tabs.current) {
+			if (
+				tab.workspace.repository?.commonDirectory !== repository.commonDirectory
+			)
+				continue;
+
+			const outcome = outcomes.get(tab.workspace.repository.root);
+
+			const action =
+				outcome?.type === "stash-finished"
+					? outcome
+					: {
+							type: "stash-finished" as const,
+							error,
+							refreshError:
+								"Refresh this newly opened workspace before continuing.",
+						};
+
+			if (action.refreshError) refreshed = false;
+
+			dispatch({
+				type: "workspace",
+				id: tab.id,
+				action: {
+					...action,
+					...(!error &&
+						!action.refreshError &&
+						tab.id === id &&
+						request.kind !== "delete" && {
+							view:
+								request.kind === "create"
+									? ("stashes" as const)
+									: ("changes" as const),
+						}),
+				},
+			});
+		}
+
+		return !error && refreshed;
+	};
+
 	const cancelSync = (id: string): void => {
 		const repository = tabs.current.find((tab) => tab.id === id)?.workspace
 			.repository;
@@ -408,6 +570,7 @@ export function useRepositoryMutations(
 
 	return {
 		closeProtection,
+		stash,
 		commit,
 		changeBranch,
 		fetch: (id: string) => synchronize(id, { kind: "fetch" }),

@@ -50,6 +50,7 @@ export function App({
 	writeBranch = RepositoryBranches.write,
 	fetchRepository = RepositorySync.fetch,
 	writeSyncRepository = RepositorySync.write,
+	writeStash = RepositoryStashes.write,
 	watchRepository,
 }: {
 	initialTabCount?: number;
@@ -68,6 +69,7 @@ export function App({
 	writeBranch?: typeof RepositoryBranches.write;
 	fetchRepository?: typeof RepositorySync.fetch;
 	writeSyncRepository?: typeof RepositorySync.write;
+	writeStash?: typeof RepositoryStashes.write;
 	watchRepository?: typeof RepositoryWatcher.watch;
 }) {
 	const [state, dispatch] = useReducer(
@@ -95,7 +97,8 @@ export function App({
 		readRepository,
 		fetchRepository,
 		writeSyncRepository,
-		session.retry
+		session.retry,
+		writeStash
 	);
 
 	useRepositoryAutoRefresh(state, dispatch, readRepository, watchRepository);
@@ -155,6 +158,7 @@ export function App({
 						onCommit={() => {
 							void mutations.commit(activeTab.id);
 						}}
+						onStash={(request) => mutations.stash(activeTab.id, request)}
 						onRefresh={() => {
 							void connection.refresh(activeTab.id);
 						}}

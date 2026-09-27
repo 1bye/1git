@@ -19,9 +19,10 @@ export function RepositoryCloseNotice({
 		if (!RepositoryWorkspaceModel.isBusy(workspace) || !workspace.repository)
 			return false;
 
-		const key = workspace.sync.pending
-			? workspace.repository.commonDirectory
-			: workspace.repository.root;
+		const key =
+			workspace.sync.pending || workspace.stashMutation.pending
+				? workspace.repository.commonDirectory
+				: workspace.repository.root;
 
 		if (seen.has(key)) return false;
 
@@ -56,7 +57,9 @@ export function RepositoryCloseNotice({
 								? "Committing…"
 								: workspace.branchPending
 									? "Changing branch…"
-									: `${workspace.sync.pending} in progress…`
+									: workspace.stashMutation.pending
+										? `Stash ${workspace.stashMutation.pending} in progress…`
+										: `${workspace.sync.pending} in progress…`
 						}`}
 					</text>
 					{workspace.sync.pending ? (

@@ -270,7 +270,7 @@ This is not a port of the Electron liquid SVG morph.
   them neither stages nor unstages files. Command+Enter/the composer button creates
   a real commit in a connected repository. Drafts are saved with the session;
   inclusion choices remain in-memory only.
-  History and Stashes are read-only.
+  History is read-only; Stashes provides explicit create, apply and delete actions.
   Unavailable views never substitute sample records for live data.
 
 Git must be installed on PATH. The app imports the existing workspace Git package;
@@ -382,8 +382,23 @@ the Turbo build/dev tasks build dependencies first. No Electron IPC is involved.
   stashes disappear; the first remaining stash is selected if necessary.
 - Files load on demand. Leaving the view, refreshing or closing/switching tabs
   cancels pending reads; late results are ignored. Empty and failed reads have
-  explicit states and retry controls. No Apply, Pop, Drop or stash creation actions
-  are exposed, and reading never changes the index, working tree or stash reflog.
+  explicit states and retry controls. Reading never changes the index, working tree
+  or stash reflog.
+- **Stash changes…** in Changes and **New stash** in Stashes open a compact form
+  with an optional message and an opt-in untracked-files checkbox. Creation saves
+  all tracked changes, independently of the commit checkboxes; ignored files stay
+  untouched. Unborn repositories and changed submodules are not supported.
+- **Apply** requires a clean working tree and keeps the stash, including when Git
+  reports conflicts. A successful apply returns to Changes. There is no Pop action.
+- **Delete stash…** requires confirmation. The reviewed immutable ID is resolved
+  to its current stash reference immediately before deletion; stale or ambiguous
+  selections are refused. Avoid concurrent external stash mutations: resolving
+  the reference and deleting it are separate Git commands, not an atomic operation.
+- Writes recheck HEAD/branch and reject active Git operations or conflicts. All
+  open worktrees sharing the stash reflog are locked against competing app writes
+  and refreshed after success or failure. Refresh failures block further writes
+  until refreshed. Native close protection remains active through this refresh;
+  stash commands cannot be cancelled mid-write. Commit drafts are preserved.
 
 ## Read-only file diffs
 

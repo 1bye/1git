@@ -1,5 +1,5 @@
 /**
- * Covers: saved staged/unstaged/untracked files, renames/deletions, immutable text/image/SVG previews and read-only safety.
+ * Covers: saved previews, explicit stash create/apply/delete, fresh identity checks, conflicts and data preservation.
  * Real: shared Git backend, stash/diff readers, Sharp and disposable Git repositories.
  * Doubles: none.
  * Requires: Git, Sharp and writable temporary storage; no network or graphics.
@@ -56,6 +56,10 @@ beforeEach(async () => {
 	repository = await realpath(await mkdtemp(join(tmpdir(), "gpuix-stashes-")));
 	await git("init", "--initial-branch=main");
 	await git("config", "core.fsmonitor", "false");
+	await git("config", "user.name", "Stash Test");
+	await git("config", "user.email", "stash@example.invalid");
+	await git("config", "core.hooksPath", "/dev/null");
+	await git("config", "commit.gpgsign", "false");
 });
 afterEach(async () => {
 	await rm(repository, { recursive: true, force: true });
@@ -68,6 +72,175 @@ const files = async (oid: string) => {
 
 	return result.value;
 };
+
+it("creates all tracked changes, opts into untracked files, and applies without removing the stash", async () => {
+	await writeFile(join(repository, "a.txt"), "base\n");
+	await writeFile(join(repository, ".gitignore"), "ignored.txt\n");
+	await git("add", ".");
+	await git("commit", "-m", "Base");
+	const expectedHead = await git("rev-parse", "HEAD");
+	const identity = { expectedHead, expectedBranch: "main" };
+
+	await writeFile(join(repository, "a.txt"), "staged\n");
+	await git("add", "a.txt");
+	await writeFile(join(repository, "a.txt"), "unstaged too\n");
+	await writeFile(join(repository, "new.txt"), "untracked\n");
+	await writeFile(join(repository, "ignored.txt"), "ignored\n");
+	expect(
+		(
+			await RepositoryStashes.write(repository, {
+				kind: "create",
+				message: "My work",
+				includeUntracked: false,
+				...identity,
+			})
+		).ok
+	).toBe(true);
+	expect(await readFile(join(repository, "a.txt"), "utf8")).toBe("base\n");
+	expect(await readFile(join(repository, "new.txt"), "utf8")).toBe(
+		"untracked\n"
+	);
+	expect(
+		(
+			await RepositoryStashes.write(repository, {
+				kind: "create",
+				message: "With new files",
+				includeUntracked: true,
+				...identity,
+			})
+		).ok
+	).toBe(true);
+	expect(await readFile(join(repository, "ignored.txt"), "utf8")).toBe(
+		"ignored\n"
+	);
+	const oid = await git("rev-parse", "stash@{1}");
+
+	expect(
+		(
+			await RepositoryStashes.write(repository, {
+				kind: "apply",
+				oid,
+				...identity,
+			})
+		).ok
+	).toBe(true);
+	expect(await readFile(join(repository, "a.txt"), "utf8")).toBe(
+		"unstaged too\n"
+	);
+	expect(await git("rev-parse", "stash@{1}")).toBe(oid);
+	expect(
+		(
+			await RepositoryStashes.write(repository, {
+				kind: "apply",
+				oid,
+				...identity,
+			})
+		).ok
+	).toBe(false);
+	expect(await readFile(join(repository, "a.txt"), "utf8")).toBe(
+		"unstaged too\n"
+	);
+});
+
+it("deletes the reviewed OID after reflog renumbering and rejects missing IDs or changed HEAD", async () => {
+	await writeFile(join(repository, "a.txt"), "base\n");
+	await git("add", ".");
+	await git("commit", "-m", "Base");
+	const identity = {
+		expectedHead: await git("rev-parse", "HEAD"),
+		expectedBranch: "main",
+	};
+
+	await writeFile(join(repository, "a.txt"), "first\n");
+	await git("stash", "push", "-m", "First");
+	const first = await git("rev-parse", "stash@{0}");
+
+	await writeFile(join(repository, "a.txt"), "second\n");
+	await git("stash", "push", "-m", "Second");
+	const second = await git("rev-parse", "stash@{0}");
+
+	expect(
+		(
+			await RepositoryStashes.write(repository, {
+				kind: "delete",
+				oid: first,
+				...identity,
+			})
+		).ok
+	).toBe(true);
+	expect(await git("rev-parse", "stash@{0}")).toBe(second);
+	expect(
+		(
+			await RepositoryStashes.write(repository, {
+				kind: "delete",
+				oid: first,
+				...identity,
+			})
+		).ok
+	).toBe(false);
+	await git("commit", "--allow-empty", "-m", "New HEAD");
+	expect(
+		(
+			await RepositoryStashes.write(repository, {
+				kind: "delete",
+				oid: second,
+				...identity,
+			})
+		).ok
+	).toBe(false);
+	expect(await git("rev-parse", "stash@{0}")).toBe(second);
+});
+
+it("keeps a stash on apply conflicts and rejects empty or unborn creation", async () => {
+	expect(
+		(
+			await RepositoryStashes.write(repository, {
+				kind: "create",
+				message: "",
+				includeUntracked: false,
+				expectedHead: null,
+				expectedBranch: "main",
+			})
+		).ok
+	).toBe(false);
+	await writeFile(join(repository, "a.txt"), "base\n");
+	await git("add", ".");
+	await git("commit", "-m", "Base");
+	const original = {
+		expectedHead: await git("rev-parse", "HEAD"),
+		expectedBranch: "main",
+	};
+
+	expect(
+		(
+			await RepositoryStashes.write(repository, {
+				kind: "create",
+				message: "",
+				includeUntracked: false,
+				...original,
+			})
+		).ok
+	).toBe(false);
+	await writeFile(join(repository, "a.txt"), "stashed\n");
+	await git("stash", "push", "-m", "Conflict candidate");
+	const oid = await git("rev-parse", "stash@{0}");
+
+	await writeFile(join(repository, "a.txt"), "committed differently\n");
+	await git("add", ".");
+	await git("commit", "-m", "Conflicting base");
+	expect(
+		(
+			await RepositoryStashes.write(repository, {
+				kind: "apply",
+				oid,
+				expectedHead: await git("rev-parse", "HEAD"),
+				expectedBranch: "main",
+			})
+		).ok
+	).toBe(false);
+	expect(await git("rev-parse", "stash@{0}")).toBe(oid);
+	expect(await git("diff", "--name-only", "--diff-filter=U")).toBe("a.txt");
+});
 
 const diff = async (file: WorkspaceEntry | undefined) => {
 	if (!file?.commitFile) throw new Error("Missing saved file");

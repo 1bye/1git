@@ -18,6 +18,8 @@ import { appTokens } from "../../../styles/tokens";
 import type { useRepositoryHistory } from "../hooks/use-repository-history";
 import type { useRepositoryStashes } from "../hooks/use-repository-stashes";
 import { RepositoryReadNotice } from "./repository-read-notice";
+import { RepositoryStashActions } from "./repository-stash-actions";
+import type { StashWriteRequest } from "../lib/repository-stashes";
 
 const styles = StyleSheet.create({
 	navigation: {
@@ -135,6 +137,7 @@ export function RepositoryNavigation({
 	history,
 	stashes,
 	onCommit,
+	onStash,
 }: {
 	workspaceId: string;
 	state: RepositoryWorkspaceState;
@@ -143,6 +146,7 @@ export function RepositoryNavigation({
 	history?: ReturnType<typeof useRepositoryHistory>;
 	stashes?: ReturnType<typeof useRepositoryStashes>;
 	onCommit?: () => void;
+	onStash?: (request: StashWriteRequest) => Promise<boolean>;
 }) {
 	const renderer = useGpuixRequired();
 	const pills = useRef(new Map<RepositoryView, PublicInstance>());
@@ -341,6 +345,20 @@ export function RepositoryNavigation({
 				</text>
 			) : null}
 			<div role="tabpanel" aria-label={label} style={styles.viewContent}>
+				{state.stashMutation.error ||
+				state.stashMutation.notice ||
+				state.stashMutation.pending ? (
+					<text
+						testId="stash-notice"
+						role={state.stashMutation.error ? "alert" : "status"}
+						style={{ ...styles.muted, padding: 8 }}
+					>
+						{state.stashMutation.error ??
+							(state.stashMutation.pending
+								? `Stash ${state.stashMutation.pending} in progress…`
+								: state.stashMutation.notice)}
+					</text>
+				) : null}
 				<div style={styles.header}>
 					<text testId="repository-heading" style={styles.muted}>
 						{heading}
@@ -370,6 +388,13 @@ export function RepositoryNavigation({
 						<text style={styles.faint}>{state.entries[view].length}</text>
 					)}
 				</div>
+				{view === "stashes" && state.repository && onStash ? (
+					<RepositoryStashActions
+						state={state}
+						placement="create"
+						onWrite={onStash}
+					/>
+				) : null}
 				{view === "changes" ? (
 					list
 				) : (
@@ -382,6 +407,13 @@ export function RepositoryNavigation({
 						onRetryFiles={revisionReader?.retryFiles}
 					>
 						{list}
+						{view === "stashes" && state.repository && onStash ? (
+							<RepositoryStashActions
+								state={state}
+								placement="selection"
+								onWrite={onStash}
+							/>
+						) : null}
 						{view === "stashes" &&
 						state.repository &&
 						stashes &&
@@ -408,6 +440,13 @@ export function RepositoryNavigation({
 						) : null}
 					</RepositoryRevisions>
 				)}
+				{view === "changes" && state.repository && onStash ? (
+					<RepositoryStashActions
+						state={state}
+						placement="create"
+						onWrite={onStash}
+					/>
+				) : null}
 				{view === "changes" &&
 				(state.preview || state.repository || state.repositoryPath) ? (
 					<RepositoryCommit
@@ -422,7 +461,7 @@ export function RepositoryNavigation({
 								? "Sample data"
 								: view === "history"
 									? "Read-only · first-parent diffs"
-									: "Read-only preview"}
+									: "Apply keeps the stash"}
 						</text>
 						<text style={styles.faint}>↑ ↓ Navigate</text>
 					</div>

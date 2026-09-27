@@ -12,6 +12,7 @@ import type {
 import { sampleEntries } from "./sample-workspace";
 import { RepositoryHistory } from "./repository-history";
 import { RepositoryStashes } from "./repository-stashes";
+import type { StashRequest } from "./repository-stashes";
 import type {
 	RepositoryView,
 	RevisionView,
@@ -48,6 +49,11 @@ export interface RepositoryWorkspaceState {
 	/** Saved root retained even while unavailable; fresh metadata still comes from repository reads. */
 	readonly repositoryPath: string | null;
 	readonly branchPending: boolean;
+	readonly stashMutation: {
+		readonly pending: StashRequest["kind"] | null;
+		readonly error: string | null;
+		readonly notice: string | null;
+	};
 	readonly sync: {
 		readonly pending: "fetch" | "pull" | "push" | "publish" | null;
 		readonly error: string | null;
@@ -96,6 +102,15 @@ export interface RepositoryWorkspaceState {
 
 /** Presentation transitions; no filesystem, Git mutations, or persistent storage effects. */
 export type RepositoryWorkspaceAction =
+	| { type: "stash-started"; kind: StashRequest["kind"] }
+	| {
+			type: "stash-finished";
+			snapshot?: RepositorySnapshot;
+			error: string | null;
+			refreshError?: string;
+			notice?: string;
+			view?: RepositoryView;
+	  }
 	| {
 			type: "sync-started";
 			kind: NonNullable<RepositoryWorkspaceState["sync"]["pending"]>;
@@ -187,6 +202,7 @@ export class RepositoryWorkspaceModel {
 			preview,
 			repositoryPath: null,
 			branchPending: false,
+			stashMutation: { pending: null, error: null, notice: null },
 			sync: {
 				pending: null,
 				error: null,
@@ -278,7 +294,10 @@ export class RepositoryWorkspaceModel {
 
 	static isBusy(state: RepositoryWorkspaceState): boolean {
 		return (
-			state.commit.pending || state.branchPending || state.sync.pending !== null
+			state.commit.pending ||
+			state.branchPending ||
+			state.sync.pending !== null ||
+			state.stashMutation.pending !== null
 		);
 	}
 
@@ -286,6 +305,53 @@ export class RepositoryWorkspaceModel {
 		state: RepositoryWorkspaceState,
 		action: RepositoryWorkspaceAction
 	): RepositoryWorkspaceState {
+		if (action.type === "stash-started")
+			return {
+				...state,
+				loading: false,
+				stashMutation: { pending: action.kind, error: null, notice: null },
+			};
+
+		if (action.type === "stash-finished") {
+			const next = {
+				...state,
+				stashMutation: {
+					pending: null,
+					error: action.error,
+					notice: action.notice ?? null,
+				},
+			};
+
+			const refreshed = action.snapshot
+				? RepositoryWorkspaceModel.reduce(next, {
+						type: "loaded",
+						snapshot: action.snapshot,
+						automatic: true,
+					})
+				: next;
+
+			return {
+				...refreshed,
+				error: action.refreshError ?? refreshed.error,
+				view: action.view ?? refreshed.view,
+				stashes: {
+					...refreshed.stashes,
+					loaded: false,
+					generation: refreshed.stashes.generation + 1,
+				},
+				...(action.view === "stashes" && {
+					views: {
+						...refreshed.views,
+						stashes: {
+							...refreshed.views.stashes,
+							selectedId: null,
+							files: { selectedId: null, scrollY: 0 },
+						},
+					},
+				}),
+			};
+		}
+
 		if (action.type === "sync-started")
 			return {
 				...state,
