@@ -9,6 +9,7 @@ import {
 	type RepositoryWorkspaceAction,
 } from "../lib/repository-workspace-model";
 import { RepositoryCommit } from "../lib/repository-commit";
+import { RepositoryConflicts } from "../lib/repository-conflicts";
 import { useCloseProtection } from "./use-close-protection";
 import {
 	RepositoryStashes,
@@ -36,7 +37,8 @@ export function useRepositoryMutations(
 	fetchRepository = RepositorySync.fetch,
 	writeSyncRepository = RepositorySync.write,
 	beforeCloseRelease?: () => void,
-	writeStash = RepositoryStashes.write
+	writeStash = RepositoryStashes.write,
+	resolveConflict = RepositoryConflicts.write
 ) {
 	const closeProtection = useCloseProtection(
 		state.tabs.some((tab) => RepositoryWorkspaceModel.isBusy(tab.workspace)),
@@ -47,7 +49,7 @@ export function useRepositoryMutations(
 	const tabs = useRef(state.tabs);
 
 	const pending = useRef(
-		new Map<string, "commit-started" | "branch-started">()
+		new Map<string, "commit-started" | "branch-started" | "conflict-started">()
 	);
 
 	const mounted = useRef(true);
@@ -568,7 +570,81 @@ export function useRepositoryMutations(
 			syncs.current.get(repository.commonDirectory)?.controller.abort();
 	};
 
+	const resolve = async (
+		id: string,
+		path: string,
+		expectedContentHash: string
+	): Promise<string | null> => {
+		const workspace = tabs.current.find((tab) => tab.id === id)?.workspace;
+		const repository = workspace?.repository;
+
+		if (
+			!workspace ||
+			!repository ||
+			workspace.preview ||
+			workspace.loading ||
+			workspace.error ||
+			workspace.commit.needsReview ||
+			RepositoryWorkspaceModel.isBusy(workspace) ||
+			pending.current.has(repository.root) ||
+			syncs.current.has(repository.commonDirectory) ||
+			stashWrites.current.has(repository.commonDirectory)
+		)
+			return "Wait for the current operation or refresh before resolving this file.";
+
+		const send = (action: RepositoryWorkspaceAction) => {
+			if (!mounted.current) return;
+
+			for (const tab of tabs.current) {
+				if (tab.workspace.repository?.root === repository.root)
+					dispatch({ type: "workspace", id: tab.id, action });
+			}
+		};
+
+		pending.current.set(repository.root, "conflict-started");
+		closeProtection.block();
+		send({ type: "conflict-started" });
+		let error: string | null = null;
+
+		try {
+			const result = await resolveConflict(repository.root, {
+				path,
+				expectedContentHash,
+				expectedHead: repository.head,
+				expectedBranch: repository.branchName,
+			});
+
+			if (!result.ok) error = result.error.message;
+		} catch {
+			error =
+				"Could not confirm the resolution. Refresh and inspect Changes before retrying.";
+		}
+
+		try {
+			const fresh = await readRepository(
+				repository.root,
+				new AbortController().signal
+			);
+
+			pending.current.delete(repository.root);
+			send(
+				fresh.ok
+					? { type: "conflict-finished", snapshot: fresh.value }
+					: { type: "conflict-finished", error: fresh.error.message }
+			);
+
+			if (!fresh.ok) error = fresh.error.message;
+		} catch {
+			pending.current.delete(repository.root);
+			error = "Refresh to confirm the repository after resolving this file.";
+			send({ type: "conflict-finished", error });
+		}
+
+		return error;
+	};
+
 	return {
+		resolve,
 		closeProtection,
 		stash,
 		commit,

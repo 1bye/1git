@@ -6,6 +6,7 @@ import {
 } from "@1git/git";
 
 import { imageLimits } from "./image-preview";
+import { RepositoryConflicts } from "./repository-conflicts";
 import type { CommitFileSelection } from "../types";
 import {
 	RepositoryImage,
@@ -30,6 +31,7 @@ export interface RepositoryDiffSection {
 	readonly stats: FileDiff["stats"];
 	readonly message: string | null;
 	readonly image?: RepositoryImageComparison;
+	readonly conflict?: { readonly text: string; readonly hash: string };
 }
 
 const combinedPatch = /^(?:diff --(?:cc|combined) |@@@)/m;
@@ -49,7 +51,11 @@ export class RepositoryDiff {
 		if ("commit" in change)
 			return await RepositoryDiff.readCommit(root, change, signal);
 
-		if (change.recordType === "unmerged")
+		if (change.recordType === "unmerged") {
+			const content = await RepositoryConflicts.read(root, change.path, signal);
+
+			if (!content.ok) return content;
+
 			return {
 				ok: true,
 				value: [
@@ -57,11 +63,14 @@ export class RepositoryDiff {
 						target: "working",
 						patch: "",
 						stats: [],
-						message:
-							"This file has merge conflicts. A conflict-aware diff viewer is not available yet.",
+						conflict: content.value ?? undefined,
+						message: content.value
+							? null
+							: "Binary or oversized conflict. Resolve and stage this file in your editor or Git CLI, then refresh.",
 					},
 				],
 			};
+		}
 
 		const image = RepositoryImage.supports(change.path);
 

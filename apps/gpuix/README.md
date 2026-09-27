@@ -424,7 +424,7 @@ scrolling while using GPUIX's virtualized list; no additional diff library is ne
   automatically, preferring Unstaged.
 - New/untracked files, deletions, empty files, renames and mode changes use the
   same viewer. PNG, JPEG, WebP and SVG files have image previews, described below.
-  Other binary files and merge conflicts have explicit notices instead of
+  Other binary files have explicit notices instead of
   misleading text. Conflict resolution is not implemented.
 - The native list owns vertical scrolling and only builds rows near the viewport;
   its surrounding viewport owns horizontal scrolling only. There are no competing
@@ -451,6 +451,26 @@ scrolling while using GPUIX's virtualized list; no additional diff library is ne
 The shared Git diff commands treat requested paths literally and disable external
 diff/text-conversion drivers, returning raw patches without invoking those tools.
 Reading a diff never stages, unstages, discards or commits changes.
+
+### Manual conflict resolution
+
+- Conflicted Changes rows show a red status icon and **Conflict** label. Selecting
+  one shows the read-only working file, including its conflict markers.
+- **Open in editor** uses macOS's default text editor (`open -t`), never a
+  repository-provided shell command. Save edits there, then **Refresh preview**.
+- **Mark resolved** stages only the reviewed file. It rechecks HEAD/branch,
+  conflict status, regular-file safety, UTF-8 content, remaining marker lines,
+  and the preview's content hash. It does not commit, continue/abort a merge or
+  rebase, choose a side, or delete the stash. Complete ongoing Git operations
+  outside the app for now; stash conflicts without an ongoing operation can
+  return to the normal commit flow after resolution.
+- Binary, deleted, symbolic-link, submodule and oversized conflicts require
+  external Git resolution. Text previews/resolution are limited to 512 KiB.
+  Marker detection is conservative; marker-like text may require external staging.
+- Closing and competing app writes are blocked until the resolution and status
+  refresh finish. Failures retain the draft and refresh the index state. A failed
+  refresh blocks further writes. External editors/Git processes are not locked;
+  avoid concurrent writes while marking a file resolved.
 
 ### Image previews
 

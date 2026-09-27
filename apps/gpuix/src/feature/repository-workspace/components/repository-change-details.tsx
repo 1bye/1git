@@ -2,6 +2,7 @@ import { lightColors } from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 
 import type { WorkspaceEntry } from "../types";
+import { appTokens } from "../../../styles/tokens";
 
 const addedColor = "#1a7f37";
 
@@ -71,11 +72,13 @@ export function RepositoryChangeLabel({ entry }: { entry: WorkspaceEntry }) {
 					height: 12,
 					flexShrink: 0,
 					color:
-						status === "A"
-							? addedColor
-							: status === "D"
-								? lightColors.editorFaint
-								: lightColors.brand,
+						status === "U"
+							? appTokens.colors.danger
+							: status === "A"
+								? addedColor
+								: status === "D"
+									? lightColors.editorFaint
+									: lightColors.brand,
 				}}
 			/>
 			<div testId={`identity-${entry.id}`} style={styles.nameAndPath}>
@@ -97,6 +100,11 @@ export function RepositoryChangeLabel({ entry }: { entry: WorkspaceEntry }) {
 					</text>
 				) : null}
 			</div>
+			{status === "U" ? (
+				<text style={{ fontSize: 10, color: appTokens.colors.danger }}>
+					Conflict
+				</text>
+			) : null}
 		</div>
 	);
 }

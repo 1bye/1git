@@ -6,6 +6,7 @@ import type { GpuixTheme } from "@gpuix/react";
 import { useState } from "react";
 
 import { appTokens } from "../../../styles/tokens";
+import { RepositoryConflicts } from "../lib/repository-conflicts";
 import { useRepositoryDiff } from "../hooks/use-repository-diff";
 import {
 	RepositoryDiff as DiffReader,
@@ -138,12 +139,16 @@ export function RepositoryDiff({
 	refreshing,
 	statusError,
 	readDiff = DiffReader.read,
+	onResolve,
+	openConflictEditor = RepositoryConflicts.openEditor,
 }: {
 	root: string;
 	change: DiffSelection;
 	refreshing: boolean;
 	statusError: string | null;
 	readDiff?: typeof DiffReader.read;
+	onResolve?: (hash: string) => Promise<string | null>;
+	openConflictEditor?: typeof RepositoryConflicts.openEditor;
 }) {
 	const { result, retry } = useRepositoryDiff(
 		root,
@@ -156,6 +161,9 @@ export function RepositoryDiff({
 		useState<RepositoryDiffSection["target"]>("working");
 
 	const [sourcePath, setSourcePath] = useState<string | null>(null);
+	const [conflictError, setConflictError] = useState<string | null>(null);
+	const [acting, setActing] = useState(false);
+	const conflicted = "recordType" in change && change.recordType === "unmerged";
 
 	const section =
 		result?.sections.find((entry) => entry.target === target) ??
@@ -261,6 +269,114 @@ export function RepositoryDiff({
 					</div>
 				) : null}
 			</div>
+			{conflicted ? (
+				<div
+					style={{
+						display: "flex",
+						flexDirection: "column",
+						flexShrink: 0,
+						padding: 10,
+						gap: 6,
+					}}
+				>
+					<div
+						style={{
+							display: "flex",
+							flexDirection: "row",
+							alignItems: "center",
+							gap: 6,
+						}}
+					>
+						<text
+							style={{
+								...styles.hint,
+								color: appTokens.colors.danger,
+								flexGrow: 1,
+							}}
+						>
+							Conflict · Working file
+						</text>
+						<Button
+							testId="conflict-open-editor"
+							tokens={appTokens}
+							size="sm"
+							variant="ghost"
+							disabled={refreshing || acting || !!statusError}
+							onPress={async () => {
+								setActing(true);
+								setConflictError(null);
+
+								try {
+									await openConflictEditor(root, change.path);
+								} catch (error) {
+									setConflictError(
+										error instanceof Error
+											? error.message
+											: "Could not open the text editor."
+									);
+								} finally {
+									setActing(false);
+								}
+							}}
+						>
+							Open in editor
+						</Button>
+						<Button
+							testId="conflict-refresh"
+							tokens={appTokens}
+							size="sm"
+							variant="ghost"
+							disabled={refreshing || acting || !!statusError}
+							onPress={retry}
+						>
+							Refresh preview
+						</Button>
+						<Button
+							testId="conflict-resolve"
+							tokens={appTokens}
+							size="sm"
+							disabled={
+								refreshing ||
+								acting ||
+								!!statusError ||
+								!section?.conflict ||
+								!onResolve
+							}
+							onPress={async () => {
+								if (!section?.conflict || !onResolve || acting) return;
+
+								setActing(true);
+								setConflictError(null);
+
+								try {
+									setConflictError(await onResolve(section.conflict.hash));
+								} catch {
+									setConflictError(
+										"Could not confirm resolution. Refresh before retrying."
+									);
+								} finally {
+									setActing(false);
+								}
+							}}
+						>
+							Mark resolved
+						</Button>
+					</div>
+					<text style={styles.hint}>
+						Edit and save the file, then refresh and review. Mark resolved
+						stages this file; it does not commit or continue a merge/rebase.
+					</text>
+					{conflictError ? (
+						<text
+							testId="conflict-error"
+							role="alert"
+							style={{ ...styles.hint, color: appTokens.colors.danger }}
+						>
+							{conflictError}
+						</text>
+					) : null}
+				</div>
+			) : null}
 			{message ? (
 				<div
 					testId="diff-notice"
@@ -280,6 +396,24 @@ export function RepositoryDiff({
 						</Button>
 					) : null}
 				</div>
+			) : section?.conflict ? (
+				<textarea
+					testId="conflict-content"
+					aria-label="Conflicted working file, read only"
+					value={section.conflict.text}
+					readOnly
+					tabIndex={0}
+					style={{
+						flexGrow: 1,
+						minHeight: 0,
+						fontFamily: "Menlo",
+						fontSize: 11,
+						lineHeight: 20,
+						padding: 14,
+						color: appTokens.colors.text,
+						backgroundColor: appTokens.colors.background,
+					}}
+				/>
 			) : showImage && section?.image ? (
 				<RepositoryImagePreview comparison={section.image} path={change.path} />
 			) : section?.message ? (

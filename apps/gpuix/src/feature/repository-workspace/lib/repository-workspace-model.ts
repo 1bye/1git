@@ -49,6 +49,7 @@ export interface RepositoryWorkspaceState {
 	/** Saved root retained even while unavailable; fresh metadata still comes from repository reads. */
 	readonly repositoryPath: string | null;
 	readonly branchPending: boolean;
+	readonly conflictPending: boolean;
 	readonly stashMutation: {
 		readonly pending: StashRequest["kind"] | null;
 		readonly error: string | null;
@@ -124,6 +125,8 @@ export type RepositoryWorkspaceAction =
 			notice?: string;
 	  }
 	| { type: "branch-started" }
+	| { type: "conflict-started" }
+	| { type: "conflict-finished"; snapshot?: RepositorySnapshot; error?: string }
 	| { type: "branch-finished"; snapshot?: RepositorySnapshot; error?: string }
 	| { type: "commit-started" }
 	| { type: "commit-failed"; message: string; uncertain?: boolean }
@@ -202,6 +205,7 @@ export class RepositoryWorkspaceModel {
 			preview,
 			repositoryPath: null,
 			branchPending: false,
+			conflictPending: false,
 			stashMutation: { pending: null, error: null, notice: null },
 			sync: {
 				pending: null,
@@ -296,6 +300,7 @@ export class RepositoryWorkspaceModel {
 		return (
 			state.commit.pending ||
 			state.branchPending ||
+			state.conflictPending ||
 			state.sync.pending !== null ||
 			state.stashMutation.pending !== null
 		);
@@ -387,6 +392,25 @@ export class RepositoryWorkspaceModel {
 			return action.refreshError
 				? { ...refreshed, error: action.refreshError }
 				: refreshed;
+		}
+
+		if (action.type === "conflict-started")
+			return { ...state, conflictPending: true, loading: false };
+
+		if (action.type === "conflict-finished") {
+			const next = { ...state, conflictPending: false };
+
+			return action.snapshot
+				? RepositoryWorkspaceModel.reduce(next, {
+						type: "loaded",
+						snapshot: action.snapshot,
+						automatic: true,
+					})
+				: {
+						...next,
+						error:
+							action.error ?? "Refresh to confirm the conflict resolution.",
+					};
 		}
 
 		if (action.type === "branch-started")

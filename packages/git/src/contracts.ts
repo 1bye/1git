@@ -420,6 +420,14 @@ export interface StageInput extends GitCallOptions {
 	readonly paths: readonly string[];
 }
 
+/** Explicitly stage a reviewed regular UTF-8 conflict resolution, never continue or commit an operation. */
+export interface ResolveConflictInput extends GitCallOptions {
+	readonly path: string;
+	readonly expectedHead: string | null;
+	readonly expectedBranch: string | null;
+	readonly expectedContentHash: string;
+}
+
 export type HunkAction = "discard" | "stage" | "unstage";
 
 export interface ChangeHunkInput extends GitCallOptions {

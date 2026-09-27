@@ -24,6 +24,7 @@ import { RepositoryBranches } from "./feature/workspace-tabs/lib/repository-bran
 import { RepositoryCommit } from "./feature/repository-workspace/lib/repository-commit";
 import { RepositoryCloseNotice } from "./feature/repository-workspace/components/repository-close-notice";
 import { RepositorySync } from "./feature/repository-workspace/lib/repository-sync";
+import { RepositoryConflicts } from "./feature/repository-workspace/lib/repository-conflicts";
 import {
 	RepositoryWorkspaceModel,
 	type RepositoryWorkspaceAction,
@@ -52,6 +53,8 @@ export function App({
 	writeSyncRepository = RepositorySync.write,
 	writeStash = RepositoryStashes.write,
 	watchRepository,
+	resolveConflict = RepositoryConflicts.write,
+	openConflictEditor = RepositoryConflicts.openEditor,
 }: {
 	initialTabCount?: number;
 	preview?: boolean;
@@ -71,6 +74,8 @@ export function App({
 	writeSyncRepository?: typeof RepositorySync.write;
 	writeStash?: typeof RepositoryStashes.write;
 	watchRepository?: typeof RepositoryWatcher.watch;
+	resolveConflict?: typeof RepositoryConflicts.write;
+	openConflictEditor?: typeof RepositoryConflicts.openEditor;
 }) {
 	const [state, dispatch] = useReducer(
 		WorkspaceTabsModel.reduce,
@@ -98,7 +103,8 @@ export function App({
 		fetchRepository,
 		writeSyncRepository,
 		session.retry,
-		writeStash
+		writeStash,
+		resolveConflict
 	);
 
 	useRepositoryAutoRefresh(state, dispatch, readRepository, watchRepository);
@@ -223,6 +229,10 @@ export function App({
 					}
 					statusError={workspace.error}
 					readDiff={readDiff}
+					onResolve={(hash) =>
+						mutations.resolve(activeTab.id, comparison.path, hash)
+					}
+					openConflictEditor={openConflictEditor}
 				/>
 			) : (
 				<RepositoryDiffEmpty

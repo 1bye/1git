@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdir, realpath, stat } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 
@@ -64,6 +64,7 @@ import type {
 	SetUpstreamInput,
 	SnapshotInput,
 	StageInput,
+	ResolveConflictInput,
 	StashInfo,
 	StashInput,
 	StashReferenceInput,
@@ -121,6 +122,8 @@ const EMPTY_TREE_OID = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
 const MAX_DIFF_CONTEXT_LINES = 2_147_483_647;
 const MAX_HISTORY_LIMIT = 500;
 const MAX_HUNK_INDEX = 100_000;
+const MAX_CONFLICT_TEXT_BYTES = 512 * 1024;
+const CONFLICT_MARKER_LINE = /^(?:<{3,}|>{3,}|={3,}|\|{3,})(?:[ \t].*)?\r?$/m;
 
 interface PendingDiscardUndo {
 	readonly expiresAt: number;
@@ -619,6 +622,83 @@ export class GitRepository {
 				requireRepositoryPaths([input.path], "file-content")[0] ?? "",
 				input.signal
 			);
+		});
+	}
+
+	/** Validates a reviewed text resolution before staging that path; leaves operation continuation to the caller. */
+	async resolveConflict(
+		input: ResolveConflictInput
+	): Promise<GitResult<RepositorySnapshot>> {
+		return await this.mutate("stage", input.signal, async () => {
+			const path = requireRepositoryPaths([input.path], "stage")[0];
+
+			if (!path) throw invalidInput("stage", "Select a conflicted file.");
+
+			const snapshot = await loadSnapshot(this.context, false, input.signal);
+
+			if (
+				snapshot.head.oid !== input.expectedHead ||
+				snapshot.head.branch !== input.expectedBranch
+			)
+				throw invalidInput(
+					"stage",
+					"The branch changed. Refresh before resolving this file."
+				);
+
+			const file = snapshot.files.find((entry) => entry.path === path);
+
+			if (file?.recordType !== "unmerged" || file.submodule.startsWith("S"))
+				throw invalidInput(
+					"stage",
+					"This is no longer a supported conflicted file. Refresh first."
+				);
+
+			const absolute = resolve(this.context.repository.root, path);
+
+			if (
+				(await realpath(absolute)) !== absolute ||
+				!(await stat(absolute)).isFile()
+			)
+				throw invalidInput(
+					"stage",
+					"Resolve symbolic links and non-regular files using Git outside this app."
+				);
+
+			const content = await loadFileContent(
+				this.context,
+				{ kind: "working" },
+				path,
+				input.signal
+			);
+
+			if (
+				content.encoding !== "utf8" ||
+				content.content.includes("\0") ||
+				content.sizeBytes > MAX_CONFLICT_TEXT_BYTES
+			)
+				throw invalidInput(
+					"stage",
+					"Resolve binary or oversized files using Git outside this app."
+				);
+
+			if (
+				createHash("sha256").update(content.content).digest("hex") !==
+				input.expectedContentHash
+			)
+				throw invalidInput(
+					"stage",
+					"The file changed since the preview. Refresh and review it before marking resolved."
+				);
+
+			if (CONFLICT_MARKER_LINE.test(content.content))
+				throw invalidInput(
+					"stage",
+					"Conflict markers remain. Edit and save the file, then refresh before marking resolved."
+				);
+
+			await this.run(["add", "--", path], input.signal);
+
+			return await loadSnapshot(this.context, false, input.signal);
 		});
 	}
 
