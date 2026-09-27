@@ -454,7 +454,7 @@ Reading a diff never stages, unstages, discards or commits changes.
 
 ### Changes file actions
 
-- Use **Filter** or **Command+F** in Changes to match filenames and relative
+- Use the **search icon** beside the connected view tabs or **Command+F** in Changes to match filenames and relative
   paths (case-insensitive). Escape clears and closes the field. Filtering leaves
   the current diff and commit inclusion unchanged; Shift-selection and native
   group actions use visible matching files. The select-all commit checkbox still

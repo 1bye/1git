@@ -56,9 +56,7 @@ const styles = StyleSheet.create({
 		height: 26,
 		paddingLeft: 12,
 		paddingRight: 12,
-		borderRadius: 13,
-		borderWidth: 1,
-		borderColor: "transparent",
+		borderRadius: 0,
 		backgroundColor: lightColors.editorSunken,
 		cursor: "pointer",
 		hover: { backgroundColor: lightColors.editorSunken2 },
@@ -313,7 +311,7 @@ export function RepositoryNavigation({
 						display: "flex",
 						flexDirection: "row",
 						alignItems: "center",
-						gap: 4,
+						gap: 0,
 					}}
 				>
 					{repositoryViews.map((item, index) => (
@@ -376,17 +374,24 @@ export function RepositoryNavigation({
 							}}
 							style={StyleSheet.compose(
 								styles.pill,
-								view === item.value && styles.selectedPill,
-								focusedView === item.value &&
-									pointerFocus !== item.value && {
-										borderColor: lightColors.brand,
-									}
+								index === 0 && {
+									borderTopLeftRadius: 13,
+									borderBottomLeftRadius: 13,
+								},
+								index === repositoryViews.length - 1 && {
+									borderTopRightRadius: 13,
+									borderBottomRightRadius: 13,
+								},
+								view === item.value && styles.selectedPill
 							)}
 						>
 							<text
+								testId={`view-label-${item.value}`}
 								style={StyleSheet.compose(
 									styles.pillLabel,
-									view === item.value && { color: lightColors.editorInk }
+									view === item.value && { color: lightColors.editorInk },
+									focusedView === item.value &&
+										pointerFocus !== item.value && { color: lightColors.brand }
 								)}
 							>
 								{item.label}
@@ -394,6 +399,7 @@ export function RepositoryNavigation({
 						</div>
 					))}
 				</div>
+				<div style={{ flexGrow: 1 }} />
 				{state.repository || state.repositoryPath ? (
 					<Button
 						testId="refresh-repository"
@@ -413,6 +419,36 @@ export function RepositoryNavigation({
 								width: 14,
 								height: 14,
 								color: lightColors.editorMuted,
+								pointerEvents: "none",
+							}}
+						/>
+					</Button>
+				) : null}
+				{view === "changes" ? (
+					<Button
+						ref={filterButton}
+						testId="filter-changes"
+						aria-label="Search changed files (Command F)"
+						aria-expanded={filterOpen}
+						variant="ghost"
+						size="sm"
+						tokens={appTokens}
+						onPress={() => {
+							setFilterOpen(true);
+
+							if (filterInput.current)
+								renderer.focusElement?.(filterInput.current.id);
+						}}
+						style={{ width: 26, height: 26, paddingLeft: 0, paddingRight: 0 }}
+					>
+						<svg
+							source={
+								'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"><circle cx="6.75" cy="6.75" r="4.5"/><path d="m10.1 10.1 3.65 3.65"/></svg>'
+							}
+							style={{
+								width: 14,
+								height: 14,
+								color: filterOpen ? lightColors.brand : lightColors.editorMuted,
 								pointerEvents: "none",
 							}}
 						/>
@@ -512,24 +548,8 @@ export function RepositoryNavigation({
 					<text testId="repository-heading" style={styles.muted}>
 						{heading}
 					</text>
-					{view === "changes" ? (
-						<Button
-							ref={filterButton}
-							testId="filter-changes"
-							aria-label="Filter changed files (Command F)"
-							variant="ghost"
-							size="sm"
-							tokens={appTokens}
-							onPress={() => {
-								setFilterOpen(true);
-
-								if (filterInput.current)
-									renderer.focusElement?.(filterInput.current.id);
-							}}
-							style={{ height: 22, paddingLeft: 4, paddingRight: 4 }}
-						>
-							{filtering ? `${entries.length} shown` : "Filter"}
-						</Button>
+					{filtering ? (
+						<text style={styles.faint}>{`${entries.length} shown`}</text>
 					) : null}
 					{view === "changes" ? (
 						<Checkbox

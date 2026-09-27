@@ -325,7 +325,7 @@ const selectedView = () =>
 		)
 		.map((node) => node.aria?.label);
 
-it("shows three separate compact pills on one row with one selected view", () => {
+it("joins borderless view segments with only the outside corners rounded", () => {
 	const changes = bounds("view-changes");
 	const history = bounds("view-history");
 	const stashes = bounds("view-stashes");
@@ -334,8 +334,8 @@ it("shows three separate compact pills on one row with one selected view", () =>
 	expect(root.renderer.findByTestId("repository-view")).toBeUndefined();
 	expect(history.y).toBe(changes.y);
 	expect(stashes.y).toBe(changes.y);
-	expect(history.x).toBeGreaterThan(changes.x + changes.width);
-	expect(stashes.x).toBeGreaterThan(history.x + history.width);
+	expect(history.x).toBe(changes.x + changes.width);
+	expect(stashes.x).toBe(history.x + history.width);
 	expect(stashes.x + stashes.width).toBeLessThan(
 		navigation.x + navigation.width
 	);
@@ -343,9 +343,18 @@ it("shows three separate compact pills on one row with one selected view", () =>
 	for (const view of ["changes", "history", "stashes"]) {
 		expect(element(`view-${view}`).style).toMatchObject({
 			height: 26,
-			borderRadius: 13,
+			borderRadius: 0,
 		});
+		expect(element(`view-${view}`).style.borderWidth ?? 0).toBe(0);
 	}
+
+	expect(element("view-changes").style.borderTopLeftRadius).toBe(13);
+	expect(element("view-stashes").style.borderTopRightRadius).toBe(13);
+	const search = bounds("filter-changes");
+
+	expect(search.y + search.height / 2).toBe(changes.y + changes.height / 2);
+	expect(bounds("filter-changes").x).toBeGreaterThan(stashes.x + stashes.width);
+	expect(root.renderer.findByTestId("changes-filter")).toBeUndefined();
 
 	expect(selectedView()).toEqual(["Changes"]);
 	expect(element("view-changes").style.backgroundColor).toBe(
@@ -403,23 +412,23 @@ it("wraps pill arrows, supports Home/End and Enter/Space, and ignores modified n
 	expect(root.renderer.getFocusedElementId()).toBe(element("view-stashes").id);
 });
 
-it("shows pill focus outlines for the keyboard without outlining pointer selection", () => {
+it("indicates keyboard focus using label color without adding segment borders", () => {
 	click("view-history");
 	const pill = element("view-history");
 
 	flushSync(() =>
 		handleGpuixEvent({ elementId: pill.id, eventType: "focus" }, root.renderer)
 	);
-	expect(element("view-history").style.borderColor).toBe("transparent");
+	expect(element("view-label-history").style.color).toBe(lightColors.editorInk);
 	key("view-history", "enter");
-	expect(element("view-history").style.borderColor).toBe(lightColors.brand);
+	expect(element("view-label-history").style.color).toBe(lightColors.brand);
 	click("view-stashes");
 	const next = element("view-stashes");
 
 	flushSync(() =>
 		handleGpuixEvent({ elementId: next.id, eventType: "focus" }, root.renderer)
 	);
-	expect(element("view-stashes").style.borderColor).toBe("transparent");
+	expect(element("view-label-stashes").style.color).toBe(lightColors.editorInk);
 	click("entry-stash-1");
 	flushSync(() =>
 		handleGpuixEvent({ elementId: next.id, eventType: "blur" }, root.renderer)
@@ -429,7 +438,7 @@ it("shows pill focus outlines for the keyboard without outlining pointer selecti
 	flushSync(() =>
 		handleGpuixEvent({ elementId: next.id, eventType: "focus" }, root.renderer)
 	);
-	expect(element("view-stashes").style.borderColor).toBe(lightColors.brand);
+	expect(element("view-label-stashes").style.color).toBe(lightColors.brand);
 });
 
 it("keeps the full-width tab rail above navigation contained in the rounded workspace", () => {
