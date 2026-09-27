@@ -19,6 +19,7 @@ import { WorkspaceWorktreeForm } from "./workspace-worktree-form";
 import type { WorktreeChoice } from "../lib/repository-worktrees";
 import { WorkspaceMenuModel } from "../lib/workspace-menu-model";
 import { RepositoryReader } from "../../repository-workspace/lib/repository-reader";
+import { NativeFileMenu } from "../../repository-workspace/lib/native-file-menu";
 import { RepositoryWorkspaceModel } from "../../repository-workspace/lib/repository-workspace-model";
 import type { SyncChoice } from "../../repository-workspace/lib/repository-sync";
 import {
@@ -165,7 +166,7 @@ export interface WorkspaceMenuActions {
 	readRepository: typeof RepositoryReader.read;
 	onChangeBranch: (
 		id: string,
-		choice: Pick<BranchRequest, "kind" | "name">
+		choice: Omit<BranchRequest, "expectedHead" | "expectedBranch">
 	) => Promise<string | null>;
 	onFetch?: (id: string) => Promise<void>;
 	onSync?: (id: string, choice: SyncChoice) => Promise<void>;
@@ -203,6 +204,13 @@ export function WorkspaceMenu({
 	const [name, setName] = useState("");
 	const [creating, setCreating] = useState(false);
 	const [remoteBranch, setRemoteBranch] = useState<string | null>(null);
+
+	const [branchAction, setBranchAction] = useState<{
+		kind: "rename" | "delete";
+		name: string;
+		oid: string;
+	} | null>(null);
+
 	const [creatingWorktree, setCreatingWorktree] = useState(false);
 
 	const [publishing, setPublishing] = useState(false);
@@ -449,6 +457,7 @@ export function WorkspaceMenu({
 	const showActions = (): void => {
 		setCreating(false);
 		setRemoteBranch(null);
+		setBranchAction(null);
 		setCreatingWorktree(false);
 		setPublishing(false);
 		setError(null);
@@ -526,10 +535,20 @@ export function WorkspaceMenu({
 		if (busy || blocked || !name.trim()) return;
 
 		setError(null);
-		const message = await onChangeBranch(tab.id, {
-			kind: remoteBranch ? "remote" : creating ? "create" : "switch",
-			name: remoteBranch ?? name.trim(),
-		});
+		const message = await onChangeBranch(
+			tab.id,
+			branchAction
+				? {
+						kind: branchAction.kind,
+						name: branchAction.name,
+						newName: branchAction.kind === "rename" ? name.trim() : undefined,
+						expectedTarget: branchAction.oid,
+					}
+				: {
+						kind: remoteBranch ? "remote" : creating ? "create" : "switch",
+						name: remoteBranch ?? name.trim(),
+					}
+		);
 
 		if (!mounted.current) return;
 
@@ -654,7 +673,13 @@ export function WorkspaceMenu({
 					) : creating ? (
 						<div style={styles.form}>
 							<Text tokens={appTokens} style={styles.heading}>
-								{remoteBranch ? "Check out remote branch" : "Create new branch"}
+								{branchAction
+									? branchAction.kind === "rename"
+										? "Rename branch"
+										: "Delete branch?"
+									: remoteBranch
+										? "Check out remote branch"
+										: "Create new branch"}
 							</Text>
 							<input
 								testId="branch-name"
@@ -662,7 +687,9 @@ export function WorkspaceMenu({
 								aria-label="New branch name"
 								placeholder="New branch name…"
 								value={name}
-								readOnly={busy || !!remoteBranch}
+								readOnly={
+									busy || !!remoteBranch || branchAction?.kind === "delete"
+								}
 								style={styles.input}
 								onChange={(event) => setName(event.value ?? "")}
 								onSubmit={() => {
@@ -670,9 +697,13 @@ export function WorkspaceMenu({
 								}}
 							/>
 							<Text tokens={appTokens} style={styles.muted}>
-								{remoteBranch
-									? `Tracks ${remoteBranch.replace("refs/remotes/", "")} in this workspace.`
-									: `Create from ${repository?.branch ?? "HEAD"} and switch this workspace to it.`}
+								{branchAction
+									? branchAction.kind === "rename"
+										? `Rename “${branchAction.name}” locally. Remote branches stay unchanged.`
+										: "Deletes only the local branch. Unmerged work is protected."
+									: remoteBranch
+										? `Tracks ${remoteBranch.replace("refs/remotes/", "")} in this workspace.`
+										: `Create from ${repository?.branch ?? "HEAD"} and switch this workspace to it.`}
 							</Text>
 							<div style={styles.footer}>
 								<Button
@@ -694,7 +725,11 @@ export function WorkspaceMenu({
 										void change(name);
 									}}
 								>
-									Create and switch
+									{branchAction
+										? branchAction.kind === "rename"
+											? "Rename branch"
+											: "Delete branch"
+										: "Create and switch"}
 								</Button>
 							</div>
 						</div>
@@ -839,6 +874,50 @@ export function WorkspaceMenu({
 												(!current && item.worktreePath
 													? "Checked out in another worktree"
 													: item.summary)
+											}
+											onContextMenu={
+												item.type === "local"
+													? (event) => {
+															try {
+																const enabled = [
+																	canCreate && (current || !item.worktreePath),
+																	canCreate &&
+																		!item.checkedOut &&
+																		!item.worktreePath,
+																];
+
+																const bounds = renderer.getElementBounds?.(
+																	event.elementId
+																);
+
+																const choice = NativeFileMenu.show(
+																	renderer,
+																	["Rename branch…", "Delete branch…"],
+																	enabled,
+																	event.x ?? bounds?.x ?? 0,
+																	event.y ?? bounds?.y ?? 0
+																);
+
+																if (choice < 0 || !enabled[choice]) return;
+
+																setBranchAction({
+																	kind: choice === 0 ? "rename" : "delete",
+																	name: item.name,
+																	oid: item.oid,
+																});
+																setName(item.name);
+																setRemoteBranch(null);
+																setError(null);
+																setCreating(true);
+															} catch (cause) {
+																setError(
+																	cause instanceof Error
+																		? cause.message
+																		: "Could not open the branch menu."
+																);
+															}
+														}
+													: undefined
 											}
 											onPress={() => {
 												if (target) {

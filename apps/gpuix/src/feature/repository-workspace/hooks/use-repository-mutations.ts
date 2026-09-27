@@ -197,7 +197,7 @@ export function useRepositoryMutations(
 
 	const changeBranch = async (
 		id: string,
-		choice: Pick<BranchRequest, "kind" | "name">
+		choice: Omit<BranchRequest, "expectedHead" | "expectedBranch">
 	): Promise<string | null> => {
 		const workspace = tabs.current.find((tab) => tab.id === id)?.workspace;
 		const repository = workspace?.repository;

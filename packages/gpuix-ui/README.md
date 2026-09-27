@@ -190,6 +190,7 @@ binary files, renames and mode changes retain their useful native notices.
 | `onMouseDown`, `onKeyDown` | Native input notifications, e.g. to track focus visibility; `onKeyDown` runs before built-in activation | — |
 | `onMouseEnter`, `onMouseLeave` | Native hover notifications, e.g. to coordinate a surrounding tab's highlight | — |
 | `onPress` | `() => void`; mouse click, Enter press, or Space release | — |
+| `onContextMenu` | `(event: EventPayload) => void`; right-click, Control-click, or Shift-F10, without primary activation | — |
 | `style` | GPUIX `StyleDesc` for the root | — |
 | `textStyle` | GPUIX `StyleDesc` for generated text labels | — |
 | `tokens` | Explicit `UiTokens` selection | `defaultTokens` |

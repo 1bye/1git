@@ -10,6 +10,7 @@ import type { BranchInfo, RemoteInfo, RepositorySnapshot } from "@1git/git";
 import { App } from "../../src/app";
 import { windowOptions } from "../../src/window-options";
 import { RepositoryBranches } from "../../src/feature/workspace-tabs/lib/repository-branches";
+import { NativeFileMenu } from "../../src/feature/repository-workspace/lib/native-file-menu";
 import type { RepositoryWorktrees } from "../../src/feature/workspace-tabs/lib/repository-worktrees";
 import type { RepositoryReader } from "../../src/feature/repository-workspace/lib/repository-reader";
 import type { RepositorySync } from "../../src/feature/repository-workspace/lib/repository-sync";
@@ -221,6 +222,68 @@ const menu = async (): Promise<void> => {
 	click("workspace-1");
 	await settle();
 };
+
+it("renames through the native context menu only after confirming the form", async () => {
+	const nativeMenu = spyOn(NativeFileMenu, "show").mockReturnValue(0);
+
+	await open();
+	await menu();
+	const box = bounds("branch-main");
+
+	root.renderer.nativeSimulateClick(box.x + 8, box.y + 8, 2);
+	await settle();
+	expect(nativeMenu).toHaveBeenCalledWith(
+		expect.anything(),
+		["Rename branch…", "Delete branch…"],
+		[true, false],
+		expect.any(Number),
+		expect.any(Number)
+	);
+	expect(writeBranch).not.toHaveBeenCalled();
+	click("branch-name");
+	root.renderer.simulateKeystrokes("cmd-a r e n a m e d");
+	click("create-branch");
+	await settle();
+	expect(writeBranch).toHaveBeenCalledWith(
+		"/test/project",
+		expect.objectContaining({
+			kind: "rename",
+			name: "main",
+			newName: "renamed",
+			expectedTarget: "1234567890abcdef",
+		})
+	);
+});
+
+it("confirms deletion and supports cancelling without a branch write", async () => {
+	spyOn(NativeFileMenu, "show").mockReturnValue(1);
+	await open();
+	await menu();
+	const box = bounds("branch-feature/ui");
+
+	root.renderer.nativeSimulateClick(box.x + 8, box.y + 8, 0, "ctrl");
+	await settle();
+	expect(root.renderer.getAllText()).toContain("Delete branch?");
+	expect(writeBranch).not.toHaveBeenCalled();
+	click("cancel-create-branch");
+	await settle();
+	expect(writeBranch).not.toHaveBeenCalled();
+	root.renderer.nativeSimulateKeyDown(
+		element("branch-feature/ui").id,
+		"shift-f10"
+	);
+	await settle();
+	click("create-branch");
+	await settle();
+	expect(writeBranch).toHaveBeenCalledWith(
+		"/test/project",
+		expect.objectContaining({
+			kind: "delete",
+			name: "feature/ui",
+			expectedTarget: "1234567890abcdef",
+		})
+	);
+});
 
 it("omits tracked remote branches from both pickers but keeps another remote visible", async () => {
 	snapshot = {

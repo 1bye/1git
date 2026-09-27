@@ -196,8 +196,12 @@ The compact desktop-style menu shows the current branch/upstream, three local
 branches ordered by latest commit, relative commit ages, and a More row to expand
 the scrollable list. Existing worktrees remain available below the branches.
 Create new branch opens an inline form; Cancel/Escape returns to the actions.
-There is no permanent search field or Close footer. Rename/delete/upstream-editing
-actions stay hidden until their GPUIX workflows are implemented.
+There is no permanent search field or Close footer. Right-click a local branch
+(or use Control-click / Shift-F10) for Rename and Delete. Both require confirmation;
+rename starts with the current name. Checked-out branches cannot be deleted,
+branches checked out elsewhere cannot be renamed here, and Git's non-forcing
+delete protects unmerged work. Remote branches have no management actions.
+Upstream editing is not yet exposed.
 Up/Down moves through enabled rows, Enter activates, and Escape/outside-click dismisses the menu.
 Keyboard dismissal returns focus to the tab; Tab dismisses and continues traversal.
 Inside the worktree form, Tab moves between its controls instead of dismissing it.

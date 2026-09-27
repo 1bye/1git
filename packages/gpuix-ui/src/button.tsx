@@ -1,5 +1,5 @@
 import { StyleSheet } from "@1git/gpuix-stylesheet";
-import type { Props, StyleDesc } from "@gpuix/react";
+import type { EventPayload, Props, StyleDesc } from "@gpuix/react";
 import { Children, useEffect, useRef, useState } from "react";
 
 import { Text } from "./text";
@@ -28,6 +28,8 @@ export interface ButtonProps extends Pick<
 	/** Gate the ring by input modality without removing keyboard focus or activation. */
 	focusVisible?: boolean;
 	onPress?: () => void;
+	/** Secondary click, macOS Control-click, or Shift-F10; never activates the primary action. */
+	onContextMenu?: (event: EventPayload) => void;
 	style?: StyleDesc;
 	textStyle?: StyleDesc;
 	tokens?: UiTokens;
@@ -88,6 +90,7 @@ export function Button({
 	disabled = false,
 	focusVisible = true,
 	onPress,
+	onContextMenu,
 	onKeyDown,
 	style,
 	textStyle,
@@ -153,10 +156,25 @@ export function Button({
 				setFocused(false);
 				setSpacePressed(false);
 			}}
-			onClick={() => {
+			onClick={(event) => {
+				if (event.modifiers?.ctrl && onContextMenu) {
+					onContextMenu(event);
+
+					return;
+				}
+
 				if (!disabled) onPress?.();
 			}}
+			onAuxClick={(event) => {
+				if (event.button === 2 || event.isRightClick) onContextMenu?.(event);
+			}}
 			onKeyDown={(event) => {
+				if (event.key === "f10" && event.modifiers?.shift && onContextMenu) {
+					onContextMenu(event);
+
+					return;
+				}
+
 				onKeyDown?.(event);
 
 				if (disabled || event.isHeld) return;

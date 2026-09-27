@@ -281,6 +281,86 @@ it("creates explicit tracking branches from remote refs in this workspace and a 
 	}
 });
 
+it("renames local branches and deletes only safe, unchanged local targets", async () => {
+	const head = await git("rev-parse", "HEAD");
+
+	const request = {
+		expectedHead: head,
+		expectedBranch: "main",
+		expectedTarget: head,
+	};
+
+	expect(
+		(
+			await RepositoryBranches.write(repository, {
+				...request,
+				kind: "rename",
+				name: "main",
+				newName: "renamed",
+			})
+		).ok
+	).toBe(true);
+	expect(await git("branch", "--show-current")).toBe("renamed");
+	const current = { ...request, expectedBranch: "renamed" };
+
+	for (const change of [
+		{ kind: "delete" as const, name: "renamed" },
+		{ kind: "rename" as const, name: "renamed", newName: "feature/ui" },
+		{ kind: "delete" as const, name: "feature/ui", expectedTarget: "stale" },
+		{ kind: "delete" as const, name: "refs/remotes/origin/main" },
+	])
+		expect(
+			(await RepositoryBranches.write(repository, { ...current, ...change })).ok
+		).toBe(false);
+
+	const linked = join(sandbox, "linked");
+
+	await git("worktree", "add", linked, "feature/ui");
+
+	for (const kind of ["rename", "delete"] as const) {
+		expect(
+			(
+				await RepositoryBranches.write(repository, {
+					...current,
+					kind,
+					name: "feature/ui",
+					newName: "blocked",
+				})
+			).ok
+		).toBe(false);
+	}
+
+	await git("worktree", "remove", linked);
+	expect(
+		(
+			await RepositoryBranches.write(repository, {
+				...current,
+				kind: "delete",
+				name: "feature/ui",
+			})
+		).ok
+	).toBe(true);
+	expect(await git("branch", "--list", "feature/ui")).toBe("");
+
+	await git("switch", "-c", "unmerged");
+	await writeFile(join(repository, "file.txt"), "unmerged work\n");
+	await git("commit", "-am", "Unmerged work");
+	const unmerged = await git("rev-parse", "HEAD");
+
+	await git("switch", "renamed");
+	expect(
+		(
+			await RepositoryBranches.write(repository, {
+				...current,
+				kind: "delete",
+				name: "unmerged",
+				expectedTarget: unmerged,
+			})
+		).ok
+	).toBe(false);
+	expect(await git("rev-parse", "unmerged")).toBe(unmerged);
+});
+
 it("rejects stale state, occupied branches, existing destinations and invalid names without overwrites", async () => {
 	const expectedHead = await git("rev-parse", "HEAD");
 

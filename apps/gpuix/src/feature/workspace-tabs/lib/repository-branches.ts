@@ -15,8 +15,10 @@ export interface WorkspaceBranches {
 }
 
 export interface BranchRequest {
-	readonly kind: "switch" | "create" | "remote";
+	readonly kind: "switch" | "create" | "remote" | "rename" | "delete";
 	readonly name: string;
+	readonly newName?: string;
+	readonly expectedTarget?: string;
 	readonly expectedHead: string | null;
 	readonly expectedBranch: string | null;
 }
@@ -126,6 +128,56 @@ export class RepositoryBranches {
 					message,
 				},
 			};
+
+		if (request.kind === "rename" || request.kind === "delete") {
+			const branches = await opened.value.getBranches();
+
+			if (!branches.ok) return branches;
+
+			const target = branches.value.branches.find(
+				(item) => item.type === "local" && item.name === request.name
+			);
+
+			let error: string | null = null;
+
+			if (!target || target.oid !== request.expectedTarget)
+				error =
+					"This branch changed or disappeared. Refresh before trying again.";
+			else if (
+				request.kind === "delete" &&
+				(target.checkedOut || target.worktreePath)
+			)
+				error =
+					"This branch is checked out in a workspace and cannot be deleted.";
+			else if (
+				request.kind === "rename" &&
+				target.worktreePath &&
+				target.name !== head.branch
+			)
+				error =
+					"Rename this branch from the workspace where it is checked out.";
+			else if (request.kind === "rename" && !request.newName?.trim())
+				error = "Enter a new branch name.";
+
+			if (error)
+				return {
+					ok: false,
+					error: {
+						code: "conflict",
+						operation:
+							request.kind === "rename" ? "rename-branch" : "delete-branch",
+						retryable: false,
+						message: error,
+					},
+				};
+
+			return request.kind === "rename"
+				? await opened.value.renameBranch({
+						currentName: request.name,
+						newName: request.newName ?? "",
+					})
+				: await opened.value.deleteBranch({ name: request.name });
+		}
 
 		if (request.kind === "remote") {
 			const branches = await opened.value.getBranches();
