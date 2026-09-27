@@ -15,6 +15,10 @@ import {
 import type { WorkspaceEntry } from "../types";
 import { RepositoryChangeLabel } from "./repository-change-details";
 import { appTokens } from "../../../styles/tokens";
+import {
+	RepositoryFileMenu,
+	type FileMenuActions,
+} from "./repository-file-menu";
 
 const fileRowHeight = 28;
 const revisionRowHeight = 48;
@@ -84,6 +88,7 @@ function RepositoryRow({
 	included,
 	onInclude,
 	inclusionDisabled,
+	fileActions,
 }: {
 	entry: WorkspaceEntry;
 	selected: boolean;
@@ -95,12 +100,13 @@ function RepositoryRow({
 	included?: boolean;
 	onInclude?: (included: boolean) => void;
 	inclusionDisabled?: boolean;
+	fileActions?: FileMenuActions;
 }) {
 	const [focused, setFocused] = useState(false);
 	const [keyboard, setKeyboard] = useState(true);
 	const [hovered, setHovered] = useState(false);
 
-	return (
+	const row = (onMenu?: (event: EventPayload) => void) => (
 		<div
 			role={onInclude ? "row" : "presentation"}
 			testId={`row-${entry.id}`}
@@ -126,7 +132,13 @@ function RepositoryRow({
 				aria-selected={selected}
 				tabIndex={tabbable ? 0 : -1}
 				onMouseDown={() => setKeyboard(false)}
-				onClick={onSelect}
+				onClick={(event) => {
+					if (event.modifiers?.ctrl && onMenu) onMenu(event);
+					else onSelect();
+				}}
+				onAuxClick={(event) => {
+					if (event.button === 2 || event.isRightClick) onMenu?.(event);
+				}}
 				onMouseEnter={() => setHovered(true)}
 				onMouseLeave={() => setHovered(false)}
 				onFocus={() => {
@@ -138,6 +150,12 @@ function RepositoryRow({
 					setKeyboard(true);
 				}}
 				onKeyDown={(event) => {
+					if (event.key === "f10" && event.modifiers?.shift) {
+						onMenu?.(event);
+
+						return;
+					}
+
 					setKeyboard(true);
 					onKeyDown(event);
 				}}
@@ -192,6 +210,14 @@ function RepositoryRow({
 			) : null}
 		</div>
 	);
+
+	return fileActions ? (
+		<RepositoryFileMenu entry={entry} actions={fileActions}>
+			{row}
+		</RepositoryFileMenu>
+	) : (
+		row()
+	);
 }
 
 /** Shared file/revision list with native scrolling and roving focus; remount when its data owner changes. */
@@ -205,6 +231,7 @@ export function RepositoryList({
 	onSelect,
 	onScroll,
 	onEndReached,
+	fileActions,
 }: {
 	entries: readonly WorkspaceEntry[];
 	label: string;
@@ -219,6 +246,7 @@ export function RepositoryList({
 	onSelect: (id: string) => void;
 	onScroll: (y: number) => void;
 	onEndReached?: () => void;
+	fileActions?: FileMenuActions;
 }) {
 	const renderer = useGpuixRequired();
 	const viewport = useRef<PublicInstance>(null);
@@ -347,6 +375,7 @@ export function RepositoryList({
 					<RepositoryRow
 						key={entry.id}
 						entry={entry}
+						fileActions={fileActions}
 						selected={state.selectedId === entry.id}
 						included={inclusion?.ids.includes(entry.id)}
 						inclusionDisabled={inclusion?.disabled}

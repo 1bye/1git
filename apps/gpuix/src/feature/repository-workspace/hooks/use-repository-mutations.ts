@@ -11,6 +11,10 @@ import {
 import { RepositoryCommit } from "../lib/repository-commit";
 import { RepositoryConflicts } from "../lib/repository-conflicts";
 import { RepositoryOperation } from "../lib/repository-operation";
+import {
+	RepositoryFileActions,
+	type FileDiscardRequest,
+} from "../lib/repository-file-actions";
 import type { FinishOperationInput, RepositorySnapshot } from "@1git/git";
 import { useCloseProtection } from "./use-close-protection";
 import {
@@ -41,7 +45,8 @@ export function useRepositoryMutations(
 	beforeCloseRelease?: () => void,
 	writeStash = RepositoryStashes.write,
 	resolveConflict = RepositoryConflicts.write,
-	writeOperation = RepositoryOperation.write
+	writeOperation = RepositoryOperation.write,
+	discardFile = RepositoryFileActions.discard
 ) {
 	const closeProtection = useCloseProtection(
 		state.tabs.some((tab) => RepositoryWorkspaceModel.isBusy(tab.workspace)),
@@ -583,6 +588,7 @@ export function useRepositoryMutations(
 		id: string,
 		request:
 			| FinishOperationInput
+			| FileDiscardRequest
 			| { kind: "resolve"; path: string; expectedContentHash: string }
 	): Promise<string | null> => {
 		const workspace = tabs.current.find((tab) => tab.id === id)?.workspace;
@@ -618,6 +624,7 @@ export function useRepositoryMutations(
 		closeProtection.block();
 		send({ type: started });
 		let error: string | null = null;
+		let recoveryDirectory: string | undefined;
 
 		try {
 			const result =
@@ -628,9 +635,16 @@ export function useRepositoryMutations(
 							expectedHead: repository.head,
 							expectedBranch: repository.branchName,
 						})
-					: await writeOperation(repository.root, request);
+					: request.kind === "discard"
+						? await discardFile(repository.root, request)
+						: await writeOperation(repository.root, request);
 
 			if (!result.ok) error = result.error.message;
+			else if (
+				"recoveryDirectory" in result &&
+				typeof result.recoveryDirectory === "string"
+			)
+				recoveryDirectory = result.recoveryDirectory;
 		} catch {
 			error =
 				"Could not confirm the Git action. Refresh and inspect Changes and History before retrying.";
@@ -644,16 +658,19 @@ export function useRepositoryMutations(
 			else
 				send({
 					type: "operation-finished",
+					recoveryDirectory,
 					snapshot,
 					error,
 					refreshError,
 					notice: error
 						? undefined
-						: request.kind === "abort"
-							? "Operation aborted."
-							: snapshot?.operationState === "normal"
-								? "Operation completed."
-								: "Git paused again. Review the current operation before continuing.",
+						: request.kind === "discard"
+							? `Discarded ${request.path}. Recovery backup saved.`
+							: request.kind === "abort"
+								? "Operation aborted."
+								: snapshot?.operationState === "normal"
+									? "Operation completed."
+									: "Git paused again. Review the current operation before continuing.",
 				});
 		};
 
@@ -679,6 +696,8 @@ export function useRepositoryMutations(
 		resolve: (id: string, path: string, expectedContentHash: string) =>
 			updateWorktree(id, { kind: "resolve", path, expectedContentHash }),
 		finishOperation: (id: string, request: FinishOperationInput) =>
+			updateWorktree(id, request),
+		discardFile: (id: string, request: FileDiscardRequest) =>
 			updateWorktree(id, request),
 		closeProtection,
 		stash,

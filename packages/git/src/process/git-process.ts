@@ -174,7 +174,7 @@ export class GitProcess {
 						new GitCommandFailure(
 							exitCode ?? 1,
 							stderr.toString("utf8").trim(),
-							stdout.toString("utf8").trim()
+							stdout.toString("utf8")
 						)
 					);
 

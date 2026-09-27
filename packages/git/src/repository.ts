@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, realpath, stat } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { mkdir, realpath, stat, lstat, writeFile } from "node:fs/promises";
+import { dirname, resolve, join } from "node:path";
 
 import type {
 	AddRemoteInput,
@@ -837,6 +837,55 @@ export class GitRepository {
 				),
 			];
 
+			if (input.recovery) {
+				if (
+					before.operationState !== "normal" ||
+					before.head.oid !== input.recovery.expectedHead ||
+					before.head.branch !== input.recovery.expectedBranch ||
+					selectedFiles.length !== 1 ||
+					selectedFiles.some(
+						(file) => file.originalPath || file.submodule.startsWith("S")
+					)
+				)
+					throw invalidInput(
+						"discard-files",
+						"Refresh first. Discard supports individual ordinary files outside Git operations."
+					);
+
+				const path = selectedFiles[0]?.path;
+
+				if (!path)
+					throw invalidInput("discard-files", "Select a changed file.");
+
+				const absolute = resolve(this.info.root, path);
+
+				try {
+					if (
+						!(await lstat(absolute)).isFile() ||
+						(await realpath(absolute)) !== absolute
+					)
+						throw invalidInput(
+							"discard-files",
+							"Symbolic links and non-regular files require external Git handling."
+						);
+				} catch (error) {
+					if (
+						!(
+							error instanceof Error &&
+							"code" in error &&
+							error.code === "ENOENT"
+						)
+					)
+						throw error;
+
+					if ((await realpath(dirname(absolute))) !== dirname(absolute))
+						throw invalidInput(
+							"discard-files",
+							"The file parent is not a regular repository directory."
+						);
+				}
+			}
+
 			const stagedPatch = await this.captureDiffPatch(
 				[
 					"diff",
@@ -879,6 +928,36 @@ export class GitRepository {
 				throw invalidInput(
 					"discard-files",
 					"The selected file has no discardable changes."
+				);
+			}
+
+			if (input.recovery) {
+				// Durable recovery is independent of the short-lived in-memory Undo token.
+				await mkdir(input.recovery.directory, { mode: 0o700 });
+				await writeFile(
+					join(input.recovery.directory, "staged.patch"),
+					stagedPatch,
+					{ flag: "wx", mode: 0o600 }
+				);
+				await writeFile(
+					join(input.recovery.directory, "working.patch"),
+					worktreePatch,
+					{ flag: "wx", mode: 0o600 }
+				);
+				await writeFile(
+					join(input.recovery.directory, "recovery.json"),
+					JSON.stringify({
+						root: this.info.root,
+						head: before.head.oid,
+						paths: affectedPaths,
+						createdAt: new Date().toISOString(),
+					}),
+					{ flag: "wx", mode: 0o600 }
+				);
+				await writeFile(
+					join(input.recovery.directory, "README.txt"),
+					"Recovery patches preserve staged and unstaged changes separately. Keep this folder. In the original repository, first review current changes and recovery.json. Apply non-empty staged.patch twice: git apply --cached, then git apply. Finally apply non-empty working.patch with git apply. Use --check before each command. Never force or reset if a patch fails. Patches may contain private file contents.\n",
+					{ flag: "wx", mode: 0o600 }
 				);
 			}
 
@@ -2135,7 +2214,12 @@ export class GitRepository {
 		signal?: AbortSignal
 	): Promise<string> {
 		const output = await this.context.process.run({
-			args,
+			args: [
+				"--literal-pathspecs",
+				...args.slice(0, 1),
+				"--no-textconv",
+				...args.slice(1),
+			],
 			cwd: this.info.root,
 			signal,
 		});
@@ -2164,7 +2248,7 @@ export class GitRepository {
 			);
 		} catch (error: unknown) {
 			if (error instanceof GitCommandFailure && error.exitCode === 1) {
-				return error.stdout ? `${error.stdout}\n` : "";
+				return error.stdout;
 			}
 
 			throw error;

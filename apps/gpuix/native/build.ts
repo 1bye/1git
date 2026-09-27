@@ -7,6 +7,8 @@ import {
 	activationPatchPath,
 	closePatchPath,
 	closePlatformPatchPath,
+	contextMenuPatchPath,
+	contextMenuPlatformPatchPath,
 	checkboxPatchPath,
 	diffPatchPath,
 	buildIdPath,
@@ -74,13 +76,17 @@ if (
 		activationPatchPath,
 		closePatchPath,
 		closePlatformPatchPath,
+		contextMenuPatchPath,
+		contextMenuPlatformPatchPath,
 	];
 
 	// Later patches can change an earlier patch's context. Unwind known patches
 	// in reverse order before applying the pinned stack, preserving unrelated edits.
 	for (const patch of patches.toReversed()) {
 		const patchDirectory =
-			patch === closePlatformPatchPath ? resolve(source, "zed") : source;
+			patch === closePlatformPatchPath || patch === contextMenuPlatformPatchPath
+				? resolve(source, "zed")
+				: source;
 
 		const applied = Bun.spawn(["git", "apply", "--reverse", "--check", patch], {
 			cwd: patchDirectory,
@@ -94,7 +100,9 @@ if (
 
 	for (const patch of patches) {
 		const patchDirectory =
-			patch === closePlatformPatchPath ? resolve(source, "zed") : source;
+			patch === closePlatformPatchPath || patch === contextMenuPlatformPatchPath
+				? resolve(source, "zed")
+				: source;
 
 		const patched = Bun.spawn(["git", "apply", "--reverse", "--check", patch], {
 			cwd: patchDirectory,

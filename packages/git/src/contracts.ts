@@ -464,6 +464,12 @@ export interface ChangeHunkResult {
 export interface DiscardFilesInput extends GitCallOptions {
 	readonly allowDestructive?: boolean;
 	readonly paths: readonly string[];
+	/** Optional app guard and durable recovery directory, written before any change. */
+	readonly recovery?: {
+		readonly directory: string;
+		readonly expectedHead: string | null;
+		readonly expectedBranch: string | null;
+	};
 }
 
 export interface DiscardFilesResult {

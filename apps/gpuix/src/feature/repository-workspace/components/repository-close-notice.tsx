@@ -56,7 +56,7 @@ export function RepositoryCloseNotice({
 							workspace.commit.pending
 								? "Committing…"
 								: workspace.operationMutation.pending
-									? "Updating merge/rebase…"
+									? "Updating repository…"
 									: workspace.conflictPending
 										? "Resolving conflict…"
 										: workspace.branchPending

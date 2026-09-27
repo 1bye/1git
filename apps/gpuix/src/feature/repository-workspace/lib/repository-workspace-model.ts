@@ -51,6 +51,7 @@ export interface RepositoryWorkspaceState {
 	readonly branchPending: boolean;
 	readonly conflictPending: boolean;
 	readonly operationMutation: {
+		readonly recoveryDirectory?: string;
 		readonly pending: boolean;
 		readonly error: string | null;
 		readonly notice: string | null;
@@ -112,6 +113,7 @@ export type RepositoryWorkspaceAction =
 	| { type: "operation-started" }
 	| {
 			type: "operation-finished";
+			recoveryDirectory?: string;
 			snapshot?: RepositorySnapshot;
 			error: string | null;
 			refreshError?: string;
@@ -422,10 +424,12 @@ export class RepositoryWorkspaceModel {
 				...state,
 				operationMutation: {
 					pending: false,
+					recoveryDirectory: action.recoveryDirectory,
 					error: action.error,
 					notice: action.notice ?? null,
 				},
 			};
+
 			const refreshed = action.snapshot
 				? RepositoryWorkspaceModel.reduce(next, {
 						type: "loaded",

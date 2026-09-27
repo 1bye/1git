@@ -452,6 +452,33 @@ The shared Git diff commands treat requested paths literally and disable externa
 diff/text-conversion drivers, returning raw patches without invoking those tools.
 Reading a diff never stages, unstages, discards or commits changes.
 
+### Changes file actions
+
+- Right-click or Control-click a file, or press Shift+F10 on its focused row.
+  The pinned macOS addon displays an actual AppKit context menu; there are no
+  three-dot controls, custom menu surfaces, or dimmed menu backdrops.
+  Actions open the file in the macOS text editor, reveal it in Finder, or copy
+  its repository-relative path. Opening/revealing requires an existing regular
+  repository path; errors remain visible in the menu.
+- **Discard changes…** requires a native macOS warning dialog (Cancel is the
+  default) and removes both staged
+  and unstaged changes for the selected file, irrespective of commit checkboxes.
+  It is unavailable during Git operations; conflicts, renames, submodules and
+  non-regular working files require external handling. Branch identity is checked
+  again before writing. Closing and competing app writes are blocked through refresh.
+- Recovery patches and instructions are saved before modifying files under
+  `~/Library/Application Support/1git-gpuix/discard-recovery/<id>` with private
+  permissions. **Show recovery backup** reveals the folder after success.
+  Backups survive restarts, can contain sensitive source contents, and are not
+  automatically deleted. Recovery is manual using the included instructions;
+  do not force a patch over subsequent edits. External Git/editor processes are
+  not locked, so avoid concurrent writes during discard.
+
+Native menu tracking and confirmation run synchronously on the AppKit main
+thread. No Git write starts until a menu choice and confirmation have returned.
+Rebuild native support and fully restart the app after changing these patches;
+hot reload cannot replace a loaded addon. This bridge is macOS-only.
+
 ### Manual conflict resolution
 
 - Conflicted Changes rows show a red status icon and **Conflict** label. Selecting

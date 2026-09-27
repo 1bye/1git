@@ -7,6 +7,7 @@ import {
 	PopoverTrigger,
 } from "@1git/gpuix-ui/popover";
 import { appTokens } from "../../../styles/tokens";
+import { RepositoryFileActions } from "../lib/repository-file-actions";
 import {
 	RepositoryWorkspaceModel,
 	type RepositoryWorkspaceState,
@@ -223,6 +224,23 @@ export function RepositoryOperation({
 				>
 					{message}
 				</text>
+			) : null}
+			{state.operationMutation.recoveryDirectory ? (
+				<Button
+					tokens={appTokens}
+					size="sm"
+					variant="ghost"
+					onPress={() => {
+						const directory = state.operationMutation.recoveryDirectory;
+
+						if (directory)
+							void RepositoryFileActions.revealRecovery(directory).catch(() =>
+								setError(`Recovery backup: ${directory}`)
+							);
+					}}
+				>
+					Show recovery backup
+				</Button>
 			) : null}
 		</div>
 	);

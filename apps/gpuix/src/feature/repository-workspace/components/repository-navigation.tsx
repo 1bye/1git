@@ -22,6 +22,10 @@ import { RepositoryStashActions } from "./repository-stash-actions";
 import type { StashWriteRequest } from "../lib/repository-stashes";
 import type { FinishOperationInput } from "@1git/git";
 import { RepositoryOperation } from "./repository-operation";
+import type {
+	FileDiscardRequest,
+	RepositoryFileActions,
+} from "../lib/repository-file-actions";
 
 const styles = StyleSheet.create({
 	navigation: {
@@ -141,6 +145,8 @@ export function RepositoryNavigation({
 	onCommit,
 	onStash,
 	onOperation,
+	onDiscard,
+	openFile,
 }: {
 	workspaceId: string;
 	state: RepositoryWorkspaceState;
@@ -151,6 +157,8 @@ export function RepositoryNavigation({
 	onCommit?: () => void;
 	onStash?: (request: StashWriteRequest) => Promise<boolean>;
 	onOperation?: (request: FinishOperationInput) => Promise<string | null>;
+	onDiscard?: (request: FileDiscardRequest) => Promise<string | null>;
+	openFile?: typeof RepositoryFileActions.open;
 }) {
 	const renderer = useGpuixRequired();
 	const pills = useRef(new Map<RepositoryView, PublicInstance>());
@@ -178,6 +186,23 @@ export function RepositoryNavigation({
 		<RepositoryList
 			key={`${workspaceId}:${view}`}
 			entries={state.entries[view]}
+			fileActions={
+				view === "changes" && state.repository && !state.preview && onDiscard
+					? {
+							root: state.repository.root,
+							head: state.repository.head,
+							branch: state.repository.branchName,
+							disabled:
+								RepositoryWorkspaceModel.isBusy(state) ||
+								state.loading ||
+								!!state.error ||
+								state.commit.needsReview,
+							canDiscard: state.repository.operation === "normal",
+							discard: onDiscard,
+							open: openFile,
+						}
+					: undefined
+			}
 			label={
 				view === "changes"
 					? "Changed files"
