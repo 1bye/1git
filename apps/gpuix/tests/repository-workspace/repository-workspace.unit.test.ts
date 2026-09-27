@@ -10,6 +10,48 @@ import { RepositoryWorkspaceModel as Model } from "../../src/feature/repository-
 import { sampleEntries } from "../../src/feature/repository-workspace/lib/sample-workspace";
 import { WorkspaceTabsModel as Tabs } from "../../src/feature/workspace-tabs/lib/workspace-tabs-model";
 
+it("ranges over visible files only and resets a hidden range anchor", () => {
+	const initial = Model.create(true);
+
+	const visibleIds = [
+		"src/styles/tokens.ts",
+		"src/styles/layout.ts",
+		"src/styles/colors.ts",
+	];
+
+	const start = Model.reduce(initial, {
+		type: "select",
+		view: "changes",
+		id: "src/styles/tokens.ts",
+	});
+
+	const range = Model.reduce(start, {
+		type: "select",
+		view: "changes",
+		id: "src/styles/colors.ts",
+		mode: "range",
+		visibleIds,
+	});
+
+	expect(range.views.changes.selectedIds).toEqual(visibleIds);
+	expect(range.includedFileIds).toBe(initial.includedFileIds);
+	const hidden = Model.reduce(range, {
+		type: "select",
+		view: "changes",
+		id: "README.md",
+	});
+
+	const next = Model.reduce(hidden, {
+		type: "select",
+		view: "changes",
+		id: "src/styles/layout.ts",
+		mode: "range",
+		visibleIds,
+	});
+
+	expect(next.views.changes.selectedIds).toEqual(["src/styles/layout.ts"]);
+});
+
 it("highlights ranges independently of commit inclusion and preserves context selections", () => {
 	const initial = Model.create(true);
 	const ids = sampleEntries.changes.slice(0, 3).map((entry) => entry.id);

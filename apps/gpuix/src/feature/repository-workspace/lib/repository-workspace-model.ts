@@ -208,6 +208,7 @@ export type RepositoryWorkspaceAction =
 			view: RepositoryView;
 			id: string;
 			mode?: "toggle" | "range" | "context";
+			visibleIds?: readonly string[];
 	  }
 	| { type: "include-files"; ids: readonly string[]; included: boolean }
 	| { type: "include-file"; id: string; included: boolean }
@@ -1011,7 +1012,11 @@ export class RepositoryWorkspaceModel {
 
 		if (action.type === "select") {
 			if (action.view === "changes") {
-				const entries = state.entries.changes;
+				const visible = action.visibleIds ? new Set(action.visibleIds) : null;
+
+				const entries = visible
+					? state.entries.changes.filter((entry) => visible.has(entry.id))
+					: state.entries.changes;
 
 				if (!entries.some((entry) => entry.id === action.id)) return state;
 
@@ -1031,6 +1036,10 @@ export class RepositoryWorkspaceModel {
 
 				if (action.mode === "range") {
 					anchorId = current.anchorId ?? current.selectedId ?? action.id;
+
+					if (!entries.some((entry) => entry.id === anchorId))
+						anchorId = action.id;
+
 					const anchor = Math.max(
 						0,
 						entries.findIndex((entry) => entry.id === anchorId)

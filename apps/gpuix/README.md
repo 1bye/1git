@@ -454,6 +454,11 @@ Reading a diff never stages, unstages, discards or commits changes.
 
 ### Changes file actions
 
+- Use **Filter** or **Command+F** in Changes to match filenames and relative
+  paths (case-insensitive). Escape clears and closes the field. Filtering leaves
+  the current diff and commit inclusion unchanged; Shift-selection and native
+  group actions use visible matching files. The select-all commit checkbox still
+  controls all changed files, including hidden ones.
 - Click selects one file; Command-click toggles files and Shift-click selects a
   range. Shift+Arrow extends the range. The diff follows the last clicked file;
   highlighted files are independent of the commit inclusion checkboxes.

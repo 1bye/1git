@@ -1,5 +1,6 @@
 import type { RenderOptions } from "@gpuix/react";
 import { handlePopoverKeyDown } from "@1git/gpuix-ui/popover";
+import { handleRepositoryFilterKeyDown } from "./feature/repository-workspace/lib/repository-filter-shortcut";
 
 /** Native window chrome and keyboard traversal; application content stays transparent around the workspace. */
 export const windowOptions: RenderOptions = {
@@ -15,6 +16,8 @@ export const windowOptions: RenderOptions = {
 	trafficLightY: 13,
 	onKeyDown(event, renderer) {
 		if (handlePopoverKeyDown(event, renderer)) return;
+
+		if (handleRepositoryFilterKeyDown(event, renderer)) return;
 
 		if (
 			event.key !== "tab" ||

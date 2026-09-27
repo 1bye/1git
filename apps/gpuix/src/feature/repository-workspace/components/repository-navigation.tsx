@@ -3,7 +3,8 @@ import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { Checkbox } from "@1git/gpuix-ui/checkbox";
 import { Button } from "@1git/gpuix-ui/button";
 import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
-import { useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { repositoryFilterShortcuts } from "../lib/repository-filter-shortcut";
 
 import {
 	RepositoryWorkspaceModel,
@@ -165,6 +166,61 @@ export function RepositoryNavigation({
 	const [focusedView, setFocusedView] = useState<RepositoryView | null>(null);
 	const [pointerFocus, setPointerFocus] = useState<RepositoryView | null>(null);
 	const { view } = state;
+	const [filterOpen, setFilterOpen] = useState(false);
+	const [query, setQuery] = useState("");
+	const filterInput = useRef<PublicInstance>(null);
+	const filterButton = useRef<PublicInstance>(null);
+	const normalizedQuery = query.trim().toLowerCase();
+	const filtering = view === "changes" && normalizedQuery.length > 0;
+
+	const entries = filtering
+		? state.entries.changes.filter(
+				(entry) =>
+					(entry.change?.path ?? entry.id)
+						.toLowerCase()
+						.includes(normalizedQuery) ||
+					entry.title.toLowerCase().includes(normalizedQuery)
+			)
+		: state.entries[view];
+
+	useEffect(() => {
+		if (view !== "changes") return;
+
+		repositoryFilterShortcuts.set(renderer, (close) => {
+			if (close) {
+				if (!filterOpen) return false;
+
+				setQuery("");
+				setFilterOpen(false);
+
+				if (filterButton.current)
+					renderer.focusElement?.(filterButton.current.id);
+
+				return true;
+			}
+
+			setFilterOpen(true);
+
+			if (filterInput.current) renderer.focusElement?.(filterInput.current.id);
+
+			return true;
+		});
+
+		return () => {
+			repositoryFilterShortcuts.delete(renderer);
+		};
+	}, [renderer, view, filterOpen]);
+	useLayoutEffect(() => {
+		if (filterOpen && view === "changes" && filterInput.current)
+			renderer.focusElement?.(filterInput.current.id);
+	}, [filterOpen, view, renderer]);
+	const closeFilter = () => {
+		setQuery("");
+		setFilterOpen(false);
+
+		if (filterButton.current) renderer.focusElement?.(filterButton.current.id);
+	};
+
 	const revisionReader = view === "history" ? history : stashes;
 	const label = repositoryViews.find((item) => item.value === view)?.label;
 
@@ -184,8 +240,8 @@ export function RepositoryNavigation({
 
 	const list = (
 		<RepositoryList
-			key={`${workspaceId}:${view}`}
-			entries={state.entries[view]}
+			key={`${workspaceId}:${view}:${view === "changes" ? normalizedQuery : ""}`}
+			entries={entries}
 			fileActions={
 				view === "changes" && state.repository && !state.preview && onDiscard
 					? {
@@ -212,7 +268,7 @@ export function RepositoryNavigation({
 						? "Commit history"
 						: "Saved stashes"
 			}
-			emptyMessage={emptyListMessage(state)}
+			emptyMessage={filtering ? "No matching files" : emptyListMessage(state)}
 			state={state.views[view]}
 			inclusion={
 				view === "changes"
@@ -224,7 +280,15 @@ export function RepositoryNavigation({
 						}
 					: undefined
 			}
-			onSelect={(id, mode) => onAction({ type: "select", view, id, mode })}
+			onSelect={(id, mode) =>
+				onAction({
+					type: "select",
+					view,
+					id,
+					mode,
+					visibleIds: filtering ? entries.map((entry) => entry.id) : undefined,
+				})
+			}
 			onScroll={(y) => onAction({ type: "scroll", view, y })}
 			onEndReached={
 				view === "history" && !state.history.error
@@ -355,6 +419,57 @@ export function RepositoryNavigation({
 					</Button>
 				) : null}
 			</div>
+			{view === "changes" && filterOpen ? (
+				<div
+					style={{
+						display: "flex",
+						flexDirection: "row",
+						alignItems: "center",
+						paddingLeft: 8,
+						paddingRight: 8,
+						paddingBottom: 4,
+						gap: 4,
+						flexShrink: 0,
+					}}
+				>
+					<input
+						ref={filterInput}
+						testId="changes-filter"
+						aria-label="Filter changed files"
+						placeholder="Filter files…"
+						value={query}
+						tabIndex={0}
+						style={{
+							flexGrow: 1,
+							minWidth: 0,
+							height: 26,
+							fontSize: 11,
+							paddingLeft: 8,
+							paddingRight: 8,
+							backgroundColor: lightColors.editorSunken,
+							borderRadius: 6,
+							color: lightColors.editorInk,
+						}}
+						onChange={(event) => {
+							setQuery(event.value ?? "");
+							onAction({ type: "scroll", view: "changes", y: 0 });
+						}}
+						onKeyDown={(event) => {
+							if (event.key === "escape") closeFilter();
+						}}
+					/>
+					<Button
+						aria-label="Close file filter"
+						testId="close-changes-filter"
+						variant="ghost"
+						size="sm"
+						tokens={appTokens}
+						onPress={closeFilter}
+					>
+						×
+					</Button>
+				</div>
+			) : null}
 			{state.watchError ? (
 				<text
 					testId="repository-watch-notice"
@@ -397,6 +512,25 @@ export function RepositoryNavigation({
 					<text testId="repository-heading" style={styles.muted}>
 						{heading}
 					</text>
+					{view === "changes" ? (
+						<Button
+							ref={filterButton}
+							testId="filter-changes"
+							aria-label="Filter changed files (Command F)"
+							variant="ghost"
+							size="sm"
+							tokens={appTokens}
+							onPress={() => {
+								setFilterOpen(true);
+
+								if (filterInput.current)
+									renderer.focusElement?.(filterInput.current.id);
+							}}
+							style={{ height: 22, paddingLeft: 4, paddingRight: 4 }}
+						>
+							{filtering ? `${entries.length} shown` : "Filter"}
+						</Button>
+					) : null}
 					{view === "changes" ? (
 						<Checkbox
 							testId="include-all"

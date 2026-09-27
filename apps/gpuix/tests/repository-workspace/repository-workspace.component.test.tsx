@@ -67,6 +67,37 @@ const scrollY = () =>
 const checked = (testId: string) =>
 	element(testId).customProps?.["aria-checked"];
 
+it("filters paths with Command F without changing commit inclusion and closes with Escape", async () => {
+	await Bun.sleep(20);
+	click("include-src/app.tsx");
+	key("entry-src/app.tsx", "cmd-f");
+	root.renderer.flush();
+	expect(element("changes-filter")).toBeDefined();
+	root.renderer.simulateKeystrokes("s t y l e s");
+	root.renderer.flush();
+	expect(root.renderer.findByTestId("entry-src/app.tsx")).toBeUndefined();
+	expect(element("entry-src/styles/tokens.ts")).toBeDefined();
+	expect(root.renderer.getAllText()).toContain("29 of 30 selected");
+	expect(root.renderer.getAllText()).toContain("4 shown");
+	click("entry-src/styles/tokens.ts");
+	const last = bounds("entry-src/styles/colors.ts");
+
+	root.renderer.nativeSimulateClick(last.x + 30, last.y + 8, 0, "shift");
+	root.renderer.flush();
+	expect(selected()).toHaveLength(4);
+	expect(root.renderer.getAllText()).toContain("29 of 30 selected");
+	click("changes-filter");
+	root.renderer.simulateKeystrokes("cmd-a z z z");
+	root.renderer.flush();
+	expect(root.renderer.getAllText()).toContain("No matching files");
+	key("changes-filter", "escape");
+	expect(root.renderer.findByTestId("changes-filter")).toBeUndefined();
+	expect(element("entry-src/app.tsx")).toBeDefined();
+	expect(checked("include-src/app.tsx")).toBe(false);
+	click("filter-changes");
+	expect(element("changes-filter").customProps?.value).toBe("");
+});
+
 it("pins the composer below the scrolling Changes list and hides it in revision views", () => {
 	const composer = bounds("commit-composer");
 	const list = bounds("repository-list");
@@ -741,6 +772,10 @@ it("reveals the remembered row when keyboard focus returns after scrolling it of
 	root.renderer.flush();
 	expect(scrollY()).toBe(0);
 	key("view-changes", "tab");
+	expect(root.renderer.getFocusedElementId()).toBe(
+		element("filter-changes").id
+	);
+	key("filter-changes", "tab");
 	expect(root.renderer.getFocusedElementId()).toBe(element("include-all").id);
 	key("include-all", "tab");
 	const row = element("entry-tsconfig.json");

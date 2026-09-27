@@ -257,7 +257,8 @@ export function RepositoryList({
 
 	const tabbableId = entries.some((entry) => entry.id === focusId)
 		? focusId
-		: (state.selectedId ?? entries[0]?.id);
+		: (entries.find((entry) => entry.id === state.selectedId)?.id ??
+			entries[0]?.id);
 
 	useEffect(() => {
 		if (viewport.current)
