@@ -13,6 +13,7 @@ import {
 } from "../../src/feature/repository-comparison/lib/repository-comparison";
 import { RepositoryHistory } from "../../src/feature/repository-workspace/lib/repository-history";
 import { RepositoryDiff } from "../../src/feature/repository-workspace/lib/repository-diff";
+import { diffPatch } from "../_shared/diff-patch";
 
 let root: TestRoot;
 
@@ -106,7 +107,15 @@ const click = (id: string): void => {
 
 const show = (reader: typeof Reader.read = readComparison): void => {
 	root.render(
-		<div style={{ width: "100%", height: "100%", flexDirection: "column" }}>
+		<div
+			style={{
+				width: "100%",
+				height: "100%",
+				display: "flex",
+				flexDirection: "column",
+				backgroundColor: "#ffffff",
+			}}
+		>
 			<RepositoryComparison
 				request={request}
 				onClose={close}
@@ -125,6 +134,59 @@ const choose = async (branch: string): Promise<void> => {
 	click(`compare-option-${branch}`);
 	await settle();
 };
+
+it("keeps the toolbar horizontal and the lists beside a full-height preview", async () => {
+	readDiff.mockImplementationOnce(async () => ({
+		ok: true,
+		value: [
+			{
+				target: "commit",
+				patch: diffPatch("file.txt"),
+				stats: [],
+				message: null,
+			},
+		],
+	}));
+	show();
+	await choose("feature");
+	const bounds = (id: string) => {
+		const node = root.renderer.findByTestId(id);
+
+		if (!node) throw new Error(`Missing ${id}`);
+
+		const box = root.renderer.getElementBounds(node.id);
+
+		if (!box) throw new Error(`Missing bounds for ${id}`);
+
+		return box;
+	};
+
+	const back = bounds("close-comparison");
+	const picker = bounds("comparison-branch");
+	const body = bounds("comparison-body");
+	const sidebar = bounds("comparison-sidebar");
+	const preview = bounds("comparison-preview");
+	const commits = bounds("comparison-commits");
+	const all = bounds("comparison-all-files");
+	const files = bounds("comparison-files");
+
+	expect(
+		Math.abs(back.y + back.height / 2 - picker.y - picker.height / 2)
+	).toBeLessThan(2);
+	expect(back.width).toBeLessThan(100);
+	expect(preview.x).toBeGreaterThanOrEqual(sidebar.x + sidebar.width - 1);
+	expect(preview.y).toBeCloseTo(sidebar.y, 0);
+	expect(body.height).toBeGreaterThan(500);
+	expect(preview.height).toBeCloseTo(body.height, 0);
+	expect(commits.y + commits.height).toBeLessThanOrEqual(all.y + 1);
+	expect(all.y + all.height).toBeLessThan(files.y);
+	expect(files.height).toBeGreaterThan(150);
+	const header = bounds("diff-header");
+
+	expect(header.x).toBeGreaterThanOrEqual(sidebar.x + sidebar.width - 1);
+	expect(header.y).toBeCloseTo(preview.y, 0);
+	expect(root.renderer.getPaintedText().join(" ")).toContain("const value = 2");
+});
 
 it("selects the first combined file, previews a commit and returns to all files", async () => {
 	show();

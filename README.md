@@ -22,6 +22,20 @@ Then, run the development server:
 bun run dev
 ```
 
+## Disposable Git playground
+
+Run `bun run playground` to create a fresh set of example repositories in a
+temporary folder. No personal repository, GitHub account, or network is needed.
+Open the printed `02-compare` path in the desktop app to try branch comparison.
+The generated `START-HERE.md` includes a checklist for changes, previews, commits,
+history, stashes, worktrees, local fetch/pull/push and merge-conflict recovery.
+
+Every run creates a new folder and preserves older playgrounds. Once finished,
+close their app tabs and move the generated folder to Trash. Do not keep real work
+there: the operating system may clean temporary storage.
+
+Generator verification: `bun test packages/git/tests/playground.integration.test.ts`.
+
 ## Git Hooks and Formatting
 
 - Run checks: `bun run check`

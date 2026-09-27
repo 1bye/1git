@@ -22,8 +22,17 @@ import { RepositoryList } from "../repository-workspace/components/repository-li
 import type { WorkspaceEntry } from "../repository-workspace/types";
 
 const styles = StyleSheet.create({
-	root: { flexGrow: 1, minHeight: 0, minWidth: 0 },
+	root: {
+		display: "flex",
+		flexDirection: "column",
+		flexGrow: 1,
+		flexBasis: 0,
+		minHeight: 0,
+		minWidth: 0,
+		overflow: "hidden",
+	},
 	toolbar: {
+		display: "flex",
 		flexShrink: 0,
 		padding: 8,
 		gap: 8,
@@ -32,8 +41,17 @@ const styles = StyleSheet.create({
 		borderBottomWidth: 1,
 		borderColor: appTokens.colors.border,
 	},
-	body: { flexGrow: 1, minHeight: 0, flexDirection: "row" },
+	body: {
+		display: "flex",
+		flexGrow: 1,
+		flexBasis: 0,
+		minHeight: 0,
+		flexDirection: "row",
+		overflow: "hidden",
+	},
 	sidebar: {
+		display: "flex",
+		flexDirection: "column",
 		width: 310,
 		flexShrink: 0,
 		minHeight: 0,
@@ -41,6 +59,10 @@ const styles = StyleSheet.create({
 		borderColor: appTokens.colors.border,
 	},
 	commits: {
+		display: "flex",
+		flexDirection: "column",
+		flexShrink: 0,
+		overflow: "hidden",
 		height: "40%",
 		minHeight: 80,
 		borderBottomWidth: 1,
@@ -52,7 +74,15 @@ const styles = StyleSheet.create({
 		color: appTokens.colors.textMuted,
 		flexShrink: 0,
 	},
-	preview: { flexGrow: 1, minWidth: 0, minHeight: 0 },
+	preview: {
+		display: "flex",
+		flexDirection: "column",
+		flexGrow: 1,
+		flexBasis: 0,
+		minWidth: 0,
+		minHeight: 0,
+		overflow: "hidden",
+	},
 });
 
 type Readers = {
@@ -73,7 +103,7 @@ export function RepositoryComparison({
 
 	return (
 		<div testId="branch-comparison" style={styles.root}>
-			<div style={styles.toolbar}>
+			<div testId="comparison-toolbar" style={styles.toolbar}>
 				<Button
 					testId="close-comparison"
 					tokens={appTokens}
@@ -301,9 +331,9 @@ function ComparisonResults({
 					</Button>
 				</div>
 			) : null}
-			<div style={styles.body}>
-				<div style={styles.sidebar}>
-					<div style={styles.commits}>
+			<div testId="comparison-body" style={styles.body}>
+				<div testId="comparison-sidebar" style={styles.sidebar}>
+					<div testId="comparison-commit-pane" style={styles.commits}>
 						<Text tokens={appTokens} style={styles.label}>
 							Incoming commits
 							{page
@@ -368,7 +398,7 @@ function ComparisonResults({
 						</Button>
 					) : null}
 				</div>
-				<div style={styles.preview}>
+				<div testId="comparison-preview" style={styles.preview}>
 					{selected && !filesLoading ? (
 						<RepositoryDiff
 							key={`${selected.commit}:${selected.base ?? ""}:${selected.path}`}
