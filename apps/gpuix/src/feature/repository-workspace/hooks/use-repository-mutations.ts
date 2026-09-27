@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, type Dispatch } from "react";
 import {
 	RepositoryWorktrees,
 	type WorktreeChoice,
+	type WorktreeRemoval,
 } from "../../workspace-tabs/lib/repository-worktrees";
 
 import type {
@@ -51,7 +52,8 @@ export function useRepositoryMutations(
 	resolveConflict = RepositoryConflicts.write,
 	writeOperation = RepositoryOperation.write,
 	discardFile = RepositoryFileActions.discard,
-	writeWorktree = RepositoryWorktrees.create
+	writeWorktree = RepositoryWorktrees.create,
+	removeWorktree = RepositoryWorktrees.remove
 ) {
 	const closeProtection = useCloseProtection(
 		state.tabs.some((tab) => RepositoryWorkspaceModel.isBusy(tab.workspace)),
@@ -270,9 +272,9 @@ export function useRepositoryMutations(
 		return error;
 	};
 
-	const createWorktree = async (
+	const mutateWorktree = async (
 		id: string,
-		choice: WorktreeChoice
+		choice: WorktreeChoice | WorktreeRemoval
 	): Promise<string | null> => {
 		const workspace = tabs.current.find((tab) => tab.id === id)?.workspace;
 		const repository = workspace?.repository;
@@ -284,7 +286,7 @@ export function useRepositoryMutations(
 			workspace.error ||
 			workspace.commit.needsReview
 		)
-			return "Refresh this workspace before creating a worktree.";
+			return "Refresh this workspace before changing worktrees.";
 
 		const related = () =>
 			tabs.current.filter(
@@ -304,7 +306,7 @@ export function useRepositoryMutations(
 					pending.current.has(tab.workspace.repository?.root ?? "")
 			)
 		)
-			return "Wait for the current Git operation before creating a worktree.";
+			return "Wait for the current Git operation before changing worktrees.";
 
 		worktreeWrites.current.add(repository.commonDirectory);
 		closeProtection.block();
@@ -318,18 +320,23 @@ export function useRepositoryMutations(
 
 		let error: string | null = null;
 		let created: RepositorySnapshot | undefined;
+		let removed: string | undefined;
 
 		try {
-			const result = await writeWorktree(repository.root, {
-				...choice,
-				expectedHead: repository.head,
-				expectedBranch: repository.branchName,
-			});
+			const result =
+				choice.kind === "remove"
+					? await removeWorktree(repository.root, choice)
+					: await writeWorktree(repository.root, {
+							...choice,
+							expectedHead: repository.head,
+							expectedBranch: repository.branchName,
+						});
 
 			if (!result.ok)
 				error = [result.error.message, result.error.details]
 					.filter(Boolean)
 					.join("\n");
+			else if (choice.kind === "remove") removed = result.value;
 			else {
 				// Creation has succeeded. A failed read must never trigger automatic recreation or deletion.
 				error = `Worktree created at ${result.value}, but could not be opened. Open that folder to retry.`;
@@ -344,7 +351,7 @@ export function useRepositoryMutations(
 				}
 			}
 		} catch {
-			error ??= `Could not confirm worktree creation. Inspect ${choice.path} and refresh before retrying.`;
+			error ??= `Could not confirm the worktree operation. Inspect ${choice.path} and refresh before retrying.`;
 		}
 
 		const snapshots = new Map<string, RepositoryWorkspaceAction>();
@@ -352,7 +359,7 @@ export function useRepositoryMutations(
 		await Promise.all(
 			[...new Set(related().map((tab) => tab.workspace.repository?.root))].map(
 				async (root) => {
-					if (!root) return;
+					if (!root || root === removed) return;
 
 					try {
 						const refreshed = await readRepository(
@@ -387,7 +394,9 @@ export function useRepositoryMutations(
 		worktreeWrites.current.delete(repository.commonDirectory);
 
 		if (mounted.current) {
-			for (const tab of related())
+			for (const tab of related().filter(
+				(item) => item.workspace.repository?.root !== removed
+			))
 				dispatch({
 					type: "workspace",
 					id: tab.id,
@@ -399,6 +408,8 @@ export function useRepositoryMutations(
 				});
 
 			if (created) dispatch({ type: "open-worktree", snapshot: created });
+
+			if (removed) dispatch({ type: "worktree-removed", path: removed });
 		}
 
 		return error;
@@ -853,7 +864,10 @@ export function useRepositoryMutations(
 		stash,
 		commit,
 		changeBranch,
-		createWorktree,
+		createWorktree: (id: string, choice: WorktreeChoice) =>
+			mutateWorktree(id, choice),
+		removeWorktree: (id: string, choice: WorktreeRemoval) =>
+			mutateWorktree(id, choice),
 		fetch: (id: string) => synchronize(id, { kind: "fetch" }),
 		synchronize,
 		cancelSync,

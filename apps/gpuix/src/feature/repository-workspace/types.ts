@@ -7,6 +7,7 @@ import type {
 
 /** Immutable committed comparison, never an index or working-tree selection. */
 export interface CommitFileSelection extends CommitFileChange {
+	readonly base?: string;
 	readonly commit: string;
 }
 

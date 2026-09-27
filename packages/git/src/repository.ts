@@ -5,6 +5,7 @@ import { dirname, resolve, join } from "node:path";
 import type {
 	AddRemoteInput,
 	BranchCollection,
+	BranchComparison,
 	BranchMutationResult,
 	ChangeHunkInput,
 	ChangeHunkResult,
@@ -90,6 +91,7 @@ import {
 	loadBranches,
 	loadCommit,
 	loadCommitFiles,
+	loadBranchComparison,
 	loadDiff,
 	loadFileContent,
 	loadHistory,
@@ -495,6 +497,22 @@ export class GitRepository {
 			loadCommitFiles(
 				this.context,
 				requireRevision(revision, "Revision", "get-commit-files"),
+				options.signal
+			)
+		);
+	}
+
+	/** Read-only incoming changes from the common ancestor; never checks out either branch. */
+	async compareBranches(
+		base: string,
+		head: string,
+		options: GitCallOptions = {}
+	): Promise<GitResult<BranchComparison>> {
+		return await this.read("compare-branches", async () =>
+			loadBranchComparison(
+				this.context,
+				requireRevision(base, "Base", "compare-branches"),
+				requireRevision(head, "Head", "compare-branches"),
 				options.signal
 			)
 		);

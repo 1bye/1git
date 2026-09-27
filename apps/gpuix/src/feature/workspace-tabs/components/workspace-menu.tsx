@@ -16,7 +16,10 @@ import { workspaceLayout } from "../../../styles/workspace-layout";
 import { WorkspaceTabPreview } from "./workspace-tab";
 import { WorkspaceTabIcon } from "./workspace-tab-icon";
 import { WorkspaceWorktreeForm } from "./workspace-worktree-form";
-import type { WorktreeChoice } from "../lib/repository-worktrees";
+import type {
+	WorktreeChoice,
+	WorktreeRemoval,
+} from "../lib/repository-worktrees";
 import { WorkspaceMenuModel } from "../lib/workspace-menu-model";
 import { RepositoryReader } from "../../repository-workspace/lib/repository-reader";
 import { NativeFileMenu } from "../../repository-workspace/lib/native-file-menu";
@@ -62,6 +65,7 @@ const styles = StyleSheet.create({
 		overflow: "hidden",
 	},
 	header: {
+		position: "relative",
 		height: headerHeight,
 		flexShrink: 0,
 		display: "flex",
@@ -158,6 +162,10 @@ const styles = StyleSheet.create({
 });
 
 export interface WorkspaceMenuActions {
+	onRemoveWorktree?: (
+		id: string,
+		choice: WorktreeRemoval
+	) => Promise<string | null>;
 	onCreateWorktree?: (
 		id: string,
 		choice: WorktreeChoice
@@ -183,6 +191,7 @@ export function WorkspaceMenu({
 	readRepository,
 	onChangeBranch,
 	onCreateWorktree,
+	onRemoveWorktree,
 	onFetch,
 	onSync,
 	onCancelSync,
@@ -212,6 +221,9 @@ export function WorkspaceMenu({
 	} | null>(null);
 
 	const [creatingWorktree, setCreatingWorktree] = useState(false);
+
+	const [removingWorktree, setRemovingWorktree] =
+		useState<WorktreeRemoval | null>(null);
 
 	const [publishing, setPublishing] = useState(false);
 	const [selectedRemote, setSelectedRemote] = useState<string | null>(null);
@@ -301,6 +313,7 @@ export function WorkspaceMenu({
 	);
 
 	const canCreate = !busy && !blocked && data !== null;
+	const canCompare = !busy && !!head && data !== null;
 
 	const canCreateWorktree =
 		!busy &&
@@ -385,6 +398,8 @@ export function WorkspaceMenu({
 		for (const worktree of worktrees)
 			enabledIds.push(`worktree-${worktree.path}`);
 
+	if (canCompare) enabledIds.push("compare-branches");
+
 	if (canCreate) enabledIds.push("create-branch");
 
 	if (onCreateWorktree && canCreateWorktree) enabledIds.push("create-worktree");
@@ -425,25 +440,27 @@ export function WorkspaceMenu({
 		(busy && !syncKind ? "Updating workspace…" : null);
 
 	// Fixed header/action rows surround a scrollable list; the expanded menu stays inside the window.
-	const contentHeight = creatingWorktree
-		? worktreeFormHeight
-		: creating
-			? createFormHeight
-			: publishing
-				? menuPadding * 2 +
-					headerHeight +
-					separatorHeight * 2 +
-					rowHeight * ((data?.remotes.length ?? 0) + 1)
-				: menuPadding * 2 +
-					headerHeight +
-					separatorHeight * 2 +
-					rowHeight +
-					(onCreateWorktree ? rowHeight : 0) +
-					(showFetch ? separatorHeight + rowHeight : 0) +
-					(showSync ? rowHeight * 2 : 0) +
-					Math.max(1, visibleBranches.length + worktrees.length) * rowHeight +
-					(hasMore ? rowHeight : 0) +
-					(worktrees.length ? sectionLabelHeight : 0);
+	const contentHeight = removingWorktree
+		? 230
+		: creatingWorktree
+			? worktreeFormHeight
+			: creating
+				? createFormHeight
+				: publishing
+					? menuPadding * 2 +
+						headerHeight +
+						separatorHeight * 2 +
+						rowHeight * ((data?.remotes.length ?? 0) + 1)
+					: menuPadding * 2 +
+						headerHeight +
+						separatorHeight * 2 +
+						rowHeight +
+						(onCreateWorktree ? rowHeight : 0) +
+						(showFetch ? separatorHeight + rowHeight : 0) +
+						(showSync ? rowHeight * 2 : 0) +
+						Math.max(1, visibleBranches.length + worktrees.length) * rowHeight +
+						(hasMore ? rowHeight : 0) +
+						(worktrees.length ? sectionLabelHeight : 0);
 
 	const menuHeight = Math.min(
 		maxMenuHeight,
@@ -459,19 +476,43 @@ export function WorkspaceMenu({
 		setRemoteBranch(null);
 		setBranchAction(null);
 		setCreatingWorktree(false);
+		setRemovingWorktree(null);
 		setPublishing(false);
 		setError(null);
 
 		if (dialog.current) renderer.focusElement?.(dialog.current.id);
 	};
 
+	const openComparison = (): void => {
+		if (!canCompare || !head || !repository || !data) return;
+
+		dispatch({
+			type: "compare",
+			id: tab.id,
+			comparison: {
+				root: repository.root,
+				base: head,
+				baseName: branch ?? "HEAD",
+				branches: data.branches.branches
+					.filter((item) => item.fullName !== `refs/heads/${branch}`)
+					.map((item) => ({
+						value: item.fullName,
+						label: item.name,
+						oid: item.oid,
+					})),
+			},
+		});
+		onClose();
+	};
+
 	const onKeyDown = (event: EventPayload): void => {
-		if (creatingWorktree && event.key !== "escape") return;
+		if ((creatingWorktree || removingWorktree) && event.key !== "escape")
+			return;
 
 		if (event.key === "escape" || event.key === "tab") {
 			if (
 				event.key === "escape" &&
-				(creating || publishing || creatingWorktree) &&
+				(creating || publishing || creatingWorktree || removingWorktree) &&
 				!busy
 			)
 				showActions();
@@ -651,7 +692,57 @@ export function WorkspaceMenu({
 					animate={{ height: menuHeight, opacity: 1 }}
 					transition={{ duration: 0.16, ease: "easeOut" }}
 				>
-					{creatingWorktree && root && data && onCreateWorktree ? (
+					{removingWorktree && onRemoveWorktree ? (
+						<div style={{ ...styles.form, minHeight: 0, overflowY: "scroll" }}>
+							<Text tokens={appTokens} style={styles.heading}>
+								Remove worktree?
+							</Text>
+							<Text tokens={appTokens} style={{ fontSize: 11 }}>
+								{removingWorktree.path}
+							</Text>
+							<Text tokens={appTokens} style={styles.muted}>
+								This deletes the folder, but keeps its branch.
+							</Text>
+							<Text tokens={appTokens} style={styles.muted}>
+								Its tabs will close. Any saved commit drafts in those tabs will
+								be discarded.
+							</Text>
+							<div style={styles.footer}>
+								<Button
+									tokens={appTokens}
+									variant="secondary"
+									size="sm"
+									testId="cancel-remove-worktree"
+									disabled={busy}
+									onPress={showActions}
+								>
+									Cancel
+								</Button>
+								<Button
+									tokens={appTokens}
+									size="sm"
+									testId="confirm-remove-worktree"
+									disabled={busy}
+									onPress={() => {
+										void (async () => {
+											setError(null);
+											const message = await onRemoveWorktree(
+												tab.id,
+												removingWorktree
+											);
+
+											if (!mounted.current) return;
+
+											if (message) setError(message);
+											else onClose();
+										})();
+									}}
+								>
+									{busy ? "Removing…" : "Remove worktree"}
+								</Button>
+							</div>
+						</div>
+					) : creatingWorktree && root && data && onCreateWorktree ? (
 						<WorkspaceWorktreeForm
 							root={root}
 							data={data}
@@ -816,7 +907,25 @@ export function WorkspaceMenu({
 						</>
 					) : (
 						<>
-							<div style={styles.header}>
+							<div
+								style={StyleSheet.compose(styles.header, { paddingRight: 80 })}
+							>
+								<Button
+									testId="compare-branches"
+									aria-label="Compare branches"
+									ref={(node) => {
+										if (node) rows.current.set("compare-branches", node);
+										else rows.current.delete("compare-branches");
+									}}
+									tokens={appTokens}
+									variant="secondary"
+									size="sm"
+									style={{ position: "absolute", right: 4, top: 8 }}
+									disabled={!canCompare}
+									onPress={openComparison}
+								>
+									Compare
+								</Button>
 								<Text
 									tokens={appTokens}
 									style={StyleSheet.compose(styles.label, styles.heading, {
@@ -1004,6 +1113,47 @@ export function WorkspaceMenu({
 											disabled={busy}
 											aria-label={`Open ${item.branch?.replace(/^refs\/heads\//, "") ?? "detached HEAD"} worktree`}
 											aria-description={item.path}
+											onContextMenu={
+												onRemoveWorktree
+													? (event) => {
+															try {
+																const enabled =
+																	canCreateWorktree &&
+																	!item.locked &&
+																	!item.prunable &&
+																	item.path !== data?.worktrees[0]?.path;
+
+																const bounds = renderer.getElementBounds?.(
+																	event.elementId
+																);
+
+																const choice = NativeFileMenu.show(
+																	renderer,
+																	["Remove worktree…"],
+																	[enabled],
+																	event.x ?? bounds?.x ?? 0,
+																	event.y ?? bounds?.y ?? 0
+																);
+
+																if (choice !== 0 || !enabled) return;
+
+																setError(null);
+																setRemovingWorktree({
+																	kind: "remove",
+																	path: item.path,
+																	expectedHead: item.headOid,
+																	expectedBranch: item.branch,
+																});
+															} catch (cause) {
+																setError(
+																	cause instanceof Error
+																		? cause.message
+																		: "Could not open the worktree menu."
+																);
+															}
+														}
+													: undefined
+											}
 											onPress={() => {
 												void openWorktree(item.path);
 											}}

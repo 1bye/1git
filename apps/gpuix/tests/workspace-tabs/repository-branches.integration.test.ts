@@ -7,6 +7,7 @@
 import { afterEach, beforeEach, expect, it } from "bun:test";
 import { execFile } from "node:child_process";
 import {
+	lstat,
 	mkdir,
 	mkdtemp,
 	readFile,
@@ -279,6 +280,77 @@ it("creates explicit tracking branches from remote refs in this workspace and a 
 			).ok
 		).toBe(false);
 	}
+});
+
+it("removes a clean linked checkout but retains its branch and refuses unsafe targets", async () => {
+	const head = await git("rev-parse", "HEAD");
+	const path = join(sandbox, "removable");
+
+	await git("worktree", "add", path, "feature/ui");
+	const request = {
+		kind: "remove" as const,
+		path,
+		expectedHead: head,
+		expectedBranch: "feature/ui",
+	};
+
+	expect(
+		(
+			await RepositoryWorktrees.remove(repository, {
+				...request,
+				path: repository,
+				expectedBranch: "main",
+			})
+		).ok
+	).toBe(false);
+	expect(
+		(
+			await RepositoryWorktrees.remove(repository, {
+				...request,
+				expectedHead: "stale",
+			})
+		).ok
+	).toBe(false);
+	expect(
+		(
+			await RepositoryWorktrees.remove(repository, {
+				...request,
+				path: sandbox,
+			})
+		).ok
+	).toBe(false);
+	await git("worktree", "lock", path);
+	expect((await RepositoryWorktrees.remove(repository, request)).ok).toBe(
+		false
+	);
+	await git("worktree", "unlock", path);
+	await writeFile(join(path, "file.txt"), "dirty\n");
+	expect((await RepositoryWorktrees.remove(repository, request)).ok).toBe(
+		false
+	);
+	expect(await readFile(join(path, "file.txt"), "utf8")).toBe("dirty\n");
+	await git("-C", path, "restore", "file.txt");
+	await writeFile(join(path, "untracked.txt"), "keep\n");
+	expect((await RepositoryWorktrees.remove(repository, request)).ok).toBe(
+		false
+	);
+	await rm(join(path, "untracked.txt"));
+	await writeFile(join(repository, ".git/info/exclude"), "ignored.txt\n");
+	await writeFile(join(path, "ignored.txt"), "keep ignored\n");
+	expect((await RepositoryWorktrees.remove(repository, request)).ok).toBe(
+		false
+	);
+	expect(await readFile(join(path, "ignored.txt"), "utf8")).toBe(
+		"keep ignored\n"
+	);
+	await rm(join(path, "ignored.txt"));
+	expect(await RepositoryWorktrees.remove(repository, request)).toEqual({
+		ok: true,
+		value: path,
+	});
+	await expect(lstat(path)).rejects.toMatchObject({ code: "ENOENT" });
+	expect(await git("rev-parse", "feature/ui")).toBe(head);
+	expect(await git("branch", "--show-current")).toBe("main");
 });
 
 it("renames local branches and deletes only safe, unchanged local targets", async () => {

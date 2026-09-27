@@ -1,4 +1,5 @@
 import type { RepositorySnapshot } from "@1git/git";
+import type { ComparisonRequest } from "../../repository-comparison/lib/repository-comparison";
 import {
 	RepositoryWorkspaceModel,
 	type RepositoryWorkspaceState,
@@ -7,6 +8,7 @@ import {
 
 /** A workspace tab with presentation state and optional live repository metadata. */
 export interface WorkspaceTabRecord {
+	readonly comparison?: ComparisonRequest;
 	readonly id: string;
 	readonly name: string;
 	readonly branch?: string;
@@ -25,7 +27,9 @@ export interface WorkspaceTabsState {
 export type WorkspaceTabsAction =
 	| { type: "add" }
 	| { type: "open-worktree"; snapshot: RepositorySnapshot }
+	| { type: "worktree-removed"; path: string }
 	| { type: "activate"; id: string }
+	| { type: "compare"; id: string; comparison?: ComparisonRequest }
 	| { type: "reorder"; id: string; overId: string }
 	| { type: "workspace"; id: string; action: RepositoryWorkspaceAction }
 	| { type: "close"; id: string };
@@ -68,6 +72,22 @@ export class WorkspaceTabsModel {
 		state: WorkspaceTabsState,
 		action: WorkspaceTabsAction
 	): WorkspaceTabsState {
+		if (action.type === "worktree-removed") {
+			const tabs = state.tabs.filter(
+				(tab) =>
+					(tab.workspace.repository?.root ?? tab.workspace.repositoryPath) !==
+					action.path
+			);
+
+			return {
+				...state,
+				tabs,
+				activeId: tabs.some((tab) => tab.id === state.activeId)
+					? state.activeId
+					: (tabs[0]?.id ?? null),
+			};
+		}
+
 		if (action.type === "open-worktree") {
 			const existing = state.tabs.find(
 				(tab) =>
@@ -114,6 +134,14 @@ export class WorkspaceTabsModel {
 		const index = state.tabs.findIndex((tab) => tab.id === action.id);
 
 		if (index === -1) return state;
+
+		if (action.type === "compare")
+			return {
+				...state,
+				tabs: state.tabs.map((tab) =>
+					tab.id === action.id ? { ...tab, comparison: action.comparison } : tab
+				),
+			};
 
 		if (action.type === "workspace") {
 			const tab = state.tabs[index];

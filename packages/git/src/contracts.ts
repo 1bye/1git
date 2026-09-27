@@ -50,6 +50,7 @@ export type GitOperation =
 	| "fetch"
 	| "file-content"
 	| "get-branches"
+	| "compare-branches"
 	| "get-commit"
 	| "get-commit-files"
 	| "get-config"
@@ -194,6 +195,14 @@ export interface CommitFileChange {
 	readonly status: "A" | "D" | "M" | "R" | "C" | "T";
 	readonly beforeOid: string;
 	readonly afterOid: string;
+}
+
+/** Immutable, incoming changes since the branches' common ancestor. */
+export interface BranchComparison {
+	readonly base: string;
+	readonly head: string;
+	readonly mergeBase: string;
+	readonly files: readonly CommitFileChange[];
 }
 
 /** Structured commit metadata. */

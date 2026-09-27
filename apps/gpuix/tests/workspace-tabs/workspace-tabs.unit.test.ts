@@ -7,6 +7,57 @@
 import { expect, it } from "bun:test";
 
 import { WorkspaceTabsModel as Model } from "../../src/feature/workspace-tabs/lib/workspace-tabs-model";
+import { WorkspaceSession } from "../../src/feature/workspace-tabs/lib/workspace-session";
+
+it("returns from comparison without changing workspace state", () => {
+	const initial = Model.create();
+
+	const comparing = Model.reduce(initial, {
+		type: "compare",
+		id: "workspace-1",
+		comparison: { root: "/repo", base: "oid", baseName: "main", branches: [] },
+	});
+
+	expect(comparing.tabs[0]?.workspace).toBe(initial.tabs[0]?.workspace);
+	expect(comparing.tabs[0]?.comparison?.baseName).toBe("main");
+	const closed = Model.reduce(comparing, {
+		type: "compare",
+		id: "workspace-1",
+	});
+
+	expect(closed.tabs[0]?.comparison).toBeUndefined();
+	expect(closed.tabs[0]?.workspace).toBe(initial.tabs[0]?.workspace);
+});
+
+it("removes restored worktree tabs and drafts from the saved session after confirmed removal", () => {
+	const initial = Model.create(2);
+
+	const state = {
+		...initial,
+		activeId: "workspace-2",
+		tabs: initial.tabs.map((tab, index) => ({
+			...tab,
+			workspace: {
+				...tab.workspace,
+				repositoryPath: index === 0 ? "/main" : "/linked",
+				commitMessage: "draft",
+			},
+		})),
+	};
+
+	const removed = Model.reduce(state, {
+		type: "worktree-removed",
+		path: "/linked",
+	});
+
+	const saved = WorkspaceSession.capture(removed);
+
+	expect(saved.tabs).toHaveLength(1);
+	expect(saved.tabs[0]?.path).toBe("/main");
+	expect(saved.tabs[0]?.draft).toBe("draft");
+	expect(removed.activeId).toBe("workspace-1");
+	expect(state.tabs).toHaveLength(2);
+});
 
 it("creates independent state and preserves identity for ignored actions", () => {
 	const state = Model.create();

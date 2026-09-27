@@ -73,6 +73,16 @@ const readBranches = mock<typeof RepositoryBranches.read>(async () => ({
 		remotes,
 		worktrees: [
 			{
+				path: "/test/project",
+				branch: "main",
+				headOid: snapshot.head.oid,
+				detached: false,
+				locked: false,
+				lockReason: null,
+				prunable: false,
+				pruneReason: null,
+			},
+			{
 				path: "/test/linked",
 				branch: "refs/heads/feature/linked",
 				headOid: snapshot.head.oid,
@@ -111,6 +121,8 @@ const writeBranch = mock<typeof RepositoryBranches.write>(
 	}
 );
 
+const removeWorktree = mock<typeof RepositoryWorktrees.remove>();
+
 const writeWorktree = mock<typeof RepositoryWorktrees.create>(
 	async (_root, request) => ({ ok: true, value: request.path })
 );
@@ -146,6 +158,11 @@ beforeEach(() => {
 	readRepository.mockImplementation(readSnapshot);
 	writeBranch.mockClear();
 	writeWorktree.mockReset();
+	removeWorktree.mockReset();
+	removeWorktree.mockImplementation(async (_root, request) => ({
+		ok: true,
+		value: request.path,
+	}));
 	writeWorktree.mockImplementation(async (_root, request) => ({
 		ok: true,
 		value: request.path,
@@ -209,6 +226,7 @@ const open = async (): Promise<void> => {
 			readBranches={readBranches}
 			writeBranch={writeBranch}
 			writeWorktree={writeWorktree}
+			removeWorktree={removeWorktree}
 			fetchRepository={fetchRepository}
 			writeSyncRepository={writeSyncRepository}
 			readDiff={async () => ({ ok: true, value: [] })}
@@ -222,6 +240,102 @@ const menu = async (): Promise<void> => {
 	click("workspace-1");
 	await settle();
 };
+
+it("opens a read-only comparison even with uncommitted changes and returns to the workspace", async () => {
+	snapshot = { ...snapshot, files: [changedFile("dirty.txt")] };
+	await open();
+	await menu();
+	click("compare-branches");
+	await settle();
+	expect(root.renderer.findByTestId("branch-comparison")).toBeTruthy();
+	expect(writeBranch).not.toHaveBeenCalled();
+	click("close-comparison");
+	await settle();
+	expect(root.renderer.findByTestId("branch-comparison")).toBeUndefined();
+	expect(root.renderer.findByTestId("entry-dirty.txt")).toBeTruthy();
+});
+
+it("warns about drafts, confirms removal, and closes only the removed worktree after success", async () => {
+	spyOn(NativeFileMenu, "show").mockReturnValue(0);
+	await open();
+	await menu();
+	click("worktree-/test/linked");
+	await settle();
+	click("commit-message");
+	root.renderer.simulateKeystrokes("d r a f t");
+	click("workspace-1");
+	await settle();
+	await menu();
+	const box = bounds("worktree-/test/linked");
+
+	root.renderer.nativeSimulateClick(box.x + 8, box.y + 8, 2);
+	await settle();
+	expect(root.renderer.getAllText()).toContain("/test/linked");
+	expect(root.renderer.getAllText().join(" ")).toContain(
+		"Any saved commit drafts"
+	);
+	expect(removeWorktree).not.toHaveBeenCalled();
+	click("cancel-remove-worktree");
+	await settle();
+	expect(root.renderer.findByTestId("workspace-2")).toBeDefined();
+	root.renderer.nativeSimulateClick(box.x + 8, box.y + 8, 2);
+	await settle();
+	click("confirm-remove-worktree");
+	await settle();
+	expect(removeWorktree).toHaveBeenCalledWith(
+		"/test/project",
+		expect.objectContaining({
+			kind: "remove",
+			path: "/test/linked",
+			expectedBranch: "refs/heads/feature/linked",
+		})
+	);
+	expect(root.renderer.findByTestId("workspace-2")).toBeUndefined();
+	expect(root.renderer.findByTestId("workspace-1")).toBeDefined();
+});
+
+it("keeps affected tabs when removal fails", async () => {
+	spyOn(NativeFileMenu, "show").mockReturnValue(0);
+	const pendingRemoval =
+		Promise.withResolvers<
+			Awaited<ReturnType<typeof RepositoryWorktrees.remove>>
+		>();
+
+	removeWorktree.mockImplementation(async () => await pendingRemoval.promise);
+	await open();
+	await menu();
+	click("worktree-/test/linked");
+	await settle();
+	click("workspace-1");
+	await settle();
+	await menu();
+	const box = bounds("worktree-/test/linked");
+
+	root.renderer.nativeSimulateClick(box.x + 8, box.y + 8, 2);
+	await settle();
+	click("confirm-remove-worktree");
+	await settle();
+	root.renderer.simulateKeystrokes("escape");
+	await settle();
+	click("close-workspace-2");
+	await settle();
+	expect(root.renderer.findByTestId("workspace-2")).toBeDefined();
+	pendingRemoval.resolve({
+		ok: false,
+		error: {
+			code: "conflict",
+			operation: "remove-worktree",
+			retryable: false,
+			message: "Worktree contains untracked files",
+		},
+	});
+	await settle();
+	await menu();
+	expect(root.renderer.getAllText()).toContain(
+		"Worktree contains untracked files"
+	);
+	expect(root.renderer.findByTestId("workspace-2")).toBeDefined();
+});
 
 it("renames through the native context menu only after confirming the form", async () => {
 	const nativeMenu = spyOn(NativeFileMenu, "show").mockReturnValue(0);

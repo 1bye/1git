@@ -67,6 +67,8 @@ export function useRepositoryDiff(
 		result.change.path === change.path &&
 		("commit" in result.change ? result.change.commit : null) ===
 			("commit" in change ? change.commit : null) &&
+		("commit" in result.change ? result.change.base : null) ===
+			("commit" in change ? change.base : null) &&
 		result.retry === retry
 			? result
 			: null;

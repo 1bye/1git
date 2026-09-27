@@ -35,6 +35,8 @@ import {
 import { WorkspaceTabs } from "./feature/workspace-tabs/workspace-tabs";
 import { WorkspaceTabsModel } from "./feature/workspace-tabs/lib/workspace-tabs-model";
 import { AppShell } from "./fixture/app-shell";
+import { RepositoryComparison } from "./feature/repository-comparison/repository-comparison";
+import { RepositoryComparison as ComparisonReader } from "./feature/repository-comparison/lib/repository-comparison";
 
 /** Owns one window's workspaces, cancellable reads and explicit commit transactions. */
 export function App({
@@ -44,6 +46,7 @@ export function App({
 	sessionError,
 	saveSession,
 	readRepository = RepositoryReader.read,
+	readComparison = ComparisonReader.read,
 	readDiff = DiffReader.read,
 	readHistory = RepositoryHistory.read,
 	readCommitFiles = RepositoryHistory.readFiles,
@@ -53,6 +56,7 @@ export function App({
 	readBranches = RepositoryBranches.read,
 	writeBranch = RepositoryBranches.write,
 	writeWorktree = RepositoryWorktrees.create,
+	removeWorktree = RepositoryWorktrees.remove,
 	fetchRepository = RepositorySync.fetch,
 	writeSyncRepository = RepositorySync.write,
 	writeStash = RepositoryStashes.write,
@@ -69,6 +73,7 @@ export function App({
 	sessionError?: string;
 	saveSession?: (document: WorkspaceSessionDocument) => void;
 	readRepository?: typeof RepositoryReader.read;
+	readComparison?: typeof ComparisonReader.read;
 	readDiff?: typeof DiffReader.read;
 	readHistory?: typeof RepositoryHistory.read;
 	readCommitFiles?: typeof RepositoryHistory.readFiles;
@@ -78,6 +83,7 @@ export function App({
 	readBranches?: typeof RepositoryBranches.read;
 	writeBranch?: typeof RepositoryBranches.write;
 	writeWorktree?: typeof RepositoryWorktrees.create;
+	removeWorktree?: typeof RepositoryWorktrees.remove;
 	fetchRepository?: typeof RepositorySync.fetch;
 	writeSyncRepository?: typeof RepositorySync.write;
 	writeStash?: typeof RepositoryStashes.write;
@@ -118,7 +124,8 @@ export function App({
 		resolveConflict,
 		writeOperation,
 		discardFile,
-		writeWorktree
+		writeWorktree,
+		removeWorktree
 	);
 
 	useRepositoryAutoRefresh(state, dispatch, readRepository, watchRepository);
@@ -168,7 +175,7 @@ export function App({
 	return (
 		<AppShell
 			navigation={
-				activeTab && workspace ? (
+				activeTab && workspace && !activeTab.comparison ? (
 					<RepositoryNavigation
 						openFile={openFile}
 						onDiscard={(request) =>
@@ -203,6 +210,7 @@ export function App({
 					readRepository={readRepository}
 					onChangeBranch={mutations.changeBranch}
 					onCreateWorktree={mutations.createWorktree}
+					onRemoveWorktree={mutations.removeWorktree}
 					onFetch={mutations.fetch}
 					onSync={mutations.synchronize}
 					onCancelSync={mutations.cancelSync}
@@ -241,7 +249,17 @@ export function App({
 					) : null}
 				</div>
 			) : null}
-			{activeTab && workspace?.repository && comparison ? (
+			{activeTab?.comparison ? (
+				<RepositoryComparison
+					key={activeTab.id}
+					request={activeTab.comparison}
+					readComparison={readComparison}
+					readHistory={readHistory}
+					readCommitFiles={readCommitFiles}
+					readDiff={readDiff}
+					onClose={() => dispatch({ type: "compare", id: activeTab.id })}
+				/>
+			) : activeTab && workspace?.repository && comparison ? (
 				<RepositoryDiff
 					key={`${activeTab.id}:${revision?.id ?? "changes"}:${comparison.path}`}
 					root={workspace.repository.root}

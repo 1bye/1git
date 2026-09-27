@@ -17,9 +17,113 @@ export interface WorktreeRequest extends WorktreeChoice {
 	readonly expectedBranch: string | null;
 }
 
+/** Exact registered checkout reviewed in the removal confirmation. */
+export interface WorktreeRemoval {
+	readonly kind: "remove";
+	readonly path: string;
+	readonly expectedHead: string | null;
+	readonly expectedBranch: string | null;
+}
+
 /** Creates a separate checkout without switching, stashing, or resetting the source worktree. */
 export class RepositoryWorktrees {
 	private constructor() {}
+
+	/** Remove only a registered, clean linked worktree; never force or delete its branch. */
+	static async remove(
+		root: string,
+		request: WorktreeRemoval
+	): Promise<GitResult<string>> {
+		const fail = (message: string): GitResult<never> => ({
+			ok: false,
+			error: {
+				code: "conflict",
+				operation: "remove-worktree",
+				retryable: false,
+				message,
+			},
+		});
+
+		const source = await GitRepository.open({ path: root });
+
+		if (!source.ok) return source;
+
+		const worktrees = await source.value.getWorktrees();
+
+		if (!worktrees.ok) return worktrees;
+
+		const target = worktrees.value.find((item) => item.path === request.path);
+
+		if (!target || target.locked || target.prunable)
+			return fail(
+				"Choose an available, unlocked worktree. Refresh before trying again."
+			);
+
+		if (
+			target.headOid !== request.expectedHead ||
+			target.branch !== request.expectedBranch
+		)
+			return fail(
+				"The worktree changed since it was selected. Refresh before removing it."
+			);
+
+		try {
+			if (
+				!(await lstat(target.path)).isDirectory() ||
+				(await realpath(target.path)) !== target.path
+			)
+				return fail("The worktree path changed. Nothing was removed.");
+		} catch {
+			return fail(
+				"The worktree folder is unavailable. Refresh before trying again."
+			);
+		}
+
+		const opened = await GitRepository.open({ path: target.path });
+
+		if (!opened.ok) return opened;
+
+		const snapshot = await opened.value.getSnapshot({ includeIgnored: true });
+		const sourceSnapshot = await source.value.getSnapshot();
+
+		if (!snapshot.ok) return snapshot;
+
+		if (!sourceSnapshot.ok) return sourceSnapshot;
+
+		const { repository, operationState, files } = snapshot.value;
+
+		if (
+			repository.root !== target.path ||
+			snapshot.value.head.oid !== request.expectedHead ||
+			snapshot.value.head.branch !== request.expectedBranch
+		)
+			return fail(
+				"The worktree changed since it was selected. Refresh before removing it."
+			);
+
+		if (
+			repository.commonDirectory !==
+				sourceSnapshot.value.repository.commonDirectory ||
+			repository.gitDirectory === repository.commonDirectory ||
+			repository.root === sourceSnapshot.value.repository.root
+		)
+			return fail("The main or current worktree cannot be removed here.");
+
+		if (
+			operationState !== "normal" ||
+			sourceSnapshot.value.operationState !== "normal"
+		)
+			return fail("Finish the Git operation before removing a worktree.");
+
+		if (files.length)
+			return fail(
+				"This worktree contains changed, untracked, or ignored files. Nothing was removed."
+			);
+
+		const result = await source.value.removeWorktree({ path: target.path });
+
+		return result.ok ? { ok: true, value: target.path } : result;
+	}
 
 	/** Immediate form feedback; Git remains the authoritative validator at creation time. */
 	static branchNameError(name: string): string | null {

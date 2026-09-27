@@ -4,6 +4,7 @@ import { isAbsolute, join, relative, resolve } from "node:path";
 
 import type {
 	BranchCollection,
+	BranchComparison,
 	CommitInfo,
 	CommitFileChange,
 	CommitPage,
@@ -37,6 +38,7 @@ import {
 import { parseStatus } from "./parsers/status.js";
 import { parseWorktrees } from "./parsers/worktrees.js";
 import { GitCommandFailure, GitProcessFailure } from "./process/git-process.js";
+import { invalidInput } from "./result.js";
 
 const MAX_FILE_CONTENT_BYTES = 10 * 1024 * 1024;
 
@@ -260,6 +262,69 @@ export const loadCommitFiles = async (
 	});
 
 	return parseCommitFiles(output.stdout);
+};
+
+/** Resolve endpoints once so subsequent pages and patches describe the same snapshot. */
+export const loadBranchComparison = async (
+	context: RepositoryContext,
+	base: string,
+	head: string,
+	signal?: AbortSignal
+): Promise<BranchComparison> => {
+	const [baseCommit, headCommit] = await Promise.all([
+		loadCommit(context, base, signal),
+		loadCommit(context, head, signal),
+	]);
+
+	let ancestors: string;
+
+	try {
+		const result = await context.process.run({
+			args: ["merge-base", "--all", baseCommit.oid, headCommit.oid],
+			cwd: context.repository.root,
+			signal,
+		});
+
+		ancestors = result.stdout.toString("utf8").trim();
+	} catch (error) {
+		if (error instanceof GitCommandFailure && error.exitCode === 1)
+			throw invalidInput(
+				"compare-branches",
+				"These branches do not share a common ancestor."
+			);
+
+		throw error;
+	}
+
+	if (!ancestors || ancestors.includes("\n"))
+		throw invalidInput(
+			"compare-branches",
+			"This comparison requires a single common ancestor."
+		);
+
+	const result = await context.process.run({
+		args: [
+			"diff",
+			"--raw",
+			"-z",
+			"--no-abbrev",
+			"--find-renames",
+			"--no-ext-diff",
+			"--no-textconv",
+			ancestors,
+			headCommit.oid,
+			"--",
+		],
+		cwd: context.repository.root,
+		signal,
+	});
+
+	return {
+		base: baseCommit.oid,
+		head: headCommit.oid,
+		mergeBase: ancestors,
+		files: parseCommitFiles(result.stdout),
+	};
 };
 
 /** Loads local and remote-tracking branches. */

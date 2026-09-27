@@ -231,7 +231,14 @@ This is not a port of the Electron liquid SVG morph.
   selected remote ref, without fetching automatically. Local-name collisions are
   blocked; choose the existing local branch instead. Use Fetch to refresh remote refs.
   Remote refs already tracked by a local branch are hidden in both pickers.
-  Worktree removal is not included.
+  Right-click a linked worktree for **Remove worktree…**. Confirmation shows its
+  exact folder and warns that its tabs and saved commit drafts will be removed;
+  the branch is retained. Main/current, locked, stale, dirty and unavailable
+  worktrees are refused, including folders containing untracked or ignored files.
+  Removal never forces or recursively deletes files itself. Related app writes and
+  tab/window closure are blocked until completion. Only confirmed success removes
+  affected tabs from session restoration; failures keep them available for review.
+  Closing a tab alone never removes its worktree.
   Creation locks app writes across related worktrees and protects window/tab closure
   until status is refreshed. If opening fails after creation, the error identifies
   the folder to open manually; creation is not retried automatically.
@@ -361,6 +368,23 @@ the Turbo build/dev tasks build dependencies first. No Electron IPC is involved.
   refresh. Inspect History before retrying an uncertain operation. Recovery warnings
   include the retained temporary index location; never blindly recommit.
 - Explicit `GPUIX_PREVIEW=1` sample mode remains preview-only and performs no writes.
+
+## Comparing branches
+
+- Open the active tab menu and choose **Compare**, then choose a local or
+  remote-tracking branch. This is a read-only snapshot; it does not fetch,
+  switch branches, merge, or change the index or working files.
+- Incoming commits are those reachable from the selected branch but not the
+  current HEAD, loaded in pages of 50. **All branch changes** shows the combined
+  changes from their common ancestor to the selected branch. This is not a
+  preview of the eventual merge result or a conflict check.
+- Select an individual commit to browse its first-parent changes. File selection
+  automatically previews the first file, reusing text diffs and image previews.
+  Endpoint commits and image blobs remain pinned if branches move externally.
+- **Back** restores the underlying Changes/History/Stashes view and draft.
+  Comparison is temporary and is not restored after restarting. Reopen it to
+  capture newer branch tips. Unborn HEADs cannot compare; unrelated histories or
+  multiple merge bases report an explicit error rather than a misleading diff.
 
 ## Browsing History
 

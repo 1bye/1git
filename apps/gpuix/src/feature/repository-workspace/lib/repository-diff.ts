@@ -185,7 +185,9 @@ export class RepositoryDiff {
 			};
 
 		const result = await opened.value.getDiff({
-			target: { kind: "commit", revision: file.commit },
+			target: file.base
+				? { kind: "range", base: file.base, head: file.commit }
+				: { kind: "commit", revision: file.commit },
 			paths: file.originalPath ? [file.originalPath, file.path] : [file.path],
 			signal,
 		});
