@@ -446,6 +446,14 @@ it("infers exact existing names, rejects occupied or invalid branches, and never
 	root.renderer.simulateKeystrokes("m a i n");
 	await settle();
 	expect(root.renderer.getAllText()).toContain(
+		"Already used by this workspace."
+	);
+	click("confirm-create-worktree");
+	expect(writeWorktree).not.toHaveBeenCalled();
+	click("worktree-branch-name");
+	root.renderer.simulateKeystrokes("cmd-a f e a t u r e / l i n k e d");
+	await settle();
+	expect(root.renderer.getAllText()).toContain(
 		"Already open in another worktree."
 	);
 	click("confirm-create-worktree");

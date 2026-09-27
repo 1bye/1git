@@ -193,7 +193,9 @@ export function WorkspaceWorktreeForm({
 	if (branch && !existing && !branchError) suggestions.push(branch);
 
 	const help = occupied
-		? "Already open in another worktree."
+		? branch === data.branches.current
+			? "Already used by this workspace."
+			: "Already open in another worktree."
 		: (branchError ??
 			(existing
 				? "Uses existing branch."
