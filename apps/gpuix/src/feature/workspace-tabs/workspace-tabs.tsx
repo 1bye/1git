@@ -70,6 +70,7 @@ export function WorkspaceTabs({
 	readBranches,
 	readRepository,
 	onChangeBranch,
+	onCreateWorktree,
 	onFetch,
 	onSync,
 	onCancelSync,
@@ -286,6 +287,7 @@ export function WorkspaceTabs({
 									readBranches={readBranches}
 									readRepository={readRepository}
 									onChangeBranch={onChangeBranch}
+									onCreateWorktree={onCreateWorktree}
 									onFetch={onFetch}
 									onSync={onSync}
 									onCancelSync={onCancelSync}

@@ -22,6 +22,7 @@ import { useRepositoryStashes } from "./feature/repository-workspace/hooks/use-r
 import { useRepositoryConnection } from "./feature/repository-workspace/hooks/use-repository-connection";
 import { useRepositoryMutations } from "./feature/repository-workspace/hooks/use-repository-mutations";
 import { RepositoryBranches } from "./feature/workspace-tabs/lib/repository-branches";
+import { RepositoryWorktrees } from "./feature/workspace-tabs/lib/repository-worktrees";
 import { RepositoryCommit } from "./feature/repository-workspace/lib/repository-commit";
 import { RepositoryCloseNotice } from "./feature/repository-workspace/components/repository-close-notice";
 import { RepositorySync } from "./feature/repository-workspace/lib/repository-sync";
@@ -51,6 +52,7 @@ export function App({
 	writeCommit = RepositoryCommit.write,
 	readBranches = RepositoryBranches.read,
 	writeBranch = RepositoryBranches.write,
+	writeWorktree = RepositoryWorktrees.create,
 	fetchRepository = RepositorySync.fetch,
 	writeSyncRepository = RepositorySync.write,
 	writeStash = RepositoryStashes.write,
@@ -75,6 +77,7 @@ export function App({
 	writeCommit?: typeof RepositoryCommit.write;
 	readBranches?: typeof RepositoryBranches.read;
 	writeBranch?: typeof RepositoryBranches.write;
+	writeWorktree?: typeof RepositoryWorktrees.create;
 	fetchRepository?: typeof RepositorySync.fetch;
 	writeSyncRepository?: typeof RepositorySync.write;
 	writeStash?: typeof RepositoryStashes.write;
@@ -114,7 +117,8 @@ export function App({
 		writeStash,
 		resolveConflict,
 		writeOperation,
-		discardFile
+		discardFile,
+		writeWorktree
 	);
 
 	useRepositoryAutoRefresh(state, dispatch, readRepository, watchRepository);
@@ -198,6 +202,7 @@ export function App({
 					readBranches={readBranches}
 					readRepository={readRepository}
 					onChangeBranch={mutations.changeBranch}
+					onCreateWorktree={mutations.createWorktree}
 					onFetch={mutations.fetch}
 					onSync={mutations.synchronize}
 					onCancelSync={mutations.cancelSync}

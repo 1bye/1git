@@ -1,0 +1,428 @@
+import { basename, dirname, join } from "node:path";
+import { useEffect, useRef, useState } from "react";
+import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
+import { StyleSheet } from "@1git/gpuix-stylesheet";
+import { Button } from "@1git/gpuix-ui/button";
+import {
+	Combobox,
+	ComboboxInput,
+	ComboboxTrigger,
+	ComboboxContent,
+	ComboboxItem,
+} from "@gpuix/react/combobox";
+import { appTokens } from "../../../styles/tokens";
+import type { WorkspaceBranches } from "../lib/repository-branches";
+import {
+	RepositoryWorktrees,
+	type WorktreeChoice,
+} from "../lib/repository-worktrees";
+import { WorkspaceTabIcon } from "./workspace-tab-icon";
+
+const { colors } = appTokens;
+const folderUnsafeCharacters = /[^\p{L}\p{N}._-]+/gu;
+
+const styles = StyleSheet.create({
+	form: {
+		display: "flex",
+		flexDirection: "column",
+		gap: 10,
+		padding: 8,
+		minHeight: 0,
+		overflowY: "scroll",
+	},
+	label: { fontSize: 12, color: colors.text },
+	field: { display: "flex", flexDirection: "column", gap: 4, flexShrink: 0 },
+	row: {
+		display: "flex",
+		alignItems: "center",
+		justifyContent: "space-between",
+		gap: 8,
+		flexShrink: 0,
+	},
+	comboInput: {
+		width: 0,
+		minWidth: 0,
+		flexGrow: 1,
+		flexShrink: 1,
+		borderWidth: 0,
+		paddingLeft: 0,
+		paddingRight: 0,
+		height: 28,
+	},
+	comboTrigger: {
+		width: 20,
+		height: 28,
+		display: "flex",
+		alignItems: "center",
+		justifyContent: "center",
+		cursor: "pointer",
+	},
+	options: {
+		width: 264,
+		maxHeight: 160,
+		overflowY: "scroll",
+		padding: 4,
+		display: "flex",
+		flexDirection: "column",
+		backgroundColor: colors.overlay,
+		borderRadius: 6,
+		borderWidth: 1,
+		borderColor: colors.border,
+	},
+	option: {
+		minHeight: 28,
+		paddingLeft: 8,
+		paddingRight: 8,
+		display: "flex",
+		alignItems: "center",
+		fontSize: 12,
+		color: colors.text,
+		borderRadius: 4,
+		cursor: "pointer",
+	},
+	location: {
+		fontSize: 12,
+		color: colors.textMuted,
+		minWidth: 0,
+		flexShrink: 1,
+		whiteSpace: "nowrap",
+		textOverflow: "ellipsis",
+	},
+	fieldText: {
+		fontSize: 12,
+		minWidth: 0,
+		flexGrow: 1,
+		flexShrink: 1,
+		whiteSpace: "nowrap",
+		textOverflow: "ellipsis",
+		pointerEvents: "none",
+	},
+	locationField: {
+		display: "flex",
+		alignItems: "center",
+		gap: 8,
+		justifyContent: "flex-start",
+	},
+	hint: {
+		fontSize: 11,
+		color: colors.textMuted,
+		whiteSpace: "nowrap",
+		textOverflow: "ellipsis",
+		minWidth: 0,
+	},
+	input: {
+		height: 30,
+		flexShrink: 0,
+		width: "100%",
+		fontSize: 12,
+		paddingLeft: 9,
+		paddingRight: 9,
+		borderRadius: 6,
+		backgroundColor: "transparent",
+		color: colors.text,
+		borderWidth: 1,
+		borderColor: colors.border,
+		hover: { backgroundColor: "transparent" },
+	},
+	footer: {
+		display: "flex",
+		justifyContent: "space-between",
+		flexShrink: 0,
+		gap: 6,
+	},
+});
+
+/** Destination selection stays local; the window owns the non-cancellable Git write. */
+export function WorkspaceWorktreeForm({
+	root,
+	data,
+	busy,
+	onCancel,
+	onCreate,
+	onError,
+	locationExpanded,
+	onLocationExpandedChange,
+}: {
+	root: string;
+	data: WorkspaceBranches;
+	busy: boolean;
+	onCancel: () => void;
+	onCreate: (choice: WorktreeChoice) => Promise<void>;
+	onError: (message: string) => void;
+	locationExpanded: boolean;
+	onLocationExpandedChange: (expanded: boolean) => void;
+}) {
+	const renderer = useGpuixRequired();
+	const [name, setName] = useState("");
+	const [focused, setFocused] = useState(false);
+	const branchInput = useRef<PublicInstance>(null);
+	const [parent, setParent] = useState(dirname(root));
+	const [customFolder, setCustomFolder] = useState<string>();
+	const [picking, setPicking] = useState(false);
+	const mounted = useRef(true);
+
+	useEffect(() => {
+		mounted.current = true;
+
+		if (branchInput.current) renderer.focusElement?.(branchInput.current.id);
+
+		return () => {
+			mounted.current = false;
+		};
+	}, [renderer]);
+	const disabled = busy || picking;
+
+	const branches = data.branches.branches.filter(
+		(item) => item.type === "local"
+	);
+
+	const branch = name.trim();
+	const existing = branches.find((item) => item.name === branch);
+
+	const occupied =
+		!!existing && (existing.checkedOut || !!existing.worktreePath);
+
+	const branchError = RepositoryWorktrees.branchNameError(branch);
+
+	const matches = branches.filter((item) =>
+		item.name.toLowerCase().includes(branch.toLowerCase())
+	);
+
+	const suggestions = matches.map((item) => item.name);
+
+	if (branch && !existing && !branchError) suggestions.push(branch);
+
+	const help = occupied
+		? "Already open in another worktree."
+		: (branchError ??
+			(existing
+				? "Uses existing branch."
+				: branch
+					? `Creates a new branch from ${data.branches.current ?? "HEAD"}.`
+					: "Choose an existing branch or enter a new name."));
+
+	const suffix = basename(branch || "worktree").replace(
+		folderUnsafeCharacters,
+		"-"
+	);
+
+	const folder = customFolder ?? `${basename(root)}-${suffix}`;
+
+	const validFolder =
+		!!folder.trim() &&
+		folder.trim() !== "." &&
+		folder.trim() !== ".." &&
+		!folder.includes("/") &&
+		!folder.includes("\0");
+
+	const canCreate =
+		!disabled && !!branch && !occupied && !branchError && validFolder;
+
+	const chooseParent = async (): Promise<void> => {
+		setPicking(true);
+
+		try {
+			if (!renderer.promptForPaths)
+				throw new Error("Folder selection is unavailable on this platform.");
+
+			const paths = await renderer.promptForPaths({
+				directories: true,
+				files: false,
+				multiple: false,
+				prompt: "Choose parent folder",
+			});
+
+			if (mounted.current && paths?.[0]) setParent(paths[0]);
+		} catch {
+			if (mounted.current) onError("Could not select a destination folder.");
+		} finally {
+			if (mounted.current) setPicking(false);
+		}
+	};
+
+	const submit = (): void => {
+		if (canCreate && branch)
+			void onCreate({
+				kind: existing ? "existing" : "new",
+				branch,
+				path: join(parent, folder.trim()),
+			});
+	};
+
+	return (
+		<div style={styles.form}>
+			<text style={styles.label}>New worktree</text>
+			<div style={styles.field}>
+				<text style={styles.hint}>Branch</text>
+				<Combobox
+					items={suggestions}
+					filter={null}
+					value={branch || null}
+					inputValue={name}
+					onInputValueChange={setName}
+					disabled={disabled}
+				>
+					<div
+						style={StyleSheet.compose(
+							styles.input,
+							styles.locationField,
+							focused && { borderColor: colors.focusRing }
+						)}
+					>
+						<ComboboxInput
+							ref={branchInput}
+							testId="worktree-branch-name"
+							aria-label="Worktree branch name"
+							placeholder="Choose or create a branch…"
+							style={StyleSheet.compose(styles.input, styles.comboInput)}
+							onFocus={() => setFocused(true)}
+							onBlur={() => setFocused(false)}
+						/>
+						<ComboboxTrigger
+							testId="worktree-branch-trigger"
+							aria-label="Show branches"
+							style={styles.comboTrigger}
+						>
+							<WorkspaceTabIcon name="caretDown" />
+						</ComboboxTrigger>
+					</div>
+					<ComboboxContent role="listbox" sideOffset={4} style={styles.options}>
+						{suggestions.map((value) => {
+							const item = branches.find(
+								(candidate) => candidate.name === value
+							);
+
+							const unavailable =
+								!!item && (item.checkedOut || !!item.worktreePath);
+
+							return (
+								<ComboboxItem
+									key={value}
+									value={value}
+									role="option"
+									testId={`worktree-option-${value}`}
+									disabled={unavailable}
+									style={(state) =>
+										StyleSheet.compose(
+											styles.option,
+											state.highlighted && { backgroundColor: colors.selected },
+											unavailable && { opacity: 0.45 }
+										)
+									}
+								>
+									{item ? value : `+ Create “${value}”`}
+								</ComboboxItem>
+							);
+						})}
+						{!suggestions.length ? (
+							<text style={styles.hint}>No matching branches</text>
+						) : null}
+					</ComboboxContent>
+				</Combobox>
+				<text testId="worktree-branch-help" style={styles.hint}>
+					{help}
+				</text>
+			</div>
+			<div style={styles.field}>
+				<text style={styles.hint}>Location</text>
+				<Button
+					tokens={appTokens}
+					variant="ghost"
+					size="sm"
+					testId="worktree-change-location"
+					aria-label="Change worktree location"
+					disabled={disabled}
+					aria-expanded={locationExpanded}
+					style={StyleSheet.compose(styles.input, styles.locationField)}
+					onPress={() => onLocationExpandedChange(!locationExpanded)}
+				>
+					<svg
+						testId="worktree-folder-icon"
+						source='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 7V5a1 1 0 0 1 1-1h5l3 3h8a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7Z" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/></svg>'
+						style={{
+							width: 14,
+							height: 14,
+							flexShrink: 0,
+							color: colors.textMuted,
+							pointerEvents: "none",
+						}}
+					/>
+					<text
+						testId="worktree-location"
+						aria-label={join(parent, folder)}
+						style={styles.fieldText}
+					>
+						{folder || "Enter a folder name"}
+					</text>
+					<text
+						style={{
+							fontSize: 11,
+							color: colors.textMuted,
+							pointerEvents: "none",
+						}}
+					>
+						{locationExpanded ? "Done" : "Change…"}
+					</text>
+				</Button>
+			</div>
+			{locationExpanded ? (
+				<div style={styles.field}>
+					<text style={styles.hint}>Parent folder</text>
+					<div style={styles.row}>
+						<text style={styles.location} aria-label={parent}>
+							{basename(parent) || parent}
+						</text>
+						<Button
+							tokens={appTokens}
+							variant="ghost"
+							size="sm"
+							testId="worktree-parent"
+							disabled={disabled}
+							onPress={() => {
+								void chooseParent();
+							}}
+						>
+							Choose…
+						</Button>
+					</div>
+					<text style={styles.hint}>Folder name</text>
+					<input
+						testId="worktree-folder-name"
+						aria-label="New worktree folder name"
+						placeholder="New folder name…"
+						value={folder}
+						readOnly={disabled}
+						style={styles.input}
+						onChange={(event) => setCustomFolder(event.value ?? "")}
+						onSubmit={submit}
+					/>
+					<text style={styles.hint}>
+						{validFolder
+							? join(parent, folder.trim())
+							: "Enter a new folder name, without slashes."}
+					</text>
+				</div>
+			) : null}
+			<div style={styles.footer}>
+				<Button
+					tokens={appTokens}
+					variant="ghost"
+					size="sm"
+					disabled={disabled}
+					onPress={onCancel}
+				>
+					Cancel
+				</Button>
+				<Button
+					tokens={appTokens}
+					size="sm"
+					testId="confirm-create-worktree"
+					disabled={!canCreate}
+					onPress={submit}
+				>
+					{busy ? "Creating…" : "Create and open"}
+				</Button>
+			</div>
+		</div>
+	);
+}

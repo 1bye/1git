@@ -1,4 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, type Dispatch } from "react";
+import {
+	RepositoryWorktrees,
+	type WorktreeChoice,
+} from "../../workspace-tabs/lib/repository-worktrees";
 
 import type {
 	WorkspaceTabsAction,
@@ -46,7 +50,8 @@ export function useRepositoryMutations(
 	writeStash = RepositoryStashes.write,
 	resolveConflict = RepositoryConflicts.write,
 	writeOperation = RepositoryOperation.write,
-	discardFile = RepositoryFileActions.discard
+	discardFile = RepositoryFileActions.discard,
+	writeWorktree = RepositoryWorktrees.create
 ) {
 	const closeProtection = useCloseProtection(
 		state.tabs.some((tab) => RepositoryWorkspaceModel.isBusy(tab.workspace)),
@@ -67,6 +72,7 @@ export function useRepositoryMutations(
 	);
 
 	const mounted = useRef(true);
+	const worktreeWrites = useRef(new Set<string>());
 	const stashWrites = useRef(new Map<string, StashRequest["kind"]>());
 
 	const syncs = useRef(
@@ -80,7 +86,12 @@ export function useRepositoryMutations(
 			const repository = tab.workspace.repository;
 
 			const sync = repository && syncs.current.get(repository.commonDirectory);
-			const operation = repository && pending.current.get(repository.root);
+
+			const operation =
+				repository &&
+				(worktreeWrites.current.has(repository.commonDirectory)
+					? "operation-started"
+					: pending.current.get(repository.root));
 
 			const stash =
 				repository && stashWrites.current.get(repository.commonDirectory);
@@ -120,6 +131,7 @@ export function useRepositoryMutations(
 			!workspace ||
 			!repository ||
 			!RepositoryWorkspaceModel.canCommit(workspace) ||
+			worktreeWrites.current.has(repository.commonDirectory) ||
 			pending.current.has(repository.root) ||
 			stashWrites.current.has(repository.commonDirectory) ||
 			syncs.current.has(repository.commonDirectory)
@@ -196,6 +208,7 @@ export function useRepositoryMutations(
 			workspace.loading ||
 			workspace.error ||
 			workspace.commit.needsReview ||
+			worktreeWrites.current.has(repository.commonDirectory) ||
 			pending.current.has(repository.root) ||
 			stashWrites.current.has(repository.commonDirectory) ||
 			syncs.current.has(repository.commonDirectory)
@@ -257,6 +270,140 @@ export function useRepositoryMutations(
 		return error;
 	};
 
+	const createWorktree = async (
+		id: string,
+		choice: WorktreeChoice
+	): Promise<string | null> => {
+		const workspace = tabs.current.find((tab) => tab.id === id)?.workspace;
+		const repository = workspace?.repository;
+
+		if (
+			!workspace ||
+			!repository ||
+			workspace.preview ||
+			workspace.error ||
+			workspace.commit.needsReview
+		)
+			return "Refresh this workspace before creating a worktree.";
+
+		const related = () =>
+			tabs.current.filter(
+				(tab) =>
+					tab.workspace.repository?.commonDirectory ===
+					repository.commonDirectory
+			);
+
+		if (
+			worktreeWrites.current.has(repository.commonDirectory) ||
+			stashWrites.current.has(repository.commonDirectory) ||
+			syncs.current.has(repository.commonDirectory) ||
+			related().some(
+				(tab) =>
+					tab.workspace.loading ||
+					RepositoryWorkspaceModel.isBusy(tab.workspace) ||
+					pending.current.has(tab.workspace.repository?.root ?? "")
+			)
+		)
+			return "Wait for the current Git operation before creating a worktree.";
+
+		worktreeWrites.current.add(repository.commonDirectory);
+		closeProtection.block();
+
+		for (const tab of related())
+			dispatch({
+				type: "workspace",
+				id: tab.id,
+				action: { type: "operation-started" },
+			});
+
+		let error: string | null = null;
+		let created: RepositorySnapshot | undefined;
+
+		try {
+			const result = await writeWorktree(repository.root, {
+				...choice,
+				expectedHead: repository.head,
+				expectedBranch: repository.branchName,
+			});
+
+			if (!result.ok)
+				error = [result.error.message, result.error.details]
+					.filter(Boolean)
+					.join("\n");
+			else {
+				// Creation has succeeded. A failed read must never trigger automatic recreation or deletion.
+				error = `Worktree created at ${result.value}, but could not be opened. Open that folder to retry.`;
+				const read = await readRepository(
+					result.value,
+					new AbortController().signal
+				);
+
+				if (read.ok) {
+					created = read.value;
+					error = null;
+				}
+			}
+		} catch {
+			error ??= `Could not confirm worktree creation. Inspect ${choice.path} and refresh before retrying.`;
+		}
+
+		const snapshots = new Map<string, RepositoryWorkspaceAction>();
+
+		await Promise.all(
+			[...new Set(related().map((tab) => tab.workspace.repository?.root))].map(
+				async (root) => {
+					if (!root) return;
+
+					try {
+						const refreshed = await readRepository(
+							root,
+							new AbortController().signal
+						);
+
+						snapshots.set(
+							root,
+							refreshed.ok
+								? {
+										type: "operation-finished",
+										snapshot: refreshed.value,
+										error: root === repository.root ? error : null,
+									}
+								: {
+										type: "operation-finished",
+										error,
+										refreshError: refreshed.error.message,
+									}
+						);
+					} catch {
+						snapshots.set(root, {
+							type: "operation-finished",
+							error,
+							refreshError: "Refresh this workspace to confirm its status.",
+						});
+					}
+				}
+			)
+		);
+		worktreeWrites.current.delete(repository.commonDirectory);
+
+		if (mounted.current) {
+			for (const tab of related())
+				dispatch({
+					type: "workspace",
+					id: tab.id,
+					action: snapshots.get(tab.workspace.repository?.root ?? "") ?? {
+						type: "operation-finished",
+						error,
+						refreshError: "Refresh this workspace to confirm its status.",
+					},
+				});
+
+			if (created) dispatch({ type: "open-worktree", snapshot: created });
+		}
+
+		return error;
+	};
+
 	const synchronize = async (
 		id: string,
 		choice: { kind: "fetch" } | SyncChoice
@@ -267,6 +414,7 @@ export function useRepositoryMutations(
 		if (
 			!workspace ||
 			!repository ||
+			worktreeWrites.current.has(repository.commonDirectory) ||
 			stashWrites.current.has(repository.commonDirectory) ||
 			syncs.current.has(repository.commonDirectory)
 		)
@@ -442,6 +590,7 @@ export function useRepositoryMutations(
 			workspace.preview ||
 			workspace.error ||
 			workspace.commit.needsReview ||
+			worktreeWrites.current.has(repository.commonDirectory) ||
 			stashWrites.current.has(repository.commonDirectory) ||
 			syncs.current.has(repository.commonDirectory)
 		)
@@ -602,6 +751,7 @@ export function useRepositoryMutations(
 			workspace.error ||
 			workspace.commit.needsReview ||
 			RepositoryWorkspaceModel.isBusy(workspace) ||
+			worktreeWrites.current.has(repository.commonDirectory) ||
 			pending.current.has(repository.root) ||
 			syncs.current.has(repository.commonDirectory) ||
 			stashWrites.current.has(repository.commonDirectory)
@@ -703,6 +853,7 @@ export function useRepositoryMutations(
 		stash,
 		commit,
 		changeBranch,
+		createWorktree,
 		fetch: (id: string) => synchronize(id, { kind: "fetch" }),
 		synchronize,
 		cancelSync,

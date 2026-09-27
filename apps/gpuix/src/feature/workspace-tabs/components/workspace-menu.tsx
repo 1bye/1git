@@ -15,6 +15,8 @@ import { appTokens } from "../../../styles/tokens";
 import { workspaceLayout } from "../../../styles/workspace-layout";
 import { WorkspaceTabPreview } from "./workspace-tab";
 import { WorkspaceTabIcon } from "./workspace-tab-icon";
+import { WorkspaceWorktreeForm } from "./workspace-worktree-form";
+import type { WorktreeChoice } from "../lib/repository-worktrees";
 import { WorkspaceMenuModel } from "../lib/workspace-menu-model";
 import { RepositoryReader } from "../../repository-workspace/lib/repository-reader";
 import { RepositoryWorkspaceModel } from "../../repository-workspace/lib/repository-workspace-model";
@@ -41,6 +43,8 @@ const separatorHeight = 9;
 const sectionLabelHeight = 24;
 const noticeHeight = 56;
 const createFormHeight = 150;
+const worktreeFormHeight = 218;
+const worktreeLocationHeight = 136;
 
 const styles = StyleSheet.create({
 	surface: {
@@ -154,6 +158,10 @@ const styles = StyleSheet.create({
 });
 
 export interface WorkspaceMenuActions {
+	onCreateWorktree?: (
+		id: string,
+		choice: WorktreeChoice
+	) => Promise<string | null>;
 	readBranches: typeof RepositoryBranches.read;
 	readRepository: typeof RepositoryReader.read;
 	onChangeBranch: (
@@ -174,6 +182,7 @@ export function WorkspaceMenu({
 	readBranches,
 	readRepository,
 	onChangeBranch,
+	onCreateWorktree,
 	onFetch,
 	onSync,
 	onCancelSync,
@@ -194,6 +203,11 @@ export function WorkspaceMenu({
 	const [error, setError] = useState<string | null>(null);
 	const [name, setName] = useState("");
 	const [creating, setCreating] = useState(false);
+	const [creatingWorktree, setCreatingWorktree] = useState(false);
+
+	const [worktreeLocationExpanded, setWorktreeLocationExpanded] =
+		useState(false);
+
 	const [publishing, setPublishing] = useState(false);
 	const [selectedRemote, setSelectedRemote] = useState<string | null>(null);
 	const [expanded, setExpanded] = useState(false);
@@ -276,6 +290,15 @@ export function WorkspaceMenu({
 	const currentBranch = branches.find((item) => item.name === branch);
 	const canCreate = !busy && !blocked && data !== null;
 
+	const canCreateWorktree =
+		!busy &&
+		!!head &&
+		repository?.operation === "normal" &&
+		!tab.workspace.loading &&
+		!tab.workspace.error &&
+		!tab.workspace.commit.needsReview &&
+		data !== null;
+
 	const canFetch =
 		showFetch && !busy && !tab.workspace.loading && !!data?.remotes.length;
 
@@ -342,6 +365,8 @@ export function WorkspaceMenu({
 
 	if (canCreate) enabledIds.push("create-branch");
 
+	if (onCreateWorktree && canCreateWorktree) enabledIds.push("create-worktree");
+
 	if (showFetch && (fetching || canFetch)) enabledIds.push("fetch-repository");
 
 	if (showSync && (syncKind === "pull" || canPull))
@@ -378,22 +403,26 @@ export function WorkspaceMenu({
 		(busy && !syncKind ? "Updating workspace…" : null);
 
 	// Fixed header/action rows surround a scrollable list; the expanded menu stays inside the window.
-	const contentHeight = creating
-		? createFormHeight
-		: publishing
-			? menuPadding * 2 +
-				headerHeight +
-				separatorHeight * 2 +
-				rowHeight * ((data?.remotes.length ?? 0) + 1)
-			: menuPadding * 2 +
-				headerHeight +
-				separatorHeight * 2 +
-				rowHeight +
-				(showFetch ? separatorHeight + rowHeight : 0) +
-				(showSync ? rowHeight * 2 : 0) +
-				Math.max(1, visibleBranches.length + worktrees.length) * rowHeight +
-				(hasMore ? rowHeight : 0) +
-				(worktrees.length ? sectionLabelHeight : 0);
+	const contentHeight = creatingWorktree
+		? worktreeFormHeight +
+			(worktreeLocationExpanded ? worktreeLocationHeight : 0)
+		: creating
+			? createFormHeight
+			: publishing
+				? menuPadding * 2 +
+					headerHeight +
+					separatorHeight * 2 +
+					rowHeight * ((data?.remotes.length ?? 0) + 1)
+				: menuPadding * 2 +
+					headerHeight +
+					separatorHeight * 2 +
+					rowHeight +
+					(onCreateWorktree ? rowHeight : 0) +
+					(showFetch ? separatorHeight + rowHeight : 0) +
+					(showSync ? rowHeight * 2 : 0) +
+					Math.max(1, visibleBranches.length + worktrees.length) * rowHeight +
+					(hasMore ? rowHeight : 0) +
+					(worktrees.length ? sectionLabelHeight : 0);
 
 	const menuHeight = Math.min(
 		maxMenuHeight,
@@ -406,6 +435,7 @@ export function WorkspaceMenu({
 
 	const showActions = (): void => {
 		setCreating(false);
+		setCreatingWorktree(false);
 		setPublishing(false);
 		setError(null);
 
@@ -413,8 +443,14 @@ export function WorkspaceMenu({
 	};
 
 	const onKeyDown = (event: EventPayload): void => {
+		if (creatingWorktree && event.key !== "escape") return;
+
 		if (event.key === "escape" || event.key === "tab") {
-			if (event.key === "escape" && (creating || publishing) && !busy)
+			if (
+				event.key === "escape" &&
+				(creating || publishing || creatingWorktree) &&
+				!busy
+			)
 				showActions();
 			else onClose();
 
@@ -445,6 +481,7 @@ export function WorkspaceMenu({
 			if (
 				!list.current ||
 				next === "create-branch" ||
+				next === "create-worktree" ||
 				next === "fetch-repository" ||
 				next === "pull-repository" ||
 				next === "push-repository" ||
@@ -535,14 +572,14 @@ export function WorkspaceMenu({
 		)
 	);
 
-	// One deferred layer keeps the backdrop above native lists and the copied tab/menu above the dimming.
+	// Match floating controls' priority so nested selects paint after this surface, not behind it.
 	return (
 		<anchored
 			position={{ x: 0, y: 0 }}
 			anchor="topLeft"
 			snapMargin={0}
 			deferred
-			priority={2}
+			priority={1}
 			occlude
 			style={{
 				width: windowSize.width,
@@ -581,7 +618,28 @@ export function WorkspaceMenu({
 					animate={{ height: menuHeight, opacity: 1 }}
 					transition={{ duration: 0.16, ease: "easeOut" }}
 				>
-					{creating ? (
+					{creatingWorktree && root && data && onCreateWorktree ? (
+						<WorkspaceWorktreeForm
+							root={root}
+							data={data}
+							busy={busy}
+							locationExpanded={worktreeLocationExpanded}
+							onLocationExpandedChange={setWorktreeLocationExpanded}
+							onCancel={showActions}
+							onError={setError}
+							onCreate={async (choice) => {
+								if (!canCreateWorktree) return;
+
+								setError(null);
+								const message = await onCreateWorktree(tab.id, choice);
+
+								if (!mounted.current) return;
+
+								if (message) setError(message);
+								else onClose();
+							}}
+						/>
+					) : creating ? (
 						<div style={styles.form}>
 							<Text tokens={appTokens} style={styles.heading}>
 								Create new branch
@@ -877,6 +935,30 @@ export function WorkspaceMenu({
 									Create new branch…
 								</Text>
 							</Button>
+							{onCreateWorktree ? (
+								<Button
+									testId="create-worktree"
+									ref={(node) => {
+										if (node) rows.current.set("create-worktree", node);
+										else rows.current.delete("create-worktree");
+									}}
+									tokens={appTokens}
+									variant="ghost"
+									size="sm"
+									style={styles.row}
+									disabled={!canCreateWorktree}
+									onPress={() => {
+										setCreatingWorktree(true);
+										setWorktreeLocationExpanded(false);
+										setError(null);
+									}}
+								>
+									<WorkspaceTabIcon name="add" />
+									<Text tokens={appTokens} style={styles.label}>
+										New worktree…
+									</Text>
+								</Button>
+							) : null}
 							{showFetch ? (
 								<>
 									<div style={styles.separator} />

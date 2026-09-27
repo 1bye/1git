@@ -18,6 +18,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { RepositoryBranches } from "../../src/feature/workspace-tabs/lib/repository-branches";
+import { RepositoryWorktrees } from "../../src/feature/workspace-tabs/lib/repository-worktrees";
 import { RepositoryReader } from "../../src/feature/repository-workspace/lib/repository-reader";
 
 const execute = promisify(execFile);
@@ -176,4 +177,73 @@ it("reports invalid/duplicate names and cancellation without replacing existing 
 		(await RepositoryBranches.read(repository, AbortSignal.abort())).ok
 	).toBe(false);
 	expect(await git("branch", "--show-current")).toBe("main");
+});
+
+it("creates new and existing branch worktrees without changing source files, index or branch", async () => {
+	await writeFile(join(repository, "file.txt"), "staged\n");
+	await git("add", "file.txt");
+	await writeFile(join(repository, "file.txt"), "unstaged\n");
+	await writeFile(join(repository, "new.txt"), "untracked\n");
+	const index = await git("ls-files", "--stage");
+	const head = await git("rev-parse", "HEAD");
+
+	for (const kind of ["new", "existing"] as const) {
+		const branch = kind === "new" ? "new/worktree" : "feature/ui";
+		const path = join(sandbox, `${kind} worktree`);
+
+		const result = await RepositoryWorktrees.create(repository, {
+			kind,
+			branch,
+			path,
+			expectedHead: head,
+			expectedBranch: "main",
+		});
+
+		expect(result).toEqual({ ok: true, value: path });
+		expect(await git("-C", path, "branch", "--show-current")).toBe(branch);
+		expect(await readFile(join(path, "file.txt"), "utf8")).toBe("base\n");
+	}
+
+	expect(await git("branch", "--show-current")).toBe("main");
+	expect(await git("ls-files", "--stage")).toBe(index);
+	expect(await readFile(join(repository, "file.txt"), "utf8")).toBe(
+		"unstaged\n"
+	);
+	expect(await readFile(join(repository, "new.txt"), "utf8")).toBe(
+		"untracked\n"
+	);
+});
+
+it("rejects stale state, occupied branches, existing destinations and invalid names without overwrites", async () => {
+	const expectedHead = await git("rev-parse", "HEAD");
+
+	const request = {
+		kind: "new" as const,
+		branch: "new/safe",
+		path: join(sandbox, "safe"),
+		expectedHead,
+		expectedBranch: "main",
+	};
+
+	for (const change of [
+		{ expectedHead: "0".repeat(40) },
+		{ branch: "bad name" },
+		{ branch: "feature/ui" },
+		{ kind: "existing" as const, branch: "main" },
+		{ kind: "existing" as const, branch: "missing" },
+		{ path: repository },
+		{ path: "relative" },
+		{ path: join(sandbox, "missing", "child") },
+	])
+		expect(
+			(await RepositoryWorktrees.create(repository, { ...request, ...change }))
+				.ok
+		).toBe(false);
+
+	await writeFile(join(repository, ".git/MERGE_HEAD"), `${expectedHead}\n`);
+	expect((await RepositoryWorktrees.create(repository, request)).ok).toBe(
+		false
+	);
+	expect(await git("branch", "--list", "new/safe")).toBe("");
+	expect(await readFile(join(repository, "file.txt"), "utf8")).toBe("base\n");
 });

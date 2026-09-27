@@ -200,6 +200,7 @@ There is no permanent search field or Close footer. Rename/delete/upstream-editi
 actions stay hidden until their GPUIX workflows are implemented.
 Up/Down moves through enabled rows, Enter activates, and Escape/outside-click dismisses the menu.
 Keyboard dismissal returns focus to the tab; Tab dismisses and continues traversal.
+Inside the worktree form, Tab moves between its controls instead of dismissing it.
 This is not a port of the Electron liquid SVG morph.
 
 - Switch a local branch in this working directory, or explicitly create and
@@ -209,8 +210,20 @@ This is not a port of the Electron liquid SVG morph.
   auto-stash, reset, or discard is used. Dirty-tree handling offers no automatic
   resolution yet. Git also rejects branches checked out in another worktree.
 - Existing worktrees open in separate tabs; an already-open canonical root reuses
-  its tab. No worktree directories are created or removed by this menu. Remote
-  branch checkout and worktree creation are not included yet.
+  its tab. **New worktree…** creates a separate checkout on a new branch based on
+  the current HEAD, or an existing local branch not already checked out. The editable
+  branch picker filters local branches and accepts new names; exact matches reuse
+  the existing branch. A short hint explains the choice, and occupied/invalid names
+  disable creation. Selecting a suggestion never writes to Git. Choose a
+  branch name to suggest a sibling folder automatically; **Change…** reveals the
+  parent folder picker and an optional custom folder name. Custom names are kept
+  when the branch changes. **Create and open** opens a new tab.
+  The original checkout, index, uncommitted files and commit draft stay untouched.
+  Existing destinations are rejected, never overwritten; no force or automatic
+  cleanup is used. Remote branch checkout and worktree removal are not included.
+  Creation locks app writes across related worktrees and protects window/tab closure
+  until status is refreshed. If opening fails after creation, the error identifies
+  the folder to open manually; creation is not retried automatically.
 - Tabs showing the same folder share its branch. The window-owned mutation hook
   serializes commits and branch changes for that root, pauses reads, and prevents
   closing affected tabs while writing. A fresh snapshot updates every matching

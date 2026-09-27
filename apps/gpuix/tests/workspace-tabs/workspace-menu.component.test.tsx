@@ -10,6 +10,7 @@ import type { BranchInfo, RemoteInfo, RepositorySnapshot } from "@1git/git";
 import { App } from "../../src/app";
 import { windowOptions } from "../../src/window-options";
 import { RepositoryBranches } from "../../src/feature/workspace-tabs/lib/repository-branches";
+import type { RepositoryWorktrees } from "../../src/feature/workspace-tabs/lib/repository-worktrees";
 import type { RepositoryReader } from "../../src/feature/repository-workspace/lib/repository-reader";
 import type { RepositorySync } from "../../src/feature/repository-workspace/lib/repository-sync";
 import {
@@ -82,7 +83,7 @@ const readBranches = mock<typeof RepositoryBranches.read>(async () => ({
 	},
 }));
 
-const readRepository = mock<typeof RepositoryReader.read>(async (path) => ({
+const readSnapshot: typeof RepositoryReader.read = async (path) => ({
 	ok: true,
 	value:
 		path === "/test/linked"
@@ -92,7 +93,9 @@ const readRepository = mock<typeof RepositoryReader.read>(async (path) => ({
 					head: { ...snapshot.head, branch: "feature/linked" },
 				}
 			: snapshot,
-}));
+});
+
+const readRepository = mock(readSnapshot);
 
 const writeBranch = mock<typeof RepositoryBranches.write>(
 	async (_path, request) => {
@@ -103,6 +106,10 @@ const writeBranch = mock<typeof RepositoryBranches.write>(
 
 		return { ok: true, value: { branches: collection(), snapshot } };
 	}
+);
+
+const writeWorktree = mock<typeof RepositoryWorktrees.create>(
+	async (_root, request) => ({ ok: true, value: request.path })
 );
 
 const fetchRepository = mock<typeof RepositorySync.fetch>(async () => ({
@@ -132,7 +139,13 @@ beforeEach(() => {
 	remotes = [];
 	readBranches.mockClear();
 	readRepository.mockClear();
+	readRepository.mockImplementation(readSnapshot);
 	writeBranch.mockClear();
+	writeWorktree.mockReset();
+	writeWorktree.mockImplementation(async (_root, request) => ({
+		ok: true,
+		value: request.path,
+	}));
 	fetchRepository.mockClear();
 	writeSyncRepository.mockClear();
 	root = createTestRoot({
@@ -191,6 +204,7 @@ const open = async (): Promise<void> => {
 			readRepository={readRepository}
 			readBranches={readBranches}
 			writeBranch={writeBranch}
+			writeWorktree={writeWorktree}
 			fetchRepository={fetchRepository}
 			writeSyncRepository={writeSyncRepository}
 			readDiff={async () => ({ ok: true, value: [] })}
@@ -204,6 +218,281 @@ const menu = async (): Promise<void> => {
 	click("workspace-1");
 	await settle();
 };
+
+it("creates a worktree from a dirty workspace, opens its tab, and preserves the original draft", async () => {
+	snapshot = { ...snapshot, files: [changedFile("file.txt")] };
+	readRepository.mockImplementation(async (path) => ({
+		ok: true,
+		value:
+			path === "/test/project"
+				? snapshot
+				: {
+						...snapshot,
+						files: [],
+						repository: { ...snapshot.repository, root: path },
+						head: { ...snapshot.head, branch: "topic" },
+					},
+	}));
+	await open();
+	click("commit-message");
+	root.renderer.simulateKeystrokes("d r a f t");
+	await menu();
+	click("create-worktree");
+	await settle();
+	root.renderer.simulateKeystrokes("t o p i c");
+	await settle();
+	expect(root.renderer.getAllText()).toContain("project-topic");
+	expect(root.renderer.findByTestId("worktree-folder-name")).toBeUndefined();
+	click("confirm-create-worktree");
+	await settle();
+	expect(writeWorktree).toHaveBeenCalledWith("/test/project", {
+		kind: "new",
+		branch: "topic",
+		path: "/test/project-topic",
+		expectedHead: snapshot.head.oid,
+		expectedBranch: "main",
+	});
+	expect(root.renderer.findByTestId("workspace-2")).toBeDefined();
+	expect(root.renderer.getAllText()).toContain(" / topic");
+	click("workspace-1");
+	await settle();
+	expect(element("commit-message").customProps?.value).toBe("draft");
+	expect(writeBranch).not.toHaveBeenCalled();
+});
+
+it("chooses an unused existing branch and destination folder without offering checked-out branches", async () => {
+	await open();
+	await menu();
+	click("create-worktree");
+	await settle();
+	click("worktree-branch-name");
+	await settle();
+	expect(root.renderer.getAllText()).toContain("feature/ui");
+	click("worktree-option-feature/ui");
+	await settle();
+	expect(root.renderer.getAllText()).toContain("Uses existing branch.");
+	spyOn(root.renderer, "promptForPaths").mockResolvedValueOnce(["/test/other"]);
+	click("worktree-change-location");
+	await settle();
+	click("worktree-parent");
+	await settle();
+	expect(root.renderer.getAllText()).toContain("/test/other/project-ui");
+	expect(root.renderer.findByTestId("worktree-folder-icon")).toBeDefined();
+	const submitBounds = bounds("confirm-create-worktree");
+	const menuBounds = bounds("workspace-menu");
+
+	expect(submitBounds.y + submitBounds.height).toBeLessThanOrEqual(
+		menuBounds.y + menuBounds.height
+	);
+	click("confirm-create-worktree");
+	await settle();
+	expect(writeWorktree).toHaveBeenCalledWith(
+		"/test/project",
+		expect.objectContaining({
+			kind: "existing",
+			branch: "feature/ui",
+			path: "/test/other/project-ui",
+		})
+	);
+});
+
+it("keeps a failed worktree creation visible and allows cancelling the form without writing", async () => {
+	await open();
+	await menu();
+	click("create-worktree");
+	await settle();
+	root.renderer.simulateKeystrokes("escape");
+	await settle();
+	expect(writeWorktree).not.toHaveBeenCalled();
+	click("create-worktree");
+	await settle();
+	root.renderer.simulateKeystrokes("t o p i c");
+	writeWorktree.mockResolvedValueOnce({
+		ok: false,
+		error: {
+			code: "conflict",
+			operation: "create-worktree",
+			retryable: false,
+			message: "Destination already exists",
+		},
+	});
+	click("confirm-create-worktree");
+	await settle();
+	expect(root.renderer.getAllText()).toContain("Destination already exists");
+	expect(root.renderer.findByTestId("workspace-2")).toBeUndefined();
+});
+
+it("protects related tabs during creation and retains the result when the menu is dismissed", async () => {
+	let closeBlocked = false;
+
+	Object.assign(root.renderer, {
+		setCloseBlocked(value: boolean) {
+			closeBlocked = value;
+		},
+		takeCloseRequested() {
+			return false;
+		},
+	});
+	const pending =
+		Promise.withResolvers<
+			Awaited<ReturnType<typeof RepositoryWorktrees.create>>
+		>();
+
+	writeWorktree.mockImplementationOnce(() => {
+		expect(closeBlocked).toBe(true);
+
+		return pending.promise;
+	});
+	await open();
+	await menu();
+	click("worktree-/test/linked");
+	await settle();
+	click("workspace-1");
+	await settle();
+	await menu();
+	click("create-worktree");
+	await settle();
+	root.renderer.simulateKeystrokes("t o p i c");
+	click("confirm-create-worktree");
+	await settle();
+	root.renderer.simulateKeystrokes("escape");
+	await settle();
+	click("close-workspace-1");
+	expect(element("workspace-1")).toBeTruthy();
+	click("workspace-2");
+	await settle();
+	click("close-workspace-2");
+	expect(element("workspace-2")).toBeTruthy();
+	click("workspace-2");
+	await settle();
+	click("create-worktree");
+	expect(root.renderer.findByTestId("worktree-branch-name")).toBeUndefined();
+	pending.resolve({
+		ok: false,
+		error: {
+			code: "conflict",
+			operation: "create-worktree",
+			retryable: false,
+			message: "Creation failed safely",
+		},
+	});
+	await settle();
+	root.renderer.simulateKeystrokes("escape");
+	await settle();
+	click("workspace-1");
+	await settle();
+	expect(root.renderer.getAllText().join(" ")).toContain(
+		"Creation failed safely"
+	);
+	expect(writeWorktree).toHaveBeenCalledTimes(1);
+	expect(closeBlocked).toBe(false);
+});
+
+it("reports an already-created worktree when its first read fails, without creating it twice", async () => {
+	await open();
+	await menu();
+	click("create-worktree");
+	await settle();
+	root.renderer.simulateKeystrokes("t o p i c");
+	readRepository.mockResolvedValueOnce({
+		ok: false,
+		error: {
+			code: "conflict",
+			operation: "open-repository",
+			retryable: false,
+			message: "Read failed",
+		},
+	});
+	click("confirm-create-worktree");
+	await settle();
+	expect(root.renderer.getAllText().join(" ")).toContain(
+		"Worktree created at /test/project-topic"
+	);
+	await settle();
+	expect(writeWorktree).toHaveBeenCalledTimes(1);
+});
+
+it("keeps a customized folder when the branch changes or location settings collapse", async () => {
+	await open();
+	await menu();
+	click("create-worktree");
+	await settle();
+	root.renderer.simulateKeystrokes("t o p i c");
+	click("worktree-change-location");
+	await settle();
+	click("worktree-folder-name");
+	root.renderer.simulateKeystrokes("cmd-a c u s t o m");
+	await settle();
+	click("worktree-change-location");
+	await settle();
+	expect(root.renderer.findByTestId("worktree-folder-name")).toBeUndefined();
+	click("worktree-branch-name");
+	root.renderer.simulateKeystrokes("cmd-a n e x t");
+	await settle();
+	expect(root.renderer.getAllText()).toContain("custom");
+	click("confirm-create-worktree");
+	await settle();
+	expect(writeWorktree).toHaveBeenCalledWith(
+		"/test/project",
+		expect.objectContaining({ branch: "next", path: "/test/custom" })
+	);
+});
+
+it("infers exact existing names, rejects occupied or invalid branches, and never creates on suggestion selection", async () => {
+	await open();
+	await menu();
+	click("create-worktree");
+	await settle();
+	root.renderer.simulateKeystrokes("m a i n");
+	await settle();
+	expect(root.renderer.getAllText()).toContain(
+		"Already open in another worktree."
+	);
+	click("confirm-create-worktree");
+	expect(writeWorktree).not.toHaveBeenCalled();
+	click("worktree-branch-name");
+	root.renderer.simulateKeystrokes("cmd-a b a d space n a m e");
+	await settle();
+	expect(root.renderer.getAllText()).toContain(
+		"Enter a valid Git branch name."
+	);
+	click("confirm-create-worktree");
+	expect(writeWorktree).not.toHaveBeenCalled();
+	click("worktree-branch-name");
+	root.renderer.simulateKeystrokes("cmd-a f e a t");
+	await settle();
+	root.renderer.simulateKeystrokes("down enter");
+	await settle();
+	expect(root.renderer.getAllText()).toContain("Uses existing branch.");
+	expect(writeWorktree).not.toHaveBeenCalled();
+	click("confirm-create-worktree");
+	await settle();
+	expect(writeWorktree).toHaveBeenCalledWith(
+		"/test/project",
+		expect.objectContaining({ kind: "existing", branch: "feature/ui" })
+	);
+});
+
+it("accepts a new-name suggestion without writing until confirmed", async () => {
+	await open();
+	await menu();
+	click("create-worktree");
+	await settle();
+	root.renderer.simulateKeystrokes("t o p i c");
+	await settle();
+	click("worktree-option-topic");
+	await settle();
+	expect(root.renderer.getAllText()).toContain(
+		"Creates a new branch from main."
+	);
+	expect(writeWorktree).not.toHaveBeenCalled();
+	click("confirm-create-worktree");
+	await settle();
+	expect(writeWorktree).toHaveBeenCalledWith(
+		"/test/project",
+		expect.objectContaining({ kind: "new", branch: "topic" })
+	);
+});
 
 it("opens only the active tab's compact menu with branch context and Escape focus restoration", async () => {
 	await open();
@@ -346,7 +635,7 @@ it("replaces the actions with an inline form and returns with Cancel or Escape w
 	await settle();
 	expect(root.renderer.findByTestId("branch-name")).toBeUndefined();
 	expect(element("branch-main")).toBeTruthy();
-	root.renderer.simulateKeystrokes("up");
+	root.renderer.simulateKeystrokes("up up");
 	await settle();
 	root.renderer.simulateKeystrokes("enter");
 	await settle();
@@ -582,7 +871,9 @@ it("opens with Down, wraps Up to the final action, and dismisses with Tab", asyn
 	expect(element("workspace-menu")).toBeTruthy();
 	root.renderer.simulateKeystrokes("up");
 	await settle();
-	expect(root.renderer.getFocusedElementId()).toBe(element("create-branch").id);
+	expect(root.renderer.getFocusedElementId()).toBe(
+		element("create-worktree").id
+	);
 	root.renderer.simulateKeystrokes("tab");
 	await settle();
 	expect(root.renderer.findByTestId("workspace-menu")).toBeUndefined();
