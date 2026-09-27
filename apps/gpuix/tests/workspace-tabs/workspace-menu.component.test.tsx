@@ -260,23 +260,31 @@ it("creates a worktree from a dirty workspace, opens its tab, and preserves the 
 	expect(writeBranch).not.toHaveBeenCalled();
 });
 
-it("chooses an unused existing branch and destination folder without offering checked-out branches", async () => {
+it("explains occupied branches and chooses an unused branch and destination folder", async () => {
 	await open();
 	await menu();
 	click("create-worktree");
 	await settle();
+	const initialSubmitBounds = bounds("confirm-create-worktree");
+	const initialMenuBounds = bounds("workspace-menu");
+
+	expect(
+		initialMenuBounds.y +
+			initialMenuBounds.height -
+			(initialSubmitBounds.y + initialSubmitBounds.height)
+	).toBeGreaterThanOrEqual(12);
 	click("worktree-branch-name");
 	await settle();
 	expect(root.renderer.getAllText()).toContain("feature/ui");
+	expect(root.renderer.getAllText()).toContain("This workspace");
+	expect(root.renderer.getAllText()).toContain("Another worktree");
 	click("worktree-option-feature/ui");
 	await settle();
 	expect(root.renderer.getAllText()).toContain("Uses existing branch.");
 	spyOn(root.renderer, "promptForPaths").mockResolvedValueOnce(["/test/other"]);
 	click("worktree-change-location");
 	await settle();
-	click("worktree-parent");
-	await settle();
-	expect(root.renderer.getAllText()).toContain("/test/other/project-ui");
+	expect(root.renderer.getAllText()).toContain("other");
 	expect(root.renderer.findByTestId("worktree-folder-icon")).toBeDefined();
 	const submitBounds = bounds("confirm-create-worktree");
 	const menuBounds = bounds("workspace-menu");
@@ -291,7 +299,7 @@ it("chooses an unused existing branch and destination folder without offering ch
 		expect.objectContaining({
 			kind: "existing",
 			branch: "feature/ui",
-			path: "/test/other/project-ui",
+			path: "/test/other",
 		})
 	);
 });
@@ -412,17 +420,24 @@ it("reports an already-created worktree when its first read fails, without creat
 	expect(writeWorktree).toHaveBeenCalledTimes(1);
 });
 
-it("keeps a customized folder when the branch changes or location settings collapse", async () => {
+it("keeps the chosen destination when the picker is cancelled or the branch changes", async () => {
 	await open();
 	await menu();
 	click("create-worktree");
 	await settle();
 	root.renderer.simulateKeystrokes("t o p i c");
+	const picker = spyOn(root.renderer, "promptForPaths")
+		.mockResolvedValueOnce(["/test/custom"])
+		.mockResolvedValueOnce(null);
+
 	click("worktree-change-location");
 	await settle();
-	click("worktree-folder-name");
-	root.renderer.simulateKeystrokes("cmd-a c u s t o m");
-	await settle();
+	expect(picker).toHaveBeenCalledWith({
+		directories: true,
+		files: false,
+		multiple: false,
+		prompt: "Choose worktree folder",
+	});
 	click("worktree-change-location");
 	await settle();
 	expect(root.renderer.findByTestId("worktree-folder-name")).toBeUndefined();

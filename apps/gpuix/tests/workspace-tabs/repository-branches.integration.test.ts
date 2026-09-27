@@ -191,6 +191,8 @@ it("creates new and existing branch worktrees without changing source files, ind
 		const branch = kind === "new" ? "new/worktree" : "feature/ui";
 		const path = join(sandbox, `${kind} worktree`);
 
+		if (kind === "existing") await mkdir(path);
+
 		const result = await RepositoryWorktrees.create(repository, {
 			kind,
 			branch,

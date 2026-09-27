@@ -215,11 +215,13 @@ This is not a port of the Electron liquid SVG morph.
   branch picker filters local branches and accepts new names; exact matches reuse
   the existing branch. A short hint explains the choice, and occupied/invalid names
   disable creation. Selecting a suggestion never writes to Git. Choose a
-  branch name to suggest a sibling folder automatically; **Change…** reveals the
-  parent folder picker and an optional custom folder name. Custom names are kept
-  when the branch changes. **Create and open** opens a new tab.
+  branch name to suggest a sibling folder automatically; clicking **Location** opens
+  the native folder picker and uses that exact destination. Cancelling preserves
+  the location, and chosen folders are kept when the branch changes.
+  **Create and open** opens a new tab.
   The original checkout, index, uncommitted files and commit draft stay untouched.
-  Existing destinations are rejected, never overwritten; no force or automatic
+  Existing empty folders are accepted; non-empty folders, files and symlinks are
+  rejected, never overwritten. No force or automatic
   cleanup is used. Remote branch checkout and worktree removal are not included.
   Creation locks app writes across related worktrees and protects window/tab closure
   until status is refreshed. If opening fails after creation, the error identifies

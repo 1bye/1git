@@ -32,13 +32,6 @@ const styles = StyleSheet.create({
 	},
 	label: { fontSize: 12, color: colors.text },
 	field: { display: "flex", flexDirection: "column", gap: 4, flexShrink: 0 },
-	row: {
-		display: "flex",
-		alignItems: "center",
-		justifyContent: "space-between",
-		gap: 8,
-		flexShrink: 0,
-	},
 	comboInput: {
 		width: 0,
 		minWidth: 0,
@@ -75,18 +68,11 @@ const styles = StyleSheet.create({
 		paddingRight: 8,
 		display: "flex",
 		alignItems: "center",
+		gap: 8,
 		fontSize: 12,
 		color: colors.text,
 		borderRadius: 4,
 		cursor: "pointer",
-	},
-	location: {
-		fontSize: 12,
-		color: colors.textMuted,
-		minWidth: 0,
-		flexShrink: 1,
-		whiteSpace: "nowrap",
-		textOverflow: "ellipsis",
 	},
 	fieldText: {
 		fontSize: 12,
@@ -140,8 +126,6 @@ export function WorkspaceWorktreeForm({
 	onCancel,
 	onCreate,
 	onError,
-	locationExpanded,
-	onLocationExpandedChange,
 }: {
 	root: string;
 	data: WorkspaceBranches;
@@ -149,15 +133,12 @@ export function WorkspaceWorktreeForm({
 	onCancel: () => void;
 	onCreate: (choice: WorktreeChoice) => Promise<void>;
 	onError: (message: string) => void;
-	locationExpanded: boolean;
-	onLocationExpandedChange: (expanded: boolean) => void;
 }) {
 	const renderer = useGpuixRequired();
 	const [name, setName] = useState("");
 	const [focused, setFocused] = useState(false);
 	const branchInput = useRef<PublicInstance>(null);
-	const [parent, setParent] = useState(dirname(root));
-	const [customFolder, setCustomFolder] = useState<string>();
+	const [selectedPath, setSelectedPath] = useState<string>();
 	const [picking, setPicking] = useState(false);
 	const mounted = useRef(true);
 
@@ -208,19 +189,12 @@ export function WorkspaceWorktreeForm({
 		"-"
 	);
 
-	const folder = customFolder ?? `${basename(root)}-${suffix}`;
+	const path =
+		selectedPath ?? join(dirname(root), `${basename(root)}-${suffix}`);
 
-	const validFolder =
-		!!folder.trim() &&
-		folder.trim() !== "." &&
-		folder.trim() !== ".." &&
-		!folder.includes("/") &&
-		!folder.includes("\0");
+	const canCreate = !disabled && !!branch && !occupied && !branchError;
 
-	const canCreate =
-		!disabled && !!branch && !occupied && !branchError && validFolder;
-
-	const chooseParent = async (): Promise<void> => {
+	const chooseLocation = async (): Promise<void> => {
 		setPicking(true);
 
 		try {
@@ -231,10 +205,10 @@ export function WorkspaceWorktreeForm({
 				directories: true,
 				files: false,
 				multiple: false,
-				prompt: "Choose parent folder",
+				prompt: "Choose worktree folder",
 			});
 
-			if (mounted.current && paths?.[0]) setParent(paths[0]);
+			if (mounted.current && paths?.[0]) setSelectedPath(paths[0]);
 		} catch {
 			if (mounted.current) onError("Could not select a destination folder.");
 		} finally {
@@ -247,7 +221,7 @@ export function WorkspaceWorktreeForm({
 			void onCreate({
 				kind: existing ? "existing" : "new",
 				branch,
-				path: join(parent, folder.trim()),
+				path,
 			});
 	};
 
@@ -312,7 +286,16 @@ export function WorkspaceWorktreeForm({
 										)
 									}
 								>
-									{item ? value : `+ Create “${value}”`}
+									<text style={styles.fieldText}>
+										{item ? value : `+ Create “${value}”`}
+									</text>
+									{unavailable ? (
+										<text style={{ ...styles.hint, flexShrink: 0 }}>
+											{value === data.branches.current
+												? "This workspace"
+												: "Another worktree"}
+										</text>
+									) : null}
 								</ComboboxItem>
 							);
 						})}
@@ -334,9 +317,10 @@ export function WorkspaceWorktreeForm({
 					testId="worktree-change-location"
 					aria-label="Change worktree location"
 					disabled={disabled}
-					aria-expanded={locationExpanded}
 					style={StyleSheet.compose(styles.input, styles.locationField)}
-					onPress={() => onLocationExpandedChange(!locationExpanded)}
+					onPress={() => {
+						void chooseLocation();
+					}}
 				>
 					<svg
 						testId="worktree-folder-icon"
@@ -351,10 +335,10 @@ export function WorkspaceWorktreeForm({
 					/>
 					<text
 						testId="worktree-location"
-						aria-label={join(parent, folder)}
+						aria-label={path}
 						style={styles.fieldText}
 					>
-						{folder || "Enter a folder name"}
+						{basename(path)}
 					</text>
 					<text
 						style={{
@@ -363,52 +347,14 @@ export function WorkspaceWorktreeForm({
 							pointerEvents: "none",
 						}}
 					>
-						{locationExpanded ? "Done" : "Change…"}
+						Change…
 					</text>
 				</Button>
 			</div>
-			{locationExpanded ? (
-				<div style={styles.field}>
-					<text style={styles.hint}>Parent folder</text>
-					<div style={styles.row}>
-						<text style={styles.location} aria-label={parent}>
-							{basename(parent) || parent}
-						</text>
-						<Button
-							tokens={appTokens}
-							variant="ghost"
-							size="sm"
-							testId="worktree-parent"
-							disabled={disabled}
-							onPress={() => {
-								void chooseParent();
-							}}
-						>
-							Choose…
-						</Button>
-					</div>
-					<text style={styles.hint}>Folder name</text>
-					<input
-						testId="worktree-folder-name"
-						aria-label="New worktree folder name"
-						placeholder="New folder name…"
-						value={folder}
-						readOnly={disabled}
-						style={styles.input}
-						onChange={(event) => setCustomFolder(event.value ?? "")}
-						onSubmit={submit}
-					/>
-					<text style={styles.hint}>
-						{validFolder
-							? join(parent, folder.trim())
-							: "Enter a new folder name, without slashes."}
-					</text>
-				</div>
-			) : null}
 			<div style={styles.footer}>
 				<Button
 					tokens={appTokens}
-					variant="ghost"
+					variant="secondary"
 					size="sm"
 					disabled={disabled}
 					onPress={onCancel}

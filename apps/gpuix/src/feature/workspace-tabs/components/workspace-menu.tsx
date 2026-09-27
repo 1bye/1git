@@ -43,8 +43,7 @@ const separatorHeight = 9;
 const sectionLabelHeight = 24;
 const noticeHeight = 56;
 const createFormHeight = 150;
-const worktreeFormHeight = 218;
-const worktreeLocationHeight = 136;
+const worktreeFormHeight = 224;
 
 const styles = StyleSheet.create({
 	surface: {
@@ -204,9 +203,6 @@ export function WorkspaceMenu({
 	const [name, setName] = useState("");
 	const [creating, setCreating] = useState(false);
 	const [creatingWorktree, setCreatingWorktree] = useState(false);
-
-	const [worktreeLocationExpanded, setWorktreeLocationExpanded] =
-		useState(false);
 
 	const [publishing, setPublishing] = useState(false);
 	const [selectedRemote, setSelectedRemote] = useState<string | null>(null);
@@ -404,8 +400,7 @@ export function WorkspaceMenu({
 
 	// Fixed header/action rows surround a scrollable list; the expanded menu stays inside the window.
 	const contentHeight = creatingWorktree
-		? worktreeFormHeight +
-			(worktreeLocationExpanded ? worktreeLocationHeight : 0)
+		? worktreeFormHeight
 		: creating
 			? createFormHeight
 			: publishing
@@ -623,8 +618,6 @@ export function WorkspaceMenu({
 							root={root}
 							data={data}
 							busy={busy}
-							locationExpanded={worktreeLocationExpanded}
-							onLocationExpandedChange={setWorktreeLocationExpanded}
 							onCancel={showActions}
 							onError={setError}
 							onCreate={async (choice) => {
@@ -949,7 +942,6 @@ export function WorkspaceMenu({
 									disabled={!canCreateWorktree}
 									onPress={() => {
 										setCreatingWorktree(true);
-										setWorktreeLocationExpanded(false);
 										setError(null);
 									}}
 								>

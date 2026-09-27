@@ -1,4 +1,4 @@
-import { lstat, realpath } from "node:fs/promises";
+import { lstat, readdir, realpath } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join } from "node:path";
 import { GitRepository, type GitResult } from "@1git/git";
 const forbiddenBranchCharacters = /[~^:?*[\\]/;
@@ -92,11 +92,12 @@ export class RepositoryWorktrees {
 				await realpath(dirname(request.path)),
 				basename(request.path)
 			);
-			await lstat(path);
+			const destination = await lstat(path);
 
-			return fail(
-				"The destination already exists. Choose a new folder name; nothing was overwritten."
-			);
+			if (!destination.isDirectory() || (await readdir(path)).length > 0)
+				return fail(
+					"Choose an empty destination folder; nothing was overwritten."
+				);
 		} catch (error) {
 			if (
 				!(error instanceof Error) ||
@@ -105,7 +106,7 @@ export class RepositoryWorktrees {
 				!path
 			)
 				return fail(
-					"Choose an existing parent folder and a new, writable destination."
+					"Choose a writable empty folder or a new destination in an existing folder."
 				);
 		}
 

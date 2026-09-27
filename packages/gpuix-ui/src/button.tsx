@@ -53,7 +53,6 @@ const styles = StyleSheet.create({
 	}),
 	secondary: ({ colors }: UiTokens) => ({
 		backgroundColor: colors.surface,
-		borderColor: colors.border,
 		hover: { backgroundColor: colors.surfaceHover },
 		active: { backgroundColor: colors.surfacePressed },
 	}),
