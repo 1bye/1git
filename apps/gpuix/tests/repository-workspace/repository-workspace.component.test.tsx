@@ -67,6 +67,26 @@ const scrollY = () =>
 const checked = (testId: string) =>
 	element(testId).customProps?.["aria-checked"];
 
+it("keeps navigation pills filled and borderless while the search field is transparent", () => {
+	expect(element("view-changes").style.backgroundColor).toBe(
+		lightColors.editorHairlineStrong
+	);
+
+	for (const view of ["history", "stashes"]) {
+		expect(element(`view-${view}`).style.backgroundColor).toBe(
+			lightColors.editorSunken
+		);
+	}
+
+	for (const view of ["changes", "history", "stashes"]) {
+		expect(element(`view-${view}`).style.borderWidth ?? 0).toBe(0);
+	}
+
+	click("filter-changes");
+	expect(element("changes-filter").style.backgroundColor).toBe("transparent");
+	expect(element("changes-filter").style.borderWidth).toBe(1);
+});
+
 it("filters paths with Command F without changing commit inclusion and closes with Escape", async () => {
 	await Bun.sleep(20);
 	click("include-src/app.tsx");
