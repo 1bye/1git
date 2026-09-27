@@ -135,6 +135,45 @@ const choose = async (branch: string): Promise<void> => {
 	await settle();
 };
 
+it("retains the sidebar and shows vector artwork while waiting for a branch", async () => {
+	show();
+	await settle();
+	const bounds = (id: string) => {
+		const node = root.renderer.findByTestId(id);
+
+		if (!node) throw new Error(`Missing ${id}`);
+
+		const box = root.renderer.getElementBounds(node.id);
+
+		if (!box) throw new Error(`Missing bounds for ${id}`);
+
+		return box;
+	};
+
+	const sidebar = bounds("comparison-sidebar");
+	const preview = bounds("comparison-preview");
+	const artwork = bounds("comparison-art-empty");
+
+	expect(Math.abs(sidebar.width - 310)).toBeLessThanOrEqual(1);
+	expect(preview.x).toBeGreaterThanOrEqual(sidebar.x + sidebar.width - 1);
+	expect(artwork.x + artwork.width / 2).toBeCloseTo(
+		preview.x + preview.width / 2,
+		0
+	);
+	expect(root.renderer.getPaintedText().join(" ")).toContain(
+		"Choose an incoming branch above"
+	);
+	expect(root.renderer.findByTestId("comparison-art-direction")).toBeTruthy();
+	expect(root.renderer.findByTestId("comparison-art-swap")).toBeTruthy();
+	expect(readComparison).not.toHaveBeenCalled();
+	expect(root.renderer.getPaintedText().join(" ")).toContain(
+		"Choose a branch…"
+	);
+	await choose("feature");
+	expect(root.renderer.findByTestId("comparison-empty")).toBeUndefined();
+	expect(root.renderer.findByTestId("comparison-files")).toBeTruthy();
+});
+
 it("keeps the toolbar horizontal and the lists beside a full-height preview", async () => {
 	readDiff.mockImplementationOnce(async () => ({
 		ok: true,

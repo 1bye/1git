@@ -20,8 +20,31 @@ import { RepositoryDiff as DiffReader } from "../repository-workspace/lib/reposi
 import { RepositoryDiff } from "../repository-workspace/components/repository-diff";
 import { RepositoryList } from "../repository-workspace/components/repository-list";
 import type { WorkspaceEntry } from "../repository-workspace/types";
+import { ComparisonArtwork } from "./components/comparison-artwork";
 
 const styles = StyleSheet.create({
+	empty: {
+		display: "flex",
+		flexDirection: "column",
+		flexGrow: 1,
+		minHeight: 0,
+		alignItems: "center",
+		justifyContent: "center",
+		gap: 10,
+		padding: 24,
+	},
+	placeholder: {
+		display: "flex",
+		flexDirection: "column",
+		gap: 12,
+		padding: 14,
+		opacity: 0.45,
+	},
+	placeholderLine: {
+		height: 6,
+		borderRadius: 3,
+		backgroundColor: appTokens.colors.border,
+	},
 	root: {
 		display: "flex",
 		flexDirection: "column",
@@ -159,9 +182,7 @@ export function RepositoryComparison({
 							options={options}
 							onChange={setBase}
 						/>
-						<Text tokens={appTokens} aria-hidden style={{ flexShrink: 0 }}>
-							←
-						</Text>
+						<ComparisonArtwork name="direction" />
 						<ComparisonBranchPicker
 							side="incoming"
 							value={branch}
@@ -186,7 +207,7 @@ export function RepositoryComparison({
 								setBranch(base);
 							}}
 						>
-							⇄
+							<ComparisonArtwork name="swap" />
 						</Button>
 					</div>
 				</div>
@@ -200,12 +221,59 @@ export function RepositoryComparison({
 					{...readers}
 				/>
 			) : (
-				<Text tokens={appTokens} style={styles.label}>
-					{request.branches.length
-						? "Choose a branch to see its incoming commits and changes since the common ancestor. Uncommitted changes are not included."
-						: "No other branches available to compare."}
-				</Text>
+				<div testId="comparison-body" style={styles.body}>
+					<div testId="comparison-sidebar" style={styles.sidebar}>
+						<div style={styles.commits}>
+							<Text tokens={appTokens} style={styles.label}>
+								Incoming commits
+							</Text>
+							<ComparisonPlaceholder />
+						</div>
+						<Text tokens={appTokens} style={styles.label}>
+							Changed files
+						</Text>
+						<ComparisonPlaceholder />
+					</div>
+					<div testId="comparison-preview" style={styles.preview}>
+						<div testId="comparison-empty" style={styles.empty}>
+							<ComparisonArtwork name="empty" />
+							<Text tokens={appTokens} style={{ fontSize: 13 }}>
+								Compare branches
+							</Text>
+							<Text
+								tokens={appTokens}
+								style={{ fontSize: 11, color: appTokens.colors.textMuted }}
+							>
+								{request.branches.length
+									? "Choose an incoming branch above to see what changed."
+									: "No other branches available to compare."}
+							</Text>
+						</div>
+					</div>
+				</div>
 			)}
+		</div>
+	);
+}
+
+function ComparisonPlaceholder() {
+	return (
+		<div aria-hidden style={styles.placeholder}>
+			<div
+				style={StyleSheet.compose(styles.placeholderLine, { width: "70%" })}
+			/>
+			<div
+				style={StyleSheet.compose(styles.placeholderLine, { width: "45%" })}
+			/>
+			<div
+				style={StyleSheet.compose(styles.placeholderLine, {
+					width: "60%",
+					marginTop: 8,
+				})}
+			/>
+			<div
+				style={StyleSheet.compose(styles.placeholderLine, { width: "35%" })}
+			/>
 		</div>
 	);
 }
@@ -229,17 +297,26 @@ function ComparisonBranchPicker({
 				tokens={appTokens}
 				style={{ width: 160, minWidth: 80, flexShrink: 1 }}
 			>
-				<SelectValue
-					tokens={appTokens}
-					placeholder="Choose a branch…"
-					style={{
-						fontSize: 11,
-						minWidth: 0,
-						whiteSpace: "nowrap",
-						overflow: "hidden",
-						textOverflow: "ellipsis",
-					}}
-				/>
+				{value ? (
+					<SelectValue
+						tokens={appTokens}
+						placeholder="Choose a branch…"
+						style={{
+							fontSize: 11,
+							minWidth: 0,
+							whiteSpace: "nowrap",
+							overflow: "hidden",
+							textOverflow: "ellipsis",
+						}}
+					/>
+				) : (
+					<Text
+						tokens={appTokens}
+						style={{ fontSize: 11, color: appTokens.colors.textMuted }}
+					>
+						Choose a branch…
+					</Text>
+				)}
 			</SelectTrigger>
 			<SelectContent tokens={appTokens}>
 				{options.map((item) => (
