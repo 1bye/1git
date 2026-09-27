@@ -118,7 +118,13 @@ export function RepositoryStashActions({
 	};
 
 	const formContent = form ? (
-		<div style={{ gap: form.request.kind === "create" ? 12 : 6 }}>
+		<div
+			style={{
+				display: "flex",
+				flexDirection: "column",
+				gap: 6,
+			}}
+		>
 			<text style={styles.label}>
 				{form.request.kind === "create" ? "Stash changes" : "Delete stash?"}
 			</text>
@@ -135,17 +141,15 @@ export function RepositoryStashActions({
 						style={styles.input}
 						onChange={(event) => setMessage(event.value ?? "")}
 					/>
-					<div style={styles.row}>
-						<Checkbox
-							testId="stash-untracked"
-							aria-label="Include untracked files"
-							tokens={appTokens}
-							checked={untracked}
-							disabled={busy}
-							onCheckedChange={setUntracked}
-						/>
-						<text style={styles.hint}>Include untracked files</text>
-					</div>
+					<Checkbox
+						testId="stash-untracked"
+						label="Include untracked files"
+						tokens={appTokens}
+						checked={untracked}
+						disabled={busy}
+						style={styles.hint}
+						onCheckedChange={setUntracked}
+					/>
 				</>
 			) : (
 				<>

@@ -382,7 +382,7 @@ function PopoverSurface({
 				>
 					<div
 						ref={body}
-						style={{ padding: 14, gap: 8, flexShrink: 0 }}
+						style={{ padding: 8, gap: 8, flexShrink: 0 }}
 						onKeyDown={(event) => {
 							if (!state.modal && event.key === "escape") dismiss();
 						}}

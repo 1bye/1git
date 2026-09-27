@@ -40,6 +40,47 @@ function Example() {
 	);
 }
 
+it("toggles once from the label or box and disables the whole labelled control", () => {
+	const changes: boolean[] = [];
+
+	const render = (disabled = false) =>
+		root.render(
+			<Checkbox
+				testId="labelled"
+				label="Include untracked files"
+				checked={false}
+				disabled={disabled}
+				onCheckedChange={(value) => changes.push(value)}
+			/>
+		);
+
+	render();
+	const checkbox = elementByTestId(root.renderer, "labelled");
+
+	expect(checkbox.customProps?.["aria-label"]).toBe("Include untracked files");
+
+	for (const child of checkbox.children) {
+		const bounds = root.renderer.getElementBounds(child);
+
+		if (!bounds) throw new Error("Missing checkbox child bounds");
+
+		root.renderer.nativeSimulateClick(
+			bounds.x + bounds.width / 2,
+			bounds.y + bounds.height / 2
+		);
+	}
+
+	expect(changes).toEqual([true, true]);
+	root.renderer.nativeSimulateKeyDown(checkbox.id, "space");
+	root.renderer.flush();
+	root.renderer.nativeSimulateKeyUp(checkbox.id, "space");
+	expect(changes).toEqual([true, true, true]);
+	render(true);
+	clickElement(root.renderer, "labelled");
+	root.renderer.nativeSimulateKeystrokes(checkbox.id, "space");
+	expect(changes).toEqual([true, true, true]);
+});
+
 it("activates mixed to checked, toggles by pointer, and preserves controlled ownership", () => {
 	root.render(<Example />);
 	expect(
@@ -210,7 +251,7 @@ it("forwards refs and metadata and updates token styles without changing checked
 	expect(box?.style).toMatchObject({
 		width: 12,
 		height: 12,
-		borderRadius: 2,
+		borderRadius: 3,
 		backgroundColor: palettes.light.accent,
 	});
 	expect(mark?.style).toMatchObject({ width: 10, height: 10 });

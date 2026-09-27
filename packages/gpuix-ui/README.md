@@ -234,8 +234,9 @@ buttons an explicit accessible name:
 
 ## Checkbox
 
-A controlled, standalone checkbox. Compose visible labels beside it and always
-provide `aria-label`. It has no internal checked state or Git-specific behavior.
+A controlled checkbox with an optional clickable `label`. The box and label share
+one focus target and toggle once from either area. Without a visible label, provide
+`aria-label`. It has no internal checked state or Git-specific behavior.
 
 ```tsx
 const [included, setIncluded] = useState(true);
@@ -250,11 +251,24 @@ const [included, setIncluded] = useState(true);
 
 `CheckboxProps` and `CheckboxState` are exported from `/checkbox`.
 
+```tsx
+<Checkbox
+  label="Include untracked files"
+  checked={includeUntracked}
+  onCheckedChange={setIncludeUntracked}
+  tokens={tokens}
+/>
+```
+
+With `label`, `style` applies to the whole row; text inherits its font and color.
+An explicit `aria-label` overrides the visible label's accessible name.
+
 | Prop | Values / purpose | Default |
 | --- | --- | --- |
 | `checked` | Required `boolean` or `"indeterminate"` | — |
 | `onCheckedChange` | Required `(checked: boolean) => void`; mixed activates to `true` | — |
-| `aria-label` | Required accessible name | — |
+| `label` | Optional visible, clickable text; also supplies the accessible name | — |
+| `aria-label` | Accessible name override; required without `label` | `label` |
 | `disabled` | Blocks input, dims the control, removes it from Tab order | `false` |
 | `tokens` | Explicit palette and density | `defaultTokens` |
 | `style` | Root `StyleDesc`; state/focus/disabled styling applies afterward | — |
