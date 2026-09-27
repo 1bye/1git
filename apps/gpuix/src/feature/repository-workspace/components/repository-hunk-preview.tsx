@@ -24,6 +24,15 @@ export function RepositoryHunkPreview({
 	const [index, setIndex] = useState(-1);
 	const [pending, setPending] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+	const [reviewedPatch, setReviewedPatch] = useState(props.patch);
+
+	// Invalidate the review, not the native viewport, when file contents change.
+	if (reviewedPatch !== props.patch) {
+		setReviewedPatch(props.patch);
+		setIndex(-1);
+		setError(null);
+	}
+
 	const parts = props.patch.split(/(?=^@@ )/m);
 	const count = parts.length - 1;
 	const selected = index >= 0 && index < count;

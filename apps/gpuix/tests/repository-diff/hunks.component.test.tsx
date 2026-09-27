@@ -1,5 +1,5 @@
 /**
- * Covers: reviewing one hunk before staging and restoring the complete diff.
+ * Covers: reviewing hunks before staging and invalidating stale reviews without remounting.
  * Real: native GPUIX diff and buttons.
  * Doubles: Git mutation boundary.
  * Requires: macOS graphics and patched GPUIX.
@@ -30,25 +30,28 @@ it("requires hunk selection and submits the exact reviewed patch", async () => {
 	};
 
 	try {
-		root.render(
-			<div
-				style={{
-					display: "flex",
-					flexDirection: "column",
-					width: "100%",
-					height: "100%",
-				}}
-			>
-				<RepositoryHunkPreview
-					testId="hunk-diff"
-					patch={patch}
-					aria-label="Diff"
-					action="stage"
-					onHunk={write}
-					disabled={false}
-				/>
-			</div>
-		);
+		const renderPatch = (patch: string) =>
+			root.render(
+				<div
+					style={{
+						display: "flex",
+						flexDirection: "column",
+						width: "100%",
+						height: "100%",
+					}}
+				>
+					<RepositoryHunkPreview
+						testId="hunk-diff"
+						patch={patch}
+						aria-label="Diff"
+						action="stage"
+						onHunk={write}
+						disabled={false}
+					/>
+				</div>
+			);
+
+		renderPatch(patch);
 		click("hunk-apply");
 		expect(write).not.toHaveBeenCalled();
 		click("hunk-next");
@@ -77,6 +80,19 @@ it("requires hunk selection and submits the exact reviewed patch", async () => {
 			hunkIndex: 1,
 			expectedPatch: patch,
 		});
+		await Bun.sleep(0);
+		root.renderer.flush();
+		const viewport = root.renderer.findByTestId("hunk-diff-content")?.id;
+
+		expect(viewport).toBeDefined();
+		write.mockClear();
+		renderPatch(patch.replace("+after", "+updated"));
+		expect(root.renderer.findByTestId("hunk-diff-content")?.id).toBe(viewport);
+		expect(root.renderer.getAllText().join(" ")).toContain(
+			"All changes · 2 hunks"
+		);
+		click("hunk-apply");
+		expect(write).not.toHaveBeenCalled();
 	} finally {
 		root.unmount();
 	}

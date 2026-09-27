@@ -84,7 +84,33 @@ const app = send(symbols.objc_getClass(ptr(className)), "sharedApplication");
 const window = send(send(app, "windows"), "firstObject");
 
 setBlocked.call(renderer, true);
-send(window, "makeKeyWindow");
+const activate = Buffer.from("activateIgnoringOtherApps:\0");
+
+integerMessage(app, symbols.sel_registerName(ptr(activate)), 1);
+send(window, "makeKeyAndOrderFront:");
+
+// Menu actions route through the active key window, not merely a rendered window.
+let ready = false;
+
+for (let attempt = 0; attempt < 20; attempt++) {
+	assert.equal(
+		await pump(),
+		true,
+		"test window must remain alive during activation"
+	);
+	ready =
+		Number(send(app, "isActive")) === 1 &&
+		Number(send(window, "isKeyWindow")) === 1;
+
+	if (ready) break;
+}
+
+assert.equal(
+	ready,
+	true,
+	"test app must be active with a key window before menu actions"
+);
+renderer.focusElement(focusId);
 await pump();
 const stringClass = Buffer.from("NSString\0");
 const title = Buffer.from("Close Window\0");
@@ -97,6 +123,11 @@ const name = send(
 );
 
 const index = Number(send(menu, "indexOfItemWithTitle:", name));
+
+assert.ok(
+	index >= 0 && index < Number(send(menu, "numberOfItems")),
+	"Close Window menu item must exist"
+);
 const action = Buffer.from("performActionForItemAtIndex:\0");
 
 integerMessage(menu, symbols.sel_registerName(ptr(action)), index);

@@ -522,7 +522,7 @@ export function RepositoryDiff({
 			  change.recordType === "ordinary" &&
 			  section.patch.includes("\n@@ ") ? (
 				<RepositoryHunkPreview
-					key={`${section.target}:${section.patch}`}
+					key={`${change.path}:${section.target}`}
 					action={section.target === "working" ? "stage" : "unstage"}
 					onHunk={onHunk}
 					disabled={refreshing || acting || !!statusError}

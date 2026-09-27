@@ -28,5 +28,7 @@ it("vetoes native close and quit until released without replaying blocked reques
 		expect(output).toContain(
 			"protected close and quit verified; explicit exit next"
 		);
+		// AppKit may exit the process directly after release; execFileSync also
+		// requires a successful exit within the timeout, not another JS callback.
 	}
-});
+}, 35000);
