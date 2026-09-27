@@ -13,6 +13,62 @@ import {
 	historyPage,
 } from "../_shared/history-page";
 
+it("isolates search pages and restores the normal history selection and cache", () => {
+	const snapshot = repositorySnapshot();
+
+	const source = {
+		root: snapshot.repository.root,
+		head: snapshot.head.oid ?? "",
+	};
+
+	let state = Model.reduce(Model.create(), { type: "loaded", snapshot });
+
+	state = Model.reduce(state, {
+		type: "history-page",
+		...source,
+		offset: 0,
+		page: historyPage(),
+	});
+	state = Model.reduce(state, {
+		type: "select",
+		view: "history",
+		id: commitInfo(2).oid,
+	});
+	const normal = state;
+
+	state = Model.reduce(state, { type: "history-search", value: "first" });
+	state = Model.reduce(state, { type: "history-search", value: "second" });
+	expect(
+		Model.reduce(state, {
+			type: "history-page",
+			...source,
+			query: "first",
+			offset: 0,
+			page: historyPage(),
+		})
+	).toBe(state);
+	expect(
+		Model.reduce(state, {
+			type: "history-error",
+			...source,
+			query: "first",
+			message: "late",
+		})
+	).toBe(state);
+	state = Model.reduce(state, {
+		type: "history-page",
+		...source,
+		query: "second",
+		offset: 0,
+		page: historyPage(2, 1),
+	});
+	expect(state.views.history.selectedId).toBe(commitInfo(2).oid);
+	state = Model.reduce(state, { type: "history-search", value: "" });
+	expect(state.entries.history).toBe(normal.entries.history);
+	expect(state.views.history).toBe(normal.views.history);
+	expect(state.history).toEqual(normal.history);
+});
+
 it("keeps the selected immutable commit and file while refreshing history after an external commit", () => {
 	const snapshot = repositorySnapshot();
 

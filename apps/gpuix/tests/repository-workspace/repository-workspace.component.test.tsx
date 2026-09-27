@@ -592,6 +592,11 @@ it("supports arrow-key pill selection and entry/exit with Tab", () => {
 	root.renderer.simulateKeystrokes("tab");
 	root.renderer.flush();
 	expect(root.renderer.getFocusedElementId()).toBe(
+		element("filter-history").id
+	);
+	root.renderer.simulateKeystrokes("tab");
+	root.renderer.flush();
+	expect(root.renderer.getFocusedElementId()).toBe(
 		element("entry-commit-1").id
 	);
 	const row = element("entry-commit-1");

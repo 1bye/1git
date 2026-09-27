@@ -169,6 +169,8 @@ export function RepositoryNavigation({
 	const filterInput = useRef<PublicInstance>(null);
 	const filterButton = useRef<PublicInstance>(null);
 	const normalizedQuery = query.trim().toLowerCase();
+	const searchable = view === "changes" || view === "history";
+	const historySearching = view === "history" && !!state.history.query?.trim();
 	const filtering = view === "changes" && normalizedQuery.length > 0;
 
 	const entries = filtering
@@ -182,13 +184,16 @@ export function RepositoryNavigation({
 		: state.entries[view];
 
 	useEffect(() => {
-		if (view !== "changes") return;
+		if (!searchable) return;
 
 		repositoryFilterShortcuts.set(renderer, (close) => {
 			if (close) {
-				if (!filterOpen) return false;
+				if (!filterOpen && !historySearching) return false;
 
 				setQuery("");
+
+				if (view === "history") onAction({ type: "history-search", value: "" });
+
 				setFilterOpen(false);
 
 				if (filterButton.current)
@@ -207,13 +212,16 @@ export function RepositoryNavigation({
 		return () => {
 			repositoryFilterShortcuts.delete(renderer);
 		};
-	}, [renderer, view, filterOpen]);
+	}, [renderer, view, filterOpen, searchable, historySearching, onAction]);
 	useLayoutEffect(() => {
-		if (filterOpen && view === "changes" && filterInput.current)
+		if (filterOpen && searchable && filterInput.current)
 			renderer.focusElement?.(filterInput.current.id);
-	}, [filterOpen, view, renderer]);
+	}, [filterOpen, view, searchable, renderer]);
 	const closeFilter = () => {
 		setQuery("");
+
+		if (view === "history") onAction({ type: "history-search", value: "" });
+
 		setFilterOpen(false);
 
 		if (filterButton.current) renderer.focusElement?.(filterButton.current.id);
@@ -226,7 +234,9 @@ export function RepositoryNavigation({
 		view === "changes"
 			? `${state.includedFileIds.length} of ${state.entries.changes.length} selected`
 			: view === "history"
-				? "Recent commits"
+				? historySearching
+					? "Search results"
+					: "Recent commits"
 				: "Saved work";
 
 	const activate = (next: RepositoryView): void => {
@@ -238,7 +248,7 @@ export function RepositoryNavigation({
 
 	const list = (
 		<RepositoryList
-			key={`${workspaceId}:${view}:${view === "changes" ? normalizedQuery : ""}`}
+			key={`${workspaceId}:${view}:${view === "changes" ? normalizedQuery : (state.history.query ?? "")}`}
 			entries={entries}
 			fileActions={
 				view === "changes" && state.repository && !state.preview && onDiscard
@@ -266,7 +276,17 @@ export function RepositoryNavigation({
 						? "Commit history"
 						: "Saved stashes"
 			}
-			emptyMessage={filtering ? "No matching files" : emptyListMessage(state)}
+			emptyMessage={
+				historySearching
+					? state.history.error
+						? "Could not search history"
+						: state.history.nextOffset === 0
+							? "Searching history…"
+							: "No matching commits"
+					: filtering
+						? "No matching files"
+						: emptyListMessage(state)
+			}
 			state={state.views[view]}
 			inclusion={
 				view === "changes"
@@ -424,12 +444,16 @@ export function RepositoryNavigation({
 						/>
 					</Button>
 				) : null}
-				{view === "changes" ? (
+				{searchable ? (
 					<Button
 						ref={filterButton}
-						testId="filter-changes"
-						aria-label="Search changed files (Command F)"
-						aria-expanded={filterOpen}
+						testId={view === "history" ? "filter-history" : "filter-changes"}
+						aria-label={
+							view === "history"
+								? "Search history (Command F)"
+								: "Search changed files (Command F)"
+						}
+						aria-expanded={filterOpen || historySearching}
 						variant="ghost"
 						size="sm"
 						tokens={appTokens}
@@ -448,14 +472,17 @@ export function RepositoryNavigation({
 							style={{
 								width: 14,
 								height: 14,
-								color: filterOpen ? lightColors.brand : lightColors.editorMuted,
+								color:
+									filterOpen || historySearching
+										? lightColors.brand
+										: lightColors.editorMuted,
 								pointerEvents: "none",
 							}}
 						/>
 					</Button>
 				) : null}
 			</div>
-			{view === "changes" && filterOpen ? (
+			{searchable && (filterOpen || historySearching) ? (
 				<div
 					style={{
 						display: "flex",
@@ -470,10 +497,16 @@ export function RepositoryNavigation({
 				>
 					<input
 						ref={filterInput}
-						testId="changes-filter"
-						aria-label="Filter changed files"
-						placeholder="Filter files…"
-						value={query}
+						testId={view === "history" ? "history-filter" : "changes-filter"}
+						aria-label={
+							view === "history"
+								? "Search commit messages, authors or hashes"
+								: "Filter changed files"
+						}
+						placeholder={
+							view === "history" ? "Message, author or hash…" : "Filter files…"
+						}
+						value={view === "history" ? (state.history.query ?? "") : query}
 						tabIndex={0}
 						style={{
 							flexGrow: 1,
@@ -487,6 +520,12 @@ export function RepositoryNavigation({
 							color: lightColors.editorInk,
 						}}
 						onChange={(event) => {
+							if (view === "history") {
+								onAction({ type: "history-search", value: event.value ?? "" });
+
+								return;
+							}
+
 							setQuery(event.value ?? "");
 							onAction({ type: "scroll", view: "changes", y: 0 });
 						}}
@@ -495,8 +534,14 @@ export function RepositoryNavigation({
 						}}
 					/>
 					<Button
-						aria-label="Close file filter"
-						testId="close-changes-filter"
+						aria-label={
+							view === "history" ? "Close history search" : "Close file filter"
+						}
+						testId={
+							view === "history"
+								? "close-history-filter"
+								: "close-changes-filter"
+						}
 						variant="ghost"
 						size="sm"
 						tokens={appTokens}

@@ -105,6 +105,55 @@ const openHistory = async (): Promise<void> => {
 	await settle();
 };
 
+it("searches through the native field, ignores late results, and restores history on Escape", async () => {
+	const late =
+		Promise.withResolvers<Awaited<ReturnType<typeof RepositoryHistory.read>>>();
+
+	const pages = mock<typeof RepositoryHistory.read>(
+		async (_root, _head, _offset, _signal, query) =>
+			query === "old"
+				? await late.promise
+				: { ok: true, value: query ? historyPage(99, 1) : historyPage() }
+	);
+
+	root.render(
+		<App
+			readRepository={readRepository}
+			readHistory={pages}
+			readCommitFiles={readFiles}
+			readDiff={readDiff}
+		/>
+	);
+	await openHistory();
+	click(`entry-${commitInfo(2).oid}`);
+	root.renderer.nativeSimulateKeyDown(element("view-history").id, "cmd-f");
+	root.renderer.flush();
+	expect(element("history-filter")).toBeDefined();
+	root.renderer.simulateKeystrokes("o l d");
+	root.renderer.flush();
+	await waitFor(() => pages.mock.calls.some((call) => call[4] === "old"));
+	root.renderer.simulateKeystrokes("cmd-a n e w");
+	root.renderer.flush();
+	await waitFor(
+		() => !!root.renderer.findByTestId(`entry-${commitInfo(99).oid}`)
+	);
+	expect(pages.mock.calls.find((call) => call[4] === "old")?.[3].aborted).toBe(
+		true
+	);
+	late.resolve({ ok: true, value: historyPage(88, 1) });
+	await settle();
+	expect(
+		root.renderer.findByTestId(`entry-${commitInfo(88).oid}`)
+	).toBeUndefined();
+	root.renderer.nativeSimulateKeyDown(element("history-filter").id, "escape");
+	root.renderer.flush();
+	await settle();
+	expect(root.renderer.findByTestId("history-filter")).toBeUndefined();
+	expect(
+		element(`entry-${commitInfo(2).oid}`).customProps?.["aria-selected"]
+	).toBe(true);
+});
+
 it("loads commits lazily, pages near the scroll end, and preserves selection and both scroll offsets per tab", async () => {
 	const pages = mock<typeof RepositoryHistory.read>(
 		async (_root, _head, offset) => ({

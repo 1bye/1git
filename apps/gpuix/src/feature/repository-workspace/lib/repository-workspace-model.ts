@@ -90,6 +90,13 @@ export interface RepositoryWorkspaceState {
 		readonly needsReview: boolean;
 	};
 	readonly history: {
+		readonly query?: string;
+		readonly normal?: {
+			readonly entries: readonly WorkspaceRevision[];
+			readonly view: RepositoryRevisionState;
+			readonly nextOffset: number | null;
+			readonly error: string | null;
+		};
 		readonly nextOffset: number | null;
 		readonly error: string | null;
 	};
@@ -177,12 +184,20 @@ export type RepositoryWorkspaceAction =
 	  }
 	| {
 			type: "history-page";
+			query?: string;
 			root: string;
 			head: string;
 			offset: number;
 			page: CommitPage;
 	  }
-	| { type: "history-error"; root: string; head: string; message: string }
+	| {
+			type: "history-error";
+			root: string;
+			head: string;
+			message: string;
+			query?: string;
+	  }
+	| { type: "history-search"; value: string }
 	| {
 			type: "history-files";
 			root: string;
@@ -651,6 +666,54 @@ export class RepositoryWorkspaceModel {
 			};
 		}
 
+		if (action.type === "history-search") {
+			const query = action.value;
+
+			if (query === (state.history.query ?? "")) return state;
+
+			const normal = state.history.normal ?? {
+				entries: state.entries.history,
+				view: state.views.history,
+				nextOffset: state.history.nextOffset,
+				error: state.history.error,
+			};
+
+			if (!query.trim())
+				return {
+					...state,
+					history: { nextOffset: normal.nextOffset, error: normal.error },
+					entries: { ...state.entries, history: normal.entries },
+					views: { ...state.views, history: normal.view },
+				};
+
+			return {
+				...state,
+				restoreHistoryLimit: undefined,
+				history: {
+					query,
+					normal,
+					nextOffset: state.preview ? null : 0,
+					error: null,
+				},
+				entries: {
+					...state.entries,
+					history: state.preview
+						? normal.entries.filter((entry) =>
+								entry.commit
+									? RepositoryHistory.matches(entry.commit, query)
+									: `${entry.title} ${entry.detail ?? ""}`
+											.toLowerCase()
+											.includes(query.trim().toLowerCase())
+							)
+						: [],
+				},
+				views: {
+					...state.views,
+					history: { ...state.views.history, scrollY: 0 },
+				},
+			};
+		}
+
 		if (
 			action.type === "history-page" ||
 			action.type === "history-error" ||
@@ -660,6 +723,12 @@ export class RepositoryWorkspaceModel {
 			if (
 				state.repository?.root !== action.root ||
 				state.repository.head !== action.head
+			)
+				return state;
+
+			if (
+				(action.type === "history-page" || action.type === "history-error") &&
+				(action.query ?? "") !== (state.history.query ?? "")
 			)
 				return state;
 
@@ -705,7 +774,11 @@ export class RepositoryWorkspaceModel {
 					restoreHistoryLimit: searching
 						? state.restoreHistoryLimit
 						: undefined,
-					history: { nextOffset: action.page.nextOffset, error: null },
+					history: {
+						...state.history,
+						nextOffset: action.page.nextOffset,
+						error: null,
+					},
 					entries: { ...state.entries, history: entries },
 					views: {
 						...state.views,

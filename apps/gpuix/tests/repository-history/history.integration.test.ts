@@ -53,6 +53,43 @@ const git = async (...args: string[]): Promise<string> => {
 
 const signal = (): AbortSignal => new AbortController().signal;
 
+it("matches full message bodies literally and supports cancellation", async () => {
+	await git(
+		"commit",
+		"--allow-empty",
+		"-m",
+		"Short summary",
+		"-m",
+		"Body contains [Needle]."
+	);
+	const head = await git("rev-parse", "HEAD");
+
+	const found = await RepositoryHistory.read(
+		repository,
+		head,
+		0,
+		signal(),
+		"[needle]"
+	);
+
+	if (!found.ok) throw new Error(found.error.message);
+
+	expect(found.value.commits.map((commit) => commit.oid)).toEqual([head]);
+	const controller = new AbortController();
+
+	controller.abort();
+	const aborted = await RepositoryHistory.read(
+		repository,
+		head,
+		0,
+		controller.signal,
+		"needle"
+	);
+
+	expect(aborted.ok).toBe(false);
+	expect(await git("status", "--porcelain")).toBe("");
+});
+
 beforeEach(async () => {
 	repository = await realpath(await mkdtemp(join(tmpdir(), "gpuix-history-")));
 	await git("init", "--initial-branch=main");
@@ -123,6 +160,64 @@ it("pages from a fixed HEAD without duplicates after another commit, including d
 	).toBe(52);
 	expect(first.value.commits[0]?.summary).toBe("Commit 51");
 	expect(first.value.commits[0]?.author.name).toBe("History Test");
+	const oldest = await RepositoryHistory.read(
+		repository,
+		head,
+		0,
+		signal(),
+		"COMMIT 0"
+	);
+
+	if (!oldest.ok) throw new Error(oldest.error.message);
+
+	expect(oldest.value.commits.map((commit) => commit.summary)).toEqual([
+		"Commit 0",
+	]);
+	const author = await RepositoryHistory.read(
+		repository,
+		head,
+		0,
+		signal(),
+		"history@example.invalid"
+	);
+
+	if (!author.ok || author.value.nextOffset === null)
+		throw new Error("Missing author results");
+
+	expect(author.value.commits).toHaveLength(50);
+	const remaining = await RepositoryHistory.read(
+		repository,
+		head,
+		author.value.nextOffset,
+		signal(),
+		"history@example.invalid"
+	);
+
+	if (!remaining.ok) throw new Error(remaining.error.message);
+
+	expect(remaining.value.commits).toHaveLength(2);
+	const hash = await RepositoryHistory.read(
+		repository,
+		head,
+		0,
+		signal(),
+		head.slice(0, 10)
+	);
+
+	if (!hash.ok) throw new Error(hash.error.message);
+
+	expect(hash.value.commits.map((commit) => commit.oid)).toEqual([head]);
+	const literal = await RepositoryHistory.read(
+		repository,
+		head,
+		0,
+		signal(),
+		".*"
+	);
+
+	if (!literal.ok) throw new Error(literal.error.message);
+
+	expect(literal.value.commits).toEqual([]);
 	expect(first.value.commits[0]?.authoredAt).toMatch(/^\d{4}-/u);
 	expect(await files(head)).toEqual([]);
 	await git("checkout", "--orphan", "unborn");

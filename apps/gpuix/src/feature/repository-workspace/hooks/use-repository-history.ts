@@ -23,9 +23,12 @@ export function useRepositoryHistory(
 
 	const root = active ? state.repository?.root : undefined;
 	const head = active ? state.repository?.head : undefined;
+	const query = state?.history.query ?? "";
 
 	const key =
-		root && head && workspaceId ? `${workspaceId}:${root}:${head}` : null;
+		root && head && workspaceId
+			? JSON.stringify([workspaceId, root, head, query])
+			: null;
 
 	const nextOffset = state?.history.nextOffset;
 	const error = state?.history.error;
@@ -64,7 +67,8 @@ export function useRepositoryHistory(
 				root,
 				head,
 				nextOffset,
-				controller.signal
+				controller.signal,
+				query
 			);
 
 			if (controller.signal.aborted) return;
@@ -74,17 +78,25 @@ export function useRepositoryHistory(
 				result.ok
 					? {
 							type: "history-page",
+							query,
 							root,
 							head,
 							offset: nextOffset,
 							page: result.value,
 						}
-					: { type: "history-error", root, head, message: result.error.message }
+					: {
+							type: "history-error",
+							root,
+							head,
+							query,
+							message: result.error.message,
+						}
 			);
 		} catch (failure) {
 			if (!controller.signal.aborted)
 				onAction(workspaceId, {
 					type: "history-error",
+					query,
 					root,
 					head,
 					message:
@@ -98,7 +110,7 @@ export function useRepositoryHistory(
 				setPendingPage(null);
 			}
 		}
-	}, [key, root, head, workspaceId, nextOffset, readHistory, onAction]);
+	}, [key, root, head, workspaceId, nextOffset, readHistory, onAction, query]);
 
 	const loadFiles = useCallback(async (): Promise<void> => {
 		if (
@@ -162,8 +174,20 @@ export function useRepositoryHistory(
 	}, [key]);
 
 	useEffect(() => {
-		if ((nextOffset === 0 || restoring) && !error) void loadMore();
-	}, [nextOffset, restoring, error, loadMore]);
+		if ((nextOffset !== 0 && !restoring) || error) return;
+
+		if (!query) {
+			void loadMore();
+
+			return;
+		}
+
+		const timer = setTimeout(() => {
+			void loadMore();
+		}, 250);
+
+		return () => clearTimeout(timer);
+	}, [nextOffset, restoring, error, loadMore, query]);
 
 	useEffect(() => {
 		return () => {

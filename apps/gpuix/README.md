@@ -340,6 +340,12 @@ the Turbo build/dev tasks build dependencies first. No Electron IPC is involved.
 
 ## Browsing History
 
+- History search uses the toolbar search icon or Command+F. It matches full commit
+  messages, author names/emails, and full or partial hashes case-insensitively as
+  literal text. It scans history reachable from the refreshed HEAD in cancellable
+  batches, not just the loaded rows, and returns pages of 50 matches. Typing is
+  debounced; large histories can take longer to search. Escape restores the normal
+  cached list and selection. Repository/HEAD changes invalidate the search cache.
 - History lazily loads real commits reachable from the last refreshed HEAD, with
   the summary, author, authored date and short SHA. Scroll near the end for the
   next 50 commits, or use **Load more commits**. Pagination is anchored to that
