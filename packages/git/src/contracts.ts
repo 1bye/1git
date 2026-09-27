@@ -395,6 +395,8 @@ export interface CommitInput extends GitCallOptions {
 
 /** Commits current whole-file contents, preserving excluded index entries. Partially staged selections are rejected. */
 export interface CommitFilesInput extends GitCallOptions {
+	/** Staged mode commits the current index and ignores checkbox paths. */
+	readonly mode?: "files" | "staged";
 	readonly paths: readonly string[];
 	readonly message: string;
 	readonly expectedHead: string | null;
@@ -433,6 +435,8 @@ export interface StageInput extends GitCallOptions {
 
 /** Explicitly stage a reviewed regular UTF-8 conflict resolution, never continue or commit an operation. */
 export interface ResolveConflictInput extends GitCallOptions {
+	/** Omit to stage manual edits; choosing a side replaces the whole file after UI confirmation. */
+	readonly side?: "ours" | "theirs";
 	readonly path: string;
 	readonly expectedHead: string | null;
 	readonly expectedBranch: string | null;
@@ -451,6 +455,8 @@ export interface FinishOperationInput extends GitCallOptions {
 export type HunkAction = "discard" | "stage" | "unstage";
 
 export interface ChangeHunkInput extends GitCallOptions {
+	/** Reject stale previews instead of applying a different hunk at the same index. */
+	readonly expectedPatch?: string;
 	readonly action: HunkAction;
 	readonly allowDestructive?: boolean;
 	readonly hunkIndex: number;

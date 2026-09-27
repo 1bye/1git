@@ -94,6 +94,11 @@ export function RepositoryChangeLabel({ entry }: { entry: WorkspaceEntry }) {
 				>
 					{filename}
 				</text>
+				{status === "U" ? (
+					<text style={{ fontSize: 10, color: appTokens.colors.danger }}>
+						Conflict
+					</text>
+				) : null}
 				{directory ? (
 					<text testId={`directory-${entry.id}`} style={styles.path}>
 						{directory}

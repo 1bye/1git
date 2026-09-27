@@ -154,7 +154,7 @@ export function RepositoryNavigation({
 	onRefresh: () => void;
 	history?: ReturnType<typeof useRepositoryHistory>;
 	stashes?: ReturnType<typeof useRepositoryStashes>;
-	onCommit?: () => void;
+	onCommit?: (mode: "files" | "staged") => void;
 	onStash?: (request: StashWriteRequest) => Promise<boolean>;
 	onOperation?: (request: FinishOperationInput) => Promise<string | null>;
 	onDiscard?: (request: FileDiscardRequest) => Promise<string | null>;

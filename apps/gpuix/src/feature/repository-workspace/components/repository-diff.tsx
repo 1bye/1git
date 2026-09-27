@@ -4,6 +4,10 @@ import { Button } from "@1git/gpuix-ui/button";
 import { DiffView } from "@1git/gpuix-ui/diff-view";
 import type { GpuixTheme } from "@gpuix/react";
 import { useState } from "react";
+import {
+	RepositoryHunkPreview,
+	type HunkRequest,
+} from "./repository-hunk-preview";
 
 import { appTokens } from "../../../styles/tokens";
 import { RepositoryConflicts } from "../lib/repository-conflicts";
@@ -140,6 +144,7 @@ export function RepositoryDiff({
 	statusError,
 	readDiff = DiffReader.read,
 	onResolve,
+	onHunk,
 	openConflictEditor = RepositoryConflicts.openEditor,
 }: {
 	root: string;
@@ -147,7 +152,11 @@ export function RepositoryDiff({
 	refreshing: boolean;
 	statusError: string | null;
 	readDiff?: typeof DiffReader.read;
-	onResolve?: (hash: string) => Promise<string | null>;
+	onHunk?: (request: HunkRequest) => Promise<string | null>;
+	onResolve?: (
+		hash: string,
+		side?: "ours" | "theirs"
+	) => Promise<string | null>;
 	openConflictEditor?: typeof RepositoryConflicts.openEditor;
 }) {
 	const { result, retry } = useRepositoryDiff(
@@ -162,6 +171,11 @@ export function RepositoryDiff({
 
 	const [sourcePath, setSourcePath] = useState<string | null>(null);
 	const [conflictError, setConflictError] = useState<string | null>(null);
+
+	const [resolutionSide, setResolutionSide] = useState<
+		"ours" | "theirs" | null
+	>(null);
+
 	const [acting, setActing] = useState(false);
 	const conflicted = "recordType" in change && change.recordType === "unmerged";
 
@@ -362,6 +376,87 @@ export function RepositoryDiff({
 							Mark resolved
 						</Button>
 					</div>
+					<div style={{ display: "flex", flexDirection: "row", gap: 6 }}>
+						{(["ours", "theirs"] as const).map((side) => (
+							<Button
+								key={side}
+								testId={`conflict-use-${side}`}
+								tokens={appTokens}
+								size="sm"
+								variant="secondary"
+								disabled={
+									refreshing ||
+									acting ||
+									!!statusError ||
+									!section?.conflict ||
+									!onResolve
+								}
+								onPress={() => setResolutionSide(side)}
+							>
+								Use {side}
+							</Button>
+						))}
+					</div>
+					{resolutionSide ? (
+						<div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+							<text style={styles.hint}>
+								Replace the whole file with {resolutionSide} and stage it?
+								Current edits to this file will be lost.
+							</text>
+							<text style={styles.hint}>
+								During rebase, ours is the branch being rebased onto; theirs is
+								the commit being replayed.
+							</text>
+							<div style={{ display: "flex", flexDirection: "row", gap: 6 }}>
+								<Button
+									tokens={appTokens}
+									size="sm"
+									variant="secondary"
+									disabled={acting}
+									onPress={() => setResolutionSide(null)}
+								>
+									Cancel
+								</Button>
+								<Button
+									testId="conflict-confirm-side"
+									tokens={appTokens}
+									size="sm"
+									disabled={
+										refreshing ||
+										acting ||
+										!!statusError ||
+										!section?.conflict ||
+										!onResolve
+									}
+									onPress={async () => {
+										if (!section?.conflict || !onResolve || acting) return;
+
+										setActing(true);
+										setConflictError(null);
+
+										try {
+											const error = await onResolve(
+												section.conflict.hash,
+												resolutionSide
+											);
+
+											setConflictError(error);
+
+											if (!error) setResolutionSide(null);
+										} catch {
+											setConflictError(
+												"Could not confirm resolution. Refresh before retrying."
+											);
+										} finally {
+											setActing(false);
+										}
+									}}
+								>
+									Replace and stage
+								</Button>
+							</div>
+						</div>
+					) : null}
 					<text style={styles.hint}>
 						Edit and save the file, then refresh and review. Mark resolved
 						stages this file; it does not commit or continue a merge/rebase.
@@ -420,6 +515,29 @@ export function RepositoryDiff({
 				<div style={styles.message} role="status">
 					<text style={styles.hint}>{section.message}</text>
 				</div>
+			) : section &&
+			  onHunk &&
+			  section.target !== "commit" &&
+			  "recordType" in change &&
+			  change.recordType === "ordinary" &&
+			  section.patch.includes("\n@@ ") ? (
+				<RepositoryHunkPreview
+					key={`${section.target}:${section.patch}`}
+					action={section.target === "working" ? "stage" : "unstage"}
+					onHunk={onHunk}
+					disabled={refreshing || acting || !!statusError}
+					testId="diff-viewport"
+					patch={section.patch}
+					showFileHeader={false}
+					focusVisible={false}
+					theme={diffTheme}
+					tokens={appTokens}
+					aria-label={
+						section.target === "working"
+							? "Unstaged file diff"
+							: "Staged file diff"
+					}
+				/>
 			) : section ? (
 				<DiffView
 					key={section.target}

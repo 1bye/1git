@@ -89,6 +89,15 @@ it("opens the editor without resolving and surfaces validation failures", async 
 	await settle();
 	expect(resolve).toHaveBeenCalledWith("reviewed");
 	expect(root.renderer.findByTestId("conflict-error")).toBeDefined();
+	resolve.mockClear();
+	click("conflict-use-theirs");
+	expect(resolve).not.toHaveBeenCalled();
+	expect(root.renderer.getAllText().join(" ")).toContain(
+		"Current edits to this file will be lost."
+	);
+	click("conflict-confirm-side");
+	await settle();
+	expect(resolve).toHaveBeenCalledWith("reviewed", "theirs");
 });
 
 it("locks closing and duplicate writes until resolution and refresh finish", async () => {

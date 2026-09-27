@@ -11,6 +11,7 @@ export function EmptyListPlaceholder() {
 				flexDirection: "column",
 				gap: 12,
 				padding: 14,
+				paddingLeft: 8,
 				opacity: 0.45,
 			}}
 		>

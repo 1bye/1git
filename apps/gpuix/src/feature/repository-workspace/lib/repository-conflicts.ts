@@ -7,7 +7,7 @@ import { GitRepository, type ResolveConflictInput } from "@1git/git";
 
 const execute = promisify(execFile);
 
-/** Manual conflict preview and explicit resolution; never picks a side or continues Git operations. */
+/** Conflict preview and explicitly requested resolution; never continues Git operations. */
 export class RepositoryConflicts {
 	private constructor() {}
 

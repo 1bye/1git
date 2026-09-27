@@ -112,6 +112,20 @@ const scrollY = () =>
 const checked = (testId: string) =>
 	element(testId).customProps?.["aria-checked"];
 
+it("switches and closes workspaces with Command shortcuts and toggles a focused file with Space", async () => {
+	await Bun.sleep(20);
+	key("entry-src/app.tsx", "space");
+	expect(checked("include-src/app.tsx")).toBe(false);
+	key("entry-src/app.tsx", "cmd-2");
+	expect(element("workspace-2").customProps?.["aria-selected"]).toBe(true);
+	await Bun.sleep(0);
+	key("entry-src/app.tsx", "cmd-w");
+	expect(root.renderer.findByTestId("workspace-2")).toBeUndefined();
+	expect(element("entry-src/app.tsx")).toBeDefined();
+	key("commit-message", "cmd-9");
+	expect(element("commit-message")).toBeDefined();
+});
+
 it("keeps navigation pills filled and borderless while the search field is transparent", () => {
 	expect(element("view-changes").style.backgroundColor).toBe(
 		lightColors.editorHairlineStrong

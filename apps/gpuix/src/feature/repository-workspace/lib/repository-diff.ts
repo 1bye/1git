@@ -43,6 +43,27 @@ const fileHeader = /^diff --git /m;
 export class RepositoryDiff {
 	private constructor() {}
 
+	/** Applies one reviewed hunk without changing working-file contents. */
+	static async writeHunk(
+		root: string,
+		request: {
+			path: string;
+			action: "stage" | "unstage";
+			hunkIndex: number;
+			expectedPatch: string;
+		}
+	) {
+		const opened = await GitRepository.open({ path: root });
+
+		if (!opened.ok) return opened;
+
+		const result = await opened.value.changeHunk(request);
+
+		return result.ok
+			? { ok: true as const, value: result.value.snapshot }
+			: result;
+	}
+
 	static async read(
 		root: string,
 		change: DiffSelection,

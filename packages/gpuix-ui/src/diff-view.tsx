@@ -30,6 +30,8 @@ export interface DiffViewProps extends Pick<
 	/** Show the focus outline. Disabling it keeps keyboard focus and navigation. */
 	focusVisible?: boolean;
 	testId?: string;
+	/** Focus-scoped actions; return true when the key is consumed. */
+	onShortcut?: (event: EventPayload) => boolean;
 }
 
 const styles = StyleSheet.create({
@@ -62,6 +64,7 @@ export function DiffView({
 	style,
 	tokens = defaultTokens,
 	testId,
+	onShortcut,
 	...props
 }: DiffViewProps) {
 	const renderer = useGpuixRequired();
@@ -70,6 +73,8 @@ export function DiffView({
 	const [focused, setFocused] = useState(false);
 
 	const navigate = (event: EventPayload): void => {
+		if (onShortcut?.(event)) return;
+
 		const node = viewport.current;
 		const diff = content.current;
 

@@ -1,4 +1,6 @@
-import { useCallback, useReducer } from "react";
+import { useCallback, useEffect, useReducer } from "react";
+import { useGpuixRequired } from "@gpuix/react";
+import { workspaceShortcuts } from "./feature/repository-workspace/lib/repository-filter-shortcut";
 import { Button } from "@1git/gpuix-ui/button";
 import { appTokens } from "./styles/tokens";
 import {
@@ -132,6 +134,45 @@ export function App({
 
 	const activeTab = state.tabs.find((tab) => tab.id === state.activeId);
 	const workspace = activeTab?.workspace;
+	const renderer = useGpuixRequired();
+
+	useEffect(() => {
+		workspaceShortcuts.set(renderer, (key) => {
+			if (/^[1-9]$/.test(key)) {
+				const tab = state.tabs[Number(key) - 1];
+
+				if (tab) dispatch({ type: "activate", id: tab.id });
+
+				return;
+			}
+
+			if (key === "o") {
+				if (connection.pickingId !== null) return;
+
+				const id =
+					activeTab && !workspace?.repository
+						? activeTab.id
+						: `workspace-${state.nextId}`;
+
+				if (id !== activeTab?.id) dispatch({ type: "add" });
+
+				void connection.open(id);
+			} else if (
+				activeTab &&
+				workspace &&
+				!RepositoryWorkspaceModel.isBusy(workspace)
+			) {
+				if (key === "w") dispatch({ type: "close", id: activeTab.id });
+
+				if (key === "r" && !workspace.loading)
+					void connection.refresh(activeTab.id);
+			}
+		});
+
+		return () => {
+			workspaceShortcuts.delete(renderer);
+		};
+	}, [renderer, state.tabs, state.nextId, activeTab, workspace, connection]);
 
 	const workspaceAction = useCallback(
 		(id: string, action: RepositoryWorkspaceAction): void =>
@@ -186,8 +227,8 @@ export function App({
 						state={workspace}
 						history={history}
 						stashes={stashes}
-						onCommit={() => {
-							void mutations.commit(activeTab.id);
+						onCommit={(mode) => {
+							void mutations.commit(activeTab.id, mode);
 						}}
 						onStash={(request) => mutations.stash(activeTab.id, request)}
 						onOperation={(request) =>
@@ -269,8 +310,11 @@ export function App({
 					}
 					statusError={workspace.error}
 					readDiff={readDiff}
-					onResolve={(hash) =>
-						mutations.resolve(activeTab.id, comparison.path, hash)
+					onResolve={(hash, side) =>
+						mutations.resolve(activeTab.id, comparison.path, hash, side)
+					}
+					onHunk={(request) =>
+						mutations.hunk(activeTab.id, { ...request, path: comparison.path })
 					}
 					openConflictEditor={openConflictEditor}
 				/>

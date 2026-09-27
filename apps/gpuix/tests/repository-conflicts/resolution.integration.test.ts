@@ -86,6 +86,64 @@ it("shows conflict markers and refuses to stage them", async () => {
 	expect(await git("ls-files", "--stage")).toBe(before);
 });
 
+for (const side of ["ours", "theirs"] as const) {
+	it(`resolves the whole file using ${side} without committing or changing unrelated staging`, async () => {
+		await writeFile(join(root, "unrelated.txt"), "staged\n");
+		await git("add", "unrelated.txt");
+		await writeFile(join(root, "unrelated.txt"), "unstaged\n");
+		const result = await RepositoryConflicts.write(root, {
+			path: "file.txt",
+			expectedHead: head,
+			expectedBranch: "main",
+			expectedContentHash: (await preview()).hash,
+			side,
+		});
+
+		expect(result.ok).toBe(true);
+		expect(await git("show", ":file.txt")).toBe(side);
+		expect(await git("ls-files", "--unmerged")).toBe("");
+		expect(await git("show", ":unrelated.txt")).toBe("staged");
+		expect(await git("rev-parse", "HEAD")).toBe(head);
+		expect(await git("rev-parse", "MERGE_HEAD")).not.toBe("");
+	});
+}
+
+it("refuses side replacement when the reviewed file has changed", async () => {
+	const { hash } = await preview();
+
+	await writeFile(join(root, "file.txt"), "manual edits\n");
+	const result = await RepositoryConflicts.write(root, {
+		path: "file.txt",
+		expectedHead: head,
+		expectedBranch: "main",
+		expectedContentHash: hash,
+		side: "theirs",
+	});
+
+	expect(result.ok).toBe(false);
+	expect((await preview()).text).toBe("manual edits\n");
+	expect(await git("ls-files", "--unmerged")).not.toBe("");
+});
+
+it("uses Git's index-side semantics during rebase without continuing it", async () => {
+	await git("merge", "--abort");
+	await expect(git("rebase", "other")).rejects.toThrow();
+	const expectedHead = await git("rev-parse", "HEAD");
+
+	const result = await RepositoryConflicts.write(root, {
+		path: "file.txt",
+		expectedHead,
+		expectedBranch: null,
+		expectedContentHash: (await preview()).hash,
+		side: "ours",
+	});
+
+	expect(result.ok).toBe(true);
+	expect(await git("show", ":file.txt")).toBe("theirs");
+	expect(await git("rev-parse", "HEAD")).toBe(expectedHead);
+	expect(await git("rev-parse", "REBASE_HEAD")).toBe(head);
+});
+
 it("stages only the reviewed file, preserving HEAD, merge state and unrelated staging", async () => {
 	await writeFile(join(root, "unrelated.txt"), "staged\n");
 	await git("add", "unrelated.txt");

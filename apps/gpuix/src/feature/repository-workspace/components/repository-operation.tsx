@@ -212,7 +212,11 @@ export function RepositoryOperation({
 						</text>
 					) : null}
 					<text style={{ fontSize: 10, color: appTokens.colors.textMuted }}>
-						Continue uses Git’s staged changes and existing message.
+						{conflicts > 0
+							? "Select each conflicted file, choose a side or edit it, then mark it resolved."
+							: !unstaged
+								? `All conflicts resolved. Continue ${operation} when ready.`
+								: "Continue uses Git’s staged changes and existing message."}
 					</text>
 				</>
 			) : null}

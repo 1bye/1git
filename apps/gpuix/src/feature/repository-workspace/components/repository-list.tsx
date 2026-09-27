@@ -3,10 +3,18 @@ import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { Checkbox } from "@1git/gpuix-ui/checkbox";
 import {
 	useGpuixRequired,
+	useWindowSize,
 	type EventPayload,
 	type PublicInstance,
 } from "@gpuix/react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+	useEffect,
+	useLayoutEffect,
+	useMemo,
+	useRef,
+	useState,
+	type ReactNode,
+} from "react";
 
 import {
 	RepositoryWorkspaceModel,
@@ -254,6 +262,41 @@ export function RepositoryList({
 	const viewport = useRef<PublicInstance>(null);
 	const rows = useRef(new Map<string, PublicInstance>());
 	const initialScroll = useRef(state.scrollY);
+	const virtualized = entries.length > 500;
+	const rowHeight = entries[0]?.detail ? revisionRowHeight : fileRowHeight;
+
+	const [windowStart, setWindowStart] = useState(
+		Math.max(0, Math.floor(-state.scrollY / rowHeight) - 10)
+	);
+
+	const window = useWindowSize();
+	// Keep a generous overscan; list rows have fixed heights within each view.
+	const windowSize = Math.max(80, Math.ceil(window.height / rowHeight) + 20);
+	const pendingFocus = useRef<string | null>(null);
+
+	const start = virtualized
+		? Math.min(windowStart, Math.max(0, entries.length - windowSize))
+		: 0;
+
+	const end = virtualized
+		? Math.min(entries.length, start + windowSize)
+		: entries.length;
+
+	useLayoutEffect(() => {
+		const focus =
+			pendingFocus.current && rows.current.get(pendingFocus.current);
+
+		if (focus) {
+			pendingFocus.current = null;
+			renderer.focusElement?.(focus.id);
+		}
+	}, [renderer, rowHeight, start, end, state.scrollY, entries]);
+	const includedIds = useMemo(() => new Set(inclusion?.ids), [inclusion?.ids]);
+
+	const selectedIds = useMemo(
+		() => new Set(state.selectedIds),
+		[state.selectedIds]
+	);
 
 	const [focusId, setFocusId] = useState(state.selectedId ?? entries[0]?.id);
 
@@ -272,10 +315,24 @@ export function RepositoryList({
 
 		const y = renderer.getScrollOffset?.(viewport.current.id)?.[1] ?? 0;
 
+		if (virtualized)
+			setWindowStart(Math.max(0, Math.floor(-y / rowHeight) - 10));
+
 		onScroll(y);
 
 		if (onEndReached) {
 			const box = renderer.getElementBounds?.(viewport.current.id);
+
+			if (virtualized) {
+				if (
+					box &&
+					-y + box.height + rowHeight * 3 >= entries.length * rowHeight
+				)
+					onEndReached();
+
+				return;
+			}
+
 			const last = entries.at(-1);
 			const row = last && rows.current.get(last.id);
 			const bounds = row && renderer.getElementBounds?.(row.id);
@@ -323,7 +380,20 @@ export function RepositoryList({
 	): void => {
 		const row = rows.current.get(id);
 
-		if (!row) return;
+		if (!row) {
+			const index = entries.findIndex((entry) => entry.id === id);
+
+			if (!virtualized || index < 0 || !viewport.current) return;
+
+			onSelect(id, mode);
+			setFocusId(id);
+			pendingFocus.current = id;
+			setWindowStart(Math.max(0, index - 10));
+			renderer.scrollTo?.(viewport.current.id, 0, -index * rowHeight);
+			onScroll(-index * rowHeight);
+
+			return;
+		}
 
 		onSelect(id, mode);
 		setFocusId(id);
@@ -344,6 +414,17 @@ export function RepositoryList({
 		const key = event.key ?? "";
 
 		if (key === "enter" || key === "space") {
+			if (
+				key === "space" &&
+				inclusion &&
+				!inclusion.disabled &&
+				!event.modifiers?.shift
+			) {
+				inclusion.onChange(id, !includedIds.has(id));
+
+				return;
+			}
+
 			select(id, true);
 
 			return;
@@ -383,7 +464,13 @@ export function RepositoryList({
 							</text>
 						))
 					: null}
-				{entries.map((entry) => (
+				{start > 0 ? (
+					<div
+						aria-hidden
+						style={{ height: start * rowHeight, flexShrink: 0 }}
+					/>
+				) : null}
+				{entries.slice(start, end).map((entry) => (
 					<RepositoryRow
 						key={entry.id}
 						entry={entry}
@@ -396,8 +483,11 @@ export function RepositoryList({
 												state.selectedIds ??
 												(state.selectedId ? [state.selectedId] : []);
 
-											if (ids.includes(id))
-												return entries.filter((item) => ids.includes(item.id));
+											if (ids.includes(id)) {
+												const selection = new Set(ids);
+
+												return entries.filter((item) => selection.has(item.id));
+											}
 
 											select(id, false, "context");
 
@@ -408,17 +498,23 @@ export function RepositoryList({
 						}
 						selected={
 							inclusion && state.selectedIds
-								? state.selectedIds.includes(entry.id)
+								? selectedIds.has(entry.id)
 								: state.selectedId === entry.id
 						}
-						included={inclusion?.ids.includes(entry.id)}
+						included={includedIds.has(entry.id)}
 						inclusionDisabled={inclusion?.disabled}
 						onInclude={
 							inclusion
 								? (included) => inclusion.onChange(entry.id, included)
 								: undefined
 						}
-						tabbable={tabbableId === entry.id}
+						tabbable={
+							tabbableId === entry.id ||
+							(entry.id === entries[start]?.id &&
+								!entries
+									.slice(start, end)
+									.some((item) => item.id === tabbableId))
+						}
 						rowRef={(node) => {
 							if (node) rows.current.set(entry.id, node);
 							else rows.current.delete(entry.id);
@@ -443,6 +539,15 @@ export function RepositoryList({
 						onKeyDown={(event) => navigate(entry.id, event)}
 					/>
 				))}
+				{end < entries.length ? (
+					<div
+						aria-hidden
+						style={{
+							height: (entries.length - end) * rowHeight,
+							flexShrink: 0,
+						}}
+					/>
+				) : null}
 			</div>
 		</div>
 	);

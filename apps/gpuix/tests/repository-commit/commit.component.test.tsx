@@ -68,6 +68,56 @@ const snapshot = () =>
 
 const readRepository = async () => ({ ok: true as const, value: snapshot() });
 
+it("opens and refreshes a repository with Command O and R", async () => {
+	const read = mock(readRepository);
+
+	root.render(<App readRepository={read} />);
+	await settle();
+	root.renderer.nativeSimulateKeyDown(node("open-repository").id, "cmd-o");
+	await settle();
+	expect(root.renderer.promptForPaths).toHaveBeenCalledTimes(1);
+	expect(read).toHaveBeenCalled();
+	const count = read.mock.calls.length;
+
+	root.renderer.nativeSimulateKeyDown(node("commit-message").id, "cmd-r");
+	await settle();
+	expect(read.mock.calls.length).toBeGreaterThan(count);
+});
+
+it("explicitly commits staged changes even when file checkboxes are cleared", async () => {
+	const partial = repositorySnapshot([
+		changedFile("a.ts", { indexStatus: "modified" }),
+	]);
+
+	const writeCommit = mock<typeof RepositoryCommit.write>(async () => ({
+		ok: true,
+		value: {
+			outcome: "committed",
+			oid: "new",
+			snapshot: repositorySnapshot(),
+			warning: null,
+		},
+	}));
+
+	root.render(
+		<App
+			readRepository={async () => ({ ok: true, value: partial })}
+			writeCommit={writeCommit}
+		/>
+	);
+	await open();
+	click("include-a.ts");
+	message();
+	click("commit-mode-staged");
+	click("commit-submit");
+	await settle();
+	expect(writeCommit).toHaveBeenCalledTimes(1);
+	expect(writeCommit.mock.calls[0]?.[1]).toMatchObject({
+		mode: "staged",
+		paths: [],
+	});
+});
+
 const open = async (): Promise<void> => {
 	click("open-repository");
 	await settle();
@@ -112,6 +162,9 @@ it("commits only checked paths once, prevents edits/close while pending, clears 
 	]);
 	expect(root.renderer.getAllText()).toContain("Committing…");
 	expect(node("commit-message").customProps?.readOnly).toBe(true);
+	root.renderer.nativeSimulateKeyDown(node("commit-message").id, "cmd-w");
+	root.renderer.flush();
+	expect(node("commit-message")).toBeDefined();
 	click("include-b.ts");
 	click("close-workspace-1");
 	expect(root.renderer.findByTestId("workspace-1")).toBeDefined();

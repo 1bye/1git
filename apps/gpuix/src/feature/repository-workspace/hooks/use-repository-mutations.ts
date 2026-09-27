@@ -14,6 +14,7 @@ import {
 	type RepositoryWorkspaceAction,
 } from "../lib/repository-workspace-model";
 import { RepositoryCommit } from "../lib/repository-commit";
+import { RepositoryDiff } from "../lib/repository-diff";
 import { RepositoryConflicts } from "../lib/repository-conflicts";
 import { RepositoryOperation } from "../lib/repository-operation";
 import {
@@ -125,14 +126,17 @@ export function useRepositoryMutations(
 		};
 	}, []);
 
-	const commit = async (id: string): Promise<void> => {
+	const commit = async (
+		id: string,
+		mode: "files" | "staged" = "files"
+	): Promise<void> => {
 		const workspace = tabs.current.find((tab) => tab.id === id)?.workspace;
 		const repository = workspace?.repository;
 
 		if (
 			!workspace ||
 			!repository ||
-			!RepositoryWorkspaceModel.canCommit(workspace) ||
+			!RepositoryWorkspaceModel.canCommit(workspace, mode) ||
 			worktreeWrites.current.has(repository.commonDirectory) ||
 			pending.current.has(repository.root) ||
 			stashWrites.current.has(repository.commonDirectory) ||
@@ -169,6 +173,7 @@ export function useRepositoryMutations(
 
 		try {
 			const result = await writeCommit(root, {
+				...(mode === "staged" ? { mode } : {}),
 				paths: workspace.includedFileIds,
 				message: submittedMessage,
 				expectedHead: repository.head,
@@ -747,9 +752,21 @@ export function useRepositoryMutations(
 	const updateWorktree = async (
 		id: string,
 		request:
+			| {
+					kind: "hunk";
+					path: string;
+					action: "stage" | "unstage";
+					hunkIndex: number;
+					expectedPatch: string;
+			  }
 			| FinishOperationInput
 			| FileDiscardRequest
-			| { kind: "resolve"; path: string; expectedContentHash: string }
+			| {
+					kind: "resolve";
+					path: string;
+					expectedContentHash: string;
+					side?: "ours" | "theirs";
+			  }
 	): Promise<string | null> => {
 		const workspace = tabs.current.find((tab) => tab.id === id)?.workspace;
 		const repository = workspace?.repository;
@@ -793,12 +810,15 @@ export function useRepositoryMutations(
 					? await resolveConflict(repository.root, {
 							path: request.path,
 							expectedContentHash: request.expectedContentHash,
+							side: request.side,
 							expectedHead: repository.head,
 							expectedBranch: repository.branchName,
 						})
-					: request.kind === "discard"
-						? await discardFile(repository.root, request)
-						: await writeOperation(repository.root, request);
+					: request.kind === "hunk"
+						? await RepositoryDiff.writeHunk(repository.root, request)
+						: request.kind === "discard"
+							? await discardFile(repository.root, request)
+							: await writeOperation(repository.root, request);
 
 			if (!result.ok) error = result.error.message;
 			else if (
@@ -825,13 +845,15 @@ export function useRepositoryMutations(
 					refreshError,
 					notice: error
 						? undefined
-						: request.kind === "discard"
-							? `Discarded ${request.paths.length} ${request.paths.length === 1 ? "file" : "files"}. Recovery backup saved.`
-							: request.kind === "abort"
-								? "Operation aborted."
-								: snapshot?.operationState === "normal"
-									? "Operation completed."
-									: "Git paused again. Review the current operation before continuing.",
+						: request.kind === "hunk"
+							? "Hunk updated. Review staged changes before committing."
+							: request.kind === "discard"
+								? `Discarded ${request.paths.length} ${request.paths.length === 1 ? "file" : "files"}. Recovery backup saved.`
+								: request.kind === "abort"
+									? "Operation aborted."
+									: snapshot?.operationState === "normal"
+										? "Operation completed."
+										: "Git paused again. Review the current operation before continuing.",
 				});
 		};
 
@@ -854,8 +876,13 @@ export function useRepositoryMutations(
 	};
 
 	return {
-		resolve: (id: string, path: string, expectedContentHash: string) =>
-			updateWorktree(id, { kind: "resolve", path, expectedContentHash }),
+		resolve: (
+			id: string,
+			path: string,
+			expectedContentHash: string,
+			side?: "ours" | "theirs"
+		) =>
+			updateWorktree(id, { kind: "resolve", path, expectedContentHash, side }),
 		finishOperation: (id: string, request: FinishOperationInput) =>
 			updateWorktree(id, request),
 		discardFile: (id: string, request: FileDiscardRequest) =>
@@ -863,6 +890,15 @@ export function useRepositoryMutations(
 		closeProtection,
 		stash,
 		commit,
+		hunk: (
+			id: string,
+			request: {
+				path: string;
+				action: "stage" | "unstage";
+				hunkIndex: number;
+				expectedPatch: string;
+			}
+		) => updateWorktree(id, { ...request, kind: "hunk" }),
 		changeBranch,
 		createWorktree: (id: string, choice: WorktreeChoice) =>
 			mutateWorktree(id, choice),

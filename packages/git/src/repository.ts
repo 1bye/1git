@@ -709,7 +709,33 @@ export class GitRepository {
 					"The file changed since the preview. Refresh and review it before marking resolved."
 				);
 
-			if (CONFLICT_MARKER_LINE.test(content.content))
+			if (input.side) {
+				if (input.side !== "ours" && input.side !== "theirs")
+					throw invalidInput("stage", "Choose ours or theirs.");
+
+				const stage = input.side === "ours" ? 2 : 3;
+
+				const output = await this.context.process.run({
+					args: ["show", `:${stage}:${path}`],
+					cwd: this.info.root,
+					signal: input.signal,
+				});
+
+				const chosen = output.stdout.toString("utf8");
+
+				if (
+					output.stdout.length > MAX_CONFLICT_TEXT_BYTES ||
+					chosen.includes("\0") ||
+					!Buffer.from(chosen).equals(output.stdout) ||
+					CONFLICT_MARKER_LINE.test(chosen)
+				)
+					throw invalidInput(
+						"stage",
+						"Resolve binary, oversized, or nested conflicts outside this app."
+					);
+
+				await writeFile(absolute, output.stdout);
+			} else if (CONFLICT_MARKER_LINE.test(content.content))
 				throw invalidInput(
 					"stage",
 					"Conflict markers remain. Edit and save the file, then refresh before marking resolved."
@@ -765,6 +791,15 @@ export class GitRepository {
 				signal: input.signal,
 				target,
 			});
+
+			if (
+				input.expectedPatch !== undefined &&
+				input.expectedPatch !== diff.patch
+			)
+				throw invalidInput(
+					"change-hunk",
+					"The diff changed. Refresh and review it before staging."
+				);
 
 			const patch = selectHunkPatch(diff.patch, hunkIndex);
 			const args = ["apply", "--recount", "--whitespace=nowarn"];

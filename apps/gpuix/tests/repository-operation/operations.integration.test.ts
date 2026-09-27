@@ -1,17 +1,25 @@
 /**
- * Covers: merge/rebase continuation and abort, stale intent, conflicts and unstaged-change guards.
+ * Covers: multi-file merge/rebase resolution, continuation, abort recovery, stale intent and unstaged-change guards.
  * Real: Git/backend and disposable local repositories.
  * Doubles: none.
  * Requires: Git and temporary storage; no network or graphics.
  */
 import { afterEach, beforeEach, expect, it } from "bun:test";
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import {
+	mkdir,
+	mkdtemp,
+	readFile,
+	realpath,
+	rm,
+	writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { GitRepository, type FinishOperationInput } from "@1git/git";
 import { RepositoryOperation } from "../../src/feature/repository-workspace/lib/repository-operation";
+import { RepositoryConflicts } from "../../src/feature/repository-workspace/lib/repository-conflicts";
 
 const execute = promisify(execFile);
 let root: string;
@@ -84,6 +92,58 @@ const request = async (
 };
 
 for (const operation of ["merge", "rebase"] as const) {
+	it(`resolves multiple files then continues ${operation}, preserving untracked work`, async () => {
+		await addSecondConflict();
+		await expect(git(operation, "other")).rejects.toThrow();
+		await writeFile(join(root, "keep.txt"), "untracked stays\n");
+		expect(
+			(await snapshot()).files.filter((file) => file.recordType === "unmerged")
+		).toHaveLength(2);
+		await resolveFile("a.txt", "theirs");
+		expect(
+			(await RepositoryOperation.write(root, await request("continue"))).ok
+		).toBe(false);
+		expect((await snapshot()).operationState).toBe(operation);
+		await writeFile(join(root, "b.txt"), "manually resolved\n");
+		await resolveFile("b.txt");
+		const result = await RepositoryOperation.write(
+			root,
+			await request("continue")
+		);
+
+		expect(result.ok).toBe(true);
+		expect((await snapshot()).operationState).toBe("normal");
+		expect(await git("show", "HEAD:a.txt")).toBe(
+			operation === "merge" ? "other" : "main"
+		);
+		expect(await git("show", "HEAD:b.txt")).toBe("manually resolved");
+		expect(await git("ls-files", "--unmerged")).toBe("");
+		expect(await readFile(join(root, "keep.txt"), "utf8")).toBe(
+			"untracked stays\n"
+		);
+	});
+	it(`aborts a partly resolved ${operation} and restores the original branch and files`, async () => {
+		await addSecondConflict();
+		await expect(git(operation, "other")).rejects.toThrow();
+		await resolveFile("a.txt", "theirs");
+		await writeFile(join(root, "b.txt"), "unfinished manual resolution\n");
+		await writeFile(join(root, "keep.txt"), "untracked stays\n");
+		const result = await RepositoryOperation.write(
+			root,
+			await request("abort")
+		);
+
+		expect(result.ok).toBe(true);
+		expect((await snapshot()).operationState).toBe("normal");
+		expect(await git("rev-parse", "HEAD")).toBe(initialHead);
+		expect(await git("branch", "--show-current")).toBe("main");
+		expect(await readFile(join(root, "a.txt"), "utf8")).toBe("main\n");
+		expect(await readFile(join(root, "b.txt"), "utf8")).toBe("main b\n");
+		expect(await readFile(join(root, "keep.txt"), "utf8")).toBe(
+			"untracked stays\n"
+		);
+		expect(await git("ls-files", "--unmerged")).toBe("");
+	});
 	it(`continues ${operation} using staged resolutions and the existing message`, async () => {
 		await expect(git(operation, "other")).rejects.toThrow();
 		const intent = await request("continue");
@@ -123,6 +183,42 @@ for (const operation of ["merge", "rebase"] as const) {
 	});
 }
 
+async function addSecondConflict() {
+	// Amend each branch tip so both conflicts belong to the same replayed commit.
+	await writeFile(join(root, "b.txt"), "main b\n");
+	await git("add", "b.txt");
+	await git("commit", "--amend", "--no-edit");
+	initialHead = await git("rev-parse", "HEAD");
+	await git("checkout", "other");
+	await writeFile(join(root, "b.txt"), "other b\n");
+	await git("add", "b.txt");
+	await git("commit", "--amend", "--no-edit");
+	await git("checkout", "main");
+}
+
+async function resolveFile(path: string, side?: "ours" | "theirs") {
+	const state = await snapshot();
+
+	const preview = await RepositoryConflicts.read(
+		root,
+		path,
+		new AbortController().signal
+	);
+
+	if (!preview.ok || !preview.value)
+		throw new Error("Missing conflict preview");
+
+	const result = await RepositoryConflicts.write(root, {
+		path,
+		side,
+		expectedHead: state.head.oid,
+		expectedBranch: state.head.branch,
+		expectedContentHash: preview.value.hash,
+	});
+
+	if (!result.ok) throw new Error(result.error.message);
+}
+
 it("rejects unstaged tracked edits without including or discarding them", async () => {
 	await expect(git("merge", "other")).rejects.toThrow();
 	await writeFile(join(root, "a.txt"), "staged resolution\n");
@@ -138,4 +234,35 @@ it("rejects unstaged tracked edits without including or discarding them", async 
 	expect(await readFile(join(root, "a.txt"), "utf8")).toBe(
 		"later unstaged edit\n"
 	);
+});
+
+it("preserves resolutions after a failing merge hook and allows a reviewed retry", async () => {
+	await expect(git("merge", "other")).rejects.toThrow();
+	await writeFile(join(root, "a.txt"), "resolved\n");
+	await resolveFile("a.txt");
+	const hooks = join(root, ".git", "journey-hooks");
+
+	await mkdir(hooks);
+	await writeFile(join(hooks, "commit-msg"), "#!/bin/sh\nexit 1\n", {
+		mode: 0o700,
+	});
+	await git("config", "core.hooksPath", hooks);
+	const failed = await RepositoryOperation.write(
+		root,
+		await request("continue")
+	);
+
+	expect(failed.ok).toBe(false);
+	expect((await snapshot()).operationState).toBe("merge");
+	expect(await git("show", ":a.txt")).toBe("resolved");
+	expect(await git("rev-parse", "HEAD")).toBe(initialHead);
+	await git("config", "core.hooksPath", "/dev/null");
+	const retried = await RepositoryOperation.write(
+		root,
+		await request("continue")
+	);
+
+	expect(retried.ok).toBe(true);
+	expect((await snapshot()).operationState).toBe("normal");
+	expect(await git("show", "HEAD:a.txt")).toBe("resolved");
 });

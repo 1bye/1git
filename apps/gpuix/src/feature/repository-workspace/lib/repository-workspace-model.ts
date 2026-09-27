@@ -296,7 +296,10 @@ export class RepositoryWorkspaceModel {
 	}
 
 	/** A whole-file action never silently replaces a user's partial staging choice. */
-	static commitBlockReason(state: RepositoryWorkspaceState): string | null {
+	static commitBlockReason(
+		state: RepositoryWorkspaceState,
+		mode: "files" | "staged" = "files"
+	): string | null {
 		if (state.repository?.operation !== "normal" && state.repository)
 			return "Finish the current Git operation before committing here.";
 
@@ -306,6 +309,8 @@ export class RepositoryWorkspaceModel {
 			)
 		)
 			return "Resolve merge conflicts before committing.";
+
+		if (mode === "staged") return null;
 
 		for (const entry of state.entries.changes) {
 			if (!state.includedFileIds.includes(entry.id) || !entry.change) continue;
@@ -320,21 +325,34 @@ export class RepositoryWorkspaceModel {
 				file.indexStatus !== "unmodified" &&
 				file.worktreeStatus !== "unmodified"
 			)
-				return "A selected file is partially staged. Stage or unstage it in Git, then refresh, or uncheck it.";
+				return "A selected file is partially staged. Choose Staged changes to commit its staged edits, or uncheck it.";
 		}
 
 		return null;
 	}
 
-	static canCommit(state: RepositoryWorkspaceState): boolean {
+	static canCommit(
+		state: RepositoryWorkspaceState,
+		mode: "files" | "staged" = "files"
+	): boolean {
 		return (
 			!!state.repository &&
 			!state.preview &&
 			!RepositoryWorkspaceModel.isBusy(state) &&
 			!state.commit.needsReview &&
 			!state.commitMessage.includes("\0") &&
-			RepositoryWorkspaceModel.canPreviewCommit(state) &&
-			!RepositoryWorkspaceModel.commitBlockReason(state)
+			(mode === "staged"
+				? !state.loading &&
+					!state.error &&
+					!!state.commitMessage.split("\n", 1)[0]?.trim() &&
+					state.entries.changes.some(
+						({ change }) =>
+							change &&
+							change.recordType !== "untracked" &&
+							change.indexStatus !== "unmodified"
+					)
+				: RepositoryWorkspaceModel.canPreviewCommit(state)) &&
+			!RepositoryWorkspaceModel.commitBlockReason(state, mode)
 		);
 	}
 

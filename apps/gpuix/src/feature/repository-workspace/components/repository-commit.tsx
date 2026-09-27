@@ -57,9 +57,10 @@ export function RepositoryCommit({
 }: {
 	state: RepositoryWorkspaceState;
 	onAction: (action: RepositoryWorkspaceAction) => void;
-	onCommit?: () => void;
+	onCommit?: (mode: "files" | "staged") => void;
 }) {
 	const [previewed, setPreviewed] = useState(false);
+	const [mode, setMode] = useState<"files" | "staged">("files");
 	const [noticeFocused, setNoticeFocused] = useState(false);
 	const notice = useRef<PublicInstance>(null);
 	const renderer = useGpuixRequired();
@@ -69,15 +70,15 @@ export function RepositoryCommit({
 
 	const canSubmit = sample
 		? canPreview
-		: RepositoryWorkspaceModel.canCommit(state);
+		: RepositoryWorkspaceModel.canCommit(state, mode);
 
 	const blocked = sample
 		? null
-		: RepositoryWorkspaceModel.commitBlockReason(state);
+		: RepositoryWorkspaceModel.commitBlockReason(state, mode);
 
 	const noticeText = !sample
 		? state.commit.pending
-			? "Committing checked files. Please keep the app open."
+			? "Committing. Please keep the app open."
 			: (state.commit.error ?? state.commit.notice ?? blocked)
 		: previewed
 			? "Preview only — no commit created."
@@ -86,24 +87,50 @@ export function RepositoryCommit({
 				: "Preview only · no repository connected";
 
 	const count = state.includedFileIds.length;
-	const label = `Commit ${count} ${count === 1 ? "file" : "files"}`;
+
+	const label =
+		mode === "staged"
+			? "Commit staged changes"
+			: `Commit ${count} ${count === 1 ? "file" : "files"}`;
 
 	const submit = (): void => {
 		if (!canSubmit) return;
 
 		if (sample) setPreviewed(true);
-		else onCommit?.();
+		else onCommit?.(mode);
 	};
 
 	return (
 		<div testId="commit-composer" style={styles.composer}>
+			{!sample ? (
+				<div style={{ display: "flex", flexDirection: "row", gap: 4 }}>
+					{(["files", "staged"] as const).map((value) => (
+						<Button
+							key={value}
+							testId={`commit-mode-${value}`}
+							tokens={appTokens}
+							size="sm"
+							variant={mode === value ? "secondary" : "ghost"}
+							disabled={RepositoryWorkspaceModel.isBusy(state)}
+							onPress={() => setMode(value)}
+						>
+							{value === "files" ? "Checked files" : "Staged changes"}
+						</Button>
+					))}
+				</div>
+			) : null}
+			{mode === "staged" ? (
+				<text style={styles.hint}>
+					Commits all staged changes. File checkboxes are ignored.
+				</text>
+			) : null}
 			<Textarea
 				testId="commit-message"
 				aria-label="Commit message"
 				aria-description={
 					sample
 						? "First line is the summary. Add a blank line for optional details. Command Enter previews; no commit is created."
-						: "First line is the summary. Add a blank line for optional details. Command Enter commits the checked whole files."
+						: `First line is the summary. Command Enter: ${label}.`
 				}
 				placeholder="Commit message…"
 				value={state.commitMessage}
@@ -136,7 +163,9 @@ export function RepositoryCommit({
 					aria-description={
 						sample
 							? "Preview only. Checkbox choices do not stage files and no Git commit will be created."
-							: "Commit the checked whole files. Excluded files and their staging are preserved."
+							: mode === "staged"
+								? "Commit only the index; unstaged changes stay untouched."
+								: "Commit the checked whole files. Excluded files and their staging are preserved."
 					}
 					size="sm"
 					tokens={appTokens}

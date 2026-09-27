@@ -27,7 +27,8 @@ export class SelectedCommit {
 		context: RepositoryContext,
 		input: CommitFilesInput
 	): Promise<CommitFilesResult> {
-		const paths = requireRepositoryPaths(input.paths, "commit");
+		const staged = input.mode === "staged";
+		const paths = staged ? [] : requireRepositoryPaths(input.paths, "commit");
 
 		const message = requireText(
 			input.message.trim(),
@@ -77,10 +78,11 @@ export class SelectedCommit {
 			const snapshot = await loadSnapshot(context, false, input.signal);
 			const selectedPaths = SelectedCommit.paths(snapshot, input, paths);
 
-			await SelectedCommit.checkFilePaths(
-				context.repository.root,
-				selectedPaths
-			);
+			if (!staged)
+				await SelectedCommit.checkFilePaths(
+					context.repository.root,
+					selectedPaths
+				);
 
 			const stagePaths = snapshot.files
 				.filter(
@@ -124,7 +126,7 @@ export class SelectedCommit {
 				await run(["read-tree", "--empty"]);
 			}
 
-			if (stagePaths.length) {
+			if (!staged && stagePaths.length) {
 				await run(
 					[
 						"--literal-pathspecs",
@@ -143,22 +145,26 @@ export class SelectedCommit {
 
 			// External ref updates do not take the index lock. Recheck immediately before the write.
 			SelectedCommit.paths(await loadSnapshot(context), input, paths);
-			await SelectedCommit.checkFilePaths(
-				context.repository.root,
-				selectedPaths
-			);
+
+			if (!staged)
+				await SelectedCommit.checkFilePaths(
+					context.repository.root,
+					selectedPaths
+				);
 
 			try {
 				await run(
-					[
-						"--literal-pathspecs",
-						"commit",
-						"--only",
-						`--pathspec-from-file=${pathFile}`,
-						"--pathspec-file-nul",
-						"-F",
-						"-",
-					],
+					staged
+						? ["commit", "-F", "-"]
+						: [
+								"--literal-pathspecs",
+								"commit",
+								"--only",
+								`--pathspec-from-file=${pathFile}`,
+								"--pathspec-file-nul",
+								"-F",
+								"-",
+							],
 					`${message}\n`
 				);
 				committed = true;
@@ -274,6 +280,20 @@ export class SelectedCommit {
 				"Finish the merge, rebase or conflict resolution before committing here.",
 				"conflict"
 			);
+
+		if (input.mode === "staged") {
+			const staged = snapshot.files.filter(
+				(file) =>
+					file.recordType !== "untracked" &&
+					file.recordType !== "ignored" &&
+					file.indexStatus !== "unmodified"
+			);
+
+			if (!staged.length)
+				throw invalidInput("commit", "Stage changes before committing.");
+
+			return staged.map((file) => file.path);
+		}
 
 		const selected = new Set<string>();
 

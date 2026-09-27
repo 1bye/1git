@@ -16,6 +16,89 @@ import {
 
 const fixtures = new RepositoryFixtures();
 
+it("stages and unstages a reviewed hunk, then commits only the index", async () => {
+	const fixture = await fixtures.create();
+	const lines = Array.from({ length: 30 }, (_, index) => `line ${index}`);
+
+	await fixture.write("partial.txt", `${lines.join("\n")}\n`);
+	await fixture.commitAll("Base");
+	lines[1] = "first change";
+	lines[28] = "second change";
+	const working = `${lines.join("\n")}\n`;
+
+	await fixture.write("partial.txt", working);
+	const patch = unwrapResult(
+		await fixture.repository.getDiff({
+			paths: ["partial.txt"],
+			target: { kind: "working" },
+		})
+	).patch;
+
+	unwrapResult(
+		await fixture.repository.changeHunk({
+			path: "partial.txt",
+			action: "stage",
+			hunkIndex: 0,
+			expectedPatch: patch,
+		})
+	);
+	expect(await fixture.git(["show", ":partial.txt"])).toContain("first change");
+	expect(await fixture.git(["show", ":partial.txt"])).not.toContain(
+		"second change"
+	);
+	expect(
+		(
+			await fixture.repository.changeHunk({
+				path: "partial.txt",
+				action: "stage",
+				hunkIndex: 0,
+				expectedPatch: patch,
+			})
+		).ok
+	).toBe(false);
+	const staged = unwrapResult(
+		await fixture.repository.getDiff({
+			paths: ["partial.txt"],
+			target: { kind: "staged" },
+		})
+	).patch;
+
+	unwrapResult(
+		await fixture.repository.changeHunk({
+			path: "partial.txt",
+			action: "unstage",
+			hunkIndex: 0,
+			expectedPatch: staged,
+		})
+	);
+	expect(await fixture.git(["diff", "--cached"])).toBe("");
+	unwrapResult(
+		await fixture.repository.changeHunk({
+			path: "partial.txt",
+			action: "stage",
+			hunkIndex: 0,
+			expectedPatch: patch,
+		})
+	);
+	const result = unwrapResult(
+		await fixture.repository.commitFiles({
+			...(await input(fixture, [])),
+			mode: "staged",
+		})
+	);
+
+	expect(result.outcome).toBe("committed");
+	expect(await fixture.git(["show", "HEAD:partial.txt"])).toContain(
+		"first change"
+	);
+	expect(await fixture.git(["show", "HEAD:partial.txt"])).not.toContain(
+		"second change"
+	);
+	expect(await fixture.read("partial.txt")).toBe(working);
+	expect(await fixture.git(["diff", "--cached"])).toBe("");
+	expect(await fixture.git(["diff"])).toContain("second change");
+});
+
 afterEach(async () => {
 	await fixtures.cleanup();
 });
