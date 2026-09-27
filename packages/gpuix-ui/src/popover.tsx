@@ -390,27 +390,6 @@ function PopoverSurface({
 						{children}
 					</div>
 				</div>
-				{ready ? (
-					<svg
-						source={`<svg xmlns="http://www.w3.org/2000/svg" width="32" height="10" viewBox="0 0 32 10"><path fill="${tokens.colors.overlay}" d="M0 0H32C22 0 22 10 32 10H0C10 10 10 0 0 0Z"/></svg>`}
-						style={{
-							position: "absolute",
-							left: Math.max(
-								left + 14,
-								Math.min(
-									geometry.x + geometry.width / 2 - 16,
-									left + panelWidth - 46
-								)
-							),
-							top: top
-								? geometry.y - gap - 1
-								: geometry.y + geometry.height - 1,
-							width: 32,
-							height: gap + 2,
-							pointerEvents: "none",
-						}}
-					/>
-				) : null}
 				{trigger && ready ? (
 					<div
 						style={{

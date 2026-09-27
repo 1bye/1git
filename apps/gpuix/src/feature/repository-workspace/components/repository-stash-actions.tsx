@@ -118,7 +118,7 @@ export function RepositoryStashActions({
 	};
 
 	const formContent = form ? (
-		<div style={{ gap: 6 }}>
+		<div style={{ gap: form.request.kind === "create" ? 12 : 6 }}>
 			<text style={styles.label}>
 				{form.request.kind === "create" ? "Stash changes" : "Delete stash?"}
 			</text>
@@ -146,10 +146,6 @@ export function RepositoryStashActions({
 						/>
 						<text style={styles.hint}>Include untracked files</text>
 					</div>
-					<text style={styles.hint}>
-						Saves all tracked changes, regardless of commit checkboxes. Ignored
-						files stay untouched.
-					</text>
 				</>
 			) : (
 				<>
