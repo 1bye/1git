@@ -1,8 +1,56 @@
 # @1git/gpuix-ui
 
 Styled React controls for GPUIX, built with `@1git/gpuix-stylesheet`. Includes
-Button, Checkbox, Text, Textarea, Select, and a native DiffView. Controls use named color and density presets and default
+Button, Checkbox, Text, Textarea, Select, Popover, and a native DiffView. Controls use named color and density presets and default
 to dark colors and comfortable sizing. No theme provider is required.
+
+## Popover
+
+An anchored dialog with a dimmed, input-blocking background and a raised trigger.
+Uses native motion for enter/exit, not a webview or a glass/refraction effect.
+Register `handlePopoverKeyDown` before window shortcuts as shown in Setup below.
+The native Bun runtime provides timers for geometry sampling only while open.
+
+```tsx
+import { Popover, PopoverTrigger, PopoverContent } from "@1git/gpuix-ui/popover";
+
+<Popover open={open} onOpenChange={setOpen} modal>
+  <PopoverTrigger asChild>
+    <Button tokens={tokens}>+ New stash</Button>
+  </PopoverTrigger>
+  <PopoverContent
+    tokens={tokens}
+    aria-label="New stash"
+    side="top"
+    align="end"
+    dismissible={!pending}
+  >
+    <StashForm />
+  </PopoverContent>
+</Popover>
+```
+
+- `Popover`: required controlled `open`, `onOpenChange`, and children; `modal`
+  defaults to true. Modal surfaces dim/block background pointer input and own
+  window keyboard shortcuts. `modal={false}` omits dimming/focus containment;
+  outside clicks still dismiss without activating controls underneath.
+- `PopoverTrigger`: Button props plus `asChild`; defaults to rendering a Button.
+  `asChild` requires one Button-compatible element that forwards `ref` and honors
+  `onPress`, `disabled`, and `tabIndex`. Preserves its handler and appearance.
+- `PopoverContent`: children and required `aria-label`; `side` is `top` (default)
+  or `bottom`, `align` is `start`, `center`, or `end` (default), `width` defaults
+  to 300, `tokens` defaults to package tokens, and `testId` defaults to
+  `popover-content`. It flips to the roomier side, clamps to window edges, and
+  scrolls oversized content. `dismissible` defaults to true; false blocks
+  Escape, outside-click and raised-trigger dismissal, but the owner can still
+  close it programmatically after success.
+- Tab/Shift+Tab stay within modal content. Initial focus goes to its first native
+  tab stop; focus returns to the trigger after the exit animation. GPUIX 0.10's
+  reverse-wrap fallback traverses forward to find the last field, so focus/blur
+  callbacks may run on intermediate controls when wrapping backwards.
+- Mount content unconditionally: `PopoverContent` manages presence so closing
+  can animate. Unmounting the whole feature closes it immediately. The current
+  style targets one active modal layer at a time; nested popovers are not covered.
 
 ## Setup
 
@@ -38,10 +86,12 @@ GPUIX requires the application to bind Tab at the window boundary. Bind it once:
 
 ```tsx
 import { render } from "@gpuix/react";
+import { handlePopoverKeyDown } from "@1git/gpuix-ui/popover";
 
 render(<App />, {
   title: "My app",
   onKeyDown(event, renderer) {
+    if (handlePopoverKeyDown(event, renderer)) return;
     if (event.key !== "tab") return;
     if (event.modifiers?.shift) renderer.focusPrevious?.();
     else renderer.focusNext?.();

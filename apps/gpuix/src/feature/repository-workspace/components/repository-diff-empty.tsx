@@ -119,7 +119,7 @@ export function RepositoryDiffEmpty({
 			hint =
 				revision?.filesLoaded && !revision.files.length
 					? "This stash has no file changes compared with its base."
-					: "Inspect saved tracked and untracked files. Stashes are read-only; apply, pop and drop are not enabled.";
+					: "Save changes with New stash, then inspect, apply or delete saved work here.";
 		} else {
 			if (selected) heading = "Diff preview comes next";
 			else if (workspace.loading) heading = "Reading repository…";

@@ -63,6 +63,10 @@ const click = (id: string) => {
 		bounds.y + bounds.height / 2
 	);
 	root.renderer.flush();
+	root.renderer.clockFastForward(200);
+	root.renderer.flush();
+	root.renderer.advanceTime(1);
+	root.renderer.flush();
 };
 
 const settle = async () => {
@@ -74,6 +78,42 @@ const settle = async () => {
 
 const readStashes = async () => ({ ok: true as const, value: stashList() });
 const readStashFiles = async () => ({ ok: true as const, value: [] });
+
+it("anchors the primary New stash button above the files pane without moving the list when opened", async () => {
+	root.render(
+		<App
+			initialSession={session}
+			readRepository={async () => ({
+				ok: true,
+				value: repositorySnapshot([changedFile("a.ts")]),
+			})}
+			readStashes={readStashes}
+			readStashFiles={readStashFiles}
+		/>
+	);
+	await settle();
+	click("view-stashes");
+	await settle();
+	const before = root.renderer.getElementBounds(node("revision-divider").id);
+	const button = root.renderer.getElementBounds(node("stash-create").id);
+
+	if (!before || !button) throw new Error("Missing stash pane layout");
+
+	expect(button.y + button.height).toBeLessThanOrEqual(before.y);
+	expect(button.x).toBeGreaterThan(before.x + before.width / 2);
+	expect(node("stash-create").style.backgroundColor).toBe("#406bde");
+	click("stash-create");
+	await Bun.sleep(150);
+	root.renderer.flush();
+	expect(root.renderer.getElementBounds(node("revision-divider").id)).toEqual(
+		before
+	);
+	const form = root.renderer.getElementBounds(node("popover-content").id);
+
+	if (!form) throw new Error("Missing popover");
+
+	expect(form.y + form.height).toBeLessThanOrEqual(button.y);
+});
 
 it("creates explicitly with optional untracked files, locks the window and preserves the commit draft", async () => {
 	const pending =
@@ -102,6 +142,8 @@ it("creates explicitly with optional untracked files, locks the window and prese
 	await settle();
 	click("stash-create");
 	click("stash-cancel");
+	await settle();
+	expect(root.renderer.findByTestId("popover-content")).toBeUndefined();
 	expect(write).not.toHaveBeenCalled();
 	click("stash-create");
 	root.renderer.focusElement(node("stash-message").id);
@@ -249,7 +291,7 @@ it("locks sibling worktrees through refresh and blocks writes after a failed ref
 	expect(refreshed.sort()).toEqual(["/test/linked", "/test/project"]);
 	click("workspace-2");
 	click("stash-create");
-	expect(root.renderer.findByTestId("stash-confirm")).toBeUndefined();
+	expect(root.renderer.findByTestId("popover-content")).toBeDefined();
 	expect(write).toHaveBeenCalledTimes(1);
 	pending.resolve();
 	await settle();
@@ -257,6 +299,8 @@ it("locks sibling worktrees through refresh and blocks writes after a failed ref
 	expect(root.renderer.getAllText().join(" ")).toContain(
 		"Refresh to confirm the repository"
 	);
+	click("stash-cancel");
+	click("workspace-2");
 	click("stash-create");
 	expect(root.renderer.findByTestId("stash-confirm")).toBeUndefined();
 	expect(write).toHaveBeenCalledTimes(1);

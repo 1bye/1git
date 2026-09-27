@@ -1,4 +1,5 @@
 import { render } from "@gpuix/react";
+import { handlePopoverKeyDown } from "@1git/gpuix-ui/popover";
 
 import { ExampleApp } from "./app";
 
@@ -8,6 +9,8 @@ render(<ExampleApp />, {
 	width: 1120,
 	height: 800,
 	onKeyDown(event, renderer) {
+		if (handlePopoverKeyDown(event, renderer)) return;
+
 		if (event.key !== "tab") return;
 
 		if (event.modifiers?.shift) renderer.focusPrevious?.();

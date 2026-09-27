@@ -18,6 +18,7 @@ export interface ButtonProps extends Pick<
 	| "onMouseLeave"
 	| "onKeyDown"
 	| "aria-label"
+	| "aria-expanded"
 	| "aria-description"
 	| "aria-id"
 > {

@@ -1,5 +1,10 @@
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { Button } from "@1git/gpuix-ui/button";
+import {
+	Popover,
+	PopoverTrigger,
+	PopoverContent,
+} from "@1git/gpuix-ui/popover";
 import { Checkbox, type CheckboxState } from "@1git/gpuix-ui/checkbox";
 import {
 	Select,
@@ -113,6 +118,7 @@ export function ExampleApp() {
 	const [branch, setBranch] = useState("main");
 	const [included, setIncluded] = useState<CheckboxState>("indeterminate");
 	const [message, setMessage] = useState("");
+	const [popoverOpen, setPopoverOpen] = useState(false);
 
 	const tokens: UiTokens = {
 		colors: palettes[palette],
@@ -319,6 +325,25 @@ export function ExampleApp() {
 					style={{ width: 360 }}
 				/>
 			</div>
+			<Popover open={popoverOpen} onOpenChange={setPopoverOpen} modal>
+				<PopoverTrigger asChild>
+					<Button tokens={tokens}>Open popover</Button>
+				</PopoverTrigger>
+				<PopoverContent
+					tokens={tokens}
+					aria-label="Example popover"
+					side="top"
+					align="start"
+				>
+					<Text tokens={tokens}>An anchored, dimmed surface</Text>
+					<Text tokens={tokens} tone="muted" size="sm">
+						Tab stays inside. Escape or click outside to close.
+					</Text>
+					<Button tokens={tokens} onPress={() => setPopoverOpen(false)}>
+						Done
+					</Button>
+				</PopoverContent>
+			</Popover>
 			<Text tokens={tokens} tone="muted" size="sm">
 				Tab / Shift+Tab to focus · Enter / Space to activate · Arrow keys in
 				Select · Escape to close

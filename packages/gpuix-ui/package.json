@@ -5,6 +5,7 @@
   "description": "Styled React controls for GPUIX",
   "type": "module",
   "exports": {
+    "./popover": "./src/popover.tsx",
     "./button": "./src/button.tsx",
     "./checkbox": "./src/checkbox.tsx",
     "./diff-view": "./src/diff-view.tsx",

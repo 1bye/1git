@@ -4,7 +4,7 @@
     "jsx": "react-jsx",
     "jsxImportSource": "@gpuix/react",
     "lib": ["ESNext"],
-    "types": ["react"]
+    "types": ["react", "bun"]
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"],
   "exclude": ["node_modules", "dist"]

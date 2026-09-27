@@ -385,6 +385,11 @@ the Turbo build/dev tasks build dependencies first. No Electron IPC is involved.
   explicit states and retry controls. Reading never changes the index, working tree
   or stash reflog.
 - **Stash changes…** in Changes and **New stash** in Stashes open a compact form
+  in a dimmed, anchored popover. New stash is a primary button fixed at the
+  lower-right of the Saved work pane, above Stashed files. The form opens above
+  it without moving the list, with native opening/closing animation, contained
+  keyboard focus and Escape/outside-click dismissal (blocked during writes).
+  The form comes
   with an optional message and an opt-in untracked-files checkbox. Creation saves
   all tracked changes, independently of the commit checkboxes; ignored files stay
   untouched. Unborn repositories and changed submodules are not supported.

@@ -388,13 +388,6 @@ export function RepositoryNavigation({
 						<text style={styles.faint}>{state.entries[view].length}</text>
 					)}
 				</div>
-				{view === "stashes" && state.repository && onStash ? (
-					<RepositoryStashActions
-						state={state}
-						placement="create"
-						onWrite={onStash}
-					/>
-				) : null}
 				{view === "changes" ? (
 					list
 				) : (
@@ -411,6 +404,13 @@ export function RepositoryNavigation({
 							<RepositoryStashActions
 								state={state}
 								placement="selection"
+								onWrite={onStash}
+							/>
+						) : null}
+						{view === "stashes" && state.repository && onStash ? (
+							<RepositoryStashActions
+								state={state}
+								placement="create"
 								onWrite={onStash}
 							/>
 						) : null}
