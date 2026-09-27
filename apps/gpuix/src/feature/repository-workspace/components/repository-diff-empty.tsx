@@ -10,6 +10,7 @@ import type {
 import type { RepositoryWorkspaceState } from "../lib/repository-workspace-model";
 import { appTokens } from "../../../styles/tokens";
 import { RepositoryIcon } from "./repository-icon";
+import { ComparisonArtwork } from "../../../fixture/comparison-artwork";
 
 const styles = StyleSheet.create({
 	header: {
@@ -134,6 +135,10 @@ export function RepositoryDiffEmpty({
 		}
 	}
 
+	const clean = heading === "Working tree clean";
+
+	if (clean) hint = "No uncommitted changes.";
+
 	return (
 		<>
 			{selected ? (
@@ -147,7 +152,11 @@ export function RepositoryDiffEmpty({
 				</div>
 			) : null}
 			<div testId="diff-empty" style={styles.empty}>
-				<RepositoryIcon name="diff" />
+				{clean ? (
+					<ComparisonArtwork name="empty" />
+				) : (
+					<RepositoryIcon name="diff" />
+				)}
 				<text style={styles.heading}>{heading}</text>
 				<text style={styles.hint}>{hint}</text>
 				{workspace && !workspace.preview && !workspace.repository ? (

@@ -13,6 +13,7 @@ import {
 } from "../lib/repository-workspace-model";
 import { repositoryViews, type RepositoryView } from "../types";
 import { RepositoryList } from "./repository-list";
+import { EmptyListPlaceholder } from "../../../fixture/empty-list-placeholder";
 import { RepositoryCommit } from "./repository-commit";
 import { RepositoryRevisions } from "./repository-revisions";
 import { appTokens } from "../../../styles/tokens";
@@ -275,6 +276,16 @@ export function RepositoryNavigation({
 					: view === "history"
 						? "Commit history"
 						: "Saved stashes"
+			}
+			emptyContent={
+				view === "changes" &&
+				!filtering &&
+				!state.preview &&
+				state.repository &&
+				!state.loading &&
+				!state.error ? (
+					<EmptyListPlaceholder />
+				) : undefined
 			}
 			emptyMessage={
 				historySearching

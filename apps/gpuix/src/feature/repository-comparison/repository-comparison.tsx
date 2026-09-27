@@ -20,7 +20,8 @@ import { RepositoryDiff as DiffReader } from "../repository-workspace/lib/reposi
 import { RepositoryDiff } from "../repository-workspace/components/repository-diff";
 import { RepositoryList } from "../repository-workspace/components/repository-list";
 import type { WorkspaceEntry } from "../repository-workspace/types";
-import { ComparisonArtwork } from "./components/comparison-artwork";
+import { ComparisonArtwork } from "../../fixture/comparison-artwork";
+import { EmptyListPlaceholder } from "../../fixture/empty-list-placeholder";
 
 const styles = StyleSheet.create({
 	empty: {
@@ -32,18 +33,6 @@ const styles = StyleSheet.create({
 		justifyContent: "center",
 		gap: 10,
 		padding: 24,
-	},
-	placeholder: {
-		display: "flex",
-		flexDirection: "column",
-		gap: 12,
-		padding: 14,
-		opacity: 0.45,
-	},
-	placeholderLine: {
-		height: 6,
-		borderRadius: 3,
-		backgroundColor: appTokens.colors.border,
 	},
 	root: {
 		display: "flex",
@@ -227,12 +216,12 @@ export function RepositoryComparison({
 							<Text tokens={appTokens} style={styles.label}>
 								Incoming commits
 							</Text>
-							<ComparisonPlaceholder />
+							<EmptyListPlaceholder />
 						</div>
 						<Text tokens={appTokens} style={styles.label}>
 							Changed files
 						</Text>
-						<ComparisonPlaceholder />
+						<EmptyListPlaceholder />
 					</div>
 					<div testId="comparison-preview" style={styles.preview}>
 						<div testId="comparison-empty" style={styles.empty}>
@@ -252,28 +241,6 @@ export function RepositoryComparison({
 					</div>
 				</div>
 			)}
-		</div>
-	);
-}
-
-function ComparisonPlaceholder() {
-	return (
-		<div aria-hidden style={styles.placeholder}>
-			<div
-				style={StyleSheet.compose(styles.placeholderLine, { width: "70%" })}
-			/>
-			<div
-				style={StyleSheet.compose(styles.placeholderLine, { width: "45%" })}
-			/>
-			<div
-				style={StyleSheet.compose(styles.placeholderLine, {
-					width: "60%",
-					marginTop: 8,
-				})}
-			/>
-			<div
-				style={StyleSheet.compose(styles.placeholderLine, { width: "35%" })}
-			/>
 		</div>
 	);
 }

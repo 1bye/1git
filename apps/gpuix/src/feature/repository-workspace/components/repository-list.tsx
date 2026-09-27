@@ -6,7 +6,7 @@ import {
 	type EventPayload,
 	type PublicInstance,
 } from "@gpuix/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import {
 	RepositoryWorkspaceModel,
@@ -226,6 +226,7 @@ export function RepositoryList({
 	label,
 	testId = "repository-list",
 	emptyMessage,
+	emptyContent,
 	state,
 	inclusion,
 	onSelect,
@@ -237,6 +238,7 @@ export function RepositoryList({
 	label: string;
 	testId?: string;
 	emptyMessage: string;
+	emptyContent?: ReactNode;
 	state: RepositoryListState;
 	inclusion?: {
 		ids: readonly string[];
@@ -374,9 +376,13 @@ export function RepositoryList({
 			style={styles.viewport}
 		>
 			<div style={styles.list}>
-				{entries.length === 0 ? (
-					<text style={{ ...styles.detail, padding: 14 }}>{emptyMessage}</text>
-				) : null}
+				{entries.length === 0
+					? (emptyContent ?? (
+							<text style={{ ...styles.detail, padding: 14 }}>
+								{emptyMessage}
+							</text>
+						))
+					: null}
 				{entries.map((entry) => (
 					<RepositoryRow
 						key={entry.id}

@@ -12,8 +12,53 @@ import { createTestRoot, type TestRoot } from "@gpuix/react/testing";
 import { App } from "../../src/app";
 import { windowOptions } from "../../src/window-options";
 import { sampleEntries } from "../../src/feature/repository-workspace/lib/sample-workspace";
+import { RepositoryWorkspaceModel } from "../../src/feature/repository-workspace/lib/repository-workspace-model";
+import { RepositoryNavigation } from "../../src/feature/repository-workspace/components/repository-navigation";
+import { RepositoryDiffEmpty } from "../../src/feature/repository-workspace/components/repository-diff-empty";
+import { repositorySnapshot } from "../_shared/repository-snapshot";
 
 let root: TestRoot;
+
+it("decorates a clean working tree without disguising refresh errors as an empty list", () => {
+	const state = RepositoryWorkspaceModel.reduce(
+		RepositoryWorkspaceModel.create(),
+		{ type: "loaded", snapshot: repositorySnapshot() }
+	);
+
+	const render = (error: string | null) => {
+		const workspace = { ...state, error };
+
+		root.render(
+			<div
+				style={{
+					display: "flex",
+					flexDirection: "row",
+					width: "100%",
+					height: "100%",
+					backgroundColor: "#ffffff",
+				}}
+			>
+				<RepositoryNavigation
+					workspaceId="clean"
+					state={workspace}
+					onAction={() => {}}
+					onRefresh={() => {}}
+				/>
+				<RepositoryDiffEmpty workspace={workspace} />
+			</div>
+		);
+	};
+
+	render(null);
+	expect(element("empty-list-placeholder")).toBeDefined();
+	expect(element("comparison-art-empty")).toBeDefined();
+	expect(root.renderer.getAllText()).toContain("No uncommitted changes.");
+	expect(bounds("comparison-art-empty").width).toBe(160);
+	render("Refresh failed");
+	expect(root.renderer.findByTestId("empty-list-placeholder")).toBeUndefined();
+	expect(root.renderer.findByTestId("comparison-art-empty")).toBeUndefined();
+	expect(root.renderer.getAllText()).toContain("Could not refresh repository");
+});
 
 beforeEach(() => {
 	root = createTestRoot({

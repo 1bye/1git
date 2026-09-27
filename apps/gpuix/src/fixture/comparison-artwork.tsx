@@ -1,4 +1,4 @@
-import { appTokens } from "../../../styles/tokens";
+import { appTokens } from "../styles/tokens";
 
 // Monochrome strokes use the same 256-unit, 8-unit thin weight as Phosphor Thin.
 const sources = {
