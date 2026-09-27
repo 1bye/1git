@@ -461,8 +461,8 @@ Reading a diff never stages, unstages, discards or commits changes.
 - **Mark resolved** stages only the reviewed file. It rechecks HEAD/branch,
   conflict status, regular-file safety, UTF-8 content, remaining marker lines,
   and the preview's content hash. It does not commit, continue/abort a merge or
-  rebase, choose a side, or delete the stash. Complete ongoing Git operations
-  outside the app for now; stash conflicts without an ongoing operation can
+  rebase, choose a side, or delete the stash. Use the separate operation controls
+  after resolving conflicts; stash conflicts without an ongoing operation can
   return to the normal commit flow after resolution.
 - Binary, deleted, symbolic-link, submodule and oversized conflicts require
   external Git resolution. Text previews/resolution are limited to 512 KiB.
@@ -471,6 +471,22 @@ Reading a diff never stages, unstages, discards or commits changes.
   refresh finish. Failures retain the draft and refresh the index state. A failed
   refresh blocks further writes. External editors/Git processes are not locked;
   avoid concurrent writes while marking a file resolved.
+
+### Merge and rebase completion
+
+- Changes shows the active merge/rebase, conflict count, **Continue** and **Abort…**.
+- Continue uses Git's staged resolutions and existing message, retaining hooks
+  and signing. It never stages files or uses the commit-inclusion checkboxes.
+  Unresolved conflicts or unstaged tracked edits block continuation.
+- Abort requires confirmation: Git attempts to restore the pre-operation state,
+  and conflict-resolution edits may be lost.
+- Both actions recheck HEAD, branch and an operation-metadata fingerprint.
+  Results are refreshed even on failure: a rebase may stop at another conflict.
+  Closing and competing app writes remain blocked through the refresh; a failed
+  refresh blocks further writes until the repository is reviewed again.
+- Skip, interactive rebase editing, cherry-pick/revert completion and cancellation
+  of an in-flight local Git command remain external workflows. External Git
+  processes are not locked; avoid concurrent writes.
 
 ### Image previews
 

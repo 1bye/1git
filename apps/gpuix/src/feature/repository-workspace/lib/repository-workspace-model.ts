@@ -50,6 +50,11 @@ export interface RepositoryWorkspaceState {
 	readonly repositoryPath: string | null;
 	readonly branchPending: boolean;
 	readonly conflictPending: boolean;
+	readonly operationMutation: {
+		readonly pending: boolean;
+		readonly error: string | null;
+		readonly notice: string | null;
+	};
 	readonly stashMutation: {
 		readonly pending: StashRequest["kind"] | null;
 		readonly error: string | null;
@@ -72,6 +77,7 @@ export interface RepositoryWorkspaceState {
 		readonly head: string | null;
 		readonly branchName: string | null;
 		readonly operation: RepositoryOperationState;
+		readonly operationToken?: string;
 	} | null;
 	readonly commit: {
 		readonly pending: boolean;
@@ -103,6 +109,14 @@ export interface RepositoryWorkspaceState {
 
 /** Presentation transitions; no filesystem, Git mutations, or persistent storage effects. */
 export type RepositoryWorkspaceAction =
+	| { type: "operation-started" }
+	| {
+			type: "operation-finished";
+			snapshot?: RepositorySnapshot;
+			error: string | null;
+			refreshError?: string;
+			notice?: string;
+	  }
 	| { type: "stash-started"; kind: StashRequest["kind"] }
 	| {
 			type: "stash-finished";
@@ -206,6 +220,7 @@ export class RepositoryWorkspaceModel {
 			repositoryPath: null,
 			branchPending: false,
 			conflictPending: false,
+			operationMutation: { pending: false, error: null, notice: null },
 			stashMutation: { pending: null, error: null, notice: null },
 			sync: {
 				pending: null,
@@ -301,6 +316,7 @@ export class RepositoryWorkspaceModel {
 			state.commit.pending ||
 			state.branchPending ||
 			state.conflictPending ||
+			state.operationMutation.pending ||
 			state.sync.pending !== null ||
 			state.stashMutation.pending !== null
 		);
@@ -381,6 +397,35 @@ export class RepositoryWorkspaceModel {
 				},
 			};
 
+			const refreshed = action.snapshot
+				? RepositoryWorkspaceModel.reduce(next, {
+						type: "loaded",
+						snapshot: action.snapshot,
+						automatic: true,
+					})
+				: next;
+
+			return action.refreshError
+				? { ...refreshed, error: action.refreshError }
+				: refreshed;
+		}
+
+		if (action.type === "operation-started")
+			return {
+				...state,
+				loading: false,
+				operationMutation: { pending: true, error: null, notice: null },
+			};
+
+		if (action.type === "operation-finished") {
+			const next = {
+				...state,
+				operationMutation: {
+					pending: false,
+					error: action.error,
+					notice: action.notice ?? null,
+				},
+			};
 			const refreshed = action.snapshot
 				? RepositoryWorkspaceModel.reduce(next, {
 						type: "loaded",
@@ -765,6 +810,7 @@ export class RepositoryWorkspaceModel {
 					head: snapshot.head.oid,
 					branchName: snapshot.head.branch,
 					operation: snapshot.operationState,
+					operationToken: snapshot.operationToken,
 				},
 				commit: {
 					...state.commit,

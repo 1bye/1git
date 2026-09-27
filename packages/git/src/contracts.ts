@@ -175,6 +175,8 @@ export interface RepositorySnapshot {
 	readonly files: readonly FileChange[];
 	readonly head: HeadState;
 	readonly operationState: RepositoryOperationState;
+	/** Fingerprint of active merge/rebase metadata, used to reject stale operation actions. */
+	readonly operationToken?: string;
 	readonly repository: RepositoryInfo;
 	readonly stashCount: number;
 }
@@ -426,6 +428,15 @@ export interface ResolveConflictInput extends GitCallOptions {
 	readonly expectedHead: string | null;
 	readonly expectedBranch: string | null;
 	readonly expectedContentHash: string;
+}
+
+/** Reviewed operation identity; abort requires a separate explicit user confirmation at the UI boundary. */
+export interface FinishOperationInput extends GitCallOptions {
+	readonly kind: "continue" | "abort";
+	readonly expectedOperation: "merge" | "rebase";
+	readonly expectedHead: string | null;
+	readonly expectedBranch: string | null;
+	readonly expectedToken: string;
 }
 
 export type HunkAction = "discard" | "stage" | "unstage";

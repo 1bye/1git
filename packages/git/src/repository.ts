@@ -65,6 +65,7 @@ import type {
 	SnapshotInput,
 	StageInput,
 	ResolveConflictInput,
+	FinishOperationInput,
 	StashInfo,
 	StashInput,
 	StashReferenceInput,
@@ -1328,6 +1329,57 @@ export class GitRepository {
 
 			args.push(requireRevision(input.revision, "Revision", "merge"));
 			await this.run(args, input.signal);
+
+			return await loadSnapshot(this.context, false, input.signal);
+		});
+	}
+
+	/** Finishes only the reviewed operation; continuation uses Git's existing message and never stages files implicitly. */
+	async finishOperation(
+		input: FinishOperationInput
+	): Promise<GitResult<RepositorySnapshot>> {
+		const operation = `${input.kind}-${input.expectedOperation}` as const;
+
+		return await this.mutate(operation, input.signal, async () => {
+			const snapshot = await loadSnapshot(this.context, false, input.signal);
+
+			if (
+				snapshot.operationState !== input.expectedOperation ||
+				snapshot.head.oid !== input.expectedHead ||
+				snapshot.head.branch !== input.expectedBranch ||
+				!input.expectedToken ||
+				snapshot.operationToken !== input.expectedToken
+			)
+				throw invalidInput(
+					operation,
+					"The Git operation changed. Refresh and review it before trying again."
+				);
+
+			if (input.kind === "continue") {
+				if (snapshot.files.some((file) => file.recordType === "unmerged"))
+					throw invalidInput(
+						operation,
+						"Resolve and stage all conflicted files before continuing."
+					);
+
+				if (
+					snapshot.files.some(
+						(file) =>
+							file.recordType !== "untracked" &&
+							file.recordType !== "ignored" &&
+							file.worktreeStatus !== "unmodified"
+					)
+				)
+					throw invalidInput(
+						operation,
+						"Unstaged tracked changes remain. Review and stage them outside the app before continuing."
+					);
+			}
+
+			await this.run(
+				[input.expectedOperation, `--${input.kind}`],
+				input.signal
+			);
 
 			return await loadSnapshot(this.context, false, input.signal);
 		});

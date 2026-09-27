@@ -20,6 +20,8 @@ import type { useRepositoryStashes } from "../hooks/use-repository-stashes";
 import { RepositoryReadNotice } from "./repository-read-notice";
 import { RepositoryStashActions } from "./repository-stash-actions";
 import type { StashWriteRequest } from "../lib/repository-stashes";
+import type { FinishOperationInput } from "@1git/git";
+import { RepositoryOperation } from "./repository-operation";
 
 const styles = StyleSheet.create({
 	navigation: {
@@ -138,6 +140,7 @@ export function RepositoryNavigation({
 	stashes,
 	onCommit,
 	onStash,
+	onOperation,
 }: {
 	workspaceId: string;
 	state: RepositoryWorkspaceState;
@@ -147,6 +150,7 @@ export function RepositoryNavigation({
 	stashes?: ReturnType<typeof useRepositoryStashes>;
 	onCommit?: () => void;
 	onStash?: (request: StashWriteRequest) => Promise<boolean>;
+	onOperation?: (request: FinishOperationInput) => Promise<string | null>;
 }) {
 	const renderer = useGpuixRequired();
 	const pills = useRef(new Map<RepositoryView, PublicInstance>());
@@ -345,6 +349,9 @@ export function RepositoryNavigation({
 				</text>
 			) : null}
 			<div role="tabpanel" aria-label={label} style={styles.viewContent}>
+				{view === "changes" && onOperation ? (
+					<RepositoryOperation state={state} onWrite={onOperation} />
+				) : null}
 				{state.stashMutation.error ||
 				state.stashMutation.notice ||
 				state.stashMutation.pending ? (

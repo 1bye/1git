@@ -1,4 +1,5 @@
 import { access, readFile, realpath, stat } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { isAbsolute, join, relative, resolve } from "node:path";
 
 import type {
@@ -61,12 +62,12 @@ const loadOperationState = async (
 			pathExists(join(gitDirectory, "REVERT_HEAD")),
 		]);
 
-	if (merge) {
-		return "merge";
-	}
-
 	if (rebaseMerge || rebaseApply) {
 		return "rebase";
+	}
+
+	if (merge) {
+		return "merge";
 	}
 
 	if (cherryPick) {
@@ -78,6 +79,43 @@ const loadOperationState = async (
 	}
 
 	return "normal";
+};
+
+const operationToken = async (
+	directory: string,
+	operation: RepositoryOperationState
+): Promise<string | undefined> => {
+	if (operation !== "merge" && operation !== "rebase") return undefined;
+
+	const files =
+		operation === "merge"
+			? ["MERGE_HEAD", "ORIG_HEAD"]
+			: ["rebase-merge", "rebase-apply"].flatMap((folder) =>
+					[
+						"head-name",
+						"orig-head",
+						"onto",
+						"stopped-sha",
+						"msgnum",
+						"next",
+						"last",
+					].map((name) => `${folder}/${name}`)
+				);
+
+	const hash = createHash("sha256").update(operation);
+
+	for (const file of files) {
+		try {
+			hash.update(file).update(await readFile(join(directory, file)));
+		} catch (error) {
+			if (
+				!(error instanceof Error && "code" in error && error.code === "ENOENT")
+			)
+				throw error;
+		}
+	}
+
+	return hash.digest("hex");
 };
 
 /** Loads the complete working-copy state from porcelain status. */
@@ -115,6 +153,14 @@ export const loadSnapshot = async (
 		files: status.files,
 		head: status.head,
 		operationState,
+		...(operationState === "merge" || operationState === "rebase"
+			? {
+					operationToken: await operationToken(
+						context.repository.gitDirectory,
+						operationState
+					),
+				}
+			: {}),
 		repository: context.repository,
 		stashCount: status.stashCount,
 	};

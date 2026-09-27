@@ -25,6 +25,7 @@ import { RepositoryCommit } from "./feature/repository-workspace/lib/repository-
 import { RepositoryCloseNotice } from "./feature/repository-workspace/components/repository-close-notice";
 import { RepositorySync } from "./feature/repository-workspace/lib/repository-sync";
 import { RepositoryConflicts } from "./feature/repository-workspace/lib/repository-conflicts";
+import { RepositoryOperation } from "./feature/repository-workspace/lib/repository-operation";
 import {
 	RepositoryWorkspaceModel,
 	type RepositoryWorkspaceAction,
@@ -55,6 +56,7 @@ export function App({
 	watchRepository,
 	resolveConflict = RepositoryConflicts.write,
 	openConflictEditor = RepositoryConflicts.openEditor,
+	writeOperation = RepositoryOperation.write,
 }: {
 	initialTabCount?: number;
 	preview?: boolean;
@@ -76,6 +78,7 @@ export function App({
 	watchRepository?: typeof RepositoryWatcher.watch;
 	resolveConflict?: typeof RepositoryConflicts.write;
 	openConflictEditor?: typeof RepositoryConflicts.openEditor;
+	writeOperation?: typeof RepositoryOperation.write;
 }) {
 	const [state, dispatch] = useReducer(
 		WorkspaceTabsModel.reduce,
@@ -104,7 +107,8 @@ export function App({
 		writeSyncRepository,
 		session.retry,
 		writeStash,
-		resolveConflict
+		resolveConflict,
+		writeOperation
 	);
 
 	useRepositoryAutoRefresh(state, dispatch, readRepository, watchRepository);
@@ -165,6 +169,9 @@ export function App({
 							void mutations.commit(activeTab.id);
 						}}
 						onStash={(request) => mutations.stash(activeTab.id, request)}
+						onOperation={(request) =>
+							mutations.finishOperation(activeTab.id, request)
+						}
 						onRefresh={() => {
 							void connection.refresh(activeTab.id);
 						}}

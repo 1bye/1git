@@ -55,13 +55,15 @@ export function RepositoryCloseNotice({
 						{`${name} · ${
 							workspace.commit.pending
 								? "Committing…"
-								: workspace.conflictPending
-									? "Resolving conflict…"
-									: workspace.branchPending
-										? "Changing branch…"
-										: workspace.stashMutation.pending
-											? `Stash ${workspace.stashMutation.pending} in progress…`
-											: `${workspace.sync.pending} in progress…`
+								: workspace.operationMutation.pending
+									? "Updating merge/rebase…"
+									: workspace.conflictPending
+										? "Resolving conflict…"
+										: workspace.branchPending
+											? "Changing branch…"
+											: workspace.stashMutation.pending
+												? `Stash ${workspace.stashMutation.pending} in progress…`
+												: `${workspace.sync.pending} in progress…`
 						}`}
 					</text>
 					{workspace.sync.pending ? (

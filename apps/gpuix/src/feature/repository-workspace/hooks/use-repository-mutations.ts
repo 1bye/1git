@@ -10,6 +10,8 @@ import {
 } from "../lib/repository-workspace-model";
 import { RepositoryCommit } from "../lib/repository-commit";
 import { RepositoryConflicts } from "../lib/repository-conflicts";
+import { RepositoryOperation } from "../lib/repository-operation";
+import type { FinishOperationInput, RepositorySnapshot } from "@1git/git";
 import { useCloseProtection } from "./use-close-protection";
 import {
 	RepositoryStashes,
@@ -38,7 +40,8 @@ export function useRepositoryMutations(
 	writeSyncRepository = RepositorySync.write,
 	beforeCloseRelease?: () => void,
 	writeStash = RepositoryStashes.write,
-	resolveConflict = RepositoryConflicts.write
+	resolveConflict = RepositoryConflicts.write,
+	writeOperation = RepositoryOperation.write
 ) {
 	const closeProtection = useCloseProtection(
 		state.tabs.some((tab) => RepositoryWorkspaceModel.isBusy(tab.workspace)),
@@ -49,7 +52,13 @@ export function useRepositoryMutations(
 	const tabs = useRef(state.tabs);
 
 	const pending = useRef(
-		new Map<string, "commit-started" | "branch-started" | "conflict-started">()
+		new Map<
+			string,
+			| "commit-started"
+			| "branch-started"
+			| "conflict-started"
+			| "operation-started"
+		>()
 	);
 
 	const mounted = useRef(true);
@@ -570,10 +579,11 @@ export function useRepositoryMutations(
 			syncs.current.get(repository.commonDirectory)?.controller.abort();
 	};
 
-	const resolve = async (
+	const updateWorktree = async (
 		id: string,
-		path: string,
-		expectedContentHash: string
+		request:
+			| FinishOperationInput
+			| { kind: "resolve"; path: string; expectedContentHash: string }
 	): Promise<string | null> => {
 		const workspace = tabs.current.find((tab) => tab.id === id)?.workspace;
 		const repository = workspace?.repository;
@@ -590,7 +600,7 @@ export function useRepositoryMutations(
 			syncs.current.has(repository.commonDirectory) ||
 			stashWrites.current.has(repository.commonDirectory)
 		)
-			return "Wait for the current operation or refresh before resolving this file.";
+			return "Wait for the current operation or refresh before continuing.";
 
 		const send = (action: RepositoryWorkspaceAction) => {
 			if (!mounted.current) return;
@@ -601,24 +611,51 @@ export function useRepositoryMutations(
 			}
 		};
 
-		pending.current.set(repository.root, "conflict-started");
+		const started =
+			request.kind === "resolve" ? "conflict-started" : "operation-started";
+
+		pending.current.set(repository.root, started);
 		closeProtection.block();
-		send({ type: "conflict-started" });
+		send({ type: started });
 		let error: string | null = null;
 
 		try {
-			const result = await resolveConflict(repository.root, {
-				path,
-				expectedContentHash,
-				expectedHead: repository.head,
-				expectedBranch: repository.branchName,
-			});
+			const result =
+				request.kind === "resolve"
+					? await resolveConflict(repository.root, {
+							path: request.path,
+							expectedContentHash: request.expectedContentHash,
+							expectedHead: repository.head,
+							expectedBranch: repository.branchName,
+						})
+					: await writeOperation(repository.root, request);
 
 			if (!result.ok) error = result.error.message;
 		} catch {
 			error =
-				"Could not confirm the resolution. Refresh and inspect Changes before retrying.";
+				"Could not confirm the Git action. Refresh and inspect Changes and History before retrying.";
 		}
+
+		const finish = (snapshot?: RepositorySnapshot, refreshError?: string) => {
+			pending.current.delete(repository.root);
+
+			if (request.kind === "resolve")
+				send({ type: "conflict-finished", snapshot, error: refreshError });
+			else
+				send({
+					type: "operation-finished",
+					snapshot,
+					error,
+					refreshError,
+					notice: error
+						? undefined
+						: request.kind === "abort"
+							? "Operation aborted."
+							: snapshot?.operationState === "normal"
+								? "Operation completed."
+								: "Git paused again. Review the current operation before continuing.",
+				});
+		};
 
 		try {
 			const fresh = await readRepository(
@@ -626,25 +663,23 @@ export function useRepositoryMutations(
 				new AbortController().signal
 			);
 
-			pending.current.delete(repository.root);
-			send(
-				fresh.ok
-					? { type: "conflict-finished", snapshot: fresh.value }
-					: { type: "conflict-finished", error: fresh.error.message }
-			);
+			if (fresh.ok) finish(fresh.value);
+			else finish(undefined, fresh.error.message);
 
 			if (!fresh.ok) error = fresh.error.message;
 		} catch {
-			pending.current.delete(repository.root);
-			error = "Refresh to confirm the repository after resolving this file.";
-			send({ type: "conflict-finished", error });
+			error = "Refresh to confirm the repository after the Git action.";
+			finish(undefined, error);
 		}
 
 		return error;
 	};
 
 	return {
-		resolve,
+		resolve: (id: string, path: string, expectedContentHash: string) =>
+			updateWorktree(id, { kind: "resolve", path, expectedContentHash }),
+		finishOperation: (id: string, request: FinishOperationInput) =>
+			updateWorktree(id, request),
 		closeProtection,
 		stash,
 		commit,
