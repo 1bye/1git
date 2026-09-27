@@ -22,6 +22,29 @@ const commitTime = (value: string | null): number => {
 export class WorkspaceMenuModel {
 	private constructor() {}
 
+	/** Keep remote choices only when no local branch already tracks that ref. */
+	static untrackedRemoteBranches(
+		collection: BranchCollection | undefined
+	): BranchInfo[] {
+		const branches = collection?.branches ?? [];
+
+		const upstreams = new Set(
+			branches
+				.filter(
+					(branch) => branch.type === "local" && branch.upstreamRemote !== "."
+				)
+				.map((branch) => branch.upstream)
+		);
+
+		return branches.filter(
+			(branch) =>
+				branch.type === "remote" &&
+				!upstreams.has(branch.name) &&
+				!upstreams.has(branch.fullName) &&
+				!upstreams.has(branch.fullName.replace(/^refs\//, ""))
+		);
+	}
+
 	static recentBranches(
 		collection: BranchCollection | undefined
 	): BranchInfo[] {

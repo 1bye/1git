@@ -11,12 +11,16 @@ import {
 	ComboboxItem,
 } from "@gpuix/react/combobox";
 import { appTokens } from "../../../styles/tokens";
-import type { WorkspaceBranches } from "../lib/repository-branches";
+import {
+	RepositoryBranches,
+	type WorkspaceBranches,
+} from "../lib/repository-branches";
 import {
 	RepositoryWorktrees,
 	type WorktreeChoice,
 } from "../lib/repository-worktrees";
 import { WorkspaceTabIcon } from "./workspace-tab-icon";
+import { WorkspaceMenuModel } from "../lib/workspace-menu-model";
 
 const { colors } = appTokens;
 const folderUnsafeCharacters = /[^\p{L}\p{N}._-]+/gu;
@@ -153,23 +157,40 @@ export function WorkspaceWorktreeForm({
 	}, [renderer]);
 	const disabled = busy || picking;
 
-	const branches = data.branches.branches.filter(
-		(item) => item.type === "local"
-	);
+	const branches = [
+		...data.branches.branches.filter((item) => item.type === "local"),
+		...WorkspaceMenuModel.untrackedRemoteBranches(data.branches),
+	].map((item) => ({
+		item,
+		value:
+			item.type === "remote" &&
+			data.branches.branches.some(
+				(local) => local.type === "local" && local.name === item.name
+			)
+				? `${item.name} (remote)`
+				: item.name,
+	}));
 
 	const branch = name.trim();
-	const existing = branches.find((item) => item.name === branch);
+	const existing = branches.find((choice) => choice.value === branch)?.item;
+	const remote = existing?.type === "remote" ? existing : null;
+
+	const remoteTarget = remote
+		? RepositoryBranches.remoteTarget(remote, data.branches)
+		: null;
 
 	const occupied =
 		!!existing && (existing.checkedOut || !!existing.worktreePath);
 
-	const branchError = RepositoryWorktrees.branchNameError(branch);
+	const branchError = remoteTarget
+		? remoteTarget.error
+		: RepositoryWorktrees.branchNameError(branch);
 
-	const matches = branches.filter((item) =>
-		item.name.toLowerCase().includes(branch.toLowerCase())
+	const matches = branches.filter((choice) =>
+		choice.value.toLowerCase().includes(branch.toLowerCase())
 	);
 
-	const suggestions = matches.map((item) => item.name);
+	const suggestions = matches.map((choice) => choice.value);
 
 	if (branch && !existing && !branchError) suggestions.push(branch);
 
@@ -178,11 +199,13 @@ export function WorkspaceWorktreeForm({
 			? "Already used by this workspace."
 			: "Already open in another worktree."
 		: (branchError ??
-			(existing
-				? "Uses existing branch."
-				: branch
-					? `Creates a new branch from ${data.branches.current ?? "HEAD"}.`
-					: "Choose an existing branch or enter a new name."));
+			(remoteTarget
+				? `Creates “${remoteTarget.name}” tracking ${remote?.name}.`
+				: existing
+					? "Uses existing branch."
+					: branch
+						? `Creates a new branch from ${data.branches.current ?? "HEAD"}.`
+						: "Choose an existing branch or enter a new name."));
 
 	const suffix = basename(branch || "worktree").replace(
 		folderUnsafeCharacters,
@@ -219,8 +242,8 @@ export function WorkspaceWorktreeForm({
 	const submit = (): void => {
 		if (canCreate && branch)
 			void onCreate({
-				kind: existing ? "existing" : "new",
-				branch,
+				kind: remote ? "remote" : existing ? "existing" : "new",
+				branch: remote?.fullName ?? branch,
 				path,
 			});
 	};
@@ -265,11 +288,16 @@ export function WorkspaceWorktreeForm({
 					<ComboboxContent role="listbox" sideOffset={4} style={styles.options}>
 						{suggestions.map((value) => {
 							const item = branches.find(
-								(candidate) => candidate.name === value
-							);
+								(candidate) => candidate.value === value
+							)?.item;
 
 							const unavailable =
-								!!item && (item.checkedOut || !!item.worktreePath);
+								!!item &&
+								(item.checkedOut ||
+									!!item.worktreePath ||
+									(item.type === "remote" &&
+										!!RepositoryBranches.remoteTarget(item, data.branches)
+											.error));
 
 							return (
 								<ComboboxItem
@@ -291,9 +319,11 @@ export function WorkspaceWorktreeForm({
 									</text>
 									{unavailable ? (
 										<text style={{ ...styles.hint, flexShrink: 0 }}>
-											{value === data.branches.current
-												? "This workspace"
-												: "Another worktree"}
+											{item?.type === "remote"
+												? "Local branch exists"
+												: value === data.branches.current
+													? "This workspace"
+													: "Another worktree"}
 										</text>
 									) : null}
 								</ComboboxItem>

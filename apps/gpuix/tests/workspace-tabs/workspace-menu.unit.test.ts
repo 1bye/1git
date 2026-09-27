@@ -43,6 +43,35 @@ it("orders only local branches by commit time without mutating the collection", 
 	expect(WorkspaceMenuModel.recentBranches(undefined)).toEqual([]);
 });
 
+it("hides tracked remote refs regardless of local name, not same-named branches on other remotes", () => {
+	const remote = (name: string): BranchInfo => ({
+		...main,
+		name,
+		type: "remote",
+		fullName: `refs/remotes/${name}`,
+		upstream: null,
+	});
+
+	const origin = remote("origin/main");
+	const other = remote("other/main");
+	const topic = remote("origin/topic");
+	const branches = [{ ...main, name: "renamed-local" }, origin, other, topic];
+
+	expect(
+		WorkspaceMenuModel.untrackedRemoteBranches({
+			branches,
+			current: "renamed-local",
+		})
+	).toEqual([other, topic]);
+	expect(
+		WorkspaceMenuModel.untrackedRemoteBranches({
+			branches: [{ ...main, upstream: null }, origin],
+			current: "main",
+		})
+	).toEqual([origin]);
+	expect(WorkspaceMenuModel.untrackedRemoteBranches(undefined)).toEqual([]);
+});
+
 it("describes upstream and divergence without inventing tracking data", () => {
 	expect(WorkspaceMenuModel.trackingLabel(undefined)).toBe("No upstream");
 	expect(WorkspaceMenuModel.trackingLabel({ ...main, upstream: null })).toBe(

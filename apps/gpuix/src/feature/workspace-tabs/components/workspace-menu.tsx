@@ -202,6 +202,7 @@ export function WorkspaceMenu({
 	const [error, setError] = useState<string | null>(null);
 	const [name, setName] = useState("");
 	const [creating, setCreating] = useState(false);
+	const [remoteBranch, setRemoteBranch] = useState<string | null>(null);
 	const [creatingWorktree, setCreatingWorktree] = useState(false);
 
 	const [publishing, setPublishing] = useState(false);
@@ -276,14 +277,21 @@ export function WorkspaceMenu({
 		return () => controller.abort();
 	}, [root, head, branch, readBranches, syncKind, syncVersion]);
 
-	const branches = WorkspaceMenuModel.recentBranches(data?.branches);
+	const branches = [
+		...WorkspaceMenuModel.recentBranches(data?.branches),
+		...WorkspaceMenuModel.untrackedRemoteBranches(data?.branches),
+	];
 
 	const visibleBranches = expanded
 		? branches
 		: branches.slice(0, recentBranchCount);
 
 	const hasMore = branches.length > recentBranchCount;
-	const currentBranch = branches.find((item) => item.name === branch);
+
+	const currentBranch = branches.find(
+		(item) => item.type === "local" && item.name === branch
+	);
+
 	const canCreate = !busy && !blocked && data !== null;
 
 	const canCreateWorktree =
@@ -349,9 +357,19 @@ export function WorkspaceMenu({
 	const enabledIds = visibleBranches
 		.filter(
 			(item) =>
-				!busy && (item.name === branch || (!blocked && !item.worktreePath))
+				!busy &&
+				((item.type === "local" && item.name === branch) ||
+					(!blocked &&
+						!item.worktreePath &&
+						!(
+							item.type === "remote" &&
+							data &&
+							RepositoryBranches.remoteTarget(item, data.branches).error
+						)))
 		)
-		.map((item) => `branch-${item.name}`);
+		.map(
+			(item) => `branch-${item.type === "remote" ? item.fullName : item.name}`
+		);
 
 	if (!busy && hasMore) enabledIds.push("more-branches");
 
@@ -430,6 +448,7 @@ export function WorkspaceMenu({
 
 	const showActions = (): void => {
 		setCreating(false);
+		setRemoteBranch(null);
 		setCreatingWorktree(false);
 		setPublishing(false);
 		setError(null);
@@ -508,8 +527,8 @@ export function WorkspaceMenu({
 
 		setError(null);
 		const message = await onChangeBranch(tab.id, {
-			kind: creating ? "create" : "switch",
-			name: name.trim(),
+			kind: remoteBranch ? "remote" : creating ? "create" : "switch",
+			name: remoteBranch ?? name.trim(),
 		});
 
 		if (!mounted.current) return;
@@ -635,7 +654,7 @@ export function WorkspaceMenu({
 					) : creating ? (
 						<div style={styles.form}>
 							<Text tokens={appTokens} style={styles.heading}>
-								Create new branch
+								{remoteBranch ? "Check out remote branch" : "Create new branch"}
 							</Text>
 							<input
 								testId="branch-name"
@@ -643,7 +662,7 @@ export function WorkspaceMenu({
 								aria-label="New branch name"
 								placeholder="New branch name…"
 								value={name}
-								readOnly={busy}
+								readOnly={busy || !!remoteBranch}
 								style={styles.input}
 								onChange={(event) => setName(event.value ?? "")}
 								onSubmit={() => {
@@ -651,7 +670,9 @@ export function WorkspaceMenu({
 								}}
 							/>
 							<Text tokens={appTokens} style={styles.muted}>
-								{`Create from ${repository?.branch ?? "HEAD"} and switch this workspace to it.`}
+								{remoteBranch
+									? `Tracks ${remoteBranch.replace("refs/remotes/", "")} in this workspace.`
+									: `Create from ${repository?.branch ?? "HEAD"} and switch this workspace to it.`}
 							</Text>
 							<div style={styles.footer}>
 								<Button
@@ -787,8 +808,13 @@ export function WorkspaceMenu({
 									</Text>
 								) : null}
 								{visibleBranches.map((item) => {
-									const id = `branch-${item.name}`;
-									const current = item.name === branch;
+									const id = `branch-${item.type === "remote" ? item.fullName : item.name}`;
+									const current = item.type === "local" && item.name === branch;
+
+									const target =
+										item.type === "remote" && data
+											? RepositoryBranches.remoteTarget(item, data.branches)
+											: null;
 
 									return (
 										<Button
@@ -803,16 +829,23 @@ export function WorkspaceMenu({
 											size="sm"
 											style={styles.row}
 											disabled={
-												busy || (!current && (blocked || !!item.worktreePath))
+												busy ||
+												!!target?.error ||
+												(!current && (blocked || !!item.worktreePath))
 											}
 											aria-label={`${item.name}${current ? ", current branch" : ""}`}
 											aria-description={
-												!current && item.worktreePath
+												target?.error ??
+												(!current && item.worktreePath
 													? "Checked out in another worktree"
-													: item.summary
+													: item.summary)
 											}
 											onPress={() => {
-												if (current) onClose();
+												if (target) {
+													setRemoteBranch(item.fullName);
+													setName(target.name);
+													setCreating(true);
+												} else if (current) onClose();
 												else void change(item.name);
 											}}
 										>
@@ -824,9 +857,13 @@ export function WorkspaceMenu({
 												{item.name}
 											</Text>
 											<Text tokens={appTokens} style={styles.detail}>
-												{!current && item.worktreePath
-													? "Other worktree"
-													: WorkspaceMenuModel.commitAge(item.committedAt)}
+												{target
+													? target.error
+														? "Local branch exists"
+														: "Remote"
+													: !current && item.worktreePath
+														? "Other worktree"
+														: WorkspaceMenuModel.commitAge(item.committedAt)}
 											</Text>
 										</Button>
 									);

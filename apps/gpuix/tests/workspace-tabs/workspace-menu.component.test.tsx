@@ -21,6 +21,7 @@ import {
 let root: TestRoot;
 let snapshot: RepositorySnapshot;
 let remotes: readonly RemoteInfo[];
+let remoteBranches: BranchInfo[];
 
 const origin: RemoteInfo = {
 	name: "origin",
@@ -59,6 +60,7 @@ const collection = () => ({
 		},
 		branch("feature/ui"),
 		branch("feature/linked", "/test/linked"),
+		...remoteBranches,
 	],
 	current: snapshot.head.branch,
 });
@@ -137,6 +139,7 @@ const writeSyncRepository = mock<typeof RepositorySync.write>(
 beforeEach(() => {
 	snapshot = repositorySnapshot();
 	remotes = [];
+	remoteBranches = [];
 	readBranches.mockClear();
 	readRepository.mockClear();
 	readRepository.mockImplementation(readSnapshot);
@@ -218,6 +221,103 @@ const menu = async (): Promise<void> => {
 	click("workspace-1");
 	await settle();
 };
+
+it("omits tracked remote branches from both pickers but keeps another remote visible", async () => {
+	snapshot = {
+		...snapshot,
+		head: { ...snapshot.head, upstream: "origin/main" },
+	};
+	remoteBranches = ["origin", "other"].map((remote) => ({
+		...branch(`${remote}/main`),
+		type: "remote",
+		remote,
+		fullName: `refs/remotes/${remote}/main`,
+	}));
+	await open();
+	await menu();
+	click("more-branches");
+	await settle();
+	expect(
+		root.renderer.findByTestId("branch-refs/remotes/origin/main")
+	).toBeUndefined();
+	expect(
+		root.renderer.findByTestId("branch-refs/remotes/other/main")
+	).toBeDefined();
+	click("create-worktree");
+	await settle();
+	click("worktree-branch-name");
+	await settle();
+	expect(
+		root.renderer.findByTestId("worktree-option-origin/main")
+	).toBeUndefined();
+	expect(
+		root.renderer.findByTestId("worktree-option-other/main")
+	).toBeDefined();
+});
+
+it("confirms remote checkout and explains a colliding local branch", async () => {
+	remoteBranches = ["topic", "main"].map((name) => ({
+		...branch(`origin/${name}`),
+		type: "remote",
+		remote: "origin",
+		fullName: `refs/remotes/origin/${name}`,
+	}));
+	await open();
+	await menu();
+	click("more-branches");
+	await settle();
+	expect(root.renderer.getAllText()).toContain("Local branch exists");
+	click("branch-refs/remotes/origin/main");
+	await settle();
+	expect(writeBranch).not.toHaveBeenCalled();
+	click("branch-refs/remotes/origin/topic");
+	await settle();
+	expect(writeBranch).not.toHaveBeenCalled();
+	expect(root.renderer.getAllText()).toContain(
+		"Tracks origin/topic in this workspace."
+	);
+	click("create-branch");
+	await settle();
+	expect(writeBranch).toHaveBeenCalledWith(
+		"/test/project",
+		expect.objectContaining({
+			kind: "remote",
+			name: "refs/remotes/origin/topic",
+		})
+	);
+});
+
+it("confirms a remote tracking branch in a new worktree", async () => {
+	remoteBranches = [
+		{
+			...branch("origin/topic"),
+			type: "remote",
+			remote: "origin",
+			fullName: "refs/remotes/origin/topic",
+		},
+	];
+	await open();
+	await menu();
+	click("create-worktree");
+	await settle();
+	click("worktree-branch-name");
+	await settle();
+	click("worktree-option-origin/topic");
+	await settle();
+	expect(writeWorktree).not.toHaveBeenCalled();
+	expect(root.renderer.getAllText()).toContain(
+		"Creates “topic” tracking origin/topic."
+	);
+	click("confirm-create-worktree");
+	await settle();
+	expect(writeWorktree).toHaveBeenCalledWith(
+		"/test/project",
+		expect.objectContaining({
+			kind: "remote",
+			branch: "refs/remotes/origin/topic",
+		})
+	);
+});
 
 it("creates a worktree from a dirty workspace, opens its tab, and preserves the original draft", async () => {
 	snapshot = { ...snapshot, files: [changedFile("file.txt")] };

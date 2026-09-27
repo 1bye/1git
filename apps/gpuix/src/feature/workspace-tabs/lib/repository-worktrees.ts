@@ -1,11 +1,12 @@
 import { lstat, readdir, realpath } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join } from "node:path";
 import { GitRepository, type GitResult } from "@1git/git";
+import { RepositoryBranches } from "./repository-branches";
 const forbiddenBranchCharacters = /[~^:?*[\\]/;
 
 /** Explicit destination and local-branch choice from the workspace menu. */
 export interface WorktreeChoice {
-	readonly kind: "new" | "existing";
+	readonly kind: "new" | "existing" | "remote";
 	readonly branch: string;
 	readonly path: string;
 }
@@ -128,6 +129,28 @@ export class RepositoryWorktrees {
 
 		if (request.kind === "new" && branch)
 			return fail("This branch already exists. Choose another name.");
+
+		if (request.kind === "remote") {
+			const remote = branches.value.branches.find(
+				(item) => item.type === "remote" && item.fullName === request.branch
+			);
+
+			if (!remote)
+				return fail("The remote branch is unavailable. Refresh and try again.");
+
+			const target = RepositoryBranches.remoteTarget(remote, branches.value);
+
+			if (target.error) return fail(target.error);
+
+			const result = await opened.value.createWorktree({
+				path,
+				newBranch: target.name,
+				revision: remote.fullName,
+				track: true,
+			});
+
+			return result.ok ? { ok: true, value: path } : result;
+		}
 
 		const result = await opened.value.createWorktree({
 			path,

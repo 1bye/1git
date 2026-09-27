@@ -222,7 +222,12 @@ This is not a port of the Electron liquid SVG morph.
   The original checkout, index, uncommitted files and commit draft stay untouched.
   Existing empty folders are accepted; non-empty folders, files and symlinks are
   rejected, never overwritten. No force or automatic
-  cleanup is used. Remote branch checkout and worktree removal are not included.
+  cleanup is used. Remote branches are also available in the expanded branch menu
+  and the worktree picker. Confirmation creates a local tracking branch from the
+  selected remote ref, without fetching automatically. Local-name collisions are
+  blocked; choose the existing local branch instead. Use Fetch to refresh remote refs.
+  Remote refs already tracked by a local branch are hidden in both pickers.
+  Worktree removal is not included.
   Creation locks app writes across related worktrees and protects window/tab closure
   until status is refreshed. If opening fails after creation, the error identifies
   the folder to open manually; creation is not retried automatically.

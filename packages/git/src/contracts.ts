@@ -498,6 +498,8 @@ export interface ResetInput extends GitCallOptions {
 }
 
 export interface CreateBranchInput extends GitCallOptions {
+	/** Explicitly configure upstream tracking, independent of branch.autoSetupMerge. */
+	readonly track?: boolean;
 	readonly checkout?: boolean;
 	readonly force?: boolean;
 	readonly name: string;
@@ -618,6 +620,8 @@ export interface DropStashInput extends GitCallOptions {
 }
 
 export interface CreateWorktreeInput extends GitCallOptions {
+	/** Track the start revision when creating a new branch. */
+	readonly track?: boolean;
 	readonly detach?: boolean;
 	readonly force?: boolean;
 	readonly lockReason?: string;

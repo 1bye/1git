@@ -1273,6 +1273,8 @@ export class GitRepository {
 
 			const args = input.checkout ? ["switch"] : ["branch"];
 
+			if (input.track) args.push("--track=direct");
+
 			if (input.force) {
 				args.push(input.checkout ? "-C" : "--force");
 			} else if (input.checkout) {
@@ -1939,6 +1941,8 @@ export class GitRepository {
 			}
 
 			const args = ["worktree", "add"];
+
+			if (input.track) args.push("--track");
 
 			if (input.force) {
 				args.push("--force");

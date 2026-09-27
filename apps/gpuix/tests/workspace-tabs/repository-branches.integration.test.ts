@@ -216,6 +216,71 @@ it("creates new and existing branch worktrees without changing source files, ind
 	);
 });
 
+it("creates explicit tracking branches from remote refs in this workspace and a new worktree", async () => {
+	const expectedHead = await git("rev-parse", "HEAD");
+
+	await git("remote", "add", "origin", repository);
+	await git("config", "branch.autoSetupMerge", "false");
+	await git("update-ref", "refs/remotes/origin/feature/remote", expectedHead);
+	await git("update-ref", "refs/remotes/origin/feature/worktree", expectedHead);
+
+	const result = await RepositoryBranches.write(repository, {
+		kind: "remote",
+		name: "refs/remotes/origin/feature/remote",
+		expectedHead,
+		expectedBranch: "main",
+	});
+
+	expect(result.ok).toBe(true);
+	expect(await git("branch", "--show-current")).toBe("feature/remote");
+	expect(await git("rev-parse", "--symbolic-full-name", "@{upstream}")).toBe(
+		"refs/remotes/origin/feature/remote"
+	);
+
+	const path = join(sandbox, "remote worktree");
+
+	const worktree = await RepositoryWorktrees.create(repository, {
+		kind: "remote",
+		branch: "refs/remotes/origin/feature/worktree",
+		path,
+		expectedHead,
+		expectedBranch: "feature/remote",
+	});
+
+	expect(worktree).toEqual({ ok: true, value: path });
+	expect(
+		await git("-C", path, "rev-parse", "--symbolic-full-name", "@{upstream}")
+	).toBe("refs/remotes/origin/feature/worktree");
+	expect(await git("branch", "--show-current")).toBe("feature/remote");
+
+	for (const name of [
+		"refs/remotes/origin/feature/remote",
+		"refs/remotes/origin/missing",
+	]) {
+		expect(
+			(
+				await RepositoryBranches.write(repository, {
+					kind: "remote",
+					name,
+					expectedHead,
+					expectedBranch: "feature/remote",
+				})
+			).ok
+		).toBe(false);
+		expect(
+			(
+				await RepositoryWorktrees.create(repository, {
+					kind: "remote",
+					branch: name,
+					path: join(sandbox, "blocked"),
+					expectedHead,
+					expectedBranch: "feature/remote",
+				})
+			).ok
+		).toBe(false);
+	}
+});
+
 it("rejects stale state, occupied branches, existing destinations and invalid names without overwrites", async () => {
 	const expectedHead = await git("rev-parse", "HEAD");
 
