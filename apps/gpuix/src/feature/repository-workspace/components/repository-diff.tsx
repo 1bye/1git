@@ -411,7 +411,7 @@ export function RepositoryDiff({
 						lineHeight: 20,
 						padding: 14,
 						color: appTokens.colors.text,
-						backgroundColor: appTokens.colors.background,
+						backgroundColor: appTokens.colors.field,
 					}}
 				/>
 			) : showImage && section?.image ? (
