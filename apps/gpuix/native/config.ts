@@ -34,6 +34,14 @@ export const contextMenuPlatformPatchPath = resolve(
 	import.meta.dir,
 	"context-menu-platform.patch"
 );
+export const testSessionPatchPath = resolve(
+	import.meta.dir,
+	"test-session.patch"
+);
+export const testSessionPlatformPatchPath = resolve(
+	import.meta.dir,
+	"test-session-platform.patch"
+);
 /** Changing the patch, revision, or host invalidates the local binary. */
 export const nativeBuildId = createHash("sha256")
 	.update(nativeRevision)
@@ -45,5 +53,7 @@ export const nativeBuildId = createHash("sha256")
 	.update(readFileSync(closePlatformPatchPath))
 	.update(readFileSync(contextMenuPatchPath))
 	.update(readFileSync(contextMenuPlatformPatchPath))
+	.update(readFileSync(testSessionPatchPath))
+	.update(readFileSync(testSessionPlatformPatchPath))
 	.update(`${process.platform}-${process.arch}-release-v1`)
 	.digest("hex");

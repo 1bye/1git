@@ -1,0 +1,94 @@
+diff --git a/packages/native/src/test_renderer.rs b/packages/native/src/test_renderer.rs
+index 0e06c9f..7a60f7f 100644
+--- a/packages/native/src/test_renderer.rs
++++ b/packages/native/src/test_renderer.rs
+@@ -10,7 +10,7 @@
+ ///
+ /// VisualTestAppContext is !Send, so it is stored in thread-local state.
+ /// All napi calls happen on the JS main thread.
+-use std::cell::RefCell;
++use std::cell::{Cell, RefCell};
+ use std::sync::{Arc, Mutex};
+ use std::time::Duration;
+ 
+@@ -53,6 +53,8 @@ struct VisualTestState {
+ /// still usable here.
+ impl Drop for VisualTestState {
+     fn drop(&mut self) {
++        #[cfg(target_os = "macos")]
++        let _pool = gpui_macos::TestAutoreleasePool::new();
+         let view = self.view.clone();
+         // Unmount, exactly as React would: empty the tree, then paint one more
+         // frame. The registry is not the only owner of the entity. `<input>`
+@@ -77,11 +79,20 @@ impl Drop for VisualTestState {
+             .update_window(self.window, |_, window, _| window.refresh())
+             .ok();
+         self.cx.run_until_parked();
++        // Close and drain native work before App and its entities are dropped.
++        self.cx
++            .update_window(self.window, |_, window, _| window.remove_window())
++            .ok();
++        self.cx.run_until_parked();
++        #[cfg(target_os = "macos")]
++        gpui_macos::drain_test_events();
++        self.cx.run_until_parked();
+     }
+ }
+ 
+ thread_local! {
+     static TEST_STATE: RefCell<Option<VisualTestState>> = const { RefCell::new(None) };
++    static CLEANUP_REGISTERED: Cell<bool> = const { Cell::new(false) };
+ }
+ 
+ /// Access VisualTestAppContext + window + view mutably within thread_local.
+@@ -94,6 +105,8 @@ fn with_test_state<R>(
+         &gpui::Entity<GpuixView>,
+     ) -> Result<R>,
+ ) -> Result<R> {
++    #[cfg(target_os = "macos")]
++    let _pool = gpui_macos::TestAutoreleasePool::new();
+     TEST_STATE.with(|cell| {
+         let mut borrow = cell.borrow_mut();
+         let state = borrow
+@@ -212,12 +225,26 @@ pub struct TestGpuixRenderer {
+ #[napi]
+ impl TestGpuixRenderer {
+     #[napi(constructor)]
+-    pub fn new(width: Option<f64>, height: Option<f64>) -> Result<Self> {
++    pub fn new(env: napi::Env, width: Option<f64>, height: Option<f64>) -> Result<Self> {
++        CLEANUP_REGISTERED.with(|registered| -> Result<()> {
++            if !registered.get() {
++                // N-API cleanup precedes Rust TLS/profiler destruction on host exit.
++                env.add_env_cleanup_hook((), |_| {
++                    Self::dispose_current();
++                    CLEANUP_REGISTERED.with(|registered| registered.set(false));
++                })?;
++                registered.set(true);
++            }
++            Ok(())
++        })?;
++        #[cfg(target_os = "macos")]
++        let _pool = gpui_macos::TestAutoreleasePool::new();
+         let window_size = gpui::size(
+             gpui::px(window_dimension(width, DEFAULT_WINDOW_WIDTH, "width")?),
+             gpui::px(window_dimension(height, DEFAULT_WINDOW_HEIGHT, "height")?),
+         );
+         let tree = Arc::new(Mutex::new(RetainedTree::new()));
++        Self::dispose_current();
+         let events: Arc<Mutex<Vec<EventPayload>>> = Arc::new(Mutex::new(Vec::new()));
+ 
+         // Event callback: push to Vec instead of ThreadsafeFunction.
+@@ -282,6 +309,13 @@ impl TestGpuixRenderer {
+         })
+     }
+ 
++    /// End the current thread's singleton test session before exiting a test host.
++    #[napi]
++    pub fn dispose_current() {
++        let state = TEST_STATE.with(|cell| cell.borrow_mut().take());
++        drop(state);
++    }
++
+     /// How many elements the retained tree holds, reachable from the root or
+     /// not. `getTreeJson` walks from the root, so it cannot see a node that was
+     /// detached and never destroyed. This is the only way a test can prove a

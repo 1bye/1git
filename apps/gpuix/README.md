@@ -23,6 +23,20 @@ with its Metal toolchain. The first `build:native` downloads and compiles
 GPUIX; later runs reuse the build. Cargo uses the upstream lockfile and Rust
 toolchain pin. Install the Metal component with
 `xcodebuild -downloadComponent MetalToolchain` if Xcode reports it missing.
+Alternatively, `bun run build:native --runtime-shaders` uses GPUI's built-in
+runtime shader compilation without downloading that optional component. Both
+shader modes use the same pinned sources and patch fingerprint; an up-to-date
+binary is reused regardless of this flag.
+
+`native/test-session.patch` and `native/test-session-platform.patch` close old
+test windows while their GPUI app is alive, route native test work through the
+test scheduler, and scope AppKit autoreleases to native calls. Test sessions
+drain pending macOS work themselves and are disposed through an N-API cleanup
+hook before thread-local profiler state disappears. The macOS window teardown
+also breaks the accessibility-adapter/content-view ownership cycle. Visible app
+windows retain their normal asynchronous close behavior. The native lifecycle
+integration test checks that repeated sessions leave no GPUI views after explicit
+disposal and that automatic process-exit cleanup succeeds.
 
 `native/titlebar-drag.patch` applies to GPUIX 0.10.0 commit
 `9fcd628863e354e9c58019fc3bf38981a1e64158`, including its pinned GPUI submodule

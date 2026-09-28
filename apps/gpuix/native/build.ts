@@ -17,6 +17,8 @@ import {
 	nativeLibrary,
 	nativeRevision,
 	patchPath,
+	testSessionPatchPath,
+	testSessionPlatformPatchPath,
 } from "./config";
 
 if (process.platform !== "darwin" || process.arch !== "arm64") {
@@ -78,13 +80,17 @@ if (
 		closePlatformPatchPath,
 		contextMenuPatchPath,
 		contextMenuPlatformPatchPath,
+		testSessionPatchPath,
+		testSessionPlatformPatchPath,
 	];
 
 	// Later patches can change an earlier patch's context. Unwind known patches
 	// in reverse order before applying the pinned stack, preserving unrelated edits.
 	for (const patch of patches.toReversed()) {
 		const patchDirectory =
-			patch === closePlatformPatchPath || patch === contextMenuPlatformPatchPath
+			patch === closePlatformPatchPath ||
+			patch === contextMenuPlatformPatchPath ||
+			patch === testSessionPlatformPatchPath
 				? resolve(source, "zed")
 				: source;
 
@@ -100,7 +106,9 @@ if (
 
 	for (const patch of patches) {
 		const patchDirectory =
-			patch === closePlatformPatchPath || patch === contextMenuPlatformPatchPath
+			patch === closePlatformPatchPath ||
+			patch === contextMenuPlatformPatchPath ||
+			patch === testSessionPlatformPatchPath
 				? resolve(source, "zed")
 				: source;
 
@@ -124,6 +132,9 @@ if (
 			"--release",
 			"--locked",
 			"--lib",
+			...(process.argv.includes("--runtime-shaders")
+				? ["--features", "gpui_platform/runtime_shaders"]
+				: []),
 			"--target-dir",
 			resolve(source, "packages/native/target"),
 		],
