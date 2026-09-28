@@ -1,6 +1,7 @@
 import { lightColors } from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { Button } from "@1git/gpuix-ui/button";
+import type { ReactNode } from "react";
 
 import type {
 	RepositoryView,
@@ -56,6 +57,7 @@ export function RepositoryDiffEmpty({
 	workspace,
 	picking = false,
 	onOpen,
+	setupActions,
 }: {
 	selected?: WorkspaceEntry;
 	revision?: WorkspaceRevision;
@@ -64,6 +66,7 @@ export function RepositoryDiffEmpty({
 	workspace?: RepositoryWorkspaceState;
 	picking?: boolean;
 	onOpen?: () => void;
+	setupActions?: ReactNode;
 }) {
 	let heading = "Select an item to inspect";
 	let hint = "Choose a changed file, commit, or stash from the list.";
@@ -95,7 +98,7 @@ export function RepositoryDiffEmpty({
 				? "Reading repository…"
 				: workspace.repositoryPath
 					? "Repository unavailable"
-					: "Open a Git repository";
+					: "Start a workspace";
 			hint =
 				workspace.repositoryPath ??
 				workspace.error ??
@@ -152,7 +155,7 @@ export function RepositoryDiffEmpty({
 				</div>
 			) : null}
 			<div testId="diff-empty" style={styles.empty}>
-				{clean ? (
+				{clean || setupActions ? (
 					<ComparisonArtwork name="empty" />
 				) : (
 					<RepositoryIcon name="diff" />
@@ -174,6 +177,7 @@ export function RepositoryDiffEmpty({
 								: "Open repository…"}
 					</Button>
 				) : null}
+				{setupActions}
 			</div>
 		</>
 	);

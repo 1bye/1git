@@ -160,6 +160,31 @@ own state. Cmd+W
 remains the native Close Window command. There is no theme switch or tab
 entrance/exit animation yet.
 
+### Open, clone and create
+
+Empty workspaces show Open repository, Clone repository and Create new without
+the repository sidebar. Clone/Create use the shared dimmed popover, transparent
+fields, a folder-picker location control and explicit confirmation.
+Clone suggests `~/repository-name` from the entered URL; the picker selects the
+exact destination folder (not its parent). Create initializes the chosen folder
+on the entered initial branch, defaulting to `main`, without making a commit or
+changing existing files. The macOS picker can also create the destination folder.
+
+Setup uses the existing Git backend and configured credentials. Clone displays
+indeterminate progress, not invented percentages; this boundary does not stream
+Git's progress output. Cancel requests process termination and keeps the form
+locked until the operation settles. Tab/window closure is blocked during setup.
+No app cleanup recursively deletes a failed/cancelled destination; review any
+remaining files before retrying. No hosted login flow is introduced.
+
+Nonempty clone destinations, symlinks and destinations inside another repository
+are rejected. Already initialized folders offer an explicit Open repository
+action instead of reinitialization. Errors preserve input; successful setup loads
+fresh Changes into the requesting tab. A failure reading a successfully created
+repository offers Open rather than repeating the write. Tests use disposable local
+repositories and native UI events with picker/Git doubles; hosted authentication
+and the physical folder dialog still need manual checks.
+
 ### Session restoration
 
 - Open repository/worktree roots, tab order, active tab, empty tabs and commit

@@ -215,7 +215,7 @@ it("keeps pending reads attached to their tab and cancels them on close", async 
 	});
 	await settle();
 	expect(root.renderer.findByTestId("entry-late.ts")).toBeUndefined();
-	expect(root.renderer.getAllText()).toContain("Open a Git repository");
+	expect(root.renderer.getAllText()).toContain("Start a workspace");
 });
 
 it("ignores a picker result after its tab closes and never reads for a removed tab", async () => {
@@ -234,7 +234,7 @@ it("ignores a picker result after its tab closes and never reads for a removed t
 	pending.resolve(["/test/project"]);
 	await settle();
 	expect(reader).not.toHaveBeenCalled();
-	expect(root.renderer.getAllText()).toContain("Open a Git repository");
+	expect(root.renderer.getAllText()).toContain("Start a workspace");
 });
 
 it("loads in the background without replacing the active tab and aborts reads on unmount", async () => {

@@ -16,8 +16,9 @@ export function RepositoryCloseNotice({
 	const seen = new Set<string>();
 
 	const operations = state.tabs.filter(({ workspace }) => {
-		if (!RepositoryWorkspaceModel.isBusy(workspace) || !workspace.repository)
-			return false;
+		if (!RepositoryWorkspaceModel.isBusy(workspace)) return false;
+
+		if (!workspace.repository) return true;
 
 		const key =
 			workspace.sync.pending || workspace.stashMutation.pending

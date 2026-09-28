@@ -14,6 +14,11 @@ import type {
 } from "../../workspace-tabs/lib/workspace-tabs-model";
 import { RepositoryReader } from "../lib/repository-reader";
 import {
+	RepositorySetup,
+	type RepositorySetupRequest,
+	type RepositorySetupResult,
+} from "../lib/repository-setup";
+import {
 	RepositoryWorkspaceModel,
 	type RepositoryWorkspaceAction,
 } from "../lib/repository-workspace-model";
@@ -22,13 +27,15 @@ import {
 export function useRepositoryConnection(
 	state: WorkspaceTabsState,
 	dispatch: Dispatch<WorkspaceTabsAction>,
-	readRepository: typeof RepositoryReader.read
+	readRepository: typeof RepositoryReader.read,
+	setupRepository = RepositorySetup.write
 ) {
 	const renderer = useGpuixRequired();
 	const tabs = useRef(state.tabs);
 	const requests = useRef(new Map<string, AbortController>());
 	const mounted = useRef(true);
 	const picking = useRef(false);
+	const setups = useRef(new Map<string, AbortController>());
 	const [pickingId, setPickingId] = useState<string | null>(null);
 
 	useLayoutEffect(() => {
@@ -50,6 +57,7 @@ export function useRepositoryConnection(
 	useEffect(() => {
 		mounted.current = true;
 		const pending = requests.current;
+		const writes = setups.current;
 
 		return () => {
 			mounted.current = false;
@@ -57,6 +65,10 @@ export function useRepositoryConnection(
 			for (const request of pending.values()) request.abort();
 
 			pending.clear();
+
+			for (const request of writes.values()) request.abort();
+
+			writes.clear();
 		};
 	}, []);
 
@@ -125,7 +137,7 @@ export function useRepositoryConnection(
 	}, [read]);
 
 	const open = async (id: string): Promise<void> => {
-		if (picking.current) return;
+		if (picking.current || setups.current.has(id)) return;
 
 		picking.current = true;
 		setPickingId(id);
@@ -167,5 +179,79 @@ export function useRepositoryConnection(
 		if (path) await read(id, path);
 	};
 
-	return { open, refresh, pickingId };
+	const setup = async (
+		id: string,
+		request: RepositorySetupRequest,
+		blockClose: () => void
+	): Promise<RepositorySetupResult> => {
+		const tab = tabs.current.find((item) => item.id === id);
+
+		if (
+			!tab ||
+			tab.workspace.preview ||
+			tab.workspace.repository ||
+			tab.workspace.loading ||
+			picking.current ||
+			setups.current.size ||
+			RepositoryWorkspaceModel.isBusy(tab.workspace)
+		)
+			return {
+				ok: false,
+				message: "Wait for the current operation to finish.",
+			};
+
+		const controller = new AbortController();
+
+		setups.current.set(id, controller);
+		blockClose();
+		send(id, { type: "operation-started" });
+		let createdPath: string | undefined;
+
+		try {
+			const result = await setupRepository(request, controller.signal);
+
+			if (!result.ok) return result;
+
+			createdPath = result.path;
+
+			// A successful write must not be repeated if only the subsequent read fails.
+			const loaded = await readRepository(result.path, controller.signal);
+
+			if (!loaded.ok)
+				return {
+					ok: false,
+					message:
+						"Repository created, but it could not be read. Try opening it again.",
+					openPath: result.path,
+				};
+
+			send(id, {
+				type: "operation-finished",
+				snapshot: loaded.value,
+				error: null,
+			});
+
+			return result;
+		} catch {
+			return {
+				ok: false,
+				openPath: createdPath,
+				message: createdPath
+					? "Repository created, but it could not be read. Try opening it again."
+					: "Setup did not finish. Review the destination before retrying.",
+			};
+		} finally {
+			setups.current.delete(id);
+			send(id, { type: "operation-finished", error: null });
+		}
+	};
+
+	return {
+		open,
+		refresh,
+		pickingId,
+		read,
+		setup,
+		cancelSetup: (id: string) => setups.current.get(id)?.abort(),
+	};
 }

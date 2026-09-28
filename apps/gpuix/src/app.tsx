@@ -15,6 +15,8 @@ import { RepositoryDiffEmpty } from "./feature/repository-workspace/components/r
 import { RepositoryDiff } from "./feature/repository-workspace/components/repository-diff";
 import { RepositoryDiff as DiffReader } from "./feature/repository-workspace/lib/repository-diff";
 import { RepositoryReader } from "./feature/repository-workspace/lib/repository-reader";
+import { RepositorySetup } from "./feature/repository-workspace/lib/repository-setup";
+import { RepositorySetupActions } from "./feature/repository-workspace/components/repository-setup";
 import type { RepositoryWatcher } from "./feature/repository-workspace/lib/repository-watcher";
 import { useRepositoryAutoRefresh } from "./feature/repository-workspace/hooks/use-repository-auto-refresh";
 import { RepositoryHistory } from "./feature/repository-workspace/lib/repository-history";
@@ -48,6 +50,7 @@ export function App({
 	sessionError,
 	saveSession,
 	readRepository = RepositoryReader.read,
+	setupRepository = RepositorySetup.write,
 	readComparison = ComparisonReader.read,
 	readDiff = DiffReader.read,
 	readHistory = RepositoryHistory.read,
@@ -75,6 +78,7 @@ export function App({
 	sessionError?: string;
 	saveSession?: (document: WorkspaceSessionDocument) => void;
 	readRepository?: typeof RepositoryReader.read;
+	setupRepository?: typeof RepositorySetup.write;
 	readComparison?: typeof ComparisonReader.read;
 	readDiff?: typeof DiffReader.read;
 	readHistory?: typeof RepositoryHistory.read;
@@ -111,7 +115,12 @@ export function App({
 		preview ? undefined : sessionError
 	);
 
-	const connection = useRepositoryConnection(state, dispatch, readRepository);
+	const connection = useRepositoryConnection(
+		state,
+		dispatch,
+		readRepository,
+		setupRepository
+	);
 
 	const mutations = useRepositoryMutations(
 		state,
@@ -216,7 +225,12 @@ export function App({
 	return (
 		<AppShell
 			navigation={
-				activeTab && workspace && !activeTab.comparison ? (
+				activeTab &&
+				workspace &&
+				(workspace.repository ||
+					workspace.preview ||
+					workspace.repositoryPath) &&
+				!activeTab.comparison ? (
 					<RepositoryNavigation
 						openFile={openFile}
 						onDiscard={(request) =>
@@ -326,6 +340,33 @@ export function App({
 					hasWorkspace={!!activeTab}
 					workspace={workspace}
 					picking={connection.pickingId !== null}
+					setupActions={
+						activeTab &&
+						workspace &&
+						!workspace.preview &&
+						!workspace.repository &&
+						!workspace.repositoryPath ? (
+							<RepositorySetupActions
+								key={activeTab.id}
+								disabled={
+									connection.pickingId !== null ||
+									workspace.loading ||
+									RepositoryWorkspaceModel.isBusy(workspace)
+								}
+								onSubmit={(request) =>
+									connection.setup(
+										activeTab.id,
+										request,
+										mutations.closeProtection.block
+									)
+								}
+								onCancel={() => connection.cancelSetup(activeTab.id)}
+								onOpen={(path) => {
+									void connection.read(activeTab.id, path);
+								}}
+							/>
+						) : undefined
+					}
 					onOpen={() => {
 						if (!activeTab) return;
 
