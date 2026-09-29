@@ -19,6 +19,13 @@ export interface FileDiscardRequest {
 
 /** macOS file actions and durable, path-scoped discard recovery. No shell interpolation. */
 export class RepositoryFileActions {
+	/** Reveal an existing repository folder without changing its contents. */
+	static async revealRepository(directory: string) {
+		const path = await realpath(directory);
+
+		await execute("/usr/bin/open", ["-R", path], { timeout: 10_000 });
+	}
+
 	static async revealRecovery(directory: string) {
 		await execute("/usr/bin/open", [directory], { timeout: 10_000 });
 	}

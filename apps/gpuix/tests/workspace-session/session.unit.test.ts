@@ -9,6 +9,38 @@ import { WorkspaceSession } from "../../src/feature/workspace-tabs/lib/workspace
 import { WorkspaceTabsModel } from "../../src/feature/workspace-tabs/lib/workspace-tabs-model";
 import { repositorySnapshot } from "../_shared/repository-snapshot";
 
+it("forgets a saved entry without closing its tab or restoring it on restart", () => {
+	const snapshot = repositorySnapshot();
+
+	let state = WorkspaceTabsModel.reduce(WorkspaceTabsModel.create(), {
+		type: "workspace",
+		id: "workspace-1",
+		action: { type: "loaded", snapshot },
+	});
+
+	const tabs = state.tabs;
+
+	state = WorkspaceTabsModel.reduce(state, {
+		type: "forget-repository",
+		path: snapshot.repository.root,
+	});
+	expect(state.tabs).toBe(tabs);
+	expect(state.recentRepositories).toEqual([]);
+	const saved = WorkspaceSession.parse(
+		JSON.stringify(WorkspaceSession.capture(state))
+	);
+
+	expect(saved).not.toBeNull();
+	state = WorkspaceSession.restore(saved!);
+	state = WorkspaceTabsModel.reduce(state, {
+		type: "workspace",
+		id: "workspace-1",
+		action: { type: "loaded", snapshot },
+	});
+	expect(state.recentRepositories).toEqual([]);
+	expect(state.tabs).toHaveLength(1);
+});
+
 it("retains recent roots after the last tab closes, round-trips them and ignores invalid optional entries", () => {
 	let state = WorkspaceTabsModel.create();
 

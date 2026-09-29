@@ -143,7 +143,7 @@ export class WorkspaceSession {
 	static capture(state: WorkspaceTabsState): WorkspaceSessionDocument {
 		return {
 			version: 1,
-			...(state.recentRepositories?.length
+			...(state.recentRepositories !== undefined
 				? { recentRepositories: state.recentRepositories }
 				: {}),
 			tabs: state.tabs.map(({ id, workspace }) => ({
@@ -173,10 +173,10 @@ export class WorkspaceSession {
 		return {
 			preview: false,
 			recentRepositories: [
-				...new Set([
-					...(document.recentRepositories ?? []),
-					...document.tabs.flatMap((tab) => (tab.path ? [tab.path] : [])),
-				]),
+				...new Set(
+					document.recentRepositories ??
+						document.tabs.flatMap((tab) => (tab.path ? [tab.path] : []))
+				),
 			].slice(0, 100),
 			tabs: document.tabs.map(({ id, path, draft, navigation }) => ({
 				id,

@@ -170,6 +170,9 @@ its form. Previously opened roots remain available after their tabs close and
 across restarts (up to 100, deduplicated, stored as paths in the session). Search
 matches names/paths locally; opening reads fresh Git data, and missing folders
 use the existing retry view. This list does not scan disk or import Electron data.
+Right-click, Control-click or Shift+F10 on a saved repository opens the native
+menu: Open, Reveal in Finder, or Forget. Forget removes only the saved entry,
+preserving files and open tabs; the removal survives session restoration.
 Clone/Create use the shared dimmed popover, transparent
 fields, a folder-picker location control and explicit confirmation.
 Clone suggests `~/repository-name` from the entered URL; the picker selects the

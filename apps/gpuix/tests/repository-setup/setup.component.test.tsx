@@ -10,6 +10,7 @@ import { App } from "../../src/app";
 import type { RepositorySetup } from "../../src/feature/repository-workspace/lib/repository-setup";
 import { windowOptions } from "../../src/window-options";
 import { repositorySnapshot } from "../_shared/repository-snapshot";
+import { RepositoryFileActions } from "../../src/feature/repository-workspace/lib/repository-file-actions";
 
 let root: TestRoot;
 
@@ -25,7 +26,7 @@ afterEach(() => {
 	root.unmount();
 	mock.restore();
 });
-const click = (id: string) => {
+const click = (id: string, button = 0) => {
 	const element = root.renderer.findByTestId(id);
 
 	if (!element) throw new Error(`Missing ${id}`);
@@ -36,10 +37,89 @@ const click = (id: string) => {
 
 	root.renderer.nativeSimulateClick(
 		bounds.x + bounds.width / 2,
-		bounds.y + bounds.height / 2
+		bounds.y + bounds.height / 2,
+		button
 	);
 	root.renderer.flush();
 };
+
+it("uses a native repository menu for reveal, dismissal, forget and open", async () => {
+	let choice = -1;
+	const menu = mock(() => choice);
+
+	const reveal = spyOn(
+		RepositoryFileActions,
+		"revealRepository"
+	).mockResolvedValue(undefined);
+
+	const reader = mock(readRepository);
+
+	Object.assign(root.renderer, { showContextMenu: menu });
+	root.render(
+		<App
+			initialSession={{
+				version: 1,
+				tabs: [],
+				activeId: null,
+				recentRepositories: ["/test/project", "/test/other"],
+			}}
+			readRepository={reader}
+		/>
+	);
+	await settle();
+	click("welcome-repository-/test/project", 2);
+	await settle();
+	expect(menu).toHaveBeenCalledWith(
+		["Open", "Reveal in Finder", "Forget"],
+		[true, true, true],
+		expect.any(Number),
+		expect.any(Number)
+	);
+	expect(reader).not.toHaveBeenCalled();
+	choice = 1;
+	click("welcome-repository-/test/project", 2);
+	await settle();
+	expect(reveal).toHaveBeenCalledWith("/test/project");
+	choice = 2;
+	click("welcome-repository-/test/project", 2);
+	await settle();
+	expect(
+		root.renderer.findByTestId("welcome-repository-/test/project")
+	).toBeUndefined();
+	expect(reader).not.toHaveBeenCalled();
+	choice = 0;
+	click("welcome-repository-/test/other", 2);
+	await settle();
+	expect(reader).toHaveBeenCalledTimes(1);
+});
+
+it("supports the keyboard repository menu and reports Finder errors", async () => {
+	Object.assign(root.renderer, { showContextMenu: () => 1 });
+	spyOn(RepositoryFileActions, "revealRepository").mockRejectedValue(
+		new Error("Folder is unavailable.")
+	);
+	root.render(
+		<App
+			initialSession={{
+				version: 1,
+				tabs: [],
+				activeId: null,
+				recentRepositories: ["/missing/project"],
+			}}
+		/>
+	);
+	await settle();
+	const row = root.renderer.findByTestId("welcome-repository-/missing/project");
+
+	expect(row).toBeDefined();
+	root.renderer.focusElement(row!.id);
+	root.renderer.simulateKeystrokes("shift-f10");
+	await settle();
+	expect(root.renderer.getAllText()).toContain("Folder is unavailable.");
+	expect(
+		root.renderer.findByTestId("welcome-repository-/missing/project")
+	).toBeDefined();
+});
 
 const settle = async () => {
 	root.renderer.flush();

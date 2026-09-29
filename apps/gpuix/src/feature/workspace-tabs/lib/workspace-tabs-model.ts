@@ -28,6 +28,7 @@ export interface WorkspaceTabsState {
 /** Tab mutations are independent of the renderer and never perform filesystem work. */
 export type WorkspaceTabsAction =
 	| { type: "add"; path?: string }
+	| { type: "forget-repository"; path: string }
 	| { type: "open-worktree"; snapshot: RepositorySnapshot }
 	| { type: "worktree-removed"; path: string }
 	| { type: "activate"; id: string }
@@ -74,6 +75,15 @@ export class WorkspaceTabsModel {
 		state: WorkspaceTabsState,
 		action: WorkspaceTabsAction
 	): WorkspaceTabsState {
+		if (action.type === "forget-repository") {
+			return {
+				...state,
+				recentRepositories: (state.recentRepositories ?? []).filter(
+					(path) => path !== action.path
+				),
+			};
+		}
+
 		if (action.type === "worktree-removed") {
 			const tabs = state.tabs.filter(
 				(tab) =>
@@ -170,7 +180,8 @@ export class WorkspaceTabsModel {
 				...state,
 				recentRepositories:
 					workspace.repository &&
-					workspace.repository.root !== tab.workspace.repository?.root
+					workspace.repository.root !== tab.workspace.repository?.root &&
+					workspace.repository.root !== tab.workspace.repositoryPath
 						? WorkspaceTabsModel.remember(
 								state.recentRepositories,
 								workspace.repository.root

@@ -2,6 +2,9 @@ import { basename } from "node:path";
 import { useState, type ReactNode } from "react";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { Button } from "@1git/gpuix-ui/button";
+import { useGpuixRequired, type EventPayload } from "@gpuix/react";
+import { NativeFileMenu } from "../lib/native-file-menu";
+import { RepositoryFileActions } from "../lib/repository-file-actions";
 import { appTokens } from "../../../styles/tokens";
 
 const styles = StyleSheet.create({
@@ -46,6 +49,7 @@ export function RepositoryWelcome({
 	error,
 	onOpen,
 	onOpenRecent,
+	onForget,
 }: {
 	paths: readonly string[];
 	actions: ReactNode;
@@ -53,8 +57,39 @@ export function RepositoryWelcome({
 	error?: string | null;
 	onOpen: () => void;
 	onOpenRecent: (path: string) => void;
+	onForget: (path: string) => void;
 }) {
 	const [query, setQuery] = useState("");
+	const [menuError, setMenuError] = useState<string | null>(null);
+	const renderer = useGpuixRequired();
+
+	const openMenu = async (path: string, event: EventPayload) => {
+		if (busy) return;
+
+		setMenuError(null);
+
+		try {
+			const bounds = renderer.getElementBounds?.(event.elementId);
+
+			const choice = NativeFileMenu.show(
+				renderer,
+				["Open", "Reveal in Finder", "Forget"],
+				[true, true, true],
+				event.x ?? bounds?.x ?? 0,
+				event.y ?? (bounds ? bounds.y + bounds.height : 0)
+			);
+
+			if (choice === 0) onOpenRecent(path);
+			else if (choice === 1) await RepositoryFileActions.revealRepository(path);
+			else if (choice === 2) onForget(path);
+		} catch (cause) {
+			setMenuError(
+				cause instanceof Error
+					? cause.message
+					: "Could not perform repository action."
+			);
+		}
+	};
 
 	const matches = paths.filter((path) =>
 		path.toLowerCase().includes(query.trim().toLowerCase())
@@ -131,6 +166,9 @@ export function RepositoryWelcome({
 							aria-label={`Open ${path}`}
 							disabled={busy}
 							onPress={() => onOpenRecent(path)}
+							onContextMenu={(event) => {
+								void openMenu(path, event);
+							}}
 							style={{
 								height: 54,
 								width: "100%",
@@ -163,6 +201,11 @@ export function RepositoryWelcome({
 							</div>
 						</Button>
 					))}
+					{menuError ? (
+						<text role="alert" style={styles.hint}>
+							{menuError}
+						</text>
+					) : null}
 					{!matches.length ? (
 						<text style={{ ...styles.hint, padding: 12 }}>
 							{paths.length

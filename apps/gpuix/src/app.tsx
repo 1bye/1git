@@ -308,6 +308,7 @@ export function App({
 			{!preview && !workspace?.repository && !workspace?.repositoryPath ? (
 				<RepositoryWelcome
 					paths={state.recentRepositories ?? []}
+					onForget={(path) => dispatch({ type: "forget-repository", path })}
 					busy={connection.pickingId !== null || !!workspace?.loading}
 					error={workspace?.error}
 					onOpen={() => {
