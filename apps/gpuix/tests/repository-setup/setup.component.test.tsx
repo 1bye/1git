@@ -67,7 +67,7 @@ it("creates from the compact form and opens Changes after success", async () => 
 	]);
 
 	root.render(<App setupRepository={setup} readRepository={readRepository} />);
-	expect(root.renderer.getAllText()).toContain("Start a workspace");
+	expect(root.renderer.getAllText()).toContain("QUICK ACTIONS");
 	click("repository-create");
 	await settle();
 	click("setup-location");
@@ -209,4 +209,65 @@ it("dismisses with Escape without writing and restores trigger focus", async () 
 	expect(root.renderer.getFocusedElementId()).toBe(
 		root.renderer.findByTestId("repository-clone")?.id ?? null
 	);
+});
+
+it("shows the desktop-style page with no tabs and keeps the setup form when it opens a tab", async () => {
+	const setup = mock<typeof RepositorySetup.write>(async () => ({
+		ok: true,
+		path: "/test/project",
+	}));
+
+	spyOn(root.renderer, "promptForPaths").mockResolvedValue(["/test/project"]);
+	root.render(
+		<App
+			initialSession={{ version: 1, tabs: [], activeId: null }}
+			setupRepository={setup}
+			readRepository={readRepository}
+		/>
+	);
+	expect(root.renderer.findByTestId("workspace-1")).toBeUndefined();
+	expect(root.renderer.getAllText()).toContain("ALL REPOSITORIES");
+	click("repository-create");
+	await settle();
+	expect(root.renderer.findByTestId("workspace-1")).toBeDefined();
+	expect(root.renderer.findByTestId("setup-branch")).toBeDefined();
+	click("setup-location");
+	await settle();
+	click("setup-submit");
+	await settle();
+	expect(setup).toHaveBeenCalledTimes(1);
+	expect(root.renderer.findByTestId("commit-composer")).toBeDefined();
+});
+
+it("searches remembered repositories after closing all tabs and reopens without the picker", async () => {
+	const reader = mock(readRepository);
+	const picker = spyOn(root.renderer, "promptForPaths");
+
+	root.render(
+		<App
+			initialSession={{
+				version: 1,
+				tabs: [{ id: "workspace-1", path: "/test/project", draft: "" }],
+				activeId: "workspace-1",
+			}}
+			readRepository={reader}
+		/>
+	);
+	await settle();
+	click("close-workspace-1");
+	await settle();
+	expect(root.renderer.findByTestId("repository-welcome")).toBeDefined();
+	click("welcome-search");
+	root.renderer.simulateKeystrokes("z z z");
+	root.renderer.flush();
+	expect(
+		root.renderer.findByTestId("welcome-repository-/test/project")
+	).toBeUndefined();
+	root.renderer.simulateKeystrokes("cmd-a backspace");
+	root.renderer.flush();
+	click("welcome-repository-/test/project");
+	await settle();
+	expect(reader).toHaveBeenCalledTimes(2);
+	expect(picker).not.toHaveBeenCalled();
+	expect(root.renderer.findByTestId("commit-composer")).toBeDefined();
 });

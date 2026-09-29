@@ -141,3 +141,48 @@ it("opens above the trigger, clamps the right edge, and flips below near the top
 
 	expect(below!.y).toBeGreaterThanOrEqual(moved!.y + moved!.height);
 });
+
+function FullWidthTrigger() {
+	const [open, setOpen] = useState(false);
+
+	return (
+		<div style={{ padding: 40, width: 220 }}>
+			<Popover open={open} onOpenChange={setOpen}>
+				<PopoverTrigger asChild>
+					<Button
+						testId="trigger"
+						style={{ width: "100%", justifyContent: "flex-start", gap: 8 }}
+					>
+						<text>Clone from URL</text>
+					</Button>
+				</PopoverTrigger>
+				<PopoverContent aria-label="Clone">
+					<text>Repository URL</text>
+				</PopoverContent>
+			</Popover>
+		</div>
+	);
+}
+
+it("keeps a full-width raised trigger aligned with its original button", async () => {
+	root.render(<FullWidthTrigger />);
+	click("trigger");
+	await finish();
+	const original = root.renderer.getElementBounds(node("trigger").id);
+
+	const raised = root.renderer.getElementBounds(
+		node("popover-raised-trigger").id
+	);
+
+	expect(raised).toEqual(original);
+	expect(original?.x).toBe(40);
+	expect(original?.y).toBe(40);
+	expect(original?.width).toBe(140);
+	click("popover-raised-trigger");
+	await finish();
+	click("trigger");
+	await finish();
+	expect(
+		root.renderer.getElementBounds(node("popover-raised-trigger").id)
+	).toEqual(original);
+});

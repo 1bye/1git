@@ -130,11 +130,12 @@ export function useRepositoryConnection(
 			if (
 				!workspace.repository &&
 				workspace.repositoryPath &&
-				workspace.loading
+				workspace.loading &&
+				!requests.current.has(tab.id)
 			)
 				void read(tab.id, workspace.repositoryPath);
 		}
-	}, [read]);
+	}, [read, state.tabs]);
 
 	const open = async (id: string): Promise<void> => {
 		if (picking.current || setups.current.has(id)) return;

@@ -203,7 +203,7 @@ it("keeps pending reads attached to their tab and cancels them on close", async 
 	);
 	click("open-repository");
 	await settle();
-	expect(root.renderer.getAllText()).toContain("Reading repository…");
+	expect(root.renderer.getAllText()).toContain("Opening…");
 	expect(element("open-repository").customProps?.tabIndex).toBeUndefined();
 	click("workspace-2");
 	expect(root.renderer.getAllText()).not.toContain("Reading repository…");
@@ -215,7 +215,7 @@ it("keeps pending reads attached to their tab and cancels them on close", async 
 	});
 	await settle();
 	expect(root.renderer.findByTestId("entry-late.ts")).toBeUndefined();
-	expect(root.renderer.getAllText()).toContain("Start a workspace");
+	expect(root.renderer.getAllText()).toContain("QUICK ACTIONS");
 });
 
 it("ignores a picker result after its tab closes and never reads for a removed tab", async () => {
@@ -234,7 +234,7 @@ it("ignores a picker result after its tab closes and never reads for a removed t
 	pending.resolve(["/test/project"]);
 	await settle();
 	expect(reader).not.toHaveBeenCalled();
-	expect(root.renderer.getAllText()).toContain("Start a workspace");
+	expect(root.renderer.getAllText()).toContain("QUICK ACTIONS");
 });
 
 it("loads in the background without replacing the active tab and aborts reads on unmount", async () => {

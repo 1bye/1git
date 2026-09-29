@@ -19,6 +19,7 @@ import {
 	patchPath,
 	testSessionPatchPath,
 	testSessionPlatformPatchPath,
+	elementBoundsPatchPath,
 } from "./config";
 
 if (process.platform !== "darwin" || process.arch !== "arm64") {
@@ -82,6 +83,7 @@ if (
 		contextMenuPlatformPatchPath,
 		testSessionPatchPath,
 		testSessionPlatformPatchPath,
+		elementBoundsPatchPath,
 	];
 
 	// Later patches can change an earlier patch's context. Unwind known patches

@@ -42,6 +42,10 @@ export const testSessionPlatformPatchPath = resolve(
 	import.meta.dir,
 	"test-session-platform.patch"
 );
+export const elementBoundsPatchPath = resolve(
+	import.meta.dir,
+	"element-bounds.patch"
+);
 /** Changing the patch, revision, or host invalidates the local binary. */
 export const nativeBuildId = createHash("sha256")
 	.update(nativeRevision)
@@ -55,5 +59,6 @@ export const nativeBuildId = createHash("sha256")
 	.update(readFileSync(contextMenuPlatformPatchPath))
 	.update(readFileSync(testSessionPatchPath))
 	.update(readFileSync(testSessionPlatformPatchPath))
+	.update(readFileSync(elementBoundsPatchPath))
 	.update(`${process.platform}-${process.arch}-release-v1`)
 	.digest("hex");

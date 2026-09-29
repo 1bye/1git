@@ -10,6 +10,7 @@ import {
 	PopoverContent,
 } from "@1git/gpuix-ui/popover";
 import { appTokens } from "../../../styles/tokens";
+import { WorkspaceTabIcon } from "../../workspace-tabs/components/workspace-tab-icon";
 import {
 	RepositorySetup,
 	type RepositorySetupRequest,
@@ -71,15 +72,17 @@ export function RepositorySetupActions({
 	onSubmit,
 	onCancel,
 	onOpen,
+	onBegin,
 }: {
 	disabled: boolean;
 	onSubmit: (request: RepositorySetupRequest) => Promise<RepositorySetupResult>;
 	onCancel: () => void;
 	onOpen: (path: string) => void;
+	onBegin: () => void;
 }) {
 	return (
-		<div style={styles.row}>
-			{(["clone", "create"] as const).map((kind) => (
+		<div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+			{(["create", "clone"] as const).map((kind) => (
 				<SetupForm
 					key={kind}
 					kind={kind}
@@ -87,6 +90,7 @@ export function RepositorySetupActions({
 					onSubmit={onSubmit}
 					onCancel={onCancel}
 					onOpen={onOpen}
+					onBegin={onBegin}
 				/>
 			))}
 		</div>
@@ -99,6 +103,7 @@ function SetupForm({
 	onSubmit,
 	onCancel,
 	onOpen,
+	onBegin,
 }: Parameters<typeof RepositorySetupActions>[0] & {
 	kind: "clone" | "create";
 }) {
@@ -219,7 +224,11 @@ function SetupForm({
 		<Popover
 			open={open}
 			onOpenChange={(next) => {
-				if (!working.current && !picking) setOpen(next);
+				if (!working.current && !picking) {
+					if (next) onBegin();
+
+					setOpen(next);
+				}
 			}}
 			modal
 		>
@@ -230,8 +239,15 @@ function SetupForm({
 					size="sm"
 					testId={`repository-${kind}`}
 					disabled={disabled}
+					style={{
+						width: "100%",
+						justifyContent: "flex-start",
+						gap: 8,
+						color: appTokens.colors.textMuted,
+					}}
 				>
-					{clone ? "Clone repository" : "Create new"}
+					<WorkspaceTabIcon name={clone ? "branch" : "add"} />
+					{clone ? "Clone from URL" : "Create repository"}
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent

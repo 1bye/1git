@@ -17,6 +17,7 @@ import { RepositoryDiff as DiffReader } from "./feature/repository-workspace/lib
 import { RepositoryReader } from "./feature/repository-workspace/lib/repository-reader";
 import { RepositorySetup } from "./feature/repository-workspace/lib/repository-setup";
 import { RepositorySetupActions } from "./feature/repository-workspace/components/repository-setup";
+import { RepositoryWelcome } from "./feature/repository-workspace/components/repository-welcome";
 import type { RepositoryWatcher } from "./feature/repository-workspace/lib/repository-watcher";
 import { useRepositoryAutoRefresh } from "./feature/repository-workspace/hooks/use-repository-auto-refresh";
 import { RepositoryHistory } from "./feature/repository-workspace/lib/repository-history";
@@ -304,7 +305,59 @@ export function App({
 					) : null}
 				</div>
 			) : null}
-			{activeTab?.comparison ? (
+			{!preview && !workspace?.repository && !workspace?.repositoryPath ? (
+				<RepositoryWelcome
+					paths={state.recentRepositories ?? []}
+					busy={connection.pickingId !== null || !!workspace?.loading}
+					error={workspace?.error}
+					onOpen={() => {
+						const id = activeTab?.id ?? `workspace-${state.nextId}`;
+
+						if (!activeTab) dispatch({ type: "add" });
+
+						void connection.open(id);
+					}}
+					onOpenRecent={(path) => {
+						const existing = state.tabs.find(
+							(tab) => tab.workspace.repository?.root === path
+						);
+
+						if (existing) dispatch({ type: "activate", id: existing.id });
+						else if (activeTab) void connection.read(activeTab.id, path);
+						else dispatch({ type: "add", path });
+					}}
+					actions={
+						<RepositorySetupActions
+							onBegin={() => {
+								if (!activeTab) dispatch({ type: "add" });
+							}}
+							disabled={
+								connection.pickingId !== null ||
+								!!workspace?.loading ||
+								(!!workspace && RepositoryWorkspaceModel.isBusy(workspace))
+							}
+							onSubmit={(request) =>
+								activeTab
+									? connection.setup(
+											activeTab.id,
+											request,
+											mutations.closeProtection.block
+										)
+									: Promise.resolve({
+											ok: false,
+											message: "Open a workspace first.",
+										})
+							}
+							onCancel={() => {
+								if (activeTab) connection.cancelSetup(activeTab.id);
+							}}
+							onOpen={(path) => {
+								if (activeTab) void connection.read(activeTab.id, path);
+							}}
+						/>
+					}
+				/>
+			) : activeTab?.comparison ? (
 				<RepositoryComparison
 					key={activeTab.id}
 					request={activeTab.comparison}
@@ -340,33 +393,6 @@ export function App({
 					hasWorkspace={!!activeTab}
 					workspace={workspace}
 					picking={connection.pickingId !== null}
-					setupActions={
-						activeTab &&
-						workspace &&
-						!workspace.preview &&
-						!workspace.repository &&
-						!workspace.repositoryPath ? (
-							<RepositorySetupActions
-								key={activeTab.id}
-								disabled={
-									connection.pickingId !== null ||
-									workspace.loading ||
-									RepositoryWorkspaceModel.isBusy(workspace)
-								}
-								onSubmit={(request) =>
-									connection.setup(
-										activeTab.id,
-										request,
-										mutations.closeProtection.block
-									)
-								}
-								onCancel={() => connection.cancelSetup(activeTab.id)}
-								onOpen={(path) => {
-									void connection.read(activeTab.id, path);
-								}}
-							/>
-						) : undefined
-					}
 					onOpen={() => {
 						if (!activeTab) return;
 

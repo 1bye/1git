@@ -1,4 +1,5 @@
 import type { RepositorySnapshot } from "@1git/git";
+import { basename } from "node:path";
 import type { ComparisonRequest } from "../../repository-comparison/lib/repository-comparison";
 import {
 	RepositoryWorkspaceModel,
@@ -21,11 +22,12 @@ export interface WorkspaceTabsState {
 	readonly tabs: readonly WorkspaceTabRecord[];
 	readonly activeId: string | null;
 	readonly nextId: number;
+	readonly recentRepositories?: readonly string[];
 }
 
 /** Tab mutations are independent of the renderer and never perform filesystem work. */
 export type WorkspaceTabsAction =
-	| { type: "add" }
+	| { type: "add"; path?: string }
 	| { type: "open-worktree"; snapshot: RepositorySnapshot }
 	| { type: "worktree-removed"; path: string }
 	| { type: "activate"; id: string }
@@ -111,6 +113,10 @@ export class WorkspaceTabsModel {
 			return {
 				...state,
 				tabs: [...state.tabs, tab],
+				recentRepositories: WorkspaceTabsModel.remember(
+					state.recentRepositories,
+					workspace.repository?.root
+				),
 				activeId: tab.id,
 				nextId: state.nextId + 1,
 			};
@@ -119,8 +125,13 @@ export class WorkspaceTabsModel {
 		if (action.type === "add") {
 			const tab = {
 				id: `workspace-${state.nextId}`,
-				name: `Workspace ${state.nextId}`,
-				workspace: RepositoryWorkspaceModel.create(state.preview),
+				name: action.path ? basename(action.path) : `Workspace ${state.nextId}`,
+				workspace: {
+					...RepositoryWorkspaceModel.create(state.preview),
+					...(action.path
+						? { repositoryPath: action.path, loading: true }
+						: {}),
+				},
 			};
 
 			return {
@@ -157,6 +168,14 @@ export class WorkspaceTabsModel {
 
 			return {
 				...state,
+				recentRepositories:
+					workspace.repository &&
+					workspace.repository.root !== tab.workspace.repository?.root
+						? WorkspaceTabsModel.remember(
+								state.recentRepositories,
+								workspace.repository.root
+							)
+						: state.recentRepositories,
 				tabs: state.tabs.map((item) =>
 					item.id === tab.id
 						? {
@@ -203,6 +222,16 @@ export class WorkspaceTabsModel {
 				: state.activeId;
 
 		return { ...state, tabs, activeId };
+	}
+
+	/** Keep a bounded local launch list without background repository reads. */
+	static remember(
+		paths: readonly string[] = [],
+		path?: string
+	): readonly string[] {
+		return path
+			? [path, ...paths.filter((item) => item !== path)].slice(0, 100)
+			: paths;
 	}
 
 	static destination(

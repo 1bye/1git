@@ -162,8 +162,15 @@ entrance/exit animation yet.
 
 ### Open, clone and create
 
-Empty workspaces show Open repository, Clone repository and Create new without
-the repository sidebar. Clone/Create use the shared dimmed popover, transparent
+With no tabs or an empty workspace, the native app matches the desktop launch
+layout: Quick actions at left and a searchable All repositories list at right,
+without the repository sidebar. Create repository, Clone from URL and Open from
+disk work from this page; starting setup opens an empty tab without dismissing
+its form. Previously opened roots remain available after their tabs close and
+across restarts (up to 100, deduplicated, stored as paths in the session). Search
+matches names/paths locally; opening reads fresh Git data, and missing folders
+use the existing retry view. This list does not scan disk or import Electron data.
+Clone/Create use the shared dimmed popover, transparent
 fields, a folder-picker location control and explicit confirmation.
 Clone suggests `~/repository-name` from the entered URL; the picker selects the
 exact destination folder (not its parent). Create initializes the chosen folder

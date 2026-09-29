@@ -24,6 +24,7 @@ export interface WorkspaceSessionDocument {
 		readonly navigation?: WorkspaceNavigation;
 	}[];
 	readonly activeId: string | null;
+	readonly recentRepositories?: readonly string[];
 }
 
 const tabIdPattern = /^workspace-([1-9]\d*)$/;
@@ -118,6 +119,20 @@ export class WorkspaceSession {
 		return {
 			version: 1,
 			tabs,
+			...(Array.isArray(value.recentRepositories)
+				? {
+						recentRepositories: [
+							...new Set(
+								value.recentRepositories.filter(
+									(path): path is string =>
+										typeof path === "string" &&
+										isAbsolute(path) &&
+										!path.includes("\0")
+								)
+							),
+						].slice(0, 100),
+					}
+				: {}),
 			activeId:
 				typeof value.activeId === "string" && ids.has(value.activeId)
 					? value.activeId
@@ -128,6 +143,9 @@ export class WorkspaceSession {
 	static capture(state: WorkspaceTabsState): WorkspaceSessionDocument {
 		return {
 			version: 1,
+			...(state.recentRepositories?.length
+				? { recentRepositories: state.recentRepositories }
+				: {}),
 			tabs: state.tabs.map(({ id, workspace }) => ({
 				id,
 				path: workspace.repository?.root ?? workspace.repositoryPath,
@@ -154,6 +172,12 @@ export class WorkspaceSession {
 	static restore(document: WorkspaceSessionDocument): WorkspaceTabsState {
 		return {
 			preview: false,
+			recentRepositories: [
+				...new Set([
+					...(document.recentRepositories ?? []),
+					...document.tabs.flatMap((tab) => (tab.path ? [tab.path] : [])),
+				]),
+			].slice(0, 100),
 			tabs: document.tabs.map(({ id, path, draft, navigation }) => ({
 				id,
 				name: path ? basename(path) : "Open repository",

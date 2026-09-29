@@ -24,6 +24,7 @@ not been verified. Updated 2026-09-28.
 | [Window activation](05-window-activation.md) | Event bridge addition | GPUIX native |
 | [Close and quit protection](06-close-protection.md) | Safety API addition | GPUIX native + GPUI fork |
 | [Native context menus](07-native-context-menu.md) | Platform feature; needs generalization | GPUIX native + GPUI fork |
+| [Padded element bounds](08-element-bounds.md) | Floating anchor positioning fix | GPUIX native |
 
 Start with the lifecycle and accessibility fixes. Keep independent features in
 separate PRs. The diff patch should likely be split further. The context-menu

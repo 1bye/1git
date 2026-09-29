@@ -9,6 +9,42 @@ import { WorkspaceSession } from "../../src/feature/workspace-tabs/lib/workspace
 import { WorkspaceTabsModel } from "../../src/feature/workspace-tabs/lib/workspace-tabs-model";
 import { repositorySnapshot } from "../_shared/repository-snapshot";
 
+it("retains recent roots after the last tab closes, round-trips them and ignores invalid optional entries", () => {
+	let state = WorkspaceTabsModel.create();
+
+	state = WorkspaceTabsModel.reduce(state, {
+		type: "workspace",
+		id: "workspace-1",
+		action: { type: "loaded", snapshot: repositorySnapshot() },
+	});
+	state = WorkspaceTabsModel.reduce(state, {
+		type: "close",
+		id: "workspace-1",
+	});
+	const restored = WorkspaceSession.restore(
+		WorkspaceSession.parse(JSON.stringify(WorkspaceSession.capture(state)))
+	);
+
+	expect(restored.tabs).toEqual([]);
+	expect(restored.recentRepositories).toEqual(["/test/project"]);
+	const parsed = WorkspaceSession.parse(
+		JSON.stringify({
+			version: 1,
+			tabs: [],
+			activeId: null,
+			recentRepositories: ["relative", 5, "/valid", "/bad\0path", "/valid"],
+		})
+	);
+
+	expect(parsed.recentRepositories).toEqual(["/valid"]);
+	expect(
+		WorkspaceTabsModel.remember(
+			Array.from({ length: 110 }, (_, index) => `/repo/${index}`),
+			"/repo/50"
+		)
+	).toHaveLength(100);
+});
+
 it("restores tab order, separate drafts, active tab and worktree roots without stale Git state", () => {
 	let state = WorkspaceTabsModel.create(3);
 
