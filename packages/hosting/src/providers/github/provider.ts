@@ -5,7 +5,7 @@ import type { Transport } from "../../transport.js";
 import { GitHubAdapter } from "./adapter.js";
 import { GitHubOAuthAdapter } from "./oauth.js";
 
-/** Stateless GitHub/GitHub Enterprise definition. Safe to share across account clients. */
+/** Configured GitHub/GitHub Enterprise account. Construct separate instances for distinct credentials. */
 export class GitHubProvider extends HostingProvider {
 	readonly id = "github";
 	readonly defaultWebUrl = "https://github.com";

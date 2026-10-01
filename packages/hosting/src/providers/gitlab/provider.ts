@@ -7,7 +7,7 @@ import { fail } from "../../result.js";
 import { GitLabAdapter } from "./adapter.js";
 import { GitLabOAuthAdapter } from "./oauth.js";
 
-/** Stateless GitLab.com/self-managed definition with nested group namespaces. */
+/** Configured GitLab.com/self-managed account with nested group namespaces. */
 export class GitLabProvider extends HostingProvider {
 	readonly id = "gitlab";
 	readonly defaultWebUrl = "https://gitlab.com";

@@ -34,15 +34,18 @@ async function main(): Promise<void> {
 			"Set HOSTING_PROVIDER to github/gitlab and provide HOSTING_TOKEN explicitly."
 		);
 
-	const client = unwrap(
-		HostingClient.create({
-			provider:
-				providerId === "github" ? new GitHubProvider() : new GitLabProvider(),
-			accessToken,
-			webUrl: process.env.HOSTING_WEB_URL,
-			apiUrl: process.env.HOSTING_API_URL,
-		})
-	);
+	const options = {
+		accessToken,
+		webUrl: process.env.HOSTING_WEB_URL,
+		apiUrl: process.env.HOSTING_API_URL,
+	};
+
+	const provider =
+		providerId === "github"
+			? new GitHubProvider(options)
+			: new GitLabProvider(options);
+
+	const client = unwrap(HostingClient.create(provider));
 
 	const action = argument(2, "action (list, create, pr)");
 

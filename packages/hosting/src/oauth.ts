@@ -1,9 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import type {
-	CallOptions,
-	EndpointOptions,
-	HostingResult,
-} from "./contracts.js";
+import type { CallOptions, HostingResult } from "./contracts.js";
 import {
 	fail,
 	failureResult,
@@ -18,10 +14,8 @@ import type {
 	OAuthApplication,
 	OAuthGrant,
 	ProviderOAuthAdapter,
+	HostingProvider,
 } from "./provider.js";
-
-/** Registered OAuth application. Secrets belong to the caller, never to repository data. */
-export interface OAuthOptions extends EndpointOptions, OAuthApplication {}
 
 /** Open authorizationUrl in the system browser; retain this object until the callback arrives. */
 export interface Authorization {
@@ -46,14 +40,21 @@ export class HostingOAuth {
 		{ verifier: string; state: string }
 	>();
 	readonly #adapter: ProviderOAuthAdapter;
-	readonly #config: OAuthOptions;
+	readonly #config: OAuthApplication;
+	readonly provider: HostingProvider;
 
-	private constructor(options: OAuthOptions) {
-		this.#config = { ...options, scopes: [...options.scopes] };
-		const http = new Transport(new Endpoints(options));
-		const adapter = options.provider.createOAuthAdapter(http);
+	private constructor(provider: HostingProvider) {
+		const http = new Transport(new Endpoints(provider));
+		const options = provider.options.oauth;
 
-		if (!options.provider.capabilities.oauthPkce || !adapter)
+		if (!options)
+			fail("validation", "Configure an OAuth application on this provider.");
+
+		this.#config = options;
+		this.provider = provider;
+		const adapter = provider.createOAuthAdapter(http);
+
+		if (!provider.capabilities.oauthPkce || !adapter)
 			fail(
 				"unsupported",
 				"This provider does not support authorization-code/PKCE authentication."
@@ -105,9 +106,9 @@ export class HostingOAuth {
 	}
 
 	/** Validate configuration and provider support for authorization-code/PKCE authentication. */
-	static create(options: OAuthOptions): HostingResult<HostingOAuth> {
+	static create(provider: HostingProvider): HostingResult<HostingOAuth> {
 		try {
-			return { ok: true, value: new HostingOAuth(options) };
+			return { ok: true, value: new HostingOAuth(provider) };
 		} catch (error) {
 			return failureResult("configure-oauth", error);
 		}
@@ -208,7 +209,7 @@ export class HostingOAuth {
 		options: CallOptions = {}
 	): Promise<HostingResult<OAuthTokens>> {
 		return result("refresh-token", () => {
-			if (this.#config.provider.capabilities.oauthRefresh === "unsupported")
+			if (this.provider.capabilities.oauthRefresh === "unsupported")
 				fail(
 					"unsupported",
 					"This provider does not support refreshing OAuth tokens."
@@ -232,7 +233,7 @@ export class HostingOAuth {
 		return result("revoke-token", async () => {
 			nonempty(accessToken, "access token");
 
-			if (!this.#config.provider.capabilities.oauthRevocation)
+			if (!this.provider.capabilities.oauthRevocation)
 				fail(
 					"unsupported",
 					"This provider does not support revoking OAuth tokens."

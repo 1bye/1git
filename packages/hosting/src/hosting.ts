@@ -6,7 +6,6 @@ import type {
 	Capabilities,
 	CreatePullRequest,
 	CreateRepository,
-	HostingOptions,
 	HostingResult,
 	Owner,
 	Page,
@@ -27,38 +26,35 @@ export class HostingClient {
 	readonly webUrl: string;
 	readonly #adapter: Adapter;
 
-	private constructor(options: HostingOptions) {
-		const endpoints = new Endpoints(options);
+	private constructor(provider: HostingProvider) {
+		const endpoints = new Endpoints(provider);
+		const { accessToken } = provider.options;
 
-		if (
-			typeof options.accessToken !== "string" &&
-			typeof options.accessToken !== "function"
-		)
+		if (typeof accessToken !== "string" && typeof accessToken !== "function")
 			fail(
 				"validation",
 				"An explicit access token or credential callback is required."
 			);
 
-		if (typeof options.accessToken === "string")
-			nonempty(options.accessToken, "access token");
+		if (typeof accessToken === "string") nonempty(accessToken, "access token");
 
-		const transport = new Transport(endpoints, options.accessToken);
+		const transport = new Transport(endpoints, accessToken);
 
-		this.#adapter = options.provider.createAdapter(transport);
-		this.provider = options.provider;
+		this.#adapter = provider.createAdapter(transport);
+		this.provider = provider;
 		this.webUrl = endpoints.web.href;
 		this.capabilities = Object.freeze({
-			...options.provider.capabilities,
+			...provider.capabilities,
 			repositoryVisibilities: Object.freeze([
-				...options.provider.capabilities.repositoryVisibilities,
+				...provider.capabilities.repositoryVisibilities,
 			]),
 		});
 	}
 
-	/** Validate configuration without making requests; construct one instance per account. */
-	static create(options: HostingOptions): HostingResult<HostingClient> {
+	/** Validate a configured provider without requests. Each client gets a fresh transport and cursor scope. */
+	static create(provider: HostingProvider): HostingResult<HostingClient> {
 		try {
-			return { ok: true, value: new HostingClient(options) };
+			return { ok: true, value: new HostingClient(provider) };
 		} catch (error) {
 			return failureResult("configure", error);
 		}

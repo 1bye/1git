@@ -73,11 +73,12 @@ test("GitHub hosting lifecycle against explicitly seeded Emulate", async () => {
 
 	try {
 		const client = value(
-			HostingClient.create({
-				provider: new GitHubProvider(),
-				accessToken: "fixture_alice",
-				fetch: route,
-			})
+			HostingClient.create(
+				new GitHubProvider({
+					accessToken: "fixture_alice",
+					fetch: route,
+				})
+			)
 		);
 
 		expect(value(await client.getAccount()).username).toBe("alice");
@@ -168,14 +169,17 @@ test("GitHub hosting lifecycle against explicitly seeded Emulate", async () => {
 		).toContain("/pull/");
 
 		const oauth = value(
-			HostingOAuth.create({
-				provider: new GitHubProvider(),
-				clientId: "fixture-client",
-				clientSecret: "fixture-secret",
-				redirectUri,
-				scopes: ["repo", "user"],
-				fetch: route,
-			})
+			HostingOAuth.create(
+				new GitHubProvider({
+					fetch: route,
+					oauth: {
+						clientId: "fixture-client",
+						clientSecret: "fixture-secret",
+						redirectUri,
+						scopes: ["repo", "user"],
+					},
+				})
+			)
 		);
 
 		const authorization = value(oauth.beginAuthorization());
@@ -201,11 +205,12 @@ test("GitHub hosting lifecycle against explicitly seeded Emulate", async () => {
 		);
 
 		const bob = value(
-			HostingClient.create({
-				provider: new GitHubProvider(),
-				accessToken: tokens.accessToken,
-				fetch: route,
-			})
+			HostingClient.create(
+				new GitHubProvider({
+					accessToken: tokens.accessToken,
+					fetch: route,
+				})
+			)
 		);
 
 		expect(value(await bob.getAccount()).username).toBe("bob");

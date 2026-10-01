@@ -1,5 +1,5 @@
 /**
- * Covers: third-provider extension, API delegation, capabilities, OAuth and account isolation.
+ * Covers: configured third-provider extension, capabilities, OAuth and account/cursor isolation.
  * Real: compiled public extension contracts, client, OAuth, remote parser and secure transport.
  * Doubles: test-only provider/adapter and captured HTTP; not a real hosting service.
  * Requires: package build, no network.
@@ -12,6 +12,7 @@ import { HostingProvider, ProviderFailure } from "@1git/hosting/provider";
 import type {
 	HostingAdapter,
 	ProviderOAuthAdapter,
+	ProviderOptions,
 } from "@1git/hosting/provider";
 import type {
 	Capabilities,
@@ -214,7 +215,9 @@ class BrokenAdapterProvider extends FixtureProvider {
 	}
 }
 
-function capture(provider: HostingProvider = new FixtureProvider()) {
+function capture(
+	Provider: new (options: ProviderOptions) => HostingProvider = FixtureProvider
+) {
 	const requests: { url: URL; init: RequestInit }[] = [];
 
 	const fetch: HostingFetch = async (input, init = {}) => {
@@ -244,11 +247,19 @@ function capture(provider: HostingProvider = new FixtureProvider()) {
 		});
 	};
 
-	const client = value(
-		HostingClient.create({ provider, accessToken: "alice", fetch })
-	);
+	const provider = new Provider({
+		accessToken: "alice",
+		fetch,
+		oauth: {
+			clientId: "app",
+			redirectUri: "https://app.example/callback",
+			scopes: ["repositories"],
+		},
+	});
 
-	return { client, requests, fetch };
+	const client = value(HostingClient.create(provider));
+
+	return { provider, client, requests, fetch };
 }
 
 test("a third provider implements all REST operations without registering a string selector", async () => {
@@ -305,13 +316,14 @@ test("a third provider implements all REST operations without registering a stri
 	expect(client.provider.id).toBe("fixture-forge");
 });
 
-test("sharing one provider keeps credentials, adapters and cursors isolated per client", async () => {
-	const provider = new FixtureProvider();
-	const { client: alice, fetch, requests } = capture(provider);
+test("configured providers isolate accounts and clients isolate cursors", async () => {
+	const { provider, client: alice, fetch, requests } = capture();
 
 	const bob = value(
-		HostingClient.create({ provider, accessToken: "bob", fetch })
+		HostingClient.create(new FixtureProvider({ accessToken: "bob", fetch }))
 	);
+
+	const otherAlice = value(HostingClient.create(provider));
 
 	expect(value(await alice.getAccount()).username).toBe("alice");
 	expect(value(await bob.getAccount()).username).toBe("bob");
@@ -319,6 +331,11 @@ test("sharing one provider keeps credentials, adapters and cursors isolated per 
 	const requestCount = requests.length;
 
 	expect(await bob.listRepositories({ cursor })).toMatchObject({
+		ok: false,
+		error: { code: "validation" },
+	});
+	expect(requests).toHaveLength(requestCount);
+	expect(await otherAlice.listRepositories({ cursor })).toMatchObject({
 		ok: false,
 		error: { code: "validation" },
 	});
@@ -331,7 +348,7 @@ test("sharing one provider keeps credentials, adapters and cursors isolated per 
 });
 
 test("provider headers cannot overwrite the per-account credential", async () => {
-	const { client, requests } = capture(new InvalidHeadersProvider());
+	const { client, requests } = capture(InvalidHeadersProvider);
 
 	expect(await client.getAccount()).toMatchObject({
 		ok: false,
@@ -341,7 +358,7 @@ test("provider headers cannot overwrite the per-account credential", async () =>
 });
 
 test("unexpected provider exceptions do not expose original error messages", async () => {
-	const { client } = capture(new BrokenAdapterProvider());
+	const { client } = capture(BrokenAdapterProvider);
 	const result = await client.getAccount();
 
 	expect(result).toMatchObject({
@@ -370,27 +387,20 @@ test("custom capabilities reject unsupported features without issuing requests",
 			draft: true,
 		})
 	).toMatchObject({ ok: false, error: { code: "unsupported" } });
-	expect(
-		HostingOAuth.create({
-			provider: client.provider,
-			clientId: "app",
-			redirectUri: "https://app.example/callback",
-			scopes: [],
-		})
-	).toMatchObject({ ok: false, error: { code: "unsupported" } });
+	expect(HostingOAuth.create(client.provider)).toMatchObject({
+		ok: false,
+		error: { code: "unsupported" },
+	});
 	expect(requests).toHaveLength(0);
 });
 
 test("custom providers preserve safe failures and identify explicit remote mappings", async () => {
-	const provider = new FixtureProvider();
+	const provider = new FixtureProvider({
+		accessToken: "alice",
+		fetch: async () => Response.json({}),
+	});
 
-	const invalid = value(
-		HostingClient.create({
-			provider,
-			accessToken: "alice",
-			fetch: async () => Response.json({}),
-		})
-	);
+	const invalid = value(HostingClient.create(provider));
 
 	expect(await invalid.getAccount()).toMatchObject({
 		ok: false,
@@ -401,7 +411,7 @@ test("custom providers preserve safe failures and identify explicit remote mappi
 		},
 	});
 	expect(
-		parseRemote("https://forge.example/team/project.git", [{ provider }])
+		parseRemote("https://forge.example/team/project.git", [provider])
 	).toEqual({
 		ok: true,
 		value: {
@@ -412,23 +422,14 @@ test("custom providers preserve safe failures and identify explicit remote mappi
 		},
 	});
 	expect(
-		parseRemote("https://forge.example/team/sub/project.git", [{ provider }]).ok
+		parseRemote("https://forge.example/team/sub/project.git", [provider]).ok
 	).toBe(false);
 });
 
 test("a third provider reuses shared PKCE, callback validation and token normalization", async () => {
-	const provider = new OAuthFixtureProvider();
-	const { fetch, requests } = capture(provider);
+	const { provider, requests } = capture(OAuthFixtureProvider);
 
-	const oauth = value(
-		HostingOAuth.create({
-			provider,
-			fetch,
-			clientId: "app",
-			redirectUri: "https://app.example/callback",
-			scopes: ["repositories"],
-		})
-	);
+	const oauth = value(HostingOAuth.create(provider));
 
 	const attempt = value(oauth.beginAuthorization());
 	const parameters = new URL(attempt.authorizationUrl).searchParams;

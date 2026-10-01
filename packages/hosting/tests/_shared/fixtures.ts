@@ -1,4 +1,5 @@
-import type { HostingOptions, HostingResult } from "../../src/contracts.js";
+import type { HostingResult } from "../../src/contracts.js";
+import type { ProviderOptions } from "../../src/provider.js";
 import { HostingClient } from "../../src/hosting.js";
 import { GitHubProvider } from "../../src/providers/github/provider.js";
 import { GitLabProvider } from "../../src/providers/gitlab/provider.js";
@@ -71,25 +72,28 @@ export function gitlabPull(base = "https://gitlab.com") {
 export function capture(
 	provider: "github" | "gitlab",
 	respond: (url: URL, init: RequestInit) => Response | Promise<Response>,
-	overrides: Partial<HostingOptions> = {}
+	overrides: ProviderOptions = {}
 ) {
 	const requests: { url: URL; init: RequestInit }[] = [];
 
-	const client = value(
-		HostingClient.create({
-			provider:
-				provider === "github" ? new GitHubProvider() : new GitLabProvider(),
-			accessToken: "fake-token",
-			...overrides,
-			fetch: async (input, init = {}) => {
-				const url = new URL(input);
+	const options: ProviderOptions = {
+		accessToken: "fake-token",
+		...overrides,
+		fetch: async (input, init = {}) => {
+			const url = new URL(input);
 
-				requests.push({ url, init });
+			requests.push({ url, init });
 
-				return respond(url, init);
-			},
-		})
-	);
+			return respond(url, init);
+		},
+	};
+
+	const configured =
+		provider === "github"
+			? new GitHubProvider(options)
+			: new GitLabProvider(options);
+
+	const client = value(HostingClient.create(configured));
 
 	return { client, requests };
 }

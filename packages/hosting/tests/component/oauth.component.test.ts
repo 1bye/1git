@@ -7,7 +7,7 @@
 import { createHash } from "node:crypto";
 import { expect, test } from "bun:test";
 import { HostingOAuth } from "../../src/oauth.js";
-import type { OAuthOptions } from "../../src/oauth.js";
+import type { OAuthApplication, ProviderOptions } from "../../src/provider.js";
 import { GitHubProvider } from "../../src/providers/github/provider.js";
 import { GitLabProvider } from "../../src/providers/gitlab/provider.js";
 import { value } from "../_shared/fixtures.js";
@@ -20,19 +20,23 @@ test("serializing an OAuth client does not disclose its registration secret", ()
 
 function setup(
 	provider: "github" | "gitlab",
-	overrides: Partial<OAuthOptions> = {}
+	overrides: Partial<OAuthApplication> & Pick<ProviderOptions, "fetch"> = {}
 ) {
 	const requests: { url: URL; init: RequestInit }[] = [];
 
-	const oauth = value(
-		HostingOAuth.create({
-			provider:
-				provider === "github" ? new GitHubProvider() : new GitLabProvider(),
+	const { fetch: fetchOverride, ...application } = overrides;
+
+	const options: ProviderOptions = {
+		oauth: {
 			clientId: "client",
 			clientSecret: "fake-secret",
 			redirectUri: "http://127.0.0.1:8765/callback",
 			scopes: ["repo"],
-			fetch: async (url, init = {}) => {
+			...application,
+		},
+		fetch:
+			fetchOverride ??
+			(async (url, init = {}) => {
 				requests.push({ url: new URL(url), init });
 
 				return Response.json({
@@ -42,10 +46,15 @@ function setup(
 					expires_in: 3600,
 					scope: "repo,user",
 				});
-			},
-			...overrides,
-		})
-	);
+			}),
+	};
+
+	const configured =
+		provider === "github"
+			? new GitHubProvider(options)
+			: new GitLabProvider(options);
+
+	const oauth = value(HostingOAuth.create(configured));
 
 	return { oauth, requests };
 }
@@ -209,11 +218,14 @@ test.each([
 	"https://example.com/callback?token=secret",
 ])("rejects unsafe callback %s", (redirectUri) => {
 	expect(
-		HostingOAuth.create({
-			provider: new GitLabProvider(),
-			clientId: "id",
-			redirectUri,
-			scopes: [],
-		})
+		HostingOAuth.create(
+			new GitLabProvider({
+				oauth: {
+					clientId: "id",
+					redirectUri,
+					scopes: [],
+				},
+			})
+		)
 	).toMatchObject({ ok: false, error: { code: "validation" } });
 });

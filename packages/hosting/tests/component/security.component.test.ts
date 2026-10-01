@@ -22,30 +22,28 @@ test.each([
 	"file:///tmp",
 ])("rejects unsafe endpoint %s", (webUrl) => {
 	expect(
-		HostingClient.create({
-			provider: new GitHubProvider(),
-			accessToken: "fake",
-			webUrl,
-		})
+		HostingClient.create(new GitHubProvider({ accessToken: "fake", webUrl }))
 	).toMatchObject({ ok: false, error: { code: "validation" } });
 });
 
 test("HTTP opt-in is loopback-only", () => {
 	expect(
-		HostingClient.create({
-			provider: new GitHubProvider(),
-			accessToken: "fake",
-			webUrl: "http://localhost:5000",
-			allowLoopbackHttp: true,
-		}).ok
+		HostingClient.create(
+			new GitHubProvider({
+				accessToken: "fake",
+				webUrl: "http://localhost:5000",
+				allowLoopbackHttp: true,
+			})
+		).ok
 	).toBe(true);
 	expect(
-		HostingClient.create({
-			provider: new GitHubProvider(),
-			accessToken: "fake",
-			webUrl: "http://example.com",
-			allowLoopbackHttp: true,
-		}).ok
+		HostingClient.create(
+			new GitHubProvider({
+				accessToken: "fake",
+				webUrl: "http://example.com",
+				allowLoopbackHttp: true,
+			})
+		).ok
 	).toBe(false);
 });
 

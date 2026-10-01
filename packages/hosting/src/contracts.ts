@@ -1,5 +1,3 @@
-import type { HostingProvider } from "./provider.js";
-
 /** A successful hosting value or a safe, serializable failure, matching @1git/git. */
 export type HostingResult<T> =
 	| { readonly ok: true; readonly value: T }
@@ -47,26 +45,10 @@ export type HostingFetch = (
 	init?: RequestInit
 ) => Promise<Response>;
 
-/** Immutable per-client endpoint and transport configuration. No process environment is read. */
-export interface EndpointOptions {
-	readonly provider: HostingProvider;
-	readonly webUrl?: string;
-	readonly apiUrl?: string;
-	/** Explicit alternate SSH clone hostname, e.g. a self-managed GitLab SSH endpoint. */
-	readonly sshHost?: string;
-	readonly fetch?: HostingFetch;
-	readonly timeoutMs?: number;
-	readonly maxResponseBytes?: number;
-	/** Test-only escape hatch: HTTP is permitted only on literal loopback hosts. */
-	readonly allowLoopbackHttp?: boolean;
-}
-
-/** Each client owns one account context; the caller owns secure credential storage and refresh. */
-export interface HostingOptions extends EndpointOptions {
-	readonly accessToken:
-		| string
-		| ((options: CallOptions) => string | Promise<string>);
-}
+/** Explicit account credential or per-request lookup. The caller owns secure storage and refresh. */
+export type AccessToken =
+	| string
+	| ((options: CallOptions) => string | Promise<string>);
 
 /** Provider feature support, not a statement about a user's permissions. */
 export interface Capabilities {

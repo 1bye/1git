@@ -100,19 +100,22 @@ test("GitLab HTTP lifecycle with strict OAuth fixture", async () => {
 	});
 
 	const endpoint = {
-		provider: new GitLabProvider(),
 		webUrl: server.url.origin,
 		allowLoopbackHttp: true,
 	};
 
 	try {
 		const oauth = value(
-			HostingOAuth.create({
-				...endpoint,
-				clientId: "fixture",
-				redirectUri: "http://127.0.0.1:8765/callback",
-				scopes: ["api"],
-			})
+			HostingOAuth.create(
+				new GitLabProvider({
+					...endpoint,
+					oauth: {
+						clientId: "fixture",
+						redirectUri: "http://127.0.0.1:8765/callback",
+						scopes: ["api"],
+					},
+				})
+			)
 		);
 
 		const attempt = value(oauth.beginAuthorization());
@@ -127,7 +130,9 @@ test("GitLab HTTP lifecycle with strict OAuth fixture", async () => {
 		);
 
 		const client = value(
-			HostingClient.create({ ...endpoint, accessToken: tokens.accessToken })
+			HostingClient.create(
+				new GitLabProvider({ ...endpoint, accessToken: tokens.accessToken })
+			)
 		);
 
 		expect(value(await client.getAccount()).username).toBe("alice");

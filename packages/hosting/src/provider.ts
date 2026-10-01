@@ -1,4 +1,9 @@
-import type { Capabilities, RepositoryRef } from "./contracts.js";
+import type {
+	AccessToken,
+	Capabilities,
+	HostingFetch,
+	RepositoryRef,
+} from "./contracts.js";
 import { repositoryPath } from "./adapter.js";
 import { fail } from "./result.js";
 import type { Transport } from "./transport.js";
@@ -17,6 +22,21 @@ export interface OAuthApplication {
 	readonly clientSecret?: string;
 	readonly redirectUri: string;
 	readonly scopes: readonly string[];
+}
+
+/** Immutable host/account setup passed to provider constructors. No environment or credential store is read implicitly. */
+export interface ProviderOptions {
+	readonly webUrl?: string;
+	readonly apiUrl?: string;
+	readonly sshHost?: string;
+	readonly fetch?: HostingFetch;
+	readonly timeoutMs?: number;
+	readonly maxResponseBytes?: number;
+	/** Test-only opt-in; plaintext HTTP remains restricted to literal loopback hosts. */
+	readonly allowLoopbackHttp?: boolean;
+	/** Omit while authorizing with OAuth; a REST client requires an explicit token or lookup. */
+	readonly accessToken?: AccessToken;
+	readonly oauth?: OAuthApplication;
 }
 
 /** Standard code/PKCE and refresh grants used by the shared OAuth lifecycle. */
@@ -43,8 +63,34 @@ export interface ProviderOAuthAdapter {
 	): Promise<void>;
 }
 
-/** Extend this stateless definition to add a host. Adapters own each client's HTTP/account context. */
+/** Extend to add a host. Each configured instance owns one account's stable dependencies, never operation state. */
 export abstract class HostingProvider {
+	readonly #options: ProviderOptions;
+
+	/** Snapshot setup without I/O; invalid configuration shapes throw a safe ProviderFailure. Clients validate endpoints/credentials. */
+	constructor(options: ProviderOptions = {}) {
+		if (!options || typeof options !== "object" || Array.isArray(options))
+			fail("validation", "Invalid provider configuration.");
+
+		if (options.oauth && !Array.isArray(options.oauth.scopes))
+			fail("validation", "OAuth scopes must be an array.");
+
+		this.#options = Object.freeze({
+			...options,
+			oauth: options.oauth
+				? Object.freeze({
+						...options.oauth,
+						scopes: Object.freeze([...options.oauth.scopes]),
+					})
+				: undefined,
+		});
+	}
+
+	/** Sensitive immutable setup for clients and provider adapters. Never log or serialize this value. */
+	get options(): ProviderOptions {
+		return this.#options;
+	}
+
 	/** Stable metadata identifier for persisted accounts, e.g. github. Does not select an implementation. */
 	abstract readonly id: string;
 	abstract readonly defaultWebUrl: string;
@@ -53,7 +99,7 @@ export abstract class HostingProvider {
 	/** Resolve the default REST root for a validated public or self-managed web endpoint. */
 	abstract apiUrl(web: URL): URL;
 
-	/** Construct a fresh REST adapter. Never retain transport or credentials on the provider itself. */
+	/** Construct a fresh REST adapter. Never retain transport, responses or cursors on the provider. */
 	abstract createAdapter(http: Transport): HostingAdapter;
 
 	/** Return null for providers that support explicit tokens but not this authorization-code/PKCE flow. */

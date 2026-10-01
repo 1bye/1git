@@ -1,7 +1,6 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import type {
 	CallOptions,
-	EndpointOptions,
 	HostingFetch,
 	Page,
 	PageOptions,
@@ -21,23 +20,22 @@ export class Endpoints {
 	readonly timeoutMs: number;
 	readonly maxResponseBytes: number;
 
-	readonly options: EndpointOptions;
+	private readonly allowLoopbackHttp: boolean;
+	private readonly sshHost?: string;
 
-	constructor(options: EndpointOptions) {
-		this.options = Object.freeze({
-			provider: options.provider,
-			allowLoopbackHttp: options.allowLoopbackHttp,
-			sshHost: options.sshHost,
-		});
-
-		if (!(options.provider instanceof HostingProvider))
+	constructor(readonly provider: HostingProvider) {
+		if (!(provider instanceof HostingProvider))
 			fail("validation", "Provide a HostingProvider instance.");
 
-		nonempty(options.provider.id, "provider ID");
+		const { options } = provider;
 
-		this.web = this.endpoint(options.webUrl ?? options.provider.defaultWebUrl);
+		this.allowLoopbackHttp = options.allowLoopbackHttp ?? false;
+		this.sshHost = options.sshHost;
+		nonempty(provider.id, "provider ID");
+
+		this.web = this.endpoint(options.webUrl ?? provider.defaultWebUrl);
 		this.api = this.endpoint(
-			options.apiUrl ?? options.provider.apiUrl(new URL(this.web)).href
+			options.apiUrl ?? provider.apiUrl(new URL(this.web)).href
 		);
 
 		if (options.sshHost && !/^[a-z\d.-]+$/iu.test(options.sshHost))
@@ -78,7 +76,7 @@ export class Endpoints {
 			url.hash ||
 			(url.protocol !== "https:" &&
 				!(
-					this.options.allowLoopbackHttp &&
+					this.allowLoopbackHttp &&
 					url.protocol === "http:" &&
 					LOOPBACK.has(url.hostname)
 				))
@@ -123,7 +121,7 @@ export class Endpoints {
 			fail("invalid-response", "Invalid SSH clone URL.");
 
 		const scp = /^git@([^:]+):(.+)$/u.exec(value);
-		const sshHost = this.options.sshHost ?? this.web.hostname;
+		const sshHost = this.sshHost ?? this.web.hostname;
 
 		if (scp && scp[1] === sshHost && scp[2] && !/[\s@:\\]/u.test(scp[2]))
 			return value;
@@ -271,7 +269,7 @@ export class Transport {
 
 			if (url.href.startsWith(endpoints.api.href)) {
 				for (const [name, value] of Object.entries(
-					endpoints.options.provider.apiHeaders()
+					endpoints.provider.apiHeaders()
 				)) {
 					if (name.toLowerCase() === "authorization")
 						fail(

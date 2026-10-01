@@ -29,18 +29,17 @@ test("supports nested groups and explicit self-managed hosts", () => {
 	expect(
 		value(
 			parseRemote("https://code.example/git/team/sub/demo.git", [
-				{ provider: new GitLabProvider(), webUrl: "https://code.example/git" },
+				new GitLabProvider({ webUrl: "https://code.example/git" }),
 			])
 		).browserUrl
 	).toBe("https://code.example/git/team/sub/demo");
 	expect(
 		value(
 			parseRemote("git@ssh.example:team/demo.git", [
-				{
-					provider: new GitLabProvider(),
+				new GitLabProvider({
 					webUrl: "https://code.example",
 					sshHost: "ssh.example",
-				},
+				}),
 			])
 		).host
 	).toBe("code.example");

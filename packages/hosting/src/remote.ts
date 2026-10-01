@@ -5,13 +5,6 @@ import { HostingProvider } from "./provider.js";
 import { GitHubProvider } from "./providers/github/provider.js";
 import { GitLabProvider } from "./providers/gitlab/provider.js";
 
-/** Explicit enterprise/self-managed host mapping; unknown hosts are never guessed. */
-export interface RemoteHost {
-	readonly provider: HostingProvider;
-	readonly webUrl?: string;
-	readonly sshHost?: string;
-}
-
 /** Parsed remote identity, without userinfo, credentials, or Git side effects. */
 export interface RemoteIdentity {
 	readonly providerId: string;
@@ -23,7 +16,7 @@ export interface RemoteIdentity {
 /** Parse supported HTTPS, ssh://, or git@host:path remotes. Credential-bearing URLs are rejected. */
 export function parseRemote(
 	remote: string,
-	hosts: readonly RemoteHost[] = []
+	hosts: readonly HostingProvider[] = []
 ): HostingResult<RemoteIdentity> {
 	try {
 		if (
@@ -53,20 +46,16 @@ export function parseRemote(
 		)
 			fail("validation", "Use a credential-free HTTPS or git SSH remote.");
 
-		const configured = [
-			...hosts,
-			{ provider: new GitHubProvider() },
-			{ provider: new GitLabProvider() },
-		];
+		const configured = [...hosts, new GitHubProvider(), new GitLabProvider()];
 
-		for (const entry of configured) {
+		for (const provider of configured) {
 			let web: URL;
 
 			try {
-				if (!(entry.provider instanceof HostingProvider))
+				if (!(provider instanceof HostingProvider))
 					fail("validation", "Provide a HostingProvider instance.");
 
-				web = new URL(entry.webUrl ?? entry.provider.defaultWebUrl);
+				web = new URL(provider.options.webUrl ?? provider.defaultWebUrl);
 			} catch {
 				return fail("validation", "Invalid remote host mapping.");
 			}
@@ -82,7 +71,7 @@ export function parseRemote(
 
 			if (
 				ssh
-					? url.hostname !== (entry.sshHost ?? web.hostname)
+					? url.hostname !== (provider.options.sshHost ?? web.hostname)
 					: url.origin !== web.origin
 			)
 				continue;
@@ -110,13 +99,13 @@ export function parseRemote(
 				})
 				.join("/");
 
-			const repository = entry.provider.parseRepositoryPath(decoded);
+			const repository = provider.parseRepositoryPath(decoded);
 			const encoded = repositoryPath(repository, true);
 
 			return {
 				ok: true,
 				value: {
-					providerId: entry.provider.id,
+					providerId: provider.id,
 					host: web.host,
 					repository,
 					browserUrl: `${web.origin}${prefix}${encoded}`,
