@@ -1,0 +1,8 @@
+{
+  "extends": ["//"],
+  "tasks": {
+    "check-types": { "dependsOn": ["build", "^check-types"] },
+    "test": { "dependsOn": ["build", "^build"], "outputs": [] },
+    "test:integration": { "dependsOn": ["build", "^build"], "cache": false }
+  }
+}

@@ -127,6 +127,17 @@
         "react": "^19.2.4",
       },
     },
+    "packages/hosting": {
+      "name": "@1git/hosting",
+      "version": "0.0.0",
+      "devDependencies": {
+        "@1git/config": "workspace:*",
+        "@types/bun": "^1.3.5",
+        "@types/node": "^22.20.1",
+        "emulate": "0.12.0",
+        "typescript": "^6.0.3",
+      },
+    },
     "packages/ui": {
       "name": "@1git/ui",
       "version": "0.0.0",
@@ -172,6 +183,8 @@
     "@1git/gpuix-stylesheet": ["@1git/gpuix-stylesheet@workspace:packages/gpuix-stylesheet"],
 
     "@1git/gpuix-ui": ["@1git/gpuix-ui@workspace:packages/gpuix-ui"],
+
+    "@1git/hosting": ["@1git/hosting@workspace:packages/hosting"],
 
     "@1git/ui": ["@1git/ui@workspace:packages/ui"],
 
@@ -877,6 +890,8 @@
 
     "emoji-regex": ["emoji-regex@10.6.0", "", {}, "sha512-toUI84YS5YmxW219erniWD0CIVOo46xGKColeNQRgOzDorgBi1v4D71/OFzgD9GO2UGKIv1C3Sp8DAn0+j5w7A=="],
 
+    "emulate": ["emulate@0.12.0", "", { "dependencies": { "commander": "^14", "picocolors": "^1.1.1", "yaml": "^2" }, "bin": { "emulate": "dist/index.js" } }, "sha512-L6MuuRLgbi5RmvmJ5zkTVrkQRN49ik52VqseO+OmKJDLa33nD1SVyInd7hFDTrA/Zsos9sZXbMz4e8wejnsX0Q=="],
+
     "encodeurl": ["encodeurl@2.0.0", "", {}, "sha512-Q0n9HRi4m6JuGIV1eFlmvJB7ZEVxu93IrMyiMsGC0lrMJMWzRgx6WGquyfQgZVb31vhGgXnfmPNNXmxnOkRBrg=="],
 
     "enhanced-resolve": ["enhanced-resolve@5.24.4", "", { "dependencies": { "graceful-fs": "^4.2.4", "tapable": "^2.3.3" } }, "sha512-GVoi+ICHocoOIU7qVVM48wOJziRsqrsyqlI0Ce0LdowRn6v3bcH2zUa9kp85ncx0nwIb9/HOCOLS3fdThDG/XQ=="],
@@ -1460,6 +1475,8 @@
     "xmlchars": ["xmlchars@2.2.0", "", {}, "sha512-JZnDKK8B0RCDw84FNdDAIpZK+JuJw+s7Lz8nksI7SIuU3UXJJslUthsi+uWBUYOwPFwW7W7PRLRfUKpxjtjFCw=="],
 
     "yallist": ["yallist@3.1.1", "", {}, "sha512-a4UGQaWPH59mOXUYnAG2ewncQS4i4F43Tv3JoAM+s2VDAmS9NsK8GpDMLrCHPksFT7h3K6TOoUNn2pb7RoXx4g=="],
+
+    "yaml": ["yaml@2.9.1", "", { "bin": { "yaml": "bin.mjs" } }, "sha512-3NxN8+78OdzbT7C/WjGsyfPAtJaN3FNDsWxv7Y7mcDsT/oOmgW8BpyQQFFBnvZE3j9Y2Sdz1ULFLezL7Eb2yFw=="],
 
     "yocto-queue": ["yocto-queue@0.1.0", "", {}, "sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q=="],
 
