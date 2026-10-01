@@ -1,4 +1,6 @@
 import { HostingClient } from "@1git/hosting";
+import { GitHubProvider } from "@1git/hosting/providers/github";
+import { GitLabProvider } from "@1git/hosting/providers/gitlab";
 import type {
 	HostingResult,
 	Owner,
@@ -24,17 +26,18 @@ function argument(index: number, name: string): string {
 }
 
 async function main(): Promise<void> {
-	const provider = process.env.HOSTING_PROVIDER;
+	const providerId = process.env.HOSTING_PROVIDER;
 	const accessToken = process.env.HOSTING_TOKEN;
 
-	if ((provider !== "github" && provider !== "gitlab") || !accessToken)
+	if ((providerId !== "github" && providerId !== "gitlab") || !accessToken)
 		throw new Error(
 			"Set HOSTING_PROVIDER to github/gitlab and provide HOSTING_TOKEN explicitly."
 		);
 
 	const client = unwrap(
 		HostingClient.create({
-			provider,
+			provider:
+				providerId === "github" ? new GitHubProvider() : new GitLabProvider(),
 			accessToken,
 			webUrl: process.env.HOSTING_WEB_URL,
 			apiUrl: process.env.HOSTING_API_URL,

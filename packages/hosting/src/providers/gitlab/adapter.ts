@@ -9,9 +9,9 @@ import type {
 	PullRequestFilter,
 	Repository,
 	RepositoryRef,
-} from "./contracts.js";
-import type { Adapter } from "./adapter.js";
-import { repositoryPath, requestNumber } from "./adapter.js";
+} from "../../contracts.js";
+import type { Adapter } from "../../adapter.js";
+import { repositoryPath, requestNumber } from "../../adapter.js";
 import {
 	array,
 	boolean,
@@ -21,10 +21,10 @@ import {
 	optionalString,
 	record,
 	string,
-} from "./result.js";
-import { Transport } from "./transport.js";
+} from "../../result.js";
+import { Transport } from "../../transport.js";
 
-export class GitLab implements Adapter {
+export class GitLabAdapter implements Adapter {
 	constructor(private readonly http: Transport) {}
 
 	private path(ref: RepositoryRef): string {

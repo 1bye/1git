@@ -6,6 +6,7 @@
  */
 import { expect, test } from "bun:test";
 import { HostingClient } from "../../src/hosting.js";
+import { GitHubProvider } from "../../src/providers/github/provider.js";
 import { capture, githubRepository, value } from "../_shared/fixtures.js";
 
 test("serializing a client does not disclose its credential", () => {
@@ -21,14 +22,18 @@ test.each([
 	"file:///tmp",
 ])("rejects unsafe endpoint %s", (webUrl) => {
 	expect(
-		HostingClient.create({ provider: "github", accessToken: "fake", webUrl })
+		HostingClient.create({
+			provider: new GitHubProvider(),
+			accessToken: "fake",
+			webUrl,
+		})
 	).toMatchObject({ ok: false, error: { code: "validation" } });
 });
 
 test("HTTP opt-in is loopback-only", () => {
 	expect(
 		HostingClient.create({
-			provider: "github",
+			provider: new GitHubProvider(),
 			accessToken: "fake",
 			webUrl: "http://localhost:5000",
 			allowLoopbackHttp: true,
@@ -36,7 +41,7 @@ test("HTTP opt-in is loopback-only", () => {
 	).toBe(true);
 	expect(
 		HostingClient.create({
-			provider: "github",
+			provider: new GitHubProvider(),
 			accessToken: "fake",
 			webUrl: "http://example.com",
 			allowLoopbackHttp: true,

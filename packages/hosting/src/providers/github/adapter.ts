@@ -9,9 +9,9 @@ import type {
 	PullRequestFilter,
 	Repository,
 	RepositoryRef,
-} from "./contracts.js";
-import type { Adapter } from "./adapter.js";
-import { repositoryPath, requestNumber, segment } from "./adapter.js";
+} from "../../contracts.js";
+import type { Adapter } from "../../adapter.js";
+import { repositoryPath, requestNumber, segment } from "../../adapter.js";
 import {
 	array,
 	boolean,
@@ -21,10 +21,10 @@ import {
 	optionalString,
 	record,
 	string,
-} from "./result.js";
-import { Transport } from "./transport.js";
+} from "../../result.js";
+import { Transport } from "../../transport.js";
 
-export class GitHub implements Adapter {
+export class GitHubAdapter implements Adapter {
 	constructor(private readonly http: Transport) {}
 
 	async account(options: CallOptions): Promise<Account> {

@@ -19,6 +19,22 @@
     "./remote": {
       "types": "./dist/remote.d.ts",
       "import": "./dist/remote.js"
+    },
+    "./provider": {
+      "types": "./dist/provider.d.ts",
+      "import": "./dist/provider.js"
+    },
+    "./transport": {
+      "types": "./dist/transport.d.ts",
+      "import": "./dist/transport.js"
+    },
+    "./providers/github": {
+      "types": "./dist/providers/github/provider.d.ts",
+      "import": "./dist/providers/github/provider.js"
+    },
+    "./providers/gitlab": {
+      "types": "./dist/providers/gitlab/provider.d.ts",
+      "import": "./dist/providers/gitlab/provider.js"
     }
   },
   "scripts": {

@@ -8,6 +8,7 @@ import { createHash } from "node:crypto";
 import { expect, test } from "bun:test";
 import { HostingClient } from "@1git/hosting";
 import { HostingOAuth } from "@1git/hosting/oauth";
+import { GitLabProvider } from "@1git/hosting/providers/gitlab";
 import { gitlabPull, gitlabRepository, value } from "../_shared/fixtures.js";
 
 test("GitLab HTTP lifecycle with strict OAuth fixture", async () => {
@@ -99,7 +100,7 @@ test("GitLab HTTP lifecycle with strict OAuth fixture", async () => {
 	});
 
 	const endpoint = {
-		provider: "gitlab" as const,
+		provider: new GitLabProvider(),
 		webUrl: server.url.origin,
 		allowLoopbackHttp: true,
 	};

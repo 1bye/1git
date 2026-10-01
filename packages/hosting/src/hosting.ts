@@ -16,15 +16,14 @@ import type {
 	Repository,
 	RepositoryRef,
 } from "./contracts.js";
-import { GitHub } from "./github.js";
-import { GitLab } from "./gitlab.js";
+import type { HostingProvider } from "./provider.js";
 import { fail, failureResult, nonempty, result } from "./result.js";
 import { Endpoints, Transport } from "./transport.js";
 
 /** Stateless hosting API for one provider/account. Does not execute Git or persist credentials. */
 export class HostingClient {
 	readonly capabilities: Capabilities;
-	readonly provider: "github" | "gitlab";
+	readonly provider: HostingProvider;
 	readonly webUrl: string;
 	readonly #adapter: Adapter;
 
@@ -45,23 +44,14 @@ export class HostingClient {
 
 		const transport = new Transport(endpoints, options.accessToken);
 
-		this.#adapter =
-			options.provider === "github"
-				? new GitHub(transport)
-				: new GitLab(transport);
+		this.#adapter = options.provider.createAdapter(transport);
 		this.provider = options.provider;
 		this.webUrl = endpoints.web.href;
 		this.capabilities = Object.freeze({
-			pullRequestDrafts: true,
-			repositoryVisibilities: Object.freeze(
-				options.provider === "github"
-					? (["public", "private"] as const)
-					: (["public", "private", "internal"] as const)
-			),
-			oauthPkce: true,
-			oauthClientSecretRequired: options.provider === "github",
-			oauthRefresh: "when-issued",
-			oauthRevocation: true,
+			...options.provider.capabilities,
+			repositoryVisibilities: Object.freeze([
+				...options.provider.capabilities.repositoryVisibilities,
+			]),
 		});
 	}
 
@@ -124,6 +114,12 @@ export class HostingClient {
 			if (!["public", "private", "internal"].includes(input.visibility))
 				fail("validation", "Invalid repository visibility.");
 
+			if (!this.capabilities.repositoryVisibilities.includes(input.visibility))
+				fail(
+					"unsupported",
+					"This provider does not support the requested repository visibility."
+				);
+
 			if (input.owner.canCreateRepository === false)
 				fail("permission", "This owner cannot create repositories.");
 
@@ -167,6 +163,12 @@ export class HostingClient {
 			nonempty(input.title, "review request title");
 			nonempty(input.sourceBranch, "source branch");
 			nonempty(input.targetBranch, "target branch");
+
+			if (input.draft && !this.capabilities.pullRequestDrafts)
+				fail(
+					"unsupported",
+					"This provider does not support draft review requests."
+				);
 
 			return this.#adapter.createPullRequest(input, options);
 		});

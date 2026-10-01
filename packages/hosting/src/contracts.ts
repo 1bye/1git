@@ -1,10 +1,9 @@
+import type { HostingProvider } from "./provider.js";
+
 /** A successful hosting value or a safe, serializable failure, matching @1git/git. */
 export type HostingResult<T> =
 	| { readonly ok: true; readonly value: T }
 	| { readonly ok: false; readonly error: HostingError };
-
-/** Hosting implementation, independent of the configured public or enterprise host. */
-export type HostingProvider = "github" | "gitlab";
 
 /** Machine-readable failures. No raw response bodies or credential-bearing causes are exposed. */
 export type HostingErrorCode =
@@ -71,12 +70,12 @@ export interface HostingOptions extends EndpointOptions {
 
 /** Provider feature support, not a statement about a user's permissions. */
 export interface Capabilities {
-	readonly pullRequestDrafts: true;
+	readonly pullRequestDrafts: boolean;
 	readonly repositoryVisibilities: readonly Visibility[];
-	readonly oauthPkce: true;
+	readonly oauthPkce: boolean;
 	readonly oauthClientSecretRequired: boolean;
-	readonly oauthRefresh: "when-issued";
-	readonly oauthRevocation: true;
+	readonly oauthRefresh: "when-issued" | "unsupported";
+	readonly oauthRevocation: boolean;
 }
 
 /** GitLab internal visibility has no GitHub equivalent. */

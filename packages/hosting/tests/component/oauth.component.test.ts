@@ -8,6 +8,8 @@ import { createHash } from "node:crypto";
 import { expect, test } from "bun:test";
 import { HostingOAuth } from "../../src/oauth.js";
 import type { OAuthOptions } from "../../src/oauth.js";
+import { GitHubProvider } from "../../src/providers/github/provider.js";
+import { GitLabProvider } from "../../src/providers/gitlab/provider.js";
 import { value } from "../_shared/fixtures.js";
 
 test("serializing an OAuth client does not disclose its registration secret", () => {
@@ -24,7 +26,8 @@ function setup(
 
 	const oauth = value(
 		HostingOAuth.create({
-			provider,
+			provider:
+				provider === "github" ? new GitHubProvider() : new GitLabProvider(),
 			clientId: "client",
 			clientSecret: "fake-secret",
 			redirectUri: "http://127.0.0.1:8765/callback",
@@ -207,7 +210,7 @@ test.each([
 ])("rejects unsafe callback %s", (redirectUri) => {
 	expect(
 		HostingOAuth.create({
-			provider: "gitlab",
+			provider: new GitLabProvider(),
 			clientId: "id",
 			redirectUri,
 			scopes: [],

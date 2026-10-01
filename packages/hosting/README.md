@@ -22,8 +22,12 @@ Public entry points:
 | `@1git/hosting/contracts` | Result, error, configuration, account, owner, repository, pagination and PR/MR types |
 | `@1git/hosting/oauth` | `HostingOAuth`, `OAuthOptions`, `Authorization`, `OAuthTokens` |
 | `@1git/hosting/remote` | `parseRemote`, `RemoteHost`, `RemoteIdentity` |
+| `@1git/hosting/provider` | `HostingProvider`, `HostingAdapter`, OAuth extension contracts, `ProviderFailure` |
+| `@1git/hosting/transport` | `Transport`, `Endpoints`, `Reply` for provider authors |
+| `@1git/hosting/providers/github` | `GitHubProvider` |
+| `@1git/hosting/providers/gitlab` | `GitLabProvider` |
 
-Internal adapters and transport are not exported. All public operations, including configuration and remote parsing, use the same Result shape as `@1git/git`:
+Concrete REST/OAuth adapters are internal to their provider folders. Application-facing operations, including configuration and remote parsing, use the same Result shape as `@1git/git`. Provider extension methods instead return values or throw; the client converts them to Results:
 
 ```ts
 type HostingResult<T> =
@@ -35,9 +39,10 @@ type HostingResult<T> =
 
 ```ts
 import { HostingClient } from "@1git/hosting";
+import { GitHubProvider } from "@1git/hosting/providers/github";
 
 const configured = HostingClient.create({
-  provider: "github", // or "gitlab"
+  provider: new GitHubProvider(), // or new GitLabProvider()
   accessToken: async ({ signal }) => credentialStore.read(accountKey, signal),
 });
 if (!configured.ok) return showError(configured.error);
@@ -49,6 +54,8 @@ else showError(result.error);
 ```
 
 `credentialStore`, `accountKey`, `showError` and `showRepositories` above are application-owned dependencies. Fully runnable, type-checked examples are in `examples/workflows.ts` below.
+
+Providers are stateless class instances, not string selectors. Switch hosts by constructing a new client with the desired provider instance and explicit account/endpoint configuration. Do not mutate a client's provider or reuse its cursors with another client. `client.provider.id` is a stable string for account metadata only; it does not select an implementation.
 
 | Method | Purpose |
 | --- | --- |
@@ -86,13 +93,15 @@ Owner `canCreateRepository` is currently `null`: membership/namespace visibility
 
 Create one client per account. There is no global account, shared response cache, environment lookup or implicit `gh`/Git credential lookup. A credential callback runs for each HTTP request with a deadline/cancellation signal. The application owns storage, refresh, locking and removal; a static token is also accepted for explicitly supplied PATs/OAuth tokens.
 
-Use `(provider, canonical webUrl, account.id)` as an account key. Verify `getAccount()` after authorization/rotation before attaching credentials to an existing saved account.
+Use `(client.provider.id, canonical webUrl, account.id)` as an account key. Verify `getAccount()` after authorization/rotation before attaching credentials to an existing saved account. The same stateless provider definition can be reused by multiple account clients; each client receives a fresh adapter, transport, credential source and cursor key.
 
 For enterprise/self-managed hosts:
 
 ```ts
+import { GitLabProvider } from "@1git/hosting/providers/gitlab";
+
 const configured = HostingClient.create({
-  provider: "gitlab",
+  provider: new GitLabProvider(),
   webUrl: "https://code.example.com/gitlab/",
   // Defaults to webUrl + api/v4/ for GitLab, or api/v3/ for enterprise GitHub.
   apiUrl: "https://code.example.com/gitlab/api/v4/",
@@ -109,9 +118,10 @@ An injected `fetch` is a **trusted platform boundary**, responsible for respecti
 
 ```ts
 import { HostingOAuth } from "@1git/hosting/oauth";
+import { GitLabProvider } from "@1git/hosting/providers/gitlab";
 
 const configured = HostingOAuth.create({
-  provider: "gitlab",
+  provider: new GitLabProvider(),
   clientId: registeredApplicationId,
   redirectUri: "http://127.0.0.1:8765/callback",
   scopes: ["api"],
@@ -163,15 +173,65 @@ There are **no automatic retries**, including reads. Write failures are never ad
 
 ```ts
 import { parseRemote } from "@1git/hosting/remote";
+import { GitLabProvider } from "@1git/hosting/providers/gitlab";
 
 parseRemote("git@github.com:owner/repository.git");
 parseRemote("https://gitlab.com/group/subgroup/repository.git");
 parseRemote("git@ssh.example:team/repository.git", [
-  { provider: "gitlab", webUrl: "https://code.example", sshHost: "ssh.example" },
+  { provider: new GitLabProvider(), webUrl: "https://code.example", sshHost: "ssh.example" },
 ]);
 ```
 
-Supports HTTPS, `ssh://git@host/path`, and SCP-style `git@host:path`. Rejects credential-bearing HTTPS URLs, query strings, fragments and unsupported transports. Unknown hosts need an explicit mapping. Parsing is identity detection, not proof of repository existence/access. SSH host aliases must be mapped explicitly; SSH configuration is never read.
+Supports HTTPS, `ssh://git@host/path`, and SCP-style `git@host:path`. Rejects credential-bearing HTTPS URLs, query strings, fragments and unsupported transports. Unknown hosts need an explicit mapping; `webUrl` defaults to the supplied provider's `defaultWebUrl`. Results contain serializable `providerId` metadata rather than a provider instance. Parsing is identity detection, not proof of repository existence/access. SSH host aliases must be mapped explicitly; SSH configuration is never read.
+
+## Adding a provider
+
+Add a folder, implement the base class and export its definition from `package.json`. No client/OAuth dispatch switch or global registration is needed:
+
+```text
+src/providers/
+  github/   provider.ts · adapter.ts · oauth.ts
+  gitlab/   provider.ts · adapter.ts · oauth.ts
+  yourhost/ provider.ts · adapter.ts · oauth.ts (optional)
+```
+
+```ts
+import { HostingProvider } from "@1git/hosting/provider";
+import type { HostingAdapter } from "@1git/hosting/provider";
+import type { Capabilities } from "@1git/hosting/contracts";
+import type { Transport } from "@1git/hosting/transport";
+import { YourHostAdapter } from "./adapter.js";
+
+export class YourHostProvider extends HostingProvider {
+  readonly id = "yourhost";
+  readonly defaultWebUrl = "https://code.example";
+  readonly capabilities: Capabilities = Object.freeze({
+    pullRequestDrafts: false,
+    repositoryVisibilities: Object.freeze(["public", "private"] as const),
+    oauthPkce: false,
+    oauthClientSecretRequired: false,
+    oauthRefresh: "unsupported",
+    oauthRevocation: false,
+  });
+
+  apiUrl(web: URL): URL { return new URL("api/v1/", web); }
+  createAdapter(http: Transport): HostingAdapter { return new YourHostAdapter(http); }
+}
+```
+
+`YourHostAdapter` above is the contributor's implementation, not a shipped provider. It implements `HostingAdapter`: account, owners, repository listing/search/detail/creation and review-request listing/detail/creation. Normalize into `contracts` types and validate all external data before returning it. Implement only supported behavior; throw `new ProviderFailure({ code: "unsupported", message: "Safe explanation.", retryable: false })` for unsupported operations. These details are returned to callers verbatim: never include tokens, raw bodies, URLs containing secrets or original exception messages. Unexpected exceptions are redacted by the client.
+
+Use the supplied `Transport` for requests: it binds credentials per client and enforces endpoint boundaries, redirects, deadlines and response limits. `request()` returns untrusted `Reply.data` plus headers/rate metadata; `page()` handles `per_page`/`page` pagination with Link or X-Next-Page continuations. A host with another pagination protocol needs its own bounded pagination handling. `apiHeaders()` adds non-credential REST headers; it cannot replace Authorization. Provider code is trusted executable code, not a sandboxed plugin.
+
+Optional hooks:
+
+- `createOAuthAdapter(http)` returns a per-instance `ProviderOAuthAdapter`. It constructs authorization URLs, exchanges code/refresh grants and revokes tokens using provider-specific endpoints. Return the standard OAuth response fields as `unknown` from exchange; shared code validates/normalizes tokens and owns state, S256 PKCE and replay protection. The default is `null` (explicit access tokens only). Advertise `oauthPkce` only when this flow is genuinely supported; refresh/revocation capability checks fail before dispatch.
+- `parseRepositoryPath(path)` interprets a decoded remote path. The default validates a single owner/repository pair; override for nested namespaces, preserving path validation. Register hosts by passing provider instances to `parseRemote`; no default-map edit is necessary for custom hosts.
+- `apiHeaders()` supplies REST version/accept headers, applied only under the configured API root, not automatically to separate OAuth endpoints.
+
+Keep provider definitions credential-free and immutable. Never store a transport, token, account response or cursor on a shared provider; `createAdapter`/`createOAuthAdapter` must create fresh instances or closures. Use a unique stable `id` for persisted account identity. Add captured-wire, failure-boundary and compiled consumer tests for the new provider. `tests/consumer/provider-extension.component.test.ts` proves a third provider can use only public exports, including OAuth and custom remotes, while sharing a definition across isolated account clients.
+
+Migration from the earlier API: replace `provider: "github"`/`"gitlab"` with the matching class instance; read `client.provider.id` and remote `providerId` when you need metadata. The two desktop apps remain unchanged and do not consume this package yet.
 
 ## Runnable examples
 

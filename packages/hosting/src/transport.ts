@@ -8,6 +8,7 @@ import type {
 	RateLimit,
 } from "./contracts.js";
 import { fail, Failure, nonempty } from "./result.js";
+import { HostingProvider } from "./provider.js";
 
 const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]"]);
 const MAX_TIMEOUT_MS = 120_000;
@@ -29,23 +30,15 @@ export class Endpoints {
 			sshHost: options.sshHost,
 		});
 
-		if (options.provider !== "github" && options.provider !== "gitlab")
-			fail("validation", "Unknown hosting provider.");
+		if (!(options.provider instanceof HostingProvider))
+			fail("validation", "Provide a HostingProvider instance.");
 
-		this.web = this.endpoint(
-			options.webUrl ??
-				(options.provider === "github"
-					? "https://github.com"
-					: "https://gitlab.com")
+		nonempty(options.provider.id, "provider ID");
+
+		this.web = this.endpoint(options.webUrl ?? options.provider.defaultWebUrl);
+		this.api = this.endpoint(
+			options.apiUrl ?? options.provider.apiUrl(new URL(this.web)).href
 		);
-		const defaultApi =
-			options.provider === "github"
-				? this.web.href === "https://github.com/"
-					? "https://api.github.com"
-					: `${this.web.href}api/v3/`
-				: `${this.web.href}api/v4/`;
-
-		this.api = this.endpoint(options.apiUrl ?? defaultApi);
 
 		if (options.sshHost && !/^[a-z\d.-]+$/iu.test(options.sshHost))
 			fail("validation", "Invalid SSH hostname.");
@@ -276,11 +269,19 @@ export class Transport {
 				headers.set("Authorization", `Bearer ${token}`);
 			}
 
-			if (
-				endpoints.options.provider === "github" &&
-				url.href.startsWith(endpoints.api.href)
-			)
-				headers.set("X-GitHub-Api-Version", "2022-11-28");
+			if (url.href.startsWith(endpoints.api.href)) {
+				for (const [name, value] of Object.entries(
+					endpoints.options.provider.apiHeaders()
+				)) {
+					if (name.toLowerCase() === "authorization")
+						fail(
+							"validation",
+							"Provider API headers cannot replace account credentials."
+						);
+
+					headers.set(name, value);
+				}
+			}
 
 			if (body !== undefined)
 				headers.set(

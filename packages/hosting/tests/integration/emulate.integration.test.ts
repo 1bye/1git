@@ -8,6 +8,7 @@ import { expect, test } from "bun:test";
 import { createEmulator } from "emulate";
 import { HostingClient } from "@1git/hosting";
 import { HostingOAuth } from "@1git/hosting/oauth";
+import { GitHubProvider } from "@1git/hosting/providers/github";
 import type { HostingFetch } from "@1git/hosting/contracts";
 import { value } from "../_shared/fixtures.js";
 
@@ -73,7 +74,7 @@ test("GitHub hosting lifecycle against explicitly seeded Emulate", async () => {
 	try {
 		const client = value(
 			HostingClient.create({
-				provider: "github",
+				provider: new GitHubProvider(),
 				accessToken: "fixture_alice",
 				fetch: route,
 			})
@@ -168,7 +169,7 @@ test("GitHub hosting lifecycle against explicitly seeded Emulate", async () => {
 
 		const oauth = value(
 			HostingOAuth.create({
-				provider: "github",
+				provider: new GitHubProvider(),
 				clientId: "fixture-client",
 				clientSecret: "fixture-secret",
 				redirectUri,
@@ -201,7 +202,7 @@ test("GitHub hosting lifecycle against explicitly seeded Emulate", async () => {
 
 		const bob = value(
 			HostingClient.create({
-				provider: "github",
+				provider: new GitHubProvider(),
 				accessToken: tokens.accessToken,
 				fetch: route,
 			})

@@ -1,5 +1,7 @@
 import type { HostingOptions, HostingResult } from "../../src/contracts.js";
 import { HostingClient } from "../../src/hosting.js";
+import { GitHubProvider } from "../../src/providers/github/provider.js";
+import { GitLabProvider } from "../../src/providers/gitlab/provider.js";
 
 export function value<T>(result: HostingResult<T>): T {
 	if (!result.ok) throw new Error(JSON.stringify(result.error));
@@ -75,7 +77,8 @@ export function capture(
 
 	const client = value(
 		HostingClient.create({
-			provider,
+			provider:
+				provider === "github" ? new GitHubProvider() : new GitLabProvider(),
 			accessToken: "fake-token",
 			...overrides,
 			fetch: async (input, init = {}) => {

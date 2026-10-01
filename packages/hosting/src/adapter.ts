@@ -53,7 +53,10 @@ export function repositoryPath(ref: RepositoryRef, nested: boolean): string {
 	const owner = ref.owner.split("/");
 
 	if (!nested && owner.length !== 1)
-		fail("validation", "GitHub owners cannot contain nested namespaces.");
+		fail(
+			"validation",
+			"This provider does not support nested owner namespaces."
+		);
 
 	return `${owner.map(segment).join("/")}/${segment(ref.name)}`;
 }

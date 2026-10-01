@@ -1,21 +1,20 @@
-import type {
-	HostingProvider,
-	HostingResult,
-	RepositoryRef,
-} from "./contracts.js";
+import type { HostingResult, RepositoryRef } from "./contracts.js";
 import { repositoryPath } from "./adapter.js";
 import { fail, failureResult } from "./result.js";
+import { HostingProvider } from "./provider.js";
+import { GitHubProvider } from "./providers/github/provider.js";
+import { GitLabProvider } from "./providers/gitlab/provider.js";
 
 /** Explicit enterprise/self-managed host mapping; unknown hosts are never guessed. */
 export interface RemoteHost {
 	readonly provider: HostingProvider;
-	readonly webUrl: string;
+	readonly webUrl?: string;
 	readonly sshHost?: string;
 }
 
 /** Parsed remote identity, without userinfo, credentials, or Git side effects. */
 export interface RemoteIdentity {
-	readonly provider: HostingProvider;
+	readonly providerId: string;
 	readonly host: string;
 	readonly repository: RepositoryRef;
 	readonly browserUrl: string;
@@ -56,15 +55,18 @@ export function parseRemote(
 
 		const configured = [
 			...hosts,
-			{ provider: "github" as const, webUrl: "https://github.com" },
-			{ provider: "gitlab" as const, webUrl: "https://gitlab.com" },
+			{ provider: new GitHubProvider() },
+			{ provider: new GitLabProvider() },
 		];
 
 		for (const entry of configured) {
 			let web: URL;
 
 			try {
-				web = new URL(entry.webUrl);
+				if (!(entry.provider instanceof HostingProvider))
+					fail("validation", "Provide a HostingProvider instance.");
+
+				web = new URL(entry.webUrl ?? entry.provider.defaultWebUrl);
 			} catch {
 				return fail("validation", "Invalid remote host mapping.");
 			}
@@ -74,8 +76,7 @@ export function parseRemote(
 				web.username ||
 				web.password ||
 				web.search ||
-				web.hash ||
-				!["github", "gitlab"].includes(entry.provider)
+				web.hash
 			)
 				fail("validation", "Invalid remote host mapping.");
 
@@ -96,23 +97,26 @@ export function parseRemote(
 					? url.pathname.slice(prefix.length)
 					: "";
 
-			const parts = path
+			const decoded = path
 				.replace(/\.git$/u, "")
 				.split("/")
-				.map((part) => decodeURIComponent(part));
+				.map((part) => {
+					const decodedPart = decodeURIComponent(part);
 
-			const name = parts.pop();
+					if (decodedPart.includes("/"))
+						fail("validation", "Invalid encoded remote path segment.");
 
-			if (!name || !parts.length)
-				fail("validation", "Remote does not identify a repository.");
+					return decodedPart;
+				})
+				.join("/");
 
-			const repository = { owner: parts.join("/"), name };
-			const encoded = repositoryPath(repository, entry.provider === "gitlab");
+			const repository = entry.provider.parseRepositoryPath(decoded);
+			const encoded = repositoryPath(repository, true);
 
 			return {
 				ok: true,
 				value: {
-					provider: entry.provider,
+					providerId: entry.provider.id,
 					host: web.host,
 					repository,
 					browserUrl: `${web.origin}${prefix}${encoded}`,

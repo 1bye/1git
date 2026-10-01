@@ -14,14 +14,14 @@ import {
 	string,
 } from "./result.js";
 import { Endpoints, Transport } from "./transport.js";
+import type {
+	OAuthApplication,
+	OAuthGrant,
+	ProviderOAuthAdapter,
+} from "./provider.js";
 
 /** Registered OAuth application. Secrets belong to the caller, never to repository data. */
-export interface OAuthOptions extends EndpointOptions {
-	readonly clientId: string;
-	readonly clientSecret?: string;
-	readonly redirectUri: string;
-	readonly scopes: readonly string[];
-}
+export interface OAuthOptions extends EndpointOptions, OAuthApplication {}
 
 /** Open authorizationUrl in the system browser; retain this object until the callback arrives. */
 export interface Authorization {
@@ -45,12 +45,21 @@ export class HostingOAuth {
 		Authorization,
 		{ verifier: string; state: string }
 	>();
-	readonly #http: Transport;
+	readonly #adapter: ProviderOAuthAdapter;
 	readonly #config: OAuthOptions;
 
 	private constructor(options: OAuthOptions) {
 		this.#config = { ...options, scopes: [...options.scopes] };
-		this.#http = new Transport(new Endpoints(options));
+		const http = new Transport(new Endpoints(options));
+		const adapter = options.provider.createOAuthAdapter(http);
+
+		if (!options.provider.capabilities.oauthPkce || !adapter)
+			fail(
+				"unsupported",
+				"This provider does not support authorization-code/PKCE authentication."
+			);
+
+		this.#adapter = adapter;
 		nonempty(options.clientId, "OAuth client ID");
 
 		if (
@@ -95,7 +104,7 @@ export class HostingOAuth {
 		}
 	}
 
-	/** Validate configuration. GitHub code exchange/revocation requires a client secret. */
+	/** Validate configuration and provider support for authorization-code/PKCE authentication. */
 	static create(options: OAuthOptions): HostingResult<HostingOAuth> {
 		try {
 			return { ok: true, value: new HostingOAuth(options) };
@@ -110,14 +119,7 @@ export class HostingOAuth {
 			const verifier = randomBytes(32).toString("base64url");
 			const state = randomBytes(32).toString("base64url");
 
-			const url = new URL(
-				this.#config.provider === "github"
-					? "login/oauth/authorize"
-					: "oauth/authorize",
-				this.#http.endpoints.web
-			);
-
-			url.search = new URLSearchParams({
+			const url = this.#adapter.authorizationUrl({
 				client_id: this.#config.clientId,
 				redirect_uri: this.#config.redirectUri,
 				scope: this.#config.scopes.join(" "),
@@ -127,7 +129,8 @@ export class HostingOAuth {
 					.update(verifier)
 					.digest("base64url"),
 				code_challenge_method: "S256",
-			}).toString();
+			});
+
 			const attempt = Object.freeze({
 				authorizationUrl: url.href,
 				expiresAt: Date.now() + 10 * 60 * 1000,
@@ -204,15 +207,21 @@ export class HostingOAuth {
 		refreshToken: string,
 		options: CallOptions = {}
 	): Promise<HostingResult<OAuthTokens>> {
-		return result("refresh-token", () =>
-			this.tokens(
+		return result("refresh-token", () => {
+			if (this.#config.provider.capabilities.oauthRefresh === "unsupported")
+				fail(
+					"unsupported",
+					"This provider does not support refreshing OAuth tokens."
+				);
+
+			return this.tokens(
 				{
 					grant_type: "refresh_token",
 					refresh_token: nonempty(refreshToken, "refresh token"),
 				},
 				options
-			)
-		);
+			);
+		});
 	}
 
 	/** Revoke this OAuth token, not unrelated tokens/PATs. Some registrations require a secret. */
@@ -223,83 +232,23 @@ export class HostingOAuth {
 		return result("revoke-token", async () => {
 			nonempty(accessToken, "access token");
 
-			if (this.#config.provider === "github") {
-				const secret = this.secret();
-
-				const basic = Buffer.from(
-					`${this.#config.clientId}:${secret}`
-				).toString("base64");
-
-				await this.#http.request(
-					this.#http.url(
-						`applications/${encodeURIComponent(this.#config.clientId)}/token`
-					),
-					"DELETE",
-					options,
-					{ access_token: accessToken },
-					`Basic ${basic}`
+			if (!this.#config.provider.capabilities.oauthRevocation)
+				fail(
+					"unsupported",
+					"This provider does not support revoking OAuth tokens."
 				);
-			} else {
-				const body = new URLSearchParams({
-					client_id: this.#config.clientId,
-					token: accessToken,
-				});
 
-				if (this.#config.clientSecret)
-					body.set("client_secret", this.#config.clientSecret);
-
-				await this.#http.request(
-					new URL("oauth/revoke", this.#http.endpoints.web),
-					"POST",
-					options,
-					body,
-					undefined,
-					true
-				);
-			}
+			await this.#adapter.revokeToken(accessToken, this.#config, options);
 		});
-	}
-
-	private secret(): string {
-		if (!this.#config.clientSecret)
-			fail(
-				"unsupported",
-				"This GitHub OAuth operation requires the registered application's client secret; use a trusted exchange service for distributed clients."
-			);
-
-		return this.#config.clientSecret;
 	}
 
 	private async tokens(
-		fields: Record<string, string>,
+		grant: OAuthGrant,
 		options: CallOptions
 	): Promise<OAuthTokens> {
-		const body = new URLSearchParams({
-			client_id: this.#config.clientId,
-			redirect_uri: this.#config.redirectUri,
-			...fields,
-		});
-
-		if (this.#config.provider === "github")
-			body.set("client_secret", this.secret());
-		else if (this.#config.clientSecret)
-			body.set("client_secret", this.#config.clientSecret);
-
-		const endpoint =
-			this.#config.provider === "github"
-				? "login/oauth/access_token"
-				: "oauth/token";
-
-		const reply = await this.#http.request(
-			new URL(endpoint, this.#http.endpoints.web),
-			"POST",
-			options,
-			body,
-			undefined,
-			true
+		const data = record(
+			await this.#adapter.exchangeToken(grant, this.#config, options)
 		);
-
-		const data = record(reply.data);
 
 		if (data.error !== undefined)
 			fail(

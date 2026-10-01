@@ -6,6 +6,7 @@
  */
 import { expect, test } from "bun:test";
 import { parseRemote } from "../../src/remote.js";
+import { GitLabProvider } from "../../src/providers/gitlab/provider.js";
 import { value } from "../_shared/fixtures.js";
 
 test.each([
@@ -14,7 +15,7 @@ test.each([
 	"ssh://git@github.com/alice/demo",
 ])("identifies %s", (remote) => {
 	expect(value(parseRemote(remote))).toEqual({
-		provider: "github",
+		providerId: "github",
 		host: "github.com",
 		repository: { owner: "alice", name: "demo" },
 		browserUrl: "https://github.com/alice/demo",
@@ -28,7 +29,7 @@ test("supports nested groups and explicit self-managed hosts", () => {
 	expect(
 		value(
 			parseRemote("https://code.example/git/team/sub/demo.git", [
-				{ provider: "gitlab", webUrl: "https://code.example/git" },
+				{ provider: new GitLabProvider(), webUrl: "https://code.example/git" },
 			])
 		).browserUrl
 	).toBe("https://code.example/git/team/sub/demo");
@@ -36,7 +37,7 @@ test("supports nested groups and explicit self-managed hosts", () => {
 		value(
 			parseRemote("git@ssh.example:team/demo.git", [
 				{
-					provider: "gitlab",
+					provider: new GitLabProvider(),
 					webUrl: "https://code.example",
 					sshHost: "ssh.example",
 				},
