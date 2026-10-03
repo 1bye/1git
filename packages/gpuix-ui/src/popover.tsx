@@ -135,6 +135,8 @@ export interface PopoverContentProps {
 	children: ReactNode;
 	"aria-label": string;
 	side?: "top" | "bottom";
+	/** Centered dialogs do not require a trigger; anchored surfaces retain their current placement. */
+	placement?: "anchored" | "center";
 	align?: "start" | "center" | "end";
 	width?: number;
 	dismissible?: boolean;
@@ -146,12 +148,20 @@ export interface PopoverContentProps {
 export function PopoverContent(props: PopoverContentProps) {
 	const state = usePopover();
 	const renderer = useGpuixRequired();
+	const previousFocus = useRef<number | undefined>(undefined);
+
+	useLayoutEffect(() => {
+		if (state.open)
+			previousFocus.current = renderer.getFocusedElementId?.() ?? undefined;
+	}, [state.open, renderer]);
 
 	return (
 		<AnimatePresence
 			onExitComplete={() => {
 				if (state.anchor.current)
 					renderer.focusElement?.(state.anchor.current.id);
+				else if (previousFocus.current !== undefined)
+					renderer.focusElement?.(previousFocus.current);
 			}}
 		>
 			{state.open ? <PopoverSurface key="surface" {...props} /> : null}
@@ -162,6 +172,7 @@ export function PopoverContent(props: PopoverContentProps) {
 function PopoverSurface({
 	children,
 	side = "top",
+	placement = "anchored",
 	align = "end",
 	width = 300,
 	dismissible = true,
@@ -186,7 +197,8 @@ function PopoverSurface({
 		contentHeight: 220,
 	});
 
-	const ready = geometry.width > 0;
+	const centered = placement === "center";
+	const ready = centered || geometry.width > 0;
 	const inset = 12;
 	const gap = 8;
 	const panelWidth = Math.max(1, Math.min(width, window.width - inset * 2));
@@ -198,28 +210,35 @@ function PopoverSurface({
 			? above >= geometry.contentHeight || above >= below
 			: !(below >= geometry.contentHeight || below >= above);
 
-	const height = Math.min(
-		geometry.contentHeight,
-		Math.max(1, top ? above : below)
-	);
+	const availableHeight = centered
+		? window.height - inset * 2
+		: top
+			? above
+			: below;
 
-	const left = Math.max(
-		inset,
-		Math.min(
-			geometry.x +
-				(align === "end"
-					? geometry.width - panelWidth
-					: align === "center"
-						? (geometry.width - panelWidth) / 2
-						: 0),
-			window.width - inset - panelWidth
-		)
-	);
+	const height = Math.min(geometry.contentHeight, Math.max(1, availableHeight));
 
-	const y = Math.max(
-		inset,
-		top ? geometry.y - gap - height : geometry.y + geometry.height + gap
-	);
+	const left = centered
+		? (window.width - panelWidth) / 2
+		: Math.max(
+				inset,
+				Math.min(
+					geometry.x +
+						(align === "end"
+							? geometry.width - panelWidth
+							: align === "center"
+								? (geometry.width - panelWidth) / 2
+								: 0),
+					window.width - inset - panelWidth
+				)
+			);
+
+	const y = centered
+		? Math.max(inset, (window.height - height) / 2)
+		: Math.max(
+				inset,
+				top ? geometry.y - gap - height : geometry.y + geometry.height + gap
+			);
 
 	const dismiss = () => {
 		if (latest.current.dismissible) latest.current.state.setOpen(false);
@@ -234,11 +253,11 @@ function PopoverSurface({
 			const content =
 				body.current && renderer.getElementBounds?.(body.current.id);
 
-			if (!anchor) return;
+			if (!anchor && !centered) return;
 
 			setGeometry((previous) => {
 				const next = {
-					...anchor,
+					...(anchor ?? { x: 0, y: 0, width: panelWidth, height: 0 }),
 					contentHeight: content?.height || previous.contentHeight,
 				};
 
@@ -256,7 +275,7 @@ function PopoverSurface({
 		const interval = setInterval(measure, 100);
 
 		return () => clearInterval(interval);
-	}, [renderer, state.anchor]);
+	}, [renderer, state.anchor, centered, panelWidth]);
 
 	useEffect(() => {
 		if (!ready || !dialog.current) return;
@@ -367,7 +386,7 @@ function PopoverSurface({
 						left,
 						top: y,
 						width: panelWidth,
-						maxHeight: Math.max(1, top ? above : below),
+						maxHeight: Math.max(1, availableHeight),
 						overflowY: "scroll",
 						borderRadius: 14,
 						backgroundColor: tokens.colors.overlay,

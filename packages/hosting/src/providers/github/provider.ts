@@ -4,6 +4,8 @@ import type { Capabilities } from "../../contracts.js";
 import type { Transport } from "../../transport.js";
 import { GitHubAdapter } from "./adapter.js";
 import { GitHubOAuthAdapter } from "./oauth.js";
+import { GitHubDeviceOAuthAdapter } from "./device-oauth.js";
+import type { ProviderDeviceOAuthAdapter } from "../../provider.js";
 
 /** Configured GitHub/GitHub Enterprise account. Construct separate instances for distinct credentials. */
 export class GitHubProvider extends HostingProvider {
@@ -30,6 +32,9 @@ export class GitHubProvider extends HostingProvider {
 
 	createOAuthAdapter(http: Transport): ProviderOAuthAdapter {
 		return new GitHubOAuthAdapter(http);
+	}
+	createDeviceOAuthAdapter(http: Transport): ProviderDeviceOAuthAdapter {
+		return new GitHubDeviceOAuthAdapter(http);
 	}
 
 	apiHeaders(): Readonly<Record<string, string>> {

@@ -2,7 +2,7 @@
 
 GitHub and GitLab hosting APIs for 1git, independent of local Git and of either desktop app.
 
-This package answers “which repositories can I access?”, “where can I create a repository?” and “how do I open a pull/merge request?”. It **does not** clone, push, run Git, change remotes, launch browsers, store accounts, or access the Keychain. Nothing in GPUIX or Electron consumes it yet.
+This package answers “which repositories can I access?”, “where can I create a repository?” and “how do I open a pull/merge request?”. It **does not** clone, push, run Git, change remotes, launch browsers, store accounts, or access the Keychain. GPUIX consumes account/OAuth APIs; application-owned browser and vault integration stays outside this package.
 
 ## Setup
 
@@ -21,6 +21,7 @@ Public entry points:
 | `@1git/hosting` | `HostingClient` |
 | `@1git/hosting/contracts` | Result, error, `AccessToken`, account, owner, repository, pagination and PR/MR types |
 | `@1git/hosting/oauth` | `HostingOAuth`, `Authorization`, `OAuthTokens` |
+| `@1git/hosting/device-oauth` | `HostingDeviceOAuth`, `DeviceAuthorization`, `DevicePoll` |
 | `@1git/hosting/remote` | `parseRemote`, `RemoteIdentity` |
 | `@1git/hosting/provider` | `HostingProvider`, `ProviderOptions`, `HostingAdapter`, OAuth extension contracts, `ProviderFailure` |
 | `@1git/hosting/transport` | `Transport`, `Endpoints`, `Reply` for provider authors |
@@ -147,14 +148,47 @@ The application registers OAuth, opens the system browser, binds/validates its c
 
 `HostingOAuth.create(provider)` requires `provider.options.oauth`, but not an access token. Conversely, REST client creation requires `accessToken`, but not OAuth registration. A provider may configure both. OAuth exchanges never automatically send its REST access token, retain returned tokens or change the provider's credential. Use a new provider with the returned token, or an application-owned rotating credential callback, when creating the authenticated client.
 
-Callbacks support HTTPS or explicit loopback HTTP with no query/fragment; register the exact URL, including path and port. Custom application schemes and device authorization are not implemented. Do not claim callback URLs from unrelated tabs/processes without matching them to the pending attempt.
+Callbacks support HTTPS or explicit loopback HTTP with no query/fragment; register the exact URL, including path and port. Custom application schemes are not implemented. Do not claim callback URLs from unrelated tabs/processes without matching them to the pending attempt. Device authorization has its separate public-client lifecycle below.
 
 - **GitLab:** register a public/non-confidential OAuth application for secretless PKCE. `api` covers repository/MR writes; choose narrower registered scopes for read-only use. Confidential registrations can supply `clientSecret`. Revocation sends that secret when configured; instance/registration rules remain authoritative.
-- **GitHub:** register an OAuth application, scopes such as `repo` for private repository/PR access and `read:org` for organizations. Authorization uses PKCE, but code exchange, refresh and token revocation also require the registered client secret. **Do not ship an embedded desktop secret as though it were confidential.** Run these operations through an application-owned trusted exchange service, or configure the provider with an explicitly supplied user-managed token. A GitHub App's installation flow is not implemented.
+- **GitHub:** register an OAuth application, scopes such as `repo` for private repository/PR access and `read:org` for organizations. The code-flow adapter uses PKCE but requires the registration secret for exchange, code-flow refresh and revocation. **Do not embed that secret in a desktop build.** Public clients can enable device flow and use `HostingDeviceOAuth` below. A GitHub App's installation flow is not implemented.
 
 Refresh is `oauth.refresh(refreshToken, options?)`, **only when the provider issued a refresh token**. Tokens without expiry/refresh normalize to null. Persist the returned pair atomically: refresh rotation can invalidate the previous pair. Serialize concurrent refreshes in the application; never retry a possibly-completed exchange automatically. `oauth.revoke(accessToken, options?)` revokes this OAuth token, not an arbitrary PAT or every application grant. Local credential deletion remains the caller's responsibility.
 
 `OAuthTokens` is intentionally sensitive. Never write it to normal account/session JSON, logs or error reports. The package does not retain tokens from exchanges. Scopes can be null when the provider omits them; do not infer additional grants.
+
+### Public-client device OAuth
+
+```ts
+import { HostingDeviceOAuth } from "@1git/hosting/device-oauth";
+
+const configured = HostingDeviceOAuth.create(new GitHubProvider({
+  deviceOAuth: { clientId: publicClientId, scopes: ["read:user"] },
+}));
+if (!configured.ok) throw new Error(configured.error.message);
+const oauth = configured.value;
+const started = await oauth.beginAuthorization({ signal });
+if (!started.ok) throw new Error(started.error.message);
+const attempt = started.value;
+// Display userCode and open verificationUrl in the system browser.
+const reply = await oauth.poll(attempt, { signal });
+// pending: wait retryAfterMs with cancellation before polling again.
+// authorized: verify identity and persist reply.value.tokens securely.
+// Call oauth.cancel(attempt) on cancellation/failure.
+```
+
+Sensitive device codes are private and tied to one lifecycle/attempt. Early polls
+return `pending` without HTTP; `slow_down` adds five seconds to subsequent intervals.
+Expired, cancelled, denied, cross-client and consumed attempts cannot yield tokens.
+Verification URLs are bound to the configured host. Device requests never attach a
+REST token or client secret. `refresh(token, options?)` handles refresh tokens issued
+by device flow without a secret. The caller owns browser/waiting, cancellation,
+secure storage and refresh serialization; no exchange is automatically retried.
+GitHub registration must enable device flow; Enterprise support depends on version.
+
+Third providers can override `createDeviceOAuthAdapter(http)` using the public
+`ProviderDeviceOAuthAdapter` contract. Their public registration belongs in the
+provider constructor's `deviceOAuth` option, not a central string dispatch.
 
 ## Pagination, cancellation and errors
 
@@ -239,7 +273,7 @@ Optional hooks:
 
 Keep configured providers immutable and scoped to one account. Let the base class own sensitive setup in private fields; never store transport, request/response data or cursors on the provider. `createAdapter`/`createOAuthAdapter` must create fresh instances or closures. Use a unique stable `id` for persisted account identity. Add captured-wire, failure-boundary and compiled consumer tests for the new provider. `tests/consumer/provider-extension.component.test.ts` proves third providers use only public exports, including OAuth/custom remotes and isolated account instances.
 
-Migration from earlier APIs: move every host/HTTP/token setting into `new GitHubProvider(options)` or `new GitLabProvider(options)`, then call `HostingClient.create(provider)`. Move OAuth registration into the constructor's `oauth` object and call `HostingOAuth.create(provider)`. Pass configured providers directly to `parseRemote` instead of separate mapping objects. Read `client.provider.id` and remote `providerId` for metadata. The two desktop apps remain unchanged and do not consume this package yet.
+Migration from earlier APIs: move every host/HTTP/token setting into `new GitHubProvider(options)` or `new GitLabProvider(options)`, then call `HostingClient.create(provider)`. Move OAuth registration into the constructor's `oauth` object and call `HostingOAuth.create(provider)`. Pass configured providers directly to `parseRemote` instead of separate mapping objects. Read `client.provider.id` and remote `providerId` for metadata. Electron integration remains separate.
 
 ## Runnable examples
 

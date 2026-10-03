@@ -1,6 +1,7 @@
 import { lightColors, workspaceLayout } from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
-import type { ReactNode } from "react";
+import type { ReactNode, Ref } from "react";
+import type { PublicInstance } from "@gpuix/react";
 
 const styles = StyleSheet.create({
 	root: {
@@ -8,6 +9,7 @@ const styles = StyleSheet.create({
 		flexDirection: "column",
 		width: "100%",
 		height: "100%",
+		flexShrink: 0,
 		// Keep dark text legible even when macOS supplies a dark vibrancy backdrop.
 		backgroundColor: lightColors.studioGlassStrong,
 		userSelect: "none",
@@ -40,14 +42,36 @@ export function AppShell({
 	workspaceLabel,
 	navigation,
 	children,
+	hidden = false,
+	testId = "app-shell",
+	ref,
 }: {
 	toolbar: ReactNode;
 	workspaceLabel: string;
 	navigation?: ReactNode;
 	children?: ReactNode;
+	hidden?: boolean;
+	testId?: string;
+	ref?: Ref<PublicInstance>;
 }) {
 	return (
-		<div testId="app-shell" style={styles.root}>
+		<div
+			ref={ref}
+			testId={testId}
+			aria-hidden={hidden || undefined}
+			style={StyleSheet.compose(
+				styles.root,
+				hidden
+					? {
+							position: "absolute",
+							top: 0,
+							left: 0,
+							visibility: "hidden",
+							pointerEvents: "none",
+						}
+					: undefined
+			)}
+		>
 			{toolbar}
 			<div
 				testId="workspace"

@@ -24,6 +24,25 @@ export interface OAuthApplication {
 	readonly scopes: readonly string[];
 }
 
+/** Public registration for device authorization; no callback or client secret. */
+export interface DeviceOAuthApplication {
+	readonly clientId: string;
+	readonly scopes: readonly string[];
+}
+
+/** Device grant wire behavior. Shared code owns polling limits and token validation. */
+export interface ProviderDeviceOAuthAdapter {
+	begin(
+		application: DeviceOAuthApplication,
+		options: CallOptions
+	): Promise<unknown>;
+	exchange(
+		grant: Readonly<Record<string, string>>,
+		application: DeviceOAuthApplication,
+		options: CallOptions
+	): Promise<unknown>;
+}
+
 /** Immutable host/account setup passed to provider constructors. No environment or credential store is read implicitly. */
 export interface ProviderOptions {
 	readonly webUrl?: string;
@@ -37,6 +56,7 @@ export interface ProviderOptions {
 	/** Omit while authorizing with OAuth; a REST client requires an explicit token or lookup. */
 	readonly accessToken?: AccessToken;
 	readonly oauth?: OAuthApplication;
+	readonly deviceOAuth?: DeviceOAuthApplication;
 }
 
 /** Standard code/PKCE and refresh grants used by the shared OAuth lifecycle. */
@@ -75,8 +95,17 @@ export abstract class HostingProvider {
 		if (options.oauth && !Array.isArray(options.oauth.scopes))
 			fail("validation", "OAuth scopes must be an array.");
 
+		if (options.deviceOAuth && !Array.isArray(options.deviceOAuth.scopes))
+			fail("validation", "OAuth scopes must be an array.");
+
 		this.#options = Object.freeze({
 			...options,
+			deviceOAuth: options.deviceOAuth
+				? Object.freeze({
+						...options.deviceOAuth,
+						scopes: Object.freeze([...options.deviceOAuth.scopes]),
+					})
+				: undefined,
 			oauth: options.oauth
 				? Object.freeze({
 						...options.oauth,
@@ -104,6 +133,13 @@ export abstract class HostingProvider {
 
 	/** Return null for providers that support explicit tokens but not this authorization-code/PKCE flow. */
 	createOAuthAdapter(_http: Transport): ProviderOAuthAdapter | null {
+		return null;
+	}
+
+	/** Override for public-client device authentication. */
+	createDeviceOAuthAdapter(
+		_http: Transport
+	): ProviderDeviceOAuthAdapter | null {
 		return null;
 	}
 

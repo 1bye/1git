@@ -47,6 +47,11 @@ export const elementBoundsPatchPath = resolve(
 	"element-bounds.patch"
 );
 /** Changing the patch, revision, or host invalidates the local binary. */
+export const accountsPatchPath = resolve(import.meta.dir, "accounts.patch");
+export const accountsPlatformPatchPath = resolve(
+	import.meta.dir,
+	"accounts-platform.patch"
+);
 export const nativeBuildId = createHash("sha256")
 	.update(nativeRevision)
 	.update(readFileSync(patchPath))
@@ -60,5 +65,7 @@ export const nativeBuildId = createHash("sha256")
 	.update(readFileSync(testSessionPatchPath))
 	.update(readFileSync(testSessionPlatformPatchPath))
 	.update(readFileSync(elementBoundsPatchPath))
+	.update(readFileSync(accountsPatchPath))
+	.update(readFileSync(accountsPlatformPatchPath))
 	.update(`${process.platform}-${process.arch}-release-v1`)
 	.digest("hex");

@@ -4,6 +4,8 @@ import { resolve } from "node:path";
 
 import {
 	appDirectory,
+	accountsPatchPath,
+	accountsPlatformPatchPath,
 	activationPatchPath,
 	closePatchPath,
 	closePlatformPatchPath,
@@ -84,6 +86,8 @@ if (
 		testSessionPatchPath,
 		testSessionPlatformPatchPath,
 		elementBoundsPatchPath,
+		accountsPatchPath,
+		accountsPlatformPatchPath,
 	];
 
 	// Later patches can change an earlier patch's context. Unwind known patches
@@ -92,7 +96,8 @@ if (
 		const patchDirectory =
 			patch === closePlatformPatchPath ||
 			patch === contextMenuPlatformPatchPath ||
-			patch === testSessionPlatformPatchPath
+			patch === testSessionPlatformPatchPath ||
+			patch === accountsPlatformPatchPath
 				? resolve(source, "zed")
 				: source;
 
@@ -110,7 +115,8 @@ if (
 		const patchDirectory =
 			patch === closePlatformPatchPath ||
 			patch === contextMenuPlatformPatchPath ||
-			patch === testSessionPlatformPatchPath
+			patch === testSessionPlatformPatchPath ||
+			patch === accountsPlatformPatchPath
 				? resolve(source, "zed")
 				: source;
 

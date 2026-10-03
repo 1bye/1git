@@ -1,0 +1,410 @@
+diff --git a/packages/native/src/renderer.rs b/packages/native/src/renderer.rs
+index 200235c..f1c5f08 100644
+--- a/packages/native/src/renderer.rs
++++ b/packages/native/src/renderer.rs
+@@ -140,7 +140,12 @@ pub(crate) fn to_element_id(id: f64) -> Result<u64> {
+     raw_element_id(id).map_err(Error::from_reason)
+ }
+ 
++pub(crate) fn request_settings() {
++    SETTINGS_REQUESTED.with(|requested| requested.set(true));
++}
++
+ thread_local! {
++    static SETTINGS_REQUESTED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+     #[cfg(target_os = "macos")]
+     static MAC_PLATFORM: RefCell<Option<Rc<gpui_macos::MacPlatform>>> = const { RefCell::new(None) };
+     #[cfg(target_os = "macos")]
+@@ -410,6 +415,7 @@ enum ClockControl {
+ 
+ #[cfg(any(target_os = "windows", target_os = "linux", target_os = "freebsd"))]
+ enum UiCommand {
++    Credential { operation: crate::credentials::Operation, deferred: crate::credentials::Deferred },
+     Invalidate,
+     ActivateWindow,
+     MinimizeWindow,
+@@ -547,6 +553,10 @@ async fn run_ui_commands(
+                 cx.notify();
+                 window.refresh();
+             }),
++            UiCommand::Credential { operation, deferred } => {
++                cx.update(|cx| crate::credentials::start(operation, cx, deferred));
++                Ok(())
++            }
+             UiCommand::PromptForPaths { options, deferred } => {
+                 let background_executor = cx.background_executor().clone();
+                 let receiver = cx.update(|cx| cx.prompt_for_paths(options));
+@@ -1010,6 +1020,30 @@ impl GpuixRenderer {
+         }
+     }
+ 
++    fn begin_credential(&self, operation: crate::credentials::Operation, deferred: crate::credentials::Deferred) {
++        #[cfg(target_os = "macos")]
++        GPUI_APP.with(|app| {
++            if let Some(app) = app.borrow().as_ref() {
++                app.update(|cx| crate::credentials::start(operation, cx, deferred));
++            } else {
++                deferred.reject(Error::from_reason("GPUI application is not initialized"));
++            }
++        });
++        #[cfg(any(target_os = "windows", target_os = "linux", target_os = "freebsd"))]
++        {
++            let sender = self.ui_commands.lock().unwrap().as_ref().cloned();
++            if let Some(sender) = sender {
++                if let Err(error) = sender.unbounded_send(UiCommand::Credential { operation, deferred }) {
++                    if let UiCommand::Credential { deferred, .. } = error.into_inner() {
++                        deferred.reject(Error::from_reason("GPUI application is not initialized"));
++                    }
++                }
++            } else {
++                deferred.reject(Error::from_reason("GPUI application is not initialized"));
++            }
++        }
++    }
++
+     #[cfg(any(target_os = "windows", target_os = "linux", target_os = "freebsd"))]
+     fn dispatch_mouse_input(&self, input: MouseInput) -> Result<()> {
+         let (response_sender, response_receiver) = sync_channel(1);
+@@ -1769,6 +1803,39 @@ impl GpuixRenderer {
+         ))
+     }
+ 
++    /// Read this application's OS-vault credential. Missing entries return null; access failures reject.
++    #[napi(ts_return_type = "Promise<Buffer | null>")]
++    pub fn read_hosting_credential<'env>(&self, env: &'env Env, key: String) -> Result<Object<'env>> {
++        crate::credentials::validate_key(&key)?;
++        let (deferred, promise) = env.create_deferred()?;
++        self.begin_credential(crate::credentials::Operation::Read(key), deferred);
++        Ok(promise)
++    }
++
++    #[napi(ts_return_type = "Promise<void>")]
++    pub fn write_hosting_credential<'env>(&self, env: &'env Env, key: String, bytes: Buffer) -> Result<Object<'env>> {
++        crate::credentials::validate_key(&key)?;
++        if bytes.is_empty() || bytes.len() > 16 * 1024 {
++            return Err(Error::from_reason("Invalid credential length"));
++        }
++        let (deferred, promise) = env.create_deferred()?;
++        self.begin_credential(crate::credentials::Operation::Write(key, bytes.to_vec()), deferred);
++        Ok(promise)
++    }
++
++    #[napi(ts_return_type = "Promise<void>")]
++    pub fn delete_hosting_credential<'env>(&self, env: &'env Env, key: String) -> Result<Object<'env>> {
++        crate::credentials::validate_key(&key)?;
++        let (deferred, promise) = env.create_deferred()?;
++        self.begin_credential(crate::credentials::Operation::Delete(key), deferred);
++        Ok(promise)
++    }
++
++    #[napi]
++    pub fn take_settings_requested(&self) -> bool {
++        SETTINGS_REQUESTED.with(|requested| requested.replace(false))
++    }
++
+     /// Open the platform path picker. Returns null when the user cancels.
+     #[napi(ts_return_type = "Promise<Array<string> | null>")]
+     pub fn prompt_for_paths<'env>(
+diff --git a/packages/native/src/lib.rs b/packages/native/src/lib.rs
+index d80353e..0e001eb 100644
+--- a/packages/native/src/lib.rs
++++ b/packages/native/src/lib.rs
+@@ -12,6 +12,8 @@ use napi::bindgen_prelude::*;
+ use napi_derive::napi;
+ 
+ mod accessibility;
++#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
++mod credentials;
+ #[cfg(target_os = "macos")]
+ mod app_menu;
+ #[cfg(target_os = "macos")]
+diff --git a/packages/native/src/app_menu.rs b/packages/native/src/app_menu.rs
+index 9e22b1b..a9648cf 100644
+--- a/packages/native/src/app_menu.rs
++++ b/packages/native/src/app_menu.rs
+@@ -21,6 +21,7 @@ gpui::actions!(
+     [
+         /// Quit the application.
+         Quit,
++        Settings,
+         /// Hide the application.
+         Hide,
+         /// Hide every other application.
+@@ -43,6 +44,7 @@ gpui::actions!(
+ pub(crate) fn init(app_name: &str, cx: &mut App) {
+     cx.bind_keys([
+         gpui::KeyBinding::new("cmd-q", Quit, None),
++        gpui::KeyBinding::new("cmd-,", Settings, None),
+         gpui::KeyBinding::new("cmd-h", Hide, None),
+         gpui::KeyBinding::new("cmd-alt-h", HideOthers, None),
+         gpui::KeyBinding::new("cmd-m", MinimizeWindow, None),
+@@ -50,6 +52,7 @@ pub(crate) fn init(app_name: &str, cx: &mut App) {
+     ]);
+ 
+     cx.on_action(|_: &Quit, cx: &mut App| cx.quit());
++    cx.on_action(|_: &Settings, _: &mut App| crate::renderer::request_settings());
+     cx.on_action(|_: &Hide, cx: &mut App| cx.hide());
+     cx.on_action(|_: &HideOthers, cx: &mut App| cx.hide_other_apps());
+     cx.on_action(|_: &ShowAll, cx: &mut App| cx.unhide_other_apps());
+@@ -66,6 +69,8 @@ pub(crate) fn default_menus(app_name: &str) -> Vec<Menu> {
+             name: app_name.to_string().into(),
+             disabled: false,
+             items: vec![
++                MenuItem::action("Settings…", Settings),
++                MenuItem::separator(),
+                 MenuItem::os_submenu("Services", SystemMenuType::Services),
+                 MenuItem::separator(),
+                 MenuItem::action(format!("Hide {app_name}"), Hide),
+@@ -115,6 +120,8 @@ mod tests {
+         assert_eq!(
+             item_names(&menus[0]),
+             vec![
++                "Settings…",
++                "-",
+                 "Services",
+                 "-",
+                 "Hide Chat",
+diff --git a/packages/native/src/custom_elements/input.rs b/packages/native/src/custom_elements/input.rs
+index 39b8c53..40d0253 100644
+--- a/packages/native/src/custom_elements/input.rs
++++ b/packages/native/src/custom_elements/input.rs
+@@ -308,6 +308,7 @@ impl CustomElementFactory for TextareaFactory {
+ }
+ 
+ struct TextEditorElement {
++    secret: bool,
+     multiline: bool,
+     value: String,
+     placeholder: String,
+@@ -322,6 +323,7 @@ struct TextEditorElement {
+ impl TextEditorElement {
+     fn new(multiline: bool) -> Self {
+         Self {
++            secret: false,
+             multiline,
+             value: String::new(),
+             placeholder: String::new(),
+@@ -358,6 +360,7 @@ impl CustomElement for TextEditorElement {
+                 let value = self.value.clone();
+                 let placeholder = self.placeholder.clone();
+                 let multiline = self.multiline;
++                let secret = self.secret;
+                 let read_only = self.read_only;
+                 let min_rows = self.min_rows;
+                 let max_rows = self.max_rows;
+@@ -367,6 +370,7 @@ impl CustomElement for TextEditorElement {
+                 let cursor = value.len();
+                 let state_focus_handle = focus_handle.clone();
+                 cx.new(move |cx| TextEditorState {
++                    secret,
+                     element_id: id,
+                     callback,
+                     emits_change,
+@@ -412,6 +416,13 @@ impl CustomElement for TextEditorElement {
+         let prop_changed = self.last_prop_value.as_ref() != Some(&self.value);
+         state.update(cx, |state, cx| {
+             state.callback = callback;
++            if state.secret != self.secret {
++                state.pending_values.clear();
++                state.undo_stack.clear();
++                state.redo_stack.clear();
++                state.last_edit = None;
++            }
++            state.secret = self.secret;
+             state.emits_change = emits_change;
+             if state.emits_submit != emits_submit {
+                 state.emits_submit = emits_submit;
+@@ -465,7 +476,9 @@ impl CustomElement for TextEditorElement {
+             gpui::Role::TextInput
+         };
+         editor = crate::accessibility::apply_accessibility(editor, ctx.props, Some(default_role));
+-        if ctx.props.get("aria-valuetext").is_none() && !self.value.is_empty() {
++        if self.secret {
++            editor = editor.role(gpui::Role::PasswordInput).aria_value("".to_string());
++        } else if ctx.props.get("aria-valuetext").is_none() && !self.value.is_empty() {
+             editor = editor.aria_value(self.value.clone());
+         }
+         if !self.placeholder.is_empty() {
+@@ -511,6 +524,7 @@ impl CustomElement for TextEditorElement {
+ 
+     fn set_prop(&mut self, key: &str, value: serde_json::Value) {
+         match key {
++            "type" => self.secret = !self.multiline && value.as_str() == Some("password"),
+             "value" => self.value = value.as_str().unwrap_or_default().to_string(),
+             "placeholder" => self.placeholder = value.as_str().unwrap_or_default().to_string(),
+             "readOnly" => self.read_only = value.as_bool().unwrap_or(false),
+@@ -528,6 +542,7 @@ impl CustomElement for TextEditorElement {
+ 
+     fn supported_props(&self) -> &'static [&'static str] {
+         &[
++            "type",
+             "value",
+             "placeholder",
+             "readOnly",
+@@ -629,6 +644,7 @@ fn push_undo_snapshot(history: &mut VecDeque<EditSnapshot>, snapshot: EditSnapsh
+ }
+ 
+ struct TextEditorState {
++    secret: bool,
+     element_id: u64,
+     callback: Option<EventCallback>,
+     emits_change: bool,
+@@ -735,9 +751,11 @@ impl TextEditorState {
+ 
+     fn emit_change(&mut self) {
+         if self.emits_change {
+-            self.pending_values.push_back(self.content.clone());
+-            while self.pending_values.len() > 32 {
+-                self.pending_values.pop_front();
++            if !self.secret {
++                self.pending_values.push_back(self.content.clone());
++                while self.pending_values.len() > 32 {
++                    self.pending_values.pop_front();
++                }
+             }
+             emit_event_full(&self.callback, self.element_id, "change", |payload| {
+                 payload.value = Some(self.content.clone());
+@@ -766,6 +784,7 @@ impl TextEditorState {
+     }
+ 
+     fn record_edit(&mut self, range: &Range<usize>, new_text: &str, now: Instant) {
++        if self.secret { return; }
+         let current = coalescing_edit(range, new_text, self.selection_reversed);
+         let mergeable = self.last_edit.is_some_and(|previous| {
+             edits_coalesce(
+@@ -1074,7 +1093,7 @@ impl TextEditorState {
+     }
+ 
+     fn copy(&mut self, _: &Copy, _: &mut Window, cx: &mut Context<Self>) {
+-        if !self.selected_range.is_empty() {
++        if !self.secret && !self.selected_range.is_empty() {
+             cx.write_to_clipboard(ClipboardItem::new_string(
+                 self.content[self.selected_range.clone()].to_string(),
+             ));
+@@ -1145,6 +1164,7 @@ impl TextEditorState {
+     }
+ 
+     fn point_for_index(&self, index: usize) -> Option<Point<Pixels>> {
++        let index = if self.secret { self.content[..index].chars().count() } else { index };
+         for (line_index, line) in self.last_lines.iter().enumerate() {
+             let line_start = *self.line_starts.get(line_index)?;
+             if index < line_start || index > line_start + line.len() {
+@@ -1175,7 +1195,11 @@ impl TextEditorState {
+                 let index = line
+                     .closest_index_for_position(local, self.line_height)
+                     .unwrap_or_else(|index| index);
+-                return (line_start + index).min(self.content.len());
++                return if self.secret {
++                    self.content.char_indices().nth(line_start + index).map(|(index, _)| index).unwrap_or(self.content.len())
++                } else {
++                    (line_start + index).min(self.content.len())
++                };
+             }
+             y -= height;
+         }
+@@ -1381,7 +1405,7 @@ impl TextEditorState {
+         let (display, is_placeholder) = if self.content.is_empty() {
+             (self.placeholder.clone(), true)
+         } else {
+-            (SharedString::from(self.content.clone()), false)
++            (SharedString::from(if self.secret { "*".repeat(self.content.chars().count()) } else { self.content.clone() }), false)
+         };
+         let rem_size = window.rem_size();
+         let font_size = style.font_size.to_pixels(rem_size);
+@@ -1408,7 +1432,7 @@ impl TextEditorState {
+             strikethrough: None,
+         };
+         let runs = match self.marked_range.as_ref() {
+-            Some(marked) if !is_placeholder => vec![
++            Some(marked) if !is_placeholder && !self.secret => vec![
+                 run(marked.start, false),
+                 run(marked.len(), true),
+                 run(display.len() - marked.end, false),
+@@ -1491,7 +1515,7 @@ impl EntityInputHandler for TextEditorState {
+     ) -> Option<String> {
+         let range = self.range_from_utf16(&range_utf16);
+         actual_range.replace(self.range_to_utf16(&range));
+-        self.content.get(range).map(str::to_string)
++        self.content.get(range).map(|text| if self.secret { "*".repeat(text.encode_utf16().count()) } else { text.to_string() })
+     }
+ 
+     fn selected_text_range(
+@@ -1537,7 +1561,7 @@ impl EntityInputHandler for TextEditorState {
+         } else {
+             single_line_text(new_text)
+         };
+-        if self.marked_range.is_none() {
++        if self.marked_range.is_none() && !self.secret {
+             self.record_edit(&range, &replacement, cx.background_executor().now());
+         }
+         self.content =
+@@ -1882,6 +1906,8 @@ impl gpui::Element for EditorTextElement {
+                 self.input.update(cx, |input, _| {
+                     let display = if input.content.is_empty() {
+                         input.placeholder.clone()
++                    } else if input.secret {
++                        "*".repeat(input.content.chars().count()).into()
+                     } else {
+                         input.content.clone().into()
+                     };
+diff --git a/packages/native/js/host.ts b/packages/native/js/host.ts
+index e58aa7b..0fa2f25 100644
+--- a/packages/native/js/host.ts
++++ b/packages/native/js/host.ts
+@@ -472,6 +472,8 @@ export interface HostProps {
+ 
+ // Props for native text editor elements.
+ export interface InputProps extends HostProps {
++    /** Password inputs mask painted and platform text, and disable clipboard copying/undo snapshots. */
++    type?: "text" | "password";
+   /** External editor value. Native edits apply immediately and report through onChange. */
+   value?: string
+   placeholder?: string
+diff --git a/packages/native/src/credentials.rs b/packages/native/src/credentials.rs
+new file mode 100644
+index 0000000..08d948e
+--- /dev/null
++++ b/packages/native/src/credentials.rs
+@@ -0,0 +1,42 @@
++//! Application-scoped OS credential storage. No plaintext fallback or raw platform errors.
++use napi::{bindgen_prelude::*, JsDeferred};
++
++pub(crate) type Deferred = JsDeferred<Option<Buffer>, Box<dyn FnOnce(Env) -> Result<Option<Buffer>> + Send>>;
++
++pub(crate) enum Operation {
++    Read(String),
++    Write(String, Vec<u8>),
++    Delete(String),
++}
++
++pub(crate) fn validate_key(key: &str) -> Result<()> {
++    let suffix = key.strip_prefix("1git-hosting-v1:").unwrap_or("");
++    if suffix.len() != 64 || !suffix.bytes().all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase()) {
++        return Err(Error::from_reason("Invalid application credential key"));
++    }
++    Ok(())
++}
++
++pub(crate) fn start(operation: Operation, cx: &mut gpui::App, deferred: Deferred) {
++    let executor = cx.background_executor().clone();
++    let task = match operation {
++        Operation::Read(key) => {
++            let task = cx.read_credentials(&key);
++            executor.spawn(async move { task.await.map(|entry| entry.map(|(_, bytes)| bytes)) })
++        }
++        Operation::Write(key, bytes) => {
++            let task = cx.write_credentials(&key, "1git", &bytes);
++            executor.spawn(async move { task.await.map(|()| None) })
++        }
++        Operation::Delete(key) => {
++            let task = cx.delete_credentials(&key);
++            executor.spawn(async move { task.await.map(|()| None) })
++        }
++    };
++    executor.spawn(async move {
++        match task.await {
++            Ok(bytes) => deferred.resolve(Box::new(move |_| Ok(bytes.map(Buffer::from)))),
++            Err(_) => deferred.reject(Error::from_reason("OS credential store is unavailable or access was denied")),
++        }
++    }).detach();
++}

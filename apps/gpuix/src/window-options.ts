@@ -1,4 +1,8 @@
 import type { RenderOptions } from "@gpuix/react";
+import {
+	handleSettingsKeyDown,
+	handleSettingsNavigation,
+} from "./feature/accounts/lib/settings-shortcut";
 import { handlePopoverKeyDown } from "@1git/gpuix-ui/popover";
 import { handleRepositoryFilterKeyDown } from "./feature/repository-workspace/lib/repository-filter-shortcut";
 import { handleWorkspaceKeyDown } from "./feature/repository-workspace/lib/repository-filter-shortcut";
@@ -17,6 +21,10 @@ export const windowOptions: RenderOptions = {
 	trafficLightY: 13,
 	onKeyDown(event, renderer) {
 		if (handlePopoverKeyDown(event, renderer)) return;
+
+		if (handleSettingsKeyDown(event, renderer)) return;
+
+		if (handleSettingsNavigation(event, renderer)) return;
 
 		if (handleRepositoryFilterKeyDown(event, renderer)) return;
 

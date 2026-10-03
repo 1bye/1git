@@ -91,6 +91,90 @@ Do not develop changes only inside the ignored checkout. To upgrade GPUIX,
 update both dependency pins and `native/config.ts`, then rebase the patch.
 The native setup remains app-owned, following the Turborepo workflow.
 
+## Hosting accounts
+
+Open **1git → Settings…** or press **Cmd+,**. Settings replaces the workspace inside
+the same window, without a new tab or popover. Back restores mounted tabs, selections,
+drafts, scroll and focus; Settings scopes keyboard traversal to its own controls.
+Add a GitHub or GitLab account using browser sign-in and a public application ID,
+or **Use an access token instead** for the masked PAT fallback.
+GitHub Enterprise and self-managed GitLab use the same HTTPS host field. Each connection
+is verified with the provider's current-user endpoint before it is saved. This
+verifies identity, not permission for every repository or future write operation.
+
+Multiple users and hosts are supported. **Check** verifies a saved connection and
+refreshes expiring OAuth credentials when a valid refresh token exists;
+**Reconnect** replaces only that account's token; **Remove** deletes our saved
+credential and metadata. Removal does not revoke the token at the provider or
+touch Git's credentials. Network failures never silently disconnect an account.
+
+Access/refresh tokens and their public OAuth registration use GPUI's OS vault
+(macOS Keychain in the supported build), with an
+application-namespaced key derived from provider, canonical host and immutable
+user ID. No plaintext storage fallback exists. Only account identity is persisted
+in `accounts.json`, beside `session.json`; `GPUIX_ACCOUNTS_PATH` overrides that
+metadata path for isolated development. It is not a token path. Metadata writes
+are private (0600) and atomic; failed saves attempt credential rollback and report
+rollback failures explicitly. Malformed existing metadata is preserved.
+
+The token editor is an uncontrolled, native password field. It masks painting
+and platform text, uses the password accessibility role, and prevents clipboard
+copy/undo snapshots. Tokens are not React props, workspace drafts, or session
+data. Temporary byte buffers are cleared; JavaScript strings cannot be guaranteed
+zeroized and exist transiently while validating/storing a token. Never log an
+account request, native change event, or configured provider object.
+
+`native/accounts.patch` exposes scoped vault methods and the macOS Settings menu,
+and adds native password-input support. `native/accounts-platform.patch` preserves
+Keychain cancellation as an error for our entries, not “credential missing.”
+Other applications' credential keys are rejected. The native bridge has Windows
+and Linux dispatch paths, but this app and these vault tests are currently
+validated only on Apple Silicon macOS. A packaged executable's Keychain prompts
+and signing identity still require release validation.
+
+### Registering browser sign-in
+
+No production client IDs are embedded yet. Enter the public ID in Settings;
+reconnect loads it from the saved vault entry. No client secret field exists.
+
+- **GitHub:** [register an OAuth app](https://github.com/settings/applications/new)
+  and enable device flow. The app displays a user code, opens the system browser,
+  and polls with the provider's interval/slow-down rules. This flow uses no callback
+  or embedded secret; GitHub's registration form may still require a callback value.
+- **GitLab:** [register an application](https://gitlab.com/-/user_settings/applications)
+  with **Confidential unchecked**, the `read_user` scope and exact callback
+  `http://127.0.0.1:8765/oauth/callback` (or another explicitly registered port).
+  Enter its application ID and callback in Settings. A temporary Bun listener binds
+  only `127.0.0.1`, verifies random state and PKCE, and closes on success, denial,
+  cancellation, timeout or browser failure. No separate process or permanent server
+  is spawned. A busy callback port produces an actionable error.
+
+Sign-in currently requests only profile access (`read:user` / `read_user`), not
+repository write access. Self-managed applications must be registered on their own
+host; unsupported Enterprise device flow can use a PAT. Cancel/Escape stops pending
+authorization. Once tokens are issued, identity validation and vault persistence
+must finish. Refresh is serialized and rotated pairs are saved immediately so a
+subsequent network failure cannot lose the new refresh token. Exchanges are not
+blindly retried. The vault accepts bounded documents up to 16 KiB and remains
+compatible with existing raw PAT entries. No OAuth secrets enter session/account
+JSON or retained renderer props.
+
+This milestone does **not** change HTTPS clone/push authentication,
+list hosted repositories, publish repositories or open PRs. Hosting credentials
+and Git transport authentication remain separate until explicitly integrated.
+
+```sh
+# Offline account logic and native UI; no live provider or real credential.
+bun test --preload ./native/preload.ts --path-ignore-patterns '**/*.integration.test.ts' tests/accounts
+# Real OS-vault round-trip; one random synthetic entry, removed afterward.
+bun test tests/accounts/native.integration.test.ts
+# Real local callback listener; synthetic provider/browser, no live account.
+bun test tests/accounts/authorization.integration.test.ts
+```
+
+The OS-vault test requires an unlocked Keychain and native graphics access, and
+may show a Keychain access prompt. It never infers credentials from saved accounts.
+
 ## Structure
 
 - `src/main.tsx`: native boot and hot reload.

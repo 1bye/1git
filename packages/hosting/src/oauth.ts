@@ -1,14 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { CallOptions, HostingResult } from "./contracts.js";
-import {
-	fail,
-	failureResult,
-	nonempty,
-	number,
-	record,
-	result,
-	string,
-} from "./result.js";
+import { fail, failureResult, nonempty, result } from "./result.js";
+import { oauthTokens } from "./oauth-tokens.js";
 import { Endpoints, Transport } from "./transport.js";
 import type {
 	OAuthApplication,
@@ -247,47 +240,8 @@ export class HostingOAuth {
 		grant: OAuthGrant,
 		options: CallOptions
 	): Promise<OAuthTokens> {
-		const data = record(
+		return oauthTokens(
 			await this.#adapter.exchangeToken(grant, this.#config, options)
 		);
-
-		if (data.error !== undefined)
-			fail(
-				"authentication",
-				"Provider rejected the OAuth exchange; authorize again."
-			);
-
-		if (string(data.token_type).toLowerCase() !== "bearer")
-			fail("invalid-response", "Unsupported OAuth token type.");
-
-		const accessToken = string(data.access_token);
-
-		const refreshToken =
-			data.refresh_token == null ? null : string(data.refresh_token);
-
-		if (
-			!accessToken ||
-			/\s/u.test(accessToken) ||
-			(refreshToken !== null && (!refreshToken || /\s/u.test(refreshToken)))
-		)
-			fail("invalid-response", "Provider returned an invalid token.");
-
-		const now = Date.now();
-
-		return {
-			accessToken,
-			refreshToken,
-			tokenType: "bearer",
-			expiresAt:
-				data.expires_in == null ? null : now + number(data.expires_in) * 1000,
-			refreshExpiresAt:
-				data.refresh_token_expires_in == null
-					? null
-					: now + number(data.refresh_token_expires_in) * 1000,
-			scopes:
-				data.scope == null
-					? null
-					: string(data.scope).split(/[ ,]+/u).filter(Boolean),
-		};
 	}
 }

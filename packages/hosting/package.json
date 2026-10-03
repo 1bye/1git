@@ -16,6 +16,10 @@
       "types": "./dist/oauth.d.ts",
       "import": "./dist/oauth.js"
     },
+    "./device-oauth": {
+      "types": "./dist/device-oauth.d.ts",
+      "import": "./dist/device-oauth.js"
+    },
     "./remote": {
       "types": "./dist/remote.d.ts",
       "import": "./dist/remote.js"
