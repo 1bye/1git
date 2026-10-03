@@ -6,6 +6,7 @@ import { randomUUID } from "node:crypto";
 import { promisify } from "node:util";
 import { GitRepository } from "@1git/git";
 import { RepositoryConflicts } from "./repository-conflicts";
+import { NativeClipboard } from "../../../platform/clipboard";
 
 const execute = promisify(execFile);
 
@@ -38,13 +39,7 @@ export class RepositoryFileActions {
 			return await RepositoryConflicts.openEditor(root, path);
 
 		if (kind === "copy") {
-			const child = Bun.spawn(["/usr/bin/pbcopy"], {
-				stdin: new TextEncoder().encode(path),
-				stderr: "pipe",
-			});
-
-			if ((await child.exited) !== 0)
-				throw new Error("Could not copy the path.");
+			await NativeClipboard.write(path);
 
 			return;
 		}

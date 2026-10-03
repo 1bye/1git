@@ -1,7 +1,7 @@
 /**
- * Covers: width-capped Accounts sections, illustrated empty state, split setup, pinned actions, preserved workspace state, token masking, connection/removal and keyboard navigation.
+ * Covers: compact width-capped Accounts, illustrated empty state, public setup copying, split setup, pinned actions, preserved workspace state, token masking, icon actions, confirmed removal and keyboard navigation.
  * Real: App, Accounts, providers, disposable metadata file and native layout/editing/accessibility.
- * Doubles: HTTP and credential vault; no real account, token or network.
+ * Doubles: HTTP, credential vault and clipboard writes; no real account, token or network.
  * Requires: built local native addon and macOS graphics access.
  */
 import { afterEach, beforeEach, expect, it } from "bun:test";
@@ -16,6 +16,7 @@ import { windowOptions } from "../../src/window-options";
 import { AccountAuthorization } from "../../src/feature/accounts/lib/account-authorization";
 import { appTokens } from "../../src/styles/tokens";
 import { AccountsSettings } from "../../src/feature/accounts/accounts-settings";
+import { accountProviderIcons } from "../../src/feature/accounts/account-provider-icons";
 import type { HostingFetch } from "@1git/hosting/contracts";
 
 let root: TestRoot;
@@ -76,7 +77,11 @@ async function revealSetupControl(testId: string) {
 	}
 }
 
-function fixture(status = 200, device = false) {
+function fixture(
+	status = 200,
+	device = false,
+	beforeDelete?: (key: string) => Promise<void>
+) {
 	const store = new AccountStore(join(directory, "accounts.json"));
 	const secrets = new Map<string, string>();
 
@@ -125,6 +130,7 @@ function fixture(status = 200, device = false) {
 				secrets.set(key, token);
 			},
 			async delete(key) {
+				await beforeDelete?.(key);
 				secrets.delete(key);
 			},
 		},
@@ -269,9 +275,7 @@ it("keeps the account list mounted beside setup and closes only setup on Cancel 
 	expect(root.renderer.findByTestId("accounts-list-scroll")?.id).toBe(list.id);
 	expect(paneBounds.x).toBeGreaterThanOrEqual(listBounds.x + listBounds.width);
 	expect(panel.style.borderLeftWidth).toBe(1);
-	expect(root.renderer.getPaintedText().join("\n")).toContain(
-		"tester · GitHub"
-	);
+	expect(root.renderer.getPaintedText()).toContain("tester");
 	click("accounts-cancel");
 	await settle();
 	expect(root.renderer.findByTestId("account-setup-panel")).toBeUndefined();
@@ -467,7 +471,137 @@ it("shows matching icon tiles for connection methods with mouse and keyboard sel
 	expect(f.requests).toEqual([]);
 });
 
-it("numbers provider and method before dynamic instructions and places Advanced after all steps", async () => {
+it("uses compact Settings insets while keeping the tab, heading and list aligned", async () => {
+	const f = fixture();
+
+	root.render(
+		<AccountsSettings accounts={f.accounts} onBack={() => undefined} />
+	);
+	await settle();
+	const navigation = root.renderer.findByTestId("settings-navigation")!;
+	const heading = root.renderer.findByTestId("accounts-heading")!;
+	const header = root.renderer.findByTestId("accounts-list-header")!;
+	const content = root.renderer.findByTestId("accounts-list-content")!;
+	const tab = root.renderer.findByTestId("settings-title-tab-label")!;
+	const navigationBounds = root.renderer.getElementBounds(navigation.id)!;
+	const headingBounds = root.renderer.getElementBounds(heading.id)!;
+
+	expect(headingBounds.x - navigationBounds.x - navigationBounds.width).toBe(
+		16
+	);
+	expect(
+		root.renderer.getElementBounds(header.id)!.y - navigationBounds.y
+	).toBe(16);
+	expect(root.renderer.getElementBounds(content.id)!.x).toBe(headingBounds.x);
+	expect(
+		Math.abs(root.renderer.getElementBounds(tab.id)!.x - headingBounds.x)
+	).toBeLessThanOrEqual(2);
+});
+
+it("copies public registration values with mouse and keyboard and follows the GitLab callback", async () => {
+	const f = fixture();
+	const copied: string[] = [];
+
+	root.render(
+		<AccountsSettings
+			accounts={f.accounts}
+			onBack={() => undefined}
+			copyText={async (value) => {
+				copied.push(value);
+			}}
+		/>
+	);
+	await settle();
+	click("account-add");
+	await settle();
+	expect(root.renderer.findByTestId("account-copy-homepage")).toBeDefined();
+	expect(copied).toEqual([]);
+	click("account-copy-name");
+	await settle();
+	click("account-copy-homepage");
+	await settle();
+	const callbackCopy = root.renderer.findByTestId("account-copy-callback")!;
+
+	root.renderer.focusElement(callbackCopy.id);
+	root.renderer.simulateKeystrokes("enter");
+	await settle();
+	expect(copied).toEqual([
+		"1git",
+		"https://github.com/1bye/1git",
+		"http://127.0.0.1:8765/oauth/callback",
+	]);
+	expect(root.renderer.getAllText()).toContain("Copied");
+	expect(JSON.stringify(root.renderer.getA11yTree())).toContain(
+		"Copy Callback URL"
+	);
+	click("account-provider-gitlab");
+	await settle();
+	expect(root.renderer.findByTestId("account-copy-homepage")).toBeUndefined();
+	await revealSetupControl("account-advanced");
+	click("account-advanced");
+	await settle();
+	await revealSetupControl("account-callback");
+	click("account-callback");
+	root.renderer.simulateKeystrokes("cmd-a");
+	root.renderer.simulateKeystrokes(
+		[..."http://127.0.0.1:9876/oauth/callback"].join(" ")
+	);
+	await settle();
+	await revealSetupControl("account-copy-callback");
+	click("account-copy-callback");
+	await settle();
+	expect(copied.at(-1)).toBe("http://127.0.0.1:9876/oauth/callback");
+	await revealSetupControl("account-auth-token");
+	click("account-auth-token");
+	await settle();
+	expect(root.renderer.findByTestId("account-copy-callback")).toBeUndefined();
+	expect(root.renderer.findByTestId("account-token")).toBeDefined();
+	expect(f.requests).toEqual([]);
+	expect(f.secrets.size).toBe(0);
+
+	if (process.env.GPUIX_ACCOUNTS_SCREENSHOT)
+		root.renderer.captureScreenshot(
+			`${process.env.GPUIX_ACCOUNTS_SCREENSHOT}.quick-token.png`
+		);
+});
+
+it("reports clipboard failures safely and allows copying again", async () => {
+	const f = fixture();
+	const copied: string[] = [];
+	let fail = true;
+
+	root.render(
+		<AccountsSettings
+			accounts={f.accounts}
+			onBack={() => undefined}
+			copyText={async (value) => {
+				if (fail) throw new Error("must-not-display-native-clipboard-error");
+
+				copied.push(value);
+			}}
+		/>
+	);
+	await settle();
+	click("account-add");
+	await settle();
+	expect(root.renderer.findByTestId("account-copy-homepage")).toBeDefined();
+	click("account-copy-homepage");
+	await settle();
+	expect(root.renderer.getAllText().join("\n")).toContain(
+		"Could not copy. Try again."
+	);
+	expect(JSON.stringify(root.renderer.getA11yTree())).not.toContain(
+		"must-not-display"
+	);
+	fail = false;
+	click("account-copy-homepage");
+	await settle();
+	expect(copied).toEqual(["https://github.com/1bye/1git"]);
+	expect(root.renderer.getAllText()).toContain("Copied");
+	expect(root.renderer.getAllText().join("\n")).not.toContain("Could not copy");
+});
+
+it("shows quick setup without numbered steps and keeps Advanced after the connection fields", async () => {
 	const f = fixture();
 
 	root.render(
@@ -478,31 +612,37 @@ it("numbers provider and method before dynamic instructions and places Advanced 
 	await settle();
 	const browserText = root.renderer.getAllText().join("\n");
 
-	expect(browserText.indexOf("1. Choose a provider")).toBeLessThan(
-		browserText.indexOf("2. Choose how to connect")
+	expect(browserText).not.toMatch(
+		/\b[1-5]\. (?:Choose|Register|Configure|Paste)/u
 	);
-	expect(browserText.indexOf("2. Choose how to connect")).toBeLessThan(
-		browserText.indexOf("3. Register an application")
+	expect(browserText.indexOf("Provider")).toBeLessThan(
+		browserText.indexOf("Connect with")
 	);
-	expect(browserText.indexOf("3. Register an application")).toBeLessThan(
-		browserText.indexOf("4. Configure the application")
+	expect(browserText.indexOf("Connect with")).toBeLessThan(
+		browserText.indexOf("Application setup")
 	);
-	expect(browserText.indexOf("4. Configure the application")).toBeLessThan(
-		browserText.indexOf("5. Paste the Client ID")
-	);
-	expect(browserText.indexOf("5. Paste the Client ID")).toBeLessThan(
+	expect(browserText).toContain("Homepage URL");
+	expect(browserText).toContain("Enable Device Flow");
+	expect(browserText.indexOf("Client ID")).toBeLessThan(
 		browserText.indexOf("Advanced")
 	);
+
+	if (process.env.GPUIX_ACCOUNTS_SCREENSHOT)
+		root.renderer.captureScreenshot(
+			`${process.env.GPUIX_ACCOUNTS_SCREENSHOT}.quick-browser.png`
+		);
 
 	click("account-auth-token");
 	await settle();
 	const tokenText = root.renderer.getAllText().join("\n");
 
-	expect(tokenText).toContain("3. Create an access token");
-	expect(tokenText).toContain("4. Choose permissions");
-	expect(tokenText).toContain("5. Paste your access token");
-	expect(tokenText).not.toContain("Register an application");
-	expect(tokenText.indexOf("5. Paste your access token")).toBeLessThan(
+	expect(tokenText).toContain("Token setup");
+	expect(tokenText).toContain("Token name");
+	expect(tokenText).toContain("fine-grained token with an expiry date");
+	expect(tokenText).not.toContain("Application setup");
+	expect(root.renderer.findByTestId("account-copy-homepage")).toBeUndefined();
+	expect(root.renderer.findByTestId("account-copy-callback")).toBeUndefined();
+	expect(tokenText.indexOf("Access token")).toBeLessThan(
 		tokenText.indexOf("Advanced")
 	);
 	expect(f.requests).toEqual([]);
@@ -605,7 +745,7 @@ it("shows only the public device code, authorizes through the browser flow and s
 	expect(JSON.stringify(root.renderer.toJSON())).not.toContain("never-render");
 	await Bun.sleep(1100);
 	await settle();
-	expect(root.renderer.getAllText().join("")).toContain("tester · GitHub");
+	expect(root.renderer.getAllText()).toContain("tester");
 	expect(f.secrets.size).toBe(1);
 	expect([...f.secrets.values()][0]).toContain("never-render-oauth-refresh");
 	expect(readFileSync(f.store.path, "utf8")).not.toContain("never-render");
@@ -633,6 +773,249 @@ it("cancels a pending device sign-in without storing an account", async () => {
 	expect(
 		f.requests.some((url) => url.endsWith("/login/oauth/access_token"))
 	).toBe(false);
+});
+
+it("shows compact right-aligned account icons with accessible mouse and keyboard actions", async () => {
+	const f = fixture();
+
+	const [account] = await f.accounts.connect({
+		provider: "github",
+		webUrl: "https://github.com",
+		token: "synthetic-action-token",
+	});
+
+	const key = AccountStore.key(account!);
+
+	const gitlab = {
+		provider: "gitlab" as const,
+		webUrl: "https://gitlab.example/team/",
+		id: "8",
+		username: "gitlab-user",
+	};
+
+	f.store.save([account!, gitlab]);
+
+	root.render(<App accounts={f.accounts} />);
+	await settle();
+	root.renderer.simulateKeystrokes("cmd-,");
+	await settle();
+	const info = root.renderer.findByTestId(`account-info-${key}`)!;
+	const infoBounds = root.renderer.getElementBounds(info.id)!;
+	const row = root.renderer.findByTestId(`account-${key}`)!;
+	const rowBounds = root.renderer.getElementBounds(row.id)!;
+	const actions = ["check", "reconnect", "remove"] as const;
+
+	for (const saved of [account!, gitlab]) {
+		const savedKey = AccountStore.key(saved);
+
+		const icon = root.renderer.findByTestId(
+			`account-provider-icon-${savedKey}`
+		)!;
+
+		const name = root.renderer.findByTestId(`account-name-${savedKey}`)!;
+		const status = root.renderer.findByTestId(`account-status-${savedKey}`)!;
+		const iconBounds = root.renderer.getElementBounds(icon.id)!;
+		const nameBounds = root.renderer.getElementBounds(name.id)!;
+		const statusBounds = root.renderer.getElementBounds(status.id)!;
+
+		expect(icon.customProps?.source).toBe(accountProviderIcons[saved.provider]);
+		expect(iconBounds.x + iconBounds.width).toBeLessThan(nameBounds.x);
+		expect(statusBounds.y - nameBounds.y - nameBounds.height).toBe(2);
+		expect(root.renderer.getAllText()).toContain(saved.username);
+	}
+
+	expect(root.renderer.getAllText()).not.toContain("tester · GitHub");
+	expect(root.renderer.getAllText()).not.toContain("gitlab-user · GitLab");
+	expect(JSON.stringify(root.renderer.getA11yTree())).toContain(
+		"tester · GitHub"
+	);
+	expect(JSON.stringify(root.renderer.getA11yTree())).toContain(
+		"gitlab-user · GitLab"
+	);
+
+	for (const action of actions) {
+		const button = root.renderer.findByTestId(`account-${action}-${key}`)!;
+		const bounds = root.renderer.getElementBounds(button.id)!;
+
+		expect(bounds.width).toBe(26);
+		expect(bounds.height).toBe(26);
+		expect(bounds.x).toBeGreaterThan(infoBounds.x + infoBounds.width);
+		expect(
+			root.renderer.findByTestId(`account-${action}-icon-${key}`)
+		).toBeDefined();
+	}
+
+	const remove = root.renderer.findByTestId(`account-remove-${key}`)!;
+	const removeBounds = root.renderer.getElementBounds(remove.id)!;
+
+	expect(removeBounds.x + removeBounds.width).toBe(
+		rowBounds.x + rowBounds.width
+	);
+	expect(root.renderer.getAllText()).not.toContain("Check");
+	expect(root.renderer.getAllText()).not.toContain("Reconnect");
+	expect(root.renderer.getAllText()).not.toContain("Remove");
+	expect(JSON.stringify(root.renderer.getA11yTree())).toContain(
+		"Check connection for tester on github.com"
+	);
+	expect(JSON.stringify(root.renderer.getA11yTree())).toContain(
+		"Reconnect tester on github.com"
+	);
+	expect(JSON.stringify(root.renderer.getA11yTree())).toContain(
+		"Remove tester on github.com"
+	);
+	const check = root.renderer.findByTestId(`account-check-${key}`)!;
+
+	root.renderer.focusElement(check.id);
+	root.renderer.simulateKeystrokes("enter");
+	await settle();
+	expect(root.renderer.getAllText()).toContain("github.com · Connected");
+	expect(f.requests).toHaveLength(2);
+
+	if (process.env.GPUIX_ACCOUNTS_SCREENSHOT)
+		root.renderer.captureScreenshot(
+			`${process.env.GPUIX_ACCOUNTS_SCREENSHOT}.actions.png`
+		);
+
+	click(`account-reconnect-${key}`);
+	await settle();
+	expect(root.renderer.getAllText()).toContain("Reconnect account");
+	click(`account-check-${key}`);
+	await settle();
+	expect(f.requests).toHaveLength(2);
+});
+
+it("confirms the exact account before removal and cancels without changing saved credentials", async () => {
+	const f = fixture();
+
+	const [account] = await f.accounts.connect({
+		provider: "github",
+		webUrl: "https://github.com",
+		token: "synthetic-removal-token",
+	});
+
+	const other = { ...account!, id: "8", username: "other-user" };
+	const key = AccountStore.key(account!);
+	const otherKey = AccountStore.key(other);
+
+	f.store.save([account!, other]);
+	f.secrets.set(otherKey, "unrelated-test-credential");
+	root.render(<App accounts={f.accounts} />);
+	await settle();
+	root.renderer.simulateKeystrokes("cmd-,");
+	await settle();
+	const remove = root.renderer.findByTestId(`account-remove-${key}`)!;
+
+	root.renderer.focusElement(remove.id);
+	root.renderer.simulateKeystrokes("enter");
+	await settle();
+	const dialog = root.renderer.findByTestId("account-remove-dialog")!;
+	const dialogBounds = root.renderer.getElementBounds(dialog.id)!;
+
+	expect(Math.abs(dialogBounds.x + dialogBounds.width / 2 - 490)).toBeLessThan(
+		2
+	);
+	expect(root.renderer.getAllText()).toContain("Remove account?");
+	expect(root.renderer.getAllText()).toContain("tester · GitHub · github.com");
+	expect(root.renderer.getAllText().join("\n")).toContain(
+		"Your GitHub account and repositories stay unchanged."
+	);
+	expect(f.store.load()).toEqual([account!, other]);
+	expect(f.secrets.size).toBe(2);
+	expect(root.renderer.getFocusedElementId()).toBe(
+		root.renderer.findByTestId("account-remove-cancel")!.id
+	);
+	root.renderer.simulateKeystrokes("tab");
+	await settle();
+	expect(root.renderer.getFocusedElementId()).toBe(
+		root.renderer.findByTestId("account-remove-confirm")!.id
+	);
+	root.renderer.simulateKeystrokes("shift-tab escape");
+	await settle();
+	expect(root.renderer.findByTestId("account-remove-dialog")).toBeUndefined();
+	expect(root.renderer.findByTestId("settings-view")).toBeDefined();
+	expect(root.renderer.getFocusedElementId()).toBe(remove.id);
+
+	click(`account-remove-${key}`);
+	await settle();
+	click("account-remove-cancel");
+	await settle();
+	expect(f.store.load()).toEqual([account!, other]);
+	expect(f.secrets.size).toBe(2);
+	click(`account-remove-${key}`);
+	await settle();
+	root.renderer.nativeSimulateClick(5, 5);
+	await settle();
+	expect(root.renderer.findByTestId("account-remove-dialog")).toBeUndefined();
+	expect(f.secrets.size).toBe(2);
+	click(`account-remove-${key}`);
+	await settle();
+
+	if (process.env.GPUIX_ACCOUNTS_SCREENSHOT)
+		root.renderer.captureScreenshot(
+			`${process.env.GPUIX_ACCOUNTS_SCREENSHOT}.remove.png`
+		);
+
+	root.renderer.focusElement(
+		root.renderer.findByTestId("account-remove-confirm")!.id
+	);
+	root.renderer.simulateKeystrokes("enter");
+	await settle();
+	expect(root.renderer.findByTestId("account-remove-dialog")).toBeUndefined();
+	expect(f.store.load()).toEqual([other]);
+	expect(f.secrets.has(key)).toBe(false);
+	expect(f.secrets.get(otherKey)).toBe("unrelated-test-credential");
+	expect(f.requests).toHaveLength(1);
+	expect(root.renderer.getFocusedElementId()).toBe(
+		root.renderer.findByTestId("account-add")!.id
+	);
+});
+
+it("blocks removal dismissal while saving and preserves a failed account for retry", async () => {
+	const pending = Promise.withResolvers<void>();
+	let fail = true;
+
+	const f = fixture(200, false, async () => {
+		await pending.promise;
+
+		if (fail) throw new Error("Could not remove saved credential.");
+	});
+
+	const [account] = await f.accounts.connect({
+		provider: "github",
+		webUrl: "https://github.com",
+		token: "synthetic-busy-token",
+	});
+
+	const key = AccountStore.key(account!);
+
+	root.render(<App accounts={f.accounts} />);
+	await settle();
+	root.renderer.simulateKeystrokes("cmd-,");
+	await settle();
+	click(`account-remove-${key}`);
+	await settle();
+	click("account-remove-confirm");
+	await settle();
+	root.renderer.simulateKeystrokes("escape");
+	root.renderer.nativeSimulateClick(5, 5);
+	click("account-remove-cancel");
+	await settle();
+	expect(root.renderer.findByTestId("account-remove-dialog")).toBeDefined();
+	expect(f.store.load()).toEqual([account!]);
+	expect(f.secrets.size).toBe(1);
+	pending.resolve();
+	await settle();
+	expect(root.renderer.getAllText()).toContain(
+		"Could not remove saved credential."
+	);
+	expect(root.renderer.findByTestId("account-remove-dialog")).toBeDefined();
+	expect(f.secrets.size).toBe(1);
+	fail = false;
+	click("account-remove-confirm");
+	await settle();
+	expect(root.renderer.findByTestId("account-remove-dialog")).toBeUndefined();
+	expect(root.renderer.getAllText()).toContain("No accounts connected.");
+	expect(f.secrets.size).toBe(0);
 });
 
 it("connects with a masked token, keeps it out of native dumps, persists identity and removes the saved credential", async () => {
@@ -665,13 +1048,16 @@ it("connects with a masked token, keeps it out of native dumps, persists identit
 
 	click("account-connect");
 	await settle();
-	expect(root.renderer.getAllText().join("")).toContain("tester · GitHub");
+	expect(root.renderer.getAllText()).toContain("tester");
 	expect(root.renderer.findByTestId("account-setup-panel")).toBeUndefined();
 	expect(f.secrets.size).toBe(1);
 	expect(readFileSync(f.store.path, "utf8")).not.toContain("synthetic");
 	const key = AccountStore.key(f.store.load()[0]!);
 
 	click(`account-remove-${key}`);
+	await settle();
+	expect(f.secrets.size).toBe(1);
+	click("account-remove-confirm");
 	await settle();
 	expect(root.renderer.getAllText()).toContain("No accounts connected.");
 	expect(f.secrets.size).toBe(0);
@@ -866,8 +1252,9 @@ it("keeps self-managed settings under Advanced, updates callback guidance and re
 		[..."http://127.0.0.1:9876/oauth/callback"].join(" ")
 	);
 	await settle();
-	expect(root.renderer.getAllText().join("\n")).toContain(
-		"Redirect URI: http://127.0.0.1:9876/oauth/callback"
+	await revealSetupControl("account-setup-callback");
+	expect(root.renderer.getAllText()).toContain(
+		"http://127.0.0.1:9876/oauth/callback"
 	);
 	await revealSetupControl("account-setup-open");
 	click("account-setup-open");

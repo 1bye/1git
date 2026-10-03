@@ -1,7 +1,8 @@
 import { Button } from "@1git/gpuix-ui/button";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { appTokens } from "../../styles/tokens";
 import type { SavedAccount } from "./lib/account-store";
+import { accountProviderIcons } from "./account-provider-icons";
 import {
 	accountSetup,
 	accountSetupUrl,
@@ -15,10 +16,6 @@ const icons = {
 	browser:
 		'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path d="M216,42H40A14,14,0,0,0,26,56V200a14,14,0,0,0,14,14H216a14,14,0,0,0,14-14V56A14,14,0,0,0,216,42ZM40,54H216a2,2,0,0,1,2,2V90H38V56A2,2,0,0,1,40,54ZM216,202H40a2,2,0,0,1-2-2V102H218v98A2,2,0,0,1,216,202Z"/></svg>',
 	key: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path d="M215.15,40.85A78,78,0,0,0,86.2,121.31l-56.1,56.1a13.94,13.94,0,0,0-4.1,9.9V216a14,14,0,0,0,14,14H72a6,6,0,0,0,6-6V206H96a6,6,0,0,0,6-6V182h18a6,6,0,0,0,4.24-1.76l10.45-10.44A77.59,77.59,0,0,0,160,174h.1A78,78,0,0,0,215.15,40.85ZM226,98.16c-1.12,35.16-30.67,63.8-65.88,63.84a65.93,65.93,0,0,1-24.51-4.67,6,6,0,0,0-6.64,1.26L117.51,170H96a6,6,0,0,0-6,6v18H72a6,6,0,0,0-6,6v18H40a2,2,0,0,1-2-2V187.31a2,2,0,0,1,.58-1.41l58.83-58.83a6,6,0,0,0,1.26-6.64A65.61,65.61,0,0,1,94,95.92C94,60.71,122.68,31.16,157.83,30A66,66,0,0,1,226,98.16ZM190,76a10,10,0,1,1-10-10A10,10,0,0,1,190,76Z"/></svg>',
-	github:
-		'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path d="M206.13,75.92A57.79,57.79,0,0,0,201.2,29a6,6,0,0,0-5.2-3,57.77,57.77,0,0,0-47,24H123A57.77,57.77,0,0,0,76,26a6,6,0,0,0-5.2,3,57.79,57.79,0,0,0-4.93,46.92A55.88,55.88,0,0,0,58,104v8a54.06,54.06,0,0,0,50.45,53.87A37.85,37.85,0,0,0,98,192v10H72a26,26,0,0,1-26-26A38,38,0,0,0,8,138a6,6,0,0,0,0,12,26,26,0,0,1,26,26,38,38,0,0,0,38,38H98v18a6,6,0,0,0,12,0V192a26,26,0,0,1,52,0v40a6,6,0,0,0,12,0V192a37.85,37.85,0,0,0-10.45-26.13A54.06,54.06,0,0,0,214,112v-8A55.88,55.88,0,0,0,206.13,75.92ZM202,112a42,42,0,0,1-42,42H112a42,42,0,0,1-42-42v-8a43.86,43.86,0,0,1,7.3-23.69,6,6,0,0,0,.81-5.76,45.85,45.85,0,0,1,1.43-36.42,45.85,45.85,0,0,1,35.23,21.1A6,6,0,0,0,119.83,62h32.34a6,6,0,0,0,5.06-2.76,45.83,45.83,0,0,1,35.23-21.11,45.85,45.85,0,0,1,1.43,36.42,6,6,0,0,0,.79,5.74A43.78,43.78,0,0,1,202,104Z"/></svg>',
-	gitlab:
-		'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path d="M228.21,117.61,208.32,41.49a9.94,9.94,0,0,0-19-.93L171.17,90H84.83L66.66,40.56a9.94,9.94,0,0,0-19,.93L27.79,117.61A55.18,55.18,0,0,0,49,176.42l73.27,51.77a9.94,9.94,0,0,0,11.44,0L207,176.42A55.18,55.18,0,0,0,228.21,117.61ZM57.65,50.82,75,98.07A6,6,0,0,0,80.64,102h94.72A6,6,0,0,0,181,98.07l17.36-47.25,15,57.52L128,168.66,42.62,108.34ZM39.38,120.74,117.6,176,93.41,193.1,55.94,166.62A43.1,43.1,0,0,1,39.38,120.74ZM128,217.53l-24.19-17.09L128,183.35l24.19,17.09Zm72.06-50.91L162.59,193.1,138.4,176l78.22-55.26A43.1,43.1,0,0,1,200.06,166.62Z"/></svg>',
 	other:
 		'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path d="M138,180a10,10,0,1,1-10-10A10,10,0,0,1,138,180ZM128,74c-21,0-38,15.25-38,34v4a6,6,0,0,0,12,0v-4c0-12.13,11.66-22,26-22s26,9.87,26,22-11.66,22-26,22a6,6,0,0,0-6,6v8a6,6,0,0,0,12,0v-2.42c18.11-2.58,32-16.66,32-33.58C166,89.25,149,74,128,74Zm102,54A102,102,0,1,1,128,26,102.12,102.12,0,0,1,230,128Zm-12,0a90,90,0,1,0-90,90A90.1,90.1,0,0,0,218,128Z"/></svg>',
 };
@@ -125,7 +122,11 @@ export function AccountProviderChoices({
 						key={provider}
 						testId={`account-provider-${provider}`}
 						label={name}
-						source={icons[provider]}
+						source={
+							provider === "other"
+								? icons.other
+								: accountProviderIcons[provider]
+						}
 						accessibleName={
 							provider === "other" ? "Request or contribute a provider" : name
 						}
@@ -185,20 +186,106 @@ export function AccountMethodChoices({
 	);
 }
 
-/** A numbered section in the account setup flow. */
-export function AccountSetupStep({
-	number,
+/** A compact, unnumbered group in the connection form. */
+export function AccountSetupSection({
 	label,
 	children,
 }: {
-	number: number;
 	label: string;
 	children: ReactNode;
 }) {
 	return (
-		<div testId={`account-step-${number}`} style={{ ...column, flexShrink: 0 }}>
-			<text style={title}>{`${number}. ${label}`}</text>
+		<div style={{ ...column, flexShrink: 0 }}>
+			<text style={title}>{label}</text>
 			{children}
+		</div>
+	);
+}
+
+function AccountSetupValue({
+	name,
+	label,
+	value,
+	disabled,
+	copyText,
+}: {
+	name: "name" | "homepage" | "callback";
+	label: string;
+	value: string;
+	disabled: boolean;
+	copyText: (value: string) => Promise<void>;
+}) {
+	const [result, setResult] = useState<"copying" | "copied" | "error">();
+
+	const copy = async () => {
+		setResult("copying");
+
+		try {
+			await copyText(value);
+			setResult("copied");
+		} catch {
+			setResult("error");
+		}
+	};
+
+	return (
+		<div style={{ ...column, gap: 4 }}>
+			<text style={detail}>{label}</text>
+			<div
+				style={{
+					display: "flex",
+					flexDirection: "row",
+					alignItems: "center",
+					gap: 8,
+					minHeight: 32,
+					borderWidth: 1,
+					borderRadius: 6,
+					borderColor: appTokens.colors.border,
+					paddingLeft: 10,
+					paddingRight: 4,
+				}}
+			>
+				<text
+					testId={`account-setup-${name}`}
+					aria-label={`${label}: ${value}`}
+					style={{
+						...detail,
+						color: appTokens.colors.text,
+						userSelect: "auto",
+						flexGrow: 1,
+						flexBasis: 0,
+						minWidth: 0,
+						whiteSpace: "nowrap",
+						overflowX: "hidden",
+						textOverflow: "ellipsis",
+					}}
+				>
+					{value}
+				</text>
+				<Button
+					testId={`account-copy-${name}`}
+					aria-label={`Copy ${label}`}
+					aria-description={result === "copied" ? "Copied to clipboard" : value}
+					size="sm"
+					variant="ghost"
+					tokens={appTokens}
+					disabled={disabled || result === "copying"}
+					style={{ width: 58 }}
+					onPress={() => {
+						void copy();
+					}}
+				>
+					{result === "copied" ? "Copied" : "Copy"}
+				</Button>
+			</div>
+			{result === "error" ? (
+				<text
+					role="alert"
+					style={{ ...detail, color: appTokens.colors.danger }}
+				>
+					Could not copy. Try again.
+				</text>
+			) : null}
 		</div>
 	);
 }
@@ -211,6 +298,7 @@ export function AccountConnectionGuide({
 	callback,
 	disabled,
 	onOpen,
+	copyText,
 }: {
 	provider: SavedAccount["provider"];
 	manual: boolean;
@@ -218,6 +306,7 @@ export function AccountConnectionGuide({
 	callback: string;
 	disabled: boolean;
 	onOpen: (url: string) => void;
+	copyText: (value: string) => Promise<void>;
 }) {
 	const setupUrl = accountSetupUrl(
 		provider,
@@ -229,10 +318,7 @@ export function AccountConnectionGuide({
 
 	return (
 		<div testId="account-setup-guide" style={{ ...column, gap: 14 }}>
-			<AccountSetupStep
-				number={3}
-				label={manual ? "Create an access token" : "Register an application"}
-			>
+			<AccountSetupSection label={manual ? "Token setup" : "Application setup"}>
 				<div
 					style={{
 						display: "flex",
@@ -242,9 +328,11 @@ export function AccountConnectionGuide({
 						gap: 8,
 					}}
 				>
-					<text
-						style={{ ...detail, flexGrow: 1, flexBasis: 0, minWidth: 0 }}
-					>{`Name it 1git in your ${name} settings.`}</text>
+					<text style={{ ...detail, flexGrow: 1, flexBasis: 0, minWidth: 0 }}>
+						{manual
+							? "Create a token using the details below."
+							: "Register an OAuth app using these values."}
+					</text>
 					<Button
 						testId="account-setup-open"
 						size="sm"
@@ -263,11 +351,13 @@ export function AccountConnectionGuide({
 						Enter a valid HTTPS host in Advanced to open its setup page.
 					</text>
 				) : null}
-			</AccountSetupStep>
-			<AccountSetupStep
-				number={4}
-				label={manual ? "Choose permissions" : "Configure the application"}
-			>
+				<AccountSetupValue
+					name="name"
+					label={manual ? "Token name" : "Application name"}
+					value="1git"
+					disabled={disabled}
+					copyText={copyText}
+				/>
 				{manual ? (
 					<text style={detail}>
 						{provider === "github"
@@ -277,16 +367,22 @@ export function AccountConnectionGuide({
 				) : (
 					<>
 						{provider === "github" ? (
-							<text style={{ ...detail, userSelect: "auto" }}>
-								{`Homepage: ${applicationHomepage}`}
-							</text>
+							<AccountSetupValue
+								name="homepage"
+								label="Homepage URL"
+								value={applicationHomepage}
+								disabled={disabled}
+								copyText={copyText}
+							/>
 						) : null}
-						<text
-							testId="account-setup-callback"
-							style={{ ...detail, userSelect: "auto" }}
-						>
-							{`${provider === "github" ? "Callback" : "Redirect URI"}: ${provider === "github" ? defaultAccountCallback : callback}`}
-						</text>
+						<AccountSetupValue
+							key={provider === "github" ? defaultAccountCallback : callback}
+							name="callback"
+							label={provider === "github" ? "Callback URL" : "Redirect URI"}
+							value={provider === "github" ? defaultAccountCallback : callback}
+							disabled={disabled}
+							copyText={copyText}
+						/>
 						<text style={detail}>
 							{provider === "github"
 								? "Enable Device Flow, then register the application."
@@ -294,7 +390,7 @@ export function AccountConnectionGuide({
 						</text>
 					</>
 				)}
-			</AccountSetupStep>
+			</AccountSetupSection>
 		</div>
 	);
 }

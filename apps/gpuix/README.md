@@ -98,15 +98,18 @@ the same window, without a new tab or popover. Back restores mounted tabs, selec
 drafts, scroll and focus; Settings scopes keyboard traversal to its own controls.
 Accounts stays visible as a list, with **Add account** beside its heading rather
 than in a bottom toolbar. Headings, list content and setup sections share a
-480-point maximum width, with compact heading descriptions. An empty list shows
+480-point maximum width and 16-point content insets, with compact heading descriptions. An empty list shows
 a centered thin-vector account illustration and a short connection hint.
 **Add account** or **Reconnect** opens a separate
 right-hand setup pane with a divider and an even split of the content space;
-Cancel/Escape closes that pane without leaving Settings. Step 1 chooses a GitHub
-or GitLab icon tile, and step 2 uses matching tiles for **Browser sign-in** or
-**Access token**. The remaining steps follow the provider and method,
-covering registration, permissions and pasting the public application ID or masked
-token. **Advanced** is below all steps. Setup and the saved list scroll independently;
+Cancel/Escape closes that pane without leaving Settings. Choose a GitHub or GitLab
+icon tile, then use matching tiles for **Browser sign-in** or **Access token**.
+Quick setup follows the provider and method without numbered steps. Public application
+name, homepage and callback values have keyboard-accessible **Copy** buttons with
+success feedback and retryable errors; GitLab's redirect value follows the callback
+configured in **Advanced**. Tokens are never exposed through these copy controls.
+Provider-specific permissions and expiry guidance stay visible, followed by the public
+application ID or masked token input. **Advanced** is below these fields. Setup and the saved list scroll independently;
 Cancel/Connect stay in a fixed footer outside setup scrolling, even at minimum window
 height. Saved-account actions are disabled while setup is open to avoid interrupting
 an unfinished connection. **Open GitHub/GitLab settings** opens the exact setup
@@ -123,11 +126,18 @@ Each connection
 is verified with the provider's current-user endpoint before it is saved. This
 verifies identity, not permission for every repository or future write operation.
 
-Multiple users and hosts are supported. **Check** verifies a saved connection and
-refreshes expiring OAuth credentials when a valid refresh token exists;
-**Reconnect** replaces only that account's token; **Remove** deletes our saved
-credential and metadata. Removal does not revoke the token at the provider or
-touch Git's credentials. Network failures never silently disconnect an account.
+Multiple users and hosts are supported. Saved rows show a provider glyph on the
+left, with the username above a compact host/status description. Provider names
+remain accessible without repeating them visually. Compact, right-aligned actions use Phosphor
+refresh, pencil and trash icons with account-specific accessible names. **Check**
+verifies a saved connection and refreshes expiring OAuth credentials when a valid
+refresh token exists; **Reconnect** replaces only that account's token. **Remove**
+opens a centered confirmation naming the account, provider and host before deleting
+our saved credential and metadata. Cancel, Escape or backdrop dismissal leaves them
+unchanged; dismissal and repeated confirmation are blocked while saving, and a failed
+removal stays open for retry. Removal does not revoke the token at the provider,
+delete repositories or touch Git's credentials. Network failures never silently
+disconnect an account.
 
 Access/refresh tokens and their public OAuth registration use GPUI's OS vault
 (macOS Keychain in the supported build), with an

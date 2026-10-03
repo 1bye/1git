@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
 import { Button } from "@1git/gpuix-ui/button";
+import { Popover, PopoverContent } from "@1git/gpuix-ui/popover";
 import type { DeviceAuthorization } from "@1git/hosting/device-oauth";
 import { AppShell } from "../../fixture/app-shell";
 import { settingsNavigation } from "./lib/settings-shortcut";
@@ -8,7 +9,7 @@ import {
 	AccountConnectionGuide,
 	AccountMethodChoices,
 	AccountProviderChoices,
-	AccountSetupStep,
+	AccountSetupSection,
 } from "./account-connection-guide";
 import { AccountList } from "./account-list";
 import { openAuthorizationBrowser } from "./lib/account-authorization";
@@ -24,6 +25,7 @@ import { appTokens } from "../../styles/tokens";
 import { workspaceLayout } from "../../styles/workspace-layout";
 import { WorkspaceTabIcon } from "../workspace-tabs/components/workspace-tab-icon";
 import { WorkspaceTabHeading } from "../workspace-tabs/components/workspace-tab";
+import { NativeClipboard } from "../../platform/clipboard";
 
 const fieldStyle = {
 	height: appTokens.layout.controlHeight,
@@ -40,7 +42,7 @@ const fieldStyle = {
 
 const labelStyle = { fontSize: 12, color: appTokens.colors.textMuted };
 const sidebarWidth = 200;
-const contentPadding = appTokens.layout.pagePadding;
+const contentPadding = 16;
 const sectionMaxWidth = 480;
 
 const headingStyle = {
@@ -74,12 +76,15 @@ export function AccountsSettings({
 	accounts: supplied,
 	children,
 	openLink = openAuthorizationBrowser,
+	copyText = NativeClipboard.write,
 }: {
 	onBack: () => void;
 	accounts?: Accounts;
 	children?: ReactNode;
 	/** System-browser boundary; native tests capture setup links without opening a real account. */
 	openLink?: (url: string) => Promise<void>;
+	/** Public setup values only; tests capture writes without replacing the user's clipboard. */
+	copyText?: (value: string) => Promise<void>;
 }) {
 	const renderer = useGpuixRequired();
 
@@ -104,6 +109,7 @@ export function AccountsSettings({
 	const [manual, setManual] = useState(false);
 	const [device, setDevice] = useState<DeviceAuthorization>();
 	const [replacing, setReplacing] = useState<SavedAccount>();
+	const [removing, setRemoving] = useState<SavedAccount>();
 	const [busy, setBusy] = useState(false);
 	const [waiting, setWaiting] = useState(false);
 	const [error, setError] = useState<string>();
@@ -115,6 +121,7 @@ export function AccountsSettings({
 	const mounted = useRef(true);
 	const view = useRef<PublicInstance | null>(null);
 	const backButton = useRef<PublicInstance | null>(null);
+	const addButton = useRef<PublicInstance | null>(null);
 
 	useEffect(() => {
 		mounted.current = true;
@@ -134,6 +141,7 @@ export function AccountsSettings({
 		token.current = "";
 		setHasToken(false);
 		setForm("list");
+		setRemoving(undefined);
 		setError(undefined);
 		setStatus({});
 
@@ -296,6 +304,8 @@ export function AccountsSettings({
 		});
 	};
 
+	const removingHost = removing ? new URL(removing.webUrl) : undefined;
+
 	return (
 		<AppShell
 			testId="settings-view"
@@ -414,6 +424,7 @@ export function AccountsSettings({
 							</text>
 							<Button
 								testId="account-add"
+								ref={addButton}
 								size="sm"
 								tokens={appTokens}
 								disabled={busy || form === "connect"}
@@ -425,7 +436,7 @@ export function AccountsSettings({
 						<text testId="accounts-description" style={labelStyle}>
 							Connected hosting accounts.
 						</text>
-						{error && form === "list" ? (
+						{error && form === "list" && !removing ? (
 							<text
 								role="alert"
 								testId="accounts-error"
@@ -476,11 +487,8 @@ export function AccountsSettings({
 									});
 								}}
 								onRemove={(account) => {
-									void perform(async () => {
-										const next = await accounts.disconnect(account);
-
-										if (mounted.current) setSaved(next);
-									});
+									setError(undefined);
+									setRemoving(account);
 								}}
 							/>
 						</div>
@@ -546,7 +554,7 @@ export function AccountsSettings({
 									flexShrink: 0,
 								}}
 							>
-								<AccountSetupStep number={1} label="Choose a provider">
+								<AccountSetupSection label="Provider">
 									<AccountProviderChoices
 										value={provider}
 										disabled={busy || !!replacing}
@@ -567,20 +575,21 @@ export function AccountsSettings({
 											setError(undefined);
 										}}
 									/>
-								</AccountSetupStep>
-								<AccountSetupStep number={2} label="Choose how to connect">
+								</AccountSetupSection>
+								<AccountSetupSection label="Connect with">
 									<AccountMethodChoices
 										value={manual ? "token" : "browser"}
 										disabled={busy}
 										onChange={(method) => changeMethod(method === "token")}
 									/>
-								</AccountSetupStep>
+								</AccountSetupSection>
 								<AccountConnectionGuide
 									provider={provider}
 									manual={manual}
 									host={webUrl}
 									callback={redirectUri}
 									disabled={busy}
+									copyText={copyText}
 									onOpen={(url) => {
 										void openSetupLink(url);
 									}}
@@ -601,7 +610,7 @@ export function AccountsSettings({
 												fontWeight: 500,
 											}}
 										>
-											5. Paste your access token
+											Access token
 										</text>
 										<input
 											key={editorVersion}
@@ -640,7 +649,7 @@ export function AccountsSettings({
 												fontWeight: 500,
 											}}
 										>
-											{`5. Paste the ${provider === "github" ? "Client ID" : "Application ID"}`}
+											{provider === "github" ? "Client ID" : "Application ID"}
 										</text>
 										<input
 											aria-label="Application client ID"
@@ -814,6 +823,101 @@ export function AccountsSettings({
 					</div>
 				) : null}
 			</div>
+			<Popover
+				open={removing !== undefined}
+				onOpenChange={(open) => {
+					if (!open && !busy) {
+						setRemoving(undefined);
+						setError(undefined);
+					}
+				}}
+				modal
+			>
+				<PopoverContent
+					testId="account-remove-dialog"
+					aria-label="Confirm account removal"
+					placement="center"
+					width={340}
+					dismissible={!busy}
+					tokens={appTokens}
+				>
+					<div
+						style={{
+							display: "flex",
+							flexDirection: "column",
+							gap: 10,
+							padding: 4,
+						}}
+					>
+						<text role="heading" aria-level={2} style={headingStyle}>
+							Remove account?
+						</text>
+						{removing && removingHost ? (
+							<text style={{ fontSize: 12, color: appTokens.colors.text }}>
+								{`${removing.username} · ${accountSetup[removing.provider].name} · ${removingHost.host}${removingHost.pathname === "/" ? "" : removingHost.pathname}`}
+							</text>
+						) : null}
+						<text style={labelStyle}>
+							{`Removes this account and its saved credentials from 1git. Your ${removing ? accountSetup[removing.provider].name : "hosting"} account and repositories stay unchanged.`}
+						</text>
+						{error ? (
+							<text
+								role="alert"
+								style={{ ...labelStyle, color: appTokens.colors.danger }}
+							>
+								{error}
+							</text>
+						) : null}
+						<div
+							style={{
+								display: "flex",
+								flexDirection: "row",
+								justifyContent: "flex-end",
+								gap: 8,
+							}}
+						>
+							<Button
+								testId="account-remove-cancel"
+								size="sm"
+								variant="secondary"
+								tokens={appTokens}
+								disabled={busy}
+								onPress={() => {
+									setRemoving(undefined);
+									setError(undefined);
+								}}
+							>
+								Cancel
+							</Button>
+							<Button
+								testId="account-remove-confirm"
+								size="sm"
+								tokens={appTokens}
+								disabled={busy || !removing}
+								onPress={() => {
+									if (!removing) return;
+
+									const account = removing;
+
+									void perform(async () => {
+										const next = await accounts.disconnect(account);
+
+										if (mounted.current) {
+											setSaved(next);
+											setRemoving(undefined);
+
+											if (addButton.current)
+												renderer.focusElement?.(addButton.current.id);
+										}
+									});
+								}}
+							>
+								{busy ? "Removing…" : "Remove account"}
+							</Button>
+						</div>
+					</div>
+				</PopoverContent>
+			</Popover>
 		</AppShell>
 	);
 }
