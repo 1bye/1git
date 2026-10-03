@@ -401,6 +401,36 @@ function WorkspaceTabLabel({
 	);
 }
 
+/** A non-interactive view title with the same connected tab surface and no close action. */
+export function WorkspaceTabHeading({
+	label,
+	testId,
+}: {
+	label: string;
+	testId: string;
+}) {
+	return (
+		<div testId={testId} windowDrag style={styles.root}>
+			<svg
+				testId={`${testId}-surface`}
+				source={activeSurface}
+				style={styles.surface}
+			/>
+			<div
+				style={StyleSheet.compose(styles.content, { pointerEvents: "none" })}
+			>
+				<Text
+					testId={`${testId}-label`}
+					tokens={appTokens}
+					style={styles.name(true)}
+				>
+					{label}
+				</Text>
+			</div>
+		</div>
+	);
+}
+
 /** The same tab silhouette and label above the menu backdrop; dismisses without closing the workspace. */
 export function WorkspaceTabPreview({
 	tab,

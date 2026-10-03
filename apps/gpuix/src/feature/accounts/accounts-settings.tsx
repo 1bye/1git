@@ -5,26 +5,29 @@ import type { DeviceAuthorization } from "@1git/hosting/device-oauth";
 import { AppShell } from "../../fixture/app-shell";
 import { settingsNavigation } from "./lib/settings-shortcut";
 import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@1git/gpuix-ui/select";
+	AccountConnectionGuide,
+	AccountMethodChoices,
+	AccountProviderChoices,
+	AccountSetupStep,
+} from "./account-connection-guide";
+import { AccountList } from "./account-list";
+import { openAuthorizationBrowser } from "./lib/account-authorization";
+import {
+	accountSetup,
+	accountSetupUrl,
+	defaultAccountCallback,
+} from "./lib/account-setup";
 import { Accounts } from "./lib/accounts";
 import { AccountStore, type SavedAccount } from "./lib/account-store";
 import { NativeCredentials } from "./lib/native-credentials";
 import { appTokens } from "../../styles/tokens";
+import { workspaceLayout } from "../../styles/workspace-layout";
 import { WorkspaceTabIcon } from "../workspace-tabs/components/workspace-tab-icon";
-
-const providers = [
-	{ value: "github", label: "GitHub" },
-	{ value: "gitlab", label: "GitLab" },
-];
+import { WorkspaceTabHeading } from "../workspace-tabs/components/workspace-tab";
 
 const fieldStyle = {
-	height: 32,
-	fontSize: 13,
+	height: appTokens.layout.controlHeight,
+	fontSize: 12,
 	color: appTokens.colors.text,
 	backgroundColor: "transparent",
 	borderWidth: 1,
@@ -36,16 +39,47 @@ const fieldStyle = {
 };
 
 const labelStyle = { fontSize: 12, color: appTokens.colors.textMuted };
+const sidebarWidth = 200;
+const contentPadding = appTokens.layout.pagePadding;
+const sectionMaxWidth = 480;
+
+const headingStyle = {
+	fontSize: 14,
+	fontWeight: 500,
+	color: appTokens.colors.text,
+};
+
+const footerStyle = {
+	display: "flex",
+	flexDirection: "column",
+	flexShrink: 0,
+	gap: 8,
+	paddingTop: 12,
+	paddingBottom: 12,
+	paddingLeft: contentPadding,
+	paddingRight: contentPadding,
+	borderTopWidth: 1,
+	borderColor: appTokens.colors.border,
+};
+
+const titleInset =
+	workspaceLayout.workspaceSurfaceInset +
+	sidebarWidth +
+	contentPadding -
+	workspaceLayout.tabContentInsetInlineStart;
 
 /** Account settings are window-local. Tokens are transient refs and uncontrolled native password inputs, never renderer props. */
 export function AccountsSettings({
 	onBack,
 	accounts: supplied,
 	children,
+	openLink = openAuthorizationBrowser,
 }: {
 	onBack: () => void;
 	accounts?: Accounts;
 	children?: ReactNode;
+	/** System-browser boundary; native tests capture setup links without opening a real account. */
+	openLink?: (url: string) => Promise<void>;
 }) {
 	const renderer = useGpuixRequired();
 
@@ -61,12 +95,11 @@ export function AccountsSettings({
 	const [saved, setSaved] = useState<SavedAccount[]>([]);
 	const [form, setForm] = useState<"list" | "connect">("list");
 	const [provider, setProvider] = useState<SavedAccount["provider"]>("github");
-	const [webUrl, setWebUrl] = useState("https://github.com");
+	const [webUrl, setWebUrl] = useState<string>(accountSetup.github.host);
 	const [clientId, setClientId] = useState("");
 
-	const [redirectUri, setRedirectUri] = useState(
-		"http://127.0.0.1:8765/oauth/callback"
-	);
+	const [redirectUri, setRedirectUri] = useState(defaultAccountCallback);
+	const [advanced, setAdvanced] = useState(false);
 
 	const [manual, setManual] = useState(false);
 	const [device, setDevice] = useState<DeviceAuthorization>();
@@ -136,7 +169,12 @@ export function AccountsSettings({
 	const startConnection = (account?: SavedAccount) => {
 		setReplacing(account);
 		setProvider(account?.provider ?? "github");
-		setWebUrl(account?.webUrl ?? "https://github.com");
+		setWebUrl(account?.webUrl ?? accountSetup.github.host);
+		setAdvanced(
+			!!account &&
+				account.webUrl !== new URL(accountSetup[account.provider].host).href
+		);
+		setRedirectUri(defaultAccountCallback);
 		setError(undefined);
 		token.current = "";
 		setHasToken(false);
@@ -153,9 +191,7 @@ export function AccountsSettings({
 
 				if (registration) {
 					setClientId(registration.clientId);
-					setRedirectUri(
-						registration.redirectUri ?? "http://127.0.0.1:8765/oauth/callback"
-					);
+					setRedirectUri(registration.redirectUri ?? defaultAccountCallback);
 				}
 			});
 	};
@@ -184,6 +220,25 @@ export function AccountsSettings({
 				setWaiting(false);
 				setDevice(undefined);
 			}
+		}
+	};
+
+	const changeMethod = (useToken: boolean) => {
+		if (manual === useToken) return;
+
+		setManual(useToken);
+		token.current = "";
+		setHasToken(false);
+		setEditorVersion((version) => version + 1);
+		setError(undefined);
+	};
+
+	const openSetupLink = async (url: string) => {
+		try {
+			await openLink(url);
+		} catch {
+			if (mounted.current)
+				setError("Could not open the setup page in your browser. Try again.");
 		}
 	};
 
@@ -248,13 +303,32 @@ export function AccountsSettings({
 			workspaceLabel="Settings"
 			toolbar={
 				<div
+					testId="settings-toolbar"
+					windowDrag
 					style={{
 						display: "flex",
 						flexDirection: "row",
-						height: 46,
-						alignItems: "center",
-						paddingLeft: 92,
-						gap: 12,
+						height: workspaceLayout.toolbarHeight,
+						flexShrink: 0,
+						alignItems: "end",
+						paddingLeft: titleInset,
+					}}
+				>
+					<WorkspaceTabHeading label="Settings" testId="settings-title-tab" />
+				</div>
+			}
+			navigation={
+				<div
+					testId="settings-navigation"
+					style={{
+						display: "flex",
+						flexDirection: "column",
+						width: sidebarWidth,
+						flexShrink: 0,
+						padding: 12,
+						gap: 6,
+						borderRightWidth: 1,
+						borderColor: appTokens.colors.border,
 					}}
 				>
 					<Button
@@ -265,32 +339,23 @@ export function AccountsSettings({
 						testId="settings-back"
 						disabled={busy}
 						onPress={onBack}
+						style={{ justifyContent: "flex-start" }}
 					>
+						<WorkspaceTabIcon name="arrowLeft" testId="settings-back-icon" />
 						Back
 					</Button>
-					<text style={{ fontSize: 13, color: appTokens.colors.text }}>
-						Settings
-					</text>
-					<div windowDrag style={{ height: "100%", flexGrow: 1 }} />
-				</div>
-			}
-			navigation={
-				<div
-					style={{
-						display: "flex",
-						flexDirection: "column",
-						width: 200,
-						padding: 12,
-						borderRightWidth: 1,
-						borderColor: appTokens.colors.border,
-					}}
-				>
 					<Button
+						testId="settings-accounts"
 						tokens={appTokens}
+						size="sm"
 						variant="secondary"
 						aria-current="page"
 						style={{ justifyContent: "flex-start" }}
 					>
+						<WorkspaceTabIcon
+							name="userCircle"
+							testId="settings-accounts-icon"
+						/>
 						Accounts
 					</Button>
 				</div>
@@ -301,338 +366,453 @@ export function AccountsSettings({
 				testId="accounts-settings"
 				style={{
 					display: "flex",
-					flexDirection: "column",
+					flexDirection: "row",
 					flexGrow: 1,
-					overflowY: "scroll",
-					padding: 28,
+					minHeight: 0,
+					minWidth: 0,
 				}}
 			>
 				<div
+					testId="accounts-list-panel"
 					style={{
 						display: "flex",
 						flexDirection: "column",
-						width: "100%",
-						maxWidth: 480,
-						gap: 12,
+						width: form === "connect" ? "50%" : "100%",
+						flexGrow: form === "connect" ? 0 : 1,
+						flexShrink: 0,
+						minHeight: 0,
 					}}
 				>
-					<text
-						role="heading"
-						aria-level={1}
-						style={{
-							fontSize: 14,
-							fontWeight: 500,
-							color: appTokens.colors.text,
-						}}
-					>
-						Accounts
-					</text>
-					<text style={labelStyle}>
-						Connect your hosting accounts. Git credentials stay separate.
-					</text>
-					{form === "connect" ? (
-						<div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-							<text style={labelStyle}>Provider</text>
-							<Select
-								items={providers}
-								value={provider}
-								onValueChange={(value) => {
-									if (value !== "github" && value !== "gitlab") return;
-
-									setProvider(value);
-									setClientId("");
-									setWebUrl(
-										value === "github"
-											? "https://github.com"
-											: "https://gitlab.com"
-									);
-								}}
-							>
-								<SelectTrigger
-									disabled={busy || !!replacing}
-									aria-label="Hosting provider"
-									style={{ width: "100%" }}
-									testId="account-provider"
-									tokens={appTokens}
-								>
-									<SelectValue tokens={appTokens} />
-									<WorkspaceTabIcon name="caretDown" />
-								</SelectTrigger>
-								<SelectContent tokens={appTokens}>
-									{providers.map((entry) => (
-										<SelectItem
-											testId={`account-provider-${entry.value}`}
-											key={entry.value}
-											value={entry.value}
-											tokens={appTokens}
-										>
-											{entry.label}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-							<text style={labelStyle}>Host URL</text>
-							<input
-								value={webUrl}
-								aria-label="Host URL"
-								testId="account-host"
-								readOnly={busy || !!replacing}
-								tabIndex={0}
-								style={fieldStyle}
-								onChange={(event) => setWebUrl(event.value ?? "")}
-							/>
-							{manual ? (
-								<>
-									<text style={labelStyle}>Access token</text>
-									<input
-										key={editorVersion}
-										autoFocus={!busy}
-										type="password"
-										aria-label="Access token"
-										aria-description="Masked. Stored only in the OS credential store."
-										testId="account-token"
-										readOnly={busy}
-										tabIndex={0}
-										placeholder="Paste an access token"
-										style={fieldStyle}
-										onChange={(event) => {
-											token.current = event.value ?? "";
-											setHasToken(!!token.current);
-										}}
-									/>
-									<text style={{ ...labelStyle, fontSize: 11 }}>
-										{process.platform === "darwin"
-											? "Stored securely in macOS Keychain."
-											: "Stored securely in the OS credential store."}
-									</text>
-								</>
-							) : (
-								<>
-									<text style={labelStyle}>Application client ID</text>
-									<input
-										aria-label="Application client ID"
-										testId="account-client-id"
-										value={clientId}
-										autoFocus
-										tabIndex={0}
-										readOnly={busy}
-										style={fieldStyle}
-										placeholder="Public client ID from the application registration"
-										onChange={(event) => setClientId(event.value ?? "")}
-									/>
-									{provider === "gitlab" ? (
-										<>
-											<text style={labelStyle}>Registered callback URL</text>
-											<input
-												aria-label="Registered callback URL"
-												testId="account-callback"
-												value={redirectUri}
-												tabIndex={0}
-												readOnly={busy}
-												style={fieldStyle}
-												onChange={(event) => setRedirectUri(event.value ?? "")}
-											/>
-										</>
-									) : null}
-									<text style={{ ...labelStyle, fontSize: 11 }}>
-										{provider === "github"
-											? "Register an OAuth app with device flow enabled. Requests profile access only."
-											: "Register a public (non-confidential) OAuth app with this exact callback URL. Requests profile access only."}
-									</text>
-								</>
-							)}
-							<Button
-								tokens={appTokens}
-								size="sm"
-								variant="ghost"
-								testId="account-auth-method"
-								disabled={busy}
-								style={{ alignSelf: "flex-start" }}
-								onPress={() => {
-									setManual(!manual);
-									token.current = "";
-									setHasToken(false);
-									setError(undefined);
-								}}
-							>
-								{manual ? "Use browser sign-in" : "Use an access token instead"}
-							</Button>
-							{busy && !manual ? (
-								<text
-									testId="account-authorization-progress"
-									style={labelStyle}
-								>
-									{device
-										? `Enter ${device.userCode} in your browser to authorize 1git.`
-										: "Waiting for authorization…"}
-								</text>
-							) : null}
-							{device ? (
-								<text
-									testId="account-device-code"
-									style={{
-										fontSize: 20,
-										color: appTokens.colors.text,
-										userSelect: "auto",
-									}}
-								>
-									{device.userCode}
-								</text>
-							) : null}
-						</div>
-					) : (
-						<div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-							{!saved.length ? (
-								<text testId="accounts-empty" style={labelStyle}>
-									No accounts connected.
-								</text>
-							) : null}
-							{saved.map((account) => {
-								const key = AccountStore.key(account);
-
-								return (
-									<div
-										key={key}
-										style={{ display: "flex", flexDirection: "column", gap: 5 }}
-									>
-										<text
-											style={{ fontSize: 14, color: appTokens.colors.text }}
-										>
-											{account.username} ·{" "}
-											{account.provider === "github" ? "GitHub" : "GitLab"}
-										</text>
-										<text style={{ ...labelStyle, fontSize: 11 }}>
-											{new URL(account.webUrl).host}
-											{new URL(account.webUrl).pathname === "/"
-												? ""
-												: new URL(account.webUrl).pathname}{" "}
-											· {status[key] ?? "Not checked"}
-										</text>
-										<div
-											style={{ display: "flex", flexDirection: "row", gap: 6 }}
-										>
-											<Button
-												size="sm"
-												variant="secondary"
-												tokens={appTokens}
-												disabled={busy}
-												testId={`account-check-${key}`}
-												onPress={() => {
-													void perform(async (signal) => {
-														const message = await accounts.check(
-															account,
-															signal
-														);
-
-														if (mounted.current)
-															setStatus((previous) => ({
-																...previous,
-																[key]: message,
-															}));
-													});
-												}}
-											>
-												Check
-											</Button>
-											<Button
-												size="sm"
-												variant="ghost"
-												tokens={appTokens}
-												disabled={busy}
-												onPress={() => startConnection(account)}
-											>
-												Reconnect
-											</Button>
-											<Button
-												size="sm"
-												variant="ghost"
-												tokens={appTokens}
-												disabled={busy}
-												testId={`account-remove-${key}`}
-												onPress={() => {
-													void perform(async () => {
-														const next = await accounts.disconnect(account);
-
-														if (mounted.current) setSaved(next);
-													});
-												}}
-											>
-												Remove
-											</Button>
-										</div>
-									</div>
-								);
-							})}
-						</div>
-					)}
-					{error ? (
-						<text
-							role="alert"
-							testId="accounts-error"
-							style={{ ...labelStyle, color: appTokens.colors.danger }}
-						>
-							{error}
-						</text>
-					) : null}
 					<div
 						style={{
 							display: "flex",
-							flexDirection: "row",
-							justifyContent: "space-between",
-							gap: 8,
-							marginTop: 4,
+							flexDirection: "column",
+							gap: 4,
+							width: "100%",
+							maxWidth: sectionMaxWidth + contentPadding * 2,
+							padding: contentPadding,
+							flexShrink: 0,
 						}}
 					>
-						{form === "connect" || busy ? (
+						<div
+							testId="accounts-list-header"
+							style={{
+								display: "flex",
+								flexDirection: "row",
+								alignItems: "center",
+								justifyContent: "space-between",
+								gap: 12,
+							}}
+						>
+							<text
+								testId="accounts-heading"
+								role="heading"
+								aria-level={1}
+								style={headingStyle}
+							>
+								Accounts
+							</text>
 							<Button
+								testId="account-add"
+								size="sm"
 								tokens={appTokens}
-								variant="secondary"
-								testId="accounts-cancel"
-								disabled={busy && !waiting}
-								onPress={() => {
-									if (busy) {
-										request.current?.abort();
+								disabled={busy || form === "connect"}
+								onPress={() => startConnection()}
+							>
+								Add account
+							</Button>
+						</div>
+						<text testId="accounts-description" style={labelStyle}>
+							Connected hosting accounts.
+						</text>
+						{error && form === "list" ? (
+							<text
+								role="alert"
+								testId="accounts-error"
+								style={{ ...labelStyle, color: appTokens.colors.danger }}
+							>
+								{error}
+							</text>
+						) : null}
+					</div>
+					<div
+						testId="accounts-list-scroll"
+						style={{
+							display: "flex",
+							flexDirection: "column",
+							flexGrow: 1,
+							minHeight: 0,
+							overflowY: "scroll",
+							paddingLeft: contentPadding,
+							paddingRight: contentPadding,
+							paddingBottom: contentPadding,
+						}}
+					>
+						<div
+							testId="accounts-list-content"
+							style={{
+								display: "flex",
+								flexDirection: "column",
+								width: "100%",
+								maxWidth: sectionMaxWidth,
+								flexGrow: 1,
+								flexShrink: 0,
+							}}
+						>
+							<AccountList
+								accounts={saved}
+								status={status}
+								disabled={busy || form === "connect"}
+								onReconnect={startConnection}
+								onCheck={(account) => {
+									void perform(async (signal) => {
+										const message = await accounts.check(account, signal);
 
-										return;
-									}
+										if (mounted.current)
+											setStatus((previous) => ({
+												...previous,
+												[AccountStore.key(account)]: message,
+											}));
+									});
+								}}
+								onRemove={(account) => {
+									void perform(async () => {
+										const next = await accounts.disconnect(account);
 
-									if (form === "connect") {
+										if (mounted.current) setSaved(next);
+									});
+								}}
+							/>
+						</div>
+					</div>
+				</div>
+				{form === "connect" ? (
+					<div
+						testId="account-setup-panel"
+						role="region"
+						aria-label={replacing ? "Reconnect account" : "Add account"}
+						style={{
+							display: "flex",
+							flexDirection: "column",
+							flexGrow: 1,
+							flexBasis: 0,
+							minWidth: 0,
+							minHeight: 0,
+							borderLeftWidth: 1,
+							borderColor: appTokens.colors.border,
+						}}
+					>
+						<div
+							style={{
+								display: "flex",
+								flexDirection: "column",
+								gap: 4,
+								width: "100%",
+								maxWidth: sectionMaxWidth + contentPadding * 2,
+								padding: contentPadding,
+								flexShrink: 0,
+							}}
+						>
+							<text
+								testId="account-setup-heading"
+								role="heading"
+								aria-level={2}
+								style={headingStyle}
+							>
+								{replacing ? "Reconnect account" : "Add account"}
+							</text>
+							<text style={labelStyle}>Git credentials stay separate.</text>
+						</div>
+						<div
+							testId="account-setup-scroll"
+							style={{
+								flexGrow: 1,
+								minHeight: 0,
+								minWidth: 0,
+								overflowY: "scroll",
+								paddingLeft: contentPadding,
+								paddingRight: contentPadding,
+								paddingBottom: contentPadding,
+							}}
+						>
+							<div
+								testId="account-setup-content"
+								style={{
+									display: "flex",
+									flexDirection: "column",
+									gap: 14,
+									width: "100%",
+									maxWidth: sectionMaxWidth,
+									flexShrink: 0,
+								}}
+							>
+								<AccountSetupStep number={1} label="Choose a provider">
+									<AccountProviderChoices
+										value={provider}
+										disabled={busy || !!replacing}
+										onOpen={(url) => {
+											void openSetupLink(url);
+										}}
+										onChange={(value) => {
+											if (value === provider) return;
+
+											setProvider(value);
+											setClientId("");
+											setWebUrl(accountSetup[value].host);
+											setRedirectUri(defaultAccountCallback);
+											setAdvanced(false);
+											token.current = "";
+											setHasToken(false);
+											setEditorVersion((version) => version + 1);
+											setError(undefined);
+										}}
+									/>
+								</AccountSetupStep>
+								<AccountSetupStep number={2} label="Choose how to connect">
+									<AccountMethodChoices
+										value={manual ? "token" : "browser"}
+										disabled={busy}
+										onChange={(method) => changeMethod(method === "token")}
+									/>
+								</AccountSetupStep>
+								<AccountConnectionGuide
+									provider={provider}
+									manual={manual}
+									host={webUrl}
+									callback={redirectUri}
+									disabled={busy}
+									onOpen={(url) => {
+										void openSetupLink(url);
+									}}
+								/>
+								{manual ? (
+									<div
+										style={{
+											display: "flex",
+											flexDirection: "column",
+											gap: 6,
+											flexShrink: 0,
+										}}
+									>
+										<text
+											style={{
+												...labelStyle,
+												color: appTokens.colors.text,
+												fontWeight: 500,
+											}}
+										>
+											5. Paste your access token
+										</text>
+										<input
+											key={editorVersion}
+											type="password"
+											aria-label="Access token"
+											aria-description="Masked. Stored only in the OS credential store."
+											testId="account-token"
+											readOnly={busy}
+											tabIndex={0}
+											placeholder="Paste an access token"
+											style={fieldStyle}
+											onChange={(event) => {
+												token.current = event.value ?? "";
+												setHasToken(!!token.current);
+											}}
+										/>
+										<text style={{ ...labelStyle, fontSize: 11 }}>
+											{process.platform === "darwin"
+												? "Stored securely in macOS Keychain."
+												: "Stored securely in the OS credential store."}
+										</text>
+									</div>
+								) : (
+									<div
+										style={{
+											display: "flex",
+											flexDirection: "column",
+											gap: 6,
+											flexShrink: 0,
+										}}
+									>
+										<text
+											style={{
+												...labelStyle,
+												color: appTokens.colors.text,
+												fontWeight: 500,
+											}}
+										>
+											{`5. Paste the ${provider === "github" ? "Client ID" : "Application ID"}`}
+										</text>
+										<input
+											aria-label="Application client ID"
+											testId="account-client-id"
+											value={clientId}
+											tabIndex={0}
+											readOnly={busy}
+											style={fieldStyle}
+											placeholder={
+												provider === "github" ? "Client ID" : "Application ID"
+											}
+											onChange={(event) => setClientId(event.value ?? "")}
+										/>
+										<text style={{ ...labelStyle, fontSize: 11 }}>
+											Use the public ID, not the client secret. Sign-in requests
+											profile access only.
+										</text>
+									</div>
+								)}
+								{busy && !manual ? (
+									<text
+										testId="account-authorization-progress"
+										style={labelStyle}
+									>
+										{device
+											? `Enter ${device.userCode} in your browser to authorize 1git.`
+											: "Waiting for authorization…"}
+									</text>
+								) : null}
+								{device ? (
+									<text
+										testId="account-device-code"
+										style={{
+											fontSize: 20,
+											color: appTokens.colors.text,
+											userSelect: "auto",
+										}}
+									>
+										{device.userCode}
+									</text>
+								) : null}
+								<Button
+									testId="account-advanced"
+									tokens={appTokens}
+									size="sm"
+									variant="ghost"
+									aria-expanded={advanced}
+									disabled={busy}
+									style={{
+										alignSelf: "flex-start",
+										flexDirection: "row",
+										gap: 4,
+										paddingLeft: 0,
+									}}
+									onPress={() => setAdvanced(!advanced)}
+								>
+									<WorkspaceTabIcon
+										name={advanced ? "caretDown" : "caretRight"}
+									/>
+									Advanced
+								</Button>
+								{!advanced &&
+								webUrl.replace(/\/+$/u, "") !== accountSetup[provider].host ? (
+									<text
+										style={{ ...labelStyle, fontSize: 11 }}
+									>{`Host: ${webUrl}`}</text>
+								) : null}
+								{advanced ? (
+									<div
+										style={{ display: "flex", flexDirection: "column", gap: 6 }}
+									>
+										<text style={labelStyle}>Host URL</text>
+										<input
+											value={webUrl}
+											aria-label="Host URL"
+											testId="account-host"
+											readOnly={busy || !!replacing}
+											tabIndex={0}
+											style={fieldStyle}
+											onChange={(event) => setWebUrl(event.value ?? "")}
+										/>
+										<text style={{ ...labelStyle, fontSize: 11 }}>
+											For GitHub Enterprise or self-managed GitLab. Register on
+											this host.
+										</text>
+										{provider === "gitlab" && !manual ? (
+											<>
+												<text style={labelStyle}>Registered callback URL</text>
+												<input
+													aria-label="Registered callback URL"
+													testId="account-callback"
+													value={redirectUri}
+													tabIndex={0}
+													readOnly={busy}
+													style={fieldStyle}
+													onChange={(event) =>
+														setRedirectUri(event.value ?? "")
+													}
+												/>
+											</>
+										) : null}
+									</div>
+								) : null}
+							</div>
+						</div>
+						<div testId="account-setup-footer" style={footerStyle}>
+							{error ? (
+								<text
+									role="alert"
+									testId="accounts-error"
+									style={{ ...labelStyle, color: appTokens.colors.danger }}
+								>
+									{error}
+								</text>
+							) : null}
+							<div
+								testId="account-setup-actions"
+								style={{
+									display: "flex",
+									flexDirection: "row",
+									justifyContent: "space-between",
+									gap: 8,
+									width: "100%",
+									maxWidth: sectionMaxWidth,
+								}}
+							>
+								<Button
+									tokens={appTokens}
+									size="sm"
+									variant="secondary"
+									testId="accounts-cancel"
+									disabled={busy && !waiting}
+									onPress={() => {
+										if (busy) {
+											request.current?.abort();
+
+											return;
+										}
+
 										token.current = "";
 										setHasToken(false);
 										setError(undefined);
 										setForm("list");
-									} else onBack();
-								}}
-							>
-								{busy
-									? "Cancel sign-in"
-									: form === "connect"
-										? "Cancel"
-										: "Back"}
-							</Button>
-						) : (
-							<div />
-						)}
-						<Button
-							tokens={appTokens}
-							testId={form === "connect" ? "account-connect" : "account-add"}
-							disabled={
-								busy ||
-								(form === "connect" &&
-									(!(manual ? hasToken : clientId.trim()) || !webUrl.trim()))
-							}
-							onPress={form === "connect" ? connect : () => startConnection()}
-						>
-							{busy
-								? "Working…"
-								: form === "connect"
-									? manual
-										? "Connect"
-										: "Sign in with browser"
-									: "Add account"}
-						</Button>
+									}}
+								>
+									{busy ? "Cancel sign-in" : "Cancel"}
+								</Button>
+								<Button
+									tokens={appTokens}
+									size="sm"
+									testId="account-connect"
+									disabled={
+										busy ||
+										!(manual ? hasToken : clientId.trim()) ||
+										!accountSetupUrl(
+											provider,
+											webUrl,
+											manual ? "token" : "browser"
+										)
+									}
+									onPress={connect}
+								>
+									{busy
+										? "Working…"
+										: manual
+											? "Connect"
+											: "Sign in with browser"}
+								</Button>
+							</div>
+						</div>
 					</div>
-				</div>
+				) : null}
 			</div>
 		</AppShell>
 	);

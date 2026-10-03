@@ -96,9 +96,30 @@ The native setup remains app-owned, following the Turborepo workflow.
 Open **1git → Settings…** or press **Cmd+,**. Settings replaces the workspace inside
 the same window, without a new tab or popover. Back restores mounted tabs, selections,
 drafts, scroll and focus; Settings scopes keyboard traversal to its own controls.
-Add a GitHub or GitLab account using browser sign-in and a public application ID,
-or **Use an access token instead** for the masked PAT fallback.
-GitHub Enterprise and self-managed GitLab use the same HTTPS host field. Each connection
+Accounts stays visible as a list, with **Add account** beside its heading rather
+than in a bottom toolbar. Headings, list content and setup sections share a
+480-point maximum width, with compact heading descriptions. An empty list shows
+a centered thin-vector account illustration and a short connection hint.
+**Add account** or **Reconnect** opens a separate
+right-hand setup pane with a divider and an even split of the content space;
+Cancel/Escape closes that pane without leaving Settings. Step 1 chooses a GitHub
+or GitLab icon tile, and step 2 uses matching tiles for **Browser sign-in** or
+**Access token**. The remaining steps follow the provider and method,
+covering registration, permissions and pasting the public application ID or masked
+token. **Advanced** is below all steps. Setup and the saved list scroll independently;
+Cancel/Connect stay in a fixed footer outside setup scrolling, even at minimum window
+height. Saved-account actions are disabled while setup is open to avoid interrupting
+an unfinished connection. **Open GitHub/GitLab settings** opens the exact setup
+page in the system browser only when clicked. The **Other…** cell opens a draft
+issue in this project's GitHub repository with provider contribution instructions;
+it does not submit an issue or connect an unsupported provider.
+
+**Advanced** contains the HTTPS host for GitHub Enterprise or self-managed GitLab,
+and GitLab's registered loopback callback. Setup links follow the chosen host,
+including self-managed base paths. Invalid or credential-bearing hosts cannot
+open setup links or start sign-in. Changing provider/method clears typed tokens;
+changing provider also clears application IDs and restores its default host.
+Each connection
 is verified with the provider's current-user endpoint before it is saved. This
 verifies identity, not permission for every repository or future write operation.
 
@@ -141,10 +162,11 @@ reconnect loads it from the saved vault entry. No client secret field exists.
   and enable device flow. The app displays a user code, opens the system browser,
   and polls with the provider's interval/slow-down rules. This flow uses no callback
   or embedded secret; GitHub's registration form may still require a callback value.
-- **GitLab:** [register an application](https://gitlab.com/-/user_settings/applications)
+- **GitLab:** [register an application](https://gitlab.com/user_settings/applications)
   with **Confidential unchecked**, the `read_user` scope and exact callback
   `http://127.0.0.1:8765/oauth/callback` (or another explicitly registered port).
-  Enter its application ID and callback in Settings. A temporary Bun listener binds
+  Paste its Application ID; change the callback under Advanced if needed.
+  A temporary Bun listener binds
   only `127.0.0.1`, verifies random state and PKCE, and closes on success, denial,
   cancellation, timeout or browser failure. No separate process or permanent server
   is spawned. A busy callback port produces an actionable error.
@@ -158,6 +180,18 @@ subsequent network failure cannot lose the new refresh token. Exchanges are not
 blindly retried. The vault accepts bounded documents up to 16 KiB and remains
 compatible with existing raw PAT entries. No OAuth secrets enter session/account
 JSON or retained renderer props.
+
+The token guide links to GitHub's fine-grained token form (name and 30-day expiry
+prefilled; no extra permissions needed for the current-user endpoint) or GitLab's
+token form (`read_user` preselected). Users still choose expiry and create the token
+on the provider's site. These permissions verify account identity only; future
+repository/PR features must request and verify their own permissions explicitly.
+
+Setup references: [GitHub OAuth registration](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app),
+[GitHub token setup](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens),
+[GitHub current-user permissions](https://docs.github.com/en/rest/users/users),
+[GitLab OAuth setup](https://docs.gitlab.com/integration/oauth_provider/),
+[GitLab token setup](https://docs.gitlab.com/user/profile/personal_access_tokens/).
 
 This milestone does **not** change HTTPS clone/push authentication,
 list hosted repositories, publish repositories or open PRs. Hosting credentials
