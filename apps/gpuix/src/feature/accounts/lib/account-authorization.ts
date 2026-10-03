@@ -22,6 +22,8 @@ export interface BrowserConnection {
 	readonly registration: AccountRegistration;
 	readonly signal: AbortSignal;
 	readonly onDeviceCode?: (attempt: DeviceAuthorization) => void;
+	/** Explicit opt-in; profile-only remains the default. GitHub repo also permits writes. */
+	readonly repositoryAccess?: boolean;
 }
 
 export function validateRegistration(
@@ -72,7 +74,12 @@ export class AccountAuthorization {
 		input.signal.throwIfAborted();
 
 		if (input.provider === "gitlab") {
-			const oauth = this.code(input.webUrl, input.registration);
+			const oauth = this.code(
+				input.webUrl,
+				input.registration,
+				input.repositoryAccess
+			);
+
 			const begun = oauth.beginAuthorization();
 
 			if (!begun.ok) throw new Error(begun.error.message);
@@ -93,7 +100,12 @@ export class AccountAuthorization {
 			return exchanged.value;
 		}
 
-		const oauth = this.device(input.webUrl, input.registration);
+		const oauth = this.device(
+			input.webUrl,
+			input.registration,
+			input.repositoryAccess
+		);
+
 		const begun = await oauth.beginAuthorization({ signal: input.signal });
 
 		if (!begun.ok) throw new Error(begun.error.message);
@@ -144,14 +156,18 @@ export class AccountAuthorization {
 	}
 	private device(
 		webUrl: string,
-		registration: AccountRegistration
+		registration: AccountRegistration,
+		repositories = false
 	): HostingDeviceOAuth {
 		const configured = HostingDeviceOAuth.create(
 			new GitHubProvider({
 				webUrl,
 				fetch: this.fetch,
 				timeoutMs: 10_000,
-				deviceOAuth: { clientId: registration.clientId, scopes: ["read:user"] },
+				deviceOAuth: {
+					clientId: registration.clientId,
+					scopes: repositories ? ["read:user", "repo"] : ["read:user"],
+				},
 			})
 		);
 
@@ -161,7 +177,8 @@ export class AccountAuthorization {
 	}
 	private code(
 		webUrl: string,
-		registration: AccountRegistration
+		registration: AccountRegistration,
+		repositories = false
 	): HostingOAuth {
 		const configured = HostingOAuth.create(
 			new GitLabProvider({
@@ -171,7 +188,9 @@ export class AccountAuthorization {
 				oauth: {
 					clientId: registration.clientId,
 					redirectUri: registration.redirectUri!,
-					scopes: ["read_user"],
+					scopes: repositories
+						? ["read_user", "read_api", "read_repository"]
+						: ["read_user"],
 				},
 			})
 		);

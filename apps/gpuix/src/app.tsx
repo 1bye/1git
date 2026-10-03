@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useReducer, useState, useRef } from "react";
 import { AccountsSettings } from "./feature/accounts/accounts-settings";
-import type { Accounts } from "./feature/accounts/lib/accounts";
+import { Accounts } from "./feature/accounts/lib/accounts";
+import { AccountStore } from "./feature/accounts/lib/account-store";
+import { NativeCredentials } from "./feature/accounts/lib/native-credentials";
 import { settingsShortcuts } from "./feature/accounts/lib/settings-shortcut";
-import { useGpuixRequired } from "@gpuix/react";
+import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
 import { workspaceShortcuts } from "./feature/repository-workspace/lib/repository-filter-shortcut";
 import { Button } from "@1git/gpuix-ui/button";
 import { appTokens } from "./styles/tokens";
@@ -20,6 +22,7 @@ import { RepositoryDiff as DiffReader } from "./feature/repository-workspace/lib
 import { RepositoryReader } from "./feature/repository-workspace/lib/repository-reader";
 import { RepositorySetup } from "./feature/repository-workspace/lib/repository-setup";
 import { RepositorySetupActions } from "./feature/repository-workspace/components/repository-setup";
+import { RepositoryCloneView } from "./feature/repository-workspace/components/repository-clone-view";
 import { RepositoryWelcome } from "./feature/repository-workspace/components/repository-welcome";
 import type { RepositoryWatcher } from "./feature/repository-workspace/lib/repository-watcher";
 import { useRepositoryAutoRefresh } from "./feature/repository-workspace/hooks/use-repository-auto-refresh";
@@ -48,14 +51,14 @@ import { RepositoryComparison as ComparisonReader } from "./feature/repository-c
 
 /** Owns one window's workspaces, cancellable reads and explicit commit transactions. */
 export function App({
-	accounts,
+	accounts: suppliedAccounts,
 	initialTabCount = 1,
 	preview = false,
 	initialSession,
 	sessionError,
 	saveSession,
 	readRepository = RepositoryReader.read,
-	setupRepository = RepositorySetup.write,
+	setupRepository,
 	readComparison = ComparisonReader.read,
 	readDiff = DiffReader.read,
 	readHistory = RepositoryHistory.read,
@@ -106,6 +109,25 @@ export function App({
 	discardFile?: typeof RepositoryFileActions.discard;
 	openFile?: typeof RepositoryFileActions.open;
 }) {
+	const renderer = useGpuixRequired();
+
+	const [accounts] = useState(
+		() =>
+			suppliedAccounts ??
+			new Accounts(
+				new AccountStore(AccountStore.defaultPath()),
+				new NativeCredentials(renderer)
+			)
+	);
+
+	const setup = useCallback<typeof RepositorySetup.write>(
+		(request, signal) =>
+			setupRepository
+				? setupRepository(request, signal)
+				: RepositorySetup.write(request, signal, accounts),
+		[setupRepository, accounts]
+	);
+
 	const [state, dispatch] = useReducer(
 		WorkspaceTabsModel.reduce,
 		{ initialTabCount, preview, initialSession },
@@ -125,7 +147,7 @@ export function App({
 		state,
 		dispatch,
 		readRepository,
-		setupRepository
+		setup
 	);
 
 	const mutations = useRepositoryMutations(
@@ -149,19 +171,36 @@ export function App({
 
 	const activeTab = state.tabs.find((tab) => tab.id === state.activeId);
 	const workspace = activeTab?.workspace;
-	const renderer = useGpuixRequired();
-	const [settingsOpen, setSettingsOpen] = useState(false);
+
+	const [settingsView, setSettingsView] = useState<"list" | "connect" | null>(
+		null
+	);
+
+	const settingsOpen = settingsView !== null;
+	const [cloneId, setCloneId] = useState<string | null>(null);
+	const cloneTrigger = useRef<PublicInstance | null>(null);
+
+	const cloneTab = state.tabs.find(
+		(tab) =>
+			tab.id === cloneId &&
+			!tab.workspace.repository &&
+			!tab.workspace.repositoryPath
+	);
+
 	const workspaceFocus = useRef<number | null>(null);
 
-	const openSettings = useCallback(() => {
-		if (!settingsOpen)
-			workspaceFocus.current = renderer.getFocusedElementId?.() ?? null;
+	const openSettings = useCallback(
+		(initialForm: "list" | "connect" = "list") => {
+			if (settingsOpen) return;
 
-		setSettingsOpen(true);
-	}, [renderer, settingsOpen]);
+			workspaceFocus.current = renderer.getFocusedElementId?.() ?? null;
+			setSettingsView(initialForm);
+		},
+		[renderer, settingsOpen]
+	);
 
 	const closeSettings = useCallback(() => {
-		setSettingsOpen(false);
+		setSettingsView(null);
 		const focused = workspaceFocus.current;
 
 		if (focused !== null) setTimeout(() => renderer.focusElement?.(focused), 0);
@@ -357,7 +396,42 @@ export function App({
 						) : null}
 					</div>
 				) : null}
-				{!preview && !workspace?.repository && !workspace?.repositoryPath ? (
+				{cloneTab ? (
+					<RepositoryCloneView
+						key={cloneTab.id}
+						accounts={accounts}
+						active={activeTab?.id === cloneTab.id && !settingsOpen}
+						disabled={
+							connection.pickingId !== null ||
+							cloneTab.workspace.loading ||
+							RepositoryWorkspaceModel.isBusy(cloneTab.workspace)
+						}
+						onSubmit={(request) =>
+							connection.setup(
+								cloneTab.id,
+								request,
+								mutations.closeProtection.block
+							)
+						}
+						onCancel={() => connection.cancelSetup(cloneTab.id)}
+						onOpen={(path) => {
+							void connection.read(cloneTab.id, path);
+						}}
+						onSettings={openSettings}
+						onAddAccount={() => openSettings("connect")}
+						onBack={() => {
+							setCloneId(null);
+							setTimeout(() => {
+								const trigger = cloneTrigger.current;
+
+								if (trigger) renderer.focusElement?.(trigger.id);
+							}, 0);
+						}}
+					/>
+				) : null}
+				{cloneTab && activeTab?.id === cloneTab.id ? null : !preview &&
+				  !workspace?.repository &&
+				  !workspace?.repositoryPath ? (
 					<RepositoryWelcome
 						paths={state.recentRepositories ?? []}
 						onForget={(path) => dispatch({ type: "forget-repository", path })}
@@ -381,6 +455,23 @@ export function App({
 						}}
 						actions={
 							<RepositorySetupActions
+								cloneRef={cloneTrigger}
+								onClone={() => {
+									if (
+										cloneTab &&
+										RepositoryWorkspaceModel.isBusy(cloneTab.workspace)
+									) {
+										dispatch({ type: "activate", id: cloneTab.id });
+
+										return;
+									}
+
+									const id = activeTab?.id ?? `workspace-${state.nextId}`;
+
+									if (!activeTab) dispatch({ type: "add" });
+
+									setCloneId(id);
+								}}
 								onBegin={() => {
 									if (!activeTab) dispatch({ type: "add" });
 								}}
@@ -460,7 +551,11 @@ export function App({
 				)}
 			</AppShell>
 			{settingsOpen ? (
-				<AccountsSettings onBack={closeSettings} accounts={accounts}>
+				<AccountsSettings
+					onBack={closeSettings}
+					accounts={accounts}
+					initialForm={settingsView ?? "list"}
+				>
 					{closeNotice}
 				</AccountsSettings>
 			) : null}

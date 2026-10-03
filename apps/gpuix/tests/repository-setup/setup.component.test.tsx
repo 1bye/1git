@@ -11,10 +11,18 @@ import type { RepositorySetup } from "../../src/feature/repository-workspace/lib
 import { windowOptions } from "../../src/window-options";
 import { repositorySnapshot } from "../_shared/repository-snapshot";
 import { RepositoryFileActions } from "../../src/feature/repository-workspace/lib/repository-file-actions";
+import { hostingRepositories } from "../_shared/hosting-repositories";
+import { rmSync } from "node:fs";
 
 let root: TestRoot;
+let f: ReturnType<typeof hostingRepositories>;
+let originalAccountsPath: string | undefined;
 
 beforeEach(() => {
+	f = hostingRepositories();
+	f.store.save([]);
+	originalAccountsPath = process.env.GPUIX_ACCOUNTS_PATH;
+	process.env.GPUIX_ACCOUNTS_PATH = f.store.path;
 	root = createTestRoot({
 		width: 980,
 		height: 720,
@@ -25,6 +33,12 @@ beforeEach(() => {
 afterEach(() => {
 	root.unmount();
 	mock.restore();
+
+	if (originalAccountsPath === undefined)
+		delete process.env.GPUIX_ACCOUNTS_PATH;
+	else process.env.GPUIX_ACCOUNTS_PATH = originalAccountsPath;
+
+	rmSync(f.directory, { recursive: true, force: true });
 });
 const click = (id: string, button = 0) => {
 	const element = root.renderer.findByTestId(id);
@@ -229,6 +243,12 @@ it("cancels a clone, waits for Git settlement and preserves its form for retry",
 	await settle();
 	expect(root.renderer.getAllText()).toContain("Cloning repository…");
 	expect(blocked).toBe(true);
+	root.renderer.simulateKeystrokes("escape");
+	await settle();
+	click("close-workspace-1");
+	await settle();
+	expect(root.renderer.findByTestId("repository-clone-view")).toBeDefined();
+	expect(root.renderer.findByTestId("workspace-1")).toBeDefined();
 	click("setup-cancel");
 	await settle();
 	expect(operationSignal?.aborted).toBe(true);

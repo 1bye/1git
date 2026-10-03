@@ -1,8 +1,5 @@
-import { homedir } from "node:os";
-import { join } from "node:path";
-import { useEffect, useRef, useState } from "react";
-import { motion, useGpuixRequired } from "@gpuix/react";
-import { StyleSheet } from "@1git/gpuix-stylesheet";
+import { useEffect, useRef, useState, type Ref } from "react";
+import { motion, useGpuixRequired, type PublicInstance } from "@gpuix/react";
 import { Button } from "@1git/gpuix-ui/button";
 import {
 	Popover,
@@ -11,33 +8,35 @@ import {
 } from "@1git/gpuix-ui/popover";
 import { appTokens } from "../../../styles/tokens";
 import { WorkspaceTabIcon } from "../../workspace-tabs/components/workspace-tab-icon";
-import {
-	RepositorySetup,
-	type RepositorySetupRequest,
-	type RepositorySetupResult,
+import type {
+	RepositorySetupRequest,
+	RepositorySetupResult,
 } from "../lib/repository-setup";
 
-const styles = StyleSheet.create({
-	form: { display: "flex", flexDirection: "column", gap: 12, paddingBottom: 4 },
-	field: { display: "flex", flexDirection: "column", gap: 4 },
-	label: { fontSize: 12, color: appTokens.colors.text },
-	hint: { fontSize: 11, color: appTokens.colors.textMuted },
-	input: {
-		height: 30,
-		width: "100%",
-		fontSize: 12,
-		paddingLeft: 9,
-		paddingRight: 9,
-		borderRadius: 6,
-		borderWidth: 1,
-		borderColor: appTokens.colors.border,
-		color: appTokens.colors.text,
-		backgroundColor: "transparent",
-	},
-	row: { display: "flex", flexDirection: "row", alignItems: "center", gap: 6 },
-});
+const hint = { fontSize: 11, color: appTokens.colors.textMuted };
 
-function SetupProgress() {
+const input = {
+	height: 30,
+	width: "100%",
+	fontSize: 12,
+	paddingLeft: 9,
+	paddingRight: 9,
+	borderRadius: 6,
+	borderWidth: 1,
+	borderColor: appTokens.colors.border,
+	color: appTokens.colors.text,
+	backgroundColor: "transparent",
+};
+
+const row = {
+	display: "flex",
+	flexDirection: "row",
+	alignItems: "center",
+	gap: 6,
+};
+
+/** Shared indeterminate progress; Git does not stream percentages at this boundary. */
+export function SetupProgress() {
 	const [bright, setBright] = useState(false);
 
 	useEffect(() => {
@@ -66,52 +65,66 @@ function SetupProgress() {
 	);
 }
 
-/** Anchored setup forms; window-owned writes survive component unmount and keep close protection active. */
+/** Create stays compact; Clone opens a workspace-sized view in the requesting tab. */
 export function RepositorySetupActions({
 	disabled,
 	onSubmit,
 	onCancel,
 	onOpen,
 	onBegin,
+	onClone,
+	cloneRef,
 }: {
 	disabled: boolean;
 	onSubmit: (request: RepositorySetupRequest) => Promise<RepositorySetupResult>;
 	onCancel: () => void;
 	onOpen: (path: string) => void;
 	onBegin: () => void;
+	onClone: () => void;
+	cloneRef?: Ref<PublicInstance>;
 }) {
 	return (
 		<div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-			{(["create", "clone"] as const).map((kind) => (
-				<SetupForm
-					key={kind}
-					kind={kind}
-					disabled={disabled}
-					onSubmit={onSubmit}
-					onCancel={onCancel}
-					onOpen={onOpen}
-					onBegin={onBegin}
-				/>
-			))}
+			<CreateForm
+				disabled={disabled}
+				onSubmit={onSubmit}
+				onCancel={onCancel}
+				onOpen={onOpen}
+				onBegin={onBegin}
+			/>
+			<Button
+				ref={cloneRef}
+				tokens={appTokens}
+				variant="ghost"
+				size="sm"
+				testId="repository-clone"
+				disabled={disabled}
+				style={{
+					width: "100%",
+					justifyContent: "flex-start",
+					gap: 8,
+					color: appTokens.colors.textMuted,
+				}}
+				onPress={onClone}
+			>
+				<WorkspaceTabIcon name="branch" />
+				Clone repository
+			</Button>
 		</div>
 	);
 }
 
-function SetupForm({
-	kind,
+function CreateForm({
 	disabled,
 	onSubmit,
 	onCancel,
 	onOpen,
 	onBegin,
-}: Parameters<typeof RepositorySetupActions>[0] & {
-	kind: "clone" | "create";
-}) {
+}: Omit<Parameters<typeof RepositorySetupActions>[0], "onClone">) {
 	const renderer = useGpuixRequired();
 	const [open, setOpen] = useState(false);
-	const [url, setUrl] = useState("");
 	const [branch, setBranch] = useState("main");
-	const [selectedPath, setSelectedPath] = useState<string>();
+	const [path, setPath] = useState("");
 	const [picking, setPicking] = useState(false);
 	const [busy, setBusy] = useState(false);
 	const [stopping, setStopping] = useState(false);
@@ -119,13 +132,6 @@ function SetupForm({
 	const [openPath, setOpenPath] = useState<string>();
 	const working = useRef(false);
 	const mounted = useRef(true);
-	const clone = kind === "clone";
-
-	const path =
-		selectedPath ??
-		(clone && url.trim()
-			? join(homedir(), RepositorySetup.folderName(url))
-			: "");
 
 	useEffect(() => {
 		mounted.current = true;
@@ -134,7 +140,6 @@ function SetupForm({
 			mounted.current = false;
 		};
 	}, []);
-
 	const clearError = () => {
 		setError(undefined);
 		setOpenPath(undefined);
@@ -153,13 +158,11 @@ function SetupForm({
 				directories: true,
 				files: false,
 				multiple: false,
-				prompt: clone
-					? "Choose empty clone folder"
-					: "Choose repository folder",
+				prompt: "Choose repository folder",
 			});
 
 			if (mounted.current && paths?.[0]) {
-				setSelectedPath(paths[0]);
+				setPath(paths[0]);
 				clearError();
 			}
 		} catch {
@@ -170,13 +173,7 @@ function SetupForm({
 	};
 
 	const submit = async () => {
-		if (
-			working.current ||
-			disabled ||
-			picking ||
-			!path ||
-			!(clone ? url.trim() : branch.trim())
-		)
+		if (working.current || disabled || picking || !path || !branch.trim())
 			return;
 
 		if (openPath) {
@@ -192,11 +189,11 @@ function SetupForm({
 		clearError();
 
 		try {
-			const result = await onSubmit(
-				clone
-					? { kind, path, remoteUrl: url.trim() }
-					: { kind, path, branch: branch.trim() }
-			);
+			const result = await onSubmit({
+				kind: "create",
+				path,
+				branch: branch.trim(),
+			});
 
 			if (!mounted.current) return;
 
@@ -237,7 +234,7 @@ function SetupForm({
 					tokens={appTokens}
 					variant="ghost"
 					size="sm"
-					testId={`repository-${kind}`}
+					testId="repository-create"
 					disabled={disabled}
 					style={{
 						width: "100%",
@@ -246,53 +243,39 @@ function SetupForm({
 						color: appTokens.colors.textMuted,
 					}}
 				>
-					<WorkspaceTabIcon name={clone ? "branch" : "add"} />
-					{clone ? "Clone from URL" : "Create repository"}
+					<WorkspaceTabIcon name="add" />
+					Create repository
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent
 				tokens={appTokens}
 				width={340}
 				align="center"
-				aria-label={clone ? "Clone repository" : "Create repository"}
+				aria-label="Create repository"
 				dismissible={!busy && !picking}
 			>
-				<div style={styles.form}>
-					<text style={styles.label}>
-						{clone ? "Clone repository" : "Create repository"}
+				<div
+					style={{
+						display: "flex",
+						flexDirection: "column",
+						gap: 12,
+						paddingBottom: 4,
+					}}
+				>
+					<text style={{ fontSize: 12, color: appTokens.colors.text }}>
+						Create repository
 					</text>
 					{busy ? (
 						<>
-							<text testId="setup-progress" role="status" style={styles.hint}>
-								{stopping
-									? "Stopping…"
-									: clone
-										? "Cloning repository…"
-										: "Creating repository…"}
+							<text testId="setup-progress" role="status" style={hint}>
+								{stopping ? "Stopping…" : "Creating repository…"}
 							</text>
 							<SetupProgress />
 						</>
 					) : (
 						<>
-							{clone ? (
-								<div style={styles.field}>
-									<text style={styles.hint}>Repository URL</text>
-									<input
-										testId="setup-url"
-										aria-label="Repository URL"
-										tabIndex={0}
-										style={styles.input}
-										value={url}
-										placeholder="https://github.com/owner/project.git"
-										onChange={(event) => {
-											setUrl(event.value ?? "");
-											clearError();
-										}}
-									/>
-								</div>
-							) : null}
-							<div style={styles.field}>
-								<text style={styles.hint}>Location</text>
+							<div style={{ gap: 4 }}>
+								<text style={hint}>Location</text>
 								<Button
 									tokens={appTokens}
 									variant="ghost"
@@ -301,8 +284,8 @@ function SetupForm({
 									aria-label={path || "Choose repository folder"}
 									disabled={picking}
 									style={{
-										...styles.input,
-										...styles.row,
+										...input,
+										...row,
 										justifyContent: "flex-start",
 										hover: { backgroundColor: "transparent" },
 									}}
@@ -322,7 +305,8 @@ function SetupForm({
 									/>
 									<text
 										style={{
-											...styles.label,
+											fontSize: 12,
+											color: appTokens.colors.text,
 											minWidth: 0,
 											flexShrink: 1,
 											textOverflow: "ellipsis",
@@ -334,30 +318,28 @@ function SetupForm({
 									</text>
 								</Button>
 							</div>
-							{!clone ? (
-								<div style={styles.field}>
-									<text style={styles.hint}>Initial branch</text>
-									<input
-										testId="setup-branch"
-										aria-label="Initial branch"
-										tabIndex={0}
-										style={styles.input}
-										value={branch}
-										onChange={(event) => {
-											setBranch(event.value ?? "");
-											clearError();
-										}}
-									/>
-								</div>
-							) : null}
+							<div style={{ gap: 4 }}>
+								<text style={hint}>Initial branch</text>
+								<input
+									testId="setup-branch"
+									aria-label="Initial branch"
+									tabIndex={0}
+									style={input}
+									value={branch}
+									onChange={(event) => {
+										setBranch(event.value ?? "");
+										clearError();
+									}}
+								/>
+							</div>
 						</>
 					)}
 					{error ? (
-						<text testId="setup-error" role="alert" style={styles.hint}>
+						<text testId="setup-error" role="alert" style={hint}>
 							{error}
 						</text>
 					) : null}
-					<div style={{ ...styles.row, justifyContent: "flex-end" }}>
+					<div style={{ ...row, justifyContent: "flex-end" }}>
 						<Button
 							tokens={appTokens}
 							variant="secondary"
@@ -378,12 +360,7 @@ function SetupForm({
 								tokens={appTokens}
 								size="sm"
 								testId="setup-submit"
-								disabled={
-									disabled ||
-									picking ||
-									!path ||
-									!(clone ? url.trim() : branch.trim())
-								}
+								disabled={disabled || picking || !path || !branch.trim()}
 								onPress={() => {
 									void submit();
 								}}
@@ -392,9 +369,7 @@ function SetupForm({
 									? "Open repository"
 									: error
 										? "Retry"
-										: clone
-											? "Clone"
-											: "Create & open"}
+										: "Create & open"}
 							</Button>
 						) : null}
 					</div>

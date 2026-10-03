@@ -21,7 +21,8 @@ export const missingProviderUrl = `${applicationHomepage}/issues/new?${new URLSe
 export function accountSetupUrl(
 	provider: SavedAccount["provider"],
 	host: string,
-	method: "browser" | "token"
+	method: "browser" | "token",
+	repositoryAccess = false
 ): string | undefined {
 	if (!host.trim() || host.length > 2048 || hasControlCharacters(host))
 		return undefined;
@@ -58,7 +59,11 @@ export function accountSetupUrl(
 		url.searchParams.set("name", "1git");
 
 		if (provider === "github") url.searchParams.set("expires_in", "30");
-		else url.searchParams.set("scopes", "read_user");
+		else
+			url.searchParams.set(
+				"scopes",
+				repositoryAccess ? "read_user,read_api,read_repository" : "read_user"
+			);
 	}
 
 	return url.href;

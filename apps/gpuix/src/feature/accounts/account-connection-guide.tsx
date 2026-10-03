@@ -292,6 +292,7 @@ function AccountSetupValue({
 
 /** Provider-specific setup instructions. Links are computed from public host metadata, never token input. */
 export function AccountConnectionGuide({
+	repositoryAccess = false,
 	provider,
 	manual,
 	host,
@@ -300,6 +301,7 @@ export function AccountConnectionGuide({
 	onOpen,
 	copyText,
 }: {
+	repositoryAccess?: boolean;
 	provider: SavedAccount["provider"];
 	manual: boolean;
 	host: string;
@@ -311,7 +313,8 @@ export function AccountConnectionGuide({
 	const setupUrl = accountSetupUrl(
 		provider,
 		host,
-		manual ? "token" : "browser"
+		manual ? "token" : "browser",
+		repositoryAccess
 	);
 
 	const name = accountSetup[provider].name;
@@ -360,9 +363,13 @@ export function AccountConnectionGuide({
 				/>
 				{manual ? (
 					<text style={detail}>
-						{provider === "github"
-							? "Use a fine-grained token with an expiry date. Keep repository access public-only; no extra permissions are needed for account connection."
-							: "Choose an expiry date and select only read_user, then create the token."}
+						{repositoryAccess
+							? provider === "github"
+								? "Use a fine-grained token with access to your chosen repositories and Contents: Read-only. Choose an expiry date; organization approval or SSO may be required."
+								: "Choose an expiry date and select read_user, read_api and read_repository."
+							: provider === "github"
+								? "Use a fine-grained token with an expiry date. Keep repository access public-only; no extra permissions are needed for account connection."
+								: "Choose an expiry date and select only read_user, then create the token."}
 					</text>
 				) : (
 					<>
@@ -386,7 +393,9 @@ export function AccountConnectionGuide({
 						<text style={detail}>
 							{provider === "github"
 								? "Enable Device Flow, then register the application."
-								: "Uncheck Confidential, select read_user, then save the application."}
+								: repositoryAccess
+									? "Uncheck Confidential; enable read_user, read_api and read_repository, then save the application."
+									: "Uncheck Confidential, select read_user, then save the application."}
 						</text>
 					</>
 				)}

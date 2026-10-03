@@ -181,8 +181,12 @@ reconnect loads it from the saved vault entry. No client secret field exists.
   cancellation, timeout or browser failure. No separate process or permanent server
   is spawned. A busy callback port produces an actionable error.
 
-Sign-in currently requests only profile access (`read:user` / `read_user`), not
-repository write access. Self-managed applications must be registered on their own
+Sign-in defaults to profile access (`read:user` / `read_user`). **Browse and clone
+private repositories** is an explicit opt-in: GitHub OAuth adds `repo` (this provider
+scope permits writes too; for read-only access to selected repositories, use a
+fine-grained PAT with **Contents: Read-only**). GitLab adds `read_api` and
+`read_repository`; enable those on the registered application as well.
+Self-managed applications must be registered on their own
 host; unsupported Enterprise device flow can use a PAT. Cancel/Escape stops pending
 authorization. Once tokens are issued, identity validation and vault persistence
 must finish. Refresh is serialized and rotated pairs are saved immediately so a
@@ -194,8 +198,10 @@ JSON or retained renderer props.
 The token guide links to GitHub's fine-grained token form (name and 30-day expiry
 prefilled; no extra permissions needed for the current-user endpoint) or GitLab's
 token form (`read_user` preselected). Users still choose expiry and create the token
-on the provider's site. These permissions verify account identity only; future
-repository/PR features must request and verify their own permissions explicitly.
+on the provider's site. The guide follows the repository-access choice. Existing
+profile-only accounts are not silently upgraded; use the pencil/Reconnect action
+and opt in, or supply a suitably scoped token. Organization policy, token approval
+and SSO authorization can still restrict particular repositories.
 
 Setup references: [GitHub OAuth registration](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app),
 [GitHub token setup](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens),
@@ -203,13 +209,52 @@ Setup references: [GitHub OAuth registration](https://docs.github.com/en/apps/oa
 [GitLab OAuth setup](https://docs.gitlab.com/integration/oauth_provider/),
 [GitLab token setup](https://docs.gitlab.com/user/profile/personal_access_tokens/).
 
-This milestone does **not** change HTTPS clone/push authentication,
-list hosted repositories, publish repositories or open PRs. Hosting credentials
-and Git transport authentication remain separate until explicitly integrated.
+### Clone from an account
+
+On the welcome page choose **Clone repository** to replace its content inside the
+existing Open repository tab, without a modal or another tab. Select a saved
+GitHub/GitLab account from the source sidebar, browse its repositories (30 per page), or search accessible
+repositories. Provider search also includes public repositories outside account
+membership. Choose a repository and destination, then **Clone**. **Repository URL** keeps
+the existing credential-helper workflow and is the default when no accounts exist.
+**Add account** opens the connection pane in Settings directly; returning reloads saved accounts while retaining
+the URL, destination and repository selection. Search/account changes clear the selection;
+search is debounced and pending reads are cancelled on dismissal. Loading, empty,
+permission, network and pagination errors have retry/settings actions.
+The repository list uses GPUIX's native virtual list, laying out only nearby rows
+with one extra row of overdraw. Text stretches to the row's available width without
+percentage-based measurement constraints. It scrolls independently of the fixed destination/Cancel/Clone
+footer, including at minimum window size. Access guidance is available through the
+compact information control beside search. Back/Cancel or Escape returns to the
+welcome page; Cmd+F focuses search (or the URL input). Failed clones retain the
+account/repository selection for an explicit retry. Tab switches retain the clone
+draft, cancel hidden browsing and leave window-owned writes protected.
+
+Account cloning re-verifies the saved identity, refreshes expiring OAuth credentials,
+and re-resolves the selected repository through its provider. Only a credential-free
+HTTPS URL on the account's host and matching repository path can reach Git. Tokens
+stay in the vault/account service, never in UI props, clipboard or session JSON.
+One-shot Git Basic auth is scoped to that remote using runtime environment config;
+it is not placed in arguments, remote URLs, files, or the returned repository session.
+Redirects, inherited Git config/helpers/traces/templates and submodule cloning are
+disabled for this authenticated operation. This intentionally bypasses custom global
+Git proxy/CA configuration; system-trusted HTTPS is required. Raw authenticated Git
+errors are not exposed, preventing a server from reflecting credentials into the UI.
+The credential exists transiently in the Git child's environment/memory: processes
+with same-user debugging privileges can inspect it, so do not log/dump child environments.
+
+Folder validation, progress, cancellation and close protection are shared with URL
+cloning. Cancelling preserves any partial destination for review; nothing is deleted
+automatically. Subsequent fetch/push still uses normal system Git authentication.
+Publishing repositories and PR/MR actions are not implemented by this milestone.
 
 ```sh
 # Offline account logic and native UI; no live provider or real credential.
 bun test --preload ./native/preload.ts --path-ignore-patterns '**/*.integration.test.ts' tests/accounts
+# Native account cloning, including search, selection, keyboard retry and minimum-size layout.
+bun test --preload ./native/preload.ts tests/repository-setup/account-clone.component.test.tsx
+# Native wheel performance, fixed footer and selection with 30/300/3000 fake repositories.
+bun test --preload ./native/preload.ts tests/repository-setup/clone-scroll.component.test.tsx
 # Real OS-vault round-trip; one random synthetic entry, removed afterward.
 bun test tests/accounts/native.integration.test.ts
 # Real local callback listener; synthetic provider/browser, no live account.
@@ -292,7 +337,7 @@ entrance/exit animation yet.
 
 With no tabs or an empty workspace, the native app matches the desktop launch
 layout: Quick actions at left and a searchable All repositories list at right,
-without the repository sidebar. Create repository, Clone from URL and Open from
+without the repository sidebar. Create repository, Clone repository and Open from
 disk work from this page; starting setup opens an empty tab without dismissing
 its form. Previously opened roots remain available after their tabs close and
 across restarts (up to 100, deduplicated, stored as paths in the session). Search
@@ -301,8 +346,9 @@ use the existing retry view. This list does not scan disk or import Electron dat
 Right-click, Control-click or Shift+F10 on a saved repository opens the native
 menu: Open, Reveal in Finder, or Forget. Forget removes only the saved entry,
 preserving files and open tabs; the removal survives session restoration.
-Clone/Create use the shared dimmed popover, transparent
-fields, a folder-picker location control and explicit confirmation.
+Create uses the shared dimmed popover; Clone uses the full-page source/browser
+view described above. Both use transparent fields, a folder-picker location
+control and explicit confirmation.
 Clone suggests `~/repository-name` from the entered URL; the picker selects the
 exact destination folder (not its parent). Create initializes the chosen folder
 on the entered initial branch, defaulting to `main`, without making a commit or

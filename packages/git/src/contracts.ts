@@ -370,6 +370,11 @@ export interface CloneRepositoryInput extends GitCallOptions {
 	readonly path: string;
 	readonly recurseSubmodules?: boolean;
 	readonly remoteUrl: string;
+	/** One-shot HTTPS authentication. Never saved in the remote URL/config or reused by the returned session. */
+	readonly httpAuthentication?: {
+		readonly username: string;
+		readonly password: string;
+	};
 	readonly runtime?: GitRuntimeOptions;
 }
 

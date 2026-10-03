@@ -9,7 +9,53 @@ export interface GitCommandInput {
 	readonly stdin?: string | Uint8Array;
 	/** Internal per-command index override; never changes the host process environment. */
 	readonly indexFile?: string;
+	/** Internal clone-only auth; scoped to this exact HTTPS remote. */
+	readonly httpAuthentication?: {
+		readonly url: string;
+		readonly username: string;
+		readonly password: string;
+	};
 }
+
+const authenticatedEnvironment = (
+	input: NonNullable<GitCommandInput["httpAuthentication"]>
+): NodeJS.ProcessEnv => {
+	// No inherited rewrites, helpers, traces, templates or Git config may redirect/log the credential.
+	const env = Object.fromEntries(
+		Object.entries(process.env).filter(
+			([key]) => !key.startsWith("GIT_") && !key.startsWith("GCM_")
+		)
+	);
+
+	const nullFile = process.platform === "win32" ? "NUL" : "/dev/null";
+
+	const settings = [
+		["credential.helper", ""],
+		["core.askPass", ""],
+		["core.hooksPath", nullFile],
+		["init.templateDir", ""],
+		["http.followRedirects", "false"],
+		["http.sslVerify", "true"],
+		["protocol.allow", "never"],
+		["protocol.https.allow", "always"],
+		["http.extraHeader", ""],
+		[
+			`http.${input.url}.extraHeader`,
+			`Authorization: Basic ${Buffer.from(`${input.username}:${input.password}`).toString("base64")}`,
+		],
+	];
+
+	env.GIT_CONFIG_GLOBAL = nullFile;
+	env.GIT_CONFIG_NOSYSTEM = "1";
+	env.GIT_CONFIG_COUNT = String(settings.length);
+
+	for (const [index, [key, value]] of settings.entries()) {
+		env[`GIT_CONFIG_KEY_${index}`] = key;
+		env[`GIT_CONFIG_VALUE_${index}`] = value;
+	}
+
+	return env;
+};
 
 export interface GitCommandOutput {
 	readonly stderr: Buffer;
@@ -173,8 +219,10 @@ export class GitProcess {
 					reject(
 						new GitCommandFailure(
 							exitCode ?? 1,
-							stderr.toString("utf8").trim(),
-							stdout.toString("utf8")
+							input.httpAuthentication
+								? "Authenticated HTTPS request failed. Check repository permissions, network and certificate settings."
+								: stderr.toString("utf8").trim(),
+							input.httpAuthentication ? "" : stdout.toString("utf8")
 						)
 					);
 
@@ -199,7 +247,9 @@ export class GitProcess {
 			{
 				cwd: input.cwd,
 				env: {
-					...process.env,
+					...(input.httpAuthentication
+						? authenticatedEnvironment(input.httpAuthentication)
+						: process.env),
 					...(input.indexFile ? { GIT_INDEX_FILE: input.indexFile } : {}),
 					GIT_EDITOR: "true",
 					GIT_PAGER: "cat",

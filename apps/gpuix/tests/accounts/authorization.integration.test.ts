@@ -25,6 +25,7 @@ test("accepts only the bound state and exchanges PKCE without a secret, then rel
 	const redirectUri = await callbackUrl();
 	const requests: RequestInit[] = [];
 	let challenge = "";
+	let scope = "";
 
 	const service = new AccountAuthorization(
 		async (_url, init = {}) => {
@@ -41,6 +42,7 @@ test("accepts only the bound state and exchanges PKCE without a secret, then rel
 			const authorization = new URL(value);
 
 			challenge = authorization.searchParams.get("code_challenge") ?? "";
+			scope = authorization.searchParams.get("scope") ?? "";
 			const callback = new URL(redirectUri);
 
 			callback.search = new URLSearchParams({
@@ -64,6 +66,7 @@ test("accepts only the bound state and exchanges PKCE without a secret, then rel
 		provider: "gitlab",
 		webUrl: "https://gitlab.com",
 		registration: { clientId: "public-client", redirectUri },
+		repositoryAccess: true,
 		signal: new AbortController().signal,
 	});
 
@@ -74,6 +77,7 @@ test("accepts only the bound state and exchanges PKCE without a secret, then rel
 	expect(body.get("redirect_uri")).toBe(redirectUri);
 	expect(body.get("code_verifier")).toHaveLength(43);
 	expect(challenge).toHaveLength(43);
+	expect(scope).toBe("read_user read_api read_repository");
 	const rebound = Bun.serve({
 		hostname: "127.0.0.1",
 		port: Number(new URL(redirectUri).port),

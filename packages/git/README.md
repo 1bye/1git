@@ -59,6 +59,27 @@ for a selected path and `getFileContent({ path, source: { kind: "object", object
 for its immutable bytes. `getHistory({ revision, offset, limit })` can anchor pages
 to an OID independently of later HEAD or working-tree changes.
 
+## One-shot authenticated cloning
+
+`clone({ path, remoteUrl, httpAuthentication: { username, password }, signal })`
+accepts optional transient HTTPS credentials. The remote must be credential-free,
+without a query or fragment; authenticated submodule recursion is rejected. The
+Authorization header is scoped to this remote through `GIT_CONFIG_COUNT` in the
+child's environment, not command arguments or a saved config file. The returned
+repository does not retain the credential. Normal unauthenticated clone and later
+fetch/push continue using the caller's existing Git credential helpers.
+
+Authenticated clone isolates inherited Git config, helpers, traces and templates,
+enforces HTTPS/TLS verification and refuses redirects. Custom global Git proxy/CA
+settings are intentionally ignored. Error output is replaced with a safe summary,
+including when a remote reflects the password/header. No temporary credential files
+are created. Child environments/memory can still be inspected by same-user debugging
+tools; never log or dump them. The application must authenticate account identity,
+authorize the destination host/path, and validate the local destination before calling.
+
+The disposable TLS integration check uses Git/OpenSSL and a local HTTP server,
+not a real hosting account: `bun test tests/authenticated-clone.integration.test.ts`.
+
 ## Guarded single-branch synchronization
 
 `syncBranch({ kind, expectedHead, expectedBranch, remote, remoteRef, signal })`

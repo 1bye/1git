@@ -6,6 +6,7 @@ import {
 import { handlePopoverKeyDown } from "@1git/gpuix-ui/popover";
 import { handleRepositoryFilterKeyDown } from "./feature/repository-workspace/lib/repository-filter-shortcut";
 import { handleWorkspaceKeyDown } from "./feature/repository-workspace/lib/repository-filter-shortcut";
+import { handleCloneNavigation } from "./feature/repository-workspace/lib/repository-filter-shortcut";
 
 /** Native window chrome and keyboard traversal; application content stays transparent around the workspace. */
 export const windowOptions: RenderOptions = {
@@ -25,6 +26,8 @@ export const windowOptions: RenderOptions = {
 		if (handleSettingsKeyDown(event, renderer)) return;
 
 		if (handleSettingsNavigation(event, renderer)) return;
+
+		if (handleCloneNavigation(event, renderer)) return;
 
 		if (handleRepositoryFilterKeyDown(event, renderer)) return;
 

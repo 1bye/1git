@@ -1,7 +1,16 @@
 import { HostingClient } from "@1git/hosting";
 import { GitHubProvider } from "@1git/hosting/providers/github";
 import { GitLabProvider } from "@1git/hosting/providers/gitlab";
-import type { AccessToken, HostingFetch } from "@1git/hosting/contracts";
+import type {
+	AccessToken,
+	HostingFetch,
+	PageOptions,
+	Page,
+	Repository,
+	RepositoryRef,
+} from "@1git/hosting/contracts";
+import { parseRemote } from "@1git/hosting/remote";
+import { GitRepository, type GitResult } from "@1git/git";
 import type { CredentialVault } from "./native-credentials";
 import {
 	AccountAuthorization,
@@ -31,6 +40,8 @@ export interface ConnectAccount {
 /** Per-window account lifecycle. Metadata and OS credentials are separate; mutations roll back on persistence failure. */
 export class Accounts {
 	private pending: Promise<unknown> = Promise.resolve();
+	/** Client-bound pagination lives only for this window; credentials are looked up per request. */
+	private readonly clients = new Map<string, HostingClient>();
 
 	constructor(
 		private readonly store: AccountStore,
@@ -41,6 +52,209 @@ export class Accounts {
 
 	load(): SavedAccount[] {
 		return this.store.load();
+	}
+
+	/** Bounded provider search includes accessible public projects as well as account memberships. */
+	async repositories(
+		account: SavedAccount,
+		query: string,
+		options: PageOptions = {}
+	): Promise<Page<Repository>> {
+		if (query.length > 256 || hasControlCharacters(query))
+			throw new Error("Use a search of up to 256 characters.");
+
+		const key = AccountStore.key(account);
+		let client = this.clients.get(key);
+
+		if (!client) {
+			client = this.configure(
+				account.provider,
+				account.webUrl,
+				async ({ signal }) =>
+					this.mutate(async () => {
+						const credential = await this.verifiedCredential(account, signal);
+
+						return credential.token;
+					})
+			);
+			this.clients.set(key, client);
+		}
+
+		const result = query.trim()
+			? await client.searchRepositories(query.trim(), options)
+			: await client.listRepositories(options);
+
+		if (!result.ok) {
+			if (
+				["permission", "authentication", "not-found"].includes(
+					result.error.code
+				)
+			)
+				throw new Error(
+					"Check this account in Settings. Reconnect with repository access if needed; organization SSO may also require approval."
+				);
+
+			throw new Error(result.error.message);
+		}
+
+		return result.value;
+	}
+
+	/** Public permission hint, not a guarantee of access to any particular repository. */
+	async repositoryAccess(account: SavedAccount): Promise<boolean | null> {
+		const saved = await this.vault.read(AccountStore.key(account));
+
+		if (saved === null) return false;
+
+		const scopes = decodeCredential(saved, account.provider).oauth?.tokens
+			.scopes;
+
+		if (!scopes) return null;
+
+		return account.provider === "github"
+			? scopes.includes("repo")
+			: scopes.includes("api") ||
+					(scopes.includes("read_api") &&
+						(scopes.includes("read_repository") ||
+							scopes.includes("write_repository")));
+	}
+
+	/** Re-resolve the repository; never trust a renderer-supplied clone URL or return tokens to the form. */
+	clone(
+		account: SavedAccount,
+		ref: RepositoryRef,
+		path: string,
+		signal: AbortSignal
+	): Promise<GitResult<GitRepository>> {
+		return this.mutate(async () => {
+			const credential = await this.verifiedCredential(account, signal);
+
+			const repository = await this.configure(
+				account.provider,
+				account.webUrl,
+				credential.token
+			).getRepository(ref, { signal });
+
+			if (!repository.ok)
+				throw new Error(
+					"This repository is unavailable. Check account permissions and organization SSO in Settings."
+				);
+
+			if (
+				repository.value.ref.owner !== ref.owner ||
+				repository.value.ref.name !== ref.name
+			)
+				throw new Error(
+					"The provider returned a different repository. Refresh the list before cloning."
+				);
+
+			const provider =
+				account.provider === "github"
+					? new GitHubProvider({ webUrl: account.webUrl })
+					: new GitLabProvider({ webUrl: account.webUrl });
+
+			const remote = repository.value.cloneUrls.https;
+			const parsed = parseRemote(remote, [provider]);
+
+			if (
+				!parsed.ok ||
+				parsed.value.providerId !== account.provider ||
+				parsed.value.host !== new URL(account.webUrl).host ||
+				parsed.value.repository.owner !== repository.value.ref.owner ||
+				parsed.value.repository.name !== repository.value.ref.name
+			)
+				throw new Error(
+					"The provider returned an unexpected clone destination. No credentials were sent to Git."
+				);
+
+			signal.throwIfAborted();
+
+			return await GitRepository.clone({
+				path,
+				remoteUrl: remote,
+				signal,
+				httpAuthentication: {
+					username: account.provider === "github" ? "x-access-token" : "oauth2",
+					password: credential.token,
+				},
+			});
+		});
+	}
+
+	private async verifiedCredential(
+		account: SavedAccount,
+		signal?: AbortSignal
+	): Promise<AccountCredential> {
+		if (
+			!this.store
+				.load()
+				.some((saved) => AccountStore.key(saved) === AccountStore.key(account))
+		)
+			throw new Error(
+				"This account was removed. Choose a connected account in Settings."
+			);
+
+		const credential = await this.credential(account, signal);
+
+		if (!credential)
+			throw new Error("Reconnect this account in Settings — no saved token.");
+
+		const identity = await this.configure(
+			account.provider,
+			account.webUrl,
+			credential.token
+		).getAccount({ signal });
+
+		if (!identity.ok || identity.value.id !== account.id)
+			throw new Error(
+				"Reconnect this account in Settings — the saved identity could not be verified."
+			);
+
+		return credential;
+	}
+
+	private async credential(
+		account: SavedAccount,
+		signal?: AbortSignal
+	): Promise<AccountCredential | null> {
+		signal?.throwIfAborted();
+		const key = AccountStore.key(account);
+		const saved = await this.vault.read(key);
+
+		if (saved === null) return null;
+
+		let credential = decodeCredential(saved, account.provider);
+		const oauth = credential.oauth;
+
+		if (
+			oauth &&
+			oauth.tokens.expiresAt !== null &&
+			oauth.tokens.expiresAt <= Date.now() + 60_000
+		) {
+			if (
+				!oauth.tokens.refreshToken ||
+				(oauth.tokens.refreshExpiresAt !== null &&
+					oauth.tokens.refreshExpiresAt <= Date.now())
+			)
+				throw new Error("Reconnect — token expired or invalid");
+
+			const tokens = await this.authorization.refresh(
+				account.provider,
+				account.webUrl,
+				oauth.registration,
+				oauth.tokens.refreshToken,
+				signal
+			);
+
+			credential = {
+				token: tokens.accessToken,
+				oauth: { registration: oauth.registration, tokens },
+			};
+			// Persist rotated credentials before any subsequent API/Git failure.
+			await this.vault.write(key, encodeCredential(credential));
+		}
+
+		return credential;
 	}
 
 	async connect(input: ConnectAccount): Promise<SavedAccount[]> {
@@ -144,41 +358,21 @@ export class Accounts {
 	async check(account: SavedAccount, signal?: AbortSignal): Promise<string> {
 		return this.mutate(async () => {
 			signal?.throwIfAborted();
-			const key = AccountStore.key(account);
-			const saved = await this.vault.read(key);
+			let credential: AccountCredential | null;
 
-			if (saved === null) return "Reconnect — no saved token";
-
-			let credential = decodeCredential(saved, account.provider);
-			const oauth = credential.oauth;
-
-			if (
-				oauth &&
-				oauth.tokens.expiresAt !== null &&
-				oauth.tokens.expiresAt <= Date.now() + 60_000
-			) {
+			try {
+				credential = await this.credential(account, signal);
+			} catch (cause) {
 				if (
-					!oauth.tokens.refreshToken ||
-					(oauth.tokens.refreshExpiresAt !== null &&
-						oauth.tokens.refreshExpiresAt <= Date.now())
+					cause instanceof Error &&
+					cause.message === "Reconnect — token expired or invalid"
 				)
-					return "Reconnect — token expired or invalid";
+					return cause.message;
 
-				const tokens = await this.authorization.refresh(
-					account.provider,
-					account.webUrl,
-					oauth.registration,
-					oauth.tokens.refreshToken,
-					signal
-				);
-
-				credential = {
-					token: tokens.accessToken,
-					oauth: { registration: oauth.registration, tokens },
-				};
-				// Refresh rotates the old pair. Save immediately even if the subsequent identity request fails.
-				await this.vault.write(key, encodeCredential(credential));
+				throw cause;
 			}
+
+			if (!credential) return "Reconnect — no saved token";
 
 			const result = await this.configure(
 				account.provider,
@@ -207,6 +401,8 @@ export class Accounts {
 			const previous = await this.vault.read(key);
 
 			if (previous !== null) await this.vault.delete(key);
+
+			this.clients.delete(key);
 
 			const next = saved.filter((entry) => AccountStore.key(entry) !== key);
 

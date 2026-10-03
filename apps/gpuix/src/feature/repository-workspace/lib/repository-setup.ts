@@ -2,10 +2,18 @@ import { lstat, readdir, realpath } from "node:fs/promises";
 import { basename, dirname, isAbsolute } from "node:path";
 import { GitRepository } from "@1git/git";
 import { RepositoryWorktrees } from "../../workspace-tabs/lib/repository-worktrees";
+import type { Accounts } from "../../accounts/lib/accounts";
+import type { SavedAccount } from "../../accounts/lib/account-store";
+import type { RepositoryRef } from "@1git/hosting/contracts";
 
 /** Explicit setup intent; selecting a destination alone never writes Git. */
 export type RepositorySetupRequest =
-	| { kind: "clone"; path: string; remoteUrl: string }
+	| {
+			kind: "clone";
+			path: string;
+			remoteUrl: string;
+			source?: { account: SavedAccount; repository: RepositoryRef };
+	  }
 	| { kind: "create"; path: string; branch: string };
 
 /** Existing repositories require a separate Open action, never implicit reinitialization. */
@@ -33,7 +41,8 @@ export class RepositorySetup {
 
 	static async write(
 		request: RepositorySetupRequest,
-		signal: AbortSignal
+		signal: AbortSignal,
+		accounts?: Accounts
 	): Promise<RepositorySetupResult> {
 		try {
 			if (!isAbsolute(request.path))
@@ -115,6 +124,38 @@ export class RepositorySetup {
 					message:
 						"Operation cancelled. Review the destination before retrying.",
 				};
+
+			if (request.kind === "clone" && request.source) {
+				if (!accounts)
+					return { ok: false, message: "Account cloning is unavailable." };
+
+				try {
+					const result = await accounts.clone(
+						request.source.account,
+						request.source.repository,
+						request.path,
+						signal
+					);
+
+					return result.ok
+						? { ok: true, path: result.value.info.root }
+						: {
+								ok: false,
+								message: signal.aborted
+									? "Operation cancelled. Review the destination before retrying."
+									: result.error.message,
+							};
+				} catch (cause) {
+					return {
+						ok: false,
+						message: signal.aborted
+							? "Operation cancelled. Review the destination before retrying."
+							: cause instanceof Error
+								? cause.message
+								: "Account cloning failed. Check this account in Settings.",
+					};
+				}
+			}
 
 			const result =
 				request.kind === "clone"

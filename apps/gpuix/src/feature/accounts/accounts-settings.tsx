@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
 import { Button } from "@1git/gpuix-ui/button";
+import { Checkbox } from "@1git/gpuix-ui/checkbox";
 import { Popover, PopoverContent } from "@1git/gpuix-ui/popover";
 import type { DeviceAuthorization } from "@1git/hosting/device-oauth";
 import { AppShell } from "../../fixture/app-shell";
@@ -75,12 +76,15 @@ export function AccountsSettings({
 	onBack,
 	accounts: supplied,
 	children,
+	initialForm = "list",
 	openLink = openAuthorizationBrowser,
 	copyText = NativeClipboard.write,
 }: {
 	onBack: () => void;
 	accounts?: Accounts;
 	children?: ReactNode;
+	/** Clone's Add account entry opens setup immediately; normal Settings starts with the list. */
+	initialForm?: "list" | "connect";
 	/** System-browser boundary; native tests capture setup links without opening a real account. */
 	openLink?: (url: string) => Promise<void>;
 	/** Public setup values only; tests capture writes without replacing the user's clipboard. */
@@ -98,7 +102,7 @@ export function AccountsSettings({
 	);
 
 	const [saved, setSaved] = useState<SavedAccount[]>([]);
-	const [form, setForm] = useState<"list" | "connect">("list");
+	const [form, setForm] = useState<"list" | "connect">(initialForm);
 	const [provider, setProvider] = useState<SavedAccount["provider"]>("github");
 	const [webUrl, setWebUrl] = useState<string>(accountSetup.github.host);
 	const [clientId, setClientId] = useState("");
@@ -107,6 +111,7 @@ export function AccountsSettings({
 	const [advanced, setAdvanced] = useState(false);
 
 	const [manual, setManual] = useState(false);
+	const [repositoryAccess, setRepositoryAccess] = useState(false);
 	const [device, setDevice] = useState<DeviceAuthorization>();
 	const [replacing, setReplacing] = useState<SavedAccount>();
 	const [removing, setRemoving] = useState<SavedAccount>();
@@ -140,7 +145,7 @@ export function AccountsSettings({
 	useEffect(() => {
 		token.current = "";
 		setHasToken(false);
-		setForm("list");
+		setForm(initialForm);
 		setRemoving(undefined);
 		setError(undefined);
 		setStatus({});
@@ -152,7 +157,7 @@ export function AccountsSettings({
 				cause instanceof Error ? cause.message : "Could not load accounts."
 			);
 		}
-	}, [accounts]);
+	}, [accounts, initialForm]);
 
 	useEffect(() => {
 		settingsNavigation.set(renderer, {
@@ -190,12 +195,18 @@ export function AccountsSettings({
 		setManual(false);
 		setClientId("");
 		setDevice(undefined);
+		setRepositoryAccess(false);
 
 		if (account)
 			void perform(async () => {
-				const registration = await accounts.registration(account);
+				const [registration, access] = await Promise.all([
+					accounts.registration(account),
+					accounts.repositoryAccess(account),
+				]);
 
 				if (!mounted.current) return;
+
+				setRepositoryAccess(access === true);
 
 				if (registration) {
 					setClientId(registration.clientId);
@@ -272,6 +283,7 @@ export function AccountsSettings({
 				: await accounts.connectBrowser({
 						provider,
 						webUrl,
+						repositoryAccess,
 						registration: {
 							clientId: clientId.trim(),
 							redirectUri:
@@ -584,6 +596,7 @@ export function AccountsSettings({
 									/>
 								</AccountSetupSection>
 								<AccountConnectionGuide
+									repositoryAccess={repositoryAccess}
 									provider={provider}
 									manual={manual}
 									host={webUrl}
@@ -664,11 +677,27 @@ export function AccountsSettings({
 											onChange={(event) => setClientId(event.value ?? "")}
 										/>
 										<text style={{ ...labelStyle, fontSize: 11 }}>
-											Use the public ID, not the client secret. Sign-in requests
-											profile access only.
+											Use the public ID, not the client secret.
 										</text>
 									</div>
 								)}
+								<AccountSetupSection label="Repository access">
+									<Checkbox
+										testId="account-repository-access"
+										tokens={appTokens}
+										label="Browse and clone private repositories"
+										checked={repositoryAccess}
+										disabled={busy}
+										onCheckedChange={setRepositoryAccess}
+									/>
+									<text style={{ ...labelStyle, fontSize: 11 }}>
+										{repositoryAccess
+											? provider === "github"
+												? "GitHub OAuth's repo scope grants read and write access. For selected repositories with read-only access, use a fine-grained token instead."
+												: "Requests read-only API and Git access. Enable read_user, read_api and read_repository on your application or token."
+											: "Profile-only sign-in. GitHub can list public repositories; GitLab repository browsing needs read_api."}
+									</text>
+								</AccountSetupSection>
 								{busy && !manual ? (
 									<text
 										testId="account-authorization-progress"

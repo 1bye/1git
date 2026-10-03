@@ -6,6 +6,44 @@ export const workspaceShortcuts = new WeakMap<
 	(key: string) => void
 >();
 
+/** Full-page cloning owns Escape and search without trapping tab navigation. */
+export const cloneNavigation = new WeakMap<
+	NativeRenderer,
+	{ back: () => void; search: () => void }
+>();
+
+export function handleCloneNavigation(
+	...[event, renderer]: Parameters<WindowKeyEventHandler>
+): boolean {
+	const navigation = cloneNavigation.get(renderer);
+
+	if (
+		!navigation ||
+		event.isHeld ||
+		event.modifiers?.alt ||
+		event.modifiers?.shift
+	)
+		return false;
+
+	if (
+		event.key === "escape" &&
+		!event.modifiers?.cmd &&
+		!event.modifiers?.ctrl
+	) {
+		navigation.back();
+
+		return true;
+	}
+
+	if (event.key === "f" && (event.modifiers?.cmd || event.modifiers?.ctrl)) {
+		navigation.search();
+
+		return true;
+	}
+
+	return false;
+}
+
 export function handleWorkspaceKeyDown(
 	...[event, renderer]: Parameters<WindowKeyEventHandler>
 ): boolean {

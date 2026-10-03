@@ -379,6 +379,41 @@ export class GitRepository {
 		return await capture("clone-repository", async () => {
 			requireText(input.path, "Clone path", "clone-repository");
 			requireCredentialFreeRemoteUrl(input.remoteUrl, "clone-repository");
+
+			if (input.httpAuthentication) {
+				let url: URL;
+
+				try {
+					url = new URL(input.remoteUrl);
+				} catch {
+					throw invalidInput(
+						"clone-repository",
+						"Authenticated cloning requires HTTPS."
+					);
+				}
+
+				const { username, password } = input.httpAuthentication;
+
+				if (
+					url.protocol !== "https:" ||
+					url.username ||
+					url.password ||
+					url.search ||
+					url.hash ||
+					!username ||
+					username.length > 2048 ||
+					username.includes(":") ||
+					!password ||
+					password.length > 4096 ||
+					/[\p{C}\s]/u.test(username + password) ||
+					input.recurseSubmodules
+				)
+					throw invalidInput(
+						"clone-repository",
+						"Use a credential-free HTTPS URL and valid one-shot credentials, without submodules."
+					);
+			}
+
 			const targetPath = resolve(input.path);
 
 			await mkdir(dirname(targetPath), { recursive: true });
@@ -410,6 +445,10 @@ export class GitRepository {
 				args,
 				cwd: dirname(targetPath),
 				signal: input.signal,
+				httpAuthentication: input.httpAuthentication && {
+					...input.httpAuthentication,
+					url: input.remoteUrl,
+				},
 			});
 			const repository = await loadRepositoryInfo(
 				process,
