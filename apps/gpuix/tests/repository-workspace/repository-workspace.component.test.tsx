@@ -603,6 +603,32 @@ it("selects file rows by pointer and keyboard, exposing selection and a truthful
 	expect(selected()).toEqual(["src/app.tsx, modified"]);
 });
 
+it("keeps sidebar selection highlighted without outlines during arrow navigation", () => {
+	for (const view of ["changes", "history", "stashes"] as const) {
+		changeView(view);
+		const [first, second] = sampleEntries[view];
+
+		if (!first || !second) throw new Error(`Missing sample rows for ${view}`);
+
+		click(`entry-${first.id}`);
+		key(`entry-${first.id}`, "down");
+		const entry = element(`entry-${second.id}`);
+
+		flushSync(() =>
+			handleGpuixEvent(
+				{ elementId: entry.id, eventType: "focus" },
+				root.renderer
+			)
+		);
+		expect(root.renderer.getFocusedElementId()).toBe(entry.id);
+		expect(entry.customProps?.["aria-selected"]).toBe(true);
+		expect(element(`row-${second.id}`).style).toMatchObject({
+			backgroundColor: lightColors.editorSunken2,
+			borderColor: "transparent",
+		});
+	}
+});
+
 it("fits four tab bodies at minimum width and reveals the selected tab's shoulders", () => {
 	root.render(<App preview key="wide-rail" initialTabCount={8} />);
 	click("entry-src/app.tsx");
@@ -712,7 +738,7 @@ it("supports arrow-key rail selection and entry/exit with Tab", () => {
 	flushSync(() =>
 		handleGpuixEvent({ elementId: row.id, eventType: "focus" }, root.renderer)
 	);
-	expect(element("row-commit-1").style.borderColor).toBe(lightColors.brand);
+	expect(element("row-commit-1").style.borderColor).toBe("transparent");
 	root.renderer.simulateKeystrokes("tab");
 	root.renderer.flush();
 	expect(root.renderer.getFocusedElementId()).toBe(

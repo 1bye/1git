@@ -120,7 +120,11 @@ export function Button({
 		appearance,
 		styles[size](tokens),
 		style,
-		!disabled && focused && focusVisible && styles.focused(tokens),
+		!disabled &&
+			focused &&
+			focusVisible &&
+			tokens.focusVisible !== false &&
+			styles.focused(tokens),
 		!disabled && spacePressed && appearance.active,
 		disabled && styles.disabled
 	);

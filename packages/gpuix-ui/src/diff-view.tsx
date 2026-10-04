@@ -126,7 +126,11 @@ export function DiffView({
 			style={StyleSheet.compose(
 				styles.viewport,
 				style,
-				focused && focusVisible && { borderColor: tokens.colors.focusRing }
+				focused &&
+					focusVisible &&
+					tokens.focusVisible !== false && {
+						borderColor: tokens.colors.focusRing,
+					}
 			)}
 		>
 			{/* Each axis has one owner: the native list on Y, this viewport on X. */}

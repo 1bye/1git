@@ -88,6 +88,8 @@ export const densities = Tokens.create({
 export interface UiTokens {
 	readonly colors: TokenSet<typeof palettes>;
 	readonly layout: TokenSet<typeof densities>;
+	/** Set false to suppress control outlines while retaining native focus and keyboard behavior. */
+	readonly focusVisible?: boolean;
 }
 
 /** Default values for controls without a tokens prop; not a mutable global theme. */

@@ -59,7 +59,10 @@ export function Textarea({
 			style={StyleSheet.compose(
 				styles.field(tokens),
 				style,
-				focused && { borderColor: tokens.colors.focusRing }
+				focused &&
+					tokens.focusVisible !== false && {
+						borderColor: tokens.colors.focusRing,
+					}
 			)}
 			onChange={(event) => {
 				if (event.value !== undefined) onValueChange(event.value);

@@ -85,7 +85,6 @@ export function WorkspaceTabs({
 	const strip = useRef<PublicInstance>(null);
 	const addButton = useRef<PublicInstance>(null);
 	const focusRequested = useRef(false);
-	const [focusVisible, setFocusVisible] = useState(true);
 	const [menuId, setMenuId] = useState<string | null>(null);
 	const drag = useWorkspaceTabDrag(state, dispatch, strip);
 	const { draggingId, settlingId } = drag;
@@ -105,12 +104,10 @@ export function WorkspaceTabs({
 
 	const onPointerDown = (): void => {
 		drag.resetInput();
-		setFocusVisible(false);
 	};
 
 	const onKeyboardInput = (): void => {
 		drag.resetInput();
-		setFocusVisible(true);
 	};
 
 	const focusTab = (id: string): void => {
@@ -194,7 +191,6 @@ export function WorkspaceTabs({
 							menuAvailable={!!tab.workspace.repository && !!onChangeBranch}
 							menuOpen={menuId === tab.id && state.activeId === tab.id}
 							onDismissMenu={() => setMenuId(null)}
-							focusVisible={focusVisible}
 							onPointerDown={onPointerDown}
 							dragging={drag.draggingId === tab.id}
 							left={left}
@@ -316,7 +312,6 @@ export function WorkspaceTabs({
 				tokens={appTokens}
 				variant="ghost"
 				size="sm"
-				focusVisible={focusVisible}
 				onMouseDown={onPointerDown}
 				onKeyDown={onKeyboardInput}
 				style={styles.add}

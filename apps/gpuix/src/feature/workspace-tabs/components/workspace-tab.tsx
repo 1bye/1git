@@ -16,7 +16,7 @@ const { tabWidth: width, tabHeight: height, tabRadius: radius } = layout;
 const visualInset = 2;
 const surfaceOutset = layout.tabSurfaceOutset;
 const shoulder = surfaceOutset + visualInset;
-const focusBorderWidth = 1;
+const triggerBorderWidth = 1;
 // Curved shoulders extend beyond the visual body without consuming content space.
 const surfaceWidth = width + surfaceOutset * 2;
 const outline = `M0 ${height} Q${shoulder} ${height} ${shoulder} ${height - shoulder} V${radius} Q${shoulder} 0 ${shoulder + radius} 0 H${surfaceWidth - shoulder - radius} Q${surfaceWidth - shoulder} 0 ${surfaceWidth - shoulder} ${radius} V${height - shoulder} Q${surfaceWidth - shoulder} ${height} ${surfaceWidth} ${height}`;
@@ -54,7 +54,7 @@ const styles = StyleSheet.create({
 		flexDirection: "row",
 		alignItems: "center",
 		gap: layout.tabContentGap,
-		paddingLeft: layout.tabContentInsetInlineStart - focusBorderWidth,
+		paddingLeft: layout.tabContentInsetInlineStart - triggerBorderWidth,
 		paddingRight: layout.tabContentInsetTop,
 	},
 	trigger: {
@@ -66,12 +66,11 @@ const styles = StyleSheet.create({
 		flexShrink: 1,
 		minWidth: 0,
 		height: layout.tabCloseSize,
-		borderWidth: focusBorderWidth,
+		borderWidth: triggerBorderWidth,
 		borderColor: "transparent",
 		borderRadius: 6,
 		cursor: "pointer",
 	},
-	focused: { borderColor: lightColors.brand },
 	avatar: {
 		pointerEvents: "none",
 		width: layout.tabAvatarSize,
@@ -128,7 +127,6 @@ interface WorkspaceTabProps {
 	onDismissMenu?: () => void;
 	tab: WorkspaceTabRecord;
 	active: boolean;
-	focusVisible: boolean;
 	onPointerDown: () => void;
 	onTabMouseDown: (event: EventPayload, frame: PublicInstance | null) => void;
 	onTabMouseMove: (event: EventPayload) => void;
@@ -154,7 +152,6 @@ export function WorkspaceTab({
 	onDismissMenu,
 	tab,
 	active,
-	focusVisible,
 	onPointerDown,
 	onTabMouseDown,
 	onTabMouseMove,
@@ -310,11 +307,10 @@ export function WorkspaceTab({
 						aria-expanded={menuAvailable ? menuOpen : undefined}
 						aria-selected={active}
 						tabIndex={active ? 0 : -1}
-						style={StyleSheet.compose(
-							styles.trigger,
-							{ cursor: dragging ? "grabbing" : "grab", userSelect: "none" },
-							focused && focusVisible && styles.focused
-						)}
+						style={StyleSheet.compose(styles.trigger, {
+							cursor: dragging ? "grabbing" : "grab",
+							userSelect: "none",
+						})}
 						onClick={onActivate}
 						onMouseDown={onMouseDown}
 						onMouseMove={onTabMouseMove}
@@ -346,7 +342,6 @@ export function WorkspaceTab({
 						tokens={appTokens}
 						variant="ghost"
 						size="sm"
-						focusVisible={focusVisible}
 						onMouseDown={onPointerDown}
 						onKeyDown={onKeyboardInput}
 						tabIndex={active ? 0 : -1}

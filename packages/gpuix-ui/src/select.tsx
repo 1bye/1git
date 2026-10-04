@@ -125,7 +125,10 @@ export function SelectTrigger({
 					styles.trigger(tokens),
 					state.open && styles.open(tokens),
 					typeof style === "function" ? style(state) : style,
-					!state.disabled && focused && styles.focused(tokens),
+					!state.disabled &&
+						focused &&
+						tokens.focusVisible !== false &&
+						styles.focused(tokens),
 					state.disabled && styles.disabled(tokens)
 				)
 			}

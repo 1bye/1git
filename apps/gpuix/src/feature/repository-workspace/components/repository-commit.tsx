@@ -60,7 +60,6 @@ export function RepositoryCommit({
 	onCommit?: () => void;
 }) {
 	const [previewed, setPreviewed] = useState(false);
-	const [noticeFocused, setNoticeFocused] = useState(false);
 	const notice = useRef<PublicInstance>(null);
 	const renderer = useGpuixRequired();
 	const hasDetails = !!state.commit.error || state.commit.needsReview;
@@ -160,13 +159,7 @@ export function RepositoryCommit({
 							? "Use arrow keys or Page Up and Page Down to read all details."
 							: undefined
 					}
-					onFocus={() => setNoticeFocused(true)}
-					onBlur={() => setNoticeFocused(false)}
-					style={StyleSheet.compose(
-						styles.notice,
-						hasDetails &&
-							noticeFocused && { borderColor: appTokens.colors.focusRing }
-					)}
+					style={styles.notice}
 					onKeyDown={(event) => {
 						const element = notice.current;
 

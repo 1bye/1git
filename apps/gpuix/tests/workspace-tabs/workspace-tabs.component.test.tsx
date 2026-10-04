@@ -286,7 +286,7 @@ it("gives the close icon equal top and right gaps within the tab surface", () =>
 	expect(rightGap).toBe(9);
 });
 
-it("shows a focus ring when Tab first enters the window", () => {
+it("focuses the first tab without an outline when Tab enters the window", () => {
 	root.renderer.simulateKeystrokes("tab");
 	expect(root.renderer.getFocusedElementId()).toBe(element("workspace-1").id);
 	flushSync(() =>
@@ -295,7 +295,7 @@ it("shows a focus ring when Tab first enters the window", () => {
 			root.renderer
 		)
 	);
-	expect(element("workspace-1").style.borderColor).toBe(lightColors.brand);
+	expect(element("workspace-1").style.borderColor).toBe("transparent");
 });
 
 it("keeps long repository and branch labels on one line clear of the close target", () => {
@@ -374,7 +374,7 @@ it("moves selection with arrows and Home/End and closes using Delete", () => {
 	);
 });
 
-it("hides pointer focus rings and restores them when navigating with the keyboard", () => {
+it("keeps outlines hidden for pointer and keyboard tab navigation", () => {
 	click("workspace-1");
 	flushSync(() =>
 		handleGpuixEvent(
@@ -391,8 +391,9 @@ it("hides pointer focus rings and restores them when navigating with the keyboar
 			root.renderer
 		)
 	);
-	expect(element("close-workspace-1").style.borderColor).toBe(
-		lightColors.brand
+	expect(element("close-workspace-1").style.borderColor).toBe("transparent");
+	expect(root.renderer.getFocusedElementId()).toBe(
+		element("close-workspace-1").id
 	);
 
 	click("add-workspace");
@@ -410,7 +411,8 @@ it("hides pointer focus rings and restores them when navigating with the keyboar
 			root.renderer
 		)
 	);
-	expect(element("workspace-1").style.borderColor).toBe(lightColors.brand);
+	expect(element("workspace-1").style.borderColor).toBe("transparent");
+	expect(root.renderer.getFocusedElementId()).toBe(element("workspace-1").id);
 
 	click("close-workspace-1");
 	flushSync(() =>
@@ -429,7 +431,7 @@ it("hides pointer focus rings and restores them when navigating with the keyboar
 	);
 	expect(element("add-workspace").style.borderColor).toBe("transparent");
 	root.renderer.nativeSimulateKeyDown(element("add-workspace").id, "space");
-	expect(element("add-workspace").style.borderColor).toBe(lightColors.brand);
+	expect(element("add-workspace").style.borderColor).toBe("transparent");
 	root.renderer.nativeSimulateKeyUp(element("add-workspace").id, "space");
 	expect(selectedTabs()).toEqual(["Workspace 3"]);
 });
@@ -758,7 +760,7 @@ it("autoscrolls during an overflow drag and stops after release", async () => {
 	);
 });
 
-it("shows focus and cancels Space activation after a blur notification", () => {
+it("keeps the outline hidden and cancels Space activation after blur", () => {
 	click("add-workspace");
 	const first = element("workspace-1");
 
@@ -767,7 +769,7 @@ it("shows focus and cancels Space activation after a blur notification", () => {
 	flushSync(() =>
 		handleGpuixEvent({ elementId: first.id, eventType: "focus" }, root.renderer)
 	);
-	expect(element("workspace-1").style.borderColor).toBe(lightColors.brand);
+	expect(element("workspace-1").style.borderColor).toBe("transparent");
 	flushSync(() =>
 		handleGpuixEvent({ elementId: first.id, eventType: "blur" }, root.renderer)
 	);

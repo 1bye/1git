@@ -1,13 +1,17 @@
 /**
- * Covers: independent palette/density updates, custom tokens, and tokenized Select parts.
+ * Covers: independent palette/density updates, custom tokens, focus appearance, and tokenized Select parts.
  * Real: UI controls, React reconciliation, and GPUIX native layout and styles.
- * Doubles: none.
+ * Doubles: focus notifications for inactive native test windows.
  * Requires: GPUIX native test renderer (macOS or Windows with graphics access).
  */
 import { afterEach, beforeEach, expect, it } from "bun:test";
 import { createTestRoot, type TestRoot } from "@gpuix/react/testing";
+import { flushSync, handleGpuixEvent } from "@gpuix/react";
 
 import { Button } from "../../src/button";
+import { Checkbox } from "../../src/checkbox";
+import { DiffView } from "../../src/diff-view";
+import { Textarea } from "../../src/textarea";
 import {
 	Select,
 	SelectContent,
@@ -127,6 +131,95 @@ it("accepts custom values while retaining final caller style overrides", () => {
 				(text) => text.style.color === "#fedcba" && text.style.fontSize === 15
 			)
 	).toBe(true);
+});
+
+it("disables outlines across controls without removing borders, focus or keyboard activation", () => {
+	const tokens = { ...defaultTokens, focusVisible: false };
+	let presses = 0;
+	let checked = false;
+
+	root.render(
+		<div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+			<Button
+				tokens={tokens}
+				testId="button"
+				onPress={() => {
+					presses += 1;
+				}}
+			>
+				Commit
+			</Button>
+			<Checkbox
+				tokens={tokens}
+				testId="checkbox"
+				aria-label="Include file"
+				checked={checked}
+				onCheckedChange={(value) => {
+					checked = value;
+				}}
+			/>
+			<Textarea
+				tokens={tokens}
+				testId="textarea"
+				aria-label="Message"
+				value=""
+				onValueChange={() => {}}
+				style={{ borderColor: "#123456" }}
+			/>
+			<Select defaultValue="main">
+				<SelectTrigger tokens={tokens} testId="trigger" aria-label="Branch">
+					<SelectValue />
+				</SelectTrigger>
+				<SelectContent>
+					<SelectItem value="main">main</SelectItem>
+				</SelectContent>
+			</Select>
+			<DiffView
+				tokens={tokens}
+				testId="diff"
+				aria-label="File preview"
+				patch=""
+			/>
+		</div>
+	);
+
+	for (const [testId, borderColor] of [
+		["button", "transparent"],
+		["checkbox", "transparent"],
+		["textarea", "#123456"],
+		["trigger", tokens.colors.border],
+		["diff", "transparent"],
+	] as const) {
+		const control = elementByTestId(root.renderer, testId);
+
+		root.renderer.focusElement(control.id);
+		flushSync(() =>
+			handleGpuixEvent(
+				{ elementId: control.id, eventType: "focus" },
+				root.renderer
+			)
+		);
+		expect(elementByTestId(root.renderer, testId).style.borderColor).toBe(
+			borderColor
+		);
+		expect(root.renderer.getFocusedElementId()).toBe(control.id);
+	}
+
+	root.renderer.nativeSimulateKeyDown(
+		elementByTestId(root.renderer, "button").id,
+		"enter"
+	);
+	root.renderer.nativeSimulateKeyDown(
+		elementByTestId(root.renderer, "checkbox").id,
+		"space"
+	);
+	root.renderer.flush();
+	root.renderer.nativeSimulateKeyUp(
+		elementByTestId(root.renderer, "checkbox").id,
+		"space"
+	);
+	expect(presses).toBe(1);
+	expect(checked).toBe(true);
 });
 
 function TokenSelect({ tokens }: { tokens: UiTokens }) {

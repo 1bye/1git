@@ -140,7 +140,6 @@ export function WorkspaceWorktreeForm({
 }) {
 	const renderer = useGpuixRequired();
 	const [name, setName] = useState("");
-	const [focused, setFocused] = useState(false);
 	const branchInput = useRef<PublicInstance>(null);
 	const [selectedPath, setSelectedPath] = useState<string>();
 	const [picking, setPicking] = useState(false);
@@ -261,21 +260,13 @@ export function WorkspaceWorktreeForm({
 					onInputValueChange={setName}
 					disabled={disabled}
 				>
-					<div
-						style={StyleSheet.compose(
-							styles.input,
-							styles.locationField,
-							focused && { borderColor: colors.focusRing }
-						)}
-					>
+					<div style={StyleSheet.compose(styles.input, styles.locationField)}>
 						<ComboboxInput
 							ref={branchInput}
 							testId="worktree-branch-name"
 							aria-label="Worktree branch name"
 							placeholder="Choose or create a branch…"
 							style={StyleSheet.compose(styles.input, styles.comboInput)}
-							onFocus={() => setFocused(true)}
-							onBlur={() => setFocused(false)}
 						/>
 						<ComboboxTrigger
 							testId="worktree-branch-trigger"

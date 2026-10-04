@@ -4,6 +4,13 @@ Styled React controls for GPUIX, built with `@1git/gpuix-stylesheet`. Includes
 Button, Checkbox, Text, Textarea, Select, Popover, Tooltip, and a native DiffView. Controls use named color and density presets and default
 to dark colors and comfortable sizing. No theme provider is required.
 
+Set `focusVisible: false` on the shared `UiTokens` to hide focus outlines across
+Button, Checkbox, SelectTrigger, Textarea and DiffView without removing focus,
+keyboard activation, ordinary borders or selection styling. Outlines stay enabled
+by default; per-control `focusVisible` can hide them but cannot override a disabled
+token setting. Prefer visible focus for keyboard accessibility when choosing an
+application's appearance.
+
 ## Tooltip
 
 Compose tooltips around native controls, just like Select. Hover delay, focus,

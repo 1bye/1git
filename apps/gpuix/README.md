@@ -17,6 +17,10 @@ the light material tint, while the workspace remains opaque white.
 The connected tab silhouette keeps its shape while moving; it does not port
 the desktop's liquid shape-morphing machinery.
 
+The app disables focus outlines through its shared native UI tokens and custom
+row/tab styling. Arrow/Tab navigation, selection backgrounds, caret visibility,
+and keyboard activation remain intact; ordinary field borders are unchanged.
+
 ## Local native patches
 
 The app currently requires Apple Silicon macOS, Rust **1.97.1**, and Xcode

@@ -62,7 +62,6 @@ const styles = StyleSheet.create({
 		backgroundColor: lightColors.editorSunken2,
 		hover: { backgroundColor: lightColors.editorSunken2 },
 	},
-	focused: { borderColor: lightColors.brand },
 	label: {
 		fontSize: 11,
 		fontWeight: 400,
@@ -110,9 +109,6 @@ function RepositoryRow({
 	fileActions?: FileMenuActions;
 	onPreviewIntent?: (entry: WorkspaceEntry | null) => void;
 }) {
-	const [focused, setFocused] = useState(false);
-	const [keyboard, setKeyboard] = useState(true);
-
 	const row = (onMenu?: (event: EventPayload) => void) => (
 		<div
 			role={onInclude ? "row" : "presentation"}
@@ -123,8 +119,7 @@ function RepositoryRow({
 				styles.row,
 				!!entry.status && { borderRadius: 4, paddingRight: 4, gap: 4 },
 				!!entry.detail && { height: revisionRowHeight },
-				selected && styles.selected,
-				focused && keyboard && styles.focused
+				selected && styles.selected
 			)}
 		>
 			<div
@@ -139,7 +134,6 @@ function RepositoryRow({
 				aria-description={entry.detail}
 				aria-selected={selected}
 				tabIndex={tabbable ? 0 : -1}
-				onMouseDown={() => setKeyboard(false)}
 				onClick={(event) => {
 					if (event.modifiers?.ctrl && onMenu) onMenu(event);
 					else onSelect(event);
@@ -148,14 +142,11 @@ function RepositoryRow({
 					if (event.button === 2 || event.isRightClick) onMenu?.(event);
 				}}
 				onFocus={() => {
-					setFocused(true);
 					onPreviewIntent?.(entry);
 					onReveal();
 				}}
 				onBlur={() => {
-					setFocused(false);
 					onPreviewIntent?.(null);
-					setKeyboard(true);
 				}}
 				onKeyDown={(event) => {
 					if (event.key === "f10" && event.modifiers?.shift) {
@@ -164,7 +155,6 @@ function RepositoryRow({
 						return;
 					}
 
-					setKeyboard(true);
 					onKeyDown(event);
 				}}
 				style={{

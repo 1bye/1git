@@ -109,6 +109,7 @@ export function Checkbox({
 		style,
 		focused &&
 			!pointerFocus &&
+			tokens.focusVisible !== false &&
 			!disabled && { borderColor: tokens.colors.focusRing },
 		pressed && !disabled && { backgroundColor: tokens.colors.surfacePressed },
 		disabled && { opacity: 0.45, cursor: "not-allowed" }

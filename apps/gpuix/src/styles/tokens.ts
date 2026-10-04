@@ -3,6 +3,7 @@ import { densities, palettes, type UiTokens } from "@1git/gpuix-ui/tokens";
 
 /** Adapts the desktop's light surfaces to native UI controls without a theme provider. */
 export const appTokens: UiTokens = {
+	focusVisible: false,
 	colors: {
 		...palettes.light,
 		background: lightColors.editorSurface,
