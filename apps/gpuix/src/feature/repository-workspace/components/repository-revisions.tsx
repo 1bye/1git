@@ -16,6 +16,7 @@ import {
 import type { RevisionView } from "../types";
 import { RepositoryList } from "./repository-list";
 import { RepositoryReadNotice } from "./repository-read-notice";
+import { EmptyListPlaceholder } from "../../../fixture/empty-list-placeholder";
 
 const dividerHeight = 9;
 
@@ -82,6 +83,22 @@ export function RepositoryRevisions({
 	const [pointerFocus, setPointerFocus] = useState(false);
 	const current = state.views[view];
 	const revision = RepositoryWorkspaceModel.revision(state, view);
+
+	const emptyListReady =
+		view === "history"
+			? state.history.nextOffset !== 0 &&
+				!state.history.error &&
+				!state.history.query?.trim()
+			: state.stashes.loaded && !state.stashes.error;
+
+	const emptyView =
+		!state.preview &&
+		state.repository &&
+		!state.loading &&
+		!state.error &&
+		!loadingFiles &&
+		emptyListReady &&
+		state.entries[view].length === 0;
 
 	const resize = (ratio: number): void =>
 		onAction({ type: "resize-revisions", view, ratio });
@@ -217,6 +234,7 @@ export function RepositoryRevisions({
 					}
 					entries={revision?.files ?? []}
 					state={current.files}
+					emptyContent={emptyView ? <EmptyListPlaceholder /> : undefined}
 					emptyMessage={
 						loadingFiles
 							? "Reading saved files…"

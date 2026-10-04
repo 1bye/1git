@@ -115,9 +115,7 @@ it("uses the native shell geometry and paints only the workspace opaque", () => 
 	expect(element("workspace").style.backgroundColor).toBe(
 		lightColors.editorSurface
 	);
-	expect(element("app-shell").style.backgroundColor).toBe(
-		lightColors.studioGlassStrong
-	);
+	expect(element("app-shell").style.backgroundColor).toBe("transparent");
 	expect(selectedTabs()).toEqual(["1git / main"]);
 	expect(windowOptions.windowBackground).toBe("blurred");
 });

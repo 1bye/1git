@@ -242,6 +242,8 @@ it("refreshes stashes even when HEAD is unchanged, preserving immutable cached f
 	await waitFor(() =>
 		root.renderer.getAllText().includes("No stashed changes")
 	);
+	expect(element("comparison-art-empty")).toBeDefined();
+	expect(element("empty-list-placeholder")).toBeDefined();
 	expect(root.renderer.findByTestId("diff-viewport")).toBeUndefined();
 	expect(root.renderer.findByTestId("entry-src/file-1.ts")).toBeUndefined();
 });

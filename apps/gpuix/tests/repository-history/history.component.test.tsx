@@ -342,6 +342,8 @@ it("does not request history for unborn HEAD and refreshes an updated HEAD from 
 	await openHistory();
 	expect(pages).not.toHaveBeenCalled();
 	expect(root.renderer.getAllText()).toContain("No commits yet");
+	expect(element("comparison-art-empty")).toBeDefined();
+	expect(element("empty-list-placeholder")).toBeDefined();
 	status.mockResolvedValue({ ok: true, value: snapshot });
 	click("refresh-repository");
 	await settle();

@@ -10,8 +10,8 @@ const styles = StyleSheet.create({
 		width: "100%",
 		height: "100%",
 		flexShrink: 0,
-		// Keep dark text legible even when macOS supplies a dark vibrancy backdrop.
-		backgroundColor: lightColors.studioGlassStrong,
+		// AppKit owns the sidebar tint; only the workspace paints an opaque surface.
+		backgroundColor: "transparent",
 		userSelect: "none",
 	},
 	content: {
@@ -21,10 +21,17 @@ const styles = StyleSheet.create({
 		minWidth: 0,
 		minHeight: 0,
 	},
+	body: {
+		display: "flex",
+		flexDirection: "row",
+		flexGrow: 1,
+		minHeight: 0,
+	},
 	workspace: {
 		display: "flex",
 		flexDirection: "row",
 		flexGrow: 1,
+		minWidth: 0,
 		minHeight: 0,
 		marginLeft: workspaceLayout.workspaceSurfaceInset,
 		marginRight: workspaceLayout.workspaceSurfaceInset,
@@ -41,6 +48,7 @@ export function AppShell({
 	toolbar,
 	workspaceLabel,
 	navigation,
+	rail,
 	children,
 	hidden = false,
 	testId = "app-shell",
@@ -49,6 +57,7 @@ export function AppShell({
 	toolbar: ReactNode;
 	workspaceLabel: string;
 	navigation?: ReactNode;
+	rail?: ReactNode;
 	children?: ReactNode;
 	hidden?: boolean;
 	testId?: string;
@@ -73,14 +82,20 @@ export function AppShell({
 			)}
 		>
 			{toolbar}
-			<div
-				testId="workspace"
-				role="tabpanel"
-				aria-label={workspaceLabel}
-				style={styles.workspace}
-			>
-				{navigation}
-				<div style={styles.content}>{children}</div>
+			<div style={styles.body}>
+				{rail}
+				<div
+					testId="workspace"
+					role="tabpanel"
+					aria-label={workspaceLabel}
+					style={StyleSheet.compose(
+						styles.workspace,
+						rail ? { marginLeft: 0 } : undefined
+					)}
+				>
+					{navigation}
+					<div style={styles.content}>{children}</div>
+				</div>
 			</div>
 		</div>
 	);

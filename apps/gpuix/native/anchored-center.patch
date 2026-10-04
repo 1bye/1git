@@ -1,0 +1,39 @@
+diff --git a/packages/native/src/custom_elements/anchored.rs b/packages/native/src/custom_elements/anchored.rs
+--- a/packages/native/src/custom_elements/anchored.rs
++++ b/packages/native/src/custom_elements/anchored.rs
+@@ -201,7 +201,7 @@
+                 .w_full()
+                 .flex()
+                 .justify_center()
+-                .child(layer)
++                .child(gpui::div().size_0().child(layer))
+                 .into_any_element(),
+             (Side::Top, Alignment::End) => gpui::div()
+                 .absolute()
+@@ -225,7 +225,7 @@
+                 .h_full()
+                 .flex()
+                 .items_center()
+-                .child(layer)
++                .child(gpui::div().size_0().child(layer))
+                 .into_any_element(),
+             (Side::Right, Alignment::End) => gpui::div()
+                 .absolute()
+@@ -249,7 +249,7 @@
+                 .w_full()
+                 .flex()
+                 .justify_center()
+-                .child(layer)
++                .child(gpui::div().size_0().child(layer))
+                 .into_any_element(),
+             (Side::Bottom, Alignment::End) => gpui::div()
+                 .absolute()
+@@ -273,7 +273,7 @@
+                 .h_full()
+                 .flex()
+                 .items_center()
+-                .child(layer)
++                .child(gpui::div().size_0().child(layer))
+                 .into_any_element(),
+             (Side::Left, Alignment::End) => gpui::div()
+                 .absolute()

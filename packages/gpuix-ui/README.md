@@ -1,8 +1,48 @@
 # @1git/gpuix-ui
 
 Styled React controls for GPUIX, built with `@1git/gpuix-stylesheet`. Includes
-Button, Checkbox, Text, Textarea, Select, Popover, and a native DiffView. Controls use named color and density presets and default
+Button, Checkbox, Text, Textarea, Select, Popover, Tooltip, and a native DiffView. Controls use named color and density presets and default
 to dark colors and comfortable sizing. No theme provider is required.
+
+## Tooltip
+
+Compose tooltips around native controls, just like Select. Hover delay, focus,
+Escape/click dismissal and viewport clamping use the existing GPUIX primitives.
+The surface inverts the selected palette (text color for its background,
+background color for its text) and does not intercept pointer input.
+
+```tsx
+import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from "@1git/gpuix-ui/tooltip";
+
+<TooltipProvider delayDuration={350}>
+  <Tooltip>
+    <TooltipTrigger asChild>
+      <div role="button" tabIndex={0} aria-label="History" onClick={openHistory}>
+        <HistoryIcon />
+      </div>
+    </TooltipTrigger>
+    <TooltipContent tokens={tokens} side="right" align="center">History</TooltipContent>
+  </Tooltip>
+</TooltipProvider>
+```
+
+`Tooltip`, `TooltipProvider`, and `TooltipTrigger` retain the native primitive
+props; `TooltipContent` adds `tokens`, a `tooltip` role, 12px text, and an 8px side
+offset. Caller styles override defaults. An `asChild` control must forward its
+native ref and focus, blur, hover, click and key handlers; use a native host if
+the custom control does not do so. Always give the trigger an accessible name;
+the tooltip is supplemental help, not the control's only label.
+GPUIX anchors to the root's box: keep it sized to its trigger (e.g. a flex parent
+with `alignItems: "start"`/`"center"`, as in the workspace rail), not stretched
+across a full-width block.
+
+Centered placement requires the local `native/anchored-center.patch` in the
+GPUIX app's addon. Build it with `bun run --cwd apps/gpuix build:native` and use
+the app's native preload. Test the shared component from the workspace root:
+
+```sh
+bun test --preload ./apps/gpuix/native/preload.ts packages/gpuix-ui/tests/tooltip
+```
 
 ## Popover
 

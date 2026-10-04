@@ -1,6 +1,6 @@
 /**
  * Covers: workspace geometry, commit inclusion/drafts, stacked revision/files navigation, splitter resizing, keyboard, independent scrolling, tab isolation and dragging.
- * Real: App, view pills, GPUIX layout, hit testing, focus and accessibility.
+ * Real: App, navigation rail, GPUIX layout, hit testing, focus and accessibility.
  * Doubles: sample repository data; focus notification for inactive offscreen windows.
  * Requires: patched GPUIX native test renderer with macOS graphics access.
  */
@@ -126,15 +126,13 @@ it("switches and closes workspaces with Command shortcuts and toggles a focused 
 	expect(element("commit-message")).toBeDefined();
 });
 
-it("keeps navigation pills filled and borderless while the search field is transparent", () => {
+it("keeps rail selection filled and borderless while the search field is transparent", () => {
 	expect(element("view-changes").style.backgroundColor).toBe(
-		lightColors.editorHairlineStrong
+		lightColors.editorHairline
 	);
 
 	for (const view of ["history", "stashes"]) {
-		expect(element(`view-${view}`).style.backgroundColor).toBe(
-			lightColors.editorSunken
-		);
+		expect(element(`view-${view}`).style.backgroundColor).toBe("transparent");
 	}
 
 	for (const view of ["changes", "history", "stashes"]) {
@@ -404,52 +402,39 @@ const selectedView = () =>
 		)
 		.map((node) => node.aria?.label);
 
-it("joins borderless view segments with only the outside corners rounded", () => {
+it("stacks compact borderless rail tabs outside the white workspace", () => {
 	const changes = bounds("view-changes");
 	const history = bounds("view-history");
 	const stashes = bounds("view-stashes");
-	const navigation = bounds("repository-navigation");
+	const workspace = bounds("workspace");
 
-	expect(root.renderer.findByTestId("repository-view")).toBeUndefined();
-	expect(history.y).toBe(changes.y);
-	expect(stashes.y).toBe(changes.y);
-	expect(history.x).toBe(changes.x + changes.width);
-	expect(stashes.x).toBe(history.x + history.width);
-	expect(stashes.x + stashes.width).toBeLessThan(
-		navigation.x + navigation.width
-	);
+	expect(history.x).toBe(changes.x);
+	expect(stashes.x).toBe(changes.x);
+	expect(history.y).toBe(changes.y + changes.height + 6);
+	expect(stashes.y).toBe(history.y + history.height + 6);
+	expect(changes.x + changes.width).toBeLessThan(workspace.x);
 
 	for (const view of ["changes", "history", "stashes"]) {
 		expect(element(`view-${view}`).style).toMatchObject({
-			height: 26,
-			borderRadius: 0,
+			width: 32,
+			height: 32,
+			borderRadius: 8,
 		});
 		expect(element(`view-${view}`).style.borderWidth ?? 0).toBe(0);
 	}
 
-	expect(element("view-changes").style.borderTopLeftRadius).toBe(13);
-	expect(element("view-stashes").style.borderTopRightRadius).toBe(13);
-	const search = bounds("filter-changes");
-
-	expect(search.y + search.height / 2).toBe(changes.y + changes.height / 2);
-	expect(bounds("filter-changes").x).toBeGreaterThan(stashes.x + stashes.width);
+	expect(bounds("filter-changes").x).toBeGreaterThan(workspace.x);
 	expect(root.renderer.findByTestId("changes-filter")).toBeUndefined();
-
 	expect(selectedView()).toEqual(["Changes"]);
-	expect(element("view-changes").style.backgroundColor).toBe(
-		lightColors.editorHairlineStrong
-	);
 	click("view-stashes");
 	expect(selectedView()).toEqual(["Stashes"]);
-	expect(element("view-changes").style.backgroundColor).toBe(
-		lightColors.editorSunken
-	);
+	expect(element("view-changes").style.backgroundColor).toBe("transparent");
 	expect(element("view-stashes").style.backgroundColor).toBe(
-		lightColors.editorHairlineStrong
+		lightColors.editorHairline
 	);
 });
 
-it("tightens sidebar headers without shrinking pills, file rows or checkbox targets", () => {
+it("tightens sidebar headers without shrinking rail buttons, file rows or checkbox targets", () => {
 	expect(element("row-src/app.tsx").style.height).toBe(28);
 	expect(element("include-all").style).toMatchObject({ width: 24, height: 24 });
 	expect(element("include-src/app.tsx").style).toMatchObject({
@@ -462,7 +447,7 @@ it("tightens sidebar headers without shrinking pills, file rows or checkbox targ
 		const toolbar = bounds("repository-views");
 
 		expect(toolbar.height).toBe(36);
-		expect(element(`view-${view}`).style.height).toBe(26);
+		expect(element(`view-${view}`).style.height).toBe(32);
 		expect(bounds("repository-list").y - toolbar.y - toolbar.height).toBe(24);
 
 		if (view !== "changes") {
@@ -473,10 +458,10 @@ it("tightens sidebar headers without shrinking pills, file rows or checkbox targ
 	}
 });
 
-it("wraps pill arrows, supports Home/End and Enter/Space, and ignores modified navigation", () => {
-	key("view-changes", "left");
+it("wraps vertical rail arrows, supports Home/End and Enter/Space, and ignores modified navigation", () => {
+	key("view-changes", "up");
 	expect(selectedView()).toEqual(["Stashes"]);
-	key("view-stashes", "right");
+	key("view-stashes", "down");
 	expect(selectedView()).toEqual(["Changes"]);
 	key("view-changes", "end");
 	expect(selectedView()).toEqual(["Stashes"]);
@@ -491,47 +476,50 @@ it("wraps pill arrows, supports Home/End and Enter/Space, and ignores modified n
 	expect(root.renderer.getFocusedElementId()).toBe(element("view-stashes").id);
 });
 
-it("indicates keyboard focus using label color without adding segment borders", () => {
+it("indicates keyboard focus using icon color without adding borders", () => {
 	click("view-history");
-	const pill = element("view-history");
+	const tab = element("view-history");
 
 	flushSync(() =>
-		handleGpuixEvent({ elementId: pill.id, eventType: "focus" }, root.renderer)
+		handleGpuixEvent({ elementId: tab.id, eventType: "focus" }, root.renderer)
 	);
-	expect(element("view-label-history").style.color).toBe(lightColors.editorInk);
+	expect(element("view-history-icon").style.color).toBe(lightColors.editorInk);
 	key("view-history", "enter");
-	expect(element("view-label-history").style.color).toBe(lightColors.brand);
+	expect(element("view-history-icon").style.color).toBe(lightColors.brand);
 	click("view-stashes");
 	const next = element("view-stashes");
 
 	flushSync(() =>
 		handleGpuixEvent({ elementId: next.id, eventType: "focus" }, root.renderer)
 	);
-	expect(element("view-label-stashes").style.color).toBe(lightColors.editorInk);
+	expect(element("view-stashes-icon").style.color).toBe(lightColors.editorInk);
 	click("entry-stash-1");
 	flushSync(() =>
 		handleGpuixEvent({ elementId: next.id, eventType: "blur" }, root.renderer)
 	);
 	key("entry-stash-1", "shift-tab");
+	expect(root.renderer.getFocusedElementId()).toBe(element("rail-account").id);
+	key("rail-account", "shift-tab");
+	expect(root.renderer.getFocusedElementId()).toBe(element("rail-settings").id);
+	key("rail-settings", "shift-tab");
 	expect(root.renderer.getFocusedElementId()).toBe(next.id);
 	flushSync(() =>
 		handleGpuixEvent({ elementId: next.id, eventType: "focus" }, root.renderer)
 	);
-	expect(element("view-label-stashes").style.color).toBe(lightColors.brand);
+	expect(element("view-stashes-icon").style.color).toBe(lightColors.brand);
 });
 
 it("keeps the full-width tab rail above navigation contained in the rounded workspace", () => {
 	expect(bounds("repository-navigation")).toMatchObject({
-		x: 6,
+		x: 48,
 		y: 42,
-		// GPUIX reports content width, excluding the 1px divider.
-		width: 309,
+		width: 310,
 		height: 592,
 	});
 	expect(bounds("workspace")).toMatchObject({
-		x: 6,
+		x: 48,
 		y: 42,
-		width: 968,
+		width: 926,
 		height: 592,
 	});
 	expect(element("repository-navigation").parentId).toBe(
@@ -540,8 +528,7 @@ it("keeps the full-width tab rail above navigation contained in the rounded work
 	expect(bounds("view-changes").y).toBeGreaterThanOrEqual(42);
 	expect(bounds("view-changes").x).toBeLessThan(96);
 	expect(bounds("workspace-toolbar")).toMatchObject({
-		// Native bounds include the toolbar's left padding in the reported origin.
-		x: 86,
+		x: 0,
 		y: 0,
 		width: 980,
 		height: 42,
@@ -664,12 +651,16 @@ it("preserves wheel scrolling without a selection and isolates tab state", () =>
 	expect(root.renderer.getAllText()).toContain("Recent commits");
 });
 
-it("supports arrow-key pill selection and entry/exit with Tab", () => {
+it("supports arrow-key rail selection and entry/exit with Tab", () => {
 	key("view-changes", "right");
 	expect(root.renderer.getAllText()).toContain("Recent commits");
 	expect(root.renderer.getFocusedElementId()).toBe(element("view-history").id);
 	root.renderer.simulateKeystrokes("tab");
 	root.renderer.flush();
+	expect(root.renderer.getFocusedElementId()).toBe(element("rail-settings").id);
+	key("rail-settings", "tab");
+	expect(root.renderer.getFocusedElementId()).toBe(element("rail-account").id);
+	key("rail-account", "tab");
 	expect(root.renderer.getFocusedElementId()).toBe(
 		element("filter-history").id
 	);
@@ -865,6 +856,10 @@ it("reveals the remembered row when keyboard focus returns after scrolling it of
 	root.renderer.flush();
 	expect(scrollY()).toBe(0);
 	key("view-changes", "tab");
+	expect(root.renderer.getFocusedElementId()).toBe(element("rail-settings").id);
+	key("rail-settings", "tab");
+	expect(root.renderer.getFocusedElementId()).toBe(element("rail-account").id);
+	key("rail-account", "tab");
 	expect(root.renderer.getFocusedElementId()).toBe(
 		element("filter-changes").id
 	);

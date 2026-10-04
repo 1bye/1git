@@ -57,6 +57,7 @@ export function RepositoryCloneView({
 	onBack,
 	onSettings,
 	onAddAccount,
+	preferredAccountKey,
 }: {
 	accounts: Accounts;
 	active: boolean;
@@ -67,13 +68,20 @@ export function RepositoryCloneView({
 	onBack: () => void;
 	onSettings: () => void;
 	onAddAccount: () => void;
+	/** Window-local default; changing it never overwrites an existing Clone draft. */
+	preferredAccountKey?: string;
 }) {
 	const renderer = useGpuixRequired();
 	const [catalog, setCatalog] = useState(() => loadAccounts(accounts));
 
-	const [source, setSource] = useState(() =>
-		catalog.saved[0] ? AccountStore.key(catalog.saved[0]) : "url"
-	);
+	const [source, setSource] = useState(() => {
+		const account =
+			catalog.saved.find(
+				(item) => AccountStore.key(item) === preferredAccountKey
+			) ?? catalog.saved[0];
+
+		return account ? AccountStore.key(account) : "url";
+	});
 
 	const [url, setUrl] = useState("");
 	const [selection, setSelection] = useState<AccountCloneSelection>();

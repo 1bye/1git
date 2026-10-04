@@ -11,7 +11,7 @@ import {
 	type RepositoryWorkspaceAction,
 	type RepositoryWorkspaceState,
 } from "../lib/repository-workspace-model";
-import { repositoryViews, type RepositoryView } from "../types";
+import { repositoryViews } from "../types";
 import { RepositoryList } from "./repository-list";
 import { EmptyListPlaceholder } from "../../../fixture/empty-list-placeholder";
 import { RepositoryCommit } from "./repository-commit";
@@ -48,29 +48,6 @@ const styles = StyleSheet.create({
 		paddingLeft: 6,
 		paddingRight: 8,
 		gap: 4,
-	},
-	pill: {
-		display: "flex",
-		alignItems: "center",
-		justifyContent: "center",
-		flexShrink: 0,
-		height: 26,
-		paddingLeft: 10,
-		paddingRight: 10,
-		borderRadius: 0,
-		backgroundColor: lightColors.editorSunken,
-		cursor: "pointer",
-		hover: { backgroundColor: lightColors.editorSunken2 },
-	},
-	selectedPill: {
-		backgroundColor: lightColors.editorHairlineStrong,
-		hover: { backgroundColor: lightColors.editorHairlineStrong },
-	},
-	pillLabel: {
-		fontSize: 11,
-		fontWeight: 500,
-		color: lightColors.editorMuted,
-		pointerEvents: "none",
 	},
 	viewContent: {
 		display: "flex",
@@ -161,9 +138,6 @@ export function RepositoryNavigation({
 	openFile?: typeof RepositoryFileActions.open;
 }) {
 	const renderer = useGpuixRequired();
-	const pills = useRef(new Map<RepositoryView, PublicInstance>());
-	const [focusedView, setFocusedView] = useState<RepositoryView | null>(null);
-	const [pointerFocus, setPointerFocus] = useState<RepositoryView | null>(null);
 	const { view } = state;
 	const [filterOpen, setFilterOpen] = useState(false);
 	const [query, setQuery] = useState("");
@@ -231,6 +205,12 @@ export function RepositoryNavigation({
 	const revisionReader = view === "history" ? history : stashes;
 	const label = repositoryViews.find((item) => item.value === view)?.label;
 
+	const emptyListReady =
+		view === "changes" ||
+		(view === "history"
+			? state.history.nextOffset !== 0 && !state.history.error
+			: state.stashes.loaded && !state.stashes.error);
+
 	const heading =
 		view === "changes"
 			? `${state.includedFileIds.length} of ${state.entries.changes.length} selected`
@@ -239,13 +219,6 @@ export function RepositoryNavigation({
 					? "Search results"
 					: "Recent commits"
 				: "Saved work";
-
-	const activate = (next: RepositoryView): void => {
-		onAction({ type: "view", view: next });
-		const pill = pills.current.get(next);
-
-		if (pill) renderer.focusElement?.(pill.id);
-	};
 
 	const list = (
 		<RepositoryList
@@ -278,8 +251,9 @@ export function RepositoryNavigation({
 						: "Saved stashes"
 			}
 			emptyContent={
-				view === "changes" &&
+				emptyListReady &&
 				!filtering &&
+				!historySearching &&
 				!state.preview &&
 				state.repository &&
 				!state.loading &&
@@ -335,101 +309,17 @@ export function RepositoryNavigation({
 			style={styles.navigation}
 		>
 			<div testId="repository-views" style={styles.toolbar}>
-				<div
-					role="tablist"
-					aria-label="Repository views"
+				<text
+					testId="repository-view-title"
 					style={{
-						display: "flex",
-						flexDirection: "row",
-						alignItems: "center",
-						gap: 0,
+						fontSize: 12,
+						fontWeight: 500,
+						color: lightColors.editorInk,
+						paddingLeft: 8,
 					}}
 				>
-					{repositoryViews.map((item, index) => (
-						<div
-							key={item.value}
-							testId={`view-${item.value}`}
-							role="tab"
-							aria-label={item.label}
-							aria-selected={view === item.value}
-							tabIndex={view === item.value ? 0 : -1}
-							ref={(node) => {
-								if (node) pills.current.set(item.value, node);
-								else pills.current.delete(item.value);
-							}}
-							onClick={() => activate(item.value)}
-							onMouseDown={() => setPointerFocus(item.value)}
-							onFocus={() => setFocusedView(item.value)}
-							onBlur={() => {
-								setFocusedView((current) =>
-									current === item.value ? null : current
-								);
-								setPointerFocus((current) =>
-									current === item.value ? null : current
-								);
-							}}
-							onKeyDown={(event) => {
-								setPointerFocus(null);
-
-								if (
-									event.modifiers?.cmd ||
-									event.modifiers?.ctrl ||
-									event.modifiers?.alt ||
-									event.modifiers?.shift
-								)
-									return;
-
-								const key = event.key;
-
-								if (key === "enter" || key === "space") {
-									if (!event.isHeld) activate(item.value);
-
-									return;
-								}
-
-								let nextIndex = index;
-
-								if (key === "left")
-									nextIndex =
-										(index + repositoryViews.length - 1) %
-										repositoryViews.length;
-								else if (key === "right")
-									nextIndex = (index + 1) % repositoryViews.length;
-								else if (key === "home") nextIndex = 0;
-								else if (key === "end") nextIndex = repositoryViews.length - 1;
-								else return;
-
-								const next = repositoryViews[nextIndex];
-
-								if (next) activate(next.value);
-							}}
-							style={StyleSheet.compose(
-								styles.pill,
-								index === 0 && {
-									borderTopLeftRadius: 13,
-									borderBottomLeftRadius: 13,
-								},
-								index === repositoryViews.length - 1 && {
-									borderTopRightRadius: 13,
-									borderBottomRightRadius: 13,
-								},
-								view === item.value && styles.selectedPill
-							)}
-						>
-							<text
-								testId={`view-label-${item.value}`}
-								style={StyleSheet.compose(
-									styles.pillLabel,
-									view === item.value && { color: lightColors.editorInk },
-									focusedView === item.value &&
-										pointerFocus !== item.value && { color: lightColors.brand }
-								)}
-							>
-								{item.label}
-							</text>
-						</div>
-					))}
-				</div>
+					{label}
+				</text>
 				<div style={{ flexGrow: 1 }} />
 				{state.repository || state.repositoryPath ? (
 					<Button

@@ -11,8 +11,9 @@ bun run --cwd apps/gpuix dev
 ```
 
 Both GPUIX packages stay pinned to `0.10.0`. This app runs on Bun, React 19,
-and GPUIX, not the DOM or Electron. The window uses native macOS blur and
-traffic lights, with a translucent light tint and an opaque white workspace.
+and GPUIX, not the DOM or Electron. The window uses native macOS sidebar vibrancy
+and traffic lights. Titlebar and rail backgrounds are transparent; AppKit supplies
+the light material tint, while the workspace remains opaque white.
 The connected tab silhouette keeps its shape while moving; it does not port
 the desktop's liquid shape-morphing machinery.
 
@@ -51,6 +52,19 @@ targets are separate. Window movability and native tiling remain enabled.
 checked/unchecked/mixed accessibility state. The root Bun patch in
 `patches/@gpuix%2Fnative@0.10.0.patch` adds that prop to the published JavaScript
 bridge and TypeScript host contract; `bun install` reapplies it reproducibly.
+
+`native/anchored-center.patch` fixes centered floating layers on all four sides.
+A zero-size anchor point prevents flex alignment and GPUI's anchor placement
+from both subtracting half the content size. The shared `@1git/gpuix-ui/tooltip`
+wraps native hover/focus behavior with an inverted, non-interactive surface.
+
+`native/sidebar-vibrancy-platform.patch` matches this app's light Electron chrome
+using AppKit's Sidebar material, behind-window blending and active state. It removes
+the GPUI fork's private-layer tint/saturation stripping and pins the backdrop to light
+appearance to keep dark labels readable. This is app-specific appearance policy,
+not a universal GPUI default. The real-window integration test checks the native
+material and appearance under both light and dark application appearances; component
+tests separately keep shell chrome transparent and the workspace opaque white.
 
 `native/diff-scroll.patch` connects GPUIX's existing native diff list to the
 pixel-scroll API used for keyboard navigation, in both live and test renderers.
@@ -861,11 +875,22 @@ GPUIX_PREVIEW=1 bun run --cwd apps/gpuix dev
 This explicit mode starts with eight sample tabs. The behaviors below describe
 that preview; normal startup reads real Changes only after a repository is chosen.
 
-Workspace tabs span the titlebar after the traffic lights. Inside the rounded
-content container below, a 310px navigation pane holds compact Changes/History/Stashes
-pills and lists beside the diff panel. A hairline divider separates navigation
-within the same white surface without taking width away from the tab rail. The native app
-reuses the desktop's color tokens and Phosphor Light icons.
+Workspace tabs span the full titlebar after the traffic lights. Below them, a
+48px icon rail sits in the tinted window chrome, outside the rounded white
+workspace. Changes, History and Stashes switch the active repository's view;
+the 310px file/revision panel keeps its title, refresh and search controls.
+Welcome, Clone and comparison hide repository-specific rail items. Settings
+keeps the active repository's Changes/History/Stashes buttons; choosing one
+returns to that view, restoring focus without resetting workspace state.
+Rail controls are 32px, with equal 8px horizontal insets and a subtle selected
+fill. Account operations temporarily disable rail navigation while pending.
+The bottom Settings button opens the existing full Settings view. The account
+button opens a native menu with saved accounts, Add account and Manage accounts.
+Choosing an account sets the **window-local default for new Clone views** only.
+It never changes Git author identity, remotes, push credentials or an existing
+Clone draft. Removed accounts fall back to the first saved account (or URL cloning
+when none remain). The rail reads public metadata only, never tokens or provider
+APIs. Controls have accessible names and hover/focus tooltips.
 
 - Changes shows one list of 30 sample files, all initially included in the planned
   commit. Compact rows prioritize filenames over muted paths, with status icons,
@@ -895,15 +920,15 @@ reuses the desktop's color tokens and Phosphor Light icons.
   cancels an active drag. Each view remembers its own split per workspace tab.
 - Click a row to select it. Up/Down, Home/End, and Page Up/Down navigate and
   reveal rows. Enter/Space select a focused row. Tab/Shift+Tab move between the
-  active view pill, include-all checkbox, focused file and its checkbox, the
+  active rail tab, Settings/account controls, include-all checkbox, focused file and its checkbox, the
   commit editor and enabled preview action, and workspace tab controls.
   Space releases toggle a focused checkbox without
   changing the viewed file. Arrow navigation from a checkbox returns to file
   navigation; offscreen keyboard targets are revealed. In History/Stashes, Tab
   traverses the revision list, divider, and file list before leaving navigation.
-- Three rounded pills switch views directly. Left/Right wrap between them;
-  Home/End select the first/last. Enter/Space activate the focused pill. Only the
-  active pill is in the Tab order, with a keyboard-only focus outline.
+- Three compact icon tabs switch views directly. Up/Down (or Left/Right) wrap;
+  Home/End select the first/last. Enter/Space activate the focused tab. Only the
+  active tab is in the Tab order, with keyboard focus shown in the accent color.
   Mouse wheel/trackpad scroll the list independently of tabs.
 - Every tab keeps its included files, view, each view's selected row and scroll
   offset, plus revision file selection/scroll and split proportions.

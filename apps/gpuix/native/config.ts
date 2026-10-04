@@ -46,6 +46,14 @@ export const elementBoundsPatchPath = resolve(
 	import.meta.dir,
 	"element-bounds.patch"
 );
+export const anchoredCenterPatchPath = resolve(
+	import.meta.dir,
+	"anchored-center.patch"
+);
+export const sidebarVibrancyPlatformPatchPath = resolve(
+	import.meta.dir,
+	"sidebar-vibrancy-platform.patch"
+);
 /** Changing the patch, revision, or host invalidates the local binary. */
 export const accountsPatchPath = resolve(import.meta.dir, "accounts.patch");
 export const accountsPlatformPatchPath = resolve(
@@ -65,6 +73,8 @@ export const nativeBuildId = createHash("sha256")
 	.update(readFileSync(testSessionPatchPath))
 	.update(readFileSync(testSessionPlatformPatchPath))
 	.update(readFileSync(elementBoundsPatchPath))
+	.update(readFileSync(anchoredCenterPatchPath))
+	.update(readFileSync(sidebarVibrancyPlatformPatchPath))
 	.update(readFileSync(accountsPatchPath))
 	.update(readFileSync(accountsPlatformPatchPath))
 	.update(`${process.platform}-${process.arch}-release-v1`)

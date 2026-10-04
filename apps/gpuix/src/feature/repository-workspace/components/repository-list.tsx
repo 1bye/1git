@@ -452,6 +452,7 @@ export function RepositoryList({
 			testId={testId}
 			role={inclusion ? "grid" : "listbox"}
 			aria-label={label}
+			aria-description={entries.length === 0 ? emptyMessage : undefined}
 			aria-multiselectable={inclusion ? true : undefined}
 			onScroll={saveScroll}
 			style={styles.viewport}

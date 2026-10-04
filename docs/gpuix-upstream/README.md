@@ -2,7 +2,7 @@
 
 Local implementation notes for preparing future upstream PRs. These are not
 submitted PRs, and upstream acceptance or compatibility with newer revisions has
-not been verified. Updated 2026-09-28.
+not been verified. Updated 2026-10-04.
 
 ## Baseline
 
@@ -26,10 +26,14 @@ not been verified. Updated 2026-09-28.
 | [Native context menus](07-native-context-menu.md) | Platform feature; needs generalization | GPUIX native + GPUI fork |
 | [Padded element bounds](08-element-bounds.md) | Floating anchor positioning fix | GPUIX native |
 | [Credentials, password input and Settings](09-accounts-bridge.md) | Platform exposure and secure-input support; includes app policy | GPUIX native + GPUI fork |
+| [Centered floating layers](10-centered-floating-layers.md) | Center-anchor positioning fix | GPUIX native |
+| [Sidebar vibrancy](11-sidebar-vibrancy.md) | App-specific appearance policy; needs opt-in API | GPUI fork |
 
 Start with the lifecycle and accessibility fixes. Keep independent features in
 separate PRs. The diff patch should likely be split further. The context-menu
 patch contains explicit 1git policy and is not ready to submit unchanged.
+The sidebar vibrancy patch also changes platform defaults for this app and should
+not be submitted unchanged as a general-purpose fix.
 
 ## Source and preparation
 

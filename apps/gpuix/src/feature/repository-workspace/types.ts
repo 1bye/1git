@@ -45,7 +45,7 @@ export interface WorkspaceEntries {
 	readonly stashes: readonly WorkspaceRevision[];
 }
 
-/** Shared labels and keyboard order for the three view pills. */
+/** Shared labels and keyboard order for the repository rail tabs. */
 export const repositoryViews: readonly {
 	value: RepositoryView;
 	label: string;

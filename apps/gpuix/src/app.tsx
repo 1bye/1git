@@ -46,6 +46,8 @@ import {
 import { WorkspaceTabs } from "./feature/workspace-tabs/workspace-tabs";
 import { WorkspaceTabsModel } from "./feature/workspace-tabs/lib/workspace-tabs-model";
 import { AppShell } from "./fixture/app-shell";
+import { WorkspaceRail } from "./feature/repository-workspace/components/workspace-rail";
+import type { RepositoryView } from "./feature/repository-workspace/types";
 import { RepositoryComparison } from "./feature/repository-comparison/repository-comparison";
 import { RepositoryComparison as ComparisonReader } from "./feature/repository-comparison/lib/repository-comparison";
 
@@ -177,6 +179,7 @@ export function App({
 	);
 
 	const settingsOpen = settingsView !== null;
+	const [preferredAccountKey, setPreferredAccountKey] = useState<string>();
 	const [cloneId, setCloneId] = useState<string | null>(null);
 	const cloneTrigger = useRef<PublicInstance | null>(null);
 
@@ -188,12 +191,29 @@ export function App({
 	);
 
 	const workspaceFocus = useRef<number | null>(null);
+	const railSettingsButton = useRef<PublicInstance>(null);
+	const railAccountButton = useRef<PublicInstance>(null);
+	const railViewButtons = useRef(new Map<RepositoryView, PublicInstance>());
+
+	const railFocus = useRef<"settings" | "account" | RepositoryView | null>(
+		null
+	);
 
 	const openSettings = useCallback(
 		(initialForm: "list" | "connect" = "list") => {
 			if (settingsOpen) return;
 
 			workspaceFocus.current = renderer.getFocusedElementId?.() ?? null;
+			const railView = [...railViewButtons.current].find(
+				([, button]) => button.id === workspaceFocus.current
+			)?.[0];
+
+			railFocus.current =
+				workspaceFocus.current === railSettingsButton.current?.id
+					? "settings"
+					: workspaceFocus.current === railAccountButton.current?.id
+						? "account"
+						: (railView ?? null);
 			setSettingsView(initialForm);
 		},
 		[renderer, settingsOpen]
@@ -203,7 +223,23 @@ export function App({
 		setSettingsView(null);
 		const focused = workspaceFocus.current;
 
-		if (focused !== null) setTimeout(() => renderer.focusElement?.(focused), 0);
+		setTimeout(() => {
+			let target = focused;
+			const railTarget = railFocus.current;
+
+			if (railTarget === "settings")
+				target = railSettingsButton.current?.id ?? null;
+			else if (railTarget === "account")
+				target = railAccountButton.current?.id ?? null;
+			else if (railTarget)
+				target =
+					railViewButtons.current.get(railTarget)?.id ??
+					railSettingsButton.current?.id ??
+					null;
+
+			if (target !== null && target !== undefined)
+				renderer.focusElement?.(target);
+		}, 0);
 	}, [renderer]);
 
 	useEffect(() => {
@@ -302,6 +338,28 @@ export function App({
 	const selected = files?.find((file) => file.id === selectedId);
 	const comparison = selected?.change ?? selected?.commitFile;
 
+	const repositoryView =
+		workspace &&
+		(workspace.repository || workspace.preview || workspace.repositoryPath) &&
+		!activeTab?.comparison
+			? workspace.view
+			: undefined;
+
+	const selectRepositoryView = (view: RepositoryView) => {
+		if (!activeTab) return;
+
+		dispatch({
+			type: "workspace",
+			id: activeTab.id,
+			action: { type: "view", view },
+		});
+
+		if (settingsOpen) {
+			railFocus.current = view;
+			closeSettings();
+		}
+	};
+
 	const closeNotice = mutations.closeProtection.requested ? (
 		<RepositoryCloseNotice
 			state={state}
@@ -322,6 +380,22 @@ export function App({
 		>
 			<AppShell
 				hidden={settingsOpen}
+				rail={
+					settingsOpen ? undefined : (
+						<WorkspaceRail
+							settingsButtonRef={railSettingsButton}
+							accountButtonRef={railAccountButton}
+							viewButtonRefs={railViewButtons}
+							accounts={accounts}
+							preferredAccountKey={preferredAccountKey}
+							onAccount={setPreferredAccountKey}
+							onSettings={openSettings}
+							onAddAccount={() => openSettings("connect")}
+							view={repositoryView}
+							onView={selectRepositoryView}
+						/>
+					)
+				}
 				navigation={
 					activeTab &&
 					workspace &&
@@ -400,6 +474,7 @@ export function App({
 					<RepositoryCloneView
 						key={cloneTab.id}
 						accounts={accounts}
+						preferredAccountKey={preferredAccountKey}
 						active={activeTab?.id === cloneTab.id && !settingsOpen}
 						disabled={
 							connection.pickingId !== null ||
@@ -555,6 +630,10 @@ export function App({
 					onBack={closeSettings}
 					accounts={accounts}
 					initialForm={settingsView ?? "list"}
+					preferredAccountKey={preferredAccountKey}
+					onAccount={setPreferredAccountKey}
+					repositoryView={repositoryView}
+					onRepositoryView={selectRepositoryView}
 				>
 					{closeNotice}
 				</AccountsSettings>

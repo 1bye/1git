@@ -22,6 +22,8 @@ import {
 	testSessionPatchPath,
 	testSessionPlatformPatchPath,
 	elementBoundsPatchPath,
+	anchoredCenterPatchPath,
+	sidebarVibrancyPlatformPatchPath,
 } from "./config";
 
 if (process.platform !== "darwin" || process.arch !== "arm64") {
@@ -86,8 +88,10 @@ if (
 		testSessionPatchPath,
 		testSessionPlatformPatchPath,
 		elementBoundsPatchPath,
+		anchoredCenterPatchPath,
 		accountsPatchPath,
 		accountsPlatformPatchPath,
+		sidebarVibrancyPlatformPatchPath,
 	];
 
 	// Later patches can change an earlier patch's context. Unwind known patches
@@ -97,7 +101,8 @@ if (
 			patch === closePlatformPatchPath ||
 			patch === contextMenuPlatformPatchPath ||
 			patch === testSessionPlatformPatchPath ||
-			patch === accountsPlatformPatchPath
+			patch === accountsPlatformPatchPath ||
+			patch === sidebarVibrancyPlatformPatchPath
 				? resolve(source, "zed")
 				: source;
 
@@ -116,7 +121,8 @@ if (
 			patch === closePlatformPatchPath ||
 			patch === contextMenuPlatformPatchPath ||
 			patch === testSessionPlatformPatchPath ||
-			patch === accountsPlatformPatchPath
+			patch === accountsPlatformPatchPath ||
+			patch === sidebarVibrancyPlatformPatchPath
 				? resolve(source, "zed")
 				: source;
 

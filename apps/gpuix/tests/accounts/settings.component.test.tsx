@@ -755,7 +755,7 @@ it("shows only the public device code, authorizes through the browser flow and s
 it("cancels a pending device sign-in without storing an account", async () => {
 	const f = fixture(200, true);
 
-	root.render(<App accounts={f.accounts} />);
+	root.render(<App accounts={f.accounts} preview />);
 	await settle();
 	root.renderer.simulateKeystrokes("cmd-,");
 	await settle();
@@ -766,6 +766,16 @@ it("cancels a pending device sign-in without storing an account", async () => {
 	await settle();
 	click("account-connect");
 	await settle();
+	const history = root.renderer.findByTestId("view-history")!;
+
+	expect(history.style.opacity).toBe(0.45);
+	expect(history.customProps?.tabIndex).toBeUndefined();
+	expect(root.renderer.findByTestId("account-device-code")).toBeDefined();
+	click("view-history");
+	root.renderer.nativeSimulateKeyDown(history.id, "enter");
+	await settle();
+	expect(root.renderer.findByTestId("settings-view")).toBeDefined();
+	expect(root.renderer.findByTestId("account-device-code")).toBeDefined();
 	click("accounts-cancel");
 	await settle();
 	expect(root.renderer.findByTestId("account-device-code")).toBeUndefined();

@@ -1,0 +1,147 @@
+import assert from "node:assert/strict";
+import { GpuixRenderer } from "@gpuix/native";
+import { render } from "@gpuix/react";
+import { CString, dlopen, ptr } from "bun:ffi";
+import { AppShell } from "../../src/fixture/app-shell";
+import { windowOptions } from "../../src/window-options";
+
+const { symbols } = dlopen("/usr/lib/libobjc.A.dylib", {
+	objc_getClass: { args: ["ptr"], returns: "ptr" },
+	sel_registerName: { args: ["ptr"], returns: "ptr" },
+	objc_msgSend: { args: ["ptr", "ptr", "ptr"], returns: "ptr" },
+	object_getClass: { args: ["ptr"], returns: "ptr" },
+	class_getInstanceMethod: { args: ["ptr", "ptr"], returns: "ptr" },
+	method_getImplementation: { args: ["ptr"], returns: "ptr" },
+});
+
+const integerMessage = dlopen("/usr/lib/libobjc.A.dylib", {
+	objc_msgSend: { args: ["ptr", "ptr", "usize"], returns: "usize" },
+}).symbols.objc_msgSend;
+
+const indexedMessage = dlopen("/usr/lib/libobjc.A.dylib", {
+	objc_msgSend: { args: ["ptr", "ptr", "usize"], returns: "ptr" },
+}).symbols.objc_msgSend;
+
+type NativeObject = ReturnType<typeof symbols.objc_getClass>;
+
+function selector(name: string): NativeObject {
+	return symbols.sel_registerName(ptr(Buffer.from(`${name}\0`)));
+}
+
+function nativeClass(name: string): NativeObject {
+	return symbols.objc_getClass(ptr(Buffer.from(`${name}\0`)));
+}
+
+function send(
+	object: NativeObject,
+	name: string,
+	argument: NativeObject = null
+): NativeObject {
+	return symbols.objc_msgSend(object, selector(name), argument);
+}
+
+function integer(object: NativeObject, name: string, argument = 0): number {
+	return Number(integerMessage(object, selector(name), argument));
+}
+
+const renderer = new GpuixRenderer();
+
+process.on("unhandledRejection", (error) => {
+	process.stderr.write(String(error));
+	process.exit(1);
+});
+
+renderer.init({
+	...windowOptions,
+	title: "1git sidebar vibrancy test",
+	width: 980,
+	height: 640,
+	show: true,
+	focus: false,
+});
+
+const app = send(nativeClass("NSApplication"), "sharedApplication");
+
+const appearanceName =
+	process.argv[2] === "dark"
+		? "NSAppearanceNameDarkAqua"
+		: "NSAppearanceNameAqua";
+
+const nativeName = send(
+	nativeClass("NSString"),
+	"stringWithUTF8String:",
+	ptr(Buffer.from(`${appearanceName}\0`))
+);
+
+const applicationAppearance = send(
+	nativeClass("NSAppearance"),
+	"appearanceNamed:",
+	nativeName
+);
+
+send(app, "setAppearance:", applicationAppearance);
+render(
+	<AppShell
+		workspaceLabel="Vibrancy probe"
+		toolbar={<div style={{ height: 42, flexShrink: 0 }} />}
+		rail={<div style={{ width: 48, flexShrink: 0 }} />}
+	>
+		<text style={{ padding: 24, color: "#111111" }}>
+			Opaque white workspace
+		</text>
+	</AppShell>,
+	{ renderer }
+);
+
+for (let frame = 0; frame < 20; frame++) {
+	assert.ok(renderer.tick(), "probe window must remain alive");
+	await Bun.sleep(10);
+}
+
+const window = send(send(app, "windows"), "firstObject");
+const subviews = send(send(window, "contentView"), "subviews");
+const effectClass = nativeClass("NSVisualEffectView");
+let backdrop: NativeObject = null;
+
+for (let index = 0; index < integer(subviews, "count"); index++) {
+	const view = indexedMessage(subviews, selector("objectAtIndex:"), index);
+
+	if (Number(send(view, "isKindOfClass:", effectClass))) backdrop = view;
+}
+
+assert.ok(backdrop, "real NSVisualEffectView must exist behind the content");
+assert.equal(
+	integer(window, "isOpaque"),
+	0,
+	"window must allow native vibrancy"
+);
+assert.equal(integer(backdrop, "material"), 7, "material must be Sidebar");
+assert.equal(integer(backdrop, "blendingMode"), 0, "blend behind the window");
+assert.equal(integer(backdrop, "state"), 1, "material must remain active");
+const effectiveName = send(send(backdrop, "effectiveAppearance"), "name");
+const nameBytes = send(effectiveName, "UTF8String");
+
+assert.ok(nameBytes, "effective appearance must have a name");
+assert.equal(
+	new CString(nameBytes).toString(),
+	"NSAppearanceNameAqua",
+	"light app chrome must stay readable even with a dark application appearance"
+);
+const updateLayer = selector("updateLayer");
+
+assert.equal(
+	symbols.method_getImplementation(
+		symbols.class_getInstanceMethod(
+			symbols.object_getClass(backdrop),
+			updateLayer
+		)
+	),
+	symbols.method_getImplementation(
+		symbols.class_getInstanceMethod(effectClass, updateLayer)
+	),
+	"AppKit must own layer updates without stripping tint or saturation"
+);
+process.stdout.write("Native sidebar vibrancy verified\n");
+send(window, "performClose:");
+renderer.tick();
+process.exit(0);

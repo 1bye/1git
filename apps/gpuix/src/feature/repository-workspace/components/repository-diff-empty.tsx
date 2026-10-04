@@ -114,7 +114,7 @@ export function RepositoryDiffEmpty({
 		} else if (view === "stashes") {
 			heading = revision
 				? "Select a file to inspect"
-				: workspace.stashes.loaded
+				: workspace.stashes.loaded && !workspace.entries.stashes.length
 					? "No stashed changes"
 					: "Select a stash to inspect";
 			hint =
@@ -137,6 +137,16 @@ export function RepositoryDiffEmpty({
 
 	const clean = heading === "Working tree clean";
 
+	const illustratedEmpty =
+		(clean ||
+			heading === "No commits yet" ||
+			heading === "No stashed changes") &&
+		!workspace?.loading &&
+		!workspace?.error &&
+		(view !== "history" ||
+			(!workspace?.history.error && !workspace?.history.query?.trim())) &&
+		(view !== "stashes" || !workspace?.stashes.error);
+
 	if (clean) hint = "No uncommitted changes.";
 
 	return (
@@ -152,7 +162,7 @@ export function RepositoryDiffEmpty({
 				</div>
 			) : null}
 			<div testId="diff-empty" style={styles.empty}>
-				{clean ? (
+				{illustratedEmpty ? (
 					<ComparisonArtwork name="empty" />
 				) : (
 					<RepositoryIcon name="diff" />

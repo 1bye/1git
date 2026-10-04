@@ -12,6 +12,7 @@
     "./text": "./src/text.tsx",
     "./textarea": "./src/textarea.tsx",
     "./select": "./src/select.tsx",
+    "./tooltip": "./src/tooltip.tsx",
     "./tokens": "./src/tokens.ts"
   },
   "scripts": {

@@ -5,6 +5,10 @@ import { Checkbox } from "@1git/gpuix-ui/checkbox";
 import { Popover, PopoverContent } from "@1git/gpuix-ui/popover";
 import type { DeviceAuthorization } from "@1git/hosting/device-oauth";
 import { AppShell } from "../../fixture/app-shell";
+import {
+	WorkspaceRail,
+	workspaceRailWidth,
+} from "../repository-workspace/components/workspace-rail";
 import { settingsNavigation } from "./lib/settings-shortcut";
 import {
 	AccountConnectionGuide,
@@ -26,6 +30,7 @@ import { appTokens } from "../../styles/tokens";
 import { workspaceLayout } from "../../styles/workspace-layout";
 import { WorkspaceTabIcon } from "../workspace-tabs/components/workspace-tab-icon";
 import { WorkspaceTabHeading } from "../workspace-tabs/components/workspace-tab";
+import type { RepositoryView } from "../repository-workspace/types";
 import { NativeClipboard } from "../../platform/clipboard";
 
 const fieldStyle = {
@@ -66,7 +71,7 @@ const footerStyle = {
 };
 
 const titleInset =
-	workspaceLayout.workspaceSurfaceInset +
+	workspaceRailWidth +
 	sidebarWidth +
 	contentPadding -
 	workspaceLayout.tabContentInsetInlineStart;
@@ -79,6 +84,10 @@ export function AccountsSettings({
 	initialForm = "list",
 	openLink = openAuthorizationBrowser,
 	copyText = NativeClipboard.write,
+	preferredAccountKey,
+	onAccount,
+	repositoryView,
+	onRepositoryView,
 }: {
 	onBack: () => void;
 	accounts?: Accounts;
@@ -89,6 +98,11 @@ export function AccountsSettings({
 	openLink?: (url: string) => Promise<void>;
 	/** Public setup values only; tests capture writes without replacing the user's clipboard. */
 	copyText?: (value: string) => Promise<void>;
+	preferredAccountKey?: string;
+	onAccount?: (key: string) => void;
+	/** Keep the active repository's rail available while Settings covers its workspace. */
+	repositoryView?: RepositoryView;
+	onRepositoryView?: (view: RepositoryView) => void;
 }) {
 	const renderer = useGpuixRequired();
 
@@ -323,6 +337,31 @@ export function AccountsSettings({
 			testId="settings-view"
 			ref={view}
 			workspaceLabel="Settings"
+			rail={
+				<WorkspaceRail
+					accounts={accounts}
+					savedAccounts={saved}
+					preferredAccountKey={preferredAccountKey}
+					onAccount={onAccount}
+					settingsActive
+					disabled={busy}
+					view={repositoryView}
+					onView={(next) => {
+						if (!request.current) onRepositoryView?.(next);
+					}}
+					onSettings={() => {
+						if (busy) return;
+
+						token.current = "";
+						setHasToken(false);
+						setError(undefined);
+						setForm("list");
+					}}
+					onAddAccount={() => {
+						if (!busy) startConnection();
+					}}
+				/>
+			}
 			toolbar={
 				<div
 					testId="settings-toolbar"
