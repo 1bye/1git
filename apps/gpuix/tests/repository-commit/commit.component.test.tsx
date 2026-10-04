@@ -1,5 +1,5 @@
 /**
- * Covers: explicit commits, duplicate prevention, draft/error retention, cross-tab refresh and partial-staging guards.
+ * Covers: checked-file commits, duplicate prevention, draft/error retention and cross-tab refresh.
  * Real: App, reducers, hooks and native GPUIX events/layout.
  * Doubles: Git reads/writes and folder picker; no live repository mutations.
  * Requires: patched GPUIX renderer with macOS graphics access.
@@ -84,7 +84,7 @@ it("opens and refreshes a repository with Command O and R", async () => {
 	expect(read.mock.calls.length).toBeGreaterThan(count);
 });
 
-it("explicitly commits staged changes even when file checkboxes are cleared", async () => {
+it("offers only checked-file commits and never submits with all checkboxes cleared", async () => {
 	const partial = repositorySnapshot([
 		changedFile("a.ts", { indexStatus: "modified" }),
 	]);
@@ -106,15 +106,26 @@ it("explicitly commits staged changes even when file checkboxes are cleared", as
 		/>
 	);
 	await open();
+	expect(root.renderer.findByTestId("commit-mode-files")).toBeUndefined();
+	expect(root.renderer.findByTestId("commit-mode-staged")).toBeUndefined();
+	expect(root.renderer.getAllText()).not.toContain("Staged changes");
 	click("include-a.ts");
 	message();
-	click("commit-mode-staged");
+	click("commit-submit");
+	root.renderer.simulateKeystrokes("cmd-enter");
+	root.renderer.flush();
+	expect(writeCommit).not.toHaveBeenCalled();
+	click("include-a.ts");
+	const screenshot = process.env.GPUIX_CHECKED_COMMIT_SCREENSHOT;
+
+	if (screenshot) root.renderer.captureScreenshot(screenshot);
+
 	click("commit-submit");
 	await settle();
 	expect(writeCommit).toHaveBeenCalledTimes(1);
 	expect(writeCommit.mock.calls[0]?.[1]).toMatchObject({
-		mode: "staged",
-		paths: [],
+		includePartialStaging: true,
+		paths: ["a.ts"],
 	});
 });
 
@@ -154,6 +165,7 @@ it("commits only checked paths once, prevents edits/close while pending, clears 
 	expect(writeCommit.mock.calls[0]).toEqual([
 		"/test/project",
 		{
+			includePartialStaging: true,
 			paths: ["a.ts"],
 			message: "fix\n\ndetails",
 			expectedHead: snapshot().head.oid,
@@ -221,7 +233,7 @@ it("retains message and inclusion after hook failures and allows an explicit ret
 	expect(writeCommit).toHaveBeenCalledTimes(2);
 });
 
-it("blocks selected partial staging until excluded, and blocks uncertain outcomes until a manual refresh", async () => {
+it("commits complete checked files despite external partial staging, and blocks uncertain outcomes until refresh", async () => {
 	const partial = repositorySnapshot([
 		changedFile("a.ts", { indexStatus: "modified" }),
 		changedFile("b.ts"),
@@ -246,12 +258,12 @@ it("blocks selected partial staging until excluded, and blocks uncertain outcome
 	await open();
 	message();
 	click("commit-submit");
-	expect(writeCommit).not.toHaveBeenCalled();
-	expect(root.renderer.getAllText().join(" ")).toContain("partially staged");
-	click("include-a.ts");
-	click("commit-submit");
 	await settle();
 	expect(writeCommit).toHaveBeenCalledTimes(1);
+	expect(writeCommit.mock.calls[0]?.[1]).toMatchObject({
+		includePartialStaging: true,
+		paths: ["a.ts", "b.ts"],
+	});
 	expect(node("commit-message").customProps?.value).toBe("fix");
 	click("commit-submit");
 	expect(writeCommit).toHaveBeenCalledTimes(1);

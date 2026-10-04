@@ -110,7 +110,9 @@ and working files are retained. Renames include their old path automatically.
 
 The operation holds the real index lock and prepares an alternate index for
 Git's `commit --only`. Hooks and configured signing are honored. Partial staging
-in selected files, submodules, conflicts, active operations, stale HEAD/branch,
+in selected files is rejected by default. A checked-whole-file UI can explicitly
+pass `includePartialStaging: true` to include **all current edits** in each selected
+file, preserving excluded index entries. Submodules, conflicts, active operations, stale HEAD/branch,
 and paths that could include unchecked directory descendants are rejected.
 It stops honoring cancellation once index preparation starts; let it finish before
 closing its owner. Reads and writes on the same repository instance stay serialized.
@@ -122,6 +124,12 @@ even if refresh fails. An uncertain outcome or index-install failure retains rec
 files and explains where to find them. Do not automatically retry; inspect History
 and the warning first. Ordinary rejected commits leave the original index untouched;
 configured hooks can have their own filesystem side effects.
+
+`getDiff({ target: { kind: "changes" }, paths })` previews those complete
+HEAD-to-current-file changes (including first-commit files). It uses a disposable
+index containing existing object IDs only; the real index and object store are
+not modified. Existing `working` (index-to-worktree) and `staged` (HEAD-to-index)
+targets remain available to clients that expose staging.
 
 ## Tests
 

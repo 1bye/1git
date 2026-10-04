@@ -1,5 +1,5 @@
 /**
- * Covers: staged/unstaged patches and image versions, special paths, renames/deletions, binary/large files and read-only execution.
+ * Covers: complete file patches and image versions, external staging, special paths, renames/deletions and read-only execution.
  * Real: RepositoryDiff, shared Git backend and disposable Git repositories.
  * Doubles: none.
  * Requires: Git, Sharp and writable temporary storage; no network or graphics.
@@ -92,7 +92,7 @@ const read = async (path: string) => {
 	return result.value;
 };
 
-it("shows both stages of a file without changing HEAD, index content or working files", async () => {
+it("shows one complete file diff without changing HEAD, index content or working files", async () => {
 	await writeFile(join(repository, "file.ts"), "const value = 1;\n");
 	await git("add", "file.ts");
 	await git("commit", "-m", "Fixture");
@@ -103,16 +103,10 @@ it("shows both stages of a file without changing HEAD, index content or working 
 	const index = await git("ls-files", "--stage", "-z");
 	const sections = await read("file.ts");
 
-	expect(sections.map((section) => section.target)).toEqual([
-		"working",
-		"staged",
-	]);
-	expect(sections[0]?.patch).toContain("-const value = 2;\n+const value = 3;");
-	expect(sections[1]?.patch).toContain("-const value = 1;\n+const value = 2;");
+	expect(sections.map((section) => section.target)).toEqual(["working"]);
+	expect(sections[0]?.patch).toContain("-const value = 1;\n+const value = 3;");
+	expect(sections[0]?.patch).not.toContain("const value = 2;");
 	expect(sections[0]?.stats).toEqual([
-		{ path: "file.ts", addedLines: 1, deletedLines: 1 },
-	]);
-	expect(sections[1]?.stats).toEqual([
 		{ path: "file.ts", addedLines: 1, deletedLines: 1 },
 	]);
 	expect(await git("rev-parse", "HEAD")).toBe(head);
@@ -137,12 +131,17 @@ it("handles untracked and empty files on an unborn branch, deletions and pure re
 		{ path: "empty.txt", addedLines: 0, deletedLines: 0 },
 	]);
 	await git("add", "new.txt", "empty.txt");
-	expect((await read("new.txt"))[0]?.target).toBe("staged");
+	expect((await read("new.txt"))[0]?.target).toBe("working");
+	await writeFile(join(repository, "new.txt"), "latest first-commit content\n");
+	expect((await read("new.txt"))[0]?.patch).toContain(
+		"+latest first-commit content"
+	);
+	await git("add", "new.txt");
 	await git("commit", "-m", "Fixture");
 	await git("mv", "new.txt", "renamed.txt");
 	const rename = (await read("renamed.txt"))[0];
 
-	expect(rename?.target).toBe("staged");
+	expect(rename?.target).toBe("working");
 	expect(rename?.patch).toContain("rename from new.txt");
 	expect(rename?.patch).toContain("rename to renamed.txt");
 	expect(rename?.stats).toEqual([
@@ -155,7 +154,55 @@ it("handles untracked and empty files on an unborn branch, deletions and pure re
 	]);
 	await git("commit", "-m", "Rename fixture");
 	await unlink(join(repository, "renamed.txt"));
-	expect((await read("renamed.txt"))[0]?.patch).toContain("-new content");
+	expect((await read("renamed.txt"))[0]?.patch).toContain(
+		"-latest first-commit content"
+	);
+});
+
+it("compares removed and recreated files to HEAD, not a deletion plus an addition", async () => {
+	await writeFile(join(repository, "file.txt"), "before\n");
+	await git("add", "file.txt");
+	await git("commit", "-m", "Fixture");
+	await git("rm", "file.txt");
+	await writeFile(join(repository, "file.txt"), "after\n");
+	const index = await readFile(join(repository, ".git/index"));
+	const objects = await git("count-objects", "-v");
+	const section = (await read("file.txt"))[0];
+
+	expect(section?.patch).toContain("-before\n+after");
+	expect(section?.patch).not.toContain("deleted file mode");
+	expect(section?.patch).not.toContain("new file mode");
+	expect(section?.stats).toEqual([
+		{ path: "file.txt", addedLines: 1, deletedLines: 1 },
+	]);
+	expect(await readFile(join(repository, ".git/index"))).toEqual(index);
+	expect(await git("count-objects", "-v")).toBe(objects);
+});
+
+it("previews the current image when an indexed deletion was recreated on disk", async () => {
+	await writeFile(
+		join(repository, "image.png"),
+		(await rasterContent("png", "red")).content,
+		"base64"
+	);
+	await git("add", "image.png");
+	await git("commit", "-m", "Fixture");
+	await git("rm", "image.png");
+	await writeFile(
+		join(repository, "image.png"),
+		(await rasterContent("png", "blue")).content,
+		"base64"
+	);
+	const index = await readFile(join(repository, ".git/index"));
+	const preview = (await read("image.png"))[0]?.image;
+
+	expect(await previewPixel(preview?.before?.image?.src ?? "")).toEqual([
+		255, 0, 0, 255,
+	]);
+	expect(await previewPixel(preview?.after?.image?.src ?? "")).toEqual([
+		0, 0, 255, 255,
+	]);
+	expect(await readFile(join(repository, ".git/index"))).toEqual(index);
 });
 
 it("treats special filenames literally and never invokes external diff or textconv drivers", async () => {
@@ -204,7 +251,7 @@ it("reports binary and oversized files explicitly without handing partial patche
 	}
 });
 
-it("previews the correct HEAD/index/worktree image bytes without writing Git state", async () => {
+it("previews committed and current image bytes, ignoring intermediate index content", async () => {
 	const headImage = await rasterContent("png", "red");
 	const indexImage = await rasterContent("png", "lime");
 	const workingImage = await rasterContent("png", "blue");
@@ -232,18 +279,13 @@ it("previews the correct HEAD/index/worktree image bytes without writing Git sta
 		(section) => section.target === "working"
 	)?.image;
 
-	const staged = sections.find((section) => section.target === "staged")?.image;
-
 	expect(await previewPixel(working?.before?.image?.src ?? "")).toEqual([
-		0, 255, 0, 255,
+		255, 0, 0, 255,
 	]);
 	expect(await previewPixel(working?.after?.image?.src ?? "")).toEqual([
 		0, 0, 255, 255,
 	]);
-	expect(await previewPixel(staged?.before?.image?.src ?? "")).toEqual([
-		255, 0, 0, 255,
-	]);
-	expect(staged?.after).toBe(working?.before);
+	expect(sections).toHaveLength(1);
 	expect(await git("ls-files", "--stage", "-z")).toBe(index);
 	expect(await git("rev-parse", "HEAD")).toBe(head);
 });

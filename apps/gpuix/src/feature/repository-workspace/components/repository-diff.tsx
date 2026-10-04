@@ -4,10 +4,6 @@ import { Button } from "@1git/gpuix-ui/button";
 import { DiffView } from "@1git/gpuix-ui/diff-view";
 import type { GpuixTheme } from "@gpuix/react";
 import { useState } from "react";
-import {
-	RepositoryHunkPreview,
-	type HunkRequest,
-} from "./repository-hunk-preview";
 
 import { appTokens } from "../../../styles/tokens";
 import { StateMessage } from "../../../fixture/state-message";
@@ -16,7 +12,6 @@ import { useRepositoryDiff } from "../hooks/use-repository-diff";
 import {
 	RepositoryDiff as DiffReader,
 	type DiffSelection,
-	type RepositoryDiffSection,
 } from "../lib/repository-diff";
 import {
 	RepositoryImageMetadata,
@@ -127,7 +122,7 @@ const styles = StyleSheet.create({
 	hint: { fontSize: 10, color: lightColors.editorFaint },
 });
 
-/** Read-only native diff with explicit index/worktree comparisons and cancellable loading. */
+/** Read-only complete file diff with cancellable loading. */
 export function RepositoryDiff({
 	root,
 	change,
@@ -135,7 +130,6 @@ export function RepositoryDiff({
 	statusError,
 	readDiff = DiffReader.read,
 	onResolve,
-	onHunk,
 	openConflictEditor = RepositoryConflicts.openEditor,
 }: {
 	root: string;
@@ -143,7 +137,6 @@ export function RepositoryDiff({
 	refreshing: boolean;
 	statusError: string | null;
 	readDiff?: typeof DiffReader.read;
-	onHunk?: (request: HunkRequest) => Promise<string | null>;
 	onResolve?: (
 		hash: string,
 		side?: "ours" | "theirs"
@@ -157,9 +150,6 @@ export function RepositoryDiff({
 		readDiff
 	);
 
-	const [target, setTarget] =
-		useState<RepositoryDiffSection["target"]>("working");
-
 	const [sourcePath, setSourcePath] = useState<string | null>(null);
 	const [conflictError, setConflictError] = useState<string | null>(null);
 
@@ -170,9 +160,7 @@ export function RepositoryDiff({
 	const [acting, setActing] = useState(false);
 	const conflicted = "recordType" in change && change.recordType === "unmerged";
 
-	const section =
-		result?.sections.find((entry) => entry.target === target) ??
-		result?.sections[0];
+	const section = result?.sections[0];
 
 	const stats = section?.stats.find((entry) => entry.path === change.path);
 	const showSource = section?.image?.svg && sourcePath === change.path;
@@ -203,30 +191,6 @@ export function RepositoryDiff({
 						</text>
 					) : null}
 				</div>
-				{result && result.sections.length > 1
-					? result.sections.map((entry) => (
-							<Button
-								key={entry.target}
-								testId={`diff-${entry.target}`}
-								size="sm"
-								variant="ghost"
-								tokens={appTokens}
-								aria-label={`${entry.target === "working" ? "Unstaged" : "Staged"} changes${section?.target === entry.target ? ", selected" : ""}`}
-								style={{
-									height: 26,
-									borderRadius: 13,
-									backgroundColor:
-										section?.target === entry.target
-											? lightColors.editorSunken2
-											: "transparent",
-								}}
-								textStyle={{ fontSize: 11 }}
-								onPress={() => setTarget(entry.target)}
-							>
-								{entry.target === "working" ? "Unstaged" : "Staged"}
-							</Button>
-						))
-					: null}
 				{section?.image?.svg
 					? (["Preview", "Source"] as const).map((mode) => (
 							<Button
@@ -391,8 +355,8 @@ export function RepositoryDiff({
 					{resolutionSide ? (
 						<div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
 							<text style={styles.hint}>
-								Replace the whole file with {resolutionSide} and stage it?
-								Current edits to this file will be lost.
+								Replace the whole file with {resolutionSide} and mark it
+								resolved? Current edits to this file will be lost.
 							</text>
 							<text style={styles.hint}>
 								During rebase, ours is the branch being rebased onto; theirs is
@@ -443,14 +407,15 @@ export function RepositoryDiff({
 										}
 									}}
 								>
-									Replace and stage
+									Replace and resolve
 								</Button>
 							</div>
 						</div>
 					) : null}
 					<text style={styles.hint}>
 						Edit and save the file, then refresh and review. Mark resolved
-						stages this file; it does not commit or continue a merge/rebase.
+						confirms this file’s resolution; it does not commit or continue a
+						merge/rebase.
 					</text>
 					{conflictError ? (
 						<text
@@ -504,29 +469,6 @@ export function RepositoryDiff({
 				<RepositoryImagePreview comparison={section.image} path={change.path} />
 			) : section?.message ? (
 				<StateMessage artwork="unavailable" title={section.message} />
-			) : section &&
-			  onHunk &&
-			  section.target !== "commit" &&
-			  "recordType" in change &&
-			  change.recordType === "ordinary" &&
-			  section.patch.includes("\n@@ ") ? (
-				<RepositoryHunkPreview
-					key={`${change.path}:${section.target}`}
-					action={section.target === "working" ? "stage" : "unstage"}
-					onHunk={onHunk}
-					disabled={refreshing || acting || !!statusError}
-					testId="diff-viewport"
-					patch={section.patch}
-					showFileHeader={false}
-					focusVisible={false}
-					theme={diffTheme}
-					tokens={appTokens}
-					aria-label={
-						section.target === "working"
-							? "Unstaged file diff"
-							: "Staged file diff"
-					}
-				/>
 			) : section ? (
 				<DiffView
 					key={section.target}
@@ -537,11 +479,7 @@ export function RepositoryDiff({
 					theme={diffTheme}
 					tokens={appTokens}
 					aria-label={
-						section.target === "commit"
-							? "Committed file diff"
-							: section.target === "working"
-								? "Unstaged file diff"
-								: "Staged file diff"
+						section.target === "commit" ? "Committed file diff" : "File diff"
 					}
 				/>
 			) : null}

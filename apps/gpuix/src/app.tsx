@@ -413,8 +413,8 @@ export function App({
 							state={workspace}
 							history={history}
 							stashes={stashes}
-							onCommit={(mode) => {
-								void mutations.commit(activeTab.id, mode);
+							onCommit={() => {
+								void mutations.commit(activeTab.id);
 							}}
 							onStash={(request) => mutations.stash(activeTab.id, request)}
 							onOperation={(request) =>
@@ -598,12 +598,6 @@ export function App({
 						readDiff={readDiff}
 						onResolve={(hash, side) =>
 							mutations.resolve(activeTab.id, comparison.path, hash, side)
-						}
-						onHunk={(request) =>
-							mutations.hunk(activeTab.id, {
-								...request,
-								path: comparison.path,
-							})
 						}
 						openConflictEditor={openConflictEditor}
 					/>

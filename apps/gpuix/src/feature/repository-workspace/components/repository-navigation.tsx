@@ -67,6 +67,13 @@ const styles = StyleSheet.create({
 		flexShrink: 0,
 	},
 	muted: { fontSize: 10, color: lightColors.editorMuted },
+	stashActions: {
+		display: "flex",
+		flexDirection: "row",
+		justifyContent: "space-between",
+		alignItems: "flex-start",
+		flexShrink: 0,
+	},
 	footer: {
 		height: 32,
 		display: "flex",
@@ -132,7 +139,7 @@ export function RepositoryNavigation({
 	onRefresh: () => void;
 	history?: ReturnType<typeof useRepositoryHistory>;
 	stashes?: ReturnType<typeof useRepositoryStashes>;
-	onCommit?: (mode: "files" | "staged") => void;
+	onCommit?: () => void;
 	onStash?: (request: StashWriteRequest) => Promise<boolean>;
 	onOperation?: (request: FinishOperationInput) => Promise<string | null>;
 	onDiscard?: (request: FileDiscardRequest) => Promise<string | null>;
@@ -570,18 +577,18 @@ export function RepositoryNavigation({
 					>
 						{list}
 						{view === "stashes" && state.repository && onStash ? (
-							<RepositoryStashActions
-								state={state}
-								placement="selection"
-								onWrite={onStash}
-							/>
-						) : null}
-						{view === "stashes" && state.repository && onStash ? (
-							<RepositoryStashActions
-								state={state}
-								placement="create"
-								onWrite={onStash}
-							/>
+							<div style={styles.stashActions}>
+								<RepositoryStashActions
+									state={state}
+									placement="selection"
+									onWrite={onStash}
+								/>
+								<RepositoryStashActions
+									state={state}
+									placement="create"
+									onWrite={onStash}
+								/>
+							</div>
 						) : null}
 						{view === "stashes" &&
 						state.repository &&

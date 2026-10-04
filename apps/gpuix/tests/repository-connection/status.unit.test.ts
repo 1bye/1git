@@ -132,9 +132,7 @@ it("retains both index and worktree status, conflicts, renames, copies and type 
 		"C",
 		"T",
 	]);
-	expect(state.entries.changes[0]?.statusDescription).toBe(
-		"index: modified; working tree: modified"
-	);
+	expect(state.entries.changes[0]?.statusDescription).toBe("modified");
 	expect(state.entries.changes[1]?.statusDescription).toContain(
 		"renamed from old.ts"
 	);

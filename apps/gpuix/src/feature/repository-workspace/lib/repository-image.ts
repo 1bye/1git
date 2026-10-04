@@ -2,7 +2,6 @@ import { lstat } from "node:fs/promises";
 import { join } from "node:path";
 import type { FileChange, FileContentSource, GitRepository } from "@1git/git";
 
-import type { ChangeDiffTarget } from "./repository-diff";
 import { ImagePreviewDecoder, type ImagePreview } from "./image-preview";
 import type { CommitFileSelection } from "../types";
 
@@ -11,7 +10,7 @@ export type RepositoryImageSide =
 	| { readonly image: ImagePreview; readonly error: null }
 	| { readonly image: null; readonly error: string };
 
-/** Before/after versions of the selected staged or unstaged comparison. */
+/** Committed and current versions of the selected file. */
 export interface RepositoryImageComparison {
 	readonly before: RepositoryImageSide | null;
 	readonly after: RepositoryImageSide | null;
@@ -22,7 +21,7 @@ const imageExtension = /\.(?:png|jpe?g|webp|svg)$/iu;
 const svgExtension = /\.svg$/iu;
 const nullObjectId = /^0+$/u;
 
-/** Reads immutable HEAD/index blobs and bounded working bytes without staging or writing files. */
+/** Reads immutable HEAD blobs and bounded working bytes without staging or writing files. */
 export class RepositoryImage {
 	private constructor() {}
 
@@ -77,15 +76,11 @@ export class RepositoryImage {
 		repository: GitRepository,
 		root: string,
 		change: FileChange,
-		targets: readonly ChangeDiffTarget[],
 		signal: AbortSignal
-	): Promise<ReadonlyMap<ChangeDiffTarget, RepositoryImageComparison>> {
-		// Both comparisons share the index image. This cache lives only for this selection/read.
-		const reads = new Map<string, Promise<RepositoryImageSide>>();
-
+	): Promise<RepositoryImageComparison> {
 		const load = async (
 			source: FileContentSource
-		): Promise<RepositoryImageSide> => {
+		): Promise<RepositoryImageSide | null> => {
 			try {
 				signal.throwIfAborted();
 
@@ -110,6 +105,15 @@ export class RepositoryImage {
 			} catch (error) {
 				signal.throwIfAborted();
 
+				if (
+					source.kind === "working" &&
+					error &&
+					typeof error === "object" &&
+					"code" in error &&
+					error.code === "ENOENT"
+				)
+					return null;
+
 				return {
 					image: null,
 					error:
@@ -122,7 +126,7 @@ export class RepositoryImage {
 
 		const object = (
 			oid: string | undefined
-		): Promise<RepositoryImageSide> | null => {
+		): Promise<RepositoryImageSide | null> | null => {
 			if (oid && nullObjectId.test(oid)) return null;
 
 			if (!oid)
@@ -131,49 +135,21 @@ export class RepositoryImage {
 					error: "Image revision is unavailable. Refresh Changes to try again.",
 				});
 
-			let read = reads.get(oid);
-
-			if (!read) {
-				read = load({ kind: "object", objectId: oid });
-				reads.set(oid, read);
-			}
-
-			return read;
+			return load({ kind: "object", objectId: oid });
 		};
 
-		const comparisons = await Promise.all(
-			targets.map(async (target) => {
-				const before =
-					target === "staged"
-						? change.indexStatus === "added"
-							? null
-							: object(change.headOid)
-						: change.worktreeStatus === "untracked"
-							? null
-							: object(change.indexOid);
+		const before =
+			change.recordType === "untracked" ? null : object(change.headOid);
 
-				const after =
-					target === "staged"
-						? change.indexStatus === "deleted"
-							? null
-							: object(change.indexOid)
-						: change.worktreeStatus === "deleted"
-							? null
-							: load({ kind: "working" });
+		const [beforeImage, afterImage] = await Promise.all([
+			before,
+			load({ kind: "working" }),
+		]);
 
-				const [beforeImage, afterImage] = await Promise.all([before, after]);
-
-				return [
-					target,
-					{
-						before: beforeImage,
-						after: afterImage,
-						svg: svgExtension.test(change.path),
-					},
-				] as const;
-			})
-		);
-
-		return new Map(comparisons);
+		return {
+			before: beforeImage,
+			after: afterImage,
+			svg: svgExtension.test(change.path),
+		};
 	}
 }

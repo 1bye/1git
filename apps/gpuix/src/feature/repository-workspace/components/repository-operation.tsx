@@ -208,7 +208,8 @@ export function RepositoryOperation({
 					</div>
 					{!conflicts && unstaged ? (
 						<text style={{ fontSize: 10, color: appTokens.colors.textMuted }}>
-							Review and stage remaining tracked edits before continuing.
+							Additional file edits are not confirmed for this operation. Review
+							them in Git before continuing.
 						</text>
 					) : null}
 					<text style={{ fontSize: 10, color: appTokens.colors.textMuted }}>
@@ -216,7 +217,7 @@ export function RepositoryOperation({
 							? "Select each conflicted file, choose a side or edit it, then mark it resolved."
 							: !unstaged
 								? `All conflicts resolved. Continue ${operation} when ready.`
-								: "Continue uses Git’s staged changes and existing message."}
+								: "Continue uses the confirmed resolutions and existing message."}
 					</text>
 				</>
 			) : null}

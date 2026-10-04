@@ -57,10 +57,9 @@ export function RepositoryCommit({
 }: {
 	state: RepositoryWorkspaceState;
 	onAction: (action: RepositoryWorkspaceAction) => void;
-	onCommit?: (mode: "files" | "staged") => void;
+	onCommit?: () => void;
 }) {
 	const [previewed, setPreviewed] = useState(false);
-	const [mode, setMode] = useState<"files" | "staged">("files");
 	const [noticeFocused, setNoticeFocused] = useState(false);
 	const notice = useRef<PublicInstance>(null);
 	const renderer = useGpuixRequired();
@@ -70,11 +69,11 @@ export function RepositoryCommit({
 
 	const canSubmit = sample
 		? canPreview
-		: RepositoryWorkspaceModel.canCommit(state, mode);
+		: RepositoryWorkspaceModel.canCommit(state);
 
 	const blocked = sample
 		? null
-		: RepositoryWorkspaceModel.commitBlockReason(state, mode);
+		: RepositoryWorkspaceModel.commitBlockReason(state);
 
 	const noticeText = !sample
 		? state.commit.pending
@@ -88,42 +87,17 @@ export function RepositoryCommit({
 
 	const count = state.includedFileIds.length;
 
-	const label =
-		mode === "staged"
-			? "Commit staged changes"
-			: `Commit ${count} ${count === 1 ? "file" : "files"}`;
+	const label = `Commit ${count} ${count === 1 ? "file" : "files"}`;
 
 	const submit = (): void => {
 		if (!canSubmit) return;
 
 		if (sample) setPreviewed(true);
-		else onCommit?.(mode);
+		else onCommit?.();
 	};
 
 	return (
 		<div testId="commit-composer" style={styles.composer}>
-			{!sample ? (
-				<div style={{ display: "flex", flexDirection: "row", gap: 4 }}>
-					{(["files", "staged"] as const).map((value) => (
-						<Button
-							key={value}
-							testId={`commit-mode-${value}`}
-							tokens={appTokens}
-							size="sm"
-							variant={mode === value ? "secondary" : "ghost"}
-							disabled={RepositoryWorkspaceModel.isBusy(state)}
-							onPress={() => setMode(value)}
-						>
-							{value === "files" ? "Checked files" : "Staged changes"}
-						</Button>
-					))}
-				</div>
-			) : null}
-			{mode === "staged" ? (
-				<text style={styles.hint}>
-					Commits all staged changes. File checkboxes are ignored.
-				</text>
-			) : null}
 			<Textarea
 				testId="commit-message"
 				aria-label="Commit message"
@@ -162,10 +136,8 @@ export function RepositoryCommit({
 					aria-label={sample ? `Preview: ${label}` : label}
 					aria-description={
 						sample
-							? "Preview only. Checkbox choices do not stage files and no Git commit will be created."
-							: mode === "staged"
-								? "Commit only the index; unstaged changes stay untouched."
-								: "Commit the checked whole files. Excluded files and their staging are preserved."
+							? "Preview only. Checkbox choices do not change files and no Git commit will be created."
+							: "Commit all current changes in the checked files. Unchecked files stay untouched."
 					}
 					size="sm"
 					tokens={appTokens}

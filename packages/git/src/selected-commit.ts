@@ -313,6 +313,7 @@ export class SelectedCommit {
 				);
 
 			if (
+				!input.includePartialStaging &&
 				file.recordType !== "untracked" &&
 				file.indexStatus !== "unmodified" &&
 				file.worktreeStatus !== "unmodified"

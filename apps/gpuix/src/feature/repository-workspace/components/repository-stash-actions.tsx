@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
 import { Button } from "@1git/gpuix-ui/button";
 import { Checkbox } from "@1git/gpuix-ui/checkbox";
 import {
@@ -17,6 +16,7 @@ import type { StashWriteRequest } from "../lib/repository-stashes";
 
 const styles = StyleSheet.create({
 	panel: { padding: 8, gap: 6, flexShrink: 0 },
+	selectionPanel: { minWidth: 0, flexShrink: 1 },
 	row: { display: "flex", flexDirection: "row", alignItems: "center", gap: 6 },
 	label: { fontSize: 11, color: appTokens.colors.text },
 	hint: { fontSize: 10, color: appTokens.colors.textMuted },
@@ -34,7 +34,7 @@ const styles = StyleSheet.create({
 
 type Form = { request: StashWriteRequest; title: string };
 
-/** Inline stash forms capture the reviewed branch/OID; dismissing a form never writes Git. */
+/** Anchored stash forms capture the reviewed branch/OID; dismissing a form never writes Git. */
 export function RepositoryStashActions({
 	state,
 	placement,
@@ -44,16 +44,12 @@ export function RepositoryStashActions({
 	placement: "create" | "selection";
 	onWrite: (request: StashWriteRequest) => Promise<boolean>;
 }) {
-	const renderer = useGpuixRequired();
 	const [form, setForm] = useState<Form | null>(null);
 	const [more, setMore] = useState(false);
 	const [message, setMessage] = useState("");
 	const [untracked, setUntracked] = useState(false);
 	const [error, setError] = useState<string | null>(null);
-	const target = useRef<PublicInstance>(null);
-	const trigger = useRef<PublicInstance>(null);
 	const mounted = useRef(true);
-	const restoreFocus = useRef(false);
 	const busy = RepositoryWorkspaceModel.isBusy(state);
 	const repository = state.repository;
 
@@ -79,26 +75,12 @@ export function RepositoryStashActions({
 			mounted.current = false;
 		};
 	}, []);
-	useEffect(() => {
-		if (form && target.current && placement === "selection")
-			renderer.focusElement?.(target.current.id);
-		else if (
-			placement === "selection" &&
-			!form &&
-			restoreFocus.current &&
-			trigger.current
-		) {
-			renderer.focusElement?.(trigger.current.id);
-			restoreFocus.current = false;
-		}
-	}, [form, renderer, placement]);
-
 	const dismiss = (): void => {
 		if (busy) return;
 
 		setForm(null);
 		setError(null);
-		restoreFocus.current = true;
+		setMore(false);
 	};
 
 	const submit = async (request: StashWriteRequest): Promise<void> => {
@@ -113,7 +95,6 @@ export function RepositoryStashActions({
 			setForm(null);
 			setMore(false);
 			setMessage("");
-			restoreFocus.current = true;
 		} else setError("Review the result above and refresh before trying again.");
 	};
 
@@ -131,7 +112,6 @@ export function RepositoryStashActions({
 			{form.request.kind === "create" ? (
 				<>
 					<input
-						ref={target}
 						testId="stash-message"
 						aria-label="Stash message (optional)"
 						placeholder="Message (optional)"
@@ -162,8 +142,8 @@ export function RepositoryStashActions({
 			)}
 			<div style={{ ...styles.row, justifyContent: "flex-end" }}>
 				<Button
-					ref={form.request.kind === "delete" ? target : undefined}
 					testId="stash-cancel"
+					autoFocus={form.request.kind === "delete"}
 					tokens={appTokens}
 					size="sm"
 					variant="ghost"
@@ -204,13 +184,10 @@ export function RepositoryStashActions({
 
 	return (
 		<div
-			style={styles.panel}
-			onKeyDown={(event) => {
-				if (placement === "selection" && event.key === "escape" && !busy) {
-					setMore(false);
-					dismiss();
-				}
-			}}
+			style={StyleSheet.compose(
+				styles.panel,
+				placement === "selection" && styles.selectionPanel
+			)}
 		>
 			{placement === "create" ? (
 				<div style={{ ...styles.row, justifyContent: "flex-end" }}>
@@ -238,7 +215,6 @@ export function RepositoryStashActions({
 					>
 						<PopoverTrigger asChild>
 							<Button
-								ref={trigger}
 								testId="stash-create"
 								tokens={appTokens}
 								size="sm"
@@ -259,52 +235,73 @@ export function RepositoryStashActions({
 						</PopoverContent>
 					</Popover>
 				</div>
-			) : form ? (
-				formContent
-			) : stash ? (
+			) : stash || form ? (
 				<div style={styles.row}>
 					<Button
 						testId="stash-apply"
 						tokens={appTokens}
 						size="sm"
-						disabled={disabled || !state.stashes.loaded}
+						disabled={disabled || !state.stashes.loaded || !stash}
 						onPress={() => {
+							if (!stash) return;
+
 							void submit({ kind: "apply", oid: stash.oid, ...identity });
 						}}
 					>
 						Apply
 					</Button>
-					<Button
-						ref={trigger}
-						testId="stash-more"
-						aria-label="More stash actions"
-						aria-expanded={more}
-						tokens={appTokens}
-						size="sm"
-						variant="ghost"
-						disabled={disabled || !state.stashes.loaded}
-						onPress={() => setMore(!more)}
+					<Popover
+						open={more || form !== null}
+						onOpenChange={(open) => {
+							if (open) setMore(true);
+							else dismiss();
+						}}
+						modal={form !== null}
 					>
-						···
-					</Button>
-					{more ? (
-						<Button
-							testId="stash-delete"
+						<PopoverTrigger asChild>
+							<Button
+								testId="stash-more"
+								aria-label="More stash actions"
+								tokens={appTokens}
+								size="sm"
+								variant="ghost"
+								disabled={disabled || !state.stashes.loaded || !stash}
+							>
+								···
+							</Button>
+						</PopoverTrigger>
+						<PopoverContent
 							tokens={appTokens}
-							size="sm"
-							variant="ghost"
-							onPress={() => {
-								setMore(false);
-								setError(null);
-								setForm({
-									request: { kind: "delete", oid: stash.oid, ...identity },
-									title: stash.summary,
-								});
-							}}
+							side="top"
+							align="start"
+							width={form ? 300 : 160}
+							aria-label={form ? "Delete stash?" : "More stash actions"}
+							dismissible={!busy}
 						>
-							Delete stash…
-						</Button>
-					) : null}
+							{form ? (
+								formContent
+							) : (
+								<Button
+									testId="stash-delete"
+									tokens={appTokens}
+									size="sm"
+									variant="ghost"
+									onPress={() => {
+										if (!stash) return;
+
+										setMore(false);
+										setError(null);
+										setForm({
+											request: { kind: "delete", oid: stash.oid, ...identity },
+											title: stash.summary,
+										});
+									}}
+								>
+									Delete stash…
+								</Button>
+							)}
+						</PopoverContent>
+					</Popover>
 				</div>
 			) : null}
 			{error && !form ? (

@@ -116,21 +116,13 @@ const showDiff = (
 	);
 };
 
-it("paints real line numbers and separate comparisons with keyboard-operable controls", async () => {
+it("paints one complete file diff without staging modes or hunk actions", async () => {
 	const reader = mock<typeof Reader.read>(async () => ({
 		ok: true,
 		value: [
 			diffSection("working", diffPatch(), [
 				{ path: "example.ts", addedLines: 1, deletedLines: 1 },
 			]),
-			diffSection(
-				"staged",
-				diffPatch(
-					"example.ts",
-					"const staged = 2;\n+const extra = true;"
-				).replace("+10,2", "+10,3"),
-				[{ path: "example.ts", addedLines: 2, deletedLines: 1 }]
-			),
 		],
 	}));
 
@@ -156,23 +148,11 @@ it("paints real line numbers and separate comparisons with keyboard-operable con
 		"1 added line, 1 deleted line"
 	);
 	expect(element("diff-viewport").customProps?.["aria-label"]).toBe(
-		"Unstaged file diff"
+		"File diff"
 	);
-	key("diff-staged", "enter");
-	expect(root.renderer.getAllText()).not.toContain("HEAD → index");
-	expect(element("diff-viewport").customProps?.["aria-label"]).toBe(
-		"Staged file diff"
-	);
-	expect(root.renderer.getPaintedText()).toContain("const staged = 2;");
-	expect(element("diff-stats").customProps?.["aria-label"]).toBe(
-		"2 added lines, 1 deleted line"
-	);
-	expect(root.renderer.getPaintedText()).not.toContain("const value = 2;");
-	click("diff-working");
-	expect(root.renderer.getPaintedText()).toContain("const value = 2;");
-	expect(element("diff-stats").customProps?.["aria-label"]).toBe(
-		"1 added line, 1 deleted line"
-	);
+	expect(root.renderer.findByTestId("diff-staged")).toBeUndefined();
+	expect(root.renderer.findByTestId("diff-working")).toBeUndefined();
+	expect(root.renderer.findByTestId("hunk-apply")).toBeUndefined();
 	expect(reader).toHaveBeenCalledTimes(1);
 });
 
@@ -463,10 +443,6 @@ it("shows image comparisons with metadata and keyboard-operable SVG source switc
 				]),
 				image: { before, after, svg: true },
 			},
-			{
-				...diffSection("staged", diffPatch(path)),
-				image: { before: null, after: before, svg: true },
-			},
 		],
 	}));
 
@@ -497,14 +473,12 @@ it("shows image comparisons with metadata and keyboard-operable SVG source switc
 	expect(root.renderer.findByTestId("diff-viewport")).toBeDefined();
 	expect(root.renderer.findByTestId("diff-stats")).toBeDefined();
 	key("image-mode-preview", "enter");
-	key("diff-staged", "enter");
-	expect(root.renderer.findByTestId("image-before")).toBeUndefined();
-	expect(root.renderer.getAllText()).toContain("Added");
-	expect(root.renderer.getAllText()).not.toContain("After");
+	expect(root.renderer.findByTestId("image-before")).toBeDefined();
+	expect(root.renderer.getAllText()).toContain("Before");
+	expect(root.renderer.getAllText()).toContain("After");
 	expect(element("image-metadata").customProps?.["aria-label"]).toBe(
-		`32 × 16 · ${image.sizeBytes} B`
+		`Before: 32 × 16 · ${image.sizeBytes} B → After: 64 × 16 · ${image.sizeBytes} B`
 	);
-	expect(bounds("image-after").width).toBeGreaterThan(450);
 	expect(reader).toHaveBeenCalledTimes(1);
 });
 

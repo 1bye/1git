@@ -39,7 +39,7 @@ it("does not confuse binary or conflicted content with an empty or clean diff", 
 				patch: "",
 				stats: [{ path: "a.png", addedLines: null, deletedLines: null }],
 			},
-			"staged"
+			"working"
 		).message
 	).toContain("Binary file");
 	expect(

@@ -312,6 +312,8 @@ export type DiffTarget =
 			readonly kind: "range";
 			readonly mergeBase?: boolean;
 	  }
+	/** Complete HEAD-to-working-file changes, including additions on an unborn branch. */
+	| { readonly kind: "changes" }
 	| { readonly kind: "staged" }
 	| { readonly kind: "working" };
 
@@ -398,8 +400,10 @@ export interface CommitInput extends GitCallOptions {
 	readonly summary: string;
 }
 
-/** Commits current whole-file contents, preserving excluded index entries. Partially staged selections are rejected. */
+/** Commits current whole-file contents, preserving excluded index entries. */
 export interface CommitFilesInput extends GitCallOptions {
+	/** Explicitly include all current edits in selected partially staged files. Defaults to rejecting those selections. */
+	readonly includePartialStaging?: boolean;
 	/** Staged mode commits the current index and ignores checkbox paths. */
 	readonly mode?: "files" | "staged";
 	readonly paths: readonly string[];

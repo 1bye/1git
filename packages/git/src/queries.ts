@@ -1,5 +1,13 @@
-import { access, readFile, realpath, stat } from "node:fs/promises";
+import {
+	access,
+	mkdtemp,
+	readFile,
+	realpath,
+	rm,
+	stat,
+} from "node:fs/promises";
 import { createHash } from "node:crypto";
+import { tmpdir } from "node:os";
 import { isAbsolute, join, relative, resolve } from "node:path";
 
 import type {
@@ -471,7 +479,8 @@ export const loadRemotes = async (
 
 const diffArguments = (
 	input: DiffInput,
-	format: "numstat" | "patch"
+	format: "numstat" | "patch",
+	head?: string
 ): string[] => {
 	const isCommit = input.target.kind === "commit";
 
@@ -499,7 +508,9 @@ const diffArguments = (
 		}
 	}
 
-	if (input.target.kind === "staged") {
+	if (input.target.kind === "changes" && head) {
+		args.push(head);
+	} else if (input.target.kind === "staged") {
 		args.push("--cached");
 	} else if (input.target.kind === "commit") {
 		args.push(input.target.revision);
@@ -554,9 +565,10 @@ const loadUntrackedPathDiff = async (
 
 const loadUntrackedDiff = async (
 	context: RepositoryContext,
-	input: DiffInput
+	input: DiffInput,
+	indexFile?: string
 ): Promise<Pick<FileDiff, "patch" | "stats">> => {
-	if (input.target.kind !== "working") {
+	if (input.target.kind !== "working" && input.target.kind !== "changes") {
 		return { patch: "", stats: [] };
 	}
 
@@ -575,6 +587,7 @@ const loadUntrackedDiff = async (
 	const untrackedOutput = await context.process.run({
 		args: listArguments,
 		cwd: context.repository.root,
+		indexFile,
 		signal: input.signal,
 	});
 
@@ -611,26 +624,29 @@ const loadUntrackedDiff = async (
 	};
 };
 
-/** Loads patch text and machine-readable line statistics for one diff target. */
-export const loadDiff = async (
+const loadDiffWithIndex = async (
 	context: RepositoryContext,
-	input: DiffInput
+	input: DiffInput,
+	indexFile?: string,
+	head?: string
 ): Promise<FileDiff> => {
 	const statRequest = context.process.run({
-		args: diffArguments(input, "numstat"),
+		args: diffArguments(input, "numstat", head),
 		cwd: context.repository.root,
+		indexFile,
 		signal: input.signal,
 	});
 
 	try {
 		const [patchOutput, statOutput, untracked] = await Promise.all([
 			context.process.run({
-				args: diffArguments(input, "patch"),
+				args: diffArguments(input, "patch", head),
 				cwd: context.repository.root,
+				indexFile,
 				signal: input.signal,
 			}),
 			statRequest,
-			loadUntrackedDiff(context, input),
+			loadUntrackedDiff(context, input, indexFile),
 		]);
 
 		return {
@@ -656,6 +672,85 @@ export const loadDiff = async (
 		}
 
 		throw error;
+	}
+};
+
+/** Loads patch text and statistics without changing the repository's index or working files. */
+export const loadDiff = async (
+	context: RepositoryContext,
+	input: DiffInput
+): Promise<FileDiff> => {
+	if (input.target.kind !== "changes")
+		return await loadDiffWithIndex(context, input);
+
+	let head: string | undefined;
+
+	try {
+		const output = await context.process.run({
+			args: ["rev-parse", "--verify", "--quiet", "HEAD"],
+			cwd: context.repository.root,
+			signal: input.signal,
+		});
+
+		head = output.stdout.toString("utf8").trim();
+	} catch (error) {
+		if (!(error instanceof GitCommandFailure && error.exitCode === 1))
+			throw error;
+	}
+
+	const directory = await mkdtemp(join(tmpdir(), "1git-diff-"));
+	const indexFile = join(directory, "index");
+
+	try {
+		await context.process.run({
+			args: [
+				"-c",
+				"core.splitIndex=false",
+				"-c",
+				"core.fsmonitor=false",
+				"read-tree",
+				head ?? "--empty",
+			],
+			cwd: context.repository.root,
+			indexFile,
+			signal: input.signal,
+		});
+
+		if (head) {
+			// Keep HEAD paths even if removed from the real index, and recognize staged additions/renames.
+			// Only existing object IDs are copied; previews never add working content to the object store.
+			const entries = await context.process.run({
+				args: [
+					"--literal-pathspecs",
+					"ls-files",
+					"--stage",
+					"-z",
+					...(input.paths ? ["--", ...input.paths] : []),
+				],
+				cwd: context.repository.root,
+				signal: input.signal,
+			});
+
+			await context.process.run({
+				args: [
+					"-c",
+					"core.splitIndex=false",
+					"-c",
+					"core.fsmonitor=false",
+					"update-index",
+					"-z",
+					"--index-info",
+				],
+				stdin: entries.stdout,
+				cwd: context.repository.root,
+				indexFile,
+				signal: input.signal,
+			});
+		}
+
+		return await loadDiffWithIndex(context, input, indexFile, head);
+	} finally {
+		await rm(directory, { recursive: true, force: true });
 	}
 };
 

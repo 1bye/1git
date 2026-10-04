@@ -295,11 +295,8 @@ export class RepositoryWorkspaceModel {
 		);
 	}
 
-	/** A whole-file action never silently replaces a user's partial staging choice. */
-	static commitBlockReason(
-		state: RepositoryWorkspaceState,
-		mode: "files" | "staged" = "files"
-	): string | null {
+	/** Checked files include their current contents; conflicts and submodules need separate handling. */
+	static commitBlockReason(state: RepositoryWorkspaceState): string | null {
 		if (state.repository?.operation !== "normal" && state.repository)
 			return "Finish the current Git operation before committing here.";
 
@@ -310,8 +307,6 @@ export class RepositoryWorkspaceModel {
 		)
 			return "Resolve merge conflicts before committing.";
 
-		if (mode === "staged") return null;
-
 		for (const entry of state.entries.changes) {
 			if (!state.includedFileIds.includes(entry.id) || !entry.change) continue;
 
@@ -319,40 +314,20 @@ export class RepositoryWorkspaceModel {
 
 			if (file.submodule !== "N...")
 				return "Commit selected submodule changes in Git first.";
-
-			if (
-				file.recordType !== "untracked" &&
-				file.indexStatus !== "unmodified" &&
-				file.worktreeStatus !== "unmodified"
-			)
-				return "A selected file is partially staged. Choose Staged changes to commit its staged edits, or uncheck it.";
 		}
 
 		return null;
 	}
 
-	static canCommit(
-		state: RepositoryWorkspaceState,
-		mode: "files" | "staged" = "files"
-	): boolean {
+	static canCommit(state: RepositoryWorkspaceState): boolean {
 		return (
 			!!state.repository &&
 			!state.preview &&
 			!RepositoryWorkspaceModel.isBusy(state) &&
 			!state.commit.needsReview &&
 			!state.commitMessage.includes("\0") &&
-			(mode === "staged"
-				? !state.loading &&
-					!state.error &&
-					!!state.commitMessage.split("\n", 1)[0]?.trim() &&
-					state.entries.changes.some(
-						({ change }) =>
-							change &&
-							change.recordType !== "untracked" &&
-							change.indexStatus !== "unmodified"
-					)
-				: RepositoryWorkspaceModel.canPreviewCommit(state)) &&
-			!RepositoryWorkspaceModel.commitBlockReason(state, mode)
+			RepositoryWorkspaceModel.canPreviewCommit(state) &&
+			!RepositoryWorkspaceModel.commitBlockReason(state)
 		);
 	}
 
@@ -861,9 +836,25 @@ export class RepositoryWorkspaceModel {
 		if (action.type === "loaded") {
 			const { snapshot } = action;
 
-			const changes = snapshot.files
-				.filter((file) => file.recordType !== "ignored")
-				.map(RepositoryWorkspaceModel.fileEntry);
+			const files = new Map<string, FileChange>();
+
+			for (const file of snapshot.files) {
+				if (file.recordType === "ignored") continue;
+
+				const existing = files.get(file.path);
+
+				// A file removed from Git's index then recreated has two status records, but one checkbox.
+				files.set(
+					file.path,
+					existing && file.recordType === "untracked"
+						? { ...existing, worktreeStatus: "modified" }
+						: file
+				);
+			}
+
+			const changes = [...files.values()].map(
+				RepositoryWorkspaceModel.fileEntry
+			);
 
 			const previous = new Set(state.entries.changes.map((entry) => entry.id));
 			const included = new Set(state.includedFileIds);
@@ -1243,7 +1234,7 @@ export class RepositoryWorkspaceModel {
 		);
 	}
 
-	/** Collapses index and worktree records into one row while retaining both statuses for accessibility. */
+	/** Presents one file's changes without exposing Git's staging model. */
 	static fileEntry(file: FileChange): WorkspaceEntry {
 		const symbols: Partial<Record<FileStatus, WorkspaceEntry["status"]>> = {
 			added: "A",
@@ -1266,7 +1257,7 @@ export class RepositoryWorkspaceModel {
 			title: file.path,
 			change: file,
 			status,
-			statusDescription: `${file.originalPath ? `renamed from ${file.originalPath}; ` : ""}index: ${file.indexStatus}; working tree: ${file.worktreeStatus}${file.submodule !== "N..." ? "; submodule changes" : ""}`,
+			statusDescription: `${file.originalPath ? `renamed from ${file.originalPath}; ` : ""}${file.recordType === "unmerged" ? "conflicted" : file.worktreeStatus === "unmodified" ? file.indexStatus : file.worktreeStatus}${file.submodule !== "N..." ? "; submodule changes" : ""}`,
 		};
 	}
 }

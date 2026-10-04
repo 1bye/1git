@@ -588,18 +588,20 @@ the Turbo build/dev tasks build dependencies first. No Electron IPC is involved.
 
 - Write a first-line summary, with optional details after a blank line, then use
   **Commit N files** or **Command+Enter**. The commit uses the checked files' current
-  whole-file contents. Excluded staged and working-tree changes remain excluded;
+  whole-file contents, even when some edits were prepared in another Git tool.
+  Unchecked files and their existing Git staging remain untouched;
   checkbox toggles themselves never write Git state.
 - The backend acquires the repository's index lock, prepares a temporary index,
   and uses Git's selected-path commit operation. Configured hooks and signing run
   normally. On success it installs the updated index, retaining excluded staging.
   Hook/signing failures keep the original index and draft; hook programs may still
   perform their own configured filesystem side effects.
-- Selected partially staged files are intentionally blocked: stage or unstage the
-  whole file using Git and refresh, or uncheck it. Submodules, unresolved conflicts,
+- There is no staged/unstaged commit mode or partial-hunk staging UI. Checking a
+  file includes all its current changes, not just its Git index content.
+  Submodules, unresolved conflicts,
   active merge/rebase operations, and ambiguous file/directory changes are also
   blocked. HEAD and branch are rechecked before committing; stale state requires
-  a refresh and review. Partial-hunk selection is not implemented.
+  a refresh and review.
 - During a write, the composer, inclusion checkboxes, refresh and affected tab-close
   actions are disabled. View/tab switches remain usable; they do not cancel a write.
   Duplicate submissions are blocked across tabs for the same repository. Normal
@@ -721,16 +723,15 @@ scrolling while using GPUIX's virtualized list; no additional diff library is ne
   line counts for the displayed comparison. Folder text yields to the filename
   and totals on narrow panes. Counts come from Git (including untracked files);
   binary files and unavailable counts show no misleading zero totals.
-- **Unstaged** compares the index to the working tree; **Staged** compares HEAD
-  to the index. A partially staged file offers a compact switch beside the filename;
-  files with only one comparison show no switch. Technical comparison labels and
-  the read-only badge are omitted. Switching the view
-  does not change checkboxes or Git staging. The first available comparison opens
-  automatically, preferring Unstaged.
+- Changes shows one complete **HEAD → current file** comparison, matching a
+  checked-file commit. Intermediate Git index content is not a separate view.
+  On an unborn branch, files are compared against an empty tree. A temporary
+  preview index handles external additions, renames and removed/recreated files
+  without modifying the repository's real index or adding objects.
 - New/untracked files, deletions, empty files, renames and mode changes use the
   same viewer. PNG, JPEG, WebP and SVG files have image previews, described below.
   Other binary files have explicit notices instead of
-  misleading text. Conflict resolution is not implemented.
+  misleading text. Conflicts use the resolution workflow described below.
 - The native list owns vertical scrolling and only builds rows near the viewport;
   its surrounding viewport owns horizontal scrolling only. There are no competing
   vertical scroll containers. Focus the viewer with Tab and use arrows,
@@ -842,11 +843,10 @@ hot reload cannot replace a loaded addon. This bridge is macOS-only.
   Before/After when both versions exist.
 - SVG files have keyboard-operable **Preview / Source** controls in the existing
   header. Source uses the same native text diff, including when SVG preview
-  validation fails. Staged/Unstaged switching selects the corresponding image
-  comparison without changing Git staging or commit inclusion.
-- Before/after bytes come from the status snapshot's HEAD/index blob IDs and a
-  bounded working-file read. A per-read cache shares index pixels between both
-  comparisons. Refresh reads new versions; selection/tab changes cancel Git
+  validation fails. Preview/Source switching does not change commit inclusion.
+- Before/after bytes come from the status snapshot's HEAD blob IDs and a
+  bounded current-file read, ignoring intermediate index versions.
+  Refresh reads new versions; selection/tab changes cancel Git
   reads and discard late decoding results. Each failed side shows its own error;
   Refresh retries reads. Missing versions are not treated as decode failures.
 - Sharp prepares bounded, oriented PNG preview pixels off the UI thread; GPUIX
@@ -1011,10 +1011,10 @@ sandbox. Native tests inject the activation event and check coalescing, shared
 subscriptions, draft/inclusion preservation, diff scroll and commit cancellation;
 physical app switching should still be checked after restarting the native app.
 
-Diff tests cover native line-number/text painting, comparison switching,
+Diff tests cover native line-number/text painting, the absence of staging controls,
 keyboard/trackpad scrolling on both axes, a bounded painted-row count for 1,800-line
 patches, full-width backgrounds, text selection without gutters, native scroll-state
 cleanup, errors/retry, stale reads, refresh and preview guards.
-Real-Git integration tests also cover both sides of a partially staged file,
+Real-Git integration tests also cover the complete current contents of externally staged files,
 untracked/empty/deleted/renamed paths, literal special filenames, disabled external
 drivers and oversized/binary patches, without changing HEAD or staged content.

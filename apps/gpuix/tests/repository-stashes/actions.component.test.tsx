@@ -1,5 +1,5 @@
 /**
- * Covers: explicit create/apply/delete UI, cancelled confirmation, captured IDs, busy guards and failures.
+ * Covers: stash action-row layout, anchored forms/focus, captured IDs, busy guards and failures.
  * Real: App, mutation/repository hooks, reducers and native controls/layout.
  * Doubles: repository readers/writers, close bridge; no actual Git or user data.
  * Requires: patched GPUIX/macOS graphics access.
@@ -14,6 +14,8 @@ import {
 } from "../_shared/repository-snapshot";
 import { stashList } from "../_shared/stash-list";
 import { windowOptions } from "../../src/window-options";
+import { RepositoryWorkspaceModel as Model } from "../../src/feature/repository-workspace/lib/repository-workspace-model";
+import { RepositoryStashActions } from "../../src/feature/repository-workspace/components/repository-stash-actions";
 
 let root: TestRoot;
 let blocked: boolean;
@@ -79,41 +81,114 @@ const settle = async () => {
 const readStashes = async () => ({ ok: true as const, value: stashList() });
 const readStashFiles = async () => ({ ok: true as const, value: [] });
 
-it("anchors the primary New stash button above the files pane without moving the list when opened", async () => {
-	root.render(
-		<App
-			initialSession={session}
-			readRepository={async () => ({
-				ok: true,
-				value: repositorySnapshot([changedFile("a.ts")]),
-			})}
-			readStashes={readStashes}
-			readStashFiles={readStashFiles}
-		/>
-	);
-	await settle();
-	click("view-stashes");
-	await settle();
-	const before = root.renderer.getElementBounds(node("revision-divider").id);
-	const button = root.renderer.getElementBounds(node("stash-create").id);
+it.each([
+	{ width: 1100, height: 760 },
+	{ width: 640, height: 480 },
+])(
+	"keeps stash actions on one row above the files pane at $width × $height",
+	async ({ width, height }) => {
+		root.unmount();
+		root = createTestRoot({
+			width,
+			height,
+			onKeyDown: windowOptions.onKeyDown,
+		});
+		root.renderer.clockPause();
+		root.render(
+			<App
+				initialSession={session}
+				readRepository={async () => ({
+					ok: true,
+					value: repositorySnapshot([changedFile("a.ts")]),
+				})}
+				readStashes={readStashes}
+				readStashFiles={readStashFiles}
+			/>
+		);
+		await settle();
+		click("view-stashes");
+		await settle();
+		const before = root.renderer.getElementBounds(node("revision-divider").id);
+		const button = root.renderer.getElementBounds(node("stash-create").id);
+		const apply = root.renderer.getElementBounds(node("stash-apply").id);
+		const more = root.renderer.getElementBounds(node("stash-more").id);
 
-	if (!before || !button) throw new Error("Missing stash pane layout");
+		if (!before || !button || !apply || !more)
+			throw new Error("Missing stash pane layout");
 
-	expect(button.y + button.height).toBeLessThanOrEqual(before.y);
-	expect(button.x).toBeGreaterThan(before.x + before.width / 2);
-	expect(node("stash-create").style.backgroundColor).toBe("#406bde");
-	click("stash-create");
-	await Bun.sleep(150);
-	root.renderer.flush();
-	expect(root.renderer.getElementBounds(node("revision-divider").id)).toEqual(
-		before
-	);
-	const form = root.renderer.getElementBounds(node("popover-content").id);
+		expect(apply.y).toBe(button.y);
+		expect(more.y).toBe(button.y);
+		expect(more.x + more.width).toBeLessThan(button.x);
+		expect(button.y + button.height).toBeLessThanOrEqual(before.y);
+		expect(button.y + button.height).toBeGreaterThanOrEqual(before.y - 12);
+		expect(button.x).toBeGreaterThan(before.x + before.width / 2);
+		expect(button.x + button.width).toBeLessThanOrEqual(
+			before.x + before.width
+		);
+		expect(node("stash-create").style.backgroundColor).toBe("#406bde");
 
-	if (!form) throw new Error("Missing popover");
+		if (process.env.GPUIX_STASH_LAYOUT_SCREENSHOT)
+			root.renderer.captureScreenshot(
+				`${process.env.GPUIX_STASH_LAYOUT_SCREENSHOT}-${width}.png`
+			);
 
-	expect(form.y + form.height).toBeLessThanOrEqual(button.y);
-});
+		click("stash-create");
+		await Bun.sleep(150);
+		root.renderer.flush();
+		expect(root.renderer.getElementBounds(node("revision-divider").id)).toEqual(
+			before
+		);
+		const form = root.renderer.getElementBounds(node("popover-content").id);
+
+		if (!form) throw new Error("Missing popover");
+
+		expect(form.y + form.height).toBeLessThanOrEqual(button.y);
+		click("stash-cancel");
+		click("stash-more");
+		await Bun.sleep(150);
+		root.renderer.flush();
+		expect(root.renderer.getElementBounds(node("revision-divider").id)).toEqual(
+			before
+		);
+		expect(root.renderer.getElementBounds(node("stash-create").id)).toEqual(
+			button
+		);
+		expect(root.renderer.getElementBounds(node("stash-apply").id)).toEqual(
+			apply
+		);
+		click("stash-delete");
+		await Bun.sleep(150);
+		root.renderer.flush();
+		expect(root.renderer.getElementBounds(node("revision-divider").id)).toEqual(
+			before
+		);
+		expect(root.renderer.getElementBounds(node("stash-create").id)).toEqual(
+			button
+		);
+		expect(root.renderer.getElementBounds(node("stash-apply").id)).toEqual(
+			apply
+		);
+		const confirmation = root.renderer.getElementBounds(
+			node("stash-confirm").id
+		);
+
+		if (!confirmation) throw new Error("Missing stash confirmation layout");
+
+		expect(root.renderer.getFocusedElementId()).toBe(node("stash-cancel").id);
+		expect(confirmation.x).toBeGreaterThanOrEqual(0);
+		expect(confirmation.x + confirmation.width).toBeLessThanOrEqual(width);
+		expect(confirmation.y + confirmation.height).toBeLessThanOrEqual(height);
+
+		if (process.env.GPUIX_STASH_LAYOUT_SCREENSHOT)
+			root.renderer.captureScreenshot(
+				`${process.env.GPUIX_STASH_LAYOUT_SCREENSHOT}-confirmation-${width}.png`
+			);
+
+		click("stash-cancel");
+		await settle();
+		expect(root.renderer.getFocusedElementId()).toBe(node("stash-more").id);
+	}
+);
 
 it("creates explicitly with optional untracked files, locks the window and preserves the commit draft", async () => {
 	const pending =
@@ -169,7 +244,31 @@ it("creates explicitly with optional untracked files, locks the window and prese
 	expect(node("commit-message").customProps?.value).toBe("Keep this draft");
 });
 
-it("requires deletion confirmation and keeps the reviewed stash ID when selection changes", async () => {
+it("keeps New stash at the right above the files divider when there is no saved stash", async () => {
+	root.render(
+		<App
+			initialSession={session}
+			readRepository={async () => ({ ok: true, value: repositorySnapshot() })}
+			readStashes={async () => ({ ok: true, value: [] })}
+			readStashFiles={readStashFiles}
+		/>
+	);
+	await settle();
+	click("view-stashes");
+	await settle();
+	const divider = root.renderer.getElementBounds(node("revision-divider").id);
+	const create = root.renderer.getElementBounds(node("stash-create").id);
+
+	if (!divider || !create) throw new Error("Missing empty stash layout");
+
+	expect(root.renderer.findByTestId("stash-apply")).toBeUndefined();
+	expect(root.renderer.findByTestId("stash-more")).toBeUndefined();
+	expect(create.x).toBeGreaterThan(divider.x + divider.width / 2);
+	expect(create.y + create.height).toBeLessThanOrEqual(divider.y);
+	expect(create.y + create.height).toBeGreaterThanOrEqual(divider.y - 12);
+});
+
+it("requires deletion confirmation and permits cancelling before explicitly deleting", async () => {
 	const write = mock<typeof RepositoryStashes.write>(async () => ({
 		ok: true,
 		value: undefined,
@@ -194,13 +293,51 @@ it("requires deletion confirmation and keeps the reviewed stash ID when selectio
 	expect(write).not.toHaveBeenCalled();
 	click("stash-more");
 	click("stash-delete");
-	click(`entry-${stashList()[1]?.oid}`);
 	click("stash-confirm");
 	await settle();
 	expect(write.mock.calls[0]?.[1]).toMatchObject({
 		kind: "delete",
 		oid: stashList()[0]?.oid,
 	});
+});
+
+it("keeps the reviewed stash ID if the selection changes while confirming deletion", async () => {
+	const snapshot = repositorySnapshot();
+	const stashes = stashList();
+	let state = Model.reduce(Model.create(), { type: "loaded", snapshot });
+
+	state = Model.reduce(state, {
+		type: "stashes-loaded",
+		root: snapshot.repository.root,
+		generation: state.stashes.generation,
+		stashes,
+	});
+
+	const write = mock(async () => true);
+
+	const render = () =>
+		root.render(
+			<RepositoryStashActions
+				state={state}
+				placement="selection"
+				onWrite={write}
+			/>
+		);
+
+	render();
+	click("stash-more");
+	click("stash-delete");
+	state = Model.reduce(state, {
+		type: "select",
+		view: "stashes",
+		id: stashes[1]?.oid ?? "",
+	});
+	render();
+	click("stash-confirm");
+	await settle();
+	expect(write).toHaveBeenCalledWith(
+		expect.objectContaining({ kind: "delete", oid: stashes[0]?.oid })
+	);
 });
 
 it("applies by immutable ID, surfaces failures and permits a fresh explicit retry", async () => {
@@ -234,6 +371,18 @@ it("applies by immutable ID, surfaces failures and permits a fresh explicit retr
 		"Could not confirm the stash action"
 	);
 	expect(blocked).toBe(false);
+	const apply = root.renderer.getElementBounds(node("stash-apply").id);
+	const create = root.renderer.getElementBounds(node("stash-create").id);
+	const divider = root.renderer.getElementBounds(node("revision-divider").id);
+
+	if (!apply || !create || !divider)
+		throw new Error("Missing failed stash layout");
+
+	expect(apply.y).toBe(create.y);
+	expect(apply.x + apply.width).toBeLessThan(create.x);
+	expect(create.x + create.width).toBeLessThanOrEqual(
+		divider.x + divider.width
+	);
 	fail = false;
 	click("stash-apply");
 	await settle();

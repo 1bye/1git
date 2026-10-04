@@ -193,6 +193,68 @@ it("creates the first commit without including excluded additions", async () => 
 	);
 });
 
+it.each(["modified", "new", "renamed", "deleted", "recreated"] as const)(
+	"can explicitly commit a complete %s file while preserving unchecked staging",
+	async (kind) => {
+		const fixture = await fixtures.create();
+
+		const unchangedLines =
+			kind === "renamed" ? "\nanchor one\nanchor two\nanchor three" : "";
+
+		await fixture.write("selected.txt", `base selected${unchangedLines}\n`);
+		await fixture.write("excluded.txt", "base excluded\n");
+		await fixture.commitAll("Base");
+		await fixture.write("excluded.txt", "prepared excluded\n");
+		await fixture.git(["add", "excluded.txt"]);
+		await fixture.write("excluded.txt", "current excluded\n");
+		let path = "selected.txt";
+
+		if (kind === "renamed") {
+			await fixture.git(["mv", path, "renamed.txt"]);
+			path = "renamed.txt";
+		} else if (kind === "new") path = "new.txt";
+
+		await fixture.write(path, `prepared selected${unchangedLines}\n`);
+		await fixture.git(["add", path]);
+
+		if (kind === "deleted") await fixture.remove(path);
+		else {
+			if (kind === "recreated") await fixture.git(["rm", "--force", path]);
+
+			await fixture.write(path, `current selected${unchangedLines}\n`);
+		}
+
+		const result = unwrapResult(
+			await fixture.repository.commitFiles({
+				...(await input(fixture, [path])),
+				includePartialStaging: true,
+			})
+		);
+
+		expect(result.outcome).toBe("committed");
+
+		if (kind === "deleted")
+			expect(await fixture.git(["ls-tree", "--name-only", "HEAD", path])).toBe(
+				""
+			);
+		else
+			expect(await fixture.git(["show", `HEAD:${path}`])).toBe(
+				`current selected${unchangedLines}`
+			);
+
+		expect(await fixture.git(["show", "HEAD:excluded.txt"])).toBe(
+			"base excluded"
+		);
+		expect(await fixture.git(["show", ":excluded.txt"])).toBe(
+			"prepared excluded"
+		);
+		expect(await fixture.read("excluded.txt")).toBe("current excluded\n");
+		expect(result.snapshot?.files.map((file) => file.path)).toEqual([
+			"excluded.txt",
+		]);
+	}
+);
+
 it("rejects a file replaced by a directory instead of including unchecked descendants", async () => {
 	const fixture = await fixtures.create();
 	const head = await fixture.git(["rev-parse", "HEAD"]);
@@ -223,7 +285,12 @@ it("leaves the exact index and HEAD intact after a rejected hook, and honors hoo
 	await fixture.write("README.md", "staged\n");
 	await fixture.git(["add", "README.md"]);
 	await fixture.write("new.txt", "new\n");
-	const request = await input(fixture, ["new.txt"]);
+	await fixture.git(["add", "new.txt"]);
+	await fixture.write("new.txt", "current new\n");
+	const request = {
+		...(await input(fixture, ["new.txt"])),
+		includePartialStaging: true,
+	};
 
 	const index = await readFile(
 		join(fixture.repository.info.gitDirectory, "index")
@@ -254,11 +321,12 @@ it("leaves the exact index and HEAD intact after a rejected hook, and honors hoo
 	expect(await fixture.git(["rev-parse", "HEAD"])).toBe(
 		request.expectedHead ?? ""
 	);
-	expect(await fixture.read("new.txt")).toBe("new\n");
+	expect(await fixture.read("new.txt")).toBe("current new\n");
 	await writeFile(hook, "#!/bin/sh\nexit 0\n");
 	expect(
 		unwrapResult(await fixture.repository.commitFiles(request)).outcome
 	).toBe("committed");
+	expect(await fixture.git(["show", "HEAD:new.txt"])).toBe("current new");
 	expect(await fixture.git(["diff", "--cached", "--name-only"])).toBe(
 		"README.md"
 	);

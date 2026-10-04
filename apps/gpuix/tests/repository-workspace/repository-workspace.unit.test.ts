@@ -9,6 +9,35 @@ import { expect, it } from "bun:test";
 import { RepositoryWorkspaceModel as Model } from "../../src/feature/repository-workspace/lib/repository-workspace-model";
 import { sampleEntries } from "../../src/feature/repository-workspace/lib/sample-workspace";
 import { WorkspaceTabsModel as Tabs } from "../../src/feature/workspace-tabs/lib/workspace-tabs-model";
+import {
+	changedFile,
+	repositorySnapshot,
+} from "../_shared/repository-snapshot";
+
+it("uses one checkbox and complete file metadata for an externally removed and recreated file", () => {
+	const state = Model.reduce(Model.create(), {
+		type: "loaded",
+		snapshot: repositorySnapshot([
+			changedFile("file.txt", {
+				indexStatus: "deleted",
+				worktreeStatus: "unmodified",
+				headOid: "original",
+			}),
+			changedFile("file.txt", {
+				recordType: "untracked",
+				worktreeStatus: "untracked",
+			}),
+		]),
+	});
+
+	expect(state.entries.changes).toHaveLength(1);
+	expect(state.includedFileIds).toEqual(["file.txt"]);
+	expect(state.entries.changes[0]?.change).toMatchObject({
+		headOid: "original",
+		worktreeStatus: "modified",
+	});
+	expect(state.entries.changes[0]?.statusDescription).toBe("modified");
+});
 
 it("ranges over visible files only and resets a hidden range anchor", () => {
 	const initial = Model.create(true);

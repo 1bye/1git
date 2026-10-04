@@ -20,13 +20,12 @@ export const diffLimits = {
 	lineLength: 4000,
 } as const;
 
-/** Index-to-working-tree and HEAD-to-index are intentionally separate comparisons. */
-export type ChangeDiffTarget = "working" | "staged";
+/** A live changed file or an immutable file selected from a commit. */
 export type DiffSelection = FileChange | CommitFileSelection;
 
 /** One read-only comparison, ready for the native diff element or an explanatory notice. */
 export interface RepositoryDiffSection {
-	readonly target: ChangeDiffTarget | "commit";
+	readonly target: "working" | "commit";
 	readonly patch: string;
 	readonly stats: FileDiff["stats"];
 	readonly message: string | null;
@@ -42,27 +41,6 @@ const fileHeader = /^diff --git /m;
 /** Reads only the selected path, reusing the shared Git backend and GPUIX's patch parser. */
 export class RepositoryDiff {
 	private constructor() {}
-
-	/** Applies one reviewed hunk without changing working-file contents. */
-	static async writeHunk(
-		root: string,
-		request: {
-			path: string;
-			action: "stage" | "unstage";
-			hunkIndex: number;
-			expectedPatch: string;
-		}
-	) {
-		const opened = await GitRepository.open({ path: root });
-
-		if (!opened.ok) return opened;
-
-		const result = await opened.value.changeHunk(request);
-
-		return result.ok
-			? { ok: true as const, value: result.value.snapshot }
-			: result;
-	}
 
 	static async read(
 		root: string,
@@ -87,7 +65,7 @@ export class RepositoryDiff {
 						conflict: content.value ?? undefined,
 						message: content.value
 							? null
-							: "Binary or oversized conflict. Resolve and stage this file in your editor or Git CLI, then refresh.",
+							: "Binary or oversized conflict. Resolve this file in your editor or Git CLI, then refresh.",
 					},
 				],
 			};
@@ -103,72 +81,40 @@ export class RepositoryDiff {
 
 		if (!opened.ok) return opened;
 
-		const targets: ChangeDiffTarget[] = [];
+		const preview = image
+			? await RepositoryImage.read(opened.value, root, change, signal)
+			: undefined;
 
-		if (change.worktreeStatus !== "unmodified") targets.push("working");
-
-		if (
-			change.indexStatus !== "unmodified" &&
-			change.indexStatus !== "untracked" &&
-			change.indexStatus !== "ignored"
-		)
-			targets.push("staged");
-
-		if (!targets.length) targets.push("working");
-
-		const images = image
-			? await RepositoryImage.read(opened.value, root, change, targets, signal)
-			: null;
-
-		const results = await Promise.all(
-			targets.map(async (target) => {
-				const preview = images?.get(target);
-
-				if (preview && !preview.svg)
-					return {
-						ok: true as const,
-						value: {
-							target,
-							patch: "",
-							stats: [],
-							message: null,
-							image: preview,
-						},
-					};
-
-				// The old name is needed for rename detection in the index, but not for the working-tree comparison.
-				const paths =
-					target === "staged" && change.originalPath
-						? [change.originalPath, change.path]
-						: [change.path];
-
-				const result = await opened.value.getDiff({
-					target: { kind: target },
-					paths,
-					signal,
-				});
-
-				if (!result.ok) return result;
-
-				return {
-					ok: true,
-					value: {
-						...RepositoryDiff.section(result.value, target),
+		if (preview && !preview.svg)
+			return {
+				ok: true,
+				value: [
+					{
+						target: "working",
+						patch: "",
+						stats: [],
+						message: null,
 						image: preview,
 					},
-				} as const;
-			})
-		);
+				],
+			};
 
-		const sections: RepositoryDiffSection[] = [];
+		const result = await opened.value.getDiff({
+			target: { kind: "changes" },
+			paths: change.originalPath
+				? [change.originalPath, change.path]
+				: [change.path],
+			signal,
+		});
 
-		for (const result of results) {
-			if (!result.ok) return result;
+		if (!result.ok) return result;
 
-			sections.push(result.value);
-		}
-
-		return { ok: true, value: sections };
+		return {
+			ok: true,
+			value: [
+				{ ...RepositoryDiff.section(result.value, "working"), image: preview },
+			],
+		};
 	}
 
 	/** Shares the existing viewer and image decoder for immutable, first-parent comparisons. */
