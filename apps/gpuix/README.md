@@ -450,7 +450,12 @@ the content without moving the sidebar; there is no chevron. Backdrop clicks are
 consumed, so dismissing the menu never activates dimmed controls underneath.
 The compact desktop-style menu shows the current branch/upstream, three local
 branches ordered by latest commit, relative commit ages, and a More row to expand
-the scrollable list. Existing worktrees remain available below the branches.
+the scrollable list. A Worktrees row opens a hover submenu listing the available
+worktrees, with a checkmark on the current checkout. It opens to the right and
+flips left when space is limited; long lists scroll without growing the parent
+menu. Moving between the trigger and submenu keeps it open. Enter/Right opens
+and focuses the submenu, Up/Down navigates its entries, and Left/Escape returns
+to the parent menu. Hovering does not read repository contents or switch tabs.
 Create new branch opens an inline form; Cancel/Escape returns to the actions.
 There is no permanent search field or Close footer. Right-click a local branch
 (or use Control-click / Shift-F10) for Rename and Delete. Both require confirmation;

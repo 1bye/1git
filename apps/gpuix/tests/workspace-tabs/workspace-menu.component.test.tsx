@@ -6,7 +6,12 @@
  */
 import { afterEach, beforeEach, expect, it, mock, spyOn } from "bun:test";
 import { createTestRoot, type TestRoot } from "@gpuix/react/testing";
-import type { BranchInfo, RemoteInfo, RepositorySnapshot } from "@1git/git";
+import type {
+	BranchInfo,
+	RemoteInfo,
+	RepositorySnapshot,
+	WorktreeInfo,
+} from "@1git/git";
 import { App } from "../../src/app";
 import { windowOptions } from "../../src/window-options";
 import { RepositoryBranches } from "../../src/feature/workspace-tabs/lib/repository-branches";
@@ -241,6 +246,186 @@ const menu = async (): Promise<void> => {
 	await settle();
 };
 
+const worktrees = async (): Promise<void> => {
+	const box = bounds("worktrees");
+
+	root.renderer.nativeSimulateMouseMove(
+		box.x + box.width / 2,
+		box.y + box.height / 2
+	);
+	await settle();
+};
+
+it("shows worktrees only in a right-hand hover submenu and keeps it open while entering", async () => {
+	await open();
+	await menu();
+	expect(root.renderer.findByTestId("worktree-/test/linked")).toBeUndefined();
+	expect(element("worktrees").customProps?.["aria-expanded"]).toBe(false);
+	await worktrees();
+	const parent = bounds("workspace-menu");
+	const submenu = bounds("workspace-worktrees");
+
+	expect(submenu.x).toBeGreaterThanOrEqual(parent.x + parent.width);
+	expect(
+		element("worktree-/test/project").customProps?.["aria-label"]
+	).toContain("current worktree");
+	expect(element("worktree-/test/linked")).toBeDefined();
+	expect(element("worktrees").customProps?.["aria-expanded"]).toBe(true);
+
+	if (process.env.GPUIX_WORKTREE_SCREENSHOT)
+		root.renderer.captureScreenshot(
+			`${process.env.GPUIX_WORKTREE_SCREENSHOT}-right.png`
+		);
+
+	root.renderer.nativeSimulateMouseMove(submenu.x + 30, submenu.y + 20);
+	root.renderer.flush();
+	await Bun.sleep(200);
+	await settle();
+	expect(element("workspace-worktrees")).toBeDefined();
+	expect(readRepository).toHaveBeenCalledTimes(1);
+	root.renderer.nativeSimulateMouseMove(900, 600);
+	root.renderer.flush();
+	await Bun.sleep(200);
+	await settle();
+	expect(root.renderer.findByTestId("workspace-worktrees")).toBeUndefined();
+	expect(element("workspace-menu")).toBeDefined();
+});
+
+it("flips the worktree submenu to the left near the window edge", async () => {
+	await open();
+
+	for (let index = 0; index < 6; index += 1) click("add-workspace");
+
+	await settle();
+	click("open-repository");
+	await settle();
+	click("workspace-7");
+	await settle();
+	await worktrees();
+	const parent = bounds("workspace-menu");
+	const submenu = bounds("workspace-worktrees");
+
+	expect(submenu.x + submenu.width).toBeLessThanOrEqual(parent.x);
+	expect(submenu.x).toBeGreaterThanOrEqual(8);
+	expect(submenu.y + submenu.height).toBeLessThanOrEqual(640 - 8);
+
+	if (process.env.GPUIX_WORKTREE_SCREENSHOT)
+		root.renderer.captureScreenshot(
+			`${process.env.GPUIX_WORKTREE_SCREENSHOT}-left.png`
+		);
+
+	click("worktree-/test/linked");
+	await settle();
+	expect(element("workspace-8").customProps?.["aria-selected"]).toBe(true);
+	expect(root.renderer.findByTestId("workspace-menu")).toBeUndefined();
+});
+
+it("opens worktrees with the keyboard, navigates once per key and returns to the parent", async () => {
+	await open();
+	await menu();
+	root.renderer.focusElement(element("worktrees").id);
+	root.renderer.simulateKeystrokes("right");
+	await settle();
+	expect(root.renderer.getFocusedElementId()).toBe(
+		element("worktree-/test/project").id
+	);
+	root.renderer.simulateKeystrokes("down");
+	await settle();
+	expect(root.renderer.getFocusedElementId()).toBe(
+		element("worktree-/test/linked").id
+	);
+	root.renderer.simulateKeystrokes("left");
+	await settle();
+	expect(root.renderer.findByTestId("workspace-worktrees")).toBeUndefined();
+	expect(root.renderer.getFocusedElementId()).toBe(element("worktrees").id);
+	root.renderer.simulateKeystrokes("enter");
+	await settle();
+	expect(element("workspace-worktrees")).toBeDefined();
+	root.renderer.simulateKeystrokes("escape");
+	await settle();
+	expect(root.renderer.findByTestId("workspace-worktrees")).toBeUndefined();
+	expect(element("workspace-menu")).toBeDefined();
+	root.renderer.simulateKeystrokes("escape");
+	await settle();
+	expect(root.renderer.findByTestId("workspace-menu")).toBeUndefined();
+	expect(root.renderer.getFocusedElementId()).toBe(element("workspace-1").id);
+	expect(writeBranch).not.toHaveBeenCalled();
+	expect(readRepository).toHaveBeenCalledTimes(1);
+});
+
+it("selects the current worktree without rereading it and refuses its removal", async () => {
+	const nativeMenu = spyOn(NativeFileMenu, "show").mockReturnValue(0);
+
+	await open();
+	await menu();
+	await worktrees();
+	const current = bounds("worktree-/test/project");
+
+	root.renderer.nativeSimulateClick(current.x + 20, current.y + 14, 2);
+	await settle();
+	expect(nativeMenu).toHaveBeenCalledWith(
+		expect.anything(),
+		["Remove worktree…"],
+		[false],
+		expect.any(Number),
+		expect.any(Number)
+	);
+	expect(root.renderer.findByTestId("confirm-remove-worktree")).toBeUndefined();
+	expect(removeWorktree).not.toHaveBeenCalled();
+	click("worktree-/test/project");
+	await settle();
+	expect(root.renderer.findByTestId("workspace-menu")).toBeUndefined();
+	expect(root.renderer.findByTestId("workspace-2")).toBeUndefined();
+	expect(readRepository).toHaveBeenCalledTimes(1);
+});
+
+it("bounds and scrolls long worktree lists, keeps detached and locked entries, and hides stale entries", async () => {
+	const entries: WorktreeInfo[] = Array.from({ length: 31 }, (_, index) => ({
+		path: index === 0 ? "/test/project" : `/test/tree-${index}`,
+		branch: index === 2 ? null : `refs/heads/topic-${index}`,
+		headOid: snapshot.head.oid,
+		detached: index === 2,
+		locked: index === 1,
+		lockReason: index === 1 ? "In use" : null,
+		prunable: index === 30,
+		pruneReason: index === 30 ? "Missing folder" : null,
+	}));
+
+	readBranches.mockImplementationOnce(async () => ({
+		ok: true,
+		value: { branches: collection(), remotes: [], worktrees: entries },
+	}));
+	await open();
+	await menu();
+	const parentHeight = bounds("workspace-menu").height;
+
+	await worktrees();
+	const submenu = bounds("workspace-worktrees");
+
+	expect(submenu.height).toBeLessThanOrEqual(370);
+	expect(bounds("workspace-menu").height).toBe(parentHeight);
+	expect(element("worktree-/test/tree-1")).toBeDefined();
+	expect(
+		element("worktree-/test/tree-2").customProps?.["aria-label"]
+	).toContain("detached HEAD");
+	expect(root.renderer.findByTestId("worktree-/test/tree-30")).toBeUndefined();
+	root.renderer.nativeSimulateScrollWheel(
+		submenu.x + 30,
+		submenu.y + 30,
+		0,
+		-600
+	);
+	await settle();
+	expect(
+		root.renderer.getScrollOffset(element("workspace-worktree-list").id)?.[1]
+	).toBeLessThan(0);
+	expect(readBranches).toHaveBeenCalledTimes(1);
+	root.renderer.nativeSimulateClick(900, 600);
+	await settle();
+	expect(root.renderer.findByTestId("workspace-worktrees")).toBeUndefined();
+	expect(root.renderer.findByTestId("workspace-menu")).toBeUndefined();
+});
+
 it("opens a read-only comparison even with uncommitted changes and returns to the workspace", async () => {
 	snapshot = { ...snapshot, files: [changedFile("dirty.txt")] };
 	await open();
@@ -259,6 +444,7 @@ it("warns about drafts, confirms removal, and closes only the removed worktree a
 	spyOn(NativeFileMenu, "show").mockReturnValue(0);
 	await open();
 	await menu();
+	await worktrees();
 	click("worktree-/test/linked");
 	await settle();
 	click("commit-message");
@@ -266,6 +452,7 @@ it("warns about drafts, confirms removal, and closes only the removed worktree a
 	click("workspace-1");
 	await settle();
 	await menu();
+	await worktrees();
 	const box = bounds("worktree-/test/linked");
 
 	root.renderer.nativeSimulateClick(box.x + 8, box.y + 8, 2);
@@ -278,7 +465,10 @@ it("warns about drafts, confirms removal, and closes only the removed worktree a
 	click("cancel-remove-worktree");
 	await settle();
 	expect(root.renderer.findByTestId("workspace-2")).toBeDefined();
-	root.renderer.nativeSimulateClick(box.x + 8, box.y + 8, 2);
+	await worktrees();
+	const reopened = bounds("worktree-/test/linked");
+
+	root.renderer.nativeSimulateClick(reopened.x + 8, reopened.y + 8, 2);
 	await settle();
 	click("confirm-remove-worktree");
 	await settle();
@@ -304,11 +494,13 @@ it("keeps affected tabs when removal fails", async () => {
 	removeWorktree.mockImplementation(async () => await pendingRemoval.promise);
 	await open();
 	await menu();
+	await worktrees();
 	click("worktree-/test/linked");
 	await settle();
 	click("workspace-1");
 	await settle();
 	await menu();
+	await worktrees();
 	const box = bounds("worktree-/test/linked");
 
 	root.renderer.nativeSimulateClick(box.x + 8, box.y + 8, 2);
@@ -630,6 +822,7 @@ it("protects related tabs during creation and retains the result when the menu i
 	});
 	await open();
 	await menu();
+	await worktrees();
 	click("worktree-/test/linked");
 	await settle();
 	click("workspace-1");
@@ -662,7 +855,7 @@ it("protects related tabs during creation and retains the result when the menu i
 		},
 	});
 	await settle();
-	root.renderer.simulateKeystrokes("escape");
+	root.renderer.nativeSimulateClick(900, 600);
 	await settle();
 	click("workspace-1");
 	await settle();
@@ -978,6 +1171,7 @@ it("keeps empty and failed branch lists dismissible", async () => {
 it("opens an existing worktree and reuses its tab on a second open", async () => {
 	await open();
 	await menu();
+	await worktrees();
 	click("worktree-/test/linked");
 	await settle();
 	expect(element("workspace-2").customProps?.["aria-selected"]).toBe(true);
@@ -985,6 +1179,7 @@ it("opens an existing worktree and reuses its tab on a second open", async () =>
 	click("workspace-1");
 	await settle();
 	await menu();
+	await worktrees();
 	click("worktree-/test/linked");
 	await settle();
 	expect(root.renderer.findByTestId("workspace-3")).toBeUndefined();
@@ -1247,6 +1442,7 @@ it("keeps fetch alive across menu dismissal, locks related worktrees and cancels
 	fetchRepository.mockImplementationOnce(() => pending.promise);
 	await open();
 	await menu();
+	await worktrees();
 	click("worktree-/test/linked");
 	await settle();
 	click("workspace-1");

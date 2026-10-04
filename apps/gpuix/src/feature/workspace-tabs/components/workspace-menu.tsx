@@ -2,6 +2,7 @@ import { basename } from "node:path";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { Button } from "@1git/gpuix-ui/button";
 import { Text } from "@1git/gpuix-ui/text";
+import { FloatingLayer } from "@gpuix/react/floating";
 import {
 	motion,
 	useGpuixRequired,
@@ -48,6 +49,8 @@ const sectionLabelHeight = 24;
 const noticeHeight = 56;
 const createFormHeight = 150;
 const worktreeFormHeight = 224;
+const submenuGap = 8;
+const submenuCloseDelayMs = 180;
 
 const styles = StyleSheet.create({
 	surface: {
@@ -228,10 +231,17 @@ export function WorkspaceMenu({
 	const [publishing, setPublishing] = useState(false);
 	const [selectedRemote, setSelectedRemote] = useState<string | null>(null);
 	const [expanded, setExpanded] = useState(false);
+	const [worktreesOpen, setWorktreesOpen] = useState(false);
 	const [opening, setOpening] = useState(false);
 	const mounted = useRef(true);
 	const dialog = useRef<PublicInstance>(null);
 	const list = useRef<PublicInstance>(null);
+	const worktreeMenu = useRef<PublicInstance>(null);
+	const worktreeList = useRef<PublicInstance>(null);
+	const submenuFocus = useRef(false);
+	// Deferred surfaces can enter before the trigger leaves; do not rely on event order.
+	const submenuHovered = useRef(false);
+	const hoverClose = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const rows = useRef(new Map<string, PublicInstance>());
 	const request = useRef<AbortController | null>(null);
 	const repository = tab.workspace.repository;
@@ -239,6 +249,15 @@ export function WorkspaceMenu({
 	const head = repository?.head;
 	const branch = repository?.branchName;
 	const busy = opening || RepositoryWorkspaceModel.isBusy(tab.workspace);
+
+	const showWorktrees =
+		worktreesOpen &&
+		!busy &&
+		data !== null &&
+		!creating &&
+		!creatingWorktree &&
+		!removingWorktree &&
+		!publishing;
 
 	const {
 		pending: syncKind,
@@ -266,8 +285,19 @@ export function WorkspaceMenu({
 		return () => {
 			mounted.current = false;
 			request.current?.abort();
+
+			if (hoverClose.current) clearTimeout(hoverClose.current);
 		};
 	}, []);
+
+	useEffect(() => {
+		if (!showWorktrees || !submenuFocus.current || !worktreeMenu.current)
+			return;
+
+		submenuFocus.current = false;
+		renderer.focusElement?.(worktreeMenu.current.id);
+		renderer.focusNextWithin?.(worktreeMenu.current.id);
+	}, [showWorktrees, renderer]);
 
 	useEffect(() => {
 		if (!root || syncKind) return;
@@ -371,9 +401,56 @@ export function WorkspaceMenu({
 	else if (fetchedAt)
 		fetchStatus = `Fetched ${WorkspaceMenuModel.commitAge(new Date(fetchedAt).toISOString())}`;
 
-	const worktrees =
-		data?.worktrees.filter((item) => item.path !== root && !item.prunable) ??
-		[];
+	const worktrees = data?.worktrees.filter((item) => !item.prunable) ?? [];
+	const worktreeIds = worktrees.map((item) => `worktree-${item.path}`);
+
+	const cancelSubmenuClose = (): void => {
+		if (hoverClose.current) clearTimeout(hoverClose.current);
+
+		hoverClose.current = null;
+	};
+
+	const closeWorktrees = (restoreFocus = false): void => {
+		cancelSubmenuClose();
+		submenuFocus.current = false;
+		submenuHovered.current = false;
+		setWorktreesOpen(false);
+
+		if (restoreFocus) {
+			const trigger = rows.current.get("worktrees");
+
+			if (trigger) renderer.focusElement?.(trigger.id);
+		}
+	};
+
+	const openWorktrees = (focus = false): void => {
+		if (busy || !data) return;
+
+		cancelSubmenuClose();
+		submenuFocus.current = focus;
+		setWorktreesOpen(true);
+
+		if (showWorktrees && focus && worktreeMenu.current) {
+			submenuFocus.current = false;
+			renderer.focusElement?.(worktreeMenu.current.id);
+			renderer.focusNextWithin?.(worktreeMenu.current.id);
+		}
+	};
+
+	const scheduleSubmenuClose = (): void => {
+		cancelSubmenuClose();
+		hoverClose.current = setTimeout(() => {
+			hoverClose.current = null;
+
+			if (submenuHovered.current) return;
+
+			const focused = renderer.getFocusedElementId?.();
+
+			closeWorktrees(
+				worktreeIds.some((id) => rows.current.get(id)?.id === focused)
+			);
+		}, submenuCloseDelayMs);
+	};
 
 	const enabledIds = visibleBranches
 		.filter(
@@ -394,9 +471,7 @@ export function WorkspaceMenu({
 
 	if (!busy && hasMore) enabledIds.push("more-branches");
 
-	if (!busy)
-		for (const worktree of worktrees)
-			enabledIds.push(`worktree-${worktree.path}`);
+	if (!busy && data) enabledIds.push("worktrees");
 
 	if (canCompare) enabledIds.push("compare-branches");
 
@@ -458,9 +533,9 @@ export function WorkspaceMenu({
 						(onCreateWorktree ? rowHeight : 0) +
 						(showFetch ? separatorHeight + rowHeight : 0) +
 						(showSync ? rowHeight * 2 : 0) +
-						Math.max(1, visibleBranches.length + worktrees.length) * rowHeight +
+						Math.max(1, visibleBranches.length) * rowHeight +
 						(hasMore ? rowHeight : 0) +
-						(worktrees.length ? sectionLabelHeight : 0);
+						rowHeight;
 
 	const menuHeight = Math.min(
 		maxMenuHeight,
@@ -472,6 +547,7 @@ export function WorkspaceMenu({
 	);
 
 	const showActions = (): void => {
+		closeWorktrees();
 		setCreating(false);
 		setRemoteBranch(null);
 		setBranchAction(null);
@@ -507,6 +583,27 @@ export function WorkspaceMenu({
 		if ((creatingWorktree || removingWorktree) && event.key !== "escape")
 			return;
 
+		const focused = renderer.getFocusedElementId?.();
+
+		const inWorktrees =
+			showWorktrees &&
+			worktreeIds.some((id) => rows.current.get(id)?.id === focused);
+
+		if (showWorktrees && (event.key === "escape" || event.key === "left")) {
+			closeWorktrees(true);
+
+			return;
+		}
+
+		if (
+			event.key === "right" &&
+			rows.current.get("worktrees")?.id === focused
+		) {
+			openWorktrees(true);
+
+			return;
+		}
+
 		if (event.key === "escape" || event.key === "tab") {
 			if (
 				event.key === "escape" &&
@@ -521,18 +618,20 @@ export function WorkspaceMenu({
 
 		if (creating || (event.key !== "down" && event.key !== "up")) return;
 
-		const focused = renderer.getFocusedElementId?.();
+		const activeIds = inWorktrees ? worktreeIds : enabledIds;
 
-		const focusedIndex = enabledIds.findIndex(
+		if (!inWorktrees) closeWorktrees();
+
+		const focusedIndex = activeIds.findIndex(
 			(id) => rows.current.get(id)?.id === focused
 		);
 
 		const index = focusedIndex < 0 && event.key === "up" ? 0 : focusedIndex;
 
 		const next =
-			enabledIds[
-				(index + (event.key === "down" ? 1 : -1) + enabledIds.length) %
-					enabledIds.length
+			activeIds[
+				(index + (event.key === "down" ? 1 : -1) + activeIds.length) %
+					activeIds.length
 			];
 
 		const node = next ? rows.current.get(next) : undefined;
@@ -540,8 +639,11 @@ export function WorkspaceMenu({
 		if (node) {
 			renderer.focusElement?.(node.id);
 
+			const scrollList = inWorktrees ? worktreeList.current : list.current;
+
 			if (
-				!list.current ||
+				!scrollList ||
+				next === "worktrees" ||
 				next === "create-branch" ||
 				next === "create-worktree" ||
 				next === "fetch-repository" ||
@@ -552,12 +654,12 @@ export function WorkspaceMenu({
 			)
 				return;
 
-			const viewport = renderer.getElementBounds?.(list.current.id);
+			const viewport = renderer.getElementBounds?.(scrollList.id);
 			const target = renderer.getElementBounds?.(node.id);
 
 			if (!viewport || !target) return;
 
-			const offset = renderer.getScrollOffset?.(list.current.id)?.[1] ?? 0;
+			const offset = renderer.getScrollOffset?.(scrollList.id)?.[1] ?? 0;
 			// As in RepositoryList, GPUIX bounds include the scroll offset; recover the clip origin.
 			const top = viewport.y - offset;
 
@@ -566,7 +668,7 @@ export function WorkspaceMenu({
 					? target.y - top
 					: Math.max(0, target.y + target.height - top - viewport.height);
 
-			renderer.scrollTo?.(list.current.id, 0, offset - delta);
+			renderer.scrollTo?.(scrollList.id, 0, offset - delta);
 		}
 	};
 
@@ -612,6 +714,13 @@ export function WorkspaceMenu({
 	const openWorktree = async (path: string): Promise<void> => {
 		if (busy) return;
 
+		if (path === root) {
+			onClose();
+
+			return;
+		}
+
+		closeWorktrees();
 		setOpening(true);
 		setError(null);
 		const controller = new AbortController();
@@ -642,6 +751,27 @@ export function WorkspaceMenu({
 			anchorBounds.x + workspaceLayout.tabWidth / 2 - menuWidth / 2,
 			windowSize.width - menuWidth - windowInset
 		)
+	);
+
+	const worktreeTrigger = rows.current.get("worktrees");
+
+	const triggerBounds = worktreeTrigger
+		? renderer.getElementBounds?.(worktreeTrigger.id)
+		: undefined;
+
+	const submenuSide =
+		(triggerBounds?.x ?? menuLeft) +
+			(triggerBounds?.width ?? menuWidth) +
+			submenuGap +
+			menuWidth <=
+		windowSize.width - windowInset
+			? "right"
+			: "left";
+
+	const submenuHeight = Math.min(
+		maxMenuHeight,
+		windowSize.height - windowInset * 2,
+		menuPadding * 2 + Math.max(1, worktrees.length) * rowHeight
 	);
 
 	// Match floating controls' priority so nested selects paint after this surface, not behind it.
@@ -1076,7 +1206,10 @@ export function WorkspaceMenu({
 										aria-label={
 											expanded ? "Show fewer branches" : "Show all branches"
 										}
-										onPress={() => setExpanded((value) => !value)}
+										onPress={() => {
+											closeWorktrees();
+											setExpanded((value) => !value);
+										}}
 									>
 										<Text tokens={appTokens} style={styles.label}>
 											More
@@ -1086,87 +1219,160 @@ export function WorkspaceMenu({
 										/>
 									</Button>
 								) : null}
-								{worktrees.length ? (
-									<div style={styles.sectionLabel}>
-										<Text tokens={appTokens} style={styles.muted}>
-											Worktrees
-										</Text>
-									</div>
-								) : null}
-								{worktrees.map((item) => {
-									const id = `worktree-${item.path}`;
-
-									return (
-										<Button
-											key={id}
-											testId={id}
-											ref={(node) => {
-												if (node) rows.current.set(id, node);
-												else rows.current.delete(id);
-											}}
-											tokens={appTokens}
-											variant="ghost"
-											size="sm"
-											style={styles.row}
-											disabled={busy}
-											aria-label={`Open ${item.branch?.replace(/^refs\/heads\//, "") ?? "detached HEAD"} worktree`}
-											aria-description={item.path}
-											onContextMenu={
-												onRemoveWorktree
-													? (event) => {
-															try {
-																const enabled =
-																	canCreateWorktree &&
-																	!item.locked &&
-																	!item.prunable &&
-																	item.path !== data?.worktrees[0]?.path;
-
-																const bounds = renderer.getElementBounds?.(
-																	event.elementId
-																);
-
-																const choice = NativeFileMenu.show(
-																	renderer,
-																	["Remove worktree…"],
-																	[enabled],
-																	event.x ?? bounds?.x ?? 0,
-																	event.y ?? bounds?.y ?? 0
-																);
-
-																if (choice !== 0 || !enabled) return;
-
-																setError(null);
-																setRemovingWorktree({
-																	kind: "remove",
-																	path: item.path,
-																	expectedHead: item.headOid,
-																	expectedBranch: item.branch,
-																});
-															} catch (cause) {
-																setError(
-																	cause instanceof Error
-																		? cause.message
-																		: "Could not open the worktree menu."
-																);
-															}
-														}
-													: undefined
-											}
-											onPress={() => {
-												void openWorktree(item.path);
-											}}
+							</div>
+							<div
+								style={{
+									position: "relative",
+									width: "100%",
+									height: rowHeight,
+									flexShrink: 0,
+								}}
+							>
+								<Button
+									testId="worktrees"
+									ref={(node) => {
+										if (node) rows.current.set("worktrees", node);
+										else rows.current.delete("worktrees");
+									}}
+									tokens={appTokens}
+									variant="ghost"
+									size="sm"
+									style={StyleSheet.compose(
+										styles.row,
+										showWorktrees && { backgroundColor: colors.surface }
+									)}
+									disabled={busy || !data}
+									aria-label="Worktrees"
+									aria-expanded={showWorktrees}
+									aria-description="Open the worktree submenu with Right or Enter."
+									onMouseEnter={() => openWorktrees()}
+									onMouseLeave={scheduleSubmenuClose}
+									onPress={() => openWorktrees(true)}
+								>
+									<WorkspaceTabIcon name="branch" />
+									<Text tokens={appTokens} style={styles.label}>
+										Worktrees
+									</Text>
+									<WorkspaceTabIcon name="caretRight" />
+								</Button>
+								{showWorktrees ? (
+									<FloatingLayer
+										ref={worktreeMenu}
+										testId="workspace-worktrees"
+										role="group"
+										aria-label="Worktrees"
+										tabIndex={-1}
+										side={submenuSide}
+										sideOffset={submenuGap}
+										collisionPadding={windowInset}
+										onMouseEnter={() => {
+											submenuHovered.current = true;
+											cancelSubmenuClose();
+										}}
+										onMouseLeave={() => {
+											submenuHovered.current = false;
+											scheduleSubmenuClose();
+										}}
+										style={StyleSheet.compose(styles.body, {
+											height: submenuHeight,
+											backgroundColor: colors.overlay,
+											borderRadius: 12,
+										})}
+									>
+										<div
+											ref={worktreeList}
+											testId="workspace-worktree-list"
+											style={styles.list}
 										>
-											<WorkspaceTabIcon name="branch" />
-											<Text tokens={appTokens} style={styles.label}>
-												{item.branch?.replace(/^refs\/heads\//, "") ??
-													"Detached HEAD"}
-											</Text>
-											<Text tokens={appTokens} style={styles.detail}>
-												{basename(item.path)}
-											</Text>
-										</Button>
-									);
-								})}
+											{!worktrees.length ? (
+												<Text tokens={appTokens} style={styles.muted}>
+													No worktrees available.
+												</Text>
+											) : null}
+											{worktrees.map((item) => {
+												const id = `worktree-${item.path}`;
+												const current = item.path === root;
+
+												return (
+													<Button
+														key={id}
+														testId={id}
+														ref={(node) => {
+															if (node) rows.current.set(id, node);
+															else rows.current.delete(id);
+														}}
+														tokens={appTokens}
+														variant="ghost"
+														size="sm"
+														style={styles.row}
+														disabled={busy}
+														aria-label={`Open ${item.branch?.replace(/^refs\/heads\//, "") ?? "detached HEAD"} worktree${current ? ", current worktree" : ""}`}
+														aria-description={item.path}
+														onContextMenu={
+															onRemoveWorktree
+																? (event) => {
+																		try {
+																			const enabled =
+																				canCreateWorktree &&
+																				!current &&
+																				!item.locked &&
+																				!item.prunable &&
+																				item.path !== data?.worktrees[0]?.path;
+
+																			const bounds =
+																				renderer.getElementBounds?.(
+																					event.elementId
+																				);
+
+																			const choice = NativeFileMenu.show(
+																				renderer,
+																				["Remove worktree…"],
+																				[enabled],
+																				event.x ?? bounds?.x ?? 0,
+																				event.y ?? bounds?.y ?? 0
+																			);
+
+																			if (choice !== 0 || !enabled) return;
+
+																			setError(null);
+																			closeWorktrees();
+																			setRemovingWorktree({
+																				kind: "remove",
+																				path: item.path,
+																				expectedHead: item.headOid,
+																				expectedBranch: item.branch,
+																			});
+																		} catch (cause) {
+																			setError(
+																				cause instanceof Error
+																					? cause.message
+																					: "Could not open the worktree menu."
+																			);
+																		}
+																	}
+																: undefined
+														}
+														onPress={() => {
+															void openWorktree(item.path);
+														}}
+													>
+														<WorkspaceTabIcon
+															name={current ? "check" : "branch"}
+															color={current ? colors.accent : colors.textMuted}
+														/>
+														<Text tokens={appTokens} style={styles.label}>
+															{item.branch?.replace(/^refs\/heads\//, "") ??
+																"Detached HEAD"}
+														</Text>
+														<Text tokens={appTokens} style={styles.detail}>
+															{current ? "Current" : basename(item.path)}
+														</Text>
+													</Button>
+												);
+											})}
+										</div>
+									</FloatingLayer>
+								) : null}
 							</div>
 							<div style={styles.separator} />
 							<Button
