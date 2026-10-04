@@ -8,6 +8,7 @@ import {
 } from "@1git/gpuix-ui/popover";
 import { appTokens } from "../../../styles/tokens";
 import { WorkspaceTabIcon } from "../../workspace-tabs/components/workspace-tab-icon";
+import { StateArtwork } from "../../../fixture/state-artwork";
 import type {
 	RepositorySetupRequest,
 	RepositorySetupResult,
@@ -267,6 +268,9 @@ function CreateForm({
 					</text>
 					{busy ? (
 						<>
+							<div style={{ display: "flex", alignItems: "center" }}>
+								<StateArtwork name="repository" compact />
+							</div>
 							<text testId="setup-progress" role="status" style={hint}>
 								{stopping ? "Stopping…" : "Creating repository…"}
 							</text>

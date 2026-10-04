@@ -14,6 +14,7 @@ import {
 import { repositoryViews } from "../types";
 import { RepositoryList } from "./repository-list";
 import { EmptyListPlaceholder } from "../../../fixture/empty-list-placeholder";
+import { StateMessage } from "../../../fixture/state-message";
 import { RepositoryCommit } from "./repository-commit";
 import { RepositoryRevisions } from "./repository-revisions";
 import { appTokens } from "../../../styles/tokens";
@@ -220,6 +221,26 @@ export function RepositoryNavigation({
 					: "Recent commits"
 				: "Saved work";
 
+	const readError =
+		state.error ??
+		(view === "history" ? state.history.error : null) ??
+		(view === "stashes" ? state.stashes.error : null);
+
+	const reading =
+		state.loading ||
+		(view === "history" && state.history.nextOffset === 0) ||
+		(view === "stashes" && !state.stashes.loaded);
+
+	const emptyMessage = historySearching
+		? state.history.error
+			? "Could not search history"
+			: state.history.nextOffset === 0
+				? "Searching history…"
+				: "No matching commits"
+		: filtering
+			? "No matching files"
+			: emptyListMessage(state);
+
 	const list = (
 		<RepositoryList
 			key={`${workspaceId}:${view}:${view === "changes" ? normalizedQuery : (state.history.query ?? "")}`}
@@ -259,19 +280,31 @@ export function RepositoryNavigation({
 				!state.loading &&
 				!state.error ? (
 					<EmptyListPlaceholder />
-				) : undefined
+				) : (
+					<StateMessage
+						compact
+						artwork={
+							readError
+								? "error"
+								: reading
+									? "loading"
+									: filtering || historySearching
+										? "search"
+										: "repository"
+						}
+						title={
+							readError
+								? "Could not read repository"
+								: reading && state.repository
+									? "Reading repository…"
+									: emptyMessage || "Reading repository…"
+						}
+						description={readError ?? undefined}
+						role={readError ? "alert" : "status"}
+					/>
+				)
 			}
-			emptyMessage={
-				historySearching
-					? state.history.error
-						? "Could not search history"
-						: state.history.nextOffset === 0
-							? "Searching history…"
-							: "No matching commits"
-					: filtering
-						? "No matching files"
-						: emptyListMessage(state)
-			}
+			emptyMessage={emptyMessage}
 			state={state.views[view]}
 			inclusion={
 				view === "changes"

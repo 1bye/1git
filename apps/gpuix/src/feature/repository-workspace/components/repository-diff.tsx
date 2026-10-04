@@ -10,6 +10,7 @@ import {
 } from "./repository-hunk-preview";
 
 import { appTokens } from "../../../styles/tokens";
+import { StateMessage } from "../../../fixture/state-message";
 import { RepositoryConflicts } from "../lib/repository-conflicts";
 import { useRepositoryDiff } from "../hooks/use-repository-diff";
 import {
@@ -124,16 +125,6 @@ const styles = StyleSheet.create({
 		fontSize: 10,
 	},
 	hint: { fontSize: 10, color: lightColors.editorFaint },
-	message: {
-		display: "flex",
-		flexDirection: "column",
-		flexGrow: 1,
-		minHeight: 0,
-		alignItems: "center",
-		justifyContent: "center",
-		padding: 24,
-		gap: 12,
-	},
 });
 
 /** Read-only native diff with explicit index/worktree comparisons and cancellable loading. */
@@ -473,12 +464,12 @@ export function RepositoryDiff({
 				</div>
 			) : null}
 			{message ? (
-				<div
+				<StateMessage
 					testId="diff-notice"
 					role={result?.error || statusError ? "alert" : "status"}
-					style={styles.message}
+					artwork={result?.error || statusError ? "error" : "loading"}
+					title={message}
 				>
-					<text style={styles.hint}>{message}</text>
 					{result?.error ? (
 						<Button
 							testId="retry-diff"
@@ -490,7 +481,7 @@ export function RepositoryDiff({
 							Retry
 						</Button>
 					) : null}
-				</div>
+				</StateMessage>
 			) : section?.conflict ? (
 				<textarea
 					testId="conflict-content"
@@ -512,9 +503,7 @@ export function RepositoryDiff({
 			) : showImage && section?.image ? (
 				<RepositoryImagePreview comparison={section.image} path={change.path} />
 			) : section?.message ? (
-				<div style={styles.message} role="status">
-					<text style={styles.hint}>{section.message}</text>
-				</div>
+				<StateMessage artwork="unavailable" title={section.message} />
 			) : section &&
 			  onHunk &&
 			  section.target !== "commit" &&

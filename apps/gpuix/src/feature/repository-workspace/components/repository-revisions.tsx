@@ -17,6 +17,7 @@ import type { RevisionView } from "../types";
 import { RepositoryList } from "./repository-list";
 import { RepositoryReadNotice } from "./repository-read-notice";
 import { EmptyListPlaceholder } from "../../../fixture/empty-list-placeholder";
+import { StateMessage } from "../../../fixture/state-message";
 
 const dividerHeight = 9;
 
@@ -99,6 +100,16 @@ export function RepositoryRevisions({
 		!loadingFiles &&
 		emptyListReady &&
 		state.entries[view].length === 0;
+
+	const emptyMessage = loadingFiles
+		? "Reading saved files…"
+		: revision?.filesError
+			? "Could not read saved files."
+			: revision
+				? "No file changes in this revision."
+				: view === "history"
+					? "Select a commit to see its files."
+					: "Select a stash to see its files.";
 
 	const resize = (ratio: number): void =>
 		onAction({ type: "resize-revisions", view, ratio });
@@ -234,18 +245,30 @@ export function RepositoryRevisions({
 					}
 					entries={revision?.files ?? []}
 					state={current.files}
-					emptyContent={emptyView ? <EmptyListPlaceholder /> : undefined}
-					emptyMessage={
-						loadingFiles
-							? "Reading saved files…"
-							: revision?.filesError
-								? "Could not read saved files."
-								: revision
-									? "No file changes in this revision."
-									: view === "history"
-										? "Select a commit to see its files."
-										: "Select a stash to see its files."
+					emptyContent={
+						emptyView ? (
+							<EmptyListPlaceholder />
+						) : (
+							<StateMessage
+								compact
+								artwork={
+									loadingFiles
+										? "loading"
+										: revision?.filesError
+											? "error"
+											: revision
+												? "file"
+												: view === "history"
+													? "history"
+													: "stash"
+								}
+								title={emptyMessage}
+								description={revision?.filesError}
+								role={revision?.filesError ? "alert" : "status"}
+							/>
+						)
 					}
+					emptyMessage={emptyMessage}
 					onSelect={(id) =>
 						onAction({ type: "select-revision-file", view, id })
 					}

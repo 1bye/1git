@@ -6,6 +6,7 @@ import { useGpuixRequired, type EventPayload } from "@gpuix/react";
 import { NativeFileMenu } from "../lib/native-file-menu";
 import { RepositoryFileActions } from "../lib/repository-file-actions";
 import { appTokens } from "../../../styles/tokens";
+import { StateMessage } from "../../../fixture/state-message";
 
 const styles = StyleSheet.create({
 	page: {
@@ -207,11 +208,17 @@ export function RepositoryWelcome({
 						</text>
 					) : null}
 					{!matches.length ? (
-						<text style={{ ...styles.hint, padding: 12 }}>
-							{paths.length
-								? `No repositories match “${query.trim()}”.`
-								: "Repositories you open, clone, or create will appear here."}
-						</text>
+						<StateMessage
+							artwork={query.trim() ? "search" : "repository"}
+							title={
+								query.trim() ? "No repositories found" : "No repositories yet"
+							}
+							description={
+								query.trim()
+									? `No repositories match “${query.trim()}”.`
+									: "Repositories you open, clone, or create will appear here."
+							}
+						/>
 					) : null}
 				</div>
 			</div>

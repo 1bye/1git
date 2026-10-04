@@ -9,8 +9,11 @@ import type {
 } from "../types";
 import type { RepositoryWorkspaceState } from "../lib/repository-workspace-model";
 import { appTokens } from "../../../styles/tokens";
-import { RepositoryIcon } from "./repository-icon";
 import { ComparisonArtwork } from "../../../fixture/comparison-artwork";
+import {
+	StateArtwork,
+	type StateArtworkName,
+} from "../../../fixture/state-artwork";
 
 const styles = StyleSheet.create({
 	header: {
@@ -44,7 +47,12 @@ const styles = StyleSheet.create({
 		padding: 24,
 	},
 	heading: { fontSize: 13, fontWeight: 500, color: lightColors.editorInk },
-	hint: { fontSize: 11, color: lightColors.editorFaint },
+	hint: {
+		fontSize: 11,
+		color: lightColors.editorFaint,
+		textAlign: "center",
+		maxWidth: 420,
+	},
 });
 
 /** Empty, sample-only and not-yet-connected views without invented repository data. */
@@ -135,6 +143,56 @@ export function RepositoryDiffEmpty({
 		}
 	}
 
+	let artwork: StateArtworkName =
+		selected || revision || view === "changes"
+			? "file"
+			: view === "history"
+				? "history"
+				: "stash";
+
+	let error: string | null | undefined;
+
+	if (!hasWorkspace || (workspace && !workspace.repository))
+		artwork = workspace?.repositoryPath ? "error" : "repository";
+
+	if (workspace && !workspace.preview) {
+		error =
+			workspace.error ??
+			(view === "history" ? workspace.history.error : null) ??
+			(view === "stashes" ? workspace.stashes.error : null) ??
+			revision?.filesError;
+
+		const reading =
+			workspace.loading ||
+			(workspace.repository &&
+				((view === "history" &&
+					workspace.history.nextOffset === 0 &&
+					!workspace.entries.history.length) ||
+					(view === "stashes" && !workspace.stashes.loaded) ||
+					(revision && !revision.filesLoaded)));
+
+		if (error) {
+			artwork = "error";
+			heading = "Could not read repository";
+			hint = error;
+		} else if (reading) {
+			artwork = "loading";
+			heading = "Reading repository…";
+			hint = "Your files and saved history will appear here.";
+		} else if (
+			view === "history" &&
+			workspace.history.query?.trim() &&
+			!workspace.entries.history.length
+		) {
+			artwork = "search";
+			heading = "No matching commits";
+			hint = "Try another search or clear the filter to see all commits.";
+		} else if (revision?.filesLoaded && !revision.files.length) {
+			artwork = "file";
+			heading = "No file changes";
+		}
+	}
+
 	const clean = heading === "Working tree clean";
 
 	const illustratedEmpty =
@@ -142,10 +200,8 @@ export function RepositoryDiffEmpty({
 			heading === "No commits yet" ||
 			heading === "No stashed changes") &&
 		!workspace?.loading &&
-		!workspace?.error &&
-		(view !== "history" ||
-			(!workspace?.history.error && !workspace?.history.query?.trim())) &&
-		(view !== "stashes" || !workspace?.stashes.error);
+		!error &&
+		(view !== "history" || !workspace?.history.query?.trim());
 
 	if (clean) hint = "No uncommitted changes.";
 
@@ -161,11 +217,16 @@ export function RepositoryDiffEmpty({
 					</text>
 				</div>
 			) : null}
-			<div testId="diff-empty" style={styles.empty}>
+			<div
+				testId="diff-empty"
+				role={error ? "alert" : "status"}
+				aria-label={heading}
+				style={styles.empty}
+			>
 				{illustratedEmpty ? (
 					<ComparisonArtwork name="empty" />
 				) : (
-					<RepositoryIcon name="diff" />
+					<StateArtwork name={artwork} />
 				)}
 				<text style={styles.heading}>{heading}</text>
 				<text style={styles.hint}>{hint}</text>

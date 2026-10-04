@@ -136,6 +136,7 @@ it("paints real line numbers and separate comparisons with keyboard-operable con
 
 	showDiff(reader);
 	expect(root.renderer.getAllText()).toContain("Loading diff…");
+	expect(root.renderer.findByTestId("state-art-loading")).toBeDefined();
 	expect(root.renderer.findByTestId("diff-stats")).toBeUndefined();
 	await settle();
 	const text = root.renderer.getPaintedText();
@@ -358,6 +359,7 @@ it("shows errors with retry and explanatory notices instead of fake or partial d
 	showDiff(reader);
 	await settle();
 	expect(root.renderer.getAllText()).toContain("Repository disappeared");
+	expect(root.renderer.findByTestId("state-art-error")).toBeDefined();
 	expect(root.renderer.findByTestId("diff-stats")).toBeUndefined();
 	expect(root.renderer.findByTestId("diff-viewport-content")).toBeUndefined();
 	reader.mockResolvedValue({
@@ -376,6 +378,7 @@ it("shows errors with retry and explanatory notices instead of fake or partial d
 	expect(root.renderer.getAllText()).toContain(
 		"Binary file — text diff unavailable."
 	);
+	expect(root.renderer.findByTestId("state-art-unavailable")).toBeDefined();
 	expect(root.renderer.findByTestId("diff-viewport-content")).toBeUndefined();
 	expect(root.renderer.findByTestId("diff-stats")).toBeUndefined();
 });
@@ -533,6 +536,7 @@ it("shows failures per image side without inventing missing versions or text cou
 	expect(root.renderer.getAllText()).toContain(
 		"Image is too large to preview."
 	);
+	expect(root.renderer.findByTestId("state-art-error")).toBeDefined();
 	expect(root.renderer.findByTestId("image-mode-source")).toBeUndefined();
 	expect(root.renderer.findByTestId("diff-stats")).toBeUndefined();
 	expect(root.renderer.getAllText()).toContain("Before");

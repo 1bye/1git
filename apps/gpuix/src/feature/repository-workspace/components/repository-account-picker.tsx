@@ -10,6 +10,7 @@ import type { Repository } from "@1git/hosting/contracts";
 import { appTokens } from "../../../styles/tokens";
 import type { SavedAccount } from "../../accounts/lib/account-store";
 import type { Accounts } from "../../accounts/lib/accounts";
+import { StateMessage } from "../../../fixture/state-message";
 
 /** A public selection, never an authenticated provider or credential. */
 export interface AccountCloneSelection {
@@ -261,94 +262,134 @@ export function RepositoryAccountPicker({
 					</PopoverContent>
 				</Popover>
 			</div>
-			<virtual-list
-				testId="clone-repositories"
-				role="group"
-				aria-label="Repositories"
-				estimatedItemHeight={repositoryRowStride}
-				overdraw={repositoryRowStride}
-				style={{
-					flexGrow: 1,
-					minHeight: 0,
-				}}
-			>
-				{displayed.map((item) => (
-					<div
-						key={item.id}
-						style={{
-							display: "flex",
-							flexDirection: "column",
-							height: repositoryRowStride,
-							paddingBottom: repositoryRowGap,
-						}}
-					>
-						<Button
-							testId={`clone-repository-${item.id}`}
-							tokens={appTokens}
-							size="sm"
-							variant={selected?.id === item.id ? "secondary" : "ghost"}
-							aria-label={`${item.ref.owner}/${item.ref.name}`}
-							aria-description={
-								selected?.id === item.id ? "Selected repository" : undefined
-							}
-							aria-pressed={selected?.id === item.id}
-							disabled={loading}
-							onPress={() => onSelect({ account, repository: item })}
+			{displayed.length ? (
+				<virtual-list
+					testId="clone-repositories"
+					role="group"
+					aria-label="Repositories"
+					estimatedItemHeight={repositoryRowStride}
+					overdraw={repositoryRowStride}
+					style={{
+						flexGrow: 1,
+						minHeight: 0,
+					}}
+				>
+					{displayed.map((item) => (
+						<div
+							key={item.id}
 							style={{
-								height: repositoryRowHeight,
+								display: "flex",
 								flexDirection: "column",
-								alignItems: "stretch",
-								justifyContent: "center",
-								gap: 3,
-								paddingLeft: 12,
-								paddingRight: 12,
+								height: repositoryRowStride,
+								paddingBottom: repositoryRowGap,
 							}}
 						>
-							<text
-								testId={`clone-repository-name-${item.id}`}
+							<Button
+								testId={`clone-repository-${item.id}`}
+								tokens={appTokens}
+								size="sm"
+								variant={selected?.id === item.id ? "secondary" : "ghost"}
+								aria-label={`${item.ref.owner}/${item.ref.name}`}
+								aria-description={
+									selected?.id === item.id ? "Selected repository" : undefined
+								}
+								aria-pressed={selected?.id === item.id}
+								disabled={loading}
+								onPress={() => onSelect({ account, repository: item })}
 								style={{
-									...rowText,
-									fontSize: 12,
-									color: appTokens.colors.text,
+									height: repositoryRowHeight,
+									flexDirection: "column",
+									alignItems: "stretch",
+									justifyContent: "center",
+									gap: 3,
+									paddingLeft: 12,
+									paddingRight: 12,
 								}}
 							>
-								{`${item.ref.owner}/${item.ref.name}`}
-							</text>
-							<text
-								testId={`clone-repository-description-${item.id}`}
-								style={{ ...hint, ...rowText }}
-							>
-								{`${visibilityLabels[item.visibility]}${item.description ? ` · ${item.description}` : ""}`}
-							</text>
+								<text
+									testId={`clone-repository-name-${item.id}`}
+									style={{
+										...rowText,
+										fontSize: 12,
+										color: appTokens.colors.text,
+									}}
+								>
+									{`${item.ref.owner}/${item.ref.name}`}
+								</text>
+								<text
+									testId={`clone-repository-description-${item.id}`}
+									style={{ ...hint, ...rowText }}
+								>
+									{`${visibilityLabels[item.visibility]}${item.description ? ` · ${item.description}` : ""}`}
+								</text>
+							</Button>
+						</div>
+					))}
+					{loading ? (
+						<text role="status" style={hint}>
+							Loading repositories…
+						</text>
+					) : null}
+					{next && !loading ? (
+						<Button
+							testId="clone-more"
+							tokens={appTokens}
+							size="sm"
+							variant="ghost"
+							onPress={() => {
+								void more();
+							}}
+						>
+							Load more
 						</Button>
-					</div>
-				))}
-				{loading ? (
-					<text role="status" style={hint}>
-						Loading repositories…
-					</text>
-				) : !displayed.length && !error ? (
-					<text role="status" style={hint}>
-						{query.trim()
-							? "No repositories found."
-							: "No repositories available for this account."}
-					</text>
-				) : null}
-				{next && !loading ? (
-					<Button
-						testId="clone-more"
-						tokens={appTokens}
-						size="sm"
-						variant="ghost"
-						onPress={() => {
-							void more();
-						}}
-					>
-						Load more
-					</Button>
-				) : null}
-			</virtual-list>
-			{error ? (
+					) : null}
+				</virtual-list>
+			) : (
+				<StateMessage
+					testId={error ? "clone-browse-error" : "clone-browse-state"}
+					role={error ? "alert" : "status"}
+					artwork={
+						error
+							? "error"
+							: loading
+								? "loading"
+								: query.trim()
+									? "search"
+									: "repository"
+					}
+					title={
+						error
+							? "Could not load repositories"
+							: loading
+								? "Loading repositories…"
+								: query.trim()
+									? "No repositories found."
+									: "No repositories available for this account."
+					}
+					description={
+						error ??
+						(loading
+							? undefined
+							: "Try another search or check your account access.")
+					}
+				>
+					{error ? (
+						<Button
+							testId="clone-retry"
+							tokens={appTokens}
+							size="sm"
+							variant="secondary"
+							onPress={() => {
+								resetSelection();
+								setRetry((value) => value + 1);
+							}}
+						>
+							Retry
+						</Button>
+					) : null}
+				</StateMessage>
+			)}
+			{error && displayed.length ? (
 				<div style={{ ...column, flexShrink: 0 }}>
 					<text
 						testId="clone-browse-error"

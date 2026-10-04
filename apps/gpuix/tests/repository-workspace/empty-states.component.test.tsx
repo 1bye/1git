@@ -129,9 +129,52 @@ it.each(scenarios)("does not decorate pending or failed %s reads", (view) => {
 
 		expect(root.renderer.findByTestId("comparison-art-empty")).toBeUndefined();
 		expect(
+			root.renderer.findByTestId(
+				workspace.loading ? "state-art-loading" : "state-art-error"
+			)
+		).toBeDefined();
+		expect(
 			root.renderer.findByTestId("empty-list-placeholder")
 		).toBeUndefined();
 	}
+});
+
+it.each([
+	["changes", "file", "Select a file to inspect"],
+	["history", "history", "Select a commit to inspect"],
+	["stashes", "stash", "Select a stash to inspect"],
+] as const)("illustrates the %s selection prompt", (view, artwork, heading) => {
+	const state = emptyWorkspace(view);
+
+	if (!state.repository) throw new Error("Missing repository fixture");
+
+	render({
+		...state,
+		repository: { ...state.repository, head: "committed" },
+		entries: {
+			...state.entries,
+			[view]: [{ id: "item", title: "Choose me", files: [] }],
+		},
+	});
+
+	expect(root.renderer.findByTestId(`state-art-${artwork}`)).toBeDefined();
+	expect(root.renderer.getAllText()).toContain(heading);
+	expect(root.renderer.findByTestId("comparison-art-empty")).toBeUndefined();
+
+	if (process.env.GPUIX_SELECTION_SCREENSHOT)
+		root.renderer.captureScreenshot(
+			`${process.env.GPUIX_SELECTION_SCREENSHOT}.${view}.png`
+		);
+});
+
+it("shows loading artwork while the first history page is still pending", () => {
+	const state = emptyWorkspace("history");
+
+	render({ ...state, history: { ...state.history, nextOffset: 0 } });
+
+	expect(root.renderer.getAllText()).toContain("Reading repository…");
+	expect(root.renderer.findByTestId("state-art-loading")).toBeDefined();
+	expect(root.renderer.findByTestId("comparison-art-empty")).toBeUndefined();
 });
 
 it("keeps unloaded stashes and failed revision reads distinct from an empty list", () => {
@@ -166,6 +209,7 @@ it("shows no matching commits instead of an empty repository decoration", () => 
 	render({ ...state, history: { ...state.history, query: "missing" } });
 
 	expect(root.renderer.getAllText()).toContain("No matching commits");
+	expect(root.renderer.findByTestId("state-art-search")).toBeDefined();
 	expect(root.renderer.findByTestId("comparison-art-empty")).toBeUndefined();
 	expect(root.renderer.findByTestId("empty-list-placeholder")).toBeUndefined();
 });

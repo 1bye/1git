@@ -143,6 +143,7 @@ it("search and account changes clear the selected repository before cloning", as
 	await Bun.sleep(350);
 	await settle();
 	expect(root.renderer.getAllText()).toContain("No repositories found.");
+	expect(root.renderer.findByTestId("state-art-search")).toBeDefined();
 	click("clone-search");
 	root.renderer.simulateKeystrokes("cmd-a backspace");
 	await settle();
@@ -164,6 +165,7 @@ it("handles safe permission errors, retries, and shows settings when no account 
 	root.render(<App accounts={f.accounts} />);
 	await browse();
 	expect(root.renderer.getAllText().join("")).toContain("repository access");
+	expect(root.renderer.findByTestId("state-art-error")).toBeDefined();
 	expect(root.renderer.getAllText()).not.toContain(
 		"never-display-provider-secret"
 	);

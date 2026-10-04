@@ -3,6 +3,7 @@ import { appTokens } from "../../styles/tokens";
 import { AccountStore, type SavedAccount } from "./lib/account-store";
 import { accountSetup } from "./lib/account-setup";
 import { accountProviderIcons } from "./account-provider-icons";
+import { StateArtwork } from "../../fixture/state-artwork";
 
 // Phosphor Icons 2.1.10, Light weight. See ../../../LICENSES/Phosphor-Icons.txt.
 const actionIcons = {
@@ -13,10 +14,6 @@ const actionIcons = {
 	remove:
 		'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path d="M216,50H174V40a22,22,0,0,0-22-22H104A22,22,0,0,0,82,40V50H40a6,6,0,0,0,0,12H50V208a14,14,0,0,0,14,14H192a14,14,0,0,0,14-14V62h10a6,6,0,0,0,0-12ZM94,40a10,10,0,0,1,10-10h48a10,10,0,0,1,10,10V50H94ZM194,208a2,2,0,0,1-2,2H64a2,2,0,0,1-2-2V62H194ZM110,104v64a6,6,0,0,1-12,0V104a6,6,0,0,1,12,0Zm48,0v64a6,6,0,0,1-12,0V104a6,6,0,0,1,12,0Z"/></svg>',
 };
-
-// Original account-card illustration using the app's thin monochrome vector style.
-const emptyArtwork =
-	'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 112" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><rect x="42" y="16" width="76" height="80" rx="10"/><circle cx="80" cy="43" r="10"/><path d="M62 70c0-10 8-17 18-17s18 7 18 17M66 82h28"/><rect x="10" y="36" width="20" height="40" rx="5"/><rect x="130" y="36" width="20" height="40" rx="5"/><path d="M30 56h12m76 0h12" stroke-dasharray="2 4"/><path d="M17 47h6m114 0h6M17 65h6m114 0h6M75 6h10m-10 100h10"/></svg>';
 
 /** Saved identities remain mounted while a separate pane handles connection setup. */
 export function AccountList({
@@ -65,18 +62,7 @@ export function AccountList({
 							gap: 8,
 						}}
 					>
-						<svg
-							testId="accounts-empty-artwork"
-							aria-hidden
-							source={emptyArtwork}
-							style={{
-								width: 160,
-								height: 112,
-								flexShrink: 0,
-								color: appTokens.colors.textMuted,
-								pointerEvents: "none",
-							}}
-						/>
+						<StateArtwork name="accounts" testId="accounts-empty-artwork" />
 						<text
 							role="heading"
 							aria-level={2}

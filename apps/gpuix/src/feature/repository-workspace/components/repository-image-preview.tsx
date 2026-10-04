@@ -1,5 +1,6 @@
 import { lightColors } from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
+import { StateMessage } from "../../../fixture/state-message";
 
 import { useSvgPreview } from "../hooks/use-svg-preview";
 import type {
@@ -64,7 +65,6 @@ const styles = StyleSheet.create({
 		width: "100%",
 		height: "100%",
 	},
-	error: { fontSize: 11, color: lightColors.editorMuted, padding: 16 },
 });
 
 const statusColors = { Added: "#1a7f37", Deleted: "#b2676b" };
@@ -115,7 +115,7 @@ function ImageVersion({
 				testId={`image-${version}-viewport`}
 				style={styles.viewport}
 			>
-				{image ? (
+				{image && !preview.error ? (
 					<img
 						testId={`image-${version}-pixels`}
 						src={preview.src}
@@ -124,16 +124,13 @@ function ImageVersion({
 						style={styles.image}
 					/>
 				) : (
-					<text role="status" style={styles.error}>
-						{error}
-					</text>
+					<StateMessage
+						artwork={error || preview.error ? "error" : "unavailable"}
+						title={error ?? preview.error ?? "No image preview available"}
+						compact
+					/>
 				)}
 			</div>
-			{preview.error ? (
-				<text role="status" style={styles.error}>
-					{preview.error}
-				</text>
-			) : null}
 		</div>
 	);
 }
@@ -202,9 +199,10 @@ export function RepositoryImagePreview({
 				/>
 			) : null}
 			{!comparison.before && !comparison.after ? (
-				<text role="status" style={styles.error}>
-					No image content is available. Refresh Changes to try again.
-				</text>
+				<StateMessage
+					artwork="unavailable"
+					title="No image content is available. Refresh Changes to try again."
+				/>
 			) : null}
 		</div>
 	);

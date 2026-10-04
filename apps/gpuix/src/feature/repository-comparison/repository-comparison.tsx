@@ -21,6 +21,7 @@ import { RepositoryDiff } from "../repository-workspace/components/repository-di
 import { RepositoryList } from "../repository-workspace/components/repository-list";
 import type { WorkspaceEntry } from "../repository-workspace/types";
 import { ComparisonArtwork } from "../../fixture/comparison-artwork";
+import { StateMessage } from "../../fixture/state-message";
 import { EmptyListPlaceholder } from "../../fixture/empty-list-placeholder";
 
 const styles = StyleSheet.create({
@@ -477,6 +478,20 @@ function ComparisonResults({
 							entries={page?.commits.map(RepositoryHistory.entry) ?? []}
 							label="Incoming commits"
 							emptyMessage={page ? "No incoming commits" : "Loading commits…"}
+							emptyContent={
+								page && !error ? (
+									<EmptyListPlaceholder />
+								) : (
+									<StateMessage
+										compact
+										artwork={error ? "error" : "loading"}
+										role={error ? "alert" : "status"}
+										title={
+											error ? "Could not read commits" : "Loading commits…"
+										}
+									/>
+								)
+							}
 							state={{ selectedId: commit, scrollY: commitScroll }}
 							onSelect={setCommit}
 							onScroll={setCommitScroll}
@@ -516,6 +531,22 @@ function ComparisonResults({
 						emptyMessage={
 							fileError ?? (filesLoading ? "Loading files…" : "No file changes")
 						}
+						emptyContent={
+							!fileError && !filesLoading && !error ? (
+								<EmptyListPlaceholder />
+							) : (
+								<StateMessage
+									compact
+									artwork={error || fileError ? "error" : "loading"}
+									role={error || fileError ? "alert" : "status"}
+									title={
+										error || fileError
+											? "Could not read files"
+											: "Loading files…"
+									}
+								/>
+							)
+						}
 						state={{ selectedId, scrollY: fileScroll }}
 						onSelect={setSelectedId}
 						onScroll={setFileScroll}
@@ -541,15 +572,34 @@ function ComparisonResults({
 							readDiff={readDiff}
 						/>
 					) : (
-						<Text tokens={appTokens} style={styles.label}>
-							{error
-								? "Comparison unavailable. Retry or choose another branch."
-								: comparison
-									? filesLoading
-										? "Loading files…"
-										: "No file changes to preview."
-									: "Comparing branches…"}
-						</Text>
+						<StateMessage
+							artwork={
+								error || fileError
+									? "error"
+									: !comparison || filesLoading
+										? "loading"
+										: files.length
+											? "file"
+											: "empty"
+							}
+							role={error || fileError ? "alert" : "status"}
+							title={
+								error || fileError
+									? "Comparison unavailable. Retry or choose another branch."
+									: !comparison
+										? "Comparing branches…"
+										: filesLoading
+											? "Loading files…"
+											: files.length
+												? "Select a file to inspect"
+												: "No file changes to preview."
+							}
+							description={
+								files.length && !error && !fileError && !filesLoading
+									? "Choose a changed file from the list to see its diff."
+									: undefined
+							}
+						/>
 					)}
 				</div>
 			</div>

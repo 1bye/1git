@@ -19,6 +19,7 @@ import {
 	type AccountCloneSelection,
 } from "./repository-account-picker";
 import { SetupProgress } from "./repository-setup";
+import { StateArtwork } from "../../../fixture/state-artwork";
 
 const column = { display: "flex", flexDirection: "column" };
 const row = { display: "flex", flexDirection: "row", alignItems: "center" };
@@ -425,7 +426,16 @@ export function RepositoryCloneView({
 						}}
 					>
 						{busy ? (
-							<div style={{ ...column, gap: 12, maxWidth: 420 }}>
+							<div
+								style={{
+									...column,
+									gap: 12,
+									flexGrow: 1,
+									justifyContent: "center",
+									alignItems: "center",
+								}}
+							>
+								<StateArtwork name="clone" />
 								<text
 									testId="setup-progress"
 									role="status"
@@ -438,7 +448,9 @@ export function RepositoryCloneView({
 										? `${selection.repository.ref.owner}/${selection.repository.ref.name}`
 										: RepositorySetup.folderName(remoteUrl)}
 								</text>
-								<SetupProgress />
+								<div style={{ width: "100%", maxWidth: 420 }}>
+									<SetupProgress />
+								</div>
 							</div>
 						) : source === "url" ? (
 							<div style={{ ...column, gap: 6 }}>

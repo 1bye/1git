@@ -105,6 +105,18 @@ Do not develop changes only inside the ignored checkout. To upgrade GPUIX,
 update both dependency pins and `native/config.ts`, then rebase the patch.
 The native setup remains app-owned, following the Turborepo workflow.
 
+## State illustrations
+
+Empty, selection, search, loading, error and unavailable-preview messages share
+original thin-line SVG illustrations in `src/fixture/state-artwork.tsx`. File,
+commit, stash, repository, account and clone prompts use distinct drawings with
+the same muted color, one-point strokes and 160 × 112 canvas; compact list messages
+use half-size artwork. `StateMessage` keeps the visible text and recovery actions
+accessible while the artwork remains decorative and ignores pointer events.
+These are static native vectors, not bitmap assets or animated loading timers.
+Genuinely empty Changes, History, Stashes and comparison sidebars retain their
+quiet placeholder lines; pending reads, failed reads and search results stay distinct.
+
 ## Hosting accounts
 
 Open **1git → Settings…** or press **Cmd+,**. Settings replaces the workspace inside
