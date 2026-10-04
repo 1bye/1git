@@ -5,6 +5,7 @@
  * Requires: Git, Sharp and writable temporary storage; no network or graphics.
  */
 import { afterEach, beforeEach, expect, it } from "bun:test";
+import { GitRepository } from "@1git/git";
 import { execFile } from "node:child_process";
 import {
 	mkdtemp,
@@ -23,6 +24,7 @@ import {
 	diffLimits,
 } from "../../src/feature/repository-workspace/lib/repository-diff";
 import { RepositoryReader } from "../../src/feature/repository-workspace/lib/repository-reader";
+import { DiffContext } from "../../src/feature/repository-workspace/lib/diff-context";
 import { RepositoryPreviewCache } from "../../src/feature/repository-workspace/lib/repository-preview-cache";
 import {
 	previewPixel,
@@ -92,6 +94,144 @@ const read = async (path: string) => {
 
 	return result.value;
 };
+
+it("expands only a requested gap from real Git without writing HEAD, index, objects or files", async () => {
+	const path = "context [literal].txt";
+	const lines = Array.from({ length: 150 }, (_, index) => `line ${index + 1}`);
+
+	await writeFile(join(repository, path), `${lines.join("\n")}\n`);
+	await git("add", path);
+	await git("commit", "-m", "Context fixture");
+	lines[39] = "changed 40";
+	lines[99] = "changed 100";
+	const contents = `${lines.join("\n")}\n`;
+
+	await writeFile(join(repository, path), contents);
+	const head = await git("rev-parse", "HEAD");
+	const index = await readFile(join(repository, ".git/index"));
+	const objects = await git("count-objects", "-v");
+
+	const snapshot = await RepositoryReader.read(
+		repository,
+		new AbortController().signal
+	);
+
+	if (!snapshot.ok || !snapshot.value.files[0])
+		throw new Error("Missing context file.");
+
+	const change = snapshot.value.files[0];
+	let patch = (await read(path))[0]?.patch ?? "";
+
+	for (const start of [97, 77, 57]) {
+		const request = DiffContext.request(patch, start, start);
+
+		if (!request) throw new Error("Missing context gap.");
+
+		const source = await RepositoryDiff.readContext(
+			repository,
+			change,
+			request.contextLines,
+			new AbortController().signal
+		);
+
+		patch = DiffContext.expand(patch, source, request);
+	}
+
+	expect(patch.match(/^@@ /gm)).toHaveLength(1);
+	expect(patch).toContain("@@ -37,67 +37,67 @@");
+	expect(patch).toContain(" line 44\n");
+	expect(patch).toContain(" line 96\n");
+	expect(await git("rev-parse", "HEAD")).toBe(head);
+	expect(await readFile(join(repository, ".git/index"))).toEqual(index);
+	expect(await git("count-objects", "-v")).toBe(objects);
+	expect(await readFile(join(repository, path), "utf8")).toBe(contents);
+
+	const original = (await read(path))[0]?.patch ?? "";
+	const request = DiffContext.request(original, 97, 97);
+
+	if (!request) throw new Error("Missing stale context gap.");
+
+	lines[70] = "external edit";
+	await writeFile(join(repository, path), `${lines.join("\n")}\n`);
+	const stale = await RepositoryDiff.readContext(
+		repository,
+		change,
+		request.contextLines,
+		new AbortController().signal
+	);
+
+	expect(() => DiffContext.expand(original, stale, request)).toThrow(
+		"changed outside"
+	);
+});
+
+it("expands immutable commit and range context across a rename and unequal line numbers", async () => {
+	const lines = Array.from({ length: 150 }, (_, index) => `line ${index + 1}`);
+
+	await writeFile(join(repository, "old.txt"), `${lines.join("\n")}\n`);
+	await git("add", "old.txt");
+	await git("commit", "-m", "Before rename");
+	const base = (await git("rev-parse", "HEAD")).trim();
+
+	await git("mv", "old.txt", "new.txt");
+	lines[39] = "changed 40";
+	lines.splice(99, 0, "inserted 100");
+	lines[119] = "changed 119";
+	await writeFile(join(repository, "new.txt"), `${lines.join("\n")}\n`);
+	await git("add", "new.txt");
+	await git("commit", "-m", "Renamed edits");
+	const commit = (await git("rev-parse", "HEAD")).trim();
+	const opened = await GitRepository.open({ path: repository });
+
+	if (!opened.ok) throw new Error(opened.error.message);
+
+	const files = await opened.value.getCommitFiles(commit);
+
+	if (!files.ok || !files.value[0]) throw new Error("Missing committed file.");
+
+	expect(files.value[0].originalPath).toBe("old.txt");
+	await writeFile(join(repository, "new.txt"), "unrelated working content\n");
+	const index = await readFile(join(repository, ".git/index"));
+
+	for (const from of [undefined, base]) {
+		const selection = { ...files.value[0], commit, base: from };
+
+		const read = await RepositoryDiff.read(
+			repository,
+			selection,
+			new AbortController().signal
+		);
+
+		if (!read.ok) throw new Error(read.error.message);
+
+		const patch = read.value[0]?.patch ?? "";
+		const request = DiffContext.request(patch, 116, 117);
+
+		if (!request) throw new Error("Missing shifted context gap.");
+
+		expect(request.lines).toBe(13);
+		const source = await RepositoryDiff.readContext(
+			repository,
+			selection,
+			request.contextLines,
+			new AbortController().signal
+		);
+
+		const expanded = DiffContext.expand(patch, source, request);
+
+		expect(expanded).toContain(" line 103\n");
+		expect(expanded).toContain("+inserted 100\n");
+		expect(expanded).toContain("+changed 119\n");
+		expect(expanded).not.toContain("unrelated working");
+		expect(expanded.match(/^@@ /gm)).toHaveLength(2);
+	}
+
+	expect(await readFile(join(repository, ".git/index"))).toEqual(index);
+	expect(await readFile(join(repository, "new.txt"), "utf8")).toBe(
+		"unrelated working content\n"
+	);
+	expect((await git("rev-parse", "HEAD")).trim()).toBe(commit);
+});
 
 it("reuses complete previews and replaces them after a working snapshot refresh without writing Git state", async () => {
 	await writeFile(join(repository, "file.ts"), "first content\n");

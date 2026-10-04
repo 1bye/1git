@@ -21,9 +21,12 @@ export interface DiffViewProps extends Pick<
 	| "onToggleFile"
 	| "onShowMore"
 	| "onLineClick"
+	| "onExpandContext"
 > {
 	patch: string;
 	"aria-label": string;
+	/** Optional keyboard instructions for application-owned diff actions. */
+	"aria-description"?: string;
 	/** Styles the bounded viewport, not individual code rows; use theme.metrics for those. */
 	style?: StyleDesc;
 	tokens?: UiTokens;
@@ -57,6 +60,8 @@ const styles = StyleSheet.create({
 export function DiffView({
 	patch,
 	"aria-label": label,
+	"aria-description":
+		description = "Read-only. Use arrows, Page Up, Page Down, Home and End to scroll. Select text and press Command C to copy.",
 	theme,
 	wordDiff = true,
 	showFileHeader = true,
@@ -118,7 +123,7 @@ export function DiffView({
 			testId={testId}
 			role="region"
 			aria-label={label}
-			aria-description="Read-only. Use arrows, Page Up, Page Down, Home and End to scroll. Select text and press Command C to copy."
+			aria-description={description}
 			tabIndex={0}
 			onFocus={() => setFocused(true)}
 			onBlur={() => setFocused(false)}

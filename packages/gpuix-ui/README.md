@@ -202,6 +202,8 @@ import { DiffView } from "@1git/gpuix-ui/diff-view";
 | `onToggleFile` | Native event with file path in `event.value` | — |
 | `onShowMore` | Native event with hidden count in `event.value`; clear/increase `maxLines` to expand | — |
 | `onLineClick` | Native event with `value`, `oldLine`, `newLine` | — |
+| `onExpandContext` | Opt-in native hunk-gap action; path in `value`, hunk starts in `oldLine`/`newLine`. Caller reads context and replaces `patch`. Requires `diff-context.patch`. | — |
+| `aria-description` | Override keyboard instructions for application-owned actions | Standard scroll/copy instructions |
 | `testId` | Viewport test ID; native content uses `${testId}-content` | — |
 
 Native measurement accounts for font shaping and visible rows; hidden filenames
@@ -214,6 +216,11 @@ Tab focuses the viewer; arrows, Page Up/Down, Space and Home/End scroll. Drag-se
 and Command+C copy code without gutters. Pass `key={comparisonId}` when a new
 file/comparison should reset viewport state. The app remains responsible for
 patch-size limits, loading, errors, binary-file notices and any Git operations.
+Context expansion is opt-in and distinct from `maxLines` truncation. Hunk separators
+with omitted lines become clickable only when `onExpandContext` is set, keeping
+their original text and styling.
+The native element never reads repository files. The app can use `onShortcut` to
+provide an equivalent keyboard action (1git uses **E**).
 New text files start at the hunk without a "New file" status row. Empty and
 binary files, renames and mode changes retain their useful native notices.
 

@@ -1,7 +1,6 @@
 import { lightColors } from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { Button } from "@1git/gpuix-ui/button";
-import { DiffView } from "@1git/gpuix-ui/diff-view";
 import type { GpuixTheme } from "@gpuix/react";
 import { useState } from "react";
 
@@ -22,6 +21,7 @@ import {
 	RepositoryImageMetadata,
 	RepositoryImagePreview,
 } from "./repository-image-preview";
+import { RepositoryTextDiff } from "./repository-text-diff";
 
 const diffTheme: GpuixTheme = {
 	appearance: "light",
@@ -528,17 +528,14 @@ function RepositoryDiffContent({
 			) : section?.message ? (
 				<StateMessage artwork="unavailable" title={section.message} />
 			) : section ? (
-				<DiffView
+				<RepositoryTextDiff
 					key={section.target}
-					testId="diff-viewport"
+					root={root}
+					change={change}
+					snapshot={result?.sections ?? section}
 					patch={section.patch}
-					showFileHeader={false}
-					focusVisible={false}
 					theme={diffTheme}
-					tokens={appTokens}
-					aria-label={
-						section.target === "commit" ? "Committed file diff" : "File diff"
-					}
+					blocked={refreshing}
 				/>
 			) : null}
 		</>

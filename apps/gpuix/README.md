@@ -81,6 +81,9 @@ width per patch/font/metrics, and exposes independent row and word backgrounds.
 These APIs are wrapped by `@1git/gpuix-ui/diff-view`; the Git feature only owns
 loading, notices and its filename/comparison toolbar. Hidden patch metadata does
 not contribute to horizontal overflow. Short diffs fill the viewport.
+`native/diff-context.patch` adds an opt-in `onExpandContext` event to omitted-code
+separators. The native renderer reports the path and hunk coordinates; the app
+reads and inserts additional context, keeping native virtualization and selection.
 Dependency versions stay pinned. `native/preload.ts` selects the
 release addon through `NAPI_RS_NATIVE_LIBRARY_PATH` before GPUIX loads.
 Native source, build outputs, and the patch fingerprint live in ignored `.cache/`;
@@ -746,6 +749,17 @@ scrolling while using GPUIX's virtualized list; no additional diff library is ne
   view or workspace cancels the previous read; late results cannot replace a
   newer selection. Failures have a retry action. Repository-refresh failures hide
   the old diff until status can be read again.
+- Click a hunk separator (`@@ … @@`) to reveal up to 20 unchanged
+  lines immediately above that hunk; repeated clicks reveal the next 20. Short
+  gaps reveal their remainder and adjacent hunks join when no lines remain hidden.
+  The first separator also reveals leading context. With the viewer focused,
+  **E** expands the first remaining gap. This does not expose trailing code after
+  the final hunk, which has no separator.
+  Reads are on demand, deduplicated while pending, and canceled on selection or
+  snapshot changes. The existing diff stays visible without a loading screen.
+  Changes must still match the displayed patch; external edits require a refresh.
+  Expanded previews obey the same size limits. Context is local to the displayed
+  snapshot, not stored in the window cache; Git/index state remains untouched.
 - Ready previews swap together with their filename, metadata and controls. A cache
   hit displays on the first render. An uncached selection keeps the previous
   preview visible until ready; after **200 ms**, a small header status indicates

@@ -34,6 +34,22 @@ include ordinary horizontal containers and nested overflow, not just diff views.
 These are customization APIs, not universally correct app styling. Preserve
 existing defaults and regenerate public host/theme contracts upstream.
 
+## 4. Opt-in omitted-context events
+
+[diff-context.patch](../../apps/gpuix/native/diff-context.patch) adds
+`onExpandContext` / `expandContext` and click behavior on hunk headers
+that have omitted lines above them. The event includes the file path in `value`
+and hunk starts in `oldLine`/`newLine`. Headers without a gap stay inert. All headers
+keep the original presentation whether a callback is provided or not. The
+published-package bridge patch registers the event and declares its TypeScript API.
+
+This is an optional API addition, not a parser bug fix. The native diff must stay
+repository-agnostic: context reads, snapshot validation, expansion amount, limits
+and keyboard equivalents belong to the caller. 1git reveals at most 20 lines per
+click, joins fully revealed gaps, and rejects context from changed working files.
+Its pure model and disposable-Git tests are app-specific and should not be copied
+into the upstream renderer.
+
 ## Verification to port
 
 - [Viewer component tests](../../apps/gpuix/tests/repository-diff/viewer.component.test.tsx)
@@ -41,6 +57,8 @@ existing defaults and regenerate public host/theme contracts upstream.
 
 Cover keyboard and wheel scrolling, long and short lines, hidden headers, text
 selection without gutters, resize/font invalidation, empty content, and unmount.
+Also cover native gap clicks with correct coordinates, absent callbacks, leading
+context, unequal old/new line numbers, and scroll preservation after patch updates.
 Do not include 1git's Git reader, image preview pipeline, or application header
 layout in a native diff PR. Re-measure performance upstream before making new
 optimization claims.

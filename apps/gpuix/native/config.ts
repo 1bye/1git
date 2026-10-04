@@ -12,6 +12,10 @@ export const checkboxPatchPath = resolve(
 	"checkbox-a11y.patch"
 );
 export const diffPatchPath = resolve(import.meta.dir, "diff-scroll.patch");
+export const diffContextPatchPath = resolve(
+	import.meta.dir,
+	"diff-context.patch"
+);
 export const activationPatchPath = resolve(
 	import.meta.dir,
 	"window-activation.patch"
@@ -65,6 +69,7 @@ export const nativeBuildId = createHash("sha256")
 	.update(readFileSync(patchPath))
 	.update(readFileSync(checkboxPatchPath))
 	.update(readFileSync(diffPatchPath))
+	.update(readFileSync(diffContextPatchPath))
 	.update(readFileSync(activationPatchPath))
 	.update(readFileSync(closePatchPath))
 	.update(readFileSync(closePlatformPatchPath))

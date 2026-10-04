@@ -42,6 +42,55 @@ const fileHeader = /^diff --git /m;
 export class RepositoryDiff {
 	private constructor() {}
 
+	/** Reads additional context without decoding images or changing the repository's index. */
+	static async readContext(
+		root: string,
+		change: DiffSelection,
+		contextLines: number,
+		signal: AbortSignal
+	): Promise<string> {
+		if (
+			!Number.isSafeInteger(contextLines) ||
+			contextLines < 1 ||
+			contextLines > diffLimits.lines
+		)
+			throw new Error("Requested diff context exceeds the preview limit.");
+
+		const opened = await GitRepository.open({
+			path: root,
+			signal,
+			runtime: { maxOutputBytes: diffLimits.bytes },
+		});
+
+		if (!opened.ok) throw new Error(opened.error.message);
+
+		const result = await opened.value.getDiff({
+			target:
+				"commit" in change
+					? change.base
+						? { kind: "range", base: change.base, head: change.commit }
+						: { kind: "commit", revision: change.commit }
+					: { kind: "changes" },
+			paths: change.originalPath
+				? [change.originalPath, change.path]
+				: [change.path],
+			contextLines,
+			signal,
+		});
+
+		if (!result.ok) throw new Error(result.error.message);
+
+		if (
+			result.value.patchOmittedReason ||
+			Buffer.byteLength(result.value.patch) > diffLimits.bytes
+		)
+			throw new Error(
+				"Additional context is too large to preview safely. Open the file in your editor."
+			);
+
+		return result.value.patch;
+	}
+
 	static async read(
 		root: string,
 		change: DiffSelection,

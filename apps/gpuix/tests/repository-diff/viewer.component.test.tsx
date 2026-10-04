@@ -9,6 +9,7 @@ import { createTestRoot, type TestRoot } from "@gpuix/react/testing";
 import { flushSync, handleGpuixEvent } from "@gpuix/react";
 import sharp from "sharp";
 import { App } from "../../src/app";
+import { DiffView } from "@1git/gpuix-ui/diff-view";
 import type { RepositoryDiff as Reader } from "../../src/feature/repository-workspace/lib/repository-diff";
 import { RepositoryDiff } from "../../src/feature/repository-workspace/components/repository-diff";
 import { RepositoryImagePreview } from "../../src/feature/repository-workspace/components/repository-image-preview";
@@ -18,6 +19,8 @@ import {
 	repositorySnapshot,
 } from "../_shared/repository-snapshot";
 import { diffPatch, diffSection } from "../_shared/diff-patch";
+import { contextPatch } from "../_shared/context-patch";
+import { RepositoryDiff as DiffReader } from "../../src/feature/repository-workspace/lib/repository-diff";
 import { ImagePreviewDecoder } from "../../src/feature/repository-workspace/lib/image-preview";
 import { rasterContent, svgContent } from "../_shared/image-content";
 import { emptyHistory } from "../_shared/history-page";
@@ -154,6 +157,200 @@ it("paints one complete file diff without staging modes or hunk actions", async 
 	expect(root.renderer.findByTestId("diff-working")).toBeUndefined();
 	expect(root.renderer.findByTestId("hunk-apply")).toBeUndefined();
 	expect(reader).toHaveBeenCalledTimes(1);
+});
+
+it("native hunk clicks reveal twenty lines repeatedly, keep other gaps and do not reset scrolling", async () => {
+	root.unmount();
+	root = createTestRoot({
+		width: 980,
+		height: 240,
+		onKeyDown: windowOptions.onKeyDown,
+	});
+	spyOn(DiffReader, "readContext").mockImplementation(
+		async (_root, _change, context) => contextPatch(context)
+	);
+	showDiff(async () => ({
+		ok: true,
+		value: [diffSection("working", contextPatch())],
+	}));
+	await settle();
+	const content = element("diff-viewport-content").id;
+
+	expect(root.renderer.getPaintedText()).toContain("@@ -37,7 +37,7 @@ example");
+	expect(
+		root.renderer.getPaintedText().some((text) => text.includes("Expand"))
+	).toBe(false);
+	root.renderer.scrollTo(content, 0, -100);
+	root.renderer.flush();
+	expect(root.renderer.getPaintedText()).toContain("@@ -97,7 +97,7 @@ example");
+	const viewport = bounds("diff-viewport-content");
+
+	const clickGap = () => {
+		// First hunk: 26px header + eight 20px code rows; the second header is the gap action.
+		root.renderer.nativeSimulateClick(
+			viewport.x + 24,
+			viewport.y + 26 + 8 * 20 - 100 + 13
+		);
+		root.renderer.flush();
+	};
+
+	for (const [start, count] of [
+		[77, 27],
+		[57, 47],
+	]) {
+		clickGap();
+		await settle();
+		const patch = element("diff-viewport-content").customProps?.patch;
+
+		expect(patch).toContain(`@@ -${start},${count} +${start},${count} @@`);
+		expect(patch).toContain("@@ -37,7 +37,7 @@");
+		expect(root.renderer.getScrollOffset(content)?.[1]).toBeLessThan(-50);
+		expect(root.renderer.findByTestId("state-art-loading")).toBeUndefined();
+	}
+
+	clickGap();
+	await settle();
+	expect(element("diff-viewport-content").customProps?.patch).toContain(
+		"@@ -37,67 +37,67 @@"
+	);
+	expect(element("diff-viewport-content").customProps?.patch).not.toContain(
+		"@@ -97,7 +97,7 @@"
+	);
+});
+
+it("keeps native headers unchanged when a caller does not enable context expansion", async () => {
+	root.render(
+		<div
+			style={{
+				width: 980,
+				height: "100%",
+				display: "flex",
+				flexDirection: "column",
+			}}
+		>
+			<DiffView
+				patch={contextPatch()}
+				aria-label="Opt-out diff"
+				testId="plain-diff"
+				showFileHeader={false}
+			/>
+		</div>
+	);
+	await settle();
+	expect(root.renderer.getPaintedText()).toContain("@@ -37,7 +37,7 @@ example");
+	expect(
+		root.renderer.getPaintedText().some((text) => text.includes("Expand"))
+	).toBe(false);
+});
+
+it("resets context on a new snapshot without remounting the native diff viewport", async () => {
+	spyOn(DiffReader, "readContext").mockImplementation(
+		async (_root, _change, context) => contextPatch(context)
+	);
+	showDiff(async () => ({
+		ok: true,
+		value: [diffSection("working", contextPatch())],
+	}));
+	await settle();
+	const content = element("diff-viewport-content").id;
+
+	click("diff-viewport");
+	key("diff-viewport", "e");
+	await settle();
+	expect(element("diff-viewport-content").customProps?.patch).toContain(
+		" line 17\n"
+	);
+	showDiff(async () => ({
+		ok: true,
+		value: [
+			diffSection(
+				"working",
+				contextPatch().replace("+changed 100", "+new content")
+			),
+		],
+	}));
+	await settle();
+	expect(element("diff-viewport-content").id).toBe(content);
+	expect(element("diff-viewport-content").customProps?.patch).not.toContain(
+		" line 17\n"
+	);
+	expect(element("diff-viewport-content").customProps?.patch).toContain(
+		"+new content"
+	);
+});
+
+it("keeps the existing diff during a slow expansion, deduplicates clicks and supports keyboard E", async () => {
+	const deferred = Promise.withResolvers<string>();
+
+	const read = spyOn(DiffReader, "readContext").mockImplementation(
+		async () => await deferred.promise
+	);
+
+	showDiff(async () => ({
+		ok: true,
+		value: [diffSection("working", contextPatch())],
+	}));
+	await settle();
+	click("diff-viewport");
+	key("diff-viewport", "e");
+	key("diff-viewport", "e");
+	expect(read).toHaveBeenCalledTimes(1);
+	expect(element("diff-viewport-content").customProps?.patch).toBe(
+		contextPatch()
+	);
+	expect(root.renderer.getPaintedText()).toContain("changed 40");
+	deferred.resolve(contextPatch(23));
+	await settle();
+	expect(element("diff-viewport-content").customProps?.patch).toContain(
+		"@@ -17,27 +17,27 @@"
+	);
+});
+
+it("keeps context errors inline and cancels late expansion when the selected file changes", async () => {
+	spyOn(DiffReader, "readContext").mockImplementation(async () =>
+		contextPatch(23).replace("+changed 100", "+outside edit")
+	);
+	const reader: typeof Reader.read = async (_root, file) => ({
+		ok: true,
+		value: [
+			diffSection(
+				"working",
+				contextPatch().replaceAll("example.ts", file.path)
+			),
+		],
+	});
+
+	showDiff(reader);
+	await settle();
+	click("diff-viewport");
+	key("diff-viewport", "e");
+	await settle();
+	expect(root.renderer.getAllText()).toContain(
+		"This file changed outside the app. Refresh the diff before expanding it."
+	);
+	expect(element("diff-viewport-content").customProps?.patch).toBe(
+		contextPatch()
+	);
+	const deferred = Promise.withResolvers<string>();
+	let signal: AbortSignal | undefined;
+
+	spyOn(DiffReader, "readContext").mockImplementation(
+		async (_root, _file, _context, abort) => {
+			signal = abort;
+
+			return await deferred.promise;
+		}
+	);
+	key("diff-viewport", "e");
+	showDiff(reader, "next.ts");
+	await settle();
+	expect(signal?.aborted).toBe(true);
+	deferred.resolve(contextPatch(23));
+	await settle();
+	expect(element("diff-viewport-content").customProps?.patch).not.toContain(
+		" line 17\n"
+	);
+	expect(root.renderer.getAllText()).toContain("next.ts");
 });
 
 it("preserves the filename and totals before truncating a long folder in the compact header", async () => {
