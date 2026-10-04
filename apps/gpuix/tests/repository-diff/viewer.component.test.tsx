@@ -127,8 +127,8 @@ it("paints one complete file diff without staging modes or hunk actions", async 
 	}));
 
 	showDiff(reader);
-	expect(root.renderer.getAllText()).toContain("Loading diff…");
-	expect(root.renderer.findByTestId("state-art-loading")).toBeDefined();
+	expect(root.renderer.getAllText()).not.toContain("Loading diff…");
+	expect(root.renderer.findByTestId("state-art-loading")).toBeUndefined();
 	expect(root.renderer.findByTestId("diff-stats")).toBeUndefined();
 	await settle();
 	const text = root.renderer.getPaintedText();
@@ -363,6 +363,295 @@ it("shows errors with retry and explanatory notices instead of fake or partial d
 	expect(root.renderer.findByTestId("diff-stats")).toBeUndefined();
 });
 
+it("keeps matching header and pixels until the next file is ready, then revisits it without another read", async () => {
+	const pending =
+		Promise.withResolvers<Awaited<ReturnType<typeof Reader.read>>>();
+
+	const reader = mock<typeof Reader.read>((_root, change) =>
+		change.path === "b.ts"
+			? pending.promise
+			: Promise.resolve({
+					ok: true,
+					value: [
+						diffSection("working", diffPatch(change.path, "first ready file")),
+					],
+				})
+	);
+
+	showDiff(reader, "a.ts");
+	await settle();
+	const viewport = element("diff-viewport").id;
+
+	showDiff(reader, "b.ts");
+	await settle();
+	expect(element("diff-identity").customProps?.["aria-label"]).toBe("a.ts");
+	expect(element("diff-viewport").id).toBe(viewport);
+	expect(root.renderer.getPaintedText()).toContain("first ready file");
+	expect(root.renderer.getAllText()).not.toContain("Loading diff…");
+	pending.resolve({
+		ok: true,
+		value: [diffSection("working", diffPatch("b.ts", "second ready file"))],
+	});
+	await settle();
+	expect(element("diff-identity").customProps?.["aria-label"]).toBe("b.ts");
+	expect(root.renderer.getPaintedText()).toContain("second ready file");
+	showDiff(reader, "a.ts");
+	expect(element("diff-identity").customProps?.["aria-label"]).toBe("a.ts");
+	expect(root.renderer.getPaintedText()).toContain("first ready file");
+	expect(root.renderer.getAllText()).not.toContain("Loading diff…");
+	await settle();
+	expect(reader).toHaveBeenCalledTimes(2);
+});
+
+it("shows delayed progress for genuinely slow reads without hiding a ready preview", async () => {
+	const pending =
+		Promise.withResolvers<Awaited<ReturnType<typeof Reader.read>>>();
+
+	const reader = mock<typeof Reader.read>(() => pending.promise);
+
+	showDiff(reader);
+	await settle();
+	expect(root.renderer.findByTestId("diff-notice")).toBeUndefined();
+	await Bun.sleep(250);
+	root.renderer.flush();
+	expect(root.renderer.getAllText()).toContain("Loading diff…");
+	pending.resolve({ ok: true, value: [diffSection("working")] });
+	await settle();
+	expect(root.renderer.findByTestId("diff-notice")).toBeUndefined();
+});
+
+it("retains the last painted cache hit when the next uncached selection arrives before its effect settles", async () => {
+	const pending =
+		Promise.withResolvers<Awaited<ReturnType<typeof Reader.read>>>();
+
+	const reader = mock<typeof Reader.read>((_root, change) =>
+		change.path === "c.ts"
+			? pending.promise
+			: Promise.resolve({
+					ok: true,
+					value: [diffSection("working", diffPatch(change.path, change.path))],
+				})
+	);
+
+	showDiff(reader, "a.ts");
+	await settle();
+	showDiff(reader, "b.ts");
+	await settle();
+	showDiff(reader, "a.ts");
+	showDiff(reader, "c.ts");
+
+	expect(element("diff-identity").customProps?.["aria-label"]).toBe("a.ts");
+	await settle();
+	expect(element("diff-identity").customProps?.["aria-label"]).toBe("a.ts");
+	pending.resolve({
+		ok: true,
+		value: [diffSection("working", diffPatch("c.ts"))],
+	});
+	await settle();
+	expect(element("diff-identity").customProps?.["aria-label"]).toBe("c.ts");
+});
+
+it("adopts a preloaded neighbour in the app, preserves ready content on slow reads and reuses files across views", async () => {
+	const pending =
+		Promise.withResolvers<Awaited<ReturnType<typeof Reader.read>>>();
+
+	const reader = mock<typeof Reader.read>((_root, change) =>
+		change.path === "b.ts"
+			? pending.promise
+			: Promise.resolve({
+					ok: true,
+					value: [
+						diffSection("working", diffPatch(change.path, "ready first file")),
+					],
+				})
+	);
+
+	const snapshot = repositorySnapshot([
+		changedFile("a.ts"),
+		changedFile("b.ts"),
+	]);
+
+	spyOn(root.renderer, "promptForPaths").mockResolvedValue(["/test/project"]);
+	root.render(
+		<App
+			readRepository={async () => ({ ok: true, value: snapshot })}
+			readDiff={reader}
+			readHistory={emptyHistory}
+		/>
+	);
+	click("open-repository");
+	await settle();
+	click("entry-a.ts");
+	await settle();
+	await waitFor(() =>
+		reader.mock.calls.some((call) => call[1].path === "b.ts")
+	);
+	const viewport = element("diff-viewport").id;
+
+	click("entry-b.ts");
+	await settle();
+	expect(reader).toHaveBeenCalledTimes(2);
+	expect(element("diff-viewport").id).toBe(viewport);
+	await Bun.sleep(250);
+	root.renderer.flush();
+	expect(root.renderer.findByTestId("diff-progress")).toBeDefined();
+	expect(root.renderer.getPaintedText()).toContain("ready first file");
+	expect(element("diff-identity").customProps?.["aria-label"]).toBe("a.ts");
+	expect(root.renderer.getAllText()).not.toContain("Loading diff…");
+	pending.resolve({
+		ok: true,
+		value: [diffSection("working", diffPatch("b.ts", "ready second file"))],
+	});
+	await settle();
+	expect(element("diff-identity").customProps?.["aria-label"]).toBe("b.ts");
+	expect(root.renderer.getPaintedText()).toContain("ready second file");
+	click("entry-a.ts");
+	expect(root.renderer.getPaintedText()).toContain("ready first file");
+	click("view-history");
+	await settle();
+	click("view-changes");
+	expect(root.renderer.getPaintedText()).toContain("ready first file");
+	await settle();
+	expect(reader).toHaveBeenCalledTimes(2);
+});
+
+it("invalidates cached working pixels when a refresh changes content but not status letters", async () => {
+	let content = "before refresh";
+
+	const status = mock(async () => ({
+		ok: true as const,
+		value: repositorySnapshot([changedFile("a.ts")]),
+	}));
+
+	const reader = mock<typeof Reader.read>(async () => ({
+		ok: true,
+		value: [diffSection("working", diffPatch("a.ts", content))],
+	}));
+
+	spyOn(root.renderer, "promptForPaths").mockResolvedValue(["/test/project"]);
+	root.render(
+		<App readRepository={status} readDiff={reader} readHistory={emptyHistory} />
+	);
+	click("open-repository");
+	await settle();
+	click("entry-a.ts");
+	await settle();
+	expect(root.renderer.getPaintedText()).toContain("before refresh");
+	content = "after refresh";
+	click("refresh-repository");
+	await settle();
+	await settle();
+
+	expect(root.renderer.getPaintedText()).toContain("after refresh");
+	expect(root.renderer.getPaintedText()).not.toContain("before refresh");
+	expect(reader).toHaveBeenCalledTimes(2);
+});
+
+it("reuses prepared image previews synchronously when revisiting a file", async () => {
+	const image = await ImagePreviewDecoder.prepare(
+		await rasterContent(),
+		new AbortController().signal
+	);
+
+	const reader = mock<typeof Reader.read>(async (_root, change) => ({
+		ok: true,
+		value: [
+			{
+				...diffSection("working"),
+				image: { before: null, after: { image, error: null }, svg: false },
+				stats: [{ path: change.path, addedLines: null, deletedLines: null }],
+			},
+		],
+	}));
+
+	showDiff(reader, "a.png");
+	await settle();
+	const pixels = imageSource();
+
+	showDiff(reader, "b.png");
+	await settle();
+	showDiff(reader, "a.png");
+
+	expect(imageSource()).toBe(pixels);
+	expect(element("image-after-pixels").customProps?.alt).toBe(
+		"Added version of a.png"
+	);
+	expect(root.renderer.findByTestId("diff-notice")).toBeUndefined();
+	await settle();
+	expect(reader).toHaveBeenCalledTimes(2);
+});
+
+it("disables retained conflict actions while another file is pending and never resolves the wrong path", async () => {
+	const pending =
+		Promise.withResolvers<Awaited<ReturnType<typeof Reader.read>>>();
+
+	const reader = mock<typeof Reader.read>((_root, change) =>
+		change.path === "b.txt"
+			? pending.promise
+			: Promise.resolve({
+					ok: true,
+					value: [
+						{
+							target: "working",
+							patch: "",
+							stats: [],
+							message: null,
+							conflict: { hash: "a hash", text: "a content" },
+						},
+					],
+				})
+	);
+
+	const resolve = mock(async (_path: string, _hash: string) => null);
+
+	const render = (path: string) =>
+		root.render(
+			<div
+				style={{
+					width: "100%",
+					height: "100%",
+					display: "flex",
+					flexDirection: "column",
+				}}
+			>
+				<RepositoryDiff
+					root="/test/project"
+					change={changedFile(path, { recordType: "unmerged" })}
+					refreshing={false}
+					statusError={null}
+					readDiff={reader}
+					onResolve={(hash) => resolve(path, hash)}
+				/>
+			</div>
+		);
+
+	render("a.txt");
+	await settle();
+	render("b.txt");
+	await settle();
+	expect(element("conflict-content").customProps?.value).toBe("a content");
+	click("conflict-resolve");
+	expect(resolve).not.toHaveBeenCalled();
+	pending.resolve({
+		ok: true,
+		value: [
+			{
+				target: "working",
+				patch: "",
+				stats: [],
+				message: null,
+				conflict: { hash: "b hash", text: "b content" },
+			},
+		],
+	});
+	await settle();
+	click("conflict-resolve");
+	await settle();
+
+	expect(resolve).toHaveBeenCalledWith("b.txt", "b hash");
+	expect(resolve).toHaveBeenCalledTimes(1);
+});
+
 it("cancels stale selection reads, refreshes the selected path and never reloads for draft/checkbox changes", async () => {
 	const pending =
 		Promise.withResolvers<Awaited<ReturnType<typeof Reader.read>>>();
@@ -419,7 +708,8 @@ it("cancels stale selection reads, refreshes the selected path and never reloads
 	expect(element("include-b.ts").customProps?.["aria-checked"]).toBe(false);
 	expect(element("commit-message").customProps?.value).toBe("draft");
 	click("view-history");
-	expect(reader.mock.calls[2]?.[2].aborted).toBe(true);
+	await settle();
+	expect(reader).toHaveBeenCalledTimes(3);
 	expect(root.renderer.findByTestId("diff-viewport-content")).toBeUndefined();
 });
 

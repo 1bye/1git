@@ -17,6 +17,7 @@ import {
 } from "./lib/repository-comparison";
 import { RepositoryHistory } from "../repository-workspace/lib/repository-history";
 import { RepositoryDiff as DiffReader } from "../repository-workspace/lib/repository-diff";
+import type { RepositoryPreviewCache } from "../repository-workspace/lib/repository-preview-cache";
 import { RepositoryDiff } from "../repository-workspace/components/repository-diff";
 import { RepositoryList } from "../repository-workspace/components/repository-list";
 import type { WorkspaceEntry } from "../repository-workspace/types";
@@ -126,6 +127,7 @@ type Readers = {
 	readHistory?: typeof RepositoryHistory.read;
 	readCommitFiles?: typeof RepositoryHistory.readFiles;
 	readDiff?: typeof DiffReader.read;
+	previewCache?: RepositoryPreviewCache;
 };
 
 /** A temporary, read-only view; returning leaves the workspace's selection and draft untouched. */
@@ -311,6 +313,7 @@ function ComparisonResults({
 	readHistory = RepositoryHistory.read,
 	readCommitFiles = RepositoryHistory.readFiles,
 	readDiff = DiffReader.read,
+	previewCache,
 }: { request: ComparisonRequest; base: string; head: string } & Readers) {
 	const [comparison, setComparison] = useState<BranchComparison | null>(null);
 	const [page, setPage] = useState<CommitPage | null>(null);
@@ -549,6 +552,15 @@ function ComparisonResults({
 						}
 						state={{ selectedId, scrollY: fileScroll }}
 						onSelect={setSelectedId}
+						onPreviewIntent={(entry) => {
+							const change = entry?.commitFile;
+
+							previewCache?.intent(
+								change
+									? { root: request.root, change, version: readDiff }
+									: null
+							);
+						}}
 						onScroll={setFileScroll}
 					/>
 					{fileError ? (
@@ -564,12 +576,14 @@ function ComparisonResults({
 				<div testId="comparison-preview" style={styles.preview}>
 					{selected && !filesLoading ? (
 						<RepositoryDiff
-							key={`${selected.commit}:${selected.base ?? ""}:${selected.path}`}
+							key={`${selected.commit}:${selected.base ?? ""}`}
 							root={request.root}
 							change={selected}
 							refreshing={false}
 							statusError={null}
 							readDiff={readDiff}
+							cache={previewCache}
+							files={files}
 						/>
 					) : (
 						<StateMessage

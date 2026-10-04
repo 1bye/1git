@@ -232,8 +232,10 @@ it("refreshes stashes even when HEAD is unchanged, preserving immutable cached f
 	click("refresh-repository");
 	await waitFor(
 		() =>
-			root.renderer.getAllText().some((text) => text.includes("stash@{1}")) &&
-			list.mock.calls.length === 2
+			root.renderer
+				.findByTestId(`entry-${stashes[0]?.oid}`)
+				?.customProps?.["aria-description"]?.toString()
+				.includes("stash@{1}") === true
 	);
 	await waitFor(() => !!root.renderer.findByTestId("diff-viewport"));
 	expect(

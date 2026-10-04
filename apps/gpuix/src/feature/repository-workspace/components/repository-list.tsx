@@ -95,6 +95,7 @@ function RepositoryRow({
 	onInclude,
 	inclusionDisabled,
 	fileActions,
+	onPreviewIntent,
 }: {
 	entry: WorkspaceEntry;
 	selected: boolean;
@@ -107,6 +108,7 @@ function RepositoryRow({
 	onInclude?: (included: boolean) => void;
 	inclusionDisabled?: boolean;
 	fileActions?: FileMenuActions;
+	onPreviewIntent?: (entry: WorkspaceEntry | null) => void;
 }) {
 	const [focused, setFocused] = useState(false);
 	const [keyboard, setKeyboard] = useState(true);
@@ -115,6 +117,8 @@ function RepositoryRow({
 		<div
 			role={onInclude ? "row" : "presentation"}
 			testId={`row-${entry.id}`}
+			onMouseEnter={onPreviewIntent ? () => onPreviewIntent(entry) : undefined}
+			onMouseLeave={onPreviewIntent ? () => onPreviewIntent(null) : undefined}
 			style={StyleSheet.compose(
 				styles.row,
 				!!entry.status && { borderRadius: 4, paddingRight: 4, gap: 4 },
@@ -145,10 +149,12 @@ function RepositoryRow({
 				}}
 				onFocus={() => {
 					setFocused(true);
+					onPreviewIntent?.(entry);
 					onReveal();
 				}}
 				onBlur={() => {
 					setFocused(false);
+					onPreviewIntent?.(null);
 					setKeyboard(true);
 				}}
 				onKeyDown={(event) => {
@@ -233,6 +239,7 @@ export function RepositoryList({
 	onScroll,
 	onEndReached,
 	fileActions,
+	onPreviewIntent,
 }: {
 	entries: readonly WorkspaceEntry[];
 	label: string;
@@ -249,6 +256,7 @@ export function RepositoryList({
 	onScroll: (y: number) => void;
 	onEndReached?: () => void;
 	fileActions?: FileMenuActions;
+	onPreviewIntent?: (entry: WorkspaceEntry | null) => void;
 }) {
 	const renderer = useGpuixRequired();
 	const viewport = useRef<PublicInstance>(null);
@@ -529,6 +537,7 @@ export function RepositoryList({
 					>
 						<RepositoryRow
 							entry={entry}
+							onPreviewIntent={onPreviewIntent}
 							fileActions={
 								fileActions
 									? {

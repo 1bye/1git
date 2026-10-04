@@ -8,7 +8,12 @@ import { useState } from "react";
 import { appTokens } from "../../../styles/tokens";
 import { StateMessage } from "../../../fixture/state-message";
 import { RepositoryConflicts } from "../lib/repository-conflicts";
-import { useRepositoryDiff } from "../hooks/use-repository-diff";
+import {
+	useRepositoryDiff,
+	type RepositoryPreviewResult,
+} from "../hooks/use-repository-diff";
+import type { RepositoryPreviewCache } from "../lib/repository-preview-cache";
+import type { WorkspaceEntry } from "../types";
 import {
 	RepositoryDiff as DiffReader,
 	type DiffSelection,
@@ -122,34 +127,82 @@ const styles = StyleSheet.create({
 	hint: { fontSize: 10, color: lightColors.editorFaint },
 });
 
-/** Read-only complete file diff with cancellable loading. */
-export function RepositoryDiff({
-	root,
-	change,
-	refreshing,
-	statusError,
-	readDiff = DiffReader.read,
-	onResolve,
-	openConflictEditor = RepositoryConflicts.openEditor,
-}: {
+interface RepositoryDiffProps {
 	root: string;
 	change: DiffSelection;
 	refreshing: boolean;
 	statusError: string | null;
 	readDiff?: typeof DiffReader.read;
+	cache?: RepositoryPreviewCache;
+	version?: object;
+	files?: readonly WorkspaceEntry[];
 	onResolve?: (
 		hash: string,
 		side?: "ours" | "theirs"
 	) => Promise<string | null>;
 	openConflictEditor?: typeof RepositoryConflicts.openEditor;
-}) {
-	const { result, retry } = useRepositoryDiff(
+}
+
+/** Read-only preview that swaps ready content atomically and never flashes a loader for a fast read. */
+export function RepositoryDiff(props: RepositoryDiffProps) {
+	const {
+		root,
+		change,
+		refreshing,
+		statusError,
+		readDiff = DiffReader.read,
+		cache,
+		version,
+		files,
+	} = props;
+
+	const { result, retry, pending, slow } = useRepositoryDiff(
 		root,
 		change,
 		refreshing || !!statusError,
-		readDiff
+		readDiff,
+		cache,
+		version,
+		files
 	);
 
+	const displayed = result?.change ?? change;
+
+	const identity = JSON.stringify([
+		root,
+		displayed.path,
+		"commit" in displayed ? [displayed.commit, displayed.base] : null,
+	]);
+
+	return (
+		<RepositoryDiffContent
+			key={identity}
+			{...props}
+			change={displayed}
+			result={result}
+			refreshing={refreshing || pending}
+			onResolve={pending ? undefined : props.onResolve}
+			retry={retry}
+			slow={slow}
+		/>
+	);
+}
+
+function RepositoryDiffContent({
+	root,
+	change,
+	refreshing,
+	statusError,
+	onResolve,
+	openConflictEditor = RepositoryConflicts.openEditor,
+	result,
+	retry,
+	slow,
+}: RepositoryDiffProps & {
+	result: RepositoryPreviewResult | null;
+	retry: () => void;
+	slow: boolean;
+}) {
 	const [sourcePath, setSourcePath] = useState<string | null>(null);
 	const [conflictError, setConflictError] = useState<string | null>(null);
 
@@ -171,7 +224,7 @@ export function RepositoryDiff({
 
 	const message = statusError
 		? "Repository status could not be refreshed. Use Refresh to try again."
-		: (result?.error ?? (!result ? "Loading diff…" : null));
+		: (result?.error ?? (!result && slow ? "Loading diff…" : null));
 
 	return (
 		<>
@@ -191,6 +244,11 @@ export function RepositoryDiff({
 						</text>
 					) : null}
 				</div>
+				{slow && result?.sections.length ? (
+					<text testId="diff-progress" role="status" style={styles.hint}>
+						Opening preview…
+					</text>
+				) : null}
 				{section?.image?.svg
 					? (["Preview", "Source"] as const).map((mode) => (
 							<Button

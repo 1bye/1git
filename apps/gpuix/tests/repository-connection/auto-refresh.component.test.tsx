@@ -199,7 +199,10 @@ it("updates unchanged-status file contents without remounting the scrolled diff 
 	expect(element("include-b.ts").customProps?.["aria-checked"]).toBe(false);
 	expect(element("entry-a.ts").customProps?.["aria-selected"]).toBe(true);
 	expect(root.renderer.findByTestId("repository-notice")).toBeUndefined();
-	expect(diff).toHaveBeenCalledTimes(2);
+	// Neighbour preloading may also read b.ts; the selected path still refreshes exactly once.
+	expect(
+		diff.mock.calls.filter((call) => call[1].path === "a.ts")
+	).toHaveLength(2);
 	expect(reader).toHaveBeenCalledTimes(3);
 
 	reader.mockResolvedValue({

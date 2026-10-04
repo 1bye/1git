@@ -11,7 +11,7 @@ import {
 	type RepositoryWorkspaceAction,
 	type RepositoryWorkspaceState,
 } from "../lib/repository-workspace-model";
-import { repositoryViews } from "../types";
+import { repositoryViews, type WorkspaceEntry } from "../types";
 import { RepositoryList } from "./repository-list";
 import { EmptyListPlaceholder } from "../../../fixture/empty-list-placeholder";
 import { StateMessage } from "../../../fixture/state-message";
@@ -132,6 +132,7 @@ export function RepositoryNavigation({
 	onOperation,
 	onDiscard,
 	openFile,
+	onPreviewIntent,
 }: {
 	workspaceId: string;
 	state: RepositoryWorkspaceState;
@@ -144,6 +145,7 @@ export function RepositoryNavigation({
 	onOperation?: (request: FinishOperationInput) => Promise<string | null>;
 	onDiscard?: (request: FileDiscardRequest) => Promise<string | null>;
 	openFile?: typeof RepositoryFileActions.open;
+	onPreviewIntent?: (entry: WorkspaceEntry | null) => void;
 }) {
 	const renderer = useGpuixRequired();
 	const { view } = state;
@@ -252,6 +254,7 @@ export function RepositoryNavigation({
 		<RepositoryList
 			key={`${workspaceId}:${view}:${view === "changes" ? normalizedQuery : (state.history.query ?? "")}`}
 			entries={entries}
+			onPreviewIntent={view === "changes" ? onPreviewIntent : undefined}
 			fileActions={
 				view === "changes" && state.repository && !state.preview && onDiscard
 					? {
@@ -568,6 +571,7 @@ export function RepositoryNavigation({
 					list
 				) : (
 					<RepositoryRevisions
+						onPreviewIntent={onPreviewIntent}
 						key={view}
 						view={view}
 						state={state}

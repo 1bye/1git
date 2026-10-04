@@ -19,7 +19,7 @@ export interface ImagePreview {
 	readonly width: number;
 	readonly height: number;
 	readonly sizeBytes: number;
-	/** Validated source retained only for this selected image, so resize never rereads Git. */
+	/** Validated source retained with the bounded preview, so resize never rereads Git. */
 	readonly svg?: FileContent;
 }
 

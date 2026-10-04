@@ -23,6 +23,7 @@ import {
 	diffLimits,
 } from "../../src/feature/repository-workspace/lib/repository-diff";
 import { RepositoryReader } from "../../src/feature/repository-workspace/lib/repository-reader";
+import { RepositoryPreviewCache } from "../../src/feature/repository-workspace/lib/repository-preview-cache";
 import {
 	previewPixel,
 	rasterContent,
@@ -91,6 +92,67 @@ const read = async (path: string) => {
 
 	return result.value;
 };
+
+it("reuses complete previews and replaces them after a working snapshot refresh without writing Git state", async () => {
+	await writeFile(join(repository, "file.ts"), "first content\n");
+	await git("add", "file.ts");
+	await git("commit", "-m", "Fixture");
+	await writeFile(join(repository, "file.ts"), "second content\n");
+	const index = await readFile(join(repository, ".git/index"));
+	const cache = new RepositoryPreviewCache();
+
+	const snapshot = await RepositoryReader.read(
+		repository,
+		new AbortController().signal
+	);
+
+	if (!snapshot.ok || !snapshot.value.files[0])
+		throw new Error("Missing working snapshot.");
+
+	const request = {
+		root: repository,
+		change: snapshot.value.files[0],
+		version: snapshot.value,
+	};
+
+	try {
+		const cold = await cache.read(request, new AbortController().signal);
+
+		if (!cold.ok) throw new Error(cold.error.message);
+
+		expect(cold.value[0]?.patch).toContain("+second content");
+		expect(cache.peek(request)).toBe(cold.value);
+		await writeFile(join(repository, "file.ts"), "third content\n");
+		const refreshed = await RepositoryReader.read(
+			repository,
+			new AbortController().signal
+		);
+
+		if (!refreshed.ok || !refreshed.value.files[0])
+			throw new Error("Missing refreshed working snapshot.");
+
+		const next = {
+			root: repository,
+			change: refreshed.value.files[0],
+			version: refreshed.value,
+		};
+
+		cache.retain([next]);
+		expect(cache.peek(request)).toBeUndefined();
+		const current = await cache.read(next, new AbortController().signal);
+
+		if (!current.ok) throw new Error(current.error.message);
+
+		expect(current.value[0]?.patch).toContain("+third content");
+		expect(current.value[0]?.patch).not.toContain("+second content");
+		expect(await readFile(join(repository, ".git/index"))).toEqual(index);
+		expect(await readFile(join(repository, "file.ts"), "utf8")).toBe(
+			"third content\n"
+		);
+	} finally {
+		cache.dispose();
+	}
+});
 
 it("shows one complete file diff without changing HEAD, index content or working files", async () => {
 	await writeFile(join(repository, "file.ts"), "const value = 1;\n");

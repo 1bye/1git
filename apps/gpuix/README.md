@@ -742,6 +742,23 @@ scrolling while using GPUIX's virtualized list; no additional diff library is ne
   view or workspace cancels the previous read; late results cannot replace a
   newer selection. Failures have a retry action. Repository-refresh failures hide
   the old diff until status can be read again.
+- Ready previews swap together with their filename, metadata and controls. A cache
+  hit displays on the first render. An uncached selection keeps the previous
+  preview visible until ready; after **200 ms**, a small header status indicates
+  that the new preview is opening. A cold, slow read has a delayed loading state.
+  Conflict actions remain disabled while a different file is opening.
+- Each window owns one shared preview LRU, retained across view/tab switches:
+  **128 entries / 32 MiB estimated retained bytes**, whichever is reached first.
+  The budget includes patch strings, prepared image data, retained SVG source and
+  a conservative bitmap estimate, not a hard limit on total process/GPU memory.
+  Status snapshots invalidate working previews even when Git status letters are
+  unchanged; commit/blob IDs keep immutable previews reusable. Closing a root
+  releases its entries, and closing the window cancels work and clears the cache.
+- After **120 ms** on a ready file, only the next and previous files are warmed,
+  serially. Hover/focus intent waits **80 ms**. One background read runs alongside
+  foreground selection; selecting an in-flight preview shares its promise instead
+  of duplicating Git reads or image decoding. Errors and conflict hashes are not
+  retained. SVG pixels and source diffs are prepared concurrently.
 - Preview limits are **512 KiB of Git output per command, 2,000 patch lines, and
   4,000 characters per line**. Oversized patches are omitted in full with an
   explanation, not silently truncated. These limits still bound parsing and syntax
@@ -869,7 +886,9 @@ hot reload cannot replace a loaded addon. This bridge is macOS-only.
   elements**. Sharp retains its decoder safety checks and a three-second pixel
   processing timeout; this is not a whole-operation deadline for SVG parsing.
   Already-running native work may finish after cancellation, but its result is
-  discarded. No cross-file preview cache is retained.
+  discarded. Complete initial pixels and validated SVG source share the bounded
+  window preview cache above; viewport-specific SVG refinement remains local to
+  the visible image.
 - SVG previews reject external/embedded image references, scripts, foreign
   documents, animation, DTDs, processing instructions, CSS escapes and at-rules.
   Internal fragment references and gradients are supported. Animated WebP and

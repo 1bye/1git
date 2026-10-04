@@ -469,8 +469,18 @@ it("previews the first file for pointer, keyboard and cached commit selections w
 		element(`entry-${commitInfo().oid}`).id
 	);
 	expect(files).toHaveBeenCalledTimes(2);
-	expect(diffs.mock.calls.at(-1)?.[1]).toEqual(
-		committedFiles(commitInfo().oid)[0]?.commitFile
+	const initialFile = committedFiles(commitInfo().oid)[0]?.commitFile;
+
+	expect(
+		diffs.mock.calls.filter(
+			(call) =>
+				call[1].path === initialFile?.path &&
+				"commit" in call[1] &&
+				call[1].commit === initialFile.commit
+		)
+	).toHaveLength(1);
+	expect(element("diff-identity").customProps?.["aria-label"]).toBe(
+		initialFile?.path
 	);
 	expect(root.renderer.getPaintedText()).toContain("const committed = true;");
 

@@ -13,7 +13,7 @@ import {
 	type RepositoryWorkspaceAction,
 	type RepositoryWorkspaceState,
 } from "../lib/repository-workspace-model";
-import type { RevisionView } from "../types";
+import type { RevisionView, WorkspaceEntry } from "../types";
 import { RepositoryList } from "./repository-list";
 import { RepositoryReadNotice } from "./repository-read-notice";
 import { EmptyListPlaceholder } from "../../../fixture/empty-list-placeholder";
@@ -64,6 +64,7 @@ export function RepositoryRevisions({
 	children,
 	loadingFiles = false,
 	onRetryFiles,
+	onPreviewIntent,
 }: {
 	view: RevisionView;
 	state: RepositoryWorkspaceState;
@@ -71,6 +72,7 @@ export function RepositoryRevisions({
 	children: ReactNode;
 	loadingFiles?: boolean;
 	onRetryFiles?: () => void;
+	onPreviewIntent?: (entry: WorkspaceEntry | null) => void;
 }) {
 	const renderer = useGpuixRequired();
 	const container = useRef<PublicInstance>(null);
@@ -236,6 +238,7 @@ export function RepositoryRevisions({
 					) : null}
 				</div>
 				<RepositoryList
+					onPreviewIntent={onPreviewIntent}
 					key={revision?.id ?? "unselected"}
 					testId="revision-files"
 					label={

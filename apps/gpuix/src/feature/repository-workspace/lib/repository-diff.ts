@@ -81,11 +81,11 @@ export class RepositoryDiff {
 
 		if (!opened.ok) return opened;
 
-		const preview = image
-			? await RepositoryImage.read(opened.value, root, change, signal)
+		const previewRead = image
+			? RepositoryImage.read(opened.value, root, change, signal)
 			: undefined;
 
-		if (preview && !preview.svg)
+		if (image && !change.path.toLowerCase().endsWith(".svg"))
 			return {
 				ok: true,
 				value: [
@@ -94,18 +94,21 @@ export class RepositoryDiff {
 						patch: "",
 						stats: [],
 						message: null,
-						image: preview,
+						image: await previewRead,
 					},
 				],
 			};
 
-		const result = await opened.value.getDiff({
-			target: { kind: "changes" },
-			paths: change.originalPath
-				? [change.originalPath, change.path]
-				: [change.path],
-			signal,
-		});
+		const [preview, result] = await Promise.all([
+			previewRead,
+			opened.value.getDiff({
+				target: { kind: "changes" },
+				paths: change.originalPath
+					? [change.originalPath, change.path]
+					: [change.path],
+				signal,
+			}),
+		]);
 
 		if (!result.ok) return result;
 
@@ -133,11 +136,11 @@ export class RepositoryDiff {
 
 		if (!opened.ok) return opened;
 
-		const preview = image
-			? await RepositoryImage.readCommit(opened.value, file, signal)
+		const previewRead = image
+			? RepositoryImage.readCommit(opened.value, file, signal)
 			: undefined;
 
-		if (preview && !preview.svg)
+		if (image && !file.path.toLowerCase().endsWith(".svg"))
 			return {
 				ok: true,
 				value: [
@@ -146,18 +149,21 @@ export class RepositoryDiff {
 						patch: "",
 						stats: [],
 						message: null,
-						image: preview,
+						image: await previewRead,
 					},
 				],
 			};
 
-		const result = await opened.value.getDiff({
-			target: file.base
-				? { kind: "range", base: file.base, head: file.commit }
-				: { kind: "commit", revision: file.commit },
-			paths: file.originalPath ? [file.originalPath, file.path] : [file.path],
-			signal,
-		});
+		const [preview, result] = await Promise.all([
+			previewRead,
+			opened.value.getDiff({
+				target: file.base
+					? { kind: "range", base: file.base, head: file.commit }
+					: { kind: "commit", revision: file.commit },
+				paths: file.originalPath ? [file.originalPath, file.path] : [file.path],
+				signal,
+			}),
+		]);
 
 		if (!result.ok) return result;
 

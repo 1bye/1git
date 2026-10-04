@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useReducer, useState, useRef } from "react";
+import {
+	useCallback,
+	useEffect,
+	useMemo,
+	useReducer,
+	useState,
+	useRef,
+} from "react";
+import { RepositoryPreviewCache } from "./feature/repository-workspace/lib/repository-preview-cache";
 import { AccountsSettings } from "./feature/accounts/accounts-settings";
 import { Accounts } from "./feature/accounts/lib/accounts";
 import { AccountStore } from "./feature/accounts/lib/account-store";
@@ -113,6 +121,13 @@ export function App({
 }) {
 	const renderer = useGpuixRequired();
 
+	const previewCache = useMemo(
+		() => new RepositoryPreviewCache(readDiff),
+		[readDiff]
+	);
+
+	useEffect(() => () => previewCache.dispose(), [previewCache]);
+
 	const [accounts] = useState(
 		() =>
 			suppliedAccounts ??
@@ -173,6 +188,18 @@ export function App({
 
 	const activeTab = state.tabs.find((tab) => tab.id === state.activeId);
 	const workspace = activeTab?.workspace;
+
+	useEffect(() => {
+		previewCache.retain(
+			state.tabs.flatMap((tab) => {
+				const repository = tab.workspace.repository;
+
+				return repository
+					? [{ root: repository.root, version: repository }]
+					: [];
+			})
+		);
+	}, [previewCache, state.tabs]);
 
 	const [settingsView, setSettingsView] = useState<"list" | "connect" | null>(
 		null
@@ -404,6 +431,22 @@ export function App({
 						workspace.repositoryPath) &&
 					!activeTab.comparison ? (
 						<RepositoryNavigation
+							onPreviewIntent={(entry) => {
+								const change = entry?.change ?? entry?.commitFile;
+								const repository = workspace.repository;
+
+								const available =
+									repository &&
+									!workspace.loading &&
+									!workspace.error &&
+									!RepositoryWorkspaceModel.isBusy(workspace);
+
+								previewCache.intent(
+									change && available
+										? { root: repository.root, change, version: repository }
+										: null
+								);
+							}}
 							openFile={openFile}
 							onDiscard={(request) =>
 								mutations.discardFile(activeTab.id, request)
@@ -584,13 +627,17 @@ export function App({
 						readHistory={readHistory}
 						readCommitFiles={readCommitFiles}
 						readDiff={readDiff}
+						previewCache={previewCache}
 						onClose={() => dispatch({ type: "compare", id: activeTab.id })}
 					/>
 				) : activeTab && workspace?.repository && comparison ? (
 					<RepositoryDiff
-						key={`${activeTab.id}:${revision?.id ?? "changes"}:${comparison.path}`}
+						key={`${activeTab.id}:${workspace.repository.root}:${revision?.id ?? "changes"}`}
 						root={workspace.repository.root}
 						change={comparison}
+						cache={previewCache}
+						version={workspace.repository}
+						files={files}
 						refreshing={
 							workspace.loading || RepositoryWorkspaceModel.isBusy(workspace)
 						}
