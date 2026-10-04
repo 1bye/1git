@@ -183,6 +183,8 @@ it("loads commits lazily, pages near the scroll end, and preserves selection and
 	expect(pages).not.toHaveBeenCalled();
 	await openHistory();
 	expect(pages).toHaveBeenCalledTimes(1);
+	expect(root.renderer.findByTestId("load-history")).toBeUndefined();
+	expect(root.renderer.getAllText()).not.toContain("Load more commits");
 	expect(files.mock.calls[0]?.[1]).toBe(commitInfo().oid);
 	expect(
 		element(`entry-${commitInfo().oid}`).customProps?.["aria-description"]
@@ -242,6 +244,49 @@ it("loads commits lazily, pages near the scroll end, and preserves selection and
 	);
 	expect(pages).toHaveBeenCalledTimes(2);
 	expect(files).toHaveBeenCalledTimes(2);
+});
+
+it("shows passive loading for automatic pages and only offers Retry after a failure", async () => {
+	const pending =
+		Promise.withResolvers<Awaited<ReturnType<typeof RepositoryHistory.read>>>();
+
+	const pages = mock<typeof RepositoryHistory.read>(
+		async (_root, _head, offset) =>
+			offset === 0
+				? { ok: true, value: historyPage(0, 12, true) }
+				: await pending.promise
+	);
+
+	root.render(
+		<App
+			readRepository={readRepository}
+			readHistory={pages}
+			readCommitFiles={readFiles}
+			readDiff={readDiff}
+		/>
+	);
+	await openHistory();
+	const box = bounds("repository-list");
+
+	root.renderer.nativeSimulateScrollWheel(box.x + 50, box.y + 80, 0, -650);
+	root.renderer.flush();
+	await settle();
+	expect(pages).toHaveBeenCalledTimes(2);
+	expect(element("history-loading").customProps?.role).toBe("status");
+	expect(root.renderer.findByTestId("load-history")).toBeUndefined();
+	pending.reject(new Error("Next page unavailable"));
+	await settle();
+	expect(root.renderer.findByTestId("history-loading")).toBeUndefined();
+	expect(root.renderer.getAllText()).toContain("Next page unavailable");
+	expect(root.renderer.getAllText()).toContain("Retry");
+	expect(element(`entry-${commitInfo().oid}`)).toBeDefined();
+	pages.mockResolvedValue({ ok: true, value: historyPage(12) });
+	click("load-history");
+	await settle();
+	expect(pages.mock.calls[2]?.[2]).toBe(12);
+	expect(element(`entry-${commitInfo(23).oid}`)).toBeDefined();
+	expect(root.renderer.findByTestId("load-history")).toBeUndefined();
+	expect(root.renderer.findByTestId("history-loading")).toBeUndefined();
 });
 
 it("retries failed pages/files without dropping loaded commits and ignores late file results", async () => {

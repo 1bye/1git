@@ -605,14 +605,24 @@ export function RepositoryNavigation({
 						{view === "history" &&
 						state.repository &&
 						history &&
-						state.history.nextOffset !== null ? (
-							<RepositoryReadNotice
-								testId="load-history"
-								loading={history.loading}
-								error={state.history.error}
-								onPress={history.loadMore}
-								label="Load more commits"
-							/>
+						(history.loading || state.history.error) ? (
+							state.history.error ? (
+								<RepositoryReadNotice
+									testId="load-history"
+									loading={history.loading}
+									error={state.history.error}
+									onPress={history.loadMore}
+									label="Retry"
+								/>
+							) : (
+								<text
+									testId="history-loading"
+									role="status"
+									style={{ ...styles.muted, padding: 10, flexShrink: 0 }}
+								>
+									Loading commits…
+								</text>
+							)
 						) : null}
 					</RepositoryRevisions>
 				)}
