@@ -106,7 +106,7 @@ it.each(scenarios)(
 		}
 
 		expect(
-			root.renderer.findByTestId("repository-list")?.customProps?.[
+			root.renderer.findByTestId("repository-list-viewport")?.customProps?.[
 				"aria-description"
 			]
 		).toBe(heading);

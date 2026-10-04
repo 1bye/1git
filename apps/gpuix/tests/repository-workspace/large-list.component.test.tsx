@@ -80,13 +80,18 @@ for (const history of [false, true]) {
 
 			if (!list) throw new Error("Missing viewport");
 
-			const viewport = root.renderer.getElementBounds(list.id)!;
-			const offset = root.renderer.getScrollOffset(list.id)?.[1] ?? 0;
+			const viewportNode = root.renderer.findByTestId(
+				"repository-list-viewport"
+			);
+
+			if (!viewportNode) throw new Error("Missing viewport bounds");
+
+			const viewport = root.renderer.getElementBounds(viewportNode.id)!;
 			const lastBounds = root.renderer.getElementBounds(last.id)!;
 
-			expect(lastBounds.y).toBeGreaterThanOrEqual(viewport.y - offset);
+			expect(lastBounds.y).toBeGreaterThanOrEqual(viewport.y);
 			expect(lastBounds.y + lastBounds.height).toBeLessThanOrEqual(
-				viewport.y - offset + viewport.height + 1
+				viewport.y + viewport.height + 1
 			);
 
 			root.renderer.nativeSimulateKeyDown(last.id, "home");
@@ -94,9 +99,69 @@ for (const history of [false, true]) {
 			expect(root.renderer.findByTestId("entry-file-0")).toBeDefined();
 			root.renderer.nativeSimulateScrollWheel(150, 300, 0, -3000);
 			root.renderer.flush();
-			expect(root.renderer.findByTestId("entry-file-0")).toBeUndefined();
+			const offscreen = root.renderer.findByTestId("entry-file-0");
+
+			expect(
+				offscreen && root.renderer.getElementBounds(offscreen.id)
+			).toBeFalsy();
+			expect(root.renderer.getScrollOffset(list.id)?.[1]).toBeLessThan(-1000);
 		} finally {
 			root.unmount();
 		}
 	});
 }
+
+it("keeps the current row visible when an appended history page crosses the buffering threshold", () => {
+	const root = createTestRoot({ width: 420, height: 700 });
+
+	const entries: WorkspaceEntry[] = Array.from({ length: 600 }, (_, index) => ({
+		id: `commit-${index}`,
+		title: `Commit ${index}`,
+		detail: "Author · commit summary",
+	}));
+
+	const render = (count: number) =>
+		root.render(
+			<div
+				style={{
+					display: "flex",
+					flexDirection: "column",
+					height: "100%",
+					width: "100%",
+				}}
+			>
+				<RepositoryList
+					entries={entries.slice(0, count)}
+					label="History"
+					emptyMessage="Empty"
+					state={{ selectedId: null, scrollY: 0 }}
+					onSelect={() => {}}
+					onScroll={() => {}}
+				/>
+			</div>
+		);
+
+	try {
+		render(499);
+		const list = root.renderer.findByTestId("repository-list");
+
+		if (!list) throw new Error("Missing history list");
+
+		root.renderer.scrollTo(list.id, 0, -460 * 48);
+		root.renderer.flush();
+		const before = root.renderer.getListScrollTop(list.id);
+
+		render(600);
+		expect(root.renderer.getListScrollTop(list.id)).toEqual(before);
+		const visible = root.renderer.findByTestId("entry-commit-460");
+
+		expect(visible).toBeDefined();
+
+		if (!visible) throw new Error("Missing scrolled commit");
+
+		expect(root.renderer.getElementBounds(visible.id)).not.toBeNull();
+		expect(root.renderer.findByTestId("entry-commit-0")).toBeUndefined();
+	} finally {
+		root.unmount();
+	}
+});

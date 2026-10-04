@@ -177,6 +177,7 @@ it("appends pages without losing selection or scroll, and preserves history on s
 	state = Model.reduce(state, {
 		type: "scroll-revision-files",
 		view: "history",
+		revisionId: state.views.history.selectedId,
 		y: -80,
 	});
 	const selection = state.views.history;
@@ -292,6 +293,7 @@ it("selects the first loaded or cached commit file without overriding manual sel
 	state = Model.reduce(state, {
 		type: "scroll-revision-files",
 		view: "history",
+		revisionId: state.views.history.selectedId,
 		y: -80,
 	});
 	const chosen = state.views.history.files;

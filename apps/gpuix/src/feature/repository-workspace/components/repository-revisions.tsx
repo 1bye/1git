@@ -272,7 +272,14 @@ export function RepositoryRevisions({
 					onSelect={(id) =>
 						onAction({ type: "select-revision-file", view, id })
 					}
-					onScroll={(y) => onAction({ type: "scroll-revision-files", view, y })}
+					onScroll={(y) =>
+						onAction({
+							type: "scroll-revision-files",
+							view,
+							revisionId: revision?.id ?? null,
+							y,
+						})
+					}
 				/>
 				{revision?.filesError && onRetryFiles ? (
 					<RepositoryReadNotice

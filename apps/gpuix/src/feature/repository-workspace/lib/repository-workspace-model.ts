@@ -230,7 +230,12 @@ export type RepositoryWorkspaceAction =
 	| { type: "include-all"; included: boolean }
 	| { type: "scroll"; view: RepositoryView; y: number }
 	| { type: "select-revision-file"; view: RevisionView; id: string }
-	| { type: "scroll-revision-files"; view: RevisionView; y: number }
+	| {
+			type: "scroll-revision-files";
+			view: RevisionView;
+			revisionId: string | null;
+			y: number;
+	  }
 	| { type: "resize-revisions"; view: RevisionView; ratio: number };
 
 /** Pure workspace UI state, owned by the containing tab's lifetime. */
@@ -1063,6 +1068,12 @@ export class RepositoryWorkspaceModel {
 			const revision = RepositoryWorkspaceModel.revision(state, action.view);
 
 			if (!revision) return state;
+
+			if (
+				action.type === "scroll-revision-files" &&
+				action.revisionId !== revision.id
+			)
+				return state;
 
 			let files = current.files;
 

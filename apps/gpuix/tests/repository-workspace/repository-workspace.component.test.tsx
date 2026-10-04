@@ -80,7 +80,12 @@ const element = (testId: string) => {
 };
 
 const bounds = (testId: string) => {
-	const box = root.renderer.getElementBounds(element(testId).id);
+	const viewportId =
+		testId === "repository-list" || testId === "revision-files"
+			? `${testId}-viewport`
+			: testId;
+
+	const box = root.renderer.getElementBounds(element(viewportId).id);
 
 	if (!box) throw new Error(`Missing bounds: ${testId}`);
 
@@ -101,13 +106,30 @@ const changeView = (view: string): void => {
 	click(`view-${view}`);
 };
 
-const key = (testId: string, value: string): void => {
-	root.renderer.nativeSimulateKeyDown(element(testId).id, value);
+// Inactive native test windows need an explicit focus notification for the list's Tab entry point.
+const notifyListFocus = (): void => {
+	const id = root.renderer.getFocusedElementId();
+
+	const focused =
+		id === undefined || id === null ? undefined : root.renderer.getElement(id);
+
+	if (focused?.testId?.endsWith("-viewport") && id !== undefined && id !== null)
+		flushSync(() =>
+			handleGpuixEvent({ elementId: id, eventType: "focus" }, root.renderer)
+		);
+
 	root.renderer.flush();
 };
 
+const key = (testId: string, value: string): void => {
+	root.renderer.nativeSimulateKeyDown(element(testId).id, value);
+	root.renderer.flush();
+
+	if (value.endsWith("tab")) notifyListFocus();
+};
+
 const scrollY = () =>
-	root.renderer.getScrollOffset(element("repository-list").id)?.[1] ?? 0;
+	root.renderer.getScrollOffset(element("repository-list").id)?.[1] || 0;
 
 const checked = (testId: string) =>
 	element(testId).customProps?.["aria-checked"];
@@ -369,6 +391,20 @@ it("uses Space on the focused checkbox without changing the viewed file", () => 
 	expect(scrollY()).toBeLessThan(0);
 });
 
+it("leaves the list backwards without trapping focus in its virtual entry point", () => {
+	click("entry-src/app.tsx");
+	key("entry-src/app.tsx", "tab");
+	expect(root.renderer.getFocusedElementId()).toBe(
+		element("include-src/app.tsx").id
+	);
+	key("include-src/app.tsx", "shift-tab");
+	expect(root.renderer.getFocusedElementId()).toBe(
+		element("entry-src/app.tsx").id
+	);
+	key("entry-src/app.tsx", "shift-tab");
+	expect(root.renderer.getFocusedElementId()).toBe(element("include-all").id);
+});
+
 it("exposes checked, unchecked and mixed state through the patched native accessibility bridge", () => {
 	const state = () =>
 		Object.values(root.renderer.getA11yTree().nodes ?? {}).find(
@@ -384,13 +420,14 @@ it("exposes checked, unchecked and mixed state through the patched native access
 });
 
 const selected = () =>
-	Object.values(root.renderer.getA11yTree().nodes ?? {})
+	root.renderer
+		.findByType("div")
 		.filter(
 			(node) =>
-				["ListBoxOption", "GridCell"].includes(node.aria?.role ?? "") &&
-				node.aria?.selected
+				["option", "gridcell"].includes(String(node.customProps?.role)) &&
+				node.customProps?.["aria-selected"]
 		)
-		.map((node) => node.aria?.label);
+		.map((node) => node.customProps?.["aria-label"]);
 
 const selectedView = () =>
 	Object.values(root.renderer.getA11yTree().nodes ?? {})
@@ -666,6 +703,7 @@ it("supports arrow-key rail selection and entry/exit with Tab", () => {
 	);
 	root.renderer.simulateKeystrokes("tab");
 	root.renderer.flush();
+	notifyListFocus();
 	expect(root.renderer.getFocusedElementId()).toBe(
 		element("entry-commit-1").id
 	);
@@ -682,6 +720,7 @@ it("supports arrow-key rail selection and entry/exit with Tab", () => {
 	);
 	root.renderer.simulateKeystrokes("tab");
 	root.renderer.flush();
+	notifyListFocus();
 	expect(root.renderer.getFocusedElementId()).toBe(element("workspace-1").id);
 });
 

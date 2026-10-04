@@ -139,7 +139,11 @@ it("retains the sidebar and shows vector artwork while waiting for a branch", as
 	show();
 	await settle();
 	const bounds = (id: string) => {
-		const node = root.renderer.findByTestId(id);
+		const node = root.renderer.findByTestId(
+			id === "comparison-commits" || id === "comparison-files"
+				? `${id}-viewport`
+				: id
+		);
 
 		if (!node) throw new Error(`Missing ${id}`);
 
@@ -189,7 +193,11 @@ it("keeps the toolbar horizontal and the lists beside a full-height preview", as
 	show();
 	await choose("feature");
 	const bounds = (id: string) => {
-		const node = root.renderer.findByTestId(id);
+		const node = root.renderer.findByTestId(
+			id === "comparison-commits" || id === "comparison-files"
+				? `${id}-viewport`
+				: id
+		);
 
 		if (!node) throw new Error(`Missing ${id}`);
 

@@ -40,6 +40,7 @@ it("keeps cached files and selection by OID after renumbering, selects the next 
 	state = Model.reduce(state, {
 		type: "scroll-revision-files",
 		view: "stashes",
+		revisionId: state.views.stashes.selectedId,
 		y: -90,
 	});
 	state = Model.reduce(state, { type: "scroll", view: "stashes", y: -120 });

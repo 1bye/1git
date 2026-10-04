@@ -42,7 +42,13 @@ const element = (id: string) => {
 };
 
 const bounds = (id: string) => {
-	const box = root.renderer.getElementBounds(element(id).id);
+	const box = root.renderer.getElementBounds(
+		element(
+			id === "repository-list" || id === "revision-files"
+				? `${id}-viewport`
+				: id
+		).id
+	);
 
 	if (!box) throw new Error(`Missing bounds: ${id}`);
 

@@ -30,20 +30,18 @@ import {
 
 const fileRowHeight = 28;
 const revisionRowHeight = 48;
+const scrollSaveDelayMs = 150;
+const windowChunkSize = 64;
+const windowThreshold = 500;
 
 const styles = StyleSheet.create({
 	viewport: {
-		flexGrow: 1,
-		minHeight: 0,
-		overflowY: "scroll",
-		overflowX: "hidden",
-	},
-	list: {
 		display: "flex",
 		flexDirection: "column",
-		paddingLeft: 6,
-		paddingRight: 6,
-		paddingBottom: 6,
+		flexGrow: 1,
+		flexBasis: 0,
+		height: "100%",
+		minHeight: 0,
 	},
 	row: {
 		display: "flex",
@@ -112,7 +110,6 @@ function RepositoryRow({
 }) {
 	const [focused, setFocused] = useState(false);
 	const [keyboard, setKeyboard] = useState(true);
-	const [hovered, setHovered] = useState(false);
 
 	const row = (onMenu?: (event: EventPayload) => void) => (
 		<div
@@ -122,7 +119,6 @@ function RepositoryRow({
 				styles.row,
 				!!entry.status && { borderRadius: 4, paddingRight: 4, gap: 4 },
 				!!entry.detail && { height: revisionRowHeight },
-				hovered && { backgroundColor: lightColors.editorHairline },
 				selected && styles.selected,
 				focused && keyboard && styles.focused
 			)}
@@ -147,8 +143,6 @@ function RepositoryRow({
 				onAuxClick={(event) => {
 					if (event.button === 2 || event.isRightClick) onMenu?.(event);
 				}}
-				onMouseEnter={() => setHovered(true)}
-				onMouseLeave={() => setHovered(false)}
 				onFocus={() => {
 					setFocused(true);
 					onReveal();
@@ -207,8 +201,6 @@ function RepositoryRow({
 						tokens={appTokens}
 						tabIndex={tabbable ? 0 : -1}
 						onFocus={onReveal}
-						onMouseEnter={() => setHovered(true)}
-						onMouseLeave={() => setHovered(false)}
 						onKeyDown={(event) => {
 							if (event.key !== "space" && event.key !== "enter")
 								onKeyDown(event);
@@ -260,37 +252,72 @@ export function RepositoryList({
 }) {
 	const renderer = useGpuixRequired();
 	const viewport = useRef<PublicInstance>(null);
+	const container = useRef<PublicInstance>(null);
 	const rows = useRef(new Map<string, PublicInstance>());
 	const initialScroll = useRef(state.scrollY);
-	const virtualized = entries.length > 500;
 	const rowHeight = entries[0]?.detail ? revisionRowHeight : fileRowHeight;
+	const windowed = entries.length > windowThreshold;
+	const window = useWindowSize();
 
-	const [windowStart, setWindowStart] = useState(
-		Math.max(0, Math.floor(-state.scrollY / rowHeight) - 10)
+	const windowSize = Math.max(
+		windowChunkSize * 2,
+		Math.ceil(window.height / rowHeight) + windowChunkSize * 2
 	);
 
-	const window = useWindowSize();
-	// Keep a generous overscan; list rows have fixed heights within each view.
-	const windowSize = Math.max(80, Math.ceil(window.height / rowHeight) + 20);
-	const pendingFocus = useRef<string | null>(null);
+	const [windowStart, setWindowStart] = useState(
+		Math.max(
+			0,
+			Math.floor(-state.scrollY / rowHeight / windowChunkSize) *
+				windowChunkSize -
+				windowChunkSize
+		)
+	);
 
-	const start = virtualized
+	const start = windowed
 		? Math.min(windowStart, Math.max(0, entries.length - windowSize))
 		: 0;
 
-	const end = virtualized
+	const end = windowed
 		? Math.min(entries.length, start + windowSize)
 		: entries.length;
 
-	useLayoutEffect(() => {
-		const focus =
-			pendingFocus.current && rows.current.get(pendingFocus.current);
+	const pendingFocus = useRef<{ id: string; y: number } | null>(null);
+	const backwardTab = useRef(false);
+	const scrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const scrollCallback = useRef(onScroll);
 
-		if (focus) {
-			pendingFocus.current = null;
-			renderer.focusElement?.(focus.id);
-		}
-	}, [renderer, rowHeight, start, end, state.scrollY, entries]);
+	useLayoutEffect(() => {
+		scrollCallback.current = onScroll;
+	});
+	useLayoutEffect(() => {
+		if (!windowed || !viewport.current) return;
+
+		// A newly loaded history page can cross the buffering threshold while already scrolled.
+		const anchor = renderer.getListScrollTop?.(viewport.current.id);
+
+		if (anchor)
+			setWindowStart(
+				Math.max(
+					0,
+					Math.floor((anchor[0] ?? 0) / windowChunkSize) * windowChunkSize -
+						windowChunkSize
+				)
+			);
+	}, [renderer, windowed]);
+	useLayoutEffect(() => {
+		const node = viewport.current;
+
+		return () => {
+			if (scrollTimer.current) clearTimeout(scrollTimer.current);
+
+			// Save before the native list is removed, even if the view changes mid-gesture.
+			if (node) {
+				const y = renderer.getScrollOffset?.(node.id)?.[1];
+
+				if (y !== undefined) scrollCallback.current(y);
+			}
+		};
+	}, [renderer]);
 	const includedIds = useMemo(() => new Set(inclusion?.ids), [inclusion?.ids]);
 
 	const selectedIds = useMemo(
@@ -313,96 +340,104 @@ export function RepositoryList({
 	const saveScroll = (): void => {
 		if (!viewport.current) return;
 
-		const y = renderer.getScrollOffset?.(viewport.current.id)?.[1] ?? 0;
+		if (scrollTimer.current) clearTimeout(scrollTimer.current);
 
-		if (virtualized)
-			setWindowStart(Math.max(0, Math.floor(-y / rowHeight) - 10));
-
-		onScroll(y);
-
-		if (onEndReached) {
-			const box = renderer.getElementBounds?.(viewport.current.id);
-
-			if (virtualized) {
-				if (
-					box &&
-					-y + box.height + rowHeight * 3 >= entries.length * rowHeight
-				)
-					onEndReached();
-
-				return;
-			}
-
-			const last = entries.at(-1);
-			const row = last && rows.current.get(last.id);
-			const bounds = row && renderer.getElementBounds?.(row.id);
-
-			if (
-				box &&
-				bounds &&
-				bounds.y + bounds.height <=
-					box.y - y + box.height + revisionRowHeight * 3
-			)
-				onEndReached();
-		}
-	};
-
-	const reveal = (row: PublicInstance): void => {
 		const node = viewport.current;
-		const box = node && renderer.getElementBounds?.(node.id);
-		const target = renderer.getElementBounds?.(row.id);
+		// GPUI's visible-range event describes the previous frame; read the current anchor.
+		const anchor = renderer.getListScrollTop?.(node.id);
+		const first = anchor?.[0] ?? 0;
 
-		if (!node || !box || !target) return;
+		const last =
+			first + Math.ceil(((anchor?.[1] ?? 0) + (anchor?.[2] ?? 0)) / rowHeight);
 
-		const offset = renderer.getScrollOffset?.(node.id)?.[1] ?? 0;
-		// Native bounds use the scrolled content origin, not the clip's origin.
-		const top = box.y - offset;
+		// Shift a generously buffered React window in chunks, not on every wheel tick.
+		if (windowed && anchor) {
+			if (first < start || last > end - windowChunkSize / 2)
+				setWindowStart(
+					Math.max(
+						0,
+						Math.floor(first / windowChunkSize) * windowChunkSize -
+							windowChunkSize
+					)
+				);
+		}
 
-		const delta =
-			target.y < top
-				? target.y - top
-				: Math.max(0, target.y + target.height - top - box.height);
+		// Native scrolling owns the hot path; React only remembers the settled offset.
+		scrollTimer.current = setTimeout(() => {
+			scrollTimer.current = null;
+			scrollCallback.current(renderer.getScrollOffset?.(node.id)?.[1] ?? 0);
+		}, scrollSaveDelayMs);
 
-		renderer.scrollTo?.(node.id, 0, offset - delta);
-		saveScroll();
+		if (anchor && last >= entries.length - 3) onEndReached?.();
 	};
 
-	const revealRow = (id: string): void => {
-		const row = rows.current.get(id);
+	const revealRow = (id: string, previousY?: number): void => {
+		const node = viewport.current;
 
-		if (row) reveal(row);
+		const box =
+			container.current && renderer.getElementBounds?.(container.current.id);
+
+		const index = entries.findIndex((entry) => entry.id === id);
+
+		if (!node || !box || index < 0) return;
+
+		const top = -(previousY ?? renderer.getScrollOffset?.(node.id)?.[1] ?? 0);
+		const height = renderer.getListScrollTop?.(node.id)?.[2] ?? box.height;
+		const targetTop = index * rowHeight;
+
+		const nextTop =
+			targetTop < top
+				? targetTop
+				: Math.max(top, targetTop + rowHeight - height);
+
+		const anchor = Math.floor(nextTop / rowHeight);
+
+		// Override native focus's top anchor with the smallest scroll that reveals the row.
+		renderer.scrollToItem?.(node.id, anchor, nextTop - anchor * rowHeight);
 	};
 
-	const select = (
-		id: string,
-		reveal: boolean,
-		mode?: "toggle" | "range" | "context"
-	): void => {
+	useLayoutEffect(() => {
+		const pending = pendingFocus.current;
+		const row = pending && rows.current.get(pending.id);
+
+		if (pending && row) {
+			pendingFocus.current = null;
+			renderer.focusElement?.(row.id);
+			revealRow(pending.id, pending.y);
+		}
+	});
+
+	const focusRow = (id: string): void => {
 		const row = rows.current.get(id);
+
+		const y = viewport.current
+			? (renderer.getScrollOffset?.(viewport.current.id)?.[1] ?? 0)
+			: 0;
 
 		if (!row) {
 			const index = entries.findIndex((entry) => entry.id === id);
 
-			if (!virtualized || index < 0 || !viewport.current) return;
+			if (!windowed || index < 0) return;
 
-			onSelect(id, mode);
-			setFocusId(id);
-			pendingFocus.current = id;
-			setWindowStart(Math.max(0, index - 10));
-			renderer.scrollTo?.(viewport.current.id, 0, -index * rowHeight);
-			onScroll(-index * rowHeight);
+			pendingFocus.current = { id, y };
+			setWindowStart(Math.max(0, index - windowChunkSize));
 
 			return;
 		}
 
+		renderer.focusElement?.(row.id);
+		revealRow(id, y);
+	};
+
+	const select = (id: string, mode?: "toggle" | "range" | "context"): void => {
 		onSelect(id, mode);
 		setFocusId(id);
-		renderer.focusElement?.(row.id);
-
-		if (reveal) revealRow(id);
+		focusRow(id);
 	};
 
 	const navigate = (id: string, event: EventPayload): void => {
+		if (event.key === "tab") backwardTab.current = !!event.modifiers?.shift;
+
 		if (
 			event.modifiers?.cmd ||
 			event.modifiers?.ctrl ||
@@ -425,13 +460,13 @@ export function RepositoryList({
 				return;
 			}
 
-			select(id, true);
+			select(id);
 
 			return;
 		}
 
-		const height = viewport.current
-			? (renderer.getElementBounds?.(viewport.current.id)?.height ?? 0)
+		const height = container.current
+			? (renderer.getElementBounds?.(container.current.id)?.height ?? 0)
 			: 0;
 
 		const rowHeight = entries[0]?.detail ? revisionRowHeight : fileRowHeight;
@@ -443,113 +478,125 @@ export function RepositoryList({
 			Math.max(1, Math.floor(height / rowHeight) - 1)
 		);
 
-		if (next) select(next, true, event.modifiers?.shift ? "range" : undefined);
+		if (next) select(next, event.modifiers?.shift ? "range" : undefined);
 	};
 
 	return (
 		<div
-			ref={viewport}
-			testId={testId}
+			ref={container}
+			testId={`${testId}-viewport`}
+			style={{ ...styles.viewport, paddingBottom: 6 }}
 			role={inclusion ? "grid" : "listbox"}
 			aria-label={label}
+			aria-multiselectable={!!inclusion}
 			aria-description={entries.length === 0 ? emptyMessage : undefined}
-			aria-multiselectable={inclusion ? true : undefined}
-			onScroll={saveScroll}
-			style={styles.viewport}
+			tabIndex={entries.length ? 0 : -1}
+			onFocus={() => {
+				if (backwardTab.current) {
+					backwardTab.current = false;
+					renderer.focusPrevious?.();
+				} else if (tabbableId) focusRow(tabbableId);
+			}}
 		>
-			<div style={styles.list}>
-				{entries.length === 0
-					? (emptyContent ?? (
+			<virtual-list
+				ref={viewport}
+				testId={testId}
+				role="presentation"
+				{...(windowed
+					? {
+							itemCount: entries.length,
+							estimatedItemHeight: rowHeight,
+							windowStart: start,
+						}
+					: { estimatedItemHeight: entries.length ? rowHeight : undefined })}
+				overdraw={rowHeight * 2}
+				onVisibleRange={saveScroll}
+				style={styles.viewport}
+			>
+				{entries.length === 0 ? (
+					<div style={{ paddingLeft: 6, paddingRight: 6 }}>
+						{emptyContent ?? (
 							<text style={{ ...styles.detail, padding: 14 }}>
 								{emptyMessage}
 							</text>
-						))
-					: null}
-				{start > 0 ? (
-					<div
-						aria-hidden
-						style={{ height: start * rowHeight, flexShrink: 0 }}
-					/>
+						)}
+					</div>
 				) : null}
 				{entries.slice(start, end).map((entry) => (
-					<RepositoryRow
-						key={entry.id}
-						entry={entry}
-						fileActions={
-							fileActions
-								? {
-										...fileActions,
-										selection: (id) => {
-											const ids =
-												state.selectedIds ??
-												(state.selectedId ? [state.selectedId] : []);
-
-											if (ids.includes(id)) {
-												const selection = new Set(ids);
-
-												return entries.filter((item) => selection.has(item.id));
-											}
-
-											select(id, false, "context");
-
-											return [entry];
-										},
-									}
-								: undefined
-						}
-						selected={
-							inclusion && state.selectedIds
-								? selectedIds.has(entry.id)
-								: state.selectedId === entry.id
-						}
-						included={includedIds.has(entry.id)}
-						inclusionDisabled={inclusion?.disabled}
-						onInclude={
-							inclusion
-								? (included) => inclusion.onChange(entry.id, included)
-								: undefined
-						}
-						tabbable={
-							tabbableId === entry.id ||
-							(entry.id === entries[start]?.id &&
-								!entries
-									.slice(start, end)
-									.some((item) => item.id === tabbableId))
-						}
-						rowRef={(node) => {
-							if (node) rows.current.set(entry.id, node);
-							else rows.current.delete(entry.id);
-						}}
-						onSelect={(event) =>
-							select(
-								entry.id,
-								false,
-								inclusion
-									? event.modifiers?.shift
-										? "range"
-										: event.modifiers?.cmd
-											? "toggle"
-											: undefined
-									: undefined
-							)
-						}
-						onReveal={() => {
-							setFocusId(entry.id);
-							revealRow(entry.id);
-						}}
-						onKeyDown={(event) => navigate(entry.id, event)}
-					/>
-				))}
-				{end < entries.length ? (
 					<div
-						aria-hidden
-						style={{
-							height: (entries.length - end) * rowHeight,
-							flexShrink: 0,
-						}}
-					/>
-				) : null}
-			</div>
+						key={entry.id}
+						style={{ height: rowHeight, paddingLeft: 6, paddingRight: 6 }}
+					>
+						<RepositoryRow
+							entry={entry}
+							fileActions={
+								fileActions
+									? {
+											...fileActions,
+											selection: (id) => {
+												const ids =
+													state.selectedIds ??
+													(state.selectedId ? [state.selectedId] : []);
+
+												if (ids.includes(id)) {
+													const selection = new Set(ids);
+
+													return entries.filter((item) =>
+														selection.has(item.id)
+													);
+												}
+
+												select(id, "context");
+
+												return [entry];
+											},
+										}
+									: undefined
+							}
+							selected={
+								inclusion && state.selectedIds
+									? selectedIds.has(entry.id)
+									: state.selectedId === entry.id
+							}
+							included={includedIds.has(entry.id)}
+							inclusionDisabled={inclusion?.disabled}
+							onInclude={
+								inclusion
+									? (included) => inclusion.onChange(entry.id, included)
+									: undefined
+							}
+							tabbable={
+								tabbableId === entry.id ||
+								(entry.id === entries[start]?.id &&
+									!entries
+										.slice(start, end)
+										.some((item) => item.id === tabbableId))
+							}
+							rowRef={(node) => {
+								if (node) rows.current.set(entry.id, node);
+								else rows.current.delete(entry.id);
+							}}
+							onSelect={(event) =>
+								select(
+									entry.id,
+									inclusion
+										? event.modifiers?.shift
+											? "range"
+											: event.modifiers?.cmd
+												? "toggle"
+												: undefined
+										: undefined
+								)
+							}
+							onReveal={() => {
+								setFocusId(entry.id);
+								revealRow(entry.id);
+							}}
+							onKeyDown={(event) => navigate(entry.id, event)}
+						/>
+					</div>
+				))}
+			</virtual-list>
 		</div>
 	);
 }

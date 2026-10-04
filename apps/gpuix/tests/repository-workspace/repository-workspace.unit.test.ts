@@ -318,6 +318,7 @@ it("scopes file selection and scrolling to the selected revision and resets them
 	state = Model.reduce(state, {
 		type: "scroll-revision-files",
 		view: "history",
+		revisionId: state.views.history.selectedId,
 		y: -80,
 	});
 	expect(state.views.history.files).toEqual({
@@ -338,6 +339,7 @@ it("scopes file selection and scrolling to the selected revision and resets them
 		Model.reduce(state, {
 			type: "scroll-revision-files",
 			view: "history",
+			revisionId: state.views.history.selectedId,
 			y: Number.NaN,
 		})
 	).toBe(state);
@@ -350,6 +352,16 @@ it("scopes file selection and scrolling to the selected revision and resets them
 		view: "history",
 		id: "commit-2",
 	});
+
+	// A list unmounted mid-gesture must not write its settled offset into the new revision.
+	expect(
+		Model.reduce(switched, {
+			type: "scroll-revision-files",
+			view: "history",
+			revisionId: "commit-1",
+			y: -80,
+		})
+	).toBe(switched);
 
 	expect(switched.views.history.files).toEqual({
 		selectedId: sampleEntries.history[1]?.files[0]?.id ?? null,
