@@ -21,6 +21,7 @@
     "test": "bun test"
   },
   "dependencies": {
+    "@1git/design-tokens": "workspace:*",
     "@1git/gpuix-stylesheet": "workspace:*"
   },
   "devDependencies": {

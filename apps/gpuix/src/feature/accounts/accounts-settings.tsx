@@ -1,3 +1,4 @@
+import { typography, radius, spacing, fontWeight } from "@1git/design-tokens";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
 import { Button } from "@1git/gpuix-ui/button";
@@ -35,25 +36,25 @@ import { NativeClipboard } from "../../platform/clipboard";
 
 const fieldStyle = {
 	height: appTokens.layout.controlHeight,
-	fontSize: 12,
+	...typography.md,
 	color: appTokens.colors.text,
 	backgroundColor: "transparent",
 	borderWidth: 1,
-	borderRadius: 6,
+	borderRadius: radius.md,
 	borderColor: appTokens.colors.border,
-	paddingLeft: 10,
-	paddingRight: 10,
+	paddingLeft: spacing[2.5],
+	paddingRight: spacing[2.5],
 	flexShrink: 0,
 };
 
-const labelStyle = { fontSize: 12, color: appTokens.colors.textMuted };
+const labelStyle = { ...typography.md, color: appTokens.colors.textMuted };
 const sidebarWidth = 200;
-const contentPadding = 16;
+const contentPadding = spacing[4];
 const sectionMaxWidth = 480;
 
 const headingStyle = {
-	fontSize: 14,
-	fontWeight: 500,
+	...typography.lg,
+	fontWeight: fontWeight.medium,
 	color: appTokens.colors.text,
 };
 
@@ -61,9 +62,9 @@ const footerStyle = {
 	display: "flex",
 	flexDirection: "column",
 	flexShrink: 0,
-	gap: 8,
-	paddingTop: 12,
-	paddingBottom: 12,
+	gap: spacing[2],
+	paddingTop: spacing[3],
+	paddingBottom: spacing[3],
 	paddingLeft: contentPadding,
 	paddingRight: contentPadding,
 	borderTopWidth: 1,
@@ -386,8 +387,8 @@ export function AccountsSettings({
 						flexDirection: "column",
 						width: sidebarWidth,
 						flexShrink: 0,
-						padding: 12,
-						gap: 6,
+						padding: spacing[3],
+						gap: spacing[1.5],
 						borderRightWidth: 1,
 						borderColor: appTokens.colors.border,
 					}}
@@ -448,7 +449,7 @@ export function AccountsSettings({
 						style={{
 							display: "flex",
 							flexDirection: "column",
-							gap: 4,
+							gap: spacing[1],
 							width: "100%",
 							maxWidth: sectionMaxWidth + contentPadding * 2,
 							padding: contentPadding,
@@ -462,7 +463,7 @@ export function AccountsSettings({
 								flexDirection: "row",
 								alignItems: "center",
 								justifyContent: "space-between",
-								gap: 12,
+								gap: spacing[3],
 							}}
 						>
 							<text
@@ -565,7 +566,7 @@ export function AccountsSettings({
 							style={{
 								display: "flex",
 								flexDirection: "column",
-								gap: 4,
+								gap: spacing[1],
 								width: "100%",
 								maxWidth: sectionMaxWidth + contentPadding * 2,
 								padding: contentPadding,
@@ -599,7 +600,7 @@ export function AccountsSettings({
 								style={{
 									display: "flex",
 									flexDirection: "column",
-									gap: 14,
+									gap: spacing[3.5],
 									width: "100%",
 									maxWidth: sectionMaxWidth,
 									flexShrink: 0,
@@ -651,7 +652,7 @@ export function AccountsSettings({
 										style={{
 											display: "flex",
 											flexDirection: "column",
-											gap: 6,
+											gap: spacing[1.5],
 											flexShrink: 0,
 										}}
 									>
@@ -659,7 +660,7 @@ export function AccountsSettings({
 											style={{
 												...labelStyle,
 												color: appTokens.colors.text,
-												fontWeight: 500,
+												fontWeight: fontWeight.medium,
 											}}
 										>
 											Access token
@@ -679,7 +680,7 @@ export function AccountsSettings({
 												setHasToken(!!token.current);
 											}}
 										/>
-										<text style={{ ...labelStyle, fontSize: 11 }}>
+										<text style={{ ...labelStyle, ...typography.sm }}>
 											{process.platform === "darwin"
 												? "Stored securely in macOS Keychain."
 												: "Stored securely in the OS credential store."}
@@ -690,7 +691,7 @@ export function AccountsSettings({
 										style={{
 											display: "flex",
 											flexDirection: "column",
-											gap: 6,
+											gap: spacing[1.5],
 											flexShrink: 0,
 										}}
 									>
@@ -698,7 +699,7 @@ export function AccountsSettings({
 											style={{
 												...labelStyle,
 												color: appTokens.colors.text,
-												fontWeight: 500,
+												fontWeight: fontWeight.medium,
 											}}
 										>
 											{provider === "github" ? "Client ID" : "Application ID"}
@@ -715,7 +716,7 @@ export function AccountsSettings({
 											}
 											onChange={(event) => setClientId(event.value ?? "")}
 										/>
-										<text style={{ ...labelStyle, fontSize: 11 }}>
+										<text style={{ ...labelStyle, ...typography.sm }}>
 											Use the public ID, not the client secret.
 										</text>
 									</div>
@@ -729,7 +730,7 @@ export function AccountsSettings({
 										disabled={busy}
 										onCheckedChange={setRepositoryAccess}
 									/>
-									<text style={{ ...labelStyle, fontSize: 11 }}>
+									<text style={{ ...labelStyle, ...typography.sm }}>
 										{repositoryAccess
 											? provider === "github"
 												? "GitHub OAuth's repo scope grants read and write access. For selected repositories with read-only access, use a fine-grained token instead."
@@ -751,7 +752,7 @@ export function AccountsSettings({
 									<text
 										testId="account-device-code"
 										style={{
-											fontSize: 20,
+											...typography["2xl"],
 											color: appTokens.colors.text,
 											userSelect: "auto",
 										}}
@@ -769,8 +770,8 @@ export function AccountsSettings({
 									style={{
 										alignSelf: "flex-start",
 										flexDirection: "row",
-										gap: 4,
-										paddingLeft: 0,
+										gap: spacing[1],
+										paddingLeft: spacing[0],
 									}}
 									onPress={() => setAdvanced(!advanced)}
 								>
@@ -782,12 +783,16 @@ export function AccountsSettings({
 								{!advanced &&
 								webUrl.replace(/\/+$/u, "") !== accountSetup[provider].host ? (
 									<text
-										style={{ ...labelStyle, fontSize: 11 }}
+										style={{ ...labelStyle, ...typography.sm }}
 									>{`Host: ${webUrl}`}</text>
 								) : null}
 								{advanced ? (
 									<div
-										style={{ display: "flex", flexDirection: "column", gap: 6 }}
+										style={{
+											display: "flex",
+											flexDirection: "column",
+											gap: spacing[1.5],
+										}}
 									>
 										<text style={labelStyle}>Host URL</text>
 										<input
@@ -799,7 +804,7 @@ export function AccountsSettings({
 											style={fieldStyle}
 											onChange={(event) => setWebUrl(event.value ?? "")}
 										/>
-										<text style={{ ...labelStyle, fontSize: 11 }}>
+										<text style={{ ...labelStyle, ...typography.sm }}>
 											For GitHub Enterprise or self-managed GitLab. Register on
 											this host.
 										</text>
@@ -839,7 +844,7 @@ export function AccountsSettings({
 									display: "flex",
 									flexDirection: "row",
 									justifyContent: "space-between",
-									gap: 8,
+									gap: spacing[2],
 									width: "100%",
 									maxWidth: sectionMaxWidth,
 								}}
@@ -913,15 +918,15 @@ export function AccountsSettings({
 						style={{
 							display: "flex",
 							flexDirection: "column",
-							gap: 10,
-							padding: 4,
+							gap: spacing[2.5],
+							padding: spacing[1],
 						}}
 					>
 						<text role="heading" aria-level={2} style={headingStyle}>
 							Remove account?
 						</text>
 						{removing && removingHost ? (
-							<text style={{ fontSize: 12, color: appTokens.colors.text }}>
+							<text style={{ ...typography.md, color: appTokens.colors.text }}>
 								{`${removing.username} · ${accountSetup[removing.provider].name} · ${removingHost.host}${removingHost.pathname === "/" ? "" : removingHost.pathname}`}
 							</text>
 						) : null}
@@ -941,7 +946,7 @@ export function AccountsSettings({
 								display: "flex",
 								flexDirection: "row",
 								justifyContent: "flex-end",
-								gap: 8,
+								gap: spacing[2],
 							}}
 						>
 							<Button

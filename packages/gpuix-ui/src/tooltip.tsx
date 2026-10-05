@@ -1,3 +1,4 @@
+import { typography, spacing, radius } from "@1git/design-tokens";
 import type { ComponentProps } from "react";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import {
@@ -35,12 +36,12 @@ export function TooltipContent({
 				{
 					backgroundColor: tokens.colors.text,
 					color: tokens.colors.background,
-					fontSize: 12,
-					paddingTop: 6,
-					paddingBottom: 6,
-					paddingLeft: 8,
-					paddingRight: 8,
-					borderRadius: 6,
+					...typography.md,
+					paddingTop: spacing[1.5],
+					paddingBottom: spacing[1.5],
+					paddingLeft: spacing[2],
+					paddingRight: spacing[2],
+					borderRadius: radius.md,
 					pointerEvents: "none",
 					userSelect: "none",
 				},

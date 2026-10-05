@@ -1,3 +1,4 @@
+import { spacing, typography, fontWeight, radius } from "@1git/design-tokens";
 import { Button } from "@1git/gpuix-ui/button";
 import { useState, type ReactNode } from "react";
 import { appTokens } from "../../styles/tokens";
@@ -20,9 +21,14 @@ const icons = {
 		'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path d="M138,180a10,10,0,1,1-10-10A10,10,0,0,1,138,180ZM128,74c-21,0-38,15.25-38,34v4a6,6,0,0,0,12,0v-4c0-12.13,11.66-22,26-22s26,9.87,26,22-11.66,22-26,22a6,6,0,0,0-6,6v8a6,6,0,0,0,12,0v-2.42c18.11-2.58,32-16.66,32-33.58C166,89.25,149,74,128,74Zm102,54A102,102,0,1,1,128,26,102.12,102.12,0,0,1,230,128Zm-12,0a90,90,0,1,0-90,90A90.1,90.1,0,0,0,218,128Z"/></svg>',
 };
 
-const column = { display: "flex", flexDirection: "column", gap: 6 };
-const detail = { fontSize: 11, color: appTokens.colors.textMuted };
-const title = { fontSize: 12, color: appTokens.colors.text, fontWeight: 500 };
+const column = { display: "flex", flexDirection: "column", gap: spacing[1.5] };
+const detail = { ...typography.sm, color: appTokens.colors.textMuted };
+
+const title = {
+	...typography.md,
+	color: appTokens.colors.text,
+	fontWeight: fontWeight.medium,
+};
 
 function AccountChoiceTile({
 	label,
@@ -61,7 +67,7 @@ function AccountChoiceTile({
 				flexBasis: 0,
 				height: 64,
 				flexDirection: "column",
-				gap: 6,
+				gap: spacing[1.5],
 				borderColor: selected
 					? appTokens.colors.accentBorder
 					: appTokens.colors.border,
@@ -82,7 +88,7 @@ function AccountChoiceTile({
 			/>
 			<text
 				style={{
-					fontSize: 12,
+					...typography.md,
 					color: appTokens.colors.text,
 					pointerEvents: "none",
 				}}
@@ -109,7 +115,7 @@ export function AccountProviderChoices({
 		<div
 			role="group"
 			aria-label="Hosting provider"
-			style={{ display: "flex", flexDirection: "row", gap: 8 }}
+			style={{ display: "flex", flexDirection: "row", gap: spacing[2] }}
 		>
 			{(["github", "gitlab", "other"] as const).map((provider) => {
 				const selected = value === provider;
@@ -166,7 +172,7 @@ export function AccountMethodChoices({
 		<div
 			role="group"
 			aria-label="Connection method"
-			style={{ display: "flex", flexDirection: "row", gap: 8 }}
+			style={{ display: "flex", flexDirection: "row", gap: spacing[2] }}
 		>
 			{(["browser", "token"] as const).map((method) => (
 				<AccountChoiceTile
@@ -229,20 +235,20 @@ function AccountSetupValue({
 	};
 
 	return (
-		<div style={{ ...column, gap: 4 }}>
+		<div style={{ ...column, gap: spacing[1] }}>
 			<text style={detail}>{label}</text>
 			<div
 				style={{
 					display: "flex",
 					flexDirection: "row",
 					alignItems: "center",
-					gap: 8,
+					gap: spacing[2],
 					minHeight: 32,
 					borderWidth: 1,
-					borderRadius: 6,
+					borderRadius: radius.md,
 					borderColor: appTokens.colors.border,
-					paddingLeft: 10,
-					paddingRight: 4,
+					paddingLeft: spacing[2.5],
+					paddingRight: spacing[1],
 				}}
 			>
 				<text
@@ -320,7 +326,7 @@ export function AccountConnectionGuide({
 	const name = accountSetup[provider].name;
 
 	return (
-		<div testId="account-setup-guide" style={{ ...column, gap: 14 }}>
+		<div testId="account-setup-guide" style={{ ...column, gap: spacing[3.5] }}>
 			<AccountSetupSection label={manual ? "Token setup" : "Application setup"}>
 				<div
 					style={{
@@ -328,7 +334,7 @@ export function AccountConnectionGuide({
 						flexDirection: "row",
 						alignItems: "center",
 						justifyContent: "space-between",
-						gap: 8,
+						gap: spacing[2],
 					}}
 				>
 					<text style={{ ...detail, flexGrow: 1, flexBasis: 0, minWidth: 0 }}>

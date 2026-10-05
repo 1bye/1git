@@ -1,4 +1,10 @@
-import { lightColors } from "@1git/design-tokens";
+import {
+	spacing,
+	radius,
+	typography,
+	fontWeight,
+	lightColors,
+} from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { Checkbox } from "@1git/gpuix-ui/checkbox";
 import {
@@ -47,12 +53,12 @@ const styles = StyleSheet.create({
 		display: "flex",
 		flexDirection: "row",
 		alignItems: "center",
-		gap: 8,
+		gap: spacing[2],
 		height: fileRowHeight,
 		flexShrink: 0,
-		paddingLeft: 8,
-		paddingRight: 8,
-		borderRadius: 8,
+		paddingLeft: spacing[2],
+		paddingRight: spacing[2],
+		borderRadius: radius.lg,
 		borderWidth: 1,
 		borderColor: "transparent",
 		cursor: "pointer",
@@ -63,8 +69,8 @@ const styles = StyleSheet.create({
 		hover: { backgroundColor: lightColors.editorSunken2 },
 	},
 	label: {
-		fontSize: 11,
-		fontWeight: 400,
+		...typography.sm,
+		fontWeight: fontWeight.regular,
 		color: lightColors.editorInk,
 		minWidth: 0,
 		overflowX: "hidden",
@@ -73,7 +79,7 @@ const styles = StyleSheet.create({
 		pointerEvents: "none",
 	},
 	detail: {
-		fontSize: 9,
+		...typography["2xs"],
 		color: lightColors.editorFaint,
 		whiteSpace: "nowrap",
 		textOverflow: "ellipsis",
@@ -117,7 +123,11 @@ function RepositoryRow({
 			onMouseLeave={onPreviewIntent ? () => onPreviewIntent(null) : undefined}
 			style={StyleSheet.compose(
 				styles.row,
-				!!entry.status && { borderRadius: 4, paddingRight: 4, gap: 4 },
+				!!entry.status && {
+					borderRadius: radius.sm,
+					paddingRight: spacing[1],
+					gap: spacing[1],
+				},
 				!!entry.detail && { height: revisionRowHeight },
 				selected && styles.selected
 			)}
@@ -175,7 +185,7 @@ function RepositoryRow({
 							flexDirection: "column",
 							flexGrow: 1,
 							minWidth: 0,
-							gap: 4,
+							gap: spacing[1],
 							pointerEvents: "none",
 						}}
 					>
@@ -483,7 +493,7 @@ export function RepositoryList({
 		<div
 			ref={container}
 			testId={`${testId}-viewport`}
-			style={{ ...styles.viewport, paddingBottom: 6 }}
+			style={{ ...styles.viewport, paddingBottom: spacing[1.5] }}
 			role={inclusion ? "grid" : "listbox"}
 			aria-label={label}
 			aria-multiselectable={!!inclusion}
@@ -512,9 +522,11 @@ export function RepositoryList({
 				style={styles.viewport}
 			>
 				{entries.length === 0 ? (
-					<div style={{ paddingLeft: 6, paddingRight: 6 }}>
+					<div
+						style={{ paddingLeft: spacing[1.5], paddingRight: spacing[1.5] }}
+					>
 						{emptyContent ?? (
-							<text style={{ ...styles.detail, padding: 14 }}>
+							<text style={{ ...styles.detail, padding: spacing[3.5] }}>
 								{emptyMessage}
 							</text>
 						)}
@@ -523,7 +535,11 @@ export function RepositoryList({
 				{entries.slice(start, end).map((entry) => (
 					<div
 						key={entry.id}
-						style={{ height: rowHeight, paddingLeft: 6, paddingRight: 6 }}
+						style={{
+							height: rowHeight,
+							paddingLeft: spacing[1.5],
+							paddingRight: spacing[1.5],
+						}}
 					>
 						<RepositoryRow
 							entry={entry}

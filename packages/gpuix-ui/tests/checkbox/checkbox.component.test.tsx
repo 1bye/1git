@@ -251,7 +251,7 @@ it("forwards refs and metadata and updates token styles without changing checked
 	expect(box?.style).toMatchObject({
 		width: 12,
 		height: 12,
-		borderRadius: 3,
+		borderRadius: 4,
 		backgroundColor: palettes.light.accent,
 	});
 	expect(mark?.style).toMatchObject({ width: 10, height: 10 });

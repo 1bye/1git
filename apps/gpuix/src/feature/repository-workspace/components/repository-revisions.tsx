@@ -1,4 +1,4 @@
-import { lightColors } from "@1git/design-tokens";
+import { spacing, typography, lightColors } from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import {
 	useGpuixRequired,
@@ -47,13 +47,13 @@ const styles = StyleSheet.create({
 	header: {
 		height: 28,
 		flexShrink: 0,
-		paddingLeft: 14,
-		paddingRight: 14,
+		paddingLeft: spacing[3.5],
+		paddingRight: spacing[3.5],
 		display: "flex",
 		alignItems: "center",
 		justifyContent: "space-between",
 	},
-	muted: { fontSize: 10, color: lightColors.editorMuted },
+	muted: { ...typography.xs, color: lightColors.editorMuted },
 });
 
 /** Stacked revision/files navigation with a captured, keyboard-accessible split; no Git actions. */

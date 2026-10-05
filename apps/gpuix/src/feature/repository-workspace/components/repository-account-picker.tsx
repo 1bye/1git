@@ -1,3 +1,4 @@
+import { spacing, typography, radius, iconSize } from "@1git/design-tokens";
 import {
 	use,
 	useCallback,
@@ -26,8 +27,8 @@ export interface AccountCloneSelection {
 	readonly account: SavedAccount;
 	readonly repository: Repository;
 }
-const column = { display: "flex", flexDirection: "column", gap: 6 };
-const hint = { fontSize: 11, color: appTokens.colors.textMuted };
+const column = { display: "flex", flexDirection: "column", gap: spacing[1.5] };
+const hint = { ...typography.sm, color: appTokens.colors.textMuted };
 const repositoryRowHeight = 52;
 const repositoryRowGap = 2;
 const repositoryRowStride = repositoryRowHeight + repositoryRowGap;
@@ -47,13 +48,13 @@ const visibilityLabels = {
 
 const inputStyle = {
 	height: 30,
-	fontSize: 12,
+	...typography.md,
 	borderWidth: 1,
-	borderRadius: 6,
+	borderRadius: radius.md,
 	borderColor: appTokens.colors.border,
 	backgroundColor: "transparent",
-	paddingLeft: 9,
-	paddingRight: 9,
+	paddingLeft: spacing[2.5],
+	paddingRight: spacing[2.5],
 	color: appTokens.colors.text,
 };
 
@@ -222,14 +223,14 @@ export function RepositoryAccountPicker({
 	return (
 		<div
 			testId="clone-account-picker"
-			style={{ ...column, flexGrow: 1, minHeight: 0, gap: 12 }}
+			style={{ ...column, flexGrow: 1, minHeight: 0, gap: spacing[3] }}
 		>
 			<div
 				style={{
 					display: "flex",
 					flexDirection: "row",
 					alignItems: "center",
-					gap: 10,
+					gap: spacing[2.5],
 					flexShrink: 0,
 				}}
 			>
@@ -256,7 +257,7 @@ export function RepositoryAccountPicker({
 							variant="ghost"
 							size="sm"
 							aria-label="Repository access information"
-							style={{ gap: 6 }}
+							style={{ gap: spacing[1.5] }}
 						>
 							<text style={{ ...hint, pointerEvents: "none" }}>
 								{access === false
@@ -268,8 +269,8 @@ export function RepositoryAccountPicker({
 							<svg
 								source='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.25"/><path d="M12 11v6m0-10v1" fill="none" stroke="currentColor" stroke-width="1.25"/></svg>'
 								style={{
-									width: 14,
-									height: 14,
+									width: iconSize.sm,
+									height: iconSize.sm,
 									color: appTokens.colors.textMuted,
 									pointerEvents: "none",
 								}}
@@ -345,9 +346,9 @@ export function RepositoryAccountPicker({
 									flexDirection: "row",
 									alignItems: "center",
 									justifyContent: "center",
-									gap: 10,
-									paddingLeft: 12,
-									paddingRight: 12,
+									gap: spacing[2.5],
+									paddingLeft: spacing[3],
+									paddingRight: spacing[3],
 								}}
 							>
 								<RepositoryAvatar
@@ -363,7 +364,7 @@ export function RepositoryAccountPicker({
 									style={{
 										display: "flex",
 										flexDirection: "column",
-										gap: 3,
+										gap: spacing[0.75],
 										flexGrow: 1,
 										minWidth: 0,
 										pointerEvents: "none",
@@ -373,7 +374,7 @@ export function RepositoryAccountPicker({
 										testId={`clone-repository-name-${item.id}`}
 										style={{
 											...rowText,
-											fontSize: 12,
+											...typography.md,
 											color: appTokens.colors.text,
 										}}
 									>

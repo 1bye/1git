@@ -1,4 +1,4 @@
-import { lightColors } from "@1git/design-tokens";
+import { spacing, typography, radius, lightColors } from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { StateMessage } from "../../../fixture/state-message";
 
@@ -15,8 +15,8 @@ const styles = StyleSheet.create({
 		flexGrow: 1,
 		minHeight: 0,
 		minWidth: 0,
-		padding: 14,
-		gap: 14,
+		padding: spacing[3.5],
+		gap: spacing[3.5],
 	},
 	version: {
 		display: "flex",
@@ -25,7 +25,7 @@ const styles = StyleSheet.create({
 		flexBasis: 0,
 		minWidth: 0,
 		minHeight: 0,
-		gap: 10,
+		gap: spacing[2.5],
 	},
 	caption: {
 		display: "flex",
@@ -33,13 +33,13 @@ const styles = StyleSheet.create({
 		alignItems: "center",
 		justifyContent: "center",
 		flexShrink: 0,
-		fontSize: 10,
+		...typography.xs,
 		color: lightColors.editorMuted,
 	},
 	metadata: {
-		fontSize: 10,
+		...typography.xs,
 		color: lightColors.editorFaint,
-		marginLeft: 6,
+		marginLeft: spacing[1.5],
 		minWidth: 0,
 		maxWidth: "50%",
 		whiteSpace: "nowrap",
@@ -55,7 +55,7 @@ const styles = StyleSheet.create({
 		alignItems: "center",
 		justifyContent: "center",
 		overflow: "hidden",
-		borderRadius: 6,
+		borderRadius: radius.md,
 		backgroundColor: lightColors.editorSunken,
 	},
 	image: {

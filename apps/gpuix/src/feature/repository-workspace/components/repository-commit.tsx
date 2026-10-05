@@ -1,4 +1,9 @@
-import { lightColors } from "@1git/design-tokens";
+import {
+	spacing,
+	typography,
+	fontWeight,
+	lightColors,
+} from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { Button } from "@1git/gpuix-ui/button";
 import { Textarea } from "@1git/gpuix-ui/textarea";
@@ -19,17 +24,16 @@ const styles = StyleSheet.create({
 		display: "flex",
 		flexDirection: "column",
 		flexShrink: 0,
-		paddingBottom: 10,
-		gap: 6,
+		paddingBottom: spacing[2.5],
+		gap: spacing[1.5],
 		borderTopWidth: 1,
 		borderColor: lightColors.editorHairline,
 	},
 	editor: {
 		height: 100,
-		padding: 8,
-		paddingBottom: 4,
-		fontSize: 11,
-		lineHeight: 16,
+		padding: spacing[2],
+		paddingBottom: spacing[1],
+		...typography.sm,
 		backgroundColor: "transparent",
 		borderWidth: 0,
 		borderColor: "transparent",
@@ -38,8 +42,8 @@ const styles = StyleSheet.create({
 		display: "flex",
 		alignItems: "center",
 		justifyContent: "flex-end",
-		paddingLeft: 10,
-		paddingRight: 10,
+		paddingLeft: spacing[2.5],
+		paddingRight: spacing[2.5],
 		flexShrink: 0,
 		height: 24,
 	},
@@ -47,23 +51,23 @@ const styles = StyleSheet.create({
 		display: "flex",
 		flexDirection: "row",
 		alignItems: "center",
-		gap: 6,
+		gap: spacing[1.5],
 	},
-	hint: { fontSize: 9, color: lightColors.editorFaint },
+	hint: { ...typography["2xs"], color: lightColors.editorFaint },
 	notice: {
 		display: "flex",
 		flexDirection: "column",
-		gap: 4,
+		gap: spacing[1],
 		maxHeight: 64,
-		marginLeft: 10,
-		marginRight: 10,
+		marginLeft: spacing[2.5],
+		marginRight: spacing[2.5],
 		flexShrink: 0,
 		overflowY: "scroll",
 		overflowX: "hidden",
 		borderWidth: 1,
 		borderColor: "transparent",
 	},
-	label: { fontSize: 11, fontWeight: 500 },
+	label: { ...typography.sm, fontWeight: fontWeight.medium },
 });
 
 /** Whole-file commit composer; only explicit sample mode remains preview-only. */

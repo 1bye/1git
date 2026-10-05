@@ -1,3 +1,4 @@
+import { radius } from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import type { EventPayload, Props, StyleDesc } from "@gpuix/react";
 import { Children, useEffect, useRef, useState } from "react";
@@ -43,7 +44,7 @@ const styles = StyleSheet.create({
 		alignItems: "center",
 		justifyContent: "center",
 		gap: layout.gap,
-		borderRadius: 6,
+		borderRadius: radius.md,
 		borderWidth: 1,
 		borderColor: "transparent",
 		flexShrink: 0,

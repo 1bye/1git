@@ -1,3 +1,4 @@
+import { spacing } from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { Button } from "@1git/gpuix-ui/button";
 import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
@@ -55,11 +56,11 @@ const styles = StyleSheet.create({
 	add: {
 		width: layout.tabCloseSize,
 		height: layout.tabCloseSize,
-		marginLeft: 4,
-		marginRight: 4,
+		marginLeft: spacing[1],
+		marginRight: spacing[1],
 		marginBottom: layout.tabContentInsetBlock,
-		paddingLeft: 0,
-		paddingRight: 0,
+		paddingLeft: spacing[0],
+		paddingRight: spacing[0],
 	},
 });
 

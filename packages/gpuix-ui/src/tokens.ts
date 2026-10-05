@@ -1,3 +1,4 @@
+import { controlLayout } from "@1git/design-tokens";
 import { Tokens, type TokenSet } from "@1git/gpuix-stylesheet";
 
 /** Semantic color presets shared by native controls and application surfaces. */
@@ -51,38 +52,7 @@ export const palettes = Tokens.create({
 });
 
 /** Layout presets independent of palette selection; comfortable preserves the original sizing. */
-export const densities = Tokens.create({
-	compact: {
-		gap: 6,
-		controlHeight: 28,
-		smallControlHeight: 24,
-		controlPadding: 10,
-		smallControlPadding: 8,
-		fieldPadding: 8,
-		itemHeight: 26,
-		itemPadding: 6,
-		menuPadding: 3,
-		menuGap: 2,
-		pagePadding: 28,
-		sectionGap: 20,
-		contentGap: 8,
-	},
-	comfortable: {
-		gap: 8,
-		controlHeight: 34,
-		smallControlHeight: 28,
-		controlPadding: 14,
-		smallControlPadding: 10,
-		fieldPadding: 10,
-		itemHeight: 30,
-		itemPadding: 8,
-		menuPadding: 4,
-		menuGap: 2,
-		pagePadding: 40,
-		sectionGap: 28,
-		contentGap: 12,
-	},
-});
+export const densities = Tokens.create(controlLayout);
 
 /** Explicit token selection for a control or app; also accepts custom values with the same shape. */
 export interface UiTokens {

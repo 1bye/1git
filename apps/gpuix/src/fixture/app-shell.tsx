@@ -1,4 +1,4 @@
-import { lightColors, workspaceLayout } from "@1git/design-tokens";
+import { spacing, lightColors, workspaceLayout } from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import type { ReactNode, Ref } from "react";
 import type { PublicInstance } from "@gpuix/react";
@@ -90,7 +90,7 @@ export function AppShell({
 					aria-label={workspaceLabel}
 					style={StyleSheet.compose(
 						styles.workspace,
-						rail ? { marginLeft: 0 } : undefined
+						rail ? { marginLeft: spacing[0] } : undefined
 					)}
 				>
 					{navigation}

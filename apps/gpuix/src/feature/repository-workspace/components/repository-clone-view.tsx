@@ -1,3 +1,4 @@
+import { typography, spacing, radius, iconSize } from "@1git/design-tokens";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -24,21 +25,25 @@ import { RepositoryAvatar } from "./repository-avatar";
 
 const column = { display: "flex", flexDirection: "column" };
 const row = { display: "flex", flexDirection: "row", alignItems: "center" };
-const hint = { fontSize: 11, color: appTokens.colors.textMuted };
+const hint = { ...typography.sm, color: appTokens.colors.textMuted };
 
 const input = {
 	height: 32,
-	fontSize: 12,
-	paddingLeft: 10,
-	paddingRight: 10,
-	borderRadius: 6,
+	...typography.md,
+	paddingLeft: spacing[2.5],
+	paddingRight: spacing[2.5],
+	borderRadius: radius.md,
 	borderWidth: 1,
 	borderColor: appTokens.colors.border,
 	color: appTokens.colors.text,
 	backgroundColor: "transparent",
 };
 
-const sourceStyle = { width: "100%", justifyContent: "flex-start", gap: 8 };
+const sourceStyle = {
+	width: "100%",
+	justifyContent: "flex-start",
+	gap: spacing[2],
+};
 
 function loadAccounts(accounts: Accounts) {
 	try {
@@ -276,8 +281,8 @@ export function RepositoryCloneView({
 					...column,
 					width: 200,
 					flexShrink: 0,
-					padding: 12,
-					gap: 4,
+					padding: spacing[3],
+					gap: spacing[1],
 					borderRightWidth: 1,
 					borderColor: appTokens.colors.border,
 				}}
@@ -297,10 +302,10 @@ export function RepositoryCloneView({
 				<text
 					style={{
 						...hint,
-						fontSize: 10,
-						marginTop: 16,
-						marginBottom: 6,
-						marginLeft: 8,
+						...typography.xs,
+						marginTop: spacing[4],
+						marginBottom: spacing[1.5],
+						marginLeft: spacing[2],
 					}}
 				>
 					SOURCES
@@ -308,7 +313,7 @@ export function RepositoryCloneView({
 				<div
 					style={{
 						...column,
-						gap: 4,
+						gap: spacing[1],
 						minHeight: 0,
 						flexShrink: 1,
 						overflowY: "scroll",
@@ -332,8 +337,8 @@ export function RepositoryCloneView({
 							<svg
 								source={accountProviderIcons[item.provider]}
 								style={{
-									width: 16,
-									height: 16,
+									width: iconSize.md,
+									height: iconSize.md,
 									flexShrink: 0,
 									color: appTokens.colors.textMuted,
 									pointerEvents: "none",
@@ -342,7 +347,7 @@ export function RepositoryCloneView({
 							<div
 								style={{
 									...column,
-									gap: 2,
+									gap: spacing[0.5],
 									minWidth: 0,
 									flexShrink: 1,
 									flexGrow: 1,
@@ -351,7 +356,7 @@ export function RepositoryCloneView({
 							>
 								<text
 									style={{
-										fontSize: 12,
+										...typography.md,
 										color: appTokens.colors.text,
 										whiteSpace: "nowrap",
 										textOverflow: "ellipsis",
@@ -390,7 +395,7 @@ export function RepositoryCloneView({
 					variant="ghost"
 					size="sm"
 					disabled={busy || picking}
-					style={{ ...sourceStyle, marginTop: 12 }}
+					style={{ ...sourceStyle, marginTop: spacing[3] }}
 					onPress={onAddAccount}
 				>
 					<WorkspaceTabIcon name="add" />
@@ -404,13 +409,13 @@ export function RepositoryCloneView({
 						flexGrow: 1,
 						minHeight: 0,
 						minWidth: 0,
-						padding: 24,
-						gap: 18,
+						padding: spacing[6],
+						gap: spacing[4.5],
 					}}
 				>
 					<text
 						style={{
-							fontSize: 18,
+							...typography.xl,
 							color: appTokens.colors.text,
 							flexShrink: 0,
 						}}
@@ -430,7 +435,7 @@ export function RepositoryCloneView({
 							<div
 								style={{
 									...column,
-									gap: 12,
+									gap: spacing[3],
 									flexGrow: 1,
 									justifyContent: "center",
 									alignItems: "center",
@@ -440,7 +445,7 @@ export function RepositoryCloneView({
 								<text
 									testId="setup-progress"
 									role="status"
-									style={{ fontSize: 12, color: appTokens.colors.text }}
+									style={{ ...typography.md, color: appTokens.colors.text }}
 								>
 									{stopping ? "Stopping…" : "Cloning repository…"}
 								</text>
@@ -454,9 +459,9 @@ export function RepositoryCloneView({
 								</div>
 							</div>
 						) : source === "url" ? (
-							<div style={{ ...column, gap: 6 }}>
+							<div style={{ ...column, gap: spacing[1.5] }}>
 								<text style={hint}>Repository URL</text>
-								<div style={{ ...row, gap: 10 }}>
+								<div style={{ ...row, gap: spacing[2.5] }}>
 									<RepositoryAvatar
 										label={
 											RepositorySetup.folderName(remoteUrl) || "Repository"
@@ -479,7 +484,7 @@ export function RepositoryCloneView({
 										}}
 									/>
 								</div>
-								<text style={{ ...hint, marginTop: 4 }}>
+								<text style={{ ...hint, marginTop: spacing[1] }}>
 									Clone using your configured Git credentials.
 								</text>
 							</div>
@@ -503,10 +508,10 @@ export function RepositoryCloneView({
 					testId="clone-footer"
 					style={{
 						...column,
-						gap: 10,
-						padding: 16,
-						paddingLeft: 24,
-						paddingRight: 24,
+						gap: spacing[2.5],
+						padding: spacing[4],
+						paddingLeft: spacing[6],
+						paddingRight: spacing[6],
 						flexShrink: 0,
 						borderTopWidth: 1,
 						borderColor: appTokens.colors.border,
@@ -521,8 +526,12 @@ export function RepositoryCloneView({
 							{error ?? catalog.error}
 						</text>
 					) : null}
-					<div style={{ ...row, gap: 12, width: "100%", maxWidth: 760 }}>
-						<div style={{ ...column, flexGrow: 1, minWidth: 0, gap: 4 }}>
+					<div
+						style={{ ...row, gap: spacing[3], width: "100%", maxWidth: 760 }}
+					>
+						<div
+							style={{ ...column, flexGrow: 1, minWidth: 0, gap: spacing[1] }}
+						>
 							<text style={hint}>Location</text>
 							<Button
 								testId="setup-location"
@@ -538,15 +547,15 @@ export function RepositoryCloneView({
 									...input,
 									...row,
 									justifyContent: "flex-start",
-									gap: 8,
+									gap: spacing[2],
 									hover: { backgroundColor: "transparent" },
 								}}
 							>
 								<svg
 									source='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 7V5a1 1 0 0 1 1-1h5l3 3h8a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7Z" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/></svg>'
 									style={{
-										width: 14,
-										height: 14,
+										width: iconSize.sm,
+										height: iconSize.sm,
 										flexShrink: 0,
 										color: appTokens.colors.textMuted,
 										pointerEvents: "none",
@@ -554,7 +563,7 @@ export function RepositoryCloneView({
 								/>
 								<text
 									style={{
-										fontSize: 12,
+										...typography.md,
 										color: appTokens.colors.text,
 										minWidth: 0,
 										flexShrink: 1,

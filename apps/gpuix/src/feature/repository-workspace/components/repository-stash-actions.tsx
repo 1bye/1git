@@ -1,3 +1,4 @@
+import { spacing, typography, radius } from "@1git/design-tokens";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@1git/gpuix-ui/button";
 import { Checkbox } from "@1git/gpuix-ui/checkbox";
@@ -15,17 +16,22 @@ import {
 import type { StashWriteRequest } from "../lib/repository-stashes";
 
 const styles = StyleSheet.create({
-	panel: { padding: 8, gap: 6, flexShrink: 0 },
+	panel: { padding: spacing[2], gap: spacing[1.5], flexShrink: 0 },
 	selectionPanel: { minWidth: 0, flexShrink: 1 },
-	row: { display: "flex", flexDirection: "row", alignItems: "center", gap: 6 },
-	label: { fontSize: 11, color: appTokens.colors.text },
-	hint: { fontSize: 10, color: appTokens.colors.textMuted },
+	row: {
+		display: "flex",
+		flexDirection: "row",
+		alignItems: "center",
+		gap: spacing[1.5],
+	},
+	label: { ...typography.sm, color: appTokens.colors.text },
+	hint: { ...typography.xs, color: appTokens.colors.textMuted },
 	input: {
 		height: 30,
-		fontSize: 11,
-		padding: 6,
+		...typography.sm,
+		padding: spacing[1.5],
 		borderWidth: 1,
-		borderRadius: 5,
+		borderRadius: radius.md,
 		borderColor: appTokens.colors.border,
 		backgroundColor: appTokens.colors.field,
 		color: appTokens.colors.text,
@@ -103,7 +109,7 @@ export function RepositoryStashActions({
 			style={{
 				display: "flex",
 				flexDirection: "column",
-				gap: 6,
+				gap: spacing[1.5],
 			}}
 		>
 			<text style={styles.label}>

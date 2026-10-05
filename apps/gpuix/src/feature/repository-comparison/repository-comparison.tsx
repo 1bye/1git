@@ -1,3 +1,4 @@
+import { spacing, typography } from "@1git/design-tokens";
 import { useEffect, useState } from "react";
 import type { BranchComparison, CommitPage } from "@1git/git";
 import { Button } from "@1git/gpuix-ui/button";
@@ -33,8 +34,8 @@ const styles = StyleSheet.create({
 		minHeight: 0,
 		alignItems: "center",
 		justifyContent: "center",
-		gap: 10,
-		padding: 24,
+		gap: spacing[2.5],
+		padding: spacing[6],
 	},
 	root: {
 		display: "flex",
@@ -56,7 +57,7 @@ const styles = StyleSheet.create({
 	back: {
 		width: 310,
 		flexShrink: 0,
-		padding: 8,
+		padding: spacing[2],
 		display: "flex",
 		flexDirection: "row",
 		alignItems: "center",
@@ -67,7 +68,7 @@ const styles = StyleSheet.create({
 		flexGrow: 1,
 		flexBasis: 0,
 		minWidth: 0,
-		padding: 8,
+		padding: spacing[2],
 		justifyContent: "center",
 		alignItems: "center",
 	},
@@ -75,7 +76,7 @@ const styles = StyleSheet.create({
 		display: "flex",
 		flexDirection: "row",
 		alignItems: "center",
-		gap: 8,
+		gap: spacing[2],
 		maxWidth: "100%",
 	},
 	body: {
@@ -106,8 +107,8 @@ const styles = StyleSheet.create({
 		borderColor: appTokens.colors.border,
 	},
 	label: {
-		padding: 10,
-		fontSize: 11,
+		padding: spacing[2.5],
+		...typography.sm,
 		color: appTokens.colors.textMuted,
 		flexShrink: 0,
 	},
@@ -191,8 +192,8 @@ export function RepositoryComparison({
 							style={{
 								width: 28,
 								flexShrink: 0,
-								paddingLeft: 0,
-								paddingRight: 0,
+								paddingLeft: spacing[0],
+								paddingRight: spacing[0],
 							}}
 							onPress={() => {
 								setBase(branch);
@@ -229,12 +230,12 @@ export function RepositoryComparison({
 					<div testId="comparison-preview" style={styles.preview}>
 						<div testId="comparison-empty" style={styles.empty}>
 							<ComparisonArtwork name="empty" />
-							<Text tokens={appTokens} style={{ fontSize: 13 }}>
+							<Text tokens={appTokens} style={{ ...typography.lg }}>
 								Compare branches
 							</Text>
 							<Text
 								tokens={appTokens}
-								style={{ fontSize: 11, color: appTokens.colors.textMuted }}
+								style={{ ...typography.sm, color: appTokens.colors.textMuted }}
 							>
 								{request.branches.length
 									? "Choose an incoming branch above to see what changed."
@@ -272,7 +273,7 @@ function ComparisonBranchPicker({
 						tokens={appTokens}
 						placeholder="Choose a branch…"
 						style={{
-							fontSize: 11,
+							...typography.sm,
 							minWidth: 0,
 							whiteSpace: "nowrap",
 							overflow: "hidden",
@@ -282,7 +283,7 @@ function ComparisonBranchPicker({
 				) : (
 					<Text
 						tokens={appTokens}
-						style={{ fontSize: 11, color: appTokens.colors.textMuted }}
+						style={{ ...typography.sm, color: appTokens.colors.textMuted }}
 					>
 						Choose a branch…
 					</Text>
@@ -295,7 +296,7 @@ function ComparisonBranchPicker({
 						testId={`${side === "base" ? "base" : "compare"}-option-${item.value}`}
 						value={item.value}
 						tokens={appTokens}
-						style={{ fontSize: 11 }}
+						style={{ ...typography.sm }}
 					>
 						{item.label}
 					</SelectItem>

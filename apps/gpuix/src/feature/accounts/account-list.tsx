@@ -1,3 +1,4 @@
+import { spacing, typography, fontWeight, iconSize } from "@1git/design-tokens";
 import { Button } from "@1git/gpuix-ui/button";
 import { appTokens } from "../../styles/tokens";
 import { AccountStore, type SavedAccount } from "./lib/account-store";
@@ -36,7 +37,7 @@ export function AccountList({
 			style={{
 				display: "flex",
 				flexDirection: "column",
-				gap: 20,
+				gap: spacing[5],
 				flexGrow: 1,
 				flexShrink: 0,
 			}}
@@ -50,7 +51,7 @@ export function AccountList({
 						flexGrow: 1,
 						alignItems: "center",
 						justifyContent: "center",
-						padding: 16,
+						padding: spacing[4],
 					}}
 				>
 					<div
@@ -59,7 +60,7 @@ export function AccountList({
 							display: "flex",
 							flexDirection: "column",
 							alignItems: "center",
-							gap: 8,
+							gap: spacing[2],
 						}}
 					>
 						<StateArtwork name="accounts" testId="accounts-empty-artwork" />
@@ -67,8 +68,8 @@ export function AccountList({
 							role="heading"
 							aria-level={2}
 							style={{
-								fontSize: 13,
-								fontWeight: 500,
+								...typography.lg,
+								fontWeight: fontWeight.medium,
 								color: appTokens.colors.text,
 							}}
 						>
@@ -76,7 +77,7 @@ export function AccountList({
 						</text>
 						<text
 							style={{
-								fontSize: 11,
+								...typography.sm,
 								color: appTokens.colors.textMuted,
 								textAlign: "center",
 							}}
@@ -115,7 +116,7 @@ export function AccountList({
 							display: "flex",
 							flexDirection: "row",
 							alignItems: "center",
-							gap: 12,
+							gap: spacing[3],
 							flexShrink: 0,
 						}}
 					>
@@ -136,7 +137,7 @@ export function AccountList({
 							style={{
 								display: "flex",
 								flexDirection: "column",
-								gap: 2,
+								gap: spacing[0.5],
 								flexGrow: 1,
 								flexBasis: 0,
 								minWidth: 0,
@@ -144,18 +145,20 @@ export function AccountList({
 						>
 							<text
 								testId={`account-name-${key}`}
-								style={{ fontSize: 12, color: appTokens.colors.text }}
+								style={{ ...typography.md, color: appTokens.colors.text }}
 							>
 								{account.username}
 							</text>
 							<text
 								testId={`account-status-${key}`}
-								style={{ fontSize: 11, color: appTokens.colors.textMuted }}
+								style={{ ...typography.sm, color: appTokens.colors.textMuted }}
 							>
 								{`${host.host}${host.pathname === "/" ? "" : host.pathname} · ${status[key] ?? "Not checked"}`}
 							</text>
 						</div>
-						<div style={{ display: "flex", flexDirection: "row", gap: 4 }}>
+						<div
+							style={{ display: "flex", flexDirection: "row", gap: spacing[1] }}
+						>
 							{actions.map((action) => (
 								<Button
 									key={action.name}
@@ -168,8 +171,8 @@ export function AccountList({
 									style={{
 										width: 26,
 										height: 26,
-										paddingLeft: 0,
-										paddingRight: 0,
+										paddingLeft: spacing[0],
+										paddingRight: spacing[0],
 									}}
 									onPress={() => action.onPress(account)}
 								>
@@ -178,8 +181,8 @@ export function AccountList({
 										aria-hidden
 										source={actionIcons[action.name]}
 										style={{
-											width: 14,
-											height: 14,
+											width: iconSize.sm,
+											height: iconSize.sm,
 											pointerEvents: "none",
 											color:
 												action.name === "remove"

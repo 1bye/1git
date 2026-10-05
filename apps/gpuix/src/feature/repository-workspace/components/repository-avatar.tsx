@@ -5,7 +5,12 @@ import {
 	useEffect,
 	useSyncExternalStore,
 } from "react";
-import { lightColors } from "@1git/design-tokens";
+import {
+	controlSize,
+	lightColors,
+	radius,
+	typography,
+} from "@1git/design-tokens";
 import {
 	RepositoryAvatars,
 	type RepositoryAvatarSource,
@@ -20,7 +25,7 @@ export const RepositoryAvatarContext = createContext<RepositoryAvatars | null>(
 export function RepositoryAvatar({
 	label,
 	source,
-	size = 28,
+	size = controlSize.md,
 	testId,
 	deferred = false,
 }: {
@@ -65,7 +70,7 @@ export function RepositoryAvatar({
 				width: size,
 				height: size,
 				flexShrink: 0,
-				borderRadius: Math.min(6, size / 4),
+				borderRadius: Math.min(radius.md, size / 4),
 				overflow: "hidden",
 				pointerEvents: "none",
 				backgroundColor: lightColors.editorSunken2,
@@ -83,7 +88,7 @@ export function RepositoryAvatar({
 					style={{
 						width: size,
 						height: size,
-						borderRadius: Math.min(6, size / 4),
+						borderRadius: Math.min(radius.md, size / 4),
 						pointerEvents: "none",
 					}}
 				/>
@@ -91,7 +96,8 @@ export function RepositoryAvatar({
 				<text
 					testId={testId ? `${testId}-initial` : undefined}
 					style={{
-						fontSize: Math.max(9, size * 0.4),
+						// Initials scale with arbitrary thumbnail sizes, including tiny tabs.
+						fontSize: Math.max(typography["2xs"].fontSize, size * 0.4),
 						color: lightColors.editorMuted,
 						pointerEvents: "none",
 					}}

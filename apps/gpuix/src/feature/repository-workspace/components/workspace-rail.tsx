@@ -11,7 +11,13 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@1git/gpuix-ui/tooltip";
-import { lightColors } from "@1git/design-tokens";
+import {
+	controlSize,
+	radius,
+	iconSize,
+	spacing,
+	lightColors,
+} from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import {
 	AccountStore,
@@ -49,10 +55,10 @@ const actionStyle: StyleDesc = {
 	display: "flex",
 	alignItems: "center",
 	justifyContent: "center",
-	width: 32,
-	height: 32,
+	width: controlSize.rail,
+	height: controlSize.rail,
 	flexShrink: 0,
-	borderRadius: 8,
+	borderRadius: radius.lg,
 	backgroundColor: "transparent",
 	cursor: "pointer",
 	hover: { backgroundColor: lightColors.editorHairline },
@@ -111,8 +117,8 @@ function RailAction({
 						testId={props.testId ? `${props.testId}-icon` : undefined}
 						source={icon}
 						style={{
-							width: 18,
-							height: 18,
+							width: iconSize.lg,
+							height: iconSize.lg,
 							pointerEvents: "none",
 							color:
 								focused && !pointerFocus
@@ -271,9 +277,9 @@ export function WorkspaceRail({
 					alignItems: "center",
 					width: workspaceRailWidth,
 					flexShrink: 0,
-					paddingTop: 6,
-					paddingBottom: 12,
-					gap: 6,
+					paddingTop: spacing[1.5],
+					paddingBottom: spacing[3],
+					gap: spacing[1.5],
 				}}
 			>
 				{view && onView ? (
@@ -281,7 +287,11 @@ export function WorkspaceRail({
 						role="tablist"
 						aria-label="Repository views"
 						aria-orientation="vertical"
-						style={{ display: "flex", flexDirection: "column", gap: 6 }}
+						style={{
+							display: "flex",
+							flexDirection: "column",
+							gap: spacing[1.5],
+						}}
 					>
 						{repositoryViews.map((item, index) => (
 							<RailAction

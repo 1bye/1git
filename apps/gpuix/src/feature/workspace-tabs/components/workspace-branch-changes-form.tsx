@@ -1,3 +1,4 @@
+import { spacing, typography, fontWeight } from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { Button } from "@1git/gpuix-ui/button";
 import { Text } from "@1git/gpuix-ui/text";
@@ -10,24 +11,24 @@ const styles = StyleSheet.create({
 		flexDirection: "column",
 		flexGrow: 1,
 		minHeight: 0,
-		padding: 8,
-		gap: 10,
+		padding: spacing[2],
+		gap: spacing[2.5],
 	},
 	content: {
 		display: "flex",
 		flexDirection: "column",
 		flexGrow: 1,
 		minHeight: 0,
-		gap: 10,
+		gap: spacing[2.5],
 		overflowY: "scroll",
 	},
-	heading: { fontSize: 12, fontWeight: 500 },
-	muted: { fontSize: 11, color: appTokens.colors.textMuted },
+	heading: { ...typography.md, fontWeight: fontWeight.medium },
+	muted: { ...typography.sm, color: appTokens.colors.textMuted },
 	choice: {
 		width: "100%",
 		height: 66,
-		padding: 8,
-		gap: 4,
+		padding: spacing[2],
+		gap: spacing[1],
 		flexDirection: "column",
 		alignItems: "flex-start",
 		flexShrink: 0,
@@ -37,7 +38,7 @@ const styles = StyleSheet.create({
 		flexDirection: "row",
 		justifyContent: "space-between",
 		flexShrink: 0,
-		gap: 6,
+		gap: spacing[1.5],
 	},
 });
 

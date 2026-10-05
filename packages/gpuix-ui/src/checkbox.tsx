@@ -1,3 +1,4 @@
+import { controlSize, radius, typography } from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import type { Props, StyleDesc } from "@gpuix/react";
 import { useEffect, useRef, useState } from "react";
@@ -46,16 +47,16 @@ const styles = StyleSheet.create({
 		flexShrink: 0,
 		borderWidth: 1,
 		borderColor: "transparent",
-		borderRadius: 5,
+		borderRadius: radius.md,
 		cursor: "pointer",
 	}),
 	box: ({ colors }: UiTokens, checked: CheckboxState) => ({
 		display: "flex",
 		alignItems: "center",
 		justifyContent: "center",
-		width: 12,
-		height: 12,
-		borderRadius: 3,
+		width: controlSize.checkbox,
+		height: controlSize.checkbox,
+		borderRadius: radius.sm,
 		borderWidth: 1,
 		borderColor: checked ? colors.accentBorder : colors.border,
 		backgroundColor: checked ? colors.accent : colors.field,
@@ -99,7 +100,7 @@ export function Checkbox({
 			flexDirection: "row",
 			justifyContent: "flex-start",
 			gap: tokens.layout.gap,
-			fontSize: 11,
+			...typography.sm,
 			color: tokens.colors.text,
 		},
 		{

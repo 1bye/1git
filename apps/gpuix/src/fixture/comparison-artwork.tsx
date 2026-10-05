@@ -1,3 +1,4 @@
+import { iconSize } from "@1git/design-tokens";
 import { appTokens } from "../styles/tokens";
 import { StateArtwork } from "./state-artwork";
 
@@ -23,8 +24,8 @@ export function ComparisonArtwork({
 			aria-hidden
 			source={sources[name]}
 			style={{
-				width: 16,
-				height: 16,
+				width: iconSize.md,
+				height: iconSize.md,
 				flexShrink: 0,
 				color: appTokens.colors.textMuted,
 				pointerEvents: "none",

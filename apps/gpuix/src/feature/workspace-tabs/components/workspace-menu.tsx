@@ -1,3 +1,4 @@
+import { radius, spacing, typography, fontWeight } from "@1git/design-tokens";
 import { basename } from "node:path";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { Button } from "@1git/gpuix-ui/button";
@@ -44,14 +45,14 @@ const menuWidth = 288;
 const windowInset = 8;
 const recentBranchCount = 3;
 const rowHeight = 28;
-const menuPadding = 4;
+const menuPadding = spacing[1];
 const headerHeight = 48;
 const separatorHeight = 9;
 const sectionLabelHeight = 24;
 const noticeHeight = 56;
 const createFormHeight = 150;
 const worktreeFormHeight = 224;
-const submenuGap = 8;
+const submenuGap = spacing[2];
 const submenuCloseDelayMs = 180;
 
 const styles = StyleSheet.create({
@@ -59,7 +60,7 @@ const styles = StyleSheet.create({
 		position: "absolute",
 		width: menuWidth,
 		backgroundColor: colors.overlay,
-		borderRadius: 12,
+		borderRadius: radius.xl,
 		pointerEvents: "auto",
 	},
 	body: {
@@ -76,21 +77,21 @@ const styles = StyleSheet.create({
 		display: "flex",
 		flexDirection: "column",
 		justifyContent: "center",
-		paddingLeft: 8,
-		paddingRight: 8,
-		gap: 2,
+		paddingLeft: spacing[2],
+		paddingRight: spacing[2],
+		gap: spacing[0.5],
 	},
 	separator: {
 		height: 1,
 		flexShrink: 0,
-		marginTop: 4,
-		marginBottom: 4,
+		marginTop: spacing[1],
+		marginBottom: spacing[1],
 		backgroundColor: colors.border,
 	},
-	heading: { fontSize: 12, fontWeight: 500 },
-	muted: { fontSize: 11, color: colors.textMuted },
+	heading: { ...typography.md, fontWeight: fontWeight.medium },
+	muted: { ...typography.sm, color: colors.textMuted },
 	detail: {
-		fontSize: 10,
+		...typography.xs,
 		color: colors.textMuted,
 		whiteSpace: "nowrap",
 		textOverflow: "ellipsis",
@@ -101,17 +102,17 @@ const styles = StyleSheet.create({
 	sectionLabel: {
 		height: sectionLabelHeight,
 		flexShrink: 0,
-		paddingLeft: 8,
+		paddingLeft: spacing[2],
 		justifyContent: "center",
 	},
 	input: {
 		width: "100%",
 		height: 30,
 		flexShrink: 0,
-		fontSize: 12,
-		paddingLeft: 9,
-		paddingRight: 9,
-		borderRadius: 6,
+		...typography.md,
+		paddingLeft: spacing[2.5],
+		paddingRight: spacing[2.5],
+		borderRadius: radius.md,
 		backgroundColor: colors.field,
 		color: colors.text,
 		borderWidth: 1,
@@ -129,13 +130,13 @@ const styles = StyleSheet.create({
 		height: rowHeight,
 		flexDirection: "row",
 		justifyContent: "flex-start",
-		paddingLeft: 8,
-		paddingRight: 8,
-		gap: 8,
-		borderRadius: 5,
+		paddingLeft: spacing[2],
+		paddingRight: spacing[2],
+		gap: spacing[2],
+		borderRadius: radius.md,
 	},
 	label: {
-		fontSize: 12,
+		...typography.md,
 		minWidth: 0,
 		flexShrink: 1,
 		flexGrow: 1,
@@ -146,14 +147,14 @@ const styles = StyleSheet.create({
 		display: "flex",
 		flexDirection: "row",
 		justifyContent: "space-between",
-		gap: 6,
+		gap: spacing[1.5],
 		flexShrink: 0,
 	},
 	form: {
 		display: "flex",
 		flexDirection: "column",
-		gap: 10,
-		padding: 8,
+		gap: spacing[2.5],
+		padding: spacing[2],
 		flexGrow: 1,
 		minHeight: 0,
 		overflowY: "scroll",
@@ -161,7 +162,7 @@ const styles = StyleSheet.create({
 	notice: {
 		height: noticeHeight,
 		flexShrink: 0,
-		padding: 8,
+		padding: spacing[2],
 		overflowY: "scroll",
 	},
 });
@@ -935,7 +936,7 @@ export function WorkspaceMenu({
 							<Text tokens={appTokens} style={styles.heading}>
 								Remove worktree?
 							</Text>
-							<Text tokens={appTokens} style={{ fontSize: 11 }}>
+							<Text tokens={appTokens} style={{ ...typography.sm }}>
 								{removingWorktree.path}
 							</Text>
 							<Text tokens={appTokens} style={styles.muted}>
@@ -1149,7 +1150,9 @@ export function WorkspaceMenu({
 					) : (
 						<>
 							<div
-								style={StyleSheet.compose(styles.header, { paddingRight: 80 })}
+								style={StyleSheet.compose(styles.header, {
+									paddingRight: spacing[20],
+								})}
 							>
 								<Button
 									testId="compare-branches"
@@ -1389,7 +1392,7 @@ export function WorkspaceMenu({
 										style={StyleSheet.compose(styles.body, {
 											height: submenuHeight,
 											backgroundColor: colors.overlay,
-											borderRadius: 12,
+											borderRadius: radius.xl,
 										})}
 									>
 										<div

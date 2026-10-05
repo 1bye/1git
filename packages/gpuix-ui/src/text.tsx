@@ -1,3 +1,4 @@
+import { typography, fontWeight, type TextSize } from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import type { Props } from "@gpuix/react";
 import { Children } from "react";
@@ -9,22 +10,16 @@ type TextChild = string | number | boolean | null | undefined;
 /** Native text with explicit typography and color defaults. */
 export interface TextProps extends Omit<Props, "children"> {
 	children?: TextChild | readonly TextChild[];
-	size?: "sm" | "md" | "lg";
+	size?: TextSize;
 	tone?: "default" | "muted" | "danger";
-	weight?: "regular" | "medium" | "semibold";
+	weight?: keyof typeof fontWeight;
 	tokens?: UiTokens;
 }
 
 const styles = StyleSheet.create({
-	sm: { fontSize: 12 },
-	md: { fontSize: 14 },
-	lg: { fontSize: 20 },
 	default: ({ colors }: UiTokens) => ({ color: colors.text }),
 	muted: ({ colors }: UiTokens) => ({ color: colors.textMuted }),
 	danger: ({ colors }: UiTokens) => ({ color: colors.danger }),
-	regular: { fontWeight: 400 },
-	medium: { fontWeight: 500 },
-	semibold: { fontWeight: 600 },
 });
 
 /** Renders GPUIX text while allowing the caller's style to take precedence. */
@@ -41,9 +36,9 @@ export function Text({
 		<text
 			{...props}
 			style={StyleSheet.compose(
-				styles[size],
+				typography[size],
 				styles[tone](tokens),
-				styles[weight],
+				{ fontWeight: fontWeight[weight] },
 				style
 			)}
 		>

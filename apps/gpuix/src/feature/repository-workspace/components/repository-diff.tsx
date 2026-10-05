@@ -1,4 +1,10 @@
-import { lightColors } from "@1git/design-tokens";
+import {
+	codeTypography,
+	spacing,
+	typography,
+	radius,
+	lightColors,
+} from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { Button } from "@1git/gpuix-ui/button";
 import type { GpuixTheme } from "@gpuix/react";
@@ -38,7 +44,7 @@ const diffTheme: GpuixTheme = {
 	diffAddWordBg: "#d9e8da",
 	diffDelWordBg: "#f1dadd",
 	diffHunkBg: lightColors.editorSunken,
-	fontMono: "Menlo",
+	fontMono: codeTypography.fontFamily,
 	syntax: {
 		comment: lightColors.editorFaint,
 		keyword: "#75658f",
@@ -66,10 +72,10 @@ const diffTheme: GpuixTheme = {
 		invalid: "#b2676b",
 	},
 	metrics: {
-		diffTextSize: 11,
-		diffLineHeight: 20,
+		diffTextSize: codeTypography.fontSize,
+		diffLineHeight: codeTypography.lineHeight,
 		diffHunkHeaderHeight: 26,
-		diffRowPaddingX: 14,
+		diffRowPaddingX: spacing[3.5],
 		diffGutterWidth: 30,
 		diffMarkerWidth: 18,
 		diffAccentBarWidth: 2,
@@ -83,9 +89,9 @@ const styles = StyleSheet.create({
 		display: "flex",
 		flexDirection: "row",
 		alignItems: "center",
-		gap: 6,
-		paddingLeft: 14,
-		paddingRight: 12,
+		gap: spacing[1.5],
+		paddingLeft: spacing[3.5],
+		paddingRight: spacing[3],
 		borderBottomWidth: 1,
 		borderColor: lightColors.editorHairline,
 	},
@@ -93,13 +99,13 @@ const styles = StyleSheet.create({
 		display: "flex",
 		flexDirection: "row",
 		alignItems: "center",
-		gap: 6,
+		gap: spacing[1.5],
 		flexGrow: 1,
 		minWidth: 0,
 		overflow: "hidden",
 	},
 	filename: {
-		fontSize: 11,
+		...typography.sm,
 		color: lightColors.editorInk,
 		flexShrink: 0,
 		maxWidth: "100%",
@@ -108,7 +114,7 @@ const styles = StyleSheet.create({
 		textOverflow: "ellipsis",
 	},
 	directory: {
-		fontSize: 10,
+		...typography.xs,
 		color: lightColors.editorFaint,
 		minWidth: 0,
 		overflow: "hidden",
@@ -119,12 +125,12 @@ const styles = StyleSheet.create({
 		display: "flex",
 		flexDirection: "row",
 		alignItems: "center",
-		gap: 6,
+		gap: spacing[1.5],
 		flexShrink: 0,
-		marginLeft: 6,
-		fontSize: 10,
+		marginLeft: spacing[1.5],
+		...typography.xs,
 	},
-	hint: { fontSize: 10, color: lightColors.editorFaint },
+	hint: { ...typography.xs, color: lightColors.editorFaint },
 });
 
 interface RepositoryDiffProps {
@@ -260,13 +266,13 @@ function RepositoryDiffContent({
 								aria-label={`${mode} SVG${(mode === "Source") === !!showSource ? ", selected" : ""}`}
 								style={{
 									height: 26,
-									borderRadius: 13,
+									borderRadius: radius.full,
 									backgroundColor:
 										(mode === "Source") === !!showSource
 											? lightColors.editorSunken2
 											: "transparent",
 								}}
-								textStyle={{ fontSize: 11 }}
+								textStyle={{ ...typography.sm }}
 								onPress={() =>
 									setSourcePath(mode === "Source" ? change.path : null)
 								}
@@ -302,8 +308,8 @@ function RepositoryDiffContent({
 						display: "flex",
 						flexDirection: "column",
 						flexShrink: 0,
-						padding: 10,
-						gap: 6,
+						padding: spacing[2.5],
+						gap: spacing[1.5],
 					}}
 				>
 					<div
@@ -311,7 +317,7 @@ function RepositoryDiffContent({
 							display: "flex",
 							flexDirection: "row",
 							alignItems: "center",
-							gap: 6,
+							gap: spacing[1.5],
 						}}
 					>
 						<text
@@ -389,7 +395,9 @@ function RepositoryDiffContent({
 							Mark resolved
 						</Button>
 					</div>
-					<div style={{ display: "flex", flexDirection: "row", gap: 6 }}>
+					<div
+						style={{ display: "flex", flexDirection: "row", gap: spacing[1.5] }}
+					>
 						{(["ours", "theirs"] as const).map((side) => (
 							<Button
 								key={side}
@@ -411,7 +419,13 @@ function RepositoryDiffContent({
 						))}
 					</div>
 					{resolutionSide ? (
-						<div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+						<div
+							style={{
+								display: "flex",
+								flexDirection: "column",
+								gap: spacing[1.5],
+							}}
+						>
 							<text style={styles.hint}>
 								Replace the whole file with {resolutionSide} and mark it
 								resolved? Current edits to this file will be lost.
@@ -420,7 +434,13 @@ function RepositoryDiffContent({
 								During rebase, ours is the branch being rebased onto; theirs is
 								the commit being replayed.
 							</text>
-							<div style={{ display: "flex", flexDirection: "row", gap: 6 }}>
+							<div
+								style={{
+									display: "flex",
+									flexDirection: "row",
+									gap: spacing[1.5],
+								}}
+							>
 								<Button
 									tokens={appTokens}
 									size="sm"
@@ -516,9 +536,9 @@ function RepositoryDiffContent({
 						flexGrow: 1,
 						minHeight: 0,
 						fontFamily: "Menlo",
-						fontSize: 11,
-						lineHeight: 20,
-						padding: 14,
+						...typography.sm,
+						lineHeight: typography.lg.lineHeight,
+						padding: spacing[3.5],
 						color: appTokens.colors.text,
 						backgroundColor: appTokens.colors.field,
 					}}

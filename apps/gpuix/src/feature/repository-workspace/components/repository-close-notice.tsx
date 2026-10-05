@@ -1,3 +1,4 @@
+import { spacing, typography } from "@1git/design-tokens";
 import { Button } from "@1git/gpuix-ui/button";
 import { appTokens } from "../../../styles/tokens";
 import type { WorkspaceTabsState } from "../../workspace-tabs/lib/workspace-tabs-model";
@@ -35,9 +36,12 @@ export function RepositoryCloseNotice({
 	return (
 		<div
 			testId="close-protection-notice"
-			style={{ padding: 12, gap: 6, flexShrink: 0 }}
+			style={{ padding: spacing[3], gap: spacing[1.5], flexShrink: 0 }}
 		>
-			<text role="alert" style={{ fontSize: 12, color: appTokens.colors.text }}>
+			<text
+				role="alert"
+				style={{ ...typography.md, color: appTokens.colors.text }}
+			>
 				{operations.length
 					? "Git is still working. Keep this window open until it finishes."
 					: "Git operations have finished. Review the results; you can close the window now."}
@@ -49,10 +53,10 @@ export function RepositoryCloseNotice({
 						display: "flex",
 						flexDirection: "row",
 						alignItems: "center",
-						gap: 8,
+						gap: spacing[2],
 					}}
 				>
-					<text style={{ fontSize: 11, color: appTokens.colors.textMuted }}>
+					<text style={{ ...typography.sm, color: appTokens.colors.textMuted }}>
 						{`${name} · ${
 							workspace.commit.pending
 								? "Committing…"
@@ -81,7 +85,7 @@ export function RepositoryCloseNotice({
 				</div>
 			))}
 			{operations.some(({ workspace }) => workspace.sync.pending) ? (
-				<text style={{ fontSize: 11, color: appTokens.colors.textMuted }}>
+				<text style={{ ...typography.sm, color: appTokens.colors.textMuted }}>
 					Stopping may not undo remote changes. The window stays open until
 					status is refreshed.
 				</text>

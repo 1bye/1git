@@ -333,8 +333,15 @@ direct imports without barrel files. Tests remain in `tests/workspace-tabs/`.
 `fixture/app-shell.tsx` stays a stateless composition. Reusable UI primitives
 already live in `packages/gpuix-ui`, so there is no duplicate app-local `ui/`.
 The reusable controls and stylesheet package remain independent of app features.
-`@1git/design-tokens` supplies shared colors and shell dimensions to both
-Electron (generated CSS and numeric constants) and GPUIX (plain values).
+`@1git/design-tokens` owns typography with paired leading, font weights, spacing,
+radii, icon/control sizes, density defaults, colors and shell dimensions. Import
+these plain values directly into `StyleSheet.create`, e.g. `...typography.md`,
+`fontWeight.medium`, `radius.lg`, `spacing[3]`. Use `md` for body/fields, `sm` for
+secondary copy and compact rows, and `lg` for section headings. See the
+[scale guide](../../packages/design-tokens/README.md) for all names and examples.
+Virtual-list strides and other measured geometry remain separate. The package
+also generates namespaced CSS equivalents for Electron without overriding its
+existing Tailwind utilities.
 The native app currently uses the platform font; the web's Manrope font import
 does not register that font with GPUIX.
 

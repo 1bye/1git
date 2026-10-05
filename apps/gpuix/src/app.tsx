@@ -1,3 +1,4 @@
+import { spacing, typography } from "@1git/design-tokens";
 import {
 	useCallback,
 	useEffect,
@@ -515,11 +516,17 @@ export function App({
 				>
 					{settingsOpen ? null : closeNotice}
 					{session.error ? (
-						<div style={{ padding: 10, flexShrink: 0, gap: 6 }}>
+						<div
+							style={{
+								padding: spacing[2.5],
+								flexShrink: 0,
+								gap: spacing[1.5],
+							}}
+						>
 							<text
 								testId="session-notice"
 								role="alert"
-								style={{ fontSize: 11, color: appTokens.colors.textMuted }}
+								style={{ ...typography.sm, color: appTokens.colors.textMuted }}
 							>
 								{session.error}
 							</text>

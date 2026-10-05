@@ -1,4 +1,11 @@
-import { lightColors } from "@1git/design-tokens";
+import {
+	spacing,
+	typography,
+	fontWeight,
+	iconSize,
+	radius,
+	lightColors,
+} from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { Checkbox } from "@1git/gpuix-ui/checkbox";
 import { Button } from "@1git/gpuix-ui/button";
@@ -30,6 +37,8 @@ import type {
 	RepositoryFileActions,
 } from "../lib/repository-file-actions";
 
+const sidebarBorderWidth = 1;
+
 const styles = StyleSheet.create({
 	navigation: {
 		display: "flex",
@@ -37,7 +46,7 @@ const styles = StyleSheet.create({
 		width: 310,
 		flexShrink: 0,
 		minHeight: 0,
-		borderRightWidth: 1,
+		borderRightWidth: sidebarBorderWidth,
 		borderColor: lightColors.editorHairline,
 	},
 	toolbar: {
@@ -46,9 +55,9 @@ const styles = StyleSheet.create({
 		alignItems: "center",
 		height: 36,
 		flexShrink: 0,
-		paddingLeft: 6,
-		paddingRight: 8,
-		gap: 4,
+		paddingLeft: spacing[1.5],
+		paddingRight: spacing[2],
+		gap: spacing[1],
 	},
 	viewContent: {
 		display: "flex",
@@ -62,11 +71,12 @@ const styles = StyleSheet.create({
 		alignItems: "center",
 		justifyContent: "space-between",
 		height: 24,
-		paddingLeft: 14,
-		paddingRight: 11,
+		paddingLeft: spacing[3.5],
+		// The header includes the separator; file-row content bounds do not.
+		paddingRight: spacing[3] - sidebarBorderWidth,
 		flexShrink: 0,
 	},
-	muted: { fontSize: 10, color: lightColors.editorMuted },
+	muted: { ...typography.xs, color: lightColors.editorMuted },
 	stashActions: {
 		display: "flex",
 		flexDirection: "row",
@@ -80,11 +90,11 @@ const styles = StyleSheet.create({
 		flexDirection: "row",
 		justifyContent: "space-between",
 		alignItems: "center",
-		paddingLeft: 14,
-		paddingRight: 14,
+		paddingLeft: spacing[3.5],
+		paddingRight: spacing[3.5],
 		flexShrink: 0,
 	},
-	faint: { fontSize: 9, color: lightColors.editorFaint },
+	faint: { ...typography["2xs"], color: lightColors.editorFaint },
 });
 
 function emptyListMessage(state: RepositoryWorkspaceState): string {
@@ -359,10 +369,10 @@ export function RepositoryNavigation({
 				<text
 					testId="repository-view-title"
 					style={{
-						fontSize: 12,
-						fontWeight: 500,
+						...typography.md,
+						fontWeight: fontWeight.medium,
 						color: lightColors.editorInk,
-						paddingLeft: 8,
+						paddingLeft: spacing[2],
 					}}
 				>
 					{label}
@@ -377,15 +387,20 @@ export function RepositoryNavigation({
 						tokens={appTokens}
 						disabled={state.loading || RepositoryWorkspaceModel.isBusy(state)}
 						onPress={onRefresh}
-						style={{ width: 26, height: 26, paddingLeft: 0, paddingRight: 0 }}
+						style={{
+							width: 26,
+							height: 26,
+							paddingLeft: spacing[0],
+							paddingRight: spacing[0],
+						}}
 					>
 						<svg
 							source={
 								'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"><path d="M13 7a5 5 0 1 0 0 3M13 3v4H9"/></svg>'
 							}
 							style={{
-								width: 14,
-								height: 14,
+								width: iconSize.sm,
+								height: iconSize.sm,
 								color: lightColors.editorMuted,
 								pointerEvents: "none",
 							}}
@@ -411,15 +426,20 @@ export function RepositoryNavigation({
 							if (filterInput.current)
 								renderer.focusElement?.(filterInput.current.id);
 						}}
-						style={{ width: 26, height: 26, paddingLeft: 0, paddingRight: 0 }}
+						style={{
+							width: 26,
+							height: 26,
+							paddingLeft: spacing[0],
+							paddingRight: spacing[0],
+						}}
 					>
 						<svg
 							source={
 								'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"><circle cx="6.75" cy="6.75" r="4.5"/><path d="m10.1 10.1 3.65 3.65"/></svg>'
 							}
 							style={{
-								width: 14,
-								height: 14,
+								width: iconSize.sm,
+								height: iconSize.sm,
 								color:
 									filterOpen || historySearching
 										? lightColors.brand
@@ -436,10 +456,10 @@ export function RepositoryNavigation({
 						display: "flex",
 						flexDirection: "row",
 						alignItems: "center",
-						paddingLeft: 8,
-						paddingRight: 8,
-						paddingBottom: 4,
-						gap: 4,
+						paddingLeft: spacing[2],
+						paddingRight: spacing[2],
+						paddingBottom: spacing[1],
+						gap: spacing[1],
 						flexShrink: 0,
 					}}
 				>
@@ -460,13 +480,13 @@ export function RepositoryNavigation({
 							flexGrow: 1,
 							minWidth: 0,
 							height: 26,
-							fontSize: 11,
-							paddingLeft: 8,
-							paddingRight: 8,
+							...typography.sm,
+							paddingLeft: spacing[2],
+							paddingRight: spacing[2],
 							backgroundColor: appTokens.colors.field,
 							borderWidth: 1,
 							borderColor: appTokens.colors.border,
-							borderRadius: 6,
+							borderRadius: radius.md,
 							color: lightColors.editorInk,
 						}}
 						onChange={(event) => {
@@ -505,7 +525,7 @@ export function RepositoryNavigation({
 				<text
 					testId="repository-watch-notice"
 					role="status"
-					style={{ ...styles.muted, padding: 10, flexShrink: 0 }}
+					style={{ ...styles.muted, padding: spacing[2.5], flexShrink: 0 }}
 				>
 					{state.watchError}
 				</text>
@@ -514,7 +534,7 @@ export function RepositoryNavigation({
 				<text
 					testId="repository-notice"
 					role={state.error ? "alert" : "status"}
-					style={{ ...styles.muted, padding: 10, flexShrink: 0 }}
+					style={{ ...styles.muted, padding: spacing[2.5], flexShrink: 0 }}
 				>
 					{state.error
 						? `${state.repository ? "Refresh failed. Previous results shown. " : ""}${state.error}`
@@ -531,7 +551,7 @@ export function RepositoryNavigation({
 					<text
 						testId="stash-notice"
 						role={state.stashMutation.error ? "alert" : "status"}
-						style={{ ...styles.muted, padding: 8 }}
+						style={{ ...styles.muted, padding: spacing[2] }}
 					>
 						{state.stashMutation.error ??
 							(state.stashMutation.pending
@@ -626,7 +646,11 @@ export function RepositoryNavigation({
 								<text
 									testId="history-loading"
 									role="status"
-									style={{ ...styles.muted, padding: 10, flexShrink: 0 }}
+									style={{
+										...styles.muted,
+										padding: spacing[2.5],
+										flexShrink: 0,
+									}}
 								>
 									Loading commits…
 								</text>

@@ -1,3 +1,4 @@
+import { spacing, typography, radius, iconSize } from "@1git/design-tokens";
 import { basename, dirname, join } from "node:path";
 import { useEffect, useRef, useState } from "react";
 import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
@@ -29,21 +30,26 @@ const styles = StyleSheet.create({
 	form: {
 		display: "flex",
 		flexDirection: "column",
-		gap: 10,
-		padding: 8,
+		gap: spacing[2.5],
+		padding: spacing[2],
 		minHeight: 0,
 		overflowY: "scroll",
 	},
-	label: { fontSize: 12, color: colors.text },
-	field: { display: "flex", flexDirection: "column", gap: 4, flexShrink: 0 },
+	label: { ...typography.md, color: colors.text },
+	field: {
+		display: "flex",
+		flexDirection: "column",
+		gap: spacing[1],
+		flexShrink: 0,
+	},
 	comboInput: {
 		width: 0,
 		minWidth: 0,
 		flexGrow: 1,
 		flexShrink: 1,
 		borderWidth: 0,
-		paddingLeft: 0,
-		paddingRight: 0,
+		paddingLeft: spacing[0],
+		paddingRight: spacing[0],
 		height: 28,
 	},
 	comboTrigger: {
@@ -58,28 +64,28 @@ const styles = StyleSheet.create({
 		width: 264,
 		maxHeight: 160,
 		overflowY: "scroll",
-		padding: 4,
+		padding: spacing[1],
 		display: "flex",
 		flexDirection: "column",
 		backgroundColor: colors.overlay,
-		borderRadius: 6,
+		borderRadius: radius.md,
 		borderWidth: 1,
 		borderColor: colors.border,
 	},
 	option: {
 		minHeight: 28,
-		paddingLeft: 8,
-		paddingRight: 8,
+		paddingLeft: spacing[2],
+		paddingRight: spacing[2],
 		display: "flex",
 		alignItems: "center",
-		gap: 8,
-		fontSize: 12,
+		gap: spacing[2],
+		...typography.md,
 		color: colors.text,
-		borderRadius: 4,
+		borderRadius: radius.sm,
 		cursor: "pointer",
 	},
 	fieldText: {
-		fontSize: 12,
+		...typography.md,
 		minWidth: 0,
 		flexGrow: 1,
 		flexShrink: 1,
@@ -90,11 +96,11 @@ const styles = StyleSheet.create({
 	locationField: {
 		display: "flex",
 		alignItems: "center",
-		gap: 8,
+		gap: spacing[2],
 		justifyContent: "flex-start",
 	},
 	hint: {
-		fontSize: 11,
+		...typography.sm,
 		color: colors.textMuted,
 		whiteSpace: "nowrap",
 		textOverflow: "ellipsis",
@@ -104,10 +110,10 @@ const styles = StyleSheet.create({
 		height: 30,
 		flexShrink: 0,
 		width: "100%",
-		fontSize: 12,
-		paddingLeft: 9,
-		paddingRight: 9,
-		borderRadius: 6,
+		...typography.md,
+		paddingLeft: spacing[2.5],
+		paddingRight: spacing[2.5],
+		borderRadius: radius.md,
 		backgroundColor: "transparent",
 		color: colors.text,
 		borderWidth: 1,
@@ -118,7 +124,7 @@ const styles = StyleSheet.create({
 		display: "flex",
 		justifyContent: "space-between",
 		flexShrink: 0,
-		gap: 6,
+		gap: spacing[1.5],
 	},
 });
 
@@ -347,8 +353,8 @@ export function WorkspaceWorktreeForm({
 						testId="worktree-folder-icon"
 						source='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 7V5a1 1 0 0 1 1-1h5l3 3h8a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7Z" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/></svg>'
 						style={{
-							width: 14,
-							height: 14,
+							width: iconSize.sm,
+							height: iconSize.sm,
 							flexShrink: 0,
 							color: colors.textMuted,
 							pointerEvents: "none",
@@ -363,7 +369,7 @@ export function WorkspaceWorktreeForm({
 					</text>
 					<text
 						style={{
-							fontSize: 11,
+							...typography.sm,
 							color: colors.textMuted,
 							pointerEvents: "none",
 						}}

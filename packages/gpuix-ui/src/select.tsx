@@ -1,3 +1,4 @@
+import { radius, typography } from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import {
 	Root as PrimitiveRoot,
@@ -42,7 +43,7 @@ const styles = StyleSheet.create({
 		paddingRight: layout.fieldPadding,
 		borderWidth: 1,
 		borderColor: colors.border,
-		borderRadius: 6,
+		borderRadius: radius.md,
 		backgroundColor: colors.field,
 		cursor: "pointer",
 		userSelect: "none",
@@ -55,7 +56,7 @@ const styles = StyleSheet.create({
 		cursor: "not-allowed",
 		hover: { backgroundColor: colors.field },
 	}),
-	value: ({ colors }: UiTokens) => ({ color: colors.text, fontSize: 14 }),
+	value: ({ colors }: UiTokens) => ({ color: colors.text, ...typography.md }),
 	content: ({ colors, layout }: UiTokens) => ({
 		display: "flex",
 		flexDirection: "column",
@@ -64,7 +65,7 @@ const styles = StyleSheet.create({
 		overflowY: "scroll",
 		padding: layout.menuPadding,
 		gap: layout.menuGap,
-		borderRadius: 8,
+		borderRadius: radius.lg,
 		borderWidth: 1,
 		borderColor: colors.border,
 		backgroundColor: colors.overlay,
@@ -82,9 +83,9 @@ const styles = StyleSheet.create({
 		minHeight: layout.itemHeight,
 		paddingLeft: layout.itemPadding,
 		paddingRight: layout.itemPadding,
-		borderRadius: 4,
+		borderRadius: radius.sm,
 		color: colors.text,
-		fontSize: 14,
+		...typography.md,
 		cursor: "pointer",
 		userSelect: "none",
 	}),

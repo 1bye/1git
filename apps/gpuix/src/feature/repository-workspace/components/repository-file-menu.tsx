@@ -1,3 +1,4 @@
+import { typography, spacing } from "@1git/design-tokens";
 import { useRef, useState, type ReactNode } from "react";
 import { useGpuixRequired, type EventPayload } from "@gpuix/react";
 import { appTokens } from "../../../styles/tokens";
@@ -163,7 +164,11 @@ export function RepositoryFileMenu({
 			{error ? (
 				<text
 					role="alert"
-					style={{ fontSize: 10, color: appTokens.colors.danger, padding: 6 }}
+					style={{
+						...typography.xs,
+						color: appTokens.colors.danger,
+						padding: spacing[1.5],
+					}}
 				>
 					{error}
 				</text>

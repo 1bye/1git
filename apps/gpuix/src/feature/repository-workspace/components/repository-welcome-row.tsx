@@ -1,3 +1,4 @@
+import { spacing, typography, iconSize } from "@1git/design-tokens";
 import { basename } from "node:path";
 import { useState } from "react";
 import { Button } from "@1git/gpuix-ui/button";
@@ -57,7 +58,7 @@ export function RepositoryWelcomeRow({
 				alignItems: "center",
 				flexShrink: 0,
 				minWidth: 0,
-				gap: 4,
+				gap: spacing[1],
 			}}
 		>
 			<Button
@@ -78,8 +79,8 @@ export function RepositoryWelcomeRow({
 					flexBasis: 0,
 					minWidth: 0,
 					justifyContent: "flex-start",
-					paddingLeft: 12,
-					gap: 10,
+					paddingLeft: spacing[3],
+					gap: spacing[2.5],
 				}}
 			>
 				<RepositoryAvatar
@@ -91,7 +92,7 @@ export function RepositoryWelcomeRow({
 					style={{
 						display: "flex",
 						flexDirection: "column",
-						gap: 3,
+						gap: spacing[0.75],
 						minWidth: 0,
 						flexGrow: 1,
 						pointerEvents: "none",
@@ -100,7 +101,7 @@ export function RepositoryWelcomeRow({
 					<text
 						testId={`welcome-name-${path}`}
 						style={{
-							fontSize: 12,
+							...typography.md,
 							color: appTokens.colors.text,
 							whiteSpace: "nowrap",
 							textOverflow: "ellipsis",
@@ -111,7 +112,7 @@ export function RepositoryWelcomeRow({
 					<text
 						testId={`welcome-path-${path}`}
 						style={{
-							fontSize: 11,
+							...typography.sm,
 							color: appTokens.colors.textMuted,
 							whiteSpace: "nowrap",
 							textOverflow: "ellipsis",
@@ -135,8 +136,8 @@ export function RepositoryWelcomeRow({
 				style={{
 					width: 26,
 					height: 26,
-					paddingLeft: 0,
-					paddingRight: 0,
+					paddingLeft: spacing[0],
+					paddingRight: spacing[0],
 					opacity: visible ? 1 : 0,
 					visibility: busy && !visible ? "hidden" : "visible",
 				}}
@@ -146,8 +147,8 @@ export function RepositoryWelcomeRow({
 					aria-hidden
 					source={trashIcon}
 					style={{
-						width: 14,
-						height: 14,
+						width: iconSize.sm,
+						height: iconSize.sm,
 						pointerEvents: "none",
 						color: appTokens.colors.danger,
 					}}

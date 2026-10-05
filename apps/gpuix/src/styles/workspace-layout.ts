@@ -1,6 +1,6 @@
-import { workspaceLayout as sharedLayout } from "@1git/design-tokens";
+import { spacing, workspaceLayout as sharedLayout } from "@1git/design-tokens";
 
-const tabContentInsetTop = 4;
+const tabContentInsetTop = spacing[1];
 
 const tabHeight =
 	tabContentInsetTop +

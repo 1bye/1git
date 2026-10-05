@@ -1,4 +1,9 @@
-import { lightColors } from "@1git/design-tokens";
+import {
+	spacing,
+	typography,
+	fontWeight,
+	lightColors,
+} from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { Button } from "@1git/gpuix-ui/button";
 
@@ -22,14 +27,14 @@ const styles = StyleSheet.create({
 		display: "flex",
 		flexDirection: "row",
 		alignItems: "center",
-		gap: 16,
-		paddingLeft: 20,
-		paddingRight: 20,
+		gap: spacing[4],
+		paddingLeft: spacing[5],
+		paddingRight: spacing[5],
 		borderBottomWidth: 1,
 		borderColor: lightColors.editorHairline,
 	},
 	title: {
-		fontSize: 11,
+		...typography.sm,
 		color: lightColors.editorMuted,
 		whiteSpace: "nowrap",
 		textOverflow: "ellipsis",
@@ -43,12 +48,16 @@ const styles = StyleSheet.create({
 		minHeight: 0,
 		alignItems: "center",
 		justifyContent: "center",
-		gap: 8,
-		padding: 24,
+		gap: spacing[2],
+		padding: spacing[6],
 	},
-	heading: { fontSize: 13, fontWeight: 500, color: lightColors.editorInk },
+	heading: {
+		...typography.lg,
+		fontWeight: fontWeight.medium,
+		color: lightColors.editorInk,
+	},
 	hint: {
-		fontSize: 11,
+		...typography.sm,
 		color: lightColors.editorFaint,
 		textAlign: "center",
 		maxWidth: 420,
@@ -212,7 +221,9 @@ export function RepositoryDiffEmpty({
 					<text testId="diff-selection" style={styles.title}>
 						{selected.title}
 					</text>
-					<text style={{ fontSize: 9, color: lightColors.editorFaint }}>
+					<text
+						style={{ ...typography["2xs"], color: lightColors.editorFaint }}
+					>
 						Preview
 					</text>
 				</div>

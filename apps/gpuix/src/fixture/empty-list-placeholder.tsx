@@ -1,3 +1,4 @@
+import { spacing, radius } from "@1git/design-tokens";
 import { appTokens } from "../styles/tokens";
 
 /** Static decorative lines for empty lists, not a loading indicator. */
@@ -9,9 +10,9 @@ export function EmptyListPlaceholder() {
 			style={{
 				display: "flex",
 				flexDirection: "column",
-				gap: 12,
-				padding: 14,
-				paddingLeft: 8,
+				gap: spacing[3],
+				padding: spacing[3.5],
+				paddingLeft: spacing[2],
 				opacity: 0.45,
 			}}
 		>
@@ -21,9 +22,9 @@ export function EmptyListPlaceholder() {
 					style={{
 						width,
 						height: 6,
-						borderRadius: 3,
+						borderRadius: radius.sm,
 						backgroundColor: appTokens.colors.border,
-						marginTop: index === 2 ? 8 : 0,
+						marginTop: index === 2 ? spacing[2] : spacing[0],
 					}}
 				/>
 			))}

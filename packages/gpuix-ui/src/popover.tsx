@@ -1,3 +1,4 @@
+import { radius, spacing } from "@1git/design-tokens";
 import {
 	createContext,
 	use,
@@ -388,7 +389,7 @@ function PopoverSurface({
 						width: panelWidth,
 						maxHeight: Math.max(1, availableHeight),
 						overflowY: "scroll",
-						borderRadius: 14,
+						borderRadius: radius["2xl"],
 						backgroundColor: tokens.colors.overlay,
 						boxShadow: {
 							offsetX: 0,
@@ -401,7 +402,7 @@ function PopoverSurface({
 				>
 					<div
 						ref={body}
-						style={{ padding: 8, gap: 8, flexShrink: 0 }}
+						style={{ padding: spacing[2], gap: spacing[2], flexShrink: 0 }}
 						onKeyDown={(event) => {
 							if (!state.modal && event.key === "escape") dismiss();
 						}}
@@ -418,7 +419,7 @@ function PopoverSurface({
 							width: geometry.width,
 							height: geometry.height,
 							backgroundColor: tokens.colors.overlay,
-							borderRadius: 6,
+							borderRadius: radius.md,
 						}}
 					>
 						{cloneElement(trigger, {

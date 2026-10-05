@@ -1,4 +1,10 @@
-import { lightColors } from "@1git/design-tokens";
+import {
+	spacing,
+	typography,
+	fontWeight,
+	iconSize,
+	lightColors,
+} from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 
 import type { WorkspaceEntry } from "../types";
@@ -21,7 +27,7 @@ const styles = StyleSheet.create({
 		display: "flex",
 		flexDirection: "row",
 		alignItems: "center",
-		gap: 8,
+		gap: spacing[2],
 		flexGrow: 1,
 		minWidth: 0,
 		pointerEvents: "none",
@@ -30,14 +36,14 @@ const styles = StyleSheet.create({
 		display: "flex",
 		flexDirection: "row",
 		alignItems: "center",
-		gap: 5,
+		gap: spacing[1.5],
 		flexGrow: 1,
 		minWidth: 0,
 		overflowX: "hidden",
 	},
 	filename: {
-		fontSize: 11,
-		fontWeight: 400,
+		...typography.sm,
+		fontWeight: fontWeight.regular,
 		color: lightColors.editorInk,
 		flexShrink: 0,
 		maxWidth: "100%",
@@ -46,7 +52,7 @@ const styles = StyleSheet.create({
 		overflowX: "hidden",
 	},
 	path: {
-		fontSize: 10,
+		...typography.xs,
 		color: lightColors.editorFaint,
 		minWidth: 0,
 		whiteSpace: "nowrap",
@@ -68,8 +74,8 @@ export function RepositoryChangeLabel({ entry }: { entry: WorkspaceEntry }) {
 				testId={`status-${entry.id}`}
 				source={`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"><rect x="2" y="2" width="12" height="12" rx="1.5"/>${statusSymbols[status]}</svg>`}
 				style={{
-					width: 12,
-					height: 12,
+					width: iconSize.xs,
+					height: iconSize.xs,
 					flexShrink: 0,
 					color:
 						status === "U"
@@ -95,7 +101,7 @@ export function RepositoryChangeLabel({ entry }: { entry: WorkspaceEntry }) {
 					{filename}
 				</text>
 				{status === "U" ? (
-					<text style={{ fontSize: 10, color: appTokens.colors.danger }}>
+					<text style={{ ...typography.xs, color: appTokens.colors.danger }}>
 						Conflict
 					</text>
 				) : null}
@@ -106,7 +112,7 @@ export function RepositoryChangeLabel({ entry }: { entry: WorkspaceEntry }) {
 				) : null}
 			</div>
 			{status === "U" ? (
-				<text style={{ fontSize: 10, color: appTokens.colors.danger }}>
+				<text style={{ ...typography.xs, color: appTokens.colors.danger }}>
 					Conflict
 				</text>
 			) : null}

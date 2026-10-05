@@ -1,3 +1,4 @@
+import { spacing, typography } from "@1git/design-tokens";
 import { DiffView } from "@1git/gpuix-ui/diff-view";
 import type { GpuixTheme } from "@gpuix/react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -121,11 +122,11 @@ export function RepositoryTextDiff({
 					role="alert"
 					style={{
 						flexShrink: 0,
-						paddingLeft: 14,
-						paddingRight: 14,
-						paddingTop: 6,
-						paddingBottom: 6,
-						fontSize: 11,
+						paddingLeft: spacing[3.5],
+						paddingRight: spacing[3.5],
+						paddingTop: spacing[1.5],
+						paddingBottom: spacing[1.5],
+						...typography.sm,
 						color: appTokens.colors.danger,
 					}}
 				>

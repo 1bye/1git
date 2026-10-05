@@ -1,3 +1,4 @@
+import { radius, typography, fontWeight } from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import type { TextareaProps as NativeTextareaProps } from "@gpuix/react";
 import { useState } from "react";
@@ -21,13 +22,12 @@ const styles = StyleSheet.create({
 		flexShrink: 0,
 		padding: layout.fieldPadding,
 		borderWidth: 1,
-		borderRadius: 6,
+		borderRadius: radius.md,
 		borderColor: colors.border,
 		backgroundColor: colors.field,
 		color: colors.text,
-		fontSize: 14,
-		fontWeight: 400,
-		lineHeight: 20,
+		...typography.md,
+		fontWeight: fontWeight.regular,
 		cursor: "text",
 	}),
 });

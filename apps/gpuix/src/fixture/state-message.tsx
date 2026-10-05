@@ -1,3 +1,4 @@
+import { spacing, typography, fontWeight } from "@1git/design-tokens";
 import type { ReactNode } from "react";
 import { appTokens } from "../styles/tokens";
 import { StateArtwork, type StateArtworkName } from "./state-artwork";
@@ -33,8 +34,8 @@ export function StateMessage({
 				minWidth: 0,
 				alignItems: "center",
 				justifyContent: "center",
-				gap: 8,
-				padding: compact ? 12 : 24,
+				gap: spacing[2],
+				padding: compact ? spacing[3] : spacing[6],
 			}}
 		>
 			<StateArtwork name={artwork} compact={compact} />
@@ -42,8 +43,8 @@ export function StateMessage({
 				role="heading"
 				aria-level={2}
 				style={{
-					fontSize: compact ? 11 : 13,
-					fontWeight: 500,
+					...(compact ? typography.sm : typography.lg),
+					fontWeight: fontWeight.medium,
 					color: appTokens.colors.text,
 					textAlign: "center",
 					maxWidth: 420,
@@ -54,7 +55,7 @@ export function StateMessage({
 			{description ? (
 				<text
 					style={{
-						fontSize: compact ? 10 : 11,
+						...(compact ? typography.xs : typography.sm),
 						color: appTokens.colors.textMuted,
 						textAlign: "center",
 						maxWidth: 420,

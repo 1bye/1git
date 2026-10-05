@@ -1,4 +1,10 @@
-import { lightColors } from "@1git/design-tokens";
+import {
+	radius as cornerRadius,
+	typography,
+	fontWeight,
+	spacing,
+	lightColors,
+} from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { Button } from "@1git/gpuix-ui/button";
 import { Text } from "@1git/gpuix-ui/text";
@@ -69,7 +75,7 @@ const styles = StyleSheet.create({
 		height: layout.tabCloseSize,
 		borderWidth: triggerBorderWidth,
 		borderColor: "transparent",
-		borderRadius: 6,
+		borderRadius: cornerRadius.md,
 		cursor: "pointer",
 	},
 	label: {
@@ -85,17 +91,17 @@ const styles = StyleSheet.create({
 	name: (active: boolean) => ({
 		flexShrink: 1,
 		minWidth: 0,
-		fontSize: 11,
+		...typography.sm,
 		whiteSpace: "nowrap",
 		textOverflow: "ellipsis",
 		color: active ? lightColors.editorInk : lightColors.editorMuted,
-		fontWeight: 500,
+		fontWeight: fontWeight.medium,
 	}),
 	branch: {
 		flexShrink: 1,
 		minWidth: 0,
-		fontSize: 11,
-		fontWeight: 400,
+		...typography.sm,
+		fontWeight: fontWeight.regular,
 		color: lightColors.editorMuted,
 		whiteSpace: "nowrap",
 		textOverflow: "ellipsis",
@@ -103,8 +109,8 @@ const styles = StyleSheet.create({
 	close: {
 		width: layout.tabCloseSize,
 		height: layout.tabCloseSize,
-		paddingLeft: 0,
-		paddingRight: 0,
+		paddingLeft: spacing[0],
+		paddingRight: spacing[0],
 		hover: { backgroundColor: lightColors.editorHairline },
 	},
 });

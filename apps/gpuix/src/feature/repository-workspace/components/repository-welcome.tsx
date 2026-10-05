@@ -1,3 +1,10 @@
+import {
+	spacing,
+	typography,
+	fontWeight,
+	iconSize,
+	radius,
+} from "@1git/design-tokens";
 import { useState, type ReactNode } from "react";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { Button } from "@1git/gpuix-ui/button";
@@ -16,7 +23,7 @@ const styles = StyleSheet.create({
 		flexBasis: 0,
 		minHeight: 0,
 		overflowY: "hidden",
-		padding: 40,
+		padding: spacing[10],
 		alignItems: "center",
 	},
 	columns: {
@@ -27,7 +34,7 @@ const styles = StyleSheet.create({
 		minHeight: 0,
 		width: "100%",
 		maxWidth: 980,
-		gap: 64,
+		gap: spacing[16],
 	},
 	list: {
 		display: "flex",
@@ -37,20 +44,20 @@ const styles = StyleSheet.create({
 		minHeight: 0,
 		overflowY: "scroll",
 		overflowX: "hidden",
-		gap: 4,
+		gap: spacing[1],
 	},
 	heading: {
-		fontSize: 10,
-		fontWeight: 500,
+		...typography.xs,
+		fontWeight: fontWeight.medium,
 		color: appTokens.colors.textMuted,
-		marginBottom: 12,
-		marginLeft: 10,
+		marginBottom: spacing[3],
+		marginLeft: spacing[2.5],
 	},
-	hint: { fontSize: 11, color: appTokens.colors.textMuted },
+	hint: { ...typography.sm, color: appTokens.colors.textMuted },
 	action: {
 		width: "100%",
 		justifyContent: "flex-start",
-		gap: 8,
+		gap: spacing[2],
 		color: appTokens.colors.textMuted,
 	},
 });
@@ -121,14 +128,14 @@ export function RepositoryWelcome({
 						size="sm"
 						testId="open-repository"
 						disabled={busy}
-						style={{ ...styles.action, marginTop: 4 }}
+						style={{ ...styles.action, marginTop: spacing[1] }}
 						onPress={onOpen}
 					>
 						<svg
 							source='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 7V5a1 1 0 0 1 1-1h5l3 3h8a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7Z" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/></svg>'
 							style={{
-								width: 14,
-								height: 14,
+								width: iconSize.sm,
+								height: iconSize.sm,
 								color: appTokens.colors.textMuted,
 								pointerEvents: "none",
 							}}
@@ -136,7 +143,10 @@ export function RepositoryWelcome({
 						{busy ? "Opening…" : "Open from disk"}
 					</Button>
 					{error ? (
-						<text role="alert" style={{ ...styles.hint, marginTop: 12 }}>
+						<text
+							role="alert"
+							style={{ ...styles.hint, marginTop: spacing[3] }}
+						>
 							{error}
 						</text>
 					) : null}
@@ -149,7 +159,7 @@ export function RepositoryWelcome({
 						flexBasis: 0,
 						minWidth: 0,
 						minHeight: 0,
-						gap: 4,
+						gap: spacing[1],
 					}}
 				>
 					<text style={styles.heading}>ALL REPOSITORIES</text>
@@ -163,15 +173,15 @@ export function RepositoryWelcome({
 						style={{
 							height: 34,
 							flexShrink: 0,
-							fontSize: 12,
+							...typography.md,
 							color: appTokens.colors.text,
 							backgroundColor: "transparent",
 							borderWidth: 1,
 							borderColor: appTokens.colors.border,
-							borderRadius: 6,
-							paddingLeft: 10,
-							paddingRight: 10,
-							marginBottom: 12,
+							borderRadius: radius.md,
+							paddingLeft: spacing[2.5],
+							paddingRight: spacing[2.5],
+							marginBottom: spacing[3],
 						}}
 					/>
 					<div testId="welcome-repositories" style={styles.list}>

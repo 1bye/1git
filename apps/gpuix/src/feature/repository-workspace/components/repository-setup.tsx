@@ -1,3 +1,4 @@
+import { typography, radius, spacing, iconSize } from "@1git/design-tokens";
 import { useEffect, useRef, useState, type Ref } from "react";
 import { motion, useGpuixRequired, type PublicInstance } from "@gpuix/react";
 import { Button } from "@1git/gpuix-ui/button";
@@ -14,15 +15,15 @@ import type {
 	RepositorySetupResult,
 } from "../lib/repository-setup";
 
-const hint = { fontSize: 11, color: appTokens.colors.textMuted };
+const hint = { ...typography.sm, color: appTokens.colors.textMuted };
 
 const input = {
 	height: 30,
 	width: "100%",
-	fontSize: 12,
-	paddingLeft: 9,
-	paddingRight: 9,
-	borderRadius: 6,
+	...typography.md,
+	paddingLeft: spacing[2.5],
+	paddingRight: spacing[2.5],
+	borderRadius: radius.md,
 	borderWidth: 1,
 	borderColor: appTokens.colors.border,
 	color: appTokens.colors.text,
@@ -33,7 +34,7 @@ const row = {
 	display: "flex",
 	flexDirection: "row",
 	alignItems: "center",
-	gap: 6,
+	gap: spacing[1.5],
 };
 
 /** Shared indeterminate progress; Git does not stream percentages at this boundary. */
@@ -58,7 +59,7 @@ export function SetupProgress() {
 				style={{
 					height: 3,
 					width: "100%",
-					borderRadius: 2,
+					borderRadius: radius.xs,
 					backgroundColor: appTokens.colors.focusRing,
 				}}
 			/>
@@ -85,7 +86,7 @@ export function RepositorySetupActions({
 	cloneRef?: Ref<PublicInstance>;
 }) {
 	return (
-		<div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+		<div style={{ display: "flex", flexDirection: "column", gap: spacing[1] }}>
 			<CreateForm
 				disabled={disabled}
 				onSubmit={onSubmit}
@@ -103,7 +104,7 @@ export function RepositorySetupActions({
 				style={{
 					width: "100%",
 					justifyContent: "flex-start",
-					gap: 8,
+					gap: spacing[2],
 					color: appTokens.colors.textMuted,
 				}}
 				onPress={onClone}
@@ -240,7 +241,7 @@ function CreateForm({
 					style={{
 						width: "100%",
 						justifyContent: "flex-start",
-						gap: 8,
+						gap: spacing[2],
 						color: appTokens.colors.textMuted,
 					}}
 				>
@@ -259,11 +260,11 @@ function CreateForm({
 					style={{
 						display: "flex",
 						flexDirection: "column",
-						gap: 12,
-						paddingBottom: 4,
+						gap: spacing[3],
+						paddingBottom: spacing[1],
 					}}
 				>
-					<text style={{ fontSize: 12, color: appTokens.colors.text }}>
+					<text style={{ ...typography.md, color: appTokens.colors.text }}>
 						Create repository
 					</text>
 					{busy ? (
@@ -278,7 +279,7 @@ function CreateForm({
 						</>
 					) : (
 						<>
-							<div style={{ gap: 4 }}>
+							<div style={{ gap: spacing[1] }}>
 								<text style={hint}>Location</text>
 								<Button
 									tokens={appTokens}
@@ -300,8 +301,8 @@ function CreateForm({
 									<svg
 										source='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 7V5a1 1 0 0 1 1-1h5l3 3h8a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7Z" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/></svg>'
 										style={{
-											width: 14,
-											height: 14,
+											width: iconSize.sm,
+											height: iconSize.sm,
 											flexShrink: 0,
 											color: appTokens.colors.textMuted,
 											pointerEvents: "none",
@@ -309,7 +310,7 @@ function CreateForm({
 									/>
 									<text
 										style={{
-											fontSize: 12,
+											...typography.md,
 											color: appTokens.colors.text,
 											minWidth: 0,
 											flexShrink: 1,
@@ -322,7 +323,7 @@ function CreateForm({
 									</text>
 								</Button>
 							</div>
-							<div style={{ gap: 4 }}>
+							<div style={{ gap: spacing[1] }}>
 								<text style={hint}>Initial branch</text>
 								<input
 									testId="setup-branch"

@@ -1,4 +1,4 @@
-import { lightColors } from "@1git/design-tokens";
+import { spacing, typography, lightColors } from "@1git/design-tokens";
 import { Button } from "@1git/gpuix-ui/button";
 
 import { appTokens } from "../../../styles/tokens";
@@ -22,17 +22,17 @@ export function RepositoryReadNotice({
 			style={{
 				display: "flex",
 				flexDirection: "column",
-				paddingLeft: 10,
-				paddingRight: 10,
-				paddingBottom: 4,
+				paddingLeft: spacing[2.5],
+				paddingRight: spacing[2.5],
+				paddingBottom: spacing[1],
 				flexShrink: 0,
-				gap: 4,
+				gap: spacing[1],
 			}}
 		>
 			{error ? (
 				<text
 					role="alert"
-					style={{ fontSize: 10, color: lightColors.editorMuted }}
+					style={{ ...typography.xs, color: lightColors.editorMuted }}
 				>
 					{error}
 				</text>

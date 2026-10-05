@@ -111,6 +111,7 @@
       "name": "@1git/gpuix-ui",
       "version": "0.0.1",
       "dependencies": {
+        "@1git/design-tokens": "workspace:*",
         "@1git/gpuix-stylesheet": "workspace:*",
       },
       "devDependencies": {

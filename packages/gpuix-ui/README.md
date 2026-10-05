@@ -369,9 +369,9 @@ upstream limitation.
 | Prop | Values / purpose | Default |
 | --- | --- | --- |
 | `children` | Strings, numbers, conditional empty values, or an array of them | — |
-| `size` | `sm` (12px), `md` (14px), `lg` (20px) | `md` |
+| `size` | `2xs` (9px), `xs` (10px), `sm` (11px), `md` (12px), `lg` (14px), `xl` (18px), `2xl` (20px), each with paired leading | `md` |
 | `tone` | `default`, `muted`, `danger` | `default` |
-| `weight` | `regular` (400), `medium` (500), `semibold` (600) | `regular` |
+| `weight` | `regular` (400), `medium` (500), `semibold` (600), `bold` (700) | `regular` |
 | `style` | Final GPUIX style overrides | — |
 | `tokens` | Explicit `UiTokens` selection | `defaultTokens` |
 
@@ -509,8 +509,14 @@ The `/tokens` entry point exports:
 - `palettes`: `dark` and `light` semantic color presets.
 - `densities`: `compact` and `comfortable` layout presets.
 - `UiTokens`: a readonly `{ colors, layout }` contract, also accepting custom values.
-- `defaultTokens`: `palettes.dark` with `densities.comfortable`, preserving the
-  original appearance. Treat this as immutable, not a global theme setter.
+- `defaultTokens`: `palettes.dark` with `densities.comfortable`. Treat this as
+  immutable, not a global theme setter.
+
+Typography, radii, spacing, icon/control dimensions and the density definitions
+live in `@1git/design-tokens`. Import them directly into `StyleSheet.create`;
+there is no runtime theme context. Body text, fields and generated button labels
+use the compact desktop `md` preset (12px / 18px leading). See the
+[shared scale guide](../design-tokens/README.md) for the complete API and CSS names.
 
 Palette and density are independent. Pass a selection explicitly:
 
@@ -531,9 +537,9 @@ interaction states, borders/focus, surfaces, fields, popup backgrounds,
 selection/highlight colors, and shadow color. Density defines control heights
 and horizontal padding (including small buttons), gaps, item height/padding,
 menu padding/gap, and page/section/content spacing. Component `size` still selects
-the small or medium button within the chosen density. Typography, radii, and
-popup limits remain fixed; no font scaling or automatic system-theme detection
-is implemented.
+the small or medium button within the chosen density. Typography and radii use
+the shared defaults; popup limits remain component geometry. Caller styles still
+override defaults. No automatic system-theme detection is implemented.
 
 Select has no token provider. Pass the same selection to each **styled part**;
 the headless `Select` root takes no `tokens` prop:

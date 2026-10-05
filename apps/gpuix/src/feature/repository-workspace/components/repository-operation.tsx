@@ -1,3 +1,4 @@
+import { spacing, typography } from "@1git/design-tokens";
 import { useState } from "react";
 import type { FinishOperationInput } from "@1git/git";
 import { Button } from "@1git/gpuix-ui/button";
@@ -93,8 +94,8 @@ export function RepositoryOperation({
 			style={{
 				display: "flex",
 				flexDirection: "column",
-				padding: 8,
-				gap: 6,
+				padding: spacing[2],
+				gap: spacing[1.5],
 				flexShrink: 0,
 				borderBottomWidth: 1,
 				borderColor: appTokens.colors.border,
@@ -105,13 +106,15 @@ export function RepositoryOperation({
 					<text
 						role="status"
 						testId="operation-status"
-						style={{ fontSize: 11, color: appTokens.colors.text }}
+						style={{ ...typography.sm, color: appTokens.colors.text }}
 					>
 						{state.operationMutation.pending
 							? `${title} action in progress…`
 							: `${title} in progress · ${conflicts} ${conflicts === 1 ? "conflict" : "conflicts"}`}
 					</text>
-					<div style={{ display: "flex", flexDirection: "row", gap: 6 }}>
+					<div
+						style={{ display: "flex", flexDirection: "row", gap: spacing[1.5] }}
+					>
 						<Button
 							testId="operation-continue"
 							tokens={appTokens}
@@ -152,13 +155,22 @@ export function RepositoryOperation({
 								dismissible={!busy}
 							>
 								<div
-									style={{ display: "flex", flexDirection: "column", gap: 8 }}
+									style={{
+										display: "flex",
+										flexDirection: "column",
+										gap: spacing[2],
+									}}
 								>
-									<text style={{ fontSize: 11, color: appTokens.colors.text }}>
+									<text
+										style={{ ...typography.sm, color: appTokens.colors.text }}
+									>
 										Abort {confirmation?.expectedOperation}?
 									</text>
 									<text
-										style={{ fontSize: 10, color: appTokens.colors.textMuted }}
+										style={{
+											...typography.xs,
+											color: appTokens.colors.textMuted,
+										}}
 									>
 										Git will attempt to return to the pre-operation state.
 										Conflict-resolution edits may be lost. Save any work you
@@ -169,7 +181,7 @@ export function RepositoryOperation({
 											display: "flex",
 											flexDirection: "row",
 											justifyContent: "flex-end",
-											gap: 6,
+											gap: spacing[1.5],
 										}}
 									>
 										<Button
@@ -197,7 +209,10 @@ export function RepositoryOperation({
 									{error ? (
 										<text
 											role="alert"
-											style={{ fontSize: 10, color: appTokens.colors.danger }}
+											style={{
+												...typography.xs,
+												color: appTokens.colors.danger,
+											}}
 										>
 											{error}
 										</text>
@@ -207,12 +222,14 @@ export function RepositoryOperation({
 						</Popover>
 					</div>
 					{!conflicts && unstaged ? (
-						<text style={{ fontSize: 10, color: appTokens.colors.textMuted }}>
+						<text
+							style={{ ...typography.xs, color: appTokens.colors.textMuted }}
+						>
 							Additional file edits are not confirmed for this operation. Review
 							them in Git before continuing.
 						</text>
 					) : null}
-					<text style={{ fontSize: 10, color: appTokens.colors.textMuted }}>
+					<text style={{ ...typography.xs, color: appTokens.colors.textMuted }}>
 						{conflicts > 0
 							? "Select each conflicted file, choose a side or edit it, then mark it resolved."
 							: !unstaged
@@ -225,7 +242,7 @@ export function RepositoryOperation({
 				<text
 					testId="operation-result"
 					role={state.operationMutation.error || error ? "alert" : "status"}
-					style={{ fontSize: 10, color: appTokens.colors.textMuted }}
+					style={{ ...typography.xs, color: appTokens.colors.textMuted }}
 				>
 					{message}
 				</text>
