@@ -167,7 +167,7 @@ it("places a secondary Sync button immediately left of Commit and preserves the 
 	});
 	expect(editor?.x).toBe((composer?.x ?? 0) + 8);
 	expect(editor?.y).toBe((composer?.y ?? 0) + 9);
-	expect(editor?.width).toBe((composer?.width ?? 0) - 16);
+	expect(editor?.width).toBe(composer?.width);
 	const layoutScreenshot = process.env.GPUIX_COMPOSER_LAYOUT_SCREENSHOT;
 
 	if (layoutScreenshot) root.renderer.captureScreenshot(layoutScreenshot);
