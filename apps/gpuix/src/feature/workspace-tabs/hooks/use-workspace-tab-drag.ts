@@ -19,7 +19,7 @@ import {
 	type WorkspaceTabsState,
 } from "../lib/workspace-tabs-model";
 
-const dragThreshold = 5;
+const dragThreshold = 8;
 const scrollEdge = 28;
 const scrollStep = 10;
 const scrollIntervalMs = 16;
@@ -38,7 +38,8 @@ interface TabGesture {
 export function useWorkspaceTabDrag(
 	state: WorkspaceTabsState,
 	dispatch: Dispatch<WorkspaceTabsAction>,
-	strip: RefObject<PublicInstance | null>
+	strip: RefObject<PublicInstance | null>,
+	rail: RefObject<PublicInstance | null>
 ) {
 	const renderer = useGpuixRequired();
 	const gesture = useRef<TabGesture | null>(null);
@@ -63,10 +64,12 @@ export function useWorkspaceTabDrag(
 	const cancel = (id?: string): void => {
 		if (id && gesture.current?.id !== id) return;
 
-		if (gesture.current) {
-			if (gesture.current.started) suppressClick.current = true;
+		const current = gesture.current;
 
-			setSettlingId(gesture.current.id);
+		if (current && (current.started || preview)) {
+			if (current.started) suppressClick.current = true;
+
+			setSettlingId(current.id);
 		}
 
 		gesture.current = null;
@@ -184,15 +187,15 @@ export function useWorkspaceTabDrag(
 
 			const bounds = frame && renderer.getElementBounds?.(frame.id);
 
-			const viewport =
-				strip.current && renderer.getElementBounds?.(strip.current.id);
+			const railBounds =
+				rail.current && renderer.getElementBounds?.(rail.current.id);
 
-			if (!bounds || !viewport) return;
+			if (!bounds || !railBounds) return;
 
 			const startScroll = scrollOffset();
 
-			// Sample and hold the visible position, including below the drag threshold.
-			const startLeft = bounds.x - viewport.x;
+			// Absolute tab positions belong to the rail, not its padded/scrolled viewport.
+			const startLeft = bounds.x - railBounds.x;
 
 			gesture.current = {
 				id,
@@ -203,7 +206,9 @@ export function useWorkspaceTabDrag(
 				started: false,
 				overId: id,
 			};
-			setPreview({ id, overId: id, left: startLeft });
+
+			// Hold an interrupted animation, but leave ordinary clicks visually untouched.
+			if (settlingId === id) setPreview({ id, overId: id, left: startLeft });
 		},
 		onMouseMove(event: EventPayload): void {
 			if (event.pressedButton !== 0) {

@@ -1592,6 +1592,28 @@ it("lifts an identical tab silhouette above a full-window backdrop with the menu
 	expect(element("workspace-1")).toBeTruthy();
 });
 
+it("keeps the close icon stationary when an overflowing tab opens and dismisses its menu", async () => {
+	snapshot = {
+		...snapshot,
+		head: {
+			...snapshot.head,
+			branch: "feature/worktree-with-a-long-branch-name",
+		},
+	};
+	await open();
+	const closeButton = bounds("close-workspace-1");
+	const closeIcon = bounds("close-icon-workspace-1");
+
+	await menu();
+	expect(bounds("workspace-menu-tab-close")).toEqual(closeButton);
+	expect(bounds("workspace-menu-tab-close-icon")).toEqual(closeIcon);
+	expect(bounds("label-menu-workspace-1")).toEqual(bounds("label-workspace-1"));
+	click("workspace-menu-tab");
+	await settle();
+	expect(bounds("close-workspace-1")).toEqual(closeButton);
+	expect(bounds("close-icon-workspace-1")).toEqual(closeIcon);
+});
+
 it("dismisses the backdrop without activating the dimmed add or close controls", async () => {
 	await open();
 	await menu();

@@ -84,10 +84,11 @@ export function WorkspaceTabs({
 	const tabs = useRef(new Map<string, PublicInstance>());
 	const frames = useRef(new Map<string, PublicInstance>());
 	const strip = useRef<PublicInstance>(null);
+	const rail = useRef<PublicInstance>(null);
 	const addButton = useRef<PublicInstance>(null);
 	const focusRequested = useRef(false);
 	const [menuId, setMenuId] = useState<string | null>(null);
-	const drag = useWorkspaceTabDrag(state, dispatch, strip);
+	const drag = useWorkspaceTabDrag(state, dispatch, strip, rail);
 	const { draggingId, settlingId } = drag;
 	const activeIndex = state.tabs.findIndex((tab) => tab.id === state.activeId);
 	// GPUIX paints in child order. Keep the moving surface above its neighbors
@@ -180,6 +181,7 @@ export function WorkspaceTabs({
 				style={styles.tabs}
 			>
 				<div
+					ref={rail}
 					style={StyleSheet.compose(styles.rail, {
 						width: state.tabs.length * layout.tabWidth,
 					})}

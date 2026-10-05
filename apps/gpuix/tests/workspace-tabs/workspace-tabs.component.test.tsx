@@ -298,7 +298,7 @@ it("focuses the first tab without an outline when Tab enters the window", () => 
 	expect(element("workspace-1").style.borderColor).toBe("transparent");
 });
 
-it("keeps long repository and branch labels on one line clear of the close target", () => {
+it("clips the full repository and branch track clear of the close target", () => {
 	const name = "an-extremely-long-repository-name-that-needs-truncation";
 	const branch = "feature/this-is-a-long-branch-name";
 
@@ -322,13 +322,16 @@ it("keeps long repository and branch labels on one line clear of the close targe
 	);
 	const repository = bounds("name-long");
 	const branchLabel = bounds("branch-long");
+	const viewport = bounds("label-long");
 	const close = bounds("close-long");
 
 	expect(repository.y).toBe(branchLabel.y);
 	expect(repository.x + repository.width).toBeLessThanOrEqual(branchLabel.x);
-	expect(branchLabel.x + branchLabel.width).toBeLessThan(close.x);
-	expect(element("name-long").style.textOverflow).toBe("ellipsis");
-	expect(element("branch-long").style.textOverflow).toBe("ellipsis");
+	expect(viewport.x + viewport.width).toBeLessThan(close.x);
+	expect(repository.width + branchLabel.width).toBeGreaterThan(viewport.width);
+	expect(element("label-long").style.overflow).toBe("hidden");
+	expect(element("name-long").style.textOverflow).toBeUndefined();
+	expect(element("branch-long").style.textOverflow).toBeUndefined();
 	expect(selectedTabs()).toEqual([`${name} / ${branch}`]);
 });
 
@@ -605,6 +608,36 @@ it("reorders from the padded tab surface and with Shift+Arrow, keeping focus", (
 	root.renderer.simulateKeystrokes("shift-left");
 	advanceMotion();
 	expect(order()).toEqual(["workspace-2", "workspace-1", "workspace-3"]);
+});
+
+it("keeps clicks and small pointer movements stationary before a tab drag starts", () => {
+	root.render(<App key="click-without-drag" initialTabCount={3} />);
+	const first = bounds("slot-workspace-1");
+	const x = first.x + 40;
+	const y = first.y + 12;
+
+	root.renderer.nativeSimulateMouseDown(x, y);
+	expect(bounds("slot-workspace-1")).toEqual(first);
+
+	for (const distance of [2, -3, 7]) {
+		root.renderer.nativeSimulateMouseMove(x + distance, y, 0);
+		advanceMotion();
+		expect(bounds("slot-workspace-1")).toEqual(first);
+		expect(element("workspace-1").style.cursor).toBe("grab");
+	}
+
+	root.renderer.nativeSimulateMouseUp(x + 7, y);
+	advanceMotion();
+	expect(bounds("slot-workspace-1")).toEqual(first);
+	expect(order()).toEqual(["workspace-1", "workspace-2", "workspace-3"]);
+
+	root.renderer.nativeSimulateMouseDown(x, y);
+	root.renderer.nativeSimulateMouseMove(x + 8, y, 0);
+	expect(bounds("slot-workspace-1").x).toBe(first.x + 8);
+	expect(element("workspace-1").style.cursor).toBe("grabbing");
+	root.renderer.nativeSimulateMouseUp(x + 8, 300);
+	advanceMotion();
+	expect(bounds("slot-workspace-1")).toEqual(first);
 });
 
 it("follows the pointer immediately, slides neighbors, and settles on release", () => {

@@ -8,8 +8,19 @@ import {
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { Button } from "@1git/gpuix-ui/button";
 import { Text } from "@1git/gpuix-ui/text";
-import { motion, type EventPayload, type PublicInstance } from "@gpuix/react";
-import { useRef, useState, type Ref, type ReactNode } from "react";
+import {
+	motion,
+	useGpuixRequired,
+	type EventPayload,
+	type PublicInstance,
+} from "@gpuix/react";
+import {
+	useLayoutEffect,
+	useRef,
+	useState,
+	type Ref,
+	type ReactNode,
+} from "react";
 
 import { appTokens } from "../../../styles/tokens";
 import { workspaceLayout as layout } from "../../../styles/workspace-layout";
@@ -28,6 +39,16 @@ const triggerBorderWidth = 1;
 const surfaceWidth = width + surfaceOutset * 2;
 const outline = `M0 ${height} Q${shoulder} ${height} ${shoulder} ${height - shoulder} V${radius} Q${shoulder} 0 ${shoulder + radius} 0 H${surfaceWidth - shoulder - radius} Q${surfaceWidth - shoulder} 0 ${surfaceWidth - shoulder} ${radius} V${height - shoulder} Q${surfaceWidth - shoulder} ${height} ${surfaceWidth} ${height}`;
 const activeSurface = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${surfaceWidth} ${height}"><path d="${outline} Z" fill="${lightColors.editorSurface}"/></svg>`;
+
+// Match Electron's OverflowingLabel: pause, reveal the suffix, and return on leave.
+const marquee = {
+	hoverDelay: 0.32,
+	minDuration: 0.7,
+	maxDuration: 2.2,
+	pixelsPerSecond: 48,
+	returnDuration: 0.22,
+	overflowTolerance: 1,
+} as const;
 
 const styles = StyleSheet.create({
 	frame: { position: "absolute", top: 0, width, height, pointerEvents: "none" },
@@ -86,7 +107,13 @@ const styles = StyleSheet.create({
 		minWidth: 0,
 		overflow: "hidden",
 		whiteSpace: "nowrap",
-		textOverflow: "ellipsis",
+	},
+	labelTrack: {
+		position: "relative",
+		display: "flex",
+		flexDirection: "row",
+		alignItems: "center",
+		flexShrink: 0,
 	},
 	name: (active: boolean) => ({
 		flexShrink: 1,
@@ -98,17 +125,16 @@ const styles = StyleSheet.create({
 		fontWeight: fontWeight.medium,
 	}),
 	branch: {
-		flexShrink: 1,
-		minWidth: 0,
+		flexShrink: 0,
 		...typography.sm,
 		fontWeight: fontWeight.regular,
 		color: lightColors.editorMuted,
 		whiteSpace: "nowrap",
-		textOverflow: "ellipsis",
 	},
 	close: {
 		width: layout.tabCloseSize,
 		height: layout.tabCloseSize,
+		flexShrink: 0,
 		paddingLeft: spacing[0],
 		paddingRight: spacing[0],
 		hover: { backgroundColor: lightColors.editorHairline },
@@ -328,7 +354,12 @@ export function WorkspaceTab({
 							setFocused(false);
 						}}
 					>
-						<WorkspaceTabLabel tab={tab} active={active} id={tab.id} />
+						<WorkspaceTabLabel
+							tab={tab}
+							active={active}
+							id={tab.id}
+							reveal={(hovered || focused) && !dragging && !menuOpen}
+						/>
 					</div>
 					<Button
 						testId={`close-${tab.id}`}
@@ -359,11 +390,38 @@ function WorkspaceTabLabel({
 	tab,
 	active,
 	id,
+	reveal = false,
 }: {
 	tab: WorkspaceTabRecord;
 	active: boolean;
 	id: string;
+	reveal?: boolean;
 }) {
+	const renderer = useGpuixRequired();
+	const viewport = useRef<PublicInstance>(null);
+	const track = useRef<PublicInstance>(null);
+	const [overflow, setOverflow] = useState(0);
+
+	useLayoutEffect(() => {
+		if (!reveal || !viewport.current || !track.current) return;
+
+		const viewportBounds = renderer.getElementBounds?.(viewport.current.id);
+		const trackBounds = renderer.getElementBounds?.(track.current.id);
+
+		if (!viewportBounds || !trackBounds) return;
+
+		const difference = trackBounds.width - viewportBounds.width;
+
+		setOverflow(
+			difference > marquee.overflowTolerance ? Math.ceil(difference) : 0
+		);
+	}, [renderer, reveal, tab.name, tab.branch]);
+
+	const duration = Math.min(
+		marquee.maxDuration,
+		Math.max(marquee.minDuration, overflow / marquee.pixelsPerSecond)
+	);
+
 	return (
 		<>
 			<RepositoryAvatar
@@ -381,21 +439,36 @@ function WorkspaceTabLabel({
 						: undefined
 				}
 			/>
-			<div testId={`label-${id}`} style={styles.label}>
-				<Text
-					testId={`name-${id}`}
-					tokens={appTokens}
-					style={styles.name(active)}
+			<div ref={viewport} testId={`label-${id}`} style={styles.label}>
+				<motion.div
+					ref={track}
+					style={styles.labelTrack}
+					initial={false}
+					animate={{ left: reveal ? -overflow : 0 }}
+					transition={
+						reveal
+							? { duration, delay: marquee.hoverDelay, ease: "linear" }
+							: { duration: marquee.returnDuration, ease: [0.22, 1, 0.36, 1] }
+					}
 				>
-					{tab.name}
-				</Text>
-				{tab.branch ? (
 					<Text
-						testId={`branch-${id}`}
+						testId={`name-${id}`}
 						tokens={appTokens}
-						style={styles.branch}
-					>{` / ${tab.branch}`}</Text>
-				) : null}
+						style={StyleSheet.compose(styles.name(active), {
+							flexShrink: 0,
+							textOverflow: undefined,
+						})}
+					>
+						{tab.name}
+					</Text>
+					{tab.branch ? (
+						<Text
+							testId={`branch-${id}`}
+							tokens={appTokens}
+							style={styles.branch}
+						>{` / ${tab.branch}`}</Text>
+					) : null}
+				</motion.div>
 			</div>
 		</>
 	);
@@ -469,6 +542,7 @@ export function WorkspaceTabPreview({
 					<WorkspaceTabLabel tab={tab} active id={`menu-${tab.id}`} />
 				</div>
 				<div
+					testId="workspace-menu-tab-close"
 					style={StyleSheet.compose(styles.close, {
 						display: "flex",
 						alignItems: "center",
@@ -476,7 +550,10 @@ export function WorkspaceTabPreview({
 						pointerEvents: "none",
 					})}
 				>
-					<WorkspaceTabIcon name="close" />
+					<WorkspaceTabIcon
+						name="close"
+						testId="workspace-menu-tab-close-icon"
+					/>
 				</div>
 			</div>
 		</div>
