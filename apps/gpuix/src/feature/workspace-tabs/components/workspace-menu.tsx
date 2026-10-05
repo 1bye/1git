@@ -11,7 +11,14 @@ import {
 	type EventPayload,
 	type PublicInstance,
 } from "@gpuix/react";
-import { useEffect, useRef, useState, type Dispatch } from "react";
+import {
+	useEffect,
+	useRef,
+	useState,
+	type Dispatch,
+	type ReactNode,
+	type RefObject,
+} from "react";
 
 import { appTokens } from "../../../styles/tokens";
 import { workspaceLayout } from "../../../styles/workspace-layout";
@@ -56,6 +63,10 @@ const createFormHeight = 150;
 const worktreeFormHeight = 224;
 const submenuGap = spacing[2];
 const submenuCloseDelayMs = 180;
+
+type Submenu = "worktrees" | "new" | "sync";
+const submenuTriggerId = (group: Submenu): string =>
+	group === "worktrees" ? "worktrees" : `${group}-actions`;
 
 const styles = StyleSheet.create({
 	surface: {
@@ -169,6 +180,102 @@ const styles = StyleSheet.create({
 	},
 });
 
+/** Creation and remote-action flyouts share the workspace menu's hover and keyboard owner. */
+function WorkspaceActionSubmenu({
+	testId,
+	label,
+	icon,
+	detail,
+	open,
+	disabled,
+	height,
+	side,
+	menuRef,
+	triggerRef,
+	onOpen,
+	onEnter,
+	onLeave,
+	children,
+}: {
+	testId: string;
+	label: string;
+	icon: "add" | "sync";
+	detail?: string;
+	open: boolean;
+	disabled: boolean;
+	height: number;
+	side: "left" | "right";
+	menuRef: RefObject<PublicInstance | null>;
+	triggerRef: (node: PublicInstance | null) => void;
+	onOpen: (focus: boolean) => void;
+	onEnter: () => void;
+	onLeave: () => void;
+	children: ReactNode;
+}) {
+	return (
+		<div
+			style={{
+				position: "relative",
+				width: "100%",
+				height: rowHeight,
+				flexShrink: 0,
+			}}
+		>
+			<Button
+				testId={testId}
+				ref={triggerRef}
+				tokens={appTokens}
+				variant="ghost"
+				size="sm"
+				style={StyleSheet.compose(
+					styles.row,
+					open && { backgroundColor: colors.surface }
+				)}
+				disabled={disabled}
+				aria-label={label}
+				aria-expanded={open}
+				aria-disabled={disabled}
+				aria-description={`Open the ${label} submenu with Right or Enter.`}
+				onMouseEnter={() => onOpen(false)}
+				onMouseLeave={onLeave}
+				onPress={() => onOpen(true)}
+			>
+				<WorkspaceTabIcon name={icon} />
+				<Text tokens={appTokens} style={styles.label}>
+					{label}
+				</Text>
+				{detail ? (
+					<Text tokens={appTokens} style={styles.detail}>
+						{detail}
+					</Text>
+				) : null}
+				<WorkspaceTabIcon name="caretRight" />
+			</Button>
+			{open ? (
+				<FloatingLayer
+					ref={menuRef}
+					testId={`workspace-${testId}`}
+					role="group"
+					aria-label={label}
+					tabIndex={-1}
+					side={side}
+					sideOffset={submenuGap}
+					collisionPadding={windowInset}
+					onMouseEnter={onEnter}
+					onMouseLeave={onLeave}
+					style={StyleSheet.compose(styles.body, {
+						height,
+						backgroundColor: colors.overlay,
+						borderRadius: radius.xl,
+					})}
+				>
+					{children}
+				</FloatingLayer>
+			) : null}
+		</div>
+	);
+}
+
 export interface WorkspaceMenuActions {
 	onRemoveWorktree?: (
 		id: string,
@@ -247,13 +354,13 @@ export function WorkspaceMenu({
 	const [publishing, setPublishing] = useState(false);
 	const [selectedRemote, setSelectedRemote] = useState<string | null>(null);
 	const [expanded, setExpanded] = useState(false);
-	const [worktreesOpen, setWorktreesOpen] = useState(false);
+	const [submenu, setSubmenu] = useState<Submenu | null>(null);
 	const [opening, setOpening] = useState(false);
 	const mounted = useRef(true);
 	const dialog = useRef<PublicInstance>(null);
 	const list = useRef<PublicInstance>(null);
-	const worktreeMenu = useRef<PublicInstance>(null);
-	const worktreeList = useRef<PublicInstance>(null);
+	const submenuMenu = useRef<PublicInstance>(null);
+	const submenuList = useRef<PublicInstance>(null);
 	const submenuFocus = useRef(false);
 	// Deferred surfaces can enter before the trigger leaves; do not rely on event order.
 	const submenuHovered = useRef(false);
@@ -266,16 +373,18 @@ export function WorkspaceMenu({
 	const branch = repository?.branchName;
 	const busy = opening || RepositoryWorkspaceModel.isBusy(tab.workspace);
 
-	const showWorktrees =
-		worktreesOpen &&
-		!busy &&
-		data !== null &&
+	const actionsVisible =
 		!creating &&
 		!changesPrompt &&
 		!creatingWorktree &&
 		!removingWorktree &&
 		!mergeSource &&
 		!publishing;
+
+	const submenuReady = data !== null && actionsVisible;
+
+	const showWorktrees = submenu === "worktrees" && submenuReady && !busy;
+	const showNew = submenu === "new" && submenuReady && !busy;
 
 	const {
 		pending: syncKind,
@@ -286,6 +395,18 @@ export function WorkspaceMenu({
 	} = tab.workspace.sync;
 
 	const fetching = syncKind === "fetch";
+
+	// Keep focus in Sync while its completed operation refreshes branch metadata.
+	const showRemote =
+		submenu === "sync" && actionsVisible && (!busy || !!syncKind);
+
+	const visibleSubmenu = showWorktrees
+		? "worktrees"
+		: showNew
+			? "new"
+			: showRemote
+				? "sync"
+				: null;
 
 	const showFetch = !!onFetch && !!onCancelSync;
 	const showSync = !!onSync && !!onCancelSync;
@@ -315,13 +436,13 @@ export function WorkspaceMenu({
 	}, []);
 
 	useEffect(() => {
-		if (!showWorktrees || !submenuFocus.current || !worktreeMenu.current)
+		if (!visibleSubmenu || !submenuFocus.current || !submenuMenu.current)
 			return;
 
 		submenuFocus.current = false;
-		renderer.focusElement?.(worktreeMenu.current.id);
-		renderer.focusNextWithin?.(worktreeMenu.current.id);
-	}, [showWorktrees, renderer]);
+		renderer.focusElement?.(submenuMenu.current.id);
+		renderer.focusNextWithin?.(submenuMenu.current.id);
+	}, [visibleSubmenu, renderer]);
 
 	useEffect(() => {
 		if (!root || syncKind) return;
@@ -445,38 +566,101 @@ export function WorkspaceMenu({
 	const worktrees = data?.worktrees.filter((item) => !item.prunable) ?? [];
 	const worktreeIds = worktrees.map((item) => `worktree-${item.path}`);
 
+	const newIds = [
+		...(canCreate ? ["create-branch"] : []),
+		...(onCreateWorktree && canCreateWorktree ? ["create-worktree"] : []),
+	];
+
+	const syncIds = [
+		...(showFetch && (fetching || canFetch) ? ["fetch-repository"] : []),
+		...(showSync && (syncKind === "pull" || canPull)
+			? ["pull-repository"]
+			: []),
+		...(showSync &&
+		(syncKind === "push" ||
+			syncKind === "publish" ||
+			(hasUpstream ? canPush : canPublish))
+			? ["push-repository"]
+			: []),
+	];
+
+	const canNew = newIds.length > 0;
+	const canRemote = syncIds.length > 0;
+
+	const submenuIds =
+		visibleSubmenu === "worktrees"
+			? worktreeIds
+			: visibleSubmenu === "new"
+				? newIds
+				: visibleSubmenu === "sync"
+					? syncIds
+					: [];
+
+	const submenuRowIds =
+		visibleSubmenu === "worktrees"
+			? worktreeIds
+			: visibleSubmenu === "new"
+				? ["create-branch", "create-worktree"]
+				: visibleSubmenu === "sync"
+					? ["fetch-repository", "pull-repository", "push-repository"]
+					: [];
+
+	let remoteStatus = "Not published";
+
+	if (syncKind)
+		remoteStatus = {
+			fetch: "Fetching…",
+			pull: "Pulling…",
+			push: "Pushing…",
+			publish: "Publishing…",
+			sync: "Syncing…",
+		}[syncKind];
+	else if (!data?.remotes.length) remoteStatus = "No remote";
+	else if (diverged) remoteStatus = "Diverged";
+	else if (currentBranch?.behind)
+		remoteStatus = `${currentBranch.behind} behind`;
+	else if (currentBranch?.ahead) remoteStatus = `${currentBranch.ahead} ahead`;
+	else if (hasUpstream) remoteStatus = "Up to date";
+
 	const cancelSubmenuClose = (): void => {
 		if (hoverClose.current) clearTimeout(hoverClose.current);
 
 		hoverClose.current = null;
 	};
 
-	const closeWorktrees = (restoreFocus = false): void => {
+	const closeSubmenu = (restoreFocus = false): void => {
 		cancelSubmenuClose();
 		submenuFocus.current = false;
 		submenuHovered.current = false;
-		setWorktreesOpen(false);
+		setSubmenu(null);
 
-		if (restoreFocus) {
-			const trigger = rows.current.get("worktrees");
+		if (restoreFocus && submenu) {
+			const trigger = rows.current.get(submenuTriggerId(submenu));
 
 			if (trigger) renderer.focusElement?.(trigger.id);
 		}
 	};
 
-	const openWorktrees = (focus = false): void => {
-		if (busy || !data) return;
+	const openSubmenu = (group: Submenu, focus = false): void => {
+		if (
+			group === "sync" ? !canRemote : group === "new" ? !canNew : busy || !data
+		)
+			return;
 
 		cancelSubmenuClose();
 		submenuFocus.current = focus;
-		setWorktreesOpen(true);
+		submenuHovered.current = false;
+		setSubmenu(group);
 
-		if (showWorktrees && focus && worktreeMenu.current) {
+		if (visibleSubmenu === group && focus && submenuMenu.current) {
 			submenuFocus.current = false;
-			renderer.focusElement?.(worktreeMenu.current.id);
-			renderer.focusNextWithin?.(worktreeMenu.current.id);
+			renderer.focusElement?.(submenuMenu.current.id);
+			renderer.focusNextWithin?.(submenuMenu.current.id);
 		}
 	};
+
+	const openWorktrees = (focus = false): void =>
+		openSubmenu("worktrees", focus);
 
 	const scheduleSubmenuClose = (): void => {
 		cancelSubmenuClose();
@@ -487,8 +671,8 @@ export function WorkspaceMenu({
 
 			const focused = renderer.getFocusedElementId?.();
 
-			closeWorktrees(
-				worktreeIds.some((id) => rows.current.get(id)?.id === focused)
+			closeSubmenu(
+				submenuRowIds.some((id) => rows.current.get(id)?.id === focused)
 			);
 		}, submenuCloseDelayMs);
 	};
@@ -518,24 +702,11 @@ export function WorkspaceMenu({
 
 	if (canCompare) enabledIds.push("compare-branches");
 
-	if (canCreate) enabledIds.push("create-branch");
+	if (canNew) enabledIds.push("new-actions");
 
 	if (canMerge) enabledIds.push("merge-branch");
 
-	if (onCreateWorktree && canCreateWorktree) enabledIds.push("create-worktree");
-
-	if (showFetch && (fetching || canFetch)) enabledIds.push("fetch-repository");
-
-	if (showSync && (syncKind === "pull" || canPull))
-		enabledIds.push("pull-repository");
-
-	if (
-		showSync &&
-		(syncKind === "push" ||
-			syncKind === "publish" ||
-			(hasUpstream ? canPush : canPublish))
-	)
-		enabledIds.push("push-repository");
+	if (canRemote) enabledIds.push("sync-actions");
 
 	if (publishing) {
 		enabledIds.length = 0;
@@ -582,9 +753,7 @@ export function WorkspaceMenu({
 								separatorHeight * 2 +
 								rowHeight +
 								(savedChanges.length ? rowHeight : 0) +
-								(onCreateWorktree ? rowHeight : 0) +
-								(showFetch ? separatorHeight + rowHeight : 0) +
-								(showSync ? rowHeight * 2 : 0) +
+								(showFetch || showSync ? separatorHeight + rowHeight : 0) +
 								rowHeight +
 								Math.max(1, visibleBranches.length) * rowHeight +
 								(hasMore ? rowHeight : 0) +
@@ -600,7 +769,7 @@ export function WorkspaceMenu({
 	);
 
 	const showActions = (): void => {
-		closeWorktrees();
+		closeSubmenu();
 		setCreating(false);
 		setMergeSource(null);
 		setRemoteBranch(null);
@@ -643,23 +812,24 @@ export function WorkspaceMenu({
 
 		const focused = renderer.getFocusedElementId?.();
 
-		const inWorktrees =
-			showWorktrees &&
-			worktreeIds.some((id) => rows.current.get(id)?.id === focused);
+		const inSubmenu =
+			!!visibleSubmenu &&
+			submenuRowIds.some((id) => rows.current.get(id)?.id === focused);
 
-		if (showWorktrees && (event.key === "escape" || event.key === "left")) {
-			closeWorktrees(true);
+		if (visibleSubmenu && (event.key === "escape" || event.key === "left")) {
+			closeSubmenu(true);
 
 			return;
 		}
 
-		if (
-			event.key === "right" &&
-			rows.current.get("worktrees")?.id === focused
-		) {
-			openWorktrees(true);
+		if (event.key === "right") {
+			for (const group of ["worktrees", "new", "sync"] as const) {
+				if (rows.current.get(submenuTriggerId(group))?.id === focused) {
+					openSubmenu(group, true);
 
-			return;
+					return;
+				}
+			}
 		}
 
 		if (event.key === "escape" || event.key === "tab") {
@@ -686,9 +856,9 @@ export function WorkspaceMenu({
 		)
 			return;
 
-		const activeIds = inWorktrees ? worktreeIds : enabledIds;
+		const activeIds = inSubmenu ? submenuIds : enabledIds;
 
-		if (!inWorktrees) closeWorktrees();
+		if (!inSubmenu) closeSubmenu();
 
 		const focusedIndex = activeIds.findIndex(
 			(id) => rows.current.get(id)?.id === focused
@@ -707,11 +877,13 @@ export function WorkspaceMenu({
 		if (node) {
 			renderer.focusElement?.(node.id);
 
-			const scrollList = inWorktrees ? worktreeList.current : list.current;
+			const scrollList = inSubmenu ? submenuList.current : list.current;
 
 			if (
 				!scrollList ||
 				next === "worktrees" ||
+				next === "new-actions" ||
+				next === "sync-actions" ||
 				next === "create-branch" ||
 				next === "merge-branch" ||
 				next === "create-worktree" ||
@@ -800,7 +972,7 @@ export function WorkspaceMenu({
 					};
 
 		if (dirty) {
-			closeWorktrees();
+			closeSubmenu();
 			setChangesPrompt({
 				destination: name.trim(),
 				choice: {
@@ -838,7 +1010,7 @@ export function WorkspaceMenu({
 			return;
 		}
 
-		closeWorktrees();
+		closeSubmenu();
 		setOpening(true);
 		setError(null);
 		const controller = new AbortController();
@@ -871,10 +1043,12 @@ export function WorkspaceMenu({
 		)
 	);
 
-	const worktreeTrigger = rows.current.get("worktrees");
+	const submenuTrigger = submenu
+		? rows.current.get(submenuTriggerId(submenu))
+		: undefined;
 
-	const triggerBounds = worktreeTrigger
-		? renderer.getElementBounds?.(worktreeTrigger.id)
+	const triggerBounds = submenuTrigger
+		? renderer.getElementBounds?.(submenuTrigger.id)
 		: undefined;
 
 	const submenuSide =
@@ -1380,7 +1554,7 @@ export function WorkspaceMenu({
 											expanded ? "Show fewer branches" : "Show all branches"
 										}
 										onPress={() => {
-											closeWorktrees();
+											closeSubmenu();
 											setExpanded((value) => !value);
 										}}
 									>
@@ -1430,7 +1604,7 @@ export function WorkspaceMenu({
 								</Button>
 								{showWorktrees ? (
 									<FloatingLayer
-										ref={worktreeMenu}
+										ref={submenuMenu}
 										testId="workspace-worktrees"
 										role="group"
 										aria-label="Worktrees"
@@ -1453,7 +1627,7 @@ export function WorkspaceMenu({
 										})}
 									>
 										<div
-											ref={worktreeList}
+											ref={submenuList}
 											testId="workspace-worktree-list"
 											style={styles.list}
 										>
@@ -1508,7 +1682,7 @@ export function WorkspaceMenu({
 																			if (choice !== 0 || !enabled) return;
 
 																			setError(null);
-																			closeWorktrees();
+																			closeSubmenu();
 																			setRemovingWorktree({
 																				kind: "remove",
 																				path: item.path,
@@ -1581,29 +1755,77 @@ export function WorkspaceMenu({
 									</Text>
 								</Button>
 							) : null}
-							<Button
-								testId="create-branch"
-								ref={(node) => {
-									if (node) rows.current.set("create-branch", node);
-									else rows.current.delete("create-branch");
+							<WorkspaceActionSubmenu
+								testId="new-actions"
+								label="New"
+								icon="add"
+								open={showNew}
+								disabled={!canNew}
+								height={
+									menuPadding * 2 + rowHeight * (onCreateWorktree ? 2 : 1)
+								}
+								side={submenuSide}
+								menuRef={submenuMenu}
+								triggerRef={(node) => {
+									if (node) rows.current.set("new-actions", node);
+									else rows.current.delete("new-actions");
 								}}
-								tokens={appTokens}
-								variant="ghost"
-								size="sm"
-								style={styles.row}
-								disabled={!canCreate}
-								aria-label="Create new branch"
-								onPress={() => {
-									setCreating(true);
-									setName("");
-									setError(null);
+								onOpen={(focus) => openSubmenu("new", focus)}
+								onEnter={() => {
+									submenuHovered.current = true;
+									cancelSubmenuClose();
 								}}
+								onLeave={scheduleSubmenuClose}
 							>
-								<WorkspaceTabIcon name="add" />
-								<Text tokens={appTokens} style={styles.label}>
-									Create new branch…
-								</Text>
-							</Button>
+								<Button
+									testId="create-branch"
+									ref={(node) => {
+										if (node) rows.current.set("create-branch", node);
+										else rows.current.delete("create-branch");
+									}}
+									tokens={appTokens}
+									variant="ghost"
+									size="sm"
+									style={styles.row}
+									disabled={!canCreate}
+									aria-label="Create new branch"
+									onPress={() => {
+										closeSubmenu();
+										setCreating(true);
+										setName("");
+										setError(null);
+									}}
+								>
+									<WorkspaceTabIcon name="add" />
+									<Text tokens={appTokens} style={styles.label}>
+										New branch…
+									</Text>
+								</Button>
+								{onCreateWorktree ? (
+									<Button
+										testId="create-worktree"
+										ref={(node) => {
+											if (node) rows.current.set("create-worktree", node);
+											else rows.current.delete("create-worktree");
+										}}
+										tokens={appTokens}
+										variant="ghost"
+										size="sm"
+										style={styles.row}
+										disabled={!canCreateWorktree}
+										onPress={() => {
+											closeSubmenu();
+											setCreatingWorktree(true);
+											setError(null);
+										}}
+									>
+										<WorkspaceTabIcon name="add" />
+										<Text tokens={appTokens} style={styles.label}>
+											New worktree…
+										</Text>
+									</Button>
+								) : null}
+							</WorkspaceActionSubmenu>
 							<Button
 								testId="merge-branch"
 								ref={(node) => {
@@ -1623,7 +1845,7 @@ export function WorkspaceMenu({
 								onPress={() => {
 									if (!canMerge || !head || !branch) return;
 
-									closeWorktrees();
+									closeSubmenu();
 									setError(null);
 									setMergeSource({ head, branch });
 								}}
@@ -1633,168 +1855,180 @@ export function WorkspaceMenu({
 									Merge another branch…
 								</Text>
 							</Button>
-							{onCreateWorktree ? (
-								<Button
-									testId="create-worktree"
-									ref={(node) => {
-										if (node) rows.current.set("create-worktree", node);
-										else rows.current.delete("create-worktree");
-									}}
-									tokens={appTokens}
-									variant="ghost"
-									size="sm"
-									style={styles.row}
-									disabled={!canCreateWorktree}
-									onPress={() => {
-										setCreatingWorktree(true);
-										setError(null);
-									}}
-								>
-									<WorkspaceTabIcon name="add" />
-									<Text tokens={appTokens} style={styles.label}>
-										New worktree…
-									</Text>
-								</Button>
-							) : null}
-							{showFetch ? (
+							{showFetch || showSync ? (
 								<>
 									<div style={styles.separator} />
-									<Button
-										testId="fetch-repository"
-										ref={(node) => {
-											if (node) rows.current.set("fetch-repository", node);
-											else rows.current.delete("fetch-repository");
-										}}
-										tokens={appTokens}
-										variant="ghost"
-										size="sm"
-										style={styles.row}
-										disabled={!fetching && !canFetch}
-										aria-label={fetching ? "Cancel fetch" : "Fetch all remotes"}
-										aria-description={
-											data && !data.remotes.length
-												? "No remote configured"
-												: "Refresh remote refs without changing your files or local branch"
+									<WorkspaceActionSubmenu
+										testId="sync-actions"
+										label="Sync"
+										icon="sync"
+										detail={remoteStatus}
+										open={showRemote}
+										disabled={!canRemote}
+										height={
+											menuPadding * 2 +
+											rowHeight * ((showFetch ? 1 : 0) + (showSync ? 2 : 0))
 										}
-										onPress={() => {
-											if (fetching) onCancelSync?.(tab.id);
-											else {
-												setError(null);
-												void onFetch?.(tab.id);
-											}
+										side={submenuSide}
+										menuRef={submenuMenu}
+										triggerRef={(node) => {
+											if (node) rows.current.set("sync-actions", node);
+											else rows.current.delete("sync-actions");
 										}}
+										onOpen={(focus) => openSubmenu("sync", focus)}
+										onEnter={() => {
+											submenuHovered.current = true;
+											cancelSubmenuClose();
+										}}
+										onLeave={scheduleSubmenuClose}
 									>
-										<WorkspaceTabIcon name={fetching ? "close" : "sync"} />
-										<Text tokens={appTokens} style={styles.label}>
-											{fetching ? "Fetching…" : "Fetch"}
-										</Text>
-										<Text
-											testId="fetch-status"
-											tokens={appTokens}
-											style={styles.detail}
-										>
-											{fetchStatus}
-										</Text>
-									</Button>
-								</>
-							) : null}
-							{showSync ? (
-								<>
-									<Button
-										testId="pull-repository"
-										ref={(node) => {
-											if (node) rows.current.set("pull-repository", node);
-											else rows.current.delete("pull-repository");
-										}}
-										tokens={appTokens}
-										variant="ghost"
-										size="sm"
-										style={styles.row}
-										disabled={syncKind !== "pull" && !canPull}
-										aria-label={
-											syncKind === "pull"
-												? "Stop pull"
-												: "Pull upstream, fast-forward only"
-										}
-										aria-description={
-											blocked
-												? "Requires a clean working tree and no ongoing Git operation"
-												: "Updates this branch without merging, rebasing or stashing"
-										}
-										onPress={() => synchronize("pull")}
-									>
-										<WorkspaceTabIcon name="pull" />
-										<Text tokens={appTokens} style={styles.label}>
-											{syncKind === "pull" ? "Pulling…" : "Pull"}
-										</Text>
-										<Text tokens={appTokens} style={styles.detail}>
-											{syncKind === "pull"
-												? "Stop"
-												: diverged
-													? "Diverged"
-													: !hasUpstream
-														? "No upstream"
-														: currentBranch?.behind
-															? `${currentBranch.behind} behind`
-															: ""}
-										</Text>
-									</Button>
-									<Button
-										testId="push-repository"
-										ref={(node) => {
-											if (node) rows.current.set("push-repository", node);
-											else rows.current.delete("push-repository");
-										}}
-										tokens={appTokens}
-										variant="ghost"
-										size="sm"
-										style={styles.row}
-										disabled={
-											syncKind !== "push" &&
-											syncKind !== "publish" &&
-											!(hasUpstream ? canPush : canPublish)
-										}
-										aria-label={
-											syncKind === "push" || syncKind === "publish"
-												? "Stop push"
-												: hasUpstream
-													? "Push current branch to upstream"
-													: "Publish branch"
-										}
-										onPress={() => {
-											if (syncKind === "publish") onCancelSync?.(tab.id);
-											else if (hasUpstream || syncKind === "push")
-												synchronize("push");
-											else {
-												setPublishing(true);
-												setSelectedRemote(null);
-												setError(null);
+										{showFetch ? (
+											<>
+												<Button
+													testId="fetch-repository"
+													ref={(node) => {
+														if (node)
+															rows.current.set("fetch-repository", node);
+														else rows.current.delete("fetch-repository");
+													}}
+													tokens={appTokens}
+													variant="ghost"
+													size="sm"
+													style={styles.row}
+													disabled={!fetching && !canFetch}
+													aria-label={
+														fetching ? "Cancel fetch" : "Fetch all remotes"
+													}
+													aria-description={
+														data && !data.remotes.length
+															? "No remote configured"
+															: "Refresh remote refs without changing your files or local branch"
+													}
+													onPress={() => {
+														if (fetching) onCancelSync?.(tab.id);
+														else {
+															setError(null);
+															void onFetch?.(tab.id);
+														}
+													}}
+												>
+													<WorkspaceTabIcon
+														name={fetching ? "close" : "sync"}
+													/>
+													<Text tokens={appTokens} style={styles.label}>
+														{fetching ? "Fetching…" : "Fetch"}
+													</Text>
+													<Text
+														testId="fetch-status"
+														tokens={appTokens}
+														style={styles.detail}
+													>
+														{fetchStatus}
+													</Text>
+												</Button>
+											</>
+										) : null}
+										{showSync ? (
+											<>
+												<Button
+													testId="pull-repository"
+													ref={(node) => {
+														if (node) rows.current.set("pull-repository", node);
+														else rows.current.delete("pull-repository");
+													}}
+													tokens={appTokens}
+													variant="ghost"
+													size="sm"
+													style={styles.row}
+													disabled={syncKind !== "pull" && !canPull}
+													aria-label={
+														syncKind === "pull"
+															? "Stop pull"
+															: "Pull upstream, fast-forward only"
+													}
+													aria-description={
+														blocked
+															? "Requires a clean working tree and no ongoing Git operation"
+															: "Updates this branch without merging, rebasing or stashing"
+													}
+													onPress={() => synchronize("pull")}
+												>
+													<WorkspaceTabIcon name="pull" />
+													<Text tokens={appTokens} style={styles.label}>
+														{syncKind === "pull" ? "Pulling…" : "Pull"}
+													</Text>
+													<Text tokens={appTokens} style={styles.detail}>
+														{syncKind === "pull"
+															? "Stop"
+															: diverged
+																? "Diverged"
+																: !hasUpstream
+																	? "No upstream"
+																	: currentBranch?.behind
+																		? `${currentBranch.behind} behind`
+																		: ""}
+													</Text>
+												</Button>
+												<Button
+													testId="push-repository"
+													ref={(node) => {
+														if (node) rows.current.set("push-repository", node);
+														else rows.current.delete("push-repository");
+													}}
+													tokens={appTokens}
+													variant="ghost"
+													size="sm"
+													style={styles.row}
+													disabled={
+														syncKind !== "push" &&
+														syncKind !== "publish" &&
+														!(hasUpstream ? canPush : canPublish)
+													}
+													aria-label={
+														syncKind === "push" || syncKind === "publish"
+															? "Stop push"
+															: hasUpstream
+																? "Push current branch to upstream"
+																: "Publish branch"
+													}
+													onPress={() => {
+														if (syncKind === "publish") onCancelSync?.(tab.id);
+														else if (hasUpstream || syncKind === "push")
+															synchronize("push");
+														else {
+															closeSubmenu();
+															setPublishing(true);
+															setSelectedRemote(null);
+															setError(null);
 
-												if (dialog.current)
-													renderer.focusElement?.(dialog.current.id);
-											}
-										}}
-									>
-										<WorkspaceTabIcon name="push" />
-										<Text tokens={appTokens} style={styles.label}>
-											{syncKind === "push"
-												? "Pushing…"
-												: syncKind === "publish"
-													? "Publishing…"
-													: hasUpstream
-														? "Push"
-														: "Publish branch…"}
-										</Text>
-										<Text tokens={appTokens} style={styles.detail}>
-											{syncKind === "push" || syncKind === "publish"
-												? "Stop"
-												: !data?.remotes.length
-													? "No remote"
-													: currentBranch?.ahead
-														? `${currentBranch.ahead} ahead`
-														: ""}
-										</Text>
-									</Button>
+															if (dialog.current)
+																renderer.focusElement?.(dialog.current.id);
+														}
+													}}
+												>
+													<WorkspaceTabIcon name="push" />
+													<Text tokens={appTokens} style={styles.label}>
+														{syncKind === "push"
+															? "Pushing…"
+															: syncKind === "publish"
+																? "Publishing…"
+																: hasUpstream
+																	? "Push"
+																	: "Publish branch…"}
+													</Text>
+													<Text tokens={appTokens} style={styles.detail}>
+														{syncKind === "push" || syncKind === "publish"
+															? "Stop"
+															: !data?.remotes.length
+																? "No remote"
+																: currentBranch?.ahead
+																	? `${currentBranch.ahead} ahead`
+																	: ""}
+													</Text>
+												</Button>
+											</>
+										) : null}
+									</WorkspaceActionSubmenu>
 								</>
 							) : null}
 						</>

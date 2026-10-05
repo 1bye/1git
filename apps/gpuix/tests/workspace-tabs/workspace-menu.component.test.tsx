@@ -1,5 +1,5 @@
 /**
- * Covers: branch menus, creation/merge, keyboard navigation, worktree tabs, cancellable sync and publishing.
+ * Covers: grouped branch menus, creation/merge, keyboard navigation, worktree tabs, cancellable sync and publishing.
  * Real: App, reducers, window-owned mutation coordination, GPUIX layout and events.
  * Doubles: Git boundaries and folder picker, with isolated in-memory repository snapshots.
  * Requires: patched GPUIX renderer and macOS graphics access.
@@ -229,6 +229,33 @@ const settle = async (): Promise<void> => {
 	root.renderer.flush();
 };
 
+/** Follow the grouped menu before an action; inline forms keep the same action IDs. */
+const action = async (id: string): Promise<void> => {
+	if (!root.renderer.findByTestId(id)) {
+		const group =
+			id === "create-branch" || id === "create-worktree"
+				? "new-actions"
+				: "sync-actions";
+
+		click(group);
+		await settle();
+
+		if (element(group).customProps?.tabIndex === undefined) return;
+	}
+
+	click(id);
+};
+
+const dismissMenu = async (): Promise<void> => {
+	root.renderer.simulateKeystrokes("escape");
+	await settle();
+
+	if (root.renderer.findByTestId("workspace-menu")) {
+		root.renderer.simulateKeystrokes("escape");
+		await settle();
+	}
+};
+
 const open = async (): Promise<void> => {
 	root.render(
 		<App
@@ -260,6 +287,164 @@ const worktrees = async (): Promise<void> => {
 	);
 	await settle();
 };
+
+it("groups New and Sync into exclusive hover flyouts while keeping Merge in the parent menu", async () => {
+	remotes = [origin];
+	await open();
+	await menu();
+	expect(root.renderer.findByTestId("create-branch")).toBeUndefined();
+	expect(root.renderer.findByTestId("create-worktree")).toBeUndefined();
+	expect(root.renderer.findByTestId("fetch-repository")).toBeUndefined();
+	expect(element("merge-branch")).toBeDefined();
+	expect(bounds("workspace-menu").height).toBeLessThan(300);
+
+	for (const group of ["new", "sync"] as const) {
+		const trigger = bounds(`${group}-actions`);
+
+		root.renderer.nativeSimulateMouseMove(trigger.x + 20, trigger.y + 14);
+		await settle();
+		const popup = bounds(`workspace-${group}-actions`);
+		const parent = bounds("workspace-menu");
+
+		expect(popup.x).toBeGreaterThanOrEqual(parent.x + parent.width);
+		expect(
+			root.renderer.findByTestId(
+				`workspace-${group === "new" ? "sync" : "new"}-actions`
+			)
+		).toBeUndefined();
+		root.renderer.nativeSimulateMouseMove(popup.x + 20, popup.y + 14);
+		await Bun.sleep(200);
+		await settle();
+		expect(element(`workspace-${group}-actions`)).toBeDefined();
+
+		if (process.env.GPUIX_ACTIONS_SCREENSHOT)
+			root.renderer.captureScreenshot(
+				`${process.env.GPUIX_ACTIONS_SCREENSHOT}-${group}.png`
+			);
+	}
+
+	expect(element("fetch-repository")).toBeDefined();
+	expect(element("pull-repository")).toBeDefined();
+	expect(element("push-repository")).toBeDefined();
+	await worktrees();
+	expect(root.renderer.findByTestId("workspace-sync-actions")).toBeUndefined();
+	expect(element("workspace-worktrees")).toBeDefined();
+	expect(writeBranch).not.toHaveBeenCalled();
+	expect(fetchRepository).not.toHaveBeenCalled();
+});
+
+it("flips both action flyouts left near the window edge without clipping them", async () => {
+	remotes = [origin];
+	await open();
+
+	for (let index = 0; index < 6; index += 1) click("add-workspace");
+
+	await settle();
+	click("open-repository");
+	await settle();
+	click("workspace-7");
+	await settle();
+
+	for (const group of ["new", "sync"] as const) {
+		click(`${group}-actions`);
+		await settle();
+		const parent = bounds("workspace-menu");
+		const popup = bounds(`workspace-${group}-actions`);
+
+		expect(popup.x + popup.width).toBeLessThanOrEqual(parent.x);
+		expect(popup.x).toBeGreaterThanOrEqual(8);
+		expect(popup.y + popup.height).toBeLessThanOrEqual(640 - 8);
+	}
+});
+
+it("navigates the New and Sync flyouts with arrows and returns focus with Left or Escape", async () => {
+	remotes = [origin];
+	await open();
+	await menu();
+	root.renderer.focusElement(element("new-actions").id);
+	root.renderer.simulateKeystrokes("right");
+	await settle();
+	expect(root.renderer.getFocusedElementId()).toBe(element("create-branch").id);
+	root.renderer.simulateKeystrokes("down");
+	await settle();
+	expect(root.renderer.getFocusedElementId()).toBe(
+		element("create-worktree").id
+	);
+	root.renderer.simulateKeystrokes("left");
+	await settle();
+	expect(root.renderer.getFocusedElementId()).toBe(element("new-actions").id);
+	expect(root.renderer.findByTestId("workspace-new-actions")).toBeUndefined();
+	root.renderer.focusElement(element("sync-actions").id);
+	root.renderer.simulateKeystrokes("right");
+	await settle();
+	expect(root.renderer.getFocusedElementId()).toBe(
+		element("fetch-repository").id
+	);
+	root.renderer.simulateKeystrokes("down");
+	await settle();
+	expect(root.renderer.getFocusedElementId()).toBe(
+		element("push-repository").id
+	);
+	root.renderer.simulateKeystrokes("escape");
+	await settle();
+	expect(root.renderer.getFocusedElementId()).toBe(element("sync-actions").id);
+	expect(root.renderer.findByTestId("workspace-sync-actions")).toBeUndefined();
+	expect(element("workspace-menu")).toBeDefined();
+	expect(fetchRepository).not.toHaveBeenCalled();
+	expect(writeSyncRepository).not.toHaveBeenCalled();
+});
+
+it("keeps New available for a worktree when dirty files prevent creating a branch", async () => {
+	snapshot = repositorySnapshot([changedFile("a.txt")]);
+	await open();
+	await menu();
+	root.renderer.focusElement(element("new-actions").id);
+	root.renderer.simulateKeystrokes("right");
+	await settle();
+	expect(root.renderer.getFocusedElementId()).toBe(
+		element("create-worktree").id
+	);
+	click("create-branch");
+	await settle();
+	expect(root.renderer.findByTestId("branch-name")).toBeUndefined();
+	root.renderer.simulateKeystrokes("up");
+	await settle();
+	expect(root.renderer.getFocusedElementId()).toBe(
+		element("create-worktree").id
+	);
+	root.renderer.simulateKeystrokes("enter");
+	await settle();
+	expect(element("worktree-branch-name")).toBeDefined();
+	expect(root.renderer.findByTestId("workspace-new-actions")).toBeUndefined();
+	expect(writeBranch).not.toHaveBeenCalled();
+	expect(writeWorktree).not.toHaveBeenCalled();
+});
+
+it("shows remote state on the Sync row without starting any remote operation", async () => {
+	remotes = [origin];
+	await open();
+
+	for (const [upstream, ahead, behind, status] of [
+		[null, 0, 0, "Not published"],
+		["origin/main", 0, 0, "Up to date"],
+		["origin/main", 2, 0, "2 ahead"],
+		["origin/main", 0, 3, "3 behind"],
+		["origin/main", 2, 3, "Diverged"],
+	] as const) {
+		snapshot = {
+			...snapshot,
+			head: { ...snapshot.head, upstream, ahead, behind },
+		};
+		click("refresh-repository");
+		await settle();
+		await menu();
+		expect(root.renderer.getAllText()).toContain(status);
+		await dismissMenu();
+	}
+
+	expect(fetchRepository).not.toHaveBeenCalled();
+	expect(writeSyncRepository).not.toHaveBeenCalled();
+});
 
 it("shows worktrees only in a right-hand hover submenu and keeps it open while entering", async () => {
 	await open();
@@ -553,7 +738,7 @@ it("renames through the native context menu only after confirming the form", asy
 	expect(writeBranch).not.toHaveBeenCalled();
 	click("branch-name");
 	root.renderer.simulateKeystrokes("cmd-a r e n a m e d");
-	click("create-branch");
+	await action("create-branch");
 	await settle();
 	expect(writeBranch).toHaveBeenCalledWith(
 		"/test/project",
@@ -584,7 +769,7 @@ it("confirms deletion and supports cancelling without a branch write", async () 
 		"shift-f10"
 	);
 	await settle();
-	click("create-branch");
+	await action("create-branch");
 	await settle();
 	expect(writeBranch).toHaveBeenCalledWith(
 		"/test/project",
@@ -617,7 +802,7 @@ it("omits tracked remote branches from both pickers but keeps another remote vis
 	expect(
 		root.renderer.findByTestId("branch-refs/remotes/other/main")
 	).toBeDefined();
-	click("create-worktree");
+	await action("create-worktree");
 	await settle();
 	click("worktree-branch-name");
 	await settle();
@@ -650,7 +835,7 @@ it("confirms remote checkout and explains a colliding local branch", async () =>
 	expect(root.renderer.getAllText()).toContain(
 		"Tracks origin/topic in this workspace."
 	);
-	click("create-branch");
+	await action("create-branch");
 	await settle();
 	expect(writeBranch).toHaveBeenCalledWith(
 		"/test/project",
@@ -677,7 +862,7 @@ it("asks how to handle dirty work after confirming remote checkout", async () =>
 	await settle();
 	click("branch-refs/remotes/origin/topic");
 	await settle();
-	click("create-branch");
+	await action("create-branch");
 	await settle();
 	expect(writeBranch).not.toHaveBeenCalled();
 	expect(root.renderer.getAllText()).toContain("What about your changes?");
@@ -703,7 +888,7 @@ it("confirms a remote tracking branch in a new worktree", async () => {
 	];
 	await open();
 	await menu();
-	click("create-worktree");
+	await action("create-worktree");
 	await settle();
 	click("worktree-branch-name");
 	await settle();
@@ -742,7 +927,7 @@ it("creates a worktree from a dirty workspace, opens its tab, and preserves the 
 	click("commit-message");
 	root.renderer.simulateKeystrokes("d r a f t");
 	await menu();
-	click("create-worktree");
+	await action("create-worktree");
 	await settle();
 	root.renderer.simulateKeystrokes("t o p i c");
 	await settle();
@@ -768,7 +953,7 @@ it("creates a worktree from a dirty workspace, opens its tab, and preserves the 
 it("explains occupied branches and chooses an unused branch and destination folder", async () => {
 	await open();
 	await menu();
-	click("create-worktree");
+	await action("create-worktree");
 	await settle();
 	const initialSubmitBounds = bounds("confirm-create-worktree");
 	const initialMenuBounds = bounds("workspace-menu");
@@ -812,12 +997,12 @@ it("explains occupied branches and chooses an unused branch and destination fold
 it("keeps a failed worktree creation visible and allows cancelling the form without writing", async () => {
 	await open();
 	await menu();
-	click("create-worktree");
+	await action("create-worktree");
 	await settle();
 	root.renderer.simulateKeystrokes("escape");
 	await settle();
 	expect(writeWorktree).not.toHaveBeenCalled();
-	click("create-worktree");
+	await action("create-worktree");
 	await settle();
 	root.renderer.simulateKeystrokes("t o p i c");
 	writeWorktree.mockResolvedValueOnce({
@@ -864,7 +1049,7 @@ it("protects related tabs during creation and retains the result when the menu i
 	click("workspace-1");
 	await settle();
 	await menu();
-	click("create-worktree");
+	await action("create-worktree");
 	await settle();
 	root.renderer.simulateKeystrokes("t o p i c");
 	click("confirm-create-worktree");
@@ -879,7 +1064,7 @@ it("protects related tabs during creation and retains the result when the menu i
 	expect(element("workspace-2")).toBeTruthy();
 	click("workspace-2");
 	await settle();
-	click("create-worktree");
+	await action("create-worktree");
 	expect(root.renderer.findByTestId("worktree-branch-name")).toBeUndefined();
 	pending.resolve({
 		ok: false,
@@ -905,7 +1090,7 @@ it("protects related tabs during creation and retains the result when the menu i
 it("reports an already-created worktree when its first read fails, without creating it twice", async () => {
 	await open();
 	await menu();
-	click("create-worktree");
+	await action("create-worktree");
 	await settle();
 	root.renderer.simulateKeystrokes("t o p i c");
 	readRepository.mockResolvedValueOnce({
@@ -929,7 +1114,7 @@ it("reports an already-created worktree when its first read fails, without creat
 it("keeps the chosen destination when the picker is cancelled or the branch changes", async () => {
 	await open();
 	await menu();
-	click("create-worktree");
+	await action("create-worktree");
 	await settle();
 	root.renderer.simulateKeystrokes("t o p i c");
 	const picker = spyOn(root.renderer, "promptForPaths")
@@ -962,7 +1147,7 @@ it("keeps the chosen destination when the picker is cancelled or the branch chan
 it("infers exact existing names, rejects occupied or invalid branches, and never creates on suggestion selection", async () => {
 	await open();
 	await menu();
-	click("create-worktree");
+	await action("create-worktree");
 	await settle();
 	root.renderer.simulateKeystrokes("m a i n");
 	await settle();
@@ -1005,7 +1190,7 @@ it("infers exact existing names, rejects occupied or invalid branches, and never
 it("accepts a new-name suggestion without writing until confirmed", async () => {
 	await open();
 	await menu();
-	click("create-worktree");
+	await action("create-worktree");
 	await settle();
 	root.renderer.simulateKeystrokes("t o p i c");
 	await settle();
@@ -1291,11 +1476,11 @@ it("creates and switches explicitly, preserving a commit draft", async () => {
 	click("commit-message");
 	root.renderer.simulateKeystrokes("d r a f t");
 	await menu();
-	click("create-branch");
+	await action("create-branch");
 	await settle();
 	root.renderer.simulateKeystrokes("f e a t / n e w");
 	await settle();
-	click("create-branch");
+	await action("create-branch");
 	await settle();
 	expect(writeBranch.mock.calls[0]?.[1]).toMatchObject({
 		kind: "create",
@@ -1384,7 +1569,7 @@ it("shows the three newest local branches and expands, scrolls, and collapses th
 it("replaces the actions with an inline form and returns with Cancel or Escape without writing", async () => {
 	await open();
 	await menu();
-	click("create-branch");
+	await action("create-branch");
 	await settle();
 	expect(root.renderer.findByTestId("branch-main")).toBeUndefined();
 	expect(root.renderer.getFocusedElementId()).toBe(element("branch-name").id);
@@ -1395,7 +1580,7 @@ it("replaces the actions with an inline form and returns with Cancel or Escape w
 	await settle();
 	expect(root.renderer.findByTestId("branch-name")).toBeUndefined();
 	expect(element("branch-main")).toBeTruthy();
-	root.renderer.simulateKeystrokes("up up up");
+	root.renderer.simulateKeystrokes("up up right");
 	await settle();
 	root.renderer.simulateKeystrokes("enter");
 	await settle();
@@ -1459,7 +1644,7 @@ it("keeps unsafe actions disabled without a persistent explanation or empty foot
 	await open();
 	await menu();
 	click("branch-feature/linked");
-	click("create-branch");
+	await action("create-branch");
 	expect(writeBranch).not.toHaveBeenCalled();
 	expect(root.renderer.findByTestId("branch-name")).toBeUndefined();
 	expect(root.renderer.findByTestId("branch-notice")).toBeUndefined();
@@ -1467,10 +1652,10 @@ it("keeps unsafe actions disabled without a persistent explanation or empty foot
 		"Commit or stash changes"
 	);
 	const menuBox = bounds("workspace-menu");
-	const action = bounds("push-repository");
+	const lastAction = bounds("sync-actions");
 
 	expect(
-		menuBox.y + menuBox.height - action.y - action.height
+		menuBox.y + menuBox.height - lastAction.y - lastAction.height
 	).toBeLessThanOrEqual(6);
 	click("add-workspace");
 	await settle();
@@ -1666,8 +1851,7 @@ it("locks branch and stash metadata across linked worktrees until all refreshed 
 	await settle();
 	click("confirm-branch-changes");
 	await settle();
-	root.renderer.simulateKeystrokes("escape");
-	await settle();
+	await dismissMenu();
 	click("close-workspace-1");
 	await settle();
 	expect(element("workspace-1")).toBeTruthy();
@@ -1678,7 +1862,7 @@ it("locks branch and stash metadata across linked worktrees until all refreshed 
 	expect(element("workspace-2")).toBeTruthy();
 	click("workspace-2");
 	await settle();
-	click("create-branch");
+	await action("create-branch");
 	await settle();
 	expect(root.renderer.findByTestId("branch-name")).toBeUndefined();
 	expect(writeBranch).toHaveBeenCalledTimes(1);
@@ -1688,8 +1872,7 @@ it("locks branch and stash metadata across linked worktrees until all refreshed 
 	expect(readRepository.mock.calls.map(([path]) => path)).toEqual(
 		expect.arrayContaining(["/test/project", "/test/linked"])
 	);
-	root.renderer.simulateKeystrokes("escape");
-	await settle();
+	await dismissMenu();
 	click("close-workspace-2");
 	await settle();
 	expect(root.renderer.findByTestId("workspace-2")).toBeUndefined();
@@ -1872,9 +2055,7 @@ it("opens with Down, wraps Up to the final action, and dismisses with Tab", asyn
 	expect(element("workspace-menu")).toBeTruthy();
 	root.renderer.simulateKeystrokes("up");
 	await settle();
-	expect(root.renderer.getFocusedElementId()).toBe(
-		element("create-worktree").id
-	);
+	expect(root.renderer.getFocusedElementId()).toBe(element("merge-branch").id);
 	root.renderer.simulateKeystrokes("tab");
 	await settle();
 	expect(root.renderer.findByTestId("workspace-menu")).toBeUndefined();
@@ -1887,7 +2068,8 @@ it("does not fetch on open and disables Fetch when no remote is configured", asy
 	await open();
 	await menu();
 	expect(root.renderer.getAllText()).toContain("No remote");
-	click("fetch-repository");
+	expect(element("sync-actions").customProps?.tabIndex).toBeUndefined();
+	click("sync-actions");
 	await settle();
 	expect(fetchRepository).not.toHaveBeenCalled();
 });
@@ -1915,7 +2097,7 @@ it("fetches a dirty repository explicitly and refreshes tracking without losing 
 	expect(fetchRepository).not.toHaveBeenCalled();
 	root.renderer.simulateKeystrokes("up");
 	await settle();
-	root.renderer.simulateKeystrokes("up");
+	root.renderer.simulateKeystrokes("right");
 	await settle();
 	expect(root.renderer.getFocusedElementId()).toBe(
 		element("fetch-repository").id
@@ -1931,8 +2113,7 @@ it("fetches a dirty repository explicitly and refreshes tracking without losing 
 	);
 	expect(root.renderer.getAllText()).toContain("Fetched just now");
 	expect(element("workspace-menu")).toBeTruthy();
-	root.renderer.simulateKeystrokes("escape");
-	await settle();
+	await dismissMenu();
 	expect(element("commit-message").customProps?.value).toBe("draft");
 	expect(element("include-b.ts").customProps?.["aria-checked"]).toBe(false);
 	expect(element("entry-b.ts").customProps?.["aria-selected"]).toBe(true);
@@ -1954,14 +2135,13 @@ it("keeps fetch alive across menu dismissal, locks related worktrees and cancels
 	click("workspace-1");
 	await settle();
 	await menu();
-	click("fetch-repository");
+	await action("fetch-repository");
 	await settle();
 	expect(root.renderer.getAllText()).toContain("Fetching…");
 	const signal = fetchRepository.mock.calls[0]?.[1];
 
 	expect(signal?.aborted).toBe(false);
-	root.renderer.simulateKeystrokes("escape");
-	await settle();
+	await dismissMenu();
 	click("close-workspace-1");
 	await settle();
 	expect(element("workspace-1")).toBeTruthy();
@@ -1973,9 +2153,9 @@ it("keeps fetch alive across menu dismissal, locks related worktrees and cancels
 	click("workspace-2");
 	await settle();
 	expect(root.renderer.getAllText()).toContain("Fetching…");
-	click("create-branch");
+	await action("create-branch");
 	expect(root.renderer.findByTestId("branch-name")).toBeUndefined();
-	click("fetch-repository");
+	await action("fetch-repository");
 	expect(signal?.aborted).toBe(true);
 	expect(fetchRepository).toHaveBeenCalledTimes(1);
 	pending.resolve({
@@ -1994,13 +2174,12 @@ it("keeps fetch alive across menu dismissal, locks related worktrees and cancels
 	expect(readRepository.mock.calls.map(([path]) => path)).toEqual(
 		expect.arrayContaining(["/test/project", "/test/linked"])
 	);
-	root.renderer.simulateKeystrokes("escape");
-	await settle();
+	await dismissMenu();
 	click("workspace-1");
 	await settle();
 	await menu();
 	expect(root.renderer.getAllText()).toContain("Fetch cancelled.");
-	click("fetch-repository");
+	await action("fetch-repository");
 	await settle();
 	await settle();
 	expect(fetchRepository).toHaveBeenCalledTimes(2);
@@ -2027,7 +2206,7 @@ it("retains fetch failures on reopen, refreshes partial results and permits an e
 	});
 	await open();
 	await menu();
-	click("fetch-repository");
+	await action("fetch-repository");
 	await settle();
 	await settle();
 	expect(root.renderer.getAllText()).toContain(
@@ -2035,14 +2214,13 @@ it("retains fetch failures on reopen, refreshes partial results and permits an e
 	);
 	expect(root.renderer.getAllText()).toContain("origin/main · 1 behind");
 	expect(root.renderer.getAllText()).not.toContain("Fetched just now");
-	root.renderer.simulateKeystrokes("escape");
-	await settle();
+	await dismissMenu();
 	await menu();
 	expect(root.renderer.getAllText()).toContain(
 		"Authentication required for one remote."
 	);
 	expect(fetchRepository).toHaveBeenCalledTimes(1);
-	click("fetch-repository");
+	await action("fetch-repository");
 	await settle();
 	await settle();
 	expect(fetchRepository).toHaveBeenCalledTimes(2);
@@ -2058,7 +2236,7 @@ it("aborts a pending fetch when its window unmounts", async () => {
 	fetchRepository.mockImplementationOnce(() => pending.promise);
 	await open();
 	await menu();
-	click("fetch-repository");
+	await action("fetch-repository");
 	await settle();
 	const signal = fetchRepository.mock.calls[0]?.[1];
 
@@ -2090,7 +2268,7 @@ it("reports a failed post-fetch refresh without treating the successful fetch as
 			retryable: true,
 		},
 	}));
-	click("fetch-repository");
+	await action("fetch-repository");
 	await settle();
 	await settle();
 	expect(root.renderer.getAllText()).toContain(
@@ -2099,12 +2277,13 @@ it("reports a failed post-fetch refresh without treating the successful fetch as
 	expect(root.renderer.getAllText()).toContain("Fetched just now");
 	click("branch-feature/ui");
 	expect(writeBranch).not.toHaveBeenCalled();
-	root.renderer.simulateKeystrokes("escape");
-	await settle();
+	await dismissMenu();
 	click("refresh-repository");
 	await settle();
 	await menu();
 	expect(root.renderer.findByTestId("branch-notice")).toBeUndefined();
+	click("sync-actions");
+	await settle();
 	expect(root.renderer.getAllText()).toContain("Fetched just now");
 });
 
@@ -2143,7 +2322,7 @@ it("pulls from the displayed upstream, refreshes HEAD and preserves the commit d
 	root.renderer.simulateKeystrokes("d r a f t");
 	await menu();
 	expect(root.renderer.getAllText()).toContain("2 behind");
-	click("pull-repository");
+	await action("pull-repository");
 	await settle();
 	await settle();
 	expect(writeSyncRepository.mock.calls[0]?.slice(0, 2)).toEqual([
@@ -2173,7 +2352,7 @@ it("allows Push with dirty files while Pull stays disabled and file inclusion is
 	await open();
 	click("include-b.ts");
 	await menu();
-	click("pull-repository");
+	await action("pull-repository");
 	expect(writeSyncRepository).not.toHaveBeenCalled();
 	root.renderer.simulateKeystrokes("up");
 	await settle();
@@ -2189,8 +2368,7 @@ it("allows Push with dirty files while Pull stays disabled and file inclusion is
 		remoteRef: "refs/heads/main",
 	});
 	expect(root.renderer.getAllText()).toContain("Push complete.");
-	root.renderer.simulateKeystrokes("escape");
-	await settle();
+	await dismissMenu();
 	expect(element("include-b.ts").customProps?.["aria-checked"]).toBe(false);
 });
 
@@ -2198,7 +2376,7 @@ it("requires choosing and confirming a remote before publishing and supports Esc
 	remotes = [origin, { ...origin, name: "upstream" }];
 	await open();
 	await menu();
-	click("push-repository");
+	await action("push-repository");
 	await settle();
 	expect(element("publish-remotes")).toBeTruthy();
 	click("confirm-publish");
@@ -2214,7 +2392,7 @@ it("requires choosing and confirming a remote before publishing and supports Esc
 	await settle();
 	expect(root.renderer.findByTestId("publish-remotes")).toBeUndefined();
 	expect(writeSyncRepository).not.toHaveBeenCalled();
-	click("push-repository");
+	await action("push-repository");
 	await settle();
 	click("publish-remote-upstream");
 	click("confirm-publish");
@@ -2238,11 +2416,10 @@ it("blocks diverged pulls and detached publication without issuing a write", asy
 	};
 	await open();
 	await menu();
-	click("pull-repository");
+	await action("pull-repository");
 	expect(root.renderer.getAllText()).toContain("Diverged");
 	expect(writeSyncRepository).not.toHaveBeenCalled();
-	root.renderer.simulateKeystrokes("escape");
-	await settle();
+	await dismissMenu();
 	snapshot = {
 		...snapshot,
 		head: { ...snapshot.head, branch: null, detached: true, upstream: null },
@@ -2250,8 +2427,8 @@ it("blocks diverged pulls and detached publication without issuing a write", asy
 	click("refresh-repository");
 	await settle();
 	await menu();
-	click("push-repository");
-	click("pull-repository");
+	await action("push-repository");
+	await action("pull-repository");
 	expect(root.renderer.findByTestId("publish-remotes")).toBeUndefined();
 	expect(writeSyncRepository).not.toHaveBeenCalled();
 });
@@ -2268,20 +2445,19 @@ it("keeps a pending push locked across menu closure and reports uncertain cancel
 	writeSyncRepository.mockImplementationOnce(() => pending.promise);
 	await open();
 	await menu();
-	click("push-repository");
+	await action("push-repository");
 	await settle();
 	expect(root.renderer.getAllText()).toContain("Pushing…");
-	root.renderer.simulateKeystrokes("escape");
-	await settle();
+	await dismissMenu();
 	click("close-workspace-1");
 	expect(element("workspace-1")).toBeTruthy();
 	await menu();
-	click("fetch-repository");
-	click("pull-repository");
-	click("create-branch");
+	await action("fetch-repository");
+	await action("pull-repository");
+	await action("create-branch");
 	expect(fetchRepository).not.toHaveBeenCalled();
 	expect(root.renderer.findByTestId("branch-name")).toBeUndefined();
-	click("push-repository");
+	await action("push-repository");
 	expect(writeSyncRepository.mock.calls[0]?.[2].aborted).toBe(true);
 	pending.resolve({
 		ok: false,
