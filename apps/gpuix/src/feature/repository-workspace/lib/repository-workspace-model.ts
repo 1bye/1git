@@ -502,10 +502,27 @@ export class RepositoryWorkspaceModel {
 		}
 
 		if (action.type === "branch-started")
-			return { ...state, branchPending: true, loading: false };
+			return {
+				...state,
+				branchPending: true,
+				loading: false,
+				operationMutation: {
+					...state.operationMutation,
+					error: null,
+					notice: null,
+				},
+			};
 
 		if (action.type === "branch-finished") {
-			const next = { ...state, branchPending: false };
+			const next = {
+				...state,
+				branchPending: false,
+				operationMutation: {
+					...state.operationMutation,
+					error: action.error ?? null,
+					notice: null,
+				},
+			};
 
 			return action.snapshot
 				? RepositoryWorkspaceModel.reduce(next, {

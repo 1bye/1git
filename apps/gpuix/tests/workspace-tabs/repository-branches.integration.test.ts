@@ -1,5 +1,5 @@
 /**
- * Covers: branch switching/creation, stale state and dirty-tree protection, worktree ownership.
+ * Covers: callback-invoked branch switching/creation, stale state and dirty-tree protection, worktree ownership.
  * Real: app Git boundaries, Git CLI and disposable repositories.
  * Doubles: none.
  * Requires: Git on PATH and writable temporary storage; no network or existing repository.
@@ -7,6 +7,7 @@
 import { afterEach, beforeEach, expect, it } from "bun:test";
 import { execFile } from "node:child_process";
 import {
+	chmod,
 	lstat,
 	mkdir,
 	mkdtemp,
@@ -21,10 +22,14 @@ import { promisify } from "node:util";
 import { RepositoryBranches } from "../../src/feature/workspace-tabs/lib/repository-branches";
 import { RepositoryWorktrees } from "../../src/feature/workspace-tabs/lib/repository-worktrees";
 import { RepositoryReader } from "../../src/feature/repository-workspace/lib/repository-reader";
+import { RepositoryStashes } from "../../src/feature/repository-workspace/lib/repository-stashes";
 
 const execute = promisify(execFile);
 let sandbox: string;
 let repository: string;
+
+// The app injects the writer as a standalone callback, without its class receiver.
+const writeBranch = RepositoryBranches.write;
 
 const git = async (...args: string[]): Promise<string> => {
 	const result = await execute(
@@ -69,7 +74,11 @@ afterEach(async () => {
 	await rm(sandbox, { recursive: true, force: true });
 });
 
-const switchTo = async (name: string, kind: "switch" | "create" = "switch") => {
+const switchTo = async (
+	name: string,
+	kind: "switch" | "create" = "switch",
+	changes?: "leave" | "bring"
+) => {
 	const result = await RepositoryReader.read(
 		repository,
 		new AbortController().signal
@@ -77,9 +86,10 @@ const switchTo = async (name: string, kind: "switch" | "create" = "switch") => {
 
 	if (!result.ok) throw new Error(result.error.message);
 
-	return await RepositoryBranches.write(repository, {
+	return await writeBranch(repository, {
 		name,
 		kind,
+		changes,
 		expectedHead: result.value.head.oid,
 		expectedBranch: result.value.head.branch,
 	});
@@ -102,6 +112,255 @@ it("lists branches, switches and creates a branch without changing committed con
 	expect(created.ok && created.value.snapshot.head.branch).toBe("new/branch");
 	expect(await git("status", "--porcelain")).toBe("");
 	expect(await readFile(join(repository, "file.txt"), "utf8")).toBe("base\n");
+});
+
+it("leaves tracked and untracked changes on the source branch in a durable stash", async () => {
+	await writeFile(join(repository, "file.txt"), "work in progress\n");
+	await writeFile(join(repository, "new.txt"), "untracked\n");
+	const switched = await switchTo("feature/ui", "switch", "leave");
+
+	expect(switched.ok).toBe(true);
+	expect(await git("branch", "--show-current")).toBe("feature/ui");
+	expect(await git("status", "--porcelain")).toBe("");
+	expect(await git("stash", "list")).toContain("1git: changes for main");
+});
+
+it("brings mixed staged, unstaged and untracked changes and removes only its recovery stash", async () => {
+	await writeFile(join(repository, "manual.txt"), "manual stash\n");
+	await git("stash", "push", "-u", "-m", "Manual stash");
+	const manual = await git("rev-parse", "stash@{0}");
+
+	await writeFile(join(repository, "file.txt"), "staged\n");
+	await git("add", "file.txt");
+	await writeFile(join(repository, "file.txt"), "unstaged\n");
+	await writeFile(join(repository, "new.txt"), "untracked\n");
+	const index = await git("ls-files", "--stage");
+	const switched = await switchTo("feature/ui", "switch", "bring");
+
+	expect(switched.ok).toBe(true);
+	expect(await git("branch", "--show-current")).toBe("feature/ui");
+	expect(await git("ls-files", "--stage")).toBe(index);
+	expect(await readFile(join(repository, "file.txt"), "utf8")).toBe(
+		"unstaged\n"
+	);
+	expect(await readFile(join(repository, "new.txt"), "utf8")).toBe(
+		"untracked\n"
+	);
+	expect(await git("stash", "list", "--format=%H")).toBe(manual);
+});
+
+it("restores branch-owned changes after a fresh read, preserving the index and unrelated stashes", async () => {
+	await writeFile(join(repository, "manual.txt"), "manual\n");
+	await git("stash", "push", "-u", "-m", "Manual");
+	const manual = await git("rev-parse", "stash@{0}");
+
+	await writeFile(join(repository, "file.txt"), "staged\n");
+	await git("add", "file.txt");
+	await writeFile(join(repository, "file.txt"), "unstaged\n");
+	await writeFile(join(repository, "new.txt"), "new\n");
+	const index = await git("ls-files", "--stage");
+
+	expect((await switchTo("feature/ui", "switch", "leave")).ok).toBe(true);
+	const reopened = await RepositoryBranches.read(
+		repository,
+		new AbortController().signal
+	);
+
+	const saved = reopened.ok && reopened.value.savedChanges?.[0];
+
+	if (!saved) throw new Error("Saved branch changes not discovered");
+
+	expect(saved.branch).toBe("main");
+	expect((await switchTo("main")).ok).toBe(true);
+	expect(await git("status", "--porcelain")).toBe("");
+	const restored = await writeBranch(repository, {
+		kind: "restore",
+		name: "main",
+		savedChangesOid: saved.oid,
+		expectedHead: await git("rev-parse", "HEAD"),
+		expectedBranch: "main",
+	});
+
+	expect(restored.ok).toBe(true);
+	expect(await git("ls-files", "--stage")).toBe(index);
+	expect(await readFile(join(repository, "file.txt"), "utf8")).toBe(
+		"unstaged\n"
+	);
+	expect(await readFile(join(repository, "new.txt"), "utf8")).toBe("new\n");
+	expect(await git("stash", "list", "--format=%H")).toBe(manual);
+});
+
+it("keeps the recovery stash and exposes real conflicts when brought changes cannot apply", async () => {
+	await git("switch", "feature/ui");
+	await writeFile(join(repository, "file.txt"), "destination\n");
+	await git("commit", "-am", "Destination edits");
+	await git("switch", "main");
+	await writeFile(join(repository, "file.txt"), "my edits\n");
+	const switched = await switchTo("feature/ui", "switch", "bring");
+
+	expect(switched.ok).toBe(false);
+	expect(!switched.ok && switched.error.message).toContain("recovery backup");
+	expect(await git("branch", "--show-current")).toBe("feature/ui");
+	expect(await git("status", "--porcelain")).toContain("UU file.txt");
+	expect(await git("stash", "show", "-p", "stash@{0}")).toContain("+my edits");
+	const saved = await RepositoryBranches.read(
+		repository,
+		new AbortController().signal
+	);
+
+	expect(saved.ok && saved.value.savedChanges?.[0]?.branch).toBe("feature/ui");
+});
+
+it("keeps saved work when checkout fails after a hook changed the destination", async () => {
+	const hooks = join(sandbox, "hooks");
+
+	await mkdir(hooks);
+	const hook = join(hooks, "post-checkout");
+
+	await writeFile(
+		hook,
+		'#!/bin/sh\nprintf "hook edit\\n" > hook.txt\nexit 1\n'
+	);
+	await chmod(hook, 0o755);
+	await git("config", "core.hooksPath", hooks);
+	await writeFile(join(repository, "file.txt"), "my edits\n");
+	const switched = await switchTo("feature/ui", "switch", "bring");
+
+	expect(switched.ok).toBe(false);
+	expect(!switched.ok && switched.error.message).toContain("safe in Stashes");
+	expect(await git("branch", "--show-current")).toBe("feature/ui");
+	expect(await git("stash", "show", "-p", "stash@{0}")).toContain("+my edits");
+	expect(await readFile(join(repository, "hook.txt"), "utf8")).toBe(
+		"hook edit\n"
+	);
+});
+
+it("refuses missing and occupied targets before saving anything", async () => {
+	await git("worktree", "add", join(sandbox, "linked"), "feature/ui");
+	await writeFile(join(repository, "file.txt"), "edits\n");
+
+	expect((await switchTo("missing", "switch", "leave")).ok).toBe(false);
+	expect((await switchTo("feature/ui", "switch", "bring")).ok).toBe(false);
+	expect(await git("stash", "list")).toBe("");
+	expect(await readFile(join(repository, "file.txt"), "utf8")).toBe("edits\n");
+	expect(await git("branch", "--show-current")).toBe("main");
+});
+
+it("brings dirty work to a newly created remote tracking branch", async () => {
+	const expectedHead = await git("rev-parse", "HEAD");
+
+	await git("remote", "add", "origin", repository);
+	await git("update-ref", "refs/remotes/origin/topic", expectedHead);
+	await writeFile(join(repository, "file.txt"), "remote edits\n");
+	await writeFile(join(repository, "new.txt"), "new\n");
+	const result = await writeBranch(repository, {
+		kind: "remote",
+		name: "refs/remotes/origin/topic",
+		changes: "bring",
+		expectedHead,
+		expectedBranch: "main",
+	});
+
+	expect(result.ok).toBe(true);
+	expect(await git("branch", "--show-current")).toBe("topic");
+	expect(await git("rev-parse", "--abbrev-ref", "@{upstream}")).toBe(
+		"origin/topic"
+	);
+	expect(await readFile(join(repository, "file.txt"), "utf8")).toBe(
+		"remote edits\n"
+	);
+	expect(await readFile(join(repository, "new.txt"), "utf8")).toBe("new\n");
+	expect(await git("stash", "list")).toBe("");
+});
+
+it("rejects stale dialog identity even if the app has refreshed its expected HEAD", async () => {
+	await writeFile(join(repository, "file.txt"), "edits\n");
+	const result = await RepositoryBranches.write(repository, {
+		kind: "switch",
+		name: "feature/ui",
+		changes: "leave",
+		expectedHead: await git("rev-parse", "HEAD"),
+		expectedBranch: "main",
+		reviewedSource: { head: "0".repeat(40), branch: "main" },
+	});
+
+	expect(result.ok).toBe(false);
+	expect(await git("stash", "list")).toBe("");
+	expect(await readFile(join(repository, "file.txt"), "utf8")).toBe("edits\n");
+});
+
+it("never restores a manual stash, another branch's work, or a backup from another worktree", async () => {
+	await writeFile(join(repository, "manual.txt"), "manual\n");
+	await git("stash", "push", "-u", "-m", "Manual");
+	const manual = await git("rev-parse", "stash@{0}");
+
+	await writeFile(join(repository, "file.txt"), "branch work\n");
+	expect((await switchTo("feature/ui", "switch", "leave")).ok).toBe(true);
+	const read = await RepositoryBranches.read(
+		repository,
+		new AbortController().signal
+	);
+
+	const saved = read.ok && read.value.savedChanges?.[0];
+
+	if (!saved) throw new Error("Saved work not found");
+
+	for (const oid of [manual, saved.oid]) {
+		const result = await RepositoryBranches.write(repository, {
+			kind: "restore",
+			name: "feature/ui",
+			savedChangesOid: oid,
+			expectedHead: await git("rev-parse", "HEAD"),
+			expectedBranch: "feature/ui",
+		});
+
+		expect(result.ok).toBe(false);
+	}
+
+	const linked = join(sandbox, "linked");
+
+	await git("worktree", "add", linked, "main");
+	const other = await RepositoryBranches.read(
+		linked,
+		new AbortController().signal
+	);
+
+	expect(other.ok && other.value.savedChanges).toEqual([]);
+	expect(await git("stash", "list", "--format=%H")).toBe(
+		`${saved.oid}\n${manual}`
+	);
+	expect(await git("status", "--porcelain")).toBe("");
+});
+
+it("keeps saved changes if restoration is attempted over new local work", async () => {
+	await writeFile(join(repository, "file.txt"), "saved edits\n");
+	expect((await switchTo("feature/ui", "switch", "leave")).ok).toBe(true);
+	expect((await switchTo("main")).ok).toBe(true);
+	const saved = await git("rev-parse", "stash@{0}");
+
+	await writeFile(join(repository, "file.txt"), "new local work\n");
+	const restored = await RepositoryBranches.write(repository, {
+		kind: "restore",
+		name: "main",
+		savedChangesOid: saved,
+		expectedHead: await git("rev-parse", "HEAD"),
+		expectedBranch: "main",
+	});
+
+	expect(restored.ok).toBe(false);
+	expect(await git("rev-parse", "stash@{0}")).toBe(saved);
+	expect(await readFile(join(repository, "file.txt"), "utf8")).toBe(
+		"new local work\n"
+	);
+	const files = await RepositoryStashes.readFiles(
+		repository,
+		saved,
+		new AbortController().signal
+	);
+
+	expect(
+		files.ok && files.value.some((file) => file.commitFile?.path === "file.txt")
+	).toBe(true);
 });
 
 it("preserves mixed staged/unstaged and untracked work when switching or creating is blocked", async () => {
@@ -225,7 +484,7 @@ it("creates explicit tracking branches from remote refs in this workspace and a 
 	await git("update-ref", "refs/remotes/origin/feature/remote", expectedHead);
 	await git("update-ref", "refs/remotes/origin/feature/worktree", expectedHead);
 
-	const result = await RepositoryBranches.write(repository, {
+	const result = await writeBranch(repository, {
 		kind: "remote",
 		name: "refs/remotes/origin/feature/remote",
 		expectedHead,

@@ -74,7 +74,8 @@ export function useRepositoryMutations(
 	);
 
 	const mounted = useRef(true);
-	const worktreeWrites = useRef(new Set<string>());
+	// Branch switches with saved changes and worktree writes both own shared Git metadata.
+	const sharedWrites = useRef(new Set<string>());
 	const stashWrites = useRef(new Map<string, StashRequest["kind"]>());
 
 	const syncs = useRef(
@@ -91,9 +92,10 @@ export function useRepositoryMutations(
 
 			const operation =
 				repository &&
-				(worktreeWrites.current.has(repository.commonDirectory)
-					? "operation-started"
-					: pending.current.get(repository.root));
+				(pending.current.get(repository.root) ??
+					(sharedWrites.current.has(repository.commonDirectory)
+						? "operation-started"
+						: undefined));
 
 			const stash =
 				repository && stashWrites.current.get(repository.commonDirectory);
@@ -133,7 +135,7 @@ export function useRepositoryMutations(
 			!workspace ||
 			!repository ||
 			!RepositoryWorkspaceModel.canCommit(workspace) ||
-			worktreeWrites.current.has(repository.commonDirectory) ||
+			sharedWrites.current.has(repository.commonDirectory) ||
 			pending.current.has(repository.root) ||
 			stashWrites.current.has(repository.commonDirectory) ||
 			syncs.current.has(repository.commonDirectory)
@@ -211,25 +213,46 @@ export function useRepositoryMutations(
 			workspace.loading ||
 			workspace.error ||
 			workspace.commit.needsReview ||
-			worktreeWrites.current.has(repository.commonDirectory) ||
+			sharedWrites.current.has(repository.commonDirectory) ||
 			pending.current.has(repository.root) ||
 			stashWrites.current.has(repository.commonDirectory) ||
 			syncs.current.has(repository.commonDirectory)
 		)
 			return "Wait for the current operation or refresh this workspace before switching branches.";
 
-		const send = (action: RepositoryWorkspaceAction): void => {
-			if (!mounted.current) return;
+		const related = () =>
+			tabs.current.filter(
+				(tab) =>
+					tab.workspace.repository?.commonDirectory ===
+					repository.commonDirectory
+			);
 
-			for (const tab of tabs.current) {
-				if (tab.workspace.repository?.root === repository.root)
-					dispatch({ type: "workspace", id: tab.id, action });
-			}
-		};
+		if (
+			related().some(
+				(tab) =>
+					tab.workspace.loading ||
+					RepositoryWorkspaceModel.isBusy(tab.workspace) ||
+					pending.current.has(tab.workspace.repository?.root ?? "")
+			)
+		)
+			return "Wait for the current operation in this repository before switching branches.";
 
 		pending.current.set(repository.root, "branch-started");
+		sharedWrites.current.add(repository.commonDirectory);
 		closeProtection.block();
-		send({ type: "branch-started" });
+
+		for (const tab of related())
+			dispatch({
+				type: "workspace",
+				id: tab.id,
+				action: {
+					type:
+						tab.workspace.repository?.root === repository.root
+							? "branch-started"
+							: "operation-started",
+				},
+			});
+
 		let error: string | null = null;
 
 		try {
@@ -250,25 +273,71 @@ export function useRepositoryMutations(
 
 		// Even a reported failure can follow a completed checkout (for example, a failed hook).
 		// Re-read before enabling other writes, retaining drafts on every outcome.
-		try {
-			const refreshed = await readRepository(
-				repository.root,
-				new AbortController().signal
-			);
+		const snapshots = new Map<string, RepositoryWorkspaceAction>();
 
-			pending.current.delete(repository.root);
-			send(
-				refreshed.ok
-					? { type: "branch-finished", snapshot: refreshed.value }
-					: { type: "branch-finished", error: refreshed.error.message }
-			);
+		await Promise.all(
+			[...new Set(related().map((tab) => tab.workspace.repository?.root))].map(
+				async (root) => {
+					if (!root) return;
 
-			if (!refreshed.ok) error = refreshed.error.message;
-		} catch {
-			pending.current.delete(repository.root);
-			error = "Refresh to confirm the current branch before continuing.";
-			send({ type: "branch-finished", error });
-		}
+					const type =
+						root === repository.root ? "branch-finished" : "operation-finished";
+
+					try {
+						const refreshed = await readRepository(
+							root,
+							new AbortController().signal
+						);
+
+						const refreshError = refreshed.ok
+							? undefined
+							: refreshed.error.message;
+
+						if (root === repository.root && refreshError) error = refreshError;
+
+						snapshots.set(
+							root,
+							refreshed.ok
+								? type === "branch-finished"
+									? {
+											type,
+											snapshot: refreshed.value,
+											error: error ?? undefined,
+										}
+									: { type, snapshot: refreshed.value, error: null }
+								: type === "branch-finished"
+									? { type, error: refreshError }
+									: { type, error: null, refreshError }
+						);
+					} catch {
+						const refreshError =
+							"Refresh to confirm the current branch before continuing.";
+
+						if (root === repository.root) error = refreshError;
+
+						snapshots.set(
+							root,
+							type === "branch-finished"
+								? { type, error: refreshError }
+								: { type, error: null, refreshError }
+						);
+					}
+				}
+			)
+		);
+		pending.current.delete(repository.root);
+		sharedWrites.current.delete(repository.commonDirectory);
+
+		if (mounted.current)
+			for (const tab of related()) {
+				const action = snapshots.get(tab.workspace.repository?.root ?? "") ?? {
+					type: "operation-finished",
+					error: null,
+					refreshError: "Refresh this workspace to confirm its status.",
+				};
+
+				dispatch({ type: "workspace", id: tab.id, action });
+			}
 
 		return error;
 	};
@@ -297,7 +366,7 @@ export function useRepositoryMutations(
 			);
 
 		if (
-			worktreeWrites.current.has(repository.commonDirectory) ||
+			sharedWrites.current.has(repository.commonDirectory) ||
 			stashWrites.current.has(repository.commonDirectory) ||
 			syncs.current.has(repository.commonDirectory) ||
 			related().some(
@@ -309,7 +378,7 @@ export function useRepositoryMutations(
 		)
 			return "Wait for the current Git operation before changing worktrees.";
 
-		worktreeWrites.current.add(repository.commonDirectory);
+		sharedWrites.current.add(repository.commonDirectory);
 		closeProtection.block();
 
 		for (const tab of related())
@@ -392,7 +461,7 @@ export function useRepositoryMutations(
 				}
 			)
 		);
-		worktreeWrites.current.delete(repository.commonDirectory);
+		sharedWrites.current.delete(repository.commonDirectory);
 
 		if (mounted.current) {
 			for (const tab of related().filter(
@@ -428,7 +497,7 @@ export function useRepositoryMutations(
 			!repository ||
 			(choice.kind === "sync" &&
 				!RepositoryWorkspaceModel.canSync(workspace)) ||
-			worktreeWrites.current.has(repository.commonDirectory) ||
+			sharedWrites.current.has(repository.commonDirectory) ||
 			stashWrites.current.has(repository.commonDirectory) ||
 			syncs.current.has(repository.commonDirectory)
 		)
@@ -609,7 +678,7 @@ export function useRepositoryMutations(
 			workspace.preview ||
 			workspace.error ||
 			workspace.commit.needsReview ||
-			worktreeWrites.current.has(repository.commonDirectory) ||
+			sharedWrites.current.has(repository.commonDirectory) ||
 			stashWrites.current.has(repository.commonDirectory) ||
 			syncs.current.has(repository.commonDirectory)
 		)
@@ -775,7 +844,7 @@ export function useRepositoryMutations(
 			workspace.error ||
 			workspace.commit.needsReview ||
 			RepositoryWorkspaceModel.isBusy(workspace) ||
-			worktreeWrites.current.has(repository.commonDirectory) ||
+			sharedWrites.current.has(repository.commonDirectory) ||
 			pending.current.has(repository.root) ||
 			syncs.current.has(repository.commonDirectory) ||
 			stashWrites.current.has(repository.commonDirectory)

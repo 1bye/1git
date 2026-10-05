@@ -7,23 +7,40 @@ import {
 	type RemoteInfo,
 	type WorktreeInfo,
 } from "@1git/git";
+import {
+	RepositoryBranchChanges,
+	type SavedBranchChanges,
+} from "./repository-branch-changes";
 
 export interface WorkspaceBranches {
 	readonly branches: BranchCollection;
 	readonly worktrees: readonly WorktreeInfo[];
 	readonly remotes: readonly RemoteInfo[];
+	readonly savedChanges?: readonly SavedBranchChanges[];
 }
 
 export interface BranchRequest {
-	readonly kind: "switch" | "create" | "remote" | "rename" | "delete";
+	readonly kind:
+		| "switch"
+		| "create"
+		| "remote"
+		| "rename"
+		| "delete"
+		| "restore";
 	readonly name: string;
 	readonly newName?: string;
 	readonly expectedTarget?: string;
 	readonly expectedHead: string | null;
 	readonly expectedBranch: string | null;
+	readonly changes?: "leave" | "bring";
+	readonly savedChangesOid?: string;
+	readonly reviewedSource?: {
+		readonly head: string | null;
+		readonly branch: string | null;
+	};
 }
 
-/** Explicit, non-forcing branch operations; never stash, reset, or discard user work. */
+/** Non-forcing branch operations, with explicit stash-backed choices for uncommitted work. */
 export class RepositoryBranches {
 	private constructor() {}
 
@@ -69,10 +86,11 @@ export class RepositoryBranches {
 
 		if (!opened.ok) return opened;
 
-		const [branches, worktrees, remotes] = await Promise.all([
+		const [branches, worktrees, remotes, stashes] = await Promise.all([
 			opened.value.getBranches({ signal }),
 			opened.value.getWorktrees({ signal }),
 			opened.value.getRemotes({ signal }),
+			opened.value.getStashes({ signal }),
 		]);
 
 		if (!branches.ok) return branches;
@@ -81,16 +99,23 @@ export class RepositoryBranches {
 
 		if (!remotes.ok) return remotes;
 
+		if (!stashes.ok) return stashes;
+
 		return {
 			ok: true,
 			value: {
 				branches: branches.value,
 				worktrees: worktrees.value,
 				remotes: remotes.value,
+				savedChanges: RepositoryBranchChanges.list(
+					opened.value.info.root,
+					stashes.value
+				),
 			},
 		};
 	}
 
+	/** Safe to inject as a standalone callback; branch operations do not depend on a receiver. */
 	static async write(
 		root: string,
 		request: BranchRequest
@@ -108,13 +133,25 @@ export class RepositoryBranches {
 
 		if (
 			head.oid !== request.expectedHead ||
-			head.branch !== request.expectedBranch
+			head.branch !== request.expectedBranch ||
+			(request.reviewedSource &&
+				(head.oid !== request.reviewedSource.head ||
+					head.branch !== request.reviewedSource.branch))
 		)
 			message =
 				"The branch changed outside this app. Refresh the workspace before trying again.";
-		else if (operationState !== "normal")
+		else if (
+			operationState !== "normal" ||
+			files.some((file) => file.recordType === "unmerged")
+		)
 			message = "Finish the current Git operation before switching branches.";
-		else if (files.some((file) => file.recordType !== "ignored"))
+		else if (
+			files.some((file) => file.recordType !== "ignored") &&
+			!(
+				(request.kind === "switch" || request.kind === "remote") &&
+				request.changes
+			)
+		)
 			message =
 				"Commit or stash your changes before switching branches. Nothing has been discarded.";
 
@@ -128,6 +165,107 @@ export class RepositoryBranches {
 					message,
 				},
 			};
+
+		if (request.kind === "restore") {
+			const restored = await RepositoryBranchChanges.restore(
+				opened.value,
+				opened.value.info.root,
+				request.name,
+				request.savedChangesOid ?? ""
+			);
+
+			if (!restored.ok) return restored;
+
+			const branches = await opened.value.getBranches();
+
+			return branches.ok
+				? {
+						ok: true,
+						value: { branches: branches.value, snapshot: restored.value },
+					}
+				: branches;
+		}
+
+		if (
+			(request.kind === "switch" || request.kind === "remote") &&
+			request.changes &&
+			files.some((file) => file.recordType !== "ignored")
+		) {
+			if (!head.oid || !head.branch)
+				return RepositoryBranchChanges.fail(
+					"Commit the first changes or attach HEAD to a branch before saving branch changes."
+				);
+
+			if (files.some((file) => file.submodule.startsWith("S")))
+				return RepositoryBranchChanges.fail(
+					"Save submodule changes inside the submodule before switching branches."
+				);
+
+			const branches = await opened.value.getBranches();
+
+			if (!branches.ok) return branches;
+
+			const target = branches.value.branches.find((item) =>
+				request.kind === "remote"
+					? item.type === "remote" && item.fullName === request.name
+					: item.type === "local" && item.name === request.name
+			);
+
+			const remoteTarget =
+				target && request.kind === "remote"
+					? RepositoryBranches.remoteTarget(target, branches.value)
+					: null;
+
+			const destination = remoteTarget?.name ?? target?.name;
+
+			if (
+				!target ||
+				remoteTarget?.error ||
+				target.worktreePath ||
+				destination === head.branch
+			)
+				return RepositoryBranchChanges.fail(
+					remoteTarget?.error ??
+						"Choose an available branch that is not checked out in another worktree."
+				);
+
+			const saved = await RepositoryBranchChanges.save(
+				opened.value,
+				opened.value.info.root,
+				request.changes === "leave"
+					? head.branch
+					: (destination ?? request.name)
+			);
+
+			if (!saved.ok) return saved;
+
+			const switched = await RepositoryBranches.write(root, {
+				...request,
+				changes: undefined,
+			});
+
+			if (!switched.ok)
+				return {
+					...switched,
+					error: {
+						...switched.error,
+						message: `${switched.error.message} Your changes are safe in Stashes (${saved.value.oid.slice(0, 7)}). Inspect the current branch before restoring or retrying.`,
+					},
+				};
+
+			if (request.changes === "leave") return switched;
+
+			const restored = await RepositoryBranchChanges.restore(
+				opened.value,
+				opened.value.info.root,
+				saved.value.branch,
+				saved.value.oid
+			);
+
+			return restored.ok
+				? { ok: true, value: { ...switched.value, snapshot: restored.value } }
+				: restored;
+		}
 
 		if (request.kind === "rename" || request.kind === "delete") {
 			const branches = await opened.value.getBranches();
@@ -188,7 +326,9 @@ export class RepositoryBranches {
 				(item) => item.type === "remote" && item.fullName === request.name
 			);
 
-			const target = remote ? this.remoteTarget(remote, branches.value) : null;
+			const target = remote
+				? RepositoryBranches.remoteTarget(remote, branches.value)
+				: null;
 
 			if (!remote || !target || target.error)
 				return {

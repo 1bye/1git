@@ -15,6 +15,7 @@ import type {
 import { App } from "../../src/app";
 import { windowOptions } from "../../src/window-options";
 import { RepositoryBranches } from "../../src/feature/workspace-tabs/lib/repository-branches";
+import type { SavedBranchChanges } from "../../src/feature/workspace-tabs/lib/repository-branch-changes";
 import { NativeFileMenu } from "../../src/feature/repository-workspace/lib/native-file-menu";
 import type { RepositoryWorktrees } from "../../src/feature/workspace-tabs/lib/repository-worktrees";
 import type { RepositoryReader } from "../../src/feature/repository-workspace/lib/repository-reader";
@@ -28,6 +29,7 @@ let root: TestRoot;
 let snapshot: RepositorySnapshot;
 let remotes: readonly RemoteInfo[];
 let remoteBranches: BranchInfo[];
+let savedChanges: SavedBranchChanges[];
 
 const origin: RemoteInfo = {
 	name: "origin",
@@ -75,6 +77,7 @@ const readBranches = mock<typeof RepositoryBranches.read>(async () => ({
 	ok: true,
 	value: {
 		branches: collection(),
+		savedChanges,
 		remotes,
 		worktrees: [
 			{
@@ -158,6 +161,7 @@ beforeEach(() => {
 	snapshot = repositorySnapshot();
 	remotes = [];
 	remoteBranches = [];
+	savedChanges = [];
 	readBranches.mockClear();
 	readRepository.mockClear();
 	readRepository.mockImplementation(readSnapshot);
@@ -654,6 +658,37 @@ it("confirms remote checkout and explains a colliding local branch", async () =>
 			name: "refs/remotes/origin/topic",
 		})
 	);
+});
+
+it("asks how to handle dirty work after confirming remote checkout", async () => {
+	snapshot = repositorySnapshot([changedFile("a.txt")]);
+	remoteBranches = [
+		{
+			...branch("origin/topic"),
+			type: "remote",
+			remote: "origin",
+			fullName: "refs/remotes/origin/topic",
+		},
+	];
+	await open();
+	await menu();
+	click("more-branches");
+	await settle();
+	click("branch-refs/remotes/origin/topic");
+	await settle();
+	click("create-branch");
+	await settle();
+	expect(writeBranch).not.toHaveBeenCalled();
+	expect(root.renderer.getAllText()).toContain("What about your changes?");
+	click("bring-branch-changes");
+	await settle();
+	click("confirm-branch-changes");
+	await settle();
+	expect(writeBranch.mock.calls[0]?.[1]).toMatchObject({
+		kind: "remote",
+		name: "refs/remotes/origin/topic",
+		changes: "bring",
+	});
 });
 
 it("confirms a remote tracking branch in a new worktree", async () => {
@@ -1202,7 +1237,6 @@ it("keeps unsafe actions disabled without a persistent explanation or empty foot
 	snapshot = repositorySnapshot([changedFile("a.txt")]);
 	await open();
 	await menu();
-	click("branch-feature/ui");
 	click("branch-feature/linked");
 	click("create-branch");
 	expect(writeBranch).not.toHaveBeenCalled();
@@ -1220,6 +1254,224 @@ it("keeps unsafe actions disabled without a persistent explanation or empty foot
 	click("add-workspace");
 	await settle();
 	expect(root.renderer.findByTestId("workspace-menu")).toBeUndefined();
+});
+
+it.each(["leave", "bring"] as const)(
+	"asks before a dirty switch and submits the %s choice",
+	async (changes) => {
+		snapshot = repositorySnapshot([changedFile("a.txt")]);
+		await open();
+		await menu();
+		click("branch-feature/ui");
+		await settle();
+		expect(writeBranch).not.toHaveBeenCalled();
+		expect(element("branch-changes-form")).toBeTruthy();
+		expect(root.renderer.getAllText()).toContain("What about your changes?");
+		click(`${changes}-branch-changes`);
+		await settle();
+		expect(
+			element(`${changes}-branch-changes`).customProps?.["aria-label"]
+		).toContain(", selected");
+		const form = bounds("branch-changes-form");
+		const confirm = bounds("confirm-branch-changes");
+
+		expect(confirm.y + confirm.height).toBeLessThanOrEqual(
+			form.y + form.height
+		);
+		expect(bounds("bring-branch-changes").y).toBeLessThan(confirm.y);
+		expect(
+			bounds("bring-branch-changes").y + bounds("bring-branch-changes").height
+		).toBeLessThan(bounds("cancel-branch-changes").y);
+		expect(bounds("cancel-branch-changes").y).toBe(confirm.y);
+		expect(
+			bounds("bring-branch-changes").y + bounds("bring-branch-changes").height
+		).toBeLessThanOrEqual(
+			bounds("branch-changes-content").y +
+				bounds("branch-changes-content").height
+		);
+		const screenshot = process.env.GPUIX_BRANCH_CHANGES_SCREENSHOT;
+
+		if (screenshot && changes === "leave")
+			root.renderer.captureScreenshot(screenshot);
+
+		click("confirm-branch-changes");
+		await settle();
+		expect(writeBranch).toHaveBeenCalledTimes(1);
+		expect(writeBranch.mock.calls[0]?.[1]).toMatchObject({
+			kind: "switch",
+			name: "feature/ui",
+			changes,
+			reviewedSource: { head: snapshot.head.oid, branch: "main" },
+		});
+		expect(root.renderer.findByTestId("workspace-menu")).toBeUndefined();
+	}
+);
+
+it("keeps Tab inside the branch prompt and allows keyboard confirmation", async () => {
+	snapshot = repositorySnapshot([changedFile("a.txt")]);
+	await open();
+	await menu();
+	click("branch-feature/ui");
+	await settle();
+	root.renderer.nativeSimulateKeyDown(
+		element("leave-branch-changes").id,
+		"tab"
+	);
+	await settle();
+	expect(element("branch-changes-form")).toBeTruthy();
+	root.renderer.focusElement(element("bring-branch-changes").id);
+	root.renderer.nativeSimulateKeyDown(
+		element("bring-branch-changes").id,
+		"enter"
+	);
+	await settle();
+	root.renderer.focusElement(element("confirm-branch-changes").id);
+	root.renderer.nativeSimulateKeyDown(
+		element("confirm-branch-changes").id,
+		"enter"
+	);
+	await settle();
+	expect(writeBranch).toHaveBeenCalledTimes(1);
+	expect(writeBranch.mock.calls[0]?.[1].changes).toBe("bring");
+});
+
+it("cancels a dirty branch prompt without writing, including with Escape", async () => {
+	snapshot = repositorySnapshot([changedFile("a.txt")]);
+	await open();
+	await menu();
+	click("branch-feature/ui");
+	await settle();
+	click("cancel-branch-changes");
+	await settle();
+	expect(root.renderer.findByTestId("branch-changes-form")).toBeUndefined();
+	click("branch-feature/ui");
+	await settle();
+	root.renderer.nativeSimulateKeyDown(element("workspace-menu").id, "escape");
+	await settle();
+	expect(root.renderer.findByTestId("branch-changes-form")).toBeUndefined();
+	expect(writeBranch).not.toHaveBeenCalled();
+	expect(root.renderer.getAllText()).toContain(" / main");
+});
+
+it("offers durable saved changes on the current branch after reopening, with explicit restoration", async () => {
+	savedChanges = [
+		{ oid: "saved-main", branch: "main", createdAt: "2026-10-05" },
+	];
+	await open();
+	await menu();
+	click("restore-branch-changes");
+	await settle();
+	expect(root.renderer.getAllText()).toContain("Restore saved changes?");
+	click("cancel-branch-changes");
+	await settle();
+	expect(writeBranch).not.toHaveBeenCalled();
+	click("restore-branch-changes");
+	await settle();
+	click("confirm-branch-changes");
+	await settle();
+	expect(writeBranch.mock.calls[0]?.[1]).toMatchObject({
+		kind: "restore",
+		name: "main",
+		savedChangesOid: "saved-main",
+	});
+});
+
+it("offers to restore saved work after returning to its branch, without automatically applying it", async () => {
+	savedChanges = [
+		{ oid: "saved-feature", branch: "feature/ui", createdAt: "2026-10-05" },
+	];
+	await open();
+	await menu();
+	click("branch-feature/ui");
+	await settle();
+	expect(writeBranch).toHaveBeenCalledTimes(1);
+	expect(root.renderer.getAllText()).toContain("Restore saved changes?");
+	click("confirm-branch-changes");
+	await settle();
+	expect(writeBranch).toHaveBeenCalledTimes(2);
+	expect(writeBranch.mock.calls[1]?.[1]).toMatchObject({
+		kind: "restore",
+		name: "feature/ui",
+		savedChangesOid: "saved-feature",
+	});
+});
+
+it("shows recovery errors after a failed bring without offering an unsafe retry", async () => {
+	snapshot = repositorySnapshot([changedFile("a.txt")]);
+	writeBranch.mockImplementationOnce(async () => ({
+		ok: false,
+		error: {
+			code: "conflict",
+			operation: "checkout-branch",
+			retryable: false,
+			message: "Resolve conflicts. The recovery backup is still in Stashes.",
+		},
+	}));
+	await open();
+	await menu();
+	click("branch-feature/ui");
+	await settle();
+	click("bring-branch-changes");
+	click("confirm-branch-changes");
+	await settle();
+	expect(root.renderer.findByTestId("confirm-branch-changes")).toBeUndefined();
+	expect(root.renderer.getAllText()).toContain(
+		"Resolve conflicts. The recovery backup is still in Stashes."
+	);
+	root.renderer.nativeSimulateKeyDown(element("workspace-menu").id, "escape");
+	await settle();
+	expect(root.renderer.getAllText()).toContain(
+		"Resolve conflicts. The recovery backup is still in Stashes."
+	);
+});
+
+it("locks branch and stash metadata across linked worktrees until all refreshed reads complete", async () => {
+	snapshot = repositorySnapshot([changedFile("a.txt")]);
+	const pending =
+		Promise.withResolvers<
+			Awaited<ReturnType<typeof RepositoryBranches.write>>
+		>();
+
+	writeBranch.mockImplementationOnce(() => pending.promise);
+	await open();
+	await menu();
+	await worktrees();
+	click("worktree-/test/linked");
+	await settle();
+	click("workspace-1");
+	await settle();
+	await menu();
+	click("branch-feature/ui");
+	await settle();
+	click("confirm-branch-changes");
+	await settle();
+	root.renderer.simulateKeystrokes("escape");
+	await settle();
+	click("close-workspace-1");
+	await settle();
+	expect(element("workspace-1")).toBeTruthy();
+	click("workspace-2");
+	await settle();
+	click("close-workspace-2");
+	await settle();
+	expect(element("workspace-2")).toBeTruthy();
+	click("workspace-2");
+	await settle();
+	click("create-branch");
+	await settle();
+	expect(root.renderer.findByTestId("branch-name")).toBeUndefined();
+	expect(writeBranch).toHaveBeenCalledTimes(1);
+	pending.resolve({ ok: true, value: { branches: collection(), snapshot } });
+	await settle();
+	await settle();
+	expect(readRepository.mock.calls.map(([path]) => path)).toEqual(
+		expect.arrayContaining(["/test/project", "/test/linked"])
+	);
+	root.renderer.simulateKeystrokes("escape");
+	await settle();
+	click("close-workspace-2");
+	await settle();
+	expect(root.renderer.findByTestId("workspace-2")).toBeUndefined();
 });
 
 it("retains failures inside the menu without losing the current branch", async () => {

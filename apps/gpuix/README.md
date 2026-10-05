@@ -467,15 +467,31 @@ delete protects unmerged work. Remote branches have no management actions.
 Upstream editing is not yet exposed.
 Up/Down moves through enabled rows, Enter activates, and Escape/outside-click dismisses the menu.
 Keyboard dismissal returns focus to the tab; Tab dismisses and continues traversal.
-Inside the worktree form, Tab moves between its controls instead of dismissing it.
+Inside worktree and branch-change forms, Tab moves between controls instead of dismissing them.
 This is not a port of the Electron liquid SVG morph.
 
 - Switch a local branch in this working directory, or explicitly create and
   switch to a new branch based on the current HEAD.
-- Branch changes require a clean tree and no ongoing Git operation. Fresh status
-  and HEAD/branch identity are checked before writing. No force checkout,
-  auto-stash, reset, or discard is used. Dirty-tree handling offers no automatic
-  resolution yet. Git also rejects branches checked out in another worktree.
+- Switching with uncommitted work opens two choices: **Leave changes on this branch**
+  saves tracked and untracked files in a Git stash, then switches clean; **Bring changes
+  with me** saves a recovery stash, switches, and restores the work (including the index).
+  Cancel/Escape writes nothing. Returning to a branch offers **Restore saved changes**;
+  the menu also exposes that action after restarting. Restoration is explicit and requires
+  a clean tree. Existing saved work on the destination is never silently combined with
+  brought changes. Multiple backups remain available in Stashes; the restore action selects
+  the newest matching backup.
+- Stash messages contain versioned branch/worktree metadata, so saved files and their
+  association persist together without app session storage. Other worktrees and unrelated
+  manual stashes are never restored or deleted by this flow. A backup is removed only after
+  successful application and a fresh status check. Failed checkout hooks, conflicts, failed
+  reads and cleanup failures keep recovery data in **Stashes**; review the actual branch and
+  files before retrying. Conflicts use the existing conflict-resolution UI.
+- Fresh status and HEAD/branch identity (including the identity reviewed in the prompt)
+  are checked before writing. No force checkout, reset or discard is used. In-progress
+  operations, unmerged files, dirty submodules, detached/unborn dirty HEADs, and branches
+  checked out in another worktree are refused. Creation, rename and delete still require
+  a clean tree. The whole switch/restore operation locks related worktrees against other
+  app writes and protects tab/window closure until refresh completes.
 - Existing worktrees open in separate tabs; an already-open canonical root reuses
   its tab. **New worktree…** creates a separate checkout on a new branch based on
   the current HEAD, or an existing local branch not already checked out. The editable

@@ -33,6 +33,11 @@ export class GitPlayground {
 		const compare = join(root, "02-compare");
 		const sync = join(root, "03-sync");
 		const conflict = join(root, "04-conflict");
+		const leave = join(root, "06-branch-leave");
+		const bring = join(root, "07-branch-bring");
+		const branchConflict = join(root, "08-branch-conflict");
+		const branchRemote = join(root, "09-branch-remote");
+		const branchExamples = [leave, bring, branchConflict];
 		const remote = join(root, "origin.git");
 		const peer = join(root, "remote-peer");
 
@@ -40,7 +45,13 @@ export class GitPlayground {
 			await mkdir(join(root, "empty-hooks"));
 			await mkdir(join(root, "empty-template"));
 
-			for (const path of [changes, compare, sync, conflict]) {
+			for (const path of [
+				changes,
+				compare,
+				sync,
+				conflict,
+				...branchExamples,
+			]) {
 				await mkdir(path);
 				await GitPlayground.git(
 					path,
@@ -58,6 +69,25 @@ export class GitPlayground {
 					"Hello from the common ancestor.\n"
 				);
 				await GitPlayground.commit(path, "Initial example");
+			}
+
+			for (const path of branchExamples) {
+				await GitPlayground.git(path, "switch", "-c", "feature/next");
+
+				if (path === branchConflict)
+					await writeFile(
+						join(path, "message.txt"),
+						"The destination branch changed this greeting.\n"
+					);
+				else
+					await writeFile(
+						join(path, "next-branch.txt"),
+						"This committed file exists only on feature/next.\n"
+					);
+
+				await GitPlayground.commit(path, "Prepare branch-switch destination");
+				await GitPlayground.git(path, "switch", "main");
+				await GitPlayground.dirtyBranch(path, path !== branchConflict);
 			}
 
 			await writeFile(
@@ -155,6 +185,15 @@ export class GitPlayground {
 			);
 			await GitPlayground.commit(peer, "Add remote-only branch");
 			await GitPlayground.git(peer, "push", "-u", "origin", "remote-only");
+			await GitPlayground.git(
+				root,
+				"clone",
+				`--template=${join(root, "empty-template")}`,
+				remote,
+				branchRemote
+			);
+			await GitPlayground.configure(branchRemote, root);
+			await GitPlayground.dirtyBranch(branchRemote, true);
 
 			await GitPlayground.git(conflict, "switch", "-c", "feature/greeting");
 			await writeFile(
@@ -248,6 +287,39 @@ export class GitPlayground {
 		await GitPlayground.git(path, "commit", "-m", message);
 	}
 
+	private static async dirtyBranch(
+		path: string,
+		stageTracked: boolean
+	): Promise<void> {
+		await writeFile(
+			join(path, "manual-stash.txt"),
+			"Unrelated saved work: branch switching must leave this stash alone.\n"
+		);
+		await GitPlayground.git(
+			path,
+			"stash",
+			"push",
+			"--include-untracked",
+			"-m",
+			"Manual stash — keep me"
+		);
+		await writeFile(
+			join(path, "message.txt"),
+			"This tracked edit is staged.\n"
+		);
+
+		if (stageTracked) await GitPlayground.git(path, "add", "message.txt");
+
+		await writeFile(
+			join(path, "message.txt"),
+			"My uncommitted branch-switch edits.\n"
+		);
+		await writeFile(
+			join(path, "untracked-note.txt"),
+			"This new file should be saved or brought along too.\n"
+		);
+	}
+
 	private static guide(root: string): string {
 		return `# 1git playground
 
@@ -294,6 +366,46 @@ Open ${join(root, "05-linked-worktree")}, linked to 02-compare.
 - Try branch creation, rename, deletion, and new worktree creation in 02-compare.
 - Remove the clean linked worktree from the main workspace; only that disposable folder is removed.
 
+## Leave changes and restore after returning
+
+Open ${join(root, "06-branch-leave")}
+- main already has a tracked file with staged + unstaged edits and an untracked-note.txt file.
+- Click the active workspace tab → feature/next → Leave changes on this branch → Switch branch.
+- Expect a clean working tree on feature/next; next-branch.txt appears.
+- Switch back to main. No changes should apply until you choose Restore changes.
+- Expect both edited files to return. The existing "Manual stash — keep me" must remain untouched.
+- To test Cancel/Escape, dismiss the first choice prompt: the branch and files must not change.
+- For restart recovery, leave the edits on main, quit/reopen the app, then return to main and restore.
+  You can also use Restore saved changes from the main branch menu after choosing Not now.
+
+## Bring changes without conflicts
+
+Open ${join(root, "07-branch-bring")}
+- Click the active workspace tab → feature/next → Bring changes with me → Switch branch.
+- Expect message.txt edits and untracked-note.txt to follow you; next-branch.txt is also present.
+- The recovery stash should be removed after success; "Manual stash — keep me" must remain.
+- No commit is created. Inspect the changes, then commit them on the destination if desired.
+
+## Bring changes with conflicts
+
+Open ${join(root, "08-branch-conflict")}
+- main has uncommitted edits to the same line that feature/next changed in its commit.
+- Choose feature/next → Bring changes with me → Switch branch.
+- Expect a conflict in message.txt on feature/next, a recovery message and the backup retained in Stashes.
+- Use the existing conflict-resolution UI, then commit the resolved work. Stash conflicts are not a
+  paused merge operation: there is no merge to Continue or Abort.
+- "Manual stash — keep me" must remain. Inspect the recovery backup before removing it manually;
+  applying it again after resolving can duplicate changes or conflict again.
+
+## Bring changes to a remote branch
+
+Open ${join(root, "09-branch-remote")}
+- This local clone starts dirty and already has origin/remote-only fetched.
+- Click the active workspace tab → origin/remote-only; confirm Create and switch.
+- Choose Bring changes with me. Expect a new local remote-only tracking branch with your edits,
+  untracked-note.txt and the committed remote-branch.txt file.
+- Only the manual stash should remain. The remote is the local origin.git; no account is required.
+
 ## Repeat / cleanup
 
 Run bun run playground from the 1git checkout for a fresh independent set.
@@ -310,7 +422,7 @@ if (import.meta.main) {
 		const root = await GitPlayground.create();
 
 		process.stdout.write(
-			`\nPlayground ready: ${root}\n\nStart with: ${join(root, "02-compare")}\nChecklist: ${join(root, "START-HERE.md")}\n\nOpen the repository folder in 1git. Run this command again for a fresh set.\n`
+			`\nPlayground ready: ${root}\n\nStart with: ${join(root, "02-compare")}\nLeave / restore: ${join(root, "06-branch-leave")}\nBring changes: ${join(root, "07-branch-bring")}\nBring conflicts: ${join(root, "08-branch-conflict")}\nRemote branch: ${join(root, "09-branch-remote")}\nChecklist: ${join(root, "START-HERE.md")}\n\nOpen the repository folder in 1git. Run this command again for a fresh set.\n`
 		);
 	} catch (error) {
 		process.stderr.write(

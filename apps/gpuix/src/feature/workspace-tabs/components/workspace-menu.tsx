@@ -17,6 +17,7 @@ import { workspaceLayout } from "../../../styles/workspace-layout";
 import { WorkspaceTabPreview } from "./workspace-tab";
 import { WorkspaceTabIcon } from "./workspace-tab-icon";
 import { WorkspaceWorktreeForm } from "./workspace-worktree-form";
+import { WorkspaceBranchChangesForm } from "./workspace-branch-changes-form";
 import type {
 	WorktreeChoice,
 	WorktreeRemoval,
@@ -224,6 +225,11 @@ export function WorkspaceMenu({
 		oid: string;
 	} | null>(null);
 
+	const [changesPrompt, setChangesPrompt] = useState<{
+		choice: Omit<BranchRequest, "expectedHead" | "expectedBranch">;
+		destination: string;
+	} | null>(null);
+
 	const [creatingWorktree, setCreatingWorktree] = useState(false);
 
 	const [removingWorktree, setRemovingWorktree] =
@@ -256,6 +262,7 @@ export function WorkspaceMenu({
 		!busy &&
 		data !== null &&
 		!creating &&
+		!changesPrompt &&
 		!creatingWorktree &&
 		!removingWorktree &&
 		!publishing;
@@ -273,12 +280,18 @@ export function WorkspaceMenu({
 	const showFetch = !!onFetch && !!onCancelSync;
 	const showSync = !!onSync && !!onCancelSync;
 
-	const blocked =
-		tab.workspace.entries.changes.length > 0 ||
+	const dirty = tab.workspace.entries.changes.length > 0;
+
+	const switchBlocked =
 		repository?.operation !== "normal" ||
+		tab.workspace.entries.changes.some(
+			(entry) => entry.change?.recordType === "unmerged"
+		) ||
 		tab.workspace.commit.needsReview ||
 		!!tab.workspace.error ||
 		tab.workspace.loading;
+
+	const blocked = dirty || switchBlocked;
 
 	useEffect(() => {
 		mounted.current = true;
@@ -344,6 +357,11 @@ export function WorkspaceMenu({
 	);
 
 	const canCreate = !busy && !blocked && data !== null;
+
+	const savedChanges =
+		data?.savedChanges?.filter((item) => item.branch === branch) ?? [];
+
+	const canRestore = !busy && !blocked && savedChanges.length > 0;
 	const canCompare = !busy && !!head && data !== null;
 
 	const canCreateWorktree =
@@ -458,7 +476,7 @@ export function WorkspaceMenu({
 			(item) =>
 				!busy &&
 				((item.type === "local" && item.name === branch) ||
-					(!blocked &&
+					(!switchBlocked &&
 						!item.worktreePath &&
 						!(
 							item.type === "remote" &&
@@ -469,6 +487,8 @@ export function WorkspaceMenu({
 		.map(
 			(item) => `branch-${item.type === "remote" ? item.fullName : item.name}`
 		);
+
+	if (canRestore) enabledIds.push("restore-branch-changes");
 
 	if (!busy && hasMore) enabledIds.push("more-branches");
 
@@ -516,27 +536,32 @@ export function WorkspaceMenu({
 		(busy && !syncKind ? "Updating workspace…" : null);
 
 	// Fixed header/action rows surround a scrollable list; the expanded menu stays inside the window.
-	const contentHeight = removingWorktree
-		? 230
-		: creatingWorktree
-			? worktreeFormHeight
-			: creating
-				? createFormHeight
-				: publishing
-					? menuPadding * 2 +
-						headerHeight +
-						separatorHeight * 2 +
-						rowHeight * ((data?.remotes.length ?? 0) + 1)
-					: menuPadding * 2 +
-						headerHeight +
-						separatorHeight * 2 +
-						rowHeight +
-						(onCreateWorktree ? rowHeight : 0) +
-						(showFetch ? separatorHeight + rowHeight : 0) +
-						(showSync ? rowHeight * 2 : 0) +
-						Math.max(1, visibleBranches.length) * rowHeight +
-						(hasMore ? rowHeight : 0) +
-						rowHeight;
+	const contentHeight = changesPrompt
+		? changesPrompt.choice.kind === "restore"
+			? 164
+			: 300
+		: removingWorktree
+			? 230
+			: creatingWorktree
+				? worktreeFormHeight
+				: creating
+					? createFormHeight
+					: publishing
+						? menuPadding * 2 +
+							headerHeight +
+							separatorHeight * 2 +
+							rowHeight * ((data?.remotes.length ?? 0) + 1)
+						: menuPadding * 2 +
+							headerHeight +
+							separatorHeight * 2 +
+							rowHeight +
+							(savedChanges.length ? rowHeight : 0) +
+							(onCreateWorktree ? rowHeight : 0) +
+							(showFetch ? separatorHeight + rowHeight : 0) +
+							(showSync ? rowHeight * 2 : 0) +
+							Math.max(1, visibleBranches.length) * rowHeight +
+							(hasMore ? rowHeight : 0) +
+							rowHeight;
 
 	const menuHeight = Math.min(
 		expanded ? maxExpandedMenuHeight : maxMenuHeight,
@@ -552,6 +577,7 @@ export function WorkspaceMenu({
 		setCreating(false);
 		setRemoteBranch(null);
 		setBranchAction(null);
+		setChangesPrompt(null);
 		setCreatingWorktree(false);
 		setRemovingWorktree(null);
 		setPublishing(false);
@@ -581,7 +607,10 @@ export function WorkspaceMenu({
 	};
 
 	const onKeyDown = (event: EventPayload): void => {
-		if ((creatingWorktree || removingWorktree) && event.key !== "escape")
+		if (
+			(creatingWorktree || removingWorktree || changesPrompt) &&
+			event.key !== "escape"
+		)
 			return;
 
 		const focused = renderer.getFocusedElementId?.();
@@ -608,7 +637,11 @@ export function WorkspaceMenu({
 		if (event.key === "escape" || event.key === "tab") {
 			if (
 				event.key === "escape" &&
-				(creating || publishing || creatingWorktree || removingWorktree) &&
+				(creating ||
+					publishing ||
+					creatingWorktree ||
+					removingWorktree ||
+					changesPrompt) &&
 				!busy
 			)
 				showActions();
@@ -617,7 +650,12 @@ export function WorkspaceMenu({
 			return;
 		}
 
-		if (creating || (event.key !== "down" && event.key !== "up")) return;
+		if (
+			creating ||
+			changesPrompt ||
+			(event.key !== "down" && event.key !== "up")
+		)
+			return;
 
 		const activeIds = inWorktrees ? worktreeIds : enabledIds;
 
@@ -673,12 +711,52 @@ export function WorkspaceMenu({
 		}
 	};
 
-	const change = async (name: string): Promise<void> => {
-		if (busy || blocked || !name.trim()) return;
+	const submitBranch = async (
+		choice: Omit<BranchRequest, "expectedHead" | "expectedBranch">,
+		destination: string
+	): Promise<void> => {
+		if (busy || switchBlocked) return;
 
 		setError(null);
-		const message = await onChangeBranch(
-			tab.id,
+		const message = await onChangeBranch(tab.id, choice);
+
+		if (!mounted.current) return;
+
+		if (message) {
+			setError(message);
+			// After a failed apply, never offer to run the checkout again over partially restored work.
+			setChangesPrompt(null);
+			setCreating(false);
+			setRemoteBranch(null);
+		} else {
+			const saved =
+				choice.kind !== "restore" &&
+				data?.savedChanges?.find((item) => item.branch === destination);
+
+			if (saved && choice.changes !== "bring") {
+				setCreating(false);
+				setChangesPrompt({
+					destination,
+					choice: {
+						kind: "restore",
+						name: destination,
+						savedChangesOid: saved.oid,
+					},
+				});
+			} else onClose();
+		}
+	};
+
+	const change = async (name: string): Promise<void> => {
+		if (
+			busy ||
+			switchBlocked ||
+			!name.trim() ||
+			(blocked && (branchAction || (creating && !remoteBranch)))
+		)
+			return;
+
+		const choice: Omit<BranchRequest, "expectedHead" | "expectedBranch"> =
 			branchAction
 				? {
 						kind: branchAction.kind,
@@ -689,13 +767,22 @@ export function WorkspaceMenu({
 				: {
 						kind: remoteBranch ? "remote" : creating ? "create" : "switch",
 						name: remoteBranch ?? name.trim(),
-					}
-		);
+					};
 
-		if (!mounted.current) return;
+		if (dirty) {
+			closeWorktrees();
+			setChangesPrompt({
+				destination: name.trim(),
+				choice: {
+					...choice,
+					reviewedSource: { head: head ?? null, branch: branch ?? null },
+				},
+			});
 
-		if (message) setError(message);
-		else onClose();
+			return;
+		}
+
+		await submitBranch(choice, name.trim());
 	};
 
 	const synchronize = (kind: "pull" | "push"): void => {
@@ -821,7 +908,29 @@ export function WorkspaceMenu({
 					animate={{ height: menuHeight, opacity: 1 }}
 					transition={{ duration: 0.16, ease: "easeOut" }}
 				>
-					{removingWorktree && onRemoveWorktree ? (
+					{changesPrompt ? (
+						<WorkspaceBranchChangesForm
+							key={`${changesPrompt.choice.kind}:${changesPrompt.destination}`}
+							name={changesPrompt.destination}
+							source={
+								changesPrompt.choice.reviewedSource?.branch ??
+								branch ??
+								"this branch"
+							}
+							restore={changesPrompt.choice.kind === "restore"}
+							busy={busy}
+							onCancel={showActions}
+							onConfirm={(changes) => {
+								void submitBranch(
+									{
+										...changesPrompt.choice,
+										...(changesPrompt.choice.kind !== "restore" && { changes }),
+									},
+									changesPrompt.destination
+								);
+							}}
+						/>
+					) : removingWorktree && onRemoveWorktree ? (
 						<div style={{ ...styles.form, minHeight: 0, overflowY: "scroll" }}>
 							<Text tokens={appTokens} style={styles.heading}>
 								Remove worktree?
@@ -940,7 +1049,10 @@ export function WorkspaceMenu({
 									testId="create-branch"
 									tokens={appTokens}
 									size="sm"
-									disabled={!canCreate || !name.trim()}
+									disabled={
+										(remoteBranch ? busy || switchBlocked : !canCreate) ||
+										!name.trim()
+									}
 									onPress={() => {
 										void change(name);
 									}}
@@ -1104,7 +1216,7 @@ export function WorkspaceMenu({
 											disabled={
 												busy ||
 												!!target?.error ||
-												(!current && (blocked || !!item.worktreePath))
+												(!current && (switchBlocked || !!item.worktreePath))
 											}
 											aria-label={`${item.name}${current ? ", current branch" : ""}`}
 											aria-description={
@@ -1376,6 +1488,39 @@ export function WorkspaceMenu({
 								) : null}
 							</div>
 							<div style={styles.separator} />
+							{savedChanges.length ? (
+								<Button
+									testId="restore-branch-changes"
+									ref={(node) => {
+										if (node) rows.current.set("restore-branch-changes", node);
+										else rows.current.delete("restore-branch-changes");
+									}}
+									tokens={appTokens}
+									variant="ghost"
+									size="sm"
+									style={styles.row}
+									disabled={!canRestore}
+									onPress={() => {
+										const saved = savedChanges[0];
+
+										if (saved && branch)
+											setChangesPrompt({
+												destination: branch,
+												choice: {
+													kind: "restore",
+													name: branch,
+													savedChangesOid: saved.oid,
+													reviewedSource: { head: head ?? null, branch },
+												},
+											});
+									}}
+								>
+									<WorkspaceTabIcon name="branch" />
+									<Text tokens={appTokens} style={styles.label}>
+										Restore saved changes…
+									</Text>
+								</Button>
+							) : null}
 							<Button
 								testId="create-branch"
 								ref={(node) => {

@@ -30,6 +30,13 @@ Open the printed `02-compare` path in the desktop app to try branch comparison.
 The generated `START-HERE.md` includes a checklist for changes, previews, commits,
 history, stashes, worktrees, local fetch/pull/push and merge-conflict recovery.
 
+Ready-made dirty repositories also cover branch switching: `06-branch-leave`
+(leave changes, return and restore, including after restart), `07-branch-bring`
+(bring changes successfully), `08-branch-conflict` (bring changes with a recoverable
+conflict), and `09-branch-remote` (bring changes to a remote tracking branch using
+the local remote). Each includes an unrelated manual stash to verify it is left
+untouched; no setup edits or hosting account are required.
+
 Every run creates a new folder and preserves older playgrounds. Once finished,
 close their app tabs and move the generated folder to Trash. Do not keep real work
 there: the operating system may clean temporary storage.
