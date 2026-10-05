@@ -11,6 +11,9 @@ import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
 import { useEffect, useRef, useState } from "react";
 
 import { appTokens } from "../../../styles/tokens";
+import { RepositoryLastCommit } from "./repository-last-commit";
+import type { CommitRecoveryInput } from "@1git/git";
+import type { RepositoryCommit as CommitReader } from "../lib/repository-commit";
 import {
 	RepositoryWorkspaceModel,
 	type RepositoryWorkspaceAction,
@@ -24,7 +27,6 @@ const styles = StyleSheet.create({
 		display: "flex",
 		flexDirection: "column",
 		flexShrink: 0,
-		paddingBottom: spacing[2.5],
 		gap: spacing[1.5],
 		borderTopWidth: 1,
 		borderColor: lightColors.editorHairline,
@@ -46,6 +48,7 @@ const styles = StyleSheet.create({
 		paddingRight: spacing[2.5],
 		flexShrink: 0,
 		height: 24,
+		marginBottom: spacing[2.5],
 	},
 	buttons: {
 		display: "flex",
@@ -77,12 +80,16 @@ export function RepositoryCommit({
 	onCommit,
 	onSync,
 	onCancelSync,
+	onUndo,
+	readLast,
 }: {
 	state: RepositoryWorkspaceState;
 	onAction: (action: RepositoryWorkspaceAction) => void;
 	onCommit?: () => void;
 	onSync?: () => void;
 	onCancelSync?: () => void;
+	onUndo?: (input: CommitRecoveryInput) => Promise<string | null>;
+	readLast?: typeof CommitReader.readLast;
 }) {
 	const [previewed, setPreviewed] = useState(false);
 
@@ -318,6 +325,13 @@ export function RepositoryCommit({
 						</text>
 					) : null}
 				</div>
+			) : null}
+			{!sample ? (
+				<RepositoryLastCommit
+					state={state}
+					onUndo={onUndo}
+					readLast={readLast}
+				/>
 			) : null}
 		</div>
 	);

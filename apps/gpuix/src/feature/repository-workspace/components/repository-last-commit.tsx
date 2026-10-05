@@ -1,0 +1,167 @@
+import { spacing, typography, lightColors } from "@1git/design-tokens";
+import { Button } from "@1git/gpuix-ui/button";
+import type { CommitRecoveryInput } from "@1git/git";
+import { useEffect, useState } from "react";
+import { appTokens } from "../../../styles/tokens";
+import { WorkspaceMenuModel } from "../../workspace-tabs/lib/workspace-menu-model";
+import { RepositoryCommit, type LastCommit } from "../lib/repository-commit";
+import {
+	RepositoryWorkspaceModel,
+	type RepositoryWorkspaceState,
+} from "../lib/repository-workspace-model";
+
+/** Pinned last-commit summary with a direct, backend-revalidated undo action. */
+export function RepositoryLastCommit({
+	state,
+	onUndo,
+	readLast = RepositoryCommit.readLast,
+}: {
+	state: RepositoryWorkspaceState;
+	onUndo?: (input: CommitRecoveryInput) => Promise<string | null>;
+	readLast?: typeof RepositoryCommit.readLast;
+}) {
+	const root = state.repository?.root;
+	const head = state.repository?.head;
+	const branch = state.repository?.branchName;
+
+	const key = JSON.stringify([
+		root,
+		head,
+		branch,
+		state.repository?.operation,
+		state.sync.version,
+	]);
+
+	const [result, setResult] = useState<{
+		key: string;
+		value?: LastCommit;
+		error?: string;
+	} | null>(null);
+
+	const [retry, setRetry] = useState(0);
+	const current = result?.key === key ? result : null;
+	const busy = RepositoryWorkspaceModel.isBusy(state);
+
+	useEffect(() => {
+		if (!root || !head || !branch) return;
+
+		const controller = new AbortController();
+
+		const load = async () => {
+			try {
+				const loaded = await readLast(root, {
+					expectedHead: head,
+					expectedBranch: branch,
+					signal: controller.signal,
+				});
+
+				if (controller.signal.aborted) return;
+
+				setResult(
+					loaded.ok
+						? { key, value: loaded.value }
+						: { key, error: loaded.error.message }
+				);
+			} catch (cause) {
+				if (!controller.signal.aborted)
+					setResult({
+						key,
+						error:
+							cause instanceof Error
+								? cause.message
+								: "Could not read the last commit.",
+					});
+			}
+		};
+
+		void load();
+
+		return () => controller.abort();
+	}, [root, head, branch, key, retry, readLast]);
+
+	if (!root || !head || !branch) return null;
+
+	const last = current?.value;
+	const age = last ? WorkspaceMenuModel.commitAge(last.commit.committedAt) : "";
+
+	const disabled =
+		!last ||
+		!!last.undoUnavailableReason ||
+		!onUndo ||
+		!RepositoryWorkspaceModel.canRecoverCommit(state);
+
+	return (
+		<div
+			testId="last-commit-footer"
+			style={{
+				display: "flex",
+				flexDirection: "row",
+				alignItems: "center",
+				gap: spacing[2],
+				flexShrink: 0,
+				minHeight: 48,
+				padding: spacing[2.5],
+				borderTopWidth: 1,
+				borderColor: lightColors.editorHairline,
+			}}
+		>
+			<div
+				style={{
+					display: "flex",
+					flexDirection: "column",
+					gap: spacing[0.5],
+					flexGrow: 1,
+					flexShrink: 1,
+					minWidth: 0,
+					overflow: "hidden",
+				}}
+			>
+				<text style={{ ...typography.xs, color: appTokens.colors.textMuted }}>
+					{last
+						? `Committed${age ? ` ${age}` : ""}`
+						: current?.error
+							? "Could not read last commit"
+							: "Last commit"}
+				</text>
+				<text
+					testId="last-commit-summary"
+					style={{
+						...typography.sm,
+						textOverflow: "ellipsis",
+						whiteSpace: "nowrap",
+						overflow: "hidden",
+					}}
+				>
+					{last?.commit.summary ?? current?.error ?? ""}
+				</text>
+			</div>
+			<Button
+				testId="commit-undo"
+				aria-label={
+					current?.error ? "Retry reading last commit" : "Undo last commit"
+				}
+				aria-description={
+					last?.undoUnavailableReason ??
+					"Keep your files and existing changes, and restore the last commit message when the draft is empty."
+				}
+				variant="secondary"
+				size="sm"
+				tokens={appTokens}
+				disabled={current?.error ? busy : disabled}
+				onPress={() => {
+					if (current?.error) {
+						setRetry((value) => value + 1);
+
+						return;
+					}
+
+					if (disabled) return;
+
+					void onUndo?.({ expectedHead: head, expectedBranch: branch });
+				}}
+			>
+				{current?.error ? "Retry" : "Undo"}
+			</Button>
+		</div>
+	);
+}

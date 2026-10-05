@@ -1,5 +1,5 @@
 /**
- * Covers: checked-file commits, combined Sync controls, duplicate prevention, draft/error retention and refresh.
+ * Covers: checked-file commits, last-commit undo, combined Sync controls, duplicate prevention, draft/error retention and refresh.
  * Real: App, reducers, hooks and native GPUIX events/layout.
  * Doubles: Git reads/writes and folder picker; no live repository mutations.
  * Requires: patched GPUIX renderer with macOS graphics access.
@@ -54,8 +54,10 @@ const click = (id: string): void => {
 };
 
 const settle = async (): Promise<void> => {
-	await Bun.sleep(0);
-	root.renderer.flush();
+	for (let index = 0; index < 5; index++) {
+		await Bun.sleep(0);
+		root.renderer.flush();
+	}
 };
 
 const message = (keys = "f i x"): void => {
@@ -68,6 +70,151 @@ const snapshot = () =>
 	repositorySnapshot([changedFile("a.ts"), changedFile("b.ts")]);
 
 const readRepository = async () => ({ ok: true as const, value: snapshot() });
+
+const lastCommit: Extract<
+	Awaited<ReturnType<typeof RepositoryCommit.readLast>>,
+	{ ok: true }
+> = {
+	ok: true,
+	value: {
+		undoUnavailableReason: null,
+		commit: {
+			oid: snapshot().head.oid ?? "",
+			summary: "Original",
+			body: "Original\n\nDetails",
+			parentOids: ["b".repeat(40)],
+			author: { name: "Test", email: "test@example.com" },
+			committer: { name: "Test", email: "test@example.com" },
+			authoredAt: "2026-10-05T10:00:00Z",
+			committedAt: "2026-10-05T10:00:00Z",
+		},
+	},
+};
+
+it("pins the last commit below the composer with a right-aligned Undo and no menu or amend", async () => {
+	const readLast = mock<typeof RepositoryCommit.readLast>(
+		async () => lastCommit
+	);
+
+	root.render(
+		<App readRepository={readRepository} readLastCommit={readLast} />
+	);
+	await open();
+	await settle();
+	expect(root.renderer.getAllText().join(" ")).toContain("Committed");
+	expect(root.renderer.getAllText()).toContain("Original");
+	expect(root.renderer.findByTestId("commit-actions")).toBeUndefined();
+	expect(root.renderer.getAllText().join(" ")).not.toContain("Amend");
+	const footer = root.renderer.getElementBounds(node("last-commit-footer").id)!;
+	const undo = root.renderer.getElementBounds(node("commit-undo").id)!;
+
+	const summary = root.renderer.getElementBounds(
+		node("last-commit-summary").id
+	)!;
+
+	const submit = root.renderer.getElementBounds(node("commit-submit").id)!;
+
+	expect(footer.y).toBeGreaterThan(submit.y + submit.height);
+	expect(undo.x).toBeGreaterThan(summary.x + summary.width);
+	expect(footer.y + footer.height).toBeLessThanOrEqual(640);
+	const count = readLast.mock.calls.length;
+
+	message("d r a f t");
+	click("include-b.ts");
+	expect(readLast.mock.calls.length).toBe(count);
+	const screenshot = process.env.GPUIX_UNDO_SCREENSHOT;
+
+	if (screenshot) root.renderer.captureScreenshot(screenshot);
+});
+
+it("undoes directly once, blocks duplicate writes/closing and restores the old message", async () => {
+	const pendingUndo =
+		Promise.withResolvers<Awaited<ReturnType<typeof RepositoryCommit.undo>>>();
+
+	const undo = mock<typeof RepositoryCommit.undo>(() => pendingUndo.promise);
+
+	root.render(
+		<App
+			readRepository={readRepository}
+			readLastCommit={async () => lastCommit}
+			undoCommit={undo}
+		/>
+	);
+	await open();
+	await settle();
+	root.renderer.nativeSimulateKeyDown(node("commit-undo").id, "enter");
+	root.renderer.flush();
+	click("commit-undo");
+	root.renderer.nativeSimulateKeyDown(node("commit-message").id, "cmd-w");
+	root.renderer.flush();
+	expect(node("commit-message")).toBeDefined();
+	expect(undo).toHaveBeenCalledTimes(1);
+	expect(undo.mock.calls[0]?.[1]).toEqual({
+		expectedHead: snapshot().head.oid ?? "",
+		expectedBranch: "main",
+	});
+	pendingUndo.resolve({
+		ok: true,
+		value: {
+			snapshot: repositorySnapshot([changedFile("undone.ts")]),
+			message: "Original\n\nDetails",
+			recoveryRef: "refs/1git/undo/test",
+			warning: null,
+		},
+	});
+	await settle();
+	await settle();
+	expect(node("commit-message").customProps?.value).toBe("Original\n\nDetails");
+	expect(node("entry-undone.ts")).toBeDefined();
+});
+
+it("shows published commit metadata without allowing Undo and preserves an existing draft", async () => {
+	const undo = mock<typeof RepositoryCommit.undo>(async () => ({
+		ok: true,
+		value: {
+			snapshot: repositorySnapshot(),
+			message: "Original",
+			recoveryRef: "refs/1git/undo/test",
+			warning: null,
+		},
+	}));
+
+	const published = async (): ReturnType<typeof RepositoryCommit.readLast> => ({
+		ok: true,
+		value: {
+			...lastCommit.value,
+			undoUnavailableReason: "Already published",
+		},
+	});
+
+	root.render(
+		<App
+			readRepository={readRepository}
+			readLastCommit={published}
+			undoCommit={undo}
+		/>
+	);
+	await open();
+	await settle();
+	message("d r a f t");
+	expect(root.renderer.getAllText()).toContain("Original");
+	expect(node("commit-undo").style.opacity).toBe(0.45);
+	click("commit-undo");
+	expect(undo).not.toHaveBeenCalled();
+	root.render(
+		<App
+			readRepository={readRepository}
+			readLastCommit={async () => lastCommit}
+			undoCommit={undo}
+		/>
+	);
+	await settle();
+	click("commit-undo");
+	await settle();
+	await settle();
+	expect(undo).toHaveBeenCalledTimes(1);
+	expect(node("commit-message").customProps?.value).toBe("draft");
+});
 
 it("opens and refreshes a repository with Command O and R", async () => {
 	const read = mock(readRepository);

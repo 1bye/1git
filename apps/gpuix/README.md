@@ -636,6 +636,20 @@ the Turbo build/dev tasks build dependencies first. No Electron IPC is involved.
 
 ## Committing selected files
 
+- A pinned footer below the composer shows the last commit's age and summary, with
+  **Undo** on the right. Its metadata refreshes when the tip/branch changes or Sync
+  finishes, without network requests or reads on draft edits. Published
+  commits reachable from locally known remote-tracking refs, detached/unborn HEADs,
+  merge commits and active operations are refused. Remote knowledge can be stale:
+  Fetch first when another tool/device may have pushed. Final writes recheck branch
+  identity and remote reachability; no force push or automatic history rewrite occurs.
+- Undo is a direct action. It atomically moves the reviewed branch to its parent
+  (or makes it unborn for its first commit), without changing index or working files.
+  Existing drafts and checkbox exclusions survive; an empty draft receives the old
+  full commit message. The old commit is retained under `refs/1git/undo/<id>` for manual
+  recovery with external Git. These private refs are not pushed by normal Sync.
+- Undo shares close protection and the write lock across related worktrees.
+
 - Write a first-line summary, with optional details after a blank line, then use
   **Commit N files** or **Command+Enter**. The commit uses the checked files' current
   whole-file contents, even when some edits were prepared in another Git tool.

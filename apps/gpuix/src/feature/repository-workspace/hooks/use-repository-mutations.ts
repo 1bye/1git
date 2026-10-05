@@ -20,7 +20,11 @@ import {
 	RepositoryFileActions,
 	type FileDiscardRequest,
 } from "../lib/repository-file-actions";
-import type { FinishOperationInput, RepositorySnapshot } from "@1git/git";
+import type {
+	FinishOperationInput,
+	RepositorySnapshot,
+	CommitRecoveryInput,
+} from "@1git/git";
 import { useCloseProtection } from "./use-close-protection";
 import {
 	RepositoryStashes,
@@ -53,7 +57,8 @@ export function useRepositoryMutations(
 	writeOperation = RepositoryOperation.write,
 	discardFile = RepositoryFileActions.discard,
 	writeWorktree = RepositoryWorktrees.create,
-	removeWorktree = RepositoryWorktrees.remove
+	removeWorktree = RepositoryWorktrees.remove,
+	undoCommit = RepositoryCommit.undo
 ) {
 	const closeProtection = useCloseProtection(
 		state.tabs.some((tab) => RepositoryWorkspaceModel.isBusy(tab.workspace)),
@@ -127,20 +132,49 @@ export function useRepositoryMutations(
 		};
 	}, []);
 
-	const commit = async (id: string): Promise<void> => {
+	const commit = async (
+		id: string,
+		undo?: CommitRecoveryInput
+	): Promise<string | null> => {
 		const workspace = tabs.current.find((tab) => tab.id === id)?.workspace;
 		const repository = workspace?.repository;
 
 		if (
 			!workspace ||
 			!repository ||
-			!RepositoryWorkspaceModel.canCommit(workspace) ||
+			!(undo
+				? RepositoryWorkspaceModel.canRecoverCommit(workspace)
+				: RepositoryWorkspaceModel.canCommit(workspace)) ||
 			sharedWrites.current.has(repository.commonDirectory) ||
 			pending.current.has(repository.root) ||
 			stashWrites.current.has(repository.commonDirectory) ||
 			syncs.current.has(repository.commonDirectory)
 		)
-			return;
+			return "Wait for the current operation or refresh before continuing.";
+
+		const related = () =>
+			tabs.current.filter(
+				(tab) =>
+					tab.workspace.repository?.commonDirectory ===
+					repository.commonDirectory
+			);
+
+		if (
+			related().some(
+				(tab) =>
+					tab.workspace.loading ||
+					RepositoryWorkspaceModel.isBusy(tab.workspace) ||
+					pending.current.has(tab.workspace.repository?.root ?? "")
+			)
+		)
+			return "Wait for the current operation in this repository.";
+
+		if (
+			undo &&
+			(undo.expectedHead !== repository.head ||
+				undo.expectedBranch !== repository.branchName)
+		)
+			return "The last commit changed. Refresh and review it again.";
 
 		const root = repository.root;
 		const submittedMessage = workspace.commitMessage;
@@ -158,7 +192,8 @@ export function useRepositoryMutations(
 								? {
 										...action,
 										submittedMessage:
-											tab.id === id ? submittedMessage : undefined,
+											tab.id === id && !undo ? submittedMessage : undefined,
+										undoMessage: tab.id === id ? action.undoMessage : undefined,
 									}
 								: action,
 					});
@@ -166,38 +201,128 @@ export function useRepositoryMutations(
 		};
 
 		pending.current.set(root, "commit-started");
+		sharedWrites.current.add(repository.commonDirectory);
 		closeProtection.block();
 		send({ type: "commit-started" });
 
-		try {
-			const result = await writeCommit(root, {
-				includePartialStaging: true,
-				paths: workspace.includedFileIds,
-				message: submittedMessage,
-				expectedHead: repository.head,
-				expectedBranch: repository.branchName,
-			});
+		for (const tab of related())
+			if (tab.workspace.repository?.root !== root)
+				dispatch({
+					type: "workspace",
+					id: tab.id,
+					action: { type: "operation-started" },
+				});
 
-			pending.current.delete(root);
-			send(
-				result.ok
-					? { type: "commit-finished", result: result.value }
-					: {
-							type: "commit-failed",
-							message: [result.error.message, result.error.details]
-								.filter(Boolean)
-								.join("\n"),
+		let error: string | null = null;
+		let finishedAction: RepositoryWorkspaceAction;
+
+		try {
+			const undone = undo ? await undoCommit(root, undo) : null;
+
+			const result = undone
+				? undone.ok
+					? {
+							ok: true as const,
+							value: {
+								outcome: "committed" as const,
+								oid: undone.value.snapshot?.head.oid ?? null,
+								snapshot: undone.value.snapshot,
+								warning: undone.value.warning,
+							},
 						}
-			);
+					: undone
+				: await writeCommit(root, {
+						includePartialStaging: true,
+						paths: workspace.includedFileIds,
+						message: submittedMessage,
+						expectedHead: repository.head,
+						expectedBranch: repository.branchName,
+					});
+
+			if (!result.ok)
+				error = [result.error.message, result.error.details]
+					.filter(Boolean)
+					.join("\n");
+
+			finishedAction = result.ok
+				? {
+						type: "commit-finished",
+						result: result.value,
+						undoMessage: undone?.ok ? undone.value.message : undefined,
+					}
+				: {
+						type: "commit-failed",
+						message: [result.error.message, result.error.details]
+							.filter(Boolean)
+							.join("\n"),
+						uncertain: !!undo,
+					};
 		} catch {
-			pending.current.delete(root);
-			send({
+			error =
+				"Could not confirm the commit action. Refresh and inspect History before trying again.";
+			finishedAction = {
 				type: "commit-failed",
 				uncertain: true,
 				message:
 					"Could not confirm the commit outcome. Refresh and inspect History before trying again. Your message has been kept.",
-			});
+			};
+		} finally {
+			// Shared refs can affect every linked worktree, even after a failed write.
+			const refreshedWorktrees = new Map<string, RepositoryWorkspaceAction>();
+
+			await Promise.all(
+				[
+					...new Set(related().map((tab) => tab.workspace.repository?.root)),
+				].map(async (otherRoot) => {
+					if (!otherRoot || otherRoot === root) return;
+
+					let action: RepositoryWorkspaceAction;
+
+					try {
+						const fresh = await readRepository(
+							otherRoot,
+							new AbortController().signal
+						);
+
+						action = fresh.ok
+							? {
+									type: "operation-finished",
+									snapshot: fresh.value,
+									error: null,
+								}
+							: {
+									type: "operation-finished",
+									error: null,
+									refreshError: fresh.error.message,
+								};
+					} catch {
+						action = {
+							type: "operation-finished",
+							error: null,
+							refreshError:
+								"Refresh to confirm this worktree after the commit action.",
+						};
+					}
+
+					refreshedWorktrees.set(otherRoot, action);
+				})
+			);
+			pending.current.delete(root);
+			sharedWrites.current.delete(repository.commonDirectory);
+
+			if (mounted.current)
+				for (const tab of related()) {
+					const action = refreshedWorktrees.get(
+						tab.workspace.repository?.root ?? ""
+					);
+
+					if (action) dispatch({ type: "workspace", id: tab.id, action });
+				}
 		}
+
+		send(finishedAction);
+
+		return error;
 	};
 
 	const changeBranch = async (
@@ -951,6 +1076,7 @@ export function useRepositoryMutations(
 		closeProtection,
 		stash,
 		commit,
+		undoCommit: (id: string, input: CommitRecoveryInput) => commit(id, input),
 		changeBranch,
 		createWorktree: (id: string, choice: WorktreeChoice) =>
 			mutateWorktree(id, choice),

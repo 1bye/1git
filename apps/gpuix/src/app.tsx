@@ -80,6 +80,8 @@ export function App({
 	readStashes = RepositoryStashes.read,
 	readStashFiles = RepositoryStashes.readFiles,
 	writeCommit = RepositoryCommit.write,
+	readLastCommit = RepositoryCommit.readLast,
+	undoCommit = RepositoryCommit.undo,
 	readBranches = RepositoryBranches.read,
 	writeBranch = RepositoryBranches.write,
 	writeWorktree = RepositoryWorktrees.create,
@@ -110,6 +112,8 @@ export function App({
 	readStashes?: typeof RepositoryStashes.read;
 	readStashFiles?: typeof RepositoryStashes.readFiles;
 	writeCommit?: typeof RepositoryCommit.write;
+	readLastCommit?: typeof RepositoryCommit.readLast;
+	undoCommit?: typeof RepositoryCommit.undo;
 	readBranches?: typeof RepositoryBranches.read;
 	writeBranch?: typeof RepositoryBranches.write;
 	writeWorktree?: typeof RepositoryWorktrees.create;
@@ -200,7 +204,8 @@ export function App({
 		writeOperation,
 		discardFile,
 		writeWorktree,
-		removeWorktree
+		removeWorktree,
+		undoCommit
 	);
 
 	useRepositoryAutoRefresh(state, dispatch, readRepository, watchRepository);
@@ -479,6 +484,10 @@ export function App({
 								onCommit={() => {
 									void mutations.commit(activeTab.id);
 								}}
+								onUndoCommit={(input) =>
+									mutations.undoCommit(activeTab.id, input)
+								}
+								readLastCommit={readLastCommit}
 								onStash={(request) => mutations.stash(activeTab.id, request)}
 								onSync={() => {
 									void mutations.synchronize(activeTab.id, { kind: "sync" });

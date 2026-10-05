@@ -20,6 +20,7 @@ import { promisify } from "node:util";
 import { RepositorySync } from "../../src/feature/repository-workspace/lib/repository-sync";
 import { RepositoryBranches } from "../../src/feature/workspace-tabs/lib/repository-branches";
 import { RepositoryReader } from "../../src/feature/repository-workspace/lib/repository-reader";
+import { RepositoryCommit } from "../../src/feature/repository-workspace/lib/repository-commit";
 import type { SyncChoice } from "../../src/feature/repository-workspace/lib/repository-sync";
 
 const execute = promisify(execFile);
@@ -74,6 +75,29 @@ beforeEach(async () => {
 
 afterEach(async () => {
 	await rm(sandbox, { recursive: true, force: true });
+});
+
+it("keeps published last-commit metadata visible while disabling undo, then allows a local tip", async () => {
+	const readLast = async () =>
+		await RepositoryCommit.readLast(repository, {
+			expectedHead: await git(repository, "rev-parse", "HEAD"),
+			expectedBranch: "main",
+		});
+
+	const published = await readLast();
+
+	if (!published.ok) throw new Error(published.error.message);
+
+	expect(published.value.commit.summary).toBe("Base");
+	expect(published.value.undoUnavailableReason).toContain("already published");
+	await writeFile(join(repository, "file.txt"), "local\n");
+	await git(repository, "commit", "-am", "Local change");
+	const local = await readLast();
+
+	if (!local.ok) throw new Error(local.error.message);
+
+	expect(local.value.commit.summary).toBe("Local change");
+	expect(local.value.undoUnavailableReason).toBeNull();
 });
 
 const synchronize = async (

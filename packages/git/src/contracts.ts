@@ -420,6 +420,20 @@ export interface CommitFilesResult {
 	readonly warning: string | null;
 }
 
+/** Reviewed branch identity for local commit recovery; published and merge commits are refused. */
+export interface CommitRecoveryInput extends GitCallOptions {
+	readonly expectedHead: string;
+	readonly expectedBranch: string;
+}
+
+/** Undo never edits the index or working files; a durable ref retains the original commit. */
+export interface UndoCommitResult {
+	readonly snapshot: RepositorySnapshot | null;
+	readonly message: string;
+	readonly recoveryRef: string;
+	readonly warning: string | null;
+}
+
 export interface DiffInput extends GitCallOptions {
 	readonly contextLines?: number;
 	readonly ignoreWhitespace?: boolean;

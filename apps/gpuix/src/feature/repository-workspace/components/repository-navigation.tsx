@@ -30,7 +30,8 @@ import type { useRepositoryStashes } from "../hooks/use-repository-stashes";
 import { RepositoryReadNotice } from "./repository-read-notice";
 import { RepositoryStashActions } from "./repository-stash-actions";
 import type { StashWriteRequest } from "../lib/repository-stashes";
-import type { FinishOperationInput } from "@1git/git";
+import type { FinishOperationInput, CommitRecoveryInput } from "@1git/git";
+import type { RepositoryCommit as CommitReader } from "../lib/repository-commit";
 import { RepositoryOperation } from "./repository-operation";
 import type {
 	FileDiscardRequest,
@@ -138,6 +139,8 @@ export function RepositoryNavigation({
 	history,
 	stashes,
 	onCommit,
+	onUndoCommit,
+	readLastCommit,
 	onSync,
 	onCancelSync,
 	onStash,
@@ -153,6 +156,8 @@ export function RepositoryNavigation({
 	history?: ReturnType<typeof useRepositoryHistory>;
 	stashes?: ReturnType<typeof useRepositoryStashes>;
 	onCommit?: () => void;
+	onUndoCommit?: (input: CommitRecoveryInput) => Promise<string | null>;
+	readLastCommit?: typeof CommitReader.readLast;
 	onSync?: () => void;
 	onCancelSync?: () => void;
 	onStash?: (request: StashWriteRequest) => Promise<boolean>;
@@ -671,6 +676,8 @@ export function RepositoryNavigation({
 						state={state}
 						onAction={onAction}
 						onCommit={onCommit}
+						onUndo={onUndoCommit}
+						readLast={readLastCommit}
 						onSync={onSync}
 						onCancelSync={onCancelSync}
 					/>

@@ -161,6 +161,7 @@ export type RepositoryWorkspaceAction =
 			type: "commit-finished";
 			result: CommitFilesResult;
 			submittedMessage?: string;
+			undoMessage?: string;
 	  }
 	| {
 			type: "stashes-loaded";
@@ -332,7 +333,24 @@ export class RepositoryWorkspaceModel {
 			!RepositoryWorkspaceModel.isBusy(state) &&
 			!state.commit.needsReview &&
 			!state.commitMessage.includes("\0") &&
-			RepositoryWorkspaceModel.canPreviewCommit(state) &&
+			!state.loading &&
+			!state.error &&
+			!!state.commitMessage.split("\n", 1)[0]?.trim() &&
+			state.includedFileIds.length > 0 &&
+			!RepositoryWorkspaceModel.commitBlockReason(state)
+		);
+	}
+
+	/** Final publication and identity checks are repeated by the Git backend before writing. */
+	static canRecoverCommit(state: RepositoryWorkspaceState): boolean {
+		return (
+			!state.preview &&
+			!state.loading &&
+			!state.error &&
+			!state.commit.needsReview &&
+			!RepositoryWorkspaceModel.isBusy(state) &&
+			!!state.repository?.head &&
+			!!state.repository.branchName &&
 			!RepositoryWorkspaceModel.commitBlockReason(state)
 		);
 	}
@@ -575,9 +593,11 @@ export class RepositoryWorkspaceModel {
 			return {
 				...refreshed,
 				commitMessage:
-					confirmed && action.submittedMessage === state.commitMessage
-						? ""
-						: state.commitMessage,
+					confirmed && action.undoMessage !== undefined
+						? state.commitMessage || action.undoMessage
+						: confirmed && action.submittedMessage === state.commitMessage
+							? ""
+							: refreshed.commitMessage,
 				commit: {
 					pending: false,
 					error: null,
@@ -950,6 +970,7 @@ export class RepositoryWorkspaceModel {
 				},
 				commit: {
 					...state.commit,
+					error: state.commit.error,
 					needsReview: action.automatic ? state.commit.needsReview : false,
 				},
 				history: sameHistory

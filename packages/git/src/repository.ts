@@ -16,6 +16,8 @@ import type {
 	CommitInput,
 	CommitFilesInput,
 	CommitFilesResult,
+	CommitRecoveryInput,
+	UndoCommitResult,
 	CommitPage,
 	CommitResult,
 	ConfigValue,
@@ -80,6 +82,7 @@ import type {
 } from "./contracts.js";
 import { selectHunkPatch } from "./hunk-patch.js";
 import { SelectedCommit } from "./selected-commit.js";
+import { CommitRecovery } from "./commit-recovery.js";
 import { BranchSync } from "./branch-sync.js";
 import type { RepositoryContext } from "./internal.js";
 import {
@@ -1300,6 +1303,27 @@ export class GitRepository {
 			"commit",
 			input.signal,
 			async () => await SelectedCommit.run(this.context, input)
+		);
+	}
+
+	/** Inspect the reviewed unpublished branch tip without changing Git or contacting remotes. */
+	async getCommitRecovery(
+		input: CommitRecoveryInput
+	): Promise<GitResult<CommitInfo>> {
+		return await this.read(
+			"commit",
+			async () => await CommitRecovery.read(this.context, input)
+		);
+	}
+
+	/** Removes only the reviewed unpublished tip, retaining its content in a recovery ref. */
+	async undoCommit(
+		input: CommitRecoveryInput
+	): Promise<GitResult<UndoCommitResult>> {
+		return await this.mutate(
+			"commit",
+			input.signal,
+			async () => await CommitRecovery.undo(this.context, input)
 		);
 	}
 
