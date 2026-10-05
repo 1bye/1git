@@ -156,6 +156,22 @@ it("places a secondary Sync button immediately left of Commit and preserves the 
 		<App readRepository={read} writeSyncRepository={writeSyncRepository} />
 	);
 	await open();
+	const composer = root.renderer.getElementBounds(node("commit-composer").id);
+	const editor = root.renderer.getElementBounds(node("commit-message").id);
+
+	expect(root.renderer.getAllText()).not.toContain("⌘ Enter");
+	expect(node("commit-message").style).toMatchObject({
+		padding: 8,
+		paddingBottom: 4,
+		borderWidth: 0,
+	});
+	expect(editor?.x).toBe((composer?.x ?? 0) + 8);
+	expect(editor?.y).toBe((composer?.y ?? 0) + 9);
+	expect(editor?.width).toBe((composer?.width ?? 0) - 16);
+	const layoutScreenshot = process.env.GPUIX_COMPOSER_LAYOUT_SCREENSHOT;
+
+	if (layoutScreenshot) root.renderer.captureScreenshot(layoutScreenshot);
+
 	message();
 	const sync = root.renderer.getElementBounds(node("commit-sync").id);
 	const commit = root.renderer.getElementBounds(node("commit-submit").id);
@@ -164,6 +180,9 @@ it("places a secondary Sync button immediately left of Commit and preserves the 
 	expect(commit).toBeDefined();
 	expect(sync && commit && sync.x + sync.width).toBeLessThan(commit?.x ?? 0);
 	expect(sync?.y).toBe(commit?.y);
+	expect(commit && commit.x + commit.width).toBe(
+		(composer?.x ?? 0) + (composer?.width ?? 0) - 10
+	);
 	expect(node("commit-sync").style?.backgroundColor).not.toBe(
 		node("commit-submit").style?.backgroundColor
 	);
@@ -264,9 +283,83 @@ it("syncs with the keyboard without extra menu reads or submitting checked files
 	});
 	await settle();
 	await settle();
-	expect(root.renderer.getAllText()).toContain("Sync complete.");
+	expect(root.renderer.getAllText()).toContain("Sync complete");
+	expect(node("commit-sync").customProps?.["aria-label"]).toBe("Sync complete");
+	expect(root.renderer.findByTestId("commit-notice-scroll")).toBeUndefined();
 	expect(node("commit-message").customProps?.value).toBe("fix");
 	expect(node("include-b.ts").customProps?.["aria-checked"]).toBe(false);
+	const screenshot = process.env.GPUIX_SYNC_COMPLETE_SCREENSHOT;
+
+	if (screenshot) root.renderer.captureScreenshot(screenshot);
+
+	await Bun.sleep(3_100);
+	root.renderer.flush();
+	expect(root.renderer.getAllText()).not.toContain("Sync complete");
+	expect(node("commit-sync").customProps?.["aria-label"]).toBe(
+		"Sync with upstream"
+	);
+	click("view-history");
+	click("view-changes");
+	await settle();
+	expect(root.renderer.getAllText()).not.toContain("Sync complete");
+});
+
+it("replaces Sync completion with progress on retry and keeps failure details visible", async () => {
+	const base = snapshot();
+
+	const tracked = {
+		...base,
+		head: { ...base.head, upstream: "origin/main" },
+	};
+
+	const pending =
+		Promise.withResolvers<Awaited<ReturnType<typeof RepositorySync.write>>>();
+
+	const writeSyncRepository = mock<typeof RepositorySync.write>(async () => ({
+		ok: true,
+		value: {
+			operation: "fetch",
+			remote: "origin",
+			branch: "main",
+			snapshot: tracked,
+		},
+	}));
+
+	root.render(
+		<App
+			readRepository={async () => ({ ok: true, value: tracked })}
+			writeSyncRepository={writeSyncRepository}
+		/>
+	);
+	await open();
+	click("commit-sync");
+	await settle();
+	await settle();
+	expect(root.renderer.getAllText()).toContain("Sync complete");
+	writeSyncRepository.mockImplementation(() => pending.promise);
+	click("commit-sync");
+	expect(root.renderer.getAllText()).toContain("Syncing…");
+	expect(root.renderer.getAllText()).not.toContain("Sync complete");
+	expect(root.renderer.findByTestId("commit-notice-scroll")).toBeUndefined();
+	pending.resolve({
+		ok: false,
+		error: {
+			code: "command-failed",
+			operation: "fetch",
+			message: "Cannot reach upstream.",
+			retryable: true,
+		},
+	});
+	await settle();
+	await settle();
+	expect(writeSyncRepository).toHaveBeenCalledTimes(2);
+	expect(root.renderer.getAllText().join(" ")).toContain(
+		"Cannot reach upstream."
+	);
+	expect(root.renderer.getAllText()).not.toContain("Sync complete");
+	expect(node("commit-sync").customProps?.["aria-label"]).toBe(
+		"Sync with upstream"
+	);
 });
 
 it.each(["untracked", "detached", "unborn", "merge"] as const)(
@@ -357,6 +450,7 @@ it("commits only checked paths once, prevents edits/close while pending, clears 
 		},
 	]);
 	expect(root.renderer.getAllText()).toContain("Committing…");
+	expect(root.renderer.findByTestId("commit-notice-scroll")).toBeUndefined();
 	expect(node("commit-message").customProps?.readOnly).toBe(true);
 	root.renderer.nativeSimulateKeyDown(node("commit-message").id, "cmd-w");
 	root.renderer.flush();
@@ -384,7 +478,8 @@ it("commits only checked paths once, prevents edits/close while pending, clears 
 	expect(node("commit-message").customProps?.value).toBe("");
 	expect(node("include-b.ts").customProps?.["aria-checked"]).toBe(false);
 	expect(root.renderer.findByTestId("entry-a.ts")).toBeUndefined();
-	expect(root.renderer.getAllText()).toContain("Committed bbbbbbb.");
+	expect(root.renderer.getAllText()).not.toContain("Committed bbbbbbb.");
+	expect(root.renderer.findByTestId("commit-notice-scroll")).toBeUndefined();
 });
 
 it("retains message and inclusion after hook failures and allows an explicit retry", async () => {
@@ -449,6 +544,9 @@ it("commits complete checked files despite external partial staging, and blocks 
 		paths: ["a.ts", "b.ts"],
 	});
 	expect(node("commit-message").customProps?.value).toBe("fix");
+	expect(root.renderer.getAllText()).toContain(
+		"Inspect History before retrying."
+	);
 	click("commit-submit");
 	expect(writeCommit).toHaveBeenCalledTimes(1);
 	click("refresh-repository");

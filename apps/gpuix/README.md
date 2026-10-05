@@ -519,8 +519,10 @@ working tree; divergence or a failed fetch/pull stops the operation before pushi
 An up-to-date branch only fetches. Branches without upstream tracking must first be
 published through the tab menu. Sync uses the same window-owned write lock, timeout,
 close protection and cross-worktree refresh as the menu actions. During Sync,
-pressing the button again stops it; the composer shows errors and completion while
-retaining the commit draft and checked files.
+pressing the button again stops it. The button shows **Syncing…** during the operation
+and **Sync complete** for three seconds after success, then returns to **Sync**.
+Routine sync/commit status no longer adds a line below the buttons; errors and
+recovery warnings remain visible. Sync retains the commit draft and checked files.
 
 - **Fetch** is an explicit action in the tab menu. It uses `@1git/git` to fetch
   configured remotes, including with uncommitted changes. Opening a menu or

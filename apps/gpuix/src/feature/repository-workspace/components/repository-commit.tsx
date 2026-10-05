@@ -3,7 +3,7 @@ import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { Button } from "@1git/gpuix-ui/button";
 import { Textarea } from "@1git/gpuix-ui/textarea";
 import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { appTokens } from "../../../styles/tokens";
 import {
@@ -12,28 +12,34 @@ import {
 	type RepositoryWorkspaceState,
 } from "../lib/repository-workspace-model";
 
+const syncCompleteDurationMs = 3_000;
+
 const styles = StyleSheet.create({
 	composer: {
 		display: "flex",
 		flexDirection: "column",
 		flexShrink: 0,
-		padding: 10,
+		paddingBottom: 10,
 		gap: 6,
 		borderTopWidth: 1,
 		borderColor: lightColors.editorHairline,
 	},
 	editor: {
 		height: 100,
-		padding: 4,
+		padding: 8,
+		paddingBottom: 4,
 		fontSize: 11,
 		lineHeight: 16,
 		backgroundColor: "transparent",
+		borderWidth: 0,
 		borderColor: "transparent",
 	},
 	actions: {
 		display: "flex",
 		alignItems: "center",
-		justifyContent: "space-between",
+		justifyContent: "flex-end",
+		paddingLeft: 10,
+		paddingRight: 10,
 		flexShrink: 0,
 		height: 24,
 	},
@@ -49,6 +55,8 @@ const styles = StyleSheet.create({
 		flexDirection: "column",
 		gap: 4,
 		maxHeight: 64,
+		marginLeft: 10,
+		marginRight: 10,
 		flexShrink: 0,
 		overflowY: "scroll",
 		overflowX: "hidden",
@@ -73,8 +81,43 @@ export function RepositoryCommit({
 	onCancelSync?: () => void;
 }) {
 	const [previewed, setPreviewed] = useState(false);
+
+	const [completedSync, setCompletedSync] = useState<{
+		root: string;
+		version: number;
+	} | null>(null);
+
+	const repositoryRoot = state.repository?.root;
+	const { version, pending, error, notice: syncResultNotice } = state.sync;
+	const previousSync = useRef({ root: repositoryRoot, version });
 	const notice = useRef<PublicInstance>(null);
 	const renderer = useGpuixRequired();
+
+	useEffect(() => {
+		const previous = previousSync.current;
+
+		previousSync.current = { root: repositoryRoot, version };
+		setCompletedSync(null);
+
+		// Only announce a new result, not an old success when reopening this view.
+		if (
+			!repositoryRoot ||
+			previous.root !== repositoryRoot ||
+			previous.version === version ||
+			pending ||
+			error ||
+			syncResultNotice !== "Sync complete."
+		)
+			return;
+
+		setCompletedSync({ root: repositoryRoot, version });
+		const timer = setTimeout(
+			() => setCompletedSync(null),
+			syncCompleteDurationMs
+		);
+
+		return () => clearTimeout(timer);
+	}, [repositoryRoot, version, pending, error, syncResultNotice]);
 
 	const hasDetails =
 		!!state.commit.error || !!state.sync.error || state.commit.needsReview;
@@ -83,7 +126,13 @@ export function RepositoryCommit({
 	const sample = state.preview;
 	const syncing = state.sync.pending === "sync";
 	const canSync = RepositoryWorkspaceModel.canSync(state);
-	const syncNotice = state.sync.error ?? state.sync.notice;
+	const syncNotice = state.sync.error;
+
+	const syncComplete =
+		completedSync?.root === repositoryRoot &&
+		completedSync?.version === version &&
+		!pending &&
+		!error;
 
 	const canSubmit = sample
 		? canPreview
@@ -94,9 +143,9 @@ export function RepositoryCommit({
 		: RepositoryWorkspaceModel.commitBlockReason(state);
 
 	const noticeText = !sample
-		? state.commit.pending
-			? "Committing. Please keep the app open."
-			: (state.commit.error ?? state.commit.notice ?? blocked)
+		? (state.commit.error ??
+			(state.commit.needsReview ? state.commit.notice : null) ??
+			blocked)
 		: previewed
 			? "Preview only — no commit created."
 			: state.repository
@@ -148,11 +197,16 @@ export function RepositoryCommit({
 				}}
 			/>
 			<div style={styles.actions}>
-				<text style={styles.hint}>⌘ Enter</text>
 				<div style={styles.buttons}>
 					<Button
 						testId="commit-sync"
-						aria-label={syncing ? "Stop synchronization" : "Sync with upstream"}
+						aria-label={
+							syncing
+								? "Stop synchronization"
+								: syncComplete
+									? "Sync complete"
+									: "Sync with upstream"
+						}
 						aria-description={
 							syncing
 								? "Stop synchronization, then refresh status before retrying."
@@ -170,7 +224,7 @@ export function RepositoryCommit({
 							else onSync?.();
 						}}
 					>
-						{syncing ? "Syncing…" : "Sync"}
+						{syncing ? "Syncing…" : syncComplete ? "Sync complete" : "Sync"}
 					</Button>
 					<Button
 						testId={sample ? "commit-preview" : "commit-submit"}
