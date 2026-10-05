@@ -87,6 +87,8 @@ export interface RepositoryRef {
 
 /** An API repository. Unknown permissions/default branches remain null rather than inferred. */
 export interface Repository {
+	/** Public, credential-free image URL, or null when the provider has no image. */
+	readonly avatarUrl?: string | null;
 	readonly id: string;
 	readonly ref: RepositoryRef;
 	readonly name: string;

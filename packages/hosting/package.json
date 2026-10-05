@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./avatars": {
+      "types": "./dist/avatars.d.ts",
+      "import": "./dist/avatars.js"
+    },
     ".": {
       "types": "./dist/hosting.d.ts",
       "import": "./dist/hosting.js"

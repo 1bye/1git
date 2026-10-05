@@ -1,6 +1,12 @@
 import { HostingProvider } from "../../provider.js";
 import type { HostingAdapter, ProviderOAuthAdapter } from "../../provider.js";
-import type { Capabilities } from "../../contracts.js";
+import type {
+	Capabilities,
+	CallOptions,
+	RepositoryRef,
+} from "../../contracts.js";
+import { repositoryPath } from "../../adapter.js";
+import { record } from "../../result.js";
 import type { Transport } from "../../transport.js";
 import { GitHubAdapter } from "./adapter.js";
 import { GitHubOAuthAdapter } from "./oauth.js";
@@ -39,5 +45,31 @@ export class GitHubProvider extends HostingProvider {
 
 	apiHeaders(): Readonly<Record<string, string>> {
 		return { "X-GitHub-Api-Version": "2022-11-28" };
+	}
+
+	avatarCacheKey(ref: RepositoryRef): string {
+		return ref.owner.toLowerCase();
+	}
+
+	protected avatarHosts(web: URL): readonly string[] {
+		return web.origin === "https://github.com"
+			? ["https://avatars.githubusercontent.com"]
+			: [];
+	}
+
+	async repositoryAvatar(
+		http: Transport,
+		ref: RepositoryRef,
+		options: CallOptions
+	): Promise<string | null> {
+		repositoryPath(ref, false);
+
+		const reply = await http.request(
+			http.url(`users/${encodeURIComponent(ref.owner)}`),
+			"GET",
+			options
+		);
+
+		return this.avatarUrl(record(reply.data).avatar_url);
 	}
 }

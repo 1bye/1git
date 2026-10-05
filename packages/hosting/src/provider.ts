@@ -148,6 +148,57 @@ export abstract class HostingProvider {
 		return {};
 	}
 
+	/** Optional public image lookup. Unsupported providers keep the application's initials fallback. */
+	async repositoryAvatar(
+		_http: Transport,
+		_ref: RepositoryRef,
+		_options: CallOptions
+	): Promise<string | null> {
+		return null;
+	}
+
+	/** Stable image identity; providers can share an owner's image across repositories. */
+	avatarCacheKey(ref: RepositoryRef): string {
+		return `${ref.owner}/${ref.name}`;
+	}
+
+	/** Validate image destinations separately from API endpoints. Never accepts credentials or plaintext. */
+	avatarUrl(value: unknown): string | null {
+		if (typeof value !== "string" || value.length > 4096) return null;
+
+		try {
+			const web = new URL(this.options.webUrl ?? this.defaultWebUrl);
+			const url = new URL(value, web);
+
+			if (
+				url.protocol !== "https:" ||
+				url.username ||
+				url.password ||
+				url.hash ||
+				(url.origin !== web.origin &&
+					!this.avatarHosts(web).includes(url.origin))
+			)
+				return null;
+
+			for (const [key, parameter] of url.searchParams) {
+				if (
+					!["s", "size", "v", "width", "height"].includes(key) ||
+					!/^\d{1,10}$/u.test(parameter)
+				)
+					return null;
+			}
+
+			return url.href;
+		} catch {
+			return null;
+		}
+	}
+
+	/** Additional trusted image origins, not authenticated REST destinations. */
+	protected avatarHosts(_web: URL): readonly string[] {
+		return [];
+	}
+
 	/** Interpret a decoded owner/repository path. Override to support nested namespaces. */
 	parseRepositoryPath(path: string): RepositoryRef {
 		const parts = path.split("/");

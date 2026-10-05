@@ -17,6 +17,8 @@ export interface ButtonProps extends Pick<
 	| "onMouseEnter"
 	| "onMouseLeave"
 	| "onKeyDown"
+	| "onFocus"
+	| "onBlur"
 	| "aria-label"
 	| "aria-expanded"
 	| "aria-description"
@@ -92,6 +94,8 @@ export function Button({
 	onPress,
 	onContextMenu,
 	onKeyDown,
+	onFocus,
+	onBlur,
 	style,
 	textStyle,
 	tokens = defaultTokens,
@@ -154,11 +158,15 @@ export function Button({
 			tabIndex={disabled ? undefined : tabIndex}
 			autoFocus={!disabled && autoFocus}
 			style={disabled ? restStyle : rootStyle}
-			onFocus={() => setFocused(true)}
-			onBlur={() => {
+			onFocus={(event) => {
+				setFocused(true);
+				onFocus?.(event);
+			}}
+			onBlur={(event) => {
 				spaceArmed.current = false;
 				setFocused(false);
 				setSpacePressed(false);
+				onBlur?.(event);
 			}}
 			onClick={(event) => {
 				if (event.modifiers?.ctrl && onContextMenu) {

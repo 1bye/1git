@@ -20,6 +20,7 @@ import {
 } from "./repository-account-picker";
 import { SetupProgress } from "./repository-setup";
 import { StateArtwork } from "../../../fixture/state-artwork";
+import { RepositoryAvatar } from "./repository-avatar";
 
 const column = { display: "flex", flexDirection: "column" };
 const row = { display: "flex", flexDirection: "row", alignItems: "center" };
@@ -455,20 +456,29 @@ export function RepositoryCloneView({
 						) : source === "url" ? (
 							<div style={{ ...column, gap: 6 }}>
 								<text style={hint}>Repository URL</text>
-								<input
-									ref={searchField}
-									testId="setup-url"
-									autoFocus={active}
-									tabIndex={0}
-									aria-label="Repository URL"
-									value={url}
-									placeholder="https://github.com/owner/project.git"
-									style={{ ...input, width: "100%" }}
-									onChange={(event) => {
-										setUrl(event.value ?? "");
-										clearError();
-									}}
-								/>
+								<div style={{ ...row, gap: 10 }}>
+									<RepositoryAvatar
+										label={
+											RepositorySetup.folderName(remoteUrl) || "Repository"
+										}
+										source={url.trim() ? { remote: url.trim() } : undefined}
+										testId="clone-url-avatar"
+									/>
+									<input
+										ref={searchField}
+										testId="setup-url"
+										autoFocus={active}
+										tabIndex={0}
+										aria-label="Repository URL"
+										value={url}
+										placeholder="https://github.com/owner/project.git"
+										style={{ ...input, flexGrow: 1, minWidth: 0 }}
+										onChange={(event) => {
+											setUrl(event.value ?? "");
+											clearError();
+										}}
+									/>
+								</div>
 								<text style={{ ...hint, marginTop: 4 }}>
 									Clone using your configured Git credentials.
 								</text>

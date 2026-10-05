@@ -253,6 +253,7 @@ export class GitHubAdapter implements Adapter {
 
 		return {
 			id: id(repo.id),
+			avatarUrl: this.http.endpoints.provider.avatarUrl(owner.avatar_url),
 			ref,
 			name,
 			description: optionalString(repo.description),

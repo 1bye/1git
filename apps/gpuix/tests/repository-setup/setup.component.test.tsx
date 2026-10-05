@@ -1,13 +1,15 @@
 /**
- * Covers: setup forms, native picker intent, success, errors, retry/open and cancellation.
+ * Covers: welcome list scrolling/removal, setup forms, picker intent, errors and cancellation.
  * Real: App, setup lifecycle, close/tab guards and GPUIX layout/events.
- * Doubles: Git setup/read and native folder picker; no filesystem writes or network.
+ * Doubles: Git setup/read, folder picker and inactive-window focus notifications; no writes/network.
  * Requires: patched native renderer and macOS graphics access.
  */
 import { afterEach, beforeEach, expect, it, mock, spyOn } from "bun:test";
 import { createTestRoot, type TestRoot } from "@gpuix/react/testing";
+import { flushSync, handleGpuixEvent } from "@gpuix/react";
 import { App } from "../../src/app";
 import type { RepositorySetup } from "../../src/feature/repository-workspace/lib/repository-setup";
+import type { WorkspaceSessionDocument } from "../../src/feature/workspace-tabs/lib/workspace-session";
 import { windowOptions } from "../../src/window-options";
 import { repositorySnapshot } from "../_shared/repository-snapshot";
 import { RepositoryFileActions } from "../../src/feature/repository-workspace/lib/repository-file-actions";
@@ -49,6 +51,11 @@ const click = (id: string, button = 0) => {
 
 	if (!bounds) throw new Error(`Missing bounds ${id}`);
 
+	root.renderer.nativeSimulateMouseMove(
+		bounds.x + bounds.width / 2,
+		bounds.y + bounds.height / 2
+	);
+	root.renderer.flush();
 	root.renderer.nativeSimulateClick(
 		bounds.x + bounds.width / 2,
 		bounds.y + bounds.height / 2,
@@ -148,6 +155,210 @@ const settle = async () => {
 const readRepository = async () => ({
 	ok: true as const,
 	value: repositorySnapshot([]),
+});
+
+it("shows the trash icon only on row hover or keyboard focus", async () => {
+	root.render(
+		<App
+			initialSession={{
+				version: 1,
+				tabs: [],
+				activeId: null,
+				recentRepositories: ["/test/project", "/test/other"],
+			}}
+		/>
+	);
+	await settle();
+	const action = () =>
+		root.renderer.findByTestId("welcome-forget-/test/project");
+
+	const row = root.renderer.findByTestId("welcome-repository-/test/project");
+	const remove = action();
+	const search = root.renderer.findByTestId("welcome-search");
+	const rowBounds = row && root.renderer.getElementBounds(row.id);
+	const removeBounds = remove && root.renderer.getElementBounds(remove.id);
+
+	if (!row || !remove || !search || !rowBounds || !removeBounds)
+		throw new Error("Missing hover controls");
+
+	expect(action()?.style.opacity).toBe(0);
+	expect(root.renderer.getAllText()).not.toContain("Remove");
+	expect(
+		root.renderer.findByTestId("welcome-forget-icon-/test/project")
+	).toBeDefined();
+
+	for (const [x, y] of [
+		[rowBounds.x + 20, rowBounds.y + 20],
+		[rowBounds.x + rowBounds.width + 2, rowBounds.y + 20],
+		[removeBounds.x + 13, removeBounds.y + 13],
+	] as const) {
+		root.renderer.nativeSimulateMouseMove(x, y);
+		root.renderer.flush();
+		expect(action()?.style.opacity).toBe(1);
+	}
+
+	if (process.env.GPUIX_WELCOME_HOVER_SCREENSHOT) {
+		await Bun.sleep(100);
+		root.renderer.captureScreenshot(process.env.GPUIX_WELCOME_HOVER_SCREENSHOT);
+	}
+
+	root.renderer.nativeSimulateMouseMove(300, 500);
+	root.renderer.flush();
+	expect(action()?.style.opacity).toBe(0);
+	// Offscreen test windows are inactive; deliver native focus notifications explicitly.
+	flushSync(() =>
+		handleGpuixEvent({ elementId: row.id, eventType: "focus" }, root.renderer)
+	);
+	expect(action()?.style.opacity).toBe(1);
+	flushSync(() => {
+		handleGpuixEvent(
+			{ elementId: remove.id, eventType: "focus" },
+			root.renderer
+		);
+		handleGpuixEvent({ elementId: row.id, eventType: "blur" }, root.renderer);
+	});
+	expect(action()?.style.opacity).toBe(1);
+	flushSync(() =>
+		handleGpuixEvent({ elementId: remove.id, eventType: "blur" }, root.renderer)
+	);
+	expect(action()?.style.opacity).toBe(0);
+});
+
+it("removes only the saved repository entry and persists the updated list", async () => {
+	const reader = mock(readRepository);
+	const save = mock<(document: WorkspaceSessionDocument) => void>(() => {});
+
+	root.render(
+		<App
+			initialSession={{
+				version: 1,
+				tabs: [],
+				activeId: null,
+				recentRepositories: ["/test/project", "/test/other"],
+			}}
+			readRepository={reader}
+			saveSession={save}
+		/>
+	);
+	await settle();
+	click("welcome-forget-/test/project");
+	await settle();
+
+	expect(
+		root.renderer.findByTestId("welcome-repository-/test/project")
+	).toBeUndefined();
+	expect(
+		root.renderer.findByTestId("welcome-repository-/test/other")
+	).toBeDefined();
+	expect(reader).not.toHaveBeenCalled();
+	await Bun.sleep(220);
+	expect(save.mock.calls.at(-1)?.[0]).toEqual(
+		expect.objectContaining({ recentRepositories: ["/test/other"] })
+	);
+	const remove = root.renderer.findByTestId("welcome-forget-/test/other");
+
+	if (!remove) throw new Error("Missing keyboard removal action");
+
+	root.renderer.focusElement(remove.id);
+	root.renderer.simulateKeystrokes("enter");
+	await settle();
+	expect(root.renderer.getAllText()).toContain("No repositories yet");
+	expect(reader).not.toHaveBeenCalled();
+});
+
+it("scrolls only the repository list while quick actions and search stay fixed", async () => {
+	root.unmount();
+	root = createTestRoot({ width: 980, height: 640 });
+	root.renderer.clockPause();
+
+	const paths = Array.from(
+		{ length: 100 },
+		(_, index) => `/test/project-${index}`
+	);
+
+	const longPath = `/test/${"long-parent-directory/".repeat(10)}${"long-repository-name-".repeat(8)}`;
+
+	paths[0] = longPath;
+
+	root.render(
+		<App
+			initialSession={{
+				version: 1,
+				tabs: [],
+				activeId: null,
+				recentRepositories: paths,
+			}}
+		/>
+	);
+	await settle();
+	const list = root.renderer.findByTestId("welcome-repositories");
+	const search = root.renderer.findByTestId("welcome-search");
+	const open = root.renderer.findByTestId("open-repository");
+	const page = root.renderer.findByTestId("repository-welcome");
+
+	if (!list || !search || !open || !page)
+		throw new Error("Missing welcome layout");
+
+	const searchBefore = root.renderer.getElementBounds(search.id);
+	const openBefore = root.renderer.getElementBounds(open.id);
+	const listBounds = root.renderer.getElementBounds(list.id);
+	const pageBefore = root.renderer.getScrollOffset(page.id);
+
+	if (!listBounds) throw new Error("Missing list bounds");
+
+	expect(listBounds.y + listBounds.height).toBeLessThanOrEqual(640);
+	const remove = root.renderer.findByTestId(`welcome-forget-${longPath}`);
+	const removeBounds = remove && root.renderer.getElementBounds(remove.id);
+
+	if (!removeBounds) throw new Error("Missing long-path removal action");
+
+	for (const field of ["name", "path"]) {
+		const text = root.renderer.findByTestId(`welcome-${field}-${longPath}`);
+		const textBounds = text && root.renderer.getElementBounds(text.id);
+
+		if (!textBounds) throw new Error(`Missing repository ${field}`);
+
+		expect(textBounds.width).toBeGreaterThan(0);
+		expect(textBounds.x + textBounds.width).toBeLessThanOrEqual(removeBounds.x);
+		expect(textBounds.height).toBeLessThan(24);
+	}
+
+	if (process.env.GPUIX_WELCOME_SCREENSHOT) {
+		root.renderer.advanceTime(1);
+		root.renderer.flush();
+		await Bun.sleep(100);
+		root.renderer.captureScreenshot(process.env.GPUIX_WELCOME_SCREENSHOT);
+	}
+
+	for (let tick = 0; tick < 40; tick++) {
+		root.renderer.dispatchScrollWheel(
+			listBounds.x + 20,
+			listBounds.y + 20,
+			0,
+			-12
+		);
+	}
+
+	expect(root.renderer.getScrollOffset(list.id)?.[1]).toBeLessThan(-300);
+	expect(root.renderer.getScrollOffset(page.id)).toEqual(pageBefore);
+	expect(root.renderer.getElementBounds(search.id)).toEqual(searchBefore);
+	expect(root.renderer.getElementBounds(open.id)).toEqual(openBefore);
+	root.renderer.scrollTo(list.id, 0, -10000);
+	root.renderer.flush();
+	const last = root.renderer.findByTestId("welcome-forget-/test/project-99");
+	const lastBounds = last && root.renderer.getElementBounds(last.id);
+
+	if (!lastBounds) throw new Error("Final repository action is not visible");
+
+	expect(lastBounds.y).toBeGreaterThanOrEqual(listBounds.y);
+	expect(lastBounds.y + lastBounds.height).toBeLessThanOrEqual(
+		listBounds.y + listBounds.height
+	);
+	click("welcome-forget-/test/project-99");
+	await settle();
+	expect(
+		root.renderer.findByTestId("welcome-repository-/test/project-99")
+	).toBeUndefined();
 });
 
 it("creates from the compact form and opens Changes after success", async () => {

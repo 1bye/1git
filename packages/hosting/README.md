@@ -23,6 +23,7 @@ Public entry points:
 | `@1git/hosting/oauth` | `HostingOAuth`, `Authorization`, `OAuthTokens` |
 | `@1git/hosting/device-oauth` | `HostingDeviceOAuth`, `DeviceAuthorization`, `DevicePoll` |
 | `@1git/hosting/remote` | `parseRemote`, `RemoteIdentity` |
+| `@1git/hosting/avatars` | `getRepositoryAvatar` (public metadata; no credentials) |
 | `@1git/hosting/provider` | `HostingProvider`, `ProviderOptions`, `HostingAdapter`, OAuth extension contracts, `ProviderFailure` |
 | `@1git/hosting/transport` | `Transport`, `Endpoints`, `Reply` for provider authors |
 | `@1git/hosting/providers/github` | `GitHubProvider` |
@@ -37,6 +38,18 @@ type HostingResult<T> =
 ```
 
 ## Client API
+
+Repository responses include optional `avatarUrl` metadata. GitHub uses the owner image;
+GitLab uses the project image, falling back to its namespace image. Missing or unsafe
+image URLs become `null` without failing repository browsing. URLs are HTTPS and limited
+to the configured host or provider-approved image origins; tokens are never part of the URL.
+
+`getRepositoryAvatar(provider, ref, { signal })` resolves public image metadata without a
+REST account or token. Private GitLab projects may require `getRepository` metadata from
+an authenticated client instead. The caller owns thumbnail fetching/caching and must not
+send API credentials to image origins. GPUIX supplies a bounded, window-local cache and
+initials fallback. New providers can override `repositoryAvatar`, `avatarCacheKey` and
+`avatarHosts`; the defaults require no changes to existing provider implementations.
 
 ```ts
 import { HostingClient } from "@1git/hosting";

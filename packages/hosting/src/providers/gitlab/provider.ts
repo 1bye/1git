@@ -1,6 +1,10 @@
 import { HostingProvider } from "../../provider.js";
 import type { HostingAdapter, ProviderOAuthAdapter } from "../../provider.js";
-import type { Capabilities, RepositoryRef } from "../../contracts.js";
+import type {
+	Capabilities,
+	CallOptions,
+	RepositoryRef,
+} from "../../contracts.js";
 import type { Transport } from "../../transport.js";
 import { repositoryPath } from "../../adapter.js";
 import { fail } from "../../result.js";
@@ -34,6 +38,17 @@ export class GitLabProvider extends HostingProvider {
 
 	createOAuthAdapter(http: Transport): ProviderOAuthAdapter {
 		return new GitLabOAuthAdapter(http);
+	}
+
+	async repositoryAvatar(
+		http: Transport,
+		ref: RepositoryRef,
+		options: CallOptions
+	): Promise<string | null> {
+		return (
+			(await this.createAdapter(http).repository(ref, options)).avatarUrl ??
+			null
+		);
 	}
 
 	parseRepositoryPath(path: string): RepositoryRef {

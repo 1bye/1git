@@ -1,5 +1,13 @@
-import { useEffect, useRef, useState, type Ref } from "react";
-import type { PublicInstance } from "@gpuix/react";
+import {
+	use,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+	type Ref,
+} from "react";
+import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
 import { Button } from "@1git/gpuix-ui/button";
 import {
 	Popover,
@@ -11,6 +19,7 @@ import { appTokens } from "../../../styles/tokens";
 import type { SavedAccount } from "../../accounts/lib/account-store";
 import type { Accounts } from "../../accounts/lib/accounts";
 import { StateMessage } from "../../../fixture/state-message";
+import { RepositoryAvatar, RepositoryAvatarContext } from "./repository-avatar";
 
 /** A public selection, never an authenticated provider or credential. */
 export interface AccountCloneSelection {
@@ -64,6 +73,9 @@ export function RepositoryAccountPicker({
 	selection?: AccountCloneSelection;
 	searchRef?: Ref<PublicInstance>;
 }) {
+	const avatars = use(RepositoryAvatarContext);
+	const renderer = useGpuixRequired();
+	const viewport = useRef<PublicInstance>(null);
 	const [query, setQuery] = useState("");
 	const [permissionOpen, setPermissionOpen] = useState(false);
 	const [retry, setRetry] = useState(0);
@@ -76,10 +88,40 @@ export function RepositoryAccountPicker({
 
 	const selected = selection?.repository;
 
-	const displayed =
-		selected && !items.some((item) => item.id === selected.id)
-			? [selected, ...items]
-			: items;
+	const displayed = useMemo(
+		() =>
+			selected && !items.some((item) => item.id === selected.id)
+				? [selected, ...items]
+				: items,
+		[items, selected]
+	);
+
+	// Native viewport notifications schedule only visible artwork, without React scroll state.
+	const preloadAvatars = useCallback((): void => {
+		if (!avatars) return;
+
+		const anchor = viewport.current
+			? renderer.getListScrollTop?.(viewport.current.id)
+			: undefined;
+
+		const first = Math.max(0, (anchor?.[0] ?? 0) - 1);
+
+		const count = anchor
+			? Math.ceil(((anchor[1] ?? 0) + (anchor[2] ?? 0)) / repositoryRowStride) +
+				3
+			: 12;
+
+		for (const item of displayed.slice(first, first + count)) {
+			void avatars.load({ remote: item.browserUrl, avatarUrl: item.avatarUrl });
+		}
+	}, [avatars, displayed, renderer]);
+
+	useEffect(() => {
+		// The initial viewport can paint before native range notifications are registered.
+		const timer = setTimeout(preloadAvatars, 0);
+
+		return () => clearTimeout(timer);
+	}, [preloadAvatars]);
 
 	useEffect(() => {
 		if (!account) return;
@@ -264,6 +306,8 @@ export function RepositoryAccountPicker({
 			</div>
 			{displayed.length ? (
 				<virtual-list
+					ref={viewport}
+					onVisibleRange={preloadAvatars}
 					testId="clone-repositories"
 					role="group"
 					aria-label="Repositories"
@@ -298,30 +342,50 @@ export function RepositoryAccountPicker({
 								onPress={() => onSelect({ account, repository: item })}
 								style={{
 									height: repositoryRowHeight,
-									flexDirection: "column",
-									alignItems: "stretch",
+									flexDirection: "row",
+									alignItems: "center",
 									justifyContent: "center",
-									gap: 3,
+									gap: 10,
 									paddingLeft: 12,
 									paddingRight: 12,
 								}}
 							>
-								<text
-									testId={`clone-repository-name-${item.id}`}
+								<RepositoryAvatar
+									deferred
+									label={item.ref.owner}
+									source={{
+										remote: item.browserUrl,
+										avatarUrl: item.avatarUrl,
+									}}
+									testId={`clone-avatar-${item.id}`}
+								/>
+								<div
 									style={{
-										...rowText,
-										fontSize: 12,
-										color: appTokens.colors.text,
+										display: "flex",
+										flexDirection: "column",
+										gap: 3,
+										flexGrow: 1,
+										minWidth: 0,
+										pointerEvents: "none",
 									}}
 								>
-									{`${item.ref.owner}/${item.ref.name}`}
-								</text>
-								<text
-									testId={`clone-repository-description-${item.id}`}
-									style={{ ...hint, ...rowText }}
-								>
-									{`${visibilityLabels[item.visibility]}${item.description ? ` · ${item.description}` : ""}`}
-								</text>
+									<text
+										testId={`clone-repository-name-${item.id}`}
+										style={{
+											...rowText,
+											fontSize: 12,
+											color: appTokens.colors.text,
+										}}
+									>
+										{`${item.ref.owner}/${item.ref.name}`}
+									</text>
+									<text
+										testId={`clone-repository-description-${item.id}`}
+										style={{ ...hint, ...rowText }}
+									>
+										{`${visibilityLabels[item.visibility]}${item.description ? ` · ${item.description}` : ""}`}
+									</text>
+								</div>
 							</Button>
 						</div>
 					))}

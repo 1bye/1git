@@ -10,6 +10,7 @@ import { workspaceLayout as layout } from "../../../styles/workspace-layout";
 import type { WorkspaceTabRecord } from "../lib/workspace-tabs-model";
 import { WorkspaceTabIcon } from "./workspace-tab-icon";
 import { RepositoryWorkspaceModel } from "../../repository-workspace/lib/repository-workspace-model";
+import { RepositoryAvatar } from "../../repository-workspace/components/repository-avatar";
 
 const { tabWidth: width, tabHeight: height, tabRadius: radius } = layout;
 // Adjacent tabs each contribute half of the 4px surface gap.
@@ -71,18 +72,6 @@ const styles = StyleSheet.create({
 		borderRadius: 6,
 		cursor: "pointer",
 	},
-	avatar: {
-		pointerEvents: "none",
-		width: layout.tabAvatarSize,
-		height: layout.tabAvatarSize,
-		borderRadius: 4,
-		backgroundColor: lightColors.editorSunken2,
-		display: "flex",
-		alignItems: "center",
-		justifyContent: "center",
-		flexShrink: 0,
-	},
-	initial: { fontSize: 9, color: lightColors.editorMuted },
 	label: {
 		display: "flex",
 		flexDirection: "row",
@@ -371,11 +360,21 @@ function WorkspaceTabLabel({
 }) {
 	return (
 		<>
-			<div testId={`avatar-${id}`} style={styles.avatar}>
-				<Text tokens={appTokens} style={styles.initial}>
-					{tab.name[0]?.toUpperCase()}
-				</Text>
-			</div>
+			<RepositoryAvatar
+				testId={`avatar-${id}`}
+				label={tab.name}
+				size={layout.tabAvatarSize}
+				source={
+					tab.workspace.repository?.root || tab.workspace.repositoryPath
+						? {
+								path:
+									tab.workspace.repository?.root ??
+									tab.workspace.repositoryPath ??
+									"",
+							}
+						: undefined
+				}
+			/>
 			<div testId={`label-${id}`} style={styles.label}>
 				<Text
 					testId={`name-${id}`}

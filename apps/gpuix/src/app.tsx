@@ -7,6 +7,8 @@ import {
 	useRef,
 } from "react";
 import { RepositoryPreviewCache } from "./feature/repository-workspace/lib/repository-preview-cache";
+import { RepositoryAvatars } from "./feature/repository-workspace/lib/repository-avatars";
+import { RepositoryAvatarContext } from "./feature/repository-workspace/components/repository-avatar";
 import { AccountsSettings } from "./feature/accounts/accounts-settings";
 import { Accounts } from "./feature/accounts/lib/accounts";
 import { AccountStore } from "./feature/accounts/lib/account-store";
@@ -62,6 +64,7 @@ import { RepositoryComparison as ComparisonReader } from "./feature/repository-c
 /** Owns one window's workspaces, cancellable reads and explicit commit transactions. */
 export function App({
 	accounts: suppliedAccounts,
+	avatars: suppliedAvatars,
 	initialTabCount = 1,
 	preview = false,
 	initialSession,
@@ -91,6 +94,7 @@ export function App({
 	openFile = RepositoryFileActions.open,
 }: {
 	accounts?: Accounts;
+	avatars?: RepositoryAvatars;
 	initialTabCount?: number;
 	preview?: boolean;
 	initialSession?: WorkspaceSessionDocument;
@@ -135,6 +139,20 @@ export function App({
 				new AccountStore(AccountStore.defaultPath()),
 				new NativeCredentials(renderer)
 			)
+	);
+
+	const avatars = useMemo(
+		() =>
+			suppliedAvatars ??
+			new RepositoryAvatars(() => accounts.avatarProviders()),
+		[accounts, suppliedAvatars]
+	);
+
+	useEffect(
+		() => () => {
+			if (!suppliedAvatars) avatars.dispose();
+		},
+		[avatars, suppliedAvatars]
 	);
 
 	const setup = useCallback<typeof RepositorySetup.write>(
@@ -396,293 +414,295 @@ export function App({
 	) : null;
 
 	return (
-		<div
-			style={{
-				display: "flex",
-				position: "relative",
-				flexDirection: "column",
-				width: "100%",
-				height: "100%",
-			}}
-		>
-			<AppShell
-				hidden={settingsOpen}
-				rail={
-					settingsOpen ? undefined : (
-						<WorkspaceRail
-							settingsButtonRef={railSettingsButton}
-							accountButtonRef={railAccountButton}
-							viewButtonRefs={railViewButtons}
+		<RepositoryAvatarContext value={avatars}>
+			<div
+				style={{
+					display: "flex",
+					position: "relative",
+					flexDirection: "column",
+					width: "100%",
+					height: "100%",
+				}}
+			>
+				<AppShell
+					hidden={settingsOpen}
+					rail={
+						settingsOpen ? undefined : (
+							<WorkspaceRail
+								settingsButtonRef={railSettingsButton}
+								accountButtonRef={railAccountButton}
+								viewButtonRefs={railViewButtons}
+								accounts={accounts}
+								preferredAccountKey={preferredAccountKey}
+								onAccount={setPreferredAccountKey}
+								onSettings={openSettings}
+								onAddAccount={() => openSettings("connect")}
+								view={repositoryView}
+								onView={selectRepositoryView}
+							/>
+						)
+					}
+					navigation={
+						activeTab &&
+						workspace &&
+						(workspace.repository ||
+							workspace.preview ||
+							workspace.repositoryPath) &&
+						!activeTab.comparison ? (
+							<RepositoryNavigation
+								onPreviewIntent={(entry) => {
+									const change = entry?.change ?? entry?.commitFile;
+									const repository = workspace.repository;
+
+									const available =
+										repository &&
+										!workspace.loading &&
+										!workspace.error &&
+										!RepositoryWorkspaceModel.isBusy(workspace);
+
+									previewCache.intent(
+										change && available
+											? { root: repository.root, change, version: repository }
+											: null
+									);
+								}}
+								openFile={openFile}
+								onDiscard={(request) =>
+									mutations.discardFile(activeTab.id, request)
+								}
+								key={activeTab.id}
+								workspaceId={activeTab.id}
+								state={workspace}
+								history={history}
+								stashes={stashes}
+								onCommit={() => {
+									void mutations.commit(activeTab.id);
+								}}
+								onStash={(request) => mutations.stash(activeTab.id, request)}
+								onSync={() => {
+									void mutations.synchronize(activeTab.id, { kind: "sync" });
+								}}
+								onCancelSync={() => mutations.cancelSync(activeTab.id)}
+								onOperation={(request) =>
+									mutations.finishOperation(activeTab.id, request)
+								}
+								onRefresh={() => {
+									void connection.refresh(activeTab.id);
+								}}
+								onAction={(action) =>
+									dispatch({ type: "workspace", id: activeTab.id, action })
+								}
+							/>
+						) : undefined
+					}
+					toolbar={
+						<WorkspaceTabs
+							state={state}
+							dispatch={dispatch}
+							readBranches={readBranches}
+							readRepository={readRepository}
+							onChangeBranch={mutations.changeBranch}
+							onCreateWorktree={mutations.createWorktree}
+							onRemoveWorktree={mutations.removeWorktree}
+							onFetch={mutations.fetch}
+							onSync={mutations.synchronize}
+							onCancelSync={mutations.cancelSync}
+						/>
+					}
+					workspaceLabel={
+						activeTab ? `${activeTab.name} workspace` : "No workspace open"
+					}
+				>
+					{settingsOpen ? null : closeNotice}
+					{session.error ? (
+						<div style={{ padding: 10, flexShrink: 0, gap: 6 }}>
+							<text
+								testId="session-notice"
+								role="alert"
+								style={{ fontSize: 11, color: appTokens.colors.textMuted }}
+							>
+								{session.error}
+							</text>
+							{saveSession ? (
+								<Button
+									testId="retry-session-save"
+									tokens={appTokens}
+									size="sm"
+									variant="ghost"
+									onPress={session.retry}
+								>
+									Retry saving session
+								</Button>
+							) : null}
+						</div>
+					) : null}
+					{cloneTab ? (
+						<RepositoryCloneView
+							key={cloneTab.id}
 							accounts={accounts}
 							preferredAccountKey={preferredAccountKey}
-							onAccount={setPreferredAccountKey}
+							active={activeTab?.id === cloneTab.id && !settingsOpen}
+							disabled={
+								connection.pickingId !== null ||
+								cloneTab.workspace.loading ||
+								RepositoryWorkspaceModel.isBusy(cloneTab.workspace)
+							}
+							onSubmit={(request) =>
+								connection.setup(
+									cloneTab.id,
+									request,
+									mutations.closeProtection.block
+								)
+							}
+							onCancel={() => connection.cancelSetup(cloneTab.id)}
+							onOpen={(path) => {
+								void connection.read(cloneTab.id, path);
+							}}
 							onSettings={openSettings}
 							onAddAccount={() => openSettings("connect")}
-							view={repositoryView}
-							onView={selectRepositoryView}
+							onBack={() => {
+								setCloneId(null);
+								setTimeout(() => {
+									const trigger = cloneTrigger.current;
+
+									if (trigger) renderer.focusElement?.(trigger.id);
+								}, 0);
+							}}
 						/>
-					)
-				}
-				navigation={
-					activeTab &&
-					workspace &&
-					(workspace.repository ||
-						workspace.preview ||
-						workspace.repositoryPath) &&
-					!activeTab.comparison ? (
-						<RepositoryNavigation
-							onPreviewIntent={(entry) => {
-								const change = entry?.change ?? entry?.commitFile;
-								const repository = workspace.repository;
+					) : null}
+					{cloneTab && activeTab?.id === cloneTab.id ? null : !preview &&
+					  !workspace?.repository &&
+					  !workspace?.repositoryPath ? (
+						<RepositoryWelcome
+							paths={state.recentRepositories ?? []}
+							onForget={(path) => dispatch({ type: "forget-repository", path })}
+							busy={connection.pickingId !== null || !!workspace?.loading}
+							error={workspace?.error}
+							onOpen={() => {
+								const id = activeTab?.id ?? `workspace-${state.nextId}`;
 
-								const available =
-									repository &&
-									!workspace.loading &&
-									!workspace.error &&
-									!RepositoryWorkspaceModel.isBusy(workspace);
+								if (!activeTab) dispatch({ type: "add" });
 
-								previewCache.intent(
-									change && available
-										? { root: repository.root, change, version: repository }
-										: null
+								void connection.open(id);
+							}}
+							onOpenRecent={(path) => {
+								const existing = state.tabs.find(
+									(tab) => tab.workspace.repository?.root === path
 								);
+
+								if (existing) dispatch({ type: "activate", id: existing.id });
+								else if (activeTab) void connection.read(activeTab.id, path);
+								else dispatch({ type: "add", path });
 							}}
-							openFile={openFile}
-							onDiscard={(request) =>
-								mutations.discardFile(activeTab.id, request)
-							}
-							key={activeTab.id}
-							workspaceId={activeTab.id}
-							state={workspace}
-							history={history}
-							stashes={stashes}
-							onCommit={() => {
-								void mutations.commit(activeTab.id);
-							}}
-							onStash={(request) => mutations.stash(activeTab.id, request)}
-							onSync={() => {
-								void mutations.synchronize(activeTab.id, { kind: "sync" });
-							}}
-							onCancelSync={() => mutations.cancelSync(activeTab.id)}
-							onOperation={(request) =>
-								mutations.finishOperation(activeTab.id, request)
-							}
-							onRefresh={() => {
-								void connection.refresh(activeTab.id);
-							}}
-							onAction={(action) =>
-								dispatch({ type: "workspace", id: activeTab.id, action })
+							actions={
+								<RepositorySetupActions
+									cloneRef={cloneTrigger}
+									onClone={() => {
+										if (
+											cloneTab &&
+											RepositoryWorkspaceModel.isBusy(cloneTab.workspace)
+										) {
+											dispatch({ type: "activate", id: cloneTab.id });
+
+											return;
+										}
+
+										const id = activeTab?.id ?? `workspace-${state.nextId}`;
+
+										if (!activeTab) dispatch({ type: "add" });
+
+										setCloneId(id);
+									}}
+									onBegin={() => {
+										if (!activeTab) dispatch({ type: "add" });
+									}}
+									disabled={
+										connection.pickingId !== null ||
+										!!workspace?.loading ||
+										(!!workspace && RepositoryWorkspaceModel.isBusy(workspace))
+									}
+									onSubmit={(request) =>
+										activeTab
+											? connection.setup(
+													activeTab.id,
+													request,
+													mutations.closeProtection.block
+												)
+											: Promise.resolve({
+													ok: false,
+													message: "Open a workspace first.",
+												})
+									}
+									onCancel={() => {
+										if (activeTab) connection.cancelSetup(activeTab.id);
+									}}
+									onOpen={(path) => {
+										if (activeTab) void connection.read(activeTab.id, path);
+									}}
+								/>
 							}
 						/>
-					) : undefined
-				}
-				toolbar={
-					<WorkspaceTabs
-						state={state}
-						dispatch={dispatch}
-						readBranches={readBranches}
-						readRepository={readRepository}
-						onChangeBranch={mutations.changeBranch}
-						onCreateWorktree={mutations.createWorktree}
-						onRemoveWorktree={mutations.removeWorktree}
-						onFetch={mutations.fetch}
-						onSync={mutations.synchronize}
-						onCancelSync={mutations.cancelSync}
-					/>
-				}
-				workspaceLabel={
-					activeTab ? `${activeTab.name} workspace` : "No workspace open"
-				}
-			>
-				{settingsOpen ? null : closeNotice}
-				{session.error ? (
-					<div style={{ padding: 10, flexShrink: 0, gap: 6 }}>
-						<text
-							testId="session-notice"
-							role="alert"
-							style={{ fontSize: 11, color: appTokens.colors.textMuted }}
-						>
-							{session.error}
-						</text>
-						{saveSession ? (
-							<Button
-								testId="retry-session-save"
-								tokens={appTokens}
-								size="sm"
-								variant="ghost"
-								onPress={session.retry}
-							>
-								Retry saving session
-							</Button>
-						) : null}
-					</div>
-				) : null}
-				{cloneTab ? (
-					<RepositoryCloneView
-						key={cloneTab.id}
+					) : activeTab?.comparison ? (
+						<RepositoryComparison
+							key={activeTab.id}
+							request={activeTab.comparison}
+							readComparison={readComparison}
+							readHistory={readHistory}
+							readCommitFiles={readCommitFiles}
+							readDiff={readDiff}
+							previewCache={previewCache}
+							onClose={() => dispatch({ type: "compare", id: activeTab.id })}
+						/>
+					) : activeTab && workspace?.repository && comparison ? (
+						<RepositoryDiff
+							key={`${activeTab.id}:${workspace.repository.root}:${revision?.id ?? "changes"}`}
+							root={workspace.repository.root}
+							change={comparison}
+							cache={previewCache}
+							version={workspace.repository}
+							files={files}
+							refreshing={
+								workspace.loading || RepositoryWorkspaceModel.isBusy(workspace)
+							}
+							statusError={workspace.error}
+							readDiff={readDiff}
+							onResolve={(hash, side) =>
+								mutations.resolve(activeTab.id, comparison.path, hash, side)
+							}
+							openConflictEditor={openConflictEditor}
+						/>
+					) : (
+						<RepositoryDiffEmpty
+							selected={selected}
+							revision={revision}
+							view={workspace?.view}
+							hasWorkspace={!!activeTab}
+							workspace={workspace}
+							picking={connection.pickingId !== null}
+							onOpen={() => {
+								if (!activeTab) return;
+
+								if (workspace?.repositoryPath)
+									void connection.refresh(activeTab.id);
+								else void connection.open(activeTab.id);
+							}}
+						/>
+					)}
+				</AppShell>
+				{settingsOpen ? (
+					<AccountsSettings
+						onBack={closeSettings}
 						accounts={accounts}
+						initialForm={settingsView ?? "list"}
 						preferredAccountKey={preferredAccountKey}
-						active={activeTab?.id === cloneTab.id && !settingsOpen}
-						disabled={
-							connection.pickingId !== null ||
-							cloneTab.workspace.loading ||
-							RepositoryWorkspaceModel.isBusy(cloneTab.workspace)
-						}
-						onSubmit={(request) =>
-							connection.setup(
-								cloneTab.id,
-								request,
-								mutations.closeProtection.block
-							)
-						}
-						onCancel={() => connection.cancelSetup(cloneTab.id)}
-						onOpen={(path) => {
-							void connection.read(cloneTab.id, path);
-						}}
-						onSettings={openSettings}
-						onAddAccount={() => openSettings("connect")}
-						onBack={() => {
-							setCloneId(null);
-							setTimeout(() => {
-								const trigger = cloneTrigger.current;
-
-								if (trigger) renderer.focusElement?.(trigger.id);
-							}, 0);
-						}}
-					/>
+						onAccount={setPreferredAccountKey}
+						repositoryView={repositoryView}
+						onRepositoryView={selectRepositoryView}
+					>
+						{closeNotice}
+					</AccountsSettings>
 				) : null}
-				{cloneTab && activeTab?.id === cloneTab.id ? null : !preview &&
-				  !workspace?.repository &&
-				  !workspace?.repositoryPath ? (
-					<RepositoryWelcome
-						paths={state.recentRepositories ?? []}
-						onForget={(path) => dispatch({ type: "forget-repository", path })}
-						busy={connection.pickingId !== null || !!workspace?.loading}
-						error={workspace?.error}
-						onOpen={() => {
-							const id = activeTab?.id ?? `workspace-${state.nextId}`;
-
-							if (!activeTab) dispatch({ type: "add" });
-
-							void connection.open(id);
-						}}
-						onOpenRecent={(path) => {
-							const existing = state.tabs.find(
-								(tab) => tab.workspace.repository?.root === path
-							);
-
-							if (existing) dispatch({ type: "activate", id: existing.id });
-							else if (activeTab) void connection.read(activeTab.id, path);
-							else dispatch({ type: "add", path });
-						}}
-						actions={
-							<RepositorySetupActions
-								cloneRef={cloneTrigger}
-								onClone={() => {
-									if (
-										cloneTab &&
-										RepositoryWorkspaceModel.isBusy(cloneTab.workspace)
-									) {
-										dispatch({ type: "activate", id: cloneTab.id });
-
-										return;
-									}
-
-									const id = activeTab?.id ?? `workspace-${state.nextId}`;
-
-									if (!activeTab) dispatch({ type: "add" });
-
-									setCloneId(id);
-								}}
-								onBegin={() => {
-									if (!activeTab) dispatch({ type: "add" });
-								}}
-								disabled={
-									connection.pickingId !== null ||
-									!!workspace?.loading ||
-									(!!workspace && RepositoryWorkspaceModel.isBusy(workspace))
-								}
-								onSubmit={(request) =>
-									activeTab
-										? connection.setup(
-												activeTab.id,
-												request,
-												mutations.closeProtection.block
-											)
-										: Promise.resolve({
-												ok: false,
-												message: "Open a workspace first.",
-											})
-								}
-								onCancel={() => {
-									if (activeTab) connection.cancelSetup(activeTab.id);
-								}}
-								onOpen={(path) => {
-									if (activeTab) void connection.read(activeTab.id, path);
-								}}
-							/>
-						}
-					/>
-				) : activeTab?.comparison ? (
-					<RepositoryComparison
-						key={activeTab.id}
-						request={activeTab.comparison}
-						readComparison={readComparison}
-						readHistory={readHistory}
-						readCommitFiles={readCommitFiles}
-						readDiff={readDiff}
-						previewCache={previewCache}
-						onClose={() => dispatch({ type: "compare", id: activeTab.id })}
-					/>
-				) : activeTab && workspace?.repository && comparison ? (
-					<RepositoryDiff
-						key={`${activeTab.id}:${workspace.repository.root}:${revision?.id ?? "changes"}`}
-						root={workspace.repository.root}
-						change={comparison}
-						cache={previewCache}
-						version={workspace.repository}
-						files={files}
-						refreshing={
-							workspace.loading || RepositoryWorkspaceModel.isBusy(workspace)
-						}
-						statusError={workspace.error}
-						readDiff={readDiff}
-						onResolve={(hash, side) =>
-							mutations.resolve(activeTab.id, comparison.path, hash, side)
-						}
-						openConflictEditor={openConflictEditor}
-					/>
-				) : (
-					<RepositoryDiffEmpty
-						selected={selected}
-						revision={revision}
-						view={workspace?.view}
-						hasWorkspace={!!activeTab}
-						workspace={workspace}
-						picking={connection.pickingId !== null}
-						onOpen={() => {
-							if (!activeTab) return;
-
-							if (workspace?.repositoryPath)
-								void connection.refresh(activeTab.id);
-							else void connection.open(activeTab.id);
-						}}
-					/>
-				)}
-			</AppShell>
-			{settingsOpen ? (
-				<AccountsSettings
-					onBack={closeSettings}
-					accounts={accounts}
-					initialForm={settingsView ?? "list"}
-					preferredAccountKey={preferredAccountKey}
-					onAccount={setPreferredAccountKey}
-					repositoryView={repositoryView}
-					onRepositoryView={selectRepositoryView}
-				>
-					{closeNotice}
-				</AccountsSettings>
-			) : null}
-		</div>
+			</div>
+		</RepositoryAvatarContext>
 	);
 }

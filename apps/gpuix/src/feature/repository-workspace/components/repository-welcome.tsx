@@ -1,4 +1,3 @@
-import { basename } from "node:path";
 import { useState, type ReactNode } from "react";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { Button } from "@1git/gpuix-ui/button";
@@ -7,24 +6,38 @@ import { NativeFileMenu } from "../lib/native-file-menu";
 import { RepositoryFileActions } from "../lib/repository-file-actions";
 import { appTokens } from "../../../styles/tokens";
 import { StateMessage } from "../../../fixture/state-message";
+import { RepositoryWelcomeRow } from "./repository-welcome-row";
 
 const styles = StyleSheet.create({
 	page: {
 		display: "flex",
 		flexDirection: "column",
 		flexGrow: 1,
+		flexBasis: 0,
 		minHeight: 0,
-		overflowY: "scroll",
+		overflowY: "hidden",
 		padding: 40,
 		alignItems: "center",
 	},
 	columns: {
 		display: "flex",
 		flexDirection: "row",
-		alignItems: "flex-start",
+		alignItems: "stretch",
+		flexGrow: 1,
+		minHeight: 0,
 		width: "100%",
 		maxWidth: 980,
 		gap: 64,
+	},
+	list: {
+		display: "flex",
+		flexDirection: "column",
+		flexGrow: 1,
+		flexBasis: 0,
+		minHeight: 0,
+		overflowY: "scroll",
+		overflowX: "hidden",
+		gap: 4,
 	},
 	heading: {
 		fontSize: 10,
@@ -133,7 +146,9 @@ export function RepositoryWelcome({
 						display: "flex",
 						flexDirection: "column",
 						flexGrow: 1,
+						flexBasis: 0,
 						minWidth: 0,
+						minHeight: 0,
 						gap: 4,
 					}}
 				>
@@ -147,6 +162,7 @@ export function RepositoryWelcome({
 						onChange={(event) => setQuery(event.value ?? "")}
 						style={{
 							height: 34,
+							flexShrink: 0,
 							fontSize: 12,
 							color: appTokens.colors.text,
 							backgroundColor: "transparent",
@@ -158,68 +174,36 @@ export function RepositoryWelcome({
 							marginBottom: 12,
 						}}
 					/>
-					{matches.map((path) => (
-						<Button
-							key={path}
-							tokens={appTokens}
-							variant="ghost"
-							testId={`welcome-repository-${path}`}
-							aria-label={`Open ${path}`}
-							disabled={busy}
-							onPress={() => onOpenRecent(path)}
-							onContextMenu={(event) => {
-								void openMenu(path, event);
-							}}
-							style={{
-								height: 54,
-								width: "100%",
-								justifyContent: "flex-start",
-								paddingLeft: 12,
-							}}
-						>
-							<div
-								style={{
-									display: "flex",
-									flexDirection: "column",
-									gap: 3,
-									minWidth: 0,
-									flexGrow: 1,
-									pointerEvents: "none",
-								}}
-							>
-								<text style={{ fontSize: 12, color: appTokens.colors.text }}>
-									{basename(path)}
-								</text>
-								<text
-									style={{
-										...styles.hint,
-										whiteSpace: "nowrap",
-										textOverflow: "ellipsis",
-									}}
-								>
-									{path}
-								</text>
-							</div>
-						</Button>
-					))}
-					{menuError ? (
-						<text role="alert" style={styles.hint}>
-							{menuError}
-						</text>
-					) : null}
-					{!matches.length ? (
-						<StateMessage
-							artwork={query.trim() ? "search" : "repository"}
-							title={
-								query.trim() ? "No repositories found" : "No repositories yet"
-							}
-							description={
-								query.trim()
-									? `No repositories match “${query.trim()}”.`
-									: "Repositories you open, clone, or create will appear here."
-							}
-						/>
-					) : null}
+					<div testId="welcome-repositories" style={styles.list}>
+						{matches.map((path) => (
+							<RepositoryWelcomeRow
+								key={path}
+								path={path}
+								busy={busy}
+								onOpen={onOpenRecent}
+								onForget={onForget}
+								onMenu={openMenu}
+							/>
+						))}
+						{menuError ? (
+							<text role="alert" style={styles.hint}>
+								{menuError}
+							</text>
+						) : null}
+						{!matches.length ? (
+							<StateMessage
+								artwork={query.trim() ? "search" : "repository"}
+								title={
+									query.trim() ? "No repositories found" : "No repositories yet"
+								}
+								description={
+									query.trim()
+										? `No repositories match “${query.trim()}”.`
+										: "Repositories you open, clone, or create will appear here."
+								}
+							/>
+						) : null}
+					</div>
 				</div>
 			</div>
 		</div>

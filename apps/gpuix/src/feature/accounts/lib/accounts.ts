@@ -1,6 +1,7 @@
 import { HostingClient } from "@1git/hosting";
 import { GitHubProvider } from "@1git/hosting/providers/github";
 import { GitLabProvider } from "@1git/hosting/providers/gitlab";
+import type { HostingProvider } from "@1git/hosting/provider";
 import type {
 	AccessToken,
 	HostingFetch,
@@ -39,6 +40,38 @@ export interface ConnectAccount {
 
 /** Per-window account lifecycle. Metadata and OS credentials are separate; mutations roll back on persistence failure. */
 export class Accounts {
+	/** Public host configuration for images; no vault reads or account credentials. */
+	async avatarProviders(): Promise<readonly HostingProvider[]> {
+		const accounts = await this.load();
+
+		const providers: HostingProvider[] = [
+			new GitHubProvider({ fetch: this.fetch }),
+			new GitLabProvider({ fetch: this.fetch }),
+		];
+
+		const hosts = new Set(
+			providers.map((provider) => new URL(provider.defaultWebUrl).href)
+		);
+
+		for (const account of accounts) {
+			if (hosts.has(account.webUrl)) continue;
+
+			hosts.add(account.webUrl);
+			const options = {
+				webUrl: account.webUrl,
+				fetch: this.fetch,
+				timeoutMs: 5000,
+			};
+
+			providers.push(
+				account.provider === "github"
+					? new GitHubProvider(options)
+					: new GitLabProvider(options)
+			);
+		}
+
+		return providers;
+	}
 	private pending: Promise<unknown> = Promise.resolve();
 	/** Client-bound pagination lives only for this window; credentials are looked up per request. */
 	private readonly clients = new Map<string, HostingClient>();

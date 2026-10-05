@@ -9,11 +9,34 @@ import { rmSync } from "node:fs";
 import { createTestRoot } from "@gpuix/react/testing";
 import { App } from "../../src/app";
 import { hostingRepositories } from "../_shared/hosting-repositories";
+import sharp from "sharp";
+import { GitHubProvider } from "@1git/hosting/providers/github";
+import { RepositoryAvatars } from "../../src/feature/repository-workspace/lib/repository-avatars";
 
 for (const count of [30, 300, 3000]) {
 	it(`keeps native wheel scrolling within budget with ${count} repositories`, async () => {
 		const f = hostingRepositories();
 		const root = createTestRoot({ width: 980, height: 720 });
+
+		const png = await sharp({
+			create: { width: 8, height: 8, channels: 4, background: "#5577aa" },
+		})
+			.png()
+			.toBuffer();
+
+		let downloads = 0;
+
+		const avatars = new RepositoryAvatars(async () => [
+			new GitHubProvider({
+				fetch: async () => {
+					downloads += 1;
+
+					return new Response(png, {
+						headers: { "content-type": "image/png" },
+					});
+				},
+			}),
+		]);
 
 		try {
 			const account = f.saved[0];
@@ -32,13 +55,15 @@ for (const count of [30, 300, 3000]) {
 					...template,
 					id: String(index),
 					ref: { owner: "tester", name: `project-${index}` },
+					browserUrl: `https://github.com/tester/project-${index}`,
+					avatarUrl: "https://avatars.githubusercontent.com/u/7",
 					description:
 						"A disposable repository with a reasonably sized description for native rendering.",
 				})),
 			});
 
 			root.renderer.clockPause();
-			root.render(<App accounts={f.accounts} />);
+			root.render(<App accounts={f.accounts} avatars={avatars} />);
 			const trigger = root.renderer.findByTestId("repository-clone");
 
 			const triggerBounds =
@@ -61,6 +86,9 @@ for (const count of [30, 300, 3000]) {
 
 			if (!list || !footer || !firstBounds)
 				throw new Error("Missing clone list layout");
+
+			expect(root.renderer.findByTestId("clone-avatar-0-image")).toBeDefined();
+			expect(downloads).toBe(1);
 
 			const footerBefore = root.renderer.getElementBounds(footer.id);
 			const requestsBefore = repositories.mock.calls.length;
@@ -130,6 +158,7 @@ for (const count of [30, 300, 3000]) {
 			).toBe("Selected repository");
 		} finally {
 			root.unmount();
+			avatars.dispose();
 			mock.restore();
 			rmSync(f.directory, { recursive: true, force: true });
 		}

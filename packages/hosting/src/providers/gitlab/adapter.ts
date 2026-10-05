@@ -212,6 +212,11 @@ export class GitLabAdapter implements Adapter {
 
 		return {
 			id: id(repo.id),
+			avatarUrl:
+				this.http.endpoints.provider.avatarUrl(repo.avatar_url) ??
+				this.http.endpoints.provider.avatarUrl(
+					repo.namespace == null ? null : record(repo.namespace).avatar_url
+				),
 			ref,
 			name: string(repo.name),
 			description: optionalString(repo.description),
