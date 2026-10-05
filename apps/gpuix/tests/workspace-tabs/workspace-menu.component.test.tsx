@@ -147,7 +147,7 @@ const writeSyncRepository = mock<typeof RepositorySync.write>(
 		ok: true,
 		value: {
 			operation: input.kind === "pull" ? "pull" : "push",
-			remote: input.remote,
+			remote: input.kind === "sync" ? "origin" : input.remote,
 			branch: snapshot.head.branch,
 			snapshot,
 		},
@@ -1626,7 +1626,7 @@ it("pulls from the displayed upstream, refreshes HEAD and preserves the commit d
 			ok: true,
 			value: {
 				operation: "pull",
-				remote: input.remote,
+				remote: input.kind === "sync" ? "origin" : input.remote,
 				branch: "main",
 				snapshot,
 			},

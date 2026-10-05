@@ -65,7 +65,7 @@ export interface RepositoryWorkspaceState {
 		readonly notice: string | null;
 	};
 	readonly sync: {
-		readonly pending: "fetch" | "pull" | "push" | "publish" | null;
+		readonly pending: "fetch" | "pull" | "push" | "publish" | "sync" | null;
 		readonly error: string | null;
 		readonly notice: string | null;
 		readonly fetchedAt: number | null;
@@ -80,6 +80,7 @@ export interface RepositoryWorkspaceState {
 		readonly branch: string;
 		readonly head: string | null;
 		readonly branchName: string | null;
+		readonly upstream: string | null;
 		readonly operation: RepositoryOperationState;
 		readonly operationToken?: string;
 	} | null;
@@ -333,6 +334,21 @@ export class RepositoryWorkspaceModel {
 			!state.commitMessage.includes("\0") &&
 			RepositoryWorkspaceModel.canPreviewCommit(state) &&
 			!RepositoryWorkspaceModel.commitBlockReason(state)
+		);
+	}
+
+	/** Sync is independent of checkbox inclusion and never commits working files. */
+	static canSync(state: RepositoryWorkspaceState): boolean {
+		return (
+			!state.preview &&
+			!state.loading &&
+			!state.error &&
+			!state.commit.needsReview &&
+			!RepositoryWorkspaceModel.isBusy(state) &&
+			!!state.repository?.head &&
+			!!state.repository.branchName &&
+			!!state.repository.upstream &&
+			state.repository.operation === "normal"
 		);
 	}
 
@@ -911,6 +927,7 @@ export class RepositoryWorkspaceModel {
 					branch,
 					head: snapshot.head.oid,
 					branchName: snapshot.head.branch,
+					upstream: snapshot.head.upstream,
 					operation: snapshot.operationState,
 					operationToken: snapshot.operationToken,
 				},

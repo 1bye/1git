@@ -1,5 +1,5 @@
 /**
- * Covers: fetch, guarded fast-forward pull, targeted push/publish, stale state, dirty trees and config overrides.
+ * Covers: combined upstream sync, fetch, guarded pull/push/publish, stale state, dirty trees and config overrides.
  * Real: app Git boundaries, Git CLI, a temporary bare remote and local clones.
  * Doubles: none.
  * Requires: Git and writable temporary storage; no network or user repository.
@@ -77,7 +77,7 @@ afterEach(async () => {
 });
 
 const synchronize = async (
-	kind: SyncChoice["kind"],
+	kind: SyncChoice["kind"] | "sync",
 	remote = "origin",
 	remoteRef = "refs/heads/main"
 ) => {
@@ -91,9 +91,7 @@ const synchronize = async (
 	return await RepositorySync.write(
 		repository,
 		{
-			kind,
-			remote,
-			remoteRef,
+			...(kind === "sync" ? { kind } : { kind, remote, remoteRef }),
 			expectedHead: read.value.head.oid ?? "",
 			expectedBranch: read.value.head.branch ?? "",
 		},
@@ -426,4 +424,156 @@ it("rejects stale identities, changed upstreams, detached HEAD, ongoing operatio
 	);
 	expect((await synchronize("push")).ok).toBe(false);
 	expect(await git(repository, "rev-parse", "HEAD")).toBe(head);
+});
+
+it("sync fetches fresh incoming commits and fast-forwards only, then is a no-op when up to date", async () => {
+	await git(repository, "config", "pull.rebase", "true");
+	await git(repository, "config", "rebase.autoStash", "true");
+	await writeFile(join(writer, "file.txt"), "incoming\n");
+	await git(writer, "commit", "-am", "Incoming");
+	await git(writer, "push", "origin", "main");
+	const result = await synchronize("sync");
+
+	expect(result.ok && result.value.operation).toBe("pull");
+	expect(await git(repository, "rev-parse", "HEAD")).toBe(
+		await git(writer, "rev-parse", "HEAD")
+	);
+	expect(await readFile(join(repository, "file.txt"), "utf8")).toBe(
+		"incoming\n"
+	);
+	expect(await git(repository, "stash", "list")).toBe("");
+	const current = await synchronize("sync");
+
+	expect(current.ok && current.value.operation).toBe("fetch");
+	expect(current.ok && current.value.snapshot.head).toMatchObject({
+		ahead: 0,
+		behind: 0,
+	});
+});
+
+it("sync pushes the exact configured upstream and leaves staged, unstaged and untracked files untouched", async () => {
+	const original = await git(repository, "rev-parse", "HEAD");
+
+	await git(writer, "push", "origin", "main:refs/heads/release/topic");
+	await git(repository, "fetch", "origin");
+	await git(repository, "branch", "--set-upstream-to=origin/release/topic");
+	await writeFile(join(repository, "file.txt"), "outgoing\n");
+	await git(repository, "commit", "-am", "Outgoing");
+	const outgoing = await git(repository, "rev-parse", "HEAD");
+
+	await writeFile(join(repository, "file.txt"), "staged\n");
+	await git(repository, "add", "file.txt");
+	await writeFile(join(repository, "file.txt"), "unstaged\n");
+	await writeFile(join(repository, "new.txt"), "untracked\n");
+	const index = await readFile(join(repository, ".git/index"));
+	const result = await synchronize("sync");
+
+	expect(result.ok && result.value.operation).toBe("push");
+	expect(
+		await git(join(sandbox, "remote.git"), "rev-parse", "release/topic")
+	).toBe(outgoing);
+	expect(await git(join(sandbox, "remote.git"), "rev-parse", "main")).toBe(
+		original
+	);
+	expect(await readFile(join(repository, ".git/index"))).toEqual(index);
+	expect(await readFile(join(repository, "file.txt"), "utf8")).toBe(
+		"unstaged\n"
+	);
+	expect(await readFile(join(repository, "new.txt"), "utf8")).toBe(
+		"untracked\n"
+	);
+});
+
+it("sync stops on divergence or a dirty incoming pull without pushing or auto-stashing", async () => {
+	await writeFile(join(writer, "remote.txt"), "incoming\n");
+	await git(writer, "add", "remote.txt");
+	await git(writer, "commit", "-m", "Incoming");
+	await git(writer, "push", "origin", "main");
+	const remote = await git(writer, "rev-parse", "HEAD");
+	const original = await git(repository, "rev-parse", "HEAD");
+
+	await writeFile(join(repository, "file.txt"), "uncommitted\n");
+	await git(repository, "add", "file.txt");
+	const index = await readFile(join(repository, ".git/index"));
+	const dirty = await synchronize("sync");
+
+	expect(!dirty.ok && dirty.error.code).toBe("dirty-worktree");
+	expect(await readFile(join(repository, ".git/index"))).toEqual(index);
+	expect(await git(repository, "rev-parse", "HEAD")).toBe(original);
+	await git(repository, "commit", "-m", "Outgoing");
+	const divergedHead = await git(repository, "rev-parse", "HEAD");
+	const diverged = await synchronize("sync");
+
+	expect(!diverged.ok && diverged.error.code).toBe("conflict");
+	expect(await git(repository, "rev-parse", "HEAD")).toBe(divergedHead);
+	expect(await git(join(sandbox, "remote.git"), "rev-parse", "main")).toBe(
+		remote
+	);
+	expect(await git(repository, "stash", "list")).toBe("");
+});
+
+it("sync rejects missing upstreams, stale HEAD and cancellation without publishing", async () => {
+	const head = await git(repository, "rev-parse", "HEAD");
+
+	const request = {
+		kind: "sync" as const,
+		expectedHead: head,
+		expectedBranch: "main",
+	};
+
+	const signal = new AbortController().signal;
+
+	const stale = await RepositorySync.write(
+		repository,
+		{ ...request, expectedHead: "0".repeat(40) },
+		signal
+	);
+
+	expect(!stale.ok && stale.error.code).toBe("invalid-input");
+	const cancelled = await RepositorySync.write(
+		repository,
+		request,
+		AbortSignal.abort()
+	);
+
+	expect(!cancelled.ok && cancelled.error.code).toBe("aborted");
+	await git(repository, "branch", "--unset-upstream");
+	const missing = await synchronize("sync");
+
+	expect(!missing.ok && missing.error.message).toContain(
+		"Publish it from the tab menu"
+	);
+	expect(await git(repository, "rev-parse", "HEAD")).toBe(head);
+	expect(await git(join(sandbox, "remote.git"), "rev-parse", "main")).toBe(
+		head
+	);
+});
+
+it("sync stops on fetch failures without attempting a push", async () => {
+	const remoteHead = await git(writer, "rev-parse", "HEAD");
+
+	await writeFile(join(repository, "file.txt"), "outgoing\n");
+	await git(repository, "commit", "-am", "Outgoing");
+	await git(
+		repository,
+		"remote",
+		"set-url",
+		"origin",
+		join(sandbox, "missing.git")
+	);
+	// A valid push URL must not be used after the preceding fetch failed.
+	await git(
+		repository,
+		"remote",
+		"set-url",
+		"--push",
+		"origin",
+		join(sandbox, "remote.git")
+	);
+	const failed = await synchronize("sync");
+
+	expect(failed.ok).toBe(false);
+	expect(await git(join(sandbox, "remote.git"), "rev-parse", "main")).toBe(
+		remoteHead
+	);
 });

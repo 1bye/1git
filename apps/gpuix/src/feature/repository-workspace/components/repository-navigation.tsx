@@ -128,6 +128,8 @@ export function RepositoryNavigation({
 	history,
 	stashes,
 	onCommit,
+	onSync,
+	onCancelSync,
 	onStash,
 	onOperation,
 	onDiscard,
@@ -141,6 +143,8 @@ export function RepositoryNavigation({
 	history?: ReturnType<typeof useRepositoryHistory>;
 	stashes?: ReturnType<typeof useRepositoryStashes>;
 	onCommit?: () => void;
+	onSync?: () => void;
+	onCancelSync?: () => void;
 	onStash?: (request: StashWriteRequest) => Promise<boolean>;
 	onOperation?: (request: FinishOperationInput) => Promise<string | null>;
 	onDiscard?: (request: FileDiscardRequest) => Promise<string | null>;
@@ -643,6 +647,8 @@ export function RepositoryNavigation({
 						state={state}
 						onAction={onAction}
 						onCommit={onCommit}
+						onSync={onSync}
+						onCancelSync={onCancelSync}
 					/>
 				) : (
 					<div style={styles.footer}>

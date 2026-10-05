@@ -1,5 +1,5 @@
 /**
- * Covers: checked-file commits, duplicate prevention, draft/error retention and cross-tab refresh.
+ * Covers: checked-file commits, combined Sync controls, duplicate prevention, draft/error retention and refresh.
  * Real: App, reducers, hooks and native GPUIX events/layout.
  * Doubles: Git reads/writes and folder picker; no live repository mutations.
  * Requires: patched GPUIX renderer with macOS graphics access.
@@ -9,6 +9,7 @@ import { createTestRoot, type TestRoot } from "@gpuix/react/testing";
 import { App } from "../../src/app";
 import type { RepositoryCommit } from "../../src/feature/repository-workspace/lib/repository-commit";
 import type { RepositoryHistory } from "../../src/feature/repository-workspace/lib/repository-history";
+import type { RepositorySync } from "../../src/feature/repository-workspace/lib/repository-sync";
 import {
 	changedFile,
 	repositorySnapshot,
@@ -133,6 +134,189 @@ const open = async (): Promise<void> => {
 	click("open-repository");
 	await settle();
 };
+
+it("places a secondary Sync button immediately left of Commit and preserves the draft", async () => {
+	const base = snapshot();
+
+	const tracked = {
+		...base,
+		head: { ...base.head, upstream: "origin/main", ahead: 1 },
+	};
+
+	const pending =
+		Promise.withResolvers<Awaited<ReturnType<typeof RepositorySync.write>>>();
+
+	const writeSyncRepository = mock<typeof RepositorySync.write>(
+		() => pending.promise
+	);
+
+	const read = mock(async () => ({ ok: true as const, value: tracked }));
+
+	root.render(
+		<App readRepository={read} writeSyncRepository={writeSyncRepository} />
+	);
+	await open();
+	message();
+	const sync = root.renderer.getElementBounds(node("commit-sync").id);
+	const commit = root.renderer.getElementBounds(node("commit-submit").id);
+
+	expect(sync).toBeDefined();
+	expect(commit).toBeDefined();
+	expect(sync && commit && sync.x + sync.width).toBeLessThan(commit?.x ?? 0);
+	expect(sync?.y).toBe(commit?.y);
+	expect(node("commit-sync").style?.backgroundColor).not.toBe(
+		node("commit-submit").style?.backgroundColor
+	);
+	const screenshot = process.env.GPUIX_SYNC_SCREENSHOT;
+
+	if (screenshot) root.renderer.captureScreenshot(screenshot);
+
+	click("commit-sync");
+	click("commit-sync");
+	expect(writeSyncRepository).toHaveBeenCalledTimes(1);
+	expect(writeSyncRepository.mock.calls[0]?.slice(0, 2)).toEqual([
+		"/test/project",
+		{
+			kind: "sync",
+			expectedHead: tracked.head.oid ?? "",
+			expectedBranch: "main",
+		},
+	]);
+	expect(writeSyncRepository.mock.calls[0]?.[2].aborted).toBe(true);
+	expect(root.renderer.getAllText()).toContain("Syncing…");
+	click("commit-submit");
+	expect(node("commit-message").customProps?.value).toBe("fix");
+	pending.resolve({
+		ok: false,
+		error: {
+			code: "aborted",
+			operation: "fetch",
+			message: "Aborted",
+			retryable: false,
+		},
+	});
+	await settle();
+	await settle();
+	expect(read).toHaveBeenCalledTimes(2);
+	expect(root.renderer.getAllText().join(" ")).toContain(
+		"review status before retrying"
+	);
+	expect(node("commit-message").customProps?.value).toBe("fix");
+});
+
+it("syncs with the keyboard without extra menu reads or submitting checked files", async () => {
+	const base = snapshot();
+
+	const tracked = {
+		...base,
+		head: { ...base.head, upstream: "origin/main", ahead: 1 },
+	};
+
+	const pending =
+		Promise.withResolvers<Awaited<ReturnType<typeof RepositorySync.write>>>();
+
+	const writeSyncRepository = mock<typeof RepositorySync.write>(
+		() => pending.promise
+	);
+
+	const writeCommit = mock<typeof RepositoryCommit.write>(async () => ({
+		ok: false,
+		error: {
+			code: "command-failed",
+			operation: "commit",
+			message: "Unexpected commit",
+			retryable: false,
+		},
+	}));
+
+	const readBranches = mock(async () => {
+		throw new Error("No menu read is needed");
+	});
+
+	root.render(
+		<App
+			readRepository={async () => ({ ok: true, value: tracked })}
+			writeSyncRepository={writeSyncRepository}
+			writeCommit={writeCommit}
+			readBranches={readBranches}
+		/>
+	);
+	await open();
+	message();
+	click("include-b.ts");
+	root.renderer.nativeSimulateKeyDown(node("commit-sync").id, "enter");
+	root.renderer.flush();
+	click("commit-submit");
+	root.renderer.nativeSimulateKeyDown(node("commit-message").id, "cmd-enter");
+	root.renderer.flush();
+	expect(writeSyncRepository).toHaveBeenCalledTimes(1);
+	expect(writeCommit).not.toHaveBeenCalled();
+	expect(readBranches).not.toHaveBeenCalled();
+	expect(node("commit-message").customProps?.readOnly).toBe(true);
+	pending.resolve({
+		ok: true,
+		value: {
+			operation: "push",
+			remote: "origin",
+			branch: "main",
+			snapshot: tracked,
+		},
+	});
+	await settle();
+	await settle();
+	expect(root.renderer.getAllText()).toContain("Sync complete.");
+	expect(node("commit-message").customProps?.value).toBe("fix");
+	expect(node("include-b.ts").customProps?.["aria-checked"]).toBe(false);
+});
+
+it.each(["untracked", "detached", "unborn", "merge"] as const)(
+	"disables Sync for a %s branch without writes",
+	async (condition) => {
+		const base = snapshot();
+
+		const value = {
+			...base,
+			head: {
+				...base.head,
+				upstream: condition === "untracked" ? null : "origin/main",
+				branch: condition === "detached" ? null : "main",
+				detached: condition === "detached",
+				oid: condition === "unborn" ? null : base.head.oid,
+				unborn: condition === "unborn",
+			},
+			operationState:
+				condition === "merge" ? ("merge" as const) : ("normal" as const),
+		};
+
+		const writeSyncRepository = mock<typeof RepositorySync.write>(async () => {
+			throw new Error("Blocked branches must not sync");
+		});
+
+		root.render(
+			<App
+				readRepository={async () => ({ ok: true, value })}
+				writeSyncRepository={writeSyncRepository}
+			/>
+		);
+		await open();
+		expect(node("commit-sync").style.opacity).toBe(0.45);
+		click("commit-sync");
+		root.renderer.nativeSimulateKeyDown(node("commit-sync").id, "enter");
+		root.renderer.flush();
+		expect(writeSyncRepository).not.toHaveBeenCalled();
+	}
+);
+
+it("never synchronizes preview workspaces", async () => {
+	const writeSyncRepository = mock<typeof RepositorySync.write>(async () => {
+		throw new Error("Previews must not sync");
+	});
+
+	root.render(<App preview writeSyncRepository={writeSyncRepository} />);
+	expect(node("commit-sync").style.opacity).toBe(0.45);
+	click("commit-sync");
+	expect(writeSyncRepository).not.toHaveBeenCalled();
+});
 
 it("commits only checked paths once, prevents edits/close while pending, clears the draft after success and refreshes History", async () => {
 	const pending =

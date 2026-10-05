@@ -511,6 +511,17 @@ This is not a port of the Electron liquid SVG morph.
 
 ### Remote synchronization
 
+The Changes composer has a secondary **Sync** button immediately left of Commit.
+It fetches the current branch's configured upstream remote, fast-forwards incoming
+commits if needed, and pushes outgoing commits to the exact tracking destination.
+It does not commit, stage or stash working files. Incoming changes require a clean
+working tree; divergence or a failed fetch/pull stops the operation before pushing.
+An up-to-date branch only fetches. Branches without upstream tracking must first be
+published through the tab menu. Sync uses the same window-owned write lock, timeout,
+close protection and cross-worktree refresh as the menu actions. During Sync,
+pressing the button again stops it; the composer shows errors and completion while
+retaining the commit draft and checked files.
+
 - **Fetch** is an explicit action in the tab menu. It uses `@1git/git` to fetch
   configured remotes, including with uncommitted changes. Opening a menu or
   refreshing local status never contacts a remote. No remote means a disabled

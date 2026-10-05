@@ -460,6 +460,10 @@ export function App({
 								void mutations.commit(activeTab.id);
 							}}
 							onStash={(request) => mutations.stash(activeTab.id, request)}
+							onSync={() => {
+								void mutations.synchronize(activeTab.id, { kind: "sync" });
+							}}
+							onCancelSync={() => mutations.cancelSync(activeTab.id)}
 							onOperation={(request) =>
 								mutations.finishOperation(activeTab.id, request)
 							}

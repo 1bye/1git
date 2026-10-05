@@ -30,7 +30,7 @@ import {
 import { RepositoryReader } from "../lib/repository-reader";
 import {
 	RepositorySync,
-	type SyncChoice,
+	type SyncRequest,
 	type SyncKind,
 } from "../lib/repository-sync";
 import {
@@ -418,7 +418,7 @@ export function useRepositoryMutations(
 
 	const synchronize = async (
 		id: string,
-		choice: { kind: "fetch" } | SyncChoice
+		choice: { kind: "fetch" } | SyncRequest
 	): Promise<void> => {
 		const workspace = tabs.current.find((tab) => tab.id === id)?.workspace;
 		const repository = workspace?.repository;
@@ -426,6 +426,8 @@ export function useRepositoryMutations(
 		if (
 			!workspace ||
 			!repository ||
+			(choice.kind === "sync" &&
+				!RepositoryWorkspaceModel.canSync(workspace)) ||
 			worktreeWrites.current.has(repository.commonDirectory) ||
 			stashWrites.current.has(repository.commonDirectory) ||
 			syncs.current.has(repository.commonDirectory)
@@ -503,7 +505,11 @@ export function useRepositoryMutations(
 						);
 
 			if (result.ok) {
-				if (choice.kind === "fetch" || choice.kind === "pull")
+				if (
+					choice.kind === "fetch" ||
+					choice.kind === "pull" ||
+					choice.kind === "sync"
+				)
 					fetchedAt = Date.now();
 
 				if (choice.kind !== "fetch")
@@ -511,6 +517,7 @@ export function useRepositoryMutations(
 						pull: "Pull complete.",
 						push: "Push complete.",
 						publish: "Branch published.",
+						sync: "Sync complete.",
 					}[choice.kind];
 			} else
 				error =

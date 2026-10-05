@@ -37,8 +37,17 @@ const styles = StyleSheet.create({
 		flexShrink: 0,
 		height: 24,
 	},
+	buttons: {
+		display: "flex",
+		flexDirection: "row",
+		alignItems: "center",
+		gap: 6,
+	},
 	hint: { fontSize: 9, color: lightColors.editorFaint },
 	notice: {
+		display: "flex",
+		flexDirection: "column",
+		gap: 4,
 		maxHeight: 64,
 		flexShrink: 0,
 		overflowY: "scroll",
@@ -54,17 +63,27 @@ export function RepositoryCommit({
 	state,
 	onAction,
 	onCommit,
+	onSync,
+	onCancelSync,
 }: {
 	state: RepositoryWorkspaceState;
 	onAction: (action: RepositoryWorkspaceAction) => void;
 	onCommit?: () => void;
+	onSync?: () => void;
+	onCancelSync?: () => void;
 }) {
 	const [previewed, setPreviewed] = useState(false);
 	const notice = useRef<PublicInstance>(null);
 	const renderer = useGpuixRequired();
-	const hasDetails = !!state.commit.error || state.commit.needsReview;
+
+	const hasDetails =
+		!!state.commit.error || !!state.sync.error || state.commit.needsReview;
+
 	const canPreview = RepositoryWorkspaceModel.canPreviewCommit(state);
 	const sample = state.preview;
+	const syncing = state.sync.pending === "sync";
+	const canSync = RepositoryWorkspaceModel.canSync(state);
+	const syncNotice = state.sync.error ?? state.sync.notice;
 
 	const canSubmit = sample
 		? canPreview
@@ -130,30 +149,59 @@ export function RepositoryCommit({
 			/>
 			<div style={styles.actions}>
 				<text style={styles.hint}>⌘ Enter</text>
-				<Button
-					testId={sample ? "commit-preview" : "commit-submit"}
-					aria-label={sample ? `Preview: ${label}` : label}
-					aria-description={
-						sample
-							? "Preview only. Checkbox choices do not change files and no Git commit will be created."
-							: "Commit all current changes in the checked files. Unchecked files stay untouched."
-					}
-					size="sm"
-					tokens={appTokens}
-					textStyle={styles.label}
-					disabled={!canSubmit}
-					onPress={submit}
-				>
-					{state.commit.pending ? "Committing…" : label}
-				</Button>
+				<div style={styles.buttons}>
+					<Button
+						testId="commit-sync"
+						aria-label={syncing ? "Stop synchronization" : "Sync with upstream"}
+						aria-description={
+							syncing
+								? "Stop synchronization, then refresh status before retrying."
+								: !state.repository?.upstream
+									? "Publish this branch from the tab menu before synchronizing."
+									: "Fetch upstream, pull incoming commits by fast-forward, and push outgoing commits. Uncommitted files are never committed or stashed."
+						}
+						variant="secondary"
+						size="sm"
+						tokens={appTokens}
+						textStyle={styles.label}
+						disabled={syncing ? !onCancelSync : !canSync || !onSync}
+						onPress={() => {
+							if (syncing) onCancelSync?.();
+							else onSync?.();
+						}}
+					>
+						{syncing ? "Syncing…" : "Sync"}
+					</Button>
+					<Button
+						testId={sample ? "commit-preview" : "commit-submit"}
+						aria-label={sample ? `Preview: ${label}` : label}
+						aria-description={
+							sample
+								? "Preview only. Checkbox choices do not change files and no Git commit will be created."
+								: "Commit all current changes in the checked files. Unchecked files stay untouched."
+						}
+						size="sm"
+						tokens={appTokens}
+						textStyle={styles.label}
+						disabled={!canSubmit}
+						onPress={submit}
+					>
+						{state.commit.pending ? "Committing…" : label}
+					</Button>
+				</div>
 			</div>
-			{noticeText ? (
+			{noticeText || syncNotice ? (
 				<div
-					key={state.commit.error ?? state.commit.notice ?? "hint"}
+					key={
+						state.sync.error ??
+						state.commit.error ??
+						state.commit.notice ??
+						"hint"
+					}
 					ref={notice}
 					testId="commit-notice-scroll"
 					tabIndex={hasDetails ? 0 : -1}
-					aria-label={hasDetails ? "Commit details" : undefined}
+					aria-label={hasDetails ? "Git operation details" : undefined}
 					aria-description={
 						hasDetails
 							? "Use arrow keys or Page Up and Page Down to read all details."
@@ -188,13 +236,29 @@ export function RepositoryCommit({
 							renderer.scrollTo?.(element.id, 0, Math.min(0, next));
 					}}
 				>
-					<text
-						testId="commit-notice"
-						role={state.commit.error ? "alert" : "status"}
-						style={styles.hint}
-					>
-						{noticeText}
-					</text>
+					{syncNotice ? (
+						<text
+							testId="commit-sync-notice"
+							role={state.sync.error ? "alert" : "status"}
+							style={{
+								...styles.hint,
+								color: state.sync.error
+									? appTokens.colors.danger
+									: lightColors.editorFaint,
+							}}
+						>
+							{syncNotice}
+						</text>
+					) : null}
+					{noticeText ? (
+						<text
+							testId="commit-notice"
+							role={state.commit.error ? "alert" : "status"}
+							style={styles.hint}
+						>
+							{noticeText}
+						</text>
+					) : null}
 				</div>
 			) : null}
 		</div>
