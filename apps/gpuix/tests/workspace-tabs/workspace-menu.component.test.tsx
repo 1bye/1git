@@ -1089,7 +1089,18 @@ it("shows the three newest local branches and expands, scrolls, and collapses th
 	await settle();
 	expect(element("branch-feature/15")).toBeTruthy();
 	expect(bounds("workspace-menu").height).toBeGreaterThan(collapsedHeight);
-	expect(bounds("workspace-menu").height).toBeLessThanOrEqual(370);
+	expect(bounds("workspace-menu").height).toBeLessThanOrEqual(650);
+	expect(
+		bounds("workspace-menu").height - collapsedHeight
+	).toBeGreaterThanOrEqual(5 * 28);
+	expect(bounds("workspace-menu-list").height).toBeGreaterThanOrEqual(8 * 28);
+	expect(
+		bounds("workspace-menu").y + bounds("workspace-menu").height
+	).toBeLessThanOrEqual(640 - 8);
+	const screenshot = process.env.GPUIX_EXPANDED_BRANCHES_SCREENSHOT;
+
+	if (screenshot) root.renderer.captureScreenshot(screenshot);
+
 	root.renderer.simulateKeystrokes("up");
 	await settle();
 	expect(root.renderer.getFocusedElementId()).toBe(

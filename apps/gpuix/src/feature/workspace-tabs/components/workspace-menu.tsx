@@ -38,6 +38,7 @@ import type {
 
 const { colors } = appTokens;
 const maxMenuHeight = 370;
+const maxExpandedMenuHeight = 650;
 const menuWidth = 288;
 const windowInset = 8;
 const recentBranchCount = 3;
@@ -538,7 +539,7 @@ export function WorkspaceMenu({
 						rowHeight;
 
 	const menuHeight = Math.min(
-		maxMenuHeight,
+		expanded ? maxExpandedMenuHeight : maxMenuHeight,
 		windowSize.height -
 			(anchorBounds?.y ?? 0) -
 			workspaceLayout.tabHeight -

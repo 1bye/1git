@@ -450,7 +450,9 @@ the content without moving the sidebar; there is no chevron. Backdrop clicks are
 consumed, so dismissing the menu never activates dimmed controls underneath.
 The compact desktop-style menu shows the current branch/upstream, three local
 branches ordered by latest commit, relative commit ages, and a More row to expand
-the scrollable list. A Worktrees row opens a hover submenu listing the available
+the scrollable list. Expanding raises the menu height limit from 370px to 650px,
+bounded by the available window space, so several more branches are visible
+before scrolling. A Worktrees row opens a hover submenu listing the available
 worktrees, with a checkmark on the current checkout. It opens to the right and
 flips left when space is limited; long lists scroll without growing the parent
 menu. Moving between the trigger and submenu keeps it open. Enter/Right opens
