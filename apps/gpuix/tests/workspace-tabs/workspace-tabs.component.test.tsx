@@ -128,6 +128,20 @@ it("leaves extra room after the traffic lights without moving the controls or wo
 	expect(bounds("workspace").x).toBe(6);
 });
 
+it("gives unused titlebar space a native drag target separate from tab controls", () => {
+	const empty = bounds("empty-titlebar");
+	const slot = bounds("slot-workspace-1");
+	const add = bounds("add-workspace");
+
+	expect(element("empty-titlebar").customProps?.windowDrag).toBe(true);
+	expect(empty.width).toBeGreaterThan(0);
+	expect(empty.height).toBe(workspaceLayout.toolbarHeight);
+	expect(empty.x).toBeGreaterThanOrEqual(slot.x + slot.width);
+	expect(empty.x + empty.width).toBeLessThanOrEqual(add.x);
+	expect(element("add-workspace").customProps?.windowDrag).not.toBe(true);
+	expect(element("close-workspace-1").customProps?.windowDrag).not.toBe(true);
+});
+
 it("aligns lightweight labels and icons without shifting when selection changes", () => {
 	const avatar = bounds("avatar-workspace-1");
 	const label = bounds("label-workspace-1");

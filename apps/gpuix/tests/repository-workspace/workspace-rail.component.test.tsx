@@ -137,6 +137,41 @@ it("shows accessible tooltips on keyboard focus and preserves focus when returni
 	expect(element("view-history").customProps?.["aria-selected"]).toBe(true);
 });
 
+it("makes only the full-width empty rail spacer a native window drag target", async () => {
+	root.render(<App accounts={f.accounts} preview />);
+
+	for (const settings of [false, true]) {
+		if (settings) {
+			click("rail-settings");
+			await settle();
+		}
+
+		const rail = bounds("workspace-rail");
+		const spacer = bounds("rail-window-drag-region");
+		const stashes = bounds("view-stashes");
+		const settingsButton = bounds("rail-settings");
+
+		expect(element("rail-window-drag-region").customProps?.windowDrag).toBe(
+			true
+		);
+		expect(spacer.x).toBe(rail.x);
+		expect(spacer.width).toBe(rail.width);
+		expect(spacer.height).toBeGreaterThan(0);
+		expect(spacer.y).toBeGreaterThanOrEqual(stashes.y + stashes.height);
+		expect(spacer.y + spacer.height).toBeLessThanOrEqual(settingsButton.y);
+		expect(element("workspace-rail").customProps?.windowDrag).not.toBe(true);
+
+		for (const id of [
+			"view-changes",
+			"view-history",
+			"view-stashes",
+			"rail-settings",
+			"rail-account",
+		])
+			expect(element(id).customProps?.windowDrag).not.toBe(true);
+	}
+});
+
 it("centers an inverted hover tooltip beside each rail button", async () => {
 	root.render(<App accounts={f.accounts} preview />);
 

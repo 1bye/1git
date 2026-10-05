@@ -47,7 +47,15 @@ index 7d0eda6cb58127462067cb9d5a442a9ea606c671..f63d3f59cdea800ddfb3fa421d7130b7
      ["onLinkClick", "linkClick"],
      ["onVisibleRange", "visibleRange"],
      ["onHighlight", "highlight"],
-@@ -102,6 +102,7 @@ export const UNIVERSAL_PROPS = new Set([
+@@ -95,6 +95,7 @@ export const UNIVERSAL_PROPS = new Set([
+     "tabIndex",
+     "motion",
+     "testId",
++    "windowDrag",
+     "highlight",
+     "role",
+     "aria-label",
+@@ -102,6 +103,7 @@ export const UNIVERSAL_PROPS = new Set([
      "aria-id",
      "aria-expanded",
      "aria-selected",

@@ -345,7 +345,11 @@ export function WorkspaceRail({
 						))}
 					</div>
 				) : null}
-				<div style={{ flexGrow: 1 }} />
+				<div
+					testId="rail-window-drag-region"
+					windowDrag
+					style={{ flexGrow: 1, width: "100%" }}
+				/>
 				<RailAction
 					ref={settingsButtonRef}
 					testId="rail-settings"
