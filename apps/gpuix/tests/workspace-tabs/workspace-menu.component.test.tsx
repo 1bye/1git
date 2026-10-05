@@ -1,10 +1,11 @@
 /**
- * Covers: branch menus, inline creation, keyboard navigation, worktree tabs, cancellable sync and explicit publishing.
+ * Covers: branch menus, creation/merge, keyboard navigation, worktree tabs, cancellable sync and publishing.
  * Real: App, reducers, window-owned mutation coordination, GPUIX layout and events.
  * Doubles: Git boundaries and folder picker, with isolated in-memory repository snapshots.
  * Requires: patched GPUIX renderer and macOS graphics access.
  */
 import { afterEach, beforeEach, expect, it, mock, spyOn } from "bun:test";
+import { flushSync, handleGpuixEvent } from "@gpuix/react";
 import { createTestRoot, type TestRoot } from "@gpuix/react/testing";
 import type {
 	BranchInfo,
@@ -1065,6 +1066,226 @@ it("switches a branch using native keyboard navigation and refreshes the tab lab
 	expect(root.renderer.findByTestId("workspace-menu")).toBeUndefined();
 });
 
+it("confirms a selected branch merge into the current branch without switching", async () => {
+	writeBranch.mockImplementationOnce(async () => {
+		snapshot = { ...snapshot, head: { ...snapshot.head, oid: "merged-head" } };
+
+		return { ok: true, value: { branches: collection(), snapshot } };
+	});
+	await open();
+	await menu();
+	click("merge-branch");
+	await settle();
+	expect(
+		root.renderer.findByTestId("entry-merge-refs/heads/main")
+	).toBeUndefined();
+	expect(root.renderer.getFocusedElementId()).toBe(
+		element("merge-branch-search").id
+	);
+	click("entry-merge-refs/heads/feature/ui");
+	await settle();
+	expect(writeBranch).not.toHaveBeenCalled();
+	const form = bounds("merge-branch-form");
+	const footer = bounds("confirm-merge-branch");
+
+	expect(footer.y + footer.height).toBeLessThanOrEqual(form.y + form.height);
+	expect(bounds("merge-branch-list-viewport").height).toBeGreaterThan(80);
+
+	if (process.env.GPUIX_MERGE_SCREENSHOT)
+		root.renderer.captureScreenshot(process.env.GPUIX_MERGE_SCREENSHOT);
+
+	click("confirm-merge-branch");
+	await settle();
+	expect(writeBranch.mock.calls[0]?.[1]).toEqual({
+		kind: "merge",
+		name: "refs/heads/feature/ui",
+		expectedTarget: "1234567890abcdef",
+		expectedHead: "1234567890abcdef",
+		expectedBranch: "main",
+		reviewedSource: { head: "1234567890abcdef", branch: "main" },
+	});
+	expect(root.renderer.getAllText()).toContain(" / main");
+	expect(root.renderer.findByTestId("workspace-menu")).toBeUndefined();
+});
+
+it("searches and selects a branch in another worktree with the keyboard", async () => {
+	writeBranch.mockImplementationOnce(async () => ({
+		ok: true,
+		value: { branches: collection(), snapshot },
+	}));
+	await open();
+	await menu();
+	click("merge-branch");
+	await settle();
+	root.renderer.simulateKeystrokes("l i n k e d");
+	await settle();
+	expect(
+		root.renderer.findByTestId("entry-merge-refs/heads/feature/ui")
+	).toBeUndefined();
+	root.renderer.simulateKeystrokes("down");
+	await settle();
+	// Inactive native windows need the same explicit list focus notification as Tab tests.
+	flushSync(() =>
+		handleGpuixEvent(
+			{
+				elementId: element("merge-branch-list-viewport").id,
+				eventType: "focus",
+			},
+			root.renderer
+		)
+	);
+	await settle();
+	const target = element("entry-merge-refs/heads/feature/linked");
+
+	expect(root.renderer.getFocusedElementId()).toBe(target.id);
+	root.renderer.simulateKeystrokes("space");
+	await settle();
+	expect(
+		element("entry-merge-refs/heads/feature/linked").customProps?.[
+			"aria-selected"
+		]
+	).toBe(true);
+	root.renderer.simulateKeystrokes("enter");
+	await settle();
+	expect(writeBranch.mock.calls[0]?.[1]).toMatchObject({
+		kind: "merge",
+		name: "refs/heads/feature/linked",
+	});
+});
+
+it("cancels merge selection and blocks merging dirty or paused repositories", async () => {
+	await open();
+	await menu();
+	click("merge-branch");
+	await settle();
+	root.renderer.simulateKeystrokes("escape");
+	await settle();
+	expect(root.renderer.findByTestId("merge-branch-form")).toBeUndefined();
+	expect(element("merge-branch")).toBeDefined();
+	root.renderer.simulateKeystrokes("escape");
+	await settle();
+
+	for (const state of ["dirty", "merge", "detached"] as const) {
+		snapshot = {
+			...snapshot,
+			files: state === "dirty" ? [changedFile("file.txt")] : [],
+			operationState: state === "merge" ? "merge" : "normal",
+			head: {
+				...snapshot.head,
+				branch: state === "detached" ? null : "main",
+				detached: state === "detached",
+			},
+		};
+		click("refresh-repository");
+		await settle();
+		await menu();
+		click("merge-branch");
+		await settle();
+		expect(root.renderer.findByTestId("merge-branch-form")).toBeUndefined();
+		root.renderer.simulateKeystrokes("escape");
+		await settle();
+	}
+
+	expect(writeBranch).not.toHaveBeenCalled();
+});
+
+it("clears the selected merge target when searching and shows an illustrated empty result", async () => {
+	await open();
+	await menu();
+	click("merge-branch");
+	await settle();
+	click("entry-merge-refs/heads/feature/ui");
+	await settle();
+	click("merge-branch-search");
+	root.renderer.simulateKeystrokes("n o m a t c h");
+	await settle();
+	expect(root.renderer.getAllText()).toContain("No matching branches");
+	click("confirm-merge-branch");
+	await settle();
+	expect(writeBranch).not.toHaveBeenCalled();
+	expect(element("merge-branch-form")).toBeDefined();
+	click("cancel-merge-branch");
+	await settle();
+	expect(root.renderer.findByTestId("merge-branch-form")).toBeUndefined();
+});
+
+it("keeps a pending merge locked after dismissing its menu and prevents duplicate writes", async () => {
+	const pending =
+		Promise.withResolvers<
+			Awaited<ReturnType<typeof RepositoryBranches.write>>
+		>();
+
+	writeBranch.mockImplementationOnce(() => pending.promise);
+	await open();
+	await menu();
+	click("merge-branch");
+	await settle();
+	click("entry-merge-refs/heads/feature/ui");
+	await settle();
+	click("confirm-merge-branch");
+	await settle();
+	expect(root.renderer.getAllText()).toContain("Merging…");
+	click("confirm-merge-branch");
+	await settle();
+	expect(writeBranch).toHaveBeenCalledTimes(1);
+	root.renderer.simulateKeystrokes("escape");
+	await settle();
+	click("close-workspace-1");
+	await settle();
+	expect(element("workspace-1")).toBeDefined();
+	pending.resolve({ ok: true, value: { branches: collection(), snapshot } });
+	await settle();
+	click("close-workspace-1");
+	await settle();
+	expect(root.renderer.findByTestId("workspace-1")).toBeUndefined();
+});
+
+it("shows failed merge conflicts in Changes with the existing Continue and Abort controls", async () => {
+	writeBranch.mockImplementationOnce(async () => {
+		snapshot = {
+			...snapshot,
+			operationState: "merge",
+			operationToken: "merge-operation",
+			files: [
+				changedFile("file.txt", {
+					recordType: "unmerged",
+					worktreeStatus: "unmerged",
+				}),
+			],
+		};
+
+		return {
+			ok: false,
+			error: {
+				code: "conflict",
+				operation: "merge",
+				message: "Merge has conflicts",
+				retryable: false,
+			},
+		};
+	});
+	await open();
+	click("view-history");
+	await settle();
+	await menu();
+	click("merge-branch");
+	await settle();
+	click("entry-merge-refs/heads/feature/ui");
+	await settle();
+	click("confirm-merge-branch");
+	await settle();
+	expect(root.renderer.findByTestId("workspace-menu")).toBeUndefined();
+	expect(element("view-changes").customProps?.["aria-selected"]).toBe(true);
+	expect(writeBranch).toHaveBeenCalledTimes(1);
+	expect(root.renderer.getAllText()).toContain(
+		"Merge in progress · 1 conflict"
+	);
+	expect(element("operation-continue")).toBeDefined();
+	expect(element("operation-abort")).toBeDefined();
+	expect(root.renderer.getAllText()).toContain("Merge has conflicts");
+	expect(readRepository).toHaveBeenCalledTimes(2);
+});
+
 it("creates and switches explicitly, preserving a commit draft", async () => {
 	await open();
 	click("commit-message");
@@ -1174,7 +1395,7 @@ it("replaces the actions with an inline form and returns with Cancel or Escape w
 	await settle();
 	expect(root.renderer.findByTestId("branch-name")).toBeUndefined();
 	expect(element("branch-main")).toBeTruthy();
-	root.renderer.simulateKeystrokes("up up");
+	root.renderer.simulateKeystrokes("up up up");
 	await settle();
 	root.renderer.simulateKeystrokes("enter");
 	await settle();

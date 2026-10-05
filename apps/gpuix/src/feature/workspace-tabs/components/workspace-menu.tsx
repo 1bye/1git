@@ -18,6 +18,7 @@ import { workspaceLayout } from "../../../styles/workspace-layout";
 import { WorkspaceTabPreview } from "./workspace-tab";
 import { WorkspaceTabIcon } from "./workspace-tab-icon";
 import { WorkspaceWorktreeForm } from "./workspace-worktree-form";
+import { WorkspaceMergeForm } from "./workspace-merge-form";
 import { WorkspaceBranchChangesForm } from "./workspace-branch-changes-form";
 import type {
 	WorktreeChoice,
@@ -39,7 +40,8 @@ import type {
 } from "../lib/workspace-tabs-model";
 
 const { colors } = appTokens;
-const maxMenuHeight = 370;
+const maxMenuHeight = 398;
+const maxWorktreeMenuHeight = 370;
 const maxExpandedMenuHeight = 650;
 const menuWidth = 288;
 const windowInset = 8;
@@ -218,6 +220,12 @@ export function WorkspaceMenu({
 	const [error, setError] = useState<string | null>(null);
 	const [name, setName] = useState("");
 	const [creating, setCreating] = useState(false);
+
+	const [mergeSource, setMergeSource] = useState<{
+		head: string;
+		branch: string;
+	} | null>(null);
+
 	const [remoteBranch, setRemoteBranch] = useState<string | null>(null);
 
 	const [branchAction, setBranchAction] = useState<{
@@ -266,6 +274,7 @@ export function WorkspaceMenu({
 		!changesPrompt &&
 		!creatingWorktree &&
 		!removingWorktree &&
+		!mergeSource &&
 		!publishing;
 
 	const {
@@ -358,6 +367,18 @@ export function WorkspaceMenu({
 	);
 
 	const canCreate = !busy && !blocked && data !== null;
+
+	const mergeBranches =
+		data?.branches.branches.filter(
+			(item) => !(item.type === "local" && item.name === branch)
+		) ?? [];
+
+	const canMerge =
+		canCreate &&
+		!!head &&
+		!!branch &&
+		!tab.workspace.preview &&
+		mergeBranches.length > 0;
 
 	const savedChanges =
 		data?.savedChanges?.filter((item) => item.branch === branch) ?? [];
@@ -499,6 +520,8 @@ export function WorkspaceMenu({
 
 	if (canCreate) enabledIds.push("create-branch");
 
+	if (canMerge) enabledIds.push("merge-branch");
+
 	if (onCreateWorktree && canCreateWorktree) enabledIds.push("create-worktree");
 
 	if (showFetch && (fetching || canFetch)) enabledIds.push("fetch-repository");
@@ -537,35 +560,38 @@ export function WorkspaceMenu({
 		(busy && !syncKind ? "Updating workspace…" : null);
 
 	// Fixed header/action rows surround a scrollable list; the expanded menu stays inside the window.
-	const contentHeight = changesPrompt
-		? changesPrompt.choice.kind === "restore"
-			? 164
-			: 300
-		: removingWorktree
-			? 230
-			: creatingWorktree
-				? worktreeFormHeight
-				: creating
-					? createFormHeight
-					: publishing
-						? menuPadding * 2 +
-							headerHeight +
-							separatorHeight * 2 +
-							rowHeight * ((data?.remotes.length ?? 0) + 1)
-						: menuPadding * 2 +
-							headerHeight +
-							separatorHeight * 2 +
-							rowHeight +
-							(savedChanges.length ? rowHeight : 0) +
-							(onCreateWorktree ? rowHeight : 0) +
-							(showFetch ? separatorHeight + rowHeight : 0) +
-							(showSync ? rowHeight * 2 : 0) +
-							Math.max(1, visibleBranches.length) * rowHeight +
-							(hasMore ? rowHeight : 0) +
-							rowHeight;
+	const contentHeight = mergeSource
+		? 380
+		: changesPrompt
+			? changesPrompt.choice.kind === "restore"
+				? 164
+				: 300
+			: removingWorktree
+				? 230
+				: creatingWorktree
+					? worktreeFormHeight
+					: creating
+						? createFormHeight
+						: publishing
+							? menuPadding * 2 +
+								headerHeight +
+								separatorHeight * 2 +
+								rowHeight * ((data?.remotes.length ?? 0) + 1)
+							: menuPadding * 2 +
+								headerHeight +
+								separatorHeight * 2 +
+								rowHeight +
+								(savedChanges.length ? rowHeight : 0) +
+								(onCreateWorktree ? rowHeight : 0) +
+								(showFetch ? separatorHeight + rowHeight : 0) +
+								(showSync ? rowHeight * 2 : 0) +
+								rowHeight +
+								Math.max(1, visibleBranches.length) * rowHeight +
+								(hasMore ? rowHeight : 0) +
+								rowHeight;
 
 	const menuHeight = Math.min(
-		expanded ? maxExpandedMenuHeight : maxMenuHeight,
+		expanded || mergeSource ? maxExpandedMenuHeight : maxMenuHeight,
 		windowSize.height -
 			(anchorBounds?.y ?? 0) -
 			workspaceLayout.tabHeight -
@@ -576,6 +602,7 @@ export function WorkspaceMenu({
 	const showActions = (): void => {
 		closeWorktrees();
 		setCreating(false);
+		setMergeSource(null);
 		setRemoteBranch(null);
 		setBranchAction(null);
 		setChangesPrompt(null);
@@ -609,7 +636,7 @@ export function WorkspaceMenu({
 
 	const onKeyDown = (event: EventPayload): void => {
 		if (
-			(creatingWorktree || removingWorktree || changesPrompt) &&
+			(creatingWorktree || removingWorktree || changesPrompt || mergeSource) &&
 			event.key !== "escape"
 		)
 			return;
@@ -642,6 +669,7 @@ export function WorkspaceMenu({
 					publishing ||
 					creatingWorktree ||
 					removingWorktree ||
+					mergeSource ||
 					changesPrompt) &&
 				!busy
 			)
@@ -685,6 +713,7 @@ export function WorkspaceMenu({
 				!scrollList ||
 				next === "worktrees" ||
 				next === "create-branch" ||
+				next === "merge-branch" ||
 				next === "create-worktree" ||
 				next === "fetch-repository" ||
 				next === "pull-repository" ||
@@ -858,7 +887,7 @@ export function WorkspaceMenu({
 			: "left";
 
 	const submenuHeight = Math.min(
-		maxMenuHeight,
+		maxWorktreeMenuHeight,
 		windowSize.height - windowInset * 2,
 		menuPadding * 2 + Math.max(1, worktrees.length) * rowHeight
 	);
@@ -909,7 +938,35 @@ export function WorkspaceMenu({
 					animate={{ height: menuHeight, opacity: 1 }}
 					transition={{ duration: 0.16, ease: "easeOut" }}
 				>
-					{changesPrompt ? (
+					{mergeSource && data ? (
+						<WorkspaceMergeForm
+							branch={mergeSource.branch}
+							branches={mergeBranches}
+							busy={busy}
+							disabled={
+								!canMerge ||
+								head !== mergeSource.head ||
+								branch !== mergeSource.branch
+							}
+							onCancel={showActions}
+							onMerge={(target) => {
+								void (async () => {
+									if (!canMerge) return;
+
+									setError(null);
+									await onChangeBranch(tab.id, {
+										kind: "merge",
+										name: target.fullName,
+										expectedTarget: target.oid,
+										reviewedSource: mergeSource,
+									});
+
+									// The window refreshes even failed merges; Changes owns recovery and conflicts.
+									if (mounted.current) onClose();
+								})();
+							}}
+						/>
+					) : changesPrompt ? (
 						<WorkspaceBranchChangesForm
 							key={`${changesPrompt.choice.kind}:${changesPrompt.destination}`}
 							name={changesPrompt.destination}
@@ -1545,6 +1602,35 @@ export function WorkspaceMenu({
 								<WorkspaceTabIcon name="add" />
 								<Text tokens={appTokens} style={styles.label}>
 									Create new branch…
+								</Text>
+							</Button>
+							<Button
+								testId="merge-branch"
+								ref={(node) => {
+									if (node) rows.current.set("merge-branch", node);
+									else rows.current.delete("merge-branch");
+								}}
+								tokens={appTokens}
+								variant="ghost"
+								size="sm"
+								style={styles.row}
+								disabled={!canMerge}
+								aria-description={
+									dirty
+										? "Commit or stash your changes before merging."
+										: "Merge another branch into the current branch without switching."
+								}
+								onPress={() => {
+									if (!canMerge || !head || !branch) return;
+
+									closeWorktrees();
+									setError(null);
+									setMergeSource({ head, branch });
+								}}
+							>
+								<WorkspaceTabIcon name="branch" />
+								<Text tokens={appTokens} style={styles.label}>
+									Merge another branch…
 								</Text>
 							</Button>
 							{onCreateWorktree ? (

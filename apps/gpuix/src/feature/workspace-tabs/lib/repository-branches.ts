@@ -26,6 +26,7 @@ export interface BranchRequest {
 		| "remote"
 		| "rename"
 		| "delete"
+		| "merge"
 		| "restore";
 	readonly name: string;
 	readonly newName?: string;
@@ -40,7 +41,7 @@ export interface BranchRequest {
 	};
 }
 
-/** Non-forcing branch operations, with explicit stash-backed choices for uncommitted work. */
+/** Non-forcing branch operations and reviewed merges, with explicit stash-backed switching choices. */
 export class RepositoryBranches {
 	private constructor() {}
 
@@ -144,7 +145,10 @@ export class RepositoryBranches {
 			operationState !== "normal" ||
 			files.some((file) => file.recordType === "unmerged")
 		)
-			message = "Finish the current Git operation before switching branches.";
+			message =
+				request.kind === "merge"
+					? "Finish the current Git operation before merging branches."
+					: "Finish the current Git operation before switching branches.";
 		else if (
 			files.some((file) => file.recordType !== "ignored") &&
 			!(
@@ -153,18 +157,65 @@ export class RepositoryBranches {
 			)
 		)
 			message =
-				"Commit or stash your changes before switching branches. Nothing has been discarded.";
+				request.kind === "merge"
+					? "Commit or stash your changes before merging branches. Nothing has been discarded."
+					: "Commit or stash your changes before switching branches. Nothing has been discarded.";
 
 		if (message)
 			return {
 				ok: false,
 				error: {
 					code: "conflict",
-					operation: "checkout-branch",
+					operation: request.kind === "merge" ? "merge" : "checkout-branch",
 					retryable: false,
 					message,
 				},
 			};
+
+		if (request.kind === "merge") {
+			const branches = await opened.value.getBranches();
+
+			if (!branches.ok) return branches;
+
+			const target = branches.value.branches.find(
+				(item) => item.fullName === request.name
+			);
+
+			if (
+				!head.oid ||
+				!head.branch ||
+				!target ||
+				target.oid !== request.expectedTarget ||
+				(target.type === "local" && target.name === head.branch)
+			)
+				return {
+					ok: false,
+					error: {
+						code: "conflict",
+						operation: "merge",
+						retryable: false,
+						message:
+							"Choose another available branch and review it again before merging.",
+					},
+				};
+
+			// Pin the reviewed source commit; never follow a ref that moves during the merge.
+			const merged = await opened.value.merge({
+				revision: target.oid,
+				message: `Merge branch '${target.name}' into ${head.branch}`,
+			});
+
+			if (!merged.ok) return merged;
+
+			const refreshed = await opened.value.getBranches();
+
+			return refreshed.ok
+				? {
+						ok: true,
+						value: { branches: refreshed.value, snapshot: merged.value },
+					}
+				: refreshed;
+		}
 
 		if (request.kind === "restore") {
 			const restored = await RepositoryBranchChanges.restore(

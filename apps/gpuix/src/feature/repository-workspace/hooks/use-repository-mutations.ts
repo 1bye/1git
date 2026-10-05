@@ -393,10 +393,12 @@ export function useRepositoryMutations(
 					.join("\n");
 		} catch {
 			error =
-				"Could not confirm the branch change. Check the current branch before retrying.";
+				choice.kind === "merge"
+					? "Could not confirm the merge. Review Changes and History before retrying."
+					: "Could not confirm the branch change. Check the current branch before retrying.";
 		}
 
-		// Even a reported failure can follow a completed checkout (for example, a failed hook).
+		// Failed branch operations may still change Git state or leave an active merge.
 		// Re-read before enabling other writes, retaining drafts on every outcome.
 		const snapshots = new Map<string, RepositoryWorkspaceAction>();
 
@@ -463,6 +465,13 @@ export function useRepositoryMutations(
 
 				dispatch({ type: "workspace", id: tab.id, action });
 			}
+
+		if (mounted.current && choice.kind === "merge")
+			dispatch({
+				type: "workspace",
+				id,
+				action: { type: "view", view: "changes" },
+			});
 
 		return error;
 	};
