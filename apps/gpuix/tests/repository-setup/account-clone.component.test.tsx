@@ -182,7 +182,12 @@ it("handles safe permission errors, retries, and shows settings when no account 
 	await settle();
 	expect(root.renderer.findByTestId("accounts-settings")).toBeDefined();
 	expect(root.renderer.findByTestId("clone-account-picker")).toBeUndefined();
-	click("settings-back");
+	root.renderer.simulateKeystrokes("escape");
+	await settle();
+
+	if (root.renderer.findByTestId("settings-view"))
+		root.renderer.simulateKeystrokes("escape");
+
 	await settle();
 	expect(root.renderer.findByTestId("repository-clone-view")).toBeDefined();
 });
@@ -350,7 +355,12 @@ it("keeps its selection across access settings and tab switches, and routes sear
 	click("clone-manage-access");
 	await settle();
 	expect(root.renderer.findByTestId("accounts-settings")).toBeDefined();
-	click("settings-back");
+	root.renderer.simulateKeystrokes("escape");
+	await settle();
+
+	if (root.renderer.findByTestId("settings-view"))
+		root.renderer.simulateKeystrokes("escape");
+
 	await settle();
 	root.renderer.simulateKeystrokes("cmd-2");
 	await settle();
@@ -402,7 +412,12 @@ it("returns from Add account with freshly saved accounts without losing the URL 
 	if (!account) throw new Error("Missing account fixture");
 
 	f.store.save([account]);
-	click("settings-back");
+	root.renderer.simulateKeystrokes("escape");
+	await settle();
+
+	if (root.renderer.findByTestId("settings-view"))
+		root.renderer.simulateKeystrokes("escape");
+
 	await settle();
 
 	expect(root.renderer.findByTestId("clone-account-8")).toBeDefined();

@@ -175,22 +175,22 @@ it("opens a full Settings view with Cmd+, and restores the same workspace and fo
 	expect(root.renderer.getFocusedElementId()).toBe(entry.id);
 });
 
-it("shows compact icon navigation and aligns the Settings tab with the Accounts content", async () => {
+it("removes Back and fits the Settings tab above the sidebar without covering window controls", async () => {
 	const f = fixture();
 
 	root.render(<App accounts={f.accounts} preview />);
 	await settle();
 	const workspaceTab = root.renderer.findByTestId("slot-workspace-1")!;
 	const workspaceTabBounds = root.renderer.getElementBounds(workspaceTab.id)!;
-	const workspaceSurface = root.renderer.findByTestId("surface-workspace-1")!;
 
 	root.renderer.simulateKeystrokes("cmd-,");
 	await settle();
 	const sidebar = root.renderer.findByTestId("settings-navigation");
 	const title = root.renderer.findByTestId("settings-title-tab");
 	const accounts = root.renderer.findByTestId("settings-accounts");
-	const back = root.renderer.findByTestId("settings-back")!;
-	const backIcon = root.renderer.findByTestId("settings-back-icon");
+
+	expect(root.renderer.findByTestId("settings-back")).toBeUndefined();
+	expect(root.renderer.findByTestId("settings-back-icon")).toBeUndefined();
 	const accountsIcon = root.renderer.findByTestId("settings-accounts-icon");
 	const titleLabel = root.renderer.findByTestId("settings-title-tab-label");
 	const heading = root.renderer.findByTestId("accounts-heading");
@@ -198,42 +198,31 @@ it("shows compact icon navigation and aligns the Settings tab with the Accounts 
 	expect(sidebar).toBeDefined();
 	expect(title).toBeDefined();
 	expect(accounts).toBeDefined();
-	expect(backIcon).toBeDefined();
 	expect(accountsIcon).toBeDefined();
 	expect(titleLabel).toBeDefined();
 	expect(heading).toBeDefined();
 	const sidebarBounds = root.renderer.getElementBounds(sidebar!.id)!;
 	const titleBounds = root.renderer.getElementBounds(title!.id)!;
 	const accountsBounds = root.renderer.getElementBounds(accounts!.id)!;
-	const backBounds = root.renderer.getElementBounds(back.id)!;
-	const backIconBounds = root.renderer.getElementBounds(backIcon!.id)!;
 	const accountsIconBounds = root.renderer.getElementBounds(accountsIcon!.id)!;
-	const titleLabelBounds = root.renderer.getElementBounds(titleLabel!.id)!;
-	const headingBounds = root.renderer.getElementBounds(heading!.id)!;
 
-	expect(backBounds.x).toBeGreaterThanOrEqual(sidebarBounds.x);
-	expect(backBounds.x + backBounds.width).toBeLessThanOrEqual(
+	expect(accountsBounds.height).toBe(appTokens.layout.smallControlHeight);
+	expect(accountsIconBounds.width).toBe(14);
+	expect(titleBounds.x).toBe(workspaceTabBounds.x);
+	expect(titleBounds.x).toBeGreaterThanOrEqual(sidebarBounds.x);
+	expect(titleBounds.width).toBeLessThan(sidebarBounds.width);
+	const surfaceBounds = root.renderer.getElementBounds(
+		root.renderer.findByTestId("settings-title-tab-surface")!.id
+	)!;
+
+	expect(surfaceBounds.x + surfaceBounds.width).toBeLessThan(
 		sidebarBounds.x + sidebarBounds.width
 	);
-	expect(backBounds.y + backBounds.height).toBeLessThan(accountsBounds.y);
-	expect(backBounds.y).toBeGreaterThanOrEqual(sidebarBounds.y);
-	expect(backBounds.height).toBe(appTokens.layout.smallControlHeight);
-	expect(accountsBounds.height).toBe(appTokens.layout.smallControlHeight);
-	expect(backIconBounds.width).toBe(14);
-	expect(accountsIconBounds.width).toBe(14);
-	expect(accountsIconBounds.x).toBe(backIconBounds.x);
-	expect(titleBounds.x).toBeGreaterThan(sidebarBounds.x + sidebarBounds.width);
-	expect(Math.abs(titleLabelBounds.x - headingBounds.x)).toBeLessThanOrEqual(2);
-	expect(titleBounds.width).toBe(workspaceTabBounds.width);
 	expect(titleBounds.height).toBe(workspaceTabBounds.height);
 	expect(titleBounds.y + titleBounds.height).toBe(sidebarBounds.y);
-	expect(
-		root.renderer.findByTestId("settings-title-tab-surface")?.customProps
-			?.source
-	).toBe(workspaceSurface.customProps?.source);
-	expect(root.renderer.getFocusedElementId()).toBe(back.id);
+	expect(root.renderer.getFocusedElementId()).toBe(accounts!.id);
 
-	click("settings-back-icon");
+	root.renderer.simulateKeystrokes("escape");
 	await settle();
 	expect(root.renderer.findByTestId("settings-view")).toBeUndefined();
 	expect(root.renderer.findByTestId("slot-workspace-1")?.id).toBe(
@@ -471,7 +460,7 @@ it("shows matching icon tiles for connection methods with mouse and keyboard sel
 	expect(f.requests).toEqual([]);
 });
 
-it("uses compact Settings insets while keeping the tab, heading and list aligned", async () => {
+it("keeps compact content insets while placing the Settings title over navigation", async () => {
 	const f = fixture();
 
 	root.render(
@@ -493,9 +482,12 @@ it("uses compact Settings insets while keeping the tab, heading and list aligned
 		root.renderer.getElementBounds(header.id)!.y - navigationBounds.y
 	).toBe(16);
 	expect(root.renderer.getElementBounds(content.id)!.x).toBe(headingBounds.x);
-	expect(
-		Math.abs(root.renderer.getElementBounds(tab.id)!.x - headingBounds.x)
-	).toBeLessThanOrEqual(2);
+	expect(root.renderer.getElementBounds(tab.id)!.x).toBeGreaterThan(
+		navigationBounds.x
+	);
+	expect(root.renderer.getElementBounds(tab.id)!.x).toBeLessThan(
+		navigationBounds.x + navigationBounds.width
+	);
 });
 
 it("copies public registration values with mouse and keyboard and follows the GitLab callback", async () => {
@@ -718,7 +710,7 @@ it("preserves a native commit draft and list scroll while Settings blocks hidden
 	await settle();
 	root.renderer.simulateKeystrokes("cmd-2");
 	await settle();
-	click("settings-back");
+	root.renderer.simulateKeystrokes("escape");
 	await settle();
 	expect(root.renderer.findByTestId("commit-message")?.id).toBe(editor.id);
 	expect(root.renderer.findByTestId("commit-message")?.customProps?.value).toBe(

@@ -10,7 +10,11 @@ import {
 import { RepositoryPreviewCache } from "./feature/repository-workspace/lib/repository-preview-cache";
 import { RepositoryAvatars } from "./feature/repository-workspace/lib/repository-avatars";
 import { RepositoryAvatarContext } from "./feature/repository-workspace/components/repository-avatar";
-import { AccountsSettings } from "./feature/accounts/accounts-settings";
+import {
+	AccountsSettings,
+	type SettingsSection,
+} from "./feature/accounts/accounts-settings";
+import { GitSettingsModel } from "./feature/git-settings/git-settings-model";
 import { Accounts } from "./feature/accounts/lib/accounts";
 import { AccountStore } from "./feature/accounts/lib/account-store";
 import { NativeCredentials } from "./feature/accounts/lib/native-credentials";
@@ -95,6 +99,8 @@ export function App({
 	writeOperation = RepositoryOperation.write,
 	discardFile = RepositoryFileActions.discard,
 	openFile = RepositoryFileActions.open,
+	readGitSettings = GitSettingsModel.read,
+	writeGitSettings = GitSettingsModel.write,
 }: {
 	accounts?: Accounts;
 	avatars?: RepositoryAvatars;
@@ -127,6 +133,8 @@ export function App({
 	writeOperation?: typeof RepositoryOperation.write;
 	discardFile?: typeof RepositoryFileActions.discard;
 	openFile?: typeof RepositoryFileActions.open;
+	readGitSettings?: typeof GitSettingsModel.read;
+	writeGitSettings?: typeof GitSettingsModel.write;
 }) {
 	const renderer = useGpuixRequired();
 
@@ -205,7 +213,27 @@ export function App({
 		discardFile,
 		writeWorktree,
 		removeWorktree,
-		undoCommit
+		undoCommit,
+		async (root, request) => {
+			const result = await writeGitSettings(root, request);
+
+			if (root && request.kind !== "identity") {
+				const repository = state.tabs.find(
+					(tab) => tab.workspace.repository?.root === root
+				)?.workspace.repository;
+
+				for (const tab of state.tabs) {
+					if (
+						repository &&
+						tab.workspace.repository?.commonDirectory ===
+							repository.commonDirectory
+					)
+						void avatars.invalidate(tab.workspace.repository.root);
+				}
+			}
+
+			return result;
+		}
 	);
 
 	useRepositoryAutoRefresh(state, dispatch, readRepository, watchRepository);
@@ -230,6 +258,10 @@ export function App({
 	);
 
 	const settingsOpen = settingsView !== null;
+
+	const [settingsSection, setSettingsSection] =
+		useState<SettingsSection>("accounts");
+
 	const [preferredAccountKey, setPreferredAccountKey] = useState<string>();
 	const [cloneId, setCloneId] = useState<string | null>(null);
 	const cloneTrigger = useRef<PublicInstance | null>(null);
@@ -266,6 +298,7 @@ export function App({
 						? "account"
 						: (railView ?? null);
 			setSettingsView(initialForm);
+			setSettingsSection("accounts");
 		},
 		[renderer, settingsOpen]
 	);
@@ -517,6 +550,10 @@ export function App({
 							onFetch={mutations.fetch}
 							onSync={mutations.synchronize}
 							onCancelSync={mutations.cancelSync}
+							onSettings={() => {
+								openSettings();
+								setSettingsSection("repository-remotes");
+							}}
 						/>
 					}
 					workspaceLabel={
@@ -714,6 +751,21 @@ export function App({
 						onAccount={setPreferredAccountKey}
 						repositoryView={repositoryView}
 						onRepositoryView={selectRepositoryView}
+						initialSection={settingsSection}
+						repositorySettings={
+							workspace?.repository
+								? {
+										root: workspace.repository.root,
+										name: activeTab?.name ?? "Repository",
+										disabled:
+											workspace.loading ||
+											!!workspace.error ||
+											RepositoryWorkspaceModel.isBusy(workspace),
+									}
+								: undefined
+						}
+						readGitSettings={readGitSettings}
+						writeGitSettings={mutations.saveSettings}
 					>
 						{closeNotice}
 					</AccountsSettings>

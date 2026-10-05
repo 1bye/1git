@@ -1,4 +1,10 @@
-import { useEffect, useLayoutEffect, useRef, type Dispatch } from "react";
+import {
+	useEffect,
+	useLayoutEffect,
+	useRef,
+	useState,
+	type Dispatch,
+} from "react";
 import {
 	RepositoryWorktrees,
 	type WorktreeChoice,
@@ -24,8 +30,14 @@ import type {
 	FinishOperationInput,
 	RepositorySnapshot,
 	CommitRecoveryInput,
+	GitResult,
 } from "@1git/git";
 import { useCloseProtection } from "./use-close-protection";
+import {
+	GitSettingsModel,
+	type GitSettingsData,
+	type GitSettingsRequest,
+} from "../../git-settings/git-settings-model";
 import {
 	RepositoryStashes,
 	type StashWriteRequest,
@@ -58,10 +70,15 @@ export function useRepositoryMutations(
 	discardFile = RepositoryFileActions.discard,
 	writeWorktree = RepositoryWorktrees.create,
 	removeWorktree = RepositoryWorktrees.remove,
-	undoCommit = RepositoryCommit.undo
+	undoCommit = RepositoryCommit.undo,
+	writeGitSettings = GitSettingsModel.write
 ) {
+	const [settingsPending, setSettingsPending] = useState(false);
+	const settingsWrite = useRef(false);
+
 	const closeProtection = useCloseProtection(
-		state.tabs.some((tab) => RepositoryWorkspaceModel.isBusy(tab.workspace)),
+		settingsPending ||
+			state.tabs.some((tab) => RepositoryWorkspaceModel.isBusy(tab.workspace)),
 		state.tabs,
 		beforeCloseRelease
 	);
@@ -1070,7 +1087,161 @@ export function useRepositoryMutations(
 		return error;
 	};
 
+	const saveSettings = async (
+		root: string | null,
+		request: GitSettingsRequest
+	): Promise<GitResult<GitSettingsData>> => {
+		const repository = root
+			? tabs.current.find((tab) => tab.workspace.repository?.root === root)
+					?.workspace.repository
+			: undefined;
+
+		const related = () =>
+			tabs.current.filter(
+				(tab) =>
+					tab.workspace.repository &&
+					(!root ||
+						tab.workspace.repository.commonDirectory ===
+							repository?.commonDirectory)
+			);
+
+		if (
+			settingsWrite.current ||
+			(root && !repository) ||
+			related().some(
+				(tab) =>
+					tab.workspace.loading ||
+					tab.workspace.error ||
+					RepositoryWorkspaceModel.isBusy(tab.workspace)
+			) ||
+			sharedWrites.current.size ||
+			syncs.current.size ||
+			stashWrites.current.size ||
+			pending.current.size
+		)
+			return {
+				ok: false,
+				error: {
+					code: "repository-locked",
+					operation: "set-config",
+					retryable: true,
+					message:
+						"Wait for the current Git operation or refresh the repository before saving settings.",
+				},
+			};
+
+		const directories = [
+			...new Set(
+				related()
+					.map((tab) => tab.workspace.repository?.commonDirectory)
+					.filter((directory) => directory !== undefined)
+			),
+		];
+
+		settingsWrite.current = true;
+		setSettingsPending(true);
+
+		for (const directory of directories) sharedWrites.current.add(directory);
+
+		closeProtection.block();
+
+		for (const tab of related())
+			dispatch({
+				type: "workspace",
+				id: tab.id,
+				action: { type: "operation-started" },
+			});
+
+		let result: GitResult<GitSettingsData>;
+
+		try {
+			result = await writeGitSettings(root, request);
+		} catch {
+			result = {
+				ok: false,
+				error: {
+					code: "command-failed",
+					operation: "set-config",
+					retryable: false,
+					message:
+						"Could not confirm the save. Read the current settings before retrying.",
+				},
+			};
+		}
+
+		const refreshed = new Map<string, RepositoryWorkspaceAction>();
+
+		await Promise.all(
+			[...new Set(related().map((tab) => tab.workspace.repository?.root))].map(
+				async (path) => {
+					if (!path) return;
+
+					try {
+						const fresh = await readRepository(
+							path,
+							new AbortController().signal
+						);
+
+						refreshed.set(
+							path,
+							fresh.ok
+								? {
+										type: "operation-finished",
+										error: null,
+										snapshot: fresh.value,
+									}
+								: {
+										type: "operation-finished",
+										error: null,
+										refreshError: fresh.error.message,
+									}
+						);
+					} catch {
+						refreshed.set(path, {
+							type: "operation-finished",
+							error: null,
+							refreshError: "Refresh to confirm repository settings.",
+						});
+					}
+				}
+			)
+		);
+
+		for (const directory of directories) sharedWrites.current.delete(directory);
+
+		settingsWrite.current = false;
+
+		if (mounted.current) setSettingsPending(false);
+
+		if (mounted.current)
+			for (const tab of related()) {
+				const action = refreshed.get(tab.workspace.repository?.root ?? "");
+
+				if (action) dispatch({ type: "workspace", id: tab.id, action });
+			}
+
+		if (
+			result.ok &&
+			[...refreshed.values()].some(
+				(action) => action.type === "operation-finished" && action.refreshError
+			)
+		)
+			return {
+				ok: false,
+				error: {
+					code: "command-failed",
+					operation: "set-config",
+					retryable: false,
+					message:
+						"Settings were saved, but the repository could not be refreshed. Refresh it before another Git operation.",
+				},
+			};
+
+		return result;
+	};
+
 	return {
+		saveSettings,
 		resolve: (
 			id: string,
 			path: string,

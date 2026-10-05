@@ -124,10 +124,36 @@ These are static native vectors, not bitmap assets or animated loading timers.
 Genuinely empty Changes, History, Stashes and comparison sidebars retain their
 quiet placeholder lines; pending reads, failed reads and search results stay distinct.
 
+## Git identity and repository settings
+
+The Settings sidebar separates **Application** from **Repository**, with compact
+8-point padding and no repository-name label in navigation. Repository options are hidden when none is open.
+**Application → Commit identity** edits the computer-wide `user.name` and `user.email` used for
+future commits, including commits made by other Git apps. Hosting login and
+credentials are separate and remain unchanged.
+
+Open a repository's tab menu → **Repository settings…** to go directly to **Remotes**.
+**Repository → Commit identity** is a separate page. Its identity inherits Git defaults
+while **Use default identity** is selected. Clear it to edit a repository override;
+saving with that checkbox selected removes the local
+override. Repository defaults are shared with linked worktrees; an existing
+worktree-specific identity is shown read-only rather than silently overwritten.
+
+The Remotes page lists connections with explicit **Add**, pencil **Edit** and confirmed
+trash **Remove** actions. URL edits preserve dedicated push URLs. Multi-fetch-URL
+remotes require Git directly. Removal deletes remote tracking/configuration, not
+local files, local branches or the hosted repository. Settings never fetch or
+push automatically; remote changes refresh repository thumbnails.
+
+Saves block competing writes in the window and refresh affected open worktrees,
+preserving commit drafts and selections. Partial failures reread the actual config;
+failed workspace refreshes require a refresh before further Git operations.
+
 ## Hosting accounts
 
 Open **1git → Settings…** or press **Cmd+,**. Settings replaces the workspace inside
-the same window, without a new tab or popover. Back restores mounted tabs, selections,
+the same window, without a new tab or popover. Its compact Settings title stays above
+the sidebar and clears the window controls; no Back button is shown. Escape restores mounted tabs, selections,
 drafts, scroll and focus; Settings scopes keyboard traversal to its own controls.
 Accounts stays visible as a list, with **Add account** beside its heading rather
 than in a bottom toolbar. Headings, list content and setup sections share a

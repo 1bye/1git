@@ -124,14 +124,14 @@ it("shows accessible tooltips on keyboard focus and preserves focus when returni
 	key("view-history", "cmd-,");
 	await settle();
 	expect(element("settings-view")).toBeDefined();
-	click("settings-back");
+	root.renderer.simulateKeystrokes("escape");
 	await settle();
 	expect(root.renderer.getFocusedElementId()).toBe(element("view-history").id);
 	click("rail-settings");
 	await settle();
 	expect(element("settings-view")).toBeDefined();
 	expect(element("view-history")).toBeDefined();
-	click("settings-back");
+	root.renderer.simulateKeystrokes("escape");
 	await settle();
 	expect(root.renderer.getFocusedElementId()).toBe(element("rail-settings").id);
 	expect(element("view-history").customProps?.["aria-selected"]).toBe(true);

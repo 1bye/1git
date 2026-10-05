@@ -277,6 +277,7 @@ function WorkspaceActionSubmenu({
 }
 
 export interface WorkspaceMenuActions {
+	onSettings?: (id: string) => void;
 	onRemoveWorktree?: (
 		id: string,
 		choice: WorktreeRemoval
@@ -310,6 +311,7 @@ export function WorkspaceMenu({
 	onFetch,
 	onSync,
 	onCancelSync,
+	onSettings,
 }: WorkspaceMenuActions & {
 	tab: WorkspaceTabRecord;
 	anchor: PublicInstance | undefined;
@@ -708,6 +710,8 @@ export function WorkspaceMenu({
 
 	if (canRemote) enabledIds.push("sync-actions");
 
+	if (onSettings && !busy) enabledIds.push("repository-settings");
+
 	if (publishing) {
 		enabledIds.length = 0;
 
@@ -753,6 +757,7 @@ export function WorkspaceMenu({
 								separatorHeight * 2 +
 								rowHeight +
 								(savedChanges.length ? rowHeight : 0) +
+								(onSettings ? separatorHeight + rowHeight : 0) +
 								(showFetch || showSync ? separatorHeight + rowHeight : 0) +
 								rowHeight +
 								Math.max(1, visibleBranches.length) * rowHeight +
@@ -2029,6 +2034,33 @@ export function WorkspaceMenu({
 											</>
 										) : null}
 									</WorkspaceActionSubmenu>
+								</>
+							) : null}
+							{onSettings ? (
+								<>
+									<div style={styles.separator} />
+									<Button
+										testId="repository-settings"
+										ref={(node) => {
+											if (node) rows.current.set("repository-settings", node);
+											else rows.current.delete("repository-settings");
+										}}
+										tokens={appTokens}
+										variant="ghost"
+										size="sm"
+										style={styles.row}
+										disabled={busy}
+										onPress={() => {
+											closeSubmenu();
+											onClose();
+											onSettings(tab.id);
+										}}
+									>
+										<WorkspaceTabIcon name="branch" />
+										<Text tokens={appTokens} style={styles.label}>
+											Repository settings…
+										</Text>
+									</Button>
 								</>
 							) : null}
 						</>

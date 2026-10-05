@@ -37,8 +37,15 @@ const shoulder = surfaceOutset + visualInset;
 const triggerBorderWidth = 1;
 // Curved shoulders extend beyond the visual body without consuming content space.
 const surfaceWidth = width + surfaceOutset * 2;
-const outline = `M0 ${height} Q${shoulder} ${height} ${shoulder} ${height - shoulder} V${radius} Q${shoulder} 0 ${shoulder + radius} 0 H${surfaceWidth - shoulder - radius} Q${surfaceWidth - shoulder} 0 ${surfaceWidth - shoulder} ${radius} V${height - shoulder} Q${surfaceWidth - shoulder} ${height} ${surfaceWidth} ${height}`;
-const activeSurface = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${surfaceWidth} ${height}"><path d="${outline} Z" fill="${lightColors.editorSurface}"/></svg>`;
+
+function connectedTabSurface(tabWidth: number): string {
+	const paintedWidth = tabWidth + surfaceOutset * 2;
+	const outline = `M0 ${height} Q${shoulder} ${height} ${shoulder} ${height - shoulder} V${radius} Q${shoulder} 0 ${shoulder + radius} 0 H${paintedWidth - shoulder - radius} Q${paintedWidth - shoulder} 0 ${paintedWidth - shoulder} ${radius} V${height - shoulder} Q${paintedWidth - shoulder} ${height} ${paintedWidth} ${height}`;
+
+	return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${paintedWidth} ${height}"><path d="${outline} Z" fill="${lightColors.editorSurface}"/></svg>`;
+}
+
+const activeSurface = connectedTabSurface(width);
 
 // Match Electron's OverflowingLabel: pause, reveal the suffix, and return on leave.
 const marquee = {
@@ -478,19 +485,30 @@ function WorkspaceTabLabel({
 export function WorkspaceTabHeading({
 	label,
 	testId,
+	width: headingWidth = width,
 }: {
 	label: string;
 	testId: string;
+	width?: number;
 }) {
 	return (
-		<div testId={testId} windowDrag style={styles.root}>
+		<div
+			testId={testId}
+			windowDrag
+			style={StyleSheet.compose(styles.root, { width: headingWidth })}
+		>
 			<svg
 				testId={`${testId}-surface`}
-				source={activeSurface}
-				style={styles.surface}
+				source={connectedTabSurface(headingWidth)}
+				style={StyleSheet.compose(styles.surface, {
+					width: headingWidth + surfaceOutset * 2,
+				})}
 			/>
 			<div
-				style={StyleSheet.compose(styles.content, { pointerEvents: "none" })}
+				style={StyleSheet.compose(styles.content, {
+					pointerEvents: "none",
+					width: headingWidth - visualInset * 2,
+				})}
 			>
 				<Text
 					testId={`${testId}-label`}

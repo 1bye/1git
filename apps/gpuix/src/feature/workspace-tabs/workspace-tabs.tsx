@@ -76,6 +76,7 @@ export function WorkspaceTabs({
 	onFetch,
 	onSync,
 	onCancelSync,
+	onSettings,
 }: {
 	state: WorkspaceTabsState;
 	dispatch: Dispatch<WorkspaceTabsAction>;
@@ -292,6 +293,7 @@ export function WorkspaceTabs({
 									onFetch={onFetch}
 									onSync={onSync}
 									onCancelSync={onCancelSync}
+									onSettings={onSettings}
 									onClose={() => {
 										setMenuId(null);
 										focusRequested.current = true;

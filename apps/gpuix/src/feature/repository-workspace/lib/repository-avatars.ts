@@ -119,6 +119,17 @@ export class RepositoryAvatars {
 		this.drain();
 	}
 
+	/** Re-read a changed remote without allowing an older in-flight result to win. */
+	async invalidate(path: string): Promise<void> {
+		const source = { path };
+		const key = RepositoryAvatars.key(source);
+
+		await this.pending.get(key);
+		this.images.delete(key);
+
+		if (!this.controller.signal.aborted) void this.load(source);
+	}
+
 	private drain(): void {
 		while (this.active < 4 && this.queue.length) {
 			const job = this.queue.shift();

@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+export { GitIdentity, type GitIdentityValues } from "./identity.js";
 import { mkdir, realpath, stat, lstat, writeFile } from "node:fs/promises";
 import { dirname, resolve, join } from "node:path";
 

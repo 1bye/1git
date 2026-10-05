@@ -10,6 +10,42 @@ import { GitHubProvider } from "@1git/hosting/providers/github";
 import { GitLabProvider } from "@1git/hosting/providers/gitlab";
 import { RepositoryAvatars } from "../../src/feature/repository-workspace/lib/repository-avatars";
 
+it("rereads remotes after settings changes even when an older avatar is still loading", async () => {
+	let release: (() => void) | undefined;
+	let reads = 0;
+
+	const avatars = new RepositoryAvatars(
+		async () => [],
+		async () => {
+			reads += 1;
+
+			if (reads === 1)
+				await new Promise<void>((resolve) => {
+					release = resolve;
+				});
+
+			return [];
+		}
+	);
+
+	try {
+		const initial = avatars.load({ path: "/test/project" });
+
+		await Bun.sleep(0);
+		const invalidation = avatars.invalidate("/test/project");
+
+		if (!release) throw new Error("Initial avatar read was not pending");
+
+		release();
+		await initial;
+		await invalidation;
+		await avatars.load({ path: "/test/project" });
+		expect(reads).toBe(2);
+	} finally {
+		avatars.dispose();
+	}
+});
+
 it("shares one owner download across tabs, saved paths and clone rows", async () => {
 	const png = await sharp({
 		create: { width: 8, height: 8, channels: 4, background: "#4466aa" },

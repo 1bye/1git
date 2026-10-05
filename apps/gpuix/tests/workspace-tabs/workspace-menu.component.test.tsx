@@ -296,7 +296,7 @@ it("groups New and Sync into exclusive hover flyouts while keeping Merge in the 
 	expect(root.renderer.findByTestId("create-worktree")).toBeUndefined();
 	expect(root.renderer.findByTestId("fetch-repository")).toBeUndefined();
 	expect(element("merge-branch")).toBeDefined();
-	expect(bounds("workspace-menu").height).toBeLessThan(300);
+	expect(bounds("workspace-menu").height).toBeLessThan(340);
 
 	for (const group of ["new", "sync"] as const) {
 		const trigger = bounds(`${group}-actions`);
@@ -1580,7 +1580,7 @@ it("replaces the actions with an inline form and returns with Cancel or Escape w
 	await settle();
 	expect(root.renderer.findByTestId("branch-name")).toBeUndefined();
 	expect(element("branch-main")).toBeTruthy();
-	root.renderer.simulateKeystrokes("up up right");
+	root.renderer.simulateKeystrokes("up up up right");
 	await settle();
 	root.renderer.simulateKeystrokes("enter");
 	await settle();
@@ -1652,7 +1652,7 @@ it("keeps unsafe actions disabled without a persistent explanation or empty foot
 		"Commit or stash changes"
 	);
 	const menuBox = bounds("workspace-menu");
-	const lastAction = bounds("sync-actions");
+	const lastAction = bounds("repository-settings");
 
 	expect(
 		menuBox.y + menuBox.height - lastAction.y - lastAction.height
@@ -2055,7 +2055,9 @@ it("opens with Down, wraps Up to the final action, and dismisses with Tab", asyn
 	expect(element("workspace-menu")).toBeTruthy();
 	root.renderer.simulateKeystrokes("up");
 	await settle();
-	expect(root.renderer.getFocusedElementId()).toBe(element("merge-branch").id);
+	expect(root.renderer.getFocusedElementId()).toBe(
+		element("repository-settings").id
+	);
 	root.renderer.simulateKeystrokes("tab");
 	await settle();
 	expect(root.renderer.findByTestId("workspace-menu")).toBeUndefined();
@@ -2095,7 +2097,7 @@ it("fetches a dirty repository explicitly and refreshes tracking without losing 
 	root.renderer.simulateKeystrokes("d r a f t");
 	await menu();
 	expect(fetchRepository).not.toHaveBeenCalled();
-	root.renderer.simulateKeystrokes("up");
+	root.renderer.simulateKeystrokes("up up");
 	await settle();
 	root.renderer.simulateKeystrokes("right");
 	await settle();
