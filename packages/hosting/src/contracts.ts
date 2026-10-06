@@ -71,6 +71,13 @@ export interface Account {
 	readonly browserUrl: string;
 }
 
+/** Suggested Git author details, not authentication settings. An unavailable email stays null. */
+export interface CommitIdentity {
+	readonly id: string;
+	readonly name: string | null;
+	readonly email: string | null;
+}
+
 /** Candidate repository destination; membership alone does not guarantee creation permission. */
 export interface Owner {
 	readonly id: string;

@@ -1,11 +1,22 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+	useCallback,
+	useEffect,
+	useImperativeHandle,
+	useRef,
+	useState,
+	type Ref,
+} from "react";
+import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
 import { spacing, typography, radius, fontWeight } from "@1git/design-tokens";
 import { Button } from "@1git/gpuix-ui/button";
-import { Checkbox } from "@1git/gpuix-ui/checkbox";
 import { Popover, PopoverContent } from "@1git/gpuix-ui/popover";
 import { appTokens } from "../../styles/tokens";
 import { accountActionIcons } from "../accounts/account-list";
 import { StateArtwork } from "../../fixture/state-artwork";
+import { ChoiceTile } from "../../fixture/choice-tile";
+import { AccountStore, type SavedAccount } from "../accounts/lib/account-store";
+import { accountProviderIcons } from "../accounts/account-provider-icons";
+import type { CommitIdentity } from "@1git/hosting/contracts";
 import {
 	GitSettingsModel,
 	type GitSettingsData,
@@ -50,12 +61,14 @@ const field = {
 };
 
 function SettingsField({
+	ref,
 	id,
 	label,
 	value,
 	disabled,
 	onChange,
 }: {
+	ref?: Ref<PublicInstance>;
 	id: string;
 	label: string;
 	value: string;
@@ -66,6 +79,7 @@ function SettingsField({
 		<div style={column}>
 			<text style={muted}>{label}</text>
 			<input
+				ref={ref}
 				testId={id}
 				aria-label={label}
 				value={value}
@@ -81,52 +95,121 @@ function SettingsField({
 	);
 }
 
+/** Lets Settings dismiss an open editor before leaving the page. */
+export interface GitSettingsHandle {
+	cancelEditor: () => boolean;
+}
+
 /** Author settings and explicit remote editors; loading a pane never writes to Git. */
 export function GitSettings({
+	ref,
 	root,
 	page = "identity",
 	disabled = false,
 	read = GitSettingsModel.read,
 	write = GitSettingsModel.write,
+	accounts = [],
+	readAccountIdentity,
 	onBusy,
 }: {
+	ref?: Ref<GitSettingsHandle>;
 	root: string | null;
 	page?: "identity" | "remotes";
 	disabled?: boolean;
 	read?: typeof GitSettingsModel.read;
+	accounts?: readonly SavedAccount[];
+	readAccountIdentity?: (
+		account: SavedAccount,
+		signal: AbortSignal
+	) => Promise<CommitIdentity>;
 	write?: (
 		root: string | null,
 		request: GitSettingsRequest
 	) => Promise<GitResult<GitSettingsData>>;
 	onBusy: (busy: boolean) => void;
 }) {
+	const renderer = useGpuixRequired();
 	const [data, setData] = useState<GitSettingsData | null>(null);
 	const [name, setName] = useState("");
 	const [email, setEmail] = useState("");
 	const [custom, setCustom] = useState(false);
+	const [identitySource, setIdentitySource] = useState("custom");
+	const [loadingIdentity, setLoadingIdentity] = useState(false);
+	const identityRequest = useRef<AbortController | null>(null);
 	const [busy, setBusy] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [status, setStatus] = useState<string | null>(null);
-	const [editing, setEditing] = useState<"add" | "edit" | null>(null);
+
+	const [editing, setEditing] = useState<"identity" | "add" | "edit" | null>(
+		null
+	);
+
 	const [remoteName, setRemoteName] = useState("");
 	const [remoteUrl, setRemoteUrl] = useState("");
 	const [removing, setRemoving] = useState<string | null>(null);
 	const pending = useRef(false);
 	const mounted = useRef(true);
+	const editor = useRef<PublicInstance | null>(null);
+	const remoteUrlField = useRef<PublicInstance | null>(null);
+	const returnFocus = useRef<number | null>(null);
 	const locked = disabled || busy || !data;
 	const identityLocked = locked || !!data?.identityReadOnlyReason;
 
-	const apply = useCallback((next: GitSettingsData): void => {
-		setData(next);
-		setName(next.identity.name ?? "");
-		setEmail(next.identity.email ?? "");
-		setCustom(next.custom);
+	const apply = useCallback(
+		(next: GitSettingsData): void => {
+			setData(next);
+			setName(next.identity.name ?? "");
+			setEmail(next.identity.email ?? "");
+			setCustom(next.custom);
+			setIdentitySource(root && !next.custom ? "default" : "custom");
+		},
+		[root]
+	);
+
+	const stopIdentityRequest = useCallback(() => {
+		identityRequest.current?.abort();
+		identityRequest.current = null;
+		setLoadingIdentity(false);
 	}, []);
+
+	const cancelEditor = useCallback((): boolean => {
+		if (!editing) return false;
+
+		if (pending.current) return true;
+
+		stopIdentityRequest();
+
+		if (data) apply(data);
+
+		setEditing(null);
+		setError(null);
+
+		return true;
+	}, [editing, data, apply, stopIdentityRequest]);
+
+	useImperativeHandle(ref, () => ({ cancelEditor }), [cancelEditor]);
+
+	useEffect(() => {
+		const focus = setTimeout(() => {
+			if (editing === "edit" && remoteUrlField.current)
+				renderer.focusElement?.(remoteUrlField.current.id);
+			else if (editing && editor.current)
+				renderer.focusNextWithin?.(editor.current.id);
+			else if (!editing && returnFocus.current !== null) {
+				renderer.focusElement?.(returnFocus.current);
+				returnFocus.current = null;
+			}
+		}, 0);
+
+		return () => clearTimeout(focus);
+	}, [editing, renderer]);
 
 	useEffect(() => {
 		mounted.current = true;
+		stopIdentityRequest();
 		setData(null);
 		setError(null);
+		setEditing(null);
 		const controller = new AbortController();
 
 		void (async () => {
@@ -146,11 +229,49 @@ export function GitSettings({
 		return () => {
 			mounted.current = false;
 			controller.abort();
+			identityRequest.current?.abort();
 		};
-	}, [root, read, apply]);
+	}, [root, read, apply, stopIdentityRequest]);
+
+	const chooseAccount = async (account: SavedAccount): Promise<void> => {
+		if (identityLocked || !readAccountIdentity) return;
+
+		stopIdentityRequest();
+		const controller = new AbortController();
+
+		identityRequest.current = controller;
+		setIdentitySource(AccountStore.key(account));
+		setCustom(true);
+		setName(account.username);
+		setEmail("");
+		setError(null);
+		setLoadingIdentity(true);
+
+		try {
+			const identity = await readAccountIdentity(account, controller.signal);
+
+			if (controller.signal.aborted || !mounted.current) return;
+
+			setName(identity.name ?? account.username);
+			setEmail(identity.email ?? "");
+		} catch {
+			if (!controller.signal.aborted && mounted.current)
+				setError(
+					"Could not read the account identity. Enter it manually or select the account to retry."
+				);
+		} finally {
+			if (identityRequest.current === controller) {
+				identityRequest.current = null;
+
+				if (mounted.current) setLoadingIdentity(false);
+			}
+		}
+	};
 
 	const save = async (request: GitSettingsRequest): Promise<void> => {
 		if (locked || pending.current) return;
+
+		if (request.kind === "identity" && loadingIdentity) return;
 
 		pending.current = true;
 		setBusy(true);
@@ -206,12 +327,40 @@ export function GitSettings({
 				(name !== (data.identity.name ?? "") ||
 					email !== (data.identity.email ?? ""))));
 
+	const choices = [
+		...(root
+			? [
+					{
+						key: "default",
+						label: "Default",
+						source: accountActionIcons.check,
+						detail: "Computer-wide identity",
+						account: null,
+					},
+				]
+			: []),
+		...accounts.map((account) => ({
+			key: AccountStore.key(account),
+			label: account.username,
+			source: accountProviderIcons[account.provider],
+			detail: new URL(account.webUrl).host,
+			account,
+		})),
+		{
+			key: "custom",
+			label: "Custom",
+			source: accountActionIcons.reconnect,
+			detail: "Enter name and email",
+			account: null,
+		},
+	];
+
 	return (
 		<div
 			testId={root ? "repository-settings" : "git-settings"}
 			style={{
 				display: "flex",
-				flexDirection: "column",
+				flexDirection: "row",
 				flexGrow: 1,
 				minHeight: 0,
 				minWidth: 0,
@@ -222,14 +371,17 @@ export function GitSettings({
 				style={{
 					display: "flex",
 					flexDirection: "column",
-					flexGrow: 1,
+					width: editing ? "50%" : "100%",
+					flexGrow: editing ? 0 : 1,
+					flexShrink: 0,
+					minWidth: 0,
 					minHeight: 0,
 					overflowY: "scroll",
 					padding: spacing[4],
 				}}
 			>
 				<div
-					style={{ ...column, maxWidth: 520, width: "100%", gap: spacing[5] }}
+					style={{ ...column, maxWidth: 480, width: "100%", gap: spacing[5] }}
 				>
 					<div style={{ ...row, justifyContent: "space-between" }}>
 						<text
@@ -248,6 +400,8 @@ export function GitSettings({
 								size="sm"
 								disabled={locked || editing !== null}
 								onPress={() => {
+									returnFocus.current =
+										renderer.getFocusedElementId?.() ?? null;
 									setRemoteName("");
 									setRemoteUrl("");
 									setEditing("add");
@@ -256,6 +410,25 @@ export function GitSettings({
 								}}
 							>
 								Add remote
+							</Button>
+						) : null}
+						{page === "identity" && data ? (
+							<Button
+								testId="identity-edit"
+								tokens={appTokens}
+								variant="secondary"
+								size="sm"
+								disabled={identityLocked || editing !== null}
+								onPress={() => {
+									returnFocus.current =
+										renderer.getFocusedElementId?.() ?? null;
+									apply(data);
+									setEditing("identity");
+									setError(null);
+									setStatus(null);
+								}}
+							>
+								Edit
 							</Button>
 						) : null}
 					</div>
@@ -269,51 +442,24 @@ export function GitSettings({
 					{data ? (
 						<>
 							{page === "identity" ? (
-								<div style={{ ...column, gap: spacing[3] }}>
-									{root ? (
-										<Checkbox
-											testId="identity-custom"
-											tokens={appTokens}
-											checked={!custom}
-											disabled={identityLocked}
-											label="Use default identity"
-											onCheckedChange={(checked) => setCustom(!checked)}
-										/>
+								<div
+									testId="identity-summary"
+									style={{ ...column, gap: spacing[1] }}
+								>
+									<text
+										style={{ ...typography.md, color: appTokens.colors.text }}
+									>
+										{data.identity.name || "Name not configured"}
+									</text>
+									<text style={muted}>
+										{data.identity.email || "Email not configured"}
+									</text>
+									{root && !data.custom ? (
+										<text style={muted}>Default identity</text>
 									) : null}
-									<SettingsField
-										id="identity-name"
-										label="Name"
-										value={name}
-										disabled={identityLocked || (!!root && !custom)}
-										onChange={setName}
-									/>
-									<SettingsField
-										id="identity-email"
-										label="Commit email"
-										value={email}
-										disabled={identityLocked || (!!root && !custom)}
-										onChange={setEmail}
-									/>
 									{data.identityReadOnlyReason ? (
 										<text style={muted}>{data.identityReadOnlyReason}</text>
 									) : null}
-									<div style={{ ...row, justifyContent: "flex-end" }}>
-										<Button
-											testId="identity-save"
-											tokens={appTokens}
-											size="sm"
-											disabled={identityLocked || !identityChanged}
-											onPress={() => {
-												void save({
-													kind: "identity",
-													custom,
-													identity: { name, email },
-												});
-											}}
-										>
-											{busy ? "Saving…" : "Save identity"}
-										</Button>
-									</div>
 								</div>
 							) : null}
 							{root && page === "remotes" ? (
@@ -386,6 +532,8 @@ export function GitSettings({
 													remote.fetchUrls.length !== 1
 												}
 												onPress={() => {
+													returnFocus.current =
+														renderer.getFocusedElementId?.() ?? null;
 													setRemoteName(remote.name);
 													setRemoteUrl(remote.fetchUrls[0] ?? "");
 													setEditing("edit");
@@ -425,64 +573,6 @@ export function GitSettings({
 											</Button>
 										</div>
 									))}
-									{editing ? (
-										<div
-											testId="remote-editor"
-											style={{
-												...column,
-												padding: spacing[3],
-												backgroundColor: appTokens.colors.surface,
-												borderRadius: radius.lg,
-											}}
-										>
-											<SettingsField
-												id="remote-name"
-												label="Remote name"
-												value={remoteName}
-												disabled={locked || editing === "edit"}
-												onChange={setRemoteName}
-											/>
-											<SettingsField
-												id="remote-url"
-												label="Remote URL"
-												value={remoteUrl}
-												disabled={locked}
-												onChange={setRemoteUrl}
-											/>
-											<div style={{ ...row, justifyContent: "flex-end" }}>
-												<Button
-													testId="remote-cancel"
-													tokens={appTokens}
-													variant="secondary"
-													size="sm"
-													disabled={busy}
-													onPress={() => setEditing(null)}
-												>
-													Cancel
-												</Button>
-												<Button
-													testId="remote-save"
-													tokens={appTokens}
-													size="sm"
-													disabled={
-														locked || !remoteName.trim() || !remoteUrl.trim()
-													}
-													onPress={() => {
-														void save({
-															kind:
-																editing === "add"
-																	? "add-remote"
-																	: "edit-remote",
-															name: remoteName,
-															url: remoteUrl,
-														});
-													}}
-												>
-													Save remote
-												</Button>
-											</div>
-										</div>
-									) : null}
 									{data.remotes.some(
 										(remote) => remote.fetchUrls.length !== 1
 									) ? (
@@ -495,7 +585,7 @@ export function GitSettings({
 							) : null}
 						</>
 					) : null}
-					{error ? (
+					{error && !editing ? (
 						<text
 							testId="git-settings-error"
 							role="alert"
@@ -511,6 +601,235 @@ export function GitSettings({
 					) : null}
 				</div>
 			</div>
+			{editing ? (
+				<div
+					ref={editor}
+					testId={editing === "identity" ? "identity-editor" : "remote-editor"}
+					role="region"
+					aria-label={
+						editing === "identity"
+							? "Edit commit identity"
+							: editing === "add"
+								? "Add remote"
+								: "Edit remote"
+					}
+					style={{
+						...column,
+						gap: 0,
+						flexGrow: 1,
+						flexBasis: 0,
+						minWidth: 0,
+						minHeight: 0,
+						borderLeftWidth: 1,
+						borderColor: appTokens.colors.border,
+					}}
+				>
+					<text
+						role="heading"
+						aria-level={2}
+						style={{ ...heading, padding: spacing[4] }}
+					>
+						{editing === "identity"
+							? "Edit commit identity"
+							: editing === "add"
+								? "Add remote"
+								: "Edit remote"}
+					</text>
+					<div
+						testId="git-settings-editor-scroll"
+						style={{
+							...column,
+							flexGrow: 1,
+							flexShrink: 1,
+							minHeight: 0,
+							overflowY: "scroll",
+							paddingLeft: spacing[4],
+							paddingRight: spacing[4],
+							paddingBottom: spacing[4],
+						}}
+					>
+						<div
+							style={{
+								...column,
+								gap: spacing[3],
+								width: "100%",
+								maxWidth: 480,
+							}}
+						>
+							{editing === "identity" ? (
+								<>
+									<div role="group" aria-label="Identity source" style={column}>
+										{choices.map((choice, index) =>
+											index % 2 === 0 ? (
+												<div key={choice.key} style={row}>
+													{choices.slice(index, index + 2).map((item) => (
+														<ChoiceTile
+															key={item.key}
+															testId={`identity-${item.account ? `account-${item.key}` : item.key}`}
+															label={item.label}
+															source={item.source}
+															detail={item.detail}
+															accessibleName={`${item.label}, ${item.detail}`}
+															selected={identitySource === item.key}
+															disabled={
+																identityLocked ||
+																(!!item.account && !readAccountIdentity)
+															}
+															onPress={() => {
+																if (item.account) {
+																	void chooseAccount(item.account);
+
+																	return;
+																}
+
+																stopIdentityRequest();
+																setIdentitySource(item.key);
+																setCustom(item.key !== "default");
+																setError(null);
+															}}
+														/>
+													))}
+												</div>
+											) : null
+										)}
+									</div>
+									{identitySource !== "default" ? (
+										<>
+											<SettingsField
+												id="identity-name"
+												label="Name"
+												value={name}
+												disabled={identityLocked || loadingIdentity}
+												onChange={setName}
+											/>
+											<SettingsField
+												id="identity-email"
+												label="Commit email"
+												value={email}
+												disabled={identityLocked || loadingIdentity}
+												onChange={setEmail}
+											/>
+										</>
+									) : null}
+									{loadingIdentity ? (
+										<text
+											testId="identity-account-status"
+											role="status"
+											style={muted}
+										>
+											Reading account identity…
+										</text>
+									) : identitySource !== "custom" &&
+									  identitySource !== "default" &&
+									  !email ? (
+										<text
+											testId="identity-account-status"
+											role="status"
+											style={muted}
+										>
+											Enter a commit email for this account.
+										</text>
+									) : null}
+								</>
+							) : (
+								<>
+									<SettingsField
+										id="remote-name"
+										label="Remote name"
+										value={remoteName}
+										disabled={locked || editing === "edit"}
+										onChange={setRemoteName}
+									/>
+									<SettingsField
+										ref={remoteUrlField}
+										id="remote-url"
+										label="Remote URL"
+										value={remoteUrl}
+										disabled={locked}
+										onChange={setRemoteUrl}
+									/>
+								</>
+							)}
+						</div>
+					</div>
+					<div
+						testId="git-settings-editor-footer"
+						style={{
+							...column,
+							paddingTop: spacing[3],
+							paddingBottom: spacing[3],
+							paddingLeft: spacing[4],
+							paddingRight: spacing[4],
+							borderTopWidth: 1,
+							borderColor: appTokens.colors.border,
+						}}
+					>
+						{error ? (
+							<text
+								testId="git-settings-error"
+								role="alert"
+								style={{ ...muted, color: appTokens.colors.danger }}
+							>
+								{error}
+							</text>
+						) : null}
+						<div
+							style={{
+								...row,
+								justifyContent: "space-between",
+								width: "100%",
+								maxWidth: 480,
+							}}
+						>
+							<Button
+								testId={
+									editing === "identity" ? "identity-cancel" : "remote-cancel"
+								}
+								tokens={appTokens}
+								variant="secondary"
+								size="sm"
+								disabled={busy}
+								onPress={cancelEditor}
+							>
+								Cancel
+							</Button>
+							<Button
+								testId={
+									editing === "identity" ? "identity-save" : "remote-save"
+								}
+								tokens={appTokens}
+								size="sm"
+								disabled={
+									editing === "identity"
+										? identityLocked ||
+											loadingIdentity ||
+											!identityChanged ||
+											(custom && (!name.trim() || !email.trim()))
+										: locked || !remoteName.trim() || !remoteUrl.trim()
+								}
+								onPress={() => {
+									void save(
+										editing === "identity"
+											? { kind: "identity", custom, identity: { name, email } }
+											: {
+													kind:
+														editing === "add" ? "add-remote" : "edit-remote",
+													name: remoteName,
+													url: remoteUrl,
+												}
+									);
+								}}
+							>
+								{busy
+									? "Saving…"
+									: editing === "identity"
+										? "Save identity"
+										: "Save remote"}
+							</Button>
+						</div>
+					</div>
+				</div>
+			) : null}
 			<Popover
 				open={removing !== null}
 				modal

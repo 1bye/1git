@@ -1,5 +1,11 @@
 import { typography, radius, spacing, fontWeight } from "@1git/design-tokens";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+	useCallback,
+	useEffect,
+	useRef,
+	useState,
+	type ReactNode,
+} from "react";
 import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
 import { Button } from "@1git/gpuix-ui/button";
 import { Checkbox } from "@1git/gpuix-ui/checkbox";
@@ -33,7 +39,10 @@ import { WorkspaceTabIcon } from "../workspace-tabs/components/workspace-tab-ico
 import { WorkspaceTabHeading } from "../workspace-tabs/components/workspace-tab";
 import type { RepositoryView } from "../repository-workspace/types";
 import { NativeClipboard } from "../../platform/clipboard";
-import { GitSettings } from "../git-settings/git-settings";
+import {
+	GitSettings,
+	type GitSettingsHandle,
+} from "../git-settings/git-settings";
 import { GitSettingsModel } from "../git-settings/git-settings-model";
 import { StateMessage } from "../../fixture/state-message";
 
@@ -143,6 +152,13 @@ export function AccountsSettings({
 	);
 
 	const [saved, setSaved] = useState<SavedAccount[]>([]);
+
+	const readAccountIdentity = useCallback(
+		(account: SavedAccount, signal: AbortSignal) =>
+			accounts.commitIdentity(account, signal),
+		[accounts]
+	);
+
 	const [form, setForm] = useState<"list" | "connect">(initialForm);
 	const [provider, setProvider] = useState<SavedAccount["provider"]>("github");
 	const [webUrl, setWebUrl] = useState<string>(accountSetup.github.host);
@@ -160,6 +176,7 @@ export function AccountsSettings({
 	const [section, setSection] = useState(initialSection);
 	const [gitBusy, setGitBusy] = useState(false);
 	const gitBusyRef = useRef(false);
+	const gitSettings = useRef<GitSettingsHandle | null>(null);
 	const settingsBusy = busy || gitBusy;
 
 	const repositorySection =
@@ -213,6 +230,8 @@ export function AccountsSettings({
 			scope: () => view.current?.id ?? null,
 			back: () => {
 				if (gitBusyRef.current) return;
+
+				if (gitSettings.current?.cancelEditor()) return;
 
 				if (request.current) {
 					if (waiting) request.current.abort();
@@ -537,12 +556,15 @@ export function AccountsSettings({
 				/>
 			) : section !== "accounts" ? (
 				<GitSettings
+					ref={gitSettings}
 					key={section}
 					page={section === "repository-remotes" ? "remotes" : "identity"}
 					root={repositorySection ? (repositorySettings?.root ?? null) : null}
 					disabled={repositorySection && repositorySettings?.disabled}
 					read={readGitSettings}
 					write={writeGitSettings}
+					accounts={saved}
+					readAccountIdentity={readAccountIdentity}
 					onBusy={(next) => {
 						gitBusyRef.current = next;
 						setGitBusy(next);

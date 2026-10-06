@@ -3,6 +3,7 @@ import { segment } from "./adapter.js";
 import type {
 	Account,
 	CallOptions,
+	CommitIdentity,
 	Capabilities,
 	CreatePullRequest,
 	CreateRepository,
@@ -63,6 +64,21 @@ export class HostingClient {
 	/** Validate the current credential and retrieve its account identity. */
 	getAccount(options: CallOptions = {}): Promise<HostingResult<Account>> {
 		return result("get-account", () => this.#adapter.account(options));
+	}
+
+	/** Read author suggestions without changing Git or the connected account. */
+	getCommitIdentity(
+		options: CallOptions = {}
+	): Promise<HostingResult<CommitIdentity>> {
+		return result("get-commit-identity", () => {
+			if (!this.#adapter.commitIdentity)
+				fail(
+					"unsupported",
+					"This provider does not offer commit identity suggestions."
+				);
+
+			return this.#adapter.commitIdentity(options);
+		});
 	}
 
 	/** Candidate user/organization/group destinations; provider policy remains authoritative. */

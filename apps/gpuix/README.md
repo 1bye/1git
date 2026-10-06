@@ -134,16 +134,32 @@ credentials are separate and remain unchanged.
 
 Open a repository's tab menu → **Repository settings…** to go directly to **Remotes**.
 **Repository → Commit identity** is a separate page. Its identity inherits Git defaults
-while **Use default identity** is selected. Clear it to edit a repository override;
-saving with that checkbox selected removes the local
+while the **Default** tile is selected. Choose **Custom** or a connected account to edit a repository override;
+saving with **Default** selected removes the local
 override. Repository defaults are shared with linked worktrees; an existing
 worktree-specific identity is shown read-only rather than silently overwritten.
+Identity pages show the saved name and email; **Edit** opens a right-side form.
+The form reuses account setup's choice tiles: **Default** (repository only),
+connected accounts labelled with username/host, and **Custom**. Account selection
+reads author suggestions on demand through the existing verified/refreshable credential
+path and fills an editable draft. It does not switch Git authentication or write config;
+only **Save identity** applies the name/email. GitHub suggestions use verified emails,
+preferring the primary address when available; missing email permission leaves email
+blank for manual entry. GitLab uses its commit email when available without falling back
+to a personal email for a private-email sentinel. No address is invented or stored in
+account metadata. Changing the source, Cancel, or leaving the page aborts the lookup
+and ignores late responses. Saved Git identity is not a live binding to a hosting account.
 
 The Remotes page lists connections with explicit **Add**, pencil **Edit** and confirmed
 trash **Remove** actions. URL edits preserve dedicated push URLs. Multi-fetch-URL
 remotes require Git directly. Removal deletes remote tracking/configuration, not
 local files, local branches or the hosted repository. Settings never fetch or
 push automatically; remote changes refresh repository thumbnails.
+Adding or editing a remote keeps the list visible on the left and opens the form
+on the right, matching account setup. Form fields scroll independently, with
+**Cancel** and **Save** pinned below. Cancel or Escape discards the draft without
+writing to Git; a successful save closes the form. Escape closes an open form
+before leaving Settings, and cannot interrupt a pending save.
 
 Saves block competing writes in the window and refresh affected open worktrees,
 preserving commit drafts and selections. Partial failures reread the actual config;

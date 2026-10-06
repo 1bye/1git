@@ -9,6 +9,7 @@ import type {
 	Page,
 	Repository,
 	RepositoryRef,
+	CommitIdentity,
 } from "@1git/hosting/contracts";
 import { parseRemote } from "@1git/hosting/remote";
 import { GitRepository, type GitResult } from "@1git/git";
@@ -85,6 +86,44 @@ export class Accounts {
 
 	load(): SavedAccount[] {
 		return this.store.load();
+	}
+
+	/** Read a verified account's author suggestions; never persist them or change Git authentication. */
+	async commitIdentity(
+		account: SavedAccount,
+		signal?: AbortSignal
+	): Promise<CommitIdentity> {
+		return this.mutate(async () => {
+			const credential = await this.verifiedCredential(account, signal);
+
+			const result = await this.configure(
+				account.provider,
+				account.webUrl,
+				credential.token
+			).getCommitIdentity({ signal });
+
+			signal?.throwIfAborted();
+
+			if (!result.ok || result.value.id !== account.id)
+				throw new Error(
+					"Could not read this account's identity. Check or reconnect the account in Settings."
+				);
+
+			const { name, email } = result.value;
+
+			if (
+				(name && (name.length > 256 || hasControlCharacters(name))) ||
+				(email &&
+					(email.length > 256 ||
+						hasControlCharacters(email) ||
+						!/^[^\s@<>]+@[^\s@<>]+$/u.test(email)))
+			)
+				throw new Error(
+					"The account returned unusable author details. Enter a custom identity instead."
+				);
+
+			return { id: account.id, name: name?.trim() || account.username, email };
+		});
 	}
 
 	/** Bounded provider search includes accessible public projects as well as account memberships. */

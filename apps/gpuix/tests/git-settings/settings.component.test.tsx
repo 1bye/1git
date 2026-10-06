@@ -18,6 +18,13 @@ import {
 	changedFile,
 } from "../_shared/repository-snapshot";
 import { windowOptions } from "../../src/window-options";
+import {
+	AccountStore,
+	type SavedAccount,
+} from "../../src/feature/accounts/lib/account-store";
+import type { CommitIdentity } from "@1git/hosting/contracts";
+import { appTokens } from "../../src/styles/tokens";
+import { Accounts } from "../../src/feature/accounts/lib/accounts";
 
 let root: TestRoot;
 let data: GitSettingsData;
@@ -147,12 +154,251 @@ async function type(id: string, value: string) {
 	await settle();
 }
 
+const identityAccount: SavedAccount = {
+	provider: "github",
+	webUrl: "https://github.com/",
+	id: "7",
+	username: "alice",
+};
+
+const accountTile = `identity-account-${AccountStore.key(identityAccount)}`;
+
+it("account tiles prefill an editable draft, require explicit Save, and keep the summary unchanged until then", async () => {
+	const lookup = mock(async () => ({
+		id: "7",
+		name: "Alice",
+		email: "alice@example.invalid",
+	}));
+
+	spyOn(Accounts.prototype, "load").mockReturnValue([identityAccount]);
+	spyOn(Accounts.prototype, "commitIdentity").mockImplementation(lookup);
+
+	root.render(
+		<AccountsSettings
+			onBack={() => {}}
+			initialSection="repository-identity"
+			repositorySettings={{
+				root: "/test/project",
+				name: "Project",
+				disabled: false,
+			}}
+			readGitSettings={read}
+			writeGitSettings={write}
+		/>
+	);
+	await settle();
+	await click("identity-edit");
+	await click(accountTile);
+
+	expect(lookup).toHaveBeenCalledTimes(1);
+	expect(node("identity-name").customProps?.value).toBe("Alice");
+	expect(node("identity-email").customProps?.value).toBe(
+		"alice@example.invalid"
+	);
+	expect(root.renderer.getAllText()).toContain("Personal");
+	expect(write).not.toHaveBeenCalled();
+
+	if (process.env.GPUIX_GIT_SETTINGS_SCREENSHOT)
+		root.renderer.captureScreenshot(
+			`${process.env.GPUIX_GIT_SETTINGS_SCREENSHOT}-account-identity.png`
+		);
+
+	await type("identity-name", "Alice-work");
+	await click("identity-save");
+	expect(write).toHaveBeenCalledWith("/test/project", {
+		kind: "identity",
+		custom: true,
+		identity: { name: "Alice-work", email: "alice@example.invalid" },
+	});
+	expect(root.renderer.findByTestId("identity-editor")).toBeUndefined();
+});
+
+it("an unavailable account email clears the old email and requires manual entry", async () => {
+	root.render(
+		<GitSettings
+			root={null}
+			accounts={[identityAccount]}
+			readAccountIdentity={async () => ({
+				id: "7",
+				name: "Alice",
+				email: null,
+			})}
+			read={read}
+			write={write}
+			onBusy={() => {}}
+		/>
+	);
+	await settle();
+	await click("identity-edit");
+	expect(root.renderer.findByTestId("identity-default")).toBeUndefined();
+	await click(accountTile);
+	expect(node("identity-email").customProps?.value).toBe("");
+	await click("identity-save");
+	expect(write).not.toHaveBeenCalled();
+	expect(root.renderer.getAllText()).toContain(
+		"Enter a commit email for this account."
+	);
+	await type("identity-email", "manual@example.invalid");
+	await click("identity-save");
+	expect(write).toHaveBeenCalledWith(null, {
+		kind: "identity",
+		custom: true,
+		identity: { name: "Alice", email: "manual@example.invalid" },
+	});
+});
+
+it("choosing Custom or cancelling aborts the account lookup and ignores late results", async () => {
+	let resolve: ((identity: CommitIdentity) => void) | undefined;
+	let signal: AbortSignal | undefined;
+
+	const lookup = mock((_account: SavedAccount, nextSignal: AbortSignal) => {
+		signal = nextSignal;
+
+		return new Promise<CommitIdentity>((done) => {
+			resolve = done;
+		});
+	});
+
+	root.render(
+		<GitSettings
+			root="/test/project"
+			accounts={[identityAccount]}
+			readAccountIdentity={lookup}
+			read={read}
+			write={write}
+			onBusy={() => {}}
+		/>
+	);
+	await settle();
+	await click("identity-edit");
+	await click(accountTile);
+	await click("identity-save");
+	expect(write).not.toHaveBeenCalled();
+	await click("identity-custom");
+	expect(signal?.aborted).toBe(true);
+	await type("identity-name", "My-draft");
+	resolve?.({ id: "7", name: "Late account", email: "late@example.invalid" });
+	await settle();
+	expect(node("identity-name").customProps?.value).toBe("My-draft");
+	expect(node("identity-email").customProps?.value).toBe("");
+
+	await click(accountTile);
+	await click("identity-cancel");
+	expect(signal?.aborted).toBe(true);
+	resolve?.({ id: "7", name: "Late account", email: "late@example.invalid" });
+	await settle();
+	await click("identity-edit");
+	expect(root.renderer.findByTestId("identity-name")).toBeUndefined();
+	expect(node("identity-default").style.borderColor).toBe(
+		appTokens.colors.accentBorder
+	);
+	expect(write).not.toHaveBeenCalled();
+});
+
+it("failed account lookups allow manual entry without exposing response or credential details", async () => {
+	root.render(
+		<GitSettings
+			root="/test/project"
+			accounts={[identityAccount]}
+			readAccountIdentity={async () => {
+				throw new Error("fixture-secret-token");
+			}}
+			read={read}
+			write={write}
+			onBusy={() => {}}
+		/>
+	);
+	await settle();
+	await click("identity-edit");
+	await click(accountTile);
+	expect(root.renderer.getAllText().join(" ")).toContain(
+		"Could not read the account identity."
+	);
+	expect(root.renderer.getAllText().join(" ")).not.toContain(
+		"fixture-secret-token"
+	);
+	expect(node("identity-email").customProps?.readOnly).toBe(false);
+	expect(write).not.toHaveBeenCalled();
+});
+
+it("keeps account choices scrollable and footer actions visible in a minimum-height window", async () => {
+	root.unmount();
+	root = createTestRoot({
+		width: 980,
+		height: 640,
+		onKeyDown: windowOptions.onKeyDown,
+	});
+	root.renderer.clockPause();
+	const saved = Array.from({ length: 7 }, (_value, index) => ({
+		...identityAccount,
+		id: String(index),
+		username: `account-${index}`,
+	}));
+
+	spyOn(Accounts.prototype, "load").mockReturnValue(saved);
+	spyOn(Accounts.prototype, "commitIdentity").mockImplementation(
+		async (account) => ({
+			id: account.id,
+			name: account.username,
+			email: `${account.username}@example.invalid`,
+		})
+	);
+	root.render(
+		<AccountsSettings
+			onBack={() => {}}
+			initialSection="repository-identity"
+			repositorySettings={{
+				root: "/test/project",
+				name: "Project",
+				disabled: false,
+			}}
+			readGitSettings={read}
+			writeGitSettings={write}
+		/>
+	);
+	await settle();
+	await click("identity-edit");
+	await click(`identity-account-${AccountStore.key(saved[0]!)}`);
+	const scroll = node("git-settings-editor-scroll");
+	const viewport = root.renderer.getElementBounds(scroll.id);
+
+	const footer = root.renderer.getElementBounds(
+		node("git-settings-editor-footer").id
+	);
+
+	const nameBounds = root.renderer.getElementBounds(node("identity-name").id);
+
+	if (!viewport || !footer || !nameBounds)
+		throw new Error("Missing identity layout");
+
+	expect(footer.y).toBeGreaterThanOrEqual(viewport.y + viewport.height - 1);
+	expect(footer.y + footer.height).toBeLessThanOrEqual(640);
+	expect(nameBounds.y).toBeGreaterThan(viewport.y + viewport.height);
+	root.renderer.scrollTo(scroll.id, 0, -600);
+	await settle();
+	const visibleName = root.renderer.getElementBounds(node("identity-name").id);
+
+	if (!visibleName) throw new Error("Missing scrolled name field");
+
+	expect(visibleName.y).toBeLessThan(viewport.y + viewport.height);
+	expect(
+		root.renderer.getElementBounds(node("git-settings-editor-footer").id)?.y
+	).toBe(footer.y);
+	await click("identity-save");
+	expect(write).toHaveBeenCalledWith("/test/project", {
+		kind: "identity",
+		custom: true,
+		identity: { name: "account-0", email: "account-0@example.invalid" },
+	});
+});
+
 it("opens Git in app Settings and saves a computer-wide identity only on explicit Save", async () => {
 	data = { ...data, custom: true };
 	root.render(<App readGitSettings={read} writeGitSettings={write} />);
 	await settle();
 	await click("rail-settings");
 	await click("settings-git");
+	await click("identity-edit");
 	expect(
 		root.renderer.findByTestId("settings-repository-group")
 	).toBeUndefined();
@@ -203,7 +449,8 @@ it("uses inherited identity until selected, saves an override, and can return to
 		/>
 	);
 	await settle();
-	expect(node("identity-name").customProps?.readOnly).toBe(true);
+	await click("identity-edit");
+	expect(root.renderer.findByTestId("identity-name")).toBeUndefined();
 	await click("identity-custom");
 	await type("identity-name", "Work");
 	await click("identity-save");
@@ -212,11 +459,13 @@ it("uses inherited identity until selected, saves an override, and can return to
 		custom: true,
 		identity: { name: "Work", email: "personal@example.invalid" },
 	});
-	await click("identity-custom");
-	expect(node("identity-name").customProps?.readOnly).toBe(true);
+	await click("identity-edit");
+	await click("identity-default");
+	expect(root.renderer.findByTestId("identity-name")).toBeUndefined();
 	await click("identity-save");
 	expect(data.custom).toBe(false);
-	expect(node("identity-name").customProps?.readOnly).toBe(true);
+	expect(root.renderer.findByTestId("identity-editor")).toBeUndefined();
+	expect(root.renderer.getAllText()).toContain("Default identity");
 
 	if (process.env.GPUIX_GIT_SETTINGS_SCREENSHOT)
 		root.renderer.captureScreenshot(
@@ -311,6 +560,7 @@ it("retains failures, rereads partial saves and leaves a multi-URL remote unchan
 		/>
 	);
 	await settle();
+	await click("identity-edit");
 	await type("identity-name", "Changed");
 	await click("identity-save");
 	expect(root.renderer.getAllText()).toContain(
@@ -360,6 +610,7 @@ it("opens repository settings from its tab, blocks duplicate saves and Escape un
 	expect(root.renderer.findByTestId("remote-add")).toBeDefined();
 	expect(root.renderer.findByTestId("identity-name")).toBeUndefined();
 	await click("settings-repository-identity");
+	await click("identity-edit");
 	await click("identity-custom");
 	await type("identity-name", "Work");
 	await click("identity-save");
@@ -395,11 +646,12 @@ it("keeps worktree-specific identities read-only while allowing remote managemen
 		/>
 	);
 	await settle();
-	expect(node("identity-name").customProps?.readOnly).toBe(true);
+	expect(root.renderer.findByTestId("identity-name")).toBeUndefined();
 	expect(root.renderer.getAllText()).toContain(
 		"Worktree identity requires Git directly."
 	);
-	await click("identity-save");
+	await click("identity-edit");
+	expect(root.renderer.findByTestId("identity-editor")).toBeUndefined();
 	expect(write).not.toHaveBeenCalled();
 	root.render(
 		<GitSettings
@@ -461,6 +713,7 @@ it("reports a successful config save with a failed repository refresh without lo
 	await type("commit-message", "draft");
 	await click("rail-settings");
 	await click("settings-repository-identity");
+	await click("identity-edit");
 	readRepository.mockImplementation(async () => {
 		throw new Error("Refresh failed");
 	});
@@ -472,6 +725,9 @@ it("reports a successful config save with a failed repository refresh without lo
 		"Settings were saved, but the repository could not be refreshed."
 	);
 	expect(node("identity-name").customProps?.value).toBe("Work");
+	root.renderer.simulateKeystrokes("escape");
+	await settle();
+	expect(root.renderer.findByTestId("identity-editor")).toBeUndefined();
 	root.renderer.simulateKeystrokes("escape");
 	await settle();
 	expect(node("commit-message").customProps?.value).toBe("draft");
@@ -524,7 +780,7 @@ it("groups application and repository pages with compact padding and no reposito
 	if (!navigation || !accounts) throw new Error("Missing navigation bounds");
 
 	expect(accounts.x - navigation.x).toBeCloseTo(8, 1);
-	expect(root.renderer.findByTestId("identity-name")).toBeDefined();
+	expect(root.renderer.findByTestId("identity-summary")).toBeDefined();
 	expect(root.renderer.findByTestId("remote-add")).toBeUndefined();
 	expect(read.mock.calls.at(-1)?.[0]).toBeNull();
 	await click("settings-repository-remotes");
@@ -538,9 +794,9 @@ it("groups application and repository pages with compact padding and no reposito
 		);
 
 	await click("settings-repository-identity");
-	expect(root.renderer.findByTestId("identity-name")).toBeDefined();
+	expect(root.renderer.findByTestId("identity-summary")).toBeDefined();
 	expect(root.renderer.findByTestId("remote-add")).toBeUndefined();
-	expect(root.renderer.getAllText()).toContain("Use default identity");
+	expect(root.renderer.getAllText()).toContain("Default identity");
 	expect(read.mock.calls.at(-1)?.[0]).toBe("/test/project");
 	await click("settings-git");
 	expect(read.mock.calls.at(-1)?.[0]).toBeNull();
@@ -570,6 +826,8 @@ it("keeps identity pages concise and groups Add remote with the Remotes heading"
 			/>
 		);
 		await settle();
+		await click("identity-edit");
+		await click("identity-custom");
 		const text = root.renderer.getAllText().join(" ");
 
 		expect(text).not.toMatch(
@@ -622,4 +880,111 @@ it("keeps identity pages concise and groups Add remote with the Remotes heading"
 		"without passwords or access tokens"
 	);
 	expect(write).not.toHaveBeenCalled();
+});
+
+it("matches account setup with right-side remote and identity editors, pinned actions and cancelable drafts", async () => {
+	root.unmount();
+	root = createTestRoot({
+		width: 980,
+		height: 640,
+		onKeyDown: windowOptions.onKeyDown,
+	});
+	root.renderer.clockPause();
+	root.render(
+		<AccountsSettings
+			onBack={() => {}}
+			repositorySettings={{
+				root: "/test/project",
+				name: "Project",
+				disabled: false,
+			}}
+			readGitSettings={read}
+			writeGitSettings={write}
+		/>
+	);
+	await settle();
+	await click("account-add");
+	const accountPanel = root.renderer.getElementBounds(
+		node("account-setup-panel").id
+	);
+
+	if (!accountPanel) throw new Error("Missing account setup bounds");
+
+	await click("accounts-cancel");
+	await click("settings-repository-remotes");
+	await click("remote-add");
+	const remotePanel = root.renderer.getElementBounds(node("remote-editor").id);
+
+	const remoteList = root.renderer.getElementBounds(
+		node("git-settings-scroll").id
+	);
+
+	const formScroll = root.renderer.getElementBounds(
+		node("git-settings-editor-scroll").id
+	);
+
+	const footer = root.renderer.getElementBounds(
+		node("git-settings-editor-footer").id
+	);
+
+	if (!remotePanel || !remoteList || !formScroll || !footer)
+		throw new Error("Missing remote editor bounds");
+
+	expect(remotePanel.x).toBeCloseTo(accountPanel.x, 1);
+	expect(remotePanel.width).toBeCloseTo(accountPanel.width, 1);
+	expect(remotePanel.x).toBeCloseTo(remoteList.x + remoteList.width, 1);
+	expect(footer.y).toBeGreaterThanOrEqual(formScroll.y + formScroll.height);
+	expect(footer.y + footer.height).toBeCloseTo(
+		remotePanel.y + remotePanel.height,
+		1
+	);
+	expect(root.renderer.getFocusedElementId()).toBe(node("remote-name").id);
+	await type("remote-name", "discarded");
+	await type("remote-url", "https://example.invalid/discarded.git");
+
+	if (process.env.GPUIX_GIT_SETTINGS_SCREENSHOT)
+		root.renderer.captureScreenshot(
+			`${process.env.GPUIX_GIT_SETTINGS_SCREENSHOT}-add-remote.png`
+		);
+
+	root.renderer.simulateKeystrokes("escape");
+	await settle();
+	expect(root.renderer.findByTestId("remote-editor")).toBeUndefined();
+	expect(root.renderer.findByTestId("settings-view")).toBeDefined();
+	expect(root.renderer.getFocusedElementId()).toBe(node("remote-add").id);
+	await click("remote-edit-origin");
+	expect(node("remote-url").customProps?.value).toBe(origin.fetchUrls[0]);
+	expect(node("remote-name").customProps?.readOnly).toBe(true);
+	expect(root.renderer.getFocusedElementId()).toBe(node("remote-url").id);
+	await click("remote-cancel");
+	expect(root.renderer.getFocusedElementId()).toBe(
+		node("remote-edit-origin").id
+	);
+	await click("settings-repository-identity");
+	await click("identity-edit");
+	const identityPanel = root.renderer.getElementBounds(
+		node("identity-editor").id
+	);
+
+	if (!identityPanel) throw new Error("Missing identity editor bounds");
+
+	expect(identityPanel.x).toBeCloseTo(accountPanel.x, 1);
+	expect(identityPanel.width).toBeCloseTo(accountPanel.width, 1);
+	await click("identity-custom");
+	await type("identity-name", "Discarded identity");
+	expect(root.renderer.getAllText()).toContain("Personal");
+	await click("identity-cancel");
+	expect(root.renderer.findByTestId("identity-editor")).toBeUndefined();
+	expect(root.renderer.getFocusedElementId()).toBe(node("identity-edit").id);
+	await click("identity-edit");
+	expect(root.renderer.findByTestId("identity-name")).toBeUndefined();
+	expect(node("identity-default").style.borderColor).toBe(
+		appTokens.colors.accentBorder
+	);
+	expect(write).not.toHaveBeenCalled();
+
+	if (process.env.GPUIX_GIT_SETTINGS_SCREENSHOT)
+		root.renderer.captureScreenshot(
+			`${process.env.GPUIX_GIT_SETTINGS_SCREENSHOT}-edit-identity.png`
+		);
 });

@@ -1,6 +1,7 @@
 import type {
 	Account,
 	CallOptions,
+	CommitIdentity,
 	CreatePullRequest,
 	CreateRepository,
 	Owner,
@@ -45,6 +46,27 @@ export class GitLabAdapter implements Adapter {
 			username: string(user.username),
 			name: optionalString(user.name),
 			browserUrl: this.http.endpoints.browser(string(user.web_url)),
+		};
+	}
+
+	async commitIdentity(options: CallOptions): Promise<CommitIdentity> {
+		const reply = await this.http.request(
+			this.http.url("user"),
+			"GET",
+			options
+		);
+
+		const user = record(reply.data);
+		const commitEmail = optionalString(user.commit_email);
+
+		return {
+			id: id(user.id),
+			name: optionalString(user.name),
+			// A private-email sentinel must not fall back to the account's personal email.
+			email:
+				commitEmail === "_private"
+					? null
+					: commitEmail || optionalString(user.email),
 		};
 	}
 

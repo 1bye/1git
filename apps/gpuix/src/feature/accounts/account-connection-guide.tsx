@@ -1,4 +1,5 @@
 import { spacing, typography, fontWeight, radius } from "@1git/design-tokens";
+import { ChoiceTile as AccountChoiceTile } from "../../fixture/choice-tile";
 import { Button } from "@1git/gpuix-ui/button";
 import { useState, type ReactNode } from "react";
 import { appTokens } from "../../styles/tokens";
@@ -29,75 +30,6 @@ const title = {
 	color: appTokens.colors.text,
 	fontWeight: fontWeight.medium,
 };
-
-function AccountChoiceTile({
-	label,
-	source,
-	selected,
-	disabled,
-	autoFocus,
-	testId,
-	accessibleName = label,
-	description,
-	onPress,
-}: {
-	label: string;
-	source: string;
-	selected?: boolean;
-	disabled: boolean;
-	autoFocus?: boolean;
-	testId: string;
-	accessibleName?: string;
-	description?: string;
-	onPress: () => void;
-}) {
-	return (
-		<Button
-			testId={testId}
-			aria-label={accessibleName}
-			aria-description={description}
-			aria-pressed={selected}
-			disabled={disabled}
-			autoFocus={autoFocus}
-			tokens={appTokens}
-			size="sm"
-			variant={selected ? "secondary" : "ghost"}
-			style={{
-				flexGrow: 1,
-				flexBasis: 0,
-				height: 64,
-				flexDirection: "column",
-				gap: spacing[1.5],
-				borderColor: selected
-					? appTokens.colors.accentBorder
-					: appTokens.colors.border,
-			}}
-			onPress={onPress}
-		>
-			<svg
-				testId={`${testId}-icon`}
-				source={source}
-				style={{
-					width: 22,
-					height: 22,
-					color: selected
-						? appTokens.colors.accent
-						: appTokens.colors.textMuted,
-					pointerEvents: "none",
-				}}
-			/>
-			<text
-				style={{
-					...typography.md,
-					color: appTokens.colors.text,
-					pointerEvents: "none",
-				}}
-			>
-				{label}
-			</text>
-		</Button>
-	);
-}
 
 /** Small, keyboard-activatable provider cells; unsupported providers open a contribution/request draft. */
 export function AccountProviderChoices({

@@ -1,6 +1,7 @@
 import type {
 	Account,
 	CallOptions,
+	CommitIdentity,
 	CreatePullRequest,
 	CreateRepository,
 	Owner,
@@ -21,6 +22,7 @@ import {
 	optionalString,
 	record,
 	string,
+	Failure,
 } from "../../result.js";
 import { Transport } from "../../transport.js";
 
@@ -42,6 +44,44 @@ export class GitHubAdapter implements Adapter {
 			name: optionalString(user.name),
 			browserUrl: this.http.endpoints.browser(string(user.html_url)),
 		};
+	}
+
+	async commitIdentity(options: CallOptions): Promise<CommitIdentity> {
+		const account = await this.account(options);
+		let email: string | null = null;
+
+		try {
+			const page = await this.http.page(
+				"user/emails",
+				{},
+				{ ...options, pageSize: 100 },
+				(data) =>
+					array(data).map((item) => {
+						const address = record(item);
+
+						return {
+							email: string(address.email),
+							primary: boolean(address.primary),
+							verified: boolean(address.verified),
+						};
+					})
+			);
+
+			email =
+				(
+					page.items.find((address) => address.primary && address.verified) ??
+					page.items.find((address) => address.verified)
+				)?.email ?? null;
+		} catch (error) {
+			// Email permission is optional; never guess an address from a username/public profile.
+			if (
+				!(error instanceof Failure) ||
+				!["permission", "not-found"].includes(error.details.code)
+			)
+				throw error;
+		}
+
+		return { id: account.id, name: account.name, email };
 	}
 
 	async owners(options: PageOptions) {

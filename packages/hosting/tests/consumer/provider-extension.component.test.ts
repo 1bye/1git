@@ -371,6 +371,10 @@ test("unexpected provider exceptions do not expose original error messages", asy
 test("custom capabilities reject unsupported features without issuing requests", async () => {
 	const { client, requests } = capture();
 
+	expect(await client.getCommitIdentity()).toMatchObject({
+		ok: false,
+		error: { code: "unsupported" },
+	});
 	expect(
 		await client.createRepository({
 			owner,

@@ -1,6 +1,7 @@
 import type {
 	Account,
 	CallOptions,
+	CommitIdentity,
 	CreatePullRequest,
 	CreateRepository,
 	Owner,
@@ -15,6 +16,7 @@ import { fail, nonempty } from "./result.js";
 
 export interface Adapter {
 	account(options: CallOptions): Promise<Account>;
+	commitIdentity?(options: CallOptions): Promise<CommitIdentity>;
 	owners(options: PageOptions): Promise<Page<Owner>>;
 	repositories(
 		options: PageOptions,

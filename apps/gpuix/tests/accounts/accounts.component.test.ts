@@ -67,6 +67,12 @@ function fixture() {
 			url: String(url),
 			authorization: new Headers(init?.headers).get("authorization"),
 		});
+
+		if (new URL(String(url)).pathname === "/user/emails")
+			return Response.json([
+				{ email: "tester@example.invalid", primary: true, verified: true },
+			]);
+
 		const body: unknown = await response
 			.clone()
 			.json()
@@ -113,6 +119,42 @@ function fixture() {
 		},
 	};
 }
+
+it("reads verified author suggestions without persisting emails or changing credentials", async () => {
+	const f = fixture();
+	const saved = await f.service.connect(f.input);
+	const account = saved[0]!;
+
+	expect(await f.service.commitIdentity(account)).toEqual({
+		id: "7",
+		name: "Test User",
+		email: "tester@example.invalid",
+	});
+	expect(f.store.load()).toEqual(saved);
+	expect(f.secrets.get(AccountStore.key(account))).toBe(f.input.token);
+	expect(f.requests.at(-1)?.authorization).toBe("Bearer fixture-only-token");
+
+	f.respond(
+		Response.json({
+			id: 99,
+			login: "other",
+			html_url: "https://github.com/other",
+		})
+	);
+	await expect(f.service.commitIdentity(account)).rejects.toThrow(
+		"could not be verified"
+	);
+
+	const controller = new AbortController();
+
+	controller.abort();
+	const count = f.requests.length;
+
+	await expect(
+		f.service.commitIdentity(account, controller.signal)
+	).rejects.toThrow();
+	expect(f.requests).toHaveLength(count);
+});
 
 it("validates the token with the configured provider, persists only identity, and disconnects locally", async () => {
 	const f = fixture();
