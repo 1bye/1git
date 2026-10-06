@@ -5,7 +5,7 @@
  * Requires: Git, OpenSSL and local TCP listener permission. No user credentials or repositories.
  */
 import { afterEach, expect, it } from "bun:test";
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { GitRepository } from "../src/repository.js";
 import { RepositoryFixtures } from "./_shared/repository-fixture.js";
@@ -16,10 +16,16 @@ afterEach(async () => {
 	await fixtures.cleanup();
 });
 
-async function serverFixture() {
+async function serverFixture(smart = false) {
 	const fixture = await fixtures.create();
 
 	await fixture.git(["update-server-info"]);
+
+	if (smart) {
+		await fixture.git(["config", "http.receivepack", "true"]);
+		await fixture.git(["config", "receive.denyCurrentBranch", "updateInstead"]);
+	}
+
 	const cert = fixture.path("cert.pem");
 	const key = fixture.path("key.pem");
 
@@ -76,6 +82,54 @@ async function serverFixture() {
 
 			if (!url.pathname.startsWith("/repo.git/") || url.pathname.includes(".."))
 				return new Response(null, { status: 404 });
+
+			if (smart) {
+				const body = new Uint8Array(await request.arrayBuffer());
+
+				const backend = Bun.spawn(["git", "http-backend"], {
+					env: {
+						PATH: process.env.PATH,
+						GIT_PROJECT_ROOT: fixture.repositoryPath,
+						GIT_HTTP_EXPORT_ALL: "1",
+						REQUEST_METHOD: request.method,
+						PATH_INFO: url.pathname.replace("/repo.git/", "/.git/"),
+						QUERY_STRING: url.search.slice(1),
+						CONTENT_TYPE: request.headers.get("content-type") ?? "",
+						CONTENT_LENGTH: String(body.length),
+						REMOTE_USER: "fixture",
+					},
+					stdin: "pipe",
+					stdout: "pipe",
+					stderr: "ignore",
+				});
+
+				backend.stdin.write(body);
+				backend.stdin.end();
+				const output = Buffer.from(
+					await new Response(backend.stdout).arrayBuffer()
+				);
+
+				if (await backend.exited) return new Response(null, { status: 500 });
+
+				const boundary = output.indexOf("\r\n\r\n");
+				const headers = new Headers();
+				let status = 200;
+
+				for (const line of output
+					.subarray(0, boundary)
+					.toString()
+					.split("\r\n")) {
+					const colon = line.indexOf(":");
+					const name = line.slice(0, colon);
+					const value = line.slice(colon + 1).trim();
+
+					if (name.toLowerCase() === "status")
+						status = Number(value.split(" ")[0]);
+					else headers.append(name, value);
+				}
+
+				return new Response(output.subarray(boundary + 4), { status, headers });
+			}
 
 			const file = Bun.file(
 				join(
@@ -258,4 +312,194 @@ it("rejects unsafe authentication before spawning Git and honors cancellation", 
 	expect(result.ok).toBe(false);
 
 	if (!result.ok) expect(result.error.code).toBe("aborted");
+});
+
+it("fetches, fast-forwards, pushes and publishes with one-shot HTTPS credentials without retaining them", async () => {
+	const f = await serverFixture(true);
+
+	try {
+		const path = f.fixture.path("sync-clone");
+
+		const cloned = await GitRepository.clone({
+			path,
+			remoteUrl: f.remoteUrl,
+			runtime: f.runtime,
+			httpAuthentication: { username: "oauth2", password: f.password },
+		});
+
+		if (!cloned.ok) throw new Error(cloned.error.message);
+
+		const repository = cloned.value;
+		const auth = { url: f.remoteUrl, username: "oauth2", password: f.password };
+		const original = await f.fixture.git(["-C", path, "rev-parse", "HEAD"]);
+
+		await f.fixture.write("incoming.txt", "incoming\n");
+		await f.fixture.commitAll("Incoming");
+		const fetched = await repository.fetch({
+			remote: "origin",
+			httpAuthentication: auth,
+		});
+
+		expect(fetched.ok && fetched.value.snapshot.head.behind).toBe(1);
+		const pulled = await repository.syncBranch({
+			kind: "pull",
+			expectedHead: original,
+			expectedBranch: "main",
+			remote: "origin",
+			remoteRef: "refs/heads/main",
+			httpAuthentication: auth,
+		});
+
+		expect(pulled.ok).toBe(true);
+		expect(await readFile(join(path, "incoming.txt"), "utf8")).toBe(
+			"incoming\n"
+		);
+		await f.fixture.git(["-C", path, "config", "user.name", "Fixture"]);
+		await f.fixture.git([
+			"-C",
+			path,
+			"config",
+			"user.email",
+			"fixture@example.invalid",
+		]);
+		await writeFile(join(path, "outgoing.txt"), "outgoing\n");
+		await f.fixture.git(["-C", path, "add", "outgoing.txt"]);
+		await f.fixture.git(["-C", path, "commit", "-m", "Outgoing"]);
+		const outgoing = await f.fixture.git(["-C", path, "rev-parse", "HEAD"]);
+		const hook = join(path, ".git/hooks/pre-push");
+		const marker = f.fixture.path("hook-ran");
+
+		await mkdir(join(path, ".git/hooks"), { recursive: true });
+		await writeFile(hook, `#!/bin/sh\nprintf 'ran' > '${marker}'\n`, {
+			mode: 0o700,
+		});
+
+		const pushed = await repository.syncBranch({
+			kind: "push",
+			expectedHead: outgoing,
+			expectedBranch: "main",
+			remote: "origin",
+			remoteRef: "refs/heads/main",
+			httpAuthentication: auth,
+		});
+
+		expect(pushed.ok).toBe(true);
+		expect(await readFile(marker, "utf8")).toBe("ran");
+		expect(await f.fixture.git(["rev-parse", "HEAD"])).toBe(outgoing);
+		await f.fixture.git(["-C", path, "switch", "-c", "feature/published"]);
+		const published = await repository.syncBranch({
+			kind: "publish",
+			expectedHead: outgoing,
+			expectedBranch: "feature/published",
+			remote: "origin",
+			remoteRef: "refs/heads/feature/published",
+			httpAuthentication: auth,
+		});
+
+		expect(published.ok && published.value.snapshot.head.upstream).toBe(
+			"origin/feature/published"
+		);
+		expect(
+			f.requests.every((request) => request.authorization === f.basic)
+		).toBe(true);
+		const config = await readFile(join(path, ".git/config"), "utf8");
+
+		expect(config).not.toContain(f.password);
+		expect(config).not.toContain(f.basic);
+		expect(config).not.toContain("extraheader");
+		f.deny();
+		const denied = await repository.fetch({
+			remote: "origin",
+			httpAuthentication: auth,
+		});
+
+		expect(denied.ok).toBe(false);
+		expect(JSON.stringify(denied)).not.toContain(f.password);
+		expect(JSON.stringify(denied)).not.toContain(f.basic);
+	} finally {
+		await f.server.stop(true);
+	}
+});
+
+it("rejects changed fetch/push destinations and redirects before leaking any credential", async () => {
+	const f = await serverFixture(true);
+	let leakedRequests = 0;
+
+	const sink = Bun.serve({
+		hostname: "127.0.0.1",
+		port: 0,
+		fetch() {
+			leakedRequests++;
+
+			return new Response();
+		},
+	});
+
+	try {
+		const path = f.fixture.path("destination-clone");
+
+		const cloned = await GitRepository.clone({
+			path,
+			remoteUrl: f.remoteUrl,
+			runtime: f.runtime,
+			httpAuthentication: { username: "oauth2", password: f.password },
+		});
+
+		if (!cloned.ok) throw new Error(cloned.error.message);
+
+		const repository = cloned.value;
+		const auth = { url: f.remoteUrl, username: "oauth2", password: f.password };
+		const original = await f.fixture.git(["rev-parse", "HEAD"]);
+		const sinkUrl = `http://127.0.0.1:${sink.port}/repo.git`;
+		const count = f.requests.length;
+
+		await f.fixture.git(["-C", path, "remote", "set-url", "origin", sinkUrl]);
+		expect(
+			(await repository.fetch({ remote: "origin", httpAuthentication: auth }))
+				.ok
+		).toBe(false);
+		await f.fixture.git([
+			"-C",
+			path,
+			"remote",
+			"set-url",
+			"origin",
+			f.remoteUrl,
+		]);
+		await f.fixture.git([
+			"-C",
+			path,
+			"remote",
+			"set-url",
+			"--push",
+			"origin",
+			sinkUrl,
+		]);
+		expect(
+			(
+				await repository.syncBranch({
+					kind: "push",
+					expectedHead: original,
+					expectedBranch: "main",
+					remote: "origin",
+					remoteRef: "refs/heads/main",
+					httpAuthentication: auth,
+				})
+			).ok
+		).toBe(false);
+		expect(f.requests.length).toBe(count);
+		expect(leakedRequests).toBe(0);
+		f.redirect(sinkUrl);
+		const result = await repository.fetch({
+			remote: "origin",
+			httpAuthentication: auth,
+		});
+
+		expect(result.ok).toBe(false);
+		expect(leakedRequests).toBe(0);
+		expect(JSON.stringify(result)).not.toContain(f.password);
+	} finally {
+		await f.server.stop(true);
+		await sink.stop(true);
+	}
 });

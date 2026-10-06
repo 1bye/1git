@@ -110,6 +110,27 @@ const input = () => ({
 	signal: new AbortController().signal,
 });
 
+test("refreshes and verifies the account before supplying one-shot Git credentials", async () => {
+	const f = fixture();
+	const [account] = await f.accounts.connectBrowser(input());
+
+	if (!account) throw new Error("Missing fixture account.");
+
+	const auth = await f.accounts.remoteAuthentication(
+		account,
+		"https://github.com/team/project.git",
+		new AbortController().signal
+	);
+
+	expect(auth).toEqual({
+		url: "https://github.com/team/project.git",
+		username: "x-access-token",
+		password: "rotated-access",
+	});
+	expect(f.refreshes()).toBe(1);
+	expect(f.store.load()).toEqual([account]);
+});
+
 test("stores the whole OAuth pair only in the vault and serializes simultaneous refresh checks", async () => {
 	const f = fixture();
 	const saved = await f.accounts.connectBrowser(input());

@@ -9,7 +9,9 @@ export interface GitCommandInput {
 	readonly stdin?: string | Uint8Array;
 	/** Internal per-command index override; never changes the host process environment. */
 	readonly indexFile?: string;
-	/** Internal clone-only auth; scoped to this exact HTTPS remote. */
+	/** Cloning untrusted URLs ignores inherited Git configuration; existing repositories retain TLS/LFS settings. */
+	readonly isolateCloneConfiguration?: boolean;
+	/** Internal one-shot auth; scoped to this exact HTTPS remote. */
 	readonly httpAuthentication?: {
 		readonly url: string;
 		readonly username: string;
@@ -18,9 +20,10 @@ export interface GitCommandInput {
 }
 
 const authenticatedEnvironment = (
-	input: NonNullable<GitCommandInput["httpAuthentication"]>
+	input: NonNullable<GitCommandInput["httpAuthentication"]>,
+	isolateCloneConfiguration: boolean
 ): NodeJS.ProcessEnv => {
-	// No inherited rewrites, helpers, traces, templates or Git config may redirect/log the credential.
+	// Never inherit tracing or process-level credentials. Remote URLs are freshly validated after Git rewrites.
 	const env = Object.fromEntries(
 		Object.entries(process.env).filter(
 			([key]) => !key.startsWith("GIT_") && !key.startsWith("GCM_")
@@ -32,8 +35,12 @@ const authenticatedEnvironment = (
 	const settings = [
 		["credential.helper", ""],
 		["core.askPass", ""],
-		["core.hooksPath", nullFile],
-		["init.templateDir", ""],
+		...(isolateCloneConfiguration
+			? [
+					["core.hooksPath", nullFile],
+					["init.templateDir", ""],
+				]
+			: []),
 		["http.followRedirects", "false"],
 		["http.sslVerify", "true"],
 		["protocol.allow", "never"],
@@ -45,8 +52,11 @@ const authenticatedEnvironment = (
 		],
 	];
 
-	env.GIT_CONFIG_GLOBAL = nullFile;
-	env.GIT_CONFIG_NOSYSTEM = "1";
+	if (isolateCloneConfiguration) {
+		env.GIT_CONFIG_GLOBAL = nullFile;
+		env.GIT_CONFIG_NOSYSTEM = "1";
+	}
+
 	env.GIT_CONFIG_COUNT = String(settings.length);
 
 	for (const [index, [key, value]] of settings.entries()) {
@@ -248,7 +258,10 @@ export class GitProcess {
 				cwd: input.cwd,
 				env: {
 					...(input.httpAuthentication
-						? authenticatedEnvironment(input.httpAuthentication)
+						? authenticatedEnvironment(
+								input.httpAuthentication,
+								input.isolateCloneConfiguration ?? false
+							)
 						: process.env),
 					...(input.indexFile ? { GIT_INDEX_FILE: input.indexFile } : {}),
 					GIT_EDITOR: "true",

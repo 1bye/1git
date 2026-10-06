@@ -18,6 +18,8 @@ import { GitSettingsModel } from "./feature/git-settings/git-settings-model";
 import { Accounts } from "./feature/accounts/lib/accounts";
 import { AccountStore } from "./feature/accounts/lib/account-store";
 import { NativeCredentials } from "./feature/accounts/lib/native-credentials";
+import { RemoteAccounts } from "./feature/accounts/lib/remote-accounts";
+import { useSyncAccount } from "./feature/accounts/use-sync-account";
 import { settingsShortcuts } from "./feature/accounts/lib/settings-shortcut";
 import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
 import { workspaceShortcuts } from "./feature/repository-workspace/lib/repository-filter-shortcut";
@@ -69,6 +71,7 @@ import { RepositoryComparison as ComparisonReader } from "./feature/repository-c
 /** Owns one window's workspaces, cancellable reads and explicit commit transactions. */
 export function App({
 	accounts: suppliedAccounts,
+	remoteAccounts: suppliedRemoteAccounts,
 	avatars: suppliedAvatars,
 	initialTabCount = 1,
 	preview = false,
@@ -90,8 +93,8 @@ export function App({
 	writeBranch = RepositoryBranches.write,
 	writeWorktree = RepositoryWorktrees.create,
 	removeWorktree = RepositoryWorktrees.remove,
-	fetchRepository = RepositorySync.fetch,
-	writeSyncRepository = RepositorySync.write,
+	fetchRepository,
+	writeSyncRepository,
 	writeStash = RepositoryStashes.write,
 	watchRepository,
 	resolveConflict = RepositoryConflicts.write,
@@ -103,6 +106,7 @@ export function App({
 	writeGitSettings = GitSettingsModel.write,
 }: {
 	accounts?: Accounts;
+	remoteAccounts?: RemoteAccounts;
 	avatars?: RepositoryAvatars;
 	initialTabCount?: number;
 	preview?: boolean;
@@ -161,6 +165,34 @@ export function App({
 		[accounts, suppliedAvatars]
 	);
 
+	const [remoteAccounts] = useState(
+		() => suppliedRemoteAccounts ?? new RemoteAccounts(accounts)
+	);
+
+	const syncAccount = useSyncAccount();
+
+	const fetchWithAccounts = useCallback<typeof RepositorySync.fetch>(
+		(root, signal) =>
+			fetchRepository
+				? fetchRepository(root, signal)
+				: RepositorySync.fetch(root, signal, {
+						accounts: remoteAccounts,
+						choose: syncAccount.choose,
+					}),
+		[fetchRepository, remoteAccounts, syncAccount.choose]
+	);
+
+	const syncWithAccounts = useCallback<typeof RepositorySync.write>(
+		(root, input, signal) =>
+			writeSyncRepository
+				? writeSyncRepository(root, input, signal)
+				: RepositorySync.write(root, input, signal, {
+						accounts: remoteAccounts,
+						choose: syncAccount.choose,
+					}),
+		[writeSyncRepository, remoteAccounts, syncAccount.choose]
+	);
+
 	useEffect(
 		() => () => {
 			if (!suppliedAvatars) avatars.dispose();
@@ -204,8 +236,8 @@ export function App({
 		writeCommit,
 		writeBranch,
 		readRepository,
-		fetchRepository,
-		writeSyncRepository,
+		fetchWithAccounts,
+		syncWithAccounts,
 		session.retry,
 		writeStash,
 		resolveConflict,
@@ -747,6 +779,7 @@ export function App({
 						onBack={closeSettings}
 						accounts={accounts}
 						initialForm={settingsView ?? "list"}
+						remoteAccounts={remoteAccounts}
 						preferredAccountKey={preferredAccountKey}
 						onAccount={setPreferredAccountKey}
 						repositoryView={repositoryView}
@@ -770,6 +803,7 @@ export function App({
 						{closeNotice}
 					</AccountsSettings>
 				) : null}
+				{syncAccount.dialog}
 			</div>
 		</RepositoryAvatarContext>
 	);

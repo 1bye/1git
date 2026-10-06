@@ -12,7 +12,11 @@ import type {
 	CommitIdentity,
 } from "@1git/hosting/contracts";
 import { parseRemote } from "@1git/hosting/remote";
-import { GitRepository, type GitResult } from "@1git/git";
+import {
+	GitRepository,
+	type GitResult,
+	type GitHttpAuthentication,
+} from "@1git/git";
 import type { CredentialVault } from "./native-credentials";
 import {
 	AccountAuthorization,
@@ -86,6 +90,43 @@ export class Accounts {
 
 	load(): SavedAccount[] {
 		return this.store.load();
+	}
+
+	/** Host- and path-checked HTTPS credentials stay in the operation owner, never in React state. */
+	async remoteAuthentication(
+		account: SavedAccount,
+		url: string,
+		signal: AbortSignal
+	): Promise<GitHttpAuthentication> {
+		return this.mutate(async () => {
+			const provider =
+				account.provider === "github"
+					? new GitHubProvider({ webUrl: account.webUrl })
+					: new GitLabProvider({ webUrl: account.webUrl });
+
+			const remote = parseRemote(url, [provider]);
+
+			if (
+				!url.startsWith("https://") ||
+				!remote.ok ||
+				remote.value.providerId !== account.provider ||
+				remote.value.host !== new URL(account.webUrl).host ||
+				!remote.value.browserUrl.startsWith(account.webUrl)
+			)
+				throw new Error(
+					"This account does not match the HTTPS remote. No credentials were sent to Git."
+				);
+
+			const credential = await this.verifiedCredential(account, signal);
+
+			signal.throwIfAborted();
+
+			return {
+				url,
+				username: account.provider === "github" ? "x-access-token" : "oauth2",
+				password: credential.token,
+			};
+		});
 	}
 
 	/** Read a verified account's author suggestions; never persist them or change Git authentication. */

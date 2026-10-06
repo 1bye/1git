@@ -67,7 +67,8 @@ without a query or fragment; authenticated submodule recursion is rejected. The
 Authorization header is scoped to this remote through `GIT_CONFIG_COUNT` in the
 child's environment, not command arguments or a saved config file. The returned
 repository does not retain the credential. Normal unauthenticated clone and later
-fetch/push continue using the caller's existing Git credential helpers.
+fetch/push use the caller's existing Git credential helpers unless transient
+credentials are explicitly supplied for that operation.
 
 Authenticated clone isolates inherited Git config, helpers, traces and templates,
 enforces HTTPS/TLS verification and refuses redirects. Custom global Git proxy/CA
@@ -95,7 +96,18 @@ no existing upstream, sends the current branch to the same name on the explicitl
 chosen remote, and sets tracking. Push and Publish reject multiple push URLs.
 All three reject detached/unborn HEAD, stale branch identity and active operations.
 
-The API uses configured credentials and hooks; callers provide deadlines and
+`fetch({ remote, httpAuthentication: { url, username, password } })` and
+`syncBranch({ ..., httpAuthentication })` can use one-shot HTTPS authentication.
+The supplied URL must exactly match the freshly resolved single fetch/push URL.
+Account-authenticated operations refuse redirects and recursive submodule network
+access and clear credential helpers/traces. Existing hooks and TLS/proxy/LFS configuration are retained; tokens
+are never retained by the repository session. Applications must verify the account
+and authorize its host/path before supplying credentials. SSH and unauthenticated
+operations retain their normal Git configuration and hooks. As with ordinary Git,
+only run network operations in trusted repositories: hooks/filters inherit the
+child environment and same-user code can inspect transient credentials.
+
+The API otherwise uses configured credentials and hooks; callers provide deadlines and
 serialize separate instances that share a Git common directory. It does not lock
 out external Git processes. Always refresh after completion or failure. Cancelling
 a command does not roll back a completed remote write; never retry automatically.

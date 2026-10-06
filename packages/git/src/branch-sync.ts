@@ -2,6 +2,7 @@ import type { SyncBranchInput, SyncResult } from "./contracts.js";
 import type { RepositoryContext } from "./internal.js";
 import { loadBranches, loadRemotes, loadSnapshot } from "./queries.js";
 import { invalidInput } from "./result.js";
+import { validateHttpAuthentication } from "./http-authentication.js";
 
 /** Single-branch UI sync; callers own serialization, credentials and cancellation. */
 export class BranchSync {
@@ -101,6 +102,13 @@ export class BranchSync {
 				"This remote has multiple push destinations. Configure a single push URL before using this action."
 			);
 
+		if (input.httpAuthentication)
+			validateHttpAuthentication(
+				input.httpAuthentication,
+				input.kind === "pull" ? remote.fetchUrls : remote.pushUrls,
+				operation
+			);
+
 		await context.process.run({
 			args: ["check-ref-format", input.remoteRef],
 			cwd: context.repository.root,
@@ -133,7 +141,12 @@ export class BranchSync {
 						`${input.kind === "publish" ? branch.fullName : head.oid}:${input.remoteRef}`,
 					];
 
-		await context.process.run({ args, cwd: context.repository.root, signal });
+		await context.process.run({
+			args,
+			cwd: context.repository.root,
+			signal,
+			httpAuthentication: input.httpAuthentication,
+		});
 		const updated = await loadSnapshot(context, false, signal);
 
 		return {

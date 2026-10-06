@@ -1,10 +1,14 @@
 /**
  * Covers: combined upstream sync, fetch, guarded pull/push/publish, stale state, dirty trees and config overrides.
  * Real: app Git boundaries, Git CLI, a temporary bare remote and local clones.
- * Doubles: none.
+ * Doubles: account resolver and network commands only in the credential-routing scenario; other scenarios use real local Git transports.
  * Requires: Git and writable temporary storage; no network or user repository.
  */
-import { afterEach, beforeEach, expect, it } from "bun:test";
+import { afterEach, beforeEach, expect, it, mock, spyOn } from "bun:test";
+import { GitRepository } from "@1git/git";
+import { Accounts } from "../../src/feature/accounts/lib/accounts";
+import { AccountStore } from "../../src/feature/accounts/lib/account-store";
+import { RemoteAccounts } from "../../src/feature/accounts/lib/remote-accounts";
 import { execFile } from "node:child_process";
 import {
 	mkdir,
@@ -74,6 +78,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+	mock.restore();
 	await rm(sandbox, { recursive: true, force: true });
 });
 
@@ -600,4 +605,137 @@ it("sync stops on fetch failures without attempting a push", async () => {
 	expect(await git(join(sandbox, "remote.git"), "rev-parse", "main")).toBe(
 		remoteHead
 	);
+});
+
+it("routes each fetch and reviewed branch operation through its own destination account", async () => {
+	const opened = await GitRepository.open({ path: repository });
+
+	if (!opened.ok) throw new Error(opened.error.message);
+
+	const current = await opened.value.getSnapshot();
+
+	if (!current.ok) throw new Error(current.error.message);
+
+	const fetchUrl = "https://github.com/team/project.git";
+	const pushUrl = "https://gitlab.com/team/project.git";
+	const secondUrl = "https://github.com/other/project.git";
+
+	await git(repository, "remote", "set-url", "origin", fetchUrl);
+	await git(repository, "remote", "set-url", "--push", "origin", pushUrl);
+	await git(repository, "remote", "add", "second", secondUrl);
+	const bindings = new RemoteAccounts(
+		new Accounts(new AccountStore(join(sandbox, "accounts.json")), {
+			async read() {
+				throw new Error(
+					"Credential routing fixture must not access the vault."
+				);
+			},
+			async write() {},
+			async delete() {},
+		}),
+		join(sandbox, "choices.json")
+	);
+
+	const destinations: string[] = [];
+
+	spyOn(bindings, "authentication").mockImplementation(
+		async (_directory, _name, url) => {
+			destinations.push(url);
+
+			return { url, username: "fixture", password: "synthetic-test-only" };
+		}
+	);
+	const fetches = spyOn(GitRepository.prototype, "fetch").mockImplementation(
+		async (input) => ({
+			ok: true,
+			value: {
+				operation: "fetch",
+				remote: input?.remote ?? null,
+				branch: "main",
+				snapshot: {
+					...current.value,
+					head: { ...current.value.head, ahead: 1, behind: 0 },
+				},
+			},
+		})
+	);
+
+	const writes = spyOn(
+		GitRepository.prototype,
+		"syncBranch"
+	).mockImplementation(async (input) => ({
+		ok: true,
+		value: {
+			operation: input.kind === "pull" ? "pull" : "push",
+			remote: input.remote,
+			branch: "main",
+			snapshot: current.value,
+		},
+	}));
+
+	const authentication = { accounts: bindings };
+	const signal = new AbortController().signal;
+
+	const request = {
+		expectedHead: current.value.head.oid ?? "",
+		expectedBranch: "main",
+	};
+
+	expect(
+		(await RepositorySync.fetch(repository, signal, authentication)).ok
+	).toBe(true);
+	expect(
+		fetches.mock.calls.map(([input]) => input?.httpAuthentication?.url)
+	).toEqual([fetchUrl, secondUrl]);
+	expect(
+		(
+			await RepositorySync.write(
+				repository,
+				{ kind: "sync", ...request },
+				signal,
+				authentication
+			)
+		).ok
+	).toBe(true);
+	expect(writes.mock.calls.at(-1)?.[0].httpAuthentication?.url).toBe(pushUrl);
+	expect(
+		(
+			await RepositorySync.write(
+				repository,
+				{
+					kind: "pull",
+					remote: "origin",
+					remoteRef: "refs/heads/main",
+					...request,
+				},
+				signal,
+				authentication
+			)
+		).ok
+	).toBe(true);
+	expect(writes.mock.calls.at(-1)?.[0].httpAuthentication?.url).toBe(fetchUrl);
+	expect(
+		(
+			await RepositorySync.write(
+				repository,
+				{
+					kind: "publish",
+					remote: "origin",
+					remoteRef: "refs/heads/main",
+					...request,
+				},
+				signal,
+				authentication
+			)
+		).ok
+	).toBe(true);
+	expect(writes.mock.calls.at(-1)?.[0].httpAuthentication?.url).toBe(pushUrl);
+	expect(destinations).toEqual([
+		fetchUrl,
+		secondUrl,
+		fetchUrl,
+		pushUrl,
+		fetchUrl,
+		pushUrl,
+	]);
 });

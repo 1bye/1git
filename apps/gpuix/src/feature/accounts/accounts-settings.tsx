@@ -31,6 +31,7 @@ import {
 	defaultAccountCallback,
 } from "./lib/account-setup";
 import { Accounts } from "./lib/accounts";
+import type { RemoteAccounts } from "./lib/remote-accounts";
 import { AccountStore, type SavedAccount } from "./lib/account-store";
 import { NativeCredentials } from "./lib/native-credentials";
 import { appTokens } from "../../styles/tokens";
@@ -108,6 +109,7 @@ const groupHeading = {
 export function AccountsSettings({
 	onBack,
 	accounts: supplied,
+	remoteAccounts,
 	children,
 	initialForm = "list",
 	openLink = openAuthorizationBrowser,
@@ -123,6 +125,7 @@ export function AccountsSettings({
 }: {
 	onBack: () => void;
 	accounts?: Accounts;
+	remoteAccounts?: RemoteAccounts;
 	children?: ReactNode;
 	/** Clone's Add account entry opens setup immediately; normal Settings starts with the list. */
 	initialForm?: "list" | "connect";
@@ -564,6 +567,7 @@ export function AccountsSettings({
 					read={readGitSettings}
 					write={writeGitSettings}
 					accounts={saved}
+					remoteAccounts={remoteAccounts}
 					readAccountIdentity={readAccountIdentity}
 					onBusy={(next) => {
 						gitBusyRef.current = next;

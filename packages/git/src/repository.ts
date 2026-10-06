@@ -85,6 +85,7 @@ import { selectHunkPatch } from "./hunk-patch.js";
 import { SelectedCommit } from "./selected-commit.js";
 import { CommitRecovery } from "./commit-recovery.js";
 import { BranchSync } from "./branch-sync.js";
+import { validateHttpAuthentication } from "./http-authentication.js";
 import type { RepositoryContext } from "./internal.js";
 import {
 	GitCommandFailure,
@@ -453,6 +454,7 @@ export class GitRepository {
 					...input.httpAuthentication,
 					url: input.remoteUrl,
 				},
+				isolateCloneConfiguration: true,
 			});
 			const repository = await loadRepositoryInfo(
 				process,
@@ -1894,7 +1896,23 @@ export class GitRepository {
 				args.push("--all");
 			}
 
-			await this.run(args, input.signal);
+			if (input.httpAuthentication) {
+				const remotes = await loadRemotes(this.context, input.signal);
+
+				validateHttpAuthentication(
+					input.httpAuthentication,
+					remotes.find((item) => item.name === remote)?.fetchUrls ?? [],
+					"fetch"
+				);
+				args.splice(1, 0, "--recurse-submodules=no");
+			}
+
+			await this.context.process.run({
+				args,
+				cwd: this.info.root,
+				signal: input.signal,
+				httpAuthentication: input.httpAuthentication,
+			});
 
 			return await syncResult(this.context, "fetch", remote, input.signal);
 		});

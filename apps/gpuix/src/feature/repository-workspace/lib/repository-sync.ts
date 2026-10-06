@@ -3,7 +3,12 @@ import {
 	type GitResult,
 	type SyncResult,
 	type SyncBranchInput,
+	type GitHttpAuthentication,
 } from "@1git/git";
+import type {
+	RemoteAccounts,
+	ChooseRemoteAccount,
+} from "../../accounts/lib/remote-accounts";
 
 const syncTimeoutMs = 120_000;
 
@@ -16,6 +21,12 @@ export type SyncKind = "fetch" | SyncRequest["kind"];
 type SyncInput = SyncRequest &
 	Pick<SyncBranchInput, "expectedHead" | "expectedBranch">;
 
+/** Window-owned account resolution; tokens never enter workspace or component state. */
+export interface SyncAuthentication {
+	readonly accounts: RemoteAccounts;
+	readonly choose?: ChooseRemoteAccount;
+}
+
 /** Explicit, bounded synchronization using existing Git credentials and guarded branch operations. */
 export class RepositorySync {
 	private constructor() {}
@@ -23,7 +34,26 @@ export class RepositorySync {
 	static async write(
 		root: string,
 		input: SyncInput,
-		signal: AbortSignal
+		signal: AbortSignal,
+		authentication?: SyncAuthentication
+	): Promise<GitResult<SyncResult>> {
+		try {
+			return await RepositorySync.writeAuthenticated(
+				root,
+				input,
+				signal,
+				authentication
+			);
+		} catch (cause) {
+			return RepositorySync.authenticationFailure(cause, signal);
+		}
+	}
+
+	private static async writeAuthenticated(
+		root: string,
+		input: SyncInput,
+		signal: AbortSignal,
+		authentication?: SyncAuthentication
 	): Promise<GitResult<SyncResult>> {
 		const timeout = AbortSignal.timeout(syncTimeoutMs);
 		const request = AbortSignal.any([signal, timeout]);
@@ -33,8 +63,23 @@ export class RepositorySync {
 
 		const result =
 			input.kind === "sync"
-				? await RepositorySync.syncUpstream(opened.value, input, request)
-				: await opened.value.syncBranch({ ...input, signal: request });
+				? await RepositorySync.syncUpstream(
+						opened.value,
+						input,
+						request,
+						authentication
+					)
+				: await opened.value.syncBranch({
+						...input,
+						signal: request,
+						httpAuthentication: await RepositorySync.credentials(
+							opened.value,
+							input.remote,
+							input.kind !== "pull",
+							request,
+							authentication
+						),
+					});
 
 		if (!result.ok && timeout.aborted && !signal.aborted)
 			return {
@@ -53,7 +98,8 @@ export class RepositorySync {
 	private static async syncUpstream(
 		repository: GitRepository,
 		input: SyncInput,
-		signal: AbortSignal
+		signal: AbortSignal,
+		authentication?: SyncAuthentication
 	): Promise<GitResult<SyncResult>> {
 		const snapshot = await repository.getSnapshot({ signal });
 
@@ -112,7 +158,16 @@ export class RepositorySync {
 
 		const remote = branch.upstreamRemote;
 		const remoteRef = branch.upstreamRef;
-		let result = await repository.fetch({ remote, signal });
+
+		const httpAuthentication = await RepositorySync.credentials(
+			repository,
+			remote,
+			false,
+			signal,
+			authentication
+		);
+
+		let result = await repository.fetch({ remote, signal, httpAuthentication });
 
 		if (!result.ok) return result;
 
@@ -135,6 +190,7 @@ export class RepositorySync {
 			result = await repository.syncBranch({
 				...input,
 				kind: "pull",
+				httpAuthentication,
 				remote,
 				remoteRef,
 				signal,
@@ -147,6 +203,13 @@ export class RepositorySync {
 			return await repository.syncBranch({
 				...input,
 				kind: "push",
+				httpAuthentication: await RepositorySync.credentials(
+					repository,
+					remote,
+					true,
+					signal,
+					authentication
+				),
 				remote,
 				remoteRef,
 				signal,
@@ -157,7 +220,24 @@ export class RepositorySync {
 
 	static async fetch(
 		root: string,
-		signal: AbortSignal
+		signal: AbortSignal,
+		authentication?: SyncAuthentication
+	): Promise<GitResult<SyncResult>> {
+		try {
+			return await RepositorySync.fetchAuthenticated(
+				root,
+				signal,
+				authentication
+			);
+		} catch (cause) {
+			return RepositorySync.authenticationFailure(cause, signal);
+		}
+	}
+
+	private static async fetchAuthenticated(
+		root: string,
+		signal: AbortSignal,
+		authentication?: SyncAuthentication
 	): Promise<GitResult<SyncResult>> {
 		const timeout = AbortSignal.timeout(syncTimeoutMs);
 		const request = AbortSignal.any([signal, timeout]);
@@ -180,7 +260,39 @@ export class RepositorySync {
 				},
 			};
 
-		const result = await opened.value.fetch({ signal: request });
+		// Resolve all choices before the first network write; never send one token to `fetch --all`.
+		const destinations: {
+			remote: string;
+			httpAuthentication?: GitHttpAuthentication;
+		}[] = [];
+
+		for (const remote of remotes.value)
+			destinations.push({
+				remote: remote.name,
+				httpAuthentication: await RepositorySync.credentials(
+					opened.value,
+					remote.name,
+					false,
+					request,
+					authentication
+				),
+			});
+
+		let result: GitResult<SyncResult> = {
+			ok: false,
+			error: {
+				code: "invalid-input",
+				operation: "fetch",
+				retryable: false,
+				message: "No remote is configured.",
+			},
+		};
+
+		for (const destination of destinations) {
+			result = await opened.value.fetch({ ...destination, signal: request });
+
+			if (!result.ok) break;
+		}
 
 		if (!result.ok && timeout.aborted && !signal.aborted)
 			return {
@@ -194,5 +306,68 @@ export class RepositorySync {
 			};
 
 		return result;
+	}
+
+	private static async credentials(
+		repository: GitRepository,
+		name: string,
+		push: boolean,
+		signal: AbortSignal,
+		authentication?: SyncAuthentication
+	): Promise<GitHttpAuthentication | undefined> {
+		if (!authentication) return undefined;
+
+		const remotes = await repository.getRemotes({ signal });
+
+		if (!remotes.ok)
+			throw new Error(
+				"Could not verify the remote destination before authentication."
+			);
+
+		const remote = remotes.value.find((item) => item.name === name);
+		const urls = push ? remote?.pushUrls : remote?.fetchUrls;
+
+		if (!urls?.length)
+			throw new Error(
+				"The selected remote is unavailable. Refresh before synchronizing."
+			);
+
+		const [url] = urls;
+
+		if (!url) return undefined;
+
+		const credential = await authentication.accounts.authentication(
+			repository.info.commonDirectory,
+			name,
+			url,
+			signal,
+			authentication.choose
+		);
+
+		if (credential && urls.length !== 1)
+			throw new Error(
+				"Configure a single remote destination before synchronizing with an account."
+			);
+
+		return credential;
+	}
+
+	private static authenticationFailure(
+		cause: unknown,
+		signal: AbortSignal
+	): GitResult<SyncResult> {
+		return {
+			ok: false,
+			error: {
+				code: signal.aborted ? "aborted" : "authentication-required",
+				operation: "fetch",
+				retryable: true,
+				message: signal.aborted
+					? "Synchronization cancelled."
+					: cause instanceof Error
+						? cause.message
+						: "Could not authenticate. Check the account in Settings.",
+			},
+		};
 	}
 }

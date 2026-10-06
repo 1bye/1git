@@ -17,6 +17,8 @@ import { ChoiceTile } from "../../fixture/choice-tile";
 import { AccountStore, type SavedAccount } from "../accounts/lib/account-store";
 import { accountProviderIcons } from "../accounts/account-provider-icons";
 import type { CommitIdentity } from "@1git/hosting/contracts";
+import type { RemoteAccounts } from "../accounts/lib/remote-accounts";
+import { RemoteAccountSelect } from "./remote-account-select";
 import {
 	GitSettingsModel,
 	type GitSettingsData,
@@ -109,6 +111,7 @@ export function GitSettings({
 	read = GitSettingsModel.read,
 	write = GitSettingsModel.write,
 	accounts = [],
+	remoteAccounts,
 	readAccountIdentity,
 	onBusy,
 }: {
@@ -118,6 +121,7 @@ export function GitSettings({
 	disabled?: boolean;
 	read?: typeof GitSettingsModel.read;
 	accounts?: readonly SavedAccount[];
+	remoteAccounts?: RemoteAccounts;
 	readAccountIdentity?: (
 		account: SavedAccount,
 		signal: AbortSignal
@@ -153,6 +157,7 @@ export function GitSettings({
 	const remoteUrlField = useRef<PublicInstance | null>(null);
 	const returnFocus = useRef<number | null>(null);
 	const locked = disabled || busy || !data;
+	const commonDirectory = data?.commonDirectory;
 	const identityLocked = locked || !!data?.identityReadOnlyReason;
 
 	const apply = useCallback(
@@ -519,6 +524,33 @@ export function GitSettings({
 														style={muted}
 													>{`Push: ${remote.pushUrls.join(", ")}`}</text>
 												) : null}
+												{remoteAccounts && commonDirectory
+													? [
+															...new Set([
+																...remote.fetchUrls,
+																...remote.pushUrls,
+															]),
+														]
+															.filter((url) => url.startsWith("https://"))
+															.map((url) => (
+																<RemoteAccountSelect
+																	key={`${commonDirectory}:${remote.name}:${url}`}
+																	bindings={remoteAccounts}
+																	directory={commonDirectory}
+																	label={
+																		remote.fetchUrls.includes(url) &&
+																		remote.pushUrls.includes(url)
+																			? "Account"
+																			: remote.fetchUrls.includes(url)
+																				? "Fetch account"
+																				: "Push account"
+																	}
+																	remote={remote.name}
+																	url={url}
+																	disabled={locked || editing !== null}
+																/>
+															))
+													: null}
 											</div>
 											<Button
 												testId={`remote-edit-${remote.name}`}

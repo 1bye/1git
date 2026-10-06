@@ -8,6 +8,7 @@ import {
 
 /** Settings read from Git rather than duplicated in the app's session document. */
 export interface GitSettingsData {
+	readonly commonDirectory?: string;
 	readonly identity: GitIdentityValues;
 	readonly custom: boolean;
 	readonly remotes: readonly RemoteInfo[];
@@ -109,6 +110,7 @@ export class GitSettingsModel {
 		return {
 			ok: true,
 			value: {
+				commonDirectory: opened.value.info.commonDirectory,
 				identity: { name: name.value.value, email: email.value.value },
 				custom:
 					localName.value.value !== null || localEmail.value.value !== null,

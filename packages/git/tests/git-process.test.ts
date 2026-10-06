@@ -1,3 +1,9 @@
+/**
+ * Covers: process execution, configured helpers, cancellation and bounded output.
+ * Real: Git and disposable repositories.
+ * Doubles: fixture credential helper; never accesses the user's OS credential store.
+ * Requires: Git and writable temporary storage.
+ */
 import { afterEach, describe, expect, test } from "bun:test";
 import { chmod, writeFile } from "node:fs/promises";
 
@@ -54,7 +60,14 @@ describe("GitProcess", () => {
 			].join("\n")
 		);
 		await chmod(helperPath, 0o700);
-		await fixture.git(["config", "credential.helper", `!${helperPath}`]);
+		// Reset inherited helpers so the test cannot prompt for the user's Keychain before its fixture runs.
+		await fixture.git(["config", "--add", "credential.helper", ""]);
+		await fixture.git([
+			"config",
+			"--add",
+			"credential.helper",
+			`!${helperPath}`,
+		]);
 
 		const credentials = await fixture.git(
 			["credential", "fill"],

@@ -348,11 +348,19 @@ export interface SyncResult {
 
 /** Guarded single-branch sync for an explicit UI action; never forces or auto-stashes. */
 export interface SyncBranchInput extends GitCallOptions {
+	readonly httpAuthentication?: GitHttpAuthentication;
 	readonly kind: "pull" | "push" | "publish";
 	readonly expectedHead: string;
 	readonly expectedBranch: string;
 	readonly remote: string;
 	readonly remoteRef: string;
+}
+
+/** Transient HTTPS credentials scoped to one freshly checked remote destination. Never persisted. */
+export interface GitHttpAuthentication {
+	readonly url: string;
+	readonly username: string;
+	readonly password: string;
 }
 
 export interface OpenRepositoryInput extends GitCallOptions {
@@ -621,6 +629,7 @@ export interface RemoveRemoteInput extends GitCallOptions {
 }
 
 export interface FetchInput extends GitCallOptions {
+	readonly httpAuthentication?: GitHttpAuthentication;
 	readonly prune?: boolean;
 	readonly remote?: string;
 	readonly tags?: boolean;
