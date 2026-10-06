@@ -30,9 +30,14 @@ import type { useRepositoryStashes } from "../hooks/use-repository-stashes";
 import { RepositoryReadNotice } from "./repository-read-notice";
 import { RepositoryStashActions } from "./repository-stash-actions";
 import type { StashWriteRequest } from "../lib/repository-stashes";
-import type { FinishOperationInput, CommitRecoveryInput } from "@1git/git";
+import type {
+	FinishOperationInput,
+	CommitRecoveryInput,
+	RevertCommitInput,
+} from "@1git/git";
 import type { RepositoryCommit as CommitReader } from "../lib/repository-commit";
 import { RepositoryOperation } from "./repository-operation";
+import { RepositoryRevert } from "./repository-revert";
 import type {
 	FileDiscardRequest,
 	RepositoryFileActions,
@@ -140,6 +145,7 @@ export function RepositoryNavigation({
 	stashes,
 	onCommit,
 	onUndoCommit,
+	onRevertCommit,
 	readLastCommit,
 	onSync,
 	onPublish,
@@ -158,6 +164,7 @@ export function RepositoryNavigation({
 	stashes?: ReturnType<typeof useRepositoryStashes>;
 	onCommit?: () => void;
 	onUndoCommit?: (input: CommitRecoveryInput) => Promise<string | null>;
+	onRevertCommit?: (input: RevertCommitInput) => Promise<string | null>;
 	readLastCommit?: typeof CommitReader.readLast;
 	onSync?: () => void;
 	onPublish?: () => void;
@@ -272,97 +279,113 @@ export function RepositoryNavigation({
 			: emptyListMessage(state);
 
 	const list = (
-		<RepositoryList
-			key={`${workspaceId}:${view}:${view === "changes" ? normalizedQuery : (state.history.query ?? "")}`}
-			entries={entries}
-			onPreviewIntent={view === "changes" ? onPreviewIntent : undefined}
-			fileActions={
-				view === "changes" && state.repository && !state.preview && onDiscard
-					? {
-							root: state.repository.root,
-							head: state.repository.head,
-							branch: state.repository.branchName,
-							disabled:
-								RepositoryWorkspaceModel.isBusy(state) ||
-								state.loading ||
-								!!state.error ||
-								state.commit.needsReview,
-							canDiscard: state.repository.operation === "normal",
-							discard: onDiscard,
-							include: (ids, included) =>
-								onAction({ type: "include-files", ids, included }),
-							open: openFile,
-						}
-					: undefined
-			}
-			label={
-				view === "changes"
-					? "Changed files"
-					: view === "history"
-						? "Commit history"
-						: "Saved stashes"
-			}
-			emptyContent={
-				emptyListReady &&
-				!filtering &&
-				!historySearching &&
-				!state.preview &&
-				state.repository &&
-				!state.loading &&
-				!state.error ? (
-					<EmptyListPlaceholder />
-				) : (
-					<StateMessage
-						compact
-						artwork={
-							readError
-								? "error"
-								: reading
-									? "loading"
-									: filtering || historySearching
-										? "search"
-										: "repository"
-						}
-						title={
-							readError
-								? "Could not read repository"
-								: reading && state.repository
-									? "Reading repository…"
-									: emptyMessage || "Reading repository…"
-						}
-						description={readError ?? undefined}
-						role={readError ? "alert" : "status"}
-					/>
-				)
-			}
-			emptyMessage={emptyMessage}
-			state={state.views[view]}
-			inclusion={
-				view === "changes"
-					? {
-							ids: state.includedFileIds,
-							disabled: RepositoryWorkspaceModel.isBusy(state),
-							onChange: (id, included) =>
-								onAction({ type: "include-file", id, included }),
-						}
-					: undefined
-			}
-			onSelect={(id, mode) =>
-				onAction({
-					type: "select",
-					view,
-					id,
-					mode,
-					visibleIds: filtering ? entries.map((entry) => entry.id) : undefined,
-				})
-			}
-			onScroll={(y) => onAction({ type: "scroll", view, y })}
-			onEndReached={
-				view === "history" && !state.history.error
-					? history?.loadMore
-					: undefined
-			}
-		/>
+		<RepositoryRevert
+			state={state}
+			onWrite={onRevertCommit}
+			onFinished={() => onAction({ type: "view", view: "changes" })}
+		>
+			{(onMenu) => (
+				<RepositoryList
+					key={`${workspaceId}:${view}:${view === "changes" ? normalizedQuery : (state.history.query ?? "")}`}
+					entries={entries}
+					onContextMenu={
+						view === "history" && !state.preview ? onMenu : undefined
+					}
+					onPreviewIntent={view === "changes" ? onPreviewIntent : undefined}
+					fileActions={
+						view === "changes" &&
+						state.repository &&
+						!state.preview &&
+						onDiscard
+							? {
+									root: state.repository.root,
+									head: state.repository.head,
+									branch: state.repository.branchName,
+									disabled:
+										RepositoryWorkspaceModel.isBusy(state) ||
+										state.loading ||
+										!!state.error ||
+										state.commit.needsReview,
+									canDiscard: state.repository.operation === "normal",
+									discard: onDiscard,
+									include: (ids, included) =>
+										onAction({ type: "include-files", ids, included }),
+									open: openFile,
+								}
+							: undefined
+					}
+					label={
+						view === "changes"
+							? "Changed files"
+							: view === "history"
+								? "Commit history"
+								: "Saved stashes"
+					}
+					emptyContent={
+						emptyListReady &&
+						!filtering &&
+						!historySearching &&
+						!state.preview &&
+						state.repository &&
+						!state.loading &&
+						!state.error ? (
+							<EmptyListPlaceholder />
+						) : (
+							<StateMessage
+								compact
+								artwork={
+									readError
+										? "error"
+										: reading
+											? "loading"
+											: filtering || historySearching
+												? "search"
+												: "repository"
+								}
+								title={
+									readError
+										? "Could not read repository"
+										: reading && state.repository
+											? "Reading repository…"
+											: emptyMessage || "Reading repository…"
+								}
+								description={readError ?? undefined}
+								role={readError ? "alert" : "status"}
+							/>
+						)
+					}
+					emptyMessage={emptyMessage}
+					state={state.views[view]}
+					inclusion={
+						view === "changes"
+							? {
+									ids: state.includedFileIds,
+									disabled: RepositoryWorkspaceModel.isBusy(state),
+									onChange: (id, included) =>
+										onAction({ type: "include-file", id, included }),
+								}
+							: undefined
+					}
+					onSelect={(id, mode) =>
+						onAction({
+							type: "select",
+							view,
+							id,
+							mode,
+							visibleIds: filtering
+								? entries.map((entry) => entry.id)
+								: undefined,
+						})
+					}
+					onScroll={(y) => onAction({ type: "scroll", view, y })}
+					onEndReached={
+						view === "history" && !state.history.error
+							? history?.loadMore
+							: undefined
+					}
+				/>
+			)}
+		</RepositoryRevert>
 	);
 
 	return (

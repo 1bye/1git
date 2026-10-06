@@ -95,22 +95,25 @@ const operationToken = async (
 	directory: string,
 	operation: RepositoryOperationState
 ): Promise<string | undefined> => {
-	if (operation !== "merge" && operation !== "rebase") return undefined;
+	if (operation !== "merge" && operation !== "rebase" && operation !== "revert")
+		return undefined;
 
 	const files =
 		operation === "merge"
 			? ["MERGE_HEAD", "ORIG_HEAD"]
-			: ["rebase-merge", "rebase-apply"].flatMap((folder) =>
-					[
-						"head-name",
-						"orig-head",
-						"onto",
-						"stopped-sha",
-						"msgnum",
-						"next",
-						"last",
-					].map((name) => `${folder}/${name}`)
-				);
+			: operation === "revert"
+				? ["REVERT_HEAD", "sequencer/head", "sequencer/todo", "sequencer/opts"]
+				: ["rebase-merge", "rebase-apply"].flatMap((folder) =>
+						[
+							"head-name",
+							"orig-head",
+							"onto",
+							"stopped-sha",
+							"msgnum",
+							"next",
+							"last",
+						].map((name) => `${folder}/${name}`)
+					);
 
 	const hash = createHash("sha256").update(operation);
 
@@ -163,7 +166,9 @@ export const loadSnapshot = async (
 		files: status.files,
 		head: status.head,
 		operationState,
-		...(operationState === "merge" || operationState === "rebase"
+		...(operationState === "merge" ||
+		operationState === "rebase" ||
+		operationState === "revert"
 			? {
 					operationToken: await operationToken(
 						context.repository.gitDirectory,

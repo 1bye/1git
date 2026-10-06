@@ -29,7 +29,10 @@ export function RepositoryOperation({
 	const [error, setError] = useState<string | null>(null);
 	const repository = state.repository;
 	const operation = repository?.operation;
-	const active = operation === "merge" || operation === "rebase";
+
+	const active =
+		operation === "merge" || operation === "rebase" || operation === "revert";
+
 	const busy = RepositoryWorkspaceModel.isBusy(state);
 
 	const disabled =
@@ -52,7 +55,12 @@ export function RepositoryOperation({
 			change.worktreeStatus !== "unmodified"
 	);
 
-	const title = operation === "merge" ? "Merge" : "Rebase";
+	const title =
+		operation === "merge"
+			? "Merge"
+			: operation === "rebase"
+				? "Rebase"
+				: "Revert";
 
 	const request = (
 		kind: FinishOperationInput["kind"]

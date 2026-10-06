@@ -100,6 +100,7 @@ function RepositoryRow({
 	onInclude,
 	inclusionDisabled,
 	fileActions,
+	onContextMenu,
 	onPreviewIntent,
 }: {
 	entry: WorkspaceEntry;
@@ -113,6 +114,7 @@ function RepositoryRow({
 	onInclude?: (included: boolean) => void;
 	inclusionDisabled?: boolean;
 	fileActions?: FileMenuActions;
+	onContextMenu?: (entry: WorkspaceEntry, event: EventPayload) => void;
 	onPreviewIntent?: (entry: WorkspaceEntry | null) => void;
 }) {
 	const row = (onMenu?: (event: EventPayload) => void) => (
@@ -222,7 +224,7 @@ function RepositoryRow({
 			{row}
 		</RepositoryFileMenu>
 	) : (
-		row()
+		row(onContextMenu ? (event) => onContextMenu(entry, event) : undefined)
 	);
 }
 
@@ -239,6 +241,7 @@ export function RepositoryList({
 	onScroll,
 	onEndReached,
 	fileActions,
+	onContextMenu,
 	onPreviewIntent,
 }: {
 	entries: readonly WorkspaceEntry[];
@@ -256,6 +259,7 @@ export function RepositoryList({
 	onScroll: (y: number) => void;
 	onEndReached?: () => void;
 	fileActions?: FileMenuActions;
+	onContextMenu?: (entry: WorkspaceEntry, event: EventPayload) => void;
 	onPreviewIntent?: (entry: WorkspaceEntry | null) => void;
 }) {
 	const renderer = useGpuixRequired();
@@ -543,6 +547,7 @@ export function RepositoryList({
 					>
 						<RepositoryRow
 							entry={entry}
+							onContextMenu={onContextMenu}
 							onPreviewIntent={onPreviewIntent}
 							fileActions={
 								fileActions

@@ -5,7 +5,7 @@ import {
 	type RepositorySnapshot,
 } from "@1git/git";
 
-/** Explicit merge/rebase completion or confirmed abort, preserving Git messages and hooks. */
+/** Explicit merge/rebase/revert completion or confirmed abort, preserving Git messages and hooks. */
 export class RepositoryOperation {
 	private constructor() {}
 	static async write(

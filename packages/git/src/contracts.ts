@@ -176,7 +176,7 @@ export interface RepositorySnapshot {
 	readonly files: readonly FileChange[];
 	readonly head: HeadState;
 	readonly operationState: RepositoryOperationState;
-	/** Fingerprint of active merge/rebase metadata, used to reject stale operation actions. */
+	/** Fingerprint of active merge/rebase/revert metadata, used to reject stale operation actions. */
 	readonly operationToken?: string;
 	readonly repository: RepositoryInfo;
 	readonly stashCount: number;
@@ -477,7 +477,7 @@ export interface ResolveConflictInput extends GitCallOptions {
 /** Reviewed operation identity; abort requires a separate explicit user confirmation at the UI boundary. */
 export interface FinishOperationInput extends GitCallOptions {
 	readonly kind: "continue" | "abort";
-	readonly expectedOperation: "merge" | "rebase";
+	readonly expectedOperation: "merge" | "rebase" | "revert";
 	readonly expectedHead: string | null;
 	readonly expectedBranch: string | null;
 	readonly expectedToken: string;
@@ -593,6 +593,13 @@ export interface RevisionSequenceInput extends GitCallOptions {
 
 export interface RevertInput extends RevisionSequenceInput {
 	readonly noCommit?: boolean;
+}
+
+/** Reverses one exact historical commit on the reviewed, clean branch without rewriting history. */
+export interface RevertCommitInput extends GitCallOptions {
+	readonly commit: string;
+	readonly expectedHead: string;
+	readonly expectedBranch: string;
 }
 
 export interface CreateTagInput extends GitCallOptions {

@@ -11,7 +11,7 @@ export interface CommitFileSelection extends CommitFileChange {
 	readonly commit: string;
 }
 
-/** Read-only repository navigation views. */
+/** Repository navigation views. */
 export type RepositoryView = "changes" | "history" | "stashes";
 
 /** Views whose selected revision owns a second file list. */

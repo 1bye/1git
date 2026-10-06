@@ -799,7 +799,7 @@ the Turbo build/dev tasks build dependencies first. No Electron IPC is involved.
   cached list and selection. Repository/HEAD changes invalidate the search cache.
 - History lazily loads real commits reachable from the last refreshed HEAD, with
   the summary, author, authored date and short SHA. Scroll near the end for the
-  next 50 commits, or use **Load more commits**. Pagination is anchored to that
+  next 50 commits. Pagination is anchored to that
   HEAD, so external commits cannot shift page offsets while browsing.
 - Select a commit in the upper sidebar to read its changed paths and automatically
   preview its first changed file. Choose any other path below to inspect it.
@@ -811,7 +811,7 @@ the Turbo build/dev tasks build dependencies first. No Electron IPC is involved.
 - The existing native text diff and PNG/JPEG/WebP/SVG previews are reused. Image
   versions come from the exact committed blobs, independently of the current index
   or working files. SVG **Preview / Source**, original metadata, size limits and
-  binary/unsupported notices work here too. There are no staging or commit actions.
+  binary/unsupported notices work here too. These previews remain read-only.
 - Each workspace keeps its selected commit/file, list scroll offsets and divider
   size across tab/view switches. Changing commits resets the file list to the top
   and selects its first file, including cached commits, without moving keyboard
@@ -823,6 +823,24 @@ the Turbo build/dev tasks build dependencies first. No Electron IPC is involved.
   pagination to the new snapshot. Automatic refresh retains the selected commit
   and file when they remain in the refreshed page; explicit refresh and successful
   app commits reset selection when HEAD changes.
+
+### Reverting a commit
+
+- Right-click a History commit (Control-click or Shift+F10 also works) and choose
+  **Revert commit…**. Confirmation shows that exact commit and the destination branch.
+- Revert creates a new reversing commit, preserving existing and published history.
+  It requires a clean working tree/index, a committed named branch and no active
+  Git operation. Commit or stash local edits first. Merge commits require mainline
+  parent selection and remain an external Git workflow; ordinary and root commits
+  are supported.
+- The backend rechecks HEAD/branch, exact commit identity and reachability under
+  its write lock. Native Git message preparation/signing behavior is retained;
+  the app does not stash, reset, stage unrelated files or push automatically.
+- After the attempt, Changes shows its result. Conflicts use the existing file
+  resolution workflow, **Continue revert** and confirmed **Abort…**.
+  Related worktree tabs and window close remain protected until every refresh
+  finishes. A failed refresh blocks further writes; inspect the actual repository
+  before retrying an uncertain result. External Git processes are not locked.
 
 ## Browsing Stashes
 
@@ -995,9 +1013,9 @@ hot reload cannot replace a loaded addon. This bridge is macOS-only.
   refresh blocks further writes. External editors/Git processes are not locked;
   avoid concurrent writes while marking a file resolved.
 
-### Merge and rebase completion
+### Merge, rebase and revert completion
 
-- Changes shows the active merge/rebase, conflict count, **Continue** and **Abort…**.
+- Changes shows the active merge/rebase/revert, conflict count, **Continue** and **Abort…**.
 - Continue uses Git's staged resolutions and existing message, retaining hooks
   and signing. It never stages files or uses the commit-inclusion checkboxes.
   Unresolved conflicts or unstaged tracked edits block continuation.
@@ -1007,7 +1025,7 @@ hot reload cannot replace a loaded addon. This bridge is macOS-only.
   Results are refreshed even on failure: a rebase may stop at another conflict.
   Closing and competing app writes remain blocked through the refresh; a failed
   refresh blocks further writes until the repository is reviewed again.
-- Skip, interactive rebase editing, cherry-pick/revert completion and cancellation
+- Skip, interactive rebase editing, cherry-pick completion and cancellation
   of an in-flight local Git command remain external workflows. External Git
   processes are not locked; avoid concurrent writes.
 

@@ -4,6 +4,7 @@ import {
 	type CommitInfo,
 	type CommitPage,
 	type GitResult,
+	type RevertCommitInput,
 } from "@1git/git";
 
 import type { WorkspaceEntry, WorkspaceRevision } from "../types";
@@ -12,9 +13,18 @@ const historyPageSize = 50;
 const historySearchBatchSize = 250;
 const commitDate = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
 
-/** Bounded, read-only history queries anchored to the workspace's last refreshed HEAD. */
+/** Bounded history queries and explicit reversal anchored to the workspace's reviewed HEAD. */
 export class RepositoryHistory {
 	private constructor() {}
+
+	/** Adds a reversing commit; the backend validates a clean tree and the reviewed branch under its write lock. */
+	static async revert(root: string, request: RevertCommitInput) {
+		const opened = await GitRepository.open({ path: root });
+
+		if (!opened.ok) return opened;
+
+		return await opened.value.revertCommit(request);
+	}
 
 	static async read(
 		root: string,

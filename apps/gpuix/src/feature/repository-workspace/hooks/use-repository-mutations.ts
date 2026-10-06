@@ -22,6 +22,7 @@ import {
 import { RepositoryCommit } from "../lib/repository-commit";
 import { RepositoryConflicts } from "../lib/repository-conflicts";
 import { RepositoryOperation } from "../lib/repository-operation";
+import { RepositoryHistory } from "../lib/repository-history";
 import {
 	RepositoryFileActions,
 	type FileDiscardRequest,
@@ -32,6 +33,7 @@ import type {
 	CommitRecoveryInput,
 	GitResult,
 	SyncResult,
+	RevertCommitInput,
 } from "@1git/git";
 import type { PublishBranchIdentity } from "../../repository-publish/repository-publish";
 import { useCloseProtection } from "./use-close-protection";
@@ -73,7 +75,8 @@ export function useRepositoryMutations(
 	writeWorktree = RepositoryWorktrees.create,
 	removeWorktree = RepositoryWorktrees.remove,
 	undoCommit = RepositoryCommit.undo,
-	writeGitSettings = GitSettingsModel.write
+	writeGitSettings = GitSettingsModel.write,
+	revertCommit = RepositoryHistory.revert
 ) {
 	const [settingsPending, setSettingsPending] = useState(false);
 	const settingsWrite = useRef(false);
@@ -993,6 +996,7 @@ export function useRepositoryMutations(
 		id: string,
 		request:
 			| FinishOperationInput
+			| (RevertCommitInput & { kind: "revert" })
 			| FileDiscardRequest
 			| {
 					kind: "resolve";
@@ -1019,11 +1023,39 @@ export function useRepositoryMutations(
 		)
 			return "Wait for the current operation or refresh before continuing.";
 
+		const reverting =
+			request.kind === "revert" ||
+			((request.kind === "continue" || request.kind === "abort") &&
+				request.expectedOperation === "revert");
+
+		const related = () =>
+			tabs.current.filter(
+				(tab) =>
+					tab.workspace.repository?.commonDirectory ===
+					repository.commonDirectory
+			);
+
+		if (
+			reverting &&
+			related().some(
+				(tab) =>
+					tab.workspace.loading ||
+					RepositoryWorkspaceModel.isBusy(tab.workspace) ||
+					pending.current.has(tab.workspace.repository?.root ?? "")
+			)
+		)
+			return "Wait for the current operation in this repository.";
+
 		const send = (action: RepositoryWorkspaceAction) => {
 			if (!mounted.current) return;
 
 			for (const tab of tabs.current) {
-				if (tab.workspace.repository?.root === repository.root)
+				if (
+					tab.workspace.repository?.root === repository.root ||
+					(reverting &&
+						tab.workspace.repository?.commonDirectory ===
+							repository.commonDirectory)
+				)
 					dispatch({ type: "workspace", id: tab.id, action });
 			}
 		};
@@ -1032,6 +1064,9 @@ export function useRepositoryMutations(
 			request.kind === "resolve" ? "conflict-started" : "operation-started";
 
 		pending.current.set(repository.root, started);
+
+		if (reverting) sharedWrites.current.add(repository.commonDirectory);
+
 		closeProtection.block();
 		send({ type: started });
 		let error: string | null = null;
@@ -1049,7 +1084,9 @@ export function useRepositoryMutations(
 						})
 					: request.kind === "discard"
 						? await discardFile(repository.root, request)
-						: await writeOperation(repository.root, request);
+						: request.kind === "revert"
+							? await revertCommit(repository.root, request)
+							: await writeOperation(repository.root, request);
 
 			if (!result.ok) error = result.error.message;
 			else if (
@@ -1062,44 +1099,74 @@ export function useRepositoryMutations(
 				"Could not confirm the Git action. Refresh and inspect Changes and History before retrying.";
 		}
 
-		const finish = (snapshot?: RepositorySnapshot, refreshError?: string) => {
-			pending.current.delete(repository.root);
+		const refreshed = new Map<string, RepositoryWorkspaceAction>();
 
-			if (request.kind === "resolve")
-				send({ type: "conflict-finished", snapshot, error: refreshError });
-			else
-				send({
-					type: "operation-finished",
-					recoveryDirectory,
-					snapshot,
-					error,
-					refreshError,
-					notice: error
-						? undefined
-						: request.kind === "discard"
-							? `Discarded ${request.paths.length} ${request.paths.length === 1 ? "file" : "files"}. Recovery backup saved.`
-							: request.kind === "abort"
-								? "Operation aborted."
-								: snapshot?.operationState === "normal"
-									? "Operation completed."
-									: "Git paused again. Review the current operation before continuing.",
-				});
-		};
+		const roots = reverting
+			? [
+					...new Set([
+						repository.root,
+						...related().map((tab) => tab.workspace.repository?.root),
+					]),
+				]
+			: [repository.root];
 
-		try {
-			const fresh = await readRepository(
-				repository.root,
-				new AbortController().signal
+		for (const root of roots) {
+			if (!root) continue;
+
+			let snapshot: RepositorySnapshot | undefined;
+			let refreshError: string | undefined;
+
+			try {
+				const fresh = await readRepository(root, new AbortController().signal);
+
+				if (fresh.ok) snapshot = fresh.value;
+				else refreshError = fresh.error.message;
+			} catch {
+				refreshError =
+					"Refresh to confirm the repository after the Git action.";
+			}
+
+			const source = root === repository.root;
+
+			refreshed.set(
+				root,
+				request.kind === "resolve"
+					? { type: "conflict-finished", snapshot, error: refreshError }
+					: {
+							type: "operation-finished",
+							recoveryDirectory: source ? recoveryDirectory : undefined,
+							snapshot,
+							error: source ? error : null,
+							refreshError,
+							notice:
+								!source || error || refreshError
+									? undefined
+									: request.kind === "discard"
+										? `Discarded ${request.paths.length} ${request.paths.length === 1 ? "file" : "files"}. Recovery backup saved.`
+										: request.kind === "revert"
+											? "Revert commit created."
+											: request.kind === "abort"
+												? "Operation aborted."
+												: snapshot?.operationState === "normal"
+													? "Operation completed."
+													: "Git paused again. Review the current operation before continuing.",
+						}
 			);
 
-			if (fresh.ok) finish(fresh.value);
-			else finish(undefined, fresh.error.message);
-
-			if (!fresh.ok) error = fresh.error.message;
-		} catch {
-			error = "Refresh to confirm the repository after the Git action.";
-			finish(undefined, error);
+			if (source && refreshError) error = refreshError;
 		}
+
+		// Keep every related tab busy until all reads finish; release before publishing their snapshots.
+		pending.current.delete(repository.root);
+
+		if (reverting) sharedWrites.current.delete(repository.commonDirectory);
+
+		if (mounted.current)
+			for (const tab of tabs.current) {
+				const action = refreshed.get(tab.workspace.repository?.root ?? "");
+
+				if (action) dispatch({ type: "workspace", id: tab.id, action });
+			}
 
 		return error;
 	};
@@ -1290,6 +1357,8 @@ export function useRepositoryMutations(
 			updateWorktree(id, { kind: "resolve", path, expectedContentHash, side }),
 		finishOperation: (id: string, request: FinishOperationInput) =>
 			updateWorktree(id, request),
+		revertCommit: (id: string, request: RevertCommitInput) =>
+			updateWorktree(id, { ...request, kind: "revert" }),
 		discardFile: (id: string, request: FileDiscardRequest) =>
 			updateWorktree(id, request),
 		closeProtection,

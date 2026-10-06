@@ -94,6 +94,7 @@ export function App({
 	writeCommit = RepositoryCommit.write,
 	readLastCommit = RepositoryCommit.readLast,
 	undoCommit = RepositoryCommit.undo,
+	revertCommit = RepositoryHistory.revert,
 	readBranches = RepositoryBranches.read,
 	writeBranch = RepositoryBranches.write,
 	writeWorktree = RepositoryWorktrees.create,
@@ -129,6 +130,7 @@ export function App({
 	writeCommit?: typeof RepositoryCommit.write;
 	readLastCommit?: typeof RepositoryCommit.readLast;
 	undoCommit?: typeof RepositoryCommit.undo;
+	revertCommit?: typeof RepositoryHistory.revert;
 	readBranches?: typeof RepositoryBranches.read;
 	writeBranch?: typeof RepositoryBranches.write;
 	writeWorktree?: typeof RepositoryWorktrees.create;
@@ -286,7 +288,8 @@ export function App({
 			}
 
 			return result;
-		}
+		},
+		revertCommit
 	);
 
 	useRepositoryAutoRefresh(state, dispatch, readRepository, watchRepository);
@@ -584,6 +587,9 @@ export function App({
 								}}
 								onUndoCommit={(input) =>
 									mutations.undoCommit(activeTab.id, input)
+								}
+								onRevertCommit={(input) =>
+									mutations.revertCommit(activeTab.id, input)
 								}
 								readLastCommit={readLastCommit}
 								onPublish={

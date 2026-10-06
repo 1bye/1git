@@ -62,6 +62,7 @@ import type {
 	ResetInput,
 	RestoreInput,
 	RevertInput,
+	RevertCommitInput,
 	RevisionSequenceInput,
 	SetConfigInput,
 	SetRemoteUrlInput,
@@ -1717,6 +1718,63 @@ export class GitRepository {
 
 			args.push(...requireRevisions(input.revisions, "revert"));
 			await this.run(args, input.signal);
+
+			return await loadSnapshot(this.context, false, input.signal);
+		});
+	}
+
+	/** Rechecks reviewed identity under the mutation lock; leaves conflicts available for Continue or Abort. */
+	async revertCommit(
+		input: RevertCommitInput
+	): Promise<GitResult<RepositorySnapshot>> {
+		return await this.mutate("revert", input.signal, async () => {
+			if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(input.commit))
+				throw invalidInput("revert", "Select an exact commit from History.");
+
+			const snapshot = await loadSnapshot(this.context, false, input.signal);
+
+			if (
+				!input.expectedHead ||
+				!input.expectedBranch ||
+				snapshot.head.detached ||
+				snapshot.head.oid !== input.expectedHead ||
+				snapshot.head.branch !== input.expectedBranch
+			)
+				throw invalidInput(
+					"revert",
+					"HEAD or the branch changed. Refresh and review the commit before reverting."
+				);
+
+			if (snapshot.operationState !== "normal" || snapshot.files.length > 0)
+				throw invalidInput(
+					"revert",
+					"Commit or stash your changes and finish the current Git operation before reverting."
+				);
+
+			const commit = await loadCommit(this.context, input.commit, input.signal);
+
+			if (commit.parentOids.length > 1)
+				throw invalidInput(
+					"revert",
+					"Reverting a merge commit requires choosing a mainline parent. Use an external Git tool."
+				);
+
+			try {
+				await this.run(
+					["merge-base", "--is-ancestor", input.commit, snapshot.head.oid],
+					input.signal
+				);
+			} catch (error) {
+				if (error instanceof GitCommandFailure && error.exitCode === 1)
+					throw invalidInput(
+						"revert",
+						"This commit is not in the current branch's history. Refresh and review History again."
+					);
+
+				throw error;
+			}
+
+			await this.run(["revert", "--no-edit", input.commit], input.signal);
 
 			return await loadSnapshot(this.context, false, input.signal);
 		});
