@@ -10,6 +10,9 @@ import {
 } from "../lib/repository-file-actions";
 import { NativeFileMenu, type NativeMenuItem } from "../lib/native-file-menu";
 import type { WorkspaceEntry } from "../types";
+import type { ExternalEditors } from "../../editor-settings/external-editors";
+
+const finderApplication = "/System/Library/CoreServices/Finder.app";
 
 /** Live Changes actions, supplied by the window-owned mutation boundary. */
 export interface FileMenuActions {
@@ -21,18 +24,20 @@ export interface FileMenuActions {
 	discard: (request: FileDiscardRequest) => Promise<string | null>;
 	ignore?: (request: FileIgnoreRequest) => Promise<string | null>;
 	open?: typeof RepositoryFileActions.open;
+	editors?: ExternalEditors;
 	selection?: (id: string) => readonly WorkspaceEntry[];
 	include?: (ids: readonly string[], included: boolean) => void;
 }
 
 type FileMenuChoice =
 	| { kind: "ignore"; rule: IgnoreRule }
+	| { kind: "editor"; application?: string | null }
+	| { kind: "other-editor" }
 	| {
 			kind:
 				| "discard"
 				| "include"
 				| "exclude"
-				| "editor"
 				| "finder"
 				| "default"
 				| "copy"
@@ -93,11 +98,13 @@ export function RepositoryFileMenu({
 			const item = (
 				label: string,
 				value: FileMenuChoice,
-				available = true
+				available = true,
+				iconPath?: string
 			): NativeMenuItem<FileMenuChoice> => ({
 				label,
 				value,
 				enabled: !disabled && available,
+				iconPath,
 			});
 
 			const menu: NativeMenuItem<FileMenuChoice>[] = [
@@ -159,11 +166,59 @@ export function RepositoryFileMenu({
 
 			if (!multiple) {
 				const exists = file.worktreeStatus !== "deleted";
+				let editors: ReturnType<ExternalEditors["menu"]> | undefined;
+
+				try {
+					editors = actions.editors?.menu(file.path);
+				} catch (cause) {
+					// A damaged editor preference must not hide unrelated file actions.
+					setError(
+						cause instanceof Error
+							? cause.message
+							: "Could not load editor defaults."
+					);
+				}
+
+				const application = editors?.applications.find(
+					(app) => app.path === editors.selected
+				);
 
 				menu.push(
 					{ separator: true },
-					item("Reveal in Finder", { kind: "finder" }, exists),
-					item("Open in Editor", { kind: "editor" }, exists),
+					item(
+						"Reveal in Finder",
+						{ kind: "finder" },
+						exists,
+						finderApplication
+					),
+					item(
+						application ? `Open in ${application.name}` : "Open in Editor",
+						{ kind: "editor" },
+						exists,
+						application?.available ? application.path : undefined
+					),
+					{
+						label: "Open With",
+						enabled: !disabled && exists,
+						children: [
+							{
+								label: `System default${editors?.selected === null ? " (Default)" : ""}`,
+								enabled: true,
+								value: { kind: "editor", application: null },
+							},
+							...(editors?.applications ?? []).map((app) => ({
+								label: `${app.name}${app.path === editors?.selected ? " (Default)" : ""}${app.available ? "" : " — Unavailable"}`,
+								enabled: app.available,
+								iconPath: app.available ? app.path : undefined,
+								value: { kind: "editor" as const, application: app.path },
+							})),
+							{
+								label: "Other application…",
+								enabled: true,
+								value: { kind: "other-editor" },
+							},
+						],
+					},
 					item("Open with Default App", { kind: "default" }, exists)
 				);
 			}
@@ -233,6 +288,35 @@ export function RepositoryFileMenu({
 				actions.include?.(
 					selected.map((item) => item.id),
 					choice.kind === "include"
+				);
+			} else if (
+				choice.kind === "other-editor" ||
+				(choice.kind === "editor" && choice.application !== undefined)
+			) {
+				let application =
+					choice.kind === "editor" ? choice.application : undefined;
+
+				if (choice.kind === "other-editor") {
+					if (!renderer.promptForPaths)
+						throw new Error("Application selection is unavailable.");
+
+					const picked = await renderer.promptForPaths({
+						files: true,
+						directories: false,
+						multiple: false,
+						prompt: "Choose editor application",
+					});
+
+					if (!picked?.[0]) return;
+
+					application = picked[0];
+				}
+
+				await (actions.open ?? RepositoryFileActions.open)(
+					actions.root,
+					file.path,
+					"editor",
+					application
 				);
 			} else {
 				await (actions.open ?? RepositoryFileActions.open)(

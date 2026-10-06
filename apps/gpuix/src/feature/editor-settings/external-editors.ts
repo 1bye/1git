@@ -15,7 +15,7 @@ import { promisify } from "node:util";
 import { WorkspaceSessionStore } from "../workspace-tabs/lib/workspace-session-store";
 
 const execute = promisify(execFile);
-const maxPreferenceBytes = 8192;
+const maxPreferenceBytes = 64 * 1024;
 
 const applicationNames = [
 	"Zed.app",
@@ -38,8 +38,25 @@ export interface EditorApplication {
 	readonly available: boolean;
 }
 
+/** Extensions (leading dot) and exact filenames sharing one app-wide default. */
+export interface EditorRule {
+	readonly id: string;
+	readonly patterns: readonly string[];
+	readonly application: string | null;
+}
+
+/** Private preferences; one-time file-menu choices never write this document. */
+export interface EditorPreferences {
+	readonly application: string | null;
+	readonly applications: readonly string[];
+	readonly rules: readonly EditorRule[];
+}
+
 /** App-wide editor preference and macOS application launching; never reads or executes Git's core.editor. */
 export class ExternalEditors {
+	/** Per-window application metadata only. Settings refreshes it; every launch still validates the app. */
+	private readonly catalog = new Map<string, EditorApplication>();
+	private discovery?: Promise<void>;
 	constructor(
 		readonly preferencePath = ExternalEditors.defaultPath(),
 		private readonly run: (
@@ -84,8 +101,8 @@ export class ExternalEditors {
 			throw new Error("Choose a macOS application (.app).");
 	}
 
-	/** Missing preferences use the default text editor; malformed existing data is never overwritten. */
-	load(): string | null {
+	/** Missing preferences use the default text editor; version 1 is upgraded only on an explicit save. */
+	preferences(): EditorPreferences {
 		try {
 			if (statSync(this.preferencePath).size > maxPreferenceBytes)
 				throw new Error("Editor preference is too large.");
@@ -98,19 +115,85 @@ export class ExternalEditors {
 				!document ||
 				typeof document !== "object" ||
 				!("version" in document) ||
-				document.version !== 1 ||
+				(document.version !== 1 && document.version !== 2) ||
 				!("application" in document)
 			)
 				throw new Error("Invalid editor preference.");
 
-			if (document.application === null) return null;
+			const application = document.application;
 
-			ExternalEditors.requireApplicationPath(document.application);
+			if (application !== null)
+				ExternalEditors.requireApplicationPath(application);
 
-			return document.application;
+			if (document.version === 1)
+				return {
+					application,
+					applications: application ? [application] : [],
+					rules: [],
+				};
+
+			if (
+				!("applications" in document) ||
+				!Array.isArray(document.applications) ||
+				document.applications.length > 64 ||
+				!("rules" in document) ||
+				!Array.isArray(document.rules) ||
+				document.rules.length > 64
+			)
+				throw new Error("Invalid editor preference.");
+
+			const applications: string[] = [];
+
+			for (const path of document.applications) {
+				ExternalEditors.requireApplicationPath(path);
+
+				if (applications.includes(path))
+					throw new Error("Duplicate application.");
+
+				applications.push(path);
+			}
+
+			const rules: EditorRule[] = [];
+			const patterns = new Set<string>();
+			const ids = new Set<string>();
+
+			for (const rule of document.rules) {
+				if (
+					!rule ||
+					typeof rule !== "object" ||
+					!("id" in rule) ||
+					typeof rule.id !== "string" ||
+					!rule.id ||
+					rule.id.length > 64 ||
+					ids.has(rule.id) ||
+					!("patterns" in rule) ||
+					!("application" in rule)
+				)
+					throw new Error("Invalid editor rule.");
+
+				const normalized = ExternalEditors.normalizePatterns(rule.patterns);
+
+				if (rule.application !== null)
+					ExternalEditors.requireApplicationPath(rule.application);
+
+				for (const pattern of normalized) {
+					if (patterns.has(pattern)) throw new Error("Duplicate file type.");
+
+					patterns.add(pattern);
+				}
+
+				ids.add(rule.id);
+				rules.push({
+					id: rule.id,
+					patterns: normalized,
+					application: rule.application,
+				});
+			}
+
+			return { application, applications, rules };
 		} catch (cause) {
 			if (cause instanceof Error && "code" in cause && cause.code === "ENOENT")
-				return null;
+				return { application: null, applications: [], rules: [] };
 
 			throw new Error(
 				"Could not read the editor preference. The saved file was left unchanged.",
@@ -119,7 +202,76 @@ export class ExternalEditors {
 		}
 	}
 
-	private async application(path: string): Promise<EditorApplication> {
+	/** Overall default, retained for callers that do not need file-type rules. */
+	load(): string | null {
+		return this.preferences().application;
+	}
+
+	private static normalizePatterns(value: unknown): string[] {
+		if (!Array.isArray(value) || !value.length || value.length > 32)
+			throw new Error(
+				"Enter file extensions or exact filenames, separated by commas."
+			);
+
+		const patterns: string[] = [];
+
+		for (const item of value) {
+			if (
+				typeof item !== "string" ||
+				!item.trim() ||
+				item.length > 255 ||
+				invalidPathCharacters.test(item) ||
+				/[/\\*?[\],]/.test(item) ||
+				item.trim() === "." ||
+				item.trim() === ".."
+			)
+				throw new Error(
+					"Use extensions like .tsx or exact filenames like Dockerfile, not paths or wildcards."
+				);
+
+			const trimmed = item.trim();
+			const pattern = trimmed.startsWith(".") ? trimmed.toLowerCase() : trimmed;
+
+			if (patterns.includes(pattern))
+				throw new Error("Each file type can appear only once.");
+
+			patterns.push(pattern);
+		}
+
+		return patterns;
+	}
+
+	/** Resolve exact filename first, then longest case-insensitive extension, then overall default. */
+	static resolve(file: string, preferences: EditorPreferences): string | null {
+		const name = basename(file);
+		const lowerName = name.toLowerCase();
+
+		const exact = preferences.rules.find((rule) =>
+			rule.patterns.includes(name)
+		);
+
+		if (exact) return exact.application;
+
+		let longest = 0;
+		let application = preferences.application;
+
+		for (const rule of preferences.rules)
+			for (const pattern of rule.patterns)
+				if (
+					pattern.startsWith(".") &&
+					name.length > pattern.length &&
+					lowerName.endsWith(pattern) &&
+					pattern.length > longest
+				) {
+					longest = pattern.length;
+					application = rule.application;
+				}
+
+		return application;
+	}
+
+	/** Validate a picker result without saving it or launching anything. */
+	async application(path: string): Promise<EditorApplication> {
 		ExternalEditors.requireApplicationPath(path);
 		const canonical = await realpath(path);
 
@@ -156,78 +308,213 @@ export class ExternalEditors {
 		};
 	}
 
-	/** Detect common editors in application folders and preserve custom or unavailable saved choices. */
-	async options(): Promise<{
+	/** Warm common applications once per window; Settings explicitly refreshes discovery. */
+	async discover(refresh = false): Promise<void> {
+		if (!refresh && this.discovery) return await this.discovery;
+
+		// A settings refresh must not race the window's initial discovery.
+		if (this.discovery) await this.discovery;
+
+		this.discovery = (async () => {
+			const candidates = await Promise.all(
+				this.applicationDirectories.flatMap((directory) =>
+					applicationNames.map(async (name) => {
+						try {
+							return await this.application(join(directory, name));
+						} catch {
+							// Detection is best-effort; custom locations remain available through the native picker.
+							return null;
+						}
+					})
+				)
+			);
+
+			if (refresh) this.catalog.clear();
+
+			for (const candidate of candidates)
+				if (candidate) this.catalog.set(candidate.path, candidate);
+		})();
+		await this.discovery;
+	}
+
+	/** Synchronous menu choices from warmed metadata and live preferences; no scans or subprocesses. */
+	menu(file: string): {
 		selected: string | null;
 		applications: EditorApplication[];
-	}> {
-		const selected = this.load();
+	} {
+		const preferences = this.preferences();
+		const unique = new Map(this.catalog);
 
-		const candidates = await Promise.all(
-			this.applicationDirectories.flatMap((directory) =>
-				applicationNames.map(async (name) => {
-					try {
-						return await this.application(join(directory, name));
-					} catch {
-						// Detection is best-effort; custom locations remain available through the native picker.
-						return null;
-					}
-				})
-			)
-		);
-
-		const unique = new Map<string, EditorApplication>();
-
-		for (const candidate of candidates)
-			if (candidate) unique.set(candidate.path, candidate);
-
-		if (selected && !unique.has(selected)) {
-			try {
-				unique.set(selected, {
-					...(await this.application(selected)),
-					path: selected,
+		for (const path of [
+			preferences.application,
+			...preferences.applications,
+			...preferences.rules.map((rule) => rule.application),
+		])
+			if (path && !unique.has(path))
+				unique.set(path, {
+					path,
+					name: basename(path).replace(/\.app$/i, ""),
+					available: true,
 				});
-			} catch {
-				unique.set(selected, {
-					path: selected,
-					name: basename(selected).replace(/\.app$/i, ""),
-					available: false,
-				});
-			}
-		}
 
 		return {
-			selected,
+			selected: ExternalEditors.resolve(file, preferences),
 			applications: [...unique.values()].sort((left, right) =>
 				left.name.localeCompare(right.name)
 			),
 		};
 	}
 
+	/** Settings validates saved/custom choices and may refresh installed applications. */
+	async options(refresh = false): Promise<{
+		selected: string | null;
+		rules: readonly EditorRule[];
+		applications: EditorApplication[];
+	}> {
+		const preferences = this.preferences();
+
+		await this.discover(refresh);
+		const saved = new Set([
+			preferences.application,
+			...preferences.applications,
+			...preferences.rules.map((rule) => rule.application),
+		]);
+
+		await Promise.all(
+			[...saved].map(async (path) => {
+				if (!path) return;
+
+				try {
+					this.catalog.set(path, { ...(await this.application(path)), path });
+				} catch {
+					this.catalog.set(path, {
+						path,
+						name: basename(path).replace(/\.app$/i, ""),
+						available: false,
+					});
+				}
+			})
+		);
+
+		return {
+			selected: preferences.application,
+			rules: preferences.rules,
+			applications: this.menu("").applications,
+		};
+	}
+
 	/** Validate the explicit choice before atomically replacing only this app's preference file. */
 	async save(path: string | null): Promise<EditorApplication | null> {
-		this.load();
+		this.preferences();
 		const application = path === null ? null : await this.application(path);
+		const preferences = this.preferences();
+
+		this.persist({
+			...preferences,
+			application: application?.path ?? null,
+			applications: this.remember(preferences, application),
+		});
+
+		if (application) this.catalog.set(application.path, application);
+
+		return application;
+	}
+
+	private remember(
+		preferences: EditorPreferences,
+		application: EditorApplication | null
+	): readonly string[] {
+		return application
+			? [...new Set([...preferences.applications, application.path])]
+			: preferences.applications;
+	}
+
+	/** Explicitly add/edit one rule, preserving the overall default and rejecting ambiguous duplicates. */
+	async saveRule(
+		id: string | null,
+		input: string,
+		path: string | null
+	): Promise<EditorRule> {
+		const patterns = ExternalEditors.normalizePatterns(
+			input.split(",").map((value) => value.trim())
+		);
+
+		this.preferences();
+		const application = path === null ? null : await this.application(path);
+		const preferences = this.preferences();
+
+		if (id && !preferences.rules.some((rule) => rule.id === id))
+			throw new Error("This rule no longer exists. Reopen Settings.");
+
+		if (
+			preferences.rules.some(
+				(rule) =>
+					rule.id !== id &&
+					rule.patterns.some((pattern) => patterns.includes(pattern))
+			)
+		)
+			throw new Error(
+				"A default already exists for one of these file types. Edit that rule instead."
+			);
+
+		const rule: EditorRule = {
+			id: id ?? randomUUID(),
+			patterns,
+			application: application?.path ?? null,
+		};
+
+		const rules = id
+			? preferences.rules.map((item) => (item.id === id ? rule : item))
+			: [...preferences.rules, rule];
+
+		this.persist({
+			...preferences,
+			rules,
+			applications: this.remember(preferences, application),
+		});
+
+		if (application) this.catalog.set(application.path, application);
+
+		return rule;
+	}
+
+	/** Remove only the chosen override; its file types return to the overall default. */
+	removeRule(id: string): void {
+		const preferences = this.preferences();
+
+		if (!preferences.rules.some((rule) => rule.id === id))
+			throw new Error("This rule no longer exists. Reopen Settings.");
+
+		this.persist({
+			...preferences,
+			rules: preferences.rules.filter((rule) => rule.id !== id),
+		});
+	}
+
+	private persist(preferences: EditorPreferences): void {
+		const content = `${JSON.stringify({ version: 2, ...preferences })}\n`;
+
+		if (
+			Buffer.byteLength(content) > maxPreferenceBytes ||
+			preferences.rules.length > 64 ||
+			preferences.applications.length > 64
+		)
+			throw new Error("Too many editor defaults or applications.");
+
 		const temporary = `${this.preferencePath}.${randomUUID()}.tmp`;
 
 		mkdirSync(dirname(this.preferencePath), { recursive: true, mode: 0o700 });
 
 		try {
-			writeFileSync(
-				temporary,
-				`${JSON.stringify({ version: 1, application: application?.path ?? null })}\n`,
-				{ flag: "wx", mode: 0o600 }
-			);
+			writeFileSync(temporary, content, { flag: "wx", mode: 0o600 });
 			renameSync(temporary, this.preferencePath);
 		} finally {
 			rmSync(temporary, { force: true });
 		}
-
-		return application;
 	}
 
 	/** Re-read the preference for each explicit file open. An unavailable choice fails instead of silently launching another app. */
-	async open(absolute: string): Promise<void> {
+	async open(absolute: string, override?: string | null): Promise<void> {
 		if (process.platform !== "darwin")
 			throw new Error("Open in editor currently requires macOS.");
 
@@ -240,7 +527,11 @@ export class ExternalEditors {
 				"Only existing regular files can be opened in an editor."
 			);
 
-		const selected = this.load();
+		const selected =
+			override === undefined
+				? ExternalEditors.resolve(absolute, this.preferences())
+				: override;
+
 		let application: EditorApplication | null = null;
 
 		if (selected) {

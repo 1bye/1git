@@ -1,0 +1,109 @@
+diff --git a/crates/gpui_macos/src/context_menu.rs b/crates/gpui_macos/src/context_menu.rs
+--- a/crates/gpui_macos/src/context_menu.rs
++++ b/crates/gpui_macos/src/context_menu.rs
+@@ -2,4 +2,4 @@
+ use cocoa::base::{id, nil, BOOL, NO, YES};
+-use cocoa::foundation::{NSPoint, NSRect};
++use cocoa::foundation::{NSPoint, NSRect, NSSize};
+ use objc::{class, declare::ClassDecl, msg_send, sel, sel_impl};
+ use objc::runtime::{Class, Object, Sel};
+@@ -12,6 +12,69 @@
+         this.set_ivar("selectedIndex", index);
+     }
+ }
+ 
++thread_local! {
++    // AppKit owns the small copies and may evict them under memory pressure.
++    static APPLICATION_MENU_ICONS: objc::rc::StrongPtr = unsafe {
++        let cache: id = msg_send![class!(NSCache), new];
++        let _: () = msg_send![cache, setCountLimit: 64_usize];
++        objc::rc::StrongPtr::new(cache)
++    };
++}
++
++/// Only application bundles can supply decorative icons; never interpret URLs or executable commands.
++fn application_menu_icon(path: &str) -> id {
++    let application = std::path::Path::new(path);
++    if path.is_empty() || path.len() > 4096 || path.contains(['\0', '\r', '\n'])
++        || !application.is_absolute()
++        || !application.extension().is_some_and(|extension| extension.eq_ignore_ascii_case("app"))
++        || application.components().any(|part| matches!(part, std::path::Component::ParentDir | std::path::Component::CurDir))
++    {
++        return nil;
++    }
++    APPLICATION_MENU_ICONS.with(|cache| unsafe {
++        let key = crate::ns_string(path);
++        let cached: id = msg_send![**cache, objectForKey: key];
++        if cached != nil { return cached; }
++        if !std::fs::metadata(application).is_ok_and(|metadata| metadata.is_dir()) { return nil; }
++        let workspace: id = msg_send![class!(NSWorkspace), sharedWorkspace];
++        let source: id = msg_send![workspace, iconForFile: key];
++        if source == nil { return nil; }
++        // Never resize the image shared by LaunchServices or another menu.
++        let image: id = msg_send![source, copy];
++        let _: () = msg_send![image, setSize: NSSize::new(16.0, 16.0)];
++        let _: () = msg_send![**cache, setObject: image forKey: key];
++        let _: id = msg_send![image, autorelease];
++        image
++    })
++}
++
++fn set_application_menu_icon(item: id, path: &str) {
++    unsafe {
++        let _: () = msg_send![item, setImage: application_menu_icon(path)];
++    }
++}
++
++/// Inspect real NSMenuItem image sizes without entering AppKit's blocking menu tracking loop.
++#[cfg(any(test, feature = "test-support"))]
++pub fn context_menu_icon_sizes(paths: &[String]) -> anyhow::Result<Vec<f64>> {
++    anyhow::ensure!(paths.len() <= 128, "Too many menu icons");
++    unsafe {
++        let main_thread: BOOL = msg_send![class!(NSThread), isMainThread];
++        anyhow::ensure!(main_thread == YES, "Menu icons require the main thread");
++        let _pool = crate::TestAutoreleasePool::new();
++        let mut sizes = Vec::with_capacity(paths.len() * 2);
++        for path in paths {
++            let item: id = msg_send![class!(NSMenuItem), new];
++            set_application_menu_icon(item, path);
++            let image: id = msg_send![item, image];
++            let size = if image == nil { NSSize::new(0.0, 0.0) } else { msg_send![image, size] };
++            sizes.extend([size.width, size.height]);
++            let _: () = msg_send![item, release];
++        }
++        Ok(sizes)
++    }
++}
++
+ /// Resolve the owning GPUI view, not NSApplication's transient key window.
+ pub fn context_menu_view(window: &gpui::Window) -> anyhow::Result<usize> {
+@@ -26,4 +89,4 @@
+ pub fn show_native_context_menu(view_address: usize, labels: &[String], enabled: &[bool], x: f64, y: f64) -> anyhow::Result<i32> {
+-    show_native_context_menu_items(view_address, labels, enabled, &vec![-1; labels.len()], x, y)
++    show_native_context_menu_items(view_address, labels, enabled, &vec![-1; labels.len()], x, y, &vec![String::new(); labels.len()])
+ }
+ 
+@@ -30,5 +93,5 @@
+ /// Parent indices must precede children; empty labels represent separators. Leaf tags keep flat action indices.
+-pub fn show_native_context_menu_items(view_address: usize, labels: &[String], enabled: &[bool], parents: &[i32], x: f64, y: f64) -> anyhow::Result<i32> {
+-    anyhow::ensure!(!labels.is_empty() && labels.len() <= 128 && labels.len() == enabled.len() && labels.len() == parents.len(), "Invalid menu items");
++pub fn show_native_context_menu_items(view_address: usize, labels: &[String], enabled: &[bool], parents: &[i32], x: f64, y: f64, icon_paths: &[String]) -> anyhow::Result<i32> {
++    anyhow::ensure!(!labels.is_empty() && labels.len() <= 128 && labels.len() == enabled.len() && labels.len() == parents.len() && labels.len() == icon_paths.len(), "Invalid menu items");
+     for (index, parent) in parents.iter().enumerate() {
+         anyhow::ensure!(*parent == -1 || (*parent >= 0 && (*parent as usize) < index && parents[*parent as usize] == -1 && !labels[*parent as usize].is_empty()), "Invalid menu parent");
+@@ -71,4 +134,5 @@
+             let _: () = msg_send![item, setTag: index as i64];
+             let _: () = msg_send![item, setEnabled: if enabled[index] { YES } else { NO }];
++            set_application_menu_icon(item, &icon_paths[index]);
+             if parents.iter().any(|parent| *parent == index as i32) {
+                 let submenu: id = msg_send![class!(NSMenu), new];
+diff --git a/crates/gpui_macos/src/gpui_macos.rs b/crates/gpui_macos/src/gpui_macos.rs
+--- a/crates/gpui_macos/src/gpui_macos.rs
++++ b/crates/gpui_macos/src/gpui_macos.rs
+@@ -8,4 +8,6 @@
+ mod context_menu;
+ pub use context_menu::{context_menu_view, show_native_context_menu, show_native_context_menu_items, confirm_file_discard, confirm_ignore_rule};
++#[cfg(any(test, feature = "test-support"))]
++pub use context_menu::context_menu_icon_sizes;
+ mod display;
+ mod display_link;

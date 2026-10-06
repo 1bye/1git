@@ -48,7 +48,12 @@ export class RepositoryConflicts {
 	}
 
 	/** Uses the app's external-editor preference, never a command from repository configuration. */
-	static async openEditor(root: string, path: string): Promise<void> {
+	static async openEditor(
+		root: string,
+		path: string,
+		application?: string | null,
+		editors = new ExternalEditors()
+	): Promise<void> {
 		const canonicalRoot = await realpath(root);
 		const absolute = resolve(canonicalRoot, path);
 		const local = relative(canonicalRoot, absolute);
@@ -64,6 +69,7 @@ export class RepositoryConflicts {
 				"Only regular files inside this repository can be opened here."
 			);
 
-		await new ExternalEditors().open(absolute);
+		if (application === undefined) await editors.open(absolute);
+		else await editors.open(absolute, application);
 	}
 }

@@ -4,7 +4,10 @@
  * Doubles: AppKit menu/confirmation bridge, operating-system actions and Git writes.
  * Requires: patched GPUIX/macOS graphics.
  */
-import { afterEach, beforeEach, expect, it, mock } from "bun:test";
+import { afterEach, beforeEach, expect, it, mock, spyOn } from "bun:test";
+import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { createTestRoot, type TestRoot } from "@gpuix/react/testing";
 import { RepositoryList } from "../../src/feature/repository-workspace/components/repository-list";
 import { windowOptions } from "../../src/window-options";
@@ -13,6 +16,8 @@ import { repositorySnapshot } from "../_shared/repository-snapshot";
 import { App } from "../../src/app";
 import { RepositoryFileActions } from "../../src/feature/repository-workspace/lib/repository-file-actions";
 import type { FileMenuActions } from "../../src/feature/repository-workspace/components/repository-file-menu";
+import { ExternalEditors } from "../../src/feature/editor-settings/external-editors";
+import { editorApplication } from "../_shared/editor-application";
 
 let root: TestRoot;
 let choice: string;
@@ -20,6 +25,8 @@ let confirmed: boolean;
 let enabledItems: boolean[];
 let menuLabels: string[];
 let menuParents: number[];
+let menuIcons: string[];
+let editorDirectory: string | undefined;
 
 beforeEach(() => {
 	root = createTestRoot({
@@ -33,15 +40,20 @@ beforeEach(() => {
 	enabledItems = [];
 	menuLabels = [];
 	menuParents = [];
+	menuIcons = [];
 	Object.assign(root.renderer, {
 		showContextMenuItems(
 			labels: string[],
 			enabled: boolean[],
-			parents: number[]
+			parents: number[],
+			_x: number,
+			_y: number,
+			icons: string[]
 		) {
 			enabledItems = enabled;
 			menuLabels = labels;
 			menuParents = parents;
+			menuIcons = icons;
 
 			return choice === "discard"
 				? labels.findIndex((label) => label.toLowerCase().startsWith("discard"))
@@ -55,7 +67,15 @@ beforeEach(() => {
 		},
 	});
 });
-afterEach(() => root.unmount());
+afterEach(async () => {
+	root.unmount();
+	mock.restore();
+
+	if (editorDirectory) {
+		await rm(editorDirectory, { recursive: true, force: true });
+		editorDirectory = undefined;
+	}
+});
 const settle = async () => {
 	await Bun.sleep(150);
 	root.renderer.flush();
@@ -103,6 +123,191 @@ const render = (actions: FileMenuActions, path = "a.txt") =>
 			</div>
 		</div>
 	);
+
+async function editorChoices() {
+	editorDirectory = await realpath(
+		await mkdtemp(join(tmpdir(), "1git-editor-menu-"))
+	);
+	const zed = await editorApplication(editorDirectory, "Zed.app");
+	const cursor = await editorApplication(editorDirectory, "Cursor.app");
+	const preferences = join(editorDirectory, "editor.json");
+
+	const editors = new ExternalEditors(
+		preferences,
+		async () =>
+			JSON.stringify({
+				CFBundlePackageType: "APPL",
+				CFBundleIdentifier: "dev.1git.fixture",
+			}),
+		[editorDirectory]
+	);
+
+	await editors.saveRule(null, ".tsx", zed);
+	await editors.options();
+
+	return { editors, zed, cursor, preferences };
+}
+
+it("labels the file-type default and routes Open With as a one-time choice without changing preferences", async () => {
+	const { editors, zed, cursor, preferences } = await editorChoices();
+	const before = await readFile(preferences, "utf8");
+	const open = mock(async () => {});
+
+	render(
+		{
+			root: "/test",
+			head: "head",
+			branch: "main",
+			disabled: false,
+			canDiscard: true,
+			discard: async () => null,
+			editors,
+			open,
+		},
+		"src/file.tsx"
+	);
+	await settle();
+	choice = "Cursor";
+	await click("entry-src/file.tsx", 2);
+	expect(menuLabels).toContain("Open in Zed");
+	expect(menuLabels).toContain("Zed (Default)");
+	expect(menuIcons[menuLabels.indexOf("Reveal in Finder")]).toBe(
+		"/System/Library/CoreServices/Finder.app"
+	);
+	expect(menuIcons[menuLabels.indexOf("Open in Zed")]).toBe(zed);
+	expect(menuIcons[menuLabels.indexOf("Zed (Default)")]).toBe(zed);
+	expect(menuIcons[menuLabels.indexOf("Cursor")]).toBe(cursor);
+	expect(menuIcons.filter(Boolean)).toHaveLength(4);
+	expect(menuParents[menuLabels.indexOf("Cursor")]).toBe(
+		menuLabels.indexOf("Open With")
+	);
+	expect(open).toHaveBeenCalledWith("/test", "src/file.tsx", "editor", cursor);
+	choice = "Open in Zed";
+	await click("entry-src/file.tsx", 2);
+	expect(open).toHaveBeenLastCalledWith("/test", "src/file.tsx", "editor");
+	expect(editors.menu("src/file.tsx").selected).toBe(zed);
+	expect(await readFile(preferences, "utf8")).toBe(before);
+});
+
+it("shares live rules between window settings and file menus without remounting the workspace", async () => {
+	const { editors, cursor } = await editorChoices();
+	const open = mock<typeof RepositoryFileActions.open>(async () => {});
+	const rule = editors.preferences().rules[0];
+
+	if (!rule) throw new Error("Missing fixture rule");
+
+	root.render(
+		<App
+			initialSession={{
+				version: 1,
+				activeId: "workspace-1",
+				tabs: [{ id: "workspace-1", path: "/test", draft: "Keep draft" }],
+			}}
+			readRepository={async () => ({
+				ok: true,
+				value: repositorySnapshot([changedFile("src/file.tsx")]),
+			})}
+			externalEditors={editors}
+			openFile={open}
+		/>
+	);
+	await settle();
+	choice = "Open in Zed";
+	await click("entry-src/file.tsx", 2);
+	expect(open).toHaveBeenLastCalledWith(
+		"/test/project",
+		"src/file.tsx",
+		"editor"
+	);
+	root.renderer.simulateKeystrokes("cmd-,");
+	await settle();
+	await click("settings-editor");
+	await click(`editor-rule-edit-${rule.id}`);
+	await click("editor-rule-choice-1");
+	await click("editor-rule-save");
+	expect(editors.menu("src/file.tsx").selected).toBe(cursor);
+	root.renderer.simulateKeystrokes("escape");
+	await settle();
+	choice = "Open in Cursor";
+	await click("entry-src/file.tsx", 2);
+	expect(menuLabels).toContain("Cursor (Default)");
+	expect(open).toHaveBeenCalledTimes(2);
+	expect(root.renderer.findByTestId("commit-message")?.customProps?.value).toBe(
+		"Keep draft"
+	);
+});
+
+it("keeps other file actions available when editor preferences are damaged", async () => {
+	const { editors, preferences } = await editorChoices();
+	const open = mock(async () => {});
+
+	await writeFile(preferences, "{broken");
+	render({
+		root: "/test",
+		head: "head",
+		branch: "main",
+		disabled: false,
+		canDiscard: true,
+		discard: async () => null,
+		editors,
+		open,
+	});
+	await settle();
+	choice = "Copy Relative Path";
+	await click("entry-a.txt", 2);
+	expect(open).toHaveBeenCalledWith("/test", "a.txt", "copy");
+	expect(root.renderer.getAllText().join(" ")).toContain(
+		"saved file was left unchanged"
+	);
+	expect(await readFile(preferences, "utf8")).toBe("{broken");
+});
+
+it("uses Other application only for this opening and does nothing on picker cancellation", async () => {
+	const { editors, cursor, preferences } = await editorChoices();
+	const before = await readFile(preferences, "utf8");
+	const picker = spyOn(root.renderer, "promptForPaths").mockResolvedValue(null);
+	const open = mock(async () => {});
+
+	render({
+		root: "/test",
+		head: "head",
+		branch: "main",
+		disabled: false,
+		canDiscard: true,
+		discard: async () => null,
+		editors,
+		open,
+	});
+	await settle();
+	choice = "Other application…";
+	await click("entry-a.txt", 2);
+	expect(open).not.toHaveBeenCalled();
+	picker.mockResolvedValue([cursor]);
+	await click("entry-a.txt", 2);
+	expect(open).toHaveBeenCalledWith("/test", "a.txt", "editor", cursor);
+	expect(await readFile(preferences, "utf8")).toBe(before);
+});
+
+it("does not dispatch an Open With child while file actions are disabled", async () => {
+	const { editors } = await editorChoices();
+	const open = mock(async () => {});
+
+	render({
+		root: "/test",
+		head: "head",
+		branch: "main",
+		disabled: true,
+		canDiscard: true,
+		discard: async () => null,
+		editors,
+		open,
+	});
+	await settle();
+	choice = "Cursor";
+	await click("entry-a.txt", 2);
+	expect(enabledItems[menuLabels.indexOf("Cursor")]).toBe(false);
+	expect(open).not.toHaveBeenCalled();
+});
 
 it("opens by right click and copies the relative path without Git writes", async () => {
 	const open = mock(async () => {});
@@ -313,6 +518,9 @@ it("routes full-path and default-app actions without changing the index", async 
 		["/test", "a.txt", "default"],
 	]);
 	expect(discard).not.toHaveBeenCalled();
+	expect(menuIcons.filter(Boolean)).toEqual([
+		"/System/Library/CoreServices/Finder.app",
+	]);
 });
 
 it("does not dispatch disabled ignore choices even if a bridge returns their index", async () => {

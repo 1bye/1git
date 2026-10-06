@@ -43,6 +43,7 @@ import type {
 	FileIgnoreRequest,
 	RepositoryFileActions,
 } from "../lib/repository-file-actions";
+import type { ExternalEditors } from "../../editor-settings/external-editors";
 
 const sidebarBorderWidth = 1;
 
@@ -156,6 +157,7 @@ export function RepositoryNavigation({
 	onDiscard,
 	onIgnore,
 	openFile,
+	externalEditors,
 	onPreviewIntent,
 }: {
 	workspaceId: string;
@@ -176,6 +178,7 @@ export function RepositoryNavigation({
 	onDiscard?: (request: FileDiscardRequest) => Promise<string | null>;
 	onIgnore?: (request: FileIgnoreRequest) => Promise<string | null>;
 	openFile?: typeof RepositoryFileActions.open;
+	externalEditors?: ExternalEditors;
 	onPreviewIntent?: (entry: WorkspaceEntry | null) => void;
 }) {
 	const renderer = useGpuixRequired();
@@ -315,6 +318,7 @@ export function RepositoryNavigation({
 									include: (ids, included) =>
 										onAction({ type: "include-files", ids, included }),
 									open: openFile,
+									editors: externalEditors,
 								}
 							: undefined
 					}

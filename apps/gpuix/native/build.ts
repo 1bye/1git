@@ -15,6 +15,8 @@ import {
 	contextMenuItemsPlatformPatchPath,
 	contextMenuOwnerPatchPath,
 	contextMenuOwnerPlatformPatchPath,
+	contextMenuIconsPatchPath,
+	contextMenuIconsPlatformPatchPath,
 	checkboxPatchPath,
 	diffPatchPath,
 	diffContextPatchPath,
@@ -102,6 +104,8 @@ if (
 		accountsPatchPath,
 		accountsPlatformPatchPath,
 		sidebarVibrancyPlatformPatchPath,
+		contextMenuIconsPatchPath,
+		contextMenuIconsPlatformPatchPath,
 	];
 
 	// Later patches can change an earlier patch's context. Unwind known patches
@@ -114,7 +118,8 @@ if (
 			patch === contextMenuOwnerPlatformPatchPath ||
 			patch === testSessionPlatformPatchPath ||
 			patch === accountsPlatformPatchPath ||
-			patch === sidebarVibrancyPlatformPatchPath
+			patch === sidebarVibrancyPlatformPatchPath ||
+			patch === contextMenuIconsPlatformPatchPath
 				? resolve(source, "zed")
 				: source;
 
@@ -136,7 +141,8 @@ if (
 			patch === contextMenuOwnerPlatformPatchPath ||
 			patch === testSessionPlatformPatchPath ||
 			patch === accountsPlatformPatchPath ||
-			patch === sidebarVibrancyPlatformPatchPath
+			patch === sidebarVibrancyPlatformPatchPath ||
+			patch === contextMenuIconsPlatformPatchPath
 				? resolve(source, "zed")
 				: source;
 

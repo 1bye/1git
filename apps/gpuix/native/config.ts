@@ -54,6 +54,14 @@ export const contextMenuOwnerPlatformPatchPath = resolve(
 	import.meta.dir,
 	"context-menu-owner-platform.patch"
 );
+export const contextMenuIconsPatchPath = resolve(
+	import.meta.dir,
+	"context-menu-icons.patch"
+);
+export const contextMenuIconsPlatformPatchPath = resolve(
+	import.meta.dir,
+	"context-menu-icons-platform.patch"
+);
 export const testSessionPatchPath = resolve(
 	import.meta.dir,
 	"test-session.patch"
@@ -102,5 +110,7 @@ export const nativeBuildId = createHash("sha256")
 	.update(readFileSync(sidebarVibrancyPlatformPatchPath))
 	.update(readFileSync(accountsPatchPath))
 	.update(readFileSync(accountsPlatformPatchPath))
+	.update(readFileSync(contextMenuIconsPatchPath))
+	.update(readFileSync(contextMenuIconsPlatformPatchPath))
 	.update(`${process.platform}-${process.arch}-release-v1`)
 	.digest("hex");

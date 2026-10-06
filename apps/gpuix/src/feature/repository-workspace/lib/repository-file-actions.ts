@@ -7,6 +7,7 @@ import { promisify } from "node:util";
 import { GitRepository, type IgnoreFileInput } from "@1git/git";
 import { RepositoryConflicts } from "./repository-conflicts";
 import { NativeClipboard } from "../../../platform/clipboard";
+import { ExternalEditors } from "../../editor-settings/external-editors";
 
 const execute = promisify(execFile);
 
@@ -36,7 +37,9 @@ export class RepositoryFileActions {
 	static async open(
 		root: string,
 		path: string | readonly string[],
-		kind: "editor" | "finder" | "default" | "copy" | "copy-full"
+		kind: "editor" | "finder" | "default" | "copy" | "copy-full",
+		application?: string | null,
+		editors?: ExternalEditors
 	) {
 		const requested = typeof path === "string" ? [path] : path;
 
@@ -46,7 +49,12 @@ export class RepositoryFileActions {
 			if (requested.length !== 1 || !requested[0])
 				throw new Error("Choose one file to open.");
 
-			return await RepositoryConflicts.openEditor(root, requested[0]);
+			return await RepositoryConflicts.openEditor(
+				root,
+				requested[0],
+				application,
+				editors
+			);
 		}
 
 		if (kind === "copy") {

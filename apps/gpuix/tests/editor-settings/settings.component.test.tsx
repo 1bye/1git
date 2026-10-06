@@ -150,7 +150,7 @@ it("adds and selects an application from the native picker without launching it"
 	});
 	expect(editors.load()).toBe(custom);
 	expect(root.renderer.getAllText()).toContain("Custom Editor");
-	expect(node("editor-choice-2").customProps?.["aria-description"]).toBe(
+	expect(node("editor-choice-1").customProps?.["aria-description"]).toBe(
 		"Selected editor"
 	);
 
@@ -242,4 +242,180 @@ it("guards navigation while the picker is pending and does not claim success aft
 	expect(node("editor-choice-0").customProps?.["aria-description"]).toBe(
 		"Selected editor"
 	);
+});
+
+async function typePatterns(value: string) {
+	await click("editor-rule-patterns");
+	root.renderer.simulateKeystrokes("cmd-a");
+	root.renderer.simulateKeystrokes([...value].join(" "));
+	await settle();
+}
+
+it("uses a right-side draft for Add/Edit, saves explicitly, restores focus on Escape and removes just the override", async () => {
+	await editors.save(zed);
+	const back = mock(() => {});
+
+	root.render(
+		<AccountsSettings
+			accounts={accounts}
+			externalEditors={editors}
+			initialSection="editor"
+			onBack={back}
+		/>
+	);
+	await settle();
+	await click("editor-rule-add");
+	await typePatterns(".md, Dockerfile");
+	await click("editor-rule-choice-1");
+	expect(editors.preferences().rules).toEqual([]);
+	await click("editor-rule-save");
+	const rule = editors.preferences().rules[0];
+
+	if (!rule) throw new Error("Rule was not saved");
+
+	expect(rule.patterns).toEqual([".md", "Dockerfile"]);
+	expect(editors.load()).toBe(zed);
+	expect(root.renderer.findByTestId("editor-rule-editor")).toBeUndefined();
+	await click(`editor-rule-edit-${rule.id}`);
+	await typePatterns(".tsx");
+	root.renderer.simulateKeystrokes("escape");
+	await settle();
+	expect(back).not.toHaveBeenCalled();
+	expect(editors.preferences().rules[0]?.patterns).toEqual([
+		".md",
+		"Dockerfile",
+	]);
+	expect(root.renderer.getFocusedElementId()).toBe(
+		node(`editor-rule-edit-${rule.id}`).id
+	);
+	await click(`editor-rule-edit-${rule.id}`);
+	await typePatterns(".tsx");
+	await click("editor-rule-choice-0");
+	await click("editor-rule-save");
+	expect(editors.menu("file.tsx").selected).toBeNull();
+	await click(`editor-rule-remove-${rule.id}`);
+	expect(editors.menu("file.tsx").selected).toBe(zed);
+	expect(editors.preferences().rules).toEqual([]);
+});
+
+it("keeps a custom-app rule draft private until Save and reports duplicate types without losing input", async () => {
+	const existing = await editors.saveRule(null, ".ts", zed);
+
+	spyOn(root.renderer, "promptForPaths").mockResolvedValue([custom]);
+	root.render(
+		<AccountsSettings
+			accounts={accounts}
+			externalEditors={editors}
+			initialSection="editor"
+			onBack={() => {}}
+		/>
+	);
+	await settle();
+	await click("editor-rule-add");
+	await typePatterns(".md");
+	const before = await readFile(preferences, "utf8");
+
+	await click("editor-rule-choose-application");
+	expect(await readFile(preferences, "utf8")).toBe(before);
+	await click("editor-rule-cancel");
+	expect(await readFile(preferences, "utf8")).toBe(before);
+	await click("editor-rule-add");
+	await typePatterns(".TS");
+	await click("editor-rule-save");
+	expect(root.renderer.getAllText().join(" ")).toContain(
+		"default already exists"
+	);
+	expect(node("editor-rule-patterns").customProps?.value).toBe(".TS");
+	expect(editors.preferences().rules).toEqual([existing]);
+	await typePatterns(".md");
+	await click("editor-rule-choose-application");
+
+	if (process.env.GPUIX_EDITOR_RULE_SCREENSHOT)
+		root.renderer.captureScreenshot(process.env.GPUIX_EDITOR_RULE_SCREENSHOT);
+
+	await click("editor-rule-save");
+	expect(editors.menu("README.md").selected).toBe(custom);
+	expect(editors.load()).toBeNull();
+});
+
+it("guards duplicate rule saves and navigation until the save finishes", async () => {
+	const pending = Promise.withResolvers<void>();
+	const save = editors.saveRule.bind(editors);
+
+	const writes = spyOn(editors, "saveRule").mockImplementation(
+		async (...args) => {
+			await pending.promise;
+
+			return await save(...args);
+		}
+	);
+
+	const back = mock(() => {});
+
+	root.render(
+		<AccountsSettings
+			accounts={accounts}
+			externalEditors={editors}
+			initialSection="editor"
+			onBack={back}
+		/>
+	);
+	await settle();
+	await click("editor-rule-add");
+	await typePatterns(".tsx");
+	await click("editor-rule-save");
+	await click("editor-rule-save");
+	await click("settings-accounts");
+	root.renderer.simulateKeystrokes("escape");
+	await settle();
+	expect(writes).toHaveBeenCalledTimes(1);
+	expect(back).not.toHaveBeenCalled();
+	expect(root.renderer.findByTestId("editor-rule-editor")).toBeDefined();
+	pending.resolve();
+	await settle();
+	expect(root.renderer.findByTestId("editor-rule-editor")).toBeUndefined();
+	expect(editors.preferences().rules[0]?.patterns).toEqual([".tsx"]);
+});
+
+it("scrolls long application lists independently and keeps rule footer actions visible at minimum size", async () => {
+	for (let index = 0; index < 14; index++)
+		await editors.save(
+			await editorApplication(directory, `Editor ${index}.app`)
+		);
+
+	root.render(
+		<AccountsSettings
+			accounts={accounts}
+			externalEditors={editors}
+			initialSection="editor"
+			onBack={() => {}}
+		/>
+	);
+	await settle();
+	const scroll = node("editor-settings-scroll");
+
+	root.renderer.scrollTo(scroll.id, 0, -1000);
+	await settle();
+	await click("editor-rule-add");
+	const footer = root.renderer.getElementBounds(node("editor-rule-footer").id);
+	const save = root.renderer.getElementBounds(node("editor-rule-save").id);
+	const form = root.renderer.getElementBounds(node("editor-rule-editor").id);
+
+	if (!footer || !save || !form) throw new Error("Missing rule form layout");
+
+	expect(save.y).toBeGreaterThanOrEqual(footer.y);
+	expect(save.y + save.height).toBeLessThanOrEqual(form.y + form.height);
+	const list = node("editor-rule-scroll");
+
+	root.renderer.scrollTo(list.id, 0, -1000);
+	await settle();
+	expect(root.renderer.getElementBounds(node("editor-rule-footer").id)).toEqual(
+		footer
+	);
+
+	if (process.env.GPUIX_EDITOR_LONG_SCREENSHOT)
+		root.renderer.captureScreenshot(process.env.GPUIX_EDITOR_LONG_SCREENSHOT);
+
+	await click("editor-rule-cancel");
+	expect(editors.preferences().rules).toEqual([]);
 });

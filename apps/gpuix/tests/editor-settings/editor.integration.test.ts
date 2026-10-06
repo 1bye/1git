@@ -65,7 +65,11 @@ afterEach(async () => {
 });
 
 it("keeps the default text-editor association when no preference exists", async () => {
-	expect(await editors.options()).toEqual({ selected: null, applications: [] });
+	expect(await editors.options()).toEqual({
+		selected: null,
+		applications: [],
+		rules: [],
+	});
 	await editors.open(file);
 
 	expect(launches).toEqual([["-t", file]]);
@@ -87,8 +91,10 @@ it("detects installed editors and restores a private preference in a fresh owner
 	expect(restored.load()).toBe(zed);
 	expect((await stat(preferences)).mode & 0o777).toBe(0o600);
 	expect(JSON.parse(await readFile(preferences, "utf8"))).toEqual({
-		version: 1,
+		version: 2,
 		application: zed,
+		applications: [zed],
+		rules: [],
 	});
 	await editors.open(file);
 	expect(launches).toEqual([["-a", zed, file]]);
@@ -118,6 +124,7 @@ it("retains an unavailable saved choice and never silently falls back to another
 
 	expect(await editors.options()).toEqual({
 		selected: zed,
+		rules: [],
 		applications: [{ path: zed, name: "Zed", available: false }],
 	});
 	await expect(editors.open(file)).rejects.toThrow(
@@ -155,7 +162,7 @@ it("leaves malformed, unsupported and oversized preferences untouched", async ()
 		"{broken",
 		JSON.stringify({ version: 2, application: null }),
 		JSON.stringify({ version: 1, application: "../editor.app" }),
-		" ".repeat(8193),
+		" ".repeat(65537),
 	]) {
 		await writeFile(preferences, content);
 		await expect(editors.save(null)).rejects.toThrow(
@@ -186,4 +193,173 @@ it("routes both conflict and file-menu requests through the editor owner, after 
 		).rejects.toThrow("regular files inside");
 
 	expect(open).not.toHaveBeenCalled();
+});
+
+it("reads version 1 without writing and migrates on an explicit rule save", async () => {
+	const zed = await editorApplication(applicationDirectory, "Zed.app");
+
+	await mkdir(join(directory, "settings"));
+	const original = JSON.stringify({ version: 1, application: zed });
+
+	await writeFile(preferences, original);
+	expect(editors.preferences()).toEqual({
+		application: zed,
+		applications: [zed],
+		rules: [],
+	});
+	await editors.options();
+	expect(await readFile(preferences, "utf8")).toBe(original);
+	const rule = await editors.saveRule(null, ".ts, .tsx", zed);
+
+	expect(new ExternalEditors(preferences).preferences().rules).toEqual([rule]);
+	expect(editors.load()).toBe(zed);
+	expect(JSON.parse(await readFile(preferences, "utf8")).version).toBe(2);
+});
+
+it("resolves exact filenames before longest extensions, with one-time overrides that never alter defaults", async () => {
+	const zed = await editorApplication(applicationDirectory, "Zed.app");
+	const cursor = await editorApplication(applicationDirectory, "Cursor.app");
+	const custom = await editorApplication(directory, "Custom.app");
+
+	await editors.save(zed);
+	await editors.saveRule(null, ".TS, .tsx", cursor);
+	await editors.saveRule(null, ".d.ts", custom);
+	await editors.saveRule(null, "special.d.ts, Dockerfile, .env", zed);
+	const before = await readFile(preferences, "utf8");
+
+	for (const [name, application] of [
+		["file.ts", cursor],
+		["FILE.TSX", cursor],
+		["types.d.ts", custom],
+		["special.d.ts", zed],
+		["Dockerfile", zed],
+		[".env", zed],
+		["unknown.txt", zed],
+	] as const) {
+		const path = join(directory, name);
+
+		await writeFile(path, "unchanged");
+		await editors.open(path);
+		expect(launches.at(-1)).toEqual(["-a", application, path]);
+	}
+
+	await editors.open(join(directory, "types.d.ts"), cursor);
+	expect(launches.at(-1)).toEqual([
+		"-a",
+		cursor,
+		join(directory, "types.d.ts"),
+	]);
+	await editors.open(file, null);
+	expect(launches.at(-1)).toEqual(["-t", file]);
+	expect(await readFile(preferences, "utf8")).toBe(before);
+
+	await RepositoryFileActions.open(
+		directory,
+		"types.d.ts",
+		"editor",
+		cursor,
+		editors
+	);
+	await RepositoryConflicts.openEditor(
+		directory,
+		"types.d.ts",
+		undefined,
+		editors
+	);
+	expect(launches.slice(-2)).toEqual([
+		["-a", cursor, join(directory, "types.d.ts")],
+		["-a", custom, join(directory, "types.d.ts")],
+	]);
+});
+
+it("preserves unrelated defaults while editing or removing rules and rejects ambiguous or unsafe patterns", async () => {
+	const zed = await editorApplication(applicationDirectory, "Zed.app");
+	const cursor = await editorApplication(applicationDirectory, "Cursor.app");
+
+	await editors.save(zed);
+	const rule = await editors.saveRule(null, ".ts, .tsx", cursor);
+	const before = await readFile(preferences, "utf8");
+
+	for (const patterns of [
+		".TS",
+		".tsx, .md",
+		"",
+		"src/file.ts",
+		"*.ts",
+		".ts, .ts",
+		".",
+		"..",
+	]) {
+		await expect(editors.saveRule(null, patterns, zed)).rejects.toThrow();
+		expect(await readFile(preferences, "utf8")).toBe(before);
+	}
+
+	await expect(editors.saveRule(rule.id, ".md", file)).rejects.toThrow();
+	expect(await readFile(preferences, "utf8")).toBe(before);
+	const edited = await editors.saveRule(rule.id, ".md", zed);
+
+	expect(editors.preferences().rules).toEqual([edited]);
+	await editors.save(cursor);
+	expect(editors.preferences().rules).toEqual([edited]);
+	editors.removeRule(rule.id);
+	expect(editors.preferences().rules).toEqual([]);
+	expect(editors.load()).toBe(cursor);
+	expect(() => editors.removeRule(rule.id)).toThrow("no longer exists");
+});
+
+it("builds menus from warmed metadata without further commands and rereads changed defaults", async () => {
+	const zed = await editorApplication(applicationDirectory, "Zed.app");
+	const cursor = await editorApplication(applicationDirectory, "Cursor.app");
+
+	await editors.save(zed);
+	const inspect = spyOn(editors, "application");
+
+	await editors.discover();
+	const inspections = inspect.mock.calls.length;
+
+	expect(inspections).toBeGreaterThan(0);
+
+	for (let count = 0; count < 5; count++) {
+		expect(editors.menu("file.ts").selected).toBe(zed);
+		expect(editors.menu("file.ts").applications.map((app) => app.path)).toEqual(
+			[cursor, zed]
+		);
+	}
+
+	await editors.saveRule(null, ".ts", null);
+	expect(editors.menu("file.ts").selected).toBeNull();
+	expect(inspect).toHaveBeenCalledTimes(inspections);
+
+	const commands = mock(async () => {
+		throw new Error("Menu must not execute commands");
+	});
+
+	const cold = new ExternalEditors(preferences, commands, []);
+
+	// Saved paths can be labeled before discovery without command execution either.
+	expect(cold.menu("file.txt").applications[0]?.path).toBe(zed);
+	expect(commands).not.toHaveBeenCalled();
+});
+
+it("rejects malformed rule documents without overwriting them, and refuses a disappeared rule editor", async () => {
+	await mkdir(join(directory, "settings"));
+	const invalid = JSON.stringify({
+		version: 2,
+		application: null,
+		applications: [],
+		rules: [
+			{ id: "a", patterns: [".ts"], application: null },
+			{ id: "b", patterns: [" .TS "], application: null },
+		],
+	});
+
+	await writeFile(preferences, invalid);
+	await expect(editors.saveRule(null, ".md", null)).rejects.toThrow(
+		"saved file was left unchanged"
+	);
+	expect(await readFile(preferences, "utf8")).toBe(invalid);
+	await rm(preferences);
+	await expect(editors.saveRule("missing", ".ts", null)).rejects.toThrow(
+		"no longer exists"
+	);
 });

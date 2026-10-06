@@ -187,6 +187,29 @@ custom macOS `.app`. Common editors are detected in `/Applications` and
 `~/Applications`; **System default** keeps the macOS text-editor association.
 Choices save immediately and survive restarts in private `editor.json` beside
 `session.json`. `GPUIX_EDITOR_SETTINGS_PATH` isolates this preference for testing.
+**File type defaults → Add rule** opens a right-side draft form. Enter comma-separated
+extensions (such as `.ts, .tsx`) or exact filenames (such as `Dockerfile`), choose
+an application, then Save. Edit and remove rules beside their summaries. Cancel or
+Escape discards only the draft; application choices in the draft do not save early.
+Exact filenames win, followed by the longest case-insensitive extension (`.d.ts`
+before `.ts`), followed by the overall default. A System default rule explicitly
+uses the macOS text-editor association. Duplicate file types are rejected.
+
+Single-file context menus keep the resolved **Open in Zed** shortcut and add
+**Open With** with installed/saved applications, System default and **Other application…**.
+These choices affect this opening only; they never change preferences or system
+file associations. The existing **Open with Default App** action still uses the
+ordinary macOS file-type association instead of the text-editor association.
+Application discovery is warmed once per window and refreshed in Settings; opening
+the menu reads cached editor metadata and bounded preferences without discovery scans
+or subprocesses.
+Finder, the resolved editor shortcut, and available applications in **Open With**
+show their own small native app icons. Other actions remain text-only. AppKit caches
+16-point image copies with memory-pressure eviction after the first bundle lookup;
+missing/invalid icons leave the label and action intact. Icon lookup never launches
+the application.
+Version 1 preferences remain readable and upgrade only on an explicit save.
+
 Cancel leaves the selection unchanged. An unavailable saved editor stays visible
 and produces an error when opening a file; select another rather than silently
 falling back. Launching passes validated paths directly to `open -a` or `open -t`,
@@ -1010,8 +1033,8 @@ hot reload cannot replace a loaded addon. This bridge is macOS-only.
 
 - Conflicted Changes rows show a red status icon and **Conflict** label. Selecting
   one shows the read-only working file, including its conflict markers.
-- **Open in editor** uses the app's **External editor** preference (macOS's default
-  text editor until changed), never a repository-provided shell command.
+- **Open in editor** uses the same file-type rules and overall **External editor**
+  preference (macOS's default text editor until changed), never a repository-provided shell command.
   Save edits there, then **Refresh preview**.
 - **Mark resolved** stages only the reviewed file. It rechecks HEAD/branch,
   conflict status, regular-file safety, UTF-8 content, remaining marker lines,

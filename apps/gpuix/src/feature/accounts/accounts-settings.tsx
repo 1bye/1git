@@ -46,7 +46,10 @@ import {
 } from "../git-settings/git-settings";
 import { GitSettingsModel } from "../git-settings/git-settings-model";
 import { StateMessage } from "../../fixture/state-message";
-import { EditorSettings } from "../editor-settings/editor-settings";
+import {
+	EditorSettings,
+	type EditorSettingsHandle,
+} from "../editor-settings/editor-settings";
 import type { ExternalEditors } from "../editor-settings/external-editors";
 
 const fieldStyle = {
@@ -185,6 +188,7 @@ export function AccountsSettings({
 	const [gitBusy, setGitBusy] = useState(false);
 	const gitBusyRef = useRef(false);
 	const gitSettings = useRef<GitSettingsHandle | null>(null);
+	const editorSettings = useRef<EditorSettingsHandle | null>(null);
 	const settingsBusy = busy || gitBusy;
 
 	const repositorySection =
@@ -240,6 +244,8 @@ export function AccountsSettings({
 				if (gitBusyRef.current) return;
 
 				if (gitSettings.current?.cancelEditor()) return;
+
+				if (editorSettings.current?.cancelEditor()) return;
 
 				if (request.current) {
 					if (waiting) request.current.abort();
@@ -586,6 +592,7 @@ export function AccountsSettings({
 			{children}
 			{section === "editor" ? (
 				<EditorSettings
+					ref={editorSettings}
 					editors={externalEditors}
 					onBusy={(next) => {
 						gitBusyRef.current = next;

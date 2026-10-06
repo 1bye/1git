@@ -15,6 +15,7 @@ import {
 	type SettingsSection,
 } from "./feature/accounts/accounts-settings";
 import { GitSettingsModel } from "./feature/git-settings/git-settings-model";
+import { ExternalEditors } from "./feature/editor-settings/external-editors";
 import { Accounts } from "./feature/accounts/lib/accounts";
 import { AccountStore } from "./feature/accounts/lib/account-store";
 import { NativeCredentials } from "./feature/accounts/lib/native-credentials";
@@ -104,11 +105,12 @@ export function App({
 	writeStash = RepositoryStashes.write,
 	watchRepository,
 	resolveConflict = RepositoryConflicts.write,
-	openConflictEditor = RepositoryConflicts.openEditor,
+	openConflictEditor,
 	writeOperation = RepositoryOperation.write,
 	discardFile = RepositoryFileActions.discard,
 	ignoreFile = RepositoryFileActions.ignore,
-	openFile = RepositoryFileActions.open,
+	openFile,
+	externalEditors: suppliedEditors,
 	readGitSettings = GitSettingsModel.read,
 	writeGitSettings = GitSettingsModel.write,
 }: {
@@ -146,10 +148,49 @@ export function App({
 	discardFile?: typeof RepositoryFileActions.discard;
 	ignoreFile?: typeof RepositoryFileActions.ignore;
 	openFile?: typeof RepositoryFileActions.open;
+	externalEditors?: ExternalEditors;
 	readGitSettings?: typeof GitSettingsModel.read;
 	writeGitSettings?: typeof GitSettingsModel.write;
 }) {
 	const renderer = useGpuixRequired();
+
+	const [externalEditors] = useState(
+		() => suppliedEditors ?? new ExternalEditors()
+	);
+
+	useEffect(() => {
+		void externalEditors.discover();
+	}, [externalEditors]);
+	const launchFile = useCallback<typeof RepositoryFileActions.open>(
+		(root, path, kind, application) => {
+			if (openFile)
+				return application === undefined
+					? openFile(root, path, kind)
+					: openFile(root, path, kind, application);
+
+			return RepositoryFileActions.open(
+				root,
+				path,
+				kind,
+				application,
+				externalEditors
+			);
+		},
+		[openFile, externalEditors]
+	);
+
+	const launchConflict = useCallback<typeof RepositoryConflicts.openEditor>(
+		(root, path) =>
+			openConflictEditor
+				? openConflictEditor(root, path)
+				: RepositoryConflicts.openEditor(
+						root,
+						path,
+						undefined,
+						externalEditors
+					),
+		[openConflictEditor, externalEditors]
+	);
 
 	const previewCache = useMemo(
 		() => new RepositoryPreviewCache(readDiff),
@@ -576,7 +617,8 @@ export function App({
 											: null
 									);
 								}}
-								openFile={openFile}
+								openFile={launchFile}
+								externalEditors={externalEditors}
 								onDiscard={(request) =>
 									mutations.discardFile(activeTab.id, request)
 								}
@@ -881,7 +923,7 @@ export function App({
 							onResolve={(hash, side) =>
 								mutations.resolve(activeTab.id, comparison.path, hash, side)
 							}
-							openConflictEditor={openConflictEditor}
+							openConflictEditor={launchConflict}
 						/>
 					) : (
 						<RepositoryDiffEmpty
@@ -905,6 +947,7 @@ export function App({
 					<AccountsSettings
 						onBack={closeSettings}
 						accounts={accounts}
+						externalEditors={externalEditors}
 						initialForm={settingsView ?? "list"}
 						remoteAccounts={remoteAccounts}
 						preferredAccountKey={preferredAccountKey}

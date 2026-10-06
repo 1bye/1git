@@ -1,11 +1,17 @@
-/** Native file menus have groups and one level of folder choices; separators are never selectable. */
+/** Native file menus support groups, one submenu level, and optional macOS application icons. */
 export type NativeMenuItem<T> =
 	| { separator: true }
-	| { label: string; enabled: boolean; value: T }
+	| { label: string; enabled: boolean; value: T; iconPath?: string }
 	| {
 			label: string;
 			enabled: boolean;
-			children: { label: string; enabled: boolean; value: T }[];
+			iconPath?: string;
+			children: {
+				label: string;
+				enabled: boolean;
+				value: T;
+				iconPath?: string;
+			}[];
 	  };
 
 /** The pinned addon owns AppKit tracking and confirmation; React receives only explicit choices. */
@@ -27,6 +33,7 @@ export class NativeFileMenu {
 		const labels: string[] = [];
 		const enabled: boolean[] = [];
 		const parents: number[] = [];
+		const iconPaths: string[] = [];
 		const choices: (T | undefined)[] = [];
 
 		for (const item of items) {
@@ -35,6 +42,7 @@ export class NativeFileMenu {
 			labels.push("separator" in item ? "" : item.label);
 			enabled.push("separator" in item ? false : item.enabled);
 			parents.push(-1);
+			iconPaths.push("separator" in item ? "" : (item.iconPath ?? ""));
 			choices.push("value" in item ? item.value : undefined);
 
 			if ("children" in item)
@@ -42,6 +50,7 @@ export class NativeFileMenu {
 					labels.push(child.label);
 					enabled.push(item.enabled && child.enabled);
 					parents.push(index);
+					iconPaths.push(child.iconPath ?? "");
 					choices.push(child.value);
 				}
 		}
@@ -51,7 +60,8 @@ export class NativeFileMenu {
 			enabled,
 			parents,
 			x,
-			y
+			y,
+			iconPaths
 		);
 
 		return enabled[index] ? choices[index] : undefined;
