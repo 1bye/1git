@@ -85,6 +85,14 @@ it("keeps chrome outside the rounded workspace and labels each repository view",
 	expect(button.width).toBe(32);
 	expect(button.x - rail.x).toBe(8);
 	expect(workspace.x - button.x - button.width).toBe(8);
+	const history = bounds("view-history");
+	const stashes = bounds("view-stashes");
+	const settings = bounds("rail-settings");
+	const account = bounds("rail-account");
+
+	expect(history.y - button.y - button.height).toBe(4);
+	expect(stashes.y - history.y - history.height).toBe(4);
+	expect(account.y - settings.y - settings.height).toBe(4);
 	expect(rail.y).toBe(42);
 	expect(bounds("rail-account").y).toBeGreaterThan(bounds("rail-settings").y);
 	expect(bounds("rail-account").y + 32).toBeLessThanOrEqual(720);

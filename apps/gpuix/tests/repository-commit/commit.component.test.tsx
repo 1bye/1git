@@ -1,5 +1,5 @@
 /**
- * Covers: checked-file commits, last-commit undo, combined Sync controls, duplicate prevention, draft/error retention and refresh.
+ * Covers: checked-file commits, last-commit undo, rail Sync controls, duplicate prevention, draft/error retention and refresh.
  * Real: App, reducers, hooks and native GPUIX events/layout.
  * Doubles: Git reads/writes and folder picker; no live repository mutations.
  * Requires: patched GPUIX renderer with macOS graphics access.
@@ -282,7 +282,7 @@ const open = async (): Promise<void> => {
 	await settle();
 };
 
-it("places a secondary Sync button immediately left of Commit and preserves the draft", async () => {
+it("keeps the rail Sync separate from the composer and preserves the draft", async () => {
 	const base = snapshot();
 
 	const tracked = {
@@ -320,25 +320,28 @@ it("places a secondary Sync button immediately left of Commit and preserves the 
 	if (layoutScreenshot) root.renderer.captureScreenshot(layoutScreenshot);
 
 	message();
-	const sync = root.renderer.getElementBounds(node("commit-sync").id);
+	const sync = root.renderer.getElementBounds(node("rail-sync").id);
 	const commit = root.renderer.getElementBounds(node("commit-submit").id);
 
 	expect(sync).toBeDefined();
 	expect(commit).toBeDefined();
-	expect(sync && commit && sync.x + sync.width).toBeLessThan(commit?.x ?? 0);
-	expect(sync?.y).toBe(commit?.y);
+	expect(sync?.x).toBeLessThan(composer?.x ?? 0);
+	expect(sync?.y).toBeLessThan(commit?.y ?? 0);
 	expect(commit && commit.x + commit.width).toBe(
 		(composer?.x ?? 0) + (composer?.width ?? 0) - 10
 	);
-	expect(node("commit-sync").style?.backgroundColor).not.toBe(
+	expect(node("rail-sync").style?.backgroundColor).not.toBe(
 		node("commit-submit").style?.backgroundColor
 	);
 	const screenshot = process.env.GPUIX_SYNC_SCREENSHOT;
 
 	if (screenshot) root.renderer.captureScreenshot(screenshot);
 
-	click("commit-sync");
-	click("commit-sync");
+	click("rail-sync");
+	click("rail-sync");
+	await settle();
+	root.renderer.clockFastForward(250);
+	root.renderer.flush();
 	expect(writeSyncRepository).toHaveBeenCalledTimes(1);
 	expect(writeSyncRepository.mock.calls[0]?.slice(0, 2)).toEqual([
 		"/test/project",
@@ -348,8 +351,10 @@ it("places a secondary Sync button immediately left of Commit and preserves the 
 			expectedBranch: "main",
 		},
 	]);
+	expect(writeSyncRepository.mock.calls[0]?.[2].aborted).toBe(false);
+	click("rail-sync-stop");
 	expect(writeSyncRepository.mock.calls[0]?.[2].aborted).toBe(true);
-	expect(root.renderer.getAllText()).toContain("Syncing…");
+	expect(node("rail-sync").customProps?.["aria-label"]).toContain("Syncing…");
 	click("commit-submit");
 	expect(node("commit-message").customProps?.value).toBe("fix");
 	pending.resolve({
@@ -410,7 +415,7 @@ it("syncs with the keyboard without extra menu reads or submitting checked files
 	await open();
 	message();
 	click("include-b.ts");
-	root.renderer.nativeSimulateKeyDown(node("commit-sync").id, "enter");
+	root.renderer.nativeSimulateKeyDown(node("rail-sync").id, "enter");
 	root.renderer.flush();
 	click("commit-submit");
 	root.renderer.nativeSimulateKeyDown(node("commit-message").id, "cmd-enter");
@@ -430,8 +435,12 @@ it("syncs with the keyboard without extra menu reads or submitting checked files
 	});
 	await settle();
 	await settle();
-	expect(root.renderer.getAllText()).toContain("Sync complete");
-	expect(node("commit-sync").customProps?.["aria-label"]).toBe("Sync complete");
+	expect(node("rail-sync").customProps?.["aria-label"]).toContain(
+		"Sync complete"
+	);
+	expect(node("rail-sync").customProps?.["aria-label"]).toBe(
+		"Sync complete — 1 outgoing"
+	);
 	expect(root.renderer.findByTestId("commit-notice-scroll")).toBeUndefined();
 	expect(node("commit-message").customProps?.value).toBe("fix");
 	expect(node("include-b.ts").customProps?.["aria-checked"]).toBe(false);
@@ -442,8 +451,8 @@ it("syncs with the keyboard without extra menu reads or submitting checked files
 	await Bun.sleep(3_100);
 	root.renderer.flush();
 	expect(root.renderer.getAllText()).not.toContain("Sync complete");
-	expect(node("commit-sync").customProps?.["aria-label"]).toBe(
-		"Sync with upstream"
+	expect(node("rail-sync").customProps?.["aria-label"]).toBe(
+		"Push outgoing commits — 1 outgoing"
 	);
 	click("view-history");
 	click("view-changes");
@@ -456,7 +465,7 @@ it("replaces Sync completion with progress on retry and keeps failure details vi
 
 	const tracked = {
 		...base,
-		head: { ...base.head, upstream: "origin/main" },
+		head: { ...base.head, upstream: "origin/main", ahead: 1 },
 	};
 
 	const pending =
@@ -479,13 +488,15 @@ it("replaces Sync completion with progress on retry and keeps failure details vi
 		/>
 	);
 	await open();
-	click("commit-sync");
+	click("rail-sync");
 	await settle();
 	await settle();
-	expect(root.renderer.getAllText()).toContain("Sync complete");
+	expect(node("rail-sync").customProps?.["aria-label"]).toContain(
+		"Sync complete"
+	);
 	writeSyncRepository.mockImplementation(() => pending.promise);
-	click("commit-sync");
-	expect(root.renderer.getAllText()).toContain("Syncing…");
+	click("rail-sync");
+	expect(node("rail-sync").customProps?.["aria-label"]).toContain("Syncing…");
 	expect(root.renderer.getAllText()).not.toContain("Sync complete");
 	expect(root.renderer.findByTestId("commit-notice-scroll")).toBeUndefined();
 	pending.resolve({
@@ -504,48 +515,10 @@ it("replaces Sync completion with progress on retry and keeps failure details vi
 		"Cannot reach upstream."
 	);
 	expect(root.renderer.getAllText()).not.toContain("Sync complete");
-	expect(node("commit-sync").customProps?.["aria-label"]).toBe(
-		"Sync with upstream"
+	expect(node("rail-sync").customProps?.["aria-label"]).toBe(
+		"Synchronization needs attention — 1 outgoing"
 	);
 });
-
-it.each(["untracked", "detached", "unborn", "merge"] as const)(
-	"disables Sync for a %s branch without writes",
-	async (condition) => {
-		const base = snapshot();
-
-		const value = {
-			...base,
-			head: {
-				...base.head,
-				upstream: condition === "untracked" ? null : "origin/main",
-				branch: condition === "detached" ? null : "main",
-				detached: condition === "detached",
-				oid: condition === "unborn" ? null : base.head.oid,
-				unborn: condition === "unborn",
-			},
-			operationState:
-				condition === "merge" ? ("merge" as const) : ("normal" as const),
-		};
-
-		const writeSyncRepository = mock<typeof RepositorySync.write>(async () => {
-			throw new Error("Blocked branches must not sync");
-		});
-
-		root.render(
-			<App
-				readRepository={async () => ({ ok: true, value })}
-				writeSyncRepository={writeSyncRepository}
-			/>
-		);
-		await open();
-		expect(node("commit-sync").style.opacity).toBe(0.45);
-		click("commit-sync");
-		root.renderer.nativeSimulateKeyDown(node("commit-sync").id, "enter");
-		root.renderer.flush();
-		expect(writeSyncRepository).not.toHaveBeenCalled();
-	}
-);
 
 it("never synchronizes preview workspaces", async () => {
 	const writeSyncRepository = mock<typeof RepositorySync.write>(async () => {
@@ -553,8 +526,7 @@ it("never synchronizes preview workspaces", async () => {
 	});
 
 	root.render(<App preview writeSyncRepository={writeSyncRepository} />);
-	expect(node("commit-sync").style.opacity).toBe(0.45);
-	click("commit-sync");
+	expect(root.renderer.findByTestId("rail-sync")).toBeUndefined();
 	expect(writeSyncRepository).not.toHaveBeenCalled();
 });
 

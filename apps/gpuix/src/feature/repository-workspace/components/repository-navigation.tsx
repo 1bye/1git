@@ -149,9 +149,6 @@ export function RepositoryNavigation({
 	onUndoCommit,
 	onRevertCommit,
 	readLastCommit,
-	onSync,
-	onPublish,
-	onCancelSync,
 	onStash,
 	onOperation,
 	onDiscard,
@@ -170,9 +167,6 @@ export function RepositoryNavigation({
 	onUndoCommit?: (input: CommitRecoveryInput) => Promise<string | null>;
 	onRevertCommit?: (input: RevertCommitInput) => Promise<string | null>;
 	readLastCommit?: typeof CommitReader.readLast;
-	onSync?: () => void;
-	onPublish?: () => void;
-	onCancelSync?: () => void;
 	onStash?: (request: StashWriteRequest) => Promise<boolean>;
 	onOperation?: (request: FinishOperationInput) => Promise<string | null>;
 	onDiscard?: (request: FileDiscardRequest) => Promise<string | null>;
@@ -711,9 +705,6 @@ export function RepositoryNavigation({
 						onCommit={onCommit}
 						onUndo={onUndoCommit}
 						readLast={readLastCommit}
-						onSync={onSync}
-						onPublish={onPublish}
-						onCancelSync={onCancelSync}
 					/>
 				) : (
 					<div style={styles.footer}>

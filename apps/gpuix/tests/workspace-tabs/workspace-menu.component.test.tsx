@@ -1,5 +1,5 @@
 /**
- * Covers: grouped branch menus, creation/merge, keyboard navigation, worktree tabs, cancellable sync and publishing.
+ * Covers: grouped branch menus, creation/merge, keyboard navigation, worktree tabs and operation locking.
  * Real: App, reducers, window-owned mutation coordination, GPUIX layout and events.
  * Doubles: Git boundaries and folder picker, with isolated in-memory repository snapshots.
  * Requires: patched GPUIX renderer and macOS graphics access.
@@ -31,13 +31,6 @@ let snapshot: RepositorySnapshot;
 let remotes: readonly RemoteInfo[];
 let remoteBranches: BranchInfo[];
 let savedChanges: SavedBranchChanges[];
-
-const origin: RemoteInfo = {
-	name: "origin",
-	fetchUrls: ["/test/remote"],
-	pushUrls: ["/test/remote"],
-	defaultBranch: "main",
-};
 
 const branch = (
 	name: string,
@@ -232,10 +225,7 @@ const settle = async (): Promise<void> => {
 /** Follow the grouped menu before an action; inline forms keep the same action IDs. */
 const action = async (id: string): Promise<void> => {
 	if (!root.renderer.findByTestId(id)) {
-		const group =
-			id === "create-branch" || id === "create-worktree"
-				? "new-actions"
-				: "sync-actions";
+		const group = "new-actions";
 
 		click(group);
 		await settle();
@@ -288,53 +278,30 @@ const worktrees = async (): Promise<void> => {
 	await settle();
 };
 
-it("groups New and Sync into exclusive hover flyouts while keeping Merge in the parent menu", async () => {
-	remotes = [origin];
+it("groups New and Worktrees into exclusive hover flyouts and removes Remote actions", async () => {
 	await open();
 	await menu();
-	expect(root.renderer.findByTestId("create-branch")).toBeUndefined();
-	expect(root.renderer.findByTestId("create-worktree")).toBeUndefined();
-	expect(root.renderer.findByTestId("fetch-repository")).toBeUndefined();
+	expect(root.renderer.findByTestId("sync-actions")).toBeUndefined();
 	expect(element("merge-branch")).toBeDefined();
 	expect(bounds("workspace-menu").height).toBeLessThan(340);
+	const trigger = bounds("new-actions");
 
-	for (const group of ["new", "sync"] as const) {
-		const trigger = bounds(`${group}-actions`);
+	root.renderer.nativeSimulateMouseMove(trigger.x + 20, trigger.y + 14);
+	await settle();
+	const popup = bounds("workspace-new-actions");
+	const parent = bounds("workspace-menu");
 
-		root.renderer.nativeSimulateMouseMove(trigger.x + 20, trigger.y + 14);
-		await settle();
-		const popup = bounds(`workspace-${group}-actions`);
-		const parent = bounds("workspace-menu");
-
-		expect(popup.x).toBeGreaterThanOrEqual(parent.x + parent.width);
-		expect(
-			root.renderer.findByTestId(
-				`workspace-${group === "new" ? "sync" : "new"}-actions`
-			)
-		).toBeUndefined();
-		root.renderer.nativeSimulateMouseMove(popup.x + 20, popup.y + 14);
-		await Bun.sleep(200);
-		await settle();
-		expect(element(`workspace-${group}-actions`)).toBeDefined();
-
-		if (process.env.GPUIX_ACTIONS_SCREENSHOT)
-			root.renderer.captureScreenshot(
-				`${process.env.GPUIX_ACTIONS_SCREENSHOT}-${group}.png`
-			);
-	}
-
-	expect(element("fetch-repository")).toBeDefined();
-	expect(element("pull-repository")).toBeDefined();
-	expect(element("push-repository")).toBeDefined();
+	expect(popup.x).toBeGreaterThanOrEqual(parent.x + parent.width);
+	expect(element("create-branch")).toBeDefined();
+	expect(element("create-worktree")).toBeDefined();
 	await worktrees();
-	expect(root.renderer.findByTestId("workspace-sync-actions")).toBeUndefined();
+	expect(root.renderer.findByTestId("workspace-new-actions")).toBeUndefined();
 	expect(element("workspace-worktrees")).toBeDefined();
 	expect(writeBranch).not.toHaveBeenCalled();
 	expect(fetchRepository).not.toHaveBeenCalled();
 });
 
-it("flips both action flyouts left near the window edge without clipping them", async () => {
-	remotes = [origin];
+it("flips the New flyout left near the window edge without clipping", async () => {
 	await open();
 
 	for (let index = 0; index < 6; index += 1) click("add-workspace");
@@ -344,21 +311,17 @@ it("flips both action flyouts left near the window edge without clipping them", 
 	await settle();
 	click("workspace-7");
 	await settle();
+	click("new-actions");
+	await settle();
+	const parent = bounds("workspace-menu");
+	const popup = bounds("workspace-new-actions");
 
-	for (const group of ["new", "sync"] as const) {
-		click(`${group}-actions`);
-		await settle();
-		const parent = bounds("workspace-menu");
-		const popup = bounds(`workspace-${group}-actions`);
-
-		expect(popup.x + popup.width).toBeLessThanOrEqual(parent.x);
-		expect(popup.x).toBeGreaterThanOrEqual(8);
-		expect(popup.y + popup.height).toBeLessThanOrEqual(640 - 8);
-	}
+	expect(popup.x + popup.width).toBeLessThanOrEqual(parent.x);
+	expect(popup.x).toBeGreaterThanOrEqual(8);
+	expect(popup.y + popup.height).toBeLessThanOrEqual(640 - 8);
 });
 
-it("navigates the New and Sync flyouts with arrows and returns focus with Left or Escape", async () => {
-	remotes = [origin];
+it("navigates the New flyout with arrows and returns focus with Left", async () => {
 	await open();
 	await menu();
 	root.renderer.focusElement(element("new-actions").id);
@@ -374,21 +337,6 @@ it("navigates the New and Sync flyouts with arrows and returns focus with Left o
 	await settle();
 	expect(root.renderer.getFocusedElementId()).toBe(element("new-actions").id);
 	expect(root.renderer.findByTestId("workspace-new-actions")).toBeUndefined();
-	root.renderer.focusElement(element("sync-actions").id);
-	root.renderer.simulateKeystrokes("right");
-	await settle();
-	expect(root.renderer.getFocusedElementId()).toBe(
-		element("fetch-repository").id
-	);
-	root.renderer.simulateKeystrokes("down");
-	await settle();
-	expect(root.renderer.getFocusedElementId()).toBe(
-		element("push-repository").id
-	);
-	root.renderer.simulateKeystrokes("escape");
-	await settle();
-	expect(root.renderer.getFocusedElementId()).toBe(element("sync-actions").id);
-	expect(root.renderer.findByTestId("workspace-sync-actions")).toBeUndefined();
 	expect(element("workspace-menu")).toBeDefined();
 	expect(fetchRepository).not.toHaveBeenCalled();
 	expect(writeSyncRepository).not.toHaveBeenCalled();
@@ -418,32 +366,6 @@ it("keeps New available for a worktree when dirty files prevent creating a branc
 	expect(root.renderer.findByTestId("workspace-new-actions")).toBeUndefined();
 	expect(writeBranch).not.toHaveBeenCalled();
 	expect(writeWorktree).not.toHaveBeenCalled();
-});
-
-it("shows remote state on the Sync row without starting any remote operation", async () => {
-	remotes = [origin];
-	await open();
-
-	for (const [upstream, ahead, behind, status] of [
-		[null, 0, 0, "Not published"],
-		["origin/main", 0, 0, "Up to date"],
-		["origin/main", 2, 0, "2 ahead"],
-		["origin/main", 0, 3, "3 behind"],
-		["origin/main", 2, 3, "Diverged"],
-	] as const) {
-		snapshot = {
-			...snapshot,
-			head: { ...snapshot.head, upstream, ahead, behind },
-		};
-		click("refresh-repository");
-		await settle();
-		await menu();
-		expect(root.renderer.getAllText()).toContain(status);
-		await dismissMenu();
-	}
-
-	expect(fetchRepository).not.toHaveBeenCalled();
-	expect(writeSyncRepository).not.toHaveBeenCalled();
 });
 
 it("shows worktrees only in a right-hand hover submenu and keeps it open while entering", async () => {
@@ -2065,416 +1987,4 @@ it("opens with Down, wraps Up to the final action, and dismisses with Tab", asyn
 	expect(root.renderer.getFocusedElementId()).toBe(
 		element("close-workspace-1").id
 	);
-});
-
-it("offers Publish repository without enabling Fetch when no remote is configured", async () => {
-	await open();
-	await menu();
-	expect(root.renderer.getAllText()).toContain("No remote");
-	expect(element("sync-actions").customProps?.tabIndex).toBe(0);
-	click("sync-actions");
-	await settle();
-	expect(root.renderer.findByTestId("publish-repository")).toBeDefined();
-	expect(fetchRepository).not.toHaveBeenCalled();
-});
-
-it("fetches a dirty repository explicitly and refreshes tracking without losing drafts or inclusion", async () => {
-	remotes = [origin];
-	snapshot = repositorySnapshot([changedFile("a.ts"), changedFile("b.ts")]);
-	fetchRepository.mockImplementationOnce(async () => {
-		snapshot = {
-			...snapshot,
-			head: { ...snapshot.head, upstream: "origin/main", ahead: 2, behind: 3 },
-		};
-
-		return {
-			ok: true,
-			value: { operation: "fetch", remote: null, branch: "main", snapshot },
-		};
-	});
-	await open();
-	click("include-b.ts");
-	click("entry-b.ts");
-	click("commit-message");
-	root.renderer.simulateKeystrokes("d r a f t");
-	await menu();
-	expect(fetchRepository).not.toHaveBeenCalled();
-	root.renderer.simulateKeystrokes("up up");
-	await settle();
-	root.renderer.simulateKeystrokes("right");
-	await settle();
-	expect(root.renderer.getFocusedElementId()).toBe(
-		element("fetch-repository").id
-	);
-	root.renderer.simulateKeystrokes("enter");
-	await settle();
-	await settle();
-	expect(fetchRepository).toHaveBeenCalledTimes(1);
-	expect(fetchRepository.mock.calls[0]?.[0]).toBe("/test/project");
-	expect(readRepository).toHaveBeenCalledTimes(2);
-	expect(root.renderer.getAllText()).toContain(
-		"origin/main · 2 ahead · 3 behind"
-	);
-	expect(root.renderer.getAllText()).toContain("Fetched just now");
-	expect(element("workspace-menu")).toBeTruthy();
-	await dismissMenu();
-	expect(element("commit-message").customProps?.value).toBe("draft");
-	expect(element("include-b.ts").customProps?.["aria-checked"]).toBe(false);
-	expect(element("entry-b.ts").customProps?.["aria-selected"]).toBe(true);
-	expect(root.renderer.getAllText()).toContain(" / main");
-	expect(writeBranch).not.toHaveBeenCalled();
-});
-
-it("keeps fetch alive across menu dismissal, locks related worktrees and cancels from either tab", async () => {
-	remotes = [origin];
-	const pending =
-		Promise.withResolvers<Awaited<ReturnType<typeof RepositorySync.fetch>>>();
-
-	fetchRepository.mockImplementationOnce(() => pending.promise);
-	await open();
-	await menu();
-	await worktrees();
-	click("worktree-/test/linked");
-	await settle();
-	click("workspace-1");
-	await settle();
-	await menu();
-	await action("fetch-repository");
-	await settle();
-	expect(root.renderer.getAllText()).toContain("Fetching…");
-	const signal = fetchRepository.mock.calls[0]?.[1];
-
-	expect(signal?.aborted).toBe(false);
-	await dismissMenu();
-	click("close-workspace-1");
-	await settle();
-	expect(element("workspace-1")).toBeTruthy();
-	click("workspace-2");
-	await settle();
-	click("close-workspace-2");
-	await settle();
-	expect(element("workspace-2")).toBeTruthy();
-	click("workspace-2");
-	await settle();
-	expect(root.renderer.getAllText()).toContain("Fetching…");
-	await action("create-branch");
-	expect(root.renderer.findByTestId("branch-name")).toBeUndefined();
-	await action("fetch-repository");
-	expect(signal?.aborted).toBe(true);
-	expect(fetchRepository).toHaveBeenCalledTimes(1);
-	pending.resolve({
-		ok: false,
-		error: {
-			code: "aborted",
-			operation: "fetch",
-			message: "Aborted",
-			retryable: true,
-		},
-	});
-	await settle();
-	await settle();
-	expect(root.renderer.getAllText()).toContain("Fetch cancelled.");
-	expect(root.renderer.getAllText()).not.toContain("Fetched just now");
-	expect(readRepository.mock.calls.map(([path]) => path)).toEqual(
-		expect.arrayContaining(["/test/project", "/test/linked"])
-	);
-	await dismissMenu();
-	click("workspace-1");
-	await settle();
-	await menu();
-	expect(root.renderer.getAllText()).toContain("Fetch cancelled.");
-	await action("fetch-repository");
-	await settle();
-	await settle();
-	expect(fetchRepository).toHaveBeenCalledTimes(2);
-	expect(root.renderer.getAllText()).toContain("Fetched just now");
-});
-
-it("retains fetch failures on reopen, refreshes partial results and permits an explicit retry", async () => {
-	remotes = [origin];
-	fetchRepository.mockImplementationOnce(async () => {
-		snapshot = {
-			...snapshot,
-			head: { ...snapshot.head, upstream: "origin/main", behind: 1 },
-		};
-
-		return {
-			ok: false,
-			error: {
-				code: "authentication-required",
-				operation: "fetch",
-				message: "Authentication required for one remote.",
-				retryable: true,
-			},
-		};
-	});
-	await open();
-	await menu();
-	await action("fetch-repository");
-	await settle();
-	await settle();
-	expect(root.renderer.getAllText()).toContain(
-		"Authentication required for one remote."
-	);
-	expect(root.renderer.getAllText()).toContain("origin/main · 1 behind");
-	expect(root.renderer.getAllText()).not.toContain("Fetched just now");
-	await dismissMenu();
-	await menu();
-	expect(root.renderer.getAllText()).toContain(
-		"Authentication required for one remote."
-	);
-	expect(fetchRepository).toHaveBeenCalledTimes(1);
-	await action("fetch-repository");
-	await settle();
-	await settle();
-	expect(fetchRepository).toHaveBeenCalledTimes(2);
-	expect(root.renderer.findByTestId("branch-notice")).toBeUndefined();
-	expect(root.renderer.getAllText()).toContain("Fetched just now");
-});
-
-it("aborts a pending fetch when its window unmounts", async () => {
-	remotes = [origin];
-	const pending =
-		Promise.withResolvers<Awaited<ReturnType<typeof RepositorySync.fetch>>>();
-
-	fetchRepository.mockImplementationOnce(() => pending.promise);
-	await open();
-	await menu();
-	await action("fetch-repository");
-	await settle();
-	const signal = fetchRepository.mock.calls[0]?.[1];
-
-	root.unmount();
-	expect(signal?.aborted).toBe(true);
-	pending.resolve({
-		ok: false,
-		error: {
-			code: "aborted",
-			operation: "fetch",
-			message: "Aborted",
-			retryable: true,
-		},
-	});
-	await Bun.sleep(0);
-	expect(readRepository).toHaveBeenCalledTimes(1);
-});
-
-it("reports a failed post-fetch refresh without treating the successful fetch as a failure or enabling branch writes", async () => {
-	remotes = [origin];
-	await open();
-	await menu();
-	readRepository.mockImplementationOnce(async () => ({
-		ok: false,
-		error: {
-			code: "command-failed",
-			operation: "get-snapshot",
-			message: "Status could not be refreshed.",
-			retryable: true,
-		},
-	}));
-	await action("fetch-repository");
-	await settle();
-	await settle();
-	expect(root.renderer.getAllText()).toContain(
-		"Status could not be refreshed."
-	);
-	expect(root.renderer.getAllText()).toContain("Fetched just now");
-	click("branch-feature/ui");
-	expect(writeBranch).not.toHaveBeenCalled();
-	await dismissMenu();
-	click("refresh-repository");
-	await settle();
-	await menu();
-	expect(root.renderer.findByTestId("branch-notice")).toBeUndefined();
-	click("sync-actions");
-	await settle();
-	expect(root.renderer.getAllText()).toContain("Fetched just now");
-});
-
-it("pulls from the displayed upstream, refreshes HEAD and preserves the commit draft", async () => {
-	remotes = [origin];
-	const previousHead = "a".repeat(40);
-
-	snapshot = {
-		...snapshot,
-		head: {
-			...snapshot.head,
-			oid: previousHead,
-			upstream: "origin/main",
-			behind: 2,
-		},
-	};
-
-	writeSyncRepository.mockImplementationOnce(async (_root, input) => {
-		snapshot = {
-			...snapshot,
-			head: { ...snapshot.head, oid: "b".repeat(40), behind: 0 },
-		};
-
-		return {
-			ok: true,
-			value: {
-				operation: "pull",
-				remote: input.kind === "sync" ? "origin" : input.remote,
-				branch: "main",
-				snapshot,
-			},
-		};
-	});
-	await open();
-	click("commit-message");
-	root.renderer.simulateKeystrokes("d r a f t");
-	await menu();
-	expect(root.renderer.getAllText()).toContain("2 behind");
-	await action("pull-repository");
-	await settle();
-	await settle();
-	expect(writeSyncRepository.mock.calls[0]?.slice(0, 2)).toEqual([
-		"/test/project",
-		{
-			kind: "pull",
-			remote: "origin",
-			remoteRef: "refs/heads/main",
-			expectedHead: previousHead,
-			expectedBranch: "main",
-		},
-	]);
-	expect(root.renderer.getAllText()).toContain("Pull complete.");
-	expect(root.renderer.getAllText()).not.toContain("2 behind");
-	root.renderer.simulateKeystrokes("escape");
-	await settle();
-	expect(element("commit-message").customProps?.value).toBe("draft");
-});
-
-it("allows Push with dirty files while Pull stays disabled and file inclusion is preserved", async () => {
-	remotes = [origin];
-	snapshot = repositorySnapshot([changedFile("a.ts"), changedFile("b.ts")]);
-	snapshot = {
-		...snapshot,
-		head: { ...snapshot.head, upstream: "origin/main", ahead: 2 },
-	};
-	await open();
-	click("include-b.ts");
-	await menu();
-	await action("pull-repository");
-	expect(writeSyncRepository).not.toHaveBeenCalled();
-	root.renderer.simulateKeystrokes("up");
-	await settle();
-	expect(root.renderer.getFocusedElementId()).toBe(
-		element("push-repository").id
-	);
-	root.renderer.simulateKeystrokes("enter");
-	await settle();
-	await settle();
-	expect(writeSyncRepository.mock.calls[0]?.[1]).toMatchObject({
-		kind: "push",
-		remote: "origin",
-		remoteRef: "refs/heads/main",
-	});
-	expect(root.renderer.getAllText()).toContain("Push complete.");
-	await dismissMenu();
-	expect(element("include-b.ts").customProps?.["aria-checked"]).toBe(false);
-});
-
-it("requires choosing and confirming a remote before publishing and supports Escape without writing", async () => {
-	remotes = [origin, { ...origin, name: "upstream" }];
-	await open();
-	await menu();
-	await action("push-repository");
-	await settle();
-	expect(element("publish-remotes")).toBeTruthy();
-	click("confirm-publish");
-	expect(writeSyncRepository).not.toHaveBeenCalled();
-	root.renderer.simulateKeystrokes("down");
-	await settle();
-	root.renderer.simulateKeystrokes("down");
-	await settle();
-	root.renderer.simulateKeystrokes("enter");
-	await settle();
-	expect(root.renderer.getAllText()).toContain("Publish to upstream");
-	root.renderer.simulateKeystrokes("escape");
-	await settle();
-	expect(root.renderer.findByTestId("publish-remotes")).toBeUndefined();
-	expect(writeSyncRepository).not.toHaveBeenCalled();
-	await action("push-repository");
-	await settle();
-	click("publish-remote-upstream");
-	click("confirm-publish");
-	await settle();
-	await settle();
-	expect(writeSyncRepository).toHaveBeenCalledTimes(1);
-	expect(writeSyncRepository.mock.calls[0]?.[1]).toMatchObject({
-		kind: "publish",
-		remote: "upstream",
-		remoteRef: "refs/heads/main",
-		expectedBranch: "main",
-	});
-	expect(root.renderer.getAllText()).toContain("Branch published.");
-});
-
-it("blocks diverged pulls and detached publication without issuing a write", async () => {
-	remotes = [origin];
-	snapshot = {
-		...snapshot,
-		head: { ...snapshot.head, upstream: "origin/main", ahead: 1, behind: 1 },
-	};
-	await open();
-	await menu();
-	await action("pull-repository");
-	expect(root.renderer.getAllText()).toContain("Diverged");
-	expect(writeSyncRepository).not.toHaveBeenCalled();
-	await dismissMenu();
-	snapshot = {
-		...snapshot,
-		head: { ...snapshot.head, branch: null, detached: true, upstream: null },
-	};
-	click("refresh-repository");
-	await settle();
-	await menu();
-	await action("push-repository");
-	await action("pull-repository");
-	expect(root.renderer.findByTestId("publish-remotes")).toBeUndefined();
-	expect(writeSyncRepository).not.toHaveBeenCalled();
-});
-
-it("keeps a pending push locked across menu closure and reports uncertain cancellation without automatic retry", async () => {
-	remotes = [origin];
-	snapshot = {
-		...snapshot,
-		head: { ...snapshot.head, upstream: "origin/main", ahead: 1 },
-	};
-	const pending =
-		Promise.withResolvers<Awaited<ReturnType<typeof RepositorySync.write>>>();
-
-	writeSyncRepository.mockImplementationOnce(() => pending.promise);
-	await open();
-	await menu();
-	await action("push-repository");
-	await settle();
-	expect(root.renderer.getAllText()).toContain("Pushing…");
-	await dismissMenu();
-	click("close-workspace-1");
-	expect(element("workspace-1")).toBeTruthy();
-	await menu();
-	await action("fetch-repository");
-	await action("pull-repository");
-	await action("create-branch");
-	expect(fetchRepository).not.toHaveBeenCalled();
-	expect(root.renderer.findByTestId("branch-name")).toBeUndefined();
-	await action("push-repository");
-	expect(writeSyncRepository.mock.calls[0]?.[2].aborted).toBe(true);
-	pending.resolve({
-		ok: false,
-		error: {
-			code: "aborted",
-			operation: "push",
-			message: "Aborted",
-			retryable: false,
-		},
-	});
-	await settle();
-	await settle();
-	expect(root.renderer.getAllText().join(" ")).toContain("may have completed");
-	expect(writeSyncRepository).toHaveBeenCalledTimes(1);
-	expect(readRepository).toHaveBeenCalledTimes(2);
 });

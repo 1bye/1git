@@ -1,4 +1,10 @@
-import { useRef, useState, type Ref, type RefObject } from "react";
+import {
+	useRef,
+	useState,
+	type Ref,
+	type RefObject,
+	type ReactNode,
+} from "react";
 import {
 	useGpuixRequired,
 	type Props,
@@ -168,6 +174,7 @@ export function WorkspaceRail({
 	accountButtonRef,
 	viewButtonRefs,
 	savedAccounts,
+	children,
 }: {
 	view?: RepositoryView;
 	onView?: (view: RepositoryView) => void;
@@ -183,6 +190,8 @@ export function WorkspaceRail({
 	viewButtonRefs?: RefObject<Map<RepositoryView, PublicInstance>>;
 	/** Settings owns a live list; use it immediately after connecting/removing an account. */
 	savedAccounts?: readonly SavedAccount[];
+	/** Repository-wide actions sit above the navigation group. */
+	children?: ReactNode;
 }) {
 	const renderer = useGpuixRequired();
 	const localButtons = useRef(new Map<RepositoryView, PublicInstance>());
@@ -279,9 +288,23 @@ export function WorkspaceRail({
 					flexShrink: 0,
 					paddingTop: spacing[1.5],
 					paddingBottom: spacing[3],
-					gap: spacing[1.5],
+					gap: spacing[1],
 				}}
 			>
+				{children ? (
+					<>
+						{children}
+						<div
+							testId="rail-sync-separator"
+							style={{
+								width: 20,
+								height: 1,
+								flexShrink: 0,
+								backgroundColor: lightColors.editorHairline,
+							}}
+						/>
+					</>
+				) : null}
 				{view && onView ? (
 					<div
 						role="tablist"
@@ -290,7 +313,7 @@ export function WorkspaceRail({
 						style={{
 							display: "flex",
 							flexDirection: "column",
-							gap: spacing[1.5],
+							gap: spacing[1],
 						}}
 					>
 						{repositoryViews.map((item, index) => (

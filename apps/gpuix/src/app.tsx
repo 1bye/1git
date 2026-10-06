@@ -70,6 +70,7 @@ import { WorkspaceTabs } from "./feature/workspace-tabs/workspace-tabs";
 import { WorkspaceTabsModel } from "./feature/workspace-tabs/lib/workspace-tabs-model";
 import { AppShell } from "./fixture/app-shell";
 import { WorkspaceRail } from "./feature/repository-workspace/components/workspace-rail";
+import { RepositorySyncButton } from "./feature/repository-workspace/components/repository-sync-button";
 import type { RepositoryView } from "./feature/repository-workspace/types";
 import { RepositoryComparison } from "./feature/repository-comparison/repository-comparison";
 import { RepositoryComparison as ComparisonReader } from "./feature/repository-comparison/lib/repository-comparison";
@@ -590,7 +591,50 @@ export function App({
 								onAddAccount={() => openSettings("connect")}
 								view={repositoryView}
 								onView={selectRepositoryView}
-							/>
+							>
+								{activeTab && workspace?.repository && !workspace.preview ? (
+									<RepositorySyncButton
+										key={activeTab.id}
+										state={workspace}
+										readBranches={readBranches}
+										onFetch={() => mutations.fetch(activeTab.id)}
+										onSync={(choice) =>
+											mutations.synchronize(activeTab.id, choice)
+										}
+										onCancel={() => mutations.cancelSync(activeTab.id)}
+										onPublish={() => openPublish(activeTab.id)}
+										onRefresh={() => {
+											void connection.refresh(activeTab.id);
+										}}
+										resumePublish={
+											published.has(workspace.repository.commonDirectory) ||
+											uncertainPublications.has(
+												workspace.repository.commonDirectory
+											)
+										}
+										onCompare={(data) => {
+											const repository = workspace.repository;
+
+											if (!repository?.head) return;
+
+											dispatch({
+												type: "compare",
+												id: activeTab.id,
+												comparison: {
+													root: repository.root,
+													base: repository.head,
+													baseName: repository.branchName ?? "HEAD",
+													branches: data.branches.branches.map((item) => ({
+														value: item.fullName,
+														label: item.name,
+														oid: item.oid,
+													})),
+												},
+											});
+										}}
+									/>
+								) : null}
+							</WorkspaceRail>
 						)
 					}
 					navigation={
@@ -640,21 +684,7 @@ export function App({
 									mutations.revertCommit(activeTab.id, input)
 								}
 								readLastCommit={readLastCommit}
-								onPublish={
-									workspace.repository &&
-									(workspace.repository.remoteCount === 0 ||
-										published.has(workspace.repository.commonDirectory) ||
-										uncertainPublications.has(
-											workspace.repository.commonDirectory
-										))
-										? () => openPublish(activeTab.id)
-										: undefined
-								}
 								onStash={(request) => mutations.stash(activeTab.id, request)}
-								onSync={() => {
-									void mutations.synchronize(activeTab.id, { kind: "sync" });
-								}}
-								onCancelSync={() => mutations.cancelSync(activeTab.id)}
 								onOperation={(request) =>
 									mutations.finishOperation(activeTab.id, request)
 								}
@@ -676,14 +706,10 @@ export function App({
 							onChangeBranch={mutations.changeBranch}
 							onCreateWorktree={mutations.createWorktree}
 							onRemoveWorktree={mutations.removeWorktree}
-							onFetch={mutations.fetch}
-							onSync={mutations.synchronize}
-							onCancelSync={mutations.cancelSync}
 							onSettings={() => {
 								openSettings();
 								setSettingsSection("repository-remotes");
 							}}
-							onPublishRepository={openPublish}
 						/>
 					}
 					workspaceLabel={

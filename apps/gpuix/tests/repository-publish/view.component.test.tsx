@@ -326,14 +326,7 @@ it("places the form right of the sidebar, survives dismissal after failed push, 
 		/>
 	);
 	await settle();
-	await click("workspace-1");
-	root.renderer.focusElement(node("sync-actions").id);
-	root.renderer.simulateKeystrokes("right");
-	await settle();
-	expect(root.renderer.getFocusedElementId()).toBe(
-		node("publish-repository").id
-	);
-	root.renderer.simulateKeystrokes("enter");
+	root.renderer.nativeSimulateKeyDown(node("rail-sync").id, "enter");
 	await settle();
 	const form = root.renderer.getElementBounds(
 		node("publish-repository-view").id
@@ -351,7 +344,7 @@ it("places the form right of the sidebar, survives dismissal after failed push, 
 	await click("publish-repository-submit");
 	expect(root.renderer.getAllText()).toContain("Retry push");
 	await click("publish-repository-cancel");
-	await click("commit-sync");
+	await click("rail-sync");
 	expect(root.renderer.getAllText()).toContain("Retry push");
 	write.mockImplementation(async () => {
 		upstream = "origin/main";
@@ -361,7 +354,9 @@ it("places the form right of the sidebar, survives dismissal after failed push, 
 	await click("publish-repository-submit");
 	expect(write.mock.calls[1]?.[1].created).toEqual(receipt);
 	await click("publish-repository-cancel");
-	expect(root.renderer.getAllText()).toContain("Sync");
+	expect(node("rail-sync").customProps?.["aria-label"]).toContain(
+		"Repository published"
+	);
 	expect(node("commit-message").customProps?.value).toBe("Draft stays");
 });
 
@@ -410,7 +405,7 @@ it("locks duplicate publishing and commits across linked workspaces, and support
 		/>
 	);
 	await settle();
-	await click("commit-sync");
+	await click("rail-sync");
 	await click("publish-repository-submit");
 	await click("publish-repository-submit");
 	await click("commit-submit");

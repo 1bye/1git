@@ -1,0 +1,665 @@
+/**
+ * Covers: state-aware rail actions, count badges, publishing confirmation, operation locks and failures.
+ * Real: App, workspace reducers/mutations and native layout, pointer and keyboard events.
+ * Doubles: Git/account boundaries; no remote network or production preferences are written.
+ * Requires: built GPUIX addon and macOS graphics access.
+ */
+import { afterEach, beforeEach, expect, it, mock, spyOn } from "bun:test";
+import { createTestRoot, type TestRoot } from "@gpuix/react/testing";
+import { App } from "../../src/app";
+import { Accounts } from "../../src/feature/accounts/lib/accounts";
+import { AccountStore } from "../../src/feature/accounts/lib/account-store";
+import { RepositoryBranches } from "../../src/feature/workspace-tabs/lib/repository-branches";
+import { RepositorySync } from "../../src/feature/repository-workspace/lib/repository-sync";
+import {
+	repositorySnapshot,
+	changedFile,
+} from "../_shared/repository-snapshot";
+import { windowOptions } from "../../src/window-options";
+import type { RepositoryReader } from "../../src/feature/repository-workspace/lib/repository-reader";
+import type { RepositoryCommit } from "../../src/feature/repository-workspace/lib/repository-commit";
+
+let root: TestRoot;
+let accounts: Accounts;
+
+let snapshot: ReturnType<typeof repositorySnapshot> & { remoteCount: number } =
+	{ ...repositorySnapshot(), remoteCount: 1 };
+
+const remote = {
+	name: "origin",
+	fetchUrls: ["/test/remote"],
+	pushUrls: ["/test/remote"],
+	defaultBranch: "main",
+};
+
+let remotes = [remote];
+
+const readBranches = mock<typeof RepositoryBranches.read>(async () => ({
+	ok: true,
+	value: {
+		branches: {
+			current: snapshot.head.branch,
+			branches: snapshot.head.branch
+				? [
+						{
+							name: snapshot.head.branch,
+							fullName: `refs/heads/${snapshot.head.branch}`,
+							oid: snapshot.head.oid ?? "",
+							checkedOut: true,
+							type: "local",
+							worktreePath: snapshot.repository.root,
+							ahead: snapshot.head.ahead,
+							behind: snapshot.head.behind,
+							committedAt: null,
+							remote: null,
+							summary: "",
+							upstream: snapshot.head.upstream,
+						},
+					]
+				: [],
+		},
+		worktrees: [
+			{
+				path: "/test/project",
+				branch: "main",
+				headOid: snapshot.head.oid,
+				detached: false,
+				locked: false,
+				lockReason: null,
+				prunable: false,
+				pruneReason: null,
+			},
+			{
+				path: "/test/linked",
+				branch: "refs/heads/feature/linked",
+				headOid: snapshot.head.oid,
+				detached: false,
+				locked: false,
+				lockReason: null,
+				prunable: false,
+				pruneReason: null,
+			},
+		],
+		remotes,
+	},
+}));
+
+const readSnapshot = async (path: string) => ({
+	ok: true as const,
+	value:
+		path === "/test/linked"
+			? {
+					...snapshot,
+					repository: { ...snapshot.repository, root: path },
+					head: { ...snapshot.head, branch: "feature/linked" },
+				}
+			: snapshot,
+});
+
+const read = mock<typeof RepositoryReader.read>(readSnapshot);
+
+const commit = mock<typeof RepositoryCommit.write>(async () => {
+	throw new Error("No commit expected");
+});
+
+const fetch = mock<typeof RepositorySync.fetch>(async () => ({
+	ok: true,
+	value: {
+		operation: "fetch",
+		remote: "origin",
+		branch: snapshot.head.branch,
+		snapshot,
+	},
+}));
+
+const sync = mock<typeof RepositorySync.write>(async () => ({
+	ok: true,
+	value: {
+		operation: "push",
+		remote: "origin",
+		branch: snapshot.head.branch,
+		snapshot,
+	},
+}));
+
+beforeEach(() => {
+	root = createTestRoot({
+		width: 980,
+		height: 720,
+		onKeyDown: windowOptions.onKeyDown,
+	});
+	root.renderer.clockPause();
+	snapshot = { ...repositorySnapshot(), remoteCount: 1 };
+	remotes = [remote];
+	read.mockClear();
+	read.mockImplementation(readSnapshot);
+	commit.mockClear();
+	readBranches.mockClear();
+	fetch.mockClear();
+	sync.mockClear();
+	accounts = new Accounts(new AccountStore("/unused/accounts.json"), {
+		async read() {
+			throw new Error("No credential access expected");
+		},
+		async write() {},
+		async delete() {},
+	});
+	spyOn(accounts, "load").mockReturnValue([]);
+	spyOn(root.renderer, "promptForPaths").mockResolvedValue(["/test/project"]);
+});
+afterEach(() => {
+	root.unmount();
+	mock.restore();
+});
+
+function node(id: string) {
+	const element = root.renderer.findByTestId(id);
+
+	if (!element) throw new Error(`Missing ${id}`);
+
+	return element;
+}
+function bounds(id: string) {
+	const box = root.renderer.getElementBounds(node(id).id);
+
+	if (!box) throw new Error(`Missing bounds ${id}`);
+
+	return box;
+}
+async function settle() {
+	for (let index = 0; index < 5; index++) {
+		await Bun.sleep(0);
+		root.renderer.flush();
+	}
+
+	root.renderer.clockFastForward(250);
+	root.renderer.advanceTime(1);
+	root.renderer.flush();
+}
+function click(id: string) {
+	const box = bounds(id);
+
+	root.renderer.nativeSimulateClick(
+		box.x + box.width / 2,
+		box.y + box.height / 2
+	);
+	root.renderer.flush();
+}
+async function open() {
+	root.render(
+		<App
+			accounts={accounts}
+			readRepository={read}
+			readBranches={readBranches}
+			fetchRepository={fetch}
+			writeSyncRepository={sync}
+			writeCommit={commit}
+			readLastCommit={async () => ({
+				ok: false,
+				error: {
+					code: "not-found",
+					operation: "get-commit",
+					message: "No footer fixture",
+					retryable: false,
+				},
+			})}
+			readDiff={async () => ({ ok: true, value: [] })}
+		/>
+	);
+	await settle();
+	click("open-repository");
+	await settle();
+}
+
+it("places separate incoming/outgoing badges above Changes and removes duplicate controls", async () => {
+	snapshot = {
+		...snapshot,
+		head: { ...snapshot.head, upstream: "origin/main", ahead: 3, behind: 2 },
+	};
+	await open();
+
+	expect(node("rail-sync").customProps?.["aria-label"]).toContain("2 incoming");
+	expect(node("rail-sync").customProps?.["aria-label"]).toContain("3 outgoing");
+	expect(bounds("rail-sync-incoming").y).toBeLessThan(
+		bounds("rail-sync-outgoing").y
+	);
+	const button = bounds("rail-sync");
+	const separator = bounds("rail-sync-separator");
+	const changes = bounds("view-changes");
+	const incoming = bounds("rail-sync-incoming");
+	const outgoing = bounds("rail-sync-outgoing");
+
+	expect(separator.y - button.y - button.height).toBe(4);
+	expect(changes.y - separator.y - separator.height).toBe(4);
+	expect(incoming.y).toBeGreaterThanOrEqual(bounds("workspace-rail").y);
+	expect(outgoing.y + outgoing.height).toBeLessThanOrEqual(separator.y);
+	expect(button.width).toBe(32);
+	expect(button.height).toBe(32);
+	expect(root.renderer.findByTestId("commit-sync")).toBeUndefined();
+	const screenshot = process.env.GPUIX_RAIL_SYNC_SCREENSHOT;
+
+	if (screenshot) root.renderer.captureScreenshot(screenshot);
+
+	click("workspace-1");
+	await settle();
+	expect(root.renderer.findByTestId("sync-actions")).toBeUndefined();
+	expect(root.renderer.findByTestId("new-actions")).toBeDefined();
+	expect(fetch).not.toHaveBeenCalled();
+	expect(sync).not.toHaveBeenCalled();
+});
+
+it("fetches an up-to-date branch without extra branch reads or committing files", async () => {
+	snapshot = {
+		...snapshot,
+		head: { ...snapshot.head, upstream: "origin/main" },
+	};
+	await open();
+	expect(node("rail-sync").customProps?.["aria-label"]).toBe(
+		"Fetch remote updates"
+	);
+	expect(root.renderer.findByTestId("rail-sync-incoming")).toBeUndefined();
+	expect(root.renderer.findByTestId("rail-sync-outgoing")).toBeUndefined();
+	const button = bounds("rail-sync");
+
+	expect(bounds("rail-sync-separator").y - button.y - button.height).toBe(4);
+	click("rail-sync");
+	await settle();
+	expect(fetch).toHaveBeenCalledTimes(1);
+	expect(sync).not.toHaveBeenCalled();
+	expect(readBranches).not.toHaveBeenCalled();
+});
+
+it("caps badge text without hiding exact counts from assistive labels", async () => {
+	snapshot = {
+		...snapshot,
+		head: {
+			...snapshot.head,
+			upstream: "origin/main",
+			ahead: 120,
+			behind: 200,
+		},
+	};
+	await open();
+
+	expect(root.renderer.getAllText().join("")).toContain("↓ 99+");
+	expect(root.renderer.getAllText().join("")).toContain("↑ 99+");
+	expect(node("rail-sync").customProps?.["aria-label"]).toContain(
+		"200 incoming, 120 outgoing"
+	);
+	expect(
+		bounds("rail-sync-incoming").x + bounds("rail-sync-incoming").width
+	).toBeLessThan(bounds("commit-composer").x);
+	expect(fetch).not.toHaveBeenCalled();
+});
+
+it("fetches by keyboard and refreshes partial tracking while retaining draft, selection and inclusion", async () => {
+	snapshot = {
+		...snapshot,
+		files: [changedFile("a.ts"), changedFile("b.ts")],
+		head: { ...snapshot.head, upstream: "origin/main" },
+	};
+	fetch.mockImplementationOnce(async () => {
+		snapshot = { ...snapshot, head: { ...snapshot.head, ahead: 2, behind: 3 } };
+
+		return {
+			ok: true,
+			value: { operation: "fetch", remote: "origin", branch: "main", snapshot },
+		};
+	});
+	await open();
+	click("include-b.ts");
+	click("entry-b.ts");
+	click("commit-message");
+	root.renderer.simulateKeystrokes("d r a f t");
+	root.renderer.nativeSimulateKeyDown(node("rail-sync").id, "enter");
+	await settle();
+
+	expect(fetch).toHaveBeenCalledTimes(1);
+	expect(read).toHaveBeenCalledTimes(2);
+	expect(commit).not.toHaveBeenCalled();
+	expect(readBranches).not.toHaveBeenCalled();
+	expect(node("commit-message").customProps?.value).toBe("draft");
+	expect(node("include-b.ts").customProps?.["aria-checked"]).toBe(false);
+	expect(node("entry-b.ts").customProps?.["aria-selected"]).toBe(true);
+	expect(node("rail-sync").customProps?.["aria-label"]).toContain("2 outgoing");
+	click("workspace-1");
+	await settle();
+	expect(root.renderer.getAllText()).toContain(
+		"origin/main · 2 ahead · 3 behind"
+	);
+});
+
+it.each(["incoming", "outgoing"] as const)(
+	"runs guarded combined sync for %s commits",
+	async (direction) => {
+		snapshot = {
+			...snapshot,
+			head: {
+				...snapshot.head,
+				upstream: "origin/main",
+				ahead: direction === "outgoing" ? 2 : 0,
+				behind: direction === "incoming" ? 2 : 0,
+			},
+		};
+		await open();
+
+		expect(node("rail-sync").customProps?.["aria-label"]).toContain(
+			direction === "incoming" ? "Pull incoming" : "Push outgoing"
+		);
+		click("rail-sync");
+		await settle();
+		expect(sync).toHaveBeenCalledTimes(1);
+		expect(sync.mock.calls[0]?.slice(0, 2)).toEqual([
+			"/test/project",
+			{
+				kind: "sync",
+				expectedHead: snapshot.head.oid ?? "",
+				expectedBranch: "main",
+			},
+		]);
+		expect(fetch).not.toHaveBeenCalled();
+		expect(node("rail-sync").customProps?.["aria-label"]).toContain(
+			"Sync complete"
+		);
+	}
+);
+
+it("refreshes divergence for review without silently merging, pushing or committing", async () => {
+	snapshot = {
+		...snapshot,
+		head: { ...snapshot.head, upstream: "origin/main", ahead: 2, behind: 3 },
+	};
+	await open();
+	click("rail-sync");
+	await settle();
+
+	expect(fetch).toHaveBeenCalledTimes(1);
+	expect(readBranches).toHaveBeenCalledTimes(1);
+	expect(sync).not.toHaveBeenCalled();
+	expect(commit).not.toHaveBeenCalled();
+	expect(root.renderer.getAllText()).toContain("Branches have diverged");
+	expect(node("rail-sync-compare")).toBeDefined();
+	expect(root.renderer.findByTestId("rail-sync-tooltip")).toBeUndefined();
+	const screenshot = process.env.GPUIX_RAIL_REVIEW_SCREENSHOT;
+
+	if (screenshot) root.renderer.captureScreenshot(screenshot);
+
+	root.renderer.simulateKeystrokes("escape");
+	await settle();
+	expect(root.renderer.findByTestId("rail-sync-dialog")).toBeUndefined();
+});
+
+it("requires explicit remote selection and confirmation, and Escape never publishes", async () => {
+	remotes = [remote, { ...remote, name: "upstream" }];
+	await open();
+	click("rail-sync");
+	await settle();
+	expect(node("rail-sync").customProps?.["aria-label"]).toBe("Publish branch");
+	click("confirm-publish");
+	expect(sync).not.toHaveBeenCalled();
+	click("publish-remote-upstream");
+	await settle();
+	expect(root.renderer.getAllText()).toContain("Publish to upstream");
+	root.renderer.simulateKeystrokes("escape");
+	await settle();
+	expect(root.renderer.findByTestId("rail-sync-dialog")).toBeUndefined();
+	expect(sync).not.toHaveBeenCalled();
+
+	click("rail-sync");
+	await settle();
+	click("publish-remote-upstream");
+	click("confirm-publish");
+	await settle();
+	expect(sync).toHaveBeenCalledTimes(1);
+	expect(sync.mock.calls[0]?.[1]).toEqual({
+		kind: "publish",
+		remote: "upstream",
+		remoteRef: "refs/heads/main",
+		expectedHead: snapshot.head.oid ?? "",
+		expectedBranch: "main",
+	});
+});
+
+it("rejects multiple push URLs and stale branch choices without writing", async () => {
+	remotes = [{ ...remote, pushUrls: ["/test/one", "/test/two"] }];
+	await open();
+	click("rail-sync");
+	await settle();
+	click("publish-remote-origin");
+	click("confirm-publish");
+	expect(sync).not.toHaveBeenCalled();
+	click("rail-sync-close");
+	await settle();
+	remotes = [remote];
+	readBranches.mockImplementationOnce(async () => ({
+		ok: true,
+		value: {
+			branches: { current: "different", branches: [] },
+			worktrees: [],
+			remotes,
+		},
+	}));
+	click("rail-sync");
+	await settle();
+	expect(root.renderer.getAllText().join(" ")).toContain("The branch changed");
+	click("confirm-publish");
+	expect(sync).not.toHaveBeenCalled();
+});
+
+it("opens repository publishing when there are no configured remotes", async () => {
+	snapshot = { ...snapshot, remoteCount: 0 };
+	remotes = [];
+	await open();
+	click("rail-sync");
+	await settle();
+
+	expect(root.renderer.findByTestId("publish-repository-view")).toBeDefined();
+	expect(fetch).not.toHaveBeenCalled();
+	expect(sync).not.toHaveBeenCalled();
+	expect(readBranches).not.toHaveBeenCalled();
+});
+
+it.each(["detached", "unborn", "merge"] as const)(
+	"avoids branch writes for %s state",
+	async (condition) => {
+		snapshot = {
+			...snapshot,
+			head: {
+				...snapshot.head,
+				upstream: "origin/main",
+				ahead: 1,
+				branch: condition === "detached" ? null : "main",
+				detached: condition === "detached",
+				oid: condition === "unborn" ? null : snapshot.head.oid,
+				unborn: condition === "unborn",
+			},
+			operationState: condition === "merge" ? "merge" : "normal",
+		};
+		await open();
+		click("rail-sync");
+		await settle();
+
+		expect(sync).not.toHaveBeenCalled();
+
+		if (condition === "merge") {
+			expect(root.renderer.getAllText().join(" ")).toContain(
+				"ongoing Git operation"
+			);
+			expect(fetch).not.toHaveBeenCalled();
+		} else expect(fetch).toHaveBeenCalledTimes(1);
+	}
+);
+
+it("retains failures on reopen and permits only an explicit retry", async () => {
+	snapshot = {
+		...snapshot,
+		head: { ...snapshot.head, upstream: "origin/main" },
+	};
+	fetch.mockImplementationOnce(async () => ({
+		ok: false,
+		error: {
+			code: "authentication-required",
+			operation: "fetch",
+			message: "Authentication required for one remote.",
+			retryable: true,
+		},
+	}));
+	await open();
+	click("rail-sync");
+	await settle();
+	expect(root.renderer.getAllText()).toContain(
+		"Authentication required for one remote."
+	);
+	click("rail-sync-close");
+	await settle();
+	click("rail-sync");
+	await settle();
+	expect(root.renderer.getAllText()).toContain(
+		"Authentication required for one remote."
+	);
+	expect(fetch).toHaveBeenCalledTimes(1);
+
+	click("rail-sync-retry");
+	await settle();
+	expect(fetch).toHaveBeenCalledTimes(2);
+	expect(root.renderer.findByTestId("rail-sync-dialog")).toBeUndefined();
+	expect(node("rail-sync").customProps?.["aria-label"]).toContain(
+		"Fetch complete"
+	);
+	await Bun.sleep(3100);
+	root.renderer.flush();
+	expect(node("rail-sync").customProps?.["aria-label"]).toBe(
+		"Fetch remote updates"
+	);
+});
+
+it("blocks further writes after a failed status refresh until a manual refresh succeeds", async () => {
+	snapshot = {
+		...snapshot,
+		head: { ...snapshot.head, upstream: "origin/main" },
+	};
+	await open();
+	read.mockImplementationOnce(async () => ({
+		ok: false,
+		error: {
+			code: "command-failed",
+			operation: "get-snapshot",
+			message: "Status could not be refreshed.",
+			retryable: true,
+		},
+	}));
+	click("rail-sync");
+	await settle();
+
+	expect(root.renderer.getAllText()).toContain(
+		"Status could not be refreshed."
+	);
+	expect(root.renderer.getAllText()).toContain("Fetched just now");
+	expect(root.renderer.findByTestId("rail-sync-retry")).toBeUndefined();
+	expect(sync).not.toHaveBeenCalled();
+	click("rail-sync-refresh");
+	await settle();
+	expect(node("rail-sync").customProps?.["aria-label"]).toBe(
+		"Fetch remote updates"
+	);
+});
+
+it("keeps fetch alive across linked-tab changes, locks closure, and cancels explicitly from either tab", async () => {
+	snapshot = {
+		...snapshot,
+		head: { ...snapshot.head, upstream: "origin/main" },
+	};
+	const pending =
+		Promise.withResolvers<Awaited<ReturnType<typeof RepositorySync.fetch>>>();
+
+	fetch.mockImplementationOnce(() => pending.promise);
+	await open();
+	click("workspace-1");
+	await settle();
+	click("worktrees");
+	await settle();
+	click("worktree-/test/linked");
+	await settle();
+	click("workspace-1");
+	await settle();
+	click("rail-sync");
+	await settle();
+	const signal = fetch.mock.calls[0]?.[1];
+
+	expect(signal?.aborted).toBe(false);
+	click("close-workspace-1");
+	await settle();
+	expect(node("workspace-1")).toBeDefined();
+	click("workspace-2");
+	await settle();
+	expect(node("rail-sync").customProps?.["aria-label"]).toContain("Fetching");
+	click("close-workspace-2");
+	await settle();
+	expect(node("workspace-2")).toBeDefined();
+	click("rail-sync");
+	await settle();
+	expect(fetch).toHaveBeenCalledTimes(1);
+	expect(signal?.aborted).toBe(false);
+	click("rail-sync-close");
+	await settle();
+	expect(signal?.aborted).toBe(false);
+	click("rail-sync");
+	await settle();
+	click("rail-sync-stop");
+	expect(signal?.aborted).toBe(true);
+	pending.resolve({
+		ok: false,
+		error: {
+			code: "aborted",
+			operation: "fetch",
+			message: "Aborted",
+			retryable: true,
+		},
+	});
+	await settle();
+
+	expect(root.renderer.getAllText()).toContain("Fetch cancelled.");
+	expect(read.mock.calls.map(([path]) => path)).toEqual(
+		expect.arrayContaining(["/test/project", "/test/linked"])
+	);
+	expect(fetch).toHaveBeenCalledTimes(1);
+	click("rail-sync-close");
+	await settle();
+	click("workspace-1");
+	await settle();
+	click("rail-sync");
+	await settle();
+	expect(root.renderer.getAllText()).toContain("Fetch cancelled.");
+	click("rail-sync-retry");
+	await settle();
+	expect(fetch).toHaveBeenCalledTimes(2);
+});
+
+it("aborts a window-owned fetch when the window unmounts", async () => {
+	snapshot = {
+		...snapshot,
+		head: { ...snapshot.head, upstream: "origin/main" },
+	};
+	const pending =
+		Promise.withResolvers<Awaited<ReturnType<typeof RepositorySync.fetch>>>();
+
+	fetch.mockImplementationOnce(() => pending.promise);
+	await open();
+	click("rail-sync");
+	await settle();
+	const signal = fetch.mock.calls[0]?.[1];
+
+	root.unmount();
+	expect(signal?.aborted).toBe(true);
+	pending.resolve({
+		ok: false,
+		error: {
+			code: "aborted",
+			operation: "fetch",
+			message: "Aborted",
+			retryable: true,
+		},
+	});
+	await Bun.sleep(0);
+	expect(read).toHaveBeenCalledTimes(1);
+});

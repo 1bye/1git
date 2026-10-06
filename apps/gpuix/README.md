@@ -629,8 +629,8 @@ This is not a port of the Electron liquid SVG morph.
 
 ### Publish repository
 
-For a local repository without remotes, **Publish…** replaces the composer’s Sync
-button. The tab menu also offers **Remote → Publish repository…**. The form opens
+For a local repository without remotes, the top rail control offers **Publish repository**.
+The form opens
 to the right of the existing sidebar and reuses the account-choice tiles.
 Select a connected GitHub/GitLab account, owner/organization/group, repository
 name, optional description and visibility (**Private** by default). Commit at
@@ -658,48 +658,45 @@ locks; no live GitHub/GitLab repository is created by tests.
 
 ### Remote synchronization
 
-The Changes composer has a secondary **Sync** button immediately left of Commit.
-It fetches the current branch's configured upstream remote, fast-forwards incoming
-commits if needed, and pushes outgoing commits to the exact tracking destination.
-It does not commit, stage or stash working files. Incoming changes require a clean
-working tree; divergence or a failed fetch/pull stops the operation before pushing.
-An up-to-date branch only fetches. Branches without upstream tracking must first be
-published through the tab menu. Sync uses the same window-owned write lock, timeout,
-close protection and cross-worktree refresh as the menu actions. During Sync,
-pressing the button again stops it. The button shows **Syncing…** during the operation
-and **Sync complete** for three seconds after success, then returns to **Sync**.
-Routine sync/commit status no longer adds a line below the buttons; errors and
-recovery warnings remain visible. Sync retains the commit draft and checked files.
+A single control at the top of the left rail handles remote operations, separated
+from Changes/History/Stashes by a short divider. Its icon and tooltip reflect the
+current branch: Fetch when up to date, Pull for incoming commits, Push for outgoing
+commits, and a cloud-upload icon for Publish repository/branch. The upper-right
+badge shows incoming commits (`↓ N`), the lower-right outgoing commits (`↑ N`).
+Zeros are hidden; large visual counts cap at `99+`, with exact counts in the
+accessible label. Counts come from the last known remote refs, not live polling.
 
-- **Fetch** is an explicit action in the tab menu. It uses `@1git/git` to fetch
-  configured remotes, including with uncommitted changes. Opening a menu or
-  refreshing local status never contacts a remote. No remote means a disabled
-  action, not a successful no-op.
-- **Pull** updates the current branch from its configured upstream, fast-forward
-  only. It requires a clean working tree, an existing commit, and no active Git
-  operation. Diverged histories are rejected without starting a merge or rebase.
-- **Push** sends the reviewed HEAD to that branch's exact upstream destination.
-  It never forces, mirrors, automatically pushes tags, or writes other branches.
-  Uncommitted changes can remain in place. Multiple push URLs are rejected.
-- Without an upstream, **Publish branch…** replaces Push. Choose a configured
-  remote explicitly, then confirm. It publishes the current branch under the same
-  name and sets its upstream; opening the picker or cancelling never writes.
-- The menu shows operation progress and **Cancel/Stop**, the last successful fetch,
-  and current upstream/ahead/behind counts. These counts describe the last known
-  remote refs; Fetch updates them. The action survives dismissing the menu;
-  errors stay available when it reopens, and retry is explicit.
-- Sync uses existing Git credentials and a two-minute deadline. Cancellation
-  aborts the Git request; normal window closure is blocked until it settles and
-  status is refreshed. A stopped or timed-out
-  write may already have completed: review status before explicitly retrying.
-  There is no sign-in UI, background schedule, force push, rebase, or automatic stash.
-- During synchronization, affected tabs pause repository reads and block competing writes
-  and tab closure. Tabs sharing the same Git common directory, including linked
-  worktrees, share the pending operation and last-fetch status. Every open root
-  is refreshed afterward, even on failure/cancellation because some remotes may
-  already have updated. Drafts and file inclusion are retained. Pull deliberately
-  advances the current branch; Fetch and Push do not change working files.
+- Clicking Fetch explicitly updates configured remotes. A menu open or local status
+  refresh never contacts a remote. Fetch also works with uncommitted changes.
+- Pull/Push reuse authenticated, guarded upstream sync: fetch first, fast-forward
+  incoming commits only, then push to the exact tracking destination without force,
+  mirrors, tags, automatic commits or stashes. Incoming changes require a clean tree.
+- If both counts are nonzero, the control fetches and opens a review dialog.
+  It offers Compare and points to Merge another branch in the tab menu; it never
+  silently merges, rebases or force-pushes.
+- Without remotes, the control opens the existing right-side Publish repository
+  form. Without an upstream, it opens Publish branch: explicitly choose a remote
+  with a single push URL and confirm. Changing HEAD/branch invalidates the choice;
+  cancelling the picker never writes.
+- Progress appears on the rail control. Clicking it again opens status with an
+  explicit Stop action; closing the dialog leaves the operation running. A check
+  icon and completion tooltip (**Sync complete**, **Fetch complete**, or the publish
+  result) last three seconds after success. Failures
+  stay accessible from the control, with explicit Retry or local Refresh recovery.
+  The status dialog also shows the last successful fetch.
+- Window-owned operations retain credential routing, the two-minute deadline,
+  close protection, linked-worktree locks, and post-operation refresh of every
+  open root. Drafts and checked files survive success, failure and cancellation.
+  A stopped/timed-out write may already have completed; review status before retrying.
   A failed status refresh blocks writes until a successful manual refresh.
+- The composer contains only Commit (and last-commit Undo). The tab menu retains
+  branches, Worktrees, New, Compare, Merge and Repository settings, not duplicate
+  remote controls.
+
+Native component tests use captured Git/account boundaries to exercise rail layout,
+keyboard activation, counts, confirmation, failures, cancellation and linked-tab
+lifetimes. Integration tests exercise real Git with disposable local remotes;
+no user repositories or live hosted services are modified.
 
 ## Opening a repository
 

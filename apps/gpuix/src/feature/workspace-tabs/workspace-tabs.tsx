@@ -73,11 +73,7 @@ export function WorkspaceTabs({
 	onChangeBranch,
 	onCreateWorktree,
 	onRemoveWorktree,
-	onFetch,
-	onSync,
-	onCancelSync,
 	onSettings,
-	onPublishRepository,
 }: {
 	state: WorkspaceTabsState;
 	dispatch: Dispatch<WorkspaceTabsAction>;
@@ -291,11 +287,7 @@ export function WorkspaceTabs({
 									onChangeBranch={onChangeBranch}
 									onCreateWorktree={onCreateWorktree}
 									onRemoveWorktree={onRemoveWorktree}
-									onFetch={onFetch}
-									onSync={onSync}
-									onCancelSync={onCancelSync}
 									onSettings={onSettings}
-									onPublishRepository={onPublishRepository}
 									onClose={() => {
 										setMenuId(null);
 										focusRequested.current = true;

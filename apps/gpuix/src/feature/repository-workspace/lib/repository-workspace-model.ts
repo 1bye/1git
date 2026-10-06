@@ -82,6 +82,8 @@ export interface RepositoryWorkspaceState {
 		readonly branchName: string | null;
 		readonly upstream: string | null;
 		readonly remoteCount?: number;
+		readonly ahead?: number;
+		readonly behind?: number;
 		readonly operation: RepositoryOperationState;
 		readonly operationToken?: string;
 	} | null;
@@ -971,6 +973,8 @@ export class RepositoryWorkspaceModel {
 					branchName: snapshot.head.branch,
 					upstream: snapshot.head.upstream,
 					remoteCount: snapshot.remoteCount,
+					ahead: snapshot.head.ahead,
+					behind: snapshot.head.behind,
 					operation: snapshot.operationState,
 					operationToken: snapshot.operationToken,
 				},

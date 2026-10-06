@@ -3,6 +3,9 @@ import { StyleSheet } from "@1git/gpuix-stylesheet";
 
 // Phosphor Icons 2.1.10, Light weight. See ../../../../LICENSES/Phosphor-Icons.txt.
 const sources = {
+	// App-drawn cloud upload glyph distinguishes first publication from a normal push.
+	publish:
+		'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18H6a4 4 0 0 1-1-7.87A7 7 0 0 1 18 9a4.5 4.5 0 0 1 0 9h-1"/><path d="M12 21V11m-4 4 4-4 4 4"/></svg>',
 	arrowLeft:
 		'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path d="M222,128a6,6,0,0,1-6,6H54.49l61.75,61.76a6,6,0,1,1-8.48,8.48l-72-72a6,6,0,0,1,0-8.48l72-72a6,6,0,0,1,8.48,8.48L54.49,122H216A6,6,0,0,1,222,128Z"/></svg>',
 	userCircle:
