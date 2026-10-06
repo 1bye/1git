@@ -23,7 +23,7 @@ import {
 	AccountProviderChoices,
 	AccountSetupSection,
 } from "./account-connection-guide";
-import { AccountList } from "./account-list";
+import { AccountList, accountActionIcons } from "./account-list";
 import { openAuthorizationBrowser } from "./lib/account-authorization";
 import {
 	accountSetup,
@@ -46,6 +46,8 @@ import {
 } from "../git-settings/git-settings";
 import { GitSettingsModel } from "../git-settings/git-settings-model";
 import { StateMessage } from "../../fixture/state-message";
+import { EditorSettings } from "../editor-settings/editor-settings";
+import type { ExternalEditors } from "../editor-settings/external-editors";
 
 const fieldStyle = {
 	height: appTokens.layout.controlHeight,
@@ -94,6 +96,7 @@ const settingsTitleWidth =
 export type SettingsSection =
 	| "accounts"
 	| "git"
+	| "editor"
 	| "repository-remotes"
 	| "repository-identity";
 
@@ -122,6 +125,7 @@ export function AccountsSettings({
 	repositorySettings,
 	readGitSettings = GitSettingsModel.read,
 	writeGitSettings = GitSettingsModel.write,
+	externalEditors,
 }: {
 	onBack: () => void;
 	accounts?: Accounts;
@@ -142,6 +146,7 @@ export function AccountsSettings({
 	repositorySettings?: { root: string; name: string; disabled: boolean };
 	readGitSettings?: typeof GitSettingsModel.read;
 	writeGitSettings?: typeof GitSettingsModel.write;
+	externalEditors?: ExternalEditors;
 }) {
 	const renderer = useGpuixRequired();
 
@@ -509,6 +514,33 @@ export function AccountsSettings({
 						<WorkspaceTabIcon name="branch" />
 						Commit identity
 					</Button>
+					<Button
+						testId="settings-editor"
+						ref={section === "editor" ? initialPage : undefined}
+						tokens={appTokens}
+						size="sm"
+						variant={section === "editor" ? "secondary" : "ghost"}
+						aria-current={section === "editor" ? "page" : undefined}
+						disabled={settingsBusy}
+						style={{ justifyContent: "flex-start" }}
+						onPress={() => {
+							token.current = "";
+							setHasToken(false);
+							setForm("list");
+							setSection("editor");
+						}}
+					>
+						<svg
+							source={accountActionIcons.reconnect}
+							style={{
+								width: 14,
+								height: 14,
+								color: appTokens.colors.textMuted,
+								pointerEvents: "none",
+							}}
+						/>
+						External editor
+					</Button>
 					{repositorySettings ? (
 						<>
 							<text
@@ -552,7 +584,15 @@ export function AccountsSettings({
 			}
 		>
 			{children}
-			{repositorySection && !repositorySettings ? (
+			{section === "editor" ? (
+				<EditorSettings
+					editors={externalEditors}
+					onBusy={(next) => {
+						gitBusyRef.current = next;
+						setGitBusy(next);
+					}}
+				/>
+			) : repositorySection && !repositorySettings ? (
 				<StateMessage
 					artwork="repository"
 					title="Open a repository to edit its settings"

@@ -179,6 +179,19 @@ Saves block competing writes in the window and refresh affected open worktrees,
 preserving commit drafts and selections. Partial failures reread the actual config;
 failed workspace refreshes require a refresh before further Git operations.
 
+## External editor
+
+**Settings → Application → External editor** controls both file-menu and conflict
+file opening. Select an installed editor or use **Choose application…** for a
+custom macOS `.app`. Common editors are detected in `/Applications` and
+`~/Applications`; **System default** keeps the macOS text-editor association.
+Choices save immediately and survive restarts in private `editor.json` beside
+`session.json`. `GPUIX_EDITOR_SETTINGS_PATH` isolates this preference for testing.
+Cancel leaves the selection unchanged. An unavailable saved editor stays visible
+and produces an error when opening a file; select another rather than silently
+falling back. Launching passes validated paths directly to `open -a` or `open -t`,
+never a shell command from repository configuration. Git's `core.editor` is unchanged.
+
 ## Hosting accounts
 
 Open **1git → Settings…** or press **Cmd+,**. Settings replaces the workspace inside
@@ -970,7 +983,7 @@ Reading a diff never stages, unstages, discards or commits changes.
 - Right-click or Control-click a file, or press Shift+F10 on its focused row.
   The pinned macOS addon displays an actual AppKit context menu; there are no
   three-dot controls, custom menu surfaces, or dimmed menu backdrops.
-  Actions open the file in the macOS text editor, reveal it in Finder, or copy
+  Actions open the file in the selected external editor, reveal it in Finder, or copy
   its repository-relative path. Opening/revealing requires an existing regular
   repository path; errors remain visible in the menu.
 - **Discard changes…** requires a native macOS warning dialog (Cancel is the
@@ -997,8 +1010,9 @@ hot reload cannot replace a loaded addon. This bridge is macOS-only.
 
 - Conflicted Changes rows show a red status icon and **Conflict** label. Selecting
   one shows the read-only working file, including its conflict markers.
-- **Open in editor** uses macOS's default text editor (`open -t`), never a
-  repository-provided shell command. Save edits there, then **Refresh preview**.
+- **Open in editor** uses the app's **External editor** preference (macOS's default
+  text editor until changed), never a repository-provided shell command.
+  Save edits there, then **Refresh preview**.
 - **Mark resolved** stages only the reviewed file. It rechecks HEAD/branch,
   conflict status, regular-file safety, UTF-8 content, remaining marker lines,
   and the preview's content hash. It does not commit, continue/abort a merge or

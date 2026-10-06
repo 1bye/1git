@@ -1,11 +1,8 @@
 import { createHash } from "node:crypto";
-import { execFile } from "node:child_process";
 import { realpath, stat } from "node:fs/promises";
 import { resolve, relative } from "node:path";
-import { promisify } from "node:util";
 import { GitRepository, type ResolveConflictInput } from "@1git/git";
-
-const execute = promisify(execFile);
+import { ExternalEditors } from "../../editor-settings/external-editors";
 
 /** Conflict preview and explicitly requested resolution; never continues Git operations. */
 export class RepositoryConflicts {
@@ -50,7 +47,7 @@ export class RepositoryConflicts {
 		return await opened.value.resolveConflict(request);
 	}
 
-	/** macOS text-editor association, not execution or a shell command from repository configuration. */
+	/** Uses the app's external-editor preference, never a command from repository configuration. */
 	static async openEditor(root: string, path: string): Promise<void> {
 		const canonicalRoot = await realpath(root);
 		const absolute = resolve(canonicalRoot, path);
@@ -67,9 +64,6 @@ export class RepositoryConflicts {
 				"Only regular files inside this repository can be opened here."
 			);
 
-		if (process.platform !== "darwin")
-			throw new Error("Open in editor currently requires macOS.");
-
-		await execute("/usr/bin/open", ["-t", absolute], { timeout: 10_000 });
+		await new ExternalEditors().open(absolute);
 	}
 }
