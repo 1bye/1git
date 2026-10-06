@@ -161,6 +161,20 @@ on the right, matching account setup. Form fields scroll independently, with
 writing to Git; a successful save closes the form. Escape closes an open form
 before leaving Settings, and cannot interrupt a pending save.
 
+Remote rows have a leading GitHub/GitLab icon based on their primary fetch URL;
+unknown hosts and local paths use the generic Git glyph. Recognition includes
+SSH and configured self-hosted providers, without network requests. Account
+summaries remain text-only so the provider icon is not duplicated.
+HTTPS remotes show a compact account summary instead of a select, with
+a muted **Automatic** indicator when the app chooses the matching account.
+The right-side remote editor uses the existing choice tiles for **Automatic**,
+**System Git**, and connected accounts. Choices are drafts until **Save remote**;
+Cancel leaves authentication unchanged. Account-only saves do not rewrite Git
+URLs or author identity, and never read credentials or contact a provider.
+Separate fetch/push destinations keep independent choices. Multi-fetch-URL
+remotes still require Git for URL edits, but allow account changes in the editor.
+SSH continues to use system Git credentials.
+
 Saves block competing writes in the window and refresh affected open worktrees,
 preserving commit drafts and selections. Partial failures reread the actual config;
 failed workspace refreshes require a refresh before further Git operations.

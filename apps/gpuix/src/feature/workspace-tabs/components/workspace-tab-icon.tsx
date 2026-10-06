@@ -38,16 +38,22 @@ export function WorkspaceTabIcon({
 	name,
 	testId,
 	color = lightColors.editorMuted,
+	size = 14,
 }: {
 	name: keyof typeof sources;
 	testId?: string;
 	color?: string;
+	size?: number;
 }) {
 	return (
 		<svg
 			testId={testId}
 			source={sources[name]}
-			style={StyleSheet.compose(styles.icon, { color })}
+			style={StyleSheet.compose(styles.icon, {
+				color,
+				width: size,
+				height: size,
+			})}
 		/>
 	);
 }

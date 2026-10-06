@@ -18,7 +18,7 @@ import { AccountStore, type SavedAccount } from "../accounts/lib/account-store";
 import { accountProviderIcons } from "../accounts/account-provider-icons";
 import type { CommitIdentity } from "@1git/hosting/contracts";
 import type { RemoteAccounts } from "../accounts/lib/remote-accounts";
-import { RemoteAccountSelect } from "./remote-account-select";
+import { RemoteAccount, RemoteProviderIcon } from "./remote-account";
 import {
 	GitSettingsModel,
 	type GitSettingsData,
@@ -144,12 +144,18 @@ export function GitSettings({
 	const [error, setError] = useState<string | null>(null);
 	const [status, setStatus] = useState<string | null>(null);
 
-	const [editing, setEditing] = useState<"identity" | "add" | "edit" | null>(
-		null
-	);
+	const [editing, setEditing] = useState<
+		"identity" | "add" | "edit" | "account" | null
+	>(null);
 
 	const [remoteName, setRemoteName] = useState("");
 	const [remoteUrl, setRemoteUrl] = useState("");
+
+	const [remoteChoices, setRemoteChoices] = useState<Record<string, string>>(
+		{}
+	);
+
+	const [accountRevision, setAccountRevision] = useState(0);
 	const [removing, setRemoving] = useState<string | null>(null);
 	const pending = useRef(false);
 	const mounted = useRef(true);
@@ -159,6 +165,27 @@ export function GitSettings({
 	const locked = disabled || busy || !data;
 	const commonDirectory = data?.commonDirectory;
 	const identityLocked = locked || !!data?.identityReadOnlyReason;
+
+	const editedRemote = data?.remotes.find(
+		(remote) => remote.name === remoteName
+	);
+
+	const accountUrls = [
+		...new Set(
+			editing === "account"
+				? [
+						...(editedRemote?.fetchUrls ?? []),
+						...(editedRemote?.pushUrls ?? []),
+					]
+				: [
+						remoteUrl.trim(),
+						...(editedRemote &&
+						editedRemote.pushUrls.join() !== editedRemote.fetchUrls.join()
+							? editedRemote.pushUrls
+							: []),
+					]
+		),
+	].filter((url) => url.startsWith("https://"));
 
 	const apply = useCallback(
 		(next: GitSettingsData): void => {
@@ -285,18 +312,74 @@ export function GitSettings({
 		setStatus(null);
 
 		try {
-			const result = await write(root, request);
+			const accountOnly =
+				request.kind === "edit-remote" &&
+				(editing === "account" ||
+					editedRemote?.fetchUrls[0] === request.url.trim());
+
+			const result = accountOnly
+				? await read(root, new AbortController().signal)
+				: await write(root, request);
 
 			if (!mounted.current) return;
 
 			if (result.ok) {
 				apply(result.value);
+
+				if (request.kind === "add-remote" || request.kind === "edit-remote") {
+					const savedRemote = result.value.remotes.find(
+						(remote) => remote.name === request.name.trim()
+					);
+
+					const urls = new Set([
+						...(savedRemote?.fetchUrls ?? []),
+						...(savedRemote?.pushUrls ?? []),
+					]);
+
+					try {
+						if (
+							Object.keys(remoteChoices).length &&
+							(!result.value.commonDirectory ||
+								result.value.commonDirectory !== commonDirectory)
+						)
+							throw new Error("The repository changed.");
+
+						for (const [url, choice] of Object.entries(remoteChoices)) {
+							if (accountOnly && accountUrls.includes(url) && !urls.has(url))
+								throw new Error("The remote destination changed.");
+
+							if (
+								urls.has(url) &&
+								accountUrls.includes(url) &&
+								remoteAccounts &&
+								result.value.commonDirectory
+							)
+								remoteAccounts.select(
+									result.value.commonDirectory,
+									request.name.trim(),
+									url,
+									choice
+								);
+						}
+					} catch {
+						setError(
+							"Could not save the account choice. Review the saved remote and choose an account before syncing."
+						);
+
+						return;
+					} finally {
+						setAccountRevision((previous) => previous + 1);
+					}
+				}
+
 				setEditing(null);
 				setRemoving(null);
 				setStatus(
 					request.kind === "identity"
 						? "Identity saved."
-						: "Remote settings saved."
+						: accountOnly
+							? "Account saved."
+							: "Remote settings saved."
 				);
 			} else {
 				setError(
@@ -409,6 +492,7 @@ export function GitSettings({
 										renderer.getFocusedElementId?.() ?? null;
 									setRemoteName("");
 									setRemoteUrl("");
+									setRemoteChoices({});
 									setEditing("add");
 									setError(null);
 									setStatus(null);
@@ -493,6 +577,11 @@ export function GitSettings({
 											testId={`remote-${remote.name}`}
 											style={{ ...row, gap: spacing[3] }}
 										>
+											<RemoteProviderIcon
+												testId={`remote-provider-${remote.name}`}
+												url={remote.fetchUrls[0] ?? ""}
+												accounts={accounts}
+											/>
 											<div
 												style={{
 													...column,
@@ -533,8 +622,8 @@ export function GitSettings({
 														]
 															.filter((url) => url.startsWith("https://"))
 															.map((url) => (
-																<RemoteAccountSelect
-																	key={`${commonDirectory}:${remote.name}:${url}`}
+																<RemoteAccount
+																	key={`${commonDirectory}:${remote.name}:${url}:${accountRevision}`}
 																	bindings={remoteAccounts}
 																	directory={commonDirectory}
 																	label={
@@ -547,7 +636,6 @@ export function GitSettings({
 																	}
 																	remote={remote.name}
 																	url={url}
-																	disabled={locked || editing !== null}
 																/>
 															))
 													: null}
@@ -561,14 +649,17 @@ export function GitSettings({
 												disabled={
 													locked ||
 													editing !== null ||
-													remote.fetchUrls.length !== 1
+													(remote.fetchUrls.length !== 1 && !remoteAccounts)
 												}
 												onPress={() => {
 													returnFocus.current =
 														renderer.getFocusedElementId?.() ?? null;
 													setRemoteName(remote.name);
 													setRemoteUrl(remote.fetchUrls[0] ?? "");
-													setEditing("edit");
+													setRemoteChoices({});
+													setEditing(
+														remote.fetchUrls.length === 1 ? "edit" : "account"
+													);
 													setError(null);
 													setStatus(null);
 												}}
@@ -769,7 +860,7 @@ export function GitSettings({
 										id="remote-name"
 										label="Remote name"
 										value={remoteName}
-										disabled={locked || editing === "edit"}
+										disabled={locked || editing !== "add"}
 										onChange={setRemoteName}
 									/>
 									<SettingsField
@@ -777,9 +868,33 @@ export function GitSettings({
 										id="remote-url"
 										label="Remote URL"
 										value={remoteUrl}
-										disabled={locked}
+										disabled={locked || editing === "account"}
 										onChange={setRemoteUrl}
 									/>
+									{remoteAccounts && commonDirectory
+										? accountUrls.map((url) => (
+												<RemoteAccount
+													key={`${remoteName}:${url}:${accountRevision}`}
+													bindings={remoteAccounts}
+													directory={commonDirectory}
+													remote={remoteName.trim()}
+													url={url}
+													label={
+														accountUrls.length > 1
+															? `Account: ${url}`
+															: "Authentication"
+													}
+													value={remoteChoices[url]}
+													disabled={locked}
+													onChange={(value) =>
+														setRemoteChoices((previous) => ({
+															...previous,
+															[url]: value,
+														}))
+													}
+												/>
+											))
+										: null}
 								</>
 							)}
 						</div>
@@ -837,7 +952,11 @@ export function GitSettings({
 											loadingIdentity ||
 											!identityChanged ||
 											(custom && (!name.trim() || !email.trim()))
-										: locked || !remoteName.trim() || !remoteUrl.trim()
+										: locked ||
+											!remoteName.trim() ||
+											!remoteUrl.trim() ||
+											(editing === "account" &&
+												!Object.keys(remoteChoices).length)
 								}
 								onPress={() => {
 									void save(
