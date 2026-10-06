@@ -300,7 +300,7 @@ export function WorkspaceRail({
 								width: 20,
 								height: 1,
 								flexShrink: 0,
-								backgroundColor: lightColors.editorHairline,
+								backgroundColor: lightColors.editorHairlineStrong,
 							}}
 						/>
 					</>

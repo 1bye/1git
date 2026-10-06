@@ -6,6 +6,7 @@
  */
 import { afterEach, beforeEach, expect, it, mock, spyOn } from "bun:test";
 import { createTestRoot, type TestRoot } from "@gpuix/react/testing";
+import { lightColors } from "@1git/design-tokens";
 import { App } from "../../src/app";
 import { Accounts } from "../../src/feature/accounts/lib/accounts";
 import { AccountStore } from "../../src/feature/accounts/lib/account-store";
@@ -229,6 +230,10 @@ it("places separate incoming/outgoing badges above Changes and removes duplicate
 	const incoming = bounds("rail-sync-incoming");
 	const outgoing = bounds("rail-sync-outgoing");
 
+	expect(node("rail-sync-separator").style.backgroundColor).toBe(
+		lightColors.editorHairlineStrong
+	);
+	expect(separator).toMatchObject({ width: 20, height: 1 });
 	expect(separator.y - button.y - button.height).toBe(4);
 	expect(changes.y - separator.y - separator.height).toBe(4);
 	expect(incoming.y).toBeGreaterThanOrEqual(bounds("workspace-rail").y);

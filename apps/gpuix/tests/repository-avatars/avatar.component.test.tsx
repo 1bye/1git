@@ -168,7 +168,7 @@ it("reuses the same thumbnail in saved repositories, repository tabs and Clone r
 		expect(
 			root.renderer.findByTestId("avatar-workspace-1-image")
 		).toBeDefined();
-		click("add-workspace");
+		click("workspace-home");
 		click("repository-clone");
 		await Bun.sleep(160);
 		root.renderer.flush();

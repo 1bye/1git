@@ -231,7 +231,7 @@ it("keeps an unavailable repository and editable draft, then retries its saved p
 	});
 });
 
-it("saves reorder, activation, additions, closure and the latest draft on unmount without waiting for the debounce", async () => {
+it("saves reorder, Home navigation, closure and the latest draft on unmount without waiting for the debounce", async () => {
 	const save = mock<(document: WorkspaceSessionDocument) => void>(() => {});
 
 	root.render(
@@ -242,7 +242,7 @@ it("saves reorder, activation, additions, closure and the latest draft on unmoun
 	root.renderer.simulateKeystrokes("shift-left");
 	root.renderer.flush();
 	click("close-workspace-2");
-	click("add-workspace");
+	click("workspace-home");
 	click("workspace-1");
 	click("commit-message");
 	root.renderer.simulateKeystrokes("cmd-a l a s t");
@@ -253,7 +253,6 @@ it("saves reorder, activation, additions, closure and the latest draft on unmoun
 	expect(saved?.tabs.map(({ id }) => id)).toEqual([
 		"workspace-1",
 		"workspace-3",
-		"workspace-4",
 	]);
 	expect(saved?.activeId).toBe("workspace-1");
 	expect(saved?.tabs[0]?.draft).toBe("last");

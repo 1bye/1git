@@ -71,6 +71,35 @@ it("creates independent state and preserves identity for ignored actions", () =>
 	expect(Model.destination(state.tabs, "missing", "right")).toBeUndefined();
 });
 
+it("returns Home without adding tabs, clearing drafts or stopping operations", () => {
+	let initial = Model.create(2);
+
+	initial = Model.reduce(initial, {
+		type: "workspace",
+		id: "workspace-1",
+		action: { type: "edit-commit-message", value: "Keep draft" },
+	});
+	initial = Model.reduce(initial, {
+		type: "workspace",
+		id: "workspace-1",
+		action: { type: "sync-started", kind: "fetch" },
+	});
+	const home = Model.reduce(initial, { type: "home" });
+
+	expect(home.activeId).toBeNull();
+	expect(home.tabs).toBe(initial.tabs);
+	expect(home.nextId).toBe(initial.nextId);
+	expect(home.tabs[0]?.workspace.commitMessage).toBe("Keep draft");
+	expect(home.tabs[0]?.workspace.sync.pending).toBe("fetch");
+	expect(Model.reduce(home, { type: "home" })).toBe(home);
+	expect(
+		Model.reduce(home, { type: "activate", id: "workspace-1" }).activeId
+	).toBe("workspace-1");
+	expect(
+		Model.reduce(home, { type: "worktree-removed", path: "/missing" }).activeId
+	).toBeNull();
+});
+
 it("adds unique tabs without mutating the input and keeps the active tab on an inactive close", () => {
 	const initial = Model.create();
 	const added = Model.reduce(initial, { type: "add" });
@@ -82,7 +111,7 @@ it("adds unique tabs without mutating the input and keeps the active tab on an i
 	expect(Model.reduce(closed, { type: "add" }).activeId).toBe("workspace-3");
 });
 
-it("seeds a multi-tab preview with the first tab active and fresh IDs for +", () => {
+it("seeds a multi-tab preview and supports starting on Home without placeholder tabs", () => {
 	const state = Model.create(8, true);
 
 	expect(state.tabs).toHaveLength(8);
@@ -90,8 +119,14 @@ it("seeds a multi-tab preview with the first tab active and fresh IDs for +", ()
 	expect(state.activeId).toBe("workspace-1");
 	expect(Model.reduce(state, { type: "add" }).activeId).toBe("workspace-9");
 
-	for (const count of [0, -1, 1.5, Number.POSITIVE_INFINITY]) {
-		expect(() => Model.create(count)).toThrow("positive integer");
+	expect(Model.create(0)).toMatchObject({
+		tabs: [],
+		activeId: null,
+		nextId: 1,
+	});
+
+	for (const count of [-1, 1.5, Number.POSITIVE_INFINITY]) {
+		expect(() => Model.create(count)).toThrow("non-negative integer");
 	}
 });
 

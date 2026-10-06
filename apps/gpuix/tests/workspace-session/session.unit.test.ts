@@ -146,6 +146,23 @@ it("restores tab order, separate drafts, active tab and worktree roots without s
 	expect(added.tabs.at(-1)?.id).toBe("workspace-4");
 });
 
+it("round-trips Home selection while retaining repository tabs and drafts", () => {
+	const document = {
+		version: 1 as const,
+		tabs: [{ id: "workspace-1", path: "/test/project", draft: "Keep draft" }],
+		activeId: null,
+	};
+
+	const restored = WorkspaceSession.restore(
+		WorkspaceSession.parse(JSON.stringify(document))
+	);
+
+	expect(restored.activeId).toBeNull();
+	expect(restored.tabs).toHaveLength(1);
+	expect(restored.tabs[0]?.workspace.commitMessage).toBe("Keep draft");
+	expect(WorkspaceSession.capture(restored).activeId).toBeNull();
+});
+
 it("preserves empty tabs and an intentionally empty session", () => {
 	const initial = WorkspaceTabsModel.create();
 	const restored = WorkspaceSession.restore(WorkspaceSession.capture(initial));

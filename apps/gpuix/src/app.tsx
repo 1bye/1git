@@ -80,7 +80,7 @@ export function App({
 	accounts: suppliedAccounts,
 	remoteAccounts: suppliedRemoteAccounts,
 	avatars: suppliedAvatars,
-	initialTabCount = 1,
+	initialTabCount,
 	preview = false,
 	initialSession,
 	sessionError,
@@ -281,7 +281,10 @@ export function App({
 		(options) =>
 			options.initialSession && !options.preview
 				? WorkspaceSession.restore(options.initialSession)
-				: WorkspaceTabsModel.create(options.initialTabCount, options.preview)
+				: WorkspaceTabsModel.create(
+						options.initialTabCount ?? (options.preview ? 1 : 0),
+						options.preview
+					)
 	);
 
 	const session = useWorkspaceSession(
@@ -712,9 +715,7 @@ export function App({
 							}}
 						/>
 					}
-					workspaceLabel={
-						activeTab ? `${activeTab.name} workspace` : "No workspace open"
-					}
+					workspaceLabel={activeTab ? `${activeTab.name} workspace` : "Home"}
 				>
 					{publishTab && publishRepository ? (
 						<RepositoryPublishView
@@ -850,7 +851,8 @@ export function App({
 						/>
 					) : null}
 					{publishingVisible ||
-					(cloneTab && activeTab?.id === cloneTab.id) ? null : !preview &&
+					(cloneTab &&
+						activeTab?.id === cloneTab.id) ? null : !workspace?.preview &&
 					  !workspace?.repository &&
 					  !workspace?.repositoryPath ? (
 						<RepositoryWelcome

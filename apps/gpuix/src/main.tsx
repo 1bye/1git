@@ -16,7 +16,7 @@ const restored = session?.load();
 render(
 	<App
 		preview={preview}
-		initialTabCount={preview ? 8 : 1}
+		initialTabCount={preview ? 8 : 0}
 		initialSession={restored?.document}
 		sessionError={restored?.error}
 		saveSession={

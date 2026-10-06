@@ -399,7 +399,7 @@ may show a Keychain access prompt. It never infers credentials from saved accoun
 - `src/feature/workspace-tabs/`: tab UI, focus, scrolling, and pure state transitions.
 - `src/feature/repository-workspace/`: repository picking/status reads, native file diffs, navigation views, and pure workspace transitions.
 - `src/styles/tokens.ts`: shared desktop colors adapted to `gpuix-ui`.
-- `src/styles/workspace-layout.ts`: native chrome spacing; a 96px traffic-light area and 36px tabs in a 42px toolbar, preserving shared bottom spacing and control sizes.
+- `src/styles/workspace-layout.ts`: native chrome spacing; a 16px gap after the traffic lights, an 8px gap from Home to the visible tab body, and 36px tabs in a 42px toolbar, preserving shared bottom spacing and control sizes.
 
 The tab feature groups its modules by responsibility, following
 `.agents/workflow/react.md`:
@@ -441,8 +441,8 @@ does not register that font with GPUIX.
 ## Tabs
 
 - Click an inactive tab to activate it; click the active connected tab to open
-  its branch/worktree menu. + adds and selects
-  a new workspace. Dragging never opens the menu.
+  its branch/worktree menu. The fixed Home button after the traffic lights opens
+  the shared welcome screen without adding a tab. Dragging never opens the menu.
 - Drag a tab horizontally: after a 5px threshold it follows the pointer directly
   while neighbors slide aside. Release commits and settles into the new slot;
   Escape animates back without changing the order. GPUIX `motion.div` animates
@@ -453,17 +453,19 @@ does not register that font with GPUIX.
 - Close with × or Delete/Backspace while its tab is focused.
 - Left/Right wrap between tabs; Home/End select the first/last.
 - Enter and Space activate a focused tab or open its menu when already active;
-  Down also opens the active tab's menu. Tab/Shift+Tab traverse the active
-  tab, its close action, and the add action, with a visible focus outline.
+  Down also opens the active tab's menu. Tab/Shift+Tab traverse Home, the active
+  tab and its close action. Right from Home activates the first repository tab.
+  Selection remains visible without focus outlines.
 - Horizontal trackpad scrolling handles overflow; selection reveals the entire
   tab and close control.
 - Closing the active tab selects the right neighbor, then the left. Closing the
-  last tab leaves the white workspace and focuses +.
+  last tab returns to the welcome screen and focuses Home.
 
-On first launch the window starts with one empty workspace. Later launches restore
-the saved tabs and drafts. + opens another empty tab so each repository keeps its
-own state. Cmd+W
-remains the native Close Window command. There is no theme switch or tab
+On first launch the window starts on Home with no placeholder tab. Later launches
+restore the saved tabs, drafts and Home selection. Home stays visible when tabs
+overflow; it preserves repository selections and drafts and does not cancel
+ongoing Git operations. Opening a recent repository reuses its existing tab or
+opens a new repository tab. Cmd+W remains the native Close Window command. There is no theme switch or tab
 entrance/exit animation yet.
 
 ### Open, clone and create

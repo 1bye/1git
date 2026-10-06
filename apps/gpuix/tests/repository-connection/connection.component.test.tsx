@@ -230,7 +230,7 @@ it("ignores a picker result after its tab closes and never reads for a removed t
 	root.render(<App readDiff={readDiff} readRepository={reader} />);
 	click("open-repository");
 	click("close-workspace-1");
-	click("add-workspace");
+	click("workspace-home");
 	pending.resolve(["/test/project"]);
 	await settle();
 	expect(reader).not.toHaveBeenCalled();

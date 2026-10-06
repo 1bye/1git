@@ -27,6 +27,7 @@ export interface WorkspaceTabsState {
 
 /** Tab mutations are independent of the renderer and never perform filesystem work. */
 export type WorkspaceTabsAction =
+	| { type: "home" }
 	| { type: "add"; path?: string }
 	| { type: "forget-repository"; path: string }
 	| { type: "open-worktree"; snapshot: RepositorySnapshot }
@@ -41,11 +42,14 @@ export type WorkspaceTabsAction =
 export class WorkspaceTabsModel {
 	private constructor() {}
 
-	/** Seed empty workspaces; preview mode explicitly opts into sample data. */
+	/** Seed workspaces; zero starts on Home and preview explicitly opts into sample data. */
 	static create(initialTabCount = 1, preview = false): WorkspaceTabsState {
-		if (!Number.isInteger(initialTabCount) || initialTabCount < 1) {
-			throw new Error("Initial tab count must be a positive integer");
+		if (!Number.isInteger(initialTabCount) || initialTabCount < 0) {
+			throw new Error("Initial tab count must be a non-negative integer");
 		}
+
+		if (initialTabCount === 0)
+			return { preview, tabs: [], activeId: null, nextId: 1 };
 
 		let state: WorkspaceTabsState = {
 			preview,
@@ -75,6 +79,9 @@ export class WorkspaceTabsModel {
 		state: WorkspaceTabsState,
 		action: WorkspaceTabsAction
 	): WorkspaceTabsState {
+		if (action.type === "home")
+			return state.activeId === null ? state : { ...state, activeId: null };
+
 		if (action.type === "forget-repository") {
 			return {
 				...state,
@@ -94,9 +101,11 @@ export class WorkspaceTabsModel {
 			return {
 				...state,
 				tabs,
-				activeId: tabs.some((tab) => tab.id === state.activeId)
-					? state.activeId
-					: (tabs[0]?.id ?? null),
+				activeId:
+					state.activeId === null ||
+					tabs.some((tab) => tab.id === state.activeId)
+						? state.activeId
+						: (tabs[0]?.id ?? null),
 			};
 		}
 

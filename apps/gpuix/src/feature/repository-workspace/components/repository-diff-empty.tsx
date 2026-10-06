@@ -87,7 +87,7 @@ export function RepositoryDiffEmpty({
 
 	if (!hasWorkspace) {
 		heading = "No workspace open";
-		hint = "Use + to create a workspace.";
+		hint = "Open Home to choose a repository.";
 	} else if (selected) {
 		heading = "Diff preview comes next";
 		hint = "This workspace uses sample data. No repository is connected.";

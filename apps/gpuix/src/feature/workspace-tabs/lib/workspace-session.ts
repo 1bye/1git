@@ -134,9 +134,11 @@ export class WorkspaceSession {
 					}
 				: {}),
 			activeId:
-				typeof value.activeId === "string" && ids.has(value.activeId)
-					? value.activeId
-					: (tabs[0]?.id ?? null),
+				value.activeId === null
+					? null
+					: typeof value.activeId === "string" && ids.has(value.activeId)
+						? value.activeId
+						: (tabs[0]?.id ?? null),
 		};
 	}
 

@@ -1,6 +1,18 @@
-import { spacing } from "@1git/design-tokens";
+import {
+	controlSize,
+	iconSize,
+	lightColors,
+	radius,
+	spacing,
+} from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { Button } from "@1git/gpuix-ui/button";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "@1git/gpuix-ui/tooltip";
 import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
 import { useEffect, useRef, useState, type Dispatch } from "react";
 
@@ -29,7 +41,7 @@ const styles = StyleSheet.create({
 		alignItems: "end",
 		height: layout.toolbarHeight,
 		flexShrink: 0,
-		paddingLeft: layout.desktopTitlebarControlsWidth - layout.tabSurfaceOutset,
+		paddingLeft: layout.desktopTitlebarControlsWidth,
 		paddingRight: layout.workspaceSurfaceInset,
 	},
 	tabs: {
@@ -53,12 +65,25 @@ const styles = StyleSheet.create({
 		flexShrink: 0,
 		pointerEvents: "none",
 	},
-	add: {
-		width: layout.tabCloseSize,
-		height: layout.tabCloseSize,
-		marginLeft: spacing[1],
-		marginRight: spacing[1],
-		marginBottom: layout.tabContentInsetBlock,
+	homeSlot: {
+		position: "relative",
+		// Reserve 28px for the 32px control: the tab shoulder adds 12px to the body gap.
+		width: controlSize.rail - spacing[1],
+		height: controlSize.rail,
+		flexShrink: 0,
+		marginBottom: spacing[1],
+	},
+	// Keep the button in flow so the tooltip anchor retains its full bounds.
+	homeAnchor: {
+		position: "absolute",
+		left: 0,
+		top: 0,
+	},
+	home: {
+		width: controlSize.rail,
+		height: controlSize.rail,
+		borderRadius: radius.lg,
+		borderWidth: 0,
 		paddingLeft: spacing[0],
 		paddingRight: spacing[0],
 	},
@@ -83,7 +108,7 @@ export function WorkspaceTabs({
 	const frames = useRef(new Map<string, PublicInstance>());
 	const strip = useRef<PublicInstance>(null);
 	const rail = useRef<PublicInstance>(null);
-	const addButton = useRef<PublicInstance>(null);
+	const homeButton = useRef<PublicInstance>(null);
 	const focusRequested = useRef(false);
 	const [menuId, setMenuId] = useState<string | null>(null);
 	const drag = useWorkspaceTabDrag(state, dispatch, strip, rail);
@@ -123,7 +148,7 @@ export function WorkspaceTabs({
 			focusRequested.current = false;
 			const target = state.activeId
 				? tabs.current.get(state.activeId)
-				: addButton.current;
+				: homeButton.current;
 
 			if (target) renderer.focusElement?.(target.id);
 		}
@@ -171,6 +196,78 @@ export function WorkspaceTabs({
 					height: layout.toolbarHeight - layout.tabHeight,
 				}}
 			/>
+			<div style={styles.homeSlot}>
+				<TooltipProvider delayDuration={350}>
+					<Tooltip style={styles.homeAnchor}>
+						<TooltipTrigger asChild>
+							<Button
+								ref={homeButton}
+								testId="workspace-home"
+								aria-label="Home"
+								aria-description={
+									state.activeId === null
+										? "Welcome screen selected"
+										: "Show welcome screen"
+								}
+								tokens={appTokens}
+								variant="ghost"
+								size="sm"
+								focusVisible={false}
+								onMouseDown={onPointerDown}
+								onKeyDown={(event) => {
+									onKeyboardInput();
+									const first = state.tabs[0];
+
+									if (
+										event.key === "right" &&
+										first &&
+										!event.modifiers?.cmd &&
+										!event.modifiers?.ctrl &&
+										!event.modifiers?.alt &&
+										!event.modifiers?.shift
+									) {
+										dispatch({ type: "activate", id: first.id });
+										focusTab(first.id);
+									}
+								}}
+								style={StyleSheet.compose(
+									styles.home,
+									state.activeId === null && {
+										backgroundColor: lightColors.editorHairline,
+									}
+								)}
+								onPress={() => {
+									if (drag.shouldSuppressClick()) return;
+
+									setMenuId(null);
+									drag.cancel();
+									focusRequested.current = state.activeId !== null;
+									dispatch({ type: "home" });
+								}}
+							>
+								<WorkspaceTabIcon
+									name="home"
+									size={iconSize.lg}
+									testId="workspace-home-icon"
+									color={
+										state.activeId === null
+											? lightColors.editorInk
+											: lightColors.editorMuted
+									}
+								/>
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent
+							testId="workspace-home-tooltip"
+							tokens={appTokens}
+							side="bottom"
+							align="center"
+						>
+							Home
+						</TooltipContent>
+					</Tooltip>
+				</TooltipProvider>
+			</div>
 			<div
 				ref={strip}
 				testId="workspace-tabs"
@@ -304,25 +401,6 @@ export function WorkspaceTabs({
 					style={{ flexGrow: 1, flexShrink: 0, height: "100%" }}
 				/>
 			</div>
-			<Button
-				ref={addButton}
-				testId="add-workspace"
-				aria-label="New workspace"
-				tokens={appTokens}
-				variant="ghost"
-				size="sm"
-				onMouseDown={onPointerDown}
-				onKeyDown={onKeyboardInput}
-				style={styles.add}
-				onPress={() => {
-					if (drag.shouldSuppressClick()) return;
-
-					focusRequested.current = true;
-					dispatch({ type: "add" });
-				}}
-			>
-				<WorkspaceTabIcon name="add" testId="add-workspace-icon" />
-			</Button>
 		</div>
 	);
 }

@@ -10,8 +10,8 @@ const tabHeight =
 /** Native chrome spacing; keep the shared bottom inset, hit targets, and window-edge gap. */
 export const workspaceLayout = {
 	...sharedLayout,
-	// Leave more breathing room between the traffic lights and the first tab.
-	desktopTitlebarControlsWidth: 96,
+	// The traffic lights end at 76px; leave 16px before the Home control.
+	desktopTitlebarControlsWidth: 92,
 	// Paint room outside each tab slot for the connected surface's curved shoulders.
 	tabSurfaceOutset: 10,
 	tabContentInsetTop,

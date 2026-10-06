@@ -246,9 +246,10 @@ const dismissMenu = async (): Promise<void> => {
 	}
 };
 
-const open = async (): Promise<void> => {
+const open = async (initialTabCount = 1): Promise<void> => {
 	root.render(
 		<App
+			initialTabCount={initialTabCount}
 			readRepository={readRepository}
 			readBranches={readBranches}
 			writeBranch={writeBranch}
@@ -302,9 +303,8 @@ it("groups New and Worktrees into exclusive hover flyouts and removes Remote act
 });
 
 it("flips the New flyout left near the window edge without clipping", async () => {
-	await open();
-
-	for (let index = 0; index < 6; index += 1) click("add-workspace");
+	await open(7);
+	root.renderer.nativeSimulateKeyDown(element("workspace-1").id, "end");
 
 	await settle();
 	click("open-repository");
@@ -404,9 +404,8 @@ it("shows worktrees only in a right-hand hover submenu and keeps it open while e
 });
 
 it("flips the worktree submenu to the left near the window edge", async () => {
-	await open();
-
-	for (let index = 0; index < 6; index += 1) click("add-workspace");
+	await open(7);
+	root.renderer.nativeSimulateKeyDown(element("workspace-1").id, "end");
 
 	await settle();
 	click("open-repository");
@@ -1132,7 +1131,7 @@ it("accepts a new-name suggestion without writing until confirmed", async () => 
 
 it("opens only the active tab's compact menu with branch context and Escape focus restoration", async () => {
 	await open();
-	click("add-workspace");
+	click("workspace-home");
 	await settle();
 	click("workspace-1");
 	await settle();
@@ -1580,7 +1579,7 @@ it("keeps unsafe actions disabled without a persistent explanation or empty foot
 	expect(
 		menuBox.y + menuBox.height - lastAction.y - lastAction.height
 	).toBeLessThanOrEqual(6);
-	click("add-workspace");
+	click("workspace-home");
 	await settle();
 	expect(root.renderer.findByTestId("workspace-menu")).toBeUndefined();
 });
@@ -1847,8 +1846,8 @@ it("keeps the window-owned write locked if its menu closes while switching", asy
 });
 
 it("reorders by captured drag without opening the menu", async () => {
-	await open();
-	click("add-workspace");
+	await open(2);
+	click("workspace-2");
 	await settle();
 	click("workspace-1");
 	await settle();
@@ -1864,9 +1863,8 @@ it("reorders by captured drag without opening the menu", async () => {
 });
 
 it("keeps the menu inside the right edge and dismisses on a background click", async () => {
-	await open();
-
-	for (let index = 0; index < 6; index += 1) click("add-workspace");
+	await open(7);
+	root.renderer.nativeSimulateKeyDown(element("workspace-1").id, "end");
 
 	await settle();
 	click("open-repository");
@@ -1941,10 +1939,10 @@ it("keeps the close icon stationary when an overflowing tab opens and dismisses 
 	expect(bounds("close-icon-workspace-1")).toEqual(closeIcon);
 });
 
-it("dismisses the backdrop without activating the dimmed add or close controls", async () => {
+it("dismisses the backdrop without activating the dimmed Home or close controls", async () => {
 	await open();
 	await menu();
-	click("add-workspace");
+	click("workspace-home");
 	await settle();
 	expect(root.renderer.findByTestId("workspace-menu")).toBeUndefined();
 	expect(root.renderer.findByTestId("workspace-2")).toBeUndefined();
@@ -1957,8 +1955,8 @@ it("dismisses the backdrop without activating the dimmed add or close controls",
 });
 
 it("updates every tab for the same folder after a branch switch", async () => {
-	await open();
-	click("add-workspace");
+	await open(2);
+	click("workspace-2");
 	await settle();
 	click("open-repository");
 	await settle();

@@ -270,7 +270,7 @@ it("edits multiline drafts, previews by shortcut or click, and never clears incl
 	);
 });
 
-it("restores each tab's draft across views and reordering, and starts new tabs empty", () => {
+it("restores each tab's draft across views, reordering and Home navigation", () => {
 	click("commit-message");
 	root.renderer.simulateKeystrokes("o n e");
 	root.renderer.flush();
@@ -288,8 +288,10 @@ it("restores each tab's draft across views and reordering, and starts new tabs e
 	click("workspace-2");
 	expect(element("commit-message").customProps?.value).toBe("two");
 	click("close-workspace-2");
-	click("add-workspace");
-	expect(element("commit-message").customProps?.value).toBe("");
+	click("workspace-home");
+	expect(element("repository-welcome")).toBeDefined();
+	click("workspace-1");
+	expect(element("commit-message").customProps?.value).toBe("one");
 });
 
 it("traverses from file inclusion into the editor and preview action with Tab", () => {
@@ -354,7 +356,7 @@ it("toggles inclusion without selecting a file and derives the all/none/mixed he
 	expect(selected()).toEqual(["src/styles/tokens.ts, added"]);
 });
 
-it("keeps inclusion through view changes and reorders, isolates tabs, and resets new workspaces", () => {
+it("keeps inclusion through view changes, reorders and Home navigation while isolating tabs", () => {
 	click("include-src/app.tsx");
 	changeView("history");
 	changeView("changes");
@@ -365,7 +367,8 @@ it("keeps inclusion through view changes and reorders, isolates tabs, and resets
 	key("workspace-1", "shift-right");
 	expect(checked("include-src/app.tsx")).toBe(false);
 	click("close-workspace-1");
-	click("add-workspace");
+	click("workspace-home");
+	click("workspace-2");
 	expect(checked("include-src/app.tsx")).toBe(true);
 });
 
@@ -570,9 +573,15 @@ it("keeps the full-width tab rail above navigation contained in the rounded work
 		width: 980,
 		height: 42,
 	});
-	expect(bounds("slot-workspace-1").x).toBe(96);
-	expect(bounds("surface-workspace-1").x).toBe(86);
-	expect(bounds("workspace-tabs").width).toBe(856);
+	const home = bounds("workspace-home");
+	const strip = bounds("workspace-tabs");
+
+	expect(home.x).toBe(92);
+	expect(strip.x).toBe(home.x + home.width - 4);
+	expect(bounds("hover-workspace-1").x - home.x - home.width).toBe(8);
+	expect(bounds("slot-workspace-1").x).toBe(strip.x + 10);
+	expect(bounds("surface-workspace-1").x).toBe(strip.x);
+	expect(strip.x + strip.width).toBe(974);
 	expect(element("workspace").style.backgroundColor).toBe(
 		lightColors.editorSurface
 	);
@@ -629,22 +638,22 @@ it("keeps sidebar selection highlighted without outlines during arrow navigation
 	}
 });
 
-it("fits four tab bodies at minimum width and reveals the selected tab's shoulders", () => {
+it("reveals an overflow tab's whole surface while keeping Home fixed at minimum width", () => {
 	root.render(<App preview key="wide-rail" initialTabCount={8} />);
 	click("entry-src/app.tsx");
 	const strip = bounds("workspace-tabs");
 	const fourth = bounds("slot-workspace-4");
 	const firstX = bounds("slot-workspace-1").x;
+	const home = bounds("workspace-home");
 
-	expect(fourth.x + fourth.width).toBeLessThanOrEqual(
-		strip.x + strip.width - 10
-	);
+	expect(fourth.x).toBeLessThan(strip.x + strip.width);
+	expect(fourth.x + fourth.width).toBeLessThanOrEqual(strip.x + strip.width);
 	click("workspace-4");
 	const active = bounds("surface-workspace-4");
 
-	expect(active.x + active.width).toBeLessThanOrEqual(
-		strip.x + strip.width - 10
-	);
+	expect(active.x + active.width).toBeLessThanOrEqual(strip.x + strip.width);
+	expect(active.x).toBeGreaterThanOrEqual(strip.x);
+	expect(bounds("workspace-home")).toEqual(home);
 	click("workspace-1");
 	expect(selected()).toEqual(["src/app.tsx, modified"]);
 	expect(bounds("slot-workspace-1").x).toBe(firstX);
@@ -747,6 +756,11 @@ it("supports arrow-key rail selection and entry/exit with Tab", () => {
 	root.renderer.simulateKeystrokes("tab");
 	root.renderer.flush();
 	notifyListFocus();
+	expect(root.renderer.getFocusedElementId()).toBe(
+		element("workspace-home").id
+	);
+	root.renderer.simulateKeystrokes("tab");
+	root.renderer.flush();
 	expect(root.renderer.getFocusedElementId()).toBe(element("workspace-1").id);
 });
 
@@ -963,15 +977,14 @@ it("keeps tab dragging across the full-width strip and preserves the workspace s
 	expect(selected()).toEqual(["src/app.tsx, modified"]);
 });
 
-it("clears navigation after closing all tabs and starts a fresh workspace from +", () => {
+it("returns to the shared Home screen after closing all tabs", () => {
 	click("entry-src/app.tsx");
 	click("close-workspace-1");
 	click("close-workspace-2");
 	expect(root.renderer.findByTestId("repository-navigation")).toBeUndefined();
-	expect(root.renderer.getAllText()).toContain("No workspace open");
-	click("add-workspace");
-	expect(root.renderer.findByTestId("repository-navigation")).toBeDefined();
-	expect(selected()).toEqual([]);
-	expect(scrollY()).toBe(0);
-	expect(root.renderer.getAllText()).toContain("Select an item to inspect");
+	expect(element("workspace").customProps?.["aria-label"]).toBe("Home");
+	click("workspace-home");
+	expect(element("repository-welcome")).toBeDefined();
+	expect(root.renderer.findByTestId("repository-navigation")).toBeUndefined();
+	expect(root.renderer.findByTestId("workspace-3")).toBeUndefined();
 });
