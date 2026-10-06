@@ -277,6 +277,7 @@ function WorkspaceActionSubmenu({
 }
 
 export interface WorkspaceMenuActions {
+	onPublishRepository?: (id: string) => void;
 	onSettings?: (id: string) => void;
 	onRemoveWorktree?: (
 		id: string,
@@ -312,6 +313,7 @@ export function WorkspaceMenu({
 	onSync,
 	onCancelSync,
 	onSettings,
+	onPublishRepository,
 }: WorkspaceMenuActions & {
 	tab: WorkspaceTabRecord;
 	anchor: PublicInstance | undefined;
@@ -558,6 +560,14 @@ export function WorkspaceMenu({
 		!hasUpstream &&
 		!!data?.remotes.some((remote) => remote.pushUrls.length === 1);
 
+	const canPublishRepository =
+		!!onPublishRepository &&
+		!!data &&
+		!data.remotes.length &&
+		!busy &&
+		!tab.workspace.loading &&
+		!tab.workspace.error;
+
 	let fetchStatus = "";
 
 	if (fetching) fetchStatus = "Cancel";
@@ -574,6 +584,7 @@ export function WorkspaceMenu({
 	];
 
 	const syncIds = [
+		...(canPublishRepository ? ["publish-repository"] : []),
 		...(showFetch && (fetching || canFetch) ? ["fetch-repository"] : []),
 		...(showSync && (syncKind === "pull" || canPull)
 			? ["pull-repository"]
@@ -604,7 +615,12 @@ export function WorkspaceMenu({
 			: visibleSubmenu === "new"
 				? ["create-branch", "create-worktree"]
 				: visibleSubmenu === "sync"
-					? ["fetch-repository", "pull-repository", "push-repository"]
+					? [
+							"publish-repository",
+							"fetch-repository",
+							"pull-repository",
+							"push-repository",
+						]
 					: [];
 
 	let remoteStatus = "Not published";
@@ -1860,19 +1876,22 @@ export function WorkspaceMenu({
 									Merge another branch…
 								</Text>
 							</Button>
-							{showFetch || showSync ? (
+							{showFetch || showSync || onPublishRepository ? (
 								<>
 									<div style={styles.separator} />
 									<WorkspaceActionSubmenu
 										testId="sync-actions"
-										label="Sync"
+										label="Remote"
 										icon="sync"
 										detail={remoteStatus}
 										open={showRemote}
 										disabled={!canRemote}
 										height={
 											menuPadding * 2 +
-											rowHeight * ((showFetch ? 1 : 0) + (showSync ? 2 : 0))
+											rowHeight *
+												((showFetch ? 1 : 0) +
+													(showSync ? 2 : 0) +
+													(canPublishRepository ? 1 : 0))
 										}
 										side={submenuSide}
 										menuRef={submenuMenu}
@@ -1887,6 +1906,29 @@ export function WorkspaceMenu({
 										}}
 										onLeave={scheduleSubmenuClose}
 									>
+										{canPublishRepository ? (
+											<Button
+												testId="publish-repository"
+												ref={(node) => {
+													if (node)
+														rows.current.set("publish-repository", node);
+													else rows.current.delete("publish-repository");
+												}}
+												tokens={appTokens}
+												variant="ghost"
+												size="sm"
+												style={styles.row}
+												onPress={() => {
+													onClose();
+													onPublishRepository?.(tab.id);
+												}}
+											>
+												<WorkspaceTabIcon name="push" />
+												<Text tokens={appTokens} style={styles.label}>
+													Publish repository…
+												</Text>
+											</Button>
+										) : null}
 										{showFetch ? (
 											<>
 												<Button

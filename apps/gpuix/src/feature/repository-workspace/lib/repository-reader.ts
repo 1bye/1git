@@ -11,11 +11,26 @@ export class RepositoryReader {
 	static async read(
 		path: string,
 		signal: AbortSignal
-	): Promise<GitResult<RepositorySnapshot>> {
+	): Promise<
+		GitResult<RepositorySnapshot & { readonly remoteCount?: number }>
+	> {
 		const opened = await GitRepository.open({ path, signal });
 
 		if (!opened.ok) return opened;
 
-		return await opened.value.getSnapshot({ signal });
+		const [snapshot, remotes] = await Promise.all([
+			opened.value.getSnapshot({ signal }),
+			opened.value.getRemotes({ signal }),
+		]);
+
+		if (!snapshot.ok) return snapshot;
+
+		return {
+			ok: true,
+			value: {
+				...snapshot.value,
+				remoteCount: remotes.ok ? remotes.value.length : undefined,
+			},
+		};
 	}
 }

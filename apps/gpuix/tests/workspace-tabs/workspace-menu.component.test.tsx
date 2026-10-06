@@ -1580,7 +1580,8 @@ it("replaces the actions with an inline form and returns with Cancel or Escape w
 	await settle();
 	expect(root.renderer.findByTestId("branch-name")).toBeUndefined();
 	expect(element("branch-main")).toBeTruthy();
-	root.renderer.simulateKeystrokes("up up up right");
+	root.renderer.focusElement(element("new-actions").id);
+	root.renderer.simulateKeystrokes("right");
 	await settle();
 	root.renderer.simulateKeystrokes("enter");
 	await settle();
@@ -2066,13 +2067,14 @@ it("opens with Down, wraps Up to the final action, and dismisses with Tab", asyn
 	);
 });
 
-it("does not fetch on open and disables Fetch when no remote is configured", async () => {
+it("offers Publish repository without enabling Fetch when no remote is configured", async () => {
 	await open();
 	await menu();
 	expect(root.renderer.getAllText()).toContain("No remote");
-	expect(element("sync-actions").customProps?.tabIndex).toBeUndefined();
+	expect(element("sync-actions").customProps?.tabIndex).toBe(0);
 	click("sync-actions");
 	await settle();
+	expect(root.renderer.findByTestId("publish-repository")).toBeDefined();
 	expect(fetchRepository).not.toHaveBeenCalled();
 });
 

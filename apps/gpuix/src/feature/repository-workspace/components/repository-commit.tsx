@@ -79,6 +79,7 @@ export function RepositoryCommit({
 	onAction,
 	onCommit,
 	onSync,
+	onPublish,
 	onCancelSync,
 	onUndo,
 	readLast,
@@ -87,6 +88,7 @@ export function RepositoryCommit({
 	onAction: (action: RepositoryWorkspaceAction) => void;
 	onCommit?: () => void;
 	onSync?: () => void;
+	onPublish?: () => void;
 	onCancelSync?: () => void;
 	onUndo?: (input: CommitRecoveryInput) => Promise<string | null>;
 	readLast?: typeof CommitReader.readLast;
@@ -216,26 +218,46 @@ export function RepositoryCommit({
 								? "Stop synchronization"
 								: syncComplete
 									? "Sync complete"
-									: "Sync with upstream"
+									: onPublish
+										? "Publish repository"
+										: "Sync with upstream"
 						}
 						aria-description={
 							syncing
 								? "Stop synchronization, then refresh status before retrying."
-								: !state.repository?.upstream
-									? "Publish this branch from the tab menu before synchronizing."
-									: "Fetch upstream, pull incoming commits by fast-forward, and push outgoing commits. Uncommitted files are never committed or stashed."
+								: onPublish
+									? "Create a hosted repository and upload committed history. Uncommitted files stay untouched."
+									: !state.repository?.upstream
+										? "Publish this branch from the tab menu before synchronizing."
+										: "Fetch upstream, pull incoming commits by fast-forward, and push outgoing commits. Uncommitted files are never committed or stashed."
 						}
 						variant="secondary"
 						size="sm"
 						tokens={appTokens}
 						textStyle={styles.label}
-						disabled={syncing ? !onCancelSync : !canSync || !onSync}
+						disabled={
+							syncing
+								? !onCancelSync
+								: onPublish
+									? sample ||
+										RepositoryWorkspaceModel.isBusy(state) ||
+										state.loading ||
+										!!state.error
+									: !canSync || !onSync
+						}
 						onPress={() => {
 							if (syncing) onCancelSync?.();
+							else if (onPublish) onPublish();
 							else onSync?.();
 						}}
 					>
-						{syncing ? "Syncing…" : syncComplete ? "Sync complete" : "Sync"}
+						{syncing
+							? "Syncing…"
+							: onPublish
+								? "Publish…"
+								: syncComplete
+									? "Sync complete"
+									: "Sync"}
 					</Button>
 					<Button
 						testId={sample ? "commit-preview" : "commit-submit"}

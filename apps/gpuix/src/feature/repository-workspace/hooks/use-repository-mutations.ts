@@ -31,7 +31,9 @@ import type {
 	RepositorySnapshot,
 	CommitRecoveryInput,
 	GitResult,
+	SyncResult,
 } from "@1git/git";
+import type { PublishBranchIdentity } from "../../repository-publish/repository-publish";
 import { useCloseProtection } from "./use-close-protection";
 import {
 	GitSettingsModel,
@@ -638,7 +640,12 @@ export function useRepositoryMutations(
 
 	const synchronize = async (
 		id: string,
-		choice: { kind: "fetch" } | SyncRequest
+		choice: { kind: "fetch" } | SyncRequest,
+		publish?: (
+			root: string,
+			identity: PublishBranchIdentity,
+			signal: AbortSignal
+		) => Promise<GitResult<SyncResult>>
 	): Promise<void> => {
 		const workspace = tabs.current.find((tab) => tab.id === id)?.workspace;
 		const repository = workspace?.repository;
@@ -711,8 +718,16 @@ export function useRepositoryMutations(
 				: "Synchronization stopped. It may have completed; review status before retrying.";
 
 		try {
-			const result =
-				choice.kind === "fetch"
+			const result = publish
+				? await publish(
+						repository.root,
+						{
+							expectedHead: repository.head ?? "",
+							expectedBranch: repository.branchName ?? "",
+						},
+						controller.signal
+					)
+				: choice.kind === "fetch"
 					? await fetchRepository(repository.root, controller.signal)
 					: await writeSyncRepository(
 							repository.root,
@@ -733,12 +748,14 @@ export function useRepositoryMutations(
 					fetchedAt = Date.now();
 
 				if (choice.kind !== "fetch")
-					notice = {
-						pull: "Pull complete.",
-						push: "Push complete.",
-						publish: "Branch published.",
-						sync: "Sync complete.",
-					}[choice.kind];
+					notice = publish
+						? "Repository published."
+						: {
+								pull: "Pull complete.",
+								push: "Push complete.",
+								publish: "Branch published.",
+								sync: "Sync complete.",
+							}[choice.kind];
 			} else
 				error =
 					result.error.code === "aborted" && controller.signal.aborted
@@ -1241,6 +1258,28 @@ export function useRepositoryMutations(
 	};
 
 	return {
+		publishRepository: async (
+			id: string,
+			run: (
+				root: string,
+				identity: PublishBranchIdentity,
+				signal: AbortSignal
+			) => Promise<GitResult<SyncResult>>
+		): Promise<GitResult<SyncResult> | undefined> => {
+			let outcome: GitResult<SyncResult> | undefined;
+
+			await synchronize(
+				id,
+				{ kind: "publish", remote: "origin", remoteRef: "" },
+				async (root, identity, signal) => {
+					outcome = await run(root, identity, signal);
+
+					return outcome;
+				}
+			);
+
+			return outcome;
+		},
 		saveSettings,
 		resolve: (
 			id: string,

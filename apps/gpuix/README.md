@@ -321,7 +321,8 @@ with same-user debugging privileges can inspect it, so do not log/dump child env
 Folder validation, progress, cancellation and close protection are shared with URL
 cloning. Cancelling preserves any partial destination for review; nothing is deleted
 automatically. Subsequent fetch/push still uses normal system Git authentication.
-Publishing repositories and PR/MR actions are not implemented by this milestone.
+Repository publishing is available from the Changes composer and the tab's Remote
+menu (see below). PR/MR actions are not implemented by this milestone.
 
 ```sh
 # Offline account logic and native UI; no live provider or real credential.
@@ -575,6 +576,35 @@ This is not a port of the Electron liquid SVG morph.
   closing affected tabs while writing. A fresh snapshot updates every matching
   tab after success or failure, preserving drafts. Failed refresh blocks further
   writes until the user refreshes successfully.
+
+### Publish repository
+
+For a local repository without remotes, **Publish…** replaces the composer’s Sync
+button. The tab menu also offers **Remote → Publish repository…**. The form opens
+to the right of the existing sidebar and reuses the account-choice tiles.
+Select a connected GitHub/GitLab account, owner/organization/group, repository
+name, optional description and visibility (**Private** by default). Commit at
+least once before publishing; staged, unstaged and untracked files are never
+committed or uploaded implicitly.
+
+Publishing creates an empty hosted repository, adds `origin`, remembers the
+selected authentication account, then pushes only the reviewed current branch
+and establishes its upstream. Existing remotes are not overwritten. Shared
+repository locks, close protection, Stop and cross-worktree refresh apply to
+the whole transaction. Tokens remain in the credential service and transient
+Git process environment, never in form/session state or Git config.
+
+If creation succeeds but connection/upload fails, **Retry push** uses the same
+hosted repository. Its public recovery receipt survives form dismissal and tab
+switches for this window; after restarting, an already connected `origin` can
+be used with **Publish branch…**. If creation has an uncertain outcome, another
+creation is blocked for this window: review the provider website and connect
+the existing repository in Remotes. No hosted repository is automatically
+deleted on failure, and creation requests are never automatically retried.
+
+Publishing tests use disposable local Git repositories, captured provider HTTP
+and fake credentials. Native tests exercise the right-side form and window
+locks; no live GitHub/GitLab repository is created by tests.
 
 ### Remote synchronization
 

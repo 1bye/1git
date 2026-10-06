@@ -81,6 +81,7 @@ export interface RepositoryWorkspaceState {
 		readonly head: string | null;
 		readonly branchName: string | null;
 		readonly upstream: string | null;
+		readonly remoteCount?: number;
 		readonly operation: RepositoryOperationState;
 		readonly operationToken?: string;
 	} | null;
@@ -216,7 +217,11 @@ export type RepositoryWorkspaceAction =
 	  }
 	| { type: "loading" }
 	| { type: "load-error"; message: string }
-	| { type: "loaded"; snapshot: RepositorySnapshot; automatic?: boolean }
+	| {
+			type: "loaded";
+			snapshot: RepositorySnapshot & { readonly remoteCount?: number };
+			automatic?: boolean;
+	  }
 	| { type: "watch-error"; message: string }
 	| { type: "view"; view: RepositoryView }
 	| { type: "edit-commit-message"; value: string }
@@ -965,6 +970,7 @@ export class RepositoryWorkspaceModel {
 					head: snapshot.head.oid,
 					branchName: snapshot.head.branch,
 					upstream: snapshot.head.upstream,
+					remoteCount: snapshot.remoteCount,
 					operation: snapshot.operationState,
 					operationToken: snapshot.operationToken,
 				},

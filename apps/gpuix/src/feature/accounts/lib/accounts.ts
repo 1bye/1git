@@ -10,6 +10,9 @@ import type {
 	Repository,
 	RepositoryRef,
 	CommitIdentity,
+	Owner,
+	CreateRepository,
+	HostingResult,
 } from "@1git/hosting/contracts";
 import { parseRemote } from "@1git/hosting/remote";
 import {
@@ -90,6 +93,105 @@ export class Accounts {
 
 	load(): SavedAccount[] {
 		return this.store.load();
+	}
+
+	/** Public publishing destinations; pagination stays bound to this window/account client. */
+	async owners(
+		account: SavedAccount,
+		options: PageOptions = {}
+	): Promise<Page<Owner>> {
+		const key = `publish:${AccountStore.key(account)}`;
+		let client = this.clients.get(key);
+
+		if (!client) {
+			client = this.configure(
+				account.provider,
+				account.webUrl,
+				async ({ signal }) =>
+					this.mutate(
+						async () => (await this.verifiedCredential(account, signal)).token
+					)
+			);
+			this.clients.set(key, client);
+		}
+
+		const result = await client.listOwners(options);
+
+		if (!result.ok) throw new Error(result.error.message);
+
+		return result.value;
+	}
+
+	/** Explicit, non-retried hosted creation. Re-resolves the chosen owner; never initializes remote content. */
+	createRepository(
+		account: SavedAccount,
+		input: CreateRepository,
+		signal: AbortSignal,
+		onCreating: () => void = () => {}
+	): Promise<HostingResult<Repository>> {
+		return this.mutate(async () => {
+			const credential = await this.verifiedCredential(account, signal);
+
+			const client = this.configure(
+				account.provider,
+				account.webUrl,
+				credential.token
+			);
+
+			let cursor: string | undefined;
+			let owner: Owner | undefined;
+
+			for (let pageIndex = 0; pageIndex < 100; pageIndex++) {
+				const page = await client.listOwners({ signal, cursor, pageSize: 100 });
+
+				if (!page.ok) return page;
+
+				owner = page.value.items.find(
+					(item) =>
+						item.id === input.owner.id &&
+						item.path === input.owner.path &&
+						item.kind === input.owner.kind
+				);
+
+				if (owner || !page.value.next) break;
+
+				cursor = page.value.next;
+			}
+
+			if (!owner)
+				throw new Error(
+					"This owner is unavailable. Refresh the owner list before publishing."
+				);
+
+			signal.throwIfAborted();
+			onCreating();
+
+			return await client.createRepository(
+				{ ...input, owner, initialize: false },
+				{ signal }
+			);
+		});
+	}
+
+	/** Re-resolve a published destination before reconnecting or retrying an upload; no tokens leave the service. */
+	async hostedRepository(
+		account: SavedAccount,
+		ref: RepositoryRef,
+		signal: AbortSignal
+	): Promise<Repository> {
+		return this.mutate(async () => {
+			const credential = await this.verifiedCredential(account, signal);
+
+			const result = await this.configure(
+				account.provider,
+				account.webUrl,
+				credential.token
+			).getRepository(ref, { signal });
+
+			if (!result.ok) throw new Error(result.error.message);
+
+			return result.value;
+		});
 	}
 
 	/** Host- and path-checked HTTPS credentials stay in the operation owner, never in React state. */
@@ -516,6 +618,7 @@ export class Accounts {
 			if (previous !== null) await this.vault.delete(key);
 
 			this.clients.delete(key);
+			this.clients.delete(`publish:${key}`);
 
 			const next = saved.filter((entry) => AccountStore.key(entry) !== key);
 

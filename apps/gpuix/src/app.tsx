@@ -54,6 +54,11 @@ import { RepositoryWorktrees } from "./feature/workspace-tabs/lib/repository-wor
 import { RepositoryCommit } from "./feature/repository-workspace/lib/repository-commit";
 import { RepositoryCloseNotice } from "./feature/repository-workspace/components/repository-close-notice";
 import { RepositorySync } from "./feature/repository-workspace/lib/repository-sync";
+import {
+	RepositoryPublish,
+	type PublishedRepository,
+} from "./feature/repository-publish/repository-publish";
+import { RepositoryPublishView } from "./feature/repository-publish/repository-publish-view";
 import { RepositoryConflicts } from "./feature/repository-workspace/lib/repository-conflicts";
 import { RepositoryOperation } from "./feature/repository-workspace/lib/repository-operation";
 import {
@@ -171,6 +176,22 @@ export function App({
 
 	const syncAccount = useSyncAccount();
 
+	const publisher = useMemo(
+		() => new RepositoryPublish(accounts, remoteAccounts),
+		[accounts, remoteAccounts]
+	);
+
+	const [publishId, setPublishId] = useState<string | null>(null);
+	const [publishOpen, setPublishOpen] = useState(false);
+
+	const [published, setPublished] = useState<
+		ReadonlyMap<string, PublishedRepository>
+	>(() => new Map());
+
+	const [uncertainPublications, setUncertainPublications] = useState<
+		ReadonlySet<string>
+	>(() => new Set());
+
 	const fetchWithAccounts = useCallback<typeof RepositorySync.fetch>(
 		(root, signal) =>
 			fetchRepository
@@ -272,6 +293,18 @@ export function App({
 
 	const activeTab = state.tabs.find((tab) => tab.id === state.activeId);
 	const workspace = activeTab?.workspace;
+
+	const publishTab = state.tabs.find(
+		(tab) => tab.id === publishId && tab.workspace.repository
+	);
+
+	const publishRepository = publishTab?.workspace.repository;
+	const publishingVisible = publishOpen && activeTab?.id === publishId;
+
+	const openPublish = (id: string): void => {
+		setPublishId(id);
+		setPublishOpen(true);
+	};
 
 	useEffect(() => {
 		previewCache.retain(
@@ -553,6 +586,16 @@ export function App({
 									mutations.undoCommit(activeTab.id, input)
 								}
 								readLastCommit={readLastCommit}
+								onPublish={
+									workspace.repository &&
+									(workspace.repository.remoteCount === 0 ||
+										published.has(workspace.repository.commonDirectory) ||
+										uncertainPublications.has(
+											workspace.repository.commonDirectory
+										))
+										? () => openPublish(activeTab.id)
+										: undefined
+								}
 								onStash={(request) => mutations.stash(activeTab.id, request)}
 								onSync={() => {
 									void mutations.synchronize(activeTab.id, { kind: "sync" });
@@ -586,12 +629,83 @@ export function App({
 								openSettings();
 								setSettingsSection("repository-remotes");
 							}}
+							onPublishRepository={openPublish}
 						/>
 					}
 					workspaceLabel={
 						activeTab ? `${activeTab.name} workspace` : "No workspace open"
 					}
 				>
+					{publishTab && publishRepository ? (
+						<RepositoryPublishView
+							key={publishTab.id}
+							accounts={accounts}
+							name={publishRepository.name}
+							active={publishingVisible && !settingsOpen}
+							disabled={
+								publishTab.workspace.loading ||
+								!!publishTab.workspace.error ||
+								RepositoryWorkspaceModel.isBusy(publishTab.workspace)
+							}
+							created={published.get(publishRepository.commonDirectory)}
+							uncertain={uncertainPublications.has(
+								publishRepository.commonDirectory
+							)}
+							blockedReason={
+								!publishRepository.head
+									? "Create your first commit before publishing."
+									: !publishRepository.branchName
+										? "Switch to a branch before publishing."
+										: publishRepository.operation !== "normal"
+											? "Finish the current Git operation before publishing."
+											: publishTab.workspace.commit.needsReview
+												? "Refresh and review this repository before publishing."
+												: undefined
+							}
+							preferredAccountKey={preferredAccountKey}
+							onSubmit={async (request) => {
+								const result = await mutations.publishRepository(
+									publishTab.id,
+									(root, identity, signal) =>
+										publisher.write(
+											root,
+											request,
+											identity,
+											signal,
+											(receipt) =>
+												setPublished((previous) =>
+													new Map(previous).set(
+														receipt.commonDirectory,
+														receipt
+													)
+												),
+											() =>
+												setUncertainPublications((previous) =>
+													new Set(previous).add(
+														publishRepository.commonDirectory
+													)
+												)
+										)
+								);
+
+								if (result?.ok) {
+									setPublished((previous) => {
+										const next = new Map(previous);
+
+										next.delete(publishRepository.commonDirectory);
+
+										return next;
+									});
+									void avatars.invalidate(publishRepository.root);
+								}
+
+								return result;
+							}}
+							onClose={() => setPublishOpen(false)}
+							onCancel={() => mutations.cancelSync(publishTab.id)}
+							onSettings={() => openSettings("connect")}
+						/>
+					) : null}
 					{settingsOpen ? null : closeNotice}
 					{session.error ? (
 						<div
@@ -655,7 +769,8 @@ export function App({
 							}}
 						/>
 					) : null}
-					{cloneTab && activeTab?.id === cloneTab.id ? null : !preview &&
+					{publishingVisible ||
+					(cloneTab && activeTab?.id === cloneTab.id) ? null : !preview &&
 					  !workspace?.repository &&
 					  !workspace?.repositoryPath ? (
 						<RepositoryWelcome

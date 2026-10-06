@@ -77,6 +77,7 @@ export function WorkspaceTabs({
 	onSync,
 	onCancelSync,
 	onSettings,
+	onPublishRepository,
 }: {
 	state: WorkspaceTabsState;
 	dispatch: Dispatch<WorkspaceTabsAction>;
@@ -294,6 +295,7 @@ export function WorkspaceTabs({
 									onSync={onSync}
 									onCancelSync={onCancelSync}
 									onSettings={onSettings}
+									onPublishRepository={onPublishRepository}
 									onClose={() => {
 										setMenuId(null);
 										focusRequested.current = true;
