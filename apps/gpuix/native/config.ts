@@ -38,6 +38,22 @@ export const contextMenuPlatformPatchPath = resolve(
 	import.meta.dir,
 	"context-menu-platform.patch"
 );
+export const contextMenuItemsPatchPath = resolve(
+	import.meta.dir,
+	"context-menu-items.patch"
+);
+export const contextMenuItemsPlatformPatchPath = resolve(
+	import.meta.dir,
+	"context-menu-items-platform.patch"
+);
+export const contextMenuOwnerPatchPath = resolve(
+	import.meta.dir,
+	"context-menu-owner.patch"
+);
+export const contextMenuOwnerPlatformPatchPath = resolve(
+	import.meta.dir,
+	"context-menu-owner-platform.patch"
+);
 export const testSessionPatchPath = resolve(
 	import.meta.dir,
 	"test-session.patch"
@@ -75,6 +91,10 @@ export const nativeBuildId = createHash("sha256")
 	.update(readFileSync(closePlatformPatchPath))
 	.update(readFileSync(contextMenuPatchPath))
 	.update(readFileSync(contextMenuPlatformPatchPath))
+	.update(readFileSync(contextMenuItemsPatchPath))
+	.update(readFileSync(contextMenuItemsPlatformPatchPath))
+	.update(readFileSync(contextMenuOwnerPatchPath))
+	.update(readFileSync(contextMenuOwnerPlatformPatchPath))
 	.update(readFileSync(testSessionPatchPath))
 	.update(readFileSync(testSessionPlatformPatchPath))
 	.update(readFileSync(elementBoundsPatchPath))

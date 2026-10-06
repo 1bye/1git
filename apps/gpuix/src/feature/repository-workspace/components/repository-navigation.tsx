@@ -40,6 +40,7 @@ import { RepositoryOperation } from "./repository-operation";
 import { RepositoryRevert } from "./repository-revert";
 import type {
 	FileDiscardRequest,
+	FileIgnoreRequest,
 	RepositoryFileActions,
 } from "../lib/repository-file-actions";
 
@@ -153,6 +154,7 @@ export function RepositoryNavigation({
 	onStash,
 	onOperation,
 	onDiscard,
+	onIgnore,
 	openFile,
 	onPreviewIntent,
 }: {
@@ -172,6 +174,7 @@ export function RepositoryNavigation({
 	onStash?: (request: StashWriteRequest) => Promise<boolean>;
 	onOperation?: (request: FinishOperationInput) => Promise<string | null>;
 	onDiscard?: (request: FileDiscardRequest) => Promise<string | null>;
+	onIgnore?: (request: FileIgnoreRequest) => Promise<string | null>;
 	openFile?: typeof RepositoryFileActions.open;
 	onPreviewIntent?: (entry: WorkspaceEntry | null) => void;
 }) {
@@ -308,6 +311,7 @@ export function RepositoryNavigation({
 										state.commit.needsReview,
 									canDiscard: state.repository.operation === "normal",
 									discard: onDiscard,
+									ignore: onIgnore,
 									include: (ids, included) =>
 										onAction({ type: "include-files", ids, included }),
 									open: openFile,

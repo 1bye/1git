@@ -1,0 +1,50 @@
+diff --git a/packages/native/src/context_menu.rs b/packages/native/src/context_menu.rs
+--- a/packages/native/src/context_menu.rs
++++ b/packages/native/src/context_menu.rs
+@@ -1,7 +1,7 @@
+ //! macOS menu tracking stays in AppKit; JavaScript receives only a selected index.
+ use napi::bindgen_prelude::*;
+ use napi_derive::napi;
++use crate::renderer::{context_menu_view, GpuixRenderer};
+-use crate::renderer::GpuixRenderer;
+ 
+ #[napi]
+ impl GpuixRenderer {
+@@ -12,12 +12,12 @@
+     }
+     #[napi]
+     pub fn show_context_menu(&self, labels: Vec<String>, enabled: Vec<bool>, x: f64, y: f64) -> Result<i32> {
++        gpui_macos::show_native_context_menu(context_menu_view()?, &labels, &enabled, x, y)
+-        gpui_macos::show_native_context_menu(&labels, &enabled, x, y)
+             .map_err(|error| Error::from_reason(error.to_string()))
+     }
+     #[napi]
+     pub fn show_context_menu_items(&self, labels: Vec<String>, enabled: Vec<bool>, parents: Vec<i32>, x: f64, y: f64) -> Result<i32> {
++        gpui_macos::show_native_context_menu_items(context_menu_view()?, &labels, &enabled, &parents, x, y)
+-        gpui_macos::show_native_context_menu_items(&labels, &enabled, &parents, x, y)
+             .map_err(|error| Error::from_reason(error.to_string()))
+     }
+     #[napi]
+diff --git a/packages/native/src/renderer.rs b/packages/native/src/renderer.rs
+--- a/packages/native/src/renderer.rs
++++ b/packages/native/src/renderer.rs
+@@ -355,8 +355,17 @@
+     })
+ }
+ 
+-#[cfg(target_os = "macos")]
+-fn invalidate_window() -> Result<()> {
++#[cfg(target_os = "macos")]
++/// Release the GPUI lease before AppKit enters its synchronous menu tracking loop.
++pub(crate) fn context_menu_view() -> Result<usize> {
++    update_window_without_view(|window, _cx| {
++        gpui_macos::context_menu_view(window)
++            .map_err(|error| Error::from_reason(error.to_string()))
++    })?
++}
++
++#[cfg(target_os = "macos")]
++fn invalidate_window() -> Result<()> {
+     update_window(|_view, window, cx| {
+         cx.notify();
+         window.refresh();

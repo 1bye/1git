@@ -61,6 +61,7 @@ export type GitOperation =
 	| "get-tags"
 	| "get-worktrees"
 	| "initialize-repository"
+	| "ignore-files"
 	| "lock-worktree"
 	| "merge"
 	| "move-worktree"
@@ -516,6 +517,20 @@ export interface DiscardFilesInput extends GitCallOptions {
 		readonly expectedHead: string | null;
 		readonly expectedBranch: string | null;
 	};
+}
+
+/** Scope selected from a changed file; folder paths must be its ancestors. */
+export type IgnoreRule =
+	| { readonly kind: "file" }
+	| { readonly kind: "folder"; readonly path: string }
+	| { readonly kind: "extension" };
+
+/** Adds a root .gitignore rule without changing the index or tracked files. */
+export interface IgnoreFileInput extends GitCallOptions {
+	readonly path: string;
+	readonly rule: IgnoreRule;
+	readonly expectedHead: string | null;
+	readonly expectedBranch: string | null;
 }
 
 export interface DiscardFilesResult {

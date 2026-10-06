@@ -1,0 +1,200 @@
+diff --git a/crates/gpui_macos/src/gpui_macos.rs b/crates/gpui_macos/src/gpui_macos.rs
+--- a/crates/gpui_macos/src/gpui_macos.rs
++++ b/crates/gpui_macos/src/gpui_macos.rs
+@@ -8,3 +8,3 @@
+ mod context_menu;
+-pub use context_menu::{show_native_context_menu, confirm_file_discard};
++pub use context_menu::{show_native_context_menu, show_native_context_menu_items, confirm_file_discard, confirm_ignore_rule};
+ mod display;
+diff --git a/crates/gpui_macos/src/context_menu.rs b/crates/gpui_macos/src/context_menu.rs
+--- a/crates/gpui_macos/src/context_menu.rs
++++ b/crates/gpui_macos/src/context_menu.rs
+@@ -1,74 +1,114 @@
+-//! Small synchronous AppKit context menu for the embedded GPUIX host.
+-use cocoa::base::{id, nil, BOOL, NO, YES};
+-use cocoa::foundation::{NSPoint, NSRect};
+-use objc::{class, declare::ClassDecl, msg_send, sel, sel_impl};
+-use objc::runtime::{Class, Object, Sel};
+-use std::sync::OnceLock;
+-
+-extern "C" fn choose(this: &mut Object, _: Sel, sender: id) {
+-    unsafe {
+-        let index: i64 = msg_send![sender, tag];
+-        this.set_ivar("selectedIndex", index);
+-    }
+-}
+-
+-/// Returns the selected item index, or -1 when dismissed. Coordinates are view-local top-left points.
+-pub fn show_native_context_menu(labels: &[String], enabled: &[bool], x: f64, y: f64) -> anyhow::Result<i32> {
+-    anyhow::ensure!(!labels.is_empty() && labels.len() <= 32 && labels.len() == enabled.len(), "Invalid menu items");
+-    anyhow::ensure!(x.is_finite() && y.is_finite() && labels.iter().all(|label| label.len() <= 256 && !label.contains('\0')), "Invalid menu data");
+-    unsafe {
+-        let main_thread: BOOL = msg_send![class!(NSThread), isMainThread];
+-        anyhow::ensure!(main_thread == YES, "Context menus require the main thread");
+-        let app: id = msg_send![class!(NSApplication), sharedApplication];
+-        let window: id = msg_send![app, keyWindow];
+-        anyhow::ensure!(window != nil, "No active window for context menu");
+-        let view: id = msg_send![window, contentView];
+-        anyhow::ensure!(view != nil, "No content view for context menu");
+-        static TARGET: OnceLock<&'static Class> = OnceLock::new();
+-        let target_class = TARGET.get_or_init(|| {
+-            let mut class = ClassDecl::new("OneGitContextMenuTarget", class!(NSObject)).expect("Unique menu target class");
+-            class.add_ivar::<i64>("selectedIndex");
+-            class.add_method(sel!(chooseOneGitItem:), choose as extern "C" fn(&mut Object, Sel, id));
+-            class.register()
+-        });
+-        let target: id = msg_send![*target_class, new];
+-        (*target).set_ivar("selectedIndex", -1_i64);
+-        let menu: id = msg_send![class!(NSMenu), new];
+-        let _: () = msg_send![menu, setAutoenablesItems: NO];
+-        for (index, label) in labels.iter().enumerate() {
+-            let item: id = msg_send![class!(NSMenuItem), alloc];
+-            let item: id = msg_send![item, initWithTitle: crate::ns_string(label) action: sel!(chooseOneGitItem:) keyEquivalent: crate::ns_string("")];
+-            let _: () = msg_send![item, setTarget: target];
+-            let _: () = msg_send![item, setTag: index as i64];
+-            let _: () = msg_send![item, setEnabled: if enabled[index] { YES } else { NO }];
+-            let _: () = msg_send![menu, addItem: item];
+-            let _: () = msg_send![item, release];
+-        }
+-        let bounds: NSRect = msg_send![view, bounds];
+-        let flipped: BOOL = msg_send![view, isFlipped];
+-        let point = NSPoint::new(x, if flipped == YES { y } else { bounds.size.height - y });
+-        let _: BOOL = msg_send![menu, popUpMenuPositioningItem: nil atLocation: point inView: view];
+-        let selected = *(*target).get_ivar::<i64>("selectedIndex");
+-        let _: () = msg_send![menu, release];
+-        let _: () = msg_send![target, release];
+-        Ok(selected as i32)
+-    }
+-}
+-
+-/// Native warning with Cancel as the default action. Dismissal never authorizes a write.
+-pub fn confirm_file_discard(path: &str) -> anyhow::Result<bool> {
+-    anyhow::ensure!(path.len() <= 4096 && !path.contains('\0'), "Invalid file path");
+-    unsafe {
+-        let main_thread: BOOL = msg_send![class!(NSThread), isMainThread];
+-        anyhow::ensure!(main_thread == YES, "Confirmation requires the main thread");
+-        let alert: id = msg_send![class!(NSAlert), new];
+-        let _: () = msg_send![alert, setMessageText: crate::ns_string(&format!("Discard changes to {path}?"))];
+-        let _: () = msg_send![alert, setInformativeText: crate::ns_string("Removes all staged and unstaged changes to the selected files. New files are removed. A recovery backup of the entire selection is saved on disk first.")];
+-        let _: () = msg_send![alert, setAlertStyle: 0_u64];
+-        let _: id = msg_send![alert, addButtonWithTitle: crate::ns_string("Cancel")];
+-        let _: id = msg_send![alert, addButtonWithTitle: crate::ns_string("Discard changes")];
+-        let response: i64 = msg_send![alert, runModal];
+-        let _: () = msg_send![alert, release];
+-        Ok(response == 1001)
+-    }
+-}
++//! Small synchronous AppKit context menu for the embedded GPUIX host.
++use cocoa::base::{id, nil, BOOL, NO, YES};
++use cocoa::foundation::{NSPoint, NSRect};
++use objc::{class, declare::ClassDecl, msg_send, sel, sel_impl};
++use objc::runtime::{Class, Object, Sel};
++use std::sync::OnceLock;
++
++extern "C" fn choose(this: &mut Object, _: Sel, sender: id) {
++    unsafe {
++        let index: i64 = msg_send![sender, tag];
++        this.set_ivar("selectedIndex", index);
++    }
++}
++
++/// Returns the selected item index, or -1 when dismissed. Coordinates are view-local top-left points.
++pub fn show_native_context_menu(labels: &[String], enabled: &[bool], x: f64, y: f64) -> anyhow::Result<i32> {
++    show_native_context_menu_items(labels, enabled, &vec![-1; labels.len()], x, y)
++}
++
++/// Parent indices must precede children; empty labels represent separators. Leaf tags keep flat action indices.
++pub fn show_native_context_menu_items(labels: &[String], enabled: &[bool], parents: &[i32], x: f64, y: f64) -> anyhow::Result<i32> {
++    anyhow::ensure!(!labels.is_empty() && labels.len() <= 128 && labels.len() == enabled.len() && labels.len() == parents.len(), "Invalid menu items");
++    for (index, parent) in parents.iter().enumerate() {
++        anyhow::ensure!(*parent == -1 || (*parent >= 0 && (*parent as usize) < index && parents[*parent as usize] == -1 && !labels[*parent as usize].is_empty()), "Invalid menu parent");
++    }
++    anyhow::ensure!(x.is_finite() && y.is_finite() && labels.iter().all(|label| label.len() <= 4096 && !label.contains('\0')), "Invalid menu data");
++    unsafe {
++        let main_thread: BOOL = msg_send![class!(NSThread), isMainThread];
++        anyhow::ensure!(main_thread == YES, "Context menus require the main thread");
++        let app: id = msg_send![class!(NSApplication), sharedApplication];
++        let window: id = msg_send![app, keyWindow];
++        anyhow::ensure!(window != nil, "No active window for context menu");
++        let view: id = msg_send![window, contentView];
++        anyhow::ensure!(view != nil, "No content view for context menu");
++        static TARGET: OnceLock<&'static Class> = OnceLock::new();
++        let target_class = TARGET.get_or_init(|| {
++            let mut class = ClassDecl::new("OneGitContextMenuTarget", class!(NSObject)).expect("Unique menu target class");
++            class.add_ivar::<i64>("selectedIndex");
++            class.add_method(sel!(chooseOneGitItem:), choose as extern "C" fn(&mut Object, Sel, id));
++            class.register()
++        });
++        let target: id = msg_send![*target_class, new];
++        (*target).set_ivar("selectedIndex", -1_i64);
++        let menu: id = msg_send![class!(NSMenu), new];
++        let _: () = msg_send![menu, setAutoenablesItems: NO];
++        let mut submenus = vec![nil; labels.len()];
++        for (index, label) in labels.iter().enumerate() {
++            let parent_menu = if parents[index] == -1 { menu } else { submenus[parents[index] as usize] };
++            if label.is_empty() {
++                let separator: id = msg_send![class!(NSMenuItem), separatorItem];
++                let _: () = msg_send![parent_menu, addItem: separator];
++                continue;
++            }
++            let item: id = msg_send![class!(NSMenuItem), alloc];
++            let item: id = msg_send![item, initWithTitle: crate::ns_string(label) action: sel!(chooseOneGitItem:) keyEquivalent: crate::ns_string("")];
++            let _: () = msg_send![item, setTarget: target];
++            let _: () = msg_send![item, setTag: index as i64];
++            let _: () = msg_send![item, setEnabled: if enabled[index] { YES } else { NO }];
++            if parents.iter().any(|parent| *parent == index as i32) {
++                let submenu: id = msg_send![class!(NSMenu), new];
++                let _: () = msg_send![submenu, setAutoenablesItems: NO];
++                let _: () = msg_send![item, setSubmenu: submenu];
++                submenus[index] = submenu;
++                let _: () = msg_send![submenu, release];
++            }
++            let _: () = msg_send![parent_menu, addItem: item];
++            let _: () = msg_send![item, release];
++        }
++        let bounds: NSRect = msg_send![view, bounds];
++        let flipped: BOOL = msg_send![view, isFlipped];
++        let point = NSPoint::new(x, if flipped == YES { y } else { bounds.size.height - y });
++        let _: BOOL = msg_send![menu, popUpMenuPositioningItem: nil atLocation: point inView: view];
++        let selected = *(*target).get_ivar::<i64>("selectedIndex");
++        let _: () = msg_send![menu, release];
++        let _: () = msg_send![target, release];
++        Ok(selected as i32)
++    }
++}
++
++/// Native warning with Cancel as the default action. Dismissal never authorizes a write.
++pub fn confirm_file_discard(path: &str) -> anyhow::Result<bool> {
++    anyhow::ensure!(path.len() <= 4096 && !path.contains('\0'), "Invalid file path");
++    unsafe {
++        let main_thread: BOOL = msg_send![class!(NSThread), isMainThread];
++        anyhow::ensure!(main_thread == YES, "Confirmation requires the main thread");
++        let alert: id = msg_send![class!(NSAlert), new];
++        let _: () = msg_send![alert, setMessageText: crate::ns_string(&format!("Discard changes to {path}?"))];
++        let _: () = msg_send![alert, setInformativeText: crate::ns_string("Removes all staged and unstaged changes to the selected files. New files are removed. A recovery backup of the entire selection is saved on disk first.")];
++        let _: () = msg_send![alert, setAlertStyle: 0_u64];
++        let _: id = msg_send![alert, addButtonWithTitle: crate::ns_string("Cancel")];
++        let _: id = msg_send![alert, addButtonWithTitle: crate::ns_string("Discard changes")];
++        let response: i64 = msg_send![alert, runModal];
++        let _: () = msg_send![alert, release];
++        Ok(response == 1001)
++    }
++}
++
++/// Shows the exact pattern and explains why tracked files remain visible. Cancel is the default.
++pub fn confirm_ignore_rule(pattern: &str) -> anyhow::Result<bool> {
++    anyhow::ensure!(pattern.len() <= 4096 && !pattern.contains('\0'), "Invalid ignore rule");
++    unsafe {
++        let main_thread: BOOL = msg_send![class!(NSThread), isMainThread];
++        anyhow::ensure!(main_thread == YES, "Confirmation requires the main thread");
++        let alert: id = msg_send![class!(NSAlert), new];
++        let _: () = msg_send![alert, setMessageText: crate::ns_string("Add this rule to .gitignore?")];
++        let _: () = msg_send![alert, setInformativeText: crate::ns_string(&format!("{pattern}\n\nApplies to untracked files only. Already tracked files stay tracked and their changes remain visible. The index is not changed."))];
++        let _: () = msg_send![alert, setAlertStyle: 0_u64];
++        let _: id = msg_send![alert, addButtonWithTitle: crate::ns_string("Cancel")];
++        let _: id = msg_send![alert, addButtonWithTitle: crate::ns_string("Add rule")];
++        let response: i64 = msg_send![alert, runModal];
++        let _: () = msg_send![alert, release];
++        Ok(response == 1001)
++    }
++}

@@ -107,6 +107,7 @@ export function App({
 	openConflictEditor = RepositoryConflicts.openEditor,
 	writeOperation = RepositoryOperation.write,
 	discardFile = RepositoryFileActions.discard,
+	ignoreFile = RepositoryFileActions.ignore,
 	openFile = RepositoryFileActions.open,
 	readGitSettings = GitSettingsModel.read,
 	writeGitSettings = GitSettingsModel.write,
@@ -143,6 +144,7 @@ export function App({
 	openConflictEditor?: typeof RepositoryConflicts.openEditor;
 	writeOperation?: typeof RepositoryOperation.write;
 	discardFile?: typeof RepositoryFileActions.discard;
+	ignoreFile?: typeof RepositoryFileActions.ignore;
 	openFile?: typeof RepositoryFileActions.open;
 	readGitSettings?: typeof GitSettingsModel.read;
 	writeGitSettings?: typeof GitSettingsModel.write;
@@ -289,7 +291,8 @@ export function App({
 
 			return result;
 		},
-		revertCommit
+		revertCommit,
+		ignoreFile
 	);
 
 	useRepositoryAutoRefresh(state, dispatch, readRepository, watchRepository);
@@ -576,6 +579,9 @@ export function App({
 								openFile={openFile}
 								onDiscard={(request) =>
 									mutations.discardFile(activeTab.id, request)
+								}
+								onIgnore={(request) =>
+									mutations.ignoreFile(activeTab.id, request)
 								}
 								key={activeTab.id}
 								workspaceId={activeTab.id}

@@ -26,6 +26,7 @@ import { RepositoryHistory } from "../lib/repository-history";
 import {
 	RepositoryFileActions,
 	type FileDiscardRequest,
+	type FileIgnoreRequest,
 } from "../lib/repository-file-actions";
 import type {
 	FinishOperationInput,
@@ -76,7 +77,8 @@ export function useRepositoryMutations(
 	removeWorktree = RepositoryWorktrees.remove,
 	undoCommit = RepositoryCommit.undo,
 	writeGitSettings = GitSettingsModel.write,
-	revertCommit = RepositoryHistory.revert
+	revertCommit = RepositoryHistory.revert,
+	ignoreFile = RepositoryFileActions.ignore
 ) {
 	const [settingsPending, setSettingsPending] = useState(false);
 	const settingsWrite = useRef(false);
@@ -998,6 +1000,7 @@ export function useRepositoryMutations(
 			| FinishOperationInput
 			| (RevertCommitInput & { kind: "revert" })
 			| FileDiscardRequest
+			| FileIgnoreRequest
 			| {
 					kind: "resolve";
 					path: string;
@@ -1086,7 +1089,9 @@ export function useRepositoryMutations(
 						? await discardFile(repository.root, request)
 						: request.kind === "revert"
 							? await revertCommit(repository.root, request)
-							: await writeOperation(repository.root, request);
+							: request.kind === "ignore"
+								? await ignoreFile(repository.root, request)
+								: await writeOperation(repository.root, request);
 
 			if (!result.ok) error = result.error.message;
 			else if (
@@ -1145,11 +1150,13 @@ export function useRepositoryMutations(
 										? `Discarded ${request.paths.length} ${request.paths.length === 1 ? "file" : "files"}. Recovery backup saved.`
 										: request.kind === "revert"
 											? "Revert commit created."
-											: request.kind === "abort"
-												? "Operation aborted."
-												: snapshot?.operationState === "normal"
-													? "Operation completed."
-													: "Git paused again. Review the current operation before continuing.",
+											: request.kind === "ignore"
+												? "Rule added to .gitignore. Already tracked files remain unchanged."
+												: request.kind === "abort"
+													? "Operation aborted."
+													: snapshot?.operationState === "normal"
+														? "Operation completed."
+														: "Git paused again. Review the current operation before continuing.",
 						}
 			);
 
@@ -1360,6 +1367,8 @@ export function useRepositoryMutations(
 		revertCommit: (id: string, request: RevertCommitInput) =>
 			updateWorktree(id, { ...request, kind: "revert" }),
 		discardFile: (id: string, request: FileDiscardRequest) =>
+			updateWorktree(id, request),
+		ignoreFile: (id: string, request: FileIgnoreRequest) =>
 			updateWorktree(id, request),
 		closeProtection,
 		stash,

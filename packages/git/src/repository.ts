@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 export { GitIdentity, type GitIdentityValues } from "./identity.js";
+export { GitIgnore } from "./ignore.js";
 import { mkdir, realpath, stat, lstat, writeFile } from "node:fs/promises";
 import { dirname, resolve, join } from "node:path";
 
@@ -42,6 +43,7 @@ import type {
 	GitOperation,
 	GitResult,
 	HistoryInput,
+	IgnoreFileInput,
 	InitializeRepositoryInput,
 	LockWorktreeInput,
 	MergeInput,
@@ -86,6 +88,7 @@ import { selectHunkPatch } from "./hunk-patch.js";
 import { SelectedCommit } from "./selected-commit.js";
 import { CommitRecovery } from "./commit-recovery.js";
 import { BranchSync } from "./branch-sync.js";
+import { GitIgnore } from "./ignore.js";
 import { validateHttpAuthentication } from "./http-authentication.js";
 import type { RepositoryContext } from "./internal.js";
 import {
@@ -887,6 +890,33 @@ export class GitRepository {
 			};
 
 			return { snapshot, undo };
+		});
+	}
+
+	/** Adds an ignore rule for a reviewed changed file; tracked files and index stay untouched. */
+	async ignoreFile(
+		input: IgnoreFileInput
+	): Promise<GitResult<RepositorySnapshot>> {
+		return await this.mutate("ignore-files", input.signal, async () => {
+			const pattern = GitIgnore.pattern(input.path, input.rule);
+			const before = await loadSnapshot(this.context, false, input.signal);
+
+			if (
+				before.operationState !== "normal" ||
+				before.head.oid !== input.expectedHead ||
+				before.head.branch !== input.expectedBranch ||
+				!before.files.some(
+					(file) => file.path === input.path && file.recordType !== "unmerged"
+				)
+			)
+				throw invalidInput(
+					"ignore-files",
+					"Refresh first. The selected file or branch changed, or a Git operation is in progress."
+				);
+
+			await GitIgnore.append(this.info.root, pattern);
+
+			return await loadSnapshot(this.context, false, input.signal);
 		});
 	}
 

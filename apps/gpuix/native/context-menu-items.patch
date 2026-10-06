@@ -1,0 +1,50 @@
+diff --git a/packages/native/src/context_menu.rs b/packages/native/src/context_menu.rs
+--- a/packages/native/src/context_menu.rs
++++ b/packages/native/src/context_menu.rs
+@@ -1,18 +1,28 @@
+-//! macOS menu tracking stays in AppKit; JavaScript receives only a selected index.
+-use napi::bindgen_prelude::*;
+-use napi_derive::napi;
+-use crate::renderer::GpuixRenderer;
+-
+-#[napi]
+-impl GpuixRenderer {
+-    #[napi]
+-    pub fn confirm_file_discard(&self, path: String) -> Result<bool> {
+-        gpui_macos::confirm_file_discard(&path)
+-            .map_err(|error| Error::from_reason(error.to_string()))
+-    }
+-    #[napi]
+-    pub fn show_context_menu(&self, labels: Vec<String>, enabled: Vec<bool>, x: f64, y: f64) -> Result<i32> {
+-        gpui_macos::show_native_context_menu(&labels, &enabled, x, y)
+-            .map_err(|error| Error::from_reason(error.to_string()))
+-    }
+-}
++//! macOS menu tracking stays in AppKit; JavaScript receives only a selected index.
++use napi::bindgen_prelude::*;
++use napi_derive::napi;
++use crate::renderer::GpuixRenderer;
++
++#[napi]
++impl GpuixRenderer {
++    #[napi]
++    pub fn confirm_file_discard(&self, path: String) -> Result<bool> {
++        gpui_macos::confirm_file_discard(&path)
++            .map_err(|error| Error::from_reason(error.to_string()))
++    }
++    #[napi]
++    pub fn show_context_menu(&self, labels: Vec<String>, enabled: Vec<bool>, x: f64, y: f64) -> Result<i32> {
++        gpui_macos::show_native_context_menu(&labels, &enabled, x, y)
++            .map_err(|error| Error::from_reason(error.to_string()))
++    }
++    #[napi]
++    pub fn show_context_menu_items(&self, labels: Vec<String>, enabled: Vec<bool>, parents: Vec<i32>, x: f64, y: f64) -> Result<i32> {
++        gpui_macos::show_native_context_menu_items(&labels, &enabled, &parents, x, y)
++            .map_err(|error| Error::from_reason(error.to_string()))
++    }
++    #[napi]
++    pub fn confirm_ignore_rule(&self, pattern: String) -> Result<bool> {
++        gpui_macos::confirm_ignore_rule(&pattern)
++            .map_err(|error| Error::from_reason(error.to_string()))
++    }
++}

@@ -15,9 +15,11 @@ import { RepositoryFileActions } from "../../src/feature/repository-workspace/li
 import type { FileMenuActions } from "../../src/feature/repository-workspace/components/repository-file-menu";
 
 let root: TestRoot;
-let choice: number;
+let choice: string;
 let confirmed: boolean;
 let enabledItems: boolean[];
+let menuLabels: string[];
+let menuParents: number[];
 
 beforeEach(() => {
 	root = createTestRoot({
@@ -26,16 +28,29 @@ beforeEach(() => {
 		onKeyDown: windowOptions.onKeyDown,
 	});
 	root.renderer.clockPause();
-	choice = 2;
+	choice = "Copy Relative Path";
 	confirmed = false;
 	enabledItems = [];
+	menuLabels = [];
+	menuParents = [];
 	Object.assign(root.renderer, {
-		showContextMenu(_labels: string[], enabled: boolean[]) {
+		showContextMenuItems(
+			labels: string[],
+			enabled: boolean[],
+			parents: number[]
+		) {
 			enabledItems = enabled;
+			menuLabels = labels;
+			menuParents = parents;
 
-			return choice;
+			return choice === "discard"
+				? labels.findIndex((label) => label.toLowerCase().startsWith("discard"))
+				: labels.indexOf(choice);
 		},
 		confirmFileDiscard() {
+			return confirmed;
+		},
+		confirmIgnoreRule() {
 			return confirmed;
 		},
 	});
@@ -65,22 +80,22 @@ const click = async (id: string, button = 0, modifiers = "") => {
 	await settle();
 };
 
-const render = (actions: FileMenuActions) =>
+const render = (actions: FileMenuActions, path = "a.txt") =>
 	root.render(
 		<div style={{ backgroundColor: "#ffffff", width: "100%", height: "100%" }}>
 			<div style={{ width: 310, height: 400 }}>
 				<RepositoryList
 					entries={[
 						{
-							id: "a.txt",
-							title: "a.txt",
+							id: path,
+							title: path,
 							status: "M",
-							change: changedFile("a.txt"),
+							change: changedFile(path),
 						},
 					]}
 					label="Changes"
 					emptyMessage="Empty"
-					state={{ selectedId: "a.txt", scrollY: 0 }}
+					state={{ selectedId: path, scrollY: 0 }}
 					onSelect={() => {}}
 					onScroll={() => {}}
 					fileActions={actions}
@@ -135,7 +150,7 @@ it("keeps multi-selection separate from inclusion and targets the right-clicked 
 	await settle();
 	await click("entry-a.txt");
 	await click("entry-c.txt", 0, "shift");
-	choice = 3;
+	choice = "discard";
 	confirmed = true;
 	await click("entry-b.txt", 2);
 	expect(discard.mock.calls[0]?.[1].paths).toEqual(["a.txt", "b.txt", "c.txt"]);
@@ -147,7 +162,7 @@ it("keeps multi-selection separate from inclusion and targets the right-clicked 
 });
 
 it("requires a separate confirmation and captures the reviewed branch", async () => {
-	choice = 3;
+	choice = "discard";
 	const discard = mock(async () => null);
 
 	render({
@@ -193,14 +208,14 @@ it("supports Control-click and does nothing when the native menu is dismissed", 
 	root.renderer.nativeSimulateClick(bounds.x + 8, bounds.y + 8, 0, "ctrl");
 	await settle();
 	expect(open).toHaveBeenCalledTimes(1);
-	choice = -1;
+	choice = "dismiss";
 	await click("entry-a.txt", 2);
 	expect(open).toHaveBeenCalledTimes(1);
 	expect(discard).not.toHaveBeenCalled();
 });
 
 it("opens from the keyboard and keeps discard disabled during Git operations", async () => {
-	choice = 3;
+	choice = "discard";
 	confirmed = true;
 	const discard = mock(async () => null);
 
@@ -220,12 +235,168 @@ it("opens from the keyboard and keeps discard disabled during Git operations", a
 	root.renderer.focusElement(row.id);
 	root.renderer.nativeSimulateKeyDown(row.id, "shift-f10");
 	await settle();
-	expect(enabledItems).toEqual([true, true, true, false, false, false]);
+	expect(enabledItems[menuLabels.indexOf("Discard Changes…")]).toBe(false);
+	expect(enabledItems[menuLabels.indexOf("Copy Relative Path")]).toBe(true);
+	expect(enabledItems[menuLabels.indexOf("Include File in Commit")]).toBe(
+		false
+	);
 	expect(discard).not.toHaveBeenCalled();
 });
 
+it("groups actions and routes native ancestor-folder choices through explicit ignore confirmation", async () => {
+	const ignore = mock(async () => null);
+	const patterns: string[] = [];
+
+	Object.assign(root.renderer, {
+		confirmIgnoreRule(pattern: string) {
+			patterns.push(pattern);
+
+			return confirmed;
+		},
+	});
+	render(
+		{
+			root: "/test",
+			head: "head",
+			branch: "main",
+			disabled: false,
+			canDiscard: true,
+			discard: async () => null,
+			ignore,
+		},
+		"src/cache/a.tsx"
+	);
+	choice = "/src/cache";
+	await settle();
+	await click("entry-src/cache/a.tsx", 2);
+
+	expect(menuLabels.filter((label) => label === "")).toHaveLength(4);
+	expect(menuLabels).toContain("Ignore All .tsx Files (Add to .gitignore)");
+	const parent = menuLabels.indexOf("Ignore Folder (Add to .gitignore)");
+
+	expect(menuParents[menuLabels.indexOf("/src/cache")]).toBe(parent);
+	expect(menuParents[menuLabels.indexOf("/src")]).toBe(parent);
+	expect(patterns).toEqual(["/src/cache/"]);
+	expect(ignore).not.toHaveBeenCalled();
+	confirmed = true;
+	await click("entry-src/cache/a.tsx", 2);
+	expect(ignore).toHaveBeenCalledWith({
+		kind: "ignore",
+		path: "src/cache/a.tsx",
+		rule: { kind: "folder", path: "src/cache" },
+		expectedHead: "head",
+		expectedBranch: "main",
+	});
+});
+
+it("routes full-path and default-app actions without changing the index", async () => {
+	const open = mock<typeof RepositoryFileActions.open>(async () => {});
+	const discard = mock(async () => null);
+
+	render({
+		root: "/test",
+		head: "head",
+		branch: "main",
+		disabled: false,
+		canDiscard: true,
+		discard,
+		open,
+	});
+	await settle();
+	choice = "Copy Full Path";
+	await click("entry-a.txt", 2);
+	choice = "Open with Default App";
+	await click("entry-a.txt", 2);
+
+	expect(open.mock.calls).toEqual([
+		["/test", "a.txt", "copy-full"],
+		["/test", "a.txt", "default"],
+	]);
+	expect(discard).not.toHaveBeenCalled();
+});
+
+it("does not dispatch disabled ignore choices even if a bridge returns their index", async () => {
+	const ignore = mock(async () => null);
+
+	render({
+		root: "/test",
+		head: "head",
+		branch: "main",
+		disabled: true,
+		canDiscard: true,
+		discard: async () => null,
+		ignore,
+	});
+	await settle();
+	choice = "Ignore File (Add to .gitignore)";
+	confirmed = true;
+	await click("entry-a.txt", 2);
+
+	expect(ignore).not.toHaveBeenCalled();
+});
+
+it("protects close until ignore refresh completes and preserves the commit draft", async () => {
+	choice = "Ignore File (Add to .gitignore)";
+	confirmed = true;
+	let blocked = false;
+	let finished = false;
+
+	Object.assign(root.renderer, {
+		setCloseBlocked(value: boolean) {
+			blocked = value;
+		},
+		takeCloseRequested() {
+			return false;
+		},
+	});
+	const pending =
+		Promise.withResolvers<
+			Awaited<ReturnType<typeof RepositoryFileActions.ignore>>
+		>();
+
+	const refresh = Promise.withResolvers<{
+		ok: true;
+		value: ReturnType<typeof repositorySnapshot>;
+	}>();
+
+	const ignore = mock<typeof RepositoryFileActions.ignore>(
+		() => pending.promise
+	);
+
+	root.render(
+		<App
+			initialSession={{
+				version: 1,
+				activeId: "workspace-1",
+				tabs: [{ id: "workspace-1", path: "/test", draft: "Keep draft" }],
+			}}
+			readRepository={async () =>
+				finished
+					? await refresh.promise
+					: { ok: true, value: repositorySnapshot([changedFile("a.txt")]) }
+			}
+			ignoreFile={ignore}
+		/>
+	);
+	await settle();
+	await click("entry-a.txt", 2);
+
+	expect(blocked).toBe(true);
+	expect(ignore).toHaveBeenCalledTimes(1);
+	finished = true;
+	pending.resolve({ ok: true, value: repositorySnapshot() });
+	await settle();
+	expect(blocked).toBe(true);
+	refresh.resolve({ ok: true, value: repositorySnapshot() });
+	await settle();
+	expect(blocked).toBe(false);
+	expect(root.renderer.findByTestId("commit-message")?.customProps?.value).toBe(
+		"Keep draft"
+	);
+});
+
 it("protects close until discard refresh completes and retains the draft", async () => {
-	choice = 3;
+	choice = "discard";
 	confirmed = true;
 	let blocked = false;
 	let finished = false;

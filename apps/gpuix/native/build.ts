@@ -11,6 +11,10 @@ import {
 	closePlatformPatchPath,
 	contextMenuPatchPath,
 	contextMenuPlatformPatchPath,
+	contextMenuItemsPatchPath,
+	contextMenuItemsPlatformPatchPath,
+	contextMenuOwnerPatchPath,
+	contextMenuOwnerPlatformPatchPath,
 	checkboxPatchPath,
 	diffPatchPath,
 	diffContextPatchPath,
@@ -87,6 +91,10 @@ if (
 		closePlatformPatchPath,
 		contextMenuPatchPath,
 		contextMenuPlatformPatchPath,
+		contextMenuItemsPatchPath,
+		contextMenuItemsPlatformPatchPath,
+		contextMenuOwnerPatchPath,
+		contextMenuOwnerPlatformPatchPath,
 		testSessionPatchPath,
 		testSessionPlatformPatchPath,
 		elementBoundsPatchPath,
@@ -102,6 +110,8 @@ if (
 		const patchDirectory =
 			patch === closePlatformPatchPath ||
 			patch === contextMenuPlatformPatchPath ||
+			patch === contextMenuItemsPlatformPatchPath ||
+			patch === contextMenuOwnerPlatformPatchPath ||
 			patch === testSessionPlatformPatchPath ||
 			patch === accountsPlatformPatchPath ||
 			patch === sidebarVibrancyPlatformPatchPath
@@ -122,6 +132,8 @@ if (
 		const patchDirectory =
 			patch === closePlatformPatchPath ||
 			patch === contextMenuPlatformPatchPath ||
+			patch === contextMenuItemsPlatformPatchPath ||
+			patch === contextMenuOwnerPlatformPatchPath ||
 			patch === testSessionPlatformPatchPath ||
 			patch === accountsPlatformPatchPath ||
 			patch === sidebarVibrancyPlatformPatchPath
