@@ -1,15 +1,25 @@
 import { execFile } from "node:child_process";
-import { mkdir, realpath, stat } from "node:fs/promises";
-import { homedir } from "node:os";
-import { join, resolve, relative } from "node:path";
+import {
+	mkdir,
+	mkdtemp,
+	realpath,
+	rm,
+	stat,
+	writeFile,
+} from "node:fs/promises";
+import { homedir, tmpdir } from "node:os";
+import { basename, join, resolve, relative } from "node:path";
 import { randomUUID } from "node:crypto";
 import { promisify } from "node:util";
 import { GitRepository, type IgnoreFileInput } from "@1git/git";
 import { RepositoryConflicts } from "./repository-conflicts";
 import { NativeClipboard } from "../../../platform/clipboard";
 import { ExternalEditors } from "../../editor-settings/external-editors";
+import type { CommitFileSelection } from "../types";
 
 const execute = promisify(execFile);
+const nullObjectId = /^0+$/u;
+const objectId = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/iu;
 
 /** Captured branch identity and exact paths for a confirmed discard batch. */
 export interface FileDiscardRequest {
@@ -24,6 +34,58 @@ export type FileIgnoreRequest = IgnoreFileInput & { kind: "ignore" };
 
 /** macOS file actions and durable, path-scoped discard recovery. No shell interpolation. */
 export class RepositoryFileActions {
+	/** Opens a private read-only Git snapshot, never the working file. Deleted files use their pre-deletion blob. */
+	static async openRevision(
+		root: string,
+		file: CommitFileSelection,
+		kind: "editor" | "default",
+		application?: string | null,
+		editors = new ExternalEditors()
+	): Promise<void> {
+		const oid = nullObjectId.test(file.afterOid)
+			? file.beforeOid
+			: file.afterOid;
+
+		if (!objectId.test(oid) || nullObjectId.test(oid))
+			throw new Error("This saved file version is unavailable.");
+
+		const opened = await GitRepository.open({ path: root });
+
+		if (!opened.ok) throw new Error(opened.error.message);
+
+		const content = await opened.value.getFileContent({
+			path: file.path,
+			source: { kind: "object", objectId: oid },
+		});
+
+		if (!content.ok)
+			throw new Error(content.error.details ?? content.error.message, {
+				cause: content.error,
+			});
+
+		const directory = await realpath(
+			await mkdtemp(join(tmpdir(), "1git-saved-file-"))
+		);
+
+		const absolute = join(directory, basename(file.path));
+
+		try {
+			await writeFile(
+				absolute,
+				Buffer.from(content.value.content, content.value.encoding),
+				{ flag: "wx", mode: 0o400 }
+			);
+
+			if (kind === "editor") await editors.open(absolute, application);
+			else await execute("/usr/bin/open", [absolute], { timeout: 10_000 });
+		} catch (cause) {
+			await rm(directory, { recursive: true, force: true });
+
+			throw cause;
+		}
+		// Keep successful exports in OS temporary storage: editors load them after the launcher exits.
+	}
+
 	/** Reveal an existing repository folder without changing its contents. */
 	static async revealRepository(directory: string) {
 		const path = await realpath(directory);

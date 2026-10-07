@@ -831,7 +831,8 @@ export const loadFileContent = async (
 		({ content, oid: revision } = await loadGitObject(context, object, signal));
 	}
 
-	const decoder = new TextDecoder("utf-8", { fatal: true });
+	// Preserve a leading BOM so UTF-8 content can be exported without changing its bytes.
+	const decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
 
 	try {
 		return {

@@ -627,6 +627,17 @@ export function RepositoryNavigation({
 					list
 				) : (
 					<RepositoryRevisions
+						fileActions={
+							state.repository && !state.preview
+								? {
+										kind: "revision",
+										root: state.repository.root,
+										disabled: !!revisionReader?.loadingFiles || !!state.error,
+										open: openFile,
+										editors: externalEditors,
+									}
+								: undefined
+						}
 						onPreviewIntent={onPreviewIntent}
 						key={view}
 						view={view}

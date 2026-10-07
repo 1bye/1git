@@ -15,6 +15,7 @@ import {
 } from "../lib/repository-workspace-model";
 import type { RevisionView, WorkspaceEntry } from "../types";
 import { RepositoryList } from "./repository-list";
+import type { FileMenuActions } from "./repository-file-menu";
 import { RepositoryReadNotice } from "./repository-read-notice";
 import { EmptyListPlaceholder } from "../../../fixture/empty-list-placeholder";
 import { StateMessage } from "../../../fixture/state-message";
@@ -56,7 +57,7 @@ const styles = StyleSheet.create({
 	muted: { ...typography.xs, color: lightColors.editorMuted },
 });
 
-/** Stacked revision/files navigation with a captured, keyboard-accessible split; no Git actions. */
+/** Stacked revision/files navigation with a keyboard-accessible split and read-only saved-file menus. */
 export function RepositoryRevisions({
 	view,
 	state,
@@ -65,6 +66,7 @@ export function RepositoryRevisions({
 	loadingFiles = false,
 	onRetryFiles,
 	onPreviewIntent,
+	fileActions,
 }: {
 	view: RevisionView;
 	state: RepositoryWorkspaceState;
@@ -73,6 +75,7 @@ export function RepositoryRevisions({
 	loadingFiles?: boolean;
 	onRetryFiles?: () => void;
 	onPreviewIntent?: (entry: WorkspaceEntry | null) => void;
+	fileActions?: Extract<FileMenuActions, { kind: "revision" }>;
 }) {
 	const renderer = useGpuixRequired();
 	const container = useRef<PublicInstance>(null);
@@ -238,6 +241,7 @@ export function RepositoryRevisions({
 					) : null}
 				</div>
 				<RepositoryList
+					fileActions={fileActions}
 					onPreviewIntent={onPreviewIntent}
 					key={revision?.id ?? "unselected"}
 					testId="revision-files"

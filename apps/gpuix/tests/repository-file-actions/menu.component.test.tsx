@@ -1,5 +1,5 @@
 /**
- * Covers: file menu pointer/keyboard entry, copy action and explicit discard confirmation.
+ * Covers: Changes and saved-file menu entry, editor choices, copy actions and explicit discard confirmation.
  * Real: native GPUIX input routing and file list.
  * Doubles: AppKit menu/confirmation bridge, operating-system actions and Git writes.
  * Requires: patched GPUIX/macOS graphics.
@@ -18,6 +18,12 @@ import { RepositoryFileActions } from "../../src/feature/repository-workspace/li
 import type { FileMenuActions } from "../../src/feature/repository-workspace/components/repository-file-menu";
 import { ExternalEditors } from "../../src/feature/editor-settings/external-editors";
 import { editorApplication } from "../_shared/editor-application";
+import {
+	commitInfo,
+	committedFiles,
+	historyPage,
+} from "../_shared/history-page";
+import { stashList } from "../_shared/stash-list";
 
 let root: TestRoot;
 let choice: string;
@@ -147,6 +153,146 @@ async function editorChoices() {
 
 	return { editors, zed, cursor, preferences };
 }
+
+it.each(["history", "stashes"] as const)(
+	"opens a read-only file menu in %s with pointer and keyboard, using the captured saved version",
+	async (view) => {
+		const { editors, zed } = await editorChoices();
+		const open = mock<typeof RepositoryFileActions.open>(async () => {});
+
+		const saved = spyOn(
+			RepositoryFileActions,
+			"openRevision"
+		).mockResolvedValue();
+
+		const readFiles = async (_root: string, oid: string) => ({
+			ok: true as const,
+			value: committedFiles(oid, 2),
+		});
+
+		root.render(
+			<App
+				initialSession={{
+					version: 1,
+					activeId: "workspace-1",
+					tabs: [{ id: "workspace-1", path: "/test", draft: "Keep draft" }],
+				}}
+				readRepository={async () => ({ ok: true, value: repositorySnapshot() })}
+				readHistory={async () => ({ ok: true, value: historyPage(0, 1) })}
+				readStashes={async () => ({ ok: true, value: stashList(1) })}
+				readCommitFiles={readFiles}
+				readStashFiles={readFiles}
+				readDiff={async () => ({ ok: true, value: [] })}
+				externalEditors={editors}
+				openFile={open}
+			/>
+		);
+		await settle();
+		await click(`view-${view}`);
+		const oid = view === "history" ? commitInfo().oid : stashList(1)[0]?.oid;
+
+		if (!oid) throw new Error("Missing test revision");
+
+		await click(`entry-${oid}`);
+		choice = "Copy Full Path";
+		await click("entry-src/file-1.ts", 2);
+
+		expect(open).toHaveBeenCalledWith(
+			"/test/project",
+			"src/file-1.ts",
+			"copy-full"
+		);
+		expect(menuLabels).toContain("Open Saved Version in Editor");
+		expect(
+			menuLabels.some((label) =>
+				/Discard|Ignore|Include|Exclude|Finder/.test(label)
+			)
+		).toBe(false);
+		expect(
+			root.renderer.findByTestId("entry-src/file-1.ts")?.customProps?.[
+				"aria-selected"
+			]
+		).toBe(true);
+		expect(saved).not.toHaveBeenCalled();
+
+		choice = "Zed";
+		await click("entry-src/file-1.ts", 0, "ctrl");
+		const file = committedFiles(oid, 2)[1]?.commitFile;
+
+		expect(saved).toHaveBeenLastCalledWith(
+			"/test/project",
+			file,
+			"editor",
+			zed,
+			editors
+		);
+		expect(menuIcons[menuLabels.indexOf("Zed")]).toBe(zed);
+		expect(menuParents[menuLabels.indexOf("Zed")]).toBe(
+			menuLabels.indexOf("Open Saved Version With")
+		);
+
+		choice = "Open Saved Version with Default App";
+		const row = root.renderer.findByTestId("entry-src/file-1.ts");
+
+		if (!row) throw new Error("Missing saved-file row");
+
+		root.renderer.nativeSimulateKeyDown(row.id, "shift-f10");
+		await settle();
+		expect(saved).toHaveBeenLastCalledWith(
+			"/test/project",
+			file,
+			"default",
+			undefined,
+			editors
+		);
+		expect(open).toHaveBeenCalledTimes(1);
+	}
+);
+
+it("explicitly labels the pre-deletion version and does not open a saved file while disabled", async () => {
+	const saved = mock<typeof RepositoryFileActions.openRevision>(async () => {});
+
+	const file = {
+		path: "deleted.ts",
+		status: "D" as const,
+		beforeOid: "b".repeat(40),
+		afterOid: "0".repeat(40),
+		commit: "c".repeat(40),
+	};
+
+	root.render(
+		<div style={{ width: 310, height: 400 }}>
+			<RepositoryList
+				entries={[
+					{
+						id: file.path,
+						title: file.path,
+						status: file.status,
+						commitFile: file,
+					},
+				]}
+				label="History files"
+				emptyMessage="Empty"
+				state={{ selectedId: file.path, scrollY: 0 }}
+				onSelect={() => {}}
+				onScroll={() => {}}
+				fileActions={{
+					kind: "revision",
+					root: "/test",
+					disabled: true,
+					openRevision: saved,
+				}}
+			/>
+		</div>
+	);
+	await settle();
+	choice = "Open Previous Version in Editor";
+	await click("entry-deleted.ts", 2);
+
+	expect(menuLabels).toContain(choice);
+	expect(enabledItems[menuLabels.indexOf(choice)]).toBe(false);
+	expect(saved).not.toHaveBeenCalled();
+});
 
 it("labels the file-type default and routes Open With as a one-time choice without changing preferences", async () => {
 	const { editors, zed, cursor, preferences } = await editorChoices();

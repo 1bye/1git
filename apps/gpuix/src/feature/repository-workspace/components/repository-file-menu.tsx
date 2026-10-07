@@ -14,20 +14,33 @@ import type { ExternalEditors } from "../../editor-settings/external-editors";
 
 const finderApplication = "/System/Library/CoreServices/Finder.app";
 
-/** Live Changes actions, supplied by the window-owned mutation boundary. */
-export interface FileMenuActions {
+interface FileMenuContext {
 	root: string;
-	head: string | null;
-	branch: string | null;
 	disabled: boolean;
-	canDiscard: boolean;
-	discard: (request: FileDiscardRequest) => Promise<string | null>;
-	ignore?: (request: FileIgnoreRequest) => Promise<string | null>;
 	open?: typeof RepositoryFileActions.open;
 	editors?: ExternalEditors;
 	selection?: (id: string) => readonly WorkspaceEntry[];
-	include?: (ids: readonly string[], included: boolean) => void;
 }
+
+/** Working-copy mutations or read-only saved versions; revision menus never receive Git write actions. */
+export type FileMenuActions = FileMenuContext &
+	(
+		| {
+				kind?: "changes";
+				head: string | null;
+				branch: string | null;
+				canDiscard: boolean;
+				discard: (request: FileDiscardRequest) => Promise<string | null>;
+				ignore?: (request: FileIgnoreRequest) => Promise<string | null>;
+				include?: (ids: readonly string[], included: boolean) => void;
+		  }
+		| {
+				kind: "revision";
+				openRevision?: typeof RepositoryFileActions.openRevision;
+		  }
+	);
+
+const nullObjectId = /^0+$/u;
 
 type FileMenuChoice =
 	| { kind: "ignore"; rule: IgnoreRule }
@@ -57,7 +70,9 @@ export function RepositoryFileMenu({
 	const renderer = useGpuixRequired();
 	const pending = useRef(false);
 	const [error, setError] = useState<string | null>(null);
-	const file = entry.change;
+	const live = actions.kind === "revision" ? null : actions;
+	const saved = actions.kind === "revision" ? entry.commitFile : undefined;
+	const file = live ? entry.change : saved;
 
 	const openMenu = async (event: EventPayload) => {
 		if (!file || pending.current) return;
@@ -68,9 +83,15 @@ export function RepositoryFileMenu({
 		try {
 			const selected = actions.selection?.(entry.id) ?? [entry];
 
-			const files = selected.flatMap((item) =>
+			const changes = selected.flatMap((item) =>
 				item.change ? [item.change] : []
 			);
+
+			const files = live
+				? changes
+				: selected.flatMap((item) =>
+						item.commitFile ? [item.commitFile] : []
+					);
 
 			if (!files.length) return;
 
@@ -82,9 +103,9 @@ export function RepositoryFileMenu({
 			const disabled = actions.disabled;
 
 			const canDiscard =
-				actions.canDiscard &&
+				live?.canDiscard &&
 				files.length === selected.length &&
-				files.every(
+				changes.every(
 					(item) =>
 						!item.originalPath &&
 						!item.submodule.startsWith("S") &&
@@ -107,21 +128,24 @@ export function RepositoryFileMenu({
 				iconPath,
 			});
 
-			const menu: NativeMenuItem<FileMenuChoice>[] = [
-				item(
-					multiple
-						? `Discard changes to ${files.length} files…`
-						: "Discard Changes…",
-					{ kind: "discard" },
-					canDiscard
-				),
-			];
+			const menu: NativeMenuItem<FileMenuChoice>[] = [];
 
-			if (!multiple) {
+			if (live)
+				menu.push(
+					item(
+						multiple
+							? `Discard changes to ${files.length} files…`
+							: "Discard Changes…",
+						{ kind: "discard" },
+						!!canDiscard
+					)
+				);
+
+			if (!multiple && live && entry.change) {
 				const canIgnore =
-					!!actions.ignore &&
-					actions.canDiscard &&
-					file.recordType !== "unmerged";
+					!!live.ignore &&
+					live.canDiscard &&
+					entry.change.recordType !== "unmerged";
 
 				const folders = GitIgnore.folders(file.path);
 				const extension = GitIgnore.extension(file.path);
@@ -154,8 +178,9 @@ export function RepositoryFileMenu({
 					);
 			}
 
+			if (menu.length) menu.push({ separator: true });
+
 			menu.push(
-				{ separator: true },
 				item(multiple ? "Copy Full Paths" : "Copy Full Path", {
 					kind: "copy-full",
 				}),
@@ -165,7 +190,17 @@ export function RepositoryFileMenu({
 			);
 
 			if (!multiple) {
-				const exists = file.worktreeStatus !== "deleted";
+				const exists = saved
+					? !nullObjectId.test(saved.afterOid) ||
+						!nullObjectId.test(saved.beforeOid)
+					: entry.change?.worktreeStatus !== "deleted";
+
+				const version = saved
+					? nullObjectId.test(saved.afterOid)
+						? "Previous Version"
+						: "Saved Version"
+					: null;
+
 				let editors: ReturnType<ExternalEditors["menu"]> | undefined;
 
 				try {
@@ -183,22 +218,27 @@ export function RepositoryFileMenu({
 					(app) => app.path === editors.selected
 				);
 
+				menu.push({ separator: true });
+
+				if (live)
+					menu.push(
+						item(
+							"Reveal in Finder",
+							{ kind: "finder" },
+							exists,
+							finderApplication
+						)
+					);
+
 				menu.push(
-					{ separator: true },
 					item(
-						"Reveal in Finder",
-						{ kind: "finder" },
-						exists,
-						finderApplication
-					),
-					item(
-						application ? `Open in ${application.name}` : "Open in Editor",
+						`Open${version ? ` ${version}` : ""} in ${application?.name ?? "Editor"}`,
 						{ kind: "editor" },
 						exists,
 						application?.available ? application.path : undefined
 					),
 					{
-						label: "Open With",
+						label: `Open${version ? ` ${version}` : ""} With`,
 						enabled: !disabled && exists,
 						children: [
 							{
@@ -219,27 +259,33 @@ export function RepositoryFileMenu({
 							},
 						],
 					},
-					item("Open with Default App", { kind: "default" }, exists)
+					item(
+						`Open${version ? ` ${version}` : ""} with Default App`,
+						{ kind: "default" },
+						exists
+					)
 				);
 			}
 
-			menu.push(
-				{ separator: true },
-				item(
-					multiple
-						? `Include ${files.length} files in commit`
-						: "Include File in Commit",
-					{ kind: "include" },
-					!!actions.include
-				),
-				item(
-					multiple
-						? `Exclude ${files.length} files from commit`
-						: "Exclude File from Commit",
-					{ kind: "exclude" },
-					!!actions.include
-				)
-			);
+			if (live)
+				menu.push(
+					{ separator: true },
+					item(
+						multiple
+							? `Include ${files.length} files in commit`
+							: "Include File in Commit",
+						{ kind: "include" },
+						!!live.include
+					),
+					item(
+						multiple
+							? `Exclude ${files.length} files from commit`
+							: "Exclude File from Commit",
+						{ kind: "exclude" },
+						!!live.include
+					)
+				);
+
 			const choice = NativeFileMenu.showItems(
 				renderer,
 				menu,
@@ -250,6 +296,8 @@ export function RepositoryFileMenu({
 			if (!choice) return;
 
 			if (choice.kind === "discard") {
+				if (!live) return;
+
 				if (
 					!NativeFileMenu.confirm(
 						renderer,
@@ -259,14 +307,16 @@ export function RepositoryFileMenu({
 					return;
 
 				setError(
-					await actions.discard({
+					await live.discard({
 						kind: "discard",
 						paths,
-						expectedHead: actions.head,
-						expectedBranch: actions.branch,
+						expectedHead: live.head,
+						expectedBranch: live.branch,
 					})
 				);
 			} else if (choice.kind === "ignore") {
+				if (!live) return;
+
 				if (
 					!NativeFileMenu.confirmIgnore(
 						renderer,
@@ -276,23 +326,20 @@ export function RepositoryFileMenu({
 					return;
 
 				setError(
-					(await actions.ignore?.({
+					(await live.ignore?.({
 						kind: "ignore",
 						path: file.path,
 						rule: choice.rule,
-						expectedHead: actions.head,
-						expectedBranch: actions.branch,
+						expectedHead: live.head,
+						expectedBranch: live.branch,
 					})) ?? null
 				);
 			} else if (choice.kind === "include" || choice.kind === "exclude") {
-				actions.include?.(
+				live?.include?.(
 					selected.map((item) => item.id),
 					choice.kind === "include"
 				);
-			} else if (
-				choice.kind === "other-editor" ||
-				(choice.kind === "editor" && choice.application !== undefined)
-			) {
+			} else {
 				let application =
 					choice.kind === "editor" ? choice.application : undefined;
 
@@ -312,20 +359,36 @@ export function RepositoryFileMenu({
 					application = picked[0];
 				}
 
-				await (actions.open ?? RepositoryFileActions.open)(
-					actions.root,
-					file.path,
-					"editor",
-					application
-				);
-			} else {
-				await (actions.open ?? RepositoryFileActions.open)(
-					actions.root,
-					multiple && (choice.kind === "copy" || choice.kind === "copy-full")
-						? paths
-						: file.path,
-					choice.kind
-				);
+				const kind = choice.kind === "other-editor" ? "editor" : choice.kind;
+
+				if (
+					saved &&
+					actions.kind === "revision" &&
+					(kind === "editor" || kind === "default")
+				) {
+					await (actions.openRevision ?? RepositoryFileActions.openRevision)(
+						actions.root,
+						saved,
+						kind,
+						application,
+						actions.editors
+					);
+				} else if (kind === "editor" && application !== undefined) {
+					await (actions.open ?? RepositoryFileActions.open)(
+						actions.root,
+						file.path,
+						kind,
+						application
+					);
+				} else {
+					await (actions.open ?? RepositoryFileActions.open)(
+						actions.root,
+						multiple && (kind === "copy" || kind === "copy-full")
+							? paths
+							: file.path,
+						kind
+					);
+				}
 			}
 		} catch (cause) {
 			setError(
