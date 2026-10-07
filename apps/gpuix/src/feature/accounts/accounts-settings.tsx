@@ -24,7 +24,7 @@ import {
 	AccountSetupSection,
 } from "./account-connection-guide";
 import { AccountList, accountActionIcons } from "./account-list";
-import { openAuthorizationBrowser } from "./lib/account-authorization";
+import { NativeBrowser } from "../../platform/browser";
 import {
 	accountSetup,
 	accountSetupUrl,
@@ -119,7 +119,7 @@ export function AccountsSettings({
 	children,
 	initialForm = "list",
 	initialReconnectKey,
-	openLink = openAuthorizationBrowser,
+	openLink = NativeBrowser.open,
 	copyText = NativeClipboard.write,
 	preferredAccountKey,
 	onAccount,

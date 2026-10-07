@@ -211,8 +211,7 @@ export function App({
 
 	const avatars = useMemo(
 		() =>
-			suppliedAvatars ??
-			new RepositoryAvatars(() => accounts.avatarProviders()),
+			suppliedAvatars ?? new RepositoryAvatars(() => accounts.hostProviders()),
 		[accounts, suppliedAvatars]
 	);
 
@@ -698,6 +697,14 @@ export function App({
 								}
 								onRevertCommit={(input) =>
 									mutations.revertCommit(activeTab.id, input)
+								}
+								readCommitLink={async (root, oid, signal) =>
+									RepositoryHistory.readCommitLink(
+										root,
+										oid,
+										signal,
+										await accounts.hostProviders()
+									)
 								}
 								readLastCommit={readLastCommit}
 								onStash={(request) => mutations.stash(activeTab.id, request)}

@@ -1,10 +1,10 @@
 /**
- * Covers: native History menu, exact commit confirmation, cancellation, eligibility, linked-tab locks and conflict/failure UI.
+ * Covers: native History clipboard/browser actions, exact revert confirmation, cancellation, eligibility, linked-tab locks and conflict/failure UI.
  * Real: App, reducers, mutations and native GPUIX rendering/events.
- * Doubles: Git readers/writers, AppKit menu choice and close notifications; no actual Git writes.
+ * Doubles: Git readers/writers, browser/clipboard actions, AppKit menu choice and close notifications; no actual Git writes.
  * Requires: patched GPUIX/macOS graphics.
  */
-import { afterEach, beforeEach, expect, it, mock } from "bun:test";
+import { afterEach, beforeEach, expect, it, mock, spyOn } from "bun:test";
 import { createTestRoot, type TestRoot } from "@gpuix/react/testing";
 import type { RepositorySnapshot } from "@1git/git";
 import { App } from "../../src/app";
@@ -16,11 +16,16 @@ import {
 	repositorySnapshot,
 } from "../_shared/repository-snapshot";
 import { commitInfo, historyPage } from "../_shared/history-page";
+import { NativeClipboard } from "../../src/platform/clipboard";
+import { NativeBrowser } from "../../src/platform/browser";
+import { Accounts } from "../../src/feature/accounts/lib/accounts";
+import { GitLabProvider } from "@1git/hosting/providers/gitlab";
 
 let root: TestRoot;
 let menuLabels: string[];
 let menuEnabled: boolean[];
 let blocked: boolean;
+let menuChoice: string;
 
 beforeEach(() => {
 	root = createTestRoot({
@@ -32,12 +37,14 @@ beforeEach(() => {
 	menuLabels = [];
 	menuEnabled = [];
 	blocked = false;
+	menuChoice = "Revert commit…";
+	spyOn(RepositoryHistory, "readCommitLink").mockResolvedValue(null);
 	Object.assign(root.renderer, {
-		showContextMenu(labels: string[], enabled: boolean[]) {
+		showContextMenuItems(labels: string[], enabled: boolean[]) {
 			menuLabels = labels;
 			menuEnabled = enabled;
 
-			return 0;
+			return labels.indexOf(menuChoice);
 		},
 		setCloseBlocked(value: boolean) {
 			blocked = value;
@@ -145,7 +152,13 @@ it("confirms the clicked commit, not the selected one, and supports cancel, Cont
 	await openHistory();
 	click(`entry-${commitInfo(2).oid}`);
 	await openMenu();
-	expect(menuLabels).toEqual(["Revert commit…"]);
+	expect(menuLabels).toEqual([
+		"Copy SHA",
+		"Copy Message",
+		"View on GitHub/GitLab",
+		"",
+		"Revert commit…",
+	]);
 	expect(
 		element("revert-commit")
 			.children.map((id) => root.renderer.getElement(id)?.text)
@@ -231,8 +244,9 @@ for (const reason of ["dirty", "merge", "detached", "operation"] as const) {
 		);
 		await openHistory();
 		await openMenu();
-		expect(menuEnabled[0]).toBe(false);
-		expect(menuLabels.length).toBe(2);
+		expect(menuEnabled[menuLabels.indexOf("Revert commit…")]).toBe(false);
+		expect(menuEnabled.slice(0, 3)).toEqual([true, true, false]);
+		expect(menuLabels.length).toBe(6);
 		expect(root.renderer.findByTestId("revert-dialog")).toBeUndefined();
 		expect(write).not.toHaveBeenCalled();
 	});
@@ -408,6 +422,182 @@ it("requires a fresh read after an indeterminate outcome instead of allowing a s
 	click("view-history");
 	await settle();
 	await openMenu();
-	expect(menuEnabled[0]).toBe(false);
+	expect(menuEnabled[menuLabels.indexOf("Revert commit…")]).toBe(false);
 	expect(write).toHaveBeenCalledTimes(1);
+});
+
+it("copies the clicked commit's full SHA and message without changing the selected commit or draft", async () => {
+	const copy = spyOn(NativeClipboard, "write").mockResolvedValue();
+	const browse = spyOn(NativeBrowser, "open").mockResolvedValue();
+	const write = mock<typeof RepositoryHistory.revert>();
+	const message = "Commit 1\n\nFirst paragraph.\n\nSecond paragraph.";
+	const page = historyPage(0, 3);
+
+	root.render(
+		<App
+			initialSession={session}
+			readRepository={async () => ({
+				ok: true,
+				value: repositorySnapshot([changedFile("a.txt")]),
+			})}
+			readHistory={async () => ({
+				ok: true,
+				value: {
+					...page,
+					commits: page.commits.map((commit, index) => ({
+						...commit,
+						body: index === 1 ? message : "",
+					})),
+				},
+			})}
+			readCommitFiles={readCommitFiles}
+			revertCommit={write}
+		/>
+	);
+	await openHistory();
+	click(`entry-${commitInfo(2).oid}`);
+	menuChoice = "Copy SHA";
+	await openMenu();
+	expect(copy).toHaveBeenLastCalledWith(commitInfo(1).oid);
+	expect(menuEnabled[menuLabels.indexOf("Revert commit…")]).toBe(false);
+	expect(
+		element(`entry-${commitInfo(2).oid}`).customProps?.["aria-selected"]
+	).toBe(true);
+
+	menuChoice = "Copy Message";
+	click(`entry-${commitInfo(1).oid}`, 0, "ctrl");
+	await settle();
+	expect(copy).toHaveBeenLastCalledWith(message);
+	const entry = element(`entry-${commitInfo(0).oid}`);
+
+	root.renderer.focusElement(entry.id);
+	root.renderer.nativeSimulateKeyDown(entry.id, "shift-f10");
+	await settle();
+	expect(copy).toHaveBeenLastCalledWith("Commit 0");
+	expect(root.renderer.findByTestId("revert-dialog")).toBeUndefined();
+	expect(write).not.toHaveBeenCalled();
+	expect(browse).not.toHaveBeenCalled();
+	click("view-changes");
+	await settle();
+	expect(element("commit-message").customProps?.value).toBe("Keep draft");
+});
+
+it.each(["GitHub", "GitLab"] as const)(
+	"opens the clicked commit on %s without a Git write, and surfaces browser failure",
+	async (provider) => {
+		const configured = new GitLabProvider({
+			webUrl: "https://gitlab.example.invalid",
+		});
+
+		spyOn(Accounts.prototype, "hostProviders").mockResolvedValue([configured]);
+		const url = `https://${provider.toLowerCase()}.com/test/project/${provider === "GitHub" ? "commit" : "-/commit"}/${commitInfo(1).oid}`;
+
+		const read = spyOn(RepositoryHistory, "readCommitLink").mockResolvedValue({
+			label: `View on ${provider}`,
+			url,
+		});
+
+		const browse = spyOn(NativeBrowser, "open").mockResolvedValue();
+		const copy = spyOn(NativeClipboard, "write").mockResolvedValue();
+		const write = mock<typeof RepositoryHistory.revert>();
+
+		root.render(
+			<App
+				initialSession={session}
+				readRepository={async () => ({ ok: true, value: repositorySnapshot() })}
+				readHistory={readHistory}
+				readCommitFiles={readCommitFiles}
+				revertCommit={write}
+			/>
+		);
+		await openHistory();
+		click(`entry-${commitInfo(2).oid}`);
+		menuChoice = `View on ${provider}`;
+		await openMenu();
+		expect(read.mock.calls[0]?.slice(0, 2)).toEqual([
+			"/test/project",
+			commitInfo(1).oid,
+		]);
+		expect(read.mock.calls[0]?.[3]).toEqual([configured]);
+		expect(browse).toHaveBeenCalledWith(url);
+		expect(copy).not.toHaveBeenCalled();
+		expect(write).not.toHaveBeenCalled();
+		expect(root.renderer.findByTestId("revert-dialog")).toBeUndefined();
+
+		browse.mockRejectedValue(
+			new Error("Could not open the browser. Try again.")
+		);
+		await openMenu();
+		expect(
+			element("history-menu-error")
+				.children.map((id) => root.renderer.getElement(id)?.text)
+				.join("")
+		).toBe("Could not open the browser. Try again.");
+	}
+);
+
+it("disables unsupported browser viewing, keeps copying after lookup failure, and reports clipboard errors", async () => {
+	const read = spyOn(RepositoryHistory, "readCommitLink");
+	const copy = spyOn(NativeClipboard, "write").mockResolvedValue();
+	const browse = spyOn(NativeBrowser, "open").mockResolvedValue();
+
+	root.render(
+		<App
+			initialSession={session}
+			readRepository={async () => ({ ok: true, value: repositorySnapshot() })}
+			readHistory={readHistory}
+			readCommitFiles={readCommitFiles}
+		/>
+	);
+	await openHistory();
+	menuChoice = "View on GitHub/GitLab";
+	await openMenu();
+	expect(menuEnabled[menuLabels.indexOf(menuChoice)]).toBe(false);
+	expect(browse).not.toHaveBeenCalled();
+
+	read.mockRejectedValue(new Error("Remote metadata unavailable"));
+	menuChoice = "Copy SHA";
+	await openMenu();
+	expect(copy).toHaveBeenCalledWith(commitInfo(1).oid);
+	expect(element("history-menu-error")).toBeDefined();
+	copy.mockRejectedValue(new Error("Could not copy to the clipboard."));
+	await openMenu();
+	expect(
+		element("history-menu-error")
+			.children.map((id) => root.renderer.getElement(id)?.text)
+			.join("")
+	).toBe("Could not copy to the clipboard.");
+});
+
+it("does not open a delayed menu after leaving History", async () => {
+	const lookup =
+		Promise.withResolvers<
+			Awaited<ReturnType<typeof RepositoryHistory.readCommitLink>>
+		>();
+
+	const read = spyOn(RepositoryHistory, "readCommitLink").mockImplementation(
+		() => lookup.promise
+	);
+
+	const copy = spyOn(NativeClipboard, "write").mockResolvedValue();
+
+	root.render(
+		<App
+			initialSession={session}
+			readRepository={async () => ({ ok: true, value: repositorySnapshot() })}
+			readHistory={readHistory}
+			readCommitFiles={readCommitFiles}
+		/>
+	);
+	await openHistory();
+	menuChoice = "Copy SHA";
+	click(`entry-${commitInfo(1).oid}`, 2);
+	await settle();
+	click("view-changes");
+	await settle();
+	lookup.resolve(null);
+	await settle();
+	expect(read.mock.calls[0]?.[2].aborted).toBe(true);
+	expect(menuLabels).toEqual([]);
+	expect(copy).not.toHaveBeenCalled();
 });

@@ -1,5 +1,5 @@
 /**
- * Covers: anchored pagination, root/merge/rename/deletion diffs and immutable image versions.
+ * Covers: anchored pagination, remote commit links, root/merge/rename/deletion diffs and immutable image versions.
  * Real: shared Git backend, history/diff readers, Sharp and disposable Git repositories.
  * Doubles: none.
  * Requires: Git, Sharp and writable temporary storage; no network or graphics.
@@ -11,6 +11,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { GitRepository } from "@1git/git";
+import { GitHubProvider } from "@1git/hosting/providers/github";
+import { GitLabProvider } from "@1git/hosting/providers/gitlab";
 
 import { RepositoryHistory } from "../../src/feature/repository-workspace/lib/repository-history";
 import { RepositoryDiff } from "../../src/feature/repository-workspace/lib/repository-diff";
@@ -53,6 +55,178 @@ const git = async (...args: string[]): Promise<string> => {
 
 const signal = (): AbortSignal => new AbortController().signal;
 
+it.each([
+	[
+		"https://github.com/team/project.git",
+		"https://github.com/team/project/commit/",
+		"View on GitHub",
+	],
+	[
+		"git@github.com:team/project.git",
+		"https://github.com/team/project/commit/",
+		"View on GitHub",
+	],
+	[
+		"ssh://git@github.com/team/project.git",
+		"https://github.com/team/project/commit/",
+		"View on GitHub",
+	],
+	[
+		"https://gitlab.com/team/subgroup/project.git",
+		"https://gitlab.com/team/subgroup/project/-/commit/",
+		"View on GitLab",
+	],
+	[
+		"git@gitlab.com:team/subgroup/project.git",
+		"https://gitlab.com/team/subgroup/project/-/commit/",
+		"View on GitLab",
+	],
+	[
+		"https://github.example.invalid/team/project.git",
+		"https://github.example.invalid/team/project/commit/",
+		"View on GitHub",
+	],
+	[
+		"git@gitlab.example.invalid:team/subgroup/project.git",
+		"https://gitlab.example.invalid/gitlab/team/subgroup/project/-/commit/",
+		"View on GitLab",
+	],
+	[
+		"https://gitlab.example.invalid/gitlab/team/project.git",
+		"https://gitlab.example.invalid/gitlab/team/project/-/commit/",
+		"View on GitLab",
+	],
+] as const)(
+	"derives a credential-free commit link from %s without fetching",
+	async (remote, prefix, label) => {
+		await git("commit", "--allow-empty", "-m", "Local commit");
+		const head = await git("rev-parse", "HEAD");
+
+		await git("remote", "add", "origin", remote);
+		const config = await readFile(join(repository, ".git/config"), "utf8");
+
+		const providers = [
+			new GitHubProvider({ webUrl: "https://github.example.invalid" }),
+			new GitLabProvider({ webUrl: "https://gitlab.example.invalid/gitlab" }),
+		];
+
+		expect(
+			await RepositoryHistory.readCommitLink(
+				repository,
+				head,
+				signal(),
+				providers
+			)
+		).toEqual({ label, url: `${prefix}${head}` });
+		expect(await git("rev-parse", "HEAD")).toBe(head);
+		expect(await git("status", "--porcelain")).toBe("");
+		expect(await readFile(join(repository, ".git/config"), "utf8")).toBe(
+			config
+		);
+		expect(await git("for-each-ref", "refs/remotes")).toBe("");
+	}
+);
+
+it("uses an exact upstream remote before origin and falls back only to origin or a sole remote", async () => {
+	await git("commit", "--allow-empty", "-m", "Local commit");
+	const head = await git("rev-parse", "HEAD");
+
+	await git(
+		"remote",
+		"add",
+		"company/team",
+		"git@gitlab.com:company/team/project.git"
+	);
+	expect(
+		await RepositoryHistory.readCommitLink(repository, head, signal())
+	).toEqual({
+		label: "View on GitLab",
+		url: `https://gitlab.com/company/team/project/-/commit/${head}`,
+	});
+	await git("remote", "add", "other", "https://github.com/other/project.git");
+	expect(
+		await RepositoryHistory.readCommitLink(repository, head, signal())
+	).toBeNull();
+	await git("remote", "add", "origin", "https://github.com/fork/project.git");
+	expect(
+		await RepositoryHistory.readCommitLink(repository, head, signal())
+	).toEqual({
+		label: "View on GitHub",
+		url: `https://github.com/fork/project/commit/${head}`,
+	});
+	await git("update-ref", "refs/remotes/company/team/main", head);
+	await git("config", "branch.main.remote", "company/team");
+	await git("config", "branch.main.merge", "refs/heads/main");
+	expect(
+		await RepositoryHistory.readCommitLink(repository, head, signal())
+	).toEqual({
+		label: "View on GitLab",
+		url: `https://gitlab.com/company/team/project/-/commit/${head}`,
+	});
+	await git(
+		"remote",
+		"set-url",
+		"company/team",
+		"https://custom.example.invalid/team/project.git"
+	);
+	expect(
+		await RepositoryHistory.readCommitLink(repository, head, signal())
+	).toBeNull();
+});
+
+it("does not guess browser links for missing, unsupported or credential-bearing remotes or invalid IDs", async () => {
+	await git("commit", "--allow-empty", "-m", "Local commit");
+	const head = await git("rev-parse", "HEAD");
+
+	expect(
+		await RepositoryHistory.readCommitLink(repository, head, signal())
+	).toBeNull();
+	await git(
+		"remote",
+		"add",
+		"origin",
+		"https://custom.example.invalid/team/project.git"
+	);
+
+	for (const remote of [
+		"https://custom.example.invalid/team/project.git",
+		"https://credential@github.com/team/project.git",
+		"https://github.com/team/project.git?token=secret",
+		"file:///private/tmp/project",
+	]) {
+		await git("remote", "set-url", "origin", remote);
+		expect(
+			await RepositoryHistory.readCommitLink(repository, head, signal())
+		).toBeNull();
+	}
+
+	await git(
+		"remote",
+		"set-url",
+		"origin",
+		"https://github.com/team/project.git"
+	);
+
+	for (const oid of [
+		"HEAD",
+		"abcdef",
+		"../settings",
+		"a".repeat(40) + "?token=secret",
+	])
+		expect(
+			await RepositoryHistory.readCommitLink(repository, oid, signal())
+		).toBeNull();
+
+	const controller = new AbortController();
+
+	controller.abort();
+	expect(
+		await RepositoryHistory.readCommitLink(repository, head, controller.signal)
+	).toBeNull();
+	expect(await git("rev-parse", "HEAD")).toBe(head);
+	expect(await git("status", "--porcelain")).toBe("");
+});
+
 it("matches full message bodies literally and supports cancellation", async () => {
 	await git(
 		"commit",
@@ -75,6 +249,9 @@ it("matches full message bodies literally and supports cancellation", async () =
 	if (!found.ok) throw new Error(found.error.message);
 
 	expect(found.value.commits.map((commit) => commit.oid)).toEqual([head]);
+	expect(found.value.commits[0]?.body).toBe(
+		"Short summary\n\nBody contains [Needle]."
+	);
 	const controller = new AbortController();
 
 	controller.abort();

@@ -10,6 +10,7 @@ import { GitLabProvider } from "@1git/hosting/providers/gitlab";
 import type { SavedAccount } from "./account-store";
 import { hasControlCharacters } from "./account-store";
 import { LoopbackAuthorization } from "./loopback-authorization";
+import { NativeBrowser } from "../../../platform/browser";
 
 /** Public registration. Tokens and this registration are stored together only in the OS vault. */
 export interface AccountRegistration {
@@ -42,32 +43,11 @@ export function validateRegistration(
 		LoopbackAuthorization.callback(value.redirectUri ?? "");
 }
 
-/** Browser opening is an explicit boundary; tests replace it, never the OAuth lifecycle. */
-export async function openAuthorizationBrowser(value: string): Promise<void> {
-	const url = new URL(value);
-
-	if (url.protocol !== "https:" || url.username || url.password || url.hash)
-		throw new Error("Invalid provider authorization URL.");
-
-	if (process.platform !== "darwin")
-		throw new Error(
-			"Browser authorization is currently supported on macOS. Use an access token instead."
-		);
-
-	const browserProcess = Bun.spawn(["/usr/bin/open", url.href], {
-		stdout: "ignore",
-		stderr: "ignore",
-	});
-
-	if ((await browserProcess.exited) !== 0)
-		throw new Error("Could not open the browser. Try again.");
-}
-
 /** Owns one cancellable sign-in, not a permanent server or child runtime. */
 export class AccountAuthorization {
 	constructor(
 		private readonly fetch?: HostingFetch,
-		private readonly open = openAuthorizationBrowser
+		private readonly open = NativeBrowser.open
 	) {}
 	async authorize(input: BrowserConnection): Promise<OAuthTokens> {
 		validateRegistration(input.provider, input.registration);

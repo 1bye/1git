@@ -3,24 +3,35 @@ import { Button } from "@1git/gpuix-ui/button";
 import { Popover, PopoverContent } from "@1git/gpuix-ui/popover";
 import type { CommitInfo, RevertCommitInput } from "@1git/git";
 import { useGpuixRequired, type EventPayload } from "@gpuix/react";
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { appTokens } from "../../../styles/tokens";
-import { NativeFileMenu } from "../lib/native-file-menu";
+import { NativeBrowser } from "../../../platform/browser";
+import { NativeClipboard } from "../../../platform/clipboard";
+import { NativeFileMenu, type NativeMenuItem } from "../lib/native-file-menu";
+import {
+	RepositoryHistory,
+	type CommitWebLink,
+} from "../lib/repository-history";
 import {
 	RepositoryWorkspaceModel,
 	type RepositoryWorkspaceState,
 } from "../lib/repository-workspace-model";
 import type { WorkspaceEntry } from "../types";
 
-/** Native History action with an exact reviewed commit/branch captured before confirmation. */
+type HistoryChoice = "copy-sha" | "copy-message" | "view" | "revert";
+const remoteLookupTimeoutMs = 5000;
+
+/** Native commit actions; only Revert requires a reviewed commit/branch and confirmation. */
 export function RepositoryRevert({
 	state,
 	onWrite,
+	readCommitLink = RepositoryHistory.readCommitLink,
 	onFinished,
 	children,
 }: {
 	state: RepositoryWorkspaceState;
 	onWrite?: (request: RevertCommitInput) => Promise<string | null>;
+	readCommitLink?: typeof RepositoryHistory.readCommitLink;
 	onFinished: () => void;
 	children: (
 		onMenu: (entry: WorkspaceEntry, event: EventPayload) => void
@@ -28,6 +39,7 @@ export function RepositoryRevert({
 }) {
 	const renderer = useGpuixRequired();
 	const tracking = useRef(false);
+	const menuRequest = useRef<AbortController | null>(null);
 	const submitting = useRef(false);
 	const [pending, setPending] = useState(false);
 	const [error, setError] = useState<string | null>(null);
@@ -39,6 +51,11 @@ export function RepositoryRevert({
 
 	const busy = pending || RepositoryWorkspaceModel.isBusy(state);
 	const repository = state.repository;
+
+	useEffect(
+		() => () => menuRequest.current?.abort(),
+		[state.view, repository?.root]
+	);
 
 	const unavailable =
 		!onWrite || state.preview || !repository?.head || !repository.branchName
@@ -56,7 +73,10 @@ export function RepositoryRevert({
 		(reviewed.request.expectedHead !== repository?.head ||
 			reviewed.request.expectedBranch !== repository?.branchName);
 
-	const openMenu = (entry: WorkspaceEntry, event: EventPayload): void => {
+	const openMenu = async (
+		entry: WorkspaceEntry,
+		event: EventPayload
+	): Promise<void> => {
 		if (tracking.current || reviewed) return;
 
 		const commit = state.entries.history.find(
@@ -66,6 +86,9 @@ export function RepositoryRevert({
 		if (!commit) return;
 
 		tracking.current = true;
+		const controller = new AbortController();
+
+		menuRequest.current = controller;
 		setError(null);
 
 		try {
@@ -75,17 +98,63 @@ export function RepositoryRevert({
 					? "Merge commits require a mainline parent in an external Git tool."
 					: null);
 
+			let link: CommitWebLink | null = null;
+
+			try {
+				if (repository)
+					link = await readCommitLink(
+						repository.root,
+						commit.oid,
+						AbortSignal.any([
+							controller.signal,
+							AbortSignal.timeout(remoteLookupTimeoutMs),
+						])
+					);
+			} catch {
+				// A failed remote lookup must not hide clipboard actions or a guarded revert.
+				if (!controller.signal.aborted)
+					setError(
+						"Could not read the commit's remote. Browser viewing is unavailable."
+					);
+			}
+
+			if (controller.signal.aborted) return;
+
 			const bounds = renderer.getElementBounds?.(event.elementId);
 
-			const choice = NativeFileMenu.show(
+			const items: NativeMenuItem<HistoryChoice>[] = [
+				{ label: "Copy SHA", enabled: true, value: "copy-sha" },
+				{ label: "Copy Message", enabled: true, value: "copy-message" },
+				{
+					label: link?.label ?? "View on GitHub/GitLab",
+					enabled: link !== null,
+					value: "view",
+				},
+				{ separator: true },
+				{ label: "Revert commit…", enabled: !reason, value: "revert" },
+			];
+
+			if (reason)
+				items.push({ label: reason, enabled: false, value: "revert" });
+
+			const choice = NativeFileMenu.showItems(
 				renderer,
-				reason ? ["Revert commit…", reason] : ["Revert commit…"],
-				reason ? [false, false] : [true],
+				items,
 				event.x ?? bounds?.x ?? 0,
 				event.y ?? (bounds ? bounds.y + bounds.height : 0)
 			);
 
-			if (choice === 0 && !reason && repository?.head && repository.branchName)
+			if (choice === "copy-sha") await NativeClipboard.write(commit.oid);
+			// The Git reader's body is %B: the full message, including its subject.
+			else if (choice === "copy-message")
+				await NativeClipboard.write(commit.body || commit.summary);
+			else if (choice === "view" && link) await NativeBrowser.open(link.url);
+			else if (
+				choice === "revert" &&
+				!reason &&
+				repository?.head &&
+				repository.branchName
+			)
 				setReviewed({
 					commit,
 					request: {
@@ -95,13 +164,15 @@ export function RepositoryRevert({
 					},
 				});
 		} catch (cause) {
-			setError(
-				cause instanceof Error
-					? cause.message
-					: "Could not open History actions."
-			);
+			if (!controller.signal.aborted)
+				setError(
+					cause instanceof Error
+						? cause.message
+						: "Could not open History actions."
+				);
 		} finally {
 			tracking.current = false;
+			menuRequest.current = null;
 		}
 	};
 
@@ -134,6 +205,7 @@ export function RepositoryRevert({
 			{error && !reviewed ? (
 				<text
 					role="alert"
+					testId="history-menu-error"
 					style={{ ...typography.xs, color: appTokens.colors.danger }}
 				>
 					{error}

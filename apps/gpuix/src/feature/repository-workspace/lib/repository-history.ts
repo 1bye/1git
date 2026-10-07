@@ -6,16 +6,72 @@ import {
 	type GitResult,
 	type RevertCommitInput,
 } from "@1git/git";
+import type { HostingProvider } from "@1git/hosting/provider";
+import { parseRemote } from "@1git/hosting/remote";
 
 import type { WorkspaceEntry, WorkspaceRevision } from "../types";
 
 const historyPageSize = 50;
 const historySearchBatchSize = 250;
 const commitDate = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
+const commitObjectId = /^(?:[a-f\d]{40}|[a-f\d]{64})$/iu;
+
+/** Browser destination derived from a supported configured remote, not proof that a commit is published. */
+export interface CommitWebLink {
+	readonly label: "View on GitHub" | "View on GitLab";
+	readonly url: string;
+}
 
 /** Bounded history queries and explicit reversal anchored to the workspace's reviewed HEAD. */
 export class RepositoryHistory {
 	private constructor() {}
+
+	/** Reads only local metadata: prefer the branch upstream, then origin, then a sole remote. Never guesses among other remotes. */
+	static async readCommitLink(
+		root: string,
+		oid: string,
+		signal: AbortSignal,
+		providers: readonly HostingProvider[] = []
+	): Promise<CommitWebLink | null> {
+		if (!commitObjectId.test(oid)) return null;
+
+		const opened = await GitRepository.open({ path: root, signal });
+
+		if (!opened.ok) return null;
+
+		const [remotes, branches] = await Promise.all([
+			opened.value.getRemotes({ signal }),
+			opened.value.getBranches({ signal }),
+		]);
+
+		if (!remotes.ok || !branches.ok) return null;
+
+		const upstream = branches.value.branches.find(
+			(branch) => branch.type === "local" && branch.checkedOut
+		)?.upstreamRemote;
+
+		const remote = upstream
+			? remotes.value.find((item) => item.name === upstream)
+			: (remotes.value.find((item) => item.name === "origin") ??
+				(remotes.value.length === 1 ? remotes.value[0] : undefined));
+
+		const url = remote?.fetchUrls[0] ?? remote?.pushUrls[0];
+
+		if (!url) return null;
+
+		const parsed = parseRemote(url, providers);
+
+		if (!parsed.ok) return null;
+
+		const { providerId, browserUrl } = parsed.value;
+
+		if (providerId !== "github" && providerId !== "gitlab") return null;
+
+		return {
+			label: providerId === "github" ? "View on GitHub" : "View on GitLab",
+			url: `${browserUrl}/${providerId === "github" ? "commit" : "-/commit"}/${oid}`,
+		};
+	}
 
 	/** Adds a reversing commit; the backend validates a clean tree and the reviewed branch under its write lock. */
 	static async revert(root: string, request: RevertCommitInput) {

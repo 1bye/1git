@@ -38,6 +38,7 @@ import type {
 import type { RepositoryCommit as CommitReader } from "../lib/repository-commit";
 import { RepositoryOperation } from "./repository-operation";
 import { RepositoryRevert } from "./repository-revert";
+import type { RepositoryHistory } from "../lib/repository-history";
 import type {
 	FileDiscardRequest,
 	FileIgnoreRequest,
@@ -148,6 +149,7 @@ export function RepositoryNavigation({
 	onCommit,
 	onUndoCommit,
 	onRevertCommit,
+	readCommitLink,
 	readLastCommit,
 	onStash,
 	onOperation,
@@ -166,6 +168,7 @@ export function RepositoryNavigation({
 	onCommit?: () => void;
 	onUndoCommit?: (input: CommitRecoveryInput) => Promise<string | null>;
 	onRevertCommit?: (input: RevertCommitInput) => Promise<string | null>;
+	readCommitLink?: typeof RepositoryHistory.readCommitLink;
 	readLastCommit?: typeof CommitReader.readLast;
 	onStash?: (request: StashWriteRequest) => Promise<boolean>;
 	onOperation?: (request: FinishOperationInput) => Promise<string | null>;
@@ -282,6 +285,7 @@ export function RepositoryNavigation({
 		<RepositoryRevert
 			state={state}
 			onWrite={onRevertCommit}
+			readCommitLink={readCommitLink}
 			onFinished={() => onAction({ type: "view", view: "changes" })}
 		>
 			{(onMenu) => (

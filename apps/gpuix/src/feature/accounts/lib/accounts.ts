@@ -48,8 +48,8 @@ export interface ConnectAccount {
 
 /** Per-window account lifecycle. Metadata and OS credentials are separate; mutations roll back on persistence failure. */
 export class Accounts {
-	/** Public host configuration for images; no vault reads or account credentials. */
-	async avatarProviders(): Promise<readonly HostingProvider[]> {
+	/** Public host configuration for images and browser links; no vault reads or account credentials. */
+	async hostProviders(): Promise<readonly HostingProvider[]> {
 		const accounts = await this.load();
 
 		const providers: HostingProvider[] = [
