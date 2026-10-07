@@ -12,6 +12,7 @@ import type {
 	ChangeHunkInput,
 	ChangeHunkResult,
 	CheckoutBranchInput,
+	CherryPickCommitInput,
 	CloneRepositoryInput,
 	CommitInfo,
 	CommitFileChange,
@@ -1710,6 +1711,127 @@ export class GitRepository {
 				["cherry-pick", ...requireRevisions(input.revisions, "cherry-pick")],
 				input.signal
 			);
+
+			return await loadSnapshot(this.context, false, input.signal);
+		});
+	}
+
+	/** Validates both branch tips before switching; a failed replay stays on the destination for inspection or recovery. */
+	async cherryPickCommit(
+		input: CherryPickCommitInput
+	): Promise<GitResult<RepositorySnapshot>> {
+		return await this.mutate("cherry-pick", input.signal, async () => {
+			if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(input.commit))
+				throw invalidInput(
+					"cherry-pick",
+					"Select an exact commit from History."
+				);
+
+			const snapshot = await loadSnapshot(this.context, false, input.signal);
+
+			if (
+				!input.expectedHead ||
+				!input.expectedBranch ||
+				snapshot.head.detached ||
+				snapshot.head.oid !== input.expectedHead ||
+				snapshot.head.branch !== input.expectedBranch
+			)
+				throw invalidInput(
+					"cherry-pick",
+					"HEAD or the branch changed. Refresh and review History again."
+				);
+
+			if (snapshot.operationState !== "normal" || snapshot.files.length > 0)
+				throw invalidInput(
+					"cherry-pick",
+					"Commit or stash your changes and finish the current Git operation before cherry-picking."
+				);
+
+			const targetName = await requireBranchName(
+				this.context,
+				input.targetBranch,
+				"cherry-pick",
+				input.signal
+			);
+
+			const [branches, commit] = await Promise.all([
+				loadBranches(this.context, input.signal),
+				loadCommit(this.context, input.commit, input.signal),
+			]);
+
+			const target = branches.branches.find(
+				(branch) => branch.type === "local" && branch.name === targetName
+			);
+
+			if (
+				!target ||
+				target.oid !== input.expectedTarget ||
+				target.checkedOut ||
+				target.worktreePath ||
+				targetName === input.expectedBranch
+			)
+				throw invalidInput(
+					"cherry-pick",
+					"Choose another local branch that is not open in a worktree. Refresh if its tip changed."
+				);
+
+			if (commit.parentOids.length > 1)
+				throw invalidInput(
+					"cherry-pick",
+					"Cherry-picking a merge commit requires a mainline parent. Use an external Git tool."
+				);
+
+			// The selected commit must still belong to the reviewed History, not an arbitrary ref.
+			try {
+				await this.run(
+					["merge-base", "--is-ancestor", input.commit, input.expectedHead],
+					input.signal
+				);
+			} catch (error) {
+				if (error instanceof GitCommandFailure && error.exitCode === 1)
+					throw invalidInput(
+						"cherry-pick",
+						"The commit is no longer in this branch's history. Refresh and review History again."
+					);
+
+				throw error;
+			}
+
+			let alreadyIncluded = true;
+
+			try {
+				await this.run(
+					["merge-base", "--is-ancestor", input.commit, target.oid],
+					input.signal
+				);
+			} catch (error) {
+				if (!(error instanceof GitCommandFailure && error.exitCode === 1))
+					throw error;
+
+				alreadyIncluded = false;
+			}
+
+			if (alreadyIncluded)
+				throw invalidInput(
+					"cherry-pick",
+					"This commit is already in the destination branch's history."
+				);
+
+			await this.run(["switch", "--no-guess", "--", targetName], input.signal);
+			const destination = await loadSnapshot(this.context, false, input.signal);
+
+			if (
+				destination.head.branch !== targetName ||
+				destination.head.oid !== input.expectedTarget ||
+				destination.operationState !== "normal" ||
+				destination.files.length > 0
+			)
+				throw invalidInput(
+					"cherry-pick",
+					"The destination changed while switching. Inspect Changes before trying again; no commit was copied."
+				);
+
+			await this.run(["cherry-pick", input.commit], input.signal);
 
 			return await loadSnapshot(this.context, false, input.signal);
 		});

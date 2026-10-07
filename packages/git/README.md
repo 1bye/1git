@@ -51,6 +51,17 @@ last queued mutation, so callers receive coherent post-mutation state.
 Destructive worktree restore and hard reset require explicit
 `allowDestructive: true`.
 
+`cherryPickCommit({ commit, expectedHead, expectedBranch, targetBranch, expectedTarget })`
+is the guarded single-commit History workflow alongside general `cherryPick`.
+It requires an exact source commit reachable from the reviewed source HEAD, clean
+index/worktree, no active operation, and an unchanged, unoccupied local destination.
+It rejects merge commits and commits already contained in that destination before
+switching. After switching it rechecks the destination and retains Git hooks/signing.
+Failures stay on the destination for inspection; there is no forced checkout,
+automatic stash, rollback or push. `finishOperation` accepts reviewed `cherry-pick`
+identity and metadata tokens for Continue/Abort. Abort restores the destination's
+pre-replay state. Other repository instances and external Git processes are not locked.
+
 `getCommitFiles(revision, { signal })` returns a commit's changed paths, status,
 optional rename source, and before/after blob OIDs without loading patches. Diffs
 are relative to the first parent, or the empty tree for root commits. All-zero OIDs

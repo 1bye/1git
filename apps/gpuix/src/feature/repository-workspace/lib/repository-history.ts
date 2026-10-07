@@ -5,6 +5,7 @@ import {
 	type CommitPage,
 	type GitResult,
 	type RevertCommitInput,
+	type CherryPickCommitInput,
 } from "@1git/git";
 import type { HostingProvider } from "@1git/hosting/provider";
 import { parseRemote } from "@1git/hosting/remote";
@@ -22,7 +23,7 @@ export interface CommitWebLink {
 	readonly url: string;
 }
 
-/** Bounded history queries and explicit reversal anchored to the workspace's reviewed HEAD. */
+/** Bounded history queries and non-rewriting commit actions anchored to the workspace's reviewed HEAD. */
 export class RepositoryHistory {
 	private constructor() {}
 
@@ -80,6 +81,15 @@ export class RepositoryHistory {
 		if (!opened.ok) return opened;
 
 		return await opened.value.revertCommit(request);
+	}
+
+	/** Switches to the reviewed destination and replays one exact commit without rewriting the source. */
+	static async cherryPick(root: string, request: CherryPickCommitInput) {
+		const opened = await GitRepository.open({ path: root });
+
+		if (!opened.ok) return opened;
+
+		return await opened.value.cherryPickCommit(request);
 	}
 
 	static async read(

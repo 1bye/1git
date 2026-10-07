@@ -31,7 +31,10 @@ export function RepositoryOperation({
 	const operation = repository?.operation;
 
 	const active =
-		operation === "merge" || operation === "rebase" || operation === "revert";
+		operation === "merge" ||
+		operation === "rebase" ||
+		operation === "revert" ||
+		operation === "cherry-pick";
 
 	const busy = RepositoryWorkspaceModel.isBusy(state);
 
@@ -60,7 +63,9 @@ export function RepositoryOperation({
 			? "Merge"
 			: operation === "rebase"
 				? "Rebase"
-				: "Revert";
+				: operation === "cherry-pick"
+					? "Cherry-pick"
+					: "Revert";
 
 	const request = (
 		kind: FinishOperationInput["kind"]

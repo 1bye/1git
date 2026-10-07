@@ -157,6 +157,7 @@ it("confirms the clicked commit, not the selected one, and supports cancel, Cont
 		"Copy Message",
 		"View on GitHub/GitLab",
 		"",
+		"Cherry-pick commit…",
 		"Revert commit…",
 	]);
 	expect(
@@ -246,7 +247,7 @@ for (const reason of ["dirty", "merge", "detached", "operation"] as const) {
 		await openMenu();
 		expect(menuEnabled[menuLabels.indexOf("Revert commit…")]).toBe(false);
 		expect(menuEnabled.slice(0, 3)).toEqual([true, true, false]);
-		expect(menuLabels.length).toBe(6);
+		expect(menuLabels.length).toBe(7);
 		expect(root.renderer.findByTestId("revert-dialog")).toBeUndefined();
 		expect(write).not.toHaveBeenCalled();
 	});

@@ -478,7 +478,7 @@ export interface ResolveConflictInput extends GitCallOptions {
 /** Reviewed operation identity; abort requires a separate explicit user confirmation at the UI boundary. */
 export interface FinishOperationInput extends GitCallOptions {
 	readonly kind: "continue" | "abort";
-	readonly expectedOperation: "merge" | "rebase" | "revert";
+	readonly expectedOperation: "merge" | "rebase" | "revert" | "cherry-pick";
 	readonly expectedHead: string | null;
 	readonly expectedBranch: string | null;
 	readonly expectedToken: string;
@@ -615,6 +615,15 @@ export interface RevertCommitInput extends GitCallOptions {
 	readonly commit: string;
 	readonly expectedHead: string;
 	readonly expectedBranch: string;
+}
+
+/** Copies one historical commit onto a reviewed local branch, switching only from a clean source. */
+export interface CherryPickCommitInput extends GitCallOptions {
+	readonly commit: string;
+	readonly expectedHead: string;
+	readonly expectedBranch: string;
+	readonly targetBranch: string;
+	readonly expectedTarget: string;
 }
 
 export interface CreateTagInput extends GitCallOptions {

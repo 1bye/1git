@@ -1,7 +1,11 @@
 import { spacing, typography } from "@1git/design-tokens";
 import { Button } from "@1git/gpuix-ui/button";
 import { Popover, PopoverContent } from "@1git/gpuix-ui/popover";
-import type { CommitInfo, RevertCommitInput } from "@1git/git";
+import type {
+	CommitInfo,
+	RevertCommitInput,
+	CherryPickCommitInput,
+} from "@1git/git";
 import { useGpuixRequired, type EventPayload } from "@gpuix/react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { appTokens } from "../../../styles/tokens";
@@ -17,20 +21,34 @@ import {
 	type RepositoryWorkspaceState,
 } from "../lib/repository-workspace-model";
 import type { WorkspaceEntry } from "../types";
+import type { RepositoryBranches } from "../../workspace-tabs/lib/repository-branches";
+import {
+	RepositoryCherryPick,
+	type CherryPickReview,
+} from "./repository-cherry-pick";
 
-type HistoryChoice = "copy-sha" | "copy-message" | "view" | "revert";
+type HistoryChoice =
+	| "copy-sha"
+	| "copy-message"
+	| "view"
+	| "revert"
+	| "cherry-pick";
 const remoteLookupTimeoutMs = 5000;
 
-/** Native commit actions; only Revert requires a reviewed commit/branch and confirmation. */
+/** Native commit actions; Git writes require a reviewed commit/branch and confirmation. */
 export function RepositoryRevert({
 	state,
 	onWrite,
+	onCherryPick,
+	readBranches,
 	readCommitLink = RepositoryHistory.readCommitLink,
 	onFinished,
 	children,
 }: {
 	state: RepositoryWorkspaceState;
 	onWrite?: (request: RevertCommitInput) => Promise<string | null>;
+	onCherryPick?: (request: CherryPickCommitInput) => Promise<string | null>;
+	readBranches?: typeof RepositoryBranches.read;
 	readCommitLink?: typeof RepositoryHistory.readCommitLink;
 	onFinished: () => void;
 	children: (
@@ -43,6 +61,7 @@ export function RepositoryRevert({
 	const submitting = useRef(false);
 	const [pending, setPending] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+	const [cherryPick, setCherryPick] = useState<CherryPickReview | null>(null);
 
 	const [reviewed, setReviewed] = useState<{
 		commit: CommitInfo;
@@ -58,8 +77,8 @@ export function RepositoryRevert({
 	);
 
 	const unavailable =
-		!onWrite || state.preview || !repository?.head || !repository.branchName
-			? "Open a committed branch to revert."
+		state.preview || !repository?.head || !repository.branchName
+			? "Open a committed branch first."
 			: busy || state.loading || state.error || state.commit.needsReview
 				? "Wait for the current operation or refresh first."
 				: repository.operation !== "normal"
@@ -77,7 +96,7 @@ export function RepositoryRevert({
 		entry: WorkspaceEntry,
 		event: EventPayload
 	): Promise<void> => {
-		if (tracking.current || reviewed) return;
+		if (tracking.current || reviewed || cherryPick) return;
 
 		const commit = state.entries.history.find(
 			(item) => item.id === entry.id
@@ -98,6 +117,10 @@ export function RepositoryRevert({
 					? "Merge commits require a mainline parent in an external Git tool."
 					: null);
 
+			const cherryPickReason = onCherryPick
+				? reason
+				: "Cherry-pick is unavailable.";
+
 			let link: CommitWebLink | null = null;
 
 			try {
@@ -111,7 +134,7 @@ export function RepositoryRevert({
 						])
 					);
 			} catch {
-				// A failed remote lookup must not hide clipboard actions or a guarded revert.
+				// A failed remote lookup must not hide clipboard actions or guarded Git writes.
 				if (!controller.signal.aborted)
 					setError(
 						"Could not read the commit's remote. Browser viewing is unavailable."
@@ -131,7 +154,16 @@ export function RepositoryRevert({
 					value: "view",
 				},
 				{ separator: true },
-				{ label: "Revert commit…", enabled: !reason, value: "revert" },
+				{
+					label: "Cherry-pick commit…",
+					enabled: !cherryPickReason,
+					value: "cherry-pick",
+				},
+				{
+					label: "Revert commit…",
+					enabled: !!onWrite && !reason,
+					value: "revert",
+				},
 			];
 
 			if (reason)
@@ -149,6 +181,18 @@ export function RepositoryRevert({
 			else if (choice === "copy-message")
 				await NativeClipboard.write(commit.body || commit.summary);
 			else if (choice === "view" && link) await NativeBrowser.open(link.url);
+			else if (
+				choice === "cherry-pick" &&
+				!cherryPickReason &&
+				repository?.head &&
+				repository.branchName
+			)
+				setCherryPick({
+					commit,
+					root: repository.root,
+					expectedHead: repository.head,
+					expectedBranch: repository.branchName,
+				});
 			else if (
 				choice === "revert" &&
 				!reason &&
@@ -202,6 +246,20 @@ export function RepositoryRevert({
 	return (
 		<>
 			{children(openMenu)}
+			{cherryPick && onCherryPick ? (
+				<RepositoryCherryPick
+					key={`${cherryPick.root}:${cherryPick.commit.oid}`}
+					state={state}
+					review={cherryPick}
+					readBranches={readBranches}
+					onWrite={onCherryPick}
+					onCancel={() => setCherryPick(null)}
+					onFinished={() => {
+						setCherryPick(null);
+						onFinished();
+					}}
+				/>
+			) : null}
 			{error && !reviewed ? (
 				<text
 					role="alert"

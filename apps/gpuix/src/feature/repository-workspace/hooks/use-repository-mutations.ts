@@ -35,6 +35,7 @@ import type {
 	GitResult,
 	SyncResult,
 	RevertCommitInput,
+	CherryPickCommitInput,
 } from "@1git/git";
 import type { PublishBranchIdentity } from "../../repository-publish/repository-publish";
 import type { RemoteAccountAccess } from "../../accounts/lib/remote-accounts";
@@ -80,7 +81,8 @@ export function useRepositoryMutations(
 	undoCommit = RepositoryCommit.undo,
 	writeGitSettings = GitSettingsModel.write,
 	revertCommit = RepositoryHistory.revert,
-	ignoreFile = RepositoryFileActions.ignore
+	ignoreFile = RepositoryFileActions.ignore,
+	cherryPickCommit = RepositoryHistory.cherryPick
 ) {
 	const [settingsPending, setSettingsPending] = useState(false);
 	const settingsWrite = useRef(false);
@@ -1008,6 +1010,7 @@ export function useRepositoryMutations(
 		request:
 			| FinishOperationInput
 			| (RevertCommitInput & { kind: "revert" })
+			| (CherryPickCommitInput & { kind: "cherry-pick" })
 			| FileDiscardRequest
 			| FileIgnoreRequest
 			| {
@@ -1035,10 +1038,12 @@ export function useRepositoryMutations(
 		)
 			return "Wait for the current operation or refresh before continuing.";
 
-		const reverting =
+		const sharedHistoryWrite =
 			request.kind === "revert" ||
+			request.kind === "cherry-pick" ||
 			((request.kind === "continue" || request.kind === "abort") &&
-				request.expectedOperation === "revert");
+				(request.expectedOperation === "revert" ||
+					request.expectedOperation === "cherry-pick"));
 
 		const related = () =>
 			tabs.current.filter(
@@ -1048,7 +1053,7 @@ export function useRepositoryMutations(
 			);
 
 		if (
-			reverting &&
+			sharedHistoryWrite &&
 			related().some(
 				(tab) =>
 					tab.workspace.loading ||
@@ -1064,7 +1069,7 @@ export function useRepositoryMutations(
 			for (const tab of tabs.current) {
 				if (
 					tab.workspace.repository?.root === repository.root ||
-					(reverting &&
+					(sharedHistoryWrite &&
 						tab.workspace.repository?.commonDirectory ===
 							repository.commonDirectory)
 				)
@@ -1077,7 +1082,8 @@ export function useRepositoryMutations(
 
 		pending.current.set(repository.root, started);
 
-		if (reverting) sharedWrites.current.add(repository.commonDirectory);
+		if (sharedHistoryWrite)
+			sharedWrites.current.add(repository.commonDirectory);
 
 		closeProtection.block();
 		send({ type: started });
@@ -1098,9 +1104,11 @@ export function useRepositoryMutations(
 						? await discardFile(repository.root, request)
 						: request.kind === "revert"
 							? await revertCommit(repository.root, request)
-							: request.kind === "ignore"
-								? await ignoreFile(repository.root, request)
-								: await writeOperation(repository.root, request);
+							: request.kind === "cherry-pick"
+								? await cherryPickCommit(repository.root, request)
+								: request.kind === "ignore"
+									? await ignoreFile(repository.root, request)
+									: await writeOperation(repository.root, request);
 
 			if (!result.ok) error = result.error.message;
 			else if (
@@ -1115,7 +1123,7 @@ export function useRepositoryMutations(
 
 		const refreshed = new Map<string, RepositoryWorkspaceAction>();
 
-		const roots = reverting
+		const roots = sharedHistoryWrite
 			? [
 					...new Set([
 						repository.root,
@@ -1159,13 +1167,15 @@ export function useRepositoryMutations(
 										? `Discarded ${request.paths.length} ${request.paths.length === 1 ? "file" : "files"}. Recovery backup saved.`
 										: request.kind === "revert"
 											? "Revert commit created."
-											: request.kind === "ignore"
-												? "Rule added to .gitignore. Already tracked files remain unchanged."
-												: request.kind === "abort"
-													? "Operation aborted."
-													: snapshot?.operationState === "normal"
-														? "Operation completed."
-														: "Git paused again. Review the current operation before continuing.",
+											: request.kind === "cherry-pick"
+												? `Commit cherry-picked onto ${request.targetBranch}.`
+												: request.kind === "ignore"
+													? "Rule added to .gitignore. Already tracked files remain unchanged."
+													: request.kind === "abort"
+														? "Operation aborted."
+														: snapshot?.operationState === "normal"
+															? "Operation completed."
+															: "Git paused again. Review the current operation before continuing.",
 						}
 			);
 
@@ -1175,7 +1185,8 @@ export function useRepositoryMutations(
 		// Keep every related tab busy until all reads finish; release before publishing their snapshots.
 		pending.current.delete(repository.root);
 
-		if (reverting) sharedWrites.current.delete(repository.commonDirectory);
+		if (sharedHistoryWrite)
+			sharedWrites.current.delete(repository.commonDirectory);
 
 		if (mounted.current)
 			for (const tab of tabs.current) {
@@ -1375,6 +1386,8 @@ export function useRepositoryMutations(
 			updateWorktree(id, request),
 		revertCommit: (id: string, request: RevertCommitInput) =>
 			updateWorktree(id, { ...request, kind: "revert" }),
+		cherryPickCommit: (id: string, request: CherryPickCommitInput) =>
+			updateWorktree(id, { ...request, kind: "cherry-pick" }),
 		discardFile: (id: string, request: FileDiscardRequest) =>
 			updateWorktree(id, request),
 		ignoreFile: (id: string, request: FileIgnoreRequest) =>

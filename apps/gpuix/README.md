@@ -733,7 +733,8 @@ no user repositories or live hosted services are modified.
   them neither stages nor unstages files. Command+Enter/the composer button creates
   a real commit in a connected repository. Drafts are saved with the session;
   inclusion choices remain in-memory only.
-  History is read-only; Stashes provides explicit create, apply and delete actions.
+  History previews are read-only; its context menu provides confirmed Revert and
+  Cherry-pick actions. Stashes provides explicit create, apply and delete actions.
   Unavailable views never substitute sample records for live data.
 
 Git must be installed on PATH. The app imports the existing workspace Git package;
@@ -870,6 +871,28 @@ the Turbo build/dev tasks build dependencies first. No Electron IPC is involved.
   pagination to the new snapshot. Automatic refresh retains the selected commit
   and file when they remain in the refreshed page; explicit refresh and successful
   app commits reset selection when HEAD changes.
+
+### Cherry-picking a commit
+
+- Right-click a History commit (Control-click or Shift+F10 also works) and choose
+  **Cherry-pick commit…**. Search and select a local destination branch, then confirm.
+  Confirmation identifies the clicked commit even when a different row is selected.
+- The app switches to the destination and copies only that commit; the source
+  branch remains unchanged. It never pushes, forces a checkout or auto-stashes.
+  Commit or stash local edits first. Remote refs, the current branch, merge commits
+  requiring a mainline parent, and branches occupied by another worktree are excluded.
+- The Git boundary rechecks source HEAD/branch, commit reachability, destination
+  tip and working-copy cleanliness under its instance mutation lock. A commit
+  already in the destination's history is rejected before switching. Hooks and
+  signing are retained; changes introduced by checkout hooks block the replay.
+- After every attempt the app refreshes related tabs and shows the result in
+  Changes. Once switching succeeds it stays on the destination, including failures.
+  Resolve conflicts with the existing controls, then **Continue cherry-pick** or
+  confirm **Abort…**. Abort restores the destination's pre-replay state, not the
+  original source branch. Empty/already-applied patches may require Abort or an
+  external Git workflow; the app does not skip or create empty commits implicitly.
+- Closing and competing app writes remain blocked through all status refreshes.
+  A failed refresh blocks further writes. External Git processes are not locked.
 
 ### Reverting a commit
 
@@ -1061,9 +1084,9 @@ hot reload cannot replace a loaded addon. This bridge is macOS-only.
   refresh blocks further writes. External editors/Git processes are not locked;
   avoid concurrent writes while marking a file resolved.
 
-### Merge, rebase and revert completion
+### Merge, rebase, revert and cherry-pick completion
 
-- Changes shows the active merge/rebase/revert, conflict count, **Continue** and **Abort…**.
+- Changes shows the active merge/rebase/revert/cherry-pick, conflict count, **Continue** and **Abort…**.
 - Continue uses Git's staged resolutions and existing message, retaining hooks
   and signing. It never stages files or uses the commit-inclusion checkboxes.
   Unresolved conflicts or unstaged tracked edits block continuation.
@@ -1073,7 +1096,7 @@ hot reload cannot replace a loaded addon. This bridge is macOS-only.
   Results are refreshed even on failure: a rebase may stop at another conflict.
   Closing and competing app writes remain blocked through the refresh; a failed
   refresh blocks further writes until the repository is reviewed again.
-- Skip, interactive rebase editing, cherry-pick completion and cancellation
+- Skip, interactive rebase editing and cancellation
   of an in-flight local Git command remain external workflows. External Git
   processes are not locked; avoid concurrent writes.
 

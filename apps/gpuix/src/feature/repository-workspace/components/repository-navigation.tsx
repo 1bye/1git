@@ -34,10 +34,12 @@ import type {
 	FinishOperationInput,
 	CommitRecoveryInput,
 	RevertCommitInput,
+	CherryPickCommitInput,
 } from "@1git/git";
 import type { RepositoryCommit as CommitReader } from "../lib/repository-commit";
 import { RepositoryOperation } from "./repository-operation";
 import { RepositoryRevert } from "./repository-revert";
+import type { RepositoryBranches } from "../../workspace-tabs/lib/repository-branches";
 import type { RepositoryHistory } from "../lib/repository-history";
 import type {
 	FileDiscardRequest,
@@ -149,6 +151,8 @@ export function RepositoryNavigation({
 	onCommit,
 	onUndoCommit,
 	onRevertCommit,
+	onCherryPickCommit,
+	readBranches,
 	readCommitLink,
 	readLastCommit,
 	onStash,
@@ -168,6 +172,8 @@ export function RepositoryNavigation({
 	onCommit?: () => void;
 	onUndoCommit?: (input: CommitRecoveryInput) => Promise<string | null>;
 	onRevertCommit?: (input: RevertCommitInput) => Promise<string | null>;
+	onCherryPickCommit?: (input: CherryPickCommitInput) => Promise<string | null>;
+	readBranches?: typeof RepositoryBranches.read;
 	readCommitLink?: typeof RepositoryHistory.readCommitLink;
 	readLastCommit?: typeof CommitReader.readLast;
 	onStash?: (request: StashWriteRequest) => Promise<boolean>;
@@ -285,6 +291,8 @@ export function RepositoryNavigation({
 		<RepositoryRevert
 			state={state}
 			onWrite={onRevertCommit}
+			onCherryPick={onCherryPickCommit}
+			readBranches={readBranches}
 			readCommitLink={readCommitLink}
 			onFinished={() => onAction({ type: "view", view: "changes" })}
 		>

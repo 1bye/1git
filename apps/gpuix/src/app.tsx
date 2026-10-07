@@ -97,6 +97,7 @@ export function App({
 	readLastCommit = RepositoryCommit.readLast,
 	undoCommit = RepositoryCommit.undo,
 	revertCommit = RepositoryHistory.revert,
+	cherryPickCommit = RepositoryHistory.cherryPick,
 	readBranches = RepositoryBranches.read,
 	writeBranch = RepositoryBranches.write,
 	writeWorktree = RepositoryWorktrees.create,
@@ -135,6 +136,7 @@ export function App({
 	readLastCommit?: typeof RepositoryCommit.readLast;
 	undoCommit?: typeof RepositoryCommit.undo;
 	revertCommit?: typeof RepositoryHistory.revert;
+	cherryPickCommit?: typeof RepositoryHistory.cherryPick;
 	readBranches?: typeof RepositoryBranches.read;
 	writeBranch?: typeof RepositoryBranches.write;
 	writeWorktree?: typeof RepositoryWorktrees.create;
@@ -336,7 +338,8 @@ export function App({
 			return result;
 		},
 		revertCommit,
-		ignoreFile
+		ignoreFile,
+		cherryPickCommit
 	);
 
 	useRepositoryAutoRefresh(state, dispatch, readRepository, watchRepository);
@@ -698,6 +701,10 @@ export function App({
 								onRevertCommit={(input) =>
 									mutations.revertCommit(activeTab.id, input)
 								}
+								onCherryPickCommit={(input) =>
+									mutations.cherryPickCommit(activeTab.id, input)
+								}
+								readBranches={readBranches}
 								readCommitLink={async (root, oid, signal) =>
 									RepositoryHistory.readCommitLink(
 										root,
