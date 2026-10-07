@@ -143,11 +143,11 @@ it("matches Home to the rail's button, icon and rounding while centering it with
 	expect(homeIcon.x + homeIcon.width / 2).toBe(home.x + home.width / 2);
 	expect(homeIcon.y + homeIcon.height / 2).toBe(close.y + close.height / 2);
 	expect(home.y + home.height).toBeLessThan(bounds("workspace").y);
-	expect(home.x).toBe(92);
-	expect(bounds("hover-workspace-1").x - home.x - home.width).toBe(8);
+	expect(home.x).toBe(86);
+	expect(bounds("hover-workspace-1").x - home.x - home.width).toBe(4);
 	click("workspace-home");
 	expect(bounds("workspace-home")).toEqual(home);
-	expect(bounds("hover-workspace-1").x - home.x - home.width).toBe(8);
+	expect(bounds("hover-workspace-1").x - home.x - home.width).toBe(4);
 
 	// The full button must remain clickable where its slot meets the tab shoulder.
 	click("workspace-1");
@@ -219,7 +219,7 @@ it("starts on a shared Home screen and repeated clicks never create empty tabs",
 	expect(node("workspace-home").customProps?.["aria-description"]).toBe(
 		"Welcome screen selected"
 	);
-	expect(bounds("workspace-home").x).toBe(92);
+	expect(bounds("workspace-home").x).toBe(86);
 	expect(root.renderer.findByTestId("add-workspace")).toBeUndefined();
 
 	for (let index = 0; index < 3; index++) click("workspace-home");

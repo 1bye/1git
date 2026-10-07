@@ -399,7 +399,7 @@ may show a Keychain access prompt. It never infers credentials from saved accoun
 - `src/feature/workspace-tabs/`: tab UI, focus, scrolling, and pure state transitions.
 - `src/feature/repository-workspace/`: repository picking/status reads, native file diffs, navigation views, and pure workspace transitions.
 - `src/styles/tokens.ts`: shared desktop colors adapted to `gpuix-ui`.
-- `src/styles/workspace-layout.ts`: native chrome spacing; a 16px gap after the traffic lights, an 8px gap from Home to the visible tab body, and 36px tabs in a 42px toolbar, preserving shared bottom spacing and control sizes.
+- `src/styles/workspace-layout.ts`: native chrome spacing; a 10px gap after the traffic lights, a 4px gap from Home to the visible tab body, and 36px tabs in a 42px toolbar, preserving shared bottom spacing and control sizes.
 
 The tab feature groups its modules by responsibility, following
 `.agents/workflow/react.md`:

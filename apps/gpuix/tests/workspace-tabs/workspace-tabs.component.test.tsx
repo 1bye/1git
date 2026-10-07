@@ -126,14 +126,14 @@ it("uses the native shell geometry and paints only the workspace opaque", () => 
 	expect(windowOptions.windowBackground).toBe("blurred");
 });
 
-it("leaves 16px after the traffic lights and 8px between Home and the visible tab body", () => {
+it("leaves 10px after the traffic lights and 4px between Home and the visible tab body", () => {
 	const home = bounds("workspace-home");
 
 	expect(home.x).toBe(workspaceLayout.desktopTitlebarControlsWidth);
 	// Native traffic lights occupy 60px starting at the configured 16px inset.
-	expect(home.x - (16 + 60)).toBe(16);
-	expect(bounds("workspace-tabs").x).toBe(home.x + home.width - 4);
-	expect(bounds("hover-workspace-1").x - home.x - home.width).toBe(8);
+	expect(home.x - (16 + 60)).toBe(10);
+	expect(bounds("workspace-tabs").x).toBe(home.x + home.width - 8);
+	expect(bounds("hover-workspace-1").x - home.x - home.width).toBe(4);
 	expect(bounds("slot-workspace-1").x).toBe(
 		tabViewport().x + workspaceLayout.tabSurfaceOutset
 	);

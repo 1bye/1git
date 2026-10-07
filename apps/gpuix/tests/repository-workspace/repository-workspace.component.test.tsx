@@ -576,9 +576,9 @@ it("keeps the full-width tab rail above navigation contained in the rounded work
 	const home = bounds("workspace-home");
 	const strip = bounds("workspace-tabs");
 
-	expect(home.x).toBe(92);
-	expect(strip.x).toBe(home.x + home.width - 4);
-	expect(bounds("hover-workspace-1").x - home.x - home.width).toBe(8);
+	expect(home.x).toBe(86);
+	expect(strip.x).toBe(home.x + home.width - 8);
+	expect(bounds("hover-workspace-1").x - home.x - home.width).toBe(4);
 	expect(bounds("slot-workspace-1").x).toBe(strip.x + 10);
 	expect(bounds("surface-workspace-1").x).toBe(strip.x);
 	expect(strip.x + strip.width).toBe(974);

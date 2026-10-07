@@ -67,8 +67,8 @@ const styles = StyleSheet.create({
 	},
 	homeSlot: {
 		position: "relative",
-		// Reserve 28px for the 32px control: the tab shoulder adds 12px to the body gap.
-		width: controlSize.rail - spacing[1],
+		// Reserve 24px for the 32px control: the tab shoulder adds 12px to the body gap.
+		width: controlSize.rail - spacing[2],
 		height: controlSize.rail,
 		flexShrink: 0,
 		marginBottom: spacing[1],
