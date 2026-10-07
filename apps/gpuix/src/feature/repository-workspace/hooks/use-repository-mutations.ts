@@ -37,6 +37,7 @@ import type {
 	RevertCommitInput,
 } from "@1git/git";
 import type { PublishBranchIdentity } from "../../repository-publish/repository-publish";
+import type { RemoteAccountAccess } from "../../accounts/lib/remote-accounts";
 import { useCloseProtection } from "./use-close-protection";
 import {
 	GitSettingsModel,
@@ -51,6 +52,7 @@ import {
 import { RepositoryReader } from "../lib/repository-reader";
 import {
 	RepositorySync,
+	type RepositorySyncResult,
 	type SyncRequest,
 	type SyncKind,
 } from "../lib/repository-sync";
@@ -715,6 +717,7 @@ export function useRepositoryMutations(
 		send({ type: "sync-started", kind: choice.kind });
 		let error: string | null = null;
 		let fetchedAt: number | null = null;
+		let accountAccess: RemoteAccountAccess | undefined;
 		let notice: string | undefined;
 
 		const cancelledMessage =
@@ -723,7 +726,7 @@ export function useRepositoryMutations(
 				: "Synchronization stopped. It may have completed; review status before retrying.";
 
 		try {
-			const result = publish
+			const result: RepositorySyncResult = publish
 				? await publish(
 						repository.root,
 						{
@@ -761,13 +764,16 @@ export function useRepositoryMutations(
 								publish: "Branch published.",
 								sync: "Sync complete.",
 							}[choice.kind];
-			} else
+			} else {
+				accountAccess = result.accountAccess;
+
 				error =
 					result.error.code === "aborted" && controller.signal.aborted
 						? cancelledMessage
 						: [result.error.message, result.error.details]
 								.filter(Boolean)
 								.join("\n");
+			}
 		} catch {
 			error = controller.signal.aborted
 				? cancelledMessage
@@ -798,6 +804,7 @@ export function useRepositoryMutations(
 					outcomes.set(root, {
 						type: "sync-finished",
 						error,
+						accountAccess,
 						fetchedAt,
 						notice,
 						...(refreshed.ok
@@ -808,6 +815,7 @@ export function useRepositoryMutations(
 					outcomes.set(root, {
 						type: "sync-finished",
 						error,
+						accountAccess,
 						fetchedAt,
 						notice,
 						refreshError:
@@ -831,6 +839,7 @@ export function useRepositoryMutations(
 				outcomes.get(root) ?? {
 					type: "sync-finished",
 					error,
+					accountAccess,
 					fetchedAt,
 					notice,
 				},
@@ -1380,6 +1389,23 @@ export function useRepositoryMutations(
 		removeWorktree: (id: string, choice: WorktreeRemoval) =>
 			mutateWorktree(id, choice),
 		fetch: (id: string) => synchronize(id, { kind: "fetch" }),
+		// Opening recovery settings acknowledges the failure, not successful authentication.
+		// The next rail click can make a fresh, explicit attempt across any linked worktree.
+		dismissSyncError: (id: string): void => {
+			const directory = tabs.current.find((tab) => tab.id === id)?.workspace
+				.repository?.commonDirectory;
+
+			if (!directory) return;
+
+			for (const tab of tabs.current) {
+				if (tab.workspace.repository?.commonDirectory === directory)
+					dispatch({
+						type: "workspace",
+						id: tab.id,
+						action: { type: "sync-error-dismissed" },
+					});
+			}
+		},
 		synchronize,
 		cancelSync,
 	};

@@ -12,6 +12,8 @@ import { Accounts } from "../../src/feature/accounts/lib/accounts";
 import { AccountStore } from "../../src/feature/accounts/lib/account-store";
 import { RepositoryBranches } from "../../src/feature/workspace-tabs/lib/repository-branches";
 import { RepositorySync } from "../../src/feature/repository-workspace/lib/repository-sync";
+import { GitSettingsModel } from "../../src/feature/git-settings/git-settings-model";
+import { appTokens } from "../../src/styles/tokens";
 import {
 	repositorySnapshot,
 	changedFile,
@@ -195,6 +197,14 @@ async function open() {
 			fetchRepository={fetch}
 			writeSyncRepository={sync}
 			writeCommit={commit}
+			readGitSettings={async () => ({
+				ok: true,
+				value: {
+					identity: { name: null, email: null },
+					custom: false,
+					remotes,
+				},
+			})}
 			readLastCommit={async () => ({
 				ok: false,
 				error: {
@@ -537,6 +547,159 @@ it("retains failures on reopen and permits only an explicit retry", async () => 
 		"Fetch remote updates"
 	);
 });
+
+it.each(["accounts", "remotes"] as const)(
+	"opens %s settings from the quiet account-access error after Push fails during its initial fetch",
+	async (destination) => {
+		snapshot = {
+			...snapshot,
+			head: { ...snapshot.head, upstream: "origin/main", ahead: 1 },
+		};
+		const message =
+			"Your GitHub account is connected without access to private repositories.";
+
+		const account = {
+			provider: "github",
+			webUrl: "https://github.com/",
+			id: "7",
+			username: "fixture",
+		} as const;
+
+		const key = AccountStore.key(account);
+
+		spyOn(accounts, "load").mockReturnValue([account]);
+		spyOn(accounts, "registration").mockResolvedValue({
+			clientId: "fixture-client",
+		});
+		spyOn(accounts, "repositoryAccess").mockResolvedValue(false);
+		const authorize = spyOn(accounts, "connectBrowser");
+		const config = spyOn(GitSettingsModel, "write");
+
+		sync.mockResolvedValueOnce({
+			ok: false,
+			error: {
+				code: "authentication-required",
+				operation: "fetch",
+				message,
+				retryable: true,
+			},
+			accountAccess: { message, accountKey: key },
+		});
+		await open();
+		click("rail-sync");
+		await settle();
+
+		expect(sync.mock.calls[0]?.[1].kind).toBe("sync");
+		expect(root.renderer.getAllText()).toContain(message);
+		expect(root.renderer.getAllText()).toContain("Repository access needed");
+		expect(node("rail-sync-message").style.color).toBe(lightColors.editorMuted);
+		expect(node("rail-sync-access-icon").style.color).toBe(
+			appTokens.colors.danger
+		);
+		expect(root.renderer.findByTestId("rail-sync-retry")).toBeUndefined();
+		expect(root.renderer.findByTestId("rail-sync-refresh")).toBeUndefined();
+		expect(node("rail-sync-close")).toBeDefined();
+		const dialog = bounds("rail-sync-dialog");
+
+		for (const id of [
+			"rail-sync-close",
+			"rail-sync-remotes",
+			"rail-sync-accounts",
+		]) {
+			const button = bounds(id);
+
+			expect(button.x).toBeGreaterThanOrEqual(dialog.x);
+			expect(button.x + button.width).toBeLessThanOrEqual(
+				dialog.x + dialog.width
+			);
+		}
+
+		expect(root.renderer.getAllText().join(" ")).not.toContain(
+			"Authenticated HTTPS request failed"
+		);
+
+		if (
+			process.env.GPUIX_SYNC_PERMISSION_SCREENSHOT &&
+			destination === "accounts"
+		)
+			root.renderer.captureScreenshot(
+				process.env.GPUIX_SYNC_PERMISSION_SCREENSHOT
+			);
+
+		click("rail-sync-close");
+		await settle();
+		click("rail-sync");
+		await settle();
+		expect(sync).toHaveBeenCalledTimes(1);
+
+		if (destination === "accounts") {
+			root.renderer.focusElement(node("rail-sync-accounts").id);
+			root.renderer.simulateKeystrokes("enter");
+		} else click("rail-sync-remotes");
+
+		await settle();
+		expect(root.renderer.findByTestId("rail-sync-dialog")).toBeUndefined();
+
+		if (destination === "accounts") {
+			expect(root.renderer.getAllText()).toContain("Reconnect account");
+			expect(node("account-client-id").customProps?.value).toBe(
+				"fixture-client"
+			);
+			expect(
+				node("account-repository-access").customProps?.["aria-checked"]
+			).toBe(false);
+			root.renderer.simulateKeystrokes("escape");
+			await settle();
+			expect(node("accounts-settings")).toBeDefined();
+			expect(root.renderer.findByTestId("account-connect")).toBeUndefined();
+		} else {
+			expect(root.renderer.getAllText()).toContain("Remotes");
+			expect(node("remote-add")).toBeDefined();
+		}
+
+		expect(authorize).not.toHaveBeenCalled();
+		expect(config).not.toHaveBeenCalled();
+		expect(sync).toHaveBeenCalledTimes(1);
+		click("view-changes");
+		await settle();
+		expect(root.renderer.findByTestId("accounts-settings")).toBeUndefined();
+		click("rail-sync");
+		await settle();
+		expect(sync).toHaveBeenCalledTimes(2);
+		expect(root.renderer.findByTestId("rail-sync-dialog")).toBeUndefined();
+	}
+);
+
+it.each([undefined, "removed-account"])(
+	"opens Accounts rather than an arbitrary reconnect form for recovery key %s",
+	async (accountKey) => {
+		fetch.mockResolvedValueOnce({
+			ok: false,
+			error: {
+				code: "authentication-required",
+				operation: "fetch",
+				message: "Check account permissions.",
+				retryable: true,
+			},
+			accountAccess: { message: "Check account permissions.", accountKey },
+		});
+		snapshot = {
+			...snapshot,
+			head: { ...snapshot.head, upstream: "origin/main" },
+		};
+		await open();
+		click("rail-sync");
+		await settle();
+		expect(root.renderer.getAllText()).toContain(
+			accountKey ? "Reconnect account…" : "Account settings…"
+		);
+		click("rail-sync-accounts");
+		await settle();
+		expect(node("accounts-settings")).toBeDefined();
+		expect(root.renderer.getAllText()).toContain("No accounts connected.");
+		expect(root.renderer.findByTestId("account-connect")).toBeUndefined();
+	}
+);
 
 it("blocks further writes after a failed status refresh until a manual refresh succeeds", async () => {
 	snapshot = {

@@ -118,6 +118,7 @@ export function AccountsSettings({
 	remoteAccounts,
 	children,
 	initialForm = "list",
+	initialReconnectKey,
 	openLink = openAuthorizationBrowser,
 	copyText = NativeClipboard.write,
 	preferredAccountKey,
@@ -136,6 +137,8 @@ export function AccountsSettings({
 	children?: ReactNode;
 	/** Clone's Add account entry opens setup immediately; normal Settings starts with the list. */
 	initialForm?: "list" | "connect";
+	/** A user-requested recovery opens this account's existing reconnect form, without authorizing it. */
+	initialReconnectKey?: string;
 	/** System-browser boundary; native tests capture setup links without opening a real account. */
 	openLink?: (url: string) => Promise<void>;
 	/** Public setup values only; tests capture writes without replacing the user's clipboard. */
@@ -221,23 +224,6 @@ export function AccountsSettings({
 	}, [renderer]);
 
 	useEffect(() => {
-		token.current = "";
-		setHasToken(false);
-		setForm(initialForm);
-		setRemoving(undefined);
-		setError(undefined);
-		setStatus({});
-
-		try {
-			setSaved(accounts.load());
-		} catch (cause) {
-			setError(
-				cause instanceof Error ? cause.message : "Could not load accounts."
-			);
-		}
-	}, [accounts, initialForm]);
-
-	useEffect(() => {
 		settingsNavigation.set(renderer, {
 			scope: () => view.current?.id ?? null,
 			back: () => {
@@ -263,68 +249,98 @@ export function AccountsSettings({
 		};
 	}, [renderer, form, onBack, waiting]);
 
-	const startConnection = (account?: SavedAccount) => {
-		setReplacing(account);
-		setProvider(account?.provider ?? "github");
-		setWebUrl(account?.webUrl ?? accountSetup.github.host);
-		setAdvanced(
-			!!account &&
-				account.webUrl !== new URL(accountSetup[account.provider].host).href
-		);
-		setRedirectUri(defaultAccountCallback);
-		setError(undefined);
+	const perform = useCallback(
+		async (operation: (signal: AbortSignal) => Promise<void>) => {
+			if (request.current) return;
+
+			const controller = new AbortController();
+
+			request.current = controller;
+			setBusy(true);
+			setError(undefined);
+
+			try {
+				await operation(controller.signal);
+			} catch (cause) {
+				if (mounted.current && !controller.signal.aborted)
+					setError(
+						cause instanceof Error ? cause.message : "Account action failed."
+					);
+			} finally {
+				request.current = null;
+
+				if (mounted.current) {
+					setBusy(false);
+					setWaiting(false);
+					setDevice(undefined);
+				}
+			}
+		},
+		[]
+	);
+
+	const startConnection = useCallback(
+		(account?: SavedAccount) => {
+			setReplacing(account);
+			setProvider(account?.provider ?? "github");
+			setWebUrl(account?.webUrl ?? accountSetup.github.host);
+			setAdvanced(
+				!!account &&
+					account.webUrl !== new URL(accountSetup[account.provider].host).href
+			);
+			setRedirectUri(defaultAccountCallback);
+			setError(undefined);
+			token.current = "";
+			setHasToken(false);
+			setForm("connect");
+			setManual(false);
+			setClientId("");
+			setDevice(undefined);
+			setRepositoryAccess(false);
+
+			if (account)
+				void perform(async () => {
+					const [registration, access] = await Promise.all([
+						accounts.registration(account),
+						accounts.repositoryAccess(account),
+					]);
+
+					if (!mounted.current) return;
+
+					setRepositoryAccess(access === true);
+
+					if (registration) {
+						setClientId(registration.clientId);
+						setRedirectUri(registration.redirectUri ?? defaultAccountCallback);
+					}
+				});
+		},
+		[accounts, perform]
+	);
+
+	useEffect(() => {
 		token.current = "";
 		setHasToken(false);
-		setForm("connect");
-		setManual(false);
-		setClientId("");
-		setDevice(undefined);
-		setRepositoryAccess(false);
-
-		if (account)
-			void perform(async () => {
-				const [registration, access] = await Promise.all([
-					accounts.registration(account),
-					accounts.repositoryAccess(account),
-				]);
-
-				if (!mounted.current) return;
-
-				setRepositoryAccess(access === true);
-
-				if (registration) {
-					setClientId(registration.clientId);
-					setRedirectUri(registration.redirectUri ?? defaultAccountCallback);
-				}
-			});
-	};
-
-	const perform = async (operation: (signal: AbortSignal) => Promise<void>) => {
-		if (request.current) return;
-
-		const controller = new AbortController();
-
-		request.current = controller;
-		setBusy(true);
+		setForm(initialForm);
+		setRemoving(undefined);
 		setError(undefined);
+		setStatus({});
 
 		try {
-			await operation(controller.signal);
-		} catch (cause) {
-			if (mounted.current && !controller.signal.aborted)
-				setError(
-					cause instanceof Error ? cause.message : "Account action failed."
-				);
-		} finally {
-			request.current = null;
+			const loaded = accounts.load();
 
-			if (mounted.current) {
-				setBusy(false);
-				setWaiting(false);
-				setDevice(undefined);
-			}
+			setSaved(loaded);
+			const reconnect = loaded.find(
+				(account) => AccountStore.key(account) === initialReconnectKey
+			);
+
+			if (reconnect) startConnection(reconnect);
+		} catch (cause) {
+			setError(
+				cause instanceof Error ? cause.message : "Could not load accounts."
+			);
 		}
-	};
+	}, [accounts, initialForm, initialReconnectKey, startConnection]);
 
 	const changeMethod = (useToken: boolean) => {
 		if (manual === useToken) return;

@@ -2,6 +2,14 @@ import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
 
 const DEFAULT_MAX_OUTPUT_BYTES = 64 * 1024 * 1024;
 
+const AUTHENTICATED_ACCESS_FAILURE_PATTERN =
+	/(requested URL returned error: (401|403)\b|authentication failed|repository not found|could not read username)/i;
+
+const authenticatedFailureDetail = (stderr: Buffer): string =>
+	AUTHENTICATED_ACCESS_FAILURE_PATTERN.test(stderr.toString("utf8"))
+		? "Authentication failed: the HTTPS remote denied access for the selected account. Check account credentials and repository permissions."
+		: "Authenticated HTTPS request failed. Check repository permissions, network and certificate settings.";
+
 export interface GitCommandInput {
 	readonly args: readonly string[];
 	readonly cwd: string;
@@ -230,7 +238,7 @@ export class GitProcess {
 						new GitCommandFailure(
 							exitCode ?? 1,
 							input.httpAuthentication
-								? "Authenticated HTTPS request failed. Check repository permissions, network and certificate settings."
+								? authenticatedFailureDetail(stderr)
 								: stderr.toString("utf8").trim(),
 							input.httpAuthentication ? "" : stdout.toString("utf8")
 						)

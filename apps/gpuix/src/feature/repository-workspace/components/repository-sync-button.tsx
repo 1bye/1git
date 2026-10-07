@@ -41,6 +41,8 @@ export function RepositorySyncButton({
 	onPublish,
 	onRefresh,
 	onCompare,
+	onAccounts,
+	onRemotes,
 	resumePublish = false,
 }: {
 	state: RepositoryWorkspaceState;
@@ -51,6 +53,8 @@ export function RepositorySyncButton({
 	onPublish: () => void;
 	onRefresh: () => void;
 	onCompare: (data: WorkspaceBranches) => void;
+	onAccounts: (accountKey?: string) => void;
+	onRemotes: () => void;
 	resumePublish?: boolean;
 }) {
 	const repository = state.repository;
@@ -139,6 +143,11 @@ export function RepositorySyncButton({
 		!!state.error;
 
 	const issue = error ?? state.sync.error ?? state.error;
+
+	const accountAccess =
+		panel === "status" && !pending && !error && state.sync.error
+			? state.sync.accountAccess
+			: undefined;
 
 	const labels = {
 		fetch: "Fetch remote updates",
@@ -444,170 +453,242 @@ export function RepositorySyncButton({
 			>
 				<PopoverContent
 					placement="center"
-					width={340}
+					width={accountAccess ? 400 : 340}
 					testId="rail-sync-dialog"
 					aria-label={
-						panel === "publish"
-							? "Publish branch"
-							: panel === "review"
-								? "Review divergence"
-								: "Synchronization status"
+						accountAccess
+							? "Repository access needed"
+							: panel === "publish"
+								? "Publish branch"
+								: panel === "review"
+									? "Review divergence"
+									: "Synchronization status"
 					}
 					tokens={appTokens}
 				>
-					<text style={{ ...typography.lg, color: lightColors.editorInk }}>
-						{panel === "publish"
-							? "Publish branch"
-							: panel === "review"
-								? "Branches have diverged"
-								: (progress ?? "Synchronization")}
-					</text>
-					<text
-						style={{
-							...typography.sm,
-							color: issue ? appTokens.colors.danger : lightColors.editorMuted,
-						}}
-						role={issue ? "alert" : "status"}
-					>
-						{issue ??
-							(reading
-								? "Reading remotes…"
-								: panel === "publish"
-									? `Choose where to publish ${repository?.branchName ?? "this branch"}.`
-									: panel === "review"
-										? "Your branch and upstream both have new commits. Compare them or use Merge another branch in the tab menu, then sync again. Nothing was merged or force-pushed."
-										: blocked
-											? "Refresh and review this repository. Publishing and syncing require a committed branch with no ongoing Git operation."
-											: progress
-												? "The operation continues if you close this dialog."
-												: (state.sync.notice ??
-													"Remote status is up to date."))}
-					</text>
-					{fetched ? (
-						<text style={{ ...typography.xs, color: lightColors.editorMuted }}>
-							{fetched}
-						</text>
-					) : null}
-					{panel === "publish" && publication ? (
-						<div
-							style={{
-								display: "flex",
-								flexDirection: "column",
-								maxHeight: 180,
-								overflowY: "scroll",
-								gap: spacing[1],
-							}}
-						>
-							{publication.data.remotes.map((item) => (
-								<Button
-									key={item.name}
-									testId={`publish-remote-${item.name}`}
-									aria-label={`${item.name}${remote === item.name ? ", selected" : ""}`}
-									tokens={appTokens}
-									variant={remote === item.name ? "secondary" : "ghost"}
-									size="sm"
-									disabled={busy || item.pushUrls.length !== 1}
-									onPress={() => setRemote(item.name)}
-								>
-									{item.name}
-								</Button>
-							))}
-							{stale ? (
-								<text role="alert" style={typography.sm}>
-									The branch changed. Close and reopen this dialog before
-									publishing.
-								</text>
-							) : null}
-						</div>
-					) : null}
 					<div
 						style={{
 							display: "flex",
-							justifyContent: "flex-end",
-							gap: spacing[2],
+							flexDirection: "column",
+							gap: accountAccess ? spacing[3] : spacing[2],
+							padding: accountAccess ? spacing[2] : 0,
 						}}
 					>
-						<Button
-							testId="rail-sync-close"
-							tokens={appTokens}
-							variant="secondary"
-							size="sm"
-							onPress={close}
+						<div
+							style={{ display: "flex", alignItems: "center", gap: spacing[2] }}
 						>
-							Close
-						</Button>
-						{pending ? (
-							<Button
-								testId="rail-sync-stop"
-								tokens={appTokens}
-								size="sm"
-								onPress={onCancel}
+							{accountAccess ? (
+								<svg
+									testId="rail-sync-access-icon"
+									aria-hidden
+									source='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 4.2 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 4.2a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4m0 4h.01"/></svg>'
+									style={{
+										width: iconSize.md,
+										height: iconSize.md,
+										flexShrink: 0,
+										color: appTokens.colors.danger,
+									}}
+								/>
+							) : null}
+							<text
+								role="heading"
+								aria-level={2}
+								style={{ ...typography.lg, color: lightColors.editorInk }}
 							>
-								Stop
-							</Button>
-						) : panel === "publish" ? (
-							<Button
-								testId="confirm-publish"
-								tokens={appTokens}
-								size="sm"
-								disabled={!canPublish}
-								onPress={() => {
-									if (!canPublish || !remote || !repository?.branchName) return;
-
-									close();
-									void onSync({
-										kind: "publish",
-										remote,
-										remoteRef: `refs/heads/${repository.branchName}`,
-									});
+								{accountAccess
+									? "Repository access needed"
+									: panel === "publish"
+										? "Publish branch"
+										: panel === "review"
+											? "Branches have diverged"
+											: (progress ?? "Synchronization")}
+							</text>
+						</div>
+						<text
+							testId="rail-sync-message"
+							style={{
+								...typography.sm,
+								width: "100%",
+								color:
+									issue && !accountAccess
+										? appTokens.colors.danger
+										: lightColors.editorMuted,
+							}}
+							role={issue ? "alert" : "status"}
+						>
+							{accountAccess?.message ??
+								issue ??
+								(reading
+									? "Reading remotes…"
+									: panel === "publish"
+										? `Choose where to publish ${repository?.branchName ?? "this branch"}.`
+										: panel === "review"
+											? "Your branch and upstream both have new commits. Compare them or use Merge another branch in the tab menu, then sync again. Nothing was merged or force-pushed."
+											: blocked
+												? "Refresh and review this repository. Publishing and syncing require a committed branch with no ongoing Git operation."
+												: progress
+													? "The operation continues if you close this dialog."
+													: (state.sync.notice ??
+														"Remote status is up to date."))}
+						</text>
+						{fetched && !accountAccess ? (
+							<text
+								style={{ ...typography.xs, color: lightColors.editorMuted }}
+							>
+								{fetched}
+							</text>
+						) : null}
+						{panel === "publish" && publication ? (
+							<div
+								style={{
+									display: "flex",
+									flexDirection: "column",
+									maxHeight: 180,
+									overflowY: "scroll",
+									gap: spacing[1],
 								}}
 							>
-								{remote ? `Publish to ${remote}` : "Publish"}
-							</Button>
-						) : panel === "review" ? (
-							<Button
-								testId="rail-sync-compare"
-								tokens={appTokens}
-								size="sm"
-								disabled={reading || busy || !!issue || !publication || stale}
-								onPress={() => {
-									if (!publication) return;
-
-									close();
-									onCompare(publication.data);
-								}}
-							>
-								Compare
-							</Button>
-						) : (
-							<>
-								{issue && !state.error && (!blocked || action === "fetch") ? (
+								{publication.data.remotes.map((item) => (
 									<Button
-										testId="rail-sync-retry"
+										key={item.name}
+										testId={`publish-remote-${item.name}`}
+										aria-label={`${item.name}${remote === item.name ? ", selected" : ""}`}
 										tokens={appTokens}
+										variant={remote === item.name ? "secondary" : "ghost"}
 										size="sm"
-										disabled={disabled}
+										disabled={busy || item.pushUrls.length !== 1}
+										onPress={() => setRemote(item.name)}
+									>
+										{item.name}
+									</Button>
+								))}
+								{stale ? (
+									<text role="alert" style={typography.sm}>
+										The branch changed. Close and reopen this dialog before
+										publishing.
+									</text>
+								) : null}
+							</div>
+						) : null}
+						<div
+							style={{
+								display: "flex",
+								justifyContent: "flex-end",
+								gap: spacing[2],
+							}}
+						>
+							<Button
+								testId="rail-sync-close"
+								tokens={appTokens}
+								variant="secondary"
+								size="sm"
+								onPress={close}
+							>
+								Close
+							</Button>
+							{accountAccess ? <div style={{ flexGrow: 1 }} /> : null}
+							{accountAccess ? (
+								<>
+									<Button
+										testId="rail-sync-remotes"
+										tokens={appTokens}
+										variant="secondary"
+										size="sm"
 										onPress={() => {
-											void activate(true);
+											close();
+											onRemotes();
 										}}
 									>
-										Retry
+										Remote settings…
 									</Button>
-								) : null}
+									<Button
+										testId="rail-sync-accounts"
+										tokens={appTokens}
+										size="sm"
+										onPress={() => {
+											close();
+											onAccounts(accountAccess.accountKey);
+										}}
+									>
+										{accountAccess.accountKey
+											? "Reconnect account…"
+											: "Account settings…"}
+									</Button>
+								</>
+							) : pending ? (
 								<Button
-									testId="rail-sync-refresh"
+									testId="rail-sync-stop"
 									tokens={appTokens}
 									size="sm"
-									disabled={busy || state.loading}
+									onPress={onCancel}
+								>
+									Stop
+								</Button>
+							) : panel === "publish" ? (
+								<Button
+									testId="confirm-publish"
+									tokens={appTokens}
+									size="sm"
+									disabled={!canPublish}
 									onPress={() => {
+										if (!canPublish || !remote || !repository?.branchName)
+											return;
+
 										close();
-										onRefresh();
+										void onSync({
+											kind: "publish",
+											remote,
+											remoteRef: `refs/heads/${repository.branchName}`,
+										});
 									}}
 								>
-									Refresh
+									{remote ? `Publish to ${remote}` : "Publish"}
 								</Button>
-							</>
-						)}
+							) : panel === "review" ? (
+								<Button
+									testId="rail-sync-compare"
+									tokens={appTokens}
+									size="sm"
+									disabled={reading || busy || !!issue || !publication || stale}
+									onPress={() => {
+										if (!publication) return;
+
+										close();
+										onCompare(publication.data);
+									}}
+								>
+									Compare
+								</Button>
+							) : (
+								<>
+									{issue && !state.error && (!blocked || action === "fetch") ? (
+										<Button
+											testId="rail-sync-retry"
+											tokens={appTokens}
+											size="sm"
+											disabled={disabled}
+											onPress={() => {
+												void activate(true);
+											}}
+										>
+											Retry
+										</Button>
+									) : null}
+									<Button
+										testId="rail-sync-refresh"
+										tokens={appTokens}
+										size="sm"
+										disabled={busy || state.loading}
+										onPress={() => {
+											close();
+											onRefresh();
+										}}
+									>
+										Refresh
+									</Button>
+								</>
+							)}
+						</div>
 					</div>
 				</PopoverContent>
 			</Popover>

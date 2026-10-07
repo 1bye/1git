@@ -12,6 +12,7 @@ import type {
 import { sampleEntries } from "./sample-workspace";
 import { RepositoryHistory } from "./repository-history";
 import { RepositoryStashes } from "./repository-stashes";
+import type { RemoteAccountAccess } from "../../accounts/lib/remote-accounts";
 import type { StashRequest } from "./repository-stashes";
 import type {
 	RepositoryView,
@@ -67,6 +68,7 @@ export interface RepositoryWorkspaceState {
 	readonly sync: {
 		readonly pending: "fetch" | "pull" | "push" | "publish" | "sync" | null;
 		readonly error: string | null;
+		readonly accountAccess?: RemoteAccountAccess;
 		readonly notice: string | null;
 		readonly fetchedAt: number | null;
 		readonly version: number;
@@ -146,10 +148,12 @@ export type RepositoryWorkspaceAction =
 			type: "sync-started";
 			kind: NonNullable<RepositoryWorkspaceState["sync"]["pending"]>;
 	  }
+	| { type: "sync-error-dismissed" }
 	| {
 			type: "sync-finished";
 			snapshot?: RepositorySnapshot;
 			error: string | null;
+			accountAccess?: RemoteAccountAccess;
 			fetchedAt: number | null;
 			refreshError?: string;
 			notice?: string;
@@ -439,6 +443,14 @@ export class RepositoryWorkspaceModel {
 			};
 		}
 
+		if (action.type === "sync-error-dismissed")
+			return state.sync.pending
+				? state
+				: {
+						...state,
+						sync: { ...state.sync, error: null, accountAccess: undefined },
+					};
+
 		if (action.type === "sync-started")
 			return {
 				...state,
@@ -447,6 +459,7 @@ export class RepositoryWorkspaceModel {
 					...state.sync,
 					pending: action.kind,
 					error: null,
+					accountAccess: undefined,
 					notice: null,
 				},
 			};
@@ -457,6 +470,9 @@ export class RepositoryWorkspaceModel {
 				sync: {
 					pending: null,
 					error: action.error,
+					...(action.error && action.accountAccess
+						? { accountAccess: action.accountAccess }
+						: {}),
 					notice: action.notice ?? null,
 					fetchedAt: action.fetchedAt ?? state.sync.fetchedAt,
 					version: state.sync.version + 1,

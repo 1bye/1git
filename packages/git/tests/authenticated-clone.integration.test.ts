@@ -59,6 +59,7 @@ async function serverFixture(smart = false) {
 	const basic = `Basic ${Buffer.from(`oauth2:${password}`).toString("base64")}`;
 	let redirect: string | undefined;
 	let deny = false;
+	let deniedStatus = 401;
 
 	const server = Bun.serve({
 		hostname: "127.0.0.1",
@@ -76,7 +77,7 @@ async function serverFixture(smart = false) {
 
 			if (deny || request.headers.get("authorization") !== basic)
 				return new Response(`${password} ${basic}`, {
-					status: 401,
+					status: deny ? deniedStatus : 401,
 					headers: { "www-authenticate": 'Basic realm="test"' },
 				});
 
@@ -165,8 +166,9 @@ async function serverFixture(smart = false) {
 		redirect(url: string) {
 			redirect = url;
 		},
-		deny() {
+		deny(status = 401) {
 			deny = true;
+			deniedStatus = status;
 		},
 	};
 }
@@ -414,8 +416,32 @@ it("fetches, fast-forwards, pushes and publishes with one-shot HTTPS credentials
 		});
 
 		expect(denied.ok).toBe(false);
+		expect(!denied.ok && denied.error.code).toBe("authentication-required");
 		expect(JSON.stringify(denied)).not.toContain(f.password);
 		expect(JSON.stringify(denied)).not.toContain(f.basic);
+	} finally {
+		await f.server.stop(true);
+	}
+});
+
+it("preserves a safe authentication classification for HTTP 403 without exposing server credentials", async () => {
+	const f = await serverFixture();
+
+	try {
+		f.deny(403);
+		const result = await GitRepository.clone({
+			path: f.fixture.path("forbidden-clone"),
+			remoteUrl: f.remoteUrl,
+			runtime: f.runtime,
+			httpAuthentication: { username: "oauth2", password: f.password },
+		});
+
+		expect(!result.ok && result.error.code).toBe("authentication-required");
+		expect(!result.ok && result.error.details).toContain(
+			"remote denied access"
+		);
+		expect(JSON.stringify(result)).not.toContain(f.password);
+		expect(JSON.stringify(result)).not.toContain(f.basic);
 	} finally {
 		await f.server.stop(true);
 	}

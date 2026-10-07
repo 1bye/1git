@@ -1,14 +1,15 @@
 /**
  * Covers: combined upstream sync, fetch, guarded pull/push/publish, stale state, dirty trees and config overrides.
  * Real: app Git boundaries, Git CLI, a temporary bare remote and local clones.
- * Doubles: account resolver and network commands only in the credential-routing scenario; other scenarios use real local Git transports.
+ * Doubles: account HTTPS/vault and network commands in account scenarios; other scenarios use real local Git transports.
  * Requires: Git and writable temporary storage; no network or user repository.
  */
 import { afterEach, beforeEach, expect, it, mock, spyOn } from "bun:test";
-import { GitRepository } from "@1git/git";
+import { GitRepository, type GitResult, type SyncResult } from "@1git/git";
 import { Accounts } from "../../src/feature/accounts/lib/accounts";
 import { AccountStore } from "../../src/feature/accounts/lib/account-store";
 import { RemoteAccounts } from "../../src/feature/accounts/lib/remote-accounts";
+import { encodeCredential } from "../../src/feature/accounts/lib/account-credential";
 import { execFile } from "node:child_process";
 import {
 	mkdir,
@@ -738,4 +739,148 @@ it("routes each fetch and reviewed branch operation through its own destination 
 		fetchUrl,
 		pushUrl,
 	]);
+});
+
+it("shows repository permission recovery for account sync failures without relabeling network or system Git errors", async () => {
+	const remoteUrl = "https://github.com/team/project.git";
+	const head = await git(repository, "rev-parse", "HEAD");
+
+	await git(repository, "remote", "set-url", "origin", remoteUrl);
+	const store = new AccountStore(join(sandbox, "accounts.json"));
+
+	store.save([
+		{
+			provider: "github",
+			webUrl: "https://github.com/",
+			id: "7",
+			username: "fixture",
+		},
+	]);
+	const credential = encodeCredential({
+		token: "synthetic-test-only",
+		oauth: {
+			registration: { clientId: "fixture-client" },
+			tokens: {
+				accessToken: "synthetic-test-only",
+				tokenType: "bearer",
+				refreshToken: null,
+				expiresAt: null,
+				refreshExpiresAt: null,
+				scopes: ["read:user"],
+			},
+		},
+	});
+
+	const accounts = new Accounts(
+		store,
+		{
+			async read() {
+				return credential;
+			},
+			async write() {},
+			async delete() {},
+		},
+		async () =>
+			Response.json({
+				id: 7,
+				login: "fixture",
+				html_url: "https://github.com/fixture",
+			})
+	);
+
+	const bindings = new RemoteAccounts(accounts, join(sandbox, "choices.json"));
+	const authentication = { accounts: bindings };
+	const signal = new AbortController().signal;
+	const identity = { expectedHead: head, expectedBranch: "main" };
+
+	const denied: GitResult<SyncResult> = {
+		ok: false,
+		error: {
+			code: "authentication-required",
+			operation: "fetch",
+			message: "Git authentication is required.",
+			details: "Authentication failed: HTTPS access denied.",
+			retryable: true,
+		},
+	};
+
+	const fetch = spyOn(GitRepository.prototype, "fetch").mockResolvedValue(
+		denied
+	);
+
+	const writes = spyOn(GitRepository.prototype, "syncBranch").mockResolvedValue(
+		denied
+	);
+
+	for (const kind of ["fetch", "sync", "pull", "push", "publish"] as const) {
+		const result =
+			kind === "fetch"
+				? await RepositorySync.fetch(repository, signal, authentication)
+				: await RepositorySync.write(
+						repository,
+						kind === "sync"
+							? { kind, ...identity }
+							: {
+									kind,
+									remote: "origin",
+									remoteRef: "refs/heads/main",
+									...identity,
+								},
+						signal,
+						authentication
+					);
+
+		expect(!result.ok && result.error.message).toContain(
+			"without access to private repositories"
+		);
+		expect(result.accountAccess?.message).toBe(
+			result.ok ? undefined : result.error.message
+		);
+		expect(result.accountAccess?.accountKey).toBe(
+			AccountStore.key(store.load()[0]!)
+		);
+		expect(!result.ok && result.error.details).toBeUndefined();
+		expect(JSON.stringify(result)).not.toContain("synthetic-test-only");
+	}
+
+	// Fetch-only plus combined sync attempt no branch write after the rejected fetch.
+	expect(writes).toHaveBeenCalledTimes(3);
+
+	const network: GitResult<SyncResult> = {
+		ok: false,
+		error: {
+			code: "command-failed",
+			operation: "fetch",
+			message: "Network unavailable.",
+			retryable: false,
+		},
+	};
+
+	const help = spyOn(bindings, "permissionHelp");
+
+	fetch.mockResolvedValue(network);
+	expect(
+		await RepositorySync.fetch(repository, signal, authentication)
+	).toEqual(network);
+	expect(help).not.toHaveBeenCalled();
+	fetch.mockResolvedValue(denied);
+	bindings.select(join(repository, ".git"), "origin", remoteUrl, "system");
+	expect(
+		await RepositorySync.fetch(repository, signal, authentication)
+	).toEqual(denied);
+	expect(help).not.toHaveBeenCalled();
+
+	bindings.select(join(repository, ".git"), "origin", remoteUrl, "automatic");
+	help.mockRejectedValue(new Error("synthetic-test-only must never leak"));
+	const unavailable = await RepositorySync.fetch(
+		repository,
+		signal,
+		authentication
+	);
+
+	expect(!unavailable.ok && unavailable.error.message).toContain(
+		"Check its permissions"
+	);
+	expect(unavailable.accountAccess?.accountKey).toBeUndefined();
+	expect(JSON.stringify(unavailable)).not.toContain("synthetic-test-only");
 });

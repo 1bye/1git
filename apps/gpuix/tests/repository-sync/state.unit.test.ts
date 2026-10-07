@@ -109,3 +109,56 @@ it("retains the last successful fetch time across failures, clears errors on ret
 		version: 0,
 	});
 });
+
+it("keeps account recovery only with its failed sync and clears it on retry, success or repository replacement", () => {
+	const snapshot = repositorySnapshot();
+	const loaded = Model.reduce(Model.create(), { type: "loaded", snapshot });
+
+	const accountAccess = {
+		message: "Check permissions.",
+		accountKey: "fixture",
+	};
+
+	const failed = Model.reduce(loaded, {
+		type: "sync-finished",
+		error: accountAccess.message,
+		accountAccess,
+		fetchedAt: null,
+	});
+
+	expect(failed.sync.accountAccess).toEqual(accountAccess);
+	const acknowledged = Model.reduce(failed, { type: "sync-error-dismissed" });
+
+	expect(acknowledged.sync.error).toBeNull();
+	expect(acknowledged.sync.accountAccess).toBeUndefined();
+	expect(acknowledged.sync.version).toBe(failed.sync.version);
+	expect(acknowledged.sync.notice).toBeNull();
+	const pending = Model.reduce(failed, { type: "sync-started", kind: "fetch" });
+
+	expect(Model.reduce(pending, { type: "sync-error-dismissed" })).toBe(pending);
+	expect(
+		Model.reduce(failed, { type: "loaded", snapshot, automatic: true }).sync
+			.accountAccess
+	).toEqual(accountAccess);
+	expect(
+		Model.reduce(failed, { type: "sync-started", kind: "fetch" }).sync
+			.accountAccess
+	).toBeUndefined();
+	expect(
+		Model.reduce(failed, {
+			type: "sync-finished",
+			error: null,
+			accountAccess,
+			fetchedAt: 1,
+		}).sync.accountAccess
+	).toBeUndefined();
+	expect(
+		Model.reduce(failed, {
+			type: "loaded",
+			snapshot: {
+				...snapshot,
+				repository: { ...snapshot.repository, root: "/test/other" },
+			},
+		}).sync.accountAccess
+	).toBeUndefined();
+});

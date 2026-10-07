@@ -4,7 +4,7 @@
  * Doubles: hosting HTTP and OS credential vault; no live accounts or network.
  * Requires: built Git and hosting packages.
  */
-import { afterEach, expect, it } from "bun:test";
+import { afterEach, expect, it, spyOn } from "bun:test";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -241,6 +241,27 @@ it("rejects malformed preferences without overwriting them or reading credential
 	).rejects.toThrow("left unchanged");
 	expect(readFileSync(f.path, "utf8")).toBe("invalid");
 	expect(f.reads()).toBe(0);
+});
+
+it("explains a known missing GitHub permission and leaves unknown token permissions qualified", async () => {
+	const f = fixture();
+	const access = spyOn(f.accounts, "repositoryAccess").mockResolvedValue(false);
+
+	const profileOnly = await f.bindings.permissionHelp("repo", "origin", remote);
+
+	expect(profileOnly.message).toContain(
+		"without access to private repositories"
+	);
+	expect(profileOnly.accountKey).toBe(AccountStore.key(f.accounts.load()[0]!));
+	access.mockResolvedValue(null);
+	const unknown = await f.bindings.permissionHelp("repo", "origin", remote);
+
+	expect(unknown.message).toContain("Check its permissions");
+	expect(unknown.message).not.toContain(
+		"without access to private repositories"
+	);
+	expect(unknown.accountKey).toBe(profileOnly.accountKey);
+	access.mockRestore();
 });
 
 it("matches self-hosted GitLab by its exact origin and installation path", () => {

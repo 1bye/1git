@@ -378,6 +378,8 @@ export function App({
 	const [settingsSection, setSettingsSection] =
 		useState<SettingsSection>("accounts");
 
+	const [reconnectAccountKey, setReconnectAccountKey] = useState<string>();
+
 	const [preferredAccountKey, setPreferredAccountKey] = useState<string>();
 	const [cloneId, setCloneId] = useState<string | null>(null);
 	const cloneTrigger = useRef<PublicInstance | null>(null);
@@ -415,6 +417,7 @@ export function App({
 						: (railView ?? null);
 			setSettingsView(initialForm);
 			setSettingsSection("accounts");
+			setReconnectAccountKey(undefined);
 		},
 		[renderer, settingsOpen]
 	);
@@ -600,6 +603,16 @@ export function App({
 										key={activeTab.id}
 										state={workspace}
 										readBranches={readBranches}
+										onAccounts={(key) => {
+											mutations.dismissSyncError(activeTab.id);
+											openSettings();
+											setReconnectAccountKey(key);
+										}}
+										onRemotes={() => {
+											mutations.dismissSyncError(activeTab.id);
+											openSettings();
+											setSettingsSection("repository-remotes");
+										}}
 										onFetch={() => mutations.fetch(activeTab.id)}
 										onSync={(choice) =>
 											mutations.synchronize(activeTab.id, choice)
@@ -977,6 +990,7 @@ export function App({
 						accounts={accounts}
 						externalEditors={externalEditors}
 						initialForm={settingsView ?? "list"}
+						initialReconnectKey={reconnectAccountKey}
 						remoteAccounts={remoteAccounts}
 						preferredAccountKey={preferredAccountKey}
 						onAccount={setPreferredAccountKey}

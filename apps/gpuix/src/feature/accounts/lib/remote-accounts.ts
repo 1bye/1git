@@ -23,6 +23,12 @@ export type ChooseRemoteAccount = (
 	signal: AbortSignal
 ) => Promise<string | null>;
 
+/** Safe recovery context for a denied app-account request; never contains credentials. */
+export interface RemoteAccountAccess {
+	readonly accountKey?: string;
+	readonly message: string;
+}
+
 /** App-only account bindings, shared by linked worktrees and invalidated by remote URL changes. No tokens. */
 export class RemoteAccounts {
 	constructor(
@@ -55,6 +61,39 @@ export class RemoteAccounts {
 
 	choice(directory: string, remote: string, url: string): string {
 		return this.load()[this.key(directory, remote, url)] ?? "automatic";
+	}
+
+	/** Recovery guidance after a confirmed Git access denial; scope hints never establish repository access. */
+	async permissionHelp(
+		directory: string,
+		remote: string,
+		url: string
+	): Promise<RemoteAccountAccess> {
+		const choice = this.choice(directory, remote, url);
+		const matching = this.matching(url);
+
+		const account =
+			choice === "automatic" && matching.length === 1
+				? matching[0]
+				: matching.find((item) => AccountStore.key(item) === choice);
+
+		const accountKey = account ? AccountStore.key(account) : undefined;
+
+		if (
+			account?.provider === "github" &&
+			(await this.accounts.repositoryAccess(account)) === false
+		)
+			return {
+				accountKey,
+				message:
+					"Your GitHub account is connected without access to private repositories.",
+			};
+
+		return {
+			accountKey,
+			message:
+				"The selected account could not access this repository. Check its permissions or reconnect.",
+		};
 	}
 
 	select(directory: string, remote: string, url: string, choice: string): void {

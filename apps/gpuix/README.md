@@ -370,7 +370,19 @@ with same-user debugging privileges can inspect it, so do not log/dump child env
 
 Folder validation, progress, cancellation and close protection are shared with URL
 cloning. Cancelling preserves any partial destination for review; nothing is deleted
-automatically. Subsequent fetch/push still uses normal system Git authentication.
+automatically. Subsequent fetch/push uses the remote's account choice, preserving
+system Git credentials and SSH when selected. Account-backed access denials show
+an access-needed dialog with neutral text, a warning icon and one primary action.
+**Reconnect account…** opens the affected account's existing setup form;
+**Remote settings…** opens repository remotes, where System Git can be selected.
+Known missing GitHub OAuth repository scope identifies private-repository access.
+Neither action authorizes an account or changes a binding; the user confirms it in
+Settings. If account metadata is unavailable, the Accounts list opens instead.
+Opening recovery settings acknowledges the failed attempt, allowing a fresh rail
+click after returning; it never retries automatically or marks access as restored.
+Retry/Refresh remain available for other failures, but not this access denial.
+DNS/TLS and other transport failures remain separate, and raw authenticated output
+stays redacted.
 Repository publishing is available from the Changes composer and the tab's Remote
 menu (see below). PR/MR actions are not implemented by this milestone.
 

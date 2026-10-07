@@ -8,6 +8,7 @@ import {
 import type {
 	RemoteAccounts,
 	ChooseRemoteAccount,
+	RemoteAccountAccess,
 } from "../../accounts/lib/remote-accounts";
 
 const syncTimeoutMs = 120_000;
@@ -17,6 +18,11 @@ export type SyncChoice = Pick<SyncBranchInput, "kind" | "remote" | "remoteRef">;
 /** Combined sync uses the configured upstream, never an inferred remote or branch. */
 export type SyncRequest = SyncChoice | { kind: "sync" };
 export type SyncKind = "fetch" | SyncRequest["kind"];
+
+/** Git outcome with optional app-account recovery, kept outside the Git package. */
+export type RepositorySyncResult = GitResult<SyncResult> & {
+	readonly accountAccess?: RemoteAccountAccess;
+};
 
 type SyncInput = SyncRequest &
 	Pick<SyncBranchInput, "expectedHead" | "expectedBranch">;
@@ -36,7 +42,7 @@ export class RepositorySync {
 		input: SyncInput,
 		signal: AbortSignal,
 		authentication?: SyncAuthentication
-	): Promise<GitResult<SyncResult>> {
+	): Promise<RepositorySyncResult> {
 		try {
 			return await RepositorySync.writeAuthenticated(
 				root,
@@ -54,32 +60,43 @@ export class RepositorySync {
 		input: SyncInput,
 		signal: AbortSignal,
 		authentication?: SyncAuthentication
-	): Promise<GitResult<SyncResult>> {
+	): Promise<RepositorySyncResult> {
 		const timeout = AbortSignal.timeout(syncTimeoutMs);
 		const request = AbortSignal.any([signal, timeout]);
 		const opened = await GitRepository.open({ path: root, signal: request });
 
 		if (!opened.ok) return opened;
 
-		const result =
-			input.kind === "sync"
-				? await RepositorySync.syncUpstream(
-						opened.value,
-						input,
-						request,
-						authentication
-					)
-				: await opened.value.syncBranch({
-						...input,
-						signal: request,
-						httpAuthentication: await RepositorySync.credentials(
-							opened.value,
-							input.remote,
-							input.kind !== "pull",
-							request,
-							authentication
-						),
-					});
+		let result: RepositorySyncResult;
+
+		if (input.kind === "sync")
+			result = await RepositorySync.syncUpstream(
+				opened.value,
+				input,
+				request,
+				authentication
+			);
+		else {
+			const credential = await RepositorySync.credentials(
+				opened.value,
+				input.remote,
+				input.kind !== "pull",
+				request,
+				authentication
+			);
+
+			result = await RepositorySync.explainAccountFailure(
+				await opened.value.syncBranch({
+					...input,
+					signal: request,
+					httpAuthentication: credential,
+				}),
+				opened.value,
+				input.remote,
+				credential,
+				authentication
+			);
+		}
 
 		if (!result.ok && timeout.aborted && !signal.aborted)
 			return {
@@ -100,7 +117,7 @@ export class RepositorySync {
 		input: SyncInput,
 		signal: AbortSignal,
 		authentication?: SyncAuthentication
-	): Promise<GitResult<SyncResult>> {
+	): Promise<RepositorySyncResult> {
 		const snapshot = await repository.getSnapshot({ signal });
 
 		if (!snapshot.ok) return snapshot;
@@ -169,7 +186,14 @@ export class RepositorySync {
 
 		let result = await repository.fetch({ remote, signal, httpAuthentication });
 
-		if (!result.ok) return result;
+		if (!result.ok)
+			return await RepositorySync.explainAccountFailure(
+				result,
+				repository,
+				remote,
+				httpAuthentication,
+				authentication
+			);
 
 		if (
 			result.value.snapshot.head.oid !== input.expectedHead ||
@@ -196,24 +220,40 @@ export class RepositorySync {
 				signal,
 			});
 
-			if (!result.ok) return result;
-		}
-
-		if (result.value.snapshot.head.ahead > 0)
-			return await repository.syncBranch({
-				...input,
-				kind: "push",
-				httpAuthentication: await RepositorySync.credentials(
+			if (!result.ok)
+				return await RepositorySync.explainAccountFailure(
+					result,
 					repository,
 					remote,
-					true,
-					signal,
+					httpAuthentication,
 					authentication
-				),
+				);
+		}
+
+		if (result.value.snapshot.head.ahead > 0) {
+			const credential = await RepositorySync.credentials(
+				repository,
 				remote,
-				remoteRef,
+				true,
 				signal,
-			});
+				authentication
+			);
+
+			return await RepositorySync.explainAccountFailure(
+				await repository.syncBranch({
+					...input,
+					kind: "push",
+					httpAuthentication: credential,
+					remote,
+					remoteRef,
+					signal,
+				}),
+				repository,
+				remote,
+				credential,
+				authentication
+			);
+		}
 
 		return result;
 	}
@@ -222,7 +262,7 @@ export class RepositorySync {
 		root: string,
 		signal: AbortSignal,
 		authentication?: SyncAuthentication
-	): Promise<GitResult<SyncResult>> {
+	): Promise<RepositorySyncResult> {
 		try {
 			return await RepositorySync.fetchAuthenticated(
 				root,
@@ -238,7 +278,7 @@ export class RepositorySync {
 		root: string,
 		signal: AbortSignal,
 		authentication?: SyncAuthentication
-	): Promise<GitResult<SyncResult>> {
+	): Promise<RepositorySyncResult> {
 		const timeout = AbortSignal.timeout(syncTimeoutMs);
 		const request = AbortSignal.any([signal, timeout]);
 		const opened = await GitRepository.open({ path: root, signal: request });
@@ -278,7 +318,7 @@ export class RepositorySync {
 				),
 			});
 
-		let result: GitResult<SyncResult> = {
+		let result: RepositorySyncResult = {
 			ok: false,
 			error: {
 				code: "invalid-input",
@@ -289,7 +329,13 @@ export class RepositorySync {
 		};
 
 		for (const destination of destinations) {
-			result = await opened.value.fetch({ ...destination, signal: request });
+			result = await RepositorySync.explainAccountFailure(
+				await opened.value.fetch({ ...destination, signal: request }),
+				opened.value,
+				destination.remote,
+				destination.httpAuthentication,
+				authentication
+			);
 
 			if (!result.ok) break;
 		}
@@ -306,6 +352,47 @@ export class RepositorySync {
 			};
 
 		return result;
+	}
+
+	private static async explainAccountFailure(
+		result: GitResult<SyncResult>,
+		repository: GitRepository,
+		remote: string,
+		credential: GitHttpAuthentication | undefined,
+		authentication: SyncAuthentication | undefined
+	): Promise<RepositorySyncResult> {
+		if (
+			result.ok ||
+			result.error.code !== "authentication-required" ||
+			!credential ||
+			!authentication
+		)
+			return result;
+
+		let accountAccess: RemoteAccountAccess = {
+			message:
+				"The selected account could not access this repository. Check its permissions or reconnect.",
+		};
+
+		try {
+			accountAccess = await authentication.accounts.permissionHelp(
+				repository.info.commonDirectory,
+				remote,
+				credential.url
+			);
+		} catch {
+			// Permission metadata is optional; a vault/preferences failure must not hide the original access denial.
+		}
+
+		return {
+			ok: false,
+			error: {
+				...result.error,
+				message: accountAccess.message,
+				details: undefined,
+			},
+			accountAccess,
+		};
 	}
 
 	private static async credentials(
