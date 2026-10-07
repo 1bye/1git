@@ -953,9 +953,22 @@ the Turbo build/dev tasks build dependencies first. No Electron IPC is involved.
 ## Read-only file diffs
 
 Selecting a live Changes row reads only that file and displays GPUIX's native
-unified diff, with old/new line numbers, hunk headers, addition/deletion colors,
+diff, with old/new line numbers, hunk headers, addition/deletion colors,
 syntax highlighting and selectable text. A local native bridge preserves keyboard
 scrolling while using GPUIX's virtualized list; no additional diff library is needed.
+
+- **Diff settings** in the file header offers **Unified** (default) and **Split**
+  (old on the left, new on the right), plus **Hide whitespace changes**. Choices
+  are shared across tabs, Changes, History, Stashes and Compare for this window's
+  lifetime; they reset on restart. Image previews and conflict resolution do not
+  use these text-only controls; SVG Source does.
+- Whitespace filtering only changes the displayed patch, including expanded
+  context. File checkboxes and whole-file commits still include all changes, and
+  header totals remain the unfiltered Git totals. A whitespace-only change shows
+  an explicit notice rather than suggesting the file has no changes.
+- `native/diff-split.patch` pairs deletion/addition runs with empty cells on the
+  shorter side. Both columns share the existing native virtual list and vertical
+  scroll; syntax/word highlighting, hunk expansion and text selection stay native.
 
 - A compact header shows the filename first, a muted folder path, and added/deleted
   line counts for the displayed comparison. Folder text yields to the filename

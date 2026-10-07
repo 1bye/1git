@@ -22,12 +22,15 @@ import type { WorkspaceEntry } from "../types";
 import {
 	RepositoryDiff as DiffReader,
 	type DiffSelection,
+	type DiffSettings,
+	defaultDiffSettings,
 } from "../lib/repository-diff";
 import {
 	RepositoryImageMetadata,
 	RepositoryImagePreview,
 } from "./repository-image-preview";
 import { RepositoryTextDiff } from "./repository-text-diff";
+import { RepositoryDiffSettings } from "./repository-diff-settings";
 
 const diffTheme: GpuixTheme = {
 	appearance: "light",
@@ -147,10 +150,16 @@ interface RepositoryDiffProps {
 		side?: "ours" | "theirs"
 	) => Promise<string | null>;
 	openConflictEditor?: typeof RepositoryConflicts.openEditor;
+	settings?: DiffSettings;
+	onSettingsChange?: (settings: DiffSettings) => void;
 }
 
 /** Read-only preview that swaps ready content atomically and never flashes a loader for a fast read. */
 export function RepositoryDiff(props: RepositoryDiffProps) {
+	const [localSettings, setLocalSettings] = useState(defaultDiffSettings);
+	const settings = props.settings ?? localSettings;
+	const onSettingsChange = props.onSettingsChange ?? setLocalSettings;
+
 	const {
 		root,
 		change,
@@ -169,7 +178,8 @@ export function RepositoryDiff(props: RepositoryDiffProps) {
 		readDiff,
 		cache,
 		version,
-		files
+		files,
+		settings.ignoreWhitespace
 	);
 
 	const displayed = result?.change ?? change;
@@ -184,6 +194,8 @@ export function RepositoryDiff(props: RepositoryDiffProps) {
 		<RepositoryDiffContent
 			key={identity}
 			{...props}
+			settings={settings}
+			onSettingsChange={onSettingsChange}
 			change={displayed}
 			result={result}
 			refreshing={refreshing || pending}
@@ -204,6 +216,8 @@ function RepositoryDiffContent({
 	result,
 	retry,
 	slow,
+	settings = defaultDiffSettings,
+	onSettingsChange,
 }: RepositoryDiffProps & {
 	result: RepositoryPreviewResult | null;
 	retry: () => void;
@@ -300,6 +314,12 @@ function RepositoryDiffContent({
 							style={{ color: diffTheme.diffDel }}
 						>{`−${stats.deletedLines}`}</text>
 					</div>
+				) : null}
+				{!conflicted && !showImage && onSettingsChange ? (
+					<RepositoryDiffSettings
+						settings={settings}
+						onChange={onSettingsChange}
+					/>
 				) : null}
 			</div>
 			{conflicted ? (
@@ -556,6 +576,10 @@ function RepositoryDiffContent({
 					patch={section.patch}
 					theme={diffTheme}
 					blocked={refreshing}
+					mode={settings.mode}
+					ignoreWhitespace={
+						result?.ignoreWhitespace ?? settings.ignoreWhitespace
+					}
 				/>
 			) : null}
 		</>

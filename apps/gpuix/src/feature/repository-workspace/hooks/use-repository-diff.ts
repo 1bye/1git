@@ -17,6 +17,7 @@ export interface RepositoryPreviewResult {
 	readonly retry: number;
 	readonly sections: readonly RepositoryDiffSection[];
 	readonly error: string | null;
+	readonly ignoreWhitespace: boolean;
 }
 
 const loadingDelayMs = 200;
@@ -30,7 +31,8 @@ export function useRepositoryDiff(
 	readDiff: typeof RepositoryDiff.read,
 	suppliedCache?: RepositoryPreviewCache,
 	suppliedVersion?: object,
-	files?: readonly WorkspaceEntry[]
+	files?: readonly WorkspaceEntry[],
+	ignoreWhitespace = false
 ) {
 	const [retry, setRetry] = useState(0);
 	const [result, setResult] = useState<RepositoryPreviewResult | null>(null);
@@ -45,8 +47,8 @@ export function useRepositoryDiff(
 	const version = suppliedVersion ?? readDiff;
 
 	const request = useMemo(
-		() => ({ root, change, version }),
-		[root, change, version]
+		() => ({ root, change, version, ignoreWhitespace }),
+		[root, change, version, ignoreWhitespace]
 	);
 
 	const key = cache.key(request);
@@ -64,9 +66,18 @@ export function useRepositoryDiff(
 	const current = useMemo(
 		() =>
 			cached
-				? { cache, root, key, change, retry, sections: cached, error: null }
+				? {
+						cache,
+						root,
+						key,
+						change,
+						retry,
+						sections: cached,
+						error: null,
+						ignoreWhitespace,
+					}
 				: settled,
-		[cache, root, key, change, retry, cached, settled]
+		[cache, root, key, change, retry, cached, settled, ignoreWhitespace]
 	);
 
 	// Remember committed cache hits before painting, not after an asynchronous read effect.
@@ -112,6 +123,7 @@ export function useRepositoryDiff(
 					change,
 					retry,
 					sections: response.ok ? response.value : [],
+					ignoreWhitespace,
 					error: response.ok ? null : response.error.message,
 				});
 			} catch (error) {
@@ -123,6 +135,7 @@ export function useRepositoryDiff(
 						change,
 						retry,
 						sections: [],
+						ignoreWhitespace,
 						error:
 							error instanceof Error
 								? error.message
@@ -139,7 +152,17 @@ export function useRepositoryDiff(
 			clearTimeout(timer);
 			controller.abort();
 		};
-	}, [cache, request, root, change, key, progressKey, paused, retry]);
+	}, [
+		cache,
+		request,
+		root,
+		change,
+		key,
+		progressKey,
+		paused,
+		retry,
+		ignoreWhitespace,
+	]);
 
 	const readySections = current?.error ? undefined : current?.sections;
 
@@ -155,7 +178,9 @@ export function useRepositoryDiff(
 		const neighbours = [files[index + 1], files[index - 1]].flatMap((entry) => {
 			const selection = entry?.change ?? entry?.commitFile;
 
-			return selection ? [{ root, change: selection, version }] : [];
+			return selection
+				? [{ root, change: selection, version, ignoreWhitespace }]
+				: [];
 		});
 
 		const timer = setTimeout(
@@ -164,7 +189,17 @@ export function useRepositoryDiff(
 		);
 
 		return () => clearTimeout(timer);
-	}, [cache, root, change.path, version, key, readySections, paused, files]);
+	}, [
+		cache,
+		root,
+		change.path,
+		version,
+		key,
+		readySections,
+		paused,
+		files,
+		ignoreWhitespace,
+	]);
 
 	return {
 		result: displayed,

@@ -17,7 +17,10 @@ import {
 	type ComparisonRequest,
 } from "./lib/repository-comparison";
 import { RepositoryHistory } from "../repository-workspace/lib/repository-history";
-import { RepositoryDiff as DiffReader } from "../repository-workspace/lib/repository-diff";
+import {
+	RepositoryDiff as DiffReader,
+	type DiffSettings,
+} from "../repository-workspace/lib/repository-diff";
 import type { RepositoryPreviewCache } from "../repository-workspace/lib/repository-preview-cache";
 import { RepositoryDiff } from "../repository-workspace/components/repository-diff";
 import { RepositoryList } from "../repository-workspace/components/repository-list";
@@ -129,6 +132,8 @@ type Readers = {
 	readCommitFiles?: typeof RepositoryHistory.readFiles;
 	readDiff?: typeof DiffReader.read;
 	previewCache?: RepositoryPreviewCache;
+	diffSettings?: DiffSettings;
+	onDiffSettingsChange?: (settings: DiffSettings) => void;
 };
 
 /** A temporary, read-only view; returning leaves the workspace's selection and draft untouched. */
@@ -315,6 +320,8 @@ function ComparisonResults({
 	readCommitFiles = RepositoryHistory.readFiles,
 	readDiff = DiffReader.read,
 	previewCache,
+	diffSettings,
+	onDiffSettingsChange,
 }: { request: ComparisonRequest; base: string; head: string } & Readers) {
 	const [comparison, setComparison] = useState<BranchComparison | null>(null);
 	const [page, setPage] = useState<CommitPage | null>(null);
@@ -558,7 +565,12 @@ function ComparisonResults({
 
 							previewCache?.intent(
 								change
-									? { root: request.root, change, version: readDiff }
+									? {
+											root: request.root,
+											change,
+											version: readDiff,
+											ignoreWhitespace: diffSettings?.ignoreWhitespace,
+										}
 									: null
 							);
 						}}
@@ -584,6 +596,8 @@ function ComparisonResults({
 							statusError={null}
 							readDiff={readDiff}
 							cache={previewCache}
+							settings={diffSettings}
+							onSettingsChange={onDiffSettingsChange}
 							files={files}
 						/>
 					) : (

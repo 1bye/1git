@@ -1,5 +1,5 @@
 /**
- * Covers: preview reuse, shared reads, cancellation, snapshot invalidation and bounded eviction.
+ * Covers: preview reuse, whitespace isolation, shared reads, cancellation, snapshot invalidation and bounded eviction.
  * Real: preview cache and diff sections.
  * Doubles: cancellable Git/image reader.
  * Requires: none.
@@ -24,6 +24,38 @@ const response = (path: string) => ({
 });
 
 const signal = () => new AbortController().signal;
+
+it("separates whitespace-filtered previews and forwards the option to foreground and prefetched reads", async () => {
+	const reader = mock<typeof RepositoryDiff.read>(
+		async (_root, change, _signal, ignoreWhitespace) => ({
+			ok: true,
+			value: [
+				diffSection(
+					"working",
+					diffPatch(change.path, ignoreWhitespace ? "filtered" : "original")
+				),
+			],
+		})
+	);
+
+	const cache = new RepositoryPreviewCache(reader);
+	const normal = request("a.ts");
+	const filtered = { ...normal, ignoreWhitespace: true };
+
+	await cache.read(normal, signal());
+	expect(cache.peek(filtered)).toBeUndefined();
+	await cache.read(filtered, signal());
+	expect(cache.peek(normal)?.[0]?.patch).toContain("diff --git");
+	expect(cache.peek(filtered)?.[0]?.patch).toContain("+filtered");
+	expect(cache.peek(normal)?.[0]?.patch).toContain("+original");
+	expect(cache.key(normal)).toBe(
+		cache.key({ ...normal, ignoreWhitespace: false })
+	);
+	cache.prefetch([{ ...request("b.ts"), ignoreWhitespace: true }]);
+	await Bun.sleep(0);
+	expect(reader.mock.calls.map((call) => call[3])).toEqual([false, true, true]);
+	cache.dispose();
+});
 
 it("reuses prepared previews and shares pending work without cancelling another consumer", async () => {
 	const pending =

@@ -24,6 +24,8 @@ export interface DiffViewProps extends Pick<
 	| "onExpandContext"
 > {
 	patch: string;
+	/** 1git native extension: aligned old/new columns sharing one virtual list. */
+	mode?: "unified" | "split";
 	"aria-label": string;
 	/** Optional keyboard instructions for application-owned diff actions. */
 	"aria-description"?: string;
@@ -130,6 +132,7 @@ export function DiffView({
 			onKeyDown={navigate}
 			style={StyleSheet.compose(
 				styles.viewport,
+				!focusVisible && { borderWidth: 0 },
 				style,
 				focused &&
 					focusVisible &&

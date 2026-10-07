@@ -16,6 +16,7 @@ export const diffContextPatchPath = resolve(
 	import.meta.dir,
 	"diff-context.patch"
 );
+export const diffSplitPatchPath = resolve(import.meta.dir, "diff-split.patch");
 export const activationPatchPath = resolve(
 	import.meta.dir,
 	"window-activation.patch"
@@ -94,6 +95,7 @@ export const nativeBuildId = createHash("sha256")
 	.update(readFileSync(checkboxPatchPath))
 	.update(readFileSync(diffPatchPath))
 	.update(readFileSync(diffContextPatchPath))
+	.update(readFileSync(diffSplitPatchPath))
 	.update(readFileSync(activationPatchPath))
 	.update(readFileSync(closePatchPath))
 	.update(readFileSync(closePlatformPatchPath))

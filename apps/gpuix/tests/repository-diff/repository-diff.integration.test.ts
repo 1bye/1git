@@ -1,5 +1,5 @@
 /**
- * Covers: complete file patches and image versions, external staging, special paths, renames/deletions and read-only execution.
+ * Covers: complete patches, whitespace filtering/context, image versions, external staging, special paths and read-only execution.
  * Real: RepositoryDiff, shared Git backend and disposable Git repositories.
  * Doubles: none.
  * Requires: Git, Sharp and writable temporary storage; no network or graphics.
@@ -72,7 +72,7 @@ afterEach(async () => {
 	await rm(repository, { recursive: true, force: true });
 });
 
-const read = async (path: string) => {
+const read = async (path: string, ignoreWhitespace = false) => {
 	const status = await RepositoryReader.read(
 		repository,
 		new AbortController().signal
@@ -87,13 +87,95 @@ const read = async (path: string) => {
 	const result = await RepositoryDiff.read(
 		repository,
 		change,
-		new AbortController().signal
+		new AbortController().signal,
+		ignoreWhitespace
 	);
 
 	if (!result.ok) throw new Error(result.error.message);
 
 	return result.value;
 };
+
+it("hides whitespace only in previews and context, retaining index, files and committed comparisons", async () => {
+	const path = "example.ts";
+
+	await writeFile(
+		join(repository, path),
+		"const value = 1;\nconst unchanged = 2;\n"
+	);
+	await git("add", path);
+	await git("commit", "-m", "Base");
+	const base = (await git("rev-parse", "HEAD")).trim();
+	const contents = "const  value = 1;  \nconst unchanged = 2;\n";
+
+	await writeFile(join(repository, path), contents);
+	await git("add", path);
+	const index = await readFile(join(repository, ".git/index"));
+
+	expect((await read(path))[0]?.patch).toContain("+const  value = 1;");
+	const filtered = (await read(path, true))[0];
+
+	expect(filtered?.patch).toBe("");
+	expect(filtered?.message).toBe(
+		"No textual changes with whitespace changes hidden."
+	);
+	expect(filtered?.stats[0]?.addedLines).toBe(1);
+	expect(await readFile(join(repository, ".git/index"))).toEqual(index);
+	expect(await readFile(join(repository, path), "utf8")).toBe(contents);
+	expect((await git("rev-parse", "HEAD")).trim()).toBe(base);
+
+	await git("commit", "-m", "Whitespace");
+	const commit = (await git("rev-parse", "HEAD")).trim();
+	const beforeOid = (await git("rev-parse", `${base}:${path}`)).trim();
+	const afterOid = (await git("rev-parse", `${commit}:${path}`)).trim();
+	const selection = { path, status: "M" as const, commit, beforeOid, afterOid };
+
+	for (const change of [selection, { ...selection, base }]) {
+		const result = await RepositoryDiff.read(
+			repository,
+			change,
+			new AbortController().signal,
+			true
+		);
+
+		expect(result.ok && result.value[0]?.patch).toBe("");
+		expect(result.ok && result.value[0]?.message).toContain(
+			"whitespace changes hidden"
+		);
+		expect(
+			await RepositoryDiff.readContext(
+				repository,
+				change,
+				20,
+				new AbortController().signal,
+				true
+			)
+		).toBe("");
+	}
+
+	await writeFile(
+		join(repository, path),
+		"const value = 3;\nconst  unchanged = 2;\n"
+	);
+	const snapshot = await RepositoryReader.read(
+		repository,
+		new AbortController().signal
+	);
+
+	if (!snapshot.ok || !snapshot.value.files[0])
+		throw new Error("Missing whitespace fixture");
+
+	const context = await RepositoryDiff.readContext(
+		repository,
+		snapshot.value.files[0],
+		20,
+		new AbortController().signal,
+		true
+	);
+
+	expect(context).toContain("+const value = 3;");
+	expect(context).not.toContain("+const  unchanged = 2;");
+});
 
 it("expands only a requested gap from real Git without writing HEAD, index, objects or files", async () => {
 	const path = "context [literal].txt";

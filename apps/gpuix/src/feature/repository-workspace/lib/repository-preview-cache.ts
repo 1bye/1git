@@ -11,6 +11,7 @@ export interface PreviewRequest {
 	readonly root: string;
 	readonly change: DiffSelection;
 	readonly version: object;
+	readonly ignoreWhitespace?: boolean;
 }
 
 type Response = GitResult<readonly RepositoryDiffSection[]>;
@@ -60,6 +61,7 @@ export class RepositoryPreviewCache {
 
 		return JSON.stringify([
 			root,
+			request.ignoreWhitespace ?? false,
 			change.path,
 			change.originalPath,
 			"commit" in change
@@ -253,7 +255,8 @@ export class RepositoryPreviewCache {
 			const result = await this.reader(
 				request.root,
 				request.change,
-				controller.signal
+				controller.signal,
+				request.ignoreWhitespace ?? false
 			);
 
 			controller.signal.throwIfAborted();

@@ -23,6 +23,17 @@ export const diffLimits = {
 /** A live changed file or an immutable file selected from a commit. */
 export type DiffSelection = FileChange | CommitFileSelection;
 
+/** Window-wide display preferences; they never affect file inclusion or commits. */
+export interface DiffSettings {
+	readonly mode: "unified" | "split";
+	readonly ignoreWhitespace: boolean;
+}
+/** Default text preview before a user changes this window's controls. */
+export const defaultDiffSettings: DiffSettings = {
+	mode: "unified",
+	ignoreWhitespace: false,
+};
+
 /** One read-only comparison, ready for the native diff element or an explanatory notice. */
 export interface RepositoryDiffSection {
 	readonly target: "working" | "commit";
@@ -47,7 +58,8 @@ export class RepositoryDiff {
 		root: string,
 		change: DiffSelection,
 		contextLines: number,
-		signal: AbortSignal
+		signal: AbortSignal,
+		ignoreWhitespace = false
 	): Promise<string> {
 		if (
 			!Number.isSafeInteger(contextLines) ||
@@ -75,6 +87,7 @@ export class RepositoryDiff {
 				? [change.originalPath, change.path]
 				: [change.path],
 			contextLines,
+			ignoreWhitespace,
 			signal,
 		});
 
@@ -94,10 +107,16 @@ export class RepositoryDiff {
 	static async read(
 		root: string,
 		change: DiffSelection,
-		signal: AbortSignal
+		signal: AbortSignal,
+		ignoreWhitespace = false
 	): Promise<GitResult<readonly RepositoryDiffSection[]>> {
 		if ("commit" in change)
-			return await RepositoryDiff.readCommit(root, change, signal);
+			return await RepositoryDiff.readCommit(
+				root,
+				change,
+				signal,
+				ignoreWhitespace
+			);
 
 		if (change.recordType === "unmerged") {
 			const content = await RepositoryConflicts.read(root, change.path, signal);
@@ -152,6 +171,7 @@ export class RepositoryDiff {
 			previewRead,
 			opened.value.getDiff({
 				target: { kind: "changes" },
+				ignoreWhitespace,
 				paths: change.originalPath
 					? [change.originalPath, change.path]
 					: [change.path],
@@ -164,7 +184,10 @@ export class RepositoryDiff {
 		return {
 			ok: true,
 			value: [
-				{ ...RepositoryDiff.section(result.value, "working"), image: preview },
+				{
+					...RepositoryDiff.section(result.value, "working", ignoreWhitespace),
+					image: preview,
+				},
 			],
 		};
 	}
@@ -173,7 +196,8 @@ export class RepositoryDiff {
 	private static async readCommit(
 		root: string,
 		file: CommitFileSelection,
-		signal: AbortSignal
+		signal: AbortSignal,
+		ignoreWhitespace: boolean
 	): Promise<GitResult<readonly RepositoryDiffSection[]>> {
 		const image = RepositoryImage.supports(file.path);
 
@@ -206,6 +230,7 @@ export class RepositoryDiff {
 		const [preview, result] = await Promise.all([
 			previewRead,
 			opened.value.getDiff({
+				ignoreWhitespace,
 				target: file.base
 					? { kind: "range", base: file.base, head: file.commit }
 					: { kind: "commit", revision: file.commit },
@@ -219,7 +244,10 @@ export class RepositoryDiff {
 		return {
 			ok: true,
 			value: [
-				{ ...RepositoryDiff.section(result.value, "commit"), image: preview },
+				{
+					...RepositoryDiff.section(result.value, "commit", ignoreWhitespace),
+					image: preview,
+				},
 			],
 		};
 	}
@@ -227,7 +255,8 @@ export class RepositoryDiff {
 	/** Rejects unsafe-sized or unsupported input before it reaches native parsing; never shows partial content as complete. */
 	static section(
 		diff: FileDiff,
-		target: RepositoryDiffSection["target"]
+		target: RepositoryDiffSection["target"],
+		ignoreWhitespace = false
 	): RepositoryDiffSection {
 		const { patch } = diff;
 		const lines = patch.split("\n");
@@ -252,8 +281,9 @@ export class RepositoryDiff {
 		) {
 			message = "Binary file — text diff unavailable.";
 		} else if (!patch.trim()) {
-			message =
-				target === "commit"
+			message = ignoreWhitespace
+				? "No textual changes with whitespace changes hidden."
+				: target === "commit"
 					? "No textual changes in this committed file."
 					: "No remaining changes in this comparison. Refresh Changes if this file was edited elsewhere.";
 		} else if (!hunkHeader.test(patch) && !fileHeader.test(patch)) {

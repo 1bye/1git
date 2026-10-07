@@ -36,7 +36,10 @@ import { RepositoryNavigation } from "./feature/repository-workspace/components/
 import { RepositoryFileActions } from "./feature/repository-workspace/lib/repository-file-actions";
 import { RepositoryDiffEmpty } from "./feature/repository-workspace/components/repository-diff-empty";
 import { RepositoryDiff } from "./feature/repository-workspace/components/repository-diff";
-import { RepositoryDiff as DiffReader } from "./feature/repository-workspace/lib/repository-diff";
+import {
+	RepositoryDiff as DiffReader,
+	defaultDiffSettings,
+} from "./feature/repository-workspace/lib/repository-diff";
 import { RepositoryReader } from "./feature/repository-workspace/lib/repository-reader";
 import { RepositorySetup } from "./feature/repository-workspace/lib/repository-setup";
 import { RepositorySetupActions } from "./feature/repository-workspace/components/repository-setup";
@@ -199,6 +202,8 @@ export function App({
 		() => new RepositoryPreviewCache(readDiff),
 		[readDiff]
 	);
+
+	const [diffSettings, setDiffSettings] = useState(defaultDiffSettings);
 
 	useEffect(() => () => previewCache.dispose(), [previewCache]);
 
@@ -675,7 +680,12 @@ export function App({
 
 									previewCache.intent(
 										change && available
-											? { root: repository.root, change, version: repository }
+											? {
+													root: repository.root,
+													change,
+													version: repository,
+													ignoreWhitespace: diffSettings.ignoreWhitespace,
+												}
 											: null
 									);
 								}}
@@ -960,6 +970,8 @@ export function App({
 							readCommitFiles={readCommitFiles}
 							readDiff={readDiff}
 							previewCache={previewCache}
+							diffSettings={diffSettings}
+							onDiffSettingsChange={setDiffSettings}
 							onClose={() => dispatch({ type: "compare", id: activeTab.id })}
 						/>
 					) : activeTab && workspace?.repository && comparison ? (
@@ -968,6 +980,8 @@ export function App({
 							root={workspace.repository.root}
 							change={comparison}
 							cache={previewCache}
+							settings={diffSettings}
+							onSettingsChange={setDiffSettings}
 							version={workspace.repository}
 							files={files}
 							refreshing={

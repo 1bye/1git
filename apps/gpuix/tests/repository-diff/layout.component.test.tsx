@@ -1,5 +1,5 @@
 /**
- * Covers: reusable DiffView header visibility, native width invalidation and overflow clamping.
+ * Covers: DiffView split pairing, metadata, header visibility, native width invalidation and overflow clamping.
  * Real: gpuix-ui component, patched GPUIX shaping, virtual list and native input/layout.
  * Doubles: inline patches; no Git or repository I/O.
  * Requires: patched release addon and macOS graphics access.
@@ -53,6 +53,47 @@ const show = (props: Partial<DiffViewProps> = {}): void => {
 		</div>
 	);
 };
+
+it("aligns unequal replacement runs, duplicates context and retains newline metadata in split mode", () => {
+	const patch =
+		"diff --git a/example.ts b/example.ts\n--- a/example.ts\n+++ b/example.ts\n@@ -1,4 +1,3 @@\n same\n-old one\n-old two\n+new one\n tail\n\\ No newline at end of file\n";
+
+	show({ patch, mode: "unified", showFileHeader: false });
+	const unifiedWidth = width();
+
+	show({ patch, mode: "split", showFileHeader: false });
+	const text = root.renderer.getPaintedText();
+
+	expect(text.filter((line) => line === "same")).toHaveLength(2);
+	expect(text.filter((line) => line === "tail")).toHaveLength(2);
+	expect(text).toContain("old one");
+	expect(text).toContain("old two");
+	expect(text).toContain("new one");
+	expect(text.some((line) => line.includes("No newline"))).toBe(true);
+	expect(width()).toBeCloseTo(unifiedWidth, 0);
+});
+
+it("measures both split columns and clamps overflow when returning to a short unified patch", () => {
+	show({ mode: "unified", showFileHeader: false });
+	const shortWidth = width();
+
+	show({
+		mode: "split",
+		showFileHeader: false,
+		patch: diffPatch("example.ts", `const revised = '${"x".repeat(150)}';`),
+	});
+	expect(width()).toBeGreaterThan(1000);
+	const content = element("viewer-content").id;
+
+	root.renderer.scrollTo(element("viewer").id, -500, 0);
+	root.renderer.flush();
+	show({ mode: "unified", showFileHeader: false });
+	expect(element("viewer-content").id).toBe(content);
+	expect(width()).toBeCloseTo(shortWidth, 0);
+	expect(root.renderer.getScrollOffset(element("viewer").id)?.[0]).toBeCloseTo(
+		0
+	);
+});
 
 it("removes native file headers without hiding hunk headers or the Show more control", () => {
 	show();

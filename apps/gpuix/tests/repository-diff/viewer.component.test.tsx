@@ -1,5 +1,5 @@
 /**
- * Covers: file headers, native image comparisons, SVG source switching, virtualized diff painting, scrolling and stale reads.
+ * Covers: diff settings, file headers, images, SVG source switching, native painting, scrolling and stale reads.
  * Real: app lifecycle, GPUIX patch parsing/layout, text painting and input events.
  * Doubles: repository status, diff reader and native folder selection.
  * Requires: patched GPUIX native renderer with macOS graphics access.
@@ -118,6 +118,185 @@ const showDiff = (
 		</div>
 	);
 };
+
+const settlePanel = async (): Promise<void> => {
+	root.renderer.clockFastForward(220);
+	root.renderer.flush();
+	root.renderer.advanceTime(1);
+	await Bun.sleep(120);
+	root.renderer.flush();
+};
+
+it("opens accessible diff settings, switches native layout without rereading Git and restores focus", async () => {
+	const reader = mock<typeof Reader.read>(async () => ({
+		ok: true,
+		value: [diffSection("working")],
+	}));
+
+	showDiff(reader);
+	await settle();
+	const content = element("diff-viewport-content").id;
+
+	click("diff-settings");
+	await settlePanel();
+	expect(element("diff-settings").customProps?.["aria-expanded"]).toBe(true);
+	expect(element("diff-mode-unified").customProps?.["aria-label"]).toBe(
+		"Unified, selected"
+	);
+	click("diff-mode-split");
+	await settle();
+	expect(element("diff-viewport-content").id).toBe(content);
+	expect(element("diff-viewport-content").customProps?.mode).toBe("split");
+	expect(element("diff-mode-split").customProps?.["aria-label"]).toBe(
+		"Split, selected"
+	);
+	expect(reader).toHaveBeenCalledTimes(1);
+	expect(
+		root.renderer
+			.getPaintedText()
+			.filter((text) => text === "const context = true;")
+	).toHaveLength(2);
+
+	if (process.env.GPUIX_DIFF_SCREENSHOT)
+		root.renderer.captureScreenshot(process.env.GPUIX_DIFF_SCREENSHOT);
+
+	root.renderer.simulateKeystrokes("escape");
+	await settlePanel();
+	expect(root.renderer.findByTestId("diff-settings-panel")).toBeUndefined();
+	expect(root.renderer.getFocusedElementId()).toBe(element("diff-settings").id);
+
+	click("diff-settings");
+	await settlePanel();
+	click("diff-mode-unified");
+	expect(element("diff-viewport-content").customProps?.mode).toBe("unified");
+	expect(
+		root.renderer
+			.getPaintedText()
+			.filter((text) => text === "const context = true;")
+	).toHaveLength(1);
+	expect(reader).toHaveBeenCalledTimes(1);
+});
+
+it("cancels stale whitespace reads, restores cached unfiltered content and expands with the displayed filter", async () => {
+	const pending =
+		Promise.withResolvers<Awaited<ReturnType<typeof Reader.read>>>();
+
+	const reader = mock<typeof Reader.read>(
+		(_root, _change, _signal, ignoreWhitespace) =>
+			ignoreWhitespace
+				? pending.promise
+				: Promise.resolve({
+						ok: true,
+						value: [diffSection("working", contextPatch())],
+					})
+	);
+
+	spyOn(DiffReader, "readContext").mockImplementation(
+		async (_root, _change, context) => contextPatch(context)
+	);
+	showDiff(reader);
+	await settle();
+	click("diff-settings");
+	await settlePanel();
+	click("diff-hide-whitespace");
+	await settle();
+	expect(reader.mock.calls[1]?.[3]).toBe(true);
+	expect(root.renderer.getPaintedText()).toContain("changed 40");
+	click("diff-hide-whitespace");
+	await settle();
+	expect(reader.mock.calls[1]?.[2].aborted).toBe(true);
+	pending.resolve({
+		ok: true,
+		value: [diffSection("working", diffPatch("example.ts", "stale filtered"))],
+	});
+	await settle();
+	expect(root.renderer.getPaintedText()).not.toContain("stale filtered");
+	expect(reader).toHaveBeenCalledTimes(2);
+
+	reader.mockResolvedValue({
+		ok: true,
+		value: [diffSection("working", contextPatch())],
+	});
+	click("diff-hide-whitespace");
+	await settle();
+	root.renderer.simulateKeystrokes("escape");
+	await settlePanel();
+	click("diff-viewport");
+	key("diff-viewport", "e");
+	await settle();
+	expect(DiffReader.readContext).toHaveBeenCalledWith(
+		"/test/project",
+		expect.anything(),
+		expect.any(Number),
+		expect.any(AbortSignal),
+		true
+	);
+
+	reader.mockResolvedValue({
+		ok: true,
+		value: [
+			{
+				target: "working",
+				patch: "",
+				stats: [{ path: "other.ts", addedLines: 1, deletedLines: 1 }],
+				message: "No textual changes with whitespace changes hidden.",
+			},
+		],
+	});
+	showDiff(reader, "other.ts");
+	await settle();
+	expect(reader.mock.calls.at(-1)?.[3]).toBe(true);
+	expect(root.renderer.getAllText()).toContain(
+		"No textual changes with whitespace changes hidden."
+	);
+	expect(root.renderer.findByTestId("diff-settings")).toBeDefined();
+	expect(root.renderer.findByTestId("diff-stats")).toBeDefined();
+});
+
+it("retains window diff preferences when leaving the preview for another repository view", async () => {
+	spyOn(root.renderer, "promptForPaths").mockResolvedValue(["/test/project"]);
+	const reader = mock<typeof Reader.read>(async (_root, change) => ({
+		ok: true,
+		value: [diffSection("working", diffPatch(change.path))],
+	}));
+
+	root.render(
+		<App
+			readRepository={async () => ({
+				ok: true,
+				value: repositorySnapshot([changedFile("a.ts"), changedFile("b.ts")]),
+			})}
+			readDiff={reader}
+			readHistory={emptyHistory}
+		/>
+	);
+	click("open-repository");
+	await settle();
+	click("entry-a.ts");
+	await settle();
+	click("diff-settings");
+	await settlePanel();
+	click("diff-mode-split");
+	click("diff-hide-whitespace");
+	await settle();
+	root.renderer.simulateKeystrokes("escape");
+	await settlePanel();
+	click("view-history");
+	await settle();
+	click("view-changes");
+	await settle();
+	click("entry-b.ts");
+	await settle();
+	expect(element("diff-viewport-content").customProps?.mode).toBe("split");
+	expect(
+		reader.mock.calls.filter((call) => call[1].path === "b.ts").at(-1)?.[3]
+	).toBe(true);
+	click("diff-settings");
+	await settlePanel();
+	expect(element("diff-hide-whitespace").customProps?.["aria-checked"]).toBe(
+		true
+	);
+});
 
 it("paints one complete file diff without staging modes or hunk actions", async () => {
 	const reader = mock<typeof Reader.read>(async () => ({
@@ -461,6 +640,40 @@ it("selects code without copying gutters in the virtualized view", async () => {
 	expect(selected).toContain("value = 2;");
 	expect(selected).not.toContain("11");
 	expect(selected).not.toContain("+");
+});
+
+it("keeps multiline split selections within the chosen column, without gutters or duplicate context", async () => {
+	showDiff(async () => ({ ok: true, value: [diffSection("working")] }));
+	await settle();
+	click("diff-settings");
+	await settlePanel();
+	click("diff-mode-split");
+	root.renderer.simulateKeystrokes("escape");
+	await settlePanel();
+	const box = bounds("diff-viewport-content");
+
+	const left = root.renderer.dragSelect(
+		box.x + 63,
+		box.y + 36,
+		box.x + 400,
+		box.y + 56
+	);
+
+	expect(left).toContain("const context = true;");
+	expect(left).toContain("const value = 1;");
+	expect(left).not.toContain("const value = 2;");
+	expect(left?.split("const context = true;")).toHaveLength(2);
+	const right = root.renderer.dragSelect(
+		box.x + box.width / 2 + 63,
+		box.y + 36,
+		box.x + box.width - 20,
+		box.y + 56
+	);
+
+	expect(right).toContain("const context = true;");
+	expect(right).toContain("const value = 2;");
+	expect(right).not.toContain("const value = 1;");
+	expect(right).not.toContain("11");
 });
 
 it("shows new-file code without a redundant status row or a pointer focus ring", async () => {

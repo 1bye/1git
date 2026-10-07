@@ -15,6 +15,8 @@ export function RepositoryTextDiff({
 	patch,
 	theme,
 	blocked,
+	mode,
+	ignoreWhitespace,
 }: {
 	root: string;
 	change: DiffSelection;
@@ -22,6 +24,8 @@ export function RepositoryTextDiff({
 	patch: string;
 	theme: GpuixTheme;
 	blocked: boolean;
+	mode: "unified" | "split";
+	ignoreWhitespace: boolean;
 }) {
 	const [expanded, setExpanded] = useState({ snapshot, patch });
 
@@ -66,7 +70,8 @@ export function RepositoryTextDiff({
 				root,
 				change,
 				request.contextLines,
-				controller.signal
+				controller.signal,
+				ignoreWhitespace
 			);
 
 			if (!controller.signal.aborted)
@@ -93,12 +98,13 @@ export function RepositoryTextDiff({
 			<DiffView
 				testId="diff-viewport"
 				patch={displayed}
+				mode={mode}
 				showFileHeader={false}
 				focusVisible={false}
 				theme={theme}
 				tokens={appTokens}
 				aria-label={"commit" in change ? "Committed file diff" : "File diff"}
-				aria-description="Read-only. Use arrows, Page Up, Page Down, Home and End to scroll. Press E to expand 20 unchanged lines at the first remaining separator. Select text and press Command C to copy."
+				aria-description={`${mode === "split" ? "Split: original on the left, revised on the right. " : "Unified. "}Read-only. Use arrows, Page Up, Page Down, Home and End to scroll. Press E to expand 20 unchanged lines at the first remaining separator. Select text and press Command C to copy.`}
 				onExpandContext={(event) => {
 					void expand(event.oldLine, event.newLine);
 				}}
