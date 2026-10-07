@@ -1,11 +1,5 @@
-import {
-	access,
-	mkdtemp,
-	readFile,
-	realpath,
-	rm,
-	stat,
-} from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { mkdtemp, readFile, realpath, rm, stat } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, relative, resolve } from "node:path";
@@ -50,41 +44,24 @@ import { invalidInput } from "./result.js";
 
 const MAX_FILE_CONTENT_BYTES = 10 * 1024 * 1024;
 
-const pathExists = async (path: string): Promise<boolean> => {
-	try {
-		await access(path);
-
-		return true;
-	} catch {
-		return false;
-	}
-};
-
-const loadOperationState = async (
-	gitDirectory: string
-): Promise<RepositoryOperationState> => {
-	const [merge, rebaseMerge, rebaseApply, cherryPick, revert] =
-		await Promise.all([
-			pathExists(join(gitDirectory, "MERGE_HEAD")),
-			pathExists(join(gitDirectory, "rebase-merge")),
-			pathExists(join(gitDirectory, "rebase-apply")),
-			pathExists(join(gitDirectory, "CHERRY_PICK_HEAD")),
-			pathExists(join(gitDirectory, "REVERT_HEAD")),
-		]);
-
-	if (rebaseMerge || rebaseApply) {
+const loadOperationState = (gitDirectory: string): RepositoryOperationState => {
+	// Missing markers are the normal case; do not create rejected filesystem promises to probe them.
+	if (
+		existsSync(join(gitDirectory, "rebase-merge")) ||
+		existsSync(join(gitDirectory, "rebase-apply"))
+	) {
 		return "rebase";
 	}
 
-	if (merge) {
+	if (existsSync(join(gitDirectory, "MERGE_HEAD"))) {
 		return "merge";
 	}
 
-	if (cherryPick) {
+	if (existsSync(join(gitDirectory, "CHERRY_PICK_HEAD"))) {
 		return "cherry-pick";
 	}
 
-	if (revert) {
+	if (existsSync(join(gitDirectory, "REVERT_HEAD"))) {
 		return "revert";
 	}
 
@@ -118,8 +95,12 @@ const operationToken = async (
 	const hash = createHash("sha256").update(operation);
 
 	for (const file of files) {
+		const path = join(directory, file);
+
+		if (!existsSync(path)) continue;
+
 		try {
-			hash.update(file).update(await readFile(join(directory, file)));
+			hash.update(file).update(await readFile(path));
 		} catch (error) {
 			if (
 				!(error instanceof Error && "code" in error && error.code === "ENOENT")
