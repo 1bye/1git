@@ -88,6 +88,11 @@ width per patch/font/metrics, and exposes independent row and word backgrounds.
 These APIs are wrapped by `@1git/gpuix-ui/diff-view`; the Git feature only owns
 loading, notices and its filename/comparison toolbar. Hidden patch metadata does
 not contribute to horizontal overflow. Short diffs fill the viewport.
+`native/diff-split-layout.patch` keeps fixed split panes at 50/50 with separate
+native horizontal offsets and one shared virtual vertical list. Hovering a pane
+chooses it for horizontal keyboard scrolling; trackpad scrolling stays inside
+that pane. Diff settings also offer the previous content-sized canvas and save
+the choice with the window session. Old sessions default to fixed split panes.
 `native/diff-context.patch` adds an opt-in `onExpandContext` event to omitted-code
 separators. The native renderer reports the path and hunk coordinates; the app
 reads and inserts additional context, keeping native virtualization and selection.

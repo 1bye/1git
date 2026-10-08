@@ -577,6 +577,7 @@ function RepositoryDiffContent({
 					theme={diffTheme}
 					blocked={refreshing}
 					mode={settings.mode}
+					splitLayout={settings.splitLayout}
 					ignoreWhitespace={
 						result?.ignoreWhitespace ?? settings.ignoreWhitespace
 					}

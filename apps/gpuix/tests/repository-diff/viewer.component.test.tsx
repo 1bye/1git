@@ -143,6 +143,7 @@ it("opens accessible diff settings, switches native layout without rereading Git
 	expect(element("diff-mode-unified").customProps?.["aria-label"]).toBe(
 		"Unified, selected"
 	);
+	expect(root.renderer.findByTestId("diff-split-fixed")).toBeUndefined();
 	click("diff-mode-split");
 	await settle();
 	expect(element("diff-viewport-content").id).toBe(content);
@@ -150,6 +151,13 @@ it("opens accessible diff settings, switches native layout without rereading Git
 	expect(element("diff-mode-split").customProps?.["aria-label"]).toBe(
 		"Split, selected"
 	);
+	expect(element("diff-split-fixed").customProps?.["aria-label"]).toBe(
+		"Fixed 50/50, selected"
+	);
+	click("diff-split-content-sized");
+	expect(element("diff-viewport-content").customProps?.autoWidth).toBe(true);
+	click("diff-split-fixed");
+	expect(element("diff-viewport-content").customProps?.autoWidth).toBe(false);
 	expect(reader).toHaveBeenCalledTimes(1);
 	expect(
 		root.renderer
@@ -168,6 +176,7 @@ it("opens accessible diff settings, switches native layout without rereading Git
 	click("diff-settings");
 	await settlePanel();
 	click("diff-mode-unified");
+	expect(root.renderer.findByTestId("diff-split-fixed")).toBeUndefined();
 	expect(element("diff-viewport-content").customProps?.mode).toBe("unified");
 	expect(
 		root.renderer
@@ -277,6 +286,7 @@ it("retains window diff preferences when leaving the preview for another reposit
 	click("diff-settings");
 	await settlePanel();
 	click("diff-mode-split");
+	click("diff-split-content-sized");
 	click("diff-hide-whitespace");
 	await settle();
 	root.renderer.simulateKeystrokes("escape");
@@ -288,6 +298,7 @@ it("retains window diff preferences when leaving the preview for another reposit
 	click("entry-b.ts");
 	await settle();
 	expect(element("diff-viewport-content").customProps?.mode).toBe("split");
+	expect(element("diff-viewport-content").customProps?.autoWidth).toBe(true);
 	expect(
 		reader.mock.calls.filter((call) => call[1].path === "b.ts").at(-1)?.[3]
 	).toBe(true);
@@ -296,6 +307,46 @@ it("retains window diff preferences when leaving the preview for another reposit
 	expect(element("diff-hide-whitespace").customProps?.["aria-checked"]).toBe(
 		true
 	);
+});
+
+it("restores diff settings from a previous session and saves a layout change on unmount", async () => {
+	const save = mock();
+
+	root.render(
+		<App
+			initialSession={{
+				version: 1,
+				tabs: [{ id: "workspace-1", path: "/test/project", draft: "" }],
+				activeId: "workspace-1",
+				diffSettings: {
+					mode: "split",
+					splitLayout: "content-sized",
+					ignoreWhitespace: false,
+				},
+			}}
+			saveSession={save}
+			readRepository={async () => ({
+				ok: true,
+				value: repositorySnapshot([changedFile("a.ts")]),
+			})}
+			readDiff={async () => ({ ok: true, value: [diffSection("working")] })}
+		/>
+	);
+	await settle();
+	click("entry-a.ts");
+	await settle();
+	expect(element("diff-viewport-content").customProps?.mode).toBe("split");
+	expect(element("diff-viewport-content").customProps?.autoWidth).toBe(true);
+	click("diff-settings");
+	await settlePanel();
+	click("diff-split-fixed");
+	expect(element("diff-viewport-content").customProps?.autoWidth).toBe(false);
+	root.unmount();
+	expect(save.mock.calls.at(-1)?.[0].diffSettings).toEqual({
+		mode: "split",
+		splitLayout: "fixed",
+		ignoreWhitespace: false,
+	});
 });
 
 it("paints one complete file diff without staging modes or hunk actions", async () => {

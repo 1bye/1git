@@ -22,10 +22,12 @@ index cc6b7ef926c5c3122fff6107341913364a215710..e58daeb6c03c95ebacf36ec5ea7da46c
      /** String value reported to assistive technology. */
      "aria-valuetext"?: string;
      /** Heading level, 1-based. */
-@@ -415,6 +421,12 @@ export interface CodeProps extends HostProps {
+@@ -415,6 +421,14 @@ export interface CodeProps extends HostProps {
      theme?: GpuixTheme;
  }
  export interface DiffProps extends HostProps {
++    /** 1git native patch: aligned old/new columns sharing one virtual list. */
++    mode?: "unified" | "split";
 +    /** 1git native patch: omit file-header rows entirely. Defaults to true. */
 +    showFileHeader?: boolean;
 +    /** 1git native patch: cached native text measurement for horizontal overflow. */

@@ -1,5 +1,5 @@
 /**
- * Covers: DiffView split pairing, metadata, header visibility, native width invalidation and overflow clamping.
+ * Covers: fixed/content-sized split layouts, native scrolling, pairing, metadata and overflow clamping.
  * Real: gpuix-ui component, patched GPUIX shaping, virtual list and native input/layout.
  * Doubles: inline patches; no Git or repository I/O.
  * Requires: patched release addon and macOS graphics access.
@@ -7,6 +7,10 @@
 import { afterEach, beforeEach, expect, it } from "bun:test";
 import { DiffView, type DiffViewProps } from "@1git/gpuix-ui/diff-view";
 import { createTestRoot, type TestRoot } from "@gpuix/react/testing";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import sharp from "sharp";
 
 import { diffPatch } from "../_shared/diff-patch";
 
@@ -79,6 +83,7 @@ it("measures both split columns and clamps overflow when returning to a short un
 
 	show({
 		mode: "split",
+		splitLayout: "content-sized",
 		showFileHeader: false,
 		patch: diffPatch("example.ts", `const revised = '${"x".repeat(150)}';`),
 	});
@@ -93,6 +98,109 @@ it("measures both split columns and clamps overflow when returning to a short un
 	expect(root.renderer.getScrollOffset(element("viewer").id)?.[0]).toBeCloseTo(
 		0
 	);
+});
+
+it("defaults split mode to equal panes without widening or scrolling the comparison canvas", () => {
+	show({
+		mode: "split",
+		showFileHeader: false,
+		patch: diffPatch("example.ts", `const revised = '${"x".repeat(150)}';`),
+	});
+	expect(width()).toBeCloseTo(398, 0);
+	root.renderer.nativeSimulateScrollWheel(300, 45, -160, 0);
+	root.renderer.flush();
+	expect(width()).toBeCloseTo(398, 0);
+	expect(root.renderer.getScrollOffset(element("viewer").id)?.[0] ?? 0).toBe(0);
+	expect(
+		root.renderer.getScrollOffset(element("viewer-content").id)?.[0]
+	).toBeLessThan(0);
+});
+
+it("keeps the divider centered, scrolls panes independently and retains one virtual vertical list", async () => {
+	const lines = Array.from(
+		{ length: 120 },
+		(_, index) => `line_${index}_${"x".repeat(160)}`
+	);
+
+	const patch = `diff --git a/long.ts b/long.ts\n--- a/long.ts\n+++ b/long.ts\n@@ -1,120 +1,120 @@\n${lines.map((line) => `-old_${line}`).join("\n")}\n${lines.map((line) => `+new_${line}`).join("\n")}\n`;
+
+	const theme = {
+		appearance: "light" as const,
+		fontMono: "Menlo",
+		border: "#ff00ff",
+	};
+
+	const props = { patch, mode: "split" as const, showFileHeader: false, theme };
+	const directory = await mkdtemp(join(tmpdir(), "1git-split-"));
+	const path = join(directory, "split.png");
+
+	const divider = async (): Promise<number> => {
+		root.renderer.captureScreenshot(path);
+		const { data, info } = await sharp(path)
+			.ensureAlpha()
+			.raw()
+			.toBuffer({ resolveWithObject: true });
+
+		const scale = info.width / 400;
+		const y = Math.floor(60 * scale);
+
+		for (let x = 0; x < info.width; x++) {
+			const offset = (y * info.width + x) * 4;
+
+			if (
+				data[offset] === 255 &&
+				data[offset + 1] === 0 &&
+				data[offset + 2] === 255
+			)
+				return x / scale;
+		}
+
+		throw new Error("No painted split divider.");
+	};
+
+	try {
+		show(props);
+		const native = element("viewer-content").id;
+		const center = await divider();
+
+		expect(Math.abs(center - 200)).toBeLessThan(2);
+		expect(root.renderer.getPaintedText().length).toBeLessThan(150);
+		root.renderer.nativeSimulateScrollWheel(300, 60, -160, 0);
+		root.renderer.flush();
+		const rightX = root.renderer.getScrollOffset(native)?.[0];
+
+		expect(rightX).toBeLessThan(0);
+		root.renderer.nativeSimulateMouseMove(100, 60);
+		expect(root.renderer.getScrollOffset(native)?.[0]).toBe(0);
+		root.renderer.nativeSimulateScrollWheel(100, 60, -80, 0);
+		root.renderer.flush();
+		expect(root.renderer.getScrollOffset(native)?.[0]).toBeLessThan(0);
+		root.renderer.nativeSimulateMouseMove(300, 60);
+		expect(root.renderer.getScrollOffset(native)?.[0]).toBe(rightX);
+		root.renderer.focusElement(element("viewer").id);
+		root.renderer.nativeSimulateKeyDown(element("viewer").id, "right");
+		root.renderer.flush();
+		expect(root.renderer.getScrollOffset(native)?.[0]).toBeLessThan(
+			rightX ?? 0
+		);
+		root.renderer.nativeSimulateScrollWheel(300, 60, 0, -160);
+		root.renderer.flush();
+		expect(root.renderer.getScrollOffset(native)?.[1]).toBeLessThan(0);
+		expect(await divider()).toBe(center);
+		expect(width()).toBeCloseTo(398, 0);
+		const y = root.renderer.getScrollOffset(native)?.[1];
+
+		show({ ...props, splitLayout: "content-sized" });
+		expect(width()).toBeGreaterThan(1000);
+		show(props);
+		expect(width()).toBeCloseTo(398, 0);
+		expect(root.renderer.getScrollOffset(native)?.[0]).toBe(0);
+		expect(root.renderer.getScrollOffset(native)?.[1]).toBe(y);
+		show({ mode: "split", showFileHeader: false });
+		expect(root.renderer.getScrollOffset(native)?.[0]).toBe(0);
+	} finally {
+		await rm(directory, { recursive: true, force: true });
+	}
 });
 
 it("removes native file headers without hiding hunk headers or the Show more control", () => {

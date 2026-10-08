@@ -100,6 +100,46 @@ export function RepositoryDiffSettings({
 							</Button>
 						))}
 					</div>
+					{settings.mode === "split" ? (
+						<>
+							<text style={{ ...typography.sm, color: lightColors.editorInk }}>
+								Split layout
+							</text>
+							<div
+								role="group"
+								aria-label="Split layout"
+								style={{
+									display: "flex",
+									flexDirection: "row",
+									gap: spacing[1],
+									padding: spacing[1],
+									borderRadius: radius.md,
+									backgroundColor: lightColors.editorSunken,
+								}}
+							>
+								{(["fixed", "content-sized"] as const).map((splitLayout) => (
+									<Button
+										key={splitLayout}
+										testId={`diff-split-${splitLayout}`}
+										tokens={appTokens}
+										size="sm"
+										variant="ghost"
+										aria-label={`${splitLayout === "fixed" ? "Fixed 50/50" : "Content-sized"}${settings.splitLayout === splitLayout ? ", selected" : ""}`}
+										style={{
+											flexGrow: 1,
+											backgroundColor:
+												settings.splitLayout === splitLayout
+													? lightColors.editorSurface
+													: "transparent",
+										}}
+										onPress={() => onChange({ ...settings, splitLayout })}
+									>
+										{splitLayout === "fixed" ? "Fixed 50/50" : "Content-sized"}
+									</Button>
+								))}
+							</div>
+						</>
+					) : null}
 					<Checkbox
 						testId="diff-hide-whitespace"
 						label="Hide whitespace changes"

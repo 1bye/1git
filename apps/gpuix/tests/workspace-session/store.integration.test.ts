@@ -77,6 +77,24 @@ it("round-trips a private file between independent store instances and replaces 
 	}
 });
 
+it("restores diff layout preferences without invalidating sessions saved before the setting existed", () => {
+	const path = join(directory, "session.json");
+	const store = new WorkspaceSessionStore(path);
+
+	const diffSettings = {
+		mode: "split",
+		splitLayout: "content-sized",
+		ignoreWhitespace: true,
+	} as const;
+
+	store.save({ ...document(), diffSettings });
+	expect(new WorkspaceSessionStore(path).load().document?.diffSettings).toEqual(
+		diffSettings
+	);
+	store.save(document());
+	expect(store.load().document?.diffSettings).toBeUndefined();
+});
+
 it("leaves corrupt, future-version and oversized sessions unchanged and disables writes", () => {
 	const path = join(directory, "session.json");
 

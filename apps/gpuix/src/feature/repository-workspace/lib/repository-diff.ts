@@ -26,11 +26,13 @@ export type DiffSelection = FileChange | CommitFileSelection;
 /** Window-wide display preferences; they never affect file inclusion or commits. */
 export interface DiffSettings {
 	readonly mode: "unified" | "split";
+	readonly splitLayout: "fixed" | "content-sized";
 	readonly ignoreWhitespace: boolean;
 }
 /** Default text preview before a user changes this window's controls. */
 export const defaultDiffSettings: DiffSettings = {
 	mode: "unified",
+	splitLayout: "fixed",
 	ignoreWhitespace: false,
 };
 

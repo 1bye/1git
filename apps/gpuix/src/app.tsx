@@ -207,7 +207,11 @@ export function App({
 		[readDiff]
 	);
 
-	const [diffSettings, setDiffSettings] = useState(defaultDiffSettings);
+	const [diffSettings, setDiffSettings] = useState(() =>
+		preview
+			? defaultDiffSettings
+			: (initialSession?.diffSettings ?? defaultDiffSettings)
+	);
 
 	useEffect(() => () => previewCache.dispose(), [previewCache]);
 
@@ -313,7 +317,8 @@ export function App({
 	const session = useWorkspaceSession(
 		state,
 		saveSession,
-		preview ? undefined : sessionError
+		preview ? undefined : sessionError,
+		diffSettings
 	);
 
 	const connection = useRepositoryConnection(

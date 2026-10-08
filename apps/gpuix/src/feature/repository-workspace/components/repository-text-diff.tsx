@@ -16,6 +16,7 @@ export function RepositoryTextDiff({
 	theme,
 	blocked,
 	mode,
+	splitLayout,
 	ignoreWhitespace,
 }: {
 	root: string;
@@ -25,6 +26,7 @@ export function RepositoryTextDiff({
 	theme: GpuixTheme;
 	blocked: boolean;
 	mode: "unified" | "split";
+	splitLayout: "fixed" | "content-sized";
 	ignoreWhitespace: boolean;
 }) {
 	const [expanded, setExpanded] = useState({ snapshot, patch });
@@ -99,6 +101,7 @@ export function RepositoryTextDiff({
 				testId="diff-viewport"
 				patch={displayed}
 				mode={mode}
+				splitLayout={splitLayout}
 				showFileHeader={false}
 				focusVisible={false}
 				theme={theme}

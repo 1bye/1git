@@ -2,6 +2,10 @@ import { basename, isAbsolute } from "node:path";
 import { RepositoryWorkspaceModel } from "../../repository-workspace/lib/repository-workspace-model";
 import type { WorkspaceTabsState } from "./workspace-tabs-model";
 import type { RepositoryView } from "../../repository-workspace/types";
+import {
+	defaultDiffSettings,
+	type DiffSettings,
+} from "../../repository-workspace/lib/repository-diff";
 
 /** Stable navigation intent, separate from Git data and commit inclusion. */
 interface WorkspaceNavigation {
@@ -25,6 +29,7 @@ export interface WorkspaceSessionDocument {
 	}[];
 	readonly activeId: string | null;
 	readonly recentRepositories?: readonly string[];
+	readonly diffSettings?: DiffSettings;
 }
 
 const tabIdPattern = /^workspace-([1-9]\d*)$/;
@@ -37,6 +42,24 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 /** Projects persistent tab intent into fresh, disconnected workspaces for read-only restoration. */
 export class WorkspaceSession {
 	private constructor() {}
+
+	private static diffSettings(value: unknown): DiffSettings | undefined {
+		if (
+			!isRecord(value) ||
+			(value.mode !== "unified" && value.mode !== "split") ||
+			typeof value.ignoreWhitespace !== "boolean"
+		)
+			return undefined;
+
+		return {
+			mode: value.mode,
+			ignoreWhitespace: value.ignoreWhitespace,
+			splitLayout:
+				value.splitLayout === "content-sized"
+					? "content-sized"
+					: defaultDiffSettings.splitLayout,
+		};
+	}
 
 	private static navigation(value: unknown): WorkspaceNavigation | undefined {
 		if (!isRecord(value)) return undefined;
@@ -116,9 +139,12 @@ export class WorkspaceSession {
 			});
 		}
 
+		const diffSettings = WorkspaceSession.diffSettings(value.diffSettings);
+
 		return {
 			version: 1,
 			tabs,
+			...(diffSettings ? { diffSettings } : {}),
 			...(Array.isArray(value.recentRepositories)
 				? {
 						recentRepositories: [
@@ -142,9 +168,13 @@ export class WorkspaceSession {
 		};
 	}
 
-	static capture(state: WorkspaceTabsState): WorkspaceSessionDocument {
+	static capture(
+		state: WorkspaceTabsState,
+		diffSettings?: DiffSettings
+	): WorkspaceSessionDocument {
 		return {
 			version: 1,
+			...(diffSettings ? { diffSettings } : {}),
 			...(state.recentRepositories !== undefined
 				? { recentRepositories: state.recentRepositories }
 				: {}),

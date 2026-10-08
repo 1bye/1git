@@ -4,17 +4,19 @@ import {
 	type WorkspaceSessionDocument,
 } from "../lib/workspace-session";
 import type { WorkspaceTabsState } from "../lib/workspace-tabs-model";
+import type { DiffSettings } from "../../repository-workspace/lib/repository-diff";
 
 /** Saves only changed session intent; flushes the latest rendered draft on unmount and normal process exit. */
 export function useWorkspaceSession(
 	state: WorkspaceTabsState,
 	save: ((document: WorkspaceSessionDocument) => void) | undefined,
-	initialError?: string
+	initialError?: string,
+	diffSettings?: DiffSettings
 ) {
 	const content =
 		state.preview || !save
 			? null
-			: JSON.stringify(WorkspaceSession.capture(state));
+			: JSON.stringify(WorkspaceSession.capture(state, diffSettings));
 
 	const latest = useRef(content);
 	const saved = useRef<string | null>(null);

@@ -1,5 +1,5 @@
 /**
- * Covers: minimal session snapshots, validation, restored drafts/tab order and fresh workspace state.
+ * Covers: session snapshots, diff preference validation, restored drafts/tab order and fresh workspace state.
  * Real: session and workspace models.
  * Doubles: repository snapshots; no filesystem or Git.
  * Requires: none.
@@ -8,6 +8,38 @@ import { expect, it } from "bun:test";
 import { WorkspaceSession } from "../../src/feature/workspace-tabs/lib/workspace-session";
 import { WorkspaceTabsModel } from "../../src/feature/workspace-tabs/lib/workspace-tabs-model";
 import { repositorySnapshot } from "../_shared/repository-snapshot";
+
+it("defaults older or unknown split layouts to fixed without losing navigation or drafts", () => {
+	const state = WorkspaceTabsModel.create();
+	const session = WorkspaceSession.capture(state);
+
+	for (const splitLayout of [undefined, "future-mode", 5]) {
+		const parsed = WorkspaceSession.parse(
+			JSON.stringify({
+				...session,
+				diffSettings: { mode: "split", ignoreWhitespace: true, splitLayout },
+			})
+		);
+
+		expect(parsed.diffSettings).toEqual({
+			mode: "split",
+			ignoreWhitespace: true,
+			splitLayout: "fixed",
+		});
+		expect(parsed.tabs).toEqual(session.tabs);
+	}
+
+	for (const diffSettings of [
+		null,
+		{ mode: "future-mode", ignoreWhitespace: false },
+		{ mode: "split", ignoreWhitespace: "false" },
+	]) {
+		expect(
+			WorkspaceSession.parse(JSON.stringify({ ...session, diffSettings }))
+				.diffSettings
+		).toBeUndefined();
+	}
+});
 
 it("forgets a saved entry without closing its tab or restoring it on restart", () => {
 	const snapshot = repositorySnapshot();

@@ -26,6 +26,8 @@ export interface DiffViewProps extends Pick<
 	patch: string;
 	/** 1git native extension: aligned old/new columns sharing one virtual list. */
 	mode?: "unified" | "split";
+	/** Fixed equal panes by default; content-sized retains a horizontally scrolling canvas. */
+	splitLayout?: "fixed" | "content-sized";
 	"aria-label": string;
 	/** Optional keyboard instructions for application-owned diff actions. */
 	"aria-description"?: string;
@@ -61,6 +63,8 @@ const styles = StyleSheet.create({
 /** Keeps scrolling/selection native, with keyboard navigation and token-based focus styling. */
 export function DiffView({
 	patch,
+	mode = "unified",
+	splitLayout = "fixed",
 	"aria-label": label,
 	"aria-description":
 		description = "Read-only. Use arrows, Page Up, Page Down, Home and End to scroll. Select text and press Command C to copy.",
@@ -78,6 +82,7 @@ export function DiffView({
 	const viewport = useRef<PublicInstance>(null);
 	const content = useRef<PublicInstance>(null);
 	const [focused, setFocused] = useState(false);
+	const fixedSplit = mode === "split" && splitLayout === "fixed";
 
 	const navigate = (event: EventPayload): void => {
 		if (onShortcut?.(event)) return;
@@ -95,7 +100,8 @@ export function DiffView({
 		)
 			return;
 
-		const [x = 0] = renderer.getScrollOffset?.(node.id) ?? [0];
+		const horizontal = fixedSplit ? diff : node;
+		const [x = 0] = renderer.getScrollOffset?.(horizontal.id) ?? [0];
 		const [, y = 0] = renderer.getScrollOffset?.(diff.id) ?? [0, 0];
 		const page = renderer.getElementBounds?.(node.id)?.height ?? 0;
 		const lineHeight = theme?.metrics?.diffLineHeight ?? 21;
@@ -114,9 +120,15 @@ export function DiffView({
 		else if (event.key === "left") nextX += horizontalStep;
 		else return;
 
-		if (nextX !== x) renderer.scrollTo?.(node.id, Math.min(0, nextX), 0);
+		if (nextX !== x)
+			renderer.scrollTo?.(
+				horizontal.id,
+				Math.min(0, nextX),
+				fixedSplit ? y : 0
+			);
 
-		if (nextY !== y) renderer.scrollTo?.(diff.id, 0, Math.min(0, nextY));
+		if (nextY !== y)
+			renderer.scrollTo?.(diff.id, fixedSplit ? x : 0, Math.min(0, nextY));
 	};
 
 	return (
@@ -132,6 +144,7 @@ export function DiffView({
 			onKeyDown={navigate}
 			style={StyleSheet.compose(
 				styles.viewport,
+				fixedSplit && { overflowX: "hidden" },
 				!focusVisible && { borderWidth: 0 },
 				style,
 				focused &&
@@ -141,15 +154,16 @@ export function DiffView({
 					}
 			)}
 		>
-			{/* Each axis has one owner: the native list on Y, this viewport on X. */}
+			{/* One native list aligns Y; fixed panes own X instead of widening the viewport. */}
 			<diff
 				{...props}
 				ref={content}
 				testId={testId ? `${testId}-content` : undefined}
 				patch={patch}
+				mode={mode}
 				wordDiff={wordDiff}
 				showFileHeader={showFileHeader}
-				autoWidth
+				autoWidth={!fixedSplit}
 				scroll
 				theme={theme}
 				style={styles.content}
