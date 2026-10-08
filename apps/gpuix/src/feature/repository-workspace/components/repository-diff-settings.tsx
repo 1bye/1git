@@ -16,7 +16,7 @@ import { appTokens } from "../../../styles/tokens";
 import type { DiffSettings } from "../lib/repository-diff";
 
 const settingsIcon =
-	'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3" fill="white"/><circle cx="15" cy="17" r="3" fill="white"/></svg>';
+	'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5h2m4 0h6M2 11h6m4 0h2"/><circle cx="6" cy="5" r="2"/><circle cx="10" cy="11" r="2"/></svg>';
 
 /** Compact text-preview controls; native popover owns dismissal and focus restoration. */
 export function RepositoryDiffSettings({
@@ -41,6 +41,7 @@ export function RepositoryDiffSettings({
 						style={{ width: 28, height: 28, padding: 0 }}
 					>
 						<svg
+							testId="diff-settings-icon"
 							source={settingsIcon}
 							style={{
 								width: 16,
@@ -51,7 +52,13 @@ export function RepositoryDiffSettings({
 						/>
 					</PopoverTrigger>
 				</TooltipTrigger>
-				<TooltipContent side="bottom">Diff settings</TooltipContent>
+				<TooltipContent
+					tokens={appTokens}
+					testId="diff-settings-tooltip"
+					side="bottom"
+				>
+					Diff settings
+				</TooltipContent>
 			</Tooltip>
 			<PopoverContent
 				testId="diff-settings-panel"

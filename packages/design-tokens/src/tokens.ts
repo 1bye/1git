@@ -66,14 +66,14 @@ export const spacing = {
 	20: 80,
 } as const;
 
-/** Surface rounding; use full for pills and circles, not a one-off half-height value. */
+/** Compact content rounding; 2xl is reserved for shell surfaces and full for pills or circles. */
 export const radius = {
 	none: 0,
 	xs: 2,
 	sm: 4,
-	md: 6,
-	lg: 8,
-	xl: 12,
+	md: 4,
+	lg: 6,
+	xl: 8,
 	"2xl": 14,
 	full: 9999,
 } as const;

@@ -1,5 +1,5 @@
 /**
- * Covers: diff settings, file headers, images, SVG source switching, native painting, scrolling and stale reads.
+ * Covers: diff settings/tooltip appearance, file headers, images, SVG source switching, scrolling and stale reads.
  * Real: app lifecycle, GPUIX patch parsing/layout, text painting and input events.
  * Doubles: repository status, diff reader and native folder selection.
  * Requires: patched GPUIX native renderer with macOS graphics access.
@@ -24,6 +24,8 @@ import { RepositoryDiff as DiffReader } from "../../src/feature/repository-works
 import { ImagePreviewDecoder } from "../../src/feature/repository-workspace/lib/image-preview";
 import { rasterContent, svgContent } from "../_shared/image-content";
 import { emptyHistory } from "../_shared/history-page";
+import { appTokens } from "../../src/styles/tokens";
+import { lightColors } from "@1git/design-tokens";
 
 let root: TestRoot;
 
@@ -127,6 +129,62 @@ const settlePanel = async (): Promise<void> => {
 	root.renderer.flush();
 };
 
+it("uses the app's inverted tooltip palette and an outlined toolbar icon for diff settings", async () => {
+	root.render(
+		<div
+			style={{
+				width: "100%",
+				height: "100%",
+				display: "flex",
+				flexDirection: "column",
+				backgroundColor: lightColors.editorSurface,
+			}}
+		>
+			<RepositoryDiff
+				root="/test/project"
+				change={changedFile("example.ts", { indexStatus: "modified" })}
+				refreshing={false}
+				statusError={null}
+				readDiff={async () => ({ ok: true, value: [diffSection("working")] })}
+			/>
+		</div>
+	);
+	await settle();
+	const trigger = bounds("diff-settings");
+
+	root.renderer.nativeSimulateMouseMove(
+		trigger.x + trigger.width / 2,
+		trigger.y + trigger.height / 2
+	);
+	await Bun.sleep(400);
+	await settle();
+	expect(element("diff-settings-tooltip").customProps?.role).toBe("tooltip");
+	expect(element("diff-settings-tooltip").style).toMatchObject({
+		backgroundColor: appTokens.colors.text,
+		color: appTokens.colors.background,
+		pointerEvents: "none",
+		borderRadius: 4,
+	});
+	expect(element("diff-settings-icon").style).toMatchObject({
+		width: 16,
+		height: 16,
+		color: lightColors.editorMuted,
+	});
+	const source = element("diff-settings-icon").customProps?.source;
+
+	expect(source).toContain('fill="none"');
+	expect(source).toContain('stroke-width="1.25"');
+	expect(source).not.toContain('fill="white"');
+
+	if (process.env.GPUIX_DIFF_TOOLTIP_SCREENSHOT)
+		root.renderer.captureScreenshot(process.env.GPUIX_DIFF_TOOLTIP_SCREENSHOT);
+
+	root.renderer.nativeSimulateMouseMove(50, 400);
+	await Bun.sleep(100);
+	await settle();
+	expect(root.renderer.findByTestId("diff-settings-tooltip")).toBeUndefined();
+});
+
 it("opens accessible diff settings, switches native layout without rereading Git and restores focus", async () => {
 	const reader = mock<typeof Reader.read>(async () => ({
 		ok: true,
@@ -139,6 +197,8 @@ it("opens accessible diff settings, switches native layout without rereading Git
 
 	click("diff-settings");
 	await settlePanel();
+	expect(element("diff-settings-panel").style.borderRadius).toBe(8);
+	expect(element("diff-mode-unified").style.borderRadius).toBe(4);
 	expect(element("diff-settings").customProps?.["aria-expanded"]).toBe(true);
 	expect(element("diff-mode-unified").customProps?.["aria-label"]).toBe(
 		"Unified, selected"

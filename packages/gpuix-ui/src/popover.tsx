@@ -389,7 +389,7 @@ function PopoverSurface({
 						width: panelWidth,
 						maxHeight: Math.max(1, availableHeight),
 						overflowY: "scroll",
-						borderRadius: radius["2xl"],
+						borderRadius: radius.xl,
 						backgroundColor: tokens.colors.overlay,
 						boxShadow: {
 							offsetX: 0,

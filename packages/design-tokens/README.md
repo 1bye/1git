@@ -55,6 +55,10 @@ the separate monospace diff default, with deliberately looser leading.
 - `lightColors`: shared light surfaces; native dark palettes remain in `gpuix-ui`.
 - `workspaceLayout`: shell geometry, separate from ordinary component styling.
 
+Content uses 4px corners for controls and rows, 6px for larger buttons and cards,
+and 8px for popovers and menus. Shell surfaces retain their 14px corners; tab
+outlines, pills and circles keep their existing geometry.
+
 Prefer a shared scale over a one-off visual value. List strides, viewport bounds,
 window geometry, image aspect ratios and illustration paths remain explicit:
 they are measurements, not generic padding or typography. Do not change a virtual

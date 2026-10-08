@@ -30,6 +30,7 @@ import {
 	patchPath,
 	testSessionPatchPath,
 	testSessionPlatformPatchPath,
+	liveFramePlatformPatchPath,
 	elementBoundsPatchPath,
 	anchoredCenterPatchPath,
 	sidebarVibrancyPlatformPatchPath,
@@ -104,6 +105,7 @@ if (
 		contextMenuOwnerPlatformPatchPath,
 		testSessionPatchPath,
 		testSessionPlatformPatchPath,
+		liveFramePlatformPatchPath,
 		elementBoundsPatchPath,
 		anchoredCenterPatchPath,
 		accountsPatchPath,
@@ -123,6 +125,7 @@ if (
 			patch === contextMenuItemsPlatformPatchPath ||
 			patch === contextMenuOwnerPlatformPatchPath ||
 			patch === testSessionPlatformPatchPath ||
+			patch === liveFramePlatformPatchPath ||
 			patch === accountsPlatformPatchPath ||
 			patch === sidebarVibrancyPlatformPatchPath ||
 			patch === contextMenuIconsPlatformPatchPath ||
@@ -147,6 +150,7 @@ if (
 			patch === contextMenuItemsPlatformPatchPath ||
 			patch === contextMenuOwnerPlatformPatchPath ||
 			patch === testSessionPlatformPatchPath ||
+			patch === liveFramePlatformPatchPath ||
 			patch === accountsPlatformPatchPath ||
 			patch === sidebarVibrancyPlatformPatchPath ||
 			patch === contextMenuIconsPlatformPatchPath ||

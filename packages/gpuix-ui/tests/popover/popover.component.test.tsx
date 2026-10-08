@@ -1,5 +1,5 @@
 /**
- * Covers: modal focus, dismissal, busy state, exit lifetime and viewport positioning.
+ * Covers: compact rounding, modal focus, dismissal, busy state, exit lifetime and viewport positioning.
  * Real: Popover, Button, native layout, keyboard dispatch and motion.
  * Doubles: none.
  * Requires: GPUIX native test renderer with graphics access.
@@ -89,6 +89,8 @@ it("contains focus, closes with Escape, restores focus and reopens", async () =>
 	root.render(<Example />);
 	click("trigger");
 	await finish();
+	expect(node("trigger").style.borderRadius).toBe(4);
+	expect(node("popover-content").style.borderRadius).toBe(8);
 	expect(root.renderer.getFocusedElementId()).toBe(node("first").id);
 	root.renderer.simulateKeystrokes("tab");
 	root.renderer.flush();

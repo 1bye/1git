@@ -75,6 +75,10 @@ export const testSessionPlatformPatchPath = resolve(
 	import.meta.dir,
 	"test-session-platform.patch"
 );
+export const liveFramePlatformPatchPath = resolve(
+	import.meta.dir,
+	"live-frame-platform.patch"
+);
 export const elementBoundsPatchPath = resolve(
 	import.meta.dir,
 	"element-bounds.patch"
@@ -116,6 +120,7 @@ export const nativeBuildId = createHash("sha256")
 	.update(readFileSync(contextMenuOwnerPlatformPatchPath))
 	.update(readFileSync(testSessionPatchPath))
 	.update(readFileSync(testSessionPlatformPatchPath))
+	.update(readFileSync(liveFramePlatformPatchPath))
 	.update(readFileSync(elementBoundsPatchPath))
 	.update(readFileSync(anchoredCenterPatchPath))
 	.update(readFileSync(sidebarVibrancyPlatformPatchPath))

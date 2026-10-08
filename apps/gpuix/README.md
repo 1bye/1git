@@ -43,6 +43,15 @@ windows retain their normal asynchronous close behavior. The native lifecycle
 integration test checks that repeated sessions leave no GPUI views after explicit
 disposal and that automatic process-exit cleanup succeeds.
 
+`native/live-frame-platform.patch` keeps synchronous dirty-window redraws on
+GPUI's deterministic test dispatcher (and benchmarks), rather than every live
+input event merely because the addon includes test support. Normal windows use
+GPUI's existing display-clock scheduling. The embedded AppKit pump gives its
+run loop a one-microsecond deadline, rather than zero, so pending main-queue
+display callbacks can run without waiting for vsync. A real-window regression
+sends a burst of scroll input without pumping frames, then checks repeated
+repaints after exposure; the native component tests retain immediate rendering.
+
 `native/titlebar-drag.patch` applies to GPUIX 0.10.0 commit
 `9fcd628863e354e9c58019fc3bf38981a1e64158`, including its pinned GPUI submodule
 `81c99f816b4a5f69d3c014774068034c24d1d7af`. It exposes GPUI's existing

@@ -1,0 +1,32 @@
+diff --git a/crates/gpui/src/app.rs b/crates/gpui/src/app.rs
+--- a/crates/gpui/src/app.rs
++++ b/crates/gpui/src/app.rs
+@@ -1715,6 +1715,14 @@ impl App {
+                     .values()
+                     .filter_map(|window| {
++                        // Native apps ship test support but should draw on their display clock.
++                        #[cfg(any(test, feature = "test-support"))]
++                        if self.background_executor.dispatcher().as_test().is_none()
++                            && !cfg!(feature = "bench")
++                        {
++                            return None;
++                        }
++
+                         let window = window.as_deref()?;
+                         window.invalidator.is_dirty().then_some(window.handle)
+                     })
+                     .collect::<Vec<_>>()
+diff --git a/crates/gpui_macos/src/platform.rs b/crates/gpui_macos/src/platform.rs
+--- a/crates/gpui_macos/src/platform.rs
++++ b/crates/gpui_macos/src/platform.rs
+@@ -680,7 +680,9 @@ unsafe fn pump_app_nonblocking() {
+             let _: () = msg_send![app, sendEvent: event];
+         }
+         let _: () = msg_send![app, updateWindows];
+-        CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.0, 1);
++        // A nonzero deadline lets pending main-queue display callbacks run.
++        // Still return immediately after a source rather than waiting for vsync.
++        CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.000_001, 1);
+     }
+ }
+ 

@@ -65,7 +65,7 @@ const styles = StyleSheet.create({
 		overflowY: "scroll",
 		padding: layout.menuPadding,
 		gap: layout.menuGap,
-		borderRadius: radius.lg,
+		borderRadius: radius.xl,
 		borderWidth: 1,
 		borderColor: colors.border,
 		backgroundColor: colors.overlay,

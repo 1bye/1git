@@ -458,7 +458,7 @@ it("stacks compact borderless rail tabs outside the white workspace", () => {
 		expect(element(`view-${view}`).style).toMatchObject({
 			width: 32,
 			height: 32,
-			borderRadius: 8,
+			borderRadius: 6,
 		});
 		expect(element(`view-${view}`).style.borderWidth ?? 0).toBe(0);
 	}

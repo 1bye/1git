@@ -11,6 +11,7 @@ import {
 	radius,
 	spacing,
 	typography,
+	workspaceLayout,
 } from "../../src/tokens";
 
 it("keeps text size and leading paired in ascending desktop sizes", () => {
@@ -35,7 +36,11 @@ it("keeps text size and leading paired in ascending desktop sizes", () => {
 });
 
 it("provides stable rounding, icon, spacing and control defaults", () => {
-	expect(radius.md).toBe(6);
+	expect(radius.md).toBe(4);
+	expect(radius.lg).toBe(6);
+	expect(radius.xl).toBe(8);
+	expect(workspaceLayout.workspaceSurfaceRadius).toBe(14);
+	expect(workspaceLayout.tabRadius).toBe(10);
 	expect(radius.full).toBe(9999);
 	expect(iconSize.md).toBe(16);
 
