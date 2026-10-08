@@ -216,7 +216,6 @@ it("keeps the toolbar horizontal and the lists beside a full-height preview", as
 	const pair = bounds("comparison-branch-pair");
 	const base = bounds("comparison-base");
 	const commits = bounds("comparison-commits");
-	const all = bounds("comparison-all-files");
 	const files = bounds("comparison-files");
 
 	expect(
@@ -232,8 +231,11 @@ it("keeps the toolbar horizontal and the lists beside a full-height preview", as
 	expect(preview.y).toBeCloseTo(sidebar.y, 0);
 	expect(body.height).toBeGreaterThan(500);
 	expect(preview.height).toBeCloseTo(body.height, 0);
-	expect(commits.y + commits.height).toBeLessThanOrEqual(all.y + 1);
-	expect(all.y + all.height).toBeLessThan(files.y);
+	expect(commits.y + commits.height).toBeLessThan(files.y);
+	expect(root.renderer.findByTestId("comparison-all-files")).toBeUndefined();
+	expect(root.renderer.getAllText().join(" ")).not.toContain(
+		"All branch changes"
+	);
 	expect(files.height).toBeGreaterThan(150);
 	const header = bounds("diff-header");
 
@@ -288,7 +290,17 @@ it("selects the first combined file, previews a commit and returns to all files"
 	await settle();
 	expect(readFiles.mock.calls.at(-1)?.[1]).toBe("commit");
 	expect(readDiff.mock.calls.at(-1)?.[1].path).toBe("commit.txt");
-	click("comparison-all-files");
+	click("entry-commit");
+	await settle();
+	expect(readDiff.mock.calls.at(-1)?.[1].path).toBe("file.txt");
+	const entry = root.renderer.findByTestId("entry-commit");
+
+	if (!entry) throw new Error("Missing commit");
+
+	root.renderer.nativeSimulateKeyDown(entry.id, "enter");
+	await settle();
+	expect(readDiff.mock.calls.at(-1)?.[1].path).toBe("commit.txt");
+	root.renderer.nativeSimulateKeyDown(entry.id, "enter");
 	await settle();
 	expect(readDiff.mock.calls.at(-1)?.[1].path).toBe("file.txt");
 	click("close-comparison");
@@ -327,28 +339,91 @@ it("cancels an old branch read and ignores its late response", async () => {
 	expect(readDiff.mock.calls.at(-1)?.[1].path).toBe("other-head.txt");
 });
 
-it("appends another page without losing the selected file", async () => {
+const firstPage = {
+	commits: Array.from({ length: 12 }, (_, index) => ({
+		...commit,
+		oid: index === 0 ? commit.oid : `commit-${index}`,
+	})),
+	hasMore: true,
+	nextOffset: 12,
+};
+
+const scrollCommits = (): void => {
+	const node = root.renderer.findByTestId("comparison-commits-viewport");
+	const box = node && root.renderer.getElementBounds(node.id);
+
+	if (!box) throw new Error("Missing commit viewport");
+
+	root.renderer.nativeSimulateScrollWheel(box.x + 50, box.y + 80, 0, -650);
+	root.renderer.flush();
+};
+
+it("automatically appends one page at a time and keeps the selected commit and file", async () => {
+	const pending =
+		Promise.withResolvers<Awaited<ReturnType<typeof RepositoryHistory.read>>>();
+
 	readHistory.mockImplementationOnce(async () => ({
 		ok: true,
-		value: { commits: [commit], hasMore: true, nextOffset: 50 },
+		value: firstPage,
 	}));
-	readHistory.mockImplementationOnce(async () => ({
+	readHistory.mockImplementationOnce(async () => await pending.promise);
+	show();
+	await choose("feature");
+	click("entry-commit");
+	await settle();
+	scrollCommits();
+	await settle();
+	expect(readHistory).toHaveBeenCalledTimes(2);
+	expect(readHistory.mock.calls.at(-1)?.[2]).toBe(12);
+	scrollCommits();
+	await settle();
+	expect(readHistory).toHaveBeenCalledTimes(2);
+	pending.resolve({
 		ok: true,
 		value: {
 			commits: [{ ...commit, oid: "second", summary: "Older incoming work" }],
 			hasMore: false,
 			nextOffset: null,
 		},
-	}));
-	show();
-	await choose("feature");
-	click("comparison-load-more");
+	});
 	await settle();
-	expect(readHistory.mock.calls.at(-1)?.[2]).toBe(50);
+	expect(readHistory).toHaveBeenCalledTimes(2);
 	expect(root.renderer.findByTestId("entry-commit")).toBeTruthy();
 	expect(root.renderer.findByTestId("entry-second")).toBeTruthy();
 	expect(root.renderer.findByTestId("comparison-load-more")).toBeUndefined();
-	expect(readDiff.mock.calls.at(-1)?.[1].path).toBe("file.txt");
+	expect(readDiff.mock.calls.at(-1)?.[1].path).toBe("commit.txt");
+});
+
+it("does not loop on a failed page and can retry loading", async () => {
+	readHistory.mockImplementationOnce(async () => ({
+		ok: true,
+		value: firstPage,
+	}));
+	readHistory.mockImplementationOnce(async () => ({
+		ok: false,
+		error: {
+			code: "invalid-input",
+			operation: "get-history",
+			retryable: true,
+			message: "Could not load the next page.",
+		},
+	}));
+	show();
+	await choose("feature");
+	scrollCommits();
+	await settle();
+	expect(root.renderer.getAllText().join(" ")).toContain(
+		"Could not load the next page."
+	);
+	scrollCommits();
+	await settle();
+	expect(readHistory).toHaveBeenCalledTimes(2);
+	click("retry-comparison");
+	await settle();
+	expect(readHistory).toHaveBeenCalledTimes(3);
+	expect(root.renderer.getAllText().join(" ")).not.toContain(
+		"Could not load the next page."
+	);
 });
 
 it("shows comparison failures and remains dismissible", async () => {

@@ -135,7 +135,10 @@ test("GitHub lists, gets and creates draft fork PRs", async () => {
 		).items.map((pr) => pr.state)
 	).toEqual(["merged"]);
 	expect(requests[0]?.url.searchParams.get("state")).toBe("closed");
-	expect(value(await client.getPullRequest(repository, 1)).draft).toBe(true);
+	expect(value(await client.getPullRequest(repository, 1))).toMatchObject({
+		draft: true,
+		sourceRepositoryId: "7",
+	});
 	expect(
 		(
 			await client.createPullRequest({
@@ -232,7 +235,10 @@ test("GitLab gets/lists merge requests and creates forks against the target proj
 	expect(value(await client.listPullRequests(repository)).items[0]?.state).toBe(
 		"open"
 	);
-	expect(value(await client.getPullRequest(repository, 2)).number).toBe(2);
+	expect(value(await client.getPullRequest(repository, 2))).toMatchObject({
+		number: 2,
+		sourceRepositoryId: "17",
+	});
 	expect(
 		(
 			await client.createPullRequest({

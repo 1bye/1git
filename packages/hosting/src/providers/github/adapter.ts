@@ -327,6 +327,10 @@ export class GitHubAdapter implements Adapter {
 			state: pr.merged_at != null || pr.merged === true ? "merged" : state,
 			draft: boolean(pr.draft),
 			sourceBranch: string(record(pr.head).ref),
+			sourceRepositoryId:
+				record(pr.head).repo == null
+					? null
+					: id(record(record(pr.head).repo).id),
 			targetBranch: string(record(pr.base).ref),
 			browserUrl: this.http.endpoints.browser(string(pr.html_url)),
 		};

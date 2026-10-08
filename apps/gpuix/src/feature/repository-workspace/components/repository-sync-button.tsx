@@ -14,6 +14,7 @@ import {
 	TooltipTrigger,
 } from "@1git/gpuix-ui/tooltip";
 import { useEffect, useRef, useState } from "react";
+import { useGpuixRequired, type EventPayload } from "@gpuix/react";
 import { appTokens } from "../../../styles/tokens";
 import { WorkspaceTabIcon } from "../../workspace-tabs/components/workspace-tab-icon";
 import {
@@ -26,6 +27,7 @@ import {
 } from "../lib/repository-workspace-model";
 import type { SyncRequest } from "../lib/repository-sync";
 import { WorkspaceMenuModel } from "../../workspace-tabs/lib/workspace-menu-model";
+import { NativeFileMenu } from "../lib/native-file-menu";
 
 const completedDurationMs = 3000;
 
@@ -41,6 +43,7 @@ export function RepositorySyncButton({
 	onPublish,
 	onRefresh,
 	onCompare,
+	onPreviewPullRequest,
 	onAccounts,
 	onRemotes,
 	resumePublish = false,
@@ -53,10 +56,13 @@ export function RepositorySyncButton({
 	onPublish: () => void;
 	onRefresh: () => void;
 	onCompare: (data: WorkspaceBranches) => void;
+	onPreviewPullRequest?: () => void;
 	onAccounts: (accountKey?: string) => void;
 	onRemotes: () => void;
 	resumePublish?: boolean;
 }) {
+	const renderer = useGpuixRequired();
+	const tracking = useRef(false);
 	const repository = state.repository;
 	const incoming = repository?.upstream ? (repository.behind ?? 0) : 0;
 	const outgoing = repository?.upstream ? (repository.ahead ?? 0) : 0;
@@ -321,6 +327,85 @@ export function RepositorySyncButton({
 		}
 	};
 
+	const openMenu = async (event: EventPayload): Promise<void> => {
+		if (tracking.current || !repository) return;
+
+		tracking.current = true;
+		const available =
+			!disabled &&
+			!pending &&
+			!blocked &&
+			!!repository.head &&
+			!!repository.branchName;
+
+		try {
+			const bounds = renderer.getElementBounds?.(event.elementId);
+
+			const choice = NativeFileMenu.showItems(
+				renderer,
+				[
+					{
+						label: "Preview pull request…",
+						enabled:
+							available &&
+							!!onPreviewPullRequest &&
+							(repository.remoteCount ?? 0) > 0,
+						value: "request",
+					},
+					{ label: "Compare branches…", enabled: available, value: "compare" },
+				],
+				event.x ?? bounds?.x ?? 0,
+				event.y ?? (bounds ? bounds.y + bounds.height : 0)
+			);
+
+			if (!choice || !available) return;
+
+			if (choice === "request") {
+				close();
+				onPreviewPullRequest?.();
+
+				return;
+			}
+
+			request.current?.abort();
+			const controller = new AbortController();
+
+			request.current = controller;
+			setReading(true);
+			const result = await readBranches(repository.root, controller.signal);
+
+			if (controller.signal.aborted) return;
+
+			if (!result.ok) throw new Error(result.error.message);
+
+			if (
+				latestState.current.repository?.head !== repository.head ||
+				latestState.current.repository.branchName !== repository.branchName ||
+				RepositoryWorkspaceModel.isBusy(latestState.current)
+			)
+				throw new Error(
+					"The branch changed. Refresh before opening the preview."
+				);
+
+			close();
+
+			onCompare(result.value);
+		} catch (cause) {
+			if (mounted.current) {
+				setError(
+					cause instanceof Error
+						? cause.message
+						: "Could not open repository actions."
+				);
+				setPanel("status");
+			}
+		} finally {
+			tracking.current = false;
+
+			if (mounted.current) setReading(false);
+		}
+	};
+
 	const fetched =
 		state.sync.fetchedAt === null
 			? null
@@ -357,6 +442,9 @@ export function RepositorySyncButton({
 						disabled={disabled}
 						onPress={() => {
 							void activate();
+						}}
+						onContextMenu={(event) => {
+							void openMenu(event);
 						}}
 						style={{
 							position: "relative",

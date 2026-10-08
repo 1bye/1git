@@ -11,6 +11,8 @@ export interface ComparisonRequest {
 	readonly root: string;
 	readonly base: string;
 	readonly baseName: string;
+	readonly incoming?: string;
+	readonly intent?: "pull-request";
 	readonly branches: readonly {
 		readonly value: string;
 		readonly label: string;

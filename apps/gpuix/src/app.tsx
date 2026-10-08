@@ -77,6 +77,8 @@ import { RepositorySyncButton } from "./feature/repository-workspace/components/
 import type { RepositoryView } from "./feature/repository-workspace/types";
 import { RepositoryComparison } from "./feature/repository-comparison/repository-comparison";
 import { RepositoryComparison as ComparisonReader } from "./feature/repository-comparison/lib/repository-comparison";
+import { RepositoryPullRequest } from "./feature/repository-pull-request/repository-pull-request";
+import { RepositoryPullRequestView } from "./feature/repository-pull-request/repository-pull-request-view";
 
 /** Owns one window's workspaces, cancellable reads and explicit commit transactions. */
 export function App({
@@ -91,6 +93,7 @@ export function App({
 	readRepository = RepositoryReader.read,
 	setupRepository,
 	readComparison = ComparisonReader.read,
+	readPullRequest,
 	readDiff = DiffReader.read,
 	readHistory = RepositoryHistory.read,
 	readCommitFiles = RepositoryHistory.readFiles,
@@ -130,6 +133,7 @@ export function App({
 	readRepository?: typeof RepositoryReader.read;
 	setupRepository?: typeof RepositorySetup.write;
 	readComparison?: typeof ComparisonReader.read;
+	readPullRequest?: RepositoryPullRequest["read"];
 	readDiff?: typeof DiffReader.read;
 	readHistory?: typeof RepositoryHistory.read;
 	readCommitFiles?: typeof RepositoryHistory.readFiles;
@@ -227,6 +231,19 @@ export function App({
 	);
 
 	const syncAccount = useSyncAccount();
+
+	const pullRequests = useMemo(
+		() => new RepositoryPullRequest(accounts, remoteAccounts),
+		[accounts, remoteAccounts]
+	);
+
+	const readReview = useCallback<RepositoryPullRequest["read"]>(
+		(root, signal) =>
+			readPullRequest
+				? readPullRequest(root, signal)
+				: pullRequests.read(root, signal),
+		[readPullRequest, pullRequests]
+	);
 
 	const publisher = useMemo(
 		() => new RepositoryPublish(accounts, remoteAccounts),
@@ -620,10 +637,12 @@ export function App({
 											openSettings();
 											setSettingsSection("repository-remotes");
 										}}
-										onFetch={() => mutations.fetch(activeTab.id)}
-										onSync={(choice) =>
-											mutations.synchronize(activeTab.id, choice)
-										}
+										onFetch={async () => {
+											await mutations.fetch(activeTab.id);
+										}}
+										onSync={async (choice) => {
+											await mutations.synchronize(activeTab.id, choice);
+										}}
 										onCancel={() => mutations.cancelSync(activeTab.id)}
 										onPublish={() => openPublish(activeTab.id)}
 										onRefresh={() => {
@@ -652,6 +671,23 @@ export function App({
 														label: item.name,
 														oid: item.oid,
 													})),
+												},
+											});
+										}}
+										onPreviewPullRequest={() => {
+											const repository = workspace.repository;
+
+											if (!repository?.head) return;
+
+											dispatch({
+												type: "compare",
+												id: activeTab.id,
+												comparison: {
+													root: repository.root,
+													base: repository.head,
+													baseName: repository.branchName ?? "HEAD",
+													intent: "pull-request",
+													branches: [],
 												},
 											});
 										}}
@@ -961,6 +997,25 @@ export function App({
 								/>
 							}
 						/>
+					) : activeTab?.comparison?.intent === "pull-request" && workspace ? (
+						<RepositoryPullRequestView
+							key={`${activeTab.id}:pull-request`}
+							root={activeTab.comparison.root}
+							state={workspace}
+							read={readReview}
+							onFetch={() => mutations.fetch(activeTab.id)}
+							onSync={(choice, identity) =>
+								mutations.synchronize(activeTab.id, choice, undefined, identity)
+							}
+							onClose={() => dispatch({ type: "compare", id: activeTab.id })}
+							readComparison={readComparison}
+							readHistory={readHistory}
+							readCommitFiles={readCommitFiles}
+							readDiff={readDiff}
+							previewCache={previewCache}
+							diffSettings={diffSettings}
+							onDiffSettingsChange={setDiffSettings}
+						/>
 					) : activeTab?.comparison ? (
 						<RepositoryComparison
 							key={activeTab.id}
@@ -973,7 +1028,43 @@ export function App({
 							diffSettings={diffSettings}
 							onDiffSettingsChange={setDiffSettings}
 							onClose={() => dispatch({ type: "compare", id: activeTab.id })}
-						/>
+						>
+							{workspace?.repository && !workspace.preview
+								? () => (
+										<Button
+											testId="preview-pull-request"
+											tokens={appTokens}
+											variant="secondary"
+											size="sm"
+											disabled={
+												workspace.loading ||
+												RepositoryWorkspaceModel.isBusy(workspace) ||
+												!!workspace.error ||
+												workspace.repository?.operation !== "normal" ||
+												!workspace.repository?.head ||
+												!workspace.repository.branchName ||
+												workspace.repository.remoteCount === 0
+											}
+											onPress={() => {
+												const request = activeTab.comparison;
+
+												if (!request) return;
+
+												dispatch({
+													type: "compare",
+													id: activeTab.id,
+													comparison: {
+														...request,
+														intent: "pull-request",
+													},
+												});
+											}}
+										>
+											Preview pull request…
+										</Button>
+									)
+								: undefined}
+						</RepositoryComparison>
 					) : activeTab && workspace?.repository && comparison ? (
 						<RepositoryDiff
 							key={`${activeTab.id}:${workspace.repository.root}:${revision?.id ?? "changes"}`}

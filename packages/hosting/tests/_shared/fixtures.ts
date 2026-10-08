@@ -49,7 +49,7 @@ export function githubPull(base = "https://github.com") {
 		state: "open",
 		draft: true,
 		merged_at: null,
-		head: { ref: "feature" },
+		head: { ref: "feature", repo: { id: 7 } },
 		base: { ref: "main" },
 		html_url: `${base}/alice/demo/pull/1`,
 	};
@@ -64,6 +64,7 @@ export function gitlabPull(base = "https://gitlab.com") {
 		state: "opened",
 		draft: true,
 		source_branch: "feature",
+		source_project_id: 17,
 		target_branch: "main",
 		web_url: `${base}/team/sub/demo/-/merge_requests/2`,
 	};

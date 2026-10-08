@@ -654,8 +654,9 @@ export function useRepositoryMutations(
 			root: string,
 			identity: PublishBranchIdentity,
 			signal: AbortSignal
-		) => Promise<GitResult<SyncResult>>
-	): Promise<void> => {
+		) => Promise<GitResult<SyncResult>>,
+		reviewed?: PublishBranchIdentity
+	): Promise<string | null> => {
 		const workspace = tabs.current.find((tab) => tab.id === id)?.workspace;
 		const repository = workspace?.repository;
 
@@ -668,7 +669,14 @@ export function useRepositoryMutations(
 			stashWrites.current.has(repository.commonDirectory) ||
 			syncs.current.has(repository.commonDirectory)
 		)
-			return;
+			return "Wait for the current operation before synchronizing.";
+
+		if (
+			reviewed &&
+			(repository.head !== reviewed.expectedHead ||
+				repository.branchName !== reviewed.expectedBranch)
+		)
+			return "The branch changed. Refresh and review it before synchronizing.";
 
 		if (
 			choice.kind !== "fetch" &&
@@ -677,7 +685,7 @@ export function useRepositoryMutations(
 				workspace.error ||
 				workspace.commit.needsReview)
 		)
-			return;
+			return "Refresh and review this branch before synchronizing.";
 
 		const related = tabs.current.filter(
 			(tab) =>
@@ -693,7 +701,7 @@ export function useRepositoryMutations(
 						pending.current.has(tab.workspace.repository.root))
 			)
 		)
-			return;
+			return "Wait for the current operation before synchronizing.";
 
 		const controller = new AbortController();
 
@@ -847,6 +855,15 @@ export function useRepositoryMutations(
 				},
 				root
 			);
+
+		const outcome = outcomes.get(repository.root);
+
+		return (
+			error ??
+			(outcome?.type === "sync-finished"
+				? (outcome.refreshError ?? null)
+				: "Refresh to confirm synchronization.")
+		);
 	};
 
 	const stash = async (

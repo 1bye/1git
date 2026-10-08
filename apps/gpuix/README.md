@@ -70,6 +70,13 @@ not a universal GPUI default. The real-window integration test checks the native
 material and appearance under both light and dark application appearances; component
 tests separately keep shell chrome transparent and the workspace opaque white.
 
+`native/rounded-overflow-platform.patch` clips descendants of rounded overflow
+surfaces, including native diff rows. GPUI otherwise rounds only the background,
+leaving square child backgrounds over workspace corners. Corner-intersecting
+primitives use physical-pixel scissor bands; the rectangular interior and GPU
+buffer layouts stay unchanged. Screenshot-pixel tests check exposed chrome at
+all four corners and retain clipping after diff scrolling.
+
 `native/diff-scroll.patch` connects GPUIX's existing native diff list to the
 pixel-scroll API used for keyboard navigation, in both live and test renderers.
 It offers explicit file-header visibility for application-owned chrome and
@@ -826,16 +833,47 @@ the Turbo build/dev tasks build dependencies first. No Electron IPC is involved.
   uses the workspace's HEAD. This is a read-only snapshot; it does not fetch,
   switch branches, merge, or change the index or working files.
 - Incoming commits are those reachable from the selected branch but not the
-  selected base, loaded in pages of 50. **All branch changes** shows the combined
-  changes from their common ancestor to the selected branch. This is not a
-  preview of the eventual merge result or a conflict check.
-- Select an individual commit to browse its first-parent changes. File selection
-  automatically previews the first file, reusing text diffs and image previews.
+  selected base, loaded automatically in pages of 50 as the list scrolls. The
+  default file list shows the combined changes from their common ancestor to
+  the selected branch. This is not a preview of the eventual merge result or a
+  conflict check.
+- Select an individual commit to browse its first-parent changes; select it again
+  to return to the combined branch changes (also works with Enter/Space). File
+  selection automatically previews the first file, reusing text diffs and image previews.
   Endpoint commits and image blobs remain pinned if branches move externally.
 - **Back** restores the underlying Changes/History/Stashes view and draft.
   Comparison is temporary and is not restored after restarting. Reopen it to
   capture newer branch tips. Unborn HEADs cannot compare; unrelated histories or
   multiple merge bases report an explicit error rather than a misleading diff.
+
+## Pull and merge requests
+
+- Right-click (or Control-click/Shift+F10) the sync rail button and choose
+  **Preview pull request…**, or use the same action in Compare's toolbar. The
+  existing Compare layout shows committed changes from the target's common
+  ancestor to the current branch; staged/unstaged edits and the commit draft are
+  not included or changed. Existing diff preferences apply here too.
+- Targets are remote-tracking branches on the current upstream remote, otherwise
+  `origin` or the sole remote. The provider's default branch is initially selected
+  when available; otherwise the remote's known default is used. Fetch/select a
+  target when no default is known. This is a snapshot, not a merge-conflict check.
+- **Refresh**, beside **Back**, fetches the remote and reloads the preview; it
+  never uploads commits or opens the browser.
+- **Publish branch…** or **Push changes…** uses the existing guarded, non-forcing
+  sync operation. Uploading requires an explicit click and never opens the
+  browser automatically. Afterwards, **Continue on GitHub/GitLab** fetches and
+  rechecks the reviewed branches before opening the provider's creation page.
+  Changed branches require another review; failed fetches stop the handoff.
+- A matching open request from the same repository offers **View pull/merge
+  request #N** instead. Metadata uses the selected connected account (or the
+  sole matching account in Automatic mode), without changing System Git/SSH
+  authentication. If metadata is unavailable, the app shows a notice and the
+  provider performs the final check in your browser.
+- Choose the title, description, draft status and reviewers on the provider's
+  website. 1git never submits a request automatically. This first version supports
+  same-repository GitHub/GitLab requests, including configured custom hosts;
+  remotes with different fetch/push repositories require the provider's fork flow.
+  **Back** restores the underlying workspace and its draft.
 
 ## Browsing History
 

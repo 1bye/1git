@@ -1,5 +1,5 @@
 /**
- * Covers: provider browsing/search/pages, account isolation, permission failures and verified clone destinations.
+ * Covers: provider browsing/search/pages, read-only PR metadata, account isolation, permission failures and verified clone destinations.
  * Real: Accounts, providers/transport and disposable AccountStore.
  * Doubles: HTTPS provider replies, credential vault and Git clone boundary; no live accounts.
  * Requires: built @1git/git and @1git/hosting.
@@ -27,6 +27,93 @@ function fixture() {
 
 	return value;
 }
+
+it("reads repository review metadata with verified credentials and GET-only pagination", async () => {
+	const f = fixture();
+	const methods: string[] = [];
+	const saved = f.store.load();
+	const credential = f.secrets.get(AccountStore.key(f.saved[0]!));
+
+	f.intercept(async (input, init) => {
+		const url = new URL(input);
+
+		methods.push(init?.method ?? "GET");
+
+		if (url.pathname === "/user")
+			return Response.json({
+				id: 7,
+				login: "tester",
+				html_url: "https://github.com/tester",
+			});
+
+		if (url.pathname === "/repos/tester/project")
+			return Response.json(f.repo());
+
+		const next = url.searchParams.get("page") !== "2";
+
+		return Response.json(
+			[
+				{
+					id: next ? 100 : 101,
+					number: next ? 1 : 2,
+					title: "Review",
+					body: null,
+					state: "open",
+					draft: false,
+					merged_at: null,
+					head: { ref: "feature", repo: { id: 10 } },
+					base: { ref: "main" },
+					html_url: "https://github.com/tester/project/pull/1",
+				},
+			],
+			{
+				headers: next
+					? {
+							link: '<https://api.github.com/repos/tester/project/pulls?state=open&sort=updated&direction=desc&per_page=100&page=2>; rel="next"',
+						}
+					: {},
+			}
+		);
+	});
+
+	const result = await f.accounts.repositoryReviews(
+		f.saved[0]!,
+		{ owner: "tester", name: "project" },
+		new AbortController().signal
+	);
+
+	expect(result.repository.defaultBranch).toBe("main");
+	expect(result.requests.map((item) => item.number)).toEqual([1, 2]);
+	expect(result.requests[0]?.sourceRepositoryId).toBe("10");
+	expect(result.complete).toBe(true);
+	expect(methods).toEqual(["GET", "GET", "GET", "GET"]);
+	expect(
+		f.requests.every(
+			({ headers }) =>
+				headers.get("authorization") === "Bearer fixture-github-token"
+		)
+	).toBe(true);
+	expect(f.store.load()).toEqual(saved);
+	expect(f.secrets.get(AccountStore.key(f.saved[0]!))).toBe(credential);
+	expect(JSON.stringify(result)).not.toContain("fixture-github-token");
+});
+
+it("does not read reviews after cancellation or account identity mismatch", async () => {
+	const f = fixture();
+	const controller = new AbortController();
+	const ref = { owner: "tester", name: "project" };
+
+	controller.abort();
+	await expect(
+		f.accounts.repositoryReviews(f.saved[0]!, ref, controller.signal)
+	).rejects.toThrow();
+	expect(f.requests).toHaveLength(0);
+	f.identity(99);
+	await expect(
+		f.accounts.repositoryReviews(f.saved[0]!, ref, new AbortController().signal)
+	).rejects.toThrow("identity");
+	expect(f.requests.map(({ url }) => url.pathname)).toEqual(["/user"]);
+});
 
 it("browses both providers, searches and continues with account-bound cursors", async () => {
 	const f = fixture();

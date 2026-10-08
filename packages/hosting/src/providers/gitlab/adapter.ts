@@ -277,6 +277,8 @@ export class GitLabAdapter implements Adapter {
 						: "closed",
 			draft: boolean(pr.draft ?? pr.work_in_progress),
 			sourceBranch: string(pr.source_branch),
+			sourceRepositoryId:
+				pr.source_project_id == null ? null : id(pr.source_project_id),
 			targetBranch: string(pr.target_branch),
 			browserUrl: this.http.endpoints.browser(string(pr.web_url)),
 		};

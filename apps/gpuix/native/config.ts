@@ -83,6 +83,10 @@ export const sidebarVibrancyPlatformPatchPath = resolve(
 	import.meta.dir,
 	"sidebar-vibrancy-platform.patch"
 );
+export const roundedOverflowPlatformPatchPath = resolve(
+	import.meta.dir,
+	"rounded-overflow-platform.patch"
+);
 /** Changing the patch, revision, or host invalidates the local binary. */
 export const accountsPatchPath = resolve(import.meta.dir, "accounts.patch");
 export const accountsPlatformPatchPath = resolve(
@@ -110,6 +114,7 @@ export const nativeBuildId = createHash("sha256")
 	.update(readFileSync(elementBoundsPatchPath))
 	.update(readFileSync(anchoredCenterPatchPath))
 	.update(readFileSync(sidebarVibrancyPlatformPatchPath))
+	.update(readFileSync(roundedOverflowPlatformPatchPath))
 	.update(readFileSync(accountsPatchPath))
 	.update(readFileSync(accountsPlatformPatchPath))
 	.update(readFileSync(contextMenuIconsPatchPath))

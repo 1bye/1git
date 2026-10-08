@@ -13,6 +13,7 @@ import type {
 	Owner,
 	CreateRepository,
 	HostingResult,
+	PullRequest,
 } from "@1git/hosting/contracts";
 import { parseRemote } from "@1git/hosting/remote";
 import {
@@ -36,6 +37,8 @@ import {
 	hasControlCharacters,
 	type SavedAccount,
 } from "./account-store";
+
+const maxReviewPages = 10;
 
 /** Token connection input; keep it transient and never include it in session/account metadata. */
 export interface ConnectAccount {
@@ -93,6 +96,52 @@ export class Accounts {
 
 	load(): SavedAccount[] {
 		return this.store.load();
+	}
+
+	/** Read-only PR/MR metadata from a verified account; tokens never leave the account service. */
+	async repositoryReviews(
+		account: SavedAccount,
+		ref: RepositoryRef,
+		signal: AbortSignal
+	): Promise<{
+		repository: Repository;
+		requests: readonly PullRequest[];
+		complete: boolean;
+	}> {
+		const client = await this.mutate(async () =>
+			this.configure(
+				account.provider,
+				account.webUrl,
+				(await this.verifiedCredential(account, signal)).token
+			)
+		);
+
+		const repository = await client.getRepository(ref, { signal });
+
+		if (!repository.ok) throw new Error(repository.error.message);
+
+		const requests: PullRequest[] = [];
+		let cursor: string | undefined;
+
+		for (let pageIndex = 0; pageIndex < maxReviewPages; pageIndex++) {
+			const page = await client.listPullRequests(ref, {
+				signal,
+				cursor,
+				state: "open",
+				pageSize: 100,
+			});
+
+			if (!page.ok) throw new Error(page.error.message);
+
+			requests.push(...page.value.items);
+
+			if (!page.value.next)
+				return { repository: repository.value, requests, complete: true };
+
+			cursor = page.value.next;
+		}
+
+		return { repository: repository.value, requests, complete: false };
 	}
 
 	/** Public publishing destinations; pagination stays bound to this window/account client. */

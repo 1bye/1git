@@ -1,5 +1,5 @@
 import { spacing, typography } from "@1git/design-tokens";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { BranchComparison, CommitPage } from "@1git/git";
 import { Button } from "@1git/gpuix-ui/button";
 import { Text } from "@1git/gpuix-ui/text";
@@ -64,6 +64,7 @@ const styles = StyleSheet.create({
 		display: "flex",
 		flexDirection: "row",
 		alignItems: "center",
+		gap: spacing[1],
 	},
 	controls: {
 		display: "flex",
@@ -140,17 +141,34 @@ type Readers = {
 export function RepositoryComparison({
 	request,
 	onClose,
+	children,
+	notice,
+	backActions,
 	...readers
-}: { request: ComparisonRequest; onClose: () => void } & Readers) {
-	const [branch, setBranch] = useState("");
+}: {
+	request: ComparisonRequest;
+	onClose: () => void;
+	children?: (selection: {
+		base: ComparisonRequest["branches"][number];
+		head: ComparisonRequest["branches"][number] | undefined;
+	}) => ReactNode;
+	notice?: ReactNode;
+	backActions?: ReactNode;
+} & Readers) {
+	const [branch, setBranch] = useState(request.incoming ?? "");
 
 	const initialBase = request.branches.find(
 		(item) => item.label === request.baseName && item.oid === request.base
-	) ?? { value: "HEAD", label: request.baseName, oid: request.base };
+	) ?? {
+		value: request.base ? "HEAD" : "",
+		label: request.baseName,
+		oid: request.base,
+	};
 
-	const options = request.branches.includes(initialBase)
-		? request.branches
-		: [initialBase, ...request.branches];
+	const options =
+		!initialBase.oid || request.branches.includes(initialBase)
+			? request.branches
+			: [initialBase, ...request.branches];
 
 	const [base, setBase] = useState(initialBase.value);
 	const selected = options.find((item) => item.value === branch);
@@ -171,46 +189,78 @@ export function RepositoryComparison({
 					>
 						Back
 					</Button>
+					{backActions}
 				</div>
 				<div style={styles.controls}>
 					<div testId="comparison-branch-pair" style={styles.branchPair}>
 						<ComparisonBranchPicker
 							side="base"
 							value={base}
-							options={options}
+							options={
+								request.intent === "pull-request"
+									? options.filter((item) => item.value !== request.incoming)
+									: options
+							}
 							onChange={setBase}
 						/>
 						<ComparisonArtwork name="direction" />
-						<ComparisonBranchPicker
-							side="incoming"
-							value={branch}
-							options={options}
-							onChange={setBranch}
-						/>
-						<Button
-							testId="swap-comparison"
-							aria-label="Swap base and incoming branches"
-							tokens={appTokens}
-							variant="ghost"
-							size="sm"
-							disabled={!selected}
-							style={{
-								width: 28,
-								flexShrink: 0,
-								paddingLeft: spacing[0],
-								paddingRight: spacing[0],
-							}}
-							onPress={() => {
-								setBase(branch);
-								setBranch(base);
-							}}
-						>
-							<ComparisonArtwork name="swap" />
-						</Button>
+						{request.intent === "pull-request" ? (
+							<Text
+								testId="pull-request-source"
+								aria-label={`Source branch ${selected?.label ?? ""}`}
+								tokens={appTokens}
+								style={{
+									...typography.sm,
+									width: 160,
+									minWidth: 80,
+									flexShrink: 1,
+									whiteSpace: "nowrap",
+									overflow: "hidden",
+									textOverflow: "ellipsis",
+								}}
+							>
+								{selected?.label}
+							</Text>
+						) : (
+							<ComparisonBranchPicker
+								side="incoming"
+								value={branch}
+								options={options}
+								onChange={setBranch}
+							/>
+						)}
+						{request.intent !== "pull-request" ? (
+							<Button
+								testId="swap-comparison"
+								aria-label="Swap base and incoming branches"
+								tokens={appTokens}
+								variant="ghost"
+								size="sm"
+								disabled={!selected}
+								style={{
+									width: 28,
+									flexShrink: 0,
+									paddingLeft: spacing[0],
+									paddingRight: spacing[0],
+								}}
+								onPress={() => {
+									setBase(branch);
+									setBranch(base);
+								}}
+							>
+								<ComparisonArtwork name="swap" />
+							</Button>
+						) : null}
 					</div>
 				</div>
+				{children ? (
+					<div style={{ paddingRight: spacing[2], flexShrink: 0 }}>
+						{children({ base: selectedBase, head: selected })}
+					</div>
+				) : null}
 			</div>
-			{selected ? (
+			{notice}
+			{selected && selectedBase.oid ? (
 				<ComparisonResults
 					key={`${request.root}:${selectedBase.oid}:${selected.value}:${selected.oid}`}
 					request={request}
@@ -242,9 +292,11 @@ export function RepositoryComparison({
 								tokens={appTokens}
 								style={{ ...typography.sm, color: appTokens.colors.textMuted }}
 							>
-								{request.branches.length
-									? "Choose an incoming branch above to see what changed."
-									: "No other branches available to compare."}
+								{request.intent === "pull-request"
+									? "Fetch remote branches, then choose a target branch above."
+									: request.branches.length
+										? "Choose an incoming branch above to see what changed."
+										: "No other branches available to compare."}
 							</Text>
 						</div>
 					</div>
@@ -459,6 +511,7 @@ function ComparisonResults({
 						{error}
 					</Text>
 					<Button
+						testId="retry-comparison"
 						tokens={appTokens}
 						size="sm"
 						onPress={() => {
@@ -504,33 +557,22 @@ function ComparisonResults({
 								)
 							}
 							state={{ selectedId: commit, scrollY: commitScroll }}
-							onSelect={setCommit}
+							onSelect={(id) =>
+								setCommit((current) => (current === id ? null : id))
+							}
 							onScroll={setCommitScroll}
+							onEndReached={() => {
+								if (
+									!error &&
+									loadedOffset === offset &&
+									page?.hasMore &&
+									page.nextOffset !== null &&
+									page.nextOffset > offset
+								)
+									setOffset(page.nextOffset);
+							}}
 						/>
-						{page?.hasMore ? (
-							<Button
-								testId="comparison-load-more"
-								tokens={appTokens}
-								size="sm"
-								variant="ghost"
-								disabled={loadedOffset !== offset}
-								onPress={() => {
-									if (page.nextOffset !== null) setOffset(page.nextOffset);
-								}}
-							>
-								Load more
-							</Button>
-						) : null}
 					</div>
-					<Button
-						testId="comparison-all-files"
-						tokens={appTokens}
-						size="sm"
-						variant={commit ? "ghost" : "secondary"}
-						onPress={() => setCommit(null)}
-					>
-						All branch changes
-					</Button>
 					<Text tokens={appTokens} style={styles.label}>
 						{commit ? "Commit files" : "Changed files"} · {files.length}
 					</Text>

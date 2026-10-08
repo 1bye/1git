@@ -145,6 +145,8 @@ export interface PullRequest {
 	readonly state: PullRequestState;
 	readonly draft: boolean;
 	readonly sourceBranch: string;
+	/** Provider repository ID; null for a deleted or unavailable source. Distinguishes forks with the same branch name. */
+	readonly sourceRepositoryId?: string | null;
 	readonly targetBranch: string;
 	readonly browserUrl: string;
 }
