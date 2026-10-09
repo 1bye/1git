@@ -819,6 +819,10 @@ the Turbo build/dev tasks build dependencies first. No Electron IPC is involved.
   lines. Click the outer gutter for the group and the inner gutter for a line; Tab then
   Space/Enter also toggles a control. A partially included file has a mixed checkbox;
   clicking it includes the entire file. The controls work in unified and split layouts.
+  Selected controls and line numbers use blue blocks with white SVG check/minus icons;
+  the group gutter is darker. Excluded numbers stay neutral. The shared diff theme uses
+  pale green/red rows, light-blue hunk headers aligned to code and an SVG expansion icon.
+  Hover/focus emphasize controls without changing hit targets or native scrolling.
   `native/diff-inclusion.patch` adds `selectionEnabled`, `selectionDisabled`, `includedLines`
   and `onToggleChange` to the cached native viewer. Coordinates (`-:oldLine`, `+:newLine`)
   remain stable across context expansion. React owns selection, not native row state.

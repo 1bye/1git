@@ -11,15 +11,16 @@ index 4bf500e..23d4494 100644
  use std::cell::Cell;
  use std::rc::Rc;
  
-@@ -67,6 +67,7 @@ struct DiffData {
+@@ -67,6 +67,8 @@ struct DiffData {
      /// unknown or the file is binary, which renders plain.
      highlights: Vec<Option<FileHighlight>>,
      show_word_diff: bool,
 +    groups: HashMap<String, Rc<Vec<String>>>,
++    split: bool,
  }
  
  /// Neutral highlight spans for one file, addressed by side and source line.
-@@ -127,6 +128,47 @@ pub struct DiffElement {
+@@ -127,6 +129,47 @@ pub struct DiffElement {
      /// the theme now, so a metrics-only change makes the list's cached
      /// measurements stale even though the parse is untouched.
      list_metrics: Option<u64>,
@@ -67,15 +68,16 @@ index 4bf500e..23d4494 100644
  }
  
  /// All visible rows share one horizontal offset per pane, but only one vertical list.
-@@ -163,6 +205,7 @@ impl DiffElement {
+@@ -163,6 +206,8 @@ impl DiffElement {
          }
  
          let data = Rc::new(DiffData {
 +            groups: change_groups(&files),
++            split: self.split,
              files,
              rows,
              highlights,
-@@ -170,6 +213,8 @@ impl DiffElement {
+@@ -170,6 +215,8 @@ impl DiffElement {
          });
          self.fingerprint = Some(fingerprint);
          self.data = Some(data.clone());
@@ -84,7 +86,7 @@ index 4bf500e..23d4494 100644
          (data, true)
      }
  
-@@ -197,6 +242,7 @@ impl DiffElement {
+@@ -197,6 +244,7 @@ impl DiffElement {
          self.theme.font_mono.hash(&mut hasher);
          self.theme.font_sans.hash(&mut hasher);
          self.theme.metrics.hash_into(&mut hasher);
@@ -92,7 +94,16 @@ index 4bf500e..23d4494 100644
          let key = hasher.finish();
          if let Some((previous, width)) = self.measured_width {
              if previous == key {
-@@ -251,7 +297,10 @@ impl DiffElement {
+@@ -240,4 +288,6 @@ impl DiffElement {
+                 DiffRow::HunkHeader { file, hunk } => {
+-                    measure(&data.files[file as usize].hunks[hunk as usize].header,
+-                        &self.theme.font_mono, m.diff_text_size) + 2.0 * m.diff_row_padding_x
++                    let file = &data.files[file as usize];
++                    measure(&file.hunks[hunk as usize].header, &self.theme.font_mono, m.diff_text_size)
++                        + m.diff_accent_bar_width + gutter_width(file, m) * if self.split { 1.0 } else { 2.0 }
++                        + m.diff_marker_width + 2.0 * m.diff_row_padding_x
+                 }
+@@ -251,7 +301,10 @@ impl DiffElement {
              };
              width = width.max(row_width);
          }
@@ -104,7 +115,7 @@ index 4bf500e..23d4494 100644
          self.measured_width = Some((key, width));
          width
      }
-@@ -374,6 +423,22 @@ impl CustomElement for DiffElement {
+@@ -374,6 +427,22 @@ impl CustomElement for DiffElement {
          let wants_line_click = ctx.events.contains("lineClick");
          let wants_show_more = ctx.events.contains("showMore");
          let wants_expand_context = ctx.events.contains("expandContext");
@@ -127,7 +138,7 @@ index 4bf500e..23d4494 100644
          let radius = ctx
              .style
              .and_then(|style| style.border_radius)
-@@ -433,6 +498,7 @@ impl CustomElement for DiffElement {
+@@ -433,6 +502,7 @@ impl CustomElement for DiffElement {
                          wants_line_click,
                          wants_show_more,
                          wants_expand_context,
@@ -135,7 +146,7 @@ index 4bf500e..23d4494 100644
                          theme: &row_theme,
                          radius,
                          split_scroll: split_scroll.as_ref(),
-@@ -461,6 +527,7 @@ impl CustomElement for DiffElement {
+@@ -461,6 +531,7 @@ impl CustomElement for DiffElement {
                          wants_line_click,
                          wants_show_more,
                          wants_expand_context,
@@ -143,7 +154,7 @@ index 4bf500e..23d4494 100644
                          theme: &row_theme,
                          radius,
                          split_scroll: split_scroll.as_ref(),
-@@ -491,6 +558,15 @@ impl CustomElement for DiffElement {
+@@ -491,6 +562,15 @@ impl CustomElement for DiffElement {
      fn set_prop(&mut self, key: &str, value: serde_json::Value) {
          match key {
              "patch" => self.patch = value.as_str().unwrap_or("").to_string(),
@@ -159,7 +170,7 @@ index 4bf500e..23d4494 100644
              "mode" => self.split = value.as_str() == Some("split"),
              "wordDiff" => self.show_word_diff = value.as_bool().unwrap_or(false),
              "scroll" => self.scroll = value.as_bool().unwrap_or(false),
-@@ -526,6 +602,9 @@ impl CustomElement for DiffElement {
+@@ -526,6 +606,9 @@ impl CustomElement for DiffElement {
      fn supported_props(&self) -> &'static [&'static str] {
          &[
              "patch",
@@ -169,7 +180,7 @@ index 4bf500e..23d4494 100644
              "wordDiff",
              "scroll",
              "showFileHeader",
-@@ -541,6 +620,7 @@ impl CustomElement for DiffElement {
+@@ -541,6 +624,7 @@ impl CustomElement for DiffElement {
              "toggleFile",
              "showMore",
              "lineClick",
@@ -177,7 +188,7 @@ index 4bf500e..23d4494 100644
              "expandContext",
              "click",
              "mouseEnter",
-@@ -581,6 +661,7 @@ struct RowContext<'a> {
+@@ -581,6 +665,7 @@ struct RowContext<'a> {
      wants_line_click: bool,
      wants_show_more: bool,
      wants_expand_context: bool,
@@ -185,32 +196,73 @@ index 4bf500e..23d4494 100644
      /// Applied while rendering, never baked into `DiffData`, so a theme change
      /// repaints without reparsing the patch.
      theme: &'a Theme,
-@@ -920,6 +1001,9 @@ fn diff_line_row(
+@@ -675,4 +760,7 @@ fn render_row(data: &DiffData, ix: usize, ctx: RowContext) -> gpui::AnyElement {
+             let hidden = old.saturating_sub(old_end);
+             let expandable = ctx.wants_expand_context && hidden > 0 && hidden == new.saturating_sub(new_end);
++            let header_gutter = m.diff_accent_bar_width
++                + gutter_width(file_diff, m) * if data.split { 1.0 } else { 2.0 }
++                + if ctx.inclusion.is_some() { 2.0 * m.diff_marker_width } else { 0.0 };
+             let mut row = gpui::div()
+                 .id(SharedString::from(format!("__gpuix_diff_context_{ix}")))
+@@ -685,5 +773,4 @@ fn render_row(data: &DiffData, ix: usize, ctx: RowContext) -> gpui::AnyElement {
+                 .flex_none()
+                 .flex()
+                 .items_center()
+-                .px(px(m.diff_row_padding_x))
+                 .bg(theme.diff_hunk_bg)
+@@ -708,4 +795,15 @@ fn render_row(data: &DiffData, ix: usize, ctx: RowContext) -> gpui::AnyElement {
+                     });
+             }
+-            row.child(crate::text::chrome_text(SharedString::from(section.header.clone()), None)).into_any_element()
++            let mut gutter = gpui::div().w(px(header_gutter)).h_full().flex_none()
++                .flex().items_center().justify_center().bg(opacity(theme.accent, 0.10));
++            if expandable {
++                gutter = gutter.child(gpui::svg().data(
++                    br##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M8 10V3m-3 3 3-3 3 3M3 13h1m3 0h2m3 0h1" fill="none" stroke="#000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>"##
++                ).size(px(m.diff_text_size)).flex_none().text_color(theme.text_muted));
++            }
++            row.child(gutter).child(gpui::div()
++                .pl(px(m.diff_marker_width + m.diff_row_padding_x))
++                .pr(px(m.diff_row_padding_x))
++                .child(crate::text::chrome_text(SharedString::from(section.header.clone()), None)))
++                .into_any_element()
+         }
+@@ -920,6 +1018,7 @@ fn diff_line_row(
      use gpui::prelude::*;
  
      let m = &theme.metrics;
 +    let key = line_key(line);
-+    let selected = key.as_ref().is_some_and(|key| ctx.inclusion.is_some_and(|state| state.included.contains(key)));
-+    let selected_ink = gpui::hsla(0.0, 0.0, 1.0, 1.0);
      if line.kind == LineKind::Meta {
          return gpui::div()
              .h(px(m.diff_line_height))
-@@ -973,10 +1057,13 @@ fn diff_line_row(
+@@ -965,5 +1064,5 @@ fn diff_line_row(
+         ),
+         _ => (
+-            "·",
++            "",
+             opacity(theme.text_faint, 0.5),
+             None,
+@@ -973,10 +1072,17 @@ fn diff_line_row(
++    let included = key.as_ref().is_some_and(|key|
++        ctx.inclusion.is_some_and(|state| state.included.contains(key)));
      let gutter = |no: Option<u32>, color: Hsla| {
          gpui::div()
              .w(px(gutter_px))
 +            .h_full()
 +            .items_center()
-+            .when(selected, |el| el.bg(theme.accent))
++            .when(ctx.inclusion.is_some(), |gutter|
++                gutter.bg(if included { theme.accent } else { theme.bg })
++                    .border_r_1().border_color(opacity(theme.text, 0.12)))
              .flex_none()
              .font_family(theme.font_mono.clone())
-             .text_size(px(11.0))
+-            .text_size(px(11.0))
 -            .text_color(color)
-+            .text_color(if selected { selected_ink } else { color })
++            .text_size(px(m.diff_text_size))
++            .text_color(if included { theme.bg } else if ctx.inclusion.is_some() { theme.text_muted } else { color })
              .flex()
              .justify_end()
              .pr(px(8.0))
-@@ -1048,6 +1135,10 @@ fn diff_line_row(
+@@ -1048,6 +1154,10 @@ fn diff_line_row(
          });
      }
  
@@ -221,7 +273,17 @@ index 4bf500e..23d4494 100644
      let mut row = row
          // Accent bar: solid on +/− rows, an invisible spacer on context rows so
          // the columns always line up.
-@@ -1106,6 +1197,58 @@ fn diff_line_row(
+@@ -1059,6 +1169,8 @@ fn diff_line_row(
+                 .w(px(m.diff_accent_bar_width))
+                 .h_full()
+                 .flex_none();
+-            if let Some(color) = accent {
++            if ctx.inclusion.is_some() {
++                bar = bar.bg(if included { theme.accent } else { theme.bg });
++            } else if let Some(color) = accent {
+                 bar = bar.bg(color);
+             }
+@@ -1106,6 +1218,73 @@ fn diff_line_row(
          .into_any_element()
  }
  
@@ -230,7 +292,8 @@ index 4bf500e..23d4494 100644
 +fn inclusion_cell(key: Option<&str>, group: bool, ix: usize, ctx: &RowContext, theme: &Theme) -> gpui::AnyElement {
 +    use gpui::prelude::*;
 +    let m = &theme.metrics;
-+    let blank = || gpui::div().w(px(m.diff_marker_width)).h_full().flex_none().into_any_element();
++    let blank = || gpui::div().w(px(m.diff_marker_width)).h_full().flex_none()
++        .bg(if group { theme.border } else { theme.bg }).into_any_element();
 +    let Some(key) = key else { return blank(); };
 +    let Some(state) = ctx.inclusion else { return blank(); };
 +    let Some((keys, count)) = state.groups.get(key) else { return blank(); };
@@ -245,26 +308,32 @@ index 4bf500e..23d4494 100644
 +    let keyboard_callback = callback.clone();
 +    let keyboard_value = value.clone();
 +    let element_id = ctx.element_id;
++    let mut selected_bg = theme.accent;
++    if group { selected_bg.l *= 0.8; }
++    let mut hover_bg = selected_bg;
++    hover_bg.l *= 0.9;
 +    let mut cell = gpui::div()
 +        .id(SharedString::from(format!("__gpuix_diff_include_{element_id}_{ix}_{group}")))
 +        .w(px(m.diff_marker_width)).h_full().flex_none().flex().items_center().justify_center()
 +        .block_mouse_except_scroll()
-+        .bg(if checked { theme.accent } else if mixed { opacity(theme.accent, 0.6) } else { theme.diff_hunk_bg })
-+        .text_color(if checked || mixed { gpui::hsla(0.0, 0.0, 1.0, 1.0) } else { theme.text_faint })
-+        .font_family(theme.font_sans.clone()).text_size(px(m.diff_text_size))
++        .bg(if checked || mixed { selected_bg } else if group { theme.border } else { theme.bg })
++        .text_color(if checked || mixed { theme.bg } else { theme.text_faint })
++        .border_r_1().border_color(opacity(theme.text, 0.12))
 +        .role(gpui::Role::CheckBox)
 +        .aria_label(SharedString::from(if group { format!("Include change group starting at {first}") } else { format!("Include changed line {key}") }))
 +        .aria_toggled(if mixed { gpui::Toggled::Mixed } else if checked { gpui::Toggled::True } else { gpui::Toggled::False });
 +    if !state.disabled {
 +        let click_focus = focus.clone();
-+        cell = cell.cursor_pointer().on_click(move |_, window, cx| {
++        cell = cell.cursor_pointer()
++            .hover(|style| style.bg(if checked || mixed { hover_bg } else { opacity(theme.accent, 0.16) }))
++            .on_click(move |_, window, cx| {
 +            cx.stop_propagation();
 +            window.focus(&click_focus, cx);
 +            emit_event_full(&callback, element_id, "toggleChange", |p| p.value = value.clone());
 +        });
 +        if first_row {
 +            cell = cell.track_focus(&focus).tab_index(0)
-+                .focus(|style| style.border_1().border_color(theme.text))
++                .focus(|style| style.border_1().border_color(if checked || mixed { theme.bg } else { theme.accent }))
 +                .on_key_down(move |event, _, cx| {
 +                    if matches!(event.keystroke.key.as_str(), "space" | "enter") && !event.keystroke.modifiers.modified() {
 +                        cx.stop_propagation();
@@ -273,8 +342,16 @@ index 4bf500e..23d4494 100644
 +                });
 +        }
 +    }
-+    let mark = if first_row && checked { "✓" } else if first_row && mixed { "−" } else { "" };
-+    cell.child(crate::text::chrome_text(SharedString::from(mark), None)).into_any_element()
++    if first_row && (checked || mixed) {
++        let icon: &[u8] = if mixed {
++            br##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M4 8h8" fill="none" stroke="#000" stroke-width="1.5" stroke-linecap="round"/></svg>"##
++        } else {
++            br##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M3 8l3 3 7-7" fill="none" stroke="#000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>"##
++        };
++        cell = cell.child(gpui::svg().data(icon).size(px(m.diff_text_size))
++            .flex_none().text_color(theme.bg));
++    }
++    cell.into_any_element()
 +}
 +
  fn opacity(mut color: Hsla, alpha: f32) -> Hsla {
@@ -284,7 +361,7 @@ diff --git a/README.md b/README.md
 index fa6ffa4..6200db6 100644
 --- a/README.md
 +++ b/README.md
-@@ -2451,6 +2451,14 @@ renderer owns its layout. Tune that card with the `mdCode*` metrics.
+@@ -2451,6 +2451,17 @@ renderer owns its layout. Tune that card with the `mdCode*` metrics.
  
  ### `<diff>`
  
@@ -295,6 +372,9 @@ index fa6ffa4..6200db6 100644
 +React owns the selection. The native viewer caches parsed groups and paints
 +checked/mixed gutters without reparsing or replacing its virtual list.
 +Controls support click, Tab, Space/Enter and checked/mixed accessibility state.
++Included controls and line numbers use solid accent backgrounds with white SVG marks.
++The outer group gutter is darker, excluded numbers stay neutral, and hunk headers
++align with code beside an SVG expansion icon. Hit targets and scrolling are unchanged.
 +
  The 1git `diff-view` patch adds `showFileHeader` (default `true`) to remove
  native file-header rows, and `autoWidth` (default `false`) to derive the minimum
@@ -303,11 +383,12 @@ diff --git a/.changeset/1git-diff-inclusion.md b/.changeset/1git-diff-inclusion.
 new file mode 100644
 --- /dev/null
 +++ b/.changeset/1git-diff-inclusion.md
-@@ -0,0 +1,7 @@
+@@ -0,0 +1,8 @@
 +---
 +"@gpuix/native": patch
 +---
 +
-+Add opt-in blue change-group and line-inclusion gutters to the virtualized diff.
++Add opt-in change-group and line-inclusion gutters to the virtualized diff.
 +Keep selection in React, reuse cached patch data, and expose native keyboard and
 +checked/mixed accessibility controls. Local 1git patch, not a release.
++Use solid accent gutters with white SVG marks/numbers and aligned hunk headers.

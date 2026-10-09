@@ -100,6 +100,28 @@ it("measures both split columns and clamps overflow when returning to a short un
 	);
 });
 
+it("includes the aligned gutter when sizing long hunk headers", () => {
+	const patch = diffPatch().replace(
+		"@@ -10,2 +10,2 @@",
+		`@@ -10,2 +10,2 @@ ${"context ".repeat(60)}`
+	);
+
+	for (const mode of ["unified", "split"] as const) {
+		const props = {
+			patch,
+			mode,
+			splitLayout: "content-sized" as const,
+			showFileHeader: false,
+		};
+
+		show({ ...props, theme: { metrics: { diffGutterWidth: 30 } } });
+		const narrow = width();
+
+		show({ ...props, theme: { metrics: { diffGutterWidth: 50 } } });
+		expect(width() - narrow).toBeCloseTo(mode === "split" ? 20 : 40, 0);
+	}
+});
+
 it("defaults split mode to equal panes without widening or scrolling the comparison canvas", () => {
 	show({
 		mode: "split",

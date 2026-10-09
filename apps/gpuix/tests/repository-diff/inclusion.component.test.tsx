@@ -1,10 +1,14 @@
 /**
- * Covers: native group/line inclusion in unified/split diffs, keyboard toggles, read-only views and stale/filtered patches.
+ * Covers: native group/line inclusion, Desktop-style diff painting, keyboard toggles, read-only views and stale/filtered patches.
  * Real: React selection ownership, virtualized GPUIX diff painting and native input.
  * Doubles: repository diff/context reads; no repository mutations.
  * Requires: patched GPUIX native renderer with macOS graphics access.
  */
 import { afterEach, beforeEach, expect, it, mock } from "bun:test";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import sharp from "sharp";
 import { useState } from "react";
 import { createTestRoot, type TestRoot } from "@gpuix/react/testing";
 import { RepositoryDiff } from "../../src/feature/repository-workspace/components/repository-diff";
@@ -149,6 +153,111 @@ function click(id: string) {
 	);
 }
 
+it("paints white vector marks and numbers on selected blue gutters, with tinted rows and aligned hunk headers", async () => {
+	const directory = await mkdtemp(join(tmpdir(), "1git-inclusion-palette-"));
+
+	try {
+		for (const mode of ["unified", "split"] as const) {
+			root.render(<Preview key={mode} mode={mode} />);
+			await settle();
+			expect(root.renderer.getPaintedText()).not.toContain("✓");
+			const { bounds } = viewport();
+			const path = join(directory, `${mode}.png`);
+
+			root.renderer.nativeSimulateMouseMove(bounds.x + 200, bounds.y + 150);
+
+			const sample = async () => {
+				root.renderer.captureScreenshot(path);
+				const { data, info } = await sharp(path)
+					.ensureAlpha()
+					.raw()
+					.toBuffer({ resolveWithObject: true });
+
+				const scale = info.width / 980;
+
+				return (x: number, y: number) => {
+					const offset =
+						(Math.floor((bounds.y + y) * scale) * info.width +
+							Math.floor((bounds.x + x) * scale)) *
+						4;
+
+					return [...data.subarray(offset, offset + 3)];
+				};
+			};
+
+			const hasWhiteMark = (
+				color: (x: number, y: number) => readonly number[],
+				column: number
+			) => {
+				const [fillRed = 255, , fillBlue = 0] = color(column + 9, 49);
+
+				if (fillBlue - fillRed < 100) return false;
+
+				for (let x = 4; x < 16; x++) {
+					for (let y = 52; y < 64; y++) {
+						const [red = 0, green = 0, blue = 0] = color(column + x, y);
+
+						if (red > 225 && green > 225 && blue > 225) return true;
+					}
+				}
+
+				return false;
+			};
+
+			const color = await sample();
+			const fill = color(27, 49);
+			const numbers = color(42, 49);
+			const group = color(9, 49);
+
+			expect(fill).toEqual([33, 139, 255]);
+			expect(numbers).toEqual(fill);
+			expect(group[2]).toBeLessThan(fill[2] ?? 0);
+			expect(hasWhiteMark(color, 0)).toBe(true);
+			expect(hasWhiteMark(color, 18)).toBe(true);
+			expect(color(200, 3)).toEqual([241, 248, 255]);
+			expect(color(42, 28)).toEqual([255, 255, 255]);
+			expect(color(9, 28)).toEqual([225, 228, 232]);
+			expect(color(350, 49)).toEqual([255, 238, 240]);
+			expect(
+				color(
+					mode === "split" ? bounds.width / 2 + 350 : 350,
+					mode === "split" ? 49 : 70
+				)
+			).toEqual([230, 255, 237]);
+
+			if (process.env.GPUIX_INCLUSION_PALETTE_SCREENSHOT)
+				root.renderer.captureScreenshot(
+					`${process.env.GPUIX_INCLUSION_PALETTE_SCREENSHOT}-${mode}.png`
+				);
+
+			root.renderer.nativeSimulateMouseMove(bounds.x + 27, bounds.y + 57);
+			const hovered = await sample();
+
+			expect(hovered(27, 49)).not.toEqual(fill);
+			expect(hovered(42, 49)).toEqual(numbers);
+			root.renderer.nativeSimulateMouseMove(bounds.x + 200, bounds.y + 150);
+
+			gutter(27, 1);
+			await settle();
+			const mixed = await sample();
+
+			expect(hasWhiteMark(mixed, 0)).toBe(true);
+			expect(hasWhiteMark(mixed, 18)).toBe(false);
+			expect(mixed(42, 49)).toEqual([255, 255, 255]);
+			expect(
+				root.renderer.getPaintedText().filter((text) => text === "−")
+			).toHaveLength(1);
+
+			if (process.env.GPUIX_INCLUSION_PALETTE_SCREENSHOT)
+				root.renderer.captureScreenshot(
+					`${process.env.GPUIX_INCLUSION_PALETTE_SCREENSHOT}-${mode}-mixed.png`
+				);
+		}
+	} finally {
+		await rm(directory, { recursive: true, force: true });
+	}
+});
+
 it("toggles a changed line, the complete group, and the focused control without rereading the patch", async () => {
 	root.render(<Preview />);
 	await settle();
@@ -160,7 +269,6 @@ it("toggles a changed line, the complete group, and the focused control without 
 	gutter(27, 1);
 	await settle();
 	expect(received).toEqual(["+:11"]);
-	expect(root.renderer.getPaintedText()).toContain("−");
 
 	if (process.env.GPUIX_INCLUSION_SCREENSHOT)
 		root.renderer.captureScreenshot(process.env.GPUIX_INCLUSION_SCREENSHOT);
