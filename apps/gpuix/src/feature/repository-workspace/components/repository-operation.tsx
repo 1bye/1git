@@ -30,9 +30,13 @@ export function RepositoryOperation({
 	const repository = state.repository;
 	const operation = repository?.operation;
 
+	const operationName =
+		operation === "squash-merge" ? "squash merge" : operation;
+
 	const active =
 		operation === "merge" ||
 		operation === "rebase" ||
+		operation === "squash-merge" ||
 		operation === "revert" ||
 		operation === "cherry-pick";
 
@@ -63,9 +67,11 @@ export function RepositoryOperation({
 			? "Merge"
 			: operation === "rebase"
 				? "Rebase"
-				: operation === "cherry-pick"
-					? "Cherry-pick"
-					: "Revert";
+				: operation === "squash-merge"
+					? "Squash merge"
+					: operation === "cherry-pick"
+						? "Cherry-pick"
+						: "Revert";
 
 	const request = (
 		kind: FinishOperationInput["kind"]
@@ -137,7 +143,7 @@ export function RepositoryOperation({
 								void submit(request("continue"));
 							}}
 						>
-							Continue {operation}
+							{`Continue ${operationName}`}
 						</Button>
 						<Popover
 							open={confirmation !== null}
@@ -177,7 +183,7 @@ export function RepositoryOperation({
 									<text
 										style={{ ...typography.sm, color: appTokens.colors.text }}
 									>
-										Abort {confirmation?.expectedOperation}?
+										{`Abort ${confirmation?.expectedOperation === "squash-merge" ? "squash merge" : confirmation?.expectedOperation}?`}
 									</text>
 									<text
 										style={{
@@ -216,7 +222,7 @@ export function RepositoryOperation({
 												void submit(confirmation);
 											}}
 										>
-											Abort {confirmation?.expectedOperation}
+											{`Abort ${confirmation?.expectedOperation === "squash-merge" ? "squash merge" : confirmation?.expectedOperation}`}
 										</Button>
 									</div>
 									{error ? (

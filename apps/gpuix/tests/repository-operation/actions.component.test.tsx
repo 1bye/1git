@@ -42,7 +42,10 @@ const session = {
 	tabs: [{ id: "workspace-1", path: "/test/project", draft: "Keep draft" }],
 };
 
-const snapshot = (conflicts = false): RepositorySnapshot => ({
+const snapshot = (
+	conflicts = false,
+	operation: "merge" | "squash-merge" | "rebase" = "merge"
+): RepositorySnapshot => ({
 	...repositorySnapshot(
 		conflicts
 			? [
@@ -53,7 +56,7 @@ const snapshot = (conflicts = false): RepositorySnapshot => ({
 				]
 			: []
 	),
-	operationState: "merge",
+	operationState: operation,
 	operationToken: "reviewed-operation",
 });
 
@@ -81,43 +84,49 @@ const click = (id: string) => {
 	root.renderer.flush();
 };
 
-it("requires abort confirmation and never continues with unresolved conflicts", async () => {
-	const write = mock<typeof RepositoryOperation.write>(async () => ({
-		ok: true,
-		value: repositorySnapshot(),
-	}));
+it.each(["merge", "squash-merge", "rebase"] as const)(
+	"requires abort confirmation and never continues with unresolved conflicts (%s)",
+	async (operation) => {
+		const write = mock<typeof RepositoryOperation.write>(async () => ({
+			ok: true,
+			value: repositorySnapshot(),
+		}));
 
-	root.render(
-		<App
-			initialSession={session}
-			readRepository={async () => ({ ok: true, value: snapshot(true) })}
-			writeOperation={write}
-		/>
-	);
-	await settle();
-	click("operation-continue");
-	expect(write).not.toHaveBeenCalled();
-	click("operation-abort");
-	await Bun.sleep(150);
-	root.renderer.flush();
-	expect(write).not.toHaveBeenCalled();
-	click("operation-abort-cancel");
-	await settle();
-	expect(write).not.toHaveBeenCalled();
-	click("operation-abort");
-	await Bun.sleep(150);
-	root.renderer.flush();
-	click("operation-abort-confirm");
-	await settle();
-	expect(write).toHaveBeenCalledTimes(1);
-	expect(write.mock.calls[0]?.[1]).toMatchObject({
-		kind: "abort",
-		expectedOperation: "merge",
-		expectedToken: "reviewed-operation",
-		expectedHead: "1234567890abcdef",
-		expectedBranch: "main",
-	});
-});
+		root.render(
+			<App
+				initialSession={session}
+				readRepository={async () => ({
+					ok: true,
+					value: snapshot(true, operation),
+				})}
+				writeOperation={write}
+			/>
+		);
+		await settle();
+		click("operation-continue");
+		expect(write).not.toHaveBeenCalled();
+		click("operation-abort");
+		await Bun.sleep(150);
+		root.renderer.flush();
+		expect(write).not.toHaveBeenCalled();
+		click("operation-abort-cancel");
+		await settle();
+		expect(write).not.toHaveBeenCalled();
+		click("operation-abort");
+		await Bun.sleep(150);
+		root.renderer.flush();
+		click("operation-abort-confirm");
+		await settle();
+		expect(write).toHaveBeenCalledTimes(1);
+		expect(write.mock.calls[0]?.[1]).toMatchObject({
+			kind: "abort",
+			expectedOperation: operation,
+			expectedToken: "reviewed-operation",
+			expectedHead: "1234567890abcdef",
+			expectedBranch: "main",
+		});
+	}
+);
 
 it("protects the window through continuation and refresh, retaining drafts", async () => {
 	let finished = false;

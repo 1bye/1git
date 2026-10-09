@@ -18,6 +18,10 @@ const RECOVERY_BY_OPERATION: Readonly<
 		actions: ["continue", "abort"],
 		label: "Merge in progress",
 	},
+	"squash-merge": {
+		actions: [],
+		label: "Squash merge in progress; finish in the native app or Git",
+	},
 	rebase: {
 		actions: ["continue", "skip", "abort"],
 		label: "Rebase in progress",

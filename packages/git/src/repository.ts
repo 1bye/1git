@@ -8,6 +8,7 @@ import { dirname, resolve, join } from "node:path";
 import type {
 	AddRemoteInput,
 	BranchCollection,
+	BranchIntegrationInput,
 	BranchComparison,
 	BranchMutationResult,
 	ChangeHunkInput,
@@ -88,6 +89,7 @@ import type {
 } from "./contracts.js";
 import { selectHunkPatch } from "./hunk-patch.js";
 import { SelectedCommit } from "./selected-commit.js";
+import { BranchIntegration } from "./branch-integration.js";
 import { CommitRecovery } from "./commit-recovery.js";
 import { BranchSync } from "./branch-sync.js";
 import { GitIgnore } from "./ignore.js";
@@ -1623,10 +1625,13 @@ export class GitRepository {
 					);
 			}
 
-			await this.run(
-				[input.expectedOperation, `--${input.kind}`],
-				input.signal
-			);
+			if (input.expectedOperation === "squash-merge")
+				await BranchIntegration.finishSquash(this.context, input);
+			else
+				await this.run(
+					[input.expectedOperation, `--${input.kind}`],
+					input.signal
+				);
 
 			return await loadSnapshot(this.context, false, input.signal);
 		});
@@ -1680,6 +1685,17 @@ export class GitRepository {
 
 			return await loadSnapshot(this.context, false, input.signal);
 		});
+	}
+
+	/** Squash-merges or rebases exact reviewed tips; conflicts remain recoverable through finishOperation. */
+	async integrateBranch(
+		input: BranchIntegrationInput
+	): Promise<GitResult<RepositorySnapshot>> {
+		return await this.mutate(
+			input.kind,
+			input.signal,
+			async () => await BranchIntegration.run(this.context, input)
+		);
 	}
 
 	/** Continues an in-progress rebase after conflicts are resolved. */

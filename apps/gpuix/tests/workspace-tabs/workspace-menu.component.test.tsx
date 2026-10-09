@@ -1,5 +1,5 @@
 /**
- * Covers: grouped branch menus, creation/merge, keyboard navigation, worktree tabs and operation locking.
+ * Covers: grouped branch menus, creation/merge/rebase/squash, keyboard navigation, worktree tabs and operation locking.
  * Real: App, reducers, window-owned mutation coordination, GPUIX layout and events.
  * Doubles: Git boundaries and folder picker, with isolated in-memory repository snapshots.
  * Requires: patched GPUIX renderer and macOS graphics access.
@@ -159,7 +159,15 @@ beforeEach(() => {
 	readBranches.mockClear();
 	readRepository.mockClear();
 	readRepository.mockImplementation(readSnapshot);
-	writeBranch.mockClear();
+	writeBranch.mockReset();
+	writeBranch.mockImplementation(async (_path, request) => {
+		snapshot = {
+			...snapshot,
+			head: { ...snapshot.head, branch: request.name },
+		};
+
+		return { ok: true, value: { branches: collection(), snapshot } };
+	});
 	writeWorktree.mockReset();
 	removeWorktree.mockReset();
 	removeWorktree.mockImplementation(async (_root, request) => ({
@@ -1214,6 +1222,75 @@ it("confirms a selected branch merge into the current branch without switching",
 	expect(root.renderer.findByTestId("workspace-menu")).toBeUndefined();
 });
 
+for (const kind of ["rebase", "squash-merge"] as const) {
+	it(`reviews and confirms ${kind} without switching or losing the ordinary draft`, async () => {
+		writeBranch.mockImplementationOnce(async () => ({
+			ok: true,
+			value: { branches: collection(), snapshot },
+		}));
+		await open();
+		click("commit-message");
+		root.renderer.simulateKeystrokes("d r a f t");
+		await menu();
+		click("merge-branch");
+		await settle();
+		root.renderer.nativeSimulateKeyDown(
+			element(`integration-${kind}`).id,
+			"enter"
+		);
+		await settle();
+		click("entry-merge-refs/heads/feature/ui");
+		await settle();
+		expect(writeBranch).not.toHaveBeenCalled();
+		expect(element(`integration-${kind}`).customProps?.["aria-label"]).toBe(
+			`${kind === "rebase" ? "Rebase" : "Squash merge"}, selected`
+		);
+
+		if (kind === "squash-merge") {
+			click("squash-merge-message");
+			root.renderer.simulateKeystrokes("cmd-a");
+			root.renderer.simulateKeystrokes("backspace");
+			await settle();
+			click("confirm-merge-branch");
+			expect(writeBranch).not.toHaveBeenCalled();
+			click("squash-merge-message");
+			root.renderer.simulateKeystrokes("C o m b i n e d");
+			await settle();
+		}
+
+		const form = bounds("merge-branch-form");
+		const confirm = bounds("confirm-merge-branch");
+
+		expect(confirm.y + confirm.height).toBeLessThanOrEqual(
+			form.y + form.height
+		);
+		expect(bounds("merge-branch-list-viewport").height).toBeGreaterThan(50);
+		const screenshot = process.env.GPUIX_INTEGRATION_SCREENSHOT;
+
+		if (screenshot)
+			root.renderer.captureScreenshot(`${screenshot}-${kind}.png`);
+
+		click("confirm-merge-branch");
+		await settle();
+		expect(writeBranch).toHaveBeenCalledTimes(1);
+		const reviewedHead = snapshot.head.oid;
+
+		if (!reviewedHead) throw new Error("Expected a committed branch");
+
+		expect(writeBranch.mock.calls[0]?.[1]).toEqual({
+			kind,
+			name: "refs/heads/feature/ui",
+			expectedTarget: reviewedHead,
+			expectedHead: reviewedHead,
+			expectedBranch: "main",
+			reviewedSource: { head: reviewedHead, branch: "main" },
+			...(kind === "squash-merge" ? { message: "Combined" } : {}),
+		});
+		expect(element("commit-message").customProps?.value).toBe("draft");
+		expect(root.renderer.findByTestId("workspace-menu")).toBeUndefined();
+	});
+}
+
 it("searches and selects a branch in another worktree with the keyboard", async () => {
 	writeBranch.mockImplementationOnce(async () => ({
 		ok: true,
@@ -1315,82 +1392,93 @@ it("clears the selected merge target when searching and shows an illustrated emp
 	expect(root.renderer.findByTestId("merge-branch-form")).toBeUndefined();
 });
 
-it("keeps a pending merge locked after dismissing its menu and prevents duplicate writes", async () => {
-	const pending =
-		Promise.withResolvers<
-			Awaited<ReturnType<typeof RepositoryBranches.write>>
-		>();
+it.each(["merge", "squash-merge", "rebase"] as const)(
+	"keeps pending integration locked after dismissing its menu and prevents duplicate writes (%s)",
+	async (kind) => {
+		const pending =
+			Promise.withResolvers<
+				Awaited<ReturnType<typeof RepositoryBranches.write>>
+			>();
 
-	writeBranch.mockImplementationOnce(() => pending.promise);
-	await open();
-	await menu();
-	click("merge-branch");
-	await settle();
-	click("entry-merge-refs/heads/feature/ui");
-	await settle();
-	click("confirm-merge-branch");
-	await settle();
-	expect(root.renderer.getAllText()).toContain("Merging…");
-	click("confirm-merge-branch");
-	await settle();
-	expect(writeBranch).toHaveBeenCalledTimes(1);
-	root.renderer.simulateKeystrokes("escape");
-	await settle();
-	click("close-workspace-1");
-	await settle();
-	expect(element("workspace-1")).toBeDefined();
-	pending.resolve({ ok: true, value: { branches: collection(), snapshot } });
-	await settle();
-	click("close-workspace-1");
-	await settle();
-	expect(root.renderer.findByTestId("workspace-1")).toBeUndefined();
-});
+		writeBranch.mockImplementationOnce(() => pending.promise);
+		await open();
+		await menu();
+		click("merge-branch");
+		await settle();
+		click(`integration-${kind}`);
+		click("entry-merge-refs/heads/feature/ui");
+		await settle();
+		click("confirm-merge-branch");
+		await settle();
+		expect(root.renderer.getAllText()).toContain(
+			kind === "rebase" ? "Rebasing…" : "Merging…"
+		);
+		click("integration-merge");
+		click("confirm-merge-branch");
+		await settle();
+		expect(writeBranch).toHaveBeenCalledTimes(1);
+		root.renderer.simulateKeystrokes("escape");
+		await settle();
+		click("close-workspace-1");
+		await settle();
+		expect(element("workspace-1")).toBeDefined();
+		pending.resolve({ ok: true, value: { branches: collection(), snapshot } });
+		await settle();
+		click("close-workspace-1");
+		await settle();
+		expect(root.renderer.findByTestId("workspace-1")).toBeUndefined();
+	}
+);
 
-it("shows failed merge conflicts in Changes with the existing Continue and Abort controls", async () => {
-	writeBranch.mockImplementationOnce(async () => {
-		snapshot = {
-			...snapshot,
-			operationState: "merge",
-			operationToken: "merge-operation",
-			files: [
-				changedFile("file.txt", {
-					recordType: "unmerged",
-					worktreeStatus: "unmerged",
-				}),
-			],
-		};
+it.each(["merge", "squash-merge", "rebase"] as const)(
+	"shows failed integration conflicts in Changes with Continue and Abort controls (%s)",
+	async (kind) => {
+		writeBranch.mockImplementationOnce(async () => {
+			snapshot = {
+				...snapshot,
+				operationState: kind,
+				operationToken: "merge-operation",
+				files: [
+					changedFile("file.txt", {
+						recordType: "unmerged",
+						worktreeStatus: "unmerged",
+					}),
+				],
+			};
 
-		return {
-			ok: false,
-			error: {
-				code: "conflict",
-				operation: "merge",
-				message: "Merge has conflicts",
-				retryable: false,
-			},
-		};
-	});
-	await open();
-	click("view-history");
-	await settle();
-	await menu();
-	click("merge-branch");
-	await settle();
-	click("entry-merge-refs/heads/feature/ui");
-	await settle();
-	click("confirm-merge-branch");
-	await settle();
-	expect(root.renderer.findByTestId("workspace-menu")).toBeUndefined();
-	expect(element("view-changes").customProps?.["aria-selected"]).toBe(true);
-	expect(writeBranch).toHaveBeenCalledTimes(1);
-	expect(root.renderer.getAllText()).toContain(
-		"Merge in progress · 1 conflict"
-	);
-	expect(element("operation-continue")).toBeDefined();
-	expect(element("operation-abort")).toBeDefined();
-	expect(root.renderer.getAllText()).toContain("Merge has conflicts");
-	expect(readRepository).toHaveBeenCalledTimes(2);
-});
+			return {
+				ok: false,
+				error: {
+					code: "conflict",
+					operation: kind,
+					message: "Merge has conflicts",
+					retryable: false,
+				},
+			};
+		});
+		await open();
+		click("view-history");
+		await settle();
+		await menu();
+		click("merge-branch");
+		await settle();
+		click(`integration-${kind}`);
+		click("entry-merge-refs/heads/feature/ui");
+		await settle();
+		click("confirm-merge-branch");
+		await settle();
+		expect(root.renderer.findByTestId("workspace-menu")).toBeUndefined();
+		expect(element("view-changes").customProps?.["aria-selected"]).toBe(true);
+		expect(writeBranch).toHaveBeenCalledTimes(1);
+		expect(root.renderer.getAllText()).toContain(
+			`${kind === "rebase" ? "Rebase" : kind === "squash-merge" ? "Squash merge" : "Merge"} in progress · 1 conflict`
+		);
+		expect(element("operation-continue")).toBeDefined();
+		expect(element("operation-abort")).toBeDefined();
+		expect(root.renderer.getAllText()).toContain("Merge has conflicts");
+		expect(readRepository).toHaveBeenCalledTimes(2);
+	}
+);
 
 it("creates and switches explicitly, preserving a commit draft", async () => {
 	await open();

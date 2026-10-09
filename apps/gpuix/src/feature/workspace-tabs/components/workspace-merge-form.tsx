@@ -1,5 +1,6 @@
 import { spacing, typography, radius } from "@1git/design-tokens";
 import { Button } from "@1git/gpuix-ui/button";
+import { Textarea } from "@1git/gpuix-ui/textarea";
 import { Text } from "@1git/gpuix-ui/text";
 import type { BranchInfo } from "@1git/git";
 import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
@@ -8,7 +9,14 @@ import { RepositoryList } from "../../repository-workspace/components/repository
 import { appTokens } from "../../../styles/tokens";
 import { StateMessage } from "../../../fixture/state-message";
 
-/** Read-only branch selection; the window owns the confirmed merge and conflict recovery. */
+type IntegrationKind = "merge" | "squash-merge" | "rebase";
+const modeLabels = {
+	merge: "Merge",
+	"squash-merge": "Squash merge",
+	rebase: "Rebase",
+} as const;
+
+/** Read-only integration review; the window owns the confirmed write and conflict recovery. */
 export function WorkspaceMergeForm({
 	branch,
 	branches,
@@ -22,13 +30,19 @@ export function WorkspaceMergeForm({
 	disabled: boolean;
 	busy: boolean;
 	onCancel: () => void;
-	onMerge: (target: BranchInfo) => void;
+	onMerge: (
+		target: BranchInfo,
+		kind: IntegrationKind,
+		message?: string
+	) => void;
 }) {
 	const renderer = useGpuixRequired();
 	const list = useRef<PublicInstance>(null);
 	const [query, setQuery] = useState("");
 	const [selected, setSelected] = useState<BranchInfo | null>(null);
 	const [scrollY, setScrollY] = useState(0);
+	const [kind, setKind] = useState<IntegrationKind>("merge");
+	const [message, setMessage] = useState<string | null>(null);
 	const normalizedQuery = query.trim().toLowerCase();
 
 	const filtered = branches.filter((item) =>
@@ -39,10 +53,25 @@ export function WorkspaceMergeForm({
 		(item) => item.fullName === selected?.fullName
 	);
 
-	const canMerge = !disabled && selected !== null && selectedVisible;
+	const squashMessage =
+		message ?? (selected ? `Squash merge ${selected.name} into ${branch}` : "");
+
+	const canMerge =
+		!disabled &&
+		!busy &&
+		selected !== null &&
+		selectedVisible &&
+		(kind !== "squash-merge" ||
+			(!!squashMessage.split("\n", 1)[0]?.trim() &&
+				!squashMessage.includes("\0")));
 
 	const submit = (): void => {
-		if (canMerge && selected) onMerge(selected);
+		if (canMerge && selected)
+			onMerge(
+				selected,
+				kind,
+				kind === "squash-merge" ? squashMessage : undefined
+			);
 	};
 
 	return (
@@ -58,15 +87,48 @@ export function WorkspaceMergeForm({
 			}}
 		>
 			<Text tokens={appTokens} weight="medium">
-				Merge into {branch}
+				{kind === "rebase"
+					? `Rebase ${branch} onto…`
+					: `${modeLabels[kind]} into ${branch}`}
 			</Text>
-			<Text tokens={appTokens} size="sm" tone="muted">
-				Bring another branch’s committed changes into this branch.
-			</Text>
+			<div
+				role="group"
+				aria-label="Branch integration method"
+				style={{
+					display: "flex",
+					flexDirection: "row",
+					gap: spacing[1],
+					flexShrink: 0,
+				}}
+			>
+				{(["merge", "squash-merge", "rebase"] as const).map((mode) => (
+					<Button
+						key={mode}
+						testId={`integration-${mode}`}
+						tokens={appTokens}
+						size="sm"
+						variant={kind === mode ? "secondary" : "ghost"}
+						aria-label={`${modeLabels[mode]}${kind === mode ? ", selected" : ""}`}
+						disabled={busy}
+						onPress={() => setKind(mode)}
+						style={{
+							flexGrow: 1,
+							paddingLeft: spacing[1],
+							paddingRight: spacing[1],
+						}}
+					>
+						{modeLabels[mode]}
+					</Button>
+				))}
+			</div>
 			<input
 				autoFocus
 				testId="merge-branch-search"
-				aria-label="Search branches to merge"
+				aria-label={
+					kind === "rebase"
+						? "Search branches to rebase onto"
+						: "Search branches to merge"
+				}
 				placeholder="Search branches…"
 				value={query}
 				readOnly={busy}
@@ -103,7 +165,9 @@ export function WorkspaceMergeForm({
 				<RepositoryList
 					key={query}
 					testId="merge-branch-list"
-					label="Branches to merge"
+					label={
+						kind === "rebase" ? "Branches to rebase onto" : "Branches to merge"
+					}
 					emptyMessage="No matching branches."
 					emptyContent={
 						<StateMessage
@@ -123,13 +187,27 @@ export function WorkspaceMergeForm({
 					}}
 					onScroll={setScrollY}
 					onSelect={(id) => {
-						if (!busy)
+						if (!busy) {
 							setSelected(
 								filtered.find((item) => `merge-${item.fullName}` === id) ?? null
 							);
+							setMessage(null);
+						}
 					}}
 				/>
 			</div>
+			{kind === "squash-merge" ? (
+				<Textarea
+					testId="squash-merge-message"
+					aria-label="Squash commit message"
+					value={squashMessage}
+					readOnly={busy}
+					placeholder="Commit message…"
+					onValueChange={setMessage}
+					tokens={appTokens}
+					style={{ height: 54, flexShrink: 0, ...typography.sm }}
+				/>
+			) : null}
 			<Text
 				tokens={appTokens}
 				size="sm"
@@ -137,8 +215,12 @@ export function WorkspaceMergeForm({
 				testId="merge-branch-summary"
 			>
 				{selectedVisible && selected
-					? `Merge ${selected.name} into ${branch}. Conflicts, if any, can be resolved in Changes.`
-					: "Choose a branch to merge. Your current branch stays selected."}
+					? kind === "rebase"
+						? `Replay ${branch} onto ${selected.name}. Only unpublished commits can be rewritten.`
+						: kind === "squash-merge"
+							? `Combine ${selected.name} into one new commit on ${branch}. The source branch is kept.`
+							: `Merge ${selected.name} into ${branch}. Conflicts can be resolved in Changes.`
+					: "Choose another branch. Your current branch stays selected."}
 			</Text>
 			<div
 				style={{
@@ -165,7 +247,13 @@ export function WorkspaceMergeForm({
 					disabled={!canMerge}
 					onPress={submit}
 				>
-					{busy ? "Merging…" : "Merge branch"}
+					{busy
+						? kind === "rebase"
+							? "Rebasing…"
+							: "Merging…"
+						: kind === "merge"
+							? "Merge branch"
+							: modeLabels[kind]}
 				</Button>
 			</div>
 		</div>

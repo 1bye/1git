@@ -38,6 +38,7 @@ it.each([
 	["MERGE_HEAD", "merge", false],
 	["CHERRY_PICK_HEAD", "cherry-pick", false],
 	["REVERT_HEAD", "revert", false],
+	["SQUASH_MSG", "squash-merge", false],
 ] as const)(
 	"detects %s even when optional operation-token files are missing",
 	async (marker, state, directory) => {

@@ -40,7 +40,7 @@ type GitResult<T> =
 - History: paginated commits, commit metadata, committed file lists, file content, structured diffs
 - Index and commits: stage, unstage, restore, reset, commit, amend
 - Branches: create, switch, rename, delete, set upstream
-- Sequences: merge, rebase, cherry-pick, revert, continue/skip/abort
+- Sequences: merge, reviewed squash merge/rebase, cherry-pick, revert, continue/skip/abort
 - Sharing: remotes, fetch, pull, push, tags
 - Stashes: create, list, apply, pop, drop
 - Worktrees: create, list, move, remove, lock, unlock, prune, repair
@@ -61,6 +61,24 @@ Failures stay on the destination for inspection; there is no forced checkout,
 automatic stash, rollback or push. `finishOperation` accepts reviewed `cherry-pick`
 identity and metadata tokens for Continue/Abort. Abort restores the destination's
 pre-replay state. Other repository instances and external Git processes are not locked.
+
+`integrateBranch({ kind, branch, expectedTarget, expectedHead, expectedBranch, message })`
+provides the reviewed `rebase`/`squash-merge` workflows alongside the general methods.
+Pass an exact full branch ref and both reviewed OIDs. It rejects detached/unborn HEAD,
+changed tips, dirty index/working files and active operations. Rebase refuses
+replayed commits reachable from known remote-tracking refs and merge commits;
+fetch first if that knowledge may be stale. It retains the old tip under
+`refs/1git/rebase/<id>`, disables autostash/updateRefs, and never force-pushes.
+Squash requires a first-line message summary, applies the exact target tip and
+creates one single-parent commit with that message, preserving hooks/signing.
+Already-included work does not produce an empty commit. Both keep the source branch.
+
+Conflicts remain for `finishOperation` with refreshed identity/token; always reread
+after failure. Squash uses Git's `SQUASH_MSG` for pending-state detection and its
+reviewed message across restarts. Continue commits existing staged resolutions;
+Abort uses `reset --merge` only if `ORIG_HEAD` matches the reviewed current tip.
+The marker is cleared only after success. Serialization covers one repository
+instance; applications must coordinate linked worktrees and avoid external Git writes.
 
 `getCommitFiles(revision, { signal })` returns a commit's changed paths, status,
 optional rename source, and before/after blob OIDs without loading patches. Diffs

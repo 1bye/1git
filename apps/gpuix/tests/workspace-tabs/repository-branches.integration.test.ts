@@ -1,5 +1,5 @@
 /**
- * Covers: branch switching/creation/merging, stale state and dirty-tree protection, worktree ownership.
+ * Covers: branch switching/creation/integration, stale state and dirty-tree protection, worktree ownership.
  * Real: app Git boundaries, Git CLI and disposable repositories.
  * Doubles: none.
  * Requires: Git on PATH and writable temporary storage; no network or existing repository.
@@ -101,10 +101,12 @@ const switchTo = async (
 
 const mergeBranch = async (
 	name = "refs/heads/feature/ui",
-	expectedTarget?: string
+	expectedTarget?: string,
+	kind: "merge" | "rebase" | "squash-merge" = "merge"
 ) =>
 	await writeBranch(repository, {
-		kind: "merge",
+		kind,
+		message: kind === "squash-merge" ? "Combined feature work" : undefined,
 		name,
 		expectedTarget: expectedTarget ?? (await git("rev-parse", name)),
 		expectedHead: await git("rev-parse", "HEAD"),
@@ -155,45 +157,82 @@ it("creates a normal merge commit for clean diverged branches", async () => {
 	expect(await git("status", "--porcelain")).toBe("");
 });
 
-it("exposes merge conflicts for recovery and can abort without changing either branch", async () => {
-	await git("switch", "feature/ui");
-	await writeFile(join(repository, "file.txt"), "feature\n");
-	await git("commit", "-am", "Feature edit");
-	const target = await git("rev-parse", "HEAD");
+it.each(["merge", "squash-merge", "rebase"] as const)(
+	"exposes integration conflicts for recovery and can abort without changing either branch (%s)",
+	async (kind) => {
+		await git("switch", "feature/ui");
+		await writeFile(join(repository, "file.txt"), "feature\n");
+		await git("commit", "-am", "Feature edit");
+		const target = await git("rev-parse", "HEAD");
 
-	await git("switch", "main");
-	await writeFile(join(repository, "file.txt"), "main\n");
-	await git("commit", "-am", "Main edit");
-	const previous = await git("rev-parse", "HEAD");
-	const result = await mergeBranch();
+		await git("switch", "main");
+		await writeFile(join(repository, "file.txt"), "main\n");
+		await git("commit", "-am", "Main edit");
+		const previous = await git("rev-parse", "HEAD");
+		const result = await mergeBranch(undefined, undefined, kind);
 
-	const refreshed = await RepositoryReader.read(
-		repository,
-		new AbortController().signal
-	);
+		const refreshed = await RepositoryReader.read(
+			repository,
+			new AbortController().signal
+		);
 
-	expect(result.ok).toBe(false);
-	expect(!result.ok && result.error.code).toBe("conflict");
-	expect(refreshed.ok && refreshed.value.operationState).toBe("merge");
-	expect(await git("status", "--porcelain")).toContain("UU file.txt");
+		expect(result.ok).toBe(false);
+		expect(!result.ok && result.error.code).toBe("conflict");
+		expect(refreshed.ok && refreshed.value.operationState).toBe(kind);
+		expect(await git("status", "--porcelain")).toContain("UU file.txt");
 
-	if (!refreshed.ok || !refreshed.value.operationToken)
-		throw new Error("Expected active merge");
+		if (!refreshed.ok || !refreshed.value.operationToken)
+			throw new Error("Expected active integration");
 
-	const aborted = await RepositoryOperation.write(repository, {
-		kind: "abort",
-		expectedOperation: "merge",
-		expectedHead: previous,
-		expectedBranch: "main",
-		expectedToken: refreshed.value.operationToken,
-	});
+		const aborted = await RepositoryOperation.write(repository, {
+			kind: "abort",
+			expectedOperation: kind,
+			expectedHead: refreshed.value.head.oid,
+			expectedBranch: refreshed.value.head.branch,
+			expectedToken: refreshed.value.operationToken,
+		});
 
-	expect(aborted.ok).toBe(true);
-	expect(await git("rev-parse", "HEAD")).toBe(previous);
-	expect(await git("rev-parse", "feature/ui")).toBe(target);
-	expect(await readFile(join(repository, "file.txt"), "utf8")).toBe("main\n");
-	expect(await git("status", "--porcelain")).toBe("");
-});
+		expect(aborted.ok).toBe(true);
+		expect(await git("rev-parse", "HEAD")).toBe(previous);
+		expect(await git("rev-parse", "feature/ui")).toBe(target);
+		expect(await readFile(join(repository, "file.txt"), "utf8")).toBe("main\n");
+		expect(await git("status", "--porcelain")).toBe("");
+	}
+);
+
+it.each(["squash-merge", "rebase"] as const)(
+	"integrates the reviewed branch in another worktree without switching or moving its tip (%s)",
+	async (kind) => {
+		await git("switch", "feature/ui");
+		await writeFile(join(repository, "feature.txt"), "feature\n");
+		await git("add", "feature.txt");
+		await git("commit", "-m", "Feature work");
+		const target = await git("rev-parse", "HEAD");
+
+		await git("switch", "main");
+		await git("worktree", "add", join(sandbox, "linked feature"), "feature/ui");
+		await writeFile(join(repository, "main.txt"), "main\n");
+		await git("add", "main.txt");
+		await git("commit", "-m", "Main work");
+		const previous = await git("rev-parse", "HEAD");
+		const result = await mergeBranch(undefined, undefined, kind);
+
+		expect(result.ok && result.value.snapshot.head.branch).toBe("main");
+		expect(result.ok && result.value.snapshot.operationState).toBe("normal");
+		expect(await git("show", "-s", "--format=%P", "HEAD")).toBe(
+			kind === "rebase" ? target : previous
+		);
+		expect(await git("show", "-s", "--format=%s", "HEAD")).toBe(
+			kind === "rebase" ? "Main work" : "Combined feature work"
+		);
+		expect(await git("rev-parse", "feature/ui")).toBe(target);
+		expect(await readFile(join(repository, "feature.txt"), "utf8")).toBe(
+			"feature\n"
+		);
+		expect(await readFile(join(repository, "main.txt"), "utf8")).toBe("main\n");
+		expect(await git("status", "--porcelain")).toBe("");
+	}
+);
 
 it("refuses dirty trees, stale target commits and changed source branches without discarding work", async () => {
 	const original = await git("rev-parse", "HEAD");

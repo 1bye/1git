@@ -662,6 +662,35 @@ This is not a port of the Electron liquid SVG morph.
   tab after success or failure, preserving drafts. Failed refresh blocks further
   writes until the user refreshes successfully.
 
+### Merge, squash merge and rebase
+
+The tab menu's **Merge or rebase…** opens an inline branch picker with three modes.
+Select another local or remote-tracking branch and explicitly confirm. Selection,
+search, mode changes and Cancel/Escape do not write to Git. The ordinary commit
+draft is retained. All modes require a clean index/working tree, a named committed
+branch and no active Git operation; both reviewed tips are checked before writing.
+
+- **Merge** keeps the existing fast-forward/normal merge behavior.
+- **Squash merge** combines the selected branch's changes into one new commit on
+  the current branch, with an editable summary/body. It retains the source branch,
+  honors hooks/signing, and does not create an empty commit for already-included work.
+  Conflicts or a failed commit hook leave a pending squash with the reviewed message
+  in Git's `SQUASH_MSG`, so Continue/Abort remain available after restarting.
+- **Rebase** replays the current branch onto the selected tip without switching the
+  source branch. It refuses replaying commits reachable from known remote-tracking
+  refs, including published ancestors of an unpublished tip, and refuses flattening
+  merge commits. Fetch first if another tool/device may have published work: local
+  remote knowledge is not a live server check. The old tip is retained under
+  `refs/1git/rebase/<id>` for manual recovery. Git autostash and updateRefs are disabled;
+  sibling branch tips are not moved.
+
+Nothing fetches, pushes or force-pushes automatically. A selected branch may be
+checked out in another worktree because its tip is read, not changed. Related app
+writes and tab/window closure stay protected through integration and status refresh.
+Conflicts open Changes with Continue and confirmed Abort, including after restart;
+failed status reads require another refresh before writing. External Git processes
+are not locked. Interactive rebase, merge-preserving rebase and Skip remain external.
+
 ### Publish repository
 
 For a local repository without remotes, the top rail control offers **Publish repository**.
@@ -707,7 +736,7 @@ accessible label. Counts come from the last known remote refs, not live polling.
   incoming commits only, then push to the exact tracking destination without force,
   mirrors, tags, automatic commits or stashes. Incoming changes require a clean tree.
 - If both counts are nonzero, the control fetches and opens a review dialog.
-  It offers Compare and points to Merge another branch in the tab menu; it never
+  It offers Compare and points to Merge or rebase in the tab menu; it never
   silently merges, rebases or force-pushes.
 - Without remotes, the control opens the existing right-side Publish repository
   form. Without an upstream, it opens Publish branch: explicitly choose a remote
@@ -725,7 +754,7 @@ accessible label. Counts come from the last known remote refs, not live polling.
   A stopped/timed-out write may already have completed; review status before retrying.
   A failed status refresh blocks writes until a successful manual refresh.
 - The composer contains only Commit (and last-commit Undo). The tab menu retains
-  branches, Worktrees, New, Compare, Merge and Repository settings, not duplicate
+  branches, Worktrees, New, Compare, Merge or rebase and Repository settings, not duplicate
   remote controls.
 
 Native component tests use captured Git/account boundaries to exercise rail layout,
@@ -1189,14 +1218,17 @@ hot reload cannot replace a loaded addon. This bridge is macOS-only.
   refresh blocks further writes. External editors/Git processes are not locked;
   avoid concurrent writes while marking a file resolved.
 
-### Merge, rebase, revert and cherry-pick completion
+### Merge, squash merge, rebase, revert and cherry-pick completion
 
-- Changes shows the active merge/rebase/revert/cherry-pick, conflict count, **Continue** and **Abort…**.
+- Changes shows the active merge/squash merge/rebase/revert/cherry-pick, conflict count, **Continue** and **Abort…**.
 - Continue uses Git's staged resolutions and existing message, retaining hooks
   and signing. It never stages files or uses the commit-inclusion checkboxes.
   Unresolved conflicts or unstaged tracked edits block continuation.
 - Abort requires confirmation: Git attempts to restore the pre-operation state,
   and conflict-resolution edits may be lost.
+  Squash completion commits staged resolutions with the reviewed message;
+  its abort uses `reset --merge` only when `ORIG_HEAD` still matches the current tip.
+  Detection uses Git's `SQUASH_MSG`, including squashes started outside 1git.
 - Both actions recheck HEAD, branch and an operation-metadata fingerprint.
   Results are refreshed even on failure: a rebase may stop at another conflict.
   Closing and competing app writes remain blocked through the refresh; a failed

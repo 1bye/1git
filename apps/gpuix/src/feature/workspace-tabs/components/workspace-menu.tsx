@@ -469,6 +469,7 @@ export function WorkspaceMenu({
 		!!head &&
 		!!branch &&
 		!tab.workspace.preview &&
+		!tab.workspace.amend &&
 		mergeBranches.length > 0;
 
 	const savedChanges =
@@ -600,7 +601,7 @@ export function WorkspaceMenu({
 
 	// Fixed header/action rows surround a scrollable list; the expanded menu stays inside the window.
 	const contentHeight = mergeSource
-		? 380
+		? 440
 		: changesPrompt
 			? changesPrompt.choice.kind === "restore"
 				? 164
@@ -965,13 +966,14 @@ export function WorkspaceMenu({
 								branch !== mergeSource.branch
 							}
 							onCancel={showActions}
-							onMerge={(target) => {
+							onMerge={(target, kind, message) => {
 								void (async () => {
 									if (!canMerge) return;
 
 									setError(null);
 									await onChangeBranch(tab.id, {
-										kind: "merge",
+										kind,
+										...(kind === "squash-merge" ? { message } : {}),
 										name: target.fullName,
 										expectedTarget: target.oid,
 										reviewedSource: mergeSource,
@@ -1613,7 +1615,7 @@ export function WorkspaceMenu({
 							>
 								<WorkspaceTabIcon name="branch" />
 								<Text tokens={appTokens} style={styles.label}>
-									Merge another branch…
+									Merge or rebase…
 								</Text>
 							</Button>
 							{onSettings ? (

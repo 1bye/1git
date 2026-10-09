@@ -27,6 +27,7 @@ export type GitOperation =
 	| "abort-cherry-pick"
 	| "abort-merge"
 	| "abort-rebase"
+	| "abort-squash-merge"
 	| "abort-revert"
 	| "add-remote"
 	| "change-hunk"
@@ -38,6 +39,7 @@ export type GitOperation =
 	| "continue-cherry-pick"
 	| "continue-merge"
 	| "continue-rebase"
+	| "continue-squash-merge"
 	| "continue-revert"
 	| "create-branch"
 	| "create-tag"
@@ -71,6 +73,7 @@ export type GitOperation =
 	| "pull"
 	| "push"
 	| "rebase"
+	| "squash-merge"
 	| "remove-remote"
 	| "remove-worktree"
 	| "rename-branch"
@@ -139,6 +142,7 @@ export type RepositoryOperationState =
 	| "merge"
 	| "normal"
 	| "rebase"
+	| "squash-merge"
 	| "revert";
 
 /** Normalized index or worktree status for a path. */
@@ -488,7 +492,12 @@ export interface ResolveConflictInput extends GitCallOptions {
 /** Reviewed operation identity; abort requires a separate explicit user confirmation at the UI boundary. */
 export interface FinishOperationInput extends GitCallOptions {
 	readonly kind: "continue" | "abort";
-	readonly expectedOperation: "merge" | "rebase" | "revert" | "cherry-pick";
+	readonly expectedOperation:
+		| "merge"
+		| "rebase"
+		| "revert"
+		| "cherry-pick"
+		| "squash-merge";
 	readonly expectedHead: string | null;
 	readonly expectedBranch: string | null;
 	readonly expectedToken: string;
@@ -610,6 +619,17 @@ export interface RebaseInput extends GitCallOptions {
 	readonly branch?: string;
 	readonly onto?: string;
 	readonly upstream: string;
+}
+
+/** Integrates one exact branch tip into the reviewed clean branch; rebase refuses known published commits and merge histories. */
+export interface BranchIntegrationInput extends GitCallOptions {
+	readonly kind: "rebase" | "squash-merge";
+	readonly branch: string;
+	readonly expectedTarget: string;
+	readonly expectedHead: string;
+	readonly expectedBranch: string;
+	/** Required for squash merge; continuation retains this message and Git hooks/signing. */
+	readonly message?: string;
 }
 
 export interface RevisionSequenceInput extends GitCallOptions {

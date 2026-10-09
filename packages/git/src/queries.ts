@@ -65,6 +65,8 @@ const loadOperationState = (gitDirectory: string): RepositoryOperationState => {
 		return "revert";
 	}
 
+	if (existsSync(join(gitDirectory, "SQUASH_MSG"))) return "squash-merge";
+
 	return "normal";
 };
 
@@ -75,8 +77,8 @@ const operationToken = async (
 	if (operation === "normal") return undefined;
 
 	const files =
-		operation === "merge"
-			? ["MERGE_HEAD", "ORIG_HEAD"]
+		operation === "merge" || operation === "squash-merge"
+			? [operation === "merge" ? "MERGE_HEAD" : "SQUASH_MSG", "ORIG_HEAD"]
 			: operation === "revert" || operation === "cherry-pick"
 				? [
 						operation === "revert" ? "REVERT_HEAD" : "CHERRY_PICK_HEAD",

@@ -27,9 +27,12 @@ export interface BranchRequest {
 		| "rename"
 		| "delete"
 		| "merge"
+		| "rebase"
+		| "squash-merge"
 		| "restore";
 	readonly name: string;
 	readonly newName?: string;
+	readonly message?: string;
 	readonly expectedTarget?: string;
 	readonly expectedHead: string | null;
 	readonly expectedBranch: string | null;
@@ -41,7 +44,7 @@ export interface BranchRequest {
 	};
 }
 
-/** Non-forcing branch operations and reviewed merges, with explicit stash-backed switching choices. */
+/** Non-forcing branch operations and reviewed integrations, with explicit stash-backed switching choices. */
 export class RepositoryBranches {
 	private constructor() {}
 
@@ -130,6 +133,12 @@ export class RepositoryBranches {
 		if (!snapshot.ok) return snapshot;
 
 		const { head, operationState, files } = snapshot.value;
+
+		const integrating =
+			request.kind === "merge" ||
+			request.kind === "rebase" ||
+			request.kind === "squash-merge";
+
 		let message: string | undefined;
 
 		if (
@@ -145,10 +154,9 @@ export class RepositoryBranches {
 			operationState !== "normal" ||
 			files.some((file) => file.recordType === "unmerged")
 		)
-			message =
-				request.kind === "merge"
-					? "Finish the current Git operation before merging branches."
-					: "Finish the current Git operation before switching branches.";
+			message = integrating
+				? "Finish the current Git operation before integrating branches."
+				: "Finish the current Git operation before switching branches.";
 		else if (
 			files.some((file) => file.recordType !== "ignored") &&
 			!(
@@ -156,23 +164,27 @@ export class RepositoryBranches {
 				request.changes
 			)
 		)
-			message =
-				request.kind === "merge"
-					? "Commit or stash your changes before merging branches. Nothing has been discarded."
-					: "Commit or stash your changes before switching branches. Nothing has been discarded.";
+			message = integrating
+				? "Commit or stash your changes before integrating branches. Nothing has been discarded."
+				: "Commit or stash your changes before switching branches. Nothing has been discarded.";
 
 		if (message)
 			return {
 				ok: false,
 				error: {
 					code: "conflict",
-					operation: request.kind === "merge" ? "merge" : "checkout-branch",
+					operation:
+						request.kind === "merge" ||
+						request.kind === "rebase" ||
+						request.kind === "squash-merge"
+							? request.kind
+							: "checkout-branch",
 					retryable: false,
 					message,
 				},
 			};
 
-		if (request.kind === "merge") {
+		if (integrating) {
 			const branches = await opened.value.getBranches();
 
 			if (!branches.ok) return branches;
@@ -192,18 +204,31 @@ export class RepositoryBranches {
 					ok: false,
 					error: {
 						code: "conflict",
-						operation: "merge",
+						operation:
+							request.kind === "rebase" || request.kind === "squash-merge"
+								? request.kind
+								: "merge",
 						retryable: false,
 						message:
-							"Choose another available branch and review it again before merging.",
+							"Choose another available branch and review it again before integrating.",
 					},
 				};
 
-			// Pin the reviewed source commit; never follow a ref that moves during the merge.
-			const merged = await opened.value.merge({
-				revision: target.oid,
-				message: `Merge branch '${target.name}' into ${head.branch}`,
-			});
+			// Pin the reviewed target commit; never follow a ref that moves during integration.
+			const merged =
+				request.kind === "rebase" || request.kind === "squash-merge"
+					? await opened.value.integrateBranch({
+							kind: request.kind,
+							branch: target.fullName,
+							expectedTarget: target.oid,
+							expectedHead: head.oid,
+							expectedBranch: head.branch,
+							message: request.message,
+						})
+					: await opened.value.merge({
+							revision: target.oid,
+							message: `Merge branch '${target.name}' into ${head.branch}`,
+						});
 
 			if (!merged.ok) return merged;
 

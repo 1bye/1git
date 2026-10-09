@@ -66,7 +66,7 @@ export class RepositoryWatcher {
 							if (path.endsWith(".lock")) return;
 
 							if (
-								!/^(HEAD|index|packed-refs|config|config\.worktree|info\/exclude|refs(?:\/.*)?|MERGE_HEAD|CHERRY_PICK_HEAD|REVERT_HEAD|rebase-merge(?:\/.*)?|rebase-apply(?:\/.*)?|sequencer(?:\/.*)?)$/.test(
+								!/^(HEAD|index|packed-refs|config|config\.worktree|info\/exclude|refs(?:\/.*)?|MERGE_HEAD|ORIG_HEAD|SQUASH_MSG|CHERRY_PICK_HEAD|REVERT_HEAD|rebase-merge(?:\/.*)?|rebase-apply(?:\/.*)?|sequencer(?:\/.*)?)$/.test(
 									path
 								)
 							)

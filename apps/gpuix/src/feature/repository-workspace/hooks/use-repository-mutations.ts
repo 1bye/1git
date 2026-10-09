@@ -431,8 +431,10 @@ export function useRepositoryMutations(
 					.join("\n");
 		} catch {
 			error =
-				choice.kind === "merge"
-					? "Could not confirm the merge. Review Changes and History before retrying."
+				choice.kind === "merge" ||
+				choice.kind === "squash-merge" ||
+				choice.kind === "rebase"
+					? "Could not confirm branch integration. Review Changes and History before retrying."
 					: "Could not confirm the branch change. Check the current branch before retrying.";
 		}
 
@@ -504,7 +506,12 @@ export function useRepositoryMutations(
 				dispatch({ type: "workspace", id: tab.id, action });
 			}
 
-		if (mounted.current && choice.kind === "merge")
+		if (
+			mounted.current &&
+			(choice.kind === "merge" ||
+				choice.kind === "squash-merge" ||
+				choice.kind === "rebase")
+		)
 			dispatch({
 				type: "workspace",
 				id,
