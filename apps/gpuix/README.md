@@ -750,7 +750,7 @@ no user repositories or live hosted services are modified.
   data stays visible with a stale-data notice.
 - Reads belong to their original tab, even after switching/reordering. Closing a
   tab or unmounting cancels pending reads and ignores late picker/read results.
-- **Checkboxes select whole files for the next commit, not Git staging.** Toggling
+- **Checkboxes select changes for the next commit, not Git staging.** Toggling
   them neither stages nor unstages files. Command+Enter/the composer button creates
   a real commit in a connected repository. Drafts are saved with the session;
   inclusion choices remain in-memory only.
@@ -807,7 +807,7 @@ the Turbo build/dev tasks build dependencies first. No Electron IPC is involved.
 
 - Write a first-line summary, with optional details after a blank line, then use
   **Commit N files** or **Command+Enter**. The commit uses the checked files' current
-  whole-file contents, even when some edits were prepared in another Git tool.
+  whole-file contents unless a line selection is present, even when some edits were prepared in another Git tool.
   Unchecked files and their existing Git staging remain untouched;
   checkbox toggles themselves never write Git state.
 - The backend acquires the repository's index lock, prepares a temporary index,
@@ -815,8 +815,23 @@ the Turbo build/dev tasks build dependencies first. No Electron IPC is involved.
   normally. On success it installs the updated index, retaining excluded staging.
   Hook/signing failures keep the original index and draft; hook programs may still
   perform their own configured filesystem side effects.
-- There is no staged/unstaged commit mode or partial-hunk staging UI. Checking a
-  file includes all its current changes, not just its Git index content.
+- In Changes, the blue gutter selects contiguous change groups or individual added/deleted
+  lines. Click the outer gutter for the group and the inner gutter for a line; Tab then
+  Space/Enter also toggles a control. A partially included file has a mixed checkbox;
+  clicking it includes the entire file. The controls work in unified and split layouts.
+  `native/diff-inclusion.patch` adds `selectionEnabled`, `selectionDisabled`, `includedLines`
+  and `onToggleChange` to the cached native viewer. Coordinates (`-:oldLine`, `+:newLine`)
+  remain stable across context expansion. React owns selection, not native row state.
+  History, Stashes and Compare stay read-only. Binary, renamed, mode-only and symlink
+  changes use whole-file inclusion. While whitespace changes are hidden, the gutter
+  stays visible; activating a line or group offers **Show whitespace changes**.
+  Confirming changes only the diff preference, retaining existing inclusion choices.
+  Partial selection saves the unfiltered reviewed patch. Git rechecks it before committing;
+  changed files require review. Excluded lines remain as unstaged working changes after
+  success; staging for unchecked files is retained. A HEAD change clears partial choices
+  and excludes those files until reviewed. Inclusion choices are not persisted.
+  There is no staged/unstaged commit mode. Checking a file includes all its current
+  changes, not just its Git index content.
   Submodules, unresolved conflicts,
   active merge/rebase operations, and ambiguous file/directory changes are also
   blocked. HEAD and branch are rechecked before committing; stale state requires

@@ -374,6 +374,7 @@ export function RepositoryNavigation({
 						view === "changes"
 							? {
 									ids: state.includedFileIds,
+									partialIds: Object.keys(state.partialFiles ?? {}),
 									disabled: RepositoryWorkspaceModel.isBusy(state),
 									onChange: (id, included) =>
 										onAction({ type: "include-file", id, included }),
@@ -619,7 +620,8 @@ export function RepositoryNavigation({
 								state.includedFileIds.length === 0
 									? false
 									: state.includedFileIds.length ===
-										  state.entries.changes.length
+												state.entries.changes.length &&
+										  !Object.keys(state.partialFiles ?? {}).length
 										? true
 										: "indeterminate"
 							}

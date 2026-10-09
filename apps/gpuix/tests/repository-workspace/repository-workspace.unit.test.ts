@@ -14,6 +14,83 @@ import {
 	repositorySnapshot,
 } from "../_shared/repository-snapshot";
 
+it("keeps partial inclusion local, supports whole-file reset and protects it during writes", () => {
+	const state = Model.reduce(Model.create(), {
+		type: "loaded",
+		snapshot: repositorySnapshot([changedFile("file.txt")]),
+	});
+
+	const partial = Model.reduce(state, {
+		type: "include-lines",
+		id: "file.txt",
+		expectedPatch: "reviewed patch",
+		includedLines: ["+:1"],
+		total: 2,
+	});
+
+	expect(partial.includedFileIds).toEqual(["file.txt"]);
+	expect(partial.partialFiles?.["file.txt"]?.includedLines).toEqual(["+:1"]);
+	expect(state.partialFiles).toEqual({});
+	const all = Model.reduce(partial, {
+		type: "include-file",
+		id: "file.txt",
+		included: true,
+	});
+
+	expect(all.includedFileIds).toEqual(["file.txt"]);
+	expect(all.partialFiles).toEqual({});
+	expect(
+		Model.reduce(partial, { type: "include-all", included: true }).partialFiles
+	).toEqual({});
+	expect(
+		Model.reduce(partial, {
+			type: "include-files",
+			ids: ["file.txt"],
+			included: false,
+		}).includedFileIds
+	).toEqual([]);
+	const pending = Model.reduce(partial, { type: "operation-started" });
+
+	expect(
+		Model.reduce(pending, {
+			type: "include-lines",
+			id: "file.txt",
+			expectedPatch: "new",
+			includedLines: [],
+			total: 2,
+		})
+	).toBe(pending);
+});
+
+it("retains partial choices for the same HEAD, but excludes them when HEAD changes", () => {
+	const snapshot = repositorySnapshot([changedFile("file.txt")]);
+
+	const state = Model.reduce(
+		Model.reduce(Model.create(), { type: "loaded", snapshot }),
+		{
+			type: "include-lines",
+			id: "file.txt",
+			expectedPatch: "reviewed patch",
+			includedLines: ["+:1"],
+			total: 2,
+		}
+	);
+
+	expect(
+		Model.reduce(state, { type: "loaded", snapshot }).partialFiles
+	).toEqual(state.partialFiles);
+	const moved = Model.reduce(state, {
+		type: "loaded",
+		snapshot: {
+			...snapshot,
+			head: { ...snapshot.head, oid: "different-head" },
+		},
+	});
+
+	expect(moved.includedFileIds).toEqual([]);
+	expect(moved.partialFiles).toEqual({});
+});
+
 it("uses one checkbox and complete file metadata for an externally removed and recreated file", () => {
 	const state = Model.reduce(Model.create(), {
 		type: "loaded",

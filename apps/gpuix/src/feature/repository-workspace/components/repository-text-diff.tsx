@@ -1,11 +1,27 @@
 import { spacing, typography } from "@1git/design-tokens";
 import { DiffView } from "@1git/gpuix-ui/diff-view";
+import { Button } from "@1git/gpuix-ui/button";
+import { Popover, PopoverContent } from "@1git/gpuix-ui/popover";
 import type { GpuixTheme } from "@gpuix/react";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { PartialPatch } from "@1git/git";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { appTokens } from "../../../styles/tokens";
 import { DiffContext } from "../lib/diff-context";
 import { RepositoryDiff, type DiffSelection } from "../lib/repository-diff";
+
+export interface DiffInclusion {
+	readonly included: boolean;
+	readonly selection?: {
+		readonly expectedPatch: string;
+		readonly includedLines: readonly string[];
+	};
+	readonly onChange: (
+		patch: string,
+		includedLines: readonly string[],
+		total: number
+	) => void;
+}
 
 /** Owns one displayed snapshot's on-demand context; never replaces the diff with a loader. */
 export function RepositoryTextDiff({
@@ -18,6 +34,8 @@ export function RepositoryTextDiff({
 	mode,
 	splitLayout,
 	ignoreWhitespace,
+	inclusion,
+	onShowWhitespace,
 }: {
 	root: string;
 	change: DiffSelection;
@@ -28,8 +46,36 @@ export function RepositoryTextDiff({
 	mode: "unified" | "split";
 	splitLayout: "fixed" | "content-sized";
 	ignoreWhitespace: boolean;
+	inclusion?: DiffInclusion;
+	onShowWhitespace: () => void;
 }) {
+	const inclusionEnabled = !!inclusion;
+
+	const selectablePatch = useMemo(() => {
+		if (!inclusionEnabled) return null;
+
+		try {
+			return new PartialPatch(patch);
+		} catch {
+			return null;
+		}
+	}, [patch, inclusionEnabled]);
+
+	const stale =
+		!ignoreWhitespace &&
+		inclusion?.selection &&
+		inclusion.selection.expectedPatch !== patch;
+
+	const includedLines = inclusion?.selection
+		? stale
+			? []
+			: inclusion.selection.includedLines
+		: inclusion?.included
+			? (selectablePatch?.lines ?? [])
+			: [];
+
 	const [expanded, setExpanded] = useState({ snapshot, patch });
+	const [whitespacePrompt, setWhitespacePrompt] = useState<object | null>(null);
 
 	const [failure, setFailure] = useState<{
 		snapshot: object;
@@ -39,6 +85,12 @@ export function RepositoryTextDiff({
 	const pending = useRef<AbortController | null>(null);
 	const displayed = expanded.snapshot === snapshot ? expanded.patch : patch;
 	const error = failure?.snapshot === snapshot ? failure.message : null;
+
+	const inclusionInstructions = !selectablePatch
+		? "Read-only. "
+		: ignoreWhitespace
+			? "Activate the inclusion gutter to show whitespace changes before selecting lines. "
+			: "Toggle the inclusion gutter with a click, or Tab then Space. ";
 
 	// Reset only context, not the native viewport, so status refresh preserves scroll.
 	useLayoutEffect(
@@ -100,6 +152,48 @@ export function RepositoryTextDiff({
 			<DiffView
 				testId="diff-viewport"
 				patch={displayed}
+				selectionEnabled={!!selectablePatch}
+				selectionDisabled={blocked}
+				includedLines={includedLines}
+				onToggleChange={
+					selectablePatch && inclusion
+						? (event) => {
+								if (blocked || !event.value) return;
+
+								if (ignoreWhitespace) {
+									setWhitespacePrompt(snapshot);
+
+									return;
+								}
+
+								const keys: unknown = JSON.parse(event.value);
+
+								if (
+									!Array.isArray(keys) ||
+									!keys.every(
+										(key): key is string =>
+											typeof key === "string" &&
+											selectablePatch.lines.includes(key)
+									)
+								)
+									return;
+
+								const selected = new Set(includedLines);
+								const exclude = keys.every((key) => selected.has(key));
+
+								for (const key of keys) {
+									if (exclude) selected.delete(key);
+									else selected.add(key);
+								}
+
+								inclusion.onChange(
+									patch,
+									[...selected],
+									selectablePatch.lines.length
+								);
+							}
+						: undefined
+				}
 				mode={mode}
 				splitLayout={splitLayout}
 				showFileHeader={false}
@@ -107,7 +201,7 @@ export function RepositoryTextDiff({
 				theme={theme}
 				tokens={appTokens}
 				aria-label={"commit" in change ? "Committed file diff" : "File diff"}
-				aria-description={`${mode === "split" ? "Split: original on the left, revised on the right. " : "Unified. "}Read-only. Use arrows, Page Up, Page Down, Home and End to scroll. Press E to expand 20 unchanged lines at the first remaining separator. Select text and press Command C to copy.`}
+				aria-description={`${mode === "split" ? "Split: original on the left, revised on the right. " : "Unified. "}${inclusionInstructions}Use arrows, Page Up, Page Down, Home and End to scroll. Press E to expand 20 unchanged lines at the first remaining separator. Select text and press Command C to copy.`}
 				onExpandContext={(event) => {
 					void expand(event.oldLine, event.newLine);
 				}}
@@ -125,6 +219,89 @@ export function RepositoryTextDiff({
 					return true;
 				}}
 			/>
+			<Popover
+				open={
+					whitespacePrompt === snapshot &&
+					ignoreWhitespace &&
+					!blocked &&
+					!!inclusion
+				}
+				onOpenChange={(open) => {
+					if (!open) setWhitespacePrompt(null);
+				}}
+			>
+				<PopoverContent
+					placement="center"
+					width={340}
+					testId="diff-whitespace-prompt"
+					aria-label="Show whitespace changes?"
+					tokens={appTokens}
+				>
+					<div
+						style={{
+							display: "flex",
+							flexDirection: "column",
+							gap: spacing[2],
+						}}
+					>
+						<text
+							role="heading"
+							aria-level={2}
+							style={{ ...typography.lg, color: appTokens.colors.text }}
+						>
+							Show whitespace changes?
+						</text>
+						<text
+							style={{ ...typography.sm, color: appTokens.colors.textMuted }}
+						>
+							Line selection is unavailable while whitespace changes are hidden.
+						</text>
+						<div
+							style={{
+								display: "flex",
+								flexDirection: "row",
+								justifyContent: "flex-end",
+								gap: spacing[1],
+							}}
+						>
+							<Button
+								testId="diff-whitespace-cancel"
+								tokens={appTokens}
+								size="sm"
+								variant="secondary"
+								onPress={() => setWhitespacePrompt(null)}
+							>
+								Cancel
+							</Button>
+							<Button
+								testId="diff-whitespace-confirm"
+								tokens={appTokens}
+								size="sm"
+								onPress={() => {
+									setWhitespacePrompt(null);
+									onShowWhitespace();
+								}}
+							>
+								Show whitespace changes
+							</Button>
+						</div>
+					</div>
+				</PopoverContent>
+			</Popover>
+			{inclusion && (stale || !selectablePatch) ? (
+				<text
+					role="status"
+					style={{
+						...typography.xs,
+						color: appTokens.colors.textMuted,
+						padding: spacing[1.5],
+					}}
+				>
+					{stale
+						? "This file changed. Review its line selection again before committing."
+						: "This change uses whole-file inclusion."}
+				</text>
+			) : null}
 			{error ? (
 				<text
 					testId="diff-context-status"

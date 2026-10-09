@@ -409,8 +409,10 @@ export interface CommitInput extends GitCallOptions {
 	readonly summary: string;
 }
 
-/** Commits current whole-file contents, preserving excluded index entries. */
+/** Commits selected contents, preserving excluded files' index entries. */
 export interface CommitFilesInput extends GitCallOptions {
+	/** Authoritative unfiltered Changes patch and selected old/new line coordinates. */
+	readonly partialFiles?: readonly PartialFileSelection[];
 	/** Explicitly include all current edits in selected partially staged files. Defaults to rejecting those selections. */
 	readonly includePartialStaging?: boolean;
 	/** Staged mode commits the current index and ignores checkbox paths. */
@@ -419,6 +421,12 @@ export interface CommitFilesInput extends GitCallOptions {
 	readonly message: string;
 	readonly expectedHead: string | null;
 	readonly expectedBranch: string | null;
+}
+
+export interface PartialFileSelection {
+	readonly path: string;
+	readonly expectedPatch: string;
+	readonly includedLines: readonly string[];
 }
 
 /** A confirmed write is distinct from a failed refresh or an indeterminate Git process outcome. */

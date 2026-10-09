@@ -1,0 +1,313 @@
+diff --git a/packages/native/src/custom_elements/diff.rs b/packages/native/src/custom_elements/diff.rs
+index 4bf500e..23d4494 100644
+--- a/packages/native/src/custom_elements/diff.rs
++++ b/packages/native/src/custom_elements/diff.rs
+@@ -18,7 +18,7 @@
+ //! so the closure can capture an `Rc` and build only visible rows. The default
+ //! flow path renders the same rows in a column so a parent can be the scroller.
+ 
+-use std::collections::HashSet;
++use std::collections::{HashSet, HashMap};
+ use std::cell::Cell;
+ use std::rc::Rc;
+ 
+@@ -67,6 +67,7 @@ struct DiffData {
+     /// unknown or the file is binary, which renders plain.
+     highlights: Vec<Option<FileHighlight>>,
+     show_word_diff: bool,
++    groups: HashMap<String, Rc<Vec<String>>>,
+ }
+ 
+ /// Neutral highlight spans for one file, addressed by side and source line.
+@@ -127,6 +128,47 @@ pub struct DiffElement {
+     /// the theme now, so a metrics-only change makes the list's cached
+     /// measurements stale even though the parse is untouched.
+     list_metrics: Option<u64>,
++    selection_enabled: bool,
++    selection_disabled: bool,
++    included_lines: Rc<HashSet<String>>,
++    inclusion: Option<Rc<Inclusion>>,
++    inclusion_focus: HashMap<String, gpui::FocusHandle>,
++}
++
++struct Inclusion {
++    included: Rc<HashSet<String>>,
++    groups: HashMap<String, (Rc<Vec<String>>, usize)>,
++    focus: HashMap<String, gpui::FocusHandle>,
++    disabled: bool,
++}
++
++fn line_key(line: &DiffLine) -> Option<String> {
++    match line.kind {
++        LineKind::Del => line.old_no.map(|n| format!("-:{n}")),
++        LineKind::Add => line.new_no.map(|n| format!("+:{n}")),
++        _ => None,
++    }
++}
++
++fn change_groups(files: &[FileDiff]) -> HashMap<String, Rc<Vec<String>>> {
++    // Selection is intentionally a single-file API. Coordinates stay stable
++    // when context is expanded or the viewer switches between split/unified.
++    let mut groups = HashMap::new();
++    if files.len() != 1 { return groups; }
++    for hunk in &files[0].hunks {
++        let mut pending = Vec::new();
++        let flush = |pending: &mut Vec<String>, groups: &mut HashMap<String, Rc<Vec<String>>>| {
++            if pending.is_empty() { return; }
++            let group = Rc::new(std::mem::take(pending));
++            for key in group.iter() { groups.insert(key.clone(), group.clone()); }
++        };
++        for line in &hunk.lines {
++            if let Some(key) = line_key(line) { pending.push(key); }
++            else if line.kind != LineKind::Meta { flush(&mut pending, &mut groups); }
++        }
++        flush(&mut pending, &mut groups);
++    }
++    groups
+ }
+ 
+ /// All visible rows share one horizontal offset per pane, but only one vertical list.
+@@ -163,6 +205,7 @@ impl DiffElement {
+         }
+ 
+         let data = Rc::new(DiffData {
++            groups: change_groups(&files),
+             files,
+             rows,
+             highlights,
+@@ -170,6 +213,8 @@ impl DiffElement {
+         });
+         self.fingerprint = Some(fingerprint);
+         self.data = Some(data.clone());
++        self.inclusion = None;
++        self.inclusion_focus.retain(|key, _| data.groups.contains_key(key.trim_start_matches("group:")));
+         (data, true)
+     }
+ 
+@@ -197,6 +242,7 @@ impl DiffElement {
+         self.theme.font_mono.hash(&mut hasher);
+         self.theme.font_sans.hash(&mut hasher);
+         self.theme.metrics.hash_into(&mut hasher);
++        self.selection_enabled.hash(&mut hasher);
+         let key = hasher.finish();
+         if let Some((previous, width)) = self.measured_width {
+             if previous == key {
+@@ -251,7 +297,10 @@ impl DiffElement {
+             };
+             width = width.max(row_width);
+         }
+-        let width = width.ceil();
++        let mut width = width.ceil();
++        if self.selection_enabled {
++            width += (if self.split { 4.0 } else { 2.0 }) * m.diff_marker_width;
++        }
+         self.measured_width = Some((key, width));
+         width
+     }
+@@ -374,6 +423,22 @@ impl CustomElement for DiffElement {
+         let wants_line_click = ctx.events.contains("lineClick");
+         let wants_show_more = ctx.events.contains("showMore");
+         let wants_expand_context = ctx.events.contains("expandContext");
++        let inclusion = if self.selection_enabled && ctx.events.contains("toggleChange") {
++            if self.inclusion.is_none() {
++                let mut counts = HashMap::new();
++                let mut groups = HashMap::new();
++                for (key, group) in &data.groups {
++                    let first = &group[0];
++                    let count = *counts.entry(first.clone()).or_insert_with(|| group.iter().filter(|key| self.included_lines.contains(*key)).count());
++                    groups.insert(key.clone(), (group.clone(), count));
++                    for id in [key.clone(), format!("group:{first}")] {
++                        self.inclusion_focus.entry(id).or_insert_with(|| _cx.focus_handle());
++                    }
++                }
++                self.inclusion = Some(Rc::new(Inclusion { included: self.included_lines.clone(), groups, focus: self.inclusion_focus.clone(), disabled: self.selection_disabled }));
++            }
++            self.inclusion.clone()
++        } else { None };
+         let radius = ctx
+             .style
+             .and_then(|style| style.border_radius)
+@@ -433,6 +498,7 @@ impl CustomElement for DiffElement {
+                         wants_line_click,
+                         wants_show_more,
+                         wants_expand_context,
++                        inclusion: inclusion.as_deref(),
+                         theme: &row_theme,
+                         radius,
+                         split_scroll: split_scroll.as_ref(),
+@@ -461,6 +527,7 @@ impl CustomElement for DiffElement {
+                         wants_line_click,
+                         wants_show_more,
+                         wants_expand_context,
++                        inclusion: inclusion.as_deref(),
+                         theme: &row_theme,
+                         radius,
+                         split_scroll: split_scroll.as_ref(),
+@@ -491,6 +558,15 @@ impl CustomElement for DiffElement {
+     fn set_prop(&mut self, key: &str, value: serde_json::Value) {
+         match key {
+             "patch" => self.patch = value.as_str().unwrap_or("").to_string(),
++            "selectionEnabled" => self.selection_enabled = value.as_bool().unwrap_or(false),
++            "selectionDisabled" => {
++                self.selection_disabled = value.as_bool().unwrap_or(false);
++                self.inclusion = None;
++            }
++            "includedLines" => {
++                self.included_lines = Rc::new(value.as_array().map(|items| items.iter().filter_map(|item| item.as_str().map(str::to_string)).collect()).unwrap_or_default());
++                self.inclusion = None;
++            }
+             "mode" => self.split = value.as_str() == Some("split"),
+             "wordDiff" => self.show_word_diff = value.as_bool().unwrap_or(false),
+             "scroll" => self.scroll = value.as_bool().unwrap_or(false),
+@@ -526,6 +602,9 @@ impl CustomElement for DiffElement {
+     fn supported_props(&self) -> &'static [&'static str] {
+         &[
+             "patch",
++            "selectionEnabled",
++            "selectionDisabled",
++            "includedLines",
+             "wordDiff",
+             "scroll",
+             "showFileHeader",
+@@ -541,6 +620,7 @@ impl CustomElement for DiffElement {
+             "toggleFile",
+             "showMore",
+             "lineClick",
++            "toggleChange",
+             "expandContext",
+             "click",
+             "mouseEnter",
+@@ -581,6 +661,7 @@ struct RowContext<'a> {
+     wants_line_click: bool,
+     wants_show_more: bool,
+     wants_expand_context: bool,
++    inclusion: Option<&'a Inclusion>,
+     /// Applied while rendering, never baked into `DiffData`, so a theme change
+     /// repaints without reparsing the patch.
+     theme: &'a Theme,
+@@ -920,6 +1001,9 @@ fn diff_line_row(
+     use gpui::prelude::*;
+ 
+     let m = &theme.metrics;
++    let key = line_key(line);
++    let selected = key.as_ref().is_some_and(|key| ctx.inclusion.is_some_and(|state| state.included.contains(key)));
++    let selected_ink = gpui::hsla(0.0, 0.0, 1.0, 1.0);
+     if line.kind == LineKind::Meta {
+         return gpui::div()
+             .h(px(m.diff_line_height))
+@@ -973,10 +1057,13 @@ fn diff_line_row(
+     let gutter = |no: Option<u32>, color: Hsla| {
+         gpui::div()
+             .w(px(gutter_px))
++            .h_full()
++            .items_center()
++            .when(selected, |el| el.bg(theme.accent))
+             .flex_none()
+             .font_family(theme.font_mono.clone())
+             .text_size(px(11.0))
+-            .text_color(color)
++            .text_color(if selected { selected_ink } else { color })
+             .flex()
+             .justify_end()
+             .pr(px(8.0))
+@@ -1048,6 +1135,10 @@ fn diff_line_row(
+         });
+     }
+ 
++    if ctx.inclusion.is_some() {
++        row = row.child(inclusion_cell(key.as_deref(), true, ix, ctx, theme))
++            .child(inclusion_cell(key.as_deref(), false, ix, ctx, theme));
++    }
+     let mut row = row
+         // Accent bar: solid on +/− rows, an invisible spacer on context rows so
+         // the columns always line up.
+@@ -1106,6 +1197,58 @@ fn diff_line_row(
+         .into_any_element()
+ }
+ 
++/// Native hit targets, not React row overlays: the virtual list remains the
++/// sole vertical scroller, and selection changes reuse the parsed/highlighted data.
++fn inclusion_cell(key: Option<&str>, group: bool, ix: usize, ctx: &RowContext, theme: &Theme) -> gpui::AnyElement {
++    use gpui::prelude::*;
++    let m = &theme.metrics;
++    let blank = || gpui::div().w(px(m.diff_marker_width)).h_full().flex_none().into_any_element();
++    let Some(key) = key else { return blank(); };
++    let Some(state) = ctx.inclusion else { return blank(); };
++    let Some((keys, count)) = state.groups.get(key) else { return blank(); };
++    let first = &keys[0];
++    let checked = if group { *count == keys.len() } else { state.included.contains(key) };
++    let mixed = group && *count > 0 && *count < keys.len();
++    let first_row = !group || key == first;
++    let focus_key = if group { format!("group:{first}") } else { key.to_string() };
++    let focus = state.focus[&focus_key].clone();
++    let value = if group { serde_json::to_string(keys.as_ref()).ok() } else { serde_json::to_string(&[key]).ok() };
++    let callback = ctx.callback.clone();
++    let keyboard_callback = callback.clone();
++    let keyboard_value = value.clone();
++    let element_id = ctx.element_id;
++    let mut cell = gpui::div()
++        .id(SharedString::from(format!("__gpuix_diff_include_{element_id}_{ix}_{group}")))
++        .w(px(m.diff_marker_width)).h_full().flex_none().flex().items_center().justify_center()
++        .block_mouse_except_scroll()
++        .bg(if checked { theme.accent } else if mixed { opacity(theme.accent, 0.6) } else { theme.diff_hunk_bg })
++        .text_color(if checked || mixed { gpui::hsla(0.0, 0.0, 1.0, 1.0) } else { theme.text_faint })
++        .font_family(theme.font_sans.clone()).text_size(px(m.diff_text_size))
++        .role(gpui::Role::CheckBox)
++        .aria_label(SharedString::from(if group { format!("Include change group starting at {first}") } else { format!("Include changed line {key}") }))
++        .aria_toggled(if mixed { gpui::Toggled::Mixed } else if checked { gpui::Toggled::True } else { gpui::Toggled::False });
++    if !state.disabled {
++        let click_focus = focus.clone();
++        cell = cell.cursor_pointer().on_click(move |_, window, cx| {
++            cx.stop_propagation();
++            window.focus(&click_focus, cx);
++            emit_event_full(&callback, element_id, "toggleChange", |p| p.value = value.clone());
++        });
++        if first_row {
++            cell = cell.track_focus(&focus).tab_index(0)
++                .focus(|style| style.border_1().border_color(theme.text))
++                .on_key_down(move |event, _, cx| {
++                    if matches!(event.keystroke.key.as_str(), "space" | "enter") && !event.keystroke.modifiers.modified() {
++                        cx.stop_propagation();
++                        emit_event_full(&keyboard_callback, element_id, "toggleChange", |p| p.value = keyboard_value.clone());
++                    }
++                });
++        }
++    }
++    let mark = if first_row && checked { "✓" } else if first_row && mixed { "−" } else { "" };
++    cell.child(crate::text::chrome_text(SharedString::from(mark), None)).into_any_element()
++}
++
+ fn opacity(mut color: Hsla, alpha: f32) -> Hsla {
+     color.a *= alpha;
+     color
+diff --git a/README.md b/README.md
+index fa6ffa4..6200db6 100644
+--- a/README.md
++++ b/README.md
+@@ -2451,6 +2451,14 @@ renderer owns its layout. Tune that card with the `mdCode*` metrics.
+ 
+ ### `<diff>`
+ 
++The local 1git inclusion extension adds `selectionEnabled`, `selectionDisabled`,
++`includedLines` and `onToggleChange`. For one file, coordinates are `-:oldLine`
++or `+:newLine`. The event's `value` is a JSON array of coordinates to toggle:
++one for the inner gutter, or a contiguous change group for the outer gutter.
++React owns the selection. The native viewer caches parsed groups and paints
++checked/mixed gutters without reparsing or replacing its virtual list.
++Controls support click, Tab, Space/Enter and checked/mixed accessibility state.
++
+ The 1git `diff-view` patch adds `showFileHeader` (default `true`) to remove
+ native file-header rows, and `autoWidth` (default `false`) to derive the minimum
+ width from GPUI-shaped visible text. Set `width: '100%'`, `flexShrink: 0` inside
+diff --git a/.changeset/1git-diff-inclusion.md b/.changeset/1git-diff-inclusion.md
+new file mode 100644
+--- /dev/null
++++ b/.changeset/1git-diff-inclusion.md
+@@ -0,0 +1,7 @@
++---
++"@gpuix/native": patch
++---
++
++Add opt-in blue change-group and line-inclusion gutters to the virtualized diff.
++Keep selection in React, reuse cached patch data, and expose native keyboard and
++checked/mixed accessibility controls. Local 1git patch, not a release.

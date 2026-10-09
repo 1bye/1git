@@ -10,7 +10,7 @@ import { useRef, useState } from "react";
 
 import { defaultTokens, type UiTokens } from "./tokens";
 
-/** Read-only, virtualized patch viewer. Requires 1git's pinned native diff-view patch. */
+/** Virtualized patch viewer with optional inclusion gutters. Requires 1git's pinned native patches. */
 export interface DiffViewProps extends Pick<
 	DiffProps,
 	| "theme"
@@ -23,6 +23,11 @@ export interface DiffViewProps extends Pick<
 	| "onLineClick"
 	| "onExpandContext"
 > {
+	/** Local native extension. Coordinates are -:oldLine and +:newLine; events carry a JSON array. */
+	selectionEnabled?: boolean;
+	selectionDisabled?: boolean;
+	includedLines?: readonly string[];
+	onToggleChange?: (event: EventPayload) => void;
 	patch: string;
 	/** 1git native extension: aligned old/new columns sharing one virtual list. */
 	mode?: "unified" | "split";

@@ -1075,6 +1075,29 @@ export function App({
 							key={`${activeTab.id}:${workspace.repository.root}:${revision?.id ?? "changes"}`}
 							root={workspace.repository.root}
 							change={comparison}
+							inclusion={
+								workspace.view === "changes" &&
+								workspace.repository.operation === "normal"
+									? {
+											included: workspace.includedFileIds.includes(
+												comparison.path
+											),
+											selection: workspace.partialFiles?.[comparison.path],
+											onChange: (expectedPatch, includedLines, total) =>
+												dispatch({
+													type: "workspace",
+													id: activeTab.id,
+													action: {
+														type: "include-lines",
+														id: comparison.path,
+														expectedPatch,
+														includedLines,
+														total,
+													},
+												}),
+										}
+									: undefined
+							}
 							cache={previewCache}
 							settings={diffSettings}
 							onSettingsChange={setDiffSettings}

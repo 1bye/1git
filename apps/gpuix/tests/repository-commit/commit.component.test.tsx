@@ -16,6 +16,7 @@ import {
 } from "../_shared/repository-snapshot";
 import { emptyHistory } from "../_shared/history-page";
 import { windowOptions } from "../../src/window-options";
+import { diffPatch, diffSection } from "../_shared/diff-patch";
 
 let root: TestRoot;
 
@@ -70,6 +71,54 @@ const snapshot = () =>
 	repositorySnapshot([changedFile("a.ts"), changedFile("b.ts")]);
 
 const readRepository = async () => ({ ok: true as const, value: snapshot() });
+
+it("passes native line inclusion to the commit transaction and makes the file checkbox mixed", async () => {
+	const patch = diffPatch("a.ts");
+
+	const writeCommit = mock<typeof RepositoryCommit.write>(async () => ({
+		ok: true,
+		value: {
+			outcome: "committed",
+			oid: "new-head",
+			snapshot: null,
+			warning: null,
+		},
+	}));
+
+	root.render(
+		<App
+			readRepository={readRepository}
+			readDiff={async () => ({
+				ok: true,
+				value: [diffSection("working", patch)],
+			})}
+			writeCommit={writeCommit}
+		/>
+	);
+	await open();
+	await settle();
+	click("entry-a.ts");
+	await settle();
+	const content = root.renderer.findByTestId("diff-viewport-content");
+
+	if (!content) throw new Error("Missing diff");
+
+	const bounds = root.renderer.getElementBounds(content.id);
+
+	if (!bounds) throw new Error("Missing diff bounds");
+
+	root.renderer.nativeSimulateClick(bounds.x + 27, bounds.y + 26 + 21 + 10);
+	await settle();
+	expect(node("include-a.ts").customProps?.["aria-checked"]).toBe("mixed");
+	click("include-b.ts");
+	message();
+	click("commit-submit");
+	await settle();
+	expect(writeCommit).toHaveBeenCalledTimes(1);
+	expect(writeCommit.mock.calls[0]?.[1].partialFiles).toEqual([
+		{ path: "a.ts", expectedPatch: patch, includedLines: ["+:11"] },
+	]);
+});
 
 const lastCommit: Extract<
 	Awaited<ReturnType<typeof RepositoryCommit.readLast>>,

@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 export { GitIdentity, type GitIdentityValues } from "./identity.js";
 export { GitIgnore } from "./ignore.js";
+export { PartialPatch } from "./partial-patch.js";
 import { mkdir, realpath, stat, lstat, writeFile } from "node:fs/promises";
 import { dirname, resolve, join } from "node:path";
 

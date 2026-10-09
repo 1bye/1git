@@ -22,7 +22,7 @@ index cc6b7ef926c5c3122fff6107341913364a215710..e58daeb6c03c95ebacf36ec5ea7da46c
      /** String value reported to assistive technology. */
      "aria-valuetext"?: string;
      /** Heading level, 1-based. */
-@@ -415,6 +421,14 @@ export interface CodeProps extends HostProps {
+@@ -415,6 +421,18 @@ export interface CodeProps extends HostProps {
      theme?: GpuixTheme;
  }
  export interface DiffProps extends HostProps {
@@ -34,6 +34,10 @@ index cc6b7ef926c5c3122fff6107341913364a215710..e58daeb6c03c95ebacf36ec5ea7da46c
 +    autoWidth?: boolean;
 +    /** 1git native patch: hunk gap clicked; value is path, oldLine/newLine are hunk starts. */
 +    onExpandContext?: (event: EventPayload) => void;
++    selectionEnabled?: boolean;
++    selectionDisabled?: boolean;
++    includedLines?: readonly string[];
++    onToggleChange?: (event: EventPayload) => void;
      /** A unified git patch (the output of `git diff`). */
      patch?: string;
      /** Highlight the words that changed inside paired +/- lines. */
@@ -41,15 +45,16 @@ diff --git a/dist/mutations.js b/dist/mutations.js
 index 7d0eda6cb58127462067cb9d5a442a9ea606c671..f63d3f59cdea800ddfb3fa421d7130b75d2c1e2e 100644
 --- a/dist/mutations.js
 +++ b/dist/mutations.js
-@@ -63,6 +63,7 @@ export const EVENT_PROPS = [
+@@ -63,6 +63,8 @@ export const EVENT_PROPS = [
      ["onToggleFile", "toggleFile"],
      ["onShowMore", "showMore"],
      ["onLineClick", "lineClick"],
 +    ["onExpandContext", "expandContext"],
++    ["onToggleChange", "toggleChange"],
      ["onLinkClick", "linkClick"],
      ["onVisibleRange", "visibleRange"],
      ["onHighlight", "highlight"],
-@@ -95,6 +95,7 @@ export const UNIVERSAL_PROPS = new Set([
+@@ -95,6 +97,7 @@ export const UNIVERSAL_PROPS = new Set([
      "tabIndex",
      "motion",
      "testId",
@@ -57,7 +62,7 @@ index 7d0eda6cb58127462067cb9d5a442a9ea606c671..f63d3f59cdea800ddfb3fa421d7130b7
      "highlight",
      "role",
      "aria-label",
-@@ -102,6 +103,7 @@ export const UNIVERSAL_PROPS = new Set([
+@@ -102,6 +105,7 @@ export const UNIVERSAL_PROPS = new Set([
      "aria-id",
      "aria-expanded",
      "aria-selected",

@@ -140,6 +140,14 @@ and paths that could include unchecked directory descendants are rejected.
 It stops honoring cancellation once index preparation starts; let it finish before
 closing its owner. Reads and writes on the same repository instance stay serialized.
 
+For partial text commits, pass `partialFiles: [{ path, expectedPatch, includedLines }]`.
+Use the unfiltered `getDiff({ target: { kind: "changes" }, paths: [path] })` patch with
+default context. `PartialPatch` exposes stable `-:oldLine` / `+:newLine` keys. The transaction
+rejects a stale patch, unsupported metadata or unknown coordinates. It prepares a separate
+HEAD-based commit index and applies only included edits; hooks and signing still run.
+Excluded edits remain in working files as unstaged changes; unchecked files' index entries
+are preserved. Line inclusion never edits working files or stages the user's index.
+
 `GitResult<CommitFilesResult>` separates ordinary preflight/command failures from
 post-write recovery. An `ok` result has `outcome: "committed" | "unknown"`, optional
 `oid`/`snapshot`, and an optional `warning`. A confirmed commit remains successful

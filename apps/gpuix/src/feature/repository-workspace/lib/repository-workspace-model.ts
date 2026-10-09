@@ -117,6 +117,15 @@ export interface RepositoryWorkspaceState {
 	readonly view: RepositoryView;
 	readonly commitMessage: string;
 	readonly includedFileIds: readonly string[];
+	readonly partialFiles?: Readonly<
+		Record<
+			string,
+			{
+				readonly expectedPatch: string;
+				readonly includedLines: readonly string[];
+			}
+		>
+	>;
 	readonly views: {
 		readonly changes: RepositoryListState;
 		readonly history: RepositoryRevisionState;
@@ -240,6 +249,13 @@ export type RepositoryWorkspaceAction =
 	  }
 	| { type: "include-files"; ids: readonly string[]; included: boolean }
 	| { type: "include-file"; id: string; included: boolean }
+	| {
+			type: "include-lines";
+			id: string;
+			expectedPatch: string;
+			includedLines: readonly string[];
+			total: number;
+	  }
 	| { type: "include-all"; included: boolean }
 	| { type: "scroll"; view: RepositoryView; y: number }
 	| { type: "select-revision-file"; view: RevisionView; id: string }
@@ -642,6 +658,7 @@ export class RepositoryWorkspaceModel {
 				action.type === "load-error" ||
 				action.type === "edit-commit-message" ||
 				action.type === "include-file" ||
+				action.type === "include-lines" ||
 				action.type === "include-files" ||
 				action.type === "include-all")
 		)
@@ -1012,12 +1029,20 @@ export class RepositoryWorkspaceModel {
 					history: retainHistory ? state.entries.history : [],
 					stashes: sameRepository ? state.entries.stashes : [],
 				},
+				partialFiles: sameHistory
+					? Object.fromEntries(
+							Object.entries(state.partialFiles ?? {}).filter(([id]) =>
+								files.has(id)
+							)
+						)
+					: {},
 				includedFileIds: changes
-					.filter(
-						(entry) =>
-							!sameRepository ||
-							!previous.has(entry.id) ||
-							included.has(entry.id)
+					.filter((entry) =>
+						!sameHistory && state.partialFiles?.[entry.id]
+							? false
+							: !sameRepository ||
+								!previous.has(entry.id) ||
+								included.has(entry.id)
 					)
 					.map((entry) => entry.id),
 				views: {
@@ -1078,12 +1103,46 @@ export class RepositoryWorkspaceModel {
 				: { ...state, view: action.view };
 		}
 
+		if (action.type === "include-lines") {
+			if (!state.entries.changes.some((entry) => entry.id === action.id))
+				return state;
+
+			const partialFiles = { ...state.partialFiles };
+
+			if (
+				action.includedLines.length > 0 &&
+				action.includedLines.length < action.total
+			)
+				partialFiles[action.id] = {
+					expectedPatch: action.expectedPatch,
+					includedLines: action.includedLines,
+				};
+			else delete partialFiles[action.id];
+
+			const included = new Set(state.includedFileIds);
+
+			if (action.includedLines.length) included.add(action.id);
+			else included.delete(action.id);
+
+			return {
+				...state,
+				partialFiles,
+				includedFileIds: [...included],
+				commit: RepositoryWorkspaceModel.editedCommit(state),
+			};
+		}
+
 		if (action.type === "include-files") {
 			const targets = new Set(action.ids);
 			const included = new Set(state.includedFileIds);
 
 			return {
 				...state,
+				partialFiles: Object.fromEntries(
+					Object.entries(state.partialFiles ?? {}).filter(
+						([id]) => !targets.has(id)
+					)
+				),
 				includedFileIds: state.entries.changes
 					.filter((entry) =>
 						targets.has(entry.id) ? action.included : included.has(entry.id)
@@ -1096,14 +1155,20 @@ export class RepositoryWorkspaceModel {
 		if (action.type === "include-file") {
 			if (
 				!state.entries.changes.some((entry) => entry.id === action.id) ||
-				state.includedFileIds.includes(action.id) === action.included
+				(state.includedFileIds.includes(action.id) === action.included &&
+					!state.partialFiles?.[action.id])
 			)
 				return state;
 
 			return {
 				...state,
+				partialFiles: Object.fromEntries(
+					Object.entries(state.partialFiles ?? {}).filter(
+						([id]) => id !== action.id
+					)
+				),
 				includedFileIds: action.included
-					? [...state.includedFileIds, action.id]
+					? [...new Set([...state.includedFileIds, action.id])]
 					: state.includedFileIds.filter((id) => id !== action.id),
 				commit: RepositoryWorkspaceModel.editedCommit(state),
 			};
@@ -1112,10 +1177,15 @@ export class RepositoryWorkspaceModel {
 		if (action.type === "include-all") {
 			const count = action.included ? state.entries.changes.length : 0;
 
-			if (state.includedFileIds.length === count) return state;
+			if (
+				state.includedFileIds.length === count &&
+				!Object.keys(state.partialFiles ?? {}).length
+			)
+				return state;
 
 			return {
 				...state,
+				partialFiles: {},
 				includedFileIds: action.included
 					? state.entries.changes.map((entry) => entry.id)
 					: [],

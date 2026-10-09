@@ -165,7 +165,7 @@ export function RepositoryCommit({
 						aria-description={
 							sample
 								? "Preview only. Checkbox choices do not change files and no Git commit will be created."
-								: "Commit all current changes in the checked files. Unchecked files stay untouched."
+								: "Commit included changes in the checked files. Excluded changes stay in your working copy."
 						}
 						size="sm"
 						tokens={appTokens}

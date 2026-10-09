@@ -262,6 +262,15 @@ export function useRepositoryMutations(
 				: await writeCommit(root, {
 						includePartialStaging: true,
 						paths: workspace.includedFileIds,
+						...(Object.keys(workspace.partialFiles ?? {}).length
+							? {
+									partialFiles: Object.entries(workspace.partialFiles ?? {})
+										.filter(([path]) =>
+											workspace.includedFileIds.includes(path)
+										)
+										.map(([path, selection]) => ({ path, ...selection })),
+								}
+							: {}),
 						message: submittedMessage,
 						expectedHead: repository.head,
 						expectedBranch: repository.branchName,

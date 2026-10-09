@@ -15,11 +15,12 @@ import type {
 	RepositorySnapshot,
 } from "./contracts.js";
 import type { RepositoryContext } from "./internal.js";
-import { loadSnapshot } from "./queries.js";
+import { loadDiff, loadSnapshot } from "./queries.js";
+import { PartialPatch } from "./partial-patch.js";
 import { invalidInput } from "./result.js";
 import { requireRepositoryPaths, requireText } from "./validation.js";
 
-/** Owns a selected-file transaction; Git's --only commit handles excluded staging in an isolated index. */
+/** Commits selected files or lines using isolated indexes, preserving excluded staging and working edits. */
 export class SelectedCommit {
 	private constructor() {}
 
@@ -29,6 +30,18 @@ export class SelectedCommit {
 	): Promise<CommitFilesResult> {
 		const staged = input.mode === "staged";
 		const paths = staged ? [] : requireRepositoryPaths(input.paths, "commit");
+		const partials = input.partialFiles ?? [];
+		const partialPaths = new Set(partials.map((file) => file.path));
+
+		if (
+			partialPaths.size !== partials.length ||
+			partials.some((file) => !paths.includes(file.path)) ||
+			(staged && partials.length)
+		)
+			throw invalidInput(
+				"commit",
+				"Partial selections must belong to selected files."
+			);
 
 		const message = requireText(
 			input.message.trim(),
@@ -86,7 +99,10 @@ export class SelectedCommit {
 
 			const stagePaths = snapshot.files
 				.filter(
-					(file) => paths.includes(file.path) && file.indexStatus !== "deleted"
+					(file) =>
+						paths.includes(file.path) &&
+						!partialPaths.has(file.path) &&
+						file.indexStatus !== "deleted"
 				)
 				.flatMap((file) =>
 					file.worktreeStatus === "renamed" && file.originalPath
@@ -98,6 +114,11 @@ export class SelectedCommit {
 				join(context.repository.gitDirectory, "1git-commit-")
 			);
 			const indexFile = join(directory, "index");
+
+			const commitIndex = partials.length
+				? join(directory, "commit-index")
+				: indexFile;
+
 			const pathFile = join(directory, "paths");
 
 			const run = async (args: readonly string[], stdin?: string) =>
@@ -139,12 +160,71 @@ export class SelectedCommit {
 				);
 			}
 
+			if (partials.length) {
+				await context.process.run({
+					args: ["read-tree", snapshot.head.oid ?? "--empty"],
+					cwd: context.repository.root,
+					indexFile: commitIndex,
+				});
+				const wholePaths = selectedPaths.filter(
+					(path) => !partialPaths.has(path)
+				);
+
+				if (wholePaths.length)
+					await context.process.run({
+						args: [
+							"--literal-pathspecs",
+							"add",
+							"--all",
+							"--pathspec-from-file=-",
+							"--pathspec-file-nul",
+						],
+						cwd: context.repository.root,
+						indexFile: commitIndex,
+						stdin: `${wholePaths.join("\0")}\0`,
+					});
+
+				for (const file of partials) {
+					await SelectedCommit.checkPartial(
+						context,
+						file.path,
+						file.expectedPatch
+					);
+					let patch: string;
+
+					try {
+						patch = new PartialPatch(file.expectedPatch).select(
+							file.includedLines
+						);
+					} catch (error) {
+						throw invalidInput(
+							"commit",
+							error instanceof Error ? error.message : "Invalid line selection."
+						);
+					}
+
+					await context.process.run({
+						args: ["apply", "--cached", "--whitespace=nowarn", "-"],
+						cwd: context.repository.root,
+						indexFile: commitIndex,
+						stdin: patch,
+					});
+				}
+			}
+
 			await writeFile(pathFile, `${selectedPaths.join("\0")}\0`, {
 				mode: 0o600,
 			});
 
 			// External ref updates do not take the index lock. Recheck immediately before the write.
 			SelectedCommit.paths(await loadSnapshot(context), input, paths);
+
+			for (const file of partials)
+				await SelectedCommit.checkPartial(
+					context,
+					file.path,
+					file.expectedPatch
+				);
 
 			if (!staged)
 				await SelectedCommit.checkFilePaths(
@@ -153,20 +233,23 @@ export class SelectedCommit {
 				);
 
 			try {
-				await run(
-					staged
-						? ["commit", "-F", "-"]
-						: [
-								"--literal-pathspecs",
-								"commit",
-								"--only",
-								`--pathspec-from-file=${pathFile}`,
-								"--pathspec-file-nul",
-								"-F",
-								"-",
-							],
-					`${message}\n`
-				);
+				await context.process.run({
+					cwd: context.repository.root,
+					indexFile: commitIndex,
+					args:
+						staged || partials.length
+							? ["commit", "-F", "-"]
+							: [
+									"--literal-pathspecs",
+									"commit",
+									"--only",
+									`--pathspec-from-file=${pathFile}`,
+									"--pathspec-file-nul",
+									"-F",
+									"-",
+								],
+					stdin: `${message}\n`,
+				});
 				committed = true;
 			} catch (error) {
 				// Hooks can fail after updating HEAD. Never report an ordinary retryable failure in that case.
@@ -193,6 +276,16 @@ export class SelectedCommit {
 
 			if (committed) {
 				try {
+					if (partials.length)
+						await run([
+							"--literal-pathspecs",
+							"reset",
+							"-q",
+							"HEAD",
+							`--pathspec-from-file=${pathFile}`,
+							"--pathspec-file-nul",
+						]);
+
 					await copyFile(indexFile, lockPath);
 					await rename(lockPath, indexPath);
 					ownsLock = false;
@@ -229,6 +322,23 @@ export class SelectedCommit {
 		}
 
 		return { outcome, oid, snapshot, warning };
+	}
+
+	private static async checkPartial(
+		context: RepositoryContext,
+		path: string,
+		expectedPatch: string
+	): Promise<void> {
+		const current = await loadDiff(context, {
+			paths: [path],
+			target: { kind: "changes" },
+		});
+
+		if (current.patch !== expectedPatch)
+			throw invalidInput(
+				"commit",
+				`“${path}” changed since you selected lines. Refresh and review its inclusion before committing.`
+			);
 	}
 
 	private static async checkFilePaths(

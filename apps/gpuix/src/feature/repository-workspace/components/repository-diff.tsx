@@ -29,7 +29,7 @@ import {
 	RepositoryImageMetadata,
 	RepositoryImagePreview,
 } from "./repository-image-preview";
-import { RepositoryTextDiff } from "./repository-text-diff";
+import { RepositoryTextDiff, type DiffInclusion } from "./repository-text-diff";
 import { RepositoryDiffSettings } from "./repository-diff-settings";
 
 const diffTheme: GpuixTheme = {
@@ -137,6 +137,7 @@ const styles = StyleSheet.create({
 });
 
 interface RepositoryDiffProps {
+	inclusion?: DiffInclusion;
 	root: string;
 	change: DiffSelection;
 	refreshing: boolean;
@@ -218,6 +219,7 @@ function RepositoryDiffContent({
 	slow,
 	settings = defaultDiffSettings,
 	onSettingsChange,
+	inclusion,
 }: RepositoryDiffProps & {
 	result: RepositoryPreviewResult | null;
 	retry: () => void;
@@ -576,6 +578,10 @@ function RepositoryDiffContent({
 					patch={section.patch}
 					theme={diffTheme}
 					blocked={refreshing}
+					inclusion={inclusion}
+					onShowWhitespace={() =>
+						onSettingsChange?.({ ...settings, ignoreWhitespace: false })
+					}
 					mode={settings.mode}
 					splitLayout={settings.splitLayout}
 					ignoreWhitespace={

@@ -110,7 +110,7 @@ function RepositoryRow({
 	onSelect: (event: EventPayload) => void;
 	onKeyDown: (event: EventPayload) => void;
 	onReveal: () => void;
-	included?: boolean;
+	included?: boolean | "indeterminate";
 	onInclude?: (included: boolean) => void;
 	inclusionDisabled?: boolean;
 	fileActions?: FileMenuActions;
@@ -252,6 +252,7 @@ export function RepositoryList({
 	state: RepositoryListState;
 	inclusion?: {
 		ids: readonly string[];
+		partialIds?: readonly string[];
 		disabled?: boolean;
 		onChange: (id: string, included: boolean) => void;
 	};
@@ -467,7 +468,10 @@ export function RepositoryList({
 				!inclusion.disabled &&
 				!event.modifiers?.shift
 			) {
-				inclusion.onChange(id, !includedIds.has(id));
+				inclusion.onChange(
+					id,
+					inclusion.partialIds?.includes(id) || !includedIds.has(id)
+				);
 
 				return;
 			}
@@ -578,7 +582,11 @@ export function RepositoryList({
 									? selectedIds.has(entry.id)
 									: state.selectedId === entry.id
 							}
-							included={includedIds.has(entry.id)}
+							included={
+								inclusion?.partialIds?.includes(entry.id)
+									? "indeterminate"
+									: includedIds.has(entry.id)
+							}
 							inclusionDisabled={inclusion?.disabled}
 							onInclude={
 								inclusion
