@@ -46,7 +46,7 @@ const diffTheme: GpuixTheme = {
 	diffDelBg: "#ffeef0",
 	diffAddWordBg: "#acf2bd",
 	diffDelWordBg: "#fdb8c0",
-	diffHunkBg: "#f1f8ff",
+	diffHunkBg: "#f8fafc",
 	fontMono: codeTypography.fontFamily,
 	syntax: {
 		comment: "#6a737d",

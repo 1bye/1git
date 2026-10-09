@@ -215,7 +215,7 @@ index 4bf500e..23d4494 100644
              }
 -            row.child(crate::text::chrome_text(SharedString::from(section.header.clone()), None)).into_any_element()
 +            let mut gutter = gpui::div().w(px(header_gutter)).h_full().flex_none()
-+                .flex().items_center().justify_center().bg(opacity(theme.accent, 0.10));
++                .flex().items_center().justify_center().bg(theme.diff_hunk_bg);
 +            if expandable {
 +                gutter = gutter.child(gpui::svg().data(
 +                    br##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M8 10V3m-3 3 3-3 3 3M3 13h1m3 0h2m3 0h1" fill="none" stroke="#000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>"##
@@ -242,7 +242,7 @@ index 4bf500e..23d4494 100644
 +            "",
              opacity(theme.text_faint, 0.5),
              None,
-@@ -973,10 +1072,17 @@ fn diff_line_row(
+@@ -973,10 +1072,16 @@ fn diff_line_row(
 +    let included = key.as_ref().is_some_and(|key|
 +        ctx.inclusion.is_some_and(|state| state.included.contains(key)));
      let gutter = |no: Option<u32>, color: Hsla| {
@@ -251,8 +251,7 @@ index 4bf500e..23d4494 100644
 +            .h_full()
 +            .items_center()
 +            .when(ctx.inclusion.is_some(), |gutter|
-+                gutter.bg(if included { theme.accent } else { theme.bg })
-+                    .border_r_1().border_color(opacity(theme.text, 0.12)))
++                gutter.bg(if included { theme.accent } else { theme.bg }))
              .flex_none()
              .font_family(theme.font_mono.clone())
 -            .text_size(px(11.0))
@@ -262,7 +261,7 @@ index 4bf500e..23d4494 100644
              .flex()
              .justify_end()
              .pr(px(8.0))
-@@ -1048,6 +1154,10 @@ fn diff_line_row(
+@@ -1048,6 +1153,10 @@ fn diff_line_row(
          });
      }
  
@@ -273,7 +272,7 @@ index 4bf500e..23d4494 100644
      let mut row = row
          // Accent bar: solid on +/− rows, an invisible spacer on context rows so
          // the columns always line up.
-@@ -1059,6 +1169,8 @@ fn diff_line_row(
+@@ -1059,6 +1168,8 @@ fn diff_line_row(
                  .w(px(m.diff_accent_bar_width))
                  .h_full()
                  .flex_none();
@@ -283,7 +282,7 @@ index 4bf500e..23d4494 100644
 +            } else if let Some(color) = accent {
                  bar = bar.bg(color);
              }
-@@ -1106,6 +1218,73 @@ fn diff_line_row(
+@@ -1106,6 +1217,72 @@ fn diff_line_row(
          .into_any_element()
  }
  
@@ -318,7 +317,6 @@ index 4bf500e..23d4494 100644
 +        .block_mouse_except_scroll()
 +        .bg(if checked || mixed { selected_bg } else if group { theme.border } else { theme.bg })
 +        .text_color(if checked || mixed { theme.bg } else { theme.text_faint })
-+        .border_r_1().border_color(opacity(theme.text, 0.12))
 +        .role(gpui::Role::CheckBox)
 +        .aria_label(SharedString::from(if group { format!("Include change group starting at {first}") } else { format!("Include changed line {key}") }))
 +        .aria_toggled(if mixed { gpui::Toggled::Mixed } else if checked { gpui::Toggled::True } else { gpui::Toggled::False });
@@ -361,7 +359,7 @@ diff --git a/README.md b/README.md
 index fa6ffa4..6200db6 100644
 --- a/README.md
 +++ b/README.md
-@@ -2451,6 +2451,17 @@ renderer owns its layout. Tune that card with the `mdCode*` metrics.
+@@ -2451,6 +2451,18 @@ renderer owns its layout. Tune that card with the `mdCode*` metrics.
  
  ### `<diff>`
  
@@ -375,6 +373,7 @@ index fa6ffa4..6200db6 100644
 +Included controls and line numbers use solid accent backgrounds with white SVG marks.
 +The outer group gutter is darker, excluded numbers stay neutral, and hunk headers
 +align with code beside an SVG expansion icon. Hit targets and scrolling are unchanged.
++Internal gutter dividers are omitted; hunk headers use one quiet background.
 +
  The 1git `diff-view` patch adds `showFileHeader` (default `true`) to remove
  native file-header rows, and `autoWidth` (default `false`) to derive the minimum
@@ -383,7 +382,7 @@ diff --git a/.changeset/1git-diff-inclusion.md b/.changeset/1git-diff-inclusion.
 new file mode 100644
 --- /dev/null
 +++ b/.changeset/1git-diff-inclusion.md
-@@ -0,0 +1,8 @@
+@@ -0,0 +1,9 @@
 +---
 +"@gpuix/native": patch
 +---
@@ -392,3 +391,4 @@ new file mode 100644
 +Keep selection in React, reuse cached patch data, and expose native keyboard and
 +checked/mixed accessibility controls. Local 1git patch, not a release.
 +Use solid accent gutters with white SVG marks/numbers and aligned hunk headers.
++Remove internal gutter rules and the separate hunk-gutter tint.

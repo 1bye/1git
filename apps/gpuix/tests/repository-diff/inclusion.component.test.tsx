@@ -153,7 +153,7 @@ function click(id: string) {
 	);
 }
 
-it("paints white vector marks and numbers on selected blue gutters, with tinted rows and aligned hunk headers", async () => {
+it("paints visible white vector marks on borderless blue gutters, with quiet aligned hunk headers", async () => {
 	const directory = await mkdtemp(join(tmpdir(), "1git-inclusion-palette-"));
 
 	try {
@@ -211,10 +211,13 @@ it("paints white vector marks and numbers on selected blue gutters, with tinted 
 
 			expect(fill).toEqual([33, 139, 255]);
 			expect(numbers).toEqual(fill);
+			expect(color(35, 49)).toEqual(fill);
+			expect(color(67, 49)).toEqual(fill);
 			expect(group[2]).toBeLessThan(fill[2] ?? 0);
 			expect(hasWhiteMark(color, 0)).toBe(true);
 			expect(hasWhiteMark(color, 18)).toBe(true);
-			expect(color(200, 3)).toEqual([241, 248, 255]);
+			expect(color(200, 3)).toEqual([248, 250, 252]);
+			expect(color(42, 3)).toEqual(color(200, 3));
 			expect(color(42, 28)).toEqual([255, 255, 255]);
 			expect(color(9, 28)).toEqual([225, 228, 232]);
 			expect(color(350, 49)).toEqual([255, 238, 240]);

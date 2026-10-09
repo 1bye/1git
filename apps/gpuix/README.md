@@ -821,7 +821,9 @@ the Turbo build/dev tasks build dependencies first. No Electron IPC is involved.
   clicking it includes the entire file. The controls work in unified and split layouts.
   Selected controls and line numbers use blue blocks with white SVG check/minus icons;
   the group gutter is darker. Excluded numbers stay neutral. The shared diff theme uses
-  pale green/red rows, light-blue hunk headers aligned to code and an SVG expansion icon.
+  pale green/red rows, quiet hunk headers aligned to code and an SVG expansion icon.
+  Gutters have no internal dividers; hunk headers use one pale background. Group and
+  line checks remain visible, with focus outlines and the split-pane divider retained.
   Hover/focus emphasize controls without changing hit targets or native scrolling.
   `native/diff-inclusion.patch` adds `selectionEnabled`, `selectionDisabled`, `includedLines`
   and `onToggleChange` to the cached native viewer. Coordinates (`-:oldLine`, `+:newLine`)
