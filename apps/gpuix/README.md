@@ -825,6 +825,9 @@ the Turbo build/dev tasks build dependencies first. No Electron IPC is involved.
   Gutters have no internal dividers; hunk headers use one pale background. Group and
   line checks remain visible, with focus outlines and the split-pane divider retained.
   Hover/focus emphasize controls without changing hit targets or native scrolling.
+  Group event payloads are encoded once per parsed patch and shared by row callbacks;
+  scrolling does not serialize or copy the whole group. Selection changes reuse them,
+  while replacing the patch rebuilds them with the new coordinates.
   `native/diff-inclusion.patch` adds `selectionEnabled`, `selectionDisabled`, `includedLines`
   and `onToggleChange` to the cached native viewer. Coordinates (`-:oldLine`, `+:newLine`)
   remain stable across context expansion. React owns selection, not native row state.

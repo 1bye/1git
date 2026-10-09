@@ -11,6 +11,7 @@ import { join } from "node:path";
 import sharp from "sharp";
 import { useState } from "react";
 import { createTestRoot, type TestRoot } from "@gpuix/react/testing";
+import type { EventPayload } from "@gpuix/react";
 import { RepositoryDiff } from "../../src/feature/repository-workspace/components/repository-diff";
 import { changedFile } from "../_shared/repository-snapshot";
 import { diffPatch, diffSection } from "../_shared/diff-patch";
@@ -383,6 +384,69 @@ it("shows stale selection as excluded and requires explicit review", async () =>
 	expect(root.renderer.getAllText().join(" ")).not.toContain(
 		"Review its line selection again"
 	);
+});
+
+it("keeps group click and keyboard payloads current across selection, layout and patch updates", async () => {
+	const toggles = mock((event: EventPayload) => event.value);
+	const keys = ["-:11", "+:11"];
+
+	const render = (
+		currentPatch: string,
+		mode: "unified" | "split",
+		includedLines: readonly string[]
+	) =>
+		root.render(
+			<div
+				style={{
+					width: "100%",
+					height: "100%",
+					display: "flex",
+					flexDirection: "column",
+				}}
+			>
+				<DiffView
+					testId="diff-viewport"
+					aria-label="Test cached inclusion"
+					patch={currentPatch}
+					mode={mode}
+					theme={{ appearance: "light", metrics: { diffMarkerWidth: 18 } }}
+					showFileHeader={false}
+					selectionEnabled
+					includedLines={includedLines}
+					onToggleChange={toggles}
+				/>
+			</div>
+		);
+
+	render(patch, "unified", keys);
+	await settle();
+	const nativeId = viewport().element.id;
+
+	gutter(9, 1);
+	await settle();
+	expect(toggles.mock.lastCall?.[0].value).toBe(JSON.stringify(keys));
+	render(patch, "split", []);
+	await settle();
+	gutter(9, 1);
+	await settle();
+	root.renderer.simulateKeystrokes("enter");
+	await settle();
+	expect(toggles).toHaveBeenCalledTimes(3);
+	expect(toggles.mock.lastCall?.[0].value).toBe(JSON.stringify(keys));
+
+	const updated = patch.replace("@@ -10,2 +10,2 @@", "@@ -20,2 +30,2 @@");
+	const updatedKeys = ["-:21", "+:31"];
+
+	render(updated, "unified", updatedKeys.slice(1));
+	await settle();
+	expect(viewport().element.id).toBe(nativeId);
+	gutter(9, 1);
+	await settle();
+	expect(toggles.mock.lastCall?.[0].value).toBe(JSON.stringify(updatedKeys));
+	root.renderer.simulateKeystrokes("space");
+	await settle();
+	expect(toggles).toHaveBeenCalledTimes(5);
+	expect(toggles.mock.lastCall?.[0].value).toBe(JSON.stringify(updatedKeys));
 });
 
 it("preserves the native scroll anchor when inclusion changes and disables controls during writes", async () => {
