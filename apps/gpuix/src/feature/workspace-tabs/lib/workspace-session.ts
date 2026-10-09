@@ -181,7 +181,7 @@ export class WorkspaceSession {
 			tabs: state.tabs.map(({ id, workspace }) => ({
 				id,
 				path: workspace.repository?.root ?? workspace.repositoryPath,
-				draft: workspace.commitMessage,
+				draft: workspace.amend?.previousMessage ?? workspace.commitMessage,
 				navigation: {
 					view: workspace.view,
 					changes: workspace.views.changes.selectedId,

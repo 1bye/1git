@@ -1331,7 +1331,7 @@ export class GitRepository {
 		});
 	}
 
-	/** Commits selected whole files without including or discarding excluded staged work. */
+	/** Commits selected contents or amends an unpublished tip, retaining excluded staged work. */
 	async commitFiles(
 		input: CommitFilesInput
 	): Promise<GitResult<CommitFilesResult>> {

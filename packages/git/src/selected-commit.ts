@@ -17,6 +17,7 @@ import type {
 import type { RepositoryContext } from "./internal.js";
 import { loadDiff, loadSnapshot } from "./queries.js";
 import { PartialPatch } from "./partial-patch.js";
+import { CommitRecovery } from "./commit-recovery.js";
 import { invalidInput } from "./result.js";
 import { requireRepositoryPaths, requireText } from "./validation.js";
 
@@ -29,7 +30,25 @@ export class SelectedCommit {
 		input: CommitFilesInput
 	): Promise<CommitFilesResult> {
 		const staged = input.mode === "staged";
-		const paths = staged ? [] : requireRepositoryPaths(input.paths, "commit");
+
+		if (input.amend && staged)
+			throw invalidInput(
+				"commit",
+				"Amend uses selected files, not staged mode."
+			);
+
+		const paths =
+			staged || (input.amend && input.paths.length === 0)
+				? []
+				: requireRepositoryPaths(input.paths, "commit");
+
+		const amendment = input.amend
+			? {
+					expectedHead: input.expectedHead ?? "",
+					expectedBranch: input.expectedBranch ?? "",
+				}
+			: null;
+
 		const partials = input.partialFiles ?? [];
 		const partialPaths = new Set(partials.map((file) => file.path));
 
@@ -90,6 +109,8 @@ export class SelectedCommit {
 			await lock.close();
 			const snapshot = await loadSnapshot(context, false, input.signal);
 			const selectedPaths = SelectedCommit.paths(snapshot, input, paths);
+
+			if (amendment) await CommitRecovery.read(context, amendment);
 
 			if (!staged)
 				await SelectedCommit.checkFilePaths(
@@ -232,22 +253,28 @@ export class SelectedCommit {
 					selectedPaths
 				);
 
+			if (amendment) await CommitRecovery.retainForAmend(context, amendment);
+
+			const commitArgs = ["commit", "-F", "-"];
+
+			if (amendment) commitArgs.push("--amend");
+
+			if (!staged && !partials.length) {
+				commitArgs.unshift("--literal-pathspecs");
+				commitArgs.push("--only");
+
+				if (selectedPaths.length)
+					commitArgs.push(
+						`--pathspec-from-file=${pathFile}`,
+						"--pathspec-file-nul"
+					);
+			}
+
 			try {
 				await context.process.run({
 					cwd: context.repository.root,
 					indexFile: commitIndex,
-					args:
-						staged || partials.length
-							? ["commit", "-F", "-"]
-							: [
-									"--literal-pathspecs",
-									"commit",
-									"--only",
-									`--pathspec-from-file=${pathFile}`,
-									"--pathspec-file-nul",
-									"-F",
-									"-",
-								],
+					args: commitArgs,
 					stdin: `${message}\n`,
 				});
 				committed = true;

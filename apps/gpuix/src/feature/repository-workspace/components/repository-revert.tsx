@@ -16,6 +16,7 @@ import {
 	RepositoryHistory,
 	type CommitWebLink,
 } from "../lib/repository-history";
+import { RepositoryCommit } from "../lib/repository-commit";
 import {
 	RepositoryWorkspaceModel,
 	type RepositoryWorkspaceState,
@@ -31,6 +32,7 @@ type HistoryChoice =
 	| "copy-sha"
 	| "copy-message"
 	| "view"
+	| "amend"
 	| "revert"
 	| "cherry-pick";
 const remoteLookupTimeoutMs = 5000;
@@ -40,6 +42,8 @@ export function RepositoryRevert({
 	state,
 	onWrite,
 	onCherryPick,
+	onAmend,
+	readLastCommit = RepositoryCommit.readLast,
 	readBranches,
 	readCommitLink = RepositoryHistory.readCommitLink,
 	onFinished,
@@ -48,6 +52,8 @@ export function RepositoryRevert({
 	state: RepositoryWorkspaceState;
 	onWrite?: (request: RevertCommitInput) => Promise<string | null>;
 	onCherryPick?: (request: CherryPickCommitInput) => Promise<string | null>;
+	onAmend?: (commit: CommitInfo) => void;
+	readLastCommit?: typeof RepositoryCommit.readLast;
 	readBranches?: typeof RepositoryBranches.read;
 	readCommitLink?: typeof RepositoryHistory.readCommitLink;
 	onFinished: () => void;
@@ -122,6 +128,38 @@ export function RepositoryRevert({
 				: "Cherry-pick is unavailable.";
 
 			let link: CommitWebLink | null = null;
+			let canAmend = false;
+
+			const readAmend = async (): Promise<void> => {
+				if (
+					!onAmend ||
+					!repository?.branchName ||
+					commit.oid !== repository.head ||
+					state.amend ||
+					!RepositoryWorkspaceModel.canRecoverCommit(state)
+				)
+					return;
+
+				try {
+					const last = await readLastCommit(repository.root, {
+						expectedHead: commit.oid,
+						expectedBranch: repository.branchName,
+						signal: AbortSignal.any([
+							controller.signal,
+							AbortSignal.timeout(remoteLookupTimeoutMs),
+						]),
+					});
+
+					canAmend =
+						last.ok &&
+						last.value.commit.oid === commit.oid &&
+						last.value.undoUnavailableReason === null;
+				} catch {
+					// A failed eligibility read must disable rewriting without hiding other actions.
+				}
+			};
+
+			const amendRead = readAmend();
 
 			try {
 				if (repository)
@@ -141,6 +179,8 @@ export function RepositoryRevert({
 					);
 			}
 
+			await amendRead;
+
 			if (controller.signal.aborted) return;
 
 			const bounds = renderer.getElementBounds?.(event.elementId);
@@ -154,6 +194,11 @@ export function RepositoryRevert({
 					value: "view",
 				},
 				{ separator: true },
+				{
+					label: "Amend last commit…",
+					enabled: canAmend,
+					value: "amend",
+				},
 				{
 					label: "Cherry-pick commit…",
 					enabled: !cherryPickReason,
@@ -181,6 +226,7 @@ export function RepositoryRevert({
 			else if (choice === "copy-message")
 				await NativeClipboard.write(commit.body || commit.summary);
 			else if (choice === "view" && link) await NativeBrowser.open(link.url);
+			else if (choice === "amend" && canAmend) onAmend?.(commit);
 			else if (
 				choice === "cherry-pick" &&
 				!cherryPickReason &&

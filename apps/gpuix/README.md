@@ -791,6 +791,22 @@ the Turbo build/dev tasks build dependencies first. No Electron IPC is involved.
 
 ## Committing selected files
 
+- **Amend** beside the last-commit summary, or **Amend last commit…** in History's
+  context menu, opens the existing composer with the tip's full message. Only the
+  latest unpublished non-merge commit on a named branch is eligible. Edit its
+  message and optionally include checked files/lines, then explicitly choose
+  **Amend commit** (or Command+Enter). With no files checked, only the message changes;
+  other staged work is not included. Original commit contents and author are retained.
+  Cancel and successful amendment restore the ordinary draft and leave unchecked
+  work untouched. Restart restores the ordinary draft, not an active amend intent.
+  Changing the root, HEAD or branch blocks submission until Cancel and another review.
+  The backend rechecks publication and identity before writing and retains the old
+  commit under `refs/1git/amend/<id>`. Hooks/signing, index isolation, cross-worktree
+  write locks, close protection and uncertain-outcome warnings are shared with normal
+  commits. No force push occurs. Publication uses known remote refs: Fetch first if
+  another tool/device may have pushed, and avoid concurrent external Git writes.
+  Squash, reorder and reset-to-commit remain separate future workflows.
+
 - A pinned footer below the composer shows the last commit's age and summary, with
   **Undo** on the right. Its metadata refreshes when the tip/branch changes or Sync
   finishes, without network requests or reads on draft edits. Published

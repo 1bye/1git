@@ -116,6 +116,13 @@ export interface RepositoryWorkspaceState {
 	readonly error: string | null;
 	readonly view: RepositoryView;
 	readonly commitMessage: string;
+	/** Temporary intent, pinned to the reviewed tip; the ordinary draft survives cancel and restart. */
+	readonly amend?: {
+		readonly root: string;
+		readonly head: string;
+		readonly branch: string;
+		readonly previousMessage: string;
+	};
 	readonly includedFileIds: readonly string[];
 	readonly partialFiles?: Readonly<
 		Record<
@@ -172,6 +179,8 @@ export type RepositoryWorkspaceAction =
 	| { type: "conflict-finished"; snapshot?: RepositorySnapshot; error?: string }
 	| { type: "branch-finished"; snapshot?: RepositorySnapshot; error?: string }
 	| { type: "commit-started" }
+	| { type: "amend-commit"; head: string; branch: string; message: string }
+	| { type: "cancel-amend" }
 	| { type: "commit-failed"; message: string; uncertain?: boolean }
 	| {
 			type: "commit-finished";
@@ -331,6 +340,14 @@ export class RepositoryWorkspaceModel {
 
 	/** Checked files include their current contents; conflicts and submodules need separate handling. */
 	static commitBlockReason(state: RepositoryWorkspaceState): string | null {
+		if (
+			state.amend &&
+			(state.amend.root !== state.repository?.root ||
+				state.amend.head !== state.repository.head ||
+				state.amend.branch !== state.repository?.branchName)
+		)
+			return "The last commit changed. Cancel amend and review it again.";
+
 		if (state.repository?.operation !== "normal" && state.repository)
 			return "Finish the current Git operation before committing here.";
 
@@ -363,7 +380,7 @@ export class RepositoryWorkspaceModel {
 			!state.loading &&
 			!state.error &&
 			!!state.commitMessage.split("\n", 1)[0]?.trim() &&
-			state.includedFileIds.length > 0 &&
+			(state.includedFileIds.length > 0 || !!state.amend) &&
 			!RepositoryWorkspaceModel.commitBlockReason(state)
 		);
 	}
@@ -594,6 +611,39 @@ export class RepositoryWorkspaceModel {
 					};
 		}
 
+		if (action.type === "amend-commit") {
+			if (
+				state.amend ||
+				!RepositoryWorkspaceModel.canRecoverCommit(state) ||
+				state.repository?.head !== action.head ||
+				state.repository.branchName !== action.branch
+			)
+				return state;
+
+			return {
+				...state,
+				view: "changes",
+				amend: {
+					root: state.repository.root,
+					head: action.head,
+					branch: action.branch,
+					previousMessage: state.commitMessage,
+				},
+				commitMessage: action.message,
+				commit: { ...state.commit, error: null, notice: null },
+			};
+		}
+
+		if (action.type === "cancel-amend")
+			return state.amend && !RepositoryWorkspaceModel.isBusy(state)
+				? {
+						...state,
+						commitMessage: state.amend.previousMessage,
+						amend: undefined,
+						commit: RepositoryWorkspaceModel.editedCommit(state),
+					}
+				: state;
+
 		if (action.type === "commit-started")
 			return {
 				...state,
@@ -629,10 +679,15 @@ export class RepositoryWorkspaceModel {
 
 			const confirmed = action.result.outcome === "committed";
 
+			const amended =
+				confirmed && !!state.amend && action.submittedMessage !== undefined;
+
 			return {
 				...refreshed,
-				commitMessage:
-					confirmed && action.undoMessage !== undefined
+				amend: amended ? undefined : refreshed.amend,
+				commitMessage: amended
+					? (state.amend?.previousMessage ?? "")
+					: confirmed && action.undoMessage !== undefined
 						? state.commitMessage || action.undoMessage
 						: confirmed && action.submittedMessage === state.commitMessage
 							? ""

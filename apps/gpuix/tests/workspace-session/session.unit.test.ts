@@ -9,6 +9,30 @@ import { WorkspaceSession } from "../../src/feature/workspace-tabs/lib/workspace
 import { WorkspaceTabsModel } from "../../src/feature/workspace-tabs/lib/workspace-tabs-model";
 import { repositorySnapshot } from "../_shared/repository-snapshot";
 
+it("restores the ordinary draft rather than silently turning an amendment into a new commit", () => {
+	const snapshot = repositorySnapshot();
+	const id = "workspace-1";
+	let state = WorkspaceTabsModel.create();
+
+	for (const action of [
+		{ type: "loaded" as const, snapshot },
+		{ type: "edit-commit-message" as const, value: "Ordinary draft" },
+		{
+			type: "amend-commit" as const,
+			head: snapshot.head.oid ?? "",
+			branch: "main",
+			message: "Amend draft",
+		},
+	])
+		state = WorkspaceTabsModel.reduce(state, { type: "workspace", id, action });
+
+	expect(state.tabs[0]?.workspace.commitMessage).toBe("Amend draft");
+	const restored = WorkspaceSession.restore(WorkspaceSession.capture(state));
+
+	expect(restored.tabs[0]?.workspace.commitMessage).toBe("Ordinary draft");
+	expect(restored.tabs[0]?.workspace.amend).toBeUndefined();
+});
+
 it("defaults older or unknown split layouts to fixed without losing navigation or drafts", () => {
 	const state = WorkspaceTabsModel.create();
 	const session = WorkspaceSession.capture(state);

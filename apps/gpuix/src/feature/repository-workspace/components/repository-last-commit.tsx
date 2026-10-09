@@ -1,6 +1,6 @@
 import { spacing, typography, lightColors } from "@1git/design-tokens";
 import { Button } from "@1git/gpuix-ui/button";
-import type { CommitRecoveryInput } from "@1git/git";
+import type { CommitInfo, CommitRecoveryInput } from "@1git/git";
 import { useEffect, useState } from "react";
 import { appTokens } from "../../../styles/tokens";
 import { WorkspaceMenuModel } from "../../workspace-tabs/lib/workspace-menu-model";
@@ -10,14 +10,16 @@ import {
 	type RepositoryWorkspaceState,
 } from "../lib/repository-workspace-model";
 
-/** Pinned last-commit summary with a direct, backend-revalidated undo action. */
+/** Pinned last-commit summary with backend-revalidated amend and undo actions. */
 export function RepositoryLastCommit({
 	state,
 	onUndo,
+	onAmend,
 	readLast = RepositoryCommit.readLast,
 }: {
 	state: RepositoryWorkspaceState;
 	onUndo?: (input: CommitRecoveryInput) => Promise<string | null>;
+	onAmend?: (commit: CommitInfo) => void;
 	readLast?: typeof RepositoryCommit.readLast;
 }) {
 	const root = state.repository?.root;
@@ -84,11 +86,13 @@ export function RepositoryLastCommit({
 	const last = current?.value;
 	const age = last ? WorkspaceMenuModel.commitAge(last.commit.committedAt) : "";
 
-	const disabled =
+	const unavailable =
 		!last ||
 		!!last.undoUnavailableReason ||
-		!onUndo ||
+		!!state.amend ||
 		!RepositoryWorkspaceModel.canRecoverCommit(state);
+
+	const disabled = unavailable || !onUndo;
 
 	return (
 		<div
@@ -97,7 +101,7 @@ export function RepositoryLastCommit({
 				display: "flex",
 				flexDirection: "row",
 				alignItems: "center",
-				gap: spacing[2],
+				gap: spacing[1],
 				flexShrink: 0,
 				minHeight: 48,
 				padding: spacing[2.5],
@@ -135,6 +139,25 @@ export function RepositoryLastCommit({
 					{last?.commit.summary ?? current?.error ?? ""}
 				</text>
 			</div>
+			{!current?.error && !state.amend ? (
+				<Button
+					testId="commit-amend"
+					aria-label="Amend last commit"
+					aria-description={
+						last?.undoUnavailableReason ??
+						"Edit the unpublished last commit's message and optionally include checked changes."
+					}
+					variant="secondary"
+					size="sm"
+					tokens={appTokens}
+					disabled={unavailable || !onAmend}
+					onPress={() => {
+						if (!unavailable && last) onAmend?.(last.commit);
+					}}
+				>
+					Amend
+				</Button>
+			) : null}
 			<Button
 				testId="commit-undo"
 				aria-label={

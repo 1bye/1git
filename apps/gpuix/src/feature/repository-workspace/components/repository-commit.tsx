@@ -8,7 +8,7 @@ import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { Button } from "@1git/gpuix-ui/button";
 import { Textarea } from "@1git/gpuix-ui/textarea";
 import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { appTokens } from "../../../styles/tokens";
 import { RepositoryLastCommit } from "./repository-last-commit";
@@ -71,7 +71,7 @@ const styles = StyleSheet.create({
 	label: { ...typography.sm, fontWeight: fontWeight.medium },
 });
 
-/** Whole-file commit composer; only explicit sample mode remains preview-only. */
+/** Selected-change commit/amend composer; only explicit sample mode remains preview-only. */
 export function RepositoryCommit({
 	state,
 	onAction,
@@ -88,7 +88,14 @@ export function RepositoryCommit({
 	const [previewed, setPreviewed] = useState(false);
 
 	const notice = useRef<PublicInstance>(null);
+	const messageInput = useRef<PublicInstance>(null);
 	const renderer = useGpuixRequired();
+	const amendHead = state.amend?.head;
+
+	useEffect(() => {
+		if (amendHead && messageInput.current)
+			renderer.focusElement?.(messageInput.current.id);
+	}, [amendHead, renderer]);
 
 	const hasDetails = !!state.commit.error || state.commit.needsReview;
 
@@ -115,7 +122,9 @@ export function RepositoryCommit({
 
 	const count = state.includedFileIds.length;
 
-	const label = `Commit ${count} ${count === 1 ? "file" : "files"}`;
+	const label = state.amend
+		? "Amend commit"
+		: `Commit ${count} ${count === 1 ? "file" : "files"}`;
 
 	const submit = (): void => {
 		if (!canSubmit) return;
@@ -126,7 +135,44 @@ export function RepositoryCommit({
 
 	return (
 		<div testId="commit-composer" style={styles.composer}>
+			{state.amend ? (
+				<div
+					testId="amend-header"
+					style={{
+						display: "flex",
+						alignItems: "center",
+						justifyContent: "space-between",
+						gap: spacing[1],
+						paddingLeft: spacing[2.5],
+						paddingRight: spacing[2.5],
+						paddingTop: spacing[1.5],
+					}}
+				>
+					<text
+						testId="amend-label"
+						style={{ ...styles.hint, whiteSpace: "nowrap", flexGrow: 1 }}
+					>
+						{`Amending ${state.amend.head.slice(0, 7)}`}
+					</text>
+					<Button
+						testId="amend-cancel"
+						variant="secondary"
+						size="sm"
+						tokens={appTokens}
+						disabled={RepositoryWorkspaceModel.isBusy(state)}
+						onPress={() => {
+							onAction({ type: "cancel-amend" });
+
+							if (messageInput.current)
+								renderer.focusElement?.(messageInput.current.id);
+						}}
+					>
+						Cancel
+					</Button>
+				</div>
+			) : null}
 			<Textarea
+				ref={messageInput}
 				testId="commit-message"
 				aria-label="Commit message"
 				aria-description={
@@ -165,7 +211,9 @@ export function RepositoryCommit({
 						aria-description={
 							sample
 								? "Preview only. Checkbox choices do not change files and no Git commit will be created."
-								: "Commit included changes in the checked files. Excluded changes stay in your working copy."
+								: state.amend
+									? "Replace the last unpublished commit using this message and any checked changes. Unchecked changes stay in your working copy."
+									: "Commit included changes in the checked files. Excluded changes stay in your working copy."
 						}
 						size="sm"
 						tokens={appTokens}
@@ -173,7 +221,11 @@ export function RepositoryCommit({
 						disabled={!canSubmit}
 						onPress={submit}
 					>
-						{state.commit.pending ? "Committing…" : label}
+						{state.commit.pending
+							? state.amend
+								? "Amending…"
+								: "Committing…"
+							: label}
 					</Button>
 				</div>
 			</div>
@@ -234,6 +286,16 @@ export function RepositoryCommit({
 					state={state}
 					onUndo={onUndo}
 					readLast={readLast}
+					onAmend={(commit) => {
+						if (!state.repository?.branchName) return;
+
+						onAction({
+							type: "amend-commit",
+							head: commit.oid,
+							branch: state.repository.branchName,
+							message: commit.body || commit.summary,
+						});
+					}}
 				/>
 			) : null}
 		</div>

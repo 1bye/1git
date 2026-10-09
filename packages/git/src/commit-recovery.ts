@@ -54,7 +54,7 @@ export class CommitRecovery {
 		if (published.stdout.toString("utf8").trim())
 			throw invalidInput(
 				"commit",
-				"This commit is already published according to the known remote branches. Undo is only available for unpublished commits."
+				"This commit is already published according to the known remote branches. History editing is only available for unpublished commits."
 			);
 
 		const commit = await loadCommit(context, oid, input.signal);
@@ -62,10 +62,25 @@ export class CommitRecovery {
 		if (commit.parentOids.length > 1)
 			throw invalidInput(
 				"commit",
-				"Undo of merge commits require external Git tools."
+				"Editing merge commits requires external Git tools."
 			);
 
 		return commit;
+	}
+
+	/** Retains the reviewed tip before amendment, verifying its branch in the same ref transaction. */
+	static async retainForAmend(
+		context: RepositoryContext,
+		input: CommitRecoveryInput
+	): Promise<void> {
+		const commit = await CommitRecovery.read(context, input);
+		const recoveryRef = `refs/1git/amend/${randomUUID()}`;
+
+		await context.process.run({
+			args: ["update-ref", "-m", "1git: retain amended commit", "--stdin"],
+			cwd: context.repository.root,
+			stdin: `start\nverify refs/heads/${input.expectedBranch} ${commit.oid}\ncreate ${recoveryRef} ${commit.oid}\nprepare\ncommit\n`,
+		});
 	}
 
 	static async undo(

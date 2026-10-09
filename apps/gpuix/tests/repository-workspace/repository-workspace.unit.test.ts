@@ -14,6 +14,64 @@ import {
 	repositorySnapshot,
 } from "../_shared/repository-snapshot";
 
+it("pins amend to its reviewed root/HEAD/branch, retains failed drafts and forbids cancel while writing", () => {
+	const snapshot = repositorySnapshot();
+
+	let state = Model.reduce(Model.create(), { type: "loaded", snapshot });
+
+	state = Model.reduce(state, {
+		type: "edit-commit-message",
+		value: "Ordinary draft",
+	});
+	state = Model.reduce(state, {
+		type: "amend-commit",
+		head: snapshot.head.oid ?? "",
+		branch: "main",
+		message: "Original",
+	});
+	expect(Model.canCommit(state)).toBe(true);
+	expect(state.amend?.previousMessage).toBe("Ordinary draft");
+	const pending = Model.reduce(state, { type: "commit-started" });
+
+	expect(Model.reduce(pending, { type: "cancel-amend" })).toBe(pending);
+	const failed = Model.reduce(pending, {
+		type: "commit-failed",
+		message: "Hook failed",
+	});
+
+	expect(failed.amend).toEqual(state.amend);
+	expect(failed.commitMessage).toBe("Original");
+
+	for (const changed of [
+		{ ...snapshot, head: { ...snapshot.head, oid: "new-head" } },
+		{ ...snapshot, head: { ...snapshot.head, branch: "other" } },
+		{ ...snapshot, repository: { ...snapshot.repository, root: "/other" } },
+	]) {
+		const moved = Model.reduce(failed, { type: "loaded", snapshot: changed });
+
+		expect(Model.canCommit(moved)).toBe(false);
+		expect(Model.commitBlockReason(moved)).toContain("Cancel amend");
+		expect(Model.reduce(moved, { type: "cancel-amend" }).commitMessage).toBe(
+			"Ordinary draft"
+		);
+	}
+
+	const uncertain = Model.reduce(pending, {
+		type: "commit-finished",
+		submittedMessage: "Original",
+		result: {
+			outcome: "unknown",
+			oid: "new-head",
+			snapshot: null,
+			warning: "Review History",
+		},
+	});
+
+	expect(uncertain.amend).toEqual(state.amend);
+	expect(uncertain.commitMessage).toBe("Original");
+	expect(Model.canCommit(uncertain)).toBe(false);
+});
+
 it("keeps partial inclusion local, supports whole-file reset and protects it during writes", () => {
 	const state = Model.reduce(Model.create(), {
 		type: "loaded",

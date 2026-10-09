@@ -411,6 +411,8 @@ export interface CommitInput extends GitCallOptions {
 
 /** Commits selected contents, preserving excluded files' index entries. */
 export interface CommitFilesInput extends GitCallOptions {
+	/** Replace only the reviewed unpublished, non-merge tip. Empty paths amend its message without including staged work. */
+	readonly amend?: boolean;
 	/** Authoritative unfiltered Changes patch and selected old/new line coordinates. */
 	readonly partialFiles?: readonly PartialFileSelection[];
 	/** Explicitly include all current edits in selected partially staged files. Defaults to rejecting those selections. */

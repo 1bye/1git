@@ -148,6 +148,16 @@ HEAD-based commit index and applies only included edits; hooks and signing still
 Excluded edits remain in working files as unstaged changes; unchecked files' index entries
 are preserved. Line inclusion never edits working files or stages the user's index.
 
+Pass `amend: true` to replace the reviewed unpublished, non-merge branch tip instead
+of creating another commit. Empty `paths` change only its message, preserving all
+staged and working edits. Whole-file and partial selections add to the original
+commit's tree; Git retains the original author and parents. Staged mode is not
+supported for amendments. Publication/identity checks reuse `getCommitRecovery`
+and are repeated immediately before writing; old commits are retained under
+`refs/1git/amend/<id>` for manual recovery. Hooks, signing and uncertain outcomes
+behave as for normal selected-file commits. Remote knowledge can be stale: fetch
+first when another tool may have published the tip. External Git writers are not locked.
+
 `GitResult<CommitFilesResult>` separates ordinary preflight/command failures from
 post-write recovery. An `ok` result has `outcome: "committed" | "unknown"`, optional
 `oid`/`snapshot`, and an optional `warning`. A confirmed commit remains successful

@@ -292,6 +292,17 @@ export function RepositoryNavigation({
 			state={state}
 			onWrite={onRevertCommit}
 			onCherryPick={onCherryPickCommit}
+			readLastCommit={readLastCommit}
+			onAmend={(commit) => {
+				if (!state.repository?.branchName) return;
+
+				onAction({
+					type: "amend-commit",
+					head: commit.oid,
+					branch: state.repository.branchName,
+					message: commit.body || commit.summary,
+				});
+			}}
 			readBranches={readBranches}
 			readCommitLink={readCommitLink}
 			onFinished={() => onAction({ type: "view", view: "changes" })}

@@ -1,5 +1,5 @@
 /**
- * Covers: checked-file commits, last-commit undo, rail Sync controls, duplicate prevention, draft/error retention and refresh.
+ * Covers: checked-file commits, last-commit undo/amend, rail Sync controls, duplicate prevention, draft/error retention and refresh.
  * Real: App, reducers, hooks and native GPUIX events/layout.
  * Doubles: Git reads/writes and folder picker; no live repository mutations.
  * Requires: patched GPUIX renderer with macOS graphics access.
@@ -72,53 +72,66 @@ const snapshot = () =>
 
 const readRepository = async () => ({ ok: true as const, value: snapshot() });
 
-it("passes native line inclusion to the commit transaction and makes the file checkbox mixed", async () => {
-	const patch = diffPatch("a.ts");
+it.each([false, true])(
+	"passes native line inclusion to commit/amend and makes the file checkbox mixed (amend: %s)",
+	async (amend) => {
+		const patch = diffPatch("a.ts");
 
-	const writeCommit = mock<typeof RepositoryCommit.write>(async () => ({
-		ok: true,
-		value: {
-			outcome: "committed",
-			oid: "new-head",
-			snapshot: null,
-			warning: null,
-		},
-	}));
+		const writeCommit = mock<typeof RepositoryCommit.write>(async () => ({
+			ok: true,
+			value: {
+				outcome: "committed",
+				oid: "new-head",
+				snapshot: null,
+				warning: null,
+			},
+		}));
 
-	root.render(
-		<App
-			readRepository={readRepository}
-			readDiff={async () => ({
-				ok: true,
-				value: [diffSection("working", patch)],
-			})}
-			writeCommit={writeCommit}
-		/>
-	);
-	await open();
-	await settle();
-	click("entry-a.ts");
-	await settle();
-	const content = root.renderer.findByTestId("diff-viewport-content");
+		root.render(
+			<App
+				readRepository={readRepository}
+				readLastCommit={async () => lastCommit}
+				readDiff={async () => ({
+					ok: true,
+					value: [diffSection("working", patch)],
+				})}
+				writeCommit={writeCommit}
+			/>
+		);
+		await open();
+		await settle();
 
-	if (!content) throw new Error("Missing diff");
+		if (amend) {
+			click("commit-amend");
+			await settle();
+		}
 
-	const bounds = root.renderer.getElementBounds(content.id);
+		click("entry-a.ts");
+		await settle();
+		const content = root.renderer.findByTestId("diff-viewport-content");
 
-	if (!bounds) throw new Error("Missing diff bounds");
+		if (!content) throw new Error("Missing diff");
 
-	root.renderer.nativeSimulateClick(bounds.x + 27, bounds.y + 26 + 21 + 10);
-	await settle();
-	expect(node("include-a.ts").customProps?.["aria-checked"]).toBe("mixed");
-	click("include-b.ts");
-	message();
-	click("commit-submit");
-	await settle();
-	expect(writeCommit).toHaveBeenCalledTimes(1);
-	expect(writeCommit.mock.calls[0]?.[1].partialFiles).toEqual([
-		{ path: "a.ts", expectedPatch: patch, includedLines: ["+:11"] },
-	]);
-});
+		const bounds = root.renderer.getElementBounds(content.id);
+
+		if (!bounds) throw new Error("Missing diff bounds");
+
+		root.renderer.nativeSimulateClick(bounds.x + 27, bounds.y + 26 + 21 + 10);
+		await settle();
+		expect(node("include-a.ts").customProps?.["aria-checked"]).toBe("mixed");
+		click("include-b.ts");
+
+		if (!amend) message();
+
+		click("commit-submit");
+		await settle();
+		expect(writeCommit).toHaveBeenCalledTimes(1);
+		expect(writeCommit.mock.calls[0]?.[1].amend).toBe(amend || undefined);
+		expect(writeCommit.mock.calls[0]?.[1].partialFiles).toEqual([
+			{ path: "a.ts", expectedPatch: patch, includedLines: ["+:11"] },
+		]);
+	}
+);
 
 const lastCommit: Extract<
 	Awaited<ReturnType<typeof RepositoryCommit.readLast>>,
@@ -140,7 +153,7 @@ const lastCommit: Extract<
 	},
 };
 
-it("pins the last commit below the composer with a right-aligned Undo and no menu or amend", async () => {
+it("pins the last commit below the composer with right-aligned Amend and Undo", async () => {
 	const readLast = mock<typeof RepositoryCommit.readLast>(
 		async () => lastCommit
 	);
@@ -153,7 +166,7 @@ it("pins the last commit below the composer with a right-aligned Undo and no men
 	expect(root.renderer.getAllText().join(" ")).toContain("Committed");
 	expect(root.renderer.getAllText()).toContain("Original");
 	expect(root.renderer.findByTestId("commit-actions")).toBeUndefined();
-	expect(root.renderer.getAllText().join(" ")).not.toContain("Amend");
+	expect(node("commit-amend")).toBeDefined();
 	const footer = root.renderer.getElementBounds(node("last-commit-footer").id)!;
 	const undo = root.renderer.getElementBounds(node("commit-undo").id)!;
 
@@ -174,6 +187,138 @@ it("pins the last commit below the composer with a right-aligned Undo and no men
 	const screenshot = process.env.GPUIX_UNDO_SCREENSHOT;
 
 	if (screenshot) root.renderer.captureScreenshot(screenshot);
+});
+
+it("loads the last commit for amendment without writing, then Cancel restores the ordinary draft and inclusion", async () => {
+	const write = mock<typeof RepositoryCommit.write>(async () => ({
+		ok: true,
+		value: {
+			outcome: "committed",
+			oid: "new",
+			snapshot: snapshot(),
+			warning: null,
+		},
+	}));
+
+	root.render(
+		<App
+			readRepository={readRepository}
+			readLastCommit={async () => lastCommit}
+			writeCommit={write}
+		/>
+	);
+	await open();
+	await settle();
+	message("d r a f t");
+	click("include-b.ts");
+	root.renderer.nativeSimulateKeyDown(node("commit-amend").id, "enter");
+	await settle();
+
+	expect(node("amend-header")).toBeDefined();
+	expect(node("commit-message").customProps?.value).toBe("Original\n\nDetails");
+	expect(root.renderer.getFocusedElementId()).toBe(node("commit-message").id);
+	expect(node("include-b.ts").customProps?.["aria-checked"]).toBe(false);
+	expect(write).not.toHaveBeenCalled();
+	const label = root.renderer.getElementBounds(node("amend-label").id);
+
+	expect(label?.height).toBe(12);
+	const screenshot = process.env.GPUIX_AMEND_SCREENSHOT;
+
+	if (screenshot) root.renderer.captureScreenshot(screenshot);
+
+	click("amend-cancel");
+	await settle();
+	expect(root.renderer.findByTestId("amend-header")).toBeUndefined();
+	expect(node("commit-message").customProps?.value).toBe("draft");
+	expect(node("include-b.ts").customProps?.["aria-checked"]).toBe(false);
+	expect(root.renderer.getFocusedElementId()).toBe(node("commit-message").id);
+});
+
+it("amends only selected changes once, protects closing, and restores the ordinary draft on success", async () => {
+	const result =
+		Promise.withResolvers<Awaited<ReturnType<typeof RepositoryCommit.write>>>();
+
+	const write = mock<typeof RepositoryCommit.write>(() => result.promise);
+
+	root.render(
+		<App
+			readRepository={readRepository}
+			readLastCommit={async () => lastCommit}
+			writeCommit={write}
+		/>
+	);
+	await open();
+	await settle();
+	message("d r a f t");
+	click("include-b.ts");
+	click("commit-amend");
+	await settle();
+	click("commit-submit");
+	click("commit-submit");
+	click("amend-cancel");
+	root.renderer.nativeSimulateKeyDown(node("commit-message").id, "cmd-w");
+	root.renderer.flush();
+
+	expect(write).toHaveBeenCalledTimes(1);
+	expect(write.mock.calls[0]?.[1]).toMatchObject({
+		amend: true,
+		paths: ["a.ts"],
+		message: "Original\n\nDetails",
+		expectedHead: snapshot().head.oid,
+		expectedBranch: "main",
+	});
+	expect(node("amend-header")).toBeDefined();
+	result.resolve({
+		ok: true,
+		value: {
+			outcome: "committed",
+			oid: "new-head",
+			snapshot: {
+				...snapshot(),
+				head: { ...snapshot().head, oid: "new-head" },
+			},
+			warning: null,
+		},
+	});
+	await settle();
+	await settle();
+	expect(root.renderer.findByTestId("amend-header")).toBeUndefined();
+	expect(node("commit-message").customProps?.value).toBe("draft");
+});
+
+it("supports message-only amend via Command Enter and retains amend intent after a hook failure", async () => {
+	const write = mock<typeof RepositoryCommit.write>(async () => ({
+		ok: false,
+		error: {
+			operation: "commit",
+			code: "command-failed",
+			message: "Hook rejected",
+			retryable: false,
+		},
+	}));
+
+	root.render(
+		<App
+			readRepository={async () => ({ ok: true, value: repositorySnapshot() })}
+			readLastCommit={async () => lastCommit}
+			writeCommit={write}
+		/>
+	);
+	await open();
+	await settle();
+	click("commit-amend");
+	await settle();
+	root.renderer.nativeSimulateKeyDown(node("commit-message").id, "cmd-enter");
+	await settle();
+
+	expect(write).toHaveBeenCalledTimes(1);
+	expect(write.mock.calls[0]?.[1]).toMatchObject({ amend: true, paths: [] });
+	expect(node("amend-header")).toBeDefined();
+	expect(node("commit-message").customProps?.value).toBe("Original\n\nDetails");
+	expect(root.renderer.getAllText().join(" ")).toContain("Hook rejected");
+	click("amend-cancel");
+	await settle();
+	expect(node("commit-message").customProps?.value).toBe("");
 });
 
 it("undoes directly once, blocks duplicate writes/closing and restores the old message", async () => {
@@ -217,7 +362,7 @@ it("undoes directly once, blocks duplicate writes/closing and restores the old m
 	expect(node("entry-undone.ts")).toBeDefined();
 });
 
-it("shows published commit metadata without allowing Undo and preserves an existing draft", async () => {
+it("shows published commit metadata without allowing Undo or Amend and preserves an existing draft", async () => {
 	const undo = mock<typeof RepositoryCommit.undo>(async () => ({
 		ok: true,
 		value: {
@@ -248,6 +393,9 @@ it("shows published commit metadata without allowing Undo and preserves an exist
 	message("d r a f t");
 	expect(root.renderer.getAllText()).toContain("Original");
 	expect(node("commit-undo").style.opacity).toBe(0.45);
+	expect(node("commit-amend").style.opacity).toBe(0.45);
+	click("commit-amend");
+	expect(root.renderer.findByTestId("amend-header")).toBeUndefined();
 	click("commit-undo");
 	expect(undo).not.toHaveBeenCalled();
 	root.render(

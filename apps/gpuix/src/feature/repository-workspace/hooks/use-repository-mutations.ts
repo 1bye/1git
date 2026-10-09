@@ -260,6 +260,7 @@ export function useRepositoryMutations(
 						}
 					: undone
 				: await writeCommit(root, {
+						...(workspace.amend ? { amend: true } : {}),
 						includePartialStaging: true,
 						paths: workspace.includedFileIds,
 						...(Object.keys(workspace.partialFiles ?? {}).length

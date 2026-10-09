@@ -10,6 +10,7 @@ import type { RepositorySnapshot } from "@1git/git";
 import { App } from "../../src/app";
 import { windowOptions } from "../../src/window-options";
 import { RepositoryHistory } from "../../src/feature/repository-workspace/lib/repository-history";
+import type { RepositoryCommit } from "../../src/feature/repository-workspace/lib/repository-commit";
 import { RepositoryOperation } from "../../src/feature/repository-workspace/lib/repository-operation";
 import {
 	changedFile,
@@ -120,6 +121,56 @@ const openMenu = async (index = 1) => {
 	await settle();
 };
 
+it.each([false, true])(
+	"opens Amend from History only for its unpublished tip (published: %s)",
+	async (published) => {
+		const tip = commitInfo(0);
+
+		const readLast = mock<typeof RepositoryCommit.readLast>(async () => ({
+			ok: true,
+			value: {
+				commit: tip,
+				undoUnavailableReason: published ? "Already published" : null,
+			},
+		}));
+
+		menuChoice = "Amend last commit…";
+		root.render(
+			<App
+				initialSession={session}
+				readRepository={async () => ({
+					ok: true,
+					value: {
+						...repositorySnapshot([changedFile("dirty.txt")]),
+						head: { ...repositorySnapshot().head, oid: tip.oid },
+					},
+				})}
+				readLastCommit={readLast}
+				readHistory={readHistory}
+				readCommitFiles={readCommitFiles}
+			/>
+		);
+		await openHistory();
+		await openMenu(1);
+		expect(menuEnabled[menuLabels.indexOf(menuChoice)]).toBe(false);
+		expect(root.renderer.findByTestId("amend-header")).toBeUndefined();
+		await openMenu(0);
+		expect(menuEnabled[menuLabels.indexOf(menuChoice)]).toBe(!published);
+
+		if (published) {
+			expect(root.renderer.findByTestId("amend-header")).toBeUndefined();
+
+			return;
+		}
+
+		expect(element("amend-header")).toBeDefined();
+		expect(element("commit-message").customProps?.value).toBe(tip.body);
+		click("amend-cancel");
+		await settle();
+		expect(element("commit-message").customProps?.value).toBe("Keep draft");
+	}
+);
+
 it("confirms the clicked commit, not the selected one, and supports cancel, Control-click and keyboard menus", async () => {
 	let finished = false;
 
@@ -157,6 +208,7 @@ it("confirms the clicked commit, not the selected one, and supports cancel, Cont
 		"Copy Message",
 		"View on GitHub/GitLab",
 		"",
+		"Amend last commit…",
 		"Cherry-pick commit…",
 		"Revert commit…",
 	]);
@@ -247,7 +299,7 @@ for (const reason of ["dirty", "merge", "detached", "operation"] as const) {
 		await openMenu();
 		expect(menuEnabled[menuLabels.indexOf("Revert commit…")]).toBe(false);
 		expect(menuEnabled.slice(0, 3)).toEqual([true, true, false]);
-		expect(menuLabels.length).toBe(7);
+		expect(menuLabels.length).toBe(8);
 		expect(root.renderer.findByTestId("revert-dialog")).toBeUndefined();
 		expect(write).not.toHaveBeenCalled();
 	});
