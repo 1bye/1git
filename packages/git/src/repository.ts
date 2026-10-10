@@ -28,6 +28,9 @@ import type {
 	ConfigValue,
 	CreateBranchInput,
 	CreateTagInput,
+	CreateReleaseTagInput,
+	PushTagInput,
+	TagPushResult,
 	CreateWorktreeInput,
 	DeleteBranchInput,
 	DeleteTagInput,
@@ -90,6 +93,7 @@ import type {
 import { selectHunkPatch } from "./hunk-patch.js";
 import { SelectedCommit } from "./selected-commit.js";
 import { BranchIntegration } from "./branch-integration.js";
+import { TagOperations } from "./tag-operations.js";
 import { CommitRecovery } from "./commit-recovery.js";
 import { BranchSync } from "./branch-sync.js";
 import { GitIgnore } from "./ignore.js";
@@ -1968,6 +1972,26 @@ export class GitRepository {
 			"revert",
 			"--abort",
 			options
+		);
+	}
+
+	/** Creates only the reviewed release tag; dirty working files and the index are left untouched. */
+	async createReleaseTag(
+		input: CreateReleaseTagInput
+	): Promise<GitResult<RepositorySnapshot>> {
+		return await this.mutate(
+			"create-tag",
+			input.signal,
+			async () => await TagOperations.create(this.context, input)
+		);
+	}
+
+	/** Pushes exactly one reviewed tag without force, mirror, branch publication or implicit extra tags. */
+	async pushTag(input: PushTagInput): Promise<GitResult<TagPushResult>> {
+		return await this.mutate(
+			"push-tag",
+			input.signal,
+			async () => await TagOperations.push(this.context, input)
 		);
 	}
 

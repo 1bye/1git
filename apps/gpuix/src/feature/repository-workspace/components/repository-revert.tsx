@@ -5,6 +5,9 @@ import type {
 	CommitInfo,
 	RevertCommitInput,
 	CherryPickCommitInput,
+	CreateReleaseTagInput,
+	PushTagInput,
+	TagInfo,
 } from "@1git/git";
 import { useGpuixRequired, type EventPayload } from "@gpuix/react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -27,6 +30,7 @@ import {
 	RepositoryCherryPick,
 	type CherryPickReview,
 } from "./repository-cherry-pick";
+import { RepositoryTag, type TagReview } from "./repository-tag";
 
 type HistoryChoice =
 	| "copy-sha"
@@ -35,6 +39,8 @@ type HistoryChoice =
 	| "amend"
 	| "revert"
 	| "cherry-pick";
+
+type CommitMenuChoice = HistoryChoice | "create-tag" | { tag: TagInfo };
 const remoteLookupTimeoutMs = 5000;
 
 /** Native commit actions; Git writes require a reviewed commit/branch and confirmation. */
@@ -43,6 +49,9 @@ export function RepositoryRevert({
 	onWrite,
 	onCherryPick,
 	onAmend,
+	onCreateTag,
+	onPushTag,
+	tags = [],
 	readLastCommit = RepositoryCommit.readLast,
 	readBranches,
 	readCommitLink = RepositoryHistory.readCommitLink,
@@ -53,6 +62,9 @@ export function RepositoryRevert({
 	onWrite?: (request: RevertCommitInput) => Promise<string | null>;
 	onCherryPick?: (request: CherryPickCommitInput) => Promise<string | null>;
 	onAmend?: (commit: CommitInfo) => void;
+	onCreateTag?: (input: CreateReleaseTagInput) => Promise<string | null>;
+	onPushTag?: (input: PushTagInput) => Promise<string | null>;
+	tags?: readonly TagInfo[];
 	readLastCommit?: typeof RepositoryCommit.readLast;
 	readBranches?: typeof RepositoryBranches.read;
 	readCommitLink?: typeof RepositoryHistory.readCommitLink;
@@ -68,6 +80,7 @@ export function RepositoryRevert({
 	const [pending, setPending] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [cherryPick, setCherryPick] = useState<CherryPickReview | null>(null);
+	const [tagReview, setTagReview] = useState<TagReview | null>(null);
 
 	const [reviewed, setReviewed] = useState<{
 		commit: CommitInfo;
@@ -102,7 +115,7 @@ export function RepositoryRevert({
 		entry: WorkspaceEntry,
 		event: EventPayload
 	): Promise<void> => {
-		if (tracking.current || reviewed || cherryPick) return;
+		if (tracking.current || reviewed || cherryPick || tagReview) return;
 
 		const commit = state.entries.history.find(
 			(item) => item.id === entry.id
@@ -185,7 +198,7 @@ export function RepositoryRevert({
 
 			const bounds = renderer.getElementBounds?.(event.elementId);
 
-			const items: NativeMenuItem<HistoryChoice>[] = [
+			const items: NativeMenuItem<CommitMenuChoice>[] = [
 				{ label: "Copy SHA", enabled: true, value: "copy-sha" },
 				{ label: "Copy Message", enabled: true, value: "copy-message" },
 				{
@@ -214,6 +227,40 @@ export function RepositoryRevert({
 			if (reason)
 				items.push({ label: reason, enabled: false, value: "revert" });
 
+			const canTag =
+				!!repository?.head &&
+				!state.preview &&
+				!busy &&
+				!state.loading &&
+				!state.error &&
+				!state.commit.needsReview &&
+				!state.amend &&
+				repository.operation === "normal";
+
+			const commitTags = tags.filter((tag) => tag.targetOid === commit.oid);
+
+			if (onCreateTag || onPushTag) {
+				items.push(
+					{ separator: true },
+					{
+						label: "Create tag…",
+						enabled: canTag && !!onCreateTag,
+						value: "create-tag",
+					}
+				);
+
+				if (commitTags.length)
+					items.push({
+						label: "Push tag…",
+						enabled: canTag && !!onPushTag,
+						children: commitTags.map((tag) => ({
+							label: tag.name,
+							enabled: true,
+							value: { tag },
+						})),
+					});
+			}
+
 			const choice = NativeFileMenu.showItems(
 				renderer,
 				items,
@@ -221,7 +268,20 @@ export function RepositoryRevert({
 				event.y ?? (bounds ? bounds.y + bounds.height : 0)
 			);
 
-			if (choice === "copy-sha") await NativeClipboard.write(commit.oid);
+			if (
+				(choice === "create-tag" ||
+					(typeof choice === "object" && choice !== null)) &&
+				canTag &&
+				repository?.head
+			)
+				setTagReview({
+					root: repository.root,
+					commit,
+					expectedHead: repository.head,
+					expectedBranch: repository.branchName,
+					tag: typeof choice === "object" ? choice.tag : undefined,
+				});
+			else if (choice === "copy-sha") await NativeClipboard.write(commit.oid);
 			// The Git reader's body is %B: the full message, including its subject.
 			else if (choice === "copy-message")
 				await NativeClipboard.write(commit.body || commit.summary);
@@ -292,6 +352,17 @@ export function RepositoryRevert({
 	return (
 		<>
 			{children(openMenu)}
+			{tagReview ? (
+				<RepositoryTag
+					state={state}
+					review={tagReview}
+					readBranches={readBranches}
+					onCreate={onCreateTag}
+					onPush={onPushTag}
+					onCancel={() => setTagReview(null)}
+					onFinished={() => setTagReview(null)}
+				/>
+			) : null}
 			{cherryPick && onCherryPick ? (
 				<RepositoryCherryPick
 					key={`${cherryPick.root}:${cherryPick.commit.oid}`}

@@ -48,6 +48,7 @@ import { RepositoryWelcome } from "./feature/repository-workspace/components/rep
 import type { RepositoryWatcher } from "./feature/repository-workspace/lib/repository-watcher";
 import { useRepositoryAutoRefresh } from "./feature/repository-workspace/hooks/use-repository-auto-refresh";
 import { RepositoryHistory } from "./feature/repository-workspace/lib/repository-history";
+import { RepositoryTags } from "./feature/repository-workspace/lib/repository-tags";
 import { useRepositoryHistory } from "./feature/repository-workspace/hooks/use-repository-history";
 import { RepositoryStashes } from "./feature/repository-workspace/lib/repository-stashes";
 import { useRepositoryStashes } from "./feature/repository-workspace/hooks/use-repository-stashes";
@@ -104,6 +105,9 @@ export function App({
 	undoCommit = RepositoryCommit.undo,
 	revertCommit = RepositoryHistory.revert,
 	cherryPickCommit = RepositoryHistory.cherryPick,
+	readTags = RepositoryTags.read,
+	createTag = RepositoryTags.create,
+	pushTag,
 	readBranches = RepositoryBranches.read,
 	writeBranch = RepositoryBranches.write,
 	writeWorktree = RepositoryWorktrees.create,
@@ -144,6 +148,9 @@ export function App({
 	undoCommit?: typeof RepositoryCommit.undo;
 	revertCommit?: typeof RepositoryHistory.revert;
 	cherryPickCommit?: typeof RepositoryHistory.cherryPick;
+	readTags?: typeof RepositoryTags.read;
+	createTag?: typeof RepositoryTags.create;
+	pushTag?: typeof RepositorySync.pushTag;
 	readBranches?: typeof RepositoryBranches.read;
 	writeBranch?: typeof RepositoryBranches.write;
 	writeWorktree?: typeof RepositoryWorktrees.create;
@@ -287,6 +294,17 @@ export function App({
 		[writeSyncRepository, remoteAccounts, syncAccount.choose]
 	);
 
+	const pushTagWithAccounts = useCallback<typeof RepositorySync.pushTag>(
+		(root, input, signal) =>
+			pushTag
+				? pushTag(root, input, signal)
+				: RepositorySync.pushTag(root, input, signal, {
+						accounts: remoteAccounts,
+						choose: syncAccount.choose,
+					}),
+		[pushTag, remoteAccounts, syncAccount.choose]
+	);
+
 	useEffect(
 		() => () => {
 			if (!suppliedAvatars) avatars.dispose();
@@ -366,7 +384,9 @@ export function App({
 		},
 		revertCommit,
 		ignoreFile,
-		cherryPickCommit
+		cherryPickCommit,
+		createTag,
+		pushTagWithAccounts
 	);
 
 	useRepositoryAutoRefresh(state, dispatch, readRepository, watchRepository);
@@ -542,7 +562,8 @@ export function App({
 		workspace,
 		workspaceAction,
 		readHistory,
-		readCommitFiles
+		readCommitFiles,
+		readTags
 	);
 
 	const stashes = useRepositoryStashes(
@@ -755,6 +776,10 @@ export function App({
 								onCherryPickCommit={(input) =>
 									mutations.cherryPickCommit(activeTab.id, input)
 								}
+								onCreateTag={(input) =>
+									mutations.createTag(activeTab.id, input)
+								}
+								onPushTag={(input) => mutations.pushTag(activeTab.id, input)}
 								readBranches={readBranches}
 								readCommitLink={async (root, oid, signal) =>
 									RepositoryHistory.readCommitLink(

@@ -10,7 +10,7 @@ import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { Checkbox } from "@1git/gpuix-ui/checkbox";
 import { Button } from "@1git/gpuix-ui/button";
 import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { repositoryFilterShortcuts } from "../lib/repository-filter-shortcut";
 
 import {
@@ -35,6 +35,9 @@ import type {
 	CommitRecoveryInput,
 	RevertCommitInput,
 	CherryPickCommitInput,
+	CreateReleaseTagInput,
+	PushTagInput,
+	TagInfo,
 } from "@1git/git";
 import type { RepositoryCommit as CommitReader } from "../lib/repository-commit";
 import { RepositoryOperation } from "./repository-operation";
@@ -152,6 +155,8 @@ export function RepositoryNavigation({
 	onUndoCommit,
 	onRevertCommit,
 	onCherryPickCommit,
+	onCreateTag,
+	onPushTag,
 	readBranches,
 	readCommitLink,
 	readLastCommit,
@@ -173,6 +178,8 @@ export function RepositoryNavigation({
 	onUndoCommit?: (input: CommitRecoveryInput) => Promise<string | null>;
 	onRevertCommit?: (input: RevertCommitInput) => Promise<string | null>;
 	onCherryPickCommit?: (input: CherryPickCommitInput) => Promise<string | null>;
+	onCreateTag?: (input: CreateReleaseTagInput) => Promise<string | null>;
+	onPushTag?: (input: PushTagInput) => Promise<string | null>;
 	readBranches?: typeof RepositoryBranches.read;
 	readCommitLink?: typeof RepositoryHistory.readCommitLink;
 	readLastCommit?: typeof CommitReader.readLast;
@@ -195,6 +202,22 @@ export function RepositoryNavigation({
 	const historySearching = view === "history" && !!state.history.query?.trim();
 	const filtering = view === "changes" && normalizedQuery.length > 0;
 
+	const taggedHistory = useMemo(() => {
+		const byCommit = new Map<string, TagInfo[]>();
+
+		for (const tag of history?.tags ?? []) {
+			const list = byCommit.get(tag.targetOid) ?? [];
+
+			list.push(tag);
+			byCommit.set(tag.targetOid, list);
+		}
+
+		return state.entries.history.map((entry) => ({
+			...entry,
+			tags: byCommit.get(entry.id),
+		}));
+	}, [history?.tags, state.entries.history]);
+
 	const entries = filtering
 		? state.entries.changes.filter(
 				(entry) =>
@@ -203,7 +226,9 @@ export function RepositoryNavigation({
 						.includes(normalizedQuery) ||
 					entry.title.toLowerCase().includes(normalizedQuery)
 			)
-		: state.entries[view];
+		: view === "history"
+			? taggedHistory
+			: state.entries[view];
 
 	useEffect(() => {
 		if (!searchable) return;
@@ -292,6 +317,9 @@ export function RepositoryNavigation({
 			state={state}
 			onWrite={onRevertCommit}
 			onCherryPick={onCherryPickCommit}
+			onCreateTag={onCreateTag}
+			onPushTag={onPushTag}
+			tags={history?.tags}
 			readLastCommit={readLastCommit}
 			onAmend={(commit) => {
 				if (!state.repository?.branchName) return;
@@ -598,7 +626,7 @@ export function RepositoryNavigation({
 				</text>
 			) : null}
 			<div role="tabpanel" aria-label={label} style={styles.viewContent}>
-				{view === "changes" && onOperation ? (
+				{onOperation ? (
 					<RepositoryOperation state={state} onWrite={onOperation} />
 				) : null}
 				{state.stashMutation.error ||
@@ -614,6 +642,15 @@ export function RepositoryNavigation({
 								? `Stash ${state.stashMutation.pending} in progress…`
 								: state.stashMutation.notice)}
 					</text>
+				) : null}
+				{view === "history" && history?.tagsError ? (
+					<RepositoryReadNotice
+						testId="retry-tags"
+						loading={false}
+						error={`Tags unavailable. ${history.tagsError}`}
+						onPress={history.retryTags}
+						label="Retry tags"
+					/>
 				) : null}
 				<div style={styles.header}>
 					<text testId="repository-heading" style={styles.muted}>

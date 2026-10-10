@@ -72,6 +72,7 @@ export type GitOperation =
 	| "prune-worktrees"
 	| "pull"
 	| "push"
+	| "push-tag"
 	| "rebase"
 	| "squash-merge"
 	| "remove-remote"
@@ -661,6 +662,35 @@ export interface CreateTagInput extends GitCallOptions {
 	readonly message?: string;
 	readonly name: string;
 	readonly revision?: string;
+}
+
+/** Annotated release tag at an exact reviewed historical commit, without changing the index or publishing. */
+export interface CreateReleaseTagInput extends GitCallOptions {
+	readonly name: string;
+	readonly message: string;
+	readonly commit: string;
+	readonly expectedHead: string;
+	readonly expectedBranch: string | null;
+}
+
+/** Publishes one exact tag object to one reviewed destination; never pushes branches or other tags. */
+export interface PushTagInput extends GitCallOptions {
+	readonly name: string;
+	readonly expectedOid: string;
+	readonly expectedTarget: string;
+	readonly remote: string;
+	readonly expectedUrl: string;
+	readonly expectedHead: string;
+	readonly expectedBranch: string | null;
+	readonly httpAuthentication?: GitHttpAuthentication;
+}
+
+/** Explicit tag push outcome; successful transport does not create a provider release. */
+export interface TagPushResult {
+	readonly name: string;
+	readonly oid: string;
+	readonly remote: string;
+	readonly snapshot: RepositorySnapshot;
 }
 
 export interface DeleteTagInput extends GitCallOptions {

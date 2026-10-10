@@ -143,7 +143,11 @@ function RepositoryRow({
 						? `${entry.title}, ${entry.statusDescription ?? (entry.status === "A" ? "added" : entry.status === "D" ? "deleted" : "modified")}`
 						: entry.title
 				}
-				aria-description={entry.detail}
+				aria-description={
+					entry.tags?.length
+						? `${entry.detail ?? ""} · Tags: ${entry.tags.map((tag) => tag.name).join(", ")}`
+						: entry.detail
+				}
 				aria-selected={selected}
 				tabIndex={tabbable ? 0 : -1}
 				onClick={(event) => {
@@ -191,7 +195,36 @@ function RepositoryRow({
 							pointerEvents: "none",
 						}}
 					>
-						<text style={styles.label}>{entry.title}</text>
+						<div
+							style={{
+								display: "flex",
+								flexDirection: "row",
+								alignItems: "center",
+								gap: spacing[1],
+							}}
+						>
+							<text style={{ ...styles.label, flexGrow: 1 }}>
+								{entry.title}
+							</text>
+							{entry.tags?.length ? (
+								<text
+									testId={`tags-${entry.id}`}
+									style={{
+										...typography["2xs"],
+										color: lightColors.editorMuted,
+										backgroundColor: lightColors.editorSunken,
+										borderRadius: radius.sm,
+										paddingLeft: spacing[1],
+										paddingRight: spacing[1],
+										flexShrink: 0,
+										maxWidth: 120,
+										overflowX: "hidden",
+										textOverflow: "ellipsis",
+										whiteSpace: "nowrap",
+									}}
+								>{`${entry.tags[0]?.name}${entry.tags.length > 1 ? ` +${entry.tags.length - 1}` : ""}`}</text>
+							) : null}
+						</div>
 						{entry.detail ? (
 							<text style={styles.detail}>{entry.detail}</text>
 						) : null}

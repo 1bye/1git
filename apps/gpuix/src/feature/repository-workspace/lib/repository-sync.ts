@@ -4,6 +4,9 @@ import {
 	type SyncResult,
 	type SyncBranchInput,
 	type GitHttpAuthentication,
+	type PushTagInput,
+	type TagPushResult,
+	type GitOperation,
 } from "@1git/git";
 import type {
 	RemoteAccounts,
@@ -36,6 +39,76 @@ export interface SyncAuthentication {
 /** Explicit, bounded synchronization using existing Git credentials and guarded branch operations. */
 export class RepositorySync {
 	private constructor() {}
+
+	/** Resolves the same remote account as branch pushes, but sends only the reviewed tag. */
+	static async pushTag(
+		root: string,
+		input: PushTagInput,
+		signal: AbortSignal,
+		authentication?: SyncAuthentication
+	): Promise<
+		GitResult<TagPushResult> & { readonly accountAccess?: RemoteAccountAccess }
+	> {
+		const timeout = AbortSignal.timeout(syncTimeoutMs);
+		const request = AbortSignal.any([signal, timeout]);
+
+		try {
+			const opened = await GitRepository.open({ path: root, signal: request });
+
+			if (!opened.ok) return opened;
+
+			const credential = await RepositorySync.credentials(
+				opened.value,
+				input.remote,
+				true,
+				request,
+				authentication
+			);
+
+			const result = await RepositorySync.explainAccountFailure(
+				await opened.value.pushTag({
+					...input,
+					signal: request,
+					httpAuthentication: credential,
+				}),
+				opened.value,
+				input.remote,
+				credential,
+				authentication
+			);
+
+			if (!result.ok && timeout.aborted && !signal.aborted)
+				return {
+					ok: false,
+					error: {
+						...result.error,
+						message:
+							"Tag push timed out. It may have completed; inspect the remote before retrying.",
+						retryable: false,
+					},
+				};
+
+			return result;
+		} catch (cause) {
+			if (timeout.aborted && !signal.aborted)
+				return {
+					ok: false,
+					error: {
+						code: "aborted",
+						operation: "push-tag",
+						retryable: false,
+						message:
+							"Tag push timed out. It may have completed; inspect the remote before retrying.",
+					},
+				};
+
+			return RepositorySync.authenticationFailure<TagPushResult>(
+				cause,
+				request,
+				"push-tag"
+			);
+		}
+	}
 
 	static async write(
 		root: string,
@@ -354,13 +427,13 @@ export class RepositorySync {
 		return result;
 	}
 
-	private static async explainAccountFailure(
-		result: GitResult<SyncResult>,
+	private static async explainAccountFailure<T>(
+		result: GitResult<T>,
 		repository: GitRepository,
 		remote: string,
 		credential: GitHttpAuthentication | undefined,
 		authentication: SyncAuthentication | undefined
-	): Promise<RepositorySyncResult> {
+	): Promise<GitResult<T> & { readonly accountAccess?: RemoteAccountAccess }> {
 		if (
 			result.ok ||
 			result.error.code !== "authentication-required" ||
@@ -439,15 +512,16 @@ export class RepositorySync {
 		return credential;
 	}
 
-	private static authenticationFailure(
+	private static authenticationFailure<T = SyncResult>(
 		cause: unknown,
-		signal: AbortSignal
-	): GitResult<SyncResult> {
+		signal: AbortSignal,
+		operation: GitOperation = "fetch"
+	): GitResult<T> {
 		return {
 			ok: false,
 			error: {
 				code: signal.aborted ? "aborted" : "authentication-required",
-				operation: "fetch",
+				operation,
 				retryable: true,
 				message: signal.aborted
 					? "Synchronization cancelled."

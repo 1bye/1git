@@ -47,6 +47,8 @@ export interface RepositoryRevisionState extends RepositoryListState {
 
 /** Each workspace owns commit inclusion independently of its viewed row and scroll offsets. */
 export interface RepositoryWorkspaceState {
+	/** Invalidates mutable local metadata such as tags even when HEAD has not changed. */
+	readonly metadataVersion?: number;
 	/** Bounded lazy history search for a restored selection; cleared once resolved. */
 	readonly restoreHistoryLimit?: number;
 	readonly preview: boolean;
@@ -1039,6 +1041,7 @@ export class RepositoryWorkspaceModel {
 						? state.restoreHistoryLimit
 						: undefined,
 				repositoryPath: snapshot.repository.root,
+				metadataVersion: (state.metadataVersion ?? 0) + 1,
 				loading: false,
 				error: null,
 				watchError: sameRepository ? state.watchError : null,

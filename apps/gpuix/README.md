@@ -783,8 +783,8 @@ no user repositories or live hosted services are modified.
   them neither stages nor unstages files. Command+Enter/the composer button creates
   a real commit in a connected repository. Drafts are saved with the session;
   inclusion choices remain in-memory only.
-  History previews are read-only; its context menu provides confirmed Revert and
-  Cherry-pick actions. Stashes provides explicit create, apply and delete actions.
+  History previews are read-only; its context menu provides confirmed Revert,
+  Cherry-pick and tag actions. Stashes provides explicit create, apply and delete actions.
   Unavailable views never substitute sample records for live data.
 
 Git must be installed on PATH. The app imports the existing workspace Git package;
@@ -992,6 +992,31 @@ the Turbo build/dev tasks build dependencies first. No Electron IPC is involved.
   pagination to the new snapshot. Automatic refresh retains the selected commit
   and file when they remain in the refreshed page; explicit refresh and successful
   app commits reset selection when HEAD changes.
+
+### Release tags
+
+- Right-click a History commit (Control-click or Shift+F10 also works) and choose
+  **Create tag…**. Enter its name and optional annotation, then confirm. An empty
+  annotation becomes `Release <name>`. Creation is local only, always targets the
+  exact clicked commit and never changes the branch, index or working files.
+  Dirty and detached worktrees are supported; active Git operations are not.
+- History shows a compact tag badge beside the commit summary. Multiple tags use
+  one name plus a count; all names are available in accessibility text and the
+  **Push tag…** submenu. Local annotated and lightweight commit tags are shown;
+  a badge does not claim that a tag has been published. Refresh reloads mutable
+  tags even when HEAD and cached commit pages are unchanged. Tag read failures
+  offer Retry without hiding commits.
+- **Push tag… → <tag>** opens a separate confirmation. Choose a remote and review
+  its push destination. Only that tag object is sent; no branches, other tags,
+  mirror/force pushes or submodule recursion. Multiple push URLs are refused.
+  Existing remote tags cannot be replaced, and moved local tags or changed
+  destinations require another review. This uses the same account/SSH/System Git
+  authentication as branch pushes. It does not create a GitHub/GitLab release page.
+- The window owns writes and keeps related tabs/close protected until all refreshes
+  finish. Drafts and inclusion choices survive. Errors stay in the confirmation;
+  uncertain outcomes must be inspected before manually retrying. Signing and
+  pre-push hooks remain enabled, so their configuration or provider rules can
+  reject tags. App locks do not exclude concurrent external Git processes.
 
 ### Cherry-picking a commit
 

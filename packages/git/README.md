@@ -141,6 +141,32 @@ serialize separate instances that share a Git common directory. It does not lock
 out external Git processes. Always refresh after completion or failure. Cancelling
 a command does not roll back a completed remote write; never retry automatically.
 
+## Reviewed release tags
+
+`createReleaseTag({ name, message, commit, expectedHead, expectedBranch, signal })`
+creates an annotated local tag at an exact commit in the reviewed History.
+It validates the ref name, commit object and reachability, rejects existing names
+and stale HEAD/branch or active operations, and leaves working files/index untouched.
+Detached HEAD is supported with `expectedBranch: null`. Configured signing is retained.
+
+`pushTag({ name, expectedOid, expectedTarget, remote, expectedUrl, expectedHead,
+expectedBranch, httpAuthentication, signal })` is a separate explicit action.
+The tag object and peeled target must still match, and the selected remote must
+have exactly one matching push URL. It sends the reviewed tag object to only
+`refs/tags/<name>` at that URL, never branches, extra tags, force, mirror or recursive
+submodule pushes. Existing different remote tags are rejected. Local filesystem
+destinations are made absolute to avoid ambiguity with remote names. URLs are
+resolved through Git's configured rewrite rules; changing external Git configuration
+concurrently is outside the app lock.
+
+Transient HTTPS authentication uses the same validated, non-persisted credential
+boundary as branch synchronization; otherwise Git's normal SSH/helpers and hooks
+apply. These are Git tags, not provider release records. Callers must authorize
+accounts, serialize writes sharing a common directory, supply deadlines and refresh
+after any outcome. A cancelled or failed push can have completed remotely: inspect
+before retrying, never automatically retry. Disposable coverage:
+`bun test tests/tags/release.integration.test.ts`.
+
 ## Selected-file commits
 
 `commitFiles({ paths, message, expectedHead, expectedBranch })` commits current

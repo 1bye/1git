@@ -3,6 +3,7 @@ import type {
 	CommitInfo,
 	FileChange,
 	StashInfo,
+	TagInfo,
 } from "@1git/git";
 
 /** Immutable committed comparison, never an index or working-tree selection. */
@@ -22,6 +23,8 @@ export interface WorkspaceEntry {
 	readonly id: string;
 	readonly title: string;
 	readonly detail?: string;
+	/** Mutable local labels attached to historical commits; never imply publication. */
+	readonly tags?: readonly TagInfo[];
 	readonly status?: "M" | "A" | "D" | "R" | "C" | "U" | "T";
 	readonly statusDescription?: string;
 	/** Original Git status, present only for live Changes rows. */

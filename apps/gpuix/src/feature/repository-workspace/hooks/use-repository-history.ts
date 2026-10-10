@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { RepositoryHistory } from "../lib/repository-history";
+import { RepositoryTags } from "../lib/repository-tags";
+import type { TagInfo } from "@1git/git";
 import {
 	RepositoryWorkspaceModel,
 	type RepositoryWorkspaceAction,
 	type RepositoryWorkspaceState,
 } from "../lib/repository-workspace-model";
+
+const emptyTags: readonly TagInfo[] = [];
 
 /** Loads only the active tab/view; completed pages and file lists live in workspace state. */
 export function useRepositoryHistory(
@@ -13,7 +17,8 @@ export function useRepositoryHistory(
 	state: RepositoryWorkspaceState | undefined,
 	onAction: (id: string, action: RepositoryWorkspaceAction) => void,
 	readHistory = RepositoryHistory.read,
-	readFiles = RepositoryHistory.readFiles
+	readFiles = RepositoryHistory.readFiles,
+	readTags = RepositoryTags.read
 ) {
 	const active =
 		state?.view === "history" &&
@@ -45,6 +50,49 @@ export function useRepositoryHistory(
 	const fileRequest = useRef<AbortController | null>(null);
 	const [pendingPage, setPendingPage] = useState<string | null>(null);
 	const [pendingFiles, setPendingFiles] = useState<string | null>(null);
+
+	const tagKey =
+		root && workspaceId
+			? JSON.stringify([workspaceId, root, state?.metadataVersion ?? 0])
+			: null;
+
+	const [tagRead, setTagRead] = useState<{
+		key: string;
+		tags: readonly TagInfo[];
+		error: string | null;
+	} | null>(null);
+
+	const [tagRetry, setTagRetry] = useState(0);
+
+	useEffect(() => {
+		if (!tagKey || !root) return;
+
+		const controller = new AbortController();
+
+		const load = async (): Promise<void> => {
+			try {
+				const result = await readTags(root, controller.signal);
+
+				if (!controller.signal.aborted)
+					setTagRead({
+						key: tagKey,
+						tags: result.ok ? result.value : emptyTags,
+						error: result.ok ? null : result.error.message,
+					});
+			} catch {
+				if (!controller.signal.aborted)
+					setTagRead({
+						key: tagKey,
+						tags: emptyTags,
+						error: "Could not read tags.",
+					});
+			}
+		};
+
+		void load();
+
+		return () => controller.abort();
+	}, [tagKey, root, readTags, tagRetry]);
 
 	const loadMore = useCallback(async (): Promise<void> => {
 		if (
@@ -202,6 +250,9 @@ export function useRepositoryHistory(
 	}, [loadedFiles, filesError, loadFiles]);
 
 	return {
+		tags: tagRead?.key === tagKey ? tagRead.tags : emptyTags,
+		tagsError: tagRead?.key === tagKey ? tagRead.error : null,
+		retryTags: () => setTagRetry((value) => value + 1),
 		loading: key !== null && pendingPage === key,
 		loadingFiles: key !== null && pendingFiles === `${key}:${commit}`,
 		loadMore: () => {

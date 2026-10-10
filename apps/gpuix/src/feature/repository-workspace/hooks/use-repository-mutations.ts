@@ -23,6 +23,7 @@ import { RepositoryCommit } from "../lib/repository-commit";
 import { RepositoryConflicts } from "../lib/repository-conflicts";
 import { RepositoryOperation } from "../lib/repository-operation";
 import { RepositoryHistory } from "../lib/repository-history";
+import { RepositoryTags } from "../lib/repository-tags";
 import {
 	RepositoryFileActions,
 	type FileDiscardRequest,
@@ -36,6 +37,8 @@ import type {
 	SyncResult,
 	RevertCommitInput,
 	CherryPickCommitInput,
+	CreateReleaseTagInput,
+	PushTagInput,
 } from "@1git/git";
 import type { PublishBranchIdentity } from "../../repository-publish/repository-publish";
 import type { RemoteAccountAccess } from "../../accounts/lib/remote-accounts";
@@ -82,7 +85,9 @@ export function useRepositoryMutations(
 	writeGitSettings = GitSettingsModel.write,
 	revertCommit = RepositoryHistory.revert,
 	ignoreFile = RepositoryFileActions.ignore,
-	cherryPickCommit = RepositoryHistory.cherryPick
+	cherryPickCommit = RepositoryHistory.cherryPick,
+	createTag = RepositoryTags.create,
+	pushTag = RepositorySync.pushTag
 ) {
 	const [settingsPending, setSettingsPending] = useState(false);
 	const settingsWrite = useRef(false);
@@ -1045,6 +1050,8 @@ export function useRepositoryMutations(
 			| FinishOperationInput
 			| (RevertCommitInput & { kind: "revert" })
 			| (CherryPickCommitInput & { kind: "cherry-pick" })
+			| (CreateReleaseTagInput & { kind: "create-tag" })
+			| (PushTagInput & { kind: "push-tag" })
 			| FileDiscardRequest
 			| FileIgnoreRequest
 			| {
@@ -1073,6 +1080,8 @@ export function useRepositoryMutations(
 			return "Wait for the current operation or refresh before continuing.";
 
 		const sharedHistoryWrite =
+			request.kind === "create-tag" ||
+			request.kind === "push-tag" ||
 			request.kind === "revert" ||
 			request.kind === "cherry-pick" ||
 			((request.kind === "continue" || request.kind === "abort") &&
@@ -1142,7 +1151,15 @@ export function useRepositoryMutations(
 								? await cherryPickCommit(repository.root, request)
 								: request.kind === "ignore"
 									? await ignoreFile(repository.root, request)
-									: await writeOperation(repository.root, request);
+									: request.kind === "create-tag"
+										? await createTag(repository.root, request)
+										: request.kind === "push-tag"
+											? await pushTag(
+													repository.root,
+													request,
+													new AbortController().signal
+												)
+											: await writeOperation(repository.root, request);
 
 			if (!result.ok) error = result.error.message;
 			else if (
@@ -1205,11 +1222,15 @@ export function useRepositoryMutations(
 												? `Commit cherry-picked onto ${request.targetBranch}.`
 												: request.kind === "ignore"
 													? "Rule added to .gitignore. Already tracked files remain unchanged."
-													: request.kind === "abort"
-														? "Operation aborted."
-														: snapshot?.operationState === "normal"
-															? "Operation completed."
-															: "Git paused again. Review the current operation before continuing.",
+													: request.kind === "create-tag"
+														? `Tag ${request.name} created locally.`
+														: request.kind === "push-tag"
+															? `Tag ${request.name} pushed to ${request.remote}.`
+															: request.kind === "abort"
+																? "Operation aborted."
+																: snapshot?.operationState === "normal"
+																	? "Operation completed."
+																	: "Git paused again. Review the current operation before continuing.",
 						}
 			);
 
@@ -1422,6 +1443,10 @@ export function useRepositoryMutations(
 			updateWorktree(id, { ...request, kind: "revert" }),
 		cherryPickCommit: (id: string, request: CherryPickCommitInput) =>
 			updateWorktree(id, { ...request, kind: "cherry-pick" }),
+		createTag: (id: string, request: CreateReleaseTagInput) =>
+			updateWorktree(id, { ...request, kind: "create-tag" }),
+		pushTag: (id: string, request: PushTagInput) =>
+			updateWorktree(id, { ...request, kind: "push-tag" }),
 		discardFile: (id: string, request: FileDiscardRequest) =>
 			updateWorktree(id, request),
 		ignoreFile: (id: string, request: FileIgnoreRequest) =>
