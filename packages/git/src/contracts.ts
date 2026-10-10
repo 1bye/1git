@@ -75,6 +75,7 @@ export type GitOperation =
 	| "push-tag"
 	| "rebase"
 	| "squash-merge"
+	| "squash-commits"
 	| "remove-remote"
 	| "remove-worktree"
 	| "rename-branch"
@@ -448,6 +449,26 @@ export interface CommitFilesResult {
 export interface CommitRecoveryInput extends GitCallOptions {
 	readonly expectedHead: string;
 	readonly expectedBranch: string;
+}
+
+/** Exact consecutive commits, newest first, reviewed against one named branch tip. */
+export interface SquashCommitsInput extends CommitRecoveryInput {
+	readonly commits: readonly string[];
+	readonly message: string;
+}
+
+/** Local-only review includes later commits whose IDs must also change. */
+export interface SquashPlan {
+	readonly commits: readonly CommitInfo[];
+	readonly replay: readonly CommitInfo[];
+}
+
+/** Originals remain reachable through a private recovery ref; refresh failures do not undo a completed squash. */
+export interface SquashCommitsResult {
+	readonly oid: string;
+	readonly recoveryRef: string;
+	readonly snapshot: RepositorySnapshot | null;
+	readonly warning: string | null;
 }
 
 /** Undo never edits the index or working files; a durable ref retains the original commit. */

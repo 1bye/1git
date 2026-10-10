@@ -8,6 +8,7 @@ import type {
 	CreateReleaseTagInput,
 	PushTagInput,
 	TagInfo,
+	SquashCommitsInput,
 } from "@1git/git";
 import { useGpuixRequired, type EventPayload } from "@gpuix/react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -31,12 +32,18 @@ import {
 	type CherryPickReview,
 } from "./repository-cherry-pick";
 import { RepositoryTag, type TagReview } from "./repository-tag";
+import {
+	RepositoryHistorySquash,
+	type HistorySquashReview,
+} from "./repository-history-squash";
+import type { RepositoryHistorySquash as SquashReader } from "../lib/repository-history-squash";
 
 type HistoryChoice =
 	| "copy-sha"
 	| "copy-message"
 	| "view"
 	| "amend"
+	| "squash"
 	| "revert"
 	| "cherry-pick";
 
@@ -51,6 +58,8 @@ export function RepositoryRevert({
 	onAmend,
 	onCreateTag,
 	onPushTag,
+	onSquash,
+	readSquash,
 	tags = [],
 	readLastCommit = RepositoryCommit.readLast,
 	readBranches,
@@ -64,6 +73,8 @@ export function RepositoryRevert({
 	onAmend?: (commit: CommitInfo) => void;
 	onCreateTag?: (input: CreateReleaseTagInput) => Promise<string | null>;
 	onPushTag?: (input: PushTagInput) => Promise<string | null>;
+	onSquash?: (input: SquashCommitsInput) => Promise<string | null>;
+	readSquash?: typeof SquashReader.read;
 	tags?: readonly TagInfo[];
 	readLastCommit?: typeof RepositoryCommit.readLast;
 	readBranches?: typeof RepositoryBranches.read;
@@ -81,6 +92,10 @@ export function RepositoryRevert({
 	const [error, setError] = useState<string | null>(null);
 	const [cherryPick, setCherryPick] = useState<CherryPickReview | null>(null);
 	const [tagReview, setTagReview] = useState<TagReview | null>(null);
+
+	const [squashReview, setSquashReview] = useState<HistorySquashReview | null>(
+		null
+	);
 
 	const [reviewed, setReviewed] = useState<{
 		commit: CommitInfo;
@@ -115,7 +130,8 @@ export function RepositoryRevert({
 		entry: WorkspaceEntry,
 		event: EventPayload
 	): Promise<void> => {
-		if (tracking.current || reviewed || cherryPick || tagReview) return;
+		if (tracking.current || reviewed || cherryPick || tagReview || squashReview)
+			return;
 
 		const commit = state.entries.history.find(
 			(item) => item.id === entry.id
@@ -198,6 +214,32 @@ export function RepositoryRevert({
 
 			const bounds = renderer.getElementBounds?.(event.elementId);
 
+			const selectedIds =
+				state.views.history.selectedIds ??
+				(state.views.history.selectedId
+					? [state.views.history.selectedId]
+					: []);
+
+			const selected = new Set(
+				selectedIds.includes(entry.id) ? selectedIds : [entry.id]
+			);
+
+			const commits = state.entries.history.flatMap((item) =>
+				selected.has(item.id) && item.commit ? [item.commit] : []
+			);
+
+			const canSquash =
+				!!onSquash &&
+				!unavailable &&
+				!state.amend &&
+				commits.length >= 2 &&
+				commits.every(
+					(item, index) =>
+						item.parentOids.length <= 1 &&
+						(index + 1 === commits.length ||
+							item.parentOids[0] === commits[index + 1]?.oid)
+				);
+
 			const items: NativeMenuItem<CommitMenuChoice>[] = [
 				{ label: "Copy SHA", enabled: true, value: "copy-sha" },
 				{ label: "Copy Message", enabled: true, value: "copy-message" },
@@ -211,6 +253,11 @@ export function RepositoryRevert({
 					label: "Amend last commit…",
 					enabled: canAmend,
 					value: "amend",
+				},
+				{
+					label: "Squash selected commits…",
+					enabled: canSquash,
+					value: "squash",
 				},
 				{
 					label: "Cherry-pick commit…",
@@ -288,6 +335,25 @@ export function RepositoryRevert({
 			else if (choice === "view" && link) await NativeBrowser.open(link.url);
 			else if (choice === "amend" && canAmend) onAmend?.(commit);
 			else if (
+				choice === "squash" &&
+				canSquash &&
+				repository?.head &&
+				repository.branchName
+			)
+				setSquashReview({
+					root: repository.root,
+					commits,
+					input: {
+						expectedHead: repository.head,
+						expectedBranch: repository.branchName,
+						commits: commits.map((item) => item.oid),
+						message: [...commits]
+							.reverse()
+							.map((item) => item.body || item.summary)
+							.join("\n\n"),
+					},
+				});
+			else if (
 				choice === "cherry-pick" &&
 				!cherryPickReason &&
 				repository?.head &&
@@ -352,6 +418,16 @@ export function RepositoryRevert({
 	return (
 		<>
 			{children(openMenu)}
+			{squashReview && onSquash ? (
+				<RepositoryHistorySquash
+					state={state}
+					review={squashReview}
+					read={readSquash}
+					onWrite={onSquash}
+					onCancel={() => setSquashReview(null)}
+					onFinished={() => setSquashReview(null)}
+				/>
+			) : null}
 			{tagReview ? (
 				<RepositoryTag
 					state={state}

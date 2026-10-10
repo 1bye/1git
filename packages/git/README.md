@@ -216,6 +216,31 @@ index containing existing object IDs only; the real index and object store are
 not modified. Existing `working` (index-to-worktree) and `staged` (HEAD-to-index)
 targets remain available to clients that expose staging.
 
+## Squashing History commits
+
+`getSquashPlan({ commits, message, expectedHead, expectedBranch })` reviews exact
+consecutive commit OIDs in newest-first order and returns the selected commits plus
+later commits to replay. `squashCommits` accepts that same captured input; it does not
+trust a previous plan and repeats safety checks before installation. Only a clean,
+named branch with linear unpublished history is supported. Merge commits, shallow
+repositories, current submodules, stale branch/HEAD identities and rewrites exceeding
+1,000 commits are rejected. Publication uses known remote-tracking refs; fetch first
+when another tool may have published any affected commit.
+
+The rewrite is built in a disposable detached worktree. The squash retains the oldest
+selected commit's author and parents (including a root commit); later commits retain
+their messages/authors, including empty commits, but receive new IDs. Effective
+identity/signing settings and hooks are honored. The final tree must match the original
+tip. With the user's index lock held, an atomic compare-and-swap transaction retains
+the original tip under `refs/1git/squash/<id>` and moves only the reviewed branch.
+Working files/index contents, existing tags and other branches are unchanged.
+Configured hooks may have their own filesystem side effects; avoid external Git writes.
+
+`SquashCommitsResult` contains `oid`, `recoveryRef`, a nullable refreshed `snapshot` and
+an optional `warning`. Confirmation is not cancellable once ref installation starts.
+Inspect History before retrying after cancellation, cleanup or refresh warnings;
+never automatically retry a rewrite. There is no network access or force push.
+
 ## Tests
 
 ```bash

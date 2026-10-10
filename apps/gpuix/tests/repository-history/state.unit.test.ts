@@ -1,5 +1,5 @@
 /**
- * Covers: anchored pages, cache/selection preservation, refresh invalidation and stale responses.
+ * Covers: anchored pages, single/range/toggle selection, cache/selection preservation, refresh invalidation and stale responses.
  * Real: workspace reducer and history presentation mapping.
  * Doubles: explicit snapshots, commits and file lists.
  * Requires: none.
@@ -12,6 +12,73 @@ import {
 	committedFiles,
 	historyPage,
 } from "../_shared/history-page";
+
+it("keeps a History range anchor, preserves it on right-click and resets it after a rewrite", () => {
+	const snapshot = repositorySnapshot();
+
+	const source = {
+		root: snapshot.repository.root,
+		head: snapshot.head.oid ?? "",
+	};
+
+	let state = Model.reduce(Model.create(), { type: "loaded", snapshot });
+
+	state = Model.reduce(state, {
+		type: "history-page",
+		...source,
+		offset: 0,
+		page: historyPage(0, 5),
+	});
+	state = Model.reduce(state, {
+		type: "select",
+		view: "history",
+		id: commitInfo(1).oid,
+	});
+	state = Model.reduce(state, {
+		type: "select",
+		view: "history",
+		id: commitInfo(3).oid,
+		mode: "range",
+	});
+	expect(state.views.history.selectedIds).toEqual([
+		commitInfo(1).oid,
+		commitInfo(2).oid,
+		commitInfo(3).oid,
+	]);
+	expect(state.views.history.anchorId).toBe(commitInfo(1).oid);
+	expect(
+		Model.reduce(state, {
+			type: "select",
+			view: "history",
+			id: commitInfo(2).oid,
+			mode: "context",
+		})
+	).toBe(state);
+	state = Model.reduce(state, {
+		type: "select",
+		view: "history",
+		id: commitInfo(2).oid,
+		mode: "range",
+	});
+	expect(state.views.history.selectedIds).toEqual([
+		commitInfo(1).oid,
+		commitInfo(2).oid,
+	]);
+	state = Model.reduce(state, {
+		type: "select",
+		view: "history",
+		id: commitInfo(1).oid,
+		mode: "toggle",
+	});
+	expect(state.views.history.selectedIds).toEqual([commitInfo(2).oid]);
+	state = Model.reduce(state, {
+		type: "loaded",
+		snapshot: { ...snapshot, head: { ...snapshot.head, oid: "f".repeat(40) } },
+	});
+	expect(state.views.history.selectedId).toBeNull();
+	expect(state.views.history.selectedIds).toBeUndefined();
+	expect(state.views.history.anchorId).toBeUndefined();
+});
 
 it("isolates search pages and restores the normal history selection and cache", () => {
 	const snapshot = repositorySnapshot();

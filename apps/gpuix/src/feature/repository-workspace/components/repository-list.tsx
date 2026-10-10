@@ -270,6 +270,7 @@ export function RepositoryList({
 	emptyContent,
 	state,
 	inclusion,
+	multiselect = false,
 	onSelect,
 	onScroll,
 	onEndReached,
@@ -289,6 +290,7 @@ export function RepositoryList({
 		disabled?: boolean;
 		onChange: (id: string, included: boolean) => void;
 	};
+	multiselect?: boolean;
 	onSelect: (id: string, mode?: "toggle" | "range" | "context") => void;
 	onScroll: (y: number) => void;
 	onEndReached?: () => void;
@@ -488,7 +490,7 @@ export function RepositoryList({
 			event.modifiers?.cmd ||
 			event.modifiers?.ctrl ||
 			event.modifiers?.alt ||
-			(event.modifiers?.shift && !inclusion)
+			(event.modifiers?.shift && !inclusion && !multiselect)
 		)
 			return;
 
@@ -537,7 +539,7 @@ export function RepositoryList({
 			style={{ ...styles.viewport, paddingBottom: spacing[1.5] }}
 			role={inclusion ? "grid" : "listbox"}
 			aria-label={label}
-			aria-multiselectable={!!inclusion}
+			aria-multiselectable={!!inclusion || multiselect}
 			aria-description={entries.length === 0 ? emptyMessage : undefined}
 			tabIndex={entries.length ? 0 : -1}
 			onFocus={() => {
@@ -611,7 +613,7 @@ export function RepositoryList({
 									: undefined
 							}
 							selected={
-								inclusion && state.selectedIds
+								(inclusion || multiselect) && state.selectedIds
 									? selectedIds.has(entry.id)
 									: state.selectedId === entry.id
 							}
@@ -640,7 +642,7 @@ export function RepositoryList({
 							onSelect={(event) =>
 								select(
 									entry.id,
-									inclusion
+									inclusion || multiselect
 										? event.modifiers?.shift
 											? "range"
 											: event.modifiers?.cmd

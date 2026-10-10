@@ -22,6 +22,9 @@ import type {
 	CommitFilesInput,
 	CommitFilesResult,
 	CommitRecoveryInput,
+	SquashCommitsInput,
+	SquashCommitsResult,
+	SquashPlan,
 	UndoCommitResult,
 	CommitPage,
 	CommitResult,
@@ -95,6 +98,7 @@ import { SelectedCommit } from "./selected-commit.js";
 import { BranchIntegration } from "./branch-integration.js";
 import { TagOperations } from "./tag-operations.js";
 import { CommitRecovery } from "./commit-recovery.js";
+import { HistorySquash } from "./history-squash.js";
 import { BranchSync } from "./branch-sync.js";
 import { GitIgnore } from "./ignore.js";
 import { validateHttpAuthentication } from "./http-authentication.js";
@@ -1366,6 +1370,27 @@ export class GitRepository {
 			"commit",
 			input.signal,
 			async () => await CommitRecovery.undo(this.context, input)
+		);
+	}
+
+	/** Reviews a consecutive unpublished range and the later commits that must be replayed. */
+	async getSquashPlan(
+		input: SquashCommitsInput
+	): Promise<GitResult<SquashPlan>> {
+		return await this.read(
+			"squash-commits",
+			async () => await HistorySquash.review(this.context, input)
+		);
+	}
+
+	/** Builds an isolated squash before atomically replacing the reviewed branch; originals are retained. */
+	async squashCommits(
+		input: SquashCommitsInput
+	): Promise<GitResult<SquashCommitsResult>> {
+		return await this.mutate(
+			"squash-commits",
+			input.signal,
+			async () => await HistorySquash.run(this.context, input)
 		);
 	}
 

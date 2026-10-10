@@ -80,6 +80,7 @@ import { RepositoryComparison } from "./feature/repository-comparison/repository
 import { RepositoryComparison as ComparisonReader } from "./feature/repository-comparison/lib/repository-comparison";
 import { RepositoryPullRequest } from "./feature/repository-pull-request/repository-pull-request";
 import { RepositoryPullRequestView } from "./feature/repository-pull-request/repository-pull-request-view";
+import { RepositoryHistorySquash } from "./feature/repository-workspace/lib/repository-history-squash";
 
 /** Owns one window's workspaces, cancellable reads and explicit commit transactions. */
 export function App({
@@ -108,6 +109,8 @@ export function App({
 	readTags = RepositoryTags.read,
 	createTag = RepositoryTags.create,
 	pushTag,
+	readSquash = RepositoryHistorySquash.read,
+	squashCommits = RepositoryHistorySquash.write,
 	readBranches = RepositoryBranches.read,
 	writeBranch = RepositoryBranches.write,
 	writeWorktree = RepositoryWorktrees.create,
@@ -151,6 +154,8 @@ export function App({
 	readTags?: typeof RepositoryTags.read;
 	createTag?: typeof RepositoryTags.create;
 	pushTag?: typeof RepositorySync.pushTag;
+	readSquash?: typeof RepositoryHistorySquash.read;
+	squashCommits?: typeof RepositoryHistorySquash.write;
 	readBranches?: typeof RepositoryBranches.read;
 	writeBranch?: typeof RepositoryBranches.write;
 	writeWorktree?: typeof RepositoryWorktrees.create;
@@ -386,7 +391,8 @@ export function App({
 		ignoreFile,
 		cherryPickCommit,
 		createTag,
-		pushTagWithAccounts
+		pushTagWithAccounts,
+		squashCommits
 	);
 
 	useRepositoryAutoRefresh(state, dispatch, readRepository, watchRepository);
@@ -780,6 +786,10 @@ export function App({
 									mutations.createTag(activeTab.id, input)
 								}
 								onPushTag={(input) => mutations.pushTag(activeTab.id, input)}
+								onSquash={(input) =>
+									mutations.squashCommits(activeTab.id, input)
+								}
+								readSquash={readSquash}
 								readBranches={readBranches}
 								readCommitLink={async (root, oid, signal) =>
 									RepositoryHistory.readCommitLink(

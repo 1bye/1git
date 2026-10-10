@@ -834,7 +834,25 @@ the Turbo build/dev tasks build dependencies first. No Electron IPC is involved.
   write locks, close protection and uncertain-outcome warnings are shared with normal
   commits. No force push occurs. Publication uses known remote refs: Fetch first if
   another tool/device may have pushed, and avoid concurrent external Git writes.
-  Squash, reorder and reset-to-commit remain separate future workflows.
+  Reorder and reset-to-commit remain separate future workflows.
+
+- **Squash selected commits…** in History combines consecutive unpublished commits.
+  Shift-click or Shift+Up/Down selects a range; Command-click toggles individual rows.
+  Right-click a selected row, review the included commits and edit the summary/details,
+  then explicitly confirm. The dialog discloses later commits that must be replayed with
+  new IDs. The oldest selected author's identity is retained; later commits retain their
+  messages and authors. Existing tags and other branches remain on the original commits.
+  Dirty/staged/untracked changes, detached HEADs, active operations, merge/nonlinear
+  histories, shallow repositories, current submodules and rewrites over 1,000 commits
+  are refused. Publication is checked against locally known remote branches, not the
+  server: Fetch first if another tool/device may have pushed.
+  Git builds the rewrite in a disposable detached worktree with configured hooks/signing,
+  verifies the final file tree, then atomically saves `refs/1git/squash/<id>` and moves only
+  the reviewed branch. Working files and the user's index are not replaced. The ordinary
+  commit draft survives, and shared-worktree write/refresh and close protection apply.
+  Failure disables resubmission until a new review. Cleanup/uncertain-outcome warnings
+  require inspecting History before retrying. No fetch, push or force push is automatic.
+  Avoid concurrent external Git writes; configured hooks can have their own side effects.
 
 - A pinned footer below the composer shows the last commit's age and summary, with
   **Undo** on the right. Its metadata refreshes when the tip/branch changes or Sync

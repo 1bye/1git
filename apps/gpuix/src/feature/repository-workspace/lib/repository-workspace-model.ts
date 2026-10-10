@@ -935,6 +935,8 @@ export class RepositoryWorkspaceModel {
 							selectedId: retained
 								? history.selectedId
 								: (entries[0]?.id ?? null),
+							selectedIds: retained ? history.selectedIds : undefined,
+							anchorId: retained ? history.anchorId : undefined,
 							files: retained
 								? history.files
 								: { selectedId: entries[0]?.files[0]?.id ?? null, scrollY: 0 },
@@ -1120,6 +1122,8 @@ export class RepositoryWorkspaceModel {
 							: {
 									...state.views.history,
 									selectedId: null,
+									selectedIds: undefined,
+									anchorId: undefined,
 									scrollY: 0,
 									files: { selectedId: null, scrollY: 0 },
 								},
@@ -1313,12 +1317,12 @@ export class RepositoryWorkspaceModel {
 		const current = state.views[action.view];
 
 		if (action.type === "select") {
-			if (action.view === "changes") {
+			if (action.view === "changes" || action.view === "history") {
 				const visible = action.visibleIds ? new Set(action.visibleIds) : null;
 
 				const entries = visible
-					? state.entries.changes.filter((entry) => visible.has(entry.id))
-					: state.entries.changes;
+					? state.entries[action.view].filter((entry) => visible.has(entry.id))
+					: state.entries[action.view];
 
 				if (!entries.some((entry) => entry.id === action.id)) return state;
 
@@ -1327,6 +1331,15 @@ export class RepositoryWorkspaceModel {
 					(current.selectedId ? [current.selectedId] : []);
 
 				if (action.mode === "context" && ids.includes(action.id)) return state;
+
+				if (
+					action.view === "history" &&
+					!action.mode &&
+					current.selectedId === action.id &&
+					ids.length === 1 &&
+					ids[0] === action.id
+				)
+					return state;
 
 				let selectedIds = [action.id];
 				let anchorId = action.id;
@@ -1356,13 +1369,26 @@ export class RepositoryWorkspaceModel {
 
 				return {
 					...state,
+					restoreHistoryLimit:
+						action.view === "history" ? undefined : state.restoreHistoryLimit,
 					views: {
 						...state.views,
-						changes: {
+						[action.view]: {
 							...current,
 							selectedId: action.id,
 							selectedIds,
 							anchorId,
+							...(action.view === "history" && current.selectedId !== action.id
+								? {
+										files: {
+											selectedId:
+												state.entries.history.find(
+													(entry) => entry.id === action.id
+												)?.files[0]?.id ?? null,
+											scrollY: 0,
+										},
+									}
+								: {}),
 						},
 					},
 				};
@@ -1376,12 +1402,10 @@ export class RepositoryWorkspaceModel {
 
 			return {
 				...state,
-				restoreHistoryLimit:
-					action.view === "history" ? undefined : state.restoreHistoryLimit,
 				views: {
 					...state.views,
-					[action.view]: {
-						...current,
+					stashes: {
+						...state.views.stashes,
 						selectedId: action.id,
 						files: {
 							selectedId:

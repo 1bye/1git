@@ -38,6 +38,7 @@ import type {
 	CreateReleaseTagInput,
 	PushTagInput,
 	TagInfo,
+	SquashCommitsInput,
 } from "@1git/git";
 import type { RepositoryCommit as CommitReader } from "../lib/repository-commit";
 import { RepositoryOperation } from "./repository-operation";
@@ -50,6 +51,7 @@ import type {
 	RepositoryFileActions,
 } from "../lib/repository-file-actions";
 import type { ExternalEditors } from "../../editor-settings/external-editors";
+import type { RepositoryHistorySquash } from "../lib/repository-history-squash";
 
 const sidebarBorderWidth = 1;
 
@@ -157,6 +159,8 @@ export function RepositoryNavigation({
 	onCherryPickCommit,
 	onCreateTag,
 	onPushTag,
+	onSquash,
+	readSquash,
 	readBranches,
 	readCommitLink,
 	readLastCommit,
@@ -180,6 +184,8 @@ export function RepositoryNavigation({
 	onCherryPickCommit?: (input: CherryPickCommitInput) => Promise<string | null>;
 	onCreateTag?: (input: CreateReleaseTagInput) => Promise<string | null>;
 	onPushTag?: (input: PushTagInput) => Promise<string | null>;
+	onSquash?: (input: SquashCommitsInput) => Promise<string | null>;
+	readSquash?: typeof RepositoryHistorySquash.read;
 	readBranches?: typeof RepositoryBranches.read;
 	readCommitLink?: typeof RepositoryHistory.readCommitLink;
 	readLastCommit?: typeof CommitReader.readLast;
@@ -319,6 +325,8 @@ export function RepositoryNavigation({
 			onCherryPick={onCherryPickCommit}
 			onCreateTag={onCreateTag}
 			onPushTag={onPushTag}
+			onSquash={onSquash}
+			readSquash={readSquash}
 			tags={history?.tags}
 			readLastCommit={readLastCommit}
 			onAmend={(commit) => {
@@ -409,6 +417,7 @@ export function RepositoryNavigation({
 					}
 					emptyMessage={emptyMessage}
 					state={state.views[view]}
+					multiselect={view === "history"}
 					inclusion={
 						view === "changes"
 							? {
