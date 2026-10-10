@@ -834,7 +834,6 @@ the Turbo build/dev tasks build dependencies first. No Electron IPC is involved.
   write locks, close protection and uncertain-outcome warnings are shared with normal
   commits. No force push occurs. Publication uses known remote refs: Fetch first if
   another tool/device may have pushed, and avoid concurrent external Git writes.
-  Reordering remains a separate future workflow.
 
 - **Reset to commit…** in History reviews one exact ancestor and the number of later
   commits to undo, then requires explicit confirmation. Only unpublished later
@@ -870,6 +869,21 @@ the Turbo build/dev tasks build dependencies first. No Electron IPC is involved.
   Failure disables resubmission until a new review. Cleanup/uncertain-outcome warnings
   require inspecting History before retrying. No fetch, push or force push is automatic.
   Avoid concurrent external Git writes; configured hooks can have their own side effects.
+
+- **Reorder selected commits…** uses History's same consecutive range selection.
+  Right-click a selected row, then select a commit in the **oldest-first** review list
+  and use **Move earlier** / **Move later**. Arrow keys navigate the list; Tab and
+  Enter operate the buttons. Confirmation stays disabled until the order changes.
+  A selected root must remain first. Later commits are replayed too; full messages,
+  authors and author dates (including empty commits) are retained, but IDs may change.
+  Reordering shares Squash's clean/unpublished/linear-history guards, isolated worktree
+  replay, final-tree verification, atomic ref installation and linked-tab protection.
+  Conflicts or changed final files reject the rewrite without installing it. Original
+  history remains under `refs/1git/reorder/<id>`; tags and other branches stay unchanged.
+  The ordinary draft and History view survive. Stale root/HEAD/branch identities,
+  errors and warnings block another submission until a new review. Publication only
+  uses known remote refs: Fetch first if another tool/device may have pushed.
+  No automatic fetch/push/force push occurs; avoid concurrent external Git writes.
 
 - A pinned footer below the composer shows the last commit's age and summary, with
   **Undo** on the right. Its metadata refreshes when the tip/branch changes or Sync

@@ -4,12 +4,13 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import type {
 	SquashCommitsInput,
-	SquashCommitsResult,
-	SquashPlan,
+	ReorderCommitsInput,
+	HistoryRewriteResult,
+	HistoryRewritePlan,
 } from "./contracts.js";
 import type { RepositoryContext } from "./internal.js";
 import { loadCommit, loadHistory, loadSnapshot } from "./queries.js";
-import { invalidInput } from "./result.js";
+import { invalidInput, toGitError } from "./result.js";
 import { requireText } from "./validation.js";
 import { GitCommandFailure } from "./process/git-process.js";
 
@@ -29,28 +30,43 @@ const commitConfigKeys = [
 ] as const;
 
 /** Builds a reviewed linear rewrite in a disposable detached worktree, then installs its exact tip atomically. */
-export class HistorySquash {
+export class HistoryRewrite {
 	private constructor() {}
 
 	static async review(
 		context: RepositoryContext,
-		input: SquashCommitsInput
-	): Promise<SquashPlan> {
+		input: SquashCommitsInput | ReorderCommitsInput
+	): Promise<HistoryRewritePlan> {
+		const reorder = "order" in input;
+		const operation = reorder ? "reorder-commits" : "squash-commits";
+		const selectedOids = new Set(input.commits);
+
 		if (context.repository.isShallow)
 			throw invalidInput(
-				"squash-commits",
-				"Fetch the full history before squashing a shallow repository."
+				operation,
+				"Fetch the full history before rewriting a shallow repository."
 			);
 
 		if (
 			input.commits.length < 2 ||
-			new Set(input.commits).size !== input.commits.length ||
+			selectedOids.size !== input.commits.length ||
 			!input.commits.every((oid) => exactOid.test(oid)) ||
 			!exactOid.test(input.expectedHead)
 		)
 			throw invalidInput(
-				"squash-commits",
+				operation,
 				"Select at least two consecutive commits from History."
+			);
+
+		if (
+			reorder &&
+			(input.order.length !== input.commits.length ||
+				new Set(input.order).size !== input.order.length ||
+				input.order.some((oid) => !selectedOids.has(oid)))
+		)
+			throw invalidInput(
+				operation,
+				"The new order must contain each selected commit exactly once."
 			);
 
 		const snapshot = await loadSnapshot(context, false, input.signal);
@@ -62,23 +78,28 @@ export class HistorySquash {
 			snapshot.head.oid !== input.expectedHead
 		)
 			throw invalidInput(
-				"squash-commits",
+				operation,
 				"The branch changed. Refresh and select the commits again."
 			);
 
 		if (snapshot.operationState !== "normal" || snapshot.files.length)
 			throw invalidInput(
-				"squash-commits",
+				operation,
 				"Commit or stash your changes and finish the current Git operation first. Nothing has been discarded."
 			);
 
 		const oldestOid = input.commits.at(-1);
 
-		if (!oldestOid)
-			throw invalidInput("squash-commits", "Select a commit range.");
+		if (!oldestOid) throw invalidInput(operation, "Select a commit range.");
 
 		const oldest = await loadCommit(context, oldestOid, input.signal);
 		const parent = oldest.parentOids[0];
+
+		if (reorder && !parent && input.order[0] !== oldest.oid)
+			throw invalidInput(
+				operation,
+				"The root commit must stay first. Reorder the commits after it instead."
+			);
 
 		const [history, published, tree] = await Promise.all([
 			loadHistory(context, {
@@ -107,13 +128,13 @@ export class HistorySquash {
 
 		if (published.stdout.toString().trim())
 			throw invalidInput(
-				"squash-commits",
-				"These commits are published according to known remote branches. Fetch first if another tool may have pushed; only unpublished history can be squashed."
+				operation,
+				"These commits are published according to known remote branches. Fetch first if another tool may have pushed; only unpublished history can be rewritten."
 			);
 
 		if (history.hasMore || history.commits.length > maxRewriteCommits)
 			throw invalidInput(
-				"squash-commits",
+				operation,
 				"This rewrite is too large. Use an external Git tool."
 			);
 
@@ -124,8 +145,8 @@ export class HistorySquash {
 				.some((line) => line.startsWith("160000 "))
 		)
 			throw invalidInput(
-				"squash-commits",
-				"Repositories with submodules require an external Git tool for history squashing."
+				operation,
+				"Repositories with submodules require an external Git tool for history rewriting."
 			);
 
 		const affected = history.commits;
@@ -144,7 +165,7 @@ export class HistorySquash {
 			selected.some((commit, index) => commit.oid !== input.commits[index])
 		)
 			throw invalidInput(
-				"squash-commits",
+				operation,
 				"Select consecutive commits on the current branch, newest first."
 			);
 
@@ -157,7 +178,7 @@ export class HistorySquash {
 			)
 		)
 			throw invalidInput(
-				"squash-commits",
+				operation,
 				"This rewrite contains merge commits or non-linear history. Use an external Git tool."
 			);
 
@@ -207,24 +228,34 @@ export class HistorySquash {
 
 	static async run(
 		context: RepositoryContext,
-		input: SquashCommitsInput
-	): Promise<SquashCommitsResult> {
-		const plan = await HistorySquash.review(context, input);
+		input: SquashCommitsInput | ReorderCommitsInput
+	): Promise<HistoryRewriteResult> {
+		const reorder = "order" in input;
+		const action = reorder ? "reorder" : "squash";
+		const label = reorder ? "Reorder" : "Squash";
+		const operation = reorder ? "reorder-commits" : "squash-commits";
+		const plan = await HistoryRewrite.review(context, input);
 
-		const message = requireText(
-			input.message,
-			"Squash commit message",
-			"squash-commits"
-		);
+		const message = reorder
+			? null
+			: requireText(input.message, "Squash commit message", operation);
 
-		if (!message.split("\n", 1)[0]?.trim())
-			throw invalidInput("squash-commits", "A first-line summary is required.");
+		if (message !== null && !message.split("\n", 1)[0]?.trim())
+			throw invalidInput(operation, "A first-line summary is required.");
+
+		if (
+			reorder &&
+			input.order.every(
+				(oid, index) => oid === input.commits[input.commits.length - index - 1]
+			)
+		)
+			throw invalidInput(operation, "Choose a different commit order first.");
 
 		const oldest = plan.commits.at(-1);
 		const newest = plan.commits[0];
 
 		if (!oldest || !newest)
-			throw invalidInput("squash-commits", "Select a commit range.");
+			throw invalidInput(operation, "Select a commit range.");
 
 		const lockPath = join(context.repository.gitDirectory, "index.lock");
 
@@ -236,7 +267,7 @@ export class HistorySquash {
 				cause.code === "EEXIST"
 			)
 				throw invalidInput(
-					"squash-commits",
+					operation,
 					"Another Git process has locked the index.",
 					"repository-locked"
 				);
@@ -249,19 +280,26 @@ export class HistorySquash {
 		let oid: string | undefined;
 		let warning: string | null = null;
 		let failure: { cause: unknown } | undefined;
-		const recoveryRef = `refs/1git/squash/${randomUUID()}`;
+		const recoveryRef = `refs/1git/${action}/${randomUUID()}`;
 
 		try {
 			await lock.close();
 
-			const config = await HistorySquash.configuration(context, input.signal);
+			const config = await HistoryRewrite.configuration(context, input.signal);
 
-			directory = await mkdtemp(join(tmpdir(), "1git-squash-"));
+			directory = await mkdtemp(join(tmpdir(), `1git-${action}-`));
 			const scratch = join(directory, "worktree");
 
 			worktree = scratch;
 			await context.process.run({
-				args: ["worktree", "add", "--detach", "--", scratch, oldest.oid],
+				args: [
+					"worktree",
+					"add",
+					"--detach",
+					"--",
+					scratch,
+					reorder ? (oldest.parentOids[0] ?? oldest.oid) : oldest.oid,
+				],
 				cwd: context.repository.root,
 				signal: input.signal,
 			});
@@ -273,19 +311,33 @@ export class HistorySquash {
 					stdin,
 				});
 
-			await run(["read-tree", "--reset", "-u", newest.oid]);
-			await run(
-				["commit", "--amend", "--allow-empty", "-F", "-"],
-				`${message}\n`
-			);
+			if (!reorder) {
+				await run(["read-tree", "--reset", "-u", newest.oid]);
+				await run(
+					["commit", "--amend", "--allow-empty", "-F", "-"],
+					`${message}\n`
+				);
+			}
+
+			// A selected root stays as the base; every other selected commit is replayed in the chosen order.
+			const selected = reorder
+				? oldest.parentOids.length
+					? input.order
+					: input.order.slice(1)
+				: [];
+
+			const replay = [
+				...selected,
+				...[...plan.replay].reverse().map((commit) => commit.oid),
+			];
 
 			// Replaying later commits keeps their messages/authors without touching the user's branch or files.
-			for (const commit of [...plan.replay].reverse())
+			for (const commit of replay)
 				await run([
 					"cherry-pick",
 					"--allow-empty",
 					"--keep-redundant-commits",
-					commit.oid,
+					commit,
 				]);
 
 			const built = (await run(["rev-parse", "HEAD"])).stdout.toString().trim();
@@ -306,14 +358,14 @@ export class HistorySquash {
 
 			if (!exactOid.test(built) || finalTree !== originalTree)
 				throw invalidInput(
-					"squash-commits",
-					"Hooks or replay changed the resulting files. Squash was not installed; your branch and working files are unchanged."
+					operation,
+					`Hooks or replay changed the resulting files. ${label} was not installed; your branch and working files are unchanged.`
 				);
 
-			await HistorySquash.review(context, input);
+			await HistoryRewrite.review(context, input);
 			// Retain the old tip and move only the reviewed branch in a single compare-and-swap transaction.
 			await context.process.run({
-				args: ["update-ref", "-m", "1git: squash commits", "--stdin"],
+				args: ["update-ref", "-m", `1git: ${action} commits`, "--stdin"],
 				cwd: context.repository.root,
 				stdin: `start\ncreate ${recoveryRef} ${input.expectedHead}\nupdate refs/heads/${input.expectedBranch} ${built} ${input.expectedHead}\nprepare\ncommit\n`,
 			});
@@ -330,21 +382,25 @@ export class HistorySquash {
 
 				if (directory) await rm(directory, { recursive: true, force: true });
 			} catch {
-				warning = `Temporary squash worktree cleanup failed: ${worktree}. Inspect History before retrying.`;
+				warning = `Temporary ${action} worktree cleanup failed: ${worktree}. Inspect History before retrying.`;
 			} finally {
 				try {
 					await rm(lockPath, { force: true });
 				} catch {
-					warning = `Squash cleanup could not release ${lockPath}. Inspect History and the lock before continuing. ${warning ?? ""}`;
+					warning = `${label} cleanup could not release ${lockPath}. Inspect History and the lock before continuing. ${warning ?? ""}`;
 				}
 			}
 		}
 
 		if (failure) {
 			if (warning)
+				throw invalidInput(operation, `${label} did not complete. ${warning}`);
+
+			if (reorder && toGitError(operation, failure.cause).code === "conflict")
 				throw invalidInput(
-					"squash-commits",
-					`Squash did not complete. ${warning}`
+					operation,
+					"Reordering caused a replay conflict. Your branch and working files are unchanged. Choose another order or use an external Git tool.",
+					"conflict"
 				);
 
 			throw failure.cause;
@@ -352,11 +408,11 @@ export class HistorySquash {
 
 		if (!oid)
 			throw invalidInput(
-				"squash-commits",
-				"Squash outcome is uncertain. Refresh History before retrying."
+				operation,
+				`${label} outcome is uncertain. Refresh History before retrying.`
 			);
 
-		let snapshot: SquashCommitsResult["snapshot"] = null;
+		let snapshot: HistoryRewriteResult["snapshot"] = null;
 
 		try {
 			snapshot = await loadSnapshot(context);
@@ -365,9 +421,9 @@ export class HistorySquash {
 				snapshot.head.oid !== oid ||
 				snapshot.head.branch !== input.expectedBranch
 			)
-				warning = `Squash completed, but the branch changed externally. Refresh and inspect History. Originals: ${recoveryRef}. ${warning ?? ""}`;
+				warning = `${label} completed, but the branch changed externally. Refresh and inspect History. Originals: ${recoveryRef}. ${warning ?? ""}`;
 		} catch {
-			warning = `Squash completed; refresh failed. Refresh History before continuing. Originals: ${recoveryRef}. ${warning ?? ""}`;
+			warning = `${label} completed; refresh failed. Refresh History before continuing. Originals: ${recoveryRef}. ${warning ?? ""}`;
 		}
 
 		return { oid, recoveryRef, snapshot, warning };

@@ -113,6 +113,8 @@ export function App({
 	squashCommits = RepositoryHistorySquash.write,
 	readReset = RepositoryHistory.readReset,
 	resetCommit = RepositoryHistory.reset,
+	readReorder = RepositoryHistory.readReorder,
+	reorderCommits = RepositoryHistory.reorder,
 	readBranches = RepositoryBranches.read,
 	writeBranch = RepositoryBranches.write,
 	writeWorktree = RepositoryWorktrees.create,
@@ -160,6 +162,8 @@ export function App({
 	squashCommits?: typeof RepositoryHistorySquash.write;
 	readReset?: typeof RepositoryHistory.readReset;
 	resetCommit?: typeof RepositoryHistory.reset;
+	readReorder?: typeof RepositoryHistory.readReorder;
+	reorderCommits?: typeof RepositoryHistory.reorder;
 	readBranches?: typeof RepositoryBranches.read;
 	writeBranch?: typeof RepositoryBranches.write;
 	writeWorktree?: typeof RepositoryWorktrees.create;
@@ -397,7 +401,8 @@ export function App({
 		createTag,
 		pushTagWithAccounts,
 		squashCommits,
-		resetCommit
+		resetCommit,
+		reorderCommits
 	);
 
 	useRepositoryAutoRefresh(state, dispatch, readRepository, watchRepository);
@@ -797,6 +802,10 @@ export function App({
 								readSquash={readSquash}
 								onReset={(input) => mutations.resetCommit(activeTab.id, input)}
 								readReset={readReset}
+								onReorder={(input) =>
+									mutations.reorderCommits(activeTab.id, input)
+								}
+								readReorder={readReorder}
 								readBranches={readBranches}
 								readCommitLink={async (root, oid, signal) =>
 									RepositoryHistory.readCommitLink(

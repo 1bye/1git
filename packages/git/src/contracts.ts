@@ -76,6 +76,7 @@ export type GitOperation =
 	| "rebase"
 	| "squash-merge"
 	| "squash-commits"
+	| "reorder-commits"
 	| "remove-remote"
 	| "remove-worktree"
 	| "rename-branch"
@@ -479,19 +480,31 @@ export interface SquashCommitsInput extends CommitRecoveryInput {
 	readonly message: string;
 }
 
+/** Original consecutive range is newest first; desired replay order is oldest first. */
+export interface ReorderCommitsInput extends CommitRecoveryInput {
+	readonly commits: readonly string[];
+	readonly order: readonly string[];
+}
+
 /** Local-only review includes later commits whose IDs must also change. */
-export interface SquashPlan {
+export interface HistoryRewritePlan {
 	readonly commits: readonly CommitInfo[];
 	readonly replay: readonly CommitInfo[];
 }
 
-/** Originals remain reachable through a private recovery ref; refresh failures do not undo a completed squash. */
-export interface SquashCommitsResult {
+export type SquashPlan = HistoryRewritePlan;
+export type ReorderPlan = HistoryRewritePlan;
+
+/** Originals remain reachable through a private recovery ref; refresh failures do not undo a completed rewrite. */
+export interface HistoryRewriteResult {
 	readonly oid: string;
 	readonly recoveryRef: string;
 	readonly snapshot: RepositorySnapshot | null;
 	readonly warning: string | null;
 }
+
+export type SquashCommitsResult = HistoryRewriteResult;
+export type ReorderCommitsResult = HistoryRewriteResult;
 
 /** Undo never edits the index or working files; a durable ref retains the original commit. */
 export interface UndoCommitResult {

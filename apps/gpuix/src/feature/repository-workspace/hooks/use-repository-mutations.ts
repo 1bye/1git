@@ -42,6 +42,7 @@ import type {
 	PushTagInput,
 	SquashCommitsInput,
 	ResetCommitInput,
+	ReorderCommitsInput,
 } from "@1git/git";
 import type { PublishBranchIdentity } from "../../repository-publish/repository-publish";
 import type { RemoteAccountAccess } from "../../accounts/lib/remote-accounts";
@@ -92,7 +93,8 @@ export function useRepositoryMutations(
 	createTag = RepositoryTags.create,
 	pushTag = RepositorySync.pushTag,
 	squashCommits = RepositoryHistorySquash.write,
-	resetCommit = RepositoryHistory.reset
+	resetCommit = RepositoryHistory.reset,
+	reorderCommits = RepositoryHistory.reorder
 ) {
 	const [settingsPending, setSettingsPending] = useState(false);
 	const settingsWrite = useRef(false);
@@ -1059,6 +1061,7 @@ export function useRepositoryMutations(
 			| (PushTagInput & { kind: "push-tag" })
 			| (SquashCommitsInput & { kind: "squash-commits" })
 			| (ResetCommitInput & { kind: "reset-commit" })
+			| (ReorderCommitsInput & { kind: "reorder-commits" })
 			| FileDiscardRequest
 			| FileIgnoreRequest
 			| {
@@ -1089,6 +1092,7 @@ export function useRepositoryMutations(
 		const sharedHistoryWrite =
 			request.kind === "reset-commit" ||
 			request.kind === "squash-commits" ||
+			request.kind === "reorder-commits" ||
 			request.kind === "create-tag" ||
 			request.kind === "push-tag" ||
 			request.kind === "revert" ||
@@ -1144,39 +1148,42 @@ export function useRepositoryMutations(
 
 		try {
 			const result =
-				request.kind === "reset-commit"
-					? await resetCommit(repository.root, request)
-					: request.kind === "squash-commits"
-						? await squashCommits(repository.root, request)
-						: request.kind === "resolve"
-							? await resolveConflict(repository.root, {
-									path: request.path,
-									expectedContentHash: request.expectedContentHash,
-									side: request.side,
-									expectedHead: repository.head,
-									expectedBranch: repository.branchName,
-								})
-							: request.kind === "discard"
-								? await discardFile(repository.root, request)
-								: request.kind === "revert"
-									? await revertCommit(repository.root, request)
-									: request.kind === "cherry-pick"
-										? await cherryPickCommit(repository.root, request)
-										: request.kind === "ignore"
-											? await ignoreFile(repository.root, request)
-											: request.kind === "create-tag"
-												? await createTag(repository.root, request)
-												: request.kind === "push-tag"
-													? await pushTag(
-															repository.root,
-															request,
-															new AbortController().signal
-														)
-													: await writeOperation(repository.root, request);
+				request.kind === "reorder-commits"
+					? await reorderCommits(repository.root, request)
+					: request.kind === "reset-commit"
+						? await resetCommit(repository.root, request)
+						: request.kind === "squash-commits"
+							? await squashCommits(repository.root, request)
+							: request.kind === "resolve"
+								? await resolveConflict(repository.root, {
+										path: request.path,
+										expectedContentHash: request.expectedContentHash,
+										side: request.side,
+										expectedHead: repository.head,
+										expectedBranch: repository.branchName,
+									})
+								: request.kind === "discard"
+									? await discardFile(repository.root, request)
+									: request.kind === "revert"
+										? await revertCommit(repository.root, request)
+										: request.kind === "cherry-pick"
+											? await cherryPickCommit(repository.root, request)
+											: request.kind === "ignore"
+												? await ignoreFile(repository.root, request)
+												: request.kind === "create-tag"
+													? await createTag(repository.root, request)
+													: request.kind === "push-tag"
+														? await pushTag(
+																repository.root,
+																request,
+																new AbortController().signal
+															)
+														: await writeOperation(repository.root, request);
 
 			if (!result.ok) error = result.error.message;
 			else if (
 				(request.kind === "squash-commits" ||
+					request.kind === "reorder-commits" ||
 					request.kind === "reset-commit") &&
 				"warning" in result.value &&
 				result.value.warning
@@ -1240,21 +1247,23 @@ export function useRepositoryMutations(
 											? `Squashed ${request.commits.length} commits. Original history retained for recovery.`
 											: request.kind === "reset-commit"
 												? "Branch reset. Changes kept; original history retained for recovery."
-												: request.kind === "revert"
-													? "Revert commit created."
-													: request.kind === "cherry-pick"
-														? `Commit cherry-picked onto ${request.targetBranch}.`
-														: request.kind === "ignore"
-															? "Rule added to .gitignore. Already tracked files remain unchanged."
-															: request.kind === "create-tag"
-																? `Tag ${request.name} created locally.`
-																: request.kind === "push-tag"
-																	? `Tag ${request.name} pushed to ${request.remote}.`
-																	: request.kind === "abort"
-																		? "Operation aborted."
-																		: snapshot?.operationState === "normal"
-																			? "Operation completed."
-																			: "Git paused again. Review the current operation before continuing.",
+												: request.kind === "reorder-commits"
+													? `Reordered ${request.commits.length} commits. Original history retained for recovery.`
+													: request.kind === "revert"
+														? "Revert commit created."
+														: request.kind === "cherry-pick"
+															? `Commit cherry-picked onto ${request.targetBranch}.`
+															: request.kind === "ignore"
+																? "Rule added to .gitignore. Already tracked files remain unchanged."
+																: request.kind === "create-tag"
+																	? `Tag ${request.name} created locally.`
+																	: request.kind === "push-tag"
+																		? `Tag ${request.name} pushed to ${request.remote}.`
+																		: request.kind === "abort"
+																			? "Operation aborted."
+																			: snapshot?.operationState === "normal"
+																				? "Operation completed."
+																				: "Git paused again. Review the current operation before continuing.",
 						}
 			);
 
@@ -1475,6 +1484,8 @@ export function useRepositoryMutations(
 			updateWorktree(id, { ...request, kind: "squash-commits" }),
 		resetCommit: (id: string, request: ResetCommitInput) =>
 			updateWorktree(id, { ...request, kind: "reset-commit" }),
+		reorderCommits: (id: string, request: ReorderCommitsInput) =>
+			updateWorktree(id, { ...request, kind: "reorder-commits" }),
 		discardFile: (id: string, request: FileDiscardRequest) =>
 			updateWorktree(id, request),
 		ignoreFile: (id: string, request: FileIgnoreRequest) =>

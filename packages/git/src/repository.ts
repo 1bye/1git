@@ -28,6 +28,9 @@ import type {
 	SquashCommitsInput,
 	SquashCommitsResult,
 	SquashPlan,
+	ReorderCommitsInput,
+	ReorderCommitsResult,
+	ReorderPlan,
 	UndoCommitResult,
 	CommitPage,
 	CommitResult,
@@ -101,7 +104,7 @@ import { SelectedCommit } from "./selected-commit.js";
 import { BranchIntegration } from "./branch-integration.js";
 import { TagOperations } from "./tag-operations.js";
 import { CommitRecovery } from "./commit-recovery.js";
-import { HistorySquash } from "./history-squash.js";
+import { HistoryRewrite } from "./history-rewrite.js";
 import { BranchSync } from "./branch-sync.js";
 import { GitIgnore } from "./ignore.js";
 import { validateHttpAuthentication } from "./http-authentication.js";
@@ -1415,7 +1418,7 @@ export class GitRepository {
 	): Promise<GitResult<SquashPlan>> {
 		return await this.read(
 			"squash-commits",
-			async () => await HistorySquash.review(this.context, input)
+			async () => await HistoryRewrite.review(this.context, input)
 		);
 	}
 
@@ -1426,7 +1429,28 @@ export class GitRepository {
 		return await this.mutate(
 			"squash-commits",
 			input.signal,
-			async () => await HistorySquash.run(this.context, input)
+			async () => await HistoryRewrite.run(this.context, input)
+		);
+	}
+
+	/** Reviews a consecutive unpublished range and its exact requested replay order. */
+	async getReorderPlan(
+		input: ReorderCommitsInput
+	): Promise<GitResult<ReorderPlan>> {
+		return await this.read(
+			"reorder-commits",
+			async () => await HistoryRewrite.review(this.context, input)
+		);
+	}
+
+	/** Replays in isolation, verifies unchanged files, then atomically installs the reviewed tip and retains originals. */
+	async reorderCommits(
+		input: ReorderCommitsInput
+	): Promise<GitResult<ReorderCommitsResult>> {
+		return await this.mutate(
+			"reorder-commits",
+			input.signal,
+			async () => await HistoryRewrite.run(this.context, input)
 		);
 	}
 

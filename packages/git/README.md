@@ -249,6 +249,26 @@ an optional `warning`. Confirmation is not cancellable once ref installation sta
 Inspect History before retrying after cancellation, cleanup or refresh warnings;
 never automatically retry a rewrite. There is no network access or force push.
 
+## Reordering History commits
+
+`getReorderPlan({ commits, order, expectedHead, expectedBranch })` reviews the original
+consecutive range in **newest-first** order. `order` must be an exact permutation of
+those OIDs in the desired **oldest-first** replay order. `reorderCommits` accepts the
+same captured input, rejects unchanged orders, and repeats all safety checks before
+installation. A selected root commit must stay first; commits after it can move.
+
+Reordering shares Squash's isolated detached-worktree builder, publication/linear
+history checks, index lock, final-tree verification and atomic ref installation.
+Every selected and later replayed commit retains its full message, author and author
+date, including empty commits. Conflicts or a changed final tree abort the rewrite
+without installing it. Files/index, existing tags and other branches are unchanged.
+The original tip is retained under `refs/1git/reorder/<id>`; `ReorderCommitsResult`
+contains the new `oid`, `recoveryRef`, nullable `snapshot` and `warning`.
+The same shallow/submodule/1,000-commit limits apply. Fetch before review if known
+remote refs may be stale. No fetch, push, force push or automatic retry occurs.
+Inspect History after cancellation/cleanup/refresh warnings; avoid concurrent
+external Git writes. Configured hooks can have independent side effects.
+
 ## Resetting unpublished history
 
 `getResetCommitPlan` reviews an exact ancestor of a captured named branch tip.

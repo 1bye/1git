@@ -40,6 +40,7 @@ import type {
 	TagInfo,
 	SquashCommitsInput,
 	ResetCommitInput,
+	ReorderCommitsInput,
 } from "@1git/git";
 import type { RepositoryCommit as CommitReader } from "../lib/repository-commit";
 import { RepositoryOperation } from "./repository-operation";
@@ -185,6 +186,8 @@ export function RepositoryNavigation({
 	readSquash,
 	onReset,
 	readReset,
+	onReorder,
+	readReorder,
 	readBranches,
 	readCommitLink,
 	readLastCommit,
@@ -212,6 +215,8 @@ export function RepositoryNavigation({
 	readSquash?: typeof RepositoryHistorySquash.read;
 	onReset?: (input: ResetCommitInput) => Promise<string | null>;
 	readReset?: typeof RepositoryHistory.readReset;
+	onReorder?: (input: ReorderCommitsInput) => Promise<string | null>;
+	readReorder?: typeof RepositoryHistory.readReorder;
 	readBranches?: typeof RepositoryBranches.read;
 	readCommitLink?: typeof RepositoryHistory.readCommitLink;
 	readLastCommit?: typeof CommitReader.readLast;
@@ -361,6 +366,8 @@ export function RepositoryNavigation({
 			readSquash={readSquash}
 			onReset={onReset}
 			readReset={readReset}
+			onReorder={onReorder}
+			readReorder={readReorder}
 			tags={history?.tags}
 			readLastCommit={readLastCommit}
 			onAmend={(commit) => {

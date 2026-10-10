@@ -7,6 +7,7 @@ import {
 	type RevertCommitInput,
 	type CherryPickCommitInput,
 	type ResetCommitInput,
+	type ReorderCommitsInput,
 } from "@1git/git";
 import type { HostingProvider } from "@1git/hosting/provider";
 import { parseRemote } from "@1git/hosting/remote";
@@ -16,6 +17,7 @@ import type { WorkspaceEntry, WorkspaceRevision } from "../types";
 const historyPageSize = 50;
 const historySearchBatchSize = 250;
 const resetTimeoutMs = 30_000;
+const reorderTimeoutMs = 120_000;
 const commitDate = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
 const commitObjectId = /^(?:[a-f\d]{40}|[a-f\d]{64})$/iu;
 
@@ -34,6 +36,43 @@ export interface CommitWebLink {
 /** Bounded history queries and explicitly reviewed commit actions anchored to one workspace branch. */
 export class RepositoryHistory {
 	private constructor() {}
+
+	/** Reviews a local unpublished range without fetching or changing refs. */
+	static async readReorder(root: string, input: ReorderCommitsInput) {
+		const opened = await GitRepository.open({
+			path: root,
+			signal: input.signal,
+		});
+
+		return opened.ok ? await opened.value.getReorderPlan(input) : opened;
+	}
+
+	/** Explicit isolated replay with unchanged files and retained original history; never retries automatically. */
+	static async reorder(root: string, input: ReorderCommitsInput) {
+		const timeout = AbortSignal.timeout(reorderTimeoutMs);
+
+		const signal = input.signal
+			? AbortSignal.any([input.signal, timeout])
+			: timeout;
+
+		const opened = await GitRepository.open({ path: root, signal });
+
+		if (!opened.ok) return opened;
+
+		const result = await opened.value.reorderCommits({ ...input, signal });
+
+		return !result.ok && result.error.code === "aborted"
+			? {
+					ok: false as const,
+					error: {
+						...result.error,
+						retryable: false,
+						message:
+							"Reorder stopped. Refresh and inspect History before retrying; the outcome may have completed.",
+					},
+				}
+			: result;
+	}
 
 	/** Reviews a local-only reset without changing the branch or contacting a remote. */
 	static async readReset(root: string, input: ResetCommitInput) {

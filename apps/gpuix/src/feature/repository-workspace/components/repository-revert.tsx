@@ -10,6 +10,7 @@ import type {
 	TagInfo,
 	SquashCommitsInput,
 	ResetCommitInput,
+	ReorderCommitsInput,
 } from "@1git/git";
 import { useGpuixRequired, type EventPayload } from "@gpuix/react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -42,6 +43,10 @@ import {
 	RepositoryHistoryReset,
 	type HistoryResetReview,
 } from "./repository-history-reset";
+import {
+	RepositoryHistoryReorder,
+	type HistoryReorderReview,
+} from "./repository-history-reorder";
 
 type HistoryChoice =
 	| "copy-sha"
@@ -50,6 +55,7 @@ type HistoryChoice =
 	| "amend"
 	| "squash"
 	| "reset"
+	| "reorder"
 	| "revert"
 	| "cherry-pick";
 
@@ -68,6 +74,8 @@ export function RepositoryRevert({
 	readSquash,
 	onReset,
 	readReset,
+	onReorder,
+	readReorder,
 	tags = [],
 	readLastCommit = RepositoryCommit.readLast,
 	readBranches,
@@ -85,6 +93,8 @@ export function RepositoryRevert({
 	readSquash?: typeof SquashReader.read;
 	onReset?: (input: ResetCommitInput) => Promise<string | null>;
 	readReset?: typeof RepositoryHistory.readReset;
+	onReorder?: (input: ReorderCommitsInput) => Promise<string | null>;
+	readReorder?: typeof RepositoryHistory.readReorder;
 	tags?: readonly TagInfo[];
 	readLastCommit?: typeof RepositoryCommit.readLast;
 	readBranches?: typeof RepositoryBranches.read;
@@ -110,6 +120,9 @@ export function RepositoryRevert({
 	const [squashReview, setSquashReview] = useState<HistorySquashReview | null>(
 		null
 	);
+
+	const [reorderReview, setReorderReview] =
+		useState<HistoryReorderReview | null>(null);
 
 	const [reviewed, setReviewed] = useState<{
 		commit: CommitInfo;
@@ -150,7 +163,8 @@ export function RepositoryRevert({
 			cherryPick ||
 			tagReview ||
 			squashReview ||
-			resetReview
+			resetReview ||
+			reorderReview
 		)
 			return;
 
@@ -249,8 +263,7 @@ export function RepositoryRevert({
 				selected.has(item.id) && item.commit ? [item.commit] : []
 			);
 
-			const canSquash =
-				!!onSquash &&
+			const canRewrite =
 				!unavailable &&
 				!state.amend &&
 				commits.length >= 2 &&
@@ -283,8 +296,13 @@ export function RepositoryRevert({
 				},
 				{
 					label: "Squash selected commits…",
-					enabled: canSquash,
+					enabled: canRewrite && !!onSquash,
 					value: "squash",
+				},
+				{
+					label: "Reorder selected commits…",
+					enabled: canRewrite && !!onReorder,
+					value: "reorder",
 				},
 				{
 					label: "Reset to commit…",
@@ -382,8 +400,26 @@ export function RepositoryRevert({
 					},
 				});
 			else if (
+				choice === "reorder" &&
+				canRewrite &&
+				onReorder &&
+				repository?.head &&
+				repository.branchName
+			)
+				setReorderReview({
+					root: repository.root,
+					commits,
+					input: {
+						expectedHead: repository.head,
+						expectedBranch: repository.branchName,
+						commits: commits.map((item) => item.oid),
+						order: [...commits].reverse().map((item) => item.oid),
+					},
+				});
+			else if (
 				choice === "squash" &&
-				canSquash &&
+				canRewrite &&
+				onSquash &&
 				repository?.head &&
 				repository.branchName
 			)
@@ -465,6 +501,16 @@ export function RepositoryRevert({
 	return (
 		<>
 			{children(openMenu)}
+			{reorderReview && onReorder ? (
+				<RepositoryHistoryReorder
+					state={state}
+					review={reorderReview}
+					read={readReorder}
+					onWrite={onReorder}
+					onCancel={() => setReorderReview(null)}
+					onFinished={() => setReorderReview(null)}
+				/>
+			) : null}
 			{resetReview && onReset ? (
 				<RepositoryHistoryReset
 					state={state}
