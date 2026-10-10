@@ -22,6 +22,9 @@ import type {
 	CommitFilesInput,
 	CommitFilesResult,
 	CommitRecoveryInput,
+	ResetCommitInput,
+	ResetCommitPlan,
+	ResetCommitResult,
 	SquashCommitsInput,
 	SquashCommitsResult,
 	SquashPlan,
@@ -1382,6 +1385,27 @@ export class GitRepository {
 			"commit",
 			input.signal,
 			async () => await CommitRecovery.undo(this.context, input)
+		);
+	}
+
+	/** Reviews an exact ancestor and verifies that all later commits are unpublished. */
+	async getResetCommitPlan(
+		input: ResetCommitInput
+	): Promise<GitResult<ResetCommitPlan>> {
+		return await this.read(
+			"reset",
+			async () => await CommitRecovery.readReset(this.context, input)
+		);
+	}
+
+	/** Resets unpublished later history, preserving working files/index and retaining a recovery ref. */
+	async resetToCommit(
+		input: ResetCommitInput
+	): Promise<GitResult<ResetCommitResult>> {
+		return await this.mutate(
+			"reset",
+			input.signal,
+			async () => await CommitRecovery.reset(this.context, input)
 		);
 	}
 

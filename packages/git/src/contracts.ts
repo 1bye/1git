@@ -449,10 +449,28 @@ export interface CommitFilesResult {
 	readonly warning: string | null;
 }
 
-/** Reviewed branch identity for local commit recovery; published and merge commits are refused. */
+/** Captured named branch tip for local recovery; each action validates its publication and history rules. */
 export interface CommitRecoveryInput extends GitCallOptions {
 	readonly expectedHead: string;
 	readonly expectedBranch: string;
+}
+
+/** Exact ancestor to retain on the reviewed branch; only unpublished later history may be undone. */
+export interface ResetCommitInput extends CommitRecoveryInput {
+	readonly target: string;
+}
+
+/** Read-only reset review, excluding the target itself from the number of undone commits. */
+export interface ResetCommitPlan {
+	readonly target: CommitInfo;
+	readonly commitCount: number;
+}
+
+/** A soft reset retains the index and working files, and saves the old tip for recovery. */
+export interface ResetCommitResult {
+	readonly recoveryRef: string;
+	readonly snapshot: RepositorySnapshot | null;
+	readonly warning: string | null;
 }
 
 /** Exact consecutive commits, newest first, reviewed against one named branch tip. */

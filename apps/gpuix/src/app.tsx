@@ -111,6 +111,8 @@ export function App({
 	pushTag,
 	readSquash = RepositoryHistorySquash.read,
 	squashCommits = RepositoryHistorySquash.write,
+	readReset = RepositoryHistory.readReset,
+	resetCommit = RepositoryHistory.reset,
 	readBranches = RepositoryBranches.read,
 	writeBranch = RepositoryBranches.write,
 	writeWorktree = RepositoryWorktrees.create,
@@ -156,6 +158,8 @@ export function App({
 	pushTag?: typeof RepositorySync.pushTag;
 	readSquash?: typeof RepositoryHistorySquash.read;
 	squashCommits?: typeof RepositoryHistorySquash.write;
+	readReset?: typeof RepositoryHistory.readReset;
+	resetCommit?: typeof RepositoryHistory.reset;
 	readBranches?: typeof RepositoryBranches.read;
 	writeBranch?: typeof RepositoryBranches.write;
 	writeWorktree?: typeof RepositoryWorktrees.create;
@@ -392,7 +396,8 @@ export function App({
 		cherryPickCommit,
 		createTag,
 		pushTagWithAccounts,
-		squashCommits
+		squashCommits,
+		resetCommit
 	);
 
 	useRepositoryAutoRefresh(state, dispatch, readRepository, watchRepository);
@@ -790,6 +795,8 @@ export function App({
 									mutations.squashCommits(activeTab.id, input)
 								}
 								readSquash={readSquash}
+								onReset={(input) => mutations.resetCommit(activeTab.id, input)}
+								readReset={readReset}
 								readBranches={readBranches}
 								readCommitLink={async (root, oid, signal) =>
 									RepositoryHistory.readCommitLink(

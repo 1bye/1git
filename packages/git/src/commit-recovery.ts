@@ -1,16 +1,194 @@
 import { randomUUID } from "node:crypto";
+import { open, rm } from "node:fs/promises";
+import { join } from "node:path";
 import type {
 	CommitInfo,
 	CommitRecoveryInput,
 	UndoCommitResult,
+	ResetCommitInput,
+	ResetCommitPlan,
+	ResetCommitResult,
 } from "./contracts.js";
 import type { RepositoryContext } from "./internal.js";
 import { loadCommit, loadSnapshot } from "./queries.js";
 import { invalidInput } from "./result.js";
 import { requireRevision } from "./validation.js";
+import { GitCommandFailure } from "./process/git-process.js";
+
+const exactOid = /^(?:[a-f\d]{40}|[a-f\d]{64})$/i;
 
 /** Local-only history recovery, guarded by reviewed identity and known remote reachability. */
 export class CommitRecovery {
+	/** Reviews an ancestor and every removed commit against locally known remote history. */
+	static async readReset(
+		context: RepositoryContext,
+		input: ResetCommitInput
+	): Promise<ResetCommitPlan> {
+		if (!exactOid.test(input.target) || !exactOid.test(input.expectedHead))
+			throw invalidInput("reset", "Select an exact commit from History.");
+
+		if (context.repository.isShallow)
+			throw invalidInput(
+				"reset",
+				"Fetch the full history before resetting a shallow repository."
+			);
+
+		const snapshot = await loadSnapshot(context, false, input.signal);
+
+		if (
+			!input.expectedBranch ||
+			snapshot.head.detached ||
+			snapshot.head.oid !== input.expectedHead ||
+			snapshot.head.branch !== input.expectedBranch
+		)
+			throw invalidInput(
+				"reset",
+				"The branch changed. Refresh and select the commit again."
+			);
+
+		if (snapshot.operationState !== "normal" || snapshot.files.length)
+			throw invalidInput(
+				"reset",
+				"Commit or stash your changes and finish the current Git operation first. Nothing has been discarded."
+			);
+
+		if (input.target === input.expectedHead)
+			throw invalidInput(
+				"reset",
+				"Choose a commit before the current branch tip."
+			);
+
+		try {
+			await context.process.run({
+				args: ["merge-base", "--is-ancestor", input.target, input.expectedHead],
+				cwd: context.repository.root,
+				signal: input.signal,
+			});
+		} catch (cause) {
+			if (cause instanceof GitCommandFailure && cause.exitCode === 1)
+				throw invalidInput(
+					"reset",
+					"Select an ancestor of the current branch tip."
+				);
+
+			throw cause;
+		}
+
+		const count = async (unpublished: boolean): Promise<number> => {
+			const result = await context.process.run({
+				args: [
+					"rev-list",
+					"--count",
+					input.expectedHead,
+					`^${input.target}`,
+					...(unpublished ? ["--not", "--remotes"] : []),
+				],
+				cwd: context.repository.root,
+				signal: input.signal,
+			});
+
+			const value = Number(result.stdout.toString().trim());
+
+			if (!Number.isSafeInteger(value) || value < 0)
+				throw invalidInput("reset", "Could not count the commits to reset.");
+
+			return value;
+		};
+
+		const [target, commitCount, unpublishedCount] = await Promise.all([
+			loadCommit(context, input.target, input.signal),
+			count(false),
+			count(true),
+		]);
+
+		if (target.oid !== input.target || commitCount === 0)
+			throw invalidInput(
+				"reset",
+				"Select an exact earlier commit from History."
+			);
+
+		if (unpublishedCount !== commitCount)
+			throw invalidInput(
+				"reset",
+				"Later commits are published according to known remote branches. Only unpublished commits can be reset. Fetch first if another tool may have pushed."
+			);
+
+		return { target, commitCount };
+	}
+
+	/** Atomically retains the old tip and moves only the reviewed branch, without replacing files or staging. */
+	static async reset(
+		context: RepositoryContext,
+		input: ResetCommitInput
+	): Promise<ResetCommitResult> {
+		const lockPath = join(context.repository.gitDirectory, "index.lock");
+
+		const lock = await open(lockPath, "wx").catch((cause: unknown) => {
+			if (
+				cause &&
+				typeof cause === "object" &&
+				"code" in cause &&
+				cause.code === "EEXIST"
+			)
+				throw invalidInput(
+					"reset",
+					"Another Git process has locked the index.",
+					"repository-locked"
+				);
+
+			throw cause;
+		});
+
+		const recoveryRef = `refs/1git/reset/${randomUUID()}`;
+		let warning: string | null = null;
+		let failure: { cause: unknown } | undefined;
+
+		try {
+			await lock.close();
+			await CommitRecovery.readReset(context, input);
+			// The compare-and-swap and recovery ref commit together; cancellation cannot interrupt installation.
+			await context.process.run({
+				args: ["update-ref", "-m", "1git: reset to commit", "--stdin"],
+				cwd: context.repository.root,
+				stdin: `start\ncreate ${recoveryRef} ${input.expectedHead}\nupdate refs/heads/${input.expectedBranch} ${input.target} ${input.expectedHead}\nprepare\ncommit\n`,
+			});
+		} catch (cause) {
+			failure = { cause };
+		} finally {
+			try {
+				await rm(lockPath);
+			} catch {
+				warning = `Could not release ${lockPath}. Inspect History and the lock before continuing.`;
+			}
+		}
+
+		if (failure) {
+			if (warning)
+				throw invalidInput(
+					"reset",
+					`Reset could not be confirmed. Refresh and inspect History. ${warning}`
+				);
+
+			throw failure.cause;
+		}
+
+		let snapshot: ResetCommitResult["snapshot"] = null;
+
+		try {
+			snapshot = await loadSnapshot(context);
+
+			if (
+				snapshot.head.oid !== input.target ||
+				snapshot.head.branch !== input.expectedBranch
+			)
+				warning = `Reset completed, but the branch changed externally. Refresh and inspect History. Originals: ${recoveryRef}. ${warning ?? ""}`;
+		} catch {
+			warning = `Reset completed; refresh failed. Refresh and inspect History. Originals: ${recoveryRef}. ${warning ?? ""}`;
+		}
+
+		return { snapshot, recoveryRef, warning };
+	}
+
 	static async read(
 		context: RepositoryContext,
 		input: CommitRecoveryInput

@@ -9,6 +9,7 @@ import type {
 	PushTagInput,
 	TagInfo,
 	SquashCommitsInput,
+	ResetCommitInput,
 } from "@1git/git";
 import { useGpuixRequired, type EventPayload } from "@gpuix/react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -37,6 +38,10 @@ import {
 	type HistorySquashReview,
 } from "./repository-history-squash";
 import type { RepositoryHistorySquash as SquashReader } from "../lib/repository-history-squash";
+import {
+	RepositoryHistoryReset,
+	type HistoryResetReview,
+} from "./repository-history-reset";
 
 type HistoryChoice =
 	| "copy-sha"
@@ -44,6 +49,7 @@ type HistoryChoice =
 	| "view"
 	| "amend"
 	| "squash"
+	| "reset"
 	| "revert"
 	| "cherry-pick";
 
@@ -60,6 +66,8 @@ export function RepositoryRevert({
 	onPushTag,
 	onSquash,
 	readSquash,
+	onReset,
+	readReset,
 	tags = [],
 	readLastCommit = RepositoryCommit.readLast,
 	readBranches,
@@ -75,6 +83,8 @@ export function RepositoryRevert({
 	onPushTag?: (input: PushTagInput) => Promise<string | null>;
 	onSquash?: (input: SquashCommitsInput) => Promise<string | null>;
 	readSquash?: typeof SquashReader.read;
+	onReset?: (input: ResetCommitInput) => Promise<string | null>;
+	readReset?: typeof RepositoryHistory.readReset;
 	tags?: readonly TagInfo[];
 	readLastCommit?: typeof RepositoryCommit.readLast;
 	readBranches?: typeof RepositoryBranches.read;
@@ -92,6 +102,10 @@ export function RepositoryRevert({
 	const [error, setError] = useState<string | null>(null);
 	const [cherryPick, setCherryPick] = useState<CherryPickReview | null>(null);
 	const [tagReview, setTagReview] = useState<TagReview | null>(null);
+
+	const [resetReview, setResetReview] = useState<HistoryResetReview | null>(
+		null
+	);
 
 	const [squashReview, setSquashReview] = useState<HistorySquashReview | null>(
 		null
@@ -130,7 +144,14 @@ export function RepositoryRevert({
 		entry: WorkspaceEntry,
 		event: EventPayload
 	): Promise<void> => {
-		if (tracking.current || reviewed || cherryPick || tagReview || squashReview)
+		if (
+			tracking.current ||
+			reviewed ||
+			cherryPick ||
+			tagReview ||
+			squashReview ||
+			resetReview
+		)
 			return;
 
 		const commit = state.entries.history.find(
@@ -240,6 +261,12 @@ export function RepositoryRevert({
 							item.parentOids[0] === commits[index + 1]?.oid)
 				);
 
+			const canReset =
+				!!onReset &&
+				!unavailable &&
+				!state.amend &&
+				commit.oid !== repository?.head;
+
 			const items: NativeMenuItem<CommitMenuChoice>[] = [
 				{ label: "Copy SHA", enabled: true, value: "copy-sha" },
 				{ label: "Copy Message", enabled: true, value: "copy-message" },
@@ -258,6 +285,11 @@ export function RepositoryRevert({
 					label: "Squash selected commits…",
 					enabled: canSquash,
 					value: "squash",
+				},
+				{
+					label: "Reset to commit…",
+					enabled: canReset,
+					value: "reset",
 				},
 				{
 					label: "Cherry-pick commit…",
@@ -334,6 +366,21 @@ export function RepositoryRevert({
 				await NativeClipboard.write(commit.body || commit.summary);
 			else if (choice === "view" && link) await NativeBrowser.open(link.url);
 			else if (choice === "amend" && canAmend) onAmend?.(commit);
+			else if (
+				choice === "reset" &&
+				canReset &&
+				repository?.head &&
+				repository.branchName
+			)
+				setResetReview({
+					root: repository.root,
+					commit,
+					input: {
+						target: commit.oid,
+						expectedHead: repository.head,
+						expectedBranch: repository.branchName,
+					},
+				});
 			else if (
 				choice === "squash" &&
 				canSquash &&
@@ -418,6 +465,19 @@ export function RepositoryRevert({
 	return (
 		<>
 			{children(openMenu)}
+			{resetReview && onReset ? (
+				<RepositoryHistoryReset
+					state={state}
+					review={resetReview}
+					read={readReset}
+					onWrite={onReset}
+					onCancel={() => setResetReview(null)}
+					onFinished={() => {
+						setResetReview(null);
+						onFinished();
+					}}
+				/>
+			) : null}
 			{squashReview && onSquash ? (
 				<RepositoryHistorySquash
 					state={state}

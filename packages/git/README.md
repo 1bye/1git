@@ -249,6 +249,23 @@ an optional `warning`. Confirmation is not cancellable once ref installation sta
 Inspect History before retrying after cancellation, cleanup or refresh warnings;
 never automatically retry a rewrite. There is no network access or force push.
 
+## Resetting unpublished history
+
+`getResetCommitPlan` reviews an exact ancestor of a captured named branch tip.
+`resetToCommit` revalidates the branch, clean index/worktree, operation state and
+publication against all known remote branches. It refuses removing published
+commits, including merged side history, but allows the target itself to be published.
+Shallow repositories, detached/stale identities, non-ancestors and current-tip
+targets are refused. No network request is made; callers must fetch first when
+remote-tracking refs may be stale.
+
+The write retains the original tip under `refs/1git/reset/<id>` and moves the
+reviewed branch in one compare-and-swap ref transaction under an index lock.
+Working files and index are unchanged (soft reset). Original tags, other branches
+and linked worktree files remain unchanged. A completed reset is reported separately
+from refresh/cleanup warnings; callers must inspect History before retrying an
+uncertain outcome. The retained ref supports recovery with external Git tools.
+
 ## Tests
 
 ```bash

@@ -39,6 +39,7 @@ import type {
 	PushTagInput,
 	TagInfo,
 	SquashCommitsInput,
+	ResetCommitInput,
 } from "@1git/git";
 import type { RepositoryCommit as CommitReader } from "../lib/repository-commit";
 import { RepositoryOperation } from "./repository-operation";
@@ -182,6 +183,8 @@ export function RepositoryNavigation({
 	onPushTag,
 	onSquash,
 	readSquash,
+	onReset,
+	readReset,
 	readBranches,
 	readCommitLink,
 	readLastCommit,
@@ -207,6 +210,8 @@ export function RepositoryNavigation({
 	onPushTag?: (input: PushTagInput) => Promise<string | null>;
 	onSquash?: (input: SquashCommitsInput) => Promise<string | null>;
 	readSquash?: typeof RepositoryHistorySquash.read;
+	onReset?: (input: ResetCommitInput) => Promise<string | null>;
+	readReset?: typeof RepositoryHistory.readReset;
 	readBranches?: typeof RepositoryBranches.read;
 	readCommitLink?: typeof RepositoryHistory.readCommitLink;
 	readLastCommit?: typeof CommitReader.readLast;
@@ -354,6 +359,8 @@ export function RepositoryNavigation({
 			onPushTag={onPushTag}
 			onSquash={onSquash}
 			readSquash={readSquash}
+			onReset={onReset}
+			readReset={readReset}
 			tags={history?.tags}
 			readLastCommit={readLastCommit}
 			onAmend={(commit) => {

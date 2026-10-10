@@ -6,6 +6,7 @@ import {
 	type GitResult,
 	type RevertCommitInput,
 	type CherryPickCommitInput,
+	type ResetCommitInput,
 } from "@1git/git";
 import type { HostingProvider } from "@1git/hosting/provider";
 import { parseRemote } from "@1git/hosting/remote";
@@ -14,6 +15,7 @@ import type { WorkspaceEntry, WorkspaceRevision } from "../types";
 
 const historyPageSize = 50;
 const historySearchBatchSize = 250;
+const resetTimeoutMs = 30_000;
 const commitDate = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
 const commitObjectId = /^(?:[a-f\d]{40}|[a-f\d]{64})$/iu;
 
@@ -29,9 +31,44 @@ export interface CommitWebLink {
 	readonly url: string;
 }
 
-/** Bounded history queries and non-rewriting commit actions anchored to the workspace's reviewed HEAD. */
+/** Bounded history queries and explicitly reviewed commit actions anchored to one workspace branch. */
 export class RepositoryHistory {
 	private constructor() {}
+
+	/** Reviews a local-only reset without changing the branch or contacting a remote. */
+	static async readReset(root: string, input: ResetCommitInput) {
+		const opened = await GitRepository.open({
+			path: root,
+			signal: input.signal,
+		});
+
+		return opened.ok ? await opened.value.getResetCommitPlan(input) : opened;
+	}
+
+	/** Moves only the reviewed branch; the backend preserves files/index and retains original history. */
+	static async reset(root: string, input: ResetCommitInput) {
+		const signal = input.signal
+			? AbortSignal.any([input.signal, AbortSignal.timeout(resetTimeoutMs)])
+			: AbortSignal.timeout(resetTimeoutMs);
+
+		const opened = await GitRepository.open({ path: root, signal });
+
+		if (!opened.ok) return opened;
+
+		const result = await opened.value.resetToCommit({ ...input, signal });
+
+		return !result.ok && result.error.code === "aborted"
+			? {
+					ok: false as const,
+					error: {
+						...result.error,
+						retryable: false,
+						message:
+							"Reset stopped. Refresh and inspect History before retrying; the outcome may have completed.",
+					},
+				}
+			: result;
+	}
 
 	/** Reads only local metadata: prefer the branch upstream, then origin, then a sole remote. Never guesses among other remotes. */
 	static async readCommitLink(

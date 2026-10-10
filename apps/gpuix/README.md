@@ -834,7 +834,24 @@ the Turbo build/dev tasks build dependencies first. No Electron IPC is involved.
   write locks, close protection and uncertain-outcome warnings are shared with normal
   commits. No force push occurs. Publication uses known remote refs: Fetch first if
   another tool/device may have pushed, and avoid concurrent external Git writes.
-  Reorder and reset-to-commit remain separate future workflows.
+  Reordering remains a separate future workflow.
+
+- **Reset to commit…** in History reviews one exact ancestor and the number of later
+  commits to undo, then requires explicit confirmation. Only unpublished later
+  history may be reset; the selected commit can be the last published commit.
+  Publication includes every locally known remote branch, including merged side
+  history. Fetch first if another tool/device may have pushed.
+  The operation requires a clean named branch, complete (non-shallow) history and
+  no active Git operation. Dirty, staged and untracked work, stale branch/HEAD
+  identity, non-ancestor targets, the current tip and an existing index lock are
+  refused. The backend rechecks before atomically retaining `refs/1git/reset/<id>`
+  and moving only the reviewed branch. This is a **soft reset**: working files and
+  the index stay unchanged, so the removed commits' net changes appear staged in
+  Changes. Other branches, tags and linked worktree files stay unchanged. Success
+  returns to Changes and preserves the existing draft. Shared-worktree write,
+  refresh and close protection apply; failures/warnings disable resubmission until
+  a new review. No fetch, push or force push occurs. Recovery is available through
+  the retained ref with external Git tools; avoid concurrent external Git writes.
 
 - **Squash selected commits…** in History combines consecutive unpublished commits.
   Shift-click or Shift+Up/Down selects a range; Command-click toggles individual rows.
