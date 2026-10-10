@@ -94,6 +94,7 @@ export function RepositoryRevisions({
 		view === "history"
 			? state.history.nextOffset !== 0 &&
 				!state.history.error &&
+				!state.history.file &&
 				!state.history.query?.trim()
 			: state.stashes.loaded && !state.stashes.error;
 

@@ -1,5 +1,5 @@
 /**
- * Covers: anchored pagination, remote commit links, root/merge/rename/deletion diffs and immutable image versions.
+ * Covers: anchored pagination, file history/search across renames, remote commit links and immutable file diffs.
  * Real: shared Git backend, history/diff readers, Sharp and disposable Git repositories.
  * Doubles: none.
  * Requires: Git, Sharp and writable temporary storage; no network or graphics.
@@ -54,6 +54,141 @@ const git = async (...args: string[]): Promise<string> => {
 };
 
 const signal = (): AbortSignal => new AbortController().signal;
+
+it("follows a file's earlier name and preloads only that file's immutable diff", async () => {
+	await writeFile(join(repository, "old.txt"), "one\ntwo\nthree\n");
+	await git("add", "old.txt");
+	await git("commit", "-m", "Add original");
+	const added = await git("rev-parse", "HEAD");
+
+	await git("mv", "old.txt", "new.txt");
+	await git("commit", "-m", "Rename file");
+	const renamed = await git("rev-parse", "HEAD");
+
+	await writeFile(join(repository, "new.txt"), "one\ntwo\nchanged\n");
+	await writeFile(join(repository, "other.txt"), "unrelated\n");
+	await git("add", ".");
+	await git("commit", "-m", "Edit both files");
+	const edited = await git("rev-parse", "HEAD");
+
+	await git("rm", "new.txt");
+	await git("commit", "-m", "Delete file");
+	const head = await git("rev-parse", "HEAD");
+	const index = await readFile(join(repository, ".git/index"));
+	const scope = { path: "new.txt" };
+
+	const result = await RepositoryHistory.read(
+		repository,
+		head,
+		0,
+		signal(),
+		"",
+		scope
+	);
+
+	expect(result.ok).toBe(true);
+
+	if (!result.ok) throw new Error(result.error.message);
+
+	expect(result.value.commits.map((commit) => commit.oid)).toEqual([
+		head,
+		edited,
+		renamed,
+		added,
+	]);
+	const entries = result.value.commits.map(RepositoryHistory.entry);
+
+	expect(
+		entries.every((entry) => entry.filesLoaded && entry.files.length === 1)
+	).toBe(true);
+	expect(entries.at(-1)?.files[0]?.commitFile?.path).toBe("old.txt");
+	expect(entries[2]?.files[0]?.commitFile?.originalPath).toBe("old.txt");
+
+	for (const entry of entries) {
+		const file = entry.files[0]?.commitFile;
+
+		if (!file) throw new Error("Missing historical file");
+
+		const diff = await RepositoryDiff.read(repository, file, signal());
+
+		expect(diff.ok).toBe(true);
+
+		if (!diff.ok) throw new Error(diff.error.message);
+
+		expect(diff.value[0]?.patch).not.toContain("other.txt");
+	}
+
+	const older = await RepositoryHistory.read(
+		repository,
+		head,
+		0,
+		signal(),
+		"",
+		{ path: "old.txt", revision: added }
+	);
+
+	expect(older.ok && older.value.commits.map((commit) => commit.oid)).toEqual([
+		added,
+	]);
+	expect(await git("rev-parse", "HEAD")).toBe(head);
+	expect(await readFile(join(repository, ".git/index"))).toEqual(index);
+});
+
+it("searches and pages within file history without including unrelated commits or a moving HEAD", async () => {
+	const ids: string[] = [];
+
+	for (let index = 0; index < 53; index += 1) {
+		await writeFile(join(repository, "file.txt"), `version ${index}\n`);
+		await git("add", "file.txt");
+		await git("commit", "-m", `Needle ${index}`);
+		ids.unshift(await git("rev-parse", "HEAD"));
+	}
+
+	await writeFile(join(repository, "other.txt"), "unrelated\n");
+	await git("add", "other.txt");
+	await git("commit", "-m", "Needle unrelated");
+	const head = await git("rev-parse", "HEAD");
+
+	const first = await RepositoryHistory.read(
+		repository,
+		head,
+		0,
+		signal(),
+		"needle",
+		{ path: "file.txt" }
+	);
+
+	if (!first.ok) throw new Error(first.error.message);
+
+	expect(first.value.commits.map((commit) => commit.oid)).toEqual(
+		ids.slice(0, 50)
+	);
+	expect(first.value.nextOffset).toBe(50);
+	await git("commit", "--allow-empty", "-m", "Needle later");
+	const next = await RepositoryHistory.read(
+		repository,
+		head,
+		50,
+		signal(),
+		"needle",
+		{ path: "file.txt" }
+	);
+
+	if (!next.ok) throw new Error(next.error.message);
+
+	expect(next.value.commits.map((commit) => commit.oid)).toEqual(ids.slice(50));
+	expect(next.value.nextOffset).toBeNull();
+	const empty = await RepositoryHistory.read(
+		repository,
+		head,
+		0,
+		signal(),
+		"",
+		{ path: "untracked.txt" }
+	);
+
+	expect(empty.ok && empty.value.commits).toEqual([]);
+});
 
 it.each([
 	[

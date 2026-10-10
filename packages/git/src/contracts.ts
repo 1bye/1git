@@ -222,6 +222,8 @@ export interface CommitInfo {
 	readonly oid: string;
 	readonly parentOids: readonly string[];
 	readonly summary: string;
+	/** Present only in single-file history; uses the path and blob IDs at this commit, including renames. */
+	readonly historyFile?: CommitFileChange;
 }
 
 /** One page of commit history. */
@@ -404,6 +406,8 @@ export interface HistoryInput extends GitCallOptions {
 	readonly offset?: number;
 	readonly paths?: readonly string[];
 	readonly revision?: string;
+	/** Literal single-file history following renames along the first-parent line. Mutually exclusive with paths. */
+	readonly filePath?: string;
 }
 
 export interface CommitInput extends GitCallOptions {

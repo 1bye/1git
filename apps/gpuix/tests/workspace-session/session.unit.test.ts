@@ -8,6 +8,40 @@ import { expect, it } from "bun:test";
 import { WorkspaceSession } from "../../src/feature/workspace-tabs/lib/workspace-session";
 import { WorkspaceTabsModel } from "../../src/feature/workspace-tabs/lib/workspace-tabs-model";
 import { repositorySnapshot } from "../_shared/repository-snapshot";
+import { commitInfo, historyPage } from "../_shared/history-page";
+
+it("restores full-history navigation rather than a temporary file history scope", () => {
+	const snapshot = repositorySnapshot();
+	let state = WorkspaceTabsModel.create();
+
+	for (const action of [
+		{ type: "loaded" as const, snapshot },
+		{
+			type: "history-page" as const,
+			root: snapshot.repository.root,
+			head: snapshot.head.oid ?? "",
+			offset: 0,
+			page: historyPage(),
+		},
+		{
+			type: "history-file" as const,
+			file: { path: "old-name.ts", revision: "a".repeat(40) },
+		},
+	])
+		state = WorkspaceTabsModel.reduce(state, {
+			type: "workspace",
+			id: "workspace-1",
+			action,
+		});
+
+	const captured = WorkspaceSession.capture(state);
+
+	expect(captured.tabs[0]?.navigation?.history).toBe(commitInfo().oid);
+	expect(captured.tabs[0]?.navigation?.historyFile).toBeNull();
+	expect(
+		WorkspaceSession.restore(captured).tabs[0]?.workspace.history.file
+	).toBeUndefined();
+});
 
 it("restores the ordinary draft rather than silently turning an amendment into a new commit", () => {
 	const snapshot = repositorySnapshot();

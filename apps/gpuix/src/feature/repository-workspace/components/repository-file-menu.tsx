@@ -11,6 +11,7 @@ import {
 import { NativeFileMenu, type NativeMenuItem } from "../lib/native-file-menu";
 import type { WorkspaceEntry } from "../types";
 import type { ExternalEditors } from "../../editor-settings/external-editors";
+import type { FileHistoryScope } from "../lib/repository-history";
 
 const finderApplication = "/System/Library/CoreServices/Finder.app";
 
@@ -20,6 +21,7 @@ interface FileMenuContext {
 	open?: typeof RepositoryFileActions.open;
 	editors?: ExternalEditors;
 	selection?: (id: string) => readonly WorkspaceEntry[];
+	history?: (file: FileHistoryScope) => void;
 }
 
 /** Working-copy mutations or read-only saved versions; revision menus never receive Git write actions. */
@@ -54,6 +56,7 @@ type FileMenuChoice =
 				| "finder"
 				| "default"
 				| "copy"
+				| "history"
 				| "copy-full";
 	  };
 
@@ -190,6 +193,12 @@ export function RepositoryFileMenu({
 			);
 
 			if (!multiple) {
+				if (actions.history)
+					menu.push(
+						{ separator: true },
+						item("View File History", { kind: "history" })
+					);
+
 				const exists = saved
 					? !nullObjectId.test(saved.afterOid) ||
 						!nullObjectId.test(saved.beforeOid)
@@ -339,6 +348,11 @@ export function RepositoryFileMenu({
 					selected.map((item) => item.id),
 					choice.kind === "include"
 				);
+			} else if (choice.kind === "history") {
+				actions.history?.({
+					path: file.originalPath && live ? file.originalPath : file.path,
+					revision: saved?.commit,
+				});
 			} else {
 				let application =
 					choice.kind === "editor" ? choice.application : undefined;

@@ -1,5 +1,5 @@
 /**
- * Covers: anchored pages, single/range/toggle selection, cache/selection preservation, refresh invalidation and stale responses.
+ * Covers: anchored pages/file scopes, selection preservation, refresh invalidation and stale responses.
  * Real: workspace reducer and history presentation mapping.
  * Doubles: explicit snapshots, commits and file lists.
  * Requires: none.
@@ -12,6 +12,171 @@ import {
 	committedFiles,
 	historyPage,
 } from "../_shared/history-page";
+
+it("opens file history, isolates reads and search, then restores the full history and draft", () => {
+	const snapshot = repositorySnapshot();
+
+	const source = {
+		root: snapshot.repository.root,
+		head: snapshot.head.oid ?? "",
+	};
+
+	const file = { path: "src/file-0.ts" };
+	let state = Model.reduce(Model.create(), { type: "loaded", snapshot });
+
+	state = Model.reduce(state, {
+		type: "history-page",
+		...source,
+		offset: 0,
+		page: historyPage(),
+	});
+	state = Model.reduce(state, {
+		type: "history-files",
+		...source,
+		commit: commitInfo().oid,
+		files: committedFiles(commitInfo().oid),
+	});
+	state = Model.reduce(state, { type: "scroll", view: "history", y: -90 });
+	state = Model.reduce(state, {
+		type: "edit-commit-message",
+		value: "Keep draft",
+	});
+	const normal = state;
+
+	state = Model.reduce(state, { type: "history-file", file });
+	expect(state.view).toBe("history");
+	expect(state.entries.history).toEqual([]);
+	expect(state.views.history.selectedId).toBeNull();
+
+	for (const action of [
+		{
+			type: "history-page" as const,
+			...source,
+			offset: 0,
+			page: historyPage(),
+		},
+		{ type: "history-error" as const, ...source, message: "Late error" },
+		{
+			type: "history-files" as const,
+			...source,
+			commit: commitInfo().oid,
+			files: committedFiles(commitInfo().oid),
+		},
+		{
+			type: "history-files-error" as const,
+			...source,
+			commit: commitInfo().oid,
+			message: "Late files",
+		},
+	])
+		expect(Model.reduce(state, action)).toBe(state);
+
+	const change = committedFiles(commitInfo().oid)[0]?.commitFile;
+
+	if (!change) throw new Error("Missing test file");
+
+	state = Model.reduce(state, {
+		type: "history-page",
+		...source,
+		file,
+		offset: 0,
+		page: {
+			commits: [{ ...commitInfo(), historyFile: change }],
+			hasMore: false,
+			nextOffset: null,
+		},
+	});
+	expect(state.entries.history[0]?.filesLoaded).toBe(true);
+	expect(state.views.history.files.selectedId).toBe(file.path);
+	state = Model.reduce(state, { type: "history-search", value: "needle" });
+	state = Model.reduce(state, { type: "history-search", value: "" });
+	expect(state.history.file).toEqual(file);
+	expect(state.history.nextOffset).toBe(0);
+	expect(state.entries.history).toEqual([]);
+	state = Model.reduce(state, { type: "history-file", file: null });
+	expect(state.entries.history).toBe(normal.entries.history);
+	expect(state.views.history).toBe(normal.views.history);
+	expect(state.history).toEqual(normal.history);
+	expect(state.commitMessage).toBe("Keep draft");
+	expect(state.includedFileIds).toBe(normal.includedFileIds);
+});
+
+it("separates file paths and saved revisions and invalidates only the full-history cache on a new HEAD", () => {
+	const snapshot = repositorySnapshot();
+
+	const source = {
+		root: snapshot.repository.root,
+		head: snapshot.head.oid ?? "",
+	};
+
+	let state = Model.reduce(Model.create(), { type: "loaded", snapshot });
+
+	state = Model.reduce(state, {
+		type: "history-page",
+		...source,
+		offset: 0,
+		page: historyPage(),
+	});
+	state = Model.reduce(state, {
+		type: "history-file",
+		file: { path: "old.ts", revision: "a".repeat(40) },
+	});
+	const file = { path: "new.ts", revision: "b".repeat(40) };
+
+	state = Model.reduce(state, { type: "history-file", file });
+
+	for (const stale of [
+		{ path: "old.ts", revision: file.revision },
+		{ path: file.path, revision: "a".repeat(40) },
+	])
+		expect(
+			Model.reduce(state, {
+				type: "history-page",
+				...source,
+				file: stale,
+				offset: 0,
+				page: historyPage(),
+			})
+		).toBe(state);
+
+	state = Model.reduce(state, {
+		type: "loaded",
+		snapshot: { ...snapshot, head: { ...snapshot.head, oid: "c".repeat(40) } },
+	});
+	expect(state.history.file).toEqual(file);
+	expect(state.history.normal).toBeUndefined();
+	state = Model.reduce(state, { type: "history-search", value: "test" });
+	expect(state.history.normal).toBeUndefined();
+	state = Model.reduce(state, {
+		type: "history-file",
+		file: { path: "third.ts" },
+	});
+	expect(state.history.normal).toBeUndefined();
+	state = Model.reduce(state, { type: "history-file", file: null });
+	expect(state.history.file).toBeUndefined();
+	expect(state.entries.history).toEqual([]);
+	expect(state.history.nextOffset).toBe(0);
+});
+
+it("shows an empty file history without attempting HEAD reads in an unborn repository", () => {
+	const snapshot = repositorySnapshot();
+
+	const state = Model.reduce(Model.create(), {
+		type: "loaded",
+		snapshot: { ...snapshot, head: { ...snapshot.head, oid: null } },
+	});
+
+	const opened = Model.reduce(state, {
+		type: "history-file",
+		file: { path: "untracked.txt" },
+	});
+
+	expect(opened.history.nextOffset).toBeNull();
+	expect(
+		Model.reduce(opened, { type: "history-search", value: "test" }).history
+			.nextOffset
+	).toBeNull();
+});
 
 it("keeps a History range anchor, preserves it on right-click and resets it after a rewrite", () => {
 	const snapshot = repositorySnapshot();

@@ -29,10 +29,18 @@ export function useRepositoryHistory(
 	const root = active ? state.repository?.root : undefined;
 	const head = active ? state.repository?.head : undefined;
 	const query = state?.history.query ?? "";
+	const file = state?.history.file;
 
 	const key =
 		root && head && workspaceId
-			? JSON.stringify([workspaceId, root, head, query])
+			? JSON.stringify([
+					workspaceId,
+					root,
+					head,
+					query,
+					file?.path,
+					file?.revision,
+				])
 			: null;
 
 	const nextOffset = state?.history.nextOffset;
@@ -116,7 +124,8 @@ export function useRepositoryHistory(
 				head,
 				nextOffset,
 				controller.signal,
-				query
+				query,
+				file
 			);
 
 			if (controller.signal.aborted) return;
@@ -127,6 +136,7 @@ export function useRepositoryHistory(
 					? {
 							type: "history-page",
 							query,
+							file,
 							root,
 							head,
 							offset: nextOffset,
@@ -134,6 +144,7 @@ export function useRepositoryHistory(
 						}
 					: {
 							type: "history-error",
+							file,
 							root,
 							head,
 							query,
@@ -144,6 +155,7 @@ export function useRepositoryHistory(
 			if (!controller.signal.aborted)
 				onAction(workspaceId, {
 					type: "history-error",
+					file,
 					query,
 					root,
 					head,
@@ -158,7 +170,17 @@ export function useRepositoryHistory(
 				setPendingPage(null);
 			}
 		}
-	}, [key, root, head, workspaceId, nextOffset, readHistory, onAction, query]);
+	}, [
+		key,
+		root,
+		head,
+		workspaceId,
+		nextOffset,
+		readHistory,
+		onAction,
+		query,
+		file,
+	]);
 
 	const loadFiles = useCallback(async (): Promise<void> => {
 		if (
@@ -184,9 +206,17 @@ export function useRepositoryHistory(
 			onAction(
 				workspaceId,
 				result.ok
-					? { type: "history-files", root, head, commit, files: result.value }
+					? {
+							type: "history-files",
+							root,
+							head,
+							commit,
+							file,
+							files: result.value,
+						}
 					: {
 							type: "history-files-error",
+							file,
 							root,
 							head,
 							commit,
@@ -197,6 +227,7 @@ export function useRepositoryHistory(
 			if (!controller.signal.aborted)
 				onAction(workspaceId, {
 					type: "history-files-error",
+					file,
 					root,
 					head,
 					commit,
@@ -211,7 +242,7 @@ export function useRepositoryHistory(
 				setPendingFiles(null);
 			}
 		}
-	}, [key, root, head, workspaceId, commit, readFiles, onAction]);
+	}, [key, root, head, workspaceId, commit, readFiles, onAction, file]);
 
 	useEffect(() => {
 		return () => {

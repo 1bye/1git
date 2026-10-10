@@ -518,6 +518,17 @@ export class GitRepository {
 				? requireRevision(input.revision, "Revision", "get-history")
 				: undefined;
 
+			const filePath =
+				input.filePath === undefined
+					? undefined
+					: requireRepositoryPaths([input.filePath], "get-history")[0];
+
+			if (filePath && paths)
+				throw invalidInput(
+					"get-history",
+					"Choose single-file history or a path filter, not both."
+				);
+
 			// Explicit revisions stay browseable even after checkout to an unborn branch.
 			if (!revision) {
 				const snapshot = await loadSnapshot(this.context, false, input.signal);
@@ -531,6 +542,7 @@ export class GitRepository {
 				offset,
 				paths,
 				revision,
+				filePath,
 			});
 		});
 	}

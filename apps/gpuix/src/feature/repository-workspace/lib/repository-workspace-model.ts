@@ -10,7 +10,7 @@ import type {
 } from "@1git/git";
 
 import { sampleEntries } from "./sample-workspace";
-import { RepositoryHistory } from "./repository-history";
+import { RepositoryHistory, type FileHistoryScope } from "./repository-history";
 import { RepositoryStashes } from "./repository-stashes";
 import type { RemoteAccountAccess } from "../../accounts/lib/remote-accounts";
 import type { StashRequest } from "./repository-stashes";
@@ -98,6 +98,7 @@ export interface RepositoryWorkspaceState {
 		readonly needsReview: boolean;
 	};
 	readonly history: {
+		readonly file?: FileHistoryScope;
 		readonly query?: string;
 		readonly normal?: {
 			readonly entries: readonly WorkspaceRevision[];
@@ -213,6 +214,7 @@ export type RepositoryWorkspaceAction =
 	  }
 	| {
 			type: "history-page";
+			file?: FileHistoryScope;
 			query?: string;
 			root: string;
 			head: string;
@@ -221,14 +223,17 @@ export type RepositoryWorkspaceAction =
 	  }
 	| {
 			type: "history-error";
+			file?: FileHistoryScope;
 			root: string;
 			head: string;
 			message: string;
 			query?: string;
 	  }
 	| { type: "history-search"; value: string }
+	| { type: "history-file"; file: FileHistoryScope | null }
 	| {
 			type: "history-files";
+			file?: FileHistoryScope;
 			root: string;
 			head: string;
 			commit: string;
@@ -236,6 +241,7 @@ export type RepositoryWorkspaceAction =
 	  }
 	| {
 			type: "history-files-error";
+			file?: FileHistoryScope;
 			root: string;
 			head: string;
 			commit: string;
@@ -814,6 +820,79 @@ export class RepositoryWorkspaceModel {
 			};
 		}
 
+		if (action.type === "history-file") {
+			if (
+				state.preview ||
+				state.loading ||
+				!state.repository ||
+				RepositoryWorkspaceModel.isBusy(state)
+			)
+				return state;
+
+			const normal = state.history.normal ?? {
+				entries: state.entries.history,
+				view: state.views.history,
+				nextOffset: state.history.nextOffset,
+				error: state.history.error,
+			};
+
+			if (!action.file) {
+				if (!state.history.file) return state;
+
+				return {
+					...state,
+					view: "history",
+					history: {
+						nextOffset: state.history.normal
+							? state.history.normal.nextOffset
+							: state.repository.head
+								? 0
+								: null,
+						error: state.history.normal?.error ?? null,
+					},
+					entries: {
+						...state.entries,
+						history: state.history.normal?.entries ?? [],
+					},
+					views: {
+						...state.views,
+						history: state.history.normal?.view ?? {
+							...state.views.history,
+							selectedId: null,
+							selectedIds: undefined,
+							anchorId: undefined,
+							scrollY: 0,
+							files: { selectedId: null, scrollY: 0 },
+						},
+					},
+				};
+			}
+
+			return {
+				...state,
+				view: "history",
+				restoreHistoryLimit: undefined,
+				history: {
+					file: action.file,
+					normal: state.history.file ? state.history.normal : normal,
+					nextOffset: state.repository.head ? 0 : null,
+					error: null,
+				},
+				entries: { ...state.entries, history: [] },
+				views: {
+					...state.views,
+					history: {
+						...state.views.history,
+						selectedId: null,
+						selectedIds: undefined,
+						anchorId: undefined,
+						scrollY: 0,
+						files: { selectedId: null, scrollY: 0 },
+					},
+				},
+			};
+		}
+
 		if (action.type === "history-search") {
 			const query = action.value;
 
@@ -826,7 +905,7 @@ export class RepositoryWorkspaceModel {
 				error: state.history.error,
 			};
 
-			if (!query.trim())
+			if (!query.trim() && !state.history.file)
 				return {
 					...state,
 					history: { nextOffset: normal.nextOffset, error: normal.error },
@@ -838,9 +917,13 @@ export class RepositoryWorkspaceModel {
 				...state,
 				restoreHistoryLimit: undefined,
 				history: {
+					file: state.history.file,
 					query,
-					normal,
-					nextOffset: state.preview ? null : 0,
+					normal: state.history.file ? state.history.normal : normal,
+					nextOffset:
+						state.preview || (!state.repository?.head && state.history.file)
+							? null
+							: 0,
 					error: null,
 				},
 				entries: {
@@ -870,7 +953,9 @@ export class RepositoryWorkspaceModel {
 		) {
 			if (
 				state.repository?.root !== action.root ||
-				state.repository.head !== action.head
+				state.repository.head !== action.head ||
+				state.history.file?.path !== action.file?.path ||
+				state.history.file?.revision !== action.file?.revision
 			)
 				return state;
 
@@ -1078,7 +1163,11 @@ export class RepositoryWorkspaceModel {
 				},
 				history: sameHistory
 					? state.history
-					: { nextOffset: snapshot.head.oid ? 0 : null, error: null },
+					: {
+							file: sameRepository ? state.history.file : undefined,
+							nextOffset: snapshot.head.oid ? 0 : null,
+							error: null,
+						},
 				stashes: {
 					generation: state.stashes.generation + 1,
 					loaded: false,

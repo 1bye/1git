@@ -978,12 +978,21 @@ the Turbo build/dev tasks build dependencies first. No Electron IPC is involved.
 
 ## Browsing History
 
+- **View File History** in a single file's Changes, History or Stashes context
+  menu opens a filtered History view. It follows Git-detected renames along the
+  first-parent history and previews that file's exact saved diff in each commit,
+  including deletion. Saved-file menus start at that commit/stash, while Changes
+  starts at the refreshed HEAD (using the old path for an uncommitted rename).
+  Search and infinite paging stay within the file scope. **Back** restores the
+  full History list, selection and scroll; drafts and commit inclusion stay intact.
+  The file scope survives tab/view switches but is not restored after restart.
 - History search uses the toolbar search icon or Command+F. It matches full commit
   messages, author names/emails, and full or partial hashes case-insensitively as
   literal text. It scans history reachable from the refreshed HEAD in cancellable
   batches, not just the loaded rows, and returns pages of 50 matches. Typing is
-  debounced; large histories can take longer to search. Escape restores the normal
-  cached list and selection. Repository/HEAD changes invalidate the search cache.
+  debounced; large histories can take longer to search. Escape clears the filter
+  (restoring the cached full list when outside file history). Repository/HEAD
+  changes invalidate the search cache.
 - History lazily loads real commits reachable from the last refreshed HEAD, with
   the summary, author, authored date and short SHA. Scroll near the end for the
   next 50 commits. Pagination is anchored to that

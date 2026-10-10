@@ -185,13 +185,20 @@ export class WorkspaceSession {
 				navigation: {
 					view: workspace.view,
 					changes: workspace.views.changes.selectedId,
-					history: workspace.views.history.selectedId,
-					historyFile: workspace.views.history.files.selectedId,
+					// File history is temporary navigation; restore the full list's selection after restart.
+					history: workspace.history.file
+						? (workspace.history.normal?.view.selectedId ?? null)
+						: workspace.views.history.selectedId,
+					historyFile: workspace.history.file
+						? (workspace.history.normal?.view.files.selectedId ?? null)
+						: workspace.views.history.files.selectedId,
 					historyLimit:
 						workspace.restoreHistoryLimit ??
 						Math.min(
 							historyRestoreMaxRows,
-							workspace.entries.history.length + historyRestoreExtraRows
+							(workspace.history.file
+								? (workspace.history.normal?.entries.length ?? 0)
+								: workspace.entries.history.length) + historyRestoreExtraRows
 						),
 					stashes: workspace.views.stashes.selectedId,
 					stashFile: workspace.views.stashes.files.selectedId,

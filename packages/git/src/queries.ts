@@ -24,6 +24,7 @@ import type {
 } from "./contracts.js";
 import type { RepositoryContext } from "./internal.js";
 import { parseCommitFiles, parseDiffStats } from "./parsers/diff.js";
+import { parseFileHistory } from "./parsers/file-history.js";
 import {
 	HISTORY_FORMAT,
 	HISTORY_RECORD_SEPARATOR,
@@ -173,6 +174,75 @@ export const loadHistory = async (
 ): Promise<CommitPage> => {
 	const limit = input.limit ?? 50;
 	const offset = input.offset ?? 0;
+
+	if (input.filePath) {
+		const output = await context.process.run({
+			args: [
+				"--literal-pathspecs",
+				"-c",
+				"log.showSignature=false",
+				"log",
+				"--follow",
+				"--first-parent",
+				"--no-decorate",
+				"--raw",
+				"-z",
+				"--no-abbrev",
+				"--root",
+				"--find-renames",
+				"--no-ext-diff",
+				"--no-textconv",
+				"--format=%H",
+				`--max-count=${offset + limit + 1}`,
+				input.revision ?? "HEAD",
+				"--",
+				input.filePath,
+			],
+			cwd: context.repository.root,
+			signal: input.signal,
+		});
+
+		// shortcut: --follow replays the requested prefix because --skip can lose rename state; use revision/path cursors if very long file histories become slow.
+		const records = parseFileHistory(output.stdout).slice(offset);
+		const hasMore = records.length > limit;
+		const selected = records.slice(0, limit);
+
+		if (!selected.length)
+			return { commits: [], hasMore: false, nextOffset: null };
+
+		// Read full metadata without a path filter so parent IDs are never history-simplified.
+		const metadata = await context.process.run({
+			args: [
+				"-c",
+				"log.showSignature=false",
+				"log",
+				"--no-walk=unsorted",
+				"--no-decorate",
+				`--format=${HISTORY_RECORD_SEPARATOR}${HISTORY_FORMAT}`,
+				...selected.map((record) => record.oid),
+				"--",
+			],
+			cwd: context.repository.root,
+			signal: input.signal,
+		});
+
+		const commits = new Map(
+			parseHistory(metadata.stdout).map((commit) => [commit.oid, commit])
+		);
+
+		return {
+			commits: selected.map(({ oid, file }) => {
+				const commit = commits.get(oid);
+
+				if (!commit)
+					throw new Error("Git returned incomplete file-history metadata.");
+
+				return { ...commit, historyFile: file };
+			}),
+			hasMore,
+			nextOffset: hasMore ? offset + limit : null,
+		};
+	}
 
 	const args = [
 		"log",

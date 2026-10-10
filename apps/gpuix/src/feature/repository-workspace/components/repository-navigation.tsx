@@ -93,6 +93,25 @@ const styles = StyleSheet.create({
 		flexShrink: 0,
 	},
 	muted: { ...typography.xs, color: lightColors.editorMuted },
+	fileHistory: {
+		display: "flex",
+		flexDirection: "row",
+		alignItems: "center",
+		flexShrink: 0,
+		gap: spacing[1],
+		paddingLeft: spacing[2],
+		paddingRight: spacing[2],
+		paddingBottom: spacing[1],
+	},
+	filePath: {
+		...typography.xs,
+		color: lightColors.editorMuted,
+		minWidth: 0,
+		flexGrow: 1,
+		whiteSpace: "nowrap",
+		textOverflow: "ellipsis",
+		overflowX: "hidden",
+	},
 	stashActions: {
 		display: "flex",
 		flexDirection: "row",
@@ -133,7 +152,9 @@ function emptyListMessage(state: RepositoryWorkspaceState): string {
 		return state.repository
 			? state.history.nextOffset === 0
 				? ""
-				: "No commits yet"
+				: state.history.file
+					? "No commits for this file"
+					: "No commits yet"
 			: "Open a repository to see history";
 
 	if (state.loading) return "Reading repository…";
@@ -206,6 +227,7 @@ export function RepositoryNavigation({
 	const normalizedQuery = query.trim().toLowerCase();
 	const searchable = view === "changes" || view === "history";
 	const historySearching = view === "history" && !!state.history.query?.trim();
+	const fileHistory = view === "history" ? state.history.file : undefined;
 	const filtering = view === "changes" && normalizedQuery.length > 0;
 
 	const taggedHistory = useMemo(() => {
@@ -281,7 +303,10 @@ export function RepositoryNavigation({
 	};
 
 	const revisionReader = view === "history" ? history : stashes;
-	const label = repositoryViews.find((item) => item.value === view)?.label;
+
+	const label = fileHistory
+		? "File history"
+		: repositoryViews.find((item) => item.value === view)?.label;
 
 	const emptyListReady =
 		view === "changes" ||
@@ -295,7 +320,9 @@ export function RepositoryNavigation({
 			: view === "history"
 				? historySearching
 					? "Search results"
-					: "Recent commits"
+					: fileHistory
+						? "Commits"
+						: "Recent commits"
 				: "Saved work";
 
 	const readError =
@@ -345,7 +372,13 @@ export function RepositoryNavigation({
 		>
 			{(onMenu) => (
 				<RepositoryList
-					key={`${workspaceId}:${view}:${view === "changes" ? normalizedQuery : (state.history.query ?? "")}`}
+					key={JSON.stringify([
+						workspaceId,
+						view,
+						view === "changes" ? normalizedQuery : (state.history.query ?? ""),
+						fileHistory?.path,
+						fileHistory?.revision,
+					])}
 					entries={entries}
 					onContextMenu={
 						view === "history" && !state.preview ? onMenu : undefined
@@ -372,6 +405,7 @@ export function RepositoryNavigation({
 										onAction({ type: "include-files", ids, included }),
 									open: openFile,
 									editors: externalEditors,
+									history: (file) => onAction({ type: "history-file", file }),
 								}
 							: undefined
 					}
@@ -386,6 +420,7 @@ export function RepositoryNavigation({
 						emptyListReady &&
 						!filtering &&
 						!historySearching &&
+						!fileHistory &&
 						!state.preview &&
 						state.repository &&
 						!state.loading &&
@@ -543,6 +578,30 @@ export function RepositoryNavigation({
 					</Button>
 				) : null}
 			</div>
+			{fileHistory ? (
+				<div style={styles.fileHistory}>
+					<Button
+						testId="file-history-back"
+						aria-label="Back to all history"
+						variant="secondary"
+						size="sm"
+						tokens={appTokens}
+						disabled={state.loading || RepositoryWorkspaceModel.isBusy(state)}
+						onPress={() => {
+							setFilterOpen(false);
+							onAction({ type: "history-file", file: null });
+						}}
+					>
+						Back
+					</Button>
+					<text testId="file-history-path" style={styles.filePath}>
+						{fileHistory.path}
+						{fileHistory.revision
+							? ` · ${fileHistory.revision.slice(0, 7)}`
+							: ""}
+					</text>
+				</div>
+			) : null}
 			{searchable && (filterOpen || historySearching) ? (
 				<div
 					style={{
@@ -706,6 +765,9 @@ export function RepositoryNavigation({
 										disabled: !!revisionReader?.loadingFiles || !!state.error,
 										open: openFile,
 										editors: externalEditors,
+										history: RepositoryWorkspaceModel.isBusy(state)
+											? undefined
+											: (file) => onAction({ type: "history-file", file }),
 									}
 								: undefined
 						}

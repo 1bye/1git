@@ -195,7 +195,17 @@ export function RepositoryDiffEmpty({
 		) {
 			artwork = "search";
 			heading = "No matching commits";
-			hint = "Try another search or clear the filter to see all commits.";
+			hint = workspace.history.file
+				? "Try another search or clear the filter to see this file's history."
+				: "Try another search or clear the filter to see all commits.";
+		} else if (
+			view === "history" &&
+			workspace.history.file &&
+			!workspace.entries.history.length
+		) {
+			artwork = "history";
+			heading = "No commits for this file";
+			hint = "This file has no committed changes at the selected revision.";
 		} else if (revision?.filesLoaded && !revision.files.length) {
 			artwork = "file";
 			heading = "No file changes";

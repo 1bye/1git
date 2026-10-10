@@ -17,6 +17,12 @@ const historySearchBatchSize = 250;
 const commitDate = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
 const commitObjectId = /^(?:[a-f\d]{40}|[a-f\d]{64})$/iu;
 
+/** A literal file path, optionally anchored to a saved commit or stash rather than HEAD. */
+export interface FileHistoryScope {
+	readonly path: string;
+	readonly revision?: string;
+}
+
 /** Browser destination derived from a supported configured remote, not proof that a commit is published. */
 export interface CommitWebLink {
 	readonly label: "View on GitHub" | "View on GitLab";
@@ -97,7 +103,8 @@ export class RepositoryHistory {
 		head: string,
 		offset: number,
 		signal: AbortSignal,
-		query = ""
+		query = "",
+		file?: FileHistoryScope
 	): Promise<GitResult<CommitPage>> {
 		const opened = await GitRepository.open({ path: root, signal });
 
@@ -114,7 +121,8 @@ export class RepositoryHistory {
 			while (true) {
 				signal.throwIfAborted();
 				const page = await opened.value.getHistory({
-					revision: head,
+					revision: file?.revision ?? head,
+					filePath: file?.path,
 					offset: cursor,
 					limit: historySearchBatchSize,
 					signal,
@@ -149,7 +157,8 @@ export class RepositoryHistory {
 		}
 
 		return await opened.value.getHistory({
-			revision: head,
+			revision: file?.revision ?? head,
+			filePath: file?.path,
 			offset,
 			limit: historyPageSize,
 			signal,
@@ -215,7 +224,10 @@ export class RepositoryHistory {
 			title: commit.summary || "Untitled commit",
 			detail: `${commit.author.name} · ${formattedDate} · ${commit.oid.slice(0, 7)}`,
 			commit,
-			files: [],
+			files: commit.historyFile
+				? [RepositoryHistory.fileEntry(commit.historyFile, commit.oid)]
+				: [],
+			filesLoaded: commit.historyFile ? true : undefined,
 		};
 	}
 }

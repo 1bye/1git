@@ -88,6 +88,14 @@ for a selected path and `getFileContent({ path, source: { kind: "object", object
 for its immutable bytes. `getHistory({ revision, offset, limit })` can anchor pages
 to an OID independently of later HEAD or working-tree changes.
 
+`getHistory({ revision, filePath, offset, limit })` follows a literal single file
+across Git-detected renames along first-parent history. Each commit includes
+`historyFile` with the path and before/after blob IDs at that revision; merges
+compare against their first parent. Commit metadata retains actual parent IDs,
+not the simplified parents from path-limited logs. `filePath` cannot be combined
+with `paths`. Later pages replay the bounded prefix before slicing it because
+`--follow --skip` can lose rename state; very long file histories may take longer.
+
 ## One-shot authenticated cloning
 
 `clone({ path, remoteUrl, httpAuthentication: { username, password }, signal })`
