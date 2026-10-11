@@ -37,6 +37,19 @@ export interface CommitWebLink {
 export class RepositoryHistory {
 	private constructor() {}
 
+	/** Checks only loaded commit IDs against last-known remote branches, without network access. */
+	static async readUnpushed(
+		root: string,
+		oids: readonly string[],
+		signal: AbortSignal
+	): Promise<GitResult<readonly string[]>> {
+		const opened = await GitRepository.open({ path: root, signal });
+
+		return opened.ok
+			? await opened.value.getUnpushedCommits(oids, { signal })
+			: opened;
+	}
+
 	/** Reviews a local unpublished range without fetching or changing refs. */
 	static async readReorder(root: string, input: ReorderCommitsInput) {
 		const opened = await GitRepository.open({

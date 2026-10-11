@@ -1088,6 +1088,11 @@ the Turbo build/dev tasks build dependencies first. No Electron IPC is involved.
   the summary, author, authored date and short SHA. Scroll near the end for the
   next 50 commits. Pagination is anchored to that
   HEAD, so external commits cannot shift page offsets while browsing.
+- Unpushed commits have a muted up-arrow at the row's right edge, with reserved
+  space beside subjects/tags. Loaded IDs are checked together against all known
+  remote branches, including merge parents, without fetching. Push, fetch and
+  refresh recheck status even when HEAD is unchanged; failed reads offer Retry
+  instead of guessing. Another tool/device's push is only known after fetching.
 - Select a commit in the upper sidebar to read its changed paths and automatically
   preview its first changed file. Choose any other path below to inspect it.
   File lists are fetched on demand without loading

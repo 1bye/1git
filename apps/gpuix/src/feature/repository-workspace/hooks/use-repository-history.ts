@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { RepositoryHistory } from "../lib/repository-history";
 import { RepositoryTags } from "../lib/repository-tags";
@@ -10,6 +10,7 @@ import {
 } from "../lib/repository-workspace-model";
 
 const emptyTags: readonly TagInfo[] = [];
+const emptyUnpushed: ReadonlySet<string> = new Set();
 
 /** Loads only the active tab/view; completed pages and file lists live in workspace state. */
 export function useRepositoryHistory(
@@ -19,7 +20,8 @@ export function useRepositoryHistory(
 	readHistory = RepositoryHistory.read,
 	readFiles = RepositoryHistory.readFiles,
 	readTags = RepositoryTags.read,
-	readCount = RepositoryHistory.readCount
+	readCount = RepositoryHistory.readCount,
+	readUnpushed = RepositoryHistory.readUnpushed
 ) {
 	const active =
 		state?.view === "history" &&
@@ -74,6 +76,53 @@ export function useRepositoryHistory(
 	} | null>(null);
 
 	const [tagRetry, setTagRetry] = useState(0);
+
+	const commitIds = useMemo(
+		() => JSON.stringify(state?.entries.history.map((entry) => entry.id) ?? []),
+		[state?.entries.history]
+	);
+
+	const [publicationRead, setPublicationRead] = useState<{
+		key: string;
+		unpushed: ReadonlySet<string>;
+		error: string | null;
+	} | null>(null);
+
+	const [publicationRetry, setPublicationRetry] = useState(0);
+
+	useEffect(() => {
+		if (!tagKey || !root) return;
+
+		const oids: string[] = JSON.parse(commitIds);
+
+		if (!oids.length) return;
+
+		const controller = new AbortController();
+
+		const load = async (): Promise<void> => {
+			try {
+				const result = await readUnpushed(root, oids, controller.signal);
+
+				if (!controller.signal.aborted)
+					setPublicationRead({
+						key: tagKey,
+						unpushed: result.ok ? new Set(result.value) : emptyUnpushed,
+						error: result.ok ? null : result.error.message,
+					});
+			} catch {
+				if (!controller.signal.aborted)
+					setPublicationRead({
+						key: tagKey,
+						unpushed: emptyUnpushed,
+						error: "Could not read commit push status.",
+					});
+			}
+		};
+
+		void load();
+
+		return () => controller.abort();
+	}, [tagKey, root, commitIds, readUnpushed, publicationRetry]);
 
 	useEffect(() => {
 		if (!root || !head || !workspaceId || countKnown) return;
@@ -328,6 +377,13 @@ export function useRepositoryHistory(
 	}, [loadedFiles, filesError, loadFiles]);
 
 	return {
+		unpushed:
+			publicationRead?.key === tagKey
+				? publicationRead.unpushed
+				: emptyUnpushed,
+		publicationError:
+			publicationRead?.key === tagKey ? publicationRead.error : null,
+		retryPublication: () => setPublicationRetry((value) => value + 1),
 		tags: tagRead?.key === tagKey ? tagRead.tags : emptyTags,
 		tagsError: tagRead?.key === tagKey ? tagRead.error : null,
 		retryTags: () => setTagRetry((value) => value + 1),

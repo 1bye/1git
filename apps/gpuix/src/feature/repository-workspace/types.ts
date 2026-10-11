@@ -25,6 +25,8 @@ export interface WorkspaceEntry {
 	readonly detail?: string;
 	/** Mutable local labels attached to historical commits; never imply publication. */
 	readonly tags?: readonly TagInfo[];
+	/** Known to be absent from fetched remote branches; missing/false is not proof of publication. */
+	readonly unpushed?: boolean;
 	readonly status?: "M" | "A" | "D" | "R" | "C" | "U" | "T";
 	readonly statusDescription?: string;
 	/** Original Git status, present only for live Changes rows. */

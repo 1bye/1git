@@ -96,6 +96,12 @@ When `repository.info.isShallow` is true, the count is only locally available
 history, not a guaranteed complete branch total. Invalid/cancelled reads return
 structured errors rather than a misleading zero; handle unborn HEAD separately.
 
+`getUnpushedCommits(oids, { signal })` returns requested full commit IDs absent
+from every known remote-tracking branch, including merged ancestry. It checks
+loaded pages in bulk without fetching or changing refs/index/files. Local tags
+do not imply publication. Refetch/recheck after remote changes; invalid/missing
+objects and cancelled queries return structured errors, not guessed status.
+
 `getHistory({ revision, filePath, offset, limit })` follows a literal single file
 across Git-detected renames along first-parent history. Each commit includes
 `historyFile` with the path and before/after blob IDs at that revision; merges

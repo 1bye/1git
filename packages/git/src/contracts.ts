@@ -58,6 +58,7 @@ export type GitOperation =
 	| "get-config"
 	| "get-history"
 	| "get-history-count"
+	| "get-unpushed-commits"
 	| "get-remotes"
 	| "get-snapshot"
 	| "get-stashes"

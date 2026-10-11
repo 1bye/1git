@@ -142,6 +142,7 @@ function AppContent({
 	readDiff = DiffReader.read,
 	readHistory = RepositoryHistory.read,
 	readHistoryCount = RepositoryHistory.readCount,
+	readUnpushedCommits = RepositoryHistory.readUnpushed,
 	readCommitFiles = RepositoryHistory.readFiles,
 	readStashes = RepositoryStashes.read,
 	readStashFiles = RepositoryStashes.readFiles,
@@ -192,6 +193,7 @@ function AppContent({
 	readDiff?: typeof DiffReader.read;
 	readHistory?: typeof RepositoryHistory.read;
 	readHistoryCount?: typeof RepositoryHistory.readCount;
+	readUnpushedCommits?: typeof RepositoryHistory.readUnpushed;
 	readCommitFiles?: typeof RepositoryHistory.readFiles;
 	readStashes?: typeof RepositoryStashes.read;
 	readStashFiles?: typeof RepositoryStashes.readFiles;
@@ -641,7 +643,8 @@ function AppContent({
 		readHistory,
 		readCommitFiles,
 		readTags,
-		readHistoryCount
+		readHistoryCount,
+		readUnpushedCommits
 	);
 
 	const stashes = useRepositoryStashes(

@@ -24,6 +24,7 @@ import {
 import type { WorkspaceEntry } from "../types";
 import { RepositoryChangeLabel } from "./repository-change-details";
 import { RepositoryCommitSubject } from "./repository-commit-subject";
+import { WorkspaceTabIcon } from "../../workspace-tabs/components/workspace-tab-icon";
 
 import {
 	RepositoryFileMenu,
@@ -121,6 +122,16 @@ function RepositoryRow({
 	const { tokens: appTokens, colors: appColors } = theme;
 	const { styles } = themedStyles[theme.appearance];
 
+	const description = [
+		entry.detail,
+		entry.tags?.length
+			? `Tags: ${entry.tags.map((tag) => tag.name).join(", ")}`
+			: undefined,
+		entry.unpushed ? "Not pushed (based on last fetch)" : undefined,
+	]
+		.filter(Boolean)
+		.join(" · ");
+
 	const row = (onMenu?: (event: EventPayload) => void) => (
 		<div
 			role={onInclude ? "row" : "presentation"}
@@ -147,11 +158,7 @@ function RepositoryRow({
 						? `${entry.title}, ${entry.statusDescription ?? (entry.status === "A" ? "added" : entry.status === "D" ? "deleted" : "modified")}`
 						: entry.title
 				}
-				aria-description={
-					entry.tags?.length
-						? `${entry.detail ?? ""} · Tags: ${entry.tags.map((tag) => tag.name).join(", ")}`
-						: entry.detail
-				}
+				aria-description={description || undefined}
 				aria-selected={selected}
 				tabIndex={tabbable ? 0 : -1}
 				onClick={(event) => {
@@ -241,6 +248,17 @@ function RepositoryRow({
 						) : null}
 					</div>
 				)}
+				{entry.unpushed ? (
+					<div
+						style={{
+							flexShrink: 0,
+							marginLeft: spacing[2],
+							pointerEvents: "none",
+						}}
+					>
+						<WorkspaceTabIcon name="push" testId={`unpushed-${entry.id}`} />
+					</div>
+				) : null}
 			</div>
 			{onInclude ? (
 				<div role="gridcell" style={{ flexShrink: 0 }}>

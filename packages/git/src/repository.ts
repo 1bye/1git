@@ -151,6 +151,7 @@ const DISCARD_UNDO_TTL_MS = 15_000;
 const EMPTY_TREE_OID = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
 const MAX_DIFF_CONTEXT_LINES = 2_147_483_647;
 const MAX_HISTORY_LIMIT = 500;
+const COMMIT_OBJECT_ID = /^(?:[a-f\d]{40}|[a-f\d]{64})$/i;
 const MAX_HUNK_INDEX = 100_000;
 const MAX_CONFLICT_TEXT_BYTES = 512 * 1024;
 const CONFLICT_MARKER_LINE = /^(?:<{3,}|>{3,}|={3,}|\|{3,})(?:[ \t].*)?\r?$/m;
@@ -550,6 +551,68 @@ export class GitRepository {
 				revision,
 				filePath,
 			});
+		});
+	}
+
+	/** Returns requested commits absent from every known remote branch. Local refs only; never fetches. */
+	async getUnpushedCommits(
+		oids: readonly string[],
+		options: GitCallOptions = {}
+	): Promise<GitResult<readonly string[]>> {
+		return await this.read("get-unpushed-commits", async () => {
+			for (const oid of oids)
+				if (!COMMIT_OBJECT_ID.test(oid))
+					throw invalidInput(
+						"get-unpushed-commits",
+						"Commit IDs must be full hexadecimal object IDs."
+					);
+
+			const unique = [...new Set(oids.map((oid) => oid.toLowerCase()))];
+
+			if (!unique.length) return [];
+
+			const input = `${unique.join("\n")}\n`;
+
+			const objects = await this.context.process.run({
+				args: ["cat-file", "--batch-check=%(objecttype)"],
+				cwd: this.info.root,
+				stdin: input,
+				signal: options.signal,
+			});
+
+			if (
+				objects.stdout
+					.toString("utf8")
+					.trimEnd()
+					.split("\n")
+					.some((type) => type !== "commit")
+			)
+				throw invalidInput(
+					"get-unpushed-commits",
+					"Every object ID must identify an existing commit."
+				);
+
+			// Stdin mode avoids name-rev's date cutoff and argument limits, while returning only requested IDs.
+			const output = await this.context.process.run({
+				args: ["name-rev", "--annotate-stdin", "--refs=refs/remotes/*"],
+				cwd: this.info.root,
+				stdin: input,
+				signal: options.signal,
+			});
+
+			const names = output.stdout.toString("utf8").trimEnd().split("\n");
+
+			if (
+				names.length !== unique.length ||
+				names.some(
+					(name, index) =>
+						name !== unique[index] &&
+						!(name.startsWith(`${unique[index]} (`) && name.endsWith(")"))
+				)
+			)
+				throw new Error("Git returned incomplete commit publication metadata.");
+
+			return unique.filter((oid, index) => names[index] === oid);
 		});
 	}
 

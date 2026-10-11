@@ -254,7 +254,7 @@ export function RepositoryNavigation({
 	const fileHistory = view === "history" ? state.history.file : undefined;
 	const filtering = view === "changes" && normalizedQuery.length > 0;
 
-	const taggedHistory = useMemo(() => {
+	const decoratedHistory = useMemo(() => {
 		const byCommit = new Map<string, TagInfo[]>();
 
 		for (const tag of history?.tags ?? []) {
@@ -267,8 +267,9 @@ export function RepositoryNavigation({
 		return state.entries.history.map((entry) => ({
 			...entry,
 			tags: byCommit.get(entry.id),
+			unpushed: history?.unpushed.has(entry.id) ?? false,
 		}));
-	}, [history?.tags, state.entries.history]);
+	}, [history?.tags, history?.unpushed, state.entries.history]);
 
 	const entries = filtering
 		? state.entries.changes.filter(
@@ -279,7 +280,7 @@ export function RepositoryNavigation({
 					entry.title.toLowerCase().includes(normalizedQuery)
 			)
 		: view === "history"
-			? taggedHistory
+			? decoratedHistory
 			: state.entries[view];
 
 	useEffect(() => {
@@ -798,6 +799,15 @@ export function RepositoryNavigation({
 						error={`Tags unavailable. ${history.tagsError}`}
 						onPress={history.retryTags}
 						label="Retry tags"
+					/>
+				) : null}
+				{view === "history" && history?.publicationError ? (
+					<RepositoryReadNotice
+						testId="retry-history-publication"
+						loading={false}
+						error={`Push status unavailable. ${history.publicationError}`}
+						onPress={history.retryPublication}
+						label="Retry push status"
 					/>
 				) : null}
 				{view === "changes" || historySearching || fileHistory ? (
