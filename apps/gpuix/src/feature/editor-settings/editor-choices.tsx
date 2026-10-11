@@ -1,6 +1,7 @@
+import { useAppTheme } from "../../styles/theme";
 import { spacing, typography } from "@1git/design-tokens";
 import { Button } from "@1git/gpuix-ui/button";
-import { appTokens } from "../../styles/tokens";
+
 import { WorkspaceTabIcon } from "../workspace-tabs/components/workspace-tab-icon";
 import type { EditorApplication } from "./external-editors";
 
@@ -18,6 +19,9 @@ export function EditorChoices({
 	prefix?: string;
 	onChoose: (path: string | null) => void;
 }) {
+	const theme = useAppTheme();
+	const { tokens: appTokens } = theme;
+
 	return (
 		<div
 			role="group"

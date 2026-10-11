@@ -1,3 +1,4 @@
+import { useAppTheme } from "../../../styles/theme";
 import { spacing, typography } from "@1git/design-tokens";
 import { Button } from "@1git/gpuix-ui/button";
 import { Popover, PopoverContent } from "@1git/gpuix-ui/popover";
@@ -14,7 +15,7 @@ import type {
 } from "@1git/git";
 import { useGpuixRequired, type EventPayload } from "@gpuix/react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { appTokens } from "../../../styles/tokens";
+
 import { NativeBrowser } from "../../../platform/browser";
 import { NativeClipboard } from "../../../platform/clipboard";
 import { NativeFileMenu, type NativeMenuItem } from "../lib/native-file-menu";
@@ -104,6 +105,9 @@ export function RepositoryRevert({
 		onMenu: (entry: WorkspaceEntry, event: EventPayload) => void
 	) => ReactNode;
 }) {
+	const theme = useAppTheme();
+	const { tokens: appTokens } = theme;
+
 	const renderer = useGpuixRequired();
 	const tracking = useRef(false);
 	const menuRequest = useRef<AbortController | null>(null);

@@ -1,8 +1,9 @@
+import { createThemedStyles, useAppTheme } from "../../styles/theme";
 import { spacing, typography, fontWeight, radius } from "@1git/design-tokens";
 import { ChoiceTile as AccountChoiceTile } from "../../fixture/choice-tile";
 import { Button } from "@1git/gpuix-ui/button";
 import { useState, type ReactNode } from "react";
-import { appTokens } from "../../styles/tokens";
+
 import type { SavedAccount } from "./lib/account-store";
 import { accountProviderIcons } from "./account-provider-icons";
 import {
@@ -23,13 +24,18 @@ const icons = {
 };
 
 const column = { display: "flex", flexDirection: "column", gap: spacing[1.5] };
-const detail = { ...typography.sm, color: appTokens.colors.textMuted };
 
-const title = {
-	...typography.md,
-	color: appTokens.colors.text,
-	fontWeight: fontWeight.medium,
-};
+const themedStyles = createThemedStyles(({ tokens: appTokens }) => {
+	const detail = { ...typography.sm, color: appTokens.colors.textMuted };
+
+	const title = {
+		...typography.md,
+		color: appTokens.colors.text,
+		fontWeight: fontWeight.medium,
+	};
+
+	return { detail, title };
+});
 
 /** Small, keyboard-activatable provider cells; unsupported providers open a contribution/request draft. */
 export function AccountProviderChoices({
@@ -132,6 +138,9 @@ export function AccountSetupSection({
 	label: string;
 	children: ReactNode;
 }) {
+	const theme = useAppTheme();
+	const { title } = themedStyles[theme.appearance];
+
 	return (
 		<div style={{ ...column, flexShrink: 0 }}>
 			<text style={title}>{label}</text>
@@ -153,6 +162,10 @@ function AccountSetupValue({
 	disabled: boolean;
 	copyText: (value: string) => Promise<void>;
 }) {
+	const theme = useAppTheme();
+	const { tokens: appTokens } = theme;
+	const { detail } = themedStyles[theme.appearance];
+
 	const [result, setResult] = useState<"copying" | "copied" | "error">();
 
 	const copy = async () => {
@@ -248,6 +261,10 @@ export function AccountConnectionGuide({
 	onOpen: (url: string) => void;
 	copyText: (value: string) => Promise<void>;
 }) {
+	const theme = useAppTheme();
+	const { tokens: appTokens } = theme;
+	const { detail } = themedStyles[theme.appearance];
+
 	const setupUrl = accountSetupUrl(
 		provider,
 		host,

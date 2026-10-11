@@ -1,3 +1,4 @@
+import { useAppTheme } from "../../../styles/theme";
 import { radius, spacing, typography } from "@1git/design-tokens";
 import { Button } from "@1git/gpuix-ui/button";
 import { Text } from "@1git/gpuix-ui/text";
@@ -23,7 +24,7 @@ import {
 	RepositoryWorkspaceModel,
 	type RepositoryWorkspaceState,
 } from "../lib/repository-workspace-model";
-import { appTokens } from "../../../styles/tokens";
+
 import { RepositoryTags } from "../lib/repository-tags";
 
 /** Captures the commit or tag selected in History, so later selection cannot change the write. */
@@ -53,6 +54,9 @@ export function RepositoryTag({
 	onCancel: () => void;
 	onFinished: () => void;
 }) {
+	const theme = useAppTheme();
+	const { tokens: appTokens } = theme;
+
 	const [name, setName] = useState("");
 	const [message, setMessage] = useState("");
 	const [remotes, setRemotes] = useState<readonly RemoteInfo[] | null>(null);

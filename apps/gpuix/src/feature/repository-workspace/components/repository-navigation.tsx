@@ -1,10 +1,10 @@
+import { createThemedStyles, useAppTheme } from "../../../styles/theme";
 import {
 	spacing,
 	typography,
 	fontWeight,
 	iconSize,
 	radius,
-	lightColors,
 } from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { Checkbox } from "@1git/gpuix-ui/checkbox";
@@ -24,7 +24,7 @@ import { EmptyListPlaceholder } from "../../../fixture/empty-list-placeholder";
 import { StateMessage } from "../../../fixture/state-message";
 import { RepositoryCommit } from "./repository-commit";
 import { RepositoryRevisions } from "./repository-revisions";
-import { appTokens } from "../../../styles/tokens";
+
 import type { useRepositoryHistory } from "../hooks/use-repository-history";
 import type { useRepositoryStashes } from "../hooks/use-repository-stashes";
 import { RepositoryReadNotice } from "./repository-read-notice";
@@ -57,81 +57,85 @@ import type { RepositoryHistorySquash } from "../lib/repository-history-squash";
 
 const sidebarBorderWidth = 1;
 
-const styles = StyleSheet.create({
-	navigation: {
-		display: "flex",
-		flexDirection: "column",
-		width: 310,
-		flexShrink: 0,
-		minHeight: 0,
-		borderRightWidth: sidebarBorderWidth,
-		borderColor: lightColors.editorHairline,
-	},
-	toolbar: {
-		display: "flex",
-		flexDirection: "row",
-		alignItems: "center",
-		height: 36,
-		flexShrink: 0,
-		paddingLeft: spacing[1.5],
-		paddingRight: spacing[2],
-		gap: spacing[1],
-	},
-	viewContent: {
-		display: "flex",
-		flexDirection: "column",
-		flexGrow: 1,
-		minHeight: 0,
-	},
-	header: {
-		display: "flex",
-		flexDirection: "row",
-		alignItems: "center",
-		justifyContent: "space-between",
-		height: 24,
-		paddingLeft: spacing[3.5],
-		// The header includes the separator; file-row content bounds do not.
-		paddingRight: spacing[3] - sidebarBorderWidth,
-		flexShrink: 0,
-	},
-	muted: { ...typography.xs, color: lightColors.editorMuted },
-	fileHistory: {
-		display: "flex",
-		flexDirection: "row",
-		alignItems: "center",
-		flexShrink: 0,
-		gap: spacing[1],
-		paddingLeft: spacing[2],
-		paddingRight: spacing[2],
-		paddingBottom: spacing[1],
-	},
-	filePath: {
-		...typography.xs,
-		color: lightColors.editorMuted,
-		minWidth: 0,
-		flexGrow: 1,
-		whiteSpace: "nowrap",
-		textOverflow: "ellipsis",
-		overflowX: "hidden",
-	},
-	stashActions: {
-		display: "flex",
-		flexDirection: "row",
-		justifyContent: "space-between",
-		alignItems: "flex-start",
-		flexShrink: 0,
-	},
-	footer: {
-		height: 32,
-		display: "flex",
-		flexDirection: "row",
-		justifyContent: "space-between",
-		alignItems: "center",
-		paddingLeft: spacing[3.5],
-		paddingRight: spacing[3.5],
-		flexShrink: 0,
-	},
-	faint: { ...typography["2xs"], color: lightColors.editorFaint },
+const themedStyles = createThemedStyles(({ colors: appColors }) => {
+	const styles = StyleSheet.create({
+		navigation: {
+			display: "flex",
+			flexDirection: "column",
+			width: 310,
+			flexShrink: 0,
+			minHeight: 0,
+			borderRightWidth: sidebarBorderWidth,
+			borderColor: appColors.editorHairline,
+		},
+		toolbar: {
+			display: "flex",
+			flexDirection: "row",
+			alignItems: "center",
+			height: 36,
+			flexShrink: 0,
+			paddingLeft: spacing[1.5],
+			paddingRight: spacing[2],
+			gap: spacing[1],
+		},
+		viewContent: {
+			display: "flex",
+			flexDirection: "column",
+			flexGrow: 1,
+			minHeight: 0,
+		},
+		header: {
+			display: "flex",
+			flexDirection: "row",
+			alignItems: "center",
+			justifyContent: "space-between",
+			height: 24,
+			paddingLeft: spacing[3.5],
+			// The header includes the separator; file-row content bounds do not.
+			paddingRight: spacing[3] - sidebarBorderWidth,
+			flexShrink: 0,
+		},
+		muted: { ...typography.xs, color: appColors.editorMuted },
+		fileHistory: {
+			display: "flex",
+			flexDirection: "row",
+			alignItems: "center",
+			flexShrink: 0,
+			gap: spacing[1],
+			paddingLeft: spacing[2],
+			paddingRight: spacing[2],
+			paddingBottom: spacing[1],
+		},
+		filePath: {
+			...typography.xs,
+			color: appColors.editorMuted,
+			minWidth: 0,
+			flexGrow: 1,
+			whiteSpace: "nowrap",
+			textOverflow: "ellipsis",
+			overflowX: "hidden",
+		},
+		stashActions: {
+			display: "flex",
+			flexDirection: "row",
+			justifyContent: "space-between",
+			alignItems: "flex-start",
+			flexShrink: 0,
+		},
+		footer: {
+			height: 32,
+			display: "flex",
+			flexDirection: "row",
+			justifyContent: "space-between",
+			alignItems: "center",
+			paddingLeft: spacing[3.5],
+			paddingRight: spacing[3.5],
+			flexShrink: 0,
+		},
+		faint: { ...typography["2xs"], color: appColors.editorFaint },
+	});
+
+	return { styles };
 });
 
 function emptyListMessage(state: RepositoryWorkspaceState): string {
@@ -228,6 +232,10 @@ export function RepositoryNavigation({
 	externalEditors?: ExternalEditors;
 	onPreviewIntent?: (entry: WorkspaceEntry | null) => void;
 }) {
+	const theme = useAppTheme();
+	const { tokens: appTokens, colors: appColors } = theme;
+	const { styles } = themedStyles[theme.appearance];
+
 	const renderer = useGpuixRequired();
 	const { view } = state;
 	const [filterOpen, setFilterOpen] = useState(false);
@@ -513,7 +521,7 @@ export function RepositoryNavigation({
 					style={{
 						...typography.md,
 						fontWeight: fontWeight.medium,
-						color: lightColors.editorInk,
+						color: appColors.editorInk,
 						paddingLeft: spacing[2],
 					}}
 				>
@@ -543,7 +551,7 @@ export function RepositoryNavigation({
 							style={{
 								width: iconSize.sm,
 								height: iconSize.sm,
-								color: lightColors.editorMuted,
+								color: appColors.editorMuted,
 								pointerEvents: "none",
 							}}
 						/>
@@ -584,8 +592,8 @@ export function RepositoryNavigation({
 								height: iconSize.sm,
 								color:
 									filterOpen || historySearching
-										? lightColors.brand
-										: lightColors.editorMuted,
+										? appColors.brand
+										: appColors.editorMuted,
 								pointerEvents: "none",
 							}}
 						/>
@@ -653,7 +661,7 @@ export function RepositoryNavigation({
 							borderWidth: 1,
 							borderColor: appTokens.colors.border,
 							borderRadius: radius.md,
-							color: lightColors.editorInk,
+							color: appColors.editorInk,
 						}}
 						onChange={(event) => {
 							if (view === "history") {

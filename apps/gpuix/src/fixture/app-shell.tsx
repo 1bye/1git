@@ -1,46 +1,52 @@
-import { spacing, lightColors, workspaceLayout } from "@1git/design-tokens";
+import { createThemedStyles, useAppTheme } from "../styles/theme";
+import { spacing, workspaceLayout } from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import type { ReactNode, Ref } from "react";
 import type { PublicInstance } from "@gpuix/react";
 
-const styles = StyleSheet.create({
-	root: {
-		display: "flex",
-		flexDirection: "column",
-		width: "100%",
-		height: "100%",
-		flexShrink: 0,
-		// AppKit owns the sidebar tint; only the workspace paints an opaque surface.
-		backgroundColor: "transparent",
-		userSelect: "none",
-	},
-	content: {
-		display: "flex",
-		flexDirection: "column",
-		flexGrow: 1,
-		minWidth: 0,
-		minHeight: 0,
-	},
-	body: {
-		display: "flex",
-		flexDirection: "row",
-		flexGrow: 1,
-		minHeight: 0,
-	},
-	workspace: {
-		display: "flex",
-		flexDirection: "row",
-		flexGrow: 1,
-		minWidth: 0,
-		minHeight: 0,
-		marginLeft: workspaceLayout.workspaceSurfaceInset,
-		marginRight: workspaceLayout.workspaceSurfaceInset,
-		marginBottom: workspaceLayout.workspaceSurfaceInset,
-		borderRadius: workspaceLayout.workspaceSurfaceRadius,
-		backgroundColor: lightColors.editorSurface,
-		overflowX: "hidden",
-		overflowY: "hidden",
-	},
+const themedStyles = createThemedStyles(({ colors: appColors }) => {
+	const styles = StyleSheet.create({
+		root: {
+			display: "flex",
+			flexDirection: "column",
+			width: "100%",
+			height: "100%",
+			flexShrink: 0,
+			// AppKit owns the blurred material in both appearances; never paint over it.
+			backgroundColor: appColors.chrome,
+			color: appColors.editorInk,
+			userSelect: "none",
+		},
+		content: {
+			display: "flex",
+			flexDirection: "column",
+			flexGrow: 1,
+			minWidth: 0,
+			minHeight: 0,
+		},
+		body: {
+			display: "flex",
+			flexDirection: "row",
+			flexGrow: 1,
+			minHeight: 0,
+		},
+		workspace: {
+			display: "flex",
+			flexDirection: "row",
+			flexGrow: 1,
+			minWidth: 0,
+			minHeight: 0,
+			marginLeft: workspaceLayout.workspaceSurfaceInset,
+			marginRight: workspaceLayout.workspaceSurfaceInset,
+			marginBottom: workspaceLayout.workspaceSurfaceInset,
+			borderRadius: workspaceLayout.workspaceSurfaceRadius,
+			backgroundColor: appColors.editorSurface,
+			overflowX: "hidden",
+			overflowY: "hidden",
+		},
+	});
+
+	return { styles };
 });
 
 /** Native chrome composition; only the content surface is opaque. */
@@ -63,6 +69,9 @@ export function AppShell({
 	testId?: string;
 	ref?: Ref<PublicInstance>;
 }) {
+	const theme = useAppTheme();
+	const { styles } = themedStyles[theme.appearance];
+
 	return (
 		<div
 			ref={ref}

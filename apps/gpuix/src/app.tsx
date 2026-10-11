@@ -1,11 +1,15 @@
+import { AppThemeContext, appThemes, useAppTheme } from "./styles/theme";
+import type { AppAppearance } from "./styles/tokens";
 import { spacing, typography } from "@1git/design-tokens";
 import {
 	useCallback,
 	useEffect,
+	useLayoutEffect,
 	useMemo,
 	useReducer,
 	useState,
 	useRef,
+	type ComponentProps,
 } from "react";
 import { RepositoryPreviewCache } from "./feature/repository-workspace/lib/repository-preview-cache";
 import { RepositoryAvatars } from "./feature/repository-workspace/lib/repository-avatars";
@@ -25,7 +29,7 @@ import { settingsShortcuts } from "./feature/accounts/lib/settings-shortcut";
 import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
 import { workspaceShortcuts } from "./feature/repository-workspace/lib/repository-filter-shortcut";
 import { Button } from "@1git/gpuix-ui/button";
-import { appTokens } from "./styles/tokens";
+
 import {
 	WorkspaceSession,
 	type WorkspaceSessionDocument,
@@ -82,8 +86,37 @@ import { RepositoryPullRequest } from "./feature/repository-pull-request/reposit
 import { RepositoryPullRequestView } from "./feature/repository-pull-request/repository-pull-request-view";
 import { RepositoryHistorySquash } from "./feature/repository-workspace/lib/repository-history-squash";
 
+/** Owns appearance independently of repository state, so a live switch preserves every draft and viewport. */
+export function App(props: ComponentProps<typeof AppContent>) {
+	const renderer = useGpuixRequired();
+
+	const [appearance, setAppearance] = useState<AppAppearance>(
+		props.initialSession?.appearance ?? "light"
+	);
+
+	useLayoutEffect(() => {
+		// TestRenderer has no OS window; the production addon is pinned by native/preload.ts.
+		if (
+			"setWindowAppearance" in renderer &&
+			typeof renderer.setWindowAppearance === "function"
+		)
+			renderer.setWindowAppearance(appearance);
+	}, [renderer, appearance]);
+
+	const theme = useMemo(
+		() => ({ ...appThemes[appearance], setAppearance }),
+		[appearance]
+	);
+
+	return (
+		<AppThemeContext value={theme}>
+			<AppContent {...props} />
+		</AppThemeContext>
+	);
+}
+
 /** Owns one window's workspaces, cancellable reads and explicit commit transactions. */
-export function App({
+function AppContent({
 	accounts: suppliedAccounts,
 	remoteAccounts: suppliedRemoteAccounts,
 	avatars: suppliedAvatars,
@@ -182,6 +215,9 @@ export function App({
 	readGitSettings?: typeof GitSettingsModel.read;
 	writeGitSettings?: typeof GitSettingsModel.write;
 }) {
+	const theme = useAppTheme();
+	const { tokens: appTokens } = theme;
+
 	const renderer = useGpuixRequired();
 
 	const [externalEditors] = useState(
@@ -349,7 +385,8 @@ export function App({
 		state,
 		saveSession,
 		preview ? undefined : sessionError,
-		diffSettings
+		diffSettings,
+		theme.appearance
 	);
 
 	const connection = useRepositoryConnection(

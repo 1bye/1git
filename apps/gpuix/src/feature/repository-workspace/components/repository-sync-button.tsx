@@ -1,7 +1,7 @@
+import { useAppTheme } from "../../../styles/theme";
 import {
 	controlSize,
 	iconSize,
-	lightColors,
 	radius,
 	spacing,
 	typography,
@@ -15,7 +15,7 @@ import {
 } from "@1git/gpuix-ui/tooltip";
 import { useEffect, useRef, useState } from "react";
 import { useGpuixRequired, type EventPayload } from "@gpuix/react";
-import { appTokens } from "../../../styles/tokens";
+
 import { WorkspaceTabIcon } from "../../workspace-tabs/components/workspace-tab-icon";
 import {
 	RepositoryBranches,
@@ -61,6 +61,9 @@ export function RepositorySyncButton({
 	onRemotes: () => void;
 	resumePublish?: boolean;
 }) {
+	const theme = useAppTheme();
+	const { tokens: appTokens, colors: appColors } = theme;
+
 	const renderer = useGpuixRequired();
 	const tracking = useRef(false);
 	const repository = state.repository;
@@ -453,7 +456,7 @@ export function RepositorySyncButton({
 							padding: 0,
 							borderWidth: 0,
 							borderRadius: radius.lg,
-							hover: { backgroundColor: lightColors.editorHairline },
+							hover: { backgroundColor: appColors.editorHairline },
 						}}
 					>
 						<WorkspaceTabIcon
@@ -464,8 +467,8 @@ export function RepositorySyncButton({
 								issue
 									? appTokens.colors.danger
 									: pending
-										? lightColors.brand
-										: lightColors.editorMuted
+										? appColors.brand
+										: appColors.editorMuted
 							}
 						/>
 						{incoming > 0 ? (
@@ -480,8 +483,8 @@ export function RepositorySyncButton({
 									paddingLeft: spacing[0.5],
 									paddingRight: spacing[0.5],
 									borderRadius: radius.xs,
-									backgroundColor: lightColors.editorSurface,
-									color: lightColors.editorMuted,
+									backgroundColor: appColors.editorSurface,
+									color: appColors.editorMuted,
 									pointerEvents: "none",
 								}}
 							>
@@ -500,8 +503,8 @@ export function RepositorySyncButton({
 									paddingLeft: spacing[0.5],
 									paddingRight: spacing[0.5],
 									borderRadius: radius.xs,
-									backgroundColor: lightColors.editorSurface,
-									color: lightColors.editorMuted,
+									backgroundColor: appColors.editorSurface,
+									color: appColors.editorMuted,
 									pointerEvents: "none",
 								}}
 							>
@@ -519,7 +522,7 @@ export function RepositorySyncButton({
 									left: spacing[2],
 									right: spacing[2],
 									height: 2,
-									backgroundColor: lightColors.brand,
+									backgroundColor: appColors.brand,
 									pointerEvents: "none",
 								}}
 							/>
@@ -581,7 +584,7 @@ export function RepositorySyncButton({
 							<text
 								role="heading"
 								aria-level={2}
-								style={{ ...typography.lg, color: lightColors.editorInk }}
+								style={{ ...typography.lg, color: appColors.editorInk }}
 							>
 								{accountAccess
 									? "Repository access needed"
@@ -600,7 +603,7 @@ export function RepositorySyncButton({
 								color:
 									issue && !accountAccess
 										? appTokens.colors.danger
-										: lightColors.editorMuted,
+										: appColors.editorMuted,
 							}}
 							role={issue ? "alert" : "status"}
 						>
@@ -620,9 +623,7 @@ export function RepositorySyncButton({
 														"Remote status is up to date."))}
 						</text>
 						{fetched && !accountAccess ? (
-							<text
-								style={{ ...typography.xs, color: lightColors.editorMuted }}
-							>
+							<text style={{ ...typography.xs, color: appColors.editorMuted }}>
 								{fetched}
 							</text>
 						) : null}

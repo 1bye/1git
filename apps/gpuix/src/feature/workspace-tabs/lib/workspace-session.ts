@@ -1,4 +1,5 @@
 import { basename, isAbsolute } from "node:path";
+import type { AppAppearance } from "../../../styles/tokens";
 import { RepositoryWorkspaceModel } from "../../repository-workspace/lib/repository-workspace-model";
 import type { WorkspaceTabsState } from "./workspace-tabs-model";
 import type { RepositoryView } from "../../repository-workspace/types";
@@ -30,6 +31,7 @@ export interface WorkspaceSessionDocument {
 	readonly activeId: string | null;
 	readonly recentRepositories?: readonly string[];
 	readonly diffSettings?: DiffSettings;
+	readonly appearance?: AppAppearance;
 }
 
 const tabIdPattern = /^workspace-([1-9]\d*)$/;
@@ -144,6 +146,9 @@ export class WorkspaceSession {
 		return {
 			version: 1,
 			tabs,
+			...(value.appearance === "light" || value.appearance === "dark"
+				? { appearance: value.appearance }
+				: {}),
 			...(diffSettings ? { diffSettings } : {}),
 			...(Array.isArray(value.recentRepositories)
 				? {
@@ -170,10 +175,12 @@ export class WorkspaceSession {
 
 	static capture(
 		state: WorkspaceTabsState,
-		diffSettings?: DiffSettings
+		diffSettings?: DiffSettings,
+		appearance?: AppAppearance
 	): WorkspaceSessionDocument {
 		return {
 			version: 1,
+			...(appearance ? { appearance } : {}),
 			...(diffSettings ? { diffSettings } : {}),
 			...(state.recentRepositories !== undefined
 				? { recentRepositories: state.recentRepositories }

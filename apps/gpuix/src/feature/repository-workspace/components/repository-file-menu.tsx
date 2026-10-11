@@ -1,8 +1,9 @@
+import { useAppTheme } from "../../../styles/theme";
 import { typography, spacing } from "@1git/design-tokens";
 import { useRef, useState, type ReactNode } from "react";
 import { useGpuixRequired, type EventPayload } from "@gpuix/react";
 import { GitIgnore, type IgnoreRule } from "@1git/git";
-import { appTokens } from "../../../styles/tokens";
+
 import {
 	RepositoryFileActions,
 	type FileDiscardRequest,
@@ -70,6 +71,9 @@ export function RepositoryFileMenu({
 	actions: FileMenuActions;
 	children: (openMenu: (event: EventPayload) => void) => ReactNode;
 }) {
+	const theme = useAppTheme();
+	const { tokens: appTokens } = theme;
+
 	const renderer = useGpuixRequired();
 	const pending = useRef(false);
 	const [error, setError] = useState<string | null>(null);

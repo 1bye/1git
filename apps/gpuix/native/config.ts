@@ -99,6 +99,14 @@ export const roundedOverflowPlatformPatchPath = resolve(
 	import.meta.dir,
 	"rounded-overflow-platform.patch"
 );
+export const windowAppearancePatchPath = resolve(
+	import.meta.dir,
+	"window-appearance.patch"
+);
+export const windowAppearancePlatformPatchPath = resolve(
+	import.meta.dir,
+	"window-appearance-platform.patch"
+);
 /** Changing the patch, revision, or host invalidates the local binary. */
 export const accountsPatchPath = resolve(import.meta.dir, "accounts.patch");
 export const accountsPlatformPatchPath = resolve(
@@ -130,6 +138,8 @@ export const nativeBuildId = createHash("sha256")
 	.update(readFileSync(anchoredCenterPatchPath))
 	.update(readFileSync(sidebarVibrancyPlatformPatchPath))
 	.update(readFileSync(roundedOverflowPlatformPatchPath))
+	.update(readFileSync(windowAppearancePatchPath))
+	.update(readFileSync(windowAppearancePlatformPatchPath))
 	.update(readFileSync(accountsPatchPath))
 	.update(readFileSync(accountsPlatformPatchPath))
 	.update(readFileSync(contextMenuIconsPatchPath))

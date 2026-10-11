@@ -1,9 +1,9 @@
+import { createThemedStyles, useAppTheme } from "../../../styles/theme";
 import {
 	radius as cornerRadius,
 	typography,
 	fontWeight,
 	spacing,
-	lightColors,
 } from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { Button } from "@1git/gpuix-ui/button";
@@ -22,7 +22,6 @@ import {
 	type ReactNode,
 } from "react";
 
-import { appTokens } from "../../../styles/tokens";
 import { workspaceLayout as layout } from "../../../styles/workspace-layout";
 import type { WorkspaceTabRecord } from "../lib/workspace-tabs-model";
 import { WorkspaceTabIcon } from "./workspace-tab-icon";
@@ -38,14 +37,12 @@ const triggerBorderWidth = 1;
 // Curved shoulders extend beyond the visual body without consuming content space.
 const surfaceWidth = width + surfaceOutset * 2;
 
-function connectedTabSurface(tabWidth: number): string {
+function connectedTabSurface(tabWidth: number, color: string): string {
 	const paintedWidth = tabWidth + surfaceOutset * 2;
 	const outline = `M0 ${height} Q${shoulder} ${height} ${shoulder} ${height - shoulder} V${radius} Q${shoulder} 0 ${shoulder + radius} 0 H${paintedWidth - shoulder - radius} Q${paintedWidth - shoulder} 0 ${paintedWidth - shoulder} ${radius} V${height - shoulder} Q${paintedWidth - shoulder} ${height} ${paintedWidth} ${height}`;
 
-	return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${paintedWidth} ${height}"><path d="${outline} Z" fill="${lightColors.editorSurface}"/></svg>`;
+	return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${paintedWidth} ${height}"><path d="${outline} Z" fill="${color}"/></svg>`;
 }
-
-const activeSurface = connectedTabSurface(width);
 
 // Match Electron's OverflowingLabel: pause, reveal the suffix, and return on leave.
 const marquee = {
@@ -57,95 +54,107 @@ const marquee = {
 	overflowTolerance: 1,
 } as const;
 
-const styles = StyleSheet.create({
-	frame: { position: "absolute", top: 0, width, height, pointerEvents: "none" },
-	root: { position: "relative", width, height, flexShrink: 0 },
-	surface: {
-		color: lightColors.editorSurface,
-		position: "absolute",
-		top: 0,
-		left: -surfaceOutset,
-		width: surfaceWidth,
-		height,
-		pointerEvents: "none",
-	},
-	hover: {
-		position: "absolute",
-		top: 0,
-		left: visualInset,
-		width: width - visualInset * 2,
-		height: layout.tabContentInsetTop * 2 + layout.tabCloseSize,
-		borderRadius: radius,
-		backgroundColor: lightColors.editorHairline,
-		pointerEvents: "none",
-	},
-	content: {
-		position: "absolute",
-		top: layout.tabContentInsetTop,
-		left: visualInset,
-		width: width - visualInset * 2,
-		height: layout.tabCloseSize,
-		display: "flex",
-		flexDirection: "row",
-		alignItems: "center",
-		gap: layout.tabContentGap,
-		paddingLeft: layout.tabContentInsetInlineStart - triggerBorderWidth,
-		paddingRight: layout.tabContentInsetTop,
-	},
-	trigger: {
-		display: "flex",
-		flexDirection: "row",
-		alignItems: "center",
-		gap: layout.tabContentGap,
-		flexGrow: 1,
-		flexShrink: 1,
-		minWidth: 0,
-		height: layout.tabCloseSize,
-		borderWidth: triggerBorderWidth,
-		borderColor: "transparent",
-		borderRadius: cornerRadius.md,
-		cursor: "pointer",
-	},
-	label: {
-		display: "flex",
-		flexDirection: "row",
-		alignItems: "center",
-		flexShrink: 1,
-		minWidth: 0,
-		overflow: "hidden",
-		whiteSpace: "nowrap",
-	},
-	labelTrack: {
-		position: "relative",
-		display: "flex",
-		flexDirection: "row",
-		alignItems: "center",
-		flexShrink: 0,
-	},
-	name: (active: boolean) => ({
-		flexShrink: 1,
-		minWidth: 0,
-		...typography.sm,
-		whiteSpace: "nowrap",
-		textOverflow: "ellipsis",
-		color: active ? lightColors.editorInk : lightColors.editorMuted,
-		fontWeight: fontWeight.medium,
-	}),
-	branch: {
-		flexShrink: 0,
-		...typography.sm,
-		fontWeight: fontWeight.regular,
-		color: lightColors.editorMuted,
-		whiteSpace: "nowrap",
-	},
-	close: {
-		width: layout.tabCloseSize,
-		height: layout.tabCloseSize,
-		flexShrink: 0,
-		paddingLeft: spacing[0],
-		paddingRight: spacing[0],
-		hover: { backgroundColor: lightColors.editorHairline },
-	},
+const themedStyles = createThemedStyles(({ colors: appColors }) => {
+	const activeSurface = connectedTabSurface(width, appColors.editorSurface);
+
+	const styles = StyleSheet.create({
+		frame: {
+			position: "absolute",
+			top: 0,
+			width,
+			height,
+			pointerEvents: "none",
+		},
+		root: { position: "relative", width, height, flexShrink: 0 },
+		surface: {
+			color: appColors.editorSurface,
+			position: "absolute",
+			top: 0,
+			left: -surfaceOutset,
+			width: surfaceWidth,
+			height,
+			pointerEvents: "none",
+		},
+		hover: {
+			position: "absolute",
+			top: 0,
+			left: visualInset,
+			width: width - visualInset * 2,
+			height: layout.tabContentInsetTop * 2 + layout.tabCloseSize,
+			borderRadius: radius,
+			backgroundColor: appColors.editorHairline,
+			pointerEvents: "none",
+		},
+		content: {
+			position: "absolute",
+			top: layout.tabContentInsetTop,
+			left: visualInset,
+			width: width - visualInset * 2,
+			height: layout.tabCloseSize,
+			display: "flex",
+			flexDirection: "row",
+			alignItems: "center",
+			gap: layout.tabContentGap,
+			paddingLeft: layout.tabContentInsetInlineStart - triggerBorderWidth,
+			paddingRight: layout.tabContentInsetTop,
+		},
+		trigger: {
+			display: "flex",
+			flexDirection: "row",
+			alignItems: "center",
+			gap: layout.tabContentGap,
+			flexGrow: 1,
+			flexShrink: 1,
+			minWidth: 0,
+			height: layout.tabCloseSize,
+			borderWidth: triggerBorderWidth,
+			borderColor: "transparent",
+			borderRadius: cornerRadius.md,
+			cursor: "pointer",
+		},
+		label: {
+			display: "flex",
+			flexDirection: "row",
+			alignItems: "center",
+			flexShrink: 1,
+			minWidth: 0,
+			overflow: "hidden",
+			whiteSpace: "nowrap",
+		},
+		labelTrack: {
+			position: "relative",
+			display: "flex",
+			flexDirection: "row",
+			alignItems: "center",
+			flexShrink: 0,
+		},
+		name: (active: boolean) => ({
+			flexShrink: 1,
+			minWidth: 0,
+			...typography.sm,
+			whiteSpace: "nowrap",
+			textOverflow: "ellipsis",
+			color: active ? appColors.editorInk : appColors.editorMuted,
+			fontWeight: fontWeight.medium,
+		}),
+		branch: {
+			flexShrink: 0,
+			...typography.sm,
+			fontWeight: fontWeight.regular,
+			color: appColors.editorMuted,
+			whiteSpace: "nowrap",
+		},
+		close: {
+			width: layout.tabCloseSize,
+			height: layout.tabCloseSize,
+			flexShrink: 0,
+			paddingLeft: spacing[0],
+			paddingRight: spacing[0],
+			hover: { backgroundColor: appColors.editorHairline },
+		},
+	});
+
+	return { activeSurface, styles };
 });
 
 interface WorkspaceTabProps {
@@ -196,6 +205,10 @@ export function WorkspaceTab({
 	onNavigate,
 	onReorder,
 }: WorkspaceTabProps) {
+	const theme = useAppTheme();
+	const { tokens: appTokens } = theme;
+	const { activeSurface, styles } = themedStyles[theme.appearance];
+
 	const frame = useRef<PublicInstance>(null);
 	const [focused, setFocused] = useState(false);
 
@@ -404,6 +417,10 @@ function WorkspaceTabLabel({
 	id: string;
 	reveal?: boolean;
 }) {
+	const theme = useAppTheme();
+	const { tokens: appTokens } = theme;
+	const { styles } = themedStyles[theme.appearance];
+
 	const renderer = useGpuixRequired();
 	const viewport = useRef<PublicInstance>(null);
 	const track = useRef<PublicInstance>(null);
@@ -491,6 +508,10 @@ export function WorkspaceTabHeading({
 	testId: string;
 	width?: number;
 }) {
+	const theme = useAppTheme();
+	const { tokens: appTokens, colors: appColors } = theme;
+	const { styles } = themedStyles[theme.appearance];
+
 	return (
 		<div
 			testId={testId}
@@ -499,7 +520,7 @@ export function WorkspaceTabHeading({
 		>
 			<svg
 				testId={`${testId}-surface`}
-				source={connectedTabSurface(headingWidth)}
+				source={connectedTabSurface(headingWidth, appColors.editorSurface)}
 				style={StyleSheet.compose(styles.surface, {
 					width: headingWidth + surfaceOutset * 2,
 				})}
@@ -530,6 +551,9 @@ export function WorkspaceTabPreview({
 	tab: WorkspaceTabRecord;
 	onClose: () => void;
 }) {
+	const theme = useAppTheme();
+	const { activeSurface, styles } = themedStyles[theme.appearance];
+
 	return (
 		<div
 			testId="workspace-menu-tab"

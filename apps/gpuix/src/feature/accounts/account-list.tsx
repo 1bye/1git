@@ -1,6 +1,7 @@
+import { useAppTheme } from "../../styles/theme";
 import { spacing, typography, fontWeight, iconSize } from "@1git/design-tokens";
 import { Button } from "@1git/gpuix-ui/button";
-import { appTokens } from "../../styles/tokens";
+
 import { AccountStore, type SavedAccount } from "./lib/account-store";
 import { accountSetup } from "./lib/account-setup";
 import { accountProviderIcons } from "./account-provider-icons";
@@ -34,6 +35,9 @@ export function AccountList({
 	onReconnect: (account: SavedAccount) => void;
 	onRemove: (account: SavedAccount) => void;
 }) {
+	const theme = useAppTheme();
+	const { tokens: appTokens } = theme;
+
 	return (
 		<div
 			style={{

@@ -1,45 +1,49 @@
+import { createThemedStyles, useAppTheme } from "../../../styles/theme";
 import { spacing, typography, fontWeight } from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { Button } from "@1git/gpuix-ui/button";
 import { Text } from "@1git/gpuix-ui/text";
 import { useState } from "react";
-import { appTokens } from "../../../styles/tokens";
 
-const styles = StyleSheet.create({
-	form: {
-		display: "flex",
-		flexDirection: "column",
-		flexGrow: 1,
-		minHeight: 0,
-		padding: spacing[2],
-		gap: spacing[2.5],
-	},
-	content: {
-		display: "flex",
-		flexDirection: "column",
-		flexGrow: 1,
-		minHeight: 0,
-		gap: spacing[2.5],
-		overflowY: "scroll",
-	},
-	heading: { ...typography.md, fontWeight: fontWeight.medium },
-	muted: { ...typography.sm, color: appTokens.colors.textMuted },
-	choice: {
-		width: "100%",
-		height: 66,
-		padding: spacing[2],
-		gap: spacing[1],
-		flexDirection: "column",
-		alignItems: "flex-start",
-		flexShrink: 0,
-	},
-	footer: {
-		display: "flex",
-		flexDirection: "row",
-		justifyContent: "space-between",
-		flexShrink: 0,
-		gap: spacing[1.5],
-	},
+const themedStyles = createThemedStyles(({ tokens: appTokens }) => {
+	const styles = StyleSheet.create({
+		form: {
+			display: "flex",
+			flexDirection: "column",
+			flexGrow: 1,
+			minHeight: 0,
+			padding: spacing[2],
+			gap: spacing[2.5],
+		},
+		content: {
+			display: "flex",
+			flexDirection: "column",
+			flexGrow: 1,
+			minHeight: 0,
+			gap: spacing[2.5],
+			overflowY: "scroll",
+		},
+		heading: { ...typography.md, fontWeight: fontWeight.medium },
+		muted: { ...typography.sm, color: appTokens.colors.textMuted },
+		choice: {
+			width: "100%",
+			height: 66,
+			padding: spacing[2],
+			gap: spacing[1],
+			flexDirection: "column",
+			alignItems: "flex-start",
+			flexShrink: 0,
+		},
+		footer: {
+			display: "flex",
+			flexDirection: "row",
+			justifyContent: "space-between",
+			flexShrink: 0,
+			gap: spacing[1.5],
+		},
+	});
+
+	return { styles };
 });
 
 /** Explicit branch-switch or saved-work restoration intent; actions remain outside scrolling content. */
@@ -58,6 +62,10 @@ export function WorkspaceBranchChangesForm({
 	onCancel: () => void;
 	onConfirm: (changes: "leave" | "bring") => void;
 }) {
+	const theme = useAppTheme();
+	const { tokens: appTokens } = theme;
+	const { styles } = themedStyles[theme.appearance];
+
 	const [choice, setChoice] = useState<"leave" | "bring">("leave");
 
 	return (

@@ -12,14 +12,29 @@ bun run --cwd apps/gpuix dev
 
 Both GPUIX packages stay pinned to `0.10.0`. This app runs on Bun, React 19,
 and GPUIX, not the DOM or Electron. The window uses native macOS sidebar vibrancy
-and traffic lights. Titlebar and rail backgrounds are transparent; AppKit supplies
-the light material tint, while the workspace remains opaque white.
+and traffic lights. Titlebar and rail backgrounds stay transparent in both themes;
+AppKit supplies the matching light or dark blurred material, while the workspace
+uses its own opaque content surface. Dark mode never covers the native blur with
+a painted tint.
 The connected tab silhouette keeps its shape while moving; it does not port
 the desktop's liquid shape-morphing machinery.
 
 The app disables focus outlines through its shared native UI tokens and custom
 row/tab styling. Arrow/Tab navigation, selection backgrounds, caret visibility,
 and keyboard activation remain intact; ordinary field borders are unchanged.
+
+## Appearance
+
+Settings → Appearance offers Light and Dark, with live previews and immediate switching.
+Light remains the default for new and older sessions. The choice is saved alongside
+diff preferences in the workspace session and restores on restart. Switching does
+not remount workspaces, clear drafts/inclusion, reload Git, or reset native diff scroll.
+
+Window-local React context selects complete app, control and native diff palettes.
+Shared styles and active-tab SVGs are precomputed per palette, not rebuilt while scrolling.
+Dark syntax and addition/deletion backgrounds are separate from selection colors.
+The owning native window follows the selected appearance; there is no automatic
+system-theme following in this version.
 
 ## Local native patches
 
@@ -73,11 +88,13 @@ wraps native hover/focus behavior with an inverted, non-interactive surface.
 
 `native/sidebar-vibrancy-platform.patch` matches this app's light Electron chrome
 using AppKit's Sidebar material, behind-window blending and active state. It removes
-the GPUI fork's private-layer tint/saturation stripping and pins the backdrop to light
-appearance to keep dark labels readable. This is app-specific appearance policy,
-not a universal GPUI default. The real-window integration test checks the native
-material and appearance under both light and dark application appearances; component
-tests separately keep shell chrome transparent and the workspace opaque white.
+the GPUI fork's private-layer tint/saturation stripping. `window-appearance.patch`
+and `window-appearance-platform.patch` remove the former light-only pin and expose
+a narrow per-window appearance setter. The Sidebar backdrop inherits Aqua or
+Dark Aqua from its own NSWindow; it keeps AppKit's blur, tint and saturation.
+The real-window integration test switches both themes under both system appearances
+without changing the application's appearance. Component tests verify transparent
+chrome and retained workspace state through a live theme switch.
 
 `native/rounded-overflow-platform.patch` clips descendants of rounded overflow
 surfaces, including native diff rows. GPUI otherwise rounds only the background,

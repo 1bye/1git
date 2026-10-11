@@ -1,4 +1,5 @@
-import { spacing, typography, radius, lightColors } from "@1git/design-tokens";
+import { createThemedStyles, useAppTheme } from "../../../styles/theme";
+import { spacing, typography, radius } from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { StateMessage } from "../../../fixture/state-message";
 
@@ -8,66 +9,73 @@ import type {
 	RepositoryImageSide,
 } from "../lib/repository-image";
 
-const styles = StyleSheet.create({
-	comparison: {
-		display: "flex",
-		flexDirection: "row",
-		flexGrow: 1,
-		minHeight: 0,
-		minWidth: 0,
-		padding: spacing[3.5],
-		gap: spacing[3.5],
-	},
-	version: {
-		display: "flex",
-		flexDirection: "column",
-		flexGrow: 1,
-		flexBasis: 0,
-		minWidth: 0,
-		minHeight: 0,
-		gap: spacing[2.5],
-	},
-	caption: {
-		display: "flex",
-		flexDirection: "row",
-		alignItems: "center",
-		justifyContent: "center",
-		flexShrink: 0,
-		...typography.xs,
-		color: lightColors.editorMuted,
-	},
-	metadata: {
-		...typography.xs,
-		color: lightColors.editorFaint,
-		marginLeft: spacing[1.5],
-		minWidth: 0,
-		maxWidth: "50%",
-		whiteSpace: "nowrap",
-		textOverflow: "ellipsis",
-		overflow: "hidden",
-	},
-	viewport: {
-		position: "relative",
-		flexGrow: 1,
-		minHeight: 0,
-		minWidth: 0,
-		display: "flex",
-		alignItems: "center",
-		justifyContent: "center",
-		overflow: "hidden",
-		borderRadius: radius.md,
-		backgroundColor: lightColors.editorSunken,
-	},
-	image: {
-		position: "absolute",
-		left: 0,
-		top: 0,
-		width: "100%",
-		height: "100%",
-	},
-});
+const themedStyles = createThemedStyles(({ colors: appColors }) => {
+	const styles = StyleSheet.create({
+		comparison: {
+			display: "flex",
+			flexDirection: "row",
+			flexGrow: 1,
+			minHeight: 0,
+			minWidth: 0,
+			padding: spacing[3.5],
+			gap: spacing[3.5],
+		},
+		version: {
+			display: "flex",
+			flexDirection: "column",
+			flexGrow: 1,
+			flexBasis: 0,
+			minWidth: 0,
+			minHeight: 0,
+			gap: spacing[2.5],
+		},
+		caption: {
+			display: "flex",
+			flexDirection: "row",
+			alignItems: "center",
+			justifyContent: "center",
+			flexShrink: 0,
+			...typography.xs,
+			color: appColors.editorMuted,
+		},
+		metadata: {
+			...typography.xs,
+			color: appColors.editorFaint,
+			marginLeft: spacing[1.5],
+			minWidth: 0,
+			maxWidth: "50%",
+			whiteSpace: "nowrap",
+			textOverflow: "ellipsis",
+			overflow: "hidden",
+		},
+		viewport: {
+			position: "relative",
+			flexGrow: 1,
+			minHeight: 0,
+			minWidth: 0,
+			display: "flex",
+			alignItems: "center",
+			justifyContent: "center",
+			overflow: "hidden",
+			borderRadius: radius.md,
+			backgroundColor: appColors.editorSunken,
+		},
+		image: {
+			position: "absolute",
+			left: 0,
+			top: 0,
+			width: "100%",
+			height: "100%",
+		},
+	});
 
-const statusColors = { Added: "#1a7f37", Deleted: "#b2676b" };
+	const statusColors = {
+		Added: appColors.success,
+		Deleted: appColors.deletion,
+	};
+
+	return { styles, statusColors };
+});
 
 const formatBytes = (bytes: number): string => {
 	if (bytes < 1024) return `${bytes} B`;
@@ -88,6 +96,9 @@ function ImageVersion({
 	version: "before" | "after";
 	path: string;
 }) {
+	const theme = useAppTheme();
+	const { styles, statusColors } = themedStyles[theme.appearance];
+
 	const { image, error } = side;
 	const preview = useSvgPreview(image);
 
@@ -141,6 +152,9 @@ export function RepositoryImageMetadata({
 }: {
 	comparison: RepositoryImageComparison;
 }) {
+	const theme = useAppTheme();
+	const { styles } = themedStyles[theme.appearance];
+
 	const parts: string[] = [];
 	const comparing = comparison.before !== null && comparison.after !== null;
 
@@ -180,6 +194,9 @@ export function RepositoryImagePreview({
 	comparison: RepositoryImageComparison;
 	path: string;
 }) {
+	const theme = useAppTheme();
+	const { styles } = themedStyles[theme.appearance];
+
 	return (
 		<div testId="image-preview" style={styles.comparison}>
 			{comparison.before ? (

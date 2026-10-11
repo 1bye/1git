@@ -1,4 +1,5 @@
-import { spacing, typography, lightColors } from "@1git/design-tokens";
+import { createThemedStyles, useAppTheme } from "../../../styles/theme";
+import { spacing, typography } from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import {
 	useGpuixRequired,
@@ -22,39 +23,43 @@ import { StateMessage } from "../../../fixture/state-message";
 
 const dividerHeight = 9;
 
-const styles = StyleSheet.create({
-	column: {
-		display: "flex",
-		flexDirection: "column",
-		flexGrow: 1,
-		minHeight: 0,
-	},
-	pane: {
-		display: "flex",
-		flexDirection: "column",
-		flexBasis: 0,
-		minHeight: 0,
-		overflowY: "hidden",
-	},
-	divider: {
-		height: dividerHeight,
-		flexShrink: 0,
-		cursor: "row-resize",
-		display: "flex",
-		alignItems: "center",
-		justifyContent: "center",
-		hover: { backgroundColor: lightColors.editorSunken },
-	},
-	header: {
-		height: 28,
-		flexShrink: 0,
-		paddingLeft: spacing[3.5],
-		paddingRight: spacing[3.5],
-		display: "flex",
-		alignItems: "center",
-		justifyContent: "space-between",
-	},
-	muted: { ...typography.xs, color: lightColors.editorMuted },
+const themedStyles = createThemedStyles(({ colors: appColors }) => {
+	const styles = StyleSheet.create({
+		column: {
+			display: "flex",
+			flexDirection: "column",
+			flexGrow: 1,
+			minHeight: 0,
+		},
+		pane: {
+			display: "flex",
+			flexDirection: "column",
+			flexBasis: 0,
+			minHeight: 0,
+			overflowY: "hidden",
+		},
+		divider: {
+			height: dividerHeight,
+			flexShrink: 0,
+			cursor: "row-resize",
+			display: "flex",
+			alignItems: "center",
+			justifyContent: "center",
+			hover: { backgroundColor: appColors.editorSunken },
+		},
+		header: {
+			height: 28,
+			flexShrink: 0,
+			paddingLeft: spacing[3.5],
+			paddingRight: spacing[3.5],
+			display: "flex",
+			alignItems: "center",
+			justifyContent: "space-between",
+		},
+		muted: { ...typography.xs, color: appColors.editorMuted },
+	});
+
+	return { styles };
 });
 
 /** Stacked revision/files navigation with a keyboard-accessible split and read-only saved-file menus. */
@@ -77,6 +82,10 @@ export function RepositoryRevisions({
 	onPreviewIntent?: (entry: WorkspaceEntry | null) => void;
 	fileActions?: Extract<FileMenuActions, { kind: "revision" }>;
 }) {
+	const theme = useAppTheme();
+	const { colors: appColors } = theme;
+	const { styles } = themedStyles[theme.appearance];
+
 	const renderer = useGpuixRequired();
 	const container = useRef<PublicInstance>(null);
 	const divider = useRef<PublicInstance>(null);
@@ -222,8 +231,8 @@ export function RepositoryRevisions({
 						pointerEvents: "none",
 						backgroundColor:
 							focused && !pointerFocus
-								? lightColors.brand
-								: lightColors.editorHairline,
+								? appColors.brand
+								: appColors.editorHairline,
 					}}
 				/>
 			</div>

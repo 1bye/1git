@@ -1,3 +1,4 @@
+import { useAppTheme } from "../../../styles/theme";
 import { spacing } from "@1git/design-tokens";
 import { Button } from "@1git/gpuix-ui/button";
 import { Text } from "@1git/gpuix-ui/text";
@@ -11,7 +12,6 @@ import {
 	type RepositoryListState,
 } from "../lib/repository-workspace-model";
 import { RepositoryList } from "./repository-list";
-import { appTokens } from "../../../styles/tokens";
 
 const reviewTimeoutMs = 10_000;
 const revisionRowHeight = 48;
@@ -40,6 +40,9 @@ export function RepositoryHistoryReorder({
 	onCancel: () => void;
 	onFinished: () => void;
 }) {
+	const theme = useAppTheme();
+	const { tokens: appTokens } = theme;
+
 	const [order, setOrder] = useState<readonly CommitInfo[]>(
 		[...review.commits].reverse()
 	);

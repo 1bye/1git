@@ -1,3 +1,4 @@
+import { createThemedStyles, useAppTheme } from "../../styles/theme";
 import {
 	useCallback,
 	useEffect,
@@ -10,7 +11,7 @@ import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
 import { spacing, typography, radius, fontWeight } from "@1git/design-tokens";
 import { Button } from "@1git/gpuix-ui/button";
 import { Popover, PopoverContent } from "@1git/gpuix-ui/popover";
-import { appTokens } from "../../styles/tokens";
+
 import { accountActionIcons } from "../accounts/account-list";
 import { StateArtwork } from "../../fixture/state-artwork";
 import { ChoiceTile } from "../../fixture/choice-tile";
@@ -41,26 +42,30 @@ const row = {
 	flexShrink: 0,
 };
 
-const muted = { ...typography.md, color: appTokens.colors.textMuted };
+const themedStyles = createThemedStyles(({ tokens: appTokens }) => {
+	const muted = { ...typography.md, color: appTokens.colors.textMuted };
 
-const heading = {
-	...typography.lg,
-	fontWeight: fontWeight.medium,
-	color: appTokens.colors.text,
-};
+	const heading = {
+		...typography.lg,
+		fontWeight: fontWeight.medium,
+		color: appTokens.colors.text,
+	};
 
-const field = {
-	height: appTokens.layout.controlHeight,
-	...typography.md,
-	color: appTokens.colors.text,
-	backgroundColor: "transparent",
-	borderWidth: 1,
-	borderColor: appTokens.colors.border,
-	borderRadius: radius.md,
-	paddingLeft: spacing[2.5],
-	paddingRight: spacing[2.5],
-	flexShrink: 0,
-};
+	const field = {
+		height: appTokens.layout.controlHeight,
+		...typography.md,
+		color: appTokens.colors.text,
+		backgroundColor: "transparent",
+		borderWidth: 1,
+		borderColor: appTokens.colors.border,
+		borderRadius: radius.md,
+		paddingLeft: spacing[2.5],
+		paddingRight: spacing[2.5],
+		flexShrink: 0,
+	};
+
+	return { muted, heading, field };
+});
 
 function SettingsField({
 	ref,
@@ -77,6 +82,9 @@ function SettingsField({
 	disabled: boolean;
 	onChange: (value: string) => void;
 }) {
+	const theme = useAppTheme();
+	const { muted, field } = themedStyles[theme.appearance];
+
 	return (
 		<div style={column}>
 			<text style={muted}>{label}</text>
@@ -132,6 +140,10 @@ export function GitSettings({
 	) => Promise<GitResult<GitSettingsData>>;
 	onBusy: (busy: boolean) => void;
 }) {
+	const theme = useAppTheme();
+	const { tokens: appTokens } = theme;
+	const { muted, heading } = themedStyles[theme.appearance];
+
 	const renderer = useGpuixRequired();
 	const [data, setData] = useState<GitSettingsData | null>(null);
 	const [name, setName] = useState("");

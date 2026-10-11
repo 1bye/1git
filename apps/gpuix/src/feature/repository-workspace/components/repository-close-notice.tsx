@@ -1,6 +1,7 @@
+import { useAppTheme } from "../../../styles/theme";
 import { spacing, typography } from "@1git/design-tokens";
 import { Button } from "@1git/gpuix-ui/button";
-import { appTokens } from "../../../styles/tokens";
+
 import type { WorkspaceTabsState } from "../../workspace-tabs/lib/workspace-tabs-model";
 import { RepositoryWorkspaceModel } from "../lib/repository-workspace-model";
 
@@ -14,6 +15,9 @@ export function RepositoryCloseNotice({
 	onDismiss: () => void;
 	onStop: (id: string) => void;
 }) {
+	const theme = useAppTheme();
+	const { tokens: appTokens } = theme;
+
 	const seen = new Set<string>();
 
 	const operations = state.tabs.filter(({ workspace }) => {

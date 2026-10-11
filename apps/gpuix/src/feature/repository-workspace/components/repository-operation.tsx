@@ -1,3 +1,4 @@
+import { useAppTheme } from "../../../styles/theme";
 import { spacing, typography } from "@1git/design-tokens";
 import { useState } from "react";
 import type { FinishOperationInput } from "@1git/git";
@@ -7,7 +8,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "@1git/gpuix-ui/popover";
-import { appTokens } from "../../../styles/tokens";
+
 import { RepositoryFileActions } from "../lib/repository-file-actions";
 import {
 	RepositoryWorkspaceModel,
@@ -22,6 +23,9 @@ export function RepositoryOperation({
 	state: RepositoryWorkspaceState;
 	onWrite: (request: FinishOperationInput) => Promise<string | null>;
 }) {
+	const theme = useAppTheme();
+	const { tokens: appTokens } = theme;
+
 	const [confirmation, setConfirmation] = useState<FinishOperationInput | null>(
 		null
 	);

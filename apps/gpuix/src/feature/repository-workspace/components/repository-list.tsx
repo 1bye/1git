@@ -1,10 +1,5 @@
-import {
-	spacing,
-	radius,
-	typography,
-	fontWeight,
-	lightColors,
-} from "@1git/design-tokens";
+import { createThemedStyles, useAppTheme } from "../../../styles/theme";
+import { spacing, radius, typography, fontWeight } from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { Checkbox } from "@1git/gpuix-ui/checkbox";
 import {
@@ -28,7 +23,7 @@ import {
 } from "../lib/repository-workspace-model";
 import type { WorkspaceEntry } from "../types";
 import { RepositoryChangeLabel } from "./repository-change-details";
-import { appTokens } from "../../../styles/tokens";
+
 import {
 	RepositoryFileMenu,
 	type FileMenuActions,
@@ -40,52 +35,56 @@ const scrollSaveDelayMs = 150;
 const windowChunkSize = 64;
 const windowThreshold = 500;
 
-const styles = StyleSheet.create({
-	viewport: {
-		display: "flex",
-		flexDirection: "column",
-		flexGrow: 1,
-		flexBasis: 0,
-		height: "100%",
-		minHeight: 0,
-	},
-	row: {
-		display: "flex",
-		flexDirection: "row",
-		alignItems: "center",
-		gap: spacing[2],
-		height: fileRowHeight,
-		flexShrink: 0,
-		paddingLeft: spacing[2],
-		paddingRight: spacing[2],
-		borderRadius: radius.lg,
-		borderWidth: 1,
-		borderColor: "transparent",
-		cursor: "pointer",
-		hover: { backgroundColor: lightColors.editorHairline },
-	},
-	selected: {
-		backgroundColor: lightColors.editorSunken2,
-		hover: { backgroundColor: lightColors.editorSunken2 },
-	},
-	label: {
-		...typography.sm,
-		fontWeight: fontWeight.regular,
-		color: lightColors.editorInk,
-		minWidth: 0,
-		overflowX: "hidden",
-		whiteSpace: "nowrap",
-		textOverflow: "ellipsis",
-		pointerEvents: "none",
-	},
-	detail: {
-		...typography["2xs"],
-		color: lightColors.editorFaint,
-		whiteSpace: "nowrap",
-		textOverflow: "ellipsis",
-		overflowX: "hidden",
-		pointerEvents: "none",
-	},
+const themedStyles = createThemedStyles(({ colors: appColors }) => {
+	const styles = StyleSheet.create({
+		viewport: {
+			display: "flex",
+			flexDirection: "column",
+			flexGrow: 1,
+			flexBasis: 0,
+			height: "100%",
+			minHeight: 0,
+		},
+		row: {
+			display: "flex",
+			flexDirection: "row",
+			alignItems: "center",
+			gap: spacing[2],
+			height: fileRowHeight,
+			flexShrink: 0,
+			paddingLeft: spacing[2],
+			paddingRight: spacing[2],
+			borderRadius: radius.lg,
+			borderWidth: 1,
+			borderColor: "transparent",
+			cursor: "pointer",
+			hover: { backgroundColor: appColors.editorHairline },
+		},
+		selected: {
+			backgroundColor: appColors.editorSunken2,
+			hover: { backgroundColor: appColors.editorSunken2 },
+		},
+		label: {
+			...typography.sm,
+			fontWeight: fontWeight.regular,
+			color: appColors.editorInk,
+			minWidth: 0,
+			overflowX: "hidden",
+			whiteSpace: "nowrap",
+			textOverflow: "ellipsis",
+			pointerEvents: "none",
+		},
+		detail: {
+			...typography["2xs"],
+			color: appColors.editorFaint,
+			whiteSpace: "nowrap",
+			textOverflow: "ellipsis",
+			overflowX: "hidden",
+			pointerEvents: "none",
+		},
+	});
+
+	return { styles };
 });
 
 function RepositoryRow({
@@ -117,6 +116,10 @@ function RepositoryRow({
 	onContextMenu?: (entry: WorkspaceEntry, event: EventPayload) => void;
 	onPreviewIntent?: (entry: WorkspaceEntry | null) => void;
 }) {
+	const theme = useAppTheme();
+	const { tokens: appTokens, colors: appColors } = theme;
+	const { styles } = themedStyles[theme.appearance];
+
 	const row = (onMenu?: (event: EventPayload) => void) => (
 		<div
 			role={onInclude ? "row" : "presentation"}
@@ -211,8 +214,8 @@ function RepositoryRow({
 									testId={`tags-${entry.id}`}
 									style={{
 										...typography["2xs"],
-										color: lightColors.editorMuted,
-										backgroundColor: lightColors.editorSunken,
+										color: appColors.editorMuted,
+										backgroundColor: appColors.editorSunken,
 										borderRadius: radius.sm,
 										paddingLeft: spacing[1],
 										paddingRight: spacing[1],
@@ -298,6 +301,9 @@ export function RepositoryList({
 	onContextMenu?: (entry: WorkspaceEntry, event: EventPayload) => void;
 	onPreviewIntent?: (entry: WorkspaceEntry | null) => void;
 }) {
+	const theme = useAppTheme();
+	const { styles } = themedStyles[theme.appearance];
+
 	const renderer = useGpuixRequired();
 	const viewport = useRef<PublicInstance>(null);
 	const container = useRef<PublicInstance>(null);

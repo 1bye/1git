@@ -1,3 +1,4 @@
+import { useAppTheme } from "../../../styles/theme";
 import { spacing } from "@1git/design-tokens";
 import { Button } from "@1git/gpuix-ui/button";
 import { Text } from "@1git/gpuix-ui/text";
@@ -9,7 +10,6 @@ import {
 	RepositoryWorkspaceModel,
 	type RepositoryWorkspaceState,
 } from "../lib/repository-workspace-model";
-import { appTokens } from "../../../styles/tokens";
 
 const reviewTimeoutMs = 10_000;
 
@@ -36,6 +36,9 @@ export function RepositoryHistoryReset({
 	onCancel: () => void;
 	onFinished: () => void;
 }) {
+	const theme = useAppTheme();
+	const { tokens: appTokens } = theme;
+
 	const [plan, setPlan] = useState<ResetCommitPlan | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [pending, setPending] = useState(false);

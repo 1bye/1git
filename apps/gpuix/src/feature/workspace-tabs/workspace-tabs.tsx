@@ -1,10 +1,5 @@
-import {
-	controlSize,
-	iconSize,
-	lightColors,
-	radius,
-	spacing,
-} from "@1git/design-tokens";
+import { useAppTheme } from "../../styles/theme";
+import { controlSize, iconSize, radius, spacing } from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { Button } from "@1git/gpuix-ui/button";
 import {
@@ -16,7 +11,6 @@ import {
 import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
 import { useEffect, useRef, useState, type Dispatch } from "react";
 
-import { appTokens } from "../../styles/tokens";
 import { workspaceLayout as layout } from "../../styles/workspace-layout";
 import { WorkspaceTab } from "./components/workspace-tab";
 import { WorkspaceTabIcon } from "./components/workspace-tab-icon";
@@ -103,6 +97,9 @@ export function WorkspaceTabs({
 	state: WorkspaceTabsState;
 	dispatch: Dispatch<WorkspaceTabsAction>;
 } & Partial<WorkspaceMenuActions>) {
+	const theme = useAppTheme();
+	const { tokens: appTokens, colors: appColors } = theme;
+
 	const renderer = useGpuixRequired();
 	const tabs = useRef(new Map<string, PublicInstance>());
 	const frames = useRef(new Map<string, PublicInstance>());
@@ -233,7 +230,7 @@ export function WorkspaceTabs({
 								style={StyleSheet.compose(
 									styles.home,
 									state.activeId === null && {
-										backgroundColor: lightColors.editorHairline,
+										backgroundColor: appColors.editorHairline,
 									}
 								)}
 								onPress={() => {
@@ -251,8 +248,8 @@ export function WorkspaceTabs({
 									testId="workspace-home-icon"
 									color={
 										state.activeId === null
-											? lightColors.editorInk
-											: lightColors.editorMuted
+											? appColors.editorInk
+											: appColors.editorMuted
 									}
 								/>
 							</Button>

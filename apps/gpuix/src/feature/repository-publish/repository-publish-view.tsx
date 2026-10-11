@@ -1,3 +1,4 @@
+import { createThemedStyles, useAppTheme } from "../../styles/theme";
 import { useEffect, useRef, useState } from "react";
 import { spacing, typography, radius, fontWeight } from "@1git/design-tokens";
 import { Button } from "@1git/gpuix-ui/button";
@@ -16,7 +17,7 @@ import { AccountStore } from "../accounts/lib/account-store";
 import { accountProviderIcons } from "../accounts/account-provider-icons";
 import { ChoiceTile } from "../../fixture/choice-tile";
 import { StateArtwork } from "../../fixture/state-artwork";
-import { appTokens } from "../../styles/tokens";
+
 import {
 	RepositoryPublish,
 	type PublishRepositoryRequest,
@@ -32,19 +33,23 @@ const row = {
 	gap: spacing[2],
 };
 
-const muted = { ...typography.sm, color: appTokens.colors.textMuted };
+const themedStyles = createThemedStyles(({ tokens: appTokens }) => {
+	const muted = { ...typography.sm, color: appTokens.colors.textMuted };
 
-const fieldStyle = {
-	height: appTokens.layout.controlHeight,
-	...typography.md,
-	color: appTokens.colors.text,
-	borderRadius: radius.md,
-	borderWidth: 1,
-	borderColor: appTokens.colors.border,
-	backgroundColor: "transparent",
-	paddingLeft: spacing[2.5],
-	paddingRight: spacing[2.5],
-};
+	const fieldStyle = {
+		height: appTokens.layout.controlHeight,
+		...typography.md,
+		color: appTokens.colors.text,
+		borderRadius: radius.md,
+		borderWidth: 1,
+		borderColor: appTokens.colors.border,
+		backgroundColor: "transparent",
+		paddingLeft: spacing[2.5],
+		paddingRight: spacing[2.5],
+	};
+
+	return { muted, fieldStyle };
+});
 
 function PublishField({
 	label,
@@ -59,6 +64,9 @@ function PublishField({
 	disabled: boolean;
 	onChange: (value: string) => void;
 }) {
+	const theme = useAppTheme();
+	const { muted, fieldStyle } = themedStyles[theme.appearance];
+
 	return (
 		<div style={column}>
 			<text style={muted}>{label}</text>
@@ -107,6 +115,10 @@ export function RepositoryPublishView({
 	onCancel: () => void;
 	onSettings: () => void;
 }) {
+	const theme = useAppTheme();
+	const { tokens: appTokens } = theme;
+	const { muted } = themedStyles[theme.appearance];
+
 	const renderer = useGpuixRequired();
 	const panel = useRef<PublicInstance>(null);
 	const mounted = useRef(true);

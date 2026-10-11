@@ -1,5 +1,5 @@
 /**
- * Covers: real macOS sidebar vibrancy, light appearance, behind-window blending and unmodified AppKit tinting.
+ * Covers: real macOS sidebar vibrancy, live window-local light/dark switching independent of system appearance, behind-window blending and unmodified AppKit tinting.
  * Real: pinned GPUIX addon, NSWindow and NSVisualEffectView in an isolated Bun process.
  * Doubles: static shell content; no accounts, Git repositories or session data.
  * Requires: Apple Silicon macOS graphics access and built local native addon.
@@ -9,7 +9,7 @@ import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
 
 it.each(["light", "dark"])(
-	"keeps a light, natively tinted sidebar over %s application appearance",
+	"keeps native blur while switching the window theme over %s application appearance",
 	(appearance) => {
 		const output = execFileSync(
 			process.execPath,

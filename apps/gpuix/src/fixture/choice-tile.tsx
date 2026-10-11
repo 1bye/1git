@@ -1,6 +1,6 @@
+import { useAppTheme } from "../styles/theme";
 import { spacing, typography } from "@1git/design-tokens";
 import { Button } from "@1git/gpuix-ui/button";
-import { appTokens } from "../styles/tokens";
 
 /** Keyboard-activatable choice shared by account setup and author identity forms. */
 export function ChoiceTile({
@@ -26,6 +26,9 @@ export function ChoiceTile({
 	detail?: string;
 	onPress: () => void;
 }) {
+	const theme = useAppTheme();
+	const { tokens: appTokens } = theme;
+
 	return (
 		<Button
 			testId={testId}

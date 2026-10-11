@@ -1,4 +1,5 @@
-import { lightColors } from "@1git/design-tokens";
+import { createThemedStyles, useAppTheme } from "../../../styles/theme";
+
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 
 // Phosphor Icons 2.1.10, Light weight. See ../../../../LICENSES/Phosphor-Icons.txt.
@@ -27,21 +28,25 @@ const sources = {
 		'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path d="M212.24,100.24l-80,80a6,6,0,0,1-8.48,0l-80-80a6,6,0,0,1,8.48-8.48L128,167.51l75.76-75.75a6,6,0,0,1,8.48,8.48Z"/></svg>',
 };
 
-const styles = StyleSheet.create({
-	icon: {
-		width: 14,
-		height: 14,
-		flexShrink: 0,
-		color: lightColors.editorMuted,
-		pointerEvents: "none",
-	},
+const themedStyles = createThemedStyles(({ colors: appColors }) => {
+	const styles = StyleSheet.create({
+		icon: {
+			width: 14,
+			height: 14,
+			flexShrink: 0,
+			color: appColors.editorMuted,
+			pointerEvents: "none",
+		},
+	});
+
+	return { styles };
 });
 
 /** The tab strip's Phosphor Light glyphs, rendered as native SVG masks. */
 export function WorkspaceTabIcon({
 	name,
 	testId,
-	color = lightColors.editorMuted,
+	color,
 	size = 14,
 }: {
 	name: keyof typeof sources;
@@ -49,12 +54,16 @@ export function WorkspaceTabIcon({
 	color?: string;
 	size?: number;
 }) {
+	const theme = useAppTheme();
+	const { colors: appColors } = theme;
+	const { styles } = themedStyles[theme.appearance];
+
 	return (
 		<svg
 			testId={testId}
 			source={sources[name]}
 			style={StyleSheet.compose(styles.icon, {
-				color,
+				color: color ?? appColors.editorMuted,
 				width: size,
 				height: size,
 			})}

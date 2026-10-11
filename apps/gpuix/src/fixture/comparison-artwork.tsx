@@ -1,5 +1,6 @@
+import { useAppTheme } from "../styles/theme";
 import { iconSize } from "@1git/design-tokens";
-import { appTokens } from "../styles/tokens";
+
 import { StateArtwork } from "./state-artwork";
 
 // Monochrome strokes use the same 256-unit, 8-unit thin weight as Phosphor Thin.
@@ -15,6 +16,9 @@ export function ComparisonArtwork({
 }: {
 	name: keyof typeof sources | "empty";
 }) {
+	const theme = useAppTheme();
+	const { tokens: appTokens } = theme;
+
 	if (name === "empty")
 		return <StateArtwork name="empty" testId="comparison-art-empty" />;
 

@@ -1,3 +1,4 @@
+import { createThemedStyles, useAppTheme } from "../../../styles/theme";
 import { radius, spacing, typography, fontWeight } from "@1git/design-tokens";
 import { basename } from "node:path";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
@@ -20,7 +21,6 @@ import {
 	type RefObject,
 } from "react";
 
-import { appTokens } from "../../../styles/tokens";
 import { workspaceLayout } from "../../../styles/workspace-layout";
 import { WorkspaceTabPreview } from "./workspace-tab";
 import { WorkspaceTabIcon } from "./workspace-tab-icon";
@@ -45,7 +45,6 @@ import type {
 	WorkspaceTabsAction,
 } from "../lib/workspace-tabs-model";
 
-const { colors } = appTokens;
 const maxMenuHeight = 398;
 const maxWorktreeMenuHeight = 370;
 const maxExpandedMenuHeight = 650;
@@ -67,116 +66,122 @@ type Submenu = "worktrees" | "new";
 const submenuTriggerId = (group: Submenu): string =>
 	group === "worktrees" ? "worktrees" : `${group}-actions`;
 
-const styles = StyleSheet.create({
-	surface: {
-		position: "absolute",
-		width: menuWidth,
-		backgroundColor: colors.overlay,
-		borderRadius: radius.xl,
-		pointerEvents: "auto",
-	},
-	body: {
-		width: menuWidth,
-		display: "flex",
-		flexDirection: "column",
-		padding: menuPadding,
-		overflow: "hidden",
-	},
-	header: {
-		position: "relative",
-		height: headerHeight,
-		flexShrink: 0,
-		display: "flex",
-		flexDirection: "column",
-		justifyContent: "center",
-		paddingLeft: spacing[2],
-		paddingRight: spacing[2],
-		gap: spacing[0.5],
-	},
-	separator: {
-		height: 1,
-		flexShrink: 0,
-		marginTop: spacing[1],
-		marginBottom: spacing[1],
-		backgroundColor: colors.border,
-	},
-	heading: { ...typography.md, fontWeight: fontWeight.medium },
-	muted: { ...typography.sm, color: colors.textMuted },
-	detail: {
-		...typography.xs,
-		color: colors.textMuted,
-		whiteSpace: "nowrap",
-		textOverflow: "ellipsis",
-		minWidth: 0,
-		maxWidth: "45%",
-		flexShrink: 0,
-	},
-	sectionLabel: {
-		height: sectionLabelHeight,
-		flexShrink: 0,
-		paddingLeft: spacing[2],
-		justifyContent: "center",
-	},
-	input: {
-		width: "100%",
-		height: 30,
-		flexShrink: 0,
-		...typography.md,
-		paddingLeft: spacing[2.5],
-		paddingRight: spacing[2.5],
-		borderRadius: radius.md,
-		backgroundColor: colors.field,
-		color: colors.text,
-		borderWidth: 1,
-		borderColor: colors.border,
-	},
-	list: {
-		minHeight: 0,
-		flexGrow: 1,
-		overflowY: "scroll",
-		display: "flex",
-		flexDirection: "column",
-	},
-	row: {
-		width: "100%",
-		height: rowHeight,
-		flexDirection: "row",
-		justifyContent: "flex-start",
-		paddingLeft: spacing[2],
-		paddingRight: spacing[2],
-		gap: spacing[2],
-		borderRadius: radius.md,
-	},
-	label: {
-		...typography.md,
-		minWidth: 0,
-		flexShrink: 1,
-		flexGrow: 1,
-		whiteSpace: "nowrap",
-		textOverflow: "ellipsis",
-	},
-	footer: {
-		display: "flex",
-		flexDirection: "row",
-		justifyContent: "space-between",
-		gap: spacing[1.5],
-		flexShrink: 0,
-	},
-	form: {
-		display: "flex",
-		flexDirection: "column",
-		gap: spacing[2.5],
-		padding: spacing[2],
-		flexGrow: 1,
-		minHeight: 0,
-		overflowY: "scroll",
-	},
-	notice: {
-		height: noticeHeight,
-		flexShrink: 0,
-		padding: spacing[2],
-		overflowY: "scroll",
-	},
+const themedStyles = createThemedStyles(({ tokens: appTokens }) => {
+	const { colors } = appTokens;
+
+	const styles = StyleSheet.create({
+		surface: {
+			position: "absolute",
+			width: menuWidth,
+			backgroundColor: colors.overlay,
+			borderRadius: radius.xl,
+			pointerEvents: "auto",
+		},
+		body: {
+			width: menuWidth,
+			display: "flex",
+			flexDirection: "column",
+			padding: menuPadding,
+			overflow: "hidden",
+		},
+		header: {
+			position: "relative",
+			height: headerHeight,
+			flexShrink: 0,
+			display: "flex",
+			flexDirection: "column",
+			justifyContent: "center",
+			paddingLeft: spacing[2],
+			paddingRight: spacing[2],
+			gap: spacing[0.5],
+		},
+		separator: {
+			height: 1,
+			flexShrink: 0,
+			marginTop: spacing[1],
+			marginBottom: spacing[1],
+			backgroundColor: colors.border,
+		},
+		heading: { ...typography.md, fontWeight: fontWeight.medium },
+		muted: { ...typography.sm, color: colors.textMuted },
+		detail: {
+			...typography.xs,
+			color: colors.textMuted,
+			whiteSpace: "nowrap",
+			textOverflow: "ellipsis",
+			minWidth: 0,
+			maxWidth: "45%",
+			flexShrink: 0,
+		},
+		sectionLabel: {
+			height: sectionLabelHeight,
+			flexShrink: 0,
+			paddingLeft: spacing[2],
+			justifyContent: "center",
+		},
+		input: {
+			width: "100%",
+			height: 30,
+			flexShrink: 0,
+			...typography.md,
+			paddingLeft: spacing[2.5],
+			paddingRight: spacing[2.5],
+			borderRadius: radius.md,
+			backgroundColor: colors.field,
+			color: colors.text,
+			borderWidth: 1,
+			borderColor: colors.border,
+		},
+		list: {
+			minHeight: 0,
+			flexGrow: 1,
+			overflowY: "scroll",
+			display: "flex",
+			flexDirection: "column",
+		},
+		row: {
+			width: "100%",
+			height: rowHeight,
+			flexDirection: "row",
+			justifyContent: "flex-start",
+			paddingLeft: spacing[2],
+			paddingRight: spacing[2],
+			gap: spacing[2],
+			borderRadius: radius.md,
+		},
+		label: {
+			...typography.md,
+			minWidth: 0,
+			flexShrink: 1,
+			flexGrow: 1,
+			whiteSpace: "nowrap",
+			textOverflow: "ellipsis",
+		},
+		footer: {
+			display: "flex",
+			flexDirection: "row",
+			justifyContent: "space-between",
+			gap: spacing[1.5],
+			flexShrink: 0,
+		},
+		form: {
+			display: "flex",
+			flexDirection: "column",
+			gap: spacing[2.5],
+			padding: spacing[2],
+			flexGrow: 1,
+			minHeight: 0,
+			overflowY: "scroll",
+		},
+		notice: {
+			height: noticeHeight,
+			flexShrink: 0,
+			padding: spacing[2],
+			overflowY: "scroll",
+		},
+	});
+
+	return { colors, styles };
 });
 
 /** Creation flyouts share the workspace menu's hover and keyboard owner. */
@@ -211,6 +216,10 @@ function WorkspaceActionSubmenu({
 	onLeave: () => void;
 	children: ReactNode;
 }) {
+	const theme = useAppTheme();
+	const { tokens: appTokens } = theme;
+	const { colors, styles } = themedStyles[theme.appearance];
+
 	return (
 		<div
 			style={{
@@ -311,6 +320,10 @@ export function WorkspaceMenu({
 	dispatch: Dispatch<WorkspaceTabsAction>;
 	onClose: () => void;
 }) {
+	const theme = useAppTheme();
+	const { tokens: appTokens } = theme;
+	const { colors, styles } = themedStyles[theme.appearance];
+
 	const renderer = useGpuixRequired();
 	const windowSize = useWindowSize();
 

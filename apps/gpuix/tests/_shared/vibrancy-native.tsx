@@ -124,9 +124,82 @@ const nameBytes = send(effectiveName, "UTF8String");
 assert.ok(nameBytes, "effective appearance must have a name");
 assert.equal(
 	new CString(nameBytes).toString(),
-	"NSAppearanceNameAqua",
-	"light app chrome must stay readable even with a dark application appearance"
+	process.argv[2] === "dark"
+		? "NSAppearanceNameVibrantDark"
+		: "NSAppearanceNameVibrantLight",
+	"the native backdrop must inherit appearance instead of pinning itself to light"
 );
+
+const setWindowAppearance: unknown = Reflect.get(
+	renderer,
+	"setWindowAppearance"
+);
+
+assert.ok(
+	typeof setWindowAppearance === "function",
+	"native appearance patch must be present"
+);
+assert.throws(
+	() => Reflect.apply(setWindowAppearance, renderer, ["invalid"]),
+	/light or dark/
+);
+
+for (const choice of ["dark", "light", "dark"] as const) {
+	Reflect.apply(setWindowAppearance, renderer, [choice]);
+
+	for (let frame = 0; frame < 10; frame++) {
+		assert.ok(renderer.tick(), "theme switching must preserve the live window");
+		await Bun.sleep(10);
+	}
+
+	const chosenName =
+		choice === "dark" ? "NSAppearanceNameDarkAqua" : "NSAppearanceNameAqua";
+
+	const materialName =
+		choice === "dark"
+			? "NSAppearanceNameVibrantDark"
+			: "NSAppearanceNameVibrantLight";
+
+	for (const [object, expectedName] of [
+		[window, chosenName],
+		[backdrop, materialName],
+	] as const) {
+		const bytes = send(
+			send(send(object, "effectiveAppearance"), "name"),
+			"UTF8String"
+		);
+
+		assert.ok(bytes);
+		assert.equal(
+			new CString(bytes).toString(),
+			expectedName,
+			"window and blur must follow the selected theme"
+		);
+	}
+
+	assert.equal(
+		integer(backdrop, "material"),
+		7,
+		"theme switching must retain Sidebar blur"
+	);
+	assert.equal(
+		integer(backdrop, "blendingMode"),
+		0,
+		"theme switching must retain behind-window blending"
+	);
+	const systemBytes = send(
+		send(send(app, "effectiveAppearance"), "name"),
+		"UTF8String"
+	);
+
+	assert.ok(systemBytes);
+	assert.equal(
+		new CString(systemBytes).toString(),
+		appearanceName,
+		"a window preference must not change application appearance"
+	);
+}
+
 const updateLayer = selector("updateLayer");
 
 assert.equal(

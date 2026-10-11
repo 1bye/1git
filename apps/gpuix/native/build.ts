@@ -36,6 +36,8 @@ import {
 	anchoredCenterPatchPath,
 	sidebarVibrancyPlatformPatchPath,
 	roundedOverflowPlatformPatchPath,
+	windowAppearancePatchPath,
+	windowAppearancePlatformPatchPath,
 } from "./config";
 
 if (process.platform !== "darwin" || process.arch !== "arm64") {
@@ -116,6 +118,8 @@ if (
 		contextMenuIconsPatchPath,
 		contextMenuIconsPlatformPatchPath,
 		roundedOverflowPlatformPatchPath,
+		windowAppearancePatchPath,
+		windowAppearancePlatformPatchPath,
 	];
 
 	// Later patches can change an earlier patch's context. Unwind known patches
@@ -131,7 +135,8 @@ if (
 			patch === accountsPlatformPatchPath ||
 			patch === sidebarVibrancyPlatformPatchPath ||
 			patch === contextMenuIconsPlatformPatchPath ||
-			patch === roundedOverflowPlatformPatchPath
+			patch === roundedOverflowPlatformPatchPath ||
+			patch === windowAppearancePlatformPatchPath
 				? resolve(source, "zed")
 				: source;
 
@@ -156,7 +161,8 @@ if (
 			patch === accountsPlatformPatchPath ||
 			patch === sidebarVibrancyPlatformPatchPath ||
 			patch === contextMenuIconsPlatformPatchPath ||
-			patch === roundedOverflowPlatformPatchPath
+			patch === roundedOverflowPlatformPatchPath ||
+			patch === windowAppearancePlatformPatchPath
 				? resolve(source, "zed")
 				: source;
 

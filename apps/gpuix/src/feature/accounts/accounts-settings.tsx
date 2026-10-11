@@ -1,3 +1,4 @@
+import { createThemedStyles, useAppTheme } from "../../styles/theme";
 import { typography, radius, spacing, fontWeight } from "@1git/design-tokens";
 import {
 	useCallback,
@@ -34,7 +35,7 @@ import { Accounts } from "./lib/accounts";
 import type { RemoteAccounts } from "./lib/remote-accounts";
 import { AccountStore, type SavedAccount } from "./lib/account-store";
 import { NativeCredentials } from "./lib/native-credentials";
-import { appTokens } from "../../styles/tokens";
+
 import { workspaceLayout } from "../../styles/workspace-layout";
 import { WorkspaceTabIcon } from "../workspace-tabs/components/workspace-tab-icon";
 import { WorkspaceTabHeading } from "../workspace-tabs/components/workspace-tab";
@@ -51,43 +52,11 @@ import {
 	type EditorSettingsHandle,
 } from "../editor-settings/editor-settings";
 import type { ExternalEditors } from "../editor-settings/external-editors";
+import { AppearanceSettings } from "../appearance-settings/appearance-settings";
 
-const fieldStyle = {
-	height: appTokens.layout.controlHeight,
-	...typography.md,
-	color: appTokens.colors.text,
-	backgroundColor: "transparent",
-	borderWidth: 1,
-	borderRadius: radius.md,
-	borderColor: appTokens.colors.border,
-	paddingLeft: spacing[2.5],
-	paddingRight: spacing[2.5],
-	flexShrink: 0,
-};
-
-const labelStyle = { ...typography.md, color: appTokens.colors.textMuted };
 const sidebarWidth = 200;
 const contentPadding = spacing[4];
 const sectionMaxWidth = 480;
-
-const headingStyle = {
-	...typography.lg,
-	fontWeight: fontWeight.medium,
-	color: appTokens.colors.text,
-};
-
-const footerStyle = {
-	display: "flex",
-	flexDirection: "column",
-	flexShrink: 0,
-	gap: spacing[2],
-	paddingTop: spacing[3],
-	paddingBottom: spacing[3],
-	paddingLeft: contentPadding,
-	paddingRight: contentPadding,
-	borderTopWidth: 1,
-	borderColor: appTokens.colors.border,
-};
 
 // Clear the traffic lights and keep the tab, including its curved shoulder, over the sidebar.
 const titleInset = workspaceLayout.desktopTitlebarControlsWidth;
@@ -98,18 +67,57 @@ const settingsTitleWidth =
 /** Settings pages distinguish application defaults from the active repository's configuration. */
 export type SettingsSection =
 	| "accounts"
+	| "appearance"
 	| "git"
 	| "editor"
 	| "repository-remotes"
 	| "repository-identity";
 
-const groupHeading = {
-	...typography.xs,
-	fontWeight: fontWeight.medium,
-	color: appTokens.colors.textMuted,
-	paddingLeft: spacing[2.5],
-	marginTop: spacing[3],
-};
+const themedStyles = createThemedStyles(({ tokens: appTokens }) => {
+	const fieldStyle = {
+		height: appTokens.layout.controlHeight,
+		...typography.md,
+		color: appTokens.colors.text,
+		backgroundColor: "transparent",
+		borderWidth: 1,
+		borderRadius: radius.md,
+		borderColor: appTokens.colors.border,
+		paddingLeft: spacing[2.5],
+		paddingRight: spacing[2.5],
+		flexShrink: 0,
+	};
+
+	const labelStyle = { ...typography.md, color: appTokens.colors.textMuted };
+
+	const headingStyle = {
+		...typography.lg,
+		fontWeight: fontWeight.medium,
+		color: appTokens.colors.text,
+	};
+
+	const footerStyle = {
+		display: "flex",
+		flexDirection: "column",
+		flexShrink: 0,
+		gap: spacing[2],
+		paddingTop: spacing[3],
+		paddingBottom: spacing[3],
+		paddingLeft: contentPadding,
+		paddingRight: contentPadding,
+		borderTopWidth: 1,
+		borderColor: appTokens.colors.border,
+	};
+
+	const groupHeading = {
+		...typography.xs,
+		fontWeight: fontWeight.medium,
+		color: appTokens.colors.textMuted,
+		paddingLeft: spacing[2.5],
+		marginTop: spacing[3],
+	};
+
+	return { fieldStyle, labelStyle, headingStyle, footerStyle, groupHeading };
+});
 
 /** Account settings are window-local. Tokens are transient refs and uncontrolled native password inputs, never renderer props. */
 export function AccountsSettings({
@@ -154,6 +162,12 @@ export function AccountsSettings({
 	writeGitSettings?: typeof GitSettingsModel.write;
 	externalEditors?: ExternalEditors;
 }) {
+	const theme = useAppTheme();
+	const { tokens: appTokens } = theme;
+
+	const { fieldStyle, labelStyle, headingStyle, footerStyle, groupHeading } =
+		themedStyles[theme.appearance];
+
 	const renderer = useGpuixRequired();
 
 	const [accounts] = useState(
@@ -496,6 +510,33 @@ export function AccountsSettings({
 						Application
 					</text>
 					<Button
+						testId="settings-appearance"
+						ref={section === "appearance" ? initialPage : undefined}
+						tokens={appTokens}
+						size="sm"
+						variant={section === "appearance" ? "secondary" : "ghost"}
+						aria-current={section === "appearance" ? "page" : undefined}
+						disabled={settingsBusy}
+						style={{ justifyContent: "flex-start" }}
+						onPress={() => {
+							token.current = "";
+							setHasToken(false);
+							setForm("list");
+							setSection("appearance");
+						}}
+					>
+						<svg
+							source='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25"><circle cx="12" cy="12" r="8"/><path d="M12 4v16M12 4a8 8 0 0 1 0 16Z" fill="currentColor" stroke="none"/></svg>'
+							style={{
+								width: 14,
+								height: 14,
+								color: appTokens.colors.textMuted,
+								pointerEvents: "none",
+							}}
+						/>
+						Appearance
+					</Button>
+					<Button
 						testId="settings-accounts"
 						ref={section === "accounts" ? initialPage : undefined}
 						tokens={appTokens}
@@ -606,7 +647,9 @@ export function AccountsSettings({
 			}
 		>
 			{children}
-			{section === "editor" ? (
+			{section === "appearance" ? (
+				<AppearanceSettings />
+			) : section === "editor" ? (
 				<EditorSettings
 					ref={editorSettings}
 					editors={externalEditors}

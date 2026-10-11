@@ -1,3 +1,4 @@
+import { createThemedStyles, useAppTheme } from "../../../styles/theme";
 import {
 	useRef,
 	useState,
@@ -17,13 +18,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@1git/gpuix-ui/tooltip";
-import {
-	controlSize,
-	radius,
-	iconSize,
-	spacing,
-	lightColors,
-} from "@1git/design-tokens";
+import { controlSize, radius, iconSize, spacing } from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import {
 	AccountStore,
@@ -33,7 +28,6 @@ import type { Accounts } from "../../accounts/lib/accounts";
 import { accountProviderIcons } from "../../accounts/account-provider-icons";
 import { NativeFileMenu } from "../lib/native-file-menu";
 import { repositoryViews, type RepositoryView } from "../types";
-import { appTokens } from "../../../styles/tokens";
 
 export const workspaceRailWidth = 48;
 
@@ -57,18 +51,22 @@ const icons = {
 	),
 };
 
-const actionStyle: StyleDesc = {
-	display: "flex",
-	alignItems: "center",
-	justifyContent: "center",
-	width: controlSize.rail,
-	height: controlSize.rail,
-	flexShrink: 0,
-	borderRadius: radius.lg,
-	backgroundColor: "transparent",
-	cursor: "pointer",
-	hover: { backgroundColor: lightColors.editorHairline },
-};
+const themedStyles = createThemedStyles(({ colors: appColors }) => {
+	const actionStyle: StyleDesc = {
+		display: "flex",
+		alignItems: "center",
+		justifyContent: "center",
+		width: controlSize.rail,
+		height: controlSize.rail,
+		flexShrink: 0,
+		borderRadius: radius.lg,
+		backgroundColor: "transparent",
+		cursor: "pointer",
+		hover: { backgroundColor: appColors.editorHairline },
+	};
+
+	return { actionStyle };
+});
 
 /** A native host trigger preserves tooltip focus/hover events and tab semantics. */
 function RailAction({
@@ -85,6 +83,10 @@ function RailAction({
 	selected?: boolean;
 	disabled?: boolean;
 }) {
+	const theme = useAppTheme();
+	const { tokens: appTokens, colors: appColors } = theme;
+	const { actionStyle } = themedStyles[theme.appearance];
+
 	const [focused, setFocused] = useState(false);
 	const [pointerFocus, setPointerFocus] = useState(false);
 
@@ -115,7 +117,7 @@ function RailAction({
 					}}
 					style={StyleSheet.compose(
 						actionStyle,
-						selected && { backgroundColor: lightColors.editorHairline },
+						selected && { backgroundColor: appColors.editorHairline },
 						disabled && { opacity: 0.45, cursor: "not-allowed" }
 					)}
 				>
@@ -128,10 +130,10 @@ function RailAction({
 							pointerEvents: "none",
 							color:
 								focused && !pointerFocus
-									? lightColors.brand
+									? appColors.brand
 									: selected
-										? lightColors.editorInk
-										: lightColors.editorMuted,
+										? appColors.editorInk
+										: appColors.editorMuted,
 						}}
 					/>
 				</div>
@@ -193,6 +195,9 @@ export function WorkspaceRail({
 	/** Repository-wide actions sit above the navigation group. */
 	children?: ReactNode;
 }) {
+	const theme = useAppTheme();
+	const { colors: appColors } = theme;
+
 	const renderer = useGpuixRequired();
 	const localButtons = useRef(new Map<RepositoryView, PublicInstance>());
 	const buttons = viewButtonRefs ?? localButtons;
@@ -300,7 +305,7 @@ export function WorkspaceRail({
 								width: 20,
 								height: 1,
 								flexShrink: 0,
-								backgroundColor: lightColors.editorHairlineStrong,
+								backgroundColor: appColors.editorHairlineStrong,
 							}}
 						/>
 					</>

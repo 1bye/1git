@@ -1,7 +1,6 @@
-import { spacing, typography, lightColors } from "@1git/design-tokens";
+import { useAppTheme } from "../../../styles/theme";
+import { spacing, typography } from "@1git/design-tokens";
 import { Button } from "@1git/gpuix-ui/button";
-
-import { appTokens } from "../../../styles/tokens";
 
 /** Compact, keyboard-accessible retry/pagination control without replacing loaded rows. */
 export function RepositoryReadNotice({
@@ -17,6 +16,9 @@ export function RepositoryReadNotice({
 	onPress: () => void;
 	label: string;
 }) {
+	const theme = useAppTheme();
+	const { tokens: appTokens, colors: appColors } = theme;
+
 	return (
 		<div
 			style={{
@@ -32,7 +34,7 @@ export function RepositoryReadNotice({
 			{error ? (
 				<text
 					role="alert"
-					style={{ ...typography.xs, color: lightColors.editorMuted }}
+					style={{ ...typography.xs, color: appColors.editorMuted }}
 				>
 					{error}
 				</text>

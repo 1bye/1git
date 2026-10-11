@@ -1,3 +1,4 @@
+import { useAppTheme } from "../../styles/theme";
 import { fontWeight, spacing, typography } from "@1git/design-tokens";
 import { Button } from "@1git/gpuix-ui/button";
 import { useGpuixRequired } from "@gpuix/react";
@@ -8,7 +9,7 @@ import {
 	useState,
 	type Ref,
 } from "react";
-import { appTokens } from "../../styles/tokens";
+
 import { accountActionIcons } from "../accounts/account-list";
 import { EditorChoices } from "./editor-choices";
 import { EditorRuleEditor } from "./editor-rule-editor";
@@ -29,6 +30,9 @@ export function EditorSettings({
 	editors?: ExternalEditors;
 	onBusy: (busy: boolean) => void;
 }) {
+	const theme = useAppTheme();
+	const { tokens: appTokens } = theme;
+
 	const renderer = useGpuixRequired();
 	const [editors] = useState(() => supplied ?? new ExternalEditors());
 

@@ -1,3 +1,4 @@
+import { createThemedStyles, useAppTheme } from "../../../styles/theme";
 import {
 	spacing,
 	typography,
@@ -11,55 +12,59 @@ import { Button } from "@1git/gpuix-ui/button";
 import { useGpuixRequired, type EventPayload } from "@gpuix/react";
 import { NativeFileMenu } from "../lib/native-file-menu";
 import { RepositoryFileActions } from "../lib/repository-file-actions";
-import { appTokens } from "../../../styles/tokens";
+
 import { StateMessage } from "../../../fixture/state-message";
 import { RepositoryWelcomeRow } from "./repository-welcome-row";
 
-const styles = StyleSheet.create({
-	page: {
-		display: "flex",
-		flexDirection: "column",
-		flexGrow: 1,
-		flexBasis: 0,
-		minHeight: 0,
-		overflowY: "hidden",
-		padding: spacing[10],
-		alignItems: "center",
-	},
-	columns: {
-		display: "flex",
-		flexDirection: "row",
-		alignItems: "stretch",
-		flexGrow: 1,
-		minHeight: 0,
-		width: "100%",
-		maxWidth: 980,
-		gap: spacing[16],
-	},
-	list: {
-		display: "flex",
-		flexDirection: "column",
-		flexGrow: 1,
-		flexBasis: 0,
-		minHeight: 0,
-		overflowY: "scroll",
-		overflowX: "hidden",
-		gap: spacing[1],
-	},
-	heading: {
-		...typography.xs,
-		fontWeight: fontWeight.medium,
-		color: appTokens.colors.textMuted,
-		marginBottom: spacing[3],
-		marginLeft: spacing[2.5],
-	},
-	hint: { ...typography.sm, color: appTokens.colors.textMuted },
-	action: {
-		width: "100%",
-		justifyContent: "flex-start",
-		gap: spacing[2],
-		color: appTokens.colors.textMuted,
-	},
+const themedStyles = createThemedStyles(({ tokens: appTokens }) => {
+	const styles = StyleSheet.create({
+		page: {
+			display: "flex",
+			flexDirection: "column",
+			flexGrow: 1,
+			flexBasis: 0,
+			minHeight: 0,
+			overflowY: "hidden",
+			padding: spacing[10],
+			alignItems: "center",
+		},
+		columns: {
+			display: "flex",
+			flexDirection: "row",
+			alignItems: "stretch",
+			flexGrow: 1,
+			minHeight: 0,
+			width: "100%",
+			maxWidth: 980,
+			gap: spacing[16],
+		},
+		list: {
+			display: "flex",
+			flexDirection: "column",
+			flexGrow: 1,
+			flexBasis: 0,
+			minHeight: 0,
+			overflowY: "scroll",
+			overflowX: "hidden",
+			gap: spacing[1],
+		},
+		heading: {
+			...typography.xs,
+			fontWeight: fontWeight.medium,
+			color: appTokens.colors.textMuted,
+			marginBottom: spacing[3],
+			marginLeft: spacing[2.5],
+		},
+		hint: { ...typography.sm, color: appTokens.colors.textMuted },
+		action: {
+			width: "100%",
+			justifyContent: "flex-start",
+			gap: spacing[2],
+			color: appTokens.colors.textMuted,
+		},
+	});
+
+	return { styles };
 });
 
 /** Desktop-style launch page: quick actions beside a local, searchable repository list. */
@@ -80,6 +85,10 @@ export function RepositoryWelcome({
 	onOpenRecent: (path: string) => void;
 	onForget: (path: string) => void;
 }) {
+	const theme = useAppTheme();
+	const { tokens: appTokens } = theme;
+	const { styles } = themedStyles[theme.appearance];
+
 	const [query, setQuery] = useState("");
 	const [menuError, setMenuError] = useState<string | null>(null);
 	const renderer = useGpuixRequired();

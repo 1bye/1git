@@ -1,8 +1,9 @@
+import { useAppTheme } from "../../styles/theme";
 import { spacing, typography } from "@1git/design-tokens";
 import { Button } from "@1git/gpuix-ui/button";
 import { Text } from "@1git/gpuix-ui/text";
 import { useEffect, useRef, useState } from "react";
-import { appTokens } from "../../styles/tokens";
+
 import { NativeBrowser } from "../../platform/browser";
 import { StateMessage } from "../../fixture/state-message";
 import { RepositoryComparison } from "../repository-comparison/repository-comparison";
@@ -49,6 +50,9 @@ export function RepositoryPullRequestView({
 	onClose: () => void;
 	openBrowser?: typeof NativeBrowser.open;
 } & ComparisonProps) {
+	const theme = useAppTheme();
+	const { tokens: appTokens } = theme;
+
 	const [preview, setPreview] = useState<PullRequestPreview | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [message, setMessage] = useState<string | null>(null);

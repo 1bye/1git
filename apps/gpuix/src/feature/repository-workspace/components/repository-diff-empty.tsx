@@ -1,9 +1,5 @@
-import {
-	spacing,
-	typography,
-	fontWeight,
-	lightColors,
-} from "@1git/design-tokens";
+import { createThemedStyles, useAppTheme } from "../../../styles/theme";
+import { spacing, typography, fontWeight } from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { Button } from "@1git/gpuix-ui/button";
 
@@ -13,55 +9,59 @@ import type {
 	WorkspaceRevision,
 } from "../types";
 import type { RepositoryWorkspaceState } from "../lib/repository-workspace-model";
-import { appTokens } from "../../../styles/tokens";
+
 import { ComparisonArtwork } from "../../../fixture/comparison-artwork";
 import {
 	StateArtwork,
 	type StateArtworkName,
 } from "../../../fixture/state-artwork";
 
-const styles = StyleSheet.create({
-	header: {
-		height: 40,
-		flexShrink: 0,
-		display: "flex",
-		flexDirection: "row",
-		alignItems: "center",
-		gap: spacing[4],
-		paddingLeft: spacing[5],
-		paddingRight: spacing[5],
-		borderBottomWidth: 1,
-		borderColor: lightColors.editorHairline,
-	},
-	title: {
-		...typography.sm,
-		color: lightColors.editorMuted,
-		whiteSpace: "nowrap",
-		textOverflow: "ellipsis",
-		overflowX: "hidden",
-		flexGrow: 1,
-	},
-	empty: {
-		display: "flex",
-		flexDirection: "column",
-		flexGrow: 1,
-		minHeight: 0,
-		alignItems: "center",
-		justifyContent: "center",
-		gap: spacing[2],
-		padding: spacing[6],
-	},
-	heading: {
-		...typography.lg,
-		fontWeight: fontWeight.medium,
-		color: lightColors.editorInk,
-	},
-	hint: {
-		...typography.sm,
-		color: lightColors.editorFaint,
-		textAlign: "center",
-		maxWidth: 420,
-	},
+const themedStyles = createThemedStyles(({ colors: appColors }) => {
+	const styles = StyleSheet.create({
+		header: {
+			height: 40,
+			flexShrink: 0,
+			display: "flex",
+			flexDirection: "row",
+			alignItems: "center",
+			gap: spacing[4],
+			paddingLeft: spacing[5],
+			paddingRight: spacing[5],
+			borderBottomWidth: 1,
+			borderColor: appColors.editorHairline,
+		},
+		title: {
+			...typography.sm,
+			color: appColors.editorMuted,
+			whiteSpace: "nowrap",
+			textOverflow: "ellipsis",
+			overflowX: "hidden",
+			flexGrow: 1,
+		},
+		empty: {
+			display: "flex",
+			flexDirection: "column",
+			flexGrow: 1,
+			minHeight: 0,
+			alignItems: "center",
+			justifyContent: "center",
+			gap: spacing[2],
+			padding: spacing[6],
+		},
+		heading: {
+			...typography.lg,
+			fontWeight: fontWeight.medium,
+			color: appColors.editorInk,
+		},
+		hint: {
+			...typography.sm,
+			color: appColors.editorFaint,
+			textAlign: "center",
+			maxWidth: 420,
+		},
+	});
+
+	return { styles };
 });
 
 /** Empty, sample-only and not-yet-connected views without invented repository data. */
@@ -82,6 +82,10 @@ export function RepositoryDiffEmpty({
 	picking?: boolean;
 	onOpen?: () => void;
 }) {
+	const theme = useAppTheme();
+	const { tokens: appTokens, colors: appColors } = theme;
+	const { styles } = themedStyles[theme.appearance];
+
 	let heading = "Select an item to inspect";
 	let hint = "Choose a changed file, commit, or stash from the list.";
 
@@ -231,9 +235,7 @@ export function RepositoryDiffEmpty({
 					<text testId="diff-selection" style={styles.title}>
 						{selected.title}
 					</text>
-					<text
-						style={{ ...typography["2xs"], color: lightColors.editorFaint }}
-					>
+					<text style={{ ...typography["2xs"], color: appColors.editorFaint }}>
 						Preview
 					</text>
 				</div>

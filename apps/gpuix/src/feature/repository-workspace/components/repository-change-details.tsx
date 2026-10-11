@@ -1,16 +1,8 @@
-import {
-	spacing,
-	typography,
-	fontWeight,
-	iconSize,
-	lightColors,
-} from "@1git/design-tokens";
+import { createThemedStyles, useAppTheme } from "../../../styles/theme";
+import { spacing, typography, fontWeight, iconSize } from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 
 import type { WorkspaceEntry } from "../types";
-import { appTokens } from "../../../styles/tokens";
-
-const addedColor = "#1a7f37";
 
 const statusSymbols = {
 	M: '<circle cx="8" cy="8" r="1.5" fill="currentColor" stroke="none"/>',
@@ -22,47 +14,55 @@ const statusSymbols = {
 	T: '<path d="M5 5h6M8 5v6"/>',
 };
 
-const styles = StyleSheet.create({
-	identity: {
-		display: "flex",
-		flexDirection: "row",
-		alignItems: "center",
-		gap: spacing[2],
-		flexGrow: 1,
-		minWidth: 0,
-		pointerEvents: "none",
-	},
-	nameAndPath: {
-		display: "flex",
-		flexDirection: "row",
-		alignItems: "center",
-		gap: spacing[1.5],
-		flexGrow: 1,
-		minWidth: 0,
-		overflowX: "hidden",
-	},
-	filename: {
-		...typography.sm,
-		fontWeight: fontWeight.regular,
-		color: lightColors.editorInk,
-		flexShrink: 0,
-		maxWidth: "100%",
-		whiteSpace: "nowrap",
-		textOverflow: "ellipsis",
-		overflowX: "hidden",
-	},
-	path: {
-		...typography.xs,
-		color: lightColors.editorFaint,
-		minWidth: 0,
-		whiteSpace: "nowrap",
-		textOverflow: "ellipsis",
-		overflowX: "hidden",
-	},
+const themedStyles = createThemedStyles(({ colors: appColors }) => {
+	const styles = StyleSheet.create({
+		identity: {
+			display: "flex",
+			flexDirection: "row",
+			alignItems: "center",
+			gap: spacing[2],
+			flexGrow: 1,
+			minWidth: 0,
+			pointerEvents: "none",
+		},
+		nameAndPath: {
+			display: "flex",
+			flexDirection: "row",
+			alignItems: "center",
+			gap: spacing[1.5],
+			flexGrow: 1,
+			minWidth: 0,
+			overflowX: "hidden",
+		},
+		filename: {
+			...typography.sm,
+			fontWeight: fontWeight.regular,
+			color: appColors.editorInk,
+			flexShrink: 0,
+			maxWidth: "100%",
+			whiteSpace: "nowrap",
+			textOverflow: "ellipsis",
+			overflowX: "hidden",
+		},
+		path: {
+			...typography.xs,
+			color: appColors.editorFaint,
+			minWidth: 0,
+			whiteSpace: "nowrap",
+			textOverflow: "ellipsis",
+			overflowX: "hidden",
+		},
+	});
+
+	return { styles };
 });
 
 /** Filename-first identity for changed files; the full path remains in the row's accessible label. */
 export function RepositoryChangeLabel({ entry }: { entry: WorkspaceEntry }) {
+	const theme = useAppTheme();
+	const { tokens: appTokens, colors: appColors } = theme;
+	const { styles } = themedStyles[theme.appearance];
+
 	const slash = entry.title.lastIndexOf("/");
 	const filename = entry.title.slice(slash + 1);
 	const directory = slash < 0 ? "" : entry.title.slice(0, slash);
@@ -81,10 +81,10 @@ export function RepositoryChangeLabel({ entry }: { entry: WorkspaceEntry }) {
 						status === "U"
 							? appTokens.colors.danger
 							: status === "A"
-								? addedColor
+								? appColors.success
 								: status === "D"
-									? lightColors.editorFaint
-									: lightColors.brand,
+									? appColors.editorFaint
+									: appColors.brand,
 				}}
 			/>
 			<div testId={`identity-${entry.id}`} style={styles.nameAndPath}>
@@ -93,7 +93,7 @@ export function RepositoryChangeLabel({ entry }: { entry: WorkspaceEntry }) {
 					style={StyleSheet.compose(
 						styles.filename,
 						status === "D" && {
-							color: lightColors.editorMuted,
+							color: appColors.editorMuted,
 							textDecoration: "line-through",
 						}
 					)}

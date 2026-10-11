@@ -1,3 +1,4 @@
+import { createThemedStyles, useAppTheme } from "../../styles/theme";
 import { spacing, typography } from "@1git/design-tokens";
 import { useEffect, useState, type ReactNode } from "react";
 import type { BranchComparison, CommitPage } from "@1git/git";
@@ -11,7 +12,7 @@ import {
 	SelectItem,
 } from "@1git/gpuix-ui/select";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
-import { appTokens } from "../../styles/tokens";
+
 import {
 	RepositoryComparison as Reader,
 	type ComparisonRequest,
@@ -29,102 +30,106 @@ import { ComparisonArtwork } from "../../fixture/comparison-artwork";
 import { StateMessage } from "../../fixture/state-message";
 import { EmptyListPlaceholder } from "../../fixture/empty-list-placeholder";
 
-const styles = StyleSheet.create({
-	empty: {
-		display: "flex",
-		flexDirection: "column",
-		flexGrow: 1,
-		minHeight: 0,
-		alignItems: "center",
-		justifyContent: "center",
-		gap: spacing[2.5],
-		padding: spacing[6],
-	},
-	root: {
-		display: "flex",
-		flexDirection: "column",
-		flexGrow: 1,
-		flexBasis: 0,
-		minHeight: 0,
-		minWidth: 0,
-		overflow: "hidden",
-	},
-	toolbar: {
-		display: "flex",
-		flexShrink: 0,
-		flexDirection: "row",
-		alignItems: "center",
-		borderBottomWidth: 1,
-		borderColor: appTokens.colors.border,
-	},
-	back: {
-		width: 310,
-		flexShrink: 0,
-		padding: spacing[2],
-		display: "flex",
-		flexDirection: "row",
-		alignItems: "center",
-		gap: spacing[1],
-	},
-	controls: {
-		display: "flex",
-		flexDirection: "row",
-		flexGrow: 1,
-		flexBasis: 0,
-		minWidth: 0,
-		padding: spacing[2],
-		justifyContent: "center",
-		alignItems: "center",
-	},
-	branchPair: {
-		display: "flex",
-		flexDirection: "row",
-		alignItems: "center",
-		gap: spacing[2],
-		maxWidth: "100%",
-	},
-	body: {
-		display: "flex",
-		flexGrow: 1,
-		flexBasis: 0,
-		minHeight: 0,
-		flexDirection: "row",
-		overflow: "hidden",
-	},
-	sidebar: {
-		display: "flex",
-		flexDirection: "column",
-		width: 310,
-		flexShrink: 0,
-		minHeight: 0,
-		borderRightWidth: 1,
-		borderColor: appTokens.colors.border,
-	},
-	commits: {
-		display: "flex",
-		flexDirection: "column",
-		flexShrink: 0,
-		overflow: "hidden",
-		height: "40%",
-		minHeight: 80,
-		borderBottomWidth: 1,
-		borderColor: appTokens.colors.border,
-	},
-	label: {
-		padding: spacing[2.5],
-		...typography.sm,
-		color: appTokens.colors.textMuted,
-		flexShrink: 0,
-	},
-	preview: {
-		display: "flex",
-		flexDirection: "column",
-		flexGrow: 1,
-		flexBasis: 0,
-		minWidth: 0,
-		minHeight: 0,
-		overflow: "hidden",
-	},
+const themedStyles = createThemedStyles(({ tokens: appTokens }) => {
+	const styles = StyleSheet.create({
+		empty: {
+			display: "flex",
+			flexDirection: "column",
+			flexGrow: 1,
+			minHeight: 0,
+			alignItems: "center",
+			justifyContent: "center",
+			gap: spacing[2.5],
+			padding: spacing[6],
+		},
+		root: {
+			display: "flex",
+			flexDirection: "column",
+			flexGrow: 1,
+			flexBasis: 0,
+			minHeight: 0,
+			minWidth: 0,
+			overflow: "hidden",
+		},
+		toolbar: {
+			display: "flex",
+			flexShrink: 0,
+			flexDirection: "row",
+			alignItems: "center",
+			borderBottomWidth: 1,
+			borderColor: appTokens.colors.border,
+		},
+		back: {
+			width: 310,
+			flexShrink: 0,
+			padding: spacing[2],
+			display: "flex",
+			flexDirection: "row",
+			alignItems: "center",
+			gap: spacing[1],
+		},
+		controls: {
+			display: "flex",
+			flexDirection: "row",
+			flexGrow: 1,
+			flexBasis: 0,
+			minWidth: 0,
+			padding: spacing[2],
+			justifyContent: "center",
+			alignItems: "center",
+		},
+		branchPair: {
+			display: "flex",
+			flexDirection: "row",
+			alignItems: "center",
+			gap: spacing[2],
+			maxWidth: "100%",
+		},
+		body: {
+			display: "flex",
+			flexGrow: 1,
+			flexBasis: 0,
+			minHeight: 0,
+			flexDirection: "row",
+			overflow: "hidden",
+		},
+		sidebar: {
+			display: "flex",
+			flexDirection: "column",
+			width: 310,
+			flexShrink: 0,
+			minHeight: 0,
+			borderRightWidth: 1,
+			borderColor: appTokens.colors.border,
+		},
+		commits: {
+			display: "flex",
+			flexDirection: "column",
+			flexShrink: 0,
+			overflow: "hidden",
+			height: "40%",
+			minHeight: 80,
+			borderBottomWidth: 1,
+			borderColor: appTokens.colors.border,
+		},
+		label: {
+			padding: spacing[2.5],
+			...typography.sm,
+			color: appTokens.colors.textMuted,
+			flexShrink: 0,
+		},
+		preview: {
+			display: "flex",
+			flexDirection: "column",
+			flexGrow: 1,
+			flexBasis: 0,
+			minWidth: 0,
+			minHeight: 0,
+			overflow: "hidden",
+		},
+	});
+
+	return { styles };
 });
 
 type Readers = {
@@ -155,6 +160,10 @@ export function RepositoryComparison({
 	notice?: ReactNode;
 	backActions?: ReactNode;
 } & Readers) {
+	const theme = useAppTheme();
+	const { tokens: appTokens } = theme;
+	const { styles } = themedStyles[theme.appearance];
+
 	const [branch, setBranch] = useState(request.incoming ?? "");
 
 	const initialBase = request.branches.find(
@@ -317,6 +326,9 @@ function ComparisonBranchPicker({
 	options: ComparisonRequest["branches"];
 	onChange: (value: string) => void;
 }) {
+	const theme = useAppTheme();
+	const { tokens: appTokens } = theme;
+
 	return (
 		<Select value={value} onValueChange={onChange} items={options}>
 			<SelectTrigger
@@ -375,6 +387,10 @@ function ComparisonResults({
 	diffSettings,
 	onDiffSettingsChange,
 }: { request: ComparisonRequest; base: string; head: string } & Readers) {
+	const theme = useAppTheme();
+	const { tokens: appTokens } = theme;
+	const { styles } = themedStyles[theme.appearance];
+
 	const [comparison, setComparison] = useState<BranchComparison | null>(null);
 	const [page, setPage] = useState<CommitPage | null>(null);
 	const [offset, setOffset] = useState(0);

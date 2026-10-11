@@ -1,3 +1,4 @@
+import { useAppTheme } from "../../../styles/theme";
 import { spacing, typography, radius } from "@1git/design-tokens";
 import { Button } from "@1git/gpuix-ui/button";
 import { Textarea } from "@1git/gpuix-ui/textarea";
@@ -6,7 +7,7 @@ import type { BranchInfo } from "@1git/git";
 import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
 import { useRef, useState } from "react";
 import { RepositoryList } from "../../repository-workspace/components/repository-list";
-import { appTokens } from "../../../styles/tokens";
+
 import { StateMessage } from "../../../fixture/state-message";
 
 type IntegrationKind = "merge" | "squash-merge" | "rebase";
@@ -36,6 +37,9 @@ export function WorkspaceMergeForm({
 		message?: string
 	) => void;
 }) {
+	const theme = useAppTheme();
+	const { tokens: appTokens } = theme;
+
 	const renderer = useGpuixRequired();
 	const list = useRef<PublicInstance>(null);
 	const [query, setQuery] = useState("");

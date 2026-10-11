@@ -1,8 +1,9 @@
+import { useAppTheme } from "../../styles/theme";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { spacing, typography } from "@1git/design-tokens";
 import { Button } from "@1git/gpuix-ui/button";
 import { Popover, PopoverContent } from "@1git/gpuix-ui/popover";
-import { appTokens } from "../../styles/tokens";
+
 import { AccountStore, type SavedAccount } from "./lib/account-store";
 import type { ChooseRemoteAccount } from "./lib/remote-accounts";
 
@@ -15,6 +16,9 @@ interface PendingChoice {
 
 /** One window's queued, cancellable prompts contain only account metadata, never credentials. */
 export function useSyncAccount() {
+	const theme = useAppTheme();
+	const { tokens: appTokens } = theme;
+
 	const [pending, setPending] = useState<readonly PendingChoice[]>([]);
 	const requests = useRef(new Set<PendingChoice>());
 	const mounted = useRef(true);

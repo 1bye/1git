@@ -1,6 +1,7 @@
+import { useAppTheme } from "../styles/theme";
 import { spacing, typography, fontWeight } from "@1git/design-tokens";
 import type { ReactNode } from "react";
-import { appTokens } from "../styles/tokens";
+
 import { StateArtwork, type StateArtworkName } from "./state-artwork";
 
 /** A centered illustrated message with optional recovery actions and compact list sizing. */
@@ -21,6 +22,9 @@ export function StateMessage({
 	role?: "status" | "alert";
 	compact?: boolean;
 }) {
+	const theme = useAppTheme();
+	const { tokens: appTokens } = theme;
+
 	return (
 		<div
 			testId={testId}

@@ -1,3 +1,4 @@
+import { createThemedStyles, useAppTheme } from "../../../styles/theme";
 import { typography, radius, spacing, iconSize } from "@1git/design-tokens";
 import { useEffect, useRef, useState, type Ref } from "react";
 import { motion, useGpuixRequired, type PublicInstance } from "@gpuix/react";
@@ -7,7 +8,7 @@ import {
 	PopoverTrigger,
 	PopoverContent,
 } from "@1git/gpuix-ui/popover";
-import { appTokens } from "../../../styles/tokens";
+
 import { WorkspaceTabIcon } from "../../workspace-tabs/components/workspace-tab-icon";
 import { StateArtwork } from "../../../fixture/state-artwork";
 import type {
@@ -15,20 +16,24 @@ import type {
 	RepositorySetupResult,
 } from "../lib/repository-setup";
 
-const hint = { ...typography.sm, color: appTokens.colors.textMuted };
+const themedStyles = createThemedStyles(({ tokens: appTokens }) => {
+	const hint = { ...typography.sm, color: appTokens.colors.textMuted };
 
-const input = {
-	height: 30,
-	width: "100%",
-	...typography.md,
-	paddingLeft: spacing[2.5],
-	paddingRight: spacing[2.5],
-	borderRadius: radius.md,
-	borderWidth: 1,
-	borderColor: appTokens.colors.border,
-	color: appTokens.colors.text,
-	backgroundColor: "transparent",
-};
+	const input = {
+		height: 30,
+		width: "100%",
+		...typography.md,
+		paddingLeft: spacing[2.5],
+		paddingRight: spacing[2.5],
+		borderRadius: radius.md,
+		borderWidth: 1,
+		borderColor: appTokens.colors.border,
+		color: appTokens.colors.text,
+		backgroundColor: "transparent",
+	};
+
+	return { hint, input };
+});
 
 const row = {
 	display: "flex",
@@ -39,6 +44,9 @@ const row = {
 
 /** Shared indeterminate progress; Git does not stream percentages at this boundary. */
 export function SetupProgress() {
+	const theme = useAppTheme();
+	const { tokens: appTokens } = theme;
+
 	const [bright, setBright] = useState(false);
 
 	useEffect(() => {
@@ -85,6 +93,9 @@ export function RepositorySetupActions({
 	onClone: () => void;
 	cloneRef?: Ref<PublicInstance>;
 }) {
+	const theme = useAppTheme();
+	const { tokens: appTokens } = theme;
+
 	return (
 		<div style={{ display: "flex", flexDirection: "column", gap: spacing[1] }}>
 			<CreateForm
@@ -123,6 +134,10 @@ function CreateForm({
 	onOpen,
 	onBegin,
 }: Omit<Parameters<typeof RepositorySetupActions>[0], "onClone">) {
+	const theme = useAppTheme();
+	const { tokens: appTokens } = theme;
+	const { hint, input } = themedStyles[theme.appearance];
+
 	const renderer = useGpuixRequired();
 	const [open, setOpen] = useState(false);
 	const [branch, setBranch] = useState("main");

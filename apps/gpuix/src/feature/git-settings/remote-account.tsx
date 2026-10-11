@@ -1,3 +1,4 @@
+import { useAppTheme } from "../../styles/theme";
 import { useState } from "react";
 import { iconSize, spacing, typography } from "@1git/design-tokens";
 import { parseRemote } from "@1git/hosting/remote";
@@ -8,7 +9,7 @@ import type { RemoteAccounts } from "../accounts/lib/remote-accounts";
 import { accountProviderIcons } from "../accounts/account-provider-icons";
 import { accountActionIcons } from "../accounts/account-list";
 import { ChoiceTile } from "../../fixture/choice-tile";
-import { appTokens } from "../../styles/tokens";
+
 import { WorkspaceTabIcon } from "../workspace-tabs/components/workspace-tab-icon";
 
 /** Remote-host glyph, independent of authentication; unknown/local destinations use the Git icon. */
@@ -21,6 +22,9 @@ export function RemoteProviderIcon({
 	accounts: readonly SavedAccount[];
 	testId: string;
 }) {
+	const theme = useAppTheme();
+	const { tokens: appTokens } = theme;
+
 	const parsed = parseRemote(
 		url,
 		accounts.map((account) =>
@@ -89,6 +93,9 @@ export function RemoteAccount({
 	disabled?: boolean;
 	onChange?: (value: string) => void;
 }) {
+	const theme = useAppTheme();
+	const { tokens: appTokens } = theme;
+
 	const [state] = useState(() => {
 		try {
 			return {

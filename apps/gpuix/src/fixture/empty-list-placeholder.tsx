@@ -1,8 +1,11 @@
+import { useAppTheme } from "../styles/theme";
 import { spacing, radius } from "@1git/design-tokens";
-import { appTokens } from "../styles/tokens";
 
 /** Static decorative lines for empty lists, not a loading indicator. */
 export function EmptyListPlaceholder() {
+	const theme = useAppTheme();
+	const { tokens: appTokens } = theme;
+
 	return (
 		<div
 			aria-hidden

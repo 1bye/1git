@@ -1,3 +1,4 @@
+import { useAppTheme } from "../../../styles/theme";
 import { radius, spacing, typography } from "@1git/design-tokens";
 import { Button } from "@1git/gpuix-ui/button";
 import { Popover, PopoverContent } from "@1git/gpuix-ui/popover";
@@ -5,7 +6,7 @@ import { Text } from "@1git/gpuix-ui/text";
 import type { BranchInfo, CherryPickCommitInput, CommitInfo } from "@1git/git";
 import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
 import { useEffect, useRef, useState } from "react";
-import { appTokens } from "../../../styles/tokens";
+
 import {
 	RepositoryBranches,
 	type WorkspaceBranches,
@@ -40,6 +41,9 @@ export function RepositoryCherryPick({
 	onCancel: () => void;
 	onFinished: () => void;
 }) {
+	const theme = useAppTheme();
+	const { tokens: appTokens } = theme;
+
 	const renderer = useGpuixRequired();
 	const list = useRef<PublicInstance>(null);
 	const submitting = useRef(false);

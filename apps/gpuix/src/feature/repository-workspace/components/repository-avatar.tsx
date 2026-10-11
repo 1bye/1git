@@ -1,3 +1,4 @@
+import { useAppTheme } from "../../../styles/theme";
 import {
 	createContext,
 	use,
@@ -5,12 +6,7 @@ import {
 	useEffect,
 	useSyncExternalStore,
 } from "react";
-import {
-	controlSize,
-	lightColors,
-	radius,
-	typography,
-} from "@1git/design-tokens";
+import { controlSize, radius, typography } from "@1git/design-tokens";
 import {
 	RepositoryAvatars,
 	type RepositoryAvatarSource,
@@ -36,6 +32,9 @@ export function RepositoryAvatar({
 	/** Virtual lists start requests from their visible-range callback, not every mounted row. */
 	deferred?: boolean;
 }) {
+	const theme = useAppTheme();
+	const { colors: appColors } = theme;
+
 	const avatars = use(RepositoryAvatarContext);
 	const path = source && "path" in source ? source.path : undefined;
 	const remote = source && "remote" in source ? source.remote : undefined;
@@ -73,7 +72,7 @@ export function RepositoryAvatar({
 				borderRadius: Math.min(radius.md, size / 4),
 				overflow: "hidden",
 				pointerEvents: "none",
-				backgroundColor: lightColors.editorSunken2,
+				backgroundColor: appColors.editorSunken2,
 				display: "flex",
 				alignItems: "center",
 				justifyContent: "center",
@@ -98,7 +97,7 @@ export function RepositoryAvatar({
 					style={{
 						// Initials scale with arbitrary thumbnail sizes, including tiny tabs.
 						fontSize: Math.max(typography["2xs"].fontSize, size * 0.4),
-						color: lightColors.editorMuted,
+						color: appColors.editorMuted,
 						pointerEvents: "none",
 					}}
 				>

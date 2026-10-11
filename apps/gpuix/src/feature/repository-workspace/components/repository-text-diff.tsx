@@ -1,3 +1,4 @@
+import { useAppTheme } from "../../../styles/theme";
 import { spacing, typography } from "@1git/design-tokens";
 import { DiffView } from "@1git/gpuix-ui/diff-view";
 import { Button } from "@1git/gpuix-ui/button";
@@ -6,7 +7,6 @@ import type { GpuixTheme } from "@gpuix/react";
 import { PartialPatch } from "@1git/git";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import { appTokens } from "../../../styles/tokens";
 import { DiffContext } from "../lib/diff-context";
 import { RepositoryDiff, type DiffSelection } from "../lib/repository-diff";
 
@@ -49,6 +49,8 @@ export function RepositoryTextDiff({
 	inclusion?: DiffInclusion;
 	onShowWhitespace: () => void;
 }) {
+	const { tokens: appTokens } = useAppTheme();
+
 	const inclusionEnabled = !!inclusion;
 
 	const selectablePatch = useMemo(() => {

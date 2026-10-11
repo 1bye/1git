@@ -1,3 +1,4 @@
+import { createThemedStyles, useAppTheme } from "../../../styles/theme";
 import { spacing, typography, radius } from "@1git/design-tokens";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@1git/gpuix-ui/button";
@@ -8,34 +9,38 @@ import {
 	PopoverContent,
 } from "@1git/gpuix-ui/popover";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
-import { appTokens } from "../../../styles/tokens";
+
 import {
 	RepositoryWorkspaceModel,
 	type RepositoryWorkspaceState,
 } from "../lib/repository-workspace-model";
 import type { StashWriteRequest } from "../lib/repository-stashes";
 
-const styles = StyleSheet.create({
-	panel: { padding: spacing[2], gap: spacing[1.5], flexShrink: 0 },
-	selectionPanel: { minWidth: 0, flexShrink: 1 },
-	row: {
-		display: "flex",
-		flexDirection: "row",
-		alignItems: "center",
-		gap: spacing[1.5],
-	},
-	label: { ...typography.sm, color: appTokens.colors.text },
-	hint: { ...typography.xs, color: appTokens.colors.textMuted },
-	input: {
-		height: 30,
-		...typography.sm,
-		padding: spacing[1.5],
-		borderWidth: 1,
-		borderRadius: radius.md,
-		borderColor: appTokens.colors.border,
-		backgroundColor: appTokens.colors.field,
-		color: appTokens.colors.text,
-	},
+const themedStyles = createThemedStyles(({ tokens: appTokens }) => {
+	const styles = StyleSheet.create({
+		panel: { padding: spacing[2], gap: spacing[1.5], flexShrink: 0 },
+		selectionPanel: { minWidth: 0, flexShrink: 1 },
+		row: {
+			display: "flex",
+			flexDirection: "row",
+			alignItems: "center",
+			gap: spacing[1.5],
+		},
+		label: { ...typography.sm, color: appTokens.colors.text },
+		hint: { ...typography.xs, color: appTokens.colors.textMuted },
+		input: {
+			height: 30,
+			...typography.sm,
+			padding: spacing[1.5],
+			borderWidth: 1,
+			borderRadius: radius.md,
+			borderColor: appTokens.colors.border,
+			backgroundColor: appTokens.colors.field,
+			color: appTokens.colors.text,
+		},
+	});
+
+	return { styles };
 });
 
 type Form = { request: StashWriteRequest; title: string };
@@ -50,6 +55,10 @@ export function RepositoryStashActions({
 	placement: "create" | "selection";
 	onWrite: (request: StashWriteRequest) => Promise<boolean>;
 }) {
+	const theme = useAppTheme();
+	const { tokens: appTokens } = theme;
+	const { styles } = themedStyles[theme.appearance];
+
 	const [form, setForm] = useState<Form | null>(null);
 	const [more, setMore] = useState(false);
 	const [message, setMessage] = useState("");

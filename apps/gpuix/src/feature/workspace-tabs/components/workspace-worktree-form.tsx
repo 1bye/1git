@@ -1,3 +1,4 @@
+import { createThemedStyles, useAppTheme } from "../../../styles/theme";
 import { spacing, typography, radius, iconSize } from "@1git/design-tokens";
 import { basename, dirname, join } from "node:path";
 import { useEffect, useRef, useState } from "react";
@@ -11,7 +12,7 @@ import {
 	ComboboxContent,
 	ComboboxItem,
 } from "@gpuix/react/combobox";
-import { appTokens } from "../../../styles/tokens";
+
 import {
 	RepositoryBranches,
 	type WorkspaceBranches,
@@ -23,109 +24,114 @@ import {
 import { WorkspaceTabIcon } from "./workspace-tab-icon";
 import { WorkspaceMenuModel } from "../lib/workspace-menu-model";
 
-const { colors } = appTokens;
 const folderUnsafeCharacters = /[^\p{L}\p{N}._-]+/gu;
 
-const styles = StyleSheet.create({
-	form: {
-		display: "flex",
-		flexDirection: "column",
-		gap: spacing[2.5],
-		padding: spacing[2],
-		minHeight: 0,
-		overflowY: "scroll",
-	},
-	label: { ...typography.md, color: colors.text },
-	field: {
-		display: "flex",
-		flexDirection: "column",
-		gap: spacing[1],
-		flexShrink: 0,
-	},
-	comboInput: {
-		width: 0,
-		minWidth: 0,
-		flexGrow: 1,
-		flexShrink: 1,
-		borderWidth: 0,
-		paddingLeft: spacing[0],
-		paddingRight: spacing[0],
-		height: 28,
-	},
-	comboTrigger: {
-		width: 20,
-		height: 28,
-		display: "flex",
-		alignItems: "center",
-		justifyContent: "center",
-		cursor: "pointer",
-	},
-	options: {
-		width: 264,
-		maxHeight: 160,
-		overflowY: "scroll",
-		padding: spacing[1],
-		display: "flex",
-		flexDirection: "column",
-		backgroundColor: colors.overlay,
-		borderRadius: radius.md,
-		borderWidth: 1,
-		borderColor: colors.border,
-	},
-	option: {
-		minHeight: 28,
-		paddingLeft: spacing[2],
-		paddingRight: spacing[2],
-		display: "flex",
-		alignItems: "center",
-		gap: spacing[2],
-		...typography.md,
-		color: colors.text,
-		borderRadius: radius.sm,
-		cursor: "pointer",
-	},
-	fieldText: {
-		...typography.md,
-		minWidth: 0,
-		flexGrow: 1,
-		flexShrink: 1,
-		whiteSpace: "nowrap",
-		textOverflow: "ellipsis",
-		pointerEvents: "none",
-	},
-	locationField: {
-		display: "flex",
-		alignItems: "center",
-		gap: spacing[2],
-		justifyContent: "flex-start",
-	},
-	hint: {
-		...typography.sm,
-		color: colors.textMuted,
-		whiteSpace: "nowrap",
-		textOverflow: "ellipsis",
-		minWidth: 0,
-	},
-	input: {
-		height: 30,
-		flexShrink: 0,
-		width: "100%",
-		...typography.md,
-		paddingLeft: spacing[2.5],
-		paddingRight: spacing[2.5],
-		borderRadius: radius.md,
-		backgroundColor: "transparent",
-		color: colors.text,
-		borderWidth: 1,
-		borderColor: colors.border,
-		hover: { backgroundColor: "transparent" },
-	},
-	footer: {
-		display: "flex",
-		justifyContent: "space-between",
-		flexShrink: 0,
-		gap: spacing[1.5],
-	},
+const themedStyles = createThemedStyles(({ tokens: appTokens }) => {
+	const { colors } = appTokens;
+
+	const styles = StyleSheet.create({
+		form: {
+			display: "flex",
+			flexDirection: "column",
+			gap: spacing[2.5],
+			padding: spacing[2],
+			minHeight: 0,
+			overflowY: "scroll",
+		},
+		label: { ...typography.md, color: colors.text },
+		field: {
+			display: "flex",
+			flexDirection: "column",
+			gap: spacing[1],
+			flexShrink: 0,
+		},
+		comboInput: {
+			width: 0,
+			minWidth: 0,
+			flexGrow: 1,
+			flexShrink: 1,
+			borderWidth: 0,
+			paddingLeft: spacing[0],
+			paddingRight: spacing[0],
+			height: 28,
+		},
+		comboTrigger: {
+			width: 20,
+			height: 28,
+			display: "flex",
+			alignItems: "center",
+			justifyContent: "center",
+			cursor: "pointer",
+		},
+		options: {
+			width: 264,
+			maxHeight: 160,
+			overflowY: "scroll",
+			padding: spacing[1],
+			display: "flex",
+			flexDirection: "column",
+			backgroundColor: colors.overlay,
+			borderRadius: radius.md,
+			borderWidth: 1,
+			borderColor: colors.border,
+		},
+		option: {
+			minHeight: 28,
+			paddingLeft: spacing[2],
+			paddingRight: spacing[2],
+			display: "flex",
+			alignItems: "center",
+			gap: spacing[2],
+			...typography.md,
+			color: colors.text,
+			borderRadius: radius.sm,
+			cursor: "pointer",
+		},
+		fieldText: {
+			...typography.md,
+			minWidth: 0,
+			flexGrow: 1,
+			flexShrink: 1,
+			whiteSpace: "nowrap",
+			textOverflow: "ellipsis",
+			pointerEvents: "none",
+		},
+		locationField: {
+			display: "flex",
+			alignItems: "center",
+			gap: spacing[2],
+			justifyContent: "flex-start",
+		},
+		hint: {
+			...typography.sm,
+			color: colors.textMuted,
+			whiteSpace: "nowrap",
+			textOverflow: "ellipsis",
+			minWidth: 0,
+		},
+		input: {
+			height: 30,
+			flexShrink: 0,
+			width: "100%",
+			...typography.md,
+			paddingLeft: spacing[2.5],
+			paddingRight: spacing[2.5],
+			borderRadius: radius.md,
+			backgroundColor: "transparent",
+			color: colors.text,
+			borderWidth: 1,
+			borderColor: colors.border,
+			hover: { backgroundColor: "transparent" },
+		},
+		footer: {
+			display: "flex",
+			justifyContent: "space-between",
+			flexShrink: 0,
+			gap: spacing[1.5],
+		},
+	});
+
+	return { colors, styles };
 });
 
 /** Destination selection stays local; the window owns the non-cancellable Git write. */
@@ -144,6 +150,10 @@ export function WorkspaceWorktreeForm({
 	onCreate: (choice: WorktreeChoice) => Promise<void>;
 	onError: (message: string) => void;
 }) {
+	const theme = useAppTheme();
+	const { tokens: appTokens } = theme;
+	const { colors, styles } = themedStyles[theme.appearance];
+
 	const renderer = useGpuixRequired();
 	const [name, setName] = useState("");
 	const branchInput = useRef<PublicInstance>(null);

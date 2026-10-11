@@ -1,4 +1,4 @@
-import { appTokens } from "../styles/tokens";
+import { useAppTheme } from "../styles/theme";
 
 // Original drawings share a 160 × 112 canvas and one-point monochrome strokes.
 function drawing(content: string): string {
@@ -54,6 +54,9 @@ export function StateArtwork({
 	compact?: boolean;
 	testId?: string;
 }) {
+	const theme = useAppTheme();
+	const { tokens: appTokens } = theme;
+
 	return (
 		<svg
 			testId={testId}

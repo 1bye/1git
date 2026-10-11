@@ -1,16 +1,11 @@
-import {
-	spacing,
-	typography,
-	fontWeight,
-	lightColors,
-} from "@1git/design-tokens";
+import { createThemedStyles, useAppTheme } from "../../../styles/theme";
+import { spacing, typography, fontWeight } from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { Button } from "@1git/gpuix-ui/button";
 import { Textarea } from "@1git/gpuix-ui/textarea";
 import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
 import { useEffect, useRef, useState } from "react";
 
-import { appTokens } from "../../../styles/tokens";
 import { RepositoryLastCommit } from "./repository-last-commit";
 import type { CommitRecoveryInput } from "@1git/git";
 import type { RepositoryCommit as CommitReader } from "../lib/repository-commit";
@@ -20,55 +15,59 @@ import {
 	type RepositoryWorkspaceState,
 } from "../lib/repository-workspace-model";
 
-const styles = StyleSheet.create({
-	composer: {
-		display: "flex",
-		flexDirection: "column",
-		flexShrink: 0,
-		gap: spacing[1.5],
-		borderTopWidth: 1,
-		borderColor: lightColors.editorHairline,
-	},
-	editor: {
-		height: 100,
-		padding: spacing[2],
-		paddingBottom: spacing[1],
-		...typography.sm,
-		backgroundColor: "transparent",
-		borderWidth: 0,
-		borderColor: "transparent",
-	},
-	actions: {
-		display: "flex",
-		alignItems: "center",
-		justifyContent: "flex-end",
-		paddingLeft: spacing[2.5],
-		paddingRight: spacing[2.5],
-		flexShrink: 0,
-		height: 24,
-		marginBottom: spacing[2.5],
-	},
-	buttons: {
-		display: "flex",
-		flexDirection: "row",
-		alignItems: "center",
-		gap: spacing[1.5],
-	},
-	hint: { ...typography["2xs"], color: lightColors.editorFaint },
-	notice: {
-		display: "flex",
-		flexDirection: "column",
-		gap: spacing[1],
-		maxHeight: 64,
-		marginLeft: spacing[2.5],
-		marginRight: spacing[2.5],
-		flexShrink: 0,
-		overflowY: "scroll",
-		overflowX: "hidden",
-		borderWidth: 1,
-		borderColor: "transparent",
-	},
-	label: { ...typography.sm, fontWeight: fontWeight.medium },
+const themedStyles = createThemedStyles(({ colors: appColors }) => {
+	const styles = StyleSheet.create({
+		composer: {
+			display: "flex",
+			flexDirection: "column",
+			flexShrink: 0,
+			gap: spacing[1.5],
+			borderTopWidth: 1,
+			borderColor: appColors.editorHairline,
+		},
+		editor: {
+			height: 100,
+			padding: spacing[2],
+			paddingBottom: spacing[1],
+			...typography.sm,
+			backgroundColor: "transparent",
+			borderWidth: 0,
+			borderColor: "transparent",
+		},
+		actions: {
+			display: "flex",
+			alignItems: "center",
+			justifyContent: "flex-end",
+			paddingLeft: spacing[2.5],
+			paddingRight: spacing[2.5],
+			flexShrink: 0,
+			height: 24,
+			marginBottom: spacing[2.5],
+		},
+		buttons: {
+			display: "flex",
+			flexDirection: "row",
+			alignItems: "center",
+			gap: spacing[1.5],
+		},
+		hint: { ...typography["2xs"], color: appColors.editorFaint },
+		notice: {
+			display: "flex",
+			flexDirection: "column",
+			gap: spacing[1],
+			maxHeight: 64,
+			marginLeft: spacing[2.5],
+			marginRight: spacing[2.5],
+			flexShrink: 0,
+			overflowY: "scroll",
+			overflowX: "hidden",
+			borderWidth: 1,
+			borderColor: "transparent",
+		},
+		label: { ...typography.sm, fontWeight: fontWeight.medium },
+	});
+
+	return { styles };
 });
 
 /** Selected-change commit/amend composer; only explicit sample mode remains preview-only. */
@@ -85,6 +84,10 @@ export function RepositoryCommit({
 	onUndo?: (input: CommitRecoveryInput) => Promise<string | null>;
 	readLast?: typeof CommitReader.readLast;
 }) {
+	const theme = useAppTheme();
+	const { tokens: appTokens } = theme;
+	const { styles } = themedStyles[theme.appearance];
+
 	const [previewed, setPreviewed] = useState(false);
 
 	const notice = useRef<PublicInstance>(null);

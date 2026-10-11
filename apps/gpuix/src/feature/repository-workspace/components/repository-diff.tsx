@@ -1,16 +1,15 @@
+import { createThemedStyles, useAppTheme } from "../../../styles/theme";
 import {
 	codeTypography,
 	spacing,
 	typography,
 	radius,
-	lightColors,
 } from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { Button } from "@1git/gpuix-ui/button";
 import type { GpuixTheme } from "@gpuix/react";
 import { useState } from "react";
 
-import { appTokens } from "../../../styles/tokens";
 import { StateMessage } from "../../../fixture/state-message";
 import { RepositoryConflicts } from "../lib/repository-conflicts";
 import {
@@ -31,109 +30,115 @@ import {
 } from "./repository-image-preview";
 import { RepositoryTextDiff, type DiffInclusion } from "./repository-text-diff";
 import { RepositoryDiffSettings } from "./repository-diff-settings";
+import { darkDiffTheme } from "../../../styles/dark-diff-theme";
 
-const diffTheme: GpuixTheme = {
-	appearance: "light",
-	bg: lightColors.editorSurface,
-	border: "#e1e4e8",
-	text: "#24292e",
-	textMuted: "#586069",
-	textFaint: "#6a737d",
-	accent: "#218bff",
-	diffAdd: "#24292e",
-	diffDel: "#24292e",
-	diffAddBg: "#e6ffed",
-	diffDelBg: "#ffeef0",
-	diffAddWordBg: "#acf2bd",
-	diffDelWordBg: "#fdb8c0",
-	diffHunkBg: "#f8fafc",
-	fontMono: codeTypography.fontFamily,
-	syntax: {
-		comment: "#6a737d",
-		keyword: "#d73a49",
-		string: "#032f62",
-		stringSpecial: "#032f62",
-		escape: "#005cc5",
-		number: "#005cc5",
-		boolean: "#005cc5",
-		typeName: "#6f42c1",
-		typeBuiltin: "#6f42c1",
-		constructor: "#6f42c1",
-		function: "#6f42c1",
-		functionBuiltin: "#6f42c1",
-		macroName: "#d73a49",
-		property: "#24292e",
-		constant: "#005cc5",
-		variable: "#24292e",
-		variableSpecial: "#005cc5",
-		parameter: "#24292e",
-		operator: "#d73a49",
-		punctuation: "#24292e",
-		tag: "#22863a",
-		attribute: "#6f42c1",
-		label: "#24292e",
-		invalid: "#b31d28",
-	},
-	metrics: {
-		diffTextSize: codeTypography.fontSize,
-		diffLineHeight: codeTypography.lineHeight,
-		diffHunkHeaderHeight: 26,
-		diffRowPaddingX: spacing[3.5],
-		diffGutterWidth: 30,
-		diffMarkerWidth: 18,
-		diffAccentBarWidth: 2,
-	},
-};
+const themedStyles = createThemedStyles(({ colors: appColors, appearance }) => {
+	const diffTheme: GpuixTheme = {
+		appearance: "light",
+		bg: appColors.editorSurface,
+		border: "#e1e4e8",
+		text: "#24292e",
+		textMuted: "#586069",
+		textFaint: "#6a737d",
+		accent: "#218bff",
+		diffAdd: "#24292e",
+		diffDel: "#24292e",
+		diffAddBg: "#e6ffed",
+		diffDelBg: "#ffeef0",
+		diffAddWordBg: "#acf2bd",
+		diffDelWordBg: "#fdb8c0",
+		diffHunkBg: "#f8fafc",
+		fontMono: codeTypography.fontFamily,
+		syntax: {
+			comment: "#6a737d",
+			keyword: "#d73a49",
+			string: "#032f62",
+			stringSpecial: "#032f62",
+			escape: "#005cc5",
+			number: "#005cc5",
+			boolean: "#005cc5",
+			typeName: "#6f42c1",
+			typeBuiltin: "#6f42c1",
+			constructor: "#6f42c1",
+			function: "#6f42c1",
+			functionBuiltin: "#6f42c1",
+			macroName: "#d73a49",
+			property: "#24292e",
+			constant: "#005cc5",
+			variable: "#24292e",
+			variableSpecial: "#005cc5",
+			parameter: "#24292e",
+			operator: "#d73a49",
+			punctuation: "#24292e",
+			tag: "#22863a",
+			attribute: "#6f42c1",
+			label: "#24292e",
+			invalid: "#b31d28",
+		},
+		metrics: {
+			diffTextSize: codeTypography.fontSize,
+			diffLineHeight: codeTypography.lineHeight,
+			diffHunkHeaderHeight: 26,
+			diffRowPaddingX: spacing[3.5],
+			diffGutterWidth: 30,
+			diffMarkerWidth: 18,
+			diffAccentBarWidth: 2,
+		},
+		...(appearance === "dark" ? darkDiffTheme : {}),
+	};
 
-const styles = StyleSheet.create({
-	header: {
-		height: 36,
-		flexShrink: 0,
-		display: "flex",
-		flexDirection: "row",
-		alignItems: "center",
-		gap: spacing[1.5],
-		paddingLeft: spacing[3.5],
-		paddingRight: spacing[3],
-		borderBottomWidth: 1,
-		borderColor: lightColors.editorHairline,
-	},
-	identity: {
-		display: "flex",
-		flexDirection: "row",
-		alignItems: "center",
-		gap: spacing[1.5],
-		flexGrow: 1,
-		minWidth: 0,
-		overflow: "hidden",
-	},
-	filename: {
-		...typography.sm,
-		color: lightColors.editorInk,
-		flexShrink: 0,
-		maxWidth: "100%",
-		overflow: "hidden",
-		whiteSpace: "nowrap",
-		textOverflow: "ellipsis",
-	},
-	directory: {
-		...typography.xs,
-		color: lightColors.editorFaint,
-		minWidth: 0,
-		overflow: "hidden",
-		whiteSpace: "nowrap",
-		textOverflow: "ellipsis",
-	},
-	stats: {
-		display: "flex",
-		flexDirection: "row",
-		alignItems: "center",
-		gap: spacing[1.5],
-		flexShrink: 0,
-		marginLeft: spacing[1.5],
-		...typography.xs,
-	},
-	hint: { ...typography.xs, color: lightColors.editorFaint },
+	const styles = StyleSheet.create({
+		header: {
+			height: 36,
+			flexShrink: 0,
+			display: "flex",
+			flexDirection: "row",
+			alignItems: "center",
+			gap: spacing[1.5],
+			paddingLeft: spacing[3.5],
+			paddingRight: spacing[3],
+			borderBottomWidth: 1,
+			borderColor: appColors.editorHairline,
+		},
+		identity: {
+			display: "flex",
+			flexDirection: "row",
+			alignItems: "center",
+			gap: spacing[1.5],
+			flexGrow: 1,
+			minWidth: 0,
+			overflow: "hidden",
+		},
+		filename: {
+			...typography.sm,
+			color: appColors.editorInk,
+			flexShrink: 0,
+			maxWidth: "100%",
+			overflow: "hidden",
+			whiteSpace: "nowrap",
+			textOverflow: "ellipsis",
+		},
+		directory: {
+			...typography.xs,
+			color: appColors.editorFaint,
+			minWidth: 0,
+			overflow: "hidden",
+			whiteSpace: "nowrap",
+			textOverflow: "ellipsis",
+		},
+		stats: {
+			display: "flex",
+			flexDirection: "row",
+			alignItems: "center",
+			gap: spacing[1.5],
+			flexShrink: 0,
+			marginLeft: spacing[1.5],
+			...typography.xs,
+		},
+		hint: { ...typography.xs, color: appColors.editorFaint },
+	});
+
+	return { diffTheme, styles };
 });
 
 interface RepositoryDiffProps {
@@ -225,6 +230,10 @@ function RepositoryDiffContent({
 	retry: () => void;
 	slow: boolean;
 }) {
+	const theme = useAppTheme();
+	const { tokens: appTokens, colors: appColors } = theme;
+	const { diffTheme, styles } = themedStyles[theme.appearance];
+
 	const [sourcePath, setSourcePath] = useState<string | null>(null);
 	const [conflictError, setConflictError] = useState<string | null>(null);
 
@@ -285,7 +294,7 @@ function RepositoryDiffContent({
 									borderRadius: radius.full,
 									backgroundColor:
 										(mode === "Source") === !!showSource
-											? lightColors.editorSunken2
+											? appColors.editorSunken2
 											: "transparent",
 								}}
 								textStyle={{ ...typography.sm }}
@@ -310,10 +319,10 @@ function RepositoryDiffContent({
 						style={styles.stats}
 					>
 						<text
-							style={{ color: diffTheme.diffAdd }}
+							style={{ color: appColors.success }}
 						>{`+${stats.addedLines}`}</text>
 						<text
-							style={{ color: diffTheme.diffDel }}
+							style={{ color: appColors.deletion }}
 						>{`−${stats.deletedLines}`}</text>
 					</div>
 				) : null}

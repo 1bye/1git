@@ -1,8 +1,9 @@
-import { spacing, typography, lightColors } from "@1git/design-tokens";
+import { useAppTheme } from "../../../styles/theme";
+import { spacing, typography } from "@1git/design-tokens";
 import { Button } from "@1git/gpuix-ui/button";
 import type { CommitInfo, CommitRecoveryInput } from "@1git/git";
 import { useEffect, useState } from "react";
-import { appTokens } from "../../../styles/tokens";
+
 import { WorkspaceMenuModel } from "../../workspace-tabs/lib/workspace-menu-model";
 import { RepositoryCommit, type LastCommit } from "../lib/repository-commit";
 import {
@@ -22,6 +23,9 @@ export function RepositoryLastCommit({
 	onAmend?: (commit: CommitInfo) => void;
 	readLast?: typeof RepositoryCommit.readLast;
 }) {
+	const theme = useAppTheme();
+	const { tokens: appTokens, colors: appColors } = theme;
+
 	const root = state.repository?.root;
 	const head = state.repository?.head;
 	const branch = state.repository?.branchName;
@@ -106,7 +110,7 @@ export function RepositoryLastCommit({
 				minHeight: 48,
 				padding: spacing[2.5],
 				borderTopWidth: 1,
-				borderColor: lightColors.editorHairline,
+				borderColor: appColors.editorHairline,
 			}}
 		>
 			<div

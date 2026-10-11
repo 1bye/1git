@@ -1,9 +1,10 @@
+import { useAppTheme } from "../../../styles/theme";
 import { spacing, typography, iconSize } from "@1git/design-tokens";
 import { basename } from "node:path";
 import { useState } from "react";
 import { Button } from "@1git/gpuix-ui/button";
 import type { EventPayload } from "@gpuix/react";
-import { appTokens } from "../../../styles/tokens";
+
 import { RepositoryAvatar } from "./repository-avatar";
 
 // Phosphor Icons 2.1.10, Light weight, matching the account cards.
@@ -25,6 +26,9 @@ export function RepositoryWelcomeRow({
 	onForget: (path: string) => void;
 	onMenu: (path: string, event: EventPayload) => Promise<void>;
 }) {
+	const theme = useAppTheme();
+	const { tokens: appTokens } = theme;
+
 	const [hoverTargets, setHoverTargets] = useState({
 		row: false,
 		open: false,

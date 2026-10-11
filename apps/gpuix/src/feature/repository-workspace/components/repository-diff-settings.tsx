@@ -1,4 +1,5 @@
-import { lightColors, radius, spacing, typography } from "@1git/design-tokens";
+import { useAppTheme } from "../../../styles/theme";
+import { radius, spacing, typography } from "@1git/design-tokens";
 import { Button } from "@1git/gpuix-ui/button";
 import { Checkbox } from "@1git/gpuix-ui/checkbox";
 import {
@@ -12,7 +13,7 @@ import {
 	TooltipTrigger,
 } from "@1git/gpuix-ui/tooltip";
 import { useState } from "react";
-import { appTokens } from "../../../styles/tokens";
+
 import type { DiffSettings } from "../lib/repository-diff";
 
 const settingsIcon =
@@ -26,6 +27,9 @@ export function RepositoryDiffSettings({
 	settings: DiffSettings;
 	onChange: (settings: DiffSettings) => void;
 }) {
+	const theme = useAppTheme();
+	const { tokens: appTokens, colors: appColors } = theme;
+
 	const [open, setOpen] = useState(false);
 
 	return (
@@ -46,7 +50,7 @@ export function RepositoryDiffSettings({
 							style={{
 								width: 16,
 								height: 16,
-								color: lightColors.editorMuted,
+								color: appColors.editorMuted,
 								pointerEvents: "none",
 							}}
 						/>
@@ -71,7 +75,7 @@ export function RepositoryDiffSettings({
 				<div
 					style={{ display: "flex", flexDirection: "column", gap: spacing[2] }}
 				>
-					<text style={{ ...typography.sm, color: lightColors.editorInk }}>
+					<text style={{ ...typography.sm, color: appColors.editorInk }}>
 						Diff layout
 					</text>
 					<div
@@ -83,7 +87,7 @@ export function RepositoryDiffSettings({
 							gap: spacing[1],
 							padding: spacing[1],
 							borderRadius: radius.md,
-							backgroundColor: lightColors.editorSunken,
+							backgroundColor: appColors.editorSunken,
 						}}
 					>
 						{(["unified", "split"] as const).map((mode) => (
@@ -98,7 +102,7 @@ export function RepositoryDiffSettings({
 									flexGrow: 1,
 									backgroundColor:
 										settings.mode === mode
-											? lightColors.editorSurface
+											? appColors.editorSurface
 											: "transparent",
 								}}
 								onPress={() => onChange({ ...settings, mode })}
@@ -109,7 +113,7 @@ export function RepositoryDiffSettings({
 					</div>
 					{settings.mode === "split" ? (
 						<>
-							<text style={{ ...typography.sm, color: lightColors.editorInk }}>
+							<text style={{ ...typography.sm, color: appColors.editorInk }}>
 								Split layout
 							</text>
 							<div
@@ -121,7 +125,7 @@ export function RepositoryDiffSettings({
 									gap: spacing[1],
 									padding: spacing[1],
 									borderRadius: radius.md,
-									backgroundColor: lightColors.editorSunken,
+									backgroundColor: appColors.editorSunken,
 								}}
 							>
 								{(["fixed", "content-sized"] as const).map((splitLayout) => (
@@ -136,7 +140,7 @@ export function RepositoryDiffSettings({
 											flexGrow: 1,
 											backgroundColor:
 												settings.splitLayout === splitLayout
-													? lightColors.editorSurface
+													? appColors.editorSurface
 													: "transparent",
 										}}
 										onPress={() => onChange({ ...settings, splitLayout })}

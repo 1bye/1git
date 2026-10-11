@@ -1,3 +1,4 @@
+import { createThemedStyles, useAppTheme } from "../../../styles/theme";
 import { spacing, typography, radius, iconSize } from "@1git/design-tokens";
 import {
 	use,
@@ -16,7 +17,7 @@ import {
 	PopoverContent,
 } from "@1git/gpuix-ui/popover";
 import type { Repository } from "@1git/hosting/contracts";
-import { appTokens } from "../../../styles/tokens";
+
 import type { SavedAccount } from "../../accounts/lib/account-store";
 import type { Accounts } from "../../accounts/lib/accounts";
 import { StateMessage } from "../../../fixture/state-message";
@@ -28,7 +29,7 @@ export interface AccountCloneSelection {
 	readonly repository: Repository;
 }
 const column = { display: "flex", flexDirection: "column", gap: spacing[1.5] };
-const hint = { ...typography.sm, color: appTokens.colors.textMuted };
+
 const repositoryRowHeight = 52;
 const repositoryRowGap = 2;
 const repositoryRowStride = repositoryRowHeight + repositoryRowGap;
@@ -46,17 +47,23 @@ const visibilityLabels = {
 	internal: "Internal",
 };
 
-const inputStyle = {
-	height: 30,
-	...typography.md,
-	borderWidth: 1,
-	borderRadius: radius.md,
-	borderColor: appTokens.colors.border,
-	backgroundColor: "transparent",
-	paddingLeft: spacing[2.5],
-	paddingRight: spacing[2.5],
-	color: appTokens.colors.text,
-};
+const themedStyles = createThemedStyles(({ tokens: appTokens }) => {
+	const hint = { ...typography.sm, color: appTokens.colors.textMuted };
+
+	const inputStyle = {
+		height: 30,
+		...typography.md,
+		borderWidth: 1,
+		borderRadius: radius.md,
+		borderColor: appTokens.colors.border,
+		backgroundColor: "transparent",
+		paddingLeft: spacing[2.5],
+		paddingRight: spacing[2.5],
+		color: appTokens.colors.text,
+	};
+
+	return { hint, inputStyle };
+});
 
 /** Bounded, cancellable browsing. Only public account metadata and repository identities enter the view. */
 export function RepositoryAccountPicker({
@@ -74,6 +81,10 @@ export function RepositoryAccountPicker({
 	selection?: AccountCloneSelection;
 	searchRef?: Ref<PublicInstance>;
 }) {
+	const theme = useAppTheme();
+	const { tokens: appTokens } = theme;
+	const { hint, inputStyle } = themedStyles[theme.appearance];
+
 	const avatars = use(RepositoryAvatarContext);
 	const renderer = useGpuixRequired();
 	const viewport = useRef<PublicInstance>(null);

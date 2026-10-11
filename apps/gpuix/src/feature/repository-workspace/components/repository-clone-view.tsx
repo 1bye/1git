@@ -1,10 +1,11 @@
+import { createThemedStyles, useAppTheme } from "../../../styles/theme";
 import { typography, spacing, radius, iconSize } from "@1git/design-tokens";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
 import { Button } from "@1git/gpuix-ui/button";
-import { appTokens } from "../../../styles/tokens";
+
 import { WorkspaceTabIcon } from "../../workspace-tabs/components/workspace-tab-icon";
 import { accountProviderIcons } from "../../accounts/account-provider-icons";
 import { AccountStore } from "../../accounts/lib/account-store";
@@ -25,19 +26,24 @@ import { RepositoryAvatar } from "./repository-avatar";
 
 const column = { display: "flex", flexDirection: "column" };
 const row = { display: "flex", flexDirection: "row", alignItems: "center" };
-const hint = { ...typography.sm, color: appTokens.colors.textMuted };
 
-const input = {
-	height: 32,
-	...typography.md,
-	paddingLeft: spacing[2.5],
-	paddingRight: spacing[2.5],
-	borderRadius: radius.md,
-	borderWidth: 1,
-	borderColor: appTokens.colors.border,
-	color: appTokens.colors.text,
-	backgroundColor: "transparent",
-};
+const themedStyles = createThemedStyles(({ tokens: appTokens }) => {
+	const hint = { ...typography.sm, color: appTokens.colors.textMuted };
+
+	const input = {
+		height: 32,
+		...typography.md,
+		paddingLeft: spacing[2.5],
+		paddingRight: spacing[2.5],
+		borderRadius: radius.md,
+		borderWidth: 1,
+		borderColor: appTokens.colors.border,
+		color: appTokens.colors.text,
+		backgroundColor: "transparent",
+	};
+
+	return { hint, input };
+});
 
 const sourceStyle = {
 	width: "100%",
@@ -78,6 +84,10 @@ export function RepositoryCloneView({
 	/** Window-local default; changing it never overwrites an existing Clone draft. */
 	preferredAccountKey?: string;
 }) {
+	const theme = useAppTheme();
+	const { tokens: appTokens } = theme;
+	const { hint, input } = themedStyles[theme.appearance];
+
 	const renderer = useGpuixRequired();
 	const [catalog, setCatalog] = useState(() => loadAccounts(accounts));
 
