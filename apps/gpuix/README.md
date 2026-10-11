@@ -126,6 +126,17 @@ the choice with the window session. Old sessions default to fixed split panes.
 `native/diff-context.patch` adds an opt-in `onExpandContext` event to omitted-code
 separators. The native renderer reports the path and hunk coordinates; the app
 reads and inserts additional context, keeping native virtualization and selection.
+`native/diff-syntax.patch` supplies a separate `syntaxPatch` with complete,
+unfiltered context for both file versions. The Git reader fetches it alongside the
+visible patch, checks snapshot headers, and budgets it in the existing preview cache.
+Hidden context never adds rows, changes inclusion coordinates, or stages anything.
+Native highlighting uses each side's language and retains spans only for displayed
+lines. Source fingerprints are computed on prop changes; wheel frames reuse parsed
+rows, syntax and measured widths. Theme and inclusion changes do not reparse.
+Context above 512 KiB, failed reads or stale snapshots fall back to independently
+highlighted contiguous fragments; multiline state outside those fragments cannot
+be recovered. Unknown languages remain plain text. Pixel regressions cover omitted
+imports/comments/strings, with cache counters checked across repeated wheel frames.
 Dependency versions stay pinned. `native/preload.ts` selects the
 release addon through `NAPI_RS_NATIVE_LIBRARY_PATH` before GPUIX loads.
 Native source, build outputs, and the patch fingerprint live in ignored `.cache/`;

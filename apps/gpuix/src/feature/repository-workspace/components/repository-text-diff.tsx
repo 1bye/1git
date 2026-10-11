@@ -29,6 +29,7 @@ export function RepositoryTextDiff({
 	change,
 	snapshot,
 	patch,
+	syntaxPatch,
 	theme,
 	blocked,
 	mode,
@@ -41,6 +42,7 @@ export function RepositoryTextDiff({
 	change: DiffSelection;
 	snapshot: object;
 	patch: string;
+	syntaxPatch?: string;
 	theme: GpuixTheme;
 	blocked: boolean;
 	mode: "unified" | "split";
@@ -154,6 +156,7 @@ export function RepositoryTextDiff({
 			<DiffView
 				testId="diff-viewport"
 				patch={displayed}
+				syntaxPatch={syntaxPatch}
 				selectionEnabled={!!selectablePatch}
 				selectionDisabled={blocked}
 				includedLines={includedLines}

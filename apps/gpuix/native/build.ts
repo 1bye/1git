@@ -23,6 +23,7 @@ import {
 	diffSplitPatchPath,
 	diffSplitLayoutPatchPath,
 	diffInclusionPatchPath,
+	diffSyntaxPatchPath,
 	buildIdPath,
 	nativeBuildId,
 	nativeDirectory,
@@ -120,6 +121,7 @@ if (
 		roundedOverflowPlatformPatchPath,
 		windowAppearancePatchPath,
 		windowAppearancePlatformPatchPath,
+		diffSyntaxPatchPath,
 	];
 
 	// Later patches can change an earlier patch's context. Unwind known patches

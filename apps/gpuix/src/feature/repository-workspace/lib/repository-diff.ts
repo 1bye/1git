@@ -40,6 +40,8 @@ export const defaultDiffSettings: DiffSettings = {
 export interface RepositoryDiffSection {
 	readonly target: "working" | "commit";
 	readonly patch: string;
+	/** Complete, unfiltered context for syntax only; never used for display or staging. */
+	readonly syntaxPatch?: string;
 	readonly stats: FileDiff["stats"];
 	readonly message: string | null;
 	readonly image?: RepositoryImageComparison;
@@ -50,6 +52,22 @@ const combinedPatch = /^(?:diff --(?:cc|combined) |@@@)/m;
 const binaryPatch = /^(?:Binary files .* differ|GIT binary patch)$/m;
 const hunkHeader = /^@@ -\d+(?:,\d+)? \+\d+(?:,\d+)? @@/m;
 const fileHeader = /^diff --git /m;
+const fullContextLines = 2_147_483_647;
+
+/** Git's file/blob headers identify a snapshot even when whitespace filtering changes its hunks. */
+const patchHeaders = (patch: string): string => {
+	const headers: string[] = [];
+	let inHunk = false;
+
+	for (const line of patch.split("\n")) {
+		if (line.startsWith("diff --git ")) inHunk = false;
+		else if (line.startsWith("@@")) inHunk = true;
+
+		if (!inHunk && line) headers.push(line);
+	}
+
+	return headers.join("\n");
+};
 
 /** Reads only the selected path, reusing the shared Git backend and GPUIX's patch parser. */
 export class RepositoryDiff {
@@ -169,16 +187,9 @@ export class RepositoryDiff {
 				],
 			};
 
-		const [preview, result] = await Promise.all([
+		const [preview, { result, syntaxPatch }] = await Promise.all([
 			previewRead,
-			opened.value.getDiff({
-				target: { kind: "changes" },
-				ignoreWhitespace,
-				paths: change.originalPath
-					? [change.originalPath, change.path]
-					: [change.path],
-				signal,
-			}),
+			RepositoryDiff.readText(opened.value, change, signal, ignoreWhitespace),
 		]);
 
 		if (!result.ok) return result;
@@ -188,6 +199,7 @@ export class RepositoryDiff {
 			value: [
 				{
 					...RepositoryDiff.section(result.value, "working", ignoreWhitespace),
+					syntaxPatch,
 					image: preview,
 				},
 			],
@@ -229,16 +241,9 @@ export class RepositoryDiff {
 				],
 			};
 
-		const [preview, result] = await Promise.all([
+		const [preview, { result, syntaxPatch }] = await Promise.all([
 			previewRead,
-			opened.value.getDiff({
-				ignoreWhitespace,
-				target: file.base
-					? { kind: "range", base: file.base, head: file.commit }
-					: { kind: "commit", revision: file.commit },
-				paths: file.originalPath ? [file.originalPath, file.path] : [file.path],
-				signal,
-			}),
+			RepositoryDiff.readText(opened.value, file, signal, ignoreWhitespace),
 		]);
 
 		if (!result.ok) return result;
@@ -248,10 +253,51 @@ export class RepositoryDiff {
 			value: [
 				{
 					...RepositoryDiff.section(result.value, "commit", ignoreWhitespace),
+					syntaxPatch,
 					image: preview,
 				},
 			],
 		};
+	}
+
+	/** Both reads are bounded, cancellable and cached together by the preview cache, never run during scroll. */
+	private static async readText(
+		repository: GitRepository,
+		change: DiffSelection,
+		signal: AbortSignal,
+		ignoreWhitespace: boolean
+	): Promise<{ result: GitResult<FileDiff>; syntaxPatch?: string }> {
+		const input = {
+			target:
+				"commit" in change
+					? change.base
+						? { kind: "range" as const, base: change.base, head: change.commit }
+						: { kind: "commit" as const, revision: change.commit }
+					: { kind: "changes" as const },
+			paths: change.originalPath
+				? [change.originalPath, change.path]
+				: [change.path],
+			signal,
+		};
+
+		const [result, context] = await Promise.all([
+			repository.getDiff({ ...input, ignoreWhitespace }),
+			repository.getDiff({ ...input, contextLines: fullContextLines }),
+		]);
+
+		// Oversized, failed or racing context must not prevent a usable small diff.
+		// shortcut: oversized sources use fragment syntax; add incremental context parsing if large-file fidelity is needed.
+		const syntaxPatch =
+			result.ok &&
+			context.ok &&
+			!context.value.patchOmittedReason &&
+			hunkHeader.test(result.value.patch) &&
+			Buffer.byteLength(context.value.patch) <= diffLimits.bytes &&
+			patchHeaders(result.value.patch) === patchHeaders(context.value.patch)
+				? context.value.patch
+				: undefined;
+
+		return { result, syntaxPatch };
 	}
 
 	/** Rejects unsafe-sized or unsupported input before it reaches native parsing; never shows partial content as complete. */

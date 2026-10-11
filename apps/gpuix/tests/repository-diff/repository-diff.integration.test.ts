@@ -4,7 +4,7 @@
  * Doubles: none.
  * Requires: Git, Sharp and writable temporary storage; no network or graphics.
  */
-import { afterEach, beforeEach, expect, it } from "bun:test";
+import { afterEach, beforeEach, expect, it, spyOn } from "bun:test";
 import { GitRepository } from "@1git/git";
 import { execFile } from "node:child_process";
 import {
@@ -95,6 +95,137 @@ const read = async (path: string, ignoreWhitespace = false) => {
 
 	return result.value;
 };
+
+it("reads complete unfiltered syntax context without changing visible hunks, selections or repository contents", async () => {
+	const path = "context.ts";
+
+	const source = [
+		"import { oldName,",
+		"} from 'module';",
+		...Array.from({ length: 30 }, (_, index) => `// hidden ${index}`),
+		"const old = 1;",
+		"",
+	].join("\n");
+
+	await writeFile(join(repository, path), source);
+	await git("add", path);
+	await git("commit", "-m", "Base");
+	const head = (await git("rev-parse", "HEAD")).trim();
+
+	const changed = source
+		.replace("oldName", "newName")
+		.replace("const old = 1;", "const revised = 2;")
+		.replace("// hidden 15", "//  hidden 15");
+
+	await writeFile(join(repository, path), changed);
+	await git("add", path);
+	const index = await readFile(join(repository, ".git/index"));
+	const sections = await read(path, true);
+	const section = sections[0];
+
+	expect(section?.syntaxPatch).toContain(" // hidden 10");
+	expect(section?.syntaxPatch).toContain("+//  hidden 15");
+	expect(section?.patch).not.toContain("hidden 10");
+	expect(section?.patch).not.toContain("+//  hidden 15");
+	expect(section?.patch).toContain("+const revised = 2;");
+	expect(await readFile(join(repository, ".git/index"))).toEqual(index);
+	expect(await readFile(join(repository, path), "utf8")).toBe(changed);
+	expect((await git("rev-parse", "HEAD")).trim()).toBe(head);
+
+	await git("commit", "-m", "Change");
+	const commit = (await git("rev-parse", "HEAD")).trim();
+	const beforeOid = (await git("rev-parse", `${head}:${path}`)).trim();
+	const afterOid = (await git("rev-parse", `${commit}:${path}`)).trim();
+
+	for (const selection of [
+		{ path, commit, beforeOid, afterOid, status: "M" as const },
+		{ path, commit, base: head, beforeOid, afterOid, status: "M" as const },
+	]) {
+		const result = await RepositoryDiff.read(
+			repository,
+			selection,
+			new AbortController().signal,
+			true
+		);
+
+		expect(result.ok && result.value[0]?.syntaxPatch).toBe(
+			section?.syntaxPatch
+		);
+		expect(result.ok && result.value[0]?.patch).toBe(section?.patch);
+	}
+});
+
+it("keeps a small preview usable when complete syntax context exceeds its byte budget", async () => {
+	const path = "large.ts";
+
+	const source =
+		`${"// hidden context ".repeat(8)}\n`.repeat(4000) + "const old = 1;\n";
+
+	await writeFile(join(repository, path), source);
+	await git("add", path);
+	await git("commit", "-m", "Large base");
+	await writeFile(
+		join(repository, path),
+		source.replace("const old", "const revised")
+	);
+	const section = (await read(path))[0];
+
+	expect(section?.message).toBeNull();
+	expect(section?.patch).toContain("+const revised = 1;");
+	expect(section?.syntaxPatch).toBeUndefined();
+});
+
+it("does not attach failed or stale syntax context to a newer visible patch", async () => {
+	const patch =
+		"diff --git a/context.ts b/context.ts\nindex 1111111..2222222 100644\n--- a/context.ts\n+++ b/context.ts\n@@ -1 +1 @@\n-old\n+new\n";
+
+	const getDiff = spyOn(GitRepository.prototype, "getDiff");
+	const target = { kind: "commit" as const, revision: "HEAD" };
+
+	try {
+		for (const context of [
+			{
+				ok: true as const,
+				value: {
+					target,
+					patch: patch.replace("2222222", "3333333"),
+					stats: [],
+				},
+			},
+			{
+				ok: false as const,
+				error: {
+					code: "command-failed" as const,
+					message: "No context",
+					operation: "diff" as const,
+					retryable: true,
+				},
+			},
+		]) {
+			getDiff.mockResolvedValueOnce({
+				ok: true,
+				value: { patch, stats: [], target },
+			});
+			getDiff.mockResolvedValueOnce(context);
+			const result = await RepositoryDiff.read(
+				repository,
+				{
+					path: "context.ts",
+					commit: "HEAD",
+					status: "M",
+					beforeOid: "1111111",
+					afterOid: "2222222",
+				},
+				new AbortController().signal
+			);
+
+			expect(result.ok && result.value[0]?.patch).toBe(patch);
+			expect(result.ok && result.value[0]?.syntaxPatch).toBeUndefined();
+		}
+	} finally {
+		getDiff.mockRestore();
+	}
+});
 
 it("hides whitespace only in previews and context, retaining index, files and committed comparisons", async () => {
 	const path = "example.ts";

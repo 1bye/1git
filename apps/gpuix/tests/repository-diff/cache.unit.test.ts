@@ -157,6 +157,24 @@ it("evicts least recently used previews by retained bytes, not only file count",
 	cache.dispose();
 });
 
+it("budgets hidden syntax context with its visible preview", async () => {
+	const syntaxPatch = "hidden context".repeat(100);
+
+	const reader = mock<typeof RepositoryDiff.read>(async (_root, change) => ({
+		ok: true,
+		value: [{ ...diffSection("working", diffPatch(change.path)), syntaxPatch }],
+	}));
+
+	const bytes = (diffPatch("a.ts").length + syntaxPatch.length) * 2 + 256;
+	const cache = new RepositoryPreviewCache(reader, bytes);
+
+	await cache.read(request("a.ts"), signal());
+	await cache.read(request("b.ts"), signal());
+	expect(cache.peek(request("a.ts"))).toBeUndefined();
+	expect(cache.peek(request("b.ts"))?.[0]?.syntaxPatch).toBe(syntaxPatch);
+	cache.dispose();
+});
+
 it("budgets prepared image pixels, base64 and retained SVG source", async () => {
 	const reader = mock<typeof RepositoryDiff.read>(async () => ({
 		ok: true,

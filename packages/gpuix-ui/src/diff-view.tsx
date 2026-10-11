@@ -14,6 +14,7 @@ import { defaultTokens, type UiTokens } from "./tokens";
 export interface DiffViewProps extends Pick<
 	DiffProps,
 	| "theme"
+	| "syntaxPatch"
 	| "wordDiff"
 	| "showFileHeader"
 	| "collapsedPaths"

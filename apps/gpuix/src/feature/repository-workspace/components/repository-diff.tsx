@@ -585,6 +585,7 @@ function RepositoryDiffContent({
 					change={change}
 					snapshot={result?.sections ?? section}
 					patch={section.patch}
+					syntaxPatch={section.syntaxPatch}
 					theme={diffTheme}
 					blocked={refreshing}
 					inclusion={inclusion}

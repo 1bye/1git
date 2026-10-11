@@ -311,7 +311,9 @@ export class RepositoryPreviewCache {
 
 		for (const section of sections) {
 			bytes +=
-				section.patch.length * 2 + (section.message?.length ?? 0) * 2 + 256;
+				(section.patch.length + (section.syntaxPatch?.length ?? 0)) * 2 +
+				(section.message?.length ?? 0) * 2 +
+				256;
 
 			for (const stat of section.stats) bytes += stat.path.length * 2 + 64;
 
