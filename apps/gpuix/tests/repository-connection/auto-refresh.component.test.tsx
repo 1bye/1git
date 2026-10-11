@@ -222,7 +222,7 @@ it("updates unchanged-status file contents without remounting the scrolled diff 
 	expect(element("commit-message").customProps?.value).toBe("draft");
 });
 
-it("shares watchers across tabs and removes subscriptions after the last tab closes", async () => {
+it("shares watchers and updates background-tab badges without extra reads, removing subscriptions after the last close", async () => {
 	const watcher = watched();
 
 	const reader = mock<typeof RepositoryReader.read>(async () => ({
@@ -243,9 +243,31 @@ it("shares watchers across tabs and removes subscriptions after the last tab clo
 	click("open-repository");
 	await settle();
 	expect(watcher.subscribe).toHaveBeenCalledTimes(1);
+	reader.mockResolvedValue({
+		ok: true,
+		value: repositorySnapshot([changedFile("a.ts"), changedFile("b.ts")]),
+	});
 	watcher.notify();
 	await settle(350);
 	expect(reader).toHaveBeenCalledTimes(4);
+
+	for (const id of ["workspace-1", "workspace-2"]) {
+		expect(element(`changed-files-${id}`)).toBeDefined();
+		expect(element(id).customProps?.["aria-description"]).toStartWith(
+			"2 changed files."
+		);
+	}
+
+	reader.mockResolvedValue({ ok: true, value: repositorySnapshot() });
+	watcher.notify();
+	await settle(350);
+	expect(reader).toHaveBeenCalledTimes(5);
+	expect(
+		root.renderer.findByTestId("changed-files-workspace-1")
+	).toBeUndefined();
+	expect(
+		root.renderer.findByTestId("changed-files-workspace-2")
+	).toBeUndefined();
 	click("close-workspace-1");
 	expect(watcher.stop).not.toHaveBeenCalled();
 	click("close-workspace-2");
@@ -260,7 +282,7 @@ it("shares watchers across tabs and removes subscriptions after the last tab clo
 		root.renderer
 	);
 	await settle(350);
-	expect(reader).toHaveBeenCalledTimes(4);
+	expect(reader).toHaveBeenCalledTimes(5);
 });
 
 it("cancels background reads during commits and does not clear uncertain-outcome safeguards", async () => {

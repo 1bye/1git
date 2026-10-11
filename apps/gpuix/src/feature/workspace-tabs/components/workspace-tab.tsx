@@ -36,6 +36,13 @@ const shoulder = surfaceOutset + visualInset;
 const triggerBorderWidth = 1;
 // Curved shoulders extend beyond the visual body without consuming content space.
 const surfaceWidth = width + surfaceOutset * 2;
+const maxVisibleChangedFiles = 99;
+const changeBadgeHeight = 18;
+
+const changeBadgeTones = {
+	light: { color: "#80633d", backgroundColor: "#f6f1e8" },
+	dark: { color: "#d2ba95", backgroundColor: "#3e372c" },
+} as const;
 
 function connectedTabSurface(tabWidth: number, color: string): string {
 	const paintedWidth = tabWidth + surfaceOutset * 2;
@@ -54,7 +61,7 @@ const marquee = {
 	overflowTolerance: 1,
 } as const;
 
-const themedStyles = createThemedStyles(({ colors: appColors }) => {
+const themedStyles = createThemedStyles(({ colors: appColors, appearance }) => {
 	const activeSurface = connectedTabSurface(width, appColors.editorSurface);
 
 	const styles = StyleSheet.create({
@@ -144,6 +151,34 @@ const themedStyles = createThemedStyles(({ colors: appColors }) => {
 			color: appColors.editorMuted,
 			whiteSpace: "nowrap",
 		},
+		trailing: {
+			position: "relative",
+			width: layout.tabCloseSize,
+			height: layout.tabCloseSize,
+			flexShrink: 0,
+			display: "flex",
+			alignItems: "center",
+			justifyContent: "center",
+			pointerEvents: "none",
+		},
+		changeBadge: {
+			...changeBadgeTones[appearance],
+			height: changeBadgeHeight,
+			minWidth: changeBadgeHeight,
+			borderRadius: cornerRadius.sm,
+			paddingLeft: spacing[1],
+			paddingRight: spacing[1],
+			display: "flex",
+			alignItems: "center",
+			justifyContent: "center",
+			pointerEvents: "none",
+		},
+		changeCount: {
+			...typography["2xs"],
+			color: changeBadgeTones[appearance].color,
+			fontWeight: fontWeight.semibold,
+			pointerEvents: "none",
+		},
 		close: {
 			width: layout.tabCloseSize,
 			height: layout.tabCloseSize,
@@ -211,6 +246,7 @@ export function WorkspaceTab({
 
 	const frame = useRef<PublicInstance>(null);
 	const [focused, setFocused] = useState(false);
+	const [closeFocused, setCloseFocused] = useState(false);
 
 	const [hoverTargets, setHoverTargets] = useState({
 		slot: false,
@@ -222,6 +258,15 @@ export function WorkspaceTab({
 	const hovered = Object.values(hoverTargets).some(Boolean);
 	const spaceArmed = useRef(false);
 	const label = tab.branch ? `${tab.name} / ${tab.branch}` : tab.name;
+	// The retained Changes snapshot also refreshes for inactive tabs; no extra Git reads.
+	const changedFiles = tab.workspace.entries.changes.length;
+	const changedFilesLabel = `${changedFiles} changed ${changedFiles === 1 ? "file" : "files"}`;
+	const revealClose = hovered || focused || closeFocused;
+	const changeBadgeOpacity = active ? 1 : 0.65;
+
+	const instructions = menuAvailable
+		? "Click the active tab or press Enter or Down for branches. Drag to reorder, or press Shift+Left or Shift+Right."
+		: "Drag to reorder, or press Shift+Left or Shift+Right.";
 
 	const onMouseDown = (event: EventPayload): void => {
 		onTabMouseDown(event, frame.current);
@@ -340,11 +385,7 @@ export function WorkspaceTab({
 						testId={tab.id}
 						role="tab"
 						aria-label={label}
-						aria-description={
-							menuAvailable
-								? "Click the active tab or press Enter or Down for branches. Drag to reorder, or press Shift+Left or Shift+Right."
-								: "Drag to reorder, or press Shift+Left or Shift+Right."
-						}
+						aria-description={`${changedFilesLabel}. ${instructions}`}
 						aria-expanded={menuAvailable ? menuOpen : undefined}
 						aria-selected={active}
 						tabIndex={active ? 0 : -1}
@@ -381,24 +422,47 @@ export function WorkspaceTab({
 							reveal={(hovered || focused) && !dragging && !menuOpen}
 						/>
 					</div>
-					<Button
-						testId={`close-${tab.id}`}
-						aria-label={`Close ${label}`}
-						disabled={RepositoryWorkspaceModel.isBusy(tab.workspace)}
-						tokens={appTokens}
-						variant="ghost"
-						size="sm"
-						onMouseDown={onPointerDown}
-						onKeyDown={onKeyboardInput}
-						tabIndex={active ? 0 : -1}
-						onPress={onClose}
-						{...hoverEvents("close")}
-						style={StyleSheet.compose(styles.close, {
-							opacity: active || hovered || focused ? 1 : 0,
-						})}
-					>
-						<WorkspaceTabIcon name="close" testId={`close-icon-${tab.id}`} />
-					</Button>
+					<div testId={`trailing-${tab.id}`} style={styles.trailing}>
+						{changedFiles > 0 ? (
+							<div
+								testId={`changed-files-${tab.id}`}
+								aria-hidden
+								style={StyleSheet.compose(styles.changeBadge, {
+									opacity: revealClose ? 0 : changeBadgeOpacity,
+								})}
+							>
+								<text
+									testId={`changed-files-count-${tab.id}`}
+									style={styles.changeCount}
+								>
+									{changedFiles > maxVisibleChangedFiles ? "99+" : changedFiles}
+								</text>
+							</div>
+						) : null}
+						<Button
+							testId={`close-${tab.id}`}
+							aria-label={`Close ${label}`}
+							disabled={RepositoryWorkspaceModel.isBusy(tab.workspace)}
+							tokens={appTokens}
+							variant="ghost"
+							size="sm"
+							onMouseDown={onPointerDown}
+							onKeyDown={onKeyboardInput}
+							onFocus={() => setCloseFocused(true)}
+							onBlur={() => setCloseFocused(false)}
+							tabIndex={active ? 0 : -1}
+							onPress={onClose}
+							{...hoverEvents("close")}
+							style={StyleSheet.compose(styles.close, {
+								position: "absolute",
+								top: 0,
+								left: 0,
+								opacity: revealClose || (active && changedFiles === 0) ? 1 : 0,
+							})}
+						>
+							<WorkspaceTabIcon name="close" testId={`close-icon-${tab.id}`} />
+						</Button>
+					</div>
 				</div>
 				{children}
 			</div>
