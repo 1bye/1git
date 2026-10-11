@@ -1,5 +1,5 @@
 /**
- * Covers: compact width-capped Accounts, illustrated empty state, public setup copying, split setup, pinned actions, preserved workspace state, token masking, icon actions, confirmed removal and keyboard navigation.
+ * Covers: compact width-capped Accounts, Settings tab close/focus restoration, illustrated empty state, public setup copying, split setup, pinned actions, preserved workspace state, token masking, icon actions, confirmed removal and keyboard navigation.
  * Real: App, Accounts, providers, disposable metadata file and native layout/editing/accessibility.
  * Doubles: HTTP, credential vault and clipboard writes; no real account, token or network.
  * Requires: built local native addon and macOS graphics access.
@@ -15,6 +15,7 @@ import { AccountStore } from "../../src/feature/accounts/lib/account-store";
 import { windowOptions } from "../../src/window-options";
 import { AccountAuthorization } from "../../src/feature/accounts/lib/account-authorization";
 import { appTokens } from "../../src/styles/tokens";
+import { workspaceLayout } from "../../src/styles/workspace-layout";
 import { AccountsSettings } from "../../src/feature/accounts/accounts-settings";
 import { accountProviderIcons } from "../../src/feature/accounts/account-provider-icons";
 import type { HostingFetch } from "@1git/hosting/contracts";
@@ -208,7 +209,8 @@ it("removes Back and fits the Settings tab above the sidebar without covering wi
 
 	expect(accountsBounds.height).toBe(appTokens.layout.smallControlHeight);
 	expect(accountsIconBounds.width).toBe(14);
-	expect(titleBounds.x).toBe(workspaceTabBounds.x);
+	// Settings has no Home button; its title starts directly after the traffic lights.
+	expect(titleBounds.x).toBe(workspaceLayout.desktopTitlebarControlsWidth);
 	expect(titleBounds.x).toBeGreaterThanOrEqual(sidebarBounds.x);
 	expect(titleBounds.width).toBeLessThan(sidebarBounds.width);
 	const surfaceBounds = root.renderer.getElementBounds(
@@ -220,6 +222,24 @@ it("removes Back and fits the Settings tab above the sidebar without covering wi
 	);
 	expect(titleBounds.height).toBe(workspaceTabBounds.height);
 	expect(titleBounds.y + titleBounds.height).toBe(sidebarBounds.y);
+	const close = root.renderer.findByTestId("settings-title-tab-close")!;
+
+	const closeIcon = root.renderer.findByTestId(
+		"settings-title-tab-close-icon"
+	)!;
+
+	const closeBounds = root.renderer.getElementBounds(close.id)!;
+	const iconBounds = root.renderer.getElementBounds(closeIcon.id)!;
+	const labelBounds = root.renderer.getElementBounds(titleLabel!.id)!;
+
+	expect(closeBounds).toMatchObject({ width: 24, height: 24 });
+	expect(iconBounds).toMatchObject({ width: 14, height: 14 });
+	expect(closeBounds.x + closeBounds.width).toBe(
+		titleBounds.x + titleBounds.width - 6
+	);
+	expect(closeBounds.y + closeBounds.height / 2).toBe(
+		labelBounds.y + labelBounds.height / 2
+	);
 	expect(root.renderer.getFocusedElementId()).toBe(accounts!.id);
 
 	root.renderer.simulateKeystrokes("escape");
@@ -228,6 +248,38 @@ it("removes Back and fits the Settings tab above the sidebar without covering wi
 	expect(root.renderer.findByTestId("slot-workspace-1")?.id).toBe(
 		workspaceTab.id
 	);
+});
+
+it("closes Settings from its tab with mouse or keyboard and restores Home focus", async () => {
+	const f = fixture();
+
+	root.render(<App accounts={f.accounts} initialTabCount={0} />);
+	await settle();
+	const search = root.renderer.findByTestId("welcome-search")!;
+	const home = root.renderer.findByTestId("repository-welcome")!;
+
+	for (const input of ["mouse", "enter", "space"] as const) {
+		root.renderer.focusElement(search.id);
+		root.renderer.simulateKeystrokes("cmd-,");
+		await settle();
+		const close = root.renderer.findByTestId("settings-title-tab-close")!;
+
+		expect(close.customProps?.["aria-label"]).toBe("Close Settings");
+		expect(close.customProps?.windowDrag).not.toBe(true);
+
+		if (input === "mouse") click("settings-title-tab-close");
+		else {
+			root.renderer.focusElement(close.id);
+			root.renderer.nativeSimulateKeyDown(close.id, input);
+
+			if (input === "space") root.renderer.nativeSimulateKeyUp(close.id, input);
+		}
+
+		await settle();
+		expect(root.renderer.findByTestId("settings-view")).toBeUndefined();
+		expect(root.renderer.findByTestId("repository-welcome")?.id).toBe(home.id);
+		expect(root.renderer.getFocusedElementId()).toBe(search.id);
+	}
 });
 
 it("keeps the account list mounted beside setup and closes only setup on Cancel or Escape", async () => {
@@ -691,7 +743,7 @@ it("preserves a scrolled account list while setup has its own independent scroll
 	expect(f.requests).toEqual([]);
 });
 
-it("preserves a native commit draft and list scroll while Settings blocks hidden-tab shortcuts", async () => {
+it("preserves a native commit draft and list scroll when closing the Settings tab while hidden-tab shortcuts are blocked", async () => {
 	const f = fixture();
 
 	root.render(<App accounts={f.accounts} preview initialTabCount={2} />);
@@ -710,13 +762,15 @@ it("preserves a native commit draft and list scroll while Settings blocks hidden
 	await settle();
 	root.renderer.simulateKeystrokes("cmd-2");
 	await settle();
-	root.renderer.simulateKeystrokes("escape");
+	click("settings-title-tab-close");
 	await settle();
+	expect(root.renderer.findByTestId("settings-view")).toBeUndefined();
 	expect(root.renderer.findByTestId("commit-message")?.id).toBe(editor.id);
 	expect(root.renderer.findByTestId("commit-message")?.customProps?.value).toBe(
 		"draft"
 	);
 	expect(root.renderer.getScrollOffset(list.id)).toEqual(offset);
+	expect(root.renderer.getFocusedElementId()).toBe(editor.id);
 });
 
 it("shows only the public device code, authorizes through the browser flow and stores the OAuth pair securely", async () => {
@@ -998,15 +1052,26 @@ it("blocks removal dismissal while saving and preserves a failed account for ret
 	await settle();
 	click("account-remove-confirm");
 	await settle();
+	const close = root.renderer.findByTestId("settings-title-tab-close")!;
+
+	expect(close.customProps?.tabIndex).toBeUndefined();
+	expect(close.style.opacity).toBe(0.45);
+	root.renderer.nativeSimulateKeyDown(close.id, "enter");
+	click("settings-title-tab-close");
 	root.renderer.simulateKeystrokes("escape");
 	root.renderer.nativeSimulateClick(5, 5);
 	click("account-remove-cancel");
 	await settle();
 	expect(root.renderer.findByTestId("account-remove-dialog")).toBeDefined();
+	expect(root.renderer.findByTestId("settings-view")).toBeDefined();
 	expect(f.store.load()).toEqual([account!]);
 	expect(f.secrets.size).toBe(1);
 	pending.resolve();
 	await settle();
+	expect(
+		root.renderer.findByTestId("settings-title-tab-close")?.customProps
+			?.tabIndex
+	).toBe(0);
 	expect(root.renderer.getAllText()).toContain(
 		"Could not remove saved credential."
 	);

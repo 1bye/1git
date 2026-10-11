@@ -484,6 +484,8 @@ export function AccountsSettings({
 						label="Settings"
 						testId="settings-title-tab"
 						width={settingsTitleWidth}
+						onClose={onBack}
+						disabled={settingsBusy}
 					/>
 				</div>
 			}

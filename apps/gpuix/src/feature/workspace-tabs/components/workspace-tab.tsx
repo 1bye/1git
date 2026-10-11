@@ -562,15 +562,19 @@ function WorkspaceTabLabel({
 	);
 }
 
-/** A non-interactive view title with the same connected tab surface and no close action. */
+/** A closable view title with the same connected tab surface and controls as repository tabs. */
 export function WorkspaceTabHeading({
 	label,
 	testId,
 	width: headingWidth = width,
+	onClose,
+	disabled = false,
 }: {
 	label: string;
 	testId: string;
 	width?: number;
+	onClose: () => void;
+	disabled?: boolean;
 }) {
 	const theme = useAppTheme();
 	const { tokens: appTokens, colors: appColors } = theme;
@@ -598,10 +602,22 @@ export function WorkspaceTabHeading({
 				<Text
 					testId={`${testId}-label`}
 					tokens={appTokens}
-					style={styles.name(true)}
+					style={StyleSheet.compose(styles.name(true), { flexGrow: 1 })}
 				>
 					{label}
 				</Text>
+				<Button
+					testId={`${testId}-close`}
+					aria-label={`Close ${label}`}
+					tokens={appTokens}
+					variant="ghost"
+					size="sm"
+					disabled={disabled}
+					onPress={onClose}
+					style={styles.close}
+				>
+					<WorkspaceTabIcon name="close" testId={`${testId}-close-icon`} />
+				</Button>
 			</div>
 		</div>
 	);
