@@ -68,7 +68,7 @@ export function AppearanceSettings() {
 							borderWidth: 1,
 							borderColor:
 								appearance === choice
-									? tokens.colors.accent
+									? tokens.colors.accentBorder
 									: tokens.colors.border,
 						}}
 					>

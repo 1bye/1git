@@ -55,7 +55,7 @@ export function Textarea({
 			minRows={minRows}
 			maxRows={maxRows}
 			tabIndex={tabIndex}
-			theme={{ caret: tokens.colors.accent, ...theme }}
+			theme={{ caret: tokens.colors.focusRing, ...theme }}
 			style={StyleSheet.compose(
 				styles.field(tokens),
 				style,

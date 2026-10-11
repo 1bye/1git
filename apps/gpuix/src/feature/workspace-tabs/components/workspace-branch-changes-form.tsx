@@ -91,7 +91,7 @@ export function WorkspaceBranchChangesForm({
 								borderWidth: 1,
 								borderColor:
 									choice === "leave"
-										? appTokens.colors.accent
+										? appTokens.colors.accentBorder
 										: appTokens.colors.border,
 							}}
 							aria-label={`Leave changes on this branch${choice === "leave" ? ", selected" : ""}`}
@@ -117,7 +117,7 @@ export function WorkspaceBranchChangesForm({
 								borderWidth: 1,
 								borderColor:
 									choice === "bring"
-										? appTokens.colors.accent
+										? appTokens.colors.accentBorder
 										: appTokens.colors.border,
 							}}
 							aria-label={`Bring changes with me${choice === "bring" ? ", selected" : ""}`}

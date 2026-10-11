@@ -252,6 +252,7 @@ it("forwards refs and metadata and updates token styles without changing checked
 		width: 12,
 		height: 12,
 		borderRadius: 4,
+		borderColor: palettes.light.accent,
 		backgroundColor: palettes.light.accent,
 	});
 	expect(mark?.style).toMatchObject({ width: 10, height: 10 });

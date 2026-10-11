@@ -17,6 +17,7 @@ import { changedFile } from "../_shared/repository-snapshot";
 import { diffPatch, diffSection } from "../_shared/diff-patch";
 import { windowOptions } from "../../src/window-options";
 import { DiffView } from "@1git/gpuix-ui/diff-view";
+import { AppThemeContext, appThemes } from "../../src/styles/theme";
 import type {
 	DiffSettings,
 	RepositoryDiff as DiffReader,
@@ -50,12 +51,14 @@ function Preview({
 	readOnly = false,
 	ignoreWhitespace = false,
 	stale = false,
+	appearance = "light",
 }: {
 	mode?: "unified" | "split";
 	blocked?: boolean;
 	readOnly?: boolean;
 	ignoreWhitespace?: boolean;
 	stale?: boolean;
+	appearance?: "light" | "dark";
 }) {
 	const [settings, setSettings] = useState<DiffSettings>({
 		mode,
@@ -69,40 +72,44 @@ function Preview({
 	});
 
 	return (
-		<div
-			style={{
-				width: "100%",
-				height: "100%",
-				display: "flex",
-				flexDirection: "column",
-			}}
+		<AppThemeContext.Provider
+			value={{ ...appThemes[appearance], commitTypeBadges: true }}
 		>
-			<RepositoryDiff
-				root="/test/project"
-				change={changedFile("example.ts")}
-				refreshing={blocked}
-				statusError={null}
-				settings={settings}
-				onSettingsChange={setSettings}
-				readDiff={reader}
-				inclusion={
-					readOnly
-						? undefined
-						: {
-								included: true,
-								selection,
-								onChange: (expectedPatch, includedLines) => {
-									received = includedLines;
-									setSelection({
-										expectedPatch,
-										includedLines: [...includedLines],
-									});
-								},
-							}
-				}
-			/>
-			<text testId="readout">{selection.includedLines.join(",")}</text>
-		</div>
+			<div
+				style={{
+					width: "100%",
+					height: "100%",
+					display: "flex",
+					flexDirection: "column",
+				}}
+			>
+				<RepositoryDiff
+					root="/test/project"
+					change={changedFile("example.ts")}
+					refreshing={blocked}
+					statusError={null}
+					settings={settings}
+					onSettingsChange={setSettings}
+					readDiff={reader}
+					inclusion={
+						readOnly
+							? undefined
+							: {
+									included: true,
+									selection,
+									onChange: (expectedPatch, includedLines) => {
+										received = includedLines;
+										setSelection({
+											expectedPatch,
+											includedLines: [...includedLines],
+										});
+									},
+								}
+					}
+				/>
+				<text testId="readout">{selection.includedLines.join(",")}</text>
+			</div>
+		</AppThemeContext.Provider>
 	);
 }
 
@@ -256,6 +263,74 @@ it("paints visible white vector marks on borderless blue gutters, with quiet ali
 				root.renderer.captureScreenshot(
 					`${process.env.GPUIX_INCLUSION_PALETTE_SCREENSHOT}-${mode}-mixed.png`
 				);
+		}
+	} finally {
+		await rm(directory, { recursive: true, force: true });
+	}
+});
+
+it("paints bright blue vector marks and numbers on quiet dark fills in both layouts", async () => {
+	const directory = await mkdtemp(join(tmpdir(), "1git-dark-inclusion-"));
+
+	try {
+		for (const mode of ["unified", "split"] as const) {
+			root.render(<Preview key={mode} mode={mode} appearance="dark" />);
+			await settle();
+			const { bounds } = viewport();
+			const path = join(directory, `${mode}.png`);
+
+			root.renderer.nativeSimulateMouseMove(bounds.x + 200, bounds.y + 150);
+			root.renderer.captureScreenshot(path);
+			const { data, info } = await sharp(path)
+				.ensureAlpha()
+				.raw()
+				.toBuffer({ resolveWithObject: true });
+
+			const scale = info.width / 980;
+
+			const color = (x: number, y: number) => {
+				const offset =
+					(Math.floor((bounds.y + y) * scale) * info.width +
+						Math.floor((bounds.x + x) * scale)) *
+					4;
+
+				return [...data.subarray(offset, offset + 3)];
+			};
+
+			const hasBlueInk = (left: number, right: number) => {
+				for (let x = left; x < right; x++) {
+					for (let y = 52; y < 64; y++) {
+						const [red = 0, green = 0, blue = 0] = color(x, y);
+
+						if (red > 100 && green > 140 && blue > 225) return true;
+					}
+				}
+
+				return false;
+			};
+
+			expect(color(27, 49)).toEqual([43, 53, 66]);
+			expect(color(42, 49)).toEqual(color(27, 49));
+			expect(hasBlueInk(4, 16)).toBe(true);
+			expect(hasBlueInk(22, 34)).toBe(true);
+			expect(hasBlueInk(60, 117)).toBe(true);
+			expect(color(350, 49)).toEqual([66, 42, 48]);
+			expect(
+				color(
+					mode === "split" ? bounds.width / 2 + 350 : 350,
+					mode === "split" ? 49 : 70
+				)
+			).toEqual([37, 57, 45]);
+
+			if (process.env.GPUIX_DARK_INCLUSION_SCREENSHOT)
+				root.renderer.captureScreenshot(
+					`${process.env.GPUIX_DARK_INCLUSION_SCREENSHOT}-${mode}.png`
+				);
+
+			gutter(27, 1);
+			await settle();
+			expect(received).toEqual(["+:11"]);
+			expect(reader).toHaveBeenCalledTimes(mode === "unified" ? 1 : 2);
 		}
 	} finally {
 		await rm(directory, { recursive: true, force: true });

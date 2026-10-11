@@ -58,9 +58,14 @@ it("retains readable dark text, syntax and actionable accents", () => {
 	])
 		expect(contrast(color, colors.editorSurface)).toBeGreaterThanOrEqual(4.5);
 
-	expect(contrast(colors.brandForeground, colors.brand)).toBeGreaterThanOrEqual(
-		4.5
-	);
+	for (const background of [
+		appControlTokens.dark.colors.accent,
+		appControlTokens.dark.colors.accentHover,
+		appControlTokens.dark.colors.accentPressed,
+	])
+		expect(contrast(colors.brandForeground, background)).toBeGreaterThanOrEqual(
+			4.5
+		);
 
 	for (const color of Object.values(darkDiffTheme.syntax ?? {}))
 		for (const background of [
@@ -69,6 +74,21 @@ it("retains readable dark text, syntax and actionable accents", () => {
 			darkDiffTheme.diffDelBg!,
 		])
 			expect(contrast(color, background)).toBeGreaterThanOrEqual(4.5);
+});
+
+it("uses quiet dark accent fills with brighter foregrounds, leaving light controls unchanged", () => {
+	const { colors } = appControlTokens.dark;
+
+	expect(luminance(colors.onAccent)).toBeGreaterThan(luminance(colors.accent));
+	expect(contrast(colors.accent, appColors.dark.editorSurface)).toBeLessThan(2);
+	expect(colors.onAccent).toBe(appColors.dark.brand);
+	expect(colors.focusRing).toBe(appColors.dark.brand);
+	expect(darkDiffTheme.accent).toBe(colors.accent);
+	expect(darkDiffTheme).toHaveProperty("diffInclusionText", colors.onAccent);
+	expect(appControlTokens.light.colors.accent).toBe(appColors.light.brand);
+	expect(appControlTokens.light.colors.onAccent).toBe(
+		appColors.light.brandForeground
+	);
 });
 
 it("maps GitHub Dark token roles without recoloring diff surfaces", () => {

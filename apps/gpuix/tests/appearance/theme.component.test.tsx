@@ -11,7 +11,11 @@ import { Accounts } from "../../src/feature/accounts/lib/accounts";
 import { AccountStore } from "../../src/feature/accounts/lib/account-store";
 import { ExternalEditors } from "../../src/feature/editor-settings/external-editors";
 import type { WorkspaceSessionDocument } from "../../src/feature/workspace-tabs/lib/workspace-session";
-import { appColors, type AppAppearance } from "../../src/styles/tokens";
+import {
+	appColors,
+	appControlTokens,
+	type AppAppearance,
+} from "../../src/styles/tokens";
 import { darkDiffTheme } from "../../src/styles/dark-diff-theme";
 import { windowOptions } from "../../src/window-options";
 import {
@@ -218,6 +222,43 @@ it("switches in Settings without losing a draft, selected file, inclusion or dif
 		false
 	);
 	expect(node(root, "commit-message").customProps?.value).toBe("Keep my draft");
+	expect(node(root, "commit-message").customProps?.theme).toMatchObject({
+		caret: appColors.dark.brand,
+	});
+	expect(node(root, "commit-submit").style.backgroundColor).toBe(
+		appControlTokens.dark.colors.accent
+	);
+
+	const commitLabel = root.renderer.getElement(
+		node(root, "commit-submit").children[0] ?? -1
+	);
+
+	const inclusionBox = root.renderer.getElement(
+		node(root, "include-example.ts").children[0] ?? -1
+	);
+
+	const inclusionMark = root.renderer.getElement(
+		inclusionBox?.children[0] ?? -1
+	);
+
+	expect(commitLabel?.style.color).toBe(appColors.dark.brand);
+	expect(inclusionBox?.style.backgroundColor).toBe(
+		appControlTokens.dark.colors.accent
+	);
+	expect(inclusionBox?.style.borderColor).toBe(
+		inclusionBox?.style.backgroundColor
+	);
+	expect(inclusionMark?.style.color).toBe(appColors.dark.brand);
+
+	for (const [testId, borderColor] of [
+		["include-all", appControlTokens.dark.colors.accent],
+		["include-other.ts", appControlTokens.dark.colors.border],
+	] as const) {
+		const box = root.renderer.getElement(node(root, testId).children[0] ?? -1);
+
+		expect(box?.style.borderColor).toBe(borderColor);
+	}
+
 	expect(reads()).toBe(count);
 	expect(node(root, "filename-example.ts").style.color).toBe(
 		appColors.dark.editorInk

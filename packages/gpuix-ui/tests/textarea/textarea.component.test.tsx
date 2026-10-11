@@ -75,7 +75,7 @@ it("applies token styling and caller overrides while preserving native read-only
 		fontSize: 12,
 	});
 	expect(editor.customProps?.theme).toMatchObject({
-		caret: palettes.light.accent,
+		caret: palettes.light.focusRing,
 	});
 	root.renderer.nativeSimulateKeystrokes(editor.id, "x enter");
 	expect(elementByTestId(root.renderer, "editor").customProps?.value).toBe("");

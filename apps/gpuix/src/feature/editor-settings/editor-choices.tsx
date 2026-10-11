@@ -67,7 +67,7 @@ export function EditorChoices({
 						</text>
 					) : null}
 					{selected === app.path ? (
-						<WorkspaceTabIcon name="check" color={appTokens.colors.accent} />
+						<WorkspaceTabIcon name="check" color={appTokens.colors.focusRing} />
 					) : null}
 				</Button>
 			))}

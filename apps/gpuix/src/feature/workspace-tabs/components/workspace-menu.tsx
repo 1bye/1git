@@ -1290,7 +1290,7 @@ export function WorkspaceMenu({
 										>
 											<WorkspaceTabIcon
 												name={current ? "check" : "branch"}
-												color={current ? colors.accent : colors.textMuted}
+												color={current ? colors.focusRing : colors.textMuted}
 											/>
 											<Text tokens={appTokens} style={styles.label}>
 												{item.name}
@@ -1481,7 +1481,9 @@ export function WorkspaceMenu({
 													>
 														<WorkspaceTabIcon
 															name={current ? "check" : "branch"}
-															color={current ? colors.accent : colors.textMuted}
+															color={
+																current ? colors.focusRing : colors.textMuted
+															}
 														/>
 														<Text tokens={appTokens} style={styles.label}>
 															{item.branch?.replace(/^refs\/heads\//, "") ??

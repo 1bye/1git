@@ -953,8 +953,11 @@ the Turbo build/dev tasks build dependencies first. No Electron IPC is involved.
   lines. Click the outer gutter for the group and the inner gutter for a line; Tab then
   Space/Enter also toggles a control. A partially included file has a mixed checkbox;
   clicking it includes the entire file. The controls work in unified and split layouts.
-  Selected controls and line numbers use blue blocks with white SVG check/minus icons;
-  the group gutter is darker. Excluded numbers stay neutral. The shared diff theme uses
+  Selected controls and line numbers use blue blocks with white SVG check/minus icons
+  in light mode; dark mode uses quiet blue fills with brighter blue ink, like badges.
+  `native/diff-inclusion-theme.patch` adds optional `diffInclusionText` for the marks
+  and numbers without changing layout, selection ownership or scrolling caches.
+  The group gutter is darker. Excluded numbers stay neutral. The shared diff theme uses
   pale green/red rows, quiet hunk headers aligned to code and an SVG expansion icon.
   Gutters have no internal dividers; hunk headers use one pale background. Group and
   line checks remain visible, with focus outlines and the split-pane divider retained.

@@ -60,7 +60,7 @@ export function ChoiceTile({
 					width: 22,
 					height: 22,
 					color: selected
-						? appTokens.colors.accent
+						? appTokens.colors.focusRing
 						: appTokens.colors.textMuted,
 					pointerEvents: "none",
 				}}

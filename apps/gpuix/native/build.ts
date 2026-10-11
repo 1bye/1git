@@ -24,6 +24,7 @@ import {
 	diffSplitLayoutPatchPath,
 	diffInclusionPatchPath,
 	diffSyntaxPatchPath,
+	diffInclusionThemePatchPath,
 	buildIdPath,
 	nativeBuildId,
 	nativeDirectory,
@@ -122,6 +123,7 @@ if (
 		windowAppearancePatchPath,
 		windowAppearancePlatformPatchPath,
 		diffSyntaxPatchPath,
+		diffInclusionThemePatchPath,
 	];
 
 	// Later patches can change an earlier patch's context. Unwind known patches

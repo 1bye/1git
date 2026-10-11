@@ -58,7 +58,7 @@ const styles = StyleSheet.create({
 		height: controlSize.checkbox,
 		borderRadius: radius.sm,
 		borderWidth: 1,
-		borderColor: checked ? colors.accentBorder : colors.border,
+		borderColor: checked ? colors.accent : colors.border,
 		backgroundColor: checked ? colors.accent : colors.field,
 		pointerEvents: "none",
 	}),
