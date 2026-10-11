@@ -13,6 +13,7 @@ import type { WorkspaceSessionDocument } from "../../src/feature/workspace-tabs/
 import { windowOptions } from "../../src/window-options";
 import { repositorySnapshot } from "../_shared/repository-snapshot";
 import { RepositoryFileActions } from "../../src/feature/repository-workspace/lib/repository-file-actions";
+import { appThemes } from "../../src/styles/theme";
 import { hostingRepositories } from "../_shared/hosting-repositories";
 import { rmSync } from "node:fs";
 
@@ -157,7 +158,7 @@ const readRepository = async () => ({
 	value: repositorySnapshot([]),
 });
 
-it("shows the trash icon only on row hover or keyboard focus", async () => {
+it("shows a muted brush icon only on row hover or keyboard focus", async () => {
 	root.render(
 		<App
 			initialSession={{
@@ -183,9 +184,16 @@ it("shows the trash icon only on row hover or keyboard focus", async () => {
 
 	expect(action()?.style.opacity).toBe(0);
 	expect(root.renderer.getAllText()).not.toContain("Remove");
-	expect(
-		root.renderer.findByTestId("welcome-forget-icon-/test/project")
-	).toBeDefined();
+	const icon = root.renderer.findByTestId("welcome-forget-icon-/test/project");
+
+	expect(icon?.customProps?.source).toContain("M234.62,218.6");
+	expect(icon?.style.color).toBe(appThemes.light.tokens.colors.textMuted);
+	expect(remove.customProps?.["aria-label"]).toBe(
+		"Remove /test/project from list"
+	);
+	expect(remove.customProps?.["aria-description"]).toBe(
+		"Removes only the saved entry. Your repository folder is kept."
+	);
 
 	for (const [x, y] of [
 		[rowBounds.x + 20, rowBounds.y + 20],
@@ -234,6 +242,7 @@ it("removes only the saved repository entry and persists the updated list", asyn
 				version: 1,
 				tabs: [],
 				activeId: null,
+				appearance: "dark",
 				recentRepositories: ["/test/project", "/test/other"],
 			}}
 			readRepository={reader}
@@ -241,6 +250,9 @@ it("removes only the saved repository entry and persists the updated list", asyn
 		/>
 	);
 	await settle();
+	expect(
+		root.renderer.findByTestId("welcome-forget-icon-/test/project")?.style.color
+	).toBe(appThemes.dark.tokens.colors.textMuted);
 	click("welcome-forget-/test/project");
 	await settle();
 
