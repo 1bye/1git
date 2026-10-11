@@ -489,7 +489,7 @@ it("tightens sidebar headers without shrinking rail buttons, file rows or checkb
 		expect(toolbar.height).toBe(36);
 		expect(element(`view-${view}`).style.height).toBe(32);
 		expect(bounds("repository-list").y - toolbar.y - toolbar.height).toBe(
-			view === "history" ? 0 : 24
+			view === "changes" ? 24 : 0
 		);
 
 		if (view !== "changes") {

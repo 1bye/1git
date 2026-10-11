@@ -1,5 +1,5 @@
 /**
- * Covers: lazy stash reads, automatic previews, keyboard focus, per-tab state, refresh, retries and cancellation.
+ * Covers: compact stash totals, lazy reads, automatic previews, keyboard focus, per-tab state, refresh, retries and cancellation.
  * Real: App, reducers, hooks and native GPUIX layout/events.
  * Doubles: Git readers and native folder picker; no live Git or OS dialogs.
  * Requires: patched GPUIX native renderer with macOS graphics access.
@@ -113,6 +113,51 @@ const openStashes = async (): Promise<void> => {
 	await settle();
 };
 
+it.each(["light", "dark"] as const)(
+	"shows a full muted Stashes total without a redundant Saved work row in %s mode",
+	async (appearance) => {
+		root.render(
+			<App
+				initialSession={{
+					version: 1,
+					activeId: "workspace-1",
+					appearance,
+					tabs: [{ id: "workspace-1", path: null, draft: "" }],
+				}}
+				readRepository={readRepository}
+				readStashes={async () => ({ ok: true, value: stashList(30) })}
+				readStashFiles={readFiles}
+				readDiff={readDiff}
+			/>
+		);
+		await openStashes();
+		await waitFor(() => !!root.renderer.findByTestId("diff-viewport"));
+		expect(root.renderer.getAllText()).toContain("(30)");
+		expect(root.renderer.findByTestId("repository-heading")).toBeUndefined();
+		expect(element("stashes-total").customProps?.["aria-label"]).toBe(
+			"30 stashes in repository"
+		);
+		const totalSize = element("stashes-total").style.fontSize;
+		const titleSize = element("repository-view-title").style.fontSize;
+
+		if (typeof totalSize !== "number" || typeof titleSize !== "number")
+			throw new Error("Missing numeric Stashes font sizes");
+
+		expect(totalSize).toBeLessThan(titleSize);
+		expect(element("stashes-total").style.color).not.toBe(
+			element("repository-view-title").style.color
+		);
+		expect(bounds("repository-list").y).toBe(
+			bounds("repository-views").y + bounds("repository-views").height
+		);
+
+		if (process.env.GPUIX_STASH_COUNT_SCREENSHOT)
+			root.renderer.captureScreenshot(
+				`${process.env.GPUIX_STASH_COUNT_SCREENSHOT}-${appearance}.png`
+			);
+	}
+);
+
 it("automatically previews fresh and cached stash files without stealing keyboard focus, retaining state per tab", async () => {
 	const stashes = stashList(12);
 
@@ -136,6 +181,7 @@ it("automatically previews fresh and cached stash files without stealing keyboar
 	expect(list).not.toHaveBeenCalled();
 	await openStashes();
 	await waitFor(() => !!root.renderer.findByTestId("diff-viewport"));
+	expect(root.renderer.getAllText()).toContain("(12)");
 	expect(element("entry-src/file-0.ts").customProps?.["aria-selected"]).toBe(
 		true
 	);
@@ -200,6 +246,7 @@ it("automatically previews fresh and cached stash files without stealing keyboar
 		fileScroll
 	);
 	expect(list).toHaveBeenCalledTimes(1);
+	expect(root.renderer.getAllText()).toContain("(12)");
 	expect(files).toHaveBeenCalledTimes(2);
 	expect(diffs.mock.calls.at(-1)?.[1]).toEqual(
 		committedFiles(stashes[0]?.oid ?? "")[1]?.commitFile
@@ -221,6 +268,7 @@ it("refreshes stashes even when HEAD is unchanged, preserving immutable cached f
 	);
 	await openStashes();
 	await waitFor(() => !!root.renderer.findByTestId("diff-viewport"));
+	expect(root.renderer.getAllText()).toContain("(3)");
 	click("entry-src/file-1.ts");
 	list.mockResolvedValue({
 		ok: true,
@@ -245,6 +293,13 @@ it("refreshes stashes even when HEAD is unchanged, preserving immutable cached f
 		true
 	);
 	expect(files).toHaveBeenCalledTimes(1);
+	expect(root.renderer.getAllText()).toContain("(3)");
+	list.mockResolvedValue({ ok: true, value: stashes.slice(0, 1) });
+	click("refresh-repository");
+	await waitFor(() => root.renderer.getAllText().includes("(1)"));
+	expect(element("stashes-total").customProps?.["aria-label"]).toBe(
+		"1 stash in repository"
+	);
 	list.mockResolvedValue({ ok: true, value: [] });
 	click("refresh-repository");
 	await waitFor(() =>
@@ -254,6 +309,7 @@ it("refreshes stashes even when HEAD is unchanged, preserving immutable cached f
 	expect(element("empty-list-placeholder")).toBeDefined();
 	expect(root.renderer.findByTestId("diff-viewport")).toBeUndefined();
 	expect(root.renderer.findByTestId("entry-src/file-1.ts")).toBeUndefined();
+	expect(root.renderer.getAllText()).toContain("(0)");
 });
 
 it("retries stash and file errors, ignores a late selection result, and handles a stash with no files", async () => {
@@ -282,11 +338,17 @@ it("retries stash and file errors, ignores a late selection result, and handles 
 	await waitFor(() =>
 		root.renderer.getAllText().includes("Stashes unavailable")
 	);
+	expect(root.renderer.getAllText()).toContain("(—)");
+	expect(root.renderer.getAllText()).not.toContain("(0)");
+	expect(element("stashes-total").customProps?.["aria-description"]).toContain(
+		"Refresh to retry"
+	);
 	list.mockImplementation(readStashes);
 	click("load-stashes");
 	await waitFor(() =>
 		root.renderer.getAllText().includes("Saved files unavailable")
 	);
+	expect(root.renderer.getAllText()).toContain("(3)");
 	files.mockReturnValueOnce(pending.promise);
 	click("retry-stashes-files");
 	await settle();
@@ -320,6 +382,8 @@ it("cancels pending reads on tab switches and restarts without accepting obsolet
 		/>
 	);
 	await openStashes();
+	expect(root.renderer.getAllText()).toContain("(…)");
+	expect(root.renderer.getAllText()).not.toContain("(0)");
 	click("workspace-2");
 	expect(list.mock.calls[0]?.[1].aborted).toBe(true);
 	list.mockResolvedValue({ ok: true, value: [] });
@@ -332,4 +396,5 @@ it("cancels pending reads on tab switches and restarts without accepting obsolet
 	expect(
 		root.renderer.findByTestId(`entry-${stashList()[0]?.oid}`)
 	).toBeUndefined();
+	expect(root.renderer.getAllText()).toContain("(0)");
 });

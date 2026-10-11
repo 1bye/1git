@@ -1174,6 +1174,11 @@ the Turbo build/dev tasks build dependencies first. No Electron IPC is involved.
 
 ## Browsing Stashes
 
+- The Stashes title shows the full repository stash count in small, muted
+  parentheses, matching History; the redundant Saved work row is omitted.
+  The count reuses the complete stash list without a separate Git query or
+  scroll work. `(…)` means loading, `(—)` means the read failed, and `(0)` is
+  shown only after a successful empty read. Refresh and stash actions update it.
 - Stashes lazily lists saved work with Git's summary (including the original branch),
   creation date and stash reference. Select a stash to automatically preview its
   first file; mouse/keyboard selection, the split sidebar and per-tab scroll state

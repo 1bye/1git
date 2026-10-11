@@ -56,7 +56,7 @@ import type { ExternalEditors } from "../../editor-settings/external-editors";
 import type { RepositoryHistorySquash } from "../lib/repository-history-squash";
 
 const sidebarBorderWidth = 1;
-const commitCountFormat = new Intl.NumberFormat();
+const revisionCountFormat = new Intl.NumberFormat();
 
 const themedStyles = createThemedStyles(({ colors: appColors }) => {
 	const styles = StyleSheet.create({
@@ -134,7 +134,7 @@ const themedStyles = createThemedStyles(({ colors: appColors }) => {
 			flexShrink: 0,
 		},
 		faint: { ...typography["2xs"], color: appColors.editorFaint },
-		historyTotal: {
+		revisionTotal: {
 			...typography.xs,
 			color: appColors.editorFaint,
 			flexShrink: 0,
@@ -332,23 +332,41 @@ export function RepositoryNavigation({
 		? "File history"
 		: repositoryViews.find((item) => item.value === view)?.label;
 
-	const historyTotal =
-		state.repository?.head === null ? 0 : state.historyCount?.total;
+	const total =
+		view === "stashes"
+			? state.stashes.loaded && !state.stashes.error
+				? state.entries.stashes.length
+				: undefined
+			: state.repository?.head === null
+				? 0
+				: state.historyCount?.total;
 
-	const shallowHistory = !!state.repository?.head && state.repository.isShallow;
-	const totalAvailable = historyTotal != null;
+	const countError =
+		view === "stashes" ? state.stashes.error : state.historyCount?.error;
+
+	const shallowHistory =
+		view === "history" &&
+		!!state.repository?.head &&
+		state.repository.isShallow;
+
+	const totalAvailable = total != null;
+	const countSingular = view === "stashes" ? "stash" : "commit";
+	const countPlural = view === "stashes" ? "stashes" : "commits";
+
+	const countScope =
+		view === "stashes" ? "repository" : "current branch history";
 
 	const countLabel = totalAvailable
-		? `(${shallowHistory ? "≥" : ""}${commitCountFormat.format(historyTotal)})`
-		: state.historyCount?.error
+		? `(${shallowHistory ? "≥" : ""}${revisionCountFormat.format(total)})`
+		: countError
 			? "(—)"
 			: "(…)";
 
 	const countAccessibleLabel = totalAvailable
-		? `${shallowHistory ? "At least " : ""}${historyTotal} ${historyTotal === 1 ? "commit" : "commits"} in current branch history`
-		: state.historyCount?.error
-			? "Commit count unavailable"
-			: "Counting commits";
+		? `${shallowHistory ? "At least " : ""}${total} ${total === 1 ? countSingular : countPlural} in ${countScope}`
+		: countError
+			? `${view === "stashes" ? "Stash" : "Commit"} count unavailable`
+			: `Counting ${countPlural}`;
 
 	const emptyListReady =
 		view === "changes" ||
@@ -359,11 +377,9 @@ export function RepositoryNavigation({
 	const heading =
 		view === "changes"
 			? `${state.includedFileIds.length} of ${state.entries.changes.length} selected`
-			: view === "history"
-				? historySearching
-					? "Search results"
-					: "Commits"
-				: "Saved work";
+			: historySearching
+				? "Search results"
+				: "Commits";
 
 	const readError =
 		state.error ??
@@ -549,22 +565,22 @@ export function RepositoryNavigation({
 				>
 					{label}
 				</text>
-				{view === "history" &&
+				{view !== "changes" &&
 				!fileHistory &&
 				!state.preview &&
 				state.repository ? (
 					<text
-						testId="history-total"
+						testId={view === "stashes" ? "stashes-total" : "history-total"}
 						role="text"
 						aria-label={countAccessibleLabel}
 						aria-description={
-							state.historyCount?.error
-								? `${state.historyCount.error} Refresh to retry the count.`
+							countError
+								? `${countError} Refresh to retry the count.`
 								: shallowHistory
 									? "Only locally available commits can be counted in a shallow clone."
 									: undefined
 						}
-						style={styles.historyTotal}
+						style={styles.revisionTotal}
 					>
 						{countLabel}
 					</text>
@@ -784,7 +800,7 @@ export function RepositoryNavigation({
 						label="Retry tags"
 					/>
 				) : null}
-				{view !== "history" || historySearching || fileHistory ? (
+				{view === "changes" || historySearching || fileHistory ? (
 					<div style={styles.header}>
 						<text testId="repository-heading" style={styles.muted}>
 							{heading}
