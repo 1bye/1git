@@ -23,6 +23,7 @@ import {
 } from "../lib/repository-workspace-model";
 import type { WorkspaceEntry } from "../types";
 import { RepositoryChangeLabel } from "./repository-change-details";
+import { RepositoryCommitSubject } from "./repository-commit-subject";
 
 import {
 	RepositoryFileMenu,
@@ -206,9 +207,16 @@ function RepositoryRow({
 								gap: spacing[1],
 							}}
 						>
-							<text style={{ ...styles.label, flexGrow: 1 }}>
-								{entry.title}
-							</text>
+							{"commit" in entry ? (
+								<RepositoryCommitSubject
+									subject={entry.title}
+									testId={`commit-subject-${entry.id}`}
+								/>
+							) : (
+								<text style={{ ...styles.label, flexGrow: 1 }}>
+									{entry.title}
+								</text>
+							)}
 							{entry.tags?.length ? (
 								<text
 									testId={`tags-${entry.id}`}

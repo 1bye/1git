@@ -94,6 +94,10 @@ export function App(props: ComponentProps<typeof AppContent>) {
 		props.initialSession?.appearance ?? "light"
 	);
 
+	const [commitTypeBadges, setCommitTypeBadges] = useState(
+		props.initialSession?.commitTypeBadges ?? true
+	);
+
 	useLayoutEffect(() => {
 		// TestRenderer has no OS window; the production addon is pinned by native/preload.ts.
 		if (
@@ -104,8 +108,13 @@ export function App(props: ComponentProps<typeof AppContent>) {
 	}, [renderer, appearance]);
 
 	const theme = useMemo(
-		() => ({ ...appThemes[appearance], setAppearance }),
-		[appearance]
+		() => ({
+			...appThemes[appearance],
+			setAppearance,
+			commitTypeBadges,
+			setCommitTypeBadges,
+		}),
+		[appearance, commitTypeBadges]
 	);
 
 	return (
@@ -386,7 +395,8 @@ function AppContent({
 		saveSession,
 		preview ? undefined : sessionError,
 		diffSettings,
-		theme.appearance
+		theme.appearance,
+		theme.commitTypeBadges
 	);
 
 	const connection = useRepositoryConnection(

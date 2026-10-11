@@ -13,13 +13,19 @@ export function useWorkspaceSession(
 	save: ((document: WorkspaceSessionDocument) => void) | undefined,
 	initialError?: string,
 	diffSettings?: DiffSettings,
-	appearance?: AppAppearance
+	appearance?: AppAppearance,
+	commitTypeBadges?: boolean
 ) {
 	const content =
 		state.preview || !save
 			? null
 			: JSON.stringify(
-					WorkspaceSession.capture(state, diffSettings, appearance)
+					WorkspaceSession.capture(
+						state,
+						diffSettings,
+						appearance,
+						commitTypeBadges
+					)
 				);
 
 	const latest = useRef(content);

@@ -1,11 +1,19 @@
 import { fontWeight, spacing, typography } from "@1git/design-tokens";
 import { Button } from "@1git/gpuix-ui/button";
+import { Checkbox } from "@1git/gpuix-ui/checkbox";
 import { useAppTheme } from "../../styles/theme";
 import { appColors, type AppAppearance } from "../../styles/tokens";
+import { RepositoryCommitSubject } from "../repository-workspace/components/repository-commit-subject";
 
 /** Immediate, persistent appearance selection; previews use the same palettes as the app. */
 export function AppearanceSettings() {
-	const { appearance, tokens, setAppearance } = useAppTheme();
+	const {
+		appearance,
+		tokens,
+		setAppearance,
+		commitTypeBadges,
+		setCommitTypeBadges,
+	} = useAppTheme();
 
 	return (
 		<div
@@ -76,6 +84,60 @@ export function AppearanceSettings() {
 						</text>
 					</Button>
 				))}
+			</div>
+			<div
+				style={{
+					display: "flex",
+					flexDirection: "column",
+					gap: spacing[2],
+					maxWidth: 480,
+					marginTop: spacing[2],
+				}}
+			>
+				<text
+					role="heading"
+					aria-level={2}
+					style={{
+						...typography.md,
+						fontWeight: fontWeight.medium,
+						color: tokens.colors.text,
+					}}
+				>
+					Commit messages
+				</text>
+				<Checkbox
+					testId="appearance-commit-type-badges"
+					label="Show commit type badges"
+					aria-description="Replace conventional commit prefixes with small, theme-colored labels. Original messages are unchanged."
+					checked={commitTypeBadges}
+					onCheckedChange={(enabled) => setCommitTypeBadges?.(enabled)}
+					disabled={!setCommitTypeBadges}
+					tokens={tokens}
+				/>
+				<text style={{ ...typography.sm, color: tokens.colors.textMuted }}>
+					Compact labels for feat, fix, refactor and other conventional
+					prefixes.
+				</text>
+				<div
+					aria-label="Commit message preview"
+					style={{
+						display: "flex",
+						flexDirection: "column",
+						gap: spacing[2],
+						padding: spacing[3],
+						borderRadius: 4,
+						backgroundColor: appColors[appearance].editorSunken,
+					}}
+				>
+					<RepositoryCommitSubject
+						subject="feat(core): add workspace shortcuts"
+						testId="appearance-commit-preview-feat"
+					/>
+					<RepositoryCommitSubject
+						subject="refactor(db): simplify queries"
+						testId="appearance-commit-preview-refactor"
+					/>
+				</div>
 			</div>
 		</div>
 	);

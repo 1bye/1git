@@ -29,7 +29,7 @@ afterEach(() => {
 	roots.clear();
 });
 
-function fixture(appearance?: "light" | "dark") {
+function fixture(appearance?: "light" | "dark", commitTypeBadges?: boolean) {
 	const root = createTestRoot({
 		width: 1100,
 		height: 760,
@@ -76,6 +76,7 @@ function fixture(appearance?: "light" | "dark") {
 	const patch = `diff --git a/example.ts b/example.ts\n--- a/example.ts\n+++ b/example.ts\n@@ -1,122 +1,122 @@\n-${"const version = 1;"}\n+${"const version = 2;"}\n${context}\n const tail = true;\n`;
 	const saved: WorkspaceSessionDocument[] = [];
 	const reads: string[] = [];
+	let historyReads = 0;
 
 	root.render(
 		<App
@@ -90,8 +91,28 @@ function fixture(appearance?: "light" | "dark") {
 				],
 				activeId: "workspace-1",
 				appearance,
+				commitTypeBadges,
 			}}
 			readRepository={async () => ({ ok: true, value: snapshot })}
+			readHistory={async () => {
+				historyReads++;
+
+				return {
+					ok: true,
+					value: {
+						commits: [
+							{
+								...commitInfo(),
+								summary: "refactor(db): generate schema baseline",
+							},
+						],
+						hasMore: false,
+						nextOffset: null,
+					},
+				};
+			}}
+			readTags={async () => ({ ok: true, value: [] })}
+			readCommitFiles={async () => ({ ok: true, value: [] })}
 			readDiff={async (_root, change) => {
 				reads.push(change.path);
 
@@ -99,7 +120,13 @@ function fixture(appearance?: "light" | "dark") {
 			}}
 			readLastCommit={async () => ({
 				ok: true,
-				value: { commit: commitInfo(), undoUnavailableReason: null },
+				value: {
+					commit: {
+						...commitInfo(),
+						summary: "feat(core): keep the last commit",
+					},
+					undoUnavailableReason: null,
+				},
 			})}
 			saveSession={(document) => saved.push(document)}
 		/>
@@ -110,6 +137,7 @@ function fixture(appearance?: "light" | "dark") {
 		saved,
 		catalog,
 		reads: () => reads.filter((path) => path === "example.ts").length,
+		historyReads: () => historyReads,
 		nativeAppearances,
 	};
 }
@@ -223,6 +251,106 @@ it("switches in Settings without losing a draft, selected file, inclusion or dif
 		bg: appColors.light.editorSurface,
 	});
 	catalog.mockRestore();
+});
+
+it("toggles and persists commit badges in Appearance without reloading history or changing its selection", async () => {
+	const { root, saved, catalog, historyReads } = fixture("dark");
+
+	try {
+		await settle(root);
+		expect(
+			root.renderer.findByTestId("last-commit-summary-badge")
+		).toBeDefined();
+		click(root, "view-history");
+		await settle(root);
+		const id = commitInfo().oid;
+		const badgeId = `commit-subject-${id}-badge`;
+
+		expect(root.renderer.findByTestId(badgeId)).toBeDefined();
+		click(root, `entry-${id}`);
+		await settle(root);
+		const reads = historyReads();
+
+		click(root, "rail-settings");
+		await settle(root);
+		click(root, "settings-appearance");
+		expect(
+			node(root, "appearance-commit-type-badges").customProps?.["aria-checked"]
+		).toBe(true);
+		expect(
+			root.renderer.findByTestId("appearance-commit-preview-feat-badge")
+		).toBeDefined();
+		root.renderer.nativeSimulateKeyDown(
+			node(root, "appearance-commit-type-badges").id,
+			"space"
+		);
+		root.renderer.nativeSimulateKeyUp(
+			node(root, "appearance-commit-type-badges").id,
+			"space"
+		);
+		root.renderer.flush();
+		expect(root.renderer.getAllText()).toContain(
+			"feat(core): add workspace shortcuts"
+		);
+		await Bun.sleep(230);
+		root.renderer.flush();
+		expect(saved.at(-1)?.commitTypeBadges).toBe(false);
+		expect(saved.at(-1)?.tabs[0]?.draft).toBe("Keep my draft");
+
+		click(root, "view-history");
+		await settle(root);
+		expect(root.renderer.findByTestId(badgeId)).toBeUndefined();
+		expect(node(root, `entry-${id}`).customProps?.["aria-selected"]).toBe(true);
+		expect(root.renderer.getAllText()).toContain(
+			"refactor(db): generate schema baseline"
+		);
+		expect(historyReads()).toBe(reads);
+
+		click(root, "rail-settings");
+		await settle(root);
+		click(root, "settings-appearance");
+		click(root, "appearance-commit-type-badges");
+		await Bun.sleep(230);
+		root.renderer.flush();
+		expect(saved.at(-1)?.commitTypeBadges).toBe(true);
+
+		if (process.env.GPUIX_COMMIT_SETTINGS_SCREENSHOT)
+			root.renderer.captureScreenshot(
+				process.env.GPUIX_COMMIT_SETTINGS_SCREENSHOT
+			);
+	} finally {
+		catalog.mockRestore();
+	}
+});
+
+it("restores disabled badges from a saved session", async () => {
+	const { root, catalog } = fixture("light", false);
+
+	try {
+		await settle(root);
+		expect(
+			root.renderer.findByTestId("last-commit-summary-badge")
+		).toBeUndefined();
+		expect(root.renderer.getAllText()).toContain(
+			"feat(core): keep the last commit"
+		);
+		click(root, "view-history");
+		await settle(root);
+		expect(
+			root.renderer.findByTestId(`commit-subject-${commitInfo().oid}-badge`)
+		).toBeUndefined();
+		expect(root.renderer.getAllText()).toContain(
+			"refactor(db): generate schema baseline"
+		);
+		click(root, "rail-settings");
+		await settle(root);
+		click(root, "settings-appearance");
+		expect(
+			node(root, "appearance-commit-type-badges").customProps?.["aria-checked"]
+		).toBe(false);
+	} finally {
+		catalog.mockRestore();
+	}
 });
 
 it("restores dark appearance and keeps popovers readable", async () => {

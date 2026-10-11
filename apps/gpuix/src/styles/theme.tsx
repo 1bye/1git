@@ -30,8 +30,10 @@ export const appThemes: Readonly<Record<AppAppearance, AppTheme>> = {
 export const AppThemeContext = createContext<
 	AppTheme & {
 		readonly setAppearance?: (appearance: AppAppearance) => void;
+		readonly commitTypeBadges: boolean;
+		readonly setCommitTypeBadges?: (enabled: boolean) => void;
 	}
->(appThemes.light);
+>({ ...appThemes.light, commitTypeBadges: true });
 
 /** All consumers follow the owning window; switching appearance never remounts its workspaces. */
 export function useAppTheme() {

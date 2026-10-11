@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 
 import { WorkspaceMenuModel } from "../../workspace-tabs/lib/workspace-menu-model";
 import { RepositoryCommit, type LastCommit } from "../lib/repository-commit";
+import { RepositoryCommitSubject } from "./repository-commit-subject";
 import {
 	RepositoryWorkspaceModel,
 	type RepositoryWorkspaceState,
@@ -131,17 +132,24 @@ export function RepositoryLastCommit({
 							? "Could not read last commit"
 							: "Last commit"}
 				</text>
-				<text
-					testId="last-commit-summary"
-					style={{
-						...typography.sm,
-						textOverflow: "ellipsis",
-						whiteSpace: "nowrap",
-						overflow: "hidden",
-					}}
-				>
-					{last?.commit.summary ?? current?.error ?? ""}
-				</text>
+				{last ? (
+					<RepositoryCommitSubject
+						subject={last.commit.summary}
+						testId="last-commit-summary"
+					/>
+				) : (
+					<text
+						testId="last-commit-summary"
+						style={{
+							...typography.sm,
+							textOverflow: "ellipsis",
+							whiteSpace: "nowrap",
+							overflow: "hidden",
+						}}
+					>
+						{current?.error ?? ""}
+					</text>
+				)}
 			</div>
 			{!current?.error && !state.amend ? (
 				<Button

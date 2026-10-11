@@ -32,6 +32,7 @@ export interface WorkspaceSessionDocument {
 	readonly recentRepositories?: readonly string[];
 	readonly diffSettings?: DiffSettings;
 	readonly appearance?: AppAppearance;
+	readonly commitTypeBadges?: boolean;
 }
 
 const tabIdPattern = /^workspace-([1-9]\d*)$/;
@@ -149,6 +150,9 @@ export class WorkspaceSession {
 			...(value.appearance === "light" || value.appearance === "dark"
 				? { appearance: value.appearance }
 				: {}),
+			...(typeof value.commitTypeBadges === "boolean"
+				? { commitTypeBadges: value.commitTypeBadges }
+				: {}),
 			...(diffSettings ? { diffSettings } : {}),
 			...(Array.isArray(value.recentRepositories)
 				? {
@@ -176,11 +180,13 @@ export class WorkspaceSession {
 	static capture(
 		state: WorkspaceTabsState,
 		diffSettings?: DiffSettings,
-		appearance?: AppAppearance
+		appearance?: AppAppearance,
+		commitTypeBadges?: boolean
 	): WorkspaceSessionDocument {
 		return {
 			version: 1,
 			...(appearance ? { appearance } : {}),
+			...(commitTypeBadges !== undefined ? { commitTypeBadges } : {}),
 			...(diffSettings ? { diffSettings } : {}),
 			...(state.recentRepositories !== undefined
 				? { recentRepositories: state.recentRepositories }

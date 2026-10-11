@@ -40,6 +40,14 @@ and the app's surfaces are unchanged by the syntax palette.
 The owning native window follows the selected appearance; there is no automatic
 system-theme following in this version.
 
+Appearance also offers **Show commit type badges**, enabled by default and saved
+with the window session. History (including file history), comparison/PR commit
+lists and the last-commit footer replace recognized conventional prefixes with
+small, muted light/dark labels. Scopes remain beside the title and `!` stays visible
+on breaking prefixes. Ordinary or unrecognized messages stay untouched; selection,
+search, copying and history-editing actions always use the original Git message.
+This is presentation only: no Git metadata is changed or fetched for the badges.
+
 ## Local native patches
 
 The app currently requires Apple Silicon macOS, Rust **1.97.1**, and Xcode

@@ -48,6 +48,7 @@ function Sidebar({
 					commits: page.commits.map((commit, index) => ({
 						...commit,
 						oid: index.toString(16).padStart(40, "0"),
+						summary: `${index % 2 ? "fix" : "refactor(db)"}: improve workspace ${index}`,
 					})),
 				},
 			});
