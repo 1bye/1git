@@ -25,6 +25,7 @@ import {
 	diffInclusionPatchPath,
 	diffSyntaxPatchPath,
 	diffInclusionThemePatchPath,
+	diffRailsPatchPath,
 	buildIdPath,
 	nativeBuildId,
 	nativeDirectory,
@@ -124,6 +125,7 @@ if (
 		windowAppearancePlatformPatchPath,
 		diffSyntaxPatchPath,
 		diffInclusionThemePatchPath,
+		diffRailsPatchPath,
 	];
 
 	// Later patches can change an earlier patch's context. Unwind known patches

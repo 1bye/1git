@@ -220,7 +220,7 @@ it("paints visible white vector marks on borderless blue gutters, with quiet ali
 			expect(fill).toEqual([33, 139, 255]);
 			expect(numbers).toEqual(fill);
 			expect(color(35, 49)).toEqual(fill);
-			expect(color(67, 49)).toEqual(fill);
+			expect(color(mode === "split" ? 63 : 67, 49)).toEqual(fill);
 			expect(group[2]).toBeLessThan(fill[2] ?? 0);
 			expect(hasWhiteMark(color, 0)).toBe(true);
 			expect(hasWhiteMark(color, 18)).toBe(true);
@@ -331,6 +331,85 @@ it("paints bright blue vector marks and numbers on quiet dark fills in both layo
 			await settle();
 			expect(received).toEqual(["+:11"]);
 			expect(reader).toHaveBeenCalledTimes(mode === "unified" ? 1 : 2);
+		}
+	} finally {
+		await rm(directory, { recursive: true, force: true });
+	}
+});
+
+it("colors the read-only and partial-diff rails by change type, not inclusion state", async () => {
+	const directory = await mkdtemp(join(tmpdir(), "1git-diff-rails-"));
+
+	try {
+		for (const appearance of ["light", "dark"] as const) {
+			for (const mode of ["unified", "split"] as const) {
+				for (const readOnly of [true, false]) {
+					const name = `${appearance}-${mode}-${readOnly ? "read-only" : "partial"}`;
+
+					root.render(
+						<Preview
+							key={name}
+							appearance={appearance}
+							mode={mode}
+							readOnly={readOnly}
+						/>
+					);
+					await settle();
+					const { bounds } = viewport();
+					const path = join(directory, `${name}.png`);
+					const railX = readOnly ? 1 : mode === "split" ? 67 : 97;
+					const addX = mode === "split" ? bounds.width / 2 + railX : railX;
+					const addY = mode === "split" ? 49 : 70;
+
+					const deletion =
+						appearance === "dark" ? [112, 65, 72] : [213, 160, 167];
+
+					const addition =
+						appearance === "dark" ? [61, 97, 73] : [146, 201, 164];
+
+					const sample = async () => {
+						root.renderer.captureScreenshot(path);
+						const { data, info } = await sharp(path)
+							.ensureAlpha()
+							.raw()
+							.toBuffer({ resolveWithObject: true });
+
+						const scale = info.width / 980;
+
+						return (x: number, y: number) => {
+							const offset =
+								(Math.floor((bounds.y + y) * scale) * info.width +
+									Math.floor((bounds.x + x) * scale)) *
+								4;
+
+							return [...data.subarray(offset, offset + 3)];
+						};
+					};
+
+					const color = await sample();
+
+					expect(color(railX, 49)).toEqual(deletion);
+					expect(color(addX, addY)).toEqual(addition);
+					expect(color(railX, 28)).toEqual(
+						appearance === "dark" ? [32, 34, 39] : [255, 255, 255]
+					);
+
+					if (process.env.GPUIX_DIFF_RAIL_SCREENSHOT)
+						root.renderer.captureScreenshot(
+							`${process.env.GPUIX_DIFF_RAIL_SCREENSHOT}-${name}.png`
+						);
+
+					if (!readOnly) {
+						gutter(27, 1);
+						await settle();
+						const excluded = await sample();
+
+						expect(received).toEqual(["+:11"]);
+						expect(excluded(railX, 49)).toEqual(deletion);
+						expect(excluded(addX, addY)).toEqual(addition);
+					}
+				}
+			}
 		}
 	} finally {
 		await rm(directory, { recursive: true, force: true });

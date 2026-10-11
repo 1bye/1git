@@ -33,7 +33,7 @@ import { RepositoryDiffSettings } from "./repository-diff-settings";
 import { darkDiffTheme } from "../../../styles/dark-diff-theme";
 
 const themedStyles = createThemedStyles(({ colors: appColors, appearance }) => {
-	const diffTheme: GpuixTheme = {
+	const diffTheme: GpuixTheme & { diffAddRail: string; diffDelRail: string } = {
 		appearance: "light",
 		bg: appColors.editorSurface,
 		border: "#e1e4e8",
@@ -45,6 +45,8 @@ const themedStyles = createThemedStyles(({ colors: appColors, appearance }) => {
 		diffDel: "#24292e",
 		diffAddBg: "#e6ffed",
 		diffDelBg: "#ffeef0",
+		diffAddRail: "#92c9a4",
+		diffDelRail: "#d5a0a7",
 		diffAddWordBg: "#acf2bd",
 		diffDelWordBg: "#fdb8c0",
 		diffHunkBg: "#f8fafc",

@@ -2,7 +2,11 @@ import type { GpuixTheme } from "@gpuix/react";
 import { appControlTokens } from "./tokens";
 
 /** GitHub Dark Default token roles; diff backgrounds, metrics and selection stay independent. */
-export const darkDiffTheme: GpuixTheme & { diffInclusionText: string } = {
+export const darkDiffTheme: GpuixTheme & {
+	diffInclusionText: string;
+	diffAddRail: string;
+	diffDelRail: string;
+} = {
 	appearance: "dark",
 	border: "#343841",
 	text: "#e6edf3",
@@ -10,6 +14,8 @@ export const darkDiffTheme: GpuixTheme & { diffInclusionText: string } = {
 	textFaint: "#8e96a3",
 	accent: appControlTokens.dark.colors.accent,
 	diffInclusionText: appControlTokens.dark.colors.onAccent,
+	diffAddRail: "#3d6149",
+	diffDelRail: "#704148",
 	diffAdd: "#e6edf3",
 	diffDel: "#e6edf3",
 	diffAddBg: "#25392d",

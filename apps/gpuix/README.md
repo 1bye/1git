@@ -957,6 +957,9 @@ the Turbo build/dev tasks build dependencies first. No Electron IPC is involved.
   in light mode; dark mode uses quiet blue fills with brighter blue ink, like badges.
   `native/diff-inclusion-theme.patch` adds optional `diffInclusionText` for the marks
   and numbers without changing layout, selection ownership or scrolling caches.
+  `native/diff-rails.patch` colors the 2px change rail with muted green/red tokens,
+  independent of inclusion. In partial diffs it separates numbers from code;
+  read-only previews retain their rail at the outer edge. Context rows have no rail.
   The group gutter is darker. Excluded numbers stay neutral. The shared diff theme uses
   pale green/red rows, quiet hunk headers aligned to code and an SVG expansion icon.
   Gutters have no internal dividers; hunk headers use one pale background. Group and
