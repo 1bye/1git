@@ -1,5 +1,5 @@
 /**
- * Covers: stash action-row layout, anchored forms/focus, captured IDs, busy guards and failures.
+ * Covers: Stashes-only creation, action-row layout, anchored forms/focus, captured IDs, busy guards and failures.
  * Real: App, mutation/repository hooks, reducers and native controls/layout.
  * Doubles: repository readers/writers, close bridge; no actual Git or user data.
  * Requires: patched GPUIX/macOS graphics access.
@@ -190,7 +190,7 @@ it.each([
 	}
 );
 
-it("creates explicitly with optional untracked files, locks the window and preserves the commit draft", async () => {
+it("creates only from Stashes with optional untracked files, locks the window and preserves the commit draft", async () => {
 	const pending =
 		Promise.withResolvers<
 			Awaited<ReturnType<typeof RepositoryStashes.write>>
@@ -214,6 +214,10 @@ it("creates explicitly with optional untracked files, locks the window and prese
 			writeStash={write}
 		/>
 	);
+	await settle();
+	expect(root.renderer.findByTestId("stash-create")).toBeUndefined();
+	expect(node("commit-message").customProps?.value).toBe("Keep this draft");
+	click("view-stashes");
 	await settle();
 	click("stash-create");
 	click("stash-cancel");
@@ -239,9 +243,16 @@ it("creates explicitly with optional untracked files, locks the window and prese
 	pending.resolve({ ok: true, value: undefined });
 	await settle();
 	expect(blocked).toBe(false);
+	root.renderer.clockFastForward(200);
+	root.renderer.flush();
+	root.renderer.advanceTime(1);
+	await settle();
+	expect(root.renderer.findByTestId("popover-content")).toBeUndefined();
 	expect(node("view-stashes").customProps?.["aria-selected"]).toBe(true);
 	click("view-changes");
+	await settle();
 	expect(node("commit-message").customProps?.value).toBe("Keep this draft");
+	expect(root.renderer.findByTestId("stash-create")).toBeUndefined();
 });
 
 it("keeps New stash at the right above the files divider when there is no saved stash", async () => {
@@ -433,6 +444,8 @@ it("locks sibling worktrees through refresh and blocks writes after a failed ref
 		/>
 	);
 	await settle();
+	click("view-stashes");
+	await settle();
 	click("stash-create");
 	click("stash-confirm");
 	await settle();
@@ -450,6 +463,8 @@ it("locks sibling worktrees through refresh and blocks writes after a failed ref
 	);
 	click("stash-cancel");
 	click("workspace-2");
+	click("view-stashes");
+	await settle();
 	click("stash-create");
 	expect(root.renderer.findByTestId("stash-confirm")).toBeUndefined();
 	expect(write).toHaveBeenCalledTimes(1);

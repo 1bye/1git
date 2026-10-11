@@ -1212,8 +1212,9 @@ the Turbo build/dev tasks build dependencies first. No Electron IPC is involved.
   cancels pending reads; late results are ignored. Empty and failed reads have
   explicit states and retry controls. Reading never changes the index, working tree
   or stash reflog.
-- **Stash changes…** in Changes and **New stash** in Stashes open a compact form
-  in a dimmed, anchored popover. New stash is a primary button fixed at the
+- **New stash** in Stashes opens a compact form in a dimmed, anchored popover.
+  Stash creation is available only in this panel, not in the commit section.
+  New stash is a primary button fixed at the
   lower-right of the Saved work pane, above Stashed files. The form opens above
   it without moving the list, with native opening/closing animation, contained
   keyboard focus and Escape/outside-click dismissal (blocked during writes).

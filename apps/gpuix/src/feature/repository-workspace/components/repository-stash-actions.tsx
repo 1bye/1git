@@ -233,10 +233,9 @@ export function RepositoryStashActions({
 								testId="stash-create"
 								tokens={appTokens}
 								size="sm"
-								variant={state.view === "stashes" ? "primary" : "ghost"}
 								disabled={disabled || !state.entries.changes.length}
 							>
-								{state.view === "changes" ? "Stash changes…" : "+ New stash"}
+								+ New stash
 							</Button>
 						</PopoverTrigger>
 						<PopoverContent

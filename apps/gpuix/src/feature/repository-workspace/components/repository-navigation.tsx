@@ -926,13 +926,6 @@ export function RepositoryNavigation({
 						) : null}
 					</RepositoryRevisions>
 				)}
-				{view === "changes" && state.repository && onStash ? (
-					<RepositoryStashActions
-						state={state}
-						placement="create"
-						onWrite={onStash}
-					/>
-				) : null}
 				{view === "changes" &&
 				(state.preview || state.repository || state.repositoryPath) ? (
 					<RepositoryCommit
