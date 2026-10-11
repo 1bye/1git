@@ -1064,6 +1064,13 @@ the Turbo build/dev tasks build dependencies first. No Electron IPC is involved.
   debounced; large histories can take longer to search. Escape clears the filter
   (restoring the cached full list when outside file history). Repository/HEAD
   changes invalidate the search cache.
+- The History title shows the full current-branch commit count in muted parentheses,
+  independently of loaded pages or search results. The redundant Recent commits
+  row is omitted. Counts load separately without delaying the list, remain cached
+  per workspace through navigation/search/pagination, and refresh when HEAD changes
+  or you explicitly refresh. `(…)` means counting; `(—)` means the count failed
+  and Refresh retries without blocking history. Shallow clones use `(≥N)` because
+  older commits may not exist locally; unborn branches show `(0)` without a query.
 - History lazily loads real commits reachable from the last refreshed HEAD, with
   the summary, author, authored date and short SHA. Scroll near the end for the
   next 50 commits. Pagination is anchored to that

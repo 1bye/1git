@@ -88,6 +88,14 @@ for a selected path and `getFileContent({ path, source: { kind: "object", object
 for its immutable bytes. `getHistory({ revision, offset, limit })` can anchor pages
 to an OID independently of later HEAD or working-tree changes.
 
+`getHistoryCount(revision, { signal })` returns the number of commits reachable
+from that revision, including merged ancestry, without reading commit metadata
+or changing refs/index/files. It is independent of page size and search filters.
+An explicit revision anchors the count to the same tip as the History list.
+When `repository.info.isShallow` is true, the count is only locally available
+history, not a guaranteed complete branch total. Invalid/cancelled reads return
+structured errors rather than a misleading zero; handle unborn HEAD separately.
+
 `getHistory({ revision, filePath, offset, limit })` follows a literal single file
 across Git-detected renames along first-parent history. Each commit includes
 `historyFile` with the path and before/after blob IDs at that revision; merges

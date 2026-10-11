@@ -18,7 +18,8 @@ export function useRepositoryHistory(
 	onAction: (id: string, action: RepositoryWorkspaceAction) => void,
 	readHistory = RepositoryHistory.read,
 	readFiles = RepositoryHistory.readFiles,
-	readTags = RepositoryTags.read
+	readTags = RepositoryTags.read,
+	readCount = RepositoryHistory.readCount
 ) {
 	const active =
 		state?.view === "history" &&
@@ -28,6 +29,8 @@ export function useRepositoryHistory(
 
 	const root = active ? state.repository?.root : undefined;
 	const head = active ? state.repository?.head : undefined;
+	const countKnown = state?.historyCount !== undefined;
+	const metadataVersion = state?.metadataVersion ?? 0;
 	const query = state?.history.query ?? "";
 	const file = state?.history.file;
 
@@ -71,6 +74,50 @@ export function useRepositoryHistory(
 	} | null>(null);
 
 	const [tagRetry, setTagRetry] = useState(0);
+
+	useEffect(() => {
+		if (!root || !head || !workspaceId || countKnown) return;
+
+		const controller = new AbortController();
+
+		const load = async (): Promise<void> => {
+			try {
+				const result = await readCount(root, head, controller.signal);
+
+				if (!controller.signal.aborted)
+					onAction(workspaceId, {
+						type: "history-count",
+						root,
+						head,
+						metadataVersion,
+						total: result.ok ? result.value : null,
+						error: result.ok ? null : result.error.message,
+					});
+			} catch {
+				if (!controller.signal.aborted)
+					onAction(workspaceId, {
+						type: "history-count",
+						root,
+						head,
+						metadataVersion,
+						total: null,
+						error: "Could not count commits.",
+					});
+			}
+		};
+
+		void load();
+
+		return () => controller.abort();
+	}, [
+		root,
+		head,
+		workspaceId,
+		countKnown,
+		metadataVersion,
+		readCount,
+		onAction,
+	]);
 
 	useEffect(() => {
 		if (!tagKey || !root) return;

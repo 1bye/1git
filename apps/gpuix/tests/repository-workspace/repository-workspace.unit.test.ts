@@ -14,6 +14,71 @@ import {
 	repositorySnapshot,
 } from "../_shared/repository-snapshot";
 
+it("retains branch totals through filters and automatic file refreshes, but invalidates them on explicit refresh or HEAD changes", () => {
+	const snapshot = repositorySnapshot();
+	const loaded = Model.reduce(Model.create(), { type: "loaded", snapshot });
+
+	const counted = Model.reduce(loaded, {
+		type: "history-count",
+		root: snapshot.repository.root,
+		head: snapshot.head.oid ?? "",
+		metadataVersion: loaded.metadataVersion ?? 0,
+		total: 1234,
+		error: null,
+	});
+
+	expect(counted.historyCount?.total).toBe(1234);
+	expect(
+		Model.reduce(counted, { type: "history-search", value: "needle" })
+			.historyCount
+	).toBe(counted.historyCount);
+	expect(
+		Model.reduce(counted, { type: "history-file", file: { path: "file.ts" } })
+			.historyCount
+	).toBe(counted.historyCount);
+	expect(
+		Model.reduce(counted, { type: "loaded", snapshot, automatic: true })
+			.historyCount
+	).toBe(counted.historyCount);
+	expect(
+		Model.reduce(counted, { type: "loaded", snapshot }).historyCount
+	).toBeUndefined();
+
+	for (const changed of [
+		{ ...snapshot, head: { ...snapshot.head, oid: "new-head" } },
+		{ ...snapshot, repository: { ...snapshot.repository, root: "/other" } },
+		{ ...snapshot, repository: { ...snapshot.repository, isShallow: true } },
+	])
+		expect(
+			Model.reduce(counted, {
+				type: "loaded",
+				snapshot: changed,
+				automatic: true,
+			}).historyCount
+		).toBeUndefined();
+});
+
+it("ignores totals from another repository, HEAD or refresh generation", () => {
+	const snapshot = repositorySnapshot();
+	const state = Model.reduce(Model.create(), { type: "loaded", snapshot });
+
+	const counted = {
+		type: "history-count" as const,
+		root: snapshot.repository.root,
+		head: snapshot.head.oid ?? "",
+		metadataVersion: state.metadataVersion ?? 0,
+		total: 28,
+		error: null,
+	};
+
+	for (const obsolete of [
+		{ ...counted, root: "/other" },
+		{ ...counted, head: "other-head" },
+		{ ...counted, metadataVersion: counted.metadataVersion - 1 },
+	])
+		expect(Model.reduce(state, obsolete)).toBe(state);
+});
+
 it("pins amend to its reviewed root/HEAD/branch, retains failed drafts and forbids cancel while writing", () => {
 	const snapshot = repositorySnapshot();
 

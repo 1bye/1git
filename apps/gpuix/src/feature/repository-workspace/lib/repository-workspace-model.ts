@@ -47,6 +47,11 @@ export interface RepositoryRevisionState extends RepositoryListState {
 
 /** Each workspace owns commit inclusion independently of its viewed row and scroll offsets. */
 export interface RepositoryWorkspaceState {
+	/** Full branch count survives pagination/search and belongs to this refreshed workspace. */
+	readonly historyCount?: {
+		readonly total: number | null;
+		readonly error: string | null;
+	};
 	/** Invalidates mutable local metadata such as tags even when HEAD has not changed. */
 	readonly metadataVersion?: number;
 	/** Bounded lazy history search for a restored selection; cleared once resolved. */
@@ -81,6 +86,7 @@ export interface RepositoryWorkspaceState {
 		readonly gitDirectory: string;
 		readonly commonDirectory: string;
 		readonly name: string;
+		readonly isShallow?: boolean;
 		readonly branch: string;
 		readonly head: string | null;
 		readonly branchName: string | null;
@@ -211,6 +217,14 @@ export type RepositoryWorkspaceAction =
 			generation: number;
 			oid: string;
 			message: string;
+	  }
+	| {
+			type: "history-count";
+			root: string;
+			head: string;
+			metadataVersion: number;
+			total: number | null;
+			error: string | null;
 	  }
 	| {
 			type: "history-page";
@@ -945,6 +959,20 @@ export class RepositoryWorkspaceModel {
 			};
 		}
 
+		if (action.type === "history-count") {
+			if (
+				state.repository?.root !== action.root ||
+				state.repository.head !== action.head ||
+				(state.metadataVersion ?? 0) !== action.metadataVersion
+			)
+				return state;
+
+			return {
+				...state,
+				historyCount: { total: action.total, error: action.error },
+			};
+		}
+
 		if (
 			action.type === "history-page" ||
 			action.type === "history-error" ||
@@ -1129,6 +1157,10 @@ export class RepositoryWorkspaceModel {
 						: undefined,
 				repositoryPath: snapshot.repository.root,
 				metadataVersion: (state.metadataVersion ?? 0) + 1,
+				historyCount:
+					sameHistory && action.automatic && !snapshot.repository.isShallow
+						? state.historyCount
+						: undefined,
 				loading: false,
 				error: null,
 				watchError: sameRepository ? state.watchError : null,
@@ -1146,6 +1178,7 @@ export class RepositoryWorkspaceModel {
 					gitDirectory: snapshot.repository.gitDirectory,
 					commonDirectory: snapshot.repository.commonDirectory,
 					name: basename(snapshot.repository.root),
+					isShallow: snapshot.repository.isShallow,
 					branch,
 					head: snapshot.head.oid,
 					branchName: snapshot.head.branch,

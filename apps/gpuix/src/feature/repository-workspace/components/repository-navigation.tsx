@@ -56,6 +56,7 @@ import type { ExternalEditors } from "../../editor-settings/external-editors";
 import type { RepositoryHistorySquash } from "../lib/repository-history-squash";
 
 const sidebarBorderWidth = 1;
+const commitCountFormat = new Intl.NumberFormat();
 
 const themedStyles = createThemedStyles(({ colors: appColors }) => {
 	const styles = StyleSheet.create({
@@ -133,6 +134,11 @@ const themedStyles = createThemedStyles(({ colors: appColors }) => {
 			flexShrink: 0,
 		},
 		faint: { ...typography["2xs"], color: appColors.editorFaint },
+		historyTotal: {
+			...typography.xs,
+			color: appColors.editorFaint,
+			flexShrink: 0,
+		},
 	});
 
 	return { styles };
@@ -326,6 +332,24 @@ export function RepositoryNavigation({
 		? "File history"
 		: repositoryViews.find((item) => item.value === view)?.label;
 
+	const historyTotal =
+		state.repository?.head === null ? 0 : state.historyCount?.total;
+
+	const shallowHistory = !!state.repository?.head && state.repository.isShallow;
+	const totalAvailable = historyTotal != null;
+
+	const countLabel = totalAvailable
+		? `(${shallowHistory ? "≥" : ""}${commitCountFormat.format(historyTotal)})`
+		: state.historyCount?.error
+			? "(—)"
+			: "(…)";
+
+	const countAccessibleLabel = totalAvailable
+		? `${shallowHistory ? "At least " : ""}${historyTotal} ${historyTotal === 1 ? "commit" : "commits"} in current branch history`
+		: state.historyCount?.error
+			? "Commit count unavailable"
+			: "Counting commits";
+
 	const emptyListReady =
 		view === "changes" ||
 		(view === "history"
@@ -338,9 +362,7 @@ export function RepositoryNavigation({
 			: view === "history"
 				? historySearching
 					? "Search results"
-					: fileHistory
-						? "Commits"
-						: "Recent commits"
+					: "Commits"
 				: "Saved work";
 
 	const readError =
@@ -527,6 +549,26 @@ export function RepositoryNavigation({
 				>
 					{label}
 				</text>
+				{view === "history" &&
+				!fileHistory &&
+				!state.preview &&
+				state.repository ? (
+					<text
+						testId="history-total"
+						role="text"
+						aria-label={countAccessibleLabel}
+						aria-description={
+							state.historyCount?.error
+								? `${state.historyCount.error} Refresh to retry the count.`
+								: shallowHistory
+									? "Only locally available commits can be counted in a shallow clone."
+									: undefined
+						}
+						style={styles.historyTotal}
+					>
+						{countLabel}
+					</text>
+				) : null}
 				<div style={{ flexGrow: 1 }} />
 				{state.repository || state.repositoryPath ? (
 					<Button
@@ -742,39 +784,41 @@ export function RepositoryNavigation({
 						label="Retry tags"
 					/>
 				) : null}
-				<div style={styles.header}>
-					<text testId="repository-heading" style={styles.muted}>
-						{heading}
-					</text>
-					{filtering ? (
-						<text style={styles.faint}>{`${entries.length} shown`}</text>
-					) : null}
-					{view === "changes" ? (
-						<Checkbox
-							testId="include-all"
-							aria-label="Include all changed files in commit"
-							tokens={appTokens}
-							checked={
-								state.includedFileIds.length === 0
-									? false
-									: state.includedFileIds.length ===
-												state.entries.changes.length &&
-										  !Object.keys(state.partialFiles ?? {}).length
-										? true
-										: "indeterminate"
-							}
-							disabled={
-								state.entries.changes.length === 0 ||
-								RepositoryWorkspaceModel.isBusy(state)
-							}
-							onCheckedChange={(included) =>
-								onAction({ type: "include-all", included })
-							}
-						/>
-					) : (
-						<text style={styles.faint}>{state.entries[view].length}</text>
-					)}
-				</div>
+				{view !== "history" || historySearching || fileHistory ? (
+					<div style={styles.header}>
+						<text testId="repository-heading" style={styles.muted}>
+							{heading}
+						</text>
+						{filtering ? (
+							<text style={styles.faint}>{`${entries.length} shown`}</text>
+						) : null}
+						{view === "changes" ? (
+							<Checkbox
+								testId="include-all"
+								aria-label="Include all changed files in commit"
+								tokens={appTokens}
+								checked={
+									state.includedFileIds.length === 0
+										? false
+										: state.includedFileIds.length ===
+													state.entries.changes.length &&
+											  !Object.keys(state.partialFiles ?? {}).length
+											? true
+											: "indeterminate"
+								}
+								disabled={
+									state.entries.changes.length === 0 ||
+									RepositoryWorkspaceModel.isBusy(state)
+								}
+								onCheckedChange={(included) =>
+									onAction({ type: "include-all", included })
+								}
+							/>
+						) : (
+							<text style={styles.faint}>{state.entries[view].length}</text>
+						)}
+					</div>
+				) : null}
 				{view === "changes" ? (
 					list
 				) : (

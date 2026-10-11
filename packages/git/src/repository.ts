@@ -553,6 +553,34 @@ export class GitRepository {
 		});
 	}
 
+	/** Counts all commits reachable from one revision without loading their metadata. Shallow repositories count only available history. */
+	async getHistoryCount(
+		revision: string,
+		options: GitCallOptions = {}
+	): Promise<GitResult<number>> {
+		return await this.read("get-history-count", async () => {
+			const anchored = requireRevision(
+				revision,
+				"Revision",
+				"get-history-count"
+			);
+
+			const output = await this.context.process.run({
+				args: ["rev-list", "--count", anchored, "--"],
+				cwd: this.context.repository.root,
+				signal: options.signal,
+			});
+
+			const raw = output.stdout.toString("utf8").trim();
+			const total = Number(raw);
+
+			if (!raw || !Number.isSafeInteger(total) || total < 0)
+				throw new Error("Git returned an invalid history count.");
+
+			return total;
+		});
+	}
+
 	/** Returns metadata for one commit-ish. */
 	async getCommit(
 		revision: string,

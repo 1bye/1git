@@ -141,6 +141,7 @@ function AppContent({
 	readPullRequest,
 	readDiff = DiffReader.read,
 	readHistory = RepositoryHistory.read,
+	readHistoryCount = RepositoryHistory.readCount,
 	readCommitFiles = RepositoryHistory.readFiles,
 	readStashes = RepositoryStashes.read,
 	readStashFiles = RepositoryStashes.readFiles,
@@ -190,6 +191,7 @@ function AppContent({
 	readPullRequest?: RepositoryPullRequest["read"];
 	readDiff?: typeof DiffReader.read;
 	readHistory?: typeof RepositoryHistory.read;
+	readHistoryCount?: typeof RepositoryHistory.readCount;
 	readCommitFiles?: typeof RepositoryHistory.readFiles;
 	readStashes?: typeof RepositoryStashes.read;
 	readStashFiles?: typeof RepositoryStashes.readFiles;
@@ -627,7 +629,8 @@ function AppContent({
 		workspaceAction,
 		readHistory,
 		readCommitFiles,
-		readTags
+		readTags,
+		readHistoryCount
 	);
 
 	const stashes = useRepositoryStashes(

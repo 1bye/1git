@@ -174,6 +174,19 @@ export class RepositoryHistory {
 		return await opened.value.cherryPickCommit(request);
 	}
 
+	/** Counts the full branch history separately from pagination and search; never follows a moving HEAD. */
+	static async readCount(
+		root: string,
+		head: string,
+		signal: AbortSignal
+	): Promise<GitResult<number>> {
+		const opened = await GitRepository.open({ path: root, signal });
+
+		return opened.ok
+			? await opened.value.getHistoryCount(head, { signal })
+			: opened;
+	}
+
 	static async read(
 		root: string,
 		head: string,

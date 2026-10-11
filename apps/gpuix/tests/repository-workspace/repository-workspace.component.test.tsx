@@ -488,7 +488,9 @@ it("tightens sidebar headers without shrinking rail buttons, file rows or checkb
 
 		expect(toolbar.height).toBe(36);
 		expect(element(`view-${view}`).style.height).toBe(32);
-		expect(bounds("repository-list").y - toolbar.y - toolbar.height).toBe(24);
+		expect(bounds("repository-list").y - toolbar.y - toolbar.height).toBe(
+			view === "history" ? 0 : 24
+		);
 
 		if (view !== "changes") {
 			expect(bounds("revision-files").y - bounds("revision-files-pane").y).toBe(
@@ -720,12 +722,14 @@ it("preserves wheel scrolling without a selection and isolates tab state", () =>
 		"Keep workspace selection per tab",
 		"src/feature/workspace/sidebar.tsx, modified",
 	]);
-	expect(root.renderer.getAllText()).toContain("Recent commits");
+	expect(root.renderer.getAllText()).toContain("History");
+	expect(root.renderer.findByTestId("repository-heading")).toBeUndefined();
 });
 
 it("supports arrow-key rail selection and entry/exit with Tab", () => {
 	key("view-changes", "right");
-	expect(root.renderer.getAllText()).toContain("Recent commits");
+	expect(root.renderer.getAllText()).toContain("History");
+	expect(root.renderer.findByTestId("repository-heading")).toBeUndefined();
 	expect(root.renderer.getFocusedElementId()).toBe(element("view-history").id);
 	root.renderer.simulateKeystrokes("tab");
 	root.renderer.flush();
