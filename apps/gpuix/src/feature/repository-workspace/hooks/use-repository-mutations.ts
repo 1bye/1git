@@ -43,6 +43,7 @@ import type {
 	SquashCommitsInput,
 	ResetCommitInput,
 	ReorderCommitsInput,
+	GitTransferProgress,
 } from "@1git/git";
 import type { PublishBranchIdentity } from "../../repository-publish/repository-publish";
 import type { RemoteAccountAccess } from "../../accounts/lib/remote-accounts";
@@ -682,7 +683,8 @@ export function useRepositoryMutations(
 		publish?: (
 			root: string,
 			identity: PublishBranchIdentity,
-			signal: AbortSignal
+			signal: AbortSignal,
+			onProgress?: (progress: GitTransferProgress) => void
 		) => Promise<GitResult<SyncResult>>,
 		reviewed?: PublishBranchIdentity
 	): Promise<string | null> => {
@@ -754,6 +756,30 @@ export function useRepositoryMutations(
 		};
 
 		send({ type: "sync-started", kind: choice.kind });
+		let lastProgress: GitTransferProgress | undefined;
+		let progressAt = 0;
+
+		const onProgress = (progress: GitTransferProgress): void => {
+			if (
+				controller.signal.aborted ||
+				syncs.current.get(repository.commonDirectory)?.controller !== controller
+			)
+				return;
+
+			const now = Date.now();
+
+			if (
+				lastProgress?.phase === progress.phase &&
+				progress.percent !== 100 &&
+				now - progressAt < 100
+			)
+				return;
+
+			lastProgress = progress;
+			progressAt = now;
+			send({ type: "sync-progress", progress });
+		};
+
 		let error: string | null = null;
 		let fetchedAt: number | null = null;
 		let accountAccess: RemoteAccountAccess | undefined;
@@ -772,10 +798,16 @@ export function useRepositoryMutations(
 							expectedHead: repository.head ?? "",
 							expectedBranch: repository.branchName ?? "",
 						},
-						controller.signal
+						controller.signal,
+						onProgress
 					)
 				: choice.kind === "fetch"
-					? await fetchRepository(repository.root, controller.signal)
+					? await fetchRepository(
+							repository.root,
+							controller.signal,
+							undefined,
+							onProgress
+						)
 					: await writeSyncRepository(
 							repository.root,
 							{
@@ -783,7 +815,9 @@ export function useRepositoryMutations(
 								expectedHead: repository.head ?? "",
 								expectedBranch: repository.branchName ?? "",
 							},
-							controller.signal
+							controller.signal,
+							undefined,
+							onProgress
 						);
 
 			if (result.ok) {
@@ -820,6 +854,10 @@ export function useRepositoryMutations(
 		}
 
 		// Failed or cancelled sync can still change refs. Re-read every open worktree before unlocking.
+		send({
+			type: "sync-progress",
+			progress: { phase: "refreshing", percent: null },
+		});
 		const roots = new Set(
 			tabs.current.flatMap((tab) =>
 				tab.workspace.repository?.commonDirectory === repository.commonDirectory
@@ -1445,7 +1483,8 @@ export function useRepositoryMutations(
 			run: (
 				root: string,
 				identity: PublishBranchIdentity,
-				signal: AbortSignal
+				signal: AbortSignal,
+				onProgress?: (progress: GitTransferProgress) => void
 			) => Promise<GitResult<SyncResult>>
 		): Promise<GitResult<SyncResult> | undefined> => {
 			let outcome: GitResult<SyncResult> | undefined;
@@ -1453,8 +1492,8 @@ export function useRepositoryMutations(
 			await synchronize(
 				id,
 				{ kind: "publish", remote: "origin", remoteRef: "" },
-				async (root, identity, signal) => {
-					outcome = await run(root, identity, signal);
+				async (root, identity, signal, onProgress) => {
+					outcome = await run(root, identity, signal, onProgress);
 
 					return outcome;
 				}

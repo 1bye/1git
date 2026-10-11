@@ -141,8 +141,12 @@ export class BranchSync {
 						`${input.kind === "publish" ? branch.fullName : head.oid}:${input.remoteRef}`,
 					];
 
+		if (input.onProgress)
+			args.splice(args.indexOf(operation) + 1, 0, "--progress");
+
 		await context.process.run({
 			args,
+			onProgress: input.onProgress,
 			cwd: context.repository.root,
 			signal,
 			httpAuthentication: input.httpAuthentication,

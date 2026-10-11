@@ -359,6 +359,7 @@ export interface SyncResult {
 
 /** Guarded single-branch sync for an explicit UI action; never forces or auto-stashes. */
 export interface SyncBranchInput extends GitCallOptions {
+	readonly onProgress?: (progress: GitTransferProgress) => void;
 	readonly httpAuthentication?: GitHttpAuthentication;
 	readonly kind: "pull" | "push" | "publish";
 	readonly expectedHead: string;
@@ -777,10 +778,25 @@ export interface RemoveRemoteInput extends GitCallOptions {
 }
 
 export interface FetchInput extends GitCallOptions {
+	readonly onProgress?: (progress: GitTransferProgress) => void;
 	readonly httpAuthentication?: GitHttpAuthentication;
 	readonly prune?: boolean;
 	readonly remote?: string;
 	readonly tags?: boolean;
+}
+
+/** Phase-local Git progress, never raw process output or a per-commit completion count. */
+export interface GitTransferProgress {
+	readonly phase:
+		| "connecting"
+		| "counting"
+		| "compressing"
+		| "sending"
+		| "receiving"
+		| "resolving"
+		| "confirming"
+		| "refreshing";
+	readonly percent: number | null;
 }
 
 export interface PullInput extends GitCallOptions {

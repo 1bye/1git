@@ -28,6 +28,10 @@ import {
 import type { SyncRequest } from "../lib/repository-sync";
 import { WorkspaceMenuModel } from "../../workspace-tabs/lib/workspace-menu-model";
 import { NativeFileMenu } from "../lib/native-file-menu";
+import {
+	RepositorySyncProgress,
+	syncProgressLabel,
+} from "./repository-sync-progress";
 
 const completedDurationMs = 3000;
 
@@ -167,7 +171,7 @@ export function RepositorySyncButton({
 		"publish-repository": "Publish repository",
 	};
 
-	const progress = pending
+	const operationLabel = pending
 		? {
 				fetch: "Fetching…",
 				pull: "Pulling…",
@@ -176,6 +180,11 @@ export function RepositorySyncButton({
 				publish: "Publishing…",
 			}[pending]
 		: null;
+
+	const progress =
+		operationLabel && state.sync.progress
+			? `${operationLabel} — ${syncProgressLabel(state.sync.progress)}`
+			: operationLabel;
 
 	const label =
 		progress ??
@@ -459,19 +468,26 @@ export function RepositorySyncButton({
 							hover: { backgroundColor: appColors.editorHairline },
 						}}
 					>
-						<WorkspaceTabIcon
-							testId="rail-sync-icon"
-							name={icon}
-							size={iconSize.lg}
-							color={
-								issue
-									? appTokens.colors.danger
-									: pending
-										? appColors.brand
-										: appColors.editorMuted
-							}
-						/>
-						{incoming > 0 ? (
+						{pending ? (
+							<RepositorySyncProgress
+								progress={state.sync.progress}
+								color={appColors.brand}
+							/>
+						) : (
+							<WorkspaceTabIcon
+								testId="rail-sync-icon"
+								name={icon}
+								size={iconSize.lg}
+								color={
+									issue
+										? appTokens.colors.danger
+										: pending
+											? appColors.brand
+											: appColors.editorMuted
+								}
+							/>
+						)}
+						{!pending && incoming > 0 ? (
 							<text
 								testId="rail-sync-incoming"
 								style={{
@@ -491,7 +507,7 @@ export function RepositorySyncButton({
 								{`↓ ${incoming > 99 ? "99+" : incoming}`}
 							</text>
 						) : null}
-						{outgoing > 0 ? (
+						{!pending && outgoing > 0 ? (
 							<text
 								testId="rail-sync-outgoing"
 								style={{
@@ -510,22 +526,6 @@ export function RepositorySyncButton({
 							>
 								{`↑ ${outgoing > 99 ? "99+" : outgoing}`}
 							</text>
-						) : null}
-						{pending ? (
-							<div
-								testId="rail-sync-progress"
-								role="progressbar"
-								aria-label={progress ?? "Synchronizing"}
-								style={{
-									position: "absolute",
-									bottom: 1,
-									left: spacing[2],
-									right: spacing[2],
-									height: 2,
-									backgroundColor: appColors.brand,
-									pointerEvents: "none",
-								}}
-							/>
 						) : null}
 					</Button>
 				</TooltipTrigger>

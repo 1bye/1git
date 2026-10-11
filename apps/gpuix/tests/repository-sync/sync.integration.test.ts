@@ -5,7 +5,12 @@
  * Requires: Git and writable temporary storage; no network or user repository.
  */
 import { afterEach, beforeEach, expect, it, mock, spyOn } from "bun:test";
-import { GitRepository, type GitResult, type SyncResult } from "@1git/git";
+import {
+	GitRepository,
+	type GitResult,
+	type SyncResult,
+	type GitTransferProgress,
+} from "@1git/git";
 import { Accounts } from "../../src/feature/accounts/lib/accounts";
 import { AccountStore } from "../../src/feature/accounts/lib/account-store";
 import { RemoteAccounts } from "../../src/feature/accounts/lib/remote-accounts";
@@ -128,6 +133,58 @@ const synchronize = async (
 		new AbortController().signal
 	);
 };
+
+it("streams real transfer progress for a combined push of multiple commits, then refreshes tracking", async () => {
+	await writeFile(join(repository, "first.txt"), "first outgoing commit\n");
+	await git(repository, "add", "first.txt");
+	await git(repository, "commit", "-m", "First outgoing");
+	await writeFile(join(repository, "second.txt"), "second outgoing commit\n");
+	await git(repository, "add", "second.txt");
+	await git(repository, "commit", "-m", "Second outgoing");
+	const head = await git(repository, "rev-parse", "HEAD");
+	const events: GitTransferProgress[] = [];
+
+	const result = await RepositorySync.write(
+		repository,
+		{ kind: "sync", expectedHead: head, expectedBranch: "main" },
+		new AbortController().signal,
+		undefined,
+		(event) => events.push(event)
+	);
+
+	expect(result.ok).toBe(true);
+	expect(events).toContainEqual({ phase: "sending", percent: 100 });
+	expect(
+		events.every(
+			(event) =>
+				event.percent === null || (event.percent >= 0 && event.percent <= 100)
+		)
+	).toBe(true);
+	expect(result.ok && result.value.snapshot.head.ahead).toBe(0);
+	expect(await git(join(sandbox, "remote.git"), "rev-parse", "main")).toBe(
+		head
+	);
+
+	await writeFile(join(writer, "remote-new.txt"), "incoming commit\n");
+	await git(writer, "pull", "--ff-only", "origin", "main");
+	await git(writer, "add", "remote-new.txt");
+	await git(writer, "commit", "-m", "Incoming");
+	await git(writer, "push", "origin", "main");
+	// Small packs normally use unpack-objects, which can finish without a receiving percentage.
+	await git(repository, "config", "fetch.unpackLimit", "1");
+	const incoming: GitTransferProgress[] = [];
+
+	const fetched = await RepositorySync.fetch(
+		repository,
+		new AbortController().signal,
+		undefined,
+		(event) => incoming.push(event)
+	);
+
+	expect(fetched.ok).toBe(true);
+	expect(incoming).toContainEqual({ phase: "receiving", percent: 100 });
+	expect(fetched.ok && fetched.value.snapshot.head.behind).toBe(1);
+});
 
 it("refreshes tracking refs and remote branches while preserving HEAD, index, working files and linked worktrees", async () => {
 	const linked = join(sandbox, "linked worktree");

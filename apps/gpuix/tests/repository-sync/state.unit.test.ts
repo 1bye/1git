@@ -162,3 +162,32 @@ it("keeps account recovery only with its failed sync and clears it on retry, suc
 		}).sync.accountAccess
 	).toBeUndefined();
 });
+
+it("accepts progress only while busy, deduplicates it, and drops it after completion or retry", () => {
+	const loaded = Model.reduce(Model.create(), {
+		type: "loaded",
+		snapshot: repositorySnapshot(),
+	});
+
+	const progress = { phase: "sending", percent: 45 } as const;
+	const action = { type: "sync-progress", progress } as const;
+
+	expect(Model.reduce(loaded, action)).toBe(loaded);
+	const pending = Model.reduce(loaded, { type: "sync-started", kind: "sync" });
+	const updated = Model.reduce(pending, action);
+
+	expect(updated.sync.progress).toEqual(progress);
+	expect(Model.reduce(updated, action)).toBe(updated);
+	expect(updated.entries).toBe(pending.entries);
+	const finished = Model.reduce(updated, {
+		type: "sync-finished",
+		error: null,
+		fetchedAt: 1,
+	});
+
+	expect(finished.sync.progress).toBeUndefined();
+	expect(Model.reduce(finished, action)).toBe(finished);
+	expect(
+		Model.reduce(updated, { type: "sync-started", kind: "sync" }).sync.progress
+	).toEqual({ phase: "connecting", percent: null });
+});

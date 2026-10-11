@@ -334,24 +334,35 @@ function AppContent({
 	>(() => new Set());
 
 	const fetchWithAccounts = useCallback<typeof RepositorySync.fetch>(
-		(root, signal) =>
+		(root, signal, _authentication, onProgress) =>
 			fetchRepository
-				? fetchRepository(root, signal)
-				: RepositorySync.fetch(root, signal, {
-						accounts: remoteAccounts,
-						choose: syncAccount.choose,
-					}),
+				? fetchRepository(root, signal, undefined, onProgress)
+				: RepositorySync.fetch(
+						root,
+						signal,
+						{
+							accounts: remoteAccounts,
+							choose: syncAccount.choose,
+						},
+						onProgress
+					),
 		[fetchRepository, remoteAccounts, syncAccount.choose]
 	);
 
 	const syncWithAccounts = useCallback<typeof RepositorySync.write>(
-		(root, input, signal) =>
+		(root, input, signal, _authentication, onProgress) =>
 			writeSyncRepository
-				? writeSyncRepository(root, input, signal)
-				: RepositorySync.write(root, input, signal, {
-						accounts: remoteAccounts,
-						choose: syncAccount.choose,
-					}),
+				? writeSyncRepository(root, input, signal, undefined, onProgress)
+				: RepositorySync.write(
+						root,
+						input,
+						signal,
+						{
+							accounts: remoteAccounts,
+							choose: syncAccount.choose,
+						},
+						onProgress
+					),
 		[writeSyncRepository, remoteAccounts, syncAccount.choose]
 	);
 
@@ -927,7 +938,7 @@ function AppContent({
 							onSubmit={async (request) => {
 								const result = await mutations.publishRepository(
 									publishTab.id,
-									(root, identity, signal) =>
+									(root, identity, signal, onProgress) =>
 										publisher.write(
 											root,
 											request,
@@ -945,7 +956,8 @@ function AppContent({
 													new Set(previous).add(
 														publishRepository.commonDirectory
 													)
-												)
+												),
+											onProgress
 										)
 								);
 

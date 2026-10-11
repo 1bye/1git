@@ -782,10 +782,17 @@ accessible label. Counts come from the last known remote refs, not live polling.
   form. Without an upstream, it opens Publish branch: explicitly choose a remote
   with a single push URL and confirm. Changing HEAD/branch invalidates the choice;
   cancelling the picker never writes.
-- Progress appears on the rail control. Clicking it again opens status with an
+- A 270-degree gauge replaces the busy rail icon and temporarily hides count badges.
+  Its stationary track fills clockwise with Git's phase-local sending/receiving
+  percentage, shown in the bottom opening. Unknown work shows an ellipsis and a
+  segment moving within the track, never a rotating gauge or fabricated percentage.
+  A transfer at 100% still waits for Git's confirmed result and refreshed status.
+  Commits travel together in one push; the gauge never counts commits or invents
+  overall progress. Streamed updates are throttled; animation stays local to the gauge.
+  Clicking it again opens status with an
   explicit Stop action; closing the dialog leaves the operation running. A check
   icon and completion tooltip (**Sync complete**, **Fetch complete**, or the publish
-  result) last three seconds after success. Failures
+  result) last three seconds only after Git succeeds and open roots refresh. Failures
   stay accessible from the control, with explicit Retry or local Refresh recovery.
   The status dialog also shows the last successful fetch.
 - Window-owned operations retain credential routing, the two-minute deadline,

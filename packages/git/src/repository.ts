@@ -2242,6 +2242,8 @@ export class GitRepository {
 		return await this.mutate("fetch", input.signal, async () => {
 			const args = ["fetch"];
 
+			if (input.onProgress) args.push("--progress");
+
 			if (input.prune) {
 				args.push("--prune");
 			}
@@ -2276,6 +2278,7 @@ export class GitRepository {
 				cwd: this.info.root,
 				signal: input.signal,
 				httpAuthentication: input.httpAuthentication,
+				onProgress: input.onProgress,
 			});
 
 			return await syncResult(this.context, "fetch", remote, input.signal);

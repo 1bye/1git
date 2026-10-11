@@ -1,4 +1,6 @@
 import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
+import type { GitTransferProgress } from "../contracts.js";
+import { GitProgress } from "./git-progress.js";
 
 const DEFAULT_MAX_OUTPUT_BYTES = 64 * 1024 * 1024;
 
@@ -11,6 +13,7 @@ const authenticatedFailureDetail = (stderr: Buffer): string =>
 		: "Authenticated HTTPS request failed. Check repository permissions, network and certificate settings.";
 
 export interface GitCommandInput {
+	readonly onProgress?: (progress: GitTransferProgress) => void;
 	readonly args: readonly string[];
 	readonly cwd: string;
 	readonly signal?: AbortSignal;
@@ -151,6 +154,11 @@ export class GitProcess {
 		return new Promise<GitCommandOutput>((resolve, reject) => {
 			const stdoutChunks: Buffer[] = [];
 			const stderrChunks: Buffer[] = [];
+
+			const progress = input.onProgress
+				? new GitProgress(input.onProgress)
+				: undefined;
+
 			let outputBytes = 0;
 			let settled = false;
 			let stopped: GitProcessFailure | null = null;
@@ -199,9 +207,11 @@ export class GitProcess {
 			child.stdout.on("data", (chunk: Buffer) =>
 				collectChunk(stdoutChunks, chunk)
 			);
-			child.stderr.on("data", (chunk: Buffer) =>
-				collectChunk(stderrChunks, chunk)
-			);
+			child.stderr.on("data", (chunk: Buffer) => {
+				collectChunk(stderrChunks, chunk);
+
+				if (!stopped) progress?.write(chunk);
+			});
 			child.once("error", (error: NodeJS.ErrnoException) => {
 				const reason: GitProcessFailureReason =
 					error.code === "ENOENT" ? "git-not-found" : "spawn-failed";
@@ -230,6 +240,7 @@ export class GitProcess {
 
 				settled = true;
 				cleanup();
+				progress?.finish();
 				const stdout = Buffer.concat(stdoutChunks);
 				const stderr = Buffer.concat(stderrChunks);
 

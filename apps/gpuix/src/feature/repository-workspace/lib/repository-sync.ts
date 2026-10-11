@@ -7,6 +7,7 @@ import {
 	type PushTagInput,
 	type TagPushResult,
 	type GitOperation,
+	type GitTransferProgress,
 } from "@1git/git";
 import type {
 	RemoteAccounts,
@@ -114,14 +115,16 @@ export class RepositorySync {
 		root: string,
 		input: SyncInput,
 		signal: AbortSignal,
-		authentication?: SyncAuthentication
+		authentication?: SyncAuthentication,
+		onProgress?: (progress: GitTransferProgress) => void
 	): Promise<RepositorySyncResult> {
 		try {
 			return await RepositorySync.writeAuthenticated(
 				root,
 				input,
 				signal,
-				authentication
+				authentication,
+				onProgress
 			);
 		} catch (cause) {
 			return RepositorySync.authenticationFailure(cause, signal);
@@ -132,7 +135,8 @@ export class RepositorySync {
 		root: string,
 		input: SyncInput,
 		signal: AbortSignal,
-		authentication?: SyncAuthentication
+		authentication?: SyncAuthentication,
+		onProgress?: (progress: GitTransferProgress) => void
 	): Promise<RepositorySyncResult> {
 		const timeout = AbortSignal.timeout(syncTimeoutMs);
 		const request = AbortSignal.any([signal, timeout]);
@@ -147,7 +151,8 @@ export class RepositorySync {
 				opened.value,
 				input,
 				request,
-				authentication
+				authentication,
+				onProgress
 			);
 		else {
 			const credential = await RepositorySync.credentials(
@@ -161,6 +166,7 @@ export class RepositorySync {
 			result = await RepositorySync.explainAccountFailure(
 				await opened.value.syncBranch({
 					...input,
+					onProgress,
 					signal: request,
 					httpAuthentication: credential,
 				}),
@@ -189,7 +195,8 @@ export class RepositorySync {
 		repository: GitRepository,
 		input: SyncInput,
 		signal: AbortSignal,
-		authentication?: SyncAuthentication
+		authentication?: SyncAuthentication,
+		onProgress?: (progress: GitTransferProgress) => void
 	): Promise<RepositorySyncResult> {
 		const snapshot = await repository.getSnapshot({ signal });
 
@@ -257,7 +264,13 @@ export class RepositorySync {
 			authentication
 		);
 
-		let result = await repository.fetch({ remote, signal, httpAuthentication });
+		onProgress?.({ phase: "connecting", percent: null });
+		let result = await repository.fetch({
+			remote,
+			signal,
+			httpAuthentication,
+			onProgress,
+		});
 
 		if (!result.ok)
 			return await RepositorySync.explainAccountFailure(
@@ -284,8 +297,10 @@ export class RepositorySync {
 			};
 
 		if (result.value.snapshot.head.behind > 0) {
+			onProgress?.({ phase: "connecting", percent: null });
 			result = await repository.syncBranch({
 				...input,
+				onProgress,
 				kind: "pull",
 				httpAuthentication,
 				remote,
@@ -304,6 +319,7 @@ export class RepositorySync {
 		}
 
 		if (result.value.snapshot.head.ahead > 0) {
+			onProgress?.({ phase: "connecting", percent: null });
 			const credential = await RepositorySync.credentials(
 				repository,
 				remote,
@@ -315,6 +331,7 @@ export class RepositorySync {
 			return await RepositorySync.explainAccountFailure(
 				await repository.syncBranch({
 					...input,
+					onProgress,
 					kind: "push",
 					httpAuthentication: credential,
 					remote,
@@ -334,13 +351,15 @@ export class RepositorySync {
 	static async fetch(
 		root: string,
 		signal: AbortSignal,
-		authentication?: SyncAuthentication
+		authentication?: SyncAuthentication,
+		onProgress?: (progress: GitTransferProgress) => void
 	): Promise<RepositorySyncResult> {
 		try {
 			return await RepositorySync.fetchAuthenticated(
 				root,
 				signal,
-				authentication
+				authentication,
+				onProgress
 			);
 		} catch (cause) {
 			return RepositorySync.authenticationFailure(cause, signal);
@@ -350,7 +369,8 @@ export class RepositorySync {
 	private static async fetchAuthenticated(
 		root: string,
 		signal: AbortSignal,
-		authentication?: SyncAuthentication
+		authentication?: SyncAuthentication,
+		onProgress?: (progress: GitTransferProgress) => void
 	): Promise<RepositorySyncResult> {
 		const timeout = AbortSignal.timeout(syncTimeoutMs);
 		const request = AbortSignal.any([signal, timeout]);
@@ -402,8 +422,13 @@ export class RepositorySync {
 		};
 
 		for (const destination of destinations) {
+			onProgress?.({ phase: "connecting", percent: null });
 			result = await RepositorySync.explainAccountFailure(
-				await opened.value.fetch({ ...destination, signal: request }),
+				await opened.value.fetch({
+					...destination,
+					signal: request,
+					onProgress,
+				}),
 				opened.value,
 				destination.remote,
 				destination.httpAuthentication,

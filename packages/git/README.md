@@ -141,6 +141,13 @@ no existing upstream, sends the current branch to the same name on the explicitl
 chosen remote, and sets tracking. Push and Publish reject multiple push URLs.
 All three reject detached/unborn HEAD, stale branch identity and active operations.
 
+`fetch` and `syncBranch` accept an optional `onProgress` observer. It requests
+Git's CLI progress and streams only recognized phase names and percentages, never
+raw stderr, remote messages or credentials. Percentages describe Git objects in
+one phase, not commits or overall operation completion; some small transfers emit
+no percentage. Observer failures do not interrupt process cleanup. Await the
+operation result and refresh repository status before reporting success.
+
 `fetch({ remote, httpAuthentication: { url, username, password } })` and
 `syncBranch({ ..., httpAuthentication })` can use one-shot HTTPS authentication.
 The supplied URL must exactly match the freshly resolved single fetch/push URL.

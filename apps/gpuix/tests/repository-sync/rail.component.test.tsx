@@ -263,6 +263,71 @@ it("places separate incoming/outgoing badges above Changes and removes duplicate
 	expect(sync).not.toHaveBeenCalled();
 });
 
+it("replaces the busy icon with a labeled gauge and hides stale counts until confirmation", async () => {
+	snapshot = {
+		...snapshot,
+		head: { ...snapshot.head, upstream: "origin/main", ahead: 12 },
+	};
+	const pending =
+		Promise.withResolvers<Awaited<ReturnType<typeof RepositorySync.write>>>();
+
+	sync.mockImplementationOnce(() => pending.promise);
+	await open();
+	click("rail-sync");
+	await settle();
+
+	expect(root.renderer.findByTestId("rail-sync-outgoing")).toBeUndefined();
+	expect(root.renderer.findByTestId("rail-sync-icon")).toBeUndefined();
+	expect(node("rail-sync-progress-gauge").type).toBe("svg");
+	const onProgress = sync.mock.calls[0]?.[4];
+
+	expect(onProgress).toBeDefined();
+	onProgress?.({ phase: "sending", percent: 45 });
+	await settle();
+
+	expect(node("rail-sync-progress").customProps?.["aria-valuetext"]).toBe(
+		"Sending objects — 45%"
+	);
+	expect(node("rail-sync").customProps?.["aria-label"]).toContain(
+		"Sending objects — 45%"
+	);
+	expect(root.renderer.getPaintedText()).toContain("45%");
+	const gauge = bounds("rail-sync-progress");
+	const button = bounds("rail-sync");
+
+	expect(gauge).toMatchObject(button);
+
+	if (process.env.GPUIX_SYNC_RING_SCREENSHOT)
+		root.renderer.captureScreenshot(process.env.GPUIX_SYNC_RING_SCREENSHOT);
+
+	onProgress?.({ phase: "sending", percent: 100 });
+	await settle();
+
+	expect(node("rail-sync-progress").customProps?.["aria-valuetext"]).toBe(
+		"Waiting for remote confirmation…"
+	);
+	expect(root.renderer.getPaintedText()).toContain("100%");
+	expect(node("rail-sync").customProps?.["aria-label"]).not.toContain(
+		"complete"
+	);
+	snapshot = { ...snapshot, head: { ...snapshot.head, ahead: 0 } };
+	pending.resolve({
+		ok: true,
+		value: { operation: "push", remote: "origin", branch: "main", snapshot },
+	});
+	await settle();
+
+	expect(root.renderer.findByTestId("rail-sync-progress")).toBeUndefined();
+	expect(root.renderer.findByTestId("rail-sync-outgoing")).toBeUndefined();
+	expect(node("rail-sync").customProps?.["aria-label"]).toContain(
+		"Sync complete"
+	);
+	onProgress?.({ phase: "sending", percent: 2 });
+	await settle();
+
+	expect(root.renderer.findByTestId("rail-sync-progress")).toBeUndefined();
+});
+
 it("fetches an up-to-date branch without extra branch reads or committing files", async () => {
 	snapshot = {
 		...snapshot,

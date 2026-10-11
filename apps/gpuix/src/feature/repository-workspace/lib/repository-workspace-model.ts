@@ -7,6 +7,7 @@ import type {
 	RepositorySnapshot,
 	RepositoryOperationState,
 	StashInfo,
+	GitTransferProgress,
 } from "@1git/git";
 
 import { sampleEntries } from "./sample-workspace";
@@ -73,6 +74,7 @@ export interface RepositoryWorkspaceState {
 		readonly notice: string | null;
 	};
 	readonly sync: {
+		readonly progress?: GitTransferProgress;
 		readonly pending: "fetch" | "pull" | "push" | "publish" | "sync" | null;
 		readonly error: string | null;
 		readonly accountAccess?: RemoteAccountAccess;
@@ -174,6 +176,7 @@ export type RepositoryWorkspaceAction =
 			kind: NonNullable<RepositoryWorkspaceState["sync"]["pending"]>;
 	  }
 	| { type: "sync-error-dismissed" }
+	| { type: "sync-progress"; progress: GitTransferProgress }
 	| {
 			type: "sync-finished";
 			snapshot?: RepositorySnapshot;
@@ -506,6 +509,18 @@ export class RepositoryWorkspaceModel {
 						sync: { ...state.sync, error: null, accountAccess: undefined },
 					};
 
+		if (action.type === "sync-progress") {
+			if (!state.sync.pending) return state;
+
+			if (
+				state.sync.progress?.phase === action.progress.phase &&
+				state.sync.progress.percent === action.progress.percent
+			)
+				return state;
+
+			return { ...state, sync: { ...state.sync, progress: action.progress } };
+		}
+
 		if (action.type === "sync-started")
 			return {
 				...state,
@@ -513,6 +528,7 @@ export class RepositoryWorkspaceModel {
 				sync: {
 					...state.sync,
 					pending: action.kind,
+					progress: { phase: "connecting", percent: null },
 					error: null,
 					accountAccess: undefined,
 					notice: null,

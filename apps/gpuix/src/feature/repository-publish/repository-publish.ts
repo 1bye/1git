@@ -3,6 +3,7 @@ import {
 	type GitResult,
 	type SyncResult,
 	type SyncBranchInput,
+	type GitTransferProgress,
 } from "@1git/git";
 import type { Owner, Repository, RepositoryRef } from "@1git/hosting/contracts";
 import { parseRemote } from "@1git/hosting/remote";
@@ -62,7 +63,8 @@ export class RepositoryPublish {
 		identity: PublishBranchIdentity,
 		signal: AbortSignal,
 		onCreated: (receipt: PublishedRepository) => void,
-		onUncertain: () => void
+		onUncertain: () => void,
+		onProgress?: (progress: GitTransferProgress) => void
 	): Promise<GitResult<SyncResult>> {
 		let created = input.created;
 		let creationStarted = false;
@@ -266,6 +268,7 @@ export class RepositoryPublish {
 
 			return await git.syncBranch({
 				...identity,
+				onProgress,
 				kind: branch?.upstream ? "push" : "publish",
 				remote: "origin",
 				remoteRef,
