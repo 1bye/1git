@@ -33,6 +33,10 @@ not remount workspaces, clear drafts/inclusion, reload Git, or reset native diff
 Window-local React context selects complete app, control and native diff palettes.
 Shared styles and active-tab SVGs are precomputed per palette, not rebuilt while scrolling.
 Dark syntax and addition/deletion backgrounds are separate from selection colors.
+Syntax colors follow [GitHub Dark Default](https://github.com/primer/github-vscode-theme/blob/main/src/theme.js),
+mapped to native token kinds rather than every language-specific scope. Comments
+use a brighter Primer gray to remain readable on changed rows; diff backgrounds
+and the app's surfaces are unchanged by the syntax palette.
 The owning native window follows the selected appearance; there is no automatic
 system-theme following in this version.
 

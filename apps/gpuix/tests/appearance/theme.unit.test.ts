@@ -1,5 +1,5 @@
 /**
- * Covers: matching palettes, readable dark text and accents, independent precomputed styles and safe session preferences.
+ * Covers: matching palettes, GitHub Dark token roles, readable dark text and accents, independent precomputed styles and safe session preferences.
  * Real: app tokens, theme factory and session parsing/capture.
  * Doubles: none.
  * Requires: none; no native window or filesystem I/O.
@@ -69,6 +69,43 @@ it("retains readable dark text, syntax and actionable accents", () => {
 			darkDiffTheme.diffDelBg!,
 		])
 			expect(contrast(color, background)).toBeGreaterThanOrEqual(4.5);
+});
+
+it("maps GitHub Dark token roles without recoloring diff surfaces", () => {
+	expect(darkDiffTheme).toMatchObject({
+		text: "#e6edf3",
+		diffAdd: "#e6edf3",
+		diffDel: "#e6edf3",
+		syntax: {
+			comment: "#b1bac4",
+			keyword: "#ff7b72",
+			typeName: "#ffa657",
+			constructor: "#ffa657",
+			function: "#d2a8ff",
+			macroName: "#d2a8ff",
+			typeBuiltin: "#79c0ff",
+			functionBuiltin: "#79c0ff",
+			constant: "#79c0ff",
+			number: "#79c0ff",
+			boolean: "#79c0ff",
+			variableSpecial: "#79c0ff",
+			string: "#a5d6ff",
+			stringSpecial: "#a5d6ff",
+			escape: "#ff7b72",
+			attribute: "#79c0ff",
+			tag: "#7ee787",
+			variable: "#e6edf3",
+			parameter: "#e6edf3",
+			property: "#e6edf3",
+			punctuation: "#e6edf3",
+			label: "#ffa657",
+		},
+		diffAddBg: "#25392d",
+		diffDelBg: "#422a30",
+		diffAddWordBg: "#365940",
+		diffDelWordBg: "#703b46",
+		diffHunkBg: "#25282f",
+	});
 });
 
 it("precomputes independent style values without mutating a shared palette", () => {
