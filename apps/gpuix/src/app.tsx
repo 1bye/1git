@@ -85,6 +85,7 @@ import { RepositoryComparison as ComparisonReader } from "./feature/repository-c
 import { RepositoryPullRequest } from "./feature/repository-pull-request/repository-pull-request";
 import { RepositoryPullRequestView } from "./feature/repository-pull-request/repository-pull-request-view";
 import { RepositoryHistorySquash } from "./feature/repository-workspace/lib/repository-history-squash";
+import { RepositoryCommitDetails } from "./feature/repository-workspace/components/repository-commit-details";
 
 /** Owns appearance independently of repository state, so a live switch preserves every draft and viewport. */
 export function App(props: ComponentProps<typeof AppContent>) {
@@ -1024,6 +1025,17 @@ function AppContent({
 									if (trigger) renderer.focusElement?.(trigger.id);
 								}, 0);
 							}}
+						/>
+					) : null}
+					{!publishingVisible &&
+					!(cloneTab && activeTab?.id === cloneTab.id) &&
+					!activeTab?.comparison &&
+					workspace?.view === "history" &&
+					revision?.commit ? (
+						<RepositoryCommitDetails
+							key={`commit-details:${activeTab?.id}:${workspace.repository?.root}:${revision.id}`}
+							commit={revision.commit}
+							tags={history.tags}
 						/>
 					) : null}
 					{publishingVisible ||

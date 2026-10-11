@@ -4,7 +4,7 @@ import type { WorkspaceEntry } from "../../src/feature/repository-workspace/type
 export const commitInfo = (index = 0): CommitInfo => ({
 	oid: index.toString(16).padStart(40, "a"),
 	summary: `Commit ${index}`,
-	body: `Details for commit ${index}`,
+	body: `Commit ${index}\n\nDetails for commit ${index}`,
 	author: { name: "Test Author", email: "author@example.invalid" },
 	committer: { name: "Test Author", email: "author@example.invalid" },
 	authoredAt: "2026-09-26T12:00:00Z",

@@ -1072,6 +1072,15 @@ the Turbo build/dev tasks build dependencies first. No Electron IPC is involved.
   preview its first changed file. Choose any other path below to inspect it.
   File lists are fetched on demand without loading
   every patch; completed lists/pages are retained for the workspace tab's lifetime.
+- The selected commit's details appear above the file toolbar: full title with the
+  Appearance badge preference, author, authored date/time, copyable SHA and local
+  tags. The description excludes the subject paragraph and preserves paragraphs
+  and trailers. The collapsed preview fits the first paragraph, capped at three
+  lines; **Show more** beside the metadata opens the full description in a bounded,
+  independently scrolling area. Short/absent descriptions have no disclosure/empty area.
+  Switching files retains disclosure; selecting a different commit resets it.
+  Empty commits still show their details. This uses already-loaded metadata without
+  fetching or editing commits, and does not move metadata into the native diff.
 - Committed diffs compare with the first parent (the empty tree for root commits).
   Merge commits use the same first-parent comparison, not a combined/conflict diff.
   Empty commits and unborn repositories have explicit empty states.

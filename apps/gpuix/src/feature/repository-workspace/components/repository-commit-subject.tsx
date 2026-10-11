@@ -54,17 +54,23 @@ const themedStyles = createThemedStyles(({ colors, appearance }) => ({
 export function RepositoryCommitSubject({
 	subject,
 	testId,
+	wrap = false,
 }: {
 	subject: string;
 	testId: string;
+	wrap?: boolean;
 }) {
 	const { appearance, commitTypeBadges } = useAppTheme();
 	const { label, badges } = themedStyles[appearance];
 	const parsed = commitTypeBadges ? CommitSubject.parse(subject) : null;
 
+	const textStyle = wrap
+		? { ...label, whiteSpace: "normal" as const, textOverflow: undefined }
+		: label;
+
 	if (!parsed)
 		return (
-			<text testId={testId} style={label}>
+			<text testId={testId} style={textStyle}>
 				{subject}
 			</text>
 		);
@@ -76,7 +82,7 @@ export function RepositoryCommitSubject({
 			style={{
 				display: "flex",
 				flexDirection: "row",
-				alignItems: "center",
+				alignItems: wrap ? "flex-start" : "center",
 				gap: spacing[1.5],
 				flexGrow: 1,
 				minWidth: 0,
@@ -99,7 +105,7 @@ export function RepositoryCommitSubject({
 					pointerEvents: "none",
 				}}
 			>{`${parsed.type}${parsed.breaking ? "!" : ""}`}</text>
-			<text testId={`${testId}-text`} style={label}>
+			<text testId={`${testId}-text`} style={textStyle}>
 				{`${parsed.scope ? `(${parsed.scope}) ` : ""}${parsed.description}`}
 			</text>
 		</div>

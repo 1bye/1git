@@ -306,4 +306,12 @@ export class RepositoryHistory {
 			filesLoaded: commit.historyFile ? true : undefined,
 		};
 	}
+
+	/** Git's %B contains the subject paragraph too; show only the description beneath the title. */
+	static description(commit: CommitInfo): string {
+		const message = commit.body.replace(/\r\n/gu, "\n");
+		const separator = message.search(/\n[\t ]*\n/u);
+
+		return separator < 0 ? "" : message.slice(separator).trim();
+	}
 }
