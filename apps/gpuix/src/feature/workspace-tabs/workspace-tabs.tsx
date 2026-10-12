@@ -8,10 +8,16 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@1git/gpuix-ui/tooltip";
-import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
+import {
+	useGpuixRequired,
+	useWindowSize,
+	type PublicInstance,
+} from "@gpuix/react";
 import { useEffect, useRef, useState, type Dispatch } from "react";
+import type { NativeRenderer } from "@gpuix/native/host";
 
 import { workspaceLayout as layout } from "../../styles/workspace-layout";
+import { useWorkspaceCorner } from "../../fixture/workspace-corner";
 import { WorkspaceTab } from "./components/workspace-tab";
 import { WorkspaceTabIcon } from "./components/workspace-tab-icon";
 import {
@@ -37,6 +43,19 @@ const styles = StyleSheet.create({
 		flexShrink: 0,
 		paddingLeft: layout.desktopTitlebarControlsWidth,
 		paddingRight: layout.workspaceSurfaceInset,
+	},
+	tabsClip: {
+		display: "flex",
+		flexDirection: "row",
+		alignItems: "end",
+		flexGrow: 1,
+		flexBasis: 0,
+		minWidth: 0,
+		height: layout.tabHeight,
+		// Clip at the inset surface edge, not at the outer AppKit window edge.
+		borderTopRightRadius: layout.workspaceSurfaceRadius,
+		overflowX: "hidden",
+		overflowY: "hidden",
 	},
 	tabs: {
 		display: "flex",
@@ -83,6 +102,41 @@ const styles = StyleSheet.create({
 	},
 });
 
+function updateWorkspaceCorner(
+	renderer: NativeRenderer,
+	instance: PublicInstance | null,
+	activeLeft: number | undefined,
+	windowWidth: number,
+	setRadius: (radius: number) => void,
+	scrollX?: number
+): void {
+	const viewport = instance && renderer.getElementBounds?.(instance.id);
+	const radius = layout.workspaceSurfaceRadius;
+
+	if (!instance || !viewport || activeLeft === undefined) {
+		setRadius(radius);
+
+		return;
+	}
+
+	const offset = scrollX ?? renderer.getScrollOffset?.(instance.id)?.[0] ?? 0;
+	const left = viewport.x + activeLeft + offset;
+	const right = left + layout.tabWidth + layout.tabSurfaceOutset * 2;
+
+	const visibleLeft = Math.max(left, viewport.x);
+	const visibleRight = Math.min(right, viewport.x + viewport.width);
+
+	const clearance = windowWidth - layout.workspaceSurfaceInset - visibleRight;
+
+	const progress =
+		visibleRight > visibleLeft
+			? Math.max(0, Math.min(1, clearance / radius))
+			: 1;
+
+	// A clipped tab still joins the edge; only its visible surface matters.
+	setRadius(radius * progress * progress * (3 - 2 * progress));
+}
+
 /** Horizontal, roving-focus tab strip. State transitions stay in the app's reducer. */
 export function WorkspaceTabs({
 	state,
@@ -101,6 +155,8 @@ export function WorkspaceTabs({
 	const { tokens: appTokens, colors: appColors } = theme;
 
 	const renderer = useGpuixRequired();
+	const { width: windowWidth } = useWindowSize();
+	const setRightRadius = useWorkspaceCorner();
 	const tabs = useRef(new Map<string, PublicInstance>());
 	const frames = useRef(new Map<string, PublicInstance>());
 	const strip = useRef<PublicInstance>(null);
@@ -123,6 +179,15 @@ export function WorkspaceTabs({
 		.sort(
 			(a, b) => Number(a.tab.id === frontId) - Number(b.tab.id === frontId)
 		);
+
+	const activeLeft = positionedTabs.find(
+		({ tab }) => tab.id === state.activeId
+	)?.left;
+
+	useEffect(
+		() => () => setRightRadius(layout.workspaceSurfaceRadius),
+		[setRightRadius]
+	);
 
 	const onPointerDown = (): void => {
 		drag.resetInput();
@@ -150,9 +215,19 @@ export function WorkspaceTabs({
 			if (target) renderer.focusElement?.(target.id);
 		}
 
-		if (draggingId || settlingId) return;
+		if (draggingId || settlingId || activeIndex < 0) {
+			updateWorkspaceCorner(
+				renderer,
+				strip.current,
+				activeLeft,
+				windowWidth,
+				setRightRadius
+			);
 
-		if (!strip.current || activeIndex < 0) return;
+			return;
+		}
+
+		if (!strip.current) return;
 
 		const viewport = renderer.getElementBounds?.(strip.current.id);
 
@@ -171,6 +246,14 @@ export function WorkspaceTabs({
 		);
 
 		renderer.scrollTo?.(strip.current.id, -nextOffset, 0);
+		updateWorkspaceCorner(
+			renderer,
+			strip.current,
+			activeLeft,
+			windowWidth,
+			setRightRadius,
+			-nextOffset
+		);
 	}, [
 		renderer,
 		state.activeId,
@@ -178,6 +261,9 @@ export function WorkspaceTabs({
 		activeIndex,
 		draggingId,
 		settlingId,
+		activeLeft,
+		windowWidth,
+		setRightRadius,
 	]);
 
 	return (
@@ -265,138 +351,154 @@ export function WorkspaceTabs({
 					</Tooltip>
 				</TooltipProvider>
 			</div>
-			<div
-				ref={strip}
-				testId="workspace-tabs"
-				role="tablist"
-				aria-label="Workspaces"
-				style={styles.tabs}
-			>
+			<div testId="workspace-tabs-clip" style={styles.tabsClip}>
 				<div
-					ref={rail}
-					style={StyleSheet.compose(styles.rail, {
-						width: state.tabs.length * layout.tabWidth,
-					})}
+					ref={strip}
+					testId="workspace-tabs"
+					role="tablist"
+					aria-label="Workspaces"
+					style={styles.tabs}
+					onScroll={() =>
+						updateWorkspaceCorner(
+							renderer,
+							strip.current,
+							activeLeft,
+							windowWidth,
+							setRightRadius
+						)
+					}
 				>
-					{positionedTabs.map(({ tab, left }) => (
-						<WorkspaceTab
-							key={tab.id}
-							tab={tab}
-							active={state.activeId === tab.id}
-							menuAvailable={!!tab.workspace.repository && !!onChangeBranch}
-							menuOpen={menuId === tab.id && state.activeId === tab.id}
-							onDismissMenu={() => setMenuId(null)}
-							onPointerDown={onPointerDown}
-							dragging={drag.draggingId === tab.id}
-							left={left}
-							onMotionComplete={() => drag.onMotionComplete(tab.id)}
-							onTabMouseDown={(event, frame) => {
-								onPointerDown();
-								drag.onMouseDown(tab.id, event, frame);
+					<div
+						ref={rail}
+						style={StyleSheet.compose(styles.rail, {
+							width: state.tabs.length * layout.tabWidth,
+						})}
+					>
+						{positionedTabs.map(({ tab, left }) => (
+							<WorkspaceTab
+								key={tab.id}
+								tab={tab}
+								active={state.activeId === tab.id}
+								menuAvailable={!!tab.workspace.repository && !!onChangeBranch}
+								menuOpen={menuId === tab.id && state.activeId === tab.id}
+								onDismissMenu={() => setMenuId(null)}
+								onPointerDown={onPointerDown}
+								dragging={drag.draggingId === tab.id}
+								left={left}
+								onMotionComplete={() => drag.onMotionComplete(tab.id)}
+								onTabMouseDown={(event, frame) => {
+									onPointerDown();
+									drag.onMouseDown(tab.id, event, frame);
 
-								if (event.button === 0) focusTab(tab.id);
-							}}
-							onTabMouseMove={(event) => {
-								drag.onMouseMove(event);
+									if (event.button === 0) focusTab(tab.id);
+								}}
+								onTabMouseMove={(event) => {
+									drag.onMouseMove(event);
 
-								if (drag.shouldSuppressClick()) setMenuId(null);
-							}}
-							onTabMouseUp={drag.onMouseUp}
-							onCancelDrag={() => drag.cancel(tab.id)}
-							onKeyboardInput={onKeyboardInput}
-							tabRef={(instance) => {
-								if (instance) tabs.current.set(tab.id, instance);
-								else tabs.current.delete(tab.id);
-							}}
-							frameRef={(instance) => {
-								if (instance) frames.current.set(tab.id, instance);
-								else frames.current.delete(tab.id);
-							}}
-							onActivate={() => {
-								if (drag.shouldSuppressClick()) return;
+									if (drag.shouldSuppressClick()) setMenuId(null);
+								}}
+								onTabMouseUp={drag.onMouseUp}
+								onCancelDrag={() => drag.cancel(tab.id)}
+								onKeyboardInput={onKeyboardInput}
+								tabRef={(instance) => {
+									if (instance) tabs.current.set(tab.id, instance);
+									else tabs.current.delete(tab.id);
+								}}
+								frameRef={(instance) => {
+									if (instance) frames.current.set(tab.id, instance);
+									else frames.current.delete(tab.id);
+								}}
+								onActivate={() => {
+									if (drag.shouldSuppressClick()) return;
 
-								if (
-									state.activeId === tab.id &&
-									tab.workspace.repository &&
-									onChangeBranch
-								)
-									setMenuId(tab.id);
-								else {
-									setMenuId(null);
-									dispatch({ type: "activate", id: tab.id });
-								}
-
-								focusTab(tab.id);
-							}}
-							onClose={() => {
-								if (
-									drag.shouldSuppressClick() ||
-									RepositoryWorkspaceModel.isBusy(tab.workspace)
-								)
-									return;
-
-								focusRequested.current = true;
-								setMenuId(null);
-								dispatch({ type: "close", id: tab.id });
-							}}
-							onNavigate={(key) => {
-								setMenuId(null);
-								const id = WorkspaceTabsModel.destination(
-									state.tabs,
-									tab.id,
-									key
-								);
-
-								if (!id) return;
-
-								dispatch({ type: "activate", id });
-								focusTab(id);
-							}}
-							onReorder={(key) => {
-								setMenuId(null);
-								drag.cancel();
-								const index = state.tabs.findIndex(
-									(item) => item.id === tab.id
-								);
-
-								const neighbor = state.tabs[index + (key === "left" ? -1 : 1)];
-
-								if (!neighbor) return;
-
-								dispatch({ type: "reorder", id: tab.id, overId: neighbor.id });
-								focusTab(tab.id);
-							}}
-						>
-							{menuId === tab.id &&
-							state.activeId === tab.id &&
-							readBranches &&
-							readRepository &&
-							onChangeBranch ? (
-								<WorkspaceMenu
-									tab={tab}
-									anchor={frames.current.get(tab.id)}
-									dispatch={dispatch}
-									readBranches={readBranches}
-									readRepository={readRepository}
-									onChangeBranch={onChangeBranch}
-									onCreateWorktree={onCreateWorktree}
-									onRemoveWorktree={onRemoveWorktree}
-									onSettings={onSettings}
-									onClose={() => {
+									if (
+										state.activeId === tab.id &&
+										tab.workspace.repository &&
+										onChangeBranch
+									)
+										setMenuId(tab.id);
+									else {
 										setMenuId(null);
-										focusRequested.current = true;
-										focusTab(tab.id);
-									}}
-								/>
-							) : null}
-						</WorkspaceTab>
-					))}
+										dispatch({ type: "activate", id: tab.id });
+									}
+
+									focusTab(tab.id);
+								}}
+								onClose={() => {
+									if (
+										drag.shouldSuppressClick() ||
+										RepositoryWorkspaceModel.isBusy(tab.workspace)
+									)
+										return;
+
+									focusRequested.current = true;
+									setMenuId(null);
+									dispatch({ type: "close", id: tab.id });
+								}}
+								onNavigate={(key) => {
+									setMenuId(null);
+									const id = WorkspaceTabsModel.destination(
+										state.tabs,
+										tab.id,
+										key
+									);
+
+									if (!id) return;
+
+									dispatch({ type: "activate", id });
+									focusTab(id);
+								}}
+								onReorder={(key) => {
+									setMenuId(null);
+									drag.cancel();
+									const index = state.tabs.findIndex(
+										(item) => item.id === tab.id
+									);
+
+									const neighbor =
+										state.tabs[index + (key === "left" ? -1 : 1)];
+
+									if (!neighbor) return;
+
+									dispatch({
+										type: "reorder",
+										id: tab.id,
+										overId: neighbor.id,
+									});
+									focusTab(tab.id);
+								}}
+							>
+								{menuId === tab.id &&
+								state.activeId === tab.id &&
+								readBranches &&
+								readRepository &&
+								onChangeBranch ? (
+									<WorkspaceMenu
+										tab={tab}
+										anchor={frames.current.get(tab.id)}
+										dispatch={dispatch}
+										readBranches={readBranches}
+										readRepository={readRepository}
+										onChangeBranch={onChangeBranch}
+										onCreateWorktree={onCreateWorktree}
+										onRemoveWorktree={onRemoveWorktree}
+										onSettings={onSettings}
+										onClose={() => {
+											setMenuId(null);
+											focusRequested.current = true;
+											focusTab(tab.id);
+										}}
+									/>
+								) : null}
+							</WorkspaceTab>
+						))}
+					</div>
+					<div
+						testId="empty-titlebar"
+						windowDrag
+						style={{ flexGrow: 1, flexShrink: 0, height: "100%" }}
+					/>
 				</div>
-				<div
-					testId="empty-titlebar"
-					windowDrag
-					style={{ flexGrow: 1, flexShrink: 0, height: "100%" }}
-				/>
 			</div>
 		</div>
 	);

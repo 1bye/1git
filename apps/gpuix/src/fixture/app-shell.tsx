@@ -1,8 +1,9 @@
 import { createThemedStyles, useAppTheme } from "../styles/theme";
 import { spacing, workspaceLayout } from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
-import type { ReactNode, Ref } from "react";
+import { useState, type ReactNode, type Ref } from "react";
 import type { PublicInstance } from "@gpuix/react";
+import { WorkspaceCornerContext } from "./workspace-corner";
 
 const themedStyles = createThemedStyles(({ colors: appColors }) => {
 	const styles = StyleSheet.create({
@@ -40,6 +41,10 @@ const themedStyles = createThemedStyles(({ colors: appColors }) => {
 			marginRight: workspaceLayout.workspaceSurfaceInset,
 			marginBottom: workspaceLayout.workspaceSurfaceInset,
 			borderRadius: workspaceLayout.workspaceSurfaceRadius,
+			// Motion's shorthand animates only the remaining top-right corner.
+			borderTopLeftRadius: workspaceLayout.workspaceSurfaceRadius,
+			borderBottomLeftRadius: workspaceLayout.workspaceSurfaceRadius,
+			borderBottomRightRadius: workspaceLayout.workspaceSurfaceRadius,
 			backgroundColor: appColors.editorSurface,
 			overflowX: "hidden",
 			overflowY: "hidden",
@@ -72,6 +77,10 @@ export function AppShell({
 	const theme = useAppTheme();
 	const { styles } = themedStyles[theme.appearance];
 
+	const [rightRadius, setRightRadius] = useState<number>(
+		workspaceLayout.workspaceSurfaceRadius
+	);
+
 	return (
 		<div
 			ref={ref}
@@ -90,13 +99,20 @@ export function AppShell({
 					: undefined
 			)}
 		>
-			{toolbar}
+			<WorkspaceCornerContext value={setRightRadius}>
+				{toolbar}
+			</WorkspaceCornerContext>
 			<div style={styles.body}>
 				{rail}
 				<div
 					testId="workspace"
 					role="tabpanel"
 					aria-label={workspaceLabel}
+					motion={{
+						initial: false,
+						animate: { borderRadius: rightRadius },
+						transition: { duration: 0.24, ease: [0.22, 1, 0.36, 1] },
+					}}
 					style={StyleSheet.compose(
 						styles.workspace,
 						rail ? { marginLeft: spacing[0] } : undefined

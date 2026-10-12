@@ -1,7 +1,8 @@
 /**
- * Covers: rounded workspace clipping of colored children and native diff rows.
- * Real: AppShell, DiffView, native painting and screenshot pixels.
- * Doubles: inline patches. Requires: patched GPUIX and macOS graphics.
+ * Covers: animated tab-edge connection and rounded clipping of children and native diff rows.
+ * Real: AppShell, WorkspaceTabs, DiffView, native animation, painting and screenshot pixels.
+ * Doubles: sample workspace records and inline patches.
+ * Requires: patched GPUIX and macOS graphics.
  */
 import { afterEach, beforeEach, expect, it } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -10,14 +11,219 @@ import { join } from "node:path";
 import sharp from "sharp";
 import { createTestRoot, type TestRoot } from "@gpuix/react/testing";
 import { DiffView } from "@1git/gpuix-ui/diff-view";
+import { workspaceLayout } from "@1git/design-tokens";
+import { useReducer } from "react";
 import { AppShell } from "../../src/fixture/app-shell";
+import { WorkspaceTabs } from "../../src/feature/workspace-tabs/workspace-tabs";
+import { WorkspaceTabsModel } from "../../src/feature/workspace-tabs/lib/workspace-tabs-model";
+import { workspaceLayout as nativeLayout } from "../../src/styles/workspace-layout";
 
 let root: TestRoot;
 let directory: string;
 
 beforeEach(async () => {
 	root = createTestRoot({ width: 400, height: 240 });
+	root.renderer.clockPause();
 	directory = await mkdtemp(join(tmpdir(), "1git-corners-"));
+});
+
+function TabbedShell({ tabCount = 2 }: { tabCount?: number }) {
+	const [state, dispatch] = useReducer(
+		WorkspaceTabsModel.reduce,
+		tabCount,
+		(count) => WorkspaceTabsModel.create(count, true)
+	);
+
+	return (
+		<div style={{ width: "100%", height: "100%", backgroundColor: "#223344" }}>
+			<AppShell
+				toolbar={<WorkspaceTabs state={state} dispatch={dispatch} />}
+				workspaceLabel="Test"
+			>
+				<div style={{ flexGrow: 1, backgroundColor: "#ff0000" }} />
+			</AppShell>
+		</div>
+	);
+}
+
+it("joins the rightmost active tab to the workspace and restores rounding on Home", async () => {
+	root.render(<TabbedShell />);
+	const rounded = await rightCornerPaintedPixels();
+	const first = root.renderer.findByTestId("workspace-1");
+
+	if (!first) throw new Error("Missing first tab");
+
+	root.renderer.nativeSimulateKeyDown(first.id, "end");
+	await new Promise<void>((resolve) => setImmediate(resolve));
+	root.renderer.flush();
+	expect(await rightCornerPaintedPixels()).toBe(rounded);
+	root.renderer.clockFastForward(30);
+	root.renderer.flush();
+	const blending = await rightCornerPaintedPixels();
+
+	root.renderer.clockFastForward(210);
+	root.renderer.flush();
+	const joined = await rightCornerPaintedPixels();
+
+	expect(blending).toBeGreaterThan(rounded);
+	expect(blending).toBeLessThan(joined);
+	let sample = await pixels();
+
+	expect(
+		sample.color(sample.bounds.x + sample.bounds.width - 2, sample.bounds.y + 1)
+	).toEqual([255, 0, 0]);
+	expect(
+		sample.color(
+			sample.bounds.x + sample.bounds.width - 2,
+			sample.bounds.y + sample.bounds.height - 2
+		)
+	).toEqual([34, 51, 68]);
+
+	const home = root.renderer.findByTestId("workspace-home");
+	const box = home && root.renderer.getElementBounds(home.id);
+
+	if (!box) throw new Error("Missing Home button");
+
+	root.renderer.nativeSimulateClick(
+		box.x + box.width / 2,
+		box.y + box.height / 2
+	);
+	await new Promise<void>((resolve) => setImmediate(resolve));
+	root.renderer.flush();
+	root.renderer.clockFastForward(240);
+	root.renderer.flush();
+	sample = await pixels();
+	expect(
+		sample.color(sample.bounds.x + sample.bounds.width - 2, sample.bounds.y + 1)
+	).toEqual([34, 51, 68]);
+	expect(await rightCornerPaintedPixels()).toBe(rounded);
+});
+
+it("keeps the corner joined when the active tab is clipped at the right edge", async () => {
+	root.render(<TabbedShell />);
+	const first = root.renderer.findByTestId("workspace-1");
+
+	if (!first) throw new Error("Missing first tab");
+
+	root.renderer.nativeSimulateKeyDown(first.id, "end");
+	await new Promise<void>((resolve) => setImmediate(resolve));
+	root.renderer.flush();
+	root.renderer.clockFastForward(240);
+	root.renderer.flush();
+	const joined = await rightCornerPaintedPixels();
+
+	root.renderer.nativeSimulateScrollWheel(250, 20, 60, 0);
+	await new Promise<void>((resolve) => setImmediate(resolve));
+	root.renderer.flush();
+	root.renderer.clockFastForward(240);
+	root.renderer.flush();
+	const tab = root.renderer.findByTestId("surface-workspace-2");
+	const tabBounds = tab && root.renderer.getElementBounds(tab.id);
+	const { bounds } = await pixels();
+
+	if (!tabBounds) throw new Error("Missing active tab surface");
+
+	expect(tabBounds.x).toBeLessThan(bounds.x + bounds.width);
+	expect(tabBounds.x + tabBounds.width).toBeGreaterThan(
+		bounds.x + bounds.width
+	);
+	expect(await rightCornerPaintedPixels()).toBe(joined);
+});
+
+it("clips the tab strip's outer top-right corner without reopening the workspace seam", async () => {
+	root.render(<TabbedShell />);
+	const first = root.renderer.findByTestId("workspace-1");
+
+	if (!first) throw new Error("Missing first tab");
+
+	root.renderer.nativeSimulateKeyDown(first.id, "end");
+	await new Promise<void>((resolve) => setImmediate(resolve));
+	root.renderer.flush();
+	root.renderer.clockFastForward(240);
+	root.renderer.flush();
+	root.renderer.nativeSimulateScrollWheel(250, 20, 60, 0);
+	await new Promise<void>((resolve) => setImmediate(resolve));
+	root.renderer.flush();
+	root.renderer.clockFastForward(240);
+	root.renderer.flush();
+	const { bounds, color } = await pixels();
+	const right = bounds.x + bounds.width;
+	const top = bounds.y - nativeLayout.tabHeight;
+
+	expect(color(right - 2, top + 1)).toEqual([34, 51, 68]);
+	expect(color(right - 20, top + 10)).toEqual([255, 255, 255]);
+	expect(color(right - 2, bounds.y + 1)).toEqual([255, 0, 0]);
+});
+
+it("restores the corner when the active tab moves left of the right edge", async () => {
+	root.render(<TabbedShell tabCount={3} />);
+	const second = root.renderer.findByTestId("workspace-2");
+	const box = second && root.renderer.getElementBounds(second.id);
+
+	if (!box) throw new Error("Missing second tab");
+
+	root.renderer.nativeSimulateClick(box.x + 40, box.y + box.height / 2);
+	await new Promise<void>((resolve) => setImmediate(resolve));
+	root.renderer.flush();
+	root.renderer.clockFastForward(240);
+	root.renderer.flush();
+	const joined = await rightCornerPaintedPixels();
+
+	root.renderer.nativeSimulateScrollWheel(250, 20, -60, 0);
+	await new Promise<void>((resolve) => setImmediate(resolve));
+	root.renderer.flush();
+	root.renderer.clockFastForward(240);
+	root.renderer.flush();
+	expect(await rightCornerPaintedPixels()).toBeLessThan(joined);
+});
+
+it("does not join a tab that has scrolled entirely beyond the right edge", async () => {
+	root.render(<TabbedShell tabCount={3} />);
+	const rounded = await rightCornerPaintedPixels();
+	const first = root.renderer.findByTestId("workspace-1");
+
+	if (!first) throw new Error("Missing first tab");
+
+	root.renderer.nativeSimulateKeyDown(first.id, "end");
+	await new Promise<void>((resolve) => setImmediate(resolve));
+	root.renderer.flush();
+	root.renderer.clockFastForward(240);
+	root.renderer.flush();
+	expect(await rightCornerPaintedPixels()).toBeGreaterThan(rounded);
+
+	root.renderer.nativeSimulateScrollWheel(250, 20, 600, 0);
+	await new Promise<void>((resolve) => setImmediate(resolve));
+	root.renderer.flush();
+	root.renderer.clockFastForward(240);
+	root.renderer.flush();
+	expect(await rightCornerPaintedPixels()).toBe(rounded);
+});
+
+it("restores the corner after closing the last tab at the window edge", async () => {
+	root.render(<TabbedShell />);
+	const rounded = await rightCornerPaintedPixels();
+	const first = root.renderer.findByTestId("workspace-1");
+
+	if (!first) throw new Error("Missing first tab");
+
+	root.renderer.nativeSimulateKeyDown(first.id, "end");
+	await new Promise<void>((resolve) => setImmediate(resolve));
+	root.renderer.flush();
+	root.renderer.clockFastForward(240);
+	root.renderer.flush();
+	expect(await rightCornerPaintedPixels()).toBeGreaterThan(rounded);
+
+	const last = root.renderer.findByTestId("workspace-2");
+
+	if (!last) throw new Error("Missing last tab");
+
+	root.renderer.nativeSimulateKeyDown(last.id, "delete");
+	await new Promise<void>((resolve) => setImmediate(resolve));
+	root.renderer.flush();
+	root.renderer.clockFastForward(240);
+	root.renderer.flush();
+	expect(root.renderer.findByTestId("workspace-2")).toBeUndefined();
+	expect(await rightCornerPaintedPixels()).toBe(rounded);
 });
 
 afterEach(async () => {
@@ -49,6 +255,21 @@ async function pixels() {
 	};
 
 	return { bounds, color };
+}
+
+async function rightCornerPaintedPixels(): Promise<number> {
+	const { bounds, color } = await pixels();
+	let count = 0;
+
+	for (let x = 1; x <= workspaceLayout.workspaceSurfaceRadius; x += 1) {
+		for (let y = 1; y <= workspaceLayout.workspaceSurfaceRadius; y += 1) {
+			const pixel = color(bounds.x + bounds.width - x - 1, bounds.y + y);
+
+			if (pixel[0] === 255 && pixel[1] === 0 && pixel[2] === 0) count += 1;
+		}
+	}
+
+	return count;
 }
 
 function show(diff: boolean) {
