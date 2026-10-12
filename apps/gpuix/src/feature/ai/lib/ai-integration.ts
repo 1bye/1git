@@ -8,7 +8,8 @@ import {
 	type AiConfiguration,
 } from "./ai-settings-store";
 import { AiHttp } from "./ai-http";
-import { AiInference } from "./ai-inference";
+import { PiProvider } from "./pi-provider";
+import { CommitHarness } from "./commit-harness";
 import { ChatGptAuthorization } from "./chatgpt-authorization";
 
 /** Public model choices contain no credentials and preserve provider ordering. */
@@ -292,7 +293,7 @@ export class AiIntegration {
 				: await this.credential(preferences, signal);
 
 		const raw = await this.http.json(
-			`${AiInference.base(preferences)}/models`,
+			`${PiProvider.base(preferences)}/models`,
 			{
 				headers: {
 					...(credential ? { Authorization: `Bearer ${credential}` } : {}),
@@ -341,8 +342,8 @@ export class AiIntegration {
 
 			if (
 				preferences.provider === "opencode" &&
-				(!AiInference.protocol(id, preferences.opencodeMode) ||
-					(preferences.opencodeMode === "free" && !AiInference.free(id)))
+				(!PiProvider.protocol(id, preferences.opencodeMode) ||
+					(preferences.opencodeMode === "free" && !PiProvider.free(id)))
 			)
 				continue;
 
@@ -364,21 +365,23 @@ export class AiIntegration {
 	async generate(
 		preferences: AiPreferences,
 		patch: string,
-		signal: AbortSignal
+		signal: AbortSignal,
+		onProgress?: (status: string) => void
 	): Promise<string> {
-		if (!patch.trim() || Buffer.byteLength(patch) > 96 * 1024)
+		if (!patch.trim() || Buffer.byteLength(patch) > 16 * 1024 * 1024)
 			throw new Error(
-				"Select a smaller set of changes for AI generation (up to 96 KiB)."
+				"Select nonempty changes within the local 16 MiB collection limit."
 			);
 
 		const checked = AiSettingsStore.parse(preferences);
 		const credential = await this.credential(checked, signal);
 
-		return await new AiInference(this.http).generate(
+		return await new CommitHarness(new PiProvider(this.http)).generate(
 			checked,
 			credential,
 			patch,
-			signal
+			signal,
+			onProgress
 		);
 	}
 

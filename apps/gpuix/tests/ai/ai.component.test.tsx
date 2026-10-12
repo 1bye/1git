@@ -644,7 +644,8 @@ it("generates with the selected default's preferences and applies only after con
 	expect(generated).toHaveBeenCalledWith(
 		expect.objectContaining({ id: configured.id, model: configured.model }),
 		"+selected",
-		expect.any(AbortSignal)
+		expect.any(AbortSignal),
+		expect.any(Function)
 	);
 	expect(applied).not.toHaveBeenCalled();
 	await press("ai-commit-use");

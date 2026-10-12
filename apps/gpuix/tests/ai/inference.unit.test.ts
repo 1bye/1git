@@ -1,6 +1,6 @@
 /**
  * Covers: OpenCode wire routing, free-only filtering, ChatGPT non-stored completed streams, limits and sanitized errors.
- * Real: AI SDK adapters, AI service, preferences and disposable metadata files.
+ * Real: Pi agent and provider adapters, AI service, preferences and disposable metadata files.
  * Doubles: provider HTTP and OS vault; synthetic credentials only.
  * Requires: Bun; no network, native graphics or real account.
  */
@@ -8,7 +8,8 @@ import { afterEach, beforeEach, expect, it } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { AiInference } from "../../src/feature/ai/lib/ai-inference";
+import { PiProvider } from "../../src/feature/ai/lib/pi-provider";
+import { CommitHarness } from "../../src/feature/ai/lib/commit-harness";
 import { AiIntegration } from "../../src/feature/ai/lib/ai-integration";
 import { AiHttp, type AiFetch } from "../../src/feature/ai/lib/ai-http";
 import { cavemanCommitPreset } from "../../src/feature/ai/lib/caveman-commit-preset";
@@ -47,7 +48,12 @@ function integration(
 
 function events(values: unknown[]): Response {
 	return new Response(
-		values.map((value) => `data: ${JSON.stringify(value)}\n\n`).join(""),
+		values
+			.map(
+				(value) =>
+					`${value && typeof value === "object" && "type" in value ? `event: ${value.type}\n` : ""}data: ${JSON.stringify(value)}\n\n`
+			)
+			.join(""),
 		{ headers: { "Content-Type": "text/event-stream" } }
 	);
 }
@@ -292,6 +298,101 @@ it("uses the OpenCode Go Messages protocol with bearer authentication", async ()
 	).toBe("fix: checked changes");
 });
 
+it("continues OpenCode Go tool reads with the selected account and Messages wire format", async () => {
+	const bodies: Record<string, unknown>[] = [];
+
+	const service = integration(async (url, init) => {
+		expect(String(url)).toBe("https://opencode.ai/zen/go/v1/messages");
+		expect(new Headers(init?.headers).get("authorization")).toBe(
+			"Bearer synthetic-key"
+		);
+		bodies.push(JSON.parse(String(init?.body)));
+		const tool = bodies.length === 1;
+
+		return events([
+			{
+				type: "message_start",
+				message: {
+					id: `m${bodies.length}`,
+					type: "message",
+					role: "assistant",
+					model: "minimax-m3",
+					content: [],
+					stop_reason: null,
+					stop_sequence: null,
+					usage: { input_tokens: 10, output_tokens: 0 },
+				},
+			},
+			{
+				type: "content_block_start",
+				index: 0,
+				content_block: tool
+					? {
+							type: "tool_use",
+							id: "read1",
+							name: "read_selected_diff",
+							input: {},
+						}
+					: { type: "text", text: "" },
+			},
+			{
+				type: "content_block_delta",
+				index: 0,
+				delta: tool
+					? {
+							type: "input_json_delta",
+							partial_json: JSON.stringify({ reads: [{ file: 0, page: 0 }] }),
+						}
+					: { type: "text_delta", text: "fix: selected changes" },
+			},
+			{ type: "content_block_stop", index: 0 },
+			{
+				type: "message_delta",
+				delta: {
+					stop_reason: tool ? "tool_use" : "end_turn",
+					stop_sequence: null,
+				},
+				usage: { output_tokens: 4 },
+			},
+			{ type: "message_stop" },
+		]);
+	});
+
+	const message = await service.generate(
+		{
+			...emptyAiPreferences,
+			provider: "opencode",
+			opencodeMode: "go",
+			model: "minimax-m3",
+		},
+		`diff --git a/a.ts b/a.ts\n@@ -0,0 +1 @@\n+GO_SELECTED\ndiff --git a/b.ts b/b.ts\n@@ -0,0 +1 @@\n+${"x".repeat(260 * 1024)}\n`,
+		new AbortController().signal
+	);
+
+	expect(message).toBe("fix: selected changes");
+	expect(bodies).toHaveLength(2);
+	expect(bodies[0]?.tools).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({ name: "read_selected_diff" }),
+		])
+	);
+	expect(JSON.stringify(bodies[0])).not.toContain("GO_SELECTED");
+	expect(bodies[1]?.messages).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({
+				role: "user",
+				content: expect.arrayContaining([
+					expect.objectContaining({
+						type: "tool_result",
+						tool_use_id: "read1",
+					}),
+				]),
+			}),
+		])
+	);
+	expect(JSON.stringify(bodies[1])).toContain("GO_SELECTED");
+});
+
 it("loads the public Free catalog without reading saved credentials", async () => {
 	const service = new AiIntegration(
 		new AiSettingsStore(join(directory, "ai.json")),
@@ -484,13 +585,15 @@ it.each([true, false])(
 	async (completed) => {
 		let body: Record<string, unknown> = {};
 
-		const inference = new AiInference(
-			new AiHttp(async (url, init) => {
-				expect(String(url)).toBe("https://api.openai.com/v1/responses");
-				body = JSON.parse(String(init?.body));
+		const inference = new CommitHarness(
+			new PiProvider(
+				new AiHttp(async (url, init) => {
+					expect(String(url)).toBe("https://api.openai.com/v1/responses");
+					body = JSON.parse(String(init?.body));
 
-				return events(responseEvents(completed));
-			})
+					return events(responseEvents(completed));
+				})
+			)
 		);
 
 		const request = inference.generate(
@@ -514,6 +617,79 @@ it.each([true, false])(
 	}
 );
 
+it("continues a non-stored ChatGPT tool call and requires completion of the final response", async () => {
+	const bodies: Record<string, unknown>[] = [];
+
+	const inference = new CommitHarness(
+		new PiProvider(
+			new AiHttp(async (_url, init) => {
+				bodies.push(JSON.parse(String(init?.body)));
+
+				if (bodies.length > 1) return events(responseEvents());
+
+				const call = {
+					id: "fc1",
+					type: "function_call",
+					call_id: "read1",
+					name: "read_selected_diff",
+					arguments: '{"reads":[{"file":0,"page":0}]}',
+					status: "completed",
+				};
+
+				return events([
+					{
+						type: "response.created",
+						response: { id: "r0", created_at: 1, model: "gpt-test" },
+					},
+					{
+						type: "response.output_item.added",
+						output_index: 0,
+						item: { ...call, arguments: "", status: "in_progress" },
+					},
+					{
+						type: "response.function_call_arguments.delta",
+						item_id: "fc1",
+						output_index: 0,
+						delta: call.arguments,
+					},
+					{
+						type: "response.function_call_arguments.done",
+						item_id: "fc1",
+						output_index: 0,
+						arguments: call.arguments,
+					},
+					{ type: "response.output_item.done", output_index: 0, item: call },
+					{
+						type: "response.completed",
+						response: {
+							id: "r0",
+							status: "completed",
+							incomplete_details: null,
+							output: [call],
+							usage: { input_tokens: 10, output_tokens: 4, total_tokens: 14 },
+						},
+					},
+				]);
+			})
+		)
+	);
+
+	const result = await inference.generate(
+		{ ...emptyAiPreferences, provider: "chatgpt", model: "gpt-6.1-sol" },
+		"synthetic-token",
+		`diff --git a/first.ts b/first.ts\n@@ -0,0 +1 @@\n+selected change\ndiff --git a/large.ts b/large.ts\n@@ -0,0 +1 @@\n+${"x".repeat(100 * 1024)}`,
+		new AbortController().signal
+	);
+
+	expect(result).toBe("fix: selected changes");
+	expect(bodies).toHaveLength(2);
+
+	for (const body of bodies) expect(body.store).toBe(false);
+
+	expect(JSON.stringify(bodies[1]!.input)).toContain("function_call_output");
+	expect(JSON.stringify(bodies[1]!.input)).toContain("+selected change");
+});
+
 it("discovers only free text models, preserves order and handles distinct OpenCode protocols", async () => {
 	const service = integration(async () =>
 		Response.json({
@@ -536,11 +712,11 @@ it("discovers only free text models, preserves order and handles distinct OpenCo
 		"step-5-preview-free",
 		"big-pickle",
 	]);
-	expect(AiInference.protocol("gpt-6-luna", "go")).toBe("responses");
-	expect(AiInference.protocol("claude-haiku-5-5", "go")).toBe("messages");
-	expect(AiInference.protocol("minimax-m3", "go")).toBe("messages");
-	expect(AiInference.protocol("minimax-m3", "zen")).toBe("chat");
-	expect(AiInference.protocol("gemini-3.8-flash", "zen")).toBeNull();
+	expect(PiProvider.protocol("gpt-6-luna", "go")).toBe("responses");
+	expect(PiProvider.protocol("claude-haiku-5-5", "go")).toBe("messages");
+	expect(PiProvider.protocol("minimax-m3", "go")).toBe("messages");
+	expect(PiProvider.protocol("minimax-m3", "zen")).toBe("chat");
+	expect(PiProvider.protocol("gemini-3.8-flash", "zen")).toBeNull();
 	await expect(
 		service.generate(
 			{ ...emptyAiPreferences, provider: "opencode", model: "gpt-paid" },
@@ -569,10 +745,10 @@ it("never exposes provider error bodies or invalid JSON and refuses oversized pr
 	await expect(
 		service.generate(
 			{ ...emptyAiPreferences, provider: "opencode", model: "big-pickle" },
-			"x".repeat(100 * 1024),
+			"x".repeat(17 * 1024 * 1024),
 			new AbortController().signal
 		)
-	).rejects.toThrow("smaller set");
+	).rejects.toThrow("collection limit");
 	expect(requests).toBe(1);
 	await expect(
 		new AiHttp(async () => new Response("secret-invalid-json")).json(

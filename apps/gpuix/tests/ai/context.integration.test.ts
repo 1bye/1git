@@ -13,6 +13,7 @@ import { promisify } from "node:util";
 import { GitRepository } from "@1git/git";
 import { CommitContext } from "../../src/feature/ai/lib/commit-context";
 import { RepositoryWorkspaceModel } from "../../src/feature/repository-workspace/lib/repository-workspace-model";
+import { SelectedDiff } from "../../src/feature/ai/lib/selected-diff";
 
 const execute = promisify(execFile);
 let directory: string;
@@ -151,4 +152,87 @@ it("rejects a changed branch and cancellation before collecting a prompt", async
 	await expect(
 		CommitContext.read(captured.state, cancelled.signal)
 	).rejects.toThrow();
+});
+
+it("collects a diff beyond the previous Git output limit and isolates a partial selection before paging", async () => {
+	const original =
+		Array.from({ length: 12000 }, (_, line) => `original-${line}`).join("\n") +
+		"\n";
+
+	await writeFile(join(directory, "selected.txt"), original);
+	await git("add", "selected.txt");
+	await git("commit", "-m", "Large base");
+	await writeFile(
+		join(directory, "selected.txt"),
+		"FIRST_SELECTED\n" +
+			Array.from(
+				{ length: 11999 },
+				(_, line) => `PRIVATE_UNSELECTED-${line}`
+			).join("\n") +
+			"\n"
+	);
+	await writeFile(join(directory, "unchecked.txt"), "PRIVATE_UNCHECKED_FILE\n");
+	const captured = await state();
+
+	const diff = await captured.repository.getDiff({
+		target: { kind: "changes" },
+		paths: ["selected.txt"],
+		ignoreWhitespace: false,
+	});
+
+	if (!diff.ok) throw new Error(diff.error.message);
+
+	expect(Buffer.byteLength(diff.value.patch)).toBeGreaterThan(192 * 1024);
+	const limited = await GitRepository.open({
+		path: directory,
+		runtime: { maxOutputBytes: 192 * 1024 },
+	});
+
+	if (!limited.ok) throw new Error(limited.error.message);
+
+	const omitted = await limited.value.getDiff({
+		target: { kind: "changes" },
+		paths: ["selected.txt"],
+	});
+
+	if (!omitted.ok) throw new Error(omitted.error.message);
+
+	expect(omitted.value.patchOmittedReason).toBe("too-large");
+	const index = await readFile(join(directory, ".git/index"));
+	const input = { ...captured.state, includedFileIds: ["selected.txt"] };
+	const full = await CommitContext.read(input, new AbortController().signal);
+
+	expect(full).toContain("PRIVATE_UNSELECTED-11998");
+	expect(full).not.toContain("PRIVATE_UNCHECKED_FILE");
+	const partial = await CommitContext.read(
+		{
+			...input,
+			partialFiles: {
+				"selected.txt": {
+					expectedPatch: diff.value.patch,
+					includedLines: ["-:1", "+:1"],
+				},
+			},
+		},
+		new AbortController().signal
+	);
+
+	const pages = new SelectedDiff(partial);
+
+	const reconstructed = pages.files
+		.flatMap((file) =>
+			Array.from(
+				{ length: file.pages },
+				(_, page) => pages.read(file.id, page).text
+			)
+		)
+		.join("");
+
+	expect(reconstructed).toBe(partial);
+	expect(reconstructed).toContain("FIRST_SELECTED");
+	expect(reconstructed).not.toContain("PRIVATE_UNSELECTED");
+	expect(reconstructed).not.toContain("PRIVATE_UNCHECKED_FILE");
+	expect(pages.search("PRIVATE_UNSELECTED").matches).toEqual([]);
+	expect(pages.search("PRIVATE_UNCHECKED_FILE").matches).toEqual([]);
+	expect(await readFile(join(directory, ".git/index"))).toEqual(index);
 });

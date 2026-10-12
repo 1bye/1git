@@ -4,7 +4,7 @@ import {
 	type RepositoryWorkspaceState,
 } from "../../repository-workspace/lib/repository-workspace-model";
 
-const maxBytes = 96 * 1024;
+const maxBytes = 16 * 1024 * 1024;
 
 /** Read-only AI context uses commit inclusion, not the viewed file, staging, or whitespace-filtered display. */
 export class CommitContext {
@@ -29,8 +29,8 @@ export class CommitContext {
 				"Select changes in an idle repository before generating a commit message. Finish or cancel amend first."
 			);
 
-		if (state.includedFileIds.length > 100)
-			throw new Error("Select at most 100 files for AI generation.");
+		if (state.includedFileIds.length > 1000)
+			throw new Error("Select at most 1000 files for AI generation.");
 
 		const opened = await GitRepository.open({
 			path: root,
@@ -75,7 +75,7 @@ export class CommitContext {
 
 			if (!result.ok || result.value.patchOmittedReason)
 				throw new Error(
-					"A selected diff is too large or unavailable. Select fewer changes and try again."
+					`Could not read the selected diff for ${change.path}. Refresh and try again (local limit: 32 MiB per Git command).`
 				);
 
 			const partial = state.partialFiles?.[id];
@@ -99,14 +99,14 @@ export class CommitContext {
 			const context = result.value.stats.some(
 				(stat) => stat.addedLines === null || stat.deletedLines === null
 			)
-				? `Binary file ${JSON.stringify(change.path)}; contents omitted.\n`
+				? `diff --git ${JSON.stringify(change.originalPath ?? change.path)} ${JSON.stringify(change.path)}\nBinary file ${JSON.stringify(change.path)}; contents omitted.\n`
 				: patch;
 
 			bytes += Buffer.byteLength(context);
 
 			if (bytes > maxBytes)
 				throw new Error(
-					"Select a smaller set of changes for AI generation (up to 96 KiB)."
+					"Selected changes exceed the local 16 MiB collection limit. Select fewer changes."
 				);
 
 			patches.push(context);

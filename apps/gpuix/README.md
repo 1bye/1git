@@ -549,6 +549,40 @@ model or other accounts, and does not reload the model catalog. No preset is
 applied automatically. The existing plain/`text` Markdown code-fence cleanup keeps
 presentation fences out of the editable suggestion.
 
+Commit generation embeds Pi's agent core and provider adapters, without its CLI,
+coding-agent tools, global credentials, configuration discovery or saved sessions.
+1git still owns accounts, the OS credential vault, ChatGPT authorization and
+refresh, model discovery and preferences. The backend replacement does not migrate
+or rewrite existing settings. Credentials are request-local and requests are
+restricted to the selected provider's existing endpoint; redirects are rejected.
+
+Small selections use one request without tools, up to 64 KiB depending on model
+context capacity. Larger selections start with paginated file metadata, line/hunk
+counts and page IDs. Pi can request up to four UTF-8-safe, 10 KiB diff pages together
+with `read_selected_diff`, find literal text with `search_selected_changes`, or
+fetch remaining `changes_overview` pages. There are no preliminary per-batch
+summary requests. The model must review every file's overview and inspect some
+actual diff evidence before its answer is accepted. Tool-capable models are
+required for large selections; rejected requests surface an error without retrying
+or silently changing models, providers or plans.
+
+Context collection checks canonical diffs before applying partial-line inclusion,
+including whitespace changes even when hidden in the viewer. Unchecked additions
+never enter prompts or tool results; retained context is original code. Binary
+contents stay local. Collection supports up to 1000 files and 16 MiB of selected
+context (32 MiB per Git command), replacing the former 96 KiB prompt limit.
+Conservative byte ceilings bound input without relying on a particular tokenizer:
+the model context minus an output reserve, capped at 192 KiB, with at most half
+available for tool results. Unknown model context sizes fall back to 32K. Runs
+allow at most six model requests and 24 tool calls, with a three-minute overall
+deadline and two-minute per-request deadline. Cancel aborts active HTTP and further
+reads. Progress reports review steps and inspection. This removes mandatory
+summarization round trips, but provider latency and model read choices still
+determine elapsed time. No source outside the captured selection is available to
+tools. The draft still changes only through **Use message**, after rereading the
+selection to check for changes on disk. Selective inspection can miss nuance;
+review the proposed message before applying it.
+
 Existing single-provider settings migrate to the connection list without losing
 the active selection, model, instructions, host identity or stored keys. Legacy
 vault entries remain usable; startup does not move secrets or rewrite the file.
@@ -561,7 +595,7 @@ setting still applies). OpenCode's Responses, Anthropic Messages and compatible
 Chat Completions models are supported; Gemini's native Google endpoint and Jev's
 non-text endpoint are not listed. Availability is discovered live, not hardcoded.
 
-Anonymous access was verified on **October 12, 2026**, using the actual 1git SDK
+Anonymous access was verified on **October 12, 2026**, using the pre-Pi 1git AI SDK
 adapter, its own client identity, no saved or environment credentials, and a
 small synthetic diff. Catalog discovery succeeded. All nine supported free text
 models rejected generation with HTTP 403 `FreeTierError`: “OpenCode's free tier

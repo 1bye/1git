@@ -47,6 +47,7 @@ function CommitSuggestion({
 	const [busy, setBusy] = useState(false);
 	const [proposal, setProposal] = useState("");
 	const [error, setError] = useState<string | null>(null);
+	const [progress, setProgress] = useState("Reading changes…");
 	const pending = useRef<AbortController | null>(null);
 	const source = useRef<string | null>(null);
 	const current = useRef({ state, preferences: ai.preferences });
@@ -118,6 +119,7 @@ function CommitSuggestion({
 		pending.current = controller;
 		setBusy(true);
 		setError(null);
+		setProgress(apply ? "Checking changes…" : "Reading changes…");
 
 		try {
 			const patch = await read(captured.state, controller.signal);
@@ -136,7 +138,10 @@ function CommitSuggestion({
 				const message = await ai.service.generate(
 					captured.preferences,
 					patch,
-					controller.signal
+					controller.signal,
+					(status) => {
+						if (stillCurrent()) setProgress(status);
+					}
 				);
 
 				if (!stillCurrent()) return;
@@ -269,7 +274,7 @@ function CommitSuggestion({
 							role={error ? "alert" : "status"}
 							style={muted}
 						>
-							{error ?? (proposal ? "Checking changes…" : "Generating…")}
+							{error ?? progress}
 						</text>
 					) : null}
 					<div style={row}>
