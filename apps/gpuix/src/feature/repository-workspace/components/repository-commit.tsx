@@ -7,6 +7,7 @@ import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
 import { useEffect, useRef, useState } from "react";
 
 import { RepositoryLastCommit } from "./repository-last-commit";
+import { AiCommitButton } from "../../ai/ai-commit-button";
 import type { CommitRecoveryInput } from "@1git/git";
 import type { RepositoryCommit as CommitReader } from "../lib/repository-commit";
 import {
@@ -75,12 +76,14 @@ export function RepositoryCommit({
 	state,
 	onAction,
 	onCommit,
+	onAiSettings,
 	onUndo,
 	readLast,
 }: {
 	state: RepositoryWorkspaceState;
 	onAction: (action: RepositoryWorkspaceAction) => void;
 	onCommit?: () => void;
+	onAiSettings?: () => void;
 	onUndo?: (input: CommitRecoveryInput) => Promise<string | null>;
 	readLast?: typeof CommitReader.readLast;
 }) {
@@ -208,6 +211,13 @@ export function RepositoryCommit({
 			/>
 			<div style={styles.actions}>
 				<div style={styles.buttons}>
+					<AiCommitButton
+						state={state}
+						onSettings={onAiSettings}
+						onMessage={(value) =>
+							onAction({ type: "edit-commit-message", value })
+						}
+					/>
 					<Button
 						testId={sample ? "commit-preview" : "commit-submit"}
 						aria-label={sample ? `Preview: ${label}` : label}

@@ -53,6 +53,7 @@ import {
 } from "../editor-settings/editor-settings";
 import type { ExternalEditors } from "../editor-settings/external-editors";
 import { AppearanceSettings } from "../appearance-settings/appearance-settings";
+import { AiSettings, type AiSettingsHandle } from "../ai/ai-settings";
 
 const sidebarWidth = 200;
 const contentPadding = spacing[4];
@@ -68,6 +69,7 @@ const settingsTitleWidth =
 export type SettingsSection =
 	| "accounts"
 	| "appearance"
+	| "ai"
 	| "git"
 	| "editor"
 	| "repository-remotes"
@@ -206,6 +208,7 @@ export function AccountsSettings({
 	const gitBusyRef = useRef(false);
 	const gitSettings = useRef<GitSettingsHandle | null>(null);
 	const editorSettings = useRef<EditorSettingsHandle | null>(null);
+	const aiSettings = useRef<AiSettingsHandle | null>(null);
 	const settingsBusy = busy || gitBusy;
 
 	const repositorySection =
@@ -246,6 +249,8 @@ export function AccountsSettings({
 				if (gitSettings.current?.cancelEditor()) return;
 
 				if (editorSettings.current?.cancelEditor()) return;
+
+				if (aiSettings.current?.cancelEditor()) return;
 
 				if (request.current) {
 					if (waiting) request.current.abort();
@@ -606,6 +611,25 @@ export function AccountsSettings({
 						/>
 						External editor
 					</Button>
+					<Button
+						testId="settings-ai"
+						ref={section === "ai" ? initialPage : undefined}
+						tokens={appTokens}
+						size="sm"
+						variant={section === "ai" ? "secondary" : "ghost"}
+						aria-current={section === "ai" ? "page" : undefined}
+						disabled={settingsBusy}
+						style={{ justifyContent: "flex-start" }}
+						onPress={() => {
+							token.current = "";
+							setHasToken(false);
+							setForm("list");
+							setSection("ai");
+						}}
+					>
+						<WorkspaceTabIcon name="sparkle" />
+						AI
+					</Button>
 					{repositorySettings ? (
 						<>
 							<text
@@ -651,6 +675,15 @@ export function AccountsSettings({
 			{children}
 			{section === "appearance" ? (
 				<AppearanceSettings />
+			) : section === "ai" ? (
+				<AiSettings
+					ref={aiSettings}
+					openLink={openLink}
+					onBusy={(next) => {
+						gitBusyRef.current = next;
+						setGitBusy(next);
+					}}
+				/>
 			) : section === "editor" ? (
 				<EditorSettings
 					ref={editorSettings}

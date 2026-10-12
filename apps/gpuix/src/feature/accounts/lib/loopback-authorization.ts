@@ -29,7 +29,7 @@ export class LoopbackAuthorization {
 		return url;
 	}
 	static async wait(
-		attempt: Authorization,
+		attempt: Pick<Authorization, "authorizationUrl" | "expiresAt">,
 		redirectUri: string,
 		open: (url: string) => Promise<void>,
 		signal: AbortSignal

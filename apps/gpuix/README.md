@@ -511,6 +511,86 @@ existing Tailwind utilities.
 The native app currently uses the platform font; the web's Manrope font import
 does not register that font with GPUIX.
 
+## AI commit messages
+
+**Settings → AI** is opt-in and starts **Off**. Existing Git, appearance, editor
+and workspace defaults are unchanged. The page uses the same list and separate
+setup pane as **Accounts**. **Add account** creates an OpenCode or ChatGPT
+connection. Each saved entry owns its name, credentials, model and commit
+instructions; multiple connections for either provider are supported. Compact
+row actions select the default, configure, reconnect or remove that connection.
+The **Default** badge identifies the connection used for generation. Adding an
+account does not select it automatically; explicitly choose **Use as default**
+when saving, or select it in the list. **Turn off** clears the default without
+removing accounts. Removing the default turns AI off, never switches to another.
+
+**Free** hides the API-key form and loads its public text-model catalog
+automatically even without saved credentials. Generation uses an existing OpenCode
+key when present, otherwise it sends no authentication header. **Go** and paid
+**Zen** show the key controls and require a key, saved to the OS credential vault.
+Models load automatically for Free or an authenticated connection while its
+editor is open, after reconnecting, and when changing the OpenCode plan. A failed
+lookup offers Retry; changing providers/plans or closing the editor cancels
+obsolete requests. Typing instructions does not reload the catalog. Choose a
+model and use **Save preferences** in the fixed bottom footer to apply changes;
+**Cancel** discards the preference draft. Explicitly connecting saves credentials
+and identity immediately, without applying unsaved model/instruction/default
+choices. Remove asks for confirmation and deletes only that connection and its
+credentials. Free profiles require no keychain access for catalog discovery.
+
+Existing single-provider settings migrate to the connection list without losing
+the active selection, model, instructions, host identity or stored keys. Legacy
+vault entries remain usable; startup does not move secrets or rewrite the file.
+Version 2 metadata is written only on an explicit change. New connections use
+separate vault keys even when they share a provider. Inactive legacy connections
+may need a model selected before they can become the default.
+Free mode lists free models only; Go uses its own endpoint. No automatic model
+or paid-plan fallback is performed by 1git (the provider's own balance-fallback
+setting still applies). OpenCode's Responses, Anthropic Messages and compatible
+Chat Completions models are supported; Gemini's native Google endpoint and Jev's
+non-text endpoint are not listed. Availability is discovered live, not hardcoded.
+
+Anonymous access was verified on **October 12, 2026**, using the actual 1git SDK
+adapter, its own client identity, no saved or environment credentials, and a
+small synthetic diff. Catalog discovery succeeded. All nine supported free text
+models rejected generation with HTTP 403 `FreeTierError`: “OpenCode's free tier
+can only be used from within OpenCode.” The app reports anonymous access rejection
+separately from expired credentials. An optional key may help, but authenticated
+access was not tested. Provider restrictions can change; models are not permanently
+blocked based on this one verification.
+
+Tested models: `big-pickle`, `ling-3.1-flash-free`, `mimo-v2.6-flash-free`,
+`muse-spark-1.2-contributor-free`, `muse-spark-1.3-contributor-free`,
+`nemotron-3.5-lightning-free`, `step-5-preview-free`, `longcat-2.5-preview-free`,
+and `space-bunny-free`. `jev-1.13-free` was excluded because its System One
+endpoint does not generate commit-message text.
+
+**Continue with ChatGPT** uses the official public-client
+[ChatGPT plan authorization](https://developers.openai.com/siwc/token-sharing-open-source/sign-in)
+in the system browser. It uses PKCE, fresh state/nonce, a temporary exact
+`127.0.0.1:8766/auth/callback` listener, signed ID-token verification and the
+issued account-specific client ID. Plan-usage permission is required; an
+identity-only login cannot generate messages. Tokens stay in the OS vault,
+rotation is serialized per connection and saved immediately, and removal attempts
+remote revocation before removing local credentials. Each ChatGPT connection
+retains its registration for reauthorization; concurrent accounts never share
+refresh tokens. It never reads Codex credentials or browser cookies.
+The non-secret host ID, registrations, connection list and default are stored privately in
+`ai.json` beside the workspace session. ChatGPT uses streaming Responses with
+`store: false`; only a completed response is accepted.
+
+The small sparkle beside **Commit** opens a review panel. **Generate** sends
+only checked files and their included lines, with unfiltered whitespace and a
+bounded diff (100 files / 96 KiB). Binary contents are omitted. Review for secrets:
+the selected diff leaves the machine, and some OpenCode free/contributor models
+retain data or use it for training. Generated text remains editable in the panel;
+**Use message** rechecks changes on disk before replacing the draft. Cancel,
+selection/branch changes, AI preference/default changes and manual draft edits
+invalidate pending suggestions.
+AI never stages, commits or pushes. Generation is unavailable during amend,
+conflicts or other Git operations. SDKs load only on explicit generation, with
+no token-by-token React updates or changes to the diff scroll/rendering path.
+
 ## Tabs
 
 - Click an inactive tab to activate it; click the active connected tab to open

@@ -86,9 +86,14 @@ import { RepositoryPullRequest } from "./feature/repository-pull-request/reposit
 import { RepositoryPullRequestView } from "./feature/repository-pull-request/repository-pull-request-view";
 import { RepositoryHistorySquash } from "./feature/repository-workspace/lib/repository-history-squash";
 import { RepositoryCommitDetails } from "./feature/repository-workspace/components/repository-commit-details";
+import { AiProvider } from "./feature/ai/ai-provider";
+import type { AiIntegration } from "./feature/ai/lib/ai-integration";
 
 /** Owns appearance independently of repository state, so a live switch preserves every draft and viewport. */
-export function App(props: ComponentProps<typeof AppContent>) {
+export function App({
+	ai,
+	...props
+}: ComponentProps<typeof AppContent> & { ai?: AiIntegration }) {
 	const renderer = useGpuixRequired();
 
 	const [appearance, setAppearance] = useState<AppAppearance>(
@@ -120,7 +125,9 @@ export function App(props: ComponentProps<typeof AppContent>) {
 
 	return (
 		<AppThemeContext value={theme}>
-			<AppContent {...props} />
+			<AiProvider service={ai}>
+				<AppContent {...props} />
+			</AiProvider>
 		</AppThemeContext>
 	);
 }
@@ -811,6 +818,10 @@ function AppContent({
 							workspace.repositoryPath) &&
 						!activeTab.comparison ? (
 							<RepositoryNavigation
+								onAiSettings={() => {
+									openSettings();
+									setSettingsSection("ai");
+								}}
 								onPreviewIntent={(entry) => {
 									const change = entry?.change ?? entry?.commitFile;
 									const repository = workspace.repository;

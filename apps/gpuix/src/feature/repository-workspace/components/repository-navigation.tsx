@@ -187,6 +187,7 @@ export function RepositoryNavigation({
 	history,
 	stashes,
 	onCommit,
+	onAiSettings,
 	onUndoCommit,
 	onRevertCommit,
 	onCherryPickCommit,
@@ -216,6 +217,7 @@ export function RepositoryNavigation({
 	history?: ReturnType<typeof useRepositoryHistory>;
 	stashes?: ReturnType<typeof useRepositoryStashes>;
 	onCommit?: () => void;
+	onAiSettings?: () => void;
 	onUndoCommit?: (input: CommitRecoveryInput) => Promise<string | null>;
 	onRevertCommit?: (input: RevertCommitInput) => Promise<string | null>;
 	onCherryPickCommit?: (input: CherryPickCommitInput) => Promise<string | null>;
@@ -929,6 +931,7 @@ export function RepositoryNavigation({
 				{view === "changes" &&
 				(state.preview || state.repository || state.repositoryPath) ? (
 					<RepositoryCommit
+						onAiSettings={onAiSettings}
 						state={state}
 						onAction={onAction}
 						onCommit={onCommit}
