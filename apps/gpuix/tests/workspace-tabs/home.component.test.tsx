@@ -5,7 +5,7 @@
  * Requires: patched GPUIX native renderer with macOS graphics access.
  */
 import { afterEach, beforeEach, expect, it, mock, spyOn } from "bun:test";
-import { controlSize, iconSize, radius } from "@1git/design-tokens";
+import { controlSize, iconSize, radius, spacing } from "@1git/design-tokens";
 import { createTestRoot, type TestRoot } from "@gpuix/react/testing";
 import { flushSync, handleGpuixEvent } from "@gpuix/react";
 import { App } from "../../src/app";
@@ -144,12 +144,12 @@ it("matches Home to the rail's button, icon and rounding while centering it with
 	expect(homeIcon.y + homeIcon.height / 2).toBe(close.y + close.height / 2);
 	expect(home.y + home.height).toBeLessThan(bounds("workspace").y);
 	expect(home.x).toBe(86);
-	expect(bounds("hover-workspace-1").x - home.x - home.width).toBe(4);
+	expect(bounds("hover-workspace-1").x - home.x - home.width).toBe(spacing[1]);
 	click("workspace-home");
 	expect(bounds("workspace-home")).toEqual(home);
-	expect(bounds("hover-workspace-1").x - home.x - home.width).toBe(4);
+	expect(bounds("hover-workspace-1").x - home.x - home.width).toBe(spacing[1]);
 
-	// The full button must remain clickable where its slot meets the tab shoulder.
+	// The full button remains clickable, independently of the tab scroll position.
 	click("workspace-1");
 	root.renderer.nativeSimulateClick(
 		home.x + home.width - 1,

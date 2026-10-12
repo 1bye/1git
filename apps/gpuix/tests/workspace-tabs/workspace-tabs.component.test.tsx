@@ -126,20 +126,70 @@ it("uses the native shell geometry and paints only the workspace opaque", () => 
 	expect(windowOptions.windowBackground).toBe("blurred");
 });
 
-it("leaves 10px after the traffic lights and 4px between Home and the visible tab body", () => {
+it("leaves 10px after the traffic lights and a compact 4px gap before the first tab", () => {
 	const home = bounds("workspace-home");
 
 	expect(home.x).toBe(workspaceLayout.desktopTitlebarControlsWidth);
 	// Native traffic lights occupy 60px starting at the configured 16px inset.
 	expect(home.x - (16 + 60)).toBe(10);
-	expect(bounds("workspace-tabs").x).toBe(home.x + home.width - 8);
-	expect(bounds("hover-workspace-1").x - home.x - home.width).toBe(4);
+	expect(bounds("hover-workspace-1").x - home.x - home.width).toBe(spacing[1]);
+	expect(bounds("hover-workspace-1").x - tabViewport().x).toBe(
+		workspaceLayout.tabContentInsetInlineStart
+	);
 	expect(bounds("slot-workspace-1").x).toBe(
 		tabViewport().x + workspaceLayout.tabSurfaceOutset
 	);
 	expect(windowOptions.trafficLightX).toBe(16);
 	expect(windowOptions.trafficLightY).toBe(13);
 	expect(bounds("workspace").x).toBe(6);
+});
+
+it("protects Home while scrolling without widening the resting gap or shifting tabs", () => {
+	root.render(<App key="home-overflow-gap" initialTabCount={8} />);
+	click("workspace-home");
+	const home = bounds("workspace-home");
+	const viewport = tabViewport();
+	const initialTabX = bounds("slot-workspace-1").x;
+
+	expect(bounds("hover-workspace-1").x - home.x - home.width).toBe(spacing[1]);
+
+	root.renderer.nativeSimulateScrollWheel(
+		viewport.x + 120,
+		home.y + home.height / 2,
+		-70,
+		0
+	);
+	root.renderer.flush();
+	expect(
+		root.renderer.getScrollOffset(element("workspace-tabs").id)?.[0]
+	).toBeLessThan(0);
+	expect(bounds("workspace-tabs-clip").x - home.x - home.width).toBe(
+		spacing[1]
+	);
+	const offset =
+		root.renderer.getScrollOffset(element("workspace-tabs").id)?.[0] ?? 0;
+
+	expect(bounds("slot-workspace-1").x).toBe(initialTabX + offset);
+	expect(tabViewport()).toEqual(viewport);
+	root.renderer.nativeSimulateClick(
+		home.x + home.width - 2,
+		home.y + home.height / 2
+	);
+	expect(selectedTabs()).toEqual([]);
+
+	root.renderer.nativeSimulateScrollWheel(
+		viewport.x + 120,
+		home.y + home.height / 2,
+		70,
+		0
+	);
+	root.renderer.flush();
+	expect(root.renderer.getScrollOffset(element("workspace-tabs").id)?.[0]).toBe(
+		0
+	);
+	expect(bounds("hover-workspace-1").x - home.x - home.width).toBe(spacing[1]);
+	expect(bounds("slot-workspace-1").x).toBe(initialTabX);
+	expect(tabViewport()).toEqual(viewport);
 });
 
 it("gives unused titlebar space a native drag target separate from tab controls", () => {

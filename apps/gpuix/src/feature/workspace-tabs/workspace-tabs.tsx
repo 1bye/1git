@@ -32,6 +32,9 @@ import {
 	type WorkspaceTabsState,
 } from "./lib/workspace-tabs-model";
 
+const homeSlotWidth = controlSize.rail - spacing[2];
+const homeScrollInset = controlSize.rail + spacing[1] - homeSlotWidth;
+
 const styles = StyleSheet.create({
 	toolbar: {
 		position: "relative",
@@ -80,8 +83,8 @@ const styles = StyleSheet.create({
 	},
 	homeSlot: {
 		position: "relative",
-		// Reserve 24px for the 32px control: the tab shoulder adds 12px to the body gap.
-		width: controlSize.rail - spacing[2],
+		// The first tab's transparent shoulder provides the compact resting gap.
+		width: homeSlotWidth,
 		height: controlSize.rail,
 		flexShrink: 0,
 		marginBottom: spacing[1],
@@ -164,6 +167,8 @@ export function WorkspaceTabs({
 	const homeButton = useRef<PublicInstance>(null);
 	const focusRequested = useRef(false);
 	const [menuId, setMenuId] = useState<string | null>(null);
+	const [scrolled, setScrolled] = useState(false);
+	const clipInset = scrolled ? homeScrollInset : 0;
 	const drag = useWorkspaceTabDrag(state, dispatch, strip, rail);
 	const { draggingId, settlingId } = drag;
 	const activeIndex = state.tabs.findIndex((tab) => tab.id === state.activeId);
@@ -215,13 +220,19 @@ export function WorkspaceTabs({
 			if (target) renderer.focusElement?.(target.id);
 		}
 
+		const offset = strip.current
+			? (renderer.getScrollOffset?.(strip.current.id)?.[0] ?? 0)
+			: 0;
+
 		if (draggingId || settlingId || activeIndex < 0) {
+			setScrolled(offset < 0);
 			updateWorkspaceCorner(
 				renderer,
 				strip.current,
 				activeLeft,
 				windowWidth,
-				setRightRadius
+				setRightRadius,
+				offset
 			);
 
 			return;
@@ -233,7 +244,6 @@ export function WorkspaceTabs({
 
 		if (!viewport) return;
 
-		const offset = renderer.getScrollOffset?.(strip.current.id)?.[0] ?? 0;
 		const left = activeIndex * layout.tabWidth;
 		const visibleWidth = viewport.width - layout.tabSurfaceOutset * 2;
 
@@ -246,6 +256,7 @@ export function WorkspaceTabs({
 		);
 
 		renderer.scrollTo?.(strip.current.id, -nextOffset, 0);
+		setScrolled(nextOffset > 0);
 		updateWorkspaceCorner(
 			renderer,
 			strip.current,
@@ -351,22 +362,32 @@ export function WorkspaceTabs({
 					</Tooltip>
 				</TooltipProvider>
 			</div>
-			<div testId="workspace-tabs-clip" style={styles.tabsClip}>
+			<div
+				testId="workspace-tabs-clip"
+				style={StyleSheet.compose(styles.tabsClip, { marginLeft: clipInset })}
+			>
 				<div
 					ref={strip}
 					testId="workspace-tabs"
 					role="tablist"
 					aria-label="Workspaces"
-					style={styles.tabs}
-					onScroll={() =>
+					// Move only the clip boundary, not the tabs or native scroll coordinates.
+					style={StyleSheet.compose(styles.tabs, { marginLeft: -clipInset })}
+					onScroll={() => {
+						const offset = strip.current
+							? (renderer.getScrollOffset?.(strip.current.id)?.[0] ?? 0)
+							: 0;
+
+						setScrolled(offset < 0);
 						updateWorkspaceCorner(
 							renderer,
 							strip.current,
 							activeLeft,
 							windowWidth,
-							setRightRadius
-						)
-					}
+							setRightRadius,
+							offset
+						);
+					}}
 				>
 					<div
 						ref={rail}

@@ -157,17 +157,20 @@ it("clips the tab strip's outer top-right corner without reopening the workspace
 
 it("restores the corner when the active tab moves left of the right edge", async () => {
 	root.render(<TabbedShell tabCount={3} />);
-	const second = root.renderer.findByTestId("workspace-2");
-	const box = second && root.renderer.getElementBounds(second.id);
+	const rounded = await rightCornerPaintedPixels();
+	const first = root.renderer.findByTestId("workspace-1");
 
-	if (!box) throw new Error("Missing second tab");
+	if (!first) throw new Error("Missing first tab");
 
-	root.renderer.nativeSimulateClick(box.x + 40, box.y + box.height / 2);
+	root.renderer.nativeSimulateKeyDown(first.id, "right");
 	await new Promise<void>((resolve) => setImmediate(resolve));
 	root.renderer.flush();
 	root.renderer.clockFastForward(240);
 	root.renderer.flush();
 	const joined = await rightCornerPaintedPixels();
+
+	expect(root.renderer.findByTestId("surface-workspace-2")).toBeDefined();
+	expect(joined).toBeGreaterThan(rounded);
 
 	root.renderer.nativeSimulateScrollWheel(250, 20, -60, 0);
 	await new Promise<void>((resolve) => setImmediate(resolve));
