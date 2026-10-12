@@ -1,12 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { spacing, typography } from "@1git/design-tokens";
+import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
+import { spacing, typography, fontWeight } from "@1git/design-tokens";
 import { Button } from "@1git/gpuix-ui/button";
-import { Textarea } from "@1git/gpuix-ui/textarea";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "@1git/gpuix-ui/popover";
+import { Popover, PopoverContent } from "@1git/gpuix-ui/popover";
 import {
 	Tooltip,
 	TooltipContent,
@@ -14,225 +10,96 @@ import {
 } from "@1git/gpuix-ui/tooltip";
 import { useAppTheme } from "../../styles/theme";
 import { WorkspaceTabIcon } from "../workspace-tabs/components/workspace-tab-icon";
-import {
-	RepositoryWorkspaceModel,
-	type RepositoryWorkspaceState,
-} from "../repository-workspace/lib/repository-workspace-model";
-import { useAi } from "./ai-provider";
-import { CommitContext } from "./lib/commit-context";
+import type { useAiCommit } from "./use-ai-commit";
 
-/** Compact opt-in action; AI suggestions are reviewed before replacing a draft, never committed automatically. */
-export function AiCommitButton(props: {
-	state: RepositoryWorkspaceState;
-	onMessage: (message: string) => void;
-	onSettings?: () => void;
-	read?: typeof CommitContext.read;
-}) {
-	const ai = useAi();
+type Generation = ReturnType<typeof useAiCommit>;
 
-	return ai ? <CommitSuggestion {...props} ai={ai} /> : null;
-}
-
-function CommitSuggestion({
-	state,
-	onMessage,
+/** Immediate generation for an empty draft; replacing existing text requires explicit confirmation. */
+export function AiCommitButton({
+	generation,
 	onSettings,
-	read = CommitContext.read,
-	ai,
-}: Parameters<typeof AiCommitButton>[0] & {
-	ai: NonNullable<ReturnType<typeof useAi>>;
+}: {
+	generation: Generation;
+	onSettings?: () => void;
 }) {
 	const { tokens } = useAppTheme();
-	const [open, setOpen] = useState(false);
-	const [busy, setBusy] = useState(false);
-	const [proposal, setProposal] = useState("");
-	const [error, setError] = useState<string | null>(null);
-	const [progress, setProgress] = useState("Reading changes…");
-	const pending = useRef<AbortController | null>(null);
-	const source = useRef<string | null>(null);
-	const current = useRef({ state, preferences: ai.preferences });
-
-	current.current = { state, preferences: ai.preferences };
-	const root = state.repository?.root;
-	const head = state.repository?.head;
-
-	const configured =
-		!!ai.preferences.provider && !!ai.preferences.model && !ai.error;
-
-	const blocked =
-		state.preview ||
-		!root ||
-		state.loading ||
-		!!state.error ||
-		state.commit.needsReview ||
-		!!state.amend ||
-		RepositoryWorkspaceModel.isBusy(state) ||
-		!!RepositoryWorkspaceModel.commitBlockReason(state) ||
-		!state.includedFileIds.length;
-
-	const row = {
-		display: "flex",
-		flexDirection: "row",
-		justifyContent: "flex-end",
-		gap: spacing[1],
-	};
-
-	const muted = { ...typography.sm, color: tokens.colors.textMuted };
+	const renderer = useGpuixRequired();
+	const action = useRef<PublicInstance>(null);
 
 	useEffect(() => {
-		pending.current?.abort();
-		pending.current = null;
-		source.current = null;
-		setBusy(false);
-		setProposal("");
-		setError(null);
-		setOpen(false);
-	}, [
-		root,
-		head,
-		state.includedFileIds,
-		state.partialFiles,
-		state.commitMessage,
-		ai.preferences,
-		blocked,
-	]);
-	useEffect(() => () => pending.current?.abort(), []);
+		if (generation.busy && action.current)
+			renderer.focusElement?.(action.current.id);
+	}, [generation.busy, renderer]);
 
-	const run = async (apply: boolean) => {
-		if (pending.current || blocked || !configured) return;
+	if (!generation.available) return null;
 
-		const controller = new AbortController();
-		const captured = current.current;
-
-		const stillCurrent = () =>
-			!controller.signal.aborted &&
-			current.current.state.repository?.root ===
-				captured.state.repository?.root &&
-			current.current.state.repository?.head ===
-				captured.state.repository?.head &&
-			current.current.state.commitMessage === captured.state.commitMessage &&
-			current.current.state.includedFileIds ===
-				captured.state.includedFileIds &&
-			current.current.state.partialFiles === captured.state.partialFiles &&
-			current.current.preferences === captured.preferences;
-
-		pending.current = controller;
-		setBusy(true);
-		setError(null);
-		setProgress(apply ? "Checking changes…" : "Reading changes…");
-
-		try {
-			const patch = await read(captured.state, controller.signal);
-
-			if (!stillCurrent()) return;
-
-			if (apply) {
-				if (patch !== source.current)
-					throw new Error(
-						"Changes on disk have moved since generation. Review the selection and generate again."
-					);
-
-				onMessage(proposal);
-				setOpen(false);
-			} else {
-				const message = await ai.service.generate(
-					captured.preferences,
-					patch,
-					controller.signal,
-					(status) => {
-						if (stillCurrent()) setProgress(status);
-					}
-				);
-
-				if (!stillCurrent()) return;
-
-				source.current = patch;
-				setProposal(message);
-			}
-		} catch (cause) {
-			if (stillCurrent())
-				setError(
-					cause instanceof Error
-						? cause.message
-						: "AI generation failed. Your draft was left unchanged."
-				);
-		} finally {
-			if (pending.current === controller) {
-				pending.current = null;
-				setBusy(false);
-			}
-		}
-	};
-
-	const close = (next: boolean) => {
-		if (!next) {
-			pending.current?.abort();
-			pending.current = null;
-			setBusy(false);
-		}
-
-		setOpen(next);
-	};
-
-	const icon = (
-		<WorkspaceTabIcon
-			name="sparkle"
-			color={tokens.colors.textMuted}
-			size={16}
-		/>
-	);
-
-	if (!configured)
+	// Remove the confirmation surface before running: its fading native layer still occludes mouse input.
+	if (generation.busy)
 		return (
+			<Button
+				ref={action}
+				testId="ai-commit-cancel"
+				tokens={tokens}
+				size="sm"
+				variant="ghost"
+				aria-label="Cancel AI generation"
+				onPress={generation.cancel}
+				style={{ width: 28, height: 24, padding: 0 }}
+			>
+				<WorkspaceTabIcon
+					name="stop"
+					color={tokens.colors.textMuted}
+					size={16}
+				/>
+			</Button>
+		);
+
+	const label = !generation.configured
+		? "Configure AI commit messages"
+		: "Generate commit message with AI";
+
+	const tooltip = !generation.configured
+		? "Set up AI commit messages"
+		: `Generate from checked changes · ${generation.provider} (${generation.model})`;
+
+	return (
+		<Popover open={generation.confirming} onOpenChange={generation.dismiss}>
 			<Tooltip>
 				<TooltipTrigger asChild>
 					<Button
+						ref={action}
 						testId="ai-generate"
 						tokens={tokens}
 						size="sm"
 						variant="ghost"
-						aria-label="Configure AI commit messages"
-						disabled={!onSettings || state.preview}
-						onPress={onSettings}
+						aria-label={label}
+						aria-description={
+							generation.configured
+								? `Sends checked changes and selected lines to ${generation.provider}. Replaces only the commit draft.`
+								: undefined
+						}
+						disabled={
+							generation.configured
+								? generation.blocked
+								: !onSettings || !generation.canConfigure
+						}
+						onPress={!generation.configured ? onSettings : generation.request}
 						style={{ width: 28, height: 24, padding: 0 }}
 					>
-						{icon}
+						<WorkspaceTabIcon
+							name="sparkle"
+							color={tokens.colors.textMuted}
+							size={16}
+						/>
 					</Button>
 				</TooltipTrigger>
-				<TooltipContent tokens={tokens}>
-					Set up AI commit messages
-				</TooltipContent>
-			</Tooltip>
-		);
-
-	return (
-		<Popover open={open} onOpenChange={close}>
-			<Tooltip>
-				<TooltipTrigger asChild>
-					<PopoverTrigger
-						testId="ai-generate"
-						tokens={tokens}
-						size="sm"
-						variant="ghost"
-						aria-label="Generate commit message with AI"
-						aria-description="Sends only checked changes to your configured provider after confirmation."
-						disabled={blocked}
-						style={{ width: 28, height: 24, padding: 0 }}
-					>
-						{icon}
-					</PopoverTrigger>
-				</TooltipTrigger>
-				<TooltipContent tokens={tokens}>
-					{state.amend
-						? "Finish or cancel amend before generating"
-						: "Generate commit message"}
-				</TooltipContent>
+				<TooltipContent tokens={tokens}>{tooltip}</TooltipContent>
 			</Tooltip>
 			<PopoverContent
-				testId="ai-commit-panel"
-				aria-label="AI commit message"
+				testId="ai-commit-replace-panel"
+				aria-label="Replace commit message"
 				placement="center"
-				width={440}
+				width={360}
 				tokens={tokens}
 			>
 				<div
@@ -243,74 +110,144 @@ function CommitSuggestion({
 						aria-level={2}
 						style={{ ...typography.md, color: tokens.colors.text }}
 					>
-						Generate commit message
+						Replace commit message?
 					</text>
-					<text
-						style={muted}
-					>{`${state.includedFileIds.length} checked file${state.includedFileIds.length === 1 ? "" : "s"} and selected lines will be sent to ${ai.preferences.provider === "chatgpt" ? "ChatGPT" : "OpenCode"} (${ai.preferences.model}). Review for secrets first. Your draft will not change until you choose Use message.`}</text>
-					{ai.preferences.provider === "opencode" &&
-					(ai.preferences.opencodeMode === "free" ||
-						ai.preferences.model.includes("contributor")) ? (
-						<text style={muted}>
-							Some models retain prompts or use them for training. Avoid sending
-							sensitive code.
-						</text>
-					) : null}
-					{proposal ? (
-						<Textarea
-							testId="ai-commit-proposal"
-							aria-label="Suggested commit message"
-							value={proposal}
-							onValueChange={setProposal}
-							readOnly={busy}
-							minRows={4}
-							maxRows={8}
-							tokens={tokens}
-						/>
-					) : null}
-					{error || busy ? (
-						<text
-							testId="ai-commit-status"
-							role={error ? "alert" : "status"}
-							style={muted}
-						>
-							{error ?? progress}
-						</text>
-					) : null}
-					<div style={row}>
+					<text style={{ ...typography.sm, color: tokens.colors.textMuted }}>
+						Your message will be replaced after AI generation succeeds.
+						Cancelling or a failed request keeps it unchanged.
+					</text>
+					<div
+						style={{
+							display: "flex",
+							flexDirection: "row",
+							justifyContent: "flex-end",
+							gap: spacing[1],
+						}}
+					>
 						<Button
-							testId="ai-commit-cancel"
+							testId="ai-commit-keep"
 							tokens={tokens}
 							variant="ghost"
 							size="sm"
-							onPress={() => close(false)}
+							onPress={generation.dismiss}
 						>
-							{busy ? "Cancel" : "Close"}
+							Cancel
 						</Button>
 						<Button
-							testId="ai-commit-request"
+							testId="ai-commit-replace"
 							tokens={tokens}
-							variant={proposal ? "secondary" : "primary"}
 							size="sm"
-							disabled={busy}
-							onPress={() => void run(false)}
+							onPress={generation.confirm}
 						>
-							{proposal ? "Regenerate" : "Generate"}
+							Replace
 						</Button>
-						{proposal ? (
-							<Button
-								testId="ai-commit-use"
-								tokens={tokens}
-								size="sm"
-								disabled={busy || !proposal.trim()}
-								onPress={() => void run(true)}
-							>
-								Use message
-							</Button>
-						) : null}
 					</div>
 				</div>
 			</PopoverContent>
 		</Popover>
+	);
+}
+
+const frames = Array.from(
+	{ length: 32 },
+	(_, frame) =>
+		`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6" opacity=".18"/><path d="M8 2a6 6 0 0 1 6 6" stroke-linecap="round" transform="rotate(${(frame * 360) / 32} 8 8)"/></svg>`
+);
+
+// Only this small indicator updates during animation; the editor and diff do not render per frame.
+function GenerationSpinner({ color }: { color: string }) {
+	const [frame, setFrame] = useState(0);
+
+	useEffect(() => {
+		const timer = setInterval(
+			() => setFrame((value) => (value + 1) % frames.length),
+			1000 / 30
+		);
+
+		return () => clearInterval(timer);
+	}, []);
+
+	return (
+		<svg
+			testId="ai-commit-spinner"
+			aria-hidden={true}
+			source={frames[frame]}
+			style={{
+				width: 12,
+				height: 12,
+				flexShrink: 0,
+				color,
+			}}
+		/>
+	);
+}
+
+/** Compact phase label inside the disabled Commit button, with the full phase available to accessibility. */
+export function AiCommitProgress({ progress }: { progress: string }) {
+	const { tokens } = useAppTheme();
+
+	const label =
+		progress.startsWith("Reviewing") || progress.startsWith("Inspecting")
+			? "Reviewing…"
+			: progress;
+
+	return (
+		<div
+			style={{
+				display: "flex",
+				flexDirection: "row",
+				alignItems: "center",
+				gap: spacing[1.5],
+			}}
+		>
+			<GenerationSpinner color={tokens.colors.onAccent} />
+			<text
+				testId="ai-commit-status"
+				role="status"
+				aria-label={progress}
+				style={{
+					...typography.sm,
+					fontWeight: fontWeight.medium,
+					color: tokens.colors.onAccent,
+					whiteSpace: "nowrap",
+				}}
+			>
+				{label}
+			</text>
+		</div>
+	);
+}
+
+/** Failures remain visible beneath the draft after generation finishes. */
+export function AiCommitStatus({ generation }: { generation: Generation }) {
+	const { tokens } = useAppTheme();
+
+	if (generation.busy || !generation.error) return null;
+
+	return (
+		<div
+			style={{
+				display: "flex",
+				flexDirection: "row",
+				alignItems: "center",
+				gap: spacing[1.5],
+				marginTop: spacing[1],
+				marginLeft: spacing[2.5],
+				marginRight: spacing[2.5],
+			}}
+		>
+			<text
+				testId="ai-commit-status"
+				role="alert"
+				style={{
+					...typography["2xs"],
+					color: tokens.colors.textMuted,
+					flexGrow: 1,
+					minWidth: 0,
+				}}
+			>
+				{generation.error}
+			</text>
+		</div>
 	);
 }

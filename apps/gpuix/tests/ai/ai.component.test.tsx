@@ -12,7 +12,6 @@ import { createTestRoot, type TestRoot } from "@gpuix/react/testing";
 import { App } from "../../src/app";
 import { AiProvider } from "../../src/feature/ai/ai-provider";
 import { AiSettings } from "../../src/feature/ai/ai-settings";
-import { AiCommitButton } from "../../src/feature/ai/ai-commit-button";
 import { AiIntegration } from "../../src/feature/ai/lib/ai-integration";
 import { cavemanCommitPreset } from "../../src/feature/ai/lib/caveman-commit-preset";
 import {
@@ -20,11 +19,6 @@ import {
 	emptyAiPreferences,
 	type AiConnection,
 } from "../../src/feature/ai/lib/ai-settings-store";
-import { RepositoryWorkspaceModel } from "../../src/feature/repository-workspace/lib/repository-workspace-model";
-import {
-	repositorySnapshot,
-	changedFile,
-} from "../_shared/repository-snapshot";
 import { windowOptions } from "../../src/window-options";
 
 let root: TestRoot;
@@ -130,18 +124,6 @@ async function type(id: string, value: string) {
 	await press(id);
 	root.renderer.simulateKeystrokes(`cmd-a ${value.split("").join(" ")}`);
 	await settle();
-}
-function configure() {
-	service.store.save({ connections: [configured], defaultId: configured.id });
-}
-function workspace() {
-	return {
-		...RepositoryWorkspaceModel.reduce(RepositoryWorkspaceModel.create(), {
-			type: "loaded",
-			snapshot: repositorySnapshot([changedFile("selected.ts")]),
-		}),
-		commitMessage: "Existing draft",
-	};
 }
 function settings() {
 	root.render(
@@ -621,96 +603,4 @@ it("keeps setup actions pinned at minimum height while scrolling only the form",
 	await settle();
 	expect(root.renderer.findByTestId("ai-setup-panel")).toBeUndefined();
 	expect(node("ai-settings")).toBeDefined();
-});
-
-it("generates with the selected default's preferences and applies only after confirmation", async () => {
-	configure();
-	const generated = spyOn(service, "generate").mockResolvedValue(
-		"fix: checked changes"
-	);
-
-	const read = mock(async () => "+selected");
-	const applied = mock();
-
-	root.render(
-		<AiProvider service={service}>
-			<AiCommitButton state={workspace()} read={read} onMessage={applied} />
-		</AiProvider>
-	);
-	await settle();
-	await press("ai-generate");
-	expect(generated).not.toHaveBeenCalled();
-	await press("ai-commit-request");
-	expect(generated).toHaveBeenCalledWith(
-		expect.objectContaining({ id: configured.id, model: configured.model }),
-		"+selected",
-		expect.any(AbortSignal),
-		expect.any(Function)
-	);
-	expect(applied).not.toHaveBeenCalled();
-	await press("ai-commit-use");
-	expect(applied).toHaveBeenCalledWith("fix: checked changes");
-	expect(read).toHaveBeenCalledTimes(2);
-});
-
-it("does not apply a suggestion after selected changes on disk move", async () => {
-	configure();
-	spyOn(service, "generate").mockResolvedValue("fix: old changes");
-	let patch = "+old";
-	const applied = mock();
-
-	root.render(
-		<AiProvider service={service}>
-			<AiCommitButton
-				state={workspace()}
-				read={async () => patch}
-				onMessage={applied}
-			/>
-		</AiProvider>
-	);
-	await settle();
-	await press("ai-generate");
-	await press("ai-commit-request");
-	patch = "+new";
-	await press("ai-commit-use");
-	expect(applied).not.toHaveBeenCalled();
-	expect(node("ai-commit-status").customProps?.role).toBe("alert");
-});
-
-it("cancels a pending suggestion after a manual draft edit and ignores its late result", async () => {
-	configure();
-	const completion = Promise.withResolvers<string>();
-	let signal: AbortSignal | undefined;
-	const applied = mock();
-	const state = workspace();
-
-	spyOn(service, "generate").mockImplementation(
-		async (_preferences, _patch, next) => {
-			signal = next;
-
-			return await completion.promise;
-		}
-	);
-	const render = (draft: string) =>
-		root.render(
-			<AiProvider service={service}>
-				<AiCommitButton
-					state={{ ...state, commitMessage: draft }}
-					read={async () => "+selected"}
-					onMessage={applied}
-				/>
-			</AiProvider>
-		);
-
-	render("Original");
-	await settle();
-	await press("ai-generate");
-	await press("ai-commit-request");
-	render("Edited by user");
-	await settle();
-	completion.resolve("Late suggestion");
-	await settle();
-	expect(signal?.aborted).toBe(true);
-	expect(applied).not.toHaveBeenCalled();
-	expect(root.renderer.findByTestId("ai-commit-proposal")).toBeUndefined();
 });

@@ -579,7 +579,7 @@ deadline and two-minute per-request deadline. Cancel aborts active HTTP and furt
 reads. Progress reports review steps and inspection. This removes mandatory
 summarization round trips, but provider latency and model read choices still
 determine elapsed time. No source outside the captured selection is available to
-tools. The draft still changes only through **Use message**, after rereading the
+tools. The completed message replaces the draft only after rereading the
 selection to check for changes on disk. Selective inspection can miss nuance;
 review the proposed message before applying it.
 
@@ -624,14 +624,26 @@ The non-secret host ID, registrations, connection list and default are stored pr
 `ai.json` beside the workspace session. ChatGPT uses streaming Responses with
 `store: false`; only a completed response is accepted.
 
-The small sparkle beside **Commit** opens a review panel. **Generate** sends
-only checked files and their included lines, with unfiltered whitespace and a
-bounded diff (100 files / 96 KiB). Binary contents are omitted. Review for secrets:
-the selected diff leaves the machine, and some OpenCode free/contributor models
-retain data or use it for training. Generated text remains editable in the panel;
-**Use message** rechecks changes on disk before replacing the draft. Cancel,
-selection/branch changes, AI preference/default changes and manual draft edits
-invalidate pending suggestions.
+The small sparkle beside **Commit** starts generation immediately for an empty
+draft. For a non-empty draft, **Replace commit message?** offers **Replace** and
+**Cancel** before any selected code is sent. The existing message remains visible
+until generation and a fresh check of the selected diff succeed. The completed
+result appears in the normal commit editor, editable and focused for review.
+Progress appears inside the disabled Commit button with a small spinner; review
+phases use a compact label and expose the full status through accessibility.
+Failures remain as a notice beneath the editor. The sparkle becomes a Stop
+control while running, and the composer keeps its existing height. The editor,
+Commit button and Command Enter are
+blocked until generation finishes or is cancelled. Cancellation and failure
+preserve the existing draft, and cancelled requests cannot apply late results.
+Selection/branch changes, AI preference/default changes and external draft edits
+cancel pending generation. No separate preview or **Use message** step is required.
+
+Only checked files and their included lines are sent, with unfiltered whitespace
+and the collection limits described above. Binary contents are omitted. The
+provider and model are identified in the sparkle tooltip. Review selected changes
+for secrets before generating: the selected diff leaves the machine, and some
+OpenCode free/contributor models retain data or use it for training.
 AI never stages, commits or pushes. Generation is unavailable during amend,
 conflicts or other Git operations. SDKs load only on explicit generation, with
 no token-by-token React updates or changes to the diff scroll/rendering path.

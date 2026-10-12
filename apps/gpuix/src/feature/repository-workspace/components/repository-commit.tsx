@@ -7,7 +7,12 @@ import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
 import { useEffect, useRef, useState } from "react";
 
 import { RepositoryLastCommit } from "./repository-last-commit";
-import { AiCommitButton } from "../../ai/ai-commit-button";
+import {
+	AiCommitButton,
+	AiCommitProgress,
+	AiCommitStatus,
+} from "../../ai/ai-commit-button";
+import { useAiCommit } from "../../ai/use-ai-commit";
 import type { CommitRecoveryInput } from "@1git/git";
 import type { RepositoryCommit as CommitReader } from "../lib/repository-commit";
 import {
@@ -96,6 +101,17 @@ export function RepositoryCommit({
 	const notice = useRef<PublicInstance>(null);
 	const messageInput = useRef<PublicInstance>(null);
 	const renderer = useGpuixRequired();
+
+	const generation = useAiCommit({
+		state,
+		onMessage: (value) => {
+			onAction({ type: "edit-commit-message", value });
+
+			if (messageInput.current)
+				renderer.focusElement?.(messageInput.current.id);
+		},
+	});
+
 	const amendHead = state.amend?.head;
 
 	useEffect(() => {
@@ -108,9 +124,9 @@ export function RepositoryCommit({
 	const canPreview = RepositoryWorkspaceModel.canPreviewCommit(state);
 	const sample = state.preview;
 
-	const canSubmit = sample
-		? canPreview
-		: RepositoryWorkspaceModel.canCommit(state);
+	const canSubmit =
+		!generation.busy &&
+		(sample ? canPreview : RepositoryWorkspaceModel.canCommit(state));
 
 	const blocked = sample
 		? null
@@ -188,7 +204,7 @@ export function RepositoryCommit({
 				}
 				placeholder="Commit message…"
 				value={state.commitMessage}
-				readOnly={RepositoryWorkspaceModel.isBusy(state)}
+				readOnly={generation.busy || RepositoryWorkspaceModel.isBusy(state)}
 				onValueChange={(value) => {
 					setPreviewed(false);
 					onAction({ type: "edit-commit-message", value });
@@ -209,18 +225,15 @@ export function RepositoryCommit({
 						submit();
 				}}
 			/>
+			<AiCommitStatus generation={generation} />
 			<div style={styles.actions}>
 				<div style={styles.buttons}>
-					<AiCommitButton
-						state={state}
-						onSettings={onAiSettings}
-						onMessage={(value) =>
-							onAction({ type: "edit-commit-message", value })
-						}
-					/>
+					<AiCommitButton generation={generation} onSettings={onAiSettings} />
 					<Button
 						testId={sample ? "commit-preview" : "commit-submit"}
-						aria-label={sample ? `Preview: ${label}` : label}
+						aria-label={
+							generation.progress ?? (sample ? `Preview: ${label}` : label)
+						}
 						aria-description={
 							sample
 								? "Preview only. Checkbox choices do not change files and no Git commit will be created."
@@ -234,11 +247,17 @@ export function RepositoryCommit({
 						disabled={!canSubmit}
 						onPress={submit}
 					>
-						{state.commit.pending
-							? state.amend
-								? "Amending…"
-								: "Committing…"
-							: label}
+						{generation.progress ? (
+							<AiCommitProgress progress={generation.progress} />
+						) : state.commit.pending ? (
+							state.amend ? (
+								"Amending…"
+							) : (
+								"Committing…"
+							)
+						) : (
+							label
+						)}
 					</Button>
 				</div>
 			</div>
