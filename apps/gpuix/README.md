@@ -521,11 +521,13 @@ instructions; multiple connections for either provider are supported. Compact
 row actions select the default, configure, reconnect or remove that connection.
 The **Default** badge identifies the connection used for generation. Adding an
 account does not select it automatically; explicitly choose **Use as default**
-when saving, or select it in the list. **Turn off** clears the default without
-removing accounts. Removing the default turns AI off, never switches to another.
+when saving, or select it in the list. **Turn off**, beside **Add account** in
+the header, clears the default without removing accounts. Removing the default
+turns AI off, never switches to another.
 
-**Free** hides the API-key form and loads its public text-model catalog
-automatically even without saved credentials. Generation uses an existing OpenCode
+The **Free**, **Go** and **Zen** plan choices use the same compact icon tiles as
+the provider choices. **Free** hides the API-key form and loads its public
+text-model catalog automatically even without saved credentials. Generation uses an existing OpenCode
 key when present, otherwise it sends no authentication header. **Go** and paid
 **Zen** show the key controls and require a key, saved to the OS credential vault.
 Models load automatically for Free or an authenticated connection while its
@@ -537,6 +539,15 @@ model and use **Save preferences** in the fixed bottom footer to apply changes;
 and identity immediately, without applying unsaved model/instruction/default
 choices. Remove asks for confirmation and deletes only that connection and its
 credentials. Free profiles require no keychain access for catalog discovery.
+
+The **Preset: caveman-commit** link directly below the **Commit instructions** textarea fills that editable
+field with the optional terse Conventional Commits preset. It includes the
+supplied clarity rules, examples and attribution-trailer exception. Applying it
+changes only the draft; **Save preferences** persists it for that connection and
+**Cancel** keeps the previous instructions. It never changes the default account,
+model or other accounts, and does not reload the model catalog. No preset is
+applied automatically. The existing plain/`text` Markdown code-fence cleanup keeps
+presentation fences out of the editable suggestion.
 
 Existing single-provider settings migrate to the connection list without losing
 the active selection, model, instructions, host identity or stored keys. Legacy

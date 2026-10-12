@@ -11,6 +11,7 @@ import { tmpdir } from "node:os";
 import { AiInference } from "../../src/feature/ai/lib/ai-inference";
 import { AiIntegration } from "../../src/feature/ai/lib/ai-integration";
 import { AiHttp, type AiFetch } from "../../src/feature/ai/lib/ai-http";
+import { cavemanCommitPreset } from "../../src/feature/ai/lib/caveman-commit-preset";
 import {
 	AiSettingsStore,
 	emptyAiPreferences,
@@ -163,6 +164,68 @@ it("uses OpenCode Free chat completions with explicit instructions and no automa
 	expect(JSON.stringify(body)).toContain("Keep it short.");
 	expect(JSON.stringify(body)).toContain("+checked");
 	expect(requests).toBe(1);
+});
+
+it("sends the complete caveman-commit preset and removes presentation fences from a generated message", async () => {
+	let body: unknown;
+
+	const message =
+		"fix(auth): isolate account credentials\n\nPrevent token reuse between saved connections.";
+
+	const service = integration(async (_url, init) => {
+		body = JSON.parse(String(init?.body));
+
+		return events([
+			{
+				id: "c1",
+				object: "chat.completion.chunk",
+				created: 1,
+				model: "big-pickle",
+				choices: [
+					{
+						index: 0,
+						delta: { content: `\`\`\`text\n${message}\n\`\`\`` },
+						finish_reason: null,
+					},
+				],
+			},
+			{
+				id: "c1",
+				object: "chat.completion.chunk",
+				created: 1,
+				model: "big-pickle",
+				choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
+			},
+		]);
+	});
+
+	const result = await service.generate(
+		{
+			...emptyAiPreferences,
+			provider: "opencode",
+			model: "big-pickle",
+			instructions: cavemanCommitPreset,
+		},
+		"+selected",
+		new AbortController().signal
+	);
+
+	expect(cavemanCommitPreset.length).toBeLessThanOrEqual(8000);
+	expect(cavemanCommitPreset).toContain(
+		"unless the user's own rule requires an `Assisted-by`/AI-attribution trailer"
+	);
+	expect(cavemanCommitPreset).toContain(
+		"Always include body for: breaking changes, security fixes, data migrations, anything reverting a prior commit."
+	);
+	expect(body).toMatchObject({
+		messages: expect.arrayContaining([
+			expect.objectContaining({
+				role: "system",
+				content: expect.stringContaining(cavemanCommitPreset),
+			}),
+		]),
+	});
+	expect(result).toBe(message);
 });
 
 it("uses the OpenCode Go Messages protocol with bearer authentication", async () => {

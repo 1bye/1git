@@ -13,9 +13,14 @@ import {
 import { ChoiceTile } from "../../fixture/choice-tile";
 import { useAppTheme } from "../../styles/theme";
 import { useAi } from "./ai-provider";
-import { aiProviderIcons, aiProviderNames } from "./ai-provider-icons";
+import {
+	aiProviderIcons,
+	aiProviderNames,
+	opencodePlanIcons,
+} from "./ai-provider-icons";
 import type { AiConnection } from "./lib/ai-settings-store";
 import type { AiModel } from "./lib/ai-integration";
+import { cavemanCommitPreset } from "./lib/caveman-commit-preset";
 
 /** Scoped account editor. Closing cancels reads; secret input stays in an uncontrolled password field and ref. */
 export function AiConnectionEditor({
@@ -325,14 +330,25 @@ export function AiConnectionEditor({
 					/>
 					{provider === "opencode" ? (
 						<>
-							<div role="group" aria-label="OpenCode plan" style={row}>
+							<text style={label}>Plan</text>
+							<div
+								role="group"
+								aria-label="OpenCode plan"
+								style={{ ...row, height: 64 }}
+							>
 								{(["free", "go", "zen"] as const).map((plan) => (
-									<Button
+									<ChoiceTile
 										key={plan}
 										testId={`ai-mode-${plan}`}
-										tokens={tokens}
-										size="sm"
-										variant={mode === plan ? "secondary" : "ghost"}
+										label={
+											plan === "free" ? "Free" : plan === "go" ? "Go" : "Zen"
+										}
+										source={opencodePlanIcons[plan]}
+										selected={mode === plan}
+										accessibleName={`OpenCode ${plan} plan`}
+										description={
+											mode === plan ? "Selected OpenCode plan" : undefined
+										}
 										disabled={busy}
 										onPress={() => {
 											if (plan === mode) return;
@@ -344,9 +360,7 @@ export function AiConnectionEditor({
 
 											setDraft({ ...draft, opencodeMode: plan, model: "" });
 										}}
-									>
-										{plan === "free" ? "Free" : plan === "go" ? "Go" : "Zen"}
-									</Button>
+									/>
 								))}
 							</div>
 							{!free && (connected === false || editingKey) ? (
@@ -545,19 +559,50 @@ export function AiConnectionEditor({
 						</div>
 					) : null}
 					<text style={label}>Commit instructions</text>
-					<Textarea
-						testId="ai-instructions"
-						aria-label="AI commit instructions"
-						placeholder="Use Conventional Commits and keep the summary short."
-						value={draft.instructions}
-						onValueChange={(instructions) =>
-							setDraft({ ...draft, instructions: instructions.slice(0, 8000) })
-						}
-						readOnly={busy}
-						minRows={3}
-						maxRows={6}
-						tokens={tokens}
-					/>
+					<div style={{ ...column, gap: spacing[2], flexShrink: 0 }}>
+						<Textarea
+							testId="ai-instructions"
+							aria-label="AI commit instructions"
+							placeholder="Use Conventional Commits and keep the summary short."
+							value={draft.instructions}
+							onValueChange={(instructions) =>
+								setDraft({
+									...draft,
+									instructions: instructions.slice(0, 8000),
+								})
+							}
+							readOnly={busy}
+							minRows={3}
+							maxRows={6}
+							tokens={tokens}
+						/>
+						<Button
+							testId="ai-preset-caveman-commit"
+							aria-label="Use caveman-commit preset"
+							aria-description="Replaces this draft's instructions with the preset. Save preferences to apply."
+							tokens={tokens}
+							size="sm"
+							variant="ghost"
+							style={{
+								alignSelf: "flex-start",
+								paddingLeft: 0,
+								paddingRight: 0,
+								hover: { backgroundColor: "transparent" },
+								active: { backgroundColor: "transparent" },
+							}}
+							textStyle={{
+								...typography.sm,
+								color: tokens.colors.focusRing,
+								textDecoration: "underline",
+							}}
+							disabled={busy}
+							onPress={() =>
+								setDraft({ ...draft, instructions: cavemanCommitPreset })
+							}
+						>
+							Preset: caveman-commit
+						</Button>
+					</div>
 					<Checkbox
 						testId="ai-use-default"
 						label="Use as default for commit messages"

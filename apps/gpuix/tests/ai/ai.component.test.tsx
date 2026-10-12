@@ -14,6 +14,7 @@ import { AiProvider } from "../../src/feature/ai/ai-provider";
 import { AiSettings } from "../../src/feature/ai/ai-settings";
 import { AiCommitButton } from "../../src/feature/ai/ai-commit-button";
 import { AiIntegration } from "../../src/feature/ai/lib/ai-integration";
+import { cavemanCommitPreset } from "../../src/feature/ai/lib/caveman-commit-preset";
 import {
 	AiSettingsStore,
 	emptyAiPreferences,
@@ -145,7 +146,16 @@ function workspace() {
 function settings() {
 	root.render(
 		<AiProvider service={service}>
-			<AiSettings openLink={async () => undefined} />
+			<div
+				style={{
+					display: "flex",
+					flexDirection: "column",
+					height: "100%",
+					minHeight: 0,
+				}}
+			>
+				<AiSettings openLink={async () => undefined} />
+			</div>
 		</AiProvider>
 	);
 }
@@ -176,11 +186,57 @@ it.each(["light", "dark"] as const)(
 		await press("rail-settings");
 		await press("settings-ai");
 		expect(node("ai-empty")).toBeDefined();
+		expect(root.renderer.findByTestId("ai-list-footer")).toBeUndefined();
 		expect(service.models).not.toHaveBeenCalled();
 		await press("ai-add");
 		expect(node("ai-setup-panel")).toBeDefined();
 		expect(service.models).toHaveBeenCalledTimes(1);
+		expect(node("ai-instructions").customProps?.value).toBe("");
+		const instructions = root.renderer.getElementBounds(
+			node("ai-instructions").id
+		)!;
+
+		const preset = root.renderer.getElementBounds(
+			node("ai-preset-caveman-commit").id
+		)!;
+
+		const defaultChoice = root.renderer.getElementBounds(
+			node("ai-use-default").id
+		)!;
+
+		if (process.env.GPUIX_AI_SCREENSHOT)
+			root.renderer.captureScreenshot(
+				`${process.env.GPUIX_AI_SCREENSHOT}-${appearance}-link.png`
+			);
+
+		expect(preset.y).toBeGreaterThanOrEqual(
+			instructions.y + instructions.height
+		);
+		expect(preset.y - instructions.y - instructions.height).toBeLessThanOrEqual(
+			8
+		);
+		expect(root.renderer.getAllText()).toContain("Preset: caveman-commit");
+		expect(preset.x).toBe(
+			root.renderer.getElementBounds(node("ai-provider-opencode").id)!.x
+		);
+		expect(preset.y + preset.height).toBeLessThanOrEqual(defaultChoice.y);
 		expect(root.renderer.findByTestId("ai-api-key")).toBeUndefined();
+		const providerTile = root.renderer.getElementBounds(
+			node("ai-provider-opencode").id
+		)!;
+
+		const freeTile = root.renderer.getElementBounds(node("ai-mode-free").id)!;
+		const goTile = root.renderer.getElementBounds(node("ai-mode-go").id)!;
+		const zenTile = root.renderer.getElementBounds(node("ai-mode-zen").id)!;
+
+		for (const plan of ["free", "go", "zen"])
+			expect(node(`ai-mode-${plan}-icon`)).toBeDefined();
+
+		expect(freeTile.height).toBe(providerTile.height);
+		expect(goTile.height).toBe(freeTile.height);
+		expect(zenTile.height).toBe(freeTile.height);
+		expect(Math.abs(freeTile.width - goTile.width)).toBeLessThanOrEqual(1);
+		expect(Math.abs(goTile.width - zenTile.width)).toBeLessThanOrEqual(1);
 		const left = root.renderer.getElementBounds(node("ai-list-panel").id)!;
 		const right = root.renderer.getElementBounds(node("ai-setup-panel").id)!;
 
@@ -221,15 +277,36 @@ it.each(["light", "dark"] as const)(
 		await settle();
 		await press("rail-settings");
 		await press("settings-ai");
+		const turnOff = root.renderer.getElementBounds(node("ai-provider-off").id)!;
+		const add = root.renderer.getElementBounds(node("ai-add").id)!;
+
+		expect(turnOff.y).toBe(add.y);
+		expect(turnOff.x + turnOff.width + 4).toBe(add.x);
 		await press(`ai-edit-${work.id}`);
 		expect(node(`ai-default-badge-${configured.id}`)).toBeDefined();
 		const list = root.renderer.getElementBounds(node("ai-list-panel").id)!;
+
+		const listScroll = root.renderer.getElementBounds(
+			node("ai-list-scroll").id
+		)!;
+
+		expect(listScroll.y + listScroll.height).toBe(list.y + list.height);
+		expect(root.renderer.findByTestId("ai-default-status")).toBeUndefined();
 
 		const remove = root.renderer.getElementBounds(
 			node(`ai-remove-${work.id}`).id
 		)!;
 
 		expect(remove.x + remove.width).toBeLessThanOrEqual(list.x + list.width);
+		await press("ai-preset-caveman-commit");
+		expect(node("ai-instructions").customProps?.value).toBe(
+			cavemanCommitPreset
+		);
+		const save = root.renderer.getElementBounds(
+			node("ai-save-preferences").id
+		)!;
+
+		expect(save.y + save.height).toBeLessThanOrEqual(720);
 
 		if (process.env.GPUIX_AI_SCREENSHOT)
 			root.renderer.captureScreenshot(
@@ -238,8 +315,33 @@ it.each(["light", "dark"] as const)(
 
 		await press("ai-cancel-editor");
 		expect(service.store.load().defaultId).toBe(configured.id);
+		expect(root.renderer.findByTestId("ai-setup-panel")).toBeUndefined();
 	}
 );
+
+it("selects matching OpenCode plan tiles with mouse, Enter and Space without saving a draft", async () => {
+	settings();
+	await settle();
+	await press("ai-add");
+	await press("ai-mode-go");
+	expect(node("ai-api-key")).toBeDefined();
+
+	root.renderer.nativeSimulateKeyDown(node("ai-mode-free").id, "space");
+	root.renderer.nativeSimulateKeyUp(node("ai-mode-free").id, "space");
+	await settle();
+	expect(root.renderer.findByTestId("ai-api-key")).toBeUndefined();
+	root.renderer.focusElement(node("ai-mode-zen").id);
+	root.renderer.simulateKeystrokes("enter");
+	await settle();
+	expect(node("ai-api-key")).toBeDefined();
+	expect(root.renderer.getAllText().join(" ")).toContain(
+		"Generation may incur charges."
+	);
+	expect(JSON.stringify(root.renderer.getA11yTree())).toContain(
+		"Selected OpenCode plan"
+	);
+	expect(service.store.load().connections).toHaveLength(0);
+});
 
 it("adds multiple Free profiles, explicitly selects a default and preserves independent instructions on edit/cancel", async () => {
 	settings();
@@ -274,6 +376,49 @@ it("adds multiple Free profiles, explicitly selects a default and preserves inde
 	await press("ai-provider-off");
 	expect(service.store.load().defaultId).toBeNull();
 	expect(service.store.load().connections).toHaveLength(2);
+});
+
+it("applies caveman-commit only to the editable draft until saved, preserving other accounts and the default", async () => {
+	const personal = { ...configured, instructions: "Existing instructions" };
+
+	const work = {
+		...configured,
+		id: "22222222-2222-4222-8222-222222222222",
+		label: "Work",
+		instructions: "Work instructions",
+	};
+
+	const saved = { connections: [personal, work], defaultId: personal.id };
+
+	service.store.save(saved);
+	settings();
+	await settle();
+	await press(`ai-edit-${work.id}`);
+	expect(node("ai-instructions").customProps?.value).toBe(work.instructions);
+	await press("ai-preset-caveman-commit");
+	expect(node("ai-instructions").customProps?.value).toBe(cavemanCommitPreset);
+	expect(service.models).toHaveBeenCalledTimes(1);
+	expect(service.store.load()).toEqual(saved);
+	await press("ai-cancel-editor");
+	expect(service.store.load()).toEqual(saved);
+	expect(root.renderer.findByTestId("ai-setup-panel")).toBeUndefined();
+
+	await press(`ai-edit-${work.id}`);
+	await press("ai-preset-caveman-commit");
+	await type("ai-instructions", "Custom");
+	expect(node("ai-instructions").customProps?.value).toBe("Custom");
+	root.renderer.focusElement(node("ai-preset-caveman-commit").id);
+	root.renderer.simulateKeystrokes("enter");
+	await settle();
+	expect(node("ai-instructions").customProps?.value).toBe(cavemanCommitPreset);
+	expect(service.models).toHaveBeenCalledTimes(2);
+	await press("ai-save-preferences");
+	expect(service.store.load()).toEqual({
+		...saved,
+		connections: [personal, { ...work, instructions: cavemanCommitPreset }],
+	});
+	await press(`ai-edit-${work.id}`);
+	expect(node("ai-instructions").customProps?.value).toBe(cavemanCommitPreset);
 });
 
 it("adds separate OpenCode keys and keeps key fields hidden in Free", async () => {
@@ -331,6 +476,10 @@ it("removes only the confirmed account, and clears the default without selecting
 	expect(service.store.load().connections.map((item) => item.id)).toEqual([
 		second.id,
 	]);
+	const notice = root.renderer.getElementBounds(node("ai-list-notice").id)!;
+	const listScroll = root.renderer.getElementBounds(node("ai-list-scroll").id)!;
+
+	expect(notice.y + notice.height).toBeLessThanOrEqual(listScroll.y);
 });
 
 it("adds two ChatGPT accounts without overwriting either identity or the default", async () => {
@@ -445,11 +594,21 @@ it("keeps setup actions pinned at minimum height while scrolling only the form",
 	const bounds = root.renderer.getElementBounds(scroll.id)!;
 	const save = root.renderer.getElementBounds(node("ai-save-preferences").id)!;
 
+	const provider = root.renderer.getElementBounds(
+		node("ai-provider-opencode").id
+	)!;
+
 	expect(save.y).toBeGreaterThanOrEqual(bounds.y + bounds.height);
 	expect(save.y + save.height).toBeLessThanOrEqual(640);
+
+	if (process.env.GPUIX_AI_SCREENSHOT)
+		root.renderer.captureScreenshot(
+			`${process.env.GPUIX_AI_SCREENSHOT}-minimum.png`
+		);
+
 	root.renderer.nativeSimulateScrollWheel(
-		bounds.x + bounds.width - 8,
-		bounds.y + 100,
+		provider.x + provider.width / 2,
+		provider.y + provider.height / 2,
 		0,
 		-300
 	);

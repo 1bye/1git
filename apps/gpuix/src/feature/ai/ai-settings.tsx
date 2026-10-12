@@ -219,15 +219,29 @@ function AiSettingsPanel({
 						<text role="heading" aria-level={1} style={heading}>
 							AI
 						</text>
-						<Button
-							testId="ai-add"
-							tokens={tokens}
-							size="sm"
-							disabled={locked || !!editing}
-							onPress={() => openEditor()}
-						>
-							Add account
-						</Button>
+						<div style={{ ...row, gap: spacing[1] }}>
+							{ai.configuration.defaultId ? (
+								<Button
+									testId="ai-provider-off"
+									tokens={tokens}
+									size="sm"
+									variant="ghost"
+									disabled={locked || !!editing}
+									onPress={() => setDefault(null)}
+								>
+									Turn off
+								</Button>
+							) : null}
+							<Button
+								testId="ai-add"
+								tokens={tokens}
+								size="sm"
+								disabled={locked || !!editing}
+								onPress={() => openEditor()}
+							>
+								Add account
+							</Button>
+						</div>
 					</div>
 					<text style={muted}>Saved AI connections for commit messages.</text>
 					{ai.error || error ? (
@@ -237,6 +251,11 @@ function AiSettingsPanel({
 							style={{ ...muted, color: tokens.colors.danger }}
 						>
 							{ai.error ?? error}
+						</text>
+					) : null}
+					{notice ? (
+						<text testId="ai-list-notice" role="status" style={muted}>
+							{notice}
 						</text>
 					) : null}
 				</div>
@@ -366,51 +385,6 @@ function AiSettingsPanel({
 								</div>
 							</div>
 						))}
-					</div>
-				</div>
-				<div
-					testId="ai-list-footer"
-					style={{
-						...column,
-						gap: spacing[2],
-						padding: spacing[4],
-						paddingTop: spacing[3],
-						paddingBottom: spacing[3],
-						borderTopWidth: 1,
-						borderColor: tokens.colors.border,
-						flexShrink: 0,
-					}}
-				>
-					{notice ? (
-						<text role="status" style={muted}>
-							{notice}
-						</text>
-					) : null}
-					<div
-						style={{
-							...row,
-							justifyContent: "space-between",
-							maxWidth: 480,
-							width: "100%",
-						}}
-					>
-						<text testId="ai-default-status" style={muted}>
-							{ai.configuration.defaultId
-								? "Uses your default account."
-								: "AI is off. Choose a default account."}
-						</text>
-						{ai.configuration.defaultId ? (
-							<Button
-								testId="ai-provider-off"
-								tokens={tokens}
-								size="sm"
-								variant="ghost"
-								disabled={locked || !!editing}
-								onPress={() => setDefault(null)}
-							>
-								Turn off
-							</Button>
-						) : null}
 					</div>
 				</div>
 			</div>
