@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024"><defs>
+    <linearGradient id="onegit-39-tag-ribbon-spectrum-base" x1="56" y1="28" x2="172" y2="230" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FF4EDB"/>
+      <stop offset=".38" stop-color="#FF003A"/>
+      <stop offset=".64" stop-color="#FF3500"/>
+      <stop offset="1" stop-color="#FFD300"/>
+    </linearGradient>
+    <radialGradient id="onegit-39-tag-ribbon-spectrum-blue" cx="225" cy="37" r="154" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#009EF5"/>
+      <stop offset=".3" stop-color="#1672FF"/>
+      <stop offset=".56" stop-color="#8A72EF" stop-opacity=".94"/>
+      <stop offset=".74" stop-color="#DE7CEA" stop-opacity=".65"/>
+      <stop offset="1" stop-color="#F878DF" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="onegit-39-tag-ribbon-spectrum-green" cx="26" cy="226" r="151" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#007B42"/>
+      <stop offset=".35" stop-color="#008C35"/>
+      <stop offset=".58" stop-color="#4D9900" stop-opacity=".96"/>
+      <stop offset=".74" stop-color="#B4B500" stop-opacity=".86"/>
+      <stop offset="1" stop-color="#FFC500" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="onegit-39-tag-ribbon-spectrum-pink" cx="35" cy="42" r="130" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFA7F3"/>
+      <stop offset=".39" stop-color="#FA56DA" stop-opacity=".95"/>
+      <stop offset="1" stop-color="#FF37C3" stop-opacity="0"/>
+    </radialGradient>
+    
+  <clipPath id="ribbon"><path clip-rule="evenodd" fill-rule="evenodd" d="M140 24H206C223 24 232 33 232 50V116C232 127 228 135 220 143L140 224C132 232 121 232 113 224L31 142C23 134 23 123 31 115L111 35C119 27 128 24 140 24ZM177 61a15 15 0 1 0 30 0a15 15 0 1 0 -30 0ZM83 121Q80 124 83 127L97 139Q100 142 103 139L122 120V188Q122 194 126 190L146 170Q148 168 148 165V94Q148 90 144 90H119Q115 90 113 92L83 121Z"/></clipPath></defs><g transform="scale(4)"><g clip-path="url(#ribbon)"><path d="M0 0H256V256H0Z" fill="url(#onegit-39-tag-ribbon-spectrum-base)"/><path d="M0 0H256V256H0Z" fill="url(#onegit-39-tag-ribbon-spectrum-blue)"/><path d="M0 0H256V256H0Z" fill="url(#onegit-39-tag-ribbon-spectrum-green)"/><path d="M0 0H256V256H0Z" fill="url(#onegit-39-tag-ribbon-spectrum-pink)"/></g></g></svg>

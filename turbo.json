@@ -4,6 +4,11 @@
   "tasks": {
     "generate": {},
     "build:native": { "cache": false },
+    "package:macos": {
+      "dependsOn": ["^build", "build:native"],
+      "cache": false,
+      "passThroughEnv": ["DEVELOPER_DIR"]
+    },
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],

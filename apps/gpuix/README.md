@@ -19,6 +19,31 @@ a painted tint.
 The connected tab silhouette keeps its shape while moving; it does not port
 the desktop's liquid shape-morphing machinery.
 
+## macOS app bundle
+
+```sh
+bun run package:macos
+open apps/gpuix/build/macos/1git.app
+```
+
+Run packaging from the repository root on Apple Silicon with full Xcode installed
+and selected (`xcode-select`). Turbo builds the workspace dependencies and patched
+native addon first. Packaging itself is uncached and uses the current Bun runtime.
+The resulting `.app` includes that runtime, the native addon and image-decoding
+dependencies; it can be moved without this checkout or a separate Bun installation.
+Accounts, preferences and session paths remain unchanged.
+
+`docs/branding/macos-icon/1git.icon` is the canonical Icon Composer source.
+Xcode's `actool` compiles its appearance variants into `Assets.car` and an ICNS
+fallback, referenced by the bundle's `Info.plist` for Finder and Dock. The source
+is not flattened or reformatted. Direct `dev`/`start` launches still use Bun's icon;
+launch the `.app` to see the 1git icon. Runtime support starts at macOS 13; the
+layered icon's appearance depends on the macOS version.
+
+The build is ad-hoc signed for local use, not Developer ID signed or notarized
+for public distribution. Outputs stay in ignored `build/macos/`; packaging
+replaces only its generated `1git.app`, after compilation and signing succeed.
+
 The app disables focus outlines through its shared native UI tokens and custom
 row/tab styling. Arrow/Tab navigation, selection backgrounds, caret visibility,
 and keyboard activation remain intact; ordinary field borders are unchanged.

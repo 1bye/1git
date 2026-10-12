@@ -10,6 +10,7 @@
     "playground": "bun run --cwd packages/git playground",
     "dev": "turbo run dev",
     "build": "turbo run build",
+    "package:macos": "turbo run package:macos --filter=@1git/gpuix",
     "check-types": "turbo run check-types",
     "test": "turbo run test",
     "check": "bun run lint && bun run format:check",

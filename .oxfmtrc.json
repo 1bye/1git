@@ -11,6 +11,7 @@
     "bun.lock",
     "**/dist/**",
     "**/dev-dist/**",
+    "**/*.icon/**",
     "**/*.gen.ts",
     "**/*.css"
   ],
