@@ -124,6 +124,7 @@ const themedStyles = createThemedStyles(({ tokens: appTokens }) => {
 /** Account settings are window-local. Tokens are transient refs and uncontrolled native password inputs, never renderer props. */
 export function AccountsSettings({
 	onBack,
+	onSetup,
 	accounts: supplied,
 	remoteAccounts,
 	children,
@@ -142,6 +143,7 @@ export function AccountsSettings({
 	externalEditors,
 }: {
 	onBack: () => void;
+	onSetup?: () => void;
 	accounts?: Accounts;
 	remoteAccounts?: RemoteAccounts;
 	children?: ReactNode;
@@ -630,6 +632,20 @@ export function AccountsSettings({
 						<WorkspaceTabIcon name="sparkle" />
 						AI
 					</Button>
+					{onSetup ? (
+						<Button
+							testId="settings-run-setup"
+							tokens={appTokens}
+							size="sm"
+							variant="ghost"
+							disabled={settingsBusy}
+							style={{ justifyContent: "flex-start", marginTop: spacing[3] }}
+							onPress={onSetup}
+						>
+							<WorkspaceTabIcon name="home" />
+							Run setup again
+						</Button>
+					) : null}
 					{repositorySettings ? (
 						<>
 							<text

@@ -8,6 +8,9 @@ import {
 	type DiffSettings,
 } from "../../repository-workspace/lib/repository-diff";
 
+/** First-run progress, independent of repository history; older sessions remain complete. */
+export type OnboardingStep = "welcome" | "git" | "repository" | "complete";
+
 /** Stable navigation intent, separate from Git data and commit inclusion. */
 interface WorkspaceNavigation {
 	readonly view: RepositoryView;
@@ -33,6 +36,7 @@ export interface WorkspaceSessionDocument {
 	readonly diffSettings?: DiffSettings;
 	readonly appearance?: AppAppearance;
 	readonly commitTypeBadges?: boolean;
+	readonly onboarding?: OnboardingStep;
 }
 
 const tabIdPattern = /^workspace-([1-9]\d*)$/;
@@ -153,6 +157,12 @@ export class WorkspaceSession {
 			...(typeof value.commitTypeBadges === "boolean"
 				? { commitTypeBadges: value.commitTypeBadges }
 				: {}),
+			...(value.onboarding === "welcome" ||
+			value.onboarding === "git" ||
+			value.onboarding === "repository" ||
+			value.onboarding === "complete"
+				? { onboarding: value.onboarding }
+				: {}),
 			...(diffSettings ? { diffSettings } : {}),
 			...(Array.isArray(value.recentRepositories)
 				? {
@@ -181,12 +191,14 @@ export class WorkspaceSession {
 		state: WorkspaceTabsState,
 		diffSettings?: DiffSettings,
 		appearance?: AppAppearance,
-		commitTypeBadges?: boolean
+		commitTypeBadges?: boolean,
+		onboarding?: OnboardingStep
 	): WorkspaceSessionDocument {
 		return {
 			version: 1,
 			...(appearance ? { appearance } : {}),
 			...(commitTypeBadges !== undefined ? { commitTypeBadges } : {}),
+			...(onboarding ? { onboarding } : {}),
 			...(diffSettings ? { diffSettings } : {}),
 			...(state.recentRepositories !== undefined
 				? { recentRepositories: state.recentRepositories }

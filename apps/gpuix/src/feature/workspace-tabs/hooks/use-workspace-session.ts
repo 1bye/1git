@@ -1,6 +1,7 @@
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import {
 	WorkspaceSession,
+	type OnboardingStep,
 	type WorkspaceSessionDocument,
 } from "../lib/workspace-session";
 import type { WorkspaceTabsState } from "../lib/workspace-tabs-model";
@@ -14,7 +15,8 @@ export function useWorkspaceSession(
 	initialError?: string,
 	diffSettings?: DiffSettings,
 	appearance?: AppAppearance,
-	commitTypeBadges?: boolean
+	commitTypeBadges?: boolean,
+	onboarding?: OnboardingStep
 ) {
 	const content =
 		state.preview || !save
@@ -24,7 +26,8 @@ export function useWorkspaceSession(
 						state,
 						diffSettings,
 						appearance,
-						commitTypeBadges
+						commitTypeBadges,
+						onboarding
 					)
 				);
 

@@ -84,6 +84,8 @@ export function RepositorySetupActions({
 	onBegin,
 	onClone,
 	cloneRef,
+	presentation = "list",
+	testIdPrefix = "",
 }: {
 	disabled: boolean;
 	onSubmit: (request: RepositorySetupRequest) => Promise<RepositorySetupResult>;
@@ -92,13 +94,26 @@ export function RepositorySetupActions({
 	onBegin: () => void;
 	onClone: () => void;
 	cloneRef?: Ref<PublicInstance>;
+	presentation?: "list" | "tiles";
+	testIdPrefix?: string;
 }) {
 	const theme = useAppTheme();
 	const { tokens: appTokens } = theme;
 
 	return (
-		<div style={{ display: "flex", flexDirection: "column", gap: spacing[1] }}>
+		<div
+			style={{
+				display: "flex",
+				flexDirection: presentation === "tiles" ? "row" : "column",
+				gap: spacing[1],
+				flexGrow: presentation === "tiles" ? 2 : undefined,
+				flexBasis: presentation === "tiles" ? 0 : undefined,
+				minWidth: 0,
+			}}
+		>
 			<CreateForm
+				testIdPrefix={testIdPrefix}
+				presentation={presentation}
 				disabled={disabled}
 				onSubmit={onSubmit}
 				onCancel={onCancel}
@@ -110,11 +125,18 @@ export function RepositorySetupActions({
 				tokens={appTokens}
 				variant="ghost"
 				size="sm"
-				testId="repository-clone"
+				testId={`${testIdPrefix}repository-clone`}
 				disabled={disabled}
 				style={{
-					width: "100%",
-					justifyContent: "flex-start",
+					width: presentation === "tiles" ? undefined : "100%",
+					flexGrow: presentation === "tiles" ? 1 : undefined,
+					flexBasis: presentation === "tiles" ? 0 : undefined,
+					minWidth: 0,
+					height: presentation === "tiles" ? 88 : undefined,
+					flexDirection: presentation === "tiles" ? "column" : "row",
+					justifyContent: presentation === "tiles" ? "center" : "flex-start",
+					borderColor:
+						presentation === "tiles" ? appTokens.colors.border : "transparent",
 					gap: spacing[2],
 					color: appTokens.colors.textMuted,
 				}}
@@ -133,6 +155,8 @@ function CreateForm({
 	onCancel,
 	onOpen,
 	onBegin,
+	presentation = "list",
+	testIdPrefix = "",
 }: Omit<Parameters<typeof RepositorySetupActions>[0], "onClone">) {
 	const theme = useAppTheme();
 	const { tokens: appTokens } = theme;
@@ -251,11 +275,20 @@ function CreateForm({
 					tokens={appTokens}
 					variant="ghost"
 					size="sm"
-					testId="repository-create"
+					testId={`${testIdPrefix}repository-create`}
 					disabled={disabled}
 					style={{
-						width: "100%",
-						justifyContent: "flex-start",
+						width: presentation === "tiles" ? undefined : "100%",
+						flexGrow: presentation === "tiles" ? 1 : undefined,
+						flexBasis: presentation === "tiles" ? 0 : undefined,
+						minWidth: 0,
+						height: presentation === "tiles" ? 88 : undefined,
+						flexDirection: presentation === "tiles" ? "column" : "row",
+						justifyContent: presentation === "tiles" ? "center" : "flex-start",
+						borderColor:
+							presentation === "tiles"
+								? appTokens.colors.border
+								: "transparent",
 						gap: spacing[2],
 						color: appTokens.colors.textMuted,
 					}}

@@ -7,13 +7,8 @@ import { RepositoryCommitSubject } from "../repository-workspace/components/repo
 
 /** Immediate, persistent appearance selection; previews use the same palettes as the app. */
 export function AppearanceSettings() {
-	const {
-		appearance,
-		tokens,
-		setAppearance,
-		commitTypeBadges,
-		setCommitTypeBadges,
-	} = useAppTheme();
+	const { appearance, tokens, commitTypeBadges, setCommitTypeBadges } =
+		useAppTheme();
 
 	return (
 		<div
@@ -37,54 +32,7 @@ export function AppearanceSettings() {
 			>
 				Appearance
 			</text>
-			<div
-				role="group"
-				aria-label="Color theme"
-				style={{
-					display: "flex",
-					flexDirection: "row",
-					gap: spacing[2],
-					maxWidth: 480,
-				}}
-			>
-				{(["light", "dark"] as const).map((choice) => (
-					<Button
-						key={choice}
-						tokens={tokens}
-						testId={`appearance-${choice}`}
-						aria-label={`${choice === "light" ? "Light" : "Dark"} theme`}
-						aria-description={appearance === choice ? "Selected" : undefined}
-						variant="secondary"
-						disabled={!setAppearance}
-						onPress={() => setAppearance?.(choice)}
-						style={{
-							flexGrow: 1,
-							flexBasis: 0,
-							minWidth: 0,
-							height: 124,
-							flexDirection: "column",
-							gap: spacing[2],
-							padding: spacing[2],
-							borderWidth: 1,
-							borderColor:
-								appearance === choice
-									? tokens.colors.accentBorder
-									: tokens.colors.border,
-						}}
-					>
-						<ThemePreview appearance={choice} />
-						<text
-							style={{
-								...typography.md,
-								color: tokens.colors.text,
-								pointerEvents: "none",
-							}}
-						>
-							{choice === "light" ? "Light" : "Dark"}
-						</text>
-					</Button>
-				))}
-			</div>
+			<AppearanceChoices />
 			<div
 				style={{
 					display: "flex",
@@ -139,6 +87,63 @@ export function AppearanceSettings() {
 					/>
 				</div>
 			</div>
+		</div>
+	);
+}
+
+/** The same live theme previews for Settings and first-run setup; no defaults change on mount. */
+export function AppearanceChoices() {
+	const { appearance, tokens, setAppearance } = useAppTheme();
+
+	return (
+		<div
+			role="group"
+			aria-label="Color theme"
+			style={{
+				display: "flex",
+				flexDirection: "row",
+				gap: spacing[2],
+				width: "100%",
+				maxWidth: 480,
+			}}
+		>
+			{(["light", "dark"] as const).map((choice) => (
+				<Button
+					key={choice}
+					tokens={tokens}
+					testId={`appearance-${choice}`}
+					aria-label={`${choice === "light" ? "Light" : "Dark"} theme`}
+					aria-description={appearance === choice ? "Selected" : undefined}
+					variant="secondary"
+					disabled={!setAppearance}
+					onPress={() => setAppearance?.(choice)}
+					style={{
+						flexGrow: 1,
+						flexBasis: 0,
+						minWidth: 0,
+						height: 124,
+						flexDirection: "column",
+						gap: spacing[2],
+						padding: spacing[2],
+						borderWidth: 1,
+						borderColor:
+							appearance === choice
+								? tokens.colors.accentBorder
+								: tokens.colors.border,
+					}}
+				>
+					<ThemePreview appearance={choice} />
+					<text
+						style={{
+							...typography.md,
+							color: tokens.colors.text,
+							pointerEvents: "none",
+						}}
+					>
+						{choice === "light" ? "Light" : "Dark"}
+					</text>
+				</Button>
+			))}
 		</div>
 	);
 }

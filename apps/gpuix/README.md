@@ -48,6 +48,27 @@ on breaking prefixes. Ordinary or unrecognized messages stay untouched; selectio
 search, copying and history-editing actions always use the original Git message.
 This is presentation only: no Git metadata is changed or fetched for the badges.
 
+## Onboarding
+
+A fresh launch without a saved session starts a skippable three-step setup:
+live Light/Dark previews, commit author identity with optional hosting-account
+connection, and Open/Clone/Create repository tiles. Existing session files
+without setup metadata are treated as complete, even with no recent repositories;
+invalid sessions retain the existing recovery behavior instead of starting setup.
+Progress and completion are saved separately from repository navigation in the
+session. Unfinished setup resumes at its step; Skip setup and the setup tab's X
+mark it complete. Settings → **Run setup again** reopens setup without clearing
+open repositories, drafts, theme, accounts, or AI preferences.
+
+Git identity is prefilled from global configuration; loading it is read-only.
+Only **Save identity** updates computer-wide Git settings; Continue, Back,
+Skip, and visiting account connection never save identity edits. Account setup
+uses the existing Settings flow and returns to the same setup step and draft.
+Repository setup uses the existing picker, Clone view, and Create form, with
+their cancellation/error and duplicate-write protections. Successful repository
+loading completes onboarding; merely choosing an action or cancelling does not.
+AI and external-editor configuration remain optional in Settings.
+
 ## Local native patches
 
 The app currently requires Apple Silicon macOS, Rust **1.97.1**, and Xcode

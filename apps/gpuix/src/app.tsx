@@ -88,6 +88,8 @@ import { RepositoryHistorySquash } from "./feature/repository-workspace/lib/repo
 import { RepositoryCommitDetails } from "./feature/repository-workspace/components/repository-commit-details";
 import { AiProvider } from "./feature/ai/ai-provider";
 import type { AiIntegration } from "./feature/ai/lib/ai-integration";
+import { Onboarding } from "./feature/onboarding/onboarding";
+import type { OnboardingStep } from "./feature/workspace-tabs/lib/workspace-session";
 
 /** Owns appearance independently of repository state, so a live switch preserves every draft and viewport. */
 export function App({
@@ -140,6 +142,7 @@ function AppContent({
 	initialTabCount,
 	preview = false,
 	initialSession,
+	initialOnboarding,
 	sessionError,
 	saveSession,
 	readRepository = RepositoryReader.read,
@@ -191,6 +194,8 @@ function AppContent({
 	initialTabCount?: number;
 	preview?: boolean;
 	initialSession?: WorkspaceSessionDocument;
+	/** Set only by startup when no previous session exists; older sessions stay uninterrupted. */
+	initialOnboarding?: OnboardingStep;
 	sessionError?: string;
 	saveSession?: (document: WorkspaceSessionDocument) => void;
 	readRepository?: typeof RepositoryReader.read;
@@ -413,13 +418,28 @@ function AppContent({
 					)
 	);
 
+	const [onboarding, setOnboarding] = useState<OnboardingStep>(
+		preview
+			? "complete"
+			: (initialSession?.onboarding ?? initialOnboarding ?? "complete")
+	);
+
+	const onboardingOpen = onboarding !== "complete";
+	const [onboardingId, setOnboardingId] = useState<string | null>(null);
+	const [onboardingClone, setOnboardingClone] = useState(false);
+
+	const onboardingWorkspace = state.tabs.find(
+		(tab) => tab.id === onboardingId
+	)?.workspace;
+
 	const session = useWorkspaceSession(
 		state,
 		saveSession,
 		preview ? undefined : sessionError,
 		diffSettings,
 		theme.appearance,
-		theme.commitTypeBadges
+		theme.commitTypeBadges,
+		onboarding
 	);
 
 	const connection = useRepositoryConnection(
@@ -428,6 +448,13 @@ function AppContent({
 		readRepository,
 		setup
 	);
+
+	useEffect(() => {
+		if (onboardingOpen && onboardingWorkspace?.repository) {
+			setOnboarding("complete");
+			setOnboardingClone(false);
+		}
+	}, [onboardingOpen, onboardingWorkspace?.repository]);
 
 	const mutations = useRepositoryMutations(
 		state,
@@ -580,6 +607,24 @@ function AppContent({
 		}, 0);
 	}, [renderer]);
 
+	const onboardingTab = (): string => {
+		if (onboardingId && state.tabs.some((tab) => tab.id === onboardingId))
+			return onboardingId;
+
+		const id = `workspace-${state.nextId}`;
+
+		dispatch({ type: "add" });
+		setOnboardingId(id);
+
+		return id;
+	};
+
+	const onboardingBusy =
+		connection.pickingId !== null ||
+		!!onboardingWorkspace?.loading ||
+		(!!onboardingWorkspace &&
+			RepositoryWorkspaceModel.isBusy(onboardingWorkspace));
+
 	useEffect(() => {
 		const open = openSettings;
 
@@ -601,6 +646,8 @@ function AppContent({
 
 	useEffect(() => {
 		workspaceShortcuts.set(renderer, (key) => {
+			if (onboardingOpen) return;
+
 			if (/^[1-9]$/.test(key)) {
 				const tab = state.tabs[Number(key) - 1];
 
@@ -635,7 +682,15 @@ function AppContent({
 		return () => {
 			workspaceShortcuts.delete(renderer);
 		};
-	}, [renderer, state.tabs, state.nextId, activeTab, workspace, connection]);
+	}, [
+		renderer,
+		state.tabs,
+		state.nextId,
+		activeTab,
+		workspace,
+		connection,
+		onboardingOpen,
+	]);
 
 	const workspaceAction = useCallback(
 		(id: string, action: RepositoryWorkspaceAction): void =>
@@ -721,9 +776,9 @@ function AppContent({
 				}}
 			>
 				<AppShell
-					hidden={settingsOpen}
+					hidden={settingsOpen || onboardingOpen}
 					rail={
-						settingsOpen ? undefined : (
+						settingsOpen || onboardingOpen ? undefined : (
 							<WorkspaceRail
 								settingsButtonRef={railSettingsButton}
 								accountButtonRef={railAccountButton}
@@ -1270,9 +1325,144 @@ function AppContent({
 						/>
 					)}
 				</AppShell>
+				{onboarding !== "complete" ? (
+					<Onboarding
+						step={onboarding}
+						active={!settingsOpen}
+						busy={onboardingBusy}
+						error={onboardingWorkspace?.error ?? undefined}
+						onStep={setOnboarding}
+						onSkip={() => {
+							setOnboarding("complete");
+							setOnboardingClone(false);
+						}}
+						onAccounts={() => openSettings("connect")}
+						readIdentity={readGitSettings}
+						writeIdentity={mutations.saveSettings}
+						cloneView={
+							onboardingClone ? (
+								<RepositoryCloneView
+									accounts={accounts}
+									preferredAccountKey={preferredAccountKey}
+									active={!settingsOpen}
+									disabled={onboardingBusy}
+									onSubmit={(request) =>
+										connection.setup(
+											onboardingTab(),
+											request,
+											mutations.closeProtection.block
+										)
+									}
+									onCancel={() => {
+										if (onboardingId) connection.cancelSetup(onboardingId);
+									}}
+									onOpen={(path) => {
+										void connection.read(onboardingTab(), path);
+									}}
+									onSettings={openSettings}
+									onAddAccount={() => openSettings("connect")}
+									onBack={() => setOnboardingClone(false)}
+								/>
+							) : undefined
+						}
+						repositoryActions={
+							<div
+								style={{
+									display: "flex",
+									flexDirection: "row",
+									gap: spacing[1],
+									minWidth: 0,
+								}}
+							>
+								<Button
+									testId="onboarding-open"
+									tokens={appTokens}
+									size="sm"
+									variant="ghost"
+									disabled={onboardingBusy}
+									style={{
+										flexGrow: 1,
+										flexBasis: 0,
+										minWidth: 0,
+										height: 88,
+										flexDirection: "column",
+										gap: spacing[2],
+										borderColor: appTokens.colors.border,
+									}}
+									onPress={() => {
+										void connection.open(onboardingTab());
+									}}
+								>
+									<svg
+										source='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 7V5a1 1 0 0 1 1-1h5l3 3h8a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7Z" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/></svg>'
+										style={{
+											width: 14,
+											height: 14,
+											color: appTokens.colors.textMuted,
+											pointerEvents: "none",
+										}}
+									/>
+									Open from disk
+								</Button>
+								<RepositorySetupActions
+									testIdPrefix="onboarding-"
+									presentation="tiles"
+									disabled={onboardingBusy}
+									onBegin={onboardingTab}
+									onClone={() => {
+										onboardingTab();
+										setOnboardingClone(true);
+									}}
+									onSubmit={(request) =>
+										connection.setup(
+											onboardingTab(),
+											request,
+											mutations.closeProtection.block
+										)
+									}
+									onCancel={() => {
+										if (onboardingId) connection.cancelSetup(onboardingId);
+									}}
+									onOpen={(path) => {
+										void connection.read(onboardingTab(), path);
+									}}
+								/>
+							</div>
+						}
+					>
+						{closeNotice}
+						{session.error ? (
+							<text
+								role="alert"
+								style={{
+									...typography.sm,
+									padding: spacing[3],
+									color: appTokens.colors.danger,
+								}}
+							>
+								{session.error}
+							</text>
+						) : null}
+					</Onboarding>
+				) : null}
 				{settingsOpen ? (
 					<AccountsSettings
 						onBack={closeSettings}
+						onSetup={
+							!preview &&
+							!state.tabs.some(
+								(tab) =>
+									tab.workspace.loading ||
+									RepositoryWorkspaceModel.isBusy(tab.workspace)
+							)
+								? () => {
+										closeSettings();
+										setOnboardingId(null);
+										setOnboardingClone(false);
+										setOnboarding("welcome");
+									}
+								: undefined
+						}
 						accounts={accounts}
 						externalEditors={externalEditors}
 						initialForm={settingsView ?? "list"}

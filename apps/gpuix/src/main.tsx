@@ -18,6 +18,11 @@ render(
 		preview={preview}
 		initialTabCount={preview ? 8 : 0}
 		initialSession={restored?.document}
+		initialOnboarding={
+			!preview && !restored?.document && !restored?.error
+				? "welcome"
+				: undefined
+		}
 		sessionError={restored?.error}
 		saveSession={
 			session && !restored?.error
