@@ -93,6 +93,12 @@ checked/unchecked/mixed accessibility state. The root Bun patch in
 `patches/@gpuix%2Fnative@0.10.0.patch` adds that prop to the published JavaScript
 bridge and TypeScript host contract; `bun install` reapplies it reproducibly.
 
+`native/textarea-viewport.patch` lets an explicitly sized multiline field use its
+full content height rather than its row-based fallback. `scrollPaddingBottom`
+adds caret, wheel and drag-selection clearance without clipping the painted
+text area. The commit composer uses it for its overlaid actions; auto-sized
+fields and single-line inputs retain their existing sizing behavior.
+
 `native/anchored-center.patch` fixes centered floating layers on all four sides.
 A zero-size anchor point prevents flex alignment and GPUI's anchor placement
 from both subtracting half the content size. The shared `@1git/gpuix-ui/tooltip`
@@ -629,6 +635,10 @@ draft. For a non-empty draft, **Replace commit message?** offers **Replace** and
 **Cancel** before any selected code is sent. The existing message remains visible
 until generation and a fresh check of the selected diff succeed. The completed
 result appears in the normal commit editor, editable and focused for review.
+The editor fills the message-and-actions area. Actions overlay its bottom-right
+corner with 10px insets and a non-interactive, theme-matched soft fade. Native
+scrolling keeps the final line and caret above the actions, including wrapped
+messages; the last-commit footer remains separate.
 Progress appears inside the disabled Commit button with a small spinner; review
 phases use a compact label and expose the full status through accessibility.
 Failures remain as a notice beneath the editor. The sparkle becomes a Stop

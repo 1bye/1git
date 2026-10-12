@@ -1,5 +1,5 @@
 /**
- * Covers: immediate inline generation, replacement confirmation, draft retention, stale selections and commit blocking.
+ * Covers: composer overlays and caret clearance, inline generation, replacement confirmation, draft retention and commit blocking.
  * Real: native composer, generation lifecycle, workspace reducer and disposable AI settings.
  * Doubles: selected Git reads, inference, last-commit metadata and credential vault.
  * Requires: patched GPUIX renderer and macOS graphics; no network or real credentials.
@@ -8,6 +8,7 @@ import { afterEach, beforeEach, expect, it, mock, spyOn } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import sharp from "sharp";
 import { createTestRoot, type TestRoot } from "@gpuix/react/testing";
 import { AiProvider } from "../../src/feature/ai/ai-provider";
 import { AiIntegration } from "../../src/feature/ai/lib/ai-integration";
@@ -185,6 +186,127 @@ it("starts on the first AI click and places the checked-selection result directl
 	expect(root.renderer.findByTestId("ai-commit-proposal")).toBeUndefined();
 	expect(fixture.commit).not.toHaveBeenCalled();
 });
+
+it.each(["light", "dark"] as const)(
+	"paints text into the lower editor area instead of reserving an empty action strip (%s)",
+	async (appearance) => {
+		composer(
+			Array.from({ length: 12 }, () => "Visible text").join("\n"),
+			appearance
+		);
+		await settle();
+		root.renderer.nativeSimulateKeystrokes(node("commit-message").id, "cmd-up");
+
+		const surface = root.renderer.getElementBounds(
+			node("commit-editor-surface").id
+		)!;
+
+		const path = join(directory, "full-viewport.png");
+
+		root.renderer.captureScreenshot(path);
+		const { data, info } = await sharp(path)
+			.ensureAlpha()
+			.raw()
+			.toBuffer({ resolveWithObject: true });
+
+		const scale = info.height / 640;
+		let ink = 0;
+
+		// Sixth row: below the old five-row clip, above the opaque end of the fade.
+		for (
+			let y = Math.ceil((surface.y + 88) * scale);
+			y < (surface.y + 104) * scale;
+			y++
+		) {
+			const background =
+				(y * info.width + Math.floor((surface.x + 2) * scale)) * 4;
+
+			for (
+				let x = Math.ceil((surface.x + 8) * scale);
+				x < (surface.x + 80) * scale;
+				x++
+			) {
+				const offset = (y * info.width + x) * 4;
+
+				const difference =
+					Math.abs(data[offset]! - data[background]!) +
+					Math.abs(data[offset + 1]! - data[background + 1]!) +
+					Math.abs(data[offset + 2]! - data[background + 2]!);
+
+				if (difference > 60) ink++;
+			}
+		}
+
+		expect(ink).toBeGreaterThan(20);
+
+		if (process.env.GPUIX_COMPOSER_OVERLAY_SCREENSHOT)
+			root.renderer.captureScreenshot(
+				`${process.env.GPUIX_COMPOSER_OVERLAY_SCREENSHOT}-full-${appearance}.png`
+			);
+	}
+);
+
+it.each(["light", "dark"] as const)(
+	"overlays actions with 10px insets and keeps the final line editable above them (%s)",
+	async (appearance) => {
+		const message = Array.from({ length: 20 }, (_, index) =>
+			index === 19
+				? "Last line"
+				: `Detail ${index + 1}: ${"Long details wrap within the editor. ".repeat(3)}`
+		).join("\n");
+
+		composer(message, appearance);
+		await settle();
+		const surface = root.renderer.getElementBounds(
+			node("commit-editor-surface").id
+		)!;
+
+		const actions = root.renderer.getElementBounds(node("commit-actions").id)!;
+		const editor = node("commit-message");
+
+		expect(actions.x + actions.width).toBe(surface.x + surface.width - 10);
+		expect(actions.y + actions.height).toBe(surface.y + surface.height - 10);
+		expect(editor.parentId).toBe(node("commit-editor-surface").id);
+		expect(node("commit-actions-fade").style).toMatchObject({
+			pointerEvents: "none",
+			background: { type: "linear-gradient", angle: 180 },
+		});
+		await press("commit-submit");
+		// The soft fade must not turn the empty editor area into a dead strip.
+		root.renderer.nativeSimulateClick(
+			surface.x + 20,
+			surface.y + surface.height - 20
+		);
+		root.renderer.flush();
+		expect(root.renderer.getFocusedElementId()).toBe(editor.id);
+		// Caret clearance follows the overlay, without shrinking the painted viewport.
+		const lastLineY = actions.y - 16;
+
+		expect(lastLineY + 8).toBeLessThan(actions.y);
+		root.renderer.nativeSimulateClick(surface.x + 200, lastLineY);
+		root.renderer.flush();
+		expect(root.renderer.getFocusedElementId()).toBe(editor.id);
+		root.renderer.simulateKeystrokes("x enter z");
+		await settle();
+		expect(node("commit-message").customProps?.value).toBe(`${message}x\nz`);
+		const screenshot = process.env.GPUIX_COMPOSER_OVERLAY_SCREENSHOT;
+
+		if (screenshot)
+			root.renderer.captureScreenshot(`${screenshot}-${appearance}.png`);
+
+		root.renderer.nativeSimulateKeystrokes(editor.id, "cmd-up");
+		root.renderer.nativeSimulateScrollWheel(
+			surface.x + 20,
+			lastLineY,
+			0,
+			-10000
+		);
+		root.renderer.nativeSimulateClick(surface.x + 200, lastLineY);
+		root.renderer.simulateKeystrokes("q");
+		await settle();
+		expect(node("commit-message").customProps?.value).toBe(`${message}x\nzq`);
+	}
+);
 
 it.each(["light", "dark"] as const)(
 	"shows progress inside Commit without changing composer height and blocks commit controls (%s)",

@@ -22,39 +22,58 @@ import {
 } from "../lib/repository-workspace-model";
 
 const themedStyles = createThemedStyles(({ colors: appColors }) => {
+	const actionInset = spacing[2.5];
+	const actionHeight = 24;
+	const actionClearance = actionInset + actionHeight + spacing[2];
+
 	const styles = StyleSheet.create({
 		composer: {
 			display: "flex",
 			flexDirection: "column",
 			flexShrink: 0,
-			gap: spacing[1.5],
 			borderTopWidth: 1,
 			borderColor: appColors.editorHairline,
 		},
+		editorSurface: {
+			position: "relative",
+			height: 140,
+			flexShrink: 0,
+		},
 		editor: {
-			height: 100,
+			width: "100%",
+			height: "100%",
 			padding: spacing[2],
-			paddingBottom: spacing[1],
 			...typography.sm,
 			backgroundColor: "transparent",
 			borderWidth: 0,
 			borderColor: "transparent",
 		},
-		actions: {
-			display: "flex",
-			alignItems: "center",
-			justifyContent: "flex-end",
-			paddingLeft: spacing[2.5],
-			paddingRight: spacing[2.5],
-			flexShrink: 0,
-			height: 24,
-			marginBottom: spacing[2.5],
+		fade: {
+			position: "absolute",
+			left: 0,
+			right: 0,
+			bottom: 0,
+			height: actionClearance,
+			pointerEvents: "none",
+			background: {
+				type: "linear-gradient",
+				angle: 180,
+				stops: [
+					{ color: `${appColors.editorSurface}00`, position: 0 },
+					{ color: appColors.editorSurface, position: 0.8 },
+				],
+			},
 		},
-		buttons: {
+		actions: {
+			position: "absolute",
+			right: actionInset,
+			bottom: actionInset,
 			display: "flex",
 			flexDirection: "row",
 			alignItems: "center",
 			gap: spacing[1.5],
+			height: actionHeight,
+			userSelect: "none",
 		},
 		hint: { ...typography["2xs"], color: appColors.editorFaint },
 		notice: {
@@ -64,6 +83,8 @@ const themedStyles = createThemedStyles(({ colors: appColors }) => {
 			maxHeight: 64,
 			marginLeft: spacing[2.5],
 			marginRight: spacing[2.5],
+			marginTop: spacing[1.5],
+			marginBottom: spacing[1.5],
 			flexShrink: 0,
 			overflowY: "scroll",
 			overflowX: "hidden",
@@ -73,7 +94,7 @@ const themedStyles = createThemedStyles(({ colors: appColors }) => {
 		label: { ...typography.sm, fontWeight: fontWeight.medium },
 	});
 
-	return { styles };
+	return { styles, scrollPaddingBottom: actionClearance - spacing[2] };
 });
 
 /** Selected-change commit/amend composer; only explicit sample mode remains preview-only. */
@@ -94,7 +115,7 @@ export function RepositoryCommit({
 }) {
 	const theme = useAppTheme();
 	const { tokens: appTokens } = theme;
-	const { styles } = themedStyles[theme.appearance];
+	const { styles, scrollPaddingBottom } = themedStyles[theme.appearance];
 
 	const [previewed, setPreviewed] = useState(false);
 
@@ -168,6 +189,7 @@ export function RepositoryCommit({
 						paddingLeft: spacing[2.5],
 						paddingRight: spacing[2.5],
 						paddingTop: spacing[1.5],
+						marginBottom: spacing[1.5],
 					}}
 				>
 					<text
@@ -193,41 +215,40 @@ export function RepositoryCommit({
 					</Button>
 				</div>
 			) : null}
-			<Textarea
-				ref={messageInput}
-				testId="commit-message"
-				aria-label="Commit message"
-				aria-description={
-					sample
-						? "First line is the summary. Add a blank line for optional details. Command Enter previews; no commit is created."
-						: `First line is the summary. Command Enter: ${label}.`
-				}
-				placeholder="Commit message…"
-				value={state.commitMessage}
-				readOnly={generation.busy || RepositoryWorkspaceModel.isBusy(state)}
-				onValueChange={(value) => {
-					setPreviewed(false);
-					onAction({ type: "edit-commit-message", value });
-				}}
-				minRows={5}
-				maxRows={5}
-				tokens={appTokens}
-				style={styles.editor}
-				onKeyDown={(event) => {
-					if (
-						event.key === "enter" &&
-						event.modifiers?.cmd &&
-						!event.modifiers.ctrl &&
-						!event.modifiers.alt &&
-						!event.modifiers.shift &&
-						!event.isHeld
-					)
-						submit();
-				}}
-			/>
-			<AiCommitStatus generation={generation} />
-			<div style={styles.actions}>
-				<div style={styles.buttons}>
+			<div testId="commit-editor-surface" style={styles.editorSurface}>
+				<Textarea
+					ref={messageInput}
+					testId="commit-message"
+					aria-label="Commit message"
+					aria-description={
+						sample
+							? "First line is the summary. Add a blank line for optional details. Command Enter previews; no commit is created."
+							: `First line is the summary. Command Enter: ${label}.`
+					}
+					placeholder="Commit message…"
+					value={state.commitMessage}
+					readOnly={generation.busy || RepositoryWorkspaceModel.isBusy(state)}
+					onValueChange={(value) => {
+						setPreviewed(false);
+						onAction({ type: "edit-commit-message", value });
+					}}
+					scrollPaddingBottom={scrollPaddingBottom}
+					tokens={appTokens}
+					style={styles.editor}
+					onKeyDown={(event) => {
+						if (
+							event.key === "enter" &&
+							event.modifiers?.cmd &&
+							!event.modifiers.ctrl &&
+							!event.modifiers.alt &&
+							!event.modifiers.shift &&
+							!event.isHeld
+						)
+							submit();
+					}}
+				/>
+				<div testId="commit-actions-fade" style={styles.fade} />
+				<div testId="commit-actions" style={styles.actions}>
 					<AiCommitButton generation={generation} onSettings={onAiSettings} />
 					<Button
 						testId={sample ? "commit-preview" : "commit-submit"}
@@ -261,6 +282,7 @@ export function RepositoryCommit({
 					</Button>
 				</div>
 			</div>
+			<AiCommitStatus generation={generation} />
 			{noticeText ? (
 				<div
 					key={state.commit.error ?? state.commit.notice ?? "hint"}

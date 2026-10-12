@@ -34,6 +34,10 @@ export const diffInclusionThemePatchPath = resolve(
 	"diff-inclusion-theme.patch"
 );
 export const diffRailsPatchPath = resolve(import.meta.dir, "diff-rails.patch");
+export const textareaViewportPatchPath = resolve(
+	import.meta.dir,
+	"textarea-viewport.patch"
+);
 export const activationPatchPath = resolve(
 	import.meta.dir,
 	"window-activation.patch"
@@ -134,6 +138,7 @@ export const nativeBuildId = createHash("sha256")
 	.update(readFileSync(diffSyntaxPatchPath))
 	.update(readFileSync(diffInclusionThemePatchPath))
 	.update(readFileSync(diffRailsPatchPath))
+	.update(readFileSync(textareaViewportPatchPath))
 	.update(readFileSync(activationPatchPath))
 	.update(readFileSync(closePatchPath))
 	.update(readFileSync(closePlatformPatchPath))

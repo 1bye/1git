@@ -165,7 +165,7 @@ it("pins the last commit below the composer with right-aligned Amend and Undo", 
 	await settle();
 	expect(root.renderer.getAllText().join(" ")).toContain("Committed");
 	expect(root.renderer.getAllText()).toContain("Original");
-	expect(root.renderer.findByTestId("commit-actions")).toBeUndefined();
+	expect(node("commit-actions").style?.position).toBe("absolute");
 	expect(node("commit-amend")).toBeDefined();
 	const footer = root.renderer.getElementBounds(node("last-commit-footer").id)!;
 	const undo = root.renderer.getElementBounds(node("commit-undo").id)!;
@@ -501,16 +501,23 @@ it("keeps the rail Sync separate from the composer and preserves the draft", asy
 	);
 	await open();
 	const composer = root.renderer.getElementBounds(node("commit-composer").id);
+
+	const surface = root.renderer.getElementBounds(
+		node("commit-editor-surface").id
+	)!;
+
 	const editor = root.renderer.getElementBounds(node("commit-message").id);
 
 	expect(root.renderer.getAllText()).not.toContain("⌘ Enter");
 	expect(node("commit-message").style).toMatchObject({
 		padding: 8,
-		paddingBottom: 4,
 		borderWidth: 0,
+		height: 1,
 	});
+	expect(node("commit-message").style?.paddingBottom).toBeUndefined();
+	expect(node("commit-message").customProps?.scrollPaddingBottom).toBe(34);
 	expect(editor?.x).toBe((composer?.x ?? 0) + 8);
-	expect(editor?.y).toBe((composer?.y ?? 0) + 9);
+	expect(editor?.y).toBe(surface.y + 8);
 	expect(editor?.width).toBe(composer?.width);
 	const layoutScreenshot = process.env.GPUIX_COMPOSER_LAYOUT_SCREENSHOT;
 
@@ -527,6 +534,11 @@ it("keeps the rail Sync separate from the composer and preserves the draft", asy
 	expect(commit && commit.x + commit.width).toBe(
 		(composer?.x ?? 0) + (composer?.width ?? 0) - 10
 	);
+	const footer = root.renderer.getElementBounds(node("last-commit-footer").id)!;
+
+	expect(footer.y - (commit!.y + commit!.height)).toBe(10);
+	expect(surface.y + surface.height).toBe(footer.y);
+	expect(node("commit-actions-fade").style?.pointerEvents).toBe("none");
 	expect(node("rail-sync").style?.backgroundColor).not.toBe(
 		node("commit-submit").style?.backgroundColor
 	);

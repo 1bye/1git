@@ -22,7 +22,15 @@ index cc6b7ef926c5c3122fff6107341913364a215710..e58daeb6c03c95ebacf36ec5ea7da46c
      /** String value reported to assistive technology. */
      "aria-valuetext"?: string;
      /** Heading level, 1-based. */
-@@ -415,6 +421,20 @@ export interface CodeProps extends HostProps {
+@@ -352,5 +358,7 @@ export interface TextareaProps extends InputProps {
+     minRows?: number;
+     maxRows?: number;
++    /** 1git native patch: caret/scroll clearance without shrinking the painted viewport. */
++    scrollPaddingBottom?: number;
+ }
+ export type VirtualListShared = {
+     /** No `hover` or `active`: gpui's `List` has no pressed or hovered style
+@@ -415,6 +423,20 @@ export interface CodeProps extends HostProps {
      theme?: GpuixTheme;
  }
  export interface DiffProps extends HostProps {
