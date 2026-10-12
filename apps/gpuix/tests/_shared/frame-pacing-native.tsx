@@ -13,7 +13,7 @@ renderer.init({
 
 let scrollId: number | undefined;
 const commitEditor = process.argv.includes("--commit-editor");
-const message = `feat: ${"Wrapped native commit subject ".repeat(180)}\n\n`;
+const message = `feat(ui): ${"Wrapped native commit subject ".repeat(180)}\n\n`;
 
 const root = render(
 	<div
@@ -26,7 +26,11 @@ const root = render(
 			<textarea
 				aria-label="Commit message"
 				value={message}
-				textColorRange={{ start: 0, end: 4, color: "#38664a" }}
+				textColorRanges={[
+					{ start: 0, end: 4, color: "#38664a" },
+					{ start: 4, end: 5, color: "#888888" },
+					{ start: 7, end: 8, color: "#888888" },
+				]}
 				linePlaceholder={{
 					offset: message.length,
 					text: "Description (optional)",

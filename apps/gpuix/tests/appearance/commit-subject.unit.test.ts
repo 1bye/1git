@@ -64,15 +64,21 @@ it("recognizes editable prefixes without requiring a complete summary or touchin
 		expect(CommitSubject.prefix(`${type}:`)).toEqual({
 			type,
 			length: type.length,
+			scope: undefined,
 		});
 		expect(CommitSubject.prefix(`${type}(界🙂)!: title\n\nfeat: body`)).toEqual(
-			{ type, length: type.length }
+			{
+				type,
+				length: type.length,
+				scope: { start: type.length, end: type.length + 5 },
+			}
 		);
 	}
 
 	expect(CommitSubject.prefix("FEAT: add Unicode é🙂")).toEqual({
 		type: "feat",
 		length: 4,
+		scope: undefined,
 	});
 
 	for (const message of [
@@ -108,6 +114,18 @@ it("leaves ordinary, unknown, malformed and multiline messages untouched", () =>
 	]) {
 		expect(CommitSubject.parse(subject)).toBeNull();
 	}
+});
+
+it("locates only the scope delimiters in UTF-16, not parentheses in the summary or body", () => {
+	expect(CommitSubject.prefix("feat(界🙂)!: keep (summary)\n\n(body)")).toEqual(
+		{
+			type: "feat",
+			length: 4,
+			scope: { start: 4, end: 9 },
+		}
+	);
+	expect(CommitSubject.prefix("fix: keep (summary)")?.scope).toBeUndefined();
+	expect(CommitSubject.prefix("feat(unclosed: title")).toBeNull();
 });
 
 it("persists either badge choice without losing false or trusting invalid optional values", () => {

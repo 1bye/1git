@@ -121,6 +121,34 @@ export function RepositoryCommit({
 	const { tokens: appTokens } = theme;
 	const { styles, scrollPaddingBottom } = themedStyles[theme.appearance];
 	const prefix = CommitSubject.prefix(state.commitMessage);
+
+	const textColorRanges:
+		| { start: number; end: number; color: string }[]
+		| undefined = prefix
+		? [
+				{
+					start: 0,
+					end: prefix.length,
+					color: commitTypeColor(theme.appearance, prefix.type).color,
+				},
+			]
+		: undefined;
+
+	if (prefix?.scope) {
+		textColorRanges?.push(
+			{
+				start: prefix.scope.start,
+				end: prefix.scope.start + 1,
+				color: theme.colors.editorMuted,
+			},
+			{
+				start: prefix.scope.end - 1,
+				end: prefix.scope.end,
+				color: theme.colors.editorMuted,
+			}
+		);
+	}
+
 	const separator = bodySeparator.exec(state.commitMessage);
 	const bodyOffset = separator ? separator.index + separator[0].length : null;
 
@@ -239,15 +267,7 @@ export function RepositoryCommit({
 							: `First line is the summary. Add a blank line for an optional description. Command Enter: ${label}.`
 					}
 					placeholder="Commit message…"
-					textColorRange={
-						prefix
-							? {
-									start: 0,
-									end: prefix.length,
-									color: commitTypeColor(theme.appearance, prefix.type).color,
-								}
-							: undefined
-					}
+					textColorRanges={textColorRanges}
 					linePlaceholder={
 						emptyBody && bodyOffset !== null
 							? {

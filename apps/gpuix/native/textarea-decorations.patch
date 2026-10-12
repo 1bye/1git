@@ -29,23 +29,23 @@ diff --git a/packages/native/src/custom_elements/input.rs b/packages/native/src/
 +fn decorated_text_runs(
 +    text: &str,
 +    base: TextRun,
-+    color: Option<&TextColorRange>,
++    colors: &[TextColorRange],
 +    marked: Option<&Range<usize>>,
 +) -> Vec<TextRun> {
-+    let color = color.and_then(|color| {
++    let colors: Vec<_> = colors.iter().take(8).filter_map(|color| {
 +        let range = decoration_offset(text, color.start)?..decoration_offset(text, color.end)?;
 +        let ink = crate::color::parse_color_rgba(&color.color)?;
 +        (range.start < range.end).then_some((range, gpui::Hsla::from(ink)))
-+    });
++    }).collect();
 +    let marked = marked.filter(|range| {
 +        range.start < range.end && range.end <= text.len()
 +            && text.is_char_boundary(range.start) && text.is_char_boundary(range.end)
 +    });
-+    if color.is_none() && marked.is_none() {
++    if colors.is_empty() && marked.is_none() {
 +        return vec![base];
 +    }
 +    let mut boundaries = vec![0, text.len()];
-+    if let Some((range, _)) = &color {
++    for (range, _) in &colors {
 +        boundaries.extend([range.start, range.end]);
 +    }
 +    if let Some(range) = marked {
@@ -56,8 +56,8 @@ diff --git a/packages/native/src/custom_elements/input.rs b/packages/native/src/
 +    boundaries.windows(2).map(|segment| {
 +        let mut run = base.clone();
 +        run.len = segment[1] - segment[0];
-+        if let Some((range, ink)) = &color {
-+            if range.contains(&segment[0]) { run.color = *ink; }
++        if let Some((_, ink)) = colors.iter().rev().find(|(range, _)| range.contains(&segment[0])) {
++            run.color = *ink;
 +        }
 +        if marked.is_some_and(|range| range.contains(&segment[0])) {
 +            run.underline = Some(UnderlineStyle {
@@ -84,7 +84,7 @@ diff --git a/packages/native/src/custom_elements/input.rs b/packages/native/src/
      max_rows: usize,
      last_prop_value: Option<String>,
      scroll_padding_bottom: f32,
-+    text_color_range: Option<TextColorRange>,
++    text_color_ranges: Vec<TextColorRange>,
 +    line_placeholder: Option<LinePlaceholder>,
      theme: Theme,
      state: Option<Entity<TextEditorState>>,
@@ -93,7 +93,7 @@ diff --git a/packages/native/src/custom_elements/input.rs b/packages/native/src/
              max_rows: if multiline { 10 } else { 1 },
              last_prop_value: None,
              scroll_padding_bottom: 0.0,
-+            text_color_range: None,
++            text_color_ranges: Vec::new(),
 +            line_placeholder: None,
              theme: Theme::dark(),
              state: None,
@@ -102,7 +102,7 @@ diff --git a/packages/native/src/custom_elements/input.rs b/packages/native/src/
                  let min_rows = self.min_rows;
                  let max_rows = self.max_rows;
                  let scroll_padding_bottom = self.scroll_padding_bottom;
-+                let text_color_range = self.text_color_range.clone();
++                let text_color_ranges = self.text_color_ranges.clone();
 +                let line_placeholder = self.line_placeholder.clone();
                  let caret_color = self.theme.caret;
                  let callback = callback.clone();
@@ -111,7 +111,7 @@ diff --git a/packages/native/src/custom_elements/input.rs b/packages/native/src/
                      max_rows,
                      fill_height,
                      scroll_padding_bottom,
-+                    text_color_range,
++                    text_color_ranges,
 +                    line_placeholder,
 +                    line_placeholder_layout: None,
                      selected_range: cursor..cursor,
@@ -121,21 +121,24 @@ diff --git a/packages/native/src/custom_elements/input.rs b/packages/native/src/
              state.read_only = self.read_only;
              state.min_rows = self.min_rows.max(1);
              state.max_rows = self.max_rows.max(state.min_rows);
-+            if state.text_color_range != self.text_color_range || state.line_placeholder != self.line_placeholder {
-+                state.text_color_range = self.text_color_range.clone();
++            if state.text_color_ranges != self.text_color_ranges || state.line_placeholder != self.line_placeholder {
++                state.text_color_ranges = self.text_color_ranges.clone();
 +                state.line_placeholder = self.line_placeholder.clone();
 +                cx.notify();
 +            }
              if state.fill_height != fill_height || state.scroll_padding_bottom != self.scroll_padding_bottom {
                  state.fill_height = fill_height;
                  state.scroll_padding_bottom = self.scroll_padding_bottom;
-@@ -552,6 +638,15 @@
+@@ -552,6 +638,18 @@
              "scrollPaddingBottom" => {
                  self.scroll_padding_bottom = value.as_f64().unwrap_or(0.0).max(0.0) as f32;
              }
-+            "textColorRange" => {
-+                self.text_color_range = serde_json::from_value::<TextColorRange>(value).ok()
-+                    .filter(|range| range.start < range.end && crate::color::parse_color_rgba(&range.color).is_some());
++            "textColorRanges" => {
++                self.text_color_ranges = serde_json::from_value::<Vec<TextColorRange>>(value).ok()
++                    .filter(|ranges| ranges.len() <= 8)
++                    .unwrap_or_default().into_iter()
++                    .filter(|range| range.start < range.end && crate::color::parse_color_rgba(&range.color).is_some())
++                    .collect();
 +            }
 +            "linePlaceholder" => {
 +                self.line_placeholder = serde_json::from_value::<LinePlaceholder>(value).ok()
@@ -145,26 +148,26 @@ diff --git a/packages/native/src/custom_elements/input.rs b/packages/native/src/
              "theme" => self.theme = Theme::from_prop(Some(&value)),
              _ => {}
          }
-@@ -566,6 +661,8 @@
+@@ -566,6 +664,8 @@
              "minRows",
              "maxRows",
              "scrollPaddingBottom",
-+            "textColorRange",
++            "textColorRanges",
 +            "linePlaceholder",
              "theme",
          ]
      }
-@@ -678,6 +775,9 @@
+@@ -678,6 +778,9 @@
      max_rows: usize,
      fill_height: bool,
      scroll_padding_bottom: f32,
-+    text_color_range: Option<TextColorRange>,
++    text_color_ranges: Vec<TextColorRange>,
 +    line_placeholder: Option<LinePlaceholder>,
 +    line_placeholder_layout: Option<(usize, Vec<WrappedLine>)>,
      selected_range: Range<usize>,
      selection_reversed: bool,
      marked_range: Option<Range<usize>>,
-@@ -1440,29 +1540,18 @@
+@@ -1440,29 +1543,18 @@
          } else {
              style.color
          };
@@ -196,12 +199,12 @@ diff --git a/packages/native/src/custom_elements/input.rs b/packages/native/src/
 -        };
 +        let decorated = !is_placeholder && !self.secret;
 +        let runs = decorated_text_runs(&display, base.clone(),
-+            self.text_color_range.as_ref().filter(|_| decorated),
++            if decorated { &self.text_color_ranges } else { &[] },
 +            self.marked_range.as_ref().filter(|_| decorated));
          let wrap_width = self.multiline.then_some(width);
          let lines = window
              .text_system()
-@@ -1490,6 +1579,17 @@
+@@ -1490,6 +1582,17 @@
          self.display_is_placeholder = is_placeholder;
          self.last_lines = lines;
          self.line_starts = line_starts;
@@ -219,7 +222,7 @@ diff --git a/packages/native/src/custom_elements/input.rs b/packages/native/src/
          self.content_height
      }
  
-@@ -1971,6 +2071,23 @@
+@@ -1971,6 +2074,23 @@
                  y += height;
              }
              self.input.update(cx, |input, _| input.last_lines = lines);
@@ -243,7 +246,7 @@ diff --git a/packages/native/src/custom_elements/input.rs b/packages/native/src/
              let caret_shown = self
                  .input
                  .update(cx, |input, cx| input.caret_shown(window, cx));
-@@ -1994,6 +2111,42 @@
+@@ -1994,6 +2114,65 @@
  #[cfg(test)]
  mod tests {
      use super::*;
@@ -255,7 +258,7 @@ diff --git a/packages/native/src/custom_elements/input.rs b/packages/native/src/
 +            background_color: None, underline: None, strikethrough: None,
 +        };
 +        let color = TextColorRange { start: 0, end: 4, color: "#00ff00".into() };
-+        let runs = decorated_text_runs("abcdefghij", base.clone(), Some(&color), Some(&(2..7)));
++        let runs = decorated_text_runs("abcdefghij", base.clone(), &[color], Some(&(2..7)));
 +        assert_eq!(runs.iter().map(|run| run.len).collect::<Vec<_>>(), vec![2, 2, 3, 3]);
 +        assert_eq!(runs.iter().map(|run| run.underline.is_some()).collect::<Vec<_>>(), vec![false, true, true, false]);
 +        assert_eq!(runs[0].color, gpui::Hsla::from(gpui::rgba(0x00ff00ff)));
@@ -272,6 +275,29 @@ diff --git a/packages/native/src/custom_elements/input.rs b/packages/native/src/
 +        assert_eq!(decoration_offset("é🙂界", 3), Some(6));
 +        assert_eq!(decoration_offset("é🙂界", 4), Some(9));
 +        assert_eq!(decoration_offset("é🙂界", 5), None);
++    }
++
++    #[test]
++    fn scope_delimiters_are_muted_without_coloring_unicode_or_losing_ime() {
++        let text = "feat(界🙂)!: title";
++        let base = TextRun {
++            len: text.len(), font: gpui::Font::default(), color: gpui::rgba(0x000000ff).into(),
++            background_color: None, underline: None, strikethrough: None,
++        };
++        let color = |start, end, ink: &str| TextColorRange { start, end, color: ink.into() };
++        let runs = decorated_text_runs(text, base.clone(), &[
++            color(0, 4, "#00ff00"), color(4, 5, "#888888"), color(8, 9, "#888888"),
++            color(7, 8, "#ff0000"), color(99, 100, "#ff0000"), color(0, 4, "invalid"),
++        ], Some(&(4..13)));
++        assert_eq!(runs.iter().map(|run| run.len).collect::<Vec<_>>(), vec![4, 1, 7, 1, 8]);
++        assert_eq!(runs.iter().map(|run| run.underline.is_some()).collect::<Vec<_>>(), vec![false, true, true, true, false]);
++        assert_eq!(runs[0].color, gpui::Hsla::from(gpui::rgba(0x00ff00ff)));
++        assert_eq!(runs[1].color, gpui::Hsla::from(gpui::rgba(0x888888ff)));
++        assert_eq!(runs[2].color, base.color);
++        assert_eq!(runs[3].color, runs[1].color);
++        assert_eq!(runs[4].color, base.color);
++        assert_eq!(runs.iter().map(|run| run.len).sum::<usize>(), text.len());
++        assert!(runs.iter().all(|run| run.font == base.font && run.background_color.is_none()));
 +    }
 +
 +    #[test]

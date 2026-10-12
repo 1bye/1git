@@ -27,8 +27,8 @@ index cc6b7ef926c5c3122fff6107341913364a215710..e58daeb6c03c95ebacf36ec5ea7da46c
      maxRows?: number;
 +    /** 1git native patch: caret/scroll clearance without shrinking the painted viewport. */
 +    scrollPaddingBottom?: number;
-+    /** 1git native patch: color-only range in UTF-16 offsets; invalid ranges are ignored. */
-+    textColorRange?: { start: number; end: number; color: string };
++    /** 1git native patch: up to eight color-only UTF-16 ranges; invalid ranges are ignored. */
++    textColorRanges?: readonly { start: number; end: number; color: string }[];
 +    /** 1git native patch: paint-only guide at an empty line's UTF-16 offset, never part of value. */
 +    linePlaceholder?: { offset: number; text: string; color: string };
  }

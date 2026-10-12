@@ -196,10 +196,10 @@ it("starts on the first AI click and places the checked-selection result directl
 });
 
 it.each(["light", "dark"] as const)(
-	"paints only the commit type using History's colors and keeps Unicode editing native (%s)",
+	"paints the commit type and muted scope parentheses while keeping Unicode editing native (%s)",
 	async (appearance) => {
 		const message =
-			"feat(界🙂)!: preserve é and café\n\nfix: body stays neutral";
+			"feat(hello)!: preserve é and café\n\nfix: body stays neutral";
 
 		const fixture = composer(message, appearance);
 
@@ -213,11 +213,13 @@ it.each(["light", "dark"] as const)(
 		const path = join(directory, "prefix.png");
 		const color = commitTypeColor(appearance, "feat").color;
 
-		expect(editor.customProps?.textColorRange).toEqual({
-			start: 0,
-			end: 4,
-			color,
-		});
+		const muted = appThemes[appearance].colors.editorMuted;
+
+		expect(editor.customProps?.textColorRanges).toEqual([
+			{ start: 0, end: 4, color },
+			{ start: 4, end: 5, color: muted },
+			{ start: 10, end: 11, color: muted },
+		]);
 		expect(editor.customProps?.value).toBe(message);
 		root.renderer.nativeSimulateKeystrokes(editor.id, "cmd-up");
 		root.renderer.captureScreenshot(path);
@@ -232,8 +234,13 @@ it.each(["light", "dark"] as const)(
 			Number.parseInt(color.slice(offset, offset + 2), 16)
 		);
 
+		const mutedChannels = [1, 3, 5].map((offset) =>
+			Number.parseInt(muted.slice(offset, offset + 2), 16)
+		);
+
 		let prefixInk = 0;
 		let otherInk = 0;
+		let parenthesesInk = 0;
 
 		for (
 			let y = Math.ceil((surface.y + 8) * scale);
@@ -256,11 +263,20 @@ it.each(["light", "dark"] as const)(
 						prefixInk++;
 					else otherInk++;
 				}
+
+				if (
+					y < (surface.y + 24) * scale &&
+					mutedChannels.every(
+						(value, channel) => Math.abs(data[offset + channel]! - value) <= 2
+					)
+				)
+					parenthesesInk++;
 			}
 		}
 
 		expect(prefixInk).toBeGreaterThan(4);
 		expect(otherInk).toBe(0);
+		expect(parenthesesInk).toBeGreaterThan(4);
 		root.renderer.nativeSimulateKeystrokes(editor.id, "cmd-down x");
 		await settle();
 		expect(node("commit-message").customProps?.value).toBe(`${message}x`);
@@ -269,9 +285,12 @@ it.each(["light", "dark"] as const)(
 		root.renderer.nativeSimulateKeystrokes(editor.id, "cmd-z");
 		await settle();
 		expect(node("commit-message").customProps?.value).toBe(message);
+		fixture.update({ commitMessage: "feat: keep (summary)\n\n(body)" });
+		await settle();
+		expect(node("commit-message").customProps?.textColorRanges).toHaveLength(1);
 		fixture.update({ commitMessage: "custom: retain a plain prefix" });
 		await settle();
-		expect(node("commit-message").customProps?.textColorRange).toBeFalsy();
+		expect(node("commit-message").customProps?.textColorRanges).toBeFalsy();
 	}
 );
 

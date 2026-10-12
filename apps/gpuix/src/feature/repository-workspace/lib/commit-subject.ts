@@ -15,7 +15,7 @@ const commitTypes = [
 const conventionalSubject =
 	/^([a-z]+)(?:\(([^()\r\n]+)\))?(!)?:[ \t]+(\S[^\r\n]*)$/i;
 
-const conventionalPrefix = /^([a-z]+)(?:\([^()\r\n]+\))?!?:/i;
+const conventionalPrefix = /^([a-z]+)(?:\(([^()\r\n]+)\))?!?:/i;
 
 /** Recognized conventional prefix; arbitrary messages are left untouched. */
 export type CommitType = (typeof commitTypes)[number];
@@ -30,15 +30,27 @@ export interface ParsedCommitSubject {
 
 /** Reads conventional commit subjects without modifying messages, bodies or Git metadata. */
 export class CommitSubject {
-	/** Recognizes a typed prefix before its summary is complete; only the ASCII type is colored. */
-	static prefix(message: string): { type: CommitType; length: number } | null {
+	/** Recognizes an editable prefix; scope bounds include its parentheses in UTF-16 offsets. */
+	static prefix(message: string): {
+		type: CommitType;
+		length: number;
+		scope: { start: number; end: number } | undefined;
+	} | null {
 		const match = conventionalPrefix.exec(message);
 		const prefix = match?.[1]?.toLowerCase();
 		const type = commitTypes.find((candidate) => candidate === prefix);
 
 		if (!match?.[1] || !type) return null;
 
-		return { type, length: match[1].length };
+		const length = match[1].length;
+
+		return {
+			type,
+			length,
+			scope: match[2]
+				? { start: length, end: length + match[2].length + 2 }
+				: undefined,
+		};
 	}
 
 	static parse(subject: string): ParsedCommitSubject | null {
