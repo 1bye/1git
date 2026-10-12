@@ -1336,7 +1336,7 @@ function AppContent({
 							setOnboarding("complete");
 							setOnboardingClone(false);
 						}}
-						onAccounts={() => openSettings("connect")}
+						accounts={accounts}
 						readIdentity={readGitSettings}
 						writeIdentity={mutations.saveSettings}
 						cloneView={

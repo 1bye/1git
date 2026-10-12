@@ -51,8 +51,8 @@ This is presentation only: no Git metadata is changed or fetched for the badges.
 ## Onboarding
 
 A fresh launch without a saved session starts a skippable three-step setup:
-live Light/Dark previews, commit author identity with optional hosting-account
-connection, and Open/Clone/Create repository tiles. Existing session files
+live Light/Dark previews, optional hosting accounts with secondary commit
+identity, and Open/Clone/Create repository tiles. Existing session files
 without setup metadata are treated as complete, even with no recent repositories;
 invalid sessions retain the existing recovery behavior instead of starting setup.
 Progress and completion are saved separately from repository navigation in the
@@ -60,10 +60,15 @@ session. Unfinished setup resumes at its step; Skip setup and the setup tab's X
 mark it complete. Settings → **Run setup again** reopens setup without clearing
 open repositories, drafts, theme, accounts, or AI preferences.
 
-Git identity is prefilled from global configuration; loading it is read-only.
-Only **Save identity** updates computer-wide Git settings; Continue, Back,
-Skip, and visiting account connection never save identity edits. Account setup
-uses the existing Settings flow and returns to the same setup step and draft.
+Step 2 lists saved accounts and opens GitHub/GitLab connection in a separate
+right-hand pane, divided from the overview. Each side scrolls independently:
+setup navigation stays on the left; Cancel and Connect stay on the right.
+It shares Settings' browser/token authentication controls, cancellation, and OS
+credential storage. Accounts are optional; continuing or skipping clears any
+unsubmitted token. No provider request starts until an explicit sign-in/connect.
+Commit identity is a secondary, expandable section, prefilled read-only from
+global configuration. Only **Save identity** updates computer-wide Git settings;
+Continue, Back, Skip, and account connection never save identity edits.
 Repository setup uses the existing picker, Clone view, and Create form, with
 their cancellation/error and duplicate-write protections. Successful repository
 loading completes onboarding; merely choosing an action or cancelling does not.

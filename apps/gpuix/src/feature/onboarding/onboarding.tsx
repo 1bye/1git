@@ -10,6 +10,11 @@ import { Button } from "@1git/gpuix-ui/button";
 import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
 import { GitIdentity } from "@1git/git";
 import { AppShell } from "../../fixture/app-shell";
+import type { Accounts } from "../accounts/lib/accounts";
+import { useAccountConnection } from "../accounts/use-account-connection";
+import { OnboardingAccountForm } from "./onboarding-account-form";
+import { WorkspaceTabIcon } from "../workspace-tabs/components/workspace-tab-icon";
+import { OnboardingAccounts } from "./onboarding-accounts";
 import { AppearanceChoices } from "../appearance-settings/appearance-settings";
 import {
 	GitSettingsModel,
@@ -23,7 +28,7 @@ import { useAppTheme } from "../../styles/theme";
 
 const steps = {
 	welcome: { title: "Welcome to 1git", number: 1 },
-	git: { title: "Set up Git", number: 2 },
+	git: { title: "Connect your accounts", number: 2 },
 	repository: { title: "Your first repository", number: 3 },
 } as const;
 
@@ -37,7 +42,7 @@ export function Onboarding({
 	repositoryActions,
 	onStep,
 	onSkip,
-	onAccounts,
+	accounts,
 	readIdentity,
 	writeIdentity,
 	children,
@@ -50,7 +55,7 @@ export function Onboarding({
 	repositoryActions: ReactNode;
 	onStep: (step: OnboardingStep) => void;
 	onSkip: () => void;
-	onAccounts: () => void;
+	accounts: Accounts;
 	readIdentity: typeof GitSettingsModel.read;
 	writeIdentity: typeof GitSettingsModel.write;
 	children?: ReactNode;
@@ -59,6 +64,13 @@ export function Onboarding({
 	const renderer = useGpuixRequired();
 	const view = useRef<PublicInstance>(null);
 	const content = useRef<PublicInstance>(null);
+	const accountForm = useRef<PublicInstance>(null);
+	const connection = useAccountConnection({ accounts });
+	const { setSaved, setError: setAccountError } = connection;
+	const cancelAccount = useRef(connection.cancelConnection);
+
+	cancelAccount.current = connection.cancelConnection;
+	const [identityExpanded, setIdentityExpanded] = useState(false);
 	const [identity, setIdentity] = useState<GitSettingsData>();
 	const [name, setName] = useState("");
 	const [email, setEmail] = useState("");
@@ -69,6 +81,18 @@ export function Onboarding({
 	const writing = useRef(false);
 	const mounted = useRef(true);
 	const identityRequest = useRef<AbortController | null>(null);
+
+	useEffect(() => {
+		if (step !== "git" || !active) return;
+
+		try {
+			setSaved(accounts.load());
+		} catch (cause) {
+			setAccountError(
+				cause instanceof Error ? cause.message : "Could not load accounts."
+			);
+		}
+	}, [accounts, active, step, setSaved, setAccountError]);
 
 	const loadIdentity = useCallback(
 		async (preserveDraft = false) => {
@@ -116,7 +140,22 @@ export function Onboarding({
 		};
 	}, [loadIdentity]);
 
-	const locked = busy || saving;
+	const locked = busy || saving || connection.busy;
+	const connecting = step === "git" && connection.form === "connect";
+
+	const move = (nextStep: OnboardingStep) => {
+		if (locked || connection.isPending()) return;
+
+		connection.cancelConnection();
+		onStep(nextStep);
+	};
+
+	const skip = () => {
+		if (locked || connection.isPending()) return;
+
+		connection.cancelConnection();
+		onSkip();
+	};
 
 	const changed =
 		name !== (identity?.identity.name ?? "") ||
@@ -127,12 +166,16 @@ export function Onboarding({
 
 		const navigation = {
 			scope: () => view.current?.id ?? null,
-			back: () => {},
+			back: () => {
+				if (step === "git") cancelAccount.current();
+			},
 		};
 
 		settingsNavigation.set(renderer, navigation);
 		const timer = setTimeout(() => {
-			if (content.current) renderer.focusNextWithin?.(content.current.id);
+			const scope = connecting ? accountForm.current : content.current;
+
+			if (scope) renderer.focusNextWithin?.(scope.id);
 		}, 0);
 
 		return () => {
@@ -141,7 +184,7 @@ export function Onboarding({
 			if (settingsNavigation.get(renderer) === navigation)
 				settingsNavigation.delete(renderer);
 		};
-	}, [active, cloneView, renderer, step]);
+	}, [active, cloneView, renderer, step, connecting]);
 
 	const save = async () => {
 		if (writing.current || locked || loading || !identity || !changed) return;
@@ -236,7 +279,7 @@ export function Onboarding({
 						label="Get started"
 						width={180}
 						testId="onboarding-title-tab"
-						onClose={onSkip}
+						onClose={skip}
 						disabled={locked}
 					/>
 				</div>
@@ -255,242 +298,308 @@ export function Onboarding({
 					}}
 				>
 					<div
-						testId="onboarding-panel"
+						testId="onboarding-layout"
 						style={{
 							display: "flex",
-							flexDirection: "column",
+							flexDirection: "row",
 							width: "100%",
-							maxWidth: 560,
+							maxWidth: connecting ? 1040 : 560,
 							height: 520,
 							maxHeight: "100%",
 							minHeight: 0,
 						}}
 					>
 						<div
-							style={{
-								...row,
-								justifyContent: "space-between",
-								marginBottom: spacing[5],
-								flexShrink: 0,
-							}}
-						>
-							<text
-								role="heading"
-								aria-level={1}
-								style={{ ...typography.xl, fontWeight: fontWeight.medium }}
-							>
-								{steps[step].title}
-							</text>
-							<text testId="onboarding-step" style={muted}>
-								{`${steps[step].number} of 3`}
-							</text>
-						</div>
-						<div
-							ref={content}
-							testId="onboarding-content"
+							testId="onboarding-panel"
 							style={{
 								display: "flex",
 								flexDirection: "column",
-								gap: spacing[4],
 								flexGrow: 1,
+								flexBasis: 0,
+								minWidth: 0,
 								minHeight: 0,
-								overflowY: "scroll",
-								paddingBottom: spacing[4],
+								paddingRight: connecting ? spacing[5] : 0,
 							}}
 						>
-							{step === "welcome" ? (
-								<>
-									<text style={muted}>
-										A calm place to review changes and make your next commit.
-										Choose a look, or keep the current one.
-									</text>
-									<AppearanceChoices />
-									<text style={muted}>
-										You can use 1git locally, without an account. Everything
-										here can be changed later in Settings.
-									</text>
-								</>
-							) : step === "git" ? (
-								<>
-									<text style={muted}>
-										Your name and email identify the author of your commits.
-									</text>
-									{loading ? (
-										<text role="status" style={muted}>
-											Reading your Git identity…
+							<div
+								style={{
+									...row,
+									justifyContent: "space-between",
+									marginBottom: spacing[5],
+									flexShrink: 0,
+								}}
+							>
+								<text
+									role="heading"
+									aria-level={1}
+									style={{ ...typography.xl, fontWeight: fontWeight.medium }}
+								>
+									{steps[step].title}
+								</text>
+								<text testId="onboarding-step" style={muted}>
+									{`${steps[step].number} of 3`}
+								</text>
+							</div>
+							<div
+								ref={content}
+								testId="onboarding-content"
+								style={{
+									display: "flex",
+									flexDirection: "column",
+									gap: spacing[4],
+									flexGrow: 1,
+									minHeight: 0,
+									overflowY: "scroll",
+									paddingBottom: spacing[4],
+								}}
+							>
+								{step === "welcome" ? (
+									<>
+										<text style={muted}>
+											A calm place to review changes and make your next commit.
+											Choose a look, or keep the current one.
 										</text>
-									) : null}
-									{(["name", "email"] as const).map((field) => (
+										<AppearanceChoices />
+										<text style={muted}>
+											You can use 1git locally, without an account. Everything
+											here can be changed later in Settings.
+										</text>
+									</>
+								) : step === "git" ? (
+									<>
+										<OnboardingAccounts
+											connection={connection}
+											disabled={locked}
+										/>
 										<div
-											key={field}
-											style={{ gap: spacing[1.5], flexShrink: 0 }}
-										>
-											<text style={muted}>
-												{field === "name" ? "Name" : "Email"}
-											</text>
-											<input
-												testId={`onboarding-${field}`}
-												aria-label={
-													field === "name"
-														? "Commit author name"
-														: "Commit author email"
-												}
-												tabIndex={0}
-												value={field === "name" ? name : email}
-												readOnly={locked || loading || !identity}
-												onChange={(event) => {
-													if (field === "name") setName(event.value ?? "");
-													else setEmail(event.value ?? "");
-
-													setStatus(undefined);
-												}}
-												style={{
-													...typography.md,
-													height: 34,
-													paddingLeft: spacing[2.5],
-													paddingRight: spacing[2.5],
-													color: tokens.colors.text,
-													backgroundColor: "transparent",
-													borderWidth: 1,
-													borderColor: tokens.colors.border,
-													borderRadius: radius.md,
-												}}
-											/>
-										</div>
-									))}
-									<text style={muted}>
-										Save identity updates computer-wide Git settings. Continuing
-										or skipping does not save edits.
-									</text>
-									<div style={row}>
-										<Button
-											testId="onboarding-save-identity"
-											tokens={tokens}
-											size="sm"
-											variant="secondary"
-											disabled={locked || loading || !identity || !changed}
-											onPress={() => {
-												void save();
+											style={{
+												display: "flex",
+												flexDirection: "column",
+												gap: spacing[2],
+												flexShrink: 0,
+												borderTopWidth: 1,
+												borderColor: tokens.colors.border,
+												paddingTop: spacing[3],
 											}}
 										>
-											{saving ? "Saving…" : "Save identity"}
-										</Button>
-										{status ? (
+											<Button
+												testId="onboarding-identity-toggle"
+												tokens={tokens}
+												variant="ghost"
+												size="sm"
+												aria-expanded={identityExpanded && !connecting}
+												disabled={locked || connecting}
+												style={{
+													alignSelf: "start",
+													flexDirection: "row",
+													gap: spacing[1],
+													paddingLeft: 0,
+												}}
+												onPress={() => setIdentityExpanded(!identityExpanded)}
+											>
+												<WorkspaceTabIcon
+													name={identityExpanded ? "caretDown" : "caretRight"}
+												/>
+												Commit identity (optional)
+											</Button>
+											{identityExpanded && !connecting ? (
+												<div
+													testId="onboarding-identity"
+													style={{
+														display: "flex",
+														flexDirection: "column",
+														gap: spacing[3],
+														flexShrink: 0,
+													}}
+												>
+													<text style={muted}>
+														Your name and email identify the author of your
+														commits.
+													</text>
+													{loading ? (
+														<text role="status" style={muted}>
+															Reading your Git identity…
+														</text>
+													) : null}
+													{(["name", "email"] as const).map((field) => (
+														<div
+															key={field}
+															style={{ gap: spacing[1.5], flexShrink: 0 }}
+														>
+															<text style={muted}>
+																{field === "name" ? "Name" : "Email"}
+															</text>
+															<input
+																testId={`onboarding-${field}`}
+																aria-label={
+																	field === "name"
+																		? "Commit author name"
+																		: "Commit author email"
+																}
+																tabIndex={0}
+																value={field === "name" ? name : email}
+																readOnly={locked || loading || !identity}
+																onChange={(event) => {
+																	if (field === "name")
+																		setName(event.value ?? "");
+																	else setEmail(event.value ?? "");
+
+																	setStatus(undefined);
+																}}
+																style={{
+																	...typography.md,
+																	height: 34,
+																	paddingLeft: spacing[2.5],
+																	paddingRight: spacing[2.5],
+																	color: tokens.colors.text,
+																	backgroundColor: "transparent",
+																	borderWidth: 1,
+																	borderColor: tokens.colors.border,
+																	borderRadius: radius.md,
+																}}
+															/>
+														</div>
+													))}
+													<text style={muted}>
+														Save identity updates computer-wide Git settings.
+														Continuing or skipping does not save edits.
+													</text>
+													<div style={row}>
+														<Button
+															testId="onboarding-save-identity"
+															tokens={tokens}
+															size="sm"
+															variant="secondary"
+															disabled={
+																locked || loading || !identity || !changed
+															}
+															onPress={() => {
+																void save();
+															}}
+														>
+															{saving ? "Saving…" : "Save identity"}
+														</Button>
+														{status ? (
+															<text role="status" style={muted}>
+																{status}
+															</text>
+														) : null}
+													</div>
+													{identityError ? (
+														<text
+															testId="onboarding-identity-error"
+															role="alert"
+															style={{ ...muted, color: tokens.colors.danger }}
+														>
+															{identityError}
+														</text>
+													) : null}
+													{!identity && !loading ? (
+														<Button
+															testId="onboarding-retry-identity"
+															tokens={tokens}
+															size="sm"
+															variant="secondary"
+															disabled={locked}
+															style={{ alignSelf: "start" }}
+															onPress={() => {
+																void loadIdentity(changed);
+															}}
+														>
+															Retry reading identity
+														</Button>
+													) : null}
+												</div>
+											) : (
+												<text style={muted}>
+													{identity?.identity.name && identity.identity.email
+														? `${identity.identity.name} · ${identity.identity.email}`
+														: "Uses your current Git settings. You can set this up later."}
+												</text>
+											)}
+										</div>
+									</>
+								) : (
+									<>
+										<text style={muted}>
+											Open a project on your computer, clone an existing
+											repository, or create a new one.
+										</text>
+										{repositoryActions}
+										{busy ? (
 											<text role="status" style={muted}>
-												{status}
+												Opening repository…
 											</text>
 										) : null}
-									</div>
-									{identityError ? (
-										<text
-											testId="onboarding-identity-error"
-											role="alert"
-											style={{ ...muted, color: tokens.colors.danger }}
-										>
-											{identityError}
+										{error ? (
+											<text
+												role="alert"
+												testId="onboarding-repository-error"
+												style={{ ...muted, color: tokens.colors.danger }}
+											>
+												{error}
+											</text>
+										) : null}
+										<text style={muted}>
+											You can also skip setup and add a repository later.
 										</text>
-									) : null}
-									{!identity && !loading ? (
+									</>
+								)}
+							</div>
+							<div
+								testId="onboarding-footer"
+								style={{
+									...row,
+									justifyContent: "space-between",
+									paddingTop: spacing[3],
+									borderTopWidth: 1,
+									borderColor: tokens.colors.border,
+									flexShrink: 0,
+								}}
+							>
+								<Button
+									testId="onboarding-skip"
+									tokens={tokens}
+									variant="ghost"
+									size="sm"
+									disabled={locked}
+									onPress={skip}
+								>
+									Skip setup
+								</Button>
+								<div style={row}>
+									{step !== "welcome" ? (
 										<Button
-											testId="onboarding-retry-identity"
+											testId="onboarding-back"
 											tokens={tokens}
-											size="sm"
 											variant="secondary"
+											size="sm"
 											disabled={locked}
-											style={{ alignSelf: "start" }}
-											onPress={() => {
-												void loadIdentity(changed);
-											}}
+											onPress={() => move(step === "git" ? "welcome" : "git")}
 										>
-											Retry reading identity
+											Back
 										</Button>
 									) : null}
-									<Button
-										testId="onboarding-accounts"
-										tokens={tokens}
-										variant="ghost"
-										size="sm"
-										disabled={locked}
-										style={{ alignSelf: "start" }}
-										onPress={onAccounts}
-									>
-										Connect GitHub or GitLab…
-									</Button>
-								</>
-							) : (
-								<>
-									<text style={muted}>
-										Open a project on your computer, clone an existing
-										repository, or create a new one.
-									</text>
-									{repositoryActions}
-									{busy ? (
-										<text role="status" style={muted}>
-											Opening repository…
-										</text>
-									) : null}
-									{error ? (
-										<text
-											role="alert"
-											testId="onboarding-repository-error"
-											style={{ ...muted, color: tokens.colors.danger }}
+									{step !== "repository" ? (
+										<Button
+											testId="onboarding-next"
+											tokens={tokens}
+											size="sm"
+											disabled={locked}
+											onPress={() => move(next)}
 										>
-											{error}
-										</text>
+											Continue
+										</Button>
 									) : null}
-									<text style={muted}>
-										You can also skip setup and add a repository later.
-									</text>
-								</>
-							)}
-						</div>
-						<div
-							testId="onboarding-footer"
-							style={{
-								...row,
-								justifyContent: "space-between",
-								paddingTop: spacing[3],
-								borderTopWidth: 1,
-								borderColor: tokens.colors.border,
-								flexShrink: 0,
-							}}
-						>
-							<Button
-								testId="onboarding-skip"
-								tokens={tokens}
-								variant="ghost"
-								size="sm"
-								disabled={locked}
-								onPress={onSkip}
-							>
-								Skip setup
-							</Button>
-							<div style={row}>
-								{step !== "welcome" ? (
-									<Button
-										testId="onboarding-back"
-										tokens={tokens}
-										variant="secondary"
-										size="sm"
-										disabled={locked}
-										onPress={() => onStep(step === "git" ? "welcome" : "git")}
-									>
-										Back
-									</Button>
-								) : null}
-								{step !== "repository" ? (
-									<Button
-										testId="onboarding-next"
-										tokens={tokens}
-										size="sm"
-										disabled={locked}
-										onPress={() => onStep(next)}
-									>
-										Continue
-									</Button>
-								) : null}
+								</div>
 							</div>
 						</div>
+						{connecting ? (
+							<OnboardingAccountForm
+								connection={connection}
+								ref={accountForm}
+							/>
+						) : null}
 					</div>
 				</div>
 			)}

@@ -1,10 +1,10 @@
 /**
- * Covers: first-run/replay setup, theme/default preservation, explicit identity saving, account return and repository success/cancellation.
+ * Covers: first-run/replay setup, split account editing, theme/default preservation, explicit identity saving and repository success/cancellation.
  * Real: App, native setup/forms, session persistence and repository connection lifecycle.
  * Doubles: Git config/repository/setup, folder picker, hosting HTTP/vault and disposable account metadata.
  * Requires: patched native renderer and macOS graphics; no user credentials, Git writes or network.
  */
-import { afterEach, beforeEach, expect, it, mock } from "bun:test";
+import { afterEach, beforeEach, expect, it, mock, spyOn } from "bun:test";
 import { rmSync } from "node:fs";
 import { createTestRoot, type TestRoot } from "@gpuix/react/testing";
 import { App } from "../../src/app";
@@ -53,6 +53,7 @@ async function settle() {
 	root.renderer.flush();
 }
 async function click(id: string) {
+	await reveal(id);
 	const bounds = root.renderer.getElementBounds(node(id).id);
 
 	if (!bounds) throw new Error(`Missing bounds for ${id}`);
@@ -64,6 +65,7 @@ async function click(id: string) {
 	await settle();
 }
 async function edit(id: string, value: string) {
+	await reveal(id);
 	root.renderer.focusElement(node(id).id);
 	root.renderer.simulateKeystrokes("cmd-a");
 	root.renderer.simulateKeystrokes(
@@ -72,6 +74,47 @@ async function edit(id: string, value: string) {
 			.join(" ")
 	);
 	await settle();
+}
+async function reveal(id: string) {
+	if (
+		![
+			"onboarding-name",
+			"onboarding-email",
+			"onboarding-save-identity",
+			"onboarding-retry-identity",
+			"onboarding-identity-toggle",
+		].includes(id) &&
+		!id.startsWith("account-auth-") &&
+		!id.startsWith("onboarding-provider-") &&
+		![
+			"account-token",
+			"account-client-id",
+			"account-advanced",
+			"account-host",
+			"account-callback",
+		].includes(id)
+	)
+		return;
+
+	const content = node(
+		id.startsWith("account-")
+			? "onboarding-account-scroll"
+			: "onboarding-content"
+	);
+
+	const viewport = root.renderer.getElementBounds(content.id)!;
+
+	const bounds = root.renderer.getElementBounds(node(id).id)!;
+
+	if (
+		bounds.y < viewport.y ||
+		bounds.y + bounds.height > viewport.y + viewport.height
+	) {
+		const offset = root.renderer.getScrollOffset(content.id)?.[1] ?? 0;
+
+		root.renderer.scrollTo(content.id, 0, offset - (bounds.y - viewport.y) + 8);
+		await settle();
+	}
 }
 function fixture() {
 	let data: GitSettingsData = {
@@ -126,10 +169,12 @@ it.each(["light", "dark"] as const)(
 			);
 
 		await click("onboarding-next");
-		expect(node("onboarding-name").customProps?.value).toBe("Existing Author");
-		expect(node("onboarding-email").customProps?.value).toBe(
-			"existing@example.test"
-		);
+		expect(root.renderer.getAllText()).toContain("Connect your accounts");
+		expect(node("onboarding-connected-accounts")).toBeDefined();
+		expect(root.renderer.getAllText()).toContain("tester");
+		expect(root.renderer.getAllText()).toContain("lab-user");
+		expect(root.renderer.findByTestId("onboarding-name")).toBeUndefined();
+		expect(f.requests).toHaveLength(0);
 
 		if (screenshot)
 			root.renderer.captureScreenshot(`${screenshot}-${appearance}-git.png`);
@@ -163,15 +208,19 @@ it.each(["light", "dark"] as const)(
 	}
 );
 
-it("returns from optional Accounts and Back without saving or losing identity edits", async () => {
+it("cancels inline account setup and returns from Back without saving or losing identity edits", async () => {
 	const props = fixture();
 
 	root.render(<App {...props} initialOnboarding="git" />);
 	await settle();
+	await click("onboarding-identity-toggle");
 	await edit("onboarding-name", "Draft Author");
-	await click("onboarding-accounts");
-	expect(node("account-setup-panel")).toBeDefined();
-	await click("settings-title-tab-close");
+	await click("onboarding-provider-github");
+	expect(node("account-setup-content")).toBeDefined();
+	expect(node("onboarding-connected-accounts")).toBeDefined();
+	expect(node("onboarding-account-panel")).toBeDefined();
+	expect(root.renderer.findByTestId("settings-view")).toBeUndefined();
+	await click("accounts-cancel");
 	expect(root.renderer.getAllText()).toContain("2 of 3");
 	expect(node("onboarding-name").customProps?.value).toBe("Draft Author");
 	await click("onboarding-back");
@@ -180,6 +229,283 @@ it("returns from optional Accounts and Back without saving or losing identity ed
 	await click("onboarding-next");
 	expect(props.writeGitSettings).not.toHaveBeenCalled();
 	expect(f.requests).toHaveLength(0);
+});
+
+it.each(["github", "gitlab"] as const)(
+	"connects %s directly in step 2, masks credentials and keeps identity unchanged",
+	async (provider) => {
+		const props = fixture();
+
+		f.store.save([]);
+		f.secrets.clear();
+		root.render(<App {...props} initialOnboarding="git" />);
+		await settle();
+		await click(`onboarding-provider-${provider}`);
+		expect(node("account-client-id")).toBeDefined();
+		expect(
+			node("account-repository-access").customProps?.["aria-checked"]
+		).toBe(false);
+		await click("account-auth-token");
+		await edit("account-token", "synthetic-onboarding-token");
+		const screenshot = process.env.GPUIX_ONBOARDING_SCREENSHOT;
+
+		if (screenshot)
+			root.renderer.captureScreenshot(`${screenshot}-${provider}-token.png`);
+
+		expect(JSON.stringify(root.renderer.toJSON())).not.toContain(
+			"synthetic-onboarding-token"
+		);
+		expect(JSON.stringify(root.renderer.getA11yTree())).not.toContain(
+			"synthetic-onboarding-token"
+		);
+		expect(f.requests).toHaveLength(0);
+		await click("account-connect");
+		expect(root.renderer.getAllText()).toContain("2 of 3");
+		expect(root.renderer.findByTestId("account-token")).toBeUndefined();
+		expect(node("onboarding-connected-accounts")).toBeDefined();
+		expect(root.renderer.getAllText().join("\n")).toContain("Connected");
+		expect(f.accounts.load()).toHaveLength(1);
+		expect(f.accounts.load()[0]?.provider).toBe(provider);
+		expect([...f.secrets.values()]).toContain("synthetic-onboarding-token");
+		expect(props.writeGitSettings).not.toHaveBeenCalled();
+		await click("onboarding-next");
+		expect(root.renderer.getAllText()).toContain("3 of 3");
+	}
+);
+
+it("allows continuing or skipping without accounts and discards unsubmitted secrets", async () => {
+	const props = fixture();
+
+	f.store.save([]);
+	root.render(<App {...props} initialOnboarding="git" />);
+	await settle();
+	await click("onboarding-provider-github");
+	await click("account-auth-token");
+	await edit("account-token", "discard-this-secret");
+	await click("onboarding-provider-gitlab");
+	expect(node("account-connect").style.opacity).toBe(0.45);
+	await edit("account-token", "another-secret");
+	await click("onboarding-next");
+	expect(root.renderer.getAllText()).toContain("3 of 3");
+	await click("onboarding-back");
+	expect(root.renderer.findByTestId("account-token")).toBeUndefined();
+	await click("onboarding-provider-gitlab");
+	await click("account-auth-token");
+	expect(node("account-connect").style.opacity).toBe(0.45);
+	await click("onboarding-skip");
+	expect(root.renderer.findByTestId("onboarding-view")).toBeUndefined();
+	expect(f.requests).toHaveLength(0);
+	expect(f.accounts.load()).toHaveLength(0);
+	expect(props.writeGitSettings).not.toHaveBeenCalled();
+});
+
+it("delegates browser sign-in, pins cancellation and blocks step changes during authorization", async () => {
+	const props = fixture();
+	let signal: AbortSignal | undefined;
+
+	const signIn = spyOn(f.accounts, "connectBrowser").mockImplementation(
+		(request) => {
+			signal = request.signal;
+			request.onDeviceCode?.({
+				userCode: "PUBLIC-CODE",
+				verificationUrl: "https://github.com/login/device",
+				expiresAt: Date.now() + 900_000,
+			});
+
+			return new Promise((_resolve, reject) => {
+				request.signal?.addEventListener(
+					"abort",
+					() => reject(new Error("Cancelled")),
+					{ once: true }
+				);
+			});
+		}
+	);
+
+	root.render(<App {...props} initialOnboarding="git" />);
+	await settle();
+	await click("onboarding-provider-github");
+	await edit("account-client-id", "public-client-id");
+	await click("account-connect");
+	expect(signIn).toHaveBeenCalledTimes(1);
+	expect(signIn.mock.calls[0]?.[0]).toMatchObject({
+		provider: "github",
+		webUrl: "https://github.com",
+		repositoryAccess: false,
+		registration: { clientId: "public-client-id" },
+	});
+	expect(root.renderer.getAllText()).toContain("PUBLIC-CODE");
+	const screenshot = process.env.GPUIX_ONBOARDING_SCREENSHOT;
+
+	if (screenshot)
+		root.renderer.captureScreenshot(`${screenshot}-browser-pending.png`);
+
+	for (const id of ["onboarding-next", "onboarding-back", "onboarding-skip"]) {
+		expect(node(id).style.opacity).toBe(0.45);
+		await click(id);
+	}
+
+	expect(root.renderer.getAllText()).toContain("2 of 3");
+
+	const actions = root.renderer.getElementBounds(
+		node("onboarding-account-actions").id
+	)!;
+
+	expect(actions.y + actions.height).toBeLessThanOrEqual(640);
+	await click("accounts-cancel");
+	expect(signal?.aborted).toBe(true);
+	expect(root.renderer.findByTestId("account-device-code")).toBeUndefined();
+	expect(node("onboarding-next").customProps?.tabIndex).toBe(0);
+	expect(f.requests).toHaveLength(0);
+	expect(props.writeGitSettings).not.toHaveBeenCalled();
+});
+
+it("reloads accounts created outside step 2 and preserves setup navigation", async () => {
+	const props = fixture();
+
+	f.store.save([]);
+	root.render(<App {...props} initialOnboarding="git" />);
+	await settle();
+	expect(
+		root.renderer.findByTestId("onboarding-connected-accounts")
+	).toBeUndefined();
+	await click("onboarding-next");
+	f.store.save(f.saved);
+	await click("onboarding-back");
+	expect(node("onboarding-connected-accounts")).toBeDefined();
+	expect(root.renderer.getAllText()).toContain("tester");
+	expect(f.requests).toHaveLength(0);
+});
+
+it("keeps account actions pinned while scrolling and allows keyboard cancellation", async () => {
+	const props = fixture();
+
+	root.render(<App {...props} initialOnboarding="git" />);
+	await settle();
+	await click("onboarding-provider-gitlab");
+	const content = node("onboarding-account-scroll");
+	const leftContent = node("onboarding-content");
+	const leftOffset = root.renderer.getScrollOffset(leftContent.id);
+	const viewport = root.renderer.getElementBounds(content.id)!;
+	const cancel = root.renderer.getElementBounds(node("accounts-cancel").id)!;
+	const connect = root.renderer.getElementBounds(node("account-connect").id)!;
+
+	expect(cancel.y).toBeGreaterThanOrEqual(viewport.y + viewport.height);
+	root.renderer.nativeSimulateScrollWheel(
+		viewport.x + viewport.width - 10,
+		viewport.y + 80,
+		0,
+		-240
+	);
+	await settle();
+	expect(root.renderer.getScrollOffset(content.id)?.[1]).toBeLessThan(0);
+	expect(root.renderer.getElementBounds(node("accounts-cancel").id)).toEqual(
+		cancel
+	);
+	expect(root.renderer.getElementBounds(node("account-connect").id)).toEqual(
+		connect
+	);
+	expect(root.renderer.getScrollOffset(leftContent.id)).toEqual(leftOffset);
+	root.renderer.focusElement(node("accounts-cancel").id);
+	root.renderer.simulateKeystrokes("escape");
+	await settle();
+	expect(root.renderer.findByTestId("account-setup-content")).toBeUndefined();
+	expect(node("onboarding-accounts")).toBeDefined();
+	expect(f.requests).toHaveLength(0);
+});
+
+it.each(["light", "dark"] as const)(
+	"keeps account editing in a separate right pane with independent actions (%s)",
+	async (appearance) => {
+		const props = fixture();
+
+		root.render(<App {...props} initialOnboarding="welcome" />);
+		await settle();
+		await click(`appearance-${appearance}`);
+		await click("onboarding-next");
+		await click("onboarding-provider-gitlab");
+		const left = root.renderer.getElementBounds(node("onboarding-panel").id)!;
+
+		const right = root.renderer.getElementBounds(
+			node("onboarding-account-panel").id
+		)!;
+
+		const viewport = root.renderer.getElementBounds(
+			node("onboarding-account-scroll").id
+		)!;
+
+		const form = root.renderer.getElementBounds(
+			node("account-setup-content").id
+		)!;
+
+		const connect = root.renderer.getElementBounds(node("account-connect").id)!;
+
+		const footer = root.renderer.getElementBounds(
+			node("onboarding-footer").id
+		)!;
+
+		const actions = root.renderer.getElementBounds(
+			node("onboarding-account-actions").id
+		)!;
+
+		const next = root.renderer.getElementBounds(node("onboarding-next").id)!;
+		const cancel = root.renderer.getElementBounds(node("accounts-cancel").id)!;
+
+		expect(form.width).toBe(viewport.width);
+		expect(right.x).toBeGreaterThanOrEqual(left.x + left.width);
+		expect(node("onboarding-account-panel").style.borderLeftWidth).toBe(1);
+		expect(footer.x + footer.width).toBeLessThanOrEqual(right.x);
+		expect(cancel.x).toBeGreaterThanOrEqual(right.x);
+		expect(connect.x + connect.width).toBeLessThanOrEqual(
+			right.x + right.width
+		);
+		expect(next.x + next.width).toBeLessThanOrEqual(left.x + left.width);
+		expect(footer.y + footer.height).toBeLessThanOrEqual(640);
+		expect(actions.y + actions.height).toBeLessThanOrEqual(640);
+		expect(node("onboarding-connected-accounts")).toBeDefined();
+		expect(root.renderer.getFocusedElementId()).toBe(
+			node("account-auth-browser").id
+		);
+		const screenshot = process.env.GPUIX_ONBOARDING_SCREENSHOT;
+
+		if (screenshot)
+			root.renderer.captureScreenshot(
+				`${screenshot}-${appearance}-split-accounts.png`
+			);
+
+		await click("accounts-cancel");
+		expect(
+			root.renderer.findByTestId("onboarding-account-panel")
+		).toBeUndefined();
+		expect(root.renderer.getFocusedElementId()).toBe(
+			node("onboarding-provider-github").id
+		);
+	}
+);
+
+it("shows connection failures safely and still permits skipping accounts", async () => {
+	const props = fixture();
+
+	f.intercept(async () =>
+		Response.json({ message: "never-display-provider-detail" }, { status: 401 })
+	);
+	root.render(<App {...props} initialOnboarding="git" />);
+	await settle();
+	await click("onboarding-provider-gitlab");
+	await click("account-auth-token");
+	await edit("account-token", "bad-synthetic-token");
+	await click("account-connect");
+	expect(node("accounts-error")).toBeDefined();
+	expect(JSON.stringify(root.renderer.toJSON())).not.toContain(
+		"bad-synthetic-token"
+	);
+	expect(root.renderer.getAllText().join("\n")).not.toContain(
+		"never-display-provider-detail"
+	);
+	expect(node("account-connect").style.opacity).toBe(0.45);
+	await click("onboarding-next");
+	expect(root.renderer.getAllText()).toContain("3 of 3");
+	expect(props.writeGitSettings).not.toHaveBeenCalled();
 });
 
 it("validates and saves identity only on explicit Save, blocks duplicate writes and rereads failure", async () => {
@@ -191,6 +517,7 @@ it("validates and saves identity only on explicit Save, blocks duplicate writes 
 	props.writeGitSettings.mockImplementation(() => pending.promise);
 	root.render(<App {...props} initialOnboarding="git" />);
 	await settle();
+	await click("onboarding-identity-toggle");
 	await edit("onboarding-email", "bad-email");
 	await click("onboarding-save-identity");
 	expect(props.writeGitSettings).not.toHaveBeenCalled();
@@ -267,6 +594,7 @@ it("acknowledges a successful identity save without automatically advancing or w
 
 	root.render(<App {...props} initialOnboarding="git" />);
 	await settle();
+	await click("onboarding-identity-toggle");
 	await edit("onboarding-name", "New Author");
 	await click("onboarding-save-identity");
 	expect(root.renderer.getAllText()).toContain("Git identity saved.");
@@ -300,6 +628,7 @@ it("keeps unreadable identity fields protected and permits an explicit read retr
 	props.readGitSettings.mockResolvedValue(success);
 	root.render(<App {...props} initialOnboarding="git" />);
 	await settle();
+	await click("onboarding-identity-toggle");
 	expect(node("onboarding-name").customProps?.readOnly).toBe(true);
 	await click("onboarding-retry-identity");
 	expect(node("onboarding-name").customProps?.value).toBe("Existing Author");
