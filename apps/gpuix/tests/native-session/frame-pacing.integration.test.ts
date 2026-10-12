@@ -1,7 +1,7 @@
 /**
- * Covers: batching live scroll paints until the display loop runs.
+ * Covers: batching live list and decorated editor scroll paints until the display loop runs.
  * Real: pinned GPUIX addon, GPUI/AppKit input and frame counters in an isolated process.
- * Doubles: static scroll content; no repositories, accounts or saved session.
+ * Doubles: static scroll content and commit text; no repositories, accounts or saved session.
  * Requires: Apple Silicon macOS graphics access and built native addon.
  */
 import { expect, it } from "bun:test";
@@ -24,4 +24,23 @@ it("does not redraw live windows for every event in an input burst", () => {
 	);
 
 	expect(output).toContain("Live redraw batching verified");
+}, 20000);
+
+it("keeps prefix and body decorations on the native display-loop scroll path", () => {
+	const output = execFileSync(
+		process.execPath,
+		[
+			"--preload",
+			"./native/preload.ts",
+			"tests/_shared/frame-pacing-native.tsx",
+			"--commit-editor",
+		],
+		{
+			cwd: resolve(import.meta.dir, "../.."),
+			timeout: 15000,
+			encoding: "utf8",
+		}
+	);
+
+	expect(output).toContain("Decorated commit editor verified");
 }, 20000);

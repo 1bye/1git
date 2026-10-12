@@ -25,6 +25,7 @@ import {
 } from "../../src/feature/repository-workspace/lib/repository-workspace-model";
 import { AppThemeContext, appThemes } from "../../src/styles/theme";
 import { windowOptions } from "../../src/window-options";
+import { commitTypeColor } from "../../src/feature/repository-workspace/components/commit-type-colors";
 import {
 	changedFile,
 	repositorySnapshot,
@@ -102,6 +103,8 @@ async function press(id: string) {
 	await settle();
 }
 function composer(message = "", appearance: "light" | "dark" = "light") {
+	let currentAppearance = appearance;
+
 	let state: RepositoryWorkspaceState = {
 		...RepositoryWorkspaceModel.reduce(RepositoryWorkspaceModel.create(), {
 			type: "loaded",
@@ -121,7 +124,7 @@ function composer(message = "", appearance: "light" | "dark" = "light") {
 		root.render(
 			<AiProvider service={service}>
 				<AppThemeContext
-					value={{ ...appThemes[appearance], commitTypeBadges: true }}
+					value={{ ...appThemes[currentAppearance], commitTypeBadges: true }}
 				>
 					<div
 						style={{
@@ -130,7 +133,8 @@ function composer(message = "", appearance: "light" | "dark" = "light") {
 							display: "flex",
 							flexDirection: "column",
 							justifyContent: "flex-end",
-							backgroundColor: appThemes[appearance].colors.editorSurface,
+							backgroundColor:
+								appThemes[currentAppearance].colors.editorSurface,
 						}}
 					>
 						<RepositoryCommit
@@ -152,6 +156,10 @@ function composer(message = "", appearance: "light" | "dark" = "light") {
 	return {
 		commit,
 		settings,
+		setAppearance(next: "light" | "dark") {
+			currentAppearance = next;
+			render();
+		},
 		update(patch: Partial<RepositoryWorkspaceState>) {
 			state = { ...state, ...patch };
 			render();
@@ -186,6 +194,166 @@ it("starts on the first AI click and places the checked-selection result directl
 	expect(root.renderer.findByTestId("ai-commit-proposal")).toBeUndefined();
 	expect(fixture.commit).not.toHaveBeenCalled();
 });
+
+it.each(["light", "dark"] as const)(
+	"paints only the commit type using History's colors and keeps Unicode editing native (%s)",
+	async (appearance) => {
+		const message =
+			"feat(界🙂)!: preserve é and café\n\nfix: body stays neutral";
+
+		const fixture = composer(message, appearance);
+
+		await settle();
+		const editor = node("commit-message");
+
+		const surface = root.renderer.getElementBounds(
+			node("commit-editor-surface").id
+		)!;
+
+		const path = join(directory, "prefix.png");
+		const color = commitTypeColor(appearance, "feat").color;
+
+		expect(editor.customProps?.textColorRange).toEqual({
+			start: 0,
+			end: 4,
+			color,
+		});
+		expect(editor.customProps?.value).toBe(message);
+		root.renderer.nativeSimulateKeystrokes(editor.id, "cmd-up");
+		root.renderer.captureScreenshot(path);
+		const { data, info } = await sharp(path)
+			.ensureAlpha()
+			.raw()
+			.toBuffer({ resolveWithObject: true });
+
+		const scale = info.height / 640;
+
+		const channels = [1, 3, 5].map((offset) =>
+			Number.parseInt(color.slice(offset, offset + 2), 16)
+		);
+
+		let prefixInk = 0;
+		let otherInk = 0;
+
+		for (
+			let y = Math.ceil((surface.y + 8) * scale);
+			y < (surface.y + 88) * scale;
+			y++
+		) {
+			for (
+				let x = Math.ceil((surface.x + 8) * scale);
+				x < (surface.x + 300) * scale;
+				x++
+			) {
+				const offset = (y * info.width + x) * 4;
+
+				if (
+					channels.every(
+						(value, channel) => Math.abs(data[offset + channel]! - value) <= 2
+					)
+				) {
+					if (y < (surface.y + 24) * scale && x < (surface.x + 40) * scale)
+						prefixInk++;
+					else otherInk++;
+				}
+			}
+		}
+
+		expect(prefixInk).toBeGreaterThan(4);
+		expect(otherInk).toBe(0);
+		root.renderer.nativeSimulateKeystrokes(editor.id, "cmd-down x");
+		await settle();
+		expect(node("commit-message").customProps?.value).toBe(`${message}x`);
+		fixture.setAppearance(appearance === "light" ? "dark" : "light");
+		await settle();
+		root.renderer.nativeSimulateKeystrokes(editor.id, "cmd-z");
+		await settle();
+		expect(node("commit-message").customProps?.value).toBe(message);
+		fixture.update({ commitMessage: "custom: retain a plain prefix" });
+		await settle();
+		expect(node("commit-message").customProps?.textColorRange).toBeFalsy();
+	}
+);
+
+it.each(["light", "dark"] as const)(
+	"shows an empty-body guide after a blank line without inserting, selecting or committing it (%s)",
+	async (appearance) => {
+		const summary = "perf(界🙂): keep native editing";
+		const fixture = composer(summary, appearance);
+
+		await settle();
+		const editor = node("commit-message");
+
+		root.renderer.nativeSimulateKeystrokes(editor.id, "cmd-down enter");
+		await settle();
+		expect(root.renderer.getPaintedText()).not.toContain(
+			"Description (optional)"
+		);
+		root.renderer.nativeSimulateKeystrokes(editor.id, "enter");
+		await settle();
+		expect(root.renderer.getPaintedText()).toContain("Description (optional)");
+		expect(node("commit-message").customProps?.value).toBe(`${summary}\n\n`);
+		const surface = root.renderer.getElementBounds(
+			node("commit-editor-surface").id
+		)!;
+
+		const screenshot = process.env.GPUIX_COMMIT_DECORATIONS_SCREENSHOT;
+
+		if (screenshot)
+			root.renderer.captureScreenshot(`${screenshot}-${appearance}.png`);
+
+		root.renderer.nativeSimulateClick(
+			surface.x + 90,
+			surface.y + 8 + 2 * 16 + 8
+		);
+		root.renderer.simulateKeystrokes("b o d y");
+		await settle();
+		expect(node("commit-message").customProps?.value).toBe(
+			`${summary}\n\nbody`
+		);
+		expect(root.renderer.getPaintedText()).not.toContain(
+			"Description (optional)"
+		);
+		root.renderer.nativeSimulateKeystrokes(editor.id, "cmd-a r");
+		await settle();
+		expect(node("commit-message").customProps?.value).toBe("r");
+		root.renderer.nativeSimulateKeystrokes(editor.id, "cmd-z");
+		await settle();
+		expect(node("commit-message").customProps?.value).toBe(
+			`${summary}\n\nbody`
+		);
+		fixture.update({ commitMessage: `${summary}\n\n` });
+		await settle();
+		const a11y = Object.values(root.renderer.getA11yTree().nodes ?? {}).find(
+			(entry) => entry.aria?.label === "Commit message"
+		);
+
+		expect(a11y?.aria?.value).toBe(`${summary}\n\n`);
+		await press("commit-submit");
+		expect(fixture.commit).toHaveBeenCalledTimes(1);
+		expect(node("commit-message").customProps?.value).toBe(`${summary}\n\n`);
+
+		for (const message of [
+			"",
+			"\n\n",
+			`${summary}\nbody`,
+			`${summary}\n\nbody`,
+		]) {
+			fixture.update({ commitMessage: message });
+			await settle();
+			expect(root.renderer.getPaintedText()).not.toContain(
+				"Description (optional)"
+			);
+		}
+
+		fixture.update({ commitMessage: `${summary}\r\n\r\n` });
+		await settle();
+		expect(root.renderer.getPaintedText()).toContain("Description (optional)");
+		expect(node("commit-message").customProps?.value).toBe(
+			`${summary}\r\n\r\n`
+		);
+	}
+);
 
 it.each(["light", "dark"] as const)(
 	"paints text into the lower editor area instead of reserving an empty action strip (%s)",

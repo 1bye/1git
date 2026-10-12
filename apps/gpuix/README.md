@@ -99,6 +99,12 @@ adds caret, wheel and drag-selection clearance without clipping the painted
 text area. The commit composer uses it for its overlaid actions; auto-sized
 fields and single-line inputs retain their existing sizing behavior.
 
+`native/textarea-decorations.patch` exposes a color-only UTF-16 text range and
+a paint-only empty-line guide. Native shaping combines color boundaries with
+IME underlines; invalid, out-of-range or split-surrogate offsets are ignored.
+The guide has its own layout and never changes the editor's content, selection,
+caret offsets, undo history or accessibility value. Scrolling remains native.
+
 `native/anchored-center.patch` fixes centered floating layers on all four sides.
 A zero-size anchor point prevents flex alignment and GPUI's anchor placement
 from both subtracting half the content size. The shared `@1git/gpuix-ui/tooltip`
@@ -639,6 +645,10 @@ The editor fills the message-and-actions area. Actions overlay its bottom-right
 corner with 10px insets and a non-interactive, theme-matched soft fade. Native
 scrolling keeps the final line and caret above the actions, including wrapped
 messages; the last-commit footer remains separate.
+Recognized conventional type words use the same subdued colors as History,
+without changing scopes, punctuation or the body. An empty description after
+a blank separator shows **Description (optional)** until text is entered. The
+guide is never copied or committed; ordinary prefixes stay plain.
 Progress appears inside the disabled Commit button with a small spinner; review
 phases use a compact label and expose the full status through accessibility.
 Failures remain as a notice beneath the editor. The sparkle becomes a Stop

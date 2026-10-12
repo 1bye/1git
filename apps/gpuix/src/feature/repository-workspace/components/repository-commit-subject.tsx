@@ -1,41 +1,9 @@
 import { fontWeight, radius, spacing, typography } from "@1git/design-tokens";
 import { createThemedStyles, useAppTheme } from "../../../styles/theme";
-import { CommitSubject, type CommitType } from "../lib/commit-subject";
+import { CommitSubject } from "../lib/commit-subject";
+import { commitTypeColor } from "./commit-type-colors";
 
-const tones = {
-	light: {
-		green: { color: "#38664a", backgroundColor: "#edf4ef" },
-		red: { color: "#955053", backgroundColor: "#f8eeee" },
-		purple: { color: "#705a8b", backgroundColor: "#f3eff7" },
-		amber: { color: "#80633d", backgroundColor: "#f6f1e8" },
-		blue: { color: "#496b92", backgroundColor: "#edf2f8" },
-		neutral: { color: "#606775", backgroundColor: "#f0f1f3" },
-	},
-	dark: {
-		green: { color: "#9cc5ab", backgroundColor: "#2b3b32" },
-		red: { color: "#d8a3a7", backgroundColor: "#443034" },
-		purple: { color: "#beadd8", backgroundColor: "#37303f" },
-		amber: { color: "#d2ba95", backgroundColor: "#3e372c" },
-		blue: { color: "#a5bfdb", backgroundColor: "#2b3542" },
-		neutral: { color: "#b3b8c2", backgroundColor: "#30333a" },
-	},
-} as const;
-
-const typeTone: Record<CommitType, keyof typeof tones.light> = {
-	feat: "green",
-	fix: "red",
-	refactor: "purple",
-	perf: "amber",
-	docs: "blue",
-	test: "blue",
-	build: "neutral",
-	ci: "neutral",
-	chore: "neutral",
-	style: "neutral",
-	revert: "red",
-};
-
-const themedStyles = createThemedStyles(({ colors, appearance }) => ({
+const themedStyles = createThemedStyles(({ colors }) => ({
 	label: {
 		...typography.sm,
 		fontWeight: fontWeight.regular,
@@ -47,7 +15,6 @@ const themedStyles = createThemedStyles(({ colors, appearance }) => ({
 		textOverflow: "ellipsis" as const,
 		pointerEvents: "none" as const,
 	},
-	badges: tones[appearance],
 }));
 
 /** Compact, theme-aware commit labels; accessible names and actions retain the complete original subject. */
@@ -61,7 +28,7 @@ export function RepositoryCommitSubject({
 	wrap?: boolean;
 }) {
 	const { appearance, commitTypeBadges } = useAppTheme();
-	const { label, badges } = themedStyles[appearance];
+	const { label } = themedStyles[appearance];
 	const parsed = commitTypeBadges ? CommitSubject.parse(subject) : null;
 
 	const textStyle = wrap
@@ -94,7 +61,7 @@ export function RepositoryCommitSubject({
 				aria-hidden
 				style={{
 					...typography.xs,
-					...badges[typeTone[parsed.type]],
+					...commitTypeColor(appearance, parsed.type),
 					fontWeight: fontWeight.medium,
 					borderRadius: radius.sm,
 					paddingLeft: spacing[1],

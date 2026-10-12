@@ -38,6 +38,10 @@ export const textareaViewportPatchPath = resolve(
 	import.meta.dir,
 	"textarea-viewport.patch"
 );
+export const textareaDecorationsPatchPath = resolve(
+	import.meta.dir,
+	"textarea-decorations.patch"
+);
 export const activationPatchPath = resolve(
 	import.meta.dir,
 	"window-activation.patch"
@@ -139,6 +143,7 @@ export const nativeBuildId = createHash("sha256")
 	.update(readFileSync(diffInclusionThemePatchPath))
 	.update(readFileSync(diffRailsPatchPath))
 	.update(readFileSync(textareaViewportPatchPath))
+	.update(readFileSync(textareaDecorationsPatchPath))
 	.update(readFileSync(activationPatchPath))
 	.update(readFileSync(closePatchPath))
 	.update(readFileSync(closePlatformPatchPath))

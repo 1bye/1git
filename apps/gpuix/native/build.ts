@@ -27,6 +27,7 @@ import {
 	diffInclusionThemePatchPath,
 	diffRailsPatchPath,
 	textareaViewportPatchPath,
+	textareaDecorationsPatchPath,
 	buildIdPath,
 	nativeBuildId,
 	nativeDirectory,
@@ -128,6 +129,7 @@ if (
 		diffInclusionThemePatchPath,
 		diffRailsPatchPath,
 		textareaViewportPatchPath,
+		textareaDecorationsPatchPath,
 	];
 
 	// Later patches can change an earlier patch's context. Unwind known patches

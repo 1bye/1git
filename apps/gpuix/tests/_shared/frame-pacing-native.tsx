@@ -12,6 +12,8 @@ renderer.init({
 });
 
 let scrollId: number | undefined;
+const commitEditor = process.argv.includes("--commit-editor");
+const message = `feat: ${"Wrapped native commit subject ".repeat(180)}\n\n`;
 
 const root = render(
 	<div
@@ -20,9 +22,30 @@ const root = render(
 		}}
 		style={{ width: "100%", height: "100%", overflow: "scroll" }}
 	>
-		<div style={{ height: 2400, flexShrink: 0 }}>
-			<text>Scrollable native regression content</text>
-		</div>
+		{commitEditor ? (
+			<textarea
+				aria-label="Commit message"
+				value={message}
+				textColorRange={{ start: 0, end: 4, color: "#38664a" }}
+				linePlaceholder={{
+					offset: message.length,
+					text: "Description (optional)",
+					color: "#888888",
+				}}
+				scrollPaddingBottom={34}
+				style={{
+					width: "100%",
+					height: "100%",
+					padding: 8,
+					fontSize: 11,
+					lineHeight: 16,
+				}}
+			/>
+		) : (
+			<div style={{ height: 2400, flexShrink: 0 }}>
+				<text>Scrollable native regression content</text>
+			</div>
+		)}
 	</div>,
 	{ renderer }
 );
@@ -46,14 +69,22 @@ try {
 
 	// No event-loop yield: input updates offsets, but must not paint once per event.
 	for (let event = 0; event < 40; event++) {
-		renderer.simulateScrollWheel(bounds.x + 100, bounds.y + 80, 0, -8);
+		renderer.simulateScrollWheel(
+			bounds.x + 100,
+			bounds.y + 80,
+			0,
+			commitEditor ? 8 : -8
+		);
 	}
 
 	const immediateFrames =
 		renderer.getDebugFrameOverlayStats().frames - initialFrames;
 
 	assert.equal(immediateFrames, 0, "live input must wait for a display frame");
-	assert.ok((renderer.getScrollOffset(scrollId)?.[1] ?? 0) < -100);
+
+	if (!commitEditor)
+		assert.ok((renderer.getScrollOffset(scrollId)?.[1] ?? 0) < -100);
+
 	await pump();
 	assert.ok(
 		renderer.getDebugFrameOverlayStats().frames > initialFrames,
@@ -64,7 +95,12 @@ try {
 	for (let burst = 0; burst < 4; burst++) {
 		const frames = renderer.getDebugFrameOverlayStats().frames;
 
-		renderer.simulateScrollWheel(bounds.x + 100, bounds.y + 80, 0, -8);
+		renderer.simulateScrollWheel(
+			bounds.x + 100,
+			bounds.y + 80,
+			0,
+			commitEditor ? 8 : -8
+		);
 		await pump();
 		assert.ok(
 			renderer.getDebugFrameOverlayStats().frames > frames,
@@ -73,6 +109,8 @@ try {
 	}
 
 	process.stdout.write("Live redraw batching verified\n");
+
+	if (commitEditor) process.stdout.write("Decorated commit editor verified\n");
 } finally {
 	root.unmount();
 }

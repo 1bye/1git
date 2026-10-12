@@ -7,6 +7,8 @@ import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
 import { useEffect, useRef, useState } from "react";
 
 import { RepositoryLastCommit } from "./repository-last-commit";
+import { commitTypeColor } from "./commit-type-colors";
+import { CommitSubject } from "../lib/commit-subject";
 import {
 	AiCommitButton,
 	AiCommitProgress,
@@ -20,6 +22,8 @@ import {
 	type RepositoryWorkspaceAction,
 	type RepositoryWorkspaceState,
 } from "../lib/repository-workspace-model";
+
+const bodySeparator = /\r?\n[ \t]*\r?\n/;
 
 const themedStyles = createThemedStyles(({ colors: appColors }) => {
 	const actionInset = spacing[2.5];
@@ -116,6 +120,15 @@ export function RepositoryCommit({
 	const theme = useAppTheme();
 	const { tokens: appTokens } = theme;
 	const { styles, scrollPaddingBottom } = themedStyles[theme.appearance];
+	const prefix = CommitSubject.prefix(state.commitMessage);
+	const separator = bodySeparator.exec(state.commitMessage);
+	const bodyOffset = separator ? separator.index + separator[0].length : null;
+
+	const emptyBody =
+		separator !== null &&
+		bodyOffset !== null &&
+		state.commitMessage.slice(0, separator.index).trim().length > 0 &&
+		state.commitMessage.slice(bodyOffset).trim().length === 0;
 
 	const [previewed, setPreviewed] = useState(false);
 
@@ -223,9 +236,27 @@ export function RepositoryCommit({
 					aria-description={
 						sample
 							? "First line is the summary. Add a blank line for optional details. Command Enter previews; no commit is created."
-							: `First line is the summary. Command Enter: ${label}.`
+							: `First line is the summary. Add a blank line for an optional description. Command Enter: ${label}.`
 					}
 					placeholder="Commit message…"
+					textColorRange={
+						prefix
+							? {
+									start: 0,
+									end: prefix.length,
+									color: commitTypeColor(theme.appearance, prefix.type).color,
+								}
+							: undefined
+					}
+					linePlaceholder={
+						emptyBody && bodyOffset !== null
+							? {
+									offset: bodyOffset,
+									text: "Description (optional)",
+									color: theme.colors.editorFaint,
+								}
+							: undefined
+					}
 					value={state.commitMessage}
 					readOnly={generation.busy || RepositoryWorkspaceModel.isBusy(state)}
 					onValueChange={(value) => {

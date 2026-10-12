@@ -47,6 +47,48 @@ it("recognizes supported prefixes without changing scope, description or breakin
 	).toBe("api/client");
 });
 
+it("recognizes editable prefixes without requiring a complete summary or touching the body", () => {
+	for (const type of [
+		"feat",
+		"fix",
+		"refactor",
+		"perf",
+		"docs",
+		"test",
+		"build",
+		"ci",
+		"chore",
+		"style",
+		"revert",
+	] as const) {
+		expect(CommitSubject.prefix(`${type}:`)).toEqual({
+			type,
+			length: type.length,
+		});
+		expect(CommitSubject.prefix(`${type}(界🙂)!: title\n\nfeat: body`)).toEqual(
+			{ type, length: type.length }
+		);
+	}
+
+	expect(CommitSubject.prefix("FEAT: add Unicode é🙂")).toEqual({
+		type: "feat",
+		length: 4,
+	});
+
+	for (const message of [
+		"feat",
+		"feature:",
+		"unknown:",
+		" feat:",
+		"feat():",
+		"feat((scope)):",
+		"feat(scope\n):",
+		"plain\n\nfeat:",
+	]) {
+		expect(CommitSubject.prefix(message)).toBeNull();
+	}
+});
+
 it("leaves ordinary, unknown, malformed and multiline messages untouched", () => {
 	for (const subject of [
 		"Update feature",
