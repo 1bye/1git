@@ -1,7 +1,8 @@
 # Release downloads infrastructure
 
 This private workspace owns an **Alchemy-managed private R2 bucket** and a
-read-only downloads Worker. The pinned SDK is `alchemy@2.0.0-beta.83` with
+read-only downloads Worker and a separate signature-authenticated publisher
+Worker. The pinned SDK is `alchemy@2.0.0-beta.83` with
 `effect@4.0.4` and its platform adapters; none are shipped in the desktop app.
 Deploying this stack is separate from publishing a macOS release or deploying a
 future website.
@@ -17,7 +18,7 @@ GitHub, AI, or Cloudflare account. The GitHub repository stays private.
 
 1. Authenticate Alchemy with the intended Cloudflare account. Use permissions
    for R2 buckets and Workers, following the pinned SDK's Cloudflare setup guide.
-   Publishing uses that same profile's R2 read/write permissions directly.
+   Publishing uses that profile for R2 reads and the existing Sparkle key for writes.
    **Account API Tokens Write / token provisioning is not required.**
 2. From the repository root, explicitly provision the production stack:
 
@@ -25,7 +26,13 @@ GitHub, AI, or Cloudflare account. The GitHub repository stays private.
    bun run deploy:updates -- --stage prod
    ```
 
-3. The stack saves `accountId`, `bucketName`, `jurisdiction` and `workerURL`.
+   On the initial publisher deployment, provide the existing Sparkle **public**
+   key as `ONEGIT_UPDATE_PUBLIC_KEY`. Subsequent deployments reuse the pinned key
+   from saved stack outputs, so no repeated export is needed. The private key
+   never enters Alchemy or either Worker. Changing the pinned key requires an
+   explicit key migration; an accidental replacement is refused.
+3. The stack saves `accountId`, `bucketName`, `jurisdiction`, `workerURL`,
+   `publisherURL` and `publicKey`.
    `release:macos` reads these outputs; no copying endpoint/account/bucket values
    or configuring separate S3 keys is required. The stable `workers.dev` URL is
    usable without buying a domain; the feed is `workerURL` + `/appcast.xml`.
@@ -87,20 +94,26 @@ Cloudflare tokens are not used as a silent replacement for your selected profile
 
 Dry-run reads local stack outputs but does not load profiles or make Cloudflare,
 R2, or public-download requests. Real publishing authenticates through Alchemy's
-normal profile reader, including OAuth refresh, and calls Cloudflare's R2 object
-HTTP API with those existing credentials. It never creates or revokes API tokens,
-derives S3 keys, or requires a second profile. The authenticated transport is
-restricted to the saved bucket and release/probe keys. No profile secret is
-passed to app builds or added to the read-only Worker. Standard Alchemy OAuth
+normal profile reader, including OAuth refresh, for Cloudflare R2 object reads.
+Writes go through the separately deployed publisher, not the REST upload API:
+the latter was verified live to ignore conditional uploads. No API tokens are
+created/revoked, no S3 keys are derived, and no second profile is required.
+No profile secret reaches app builds or either Worker. Standard Alchemy OAuth
 refresh may persist refreshed credentials through Alchemy's normal profile store.
 
-The installed HTTP upload helper does not expose conditional writes, and the
-REST documentation does not guarantee their behavior. Before touching any ZIP
-or feed, a real publish therefore checks create-once, current-ETag replacement
-and stale-ETag rejection on one unique `release-checks/<uuid>.txt` object. It
-checks the resulting bytes/ETag and deletes only that probe object afterward.
-If the API ignores conditional headers, publishing stops with an explicit error;
-there is no unsafe overwrite fallback or automatic token-provisioning fallback.
+Each publisher request carries a five-minute, domain-separated Ed25519
+authorization signed by the existing Sparkle Keychain/file key. It binds the
+destination origin, method, object key, byte length, SHA-256 and write condition.
+Only the public verification key is deployed. The publisher verifies the
+authorization before accessing R2, enforces the body checksum via native R2,
+and uses native `put({ onlyIf: ... })` for atomic create-once/ETag replacement.
+Archives cannot be overwritten or deleted, and only isolated probe keys can be
+deleted. The publisher exposes no reads/listing; downloads remain read-only.
+
+Before touching any ZIP or feed, a real publish checks create-once,
+current-ETag replacement and stale-ETag rejection on a unique
+`release-checks/<uuid>.txt` object, verifies its bytes/ETag, then deletes it.
+There is no unsafe overwrite or automatic token-provisioning fallback.
 Probe cleanup failures print the exact non-secret key for manual cleanup. The
 downloads Worker cannot serve these probe keys. Dry-run performs none of this.
 
@@ -110,7 +123,7 @@ and signed feed in a unique `apps/gpuix/build/updates/<version>-<run>/` director
 Release runs never share mutable artifact paths. Publishing then:
 
 1. Reads the previous feed and rejects an equal/older numeric version.
-2. Verifies the HTTP API's conditional-write behavior on an isolated probe.
+2. Verifies the signed publisher's native conditional writes on an isolated probe.
 3. Creates the ZIP with `If-None-Match: *`, refusing to overwrite any version.
 4. Downloads the public ZIP and checks its byte count and SHA-256 against the
    signed local artifact. Failure leaves the old feed unchanged.
@@ -146,5 +159,8 @@ Bun HTTP against loopback with synthetic authentication, not live Cloudflare,
 including two simultaneous publishers and APIs that ignore conditional writes.
 The macOS suite runs the complete root dry-run with disposable signing keys and
 restores existing generated build outputs afterward. Live Alchemy deployment,
-Cloudflare credentials/permissions, and R2 acceptance require a separately
-approved smoke test before distributing the first configured release.
+Cloudflare credentials/permissions, and R2 acceptance require explicitly
+approved live verification. Production verification passed for native R2
+create-once/stale-ETag checks, two simultaneous writers (200/412), and unsigned
+uploads (401). Version `0.0.2` was published on 2026-10-13 with ZIP and feed byte
+verification; subsequent releases must use a higher version, such as `0.0.3`.

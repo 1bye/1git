@@ -161,11 +161,14 @@ export class R2ReleaseStorage implements ReleaseStorage {
 		body: Blob,
 		headers: Record<string, string>
 	): Promise<void> {
-		const response = await this.request(key, "PUT", { body, headers });
+		const response = await this.request(key, "PUT", {
+			body,
+			headers: { "Content-Type": "text/plain", ...headers },
+		});
 
 		if (response.status !== 412)
 			throw new Error(
-				"R2 HTTP conditional writes are not enforced. Refusing to publish without duplicate/concurrent-release protection."
+				`R2 HTTP conditional writes are not enforced (HTTP ${response.status}). Refusing to publish without duplicate/concurrent-release protection.`
 			);
 	}
 

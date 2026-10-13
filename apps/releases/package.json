@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./publishing": "./src/publishing.ts"
+    "./publishing": "./src/publishing.ts",
+    "./upload-protocol": "./src/upload-protocol.ts"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",

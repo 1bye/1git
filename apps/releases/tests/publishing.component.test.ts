@@ -146,7 +146,19 @@ for (const method of ["stored", "oauth"] as const) {
 			Effect.runPromise(
 				withReleaseProfileRequest(
 					{ ...target, jurisdiction: "eu", accountId },
-					operation
+					operation,
+					async (key, method, options) => {
+						const request = new Request(`https://publisher.test/${key}`, {
+							...options,
+							method,
+						});
+
+						expect(request.headers.has("authorization")).toBe(false);
+						requests.push(request);
+						events.push(`${method}:publisher`);
+
+						return new Response("written");
+					}
 				).pipe(
 					Effect.provide(releaseProfileLayer(profile)),
 					Effect.provide(FetchHttpClient.layer),
@@ -184,8 +196,8 @@ for (const method of ["stored", "oauth"] as const) {
 			).toBe("published");
 			expect(events).toEqual(
 				method === "stored"
-					? ["GET", "PUT", "PUT"]
-					: ["refresh", "GET", "PUT", "PUT"]
+					? ["GET", "PUT:publisher", "PUT:publisher"]
+					: ["refresh", "GET", "PUT:publisher", "PUT:publisher"]
 			);
 			expect(requests[1]?.headers.get("if-none-match")).toBe("*");
 			expect(requests[2]?.headers.get("if-match")).toBe('"previous"');

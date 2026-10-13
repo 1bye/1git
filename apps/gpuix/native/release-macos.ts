@@ -7,6 +7,10 @@ import { ReleasePublisher } from "./release-publisher";
 import { R2ReleaseStorage } from "./release-storage";
 import { ReleaseStack, publishWithProfile } from "@1git/releases/publishing";
 import { releaseUpdateConfiguration } from "./sparkle";
+import {
+	SignedPublisherRequests,
+	SparkleUploadSigner,
+} from "./publisher-request";
 
 const usage =
 	"Usage: bun run release:macos -- --version 0.0.2 [--stage prod] [--profile name] [--dry-run]\nUses the personal Alchemy profile by default, saved stack outputs and the existing Sparkle Keychain key unless overridden; never deploys infrastructure. Dry-run builds/signs locally without loading Cloudflare credentials or accessing R2.\n";
@@ -97,6 +101,21 @@ export async function releaseMacOS(
 			return;
 		}
 
+		if (!target.publisherURL || target.publicKey !== updates.publicKey)
+			throw new Error(
+				"Deploy the signed publisher with the matching Sparkle public key first. No release uploaded."
+			);
+
+		const signer = new SparkleUploadSigner(
+			updates.publicKey,
+			env.ONEGIT_UPDATE_KEY_FILE
+		);
+
+		const publisher = new SignedPublisherRequests(
+			target.publisherURL,
+			(bytes) => signer.sign(bytes)
+		);
+
 		await publishWithProfile(
 			target,
 			options.profile ?? env.ALCHEMY_PROFILE ?? "personal",
@@ -104,7 +123,8 @@ export async function releaseMacOS(
 				await new ReleasePublisher(new R2ReleaseStorage(request)).publish(
 					artifacts
 				);
-			}
+			},
+			(key, method, request) => publisher.send(key, method, request)
 		);
 		process.stdout.write(
 			`Published ${options.version}: ZIP verified before signed feed at ${artifacts.feedURL}\n`

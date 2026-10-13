@@ -133,10 +133,12 @@ ZIP first, public byte verification, then the exact
 signed feed bytes last with an ETag precondition. It refuses version rollback,
 duplicate ZIP overwrites, or a concurrent feed change. It reuses the existing
 `personal` Alchemy profile (unless overridden), including OAuth refresh, for
-direct R2 HTTP requests; no temporary API tokens, S3 keys, or extra profile are
-needed. A real publish first checks conditional-write enforcement on a unique
-test object, cleans it up, and refuses to publish if the API ignores the guards.
-The profile needs R2 read/write permission, not API-token provisioning.
+R2 reads. Writes use a separate publisher Worker with expiring request manifests
+signed by the existing Sparkle key and native R2 checksum/conditional-write
+enforcement. No temporary API tokens, S3 keys, or extra profile are needed.
+A real publish first verifies the guards on a unique test object, cleans it up,
+and refuses to publish if the checks fail. The Worker receives only the public
+key, never the signing key or profile credentials. Token provisioning is not needed.
 Credentials never reach the app bundler. The explicit version does
 not change development defaults, stage/commit files, push Git, or alter the
 repository's visibility.

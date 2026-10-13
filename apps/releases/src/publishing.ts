@@ -24,6 +24,8 @@ export interface ReleaseTarget {
 	bucket: string;
 	jurisdiction: string;
 	feedURL: string;
+	publisherURL?: string;
+	publicKey?: string;
 }
 
 /** Profile-authenticated object requests restricted to the saved release bucket. */
@@ -38,10 +40,36 @@ export class ReleaseStack {
 	constructor(private readonly stateDirectory: string) {}
 
 	async load(stage: string): Promise<ReleaseTarget> {
+		const output = await this.readOutput(stage);
+
+		return this.validateOutput(output, stage);
+	}
+
+	/** Keeps later infrastructure deployments pinned without repeated environment exports. */
+	async savedPublicKey(stage: string): Promise<string | undefined> {
+		const output = await this.readOutput(stage);
+
+		if (
+			typeof output !== "object" ||
+			output === null ||
+			!("publicKey" in output)
+		)
+			return undefined;
+
+		if (
+			typeof output.publicKey !== "string" ||
+			!/^[A-Za-z0-9+/]{43}=$/u.test(output.publicKey)
+		)
+			throw new Error("Saved publisher public key is invalid.");
+
+		return output.publicKey;
+	}
+
+	private async readOutput(stage: string): Promise<unknown> {
 		if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/u.test(stage))
 			throw new Error("Invalid release stage.");
 
-		const output = await Effect.runPromise(
+		return await Effect.runPromise(
 			Effect.gen(function* () {
 				const store = yield* yield* State;
 
@@ -56,7 +84,9 @@ export class ReleaseStack {
 				Effect.provide(BunServices.layer)
 			)
 		);
+	}
 
+	private validateOutput(output: unknown, stage: string): ReleaseTarget {
 		if (
 			typeof output !== "object" ||
 			output === null ||
@@ -92,11 +122,43 @@ export class ReleaseStack {
 				"The saved downloads Worker URL must be an HTTPS origin."
 			);
 
+		let publisherURL: string | undefined;
+		let publicKey: string | undefined;
+
+		if ("publisherURL" in output || "publicKey" in output) {
+			if (
+				!("publisherURL" in output) ||
+				typeof output.publisherURL !== "string" ||
+				!("publicKey" in output) ||
+				typeof output.publicKey !== "string" ||
+				!/^[A-Za-z0-9+/]{43}=$/u.test(output.publicKey)
+			)
+				throw new Error(
+					"Invalid publisher outputs; deploy the release stack first."
+				);
+
+			const publisher = new URL(output.publisherURL);
+
+			if (
+				publisher.protocol !== "https:" ||
+				publisher.username ||
+				publisher.password ||
+				publisher.pathname !== "/" ||
+				publisher.search ||
+				publisher.hash
+			)
+				throw new Error("The publisher URL must be an HTTPS origin.");
+
+			publisherURL = publisher.origin;
+			publicKey = output.publicKey;
+		}
+
 		return {
 			accountId: output.accountId,
 			bucket: output.bucketName,
 			jurisdiction: output.jurisdiction,
 			feedURL: new URL("/appcast.xml", url).href,
+			...(publisherURL ? { publisherURL, publicKey } : {}),
 		};
 	}
 }
@@ -125,7 +187,8 @@ export const releaseProfileLayer = (profile: string | undefined) =>
 /** Reuses profile credentials, including OAuth refresh, without minting upload tokens. */
 export const withReleaseProfileRequest = <A>(
 	target: ReleaseTarget,
-	publish: (request: ReleaseObjectRequest) => Promise<A>
+	publish: (request: ReleaseObjectRequest) => Promise<A>,
+	write?: ReleaseObjectRequest
 ) =>
 	Effect.gen(function* () {
 		const environment = yield* yield* CloudflareEnvironment;
@@ -146,6 +209,15 @@ export const withReleaseProfileRequest = <A>(
 				!/^release-checks\/[a-f0-9-]{36}\.txt$/u.test(key)
 			)
 				throw new Error("Invalid release object key.");
+
+			if (method !== "GET") {
+				if (!write)
+					throw new Error(
+						"A signed conditional publisher is required for writes."
+					);
+
+				return await write(key, method, options);
+			}
 
 			try {
 				const resolved = await Effect.runPromise(credentials);
@@ -187,10 +259,11 @@ export const withReleaseProfileRequest = <A>(
 export async function publishWithProfile<A>(
 	target: ReleaseTarget,
 	profile: string | undefined,
-	publish: (request: ReleaseObjectRequest) => Promise<A>
+	publish: (request: ReleaseObjectRequest) => Promise<A>,
+	write?: ReleaseObjectRequest
 ): Promise<A> {
 	return await Effect.runPromise(
-		withReleaseProfileRequest(target, publish).pipe(
+		withReleaseProfileRequest(target, publish, write).pipe(
 			Effect.provide(releaseProfileLayer(profile)),
 			Effect.provide(FetchHttpClient.layer)
 		)
