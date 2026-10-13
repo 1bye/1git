@@ -1,0 +1,6 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "outDir": "dist", "declaration": true },
+  "include": ["alchemy.run.ts", "src/**/*.ts"],
+  "exclude": ["tests", "dist"]
+}

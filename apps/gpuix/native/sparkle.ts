@@ -5,6 +5,9 @@ import { appDirectory } from "./config";
 
 /** Pinned upstream distribution, including its installer and signing tools. */
 export const sparkleDirectory = resolve(appDirectory, ".cache/sparkle");
+
+/** The same Keychain identity is used for public-key lookup and release signing. */
+export const sparkleSigningAccount = "dev.1git.gpuix";
 const sparkleVersion = "2.10.0";
 
 const archiveHash =
@@ -125,6 +128,68 @@ export async function embedSparkle(
 export interface UpdateConfiguration {
 	feedURL: string;
 	publicKey: string;
+}
+
+/** Read-only lookup: -p never generates, imports, rotates, or exports a private key. */
+const existingSparklePublicKey = async (): Promise<string> => {
+	await prepareSparkle();
+
+	try {
+		const child = Bun.spawn(
+			[
+				resolve(sparkleDirectory, "bin/generate_keys"),
+				"--account",
+				sparkleSigningAccount,
+				"-p",
+			],
+			{ stdin: "ignore", stdout: "pipe", stderr: "pipe", timeout: 30000 }
+		);
+
+		const [output, , exitCode] = await Promise.all([
+			new Response(child.stdout).text(),
+			new Response(child.stderr).text(),
+			child.exited,
+		]);
+
+		if (exitCode !== 0) throw new Error("Sparkle Keychain lookup failed.");
+
+		return output.trim();
+	} catch (cause) {
+		throw new Error(
+			`Could not read the existing Sparkle public key from Keychain (${sparkleSigningAccount}). Unlock/allow Keychain access, or create the key once with apps/gpuix/.cache/sparkle/bin/generate_keys --account ${sparkleSigningAccount}. No key was created or changed.`,
+			{ cause }
+		);
+	}
+};
+
+/** Release-only fallback; ordinary packaging remains unconfigured by default. */
+export async function releaseUpdateConfiguration(
+	feedURL: string,
+	env: NodeJS.ProcessEnv,
+	readExistingKey: () => Promise<string> = existingSparklePublicKey
+): Promise<UpdateConfiguration> {
+	let publicKey = env.ONEGIT_UPDATE_PUBLIC_KEY;
+
+	if (publicKey === undefined) {
+		if (env.ONEGIT_UPDATE_KEY_FILE)
+			throw new Error(
+				"Provide ONEGIT_UPDATE_PUBLIC_KEY when using ONEGIT_UPDATE_KEY_FILE; Keychain fallback is disabled for file-based signing."
+			);
+
+		publicKey = (await readExistingKey()).trim();
+	}
+
+	if (!publicKey)
+		throw new Error(
+			"The release public key is empty. Set ONEGIT_UPDATE_PUBLIC_KEY to a valid public key, or unset it to use Keychain."
+		);
+
+	const configuration = updateConfiguration(feedURL, publicKey);
+
+	if (!configuration)
+		throw new Error("Release requires a configured update feed.");
+
+	return configuration;
 }
 
 /** Missing configuration deliberately leaves all network update checks disabled. */

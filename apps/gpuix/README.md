@@ -110,15 +110,41 @@ key and does not upload anything. For an explicit CI key file, set
 version before each release; never overwrite an already published versioned ZIP.
 Previously distributed builds without Sparkle need one manual installation.
 
-### Future Alchemy/R2 hosting
+### Alchemy/R2 release publishing
 
-An Alchemy-managed R2 bucket can host these generated artifacts while this source
-repository stays private. Use a dedicated updates bucket/custom HTTPS domain,
-not R2 credentials embedded in the desktop app. Upload immutable versioned ZIPs
-first and replace the signed feed last. Serve the feed as `application/xml` with
-short/no cache, and versioned ZIPs with long immutable cache. Keep the website's
-deployment separate from release uploads. No Alchemy dependencies, buckets,
-domains, or deployments are created by these tasks.
+The private [`apps/releases`](../releases/README.md) workspace declares an
+Alchemy-managed private R2 bucket and read-only downloads Worker. Infrastructure
+deployment is explicit and separate from publishing. The Worker provides a
+stable HTTPS `workers.dev` endpoint without needing a custom domain initially.
+
+Once the stack has been explicitly deployed and the permanent Sparkle signing
+key exists in Keychain account `dev.1git.gpuix`:
+
+```sh
+bun run release:macos -- --version 0.0.2 --dry-run
+bun run release:macos -- --version 0.0.2
+# Optional existing profile/stage; defaults are default/prod.
+bun run release:macos -- --version 0.0.2 --profile personal --stage prod
+```
+
+The first command builds/signs locally with no R2 access. The second publishes
+using your Alchemy profile and the account/bucket/feed from saved stack outputs:
+ZIP first, public byte verification, then the exact
+signed feed bytes last with an ETag precondition. It refuses version rollback,
+duplicate ZIP overwrites, or a concurrent feed change. Publisher credentials
+are obtained automatically, scoped to one bucket, expire in an hour and are
+revoked after publishing. The profile needs account API-token provisioning
+permission. Credentials never reach the app bundler. The explicit version does
+not change development defaults, stage/commit files, push Git, or alter the
+repository's visibility.
+Packaging and dry-run do not deploy infrastructure or publish anything.
+
+`release:macos` reads the existing public key from Keychain automatically, without
+creating or rotating it. An explicit `ONEGIT_UPDATE_PUBLIC_KEY` still overrides
+that lookup. When using `ONEGIT_UPDATE_KEY_FILE`, supply the matching public key
+explicitly; Keychain fallback is disabled. See
+[`.env.release.example`](.env.release.example) for optional overrides.
+Ordinary `package:macos` configuration and app defaults are unchanged.
 
 ```sh
 bun run test:updates:macos

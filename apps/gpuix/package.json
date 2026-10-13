@@ -11,6 +11,9 @@
     "test:package:macos": "bun test tests/packaging/launch.integration.test.ts",
     "test:updates:macos": "bun test tests/updater/install.integration.test.ts tests/updater/lifecycle.integration.test.ts tests/updater/preparation.integration.test.ts",
     "prepare:updates:macos": "bun native/prepare-updates.ts",
+    "release:macos": "bun native/release-macos.ts",
+    "test:release:transport": "bun test tests/updater/r2-transport.integration.test.ts",
+    "test:release:macos": "bun test tests/updater/release-command.integration.test.ts",
     "check-types": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json",
     "dev": "bun --preload ./native/preload.ts --hot src/main.tsx",
     "start": "bun --preload ./native/preload.ts dist/main.js",
@@ -35,6 +38,7 @@
   },
   "devDependencies": {
     "@1git/config": "workspace:*",
+    "@1git/releases": "workspace:*",
     "@types/bun": "^1.3.5",
     "@types/react": "^19.2.14",
     "typescript": "^6.0.3"

@@ -10,8 +10,9 @@ import { resolve } from "node:path";
 import { createHash } from "node:crypto";
 import { appDirectory, nativeLibrary } from "./config";
 import { bundleInfoPlist, copyImageRuntime } from "./package-resources";
-import { version } from "../package.json";
+import { version as developmentVersion } from "../package.json";
 import { embedSparkle, updateConfiguration } from "./sparkle";
+import { ReleaseVersion } from "./release-options";
 
 if (process.platform !== "darwin" || process.arch !== "arm64") {
 	throw new Error("macOS packaging currently supports Apple Silicon only.");
@@ -32,6 +33,10 @@ const run = async (command: string[]): Promise<void> => {
 const updates = updateConfiguration(
 	process.env.ONEGIT_UPDATE_FEED_URL,
 	process.env.ONEGIT_UPDATE_PUBLIC_KEY
+);
+
+const version = ReleaseVersion.parse(
+	process.env.ONEGIT_RELEASE_VERSION ?? developmentVersion
 );
 
 const output = resolve(appDirectory, "build/macos");

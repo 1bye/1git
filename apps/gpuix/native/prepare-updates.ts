@@ -5,6 +5,7 @@ import { appDirectory } from "./config";
 import {
 	prepareSparkle,
 	sparkleDirectory,
+	sparkleSigningAccount,
 	updateConfiguration,
 } from "./sparkle";
 
@@ -25,7 +26,7 @@ export async function prepareUpdates(
 	bundle: string,
 	output: string,
 	keyFile?: string
-): Promise<void> {
+): Promise<PreparedUpdate> {
 	await prepareSparkle();
 	const plist = resolve(bundle, "Contents/Info.plist");
 
@@ -57,7 +58,7 @@ export async function prepareUpdates(
 
 	const signing = keyFile
 		? ["--ed-key-file", keyFile]
-		: ["--account", "dev.1git.gpuix"];
+		: ["--account", sparkleSigningAccount];
 
 	try {
 		await run(["codesign", "--verify", "--deep", "--strict", bundle]);
@@ -120,9 +121,26 @@ export async function prepareUpdates(
 		process.stdout.write(
 			`Prepared signed update and feed in ${output}. Nothing uploaded.\n`
 		);
+
+		return {
+			version,
+			archivePath: resolve(output, archiveName),
+			feedPath: resolve(output, feedName),
+			feedURL: configuration.feedURL,
+			publicKey,
+		};
 	} finally {
 		await rm(staging, { recursive: true, force: true });
 	}
+}
+
+/** Signed local artifacts and the public configuration embedded in their app. */
+export interface PreparedUpdate {
+	version: string;
+	archivePath: string;
+	feedPath: string;
+	feedURL: string;
+	publicKey: string;
 }
 
 if (import.meta.main) {
