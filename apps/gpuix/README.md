@@ -123,7 +123,7 @@ key exists in Keychain account `dev.1git.gpuix`:
 ```sh
 bun run release:macos -- --version 0.0.2 --dry-run
 bun run release:macos -- --version 0.0.2
-# Optional existing profile/stage; defaults are default/prod.
+# Optional existing profile/stage; defaults are personal/prod.
 bun run release:macos -- --version 0.0.2 --profile personal --stage prod
 ```
 
@@ -131,10 +131,13 @@ The first command builds/signs locally with no R2 access. The second publishes
 using your Alchemy profile and the account/bucket/feed from saved stack outputs:
 ZIP first, public byte verification, then the exact
 signed feed bytes last with an ETag precondition. It refuses version rollback,
-duplicate ZIP overwrites, or a concurrent feed change. Publisher credentials
-are obtained automatically, scoped to one bucket, expire in an hour and are
-revoked after publishing. The profile needs account API-token provisioning
-permission. Credentials never reach the app bundler. The explicit version does
+duplicate ZIP overwrites, or a concurrent feed change. It reuses the existing
+`personal` Alchemy profile (unless overridden), including OAuth refresh, for
+direct R2 HTTP requests; no temporary API tokens, S3 keys, or extra profile are
+needed. A real publish first checks conditional-write enforcement on a unique
+test object, cleans it up, and refuses to publish if the API ignores the guards.
+The profile needs R2 read/write permission, not API-token provisioning.
+Credentials never reach the app bundler. The explicit version does
 not change development defaults, stage/commit files, push Git, or alter the
 repository's visibility.
 Packaging and dry-run do not deploy infrastructure or publish anything.

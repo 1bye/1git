@@ -24,6 +24,7 @@ for (const scenario of [
 	"local-feed-race",
 	"zip-failure",
 	"bad-download",
+	"unsafe-transport",
 	"race",
 	"older",
 	"same",
@@ -60,6 +61,12 @@ for (const scenario of [
 		};
 
 		const storage: ReleaseStorage = {
+			async verifyConditionalWrites() {
+				events.push("check-conditions");
+
+				if (scenario === "unsafe-transport")
+					throw new Error("Conditions ignored");
+			},
 			async readFeed() {
 				events.push("read-feed");
 
@@ -102,6 +109,7 @@ for (const scenario of [
 				await publisher.publish(artifacts);
 				expect(events).toEqual([
 					"read-feed",
+					"check-conditions",
 					"zip:1git-0.0.2-macos-arm64.zip",
 					"verify:1git-0.0.2-macos-arm64.zip",
 					'feed:"original"',
@@ -116,6 +124,9 @@ for (const scenario of [
 
 				if (scenario === "older" || scenario === "same")
 					expect(events).toEqual(["read-feed"]);
+
+				if (scenario === "unsafe-transport")
+					expect(events).toEqual(["read-feed", "check-conditions"]);
 
 				if (scenario === "race") expect(events.at(-1)).toBe('feed:"original"');
 			}

@@ -9,7 +9,7 @@ import { ReleaseStack, publishWithProfile } from "@1git/releases/publishing";
 import { releaseUpdateConfiguration } from "./sparkle";
 
 const usage =
-	"Usage: bun run release:macos -- --version 0.0.2 [--stage prod] [--profile name] [--dry-run]\nUses saved Alchemy stack outputs and the existing Sparkle Keychain key unless overridden; never deploys infrastructure. Dry-run builds/signs locally without loading Cloudflare credentials or accessing R2.\n";
+	"Usage: bun run release:macos -- --version 0.0.2 [--stage prod] [--profile name] [--dry-run]\nUses the personal Alchemy profile by default, saved stack outputs and the existing Sparkle Keychain key unless overridden; never deploys infrastructure. Dry-run builds/signs locally without loading Cloudflare credentials or accessing R2.\n";
 
 /** Builds a versioned release without modifying package defaults, then publishes unless dry-run. */
 export async function releaseMacOS(
@@ -99,9 +99,9 @@ export async function releaseMacOS(
 
 		await publishWithProfile(
 			target,
-			options.profile ?? env.ALCHEMY_PROFILE,
-			async (credentials) => {
-				await new ReleasePublisher(R2ReleaseStorage.from(credentials)).publish(
+			options.profile ?? env.ALCHEMY_PROFILE ?? "personal",
+			async (request) => {
+				await new ReleasePublisher(new R2ReleaseStorage(request)).publish(
 					artifacts
 				);
 			}

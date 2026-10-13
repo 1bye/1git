@@ -1,45 +1,98 @@
-import { S3Client } from "bun";
-import type { ReleaseUploadCredentials } from "@1git/releases/publishing";
-import type {
-	PublishedFeed,
-	ReleaseStorage,
-	ReleaseFetch,
-} from "./release-publisher";
+import { randomUUID } from "node:crypto";
+import type { ReleaseObjectRequest } from "@1git/releases/publishing";
+import type { PublishedFeed, ReleaseStorage } from "./release-publisher";
 
-/** Sends conditional R2 S3 writes using Bun's native SigV4 presigner. */
+/** Sends guarded R2 HTTP writes through the existing Alchemy profile. */
 export class R2ReleaseStorage implements ReleaseStorage {
-	constructor(
-		private readonly client: S3Client,
-		private readonly request: ReleaseFetch = fetch
-	) {}
+	constructor(private readonly request: ReleaseObjectRequest) {}
 
-	static from(credentials: ReleaseUploadCredentials): R2ReleaseStorage {
-		return new R2ReleaseStorage(
-			new S3Client({
-				endpoint: credentials.endpoint,
-				bucket: credentials.bucket,
-				accessKeyId: credentials.accessKeyId,
-				secretAccessKey: credentials.secretAccessKey,
-				region: "auto",
-			})
-		);
+	async verifyConditionalWrites(): Promise<void> {
+		const key = `release-checks/${randomUUID()}.txt`;
+		const original = new Blob(["original"]);
+		const changed = new Blob(["changed"]);
+
+		const create = await this.request(key, "PUT", {
+			body: original,
+			headers: { "If-None-Match": "*", "Content-Type": "text/plain" },
+		});
+
+		if (!create.ok)
+			throw this.responseError(create, "Could not check R2 conditional writes");
+
+		try {
+			const before = await this.readObject(key);
+
+			if (!before || new TextDecoder().decode(before.bytes) !== "original")
+				throw new Error(
+					"R2 conditional-write check could not read its test object."
+				);
+
+			await this.expectPreconditionFailure(key, changed, {
+				"If-None-Match": "*",
+			});
+			await this.expectPreconditionFailure(key, changed, {
+				"If-Match": '"not-the-current-etag"',
+			});
+
+			const replace = await this.request(key, "PUT", {
+				body: changed,
+				headers: { "If-Match": before.etag, "Content-Type": "text/plain" },
+			});
+
+			if (!replace.ok)
+				throw this.responseError(
+					replace,
+					"Could not check R2 ETag replacement"
+				);
+
+			await this.expectPreconditionFailure(key, original, {
+				"If-Match": before.etag,
+			});
+			const after = await this.readObject(key);
+
+			if (
+				!after ||
+				after.etag === before.etag ||
+				new TextDecoder().decode(after.bytes) !== "changed"
+			)
+				throw new Error(
+					"R2 conditional writes did not preserve the expected bytes. Refusing to publish."
+				);
+		} finally {
+			await this.cleanupProbe(key);
+		}
+	}
+
+	private async cleanupProbe(key: string): Promise<void> {
+		try {
+			const cleanup = await this.request(key, "DELETE");
+
+			if (!cleanup.ok && cleanup.status !== 404)
+				throw new Error("Could not remove test object.");
+		} catch {
+			process.stderr.write(
+				`Warning: could not remove R2 test object ${key}.\n`
+			);
+		}
 	}
 
 	async readFeed(): Promise<PublishedFeed | null> {
-		const response = await this.send("appcast.xml", "GET");
+		return await this.readObject("appcast.xml");
+	}
+
+	private async readObject(key: string): Promise<PublishedFeed | null> {
+		const response = await this.request(key, "GET");
 
 		if (response.status === 404) return null;
 
 		if (!response.ok)
-			throw new Error(
-				`Could not read the published feed (${response.status}).`
-			);
+			throw this.responseError(response, "Could not read the published object");
 
 		const etag = response.headers.get("etag");
 
-		if (!etag || !response.body)
+		if (!etag || !/^"[^"\r\n]+"$/u.test(etag) || !response.body)
 			throw new Error(
-				"Published feed has no ETag/body; refusing a non-atomic replacement."
+				"Published object has no ETag/body; refusing a non-atomic replacement."
 			);
 
 		const chunks: Uint8Array[] = [];
@@ -58,7 +111,7 @@ export class R2ReleaseStorage implements ReleaseStorage {
 	}
 
 	async createArchive(key: string, body: Blob): Promise<void> {
-		const response = await this.send(key, "PUT", {
+		const response = await this.request(key, "PUT", {
 			body,
 			headers: {
 				"If-None-Match": "*",
@@ -73,13 +126,14 @@ export class R2ReleaseStorage implements ReleaseStorage {
 			);
 
 		if (!response.ok)
-			throw new Error(
-				`ZIP upload failed (${response.status}). Feed not advanced.`
+			throw this.responseError(
+				response,
+				"ZIP upload failed. Feed not advanced"
 			);
 	}
 
 	async replaceFeed(body: Blob, previousEtag: string | null): Promise<void> {
-		const response = await this.send("appcast.xml", "PUT", {
+		const response = await this.request("appcast.xml", "PUT", {
 			body,
 			headers: {
 				...(previousEtag
@@ -96,30 +150,31 @@ export class R2ReleaseStorage implements ReleaseStorage {
 			);
 
 		if (!response.ok)
-			throw new Error(
-				`Feed upload failed (${response.status}). Uploaded ZIP remains available.`
+			throw this.responseError(
+				response,
+				"Feed upload failed. Uploaded ZIP remains available"
 			);
 	}
 
-	private async send(
+	private async expectPreconditionFailure(
 		key: string,
-		method: "GET" | "PUT",
-		options: Pick<RequestInit, "body" | "headers"> = {}
-	): Promise<Response> {
-		try {
-			return await this.request(
-				this.client.presign(key, { method, expiresIn: 300 }),
-				{
-					...options,
-					method,
-					signal: AbortSignal.timeout(120000),
-					redirect: "error",
-				}
-			);
-		} catch {
+		body: Blob,
+		headers: Record<string, string>
+	): Promise<void> {
+		const response = await this.request(key, "PUT", { body, headers });
+
+		if (response.status !== 412)
 			throw new Error(
-				"R2 request failed; check network access and bucket-scoped credentials."
+				"R2 HTTP conditional writes are not enforced. Refusing to publish without duplicate/concurrent-release protection."
 			);
-		}
+	}
+
+	private responseError(response: Response, operation: string): Error {
+		const hint =
+			response.status === 401 || response.status === 403
+				? " Check R2 read/write permissions in your existing Alchemy profile."
+				: "";
+
+		return new Error(`${operation} (${response.status}).${hint}`);
 	}
 }

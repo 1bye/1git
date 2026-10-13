@@ -1,12 +1,14 @@
-import { createHash, randomUUID } from "node:crypto";
 import { AlchemyContext } from "alchemy/AlchemyContext";
 import { AuthProviders } from "alchemy/Auth/AuthProvider";
 import { CloudflareApiLive, CloudflareEnvironment } from "alchemy/Cloudflare";
-import { resolvePolicies } from "alchemy/Cloudflare/ApiToken";
 import { layerNonInteractive } from "alchemy/Interaction";
 import { localState } from "alchemy/State/LocalState";
 import { State } from "alchemy/State/State";
-import { createToken, deleteToken } from "@distilled.cloud/cloudflare/accounts";
+import {
+	Credentials,
+	DEFAULT_API_BASE_URL,
+	formatHeaders,
+} from "@distilled.cloud/cloudflare/Credentials";
 import * as BunServices from "@effect/platform-bun/BunServices";
 import * as ConfigProvider from "effect/ConfigProvider";
 import * as Effect from "effect/Effect";
@@ -15,7 +17,6 @@ import * as FetchHttpClient from "effect/http/FetchHttpClient";
 
 /** The unchanged infrastructure identity used by deployments and release lookups. */
 export const RELEASE_STACK_NAME = "1git-releases";
-const UPLOAD_TOKEN_LIFETIME_MS = 60 * 60 * 1000;
 
 /** Non-secret destination resolved from a successfully deployed Alchemy stack. */
 export interface ReleaseTarget {
@@ -25,13 +26,12 @@ export interface ReleaseTarget {
 	feedURL: string;
 }
 
-/** In-memory, short-lived S3 credentials obtained through the selected Alchemy profile. */
-export interface ReleaseUploadCredentials {
-	endpoint: string;
-	bucket: string;
-	accessKeyId: string;
-	secretAccessKey: string;
-}
+/** Profile-authenticated object requests restricted to the saved release bucket. */
+export type ReleaseObjectRequest = (
+	key: string,
+	method: "GET" | "PUT" | "DELETE",
+	options?: Pick<RequestInit, "body" | "headers">
+) => Promise<Response>;
 
 /** Reads saved outputs only; never imports, applies, or deploys the stack. */
 export class ReleaseStack {
@@ -122,10 +122,10 @@ export const releaseProfileLayer = (profile: string | undefined) =>
 		)
 	);
 
-/** Mints a one-hour, bucket-only token for guarded S3 writes and revokes it after use. */
-export const withReleaseUploadCredentials = <A>(
+/** Reuses profile credentials, including OAuth refresh, without minting upload tokens. */
+export const withReleaseProfileRequest = <A>(
 	target: ReleaseTarget,
-	publish: (credentials: ReleaseUploadCredentials) => Promise<A>
+	publish: (request: ReleaseObjectRequest) => Promise<A>
 ) =>
 	Effect.gen(function* () {
 		const environment = yield* yield* CloudflareEnvironment;
@@ -135,89 +135,62 @@ export const withReleaseUploadCredentials = <A>(
 				"Selected Alchemy profile belongs to a different account than the saved release stack. Nothing uploaded."
 			);
 
-		const acquire = createToken({
-			accountId: target.accountId,
-			name: `1git-release-${randomUUID()}`,
-			expiresOn: new Date(Date.now() + UPLOAD_TOKEN_LIFETIME_MS).toISOString(),
-			policies: resolvePolicies([
-				{
-					effect: "allow",
-					permissionGroups: [
-						"Workers R2 Storage Bucket Item Read",
-						"Workers R2 Storage Bucket Item Write",
-					],
-					resources: {
-						[`com.cloudflare.edge.r2.bucket.${target.accountId}_${target.jurisdiction}_${target.bucket}`]:
-							"*",
-					},
-				},
-			]),
-		}).pipe(
-			Effect.timeout("30 seconds"),
-			Effect.mapError(
-				() =>
-					new Error(
-						"Could not obtain upload credentials from the Alchemy profile. Account API Tokens Write/provisioning permission is required. Nothing uploaded."
-					)
+		const credentials = yield* Credentials;
+		const request = yield* FetchHttpClient.Fetch;
+		const objectPrefix = `${DEFAULT_API_BASE_URL}/accounts/${target.accountId}/r2/buckets/${encodeURIComponent(target.bucket)}/objects/`;
+
+		const send: ReleaseObjectRequest = async (key, method, options = {}) => {
+			if (
+				key !== "appcast.xml" &&
+				!/^1git-\d+\.\d+\.\d+-macos-arm64\.zip$/u.test(key) &&
+				!/^release-checks\/[a-f0-9-]{36}\.txt$/u.test(key)
 			)
-		);
+				throw new Error("Invalid release object key.");
 
-		return yield* Effect.acquireUseRelease(
-			acquire,
-			(token) =>
-				Effect.tryPromise({
-					try: async () => {
-						if (!token.id || !token.value)
-							throw new Error(
-								"Cloudflare returned incomplete upload credentials. Nothing uploaded."
-							);
+			try {
+				const resolved = await Effect.runPromise(credentials);
 
-						return await publish({
-							endpoint:
-								target.jurisdiction === "default"
-									? `https://${target.accountId}.r2.cloudflarestorage.com`
-									: `https://${target.accountId}.${target.jurisdiction}.r2.cloudflarestorage.com`,
-							bucket: target.bucket,
-							accessKeyId: token.id,
-							secretAccessKey: createHash("sha256")
-								.update(token.value)
-								.digest("hex"),
-						});
-					},
-					catch: (error) =>
-						error instanceof Error
-							? error
-							: new Error("Release publication failed."),
-				}),
+				if (resolved.apiBaseUrl !== DEFAULT_API_BASE_URL)
+					throw new Error("Unexpected Cloudflare API origin.");
 
-			(token) =>
-				token.id
-					? deleteToken({
-							accountId: target.accountId,
-							tokenId: token.id,
-						}).pipe(
-							Effect.timeout("30 seconds"),
-							Effect.catch(() =>
-								Effect.sync(() =>
-									process.stderr.write(
-										"Warning: could not revoke the release upload token; it expires within one hour. Check Cloudflare tokens before retrying a release.\n"
-									)
-								)
-							),
-							Effect.asVoid
-						)
-					: Effect.void
-		);
+				const headers = new Headers(options.headers);
+
+				for (const [name, value] of Object.entries(formatHeaders(resolved)))
+					headers.set(name, value);
+
+				headers.set("cf-r2-jurisdiction", target.jurisdiction);
+
+				return await request(objectPrefix + key, {
+					...options,
+					method,
+					headers,
+					signal: AbortSignal.timeout(120000),
+					redirect: "error",
+				});
+			} catch {
+				throw new Error(
+					"R2 request failed; check network access and the selected Alchemy profile."
+				);
+			}
+		};
+
+		return yield* Effect.tryPromise({
+			try: () => publish(send),
+			catch: (error) =>
+				error instanceof Error
+					? error
+					: new Error("Release publication failed."),
+		});
 	});
 
-/** Authenticates only for a real publication; temporary credentials remain in this process. */
+/** Authenticates only for a real publication; profile secrets never reach app builds. */
 export async function publishWithProfile<A>(
 	target: ReleaseTarget,
 	profile: string | undefined,
-	publish: (credentials: ReleaseUploadCredentials) => Promise<A>
+	publish: (request: ReleaseObjectRequest) => Promise<A>
 ): Promise<A> {
 	return await Effect.runPromise(
-		withReleaseUploadCredentials(target, publish).pipe(
+		withReleaseProfileRequest(target, publish).pipe(
 			Effect.provide(releaseProfileLayer(profile)),
 			Effect.provide(FetchHttpClient.layer)
 		)

@@ -11,6 +11,7 @@ export interface PublishedFeed {
 
 /** Narrow authenticated storage boundary; archives can only be created once. */
 export interface ReleaseStorage {
+	verifyConditionalWrites(): Promise<void>;
 	readFeed(): Promise<PublishedFeed | null>;
 	createArchive(key: string, body: Blob): Promise<void>;
 	replaceFeed(body: Blob, previousEtag: string | null): Promise<void>;
@@ -136,6 +137,7 @@ export class ReleasePublisher {
 		if (ReleaseFeed.latest(await feed.text()) !== artifacts.version)
 			throw new Error("Prepared feed does not match the requested version.");
 
+		await this.storage.verifyConditionalWrites();
 		await this.storage.createArchive(archiveName, archive);
 		await this.verifyDownload(new URL(archiveName, feedURL), archive);
 		await this.storage.replaceFeed(feed, previous?.etag ?? null);
