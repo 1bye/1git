@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { GpuixRenderer } from "@gpuix/native";
 import { render } from "@gpuix/react";
-import { dlopen, ptr } from "bun:ffi";
+import { dlopen, JSCallback, ptr } from "bun:ffi";
 
 const { symbols } = dlopen("/usr/lib/libobjc.A.dylib", {
 	objc_getClass: { args: ["ptr"], returns: "ptr" },
@@ -72,6 +72,27 @@ const pump = async () => {
 
 	return true;
 };
+
+// Optional real bridge verifies that Bun callbacks survive native AppKit quit.
+const prepareQuit = process.argv[3]
+	? new JSCallback(
+			() => {
+				process.stdout.write("updater draft prepared before quit\n");
+
+				return true;
+			},
+			{ args: [], returns: "bool" }
+		)
+	: undefined;
+
+const updater = process.argv[3]
+	? dlopen(process.argv[3], {
+			onegit_updater_start: { args: ["ptr"], returns: "void" },
+		})
+	: undefined;
+
+if (updater && prepareQuit?.ptr)
+	updater.symbols.onegit_updater_start(prepareQuit.ptr);
 
 await pump();
 

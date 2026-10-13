@@ -40,9 +40,98 @@ is not flattened or reformatted. Direct `dev`/`start` launches still use Bun's i
 launch the `.app` to see the 1git icon. Runtime support starts at macOS 13; the
 layered icon's appearance depends on the macOS version.
 
-The build is ad-hoc signed for local use, not Developer ID signed or notarized
-for public distribution. Outputs stay in ignored `build/macos/`; packaging
-replaces only its generated `1git.app`, after compilation and signing succeed.
+Packaging also creates `build/macos/1git-macos-arm64.zip` and its `.sha256`
+checksum file. Share the ZIP, not the loose app's individual files. The archive
+preserves executable permissions, bundle resources and the ad-hoc signature,
+and includes a `README.txt` with requirements and installation/security guidance.
+Outputs stay in ignored `build/macos/`; no account/session files, repository data
+or build caches are included. Rebuilding replaces only generated outputs after
+compilation, signing and archive creation succeed.
+
+This is an **Apple Silicon beta**, ad-hoc signed but not Developer ID signed or
+notarized. Recipients need Git available on their Mac (for example, Apple's Command
+Line Tools), but not Bun, Rust or Xcode to run the app. Extract the ZIP, move
+`1git.app` into Applications, and open it. For a trusted download blocked by
+Gatekeeper, follow [Apple's Open Anyway instructions](https://support.apple.com/en-us/102445)
+in System Settings → Privacy & Security. Do not disable Gatekeeper globally.
+Managed Macs may not permit the exception. A public release without the
+unidentified-developer override still needs Developer ID signing and notarization.
+
+```sh
+bun run test:package:macos
+```
+
+The uncached launch check builds the archive, verifies its checksum and extracted
+signature, then opens that unmodified app through macOS Launch Services from a
+temporary directory. It checks actual painted onboarding text through the native
+stdio protocol, with isolated session/accounts and no provider calls. It closes
+only its own extracted test app. macOS graphics access is required. This checks
+normal foreground launching, not the inspection tool's hidden/background launch.
+
+## macOS updates
+
+Packaged apps include pinned **Sparkle 2.10.0**, its native installer helpers and
+an AppKit/Bun bridge. No changes to the private repository's visibility and no
+publishing are part of packaging. Development launches do not start the updater.
+Without a feed and public key, background checks stay disabled and **Check for
+Updates…** explains that this build has no published feed.
+
+Once configured, the application menu offers **Check for Updates…**,
+**Automatically Check for Updates**, and an opt-in **Install Updates Automatically
+on Quit**. Checks default to once a day; downloads/install-on-quit are initially
+off. A downloaded automatic update exposes **Restart to Update**, or installs
+after normal quit. Sparkle owns the persisted update preferences; startup never
+resets a user's choice. Git-operation close protection still vetoes restart/quit,
+and the latest workspace draft is synchronously saved before AppKit termination.
+A failed save cancels quit. Neither updater nor release artifacts contain accounts.
+
+Before distributing an updater-enabled build, choose the permanent HTTPS feed
+URL and generate a dedicated signing key with the cached Sparkle tool:
+
+```sh
+apps/gpuix/.cache/sparkle/bin/generate_keys --account dev.1git.gpuix
+ONEGIT_UPDATE_FEED_URL=https://updates.example.com/appcast.xml \
+ONEGIT_UPDATE_PUBLIC_KEY='<public key printed by generate_keys>' \
+bun run package:macos
+```
+
+The example domain is not configured by default. The private key stays in the
+login Keychain; never commit it or put it in the app/R2. Back it up securely:
+losing an Ed25519-only key can require users to reinstall manually. Public build
+configuration requires HTTPS without embedded credentials, a query or fragment.
+Feeds and ZIPs must both be signed; archives are verified before extraction.
+SHA-256 checksums alone are not publisher authentication.
+
+With the same public build variables, `bun run prepare:updates:macos` creates
+an **app-only**, versioned ZIP and signed `appcast.xml` under ignored
+`apps/gpuix/build/updates/`. It checks that the signing key matches the app's public
+key and does not upload anything. For an explicit CI key file, set
+`ONEGIT_UPDATE_KEY_FILE` to its securely provisioned path. Bump the numeric app
+version before each release; never overwrite an already published versioned ZIP.
+Previously distributed builds without Sparkle need one manual installation.
+
+### Future Alchemy/R2 hosting
+
+An Alchemy-managed R2 bucket can host these generated artifacts while this source
+repository stays private. Use a dedicated updates bucket/custom HTTPS domain,
+not R2 credentials embedded in the desktop app. Upload immutable versioned ZIPs
+first and replace the signed feed last. Serve the feed as `application/xml` with
+short/no cache, and versioned ZIPs with long immutable cache. Keep the website's
+deployment separate from release uploads. No Alchemy dependencies, buckets,
+domains, or deployments are created by these tasks.
+
+```sh
+bun run test:updates:macos
+```
+
+The uncached suite uses disposable keys, isolated Cocoa hosts, a loopback feed,
+and the actual ad-hoc-signed production Sparkle bridge/installer. It verifies
+install-on-quit, relaunch into the new version, a protected restart veto, tampered
+ZIP rejection, signed release preparation and mismatched-key rejection. A separate
+GPUI/Bun test proves the native veto and synchronous JS save callback. These
+tests do not prove quarantined-download/Gatekeeper behavior on another Mac;
+Developer ID signing and notarization remain necessary for a frictionless public
+first launch. They do not exercise live R2/Alchemy infrastructure.
 
 The app disables focus outlines through its shared native UI tokens and custom
 row/tab styling. Arrow/Tab navigation, selection backgrounds, caret visibility,

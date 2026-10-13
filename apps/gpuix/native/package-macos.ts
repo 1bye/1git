@@ -7,9 +7,11 @@ import {
 	writeFile,
 } from "node:fs/promises";
 import { resolve } from "node:path";
+import { createHash } from "node:crypto";
 import { appDirectory, nativeLibrary } from "./config";
 import { bundleInfoPlist, copyImageRuntime } from "./package-resources";
 import { version } from "../package.json";
+import { embedSparkle, updateConfiguration } from "./sparkle";
 
 if (process.platform !== "darwin" || process.arch !== "arm64") {
 	throw new Error("macOS packaging currently supports Apple Silicon only.");
@@ -27,16 +29,24 @@ const run = async (command: string[]): Promise<void> => {
 	}
 };
 
+const updates = updateConfiguration(
+	process.env.ONEGIT_UPDATE_FEED_URL,
+	process.env.ONEGIT_UPDATE_PUBLIC_KEY
+);
+
 const output = resolve(appDirectory, "build/macos");
 
 await mkdir(output, { recursive: true });
 const staging = await mkdtemp(resolve(output, ".package-"));
-const bundle = resolve(staging, "1git.app");
+const release = resolve(staging, "release");
+const bundle = resolve(release, "1git.app");
 const contents = resolve(bundle, "Contents");
 const resources = resolve(contents, "Resources");
 const executable = resolve(contents, "MacOS/1git");
 const addon = resolve(contents, "Frameworks/gpuix-native.node");
 const destination = resolve(output, "1git.app");
+const archiveName = "1git-macos-arm64.zip";
+const archive = resolve(staging, archiveName);
 
 try {
 	await mkdir(resources, { recursive: true });
@@ -68,6 +78,7 @@ try {
 	]);
 	await copyFile(nativeLibrary, addon);
 	await copyImageRuntime(resources);
+	await embedSparkle(contents, run);
 
 	// Compile the Icon Composer source, retaining modern appearances and an ICNS
 	// fallback. Never rewrite the designer-owned .icon bundle or flatten its layers.
@@ -88,11 +99,14 @@ try {
 		"human-readable-text",
 		resolve(appDirectory, "../../docs/branding/macos-icon/1git.icon"),
 	]);
-	await writeFile(resolve(contents, "Info.plist"), bundleInfoPlist(version));
+	await writeFile(
+		resolve(contents, "Info.plist"),
+		bundleInfoPlist(version, updates)
+	);
 	await run(["plutil", "-lint", resolve(contents, "Info.plist")]);
 
 	// Sign nested native code before the containing bundle. This is a local ad-hoc
-	// signature; distributing publicly still needs Developer ID and notarization.
+	// signature; a public first launch without an exception needs notarization.
 	const nativeImages = new Bun.Glob("node_modules/@img/**/*.{node,dylib}");
 
 	for await (const image of nativeImages.scan({
@@ -105,11 +119,50 @@ try {
 	await run(["codesign", "--force", "--sign", "-", addon]);
 	await run(["codesign", "--force", "--sign", "-", bundle]);
 	await run(["codesign", "--verify", "--deep", "--strict", bundle]);
+	await writeFile(
+		resolve(release, "README.txt"),
+		`1git ${version} - Apple Silicon beta
+
+Requirements: Apple Silicon Mac, macOS 13 or later, and Git available.
+Apple's Command Line Tools provide Git. Bun, Rust and full Xcode are not
+needed to run this app.
+
+Install:
+1. Extract this ZIP.
+2. Move 1git.app into Applications.
+3. Open 1git.app.
+
+This beta is ad-hoc signed, not Developer ID signed or notarized by Apple.
+macOS may block the first launch. Only if you trust the source, after trying
+to open the app, use System Settings > Privacy & Security > Open Anyway.
+Some managed Macs do not permit this exception. Do not disable Gatekeeper.
+Apple's instructions: https://support.apple.com/en-us/102445
+
+Accounts and preferences are stored separately on your Mac, not in this ZIP.
+AI providers receive checked changes only when you choose to generate a message.
+`
+	);
+	await run(["ditto", "-c", "-k", "--sequesterRsrc", release, archive]);
+	const hash = createHash("sha256");
+
+	for await (const chunk of Bun.file(archive).stream()) hash.update(chunk);
+
+	await writeFile(
+		resolve(staging, `${archiveName}.sha256`),
+		`${hash.digest("hex")}  ${archiveName}\n`
+	);
 
 	// Replace only the generated app after every build/signing step succeeds.
 	await rm(destination, { recursive: true, force: true });
 	await rename(bundle, destination);
-	process.stdout.write(`Built ${destination}\n`);
+	await rename(archive, resolve(output, archiveName));
+	await rename(
+		resolve(staging, `${archiveName}.sha256`),
+		resolve(output, `${archiveName}.sha256`)
+	);
+	process.stdout.write(
+		`Built ${destination}\nShare ${resolve(output, archiveName)}\n`
+	);
 } finally {
 	await rm(staging, { recursive: true, force: true });
 }

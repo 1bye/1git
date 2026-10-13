@@ -1,5 +1,5 @@
 /**
- * Covers: restored native tabs/drafts, background read ownership, retry, autosave, cleanup and preview isolation.
+ * Covers: restored native tabs/drafts, background reads, retry, autosave, quit-save veto, cleanup and preview isolation.
  * Real: App, session/connection hooks, reducers and GPUIX native layout/events.
  * Doubles: repository reads and session save boundary; no user filesystem or live Git.
  * Requires: patched GPUIX renderer with macOS graphics access.
@@ -14,6 +14,7 @@ import {
 	changedFile,
 } from "../_shared/repository-snapshot";
 import { windowOptions } from "../../src/window-options";
+import { AppTermination } from "../../src/app-termination";
 import {
 	commitInfo,
 	committedFiles,
@@ -256,6 +257,47 @@ it("saves reorder, Home navigation, closure and the latest draft on unmount with
 	]);
 	expect(saved?.activeId).toBe("workspace-1");
 	expect(saved?.tabs[0]?.draft).toBe("last");
+});
+
+it("flushes the latest draft before AppKit quit without waiting for the debounce", async () => {
+	const save = mock<(document: WorkspaceSessionDocument) => void>(() => {});
+
+	root.render(
+		<App initialSession={session()} readRepository={read} saveSession={save} />
+	);
+	await settle();
+	click("commit-message");
+	root.renderer.simulateKeystrokes("cmd-a l a s t");
+	root.renderer.flush();
+
+	expect(AppTermination.canQuit()).toBe(true);
+	expect(
+		save.mock.calls.at(-1)?.[0].tabs.find(({ id }) => id === "workspace-1")
+			?.draft
+	).toBe("last");
+});
+
+it("vetoes quit when the current draft cannot be saved and allows a retry", async () => {
+	let failed = true;
+
+	const save = mock<(document: WorkspaceSessionDocument) => void>(() => {
+		if (failed) throw new Error("Disk full");
+	});
+
+	root.render(
+		<App initialSession={session()} readRepository={read} saveSession={save} />
+	);
+	await settle();
+
+	expect(AppTermination.canQuit()).toBe(false);
+	root.renderer.flush();
+	expect(node("commit-message").customProps?.value).toBe("Main draft");
+	failed = false;
+	expect(AppTermination.canQuit()).toBe(true);
+	expect(
+		save.mock.calls.at(-1)?.[0].tabs.find(({ id }) => id === "workspace-1")
+			?.draft
+	).toBe("Main draft");
 });
 
 it("cancels restored reads when tabs close or the app unmounts and ignores late results", async () => {

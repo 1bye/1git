@@ -7,6 +7,7 @@ import {
 import type { WorkspaceTabsState } from "../lib/workspace-tabs-model";
 import type { DiffSettings } from "../../repository-workspace/lib/repository-diff";
 import type { AppAppearance } from "../../../styles/tokens";
+import { AppTermination } from "../../../app-termination";
 
 /** Saves only changed session intent; flushes the latest rendered draft on unmount and normal process exit. */
 export function useWorkspaceSession(
@@ -36,9 +37,9 @@ export function useWorkspaceSession(
 	const [error, setError] = useState(initialError);
 	const mounted = useRef(false);
 
-	const flush = useCallback((): void => {
+	const flush = useCallback((): boolean => {
 		if (!save || latest.current === null || saved.current === latest.current)
-			return;
+			return true;
 
 		try {
 			save(WorkspaceSession.parse(latest.current));
@@ -54,7 +55,11 @@ export function useWorkspaceSession(
 				process.stderr.write(
 					"1git: Could not save the workspace session before exit.\n"
 				);
+
+			return false;
 		}
+
+		return true;
 	}, [save]);
 
 	useLayoutEffect(() => {
@@ -77,10 +82,12 @@ export function useWorkspaceSession(
 		};
 
 		process.on("exit", onExit);
+		const unregister = AppTermination.register(flush);
 
 		return () => {
 			onExit();
 			process.removeListener("exit", onExit);
+			unregister();
 		};
 	}, [flush]);
 

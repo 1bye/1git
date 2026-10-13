@@ -4,6 +4,7 @@ import { App } from "./app";
 import { windowOptions } from "./window-options";
 import { RepositoryWatcher } from "./feature/repository-workspace/lib/repository-watcher";
 import { WorkspaceSessionStore } from "./feature/workspace-tabs/lib/workspace-session-store";
+import { AppUpdater } from "./app-updater";
 
 const preview = process.env.GPUIX_PREVIEW === "1";
 
@@ -36,3 +37,5 @@ render(
 		focus: process.env.GPUIX_BACKGROUND !== "1",
 	}
 );
+
+AppUpdater.start();

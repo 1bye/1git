@@ -1,6 +1,7 @@
 import { cp, mkdir } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
+import type { UpdateConfiguration } from "./sparkle";
 
 const require = createRequire(import.meta.url);
 const sharpRequire = createRequire(require.resolve("sharp"));
@@ -29,7 +30,10 @@ export const copyImageRuntime = async (resources: string): Promise<void> => {
 	}
 };
 
-export const bundleInfoPlist = (version: string): string => {
+export const bundleInfoPlist = (
+	version: string,
+	updates?: UpdateConfiguration
+): string => {
 	if (!/^\d+\.\d+\.\d+$/u.test(version)) {
 		throw new Error(
 			"macOS packaging requires a numeric major.minor.patch version."
@@ -53,6 +57,18 @@ export const bundleInfoPlist = (version: string): string => {
 	<key>LSApplicationCategoryType</key><string>public.app-category.developer-tools</string>
 	<key>NSHighResolutionCapable</key><true/>
 	<key>NSPrincipalClass</key><string>NSApplication</string>
+${
+	updates
+		? `\t<key>SUFeedURL</key><string>${updates.feedURL.replaceAll("&", "&amp;").replaceAll("<", "&lt;")}</string>
+\t<key>SUPublicEDKey</key><string>${updates.publicKey}</string>
+\t<key>SUEnableAutomaticChecks</key><true/>
+\t<key>SUAutomaticallyUpdate</key><false/>
+\t<key>SUVerifyUpdateBeforeExtraction</key><true/>
+\t<key>SURequireSignedFeed</key><true/>
+\t<key>SUEnableSystemProfiling</key><false/>
+`
+		: ""
+}
 </dict>
 </plist>
 `;
