@@ -151,7 +151,27 @@ it("keeps suggestions usable during scanning, cancels stale results and retries 
 	expect(
 		node("welcome-repository-/test/discovered").customProps?.disabled
 	).not.toBe(true);
+	const rail = root.renderer.getElementBounds(node("discovery-rail").id);
+	const page = root.renderer.getElementBounds(node("repository-welcome").id);
+	const search = root.renderer.getElementBounds(node("welcome-search").id);
+
+	if (!rail || !page) throw new Error("Missing scan rail");
+
+	expect(rail).toMatchObject({
+		x: page.x,
+		y: page.y,
+		width: page.width,
+		height: 2,
+	});
+	expect(node("discovery-rail").customProps?.["aria-label"]).toContain(
+		"2 found"
+	);
+	expect(node("discovery-rail").style.pointerEvents).toBe("none");
 	click("discovery-rescan");
+	expect(root.renderer.findByTestId("discovery-rail")).toBeUndefined();
+	expect(root.renderer.getElementBounds(node("welcome-search").id)).toEqual(
+		search
+	);
 	expect(scan.mock.calls[0]?.[1].aborted).toBe(true);
 	pending.resolve({ ...progress, paths: ["/test/stale"] });
 	await settle();
@@ -233,9 +253,22 @@ it("shows incomplete scans honestly, preserves layout at minimum size, and abort
 	);
 	await settle();
 	expect(node("discovery-incomplete")).toBeDefined();
-	const box = root.renderer.getElementBounds(node("discovery-folder").id);
+	const folder = root.renderer.getElementBounds(node("discovery-folder").id);
+	const rescan = root.renderer.getElementBounds(node("discovery-rescan").id);
 
-	expect(box?.width).toBeGreaterThan(100);
+	const warning = root.renderer.getElementBounds(
+		node("discovery-incomplete").id
+	);
+
+	const search = root.renderer.getElementBounds(node("welcome-search").id);
+
+	if (!folder || !rescan || !warning || !search)
+		throw new Error("Missing discovery layout");
+
+	expect(folder.x + folder.width).toBeLessThan(search.x);
+	expect(rescan.x).toBe(folder.x);
+	expect(warning.x + warning.width).toBeLessThan(search.x);
+	expect(root.renderer.findByTestId("discovery-rail")).toBeUndefined();
 
 	if (process.env.GPUIX_DISCOVERY_SCREENSHOT)
 		root.renderer.captureScreenshot(process.env.GPUIX_DISCOVERY_SCREENSHOT);

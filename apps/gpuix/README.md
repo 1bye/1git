@@ -1172,7 +1172,13 @@ no user repositories or live hosted services are modified.
   **Scan again** control discovery without blocking opening or editing a repo.
   Suggestions are searchable alongside saved repositories. Opening one adds it
   to history; removing it hides its suggestion without deleting anything.
-- Discovery is local and read-only: no remote requests, status reads, staging or
+- A thin, indeterminate rail at the top of Home indicates scanning without
+  shifting the page. Scan controls and exceptional warnings stay in the left column;
+  no scan summary or card occupies the repository list.
+  Visible rows automatically request existing GitHub/GitLab avatars through the
+  shared thumbnail cache (four concurrent jobs); unavailable artwork keeps initials.
+  Buffered offscreen rows do not request artwork until they approach the viewport.
+- The filesystem scan itself is local and read-only: no remote requests, status reads, staging or
   automatic tabs. It recognizes `.git` directories and worktree/submodule `.git`
   files, including nested and hidden projects. Dependency, build, cache and system
   folders (such as `node_modules` and `Library`) are skipped, as are descendant

@@ -22,6 +22,7 @@ export function RepositoryWelcomeRow({
 	onMenu,
 	openRef,
 	onNavigate,
+	deferAvatar = false,
 }: {
 	path: string;
 	busy: boolean;
@@ -31,6 +32,7 @@ export function RepositoryWelcomeRow({
 	onMenu: (path: string, event: EventPayload) => Promise<void>;
 	openRef?: Ref<PublicInstance>;
 	onNavigate?: (event: EventPayload) => void;
+	deferAvatar?: boolean;
 }) {
 	const theme = useAppTheme();
 	const { tokens: appTokens } = theme;
@@ -102,7 +104,8 @@ export function RepositoryWelcomeRow({
 			>
 				<RepositoryAvatar
 					label={basename(path)}
-					source={suggested ? undefined : { path }}
+					source={{ path }}
+					deferred={deferAvatar}
 					testId={`welcome-avatar-${path}`}
 				/>
 				<div

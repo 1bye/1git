@@ -185,3 +185,111 @@ it("reuses the same thumbnail in saved repositories, repository tabs and Clone r
 		rmSync(f.directory, { recursive: true, force: true });
 	}
 });
+
+it("automatically loads discovered avatars only near the viewport and keeps initials for missing artwork", async () => {
+	const root = createTestRoot({ width: 980, height: 640 });
+	const f = hostingRepositories();
+
+	const paths = Array.from(
+		{ length: 1000 },
+		(_, index) => `/test/discovered-${index}`
+	);
+
+	const reads: string[] = [];
+	let downloads = 0;
+
+	const png = await sharp({
+		create: { width: 8, height: 8, channels: 4, background: "#5e94a8" },
+	})
+		.png()
+		.toBuffer();
+
+	const avatars = new RepositoryAvatars(
+		async () => [
+			new GitHubProvider({
+				fetch: async (url) => {
+					if (String(url).includes("api.github.com"))
+						return Response.json({
+							avatar_url: "https://avatars.githubusercontent.com/u/3",
+						});
+
+					downloads++;
+
+					return new Response(png, {
+						headers: { "content-type": "image/png" },
+					});
+				},
+			}),
+		],
+		async (path) => {
+			reads.push(path);
+
+			return path === paths[1]
+				? []
+				: [
+						{
+							name: "origin",
+							fetchUrls: ["https://github.com/tester/project"],
+							pushUrls: [],
+							defaultBranch: null,
+						},
+					];
+		}
+	);
+
+	const waitFor = async (ready: () => boolean): Promise<void> => {
+		const deadline = Date.now() + 3000;
+
+		while (!ready()) {
+			if (Date.now() > deadline)
+				throw new Error("Timed out waiting for visible avatars");
+
+			await Bun.sleep(10);
+			root.renderer.flush();
+		}
+	};
+
+	try {
+		root.render(
+			<App
+				accounts={f.accounts}
+				avatars={avatars}
+				initialSession={{ version: 1, tabs: [], activeId: null }}
+				discoverRepositories={async () => ({
+					paths,
+					scanned: 1000,
+					skipped: 0,
+					limited: false,
+				})}
+			/>
+		);
+		await waitFor(
+			() => !!root.renderer.findByTestId(`welcome-avatar-${paths[0]}-image`)
+		);
+		expect(
+			root.renderer.findByTestId(`welcome-avatar-${paths[1]}-initial`)
+		).toBeDefined();
+		expect(
+			root.renderer.findByTestId(`welcome-avatar-${paths[1]}-image`)
+		).toBeUndefined();
+		expect(reads.length).toBeLessThan(25);
+		expect(reads).not.toContain(paths[200]);
+		expect(downloads).toBe(1);
+		const list = root.renderer.findByTestId("welcome-repositories");
+
+		if (!list) throw new Error("Missing discovery list");
+
+		root.renderer.scrollToItem(list.id, 200, 0);
+		root.renderer.flush();
+		await waitFor(
+			() => !!root.renderer.findByTestId(`welcome-avatar-${paths[200]}-image`)
+		);
+		expect(reads).toContain("/test/discovered-200");
+		expect(reads).not.toContain(paths[999]);
+		expect(downloads).toBe(1);
+	} finally {
+		root.unmount();
+		avatars.dispose();
+		rmSync(f.directory, { recursive: true, force: true });
+	}
+});

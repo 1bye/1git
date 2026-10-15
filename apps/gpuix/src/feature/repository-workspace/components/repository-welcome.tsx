@@ -17,10 +17,12 @@ import { StateMessage } from "../../../fixture/state-message";
 import { RepositoryWelcomeRow } from "./repository-welcome-row";
 import { RepositoryWelcomeList } from "./repository-welcome-list";
 import type { useRepositoryDiscovery } from "../../repository-discovery/use-repository-discovery";
+import { RepositoryDiscoveryRail } from "../../repository-discovery/repository-discovery-rail";
 
 const themedStyles = createThemedStyles(({ tokens: appTokens }) => {
 	const styles = StyleSheet.create({
 		page: {
+			position: "relative",
 			display: "flex",
 			flexDirection: "column",
 			flexGrow: 1,
@@ -134,14 +136,20 @@ export function RepositoryWelcome({
 	const saved = new Set(savedPaths);
 	const scanning = discovery?.status === "scanning";
 
-	const scanStatus = discovery
-		? `${scanning ? "Scanning home and added folders…" : discovery.status === "stopped" ? "Scan stopped." : "Home and added folders scanned."} ${discovery.paths.length} found.`
-		: null;
-
 	return (
 		<div testId="repository-welcome" style={styles.page}>
+			{scanning ? (
+				<RepositoryDiscoveryRail count={discovery.paths.length} />
+			) : null}
 			<div style={styles.columns}>
-				<div style={{ width: 220, flexShrink: 0 }}>
+				<div
+					style={{
+						width: 220,
+						flexShrink: 0,
+						minHeight: 0,
+						overflowY: "scroll",
+					}}
+				>
 					<text style={styles.heading}>QUICK ACTIONS</text>
 					{actions}
 					<Button
@@ -167,10 +175,10 @@ export function RepositoryWelcome({
 					{discovery ? (
 						<>
 							<Button
+								testId="discovery-folder"
 								tokens={appTokens}
 								variant="ghost"
 								size="sm"
-								testId="discovery-folder"
 								disabled={discovery.picking}
 								style={{ ...styles.action, marginTop: spacing[4] }}
 								onPress={() => {
@@ -180,15 +188,38 @@ export function RepositoryWelcome({
 								{discovery.picking ? "Choosing folder…" : "Scan folder…"}
 							</Button>
 							<Button
+								testId="discovery-rescan"
 								tokens={appTokens}
 								variant="ghost"
 								size="sm"
-								testId="discovery-rescan"
 								style={styles.action}
 								onPress={scanning ? discovery.stop : discovery.rescan}
 							>
 								{scanning ? "Stop scanning" : "Scan again"}
 							</Button>
+							{discovery.progress.limited || discovery.progress.skipped ? (
+								<text
+									testId="discovery-incomplete"
+									style={{
+										...styles.hint,
+										...typography.xs,
+										marginTop: spacing[2],
+										paddingLeft: spacing[2.5],
+									}}
+								>
+									{discovery.progress.limited
+										? "Scan limit reached. Scan another folder to find more."
+										: `${discovery.progress.skipped} folders or repositories could not be inspected.`}
+								</text>
+							) : null}
+							{discovery.error ? (
+								<text
+									role="alert"
+									style={{ ...styles.hint, marginTop: spacing[2] }}
+								>
+									{discovery.error}
+								</text>
+							) : null}
 						</>
 					) : null}
 					{error ? (
@@ -233,31 +264,6 @@ export function RepositoryWelcome({
 							marginBottom: spacing[3],
 						}}
 					/>
-					{discovery ? (
-						<div
-							style={{
-								flexShrink: 0,
-								gap: spacing[1],
-								marginBottom: spacing[2],
-							}}
-						>
-							<text testId="discovery-status" role="status" style={styles.hint}>
-								{scanStatus}
-							</text>
-							{discovery.progress.skipped || discovery.progress.limited ? (
-								<text testId="discovery-incomplete" style={styles.hint}>
-									{discovery.progress.limited
-										? "Scan limit reached. Scan a smaller folder to find more."
-										: `${discovery.progress.skipped} folders or repositories could not be inspected.`}
-								</text>
-							) : null}
-							{discovery.error ? (
-								<text role="alert" style={styles.hint}>
-									{discovery.error}
-								</text>
-							) : null}
-						</div>
-					) : null}
 					{menuError ? (
 						<text role="alert" style={styles.hint}>
 							{menuError}

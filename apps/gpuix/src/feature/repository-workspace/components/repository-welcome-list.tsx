@@ -1,4 +1,12 @@
-import { useLayoutEffect, useRef, useState, type ComponentProps } from "react";
+import {
+	use,
+	useCallback,
+	useEffect,
+	useLayoutEffect,
+	useRef,
+	useState,
+	type ComponentProps,
+} from "react";
 import {
 	useGpuixRequired,
 	useWindowSize,
@@ -6,6 +14,7 @@ import {
 } from "@gpuix/react";
 import { RepositoryWelcomeRow } from "./repository-welcome-row";
 import { spacing } from "@1git/design-tokens";
+import { RepositoryAvatarContext } from "./repository-avatar";
 
 const rowHeight = 58;
 const chunkSize = 40;
@@ -27,6 +36,7 @@ export function RepositoryWelcomeList({
 	onMenu: ComponentProps<typeof RepositoryWelcomeRow>["onMenu"];
 }) {
 	const renderer = useGpuixRequired();
+	const avatars = use(RepositoryAvatarContext);
 	const window = useWindowSize();
 	const viewport = useRef<PublicInstance>(null);
 	const rows = useRef(new Map<string, PublicInstance>());
@@ -35,6 +45,30 @@ export function RepositoryWelcomeList({
 	const windowSize = Math.ceil(window.height / rowHeight) + chunkSize * 2;
 	const start = Math.min(windowStart, Math.max(0, paths.length - windowSize));
 	const end = Math.min(paths.length, start + windowSize);
+
+	const preloadAvatars = useCallback((): void => {
+		if (!avatars) return;
+
+		const anchor = viewport.current
+			? renderer.getListScrollTop?.(viewport.current.id)
+			: undefined;
+
+		const first = Math.max(0, (anchor?.[0] ?? 0) - 1);
+
+		const count = anchor
+			? Math.ceil(((anchor[1] ?? 0) + (anchor[2] ?? 0)) / rowHeight) + 3
+			: 12;
+
+		for (const path of paths.slice(first, first + count))
+			void avatars.load({ path });
+	}, [avatars, paths, renderer]);
+
+	useEffect(() => {
+		// The first native paint can precede registration of the visible-range callback.
+		const timer = setTimeout(preloadAvatars, 0);
+
+		return () => clearTimeout(timer);
+	}, [preloadAvatars]);
 
 	const reveal = (index: number): boolean => {
 		const path = paths[index];
@@ -76,6 +110,7 @@ export function RepositoryWelcomeList({
 				windowStart={start}
 				overdraw={rowHeight * 2}
 				onVisibleRange={() => {
+					preloadAvatars();
 					const anchor =
 						viewport.current &&
 						renderer.getListScrollTop?.(viewport.current.id);
@@ -105,6 +140,7 @@ export function RepositoryWelcomeList({
 						style={{ height: rowHeight, paddingBottom: spacing[1] }}
 					>
 						<RepositoryWelcomeRow
+							deferAvatar
 							path={path}
 							busy={busy}
 							suggested={!saved.has(path)}
