@@ -1,11 +1,11 @@
 /**
- * Covers: process execution, configured helpers, cancellation and bounded output.
+ * Covers: process execution, configured helpers, cancellation, bounded output and caller-owned stdout files.
  * Real: Git and disposable repositories.
  * Doubles: fixture credential helper; never accesses the user's OS credential store.
  * Requires: Git and writable temporary storage.
  */
 import { afterEach, describe, expect, test } from "bun:test";
-import { chmod, writeFile } from "node:fs/promises";
+import { chmod, open, readFile, writeFile } from "node:fs/promises";
 
 import {
 	GitCommandFailure,
@@ -194,6 +194,29 @@ describe("GitProcess", () => {
 			if (error instanceof GitProcessFailure) {
 				expect(error.reason).toBe("output-too-large");
 			}
+		}
+	});
+
+	test("streams stdout into an owned file without buffering it or raising the collection limit", async () => {
+		const fixture = await fixtures.create();
+		const content = "x".repeat(4096);
+
+		await fixture.write("large.txt", content);
+		await fixture.commitAll("large file");
+		const path = fixture.path("stdout");
+		const file = await open(path, "wx", 0o600);
+
+		try {
+			const result = await new GitProcess({ maxOutputBytes: 32 }).run({
+				args: ["show", "HEAD:large.txt"],
+				cwd: fixture.repositoryPath,
+				stdoutFile: file.fd,
+			});
+
+			expect(result.stdout.byteLength).toBe(0);
+			expect(await readFile(path, "utf8")).toBe(content);
+		} finally {
+			await file.close();
 		}
 	});
 });

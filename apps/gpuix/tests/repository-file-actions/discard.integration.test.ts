@@ -1,11 +1,13 @@
 /**
- * Covers: durable discard recovery, symlink isolation, staged/unstaged separation and failed backup safety.
+ * Covers: streamed recovery over 64 MiB, symlink isolation, staged/unstaged separation, Undo and failed backup safety.
  * Real: Git, backend and disposable repositories.
- * Doubles: home directory for app recovery paths; injected Git failures for recovery-location reporting.
+ * Doubles: home directory for app recovery paths, failed flush and Git failures for recovery-location reporting.
  * Requires: Git and temporary storage.
  */
 import { afterEach, beforeEach, expect, it, mock, spyOn } from "bun:test";
 import { execFile } from "node:child_process";
+import { createHash, randomBytes } from "node:crypto";
+import { createReadStream } from "node:fs";
 import {
 	mkdtemp,
 	mkdir,
@@ -16,6 +18,7 @@ import {
 	rm,
 	writeFile,
 	symlink,
+	stat,
 } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
@@ -101,6 +104,102 @@ it("recovers a binary untracked file with a literal metacharacter name", async (
 	expect(await Bun.file(join(root, path)).exists()).toBe(false);
 	await git("apply", ".git/recovery/working.patch");
 	expect(await readFile(join(root, path))).toEqual(data);
+});
+
+it("discards and recovers binary patch output larger than 64 MiB without changing excluded files or staging", async () => {
+	const path = "large[1].bin";
+	const sizeBytes = 54 * 1024 * 1024;
+	const data = randomBytes(sizeBytes);
+	const expected = createHash("sha256").update(data).digest("hex");
+
+	await writeFile(join(root, path), data);
+	await writeFile(join(root, "a.txt"), "excluded staging\n");
+	await git("add", "a.txt");
+	await writeFile(join(root, "a.txt"), "excluded working\n");
+	const index = await readFile(join(root, ".git/index"));
+	const result = await discard(path);
+
+	if (!result.ok) throw new Error(JSON.stringify(result.error));
+
+	expect(
+		(await stat(join(root, ".git/recovery/working.patch"))).size
+	).toBeGreaterThan(64 * 1024 * 1024);
+	expect(
+		(await stat(join(root, ".git/recovery/working.patch"))).mode & 0o777
+	).toBe(0o600);
+	expect(await Bun.file(join(root, path)).exists()).toBe(false);
+	expect(await readFile(join(root, ".git/index"))).toEqual(index);
+	expect(await readFile(join(root, "a.txt"), "utf8")).toBe(
+		"excluded working\n"
+	);
+	await git("apply", "--check", ".git/recovery/working.patch");
+	await git("apply", ".git/recovery/working.patch");
+	const recovered = createHash("sha256");
+
+	for await (const chunk of createReadStream(join(root, path)))
+		recovered.update(chunk);
+
+	expect(recovered.digest("hex")).toBe(expected);
+	expect(await readFile(join(root, ".git/index"))).toEqual(index);
+}, 30000);
+
+it("streams large staged and working patches and restores their separate states with Undo", async () => {
+	const path = "large-staged.bin";
+
+	await writeFile(join(root, path), randomBytes(54 * 1024 * 1024));
+	await git("add", path);
+	const stagedOid = await git("rev-parse", `:${path}`);
+
+	await writeFile(join(root, path), "working version\n");
+	await writeFile(join(root, "keep.txt"), "excluded\n");
+	const result = await discard(path);
+
+	if (!result.ok) throw new Error(JSON.stringify(result.error));
+
+	for (const patch of ["staged.patch", "working.patch"]) {
+		expect(
+			(await stat(join(root, ".git/recovery", patch))).size
+		).toBeGreaterThan(64 * 1024 * 1024);
+	}
+
+	expect(await Bun.file(join(root, path)).exists()).toBe(false);
+	const undone = await repository.undoDiscard({
+		token: result.value.undo.token,
+	});
+
+	if (!undone.ok) throw new Error(JSON.stringify(undone.error));
+
+	expect(await git("rev-parse", `:${path}`)).toBe(stagedOid);
+	expect(await readFile(join(root, path), "utf8")).toBe("working version\n");
+	expect(await readFile(join(root, "keep.txt"), "utf8")).toBe("excluded\n");
+}, 30000);
+
+it("leaves the index and working files untouched if a streamed backup cannot be flushed", async () => {
+	await writeFile(join(root, "a.txt"), "staged\n");
+	await git("add", "a.txt");
+	await writeFile(join(root, "a.txt"), "working\n");
+	const originalIndex = await readFile(join(root, ".git/index"));
+	const filesystem = await import("node:fs/promises");
+	const originalOpen = filesystem.open;
+
+	spyOn(filesystem, "open").mockImplementation(async (...args) => {
+		const file = await originalOpen(...args);
+
+		if (args[0] === join(root, ".git/recovery/working.patch"))
+			spyOn(file, "sync").mockRejectedValue(
+				new Error("Injected disk flush failure")
+			);
+
+		return file;
+	});
+	const result = await discard("a.txt");
+
+	expect(result.ok).toBe(false);
+	expect(await readFile(join(root, ".git/index"))).toEqual(originalIndex);
+	expect(await readFile(join(root, "a.txt"), "utf8")).toBe("working\n");
+	expect(await Bun.file(join(root, ".git/recovery/README.txt")).exists()).toBe(
+		false
+	);
 });
 
 it("leaves files untouched when backup creation or branch validation fails", async () => {

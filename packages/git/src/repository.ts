@@ -5,6 +5,7 @@ export { PartialPatch } from "./partial-patch.js";
 import {
 	mkdir,
 	mkdtemp,
+	open,
 	realpath,
 	rm,
 	stat,
@@ -164,12 +165,19 @@ const MAX_HUNK_INDEX = 100_000;
 const MAX_CONFLICT_TEXT_BYTES = 512 * 1024;
 const CONFLICT_MARKER_LINE = /^(?:<{3,}|>{3,}|={3,}|\|{3,})(?:[ \t].*)?\r?$/m;
 
+type DiscardPatch =
+	| string
+	| { readonly path: string; readonly sizeBytes: number };
+
+const hasPatch = (patch: DiscardPatch): boolean =>
+	typeof patch === "string" ? patch.length > 0 : patch.sizeBytes > 0;
+
 interface PendingDiscardUndo {
 	readonly expiresAt: number;
 	readonly path: string;
-	readonly stagedPatch: string;
+	readonly stagedPatch: DiscardPatch;
 	readonly token: string;
-	readonly worktreePatch: string;
+	readonly worktreePatch: DiscardPatch;
 }
 
 const matchesRequestedPath = (
@@ -1165,6 +1173,9 @@ export class GitRepository {
 				}
 			}
 
+			if (input.recovery)
+				await mkdir(input.recovery.directory, { mode: 0o700 });
+
 			const stagedPatch = await this.captureDiffPatch(
 				[
 					"diff",
@@ -1177,10 +1188,13 @@ export class GitRepository {
 					"--",
 					...affectedPaths,
 				],
-				input.signal
+				input.signal,
+				input.recovery
+					? { path: join(input.recovery.directory, "staged.patch") }
+					: undefined
 			);
 
-			const trackedWorktreePatch = await this.captureDiffPatch(
+			let worktreePatch = await this.captureDiffPatch(
 				[
 					"diff",
 					"--no-ext-diff",
@@ -1190,21 +1204,34 @@ export class GitRepository {
 					"--",
 					...affectedPaths,
 				],
-				input.signal
+				input.signal,
+				input.recovery
+					? { path: join(input.recovery.directory, "working.patch") }
+					: undefined
 			);
 
 			const untrackedPatch = await this.captureUntrackedPatch(
 				selectedFiles
 					.filter((file) => file.recordType === "untracked")
 					.map((file) => file.path),
-				input.signal
+				input.signal,
+				input.recovery
+					? {
+							path: join(input.recovery.directory, "working.patch"),
+							append: true,
+						}
+					: undefined
 			);
 
-			const worktreePatch = [trackedWorktreePatch, untrackedPatch]
-				.filter(Boolean)
-				.join("");
+			if (
+				typeof worktreePatch === "string" &&
+				typeof untrackedPatch === "string"
+			)
+				worktreePatch += untrackedPatch;
+			else if (typeof untrackedPatch !== "string")
+				worktreePatch = untrackedPatch;
 
-			if (!(stagedPatch || worktreePatch)) {
+			if (!hasPatch(stagedPatch) && !hasPatch(worktreePatch)) {
 				throw invalidInput(
 					"discard-files",
 					"The selected file has no discardable changes."
@@ -1212,18 +1239,7 @@ export class GitRepository {
 			}
 
 			if (input.recovery) {
-				// Durable recovery is independent of the short-lived in-memory Undo token.
-				await mkdir(input.recovery.directory, { mode: 0o700 });
-				await writeFile(
-					join(input.recovery.directory, "staged.patch"),
-					stagedPatch,
-					{ flag: "wx", mode: 0o600 }
-				);
-				await writeFile(
-					join(input.recovery.directory, "working.patch"),
-					worktreePatch,
-					{ flag: "wx", mode: 0o600 }
-				);
+				// Streamed patches are complete before recording instructions or changing any files.
 				await writeFile(
 					join(input.recovery.directory, "recovery.json"),
 					JSON.stringify({
@@ -2791,7 +2807,7 @@ export class GitRepository {
 	}
 
 	private async applyPatch(
-		patch: string,
+		patch: DiscardPatch,
 		options: {
 			readonly check?: boolean;
 			readonly cached?: boolean;
@@ -2799,7 +2815,7 @@ export class GitRepository {
 			readonly signal?: AbortSignal;
 		}
 	): Promise<void> {
-		if (!patch) {
+		if (!hasPatch(patch)) {
 			return;
 		}
 
@@ -2815,36 +2831,60 @@ export class GitRepository {
 			args.push("--reverse");
 		}
 
+		if (typeof patch !== "string") args.push("--", patch.path);
+
 		await this.context.process.run({
 			args,
 			cwd: this.info.root,
 			signal: options.signal,
-			stdin: patch,
+			stdin: typeof patch === "string" ? patch : undefined,
 		});
 	}
 
 	private async captureDiffPatch(
 		args: readonly string[],
-		signal?: AbortSignal
-	): Promise<string> {
-		const output = await this.context.process.run({
-			args: [
-				"--literal-pathspecs",
-				...args.slice(0, 1),
-				"--no-textconv",
-				...args.slice(1),
-			],
-			cwd: this.info.root,
-			signal,
-		});
+		signal?: AbortSignal,
+		destination?: { readonly path: string; readonly append?: boolean },
+		indexFile?: string
+	): Promise<DiscardPatch> {
+		const file = destination
+			? await open(destination.path, destination.append ? "a" : "wx", 0o600)
+			: undefined;
 
-		return output.stdout.toString("utf8");
+		try {
+			const output = await this.context.process.run({
+				args: [
+					"--literal-pathspecs",
+					...(indexFile
+						? ["-c", "core.splitIndex=false", "-c", "core.fsmonitor=false"]
+						: []),
+					...args.slice(0, 1),
+					"--no-textconv",
+					...args.slice(1),
+				],
+				cwd: this.info.root,
+				signal,
+				indexFile,
+				stdoutFile: file?.fd,
+			});
+
+			if (file && destination) {
+				await file.sync();
+
+				return { path: destination.path, sizeBytes: (await file.stat()).size };
+			}
+
+			return output.stdout.toString("utf8");
+		} finally {
+			await file?.close();
+		}
 	}
 
 	private async captureUntrackedPatch(
 		paths: readonly string[],
-		signal?: AbortSignal
-	): Promise<string> {
+		signal?: AbortSignal,
+		destination?: { readonly path: string; readonly append?: boolean }
+	): Promise<DiscardPatch> {
 		if (!paths.length) return "";
 
 		const directory = await mkdtemp(
@@ -2879,18 +2919,21 @@ export class GitRepository {
 				],
 				`${paths.join("\0")}\0`
 			);
-			const output = await run([
-				"diff",
-				"--no-textconv",
-				"--no-ext-diff",
-				"--no-color",
-				"--binary",
-				"--full-index",
-				"--default-prefix",
-				"--no-renames",
-			]);
 
-			return output.stdout.toString("utf8");
+			return await this.captureDiffPatch(
+				[
+					"diff",
+					"--no-ext-diff",
+					"--no-color",
+					"--binary",
+					"--full-index",
+					"--default-prefix",
+					"--no-renames",
+				],
+				signal,
+				destination,
+				join(directory, "index")
+			);
 		} finally {
 			await rm(directory, { recursive: true, force: true });
 		}

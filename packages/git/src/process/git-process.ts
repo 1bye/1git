@@ -1,4 +1,4 @@
-import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
+import { type ChildProcess, spawn } from "node:child_process";
 import type { GitTransferProgress } from "../contracts.js";
 import { GitProgress } from "./git-progress.js";
 
@@ -18,6 +18,8 @@ export interface GitCommandInput {
 	readonly cwd: string;
 	readonly signal?: AbortSignal;
 	readonly stdin?: string | Uint8Array;
+	/** Caller-owned descriptor for streaming stdout. Returned stdout is empty; stderr stays bounded. */
+	readonly stdoutFile?: number;
 	/** Internal per-command index override; never changes the host process environment. */
 	readonly indexFile?: string;
 	/** Cloning untrusted URLs ignores inherited Git configuration; existing repositories retain TLS/LFS settings. */
@@ -148,7 +150,7 @@ export class GitProcess {
 	}
 
 	private collect(
-		child: ChildProcessWithoutNullStreams,
+		child: ChildProcess,
 		input: GitCommandInput
 	): Promise<GitCommandOutput> {
 		return new Promise<GitCommandOutput>((resolve, reject) => {
@@ -204,10 +206,10 @@ export class GitProcess {
 			};
 
 			input.signal?.addEventListener("abort", handleAbort, { once: true });
-			child.stdout.on("data", (chunk: Buffer) =>
+			child.stdout?.on("data", (chunk: Buffer) =>
 				collectChunk(stdoutChunks, chunk)
 			);
-			child.stderr.on("data", (chunk: Buffer) => {
+			child.stderr?.on("data", (chunk: Buffer) => {
 				collectChunk(stderrChunks, chunk);
 
 				if (!stopped) progress?.write(chunk);
@@ -262,14 +264,14 @@ export class GitProcess {
 			});
 
 			if (input.stdin === undefined) {
-				child.stdin.end();
+				child.stdin?.end();
 			} else {
-				child.stdin.end(input.stdin);
+				child.stdin?.end(input.stdin);
 			}
 		});
 	}
 
-	private spawn(input: GitCommandInput): ChildProcessWithoutNullStreams {
+	private spawn(input: GitCommandInput): ChildProcess {
 		return spawn(
 			this.executable,
 			["-c", "color.ui=false", "-c", "core.quotepath=false", ...input.args],
@@ -293,6 +295,7 @@ export class GitProcess {
 				},
 				shell: false,
 				windowsHide: true,
+				stdio: ["pipe", input.stdoutFile ?? "pipe", "pipe"],
 			}
 		);
 	}

@@ -1763,6 +1763,9 @@ Reading a diff never stages, unstages, discards or commits changes.
   do not force a patch over subsequent edits. External Git/editor processes are
   not locked, so avoid concurrent writes during discard.
   Every selected path is validated and backed up before any file is changed.
+  Recovery patches stream directly to private files and are flushed before
+  validation or discard. Git reads those files for validation, discard and Undo,
+  so large binary backups do not pass through the app's 64 MiB output buffer.
   Untracked files are read together through a disposable intent-to-add index;
   the real staging area remains unchanged while the backup is prepared.
 

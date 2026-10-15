@@ -1,11 +1,11 @@
 /**
- * Covers: cancellation and output-limit failures wait for child shutdown before caller cleanup.
+ * Covers: cancellation and output-limit failures wait for child shutdown, including streamed stdout and bounded stderr.
  * Real: process spawning, signals, output collection and temporary files.
  * Doubles: a local shell executable with delayed termination instead of Git.
  * Requires: a POSIX shell, Git for isolated fixture setup and writable temporary storage; no network.
  */
 import { afterEach, expect, it } from "bun:test";
-import { chmod, writeFile } from "node:fs/promises";
+import { chmod, open, writeFile } from "node:fs/promises";
 import { GitProcess } from "../../src/process/git-process.js";
 import { RepositoryFixtures } from "../_shared/repository-fixture.js";
 
@@ -15,29 +15,44 @@ afterEach(async () => {
 	await fixtures.cleanup();
 });
 
-it.each(["aborted", "output-too-large"] as const)(
-	"waits for process termination on %s",
-	async (reason) => {
-		const fixture = await fixtures.create();
-		const executable = fixture.path("delayed-exit.sh");
+it.each([
+	["buffered", "aborted"],
+	["buffered", "output-too-large"],
+	["streamed", "aborted"],
+	["streamed", "output-too-large"],
+] as const)("waits for process termination (%s, %s)", async (mode, reason) => {
+	const streamed = mode === "streamed";
+	const fixture = await fixtures.create();
+	const executable = fixture.path("delayed-exit.sh");
 
-		await writeFile(
-			executable,
-			[
-				"#!/bin/sh",
-				`trap 'sleep 0.1; touch "$0.stopped"; exit 0' TERM`,
-				'touch "$0.ready"',
-				reason === "output-too-large" ? "echo trigger-output-limit" : "",
-				"while :; do sleep 0.02; done",
-				"",
-			].join("\n")
-		);
-		await chmod(executable, 0o700);
-		const controller = new AbortController();
-		const process = new GitProcess({ executable, maxOutputBytes: 1 });
+	await writeFile(
+		executable,
+		[
+			"#!/bin/sh",
+			`trap 'sleep 0.1; touch "$0.stopped"; exit 0' TERM`,
+			'touch "$0.ready"',
+			streamed ? "echo streamed-output" : "",
+			reason === "output-too-large" ? "echo trigger-output-limit >&2" : "",
+			"while :; do sleep 0.02; done",
+			"",
+		].join("\n")
+	);
+	await chmod(executable, 0o700);
+	const controller = new AbortController();
+	const process = new GitProcess({ executable, maxOutputBytes: 1 });
 
+	const output = streamed
+		? await open(fixture.path("patch"), "wx", 0o600)
+		: undefined;
+
+	try {
 		const result = process
-			.run({ args: [], cwd: fixture.sandboxPath, signal: controller.signal })
+			.run({
+				args: [],
+				cwd: fixture.sandboxPath,
+				signal: controller.signal,
+				stdoutFile: output?.fd,
+			})
 			.catch((error: unknown) => error);
 
 		if (reason === "aborted") {
@@ -54,5 +69,7 @@ it.each(["aborted", "output-too-large"] as const)(
 
 		expect(await result).toMatchObject({ reason });
 		expect(await Bun.file(`${executable}.stopped`).exists()).toBe(true);
+	} finally {
+		await output?.close();
 	}
-);
+});
