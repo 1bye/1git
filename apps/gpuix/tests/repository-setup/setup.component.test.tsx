@@ -89,11 +89,12 @@ it("uses a native repository menu for reveal, dismissal, forget and open", async
 		/>
 	);
 	await settle();
+	click("welcome-folder-other");
 	click("welcome-repository-/test/project", 2);
 	await settle();
 	expect(menu).toHaveBeenCalledWith(
-		["Open", "Reveal in Finder", "Forget"],
-		[true, true, true],
+		["Open", "Reveal in Finder", "Forget", "Star"],
+		[true, true, true, true],
 		expect.any(Number),
 		expect.any(Number)
 	);
@@ -131,6 +132,7 @@ it("supports the keyboard repository menu and reports Finder errors", async () =
 		/>
 	);
 	await settle();
+	click("welcome-folder-other");
 	const row = root.renderer.findByTestId("welcome-repository-/missing/project");
 
 	expect(row).toBeDefined();
@@ -170,6 +172,7 @@ it("shows a muted brush icon only on row hover or keyboard focus", async () => {
 		/>
 	);
 	await settle();
+	click("welcome-folder-other");
 	const action = () =>
 		root.renderer.findByTestId("welcome-forget-/test/project");
 
@@ -250,6 +253,7 @@ it("removes only the saved repository entry and persists the updated list", asyn
 		/>
 	);
 	await settle();
+	click("welcome-folder-other");
 	expect(
 		root.renderer.findByTestId("welcome-forget-icon-/test/project")?.style.color
 	).toBe(appThemes.dark.tokens.colors.textMuted);
@@ -303,6 +307,7 @@ it("scrolls only the repository list while quick actions and search stay fixed",
 		/>
 	);
 	await settle();
+	click("welcome-folder-other");
 	const list = root.renderer.findByTestId("welcome-repositories");
 	const search = root.renderer.findByTestId("welcome-search");
 	const open = root.renderer.findByTestId("open-repository");
@@ -588,6 +593,7 @@ it("searches remembered repositories after closing all tabs and reopens without 
 	).toBeUndefined();
 	root.renderer.simulateKeystrokes("cmd-a backspace");
 	root.renderer.flush();
+	click("welcome-folder-other");
 	click("welcome-repository-/test/project");
 	await settle();
 	expect(reader).toHaveBeenCalledTimes(2);

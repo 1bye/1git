@@ -275,6 +275,7 @@ it("preserves tabs, drafts, checked files and selection and reuses an already-op
 		root.renderer.captureScreenshot(process.env.GPUIX_HOME_SCREENSHOT);
 
 	click("workspace-home");
+	click("welcome-folder-other");
 	click("welcome-repository-/test/project");
 	await settle();
 	expect(node("commit-message").customProps?.value).toBe("Keep draft");

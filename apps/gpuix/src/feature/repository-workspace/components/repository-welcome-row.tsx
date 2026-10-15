@@ -23,6 +23,8 @@ export function RepositoryWelcomeRow({
 	openRef,
 	onNavigate,
 	deferAvatar = false,
+	starred,
+	onStar,
 }: {
 	path: string;
 	busy: boolean;
@@ -33,6 +35,8 @@ export function RepositoryWelcomeRow({
 	openRef?: Ref<PublicInstance>;
 	onNavigate?: (event: EventPayload) => void;
 	deferAvatar?: boolean;
+	starred: boolean;
+	onStar: (path: string) => void;
 }) {
 	const theme = useAppTheme();
 	const { tokens: appTokens } = theme;
@@ -41,9 +45,13 @@ export function RepositoryWelcomeRow({
 		row: false,
 		open: false,
 		remove: false,
+		star: false,
 	});
 
-	const [focused, setFocused] = useState<"open" | "remove" | null>(null);
+	const [focused, setFocused] = useState<"open" | "remove" | "star" | null>(
+		null
+	);
+
 	const visible = Object.values(hoverTargets).some(Boolean) || focused !== null;
 
 	// Native hitboxes do not bubble hover through interactive children.
@@ -54,7 +62,7 @@ export function RepositoryWelcomeRow({
 			setHoverTargets((current) => ({ ...current, [target]: false })),
 	});
 
-	const focusEvents = (target: "open" | "remove") => ({
+	const focusEvents = (target: "open" | "remove" | "star") => ({
 		onFocus: () => setFocused(target),
 		onBlur: () =>
 			setFocused((current) => (current === target ? null : current)),
@@ -141,6 +149,38 @@ export function RepositoryWelcomeRow({
 						{path}
 					</text>
 				</div>
+			</Button>
+			<Button
+				onKeyDown={onNavigate}
+				{...hoverEvents("star")}
+				{...focusEvents("star")}
+				tokens={appTokens}
+				variant="ghost"
+				size="sm"
+				testId={`welcome-star-${path}`}
+				aria-label={`${starred ? "Unstar" : "Star"} ${path}`}
+				disabled={busy}
+				onPress={() => onStar(path)}
+				style={{
+					width: 26,
+					height: 26,
+					paddingLeft: 0,
+					paddingRight: 0,
+					opacity: starred || visible ? 1 : 0,
+				}}
+			>
+				<svg
+					aria-hidden
+					source={`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9Z" fill="${starred ? "currentColor" : "none"}" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/></svg>`}
+					style={{
+						width: iconSize.sm,
+						height: iconSize.sm,
+						pointerEvents: "none",
+						color: starred
+							? appTokens.colors.onAccent
+							: appTokens.colors.textMuted,
+					}}
+				/>
 			</Button>
 			<Button
 				onKeyDown={onNavigate}

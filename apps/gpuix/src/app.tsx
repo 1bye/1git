@@ -7,6 +7,7 @@ import {
 	type RepositoryPattern,
 } from "./feature/repository-appearance/repository-patterns";
 import { RepositoryDiscovery } from "./feature/repository-discovery/repository-discovery";
+import { RepositoryLibrary } from "./feature/repository-discovery/repository-library";
 import { useRepositoryDiscovery } from "./feature/repository-discovery/use-repository-discovery";
 import { spacing, typography } from "@1git/design-tokens";
 import {
@@ -446,6 +447,10 @@ function AppContent({
 		RepositoryDiscovery.preferences(initialSession?.repositoryDiscovery)
 	);
 
+	const [repositoryLibrary, setRepositoryLibrary] = useState(() =>
+		RepositoryLibrary.preferences(initialSession?.repositoryLibrary)
+	);
+
 	const onboardingOpen = onboarding !== "complete";
 	const [onboardingId, setOnboardingId] = useState<string | null>(null);
 	const [onboardingClone, setOnboardingClone] = useState(false);
@@ -464,7 +469,8 @@ function AppContent({
 		onboarding,
 		repositoryColors,
 		discoveryPreferences,
-		repositoryPatterns
+		repositoryPatterns,
+		repositoryLibrary
 	);
 
 	const connection = useRepositoryConnection(
@@ -627,9 +633,13 @@ function AppContent({
 
 	const welcomePaths = useMemo(
 		() => [
-			...new Set([...(state.recentRepositories ?? []), ...discovery.paths]),
+			...new Set([
+				...(state.recentRepositories ?? []),
+				...discovery.paths,
+				...repositoryLibrary.starred,
+			]),
 		],
-		[state.recentRepositories, discovery.paths]
+		[state.recentRepositories, discovery.paths, repositoryLibrary.starred]
 	);
 
 	const workspaceFocus = useRef<number | null>(null);
@@ -1228,10 +1238,15 @@ function AppContent({
 						activeTab?.id === cloneTab.id) ? null : welcomeVisible ? (
 						<RepositoryWelcome
 							paths={welcomePaths}
+							library={repositoryLibrary}
+							onLibraryChange={setRepositoryLibrary}
 							savedPaths={state.recentRepositories ?? []}
 							discovery={discovery.available ? discovery : undefined}
 							onForget={(path) => {
 								discovery.hide(path);
+								setRepositoryLibrary((current) =>
+									RepositoryLibrary.star(current, path, false)
+								);
 								dispatch({ type: "forget-repository", path });
 							}}
 							busy={connection.pickingId !== null || !!workspace?.loading}

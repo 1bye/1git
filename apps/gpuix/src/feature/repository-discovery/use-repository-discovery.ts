@@ -9,10 +9,10 @@ import {
 } from "react";
 import { useGpuixRequired } from "@gpuix/react";
 import { homedir } from "node:os";
-import type {
+import {
 	RepositoryDiscovery,
-	RepositoryDiscoveryPreferences,
-	RepositoryDiscoveryProgress,
+	type RepositoryDiscoveryPreferences,
+	type RepositoryDiscoveryProgress,
 } from "./repository-discovery";
 
 const emptyProgress: RepositoryDiscoveryProgress = {
@@ -22,7 +22,15 @@ const emptyProgress: RepositoryDiscoveryProgress = {
 	limited: false,
 };
 
-/** Owns one window's cancellable discovery; only Home/Add starts the initial scan. */
+type ScanStatus = "idle" | "scanning" | "complete" | "stopped" | "unavailable";
+interface FolderScan {
+	readonly canonicalPath: string;
+	readonly progress: RepositoryDiscoveryProgress;
+	readonly status: ScanStatus;
+	readonly error?: string;
+}
+
+/** Per-root cached scans; navigation is free and adding a folder never restarts Home. */
 export function useRepositoryDiscovery({
 	enabled,
 	scan,
@@ -35,15 +43,15 @@ export function useRepositoryDiscovery({
 	onPreferencesChange: Dispatch<SetStateAction<RepositoryDiscoveryPreferences>>;
 }) {
 	const renderer = useGpuixRequired();
-	const [progress, setProgress] = useState(emptyProgress);
 
-	const [status, setStatus] = useState<
-		"idle" | "scanning" | "complete" | "stopped"
-	>("idle");
+	const [runs, setRuns] = useState<ReadonlyMap<string, FolderScan>>(
+		() => new Map()
+	);
 
-	const [error, setError] = useState<string | null>(null);
+	const [pickerError, setPickerError] = useState<string | null>(null);
 	const [picking, setPicking] = useState(false);
-	const request = useRef<AbortController | null>(null);
+	const active = useRef(new Map<string, AbortController>());
+	const pending = useRef(new Map<string, AbortController>());
 	const started = useRef(false);
 	const mounted = useRef(true);
 	const picker = useRef(false);
@@ -52,39 +60,81 @@ export function useRepositoryDiscovery({
 		(folders: readonly string[]) => {
 			if (!scan) return;
 
-			request.current?.abort();
-			const controller = new AbortController();
+			setPickerError(null);
 
-			request.current = controller;
-			setError(null);
-			setStatus("scanning");
-			// Retain usable results until the replacement scan produces its first batch.
-			void (async () => {
-				try {
-					const result = await scan(
-						[homedir(), ...folders],
-						controller.signal,
-						(next) => {
-							if (!controller.signal.aborted && mounted.current)
-								setProgress(next);
+			for (const path of new Set(folders)) {
+				active.current.get(path)?.abort();
+				pending.current.get(path)?.abort();
+				pending.current.set(path, new AbortController());
+				setRuns((current) =>
+					new Map(current).set(path, {
+						canonicalPath: current.get(path)?.canonicalPath ?? path,
+						progress: current.get(path)?.progress ?? emptyProgress,
+						status: "scanning",
+					})
+				);
+			}
+
+			const pump = (): void => {
+				if (!mounted.current) return;
+
+				// Each scanner already has four workers. Bound simultaneous roots as well.
+				for (const [path, controller] of pending.current) {
+					if (active.current.size >= 2) break;
+
+					if (active.current.has(path)) continue;
+
+					pending.current.delete(path);
+					active.current.set(path, controller);
+					void (async () => {
+						const update = (patch: Partial<FolderScan>): void => {
+							if (controller.signal.aborted || !mounted.current) return;
+
+							setRuns((current) => {
+								const previous = current.get(path);
+
+								return previous
+									? new Map(current).set(path, { ...previous, ...patch })
+									: current;
+							});
+						};
+
+						try {
+							const canonicalPath =
+								await RepositoryDiscovery.resolveFolder(path);
+
+							if (controller.signal.aborted) return;
+
+							update({ canonicalPath });
+							const result = await scan(
+								[canonicalPath],
+								controller.signal,
+								(progress) => update({ progress })
+							);
+
+							const unavailable = result.scanned === 0 && result.skipped > 0;
+
+							update({
+								progress: result,
+								status: unavailable ? "unavailable" : "complete",
+							});
+						} catch (cause) {
+							update({
+								status: "unavailable",
+								error:
+									cause instanceof Error
+										? cause.message
+										: "Could not discover repositories.",
+							});
+						} finally {
+							active.current.delete(path);
+							pump();
 						}
-					);
-
-					if (!controller.signal.aborted && mounted.current) {
-						setProgress(result);
-						setStatus("complete");
-					}
-				} catch (cause) {
-					if (!controller.signal.aborted && mounted.current) {
-						setStatus("stopped");
-						setError(
-							cause instanceof Error
-								? cause.message
-								: "Could not discover repositories."
-						);
-					}
+					})();
 				}
-			})();
+			};
+
+			pump();
 		},
 		[scan]
 	);
@@ -93,17 +143,40 @@ export function useRepositoryDiscovery({
 		if (!enabled || !scan || started.current) return;
 
 		started.current = true;
-		start(preferences.folders);
+		start([homedir(), ...preferences.folders]);
 	}, [enabled, scan, start, preferences.folders]);
 
 	useEffect(() => {
 		mounted.current = true;
+		const requests = active.current;
+		const queue = pending.current;
 
 		return () => {
 			mounted.current = false;
-			request.current?.abort();
+
+			for (const controller of [...requests.values(), ...queue.values()])
+				controller.abort();
+
+			queue.clear();
 		};
 	}, []);
+
+	const progress = useMemo(() => {
+		const paths = new Set<string>();
+		let scanned = 0;
+		let skipped = 0;
+		let limited = false;
+
+		for (const run of runs.values()) {
+			for (const path of run.progress.paths) paths.add(path);
+
+			scanned += run.progress.scanned;
+			skipped += run.progress.skipped;
+			limited ||= run.progress.limited;
+		}
+
+		return { paths: [...paths], scanned, skipped, limited };
+	}, [runs]);
 
 	const paths = useMemo(() => {
 		const hidden = new Set(preferences.hidden);
@@ -111,12 +184,39 @@ export function useRepositoryDiscovery({
 		return progress.paths.filter((path) => !hidden.has(path));
 	}, [progress.paths, preferences.hidden]);
 
+	const scanning = [...runs.values()].some((run) => run.status === "scanning");
+
+	const stopped = [...runs.values()].some(
+		(run) => run.status === "stopped" || run.status === "unavailable"
+	);
+
+	const status = scanning
+		? "scanning"
+		: stopped
+			? "stopped"
+			: runs.size
+				? "complete"
+				: "idle";
+
+	const error =
+		pickerError ?? [...runs.values()].find((run) => run.error)?.error ?? null;
+
+	const folders = useMemo(
+		() =>
+			preferences.folders.map((path) => ({
+				path,
+				canonicalPath: runs.get(path)?.canonicalPath ?? path,
+				status: runs.get(path)?.status ?? "idle",
+			})),
+		[preferences.folders, runs]
+	);
+
 	const chooseFolder = async (): Promise<void> => {
 		if (picker.current || !scan) return;
 
 		picker.current = true;
 		setPicking(true);
-		setError(null);
+		setPickerError(null);
 
 		try {
 			if (!renderer.promptForPaths)
@@ -126,20 +226,23 @@ export function useRepositoryDiscovery({
 				directories: true,
 				files: false,
 				multiple: false,
-				prompt: "Scan for repositories",
+				prompt: "Add a repository folder",
 			});
 
-			const folder = selected?.[0];
+			if (!selected?.[0]) return;
 
-			if (!mounted.current || !folder) return;
+			const folder = await RepositoryDiscovery.resolveFolder(selected[0]);
 
-			const folders = [...new Set([...preferences.folders, folder])];
+			if (!mounted.current) return;
 
-			onPreferencesChange((current) => ({ ...current, folders }));
-			start(folders);
+			onPreferencesChange((current) => ({
+				...current,
+				folders: [...new Set([...current.folders, folder])],
+			}));
+			start([folder]);
 		} catch (cause) {
 			if (mounted.current)
-				setError(
+				setPickerError(
 					cause instanceof Error ? cause.message : "Could not choose a folder."
 				);
 		} finally {
@@ -156,11 +259,43 @@ export function useRepositoryDiscovery({
 		error,
 		picking,
 		available: !!scan,
-		rescan: () => start(preferences.folders),
+		folders,
+		rescan: (folder?: string) =>
+			start(folder ? [folder] : [homedir(), ...preferences.folders]),
 		chooseFolder,
+		removeFolder: (path: string) => {
+			active.current.get(path)?.abort();
+			pending.current.get(path)?.abort();
+			pending.current.delete(path);
+			setRuns((current) => {
+				const next = new Map(current);
+
+				next.delete(path);
+
+				return next;
+			});
+			onPreferencesChange((current) => ({
+				...current,
+				folders: current.folders.filter((folder) => folder !== path),
+			}));
+		},
 		stop: () => {
-			request.current?.abort();
-			setStatus("stopped");
+			for (const controller of [
+				...active.current.values(),
+				...pending.current.values(),
+			])
+				controller.abort();
+
+			pending.current.clear();
+			setRuns(
+				(current) =>
+					new Map(
+						[...current].map(([path, run]) => [
+							path,
+							run.status === "scanning" ? { ...run, status: "stopped" } : run,
+						])
+					)
+			);
 		},
 		hide: (path: string) =>
 			onPreferencesChange((current) => ({

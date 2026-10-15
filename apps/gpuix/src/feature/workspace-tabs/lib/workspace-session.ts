@@ -1,5 +1,9 @@
 import { basename, isAbsolute } from "node:path";
 import {
+	RepositoryLibrary,
+	type RepositoryLibraryPreferences,
+} from "../../repository-discovery/repository-library";
+import {
 	RepositoryDiscovery,
 	type RepositoryDiscoveryPreferences,
 } from "../../repository-discovery/repository-discovery";
@@ -46,6 +50,7 @@ export interface WorkspaceSessionDocument {
 	readonly activeId: string | null;
 	readonly recentRepositories?: readonly string[];
 	readonly repositoryDiscovery?: RepositoryDiscoveryPreferences;
+	readonly repositoryLibrary?: RepositoryLibraryPreferences;
 	readonly diffSettings?: DiffSettings;
 	readonly appearance?: AppAppearance;
 	readonly commitTypeBadges?: boolean;
@@ -172,8 +177,15 @@ export class WorkspaceSession {
 			value.repositoryDiscovery
 		);
 
+		const repositoryLibrary = RepositoryLibrary.preferences(
+			value.repositoryLibrary
+		);
+
 		return {
 			version: 1,
+			...(!RepositoryLibrary.isDefault(repositoryLibrary)
+				? { repositoryLibrary }
+				: {}),
 			tabs,
 			...(value.appearance === "light" || value.appearance === "dark"
 				? { appearance: value.appearance }
@@ -225,10 +237,14 @@ export class WorkspaceSession {
 		onboarding?: OnboardingStep,
 		repositoryColors?: RepositoryColorChoices,
 		repositoryDiscovery?: RepositoryDiscoveryPreferences,
-		repositoryPatterns?: RepositoryPatternChoices
+		repositoryPatterns?: RepositoryPatternChoices,
+		repositoryLibrary?: RepositoryLibraryPreferences
 	): WorkspaceSessionDocument {
 		return {
 			version: 1,
+			...(repositoryLibrary && !RepositoryLibrary.isDefault(repositoryLibrary)
+				? { repositoryLibrary }
+				: {}),
 			...(appearance ? { appearance } : {}),
 			...(commitTypeBadges !== undefined ? { commitTypeBadges } : {}),
 			...(onboarding ? { onboarding } : {}),

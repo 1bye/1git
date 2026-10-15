@@ -54,6 +54,15 @@ const progressIntervalMs = 500;
 export class RepositoryDiscovery {
 	private constructor() {}
 
+	static async resolveFolder(path: string): Promise<string> {
+		try {
+			return await realpath(path);
+		} catch {
+			// Keep unavailable roots visible so they can be retried or untracked.
+			return normalize(path);
+		}
+	}
+
 	/** Reads optional session intent without invalidating older sessions. */
 	static preferences(value: unknown): RepositoryDiscoveryPreferences {
 		const paths = (items: unknown): string[] =>

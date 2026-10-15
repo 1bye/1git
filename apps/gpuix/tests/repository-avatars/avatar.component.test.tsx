@@ -157,6 +157,7 @@ it("reuses the same thumbnail in saved repositories, repository tabs and Clone r
 				readRepository={async () => ({ ok: true, value: repositorySnapshot() })}
 			/>
 		);
+		click("welcome-folder-other");
 		await Bun.sleep(120);
 		root.renderer.flush();
 		expect(
@@ -263,6 +264,18 @@ it("automatically loads discovered avatars only near the viewport and keeps init
 				})}
 			/>
 		);
+		await waitFor(() => !!root.renderer.findByTestId("welcome-folder-other"));
+		expect(reads).toHaveLength(0);
+		const folder = root.renderer.findByTestId("welcome-folder-other");
+		const folderBounds = folder && root.renderer.getElementBounds(folder.id);
+
+		if (!folderBounds) throw new Error("Missing folder tile");
+
+		root.renderer.nativeSimulateClick(
+			folderBounds.x + folderBounds.width / 2,
+			folderBounds.y + folderBounds.height / 2
+		);
+		root.renderer.flush();
 		await waitFor(
 			() => !!root.renderer.findByTestId(`welcome-avatar-${paths[0]}-image`)
 		);

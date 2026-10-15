@@ -1177,9 +1177,22 @@ no user repositories or live hosted services are modified.
 ## Opening a repository
 
 - Home discovers local Git repositories in the background on its first visit.
-  It searches your home folder; **Scan folder…** adds another location (including
+  It searches your home folder; **Add folder…** adds another location (including
   external drives) and remembers it for the next launch. **Stop scanning** and
   **Scan again** control discovery without blocking opening or editing a repo.
+  **Listed** shows added folders as tiles with repository counts. Open a tile to
+  browse its repositories; **Folders** returns to the tiles. Overlapping scan roots
+  assign each repository to the most specific folder. Saved/discovered repositories
+  outside those roots appear under **Other repositories**. Search from the tiles
+  searches all repositories; inside a folder it searches only that group.
+  **Starred** gathers favorites across folders. Use a row's star or native context
+  menu to add/remove a favorite. Favorites, selected view and folder are saved
+  locally, independently of open tabs and drafts.
+  Folder context menus (also available through **…** inside a folder) can rescan,
+  reveal or remove a tracked folder. Adding/rescanning a folder scans only that
+  root, with at most two root scans running at once. Unavailable folders remain
+  visible for retry. Removing a folder only stops tracking; no disk files move or
+  disappear, and saved/starred repositories remain accessible.
   Suggestions are searchable alongside saved repositories. Opening one adds it
   to history; removing it hides its suggestion without deleting anything.
 - A thin, indeterminate rail at the top of Home indicates scanning without

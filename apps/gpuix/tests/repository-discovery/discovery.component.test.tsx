@@ -10,9 +10,9 @@ import { homedir } from "node:os";
 import { App } from "../../src/app";
 import { Accounts } from "../../src/feature/accounts/lib/accounts";
 import { AccountStore } from "../../src/feature/accounts/lib/account-store";
-import type {
+import {
 	RepositoryDiscovery,
-	RepositoryDiscoveryProgress,
+	type RepositoryDiscoveryProgress,
 } from "../../src/feature/repository-discovery/repository-discovery";
 import type { RepositoryReader } from "../../src/feature/repository-workspace/lib/repository-reader";
 import type { WorkspaceSessionDocument } from "../../src/feature/workspace-tabs/lib/workspace-session";
@@ -56,6 +56,9 @@ beforeEach(() => {
 		async delete() {},
 	});
 	spyOn(accounts, "load").mockReturnValue([]);
+	spyOn(RepositoryDiscovery, "resolveFolder").mockImplementation(
+		async (path) => path
+	);
 });
 afterEach(() => {
 	root.unmount();
@@ -112,6 +115,7 @@ it("discovers only when Home opens, merges without opening tabs, searches and ex
 	await settle();
 	expect(scan.mock.calls[0]?.[0]).toEqual([homedir()]);
 	expect(read).toHaveBeenCalledTimes(1);
+	click("welcome-folder-other");
 	expect(node("welcome-repository-/test/discovered")).toBeDefined();
 	expect(root.renderer.findByTestId("workspace-2")).toBeUndefined();
 	click("welcome-search");
@@ -148,6 +152,7 @@ it("keeps suggestions usable during scanning, cancels stale results and retries 
 		/>
 	);
 	await settle();
+	click("welcome-folder-other");
 	expect(
 		node("welcome-repository-/test/discovered").customProps?.disabled
 	).not.toBe(true);
@@ -190,7 +195,7 @@ it("keeps suggestions usable during scanning, cancels stale results and retries 
 	);
 });
 
-it("scans additional folders with home, persists scope and removal, and ignores a cancelled picker", async () => {
+it("scans additional folders independently, persists scope and removal, and ignores a cancelled picker", async () => {
 	const scan = mock<typeof RepositoryDiscovery.scan>(async () => progress);
 	const save = mock<(document: WorkspaceSessionDocument) => void>(() => {});
 
@@ -213,7 +218,8 @@ it("scans additional folders with home, persists scope and removal, and ignores 
 	click("discovery-folder");
 	await settle();
 	expect(picker).toHaveBeenCalledTimes(2);
-	expect(scan.mock.calls.at(-1)?.[0]).toEqual([homedir(), "/Volumes/Work"]);
+	expect(scan.mock.calls.at(-1)?.[0]).toEqual(["/Volumes/Work"]);
+	click("welcome-folder-other");
 	root.renderer.nativeSimulateMouseMove(600, 310);
 	root.renderer.flush();
 	// Keyboard activation also works when the remove affordance isn't hovered.
@@ -237,7 +243,7 @@ it("scans additional folders with home, persists scope and removal, and ignores 
 	});
 });
 
-it("shows incomplete scans honestly, preserves layout at minimum size, and aborts on unmount", async () => {
+it("shows incomplete scans honestly and preserves layout at minimum size", async () => {
 	const scan = mock<typeof RepositoryDiscovery.scan>(async () => ({
 		...progress,
 		limited: true,
@@ -274,7 +280,7 @@ it("shows incomplete scans honestly, preserves layout at minimum size, and abort
 		root.renderer.captureScreenshot(process.env.GPUIX_DISCOVERY_SCREENSHOT);
 
 	root.unmount();
-	expect(scan.mock.calls[0]?.[1].aborted).toBe(true);
+	expect(scan).toHaveBeenCalledTimes(1);
 });
 
 it("keeps search and scan actions fixed when many suggestions scroll", async () => {
@@ -300,6 +306,7 @@ it("keeps search and scan actions fixed when many suggestions scroll", async () 
 		/>
 	);
 	await settle();
+	click("welcome-folder-other");
 	const list = node("welcome-repositories");
 
 	const listBox = root.renderer.getElementBounds(
@@ -382,8 +389,214 @@ it("does not scan preview or unfinished onboarding, and persists hidden suggesti
 		/>
 	);
 	await settle();
-	expect(scan.mock.calls.at(-1)?.[0]).toEqual([homedir(), "/Work"]);
+	expect(scan.mock.calls.map(([folders]) => folders)).toEqual([
+		[homedir()],
+		["/Work"],
+	]);
 	expect(
 		root.renderer.findByTestId("welcome-repository-/test/discovered")
 	).toBeUndefined();
+});
+
+it("browses physical folders, stars across groups and restores the saved view without rescanning", async () => {
+	const all = ["/Work/api", "/Personal/site", "/outside/legacy"];
+
+	const scan = mock<typeof RepositoryDiscovery.scan>(async ([folder]) => ({
+		...progress,
+		paths:
+			folder === homedir()
+				? all
+				: all.filter((path) => path.startsWith(`${folder}/`)),
+	}));
+
+	const save = mock<(document: WorkspaceSessionDocument) => void>(() => {});
+
+	root.render(
+		<App
+			accounts={accounts}
+			initialSession={{
+				...initial,
+				recentRepositories: [],
+				appearance: "dark",
+				repositoryDiscovery: { folders: ["/Work", "/Personal"], hidden: [] },
+			}}
+			discoverRepositories={scan}
+			saveSession={save}
+			readRepository={read}
+		/>
+	);
+	await settle();
+	expect(node("welcome-folder-/Work").customProps?.["aria-label"]).toBe(
+		"Open Work, 1 repository"
+	);
+	expect(node("welcome-folder-/Personal")).toBeDefined();
+	expect(node("welcome-folder-other")).toBeDefined();
+	expect(
+		root.renderer.findByTestId("welcome-repository-/Work/api")
+	).toBeUndefined();
+	expect(scan).toHaveBeenCalledTimes(3);
+
+	if (process.env.GPUIX_LIBRARY_SCREENSHOT)
+		root.renderer.captureScreenshot(
+			`${process.env.GPUIX_LIBRARY_SCREENSHOT}-folders.png`
+		);
+
+	click("welcome-folder-/Work");
+	expect(node("welcome-repository-/Work/api")).toBeDefined();
+	expect(
+		root.renderer.findByTestId("welcome-repository-/Personal/site")
+	).toBeUndefined();
+	root.renderer.nativeSimulateKeyDown(
+		node("welcome-star-/Work/api").id,
+		"enter"
+	);
+	root.renderer.flush();
+	expect(node("welcome-star-/Work/api").customProps?.["aria-label"]).toBe(
+		"Unstar /Work/api"
+	);
+	click("welcome-view-starred");
+	expect(node("welcome-repository-/Work/api")).toBeDefined();
+	expect(root.renderer.findByTestId("welcome-back")).toBeUndefined();
+	expect(scan).toHaveBeenCalledTimes(3);
+	root.unmount();
+	const document = save.mock.calls.at(-1)?.[0];
+
+	expect(document?.repositoryLibrary).toEqual({
+		starred: ["/Work/api"],
+		view: "starred",
+		folder: "/Work",
+	});
+	root = createTestRoot({ width: 980, height: 640 });
+	root.renderer.clockPause();
+	root.render(
+		<App
+			accounts={accounts}
+			initialSession={document}
+			discoverRepositories={scan}
+			saveSession={save}
+		/>
+	);
+	await settle();
+	expect(node("welcome-repository-/Work/api")).toBeDefined();
+	click("welcome-view-listed");
+	expect(node("welcome-back")).toBeDefined();
+	expect(node("welcome-repository-/Work/api")).toBeDefined();
+
+	if (process.env.GPUIX_LIBRARY_SCREENSHOT)
+		root.renderer.captureScreenshot(
+			`${process.env.GPUIX_LIBRARY_SCREENSHOT}-repositories.png`
+		);
+
+	click("welcome-back");
+	click("welcome-folder-/Personal");
+	root.renderer.nativeSimulateKeyDown(
+		node("welcome-star-/Personal/site").id,
+		"enter"
+	);
+	root.renderer.flush();
+	click("welcome-view-starred");
+	expect(node("welcome-repository-/Work/api")).toBeDefined();
+	expect(node("welcome-repository-/Personal/site")).toBeDefined();
+	root.renderer.nativeSimulateKeyDown(
+		node("welcome-star-/Work/api").id,
+		"enter"
+	);
+	root.renderer.flush();
+	expect(
+		root.renderer.findByTestId("welcome-repository-/Work/api")
+	).toBeUndefined();
+	expect(node("welcome-repository-/Personal/site")).toBeDefined();
+});
+
+it("retries unavailable folders individually and removes only tracking, retaining saved/starred repositories", async () => {
+	let available = false;
+
+	const scan = mock<typeof RepositoryDiscovery.scan>(async ([folder]) =>
+		folder === "/Volumes/Work" && !available
+			? { ...progress, paths: [], scanned: 0, skipped: 1 }
+			: {
+					...progress,
+					paths: folder === "/Volumes/Work" ? ["/Volumes/Work/api"] : [],
+				}
+	);
+
+	const save = mock<(document: WorkspaceSessionDocument) => void>(() => {});
+	let choice = 0;
+
+	Object.assign(root.renderer, { showContextMenu: () => choice });
+	root.render(
+		<App
+			accounts={accounts}
+			initialSession={{
+				...initial,
+				recentRepositories: ["/Volumes/Work/api"],
+				repositoryDiscovery: { folders: ["/Volumes/Work"], hidden: [] },
+				repositoryLibrary: { starred: ["/Volumes/Work/api"], view: "listed" },
+			}}
+			discoverRepositories={scan}
+			saveSession={save}
+		/>
+	);
+	await settle();
+	expect(root.renderer.getAllText()).toContain("Folder unavailable");
+	click("welcome-folder-/Volumes/Work");
+	expect(node("welcome-repository-/Volumes/Work/api")).toBeDefined();
+	available = true;
+	click("welcome-folder-actions");
+	await settle();
+	expect(scan.mock.calls.map(([folders]) => folders)).toEqual([
+		[homedir()],
+		["/Volumes/Work"],
+		["/Volumes/Work"],
+	]);
+	choice = 2;
+	click("welcome-folder-actions");
+	await settle();
+	expect(
+		root.renderer.findByTestId("welcome-folder-/Volumes/Work")
+	).toBeUndefined();
+	expect(node("welcome-folder-other")).toBeDefined();
+	click("welcome-view-starred");
+	expect(node("welcome-repository-/Volumes/Work/api")).toBeDefined();
+	root.unmount();
+	const document = save.mock.calls.at(-1)?.[0];
+
+	expect(document?.repositoryDiscovery).toBeUndefined();
+	expect(document?.recentRepositories).toEqual(["/Volumes/Work/api"]);
+	expect(document?.repositoryLibrary?.starred).toEqual(["/Volumes/Work/api"]);
+});
+
+it("bounds simultaneous roots, cancels queued work on unmount and ignores late progress", async () => {
+	const pending = Promise.withResolvers<RepositoryDiscoveryProgress>();
+
+	const scan = mock<typeof RepositoryDiscovery.scan>(
+		async (_folders, _signal, report) => {
+			report(progress);
+
+			return await pending.promise;
+		}
+	);
+
+	root.render(
+		<App
+			accounts={accounts}
+			initialSession={{
+				...initial,
+				repositoryDiscovery: {
+					folders: ["/Work", "/Personal", "/More"],
+					hidden: [],
+				},
+			}}
+			discoverRepositories={scan}
+		/>
+	);
+	await settle();
+	expect(scan).toHaveBeenCalledTimes(2);
+	root.unmount();
+
+	for (const [, signal] of scan.mock.calls) expect(signal.aborted).toBe(true);
+
+	pending.resolve(progress);
+	await settle();
+	expect(scan).toHaveBeenCalledTimes(2);
 });

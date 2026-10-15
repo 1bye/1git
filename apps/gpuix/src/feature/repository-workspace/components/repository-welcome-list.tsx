@@ -23,16 +23,20 @@ const chunkSize = 40;
 export function RepositoryWelcomeList({
 	paths,
 	saved,
+	starred,
 	busy,
 	onOpen,
 	onForget,
+	onStar,
 	onMenu,
 }: {
 	paths: readonly string[];
 	saved: ReadonlySet<string>;
+	starred: ReadonlySet<string>;
 	busy: boolean;
 	onOpen: (path: string) => void;
 	onForget: (path: string) => void;
+	onStar: (path: string) => void;
 	onMenu: ComponentProps<typeof RepositoryWelcomeRow>["onMenu"];
 }) {
 	const renderer = useGpuixRequired();
@@ -144,6 +148,8 @@ export function RepositoryWelcomeList({
 							path={path}
 							busy={busy}
 							suggested={!saved.has(path)}
+							starred={starred.has(path)}
+							onStar={onStar}
 							onOpen={onOpen}
 							onForget={onForget}
 							onMenu={onMenu}
