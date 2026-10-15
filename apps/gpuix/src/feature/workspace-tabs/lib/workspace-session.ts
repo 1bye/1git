@@ -1,4 +1,8 @@
 import { basename, isAbsolute } from "node:path";
+import {
+	RepositoryDiscovery,
+	type RepositoryDiscoveryPreferences,
+} from "../../repository-discovery/repository-discovery";
 import type { AppAppearance } from "../../../styles/tokens";
 import {
 	RepositoryColors,
@@ -37,6 +41,7 @@ export interface WorkspaceSessionDocument {
 	}[];
 	readonly activeId: string | null;
 	readonly recentRepositories?: readonly string[];
+	readonly repositoryDiscovery?: RepositoryDiscoveryPreferences;
 	readonly diffSettings?: DiffSettings;
 	readonly appearance?: AppAppearance;
 	readonly commitTypeBadges?: boolean;
@@ -154,6 +159,10 @@ export class WorkspaceSession {
 		const diffSettings = WorkspaceSession.diffSettings(value.diffSettings);
 		const repositoryColors = RepositoryColors.parse(value.repositoryColors);
 
+		const repositoryDiscovery = RepositoryDiscovery.preferences(
+			value.repositoryDiscovery
+		);
+
 		return {
 			version: 1,
 			tabs,
@@ -171,6 +180,10 @@ export class WorkspaceSession {
 				: {}),
 			...(diffSettings ? { diffSettings } : {}),
 			...(Object.keys(repositoryColors).length ? { repositoryColors } : {}),
+			...(repositoryDiscovery.folders.length ||
+			repositoryDiscovery.hidden.length
+				? { repositoryDiscovery }
+				: {}),
 			...(Array.isArray(value.recentRepositories)
 				? {
 						recentRepositories: [
@@ -200,7 +213,8 @@ export class WorkspaceSession {
 		appearance?: AppAppearance,
 		commitTypeBadges?: boolean,
 		onboarding?: OnboardingStep,
-		repositoryColors?: RepositoryColorChoices
+		repositoryColors?: RepositoryColorChoices,
+		repositoryDiscovery?: RepositoryDiscoveryPreferences
 	): WorkspaceSessionDocument {
 		return {
 			version: 1,
@@ -208,6 +222,10 @@ export class WorkspaceSession {
 			...(commitTypeBadges !== undefined ? { commitTypeBadges } : {}),
 			...(onboarding ? { onboarding } : {}),
 			...(diffSettings ? { diffSettings } : {}),
+			...(repositoryDiscovery &&
+			(repositoryDiscovery.folders.length || repositoryDiscovery.hidden.length)
+				? { repositoryDiscovery }
+				: {}),
 			...(repositoryColors && Object.keys(repositoryColors).length
 				? { repositoryColors }
 				: {}),

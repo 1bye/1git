@@ -15,6 +15,8 @@ import { RepositoryFileActions } from "../lib/repository-file-actions";
 
 import { StateMessage } from "../../../fixture/state-message";
 import { RepositoryWelcomeRow } from "./repository-welcome-row";
+import { RepositoryWelcomeList } from "./repository-welcome-list";
+import type { useRepositoryDiscovery } from "../../repository-discovery/use-repository-discovery";
 
 const themedStyles = createThemedStyles(({ tokens: appTokens }) => {
 	const styles = StyleSheet.create({
@@ -70,6 +72,8 @@ const themedStyles = createThemedStyles(({ tokens: appTokens }) => {
 /** Desktop-style launch page: quick actions beside a local, searchable repository list. */
 export function RepositoryWelcome({
 	paths,
+	savedPaths = paths,
+	discovery,
 	actions,
 	busy,
 	error,
@@ -78,6 +82,8 @@ export function RepositoryWelcome({
 	onForget,
 }: {
 	paths: readonly string[];
+	savedPaths?: readonly string[];
+	discovery?: ReturnType<typeof useRepositoryDiscovery>;
 	actions: ReactNode;
 	busy: boolean;
 	error?: string | null;
@@ -125,6 +131,13 @@ export function RepositoryWelcome({
 		path.toLowerCase().includes(query.trim().toLowerCase())
 	);
 
+	const saved = new Set(savedPaths);
+	const scanning = discovery?.status === "scanning";
+
+	const scanStatus = discovery
+		? `${scanning ? "Scanning home and added folders…" : discovery.status === "stopped" ? "Scan stopped." : "Home and added folders scanned."} ${discovery.paths.length} found.`
+		: null;
+
 	return (
 		<div testId="repository-welcome" style={styles.page}>
 			<div style={styles.columns}>
@@ -151,6 +164,33 @@ export function RepositoryWelcome({
 						/>
 						{busy ? "Opening…" : "Open from disk"}
 					</Button>
+					{discovery ? (
+						<>
+							<Button
+								tokens={appTokens}
+								variant="ghost"
+								size="sm"
+								testId="discovery-folder"
+								disabled={discovery.picking}
+								style={{ ...styles.action, marginTop: spacing[4] }}
+								onPress={() => {
+									void discovery.chooseFolder();
+								}}
+							>
+								{discovery.picking ? "Choosing folder…" : "Scan folder…"}
+							</Button>
+							<Button
+								tokens={appTokens}
+								variant="ghost"
+								size="sm"
+								testId="discovery-rescan"
+								style={styles.action}
+								onPress={scanning ? discovery.stop : discovery.rescan}
+							>
+								{scanning ? "Stop scanning" : "Scan again"}
+							</Button>
+						</>
+					) : null}
 					{error ? (
 						<text
 							role="alert"
@@ -193,36 +233,80 @@ export function RepositoryWelcome({
 							marginBottom: spacing[3],
 						}}
 					/>
-					<div testId="welcome-repositories" style={styles.list}>
-						{matches.map((path) => (
-							<RepositoryWelcomeRow
-								key={path}
-								path={path}
-								busy={busy}
-								onOpen={onOpenRecent}
-								onForget={onForget}
-								onMenu={openMenu}
-							/>
-						))}
-						{menuError ? (
-							<text role="alert" style={styles.hint}>
-								{menuError}
+					{discovery ? (
+						<div
+							style={{
+								flexShrink: 0,
+								gap: spacing[1],
+								marginBottom: spacing[2],
+							}}
+						>
+							<text testId="discovery-status" role="status" style={styles.hint}>
+								{scanStatus}
 							</text>
-						) : null}
-						{!matches.length ? (
-							<StateMessage
-								artwork={query.trim() ? "search" : "repository"}
-								title={
-									query.trim() ? "No repositories found" : "No repositories yet"
-								}
-								description={
-									query.trim()
-										? `No repositories match “${query.trim()}”.`
-										: "Repositories you open, clone, or create will appear here."
-								}
-							/>
-						) : null}
-					</div>
+							{discovery.progress.skipped || discovery.progress.limited ? (
+								<text testId="discovery-incomplete" style={styles.hint}>
+									{discovery.progress.limited
+										? "Scan limit reached. Scan a smaller folder to find more."
+										: `${discovery.progress.skipped} folders or repositories could not be inspected.`}
+								</text>
+							) : null}
+							{discovery.error ? (
+								<text role="alert" style={styles.hint}>
+									{discovery.error}
+								</text>
+							) : null}
+						</div>
+					) : null}
+					{menuError ? (
+						<text role="alert" style={styles.hint}>
+							{menuError}
+						</text>
+					) : null}
+					{matches.length > 0 && (discovery || matches.length > 200) ? (
+						<RepositoryWelcomeList
+							key={query}
+							paths={matches}
+							saved={saved}
+							busy={busy}
+							onOpen={onOpenRecent}
+							onForget={onForget}
+							onMenu={openMenu}
+						/>
+					) : (
+						<div testId="welcome-repositories" style={styles.list}>
+							{matches.map((path) => (
+								<RepositoryWelcomeRow
+									key={path}
+									path={path}
+									suggested={!saved.has(path)}
+									busy={busy}
+									onOpen={onOpenRecent}
+									onForget={onForget}
+									onMenu={openMenu}
+								/>
+							))}
+							{!matches.length ? (
+								<StateMessage
+									artwork={query.trim() ? "search" : "repository"}
+									title={
+										query.trim()
+											? "No repositories found"
+											: scanning
+												? "Looking for repositories…"
+												: "No repositories yet"
+									}
+									description={
+										query.trim()
+											? `No repositories match “${query.trim()}”.`
+											: scanning
+												? "You can open a repository while discovery runs in the background."
+												: "Open a repository or scan another folder to find projects."
+									}
+								/>
+							) : null}
+						</div>
+					)}
 				</div>
 			</div>
 		</div>

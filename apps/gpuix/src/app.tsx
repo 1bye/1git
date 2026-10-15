@@ -2,6 +2,8 @@ import { AppThemeContext, appThemes, useAppTheme } from "./styles/theme";
 import type { AppAppearance } from "./styles/tokens";
 import { RepositoryTheme } from "./styles/repository-theme";
 import { RepositoryColors } from "./feature/repository-appearance/repository-colors";
+import { RepositoryDiscovery } from "./feature/repository-discovery/repository-discovery";
+import { useRepositoryDiscovery } from "./feature/repository-discovery/use-repository-discovery";
 import { spacing, typography } from "@1git/design-tokens";
 import {
 	useCallback,
@@ -180,6 +182,7 @@ function AppContent({
 	writeSyncRepository,
 	writeStash = RepositoryStashes.write,
 	watchRepository,
+	discoverRepositories,
 	resolveConflict = RepositoryConflicts.write,
 	openConflictEditor,
 	writeOperation = RepositoryOperation.write,
@@ -233,6 +236,7 @@ function AppContent({
 	writeSyncRepository?: typeof RepositorySync.write;
 	writeStash?: typeof RepositoryStashes.write;
 	watchRepository?: typeof RepositoryWatcher.watch;
+	discoverRepositories?: typeof RepositoryDiscovery.scan;
 	resolveConflict?: typeof RepositoryConflicts.write;
 	openConflictEditor?: typeof RepositoryConflicts.openEditor;
 	writeOperation?: typeof RepositoryOperation.write;
@@ -430,6 +434,10 @@ function AppContent({
 		RepositoryColors.parse(initialSession?.repositoryColors)
 	);
 
+	const [discoveryPreferences, setDiscoveryPreferences] = useState(() =>
+		RepositoryDiscovery.preferences(initialSession?.repositoryDiscovery)
+	);
+
 	const onboardingOpen = onboarding !== "complete";
 	const [onboardingId, setOnboardingId] = useState<string | null>(null);
 	const [onboardingClone, setOnboardingClone] = useState(false);
@@ -446,7 +454,8 @@ function AppContent({
 		theme.appearance,
 		theme.commitTypeBadges,
 		onboarding,
-		repositoryColors
+		repositoryColors,
+		discoveryPreferences
 	);
 
 	const connection = useRepositoryConnection(
@@ -578,6 +587,27 @@ function AppContent({
 			tab.id === cloneId &&
 			!tab.workspace.repository &&
 			!tab.workspace.repositoryPath
+	);
+
+	const welcomeVisible =
+		!publishingVisible &&
+		!(cloneTab && activeTab?.id === cloneTab.id) &&
+		!workspace?.preview &&
+		!workspace?.repository &&
+		!workspace?.repositoryPath;
+
+	const discovery = useRepositoryDiscovery({
+		enabled: welcomeVisible && !settingsOpen && !onboardingOpen && !preview,
+		scan: preview ? undefined : discoverRepositories,
+		preferences: discoveryPreferences,
+		onPreferencesChange: setDiscoveryPreferences,
+	});
+
+	const welcomePaths = useMemo(
+		() => [
+			...new Set([...(state.recentRepositories ?? []), ...discovery.paths]),
+		],
+		[state.recentRepositories, discovery.paths]
 	);
 
 	const workspaceFocus = useRef<number | null>(null);
@@ -1173,12 +1203,15 @@ function AppContent({
 					) : null}
 					{publishingVisible ||
 					(cloneTab &&
-						activeTab?.id === cloneTab.id) ? null : !workspace?.preview &&
-					  !workspace?.repository &&
-					  !workspace?.repositoryPath ? (
+						activeTab?.id === cloneTab.id) ? null : welcomeVisible ? (
 						<RepositoryWelcome
-							paths={state.recentRepositories ?? []}
-							onForget={(path) => dispatch({ type: "forget-repository", path })}
+							paths={welcomePaths}
+							savedPaths={state.recentRepositories ?? []}
+							discovery={discovery.available ? discovery : undefined}
+							onForget={(path) => {
+								discovery.hide(path);
+								dispatch({ type: "forget-repository", path });
+							}}
 							busy={connection.pickingId !== null || !!workspace?.loading}
 							error={workspace?.error}
 							onOpen={() => {

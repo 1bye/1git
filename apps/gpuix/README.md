@@ -1166,6 +1166,20 @@ no user repositories or live hosted services are modified.
 
 ## Opening a repository
 
+- Home discovers local Git repositories in the background on its first visit.
+  It searches your home folder; **Scan folder…** adds another location (including
+  external drives) and remembers it for the next launch. **Stop scanning** and
+  **Scan again** control discovery without blocking opening or editing a repo.
+  Suggestions are searchable alongside saved repositories. Opening one adds it
+  to history; removing it hides its suggestion without deleting anything.
+- Discovery is local and read-only: no remote requests, status reads, staging or
+  automatic tabs. It recognizes `.git` directories and worktree/submodule `.git`
+  files, including nested and hidden projects. Dependency, build, cache and system
+  folders (such as `node_modules` and `Library`) are skipped, as are descendant
+  symlinks; explicitly choosing a skipped folder scans that location. Inaccessible
+  locations are reported. Each scan is bounded to 100,000 directories and 5,000
+  repositories; a limit notice recommends scanning a smaller location. Discovery
+  results stay in memory; only extra scan folders and hidden suggestions are saved.
 - Choose **Open repository…** and select a folder in the native directory picker.
   A subfolder resolves to its Git root; linked worktrees and unborn/detached HEAD
   are supported. Cancelling leaves the workspace unchanged. Invalid folders,

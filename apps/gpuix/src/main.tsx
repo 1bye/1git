@@ -3,6 +3,7 @@ import { render } from "@gpuix/react";
 import { App } from "./app";
 import { windowOptions } from "./window-options";
 import { RepositoryWatcher } from "./feature/repository-workspace/lib/repository-watcher";
+import { RepositoryDiscovery } from "./feature/repository-discovery/repository-discovery";
 import { WorkspaceSessionStore } from "./feature/workspace-tabs/lib/workspace-session-store";
 import { AppUpdater } from "./app-updater";
 
@@ -31,6 +32,7 @@ render(
 				: undefined
 		}
 		watchRepository={RepositoryWatcher.watch}
+		discoverRepositories={preview ? undefined : RepositoryDiscovery.scan}
 	/>,
 	{
 		...windowOptions,

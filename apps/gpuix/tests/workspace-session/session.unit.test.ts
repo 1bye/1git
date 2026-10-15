@@ -10,6 +10,49 @@ import { WorkspaceTabsModel } from "../../src/feature/workspace-tabs/lib/workspa
 import { repositorySnapshot } from "../_shared/repository-snapshot";
 import { commitInfo, historyPage } from "../_shared/history-page";
 
+it("persists discovery scope and hidden suggestions without saving scan results or changing older sessions", () => {
+	const state = WorkspaceTabsModel.create();
+	const preferences = { folders: ["/Volumes/Work"], hidden: ["/test/hidden"] };
+
+	const captured = WorkspaceSession.capture(
+		state,
+		undefined,
+		undefined,
+		undefined,
+		undefined,
+		undefined,
+		preferences
+	);
+
+	const parsed = WorkspaceSession.parse(JSON.stringify(captured));
+
+	expect(parsed.repositoryDiscovery).toEqual(preferences);
+	expect(parsed.recentRepositories).toEqual(captured.recentRepositories);
+	expect(
+		WorkspaceSession.parse(
+			JSON.stringify({ ...captured, repositoryDiscovery: undefined })
+		).repositoryDiscovery
+	).toBeUndefined();
+	expect(
+		WorkspaceSession.parse(
+			JSON.stringify({
+				...captured,
+				repositoryDiscovery: {
+					folders: [
+						null,
+						"relative",
+						"/test/../test/path",
+						"/test/path",
+						"/bad\0path",
+					],
+					hidden: [false, "/hidden", "/hidden"],
+					paths: ["/must-not-persist"],
+				},
+			})
+		).repositoryDiscovery
+	).toEqual({ folders: ["/test/path"], hidden: ["/hidden"] });
+});
+
 it("restores full-history navigation rather than a temporary file history scope", () => {
 	const snapshot = repositorySnapshot();
 	let state = WorkspaceTabsModel.create();

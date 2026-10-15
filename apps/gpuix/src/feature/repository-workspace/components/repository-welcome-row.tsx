@@ -1,9 +1,9 @@
 import { useAppTheme } from "../../../styles/theme";
 import { spacing, typography, iconSize } from "@1git/design-tokens";
 import { basename } from "node:path";
-import { useState } from "react";
+import { useState, type Ref } from "react";
 import { Button } from "@1git/gpuix-ui/button";
-import type { EventPayload } from "@gpuix/react";
+import type { EventPayload, PublicInstance } from "@gpuix/react";
 
 import { RepositoryAvatar } from "./repository-avatar";
 
@@ -16,15 +16,21 @@ const brushIcon =
 export function RepositoryWelcomeRow({
 	path,
 	busy,
+	suggested = false,
 	onOpen,
 	onForget,
 	onMenu,
+	openRef,
+	onNavigate,
 }: {
 	path: string;
 	busy: boolean;
+	suggested?: boolean;
 	onOpen: (path: string) => void;
 	onForget: (path: string) => void;
 	onMenu: (path: string, event: EventPayload) => Promise<void>;
+	openRef?: Ref<PublicInstance>;
+	onNavigate?: (event: EventPayload) => void;
 }) {
 	const theme = useAppTheme();
 	const { tokens: appTokens } = theme;
@@ -66,12 +72,19 @@ export function RepositoryWelcomeRow({
 			}}
 		>
 			<Button
+				ref={openRef}
+				onKeyDown={onNavigate}
 				{...hoverEvents("open")}
 				{...focusEvents("open")}
 				tokens={appTokens}
 				variant="ghost"
 				testId={`welcome-repository-${path}`}
 				aria-label={`Open ${path}`}
+				aria-description={
+					suggested
+						? "Found on this Mac. Open to add to your repositories."
+						: undefined
+				}
 				disabled={busy}
 				onPress={() => onOpen(path)}
 				onContextMenu={(event) => {
@@ -89,7 +102,7 @@ export function RepositoryWelcomeRow({
 			>
 				<RepositoryAvatar
 					label={basename(path)}
-					source={{ path }}
+					source={suggested ? undefined : { path }}
 					testId={`welcome-avatar-${path}`}
 				/>
 				<div
@@ -127,6 +140,7 @@ export function RepositoryWelcomeRow({
 				</div>
 			</Button>
 			<Button
+				onKeyDown={onNavigate}
 				{...hoverEvents("remove")}
 				{...focusEvents("remove")}
 				tokens={appTokens}
@@ -134,7 +148,11 @@ export function RepositoryWelcomeRow({
 				size="sm"
 				testId={`welcome-forget-${path}`}
 				aria-label={`Remove ${path} from list`}
-				aria-description="Removes only the saved entry. Your repository folder is kept."
+				aria-description={
+					suggested
+						? "Hides this suggestion. Your repository folder is kept."
+						: "Removes only the saved entry. Your repository folder is kept."
+				}
 				disabled={busy}
 				onPress={() => onForget(path)}
 				style={{
