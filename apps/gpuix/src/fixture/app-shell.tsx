@@ -10,6 +10,7 @@ import { useMemo, useState, type ReactNode, type Ref } from "react";
 import type { PublicInstance } from "@gpuix/react";
 import { WorkspaceCornerContext } from "./workspace-corner";
 import { chromeGrainSource } from "./chrome-grain";
+import { RepositoryPatternLayer } from "../feature/repository-appearance/repository-pattern-layer";
 
 const themedStyles = createThemedStyles(({ colors: appColors }) => {
 	const styles = StyleSheet.create({
@@ -33,6 +34,7 @@ const themedStyles = createThemedStyles(({ colors: appColors }) => {
 			minHeight: 0,
 		},
 		body: {
+			position: "relative",
 			display: "flex",
 			flexDirection: "row",
 			flexGrow: 1,
@@ -137,6 +139,9 @@ export function AppShell({
 					{toolbar}
 				</WorkspaceCornerContext>
 				<div style={styles.body}>
+					{theme.repositoryPattern ? (
+						<RepositoryPatternLayer pattern={theme.repositoryPattern} />
+					) : null}
 					{rail}
 					<div
 						testId="workspace"

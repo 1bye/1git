@@ -4,17 +4,22 @@ import { Button } from "@1git/gpuix-ui/button";
 import { useAppTheme } from "../../styles/theme";
 import { RepositoryTheme } from "../../styles/repository-theme";
 import { RepositoryColors, repositoryColorPresets } from "./repository-colors";
+import {
+	repositoryPatternPresets,
+	type RepositoryAppearanceOptions,
+} from "./repository-patterns";
+import { repositoryPatternSources } from "./pattern-artwork";
 
 /** Immediate local repo appearance choices; Settings and tabs keep their normal palette. */
 export function RepositoryAppearance({
 	name,
 	color,
+	pattern,
 	onChange,
+	onPatternChange,
 }: {
 	name: string;
-	color?: string;
-	onChange: (color: string | undefined) => void;
-}) {
+} & RepositoryAppearanceOptions) {
 	const theme = useAppTheme();
 	const { tokens } = theme;
 	const [custom, setCustom] = useState(color ?? "");
@@ -43,10 +48,10 @@ export function RepositoryAppearance({
 					color: tokens.colors.text,
 				}}
 			>
-				Repository color
+				Repository appearance
 			</text>
 			<text style={{ ...typography.md, color: tokens.colors.textMuted }}>
-				{`Give ${name} its own workspace color. Saved on this device and shared by its worktrees. Tabs stay unchanged.`}
+				{`Give ${name} its own color and illustrated pattern. Saved on this device and shared by its worktrees. Tabs stay unchanged.`}
 			</text>
 			<div
 				role="group"
@@ -55,6 +60,7 @@ export function RepositoryAppearance({
 					display: "flex",
 					flexDirection: "row",
 					flexWrap: "wrap",
+					flexShrink: 0,
 					gap: spacing[2],
 					maxWidth: 480,
 				}}
@@ -105,6 +111,7 @@ export function RepositoryAppearance({
 					flexDirection: "column",
 					gap: spacing[2],
 					maxWidth: 440,
+					flexShrink: 0,
 				}}
 			>
 				<text style={{ ...typography.md, color: tokens.colors.textMuted }}>
@@ -184,11 +191,122 @@ export function RepositoryAppearance({
 				) : null}
 			</div>
 			<div
-				testId="repository-color-preview"
-				aria-label="Workspace color preview"
 				style={{
 					display: "flex",
 					flexDirection: "column",
+					gap: spacing[2],
+					maxWidth: 440,
+					flexShrink: 0,
+				}}
+			>
+				<text
+					role="heading"
+					aria-level={2}
+					style={{ ...typography.md, color: tokens.colors.textMuted }}
+				>
+					Pattern
+				</text>
+				<div
+					role="group"
+					aria-label="Repository pattern"
+					style={{
+						display: "flex",
+						flexDirection: "row",
+						flexWrap: "wrap",
+						gap: spacing[2],
+					}}
+				>
+					{repositoryPatternPresets.map((preset) => {
+						const selected = pattern === preset.id;
+						const palette = RepositoryTheme.create(theme, preset.color);
+
+						return (
+							<Button
+								key={preset.id}
+								testId={`repository-pattern-${preset.id}`}
+								aria-label={preset.name}
+								aria-pressed={selected}
+								aria-description={selected ? "Selected" : undefined}
+								tokens={tokens}
+								variant={selected ? "secondary" : "ghost"}
+								onPress={() => onPatternChange(preset.id)}
+								style={{
+									width: 200,
+									height: 108,
+									flexDirection: "column",
+									gap: spacing[2],
+									paddingLeft: 0,
+									paddingRight: 0,
+									paddingTop: 0,
+									paddingBottom: spacing[2],
+									overflowX: "hidden",
+									overflowY: "hidden",
+									borderColor: selected
+										? tokens.colors.accentBorder
+										: tokens.colors.border,
+								}}
+							>
+								<div
+									aria-hidden
+									style={{
+										position: "relative",
+										width: "100%",
+										height: 72,
+										flexShrink: 0,
+										overflowX: "hidden",
+										overflowY: "hidden",
+										backgroundColor: palette.colors.editorSunken2,
+										pointerEvents: "none",
+									}}
+								>
+									<svg
+										source={repositoryPatternSources[preset.id]}
+										style={{
+											position: "absolute",
+											top: 0,
+											left: 0,
+											width: 256,
+											height: 256,
+											color: palette.colors.brand,
+											opacity: 0.5,
+											pointerEvents: "none",
+										}}
+									/>
+								</div>
+								<text
+									style={{
+										...typography.md,
+										color: tokens.colors.text,
+										pointerEvents: "none",
+									}}
+								>{`${selected ? "✓ " : ""}${preset.name}`}</text>
+							</Button>
+						);
+					})}
+				</div>
+				<Button
+					testId="repository-pattern-reset"
+					aria-pressed={pattern === undefined}
+					tokens={tokens}
+					variant="ghost"
+					onPress={() => onPatternChange(undefined)}
+					style={{ alignSelf: "flex-start" }}
+				>
+					No pattern
+				</Button>
+				<text style={{ ...typography.sm, color: tokens.colors.textMuted }}>
+					Patterns use your repository color. Changing the pattern keeps your
+					color unchanged.
+				</text>
+			</div>
+			<div
+				testId="repository-color-preview"
+				aria-label="Workspace color preview"
+				style={{
+					position: "relative",
+					display: "flex",
+					flexDirection: "column",
+					flexShrink: 0,
 					gap: spacing[3],
 					maxWidth: 440,
 					padding: spacing[4],
@@ -196,8 +314,26 @@ export function RepositoryAppearance({
 					backgroundColor: preview.colors.editorSurface,
 					borderWidth: 1,
 					borderColor: tokens.colors.border,
+					overflowX: "hidden",
+					overflowY: "hidden",
 				}}
 			>
+				{pattern ? (
+					<svg
+						aria-hidden
+						source={repositoryPatternSources[pattern]}
+						style={{
+							position: "absolute",
+							top: 0,
+							left: 0,
+							width: 256,
+							height: 256,
+							color: preview.colors.brand,
+							opacity: 0.12,
+							pointerEvents: "none",
+						}}
+					/>
+				) : null}
 				<text style={{ ...typography.md, color: preview.colors.editorInk }}>
 					Workspace preview
 				</text>
@@ -239,7 +375,8 @@ export function RepositoryAppearance({
 			</div>
 			<text style={{ ...typography.sm, color: tokens.colors.textMuted }}>
 				Diff colors, syntax highlighting, errors and warnings keep their
-				original meanings. Reset restores the default appearance.
+				original meanings. Reset restores the default color; No pattern removes
+				the artwork.
 			</text>
 		</div>
 	);

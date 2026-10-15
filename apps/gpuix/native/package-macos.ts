@@ -82,6 +82,13 @@ try {
 		executable,
 	]);
 	await copyFile(nativeLibrary, addon);
+	await copyFile(
+		resolve(
+			appDirectory,
+			"src/feature/repository-appearance/pattern-artwork.LICENSE"
+		),
+		resolve(resources, "RepositoryPatterns.LICENSE")
+	);
 	await copyImageRuntime(resources);
 	await embedSparkle(contents, run);
 

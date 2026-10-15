@@ -10,6 +10,7 @@ import type { AppAppearance } from "../../../styles/tokens";
 import { AppTermination } from "../../../app-termination";
 import type { RepositoryColorChoices } from "../../repository-appearance/repository-colors";
 import type { RepositoryDiscoveryPreferences } from "../../repository-discovery/repository-discovery";
+import type { RepositoryPatternChoices } from "../../repository-appearance/repository-patterns";
 
 /** Saves only changed session intent; flushes the latest rendered draft on unmount and normal process exit. */
 export function useWorkspaceSession(
@@ -21,7 +22,8 @@ export function useWorkspaceSession(
 	commitTypeBadges?: boolean,
 	onboarding?: OnboardingStep,
 	repositoryColors?: RepositoryColorChoices,
-	repositoryDiscovery?: RepositoryDiscoveryPreferences
+	repositoryDiscovery?: RepositoryDiscoveryPreferences,
+	repositoryPatterns?: RepositoryPatternChoices
 ) {
 	const content =
 		state.preview || !save
@@ -34,7 +36,8 @@ export function useWorkspaceSession(
 						commitTypeBadges,
 						onboarding,
 						repositoryColors,
-						repositoryDiscovery
+						repositoryDiscovery,
+						repositoryPatterns
 					)
 				);
 

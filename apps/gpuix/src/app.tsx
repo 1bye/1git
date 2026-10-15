@@ -2,6 +2,10 @@ import { AppThemeContext, appThemes, useAppTheme } from "./styles/theme";
 import type { AppAppearance } from "./styles/tokens";
 import { RepositoryTheme } from "./styles/repository-theme";
 import { RepositoryColors } from "./feature/repository-appearance/repository-colors";
+import {
+	RepositoryPatterns,
+	type RepositoryPattern,
+} from "./feature/repository-appearance/repository-patterns";
 import { RepositoryDiscovery } from "./feature/repository-discovery/repository-discovery";
 import { useRepositoryDiscovery } from "./feature/repository-discovery/use-repository-discovery";
 import { spacing, typography } from "@1git/design-tokens";
@@ -434,6 +438,10 @@ function AppContent({
 		RepositoryColors.parse(initialSession?.repositoryColors)
 	);
 
+	const [repositoryPatterns, setRepositoryPatterns] = useState(() =>
+		RepositoryPatterns.parse(initialSession?.repositoryPatterns)
+	);
+
 	const [discoveryPreferences, setDiscoveryPreferences] = useState(() =>
 		RepositoryDiscovery.preferences(initialSession?.repositoryDiscovery)
 	);
@@ -455,7 +463,8 @@ function AppContent({
 		theme.commitTypeBadges,
 		onboarding,
 		repositoryColors,
-		discoveryPreferences
+		discoveryPreferences,
+		repositoryPatterns
 	);
 
 	const connection = useRepositoryConnection(
@@ -528,19 +537,32 @@ function AppContent({
 		? repositoryColors[commonDirectory]
 		: undefined;
 
+	const repositoryPattern = commonDirectory
+		? repositoryPatterns[commonDirectory]
+		: undefined;
+
 	const repositoryAppearance = commonDirectory
 		? {
 				color: repositoryColor,
+				pattern: repositoryPattern,
 				onChange: (color: string | undefined) =>
 					setRepositoryColors((choices) =>
 						RepositoryColors.set(choices, commonDirectory, color)
 					),
+				onPatternChange: (pattern: RepositoryPattern | undefined) => {
+					setRepositoryPatterns((choices) =>
+						RepositoryPatterns.set(choices, commonDirectory, pattern)
+					);
+				},
 			}
 		: undefined;
 
 	const repositoryTheme = useMemo(
-		() => ({ ...theme, ...RepositoryTheme.create(theme, repositoryColor) }),
-		[theme, repositoryColor]
+		() => ({
+			...theme,
+			...RepositoryTheme.create(theme, repositoryColor, repositoryPattern),
+		}),
+		[theme, repositoryColor, repositoryPattern]
 	);
 
 	const publishTab = state.tabs.find(

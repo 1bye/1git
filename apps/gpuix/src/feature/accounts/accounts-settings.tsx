@@ -48,6 +48,7 @@ import type { ExternalEditors } from "../editor-settings/external-editors";
 import { AppearanceSettings } from "../appearance-settings/appearance-settings";
 import { AiSettings, type AiSettingsHandle } from "../ai/ai-settings";
 import { RepositoryAppearance } from "../repository-appearance/repository-appearance";
+import type { RepositoryAppearanceOptions } from "../repository-appearance/repository-patterns";
 
 const sidebarWidth = 200;
 const contentPadding = spacing[4];
@@ -145,10 +146,7 @@ export function AccountsSettings({
 	onRepositoryView?: (view: RepositoryView) => void;
 	initialSection?: SettingsSection;
 	repositorySettings?: { root: string; name: string; disabled: boolean };
-	repositoryAppearance?: {
-		color?: string;
-		onChange: (color: string | undefined) => void;
-	};
+	repositoryAppearance?: RepositoryAppearanceOptions;
 	readGitSettings?: typeof GitSettingsModel.read;
 	writeGitSettings?: typeof GitSettingsModel.write;
 	externalEditors?: ExternalEditors;
@@ -474,7 +472,13 @@ export function AccountsSettings({
 								[
 									["repository-remotes", "Remotes", "branch"],
 									...(repositoryAppearance
-										? [["repository-appearance", "Color", "sparkle"] as const]
+										? [
+												[
+													"repository-appearance",
+													"Appearance",
+													"sparkle",
+												] as const,
+											]
 										: []),
 									["repository-identity", "Commit identity", "userCircle"],
 								] as const
@@ -535,9 +539,8 @@ export function AccountsSettings({
 			  repositoryAppearance ? (
 				<RepositoryAppearance
 					key={repositorySettings.root}
+					{...repositoryAppearance}
 					name={repositorySettings.name}
-					color={repositoryAppearance.color}
-					onChange={repositoryAppearance.onChange}
 				/>
 			) : section !== "accounts" ? (
 				<GitSettings

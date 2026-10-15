@@ -8,6 +8,10 @@ import {
 	RepositoryColors,
 	type RepositoryColorChoices,
 } from "../../repository-appearance/repository-colors";
+import {
+	RepositoryPatterns,
+	type RepositoryPatternChoices,
+} from "../../repository-appearance/repository-patterns";
 import { RepositoryWorkspaceModel } from "../../repository-workspace/lib/repository-workspace-model";
 import type { WorkspaceTabsState } from "./workspace-tabs-model";
 import type { RepositoryView } from "../../repository-workspace/types";
@@ -46,6 +50,7 @@ export interface WorkspaceSessionDocument {
 	readonly appearance?: AppAppearance;
 	readonly commitTypeBadges?: boolean;
 	readonly repositoryColors?: RepositoryColorChoices;
+	readonly repositoryPatterns?: RepositoryPatternChoices;
 	readonly onboarding?: OnboardingStep;
 }
 
@@ -159,6 +164,10 @@ export class WorkspaceSession {
 		const diffSettings = WorkspaceSession.diffSettings(value.diffSettings);
 		const repositoryColors = RepositoryColors.parse(value.repositoryColors);
 
+		const repositoryPatterns = RepositoryPatterns.parse(
+			value.repositoryPatterns
+		);
+
 		const repositoryDiscovery = RepositoryDiscovery.preferences(
 			value.repositoryDiscovery
 		);
@@ -180,6 +189,7 @@ export class WorkspaceSession {
 				: {}),
 			...(diffSettings ? { diffSettings } : {}),
 			...(Object.keys(repositoryColors).length ? { repositoryColors } : {}),
+			...(Object.keys(repositoryPatterns).length ? { repositoryPatterns } : {}),
 			...(repositoryDiscovery.folders.length ||
 			repositoryDiscovery.hidden.length
 				? { repositoryDiscovery }
@@ -214,7 +224,8 @@ export class WorkspaceSession {
 		commitTypeBadges?: boolean,
 		onboarding?: OnboardingStep,
 		repositoryColors?: RepositoryColorChoices,
-		repositoryDiscovery?: RepositoryDiscoveryPreferences
+		repositoryDiscovery?: RepositoryDiscoveryPreferences,
+		repositoryPatterns?: RepositoryPatternChoices
 	): WorkspaceSessionDocument {
 		return {
 			version: 1,
@@ -228,6 +239,9 @@ export class WorkspaceSession {
 				: {}),
 			...(repositoryColors && Object.keys(repositoryColors).length
 				? { repositoryColors }
+				: {}),
+			...(repositoryPatterns && Object.keys(repositoryPatterns).length
+				? { repositoryPatterns }
 				: {}),
 			...(state.recentRepositories !== undefined
 				? { recentRepositories: state.recentRepositories }

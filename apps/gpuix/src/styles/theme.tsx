@@ -1,5 +1,6 @@
 import { createContext, useContext } from "react";
 import type { UiTokens } from "@1git/gpuix-ui/tokens";
+import type { RepositoryPattern } from "../feature/repository-appearance/repository-patterns";
 import {
 	appColors,
 	appControlTokens,
@@ -13,6 +14,7 @@ export interface AppTheme {
 	readonly colors: AppColors;
 	readonly tokens: UiTokens;
 	readonly repositoryColor?: string;
+	readonly repositoryPattern?: RepositoryPattern;
 }
 
 export const appThemes: Readonly<Record<AppAppearance, AppTheme>> = {

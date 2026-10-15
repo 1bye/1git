@@ -194,12 +194,17 @@ on breaking prefixes. Ordinary or unrecognized messages stay untouched; selectio
 search, copying and history-editing actions always use the original Git message.
 This is presentation only: no Git metadata is changed or fetched for the badges.
 
-Settings → Repository → **Color** adds an opt-in workspace accent for the active
+Settings → Repository → **Appearance** adds an opt-in workspace accent for the active
 repository: eight named swatches, a validated six-digit hex field, and Reset.
+Illustrated **Rose**, **Seaside**, **Forest** and **Cosmic** SVG presets add scattered
+themed motifs behind the colored chrome. Patterns use the current repository color;
+selecting or removing a pattern never changes that color. **No pattern** removes only the
+artwork. Existing sessions keep their colors and have no pattern until one is chosen.
 While a repository is active, the rail's Settings gear opens a native dropdown
 with shortcuts to Appearance, Accounts, AI, Remotes and Commit identity.
 Its **Repository color** submenu applies named presets or restores the default
-without leaving the workspace. **Custom color…** opens the full color page;
+without leaving the workspace. **Repository pattern** selects a wallpaper or removes
+it in place; **Choose pattern…** opens the visual preset picker. **Custom color…** opens the full appearance page;
 **All Settings…** and Command-comma open Settings normally. Home and Settings
 keep direct gear navigation. Cancelling the menu changes nothing.
 Choices are saved only in the local session, keyed by Git's common directory so
@@ -209,6 +214,11 @@ The repo palette tints native-blurred chrome, controls, selection surfaces and a
 faint content wash. A single cached static SVG mask adds visible, fine grain
 beneath chrome controls, never over code. Its density and light/dark opacity keep
 it readable over the blur without animation, filters or an input target.
+Illustrations repeat one fixed 256 × 256 SVG tile per preset, shared across colors
+and window sizes rather than rasterizing a window-sized wallpaper. The layer ignores
+pointer input, is hidden from accessibility, and leaves the native blurred material
+and opaque content surfaces intact. Lucide/Feather motif notices ship in
+`RepositoryPatterns.LICENSE` inside the macOS bundle.
 Tabs, Home and Settings stay on their existing palette. Diff red/green rails,
 syntax, errors and other semantic colors are unchanged. Palette changes preserve
 the mounted editor, checked changes, selected file and native diff scroll.

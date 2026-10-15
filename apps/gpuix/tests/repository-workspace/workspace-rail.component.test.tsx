@@ -369,6 +369,7 @@ it("does not activate disabled navigation, settings or accounts during setup ope
 			onAddAccount={onSettings}
 			repositoryAppearance={{
 				onChange: onColorChange,
+				onPatternChange: () => {},
 			}}
 		/>
 	);
@@ -402,6 +403,7 @@ it("opens featured settings from a dropdown instead of showing the color editor"
 			onAddAccount={() => {}}
 			repositoryAppearance={{
 				onChange: () => {},
+				onPatternChange: () => {},
 			}}
 		/>
 	);
@@ -423,7 +425,7 @@ it("dismisses without changes, handles keyboard color choices and falls back to 
 			accounts={f.accounts}
 			onSettings={onSettings}
 			onAddAccount={() => {}}
-			repositoryAppearance={{ onChange }}
+			repositoryAppearance={{ onChange, onPatternChange: () => {} }}
 		/>
 	);
 	click("rail-settings");

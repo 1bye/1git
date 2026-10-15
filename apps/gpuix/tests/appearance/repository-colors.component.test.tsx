@@ -74,6 +74,7 @@ function ColorSettingsProbe({
 		<AppThemeContext value={{ ...appThemes.dark, commitTypeBadges: true }}>
 			<RepositoryAppearance
 				name="Test repository"
+				onPatternChange={() => {}}
 				color={color}
 				onChange={(next) => {
 					setColor(next);
@@ -253,6 +254,11 @@ it.each(["light", "dark"] as const)(
 
 			menu.mockReturnValueOnce({ kind: "color", color: "#a478ef" });
 			await click(root, "rail-settings");
+			menu.mockReturnValueOnce({ kind: "pattern", pattern: "rose" });
+			await click(root, "rail-settings");
+			expect(node(root, "repository-pattern-layer").style.pointerEvents).toBe(
+				"none"
+			);
 			expect(root.renderer.findByTestId("settings-view")).toBeUndefined();
 			const screenshot = process.env.GPUIX_REPO_COLOR_SCREENSHOT;
 
@@ -270,17 +276,45 @@ it.each(["light", "dark"] as const)(
 			expect(node(root, "settings-view").style.backgroundColor).toBe(
 				"transparent"
 			);
+			root.renderer.nativeSimulateKeyDown(
+				node(root, "repository-pattern-rose").id,
+				"enter"
+			);
+			await settle(root);
+			expect(
+				node(root, "repository-color-violet").customProps?.["aria-description"]
+			).toBe("Selected");
+			expect(node(root, "repository-color-custom").customProps?.value).toBe(
+				"#a478ef"
+			);
+			expect(
+				node(root, "repository-pattern-rose").customProps?.["aria-description"]
+			).toBe("Selected");
+			root.renderer.nativeSimulateKeyDown(
+				node(root, "repository-pattern-cosmic").id,
+				"enter"
+			);
+			await settle(root);
+			expect(
+				node(root, "repository-color-violet").customProps?.["aria-description"]
+			).toBe("Selected");
 
-			if (screenshot)
+			if (screenshot) {
+				root.renderer.scrollTo(node(root, "repository-appearance").id, 0, -210);
+				root.renderer.flush();
 				root.renderer.captureScreenshot(
 					`${screenshot}-${appearance}-settings.png`
 				);
+			}
 
 			await Bun.sleep(230);
 			root.renderer.flush();
 			expect(saved.at(-1)?.repositoryColors).toEqual({
 				"/test/project/.git": "#a478ef",
 				"/test/other/.git": "#46b8b3",
+			});
+			expect(saved.at(-1)?.repositoryPatterns).toEqual({
+				"/test/project/.git": "cosmic",
 			});
 			await click(root, "view-changes");
 			const themed = RepositoryTheme.create(appThemes[appearance], "#a478ef");
@@ -357,6 +391,9 @@ it.each(["light", "dark"] as const)(
 			expect(draw.p90Ms).toBeLessThan(12);
 
 			await click(root, "workspace-2");
+			expect(
+				root.renderer.findByTestId("repository-pattern-layer")
+			).toBeUndefined();
 			expect(node(root, "app-shell").style.backgroundColor).toBe(
 				RepositoryTheme.create(appThemes[appearance], "#46b8b3").colors.chrome
 			);
@@ -364,6 +401,7 @@ it.each(["light", "dark"] as const)(
 				"Other draft"
 			);
 			await click(root, "workspace-3");
+			expect(node(root, "repository-pattern-layer")).toBeDefined();
 			expect(node(root, "app-shell").style.backgroundColor).toBe(
 				themed.colors.chrome
 			);
@@ -371,6 +409,9 @@ it.each(["light", "dark"] as const)(
 				"Linked draft"
 			);
 			await click(root, "workspace-home");
+			expect(
+				root.renderer.findByTestId("repository-pattern-layer")
+			).toBeUndefined();
 			expect(node(root, "app-shell").style.backgroundColor).toBe("transparent");
 			expect(
 				root.renderer.findByTestId("repository-chrome-grain")
@@ -395,6 +436,14 @@ it.each(["light", "dark"] as const)(
 			expect(node(root, "commit-message").customProps?.value).toBe(
 				"Keep main draft"
 			);
+			menu.mockReturnValueOnce({ kind: "pattern", pattern: "rose" });
+			await click(root, "rail-settings");
+			expect(node(root, "app-shell").style.backgroundColor).toBe("transparent");
+			menu.mockReturnValueOnce({ kind: "pattern", pattern: undefined });
+			await click(root, "rail-settings");
+			expect(
+				root.renderer.findByTestId("repository-pattern-layer")
+			).toBeUndefined();
 			root.renderer.simulateKeystrokes("cmd-,");
 			await settle(root);
 			expect(node(root, "settings-view")).toBeDefined();

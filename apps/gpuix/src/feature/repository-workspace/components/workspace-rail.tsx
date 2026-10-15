@@ -33,6 +33,7 @@ import {
 	type WorkspaceSettingsChoice,
 } from "../lib/workspace-settings-menu";
 import type { SettingsSection } from "../../accounts/accounts-settings";
+import type { RepositoryAppearanceOptions } from "../../repository-appearance/repository-patterns";
 import { repositoryViews, type RepositoryView } from "../types";
 
 export const workspaceRailWidth = 48;
@@ -207,9 +208,10 @@ export function WorkspaceRail({
 	/** Settings owns a live list; use it immediately after connecting/removing an account. */
 	savedAccounts?: readonly SavedAccount[];
 	/** Omitted on Home/Settings; those gears retain direct Settings access. */
-	repositoryAppearance?: {
-		onChange: (color: string | undefined) => void;
-	};
+	repositoryAppearance?: Pick<
+		RepositoryAppearanceOptions,
+		"onChange" | "onPatternChange"
+	>;
 	/** Repository-wide actions sit above the navigation group. */
 	children?: ReactNode;
 }) {
@@ -308,7 +310,10 @@ export function WorkspaceRail({
 			await new Promise<void>((resolve) => setTimeout(resolve, 0));
 			const choice = NativeFileMenu.showItems<WorkspaceSettingsChoice>(
 				renderer,
-				WorkspaceSettingsMenu.items(theme.repositoryColor),
+				WorkspaceSettingsMenu.items(
+					theme.repositoryColor,
+					theme.repositoryPattern
+				),
 				bounds.x + bounds.width,
 				bounds.y
 			);
@@ -316,6 +321,8 @@ export function WorkspaceRail({
 			renderer.focusElement?.(button.id);
 
 			if (choice?.kind === "color") repositoryAppearance.onChange(choice.color);
+			else if (choice?.kind === "pattern")
+				repositoryAppearance.onPatternChange(choice.pattern);
 			else if (choice?.kind === "settings") onSettings(choice.section);
 		} catch {
 			// Settings stays reachable if this native build cannot show grouped menus.

@@ -1,5 +1,9 @@
 import type { AppTheme } from "./theme";
 import { RepositoryColors } from "../feature/repository-appearance/repository-colors";
+import {
+	RepositoryPatterns,
+	type RepositoryPattern,
+} from "../feature/repository-appearance/repository-patterns";
 
 /** Derives a restrained repo palette once per choice; semantic Git and syntax colors are untouched. */
 export class RepositoryTheme {
@@ -36,10 +40,15 @@ export class RepositoryTheme {
 		return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
 	}
 
-	static create(base: AppTheme, candidate?: string): AppTheme {
+	static create(
+		base: AppTheme,
+		candidate?: string,
+		patternChoice?: RepositoryPattern
+	): AppTheme {
 		const color = RepositoryColors.color(candidate);
+		const pattern = RepositoryPatterns.pattern(patternChoice);
 
-		if (!color) return base;
+		if (!color) return pattern ? { ...base, repositoryPattern: pattern } : base;
 
 		const dark = base.appearance === "dark";
 
@@ -89,6 +98,7 @@ export class RepositoryTheme {
 		return {
 			...base,
 			repositoryColor: color,
+			repositoryPattern: pattern,
 			colors,
 			tokens: {
 				...base.tokens,
