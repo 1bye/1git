@@ -4,7 +4,7 @@ import type { HostingProvider } from "@1git/hosting/provider";
 import { parseRemote } from "@1git/hosting/remote";
 import { GitHubProvider } from "@1git/hosting/providers/github";
 import { GitLabProvider } from "@1git/hosting/providers/gitlab";
-import sharp from "sharp";
+import { imageProcessor } from "./image-processing";
 
 const cacheLimit = 256;
 const imageLimit = 1024 * 1024;
@@ -338,7 +338,7 @@ export class RepositoryAvatars {
 				await reader.cancel();
 			}
 
-			const thumbnail = await sharp(Buffer.concat(chunks), {
+			const thumbnail = await imageProcessor(Buffer.concat(chunks), {
 				limitInputPixels: 16 * 1024 * 1024,
 			})
 				.resize(64, 64, { fit: "cover" })

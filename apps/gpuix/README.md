@@ -1669,7 +1669,7 @@ scrolling while using GPUIX's virtualized list; no additional diff library is ne
   that the new preview is opening. A cold, slow read has a delayed loading state.
   Conflict actions remain disabled while a different file is opening.
 - Each window owns one shared preview LRU, retained across view/tab switches:
-  **128 entries / 32 MiB estimated retained bytes**, whichever is reached first.
+  **128 entries / 16 MiB estimated retained bytes**, whichever is reached first.
   The budget includes patch strings, prepared image data, retained SVG source and
   a conservative bitmap estimate, not a hard limit on total process/GPU memory.
   Status snapshots invalidate working previews even when Git status letters are
@@ -1796,6 +1796,10 @@ hot reload cannot replace a loaded addon. This bridge is macOS-only.
   The subtle transparency checkerboard is composed into preview pixels only,
   never the source file. Saxes validates SVG XML before decoding. No WebView or
   browser renderer is introduced and no native GPUIX rebuild is required.
+  Avatars and previews share a **16 MiB / 32-operation libvips cache** instead
+  of Sharp's 50 MiB / 100-operation default. Cache eviction changes reuse, not
+  image resolution, pixel output, blur or rendering; decoder allocations and
+  GPU memory are separate.
 - SVGs rasterize from vectors at the fitted viewport resolution, not their small
   intrinsic bitmap size. GPUIX 0.10 exposes logical bounds but no display scale;
   this macOS app uses a bounded **2× backing** for both Retina and 1× displays.

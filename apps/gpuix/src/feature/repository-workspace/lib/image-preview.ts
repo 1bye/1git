@@ -1,6 +1,6 @@
 import type { FileContent } from "@1git/git";
 import { SaxesParser } from "saxes";
-import sharp from "sharp";
+import { imageProcessor } from "./image-processing";
 
 /** Bounds repository-owned image input and the bitmap sent to GPUIX. */
 export const imageLimits = {
@@ -175,7 +175,7 @@ export class ImagePreviewDecoder {
 
 		if (!raster) ImagePreviewDecoder.validateSvg(bytes);
 
-		let decoder = sharp(bytes, {
+		let decoder = imageProcessor(bytes, {
 			limitInputPixels: imageLimits.pixels,
 			failOn: "warning",
 			density: svgBaseDensity,
@@ -223,7 +223,7 @@ export class ImagePreviewDecoder {
 			previewHeight = Math.max(1, Math.round(height * scale));
 			logicalWidth = width * fit;
 			// Rasterize vectors at the target resolution; resizing a natural-size bitmap loses detail.
-			decoder = sharp(bytes, {
+			decoder = imageProcessor(bytes, {
 				limitInputPixels: imageLimits.pixels,
 				failOn: "warning",
 				density: Math.max(1, svgBaseDensity * scale),
@@ -261,7 +261,7 @@ export class ImagePreviewDecoder {
 			`<svg xmlns="http://www.w3.org/2000/svg" width="${tileWidth}" height="${tileHeight}"><rect width="100%" height="100%" fill="#fafafa"/><path d="M0 0h${square}v${square}H0zM${square} ${square}h${square}v${square}H${square}z" fill="#eeeeef"/></svg>`
 		);
 
-		const pixels = await sharp({
+		const pixels = await imageProcessor({
 			create: {
 				width: preview.info.width,
 				height: preview.info.height,

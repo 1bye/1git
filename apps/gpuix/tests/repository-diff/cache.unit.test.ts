@@ -206,6 +206,49 @@ it("budgets prepared image pixels, base64 and retained SVG source", async () => 
 	cache.dispose();
 });
 
+it("keeps the default preview budget within 16 MiB without dropping oversized results", async () => {
+	const reader = mock<typeof RepositoryDiff.read>(async (_root, change) => ({
+		ok: true,
+		value: [
+			{
+				...diffSection("working"),
+				image: {
+					before: null,
+					after: {
+						image: {
+							src: "data:image/png;base64,AAAA",
+							width: change.path === "large.png" ? 2048 : 1024,
+							height: change.path === "large.png" ? 2048 : 1024,
+							sizeBytes: 10,
+						},
+						error: null,
+					},
+					svg: false,
+				},
+			},
+		],
+	}));
+
+	const cache = new RepositoryPreviewCache(reader);
+
+	try {
+		for (const path of ["a.png", "b.png", "c.png", "d.png"])
+			await cache.read(request(path), signal());
+
+		expect(cache.peek(request("a.png"))).toBeUndefined();
+		expect(cache.peek(request("b.png"))).toBeDefined();
+		expect(cache.peek(request("c.png"))).toBeDefined();
+		expect(cache.peek(request("d.png"))).toBeDefined();
+		const large = await cache.read(request("large.png"), signal());
+
+		expect(large.ok && large.value[0]?.image?.after?.image?.width).toBe(2048);
+		expect(cache.peek(request("large.png"))).toBeUndefined();
+		expect(cache.peek(request("d.png"))).toBeDefined();
+	} finally {
+		cache.dispose();
+	}
+});
+
 it("preloads serially and lets foreground selection adopt an in-flight neighbour", async () => {
 	const pending =
 		Promise.withResolvers<Awaited<ReturnType<typeof RepositoryDiff.read>>>();

@@ -1,5 +1,5 @@
 /**
- * Covers: bounded image decoding, display-sized SVG pixels, orientation, transparency and static SVG resource policy.
+ * Covers: image-processing cache budgets, bounded decoding, display-sized SVG pixels, orientation, transparency and static SVG resource policy.
  * Real: Sharp and Saxes with in-memory image content.
  * Doubles: no repository, network or native UI.
  * Requires: installed Sharp platform binary.
@@ -15,6 +15,11 @@ import {
 	rasterContent,
 	svgContent,
 } from "../_shared/image-content";
+
+it("bounds the shared image-processing cache to 16 MiB and 32 operations", () => {
+	expect(sharp.cache().memory.max).toBe(16);
+	expect(sharp.cache().items.max).toBe(32);
+});
 
 it("prepares PNG, JPEG, WebP and full-color SVG with original dimensions and byte sizes", async () => {
 	for (const content of [

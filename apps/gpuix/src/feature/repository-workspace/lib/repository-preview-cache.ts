@@ -27,7 +27,7 @@ interface Pending {
 	consumers: number;
 }
 
-const previewBytes = 32 * 1024 * 1024;
+const previewBytes = 16 * 1024 * 1024;
 const previewCount = 128;
 const intentDelayMs = 80;
 
