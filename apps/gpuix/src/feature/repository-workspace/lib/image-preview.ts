@@ -231,16 +231,17 @@ export class ImagePreviewDecoder {
 		}
 
 		signal.throwIfAborted();
-		const preview = await decoder
-			.autoOrient()
-			.resize({
-				width: previewWidth,
-				height: previewHeight,
-				fit: "inside",
-				withoutEnlargement: !svg,
-			})
-			.png()
-			.toBuffer({ resolveWithObject: true });
+		const resized = decoder.autoOrient().resize({
+			width: previewWidth,
+			height: previewHeight,
+			fit: "inside",
+			withoutEnlargement: !svg,
+		});
+
+		// Pass alpha pixels straight to composition instead of encoding and decoding an intermediate PNG.
+		const preview = await (
+			metadata.hasAlpha ? resized.raw() : resized.png()
+		).toBuffer({ resolveWithObject: true });
 
 		signal.throwIfAborted();
 
@@ -282,7 +283,14 @@ export class ImagePreviewDecoder {
 		})
 			.composite([
 				{ input: checker, tile: true, gravity: "northwest" },
-				{ input: preview.data },
+				{
+					input: preview.data,
+					raw: {
+						width: preview.info.width,
+						height: preview.info.height,
+						channels: preview.info.channels,
+					},
+				},
 			])
 			.png()
 			.toBuffer();

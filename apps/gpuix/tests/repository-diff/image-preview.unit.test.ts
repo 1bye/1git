@@ -1,5 +1,5 @@
 /**
- * Covers: image-processing budgets, opaque pixel equivalence, bounded decoding, display-sized SVG pixels, orientation, transparency and static SVG resource policy.
+ * Covers: image-processing budgets, opaque/transparent pixel equivalence, bounded decoding, display-sized SVG pixels, orientation, transparency and static SVG resource policy.
  * Real: Sharp and Saxes with in-memory image content.
  * Doubles: no repository, network or native UI.
  * Requires: installed Sharp platform binary.
@@ -92,6 +92,62 @@ it("shows transparency over a subtle checkerboard and handles tiny images", asyn
 		expect(pixel[3]).toBe(255);
 		expect(pixel[0]).toBeGreaterThanOrEqual(238);
 		expect(pixel[0]).toBeLessThanOrEqual(250);
+	}
+});
+
+it("preserves every composited pixel for RGBA, grayscale-alpha and high-depth images", async () => {
+	const source = Buffer.from(
+		Array.from({ length: 32 * 16 * 4 }, (_, offset) => (offset * 43) % 256)
+	);
+
+	const rgba = sharp(source, {
+		raw: { width: 32, height: 16, channels: 4 },
+	});
+
+	const checker = Buffer.from(
+		'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="100%" height="100%" fill="#fafafa"/><path d="M0 0h8v8H0zM8 8h8v8H8z" fill="#eeeeef"/></svg>'
+	);
+
+	for (const bytes of [
+		await rgba.clone().png().toBuffer(),
+		await rgba.clone().webp({ lossless: true }).toBuffer(),
+		await rgba.clone().toColourspace("b-w").png().toBuffer(),
+		await rgba.clone().toColourspace("rgb16").png().toBuffer(),
+	]) {
+		// The previous PNG round-trip is the reference for alpha blending and color conversion.
+		const intermediate = await sharp(bytes).png().toBuffer();
+
+		const expected = await sharp({
+			create: {
+				width: 32,
+				height: 16,
+				channels: 4,
+				background: "#fafafa",
+			},
+		})
+			.composite([
+				{ input: checker, tile: true, gravity: "northwest" },
+				{ input: intermediate },
+			])
+			.png()
+			.toBuffer();
+
+		const image = await ImagePreviewDecoder.prepare(
+			{
+				content: bytes.toString("base64"),
+				encoding: "base64",
+				sizeBytes: bytes.length,
+				path: "alpha.png",
+				revision: "TEST",
+			},
+			new AbortController().signal
+		);
+
+		const actual = Buffer.from(image.src.split(",")[1] ?? "", "base64");
+
+		expect(await sharp(actual).ensureAlpha().raw().toBuffer()).toEqual(
+			await sharp(expected).ensureAlpha().raw().toBuffer()
+		);
 	}
 });
 
