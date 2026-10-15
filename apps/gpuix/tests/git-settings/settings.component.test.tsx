@@ -25,6 +25,7 @@ import {
 import type { CommitIdentity } from "@1git/hosting/contracts";
 import { appTokens } from "../../src/styles/tokens";
 import { Accounts } from "../../src/feature/accounts/lib/accounts";
+import { NativeFileMenu } from "../../src/feature/repository-workspace/lib/native-file-menu";
 
 let root: TestRoot;
 let data: GitSettingsData;
@@ -717,8 +718,11 @@ it("reports a successful config save with a failed repository refresh without lo
 	await settle();
 	await click("open-repository");
 	await type("commit-message", "draft");
+	spyOn(NativeFileMenu, "showItems").mockReturnValueOnce({
+		kind: "settings",
+		section: "repository-identity",
+	});
 	await click("rail-settings");
-	await click("settings-repository-identity");
 	await click("identity-edit");
 	readRepository.mockImplementation(async () => {
 		throw new Error("Refresh failed");

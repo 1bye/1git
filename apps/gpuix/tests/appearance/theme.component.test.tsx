@@ -18,6 +18,7 @@ import {
 } from "../../src/styles/tokens";
 import { darkDiffTheme } from "../../src/styles/dark-diff-theme";
 import { windowOptions } from "../../src/window-options";
+import { NativeFileMenu } from "../../src/feature/repository-workspace/lib/native-file-menu";
 import {
 	changedFile,
 	repositorySnapshot,
@@ -175,6 +176,20 @@ async function settle(root: TestRoot): Promise<void> {
 	}
 }
 
+async function openSettings(root: TestRoot): Promise<void> {
+	const menu = spyOn(NativeFileMenu, "showItems").mockReturnValueOnce({
+		kind: "settings",
+		section: "accounts",
+	});
+
+	try {
+		click(root, "rail-settings");
+		await settle(root);
+	} finally {
+		menu.mockRestore();
+	}
+}
+
 it("switches in Settings without losing a draft, selected file, inclusion or diff scroll and saves the choice", async () => {
 	const { root, saved, reads, catalog, nativeAppearances } = fixture();
 
@@ -190,8 +205,7 @@ it("switches in Settings without losing a draft, selected file, inclusion or dif
 	const scroll = root.renderer.getScrollOffset(content);
 	const count = reads();
 
-	click(root, "rail-settings");
-	await settle(root);
+	await openSettings(root);
 	click(root, "settings-appearance");
 	click(root, "appearance-dark");
 	await settle(root);
@@ -276,8 +290,7 @@ it("switches in Settings without losing a draft, selected file, inclusion or dif
 	if (process.env.GPUIX_DARK_SCREENSHOT)
 		root.renderer.captureScreenshot(process.env.GPUIX_DARK_SCREENSHOT);
 
-	click(root, "rail-settings");
-	await settle(root);
+	await openSettings(root);
 	click(root, "settings-appearance");
 	click(root, "appearance-light");
 	click(root, "view-changes");
@@ -312,8 +325,7 @@ it("toggles and persists commit badges in Appearance without reloading history o
 		await settle(root);
 		const reads = historyReads();
 
-		click(root, "rail-settings");
-		await settle(root);
+		await openSettings(root);
 		click(root, "settings-appearance");
 		expect(
 			node(root, "appearance-commit-type-badges").customProps?.["aria-checked"]
@@ -347,8 +359,7 @@ it("toggles and persists commit badges in Appearance without reloading history o
 		);
 		expect(historyReads()).toBe(reads);
 
-		click(root, "rail-settings");
-		await settle(root);
+		await openSettings(root);
 		click(root, "settings-appearance");
 		click(root, "appearance-commit-type-badges");
 		await Bun.sleep(230);
@@ -383,8 +394,7 @@ it("restores disabled badges from a saved session", async () => {
 		expect(root.renderer.getAllText()).toContain(
 			"refactor(db): generate schema baseline"
 		);
-		click(root, "rail-settings");
-		await settle(root);
+		await openSettings(root);
 		click(root, "settings-appearance");
 		expect(
 			node(root, "appearance-commit-type-badges").customProps?.["aria-checked"]
@@ -420,8 +430,7 @@ it("supports keyboard selection without leaking appearance into another session"
 	const first = fixture("dark");
 
 	await settle(first.root);
-	click(first.root, "rail-settings");
-	await settle(first.root);
+	await openSettings(first.root);
 	click(first.root, "settings-appearance");
 	first.root.renderer.nativeSimulateKeyDown(
 		node(first.root, "appearance-light").id,

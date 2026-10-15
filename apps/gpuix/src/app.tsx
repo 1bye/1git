@@ -519,6 +519,16 @@ function AppContent({
 		? repositoryColors[commonDirectory]
 		: undefined;
 
+	const repositoryAppearance = commonDirectory
+		? {
+				color: repositoryColor,
+				onChange: (color: string | undefined) =>
+					setRepositoryColors((choices) =>
+						RepositoryColors.set(choices, commonDirectory, color)
+					),
+			}
+		: undefined;
+
 	const repositoryTheme = useMemo(
 		() => ({ ...theme, ...RepositoryTheme.create(theme, repositoryColor) }),
 		[theme, repositoryColor]
@@ -798,13 +808,17 @@ function AppContent({
 					rail={
 						settingsOpen || onboardingOpen ? undefined : (
 							<WorkspaceRail
+								repositoryAppearance={repositoryAppearance}
 								settingsButtonRef={railSettingsButton}
 								accountButtonRef={railAccountButton}
 								viewButtonRefs={railViewButtons}
 								accounts={accounts}
 								preferredAccountKey={preferredAccountKey}
 								onAccount={setPreferredAccountKey}
-								onSettings={openSettings}
+								onSettings={(section = "accounts") => {
+									openSettings();
+									setSettingsSection(section);
+								}}
 								onAddAccount={() => openSettings("connect")}
 								view={repositoryView}
 								onView={selectRepositoryView}
@@ -1509,17 +1523,7 @@ function AppContent({
 								: undefined
 						}
 						readGitSettings={readGitSettings}
-						repositoryAppearance={
-							commonDirectory
-								? {
-										color: repositoryColor,
-										onChange: (color) =>
-											setRepositoryColors((choices) =>
-												RepositoryColors.set(choices, commonDirectory, color)
-											),
-									}
-								: undefined
-						}
+						repositoryAppearance={repositoryAppearance}
 						writeGitSettings={mutations.saveSettings}
 					>
 						{closeNotice}

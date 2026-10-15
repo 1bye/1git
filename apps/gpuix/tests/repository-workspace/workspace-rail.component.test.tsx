@@ -356,6 +356,8 @@ it("does not activate disabled navigation, settings or accounts during setup ope
 	const menu = spyOn(NativeFileMenu, "show").mockReturnValue(0);
 	const onSettings = mock();
 	const onView = mock();
+	const onColorChange = mock();
+	const settingsMenu = spyOn(NativeFileMenu, "showItems");
 
 	root.render(
 		<WorkspaceRail
@@ -365,6 +367,9 @@ it("does not activate disabled navigation, settings or accounts during setup ope
 			disabled
 			onSettings={onSettings}
 			onAddAccount={onSettings}
+			repositoryAppearance={{
+				onChange: onColorChange,
+			}}
 		/>
 	);
 	click("rail-settings");
@@ -375,9 +380,68 @@ it("does not activate disabled navigation, settings or accounts during setup ope
 	key("view-changes", "down");
 	expect(onSettings).not.toHaveBeenCalled();
 	expect(onView).not.toHaveBeenCalled();
+	expect(onColorChange).not.toHaveBeenCalled();
+	expect(settingsMenu).not.toHaveBeenCalled();
 	expect(menu).not.toHaveBeenCalled();
 	expect(element("rail-account").customProps?.tabIndex).toBeUndefined();
 	expect(element("rail-account").style.opacity).toBe(0.45);
+});
+
+it("opens featured settings from a dropdown instead of showing the color editor", async () => {
+	const onSettings = mock();
+
+	const menu = spyOn(NativeFileMenu, "showItems").mockReturnValue({
+		kind: "settings",
+		section: "appearance",
+	});
+
+	root.render(
+		<WorkspaceRail
+			accounts={f.accounts}
+			onSettings={onSettings}
+			onAddAccount={() => {}}
+			repositoryAppearance={{
+				onChange: () => {},
+			}}
+		/>
+	);
+	click("rail-settings");
+	click("rail-settings");
+	await settle();
+	expect(menu).toHaveBeenCalledTimes(1);
+	expect(onSettings).toHaveBeenCalledWith("appearance");
+	expect(root.renderer.findByTestId("repository-color-custom")).toBeUndefined();
+});
+
+it("dismisses without changes, handles keyboard color choices and falls back to Settings if native menus fail", async () => {
+	const onSettings = mock();
+	const onChange = mock();
+	const menu = spyOn(NativeFileMenu, "showItems").mockReturnValue(undefined);
+
+	root.render(
+		<WorkspaceRail
+			accounts={f.accounts}
+			onSettings={onSettings}
+			onAddAccount={() => {}}
+			repositoryAppearance={{ onChange }}
+		/>
+	);
+	click("rail-settings");
+	await settle();
+	expect(onSettings).not.toHaveBeenCalled();
+	expect(onChange).not.toHaveBeenCalled();
+	expect(root.renderer.getFocusedElementId()).toBe(element("rail-settings").id);
+	menu.mockReturnValueOnce({ kind: "color", color: "#a478ef" });
+	key("rail-settings", "space");
+	await settle();
+	expect(onChange).toHaveBeenCalledWith("#a478ef");
+	expect(onSettings).not.toHaveBeenCalled();
+	menu.mockImplementationOnce(() => {
+		throw new Error("No grouped menus");
+	});
+	key("rail-settings", "enter");
+	await settle();
+	expect(onSettings).toHaveBeenCalledTimes(1);
 });
 
 it("reflects the Settings-owned account list immediately without remounting controls", () => {

@@ -196,6 +196,12 @@ This is presentation only: no Git metadata is changed or fetched for the badges.
 
 Settings → Repository → **Color** adds an opt-in workspace accent for the active
 repository: eight named swatches, a validated six-digit hex field, and Reset.
+While a repository is active, the rail's Settings gear opens a native dropdown
+with shortcuts to Appearance, Accounts, AI, Remotes and Commit identity.
+Its **Repository color** submenu applies named presets or restores the default
+without leaving the workspace. **Custom color…** opens the full color page;
+**All Settings…** and Command-comma open Settings normally. Home and Settings
+keep direct gear navigation. Cancelling the menu changes nothing.
 Choices are saved only in the local session, keyed by Git's common directory so
 linked worktrees share them; closing a tab does not discard the choice. Existing
 sessions and repositories without a color retain the default palette.

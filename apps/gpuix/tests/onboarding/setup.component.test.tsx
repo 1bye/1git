@@ -16,6 +16,7 @@ import type { WorkspaceSessionDocument } from "../../src/feature/workspace-tabs/
 import { hostingRepositories } from "../_shared/hosting-repositories";
 import { repositorySnapshot } from "../_shared/repository-snapshot";
 import { windowOptions } from "../../src/window-options";
+import { NativeFileMenu } from "../../src/feature/repository-workspace/lib/native-file-menu";
 
 let root: TestRoot;
 let f: ReturnType<typeof hostingRepositories>;
@@ -710,6 +711,10 @@ it("leaves older sessions alone, offers replay in Settings and preserves the act
 	);
 	await settle();
 	expect(root.renderer.findByTestId("onboarding-view")).toBeUndefined();
+	spyOn(NativeFileMenu, "showItems").mockReturnValueOnce({
+		kind: "settings",
+		section: "accounts",
+	});
 	await click("rail-settings");
 	await click("settings-run-setup");
 	expect(node("onboarding-view")).toBeDefined();

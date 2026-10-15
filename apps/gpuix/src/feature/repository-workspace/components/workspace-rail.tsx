@@ -12,6 +12,7 @@ import {
 	type StyleDesc,
 	type PublicInstance,
 } from "@gpuix/react";
+import { setRefs } from "@gpuix/react/floating";
 import {
 	Tooltip,
 	TooltipContent,
@@ -27,6 +28,11 @@ import {
 import type { Accounts } from "../../accounts/lib/accounts";
 import { accountProviderIcons } from "../../accounts/account-provider-icons";
 import { NativeFileMenu } from "../lib/native-file-menu";
+import {
+	WorkspaceSettingsMenu,
+	type WorkspaceSettingsChoice,
+} from "../lib/workspace-settings-menu";
+import type { SettingsSection } from "../../accounts/accounts-settings";
 import { repositoryViews, type RepositoryView } from "../types";
 
 export const workspaceRailWidth = 48;
@@ -89,9 +95,10 @@ function RailAction({
 
 	const [focused, setFocused] = useState(false);
 	const [pointerFocus, setPointerFocus] = useState(false);
+	const highlighted = selected || props["aria-expanded"] === true;
 
 	return (
-		<Tooltip>
+		<Tooltip open={props["aria-expanded"] === true ? false : undefined}>
 			<TooltipTrigger asChild>
 				<div
 					{...props}
@@ -117,7 +124,7 @@ function RailAction({
 					}}
 					style={StyleSheet.compose(
 						actionStyle,
-						selected && {
+						highlighted && {
 							backgroundColor: theme.repositoryColor
 								? appTokens.colors.accent
 								: appColors.editorHairline,
@@ -135,7 +142,7 @@ function RailAction({
 							color:
 								focused && !pointerFocus
 									? appColors.brand
-									: selected
+									: highlighted
 										? theme.repositoryColor
 											? appColors.brand
 											: appColors.editorInk
@@ -182,6 +189,7 @@ export function WorkspaceRail({
 	accountButtonRef,
 	viewButtonRefs,
 	savedAccounts,
+	repositoryAppearance,
 	children,
 }: {
 	view?: RepositoryView;
@@ -189,7 +197,7 @@ export function WorkspaceRail({
 	accounts: Accounts;
 	preferredAccountKey?: string;
 	onAccount?: (key: string) => void;
-	onSettings: () => void;
+	onSettings: (section?: SettingsSection) => void;
 	onAddAccount: () => void;
 	settingsActive?: boolean;
 	disabled?: boolean;
@@ -198,6 +206,10 @@ export function WorkspaceRail({
 	viewButtonRefs?: RefObject<Map<RepositoryView, PublicInstance>>;
 	/** Settings owns a live list; use it immediately after connecting/removing an account. */
 	savedAccounts?: readonly SavedAccount[];
+	/** Omitted on Home/Settings; those gears retain direct Settings access. */
+	repositoryAppearance?: {
+		onChange: (color: string | undefined) => void;
+	};
 	/** Repository-wide actions sit above the navigation group. */
 	children?: ReactNode;
 }) {
@@ -208,6 +220,9 @@ export function WorkspaceRail({
 	const localButtons = useRef(new Map<RepositoryView, PublicInstance>());
 	const buttons = viewButtonRefs ?? localButtons;
 	const accountButton = useRef<PublicInstance>(null);
+	const settingsButton = useRef<PublicInstance>(null);
+	const settingsTracking = useRef(false);
+	const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
 	const [catalog, setCatalog] = useState(() => readCatalog(accounts));
 
 	const saved = savedAccounts ?? catalog.saved;
@@ -268,6 +283,46 @@ export function WorkspaceRail({
 				...current,
 				error: "Account menu unavailable. Open Settings with Command comma.",
 			});
+		}
+	};
+
+	const chooseSettings = async (): Promise<void> => {
+		if (disabled || settingsTracking.current) return;
+
+		if (!repositoryAppearance || settingsActive) {
+			onSettings();
+
+			return;
+		}
+
+		const button = settingsButton.current;
+		const bounds = button && renderer.getElementBounds?.(button.id);
+
+		if (!bounds) return;
+
+		settingsTracking.current = true;
+		setSettingsMenuOpen(true);
+
+		try {
+			// Paint the active gear before AppKit enters its synchronous menu tracking loop.
+			await new Promise<void>((resolve) => setTimeout(resolve, 0));
+			const choice = NativeFileMenu.showItems<WorkspaceSettingsChoice>(
+				renderer,
+				WorkspaceSettingsMenu.items(theme.repositoryColor),
+				bounds.x + bounds.width,
+				bounds.y
+			);
+
+			renderer.focusElement?.(button.id);
+
+			if (choice?.kind === "color") repositoryAppearance.onChange(choice.color);
+			else if (choice?.kind === "settings") onSettings(choice.section);
+		} catch {
+			// Settings stays reachable if this native build cannot show grouped menus.
+			onSettings();
+		} finally {
+			settingsTracking.current = false;
+			setSettingsMenuOpen(false);
 		}
 	};
 
@@ -385,15 +440,31 @@ export function WorkspaceRail({
 					style={{ flexGrow: 1, width: "100%" }}
 				/>
 				<RailAction
-					ref={settingsButtonRef}
+					ref={(node) => setRefs(node, settingsButton, settingsButtonRef)}
 					testId="rail-settings"
 					role="button"
-					label="Settings (Command comma)"
+					aria-haspopup={
+						repositoryAppearance && !settingsActive ? "menu" : undefined
+					}
+					aria-expanded={
+						repositoryAppearance && !settingsActive
+							? settingsMenuOpen
+							: undefined
+					}
+					label={
+						repositoryAppearance && !settingsActive
+							? "Workspace settings (Command comma opens Settings)"
+							: "Settings (Command comma)"
+					}
 					icon={icons.settings}
 					selected={settingsActive}
 					disabled={disabled}
-					onClick={onSettings}
-					onKeyDown={actionKey(onSettings)}
+					onClick={() => {
+						void chooseSettings();
+					}}
+					onKeyDown={actionKey(() => {
+						void chooseSettings();
+					})}
 				/>
 				<RailAction
 					ref={(node) => {

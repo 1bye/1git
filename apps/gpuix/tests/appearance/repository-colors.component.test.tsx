@@ -1,7 +1,7 @@
 /**
- * Covers: native color settings, custom input/reset, worktree inheritance, neutral tabs/Home/Settings and retained editing/scroll.
+ * Covers: native settings shortcuts/color submenu, custom input/reset, worktree inheritance, neutral tabs/Home/Settings and retained editing/scroll.
  * Real: App, palette/session models and GPUIX rendering/input.
- * Doubles: repositories, diffs, account catalog, editor discovery and session saves; no real preferences, Git writes or accounts.
+ * Doubles: repositories, diffs, account catalog, editor discovery, OS menu choices and session saves; no real preferences, Git writes or accounts.
  * Requires: patched native addon and macOS graphics access.
  */
 import { afterEach, expect, it, spyOn } from "bun:test";
@@ -24,6 +24,7 @@ import { windowOptions } from "../../src/window-options";
 import { useState } from "react";
 import { RepositoryAppearance } from "../../src/feature/repository-appearance/repository-appearance";
 import { AppThemeContext } from "../../src/styles/theme";
+import { NativeFileMenu } from "../../src/feature/repository-workspace/lib/native-file-menu";
 
 const roots = new Set<TestRoot>();
 
@@ -157,6 +158,7 @@ it.each(["light", "dark"] as const)(
 		);
 
 		const catalog = spyOn(accounts, "load").mockReturnValue([]);
+		const menu = spyOn(NativeFileMenu, "showItems").mockReturnValue(undefined);
 
 		const snapshot = repositorySnapshot([
 			changedFile("example.ts"),
@@ -249,16 +251,25 @@ it.each(["light", "dark"] as const)(
 
 			const tabSource = node(root, "surface-workspace-1").customProps?.source;
 
+			menu.mockReturnValueOnce({ kind: "color", color: "#a478ef" });
 			await click(root, "rail-settings");
-			await click(root, "settings-repository-appearance");
-			await click(root, "repository-color-violet");
+			expect(root.renderer.findByTestId("settings-view")).toBeUndefined();
+			const screenshot = process.env.GPUIX_REPO_COLOR_SCREENSHOT;
+
+			expect(root.renderer.getFocusedElementId()).toBe(
+				node(root, "rail-settings").id
+			);
+			menu.mockReturnValueOnce({
+				kind: "settings",
+				section: "repository-appearance",
+			});
+			await click(root, "rail-settings");
 			expect(
 				node(root, "repository-color-violet").customProps?.["aria-description"]
 			).toBe("Selected");
 			expect(node(root, "settings-view").style.backgroundColor).toBe(
 				"transparent"
 			);
-			const screenshot = process.env.GPUIX_REPO_COLOR_SCREENSHOT;
 
 			if (screenshot)
 				root.renderer.captureScreenshot(
@@ -366,15 +377,35 @@ it.each(["light", "dark"] as const)(
 			).toBeUndefined();
 			await click(root, "workspace-1");
 			await click(root, "rail-settings");
-			await click(root, "settings-repository-appearance");
-			await click(root, "repository-color-reset");
-			await click(root, "view-changes");
+			expect(root.renderer.findByTestId("settings-view")).toBeUndefined();
+			expect(
+				node(root, "entry-example.ts").customProps?.["aria-selected"]
+			).toBe(true);
+			menu.mockReturnValueOnce({ kind: "color", color: undefined });
+			root.renderer.nativeSimulateKeyDown(
+				node(root, "rail-settings").id,
+				"space"
+			);
+			root.renderer.nativeSimulateKeyUp(
+				node(root, "rail-settings").id,
+				"space"
+			);
+			await settle(root);
 			expect(node(root, "app-shell").style.backgroundColor).toBe("transparent");
 			expect(node(root, "commit-message").customProps?.value).toBe(
 				"Keep main draft"
 			);
+			root.renderer.simulateKeystrokes("cmd-,");
+			await settle(root);
+			expect(node(root, "settings-view")).toBeDefined();
+			root.renderer.simulateKeystrokes("escape");
+			await settle(root);
+			expect(root.renderer.getFocusedElementId()).toBe(
+				node(root, "rail-settings").id
+			);
 		} finally {
 			catalog.mockRestore();
+			menu.mockRestore();
 		}
 	}
 );
