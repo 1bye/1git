@@ -80,10 +80,10 @@ export class SignedPublisherRequests {
 
 	async send(
 		key: string,
-		method: "GET" | "PUT" | "DELETE",
+		method: "GET" | "HEAD" | "PUT" | "DELETE",
 		options: Pick<RequestInit, "body" | "headers"> = {}
 	): Promise<Response> {
-		if (method === "GET")
+		if (method === "GET" || method === "HEAD")
 			throw new Error(
 				"Publisher writes only; use profile-authenticated reads."
 			);

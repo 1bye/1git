@@ -95,6 +95,10 @@ Cloudflare tokens are not used as a silent replacement for your selected profile
 Dry-run reads local stack outputs but does not load profiles or make Cloudflare,
 R2, or public-download requests. Real publishing authenticates through Alchemy's
 normal profile reader, including OAuth refresh, for Cloudflare R2 object reads.
+Stored ETags and byte counts come from the authenticated, exact-key metadata
+listing, not the object download's HTTP headers, which compression can weaken.
+The body read must match that metadata's ETag and byte count; missing or changed
+objects abort publication. Only the stored ETag is used for conditional writes.
 Writes go through the separately deployed publisher, not the REST upload API:
 the latter was verified live to ignore conditional uploads. No API tokens are
 created/revoked, no S3 keys are derived, and no second profile is required.

@@ -1,5 +1,5 @@
 /**
- * Covers: conditional HTTP uploads, duplicate ZIPs, simultaneous publishers and fail-closed preflight.
+ * Covers: stored metadata versus weak GET validators, conditional uploads, duplicate ZIPs, simultaneous publishers and fail-closed preflight.
  * Real: Bun HTTP transport, storage adapter, publisher and local artifact verification.
  * Doubles: profile authentication and R2/public server semantics; no Cloudflare account or real uploads.
  * Requires: loopback network access only; no credentials.
@@ -82,7 +82,12 @@ it("preserves immutable ZIPs and lets only one simultaneous publisher replace th
 
 			const data = objects.get(key);
 
-			if (race && authenticated && key === "appcast.xml") {
+			if (
+				race &&
+				authenticated &&
+				request.method === "GET" &&
+				key === "appcast.xml"
+			) {
 				raceReads += 1;
 
 				if (raceReads === 2) barrier.resolve();
@@ -91,7 +96,15 @@ it("preserves immutable ZIPs and lets only one simultaneous publisher replace th
 			}
 
 			return data
-				? new Response(data.bytes, { headers: { ETag: data.etag } })
+				? new Response(request.method === "HEAD" ? null : data.bytes, {
+						headers: {
+							ETag:
+								authenticated && request.method === "GET"
+									? `W/${data.etag}`
+									: data.etag,
+							"Content-Length": String(data.bytes.byteLength),
+						},
+					})
 				: new Response(null, { status: 404 });
 		},
 	});
@@ -138,7 +151,7 @@ it("preserves immutable ZIPs and lets only one simultaneous publisher replace th
 		);
 
 		expect(releaseEvents).toEqual([
-			"GET:profile:appcast.xml",
+			"HEAD:profile:appcast.xml",
 			"PUT:profile:1git-0.0.2-macos-arm64.zip",
 			"GET:public:1git-0.0.2-macos-arm64.zip",
 			"PUT:profile:appcast.xml",

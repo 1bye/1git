@@ -81,19 +81,57 @@ export class R2ReleaseStorage implements ReleaseStorage {
 	}
 
 	private async readObject(key: string): Promise<PublishedFeed | null> {
-		const response = await this.request(key, "GET");
+		const metadata = await this.request(key, "HEAD");
 
-		if (response.status === 404) return null;
+		if (metadata.status === 404) return null;
+
+		if (!metadata.ok)
+			throw this.responseError(
+				metadata,
+				"Could not read published object metadata"
+			);
+
+		const etag = metadata.headers.get("etag");
+
+		if (!etag || !/^"[^"\r\n]+"$/u.test(etag))
+			throw new Error(
+				"Published object metadata has no strong ETag; refusing a non-atomic replacement."
+			);
+
+		const length = metadata.headers.get("content-length");
+		const expectedSize = Number(length);
+
+		if (
+			length === null ||
+			!/^\d+$/u.test(length) ||
+			!Number.isSafeInteger(expectedSize)
+		)
+			throw new Error("Published object metadata has no valid byte count.");
+
+		if (expectedSize > 1024 * 1024)
+			throw new Error("Published feed exceeds the 1 MiB limit.");
+
+		const response = await this.request(key, "GET", {
+			headers: { "If-Match": etag },
+		});
 
 		if (!response.ok)
 			throw this.responseError(response, "Could not read the published object");
 
-		const etag = response.headers.get("etag");
+		const transferEtag = response.headers.get("etag");
 
-		if (!etag || !/^"[^"\r\n]+"$/u.test(etag) || !response.body)
+		// Compression may weaken GET's validator; only stored metadata authorizes writes.
+		if (
+			response.status !== 200 ||
+			!response.body ||
+			(transferEtag !== etag && transferEtag !== `W/${etag}`)
+		) {
+			await response.body?.cancel();
+
 			throw new Error(
-				"Published object has no ETag/body; refusing a non-atomic replacement."
+				"Published object changed while reading; retry the release."
 			);
+		}
 
 		const chunks: Uint8Array[] = [];
 		let size = 0;
@@ -106,6 +144,11 @@ export class R2ReleaseStorage implements ReleaseStorage {
 
 			chunks.push(chunk);
 		}
+
+		if (size !== expectedSize)
+			throw new Error(
+				"Published object size does not match its stored metadata."
+			);
 
 		return { bytes: Buffer.concat(chunks), etag };
 	}

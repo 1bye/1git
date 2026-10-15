@@ -1,5 +1,5 @@
 /**
- * Covers: saved destinations, profile-authenticated object requests, OAuth refresh and account isolation.
+ * Covers: saved destinations, profile-authenticated object metadata/bytes, OAuth refresh and account isolation.
  * Real: Alchemy local state/profile reader and existing credential resolver.
  * Doubles: isolated profile/state files and captured HTTP; no live Cloudflare calls.
  * Requires: none.
@@ -70,6 +70,11 @@ for (const method of ["stored", "oauth"] as const) {
 		const file = resolve(directory, "profiles/personal/cloudflare.json");
 		const events: string[] = [];
 		const requests: Request[] = [];
+		const objectEtag = "0123456789abcdef0123456789abcdef";
+
+		let metadataResult: unknown[] = [
+			{ key: "appcast.xml", etag: objectEtag, size: 12 },
+		];
 
 		const profileValues =
 			method === "stored"
@@ -116,9 +121,8 @@ for (const method of ["stored", "oauth"] as const) {
 
 				expect(url.hostname).toBe("api.cloudflare.com");
 				expect(url.pathname).toStartWith(
-					`/client/v4/accounts/${target.accountId}/r2/buckets/${target.bucket}/objects/`
+					`/client/v4/accounts/${target.accountId}/r2/buckets/${target.bucket}/objects`
 				);
-				expect(url.search).toBe("");
 				expect(request.headers.get("authorization")).toBe(
 					method === "stored"
 						? "Bearer synthetic-profile-token"
@@ -127,9 +131,25 @@ for (const method of ["stored", "oauth"] as const) {
 				expect(request.headers.get("cf-r2-jurisdiction")).toBe("eu");
 				expect(request.redirect).toBe("error");
 				requests.push(request);
+
+				if (url.pathname.endsWith("/objects")) {
+					expect(request.method).toBe("GET");
+					expect(url.searchParams.get("prefix")).toBe("appcast.xml");
+					expect(url.searchParams.get("per_page")).toBe("1");
+					events.push("metadata");
+
+					return Response.json({
+						success: true,
+						result: metadataResult,
+					});
+				}
+
+				expect(url.search).toBe("");
 				events.push(request.method);
 
-				return new Response("object bytes", { headers: { ETag: '"object"' } });
+				return new Response("object bytes", {
+					headers: { ETag: `W/"${objectEtag}"` },
+				});
 			},
 			{ preconnect: () => {} }
 		);
@@ -181,6 +201,12 @@ for (const method of ["stored", "oauth"] as const) {
 
 			expect(
 				await run(async (request) => {
+					const metadata = await request("appcast.xml", "HEAD");
+
+					expect(metadata.status).toBe(200);
+					expect(metadata.body).toBeNull();
+					expect(metadata.headers.get("etag")).toBe(`"${objectEtag}"`);
+					expect(metadata.headers.get("content-length")).toBe("12");
 					await request("appcast.xml", "GET");
 					await request("1git-0.0.2-macos-arm64.zip", "PUT", {
 						body: new Blob(["zip bytes"]),
@@ -196,13 +222,13 @@ for (const method of ["stored", "oauth"] as const) {
 			).toBe("published");
 			expect(events).toEqual(
 				method === "stored"
-					? ["GET", "PUT:publisher", "PUT:publisher"]
-					: ["refresh", "GET", "PUT:publisher", "PUT:publisher"]
+					? ["metadata", "GET", "PUT:publisher", "PUT:publisher"]
+					: ["refresh", "metadata", "GET", "PUT:publisher", "PUT:publisher"]
 			);
-			expect(requests[1]?.headers.get("if-none-match")).toBe("*");
-			expect(requests[2]?.headers.get("if-match")).toBe('"previous"');
-			expect(await requests[1]?.text()).toBe("zip bytes");
-			expect(await requests[2]?.text()).toBe("signed feed");
+			expect(requests[2]?.headers.get("if-none-match")).toBe("*");
+			expect(requests[3]?.headers.get("if-match")).toBe('"previous"');
+			expect(await requests[2]?.text()).toBe("zip bytes");
+			expect(await requests[3]?.text()).toBe("signed feed");
 
 			await expect(
 				run(async () => {
@@ -220,7 +246,39 @@ for (const method of ["stored", "oauth"] as const) {
 			await expect(
 				run(async () => "must not publish", target.accountId, "missing")
 			).rejects.toThrow();
-			expect(requests).toHaveLength(3);
+			expect(requests).toHaveLength(4);
+
+			for (const metadata of [
+				{ key: "appcast.xml", etag: `W/"${objectEtag}"`, size: 12 },
+				{ key: "appcast.xml", etag: null, size: 12 },
+				{ key: "appcast.xml", etag: objectEtag, size: -1 },
+				{ key: "appcast.xml", etag: objectEtag, size: 1.5 },
+				{ key: "appcast.xml", etag: objectEtag },
+			]) {
+				metadataResult = [metadata];
+				await expect(
+					run(async (request) => await request("appcast.xml", "HEAD"))
+				).rejects.toThrow("R2 request failed");
+			}
+
+			for (const missing of [
+				[],
+				[{ key: "appcast.xml.backup", etag: objectEtag, size: 12 }],
+			]) {
+				metadataResult = missing;
+
+				await run(async (request) => {
+					const response = await request("appcast.xml", "HEAD");
+
+					expect(response.status).toBe(404);
+				});
+			}
+
+			expect(
+				requests.filter(
+					(request) => new URL(request.url).hostname === "publisher.test"
+				)
+			).toHaveLength(2);
 
 			const saved = await Bun.file(file).text();
 

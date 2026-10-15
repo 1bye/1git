@@ -9,6 +9,10 @@ import {
 	DEFAULT_API_BASE_URL,
 	formatHeaders,
 } from "@distilled.cloud/cloudflare/Credentials";
+import {
+	listBucketObjects,
+	type CloudflareOpContext,
+} from "@distilled.cloud/cloudflare/r2";
 import * as BunServices from "@effect/platform-bun/BunServices";
 import * as ConfigProvider from "effect/ConfigProvider";
 import * as Effect from "effect/Effect";
@@ -28,10 +32,10 @@ export interface ReleaseTarget {
 	publicKey?: string;
 }
 
-/** Profile-authenticated object requests restricted to the saved release bucket. */
+/** Profile-authenticated reads restricted to the saved bucket; HEAD uses stored R2 metadata, not transfer ETags. */
 export type ReleaseObjectRequest = (
 	key: string,
-	method: "GET" | "PUT" | "DELETE",
+	method: "GET" | "HEAD" | "PUT" | "DELETE",
 	options?: Pick<RequestInit, "body" | "headers">
 ) => Promise<Response>;
 
@@ -200,6 +204,7 @@ export const withReleaseProfileRequest = <A>(
 
 		const credentials = yield* Credentials;
 		const request = yield* FetchHttpClient.Fetch;
+		const metadataContext = yield* Effect.context<CloudflareOpContext>();
 		const objectPrefix = `${DEFAULT_API_BASE_URL}/accounts/${target.accountId}/r2/buckets/${encodeURIComponent(target.bucket)}/objects/`;
 
 		const send: ReleaseObjectRequest = async (key, method, options = {}) => {
@@ -210,7 +215,7 @@ export const withReleaseProfileRequest = <A>(
 			)
 				throw new Error("Invalid release object key.");
 
-			if (method !== "GET") {
+			if (method !== "GET" && method !== "HEAD") {
 				if (!write)
 					throw new Error(
 						"A signed conditional publisher is required for writes."
@@ -224,6 +229,43 @@ export const withReleaseProfileRequest = <A>(
 
 				if (resolved.apiBaseUrl !== DEFAULT_API_BASE_URL)
 					throw new Error("Unexpected Cloudflare API origin.");
+
+				if (method === "HEAD") {
+					const listing = await Effect.runPromiseWith(metadataContext)(
+						listBucketObjects({
+							accountId: target.accountId,
+							bucketName: target.bucket,
+							cfR2Jurisdiction: target.jurisdiction,
+							prefix: key,
+							perPage: 1,
+						}).pipe(
+							Effect.provideService(FetchHttpClient.RequestInit, {
+								redirect: "error",
+							}),
+							Effect.timeout(120000)
+						)
+					);
+
+					const object = listing.result.find((item) => item.key === key);
+
+					if (!object) return new Response(null, { status: 404 });
+
+					if (
+						typeof object.etag !== "string" ||
+						!/^[a-f\d]+(?:-\d+)?$/iu.test(object.etag) ||
+						typeof object.size !== "number" ||
+						!Number.isSafeInteger(object.size) ||
+						object.size < 0
+					)
+						throw new Error("Invalid stored R2 object metadata.");
+
+					return new Response(null, {
+						headers: {
+							ETag: `"${object.etag}"`,
+							"Content-Length": String(object.size),
+						},
+					});
+				}
 
 				const headers = new Headers(options.headers);
 

@@ -59,6 +59,12 @@ it("signs the exact object, body hash and overwrite condition without sending pr
 		body: new Blob(["signed feed"]),
 		headers: { "If-Match": '"previous"' },
 	});
+
+	for (const method of ["GET", "HEAD"] as const)
+		await expect(client.send("appcast.xml", method)).rejects.toThrow(
+			"Publisher writes only"
+		);
+
 	await expect(client.send("appcast.xml", "DELETE")).rejects.toThrow(
 		"Only test objects"
 	);
