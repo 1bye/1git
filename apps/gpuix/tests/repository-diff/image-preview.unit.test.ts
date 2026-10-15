@@ -1,5 +1,5 @@
 /**
- * Covers: image-processing cache budgets, bounded decoding, display-sized SVG pixels, orientation, transparency and static SVG resource policy.
+ * Covers: image-processing budgets, opaque pixel equivalence, bounded decoding, display-sized SVG pixels, orientation, transparency and static SVG resource policy.
  * Real: Sharp and Saxes with in-memory image content.
  * Doubles: no repository, network or native UI.
  * Requires: installed Sharp platform binary.
@@ -39,6 +39,44 @@ it("prepares PNG, JPEG, WebP and full-color SVG with original dimensions and byt
 		expect(image.src).toStartWith("data:image/png;base64,");
 		expect((await previewPixel(image.src))[0]).toBeGreaterThan(240);
 		expect((await previewPixel(image.src))[1]).toBeLessThan(15);
+	}
+});
+
+it("keeps opaque raster pixels unchanged without adding a redundant alpha channel", async () => {
+	const source = Buffer.from(
+		Array.from({ length: 64 * 32 * 3 }, (_, offset) => (offset * 37) % 256)
+	);
+
+	for (const format of ["png", "jpeg", "webp"] as const) {
+		const bytes = await sharp(source, {
+			raw: { width: 64, height: 32, channels: 3 },
+		})
+			.toFormat(format)
+			.toBuffer();
+
+		const image = await ImagePreviewDecoder.prepare(
+			{
+				content: bytes.toString("base64"),
+				encoding: "base64",
+				sizeBytes: bytes.length,
+				path: `opaque.${format}`,
+				revision: "TEST",
+			},
+			new AbortController().signal
+		);
+
+		const output = Buffer.from(image.src.split(",")[1] ?? "", "base64");
+		const expected = await sharp(bytes).ensureAlpha().raw().toBuffer();
+
+		expect((await sharp(output).metadata()).hasAlpha).toBe(false);
+		expect(await sharp(output).ensureAlpha().raw().toBuffer()).toEqual(
+			expected
+		);
+		expect([image.width, image.height, image.sizeBytes]).toEqual([
+			64,
+			32,
+			bytes.length,
+		]);
 	}
 });
 

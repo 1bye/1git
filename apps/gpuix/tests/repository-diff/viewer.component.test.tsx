@@ -1068,9 +1068,9 @@ it("invalidates cached working pixels when a refresh changes content but not sta
 	expect(reader).toHaveBeenCalledTimes(2);
 });
 
-it("reuses prepared image previews synchronously when revisiting a file", async () => {
+it("reuses opaque image previews synchronously when revisiting a file", async () => {
 	const image = await ImagePreviewDecoder.prepare(
-		await rasterContent(),
+		await rasterContent("jpeg"),
 		new AbortController().signal
 	);
 
@@ -1085,17 +1085,17 @@ it("reuses prepared image previews synchronously when revisiting a file", async 
 		],
 	}));
 
-	showDiff(reader, "a.png");
+	showDiff(reader, "a.jpg");
 	await settle();
 	const pixels = imageSource();
 
-	showDiff(reader, "b.png");
+	showDiff(reader, "b.jpg");
 	await settle();
-	showDiff(reader, "a.png");
+	showDiff(reader, "a.jpg");
 
 	expect(imageSource()).toBe(pixels);
 	expect(element("image-after-pixels").customProps?.alt).toBe(
-		"Added version of a.png"
+		"Added version of a.jpg"
 	);
 	expect(root.renderer.findByTestId("diff-notice")).toBeUndefined();
 	await settle();

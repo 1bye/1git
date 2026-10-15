@@ -162,6 +162,11 @@ export abstract class HostingProvider {
 		return `${ref.owner}/${ref.name}`;
 	}
 
+	/** Validated thumbnail destination; providers without resizing keep the original image. */
+	avatarThumbnailUrl(value: unknown): string | null {
+		return this.avatarUrl(value);
+	}
+
 	/** Validate image destinations separately from API endpoints. Never accepts credentials or plaintext. */
 	avatarUrl(value: unknown): string | null {
 		if (typeof value !== "string" || value.length > 4096) return null;

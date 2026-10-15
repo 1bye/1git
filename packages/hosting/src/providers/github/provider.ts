@@ -13,6 +13,8 @@ import { GitHubOAuthAdapter } from "./oauth.js";
 import { GitHubDeviceOAuthAdapter } from "./device-oauth.js";
 import type { ProviderDeviceOAuthAdapter } from "../../provider.js";
 
+const avatarThumbnailPixels = 200;
+
 /** Configured GitHub/GitHub Enterprise account. Construct separate instances for distinct credentials. */
 export class GitHubProvider extends HostingProvider {
 	readonly id = "github";
@@ -49,6 +51,18 @@ export class GitHubProvider extends HostingProvider {
 
 	avatarCacheKey(ref: RepositoryRef): string {
 		return ref.owner.toLowerCase();
+	}
+
+	avatarThumbnailUrl(value: unknown): string | null {
+		const validated = this.avatarUrl(value);
+
+		if (!validated) return null;
+
+		const url = new URL(validated);
+
+		url.searchParams.set("s", String(avatarThumbnailPixels));
+
+		return url.href;
 	}
 
 	protected avatarHosts(web: URL): readonly string[] {

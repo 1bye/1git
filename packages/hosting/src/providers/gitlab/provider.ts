@@ -11,6 +11,9 @@ import { fail } from "../../result.js";
 import { GitLabAdapter } from "./adapter.js";
 import { GitLabOAuthAdapter } from "./oauth.js";
 
+// A supported GitLab scaler size with spare detail for the app's 64 px output.
+const avatarThumbnailPixels = 200;
+
 /** Configured GitLab.com/self-managed account with nested group namespaces. */
 export class GitLabProvider extends HostingProvider {
 	readonly id = "gitlab";
@@ -38,6 +41,18 @@ export class GitLabProvider extends HostingProvider {
 
 	createOAuthAdapter(http: Transport): ProviderOAuthAdapter {
 		return new GitLabOAuthAdapter(http);
+	}
+
+	avatarThumbnailUrl(value: unknown): string | null {
+		const validated = this.avatarUrl(value);
+
+		if (!validated) return null;
+
+		const url = new URL(validated);
+
+		url.searchParams.set("width", String(avatarThumbnailPixels));
+
+		return url.href;
 	}
 
 	async repositoryAvatar(

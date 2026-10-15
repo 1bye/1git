@@ -1800,6 +1800,11 @@ hot reload cannot replace a loaded addon. This bridge is macOS-only.
   of Sharp's 50 MiB / 100-operation default. Cache eviction changes reuse, not
   image resolution, pixel output, blur or rendering; decoder allocations and
   GPU memory are separate.
+  Opaque raster previews reuse their first lossless PNG directly, avoiding the
+  checkerboard composition and second PNG encode. Alpha-bearing images retain
+  the existing checkerboard path. Avatars request provider-sized 200 px variants
+  before the unchanged local 64 px PNG resize; hosts that ignore resizing still
+  use the same bounded download and decode fallback.
 - SVGs rasterize from vectors at the fitted viewport resolution, not their small
   intrinsic bitmap size. GPUIX 0.10 exposes logical bounds but no display scale;
   this macOS app uses a bounded **2× backing** for both Retina and 1× displays.

@@ -243,6 +243,17 @@ export class ImagePreviewDecoder {
 			.toBuffer({ resolveWithObject: true });
 
 		signal.throwIfAborted();
+
+		// Opaque pixels need neither a checkerboard nor a second PNG encode/decode.
+		if (!metadata.hasAlpha)
+			return {
+				src: `data:image/png;base64,${preview.data.toString("base64")}`,
+				width,
+				height,
+				sizeBytes: bytes.length,
+				...(svg ? { svg: content } : {}),
+			};
+
 		// Bake the transparency grid into preview pixels, not hundreds of retained UI cells.
 		const square = logicalWidth
 			? Math.min(

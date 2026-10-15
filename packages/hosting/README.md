@@ -50,6 +50,10 @@ an authenticated client instead. The caller owns thumbnail fetching/caching and 
 send API credentials to image origins. GPUIX supplies a bounded, window-local cache and
 initials fallback. New providers can override `repositoryAvatar`, `avatarCacheKey` and
 `avatarHosts`; the defaults require no changes to existing provider implementations.
+`provider.avatarThumbnailUrl(url)` validates a destination and requests a 200 px
+variant on GitHub (`s`) or GitLab (`width`), without changing original metadata.
+Other providers keep the validated original URL. Server-side resizing is best-effort;
+callers still bound downloads and prepare their own display-sized image.
 
 ```ts
 import { HostingClient } from "@1git/hosting";

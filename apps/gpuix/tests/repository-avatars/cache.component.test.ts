@@ -1,5 +1,5 @@
 /**
- * Covers: deduplicated thumbnails, bounded downloads, remote selection and failure fallback.
+ * Covers: provider-sized thumbnails, deduplication, bounded downloads, remote selection and failure fallback.
  * Real: avatar service, hosting providers, remote parser and Sharp image decoding.
  * Doubles: Git remotes and HTTP responses; no filesystem or live accounts.
  * Requires: none.
@@ -98,7 +98,14 @@ it("shares one owner download across tabs, saved paths and clone rows", async ()
 
 		expect(new Set(images).size).toBe(1);
 		expect(images[0]).toStartWith("data:image/png;base64,");
+		const pixels = Buffer.from(images[0]?.split(",")[1] ?? "", "base64");
+		const metadata = await sharp(pixels).metadata();
+
+		expect([metadata.width, metadata.height]).toEqual([64, 64]);
 		expect(requests).toHaveLength(2);
+		expect(requests[1]?.url).toBe(
+			"https://avatars.githubusercontent.com/u/1?s=200"
+		);
 		expect(new Headers(requests[1]?.init?.headers).has("authorization")).toBe(
 			false
 		);
@@ -127,7 +134,7 @@ it("uses validated GitLab metadata without a public-project lookup", async () =>
 			fetch: async (url) => {
 				count += 1;
 				expect(String(url)).toBe(
-					"https://git.company.test/uploads/project.png"
+					"https://git.company.test/uploads/project.png?width=200"
 				);
 
 				return new Response(png, { headers: { "content-type": "image/png" } });

@@ -295,6 +295,8 @@ export class RepositoryAvatars {
 				url = lookup.ok ? lookup.value : null;
 			}
 
+			url = provider.avatarThumbnailUrl(url);
+
 			if (!url || signal.aborted) return null;
 
 			// Image origins never receive account tokens, cookies or redirect authorization.
