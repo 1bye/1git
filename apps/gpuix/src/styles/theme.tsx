@@ -12,6 +12,7 @@ export interface AppTheme {
 	readonly appearance: AppAppearance;
 	readonly colors: AppColors;
 	readonly tokens: UiTokens;
+	readonly repositoryColor?: string;
 }
 
 export const appThemes: Readonly<Record<AppAppearance, AppTheme>> = {
@@ -43,6 +44,30 @@ export function useAppTheme() {
 /** Evaluate style definitions once per palette, outside scrolling and render hot paths. */
 export function createThemedStyles<Styles>(
 	factory: (theme: AppTheme) => Styles
-): Readonly<Record<AppAppearance, Styles>> {
-	return { light: factory(appThemes.light), dark: factory(appThemes.dark) };
+): Readonly<Record<AppAppearance, Styles>> & {
+	get: (theme: AppTheme) => Styles;
+} {
+	const light = factory(appThemes.light);
+	const dark = factory(appThemes.dark);
+
+	const cache = new WeakMap<AppTheme, Styles>([
+		[appThemes.light, light],
+		[appThemes.dark, dark],
+	]);
+
+	return {
+		light,
+		dark,
+		get(theme) {
+			const existing = cache.get(theme);
+
+			if (existing !== undefined) return existing;
+
+			const styles = factory(theme);
+
+			cache.set(theme, styles);
+
+			return styles;
+		},
+	};
 }

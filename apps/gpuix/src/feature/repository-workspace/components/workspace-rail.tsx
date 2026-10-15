@@ -85,7 +85,7 @@ function RailAction({
 }) {
 	const theme = useAppTheme();
 	const { tokens: appTokens, colors: appColors } = theme;
-	const { actionStyle } = themedStyles[theme.appearance];
+	const { actionStyle } = themedStyles.get(theme);
 
 	const [focused, setFocused] = useState(false);
 	const [pointerFocus, setPointerFocus] = useState(false);
@@ -117,7 +117,11 @@ function RailAction({
 					}}
 					style={StyleSheet.compose(
 						actionStyle,
-						selected && { backgroundColor: appColors.editorHairline },
+						selected && {
+							backgroundColor: theme.repositoryColor
+								? appTokens.colors.accent
+								: appColors.editorHairline,
+						},
 						disabled && { opacity: 0.45, cursor: "not-allowed" }
 					)}
 				>
@@ -132,7 +136,9 @@ function RailAction({
 								focused && !pointerFocus
 									? appColors.brand
 									: selected
-										? appColors.editorInk
+										? theme.repositoryColor
+											? appColors.brand
+											: appColors.editorInk
 										: appColors.editorMuted,
 						}}
 					/>

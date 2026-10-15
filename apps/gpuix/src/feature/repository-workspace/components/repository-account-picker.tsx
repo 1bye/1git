@@ -83,7 +83,7 @@ export function RepositoryAccountPicker({
 }) {
 	const theme = useAppTheme();
 	const { tokens: appTokens } = theme;
-	const { hint, inputStyle } = themedStyles[theme.appearance];
+	const { hint, inputStyle } = themedStyles.get(theme);
 
 	const avatars = use(RepositoryAvatarContext);
 	const renderer = useGpuixRequired();

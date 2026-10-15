@@ -65,7 +65,7 @@ function PublishField({
 	onChange: (value: string) => void;
 }) {
 	const theme = useAppTheme();
-	const { muted, fieldStyle } = themedStyles[theme.appearance];
+	const { muted, fieldStyle } = themedStyles.get(theme);
 
 	return (
 		<div style={column}>
@@ -117,7 +117,7 @@ export function RepositoryPublishView({
 }) {
 	const theme = useAppTheme();
 	const { tokens: appTokens } = theme;
-	const { muted } = themedStyles[theme.appearance];
+	const { muted } = themedStyles.get(theme);
 
 	const renderer = useGpuixRequired();
 	const panel = useRef<PublicInstance>(null);

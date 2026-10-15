@@ -57,7 +57,7 @@ export function RepositoryStashActions({
 }) {
 	const theme = useAppTheme();
 	const { tokens: appTokens } = theme;
-	const { styles } = themedStyles[theme.appearance];
+	const { styles } = themedStyles.get(theme);
 
 	const [form, setForm] = useState<Form | null>(null);
 	const [more, setMore] = useState(false);

@@ -61,7 +61,7 @@ const themedStyles = createThemedStyles(({ colors: appColors }) => {
 export function RepositoryChangeLabel({ entry }: { entry: WorkspaceEntry }) {
 	const theme = useAppTheme();
 	const { tokens: appTokens, colors: appColors } = theme;
-	const { styles } = themedStyles[theme.appearance];
+	const { styles } = themedStyles.get(theme);
 
 	const slash = entry.title.lastIndexOf("/");
 	const filename = entry.title.slice(slash + 1);

@@ -84,7 +84,7 @@ export function RepositoryRevisions({
 }) {
 	const theme = useAppTheme();
 	const { colors: appColors } = theme;
-	const { styles } = themedStyles[theme.appearance];
+	const { styles } = themedStyles.get(theme);
 
 	const renderer = useGpuixRequired();
 	const container = useRef<PublicInstance>(null);

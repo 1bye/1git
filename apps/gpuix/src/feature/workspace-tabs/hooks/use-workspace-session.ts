@@ -8,6 +8,7 @@ import type { WorkspaceTabsState } from "../lib/workspace-tabs-model";
 import type { DiffSettings } from "../../repository-workspace/lib/repository-diff";
 import type { AppAppearance } from "../../../styles/tokens";
 import { AppTermination } from "../../../app-termination";
+import type { RepositoryColorChoices } from "../../repository-appearance/repository-colors";
 
 /** Saves only changed session intent; flushes the latest rendered draft on unmount and normal process exit. */
 export function useWorkspaceSession(
@@ -17,7 +18,8 @@ export function useWorkspaceSession(
 	diffSettings?: DiffSettings,
 	appearance?: AppAppearance,
 	commitTypeBadges?: boolean,
-	onboarding?: OnboardingStep
+	onboarding?: OnboardingStep,
+	repositoryColors?: RepositoryColorChoices
 ) {
 	const content =
 		state.preview || !save
@@ -28,7 +30,8 @@ export function useWorkspaceSession(
 						diffSettings,
 						appearance,
 						commitTypeBadges,
-						onboarding
+						onboarding,
+						repositoryColors
 					)
 				);
 

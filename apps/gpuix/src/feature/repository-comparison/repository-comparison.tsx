@@ -162,7 +162,7 @@ export function RepositoryComparison({
 } & Readers) {
 	const theme = useAppTheme();
 	const { tokens: appTokens } = theme;
-	const { styles } = themedStyles[theme.appearance];
+	const { styles } = themedStyles.get(theme);
 
 	const [branch, setBranch] = useState(request.incoming ?? "");
 
@@ -389,7 +389,7 @@ function ComparisonResults({
 }: { request: ComparisonRequest; base: string; head: string } & Readers) {
 	const theme = useAppTheme();
 	const { tokens: appTokens } = theme;
-	const { styles } = themedStyles[theme.appearance];
+	const { styles } = themedStyles.get(theme);
 
 	const [comparison, setComparison] = useState<BranchComparison | null>(null);
 	const [page, setPage] = useState<CommitPage | null>(null);

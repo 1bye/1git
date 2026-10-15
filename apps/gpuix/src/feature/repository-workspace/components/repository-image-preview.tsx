@@ -97,7 +97,7 @@ function ImageVersion({
 	path: string;
 }) {
 	const theme = useAppTheme();
-	const { styles, statusColors } = themedStyles[theme.appearance];
+	const { styles, statusColors } = themedStyles.get(theme);
 
 	const { image, error } = side;
 	const preview = useSvgPreview(image);
@@ -153,7 +153,7 @@ export function RepositoryImageMetadata({
 	comparison: RepositoryImageComparison;
 }) {
 	const theme = useAppTheme();
-	const { styles } = themedStyles[theme.appearance];
+	const { styles } = themedStyles.get(theme);
 
 	const parts: string[] = [];
 	const comparing = comparison.before !== null && comparison.after !== null;
@@ -195,7 +195,7 @@ export function RepositoryImagePreview({
 	path: string;
 }) {
 	const theme = useAppTheme();
-	const { styles } = themedStyles[theme.appearance];
+	const { styles } = themedStyles.get(theme);
 
 	return (
 		<div testId="image-preview" style={styles.comparison}>

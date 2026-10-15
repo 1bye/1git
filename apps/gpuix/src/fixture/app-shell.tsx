@@ -1,13 +1,20 @@
-import { createThemedStyles, useAppTheme } from "../styles/theme";
+import {
+	AppThemeContext,
+	createThemedStyles,
+	useAppTheme,
+	type AppTheme,
+} from "../styles/theme";
 import { spacing, workspaceLayout } from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
-import { useState, type ReactNode, type Ref } from "react";
+import { useMemo, useState, type ReactNode, type Ref } from "react";
 import type { PublicInstance } from "@gpuix/react";
 import { WorkspaceCornerContext } from "./workspace-corner";
+import { chromeGrainSource } from "./chrome-grain";
 
 const themedStyles = createThemedStyles(({ colors: appColors }) => {
 	const styles = StyleSheet.create({
 		root: {
+			position: "relative",
 			display: "flex",
 			flexDirection: "column",
 			width: "100%",
@@ -64,6 +71,7 @@ export function AppShell({
 	hidden = false,
 	testId = "app-shell",
 	ref,
+	palette,
 }: {
 	toolbar: ReactNode;
 	workspaceLabel: string;
@@ -73,55 +81,82 @@ export function AppShell({
 	hidden?: boolean;
 	testId?: string;
 	ref?: Ref<PublicInstance>;
+	/** Scopes repo colors to the workspace; neutral toolbars may provide their own theme. */
+	palette?: AppTheme;
 }) {
-	const theme = useAppTheme();
-	const { styles } = themedStyles[theme.appearance];
+	const inherited = useAppTheme();
+
+	const theme = useMemo(
+		() => (palette ? { ...inherited, ...palette } : inherited),
+		[inherited, palette]
+	);
+
+	const { styles } = themedStyles.get(theme);
 
 	const [rightRadius, setRightRadius] = useState<number>(
 		workspaceLayout.workspaceSurfaceRadius
 	);
 
 	return (
-		<div
-			ref={ref}
-			testId={testId}
-			aria-hidden={hidden || undefined}
-			style={StyleSheet.compose(
-				styles.root,
-				hidden
-					? {
+		<AppThemeContext value={theme}>
+			<div
+				ref={ref}
+				testId={testId}
+				aria-hidden={hidden || undefined}
+				style={StyleSheet.compose(
+					styles.root,
+					hidden
+						? {
+								position: "absolute",
+								top: 0,
+								left: 0,
+								visibility: "hidden",
+								pointerEvents: "none",
+							}
+						: undefined
+				)}
+			>
+				{theme.repositoryColor ? (
+					<svg
+						testId="repository-chrome-grain"
+						aria-hidden
+						source={chromeGrainSource}
+						style={{
 							position: "absolute",
 							top: 0,
 							left: 0,
-							visibility: "hidden",
+							width: "100%",
+							height: "100%",
 							pointerEvents: "none",
-						}
-					: undefined
-			)}
-		>
-			<WorkspaceCornerContext value={setRightRadius}>
-				{toolbar}
-			</WorkspaceCornerContext>
-			<div style={styles.body}>
-				{rail}
-				<div
-					testId="workspace"
-					role="tabpanel"
-					aria-label={workspaceLabel}
-					motion={{
-						initial: false,
-						animate: { borderRadius: rightRadius },
-						transition: { duration: 0.24, ease: [0.22, 1, 0.36, 1] },
-					}}
-					style={StyleSheet.compose(
-						styles.workspace,
-						rail ? { marginLeft: spacing[0] } : undefined
-					)}
-				>
-					{navigation}
-					<div style={styles.content}>{children}</div>
+							opacity: 0.045,
+							color: theme.appearance === "dark" ? "#ffffff" : "#000000",
+						}}
+					/>
+				) : null}
+				<WorkspaceCornerContext value={setRightRadius}>
+					{toolbar}
+				</WorkspaceCornerContext>
+				<div style={styles.body}>
+					{rail}
+					<div
+						testId="workspace"
+						role="tabpanel"
+						aria-label={workspaceLabel}
+						motion={{
+							initial: false,
+							animate: { borderRadius: rightRadius },
+							transition: { duration: 0.24, ease: [0.22, 1, 0.36, 1] },
+						}}
+						style={StyleSheet.compose(
+							styles.workspace,
+							rail ? { marginLeft: spacing[0] } : undefined
+						)}
+					>
+						{navigation}
+						<div style={styles.content}>{children}</div>
+					</div>
 				</div>
 			</div>
-		</div>
+		</AppThemeContext>
 	);
 }

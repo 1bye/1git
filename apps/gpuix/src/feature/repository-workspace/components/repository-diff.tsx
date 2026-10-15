@@ -32,7 +32,9 @@ import { RepositoryTextDiff, type DiffInclusion } from "./repository-text-diff";
 import { RepositoryDiffSettings } from "./repository-diff-settings";
 import { darkDiffTheme } from "../../../styles/dark-diff-theme";
 
-const themedStyles = createThemedStyles(({ colors: appColors, appearance }) => {
+const themedStyles = createThemedStyles((theme) => {
+	const { colors: appColors, appearance, tokens, repositoryColor } = theme;
+
 	const diffTheme: GpuixTheme & { diffAddRail: string; diffDelRail: string } = {
 		appearance: "light",
 		bg: appColors.editorSurface,
@@ -87,6 +89,12 @@ const themedStyles = createThemedStyles(({ colors: appColors, appearance }) => {
 			diffAccentBarWidth: 2,
 		},
 		...(appearance === "dark" ? darkDiffTheme : {}),
+		...(repositoryColor
+			? {
+					accent: tokens.colors.accent,
+					diffInclusionText: tokens.colors.onAccent,
+				}
+			: {}),
 	};
 
 	const styles = StyleSheet.create({
@@ -234,7 +242,7 @@ function RepositoryDiffContent({
 }) {
 	const theme = useAppTheme();
 	const { tokens: appTokens, colors: appColors } = theme;
-	const { diffTheme, styles } = themedStyles[theme.appearance];
+	const { diffTheme, styles } = themedStyles.get(theme);
 
 	const [sourcePath, setSourcePath] = useState<string | null>(null);
 	const [conflictError, setConflictError] = useState<string | null>(null);

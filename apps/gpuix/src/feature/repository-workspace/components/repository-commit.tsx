@@ -119,7 +119,7 @@ export function RepositoryCommit({
 }) {
 	const theme = useAppTheme();
 	const { tokens: appTokens } = theme;
-	const { styles, scrollPaddingBottom } = themedStyles[theme.appearance];
+	const { styles, scrollPaddingBottom } = themedStyles.get(theme);
 	const prefix = CommitSubject.prefix(state.commitMessage);
 
 	const textColorRanges:

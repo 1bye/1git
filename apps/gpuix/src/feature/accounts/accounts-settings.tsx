@@ -47,6 +47,7 @@ import {
 import type { ExternalEditors } from "../editor-settings/external-editors";
 import { AppearanceSettings } from "../appearance-settings/appearance-settings";
 import { AiSettings, type AiSettingsHandle } from "../ai/ai-settings";
+import { RepositoryAppearance } from "../repository-appearance/repository-appearance";
 
 const sidebarWidth = 200;
 const contentPadding = spacing[4];
@@ -66,6 +67,7 @@ export type SettingsSection =
 	| "git"
 	| "editor"
 	| "repository-remotes"
+	| "repository-appearance"
 	| "repository-identity";
 
 const themedStyles = createThemedStyles(({ tokens: appTokens }) => {
@@ -118,6 +120,7 @@ export function AccountsSettings({
 	onRepositoryView,
 	initialSection = "accounts",
 	repositorySettings,
+	repositoryAppearance,
 	readGitSettings = GitSettingsModel.read,
 	writeGitSettings = GitSettingsModel.write,
 	externalEditors,
@@ -142,6 +145,10 @@ export function AccountsSettings({
 	onRepositoryView?: (view: RepositoryView) => void;
 	initialSection?: SettingsSection;
 	repositorySettings?: { root: string; name: string; disabled: boolean };
+	repositoryAppearance?: {
+		color?: string;
+		onChange: (color: string | undefined) => void;
+	};
 	readGitSettings?: typeof GitSettingsModel.read;
 	writeGitSettings?: typeof GitSettingsModel.write;
 	externalEditors?: ExternalEditors;
@@ -208,7 +215,9 @@ export function AccountsSettings({
 	const settingsBusy = busy || gitBusy;
 
 	const repositorySection =
-		section === "repository-remotes" || section === "repository-identity";
+		section === "repository-remotes" ||
+		section === "repository-identity" ||
+		section === "repository-appearance";
 
 	const mounted = useRef(true);
 	const view = useRef<PublicInstance | null>(null);
@@ -464,6 +473,9 @@ export function AccountsSettings({
 							{(
 								[
 									["repository-remotes", "Remotes", "branch"],
+									...(repositoryAppearance
+										? [["repository-appearance", "Color", "sparkle"] as const]
+										: []),
 									["repository-identity", "Commit identity", "userCircle"],
 								] as const
 							).map(([next, label, icon]) => (
@@ -517,6 +529,15 @@ export function AccountsSettings({
 				<StateMessage
 					artwork="repository"
 					title="Open a repository to edit its settings"
+				/>
+			) : section === "repository-appearance" &&
+			  repositorySettings &&
+			  repositoryAppearance ? (
+				<RepositoryAppearance
+					key={repositorySettings.root}
+					name={repositorySettings.name}
+					color={repositoryAppearance.color}
+					onChange={repositoryAppearance.onChange}
 				/>
 			) : section !== "accounts" ? (
 				<GitSettings

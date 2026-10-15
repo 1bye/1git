@@ -1,5 +1,9 @@
 import { basename, isAbsolute } from "node:path";
 import type { AppAppearance } from "../../../styles/tokens";
+import {
+	RepositoryColors,
+	type RepositoryColorChoices,
+} from "../../repository-appearance/repository-colors";
 import { RepositoryWorkspaceModel } from "../../repository-workspace/lib/repository-workspace-model";
 import type { WorkspaceTabsState } from "./workspace-tabs-model";
 import type { RepositoryView } from "../../repository-workspace/types";
@@ -36,6 +40,7 @@ export interface WorkspaceSessionDocument {
 	readonly diffSettings?: DiffSettings;
 	readonly appearance?: AppAppearance;
 	readonly commitTypeBadges?: boolean;
+	readonly repositoryColors?: RepositoryColorChoices;
 	readonly onboarding?: OnboardingStep;
 }
 
@@ -147,6 +152,7 @@ export class WorkspaceSession {
 		}
 
 		const diffSettings = WorkspaceSession.diffSettings(value.diffSettings);
+		const repositoryColors = RepositoryColors.parse(value.repositoryColors);
 
 		return {
 			version: 1,
@@ -164,6 +170,7 @@ export class WorkspaceSession {
 				? { onboarding: value.onboarding }
 				: {}),
 			...(diffSettings ? { diffSettings } : {}),
+			...(Object.keys(repositoryColors).length ? { repositoryColors } : {}),
 			...(Array.isArray(value.recentRepositories)
 				? {
 						recentRepositories: [
@@ -192,7 +199,8 @@ export class WorkspaceSession {
 		diffSettings?: DiffSettings,
 		appearance?: AppAppearance,
 		commitTypeBadges?: boolean,
-		onboarding?: OnboardingStep
+		onboarding?: OnboardingStep,
+		repositoryColors?: RepositoryColorChoices
 	): WorkspaceSessionDocument {
 		return {
 			version: 1,
@@ -200,6 +208,9 @@ export class WorkspaceSession {
 			...(commitTypeBadges !== undefined ? { commitTypeBadges } : {}),
 			...(onboarding ? { onboarding } : {}),
 			...(diffSettings ? { diffSettings } : {}),
+			...(repositoryColors && Object.keys(repositoryColors).length
+				? { repositoryColors }
+				: {}),
 			...(state.recentRepositories !== undefined
 				? { recentRepositories: state.recentRepositories }
 				: {}),

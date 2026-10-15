@@ -4,6 +4,8 @@ import { render } from "@gpuix/react";
 import { CString, dlopen, ptr } from "bun:ffi";
 import { AppShell } from "../../src/fixture/app-shell";
 import { windowOptions } from "../../src/window-options";
+import { AppThemeContext, appThemes } from "../../src/styles/theme";
+import { RepositoryTheme } from "../../src/styles/repository-theme";
 
 const { symbols } = dlopen("/usr/lib/libobjc.A.dylib", {
 	objc_getClass: { args: ["ptr"], returns: "ptr" },
@@ -81,15 +83,25 @@ const applicationAppearance = send(
 
 send(app, "setAppearance:", applicationAppearance);
 render(
-	<AppShell
-		workspaceLabel="Vibrancy probe"
-		toolbar={<div style={{ height: 42, flexShrink: 0 }} />}
-		rail={<div style={{ width: 48, flexShrink: 0 }} />}
+	<AppThemeContext
+		value={{
+			...RepositoryTheme.create(
+				appThemes[process.argv[2] === "dark" ? "dark" : "light"],
+				process.argv[3]
+			),
+			commitTypeBadges: true,
+		}}
 	>
-		<text style={{ padding: 24, color: "#111111" }}>
-			Opaque white workspace
-		</text>
-	</AppShell>,
+		<AppShell
+			workspaceLabel="Vibrancy probe"
+			toolbar={<div style={{ height: 42, flexShrink: 0 }} />}
+			rail={<div style={{ width: 48, flexShrink: 0 }} />}
+		>
+			<text style={{ padding: 24, color: "#111111" }}>
+				Opaque white workspace
+			</text>
+		</AppShell>
+	</AppThemeContext>,
 	{ renderer }
 );
 

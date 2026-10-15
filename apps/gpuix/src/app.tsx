@@ -1,5 +1,7 @@
 import { AppThemeContext, appThemes, useAppTheme } from "./styles/theme";
 import type { AppAppearance } from "./styles/tokens";
+import { RepositoryTheme } from "./styles/repository-theme";
+import { RepositoryColors } from "./feature/repository-appearance/repository-colors";
 import { spacing, typography } from "@1git/design-tokens";
 import {
 	useCallback,
@@ -424,6 +426,10 @@ function AppContent({
 			: (initialSession?.onboarding ?? initialOnboarding ?? "complete")
 	);
 
+	const [repositoryColors, setRepositoryColors] = useState(() =>
+		RepositoryColors.parse(initialSession?.repositoryColors)
+	);
+
 	const onboardingOpen = onboarding !== "complete";
 	const [onboardingId, setOnboardingId] = useState<string | null>(null);
 	const [onboardingClone, setOnboardingClone] = useState(false);
@@ -439,7 +445,8 @@ function AppContent({
 		diffSettings,
 		theme.appearance,
 		theme.commitTypeBadges,
-		onboarding
+		onboarding,
+		repositoryColors
 	);
 
 	const connection = useRepositoryConnection(
@@ -506,6 +513,16 @@ function AppContent({
 
 	const activeTab = state.tabs.find((tab) => tab.id === state.activeId);
 	const workspace = activeTab?.workspace;
+	const commonDirectory = workspace?.repository?.commonDirectory;
+
+	const repositoryColor = commonDirectory
+		? repositoryColors[commonDirectory]
+		: undefined;
+
+	const repositoryTheme = useMemo(
+		() => ({ ...theme, ...RepositoryTheme.create(theme, repositoryColor) }),
+		[theme, repositoryColor]
+	);
 
 	const publishTab = state.tabs.find(
 		(tab) => tab.id === publishId && tab.workspace.repository
@@ -776,6 +793,7 @@ function AppContent({
 				}}
 			>
 				<AppShell
+					palette={repositoryTheme}
 					hidden={settingsOpen || onboardingOpen}
 					rail={
 						settingsOpen || onboardingOpen ? undefined : (
@@ -961,19 +979,21 @@ function AppContent({
 						) : undefined
 					}
 					toolbar={
-						<WorkspaceTabs
-							state={state}
-							dispatch={dispatch}
-							readBranches={readBranches}
-							readRepository={readRepository}
-							onChangeBranch={mutations.changeBranch}
-							onCreateWorktree={mutations.createWorktree}
-							onRemoveWorktree={mutations.removeWorktree}
-							onSettings={() => {
-								openSettings();
-								setSettingsSection("repository-remotes");
-							}}
-						/>
+						<AppThemeContext value={theme}>
+							<WorkspaceTabs
+								state={state}
+								dispatch={dispatch}
+								readBranches={readBranches}
+								readRepository={readRepository}
+								onChangeBranch={mutations.changeBranch}
+								onCreateWorktree={mutations.createWorktree}
+								onRemoveWorktree={mutations.removeWorktree}
+								onSettings={() => {
+									openSettings();
+									setSettingsSection("repository-remotes");
+								}}
+							/>
+						</AppThemeContext>
 					}
 					workspaceLabel={activeTab ? `${activeTab.name} workspace` : "Home"}
 				>
@@ -1060,7 +1080,10 @@ function AppContent({
 							<text
 								testId="session-notice"
 								role="alert"
-								style={{ ...typography.sm, color: appTokens.colors.textMuted }}
+								style={{
+									...typography.sm,
+									color: appTokens.colors.textMuted,
+								}}
 							>
 								{session.error}
 							</text>
@@ -1486,6 +1509,17 @@ function AppContent({
 								: undefined
 						}
 						readGitSettings={readGitSettings}
+						repositoryAppearance={
+							commonDirectory
+								? {
+										color: repositoryColor,
+										onChange: (color) =>
+											setRepositoryColors((choices) =>
+												RepositoryColors.set(choices, commonDirectory, color)
+											),
+									}
+								: undefined
+						}
 						writeGitSettings={mutations.saveSettings}
 					>
 						{closeNotice}

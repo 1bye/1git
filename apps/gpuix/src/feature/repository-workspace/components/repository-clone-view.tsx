@@ -86,7 +86,7 @@ export function RepositoryCloneView({
 }) {
 	const theme = useAppTheme();
 	const { tokens: appTokens } = theme;
-	const { hint, input } = themedStyles[theme.appearance];
+	const { hint, input } = themedStyles.get(theme);
 
 	const renderer = useGpuixRequired();
 	const [catalog, setCatalog] = useState(() => loadAccounts(accounts));

@@ -12,10 +12,10 @@ bun run --cwd apps/gpuix dev
 
 Both GPUIX packages stay pinned to `0.10.0`. This app runs on Bun, React 19,
 and GPUIX, not the DOM or Electron. The window uses native macOS sidebar vibrancy
-and traffic lights. Titlebar and rail backgrounds stay transparent in both themes;
+and traffic lights. Titlebar and rail backgrounds stay transparent by default in both themes;
 AppKit supplies the matching light or dark blurred material, while the workspace
-uses its own opaque content surface. Dark mode never covers the native blur with
-a painted tint.
+uses its own opaque content surface. Optional repository colors add only a translucent
+tint over that material, never an opaque replacement.
 The connected tab silhouette keeps its shape while moving; it does not port
 the desktop's liquid shape-morphing machinery.
 
@@ -176,7 +176,8 @@ diff preferences in the workspace session and restores on restart. Switching doe
 not remount workspaces, clear drafts/inclusion, reload Git, or reset native diff scroll.
 
 Window-local React context selects complete app, control and native diff palettes.
-Shared styles and active-tab SVGs are precomputed per palette, not rebuilt while scrolling.
+Shared styles are cached per palette and active-tab SVGs stay on the base light/dark
+palette, not rebuilt while scrolling.
 Dark syntax and addition/deletion backgrounds are separate from selection colors.
 Syntax colors follow [GitHub Dark Default](https://github.com/primer/github-vscode-theme/blob/main/src/theme.js),
 mapped to native token kinds rather than every language-specific scope. Comments
@@ -192,6 +193,18 @@ small, muted light/dark labels. Scopes remain beside the title and `!` stays vis
 on breaking prefixes. Ordinary or unrecognized messages stay untouched; selection,
 search, copying and history-editing actions always use the original Git message.
 This is presentation only: no Git metadata is changed or fetched for the badges.
+
+Settings → Repository → **Color** adds an opt-in workspace accent for the active
+repository: eight named swatches, a validated six-digit hex field, and Reset.
+Choices are saved only in the local session, keyed by Git's common directory so
+linked worktrees share them; closing a tab does not discard the choice. Existing
+sessions and repositories without a color retain the default palette.
+The repo palette tints native-blurred chrome, controls, selection surfaces and a
+faint content wash. A single cached static SVG mask adds quiet grain beneath
+chrome controls, never over code; it has no animation, filter or input target.
+Tabs, Home and Settings stay on their existing palette. Diff red/green rails,
+syntax, errors and other semantic colors are unchanged. Palette changes preserve
+the mounted editor, checked changes, selected file and native diff scroll.
 
 ## Onboarding
 

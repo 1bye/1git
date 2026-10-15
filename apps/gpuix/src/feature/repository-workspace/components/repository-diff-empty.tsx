@@ -84,7 +84,7 @@ export function RepositoryDiffEmpty({
 }) {
 	const theme = useAppTheme();
 	const { tokens: appTokens, colors: appColors } = theme;
-	const { styles } = themedStyles[theme.appearance];
+	const { styles } = themedStyles.get(theme);
 
 	let heading = "Select an item to inspect";
 	let hint = "Choose a changed file, commit, or stash from the list.";

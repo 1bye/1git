@@ -87,7 +87,7 @@ export function RepositoryWelcome({
 }) {
 	const theme = useAppTheme();
 	const { tokens: appTokens } = theme;
-	const { styles } = themedStyles[theme.appearance];
+	const { styles } = themedStyles.get(theme);
 
 	const [query, setQuery] = useState("");
 	const [menuError, setMenuError] = useState<string | null>(null);

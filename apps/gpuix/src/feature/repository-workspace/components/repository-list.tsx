@@ -120,7 +120,7 @@ function RepositoryRow({
 }) {
 	const theme = useAppTheme();
 	const { tokens: appTokens, colors: appColors } = theme;
-	const { styles } = themedStyles[theme.appearance];
+	const { styles } = themedStyles.get(theme);
 
 	const description = [
 		entry.detail,
@@ -328,7 +328,7 @@ export function RepositoryList({
 	onPreviewIntent?: (entry: WorkspaceEntry | null) => void;
 }) {
 	const theme = useAppTheme();
-	const { styles } = themedStyles[theme.appearance];
+	const { styles } = themedStyles.get(theme);
 
 	const renderer = useGpuixRequired();
 	const viewport = useRef<PublicInstance>(null);
