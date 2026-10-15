@@ -2,7 +2,15 @@ import { createHash, randomUUID } from "node:crypto";
 export { GitIdentity, type GitIdentityValues } from "./identity.js";
 export { GitIgnore } from "./ignore.js";
 export { PartialPatch } from "./partial-patch.js";
-import { mkdir, realpath, stat, lstat, writeFile } from "node:fs/promises";
+import {
+	mkdir,
+	mkdtemp,
+	realpath,
+	rm,
+	stat,
+	lstat,
+	writeFile,
+} from "node:fs/promises";
 import { dirname, resolve, join } from "node:path";
 
 import type {
@@ -1107,17 +1115,42 @@ export class GitRepository {
 						"Refresh first. Every selected path must still be an ordinary changed file outside Git operations."
 					);
 
+				const checkedParents = new Set([this.info.root]);
+
 				for (const { path } of selectedFiles) {
 					const absolute = resolve(this.info.root, path);
+					let parent = dirname(absolute);
 
-					try {
-						if (
-							!(await lstat(absolute)).isFile() ||
-							(await realpath(absolute)) !== absolute
-						)
+					// Validate ancestors separately: a leaf link is data, never a directory to traverse.
+					while (!checkedParents.has(parent)) {
+						const info = await lstat(parent).catch((error: unknown) => {
+							if (
+								error instanceof Error &&
+								"code" in error &&
+								error.code === "ENOENT"
+							)
+								return null;
+
+							throw error;
+						});
+
+						if (info && !info.isDirectory())
 							throw invalidInput(
 								"discard-files",
-								"Symbolic links and non-regular files require external Git handling."
+								`The parent of "${path}" is not a regular repository directory.`
+							);
+
+						checkedParents.add(parent);
+						parent = dirname(parent);
+					}
+
+					try {
+						const info = await lstat(absolute);
+
+						if (!info.isFile() && !info.isSymbolicLink())
+							throw invalidInput(
+								"discard-files",
+								`Non-regular file "${path}" requires external Git handling.`
 							);
 					} catch (error) {
 						if (
@@ -1128,12 +1161,6 @@ export class GitRepository {
 							)
 						)
 							throw error;
-
-						if ((await realpath(dirname(absolute))) !== dirname(absolute))
-							throw invalidInput(
-								"discard-files",
-								"The file parent is not a regular repository directory."
-							);
 					}
 				}
 			}
@@ -1166,13 +1193,14 @@ export class GitRepository {
 				input.signal
 			);
 
-			const untrackedPatches = await Promise.all(
+			const untrackedPatch = await this.captureUntrackedPatch(
 				selectedFiles
 					.filter((file) => file.recordType === "untracked")
-					.map((file) => this.captureNoIndexPatch(file.path, input.signal))
+					.map((file) => file.path),
+				input.signal
 			);
 
-			const worktreePatch = [trackedWorktreePatch, ...untrackedPatches]
+			const worktreePatch = [trackedWorktreePatch, untrackedPatch]
 				.filter(Boolean)
 				.join("");
 
@@ -2813,31 +2841,58 @@ export class GitRepository {
 		return output.stdout.toString("utf8");
 	}
 
-	private async captureNoIndexPatch(
-		path: string,
+	private async captureUntrackedPatch(
+		paths: readonly string[],
 		signal?: AbortSignal
 	): Promise<string> {
-		try {
-			return await this.captureDiffPatch(
-				[
-					"diff",
-					"--no-index",
-					"--no-ext-diff",
-					"--no-color",
-					"--binary",
-					"--full-index",
-					"--",
-					"/dev/null",
-					path,
-				],
-				signal
-			);
-		} catch (error: unknown) {
-			if (error instanceof GitCommandFailure && error.exitCode === 1) {
-				return error.stdout;
-			}
+		if (!paths.length) return "";
 
-			throw error;
+		const directory = await mkdtemp(
+			join(this.info.gitDirectory, "1git-discard-")
+		);
+
+		try {
+			const run = async (args: readonly string[], stdin?: string) =>
+				await this.context.process.run({
+					args: [
+						"--literal-pathspecs",
+						"-c",
+						"core.splitIndex=false",
+						"-c",
+						"core.fsmonitor=false",
+						...args,
+					],
+					cwd: this.info.root,
+					indexFile: join(directory, "index"),
+					stdin,
+					signal,
+				});
+
+			// Intent-to-add records link modes without following their targets or touching real staging.
+			await run(["read-tree", "--empty"]);
+			await run(
+				[
+					"add",
+					"--intent-to-add",
+					"--pathspec-from-file=-",
+					"--pathspec-file-nul",
+				],
+				`${paths.join("\0")}\0`
+			);
+			const output = await run([
+				"diff",
+				"--no-textconv",
+				"--no-ext-diff",
+				"--no-color",
+				"--binary",
+				"--full-index",
+				"--default-prefix",
+				"--no-renames",
+			]);
+
+			return output.stdout.toString("utf8");
+		} finally {
+			await rm(directory, { recursive: true, force: true });
 		}
 	}
 

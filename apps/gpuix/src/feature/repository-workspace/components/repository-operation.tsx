@@ -265,13 +265,20 @@ export function RepositoryOperation({
 				<text
 					testId="operation-result"
 					role={state.operationMutation.error || error ? "alert" : "status"}
-					style={{ ...typography.xs, color: appTokens.colors.textMuted }}
+					style={{
+						...typography.xs,
+						color:
+							state.operationMutation.error || error
+								? appTokens.colors.danger
+								: appTokens.colors.textMuted,
+					}}
 				>
 					{message}
 				</text>
 			) : null}
 			{state.operationMutation.recoveryDirectory ? (
 				<Button
+					testId="show-recovery-backup"
 					tokens={appTokens}
 					size="sm"
 					variant="ghost"

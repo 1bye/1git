@@ -199,7 +199,7 @@ export function RepositoryChangesHeader({
 					}
 				/>
 			</div>
-			{error ? (
+			{error && error !== state.operationMutation.error ? (
 				<text
 					testId="changes-menu-error"
 					role="alert"

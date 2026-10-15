@@ -1749,16 +1749,22 @@ Reading a diff never stages, unstages, discards or commits changes.
   default) and removes both staged
   and unstaged changes for the selected files, irrespective of commit checkboxes.
   It is unavailable during Git operations; conflicts, renames, submodules and
-  non-regular working files require external handling. Branch identity is checked
+  other non-regular working files require external handling. Leaf symbolic links
+  are backed up and removed/restored as links, never by following their targets;
+  symlinked parent directories are rejected. Branch identity is checked
   again before writing. Closing and competing app writes are blocked through refresh.
 - Recovery patches and instructions are saved before modifying files under
   `~/Library/Application Support/1git-gpuix/discard-recovery/<id>` with private
-  permissions. **Show recovery backup** reveals the folder after success.
+  permissions. **Show recovery backup** reveals the folder after success, or after
+  a later failure if recovery files were saved. Preflight failures do not advertise
+  a nonexistent backup; partially written recovery folders are labeled as partial.
   Backups survive restarts, can contain sensitive source contents, and are not
   automatically deleted. Recovery is manual using the included instructions;
   do not force a patch over subsequent edits. External Git/editor processes are
   not locked, so avoid concurrent writes during discard.
   Every selected path is validated and backed up before any file is changed.
+  Untracked files are read together through a disposable intent-to-add index;
+  the real staging area remains unchanged while the backup is prepared.
 
 Native menu tracking and confirmation run synchronously on the AppKit main
 thread. No Git write starts until a menu choice and confirmation have returned.

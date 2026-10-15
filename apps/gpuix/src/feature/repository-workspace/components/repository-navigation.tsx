@@ -458,6 +458,7 @@ export function RepositoryNavigation({
 										state.commit.needsReview,
 									canDiscard: state.repository.operation === "normal",
 									discard: onDiscard,
+									mutationError: state.operationMutation.error,
 									ignore: onIgnore,
 									include: (ids, included) =>
 										onAction({ type: "include-files", ids, included }),

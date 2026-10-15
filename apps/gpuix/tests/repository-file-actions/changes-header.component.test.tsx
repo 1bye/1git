@@ -210,6 +210,110 @@ it("opens with a click or keyboard and includes/excludes the entire list rather 
 	expect(confirmation).not.toHaveBeenCalled();
 });
 
+it.each(["header", "file"] as const)(
+	"shows a failed %s discard only once and retains the draft and checked files",
+	async (source) => {
+		const message = 'Non-regular file "a.txt" requires external Git handling.';
+
+		const discard = mock<typeof RepositoryFileActions.discard>(async () => ({
+			ok: false,
+			error: {
+				code: "invalid-input",
+				message,
+				operation: "discard-files",
+				retryable: false,
+			},
+		}));
+
+		root.render(
+			<App
+				accounts={accounts}
+				initialSession={{
+					version: 1,
+					activeId: "workspace-1",
+					tabs: [
+						{ id: "workspace-1", path: "/test/project", draft: "Keep draft" },
+					],
+				}}
+				readRepository={async () => ({
+					ok: true,
+					value: repositorySnapshot([
+						changedFile("a.txt"),
+						changedFile("b.txt"),
+					]),
+				})}
+				discardFile={discard}
+				readDiff={async () => ({ ok: true, value: [] })}
+			/>
+		);
+		await settle();
+		await click("include-b.txt");
+		confirmed = true;
+		choice = source === "header" ? "Discard all changes…" : "Discard Changes…";
+		await click(source === "header" ? "repository-heading" : "entry-a.txt", 2);
+
+		expect(discard).toHaveBeenCalledTimes(1);
+		expect(
+			root.renderer.getAllText().filter((text) => text === message)
+		).toHaveLength(1);
+		expect(node("operation-result").customProps?.role).toBe("alert");
+		expect(root.renderer.findByTestId("changes-menu-error")).toBeUndefined();
+		expect(node("commit-message").customProps?.value).toBe("Keep draft");
+		expect(node("include-b.txt").customProps?.["aria-checked"]).toBe(false);
+
+		const screenshot = process.env.GPUIX_DISCARD_ERROR_SCREENSHOT;
+
+		if (screenshot && source === "header")
+			root.renderer.captureScreenshot(screenshot);
+	}
+);
+
+it("offers a saved recovery folder even when discard fails after backup creation", async () => {
+	const directory = "/test/recovery";
+	const message = `Discard failed. Recovery backup saved at ${directory}.`;
+
+	const reveal = spyOn(
+		RepositoryFileActions,
+		"revealRecovery"
+	).mockResolvedValue();
+
+	root.render(
+		<App
+			accounts={accounts}
+			initialSession={{
+				version: 1,
+				activeId: "workspace-1",
+				tabs: [
+					{ id: "workspace-1", path: "/test/project", draft: "Keep draft" },
+				],
+			}}
+			readRepository={async () => ({
+				ok: true,
+				value: repositorySnapshot([changedFile("a.txt")]),
+			})}
+			discardFile={async () => ({
+				ok: false,
+				recoveryDirectory: directory,
+				error: {
+					code: "command-failed",
+					message,
+					operation: "discard-files",
+					retryable: false,
+				},
+			})}
+		/>
+	);
+	await settle();
+	confirmed = true;
+	await click("repository-heading", 2);
+	expect(
+		root.renderer.getAllText().filter((text) => text === message)
+	).toHaveLength(1);
+	await click("show-recovery-backup");
+	expect(reveal).toHaveBeenCalledWith(directory);
+	expect(node("commit-message").customProps?.value).toBe("Keep draft");
+});
+
 it("keeps partial selections intact when a discard is cancelled or fails", async () => {
 	let state = Model.reduce(Model.create(), {
 		type: "loaded",

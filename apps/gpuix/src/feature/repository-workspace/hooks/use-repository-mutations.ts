@@ -1227,7 +1227,8 @@ export function useRepositoryMutations(
 				result.value.warning
 			)
 				error = result.value.warning;
-			else if (
+
+			if (
 				"recoveryDirectory" in result &&
 				typeof result.recoveryDirectory === "string"
 			)

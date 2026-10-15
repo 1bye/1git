@@ -1,23 +1,27 @@
 /**
- * Covers: durable discard recovery, staged/unstaged separation, literal paths and failed backup safety.
+ * Covers: durable discard recovery, symlink isolation, staged/unstaged separation and failed backup safety.
  * Real: Git, backend and disposable repositories.
- * Doubles: none.
+ * Doubles: home directory for app recovery paths; injected Git failures for recovery-location reporting.
  * Requires: Git and temporary storage.
  */
-import { afterEach, beforeEach, expect, it } from "bun:test";
+import { afterEach, beforeEach, expect, it, mock, spyOn } from "bun:test";
 import { execFile } from "node:child_process";
 import {
 	mkdtemp,
+	mkdir,
+	lstat,
 	readFile,
+	readlink,
 	realpath,
 	rm,
 	writeFile,
 	symlink,
 } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { GitRepository } from "@1git/git";
+import { RepositoryFileActions } from "../../src/feature/repository-workspace/lib/repository-file-actions";
 
 const execute = promisify(execFile);
 let root: string;
@@ -54,6 +58,7 @@ beforeEach(async () => {
 	repository = opened.value;
 });
 afterEach(async () => {
+	mock.restore();
 	await rm(root, { recursive: true, force: true });
 });
 const discard = (
@@ -109,10 +114,99 @@ it("leaves files untouched when backup creation or branch validation fails", asy
 	expect(await readFile(join(root, "a.txt"), "utf8")).toBe("keep edits\n");
 });
 
-it("rejects symbolic links without changing their target", async () => {
-	await symlink("a.txt", join(root, "link"));
-	expect((await discard("link")).ok).toBe(false);
+it("discards and recovers untracked links themselves, including dangling and external targets", async () => {
+	const outside = join(root, ".git", "outside.txt");
+
+	await writeFile(outside, "external content\n");
+	const links = new Map([
+		["link", "a.txt"],
+		["dangling", "missing.txt"],
+		["external", outside],
+		["directory-link", ".git"],
+		['link [1]\n"rose☃', 'missing\n"target'],
+	]);
+
+	for (const [path, target] of links) await symlink(target, join(root, path));
+
+	const result = await discard([...links.keys()]);
+
+	if (!result.ok) throw new Error(JSON.stringify(result.error));
+
+	for (const path of links.keys()) {
+		const remaining = await lstat(join(root, path)).then(
+			() => path,
+			(error: unknown) => {
+				if (
+					error instanceof Error &&
+					"code" in error &&
+					error.code === "ENOENT"
+				)
+					return null;
+
+				throw error;
+			}
+		);
+
+		expect(remaining).toBeNull();
+	}
+
+	const patch = await readFile(
+		join(root, ".git/recovery/working.patch"),
+		"utf8"
+	);
+
+	expect(patch).toContain("new file mode 120000");
+	expect(patch).not.toContain("external content");
+	await git("apply", ".git/recovery/working.patch");
+
+	for (const [path, target] of links) {
+		expect((await lstat(join(root, path))).isSymbolicLink()).toBe(true);
+		expect(await readlink(join(root, path))).toBe(target);
+	}
+
+	expect(await readFile(outside, "utf8")).toBe("external content\n");
 	expect(await readFile(join(root, "a.txt"), "utf8")).toBe("base\n");
+});
+
+it("restores tracked staged and working link destinations independently, with undo", async () => {
+	await symlink("base-target", join(root, "tracked-link"));
+	await git("add", "tracked-link");
+	await git("commit", "-m", "Track link");
+	head = await git("rev-parse", "HEAD");
+	await rm(join(root, "tracked-link"));
+	await symlink("staged-target", join(root, "tracked-link"));
+	await git("add", "tracked-link");
+	await rm(join(root, "tracked-link"));
+	await symlink("working-target", join(root, "tracked-link"));
+	const result = await discard("tracked-link");
+
+	if (!result.ok) throw new Error(JSON.stringify(result.error));
+
+	expect(await readlink(join(root, "tracked-link"))).toBe("base-target");
+	expect(await git("show", ":tracked-link")).toBe("base-target");
+	expect(
+		(await repository.undoDiscard({ token: result.value.undo.token })).ok
+	).toBe(true);
+	expect(await readlink(join(root, "tracked-link"))).toBe("working-target");
+	expect(await git("show", ":tracked-link")).toBe("staged-target");
+});
+
+it("restores deleted links even when their parent directory was removed", async () => {
+	await mkdir(join(root, "nested"));
+	await symlink("../a.txt", join(root, "nested", "link"));
+	await git("add", "nested/link");
+	await git("commit", "-m", "Track nested link");
+	head = await git("rev-parse", "HEAD");
+	await rm(join(root, "nested"), { recursive: true });
+	const result = await discard("nested/link");
+
+	if (!result.ok) throw new Error(JSON.stringify(result.error));
+
+	expect(await readlink(join(root, "nested", "link"))).toBe("../a.txt");
+	await git("apply", ".git/recovery/working.patch");
+	await expect(lstat(join(root, "nested", "link"))).rejects.toMatchObject({
+		code: "ENOENT",
+	});
 });
 
 it("backs up the entire batch and restores tracked, staged and new files together", async () => {
@@ -144,14 +238,185 @@ it("backs up the entire batch and restores tracked, staged and new files togethe
 	expect(await readFile(join(root, "keep.txt"), "utf8")).toBe("keep\n");
 });
 
+it("backs up and recovers a 1148-file app bundle without touching the real index", async () => {
+	const bundle = "Build.app/Contents";
+	const framework = `${bundle}/Frameworks/Example.framework`;
+
+	await mkdir(join(root, framework, "Versions/A"), { recursive: true });
+	await mkdir(join(root, bundle, "Resources"), { recursive: true });
+	const paths: string[] = [];
+
+	for (let index = 0; index < 1144; index++) {
+		const path = `${bundle}/Resources/locale-${index}.pak`;
+
+		await writeFile(join(root, path), `file ${index}\n`);
+		paths.push(path);
+	}
+
+	const binaryPath = `${framework}/Versions/A/Example`;
+	const data = Buffer.from([0, 1, 255, 18]);
+
+	await writeFile(join(root, binaryPath), data);
+	await writeFile(join(root, bundle, "Resources/empty"), "");
+	await symlink("A", join(root, framework, "Versions/Current"));
+	await symlink("Versions/Current/Example", join(root, framework, "Example"));
+	paths.push(
+		binaryPath,
+		`${bundle}/Resources/empty`,
+		`${framework}/Versions/Current`,
+		`${framework}/Example`
+	);
+	const originalIndex = await readFile(join(root, ".git/index"));
+	const result = await discard(paths);
+
+	if (!result.ok) throw new Error(JSON.stringify(result.error));
+
+	expect(paths).toHaveLength(1148);
+	expect(result.value.snapshot.files).toEqual([]);
+	expect(await readFile(join(root, ".git/index"))).toEqual(originalIndex);
+	await git("apply", "--check", ".git/recovery/working.patch");
+	await git("apply", ".git/recovery/working.patch");
+
+	for (let index = 0; index < 1144; index++) {
+		expect(
+			await readFile(
+				join(root, bundle, `Resources/locale-${index}.pak`),
+				"utf8"
+			)
+		).toBe(`file ${index}\n`);
+	}
+
+	expect(await readFile(join(root, binaryPath))).toEqual(data);
+	expect(await readFile(join(root, bundle, "Resources/empty"), "utf8")).toBe(
+		""
+	);
+	expect(await readlink(join(root, framework, "Versions/Current"))).toBe("A");
+	expect(await readlink(join(root, framework, "Example"))).toBe(
+		"Versions/Current/Example"
+	);
+	expect(await readFile(join(root, ".git/index"))).toEqual(originalIndex);
+});
+
 it("rejects the entire batch if any path is stale or unsupported", async () => {
 	await writeFile(join(root, "a.txt"), "preserve\n");
-	await symlink("a.txt", join(root, "link"));
+	await writeFile(join(root, "replaced.txt"), "base\n");
+	await git("add", "replaced.txt");
+	await git("commit", "-m", "Track replaced file");
+	head = await git("rev-parse", "HEAD");
+	await rm(join(root, "replaced.txt"));
+	await mkdir(join(root, "replaced.txt"));
 	expect((await discard(["a.txt", "missing.txt"])).ok).toBe(false);
-	expect((await discard(["a.txt", "link"])).ok).toBe(false);
+	expect((await discard(["a.txt", "replaced.txt"])).ok).toBe(false);
 	expect(await readFile(join(root, "a.txt"), "utf8")).toBe("preserve\n");
 	expect(await git("show", ":a.txt")).toBe("base");
 	expect(
 		await Bun.file(join(root, ".git/recovery/recovery.json")).exists()
 	).toBe(false);
 });
+
+it("rejects symlinked ancestors before writing any backup or changing a target", async () => {
+	await mkdir(join(root, "nested"));
+	await writeFile(join(root, "nested", "tracked.txt"), "base\n");
+	await git("add", "nested/tracked.txt");
+	await git("commit", "-m", "Track nested file");
+	head = await git("rev-parse", "HEAD");
+	await rm(join(root, "nested"), { recursive: true });
+	await mkdir(join(root, ".git", "outside"));
+	await writeFile(join(root, ".git", "outside", "tracked.txt"), "untouched\n");
+	await symlink(join(root, ".git", "outside"), join(root, "nested"));
+	const result = await discard("nested/tracked.txt");
+
+	expect(result.ok).toBe(false);
+	expect(
+		await readFile(join(root, ".git", "outside", "tracked.txt"), "utf8")
+	).toBe("untouched\n");
+	expect(await readlink(join(root, "nested"))).toBe(
+		join(root, ".git", "outside")
+	);
+	expect(
+		await Bun.file(join(root, ".git/recovery/recovery.json")).exists()
+	).toBe(false);
+});
+
+it("does not advertise a recovery folder when preflight fails before creating a backup", async () => {
+	spyOn(await import("node:os"), "homedir").mockReturnValue(root);
+	expect(homedir()).toBe(root);
+	await writeFile(join(root, "a.txt"), "preserve\n");
+	const result = await RepositoryFileActions.discard(root, {
+		kind: "discard",
+		paths: ["a.txt"],
+		expectedHead: "stale",
+		expectedBranch: "main",
+	});
+
+	expect(result.ok).toBe(false);
+
+	if (result.ok) throw new Error("Expected preflight rejection");
+
+	expect(result.error.message).not.toContain("Recovery");
+	expect("recoveryDirectory" in result).toBe(false);
+	expect(await readFile(join(root, "a.txt"), "utf8")).toBe("preserve\n");
+});
+
+it.each(["empty", "empty-patch", "partial", "complete"] as const)(
+	"reports only existing %s recovery data after a later failure",
+	async (backup) => {
+		spyOn(await import("node:os"), "homedir").mockReturnValue(root);
+		expect(homedir()).toBe(root);
+		spyOn(GitRepository, "open").mockResolvedValue({
+			ok: true,
+			value: repository,
+		});
+		let directory: string | undefined;
+
+		spyOn(repository, "discardFiles").mockImplementation(async (input) => {
+			directory = input.recovery?.directory;
+
+			if (!directory?.startsWith(`${root}/`))
+				throw new Error("Recovery must stay in this fixture");
+
+			await mkdir(directory);
+
+			if (backup === "empty-patch")
+				await writeFile(join(directory, "staged.patch"), "");
+
+			if (backup === "partial" || backup === "complete")
+				await writeFile(join(directory, "working.patch"), "saved edits");
+
+			if (backup === "complete")
+				await writeFile(join(directory, "README.txt"), "instructions");
+
+			return {
+				ok: false,
+				error: {
+					code: "command-failed",
+					message: "Discard failed.",
+					operation: "discard-files",
+					retryable: false,
+				},
+			};
+		});
+		const result = await RepositoryFileActions.discard(root, {
+			kind: "discard",
+			paths: ["a.txt"],
+			expectedHead: head,
+			expectedBranch: "main",
+		});
+
+		if (result.ok) throw new Error("Expected injected failure");
+
+		if (!directory) throw new Error("Expected an attempted backup directory");
+
+		if (backup === "empty" || backup === "empty-patch") {
+			expect(result.error.message).toBe("Discard failed.");
+			expect("recoveryDirectory" in result).toBe(false);
+		} else {
+			expect(result.error.message).toBe(
+				`Discard failed. ${backup === "complete" ? "Recovery backup" : "Partial recovery files"} saved at ${directory}.`
+			);
+			expect("recoveryDirectory" in result && result.recoveryDirectory).toBe(
+				directory
+			);
+		}
+	}
+);

@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import {
 	mkdir,
 	mkdtemp,
+	readdir,
 	realpath,
 	rm,
 	stat,
@@ -215,14 +216,30 @@ export class RepositoryFileActions {
 			},
 		});
 
-		if (!result.ok)
+		if (!result.ok) {
+			// Recovery inspection must not replace the original failure, including permission errors.
+			const files = await readdir(directory).catch((): string[] => []);
+
+			const patches = await Promise.all(
+				files
+					.filter((file) => file === "staged.patch" || file === "working.patch")
+					.map(
+						async (file) => await stat(join(directory, file)).catch(() => null)
+					)
+			);
+
+			if (!patches.some((patch) => patch?.isFile() && patch.size > 0))
+				return result;
+
 			return {
 				...result,
+				recoveryDirectory: directory,
 				error: {
 					...result.error,
-					message: `${result.error.message} Recovery files, if created, are at ${directory}.`,
+					message: `${result.error.message} ${files.includes("README.txt") ? "Recovery backup" : "Partial recovery files"} saved at ${directory}.`,
 				},
 			};
+		}
 
 		return {
 			ok: true as const,

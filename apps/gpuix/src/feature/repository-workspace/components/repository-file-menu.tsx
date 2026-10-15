@@ -19,6 +19,7 @@ const finderApplication = "/System/Library/CoreServices/Finder.app";
 interface FileMenuContext {
 	root: string;
 	disabled: boolean;
+	mutationError?: string | null;
 	open?: typeof RepositoryFileActions.open;
 	editors?: ExternalEditors;
 	selection?: (id: string) => readonly WorkspaceEntry[];
@@ -417,7 +418,7 @@ export function RepositoryFileMenu({
 			{children((event) => {
 				void openMenu(event);
 			})}
-			{error ? (
+			{error && error !== actions.mutationError ? (
 				<text
 					role="alert"
 					style={{
