@@ -112,14 +112,7 @@ export function RepositoryFileMenu({
 			const canDiscard =
 				live?.canDiscard &&
 				files.length === selected.length &&
-				changes.every(
-					(item) =>
-						!item.originalPath &&
-						!item.submodule.startsWith("S") &&
-						item.recordType !== "unmerged" &&
-						item.indexStatus !== "type-changed" &&
-						item.worktreeStatus !== "type-changed"
-				);
+				RepositoryFileActions.canDiscard(changes);
 
 			const bounds = renderer.getElementBounds?.(event.elementId);
 

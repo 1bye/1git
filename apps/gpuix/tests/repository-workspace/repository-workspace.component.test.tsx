@@ -1006,6 +1006,10 @@ it("reveals the remembered row when keyboard focus returns after scrolling it of
 		element("filter-changes").id
 	);
 	key("filter-changes", "tab");
+	expect(root.renderer.getFocusedElementId()).toBe(
+		element("repository-heading").id
+	);
+	key("repository-heading", "tab");
 	expect(root.renderer.getFocusedElementId()).toBe(element("include-all").id);
 	key("include-all", "tab");
 	const row = element("entry-tsconfig.json");

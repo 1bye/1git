@@ -242,7 +242,7 @@ export function WorkspaceTab({
 }: WorkspaceTabProps) {
 	const theme = useAppTheme();
 	const { tokens: appTokens } = theme;
-	const { activeSurface, styles } = themedStyles[theme.appearance];
+	const { activeSurface, styles } = themedStyles.get(theme);
 
 	const frame = useRef<PublicInstance>(null);
 	const [focused, setFocused] = useState(false);

@@ -7,7 +7,6 @@ import {
 	radius,
 } from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
-import { Checkbox } from "@1git/gpuix-ui/checkbox";
 import { Button } from "@1git/gpuix-ui/button";
 import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -24,6 +23,7 @@ import { EmptyListPlaceholder } from "../../../fixture/empty-list-placeholder";
 import { StateMessage } from "../../../fixture/state-message";
 import { RepositoryCommit } from "./repository-commit";
 import { RepositoryRevisions } from "./repository-revisions";
+import { RepositoryChangesHeader } from "./repository-changes-header";
 
 import type { useRepositoryHistory } from "../hooks/use-repository-history";
 import type { useRepositoryStashes } from "../hooks/use-repository-stashes";
@@ -377,12 +377,7 @@ export function RepositoryNavigation({
 			? state.history.nextOffset !== 0 && !state.history.error
 			: state.stashes.loaded && !state.stashes.error);
 
-	const heading =
-		view === "changes"
-			? `${state.includedFileIds.length} of ${state.entries.changes.length} selected`
-			: historySearching
-				? "Search results"
-				: "Commits";
+	const heading = historySearching ? "Search results" : "Commits";
 
 	const readError =
 		state.error ??
@@ -812,39 +807,19 @@ export function RepositoryNavigation({
 						label="Retry push status"
 					/>
 				) : null}
-				{view === "changes" || historySearching || fileHistory ? (
+				{view === "changes" ? (
+					<RepositoryChangesHeader
+						state={state}
+						shown={filtering ? entries.length : undefined}
+						onAction={onAction}
+						onDiscard={onDiscard}
+					/>
+				) : historySearching || fileHistory ? (
 					<div style={styles.header}>
 						<text testId="repository-heading" style={styles.muted}>
 							{heading}
 						</text>
-						{filtering ? (
-							<text style={styles.faint}>{`${entries.length} shown`}</text>
-						) : null}
-						{view === "changes" ? (
-							<Checkbox
-								testId="include-all"
-								aria-label="Include all changed files in commit"
-								tokens={appTokens}
-								checked={
-									state.includedFileIds.length === 0
-										? false
-										: state.includedFileIds.length ===
-													state.entries.changes.length &&
-											  !Object.keys(state.partialFiles ?? {}).length
-											? true
-											: "indeterminate"
-								}
-								disabled={
-									state.entries.changes.length === 0 ||
-									RepositoryWorkspaceModel.isBusy(state)
-								}
-								onCheckedChange={(included) =>
-									onAction({ type: "include-all", included })
-								}
-							/>
-						) : (
-							<text style={styles.faint}>{state.entries[view].length}</text>
-						)}
+						<text style={styles.faint}>{state.entries[view].length}</text>
 					</div>
 				) : null}
 				{view === "changes" ? (

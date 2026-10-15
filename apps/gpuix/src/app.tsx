@@ -1067,21 +1067,19 @@ function AppContent({
 						) : undefined
 					}
 					toolbar={
-						<AppThemeContext value={theme}>
-							<WorkspaceTabs
-								state={state}
-								dispatch={dispatch}
-								readBranches={readBranches}
-								readRepository={readRepository}
-								onChangeBranch={mutations.changeBranch}
-								onCreateWorktree={mutations.createWorktree}
-								onRemoveWorktree={mutations.removeWorktree}
-								onSettings={() => {
-									openSettings();
-									setSettingsSection("repository-remotes");
-								}}
-							/>
-						</AppThemeContext>
+						<WorkspaceTabs
+							state={state}
+							dispatch={dispatch}
+							readBranches={readBranches}
+							readRepository={readRepository}
+							onChangeBranch={mutations.changeBranch}
+							onCreateWorktree={mutations.createWorktree}
+							onRemoveWorktree={mutations.removeWorktree}
+							onSettings={() => {
+								openSettings();
+								setSettingsSection("repository-remotes");
+							}}
+						/>
 					}
 					workspaceLabel={activeTab ? `${activeTab.name} workspace` : "Home"}
 				>

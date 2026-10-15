@@ -1,5 +1,5 @@
 /**
- * Covers: native settings shortcuts/color submenu, custom input/reset, worktree inheritance, neutral tabs/Home/Settings and retained editing/scroll.
+ * Covers: native color shortcuts, custom input/reset, worktree inheritance, matching active-tab surfaces, neutral Home/Settings and retained editing/scroll.
  * Real: App, palette/session models and GPUIX rendering/input.
  * Doubles: repositories, diffs, account catalog, editor discovery, OS menu choices and session saves; no real preferences, Git writes or accounts.
  * Requires: patched native addon and macOS graphics access.
@@ -130,7 +130,7 @@ it("supports keyboard swatches, rejects invalid custom input and resets without 
 });
 
 it.each(["light", "dark"] as const)(
-	"colors a repo and its worktree without recoloring tabs or losing edits (%s)",
+	"matches the active tab to its repo and worktree without losing edits (%s)",
 	async (appearance) => {
 		const root = createTestRoot({
 			width: 1150,
@@ -328,8 +328,8 @@ it.each(["light", "dark"] as const)(
 			expect(node(root, "commit-message").customProps?.value).toBe(
 				"Keep main draft"
 			);
-			expect(node(root, "surface-workspace-1").customProps?.source).toBe(
-				tabSource
+			expect(node(root, "surface-workspace-1").customProps?.source).toContain(
+				`fill="${themed.colors.editorSurface}"`
 			);
 			expect(node(root, "workspace-home-icon").style.color).toBe(
 				appThemes[appearance].colors.editorMuted
@@ -391,6 +391,9 @@ it.each(["light", "dark"] as const)(
 			expect(draw.p90Ms).toBeLessThan(12);
 
 			await click(root, "workspace-2");
+			expect(node(root, "surface-workspace-2").customProps?.source).toContain(
+				`fill="${RepositoryTheme.create(appThemes[appearance], "#46b8b3").colors.editorSurface}"`
+			);
 			expect(
 				root.renderer.findByTestId("repository-pattern-layer")
 			).toBeUndefined();
@@ -401,6 +404,9 @@ it.each(["light", "dark"] as const)(
 				"Other draft"
 			);
 			await click(root, "workspace-3");
+			expect(node(root, "surface-workspace-3").customProps?.source).toContain(
+				`fill="${themed.colors.editorSurface}"`
+			);
 			expect(node(root, "repository-pattern-layer")).toBeDefined();
 			expect(node(root, "app-shell").style.backgroundColor).toBe(
 				themed.colors.chrome
@@ -435,6 +441,9 @@ it.each(["light", "dark"] as const)(
 			expect(node(root, "app-shell").style.backgroundColor).toBe("transparent");
 			expect(node(root, "commit-message").customProps?.value).toBe(
 				"Keep main draft"
+			);
+			expect(node(root, "surface-workspace-1").customProps?.source).toBe(
+				tabSource
 			);
 			menu.mockReturnValueOnce({ kind: "pattern", pattern: "rose" });
 			await click(root, "rail-settings");

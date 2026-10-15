@@ -176,8 +176,9 @@ diff preferences in the workspace session and restores on restart. Switching doe
 not remount workspaces, clear drafts/inclusion, reload Git, or reset native diff scroll.
 
 Window-local React context selects complete app, control and native diff palettes.
-Shared styles are cached per palette and active-tab SVGs stay on the base light/dark
-palette, not rebuilt while scrolling.
+Shared styles and active-tab SVGs are cached per palette, not rebuilt while scrolling.
+The active tab surface follows its repository color so it joins the workspace
+without a neutral-color seam; tab labels and change badges keep their existing colors.
 Dark syntax and addition/deletion backgrounds are separate from selection colors.
 Syntax colors follow [GitHub Dark Default](https://github.com/primer/github-vscode-theme/blob/main/src/theme.js),
 mapped to native token kinds rather than every language-specific scope. Comments
@@ -1726,6 +1727,12 @@ Reading a diff never stages, unstages, discards or commits changes.
   the current diff and commit inclusion unchanged; Shift-selection and native
   group actions use visible matching files. The select-all commit checkbox still
   controls all changed files, including hidden ones.
+- Click or right-click the **N of M selected** header, or press **Shift+F10** while
+  it is focused, for whole-list actions: include all, exclude all, or
+  **Discard all changes…**. These apply to the entire changed-file list, including
+  filtered-out and unchecked files. Discard uses the same explicit warning,
+  branch checks and recovery backups as the file menu; an unsafe file disables
+  the whole discard action rather than silently discarding only a subset.
 - Click selects one file; Command-click toggles files and Shift-click selects a
   range. Shift+Arrow extends the range. The diff follows the last clicked file;
   highlighted files are independent of the commit inclusion checkboxes.

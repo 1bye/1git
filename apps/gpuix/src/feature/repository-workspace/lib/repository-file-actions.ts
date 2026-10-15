@@ -11,7 +11,11 @@ import { homedir, tmpdir } from "node:os";
 import { basename, join, resolve, relative } from "node:path";
 import { randomUUID } from "node:crypto";
 import { promisify } from "node:util";
-import { GitRepository, type IgnoreFileInput } from "@1git/git";
+import {
+	GitRepository,
+	type FileChange,
+	type IgnoreFileInput,
+} from "@1git/git";
 import { RepositoryConflicts } from "./repository-conflicts";
 import { NativeClipboard } from "../../../platform/clipboard";
 import { ExternalEditors } from "../../editor-settings/external-editors";
@@ -34,6 +38,21 @@ export type FileIgnoreRequest = IgnoreFileInput & { kind: "ignore" };
 
 /** macOS file actions and durable, path-scoped discard recovery. No shell interpolation. */
 export class RepositoryFileActions {
+	/** A discard batch is all-or-nothing; unsupported paths must never be silently skipped. */
+	static canDiscard(changes: readonly FileChange[]): boolean {
+		return (
+			changes.length > 0 &&
+			changes.every(
+				(item) =>
+					!item.originalPath &&
+					!item.submodule.startsWith("S") &&
+					item.recordType !== "unmerged" &&
+					item.indexStatus !== "type-changed" &&
+					item.worktreeStatus !== "type-changed"
+			)
+		);
+	}
+
 	/** Opens a private read-only Git snapshot, never the working file. Deleted files use their pre-deletion blob. */
 	static async openRevision(
 		root: string,
