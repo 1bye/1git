@@ -128,7 +128,7 @@ export function AppShell({
 							width: "100%",
 							height: "100%",
 							pointerEvents: "none",
-							opacity: 0.045,
+							opacity: theme.appearance === "dark" ? 0.12 : 0.09,
 							color: theme.appearance === "dark" ? "#ffffff" : "#000000",
 						}}
 					/>

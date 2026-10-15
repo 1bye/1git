@@ -206,8 +206,9 @@ Choices are saved only in the local session, keyed by Git's common directory so
 linked worktrees share them; closing a tab does not discard the choice. Existing
 sessions and repositories without a color retain the default palette.
 The repo palette tints native-blurred chrome, controls, selection surfaces and a
-faint content wash. A single cached static SVG mask adds quiet grain beneath
-chrome controls, never over code; it has no animation, filter or input target.
+faint content wash. A single cached static SVG mask adds visible, fine grain
+beneath chrome controls, never over code. Its density and light/dark opacity keep
+it readable over the blur without animation, filters or an input target.
 Tabs, Home and Settings stay on their existing palette. Diff red/green rails,
 syntax, errors and other semantic colors are unchanged. Palette changes preserve
 the mounted editor, checked changes, selected file and native diff scroll.

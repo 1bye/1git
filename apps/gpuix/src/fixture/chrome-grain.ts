@@ -1,8 +1,10 @@
 // One deterministic monochrome mask, cached by GPUIX; no filters, animation or per-frame noise.
 const pixels: string[] = [];
+const grainPointCount = 1600;
 let seed = 17;
 
-for (let index = 0; index < 300; index++) {
+// Dense enough to remain visible when the mask is downsampled on Retina displays.
+for (let index = 0; index < grainPointCount; index++) {
 	seed = (seed * 1664525 + 1013904223) >>> 0;
 	const x = (seed >>> 16) % 64;
 
