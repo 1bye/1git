@@ -43,6 +43,7 @@ import {
 	roundedOverflowPlatformPatchPath,
 	windowAppearancePatchPath,
 	windowAppearancePlatformPatchPath,
+	workspaceShortcutsPatchPath,
 } from "./config";
 
 if (process.platform !== "darwin" || process.arch !== "arm64") {
@@ -130,6 +131,7 @@ if (
 		diffRailsPatchPath,
 		textareaViewportPatchPath,
 		textareaDecorationsPatchPath,
+		workspaceShortcutsPatchPath,
 	];
 
 	// Later patches can change an earlier patch's context. Unwind known patches

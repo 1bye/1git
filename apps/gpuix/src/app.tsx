@@ -675,6 +675,18 @@ function AppContent({
 		workspaceShortcuts.set(renderer, (key) => {
 			if (onboardingOpen) return;
 
+			if (key === "left" || key === "right") {
+				let id: string | undefined;
+
+				if (activeTab)
+					id = WorkspaceTabsModel.destination(state.tabs, activeTab.id, key);
+				else id = (key === "left" ? state.tabs.at(-1) : state.tabs[0])?.id;
+
+				if (id) dispatch({ type: "activate", id });
+
+				return;
+			}
+
 			if (/^[1-9]$/.test(key)) {
 				const tab = state.tabs[Number(key) - 1];
 

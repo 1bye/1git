@@ -1,5 +1,5 @@
 /**
- * Covers: native window close/AppKit termination veto, consumed notifications and explicit close after release.
+ * Covers: Close Window leaves Command W to tab handling; native close/AppKit termination veto and explicit close after release.
  * Real: pinned native addon, macOS AppKit/GPUI lifecycle in isolated Bun child processes.
  * Doubles: static UI; no Git operations or user session files.
  * Requires: macOS graphics access and built local native addon.

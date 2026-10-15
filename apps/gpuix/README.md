@@ -873,7 +873,12 @@ no token-by-token React updates or changes to the diff scroll/rendering path.
   new windows or animate their entrance/exit.
 - Shift+Left/Right reorders the focused tab, without wrapping at the ends.
 - Close with × or Delete/Backspace while its tab is focused.
+- Cmd+W closes the active repository tab, not the window. Busy Git operations
+  keep their tab open; closing the last tab returns to Home.
 - Left/Right wrap between tabs; Home/End select the first/last.
+- Cmd+Left/Right switch repository tabs from anywhere outside a text editor,
+  wrapping at either end. From Home they select the last/first repository tab.
+  Native text fields retain their normal Command-arrow cursor and selection actions.
 - Enter and Space activate a focused tab or open its menu when already active;
   Down also opens the active tab's menu. Tab/Shift+Tab traverse Home, the active
   tab and its close action. Right from Home activates the first repository tab.
@@ -887,7 +892,8 @@ On first launch the window starts on Home with no placeholder tab. Later launche
 restore the saved tabs, drafts and Home selection. Home stays visible when tabs
 overflow; it preserves repository selections and drafts and does not cancel
 ongoing Git operations. Opening a recent repository reuses its existing tab or
-opens a new repository tab. Cmd+W remains the native Close Window command. There is no theme switch or tab
+opens a new repository tab. The native Close Window menu, traffic-light close
+button and Cmd+Q remain separate window/application actions. There is no tab
 entrance/exit animation yet.
 
 ### Open, clone and create

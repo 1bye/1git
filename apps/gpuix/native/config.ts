@@ -130,6 +130,10 @@ export const accountsPlatformPatchPath = resolve(
 	import.meta.dir,
 	"accounts-platform.patch"
 );
+export const workspaceShortcutsPatchPath = resolve(
+	import.meta.dir,
+	"workspace-shortcuts.patch"
+);
 export const nativeBuildId = createHash("sha256")
 	.update(nativeRevision)
 	.update(readFileSync(patchPath))
@@ -166,5 +170,6 @@ export const nativeBuildId = createHash("sha256")
 	.update(readFileSync(accountsPlatformPatchPath))
 	.update(readFileSync(contextMenuIconsPatchPath))
 	.update(readFileSync(contextMenuIconsPlatformPatchPath))
+	.update(readFileSync(workspaceShortcutsPatchPath))
 	.update(`${process.platform}-${process.arch}-release-v1`)
 	.digest("hex");

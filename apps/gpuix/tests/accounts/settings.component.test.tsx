@@ -762,6 +762,16 @@ it("preserves a native commit draft and list scroll when closing the Settings ta
 	await settle();
 	root.renderer.simulateKeystrokes("cmd-2");
 	await settle();
+	root.renderer.nativeSimulateKeyDown(
+		root.renderer.findByTestId("settings-title-tab-close")!.id,
+		"cmd-right"
+	);
+	await settle();
+	root.renderer.nativeSimulateKeyDown(
+		root.renderer.findByTestId("settings-title-tab-close")!.id,
+		"cmd-w"
+	);
+	await settle();
 	click("settings-title-tab-close");
 	await settle();
 	expect(root.renderer.findByTestId("settings-view")).toBeUndefined();

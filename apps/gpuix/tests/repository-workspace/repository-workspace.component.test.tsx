@@ -148,6 +148,65 @@ it("switches and closes workspaces with Command shortcuts and toggles a focused 
 	expect(element("commit-message")).toBeDefined();
 });
 
+it("cycles repository tabs with Command arrows, including from Home", async () => {
+	root.render(<App key="three-tabs" preview initialTabCount={3} />);
+	await Bun.sleep(20);
+	key("entry-src/app.tsx", "cmd-left");
+	expect(element("workspace-3").customProps?.["aria-selected"]).toBe(true);
+	key("view-changes", "cmd-left");
+	expect(element("workspace-2").customProps?.["aria-selected"]).toBe(true);
+	key("view-changes", "cmd-right");
+	expect(element("workspace-3").customProps?.["aria-selected"]).toBe(true);
+	key("view-changes", "cmd-right");
+	expect(element("workspace-1").customProps?.["aria-selected"]).toBe(true);
+	key("workspace-1", "cmd-right");
+	expect(element("workspace-2").customProps?.["aria-selected"]).toBe(true);
+	key("workspace-2", "cmd-left");
+	expect(element("workspace-1").customProps?.["aria-selected"]).toBe(true);
+	key("workspace-1", "shift-cmd-left");
+	key("workspace-1", "alt-cmd-right");
+	expect(element("workspace-1").customProps?.["aria-selected"]).toBe(true);
+	click("workspace-home");
+	key("workspace-home", "cmd-left");
+	expect(element("workspace-3").customProps?.["aria-selected"]).toBe(true);
+	click("workspace-home");
+	key("workspace-home", "cmd-right");
+	expect(element("workspace-1").customProps?.["aria-selected"]).toBe(true);
+});
+
+it("keeps Command arrows in native editors instead of switching tabs", async () => {
+	await Bun.sleep(20);
+	click("commit-message");
+	root.renderer.simulateKeystrokes("h e l l o cmd-left x cmd-right y");
+	root.renderer.flush();
+	expect(element("commit-message").customProps?.value).toBe("xhelloy");
+	expect(element("workspace-1").customProps?.["aria-selected"]).toBe(true);
+	root.renderer.simulateKeystrokes("shift-cmd-left z");
+	root.renderer.flush();
+	expect(element("commit-message").customProps?.value).toBe("z");
+	click("filter-changes");
+	root.renderer.simulateKeystrokes("a p p cmd-left x cmd-right y");
+	root.renderer.flush();
+	expect(element("changes-filter").customProps?.value).toBe("xappy");
+	expect(element("workspace-1").customProps?.["aria-selected"]).toBe(true);
+});
+
+it("keeps the window on Home after Command W closes the last repository tab", async () => {
+	await Bun.sleep(20);
+	key("entry-src/app.tsx", "cmd-w");
+	expect(root.renderer.findByTestId("workspace-1")).toBeUndefined();
+	expect(element("workspace-2").customProps?.["aria-selected"]).toBe(true);
+	key("view-changes", "cmd-right");
+	expect(element("workspace-2").customProps?.["aria-selected"]).toBe(true);
+	key("commit-message", "cmd-w");
+	expect(root.renderer.findByTestId("workspace-2")).toBeUndefined();
+	expect(element("repository-welcome")).toBeDefined();
+	key("workspace-home", "cmd-left");
+	key("workspace-home", "cmd-right");
+	key("workspace-home", "cmd-w");
+	expect(element("repository-welcome")).toBeDefined();
+});
+
 it("keeps rail selection filled and borderless while the search field is transparent", () => {
 	expect(element("view-changes").style.backgroundColor).toBe(
 		lightColors.editorHairline

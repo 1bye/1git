@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { GpuixRenderer } from "@gpuix/native";
 import { render } from "@gpuix/react";
-import { dlopen, JSCallback, ptr } from "bun:ffi";
+import { CString, dlopen, JSCallback, ptr } from "bun:ffi";
 
 const { symbols } = dlopen("/usr/lib/libobjc.A.dylib", {
 	objc_getClass: { args: ["ptr"], returns: "ptr" },
@@ -148,6 +148,22 @@ const index = Number(send(menu, "indexOfItemWithTitle:", name));
 assert.ok(
 	index >= 0 && index < Number(send(menu, "numberOfItems")),
 	"Close Window menu item must exist"
+);
+const itemAtIndex = Buffer.from("itemAtIndex:\0");
+
+const closeItem = integerMessage(
+	menu,
+	symbols.sel_registerName(ptr(itemAtIndex)),
+	index
+);
+
+const closeKey = send(send(closeItem, "keyEquivalent"), "UTF8String");
+
+assert.ok(closeKey, "Close Window key equivalent must be readable");
+assert.equal(
+	new CString(closeKey).toString(),
+	"",
+	"Close Window must not intercept Command W before the repository tab handler"
 );
 const action = Buffer.from("performActionForItemAtIndex:\0");
 

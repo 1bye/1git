@@ -59,7 +59,22 @@ export function handleWorkspaceKeyDown(
 	const key = event.key ?? "";
 
 	if (
-		!["o", "r", "w", "1", "2", "3", "4", "5", "6", "7", "8", "9"].includes(key)
+		![
+			"o",
+			"r",
+			"w",
+			"left",
+			"right",
+			"1",
+			"2",
+			"3",
+			"4",
+			"5",
+			"6",
+			"7",
+			"8",
+			"9",
+		].includes(key)
 	)
 		return false;
 
