@@ -167,7 +167,10 @@ it("opens the extracted ZIP without a terminal or checkout-dependent resources",
 			await Bun.sleep(50);
 		}
 
-		expect(painted).toContain("Welcome to 1git");
+		expect(
+			painted,
+			await Bun.file(resolve(directory, "stderr.log")).text()
+		).toContain("Welcome to 1git");
 		expect(painted).toContain("Continue");
 		expect(painted).not.toContain("Uncaught runtime errors:");
 	} finally {

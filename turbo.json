@@ -6,6 +6,12 @@
     "build:native": {
       "cache": false
     },
+    "setup:signing:macos": {
+      "cache": false
+    },
+    "test:signing:macos": {
+      "cache": false
+    },
     "package:macos": {
       "dependsOn": ["^build", "build:native"],
       "cache": false,
@@ -13,7 +19,9 @@
         "DEVELOPER_DIR",
         "ONEGIT_UPDATE_FEED_URL",
         "ONEGIT_UPDATE_PUBLIC_KEY",
-        "ONEGIT_RELEASE_VERSION"
+        "ONEGIT_RELEASE_VERSION",
+        "ONEGIT_MACOS_SIGNING_CONFIG",
+        "ONEGIT_MACOS_ADHOC"
       ]
     },
     "test:package:macos": {
@@ -36,13 +44,19 @@
         "DEVELOPER_DIR",
         "ONEGIT_UPDATE_PUBLIC_KEY",
         "ONEGIT_UPDATE_KEY_FILE",
+        "ONEGIT_MACOS_SIGNING_CONFIG",
+        "ONEGIT_MACOS_ADHOC",
         "ALCHEMY_PROFILE",
         "ALCHEMY_HOME"
       ]
     },
     "deploy:updates": {
       "cache": false,
-      "passThroughEnv": ["ONEGIT_UPDATE_PUBLIC_KEY", "CLOUDFLARE_*", "ALCHEMY_*"]
+      "passThroughEnv": [
+        "ONEGIT_UPDATE_PUBLIC_KEY",
+        "CLOUDFLARE_*",
+        "ALCHEMY_*"
+      ]
     },
     "test:release:transport": {
       "cache": false

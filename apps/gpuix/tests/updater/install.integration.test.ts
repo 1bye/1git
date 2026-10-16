@@ -1,5 +1,5 @@
 /**
- * Covers: real Sparkle install-on-quit/relaunch, close veto, and tampered archives.
+ * Covers: Sparkle install-on-quit/relaunch, stable signing migration, close veto, and tampered archives.
  * Real: production bridge/framework, signed local HTTP feeds, macOS installer.
  * Doubles: small Cocoa host instead of GPUI; temporary keys, no R2 or user accounts.
  * Requires: Apple Silicon macOS, packaged app, Xcode; root test:updates:macos.
@@ -11,9 +11,16 @@ import { homedir, tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { appDirectory } from "../../native/config";
 import { sparkleDirectory } from "../../native/sparkle";
+import { MacSigning } from "../../native/macos-signing";
 
-for (const mode of ["quit", "restart", "tamper"] as const) {
-	it(`handles ${mode} with ad-hoc signing and a temporary update key`, async () => {
+for (const mode of [
+	"quit",
+	"restart",
+	"tamper",
+	"migration",
+	"stable",
+] as const) {
+	it(`handles ${mode} with a temporary update key`, async () => {
 		if (process.platform !== "darwin" || process.arch !== "arm64")
 			throw new Error("Requires Apple Silicon macOS.");
 
@@ -67,6 +74,12 @@ for (const mode of ["quit", "restart", "tamper"] as const) {
 		});
 
 		const origin = `http://127.0.0.1:${server.port}`;
+
+		const signing =
+			mode === "quit" || mode === "restart"
+				? new MacSigning(null)
+				: await MacSigning.load({}, true);
+
 		let child: ReturnType<typeof Bun.spawn> | undefined;
 
 		try {
@@ -116,7 +129,14 @@ for (const mode of ["quit", "restart", "tamper"] as const) {
 					"-o",
 					resolve(contents, "MacOS/1git"),
 				]);
-				await run(["codesign", "--force", "--sign", "-", app]);
+				const signer =
+					mode === "migration" && version === "0.0.1"
+						? new MacSigning(null)
+						: signing;
+
+				await signer.sign(app, async (args) => {
+					await run(args);
+				});
 				await run(["codesign", "--verify", "--deep", "--strict", app]);
 			}
 
@@ -182,7 +202,7 @@ for (const mode of ["quit", "restart", "tamper"] as const) {
 
 				if (
 					(mode === "tamper" && status.startsWith("error:")) ||
-					(mode === "quit" && installed) ||
+					(mode !== "tamper" && mode !== "restart" && installed) ||
 					(mode === "restart" &&
 						installed &&
 						(await Bun.file(resolve(directory, "launched-version")).text()) ===

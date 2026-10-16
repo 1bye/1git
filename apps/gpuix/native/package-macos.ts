@@ -13,6 +13,7 @@ import { bundleInfoPlist, copyImageRuntime } from "./package-resources";
 import { version as developmentVersion } from "../package.json";
 import { embedSparkle, updateConfiguration } from "./sparkle";
 import { ReleaseVersion } from "./release-options";
+import { MacSigning } from "./macos-signing";
 
 if (process.platform !== "darwin" || process.arch !== "arm64") {
 	throw new Error("macOS packaging currently supports Apple Silicon only.");
@@ -38,6 +39,12 @@ const updates = updateConfiguration(
 const version = ReleaseVersion.parse(
 	process.env.ONEGIT_RELEASE_VERSION ?? developmentVersion
 );
+
+const signing = await MacSigning.load();
+
+await signing.verify();
+const sign = async (path: string): Promise<void> =>
+	await signing.sign(path, run);
 
 const output = resolve(appDirectory, "build/macos");
 
@@ -90,7 +97,7 @@ try {
 		resolve(resources, "RepositoryPatterns.LICENSE")
 	);
 	await copyImageRuntime(resources);
-	await embedSparkle(contents, run);
+	await embedSparkle(contents, run, sign);
 
 	// Compile the Icon Composer source, retaining modern appearances and an ICNS
 	// fallback. Never rewrite the designer-owned .icon bundle or flatten its layers.
@@ -117,19 +124,18 @@ try {
 	);
 	await run(["plutil", "-lint", resolve(contents, "Info.plist")]);
 
-	// Sign nested native code before the containing bundle. This is a local ad-hoc
-	// signature; a public first launch without an exception needs notarization.
+	// One pinned identity signs nested code before its container; never regenerate it during a build.
 	const nativeImages = new Bun.Glob("node_modules/@img/**/*.{node,dylib}");
 
 	for await (const image of nativeImages.scan({
 		cwd: resources,
 		absolute: true,
 	})) {
-		await run(["codesign", "--force", "--sign", "-", image]);
+		await sign(image);
 	}
 
-	await run(["codesign", "--force", "--sign", "-", addon]);
-	await run(["codesign", "--force", "--sign", "-", bundle]);
+	await sign(addon);
+	await sign(bundle);
 	await run(["codesign", "--verify", "--deep", "--strict", bundle]);
 	await writeFile(
 		resolve(release, "README.txt"),
@@ -144,7 +150,7 @@ Install:
 2. Move 1git.app into Applications.
 3. Open 1git.app.
 
-This beta is ad-hoc signed, not Developer ID signed or notarized by Apple.
+This beta is ${signing.certificate ? "self-signed with a stable identity" : "ad-hoc signed"}, not Developer ID signed or notarized by Apple.
 macOS may block the first launch. Only if you trust the source, after trying
 to open the app, use System Settings > Privacy & Security > Open Anyway.
 Some managed Macs do not permit this exception. Do not disable Gatekeeper.

@@ -42,13 +42,13 @@ layered icon's appearance depends on the macOS version.
 
 Packaging also creates `build/macos/1git-macos-arm64.zip` and its `.sha256`
 checksum file. Share the ZIP, not the loose app's individual files. The archive
-preserves executable permissions, bundle resources and the ad-hoc signature,
+preserves executable permissions, bundle resources and the code signature,
 and includes a `README.txt` with requirements and installation/security guidance.
 Outputs stay in ignored `build/macos/`; no account/session files, repository data
 or build caches are included. Rebuilding replaces only generated outputs after
 compilation, signing and archive creation succeed.
 
-This is an **Apple Silicon beta**, ad-hoc signed but not Developer ID signed or
+This is an **Apple Silicon beta**, self-signed after signing setup, but not Developer ID signed or
 notarized. Recipients need Git available on their Mac (for example, Apple's Command
 Line Tools), but not Bun, Rust or Xcode to run the app. Extract the ZIP, move
 `1git.app` into Applications, and open it. For a trusted download blocked by
@@ -67,6 +67,57 @@ temporary directory. It checks actual painted onboarding text through the native
 stdio protocol, with isolated session/accounts and no provider calls. It closes
 only its own extracted test app. macOS graphics access is required. This checks
 normal foreground launching, not the inspection tool's hidden/background launch.
+
+### Stable local signing
+
+```sh
+bun run setup:signing:macos
+bun run test:signing:macos
+```
+
+Setup explicitly creates one self-signed **1git Local Release Signing** identity
+in the release Mac's default Keychain. Initial setup requires OpenSSL 3 and macOS
+permission to import the identity and set user-level trust for **code signing only**.
+It does not add TLS trust, system-wide trust, or change existing keys. The private
+key is temporarily generated in a private directory, imported with access limited
+to `/usr/bin/codesign`, and its temporary files are removed even after an error.
+Only the public certificate and fingerprint live in `native/macos-signing.json`;
+keep that public pin in version control. Setup is locked against concurrent runs
+and reuses an existing pin instead of silently creating a replacement identity.
+
+Back up this identity securely using Keychain Access's password-protected export;
+never commit or include its private key in an app, ZIP, feed, or R2. Another release
+Mac must import that same identity. Losing or replacing it changes Keychain trust.
+The certificate is valid for ten years; expiry stops builds rather than rotating
+the identity. A deliberate migration is required if it must be replaced.
+
+Packaging uses the pinned identity for the app, native libraries, Sparkle and all
+its helpers. Its designated requirement matches the bundle identifier and exact
+signing certificate, not a version-specific executable hash. A configured but
+unavailable identity fails; publishing requires a stable identity even if the pin
+is missing. No build or release creates keys, edits trust settings, or weakens
+credential ACLs. The Sparkle Ed25519 key is separate and remains unchanged.
+
+Existing ad-hoc credentials still require a one-time **Always Allow** approval or
+an explicit disconnect/reconnect; the new identity cannot silently bypass their
+old ACL. After that, subsequent same-identity builds retain access. A locked
+Keychain or a user's explicit access restriction can still require interaction.
+Recipients do not need to install the certificate or trust a new root. This is
+not notarization and does not remove Gatekeeper's first-launch restrictions.
+
+The signing integration test uses an isolated Keychain and synthetic credential.
+It confirms the old ad-hoc ACL refuses the new identity, then explicitly recreates
+that test entry as a reconnect would. Two different certificate-signed app builds,
+including replacement at the same path, must read it with all Keychain UI disabled.
+It does not automate a user's real password or claim to test the **Always Allow**
+dialog on another Mac. The updater suite separately tests real Sparkle migration.
+
+For isolated local tests only, `ONEGIT_MACOS_ADHOC=1` explicitly selects the former
+ad-hoc mode. A non-dry-run release rejects it. `ONEGIT_MACOS_SIGNING_CONFIG` may
+select a different public pin file for CI/testing; an invalid/missing explicit
+file never falls back. Development packaging on a fresh checkout without any pin
+remains ad-hoc until setup; development package versions and update defaults do
+not change.
 
 ## macOS updates
 
@@ -118,7 +169,8 @@ deployment is explicit and separate from publishing. The Worker provides a
 stable HTTPS `workers.dev` endpoint without needing a custom domain initially.
 
 Once the stack has been explicitly deployed and the permanent Sparkle signing
-key exists in Keychain account `dev.1git.gpuix`:
+key exists in Keychain account `dev.1git.gpuix`, run `setup:signing:macos` once to
+provision the separate stable code-signing identity:
 
 ```sh
 bun run release:macos -- --version 0.0.2 --dry-run
@@ -156,9 +208,10 @@ bun run test:updates:macos
 ```
 
 The uncached suite uses disposable keys, isolated Cocoa hosts, a loopback feed,
-and the actual ad-hoc-signed production Sparkle bridge/installer. It verifies
+and the actual production Sparkle bridge/installer. It verifies
 install-on-quit, relaunch into the new version, a protected restart veto, tampered
-ZIP rejection, signed release preparation and mismatched-key rejection. A separate
+ZIP rejection, ad-hoc-to-self-signed and self-signed-to-self-signed installation,
+signed release preparation and mismatched-key rejection. A separate
 GPUI/Bun test proves the native veto and synchronous JS save callback. These
 tests do not prove quarantined-download/Gatekeeper behavior on another Mac;
 Developer ID signing and notarization remain necessary for a frictionless public
@@ -565,8 +618,9 @@ Other applications' credential keys are rejected. The native bridge has Windows
 and Linux dispatch paths, but this app and these vault tests are currently
 validated only on Apple Silicon macOS. Ad-hoc signatures identify a particular
 build, so macOS may ask for Keychain approval again after updates or a restart
-if only one-time access was allowed. A stable signing identity, normally Developer ID,
-is needed for normal cross-update trust; no permissive Keychain ACL or plaintext fallback is used.
+if only one-time access was allowed. The stable self-signed identity described above
+preserves trust across updates after the initial migration; no permissive Keychain
+ACL or plaintext fallback is used.
 
 ### Registering browser sign-in
 

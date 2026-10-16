@@ -113,6 +113,7 @@ it("builds a signed versioned release without accessing R2 or changing developme
 						.subarray(-32)
 						.toString("base64"),
 					ONEGIT_UPDATE_KEY_FILE: keyFile,
+					ONEGIT_MACOS_ADHOC: "1",
 					ONEGIT_R2_ACCOUNT_ID: "invalid",
 					ONEGIT_R2_SECRET_ACCESS_KEY: fakeSecret,
 					ALCHEMY_HOME: resolve(directory, "missing-alchemy-home"),

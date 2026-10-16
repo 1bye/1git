@@ -7,6 +7,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "build:native": "bun native/build.ts",
+    "setup:signing:macos": "bun native/setup-signing.ts",
+    "test:signing:macos": "bun test tests/packaging/signing.integration.test.ts",
     "package:macos": "bun native/package-macos.ts",
     "test:package:macos": "bun test tests/packaging/launch.integration.test.ts",
     "test:updates:macos": "bun test tests/updater/install.integration.test.ts tests/updater/lifecycle.integration.test.ts tests/updater/preparation.integration.test.ts",

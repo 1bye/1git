@@ -11,6 +11,8 @@
     "dev": "turbo run dev",
     "build": "turbo run build",
     "package:macos": "turbo run package:macos --filter=@1git/gpuix",
+    "setup:signing:macos": "turbo run setup:signing:macos --filter=@1git/gpuix",
+    "test:signing:macos": "turbo run test:signing:macos --filter=@1git/gpuix",
     "test:package:macos": "turbo run test:package:macos --filter=@1git/gpuix",
     "test:updates:macos": "turbo run test:updates:macos --filter=@1git/gpuix",
     "prepare:updates:macos": "turbo run prepare:updates:macos --filter=@1git/gpuix",

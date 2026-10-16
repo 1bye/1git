@@ -7,6 +7,7 @@ import { ReleasePublisher } from "./release-publisher";
 import { R2ReleaseStorage } from "./release-storage";
 import { ReleaseStack, publishWithProfile } from "@1git/releases/publishing";
 import { releaseUpdateConfiguration } from "./sparkle";
+import { MacSigning } from "./macos-signing";
 import {
 	SignedPublisherRequests,
 	SparkleUploadSigner,
@@ -32,6 +33,10 @@ export async function releaseMacOS(
 		throw new Error(
 			"macOS releases require Apple Silicon macOS and full Xcode."
 		);
+
+	const signing = await MacSigning.load(env, !options.dryRun);
+
+	await signing.verify();
 
 	const target = await new ReleaseStack(
 		resolve(appDirectory, "../releases/.alchemy")

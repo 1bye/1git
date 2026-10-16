@@ -12,6 +12,7 @@ import { resolve } from "node:path";
 import { appDirectory } from "../../native/config";
 import { sparkleDirectory } from "../../native/sparkle";
 import { prepareUpdates } from "../../native/prepare-updates";
+import { bundleInfoPlist } from "../../native/package-resources";
 
 it("prepares signed artifacts locally and leaves them unchanged on a wrong key", async () => {
 	const directory = await mkdtemp(
@@ -50,33 +51,17 @@ it("prepares signed artifacts locally and leaves them unchanged on a wrong key",
 		});
 		const plist = resolve(bundle, "Contents/Info.plist");
 
-		await run([
-			"plutil",
-			"-insert",
-			"SUFeedURL",
-			"-string",
-			"https://updates.example.com/appcast.xml",
+		// Own all public metadata, independent of the last packaged version or its real feed/key.
+		await writeFile(
 			plist,
-		]);
-		await run([
-			"plutil",
-			"-insert",
-			"SUPublicEDKey",
-			"-string",
-			publicKey
-				.export({ type: "spki", format: "der" })
-				.subarray(-32)
-				.toString("base64"),
-			plist,
-		]);
-		await run([
-			"plutil",
-			"-insert",
-			"SURequireSignedFeed",
-			"-bool",
-			"YES",
-			plist,
-		]);
+			bundleInfoPlist("0.0.1", {
+				feedURL: "https://updates.example.com/appcast.xml",
+				publicKey: publicKey
+					.export({ type: "spki", format: "der" })
+					.subarray(-32)
+					.toString("base64"),
+			})
+		);
 		await run(["codesign", "--force", "--sign", "-", bundle]);
 		await prepareUpdates(bundle, output, keyFile);
 		const feed = await Bun.file(resolve(output, "appcast.xml")).text();

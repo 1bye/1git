@@ -52,6 +52,10 @@ release preparation, or `release:macos --dry-run`.
 ## Build and publish a release
 
 See the [desktop release configuration](../gpuix/.env.release.example).
+Run `bun run setup:signing:macos` once on the release Mac to provision its separate,
+stable self-signed code-signing identity. Back it up securely; only its public
+certificate pin is committed. Publishing refuses missing/unavailable identities
+and ad-hoc mode. This does not create or rotate the Sparkle key described below.
 Generate/back up a permanent Sparkle key with
 `apps/gpuix/.cache/sparkle/bin/generate_keys --account dev.1git.gpuix` after the
 first packaging run. `release:macos` automatically reads its existing public key

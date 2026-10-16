@@ -69,7 +69,8 @@ export async function prepareSparkle(): Promise<void> {
 /** Embeds a self-contained framework and a main-thread AppKit bridge. */
 export async function embedSparkle(
 	contents: string,
-	run: (command: string[]) => Promise<void>
+	run: (command: string[]) => Promise<void>,
+	sign: (path: string) => Promise<void>
 ): Promise<void> {
 	await prepareSparkle();
 	const frameworks = resolve(contents, "Frameworks");
@@ -113,15 +114,9 @@ export async function embedSparkle(
 		"Versions/B/Autoupdate",
 		"",
 	])
-		await run(["codesign", "--force", "--sign", "-", resolve(framework, path)]);
+		await sign(resolve(framework, path));
 
-	await run([
-		"codesign",
-		"--force",
-		"--sign",
-		"-",
-		resolve(frameworks, "1git-updater.dylib"),
-	]);
+	await sign(resolve(frameworks, "1git-updater.dylib"));
 }
 
 /** HTTPS feed + public Ed25519 key baked into the signed app, never credentials. */
