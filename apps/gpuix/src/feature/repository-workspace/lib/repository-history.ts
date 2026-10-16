@@ -1,5 +1,4 @@
 import {
-	GitRepository,
 	type CommitFileChange,
 	type CommitInfo,
 	type CommitPage,
@@ -9,6 +8,7 @@ import {
 	type ResetCommitInput,
 	type ReorderCommitsInput,
 } from "@1git/git";
+import { GitRepository } from "../../machines/repository-access";
 import type { HostingProvider } from "@1git/hosting/provider";
 import { parseRemote } from "@1git/hosting/remote";
 

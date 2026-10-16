@@ -1,6 +1,8 @@
+import { MachineLocation } from "../../machines/machine-location";
 import { lstat, readdir, realpath } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join } from "node:path";
-import { GitRepository, type GitResult } from "@1git/git";
+import { type GitResult } from "@1git/git";
+import { GitRepository } from "../../machines/repository-access";
 import { RepositoryBranches } from "./repository-branches";
 const forbiddenBranchCharacters = /[~^:?*[\\]/;
 
@@ -43,6 +45,11 @@ export class RepositoryWorktrees {
 				message,
 			},
 		});
+
+		if (MachineLocation.isRemote(root))
+			return fail(
+				"Manage remote worktree creation and removal on the SSH machine."
+			);
 
 		const source = await GitRepository.open({ path: root });
 
@@ -163,6 +170,11 @@ export class RepositoryWorktrees {
 				message,
 			},
 		});
+
+		if (MachineLocation.isRemote(root))
+			return fail(
+				"Manage remote worktree creation and removal on the SSH machine."
+			);
 
 		const opened = await GitRepository.open({ path: root });
 

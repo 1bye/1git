@@ -1,9 +1,15 @@
 /**
- * Covers: archive integrity and foreground launch through macOS Launch Services.
+ * Covers: archive/helper integrity and foreground launch through macOS Launch Services.
  * Real: extracted signed app, native frames, and GPUIX's stdio automation protocol.
  * Doubles: fresh isolated session/accounts; no hosting or AI provider requests.
  * Requires: Apple Silicon macOS graphics access; run root test:package:macos.
  */
+import { createHash } from "node:crypto";
+import { gunzipSync } from "node:zlib";
+import {
+	isRecord,
+	remoteHelperTargets,
+} from "../../src/feature/machines/remote-protocol";
 import { expect, it } from "bun:test";
 import { closeSync, constants, openSync, writeSync } from "node:fs";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
@@ -74,6 +80,28 @@ it("opens the extracted ZIP without a terminal or checkout-dependent resources",
 			"not Developer ID signed or notarized"
 		);
 		await run(["codesign", "--verify", "--deep", "--strict", bundle]);
+		const helperDirectory = resolve(
+			bundle,
+			"Contents/Resources/remote-helpers"
+		);
+
+		for (const target of remoteHelperTargets) {
+			const compressed = await readFile(
+				resolve(helperDirectory, `${target}.gz`)
+			);
+
+			const metadata: unknown = JSON.parse(
+				await readFile(resolve(helperDirectory, `${target}.json`), "utf8")
+			);
+
+			expect(isRecord(metadata) && metadata.compressedSha256).toBe(
+				createHash("sha256").update(compressed).digest("hex")
+			);
+			expect(isRecord(metadata) && metadata.sha256).toBe(
+				createHash("sha256").update(gunzipSync(compressed)).digest("hex")
+			);
+		}
+
 		await run(["mkfifo", input]);
 		pipe = openSync(input, constants.O_RDWR);
 

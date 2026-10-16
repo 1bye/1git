@@ -1,3 +1,4 @@
+import { MachineLocation } from "../../machines/machine-location";
 import { createThemedStyles, useAppTheme } from "../../../styles/theme";
 import {
 	spacing,
@@ -88,7 +89,7 @@ const themedStyles = createThemedStyles(({ tokens: appTokens }) => {
 	return { styles };
 });
 
-/** Desktop-style launch page: quick actions beside a local, searchable repository list. */
+/** Launch page with machine selection, quick actions and a searchable repository library. */
 export function RepositoryWelcome({
 	paths,
 	library,
@@ -101,6 +102,8 @@ export function RepositoryWelcome({
 	onOpen,
 	onOpenRecent,
 	onForget,
+	machines,
+	remote = false,
 }: {
 	paths: readonly string[];
 	library: RepositoryLibraryPreferences;
@@ -113,6 +116,8 @@ export function RepositoryWelcome({
 	onOpen: () => void;
 	onOpenRecent: (path: string) => void;
 	onForget: (path: string) => void;
+	machines?: ReactNode;
+	remote?: boolean;
 }) {
 	const theme = useAppTheme();
 	const { tokens: appTokens } = theme;
@@ -165,7 +170,7 @@ export function RepositoryWelcome({
 			const choice = NativeFileMenu.show(
 				renderer,
 				["Scan again", "Reveal in Finder", "Remove folder"],
-				[true, true, true],
+				[true, !remote, true],
 				event.x ?? bounds?.x ?? 0,
 				event.y ?? (bounds ? bounds.y + bounds.height : 0)
 			);
@@ -203,7 +208,7 @@ export function RepositoryWelcome({
 					"Forget",
 					starred.has(path) ? "Unstar" : "Star",
 				],
-				[true, true, true, true],
+				[true, !remote, true, true],
 				event.x ?? bounds?.x ?? 0,
 				event.y ?? (bounds ? bounds.y + bounds.height : 0)
 			);
@@ -249,84 +254,50 @@ export function RepositoryWelcome({
 						overflowY: "scroll",
 					}}
 				>
-					<text style={styles.heading}>QUICK ACTIONS</text>
-					{actions}
-					<Button
-						tokens={appTokens}
-						variant="ghost"
-						size="sm"
-						testId="open-repository"
-						disabled={busy}
-						style={{ ...styles.action, marginTop: spacing[1] }}
-						onPress={onOpen}
-					>
-						<svg
-							source='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 7V5a1 1 0 0 1 1-1h5l3 3h8a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7Z" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/></svg>'
-							style={{
-								width: iconSize.sm,
-								height: iconSize.sm,
-								color: appTokens.colors.textMuted,
-								pointerEvents: "none",
-							}}
-						/>
-						{busy ? "Opening…" : "Open from disk"}
-					</Button>
-					{discovery ? (
+					{machines}
+					{remote ? null : (
 						<>
+							<text style={styles.heading}>QUICK ACTIONS</text>
+							{actions}
 							<Button
-								testId="discovery-folder"
 								tokens={appTokens}
 								variant="ghost"
 								size="sm"
-								disabled={discovery.picking}
-								style={{ ...styles.action, marginTop: spacing[4] }}
-								onPress={() => {
-									void discovery.chooseFolder();
-								}}
+								testId="open-repository"
+								disabled={busy}
+								style={{ ...styles.action, marginTop: spacing[1] }}
+								onPress={onOpen}
 							>
-								{discovery.picking ? "Choosing folder…" : "Add folder…"}
-							</Button>
-							<Button
-								testId="discovery-rescan"
-								tokens={appTokens}
-								variant="ghost"
-								size="sm"
-								style={styles.action}
-								onPress={
-									scanning
-										? discovery.stop
-										: () =>
-												discovery.rescan(
-													inFolder ? selectedFolder?.path : undefined
-												)
-								}
-							>
-								{scanning ? "Stop scanning" : "Scan again"}
-							</Button>
-							{discovery.progress.limited || discovery.progress.skipped ? (
-								<text
-									testId="discovery-incomplete"
+								<svg
+									source='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 7V5a1 1 0 0 1 1-1h5l3 3h8a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7Z" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/></svg>'
 									style={{
-										...styles.hint,
-										...typography.xs,
-										marginTop: spacing[2],
-										paddingLeft: spacing[2.5],
+										width: iconSize.sm,
+										height: iconSize.sm,
+										color: appTokens.colors.textMuted,
+										pointerEvents: "none",
 									}}
-								>
-									{discovery.progress.limited
-										? "Scan limit reached. Scan another folder to find more."
-										: `${discovery.progress.skipped} folders or repositories could not be inspected.`}
-								</text>
-							) : null}
-							{discovery.error ? (
-								<text
-									role="alert"
-									style={{ ...styles.hint, marginTop: spacing[2] }}
-								>
-									{discovery.error}
-								</text>
-							) : null}
+								/>
+								{busy ? "Opening…" : "Open from disk"}
+							</Button>
 						</>
+					)}
+					{discovery && !remote ? (
+						<Button
+							testId="discovery-folder"
+							tokens={appTokens}
+							variant="ghost"
+							size="sm"
+							disabled={discovery.picking}
+							style={{
+								...styles.action,
+								marginTop: spacing[4],
+							}}
+							onPress={() => {
+								void discovery.chooseFolder();
+							}}
+						>
+							{discovery.picking ? "Choosing folder…" : "Add folder…"}
+						</Button>
 					) : null}
 					{error ? (
 						<text
@@ -423,6 +394,69 @@ export function RepositoryWelcome({
 							marginBottom: spacing[3],
 						}}
 					/>
+					{discovery ? (
+						<div
+							testId="discovery-summary"
+							style={{
+								display: "flex",
+								flexDirection: "column",
+								gap: spacing[1],
+								marginBottom: spacing[3],
+							}}
+						>
+							<div
+								style={{
+									display: "flex",
+									flexDirection: "row",
+									alignItems: "center",
+									justifyContent: "space-between",
+									gap: spacing[2],
+								}}
+							>
+								<text
+									style={{ ...styles.hint, ...typography.xs }}
+								>{`${paths.length} ${paths.length === 1 ? "repository" : "repositories"}${scanning ? " · Scanning…" : ""}`}</text>
+								<Button
+									testId="discovery-rescan"
+									tokens={appTokens}
+									variant="ghost"
+									size="sm"
+									onPress={
+										scanning
+											? discovery.stop
+											: () =>
+													discovery.rescan(
+														inFolder ? selectedFolder?.path : undefined
+													)
+									}
+								>
+									{scanning ? "Stop scanning" : "Scan again"}
+								</Button>
+							</div>
+							{discovery.progress.limited || discovery.progress.skipped ? (
+								<text
+									testId="discovery-incomplete"
+									style={{ ...styles.hint, ...typography.xs }}
+								>
+									{discovery.progress.limited
+										? "Scan limit reached. Add a specific scan folder to find more."
+										: `${discovery.progress.skipped} folders or repositories could not be inspected.`}
+								</text>
+							) : null}
+							{discovery.error ? (
+								<text
+									role="alert"
+									style={{
+										...styles.hint,
+										...typography.xs,
+										color: appTokens.colors.danger,
+									}}
+								>
+									{discovery.error}
+								</text>
+							) : null}
+						</div>
+					) : null}
 					{inFolder ? (
 						<div
 							style={{
@@ -453,7 +487,9 @@ export function RepositoryWelcome({
 									textOverflow: "ellipsis",
 								}}
 							>
-								{selectedFolder?.path ?? "Other repositories"}
+								{selectedFolder?.path
+									? MachineLocation.display(selectedFolder.path)
+									: "Other repositories"}
 							</text>
 							{selectedFolder?.path ? (
 								<Button

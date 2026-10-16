@@ -16,11 +16,8 @@ import type {
 	PullRequest,
 } from "@1git/hosting/contracts";
 import { parseRemote } from "@1git/hosting/remote";
-import {
-	GitRepository,
-	type GitResult,
-	type GitHttpAuthentication,
-} from "@1git/git";
+import { type GitResult, type GitHttpAuthentication } from "@1git/git";
+import { GitRepository } from "../../machines/repository-access";
 import type { CredentialVault } from "./native-credentials";
 import {
 	AccountAuthorization,

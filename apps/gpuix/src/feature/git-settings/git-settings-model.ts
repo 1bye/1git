@@ -1,10 +1,10 @@
 import {
 	GitIdentity,
-	GitRepository,
 	type GitIdentityValues,
 	type GitResult,
 	type RemoteInfo,
 } from "@1git/git";
+import { GitRepository } from "../machines/repository-access";
 
 /** Settings read from Git rather than duplicated in the app's session document. */
 export interface GitSettingsData {

@@ -1,4 +1,5 @@
-import { GitRepository, type SquashCommitsInput } from "@1git/git";
+import { type SquashCommitsInput } from "@1git/git";
+import { GitRepository } from "../../machines/repository-access";
 
 const squashTimeoutMs = 120_000;
 

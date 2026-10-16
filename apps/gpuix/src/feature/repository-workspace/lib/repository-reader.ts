@@ -1,8 +1,5 @@
-import {
-	GitRepository,
-	type GitResult,
-	type RepositorySnapshot,
-} from "@1git/git";
+import { type GitResult, type RepositorySnapshot } from "@1git/git";
+import { GitRepository } from "../../machines/repository-access";
 
 /** Read-only Git boundary; opens existing working repositories, never initializes or mutates them. */
 export class RepositoryReader {

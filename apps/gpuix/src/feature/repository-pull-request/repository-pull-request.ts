@@ -1,8 +1,5 @@
-import {
-	GitRepository,
-	type BranchCollection,
-	type RemoteInfo,
-} from "@1git/git";
+import { type BranchCollection, type RemoteInfo } from "@1git/git";
+import { GitRepository } from "../machines/repository-access";
 import { parseRemote, type RemoteIdentity } from "@1git/hosting/remote";
 import type { PullRequest } from "@1git/hosting/contracts";
 import type { Accounts } from "../accounts/lib/accounts";

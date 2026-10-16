@@ -267,13 +267,21 @@ it("shows incomplete scans honestly and preserves layout at minimum size", async
 	);
 
 	const search = root.renderer.getElementBounds(node("welcome-search").id);
+	const summary = root.renderer.getElementBounds(node("discovery-summary").id);
 
-	if (!folder || !rescan || !warning || !search)
+	if (!folder || !rescan || !warning || !search || !summary)
 		throw new Error("Missing discovery layout");
 
-	expect(folder.x + folder.width).toBeLessThan(search.x);
-	expect(rescan.x).toBe(folder.x);
-	expect(warning.x + warning.width).toBeLessThan(search.x);
+	expect(folder.x + folder.width).toBeLessThan(summary.x);
+	expect(summary.y).toBeGreaterThanOrEqual(search.y + search.height);
+	expect(rescan.x).toBeGreaterThanOrEqual(summary.x);
+	expect(rescan.x + rescan.width).toBeLessThanOrEqual(
+		summary.x + summary.width
+	);
+	expect(warning.x).toBe(summary.x);
+	expect(warning.x + warning.width).toBeLessThanOrEqual(
+		summary.x + summary.width
+	);
 	expect(root.renderer.findByTestId("discovery-rail")).toBeUndefined();
 
 	if (process.env.GPUIX_DISCOVERY_SCREENSHOT)

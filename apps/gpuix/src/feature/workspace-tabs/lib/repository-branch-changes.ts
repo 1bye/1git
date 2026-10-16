@@ -1,11 +1,11 @@
 import { Buffer } from "node:buffer";
 import { randomUUID } from "node:crypto";
 import {
-	GitRepository,
 	type GitResult,
 	type RepositorySnapshot,
 	type StashInfo,
 } from "@1git/git";
+import { GitRepository } from "../../machines/repository-access";
 
 const marker = /\[1git-branch-v1:([A-Za-z0-9_-]+)\]$/;
 const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/;

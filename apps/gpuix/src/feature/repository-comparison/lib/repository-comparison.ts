@@ -1,8 +1,5 @@
-import {
-	GitRepository,
-	type BranchComparison,
-	type GitResult,
-} from "@1git/git";
+import { type BranchComparison, type GitResult } from "@1git/git";
+import { GitRepository } from "../../machines/repository-access";
 import { RepositoryHistory } from "../../repository-workspace/lib/repository-history";
 import type { WorkspaceEntry } from "../../repository-workspace/types";
 

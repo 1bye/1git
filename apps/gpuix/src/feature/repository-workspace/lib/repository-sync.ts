@@ -1,5 +1,4 @@
 import {
-	GitRepository,
 	type GitResult,
 	type SyncResult,
 	type SyncBranchInput,
@@ -9,11 +8,14 @@ import {
 	type GitOperation,
 	type GitTransferProgress,
 } from "@1git/git";
+import { GitRepository } from "../../machines/repository-access";
 import type {
 	RemoteAccounts,
 	ChooseRemoteAccount,
 	RemoteAccountAccess,
 } from "../../accounts/lib/remote-accounts";
+
+import { MachineLocation } from "../../machines/machine-location";
 
 const syncTimeoutMs = 120_000;
 
@@ -500,7 +502,8 @@ export class RepositorySync {
 		signal: AbortSignal,
 		authentication?: SyncAuthentication
 	): Promise<GitHttpAuthentication | undefined> {
-		if (!authentication) return undefined;
+		if (!authentication || MachineLocation.isRemote(repository.info.root))
+			return undefined;
 
 		const remotes = await repository.getRemotes({ signal });
 

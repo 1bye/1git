@@ -1,5 +1,6 @@
 import { useAppTheme } from "../../../styles/theme";
 import { spacing, typography, iconSize } from "@1git/design-tokens";
+import { MachineLocation } from "../../machines/machine-location";
 import { basename } from "node:path";
 import { useState, type Ref } from "react";
 import { Button } from "@1git/gpuix-ui/button";
@@ -146,7 +147,7 @@ export function RepositoryWelcomeRow({
 							textOverflow: "ellipsis",
 						}}
 					>
-						{path}
+						{MachineLocation.display(path)}
 					</text>
 				</div>
 			</Button>

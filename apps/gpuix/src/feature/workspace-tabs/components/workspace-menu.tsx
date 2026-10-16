@@ -1,3 +1,4 @@
+import { MachineLocation } from "../../machines/machine-location";
 import { createThemedStyles, useAppTheme } from "../../../styles/theme";
 import { radius, spacing, typography, fontWeight } from "@1git/design-tokens";
 import { basename } from "node:path";
@@ -492,6 +493,7 @@ export function WorkspaceMenu({
 	const canCompare = !busy && !!head && data !== null;
 
 	const canCreateWorktree =
+		!MachineLocation.isRemote(repository?.root ?? "") &&
 		!busy &&
 		!!head &&
 		repository?.operation === "normal" &&
@@ -1430,7 +1432,9 @@ export function WorkspaceMenu({
 														style={styles.row}
 														disabled={busy}
 														aria-label={`Open ${item.branch?.replace(/^refs\/heads\//, "") ?? "detached HEAD"} worktree${current ? ", current worktree" : ""}`}
-														aria-description={item.path}
+														aria-description={MachineLocation.display(
+															item.path
+														)}
 														onContextMenu={
 															onRemoveWorktree
 																? (event) => {

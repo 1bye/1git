@@ -13,10 +13,16 @@ import { basename, join, resolve, relative } from "node:path";
 import { randomUUID } from "node:crypto";
 import { promisify } from "node:util";
 import {
-	GitRepository,
 	type FileChange,
+	type GitResult,
+	type RepositorySnapshot,
 	type IgnoreFileInput,
 } from "@1git/git";
+import { MachineLocation } from "../../machines/machine-location";
+import { Machines } from "../../machines/machines";
+import { isRecord } from "../../machines/remote-protocol";
+import { qualifyRemoteResult } from "../../machines/repository-access";
+import { GitRepository } from "../../machines/repository-access";
 import { RepositoryConflicts } from "./repository-conflicts";
 import { NativeClipboard } from "../../../platform/clipboard";
 import { ExternalEditors } from "../../editor-settings/external-editors";
@@ -108,12 +114,22 @@ export class RepositoryFileActions {
 
 	/** Reveal an existing repository folder without changing its contents. */
 	static async revealRepository(directory: string) {
+		if (MachineLocation.isRemote(directory))
+			throw new Error(
+				"This folder is on your SSH machine and cannot be revealed in Finder."
+			);
+
 		const path = await realpath(directory);
 
 		await execute("/usr/bin/open", ["-R", path], { timeout: 10_000 });
 	}
 
 	static async revealRecovery(directory: string) {
+		if (MachineLocation.isRemote(directory))
+			throw new Error(
+				`Recovery files are on your SSH machine: ${MachineLocation.display(directory)}`
+			);
+
 		await execute("/usr/bin/open", [directory], { timeout: 10_000 });
 	}
 	static async open(
@@ -145,7 +161,8 @@ export class RepositoryFileActions {
 			return;
 		}
 
-		const canonical = await realpath(root);
+		const remote = MachineLocation.parse(root);
+		const canonical = remote?.path ?? (await realpath(root));
 
 		const paths = requested.map((item) => resolve(canonical, item));
 
@@ -161,6 +178,11 @@ export class RepositoryFileActions {
 
 			return;
 		}
+
+		if (remote)
+			throw new Error(
+				"Open working files with an SSH-capable editor on the remote machine."
+			);
 
 		const absolute = paths[0];
 
@@ -191,6 +213,23 @@ export class RepositoryFileActions {
 	}
 
 	static async discard(root: string, request: FileDiscardRequest) {
+		const remote = MachineLocation.parse(root);
+
+		if (remote) {
+			const result = await Machines.shared.request(root, {
+				operation: "discard",
+				input: request,
+			});
+
+			if (!isRecord(result) || typeof result.ok !== "boolean")
+				throw new Error("Invalid remote discard response.");
+
+			return qualifyRemoteResult(
+				result,
+				remote.machineId
+			) as GitResult<RepositorySnapshot> & { recoveryDirectory?: string };
+		}
+
 		const opened = await GitRepository.open({ path: root });
 
 		if (!opened.ok) return opened;

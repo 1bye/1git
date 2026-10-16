@@ -24,6 +24,7 @@ const emptyProgress: RepositoryDiscoveryProgress = {
 
 type ScanStatus = "idle" | "scanning" | "complete" | "stopped" | "unavailable";
 interface FolderScan {
+	readonly scope: string;
 	readonly canonicalPath: string;
 	readonly progress: RepositoryDiscoveryProgress;
 	readonly status: ScanStatus;
@@ -36,11 +37,15 @@ export function useRepositoryDiscovery({
 	scan,
 	preferences,
 	onPreferencesChange,
+	home = homedir(),
+	remote = false,
 }: {
 	enabled: boolean;
 	scan?: typeof RepositoryDiscovery.scan;
 	preferences: RepositoryDiscoveryPreferences;
 	onPreferencesChange: Dispatch<SetStateAction<RepositoryDiscoveryPreferences>>;
+	home?: string;
+	remote?: boolean;
 }) {
 	const renderer = useGpuixRequired();
 
@@ -52,7 +57,7 @@ export function useRepositoryDiscovery({
 	const [picking, setPicking] = useState(false);
 	const active = useRef(new Map<string, AbortController>());
 	const pending = useRef(new Map<string, AbortController>());
-	const started = useRef(false);
+	const started = useRef(new Set<string>());
 	const mounted = useRef(true);
 	const picker = useRef(false);
 
@@ -69,6 +74,7 @@ export function useRepositoryDiscovery({
 				setRuns((current) =>
 					new Map(current).set(path, {
 						canonicalPath: current.get(path)?.canonicalPath ?? path,
+						scope: home,
 						progress: current.get(path)?.progress ?? emptyProgress,
 						status: "scanning",
 					})
@@ -100,8 +106,9 @@ export function useRepositoryDiscovery({
 						};
 
 						try {
-							const canonicalPath =
-								await RepositoryDiscovery.resolveFolder(path);
+							const canonicalPath = remote
+								? path
+								: await RepositoryDiscovery.resolveFolder(path);
 
 							if (controller.signal.aborted) return;
 
@@ -136,15 +143,20 @@ export function useRepositoryDiscovery({
 
 			pump();
 		},
-		[scan]
+		[scan, home, remote]
 	);
 
 	useEffect(() => {
-		if (!enabled || !scan || started.current) return;
+		if (!enabled || !scan) return;
 
-		started.current = true;
-		start([homedir(), ...preferences.folders]);
-	}, [enabled, scan, start, preferences.folders]);
+		const roots = [home, ...preferences.folders].filter(
+			(path) => !started.current.has(`${home}:${path}`)
+		);
+
+		for (const path of roots) started.current.add(`${home}:${path}`);
+
+		if (roots.length) start(roots);
+	}, [enabled, scan, start, preferences.folders, home]);
 
 	useEffect(() => {
 		mounted.current = true;
@@ -161,13 +173,18 @@ export function useRepositoryDiscovery({
 		};
 	}, []);
 
+	const visibleRuns = useMemo(
+		() => new Map([...runs].filter(([, run]) => run.scope === home)),
+		[runs, home]
+	);
+
 	const progress = useMemo(() => {
 		const paths = new Set<string>();
 		let scanned = 0;
 		let skipped = 0;
 		let limited = false;
 
-		for (const run of runs.values()) {
+		for (const run of visibleRuns.values()) {
 			for (const path of run.progress.paths) paths.add(path);
 
 			scanned += run.progress.scanned;
@@ -176,7 +193,7 @@ export function useRepositoryDiscovery({
 		}
 
 		return { paths: [...paths], scanned, skipped, limited };
-	}, [runs]);
+	}, [visibleRuns]);
 
 	const paths = useMemo(() => {
 		const hidden = new Set(preferences.hidden);
@@ -184,9 +201,11 @@ export function useRepositoryDiscovery({
 		return progress.paths.filter((path) => !hidden.has(path));
 	}, [progress.paths, preferences.hidden]);
 
-	const scanning = [...runs.values()].some((run) => run.status === "scanning");
+	const scanning = [...visibleRuns.values()].some(
+		(run) => run.status === "scanning"
+	);
 
-	const stopped = [...runs.values()].some(
+	const stopped = [...visibleRuns.values()].some(
 		(run) => run.status === "stopped" || run.status === "unavailable"
 	);
 
@@ -194,12 +213,14 @@ export function useRepositoryDiscovery({
 		? "scanning"
 		: stopped
 			? "stopped"
-			: runs.size
+			: visibleRuns.size
 				? "complete"
 				: "idle";
 
 	const error =
-		pickerError ?? [...runs.values()].find((run) => run.error)?.error ?? null;
+		pickerError ??
+		[...visibleRuns.values()].find((run) => run.error)?.error ??
+		null;
 
 	const folders = useMemo(
 		() =>
@@ -261,7 +282,7 @@ export function useRepositoryDiscovery({
 		available: !!scan,
 		folders,
 		rescan: (folder?: string) =>
-			start(folder ? [folder] : [homedir(), ...preferences.folders]),
+			start(folder ? [folder] : [home, ...preferences.folders]),
 		chooseFolder,
 		removeFolder: (path: string) => {
 			active.current.get(path)?.abort();

@@ -1,10 +1,11 @@
+import { MachineLocation } from "../machines/machine-location";
 import {
-	GitRepository,
 	type GitResult,
 	type SyncResult,
 	type SyncBranchInput,
 	type GitTransferProgress,
 } from "@1git/git";
+import { GitRepository } from "../machines/repository-access";
 import type { Owner, Repository, RepositoryRef } from "@1git/hosting/contracts";
 import { parseRemote } from "@1git/hosting/remote";
 import { GitHubProvider } from "@1git/hosting/providers/github";
@@ -71,6 +72,11 @@ export class RepositoryPublish {
 		const request = AbortSignal.any([signal, AbortSignal.timeout(120_000)]);
 
 		try {
+			if (MachineLocation.isRemote(root))
+				throw new Error(
+					"Configure a Git remote on the SSH machine before publishing branches here."
+				);
+
 			if (
 				!RepositoryPublish.validName(input.name) ||
 				input.description.length > 350 ||

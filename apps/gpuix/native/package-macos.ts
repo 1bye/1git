@@ -1,5 +1,6 @@
 import {
 	copyFile,
+	cp,
 	mkdir,
 	mkdtemp,
 	rename,
@@ -97,6 +98,12 @@ try {
 		resolve(resources, "RepositoryPatterns.LICENSE")
 	);
 	await copyImageRuntime(resources);
+	await run([process.execPath, "run", "native/build-remote-helpers.ts"]);
+	await cp(
+		resolve(appDirectory, "build/remote-helpers"),
+		resolve(resources, "remote-helpers"),
+		{ recursive: true }
+	);
 	await embedSparkle(contents, run, sign);
 
 	// Compile the Icon Composer source, retaining modern appearances and an ICNS

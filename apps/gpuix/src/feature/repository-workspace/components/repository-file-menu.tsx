@@ -1,3 +1,4 @@
+import { MachineLocation } from "../../machines/machine-location";
 import { useAppTheme } from "../../../styles/theme";
 import { typography, spacing } from "@1git/design-tokens";
 import { useRef, useState, type ReactNode } from "react";
@@ -78,6 +79,7 @@ export function RepositoryFileMenu({
 	const renderer = useGpuixRequired();
 	const pending = useRef(false);
 	const [error, setError] = useState<string | null>(null);
+	const remote = MachineLocation.isRemote(actions.root);
 	const live = actions.kind === "revision" ? null : actions;
 	const saved = actions.kind === "revision" ? entry.commitFile : undefined;
 	const file = live ? entry.change : saved;
@@ -200,7 +202,7 @@ export function RepositoryFileMenu({
 				const exists = saved
 					? !nullObjectId.test(saved.afterOid) ||
 						!nullObjectId.test(saved.beforeOid)
-					: entry.change?.worktreeStatus !== "deleted";
+					: entry.change?.worktreeStatus !== "deleted" && !remote;
 
 				const version = saved
 					? nullObjectId.test(saved.afterOid)
@@ -232,7 +234,7 @@ export function RepositoryFileMenu({
 						item(
 							"Reveal in Finder",
 							{ kind: "finder" },
-							exists,
+							exists && !remote,
 							finderApplication
 						)
 					);

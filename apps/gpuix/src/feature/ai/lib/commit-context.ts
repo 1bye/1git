@@ -1,4 +1,5 @@
-import { GitRepository, PartialPatch } from "@1git/git";
+import { PartialPatch } from "@1git/git";
+import { GitRepository } from "../../machines/repository-access";
 import {
 	RepositoryWorkspaceModel,
 	type RepositoryWorkspaceState,

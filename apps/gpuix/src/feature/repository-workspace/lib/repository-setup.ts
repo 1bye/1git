@@ -1,6 +1,6 @@
 import { lstat, readdir, realpath } from "node:fs/promises";
 import { basename, dirname, isAbsolute } from "node:path";
-import { GitRepository } from "@1git/git";
+import { GitRepository } from "../../machines/repository-access";
 import { RepositoryWorktrees } from "../../workspace-tabs/lib/repository-worktrees";
 import type { Accounts } from "../../accounts/lib/accounts";
 import type { SavedAccount } from "../../accounts/lib/account-store";

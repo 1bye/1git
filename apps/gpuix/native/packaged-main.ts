@@ -10,4 +10,9 @@ process.env.NAPI_RS_NATIVE_LIBRARY_PATH = resolve(
 	"Frameworks/gpuix-native.node"
 );
 
+process.env.GPUIX_REMOTE_HELPERS_DIR = resolve(
+	contents,
+	"Resources/remote-helpers"
+);
+
 await import(pathToFileURL(resolve(contents, "Resources/app.js")).href);

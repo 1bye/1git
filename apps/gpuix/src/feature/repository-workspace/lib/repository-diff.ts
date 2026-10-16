@@ -1,9 +1,5 @@
-import {
-	GitRepository,
-	type FileChange,
-	type FileDiff,
-	type GitResult,
-} from "@1git/git";
+import { type FileChange, type FileDiff, type GitResult } from "@1git/git";
+import { GitRepository } from "../../machines/repository-access";
 
 import { imageLimits } from "./image-preview";
 import { RepositoryConflicts } from "./repository-conflicts";

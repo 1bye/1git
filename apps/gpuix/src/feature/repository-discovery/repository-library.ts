@@ -5,6 +5,7 @@ export interface RepositoryLibraryPreferences {
 	readonly starred: readonly string[];
 	readonly view: "listed" | "starred";
 	readonly folder?: string;
+	readonly machine?: string;
 }
 
 export interface RepositoryFolder {
@@ -33,6 +34,10 @@ export class RepositoryLibrary {
 				: {};
 
 		return {
+			...(typeof record.machine === "string" &&
+			/^[a-f0-9-]{36}$/.test(record.machine)
+				? { machine: record.machine }
+				: {}),
 			starred: Array.isArray(record.starred)
 				? [
 						...new Set(
@@ -51,7 +56,12 @@ export class RepositoryLibrary {
 	}
 
 	static isDefault(value: RepositoryLibraryPreferences): boolean {
-		return !value.starred.length && value.view === "listed" && !value.folder;
+		return (
+			!value.starred.length &&
+			value.view === "listed" &&
+			!value.folder &&
+			!value.machine
+		);
 	}
 
 	static star(

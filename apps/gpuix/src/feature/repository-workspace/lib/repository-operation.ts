@@ -1,9 +1,9 @@
 import {
-	GitRepository,
 	type FinishOperationInput,
 	type GitResult,
 	type RepositorySnapshot,
 } from "@1git/git";
+import { GitRepository } from "../../machines/repository-access";
 
 /** Explicit merge/rebase/revert/cherry-pick completion or confirmed abort, preserving Git messages and hooks. */
 export class RepositoryOperation {

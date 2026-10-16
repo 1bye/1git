@@ -1,3 +1,4 @@
+import { MachineLocation } from "../../machines/machine-location";
 import { Button } from "@1git/gpuix-ui/button";
 import { radius, spacing, typography } from "@1git/design-tokens";
 import type { EventPayload } from "@gpuix/react";
@@ -26,7 +27,7 @@ export function RepositoryFolderTile({
 			aria-label={`Open ${group.name}, ${group.paths.length} ${group.paths.length === 1 ? "repository" : "repositories"}`}
 			aria-description={
 				group.path
-					? `${group.path}. Right-click for folder actions.`
+					? `${MachineLocation.display(group.path)}. Right-click for folder actions.`
 					: "Repositories outside your added folders."
 			}
 			onPress={onOpen}
@@ -89,7 +90,7 @@ export function RepositoryFolderTile({
 						width: "100%",
 					}}
 				>
-					{group.path}
+					{MachineLocation.display(group.path)}
 				</text>
 			) : null}
 		</Button>

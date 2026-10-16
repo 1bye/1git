@@ -1,3 +1,4 @@
+import { MachineContext } from "../../machines/machine-context";
 import { createThemedStyles, useAppTheme } from "../../../styles/theme";
 import {
 	radius as cornerRadius,
@@ -15,6 +16,7 @@ import {
 	type PublicInstance,
 } from "@gpuix/react";
 import {
+	useContext,
 	useLayoutEffect,
 	useRef,
 	useState,
@@ -23,6 +25,7 @@ import {
 } from "react";
 
 import { workspaceLayout as layout } from "../../../styles/workspace-layout";
+import { MachineLocation } from "../../machines/machine-location";
 import type { WorkspaceTabRecord } from "../lib/workspace-tabs-model";
 import { WorkspaceTabIcon } from "./workspace-tab-icon";
 import { RepositoryWorkspaceModel } from "../../repository-workspace/lib/repository-workspace-model";
@@ -240,6 +243,16 @@ export function WorkspaceTab({
 	onNavigate,
 	onReorder,
 }: WorkspaceTabProps) {
+	const machines = useContext(MachineContext);
+
+	const remote = MachineLocation.parse(
+		tab.workspace.repository?.root ?? tab.workspace.repositoryPath ?? ""
+	);
+
+	const machineName = remote
+		? (machines?.name(remote.machineId) ?? "SSH")
+		: null;
+
 	const theme = useAppTheme();
 	const { tokens: appTokens } = theme;
 	const { activeSurface, styles } = themedStyles.get(theme);
@@ -257,7 +270,12 @@ export function WorkspaceTab({
 
 	const hovered = Object.values(hoverTargets).some(Boolean);
 	const spaceArmed = useRef(false);
-	const label = tab.branch ? `${tab.name} / ${tab.branch}` : tab.name;
+	const repositoryLabel = tab.branch ? `${tab.name} / ${tab.branch}` : tab.name;
+
+	const label = machineName
+		? `${repositoryLabel} · ${machineName}`
+		: repositoryLabel;
+
 	// The retained Changes snapshot also refreshes for inactive tabs; no extra Git reads.
 	const changedFiles = tab.workspace.entries.changes.length;
 	const changedFilesLabel = `${changedFiles} changed ${changedFiles === 1 ? "file" : "files"}`;
@@ -481,6 +499,16 @@ function WorkspaceTabLabel({
 	id: string;
 	reveal?: boolean;
 }) {
+	const machines = useContext(MachineContext);
+
+	const remote = MachineLocation.parse(
+		tab.workspace.repository?.root ?? tab.workspace.repositoryPath ?? ""
+	);
+
+	const machineName = remote
+		? (machines?.name(remote.machineId) ?? "SSH")
+		: null;
+
 	const theme = useAppTheme();
 	const { tokens: appTokens } = theme;
 	const { styles } = themedStyles[theme.appearance];
@@ -548,6 +576,7 @@ function WorkspaceTabLabel({
 						})}
 					>
 						{tab.name}
+						{machineName ? ` · ${machineName}` : ""}
 					</Text>
 					{tab.branch ? (
 						<Text

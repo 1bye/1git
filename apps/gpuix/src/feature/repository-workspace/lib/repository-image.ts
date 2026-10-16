@@ -4,6 +4,8 @@ import type { FileChange, FileContentSource, GitRepository } from "@1git/git";
 
 import { ImagePreviewDecoder, type ImagePreview } from "./image-preview";
 import type { CommitFileSelection } from "../types";
+import { MachineLocation } from "../../machines/machine-location";
+import { Machines } from "../../machines/machines";
 
 /** One available Git version, including a recoverable read/decode failure. Null sides mean absent files. */
 export type RepositoryImageSide =
@@ -86,7 +88,9 @@ export class RepositoryImage {
 
 				if (
 					source.kind === "working" &&
-					(await lstat(join(root, change.path))).isSymbolicLink()
+					(MachineLocation.isRemote(root)
+						? await Machines.shared.isSymlink(root, change.path, signal)
+						: (await lstat(join(root, change.path))).isSymbolicLink())
 				)
 					throw new Error("Symbolic links are not rendered as image previews.");
 

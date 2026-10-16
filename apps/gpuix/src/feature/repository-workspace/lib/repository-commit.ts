@@ -1,11 +1,11 @@
 import {
-	GitRepository,
 	type CommitFilesInput,
 	type CommitFilesResult,
 	type GitResult,
 	type CommitRecoveryInput,
 	type CommitInfo,
 } from "@1git/git";
+import { GitRepository } from "../../machines/repository-access";
 
 /** Metadata remains visible even when undo is unavailable for a published commit. */
 export interface LastCommit {

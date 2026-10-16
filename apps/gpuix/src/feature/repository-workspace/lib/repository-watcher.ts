@@ -1,6 +1,8 @@
 import { watch, type FSWatcher } from "node:fs";
 import { isAbsolute, join, relative, sep } from "node:path";
 import type { RepositoryWorkspaceState } from "./repository-workspace-model";
+import { MachineLocation } from "../../machines/machine-location";
+import { Machines } from "../../machines/machines";
 
 /** Native filesystem subscription for a working tree and its worktree/shared Git metadata. */
 export class RepositoryWatcher {
@@ -11,6 +13,17 @@ export class RepositoryWatcher {
 		onChange: () => void,
 		onError: (message: string) => void
 	): () => void {
+		const remote = MachineLocation.parse(repository.root);
+
+		if (remote) {
+			const timer = setInterval(() => {
+				if (Machines.shared.state(remote.machineId).status === "Connected")
+					onChange();
+			}, 5000);
+
+			return () => clearInterval(timer);
+		}
+
 		const watchers: FSWatcher[] = [];
 		let closed = false;
 

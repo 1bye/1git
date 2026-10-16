@@ -1,4 +1,5 @@
-import { GitRepository, type GitResult, type StashInfo } from "@1git/git";
+import { type GitResult, type StashInfo } from "@1git/git";
+import { GitRepository } from "../../machines/repository-access";
 
 import type { WorkspaceEntry, WorkspaceRevision } from "../types";
 import { RepositoryHistory } from "./repository-history";

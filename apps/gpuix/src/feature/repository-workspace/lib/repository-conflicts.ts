@@ -1,8 +1,10 @@
 import { createHash } from "node:crypto";
 import { realpath, stat } from "node:fs/promises";
 import { resolve, relative } from "node:path";
-import { GitRepository, type ResolveConflictInput } from "@1git/git";
+import { type ResolveConflictInput } from "@1git/git";
+import { GitRepository } from "../../machines/repository-access";
 import { ExternalEditors } from "../../editor-settings/external-editors";
+import { MachineLocation } from "../../machines/machine-location";
 
 /** Conflict preview and explicitly requested resolution; never continues Git operations. */
 export class RepositoryConflicts {
@@ -54,6 +56,11 @@ export class RepositoryConflicts {
 		application?: string | null,
 		editors = new ExternalEditors()
 	): Promise<void> {
+		if (MachineLocation.isRemote(root))
+			throw new Error(
+				"Open working files with an SSH-capable editor on the remote machine."
+			);
+
 		const canonicalRoot = await realpath(root);
 		const absolute = resolve(canonicalRoot, path);
 		const local = relative(canonicalRoot, absolute);

@@ -1,4 +1,7 @@
-import { GitRepository, type RemoteInfo } from "@1git/git";
+import { MachineLocation } from "../../machines/machine-location";
+import { Machines } from "../../machines/machines";
+import { type RemoteInfo } from "@1git/git";
+import { GitRepository } from "../../machines/repository-access";
 import { getRepositoryAvatar } from "@1git/hosting/avatars";
 import type { HostingProvider } from "@1git/hosting/provider";
 import { parseRemote } from "@1git/hosting/remote";
@@ -61,6 +64,14 @@ export class RepositoryAvatars {
 		path: string,
 		signal: AbortSignal
 	): Promise<readonly RemoteInfo[]> {
+		const remote = MachineLocation.parse(path);
+
+		if (
+			remote &&
+			Machines.shared.state(remote.machineId).status !== "Connected"
+		)
+			return [];
+
 		const opened = await GitRepository.open({ path, signal });
 
 		if (!opened.ok) return [];

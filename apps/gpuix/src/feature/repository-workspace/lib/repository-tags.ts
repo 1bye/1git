@@ -1,9 +1,9 @@
 import {
-	GitRepository,
 	type CreateReleaseTagInput,
 	type GitResult,
 	type TagInfo,
 } from "@1git/git";
+import { GitRepository } from "../../machines/repository-access";
 
 const tagTimeoutMs = 120_000;
 

@@ -19,6 +19,71 @@ tint over that material, never an opaque replacement.
 The connected tab silhouette keeps its shape while moving; it does not port
 the desktop's liquid shape-morphing machinery.
 
+## SSH machines
+
+Home → **Add machine** saves one SSH connection for all repositories on that
+machine. Choose a suggested host from `~/.ssh/config`, or enter a hostname.
+Authentication and connection options accept a username, port, existing private
+key path, and an optional remembered password or key passphrase. Empty options
+use OpenSSH's existing configuration and agent. OpenSSH still resolves included
+configuration, jump hosts and host-specific settings. New-host verification and
+unsaved authentication use native macOS dialogs; changed host keys are rejected.
+Remembered secrets use the existing macOS Keychain vault with machine-specific
+keys, never `machines.json`, workspace sessions, command arguments or remote files.
+
+**Save and connect** automatically detects Linux/macOS and x64/ARM64, verifies
+Git and installs the matching standalone helper under the remote user's
+`~/.local/share/1git/helpers/<content-hash>/`. The payload and installed executable
+are SHA-256 checked; installation uses a private temporary file and atomic rename.
+A valid helper is reused and a damaged one is repaired. The helper includes its
+runtime and needs no Bun/Node installation, administrator access or public server.
+The host needs an SSH command shell, Git, gzip and sha256sum or shasum. Linux
+helpers include glibc and musl variants. Older versions remain available to other
+running app versions. Local keys and SSH agent access are not forwarded.
+
+Connecting scans the remote home folder progressively using the same bounded
+repository discovery as This Mac. Home keeps a compact machine switcher; the
+machine's **…** button opens connection settings and **Repository folders**.
+Add or remove absolute scan roots there, edit connection details, reconnect,
+disconnect or forget the machine. Scan status and **Scan again** stay beside
+the repository results. Select a machine to browse its folders,
+repositories, stars and recent entries. Opening a result uses the existing
+workspace: Changes, text/image diffs, history, branches, stashes, conflicts and
+selected-file commits execute against that checkout over SSH. Tabs identify the
+machine; Home remembers the selected machine, and session paths include machine
+identity, so identical paths on different machines remain distinct. Discard
+recovery files are stored on the SSH machine.
+
+One connection is shared across tabs. Remote repositories refresh every five
+seconds while connected, on focus and after explicit operations. Disconnect and
+Forget machine refuse while requests are in progress; stop a scan or wait for an
+operation first. A lost connection never replays a write. Reconnect and refresh
+before retrying because a commit or push may already have completed.
+
+Commits retain the remote machine's Git identity, hooks and signing configuration.
+Fetch/push use credentials available there; local hosting tokens are not sent to
+the helper. Configure an upstream on that machine before synchronizing. Remote
+repository creation/cloning/publishing, worktree creation/removal, Finder and
+opening working files in local editors are unavailable in this version. Existing
+remote worktrees can be opened; saved revisions can still be exported locally.
+
+Packaged apps bundle compressed helpers for every supported target. Development
+builds compile a helper on connection; initial cross-compilation may download
+an official Bun runtime. To prepare all targets explicitly:
+
+```sh
+bun run --cwd apps/gpuix build:remote-helpers
+bun run --cwd apps/gpuix test:machines:integration
+```
+
+The SSH integration suite creates a loopback SSH server with disposable keys and
+an isolated remote home. It checks automatic installation, reuse/repair,
+concurrent requests and discovery. Helper tests exercise real Git reads, diffs,
+selected-file commits and stale-write rejection through the existing app services.
+These tests use no existing SSH configuration, credentials or dev box. Native
+Home tests substitute SSH and exercise machine selection, discovery, opening,
+settings saves, keyboard dismissal and setup at the minimum window size.
+
 ## macOS app bundle
 
 ```sh

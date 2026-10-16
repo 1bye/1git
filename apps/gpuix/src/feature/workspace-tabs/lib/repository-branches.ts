@@ -1,5 +1,4 @@
 import {
-	GitRepository,
 	type BranchCollection,
 	type BranchInfo,
 	type BranchMutationResult,
@@ -7,6 +6,7 @@ import {
 	type RemoteInfo,
 	type WorktreeInfo,
 } from "@1git/git";
+import { GitRepository } from "../../machines/repository-access";
 import {
 	RepositoryBranchChanges,
 	type SavedBranchChanges,

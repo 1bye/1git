@@ -1,3 +1,4 @@
+import { MachineContext } from "./feature/machines/machine-context";
 import { AppThemeContext, appThemes, useAppTheme } from "./styles/theme";
 import type { AppAppearance } from "./styles/tokens";
 import { RepositoryTheme } from "./styles/repository-theme";
@@ -6,6 +7,10 @@ import {
 	RepositoryPatterns,
 	type RepositoryPattern,
 } from "./feature/repository-appearance/repository-patterns";
+import { Machines } from "./feature/machines/machines";
+import { MachineLocation } from "./feature/machines/machine-location";
+import { MachinesPanel } from "./feature/machines/machines-panel";
+import type { RepositoryDiscoveryPreferences } from "./feature/repository-discovery/repository-discovery";
 import { RepositoryDiscovery } from "./feature/repository-discovery/repository-discovery";
 import { RepositoryLibrary } from "./feature/repository-discovery/repository-library";
 import { useRepositoryDiscovery } from "./feature/repository-discovery/use-repository-discovery";
@@ -18,7 +23,9 @@ import {
 	useReducer,
 	useState,
 	useRef,
+	useSyncExternalStore,
 	type ComponentProps,
+	type SetStateAction,
 } from "react";
 import { RepositoryPreviewCache } from "./feature/repository-workspace/lib/repository-preview-cache";
 import { RepositoryAvatars } from "./feature/repository-workspace/lib/repository-avatars";
@@ -137,7 +144,9 @@ export function App({
 	return (
 		<AppThemeContext value={theme}>
 			<AiProvider service={ai}>
-				<AppContent {...props} />
+				<MachineContext value={props.machines ?? Machines.shared}>
+					<AppContent {...props} />
+				</MachineContext>
 			</AiProvider>
 		</AppThemeContext>
 	);
@@ -195,9 +204,11 @@ function AppContent({
 	ignoreFile = RepositoryFileActions.ignore,
 	openFile,
 	externalEditors: suppliedEditors,
+	machines: suppliedMachines,
 	readGitSettings = GitSettingsModel.read,
 	writeGitSettings = GitSettingsModel.write,
 }: {
+	machines?: Machines;
 	accounts?: Accounts;
 	remoteAccounts?: RemoteAccounts;
 	avatars?: RepositoryAvatars;
@@ -315,6 +326,29 @@ function AppContent({
 				new AccountStore(AccountStore.defaultPath()),
 				new NativeCredentials(renderer)
 			)
+	);
+
+	const [machines] = useState(() => suppliedMachines ?? Machines.shared);
+
+	useSyncExternalStore(machines.subscribe, machines.snapshot);
+
+	const [selectedMachine, setSelectedMachine] = useState(
+		() =>
+			RepositoryLibrary.preferences(initialSession?.repositoryLibrary)
+				.machine ?? "local"
+	);
+
+	const [machineError, setMachineError] = useState<string | null>(null);
+
+	useLayoutEffect(() => {
+		machines.setVault(new NativeCredentials(renderer));
+	}, [machines, renderer]);
+
+	useEffect(
+		() => () => {
+			void machines.dispose();
+		},
+		[machines]
 	);
 
 	const avatars = useMemo(
@@ -624,22 +658,139 @@ function AppContent({
 		!workspace?.repository &&
 		!workspace?.repositoryPath;
 
+	const remoteMachine = selectedMachine !== "local";
+
+	const machineHome = remoteMachine
+		? machines.home(selectedMachine)
+		: undefined;
+
+	const remoteHome = remoteMachine
+		? MachineLocation.encode(selectedMachine, machineHome ?? "/")
+		: undefined;
+
+	const selectedSavedMachine = (() => {
+		if (!remoteMachine) return undefined;
+
+		try {
+			return machines.list().find((machine) => machine.id === selectedMachine);
+		} catch {
+			return undefined;
+		}
+	})();
+
+	const remotePreferences = useMemo<RepositoryDiscoveryPreferences>(
+		() => ({
+			folders:
+				selectedSavedMachine?.folders.map((folder) =>
+					MachineLocation.encode(selectedSavedMachine.id, folder)
+				) ?? [],
+			hidden: discoveryPreferences.hidden,
+		}),
+		[selectedSavedMachine, discoveryPreferences.hidden]
+	);
+
+	const updateRemotePreferences = useCallback(
+		(action: SetStateAction<RepositoryDiscoveryPreferences>): void => {
+			if (!selectedSavedMachine) return;
+
+			const next =
+				typeof action === "function" ? action(remotePreferences) : action;
+
+			setDiscoveryPreferences((current) => ({
+				...current,
+				hidden: next.hidden,
+			}));
+			void (async () => {
+				try {
+					await machines.save({
+						...selectedSavedMachine,
+						folders: next.folders.map(MachineLocation.display),
+					});
+				} catch (cause) {
+					setMachineError(
+						cause instanceof Error
+							? cause.message
+							: "Could not save remote folders."
+					);
+				}
+			})();
+		},
+		[machines, selectedSavedMachine, remotePreferences]
+	);
+
+	const remoteScan = useCallback<typeof RepositoryDiscovery.scan>(
+		async (folders, signal, report) =>
+			await machines.scan(selectedMachine, folders, signal, report),
+		[machines, selectedMachine]
+	);
+
+	useEffect(() => {
+		if (
+			!remoteMachine ||
+			!welcomeVisible ||
+			settingsOpen ||
+			onboardingOpen ||
+			preview
+		)
+			return;
+
+		void (async () => {
+			try {
+				await machines.connect(selectedMachine);
+			} catch {
+				// The machine panel presents connection failures and an explicit retry.
+			}
+		})();
+	}, [
+		machines,
+		selectedMachine,
+		remoteMachine,
+		welcomeVisible,
+		settingsOpen,
+		onboardingOpen,
+		preview,
+	]);
+
 	const discovery = useRepositoryDiscovery({
-		enabled: welcomeVisible && !settingsOpen && !onboardingOpen && !preview,
-		scan: preview ? undefined : discoverRepositories,
-		preferences: discoveryPreferences,
-		onPreferencesChange: setDiscoveryPreferences,
+		enabled:
+			welcomeVisible &&
+			!settingsOpen &&
+			!onboardingOpen &&
+			!preview &&
+			(!remoteMachine || !!machineHome),
+		scan: preview
+			? undefined
+			: remoteMachine
+				? remoteScan
+				: discoverRepositories,
+		preferences: remoteMachine ? remotePreferences : discoveryPreferences,
+		onPreferencesChange: remoteMachine
+			? updateRemotePreferences
+			: setDiscoveryPreferences,
+		home: remoteHome,
+		remote: remoteMachine,
 	});
 
 	const welcomePaths = useMemo(
-		() => [
-			...new Set([
-				...(state.recentRepositories ?? []),
-				...discovery.paths,
-				...repositoryLibrary.starred,
-			]),
-		],
-		[state.recentRepositories, discovery.paths, repositoryLibrary.starred]
+		() =>
+			[
+				...new Set([
+					...(state.recentRepositories ?? []),
+					...discovery.paths,
+					...repositoryLibrary.starred,
+				]),
+			].filter((path) =>
+				remoteMachine
+					? MachineLocation.parse(path)?.machineId === selectedMachine
+					: !MachineLocation.isRemote(path)
+			),
+		[
+			state.recentRepositories,
+			discovery.paths,
+			repositoryLibrary.starred,
+			remoteMachine,
+			selectedMachine,
+		]
 	);
 
 	const workspaceFocus = useRef<number | null>(null);
@@ -1236,6 +1387,25 @@ function AppContent({
 						activeTab?.id === cloneTab.id) ? null : welcomeVisible ? (
 						<RepositoryWelcome
 							paths={welcomePaths}
+							remote={remoteMachine}
+							machines={
+								!preview ? (
+									<MachinesPanel
+										service={machines}
+										selected={selectedMachine}
+										onConnected={() => discovery.rescan()}
+										onSelect={(id) => {
+											setSelectedMachine(id);
+											setMachineError(null);
+											setRepositoryLibrary((current) => ({
+												...current,
+												folder: undefined,
+												machine: id === "local" ? undefined : id,
+											}));
+										}}
+									/>
+								) : undefined
+							}
 							library={repositoryLibrary}
 							onLibraryChange={setRepositoryLibrary}
 							savedPaths={state.recentRepositories ?? []}
@@ -1248,7 +1418,7 @@ function AppContent({
 								dispatch({ type: "forget-repository", path });
 							}}
 							busy={connection.pickingId !== null || !!workspace?.loading}
-							error={workspace?.error}
+							error={machineError ?? workspace?.error}
 							onOpen={() => {
 								const id = activeTab?.id ?? `workspace-${state.nextId}`;
 

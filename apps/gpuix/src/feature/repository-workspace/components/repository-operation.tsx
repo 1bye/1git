@@ -1,3 +1,4 @@
+import { MachineLocation } from "../../machines/machine-location";
 import { useAppTheme } from "../../../styles/theme";
 import { spacing, typography } from "@1git/design-tokens";
 import { useState } from "react";
@@ -287,7 +288,9 @@ export function RepositoryOperation({
 
 						if (directory)
 							void RepositoryFileActions.revealRecovery(directory).catch(() =>
-								setError(`Recovery backup: ${directory}`)
+								setError(
+									`Recovery backup: ${MachineLocation.display(directory)}`
+								)
 							);
 					}}
 				>
