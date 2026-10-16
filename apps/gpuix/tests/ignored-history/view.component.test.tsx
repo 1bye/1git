@@ -1,5 +1,5 @@
 /**
- * Covers: repository opt-in, hidden rail entry while disabled, local diff navigation and explicit restore confirmation.
+ * Covers: compact monitoring form, native field editing, repository opt-in, local diffs and explicit restore confirmation.
  * Real: App, repository settings, shared native file list, diff viewer and keyboard input.
  * Doubles: ignored-history service, Git reads, account catalog and OS vault; no real keys, secrets or filesystem writes.
  * Requires: patched native addon and macOS graphics access.
@@ -43,9 +43,13 @@ async function press(id: string) {
 	await settle();
 }
 
-it.each(["light", "dark"] as const)(
-	"enables ignored history per repository, opens its diff and confirms restore (%s)",
-	async (appearance) => {
+it.each([
+	["light", 1280],
+	["dark", 1280],
+	["dark", 720],
+] as const)(
+	"edits repository monitoring, opens its diff and confirms restore (%s, %dpx)",
+	async (appearance, width) => {
 		const vault = {
 			async read() {
 				throw new Error("Unexpected vault read");
@@ -140,7 +144,7 @@ it.each(["light", "dark"] as const)(
 		});
 
 		try {
-			root = createTestRoot({ width: 1280, height: 900 });
+			root = createTestRoot({ width, height: 900 });
 			root.render(
 				<App
 					accounts={accounts}
@@ -166,6 +170,28 @@ it.each(["light", "dark"] as const)(
 			expect(root.renderer.findByTestId("view-ignored")).toBeUndefined();
 			await press("rail-settings");
 			expect(node("ignored-history-settings")).toBeDefined();
+			const formBounds = root.renderer.getElementBounds(
+				node("ignored-history-settings-form").id
+			);
+
+			expect(formBounds).toBeDefined();
+			expect(formBounds?.width).toBeLessThanOrEqual(480);
+			expect((formBounds?.x ?? 0) + (formBounds?.width ?? 0)).toBeLessThan(
+				width
+			);
+
+			for (const id of [
+				"ignored-history-paths",
+				"ignored-history-budget",
+				"ignored-history-versions",
+			]) {
+				const bounds = root.renderer.getElementBounds(node(id).id);
+
+				expect(bounds).toBeDefined();
+				expect(bounds?.x).toBeGreaterThanOrEqual(formBounds?.x ?? 0);
+				expect(bounds?.width).toBeLessThanOrEqual(formBounds?.width ?? 0);
+			}
+
 			root.renderer.nativeSimulateKeyDown(
 				node("ignored-history-enabled").id,
 				"space"
@@ -174,15 +200,31 @@ it.each(["light", "dark"] as const)(
 				node("ignored-history-enabled").id,
 				"space"
 			);
+			root.renderer.nativeSimulateKeystrokes(
+				node("ignored-history-paths").id,
+				"cmd-a . e n v enter p r i v a t e - c o n f i g"
+			);
+			root.renderer.nativeSimulateKeystrokes(
+				node("ignored-history-budget").id,
+				"cmd-a 2 5 6"
+			);
+			root.renderer.nativeSimulateKeystrokes(
+				node("ignored-history-versions").id,
+				"cmd-a 1 0"
+			);
 			await settle();
 			await press("ignored-history-save");
 			expect(configure).toHaveBeenCalledTimes(1);
-			expect(configure.mock.calls[0]?.[1].enabled).toBe(true);
-			expect(configure.mock.calls[0]?.[1].paths).toEqual([".env"]);
+			expect(configure.mock.calls[0]?.[1]).toMatchObject({
+				enabled: true,
+				paths: [".env", "private-config"],
+				budgetBytes: 256 * 1024 ** 2,
+				maxVersions: 10,
+			});
 
 			if (process.env.GPUIX_IGNORED_SCREENSHOT)
 				root.renderer.captureScreenshot(
-					`${process.env.GPUIX_IGNORED_SCREENSHOT}-settings-${appearance}.png`
+					`${process.env.GPUIX_IGNORED_SCREENSHOT}-settings-${appearance}-${width}.png`
 				);
 
 			await press("settings-title-tab-close");
@@ -205,7 +247,7 @@ it.each(["light", "dark"] as const)(
 
 			if (process.env.GPUIX_IGNORED_SCREENSHOT)
 				root.renderer.captureScreenshot(
-					`${process.env.GPUIX_IGNORED_SCREENSHOT}-${appearance}.png`
+					`${process.env.GPUIX_IGNORED_SCREENSHOT}-${appearance}-${width}.png`
 				);
 
 			await press("ignored-history-restore");

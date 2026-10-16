@@ -3,7 +3,14 @@ import { useEffect, useRef, useState } from "react";
 import { useGpuixRequired } from "@gpuix/react";
 import { Button } from "@1git/gpuix-ui/button";
 import { Checkbox } from "@1git/gpuix-ui/checkbox";
-import { spacing, typography } from "@1git/design-tokens";
+import { Textarea } from "@1git/gpuix-ui/textarea";
+import {
+	codeTypography,
+	fontWeight,
+	radius,
+	spacing,
+	typography,
+} from "@1git/design-tokens";
 import { useAppTheme } from "../../styles/theme";
 import {
 	IgnoredHistory,
@@ -86,227 +93,310 @@ export function IgnoredHistorySettings({
 	};
 
 	const textStyle = { ...typography.md, color: tokens.colors.text };
+	const muted = { ...typography.sm, color: tokens.colors.textMuted };
+	const label = { ...textStyle, fontWeight: fontWeight.medium };
+	const locked = busy || disabled;
+
+	const column = {
+		display: "flex",
+		flexDirection: "column",
+		minWidth: 0,
+		flexShrink: 0,
+		gap: spacing[2],
+	} as const;
+
+	const row = {
+		display: "flex",
+		flexDirection: "row",
+		alignItems: "center",
+		gap: spacing[3],
+	} as const;
+
+	const section = {
+		...column,
+		paddingTop: spacing[4],
+		borderTopWidth: 1,
+		borderColor: tokens.colors.border,
+	};
 
 	const fieldStyle = {
 		...textStyle,
-		minHeight: 32,
-		padding: spacing[2],
+		height: tokens.layout.controlHeight,
+		paddingLeft: spacing[2.5],
+		paddingRight: spacing[2.5],
 		borderWidth: 1,
 		borderColor: tokens.colors.border,
-		borderRadius: 6,
-		backgroundColor: "transparent",
+		borderRadius: radius.md,
+		backgroundColor: tokens.colors.field,
+		flexShrink: 0,
+		opacity: locked ? 0.5 : 1,
 	} as const;
 
 	return (
 		<div
 			testId="ignored-history-settings"
 			style={{
-				display: "flex",
-				flexDirection: "column",
+				...column,
 				flexGrow: 1,
+				flexShrink: 1,
 				minHeight: 0,
 				overflowY: "scroll",
 				padding: spacing[4],
-				gap: spacing[3],
 			}}
 		>
-			<text
-				role="heading"
-				aria-level={1}
-				style={{ ...typography.lg, color: tokens.colors.text }}
+			<div
+				testId="ignored-history-settings-form"
+				style={{ ...column, width: "100%", maxWidth: 480, gap: spacing[4] }}
 			>
-				Ignored file history
-			</text>
-			{!isAbsolute(repository.root) ? (
-				<text style={textStyle}>
-					Encrypted ignored-file history is currently available for local
-					repositories. SSH repositories are not monitored.
-				</text>
-			) : (
-				<>
-					<text style={{ ...typography.md, color: tokens.colors.textMuted }}>
-						Keep encrypted local versions of selected Git-ignored files and
-						folders. History starts when you enable it and is captured while
-						this repository is open in 1git. Contents are never added to commits
-						or AI context.
-					</text>
-					<Checkbox
-						testId="ignored-history-enabled"
-						checked={enabled}
-						onCheckedChange={setEnabled}
-						disabled={busy || disabled}
-						label="Enable ignored file history for this repository"
-						tokens={tokens}
-					/>
-					<text style={textStyle}>
-						Files and folders, relative to this repository (one per line)
-					</text>
-					<textarea
-						testId="ignored-history-paths"
-						aria-label="Monitored ignored files and folders"
-						value={paths}
-						placeholder={".env\nprivate-config"}
-						onChange={(event) => {
-							if (!busy && !disabled) setPaths(event.value ?? "");
-						}}
-						aria-disabled={busy || disabled}
-						style={{ ...fieldStyle, height: 120, flexShrink: 0, maxWidth: 520 }}
-					/>
-					<Button
-						testId="ignored-history-browse"
-						tokens={tokens}
-						variant="secondary"
-						disabled={busy || disabled}
-						style={{ alignSelf: "flex-start" }}
-						onPress={() => {
-							void perform(async () => {
-								if (!renderer.promptForPaths)
-									throw new Error(
-										"Enter a relative path above; the file picker is unavailable."
-									);
-
-								const chosen = await renderer.promptForPaths({
-									directories: true,
-									files: true,
-									multiple: true,
-									prompt: "Monitor ignored files or folders",
-								});
-
-								if (!chosen) return;
-
-								const additions = chosen.map((path) => {
-									const value = relative(repository.root, path);
-
-									if (
-										!value ||
-										isAbsolute(value) ||
-										value === ".." ||
-										value.startsWith(`..${sep}`)
-									)
-										throw new Error(
-											"Choose files or folders inside this repository."
-										);
-
-									return value.split(sep).join("/");
-								});
-
-								setPaths((current) =>
-									[
-										...new Set([
-											...current.split("\n").filter(Boolean),
-											...additions,
-										]),
-									].join("\n")
-								);
-							});
-						}}
+				<div style={{ ...column, gap: spacing[1] }}>
+					<text
+						role="heading"
+						aria-level={1}
+						style={{ ...label, ...typography.lg }}
 					>
-						Browse…
-					</Button>
-					<text style={{ ...typography.sm, color: tokens.colors.textMuted }}>
-						Folders include future ignored files recursively. Tracked files, Git
-						metadata, symbolic links and hard links are excluded. Live databases
-						may require their own backup tools for a consistent snapshot.
+						Ignored file history
 					</text>
-					<div
-						style={{
-							display: "flex",
-							flexDirection: "row",
-							gap: spacing[3],
-							alignItems: "center",
-						}}
-					>
-						<text style={textStyle}>Storage budget (MiB)</text>
-						<input
-							testId="ignored-history-budget"
-							aria-label="History storage budget in MiB"
-							value={budget}
-							onChange={(event) => {
-								if (!busy && !disabled) setBudget(event.value ?? "");
-							}}
-							aria-disabled={busy || disabled}
-							style={{ ...fieldStyle, width: 96 }}
-						/>
-						<text style={textStyle}>Versions per file</text>
-						<input
-							testId="ignored-history-versions"
-							aria-label="Retained versions per file"
-							value={versions}
-							onChange={(event) => {
-								if (!busy && !disabled) setVersions(event.value ?? "");
-							}}
-							aria-disabled={busy || disabled}
-							style={{ ...fieldStyle, width: 64 }}
-						/>
-					</div>
-					<text style={{ ...typography.sm, color: tokens.colors.textMuted }}>
-						The accepted baseline is retained separately. Disabling monitoring
-						keeps saved history. Settings are shared by linked worktrees; their
-						file histories stay separate.
+					<text style={muted}>
+						Encrypted local versions of selected Git-ignored files and folders.
 					</text>
-					<Button
-						testId="ignored-history-save"
-						tokens={tokens}
-						disabled={busy || disabled}
-						style={{ alignSelf: "flex-start" }}
-						onPress={() => {
-							void perform(async () => {
-								await history.configure(
-									repository,
-									{
-										enabled,
-										paths: paths
-											.split("\n")
-											.map((path) => path.trim())
-											.filter(Boolean),
-										budgetBytes: Number(budget) * 1024 ** 2,
-										maxVersions: Number(versions),
-									},
-									pending.current?.signal
-								);
-								await onRefresh();
-								setNotice(
-									enabled
-										? "Monitoring enabled. Initial versions are safely saved."
-										: "Monitoring disabled. Saved history is retained."
-								);
-							});
-						}}
-					>
-						{busy ? "Saving initial versions…" : "Save monitoring settings"}
-					</Button>
-					{busy ? (
-						<Button
-							testId="ignored-history-cancel"
-							tokens={tokens}
-							variant="ghost"
-							style={{ alignSelf: "flex-start" }}
-							onPress={() => pending.current?.abort()}
-						>
-							Cancel capture
-						</Button>
-					) : null}
-					{status?.data ? (
-						<text
-							role="status"
-							style={{ ...typography.sm, color: tokens.colors.textMuted }}
-						>{`${status.data.files.length} protected files · ${(status.data.bytes / 1024 ** 2).toFixed(1)} MiB stored${status.data.skipped.length ? ` · ${status.data.skipped.length} paths skipped` : ""}`}</text>
-					) : null}
-					{notice ? (
-						<text role="status" style={textStyle}>
-							{notice}
-						</text>
-					) : null}
-				</>
-			)}
-			{error || status?.error ? (
-				<text
-					role="alert"
-					style={{ ...typography.md, color: tokens.colors.danger }}
-				>
-					{error ?? status?.error}
-				</text>
-			) : null}
+				</div>
+				{!isAbsolute(repository.root) ? (
+					<text style={muted}>
+						Available for local repositories. SSH repositories are not
+						monitored.
+					</text>
+				) : (
+					<>
+						<div style={{ ...column, gap: spacing[1] }}>
+							<Checkbox
+								testId="ignored-history-enabled"
+								checked={enabled}
+								onCheckedChange={setEnabled}
+								disabled={locked}
+								label="Enable history for this repository"
+								tokens={tokens}
+								style={{ alignSelf: "flex-start", paddingLeft: 0 }}
+							/>
+							<text style={muted}>
+								Capture starts when enabled and runs while this repository is
+								open.
+							</text>
+						</div>
+						<div style={section}>
+							<div style={{ ...row, justifyContent: "space-between" }}>
+								<text role="heading" aria-level={2} style={label}>
+									Files and folders
+								</text>
+								<Button
+									testId="ignored-history-browse"
+									tokens={tokens}
+									variant="secondary"
+									size="sm"
+									disabled={locked}
+									onPress={() => {
+										void perform(async () => {
+											if (!renderer.promptForPaths)
+												throw new Error(
+													"Enter a relative path above; the file picker is unavailable."
+												);
+
+											const chosen = await renderer.promptForPaths({
+												directories: true,
+												files: true,
+												multiple: true,
+												prompt: "Monitor ignored files or folders",
+											});
+
+											if (!chosen) return;
+
+											const additions = chosen.map((path) => {
+												const value = relative(repository.root, path);
+
+												if (
+													!value ||
+													isAbsolute(value) ||
+													value === ".." ||
+													value.startsWith(`..${sep}`)
+												)
+													throw new Error(
+														"Choose files or folders inside this repository."
+													);
+
+												return value.split(sep).join("/");
+											});
+
+											setPaths((current) =>
+												[
+													...new Set([
+														...current.split("\n").filter(Boolean),
+														...additions,
+													]),
+												].join("\n")
+											);
+										});
+									}}
+								>
+									Browse…
+								</Button>
+							</div>
+							<Textarea
+								testId="ignored-history-paths"
+								aria-label="Monitored ignored files and folders"
+								aria-description="Repository-relative paths, one per line. Folders include future ignored files recursively."
+								value={paths}
+								placeholder={".env\nprivate-config/"}
+								onValueChange={(value) => {
+									if (!locked) setPaths(value);
+								}}
+								readOnly={locked}
+								aria-disabled={locked}
+								tabIndex={locked ? undefined : 0}
+								tokens={tokens}
+								minRows={4}
+								maxRows={6}
+								style={{
+									fontFamily: codeTypography.fontFamily,
+									opacity: locked ? 0.5 : 1,
+								}}
+							/>
+							<text style={muted}>
+								One repository-relative path per line. Folders include future
+								ignored files. Tracked files, Git metadata and links are
+								excluded.
+							</text>
+						</div>
+						<div style={section}>
+							<text role="heading" aria-level={2} style={label}>
+								History limits
+							</text>
+							<div
+								style={{ ...row, alignItems: "flex-start", gap: spacing[4] }}
+							>
+								<div
+									style={{
+										...column,
+										flexGrow: 1,
+										flexBasis: 0,
+										gap: spacing[1.5],
+									}}
+								>
+									<text style={muted}>Storage budget (MiB)</text>
+									<input
+										testId="ignored-history-budget"
+										aria-label="History storage budget in MiB"
+										value={budget}
+										onChange={(event) => {
+											if (!locked) setBudget(event.value ?? "");
+										}}
+										readOnly={locked}
+										aria-disabled={locked}
+										tabIndex={locked ? undefined : 0}
+										style={fieldStyle}
+									/>
+								</div>
+								<div
+									style={{
+										...column,
+										flexGrow: 1,
+										flexBasis: 0,
+										gap: spacing[1.5],
+									}}
+								>
+									<text style={muted}>Versions per file</text>
+									<input
+										testId="ignored-history-versions"
+										aria-label="Retained versions per file"
+										value={versions}
+										onChange={(event) => {
+											if (!locked) setVersions(event.value ?? "");
+										}}
+										readOnly={locked}
+										aria-disabled={locked}
+										tabIndex={locked ? undefined : 0}
+										style={fieldStyle}
+									/>
+								</div>
+							</div>
+							<text style={muted}>
+								Accepted baselines are kept separately. Turning history off
+								keeps saved versions.
+							</text>
+						</div>
+						<div style={section}>
+							<div
+								style={{
+									...row,
+									justifyContent: "space-between",
+									flexWrap: "wrap",
+								}}
+							>
+								<div style={{ ...row, gap: spacing[2] }}>
+									<Button
+										testId="ignored-history-save"
+										tokens={tokens}
+										disabled={locked}
+										onPress={() => {
+											void perform(async () => {
+												await history.configure(
+													repository,
+													{
+														enabled,
+														paths: paths
+															.split("\n")
+															.map((path) => path.trim())
+															.filter(Boolean),
+														budgetBytes: Number(budget) * 1024 ** 2,
+														maxVersions: Number(versions),
+													},
+													pending.current?.signal
+												);
+												await onRefresh();
+												setNotice(
+													enabled
+														? "Monitoring enabled. Initial versions are safely saved."
+														: "Monitoring disabled. Saved history is retained."
+												);
+											});
+										}}
+									>
+										{busy ? "Saving versions…" : "Save changes"}
+									</Button>
+									{busy ? (
+										<Button
+											testId="ignored-history-cancel"
+											tokens={tokens}
+											variant="ghost"
+											onPress={() => pending.current?.abort()}
+										>
+											Cancel
+										</Button>
+									) : null}
+								</div>
+								{status?.data ? (
+									<text role="status" style={muted}>
+										{`${status.data.files.length} protected ${status.data.files.length === 1 ? "file" : "files"} · ${(status.data.bytes / 1024 ** 2).toFixed(1)} MiB stored${status.data.skipped.length ? ` · ${status.data.skipped.length} paths skipped` : ""}`}
+									</text>
+								) : null}
+							</div>
+							{notice ? (
+								<text role="status" style={muted}>
+									{notice}
+								</text>
+							) : null}
+							<text style={muted}>
+								Stored only on this device, outside Git and AI context. Linked
+								worktrees share settings and keep separate histories. Use
+								dedicated backup tools for live databases.
+							</text>
+						</div>
+					</>
+				)}
+				{error || status?.error ? (
+					<text role="alert" style={{ ...muted, color: tokens.colors.danger }}>
+						{error ?? status?.error}
+					</text>
+				) : null}
+			</div>
 		</div>
 	);
 }
