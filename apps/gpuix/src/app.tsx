@@ -1182,21 +1182,6 @@ function AppContent({
 		/>
 	);
 
-	const spaceRepositories = [
-		...new Set([
-			...(state.recentRepositories ?? []),
-			...state.tabs.flatMap(
-				(tab) =>
-					tab.workspace.repository?.root ?? tab.workspace.repositoryPath ?? []
-			),
-			...(state.spaces ?? []).flatMap((space) => [
-				...space.repositories,
-				...space.library.starred,
-			]),
-			...discovery.knownPaths,
-		]),
-	];
-
 	const closeNotice = mutations.closeProtection.requested ? (
 		<RepositoryCloseNotice
 			state={state}
@@ -1983,7 +1968,6 @@ function AppContent({
 					<SpaceManager
 						key={spaceEditor.space?.id ?? "new"}
 						space={spaceEditor.space}
-						repositories={spaceRepositories}
 						onClose={() => setSpaceEditor(undefined)}
 						onSave={(value) => {
 							if (spaceEditor.space)
@@ -1995,7 +1979,7 @@ function AppContent({
 							else {
 								dispatch({
 									type: "space-create",
-									space: { id: randomUUID(), ...value },
+									space: { id: randomUUID(), ...value, repositories: [] },
 									discovery: discoveryPreferences,
 									library: repositoryLibrary,
 								});

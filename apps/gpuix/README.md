@@ -21,15 +21,15 @@ the desktop's liquid shape-morphing machinery.
 
 ## Spaces
 
-**Settings → Spaces → New space…** creates a named working context with an outline
-icon or a single emoji. Choose repositories from the searchable list, or open a
-repository from that space's Home. Existing tabs, drafts and preferences migrate to
+**Settings → Spaces → New space…** creates a named working context with one of
+24 outline icons. New spaces start empty; opening a repository from that space's
+Home adds it to its library. Existing tabs, drafts and preferences migrate to
 **Default**; the rail stays unchanged until a second space exists.
 
 The active space's icon appears directly above Settings, on Home and in repository
 views. Its tooltip shows the name. Clicking opens the same native grouped dropdown
 used by Settings, with space choices, **New space…** and **Manage spaces…**. Settings
-also lets you edit names, symbols and repository membership.
+also lets you edit names and icons without changing repository membership.
 
 Each space remembers its repositories, tab order, selected tab or Home, commit
 drafts, scan folders, stars, layout and selected machine across restarts. New spaces

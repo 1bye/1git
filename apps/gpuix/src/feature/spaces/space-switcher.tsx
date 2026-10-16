@@ -14,19 +14,12 @@ import {
 } from "../repository-workspace/lib/native-file-menu";
 import type { WorkspaceSpace } from "./workspace-spaces";
 import { SpaceSymbol } from "./space-symbol";
+import { spaceIconPresets } from "./space-icons";
 
 type SpaceChoice =
 	| { kind: "select"; id: string }
 	| { kind: "create" }
 	| { kind: "manage" };
-const symbols: Record<string, string> = {
-	layers: "▱",
-	work: "▣",
-	home: "⌂",
-	code: "‹›",
-	folder: "▰",
-};
-
 /** Uses the same AppKit grouped menu as Settings; occupies one rail button only after spaces are created. */
 export function SpaceSwitcher({
 	spaces,
@@ -66,7 +59,7 @@ export function SpaceSwitcher({
 		try {
 			await new Promise<void>((resolve) => setTimeout(resolve, 0));
 			const items: NativeMenuItem<SpaceChoice>[] = spaces.map((space) => ({
-				label: `${space.id === activeId ? "✓ " : ""}${symbols[space.icon] ?? space.icon}  ${space.name}`,
+				label: `${space.id === activeId ? "✓ " : ""}${spaceIconPresets.find((preset) => preset.id === space.icon)?.symbol ?? space.icon}  ${space.name}`,
 				enabled: true,
 				value: { kind: "select", id: space.id },
 			}));

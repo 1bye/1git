@@ -6,6 +6,7 @@
  */
 import { expect, it } from "bun:test";
 import { WorkspaceSpaces } from "../../src/feature/spaces/workspace-spaces";
+import { spaceIconPresets } from "../../src/feature/spaces/space-icons";
 import { WorkspaceTabsModel } from "../../src/feature/workspace-tabs/lib/workspace-tabs-model";
 import { WorkspaceSession } from "../../src/feature/workspace-tabs/lib/workspace-session";
 import { repositorySnapshot } from "../_shared/repository-snapshot";
@@ -40,6 +41,30 @@ const create = () =>
 		discovery: folders,
 		library,
 	});
+
+it("supports the outline presets and keeps membership when changing a space's name or icon", () => {
+	for (const preset of spaceIconPresets)
+		expect(WorkspaceSpaces.validIcon(preset.id)).toBe(true);
+
+	const state = create();
+
+	const renamed = WorkspaceTabsModel.reduce(state, {
+		type: "space-edit",
+		id: work,
+		name: "Projects",
+		icon: "mountain",
+	});
+
+	expect(WorkspaceSpaces.current(renamed)).toMatchObject({
+		name: "Projects",
+		icon: "mountain",
+		repositories: ["/test/company"],
+	});
+	expect(renamed.tabs).toBe(state.tabs);
+	expect(renamed.spaces?.find((space) => space.id === "default")).toEqual(
+		state.spaces?.find((space) => space.id === "default")
+	);
+});
 
 it("migrates current tabs and preferences into Default and starts a separate empty tab strip", () => {
 	let state = create();

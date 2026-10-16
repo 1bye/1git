@@ -1,7 +1,7 @@
 /**
  * Covers: space creation, rail placement, native dropdown routing, isolated repository opening, draft restoration and restart.
  * Real: App, space/session models, shared controls and native layout/keyboard events.
- * Doubles: account catalog, repository reads, native menu tracking and session writes; no user data or network.
+ * Doubles: account catalog, repository reads, native menu/picker tracking and session writes; no user data or network.
  * Requires: patched GPUIX renderer and macOS graphics access.
  */
 import { afterEach, beforeEach, expect, it, mock, spyOn } from "bun:test";
@@ -107,7 +107,7 @@ afterEach(() => {
 });
 
 for (const appearance of ["light", "dark"] as const) {
-	it(`creates an emoji space above Settings and restores separate tabs/drafts after a ${appearance} restart`, async () => {
+	it(`creates an icon space above Settings and restores separate tabs/drafts after a ${appearance} restart`, async () => {
 		root.render(
 			<App
 				accounts={accounts}
@@ -138,8 +138,12 @@ for (const appearance of ["light", "dark"] as const) {
 		click("space-create");
 		await settle();
 		enter("space-name", "Personal");
-		enter("space-emoji", "🏠");
-		click("space-repository-/test/personal");
+		click("space-icon-rocket");
+		expect(root.renderer.findByTestId("space-emoji")).toBeUndefined();
+		expect(
+			root.renderer.findByTestId("space-repository-search")
+		).toBeUndefined();
+		expect(root.renderer.findByTestId("space-repositories")).toBeUndefined();
 		const editor = bounds("space-editor");
 
 		expect(editor.y).toBeGreaterThanOrEqual(12);
@@ -172,8 +176,18 @@ for (const appearance of ["light", "dark"] as const) {
 		expect(
 			root.renderer.findByTestId("quick-repository-/test/unassigned")
 		).toBeUndefined();
-		click("quick-repository-/test/personal");
+		expect(
+			root.renderer.findByTestId("quick-repository-/test/personal")
+		).toBeUndefined();
+		root.renderer.simulateKeystrokes("escape");
 		await settle();
+		const picker = spyOn(root.renderer, "promptForPaths").mockResolvedValue([
+			"/test/personal",
+		]);
+
+		click("open-repository");
+		await settle();
+		expect(picker).toHaveBeenCalledTimes(1);
 		expect(node("commit-message").customProps?.value).toBe("");
 		enter("commit-message", "Personal draft");
 		await settle();
@@ -192,6 +206,9 @@ for (const appearance of ["light", "dark"] as const) {
 		expect(node("commit-message").customProps?.value).toBe("Personal draft");
 		const document = latest();
 
+		expect(
+			document.spaces?.find((space) => space.id === personalId)
+		).toMatchObject({ icon: "rocket", repositories: ["/test/personal"] });
 		root.unmount();
 		root = createTestRoot({
 			width: 980,
@@ -216,37 +233,19 @@ for (const appearance of ["light", "dark"] as const) {
 	}, 15000);
 }
 
-it("validates the editor and keeps canceled membership changes out of the saved space", async () => {
+it("validates the name and cancels icon edits without saving", async () => {
 	const saved = mock();
 	const close = mock();
 
-	root.render(
-		<SpaceManager
-			repositories={["/test/project"]}
-			onSave={saved}
-			onClose={close}
-		/>
-	);
+	root.render(<SpaceManager onSave={saved} onClose={close} />);
 	await settle();
 	click("space-editor-save");
 	expect(root.renderer.getAllText()).toContain(
 		"Enter a space name, up to 60 characters."
 	);
 	enter("space-name", "Work");
-	enter("space-emoji", "ab");
-	click("space-editor-save");
-	expect(root.renderer.getAllText()).toContain(
-		"Choose an icon or enter a single emoji."
-	);
-	click("space-icon-work");
-	click("space-repository-/test/project");
+	click("space-icon-shield");
 	click("space-editor-cancel");
 	expect(close).toHaveBeenCalledTimes(1);
 	expect(saved).not.toHaveBeenCalled();
-	click("space-editor-save");
-	expect(saved).toHaveBeenCalledWith({
-		name: "Work",
-		icon: "work",
-		repositories: ["/test/project"],
-	});
 });

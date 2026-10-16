@@ -1,3 +1,4 @@
+import { spaceIcons } from "./space-icons";
 import { isAbsolute } from "node:path";
 import {
 	RepositoryDiscovery,
@@ -37,7 +38,6 @@ export type WorkspaceSpaceAction =
 			id: string;
 			name: string;
 			icon: string;
-			repositories: readonly string[];
 	  }
 	| {
 			type: "space-preferences";
@@ -54,7 +54,6 @@ export type WorkspaceSpaceAction =
 				  ) => RepositoryLibraryPreferences);
 	  };
 
-export const spaceIcons = ["layers", "work", "home", "code", "folder"] as const;
 const emoji = /[\p{Extended_Pictographic}\p{Regional_Indicator}\u20e3]/u;
 const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 
@@ -264,7 +263,6 @@ export class WorkspaceSpaces {
 								...space,
 								name: action.name.trim(),
 								icon: action.icon,
-								repositories: this.paths(action.repositories),
 							}
 						: {
 								...space,

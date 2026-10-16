@@ -1,18 +1,17 @@
-import { basename } from "node:path";
-import { useContext, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useGpuixRequired } from "@gpuix/react";
 import { Button } from "@1git/gpuix-ui/button";
-import { Checkbox } from "@1git/gpuix-ui/checkbox";
 import { Popover, PopoverContent } from "@1git/gpuix-ui/popover";
 import { spacing, typography, radius } from "@1git/design-tokens";
 import { useAppTheme } from "../../styles/theme";
-import { MachineContext } from "../machines/machine-context";
-import { MachineLocation } from "../machines/machine-location";
 import {
-	WorkspaceSpaces,
-	spaceIcons,
-	type WorkspaceSpace,
-} from "./workspace-spaces";
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "@1git/gpuix-ui/tooltip";
+import { WorkspaceSpaces, type WorkspaceSpace } from "./workspace-spaces";
+import { spaceIconPresets, spaceIcons } from "./space-icons";
 import { SpaceSymbol } from "./space-symbol";
 
 /** Application settings entry; creating and editing spaces never changes repositories on disk. */
@@ -114,61 +113,30 @@ export function SpacesSettings({
 	);
 }
 
-/** Shared editor for a space's name, symbol and repository membership. Drafts apply only on Save. */
+/** Compact editor for a space's name and outline icon. Changes apply only on Save. */
 export function SpaceManager({
 	space,
-	repositories,
 	onSave,
 	onClose,
 }: {
 	space?: WorkspaceSpace;
-	repositories: readonly string[];
-	onSave: (
-		value: Pick<WorkspaceSpace, "name" | "icon" | "repositories">
-	) => void;
+	onSave: (value: Pick<WorkspaceSpace, "name" | "icon">) => void;
 	onClose: () => void;
 }) {
-	const machines = useContext(MachineContext);
 	const { tokens } = useAppTheme();
 	const renderer = useGpuixRequired();
 	const previousFocus = useRef(renderer.getFocusedElementId?.());
 	const [name, setName] = useState(space?.name ?? "");
-	const [icon, setIcon] = useState(space?.icon ?? "work");
 
-	const [selected, setSelected] = useState(
-		() => new Set(space?.repositories ?? [])
+	const [icon, setIcon] = useState<string>(() =>
+		spaceIcons.some((id) => id === space?.icon)
+			? (space?.icon ?? "work")
+			: "work"
 	);
 
-	const [query, setQuery] = useState("");
 	const [error, setError] = useState<string>();
-
-	const matches = [
-		...new Set([...repositories, ...(space?.repositories ?? [])]),
-	].filter((path) => path.toLowerCase().includes(query.toLowerCase()));
-
-	const paths = matches.slice(0, 100);
-
-	const row = {
-		display: "flex",
-		flexDirection: "row",
-		alignItems: "center",
-		gap: spacing[2],
-	};
-
-	const label = { ...typography.sm, color: tokens.colors.textMuted };
-
-	const field = {
-		...typography.md,
-		height: 30,
-		minWidth: 0,
-		paddingLeft: spacing[2],
-		paddingRight: spacing[2],
-		borderWidth: 1,
-		borderColor: tokens.colors.border,
-		borderRadius: radius.md,
-		color: tokens.colors.text,
-		backgroundColor: "transparent",
-	};
+	const iconColumns = 8;
+	const iconSize = 40;
 
 	useEffect(
 		() => () => {
@@ -185,13 +153,7 @@ export function SpaceManager({
 			return;
 		}
 
-		if (!WorkspaceSpaces.validIcon(icon)) {
-			setError("Choose an icon or enter a single emoji.");
-
-			return;
-		}
-
-		onSave({ name: name.trim(), icon, repositories: [...selected] });
+		onSave({ name: name.trim(), icon });
 	};
 
 	return (
@@ -204,7 +166,7 @@ export function SpaceManager({
 			<PopoverContent
 				tokens={tokens}
 				placement="center"
-				width={520}
+				width={440}
 				testId="space-editor"
 				aria-label={space ? "Edit space" : "New space"}
 			>
@@ -223,7 +185,9 @@ export function SpaceManager({
 					>
 						{space ? "Edit space" : "New space"}
 					</text>
-					<text style={label}>Name</text>
+					<text style={{ ...typography.sm, color: tokens.colors.textMuted }}>
+						Name
+					</text>
 					<input
 						testId="space-name"
 						aria-label="Space name"
@@ -231,151 +195,82 @@ export function SpaceManager({
 						tabIndex={0}
 						value={name}
 						placeholder="Work, Personal…"
-						style={field}
+						style={{
+							...typography.md,
+							height: 30,
+							paddingLeft: spacing[2],
+							paddingRight: spacing[2],
+							borderWidth: 1,
+							borderColor: tokens.colors.border,
+							borderRadius: radius.md,
+							color: tokens.colors.text,
+							backgroundColor: "transparent",
+						}}
 						onChange={(event) => setName(event.value ?? "")}
 						onKeyDown={(event) => {
 							if (event.key === "enter") save();
 						}}
 					/>
-					<text style={label}>Icon or emoji</text>
-					<div style={row}>
-						{spaceIcons.map((symbol) => (
-							<Button
-								key={symbol}
-								tokens={tokens}
-								size="sm"
-								variant={icon === symbol ? "secondary" : "ghost"}
-								aria-label={`${symbol} icon`}
-								testId={`space-icon-${symbol}`}
-								onPress={() => setIcon(symbol)}
-								style={{
-									width: 32,
-									height: 32,
-									paddingLeft: 0,
-									paddingRight: 0,
-								}}
-							>
-								<SpaceSymbol icon={symbol} />
-							</Button>
-						))}
-						<input
-							testId="space-emoji"
-							aria-label="Custom space emoji"
-							tabIndex={0}
-							placeholder="💼"
-							value={spaceIcons.some((symbol) => symbol === icon) ? "" : icon}
-							style={{ ...field, width: 70 }}
-							onChange={(event) => setIcon(event.value ?? "")}
-						/>
-					</div>
-					<text
-						style={label}
-					>{`Repositories · ${selected.size} selected`}</text>
-					<input
-						testId="space-repository-search"
-						aria-label="Find repositories for this space"
-						tabIndex={0}
-						placeholder="Find a repository…"
-						value={query}
-						style={field}
-						onChange={(event) => setQuery(event.value ?? "")}
-					/>
-					<div
-						testId="space-repositories"
-						role="group"
-						aria-label="Repositories in this space"
-						style={{
-							display: "flex",
-							flexDirection: "column",
-							height: 160,
-							minHeight: 60,
-							flexShrink: 1,
-							overflowY: "scroll",
-						}}
-					>
-						{paths.map((path) => {
-							const remote = MachineLocation.parse(path);
-
-							const description = remote
-								? `${machines?.name(remote.machineId) ?? "SSH machine"} · ${remote.path}`
-								: path;
-
-							return (
-								<div key={path} style={{ ...row, flexShrink: 0, height: 40 }}>
-									<Checkbox
-										tokens={tokens}
-										testId={`space-repository-${path}`}
-										aria-label={`Include ${path}`}
-										checked={selected.has(path)}
-										onCheckedChange={(checked) =>
-											setSelected((current) => {
-												const next = new Set(current);
-
-												if (checked) next.add(path);
-												else next.delete(path);
-
-												return next;
-											})
-										}
-									/>
-									<div
-										style={{
-											display: "flex",
-											flexDirection: "column",
-											minWidth: 0,
-											flexGrow: 1,
-										}}
-									>
-										<text
+					<text style={{ ...typography.sm, color: tokens.colors.textMuted }}>
+						Icon
+					</text>
+					<TooltipProvider delayDuration={350}>
+						<div
+							testId="space-icons"
+							role="group"
+							aria-label="Space icon"
+							style={{
+								display: "flex",
+								flexDirection: "row",
+								flexWrap: "wrap",
+								gap: spacing[2],
+								width: iconColumns * iconSize + (iconColumns - 1) * spacing[2],
+								alignSelf: "center",
+							}}
+						>
+							{spaceIconPresets.map((preset) => (
+								<Tooltip key={preset.id}>
+									<TooltipTrigger asChild>
+										<Button
+											tokens={tokens}
+											size="sm"
+											variant={icon === preset.id ? "secondary" : "ghost"}
+											aria-label={`${preset.label} icon`}
+											testId={`space-icon-${preset.id}`}
+											onPress={() => setIcon(preset.id)}
 											style={{
-												...typography.md,
-												color: tokens.colors.text,
-												whiteSpace: "nowrap",
-												textOverflow: "ellipsis",
+												width: iconSize,
+												height: iconSize,
+												paddingLeft: 0,
+												paddingRight: 0,
 											}}
 										>
-											{basename(path)}
-										</text>
-										<text
-											style={{
-												...label,
-												whiteSpace: "nowrap",
-												textOverflow: "ellipsis",
-											}}
-										>
-											{description}
-										</text>
-									</div>
-								</div>
-							);
-						})}
-						{matches.length > paths.length ? (
-							<text style={label}>
-								Showing 100 matches. Type to narrow the list.
-							</text>
-						) : null}
-						{!paths.length ? (
-							<text style={label}>
-								{query
-									? "No matching repositories."
-									: "Open a repository or add a folder from Home to fill this space."}
-							</text>
-						) : null}
-					</div>
-					{space ? (
-						<text style={label}>
-							Open tabs stay in this space. Your repositories stay on disk.
-						</text>
-					) : null}
+											<SpaceSymbol icon={preset.id} />
+										</Button>
+									</TooltipTrigger>
+									<TooltipContent tokens={tokens} side="top" align="center">
+										{preset.label}
+									</TooltipContent>
+								</Tooltip>
+							))}
+						</div>
+					</TooltipProvider>
 					{error ? (
 						<text
 							role="alert"
-							style={{ ...label, color: tokens.colors.danger }}
+							style={{ ...typography.sm, color: tokens.colors.danger }}
 						>
 							{error}
 						</text>
 					) : null}
-					<div style={{ ...row, justifyContent: "flex-end" }}>
+					<div
+						style={{
+							display: "flex",
+							flexDirection: "row",
+							justifyContent: "flex-end",
+							gap: spacing[2],
+						}}
+					>
 						<Button
 							tokens={tokens}
 							size="sm"
