@@ -219,7 +219,7 @@ function WorkspaceActionSubmenu({
 }) {
 	const theme = useAppTheme();
 	const { tokens: appTokens } = theme;
-	const { colors, styles } = themedStyles[theme.appearance];
+	const { colors, styles } = themedStyles.get(theme);
 
 	return (
 		<div
@@ -323,7 +323,7 @@ export function WorkspaceMenu({
 }) {
 	const theme = useAppTheme();
 	const { tokens: appTokens } = theme;
-	const { colors, styles } = themedStyles[theme.appearance];
+	const { colors, styles } = themedStyles.get(theme);
 
 	const renderer = useGpuixRequired();
 	const windowSize = useWindowSize();

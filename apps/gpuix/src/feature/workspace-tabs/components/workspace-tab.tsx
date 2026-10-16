@@ -661,7 +661,7 @@ export function WorkspaceTabPreview({
 	onClose: () => void;
 }) {
 	const theme = useAppTheme();
-	const { activeSurface, styles } = themedStyles[theme.appearance];
+	const { activeSurface, styles } = themedStyles.get(theme);
 
 	return (
 		<div

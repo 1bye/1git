@@ -14,6 +14,8 @@ import type {
 	WorktreeInfo,
 } from "@1git/git";
 import { App } from "../../src/app";
+import { appThemes } from "../../src/styles/theme";
+import { RepositoryTheme } from "../../src/styles/repository-theme";
 import { windowOptions } from "../../src/window-options";
 import { RepositoryBranches } from "../../src/feature/workspace-tabs/lib/repository-branches";
 import type { SavedBranchChanges } from "../../src/feature/workspace-tabs/lib/repository-branch-changes";
@@ -2074,3 +2076,44 @@ it("opens with Down, wraps Up to the final action, and dismisses with Tab", asyn
 		element("close-workspace-1").id
 	);
 });
+
+it.each(["light", "dark"] as const)(
+	"applies the repository color to branch menus and flyouts (%s)",
+	async (appearance) => {
+		const color = "#e99855";
+
+		root.render(
+			<App
+				initialSession={{
+					version: 1,
+					appearance,
+					activeId: "workspace-1",
+					tabs: [{ id: "workspace-1", path: "/test/project", draft: "" }],
+					repositoryColors: { "/test/project/.git": color },
+				}}
+				readRepository={readRepository}
+				readBranches={readBranches}
+				writeBranch={writeBranch}
+				readDiff={async () => ({ ok: true, value: [] })}
+			/>
+		);
+		await settle();
+		await menu();
+		const palette = RepositoryTheme.create(appThemes[appearance], color);
+
+		expect(element("workspace-menu-tab-surface").customProps?.source).toBe(
+			element("surface-workspace-1").customProps?.source
+		);
+
+		expect(element("workspace-menu").style.backgroundColor).toBe(
+			palette.tokens.colors.overlay
+		);
+		const trigger = bounds("new-actions");
+
+		root.renderer.nativeSimulateMouseMove(trigger.x + 20, trigger.y + 14);
+		await settle();
+		expect(element("workspace-new-actions").style.backgroundColor).toBe(
+			palette.tokens.colors.overlay
+		);
+	}
+);

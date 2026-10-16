@@ -152,7 +152,7 @@ export function WorkspaceWorktreeForm({
 }) {
 	const theme = useAppTheme();
 	const { tokens: appTokens } = theme;
-	const { colors, styles } = themedStyles[theme.appearance];
+	const { colors, styles } = themedStyles.get(theme);
 
 	const renderer = useGpuixRequired();
 	const [name, setName] = useState("");
