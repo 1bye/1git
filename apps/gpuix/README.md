@@ -1315,6 +1315,14 @@ no user repositories or live hosted services are modified.
 
 ## Opening a repository
 
+Home repository tiles and list rows show the current branch, changed-file count,
+and incoming/outgoing commits. Tracking counts use the last fetched refs; opening
+Home never fetches remotes. Repositories without an upstream say **No upstream**,
+and unavailable folders or disconnected machines have explicit status labels.
+Open workspaces supply their live snapshots. Other visible repositories refresh
+periodically through a queue limited to two reads, with cancellation when they
+scroll out of view or Home closes. Folder tiles continue to represent scan folders.
+
 - Home discovers local Git repositories in the background on its first visit.
   It searches your home folder; **Add folder…** adds another location (including
   external drives) and remembers it for the next launch. **Stop scanning** and

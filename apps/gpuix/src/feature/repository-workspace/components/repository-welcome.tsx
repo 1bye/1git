@@ -2,6 +2,9 @@ import { createThemedStyles, useAppTheme } from "../../../styles/theme";
 import { spacing, typography, fontWeight, iconSize } from "@1git/design-tokens";
 import {
 	useMemo,
+	useCallback,
+	useEffect,
+	useLayoutEffect,
 	useRef,
 	useState,
 	type Dispatch,
@@ -12,6 +15,7 @@ import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { Button } from "@1git/gpuix-ui/button";
 import {
 	useGpuixRequired,
+	useWindowSize,
 	type EventPayload,
 	type PublicInstance,
 } from "@gpuix/react";
@@ -33,6 +37,10 @@ import {
 	RepositoryFolderTile,
 } from "./repository-folder-tile";
 import { RepositoryLibrarySearch } from "./repository-library-search";
+import { RepositoryOverviews } from "../../repository-discovery/repository-overviews";
+import { RepositoryOverviewContext } from "./repository-overview";
+import type { RepositoryReader } from "../lib/repository-reader";
+import type { RepositoryWorkspaceState } from "../lib/repository-workspace-model";
 
 const themedStyles = createThemedStyles(({ tokens: appTokens }) => {
 	const styles = StyleSheet.create({
@@ -86,22 +94,7 @@ const themedStyles = createThemedStyles(({ tokens: appTokens }) => {
 	return { styles };
 });
 
-/** Launch page with machine selection, quick actions and a searchable repository library. */
-export function RepositoryWelcome({
-	paths,
-	library,
-	onLibraryChange,
-	savedPaths = paths,
-	discovery,
-	actions,
-	busy,
-	error,
-	onOpen,
-	onOpenRecent,
-	onForget,
-	machines,
-	remote = false,
-}: {
+interface RepositoryWelcomeProps {
 	paths: readonly string[];
 	library: RepositoryLibraryPreferences;
 	onLibraryChange: Dispatch<SetStateAction<RepositoryLibraryPreferences>>;
@@ -115,7 +108,55 @@ export function RepositoryWelcome({
 	onForget: (path: string) => void;
 	machines?: ReactNode;
 	remote?: boolean;
-}) {
+	readRepository: typeof RepositoryReader.read;
+	canReadRepository: (path: string) => boolean;
+	openWorkspaces: readonly RepositoryWorkspaceState[];
+}
+
+/** Launch page with machine selection, quick actions and a searchable repository library. */
+export function RepositoryWelcome(props: RepositoryWelcomeProps) {
+	const { readRepository, canReadRepository, openWorkspaces } = props;
+
+	const overviews = useMemo(
+		() => new RepositoryOverviews(readRepository, canReadRepository),
+		[readRepository, canReadRepository]
+	);
+
+	useLayoutEffect(() => {
+		overviews.setOpen(openWorkspaces);
+	});
+	useEffect(() => {
+		const timer = setInterval(() => overviews.refresh(), 15000);
+
+		return () => {
+			clearInterval(timer);
+			overviews.dispose();
+		};
+	}, [overviews]);
+
+	return (
+		<RepositoryOverviewContext value={overviews}>
+			<RepositoryWelcomeContent {...props} overviews={overviews} />
+		</RepositoryOverviewContext>
+	);
+}
+
+function RepositoryWelcomeContent({
+	paths,
+	library,
+	onLibraryChange,
+	savedPaths = paths,
+	discovery,
+	actions,
+	busy,
+	error,
+	onOpen,
+	onOpenRecent,
+	onForget,
+	machines,
+	remote = false,
+	overviews,
+}: RepositoryWelcomeProps & { overviews: RepositoryOverviews }) {
 	const theme = useAppTheme();
 	const { tokens: appTokens } = theme;
 	const { styles } = themedStyles.get(theme);
@@ -123,6 +164,9 @@ export function RepositoryWelcome({
 	const [query, setQuery] = useState("");
 	const [menuError, setMenuError] = useState<string | null>(null);
 	const renderer = useGpuixRequired();
+	const window = useWindowSize();
+	const libraryViewport = useRef<PublicInstance>(null);
+	const favoriteButtons = useRef(new Map<string, PublicInstance>());
 	const folderActions = useRef<PublicInstance>(null);
 	const starred = useMemo(() => new Set(library.starred), [library.starred]);
 
@@ -140,7 +184,49 @@ export function RepositoryWelcome({
 
 	const inFolder = !!library.folder;
 	const showFolders = !inFolder && !query.trim();
-	const favorites = paths.filter((path) => starred.has(path));
+
+	const favorites = useMemo(
+		() => paths.filter((path) => starred.has(path)),
+		[paths, starred]
+	);
+
+	const measureFavorites = useCallback((): boolean => {
+		const viewport =
+			libraryViewport.current &&
+			renderer.getElementBounds?.(libraryViewport.current.id);
+
+		if (!viewport?.height) return false;
+
+		overviews.setVisible(
+			favorites.filter((path) => {
+				const button = favoriteButtons.current.get(path);
+				const bounds = button && renderer.getElementBounds?.(button.id);
+
+				return (
+					!!bounds &&
+					bounds.height > 0 &&
+					bounds.y < viewport.y + viewport.height &&
+					bounds.y + bounds.height > viewport.y
+				);
+			})
+		);
+
+		return true;
+	}, [favorites, overviews, renderer]);
+
+	useEffect(() => {
+		if (!showFolders) return;
+
+		// Retry until the native viewport has painted, then update only on scroll/resize.
+		const timer = setInterval(() => {
+			if (measureFavorites()) clearInterval(timer);
+		}, 16);
+
+		return () => {
+			clearInterval(timer);
+			overviews.setVisible([]);
+		};
+	}, [showFolders, measureFavorites, overviews, window.width, window.height]);
 
 	const onStar = (path: string): void =>
 		onLibraryChange((current) =>
@@ -365,6 +451,10 @@ export function RepositoryWelcome({
 						) : null}
 						{showFolders && (folders.length > 0 || (!!discovery && !remote)) ? (
 							<div
+								ref={libraryViewport}
+								onScroll={() => {
+									measureFavorites();
+								}}
 								testId="welcome-library"
 								style={{ ...styles.list, gap: spacing[5] }}
 							>
@@ -441,6 +531,11 @@ export function RepositoryWelcome({
 													key={path}
 													layout={library.view}
 													path={path}
+													openRef={(button) => {
+														if (button)
+															favoriteButtons.current.set(path, button);
+														else favoriteButtons.current.delete(path);
+													}}
 													busy={busy}
 													starred
 													onStar={onStar}

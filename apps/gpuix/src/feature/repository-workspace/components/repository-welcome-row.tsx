@@ -7,6 +7,7 @@ import { Button } from "@1git/gpuix-ui/button";
 import type { EventPayload, PublicInstance } from "@gpuix/react";
 
 import { RepositoryAvatar } from "./repository-avatar";
+import { RepositoryOverviewDetails } from "./repository-overview";
 
 // Phosphor Icons 2.1.10, Broom in Light weight, matching the account cards.
 // See ../../../../LICENSES/Phosphor-Icons.txt.
@@ -17,7 +18,7 @@ const brushIcon =
 export const repositoryTileSize = {
 	minWidth: 140,
 	maxWidth: 160,
-	height: 100,
+	height: 112,
 } as const;
 
 /** Keeps transient hover/focus local to one saved-repository row. */
@@ -137,10 +138,10 @@ export function RepositoryWelcomeRow({
 					flexBasis: 0,
 					minWidth: 0,
 					justifyContent: "flex-start",
-					paddingTop: tiled ? spacing[2.5] : 0,
-					paddingBottom: tiled ? spacing[2.5] : 0,
+					paddingTop: tiled ? spacing[3] : 0,
+					paddingBottom: tiled ? spacing[3] : 0,
 					paddingLeft: spacing[3],
-					gap: spacing[2.5],
+					gap: tiled ? spacing[2] : spacing[2.5],
 					hover: { backgroundColor: "transparent" },
 				}}
 			>
@@ -155,7 +156,7 @@ export function RepositoryWelcomeRow({
 					style={{
 						display: "flex",
 						flexDirection: "column",
-						gap: spacing[0.75],
+						gap: tiled ? spacing[1] : spacing[0.75],
 						minWidth: 0,
 						flexGrow: tiled ? 0 : 1,
 						...(tiled ? { width: "100%" } : {}),
@@ -173,18 +174,35 @@ export function RepositoryWelcomeRow({
 					>
 						{basename(path)}
 					</text>
-					<text
-						testId={`welcome-path-${path}`}
+					{tiled ? null : (
+						<text
+							testId={`welcome-path-${path}`}
+							style={{
+								...typography.sm,
+								color: appTokens.colors.textMuted,
+								whiteSpace: "nowrap",
+								textOverflow: "ellipsis",
+							}}
+						>
+							{MachineLocation.display(path)}
+						</text>
+					)}
+					{tiled ? (
+						<RepositoryOverviewDetails path={path} layout="tiles" />
+					) : null}
+				</div>
+				{tiled ? null : (
+					<div
 						style={{
-							...typography.sm,
-							color: appTokens.colors.textMuted,
-							whiteSpace: "nowrap",
-							textOverflow: "ellipsis",
+							width: 145,
+							minWidth: 0,
+							flexShrink: 0,
+							pointerEvents: "none",
 						}}
 					>
-						{MachineLocation.display(path)}
-					</text>
-				</div>
+						<RepositoryOverviewDetails path={path} />
+					</div>
+				)}
 			</Button>
 			<Button
 				onKeyDown={onNavigate}
@@ -199,7 +217,7 @@ export function RepositoryWelcomeRow({
 				onPress={() => onStar(path)}
 				style={{
 					...(tiled
-						? { position: "absolute", top: spacing[2], right: spacing[2] }
+						? { position: "absolute", top: spacing[2.5], right: spacing[2] }
 						: {}),
 					width: 26,
 					height: 26,
@@ -237,7 +255,7 @@ export function RepositoryWelcomeRow({
 				onPress={() => onForget(path)}
 				style={{
 					...(tiled
-						? { position: "absolute", top: spacing[2], right: 36 }
+						? { position: "absolute", top: spacing[2.5], right: 36 }
 						: {}),
 					width: 26,
 					height: 26,

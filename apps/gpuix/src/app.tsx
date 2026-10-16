@@ -827,6 +827,15 @@ function AppContent({
 		]
 	);
 
+	const canReadOverview = useCallback(
+		(path: string): boolean => {
+			const remote = MachineLocation.parse(path);
+
+			return !remote || machines.state(remote.machineId).status === "Connected";
+		},
+		[machines]
+	);
+
 	const workspaceFocus = useRef<number | null>(null);
 	const railSettingsButton = useRef<PublicInstance>(null);
 	const railAccountButton = useRef<PublicInstance>(null);
@@ -1428,6 +1437,11 @@ function AppContent({
 					(cloneTab &&
 						activeTab?.id === cloneTab.id) ? null : welcomeVisible ? (
 						<RepositoryWelcome
+							readRepository={readRepository}
+							canReadRepository={canReadOverview}
+							openWorkspaces={state.tabs
+								.filter((tab) => !tab.comparison)
+								.map((tab) => tab.workspace)}
 							paths={welcomePaths}
 							remote={remoteMachine}
 							machines={

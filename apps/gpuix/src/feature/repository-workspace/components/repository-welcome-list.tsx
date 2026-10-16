@@ -18,6 +18,7 @@ import {
 } from "./repository-welcome-row";
 import { spacing } from "@1git/design-tokens";
 import { RepositoryAvatarContext } from "./repository-avatar";
+import { RepositoryOverviewContext } from "./repository-overview";
 
 const chunkSize = 40;
 const tileGap = spacing[3];
@@ -47,6 +48,7 @@ export function RepositoryWelcomeList({
 }) {
 	const renderer = useGpuixRequired();
 	const avatars = use(RepositoryAvatarContext);
+	const overviews = use(RepositoryOverviewContext);
 	const window = useWindowSize();
 	const container = useRef<PublicInstance>(null);
 	const viewport = useRef<PublicInstance>(null);
@@ -76,7 +78,7 @@ export function RepositoryWelcomeList({
 				)
 			);
 
-		if (!avatars) return;
+		if (!avatars && !overviews) return;
 
 		const anchor = viewport.current
 			? renderer.getListScrollTop?.(viewport.current.id)
@@ -88,12 +90,17 @@ export function RepositoryWelcomeList({
 			? Math.ceil(((anchor[1] ?? 0) + (anchor[2] ?? 0)) / rowHeight) + 3
 			: 12;
 
-		for (const path of paths.slice(
+		const visible = paths.slice(
 			first * columnCount,
 			(first + count) * columnCount
-		))
-			void avatars.load({ path });
-	}, [avatars, paths, renderer, columnCount, rowHeight]);
+		);
+
+		overviews?.setVisible(visible);
+
+		for (const path of visible) void avatars?.load({ path });
+	}, [avatars, overviews, paths, renderer, columnCount, rowHeight]);
+
+	useEffect(() => () => overviews?.setVisible([]), [overviews]);
 
 	useEffect(() => {
 		// The first native paint can precede registration of the visible-range callback.
