@@ -1,7 +1,15 @@
 import { isAbsolute } from "node:path";
 
 /** Built-in illustrated wallpapers; undefined keeps the existing unpatterned appearance. */
-export type RepositoryPattern = "rose" | "seaside" | "forest" | "cosmic";
+export type RepositoryPattern =
+	| "rose"
+	| "seaside"
+	| "forest"
+	| "cosmic"
+	| "meadow"
+	| "camping"
+	| "rainfall"
+	| "workshop";
 
 /** Device-local wallpaper choices shared by worktrees through Git's common directory. */
 export type RepositoryPatternChoices = Readonly<
@@ -22,6 +30,10 @@ export const repositoryPatternPresets = [
 	{ id: "seaside", name: "Seaside", color: "#528bff" },
 	{ id: "forest", name: "Forest", color: "#62ae86" },
 	{ id: "cosmic", name: "Cosmic", color: "#a478ef" },
+	{ id: "meadow", name: "Meadow", color: "#d2a340" },
+	{ id: "camping", name: "Camping", color: "#c88a59" },
+	{ id: "rainfall", name: "Rainfall", color: "#6b9eb8" },
+	{ id: "workshop", name: "Workshop", color: "#7c8bc4" },
 ] as const;
 
 /** Validates persisted wallpaper IDs; no arbitrary paths, SVG or remote images enter the renderer. */

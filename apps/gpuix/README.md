@@ -339,8 +339,10 @@ This is presentation only: no Git metadata is changed or fetched for the badges.
 
 Settings → Repository → **Appearance** adds an opt-in workspace accent for the active
 repository: eight named swatches, a validated six-digit hex field, and Reset.
-Illustrated **Rose**, **Seaside**, **Forest** and **Cosmic** SVG presets add scattered
-themed motifs behind the colored chrome. Patterns use the current repository color;
+Illustrated **Rose**, **Seaside**, **Forest**, **Cosmic**, **Meadow**, **Camping**,
+**Rainfall** and **Workshop** SVG presets add scattered themed motifs behind the chrome.
+The new packs feature flowers and butterflies, camping gear, rainy weather, and
+Git and coding tools respectively. Patterns use the current repository color;
 selecting or removing a pattern never changes that color. **No pattern** removes only the
 artwork. Existing sessions keep their colors and have no pattern until one is chosen.
 While a repository is active, the rail's Settings gear opens a native dropdown

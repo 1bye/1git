@@ -23,6 +23,10 @@ import { diffSection } from "../_shared/diff-patch";
 import { windowOptions } from "../../src/window-options";
 import { useState } from "react";
 import { RepositoryAppearance } from "../../src/feature/repository-appearance/repository-appearance";
+import {
+	repositoryPatternPresets,
+	type RepositoryPattern,
+} from "../../src/feature/repository-appearance/repository-patterns";
 import { AppThemeContext } from "../../src/styles/theme";
 import { NativeFileMenu } from "../../src/feature/repository-workspace/lib/native-file-menu";
 
@@ -69,12 +73,14 @@ function ColorSettingsProbe({
 	changed: (color: string | undefined) => void;
 }) {
 	const [color, setColor] = useState<string>();
+	const [pattern, setPattern] = useState<RepositoryPattern>();
 
 	return (
 		<AppThemeContext value={{ ...appThemes.dark, commitTypeBadges: true }}>
 			<RepositoryAppearance
 				name="Test repository"
-				onPatternChange={() => {}}
+				pattern={pattern}
+				onPatternChange={setPattern}
 				color={color}
 				onChange={(next) => {
 					setColor(next);
@@ -84,6 +90,46 @@ function ColorSettingsProbe({
 		</AppThemeContext>
 	);
 }
+
+it("selects every pattern by keyboard and resets without changing the color", async () => {
+	const root = createTestRoot({ width: 760, height: 640 });
+
+	roots.add(root);
+	const changes: (string | undefined)[] = [];
+
+	root.render(<ColorSettingsProbe changed={(color) => changes.push(color)} />);
+	await settle(root);
+
+	for (const preset of repositoryPatternPresets) {
+		root.renderer.nativeSimulateKeyDown(
+			node(root, `repository-pattern-${preset.id}`).id,
+			"enter"
+		);
+		await settle(root);
+
+		for (const candidate of repositoryPatternPresets)
+			expect(
+				node(root, `repository-pattern-${candidate.id}`).customProps?.[
+					"aria-description"
+				]
+			).toBe(candidate.id === preset.id ? "Selected" : undefined);
+	}
+
+	root.renderer.nativeSimulateKeyDown(
+		node(root, "repository-pattern-reset").id,
+		"enter"
+	);
+	await settle(root);
+
+	for (const preset of repositoryPatternPresets)
+		expect(
+			node(root, `repository-pattern-${preset.id}`).customProps?.[
+				"aria-description"
+			]
+		).toBeUndefined();
+
+	expect(changes).toEqual([]);
+});
 
 it("supports keyboard swatches, rejects invalid custom input and resets without writing until Apply", async () => {
 	const root = createTestRoot({ width: 760, height: 620 });

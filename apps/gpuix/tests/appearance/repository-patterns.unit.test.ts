@@ -41,41 +41,46 @@ it("accepts built-in patterns only and resets just the selected common directory
 		expect(RepositoryPatterns.parse(value)).toEqual({});
 });
 
-it("persists wallpaper choices with colors without changing legacy sessions", () => {
-	const choices = RepositoryPatterns.set({}, "/repo/.git", "seaside");
-	const colors = { "/repo/.git": "#e879a0" };
-	const empty = WorkspaceTabsModel.create(0);
+it.each(
+	repositoryPatternPresets.map((preset) => [preset.name, preset.id] as const)
+)(
+	"persists %s with colors without changing legacy sessions",
+	(_name, pattern) => {
+		const choices = RepositoryPatterns.set({}, "/repo/.git", pattern);
+		const colors = { "/repo/.git": "#e879a0" };
+		const empty = WorkspaceTabsModel.create(0);
 
-	const captured = WorkspaceSession.capture(
-		empty,
-		undefined,
-		"dark",
-		true,
-		"complete",
-		colors,
-		undefined,
-		choices
-	);
+		const captured = WorkspaceSession.capture(
+			empty,
+			undefined,
+			"dark",
+			true,
+			"complete",
+			colors,
+			undefined,
+			choices
+		);
 
-	const restored = WorkspaceSession.parse(JSON.stringify(captured));
+		const restored = WorkspaceSession.parse(JSON.stringify(captured));
 
-	expect(restored.repositoryPatterns).toEqual(choices);
-	expect(restored.repositoryColors).toEqual(colors);
-	expect(restored.tabs).toEqual([]);
-	expect(
-		WorkspaceSession.parse(
-			JSON.stringify({ version: 1, tabs: [], activeId: null })
-		).repositoryPatterns
-	).toBeUndefined();
-	expect(
-		WorkspaceSession.parse(
-			JSON.stringify({
-				...captured,
-				repositoryPatterns: { "/repo/.git": "unknown" },
-			})
-		).repositoryPatterns
-	).toBeUndefined();
-});
+		expect(restored.repositoryPatterns).toEqual(choices);
+		expect(restored.repositoryColors).toEqual(colors);
+		expect(restored.tabs).toEqual([]);
+		expect(
+			WorkspaceSession.parse(
+				JSON.stringify({ version: 1, tabs: [], activeId: null })
+			).repositoryPatterns
+		).toBeUndefined();
+		expect(
+			WorkspaceSession.parse(
+				JSON.stringify({
+					...captured,
+					repositoryPatterns: { "/repo/.git": "unknown" },
+				})
+			).repositoryPatterns
+		).toBeUndefined();
+	}
+);
 
 it.each(["light", "dark"] as const)(
 	"keeps semantic colors and the default palette unchanged (%s)",
@@ -100,8 +105,13 @@ it.each(["light", "dark"] as const)(
 	}
 );
 
-it("reuses four small monochrome tiles across colors rather than generating window-sized images", async () => {
-	expect(Object.keys(repositoryPatternSources)).toHaveLength(4);
+it("reuses small monochrome tiles across colors rather than generating window-sized images", async () => {
+	expect(Object.keys(repositoryPatternSources).toSorted()).toEqual(
+		repositoryPatternPresets.map((preset) => preset.id).toSorted()
+	);
+	expect(new Set(Object.values(repositoryPatternSources)).size).toBe(
+		repositoryPatternPresets.length
+	);
 
 	for (const preset of repositoryPatternPresets) {
 		const source = repositoryPatternSources[preset.id];
