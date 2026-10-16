@@ -1,5 +1,5 @@
 /**
- * Covers: Home-only discovery, deduplicated suggestions, opening, cancel/retry, folder selection and persistent removal.
+ * Covers: Home-only discovery, search counts, toolbar navigation, suggestions, opening, retry, folder selection and persistent removal.
  * Real: App, session/discovery hooks and GPUIX native layout/input.
  * Doubles: scanner, picker, repository reads, account catalog and session save; no user folders or network.
  * Requires: patched GPUIX renderer with macOS graphics access.
@@ -8,6 +8,7 @@ import { afterEach, beforeEach, expect, it, mock, spyOn } from "bun:test";
 import { createTestRoot, type TestRoot } from "@gpuix/react/testing";
 import { homedir } from "node:os";
 import { App } from "../../src/app";
+import { windowOptions } from "../../src/window-options";
 import { Accounts } from "../../src/feature/accounts/lib/accounts";
 import { AccountStore } from "../../src/feature/accounts/lib/account-store";
 import {
@@ -45,7 +46,11 @@ const read = mock<typeof RepositoryReader.read>(async (path) => {
 });
 
 beforeEach(() => {
-	root = createTestRoot({ width: 980, height: 640 });
+	root = createTestRoot({
+		width: 980,
+		height: 640,
+		onKeyDown: windowOptions.onKeyDown,
+	});
 	root.renderer.clockPause();
 	read.mockClear();
 	accounts = new Accounts(new AccountStore("/unused/discovery-accounts.json"), {
@@ -132,7 +137,7 @@ it("discovers only when Home opens, merges without opening tabs, searches and ex
 	expect(scan).toHaveBeenCalledTimes(1);
 });
 
-it("keeps suggestions usable during scanning, cancels stale results and retries after failure", async () => {
+it("keeps suggestions usable and updates the search count without moving the toolbar while scanning", async () => {
 	const pending = Promise.withResolvers<RepositoryDiscoveryProgress>();
 
 	const scan = mock<typeof RepositoryDiscovery.scan>(
@@ -172,27 +177,19 @@ it("keeps suggestions usable during scanning, cancels stale results and retries 
 		"2 found"
 	);
 	expect(node("discovery-rail").style.pointerEvents).toBe("none");
-	click("discovery-rescan");
+	expect(node("welcome-search").customProps?.placeholder).toBe(
+		"Search 2 repositories"
+	);
+	pending.resolve({ ...progress, paths: [...progress.paths, "/test/found"] });
+	await settle();
 	expect(root.renderer.findByTestId("discovery-rail")).toBeUndefined();
 	expect(root.renderer.getElementBounds(node("welcome-search").id)).toEqual(
 		search
 	);
-	expect(scan.mock.calls[0]?.[1].aborted).toBe(true);
-	pending.resolve({ ...progress, paths: ["/test/stale"] });
-	await settle();
-	expect(
-		root.renderer.findByTestId("welcome-repository-/test/stale")
-	).toBeUndefined();
-	scan.mockRejectedValueOnce(new Error("Scan failed"));
-	click("discovery-rescan");
-	await settle();
-	expect(JSON.stringify(root.renderer.getA11yTree())).toContain("Scan failed");
-	scan.mockResolvedValueOnce(progress);
-	click("discovery-rescan");
-	await settle();
-	expect(JSON.stringify(root.renderer.getA11yTree())).not.toContain(
-		"Scan failed"
+	expect(node("welcome-search").customProps?.placeholder).toBe(
+		"Search 3 repositories"
 	);
+	expect(node("welcome-repository-/test/found")).toBeDefined();
 });
 
 it("scans additional folders independently, persists scope and removal, and ignores a cancelled picker", async () => {
@@ -231,8 +228,19 @@ it("scans additional folders independently, persists scope and removal, and igno
 	expect(
 		root.renderer.findByTestId("welcome-repository-/test/discovered")
 	).toBeUndefined();
-	click("discovery-rescan");
+	click("welcome-back");
+	const scansBeforeRetry = scan.mock.calls.length;
+
+	Object.assign(root.renderer, { showContextMenu: () => 0 });
+	root.renderer.nativeSimulateKeyDown(
+		node("welcome-folder-/Volumes/Work").id,
+		"shift-f10"
+	);
+	root.renderer.flush();
 	await settle();
+	expect(scan).toHaveBeenCalledTimes(scansBeforeRetry + 1);
+	expect(scan.mock.calls.at(-1)?.[0]).toEqual(["/Volumes/Work"]);
+	click("welcome-folder-other");
 	expect(
 		root.renderer.findByTestId("welcome-repository-/test/discovered")
 	).toBeUndefined();
@@ -243,7 +251,7 @@ it("scans additional folders independently, persists scope and removal, and igno
 	});
 });
 
-it("shows incomplete scans honestly and preserves layout at minimum size", async () => {
+it("keeps scan metadata out of the layout and shows the repository count in the search placeholder", async () => {
 	const scan = mock<typeof RepositoryDiscovery.scan>(async () => ({
 		...progress,
 		limited: true,
@@ -258,40 +266,50 @@ it("shows incomplete scans honestly and preserves layout at minimum size", async
 		/>
 	);
 	await settle();
-	expect(node("discovery-incomplete")).toBeDefined();
-	const folder = root.renderer.getElementBounds(node("discovery-folder").id);
-	const rescan = root.renderer.getElementBounds(node("discovery-rescan").id);
 
-	const warning = root.renderer.getElementBounds(
-		node("discovery-incomplete").id
+	for (const id of [
+		"discovery-summary",
+		"discovery-rescan",
+		"discovery-incomplete",
+	])
+		expect(root.renderer.findByTestId(id)).toBeUndefined();
+
+	expect(root.renderer.getAllText()).not.toContain(
+		"Scan limit reached. Add a specific scan folder to find more."
+	);
+	expect(node("welcome-search").customProps?.placeholder).toBe(
+		"Search 2 repositories"
+	);
+	const folder = root.renderer.getElementBounds(node("discovery-folder").id);
+
+	const control = root.renderer.getElementBounds(
+		node("welcome-search-control").id
 	);
 
-	const search = root.renderer.getElementBounds(node("welcome-search").id);
-	const summary = root.renderer.getElementBounds(node("discovery-summary").id);
+	const field = root.renderer.getElementBounds(node("welcome-search-field").id);
+	const results = root.renderer.getElementBounds(node("welcome-results").id);
 
-	if (!folder || !rescan || !warning || !search || !summary)
+	if (!folder || !control || !field || !results)
 		throw new Error("Missing discovery layout");
 
-	expect(folder.x + folder.width).toBeLessThan(summary.x);
-	expect(summary.y).toBeGreaterThanOrEqual(search.y + search.height);
-	expect(rescan.x).toBeGreaterThanOrEqual(summary.x);
-	expect(rescan.x + rescan.width).toBeLessThanOrEqual(
-		summary.x + summary.width
-	);
-	expect(warning.x).toBe(summary.x);
-	expect(warning.x + warning.width).toBeLessThanOrEqual(
-		summary.x + summary.width
-	);
+	expect(folder.x + folder.width).toBeLessThan(control.x);
+	expect(control.height).toBe(40);
+	expect(field.width).toBeGreaterThan(150);
+	expect(results.y).toBeGreaterThanOrEqual(control.y + control.height);
 	expect(root.renderer.findByTestId("discovery-rail")).toBeUndefined();
 
 	if (process.env.GPUIX_DISCOVERY_SCREENSHOT)
 		root.renderer.captureScreenshot(process.env.GPUIX_DISCOVERY_SCREENSHOT);
 
+	click("welcome-view-starred");
+	expect(node("welcome-search").customProps?.placeholder).toBe(
+		"Search 0 starred repositories"
+	);
 	root.unmount();
 	expect(scan).toHaveBeenCalledTimes(1);
 });
 
-it("keeps search and scan actions fixed when many suggestions scroll", async () => {
+it("keeps search and folder actions fixed when many suggestions scroll", async () => {
 	const paths = Array.from(
 		{ length: 3000 },
 		(_, index) => `/test/project-${index}`
@@ -519,14 +537,15 @@ it("browses physical folders, stars across groups and restores the saved view wi
 it("retries unavailable folders individually and removes only tracking, retaining saved/starred repositories", async () => {
 	let available = false;
 
-	const scan = mock<typeof RepositoryDiscovery.scan>(async ([folder]) =>
-		folder === "/Volumes/Work" && !available
-			? { ...progress, paths: [], scanned: 0, skipped: 1 }
-			: {
-					...progress,
-					paths: folder === "/Volumes/Work" ? ["/Volumes/Work/api"] : [],
-				}
-	);
+	const scan = mock<typeof RepositoryDiscovery.scan>(async ([folder]) => {
+		if (folder === "/Volumes/Work" && !available)
+			throw new Error("Scan failed");
+
+		return {
+			...progress,
+			paths: folder === "/Volumes/Work" ? ["/Volumes/Work/api"] : [],
+		};
+	});
 
 	const save = mock<(document: WorkspaceSessionDocument) => void>(() => {});
 	let choice = 0;
@@ -547,11 +566,13 @@ it("retries unavailable folders individually and removes only tracking, retainin
 	);
 	await settle();
 	expect(root.renderer.getAllText()).toContain("Folder unavailable");
+	expect(root.renderer.getAllText()).toContain("Scan failed");
 	click("welcome-folder-/Volumes/Work");
 	expect(node("welcome-repository-/Volumes/Work/api")).toBeDefined();
 	available = true;
 	click("welcome-folder-actions");
 	await settle();
+	expect(root.renderer.getAllText()).not.toContain("Scan failed");
 	expect(scan.mock.calls.map(([folders]) => folders)).toEqual([
 		[homedir()],
 		["/Volumes/Work"],
@@ -572,6 +593,86 @@ it("retries unavailable folders individually and removes only tracking, retainin
 	expect(document?.repositoryDiscovery).toBeUndefined();
 	expect(document?.recentRepositories).toEqual(["/Volumes/Work/api"]);
 	expect(document?.repositoryLibrary?.starred).toEqual(["/Volumes/Work/api"]);
+});
+
+it("counts the current scope and places the back arrow beside search without a folder path label", async () => {
+	const paths = ["/Work/api", "/Work/client", "/Personal/site"];
+
+	root.render(
+		<App
+			accounts={accounts}
+			initialSession={{
+				...initial,
+				recentRepositories: [],
+				appearance: "dark",
+				repositoryDiscovery: { folders: ["/Work", "/Personal"], hidden: [] },
+				repositoryLibrary: {
+					view: "listed",
+					starred: ["/Work/api", "/Personal/site"],
+				},
+			}}
+			discoverRepositories={async () => ({ ...progress, paths })}
+		/>
+	);
+	await settle();
+	expect(node("welcome-search").customProps?.placeholder).toBe(
+		"Search 3 repositories"
+	);
+	expect(root.renderer.findByTestId("welcome-back")).toBeUndefined();
+	click("welcome-folder-/Work");
+	expect(node("welcome-search").customProps?.placeholder).toBe(
+		"Search 2 repositories"
+	);
+	expect(node("welcome-back").customProps?.["aria-label"]).toBe(
+		"Back to folders"
+	);
+	expect(root.renderer.getAllText()).not.toContain("/Work");
+	const back = root.renderer.getElementBounds(node("welcome-back").id)!;
+
+	const field = root.renderer.getElementBounds(
+		node("welcome-search-field").id
+	)!;
+
+	const tabs = root.renderer.getElementBounds(node("welcome-view-tabs").id)!;
+
+	const actions = root.renderer.getElementBounds(
+		node("welcome-folder-actions").id
+	)!;
+
+	expect(back.x + back.width).toBeLessThan(field.x);
+	expect(back.y).toBe(field.y);
+	expect(back.height).toBe(field.height);
+	expect(tabs.x).toBeGreaterThan(field.x + field.width);
+	expect(actions.y).toBe(field.y);
+	expect(actions.x).toBeGreaterThan(tabs.x + tabs.width);
+	const screenshot = process.env.GPUIX_LIBRARY_SEARCH_SCREENSHOT;
+
+	if (screenshot) root.renderer.captureScreenshot(`${screenshot}.folder.png`);
+
+	click("welcome-search");
+	root.renderer.simulateKeystrokes("a p i");
+	root.renderer.flush();
+	expect(node("welcome-search").customProps?.placeholder).toBe(
+		"Search 2 repositories"
+	);
+	click("welcome-view-starred");
+	expect(node("welcome-search").customProps?.placeholder).toBe(
+		"Search 2 starred repositories"
+	);
+	expect(root.renderer.findByTestId("welcome-back")).toBeUndefined();
+	click("welcome-view-listed");
+	root.renderer.nativeSimulateKeyDown(node("welcome-back").id, "enter");
+	root.renderer.flush();
+	expect(root.renderer.findByTestId("welcome-back")).toBeUndefined();
+	expect(root.renderer.getFocusedElementId()).toBe(node("welcome-search").id);
+	expect(node("welcome-search").customProps?.value).toBe("");
+	expect(node("welcome-search").customProps?.placeholder).toBe(
+		"Search 3 repositories"
+	);
+	click("welcome-folder-/Personal");
+	expect(node("welcome-search").customProps?.placeholder).toBe(
+		"Search 1 repository"
+	);
 });
 
 it("bounds simultaneous roots, cancels queued work on unmount and ignores late progress", async () => {
@@ -607,4 +708,139 @@ it("bounds simultaneous roots, cancels queued work on unmount and ignores late p
 	pending.resolve(progress);
 	await settle();
 	expect(scan).toHaveBeenCalledTimes(2);
+});
+
+for (const appearance of ["light", "dark"] as const) {
+	it(`places icon tabs outside the search field in the same row in ${appearance} mode`, async () => {
+		root.render(
+			<App
+				accounts={accounts}
+				initialSession={{ ...initial, appearance }}
+				discoverRepositories={async () => progress}
+			/>
+		);
+		await settle();
+		const control = root.renderer.getElementBounds(
+			node("welcome-search-control").id
+		)!;
+
+		const search = root.renderer.getElementBounds(node("welcome-search").id)!;
+
+		const field = root.renderer.getElementBounds(
+			node("welcome-search-field").id
+		)!;
+
+		const tabs = root.renderer.getElementBounds(node("welcome-view-tabs").id)!;
+
+		expect(root.renderer.getAllText()).not.toContain("ALL REPOSITORIES");
+		expect(root.renderer.getAllText()).not.toContain("Listed");
+		expect(root.renderer.getAllText()).not.toContain("Starred");
+		expect(node("welcome-view-tabs").customProps?.role).toBe("tablist");
+		expect(node("welcome-view-listed").customProps).toMatchObject({
+			role: "tab",
+			"aria-label": "Repositories",
+			"aria-selected": true,
+			tabIndex: 0,
+		});
+		expect(node("welcome-view-starred").customProps).toMatchObject({
+			role: "tab",
+			"aria-label": "Starred repositories",
+			"aria-selected": false,
+			tabIndex: -1,
+		});
+		expect(node("welcome-results").customProps).toMatchObject({
+			role: "tabpanel",
+			"aria-label": "Repositories",
+		});
+		expect(node("welcome-view-listed-icon")).toBeDefined();
+		expect(node("welcome-view-starred-icon")).toBeDefined();
+		expect(control.height).toBe(40);
+		expect(search.width).toBeGreaterThan(150);
+		expect(tabs.x).toBeGreaterThan(field.x + field.width);
+		expect(tabs.y).toBe(field.y);
+		expect(tabs.height).toBe(field.height);
+		expect(tabs.x + tabs.width).toBeLessThanOrEqual(control.x + control.width);
+		expect(tabs.y).toBeGreaterThanOrEqual(control.y);
+		expect(tabs.y + tabs.height).toBeLessThanOrEqual(
+			control.y + control.height
+		);
+		const screenshot = process.env.GPUIX_LIBRARY_SEARCH_SCREENSHOT;
+
+		if (screenshot)
+			root.renderer.captureScreenshot(`${screenshot}.${appearance}.png`);
+
+		root.renderer.nativeSimulateMouseMove(
+			tabs.x + tabs.width - 16,
+			tabs.y + tabs.height / 2
+		);
+		await Bun.sleep(450);
+		root.renderer.flush();
+		expect(root.renderer.getAllText()).toContain("Starred repositories");
+	});
+}
+
+it("supports roving tab focus and keeps the search text when switching repository views", async () => {
+	root.render(
+		<App
+			accounts={accounts}
+			initialSession={{
+				...initial,
+				repositoryLibrary: { view: "listed", starred: ["/test/saved"] },
+			}}
+			discoverRepositories={async () => progress}
+		/>
+	);
+	await settle();
+	click("welcome-search");
+	root.renderer.simulateKeystrokes("s a v e d");
+	root.renderer.flush();
+	expect(node("welcome-repository-/test/saved")).toBeDefined();
+	expect(
+		root.renderer.findByTestId("welcome-repository-/test/discovered")
+	).toBeUndefined();
+	// Send the navigation key without the test helper's synthetic IME text input.
+	root.renderer.nativeSimulateKeyDown(node("welcome-search").id, "tab");
+	root.renderer.flush();
+	expect(root.renderer.getFocusedElementId()).toBe(
+		node("welcome-view-listed").id
+	);
+	root.renderer.simulateKeystrokes("right");
+	root.renderer.flush();
+	expect(root.renderer.getFocusedElementId()).toBe(
+		node("welcome-view-starred").id
+	);
+	expect(node("welcome-view-starred").customProps?.["aria-selected"]).toBe(
+		true
+	);
+	expect(node("welcome-view-listed").customProps?.tabIndex).toBe(-1);
+	expect(node("welcome-search").customProps?.value).toBe("saved");
+	expect(node("welcome-search").customProps?.["aria-label"]).toBe(
+		"Search starred repositories"
+	);
+	expect(node("welcome-results").customProps?.["aria-label"]).toBe(
+		"Starred repositories"
+	);
+	expect(node("welcome-repository-/test/saved")).toBeDefined();
+
+	for (const [key, view] of [
+		["right", "listed"],
+		["end", "starred"],
+		["home", "listed"],
+		["left", "starred"],
+		["space", "starred"],
+		["enter", "starred"],
+	] as const) {
+		root.renderer.simulateKeystrokes(key);
+		root.renderer.flush();
+		expect(root.renderer.getFocusedElementId()).toBe(
+			node(`welcome-view-${view}`).id
+		);
+		expect(node(`welcome-view-${view}`).customProps?.["aria-selected"]).toBe(
+			true
+		);
+		expect(node("welcome-search").customProps?.value).toBe("saved");
+	}
+
+	click("welcome-view-listed");
+	expect(node("welcome-search").customProps?.value).toBe("saved");
 });

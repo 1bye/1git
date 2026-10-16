@@ -585,7 +585,8 @@ it("shows the desktop-style page with no tabs and keeps the setup form when it o
 		/>
 	);
 	expect(root.renderer.findByTestId("workspace-1")).toBeUndefined();
-	expect(root.renderer.getAllText()).toContain("ALL REPOSITORIES");
+	expect(root.renderer.getAllText()).not.toContain("ALL REPOSITORIES");
+	expect(root.renderer.findByTestId("welcome-search-control")).toBeDefined();
 	click("repository-create");
 	await settle();
 	expect(root.renderer.findByTestId("workspace-1")).toBeDefined();
