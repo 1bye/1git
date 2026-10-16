@@ -1,5 +1,5 @@
 /**
- * Covers: welcome list scrolling/removal, setup forms, picker intent, errors and cancellation.
+ * Covers: welcome row hover/focus, list scrolling/removal, setup forms, picker intent, errors and cancellation.
  * Real: App, setup lifecycle, close/tab guards and GPUIX layout/events.
  * Doubles: Git setup/read, folder picker and inactive-window focus notifications; no writes/network.
  * Requires: patched native renderer and macOS graphics access.
@@ -160,80 +160,111 @@ const readRepository = async () => ({
 	value: repositorySnapshot([]),
 });
 
-it("shows a muted brush icon only on row hover or keyboard focus", async () => {
-	root.render(
-		<App
-			initialSession={{
-				version: 1,
-				tabs: [],
-				activeId: null,
-				recentRepositories: ["/test/project", "/test/other"],
-			}}
-		/>
-	);
-	await settle();
-	click("welcome-folder-other");
-	const action = () =>
-		root.renderer.findByTestId("welcome-forget-/test/project");
-
-	const row = root.renderer.findByTestId("welcome-repository-/test/project");
-	const remove = action();
-	const search = root.renderer.findByTestId("welcome-search");
-	const rowBounds = row && root.renderer.getElementBounds(row.id);
-	const removeBounds = remove && root.renderer.getElementBounds(remove.id);
-
-	if (!row || !remove || !search || !rowBounds || !removeBounds)
-		throw new Error("Missing hover controls");
-
-	expect(action()?.style.opacity).toBe(0);
-	expect(root.renderer.getAllText()).not.toContain("Remove");
-	const icon = root.renderer.findByTestId("welcome-forget-icon-/test/project");
-
-	expect(icon?.customProps?.source).toContain("M234.62,218.6");
-	expect(icon?.style.color).toBe(appThemes.light.tokens.colors.textMuted);
-	expect(remove.customProps?.["aria-label"]).toBe(
-		"Remove /test/project from list"
-	);
-	expect(remove.customProps?.["aria-description"]).toBe(
-		"Removes only the saved entry. Your repository folder is kept."
-	);
-
-	for (const [x, y] of [
-		[rowBounds.x + 20, rowBounds.y + 20],
-		[rowBounds.x + rowBounds.width + 2, rowBounds.y + 20],
-		[removeBounds.x + 13, removeBounds.y + 13],
-	] as const) {
-		root.renderer.nativeSimulateMouseMove(x, y);
-		root.renderer.flush();
-		expect(action()?.style.opacity).toBe(1);
-	}
-
-	if (process.env.GPUIX_WELCOME_HOVER_SCREENSHOT) {
-		await Bun.sleep(100);
-		root.renderer.captureScreenshot(process.env.GPUIX_WELCOME_HOVER_SCREENSHOT);
-	}
-
-	root.renderer.nativeSimulateMouseMove(300, 500);
-	root.renderer.flush();
-	expect(action()?.style.opacity).toBe(0);
-	// Offscreen test windows are inactive; deliver native focus notifications explicitly.
-	flushSync(() =>
-		handleGpuixEvent({ elementId: row.id, eventType: "focus" }, root.renderer)
-	);
-	expect(action()?.style.opacity).toBe(1);
-	flushSync(() => {
-		handleGpuixEvent(
-			{ elementId: remove.id, eventType: "focus" },
-			root.renderer
+for (const appearance of ["light", "dark"] as const) {
+	it(`highlights the complete repository row across controls and keyboard focus in ${appearance} mode`, async () => {
+		root.render(
+			<App
+				initialSession={{
+					version: 1,
+					appearance,
+					tabs: [],
+					activeId: null,
+					recentRepositories: ["/test/project", "/test/other"],
+				}}
+			/>
 		);
-		handleGpuixEvent({ elementId: row.id, eventType: "blur" }, root.renderer);
+		await settle();
+		click("welcome-folder-other");
+		const action = () =>
+			root.renderer.findByTestId("welcome-forget-/test/project");
+
+		const group = () =>
+			root.renderer.findByTestId("welcome-row-/test/project")!;
+
+		const row = root.renderer.findByTestId("welcome-repository-/test/project");
+		const remove = action();
+		const search = root.renderer.findByTestId("welcome-search");
+		const rowBounds = row && root.renderer.getElementBounds(row.id);
+		const removeBounds = remove && root.renderer.getElementBounds(remove.id);
+
+		if (!row || !remove || !search || !rowBounds || !removeBounds)
+			throw new Error("Missing hover controls");
+
+		expect(action()?.style.opacity).toBe(0);
+		expect(group().style.backgroundColor).toBe("transparent");
+		expect(row.style.hover).toMatchObject({ backgroundColor: "transparent" });
+		expect(root.renderer.getAllText()).not.toContain("Remove");
+		const icon = root.renderer.findByTestId(
+			"welcome-forget-icon-/test/project"
+		);
+
+		expect(icon?.customProps?.source).toContain("M234.62,218.6");
+		expect(icon?.style.color).toBe(
+			appThemes[appearance].tokens.colors.textMuted
+		);
+		expect(remove.customProps?.["aria-label"]).toBe(
+			"Remove /test/project from list"
+		);
+		expect(remove.customProps?.["aria-description"]).toBe(
+			"Removes only the saved entry. Your repository folder is kept."
+		);
+
+		for (const [x, y] of [
+			[rowBounds.x + 20, rowBounds.y + 20],
+			[rowBounds.x + rowBounds.width + 2, rowBounds.y + 20],
+			[removeBounds.x + 13, removeBounds.y + 13],
+		] as const) {
+			root.renderer.nativeSimulateMouseMove(x, y);
+			root.renderer.flush();
+			expect(action()?.style.opacity).toBe(1);
+			expect(group().style.backgroundColor).toBe(
+				appThemes[appearance].tokens.colors.surface
+			);
+		}
+
+		const groupBounds = root.renderer.getElementBounds(group().id)!;
+
+		expect(removeBounds.x + removeBounds.width).toBeLessThanOrEqual(
+			groupBounds.x + groupBounds.width
+		);
+
+		if (process.env.GPUIX_WELCOME_HOVER_SCREENSHOT) {
+			await Bun.sleep(100);
+			root.renderer.captureScreenshot(
+				`${process.env.GPUIX_WELCOME_HOVER_SCREENSHOT}.${appearance}.png`
+			);
+		}
+
+		root.renderer.nativeSimulateMouseMove(300, 500);
+		root.renderer.flush();
+		expect(action()?.style.opacity).toBe(0);
+		expect(group().style.backgroundColor).toBe("transparent");
+		// Offscreen test windows are inactive; deliver native focus notifications explicitly.
+		flushSync(() =>
+			handleGpuixEvent({ elementId: row.id, eventType: "focus" }, root.renderer)
+		);
+		expect(action()?.style.opacity).toBe(1);
+		expect(group().style.backgroundColor).toBe(
+			appThemes[appearance].tokens.colors.surface
+		);
+		flushSync(() => {
+			handleGpuixEvent(
+				{ elementId: remove.id, eventType: "focus" },
+				root.renderer
+			);
+			handleGpuixEvent({ elementId: row.id, eventType: "blur" }, root.renderer);
+		});
+		expect(action()?.style.opacity).toBe(1);
+		flushSync(() =>
+			handleGpuixEvent(
+				{ elementId: remove.id, eventType: "blur" },
+				root.renderer
+			)
+		);
+		expect(action()?.style.opacity).toBe(0);
+		expect(group().style.backgroundColor).toBe("transparent");
 	});
-	expect(action()?.style.opacity).toBe(1);
-	flushSync(() =>
-		handleGpuixEvent({ elementId: remove.id, eventType: "blur" }, root.renderer)
-	);
-	expect(action()?.style.opacity).toBe(0);
-});
+}
 
 it("removes only the saved repository entry and persists the updated list", async () => {
 	const reader = mock(readRepository);

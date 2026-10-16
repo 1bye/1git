@@ -1,5 +1,5 @@
 /**
- * Covers: saved-machine selection, remote discovery, opening through existing tabs and SSH setup, isolated settings, folder management and keyboard dismissal.
+ * Covers: saved-machine selection, shared row hover/focus, remote discovery, opening through existing tabs and SSH setup, isolated settings, folder management and keyboard dismissal.
  * Real: App, machine switcher, discovery/session hooks and GPUIX layout/input.
  * Doubles: SSH, credentials, scans and repository reads; no user folders or network.
  * Requires: patched GPUIX renderer with macOS graphics access.
@@ -7,6 +7,8 @@
 import { afterEach, beforeEach, expect, it, mock, spyOn } from "bun:test";
 import { createTestRoot, type TestRoot } from "@gpuix/react/testing";
 import { App } from "../../src/app";
+import { flushSync, handleGpuixEvent } from "@gpuix/react";
+import { appThemes } from "../../src/styles/theme";
 import { Machines } from "../../src/feature/machines/machines";
 import { windowOptions } from "../../src/window-options";
 import type { SavedMachine } from "../../src/feature/machines/machine-store";
@@ -430,3 +432,95 @@ it("keeps settings open until a folder save finishes", async () => {
 	await finishDialog();
 	expect(root.renderer.findByTestId("machine-settings")).toBeUndefined();
 });
+
+for (const appearance of ["light", "dark"] as const) {
+	it(`highlights the complete ${appearance} machine row across its independent controls`, async () => {
+		const { service } = settingsFixture(appearance);
+
+		await settle();
+		click("machine-local");
+		await settle();
+		const connect = spyOn(service, "connect").mockClear();
+		const row = () => root.renderer.findByTestId(`machine-row-${saved.id}`)!;
+		const open = root.renderer.findByTestId(`machine-${saved.id}`)!;
+		const manage = root.renderer.findByTestId(`machine-manage-${saved.id}`)!;
+		const openBounds = root.renderer.getElementBounds(open.id)!;
+		const manageBounds = root.renderer.getElementBounds(manage.id)!;
+		const rowBounds = root.renderer.getElementBounds(row().id)!;
+
+		expect(row().style.backgroundColor).toBe("transparent");
+		expect(open.style.hover).toMatchObject({ backgroundColor: "transparent" });
+		expect(manageBounds.x + manageBounds.width).toBeLessThanOrEqual(
+			rowBounds.x + rowBounds.width
+		);
+
+		for (const [x, y] of [
+			[openBounds.x + 20, openBounds.y + 20],
+			[
+				manageBounds.x + manageBounds.width / 2,
+				manageBounds.y + manageBounds.height / 2,
+			],
+			[rowBounds.x + rowBounds.width - 1, rowBounds.y + rowBounds.height / 2],
+			[openBounds.x + 30, openBounds.y + 20],
+		] as const) {
+			root.renderer.nativeSimulateMouseMove(x, y);
+			root.renderer.flush();
+			expect(row().style.backgroundColor).toBe(
+				appThemes[appearance].tokens.colors.surface
+			);
+		}
+
+		const screenshot = process.env.GPUIX_MACHINE_HOVER_SCREENSHOT;
+
+		if (screenshot)
+			root.renderer.captureScreenshot(`${screenshot}.${appearance}.png`);
+
+		root.renderer.nativeSimulateMouseMove(5, 5);
+		root.renderer.flush();
+		expect(row().style.backgroundColor).toBe("transparent");
+		flushSync(() =>
+			handleGpuixEvent(
+				{ elementId: open.id, eventType: "focus" },
+				root.renderer
+			)
+		);
+		expect(row().style.backgroundColor).toBe(
+			appThemes[appearance].tokens.colors.surface
+		);
+		flushSync(() => {
+			handleGpuixEvent(
+				{ elementId: manage.id, eventType: "focus" },
+				root.renderer
+			);
+			handleGpuixEvent(
+				{ elementId: open.id, eventType: "blur" },
+				root.renderer
+			);
+		});
+		expect(row().style.backgroundColor).toBe(
+			appThemes[appearance].tokens.colors.surface
+		);
+		flushSync(() =>
+			handleGpuixEvent(
+				{ elementId: manage.id, eventType: "blur" },
+				root.renderer
+			)
+		);
+		expect(row().style.backgroundColor).toBe("transparent");
+		click(`machine-manage-${saved.id}`);
+		await finishDialog();
+		expect(root.renderer.findByTestId("machine-settings")).toBeDefined();
+		expect(connect).not.toHaveBeenCalled();
+		expect(root.renderer.findByTestId("open-repository")).toBeDefined();
+		click("machine-done");
+		await finishDialog();
+		click(`machine-${saved.id}`);
+		await settle();
+		root.renderer.nativeSimulateMouseMove(5, 5);
+		root.renderer.flush();
+		expect(row().style.backgroundColor).toBe(
+			appThemes[appearance].tokens.colors.surface
+		);
+		expect(connect).toHaveBeenCalled();
+	});
+}

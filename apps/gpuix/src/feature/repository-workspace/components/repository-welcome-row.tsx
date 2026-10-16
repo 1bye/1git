@@ -1,5 +1,5 @@
 import { useAppTheme } from "../../../styles/theme";
-import { spacing, typography, iconSize } from "@1git/design-tokens";
+import { spacing, typography, iconSize, radius } from "@1git/design-tokens";
 import { MachineLocation } from "../../machines/machine-location";
 import { basename } from "node:path";
 import { useState, type Ref } from "react";
@@ -80,6 +80,10 @@ export function RepositoryWelcomeRow({
 				flexShrink: 0,
 				minWidth: 0,
 				gap: spacing[1],
+				paddingRight: spacing[2],
+				borderRadius: radius.md,
+				backgroundColor:
+					!busy && visible ? appTokens.colors.surface : "transparent",
 			}}
 		>
 			<Button
@@ -109,6 +113,7 @@ export function RepositoryWelcomeRow({
 					justifyContent: "flex-start",
 					paddingLeft: spacing[3],
 					gap: spacing[2.5],
+					hover: { backgroundColor: "transparent" },
 				}}
 			>
 				<RepositoryAvatar

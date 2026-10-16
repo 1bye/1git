@@ -7,6 +7,7 @@ import { WorkspaceTabIcon } from "../workspace-tabs/components/workspace-tab-ico
 import { Machines } from "./machines";
 import { MachineSettings } from "./machine-settings";
 import type { SavedMachine } from "./machine-store";
+import type { MachineStatus } from "./ssh-connection";
 
 const computer =
 	'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8m-4-4v4"/></svg>';
@@ -26,7 +27,7 @@ export function MachinesPanel({
 	onSelect: (id: string) => void;
 	onConnected: () => void;
 }) {
-	const { tokens, colors } = useAppTheme();
+	const { tokens } = useAppTheme();
 
 	useSyncExternalStore(service.subscribe, service.snapshot);
 	const [managing, setManaging] = useState<string | null>(null);
@@ -77,95 +78,16 @@ export function MachinesPanel({
 				<svg source={computer} style={icon} />
 				This Mac
 			</Button>
-			{machines.map((machine) => {
-				const state = service.state(machine.id);
-
-				return (
-					<div
-						key={machine.id}
-						style={{
-							display: "flex",
-							flexDirection: "row",
-							alignItems: "center",
-							borderRadius: radius.md,
-							backgroundColor:
-								selected === machine.id ? tokens.colors.surface : "transparent",
-						}}
-					>
-						<Button
-							tokens={tokens}
-							variant="ghost"
-							size="sm"
-							testId={`machine-${machine.id}`}
-							aria-label={`${machine.name}, ${state.status}`}
-							aria-pressed={selected === machine.id}
-							style={{
-								justifyContent: "flex-start",
-								gap: spacing[2.5],
-								height: 48,
-								flexGrow: 1,
-								flexBasis: 0,
-								minWidth: 0,
-							}}
-							onPress={() => onSelect(machine.id)}
-						>
-							<svg source={server} style={icon} />
-							<div
-								style={{
-									display: "flex",
-									flexDirection: "column",
-									gap: spacing[0.5],
-									flexGrow: 1,
-									minWidth: 0,
-								}}
-							>
-								<text
-									style={{
-										...typography.sm,
-										color: tokens.colors.text,
-										whiteSpace: "nowrap",
-										textOverflow: "ellipsis",
-									}}
-								>
-									{machine.name}
-								</text>
-								<text
-									style={{
-										...hint,
-										color:
-											state.status === "Connected"
-												? colors.success
-												: tokens.colors.textMuted,
-										whiteSpace: "nowrap",
-										textOverflow: "ellipsis",
-									}}
-								>
-									{state.status}
-								</text>
-							</div>
-						</Button>
-						<Button
-							tokens={tokens}
-							variant="ghost"
-							size="sm"
-							testId={`machine-manage-${machine.id}`}
-							aria-label={`Manage ${machine.name}`}
-							style={{
-								width: 28,
-								paddingLeft: 0,
-								paddingRight: 0,
-								marginRight: spacing[1],
-							}}
-							onPress={() => setManaging(machine.id)}
-						>
-							<svg
-								source='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>'
-								style={icon}
-							/>
-						</Button>
-					</div>
-				);
-			})}
+			{machines.map((machine) => (
+				<MachineRow
+					key={machine.id}
+					machine={machine}
+					status={service.state(machine.id).status}
+					selected={selected === machine.id}
+					onSelect={onSelect}
+					onManage={setManaging}
+				/>
+			))}
 			<Button
 				tokens={tokens}
 				size="sm"
@@ -217,6 +139,149 @@ export function MachinesPanel({
 					/>
 				</PopoverContent>
 			</Popover>
+		</div>
+	);
+}
+
+function MachineRow({
+	machine,
+	status,
+	selected,
+	onSelect,
+	onManage,
+}: {
+	machine: SavedMachine;
+	status: MachineStatus;
+	selected: boolean;
+	onSelect: (id: string) => void;
+	onManage: (id: string) => void;
+}) {
+	const { tokens, colors } = useAppTheme();
+
+	const [hoverTargets, setHoverTargets] = useState({
+		row: false,
+		open: false,
+		manage: false,
+	});
+
+	const [focused, setFocused] = useState<"open" | "manage" | null>(null);
+
+	const highlighted =
+		Object.values(hoverTargets).some(Boolean) || focused !== null;
+
+	const hint = { ...typography.xs, color: tokens.colors.textMuted };
+
+	const icon = {
+		width: 18,
+		height: 18,
+		flexShrink: 0,
+		color: tokens.colors.textMuted,
+		pointerEvents: "none" as const,
+	};
+
+	// Native hover events target each control separately; the row owns their shared background.
+	const hoverEvents = (target: keyof typeof hoverTargets) => ({
+		onMouseEnter: () =>
+			setHoverTargets((current) => ({ ...current, [target]: true })),
+		onMouseLeave: () =>
+			setHoverTargets((current) => ({ ...current, [target]: false })),
+	});
+
+	const focusEvents = (target: "open" | "manage") => ({
+		onFocus: () => setFocused(target),
+		onBlur: () =>
+			setFocused((current) => (current === target ? null : current)),
+	});
+
+	return (
+		<div
+			testId={`machine-row-${machine.id}`}
+			{...hoverEvents("row")}
+			style={{
+				display: "flex",
+				flexDirection: "row",
+				alignItems: "center",
+				borderRadius: radius.md,
+				backgroundColor:
+					selected || highlighted ? tokens.colors.surface : "transparent",
+			}}
+		>
+			<Button
+				tokens={tokens}
+				variant="ghost"
+				size="sm"
+				testId={`machine-${machine.id}`}
+				{...hoverEvents("open")}
+				{...focusEvents("open")}
+				aria-label={`${machine.name}, ${status}`}
+				aria-pressed={selected}
+				style={{
+					justifyContent: "flex-start",
+					gap: spacing[2.5],
+					height: 48,
+					flexGrow: 1,
+					flexBasis: 0,
+					minWidth: 0,
+					hover: { backgroundColor: "transparent" },
+				}}
+				onPress={() => onSelect(machine.id)}
+			>
+				<svg source={server} style={icon} />
+				<div
+					style={{
+						display: "flex",
+						flexDirection: "column",
+						gap: spacing[0.5],
+						flexGrow: 1,
+						minWidth: 0,
+					}}
+				>
+					<text
+						style={{
+							...typography.sm,
+							color: tokens.colors.text,
+							whiteSpace: "nowrap",
+							textOverflow: "ellipsis",
+						}}
+					>
+						{machine.name}
+					</text>
+					<text
+						style={{
+							...hint,
+							color:
+								status === "Connected"
+									? colors.success
+									: tokens.colors.textMuted,
+							whiteSpace: "nowrap",
+							textOverflow: "ellipsis",
+						}}
+					>
+						{status}
+					</text>
+				</div>
+			</Button>
+			<Button
+				tokens={tokens}
+				variant="ghost"
+				size="sm"
+				testId={`machine-manage-${machine.id}`}
+				{...hoverEvents("manage")}
+				{...focusEvents("manage")}
+				aria-label={`Manage ${machine.name}`}
+				style={{
+					width: 28,
+					paddingLeft: 0,
+					paddingRight: 0,
+					marginRight: spacing[1],
+				}}
+				onPress={() => onManage(machine.id)}
+			>
+				<svg
+					source='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>'
+					style={icon}
+				/>
+			</Button>
 		</div>
 	);
 }
