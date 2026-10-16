@@ -6,12 +6,12 @@ import { useAppTheme } from "../../../styles/theme";
 import type { RepositoryFolderGroup } from "../../repository-discovery/repository-library";
 
 const tileSize: StyleDesc = {
-	width: 200,
+	width: 160,
 	flexGrow: 1,
-	flexBasis: 180,
-	minWidth: 150,
-	maxWidth: 280,
-	height: 146,
+	flexBasis: 160,
+	minWidth: 140,
+	maxWidth: 180,
+	height: 120,
 };
 
 const rowSize: StyleDesc = { width: "100%", height: 76 };
@@ -51,7 +51,7 @@ export function RepositoryFolderTile({
 				flexDirection: tiled ? "column" : "row",
 				alignItems: tiled ? "flex-start" : "center",
 				justifyContent: "flex-start",
-				padding: tiled ? spacing[4] : spacing[2],
+				padding: tiled ? spacing[3] : spacing[2],
 				gap: spacing[2],
 				borderWidth: tiled ? 1 : 0,
 				borderColor: tokens.colors.border,
@@ -62,8 +62,8 @@ export function RepositoryFolderTile({
 				aria-hidden
 				source='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 40"><path d="M3 12V7a3 3 0 0 1 3-3h11l5 6h20a3 3 0 0 1 3 3v20a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V12Z" fill="currentColor" fill-opacity=".12" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M3 13h42" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>'
 				style={{
-					width: tiled ? 36 : 28,
-					height: tiled ? 30 : 24,
+					width: 28,
+					height: 24,
 					color: colors.brand,
 					pointerEvents: "none",
 				}}
@@ -72,7 +72,7 @@ export function RepositoryFolderTile({
 				style={{
 					display: "flex",
 					flexDirection: "column",
-					gap: tiled ? spacing[2] : spacing[0.5],
+					gap: tiled ? spacing[1] : spacing[0.5],
 					minWidth: 0,
 					width: tiled ? "100%" : undefined,
 					flexGrow: tiled ? 0 : 1,
@@ -143,8 +143,8 @@ export function RepositoryAddFolderTile({
 				flexDirection: layout === "tiles" ? "column" : "row",
 				alignItems: "center",
 				justifyContent: layout === "tiles" ? "center" : "flex-start",
-				padding: layout === "tiles" ? spacing[4] : spacing[2],
-				gap: spacing[3],
+				padding: layout === "tiles" ? spacing[3] : spacing[2],
+				gap: spacing[2],
 				borderWidth: 0,
 				borderRadius: radius.lg,
 			}}
@@ -153,8 +153,8 @@ export function RepositoryAddFolderTile({
 				aria-hidden
 				source='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"><path d="M12 3v18M3 12h18"/></svg>'
 				style={{
-					width: 30,
-					height: 30,
+					width: 24,
+					height: 24,
 					color: tokens.colors.textMuted,
 					pointerEvents: "none",
 				}}

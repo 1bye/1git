@@ -743,7 +743,13 @@ for (const appearance of ["light", "dark"] as const) {
 			onKeyDown: windowOptions.onKeyDown,
 		});
 		root.renderer.clockPause();
-		const paths = ["/Work/api", "/Work/client", "/Personal/site"];
+		const paths = [
+			"/Work/api",
+			"/Work/client",
+			"/Personal/site",
+			"/outside/legacy",
+		];
+
 		const picker = spyOn(root.renderer, "promptForPaths").mockResolvedValue([]);
 
 		root.render(
@@ -777,6 +783,13 @@ for (const appearance of ["light", "dark"] as const) {
 		expect(tile.height).toBeLessThan(folder.height);
 		expect(tile.width).toBeLessThanOrEqual(folder.width);
 		expect(add.height).toBe(folder.height);
+		expect(add.x + add.width).toBeLessThan(folder.x);
+		expect(add.y).toBe(folder.y);
+		expect(
+			root.renderer.getElementBounds(node("welcome-folder-other").id)?.y
+		).toBe(add.y);
+		expect(folder.height).toBeLessThan(146);
+		expect(tile.height).toBeLessThan(116);
 		expect(node("discovery-folder").style.borderWidth).toBe(0);
 		expect(node("welcome-starred")).toBeDefined();
 		expect(node("welcome-star-/Work/api").customProps?.["aria-label"]).toBe(

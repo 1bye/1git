@@ -379,6 +379,15 @@ export function RepositoryWelcome({
 										gap: spacing[3],
 									}}
 								>
+									{discovery && !remote ? (
+										<RepositoryAddFolderTile
+											layout={library.view}
+											picking={discovery.picking}
+											onAdd={() => {
+												void discovery.chooseFolder();
+											}}
+										/>
+									) : null}
 									{folders.map((group) => (
 										<RepositoryFolderTile
 											key={group.id}
@@ -395,15 +404,6 @@ export function RepositoryWelcome({
 											}}
 										/>
 									))}
-									{discovery && !remote ? (
-										<RepositoryAddFolderTile
-											layout={library.view}
-											picking={discovery.picking}
-											onAdd={() => {
-												void discovery.chooseFolder();
-											}}
-										/>
-									) : null}
 								</div>
 								{favorites.length ? (
 									<div

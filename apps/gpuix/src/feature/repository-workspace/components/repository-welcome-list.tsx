@@ -12,13 +12,16 @@ import {
 	useWindowSize,
 	type PublicInstance,
 } from "@gpuix/react";
-import { RepositoryWelcomeRow } from "./repository-welcome-row";
+import {
+	RepositoryWelcomeRow,
+	repositoryTileSize,
+} from "./repository-welcome-row";
 import { spacing } from "@1git/design-tokens";
 import { RepositoryAvatarContext } from "./repository-avatar";
 
 const chunkSize = 40;
 const tileGap = spacing[3];
-const tileMinWidth = 160;
+const tileMinWidth = repositoryTileSize.minWidth;
 
 /** Buffers large discovery lists so a home-folder scan cannot mount thousands of native controls at once. */
 export function RepositoryWelcomeList({
@@ -52,7 +55,10 @@ export function RepositoryWelcomeList({
 	const [windowStart, setWindowStart] = useState(0);
 	const [columns, setColumns] = useState(1);
 	const columnCount = layout === "tiles" ? columns : 1;
-	const rowHeight = layout === "tiles" ? 116 + tileGap : 58;
+
+	const rowHeight =
+		layout === "tiles" ? repositoryTileSize.height + tileGap : 58;
+
 	const rowCount = Math.ceil(paths.length / columnCount);
 	const windowSize = Math.ceil(window.height / rowHeight) + chunkSize * 2;
 	const start = Math.min(windowStart, Math.max(0, rowCount - windowSize));
@@ -260,8 +266,8 @@ export function RepositoryWelcomeList({
 										style={{
 											flexGrow: 1,
 											flexBasis: tileMinWidth,
-											minWidth: 140,
-											maxWidth: 220,
+											minWidth: repositoryTileSize.minWidth,
+											maxWidth: repositoryTileSize.maxWidth,
 										}}
 									/>
 								)
