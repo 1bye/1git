@@ -538,6 +538,9 @@ export function useRepositoryMutations(
 		id: string,
 		choice: WorktreeChoice | WorktreeRemoval
 	): Promise<string | null> => {
+		const spaceId =
+			tabs.current.find((tab) => tab.id === id)?.spaceId ?? "default";
+
 		const workspace = tabs.current.find((tab) => tab.id === id)?.workspace;
 		const repository = workspace?.repository;
 
@@ -669,7 +672,8 @@ export function useRepositoryMutations(
 					},
 				});
 
-			if (created) dispatch({ type: "open-worktree", snapshot: created });
+			if (created)
+				dispatch({ type: "open-worktree", snapshot: created, spaceId });
 
 			if (removed) dispatch({ type: "worktree-removed", path: removed });
 		}

@@ -39,6 +39,7 @@ export function useRepositoryDiscovery({
 	onPreferencesChange,
 	home = homedir(),
 	remote = false,
+	scanHome = true,
 }: {
 	enabled: boolean;
 	scan?: typeof RepositoryDiscovery.scan;
@@ -46,6 +47,8 @@ export function useRepositoryDiscovery({
 	onPreferencesChange: Dispatch<SetStateAction<RepositoryDiscoveryPreferences>>;
 	home?: string;
 	remote?: boolean;
+	/** Custom spaces scan only explicitly assigned folders. */
+	scanHome?: boolean;
 }) {
 	const renderer = useGpuixRequired();
 
@@ -149,14 +152,14 @@ export function useRepositoryDiscovery({
 	useEffect(() => {
 		if (!enabled || !scan) return;
 
-		const roots = [home, ...preferences.folders].filter(
+		const roots = [...(scanHome ? [home] : []), ...preferences.folders].filter(
 			(path) => !started.current.has(`${home}:${path}`)
 		);
 
 		for (const path of roots) started.current.add(`${home}:${path}`);
 
 		if (roots.length) start(roots);
-	}, [enabled, scan, start, preferences.folders, home]);
+	}, [enabled, scan, start, preferences.folders, home, scanHome]);
 
 	useEffect(() => {
 		mounted.current = true;
@@ -174,8 +177,15 @@ export function useRepositoryDiscovery({
 	}, []);
 
 	const visibleRuns = useMemo(
-		() => new Map([...runs].filter(([, run]) => run.scope === home)),
-		[runs, home]
+		() =>
+			new Map(
+				[...runs].filter(
+					([path, run]) =>
+						run.scope === home &&
+						(scanHome || preferences.folders.includes(path))
+				)
+			),
+		[runs, home, scanHome, preferences.folders]
 	);
 
 	const progress = useMemo(() => {
@@ -205,9 +215,13 @@ export function useRepositoryDiscovery({
 		const hidden = new Set(preferences.hidden);
 
 		return [
-			...new Set([...runs.values()].flatMap((run) => run.progress.paths)),
+			...new Set(
+				[...(scanHome ? runs : visibleRuns).values()].flatMap(
+					(run) => run.progress.paths
+				)
+			),
 		].filter((path) => !hidden.has(path));
-	}, [runs, preferences.hidden]);
+	}, [runs, visibleRuns, scanHome, preferences.hidden]);
 
 	const scanning = [...visibleRuns.values()].some(
 		(run) => run.status === "scanning"
@@ -291,7 +305,11 @@ export function useRepositoryDiscovery({
 		available: !!scan,
 		folders,
 		rescan: (folder?: string) =>
-			start(folder ? [folder] : [home, ...preferences.folders]),
+			start(
+				folder
+					? [folder]
+					: [...(scanHome ? [home] : []), ...preferences.folders]
+			),
 		chooseFolder,
 		removeFolder: (path: string) => {
 			active.current.get(path)?.abort();

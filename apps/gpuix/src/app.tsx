@@ -1,3 +1,10 @@
+import { randomUUID } from "node:crypto";
+import {
+	WorkspaceSpaces,
+	type WorkspaceSpace,
+} from "./feature/spaces/workspace-spaces";
+import { SpaceSwitcher } from "./feature/spaces/space-switcher";
+import { SpaceManager, SpacesSettings } from "./feature/spaces/space-manager";
 import { MachineContext } from "./feature/machines/machine-context";
 import { RemoteFolderPicker } from "./feature/machines/remote-folder-picker";
 import { AppThemeContext, appThemes, useAppTheme } from "./styles/theme";
@@ -15,7 +22,10 @@ import type { RepositoryDiscoveryPreferences } from "./feature/repository-discov
 import { RepositoryDiscovery } from "./feature/repository-discovery/repository-discovery";
 import { RepositoryQuickSwitcher } from "./feature/repository-discovery/repository-quick-switcher";
 import { RepositoryQuickSwitcherModel } from "./feature/repository-discovery/repository-quick-switcher-model";
-import { RepositoryLibrary } from "./feature/repository-discovery/repository-library";
+import {
+	RepositoryLibrary,
+	type RepositoryLibraryPreferences,
+} from "./feature/repository-discovery/repository-library";
 import { useRepositoryDiscovery } from "./feature/repository-discovery/use-repository-discovery";
 import { spacing, typography } from "@1git/design-tokens";
 import {
@@ -336,12 +346,6 @@ function AppContent({
 
 	useSyncExternalStore(machines.subscribe, machines.snapshot);
 
-	const [selectedMachine, setSelectedMachine] = useState(
-		() =>
-			RepositoryLibrary.preferences(initialSession?.repositoryLibrary)
-				.machine ?? "local"
-	);
-
 	const [machineError, setMachineError] = useState<string | null>(null);
 
 	useLayoutEffect(() => {
@@ -464,13 +468,59 @@ function AppContent({
 		WorkspaceTabsModel.reduce,
 		{ initialTabCount, preview, initialSession },
 		(options) =>
-			options.initialSession && !options.preview
-				? WorkspaceSession.restore(options.initialSession)
-				: WorkspaceTabsModel.create(
-						options.initialTabCount ?? (options.preview ? 1 : 0),
-						options.preview
-					)
+			WorkspaceSpaces.initialize(
+				options.initialSession && !options.preview
+					? WorkspaceSession.restore(options.initialSession)
+					: WorkspaceTabsModel.create(
+							options.initialTabCount ?? (options.preview ? 1 : 0),
+							options.preview
+						),
+				RepositoryDiscovery.preferences(
+					options.initialSession?.repositoryDiscovery
+				),
+				RepositoryLibrary.preferences(options.initialSession?.repositoryLibrary)
+			)
 	);
+
+	const visibleTabs = WorkspaceSpaces.tabs(state);
+
+	const activeSpace = useMemo(() => {
+		const space = WorkspaceSpaces.current(state);
+
+		if (!space)
+			throw new Error("The active space is missing from this session.");
+
+		return space;
+	}, [state]);
+
+	const activeSpaceId = activeSpace.id;
+	const discoveryPreferences = activeSpace.discovery;
+	const repositoryLibrary = activeSpace.library;
+	const selectedMachine = repositoryLibrary.machine ?? "local";
+
+	const setDiscoveryPreferences = useCallback(
+		(action: SetStateAction<RepositoryDiscoveryPreferences>) => {
+			dispatch({
+				type: "space-preferences",
+				id: activeSpaceId,
+				discovery: action,
+			});
+		},
+		[activeSpaceId]
+	);
+
+	const setRepositoryLibrary = useCallback(
+		(action: SetStateAction<RepositoryLibraryPreferences>) => {
+			dispatch({
+				type: "space-preferences",
+				id: activeSpaceId,
+				library: action,
+			});
+		},
+		[activeSpaceId]
+	);
+
+	const [spaceEditor, setSpaceEditor] = useState<{ space?: WorkspaceSpace }>();
 
 	const [onboarding, setOnboarding] = useState<OnboardingStep>(
 		preview
@@ -486,14 +536,6 @@ function AppContent({
 
 	const [repositoryPatterns, setRepositoryPatterns] = useState(() =>
 		RepositoryPatterns.parse(initialSession?.repositoryPatterns)
-	);
-
-	const [discoveryPreferences, setDiscoveryPreferences] = useState(() =>
-		RepositoryDiscovery.preferences(initialSession?.repositoryDiscovery)
-	);
-
-	const [repositoryLibrary, setRepositoryLibrary] = useState(() =>
-		RepositoryLibrary.preferences(initialSession?.repositoryLibrary)
 	);
 
 	const onboardingOpen = onboarding !== "complete";
@@ -700,12 +742,25 @@ function AppContent({
 	const remotePreferences = useMemo<RepositoryDiscoveryPreferences>(
 		() => ({
 			folders:
-				selectedSavedMachine?.folders.map((folder) =>
-					MachineLocation.encode(selectedSavedMachine.id, folder)
-				) ?? [],
+				(activeSpaceId !== "default"
+					? discoveryPreferences.folders
+							.filter(
+								(path) =>
+									MachineLocation.parse(path)?.machineId === selectedMachine
+							)
+							.map(MachineLocation.display)
+					: selectedSavedMachine?.folders
+				)?.map((folder) => MachineLocation.encode(selectedMachine, folder)) ??
+				[],
 			hidden: discoveryPreferences.hidden,
 		}),
-		[selectedSavedMachine, discoveryPreferences.hidden]
+		[
+			selectedSavedMachine,
+			selectedMachine,
+			activeSpaceId,
+			discoveryPreferences.folders,
+			discoveryPreferences.hidden,
+		]
 	);
 
 	const updateRemotePreferences = useCallback(
@@ -714,6 +769,22 @@ function AppContent({
 
 			const next =
 				typeof action === "function" ? action(remotePreferences) : action;
+
+			if (activeSpaceId !== "default") {
+				setDiscoveryPreferences((current) => ({
+					...current,
+					folders: [
+						...current.folders.filter(
+							(path) =>
+								MachineLocation.parse(path)?.machineId !== selectedMachine
+						),
+						...next.folders,
+					],
+					hidden: next.hidden,
+				}));
+
+				return;
+			}
 
 			setDiscoveryPreferences((current) => ({
 				...current,
@@ -734,7 +805,14 @@ function AppContent({
 				}
 			})();
 		},
-		[machines, selectedSavedMachine, remotePreferences]
+		[
+			machines,
+			selectedSavedMachine,
+			remotePreferences,
+			activeSpaceId,
+			selectedMachine,
+			setDiscoveryPreferences,
+		]
 	);
 
 	const remoteScan = useCallback<typeof RepositoryDiscovery.scan>(
@@ -788,12 +866,13 @@ function AppContent({
 			: setDiscoveryPreferences,
 		home: remoteHome,
 		remote: remoteMachine,
+		scanHome: activeSpaceId === "default",
 	});
 
 	const quickRepositories = (() => {
 		if (!quickSwitcherOpen) return [];
 
-		const opened = state.tabs.flatMap((tab) => {
+		const opened = visibleTabs.flatMap((tab) => {
 			const path =
 				tab.workspace.repository?.root ?? tab.workspace.repositoryPath;
 
@@ -804,7 +883,7 @@ function AppContent({
 
 		return RepositoryQuickSwitcherModel.catalog(
 			[
-				...(state.recentRepositories ?? []),
+				...activeSpace.repositories,
 				...opened.map((tab) => tab.path),
 				...repositoryLibrary.starred,
 				...discovery.knownPaths,
@@ -818,7 +897,7 @@ function AppContent({
 		() =>
 			[
 				...new Set([
-					...(state.recentRepositories ?? []),
+					...activeSpace.repositories,
 					...discovery.paths,
 					...repositoryLibrary.starred,
 				]),
@@ -828,9 +907,9 @@ function AppContent({
 					: !MachineLocation.isRemote(path)
 			),
 		[
-			state.recentRepositories,
+			activeSpace,
 			discovery.paths,
-			repositoryLibrary.starred,
+			repositoryLibrary,
 			remoteMachine,
 			selectedMachine,
 		]
@@ -873,7 +952,7 @@ function AppContent({
 			setSettingsSection("accounts");
 			setReconnectAccountKey(undefined);
 		},
-		[renderer, settingsOpen]
+		[renderer, settingsOpen, setSettingsView]
 	);
 
 	const closeSettings = useCallback(() => {
@@ -897,7 +976,7 @@ function AppContent({
 			if (target !== null && target !== undefined)
 				renderer.focusElement?.(target);
 		}, 0);
-	}, [renderer]);
+	}, [renderer, setSettingsView]);
 
 	const onboardingTab = (): string => {
 		if (onboardingId && state.tabs.some((tab) => tab.id === onboardingId))
@@ -951,8 +1030,8 @@ function AppContent({
 				let id: string | undefined;
 
 				if (activeTab)
-					id = WorkspaceTabsModel.destination(state.tabs, activeTab.id, key);
-				else id = (key === "left" ? state.tabs.at(-1) : state.tabs[0])?.id;
+					id = WorkspaceTabsModel.destination(visibleTabs, activeTab.id, key);
+				else id = (key === "left" ? visibleTabs.at(-1) : visibleTabs[0])?.id;
 
 				if (id) dispatch({ type: "activate", id });
 
@@ -960,7 +1039,7 @@ function AppContent({
 			}
 
 			if (/^[1-9]$/.test(key)) {
-				const tab = state.tabs[Number(key) - 1];
+				const tab = visibleTabs[Number(key) - 1];
 
 				if (tab) dispatch({ type: "activate", id: tab.id });
 
@@ -996,6 +1075,7 @@ function AppContent({
 	}, [
 		renderer,
 		state.tabs,
+		visibleTabs,
 		state.nextId,
 		activeTab,
 		workspace,
@@ -1068,6 +1148,55 @@ function AppContent({
 		}
 	};
 
+	const selectSpace = (id: string) => {
+		setQuickSwitcherOpen(false);
+		setFolderPickerRoot(undefined);
+		setMachineError(null);
+		setSettingsView(null);
+		dispatch({ type: "space-select", id });
+	};
+
+	const manageSpaces = () => {
+		openSettings();
+		setSettingsSection("spaces");
+	};
+
+	const spaceSwitcher = (disabled: boolean) => (
+		<SpaceSwitcher
+			disabled={disabled}
+			spaces={state.spaces ?? []}
+			activeId={activeSpace.id}
+			onSelect={selectSpace}
+			onCreate={() => setSpaceEditor({})}
+			onManage={manageSpaces}
+		/>
+	);
+
+	const spacesSettings = (
+		<SpacesSettings
+			spaces={state.spaces ?? []}
+			activeId={activeSpace.id}
+			onCreate={() => setSpaceEditor({})}
+			onEdit={(space) => setSpaceEditor({ space })}
+			onSelect={selectSpace}
+		/>
+	);
+
+	const spaceRepositories = [
+		...new Set([
+			...(state.recentRepositories ?? []),
+			...state.tabs.flatMap(
+				(tab) =>
+					tab.workspace.repository?.root ?? tab.workspace.repositoryPath ?? []
+			),
+			...(state.spaces ?? []).flatMap((space) => [
+				...space.repositories,
+				...space.library.starred,
+			]),
+			...discovery.knownPaths,
+		]),
+	];
+
 	const closeNotice = mutations.closeProtection.requested ? (
 		<RepositoryCloseNotice
 			state={state}
@@ -1093,6 +1222,7 @@ function AppContent({
 					rail={
 						settingsOpen || onboardingOpen ? undefined : (
 							<WorkspaceRail
+								spaceSwitcher={spaceSwitcher}
 								repositoryAppearance={repositoryAppearance}
 								settingsButtonRef={railSettingsButton}
 								accountButtonRef={railAccountButton}
@@ -1279,7 +1409,7 @@ function AppContent({
 					}
 					toolbar={
 						<WorkspaceTabs
-							state={state}
+							state={{ ...state, tabs: visibleTabs }}
 							dispatch={dispatch}
 							readBranches={readBranches}
 							readRepository={readRepository}
@@ -1405,7 +1535,7 @@ function AppContent({
 							onClose={() => setFolderPickerRoot(undefined)}
 							onSelect={(path) => {
 								setFolderPickerRoot(undefined);
-								const existing = state.tabs.find(
+								const existing = visibleTabs.find(
 									(tab) => tab.workspace.repository?.root === path
 								);
 
@@ -1465,9 +1595,10 @@ function AppContent({
 					(cloneTab &&
 						activeTab?.id === cloneTab.id) ? null : welcomeVisible ? (
 						<RepositoryWelcome
+							key={activeSpaceId}
 							readRepository={readRepository}
 							canReadRepository={canReadOverview}
-							openWorkspaces={state.tabs
+							openWorkspaces={visibleTabs
 								.filter((tab) => !tab.comparison)
 								.map((tab) => tab.workspace)}
 							paths={welcomePaths}
@@ -1479,7 +1610,6 @@ function AppContent({
 										selected={selectedMachine}
 										onConnected={() => discovery.rescan()}
 										onSelect={(id) => {
-											setSelectedMachine(id);
 											setMachineError(null);
 											setRepositoryLibrary((current) => ({
 												...current,
@@ -1492,7 +1622,7 @@ function AppContent({
 							}
 							library={repositoryLibrary}
 							onLibraryChange={setRepositoryLibrary}
-							savedPaths={state.recentRepositories ?? []}
+							savedPaths={activeSpace.repositories}
 							discovery={discovery.available ? discovery : undefined}
 							onForget={(path) => {
 								discovery.hide(path);
@@ -1517,7 +1647,7 @@ function AppContent({
 								void connection.open(id);
 							}}
 							onOpenRecent={(path) => {
-								const existing = state.tabs.find(
+								const existing = visibleTabs.find(
 									(tab) => tab.workspace.repository?.root === path
 								);
 
@@ -1718,7 +1848,7 @@ function AppContent({
 					items={quickRepositories}
 					onClose={() => setQuickSwitcherOpen(false)}
 					onOpen={(path) => {
-						const existing = state.tabs.find(
+						const existing = visibleTabs.find(
 							(tab) =>
 								!tab.comparison &&
 								(tab.workspace.repository?.root ??
@@ -1849,8 +1979,37 @@ function AppContent({
 						) : null}
 					</Onboarding>
 				) : null}
+				{spaceEditor ? (
+					<SpaceManager
+						key={spaceEditor.space?.id ?? "new"}
+						space={spaceEditor.space}
+						repositories={spaceRepositories}
+						onClose={() => setSpaceEditor(undefined)}
+						onSave={(value) => {
+							if (spaceEditor.space)
+								dispatch({
+									type: "space-edit",
+									id: spaceEditor.space.id,
+									...value,
+								});
+							else {
+								dispatch({
+									type: "space-create",
+									space: { id: randomUUID(), ...value },
+									discovery: discoveryPreferences,
+									library: repositoryLibrary,
+								});
+								setSettingsView(null);
+							}
+
+							setSpaceEditor(undefined);
+						}}
+					/>
+				) : null}
 				{settingsOpen ? (
 					<AccountsSettings
+						spaceSwitcher={spaceSwitcher}
+						spacesSettings={spacesSettings}
 						onBack={closeSettings}
 						onSetup={
 							!preview &&

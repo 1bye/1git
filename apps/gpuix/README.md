@@ -19,6 +19,26 @@ tint over that material, never an opaque replacement.
 The connected tab silhouette keeps its shape while moving; it does not port
 the desktop's liquid shape-morphing machinery.
 
+## Spaces
+
+**Settings → Spaces → New space…** creates a named working context with an outline
+icon or a single emoji. Choose repositories from the searchable list, or open a
+repository from that space's Home. Existing tabs, drafts and preferences migrate to
+**Default**; the rail stays unchanged until a second space exists.
+
+The active space's icon appears directly above Settings, on Home and in repository
+views. Its tooltip shows the name. Clicking opens the same native grouped dropdown
+used by Settings, with space choices, **New space…** and **Manage spaces…**. Settings
+also lets you edit names, symbols and repository membership.
+
+Each space remembers its repositories, tab order, selected tab or Home, commit
+drafts, scan folders, stars, layout and selected machine across restarts. New spaces
+start with an empty tab strip and scan only explicitly added folders. Home and
+Cmd+P show the active space's catalog. The same repository can belong to several
+spaces; switching retains its independent drafts and leaves running Git operations
+with their original tabs. Saved SSH machines, accounts and repository appearance
+remain shared. Space membership never moves or copies files.
+
 ## SSH machines
 
 Home → **Add machine** saves one SSH connection for all repositories on that

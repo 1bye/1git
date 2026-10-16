@@ -191,6 +191,7 @@ export function WorkspaceRail({
 	viewButtonRefs,
 	savedAccounts,
 	repositoryAppearance,
+	spaceSwitcher,
 	children,
 }: {
 	view?: RepositoryView;
@@ -213,6 +214,7 @@ export function WorkspaceRail({
 		"onChange" | "onPatternChange"
 	>;
 	/** Repository-wide actions sit above the navigation group. */
+	spaceSwitcher?: (disabled: boolean) => ReactNode;
 	children?: ReactNode;
 }) {
 	const theme = useAppTheme();
@@ -446,6 +448,7 @@ export function WorkspaceRail({
 					windowDrag
 					style={{ flexGrow: 1, width: "100%" }}
 				/>
+				{spaceSwitcher?.(disabled)}
 				<RailAction
 					ref={(node) => setRefs(node, settingsButton, settingsButtonRef)}
 					testId="rail-settings"

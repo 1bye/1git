@@ -30,6 +30,7 @@ export class WorkspaceSettingsMenu {
 		return [
 			page("Appearance…", "appearance"),
 			page("Accounts…", "accounts"),
+			page("Spaces…", "spaces"),
 			page("AI…", "ai"),
 			{ separator: true },
 			{

@@ -95,6 +95,57 @@ it("restores diff layout preferences without invalidating sessions saved before 
 	expect(store.load().document?.diffSettings).toBeUndefined();
 });
 
+it("restores independent spaces, repository memberships and drafts from a new store owner", () => {
+	const path = join(directory, "spaces.json");
+	const personal = "00000000-0000-4000-8000-000000000001";
+
+	const saved: WorkspaceSessionDocument = {
+		...document(),
+		activeSpaceId: personal,
+		activeId: "workspace-2",
+		spaces: [
+			{
+				id: "default",
+				name: "Default",
+				icon: "layers",
+				activeId: "workspace-1",
+				repositories: ["/test/linked"],
+				discovery: { folders: ["/test/work"], hidden: [] },
+				library: { starred: ["/test/linked"], view: "tiles" },
+			},
+			{
+				id: personal,
+				name: "Personal",
+				icon: "🏠",
+				activeId: "workspace-2",
+				repositories: ["/test/personal"],
+				discovery: { folders: [], hidden: [] },
+				library: { starred: [], view: "list" },
+			},
+		],
+		tabs: [
+			...document().tabs,
+			{
+				id: "workspace-2",
+				spaceId: personal,
+				path: "/test/personal",
+				draft: "Personal draft",
+			},
+		],
+	};
+
+	new WorkspaceSessionStore(path).save(saved);
+	const loaded = new WorkspaceSessionStore(path).load().document;
+
+	expect(loaded?.spaces).toEqual(saved.spaces);
+	expect(loaded?.activeSpaceId).toBe(personal);
+	expect(loaded?.activeId).toBe("workspace-2");
+	expect(loaded?.tabs.map((tab) => [tab.path, tab.draft])).toEqual([
+		["/test/linked", "Keep my draft\n\nBody"],
+		["/test/personal", "Personal draft"],
+	]);
+});
+
 it("leaves corrupt, future-version and oversized sessions unchanged and disables writes", () => {
 	const path = join(directory, "session.json");
 

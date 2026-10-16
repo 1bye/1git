@@ -1,3 +1,7 @@
+import {
+	WorkspaceSpaces,
+	type WorkspaceSpace,
+} from "../../spaces/workspace-spaces";
 import { basename, isAbsolute } from "node:path";
 import {
 	RepositoryLibrary,
@@ -41,8 +45,11 @@ interface WorkspaceNavigation {
 /** Versioned local session intent; never contains Git snapshots, credentials or pending operations. */
 export interface WorkspaceSessionDocument {
 	readonly version: 1;
+	readonly spaces?: readonly WorkspaceSpace[];
+	readonly activeSpaceId?: string;
 	readonly tabs: readonly {
 		readonly id: string;
+		readonly spaceId?: string;
 		readonly path: string | null;
 		readonly draft: string;
 		readonly navigation?: WorkspaceNavigation;
@@ -137,6 +144,14 @@ export class WorkspaceSession {
 				"The saved session is invalid or uses an unsupported version."
 			);
 
+		const spaces = WorkspaceSpaces.parse(value.spaces);
+
+		const activeSpaceId = spaces?.some(
+			(space) => space.id === value.activeSpaceId
+		)
+			? String(value.activeSpaceId)
+			: "default";
+
 		const tabs: WorkspaceSessionDocument["tabs"][number][] = [];
 		const ids = new Set<string>();
 
@@ -147,6 +162,8 @@ export class WorkspaceSession {
 				!tabIdPattern.test(tab.id) ||
 				!Number.isSafeInteger(Number(tab.id.slice("workspace-".length)) + 1) ||
 				ids.has(tab.id) ||
+				(tab.spaceId !== undefined &&
+					(!spaces || !spaces.some((space) => space.id === tab.spaceId))) ||
 				typeof tab.draft !== "string" ||
 				!(
 					tab.path === null ||
@@ -160,6 +177,12 @@ export class WorkspaceSession {
 			ids.add(tab.id);
 			tabs.push({
 				id: tab.id,
+				...(spaces
+					? {
+							spaceId:
+								typeof tab.spaceId === "string" ? tab.spaceId : "default",
+						}
+					: {}),
 				path: tab.path,
 				draft: tab.draft,
 				navigation: WorkspaceSession.navigation(tab.navigation),
@@ -183,6 +206,21 @@ export class WorkspaceSession {
 
 		return {
 			version: 1,
+			...(spaces
+				? {
+						spaces: spaces.map((space) => ({
+							...space,
+							activeId: tabs.some(
+								(tab) =>
+									tab.id === space.activeId &&
+									(tab.spaceId ?? "default") === space.id
+							)
+								? space.activeId
+								: null,
+						})),
+						activeSpaceId,
+					}
+				: {}),
 			...(!RepositoryLibrary.isDefault(repositoryLibrary)
 				? { repositoryLibrary }
 				: {}),
@@ -223,9 +261,15 @@ export class WorkspaceSession {
 			activeId:
 				value.activeId === null
 					? null
-					: typeof value.activeId === "string" && ids.has(value.activeId)
+					: typeof value.activeId === "string" &&
+						  tabs.some(
+								(tab) =>
+									tab.id === value.activeId &&
+									(tab.spaceId ?? "default") === activeSpaceId
+						  )
 						? value.activeId
-						: (tabs[0]?.id ?? null),
+						: (tabs.find((tab) => (tab.spaceId ?? "default") === activeSpaceId)
+								?.id ?? null),
 		};
 	}
 
@@ -242,6 +286,16 @@ export class WorkspaceSession {
 	): WorkspaceSessionDocument {
 		return {
 			version: 1,
+			...(state.spaces
+				? {
+						spaces: state.spaces.map((space) =>
+							space.id === (state.activeSpaceId ?? "default")
+								? { ...space, activeId: state.activeId }
+								: space
+						),
+						activeSpaceId: state.activeSpaceId ?? "default",
+					}
+				: {}),
 			...(repositoryLibrary && !RepositoryLibrary.isDefault(repositoryLibrary)
 				? { repositoryLibrary }
 				: {}),
@@ -262,8 +316,9 @@ export class WorkspaceSession {
 			...(state.recentRepositories !== undefined
 				? { recentRepositories: state.recentRepositories }
 				: {}),
-			tabs: state.tabs.map(({ id, workspace }) => ({
+			tabs: state.tabs.map(({ id, spaceId, workspace }) => ({
 				id,
+				...(spaceId ? { spaceId } : {}),
 				path: workspace.repository?.root ?? workspace.repositoryPath,
 				draft: workspace.amend?.previousMessage ?? workspace.commitMessage,
 				navigation: {
@@ -295,14 +350,21 @@ export class WorkspaceSession {
 	static restore(document: WorkspaceSessionDocument): WorkspaceTabsState {
 		return {
 			preview: false,
+			...(document.spaces
+				? {
+						spaces: document.spaces,
+						activeSpaceId: document.activeSpaceId ?? "default",
+					}
+				: {}),
 			recentRepositories: [
 				...new Set(
 					document.recentRepositories ??
 						document.tabs.flatMap((tab) => (tab.path ? [tab.path] : []))
 				),
 			].slice(0, 100),
-			tabs: document.tabs.map(({ id, path, draft, navigation }) => ({
+			tabs: document.tabs.map(({ id, spaceId, path, draft, navigation }) => ({
 				id,
+				...(spaceId ? { spaceId } : {}),
 				name: path ? basename(path) : "Open repository",
 				workspace: {
 					...RepositoryWorkspaceModel.create(),

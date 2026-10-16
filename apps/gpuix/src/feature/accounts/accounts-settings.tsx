@@ -63,6 +63,7 @@ const settingsTitleWidth =
 /** Settings pages distinguish application defaults from the active repository's configuration. */
 export type SettingsSection =
 	| "accounts"
+	| "spaces"
 	| "appearance"
 	| "ai"
 	| "git"
@@ -122,6 +123,8 @@ export function AccountsSettings({
 	initialSection = "accounts",
 	repositorySettings,
 	repositoryAppearance,
+	spaceSwitcher,
+	spacesSettings,
 	readGitSettings = GitSettingsModel.read,
 	writeGitSettings = GitSettingsModel.write,
 	externalEditors,
@@ -147,6 +150,8 @@ export function AccountsSettings({
 	initialSection?: SettingsSection;
 	repositorySettings?: { root: string; name: string; disabled: boolean };
 	repositoryAppearance?: RepositoryAppearanceOptions;
+	spaceSwitcher?: (disabled: boolean) => ReactNode;
+	spacesSettings?: ReactNode;
 	readGitSettings?: typeof GitSettingsModel.read;
 	writeGitSettings?: typeof GitSettingsModel.write;
 	externalEditors?: ExternalEditors;
@@ -264,6 +269,7 @@ export function AccountsSettings({
 			workspaceLabel="Settings"
 			rail={
 				<WorkspaceRail
+					spaceSwitcher={spaceSwitcher}
 					accounts={accounts}
 					savedAccounts={saved}
 					preferredAccountKey={preferredAccountKey}
@@ -335,6 +341,25 @@ export function AccountsSettings({
 					>
 						Application
 					</text>
+					{spacesSettings ? (
+						<Button
+							testId="settings-spaces"
+							ref={section === "spaces" ? initialPage : undefined}
+							tokens={appTokens}
+							size="sm"
+							variant={section === "spaces" ? "secondary" : "ghost"}
+							aria-current={section === "spaces" ? "page" : undefined}
+							disabled={settingsBusy}
+							style={{ justifyContent: "flex-start" }}
+							onPress={() => {
+								clearToken();
+								setForm("list");
+								setSection("spaces");
+							}}
+						>
+							Spaces
+						</Button>
+					) : null}
 					<Button
 						testId="settings-appearance"
 						ref={section === "appearance" ? initialPage : undefined}
@@ -509,7 +534,9 @@ export function AccountsSettings({
 			}
 		>
 			{children}
-			{section === "appearance" ? (
+			{section === "spaces" ? (
+				spacesSettings
+			) : section === "appearance" ? (
 				<AppearanceSettings />
 			) : section === "ai" ? (
 				<AiSettings

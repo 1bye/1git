@@ -1,3 +1,8 @@
+import {
+	WorkspaceSpaces,
+	type WorkspaceSpace,
+	type WorkspaceSpaceAction,
+} from "../../spaces/workspace-spaces";
 import type { RepositorySnapshot } from "@1git/git";
 import { basename } from "node:path";
 import type { ComparisonRequest } from "../../repository-comparison/lib/repository-comparison";
@@ -9,6 +14,7 @@ import {
 
 /** A workspace tab with presentation state and optional live repository metadata. */
 export interface WorkspaceTabRecord {
+	readonly spaceId?: string;
 	readonly comparison?: ComparisonRequest;
 	readonly id: string;
 	readonly name: string;
@@ -18,6 +24,8 @@ export interface WorkspaceTabRecord {
 
 /** In-memory tabs and their active selection belong to one app instance. */
 export interface WorkspaceTabsState {
+	readonly spaces?: readonly WorkspaceSpace[];
+	readonly activeSpaceId?: string;
 	readonly preview: boolean;
 	readonly tabs: readonly WorkspaceTabRecord[];
 	readonly activeId: string | null;
@@ -27,10 +35,11 @@ export interface WorkspaceTabsState {
 
 /** Tab mutations are independent of the renderer and never perform filesystem work. */
 export type WorkspaceTabsAction =
+	| WorkspaceSpaceAction
 	| { type: "home" }
 	| { type: "add"; path?: string }
 	| { type: "forget-repository"; path: string }
-	| { type: "open-worktree"; snapshot: RepositorySnapshot }
+	| { type: "open-worktree"; snapshot: RepositorySnapshot; spaceId?: string }
 	| { type: "worktree-removed"; path: string }
 	| { type: "activate"; id: string }
 	| { type: "compare"; id: string; comparison?: ComparisonRequest }
@@ -79,12 +88,40 @@ export class WorkspaceTabsModel {
 		state: WorkspaceTabsState,
 		action: WorkspaceTabsAction
 	): WorkspaceTabsState {
+		if (
+			action.type === "space-create" ||
+			action.type === "space-select" ||
+			action.type === "space-edit" ||
+			action.type === "space-preferences"
+		)
+			return WorkspaceSpaces.reduce(state, action);
+
+		return WorkspaceSpaces.remember(
+			state,
+			WorkspaceTabsModel.reduceTabs(state, action)
+		);
+	}
+
+	private static reduceTabs(
+		state: WorkspaceTabsState,
+		action: Exclude<WorkspaceTabsAction, WorkspaceSpaceAction>
+	): WorkspaceTabsState {
 		if (action.type === "home")
 			return state.activeId === null ? state : { ...state, activeId: null };
 
 		if (action.type === "forget-repository") {
 			return {
 				...state,
+				spaces: state.spaces?.map((space) =>
+					space.id === (state.activeSpaceId ?? "default")
+						? {
+								...space,
+								repositories: space.repositories.filter(
+									(path) => path !== action.path
+								),
+							}
+						: space
+				),
 				recentRepositories: (state.recentRepositories ?? []).filter(
 					(path) => path !== action.path
 				),
@@ -105,17 +142,26 @@ export class WorkspaceTabsModel {
 					state.activeId === null ||
 					tabs.some((tab) => tab.id === state.activeId)
 						? state.activeId
-						: (tabs[0]?.id ?? null),
+						: (tabs.find(
+								(tab) =>
+									(tab.spaceId ?? "default") ===
+									(state.activeSpaceId ?? "default")
+							)?.id ?? null),
 			};
 		}
 
 		if (action.type === "open-worktree") {
+			const owner = action.spaceId ?? state.activeSpaceId ?? "default";
+			const visible = owner === (state.activeSpaceId ?? "default");
+
 			const existing = state.tabs.find(
 				(tab) =>
+					(tab.spaceId ?? "default") === owner &&
 					tab.workspace.repository?.root === action.snapshot.repository.root
 			);
 
-			if (existing) return { ...state, activeId: existing.id };
+			if (existing)
+				return visible ? { ...state, activeId: existing.id } : state;
 
 			const workspace = RepositoryWorkspaceModel.reduce(
 				RepositoryWorkspaceModel.create(),
@@ -123,6 +169,7 @@ export class WorkspaceTabsModel {
 			);
 
 			const tab: WorkspaceTabRecord = {
+				...(state.spaces ? { spaceId: owner } : {}),
 				id: `workspace-${state.nextId}`,
 				name: workspace.repository?.name ?? "Workspace",
 				branch: workspace.repository?.branch,
@@ -136,13 +183,14 @@ export class WorkspaceTabsModel {
 					state.recentRepositories,
 					workspace.repository?.root
 				),
-				activeId: tab.id,
+				activeId: visible ? tab.id : state.activeId,
 				nextId: state.nextId + 1,
 			};
 		}
 
 		if (action.type === "add") {
 			const tab = {
+				...(state.spaces ? { spaceId: state.activeSpaceId ?? "default" } : {}),
 				id: `workspace-${state.nextId}`,
 				name: action.path ? basename(action.path) : `Workspace ${state.nextId}`,
 				workspace: {
@@ -210,6 +258,12 @@ export class WorkspaceTabsModel {
 		}
 
 		if (action.type === "activate") {
+			if (
+				(state.tabs[index]?.spaceId ?? "default") !==
+				(state.activeSpaceId ?? "default")
+			)
+				return state;
+
 			return state.activeId === action.id
 				? state
 				: { ...state, activeId: action.id };
@@ -219,7 +273,14 @@ export class WorkspaceTabsModel {
 			const target = state.tabs.findIndex((tab) => tab.id === action.overId);
 			const tab = state.tabs[index];
 
-			if (!tab || target < 0 || target === index) return state;
+			if (
+				!tab ||
+				target < 0 ||
+				target === index ||
+				(tab.spaceId ?? "default") !==
+					(state.tabs[target]?.spaceId ?? "default")
+			)
+				return state;
 
 			const tabs = [...state.tabs];
 
@@ -236,9 +297,18 @@ export class WorkspaceTabsModel {
 
 		const tabs = state.tabs.filter((tab) => tab.id !== action.id);
 
+		const visibleTabs = tabs.filter(
+			(tab) => (tab.spaceId ?? "default") === (state.activeSpaceId ?? "default")
+		);
+
+		const visibleIndex = WorkspaceSpaces.tabs(state).findIndex(
+			(tab) => tab.id === action.id
+		);
+
 		const activeId =
 			state.activeId === action.id
-				? ((tabs[index] ?? tabs[index - 1])?.id ?? null)
+				? ((visibleTabs[visibleIndex] ?? visibleTabs[visibleIndex - 1])?.id ??
+					null)
 				: state.activeId;
 
 		return { ...state, tabs, activeId };
