@@ -4,13 +4,68 @@ import { join } from "node:path";
 import type { IgnoreRule } from "./contracts.js";
 import { invalidInput } from "./result.js";
 import { requireRepositoryPaths } from "./validation.js";
+import { GitCommandFailure, GitProcess } from "./process/git-process.js";
 
 const SPECIAL_PATTERN_CHARACTER = /[\\*?[\] #!]/g;
 const UNSUPPORTED_PATH_CHARACTER = /[\r\n\0]/;
 const MAX_IGNORE_BYTES = 1024 * 1024;
 
-/** Literal Git ignore patterns and append-only writes, called under the repository mutation gate. */
+/** Git ignore queries and literal, append-only rule writes. */
 export class GitIgnore {
+	/** Lists ignored, untracked files below literal selected paths, including ignored folders. */
+	static async list(
+		root: string,
+		paths: readonly string[],
+		signal?: AbortSignal
+	): Promise<string[]> {
+		requireRepositoryPaths(paths, "get-snapshot");
+
+		if (!paths.length) return [];
+
+		const result = await new GitProcess({
+			maxOutputBytes: 16 * 1024 * 1024,
+		}).run({
+			cwd: root,
+			args: [
+				"--literal-pathspecs",
+				"ls-files",
+				"--others",
+				"--ignored",
+				"--exclude-standard",
+				"-z",
+				"--",
+				...paths,
+			],
+			signal,
+		});
+
+		return result.stdout.toString("utf8").split("\0").filter(Boolean);
+	}
+
+	/** Uses Git's own rules and index; tracked files are never eligible for local ignored history. */
+	static async isIgnored(
+		root: string,
+		path: string,
+		signal?: AbortSignal
+	): Promise<boolean> {
+		requireRepositoryPaths([path], "get-snapshot");
+
+		try {
+			await new GitProcess().run({
+				cwd: root,
+				args: ["check-ignore", "--quiet", "--", path],
+				signal,
+			});
+
+			return true;
+		} catch (error) {
+			if (error instanceof GitCommandFailure && error.exitCode === 1)
+				return false;
+
+			throw error;
+		}
+	}
+
 	static extension(path: string): string | null {
 		const name = path.slice(path.lastIndexOf("/") + 1);
 		const dot = name.lastIndexOf(".");

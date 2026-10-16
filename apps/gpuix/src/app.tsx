@@ -1,3 +1,6 @@
+import { IgnoredHistory } from "./feature/ignored-history/ignored-history";
+import { useIgnoredHistories } from "./feature/ignored-history/use-ignored-histories";
+import { IgnoredHistoryView } from "./feature/ignored-history/ignored-history-view";
 import { randomUUID } from "node:crypto";
 import {
 	WorkspaceSpaces,
@@ -168,6 +171,7 @@ export function App({
 
 /** Owns one window's workspaces, cancellable reads and explicit commit transactions. */
 function AppContent({
+	ignoredHistory: suppliedIgnoredHistory,
 	accounts: suppliedAccounts,
 	remoteAccounts: suppliedRemoteAccounts,
 	avatars: suppliedAvatars,
@@ -222,6 +226,7 @@ function AppContent({
 	readGitSettings = GitSettingsModel.read,
 	writeGitSettings = GitSettingsModel.write,
 }: {
+	ignoredHistory?: IgnoredHistory;
 	machines?: Machines;
 	accounts?: Accounts;
 	remoteAccounts?: RemoteAccounts;
@@ -622,9 +627,38 @@ function AppContent({
 
 	useRepositoryAutoRefresh(state, dispatch, readRepository, watchRepository);
 
+	const [ignoredHistory] = useState(
+		() =>
+			suppliedIgnoredHistory ??
+			new IgnoredHistory(new NativeCredentials(renderer))
+	);
+
+	const [ignoredRoot, setIgnoredRoot] = useState<string | null>(null);
+
+	const ignoredHistories = useIgnoredHistories(
+		state.tabs.flatMap((tab) =>
+			tab.workspace.repository &&
+			!tab.workspace.preview &&
+			!MachineLocation.isRemote(tab.workspace.repository.root)
+				? [tab.workspace.repository]
+				: []
+		),
+		ignoredHistory
+	);
+
 	const activeTab = state.tabs.find((tab) => tab.id === state.activeId);
 	const workspace = activeTab?.workspace;
 	const commonDirectory = workspace?.repository?.commonDirectory;
+
+	const ignoredStatus = workspace?.repository
+		? ignoredHistories.statuses[workspace.repository.root]
+		: undefined;
+
+	const ignoredVisible =
+		!!workspace?.repository &&
+		ignoredRoot === workspace.repository.root &&
+		!!ignoredStatus?.data?.preferences.enabled &&
+		!activeTab?.comparison;
 
 	const repositoryColor = commonDirectory
 		? repositoryColors[commonDirectory]
@@ -1134,6 +1168,8 @@ function AppContent({
 			: undefined;
 
 	const selectRepositoryView = (view: RepositoryView) => {
+		setIgnoredRoot(null);
+
 		if (!activeTab) return;
 
 		dispatch({
@@ -1207,6 +1243,16 @@ function AppContent({
 					rail={
 						settingsOpen || onboardingOpen ? undefined : (
 							<WorkspaceRail
+								ignoredHistory={
+									workspace?.repository &&
+									ignoredStatus?.data?.preferences.enabled
+										? {
+												active: ignoredVisible,
+												onOpen: () =>
+													setIgnoredRoot(workspace.repository?.root ?? null),
+											}
+										: undefined
+								}
 								spaceSwitcher={spaceSwitcher}
 								repositoryAppearance={repositoryAppearance}
 								settingsButtonRef={railSettingsButton}
@@ -1303,7 +1349,8 @@ function AppContent({
 						(workspace.repository ||
 							workspace.preview ||
 							workspace.repositoryPath) &&
-						!activeTab.comparison ? (
+						!activeTab.comparison &&
+						!ignoredVisible ? (
 							<RepositoryNavigation
 								onAiSettings={() => {
 									openSettings();
@@ -1767,6 +1814,25 @@ function AppContent({
 									)
 								: undefined}
 						</RepositoryComparison>
+					) : ignoredVisible && workspace?.repository ? (
+						<IgnoredHistoryView
+							key={`ignored:${workspace.repository.root}`}
+							repository={workspace.repository}
+							history={ignoredHistory}
+							status={ignoredStatus}
+							onRefresh={() =>
+								ignoredHistories.refresh(workspace.repository?.root ?? "")
+							}
+							onSettings={() => {
+								openSettings();
+								setSettingsSection("repository-ignored-history");
+							}}
+							settings={diffSettings}
+							onSettingsChange={setDiffSettings}
+							disabled={
+								workspace.loading || RepositoryWorkspaceModel.isBusy(workspace)
+							}
+						/>
 					) : activeTab && workspace?.repository && comparison ? (
 						<RepositoryDiff
 							key={`${activeTab.id}:${workspace.repository.root}:${revision?.id ?? "changes"}`}
@@ -1992,6 +2058,24 @@ function AppContent({
 				) : null}
 				{settingsOpen ? (
 					<AccountsSettings
+						ignoredHistory={
+							workspace?.repository
+								? {
+										repository: workspace.repository,
+										history: ignoredHistory,
+										status: ignoredStatus,
+										active: ignoredVisible,
+										onOpen: () => {
+											setIgnoredRoot(workspace.repository?.root ?? null);
+											closeSettings();
+										},
+										onRefresh: () =>
+											ignoredHistories.refresh(
+												workspace.repository?.root ?? ""
+											),
+									}
+								: undefined
+						}
 						spaceSwitcher={spaceSwitcher}
 						spacesSettings={spacesSettings}
 						onBack={closeSettings}

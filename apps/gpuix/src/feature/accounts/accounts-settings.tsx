@@ -1,3 +1,9 @@
+import { IgnoredHistorySettings } from "../ignored-history/ignored-history-settings";
+import type {
+	IgnoredHistory,
+	IgnoredRepository,
+} from "../ignored-history/ignored-history";
+import type { IgnoredHistoryStatus } from "../ignored-history/use-ignored-histories";
 import { createThemedStyles, useAppTheme } from "../../styles/theme";
 import { typography, spacing, fontWeight } from "@1git/design-tokens";
 import {
@@ -69,6 +75,7 @@ export type SettingsSection =
 	| "git"
 	| "editor"
 	| "repository-remotes"
+	| "repository-ignored-history"
 	| "repository-appearance"
 	| "repository-identity";
 
@@ -123,6 +130,7 @@ export function AccountsSettings({
 	initialSection = "accounts",
 	repositorySettings,
 	repositoryAppearance,
+	ignoredHistory,
 	spaceSwitcher,
 	spacesSettings,
 	readGitSettings = GitSettingsModel.read,
@@ -149,6 +157,14 @@ export function AccountsSettings({
 	onRepositoryView?: (view: RepositoryView) => void;
 	initialSection?: SettingsSection;
 	repositorySettings?: { root: string; name: string; disabled: boolean };
+	ignoredHistory?: {
+		history: IgnoredHistory;
+		repository: IgnoredRepository;
+		status?: IgnoredHistoryStatus;
+		onRefresh: () => Promise<void>;
+		active?: boolean;
+		onOpen?: () => void;
+	};
 	repositoryAppearance?: RepositoryAppearanceOptions;
 	spaceSwitcher?: (disabled: boolean) => ReactNode;
 	spacesSettings?: ReactNode;
@@ -220,7 +236,8 @@ export function AccountsSettings({
 	const repositorySection =
 		section === "repository-remotes" ||
 		section === "repository-identity" ||
-		section === "repository-appearance";
+		section === "repository-appearance" ||
+		section === "repository-ignored-history";
 
 	const mounted = useRef(true);
 	const view = useRef<PublicInstance | null>(null);
@@ -269,6 +286,17 @@ export function AccountsSettings({
 			workspaceLabel="Settings"
 			rail={
 				<WorkspaceRail
+					ignoredHistory={
+						ignoredHistory?.status?.data?.preferences.enabled &&
+						ignoredHistory.onOpen
+							? {
+									active: ignoredHistory.active ?? false,
+									onOpen: () => {
+										if (!settingsBusy) ignoredHistory.onOpen?.();
+									},
+								}
+							: undefined
+					}
 					spaceSwitcher={spaceSwitcher}
 					accounts={accounts}
 					savedAccounts={saved}
@@ -506,6 +534,15 @@ export function AccountsSettings({
 											]
 										: []),
 									["repository-identity", "Commit identity", "userCircle"],
+									...(ignoredHistory
+										? [
+												[
+													"repository-ignored-history",
+													"Ignored file history",
+													"check",
+												] as const,
+											]
+										: []),
 								] as const
 							).map(([next, label, icon]) => (
 								<Button
@@ -560,6 +597,16 @@ export function AccountsSettings({
 				<StateMessage
 					artwork="repository"
 					title="Open a repository to edit its settings"
+				/>
+			) : section === "repository-ignored-history" && ignoredHistory ? (
+				<IgnoredHistorySettings
+					key={ignoredHistory.repository.root}
+					{...ignoredHistory}
+					disabled={repositorySettings?.disabled}
+					onBusy={(next) => {
+						gitBusyRef.current = next;
+						setGitBusy(next);
+					}}
 				/>
 			) : section === "repository-appearance" &&
 			  repositorySettings &&

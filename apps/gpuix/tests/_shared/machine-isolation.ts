@@ -6,5 +6,6 @@ import { join } from "node:path";
 const directory = mkdtempSync(join(tmpdir(), "1git-test-machines-"));
 
 process.env.GPUIX_MACHINES_PATH = join(directory, "machines.json");
+process.env.GPUIX_IGNORED_HISTORY_PATH = join(directory, "ignored-history");
 process.env.GPUIX_AVATAR_CACHE_PATH = join(directory, "avatars");
 process.on("exit", () => rmSync(directory, { recursive: true, force: true }));

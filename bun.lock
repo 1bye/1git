@@ -60,6 +60,7 @@
         "@earendil-works/pi-ai": "1.1.0",
         "@gpuix/native": "0.10.0",
         "@gpuix/react": "0.10.0",
+        "diff": "9.0.0",
         "jose": "6.2.12",
         "react": "^19.2.4",
         "saxes": "6.0.0",

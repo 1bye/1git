@@ -389,6 +389,46 @@ Tabs, Home and Settings stay on their existing palette. Diff red/green rails,
 syntax, errors and other semantic colors are unchanged. Palette changes preserve
 the mounted editor, checked changes, selected file and native diff scroll.
 
+## Ignored file history
+
+Repository Settings → **Ignored file history** enables encrypted, device-local
+history for explicitly selected ignored files and folders. It is off by default.
+Enter repository-relative paths, one per line, or use Browse. Folders include
+future ignored children recursively; tracked files and symbolic/hard links are
+excluded. Git resolves ignore rules, including nested and global exclusions.
+The first successful capture establishes a baseline. The **Ignored changes** icon
+appears below Stashes only after enabling monitoring for that repository.
+
+The view shows changes since the accepted baseline with the shared file list and
+unified/split diff viewer. **All files** exposes retained versions even after
+accepting a change. **Accept current** advances the baseline explicitly;
+**Restore version…** confirms replacement, rechecks the reviewed contents and
+ignore status, and retains the replaced version so restore can be undone through
+history. A deletion can be restored, and restoring absence removes a newly added
+file. Pending changes and history survive app restart.
+
+History uses authenticated AES-256-GCM encryption for chunks and manifests outside
+the checkout, with domain-separated repository keys in the existing OS credential
+vault. Source contents are never written into session/preferences, Git objects,
+AI context or logs. Restore briefly reconstructs a private temporary file in Git
+metadata before replacing the destination. Files use 1 MiB chunks, reusing equal
+content within a worktree. Fixed chunk boundaries save unchanged blocks but can
+reuse less data after insertions near the start of a large file. Capture streams
+large files; text previews are bounded to 512 KiB per side and 2,000 patch lines.
+Binary and oversized files retain history and restore support.
+
+The default content-storage budget is 512 MiB per worktree, configurable from
+1 MiB to 100 GiB, with 20 recent distinct versions per file plus its accepted
+baseline (configurable from 2–100). Selections are bounded to 100 roots and
+100,000 remembered files per worktree. Capture pauses visibly on quota, key,
+corruption or read errors; existing history is preserved. Monitoring runs while
+the repository is open in any tab, with debounced filesystem events and periodic
+reconciliation. It cannot reconstruct edits made before enabling monitoring or
+intermediate edits while the app was closed. Live databases need their own
+consistent backup mechanism. Disabling monitoring retains saved history.
+Settings are shared across linked worktrees; snapshots remain separate. This
+version supports local repositories; SSH repositories are not monitored.
+
 ## Onboarding
 
 A fresh launch without a saved session starts a skippable three-step setup:

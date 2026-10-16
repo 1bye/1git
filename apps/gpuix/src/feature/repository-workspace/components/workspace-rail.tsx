@@ -191,9 +191,11 @@ export function WorkspaceRail({
 	viewButtonRefs,
 	savedAccounts,
 	repositoryAppearance,
+	ignoredHistory,
 	spaceSwitcher,
 	children,
 }: {
+	ignoredHistory?: { readonly active: boolean; readonly onOpen: () => void };
 	view?: RepositoryView;
 	onView?: (view: RepositoryView) => void;
 	accounts: Accounts;
@@ -396,9 +398,9 @@ export function WorkspaceRail({
 								key={item.value}
 								testId={`view-${item.value}`}
 								role="tab"
-								aria-selected={view === item.value}
+								aria-selected={!ignoredHistory?.active && view === item.value}
 								tabIndex={view === item.value ? 0 : -1}
-								selected={view === item.value}
+								selected={!ignoredHistory?.active && view === item.value}
 								disabled={disabled}
 								label={item.label}
 								icon={icons[item.value]}
@@ -442,6 +444,21 @@ export function WorkspaceRail({
 							/>
 						))}
 					</div>
+				) : null}
+				{ignoredHistory ? (
+					<RailAction
+						testId="view-ignored"
+						role="button"
+						label="Ignored changes"
+						aria-pressed={ignoredHistory.active}
+						selected={ignoredHistory.active}
+						disabled={disabled}
+						icon={svg(
+							'<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6m-6 4h3m3 3 2 2 4-4"/>'
+						)}
+						onClick={ignoredHistory.onOpen}
+						onKeyDown={actionKey(ignoredHistory.onOpen)}
+					/>
 				) : null}
 				<div
 					testId="rail-window-drag-region"

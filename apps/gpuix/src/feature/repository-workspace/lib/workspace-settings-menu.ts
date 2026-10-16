@@ -77,6 +77,7 @@ export class WorkspaceSettingsMenu {
 			},
 			page("Remotes…", "repository-remotes"),
 			page("Commit identity…", "repository-identity"),
+			page("Ignored file history…", "repository-ignored-history"),
 			{ separator: true },
 			page("All Settings…", "accounts"),
 		];
