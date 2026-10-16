@@ -331,7 +331,8 @@ linked worktrees share them; closing a tab does not discard the choice. Existing
 sessions and repositories without a color retain the default palette.
 The repo palette tints native-blurred chrome, controls, selection surfaces and a
 faint content wash. A single cached static SVG mask adds visible, fine grain
-beneath chrome controls, never over code. Its density and light/dark opacity keep
+to both colored and neutral windows, including Home and Settings, beneath chrome
+controls, never over code. Its density and light/dark opacity keep
 it readable over the blur without animation, filters or an input target.
 Illustrations repeat one fixed 256 × 256 SVG tile per preset, shared across colors
 and window sizes rather than rasterizing a window-sized wallpaper. The layer ignores

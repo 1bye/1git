@@ -118,23 +118,21 @@ export function AppShell({
 						: undefined
 				)}
 			>
-				{theme.repositoryColor ? (
-					<svg
-						testId="repository-chrome-grain"
-						aria-hidden
-						source={chromeGrainSource}
-						style={{
-							position: "absolute",
-							top: 0,
-							left: 0,
-							width: "100%",
-							height: "100%",
-							pointerEvents: "none",
-							opacity: theme.appearance === "dark" ? 0.12 : 0.09,
-							color: theme.appearance === "dark" ? "#ffffff" : "#000000",
-						}}
-					/>
-				) : null}
+				<svg
+					testId="repository-chrome-grain"
+					aria-hidden
+					source={chromeGrainSource}
+					style={{
+						position: "absolute",
+						top: 0,
+						left: 0,
+						width: "100%",
+						height: "100%",
+						pointerEvents: "none",
+						opacity: theme.appearance === "dark" ? 0.12 : 0.09,
+						color: theme.appearance === "dark" ? "#ffffff" : "#000000",
+					}}
+				/>
 				<WorkspaceCornerContext value={setRightRadius}>
 					{toolbar}
 				</WorkspaceCornerContext>

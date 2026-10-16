@@ -421,7 +421,7 @@ it.each(["light", "dark"] as const)(
 			expect(node(root, "app-shell").style.backgroundColor).toBe("transparent");
 			expect(
 				root.renderer.findByTestId("repository-chrome-grain")
-			).toBeUndefined();
+			).toBeDefined();
 			await click(root, "workspace-1");
 			await click(root, "rail-settings");
 			expect(root.renderer.findByTestId("settings-view")).toBeUndefined();
@@ -444,6 +444,9 @@ it.each(["light", "dark"] as const)(
 			);
 			expect(node(root, "surface-workspace-1").customProps?.source).toBe(
 				tabSource
+			);
+			expect(node(root, "repository-chrome-grain").style.pointerEvents).toBe(
+				"none"
 			);
 			menu.mockReturnValueOnce({ kind: "pattern", pattern: "rose" });
 			await click(root, "rail-settings");

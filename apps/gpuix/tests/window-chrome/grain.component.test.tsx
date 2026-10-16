@@ -1,5 +1,5 @@
 /**
- * Covers: visible, restrained grain on colored chrome at different window sizes; clean content and input passthrough.
+ * Covers: visible, restrained grain on colored and neutral chrome at different window sizes; clean content and input passthrough.
  * Real: AppShell, repository palettes, GPUIX SVG rasterization and screenshot pixels.
  * Doubles: flat backdrops and empty toolbar/rail; no real blur, accounts, preferences or Git I/O.
  * Requires: patched native addon and macOS graphics access.
@@ -28,16 +28,20 @@ afterEach(async () => {
 });
 
 it.each([
-	["light", 980, 640],
-	["dark", 980, 640],
-	["light", 1440, 900],
-	["dark", 1440, 900],
+	["light", 980, 640, "#a478ef"],
+	["dark", 980, 640, "#a478ef"],
+	["light", 1440, 900, "#a478ef"],
+	["dark", 1440, 900, "#a478ef"],
+	["light", 980, 640, undefined],
+	["dark", 980, 640, undefined],
+	["light", 1440, 900, undefined],
+	["dark", 1440, 900, undefined],
 ] as const)(
-	"paints visible grain only on chrome (%s, %d × %d)",
-	async (appearance, width, height) => {
+	"paints visible grain only on chrome (%s, %d × %d, color=%s)",
+	async (appearance, width, height, color) => {
 		root = createTestRoot({ width, height });
 		const current = root;
-		const palette = RepositoryTheme.create(appThemes[appearance], "#a478ef");
+		const palette = RepositoryTheme.create(appThemes[appearance], color);
 
 		const render = async (grain: boolean) => {
 			current.render(
@@ -51,7 +55,6 @@ it.each([
 					<AppThemeContext
 						value={{
 							...palette,
-							repositoryColor: grain ? palette.repositoryColor : undefined,
 							commitTypeBadges: true,
 						}}
 					>
@@ -65,13 +68,25 @@ it.each([
 					</AppThemeContext>
 				</div>
 			);
+			const layer = current.renderer.findByTestId("repository-chrome-grain");
+
+			if (!layer) throw new Error("Missing chrome grain");
+
+			// Hide only the grain for a baseline with the same palette and layout.
+			if (!grain)
+				current.renderer.applyBatch(
+					JSON.stringify([
+						["setStyle", layer.id, { ...layer.style, opacity: 0 }],
+					])
+				);
+
 			const path = join(directory, `${grain ? "grain" : "plain"}.png`);
 
 			current.renderer.captureScreenshot(path);
 
 			if (grain && process.env.GPUIX_GRAIN_SCREENSHOT)
 				current.renderer.captureScreenshot(
-					`${process.env.GPUIX_GRAIN_SCREENSHOT}-${appearance}-${width}.png`
+					`${process.env.GPUIX_GRAIN_SCREENSHOT}-${appearance}-${width}-${color ?? "neutral"}.png`
 				);
 
 			return await sharp(path)
@@ -80,8 +95,8 @@ it.each([
 				.toBuffer({ resolveWithObject: true });
 		};
 
-		const plain = await render(false);
 		const textured = await render(true);
+		const plain = await render(false);
 		const scale = plain.info.width / width;
 
 		const delta = (x: number, y: number): number => {
@@ -115,7 +130,7 @@ it.each([
 		}
 
 		process.stdout.write(
-			`Grain ${appearance} ${width}: visible=${(changed / count).toFixed(3)} mean=${(total / count).toFixed(2)} max=${maximum}\n`
+			`Grain ${appearance} ${width} ${color ?? "neutral"}: visible=${(changed / count).toFixed(3)} mean=${(total / count).toFixed(2)} max=${maximum}\n`
 		);
 		expect(changed / count).toBeGreaterThan(0.12);
 		expect(total / count).toBeGreaterThan(1.5);
