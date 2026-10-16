@@ -4,6 +4,10 @@ import { NativeBrowser } from "../../platform/browser";
 import { accountSetup, defaultAccountCallback } from "./lib/account-setup";
 import type { Accounts } from "./lib/accounts";
 import { AccountStore, type SavedAccount } from "./lib/account-store";
+import type { GitHubCliAccount } from "./lib/github-cli";
+
+/** Available account connection methods; GitHub CLI is only offered for GitHub. */
+export type AccountConnectionMethod = "browser" | "token" | "github-cli";
 
 /** Shared connection lifecycle; credentials stay in refs and the OS vault, never renderer props. */
 export function useAccountConnection({
@@ -24,7 +28,17 @@ export function useAccountConnection({
 	const [clientId, setClientId] = useState("");
 	const [redirectUri, setRedirectUri] = useState(defaultAccountCallback);
 	const [advanced, setAdvanced] = useState(false);
-	const [manual, setManual] = useState(false);
+	const [method, setMethod] = useState<AccountConnectionMethod>("browser");
+	const manual = method === "token";
+
+	const [cliAccounts, setCliAccounts] = useState<readonly GitHubCliAccount[]>(
+		[]
+	);
+
+	const [cliSelected, setCliSelected] = useState<GitHubCliAccount>();
+	const [cliLoading, setCliLoading] = useState(false);
+	const [cliError, setCliError] = useState<string>();
+	const [cliRevision, setCliRevision] = useState(0);
 	const [repositoryAccess, setRepositoryAccess] = useState(false);
 	const [device, setDevice] = useState<DeviceAuthorization>();
 	const [replacing, setReplacing] = useState<SavedAccount>();
@@ -47,6 +61,40 @@ export function useAccountConnection({
 			token.current = "";
 		};
 	}, []);
+
+	useEffect(() => {
+		if (form !== "connect" || provider !== "github" || method !== "github-cli")
+			return;
+
+		const controller = new AbortController();
+
+		setCliLoading(true);
+		setCliSelected(undefined);
+		setCliAccounts([]);
+		setCliError(undefined);
+
+		void (async () => {
+			try {
+				const found = await accounts.cliAccounts(controller.signal);
+
+				if (!controller.signal.aborted) {
+					setCliAccounts(found);
+					setCliSelected(found.length === 1 ? found[0] : undefined);
+				}
+			} catch (cause) {
+				if (!controller.signal.aborted)
+					setCliError(
+						cause instanceof Error
+							? cause.message
+							: "Could not discover GitHub CLI accounts."
+					);
+			} finally {
+				if (!controller.signal.aborted) setCliLoading(false);
+			}
+		})();
+
+		return () => controller.abort();
+	}, [accounts, form, provider, method, cliRevision]);
 
 	const perform = useCallback(
 		async (operation: (signal: AbortSignal) => Promise<void>) => {
@@ -97,12 +145,14 @@ export function useAccountConnection({
 			token.current = "";
 			setHasToken(false);
 			setForm("connect");
-			setManual(false);
+			setMethod(
+				account?.credentialSource === "github-cli" ? "github-cli" : "browser"
+			);
 			setClientId("");
 			setDevice(undefined);
 			setRepositoryAccess(false);
 
-			if (account)
+			if (account && account.credentialSource !== "github-cli")
 				void perform(async () => {
 					const [registration, access] = await Promise.all([
 						accounts.registration(account),
@@ -145,10 +195,15 @@ export function useAccountConnection({
 		}
 	}, [accounts, initialForm, initialReconnectKey, startConnection]);
 
-	const changeMethod = (useToken: boolean) => {
-		if (manual === useToken) return;
+	const changeMethod = (next: AccountConnectionMethod) => {
+		if (
+			busy ||
+			method === next ||
+			(next === "github-cli" && provider !== "github")
+		)
+			return;
 
-		setManual(useToken);
+		setMethod(next);
 		token.current = "";
 		setHasToken(false);
 		setEditorVersion((version) => version + 1);
@@ -174,36 +229,44 @@ export function useAccountConnection({
 		setEditorVersion((version) => version + 1);
 
 		void perform(async (signal) => {
-			setWaiting(!manual);
-			const next = manual
-				? await accounts.connect({
-						provider,
-						webUrl,
-						token: credential,
-						replacing,
-						signal,
-					})
-				: await accounts.connectBrowser({
-						provider,
-						webUrl,
-						repositoryAccess,
-						registration: {
-							clientId: clientId.trim(),
-							redirectUri:
-								provider === "gitlab" ? redirectUri.trim() : undefined,
-						},
-						replacing,
-						signal,
-						onDeviceCode: (code) => {
-							if (mounted.current && !signal.aborted) setDevice(code);
-						},
-						onAuthorized: () => {
-							if (mounted.current) {
-								setWaiting(false);
-								setDevice(undefined);
-							}
-						},
-					});
+			setWaiting(method !== "token");
+			let next: SavedAccount[];
+
+			if (method === "github-cli") {
+				if (!cliSelected) throw new Error("Choose a GitHub CLI account.");
+
+				next = await accounts.connectCli(cliSelected, { replacing, signal });
+			} else {
+				next = manual
+					? await accounts.connect({
+							provider,
+							webUrl,
+							token: credential,
+							replacing,
+							signal,
+						})
+					: await accounts.connectBrowser({
+							provider,
+							webUrl,
+							repositoryAccess,
+							registration: {
+								clientId: clientId.trim(),
+								redirectUri:
+									provider === "gitlab" ? redirectUri.trim() : undefined,
+							},
+							replacing,
+							signal,
+							onDeviceCode: (code) => {
+								if (mounted.current && !signal.aborted) setDevice(code);
+							},
+							onAuthorized: () => {
+								if (mounted.current) {
+									setWaiting(false);
+									setDevice(undefined);
+								}
+							},
+						});
+			}
 
 			if (!mounted.current) return;
 
@@ -234,6 +297,7 @@ export function useAccountConnection({
 		if (busy || replacing || value === provider) return;
 
 		setProvider(value);
+		setMethod((current) => (current === "github-cli" ? "browser" : current));
 		setClientId("");
 		setWebUrl(accountSetup[value].host);
 		setRedirectUri(defaultAccountCallback);
@@ -274,6 +338,13 @@ export function useAccountConnection({
 		advanced,
 		setAdvanced,
 		manual,
+		method,
+		cliAccounts,
+		cliSelected,
+		setCliSelected,
+		cliLoading,
+		cliError,
+		refreshCli: () => setCliRevision((revision) => revision + 1),
 		repositoryAccess,
 		setRepositoryAccess,
 		device,

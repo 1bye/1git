@@ -5,6 +5,7 @@ import { Button } from "@1git/gpuix-ui/button";
 import { useState, type ReactNode } from "react";
 
 import type { SavedAccount } from "./lib/account-store";
+import type { AccountConnectionMethod } from "./use-account-connection";
 import { accountProviderIcons } from "./account-provider-icons";
 import {
 	accountSetup,
@@ -99,12 +100,14 @@ export function AccountProviderChoices({
 /** Connection methods share the provider tiles' visual and native activation behavior. */
 export function AccountMethodChoices({
 	value,
+	githubCli = false,
 	disabled,
 	onChange,
 }: {
-	value: "browser" | "token";
+	value: AccountConnectionMethod;
+	githubCli?: boolean;
 	disabled: boolean;
-	onChange: (method: "browser" | "token") => void;
+	onChange: (method: AccountConnectionMethod) => void;
 }) {
 	return (
 		<div
@@ -112,12 +115,31 @@ export function AccountMethodChoices({
 			aria-label="Connection method"
 			style={{ display: "flex", flexDirection: "row", gap: spacing[2] }}
 		>
-			{(["browser", "token"] as const).map((method) => (
+			{(
+				[
+					"browser",
+					"token",
+					...(githubCli ? ["github-cli" as const] : []),
+				] as const
+			).map((method) => (
 				<AccountChoiceTile
 					key={method}
 					testId={`account-auth-${method}`}
-					label={method === "browser" ? "Browser sign-in" : "Access token"}
-					source={method === "browser" ? icons.browser : icons.key}
+					label={
+						method === "github-cli"
+							? "GitHub CLI"
+							: method === "browser"
+								? "Browser"
+								: "Access token"
+					}
+					accessibleName={method === "browser" ? "Browser sign-in" : undefined}
+					source={
+						method === "github-cli"
+							? accountProviderIcons.github
+							: method === "browser"
+								? icons.browser
+								: icons.key
+					}
 					selected={value === method}
 					description={
 						value === method ? "Selected connection method" : undefined

@@ -16,6 +16,7 @@ export interface SavedAccount {
 	readonly webUrl: string;
 	readonly id: string;
 	readonly username: string;
+	readonly credentialSource?: "github-cli";
 }
 
 const maxBytes = 64 * 1024;
@@ -69,12 +70,15 @@ export class AccountStore {
 		// Explicit projection is essential: callers cannot accidentally serialize an access token.
 		const document = {
 			version: 1,
-			accounts: accounts.map(({ provider, webUrl, id, username }) => ({
-				provider,
-				webUrl,
-				id,
-				username,
-			})),
+			accounts: accounts.map(
+				({ provider, webUrl, id, username, credentialSource }) => ({
+					provider,
+					webUrl,
+					id,
+					username,
+					...(credentialSource ? { credentialSource } : {}),
+				})
+			),
 		};
 
 		AccountStore.parse(document);
@@ -130,6 +134,17 @@ export class AccountStore {
 
 			const url = new URL(entry.webUrl);
 
+			const credentialSource =
+				"credentialSource" in entry ? entry.credentialSource : undefined;
+
+			if (
+				credentialSource !== undefined &&
+				(credentialSource !== "github-cli" ||
+					entry.provider !== "github" ||
+					url.pathname !== "/")
+			)
+				throw new Error("Invalid credential source.");
+
 			if (
 				url.protocol !== "https:" ||
 				url.username ||
@@ -150,6 +165,9 @@ export class AccountStore {
 				webUrl: entry.webUrl,
 				id: entry.id,
 				username: entry.username,
+				...(credentialSource === "github-cli"
+					? ({ credentialSource } as const)
+					: {}),
 			};
 
 			const key = AccountStore.key(account);

@@ -854,7 +854,9 @@ export function AccountsSettings({
 									</text>
 								) : null}
 								<text style={labelStyle}>
-									{`Removes this account and its saved credentials from 1git. Your ${removing ? accountSetup[removing.provider].name : "hosting"} account and repositories stay unchanged.`}
+									{removing?.credentialSource === "github-cli"
+										? "Removes this connection from 1git. You stay signed in to GitHub CLI."
+										: `Removes this account and its saved credentials from 1git. Your ${removing ? accountSetup[removing.provider].name : "hosting"} account and repositories stay unchanged.`}
 								</text>
 								{error ? (
 									<text

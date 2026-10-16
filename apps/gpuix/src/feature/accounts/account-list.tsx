@@ -159,7 +159,7 @@ export function AccountList({
 								testId={`account-status-${key}`}
 								style={{ ...typography.sm, color: appTokens.colors.textMuted }}
 							>
-								{`${host.host}${host.pathname === "/" ? "" : host.pathname} · ${status[key] ?? "Not checked"}`}
+								{`${host.host}${host.pathname === "/" ? "" : host.pathname} · ${account.credentialSource === "github-cli" ? "GitHub CLI · " : ""}${status[key] ?? "Not checked"}`}
 							</text>
 						</div>
 						<div

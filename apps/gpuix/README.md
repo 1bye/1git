@@ -444,9 +444,10 @@ open repositories, drafts, theme, accounts, or AI preferences.
 Step 2 lists saved accounts and opens GitHub/GitLab connection in a separate
 right-hand pane, divided from the overview. Each side scrolls independently:
 setup navigation stays on the left; Cancel and Connect stay on the right.
-It shares Settings' browser/token authentication controls, cancellation, and OS
-credential storage. Accounts are optional; continuing or skipping clears any
-unsubmitted token. No provider request starts until an explicit sign-in/connect.
+It shares Settings' browser/token/GitHub CLI authentication controls and cancellation.
+Browser/token credentials use the OS vault; CLI credentials stay managed by gh. Accounts are optional; continuing or skipping clears any
+unsubmitted token. Selecting GitHub CLI checks its signed-in accounts; other provider
+requests start only after an explicit sign-in/connect.
 Commit identity is a secondary, expandable section, prefilled read-only from
 global configuration. Only **Save identity** updates computer-wide Git settings;
 Continue, Back, Skip, and account connection never save identity edits.
@@ -708,7 +709,8 @@ a centered thin-vector account illustration and a short connection hint.
 **Add account** or **Reconnect** opens a separate
 right-hand setup pane with a divider and an even split of the content space;
 Cancel/Escape closes that pane without leaving Settings. Choose a GitHub or GitLab
-icon tile, then use matching tiles for **Browser sign-in** or **Access token**.
+icon tile, then use matching tiles for **Browser sign-in**, **Access token**, or
+**GitHub CLI** (GitHub only).
 Quick setup follows the provider and method without numbered steps. Public application
 name, homepage and callback values have keyboard-accessible **Copy** buttons with
 success feedback and retryable errors; GitLab's redirect value follows the callback
@@ -721,6 +723,33 @@ an unfinished connection. **Open GitHub/GitLab settings** opens the exact setup
 page in the system browser only when clicked. The **Other…** cell opens a draft
 issue in this project's GitHub repository with provider contribution instructions;
 it does not submit an issue or connect an unsupported provider.
+
+**GitHub CLI** automatically discovers accounts with `gh auth status --json hosts`,
+including GitHub Enterprise hosts. Older CLI releases such as 2.74.1 fall back to
+the masked `gh auth status` output; no gh configuration or credential files are read directly. Select an account using the shared choice tiles and click **Connect with GitHub CLI**.
+A single detected account is selected automatically; multiple accounts require a choice.
+Each tile uses the same icon, border and selected fill as the provider and method pickers,
+with **Select**/**Selected** text and guidance
+explaining when Connect becomes available.
+If gh is unavailable, outdated, or signed out, the form explains how to install/update
+it or run `gh auth login`; **Refresh accounts** retries discovery. Each credential lookup
+uses `gh auth token --hostname HOST --user USER`, independently of the CLI's active
+account. 1git validates the returned identity and stores only its host, username,
+immutable user ID and CLI credential-source marker. It never copies CLI tokens into
+its vault, switches CLI accounts, logs out, or changes the CLI's permissions.
+Switching an existing browser/token account to CLI changes metadata only: its older
+OS-vault entry is left untouched and is no longer used by that connection. A locked
+or denied app credential store cannot block the CLI connection.
+Credential rotation is picked up on the next operation; missing/revoked credentials
+require signing back in through gh. CLI connections use the same repository, clone,
+publish, synchronization and PR APIs as other connections, subject to existing
+permissions and organization policy. Inherited token environment variables are
+removed from gh subprocesses so they cannot override the selected saved account.
+Finder launches also search standard Homebrew executable locations. Discovery and
+token lookup are bounded, cancellable subprocesses; raw output/errors are never shown.
+Removing a CLI connection removes only 1git's metadata and keeps gh signed in.
+The POSIX subprocess fixture can be checked offline with
+`bun test apps/gpuix/tests/accounts/github-cli.integration.test.ts`.
 
 **Advanced** contains the HTTPS host for GitHub Enterprise or self-managed GitLab,
 and GitLab's registered loopback callback. Setup links follow the chosen host,
@@ -747,7 +776,7 @@ disconnect an account.
 Access/refresh tokens and their public OAuth registration use GPUI's OS vault
 (macOS Keychain in the supported build), with an
 application-namespaced key derived from provider, canonical host and immutable
-user ID. No plaintext storage fallback exists. Only account identity is persisted
+user ID. No plaintext storage fallback exists. Only account identity and credential source are persisted
 in `accounts.json`, beside `session.json`; `GPUIX_ACCOUNTS_PATH` overrides that
 metadata path for isolated development. It is not a token path. Metadata writes
 are private (0600) and atomic; failed saves attempt credential rollback and report

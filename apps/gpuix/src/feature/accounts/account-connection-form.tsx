@@ -13,6 +13,7 @@ import {
 	AccountSetupSection,
 } from "./account-connection-guide";
 import { accountSetup, accountSetupUrl } from "./lib/account-setup";
+import { GitHubCliAccounts } from "./github-cli-accounts";
 import type { AccountConnection } from "./use-account-connection";
 
 const themedStyles = createThemedStyles(({ tokens }) => ({
@@ -96,189 +97,199 @@ export function AccountConnectionFields({
 			)}
 			<AccountSetupSection label="Connect with">
 				<AccountMethodChoices
-					value={manual ? "token" : "browser"}
+					value={connection.method}
+					githubCli={provider === "github"}
 					disabled={busy}
-					onChange={(method) => changeMethod(method === "token")}
+					onChange={changeMethod}
 				/>
 			</AccountSetupSection>
-			<AccountConnectionGuide
-				repositoryAccess={repositoryAccess}
-				provider={provider}
-				manual={manual}
-				host={webUrl}
-				callback={redirectUri}
-				disabled={busy}
-				copyText={copyText}
-				onOpen={(url) => {
-					void openSetupLink(url);
-				}}
-			/>
-			{manual ? (
-				<div
-					style={{
-						display: "flex",
-						flexDirection: "column",
-						gap: spacing[1.5],
-						flexShrink: 0,
-					}}
-				>
-					<text
-						style={{
-							...labelStyle,
-							color: appTokens.colors.text,
-							fontWeight: fontWeight.medium,
-						}}
-					>
-						Access token
-					</text>
-					<input
-						key={editorVersion}
-						type="password"
-						aria-label="Access token"
-						aria-description="Masked. Stored only in the OS credential store."
-						testId="account-token"
-						readOnly={busy}
-						tabIndex={0}
-						placeholder="Paste an access token"
-						style={fieldStyle}
-						onChange={(event) => setToken(event.value ?? "")}
-					/>
-					<text style={{ ...labelStyle, ...typography.sm }}>
-						{process.platform === "darwin"
-							? "Stored securely in macOS Keychain."
-							: "Stored securely in the OS credential store."}
-					</text>
-				</div>
+			{connection.method === "github-cli" ? (
+				<GitHubCliAccounts connection={connection} />
 			) : (
-				<div
-					style={{
-						display: "flex",
-						flexDirection: "column",
-						gap: spacing[1.5],
-						flexShrink: 0,
-					}}
-				>
-					<text
-						style={{
-							...labelStyle,
-							color: appTokens.colors.text,
-							fontWeight: fontWeight.medium,
+				<>
+					<AccountConnectionGuide
+						repositoryAccess={repositoryAccess}
+						provider={provider}
+						manual={manual}
+						host={webUrl}
+						callback={redirectUri}
+						disabled={busy}
+						copyText={copyText}
+						onOpen={(url) => {
+							void openSetupLink(url);
 						}}
-					>
-						{provider === "github" ? "Client ID" : "Application ID"}
-					</text>
-					<input
-						aria-label="Application client ID"
-						testId="account-client-id"
-						value={clientId}
-						tabIndex={0}
-						readOnly={busy}
-						style={fieldStyle}
-						placeholder={provider === "github" ? "Client ID" : "Application ID"}
-						onChange={(event) => setClientId(event.value ?? "")}
 					/>
-					<text style={{ ...labelStyle, ...typography.sm }}>
-						Use the public ID, not the client secret.
-					</text>
-				</div>
-			)}
-			<AccountSetupSection label="Repository access">
-				<Checkbox
-					testId="account-repository-access"
-					tokens={appTokens}
-					label="Browse and clone private repositories"
-					checked={repositoryAccess}
-					disabled={busy}
-					onCheckedChange={setRepositoryAccess}
-				/>
-				<text style={{ ...labelStyle, ...typography.sm }}>
-					{repositoryAccess
-						? provider === "github"
-							? "GitHub OAuth's repo scope grants read and write access. For selected repositories with read-only access, use a fine-grained token instead."
-							: "Requests read-only API and Git access. Enable read_user, read_api and read_repository on your application or token."
-						: "Profile-only sign-in. GitHub can list public repositories; GitLab repository browsing needs read_api."}
-				</text>
-			</AccountSetupSection>
-			{busy && !manual ? (
-				<text testId="account-authorization-progress" style={labelStyle}>
-					{device
-						? `Enter ${device.userCode} in your browser to authorize 1git.`
-						: "Waiting for authorization…"}
-				</text>
-			) : null}
-			{device ? (
-				<text
-					testId="account-device-code"
-					style={{
-						...typography["2xl"],
-						color: appTokens.colors.text,
-						userSelect: "auto",
-					}}
-				>
-					{device.userCode}
-				</text>
-			) : null}
-			<Button
-				testId="account-advanced"
-				tokens={appTokens}
-				size="sm"
-				variant="ghost"
-				aria-expanded={advanced}
-				disabled={busy}
-				style={{
-					alignSelf: "flex-start",
-					flexDirection: "row",
-					gap: spacing[1],
-					paddingLeft: spacing[0],
-				}}
-				onPress={() => setAdvanced(!advanced)}
-			>
-				<WorkspaceTabIcon name={advanced ? "caretDown" : "caretRight"} />
-				Advanced
-			</Button>
-			{!advanced &&
-			webUrl.replace(/\/+$/u, "") !== accountSetup[provider].host ? (
-				<text
-					style={{ ...labelStyle, ...typography.sm }}
-				>{`Host: ${webUrl}`}</text>
-			) : null}
-			{advanced ? (
-				<div
-					style={{
-						display: "flex",
-						flexDirection: "column",
-						gap: spacing[1.5],
-					}}
-				>
-					<text style={labelStyle}>Host URL</text>
-					<input
-						value={webUrl}
-						aria-label="Host URL"
-						testId="account-host"
-						readOnly={busy || !!replacing}
-						tabIndex={0}
-						style={fieldStyle}
-						onChange={(event) => setWebUrl(event.value ?? "")}
-					/>
-					<text style={{ ...labelStyle, ...typography.sm }}>
-						For GitHub Enterprise or self-managed GitLab. Register on this host.
-					</text>
-					{provider === "gitlab" && !manual ? (
-						<>
-							<text style={labelStyle}>Registered callback URL</text>
+					{manual ? (
+						<div
+							style={{
+								display: "flex",
+								flexDirection: "column",
+								gap: spacing[1.5],
+								flexShrink: 0,
+							}}
+						>
+							<text
+								style={{
+									...labelStyle,
+									color: appTokens.colors.text,
+									fontWeight: fontWeight.medium,
+								}}
+							>
+								Access token
+							</text>
 							<input
-								aria-label="Registered callback URL"
-								testId="account-callback"
-								value={redirectUri}
+								key={editorVersion}
+								type="password"
+								aria-label="Access token"
+								aria-description="Masked. Stored only in the OS credential store."
+								testId="account-token"
+								readOnly={busy}
+								tabIndex={0}
+								placeholder="Paste an access token"
+								style={fieldStyle}
+								onChange={(event) => setToken(event.value ?? "")}
+							/>
+							<text style={{ ...labelStyle, ...typography.sm }}>
+								{process.platform === "darwin"
+									? "Stored securely in macOS Keychain."
+									: "Stored securely in the OS credential store."}
+							</text>
+						</div>
+					) : (
+						<div
+							style={{
+								display: "flex",
+								flexDirection: "column",
+								gap: spacing[1.5],
+								flexShrink: 0,
+							}}
+						>
+							<text
+								style={{
+									...labelStyle,
+									color: appTokens.colors.text,
+									fontWeight: fontWeight.medium,
+								}}
+							>
+								{provider === "github" ? "Client ID" : "Application ID"}
+							</text>
+							<input
+								aria-label="Application client ID"
+								testId="account-client-id"
+								value={clientId}
 								tabIndex={0}
 								readOnly={busy}
 								style={fieldStyle}
-								onChange={(event) => setRedirectUri(event.value ?? "")}
+								placeholder={
+									provider === "github" ? "Client ID" : "Application ID"
+								}
+								onChange={(event) => setClientId(event.value ?? "")}
 							/>
-						</>
+							<text style={{ ...labelStyle, ...typography.sm }}>
+								Use the public ID, not the client secret.
+							</text>
+						</div>
+					)}
+					<AccountSetupSection label="Repository access">
+						<Checkbox
+							testId="account-repository-access"
+							tokens={appTokens}
+							label="Browse and clone private repositories"
+							checked={repositoryAccess}
+							disabled={busy}
+							onCheckedChange={setRepositoryAccess}
+						/>
+						<text style={{ ...labelStyle, ...typography.sm }}>
+							{repositoryAccess
+								? provider === "github"
+									? "GitHub OAuth's repo scope grants read and write access. For selected repositories with read-only access, use a fine-grained token instead."
+									: "Requests read-only API and Git access. Enable read_user, read_api and read_repository on your application or token."
+								: "Profile-only sign-in. GitHub can list public repositories; GitLab repository browsing needs read_api."}
+						</text>
+					</AccountSetupSection>
+					{busy && !manual ? (
+						<text testId="account-authorization-progress" style={labelStyle}>
+							{device
+								? `Enter ${device.userCode} in your browser to authorize 1git.`
+								: "Waiting for authorization…"}
+						</text>
 					) : null}
-				</div>
-			) : null}
+					{device ? (
+						<text
+							testId="account-device-code"
+							style={{
+								...typography["2xl"],
+								color: appTokens.colors.text,
+								userSelect: "auto",
+							}}
+						>
+							{device.userCode}
+						</text>
+					) : null}
+					<Button
+						testId="account-advanced"
+						tokens={appTokens}
+						size="sm"
+						variant="ghost"
+						aria-expanded={advanced}
+						disabled={busy}
+						style={{
+							alignSelf: "flex-start",
+							flexDirection: "row",
+							gap: spacing[1],
+							paddingLeft: spacing[0],
+						}}
+						onPress={() => setAdvanced(!advanced)}
+					>
+						<WorkspaceTabIcon name={advanced ? "caretDown" : "caretRight"} />
+						Advanced
+					</Button>
+					{!advanced &&
+					webUrl.replace(/\/+$/u, "") !== accountSetup[provider].host ? (
+						<text
+							style={{ ...labelStyle, ...typography.sm }}
+						>{`Host: ${webUrl}`}</text>
+					) : null}
+					{advanced ? (
+						<div
+							style={{
+								display: "flex",
+								flexDirection: "column",
+								gap: spacing[1.5],
+							}}
+						>
+							<text style={labelStyle}>Host URL</text>
+							<input
+								value={webUrl}
+								aria-label="Host URL"
+								testId="account-host"
+								readOnly={busy || !!replacing}
+								tabIndex={0}
+								style={fieldStyle}
+								onChange={(event) => setWebUrl(event.value ?? "")}
+							/>
+							<text style={{ ...labelStyle, ...typography.sm }}>
+								For GitHub Enterprise or self-managed GitLab. Register on this
+								host.
+							</text>
+							{provider === "gitlab" && !manual ? (
+								<>
+									<text style={labelStyle}>Registered callback URL</text>
+									<input
+										aria-label="Registered callback URL"
+										testId="account-callback"
+										value={redirectUri}
+										tabIndex={0}
+										readOnly={busy}
+										style={fieldStyle}
+										onChange={(event) => setRedirectUri(event.value ?? "")}
+									/>
+								</>
+							) : null}
+						</div>
+					) : null}
+				</>
+			)}
 		</div>
 	);
 }
@@ -352,12 +363,24 @@ export function AccountConnectionActions({
 					testId="account-connect"
 					disabled={
 						busy ||
-						!(manual ? hasToken : clientId.trim()) ||
-						!accountSetupUrl(provider, webUrl, manual ? "token" : "browser")
+						(connection.method === "github-cli"
+							? connection.cliLoading || !connection.cliSelected
+							: !(manual ? hasToken : clientId.trim()) ||
+								!accountSetupUrl(
+									provider,
+									webUrl,
+									manual ? "token" : "browser"
+								))
 					}
 					onPress={connect}
 				>
-					{busy ? "Working…" : manual ? "Connect" : "Sign in with browser"}
+					{busy
+						? "Working…"
+						: connection.method === "github-cli"
+							? "Connect with GitHub CLI"
+							: manual
+								? "Connect"
+								: "Sign in with browser"}
 				</Button>
 			</div>
 		</div>

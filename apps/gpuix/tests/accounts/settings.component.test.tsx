@@ -11,9 +11,12 @@ import { join } from "node:path";
 import { createTestRoot, type TestRoot } from "@gpuix/react/testing";
 import { App } from "../../src/app";
 import { Accounts } from "../../src/feature/accounts/lib/accounts";
+import { NativeCredentials } from "../../src/feature/accounts/lib/native-credentials";
+import { GitHubCli } from "../../src/feature/accounts/lib/github-cli";
 import { AccountStore } from "../../src/feature/accounts/lib/account-store";
 import { windowOptions } from "../../src/window-options";
 import { AccountAuthorization } from "../../src/feature/accounts/lib/account-authorization";
+import { AppThemeContext, appThemes } from "../../src/styles/theme";
 import { appTokens } from "../../src/styles/tokens";
 import { workspaceLayout } from "../../src/styles/workspace-layout";
 import { AccountsSettings } from "../../src/feature/accounts/accounts-settings";
@@ -81,7 +84,8 @@ async function revealSetupControl(testId: string) {
 function fixture(
 	status = 200,
 	device = false,
-	beforeDelete?: (key: string) => Promise<void>
+	beforeDelete?: (key: string) => Promise<void>,
+	cli?: GitHubCli
 ) {
 	const store = new AccountStore(join(directory, "accounts.json"));
 	const secrets = new Map<string, string>();
@@ -136,10 +140,11 @@ function fixture(
 			},
 		},
 		http,
-		new AccountAuthorization(http, async () => undefined)
+		new AccountAuthorization(http, async () => undefined),
+		cli
 	);
 
-	return { accounts, store, secrets, requests };
+	return { accounts, store, secrets, requests, http };
 }
 
 it("opens a full Settings view with Cmd+, and restores the same workspace and focus", async () => {
@@ -490,7 +495,17 @@ it("shows matching icon tiles for connection methods with mouse and keyboard sel
 
 	expect(browserBounds.height).toBe(providerBounds.height);
 	expect(tokenBounds.height).toBe(providerBounds.height);
-	expect(tokenBounds.width).toBe(browserBounds.width);
+	// Three columns can differ by half a point after native device-pixel snapping.
+	expect(Math.abs(tokenBounds.width - browserBounds.width)).toBeLessThanOrEqual(
+		0.5
+	);
+	const cli = root.renderer.findByTestId("account-auth-github-cli")!;
+
+	expect(
+		Math.abs(
+			root.renderer.getElementBounds(cli.id)!.width - browserBounds.width
+		)
+	).toBeLessThanOrEqual(0.5);
 	expect(root.renderer.findByTestId("account-auth-browser-icon")).toBeDefined();
 	expect(root.renderer.findByTestId("account-auth-token-icon")).toBeDefined();
 	click("account-auth-token");
@@ -1498,4 +1513,258 @@ it("pins Cancel and Connect outside setup scrolling at minimum window height", a
 	await settle();
 	expect(root.renderer.findByTestId("accounts-empty")).toBeDefined();
 	expect(root.renderer.findByTestId("account-setup-panel")).toBeUndefined();
+});
+
+it("discovers CLI accounts, connects the chosen account with keyboard activation and keeps gh signed in on removal", async () => {
+	const calls: (readonly string[])[] = [];
+
+	const cli = new GitHubCli(async (args) => {
+		calls.push(args);
+
+		if (args[1] === "status")
+			return JSON.stringify({
+				hosts: {
+					"github.com": [
+						{
+							login: "other",
+							active: true,
+							state: "success",
+							token: "never-render-status-token",
+						},
+						{
+							login: "tester",
+							active: false,
+							state: "success",
+							token: "never-render-status-token",
+						},
+					],
+				},
+			});
+
+		return "never-render-cli-secret";
+	});
+
+	const f = fixture(200, false, undefined, cli);
+
+	root.render(
+		<AccountsSettings
+			accounts={f.accounts}
+			initialForm="connect"
+			onBack={() => undefined}
+		/>
+	);
+	await settle();
+	click("account-auth-github-cli");
+	await settle();
+	expect(root.renderer.getAllText()).toContain("other");
+	expect(root.renderer.getAllText()).toContain("tester");
+	expect(root.renderer.getAllText()).toContain("github.com · Select");
+	expect(root.renderer.getAllText().join("\n")).toContain(
+		"Select an account below to enable"
+	);
+	expect(root.renderer.findByTestId("account-connect")?.style.opacity).toBe(
+		0.45
+	);
+	click("account-connect");
+	await settle();
+	expect(f.store.load()).toEqual([]);
+	expect(f.requests).toEqual([]);
+	expect(root.renderer.findByTestId("account-token")).toBeUndefined();
+	expect(root.renderer.findByTestId("account-client-id")).toBeUndefined();
+	const picker = root.renderer.findByTestId("account-cli-github.com-tester");
+
+	if (!picker) throw new Error("Missing CLI account picker");
+
+	root.renderer.focusElement(picker.id);
+	root.renderer.simulateKeystrokes("enter");
+	await settle();
+	expect(JSON.stringify(root.renderer.getA11yTree())).toContain(
+		"Selected account"
+	);
+	expect(root.renderer.getAllText()).toContain("github.com · Selected");
+	expect(root.renderer.findByTestId("account-connect")?.style.opacity).not.toBe(
+		0.45
+	);
+
+	if (process.env.GPUIX_ACCOUNTS_SCREENSHOT)
+		root.renderer.captureScreenshot(
+			`${process.env.GPUIX_ACCOUNTS_SCREENSHOT}.cli.png`
+		);
+
+	click("account-connect");
+	await settle();
+	const account = f.store.load()[0];
+
+	if (!account) throw new Error("Missing connected CLI account");
+
+	expect(account.username).toBe("tester");
+	expect(account.credentialSource).toBe("github-cli");
+	expect(f.secrets.size).toBe(0);
+	expect(readFileSync(f.store.path, "utf8")).not.toContain("never-render");
+	expect(root.renderer.getAllText()).not.toContain("never-render");
+	click(`account-remove-${AccountStore.key(account)}`);
+	await settle();
+	expect(root.renderer.getAllText().join("\n")).toContain(
+		"You stay signed in to GitHub CLI."
+	);
+	click("account-remove-confirm");
+	await settle();
+	expect(f.store.load()).toEqual([]);
+	expect(calls).toEqual([
+		["auth", "status", "--json", "hosts"],
+		["auth", "token", "--hostname", "github.com", "--user", "tester"],
+	]);
+});
+
+it("shows recoverable CLI errors and empty discovery, refreshes and hides CLI for GitLab", async () => {
+	let attempt = 0;
+
+	const cli = new GitHubCli(async () => {
+		attempt++;
+
+		if (attempt === 1) throw new Error("never-render-cli-failure");
+
+		return '{"hosts":{}}';
+	});
+
+	const f = fixture(200, false, undefined, cli);
+
+	root.render(
+		<AccountsSettings
+			accounts={f.accounts}
+			initialForm="connect"
+			onBack={() => undefined}
+		/>
+	);
+	await settle();
+	click("account-auth-github-cli");
+	await settle();
+	expect(root.renderer.findByTestId("account-cli-error")).toBeDefined();
+	expect(root.renderer.getAllText()).not.toContain("never-render-cli-failure");
+	click("account-cli-refresh");
+	await settle();
+	expect(root.renderer.findByTestId("account-cli-empty")).toBeDefined();
+	click("account-provider-gitlab");
+	await settle();
+	expect(root.renderer.findByTestId("account-auth-github-cli")).toBeUndefined();
+	expect(root.renderer.findByTestId("account-client-id")).toBeDefined();
+});
+
+for (const appearance of ["light", "dark"] as const) {
+	it(`automatically selects the only CLI account and enables Connect (${appearance})`, async () => {
+		const cli = new GitHubCli(async (args) => {
+			if (args[1] === "status")
+				return JSON.stringify({
+					hosts: {
+						"github.com": [{ login: "tester", active: true, state: "success" }],
+					},
+				});
+
+			return "never-render-cli-secret";
+		});
+
+		const f = fixture(200, false, undefined, cli);
+
+		root.render(
+			<AppThemeContext.Provider
+				value={{ ...appThemes[appearance], commitTypeBadges: true }}
+			>
+				<AccountsSettings
+					accounts={f.accounts}
+					initialForm="connect"
+					onBack={() => undefined}
+				/>
+			</AppThemeContext.Provider>
+		);
+		await settle();
+		click("account-auth-github-cli");
+		await settle();
+		const text = root.renderer.getAllText().join("\n");
+		const connect = root.renderer.findByTestId("account-connect");
+
+		expect(text).toContain("Ready to connect as tester.");
+		expect(root.renderer.getAllText()).toContain("github.com · Selected");
+		expect(connect).toBeDefined();
+		expect(connect?.customProps?.tabIndex).toBe(0);
+		expect(connect?.style.opacity).not.toBe(0.45);
+		expect(f.store.load()).toEqual([]);
+		expect(f.requests).toEqual([]);
+
+		if (process.env.GPUIX_ACCOUNTS_SCREENSHOT)
+			root.renderer.captureScreenshot(
+				`${process.env.GPUIX_ACCOUNTS_SCREENSHOT}.cli-single-${appearance}.png`
+			);
+
+		click("account-connect");
+		await settle();
+		expect(f.store.load()[0]?.username).toBe("tester");
+		expect(f.secrets.size).toBe(0);
+	});
+}
+
+it("switches an existing app account to CLI without its denied OS vault and keeps CLI errors inside Settings", async () => {
+	let token = "";
+	let vaultCalls = 0;
+
+	const cli = new GitHubCli(async (args) =>
+		args[1] === "status"
+			? JSON.stringify({
+					hosts: {
+						"github.com": [{ login: "tester", active: true, state: "success" }],
+					},
+				})
+			: token
+	);
+
+	const f = fixture(200, false, undefined, cli);
+
+	const existing = {
+		provider: "github" as const,
+		webUrl: "https://github.com/",
+		id: "7",
+		username: "tester",
+	};
+
+	const deny = async () => {
+		vaultCalls++;
+
+		throw new Error("OS credential store is unavailable or access was denied");
+	};
+
+	const vault = new NativeCredentials({
+		readHostingCredential: deny,
+		writeHostingCredential: deny,
+		deleteHostingCredential: deny,
+	});
+
+	const accounts = new Accounts(f.store, vault, f.http, undefined, cli);
+
+	f.store.save([existing]);
+	root.render(
+		<AccountsSettings
+			accounts={accounts}
+			initialForm="connect"
+			onBack={() => undefined}
+		/>
+	);
+	await settle();
+	click("account-auth-github-cli");
+	await settle();
+	click("account-connect");
+	await settle();
+	expect(root.renderer.findByTestId("accounts-error")).toBeDefined();
+	expect(root.renderer.findByTestId("accounts-settings")).toBeDefined();
+	expect(root.renderer.getAllText().join("\n")).not.toContain(
+		"Uncaught runtime errors"
+	);
+	expect(f.store.load()).toEqual([existing]);
+	expect(vaultCalls).toBe(0);
+	token = "synthetic-cli-credential";
+	click("account-connect");
+	await settle();
+	expect(f.store.load()[0]?.credentialSource).toBe("github-cli");
+	expect(f.store.load()[0]?.id).toBe(existing.id);
+	expect(root.renderer.findByTestId("accounts-error")).toBeUndefined();
+	expect(root.renderer.findByTestId("accounts-settings")).toBeDefined();
+	expect(vaultCalls).toBe(0);
 });

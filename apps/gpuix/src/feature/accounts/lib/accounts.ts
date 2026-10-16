@@ -19,6 +19,7 @@ import { parseRemote } from "@1git/hosting/remote";
 import { type GitResult, type GitHttpAuthentication } from "@1git/git";
 import { GitRepository } from "../../machines/repository-access";
 import type { CredentialVault } from "./native-credentials";
+import { GitHubCli, type GitHubCliAccount } from "./github-cli";
 import {
 	AccountAuthorization,
 	type BrowserConnection,
@@ -88,11 +89,39 @@ export class Accounts {
 		private readonly store: AccountStore,
 		private readonly vault: CredentialVault,
 		private readonly fetch?: HostingFetch,
-		private readonly authorization = new AccountAuthorization(fetch)
+		private readonly authorization = new AccountAuthorization(fetch),
+		private readonly githubCli = new GitHubCli()
 	) {}
 
 	load(): SavedAccount[] {
 		return this.store.load();
+	}
+
+	/** Discover public identities without importing or storing CLI credentials. */
+	cliAccounts(signal?: AbortSignal): Promise<readonly GitHubCliAccount[]> {
+		return this.githubCli.accounts(signal);
+	}
+
+	/** Pin an explicitly chosen CLI account after verifying its GitHub identity. */
+	async connectCli(
+		selected: GitHubCliAccount,
+		options: {
+			readonly replacing?: SavedAccount;
+			readonly signal?: AbortSignal;
+		} = {}
+	): Promise<SavedAccount[]> {
+		const token = await this.githubCli.token(selected, options.signal);
+
+		return this.saveConnection(
+			{
+				provider: "github",
+				webUrl: `https://${selected.host}/`,
+				token,
+				...options,
+			},
+			undefined,
+			selected.username
+		);
 	}
 
 	/** Read-only PR/MR metadata from a verified account; tokens never leave the account service. */
@@ -363,6 +392,9 @@ export class Accounts {
 
 	/** Public permission hint, not a guarantee of access to any particular repository. */
 	async repositoryAccess(account: SavedAccount): Promise<boolean | null> {
+		if (this.savedAccount(account)?.credentialSource === "github-cli")
+			return null;
+
 		const saved = await this.vault.read(AccountStore.key(account));
 
 		if (saved === null) return false;
@@ -479,6 +511,21 @@ export class Accounts {
 		signal?: AbortSignal
 	): Promise<AccountCredential | null> {
 		signal?.throwIfAborted();
+		const current = this.savedAccount(account);
+
+		if (!current) return null;
+
+		if (current?.credentialSource === "github-cli")
+			return {
+				token: await this.githubCli.token(
+					{
+						host: new URL(current.webUrl).host,
+						username: current.username,
+					},
+					signal
+				),
+			};
+
 		const key = AccountStore.key(account);
 		const saved = await this.vault.read(key);
 
@@ -554,6 +601,9 @@ export class Accounts {
 	async registration(
 		account: SavedAccount
 	): Promise<AccountRegistration | undefined> {
+		if (this.savedAccount(account)?.credentialSource === "github-cli")
+			return undefined;
+
 		const saved = await this.vault.read(AccountStore.key(account));
 
 		return saved === null
@@ -563,20 +613,30 @@ export class Accounts {
 
 	private async saveConnection(
 		input: ConnectAccount,
-		credential: AccountCredential
+		credential?: AccountCredential,
+		cliUsername?: string
 	): Promise<SavedAccount[]> {
-		const encoded = encodeCredential(credential);
+		const encoded = credential ? encodeCredential(credential) : undefined;
 
 		const client = this.configure(input.provider, input.webUrl, input.token);
 		const identity = await client.getAccount({ signal: input.signal });
 
 		if (!identity.ok) throw new Error(identity.error.message);
 
+		if (
+			cliUsername &&
+			identity.value.username.toLowerCase() !== cliUsername.toLowerCase()
+		)
+			throw new Error(
+				"GitHub CLI returned a different account. Refresh the accounts and try again."
+			);
+
 		const account: SavedAccount = {
 			provider: input.provider,
 			webUrl: client.webUrl,
 			id: identity.value.id,
 			username: identity.value.username,
+			...(cliUsername ? ({ credentialSource: "github-cli" } as const) : {}),
 		};
 
 		if (
@@ -591,11 +651,13 @@ export class Accounts {
 			input.signal?.throwIfAborted();
 			const saved = this.store.load();
 			const key = AccountStore.key(account);
-			const previous = await this.vault.read(key);
+			// Switching to CLI changes metadata only; an older app credential stays untouched.
+			const previous = credential ? await this.vault.read(key) : null;
 
 			input.signal?.throwIfAborted();
 
-			await this.vault.write(key, encoded);
+			if (encoded !== undefined) await this.vault.write(key, encoded);
+
 			const next = [
 				...saved.filter((entry) => AccountStore.key(entry) !== key),
 				account,
@@ -604,10 +666,12 @@ export class Accounts {
 			try {
 				this.store.save(next);
 			} catch {
-				await this.restore(key, previous);
+				if (credential) await this.restore(key, previous);
 
 				throw new Error(
-					"Could not save the account. The previous credential was restored."
+					credential
+						? "Could not save the account. The previous credential was restored."
+						: "Could not save account metadata. The existing connection was left unchanged."
 				);
 			}
 
@@ -659,7 +723,14 @@ export class Accounts {
 		return this.mutate(async () => {
 			const saved = this.store.load();
 			const key = AccountStore.key(account);
-			const previous = await this.vault.read(key);
+			const current = saved.find((entry) => AccountStore.key(entry) === key);
+
+			if (!current) return saved;
+
+			const previous =
+				current?.credentialSource === "github-cli"
+					? null
+					: await this.vault.read(key);
 
 			if (previous !== null) await this.vault.delete(key);
 
@@ -703,6 +774,12 @@ export class Accounts {
 		if (!configured.ok) throw new Error(configured.error.message);
 
 		return configured.value;
+	}
+
+	private savedAccount(account: SavedAccount): SavedAccount | undefined {
+		return this.store
+			.load()
+			.find((entry) => AccountStore.key(entry) === AccountStore.key(account));
 	}
 
 	private async restore(key: string, previous: string | null): Promise<void> {
