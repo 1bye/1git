@@ -29,6 +29,7 @@ import {
 } from "react";
 import { RepositoryPreviewCache } from "./feature/repository-workspace/lib/repository-preview-cache";
 import { RepositoryAvatars } from "./feature/repository-workspace/lib/repository-avatars";
+import { RepositoryAvatarCache } from "./feature/repository-workspace/lib/repository-avatar-cache";
 import { RepositoryAvatarContext } from "./feature/repository-workspace/components/repository-avatar";
 import {
 	AccountsSettings,
@@ -353,7 +354,12 @@ function AppContent({
 
 	const avatars = useMemo(
 		() =>
-			suppliedAvatars ?? new RepositoryAvatars(() => accounts.hostProviders()),
+			suppliedAvatars ??
+			new RepositoryAvatars(
+				() => accounts.hostProviders(),
+				undefined,
+				new RepositoryAvatarCache(RepositoryAvatarCache.defaultPath())
+			),
 		[accounts, suppliedAvatars]
 	);
 

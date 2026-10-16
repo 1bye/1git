@@ -8,6 +8,7 @@ import { parseRemote } from "@1git/hosting/remote";
 import { GitHubProvider } from "@1git/hosting/providers/github";
 import { GitLabProvider } from "@1git/hosting/providers/gitlab";
 import { imageProcessor } from "./image-processing";
+import type { RepositoryAvatarCache } from "./repository-avatar-cache";
 
 const cacheLimit = 256;
 const imageLimit = 1024 * 1024;
@@ -53,7 +54,8 @@ export class RepositoryAvatars {
 
 	constructor(
 		private readonly providers = defaultProviders,
-		private readonly readRemotes = RepositoryAvatars.readRemotes
+		private readonly readRemotes = RepositoryAvatars.readRemotes,
+		private readonly cache?: RepositoryAvatarCache
 	) {}
 
 	static key(source: RepositoryAvatarSource): string {
@@ -167,25 +169,12 @@ export class RepositoryAvatars {
 		let src: string | null = null;
 
 		try {
-			if (!this.controller.signal.aborted) src = await this.resolve(source);
+			if (!this.controller.signal.aborted)
+				src = await this.resolve(source, key);
 		} catch {
 			// Optional artwork must never turn a repository row into an error state.
 		} finally {
-			if (!this.controller.signal.aborted) {
-				this.images.delete(key);
-				this.images.set(key, {
-					src,
-					expires: Date.now() + (src ? successLifetimeMs : failureLifetimeMs),
-				});
-
-				while (this.images.size > cacheLimit) {
-					const oldest = this.images.keys().next().value;
-
-					if (oldest !== undefined) this.images.delete(oldest);
-				}
-
-				for (const listener of this.listeners.get(key) ?? []) listener();
-			}
+			this.publish(key, src);
 
 			this.pending.delete(key);
 			resolve(src);
@@ -194,8 +183,27 @@ export class RepositoryAvatars {
 		}
 	}
 
+	private publish(key: string, src: string | null): void {
+		if (this.controller.signal.aborted) return;
+
+		this.images.delete(key);
+		this.images.set(key, {
+			src,
+			expires: Date.now() + (src ? successLifetimeMs : failureLifetimeMs),
+		});
+
+		while (this.images.size > cacheLimit) {
+			const oldest = this.images.keys().next().value;
+
+			if (oldest !== undefined) this.images.delete(oldest);
+		}
+
+		for (const listener of this.listeners.get(key) ?? []) listener();
+	}
+
 	private async resolve(
-		source: RepositoryAvatarSource
+		source: RepositoryAvatarSource,
+		key: string
 	): Promise<string | null> {
 		const providers = await this.providers();
 
@@ -235,6 +243,18 @@ export class RepositoryAvatars {
 				"remote" in source ? source.avatarUrl : undefined
 			);
 
+			const diskKey = `${assetKey}\n${imageUrl ?? ""}`;
+			const cached = await this.cache?.read(diskKey);
+
+			if (this.controller.signal.aborted) return null;
+
+			if (cached) {
+				if (cached.updatedAt + successLifetimeMs > Date.now())
+					return cached.src;
+
+				this.publish(key, cached.src);
+			}
+
 			let asset = this.assets.get(assetKey);
 
 			if (
@@ -243,7 +263,12 @@ export class RepositoryAvatars {
 				(imageUrl && imageUrl !== asset.imageUrl)
 			) {
 				asset = {
-					task: this.download(provider, identity.repository, imageUrl),
+					task: this.downloadAndCache(
+						provider,
+						identity.repository,
+						diskKey,
+						imageUrl
+					),
 					expires: Date.now() + failureLifetimeMs,
 					imageUrl,
 				};
@@ -256,10 +281,28 @@ export class RepositoryAvatars {
 				}
 			}
 
-			return await asset.task;
+			const src = await asset.task;
+
+			return this.controller.signal.aborted
+				? null
+				: (src ?? cached?.src ?? null);
 		}
 
 		return null;
+	}
+
+	private async downloadAndCache(
+		provider: HostingProvider,
+		ref: { readonly owner: string; readonly name: string },
+		diskKey: string,
+		imageUrl?: string | null
+	): Promise<string | null> {
+		const src = await this.download(provider, ref, imageUrl);
+
+		if (src && !this.controller.signal.aborted)
+			await this.cache?.write(diskKey, src);
+
+		return src;
 	}
 
 	private async download(
