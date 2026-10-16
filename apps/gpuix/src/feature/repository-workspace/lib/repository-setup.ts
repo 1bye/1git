@@ -1,10 +1,10 @@
-import { lstat, readdir, realpath } from "node:fs/promises";
-import { basename, dirname, isAbsolute } from "node:path";
-import { GitRepository } from "../../machines/repository-access";
-import { RepositoryWorktrees } from "../../workspace-tabs/lib/repository-worktrees";
+import { LocalRepositorySetup } from "./repository-setup-local";
 import type { Accounts } from "../../accounts/lib/accounts";
 import type { SavedAccount } from "../../accounts/lib/account-store";
 import type { RepositoryRef } from "@1git/hosting/contracts";
+import { MachineLocation } from "../../machines/machine-location";
+import { Machines } from "../../machines/machines";
+import { isRecord } from "../../machines/remote-protocol";
 
 /** Explicit setup intent; selecting a destination alone never writes Git. */
 export type RepositorySetupRequest =
@@ -26,17 +26,7 @@ export class RepositorySetup {
 	private constructor() {}
 
 	static folderName(remote: string): string {
-		const path =
-			remote
-				.trim()
-				.replace(/[\\/]+$/, "")
-				.split(/[?#]/, 1)[0] ?? "";
-
-		const name = basename(path)
-			.replace(/\.git$/, "")
-			.replace(/[^\p{L}\p{N}._-]+/gu, "-");
-
-		return !name || name === "." || name === ".." ? "repository" : name;
+		return LocalRepositorySetup.folderName(remote);
 	}
 
 	static async write(
@@ -45,144 +35,62 @@ export class RepositorySetup {
 		accounts?: Accounts
 	): Promise<RepositorySetupResult> {
 		try {
-			if (!isAbsolute(request.path))
-				return { ok: false, message: "Choose an absolute destination folder." };
+			const remote = MachineLocation.parse(request.path);
 
-			if (request.kind === "create") {
-				const error = RepositoryWorktrees.branchNameError(request.branch);
-
-				if (!request.branch || error)
+			if (remote) {
+				if (request.kind === "clone" && request.source)
 					return {
 						ok: false,
-						message: error ?? "Enter an initial branch name.",
-					};
-			}
-
-			let exists = false;
-
-			try {
-				const stat = await lstat(request.path);
-
-				if (!stat.isDirectory() || stat.isSymbolicLink())
-					return {
-						ok: false,
-						message: "Choose a regular folder, not a file or symbolic link.",
+						message: "Use a repository URL and this machine's Git credentials.",
 					};
 
-				exists = true;
-			} catch (error) {
+				const result = await Machines.shared.request(
+					request.path,
+					request.kind === "clone"
+						? { operation: "clone", remoteUrl: request.remoteUrl.trim() }
+						: { operation: "initialize", branch: request.branch },
+					signal
+				);
+
 				if (
-					!(
-						error instanceof Error &&
-						"code" in error &&
-						error.code === "ENOENT"
-					)
+					isRecord(result) &&
+					result.ok === true &&
+					typeof result.path === "string"
 				)
-					throw error;
-			}
-
-			{
-				const opened = await GitRepository.open({
-					path: exists ? request.path : dirname(request.path),
-					signal,
-				});
-
-				if (opened.ok) {
-					if (
-						exists &&
-						opened.value.info.root === (await realpath(request.path))
-					)
-						return {
-							ok: false,
-							message: "This folder is already a repository.",
-							openPath: opened.value.info.root,
-						};
-
 					return {
-						ok: false,
-						message: "Choose a folder outside the existing repository.",
+						ok: true,
+						path: MachineLocation.encode(remote.machineId, result.path),
 					};
-				}
-
-				if (opened.error.code !== "not-a-repository")
-					return { ok: false, message: opened.error.message };
 
 				if (
-					exists &&
-					request.kind === "clone" &&
-					(await readdir(request.path)).length
+					isRecord(result) &&
+					result.ok === false &&
+					typeof result.message === "string"
 				)
 					return {
 						ok: false,
-						message: "Clone needs an empty folder. Choose another location.",
+						message: result.message,
+						...(typeof result.openPath === "string"
+							? {
+									openPath: MachineLocation.encode(
+										remote.machineId,
+										result.openPath
+									),
+								}
+							: {}),
 					};
+
+				throw new Error("Invalid remote repository setup response.");
 			}
 
-			if (signal.aborted)
-				return {
-					ok: false,
-					message:
-						"Operation cancelled. Review the destination before retrying.",
-				};
-
-			if (request.kind === "clone" && request.source) {
-				if (!accounts)
-					return { ok: false, message: "Account cloning is unavailable." };
-
-				try {
-					const result = await accounts.clone(
-						request.source.account,
-						request.source.repository,
-						request.path,
-						signal
-					);
-
-					return result.ok
-						? { ok: true, path: result.value.info.root }
-						: {
-								ok: false,
-								message: signal.aborted
-									? "Operation cancelled. Review the destination before retrying."
-									: result.error.message,
-							};
-				} catch (cause) {
-					return {
-						ok: false,
-						message: signal.aborted
-							? "Operation cancelled. Review the destination before retrying."
-							: cause instanceof Error
-								? cause.message
-								: "Account cloning failed. Check this account in Settings.",
-					};
-				}
-			}
-
-			const result =
-				request.kind === "clone"
-					? await GitRepository.clone({
-							path: request.path,
-							remoteUrl: request.remoteUrl.trim(),
-							signal,
-						})
-					: await GitRepository.initialize({
-							path: request.path,
-							initialBranch: request.branch,
-							signal,
-						});
-
-			return result.ok
-				? { ok: true, path: result.value.info.root }
-				: {
-						ok: false,
-						message: signal.aborted
-							? "Operation cancelled. Review the destination before retrying."
-							: result.error.message,
-					};
-		} catch {
+			return await LocalRepositorySetup.write(request, signal, accounts);
+		} catch (cause) {
 			return {
 				ok: false,
 				message:
-					"Could not prepare this folder. Check its location and permissions.",
+					MachineLocation.isRemote(request.path) && cause instanceof Error
+						? cause.message
+						: "Could not prepare this folder. Check its location and permissions.",
 			};
 		}
 	}

@@ -1,7 +1,7 @@
 import { createThemedStyles, useAppTheme } from "../../../styles/theme";
 import { spacing, typography, radius, iconSize } from "@1git/design-tokens";
-import { basename, dirname, join } from "node:path";
-import { useEffect, useRef, useState } from "react";
+import { basename, dirname, isAbsolute, join } from "node:path";
+import { useContext, useEffect, useRef, useState } from "react";
 import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { Button } from "@1git/gpuix-ui/button";
@@ -23,6 +23,9 @@ import {
 } from "../lib/repository-worktrees";
 import { WorkspaceTabIcon } from "./workspace-tab-icon";
 import { WorkspaceMenuModel } from "../lib/workspace-menu-model";
+import { MachineLocation } from "../../machines/machine-location";
+import { MachineContext } from "../../machines/machine-context";
+import { RemoteFolderPicker } from "../../machines/remote-folder-picker";
 
 const folderUnsafeCharacters = /[^\p{L}\p{N}._-]+/gu;
 
@@ -150,6 +153,13 @@ export function WorkspaceWorktreeForm({
 	onCreate: (choice: WorktreeChoice) => Promise<void>;
 	onError: (message: string) => void;
 }) {
+	const machines = useContext(MachineContext);
+	const machine = MachineLocation.parse(root);
+
+	const machineName = machine
+		? (machines?.name(machine.machineId) ?? "SSH machine")
+		: undefined;
+
 	const theme = useAppTheme();
 	const { tokens: appTokens } = theme;
 	const { colors, styles } = themedStyles.get(theme);
@@ -159,6 +169,7 @@ export function WorkspaceWorktreeForm({
 	const branchInput = useRef<PublicInstance>(null);
 	const [selectedPath, setSelectedPath] = useState<string>();
 	const [picking, setPicking] = useState(false);
+	const [browsing, setBrowsing] = useState(false);
 	const mounted = useRef(true);
 
 	useEffect(() => {
@@ -227,10 +238,20 @@ export function WorkspaceWorktreeForm({
 		"-"
 	);
 
-	const path =
-		selectedPath ?? join(dirname(root), `${basename(root)}-${suffix}`);
+	const sourcePath = machine?.path ?? root;
 
-	const canCreate = !disabled && !!branch && !occupied && !branchError;
+	const path =
+		selectedPath ??
+		join(dirname(sourcePath), `${basename(sourcePath)}-${suffix}`);
+
+	const destinationValid =
+		!machine ||
+		(isAbsolute(path) &&
+			!MachineLocation.isRemote(path) &&
+			!/[\0\r\n]/.test(path));
+
+	const canCreate =
+		!disabled && !!branch && !occupied && !branchError && destinationValid;
 
 	const chooseLocation = async (): Promise<void> => {
 		setPicking(true);
@@ -259,12 +280,31 @@ export function WorkspaceWorktreeForm({
 			void onCreate({
 				kind: remote ? "remote" : existing ? "existing" : "new",
 				branch: remote?.fullName ?? branch,
-				path,
+				path: machine ? MachineLocation.encode(machine.machineId, path) : path,
 			});
 	};
 
 	return (
 		<div style={styles.form}>
+			{browsing && machine ? (
+				<RemoteFolderPicker
+					location={MachineLocation.encode(
+						machine.machineId,
+						destinationValid ? dirname(path) : dirname(sourcePath)
+					)}
+					title="Choose worktree folder"
+					initialName={destinationValid ? basename(path) : ""}
+					onSelect={(location) => {
+						setSelectedPath(MachineLocation.display(location));
+						setBrowsing(false);
+						setPicking(false);
+					}}
+					onClose={() => {
+						setBrowsing(false);
+						setPicking(false);
+					}}
+				/>
+			) : null}
 			<text style={styles.label}>New worktree</text>
 			<div style={styles.field}>
 				<text style={styles.hint}>Branch</text>
@@ -346,47 +386,94 @@ export function WorkspaceWorktreeForm({
 				</text>
 			</div>
 			<div style={styles.field}>
-				<text style={styles.hint}>Location</text>
-				<Button
-					tokens={appTokens}
-					variant="ghost"
-					size="sm"
-					testId="worktree-change-location"
-					aria-label="Change worktree location"
-					disabled={disabled}
-					style={StyleSheet.compose(styles.input, styles.locationField)}
-					onPress={() => {
-						void chooseLocation();
-					}}
-				>
-					<svg
-						testId="worktree-folder-icon"
-						source='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 7V5a1 1 0 0 1 1-1h5l3 3h8a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7Z" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/></svg>'
+				<text style={styles.hint}>
+					{machine ? `Location on ${machineName}` : "Location"}
+				</text>
+				{machine ? (
+					<div
 						style={{
-							width: iconSize.sm,
-							height: iconSize.sm,
-							flexShrink: 0,
-							color: colors.textMuted,
-							pointerEvents: "none",
-						}}
-					/>
-					<text
-						testId="worktree-location"
-						aria-label={path}
-						style={styles.fieldText}
-					>
-						{basename(path)}
-					</text>
-					<text
-						style={{
-							...typography.sm,
-							color: colors.textMuted,
-							pointerEvents: "none",
+							display: "flex",
+							flexDirection: "row",
+							gap: spacing[2],
+							alignItems: "center",
 						}}
 					>
-						Change…
+						<input
+							testId="worktree-remote-location"
+							aria-label={`Worktree folder on ${machineName}`}
+							tabIndex={disabled ? undefined : 0}
+							value={path}
+							readOnly={disabled}
+							style={StyleSheet.compose(
+								styles.input,
+								{ width: 0, flexGrow: 1, minWidth: 0 },
+								disabled && { pointerEvents: "none", opacity: 0.5 }
+							)}
+							onChange={(event) => {
+								if (!disabled) setSelectedPath(event.value ?? "");
+							}}
+						/>
+						<Button
+							tokens={appTokens}
+							variant="secondary"
+							size="sm"
+							testId="worktree-browse-remote"
+							disabled={disabled}
+							onPress={() => {
+								setPicking(true);
+								setBrowsing(true);
+							}}
+						>
+							Browse…
+						</Button>
+					</div>
+				) : (
+					<Button
+						tokens={appTokens}
+						variant="ghost"
+						size="sm"
+						testId="worktree-change-location"
+						aria-label="Change worktree location"
+						disabled={disabled}
+						style={StyleSheet.compose(styles.input, styles.locationField)}
+						onPress={() => {
+							void chooseLocation();
+						}}
+					>
+						<svg
+							testId="worktree-folder-icon"
+							source='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 7V5a1 1 0 0 1 1-1h5l3 3h8a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7Z" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/></svg>'
+							style={{
+								width: iconSize.sm,
+								height: iconSize.sm,
+								flexShrink: 0,
+								color: colors.textMuted,
+								pointerEvents: "none",
+							}}
+						/>
+						<text
+							testId="worktree-location"
+							aria-label={path}
+							style={styles.fieldText}
+						>
+							{basename(path)}
+						</text>
+						<text
+							style={{
+								...typography.sm,
+								color: colors.textMuted,
+								pointerEvents: "none",
+							}}
+						>
+							Change…
+						</text>
+					</Button>
+				)}
+				{!destinationValid ? (
+					<text style={styles.hint}>
+						Enter an absolute folder path on this machine.
 					</text>
-				</Button>
+				) : null}
 			</div>
 			<div style={styles.footer}>
 				<Button

@@ -1,7 +1,7 @@
 import { createThemedStyles, useAppTheme } from "../../../styles/theme";
 import { typography, spacing, radius, iconSize } from "@1git/design-tokens";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, isAbsolute, join } from "node:path";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
 import { Button } from "@1git/gpuix-ui/button";
@@ -23,6 +23,8 @@ import {
 import { SetupProgress } from "./repository-setup";
 import { StateArtwork } from "../../../fixture/state-artwork";
 import { RepositoryAvatar } from "./repository-avatar";
+import { MachineLocation } from "../../machines/machine-location";
+import { RemoteFolderPicker } from "../../machines/remote-folder-picker";
 
 const column = { display: "flex", flexDirection: "column" };
 const row = { display: "flex", flexDirection: "row", alignItems: "center" };
@@ -71,6 +73,7 @@ export function RepositoryCloneView({
 	onSettings,
 	onAddAccount,
 	preferredAccountKey,
+	machine,
 }: {
 	accounts: Accounts;
 	active: boolean;
@@ -83,6 +86,8 @@ export function RepositoryCloneView({
 	onAddAccount: () => void;
 	/** Window-local default; changing it never overwrites an existing Clone draft. */
 	preferredAccountKey?: string;
+	/** Home pins the selected saved machine for the lifetime of this Clone draft. */
+	machine?: { id: string; name: string; home: string };
 }) {
 	const theme = useAppTheme();
 	const { tokens: appTokens } = theme;
@@ -104,6 +109,7 @@ export function RepositoryCloneView({
 	const [selection, setSelection] = useState<AccountCloneSelection>();
 	const [selectedPath, setSelectedPath] = useState<string>();
 	const [picking, setPicking] = useState(false);
+	const [browsing, setBrowsing] = useState(false);
 	const [busy, setBusy] = useState(false);
 	const [stopping, setStopping] = useState(false);
 	const [error, setError] = useState<string>();
@@ -119,11 +125,22 @@ export function RepositoryCloneView({
 	const remoteUrl =
 		source === "url"
 			? url.trim()
-			: (selection?.repository.cloneUrls.https ?? "");
+			: ((machine
+					? (selection?.repository.cloneUrls.ssh ??
+						selection?.repository.cloneUrls.https)
+					: selection?.repository.cloneUrls.https) ?? "");
 
 	const path =
 		selectedPath ??
-		(remoteUrl ? join(homedir(), RepositorySetup.folderName(remoteUrl)) : "");
+		(remoteUrl
+			? join(machine?.home ?? homedir(), RepositorySetup.folderName(remoteUrl))
+			: "");
+
+	const destinationValid =
+		!machine ||
+		(isAbsolute(path) &&
+			!MachineLocation.isRemote(path) &&
+			!/[\0\r\n]/.test(path));
 
 	useEffect(() => {
 		mounted.current = true;
@@ -217,7 +234,15 @@ export function RepositoryCloneView({
 	};
 
 	const submit = async () => {
-		if (working.current || disabled || picking || !path || !remoteUrl) return;
+		if (
+			working.current ||
+			disabled ||
+			picking ||
+			!path ||
+			!remoteUrl ||
+			!destinationValid
+		)
+			return;
 
 		if (openPath) {
 			onOpen(openPath);
@@ -234,9 +259,9 @@ export function RepositoryCloneView({
 		try {
 			const result = await onSubmit({
 				kind: "clone",
-				path,
+				path: machine ? MachineLocation.encode(machine.id, path) : path,
 				remoteUrl,
-				...(account && selection
+				...(account && selection && !machine
 					? { source: { account, repository: selection.repository.ref } }
 					: {}),
 			});
@@ -284,6 +309,26 @@ export function RepositoryCloneView({
 					: {}),
 			}}
 		>
+			{browsing && machine ? (
+				<RemoteFolderPicker
+					location={MachineLocation.encode(
+						machine.id,
+						path && destinationValid ? dirname(path) : machine.home
+					)}
+					title="Choose clone folder"
+					initialName={path && destinationValid ? basename(path) : ""}
+					onSelect={(location) => {
+						setSelectedPath(MachineLocation.display(location));
+						clearError();
+						setBrowsing(false);
+						setPicking(false);
+					}}
+					onClose={() => {
+						setBrowsing(false);
+						setPicking(false);
+					}}
+				/>
+			) : null}
 			<div
 				role="navigation"
 				aria-label="Clone sources"
@@ -430,7 +475,7 @@ export function RepositoryCloneView({
 							flexShrink: 0,
 						}}
 					>
-						Clone repository
+						{machine ? `Clone on ${machine.name}` : "Clone repository"}
 					</text>
 					<div
 						style={{
@@ -495,7 +540,9 @@ export function RepositoryCloneView({
 									/>
 								</div>
 								<text style={{ ...hint, marginTop: spacing[1] }}>
-									Clone using your configured Git credentials.
+									{machine
+										? `Uses Git credentials configured on ${machine.name}.`
+										: "Clone using your configured Git credentials."}
 								</text>
 							</div>
 						) : account && active ? (
@@ -527,13 +574,15 @@ export function RepositoryCloneView({
 						borderColor: appTokens.colors.border,
 					}}
 				>
-					{error || catalog.error ? (
+					{error || catalog.error || (path && !destinationValid) ? (
 						<text
 							testId="setup-error"
 							role="alert"
 							style={{ ...hint, color: appTokens.colors.danger }}
 						>
-							{error ?? catalog.error}
+							{error ??
+								catalog.error ??
+								"Enter an absolute folder path on this machine."}
 						</text>
 					) : null}
 					<div
@@ -542,49 +591,89 @@ export function RepositoryCloneView({
 						<div
 							style={{ ...column, flexGrow: 1, minWidth: 0, gap: spacing[1] }}
 						>
-							<text style={hint}>Location</text>
-							<Button
-								testId="setup-location"
-								tokens={appTokens}
-								variant="ghost"
-								size="sm"
-								aria-label={path || "Choose repository folder"}
-								disabled={busy || picking}
-								onPress={() => {
-									void chooseLocation();
-								}}
-								style={{
-									...input,
-									...row,
-									justifyContent: "flex-start",
-									gap: spacing[2],
-									hover: { backgroundColor: "transparent" },
-								}}
-							>
-								<svg
-									source='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 7V5a1 1 0 0 1 1-1h5l3 3h8a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7Z" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/></svg>'
-									style={{
-										width: iconSize.sm,
-										height: iconSize.sm,
-										flexShrink: 0,
-										color: appTokens.colors.textMuted,
-										pointerEvents: "none",
+							<text style={hint}>
+								{machine ? `Location on ${machine.name}` : "Location"}
+							</text>
+							{machine ? (
+								<div style={{ ...row, gap: spacing[2] }}>
+									<input
+										testId="setup-remote-location"
+										aria-label={`Clone folder on ${machine.name}`}
+										tabIndex={busy ? undefined : 0}
+										value={path}
+										readOnly={busy}
+										placeholder={`${machine.home}/project`}
+										style={{
+											...input,
+											flexGrow: 1,
+											flexBasis: 0,
+											...(busy ? { pointerEvents: "none", opacity: 0.5 } : {}),
+										}}
+										onChange={(event) => {
+											if (working.current) return;
+
+											setSelectedPath(event.value ?? "");
+											clearError();
+										}}
+									/>
+									<Button
+										tokens={appTokens}
+										variant="secondary"
+										size="sm"
+										testId="clone-browse-remote"
+										disabled={busy || picking}
+										onPress={() => {
+											setPicking(true);
+											setBrowsing(true);
+										}}
+									>
+										Browse…
+									</Button>
+								</div>
+							) : (
+								<Button
+									testId="setup-location"
+									tokens={appTokens}
+									variant="ghost"
+									size="sm"
+									aria-label={path || "Choose repository folder"}
+									disabled={busy || picking}
+									onPress={() => {
+										void chooseLocation();
 									}}
-								/>
-								<text
 									style={{
-										...typography.md,
-										color: appTokens.colors.text,
-										minWidth: 0,
-										flexShrink: 1,
-										whiteSpace: "nowrap",
-										textOverflow: "ellipsis",
-										pointerEvents: "none",
+										...input,
+										...row,
+										justifyContent: "flex-start",
+										gap: spacing[2],
+										hover: { backgroundColor: "transparent" },
 									}}
 								>
-									{picking ? "Choosing…" : path || "Choose folder…"}
-								</text>
-							</Button>
+									<svg
+										source='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 7V5a1 1 0 0 1 1-1h5l3 3h8a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7Z" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/></svg>'
+										style={{
+											width: iconSize.sm,
+											height: iconSize.sm,
+											flexShrink: 0,
+											color: appTokens.colors.textMuted,
+											pointerEvents: "none",
+										}}
+									/>
+									<text
+										style={{
+											...typography.md,
+											color: appTokens.colors.text,
+											minWidth: 0,
+											flexShrink: 1,
+											whiteSpace: "nowrap",
+											textOverflow: "ellipsis",
+											pointerEvents: "none",
+										}}
+									>
+										{picking ? "Choosing…" : path || "Choose folder…"}
+									</text>
+								</Button>
+							)}
 						</div>
 						<Button
 							testId="setup-cancel"
@@ -607,7 +696,14 @@ export function RepositoryCloneView({
 							tokens={appTokens}
 							size="sm"
 							style={{ alignSelf: "flex-end" }}
-							disabled={busy || disabled || picking || !path || !remoteUrl}
+							disabled={
+								busy ||
+								disabled ||
+								picking ||
+								!path ||
+								!remoteUrl ||
+								!destinationValid
+							}
 							onPress={() => {
 								void submit();
 							}}

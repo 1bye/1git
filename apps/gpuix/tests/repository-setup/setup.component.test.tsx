@@ -99,7 +99,7 @@ it("uses a native repository menu for reveal, dismissal, forget and open", async
 		expect.any(Number),
 		expect.any(Number)
 	);
-	expect(reader).not.toHaveBeenCalled();
+	expect(root.renderer.findByTestId("commit-composer")).toBeUndefined();
 	choice = 1;
 	click("welcome-repository-/test/project", 2);
 	await settle();
@@ -110,11 +110,15 @@ it("uses a native repository menu for reveal, dismissal, forget and open", async
 	expect(
 		root.renderer.findByTestId("welcome-repository-/test/project")
 	).toBeUndefined();
-	expect(reader).not.toHaveBeenCalled();
+	expect(root.renderer.findByTestId("commit-composer")).toBeUndefined();
 	choice = 0;
 	click("welcome-repository-/test/other", 2);
 	await settle();
-	expect(reader).toHaveBeenCalledTimes(1);
+	expect(reader).toHaveBeenLastCalledWith(
+		"/test/other",
+		expect.any(AbortSignal)
+	);
+	expect(root.renderer.findByTestId("commit-composer")).toBeDefined();
 });
 
 it("supports the keyboard repository menu and reports Finder errors", async () => {
@@ -301,7 +305,7 @@ it("removes only the saved repository entry and persists the updated list", asyn
 	expect(
 		root.renderer.findByTestId("welcome-repository-/test/other")
 	).toBeDefined();
-	expect(reader).not.toHaveBeenCalled();
+	expect(root.renderer.findByTestId("commit-composer")).toBeUndefined();
 	await Bun.sleep(220);
 	expect(save.mock.calls.at(-1)?.[0]).toEqual(
 		expect.objectContaining({ recentRepositories: ["/test/other"] })
@@ -314,7 +318,7 @@ it("removes only the saved repository entry and persists the updated list", asyn
 	root.renderer.simulateKeystrokes("enter");
 	await settle();
 	expect(root.renderer.getAllText()).toContain("No repositories yet");
-	expect(reader).not.toHaveBeenCalled();
+	expect(root.renderer.findByTestId("commit-composer")).toBeUndefined();
 });
 
 it("scrolls only the repository list while quick actions and search stay fixed", async () => {

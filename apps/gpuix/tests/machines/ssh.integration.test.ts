@@ -1,5 +1,5 @@
 /**
- * Covers: automatic helper installation, verified reuse/repair, multiplexed requests and reconnect over SSH.
+ * Covers: automatic helper installation, verified reuse/repair, multiplexed requests, remote clones/worktrees and cancellation over SSH.
  * Real: system ssh/sshd, generated disposable keys, compiled helper and isolated remote HOME/repository.
  * Doubles: none; no existing SSH configuration, credentials or remote host are used.
  * Requires: macOS, sshd, ssh-keygen, Bun, Git and loopback listening permission.
@@ -233,4 +233,134 @@ it("automatically installs the standalone helper and uses it to discover and rea
 	await connection.connect();
 	expect((await stat(executable)).size).toBe(installed.size);
 	expect(connection.home).toBe(home);
+}, 20_000);
+
+it("clones and creates a worktree over SSH using machine-local paths", async () => {
+	const source = join(home, "origin");
+	const clone = join(home, "clone with spaces");
+	const worktree = join(home, "linked checkout");
+
+	await execute("git", ["init", "--initial-branch=main", source]);
+	await writeFile(join(source, "tracked.txt"), "tracked\n");
+	await execute("git", ["-C", source, "add", "."]);
+	await execute("git", [
+		"-C",
+		source,
+		"-c",
+		"user.name=SSH Test",
+		"-c",
+		"user.email=ssh@example.invalid",
+		"-c",
+		"commit.gpgsign=false",
+		"commit",
+		"-m",
+		"Base",
+	]);
+	const head = (
+		await execute("git", ["-C", source, "rev-parse", "HEAD"])
+	).stdout.trim();
+
+	const cloned = await connection.request({
+		operation: "clone",
+		path: clone,
+		remoteUrl: source,
+	});
+
+	expect(cloned).toEqual({ ok: true, path: clone });
+	const initializedPath = join(home, "new repository");
+
+	const initialized = await connection.request({
+		operation: "initialize",
+		path: initializedPath,
+		branch: "develop",
+	});
+
+	expect(initialized).toEqual({ ok: true, path: initializedPath });
+	expect(
+		(
+			await execute("git", ["-C", initializedPath, "branch", "--show-current"])
+		).stdout.trim()
+	).toBe("develop");
+	const folders = await connection.request({
+		operation: "list-directory",
+		path: home,
+		hidden: false,
+	});
+
+	expect(isRecord(folders) && folders.entries).toEqual(
+		expect.arrayContaining([{ name: "new repository", path: initializedPath }])
+	);
+	const created = await connection.request({
+		operation: "create-worktree",
+		path: clone,
+		input: {
+			kind: "new",
+			branch: "topic",
+			path: worktree,
+			expectedHead: head,
+			expectedBranch: "main",
+		},
+	});
+
+	expect(created).toEqual({ ok: true, value: worktree });
+	expect(await Bun.file(join(worktree, "tracked.txt")).text()).toBe(
+		"tracked\n"
+	);
+	expect(
+		(
+			await execute("git", ["-C", clone, "branch", "--show-current"])
+		).stdout.trim()
+	).toBe("main");
+}, 20_000);
+
+it("waits for the remote Git process to acknowledge clone cancellation and keeps the channel usable", async () => {
+	const reached = Promise.withResolvers<void>();
+
+	const server = Bun.serve({
+		hostname: "127.0.0.1",
+		port: 0,
+		async fetch(request) {
+			reached.resolve();
+			await new Promise<void>((resolveRequest) =>
+				request.signal.addEventListener("abort", () => resolveRequest(), {
+					once: true,
+				})
+			);
+
+			return new Response("Cancelled", { status: 499 });
+		},
+	});
+
+	const controller = new AbortController();
+
+	try {
+		const result = connection.request(
+			{
+				operation: "clone",
+				path: join(home, "cancelled clone"),
+				remoteUrl: `http://127.0.0.1:${server.port}/repo.git`,
+			},
+			controller.signal
+		);
+
+		await Promise.race([
+			reached.promise,
+			Bun.sleep(5000).then(() => {
+				throw new Error("Git did not reach the test remote");
+			}),
+		]);
+		controller.abort();
+		const cancelled = await result;
+
+		expect(isRecord(cancelled) && cancelled.ok).toBe(false);
+		expect(isRecord(cancelled) && cancelled.message).toContain("cancelled");
+		const scan = await connection.request({
+			operation: "scan",
+			folders: [home],
+		});
+
+		expect(isRecord(scan) && Array.isArray(scan.paths)).toBe(true);
+	} finally {
+		await server.stop(true);
+	}
 }, 20_000);

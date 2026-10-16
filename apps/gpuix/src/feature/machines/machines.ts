@@ -1,12 +1,13 @@
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, posix } from "node:path";
 import type { CredentialVault } from "../accounts/lib/native-credentials";
 import { MachineStore, type SavedMachine } from "./machine-store";
 import { SshConnection, type MachineStatus } from "./ssh-connection";
 import { MachineLocation } from "./machine-location";
 import { isRecord } from "./remote-protocol";
 import type { RepositoryDiscoveryProgress } from "../repository-discovery/repository-discovery";
+import type { MachineDirectory } from "./machine-folders";
 
 /** App-owned machine registry. Metadata, credentials and live SSH processes have separate lifetimes. */
 export class Machines {
@@ -216,6 +217,62 @@ export class Machines {
 			signal,
 			progress
 		);
+	}
+
+	/** Lists only immediate child folders; paths stay bound to this saved machine. */
+	async listDirectory(
+		location: string,
+		hidden: boolean,
+		signal: AbortSignal
+	): Promise<MachineDirectory> {
+		const remote = MachineLocation.parse(location);
+
+		if (!remote) throw new Error("Choose an SSH machine.");
+
+		const value = await this.request(
+			location,
+			{ operation: "list-directory", hidden },
+			signal
+		);
+
+		if (
+			!isRecord(value) ||
+			typeof value.path !== "string" ||
+			!posix.isAbsolute(value.path) ||
+			typeof value.parent !== "string" ||
+			value.parent !== posix.dirname(value.path) ||
+			typeof value.limited !== "boolean" ||
+			!Array.isArray(value.entries) ||
+			value.entries.length > 500
+		)
+			throw new Error("Invalid remote folder listing.");
+
+		const path = value.path;
+
+		const qualify = (path: string) =>
+			MachineLocation.encode(remote.machineId, path);
+
+		const entries = value.entries.map((entry) => {
+			if (
+				!isRecord(entry) ||
+				typeof entry.name !== "string" ||
+				!entry.name ||
+				entry.name === "." ||
+				entry.name === ".." ||
+				posix.basename(entry.name) !== entry.name ||
+				entry.path !== posix.join(path, entry.name)
+			)
+				throw new Error("Invalid remote folder entry.");
+
+			return { name: entry.name, path: qualify(posix.join(path, entry.name)) };
+		});
+
+		return {
+			path: qualify(path),
+			parent: qualify(value.parent),
+			entries,
+			limited: value.limited,
+		};
 	}
 
 	async isSymlink(

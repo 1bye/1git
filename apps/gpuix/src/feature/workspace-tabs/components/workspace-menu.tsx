@@ -493,7 +493,6 @@ export function WorkspaceMenu({
 	const canCompare = !busy && !!head && data !== null;
 
 	const canCreateWorktree =
-		!MachineLocation.isRemote(repository?.root ?? "") &&
 		!busy &&
 		!!head &&
 		repository?.operation === "normal" &&
@@ -1441,6 +1440,9 @@ export function WorkspaceMenu({
 																		try {
 																			const enabled =
 																				canCreateWorktree &&
+																				!MachineLocation.isRemote(
+																					repository?.root ?? ""
+																				) &&
 																				!current &&
 																				!item.locked &&
 																				!item.prunable &&

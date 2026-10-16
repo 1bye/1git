@@ -1,5 +1,5 @@
 /**
- * Covers: helper discovery, remote UI reads/diffs/commits, stale-write guards and rejected RPC methods.
+ * Covers: helper discovery, folder browsing/setup, worktrees, remote reads/diffs/commits, stale-write guards and rejected RPC methods.
  * Real: helper process, JSON protocol, application repository services, Git and isolated working trees.
  * Doubles: SSH channel (requests use the actual helper's stdin/stdout); no saved machines or credentials.
  * Requires: Bun, Git and writable temporary storage.
@@ -10,7 +10,14 @@ import {
 	execFile,
 	type ChildProcessWithoutNullStreams,
 } from "node:child_process";
-import { mkdir, mkdtemp, writeFile, rm, realpath } from "node:fs/promises";
+import {
+	mkdir,
+	mkdtemp,
+	writeFile,
+	rm,
+	realpath,
+	symlink,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -26,6 +33,8 @@ import { RepositoryFileActions } from "../../src/feature/repository-workspace/li
 import { RepositoryReader } from "../../src/feature/repository-workspace/lib/repository-reader";
 import { RepositoryCommit } from "../../src/feature/repository-workspace/lib/repository-commit";
 import { RepositoryDiff } from "../../src/feature/repository-workspace/lib/repository-diff";
+import { RepositorySetup } from "../../src/feature/repository-workspace/lib/repository-setup";
+import { RepositoryWorktrees } from "../../src/feature/workspace-tabs/lib/repository-worktrees";
 
 const execute = promisify(execFile);
 let directory: string;
@@ -237,6 +246,120 @@ it("discovers repositories remotely and refuses unlisted methods and stale commi
 	expect(last.stdout.trim()).toBe("Base");
 });
 
+it("clones on the machine, offers existing checkouts, and creates guarded worktrees through application services", async () => {
+	const destination = await realpath(
+		await mkdtemp(join(tmpdir(), "1git-remote-setup-"))
+	);
+
+	const id = MachineLocation.parse(location)!.machineId;
+	const remotePath = (path: string) => MachineLocation.encode(id, path);
+	const clone = remotePath(join(destination, "clone with spaces"));
+	const signal = new AbortController().signal;
+
+	try {
+		const result = await RepositorySetup.write(
+			{ kind: "clone", path: clone, remoteUrl: directory },
+			signal
+		);
+
+		expect(result).toEqual({ ok: true, path: clone });
+		expect(
+			await Bun.file(
+				join(destination, "clone with spaces/file with spaces.txt")
+			).text()
+		).toBe("base\n");
+		const repeated = await RepositorySetup.write(
+			{ kind: "clone", path: clone, remoteUrl: directory },
+			signal
+		);
+
+		expect(repeated).toMatchObject({ ok: false, openPath: clone });
+		const snapshot = await RepositoryReader.read(clone, signal);
+
+		if (!snapshot.ok) throw new Error(snapshot.error.message);
+
+		const choice = {
+			kind: "new" as const,
+			branch: "feature/remote",
+			expectedHead: snapshot.value.head.oid,
+			expectedBranch: snapshot.value.head.branch,
+		};
+
+		const path = remotePath(join(destination, "remote worktree"));
+
+		const created = await RepositoryWorktrees.create(clone, {
+			...choice,
+			path,
+		});
+
+		expect(created).toEqual({ ok: true, value: path });
+		const worktree = await RepositoryReader.read(path, signal);
+
+		expect(worktree.ok && worktree.value.head.branch).toBe("feature/remote");
+		expect(worktree.ok && worktree.value.repository.commonDirectory).toBe(
+			snapshot.value.repository.commonDirectory
+		);
+		expect(await Bun.file(join(directory, "file with spaces.txt")).text()).toBe(
+			"updated репозиторій\n"
+		);
+		const otherMachine = MachineLocation.encode(
+			crypto.randomUUID(),
+			join(destination, "wrong-machine")
+		);
+
+		expect(
+			(
+				await RepositoryWorktrees.create(clone, {
+					...choice,
+					path: otherMachine,
+				})
+			).ok
+		).toBe(false);
+		const stale = await RepositoryWorktrees.create(clone, {
+			...choice,
+			branch: "stale",
+			path: remotePath(join(destination, "stale")),
+			expectedHead: "0".repeat(40),
+		});
+
+		expect(stale.ok).toBe(false);
+		expect(await Bun.file(join(destination, "stale/.git")).exists()).toBe(
+			false
+		);
+		const occupied = join(destination, "occupied");
+
+		await mkdir(occupied);
+		await writeFile(join(occupied, "keep.txt"), "keep\n");
+		expect(
+			(
+				await RepositorySetup.write(
+					{ kind: "clone", path: remotePath(occupied), remoteUrl: directory },
+					signal
+				)
+			).ok
+		).toBe(false);
+		expect(
+			(
+				await RepositoryWorktrees.create(clone, {
+					...choice,
+					branch: "occupied",
+					path: remotePath(occupied),
+				})
+			).ok
+		).toBe(false);
+		expect(await Bun.file(join(occupied, "keep.txt")).text()).toBe("keep\n");
+		await expect(
+			request({
+				operation: "create-worktree",
+				path: MachineLocation.display(clone),
+				input: { ...choice, path: "relative" },
+			})
+		).rejects.toThrow("Invalid remote worktree request");
+	} finally {
+		await rm(destination, { recursive: true, force: true });
+	}
+});
+
 it("streams large file content without corrupting JSON frames or UTF-8", async () => {
 	const content = "текст\n".repeat(150_000);
 
@@ -254,6 +377,89 @@ it("streams large file content without corrupting JSON frames or UTF-8", async (
 			isRecord(result.value) &&
 			result.value.content === content
 	).toBe(true);
+});
+
+it("browses remote folders without following child symlinks and initializes the selected destination without overwriting files", async () => {
+	const parent = await realpath(
+		await mkdtemp(join(tmpdir(), "1git-remote-folders-"))
+	);
+
+	const id = MachineLocation.parse(location)!.machineId;
+	const at = (path: string) => MachineLocation.encode(id, path);
+	const signal = new AbortController().signal;
+
+	try {
+		await mkdir(join(parent, "projects"));
+		await mkdir(join(parent, ".hidden"));
+		await symlink(join(parent, "projects"), join(parent, "alias"));
+		await writeFile(join(parent, "file.txt"), "preserved\n");
+		const listing = await Machines.shared.listDirectory(
+			at(parent),
+			false,
+			signal
+		);
+
+		expect(listing.path).toBe(at(parent));
+		expect(listing.entries).toEqual([
+			{ name: "projects", path: at(join(parent, "projects")) },
+		]);
+		expect(
+			(
+				await Machines.shared.listDirectory(at(parent), true, signal)
+			).entries.map((entry) => entry.name)
+		).toEqual([".hidden", "projects"]);
+		await expect(
+			request({ operation: "list-directory", path: "relative", hidden: false })
+		).rejects.toThrow("absolute");
+		const path = at(join(parent, "new repository"));
+
+		const created = await RepositorySetup.write(
+			{ kind: "create", path, branch: "main" },
+			signal
+		);
+
+		expect(created).toEqual({ ok: true, path });
+		const read = await RepositoryReader.read(path, signal);
+
+		expect(read.ok && read.value.head.branch).toBe("main");
+		expect(read.ok && read.value.head.unborn).toBe(true);
+		expect(
+			await RepositorySetup.write(
+				{ kind: "create", path, branch: "main" },
+				signal
+			)
+		).toMatchObject({ ok: false, openPath: path });
+		expect(await Bun.file(join(parent, "file.txt")).text()).toBe("preserved\n");
+		const invalid = await RepositorySetup.write(
+			{
+				kind: "create",
+				path: at(join(parent, "invalid")),
+				branch: "bad..branch",
+			},
+			signal
+		);
+
+		expect(invalid.ok).toBe(false);
+		expect(await Bun.file(join(parent, "invalid/.git/HEAD")).exists()).toBe(
+			false
+		);
+		await Promise.all(
+			Array.from(
+				{ length: 505 },
+				async (_, index) => await mkdir(join(parent, `folder-${index}`))
+			)
+		);
+		const bounded = await Machines.shared.listDirectory(
+			at(parent),
+			false,
+			signal
+		);
+
+		expect(bounded.entries).toHaveLength(500);
+		expect(bounded.limited).toBe(true);
+	} finally {
+		await rm(parent, { recursive: true, force: true });
+	}
 });
 
 it("stores discard recovery on the remote machine without touching the Mac's recovery directory", async () => {

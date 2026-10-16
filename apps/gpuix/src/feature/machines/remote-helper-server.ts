@@ -3,6 +3,10 @@ import { lstat, mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { isAbsolute, join, relative } from "node:path";
 import { RepositoryDiscovery } from "../repository-discovery/repository-discovery";
+import { LocalRepositorySetup } from "../repository-workspace/lib/repository-setup-local";
+import { LocalRepositoryWorktrees } from "../workspace-tabs/lib/repository-worktrees-local";
+import { MachineLocation } from "./machine-location";
+import { LocalMachineFolders } from "./machine-folders";
 import {
 	isRecord,
 	remoteGitMethods,
@@ -91,7 +95,12 @@ export class RemoteHelperServer {
 	}
 
 	private async open(path: unknown, limit: unknown): Promise<GitRepository> {
-		if (typeof path !== "string" || !isAbsolute(path) || /[\0\r\n]/.test(path))
+		if (
+			typeof path !== "string" ||
+			!isAbsolute(path) ||
+			MachineLocation.isRemote(path) ||
+			/[\0\r\n]/.test(path)
+		)
 			throw new Error("Choose an absolute remote repository path.");
 
 		if (
@@ -146,6 +155,39 @@ export class RemoteHelperServer {
 		const progress = (value: unknown): void =>
 			this.send({ kind: "progress", id, value });
 
+		if (frame.operation === "list-directory") {
+			if (typeof frame.path !== "string" || typeof frame.hidden !== "boolean")
+				throw new Error("Invalid folder request.");
+
+			return await LocalMachineFolders.read(frame.path, frame.hidden, signal);
+		}
+
+		if (frame.operation === "clone" || frame.operation === "initialize") {
+			if (
+				typeof frame.path !== "string" ||
+				!isAbsolute(frame.path) ||
+				MachineLocation.isRemote(frame.path) ||
+				/[\0\r\n]/.test(frame.path) ||
+				(frame.operation === "clone"
+					? typeof frame.remoteUrl !== "string"
+					: typeof frame.branch !== "string")
+			)
+				throw new Error(
+					"Choose a repository URL and an absolute remote destination."
+				);
+
+			return await LocalRepositorySetup.write(
+				frame.operation === "clone" && typeof frame.remoteUrl === "string"
+					? { kind: "clone", path: frame.path, remoteUrl: frame.remoteUrl }
+					: {
+							kind: "create",
+							path: frame.path,
+							branch: typeof frame.branch === "string" ? frame.branch : "",
+						},
+				signal
+			);
+		}
+
 		if (frame.operation === "scan") {
 			if (
 				!Array.isArray(frame.folders) ||
@@ -193,6 +235,35 @@ export class RemoteHelperServer {
 		const run = async (): Promise<unknown> => {
 			await previous?.catch(() => undefined);
 			signal.throwIfAborted();
+
+			if (frame.operation === "create-worktree") {
+				const input = frame.input;
+
+				if (
+					!isRecord(input) ||
+					(input.kind !== "new" &&
+						input.kind !== "existing" &&
+						input.kind !== "remote") ||
+					typeof input.branch !== "string" ||
+					typeof input.path !== "string" ||
+					!isAbsolute(input.path) ||
+					MachineLocation.isRemote(input.path) ||
+					/[\0\r\n]/.test(input.path) ||
+					(input.expectedHead !== null &&
+						typeof input.expectedHead !== "string") ||
+					(input.expectedBranch !== null &&
+						typeof input.expectedBranch !== "string")
+				)
+					throw new Error("Invalid remote worktree request.");
+
+				return await LocalRepositoryWorktrees.create(repository.info.root, {
+					kind: input.kind,
+					branch: input.branch,
+					path: input.path,
+					expectedHead: input.expectedHead,
+					expectedBranch: input.expectedBranch,
+				});
+			}
 
 			if (frame.operation === "discard") {
 				if (!isRecord(frame.input)) throw new Error("Invalid discard request.");

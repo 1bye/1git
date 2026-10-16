@@ -1,3 +1,4 @@
+import { RepositoryBranchTargets } from "./repository-branch-targets";
 import {
 	type BranchCollection,
 	type BranchInfo,
@@ -52,34 +53,8 @@ export class RepositoryBranches {
 	static remoteTarget(
 		branch: BranchInfo,
 		collection: BranchCollection
-	): {
-		name: string;
-		error: string | null;
-	} {
-		const prefix = `refs/remotes/${branch.remote}/`;
-		const name = branch.fullName.slice(prefix.length);
-
-		if (
-			branch.type !== "remote" ||
-			!branch.remote ||
-			!branch.fullName.startsWith(prefix) ||
-			!name
-		)
-			return {
-				name,
-				error: "This remote branch is unavailable. Refresh and try again.",
-			};
-
-		const local = collection.branches.find(
-			(item) => item.type === "local" && item.name === name
-		);
-
-		return {
-			name,
-			error: local
-				? `Local branch “${name}” already exists. Choose it instead.`
-				: null,
-		};
+	): { name: string; error: string | null } {
+		return RepositoryBranchTargets.remoteTarget(branch, collection);
 	}
 
 	static async read(

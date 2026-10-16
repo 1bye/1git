@@ -1,5 +1,5 @@
 /**
- * Covers: cancellation and output-limit failures wait for child shutdown, including streamed stdout and bounded stderr.
+ * Covers: cancellation and output-limit failures wait for process/descendant shutdown, including streamed stdout and bounded stderr.
  * Real: process spawning, signals, output collection and temporary files.
  * Doubles: a local shell executable with delayed termination instead of Git.
  * Requires: a POSIX shell, Git for isolated fixture setup and writable temporary storage; no network.
@@ -13,6 +13,38 @@ const fixtures = new RepositoryFixtures();
 
 afterEach(async () => {
 	await fixtures.cleanup();
+});
+
+it("stops a helper holding inherited output pipes before acknowledging cancellation", async () => {
+	const fixture = await fixtures.create();
+	const executable = fixture.path("parent.sh");
+	const helper = fixture.path("helper.sh");
+
+	await writeFile(
+		helper,
+		`#!/bin/sh\ntrap 'touch "$0.stopped"; exit 0' TERM\ntouch "$0.ready"\nwhile :; do sleep 1; done\n`
+	);
+	await writeFile(executable, `#!/bin/sh\n/bin/sh "$0.helper" &\nwait\n`);
+	await writeFile(`${executable}.helper`, await Bun.file(helper).text());
+	await chmod(executable, 0o700);
+	const controller = new AbortController();
+	const process = new GitProcess({ executable });
+
+	const result = process
+		.run({ args: [], cwd: fixture.sandboxPath, signal: controller.signal })
+		.catch((error: unknown) => error);
+
+	const deadline = Date.now() + 2000;
+
+	while (
+		!(await Bun.file(`${executable}.helper.ready`).exists()) &&
+		Date.now() < deadline
+	)
+		await Bun.sleep(10);
+
+	controller.abort();
+	expect(await result).toMatchObject({ reason: "aborted" });
+	expect(await Bun.file(`${executable}.helper.stopped`).exists()).toBe(true);
 });
 
 it.each([

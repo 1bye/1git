@@ -164,9 +164,28 @@ export class GitProcess {
 			let outputBytes = 0;
 			let settled = false;
 			let stopped: GitProcessFailure | null = null;
+			let killTimer: ReturnType<typeof setTimeout> | undefined;
 
 			const cleanup = (): void => {
 				input.signal?.removeEventListener("abort", handleAbort);
+
+				if (killTimer) clearTimeout(killTimer);
+			};
+
+			const terminate = (signal: NodeJS.Signals): void => {
+				try {
+					// Git's SSH/HTTP helpers inherit its private process group and output pipes.
+					if (process.platform !== "win32" && child.pid)
+						process.kill(-child.pid, signal);
+					else child.kill(signal);
+				} catch {
+					child.kill(signal);
+				}
+			};
+
+			const stop = (): void => {
+				terminate("SIGTERM");
+				killTimer ??= setTimeout(() => terminate("SIGKILL"), 2000);
 			};
 
 			const rejectOnce = (error: Error): void => {
@@ -184,7 +203,7 @@ export class GitProcess {
 					"aborted",
 					"Git operation was aborted."
 				);
-				child.kill("SIGTERM");
+				stop();
 			};
 
 			const collectChunk = (target: Buffer[], chunk: Buffer): void => {
@@ -193,11 +212,11 @@ export class GitProcess {
 				outputBytes += chunk.byteLength;
 
 				if (outputBytes > this.maxOutputBytes) {
-					child.kill("SIGTERM");
 					stopped = new GitProcessFailure(
 						"output-too-large",
 						`Git output exceeded ${this.maxOutputBytes} bytes.`
 					);
+					stop();
 
 					return;
 				}
@@ -294,6 +313,7 @@ export class GitProcess {
 					PAGER: "cat",
 				},
 				shell: false,
+				detached: process.platform !== "win32",
 				windowsHide: true,
 				stdio: ["pipe", input.stdoutFile ?? "pipe", "pipe"],
 			}

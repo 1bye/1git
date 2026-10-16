@@ -12,6 +12,8 @@ import { windowOptions } from "../../src/window-options";
 import { hostingRepositories } from "../_shared/hosting-repositories";
 import { repositorySnapshot } from "../_shared/repository-snapshot";
 import type { RepositorySetup } from "../../src/feature/repository-workspace/lib/repository-setup";
+import { RepositoryCloneView } from "../../src/feature/repository-workspace/components/repository-clone-view";
+import { MachineLocation } from "../../src/feature/machines/machine-location";
 
 let root: TestRoot;
 let f: ReturnType<typeof hostingRepositories>;
@@ -53,6 +55,44 @@ async function browse() {
 	click("repository-clone");
 	await settle();
 }
+
+it("uses an account repository's SSH URL on a saved machine without forwarding account authentication", async () => {
+	const machine = {
+		id: "00000000-0000-4000-8000-000000000001",
+		name: "Devbox",
+		home: "/remote/home",
+	};
+
+	const submit = mock(async () => ({
+		ok: false as const,
+		message: "Keep the form",
+	}));
+
+	root.render(
+		<RepositoryCloneView
+			accounts={f.accounts}
+			machine={machine}
+			active
+			disabled={false}
+			onSubmit={submit}
+			onCancel={() => {}}
+			onOpen={() => {}}
+			onBack={() => {}}
+			onSettings={() => {}}
+			onAddAccount={() => {}}
+		/>
+	);
+	await settle();
+	click("clone-repository-10");
+	click("setup-submit");
+	await settle();
+	expect(submit).toHaveBeenCalledWith({
+		kind: "clone",
+		path: MachineLocation.encode(machine.id, "/remote/home/project"),
+		remoteUrl: "git@github.com:tester/project.git",
+	});
+	expect(root.renderer.getAllText()).not.toContain("fixture-github-token");
+});
 
 it("selects an account repository, pages results, picks a folder and opens after clone", async () => {
 	const setup = mock<typeof RepositorySetup.write>(async () => ({

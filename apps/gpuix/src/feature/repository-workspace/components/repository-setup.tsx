@@ -1,6 +1,6 @@
 import { createThemedStyles, useAppTheme } from "../../../styles/theme";
 import { typography, radius, spacing, iconSize } from "@1git/design-tokens";
-import { useEffect, useRef, useState, type Ref } from "react";
+import { useContext, useEffect, useRef, useState, type Ref } from "react";
 import { motion, useGpuixRequired, type PublicInstance } from "@gpuix/react";
 import { Button } from "@1git/gpuix-ui/button";
 import {
@@ -11,6 +11,10 @@ import {
 
 import { WorkspaceTabIcon } from "../../workspace-tabs/components/workspace-tab-icon";
 import { StateArtwork } from "../../../fixture/state-artwork";
+import { basename, dirname } from "node:path";
+import { MachineContext } from "../../machines/machine-context";
+import { MachineLocation } from "../../machines/machine-location";
+import { RemoteFolderPicker } from "../../machines/remote-folder-picker";
 import type {
 	RepositorySetupRequest,
 	RepositorySetupResult,
@@ -86,6 +90,7 @@ export function RepositorySetupActions({
 	cloneRef,
 	presentation = "list",
 	testIdPrefix = "",
+	machineRoot,
 }: {
 	disabled: boolean;
 	onSubmit: (request: RepositorySetupRequest) => Promise<RepositorySetupResult>;
@@ -96,6 +101,7 @@ export function RepositorySetupActions({
 	cloneRef?: Ref<PublicInstance>;
 	presentation?: "list" | "tiles";
 	testIdPrefix?: string;
+	machineRoot?: string;
 }) {
 	const theme = useAppTheme();
 	const { tokens: appTokens } = theme;
@@ -112,6 +118,8 @@ export function RepositorySetupActions({
 			}}
 		>
 			<CreateForm
+				key={machineRoot ?? "local"}
+				machineRoot={machineRoot}
 				testIdPrefix={testIdPrefix}
 				presentation={presentation}
 				disabled={disabled}
@@ -154,6 +162,7 @@ export function RepositorySetupActions({
 }
 
 function CreateForm({
+	machineRoot,
 	disabled,
 	onSubmit,
 	onCancel,
@@ -167,6 +176,14 @@ function CreateForm({
 	const { hint, input } = themedStyles.get(theme);
 
 	const renderer = useGpuixRequired();
+	const machines = useContext(MachineContext);
+	const machine = machineRoot ? MachineLocation.parse(machineRoot) : null;
+
+	const machineName = machine
+		? (machines?.name(machine.machineId) ?? "SSH machine")
+		: undefined;
+
+	const [browsing, setBrowsing] = useState(false);
 	const [open, setOpen] = useState(false);
 	const [branch, setBranch] = useState("main");
 	const [path, setPath] = useState("");
@@ -194,6 +211,12 @@ function CreateForm({
 		if (working.current || picking) return;
 
 		setPicking(true);
+
+		if (machineRoot) {
+			setBrowsing(true);
+
+			return;
+		}
 
 		try {
 			if (!renderer.promptForPaths)
@@ -338,13 +361,19 @@ function CreateForm({
 					) : (
 						<>
 							<div style={{ gap: spacing[1] }}>
-								<text style={hint}>Location</text>
+								<text style={hint}>
+									{machine ? `Location on ${machineName}` : "Location"}
+								</text>
 								<Button
 									tokens={appTokens}
 									variant="ghost"
 									size="sm"
 									testId="setup-location"
-									aria-label={path || "Choose repository folder"}
+									aria-label={
+										path
+											? MachineLocation.display(path)
+											: "Choose repository folder"
+									}
 									disabled={picking}
 									style={{
 										...input,
@@ -377,7 +406,11 @@ function CreateForm({
 											pointerEvents: "none",
 										}}
 									>
-										{picking ? "Choosing…" : path || "Choose folder…"}
+										{picking
+											? "Choosing…"
+											: path
+												? MachineLocation.display(path)
+												: "Choose folder…"}
 									</text>
 								</Button>
 							</div>
@@ -438,6 +471,30 @@ function CreateForm({
 					</div>
 				</div>
 			</PopoverContent>
+			{browsing && machineRoot ? (
+				<RemoteFolderPicker
+					location={
+						path && machine
+							? MachineLocation.encode(
+									machine.machineId,
+									dirname(MachineLocation.display(path))
+								)
+							: machineRoot
+					}
+					title="Choose repository folder"
+					initialName={path ? basename(MachineLocation.display(path)) : ""}
+					onSelect={(location) => {
+						setPath(location);
+						clearError();
+						setBrowsing(false);
+						setPicking(false);
+					}}
+					onClose={() => {
+						setBrowsing(false);
+						setPicking(false);
+					}}
+				/>
+			) : null}
 		</Popover>
 	);
 }

@@ -54,6 +54,30 @@ machine; Home remembers the selected machine, and session paths include machine
 identity, so identical paths on different machines remain distinct. Discard
 recovery files are stored on the SSH machine.
 
+The selected SSH machine has **Create repository**, **Clone repository**, and
+**Open folder** quick actions. The app's folder browser lists remote directories,
+with Home/Up navigation, a path field, hidden-folder toggle, keyboard navigation,
+and retry for unavailable folders. **Open folder** opens the chosen existing
+checkout. Create lets you choose an existing folder or enter a new child folder
+name, then explicitly **Create & open** with an initial branch. Browsing and
+choosing a destination do not initialize or create anything. The same **Browse…**
+picker is available for remote Clone and Worktree destinations. Listings are
+bounded and exclude child symlinks; direct paths support explicitly chosen aliases.
+
+Select a connected machine on Home and choose **Clone repository** to clone there.
+The Clone view identifies the machine, suggests a destination in its home folder,
+and accepts an absolute remote folder path. Paste a URL or choose a repository from
+a hosting account; account selections prefer the SSH clone URL. Authentication uses
+Git credentials/keys on the machine, and local hosting tokens are never sent there.
+Cancel waits for remote Git to stop before allowing a retry; a lost connection or
+missing cancellation acknowledgement asks you to inspect the destination first.
+Existing checkouts offer **Open repository**, and nonempty folders are preserved.
+
+An open remote repository's tab menu → **New** → **Worktree** uses the same branch
+choices and opens the created checkout in a new tab. Its editable destination is
+on the source machine. The helper rechecks HEAD, branch availability and the empty
+destination before writing; the original checkout and commit draft stay intact.
+
 One connection is shared across tabs. Remote repositories refresh every five
 seconds while connected, on focus and after explicit operations. Disconnect and
 Forget machine refuse while requests are in progress; stop a scan or wait for an

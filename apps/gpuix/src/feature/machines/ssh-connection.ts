@@ -410,9 +410,13 @@ export class SshConnection {
 			throw new Error("Remote request exceeded the size limit.");
 
 		return await new Promise<unknown>((resolveResult, reject) => {
-			const timeout = setTimeout(
+			let cancelling = false;
+
+			let timeout = setTimeout(
 				() => cancel(),
-				input.operation === "scan" ? 600_000 : 120_000
+				input.operation === "scan" || input.operation === "clone"
+					? 600_000
+					: 120_000
 			);
 
 			const cleanup = (): void => {
@@ -421,6 +425,27 @@ export class SshConnection {
 			};
 
 			const cancel = (): void => {
+				if (cancelling) return;
+
+				if (input.operation === "clone" || input.operation === "initialize") {
+					// Keep the form blocked until Git acknowledges cancellation, or the channel stops responding.
+					cancelling = true;
+					cleanup();
+					this.child?.stdin.write(
+						`${JSON.stringify({ kind: "cancel", id })}\n`
+					);
+					timeout = setTimeout(() => {
+						this.pending.delete(id);
+						reject(
+							new Error(
+								"The remote setup did not confirm cancellation. Reconnect and check the destination before retrying."
+							)
+						);
+					}, 10_000);
+
+					return;
+				}
+
 				this.pending.delete(id);
 				cleanup();
 				this.child?.stdin.write(`${JSON.stringify({ kind: "cancel", id })}\n`);

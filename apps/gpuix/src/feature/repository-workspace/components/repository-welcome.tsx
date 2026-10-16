@@ -332,32 +332,28 @@ function RepositoryWelcomeContent({
 					}}
 				>
 					{machines}
-					{remote ? null : (
-						<>
-							<text style={styles.heading}>QUICK ACTIONS</text>
-							{actions}
-							<Button
-								tokens={appTokens}
-								variant="ghost"
-								size="sm"
-								testId="open-repository"
-								disabled={busy}
-								style={{ ...styles.action, marginTop: spacing[1] }}
-								onPress={onOpen}
-							>
-								<svg
-									source='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 7V5a1 1 0 0 1 1-1h5l3 3h8a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7Z" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/></svg>'
-									style={{
-										width: iconSize.lg,
-										height: iconSize.lg,
-										color: appTokens.colors.textMuted,
-										pointerEvents: "none",
-									}}
-								/>
-								{busy ? "Opening…" : "Open from disk"}
-							</Button>
-						</>
-					)}
+					<text style={styles.heading}>QUICK ACTIONS</text>
+					{actions}
+					<Button
+						tokens={appTokens}
+						variant="ghost"
+						size="sm"
+						testId="open-repository"
+						disabled={busy}
+						style={{ ...styles.action, marginTop: spacing[1] }}
+						onPress={onOpen}
+					>
+						<svg
+							source='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 7V5a1 1 0 0 1 1-1h5l3 3h8a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7Z" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/></svg>'
+							style={{
+								width: iconSize.lg,
+								height: iconSize.lg,
+								color: appTokens.colors.textMuted,
+								pointerEvents: "none",
+							}}
+						/>
+						{busy ? "Opening…" : remote ? "Open folder" : "Open from disk"}
+					</Button>
 					{error ? (
 						<text
 							role="alert"

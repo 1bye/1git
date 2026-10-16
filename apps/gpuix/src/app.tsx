@@ -1,4 +1,5 @@
 import { MachineContext } from "./feature/machines/machine-context";
+import { RemoteFolderPicker } from "./feature/machines/remote-folder-picker";
 import { AppThemeContext, appThemes, useAppTheme } from "./styles/theme";
 import type { AppAppearance } from "./styles/tokens";
 import { RepositoryTheme } from "./styles/repository-theme";
@@ -652,6 +653,14 @@ function AppContent({
 
 	const [preferredAccountKey, setPreferredAccountKey] = useState<string>();
 	const [cloneId, setCloneId] = useState<string | null>(null);
+	const [folderPickerRoot, setFolderPickerRoot] = useState<string>();
+
+	const [cloneMachine, setCloneMachine] = useState<{
+		id: string;
+		name: string;
+		home: string;
+	}>();
+
 	const cloneTrigger = useRef<PublicInstance | null>(null);
 
 	const cloneTab = state.tabs.find(
@@ -1388,9 +1397,28 @@ function AppContent({
 							) : null}
 						</div>
 					) : null}
+					{folderPickerRoot ? (
+						<RemoteFolderPicker
+							location={folderPickerRoot}
+							title="Open repository"
+							confirmLabel="Open folder"
+							onClose={() => setFolderPickerRoot(undefined)}
+							onSelect={(path) => {
+								setFolderPickerRoot(undefined);
+								const existing = state.tabs.find(
+									(tab) => tab.workspace.repository?.root === path
+								);
+
+								if (existing) dispatch({ type: "activate", id: existing.id });
+								else if (activeTab) void connection.read(activeTab.id, path);
+								else dispatch({ type: "add", path });
+							}}
+						/>
+					) : null}
 					{cloneTab ? (
 						<RepositoryCloneView
 							key={cloneTab.id}
+							machine={cloneMachine}
 							accounts={accounts}
 							preferredAccountKey={preferredAccountKey}
 							active={activeTab?.id === cloneTab.id && !settingsOpen}
@@ -1476,6 +1504,12 @@ function AppContent({
 							busy={connection.pickingId !== null || !!workspace?.loading}
 							error={machineError ?? workspace?.error}
 							onOpen={() => {
+								if (remoteHome) {
+									setFolderPickerRoot(remoteHome);
+
+									return;
+								}
+
 								const id = activeTab?.id ?? `workspace-${state.nextId}`;
 
 								if (!activeTab) dispatch({ type: "add" });
@@ -1493,6 +1527,7 @@ function AppContent({
 							}}
 							actions={
 								<RepositorySetupActions
+									machineRoot={remoteHome}
 									cloneRef={cloneTrigger}
 									onClone={() => {
 										if (
@@ -1508,12 +1543,22 @@ function AppContent({
 
 										if (!activeTab) dispatch({ type: "add" });
 
+										setCloneMachine(
+											selectedSavedMachine && machineHome
+												? {
+														id: selectedSavedMachine.id,
+														name: selectedSavedMachine.name,
+														home: machineHome,
+													}
+												: undefined
+										);
 										setCloneId(id);
 									}}
 									onBegin={() => {
 										if (!activeTab) dispatch({ type: "add" });
 									}}
 									disabled={
+										(remoteMachine && !machineHome) ||
 										connection.pickingId !== null ||
 										!!workspace?.loading ||
 										(!!workspace && RepositoryWorkspaceModel.isBusy(workspace))
