@@ -81,7 +81,7 @@ const themedStyles = createThemedStyles(({ tokens: appTokens }) => {
 		action: {
 			width: "100%",
 			justifyContent: "flex-start",
-			gap: spacing[2],
+			gap: spacing[2.5],
 			color: appTokens.colors.textMuted,
 		},
 	});
@@ -271,8 +271,8 @@ export function RepositoryWelcome({
 								<svg
 									source='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 7V5a1 1 0 0 1 1-1h5l3 3h8a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7Z" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/></svg>'
 									style={{
-										width: iconSize.sm,
-										height: iconSize.sm,
+										width: iconSize.lg,
+										height: iconSize.lg,
 										color: appTokens.colors.textMuted,
 										pointerEvents: "none",
 									}}

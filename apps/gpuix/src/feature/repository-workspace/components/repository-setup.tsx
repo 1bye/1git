@@ -132,17 +132,21 @@ export function RepositorySetupActions({
 					flexGrow: presentation === "tiles" ? 1 : undefined,
 					flexBasis: presentation === "tiles" ? 0 : undefined,
 					minWidth: 0,
-					height: presentation === "tiles" ? 88 : undefined,
+					height:
+						presentation === "tiles" ? 88 : appTokens.layout.smallControlHeight,
 					flexDirection: presentation === "tiles" ? "column" : "row",
 					justifyContent: presentation === "tiles" ? "center" : "flex-start",
 					borderColor:
 						presentation === "tiles" ? appTokens.colors.border : "transparent",
-					gap: spacing[2],
+					gap: presentation === "tiles" ? spacing[2] : spacing[2.5],
 					color: appTokens.colors.textMuted,
 				}}
 				onPress={onClone}
 			>
-				<WorkspaceTabIcon name="branch" />
+				<WorkspaceTabIcon
+					name="branch"
+					size={presentation === "tiles" ? iconSize.sm : iconSize.lg}
+				/>
 				Clone repository
 			</Button>
 		</div>
@@ -282,18 +286,24 @@ function CreateForm({
 						flexGrow: presentation === "tiles" ? 1 : undefined,
 						flexBasis: presentation === "tiles" ? 0 : undefined,
 						minWidth: 0,
-						height: presentation === "tiles" ? 88 : undefined,
+						height:
+							presentation === "tiles"
+								? 88
+								: appTokens.layout.smallControlHeight,
 						flexDirection: presentation === "tiles" ? "column" : "row",
 						justifyContent: presentation === "tiles" ? "center" : "flex-start",
 						borderColor:
 							presentation === "tiles"
 								? appTokens.colors.border
 								: "transparent",
-						gap: spacing[2],
+						gap: presentation === "tiles" ? spacing[2] : spacing[2.5],
 						color: appTokens.colors.textMuted,
 					}}
 				>
-					<WorkspaceTabIcon name="add" />
+					<WorkspaceTabIcon
+						name="add"
+						size={presentation === "tiles" ? iconSize.sm : iconSize.lg}
+					/>
 					Create repository
 				</Button>
 			</PopoverTrigger>
