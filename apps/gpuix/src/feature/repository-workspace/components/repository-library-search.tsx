@@ -19,14 +19,14 @@ type RepositoryView = RepositoryLibraryPreferences["view"];
 // App-drawn glyphs share the light strokes of the Home controls.
 const views = [
 	{
-		value: "listed",
-		label: "Repositories",
-		icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h5l2 2h10a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5Z"/><path d="M7 11h10M7 15h7"/></svg>',
+		value: "tiles",
+		label: "Tile view",
+		icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>',
 	},
 	{
-		value: "starred",
-		label: "Starred repositories",
-		icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9Z"/></svg>',
+		value: "list",
+		label: "List view",
+		icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"><path d="M8 5h13M8 12h13M8 19h13M3 5h.01M3 12h.01M3 19h.01"/></svg>',
 	},
 ] as const;
 
@@ -174,12 +174,8 @@ export function RepositoryLibrarySearch({
 				<input
 					ref={search}
 					testId="welcome-search"
-					aria-label={
-						view === "starred"
-							? "Search starred repositories"
-							: "Search repositories"
-					}
-					placeholder={`Search ${repositoryCount} ${view === "starred" ? "starred " : ""}${repositoryCount === 1 ? "repository" : "repositories"}`}
+					aria-label="Search repositories"
+					placeholder={`Search ${repositoryCount} ${repositoryCount === 1 ? "repository" : "repositories"}`}
 					value={query}
 					tabIndex={0}
 					onChange={(event) => onQueryChange(event.value ?? "")}

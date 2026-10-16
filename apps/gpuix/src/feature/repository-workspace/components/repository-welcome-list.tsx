@@ -16,8 +16,9 @@ import { RepositoryWelcomeRow } from "./repository-welcome-row";
 import { spacing } from "@1git/design-tokens";
 import { RepositoryAvatarContext } from "./repository-avatar";
 
-const rowHeight = 58;
 const chunkSize = 40;
+const tileGap = spacing[3];
+const tileMinWidth = 160;
 
 /** Buffers large discovery lists so a home-folder scan cannot mount thousands of native controls at once. */
 export function RepositoryWelcomeList({
@@ -29,6 +30,7 @@ export function RepositoryWelcomeList({
 	onForget,
 	onStar,
 	onMenu,
+	layout,
 }: {
 	paths: readonly string[];
 	saved: ReadonlySet<string>;
@@ -38,19 +40,36 @@ export function RepositoryWelcomeList({
 	onForget: (path: string) => void;
 	onStar: (path: string) => void;
 	onMenu: ComponentProps<typeof RepositoryWelcomeRow>["onMenu"];
+	layout: "tiles" | "list";
 }) {
 	const renderer = useGpuixRequired();
 	const avatars = use(RepositoryAvatarContext);
 	const window = useWindowSize();
+	const container = useRef<PublicInstance>(null);
 	const viewport = useRef<PublicInstance>(null);
 	const rows = useRef(new Map<string, PublicInstance>());
 	const focus = useRef<number | null>(null);
 	const [windowStart, setWindowStart] = useState(0);
+	const [columns, setColumns] = useState(1);
+	const columnCount = layout === "tiles" ? columns : 1;
+	const rowHeight = layout === "tiles" ? 116 + tileGap : 58;
+	const rowCount = Math.ceil(paths.length / columnCount);
 	const windowSize = Math.ceil(window.height / rowHeight) + chunkSize * 2;
-	const start = Math.min(windowStart, Math.max(0, paths.length - windowSize));
-	const end = Math.min(paths.length, start + windowSize);
+	const start = Math.min(windowStart, Math.max(0, rowCount - windowSize));
+	const end = Math.min(rowCount, start + windowSize);
 
 	const preloadAvatars = useCallback((): void => {
+		const bounds =
+			container.current && renderer.getElementBounds?.(container.current.id);
+
+		if (bounds)
+			setColumns(
+				Math.max(
+					1,
+					Math.floor((bounds.width + tileGap) / (tileMinWidth + tileGap))
+				)
+			);
+
 		if (!avatars) return;
 
 		const anchor = viewport.current
@@ -63,16 +82,19 @@ export function RepositoryWelcomeList({
 			? Math.ceil(((anchor[1] ?? 0) + (anchor[2] ?? 0)) / rowHeight) + 3
 			: 12;
 
-		for (const path of paths.slice(first, first + count))
+		for (const path of paths.slice(
+			first * columnCount,
+			(first + count) * columnCount
+		))
 			void avatars.load({ path });
-	}, [avatars, paths, renderer]);
+	}, [avatars, paths, renderer, columnCount, rowHeight]);
 
 	useEffect(() => {
 		// The first native paint can precede registration of the visible-range callback.
 		const timer = setTimeout(preloadAvatars, 0);
 
 		return () => clearTimeout(timer);
-	}, [preloadAvatars]);
+	}, [preloadAvatars, window.width]);
 
 	const reveal = (index: number): boolean => {
 		const path = paths[index];
@@ -81,7 +103,11 @@ export function RepositoryWelcomeList({
 		if (!row || !viewport.current) return false;
 
 		renderer.focusElement?.(row.id);
-		renderer.scrollToItem?.(viewport.current.id, index, 0);
+		renderer.scrollToItem?.(
+			viewport.current.id,
+			Math.floor(index / columnCount),
+			0
+		);
 
 		return true;
 	};
@@ -94,6 +120,7 @@ export function RepositoryWelcomeList({
 
 	return (
 		<div
+			ref={container}
 			testId="welcome-repositories-viewport"
 			style={{
 				display: "flex",
@@ -108,8 +135,8 @@ export function RepositoryWelcomeList({
 				testId="welcome-repositories"
 				role="group"
 				aria-label="Repositories"
-				aria-description="Use Up, Down, Home and End to move between repositories."
-				itemCount={paths.length}
+				aria-description="Use the arrow keys, Home and End to move between repositories."
+				itemCount={rowCount}
 				estimatedItemHeight={rowHeight}
 				windowStart={start}
 				overdraw={rowHeight * 2}
@@ -138,69 +165,110 @@ export function RepositoryWelcomeList({
 					minHeight: 0,
 				}}
 			>
-				{paths.slice(start, end).map((path, offset) => (
-					<div
-						key={path}
-						style={{ height: rowHeight, paddingBottom: spacing[1] }}
-					>
-						<RepositoryWelcomeRow
-							deferAvatar
-							path={path}
-							busy={busy}
-							suggested={!saved.has(path)}
-							starred={starred.has(path)}
-							onStar={onStar}
-							onOpen={onOpen}
-							onForget={onForget}
-							onMenu={onMenu}
-							openRef={(row) => {
-								if (row) rows.current.set(path, row);
-								else rows.current.delete(path);
+				{Array.from({ length: end - start }, (_, offset) => start + offset).map(
+					(rowIndex) => (
+						<div
+							key={paths[rowIndex * columnCount]}
+							style={{
+								height: rowHeight,
+								paddingBottom: layout === "tiles" ? tileGap : spacing[1],
+								display: "flex",
+								flexDirection: "row",
+								gap: tileGap,
 							}}
-							onNavigate={(event) => {
-								if (
-									busy ||
-									event.modifiers?.cmd ||
-									event.modifiers?.ctrl ||
-									event.modifiers?.alt
-								)
-									return;
+						>
+							{paths
+								.slice(rowIndex * columnCount, (rowIndex + 1) * columnCount)
+								.map((path, column) => (
+									<RepositoryWelcomeRow
+										key={path}
+										layout={layout}
+										deferAvatar
+										path={path}
+										busy={busy}
+										suggested={!saved.has(path)}
+										starred={starred.has(path)}
+										onStar={onStar}
+										onOpen={onOpen}
+										onForget={onForget}
+										onMenu={onMenu}
+										openRef={(row) => {
+											if (row) rows.current.set(path, row);
+											else rows.current.delete(path);
+										}}
+										onNavigate={(event) => {
+											if (
+												busy ||
+												event.modifiers?.cmd ||
+												event.modifiers?.ctrl ||
+												event.modifiers?.alt
+											)
+												return;
 
-								const index = start + offset;
+											const index = rowIndex * columnCount + column;
 
-								const destinations: Readonly<Record<string, number>> = {
-									home: 0,
-									end: paths.length - 1,
-									up: index - 1,
-									down: index + 1,
-								};
+											const destinations: Readonly<Record<string, number>> = {
+												home: 0,
+												end: paths.length - 1,
+												up: index - columnCount,
+												down: index + columnCount,
+												...(layout === "tiles"
+													? { left: index - 1, right: index + 1 }
+													: {}),
+											};
 
-								const destination = destinations[event.key ?? ""];
+											const destination = destinations[event.key ?? ""];
 
-								if (destination === undefined) return;
+											if (destination === undefined) return;
 
-								focus.current = Math.max(
-									0,
-									Math.min(paths.length - 1, destination)
-								);
+											focus.current = Math.max(
+												0,
+												Math.min(paths.length - 1, destination)
+											);
 
-								if (reveal(focus.current)) {
-									focus.current = null;
+											if (reveal(focus.current)) {
+												focus.current = null;
 
-									return;
-								}
+												return;
+											}
 
-								setWindowStart(
-									Math.max(
+											setWindowStart(
+												Math.max(
+													0,
+													Math.floor(focus.current / columnCount / chunkSize) *
+														chunkSize -
+														chunkSize
+												)
+											);
+										}}
+									/>
+								))}
+							{Array.from(
+								{
+									length: Math.max(
 										0,
-										Math.floor(focus.current / chunkSize) * chunkSize -
-											chunkSize
-									)
-								);
-							}}
-						/>
-					</div>
-				))}
+										columnCount -
+											Math.min(
+												columnCount,
+												paths.length - rowIndex * columnCount
+											)
+									),
+								},
+								(_, column) => (
+									<div
+										key={`empty-${column}`}
+										style={{
+											flexGrow: 1,
+											flexBasis: tileMinWidth,
+											minWidth: 140,
+											maxWidth: 220,
+										}}
+									/>
+								)
+							)}
+						</div>
+					)
+				)}
 			</virtual-list>
 		</div>
 	);

@@ -3,7 +3,7 @@ import { basename, isAbsolute, normalize, relative, sep } from "node:path";
 /** Local browsing intent; favorites do not change repository history or files. */
 export interface RepositoryLibraryPreferences {
 	readonly starred: readonly string[];
-	readonly view: "listed" | "starred";
+	readonly view: "tiles" | "list";
 	readonly folder?: string;
 	readonly machine?: string;
 }
@@ -45,7 +45,8 @@ export class RepositoryLibrary {
 						),
 					].slice(0, 5000)
 				: [],
-			view: record.view === "starred" ? "starred" : "listed",
+			// Legacy filter values become tile layout without losing stars or folder intent.
+			view: record.view === "list" ? "list" : "tiles",
 			...(record.folder === "other" || validPath(record.folder)
 				? {
 						folder:
@@ -58,7 +59,7 @@ export class RepositoryLibrary {
 	static isDefault(value: RepositoryLibraryPreferences): boolean {
 		return (
 			!value.starred.length &&
-			value.view === "listed" &&
+			value.view === "tiles" &&
 			!value.folder &&
 			!value.machine
 		);

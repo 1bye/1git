@@ -57,7 +57,7 @@ it("validates local intent and adds/removes favorites idempotently", () => {
 			view: "oops",
 			folder: "relative",
 		})
-	).toEqual({ starred: ["/Work/repo/"], view: "listed" });
+	).toEqual({ starred: ["/Work/repo/"], view: "tiles" });
 	const prefs = RepositoryLibrary.preferences(undefined);
 	const added = RepositoryLibrary.star(prefs, "/Work/repo", true);
 
@@ -77,7 +77,7 @@ it("round-trips stars/view/location without scan results or changing legacy defa
 	).toBeUndefined();
 	const library = {
 		starred: ["/Work/repo"],
-		view: "starred" as const,
+		view: "list" as const,
 		folder: "/Work",
 	};
 
@@ -97,4 +97,32 @@ it("round-trips stars/view/location without scan results or changing legacy defa
 		WorkspaceSession.parse(JSON.stringify(saved)).repositoryLibrary
 	).toEqual(library);
 	expect(JSON.stringify(saved)).not.toContain("scanned");
+});
+
+it("migrates the former repository filters to tiles without dropping stars or folder selection", () => {
+	for (const view of ["listed", "starred"]) {
+		expect(
+			RepositoryLibrary.preferences({
+				view,
+				starred: ["/Work/api"],
+				folder: "/Work",
+			})
+		).toEqual({ view: "tiles", starred: ["/Work/api"], folder: "/Work" });
+	}
+});
+
+it("retains a saved list layout even without stars or a selected folder", () => {
+	const library = RepositoryLibrary.preferences({ view: "list" });
+
+	expect(RepositoryLibrary.isDefault(library)).toBe(false);
+	expect(
+		WorkspaceSession.parse(
+			JSON.stringify({
+				version: 1,
+				tabs: [],
+				activeId: null,
+				repositoryLibrary: library,
+			})
+		).repositoryLibrary
+	).toEqual({ view: "list", starred: [] });
 });

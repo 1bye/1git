@@ -242,7 +242,7 @@ function settingsFixture(appearance: "light" | "dark" = "dark") {
 				tabs: [],
 				activeId: null,
 				appearance,
-				repositoryLibrary: { machine: saved.id, view: "listed", starred: [] },
+				repositoryLibrary: { machine: saved.id, view: "tiles", starred: [] },
 			}}
 		/>
 	);

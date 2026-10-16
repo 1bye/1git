@@ -26,6 +26,7 @@ export function RepositoryWelcomeRow({
 	deferAvatar = false,
 	starred,
 	onStar,
+	layout = "list",
 }: {
 	path: string;
 	busy: boolean;
@@ -38,9 +39,11 @@ export function RepositoryWelcomeRow({
 	deferAvatar?: boolean;
 	starred: boolean;
 	onStar: (path: string) => void;
+	layout?: "tiles" | "list";
 }) {
 	const theme = useAppTheme();
 	const { tokens: appTokens } = theme;
+	const tiled = layout === "tiles";
 
 	const [hoverTargets, setHoverTargets] = useState({
 		row: false,
@@ -74,13 +77,27 @@ export function RepositoryWelcomeRow({
 			{...hoverEvents("row")}
 			testId={`welcome-row-${path}`}
 			style={{
+				position: "relative",
 				display: "flex",
 				flexDirection: "row",
 				alignItems: "center",
 				flexShrink: 0,
 				minWidth: 0,
+				width: tiled ? undefined : "100%",
+				...(tiled
+					? {
+							width: 180,
+							flexGrow: 1,
+							flexBasis: 160,
+							minWidth: 140,
+							maxWidth: 220,
+							height: 116,
+							borderWidth: 1,
+							borderColor: appTokens.colors.border,
+						}
+					: {}),
 				gap: spacing[1],
-				paddingRight: spacing[2],
+				paddingRight: tiled ? 0 : spacing[2],
 				borderRadius: radius.md,
 				backgroundColor:
 					!busy && visible ? appTokens.colors.surface : "transparent",
@@ -106,17 +123,22 @@ export function RepositoryWelcomeRow({
 					void onMenu(path, event);
 				}}
 				style={{
-					height: 54,
+					height: tiled ? "100%" : 54,
+					flexDirection: tiled ? "column" : "row",
+					alignItems: tiled ? "flex-start" : "center",
 					flexGrow: 1,
 					flexBasis: 0,
 					minWidth: 0,
 					justifyContent: "flex-start",
+					paddingTop: tiled ? spacing[3] : 0,
+					paddingBottom: tiled ? spacing[3] : 0,
 					paddingLeft: spacing[3],
 					gap: spacing[2.5],
 					hover: { backgroundColor: "transparent" },
 				}}
 			>
 				<RepositoryAvatar
+					size={tiled ? 24 : undefined}
 					label={basename(path)}
 					source={{ path }}
 					deferred={deferAvatar}
@@ -128,7 +150,8 @@ export function RepositoryWelcomeRow({
 						flexDirection: "column",
 						gap: spacing[0.75],
 						minWidth: 0,
-						flexGrow: 1,
+						flexGrow: tiled ? 0 : 1,
+						...(tiled ? { width: "100%" } : {}),
 						pointerEvents: "none",
 					}}
 				>
@@ -168,6 +191,9 @@ export function RepositoryWelcomeRow({
 				disabled={busy}
 				onPress={() => onStar(path)}
 				style={{
+					...(tiled
+						? { position: "absolute", top: spacing[2], right: spacing[2] }
+						: {}),
 					width: 26,
 					height: 26,
 					paddingLeft: 0,
@@ -182,9 +208,7 @@ export function RepositoryWelcomeRow({
 						width: iconSize.sm,
 						height: iconSize.sm,
 						pointerEvents: "none",
-						color: starred
-							? appTokens.colors.onAccent
-							: appTokens.colors.textMuted,
+						color: starred ? theme.colors.brand : appTokens.colors.textMuted,
 					}}
 				/>
 			</Button>
@@ -205,6 +229,9 @@ export function RepositoryWelcomeRow({
 				disabled={busy}
 				onPress={() => onForget(path)}
 				style={{
+					...(tiled
+						? { position: "absolute", top: spacing[2], right: 36 }
+						: {}),
 					width: 26,
 					height: 26,
 					paddingLeft: spacing[0],

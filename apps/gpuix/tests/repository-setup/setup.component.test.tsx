@@ -89,6 +89,7 @@ it("uses a native repository menu for reveal, dismissal, forget and open", async
 		/>
 	);
 	await settle();
+	click("welcome-view-list");
 	click("welcome-folder-other");
 	click("welcome-repository-/test/project", 2);
 	await settle();
@@ -132,6 +133,7 @@ it("supports the keyboard repository menu and reports Finder errors", async () =
 		/>
 	);
 	await settle();
+	click("welcome-view-list");
 	click("welcome-folder-other");
 	const row = root.renderer.findByTestId("welcome-repository-/missing/project");
 
@@ -174,6 +176,7 @@ for (const appearance of ["light", "dark"] as const) {
 			/>
 		);
 		await settle();
+		click("welcome-view-list");
 		click("welcome-folder-other");
 		const action = () =>
 			root.renderer.findByTestId("welcome-forget-/test/project");
@@ -284,6 +287,7 @@ it("removes only the saved repository entry and persists the updated list", asyn
 		/>
 	);
 	await settle();
+	click("welcome-view-list");
 	click("welcome-folder-other");
 	expect(
 		root.renderer.findByTestId("welcome-forget-icon-/test/project")?.style.color
@@ -338,6 +342,7 @@ it("scrolls only the repository list while quick actions and search stay fixed",
 		/>
 	);
 	await settle();
+	click("welcome-view-list");
 	click("welcome-folder-other");
 	const list = root.renderer.findByTestId("welcome-repositories");
 	const search = root.renderer.findByTestId("welcome-search");
@@ -349,7 +354,8 @@ it("scrolls only the repository list while quick actions and search stay fixed",
 
 	const searchBefore = root.renderer.getElementBounds(search.id);
 	const openBefore = root.renderer.getElementBounds(open.id);
-	const listBounds = root.renderer.getElementBounds(list.id);
+	const viewport = root.renderer.findByTestId("welcome-repositories-viewport");
+	const listBounds = viewport && root.renderer.getElementBounds(viewport.id);
 	const pageBefore = root.renderer.getScrollOffset(page.id);
 
 	if (!listBounds) throw new Error("Missing list bounds");
@@ -378,21 +384,20 @@ it("scrolls only the repository list while quick actions and search stay fixed",
 		root.renderer.captureScreenshot(process.env.GPUIX_WELCOME_SCREENSHOT);
 	}
 
-	for (let tick = 0; tick < 40; tick++) {
-		root.renderer.dispatchScrollWheel(
-			listBounds.x + 20,
-			listBounds.y + 20,
-			0,
-			-12
-		);
-	}
+	root.renderer.nativeSimulateScrollWheel(
+		listBounds.x + 20,
+		listBounds.y + 20,
+		0,
+		-480
+	);
+	root.renderer.flush();
 
 	expect(root.renderer.getScrollOffset(list.id)?.[1]).toBeLessThan(-300);
 	expect(root.renderer.getScrollOffset(page.id)).toEqual(pageBefore);
 	expect(root.renderer.getElementBounds(search.id)).toEqual(searchBefore);
 	expect(root.renderer.getElementBounds(open.id)).toEqual(openBefore);
-	root.renderer.scrollTo(list.id, 0, -10000);
-	root.renderer.flush();
+	root.renderer.scrollToItem(list.id, paths.length - 1, 0);
+	await settle();
 	const last = root.renderer.findByTestId("welcome-forget-/test/project-99");
 	const lastBounds = last && root.renderer.getElementBounds(last.id);
 
@@ -625,6 +630,7 @@ it("searches remembered repositories after closing all tabs and reopens without 
 	).toBeUndefined();
 	root.renderer.simulateKeystrokes("cmd-a backspace");
 	root.renderer.flush();
+	click("welcome-view-list");
 	click("welcome-folder-other");
 	click("welcome-repository-/test/project");
 	await settle();

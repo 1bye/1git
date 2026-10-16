@@ -28,7 +28,10 @@ import {
 	type RepositoryLibraryPreferences,
 	type RepositoryFolderGroup,
 } from "../../repository-discovery/repository-library";
-import { RepositoryFolderTile } from "./repository-folder-tile";
+import {
+	RepositoryAddFolderTile,
+	RepositoryFolderTile,
+} from "./repository-folder-tile";
 import { RepositoryLibrarySearch } from "./repository-library-search";
 
 const themedStyles = createThemedStyles(({ tokens: appTokens }) => {
@@ -135,10 +138,9 @@ export function RepositoryWelcome({
 			folder.path === library.folder && folder.status === "unavailable"
 	);
 
-	const inFolder = library.view === "listed" && !!library.folder;
-
-	const showFolders =
-		library.view === "listed" && !library.folder && !query.trim();
+	const inFolder = !!library.folder;
+	const showFolders = !inFolder && !query.trim();
+	const favorites = paths.filter((path) => starred.has(path));
 
 	const onStar = (path: string): void =>
 		onLibraryChange((current) =>
@@ -220,12 +222,7 @@ export function RepositoryWelcome({
 		}
 	};
 
-	const scope =
-		library.view === "starred"
-			? paths.filter((path) => starred.has(path))
-			: inFolder
-				? (selectedFolder?.paths ?? [])
-				: paths;
+	const scope = inFolder ? (selectedFolder?.paths ?? []) : paths;
 
 	const matches = scope.filter((path) =>
 		path.toLowerCase().includes(query.trim().toLowerCase())
@@ -275,24 +272,6 @@ export function RepositoryWelcome({
 							</Button>
 						</>
 					)}
-					{discovery && !remote ? (
-						<Button
-							testId="discovery-folder"
-							tokens={appTokens}
-							variant="ghost"
-							size="sm"
-							disabled={discovery.picking}
-							style={{
-								...styles.action,
-								marginTop: spacing[4],
-							}}
-							onPress={() => {
-								void discovery.chooseFolder();
-							}}
-						>
-							{discovery.picking ? "Choosing folder…" : "Add folder…"}
-						</Button>
-					) : null}
 					{error ? (
 						<text
 							role="alert"
@@ -360,9 +339,7 @@ export function RepositoryWelcome({
 						role="tabpanel"
 						aria-id="welcome-results"
 						aria-label={
-							library.view === "starred"
-								? "Starred repositories"
-								: "Repositories"
+							library.view === "tiles" ? "Repository tiles" : "Repository list"
 						}
 						style={{
 							display: "flex",
@@ -386,37 +363,99 @@ export function RepositoryWelcome({
 								{menuError}
 							</text>
 						) : null}
-						{showFolders && folders.length ? (
+						{showFolders && (folders.length > 0 || (!!discovery && !remote)) ? (
 							<div
-								testId="welcome-folders"
-								style={{
-									...styles.list,
-									flexDirection: "row",
-									flexWrap: "wrap",
-									alignContent: "flex-start",
-									gap: spacing[3],
-								}}
+								testId="welcome-library"
+								style={{ ...styles.list, gap: spacing[5] }}
 							>
-								{folders.map((group) => (
-									<RepositoryFolderTile
-										key={group.id}
-										group={group}
-										status={
-											discovery?.folders.find(
-												(folder) => folder.path === group.id
-											)?.status
-										}
-										onOpen={() => navigate(group.id)}
-										onMenu={(event) => {
-											void openFolderMenu(group, event);
+								<div
+									testId="welcome-folders"
+									style={{
+										display: "flex",
+										flexShrink: 0,
+										flexDirection: library.view === "tiles" ? "row" : "column",
+										flexWrap: library.view === "tiles" ? "wrap" : "nowrap",
+										alignContent: "flex-start",
+										gap: spacing[3],
+									}}
+								>
+									{folders.map((group) => (
+										<RepositoryFolderTile
+											key={group.id}
+											group={group}
+											layout={library.view}
+											status={
+												discovery?.folders.find(
+													(folder) => folder.path === group.id
+												)?.status
+											}
+											onOpen={() => navigate(group.id)}
+											onMenu={(event) => {
+												void openFolderMenu(group, event);
+											}}
+										/>
+									))}
+									{discovery && !remote ? (
+										<RepositoryAddFolderTile
+											layout={library.view}
+											picking={discovery.picking}
+											onAdd={() => {
+												void discovery.chooseFolder();
+											}}
+										/>
+									) : null}
+								</div>
+								{favorites.length ? (
+									<div
+										testId="welcome-starred"
+										role="group"
+										aria-label="Starred repositories"
+										style={{
+											display: "flex",
+											flexDirection: "column",
+											gap: spacing[2],
+											flexShrink: 0,
 										}}
-									/>
-								))}
+									>
+										<text
+											style={{
+												...styles.heading,
+												marginLeft: 0,
+												marginBottom: 0,
+											}}
+										>
+											STARRED REPOSITORIES
+										</text>
+										<div
+											style={{
+												display: "flex",
+												flexDirection:
+													library.view === "tiles" ? "row" : "column",
+												flexWrap: library.view === "tiles" ? "wrap" : "nowrap",
+												gap: spacing[3],
+												alignContent: "flex-start",
+											}}
+										>
+											{favorites.map((path) => (
+												<RepositoryWelcomeRow
+													key={path}
+													layout={library.view}
+													path={path}
+													busy={busy}
+													starred
+													onStar={onStar}
+													onOpen={onOpenRecent}
+													onForget={onForget}
+													onMenu={openMenu}
+												/>
+											))}
+										</div>
+									</div>
+								) : null}
 							</div>
-						) : matches.length > 0 &&
-						  !showFolders &&
-						  (discovery || matches.length > 200) ? (
+						) : matches.length > 0 ? (
 							<RepositoryWelcomeList
+								layout={library.view}
 								key={`${library.view}:${library.folder}:${query}`}
 								paths={matches}
 								saved={saved}
@@ -429,48 +468,27 @@ export function RepositoryWelcome({
 							/>
 						) : (
 							<div testId="welcome-repositories" style={styles.list}>
-								{!showFolders
-									? matches.map((path) => (
-											<RepositoryWelcomeRow
-												key={path}
-												path={path}
-												suggested={!saved.has(path)}
-												starred={starred.has(path)}
-												onStar={onStar}
-												busy={busy}
-												onOpen={onOpenRecent}
-												onForget={onForget}
-												onMenu={openMenu}
-											/>
-										))
-									: null}
-								{!matches.length || showFolders ? (
-									<StateMessage
-										artwork={query.trim() ? "search" : "repository"}
-										title={
-											library.view === "starred" && !query.trim()
-												? "Nothing starred yet"
-												: query.trim()
-													? "No repositories found"
-													: unavailable
-														? "Folder unavailable"
-														: scanning
-															? "Looking for repositories…"
-															: "No repositories yet"
-										}
-										description={
-											library.view === "starred" && !query.trim()
-												? "Star repositories to keep them together across folders."
-												: query.trim()
-													? `No repositories match “${query.trim()}”.`
-													: unavailable
-														? "Reconnect this folder and choose Scan again. Your repositories have not been removed."
-														: scanning
-															? "You can open a repository while discovery runs in the background."
-															: "Open a repository or scan another folder to find projects."
-										}
-									/>
-								) : null}
+								<StateMessage
+									artwork={query.trim() ? "search" : "repository"}
+									title={
+										query.trim()
+											? "No repositories found"
+											: unavailable
+												? "Folder unavailable"
+												: scanning
+													? "Looking for repositories…"
+													: "No repositories yet"
+									}
+									description={
+										query.trim()
+											? `No repositories match “${query.trim()}”.`
+											: unavailable
+												? "Reconnect this folder and choose Scan again. Your repositories have not been removed."
+												: scanning
+													? "You can open a repository while discovery runs in the background."
+													: "Open a repository or scan another folder to find projects."
+									}
+								/>
 							</div>
 						)}
 					</div>
