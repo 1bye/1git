@@ -1,6 +1,5 @@
 import {
 	copyFile,
-	cp,
 	mkdir,
 	mkdtemp,
 	rename,
@@ -15,6 +14,7 @@ import { version as developmentVersion } from "../package.json";
 import { embedSparkle, updateConfiguration } from "./sparkle";
 import { ReleaseVersion } from "./release-options";
 import { MacSigning } from "./macos-signing";
+import { remoteHelperTargets } from "../src/feature/machines/remote-protocol";
 
 if (process.platform !== "darwin" || process.arch !== "arm64") {
 	throw new Error("macOS packaging currently supports Apple Silicon only.");
@@ -99,11 +99,17 @@ try {
 	);
 	await copyImageRuntime(resources);
 	await run([process.execPath, "run", "native/build-remote-helpers.ts"]);
-	await cp(
-		resolve(appDirectory, "build/remote-helpers"),
-		resolve(resources, "remote-helpers"),
-		{ recursive: true }
-	);
+	await mkdir(resolve(resources, "remote-helpers"));
+
+	for (const target of remoteHelperTargets) {
+		for (const extension of ["gz", "json"]) {
+			await copyFile(
+				resolve(appDirectory, `build/remote-helpers/${target}.${extension}`),
+				resolve(resources, `remote-helpers/${target}.${extension}`)
+			);
+		}
+	}
+
 	await embedSparkle(contents, run, sign);
 
 	// Compile the Icon Composer source, retaining modern appearances and an ICNS

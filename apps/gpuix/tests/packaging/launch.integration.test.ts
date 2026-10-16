@@ -12,7 +12,7 @@ import {
 } from "../../src/feature/machines/remote-protocol";
 import { expect, it } from "bun:test";
 import { closeSync, constants, openSync, writeSync } from "node:fs";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import {
@@ -83,6 +83,12 @@ it("opens the extracted ZIP without a terminal or checkout-dependent resources",
 		const helperDirectory = resolve(
 			bundle,
 			"Contents/Resources/remote-helpers"
+		);
+
+		expect((await readdir(helperDirectory)).sort()).toEqual(
+			remoteHelperTargets
+				.flatMap((target) => [`${target}.gz`, `${target}.json`])
+				.sort()
 		);
 
 		for (const target of remoteHelperTargets) {

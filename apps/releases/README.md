@@ -115,8 +115,8 @@ destination origin, method, object key, byte length, SHA-256 and write condition
 Only the public verification key is deployed. The publisher verifies the
 authorization before accessing R2, enforces the body checksum via native R2,
 and uses native `put({ onlyIf: ... })` for atomic create-once/ETag replacement.
-Archives cannot be overwritten or deleted, and only isolated probe keys can be
-deleted. The publisher exposes no reads/listing; downloads remain read-only.
+Archives cannot be overwritten or deleted. Only isolated probe keys and temporary
+archive parts can be deleted. The publisher exposes no reads/listing; downloads remain read-only.
 
 Before touching any ZIP or feed, a real publish checks create-once,
 current-ETag replacement and stale-ETag rejection on a unique
@@ -124,6 +124,15 @@ current-ETag replacement and stale-ETag rejection on a unique
 There is no unsafe overwrite or automatic token-provisioning fallback.
 Probe cleanup failures print the exact non-secret key for manual cleanup. The
 downloads Worker cannot serve these probe keys. Dry-run performs none of this.
+
+Archives above 96 MiB use signed, create-once 64 MiB objects under private
+`release-parts/<uuid>/` keys. A final signed request binds the part set, total
+length and full archive checksum. The publisher streams those parts into one
+R2 `put` with the original create-once condition and SHA-256, without buffering
+the archive in Worker memory. Archives are capped at 512 MiB. Parts are removed
+after success or failure; interrupted clients can leave private parts, and cleanup
+failures print their exact keys. The downloads Worker cannot serve parts.
+Deploy this publisher update before using the large-archive client.
 
 The command uses the existing Turbo prerequisite graph, builds/ad-hoc signs the
 app, takes an isolated signed-bundle snapshot, and creates a signed app-only ZIP

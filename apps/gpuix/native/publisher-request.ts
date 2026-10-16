@@ -1,4 +1,5 @@
-import { createHash, createPublicKey, verify } from "node:crypto";
+import { createHash, createPublicKey, randomUUID, verify } from "node:crypto";
+import { Blob } from "node:buffer";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
@@ -7,6 +8,8 @@ import {
 	SIGNATURE_HEADER,
 	UPLOAD_DOMAIN,
 	UPLOAD_LIFETIME_MS,
+	MAX_UPLOAD_BYTES,
+	UPLOAD_PART_BYTES,
 	ReleaseUploadManifest,
 	type UploadManifest,
 } from "@1git/releases/upload-protocol";
@@ -100,6 +103,11 @@ export class SignedPublisherRequests {
 		const headers = new Headers(options.headers);
 		const url = new URL(`/${key}`, this.origin);
 
+		const parts =
+			method === "PUT" && body.size > MAX_UPLOAD_BYTES
+				? { id: randomUUID(), count: Math.ceil(body.size / UPLOAD_PART_BYTES) }
+				: undefined;
+
 		const manifest: UploadManifest = {
 			domain: UPLOAD_DOMAIN,
 			origin: url.origin,
@@ -110,6 +118,7 @@ export class SignedPublisherRequests {
 			expiresAt: Date.now() + UPLOAD_LIFETIME_MS,
 			ifMatch: headers.get("if-match"),
 			ifNoneMatch: headers.get("if-none-match"),
+			...(parts ? { parts } : {}),
 		};
 
 		ReleaseUploadManifest.parse(manifest, new Request(url.href, { method }));
@@ -117,13 +126,39 @@ export class SignedPublisherRequests {
 
 		headers.set(MANIFEST_HEADER, Buffer.from(bytes).toString("base64"));
 		headers.set(SIGNATURE_HEADER, await this.sign(bytes));
-		headers.set("Content-Length", String(body.size));
+		headers.set("Content-Length", String(parts ? 0 : body.size));
+		const uploaded: string[] = [];
 
 		try {
+			if (parts) {
+				for (let index = 0; index < parts.count; index++) {
+					const part = `release-parts/${parts.id}/${index}.bin`;
+
+					uploaded.push(part);
+					const response = await this.send(part, "PUT", {
+						body: body.slice(
+							index * UPLOAD_PART_BYTES,
+							(index + 1) * UPLOAD_PART_BYTES
+						),
+						headers: { "If-None-Match": "*" },
+					});
+
+					if (!response.ok)
+						throw new Error(`Archive part upload failed (${response.status}).`);
+				}
+
+				// The authorization must remain fresh even on slower connections.
+				manifest.expiresAt = Date.now() + UPLOAD_LIFETIME_MS;
+				const fresh = new TextEncoder().encode(JSON.stringify(manifest));
+
+				headers.set(MANIFEST_HEADER, Buffer.from(fresh).toString("base64"));
+				headers.set(SIGNATURE_HEADER, await this.sign(fresh));
+			}
+
 			return await this.request(url, {
 				method,
 				headers,
-				body: method === "DELETE" ? undefined : body,
+				body: method === "DELETE" || parts ? undefined : body,
 				redirect: "error",
 				signal: AbortSignal.timeout(120000),
 			});
@@ -131,6 +166,24 @@ export class SignedPublisherRequests {
 			throw new Error(
 				"Publisher request failed; inspect release state before retrying."
 			);
+		} finally {
+			for (const part of uploaded) {
+				let cleaned = false;
+
+				try {
+					const response = await this.send(part, "DELETE");
+
+					cleaned = response.ok || response.status === 404;
+				} catch {
+					// Report cleanup failures without hiding the publication result.
+				}
+
+				if (!cleaned) {
+					process.stderr.write(
+						`Warning: could not remove temporary release part ${part}.\n`
+					);
+				}
+			}
 		}
 	}
 }

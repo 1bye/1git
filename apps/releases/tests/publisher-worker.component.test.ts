@@ -12,6 +12,7 @@ import {
 	SIGNATURE_HEADER,
 	UPLOAD_DOMAIN,
 	UPLOAD_LIFETIME_MS,
+	UPLOAD_PART_BYTES,
 	type UploadManifest,
 } from "../src/upload-protocol";
 
@@ -21,12 +22,17 @@ const setup = () => {
 	const writes: string[] = [];
 
 	const bucket: PublisherBucket = {
+		async head(key) {
+			const object = objects.get(key);
+
+			return object ? { size: object.bytes.length } : null;
+		},
+		async get(key) {
+			const object = objects.get(key);
+
+			return object ? { body: new Blob([object.bytes]).stream() } : null;
+		},
 		async put(key, body, options) {
-			const bytes = new Uint8Array(await new Response(body).arrayBuffer());
-
-			if (createHash("sha256").update(bytes).digest("hex") !== options.sha256)
-				throw new Error("Checksum mismatch");
-
 			const current = objects.get(key);
 
 			if (
@@ -36,6 +42,11 @@ const setup = () => {
 				return null;
 
 			if ("etagDoesNotMatch" in options.onlyIf && current) return null;
+
+			const bytes = new Uint8Array(await new Response(body).arrayBuffer());
+
+			if (createHash("sha256").update(bytes).digest("hex") !== options.sha256)
+				throw new Error("Checksum mismatch");
 
 			const etag = createHash("md5").update(bytes).digest("hex");
 
@@ -115,6 +126,93 @@ it("refuses duplicate ZIPs and permits only one simultaneous replacement of a fe
 			.status
 	).toBe(412);
 });
+
+it("assembles signed private parts with a checksum and create-once condition, then permits part cleanup", async () => {
+	const { env, objects, request } = setup();
+
+	const previous = Object.getOwnPropertyDescriptor(
+		globalThis,
+		"FixedLengthStream"
+	);
+
+	Object.defineProperty(globalThis, "FixedLengthStream", {
+		configurable: true,
+		value: class extends TransformStream<Uint8Array, Uint8Array> {
+			constructor(length: number) {
+				let size = 0;
+
+				super({
+					transform(chunk, controller) {
+						size += chunk.byteLength;
+						controller.enqueue(chunk);
+					},
+					flush() {
+						if (size !== length) throw new Error("Wrong stream length");
+					},
+				});
+			}
+		},
+	});
+
+	try {
+		const id = "00000000-0000-4000-8000-000000000000";
+		const first = `release-parts/${id}/0.bin`;
+		const second = `release-parts/${id}/1.bin`;
+		const a = "a".repeat(UPLOAD_PART_BYTES);
+		const b = "b".repeat(UPLOAD_PART_BYTES / 2 + 1);
+
+		expect((await handler.fetch(request(first, a), env)).status).toBe(200);
+		expect((await handler.fetch(request(second, b), env)).status).toBe(200);
+		const archive = "1git-0.0.11-macos-arm64.zip";
+
+		const manifest = {
+			parts: { id, count: 2 },
+			size: a.length + b.length,
+			sha256: createHash("sha256").update(a).update(b).digest("hex"),
+		};
+
+		expect(
+			(
+				await handler.fetch(
+					request(archive, "", { ...manifest, sha256: "0".repeat(64) }),
+					env
+				)
+			).status
+		).toBe(503);
+		expect(objects.has(archive)).toBe(false);
+		expect(
+			(await handler.fetch(request(archive, "", manifest), env)).status
+		).toBe(200);
+		expect(objects.get(archive)?.bytes.length).toBe(manifest.size);
+		expect(
+			(await handler.fetch(request(archive, "", manifest), env)).status
+		).toBe(412);
+		expect(
+			(
+				await handler.fetch(
+					request(first, "", { method: "DELETE", ifNoneMatch: null }),
+					env
+				)
+			).status
+		).toBe(204);
+		expect(
+			(
+				await handler.fetch(
+					request("1git-0.0.12-macos-arm64.zip", "", manifest),
+					env
+				)
+			).status
+		).toBe(503);
+		expect(objects.has("1git-0.0.12-macos-arm64.zip")).toBe(false);
+		expect(
+			(await handler.fetch(request("appcast.xml", "", manifest), env)).status
+		).toBe(401);
+	} finally {
+		if (previous)
+			Object.defineProperty(globalThis, "FixedLengthStream", previous);
+		else Reflect.deleteProperty(globalThis, "FixedLengthStream");
+	}
+}, 15000);
 
 for (const scenario of [
 	"expired",
