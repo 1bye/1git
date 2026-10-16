@@ -551,8 +551,11 @@ rollback failures explicitly. Malformed existing metadata is preserved.
 The token editor is an uncontrolled, native password field. It masks painting
 and platform text, uses the password accessibility role, and prevents clipboard
 copy/undo snapshots. Tokens are not React props, workspace drafts, or session
-data. Temporary byte buffers are cleared; JavaScript strings cannot be guaranteed
-zeroized and exist transiently while validating/storing a token. Never log an
+data. The window-owned vault coalesces concurrent reads and reuses approved
+credentials in memory until that vault is released with its window. Rotation and
+removal update that copy only after the OS operation succeeds; failed operations
+evict it so an explicit retry reads the actual vault. Temporary byte buffers are
+cleared; JavaScript strings cannot be guaranteed zeroized. Never log an
 account request, native change event, or configured provider object.
 
 `native/accounts.patch` exposes scoped vault methods and the macOS Settings menu,
@@ -560,8 +563,10 @@ and adds native password-input support. `native/accounts-platform.patch` preserv
 Keychain cancellation as an error for our entries, not “credential missing.”
 Other applications' credential keys are rejected. The native bridge has Windows
 and Linux dispatch paths, but this app and these vault tests are currently
-validated only on Apple Silicon macOS. A packaged executable's Keychain prompts
-and signing identity still require release validation.
+validated only on Apple Silicon macOS. Ad-hoc signatures identify a particular
+build, so macOS may ask for Keychain approval again after updates or a restart
+if only one-time access was allowed. A stable signing identity, normally Developer ID,
+is needed for normal cross-update trust; no permissive Keychain ACL or plaintext fallback is used.
 
 ### Registering browser sign-in
 
@@ -767,8 +772,9 @@ Commit generation embeds Pi's agent core and provider adapters, without its CLI,
 coding-agent tools, global credentials, configuration discovery or saved sessions.
 1git still owns accounts, the OS credential vault, ChatGPT authorization and
 refresh, model discovery and preferences. The backend replacement does not migrate
-or rewrite existing settings. Credentials are request-local and requests are
-restricted to the selected provider's existing endpoint; redirects are rejected.
+or rewrite existing settings. Approved credentials are reused only by the
+window-owned vault; requests remain restricted to the selected provider's
+existing endpoint, and redirects are rejected.
 
 Small selections use one request without tools, up to 64 KiB depending on model
 context capacity. Larger selections start with paginated file metadata, line/hunk

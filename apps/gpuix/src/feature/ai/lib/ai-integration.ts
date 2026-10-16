@@ -18,7 +18,7 @@ export interface AiModel {
 	readonly label: string;
 }
 
-/** Window-owned AI boundary. Only refresh coordination is retained; prompts and tokens stay per call. */
+/** Window-owned AI boundary; refresh coordination stays local and saved secrets stay in its vault. */
 export class AiIntegration {
 	private readonly refreshing = new Map<string, Promise<string>>();
 	readonly authorization: ChatGptAuthorization;

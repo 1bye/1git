@@ -29,9 +29,15 @@ try {
 	await assert.rejects(vault.read("github.com"), /Invalid application/);
 	await vault.write(key, "synthetic-credential-first");
 	written = true;
-	assert.equal(await vault.read(key), "synthetic-credential-first");
+	assert.equal(
+		await new NativeCredentials(renderer).read(key),
+		"synthetic-credential-first"
+	);
 	await vault.write(key, "synthetic-credential-second");
-	assert.equal(await vault.read(key), "synthetic-credential-second");
+	assert.equal(
+		await new NativeCredentials(renderer).read(key),
+		"synthetic-credential-second"
+	);
 	const bundle = JSON.stringify({
 		accessToken: "a".repeat(3000),
 		refreshToken: "b".repeat(3000),
@@ -39,13 +45,13 @@ try {
 
 	await vault.write(key, bundle);
 	assert.equal(
-		await vault.read(key),
+		await new NativeCredentials(renderer).read(key),
 		bundle,
 		"OAuth pairs larger than old PAT bound must round-trip securely"
 	);
 	await vault.delete(key);
 	written = false;
-	assert.equal(await vault.read(key), null);
+	assert.equal(await new NativeCredentials(renderer).read(key), null);
 
 	const takeSettings: unknown = Reflect.get(renderer, "takeSettingsRequested");
 

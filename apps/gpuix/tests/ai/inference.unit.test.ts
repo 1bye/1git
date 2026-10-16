@@ -4,18 +4,20 @@
  * Doubles: provider HTTP and OS vault; synthetic credentials only.
  * Requires: Bun; no network, native graphics or real account.
  */
-import { afterEach, beforeEach, expect, it } from "bun:test";
+import { afterEach, beforeEach, expect, it, mock } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { PiProvider } from "../../src/feature/ai/lib/pi-provider";
 import { CommitHarness } from "../../src/feature/ai/lib/commit-harness";
 import { AiIntegration } from "../../src/feature/ai/lib/ai-integration";
+import { NativeCredentials } from "../../src/feature/accounts/lib/native-credentials";
 import { AiHttp, type AiFetch } from "../../src/feature/ai/lib/ai-http";
 import { cavemanCommitPreset } from "../../src/feature/ai/lib/caveman-commit-preset";
 import {
 	AiSettingsStore,
 	emptyAiPreferences,
+	type AiConnection,
 } from "../../src/feature/ai/lib/ai-settings-store";
 
 let directory: string;
@@ -115,6 +117,73 @@ const responseEvents = (completed = true) => [
 			]
 		: []),
 ];
+
+it("reuses one approved ChatGPT credential across model discovery and repeated generations", async () => {
+	const account = {
+		clientId: "oaiapp_test",
+		subject: "one",
+		email: "one@example.invalid",
+	};
+
+	const bytes = Buffer.from(
+		JSON.stringify({
+			...account,
+			accessToken: "synthetic-access",
+			refreshToken: "synthetic-refresh",
+			idToken: "identity",
+			scope: "resource.invoke chatgpt.tokens.use.direct",
+			expiresAt: Date.now() + 3600000,
+		})
+	);
+
+	const read = mock(async () => bytes);
+	const vault = new NativeCredentials({ readHostingCredential: read });
+	let requests = 0;
+
+	const service = new AiIntegration(
+		new AiSettingsStore(join(directory, "ai.json")),
+		vault,
+		new AiHttp(async (url, init) => {
+			requests++;
+			expect(new Headers(init?.headers).get("authorization")).toBe(
+				"Bearer synthetic-access"
+			);
+
+			return String(url).endsWith("/models")
+				? Response.json({
+						models: [
+							{ slug: "gpt-6.1-sol", display_name: "Test", visibility: "list" },
+						],
+					})
+				: events(responseEvents());
+		})
+	);
+
+	const preferences = {
+		...emptyAiPreferences,
+		provider: "chatgpt" as const,
+		model: "gpt-6.1-sol",
+		chatgpt: account,
+	};
+
+	expect(
+		await service.models(preferences, new AbortController().signal)
+	).toHaveLength(1);
+
+	for (let attempt = 0; attempt < 2; attempt++) {
+		expect(
+			await service.generate(
+				preferences,
+				"+checked",
+				new AbortController().signal
+			)
+		).toBe("fix: selected changes");
+	}
+
+	expect(requests).toBe(3);
+	expect(read).toHaveBeenCalledTimes(1);
+	expect(bytes.every((byte) => byte === 0)).toBe(true);
+});
 
 it("uses OpenCode Free chat completions with explicit instructions and no automatic retries", async () => {
 	let body: unknown;
@@ -759,7 +828,7 @@ it("never exposes provider error bodies or invalid JSON and refuses oversized pr
 	).rejects.toThrow("invalid data");
 });
 
-it("serializes ChatGPT refresh, persists rotation and filters hidden models", async () => {
+it("serializes ChatGPT refresh, reuses rotated credentials and clears them on disconnect", async () => {
 	const credentials = new Map([
 		[
 			AiSettingsStore.credentialKey("chatgpt", "oaiapp_test"),
@@ -777,7 +846,27 @@ it("serializes ChatGPT refresh, persists rotation and filters hidden models", as
 
 	let refreshes = 0;
 
-	const service = integration(async (url, init) => {
+	const read = mock(async (key: string) => {
+		const value = credentials.get(key);
+
+		return value ? Buffer.from(value) : null;
+	});
+
+	const write = mock(async (key: string, bytes: Buffer) => {
+		credentials.set(key, bytes.toString("utf8"));
+	});
+
+	const remove = mock(async (key: string) => {
+		credentials.delete(key);
+	});
+
+	const vault = new NativeCredentials({
+		readHostingCredential: read,
+		writeHostingCredential: write,
+		deleteHostingCredential: remove,
+	});
+
+	const http = new AiHttp(async (url, init) => {
 		if (String(url).endsWith("/oauth/token")) {
 			refreshes++;
 			await Bun.sleep(10);
@@ -788,6 +877,19 @@ it("serializes ChatGPT refresh, persists rotation and filters hidden models", as
 				token_type: "Bearer",
 				expires_in: 3600,
 			});
+		}
+
+		if (String(url).endsWith("/.well-known/openid-configuration"))
+			return Response.json({
+				revocation_endpoint: "https://auth.openai.com/oauth/revoke",
+			});
+
+		if (String(url).endsWith("/oauth/revoke")) {
+			expect(new URLSearchParams(String(init?.body)).get("token")).toBe(
+				"rotated"
+			);
+
+			return new Response(null, { status: 200 });
 		}
 
 		expect(new Headers(init?.headers).get("Authorization")).toBe(
@@ -804,17 +906,25 @@ it("serializes ChatGPT refresh, persists rotation and filters hidden models", as
 				},
 			],
 		});
-	}, credentials);
+	});
 
-	const preferences = {
+	const store = new AiSettingsStore(join(directory, "ai.json"));
+	const service = new AiIntegration(store, vault, http);
+
+	const preferences: AiConnection = {
 		...emptyAiPreferences,
+		id: "legacy-chatgpt",
+		label: "ChatGPT",
 		provider: "chatgpt" as const,
+		model: "gpt-6.1-sol",
 		chatgpt: {
 			clientId: "oaiapp_test",
 			subject: "one",
 			email: "one@example.invalid",
 		},
 	};
+
+	store.save({ connections: [preferences], defaultId: preferences.id });
 
 	const results = await Promise.all([
 		service.models(preferences, new AbortController().signal),
@@ -824,4 +934,20 @@ it("serializes ChatGPT refresh, persists rotation and filters hidden models", as
 	expect(refreshes).toBe(1);
 	expect(results[0]).toEqual([{ value: "gpt-6.1-sol", label: "GPT 6.1 Sol" }]);
 	expect([...credentials.values()][0]).toContain("rotated");
+	expect(
+		await service.models(preferences, new AbortController().signal)
+	).toEqual(results[0]!);
+	expect(refreshes).toBe(1);
+	expect(write).toHaveBeenCalledTimes(1);
+	expect(
+		await service.disconnect(preferences, new AbortController().signal)
+	).toStartWith("Disconnected.");
+	expect(remove).toHaveBeenCalledTimes(1);
+	expect(credentials.size).toBe(0);
+	expect(store.load()).toEqual({ connections: [], defaultId: null });
+	expect(await service.hasCredentials(preferences)).toBe(false);
+	await expect(
+		service.generate(preferences, "+checked", new AbortController().signal)
+	).rejects.toThrow("No AI credentials saved");
+	expect(read).toHaveBeenCalledTimes(1);
 });

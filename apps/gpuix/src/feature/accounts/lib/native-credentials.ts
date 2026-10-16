@@ -5,13 +5,72 @@ export interface CredentialVault {
 	delete(key: string): Promise<void>;
 }
 
-/** GPUI platform credential store; no file, environment or plaintext fallback. */
+/** Window-owned OS vault with approved values reused in memory; no file or environment fallback. */
 export class NativeCredentials implements CredentialVault {
+	private readonly entries = new Map<string, Promise<string | null>>();
+
 	constructor(private readonly renderer: object) {}
 
 	async read(key: string): Promise<string | null> {
 		NativeCredentials.validateKey(key);
 
+		return await this.access(key, async () => await this.readNative(key));
+	}
+
+	async write(key: string, token: string): Promise<void> {
+		NativeCredentials.validateKey(key);
+		await this.access(
+			key,
+			async () => {
+				await this.writeNative(key, token);
+
+				return token;
+			},
+			true
+		);
+	}
+
+	async delete(key: string): Promise<void> {
+		NativeCredentials.validateKey(key);
+		await this.access(
+			key,
+			async () => {
+				await this.deleteNative(key);
+
+				return null;
+			},
+			true
+		);
+	}
+
+	private async access(
+		key: string,
+		operation: () => Promise<string | null>,
+		replacing = false
+	): Promise<string | null> {
+		const previous = this.entries.get(key);
+
+		if (previous && !replacing) return await previous;
+
+		const pending = (async () => {
+			// Queue rotations/removal behind reads so a late result cannot resurrect stale credentials.
+			if (replacing) await previous?.catch(() => undefined);
+
+			return await operation();
+		})();
+
+		this.entries.set(key, pending);
+
+		try {
+			return await pending;
+		} catch (error) {
+			if (this.entries.get(key) === pending) this.entries.delete(key);
+
+			throw error;
+		}
+	}
+
+	private async readNative(key: string): Promise<string | null> {
 		if (
 			!("readHostingCredential" in this.renderer) ||
 			typeof this.renderer.readHostingCredential !== "function"
@@ -39,9 +98,7 @@ export class NativeCredentials implements CredentialVault {
 		}
 	}
 
-	async write(key: string, token: string): Promise<void> {
-		NativeCredentials.validateKey(key);
-
+	private async writeNative(key: string, token: string): Promise<void> {
 		if (
 			!("writeHostingCredential" in this.renderer) ||
 			typeof this.renderer.writeHostingCredential !== "function"
@@ -61,9 +118,7 @@ export class NativeCredentials implements CredentialVault {
 		}
 	}
 
-	async delete(key: string): Promise<void> {
-		NativeCredentials.validateKey(key);
-
+	private async deleteNative(key: string): Promise<void> {
 		if (
 			!("deleteHostingCredential" in this.renderer) ||
 			typeof this.renderer.deleteHostingCredential !== "function"
