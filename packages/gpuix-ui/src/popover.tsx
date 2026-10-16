@@ -195,11 +195,12 @@ function PopoverSurface({
 		y: 0,
 		width: 0,
 		height: 0,
-		contentHeight: 220,
+		contentHeight: 0,
 	});
 
 	const centered = placement === "center";
-	const ready = centered || geometry.width > 0;
+	const measured = geometry.contentHeight > 0;
+	const ready = centered || (geometry.width > 0 && measured);
 	const inset = 12;
 	const gap = 8;
 	const panelWidth = Math.max(1, Math.min(width, window.width - inset * 2));
@@ -219,27 +220,23 @@ function PopoverSurface({
 
 	const height = Math.min(geometry.contentHeight, Math.max(1, availableHeight));
 
-	const left = centered
-		? (window.width - panelWidth) / 2
-		: Math.max(
-				inset,
-				Math.min(
-					geometry.x +
-						(align === "end"
-							? geometry.width - panelWidth
-							: align === "center"
-								? (geometry.width - panelWidth) / 2
-								: 0),
-					window.width - inset - panelWidth
-				)
-			);
+	const left = Math.max(
+		inset,
+		Math.min(
+			geometry.x +
+				(align === "end"
+					? geometry.width - panelWidth
+					: align === "center"
+						? (geometry.width - panelWidth) / 2
+						: 0),
+			window.width - inset - panelWidth
+		)
+	);
 
-	const y = centered
-		? Math.max(inset, (window.height - height) / 2)
-		: Math.max(
-				inset,
-				top ? geometry.y - gap - height : geometry.y + geometry.height + gap
-			);
+	const y = Math.max(
+		inset,
+		top ? geometry.y - gap - height : geometry.y + geometry.height + gap
+	);
 
 	const dismiss = () => {
 		if (latest.current.dismissible) latest.current.state.setOpen(false);
@@ -254,12 +251,12 @@ function PopoverSurface({
 			const content =
 				body.current && renderer.getElementBounds?.(body.current.id);
 
-			if (!anchor && !centered) return;
+			if ((!anchor && !centered) || !content || content.height <= 0) return;
 
 			setGeometry((previous) => {
 				const next = {
 					...(anchor ?? { x: 0, y: 0, width: panelWidth, height: 0 }),
-					contentHeight: content?.height || previous.contentHeight,
+					contentHeight: content.height,
 				};
 
 				return Object.keys(previous).every(
@@ -273,10 +270,10 @@ function PopoverSurface({
 		};
 
 		measure();
-		const interval = setInterval(measure, 100);
+		const interval = setInterval(measure, measured ? 100 : 16);
 
 		return () => clearInterval(interval);
-	}, [renderer, state.anchor, centered, panelWidth]);
+	}, [renderer, state.anchor, centered, panelWidth, measured]);
 
 	useEffect(() => {
 		if (!ready || !dialog.current) return;
@@ -358,6 +355,10 @@ function PopoverSurface({
 				style={{
 					width: "100%",
 					height: "100%",
+					display: "flex",
+					alignItems: "center",
+					justifyContent: "center",
+					padding: inset,
 					backgroundColor: "transparent",
 					pointerEvents: present ? "auto" : "none",
 				}}
@@ -383,10 +384,11 @@ function PopoverSurface({
 					aria-label={label}
 					tabIndex={-1}
 					style={{
-						position: "absolute",
-						left,
-						top: y,
+						position: centered ? "relative" : "absolute",
+						left: centered ? undefined : left,
+						top: centered ? undefined : y,
 						width: panelWidth,
+						flexShrink: 0,
 						maxHeight: Math.max(1, availableHeight),
 						overflowY: "scroll",
 						borderRadius: radius.xl,

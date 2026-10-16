@@ -1,5 +1,5 @@
 /**
- * Covers: compact rounding, modal focus, dismissal, busy state, exit lifetime and viewport positioning.
+ * Covers: stable opening/content layout, modal focus, dismissal, busy state, exit lifetime and viewport positioning.
  * Real: Popover, Button, native layout, keyboard dispatch and motion.
  * Doubles: none.
  * Requires: GPUIX native test renderer with graphics access.
@@ -187,4 +187,58 @@ it("keeps a full-width raised trigger aligned with its original button", async (
 	expect(
 		root.renderer.getElementBounds(node("popover-raised-trigger").id)
 	).toEqual(original);
+});
+
+function CenteredDialog({ height = 120 }: { height?: number }) {
+	return (
+		<Popover open onOpenChange={() => undefined}>
+			<PopoverContent aria-label="Centered form" placement="center">
+				<div style={{ height, flexShrink: 0 }}>
+					<Button testId="centered-action">Continue</Button>
+				</div>
+			</PopoverContent>
+		</Popover>
+	);
+}
+
+it("centers a dialog on its first native frame without a later position correction", async () => {
+	root.render(<CenteredDialog />);
+	const first = root.renderer.getElementBounds(node("popover-content").id)!;
+
+	expect(first.y).toBe((400 - first.height) / 2);
+	root.renderer.clockFastForward(40);
+	root.renderer.flush();
+	expect(root.renderer.getElementBounds(node("popover-content").id)).toEqual(
+		first
+	);
+	await finish();
+	expect(root.renderer.getElementBounds(node("popover-content").id)).toEqual(
+		first
+	);
+});
+
+it("centers changing content in the same frame and clamps tall dialogs to the viewport", async () => {
+	root.render(<CenteredDialog />);
+	await finish();
+	root.render(<CenteredDialog height={240} />);
+	const grown = root.renderer.getElementBounds(node("popover-content").id)!;
+
+	expect(grown.y).toBe((400 - grown.height) / 2);
+	await finish();
+	expect(root.renderer.getElementBounds(node("popover-content").id)).toEqual(
+		grown
+	);
+	root.render(<CenteredDialog height={600} />);
+	const tall = root.renderer.getElementBounds(node("popover-content").id)!;
+
+	expect(tall.y).toBe(12);
+	expect(tall.height).toBe(376);
+	expect(root.renderer.getScrollOffset(node("popover-content").id)?.[1]).toBe(
+		0
+	);
+	root.renderer.scrollTo(node("popover-content").id, 0, -100);
+	root.renderer.flush();
+	expect(root.renderer.getScrollOffset(node("popover-content").id)?.[1]).toBe(
+		-100
+	);
 });
