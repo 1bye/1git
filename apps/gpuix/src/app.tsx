@@ -12,6 +12,8 @@ import { MachineLocation } from "./feature/machines/machine-location";
 import { MachinesPanel } from "./feature/machines/machines-panel";
 import type { RepositoryDiscoveryPreferences } from "./feature/repository-discovery/repository-discovery";
 import { RepositoryDiscovery } from "./feature/repository-discovery/repository-discovery";
+import { RepositoryQuickSwitcher } from "./feature/repository-discovery/repository-quick-switcher";
+import { RepositoryQuickSwitcherModel } from "./feature/repository-discovery/repository-quick-switcher-model";
 import { RepositoryLibrary } from "./feature/repository-discovery/repository-library";
 import { useRepositoryDiscovery } from "./feature/repository-discovery/use-repository-discovery";
 import { spacing, typography } from "@1git/design-tokens";
@@ -475,6 +477,8 @@ function AppContent({
 			: (initialSession?.onboarding ?? initialOnboarding ?? "complete")
 	);
 
+	const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
+
 	const [repositoryColors, setRepositoryColors] = useState(() =>
 		RepositoryColors.parse(initialSession?.repositoryColors)
 	);
@@ -759,7 +763,7 @@ function AppContent({
 
 	const discovery = useRepositoryDiscovery({
 		enabled:
-			welcomeVisible &&
+			(welcomeVisible || quickSwitcherOpen) &&
 			!settingsOpen &&
 			!onboardingOpen &&
 			!preview &&
@@ -776,6 +780,30 @@ function AppContent({
 		home: remoteHome,
 		remote: remoteMachine,
 	});
+
+	const quickRepositories = (() => {
+		if (!quickSwitcherOpen) return [];
+
+		const opened = state.tabs.flatMap((tab) => {
+			const path =
+				tab.workspace.repository?.root ?? tab.workspace.repositoryPath;
+
+			return path && !tab.comparison
+				? [{ path, name: tab.name, branch: tab.branch ?? undefined }]
+				: [];
+		});
+
+		return RepositoryQuickSwitcherModel.catalog(
+			[
+				...(state.recentRepositories ?? []),
+				...opened.map((tab) => tab.path),
+				...repositoryLibrary.starred,
+				...discovery.knownPaths,
+			],
+			opened,
+			(id) => machines.name(id)
+		);
+	})();
 
 	const welcomePaths = useMemo(
 		() =>
@@ -894,6 +922,13 @@ function AppContent({
 		workspaceShortcuts.set(renderer, (key) => {
 			if (onboardingOpen) return;
 
+			if (key === "p") {
+				if (!settingsOpen && connection.pickingId === null)
+					setQuickSwitcherOpen(true);
+
+				return;
+			}
+
 			if (key === "left" || key === "right") {
 				let id: string | undefined;
 
@@ -948,6 +983,7 @@ function AppContent({
 		workspace,
 		connection,
 		onboardingOpen,
+		settingsOpen,
 	]);
 
 	const workspaceAction = useCallback(
@@ -1618,6 +1654,22 @@ function AppContent({
 						/>
 					)}
 				</AppShell>
+				<RepositoryQuickSwitcher
+					open={quickSwitcherOpen}
+					items={quickRepositories}
+					onClose={() => setQuickSwitcherOpen(false)}
+					onOpen={(path) => {
+						const existing = state.tabs.find(
+							(tab) =>
+								!tab.comparison &&
+								(tab.workspace.repository?.root ??
+									tab.workspace.repositoryPath) === path
+						);
+
+						if (existing) dispatch({ type: "activate", id: existing.id });
+						else dispatch({ type: "add", path });
+					}}
+				/>
 				{onboarding !== "complete" ? (
 					<Onboarding
 						step={onboarding}

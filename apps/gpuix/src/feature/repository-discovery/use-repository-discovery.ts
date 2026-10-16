@@ -201,6 +201,14 @@ export function useRepositoryDiscovery({
 		return progress.paths.filter((path) => !hidden.has(path));
 	}, [progress.paths, preferences.hidden]);
 
+	const knownPaths = useMemo(() => {
+		const hidden = new Set(preferences.hidden);
+
+		return [
+			...new Set([...runs.values()].flatMap((run) => run.progress.paths)),
+		].filter((path) => !hidden.has(path));
+	}, [runs, preferences.hidden]);
+
 	const scanning = [...visibleRuns.values()].some(
 		(run) => run.status === "scanning"
 	);
@@ -275,6 +283,7 @@ export function useRepositoryDiscovery({
 
 	return {
 		paths,
+		knownPaths,
 		progress,
 		status,
 		error,

@@ -106,7 +106,9 @@ function tabCount() {
 	return Object.values(root.renderer.getA11yTree().nodes ?? {}).filter(
 		(item) =>
 			item.aria?.role === "Tab" &&
-			!["Changes", "History", "Stashes"].includes(item.aria.label ?? "")
+			!["Changes", "History", "Stashes", "Tile view", "List view"].includes(
+				item.aria.label ?? ""
+			)
 	).length;
 }
 

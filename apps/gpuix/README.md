@@ -998,6 +998,19 @@ no token-by-token React updates or changes to the diff scroll/rendering path.
 
 ## Tabs
 
+**Command P** opens the repository quick switcher from Home or a workspace.
+Search known repositories by name, path, machine, or an open repository's branch.
+Recent repositories appear first; name matches rank ahead of path matches.
+The catalog includes open tabs, recent entries, stars, and repositories discovered
+on machines visited in this window. Opening the switcher continues discovery for
+the selected machine; it does not connect to every saved SSH machine.
+
+Use **Up/Down** to select, **Enter** to open, and **Escape** or **Command P** to
+dismiss. Clicking outside also dismisses and restores focus. Selecting an open
+checkout activates its tab; another checkout opens a new tab and preserves the
+current draft. Local and SSH paths remain distinct, including identical paths
+on different machines. Results use a bounded native virtual list.
+
 - Click an inactive tab to activate it; click the active connected tab to open
   its branch/worktree menu. The fixed Home button after the traffic lights opens
   the shared welcome screen without adding a tab. Dragging never opens the menu.

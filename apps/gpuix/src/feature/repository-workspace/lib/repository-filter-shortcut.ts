@@ -60,6 +60,7 @@ export function handleWorkspaceKeyDown(
 
 	if (
 		![
+			"p",
 			"o",
 			"r",
 			"w",
