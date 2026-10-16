@@ -6,7 +6,7 @@ import type {
 	RepositoryRef,
 } from "../../contracts.js";
 import { repositoryPath } from "../../adapter.js";
-import { record } from "../../result.js";
+import { fail, record } from "../../result.js";
 import type { Transport } from "../../transport.js";
 import { GitHubAdapter } from "./adapter.js";
 import { GitHubOAuthAdapter } from "./oauth.js";
@@ -77,6 +77,15 @@ export class GitHubProvider extends HostingProvider {
 		options: CallOptions
 	): Promise<string | null> {
 		repositoryPath(ref, false);
+
+		if (options.signal?.aborted)
+			fail("cancelled", "Hosting operation cancelled.");
+
+		// Public owner images do not need a REST request or its shared anonymous quota.
+		if (http.endpoints.web.origin === "https://github.com")
+			return this.avatarUrl(
+				`https://avatars.githubusercontent.com/${encodeURIComponent(ref.owner)}`
+			);
 
 		const reply = await http.request(
 			http.url(`users/${encodeURIComponent(ref.owner)}`),

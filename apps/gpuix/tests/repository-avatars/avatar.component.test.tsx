@@ -35,14 +35,8 @@ it("keeps fixed initials while loading, and never shows a previous source's late
 
 	const avatars = new RepositoryAvatars(async () => [
 		new GitHubProvider({
-			fetch: async (url) => {
-				if (String(url).includes("api.github.com")) {
-					await wait;
-
-					return Response.json({
-						avatar_url: "https://avatars.githubusercontent.com/u/1",
-					});
-				}
+			fetch: async () => {
+				await wait;
 
 				return new Response(png, { headers: { "content-type": "image/png" } });
 			},
@@ -106,12 +100,7 @@ it("reuses the same thumbnail in saved repositories, repository tabs and Clone r
 	const avatars = new RepositoryAvatars(
 		async () => [
 			new GitHubProvider({
-				fetch: async (url) => {
-					if (String(url).includes("api.github.com"))
-						return Response.json({
-							avatar_url: "https://avatars.githubusercontent.com/u/7",
-						});
-
+				fetch: async () => {
 					downloads += 1;
 
 					return new Response(png, {
@@ -210,12 +199,7 @@ for (const view of ["list", "tiles"] as const) {
 		const avatars = new RepositoryAvatars(
 			async () => [
 				new GitHubProvider({
-					fetch: async (url) => {
-						if (String(url).includes("api.github.com"))
-							return Response.json({
-								avatar_url: "https://avatars.githubusercontent.com/u/3",
-							});
-
+					fetch: async () => {
 						downloads++;
 
 						return new Response(png, {

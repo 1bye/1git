@@ -15,30 +15,65 @@ import {
 	value,
 } from "../_shared/fixtures.js";
 
-it("resolves GitHub owner images without touching configured credentials", async () => {
-	const requests: RequestInit[] = [];
-
+it("resolves public GitHub owner images without API requests or credentials", async () => {
 	const provider = new GitHubProvider({
 		accessToken: () => {
 			throw new Error("Credentials must not be read");
 		},
+		fetch: async () => {
+			throw new Error("Public avatar lookup must not use the REST API");
+		},
+	});
+
+	expect(
+		value(await getRepositoryAvatar(provider, { owner: "alice", name: "demo" }))
+	).toBe("https://avatars.githubusercontent.com/alice");
+	expect(provider.avatarCacheKey({ owner: "Alice", name: "other" })).toBe(
+		"alice"
+	);
+});
+
+it("keeps Enterprise avatars on their configured host without reading credentials", async () => {
+	const requests: RequestInit[] = [];
+
+	const provider = new GitHubProvider({
+		webUrl: "https://git.company.test",
+		accessToken: () => {
+			throw new Error("Credentials must not be read");
+		},
 		fetch: async (url, init = {}) => {
-			expect(String(url)).toBe("https://api.github.com/users/alice");
+			expect(String(url)).toBe("https://git.company.test/api/v3/users/alice");
 			requests.push(init);
 
 			return Response.json({
-				avatar_url: "https://avatars.githubusercontent.com/u/1",
+				avatar_url: "https://git.company.test/avatars/alice.png",
 			});
 		},
 	});
 
 	expect(
 		value(await getRepositoryAvatar(provider, { owner: "alice", name: "demo" }))
-	).toBe("https://avatars.githubusercontent.com/u/1");
+	).toBe("https://git.company.test/avatars/alice.png");
 	expect(new Headers(requests[0]?.headers).has("authorization")).toBe(false);
-	expect(provider.avatarCacheKey({ owner: "Alice", name: "other" })).toBe(
-		"alice"
+});
+
+it("rejects invalid public owners and honours cancellation before deriving an image URL", async () => {
+	const provider = new GitHubProvider();
+	const controller = new AbortController();
+
+	controller.abort();
+	const cancelled = await getRepositoryAvatar(
+		provider,
+		{ owner: "alice", name: "demo" },
+		{ signal: controller.signal }
 	);
+
+	expect(cancelled.ok ? null : cancelled.error.code).toBe("cancelled");
+
+	for (const owner of ["..", "a/b", "secret@github.com", "alice?token=secret"])
+		expect(
+			(await getRepositoryAvatar(provider, { owner, name: "demo" })).ok
+		).toBe(false);
 });
 
 it("requests provider thumbnails without changing original metadata or image trust rules", () => {
@@ -152,6 +187,7 @@ it("resolves public GitLab project images and reports cancelled/failed lookups s
 
 	const missing = await getRepositoryAvatar(
 		new GitHubProvider({
+			webUrl: "https://git.company.test",
 			fetch: async () => new Response(null, { status: 404 }),
 		}),
 		{ owner: "alice", name: "demo" }

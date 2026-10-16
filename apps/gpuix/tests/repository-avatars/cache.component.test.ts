@@ -46,7 +46,7 @@ it("rereads remotes after settings changes even when an older avatar is still lo
 	}
 });
 
-it("shares one owner download across tabs, saved paths and clone rows", async () => {
+it("shares one owner image across tabs and tiles without using the rate-limited API", async () => {
 	const png = await sharp({
 		create: { width: 8, height: 8, channels: 4, background: "#4466aa" },
 	})
@@ -60,9 +60,10 @@ it("shares one owner download across tabs, saved paths and clone rows", async ()
 			requests.push({ url: String(url), init });
 
 			return String(url).includes("api.github.com")
-				? Response.json({
-						avatar_url: "https://avatars.githubusercontent.com/u/1",
-					})
+				? Response.json(
+						{ message: "API rate limit exceeded" },
+						{ status: 403, headers: { "x-ratelimit-remaining": "0" } }
+					)
 				: new Response(png, { headers: { "content-type": "image/png" } });
 		},
 	});
@@ -102,15 +103,15 @@ it("shares one owner download across tabs, saved paths and clone rows", async ()
 		const metadata = await sharp(pixels).metadata();
 
 		expect([metadata.width, metadata.height]).toEqual([64, 64]);
-		expect(requests).toHaveLength(2);
-		expect(requests[1]?.url).toBe(
-			"https://avatars.githubusercontent.com/u/1?s=200"
+		expect(requests).toHaveLength(1);
+		expect(requests[0]?.url).toBe(
+			"https://avatars.githubusercontent.com/alice?s=200"
 		);
-		expect(new Headers(requests[1]?.init?.headers).has("authorization")).toBe(
+		expect(new Headers(requests[0]?.init?.headers).has("authorization")).toBe(
 			false
 		);
-		expect(requests[1]?.init?.credentials).toBe("omit");
-		expect(requests[1]?.init?.redirect).toBe("error");
+		expect(requests[0]?.init?.credentials).toBe("omit");
+		expect(requests[0]?.init?.redirect).toBe("error");
 		expect(await avatars.load(sources[0] ?? { path: "" })).toBe(
 			images[0] ?? null
 		);
