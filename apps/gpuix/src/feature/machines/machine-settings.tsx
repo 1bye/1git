@@ -149,14 +149,6 @@ export function MachineSettings({
 		gap: spacing[2],
 	};
 
-	const section = {
-		...stack,
-		borderWidth: 1,
-		borderColor: tokens.colors.border,
-		borderRadius: radius.lg,
-		padding: spacing[4],
-	};
-
 	const input = {
 		width: "100%",
 		height: 34,
@@ -321,36 +313,11 @@ export function MachineSettings({
 				</div>
 			) : machine ? (
 				<>
-					<div style={section}>
-						<div style={{ ...row, justifyContent: "space-between" }}>
-							<text role="heading" aria-level={2} style={label}>
-								Connection
-							</text>
-							<Button
-								tokens={tokens}
-								variant="ghost"
-								size="sm"
-								testId="machine-edit"
-								disabled={pending}
-								onPress={() => {
-									setDraft({
-										name: machine.name,
-										host: machine.host,
-										username: machine.username,
-										port: machine.port ? String(machine.port) : "",
-										identityFile: machine.identityFile,
-										password: "",
-									});
-									setError(null);
-									setEditing(true);
-								}}
-							>
-								Edit…
-							</Button>
-						</div>
-						<text
-							style={{ ...typography.md, color: tokens.colors.text }}
-						>{`${machine.username ? `${machine.username}@` : ""}${machine.host}${machine.port ? `:${machine.port}` : ""}`}</text>
+					<div style={stack}>
+						<text role="heading" aria-level={2} style={label}>
+							Connection
+						</text>
+
 						<div
 							style={{
 								...row,
@@ -358,19 +325,58 @@ export function MachineSettings({
 								flexWrap: "wrap",
 							}}
 						>
-							<text
-								testId="machine-status"
+							<div
 								style={{
-									...hint,
-									color:
-										state?.status === "Connected"
-											? colors.success
-											: tokens.colors.textMuted,
+									...stack,
+									gap: spacing[1],
+									flexGrow: 1,
+									flexShrink: 1,
+									minWidth: 0,
 								}}
 							>
-								{state?.status}
-							</text>
-							<div style={row}>
+								<text
+									style={{
+										...typography.md,
+										color: tokens.colors.text,
+										whiteSpace: "nowrap",
+										textOverflow: "ellipsis",
+									}}
+								>{`${machine.username ? `${machine.username}@` : ""}${machine.host}${machine.port ? `:${machine.port}` : ""}`}</text>
+								<text
+									testId="machine-status"
+									style={{
+										...hint,
+										color:
+											state?.status === "Connected"
+												? colors.success
+												: tokens.colors.textMuted,
+									}}
+								>
+									{state?.status}
+								</text>
+							</div>
+							<div style={{ ...row, flexWrap: "wrap" }}>
+								<Button
+									tokens={tokens}
+									variant="ghost"
+									size="sm"
+									testId="machine-edit"
+									disabled={pending}
+									onPress={() => {
+										setDraft({
+											name: machine.name,
+											host: machine.host,
+											username: machine.username,
+											port: machine.port ? String(machine.port) : "",
+											identityFile: machine.identityFile,
+											password: "",
+										});
+										setError(null);
+										setEditing(true);
+									}}
+								>
+									Edit…
+								</Button>
 								<Button
 									tokens={tokens}
 									size="sm"
@@ -413,7 +419,7 @@ export function MachineSettings({
 							</text>
 						) : null}
 					</div>
-					<div style={section}>
+					<div style={stack}>
 						<text role="heading" aria-level={2} style={label}>
 							Repository folders
 						</text>
@@ -514,8 +520,6 @@ export function MachineSettings({
 				style={{
 					...row,
 					justifyContent: "space-between",
-					borderTopWidth: 1,
-					borderColor: tokens.colors.border,
 					paddingTop: spacing[4],
 				}}
 			>
