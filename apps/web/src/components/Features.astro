@@ -1,159 +1,108 @@
 ---
-import Icon from "./Icon.astro";
+import FeatureIllustration from "./FeatureIllustration.astro";
+
+const features = [
+  { id: "gpu", title: ["Native speed.", "GPU rendered."] },
+  { id: "changes", title: ["Review. Stage.", "Commit."] },
+  { id: "branches", title: ["Branches and", "worktrees."] },
+  { id: "history", title: ["History.", "In focus."] },
+  { id: "spaces", title: ["A space for", "every project."] },
+  { id: "remote", title: ["Local or SSH.", "One workspace."] },
+  { id: "cli", title: ["Sign in with", "GitHub CLI."] },
+  { id: "stash", title: ["Stash it.", "Keep your flow."] },
+  { id: "keyboard", title: ["Made for", "your keyboard."] },
+] as const;
 ---
 
 <section id="features" class="features" aria-labelledby="features-title">
   <div class="section-intro">
-    <p class="eyebrow">A little more clarity. A lot more flow.</p>
-    <h2 id="features-title">Everything in its place.<br />
-      <span>Including your focus.</span>
-    </h2>
+    <h2 id="features-title">Everything in its place.</h2>
   </div>
   <div class="bento">
-    <article class="feature-card changes-card">
-      <div class="feature-copy">
-        <span class="feature-icon">
-          <Icon name="code" />
-        </span>
-        <h3>Every change.<br />The whole picture.</h3>
-        <p>See what changed, choose what goes into a commit, and leave the rest for later.</p>
-      </div>
-      <div class="review-visual" aria-hidden="true">
-        <div class="review-window">
-          <div class="review-toolbar">
-            <span class="review-file">
-              <Icon name="file" size={16} /> workspace.ts</span>
-            <span class="diff-tally">+4 <i>−2</i>
-            </span>
-          </div>
-          <div class="review-code">
-            <span class="review-context">export function findYourFlow() &#123;</span>
-            <span class="review-remove">
-              <i>−</i> &nbsp;return openOneMoreWindow();</span>
-            <span class="review-add">
-              <i>+</i> &nbsp;return workspace.open(&#123;</span>
-            <span class="review-add">
-              <i>+</i> &nbsp;&nbsp;&nbsp;clarity: true,</span>
-            <span class="review-add">
-              <i>+</i> &nbsp;&nbsp;&nbsp;distractions: false,</span>
-            <span class="review-add">
-              <i>+</i> &nbsp;&#125;);</span>
-            <span class="review-context">&#125;</span>
-          </div>
-          <div class="review-staged">
-            <span>
-              <Icon name="check" size={13} /> Just the changes you want.</span>
-            <span class="staged-badge">Staged</span>
-          </div>
+    {features.map(({ id, title }) => (
+      <article class:list={["feature-card", `card-${id}`]}>
+        <div class="feature-copy">
+          <h3>{title[0]}<br />{title[1]}</h3>
         </div>
-      </div>
-    </article>
-    <article class="feature-card remote-card">
-      <div class="remote-visual" aria-hidden="true">
-        <div class="machine-tile">
-          <Icon name="laptop" size={42} />
-          <span>Your Mac</span>
-        </div>
-        <div class="connection-line">
-          <i></i>
-          <i></i>
-          <i></i>
-          <span>
-            <Icon name="check" size={12} />
-          </span>
-        </div>
-        <div class="machine-tile server-tile">
-          <Icon name="server" size={38} />
-          <span>Your server</span>
-        </div>
-        <div class="remote-project">
-          <span class="project-avatar">o</span>
-          <div>
-            <strong>orbit</strong>
-            <span>studio.local · SSH</span>
-          </div>
-          <span class="connection-dot"></span>
-        </div>
-      </div>
-      <div class="feature-copy">
-        <h3>Here. There.<br />Same workspace.</h3>
-        <p>Your Mac or a machine over SSH. Review, commit, and browse history in the same familiar interface.</p>
-      </div>
-    </article>
-    <article class="feature-card cli-card">
-      <div class="cli-visual" aria-hidden="true">
-        <div class="terminal-window">
-          <div class="terminal-title">
-            <span class="terminal-dot"></span>
-            <span>Already right at home.</span>
-            <Icon name="terminal" size={15} />
-          </div>
-          <div class="terminal-body">
-            <span>
-              <b>❯</b> gh auth status</span>
-            <span class="terminal-muted">github.com</span>
-            <span>
-              <i>✓</i> Logged in as <strong>you</strong>
-            </span>
-            <span class="terminal-muted">&nbsp; Credentials managed by GitHub CLI</span>
-            <span class="terminal-prompt">
-              <b>❯</b> <i></i>
-            </span>
-          </div>
-        </div>
-        <div class="connected-pill">
-          <span class="connection-dot"></span> Connected with GitHub CLI</div>
-      </div>
-      <div class="feature-copy">
-        <h3>Pick up where<br />you’re signed in.</h3>
-        <p>Connect your existing GitHub CLI account. Your credentials stay managed by the tools you already use.</p>
-      </div>
-    </article>
-    <article class="feature-card spaces-card">
-      <div class="spaces-visual" aria-hidden="true">
-        <div class="space-pill">
-          <span class="space-dot"></span> Personal <span>⌄</span>
-        </div>
-        <div class="project-stack">
-          <div class="space-project">
-            <span class="repository-mark mark-blue">
-              <Icon name="folder" size={19} />
-            </span>
-            <div>
-              <strong>weekend-project</strong>
-              <span>A little something of your own</span>
-            </div>
-            <span class="space-branch">
-              <Icon name="branch" size={12} /> main</span>
-          </div>
-          <div class="space-project">
-            <span class="repository-mark mark-lilac">
-              <Icon name="folder" size={19} />
-            </span>
-            <div>
-              <strong>dotfiles</strong>
-              <span>Make yourself at home</span>
-            </div>
-            <span class="space-branch">
-              <Icon name="branch" size={12} /> main</span>
-          </div>
-          <div class="space-project">
-            <span class="repository-mark mark-peach">
-              <Icon name="folder" size={19} />
-            </span>
-            <div>
-              <strong>next-good-idea</strong>
-              <span>Ready when you are</span>
-            </div>
-            <span class="space-branch">
-              <Icon name="branch" size={12} /> main</span>
-          </div>
-        </div>
-      </div>
-      <div class="feature-copy">
-        <h3>A place for<br />every project.</h3>
-        <p>Keep work, side projects, and everything in between in their own spaces. Your tabs and drafts come with you.</p>
-      </div>
-    </article>
+        <FeatureIllustration feature={id} />
+      </article>
+    ))}
   </div>
 </section>
+
+<style>
+  .bento {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-rows: 190px 210px 230px 190px;
+    grid-template-areas:
+      "gpu gpu changes changes"
+      "branches history changes changes"
+      "spaces spaces remote cli"
+      "stash keyboard keyboard keyboard";
+    gap: 18px;
+  }
+  .feature-card { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; border-radius: 24px; background: #f5f5f7; }
+  .feature-copy { position: relative; z-index: 1; flex-shrink: 0; padding: 24px 24px 0; }
+  .feature-copy h3 { margin: 0; color: #1d1d1f; font-size: 24px; font-weight: 600; line-height: 1.1; letter-spacing: -.04em; }
+  .card-gpu { grid-area: gpu; }
+  .card-changes { grid-area: changes; }
+  .card-branches { grid-area: branches; }
+  .card-history { grid-area: history; }
+  .card-spaces { grid-area: spaces; }
+  .card-remote { grid-area: remote; }
+  .card-cli { grid-area: cli; }
+  .card-stash { grid-area: stash; }
+  .card-keyboard { grid-area: keyboard; }
+  .card-gpu, .card-spaces, .card-keyboard { display: grid; grid-template-columns: .9fr 1.1fr; align-items: center; }
+  .card-gpu .feature-copy, .card-spaces .feature-copy, .card-keyboard .feature-copy { padding: 26px 0 26px 28px; }
+  .card-gpu h3 { font-size: 29px; }
+  .card-gpu :global(.feature-illustration) { height: 100%; padding: 8px 4px; }
+  .card-gpu :global(svg) { max-width: 300px; }
+  .card-changes { flex-direction: column-reverse; }
+  .card-changes .feature-copy { padding: 0 30px 28px; }
+  .card-changes h3 { font-size: 32px; }
+  .card-changes :global(.feature-illustration) { padding: 6px 0 0; }
+  .card-spaces :global(.feature-illustration) { height: 100%; padding: 0; }
+  .card-spaces :global(svg) { width: 120%; flex-shrink: 0; }
+  .card-keyboard { grid-template-columns: 1fr 1fr; }
+  .card-keyboard .feature-copy { order: 2; padding-left: 0; }
+  .card-keyboard h3 { font-size: 28px; }
+  .card-keyboard :global(.feature-illustration) { order: 1; height: 100%; padding: 0; }
+  .card-keyboard :global(svg) { max-width: 320px; }
+  @media (max-width: 1000px) {
+    .bento {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-rows: 180px 200px 200px 190px 230px 230px;
+      grid-template-areas:
+        "gpu gpu"
+        "changes branches"
+        "changes history"
+        "spaces spaces"
+        "remote cli"
+        "stash keyboard";
+    }
+    .card-gpu, .card-spaces { grid-template-columns: 1fr 1fr; }
+    .card-gpu h3 { font-size: 30px; }
+    .card-spaces :global(svg) { width: 100%; max-width: 350px; }
+    .card-keyboard { display: flex; flex-direction: column; align-items: stretch; }
+    .card-keyboard .feature-copy { order: 0; padding: 24px 24px 0; }
+    .card-keyboard h3 { font-size: 24px; }
+    .card-keyboard :global(.feature-illustration) { height: auto; padding: 10px 12px 14px; }
+  }
+  @media (max-width: 580px) {
+    .bento { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; grid-template-areas: none; gap: 14px; }
+    .feature-card { grid-area: auto; display: grid; grid-template-columns: 1fr 1fr; align-items: center; min-height: 160px; border-radius: 22px; }
+    .feature-card .feature-copy { order: 0; padding: 22px 0 22px 22px; }
+    .feature-card h3 { font-size: 22px; }
+    .feature-card :global(.feature-illustration) { height: auto; padding: 0 10px 0 0; }
+    .feature-card :global(svg) { width: 210px; max-width: none; flex-shrink: 0; }
+    .card-changes { display: flex; flex-direction: column-reverse; height: 290px; }
+    .card-changes .feature-copy { align-self: stretch; padding: 0 26px 24px; }
+    .card-changes h3 { font-size: 28px; }
+    .card-changes :global(.feature-illustration) { width: 100%; min-height: 0; padding: 0; }
+    .card-changes :global(svg) { width: 100%; height: 100%; }
+    .card-spaces .feature-copy, .card-keyboard .feature-copy { order: 2; padding: 22px 22px 22px 0; }
+    .card-spaces :global(.feature-illustration), .card-keyboard :global(.feature-illustration) { order: 1; padding: 0; }
+  }
+</style>

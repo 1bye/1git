@@ -74,3 +74,12 @@ preserving the actual macOS traffic lights, glass, grain and window border.
 Repository tabs and file names in the screenshot remain visible. No window
 chrome is recreated in HTML. To replace the screenshot, update the PNG and its
 window bounds together; the build generates optimized responsive variants.
+
+The compact bento grid uses decorative SVGs in `FeatureIllustration.astro` for
+nine existing capabilities: GPU rendering, commits, branches/worktrees, spaces,
+SSH, GitHub CLI, history search, stashes, and keyboard shortcuts. The renderer
+claim reflects the app's GPUI/Metal renderer; no benchmark or frame-rate claim
+is made. The keyboard artwork shows the app's Command+P repository picker.
+These are conceptual artwork, with no working controls, account access,
+external images, or client-side JavaScript. The hero retains the original native
+screenshot.
