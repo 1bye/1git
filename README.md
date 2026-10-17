@@ -1,5 +1,7 @@
 # 1git
 
+[Download the latest macOS app (Apple Silicon)](https://git.1bye.dev/download).
+
 This project was created with [Better-T-Stack](https://github.com/AmanVarshney01/create-better-t-stack), a modern TypeScript stack.
 
 ## Features

@@ -274,8 +274,10 @@ Previously distributed builds without Sparkle need one manual installation.
 
 The private [`apps/releases`](../releases/README.md) workspace declares an
 Alchemy-managed private R2 bucket and read-only downloads Worker. Infrastructure
-deployment is explicit and separate from publishing. The Worker provides a
-stable HTTPS `workers.dev` endpoint without needing a custom domain initially.
+deployment is explicit and separate from publishing. Production downloads use
+[`git.1bye.dev/download`](https://git.1bye.dev/download) for the latest release
+and `https://git.1bye.dev/appcast.xml` for future builds' update feed. The original
+`workers.dev` endpoint remains available for previously installed apps.
 
 Once the stack has been explicitly deployed and the permanent Sparkle signing
 key exists in Keychain account `dev.1git.gpuix`, run `setup:signing:macos` once to

@@ -13,9 +13,17 @@ export const UpdatesBucket = Cloudflare.R2.Bucket("Updates", {
 }).pipe(RemovalPolicy.retain());
 
 /** Public downloads only; publishing credentials never enter this Worker. */
-export const UpdatesWorker = Cloudflare.Worker("Downloads", {
-	main: "./src/worker.ts",
-	env: { UPDATES: UpdatesBucket },
+export const UpdatesWorker = Effect.gen(function* () {
+	const stage = yield* Stage;
+
+	return yield* Cloudflare.Worker("Downloads", {
+		main: "./src/worker.ts",
+		...(stage === "prod"
+			? { domain: { name: "git.1bye.dev", zoneName: "1bye.dev" } }
+			: {}),
+		workersDev: true,
+		env: { UPDATES: UpdatesBucket },
+	});
 });
 
 export default Alchemy.Stack(

@@ -7,7 +7,12 @@ Worker. The pinned SDK is `alchemy@2.0.0-beta.83` with
 Deploying this stack is separate from publishing a macOS release or deploying a
 future website.
 
-The Worker serves only `GET`/`HEAD` for `/appcast.xml` and numeric-versioned
+Production downloads use `https://git.1bye.dev`. Share
+`https://git.1bye.dev/download` for the latest Apple Silicon macOS release; it
+returns a non-cached redirect based on the current published appcast. Versioned
+links remain available as `https://git.1bye.dev/1git-<version>-macos-arm64.zip`.
+
+The Worker serves only `GET`/`HEAD` for `/download`, `/appcast.xml` and numeric-versioned
 `/1git-<version>-macos-arm64.zip` objects. It streams the stored bytes unchanged,
 does not expose bucket listing or arbitrary keys, and has no upload endpoints or
 publisher credentials. Feeds and error responses use `Cache-Control: no-store`;
@@ -34,8 +39,12 @@ GitHub, AI, or Cloudflare account. The GitHub repository stays private.
 3. The stack saves `accountId`, `bucketName`, `jurisdiction`, `workerURL`,
    `publisherURL` and `publicKey`.
    `release:macos` reads these outputs; no copying endpoint/account/bucket values
-   or configuring separate S3 keys is required. The stable `workers.dev` URL is
-   usable without buying a domain; the feed is `workerURL` + `/appcast.xml`.
+   or configuring separate S3 keys is required. In production, Alchemy attaches
+   `git.1bye.dev` in the existing `1bye.dev` zone and manages DNS/TLS. Other stages
+   use their own `workers.dev` URL. The feed is `workerURL` + `/appcast.xml`.
+   The original production `workers.dev` endpoint remains enabled for installed
+   apps and previously shared links. Existing signed feeds are never rewritten
+   to change their enclosure URLs; future releases use the custom domain.
 4. Back up the ignored `apps/releases/.alchemy/state/` directory securely. This
    stack uses Alchemy's local state, so deployment does not provision an extra
    remote state service. Use the same state and stage for later infrastructure

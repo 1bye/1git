@@ -1,5 +1,5 @@
 /**
- * Covers: public GET/HEAD downloads, exact routes, immutable ZIPs, and no write access.
+ * Covers: public GET/HEAD downloads, latest-release redirects, exact routes, and no writes.
  * Real: Worker handler, streaming responses, HTTP headers.
  * Doubles: R2 read binding; no Cloudflare account, deployment, or uploads.
  * Requires: none.
@@ -142,4 +142,75 @@ it("returns missing objects and storage failures without caching the errors", as
 	expect(response.status).toBe(503);
 	expect(response.headers.get("cache-control")).toBe("no-store");
 	expect(await response.text()).not.toContain("secret");
+});
+
+it("redirects GET and HEAD to the release in the current feed on the requested domain", async () => {
+	let version = "0.0.12";
+	const seen: string[] = [];
+
+	const env: DownloadEnvironment = {
+		UPDATES: {
+			async head() {
+				throw new Error("The redirect needs the current feed body.");
+			},
+			async get(key) {
+				seen.push(key);
+				const body = new Blob([
+					`<rss><channel><item><sparkle:version>${version}</sparkle:version><enclosure url="https://old.test/1git-${version}-macos-arm64.zip" /></item></channel></rss>`,
+				]);
+
+				return { size: body.size, httpEtag: '"feed"', body: body.stream() };
+			},
+		},
+	};
+
+	for (const method of ["GET", "HEAD"]) {
+		const response = await worker.fetch(
+			new Request("https://git.1bye.dev/download", { method }),
+			env
+		);
+
+		expect(response.status).toBe(302);
+		expect(response.headers.get("location")).toBe(
+			`https://git.1bye.dev/1git-${version}-macos-arm64.zip`
+		);
+		expect(response.headers.get("cache-control")).toBe("no-store");
+		expect(await response.text()).toBe("");
+		version = "0.0.13";
+	}
+
+	expect(seen).toEqual(["appcast.xml", "appcast.xml"]);
+});
+
+it("does not redirect when the feed is absent, oversized, or has an invalid version", async () => {
+	for (const fixture of [
+		null,
+		{ xml: "<sparkle:version>0.0.12</sparkle:version>", size: 1024 * 1024 + 1 },
+		{ xml: "<sparkle:version>../../secret</sparkle:version>", size: 100 },
+		{ xml: "<rss />", size: 7 },
+	]) {
+		const response = await worker.fetch(
+			new Request("https://git.1bye.dev/download"),
+			{
+				UPDATES: {
+					async head() {
+						return null;
+					},
+					async get() {
+						return fixture
+							? {
+									size: fixture.size,
+									httpEtag: '"feed"',
+									body: new Blob([fixture.xml]).stream(),
+								}
+							: null;
+					},
+				},
+			}
+		);
+
+		expect(response.status).toBe(fixture ? 503 : 404);
+		expect(response.headers.get("location")).toBeNull();
+		expect(response.headers.get("cache-control")).toBe("no-store");
+	}
 });
