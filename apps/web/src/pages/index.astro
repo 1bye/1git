@@ -52,56 +52,19 @@ import Features from "../components/Features.astro";
       </div>
     </section>
     <Features />
-    <section class="details" aria-labelledby="details-title">
-      <div>
-        <p class="eyebrow">Familiar tools. A fresh perspective.</p>
-        <h2 id="details-title">Your workflow,<br />with room to breathe.</h2>
-      </div>
-      <div class="details-list">
-        <div>
-          <Icon name="branch" />
-          <p>
-            <strong>Follow every branch.</strong>
-            <span>Switch branches, explore history, and give parallel work its own worktree.</span>
-          </p>
-        </div>
-        <div>
-          <Icon name="folder" />
-          <p>
-            <strong>Open your existing repositories.</strong>
-            <span>Start with the projects already on your Mac, or clone something new.</span>
-          </p>
-        </div>
-        <div>
-          <Icon name="laptop" />
-          <p>
-            <strong>Feels right on your Mac.</strong>
-            <span>A native interface, light and dark themes, and keyboard shortcuts that keep you moving.</span>
-          </p>
-        </div>
-      </div>
-    </section>
   </main>
   <footer class="footer">
     <div class="footer-top">
-      <div>
-        <img src="/favicon.svg" width="46" height="46" alt="" />
-        <h2>Your next good commit<br />
-          <span>starts here.</span>
-        </h2>
-      </div>
-      <div class="footer-cta">
-        <a class="download-button download-dark" href="https://git.1bye.dev/download">Download for macOS <Icon name="arrow" size={17} />
-        </a>
-        <p class="download-note">macOS 13+ · Apple Silicon · Git required</p>
-      </div>
-    </div>
-    <div class="footer-meta">
-      <span>Made with care, by <a href="https://1bye.dev">1bye</a>.</span>
-      <a href="#top">Back to top <span aria-hidden="true">↑</span>
+      <a class="brand" href="#top" aria-label="1git, back to top">
+        <img src="/favicon.svg" width="32" height="32" alt="" />
+        <span>1git</span>
+      </a>
+      <a class="download-button download-dark" href="https://git.1bye.dev/download">Download for macOS <Icon name="arrow" size={15} />
       </a>
     </div>
-    <div class="footer-wordmark" aria-hidden="true">1git<span>.</span>
+    <div class="footer-meta">
+      <span>Made by <a href="https://1bye.dev">1bye</a>.</span>
+      <p>macOS 13+ · Apple Silicon · Git required</p>
     </div>
   </footer>
 </Layout>
