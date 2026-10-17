@@ -46,7 +46,7 @@ a:focus-visible, button:focus-visible { outline: 3px solid #91b9ff; outline-offs
 .eyebrow { margin: 0 0 17px; color: #a0a0ac; font-size: 12px; letter-spacing: -.1px; }
 .section-intro h2 { margin: 0; font-size: clamp(34px, 4.3vw, 49px); font-weight: 600; line-height: 1.15; letter-spacing: -.025em; }
 .footer { max-width: 1088px; margin: 72px auto 0; padding: 0 24px 30px; }
-.footer-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 20px; padding-top: 28px; border-top: 1px solid #2a2a31; }
+.footer-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 20px; padding-top: 28px; }
 .footer .brand { gap: 8px; font-size: 24px; font-weight: 600; letter-spacing: -.6px; }
 .footer .download-button { min-height: 44px; padding: 0 18px; font-size: 13px; }
 .footer-meta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px 24px; padding-top: 16px; color: #a0a0ac; font-size: 11px; line-height: 1.5; }

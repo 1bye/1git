@@ -77,11 +77,16 @@ Repository tabs and file names in the screenshot remain visible. No window
 chrome is recreated in HTML. To replace the screenshot, update the PNG and its
 window bounds together; the build generates optimized responsive variants.
 
-The asymmetric bento grid illustrates nine existing capabilities in
-`FeatureIllustration.astro`: GPU rendering, commits, branches/worktrees, spaces,
-SSH, GitHub CLI, history search, stashes, and keyboard shortcuts. All nine cards
-use decorative SVG artwork. The Changes illustration connects three diff strips
-to one commit. The renderer
+The asymmetric bento grid illustrates thirteen existing capabilities in
+`FeatureIllustration.astro`: GPU rendering, selected changes and commits,
+branches/worktrees, spaces, repository tabs, commit history, GitHub/GitLab accounts
+and GitHub CLI, SSH, AI commit drafts, ignored-file history, multiple stashes,
+file-type editor preferences, and keyboard shortcuts. All cards use decorative SVG
+artwork. Changes shows two selected rows and an unselected row; History shows a
+commit list; Spaces groups repositories into Work and Personal contexts; Tabs
+shows separate repository tabs. AI drafts remain editable, and ignored-file history
+is opt-in for selected ignored paths. Provider glyphs reuse the app's Phosphor
+Icons under the MIT license in `public/licenses/phosphor-icons.txt`. The renderer
 claim reflects the app's GPUI/Metal renderer; no benchmark or frame-rate claim
 is made. The keyboard artwork shows the app's Command+P repository picker.
 The Diagram-inspired cards use a solid dark background without borders and
