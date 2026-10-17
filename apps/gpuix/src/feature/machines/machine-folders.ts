@@ -1,4 +1,4 @@
-import { opendir, realpath } from "node:fs/promises";
+import { opendir, realpath } from "@1git/git/runtime";
 import { posix } from "node:path";
 import { MachineLocation } from "./machine-location";
 

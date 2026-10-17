@@ -2,9 +2,17 @@
  * Covers: helper discovery, folder browsing/setup, worktrees, remote reads/diffs/commits, stale-write guards and rejected RPC methods.
  * Real: helper process, JSON protocol, application repository services, Git and isolated working trees.
  * Doubles: SSH channel (requests use the actual helper's stdin/stdout); no saved machines or credentials.
- * Requires: Bun, Git and writable temporary storage.
+ * Requires: Rust, Bun, Git and writable temporary storage.
  */
-import { afterEach, beforeEach, expect, it, mock, spyOn } from "bun:test";
+import {
+	afterEach,
+	beforeAll,
+	beforeEach,
+	expect,
+	it,
+	mock,
+	spyOn,
+} from "bun:test";
 import {
 	spawn,
 	execFile,
@@ -36,7 +44,31 @@ import { RepositoryDiff } from "../../src/feature/repository-workspace/lib/repos
 import { RepositorySetup } from "../../src/feature/repository-workspace/lib/repository-setup";
 import { RepositoryWorktrees } from "../../src/feature/workspace-tabs/lib/repository-worktrees";
 
+import { RustRuntime } from "../../src/feature/machines/rust-runtime";
+import { RemoteRepositoryService } from "../../src/feature/machines/remote-helper-server";
+
 const execute = promisify(execFile);
+
+const rustTarget =
+	process.platform === "darwin"
+		? process.arch === "arm64"
+			? "aarch64-apple-darwin"
+			: "x86_64-apple-darwin"
+		: process.arch === "arm64"
+			? "aarch64-unknown-linux-musl"
+			: "x86_64-unknown-linux-musl";
+
+beforeAll(async () => {
+	await execute(
+		process.execPath,
+		[
+			resolve(import.meta.dir, "../../native/build-remote-helpers.ts"),
+			`${process.platform === "darwin" ? "darwin" : "linux"}-${process.arch}`,
+		],
+		{ maxBuffer: 1024 * 1024 }
+	);
+}, 60_000);
+let service: RemoteRepositoryService;
 let directory: string;
 let child: ChildProcessWithoutNullStreams;
 let request: (operation: Record<string, unknown>) => Promise<unknown>;
@@ -76,8 +108,11 @@ beforeEach(async () => {
 
 	await mkdir(helperHome);
 	child = spawn(
-		process.execPath,
-		[resolve(import.meta.dir, "../../src/feature/machines/remote-helper.ts")],
+		resolve(
+			import.meta.dir,
+			`../../build/rust-helper/${rustTarget}/release/onegit-remote-helper`
+		),
+		[],
 		{ env: { ...env, HOME: helperHome }, stdio: "pipe" }
 	);
 	const ready = Promise.withResolvers<void>();
@@ -94,7 +129,21 @@ beforeEach(async () => {
 		for (const frame of frames.push(bytes)) {
 			if (!isRecord(frame)) throw new Error("Invalid helper frame");
 
-			if (frame.kind === "hello") ready.resolve();
+			if (frame.kind === "hello") {
+				if (
+					typeof frame.home !== "string" ||
+					typeof frame.temporary !== "string"
+				)
+					throw new Error("Invalid agent directories");
+
+				const home = frame.home;
+				const temporary = frame.temporary;
+
+				service = new RemoteRepositoryService(
+					(signal) => new RustRuntime(home, temporary, rawRequest, signal)
+				);
+				ready.resolve();
+			}
 
 			if (typeof frame.id !== "number" || frame.kind === "progress") continue;
 
@@ -103,7 +152,9 @@ beforeEach(async () => {
 			pending.delete(frame.id);
 
 			if (frame.kind === "error")
-				callback?.reject(new Error(String(frame.message)));
+				callback?.reject(
+					Object.assign(new Error(String(frame.message)), { code: frame.code })
+				);
 			else callback?.resolve(frame.value);
 		}
 	});
@@ -113,7 +164,7 @@ beforeEach(async () => {
 		for (const callback of pending.values())
 			callback.reject(new Error("Helper exited"));
 	});
-	request = async (operation) =>
+	const rawRequest = async (operation: Record<string, unknown>) =>
 		await new Promise<unknown>((resolveResult, reject) => {
 			const id = nextId++;
 
@@ -122,7 +173,9 @@ beforeEach(async () => {
 				`${JSON.stringify({ ...operation, id, kind: "request" })}\n`
 			);
 		});
+
 	await ready.promise;
+	request = async (input) => await service.request(input);
 	location = MachineLocation.encode(crypto.randomUUID(), directory);
 	spyOn(Machines.shared, "request").mockImplementation(
 		async (path, input) =>
@@ -132,6 +185,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
 	mock.restore();
+	await service?.close();
 	child?.stdin.end();
 	child?.kill();
 	await rm(directory, { recursive: true, force: true });
@@ -493,4 +547,48 @@ it("stores discard recovery on the remote machine without touching the Mac's rec
 	expect(
 		backup && (await Bun.file(join(backup.path, "working.patch")).exists())
 	).toBe(true);
+});
+
+it("writes ignore rules through remote file handles and refuses symlink targets", async () => {
+	const before = await RepositoryReader.read(
+		location,
+		new AbortController().signal
+	);
+
+	if (!before.ok) throw new Error(before.error.message);
+
+	const input = {
+		path: "leave.txt",
+		rule: { kind: "file" },
+		expectedHead: before.value.head.oid,
+		expectedBranch: before.value.head.branch,
+	};
+
+	const ignored = await request({
+		operation: "call",
+		path: directory,
+		method: "ignoreFile",
+		args: [input],
+	});
+
+	expect(isRecord(ignored) && ignored.ok).toBe(true);
+	expect(await Bun.file(join(directory, ".gitignore")).text()).toBe(
+		"/leave.txt\n"
+	);
+	await rm(join(directory, ".gitignore"));
+	await symlink(
+		join(directory, "file with spaces.txt"),
+		join(directory, ".gitignore")
+	);
+	const rejected = await request({
+		operation: "call",
+		path: directory,
+		method: "ignoreFile",
+		args: [input],
+	});
+
+	expect(isRecord(rejected) && rejected.ok).toBe(false);
+	expect(await Bun.file(join(directory, "file with spaces.txt")).text()).toBe(
+		"updated репозиторій\n"
+	);
 });

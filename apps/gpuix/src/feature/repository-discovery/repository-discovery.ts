@@ -1,5 +1,5 @@
 import { GitRepository } from "@1git/git";
-import { readdir, realpath } from "node:fs/promises";
+import { readdir, realpath } from "@1git/git/runtime";
 import { isAbsolute, join, normalize } from "node:path";
 
 /** Local discovery intent only; found repositories never become saved history automatically. */

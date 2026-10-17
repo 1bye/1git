@@ -6,7 +6,7 @@ import {
 	rename,
 	rm,
 	writeFile,
-} from "node:fs/promises";
+} from "./runtime.js";
 import { join } from "node:path";
 
 import type {

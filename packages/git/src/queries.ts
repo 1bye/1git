@@ -1,7 +1,15 @@
-import { existsSync } from "node:fs";
-import { mkdtemp, readFile, realpath, rm, stat } from "node:fs/promises";
+import {
+	exists,
+	mkdtemp,
+	readFile,
+	realpath,
+	rm,
+	stat,
+	tmpdir,
+} from "./runtime.js";
+
 import { createHash } from "node:crypto";
-import { tmpdir } from "node:os";
+
 import { isAbsolute, join, relative, resolve } from "node:path";
 
 import type {
@@ -45,28 +53,32 @@ import { invalidInput } from "./result.js";
 
 const MAX_FILE_CONTENT_BYTES = 10 * 1024 * 1024;
 
-const loadOperationState = (gitDirectory: string): RepositoryOperationState => {
-	// Missing markers are the normal case; do not create rejected filesystem promises to probe them.
-	if (
-		existsSync(join(gitDirectory, "rebase-merge")) ||
-		existsSync(join(gitDirectory, "rebase-apply"))
-	) {
-		return "rebase";
-	}
+const loadOperationState = async (
+	gitDirectory: string
+): Promise<RepositoryOperationState> => {
+	const markers = [
+		"rebase-merge",
+		"rebase-apply",
+		"MERGE_HEAD",
+		"CHERRY_PICK_HEAD",
+		"REVERT_HEAD",
+		"SQUASH_MSG",
+	];
 
-	if (existsSync(join(gitDirectory, "MERGE_HEAD"))) {
-		return "merge";
-	}
+	const [rebaseMerge, rebaseApply, merge, cherryPick, revert, squash] =
+		await Promise.all(
+			markers.map(async (marker) => await exists(join(gitDirectory, marker)))
+		);
 
-	if (existsSync(join(gitDirectory, "CHERRY_PICK_HEAD"))) {
-		return "cherry-pick";
-	}
+	if (rebaseMerge || rebaseApply) return "rebase";
 
-	if (existsSync(join(gitDirectory, "REVERT_HEAD"))) {
-		return "revert";
-	}
+	if (merge) return "merge";
 
-	if (existsSync(join(gitDirectory, "SQUASH_MSG"))) return "squash-merge";
+	if (cherryPick) return "cherry-pick";
+
+	if (revert) return "revert";
+
+	if (squash) return "squash-merge";
 
 	return "normal";
 };
@@ -104,7 +116,7 @@ const operationToken = async (
 	for (const file of files) {
 		const path = join(directory, file);
 
-		if (!existsSync(path)) continue;
+		if (!(await exists(path))) continue;
 
 		try {
 			hash.update(file).update(await readFile(path));

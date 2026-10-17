@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { readFile, rm, writeFile } from "node:fs/promises";
+import { readFile, rm, writeFile } from "./runtime.js";
 import { join } from "node:path";
 import type {
 	BranchIntegrationInput,

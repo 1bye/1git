@@ -11,50 +11,86 @@ const targets = requested.length ? requested : helperTargets;
 
 await mkdir(directory, { recursive: true });
 
+const rustTargets: Record<(typeof helperTargets)[number], string> = {
+	"darwin-arm64": "aarch64-apple-darwin",
+	"darwin-x64": "x86_64-apple-darwin",
+	"linux-arm64": "aarch64-unknown-linux-musl",
+	"linux-arm64-musl": "aarch64-unknown-linux-musl",
+	"linux-x64": "x86_64-unknown-linux-musl",
+	"linux-x64-musl": "x86_64-unknown-linux-musl",
+};
+
+const compiled = new Map<string, Uint8Array>();
+
 for (const target of targets) {
-	if (!helperTargets.some((known) => known === target))
-		throw new Error("Unsupported remote helper target.");
+	const known = helperTargets.find((name) => name === target);
 
-	const output = resolve(directory, `.helper-${target}-${crypto.randomUUID()}`);
+	if (!known) throw new Error("Unsupported remote helper target.");
 
-	try {
+	const rustTarget = rustTargets[known];
+	let bytes = compiled.get(rustTarget);
+
+	if (!bytes) {
+		const output = resolve(import.meta.dir, "../build/rust-helper");
+
 		const child = Bun.spawn(
 			[
-				process.execPath,
+				"cargo",
 				"build",
-				resolve(import.meta.dir, "../src/feature/machines/remote-helper.ts"),
-				"--compile",
-				`--target=bun-${target}`,
-				"--minify",
-				"--no-compile-autoload-dotenv",
-				"--no-compile-autoload-bunfig",
-				"--outfile",
+				"--locked",
+				"--release",
+				"--manifest-path",
+				resolve(import.meta.dir, "remote-helper/Cargo.toml"),
+				"--target-dir",
 				output,
+				"--target",
+				rustTarget,
 			],
-			{ stdout: "inherit", stderr: "inherit" }
+			{
+				env: {
+					...process.env,
+					...(rustTarget.endsWith("linux-musl")
+						? { RUSTFLAGS: "-C linker=rust-lld -C target-feature=+crt-static" }
+						: {}),
+					MACOSX_DEPLOYMENT_TARGET: "13.0",
+				},
+				stdout: "inherit",
+				stderr: "inherit",
+			}
 		);
 
 		if ((await child.exited) !== 0)
-			throw new Error(`Could not build the ${target} SSH helper.`);
+			throw new Error(
+				`Could not build the ${target} Rust SSH helper. Install its Rust target with rustup target add ${rustTarget}.`
+			);
 
-		const bytes = await Bun.file(output).bytes();
-		const sha256 = createHash("sha256").update(bytes).digest("hex");
-		const compressed = gzipSync(bytes);
-		const archive = `${output}.gz`;
+		bytes = await Bun.file(
+			resolve(output, rustTarget, "release/onegit-remote-helper")
+		).bytes();
+		compiled.set(rustTarget, bytes);
+	}
 
-		await writeFile(archive, compressed, { mode: 0o600 });
-		await rename(archive, resolve(directory, `${target}.gz`));
+	const sha256 = createHash("sha256").update(bytes).digest("hex");
+	const compressed = gzipSync(bytes);
+
+	const temporary = resolve(
+		directory,
+		`.helper-${target}-${crypto.randomUUID()}`
+	);
+
+	try {
+		await writeFile(`${temporary}.gz`, compressed, { mode: 0o600 });
 		await writeFile(
-			`${output}.json`,
+			`${temporary}.json`,
 			JSON.stringify({
 				sha256,
 				compressedSha256: createHash("sha256").update(compressed).digest("hex"),
 			})
 		);
-		await rename(`${output}.json`, resolve(directory, `${target}.json`));
+		await rename(`${temporary}.gz`, resolve(directory, `${target}.gz`));
+		await rename(`${temporary}.json`, resolve(directory, `${target}.json`));
 	} finally {
-		await rm(output, { force: true });
-		await rm(`${output}.gz`, { force: true });
-		await rm(`${output}.json`, { force: true });
+		await rm(`${temporary}.gz`, { force: true });
+		await rm(`${temporary}.json`, { force: true });
 	}
 }

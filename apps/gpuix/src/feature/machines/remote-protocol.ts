@@ -1,7 +1,7 @@
 import type { GitRepository } from "@1git/git";
 
 /** Wire compatibility is pinned independently from the application version. */
-export const remoteProtocolVersion = 1;
+export const remoteProtocolVersion = 2;
 /** Includes base64 file content; frames are bounded on both ends before JSON parsing. */
 export const remoteFrameBytes = 96 * 1024 * 1024;
 

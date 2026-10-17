@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { open, rm } from "node:fs/promises";
+import { open, rm } from "./runtime.js";
 import { join } from "node:path";
 import type {
 	CommitInfo,

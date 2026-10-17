@@ -1,4 +1,4 @@
-import { lstat, readdir, realpath } from "node:fs/promises";
+import { lstat, readdir, realpath } from "@1git/git/runtime";
 import { basename, dirname, isAbsolute } from "node:path";
 import { GitRepository } from "@1git/git";
 import { LocalRepositoryWorktrees } from "../../workspace-tabs/lib/repository-worktrees-local";

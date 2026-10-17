@@ -17,6 +17,9 @@ import {
 	remoteHelperTargets,
 } from "./remote-protocol";
 
+import { RemoteRepositoryService } from "./remote-helper-server";
+import { RustRuntime } from "./rust-runtime";
+
 const execute = promisify(execFile);
 
 const targets = new Set<string>(remoteHelperTargets);
@@ -37,6 +40,8 @@ export type MachineStatus =
 /** One machine's SSH channel, automatic user-level deployment and bounded multiplexed RPC. */
 export class SshConnection {
 	private child?: ChildProcessWithoutNullStreams;
+	private service?: RemoteRepositoryService;
+	private temporary?: string;
 	private preparing?: Promise<void>;
 	private directory?: string;
 	private askpass?: ReturnType<typeof Bun.serve>;
@@ -55,7 +60,7 @@ export class SshConnection {
 	home?: string;
 
 	get busy(): boolean {
-		return this.pending.size > 0;
+		return this.pending.size > 0 || !!this.service?.busy;
 	}
 
 	constructor(
@@ -250,6 +255,22 @@ export class SshConnection {
 				clearTimeout(timer);
 			}
 
+			const home = this.home;
+			const temporary = this.temporary;
+
+			if (!home || !temporary)
+				throw new Error("Missing remote execution directories.");
+
+			this.service = new RemoteRepositoryService(
+				(signal) =>
+					new RustRuntime(
+						home,
+						temporary,
+						(input, signal, progress) =>
+							this.agentRequest(input, signal, progress),
+						signal
+					)
+			);
 			this.status("Connected");
 		} catch (cause) {
 			this.status(
@@ -342,12 +363,16 @@ export class SshConnection {
 			if (
 				frame.protocol !== remoteProtocolVersion ||
 				typeof frame.home !== "string" ||
+				typeof frame.temporary !== "string" ||
+				!frame.temporary.startsWith("/") ||
+				/[\0\r\n]/.test(frame.temporary) ||
 				!frame.home.startsWith("/") ||
 				/[\0\r\n]/.test(frame.home)
 			)
 				throw new Error("The remote helper is incompatible with this app.");
 
 			this.home = frame.home;
+			this.temporary = frame.temporary;
 			this.ready.resolve();
 
 			return;
@@ -376,15 +401,30 @@ export class SshConnection {
 		if (frame.kind === "result") pending.resolve(frame.value);
 		else
 			pending.reject(
-				new Error(
-					typeof frame.message === "string"
-						? frame.message
-						: "Remote operation failed."
+				Object.assign(
+					new Error(
+						typeof frame.message === "string"
+							? frame.message
+							: "Remote operation failed."
+					),
+					{ code: typeof frame.code === "string" ? frame.code : "EIO" }
 				)
 			);
 	}
 
 	async request(
+		input: Record<string, unknown>,
+		signal?: AbortSignal,
+		progress?: (value: unknown) => void
+	): Promise<unknown> {
+		await this.connect();
+
+		if (!this.service) throw new Error("The machine is disconnected.");
+
+		return await this.service.request(input, signal, progress);
+	}
+
+	private async agentRequest(
 		input: Record<string, unknown>,
 		signal?: AbortSignal,
 		progress?: (value: unknown) => void
@@ -427,7 +467,7 @@ export class SshConnection {
 			const cancel = (): void => {
 				if (cancelling) return;
 
-				if (input.operation === "clone" || input.operation === "initialize") {
+				if (input.operation === "git") {
 					// Keep the form blocked until Git acknowledges cancellation, or the channel stops responding.
 					cancelling = true;
 					cleanup();
@@ -483,10 +523,13 @@ export class SshConnection {
 	}
 
 	async dispose(): Promise<void> {
+		const closing = this.service?.close();
+
 		this.controller.abort();
 		this.child?.stdin.end();
 		this.child?.kill();
 		await this.askpass?.stop(true);
+		await closing;
 
 		if (this.directory) {
 			try {

@@ -1,5 +1,5 @@
 import { constants } from "node:fs";
-import { open } from "node:fs/promises";
+import { open } from "./runtime.js";
 import { join } from "node:path";
 import type { IgnoreRule } from "./contracts.js";
 import { invalidInput } from "./result.js";

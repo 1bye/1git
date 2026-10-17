@@ -11,7 +11,7 @@ import {
 	stat,
 	lstat,
 	writeFile,
-} from "node:fs/promises";
+} from "./runtime.js";
 import { dirname, resolve, join } from "node:path";
 
 import type {

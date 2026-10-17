@@ -1,5 +1,6 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import type { GitTransferProgress } from "../contracts.js";
+import { GitExecution } from "../runtime.js";
 import { GitProgress } from "./git-progress.js";
 
 const DEFAULT_MAX_OUTPUT_BYTES = 64 * 1024 * 1024;
@@ -143,6 +144,10 @@ export class GitProcess {
 		if (input.signal?.aborted) {
 			throw new GitProcessFailure("aborted", "Git operation was aborted.");
 		}
+
+		const runtime = GitExecution.current;
+
+		if (runtime) return await runtime.git(input, this.maxOutputBytes);
 
 		const child = this.spawn(input);
 

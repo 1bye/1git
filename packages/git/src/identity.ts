@@ -1,4 +1,4 @@
-import { homedir } from "node:os";
+import { homedir } from "./runtime.js";
 import type { GitResult } from "./contracts.js";
 import { GitCommandFailure, GitProcess } from "./process/git-process.js";
 import { fail, invalidInput, succeed, toGitError } from "./result.js";

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { mkdtemp, open, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdtemp, open, rm, tmpdir } from "./runtime.js";
+
 import { join, resolve } from "node:path";
 import type {
 	SquashCommitsInput,

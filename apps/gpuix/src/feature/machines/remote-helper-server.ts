@@ -1,96 +1,76 @@
 import { GitRepository } from "@1git/git";
-import { lstat, mkdir } from "node:fs/promises";
-import { homedir } from "node:os";
+import {
+	GitExecution,
+	type GitExecutionRuntime,
+	lstat,
+	mkdir,
+	homedir,
+} from "@1git/git/runtime";
+
 import { isAbsolute, join, relative } from "node:path";
 import { RepositoryDiscovery } from "../repository-discovery/repository-discovery";
 import { LocalRepositorySetup } from "../repository-workspace/lib/repository-setup-local";
 import { LocalRepositoryWorktrees } from "../workspace-tabs/lib/repository-worktrees-local";
 import { MachineLocation } from "./machine-location";
 import { LocalMachineFolders } from "./machine-folders";
-import {
-	isRecord,
-	remoteGitMethods,
-	remoteProtocolVersion,
-} from "./remote-protocol";
+import { isRecord, remoteGitMethods } from "./remote-protocol";
 
-/** Headless, user-scoped RPC owner. Repository instances retain undo state; linked worktree operations share a queue. */
-export class RemoteHelperServer {
+/** App-side Git rules with all process and filesystem work scoped to one Rust agent. */
+export class RemoteRepositoryService {
 	private readonly repositories = new Map<string, Promise<GitRepository>>();
 	private readonly queues = new Map<string, Promise<unknown>>();
-	private readonly active = new Map<number, AbortController>();
-	private readonly tasks = new Set<Promise<void>>();
+	private readonly active = new Set<AbortController>();
+	private readonly tasks = new Set<Promise<unknown>>();
 
-	constructor(private readonly send: (frame: unknown) => void) {}
+	constructor(
+		private readonly runtime: (signal: AbortSignal) => GitExecutionRuntime
+	) {}
 
-	hello(): void {
-		this.send({
-			kind: "hello",
-			protocol: remoteProtocolVersion,
-			home: homedir(),
-		});
+	get busy(): boolean {
+		return this.tasks.size > 0;
 	}
 
-	receive(frame: unknown): void {
-		if (
-			!isRecord(frame) ||
-			!Number.isSafeInteger(frame.id) ||
-			typeof frame.id !== "number" ||
-			frame.id <= 0
-		)
-			throw new Error("Invalid remote request.");
+	async request(
+		frame: Record<string, unknown>,
+		signal?: AbortSignal,
+		observer?: (value: unknown) => void
+	): Promise<unknown> {
+		signal?.throwIfAborted();
 
-		if (frame.kind === "cancel") {
-			this.active.get(frame.id)?.abort();
-
-			return;
-		}
-
-		if (
-			frame.kind !== "request" ||
-			this.active.has(frame.id) ||
-			this.active.size >= 128
-		)
-			throw new Error("Invalid or excessive remote requests.");
+		if (this.active.size >= 128) throw new Error("Too many remote requests.");
 
 		const controller = new AbortController();
 
-		this.active.set(frame.id, controller);
-		const task = this.respond(frame, frame.id, controller);
+		const combined = AbortSignal.any([
+			controller.signal,
+			...(signal ? [signal] : []),
+			AbortSignal.timeout(
+				frame.operation === "scan" || frame.operation === "clone"
+					? 600_000
+					: 120_000
+			),
+		]);
+
+		const progress = (value: unknown): void => {
+			try {
+				observer?.(value);
+			} catch {
+				/* Observers cannot interrupt a Git write. */
+			}
+		};
+
+		this.active.add(controller);
+		const task = GitExecution.run(this.runtime(combined), () =>
+			this.execute(frame, combined, progress)
+		);
 
 		this.tasks.add(task);
-		void this.finish(task);
-	}
 
-	private async finish(task: Promise<void>): Promise<void> {
 		try {
-			await task;
-		} catch {
-			for (const controller of this.active.values()) controller.abort();
-
-			process.exitCode = 1;
+			return await task;
 		} finally {
 			this.tasks.delete(task);
-		}
-	}
-
-	private async respond(
-		frame: Record<string, unknown>,
-		id: number,
-		controller: AbortController
-	): Promise<void> {
-		try {
-			const result = await this.execute(frame, id, controller.signal);
-
-			this.send({ kind: "result", id, value: result });
-		} catch (cause) {
-			this.send({
-				kind: "error",
-				id,
-				message:
-					cause instanceof Error ? cause.message : "Remote operation failed.",
-			});
-		} finally {
-			this.active.delete(id);
+			this.active.delete(controller);
 		}
 	}
 
@@ -149,12 +129,9 @@ export class RemoteHelperServer {
 
 	private async execute(
 		frame: Record<string, unknown>,
-		id: number,
-		signal: AbortSignal
+		signal: AbortSignal,
+		progress: (value: unknown) => void
 	): Promise<unknown> {
-		const progress = (value: unknown): void =>
-			this.send({ kind: "progress", id, value });
-
 		if (frame.operation === "list-directory") {
 			if (typeof frame.path !== "string" || typeof frame.hidden !== "boolean")
 				throw new Error("Invalid folder request.");
@@ -345,7 +322,7 @@ export class RemoteHelperServer {
 	}
 
 	async close(): Promise<void> {
-		for (const controller of this.active.values()) controller.abort();
+		for (const controller of this.active) controller.abort();
 
 		await Promise.allSettled(this.tasks);
 	}

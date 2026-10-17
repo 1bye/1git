@@ -5,6 +5,18 @@
   "description": "Structured repository control for 1git applications",
   "type": "module",
   "exports": {
+    "./runtime": {
+      "types": "./dist/runtime.d.ts",
+      "import": "./dist/runtime.js"
+    },
+    "./process": {
+      "types": "./dist/process/git-process.d.ts",
+      "import": "./dist/process/git-process.js"
+    },
+    "./progress": {
+      "types": "./dist/process/git-progress.d.ts",
+      "import": "./dist/process/git-progress.js"
+    },
     ".": {
       "types": "./dist/repository.d.ts",
       "import": "./dist/repository.js"

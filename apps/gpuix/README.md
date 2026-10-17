@@ -55,11 +55,23 @@ keys, never `machines.json`, workspace sessions, command arguments or remote fil
 Git and installs the matching standalone helper under the remote user's
 `~/.local/share/1git/helpers/<content-hash>/`. The payload and installed executable
 are SHA-256 checked; installation uses a private temporary file and atomic rename.
-A valid helper is reused and a damaged one is repaired. The helper includes its
-runtime and needs no Bun/Node installation, administrator access or public server.
-The host needs an SSH command shell, Git, gzip and sha256sum or shasum. Linux
-helpers include glibc and musl variants. Older versions remain available to other
-running app versions. Local keys and SSH agent access are not forwarded.
+A valid helper is reused and a damaged one is repaired. The small Rust agent needs
+no Bun/Node installation, administrator access or public server. Shared Git rules
+stay in the app; Git subprocesses and filesystem operations execute on the machine
+through the versioned agent protocol. Cancellation waits for the remote process
+and its children to exit. The host needs an SSH command shell, Git, gzip and
+sha256sum or shasum. Static Linux helpers support both glibc and musl. Older
+versions remain available to other running app versions. Local keys and SSH agent access are not forwarded.
+
+Building the bundled agents requires Rust 1.85 or later. Install the cross-build
+targets once on the release Mac, then build all six payload names (the glibc/musl
+names share the same static Linux executable):
+
+```sh
+rustup target add aarch64-apple-darwin x86_64-apple-darwin aarch64-unknown-linux-musl x86_64-unknown-linux-musl
+bun run --cwd apps/gpuix build:remote-helpers
+cargo test --locked --manifest-path apps/gpuix/native/remote-helper/Cargo.toml --target-dir apps/gpuix/build/rust-helper
+```
 
 Connecting scans the remote home folder progressively using the same bounded
 repository discovery as This Mac. Home keeps a compact machine switcher; the

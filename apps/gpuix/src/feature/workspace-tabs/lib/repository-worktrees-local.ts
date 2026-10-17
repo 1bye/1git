@@ -1,5 +1,5 @@
 import { MachineLocation } from "../../machines/machine-location";
-import { lstat, readdir, realpath } from "node:fs/promises";
+import { lstat, readdir, realpath } from "@1git/git/runtime";
 import { basename, dirname, isAbsolute, join } from "node:path";
 import { type GitResult } from "@1git/git";
 import { GitRepository } from "@1git/git";
