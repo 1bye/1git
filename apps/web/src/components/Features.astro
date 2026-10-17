@@ -21,6 +21,10 @@ const features = [
 <section id="features" class="features" aria-labelledby="features-title">
   <div class="section-intro">
     <h2 id="features-title">Everything in its place.</h2>
+    <button class="motion-toggle" type="button" aria-label="Pause artwork animations" title="Pause artwork animations" hidden>
+      <svg class="pause-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M7 5v10m6-10v10" /></svg>
+      <svg class="play-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="m7 4 8 6-8 6Z" /></svg>
+    </button>
   </div>
   <div class="bento">
     {features.map(({ id, title }) => (
@@ -37,6 +41,12 @@ const features = [
 </script>
 
 <style>
+  .section-intro { position: relative; padding-inline: 38px; }
+  .motion-toggle { position: absolute; right: 0; top: 50%; display: grid; place-items: center; width: 30px; height: 30px; padding: 0; transform: translateY(-50%); border: 0; border-radius: 50%; background: #1e1e24; color: #aaaab6; cursor: pointer; }
+  .motion-toggle[hidden], .motion-toggle .play-icon, .motion-toggle[data-paused] .pause-icon { display: none; }
+  .motion-toggle[data-paused] .play-icon { display: block; }
+  .motion-toggle:hover { color: #ededf0; background: #292930; }
+  .motion-toggle svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
   .bento {
     display: grid;
     grid-template-columns: repeat(6, minmax(0, 1fr));

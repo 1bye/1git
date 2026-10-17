@@ -90,11 +90,21 @@ Icons under the MIT license in `public/licenses/phosphor-icons.txt`. The rendere
 claim reflects the app's GPUI/Metal renderer; no benchmark or frame-rate claim
 is made. The keyboard artwork shows the app's Command+P repository picker.
 The Diagram-inspired cards use a solid dark background without borders and
-small, medium-weight titles. Artwork uses flat charcoal fills, thin top-edge
-highlights, small shadows and muted functional accents; there are no gradients
-or raster illustrations in the bento.
-The processor, branch path and keycaps play
-one brief CSS animation when their cards enter view, then settle. A small
-IntersectionObserver resets them offscreen; reduced-motion preferences keep
-the artwork still. These are conceptual artwork, with no working controls,
-account access, or external images. The hero retains the original native screenshot.
+small, medium-weight titles. Artwork uses flat charcoal fills, softly blurred CSS edge lighting, small shadows
+and muted functional accents. Editor logos are local assets: Xcode from
+[Apple Developer](https://developer.apple.com/xcode/), VS Code from its
+[official brand assets](https://code.visualstudio.com/brand), and Zed from the
+installed app icon. The remaining artwork is SVG, without gradient fills.
+Motion follows the artwork: the processor and SSH connection pulse slowly while
+visible, and History highlights its rows once on entry. Hover draws selection
+checks, traces a branch, separates spaces, switches a repository tab,
+lifts provider tiles, types an AI draft, reveals stacked file versions, inserts a new
+stash while the oldest slides out, traces editor mappings, or presses the shortcut
+keys. The typing caret is a CSS border sized in the same monospace units as its
+text, so it stays beyond the letters throughout the reveal. Touch screens get brief entry sequences
+for the checks, branch, tabs, AI draft, file versions, stashes, editor routes and
+keycaps.
+An IntersectionObserver stops artwork offscreen. The pause button beside the
+section title stops all artwork motion; hidden documents and reduced-motion
+preferences also keep it still. The artwork is decorative and performs no Git,
+account, or AI operations. The hero retains the original native screenshot.

@@ -6,6 +6,7 @@ interface Props {
 const { feature } = Astro.props;
 const shadowId = `feature-${feature}-shadow`;
 const shadow = `url(#${shadowId})`;
+const draftMessage = "feat: add quick switcher";
 
 const viewBoxes: Partial<Record<Props["feature"], string>> = {
   tabs: "0 48 400 215",
@@ -34,7 +35,7 @@ const viewBox = viewBoxes[feature] ?? "0 0 400 300";
           <path d="M-91-62h-21m21 25h-21m21 25h-21m21 25h-21m21 25h-21m21 25h-21M91-62h21m-21 25h21m-21 25h21m-21 25h21m-21 25h21m-21 25h21" />
         </g>
         <rect class="surface" x="-92" y="-94" width="184" height="184" rx="23" />
-        <path class="top-edge" d="M-91-71a22 22 0 0 1 22-22H69a22 22 0 0 1 22 22" />
+
         <rect x="-66" y="-68" width="132" height="132" rx="13" fill="#25252b" stroke="#35353e" />
         <rect class="processor-pulse" x="-66" y="-68" width="132" height="132" rx="13" stroke="#8298b0" opacity="0" />
         <path class="processor-spark" d="m15-40-46 48h27l-12 35L32-8H4l11-32Z" fill="#858591" />
@@ -46,15 +47,15 @@ const viewBox = viewBoxes[feature] ?? "0 0 400 300";
       <>
         <g transform="rotate(-4 200 145)" filter={shadow}>
           <rect class="surface" x="48" y="20" width="288" height="225" rx="16" />
-          <path class="top-edge" d="M49 36a15 15 0 0 1 15-15h256a15 15 0 0 1 15 15" />
+
           <path d="M48 66h288" stroke="#393941" />
           <text class="art-label" x="70" y="49">Changes</text>
           <text class="art-detail" x="315" y="49" text-anchor="end">2 selected</text>
           <rect x="64" y="81" width="256" height="43" rx="6" fill="#29332e" />
           <rect x="64" y="135" width="256" height="43" rx="6" fill="#33292e" />
           <g stroke="#8da195" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="76" y="95" width="15" height="15" rx="4" /><path d="m79 102 3 3 6-7" />
-            <rect x="76" y="149" width="15" height="15" rx="4" /><path d="m79 156 3 3 6-7" />
+            <rect x="76" y="95" width="15" height="15" rx="4" /><path class="selection-check check-first" pathLength="1" d="m79 102 3 3 6-7" />
+            <rect x="76" y="149" width="15" height="15" rx="4" /><path class="selection-check check-second" pathLength="1" d="m79 156 3 3 6-7" />
           </g>
           <rect x="76" y="203" width="15" height="15" rx="4" stroke="#555560" />
           <path d="M111 98h83m11 0h38m-132 12h126" stroke="#718c7c" stroke-width="4" stroke-linecap="round" />
@@ -64,11 +65,13 @@ const viewBox = viewBoxes[feature] ?? "0 0 400 300";
           <path d="M281 156h14" stroke="#b09098" stroke-width="2" stroke-linecap="round" />
         </g>
         <g transform="rotate(5 291 242)" filter={shadow}>
+          <g class="commit-tile">
           <rect class="surface" x="229" y="214" width="141" height="62" rx="12" />
-          <path class="top-edge" d="M230 226a11 11 0 0 1 11-11h117a11 11 0 0 1 11 11" />
+
           <circle cx="256" cy="245" r="7" stroke="#9a9aa8" stroke-width="2" />
           <path d="M242 245h7m14 0h7" stroke="#9a9aa8" stroke-width="2" />
           <text class="art-label" x="282" y="250">Commit</text>
+          </g>
         </g>
       </>
     )}
@@ -82,7 +85,7 @@ const viewBox = viewBoxes[feature] ?? "0 0 400 300";
           <circle class="surface" cx="277" cy="56" r="32" />
           <circle class="surface" cx="132" cy="248" r="32" />
         </g>
-        <path class="top-edge" d="M104 64a31 31 0 0 1 56 0M249 41a31 31 0 0 1 56 0M104 233a31 31 0 0 1 56 0" />
+
         <circle cx="132" cy="79" r="7" fill="#62626e" />
         <circle cx="277" cy="56" r="7" fill="#62626e" />
         <circle cx="132" cy="248" r="7" fill="#8496ac" />
@@ -96,11 +99,11 @@ const viewBox = viewBoxes[feature] ?? "0 0 400 300";
           { y: 43, label: "Polish navigation", hash: "a81c9f2", active: true },
           { y: 116, label: "Add quick switcher", hash: "72b4e10", active: false },
           { y: 189, label: "Set up workspace", hash: "3f06d8a", active: false },
-        ].map(({ y, label, hash, active }) => (
-          <g>
+        ].map(({ y, label, hash, active }, index) => (
+          <g class="history-row" style={`--order: ${index}`}>
             <circle cx="53" cy={y + 27} r="7" fill={active ? "#899bb1" : "#34343d"} stroke="#686875" />
             <rect class="surface" x="79" y={y} width="284" height="58" rx="10" />
-            <path class="top-edge" d={`M80 ${y + 10}a9 9 0 0 1 9-9h264a9 9 0 0 1 9 9`} />
+
             <text class="art-label" x="96" y={y + 24}>{label}</text>
             <text class="art-detail art-mono" x="96" y={y + 43}>{hash}</text>
           </g>
@@ -114,9 +117,10 @@ const viewBox = viewBoxes[feature] ?? "0 0 400 300";
           { x: 20, y: 37, name: "Work", repos: ["website", "api"], color: "#8495ac", angle: -4 },
           { x: 214, y: 62, name: "Personal", repos: ["notes", "playground"], color: "#9a8d9f", angle: 4 },
         ].map(({ x, y, name, repos, color, angle }) => (
+          <g class:list={["space-tile", name === "Work" ? "space-work" : "space-personal"]}>
           <g transform={`rotate(${angle} ${x + 84} ${y + 95})`} filter={shadow}>
             <rect class="surface" x={x} y={y} width="166" height="187" rx="14" />
-            <path class="top-edge" d={`M${x + 1} ${y + 14}a13 13 0 0 1 13-13h138a13 13 0 0 1 13 13`} />
+
             <circle cx={x + 22} cy={y + 30} r="5" fill={color} />
             <text class="art-label" x={x + 36} y={y + 35}>{name}</text>
             <path d={`M${x + 16} ${y + 54}h134`} stroke="#3c3c45" />
@@ -128,23 +132,26 @@ const viewBox = viewBoxes[feature] ?? "0 0 400 300";
               </g>
             ))}
           </g>
+          </g>
         ))}
       </>
     )}
 
     {feature === "tabs" && (
       <g transform="rotate(-3 200 151)" filter={shadow}>
-        <rect x="18" y="66" width="365" height="177" rx="14" fill="#202026" />
-        <path class="top-edge" d="M19 80a13 13 0 0 1 13-13h337a13 13 0 0 1 13 13" />
-        <path d="M18 115h365" stroke="#393941" />
-        <path d="M127 115c7 0 9-6 9-13V82a10 10 0 0 1 10-10h102a10 10 0 0 1 10 10v20c0 7 2 13 9 13" fill="#303038" />
-        <path class="top-edge" d="M137 82a9 9 0 0 1 9-9h102a9 9 0 0 1 9 9" />
-        <text class="art-detail" x="39" y="99">website</text>
-        <circle cx="154" cy="94" r="4" fill="#8495ac" />
-        <text class="art-label" x="168" y="99">api</text>
-        <path d="m237 91 7 7m0-7-7 7" stroke="#8a8a97" stroke-linecap="round" />
-        <text class="art-detail" x="285" y="99">docs</text>
-        <path d="M39 145h66m-66 17h83m-83 17h55M151 145h67m12 0h81m-160 17h127m-127 17h41m11 0h99m-151 17h100" stroke="#41414b" stroke-width="4" stroke-linecap="round" />
+        <path d="M32 66h337a14 14 0 0 1 14 14v35H18V80a14 14 0 0 1 14-14Z" fill="#34343e" fill-opacity=".42" />
+        <path d="M18 115h365v114a14 14 0 0 1-14 14H32a14 14 0 0 1-14-14Z" fill="#202026" />
+        <g class="tab-selection">
+          <rect class="surface" x="144" y="74" width="110" height="36" rx="8" />
+          <g class="tab-controls">
+            <circle cx="156" cy="92" r="3" fill="#8495ac" />
+            <path class="tab-close" d="m235 89 6 6m0-6-6 6" stroke="#8a8a97" stroke-linecap="round" />
+          </g>
+        </g>
+        <text class="art-detail" x="40" y="97">website</text>
+        <text class="art-label tab-api" x="168" y="97">api</text>
+        <text class="art-label tab-docs" x="284" y="97">docs</text>
+        <path class="tab-content" d="M39 145h66m-66 17h83m-83 17h55M151 145h67m12 0h81m-160 17h127m-127 17h41m11 0h99m-151 17h100" stroke="#41414b" stroke-width="4" stroke-linecap="round" />
         <rect x="287" y="205" width="75" height="23" rx="6" fill="#2c3039" />
         <circle cx="300" cy="216.5" r="3" fill="#8799b0" />
         <text class="art-detail" x="310" y="221">main</text>
@@ -154,19 +161,20 @@ const viewBox = viewBoxes[feature] ?? "0 0 400 300";
     {feature === "remote" && (
       <>
         <path d="M126 201v41c0 23 142 23 142-9v-45" stroke="#3d3d46" stroke-width="3" stroke-linecap="round" />
+        <path class="remote-signal" d="M126 201v41c0 23 142 23 142-9v-45" pathLength="100" stroke="#8b9db4" stroke-width="2" stroke-linecap="round" stroke-dasharray="10 100" stroke-dashoffset="10" opacity="0" />
         <g transform="rotate(-9 126 140)" filter={shadow}>
           <rect class="surface" x="32" y="73" width="178" height="126" rx="10" />
-          <path class="top-edge" d="M33 83a9 9 0 0 1 9-9h158a9 9 0 0 1 9 9" />
+
           <rect x="42" y="83" width="158" height="103" rx="5" fill="#1e1e24" stroke="#34343d" />
           <path d="m77 119 14 14-14 14m28 0h20" stroke="#888893" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
           <path d="M17 202h210l11 13c2 3-2 6-6 6H13c-4 0-8-3-6-6l10-13Z" fill="#2d2d34" stroke="#373740" />
-          <path class="top-edge" d="M18 203h208" />
+
         </g>
         <g transform="rotate(9 296 128)" filter={shadow}>
           <rect class="surface" x="240" y="46" width="108" height="150" rx="18" />
-          <path class="top-edge" d="M241 64a17 17 0 0 1 17-17h72a17 17 0 0 1 17 17" />
+
           <path d="M265 84h58m-58 12h58m-58 12h58" stroke="#53535e" stroke-width="3" stroke-linecap="round" />
-          <circle cx="294" cy="158" r="4" fill="#789582" />
+          <circle class="remote-status" cx="294" cy="158" r="4" fill="#789582" />
         </g>
       </>
     )}
@@ -174,50 +182,60 @@ const viewBox = viewBoxes[feature] ?? "0 0 400 300";
     {feature === "accounts" && (
       <>
         {/* Provider glyphs: Phosphor Icons, MIT. See /licenses/phosphor-icons.txt. */}
+        <g class="provider-tile provider-github">
         <g transform="rotate(-5 112 122)" filter={shadow}>
           <rect class="surface" x="48" y="30" width="128" height="148" rx="17" />
-          <path class="top-edge" d="M49 47a16 16 0 0 1 16-16h94a16 16 0 0 1 16 16" />
+
           <svg x="80" y="52" width="64" height="64" viewBox="0 0 256 256" fill="#a3a3af"><path d="M206.13,75.92A57.79,57.79,0,0,0,201.2,29a6,6,0,0,0-5.2-3,57.77,57.77,0,0,0-47,24H123A57.77,57.77,0,0,0,76,26a6,6,0,0,0-5.2,3,57.79,57.79,0,0,0-4.93,46.92A55.88,55.88,0,0,0,58,104v8a54.06,54.06,0,0,0,50.45,53.87A37.85,37.85,0,0,0,98,192v10H72a26,26,0,0,1-26-26A38,38,0,0,0,8,138a6,6,0,0,0,0,12,26,26,0,0,1,26,26,38,38,0,0,0,38,38H98v18a6,6,0,0,0,12,0V192a26,26,0,0,1,52,0v40a6,6,0,0,0,12,0V192a37.85,37.85,0,0,0-10.45-26.13A54.06,54.06,0,0,0,214,112v-8A55.88,55.88,0,0,0,206.13,75.92ZM202,112a42,42,0,0,1-42,42H112a42,42,0,0,1-42-42v-8a43.86,43.86,0,0,1,7.3-23.69,6,6,0,0,0,.81-5.76,45.85,45.85,0,0,1,1.43-36.42,45.85,45.85,0,0,1,35.23,21.1A6,6,0,0,0,119.83,62h32.34a6,6,0,0,0,5.06-2.76,45.83,45.83,0,0,1,35.23-21.11,45.85,45.85,0,0,1,1.43,36.42,6,6,0,0,0,.79,5.74A43.78,43.78,0,0,1,202,104Z" /></svg>
           <text class="art-label" x="112" y="148" text-anchor="middle">GitHub</text>
         </g>
+        </g>
+        <g class="provider-tile provider-gitlab">
         <g transform="rotate(5 286 122)" filter={shadow}>
           <rect class="surface" x="222" y="30" width="128" height="148" rx="17" />
-          <path class="top-edge" d="M223 47a16 16 0 0 1 16-16h94a16 16 0 0 1 16 16" />
+
           <svg x="254" y="52" width="64" height="64" viewBox="0 0 256 256" fill="#a3a3af"><path d="M228.21,117.61,208.32,41.49a9.94,9.94,0,0,0-19-.93L171.17,90H84.83L66.66,40.56a9.94,9.94,0,0,0-19,.93L27.79,117.61A55.18,55.18,0,0,0,49,176.42l73.27,51.77a9.94,9.94,0,0,0,11.44,0L207,176.42A55.18,55.18,0,0,0,228.21,117.61ZM57.65,50.82,75,98.07A6,6,0,0,0,80.64,102h94.72A6,6,0,0,0,181,98.07l17.36-47.25,15,57.52L128,168.66,42.62,108.34ZM39.38,120.74,117.6,176,93.41,193.1,55.94,166.62A43.1,43.1,0,0,1,39.38,120.74ZM128,217.53l-24.19-17.09L128,183.35l24.19,17.09Zm72.06-50.91L162.59,193.1,138.4,176l78.22-55.26A43.1,43.1,0,0,1,200.06,166.62Z" /></svg>
           <text class="art-label" x="286" y="148" text-anchor="middle">GitLab</text>
         </g>
+        </g>
         <path d="M112 184v22h44" stroke="#42424d" stroke-width="1.5" />
         <rect class="surface" x="140" y="183" width="208" height="55" rx="11" />
-        <path class="top-edge" d="M141 194a10 10 0 0 1 10-10h186a10 10 0 0 1 10 10" />
+
         <path d="m158 202 8 8-8 8m16 0h10" stroke="#9595a3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
         <text class="art-label" x="199" y="216">GitHub CLI</text>
-        <circle cx="327" cy="211" r="4" fill="#879c8e" />
+        <circle class="account-status" cx="327" cy="211" r="4" fill="#879c8e" />
       </>
     )}
 
     {feature === "ai" && (
       <g transform="rotate(-4 200 163)" filter={shadow}>
         <rect class="surface" x="36" y="79" width="328" height="167" rx="15" />
-        <path class="top-edge" d="M37 94a14 14 0 0 1 14-14h298a14 14 0 0 1 14 14" />
+
         <path d="M61 112h23m-11.5-11.5v23" stroke="#9a9aaa" stroke-width="1.5" />
         <path d="m73 94 5 13 13 5-13 5-5 13-5-13-13-5 13-5Z" fill="#2b2b32" stroke="#9a9aaa" stroke-width="1.5" />
         <text class="art-detail" x="103" y="117">Commit message</text>
         <path d="M57 139h286" stroke="#3c3c47" />
-        <text class="art-label art-mono" x="58" y="173">feat: add quick switcher</text>
+        <foreignObject x="58" y="155" width="286" height="27">
+          <div class="art-mono ai-draft" style={`--draft-width: ${draftMessage.length}ch; --draft-steps: ${draftMessage.length}`}>{draftMessage}</div>
+        </foreignObject>
         <path d="M58 197h204m-204 14h157" stroke="#565663" stroke-width="3" stroke-linecap="round" />
-        <path d="M305 159v19" stroke="#9babc0" stroke-width="1.5" />
+
       </g>
     )}
 
     {feature === "ignored" && (
       <g transform="rotate(4 211 158)">
-        <rect x="135" y="30" width="153" height="199" rx="13" fill="#212127" stroke="#35353e" />
-        <path class="top-edge" d="M136 43a12 12 0 0 1 12-12h127a12 12 0 0 1 12 12" />
-        <rect x="109" y="53" width="153" height="199" rx="13" fill="#25252c" stroke="#3a3a44" />
-        <path class="top-edge" d="M110 66a12 12 0 0 1 12-12h127a12 12 0 0 1 12 12" />
-        <g filter={shadow}>
+        <g class="file-version version-back">
+          <rect x="135" y="30" width="153" height="199" rx="13" fill="#212127" stroke="#35353e" />
+        </g>
+
+        <g class="file-version version-middle">
+          <rect x="109" y="53" width="153" height="199" rx="13" fill="#25252c" stroke="#3a3a44" />
+        </g>
+
+        <g class="file-version version-front" filter={shadow}>
           <rect class="surface" x="83" y="76" width="153" height="199" rx="13" />
-          <path class="top-edge" d="M84 89a12 12 0 0 1 12-12h127a12 12 0 0 1 12 12" />
+
           <text class="art-label art-mono" x="104" y="111">.env.local</text>
           <path d="M104 134h48m-48 14h104m-104 14h82" stroke="#555561" stroke-width="3" stroke-linecap="round" />
           <rect x="104" y="220" width="70" height="25" rx="5" fill="#24242a" />
@@ -225,45 +243,51 @@ const viewBox = viewBoxes[feature] ?? "0 0 400 300";
         </g>
         <g transform="translate(246 228)">
           <circle r="36" fill="#2e2e36" stroke="#484853" />
-          <path class="top-edge" d="M-30-18a35 35 0 0 1 60 0" />
-          <path d="M-16-5a18 18 0 1 1 0 17m-1-27v11h11M1-10V2l8 5" stroke="#9c9ca9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+
+          <path d="M-16-5a18 18 0 1 1 0 17m-1-27v11h11" stroke="#9c9ca9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="M1-10V2l8 5" stroke="#9c9ca9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
         </g>
       </g>
     )}
 
     {feature === "stash" && (
       <g transform="rotate(-4 200 145)">
-        {[
-          { y: 37, ref: "stash@{0}", label: "New navigation" },
-          { y: 108, ref: "stash@{1}", label: "Dark theme" },
-          { y: 179, ref: "stash@{2}", label: "Search experiment" },
-        ].map(({ y, ref, label }) => (
-          <g filter={shadow}>
-            <rect class="surface" x="48" y={y} width="304" height="57" rx="10" />
-            <path class="top-edge" d={`M49 ${y + 10}a9 9 0 0 1 9-9h284a9 9 0 0 1 9 9`} />
-            <path d={`M65 ${y + 21}h23v19H65Zm-2-5h27v6h-27Zm8 14h11`} stroke="#8b8b99" stroke-width="1.5" stroke-linejoin="round" />
-            <text class="art-label" x="105" y={y + 23}>{label}</text>
-            <text class="art-detail art-mono" x="105" y={y + 43}>{ref}</text>
-          </g>
-        ))}
+        <defs>
+          <clipPath id="stash-list-clip"><rect x="38" y="28" width="324" height="218" /></clipPath>
+        </defs>
+        <g clip-path="url(#stash-list-clip)">
+          {[
+            { y: -34, detail: "3 files", label: "Quick switcher" },
+            { y: 37, detail: "2 files", label: "New navigation" },
+            { y: 108, detail: "5 files", label: "Dark theme" },
+            { y: 179, detail: "4 files", label: "Search experiment" },
+          ].map(({ y, detail, label }, index) => (
+            <g class:list={["stash-row", { "stash-incoming": index === 0, "stash-outgoing": index === 3 }]} filter={shadow}>
+              <rect class="surface" x="48" y={y} width="304" height="57" rx="10" />
+              <path d={`M65 ${y + 21}h23v19H65Zm-2-5h27v6h-27Zm8 14h11`} stroke="#8b8b99" stroke-width="1.5" stroke-linejoin="round" />
+              <text class="art-label" x="105" y={y + 23}>{label}</text>
+              <text class="art-detail" x="105" y={y + 43}>{detail}</text>
+            </g>
+          ))}
+        </g>
       </g>
     )}
 
     {feature === "editors" && (
       <g transform="rotate(-4 200 145)">
         {[
-          { y: 37, type: ".tsx", editor: "Zed" },
-          { y: 108, type: ".swift", editor: "Xcode" },
-          { y: 179, type: ".md", editor: "VS Code" },
-        ].map(({ y, type, editor }) => (
-          <g>
+          { y: 37, type: ".tsx", editor: "zed.png" },
+          { y: 108, type: ".swift", editor: "xcode.png" },
+          { y: 179, type: ".md", editor: "vscode.svg" },
+        ].map(({ y, type, editor }, index) => (
+          <g style={`--order: ${index}`}>
             <rect x="43" y={y} width="109" height="53" rx="10" fill="#24242b" stroke="#34343d" />
-            <path class="top-edge" d={`M44 ${y + 10}a9 9 0 0 1 9-9h89a9 9 0 0 1 9 9`} />
+
             <text class="art-label art-mono" x="97" y={y + 32} text-anchor="middle">{type}</text>
-            <path d={`M166 ${y + 26}h41m-6-5 6 5-6 5`} stroke="#696977" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+            <path class="editor-route" pathLength="1" d={`M166 ${y + 26}h41m-6-5 6 5-6 5`} stroke="#696977" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
             <rect class="surface" x="222" y={y} width="134" height="53" rx="10" />
-            <path class="top-edge" d={`M223 ${y + 10}a9 9 0 0 1 9-9h114a9 9 0 0 1 9 9`} />
-            <text class="art-label" x="289" y={y + 32} text-anchor="middle">{editor}</text>
+
+            <image href={`/images/editors/${editor}`} x="269" y={y + 6.5} width="40" height="40" />
           </g>
         ))}
       </g>
@@ -275,12 +299,12 @@ const viewBox = viewBoxes[feature] ?? "0 0 400 300";
         <rect x="6" y="-58" width="126" height="130" rx="20" fill="#202026" />
         <g class="key-command">
           <rect class="surface" x="-138" y="-70" width="126" height="130" rx="20" />
-          <path class="top-edge" d="M-137-50a19 19 0 0 1 19-19h86a19 19 0 0 1 19 19" />
+
           <text x="-75" y="16" fill="#9393a1" text-anchor="middle" font-size="55" font-weight="400">⌘</text>
         </g>
         <g class="key-picker">
           <rect class="surface" x="6" y="-70" width="126" height="130" rx="20" />
-          <path class="top-edge" d="M7-50a19 19 0 0 1 19-19h86a19 19 0 0 1 19 19" />
+
           <text x="69" y="16" fill="#9393a1" text-anchor="middle" font-size="55" font-weight="400">P</text>
         </g>
       </g>
@@ -291,39 +315,163 @@ const viewBox = viewBoxes[feature] ?? "0 0 400 300";
 <style>
   .feature-illustration { position: absolute; pointer-events: none; }
   .feature-illustration > svg { display: block; width: 100%; height: 100%; overflow: visible; }
-  .surface { fill: #2b2b32; stroke: #33333b; stroke-width: 1; }
-  .top-edge { fill: none; stroke: #4a4a54; stroke-width: 1.2; stroke-linecap: round; }
+  /* Blurred, shape-following light replaces the separately drawn top strokes. */
+  .surface { fill: #2b2b32; filter: drop-shadow(0 -1px .7px rgb(255 255 255 / .055)) drop-shadow(0 2px 2px rgb(0 0 0 / .16)); }
   .art-label { fill: #b0b0bd; font-size: 16px; font-weight: 450; }
   .art-detail { fill: #9292a0; font-size: 13px; }
   .art-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
   .illustration-history .art-label, .illustration-stash .art-label, .illustration-editors .art-label, .illustration-accounts .art-label { font-size: 18px; }
   .illustration-history .art-detail, .illustration-stash .art-detail { font-size: 14px; }
-  .processor-pulse, .processor-spark { transform-box: fill-box; transform-origin: center; }
+  .processor-pulse, .processor-spark, .account-status, .space-tile { transform-box: fill-box; transform-origin: center; }
+  .selection-check, .editor-route { stroke-dasharray: 1; stroke-dashoffset: 0; }
+  .tab-docs { fill: #9292a0; }
+  .ai-draft { box-sizing: content-box; width: var(--draft-width); padding-right: .35ch; border-right: 1.5px solid #9babc0; overflow: hidden; white-space: nowrap; color: #b0b0bd; font-size: 16px; font-weight: 450; line-height: 24px; }
+  .stash-incoming { opacity: 0; }
+  .version-back { --version-x: 14px; --version-y: -9px; }
+  .version-middle { --version-x: 4px; --version-y: -3px; }
+  .version-front { --version-x: -12px; --version-y: -5px; }
 
   @media (prefers-reduced-motion: no-preference) {
-    :global(.feature-card[data-in-view]) .processor-pulse { animation: processor-pulse 2.4s ease-out; }
-    :global(.feature-card[data-in-view]) .processor-spark { animation: processor-spark 2.4s ease-in-out; }
-    :global(.feature-card[data-in-view]) .branch-signal { animation: branch-signal 2.8s ease-in-out; }
-    :global(.feature-card[data-in-view]) .key-command { animation: keypress 1.8s .25s ease-in-out; }
-    :global(.feature-card[data-in-view]) .key-picker { animation: keypress 1.4s .65s ease-in-out; }
+    :global(#features[data-motion-enabled] .feature-card[data-in-view]) .processor-pulse { animation: processor-pulse 7.2s ease-out infinite; }
+    :global(#features[data-motion-enabled] .feature-card[data-in-view]) .processor-spark { animation: processor-spark 7.2s ease-in-out infinite; }
+    :global(#features[data-motion-enabled] .feature-card[data-in-view]) .remote-signal { animation: remote-signal 8.4s ease-in-out infinite; }
+    :global(#features[data-motion-enabled] .feature-card[data-in-view]) .remote-status { animation: remote-status 8.4s ease-in-out infinite; }
+    :global(#features[data-motion-enabled] .feature-card[data-in-view]) .history-row .surface { animation: history-focus 1.5s calc(var(--order) * .18s) ease-in-out; }
+    :global(#features[data-motion-enabled]) :is(.space-tile, .provider-tile) { transition: transform 550ms cubic-bezier(.22, 1, .36, 1); }
+    :global(#features[data-motion-enabled]) .provider-gitlab { transition-delay: 70ms; }
+  }
+
+  @media (prefers-reduced-motion: no-preference) and (hover: hover) and (pointer: fine) {
+    :global(#features[data-motion-enabled] .feature-card[data-in-view]:hover) .selection-check { animation: draw-check 1.4s ease both; }
+    :global(#features[data-motion-enabled] .feature-card[data-in-view]:hover) .check-second { animation-delay: .18s; }
+    :global(#features[data-motion-enabled] .feature-card[data-in-view]:hover) .commit-tile { animation: commit-press 1.4s .25s ease-in-out; }
+    :global(#features[data-motion-enabled] .feature-card[data-in-view]:hover) .branch-signal { animation: branch-signal 1.8s ease-in-out; }
+    :global(#features[data-motion-enabled] .feature-card[data-in-view]:hover) .space-work { transform: translate(-5px, -3px) rotate(-2deg); }
+    :global(#features[data-motion-enabled] .feature-card[data-in-view]:hover) .space-personal { transform: translate(5px, -3px) rotate(2deg); }
+    :global(#features[data-motion-enabled] .feature-card[data-in-view]:hover) .tab-selection { animation: tab-switch 2.4s cubic-bezier(.22, 1, .36, 1); }
+    :global(#features[data-motion-enabled] .feature-card[data-in-view]:hover) .tab-controls { animation: tab-controls 2.4s linear; }
+    :global(#features[data-motion-enabled] .feature-card[data-in-view]:hover) .tab-content { animation: tab-refresh 2.4s ease; }
+    :global(#features[data-motion-enabled] .feature-card[data-in-view]:hover) .tab-api { animation: tab-api-label 2.4s ease; }
+    :global(#features[data-motion-enabled] .feature-card[data-in-view]:hover) .tab-docs { animation: tab-docs-label 2.4s ease; }
+    :global(#features[data-motion-enabled] .feature-card[data-in-view]:hover) .provider-github { transform: translateY(-6px); }
+    :global(#features[data-motion-enabled] .feature-card[data-in-view]:hover) .provider-gitlab { transform: translateY(-4px); }
+    :global(#features[data-motion-enabled] .feature-card[data-in-view]:hover) .account-status { animation: account-ready 1.8s ease; }
+    :global(#features[data-motion-enabled] .feature-card[data-in-view]:hover) .ai-draft { animation: draft-type 1.7s steps(var(--draft-steps), end); }
+    :global(#features[data-motion-enabled] .feature-card[data-in-view]:hover) .file-version { animation: version-reveal 1.8s cubic-bezier(.22, 1, .36, 1); }
+    :global(#features[data-motion-enabled] .feature-card[data-in-view]:hover) .stash-row { animation: stash-shift 1.4s cubic-bezier(.22, 1, .36, 1) both; }
+    :global(#features[data-motion-enabled] .feature-card[data-in-view]:hover) .stash-incoming { animation-name: stash-enter; }
+    :global(#features[data-motion-enabled] .feature-card[data-in-view]:hover) .stash-outgoing { animation-name: stash-exit; }
+    :global(#features[data-motion-enabled] .feature-card[data-in-view]:hover) .editor-route { animation: route-draw 1s calc(var(--order) * .15s) ease both; }
+    :global(#features[data-motion-enabled] .feature-card[data-in-view]:hover) .key-command { animation: keypress 1.1s ease-in-out; }
+    :global(#features[data-motion-enabled] .feature-card[data-in-view]:hover) .key-picker { animation: keypress .9s .14s ease-in-out; }
+  }
+
+  /* Touch screens get a brief demonstration on entry, without sticky hover states. */
+  @media (prefers-reduced-motion: no-preference) and (hover: none) {
+    :global(#features[data-motion-enabled] .feature-card[data-in-view]) .selection-check { animation: draw-check 1.4s ease both; }
+    :global(#features[data-motion-enabled] .feature-card[data-in-view]) .check-second { animation-delay: .18s; }
+    :global(#features[data-motion-enabled] .feature-card[data-in-view]) .commit-tile { animation: commit-press 1.4s .25s ease-in-out; }
+    :global(#features[data-motion-enabled] .feature-card[data-in-view]) .branch-signal { animation: branch-signal 1.8s ease-in-out; }
+    :global(#features[data-motion-enabled] .feature-card[data-in-view]) .tab-selection { animation: tab-switch 2.4s cubic-bezier(.22, 1, .36, 1); }
+    :global(#features[data-motion-enabled] .feature-card[data-in-view]) .tab-controls { animation: tab-controls 2.4s linear; }
+    :global(#features[data-motion-enabled] .feature-card[data-in-view]) .tab-content { animation: tab-refresh 2.4s ease; }
+    :global(#features[data-motion-enabled] .feature-card[data-in-view]) .tab-api { animation: tab-api-label 2.4s ease; }
+    :global(#features[data-motion-enabled] .feature-card[data-in-view]) .tab-docs { animation: tab-docs-label 2.4s ease; }
+    :global(#features[data-motion-enabled] .feature-card[data-in-view]) .ai-draft { animation: draft-type 1.7s steps(var(--draft-steps), end); }
+    :global(#features[data-motion-enabled] .feature-card[data-in-view]) .file-version { animation: version-reveal 1.8s cubic-bezier(.22, 1, .36, 1); }
+    :global(#features[data-motion-enabled] .feature-card[data-in-view]) .stash-row { animation: stash-shift 1.4s cubic-bezier(.22, 1, .36, 1) both; }
+    :global(#features[data-motion-enabled] .feature-card[data-in-view]) .stash-incoming { animation-name: stash-enter; }
+    :global(#features[data-motion-enabled] .feature-card[data-in-view]) .stash-outgoing { animation-name: stash-exit; }
+    :global(#features[data-motion-enabled] .feature-card[data-in-view]) .editor-route { animation: route-draw 1s calc(var(--order) * .15s) ease both; }
+    :global(#features[data-motion-enabled] .feature-card[data-in-view]) .key-command { animation: keypress 1.1s ease-in-out; }
+    :global(#features[data-motion-enabled] .feature-card[data-in-view]) .key-picker { animation: keypress .9s .14s ease-in-out; }
   }
 
   @keyframes processor-pulse {
-    0%, 100% { opacity: 0; transform: scale(1); }
-    30% { opacity: .7; transform: scale(1); }
-    75% { opacity: 0; transform: scale(1.12); }
+    0%, 8%, 35%, 100% { opacity: 0; transform: scale(1); }
+    15% { opacity: .45; transform: scale(1); }
+    30% { opacity: 0; transform: scale(1.07); }
   }
   @keyframes processor-spark {
-    0%, 100% { transform: scale(1); }
-    35% { transform: scale(1.08); }
+    0%, 8%, 35%, 100% { opacity: 1; transform: scale(1); }
+    18% { opacity: .75; transform: scale(1.025); }
+  }
+  @keyframes remote-signal {
+    0%, 28% { opacity: 0; stroke-dashoffset: 10; }
+    34%, 48% { opacity: .7; }
+    58%, 100% { opacity: 0; stroke-dashoffset: -100; }
+  }
+  @keyframes remote-status {
+    0%, 45%, 70%, 100% { opacity: .65; }
+    55% { opacity: 1; }
+  }
+  @keyframes history-focus {
+    0%, 100% { fill: #2b2b32; }
+    30%, 55% { fill: #35353f; }
+  }
+  @keyframes draw-check {
+    0%, 10% { stroke-dashoffset: 1; opacity: .3; }
+    45%, 100% { stroke-dashoffset: 0; opacity: 1; }
+  }
+  @keyframes commit-press {
+    0%, 45%, 100% { transform: translateY(0); }
+    60%, 75% { transform: translateY(4px); }
   }
   @keyframes branch-signal {
     0%, 10% { opacity: 0; stroke-dashoffset: 8; }
     20%, 75% { opacity: .9; }
     90%, 100% { opacity: 0; stroke-dashoffset: -100; }
   }
+  @keyframes tab-switch {
+    0%, 10%, 100% { transform: translateX(0); }
+    35%, 65% { transform: translateX(116px); }
+  }
+  @keyframes tab-controls {
+    0%, 10%, 35%, 65%, 100% { opacity: 1; }
+    12%, 30%, 67%, 95% { opacity: 0; }
+  }
+  @keyframes tab-refresh {
+    0%, 10%, 45%, 65%, 100% { opacity: 1; }
+    25%, 80% { opacity: .35; }
+  }
+  @keyframes tab-api-label {
+    0%, 10%, 100% { fill: #b0b0bd; }
+    35%, 65% { fill: #9292a0; }
+  }
+  @keyframes tab-docs-label {
+    0%, 10%, 100% { fill: #9292a0; }
+    35%, 65% { fill: #b0b0bd; }
+  }
+  @keyframes account-ready {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    45% { opacity: .65; transform: scale(1.4); }
+  }
+  @keyframes draft-type {
+    from { width: 0; }
+    to { width: var(--draft-width); }
+  }
+  @keyframes version-reveal {
+    0%, 100% { transform: translate(0, 0); }
+    35%, 65% { transform: translate(var(--version-x), var(--version-y)); }
+  }
+  @keyframes stash-shift {
+    0%, 10% { transform: translateY(0); }
+    75%, 100% { transform: translateY(71px); }
+  }
+  @keyframes stash-enter {
+    0%, 10% { transform: translateY(0); opacity: 0; }
+    75%, 100% { transform: translateY(71px); opacity: 1; }
+  }
+  @keyframes stash-exit {
+    0%, 10% { transform: translateY(0); opacity: 1; }
+    65%, 100% { transform: translateY(71px); opacity: 0; }
+  }
+  @keyframes route-draw {
+    from { stroke-dashoffset: 1; stroke: #a2aec1; }
+    to { stroke-dashoffset: 0; stroke: #696977; }
+  }
   @keyframes keypress {
     0%, 100% { transform: translateY(0); }
-    30%, 65% { transform: translateY(7px); }
+    30%, 60% { transform: translateY(6px); }
   }
 </style>
