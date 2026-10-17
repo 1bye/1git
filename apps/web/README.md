@@ -1,7 +1,7 @@
 # 1git website
 
 An Astro landing page alongside the native app, adapted from Taada's cloudy
-desktop, MacBook preview, spacious feature cards, and large footer wordmark.
+desktop and MacBook preview, with compact feature cards and a minimal footer.
 The app preview uses the user's native macOS screenshot, preserving the actual
 window material and controls. Astro generates responsive WebP images, with a
 link to the full-size original. The public page never connects to GitHub or SSH.
@@ -75,11 +75,14 @@ Repository tabs and file names in the screenshot remain visible. No window
 chrome is recreated in HTML. To replace the screenshot, update the PNG and its
 window bounds together; the build generates optimized responsive variants.
 
-The compact bento grid uses decorative SVGs in `FeatureIllustration.astro` for
-nine existing capabilities: GPU rendering, commits, branches/worktrees, spaces,
+The asymmetric bento grid uses original decorative SVGs in
+`FeatureIllustration.astro` for nine existing capabilities: GPU rendering,
+commits, branches/worktrees, spaces,
 SSH, GitHub CLI, history search, stashes, and keyboard shortcuts. The renderer
 claim reflects the app's GPUI/Metal renderer; no benchmark or frame-rate claim
 is made. The keyboard artwork shows the app's Command+P repository picker.
-These are conceptual artwork, with no working controls, account access,
+The white-and-silver artwork uses large, cropped objects, subtle surface depth,
+and small functional color accents. These are conceptual artwork, with no
+working controls, account access,
 external images, or client-side JavaScript. The hero retains the original native
 screenshot.

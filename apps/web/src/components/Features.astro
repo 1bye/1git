@@ -4,13 +4,13 @@ import FeatureIllustration from "./FeatureIllustration.astro";
 const features = [
   { id: "gpu", title: ["Native speed.", "GPU rendered."] },
   { id: "changes", title: ["Review. Stage.", "Commit."] },
-  { id: "branches", title: ["Branches and", "worktrees."] },
-  { id: "history", title: ["History.", "In focus."] },
+  { id: "branches", title: ["Branches &", "worktrees."] },
+  { id: "history", title: ["History,", "in focus."] },
   { id: "spaces", title: ["A space for", "every project."] },
   { id: "remote", title: ["Local or SSH.", "One workspace."] },
-  { id: "cli", title: ["Sign in with", "GitHub CLI."] },
-  { id: "stash", title: ["Stash it.", "Keep your flow."] },
-  { id: "keyboard", title: ["Made for", "your keyboard."] },
+  { id: "cli", title: ["Your GitHub CLI.", "Connected."] },
+  { id: "stash", title: ["Stash it", "for later."] },
+  { id: "keyboard", title: ["Stay on", "your keyboard."] },
 ] as const;
 ---
 
@@ -21,9 +21,7 @@ const features = [
   <div class="bento">
     {features.map(({ id, title }) => (
       <article class:list={["feature-card", `card-${id}`]}>
-        <div class="feature-copy">
-          <h3>{title[0]}<br />{title[1]}</h3>
-        </div>
+        <h3>{title[0]}<br />{title[1]}</h3>
         <FeatureIllustration feature={id} />
       </article>
     ))}
@@ -33,18 +31,18 @@ const features = [
 <style>
   .bento {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    grid-template-rows: 190px 210px 230px 190px;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-rows: 200px 190px 220px 220px;
     grid-template-areas:
-      "gpu gpu changes changes"
-      "branches history changes changes"
-      "spaces spaces remote cli"
-      "stash keyboard keyboard keyboard";
+      "gpu gpu gpu changes changes changes"
+      "branches branches history changes changes changes"
+      "spaces spaces spaces remote remote remote"
+      "cli cli stash stash keyboard keyboard";
     gap: 18px;
   }
-  .feature-card { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; border-radius: 24px; background: #f5f5f7; }
-  .feature-copy { position: relative; z-index: 1; flex-shrink: 0; padding: 24px 24px 0; }
-  .feature-copy h3 { margin: 0; color: #1d1d1f; font-size: 24px; font-weight: 600; line-height: 1.17; letter-spacing: -.02em; }
+  .feature-card { position: relative; min-width: 0; overflow: hidden; isolation: isolate; border: 1px solid #e8ebef; border-radius: 26px; background: radial-gradient(ellipse at 70% 30%, #fff 0%, #f3f4f6 65%); }
+  .feature-card h3 { position: relative; z-index: 1; max-width: 14ch; margin: 26px; color: #353c47; font-size: 24px; font-weight: 600; line-height: 1.17; letter-spacing: -.025em; text-wrap: balance; }
+  .feature-card :global(.feature-illustration) { width: 100%; height: 100%; top: 28%; left: 0; }
   .card-gpu { grid-area: gpu; }
   .card-changes { grid-area: changes; }
   .card-branches { grid-area: branches; }
@@ -54,26 +52,28 @@ const features = [
   .card-cli { grid-area: cli; }
   .card-stash { grid-area: stash; }
   .card-keyboard { grid-area: keyboard; }
-  .card-gpu, .card-spaces, .card-keyboard { display: grid; grid-template-columns: .9fr 1.1fr; align-items: center; }
-  .card-gpu .feature-copy, .card-spaces .feature-copy, .card-keyboard .feature-copy { padding: 26px 0 26px 28px; }
-  .card-gpu h3 { font-size: 29px; }
-  .card-gpu :global(.feature-illustration) { height: 100%; padding: 8px 4px; }
-  .card-gpu :global(svg) { max-width: 300px; }
-  .card-changes { flex-direction: column-reverse; }
-  .card-changes .feature-copy { padding: 0 30px 28px; }
-  .card-changes h3 { font-size: 32px; }
-  .card-changes :global(.feature-illustration) { padding: 6px 0 0; }
-  .card-spaces :global(.feature-illustration) { height: 100%; padding: 0; }
-  .card-spaces :global(svg) { width: 120%; flex-shrink: 0; }
-  .card-keyboard { grid-template-columns: 1fr 1fr; }
-  .card-keyboard .feature-copy { order: 2; padding-left: 0; }
-  .card-keyboard h3 { font-size: 28px; }
-  .card-keyboard :global(.feature-illustration) { order: 1; height: 100%; padding: 0; }
-  .card-keyboard :global(svg) { max-width: 320px; }
+  .card-gpu h3 { max-width: 12ch; margin: 32px 28px; font-size: 29px; }
+  .card-gpu :global(.feature-illustration) { top: -15%; left: 38%; width: 70%; height: 130%; }
+  .card-changes h3 { position: absolute; bottom: 0; max-width: 10ch; margin: 28px 30px; font-size: 34px; }
+  .card-changes :global(.feature-illustration) { top: -8%; left: -4%; width: 108%; height: 78%; }
+  .card-branches h3 { max-width: 10ch; font-size: 22px; }
+  .card-branches :global(.feature-illustration) { top: 10%; left: 38%; width: 80%; height: 105%; }
+  .card-history h3 { margin: 24px 20px; font-size: 21px; }
+  .card-history :global(.feature-illustration) { top: 34%; left: -38%; width: 190%; height: 100%; }
+  .card-spaces h3 { max-width: 10ch; margin: 32px 28px; font-size: 27px; }
+  .card-spaces :global(.feature-illustration) { top: -6%; left: 35%; width: 76%; height: 120%; }
+  .card-remote h3 { max-width: 12ch; margin: 32px 28px; font-size: 27px; }
+  .card-remote :global(.feature-illustration) { top: 2%; left: 45%; width: 68%; height: 115%; }
+  .card-cli h3 { max-width: 13ch; }
+  .card-cli :global(.feature-illustration) { top: 20%; left: 4%; width: 105%; }
+  .card-stash h3 { max-width: 10ch; }
+  .card-stash :global(.feature-illustration) { top: 14%; left: 7%; width: 100%; }
+  .card-keyboard h3 { max-width: 12ch; }
+  .card-keyboard :global(.feature-illustration) { top: 16%; left: 4%; width: 105%; }
   @media (max-width: 1000px) {
     .bento {
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      grid-template-rows: 180px 200px 200px 190px 230px 230px;
+      grid-template-rows: 200px 220px 200px 220px 240px 220px;
       grid-template-areas:
         "gpu gpu"
         "changes branches"
@@ -82,27 +82,38 @@ const features = [
         "remote cli"
         "stash keyboard";
     }
-    .card-gpu, .card-spaces { grid-template-columns: 1fr 1fr; }
-    .card-gpu h3 { font-size: 30px; }
-    .card-spaces :global(svg) { width: 100%; max-width: 350px; }
-    .card-keyboard { display: flex; flex-direction: column; align-items: stretch; }
-    .card-keyboard .feature-copy { order: 0; padding: 24px 24px 0; }
-    .card-keyboard h3 { font-size: 24px; }
-    .card-keyboard :global(.feature-illustration) { height: auto; padding: 10px 12px 14px; }
+    .card-gpu h3 { max-width: 12ch; }
+    .card-gpu :global(.feature-illustration) { left: 43%; width: 55%; height: 145%; top: -26%; }
+    .card-changes h3 { font-size: 30px; }
+    .card-changes :global(.feature-illustration) { left: -12%; width: 125%; top: -3%; height: 77%; }
+    .card-branches :global(.feature-illustration) { left: 26%; top: 22%; }
+    .card-history :global(.feature-illustration) { left: 20%; top: 19%; width: 95%; height: 110%; }
+    .card-spaces h3 { max-width: 12ch; }
+    .card-spaces :global(.feature-illustration) { left: 38%; width: 65%; height: 135%; top: -20%; }
+    .card-remote h3 { max-width: 14ch; margin: 26px; font-size: 24px; }
+    .card-remote :global(.feature-illustration) { left: 2%; top: 31%; width: 105%; height: 85%; }
+    .card-cli h3 { max-width: 13ch; }
   }
   @media (max-width: 580px) {
-    .bento { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; grid-template-areas: none; gap: 14px; }
-    .feature-card { grid-area: auto; display: grid; grid-template-columns: 1fr 1fr; align-items: center; min-height: 160px; border-radius: 22px; }
-    .feature-card .feature-copy { order: 0; padding: 22px 0 22px 22px; }
-    .feature-card h3 { font-size: 22px; }
-    .feature-card :global(.feature-illustration) { height: auto; padding: 0 10px 0 0; }
-    .feature-card :global(svg) { width: 210px; max-width: none; flex-shrink: 0; }
-    .card-changes { display: flex; flex-direction: column-reverse; height: 290px; }
-    .card-changes .feature-copy { align-self: stretch; padding: 0 26px 24px; }
-    .card-changes h3 { font-size: 28px; }
-    .card-changes :global(.feature-illustration) { width: 100%; min-height: 0; padding: 0; }
-    .card-changes :global(svg) { width: 100%; height: 100%; }
-    .card-spaces .feature-copy, .card-keyboard .feature-copy { order: 2; padding: 22px 22px 22px 0; }
-    .card-spaces :global(.feature-illustration), .card-keyboard :global(.feature-illustration) { order: 1; padding: 0; }
+    .bento { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: none; grid-template-areas: none; gap: 14px; }
+    .feature-card { grid-area: auto; grid-column: span 2; min-height: 200px; border-radius: 23px; }
+    .feature-card h3 { max-width: 11ch; margin: 24px; font-size: 23px; }
+    .card-gpu :global(.feature-illustration) { left: 40%; width: 70%; height: 115%; top: 3%; }
+    .card-changes { height: 340px; }
+    .card-changes h3 { max-width: 10ch; font-size: 30px; }
+    .card-changes :global(.feature-illustration) { top: -8%; left: -8%; width: 116%; height: 78%; }
+    .card-branches, .card-history { grid-column: span 1; min-height: 230px; }
+    .card-branches h3, .card-history h3 { margin: 22px 18px; font-size: 21px; }
+    .card-branches :global(.feature-illustration) { top: 29%; left: -42%; width: 180%; height: 84%; }
+    .card-history :global(.feature-illustration) { top: 31%; left: -50%; width: 200%; height: 86%; }
+    .card-spaces :global(.feature-illustration) { top: 10%; left: 33%; width: 80%; height: 106%; }
+    .card-remote h3 { max-width: 12ch; }
+    .card-remote :global(.feature-illustration) { top: 17%; left: 35%; width: 78%; height: 100%; }
+    .card-cli h3 { max-width: 11ch; }
+    .card-cli :global(.feature-illustration) { top: 16%; left: 28%; width: 82%; height: 110%; }
+    .card-stash h3 { max-width: 8ch; }
+    .card-stash :global(.feature-illustration) { top: 9%; left: 30%; width: 80%; height: 110%; }
+    .card-keyboard h3 { max-width: 11ch; }
+    .card-keyboard :global(.feature-illustration) { top: 19%; left: 34%; width: 80%; height: 100%; }
   }
 </style>

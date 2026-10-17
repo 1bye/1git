@@ -4,186 +4,202 @@ interface Props {
 }
 
 const { feature } = Astro.props;
+const id = `feature-${feature}`;
+const silver = `url(#${id}-silver)`;
+const face = `url(#${id}-face)`;
+const edge = `url(#${id}-edge)`;
+const shadow = `url(#${id}-shadow)`;
 ---
 
 <div class:list={["feature-illustration", `illustration-${feature}`]} aria-hidden="true">
-  {feature === "gpu" && (
-    <svg viewBox="45 20 290 200" fill="none">
-      <circle cx="214" cy="120" r="91" stroke="#e2e4e8" />
-      <circle cx="214" cy="120" r="68" stroke="#e2e4e8" />
-      <g stroke="#c9ced6" stroke-width="2" stroke-linecap="round">
-        <path d="M177 52v19m18-19v19m19-19v19m19-19v19m18-19v19M177 169v19m18-19v19m19-19v19m19-19v19m18-19v19" />
-        <path d="M146 83h19m-19 18h19m-19 19h19m-19 19h19m-19 18h19M263 83h19m-19 18h19m-19 19h19m-19 19h19m-19 18h19" />
-        <path d="M62 96h57m-74 24h75m-58 24h57" stroke="#dce0e6" />
-      </g>
-      <rect x="163" y="69" width="102" height="102" rx="17" fill="white" stroke="#bfc5ce" stroke-width="1.5" />
-      <rect x="175" y="81" width="78" height="78" rx="10" fill="#f1f2f5" stroke="#e2e4e8" />
-      <path d="m222 94-28 32h20l-7 21 28-32h-20l7-21Z" fill="#808a99" stroke="#808a99" stroke-linejoin="round" />
-    </svg>
-  )}
+  <svg viewBox="0 0 400 300" fill="none" focusable="false">
+    <defs>
+      <linearGradient id={`${id}-silver`} x1="0" y1="0" x2="1" y2="1">
+        <stop stop-color="#fff" /><stop offset=".35" stop-color="#e7eaee" /><stop offset=".72" stop-color="#c8cdd5" /><stop offset="1" stop-color="#eef0f3" />
+      </linearGradient>
+      <linearGradient id={`${id}-face`} x1="0" y1="0" x2=".6" y2="1">
+        <stop stop-color="#fff" /><stop offset="1" stop-color="#eff1f4" />
+      </linearGradient>
+      <linearGradient id={`${id}-edge`} x1="0" y1="0" x2="0" y2="1">
+        <stop stop-color="#dce0e6" /><stop offset="1" stop-color="#adb5c1" />
+      </linearGradient>
+      <filter id={`${id}-shadow`} x="-30%" y="-30%" width="170%" height="180%">
+        <feDropShadow dx="0" dy="5" stdDeviation="4" flood-color="#515e73" flood-opacity=".12" />
+      </filter>
+    </defs>
 
-  {feature === "changes" && (
-    <svg viewBox="0 0 600 400" fill="none">
-      <defs>
-        <linearGradient id="change-paper" x1="116" y1="70" x2="380" y2="340" gradientUnits="userSpaceOnUse">
-          <stop stop-color="white" /><stop offset="1" stop-color="#fbfbfc" />
-        </linearGradient>
-        <linearGradient id="commit-line" x1="340" y1="200" x2="600" y2="200" gradientUnits="userSpaceOnUse">
-          <stop stop-color="#bdc2cb" /><stop offset="1" stop-color="#bdc2cb" stop-opacity="0" />
-        </linearGradient>
-      </defs>
-      <circle cx="460" cy="201" r="146" stroke="#e2e4e8" />
-      <circle cx="460" cy="201" r="100" stroke="#e2e4e8" />
-      <path d="M330 201H600" stroke="url(#commit-line)" stroke-width="2" />
-      <g class="change-pages">
-        <rect x="86" y="77" width="267" height="252" rx="20" fill="#e8e9ed" transform="rotate(-9 220 203)" />
-        <rect x="100" y="72" width="267" height="252" rx="20" fill="#f0f1f4" stroke="#d9dce2" transform="rotate(-4 233 198)" />
-        <rect x="115" y="70" width="267" height="252" rx="20" fill="url(#change-paper)" stroke="#d9dce2" />
-        <g stroke="#a3a8b1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M143 99h12l6 6v16h-18V99Zm12 0v7h6" />
-          <path d="M176 104h90m-90 10h54" stroke="#dce0e5" stroke-width="5" />
+    {feature === "gpu" && (
+      <g transform="translate(214 160) rotate(-18)" filter={shadow}>
+        <g stroke="#aeb6c2" stroke-width="7" stroke-linecap="round">
+          <path d="M-62-91v-21m25 21v-21m25 21v-21m25 21v-21m25 21v-21m25 21v-21M-62 91v21m25-21v21m25-21v21m25-21v21m25-21v21m25-21v21" />
+          <path d="M-91-62h-21m21 25h-21m21 25h-21m21 25h-21m21 25h-21m21 25h-21M91-62h21m-21 25h21m-21 25h21m-21 25h21m-21 25h21m-21 25h21" />
         </g>
-        <rect x="134" y="144" width="229" height="35" rx="7" fill="#f9e9e5" />
-        <path d="M147 161h9" stroke="#ba7d70" stroke-width="2" stroke-linecap="round" />
-        <path d="M175 161h83m13 0h28" stroke="#d9afa3" stroke-width="5" stroke-linecap="round" />
-        <g class="added-lines">
-          <rect x="134" y="185" width="229" height="76" rx="7" fill="#e5f2e9" />
-          <path d="M147 205h9m-4.5-4.5v9m-4.5 30h9m-4.5-4.5v9" stroke="#52976c" stroke-width="2" stroke-linecap="round" />
-          <path d="M175 205h59m13 0h77m-149 35h33m13 0h66" stroke="#8fbea0" stroke-width="5" stroke-linecap="round" />
+        <rect x="-92" y="-86" width="184" height="184" rx="28" fill={edge} stroke="#adb5c1" />
+        <rect x="-92" y="-94" width="184" height="184" rx="28" fill={silver} stroke="#fff" stroke-width="1.5" />
+        <rect x="-68" y="-70" width="136" height="136" rx="18" fill={face} stroke="#b8c0cc" />
+        <rect x="-63" y="-65" width="126" height="126" rx="14" stroke="#fff" />
+        <path d="m15-40-46 48h27l-12 35L32-8H4l11-32Z" fill="#697585" />
+        <path d="M-45 49h22m7 0h9" stroke="#c1c8d2" stroke-width="3" stroke-linecap="round" />
+        <circle cx="48" cy="48" r="3" fill="#799bbc" />
+      </g>
+    )}
+
+    {feature === "changes" && (
+      <>
+        <g transform="translate(12 7) rotate(-11 180 155)">
+          <rect x="74" y="27" width="225" height="272" rx="22" fill="#dfe3e9" stroke="#c6cdd7" />
+          <rect x="87" y="18" width="225" height="272" rx="22" fill={silver} stroke="#d1d7e0" />
         </g>
-        <path d="M175 284h52m13 0h45" stroke="#e1e4e9" stroke-width="5" stroke-linecap="round" />
-      </g>
-      <g class="commit-mark">
-        <circle cx="460" cy="201" r="43" fill="#f5f5f7" stroke="#3a875a" stroke-width="3" />
-        <path d="m444 201 11 11 22-23" stroke="#3a875a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
-      </g>
-    </svg>
-  )}
+        <g transform="rotate(6 219 150)" filter={shadow}>
+          <rect x="109" y="20" width="230" height="276" rx="23" fill={edge} />
+          <rect x="109" y="15" width="230" height="276" rx="23" fill={face} stroke="#fff" stroke-width="1.5" />
+          <path d="M135 45h13l7 7v19h-20V45Zm13 0v8h7" stroke="#929dab" stroke-width="2" stroke-linejoin="round" />
+          <path d="M169 50h85m-85 13h53" stroke="#ced4dc" stroke-width="5" stroke-linecap="round" />
+          <rect x="127" y="94" width="194" height="42" rx="9" fill="#f0dfdc" />
+          <path d="M139 115h11" stroke="#ad7c73" stroke-width="2.5" stroke-linecap="round" />
+          <path d="M167 115h94m9 0h22" stroke="#c39a92" stroke-width="5" stroke-linecap="round" />
+          <rect x="127" y="145" width="194" height="93" rx="9" fill="#e1ede6" />
+          <g stroke="#69947d" stroke-width="2.5" stroke-linecap="round">
+            <path d="M139 168h11m-5.5-5.5v11M139 193h11m-5.5-5.5v11M139 218h11m-5.5-5.5v11" />
+          </g>
+          <path d="M167 168h64m10 0h44m-118 25h28m10 0h81m-119 25h85" stroke="#92b5a1" stroke-width="5" stroke-linecap="round" />
+          <path d="M140 262h82m11 0h31" stroke="#d0d6de" stroke-width="4" stroke-linecap="round" />
+        </g>
+        <g transform="translate(319 241)" filter={shadow}>
+          <circle cy="5" r="42" fill={edge} />
+          <circle r="42" fill={silver} stroke="#fff" stroke-width="2" />
+          <circle r="32" fill={face} stroke="#d0d7de" />
+          <path d="m-15 0 10 10 21-22" stroke="#5d8b72" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+        </g>
+      </>
+    )}
 
-  {feature === "remote" && (
-    <svg viewBox="0 0 500 290" fill="none">
-      <defs>
-        <linearGradient id="connection-line" x1="146" y1="145" x2="370" y2="145" gradientUnits="userSpaceOnUse">
-          <stop stop-color="#c8cdd5" /><stop offset=".5" stop-color="#7896b8" /><stop offset="1" stop-color="#c8cdd5" />
-        </linearGradient>
-      </defs>
-      <ellipse cx="250" cy="145" rx="216" ry="100" stroke="#e2e4e8" />
-      <ellipse cx="250" cy="145" rx="167" ry="72" stroke="#e2e4e8" />
-      <path d="M146 145h224" stroke="url(#connection-line)" stroke-width="2" />
-      <circle cx="250" cy="145" r="19" fill="#f5f5f7" stroke="#648ebc" stroke-width="2" />
-      <circle class="connection-dot" cx="250" cy="145" r="6" fill="#648ebc" />
-      <g stroke="#9098a4" stroke-width="2" stroke-linejoin="round">
-        <rect x="62" y="106" width="121" height="78" rx="7" fill="white" />
-        <path d="M56 184h133l8 8a3 3 0 0 1-2 5H50a3 3 0 0 1-2-5l8-8Z" fill="#e8eaee" />
-        <path d="M109 184h27" stroke="#b4bbc5" />
-        <rect x="328" y="94" width="94" height="42" rx="9" fill="white" />
-        <rect x="328" y="146" width="94" height="42" rx="9" fill="white" />
-        <path d="M367 115h37m-37 52h37" stroke="#d0d4db" />
+    {feature === "branches" && (
+      <g transform="rotate(-12 200 155)">
+        <path d="M133 290V77m0 158c0-69 145-31 145-106V56" stroke="#bcc4cf" stroke-width="15" stroke-linecap="round" />
+        <path d="M130 290V77m0 155c0-69 145-31 145-106V56" stroke="#f9fafc" stroke-width="9" stroke-linecap="round" />
+        <g filter={shadow}>
+          <circle cx="132" cy="79" r="37" fill={silver} stroke="#fff" stroke-width="2" />
+          <circle cx="277" cy="56" r="37" fill={silver} stroke="#fff" stroke-width="2" />
+          <circle cx="132" cy="248" r="37" fill={silver} stroke="#fff" stroke-width="2" />
+        </g>
+        <circle cx="132" cy="79" r="18" fill={face} stroke="#c4ccd7" />
+        <circle cx="277" cy="56" r="18" fill={face} stroke="#c4ccd7" />
+        <circle cx="132" cy="248" r="18" fill="#dce6ef" stroke="#a2b7cd" />
+        <circle cx="132" cy="248" r="7" fill="#718ea9" />
+        <path d="M126 79h12m145-23h-12" stroke="#9ba7b7" stroke-width="3" stroke-linecap="round" />
       </g>
-      <g fill="#a5adb8">
-        <circle cx="346" cy="115" r="3" /><circle cx="346" cy="167" r="3" />
-      </g>
-      <path d="m112 136 9 9-9 9m17 0h8" stroke="#919ba8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-    </svg>
-  )}
+    )}
 
-  {feature === "cli" && (
-    <svg viewBox="0 0 500 290" fill="none">
-      <circle cx="250" cy="142" r="113" stroke="#e2e2e7" />
-      <circle cx="250" cy="142" r="78" stroke="#e2e2e7" />
-      <path d="M168 167h58c49 0 35-72 84-72h29" stroke="#c8cbd2" stroke-width="2" stroke-linecap="round" />
-      <text x="65" y="185" fill="#91949d" font-size="67" font-weight="300" font-family="Menlo, monospace">&gt;</text>
-      <text x="111" y="185" fill="#292a30" font-size="83" font-weight="500" letter-spacing="-6" font-family="Menlo, monospace">gh</text>
-      <g class="identity-mark">
-        <rect x="304" y="45" width="108" height="108" rx="27" fill="white" stroke="#e6e6eb" />
-        <image href="/favicon.svg" x="327" y="68" width="62" height="62" />
-        <circle cx="403" cy="144" r="18" fill="#e6f1e9" stroke="#f5f5f7" stroke-width="4" />
-        <path d="m396 144 5 5 9-10" stroke="#4a825d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-      </g>
-    </svg>
-  )}
+    {feature === "history" && (
+      <>
+        <path d="M0 139h400" stroke="#c4cbd6" stroke-width="3" />
+        <g fill={face} stroke="#b7c0cd" stroke-width="2">
+          <circle cx="32" cy="139" r="10" /><circle cx="103" cy="139" r="10" /><circle cx="339" cy="139" r="10" />
+        </g>
+        <g transform="rotate(-8 211 140)" filter={shadow}>
+          <rect x="259" y="181" width="28" height="107" rx="14" transform="rotate(-43 273 195)" fill={silver} stroke="#b7c1ce" />
+          <circle cx="211" cy="139" r="79" fill={silver} stroke="#fff" stroke-width="2" />
+          <circle cx="211" cy="139" r="63" fill="#f7f8fa" stroke="#aeb9c7" stroke-width="2" />
+          <path d="M150 139h122" stroke="#bbc8d7" stroke-width="3" />
+          <circle cx="211" cy="139" r="20" fill={face} stroke="#819ab3" stroke-width="3" />
+          <circle cx="211" cy="139" r="7" fill="#819ab3" />
+          <path d="M162 118a52 52 0 0 1 59-30" stroke="#fff" stroke-width="6" stroke-linecap="round" />
+        </g>
+      </>
+    )}
 
-  {feature === "spaces" && (
-    <svg viewBox="0 0 600 360" fill="none">
-      <g class="space-personal" transform="rotate(-9 172 221)">
-        <path d="M65 143a14 14 0 0 1 14-14h61a14 14 0 0 1 10 4l14 14h103a14 14 0 0 1 14 14v120a14 14 0 0 1-14 14H79a14 14 0 0 1-14-14V143Z" fill="#eceef2" stroke="#d2d6de" />
-        <path d="M65 160h216" stroke="#d2d6de" />
-        <path d="M84 141h43" stroke="#8ca8cf" stroke-width="4" stroke-linecap="round" />
-        <path d="M84 252h47m-47 12h68" stroke="#c7cdd6" stroke-width="4" stroke-linecap="round" />
-      </g>
-      <g class="space-work">
-        <path d="M194 85a14 14 0 0 1 14-14h61a14 14 0 0 1 10 4l14 14h103a14 14 0 0 1 14 14v152a14 14 0 0 1-14 14H208a14 14 0 0 1-14-14V85Z" fill="#f2f3f6" stroke="#d2d6de" />
-        <path d="M194 102h216" stroke="#d2d6de" />
-        <path d="M214 83h43" stroke="#b09acb" stroke-width="4" stroke-linecap="round" />
-        <path d="M214 173h59m-59 12h91" stroke="#c7cdd6" stroke-width="4" stroke-linecap="round" />
-        <circle cx="380" cy="133" r="9" stroke="#b1bac6" />
-        <path d="M376 133h8m-4-4v8" stroke="#b1bac6" stroke-linecap="round" />
-      </g>
-      <g class="space-projects" transform="rotate(9 422 235)">
-        <path d="M314 155a14 14 0 0 1 14-14h61a14 14 0 0 1 10 4l14 14h103a14 14 0 0 1 14 14v120a14 14 0 0 1-14 14H328a14 14 0 0 1-14-14V155Z" fill="#fafafb" stroke="#d2d6de" />
-        <path d="M314 172h216" stroke="#d2d6de" />
-        <path d="M334 153h43" stroke="#c7a28a" stroke-width="4" stroke-linecap="round" />
-        <path d="m336 254 8 8-8 8m18 0h10" stroke="#a5afbc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-      </g>
-    </svg>
-  )}
+    {feature === "spaces" && (
+      <>
+        <g transform="translate(-19 29) rotate(-19 203 168)">
+          <path d="M92 88a16 16 0 0 1 16-16h62l22 23h105a16 16 0 0 1 16 16v140a16 16 0 0 1-16 16H108a16 16 0 0 1-16-16V88Z" fill={silver} stroke="#c0c8d3" />
+          <path d="M112 86h44" stroke="#91a8c3" stroke-width="5" stroke-linecap="round" />
+        </g>
+        <g transform="translate(25 -13) rotate(-3 203 168)">
+          <path d="M92 88a16 16 0 0 1 16-16h62l22 23h105a16 16 0 0 1 16 16v140a16 16 0 0 1-16 16H108a16 16 0 0 1-16-16V88Z" fill={silver} stroke="#c0c8d3" />
+          <path d="M112 86h44" stroke="#b4a3bd" stroke-width="5" stroke-linecap="round" />
+        </g>
+        <g transform="translate(57 28) rotate(12 203 168)" filter={shadow}>
+          <path d="M92 88a16 16 0 0 1 16-16h62l22 23h105a16 16 0 0 1 16 16v140a16 16 0 0 1-16 16H108a16 16 0 0 1-16-16V88Z" fill={edge} stroke="#c0c8d3" />
+          <rect x="92" y="105" width="221" height="158" rx="16" fill={face} stroke="#fff" />
+          <path d="M112 86h44" stroke="#bda791" stroke-width="5" stroke-linecap="round" />
+          <path d="m125 207 10 10-10 10m21 0h16" stroke="#9ca8b8" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+        </g>
+      </>
+    )}
 
-  {feature === "branches" && (
-    <svg viewBox="60 20 280 200" fill="none">
-      <circle cx="200" cy="120" r="92" stroke="#e2e4e8" />
-      <path d="M200 190v-38c0-44-85-22-85-65V58m85 94c0-44 85-22 85-65V58" stroke="#b9c3d0" stroke-width="3" stroke-linecap="round" />
-      <path d="M200 190V58" stroke="#d4d9e0" stroke-width="2" />
-      <rect x="82" y="31" width="66" height="58" rx="12" fill="white" stroke="#cbd1da" />
-      <rect x="252" y="31" width="66" height="58" rx="12" fill="white" stroke="#cbd1da" />
-      <path d="M96 48h21m-21 10h38m132-10h21m-21 10h38" stroke="#d7dce3" stroke-width="4" stroke-linecap="round" />
-      <circle cx="200" cy="59" r="12" fill="#f5f5f7" stroke="#b1bbc8" stroke-width="2" />
-      <circle cx="200" cy="190" r="19" fill="white" stroke="#9cabbf" stroke-width="2" />
-      <circle cx="200" cy="190" r="6" fill="#7f9bbf" />
-    </svg>
-  )}
+    {feature === "remote" && (
+      <>
+        <path d="M126 201v41c0 23 142 23 142-9v-45" stroke="#bac3cf" stroke-width="9" stroke-linecap="round" />
+        <path d="M124 201v41c0 20 142 20 142-9v-45" stroke="#fff" stroke-width="4" stroke-linecap="round" />
+        <g transform="rotate(-9 126 140)" filter={shadow}>
+          <rect x="27" y="77" width="188" height="130" rx="13" fill={edge} stroke="#aeb7c4" />
+          <rect x="32" y="73" width="178" height="126" rx="10" fill={silver} stroke="#fff" />
+          <rect x="42" y="83" width="158" height="103" rx="5" fill="#e9edf2" stroke="#c1cad6" />
+          <path d="m77 119 14 14-14 14m28 0h20" stroke="#7c8a9e" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="M17 202h210l11 13c2 3-2 6-6 6H13c-4 0-8-3-6-6l10-13Z" fill={silver} stroke="#b5becb" />
+          <path d="M96 202h53l-4 5h-45l-4-5Z" fill="#b5becb" />
+        </g>
+        <g transform="rotate(9 296 128)" filter={shadow}>
+          <rect x="246" y="53" width="108" height="150" rx="22" fill={edge} />
+          <rect x="240" y="46" width="108" height="150" rx="22" fill={silver} stroke="#fff" stroke-width="1.5" />
+          <rect x="253" y="61" width="82" height="120" rx="13" fill={face} stroke="#c8d0db" />
+          <path d="M269 84h50m-50 12h50m-50 12h50" stroke="#c3cbd6" stroke-width="3" stroke-linecap="round" />
+          <circle cx="294" cy="158" r="5" fill="#7a9a84" />
+        </g>
+      </>
+    )}
 
-  {feature === "history" && (
-    <svg viewBox="40 18 320 200" fill="none">
-      <circle cx="222" cy="112" r="91" stroke="#e2e4e8" />
-      <path d="M42 112h308" stroke="#cbd1da" stroke-width="2" />
-      <g fill="#f5f5f7" stroke="#b3bdcb" stroke-width="2">
-        <circle cx="72" cy="112" r="10" /><circle cx="145" cy="112" r="10" /><circle cx="302" cy="112" r="10" />
+    {feature === "cli" && (
+      <>
+        <g transform="rotate(-10 183 178)" filter={shadow}>
+          <rect x="72" y="78" width="223" height="178" rx="30" fill={edge} stroke="#aeb8c5" />
+          <rect x="72" y="70" width="223" height="178" rx="30" fill={silver} stroke="#fff" stroke-width="1.5" />
+          <rect x="87" y="85" width="193" height="148" rx="19" fill={face} stroke="#bdc7d3" />
+          <path d="m110 134 17 17-17 17" stroke="#8e9bac" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+          <text x="145" y="181" fill="#626f82" font-family="Menlo, monospace" font-size="65" font-weight="500" letter-spacing="-5">gh</text>
+        </g>
+        <g transform="rotate(10 302 117)" filter={shadow}>
+          <rect x="260" y="79" width="91" height="91" rx="24" fill={edge} />
+          <rect x="260" y="74" width="91" height="91" rx="24" fill={face} stroke="#fff" stroke-width="2" />
+          <image href="/favicon.svg" x="279" y="92" width="53" height="53" />
+        </g>
+        <circle cx="330" cy="171" r="17" fill="#e2ece5" stroke="#fff" stroke-width="3" />
+        <path d="m323 171 5 5 9-10" stroke="#63876e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+      </>
+    )}
+
+    {feature === "stash" && (
+      <g transform="rotate(9 200 172)">
+        <rect x="106" y="60" width="158" height="173" rx="17" transform="rotate(-16 185 146)" fill={silver} stroke="#c1cbd6" />
+        <rect x="122" y="49" width="158" height="173" rx="17" transform="rotate(-5 201 135)" fill={face} stroke="#c8d1dc" />
+        <path d="M150 78h49m-49 14h100m-100 14h80" stroke="#c2ccd7" stroke-width="5" stroke-linecap="round" />
+        <g filter={shadow}>
+          <path d="m101 164-23 42v63a16 16 0 0 0 16 16h212a16 16 0 0 0 16-16v-63l-23-42H101Z" fill={edge} stroke="#b9c3d0" />
+          <path d="m101 164-23 42h73l15 22h68l15-22h73l-23-42H101Z" fill={silver} stroke="#fff" />
+          <path d="M78 211h70l15 22h74l15-22h70v51a16 16 0 0 1-16 16H94a16 16 0 0 1-16-16v-51Z" fill={face} stroke="#d9dfe7" />
+          <rect x="180" y="253" width="40" height="5" rx="2.5" fill="#aebbc9" />
+        </g>
       </g>
-      <circle cx="222" cy="112" r="49" fill="white" fill-opacity=".65" stroke="#8995a6" stroke-width="2.5" />
-      <path d="m258 148 37 37" stroke="#8995a6" stroke-width="10" stroke-linecap="round" />
-      <path d="M178 112h88" stroke="#b9c5d5" stroke-width="2" />
-      <circle cx="222" cy="112" r="15" fill="white" stroke="#7896b8" stroke-width="2.5" />
-      <circle cx="222" cy="112" r="5" fill="#7896b8" />
-    </svg>
-  )}
+    )}
 
-  {feature === "stash" && (
-    <svg viewBox="90 25 220 190" fill="none">
-      <circle cx="200" cy="121" r="92" stroke="#e2e4e8" />
-      <rect x="145" y="49" width="102" height="119" rx="12" fill="#e8ebf0" stroke="#d1d6de" transform="rotate(-10 196 108)" />
-      <rect x="151" y="48" width="102" height="119" rx="12" fill="white" stroke="#cbd1da" transform="rotate(4 202 107)" />
-      <path d="M172 74h37m-37 12h60m-60 12h49" stroke="#d5dbe3" stroke-width="4" stroke-linecap="round" />
-      <path d="m136 139-14 21v34a9 9 0 0 0 9 9h138a9 9 0 0 0 9-9v-34l-14-21H136Z" fill="#e9ecf1" stroke="#bfc7d2" stroke-width="1.5" />
-      <path d="M122 160h49l8 13h42l8-13h49" stroke="#bfc7d2" stroke-width="1.5" stroke-linejoin="round" />
-      <path d="M190 187h20" stroke="#9ba8ba" stroke-width="3" stroke-linecap="round" />
-    </svg>
-  )}
-
-  {feature === "keyboard" && (
-    <svg viewBox="0 0 400 240" fill="none">
-      <ellipse cx="200" cy="123" rx="145" ry="87" stroke="#e2e4e8" />
-      <rect x="96" y="82" width="96" height="96" rx="18" fill="#e4e7ec" stroke="#d1d6de" />
-      <rect x="208" y="82" width="96" height="96" rx="18" fill="#e4e7ec" stroke="#d1d6de" />
-      <rect x="96" y="74" width="96" height="96" rx="18" fill="white" stroke="#ccd2db" />
-      <rect x="208" y="74" width="96" height="96" rx="18" fill="white" stroke="#ccd2db" />
-      <g fill="#8792a1" text-anchor="middle" font-size="44" font-weight="400">
-        <text x="144" y="138">⌘</text><text x="256" y="138">P</text>
+    {feature === "keyboard" && (
+      <g transform="translate(201 165) rotate(-14)" filter={shadow}>
+        <rect x="-138" y="-58" width="126" height="136" rx="24" fill={edge} stroke="#b3bdcb" />
+        <rect x="6" y="-58" width="126" height="136" rx="24" fill={edge} stroke="#b3bdcb" />
+        <rect x="-138" y="-70" width="126" height="130" rx="24" fill={silver} stroke="#fff" stroke-width="1.5" />
+        <rect x="6" y="-70" width="126" height="130" rx="24" fill={silver} stroke="#fff" stroke-width="1.5" />
+        <rect x="-127" y="-59" width="104" height="106" rx="17" fill={face} stroke="#d9dfe7" />
+        <rect x="17" y="-59" width="104" height="106" rx="17" fill={face} stroke="#d9dfe7" />
+        <g fill="#768398" text-anchor="middle" font-size="55" font-weight="400">
+          <text x="-75" y="16">⌘</text><text x="69" y="16">P</text>
+        </g>
       </g>
-    </svg>
-  )}
+    )}
+  </svg>
 </div>
 
 <style>
-  .feature-illustration { display: flex; flex: 1; align-items: center; justify-content: center; min-width: 0; min-height: 0; padding: 10px 12px 14px; pointer-events: none; }
-  .feature-illustration > svg { display: block; width: 100%; height: 100%; max-width: 520px; min-height: 0; overflow: visible; }
+  .feature-illustration { position: absolute; pointer-events: none; }
+  .feature-illustration > svg { display: block; width: 100%; height: 100%; overflow: visible; }
 </style>
