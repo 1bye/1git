@@ -1,0 +1,159 @@
+---
+import Icon from "./Icon.astro";
+---
+
+<section id="features" class="features" aria-labelledby="features-title">
+  <div class="section-intro">
+    <p class="eyebrow">A little more clarity. A lot more flow.</p>
+    <h2 id="features-title">Everything in its place.<br />
+      <span>Including your focus.</span>
+    </h2>
+  </div>
+  <div class="bento">
+    <article class="feature-card changes-card">
+      <div class="feature-copy">
+        <span class="feature-icon">
+          <Icon name="code" />
+        </span>
+        <h3>Every change.<br />The whole picture.</h3>
+        <p>See what changed, choose what goes into a commit, and leave the rest for later.</p>
+      </div>
+      <div class="review-visual" aria-hidden="true">
+        <div class="review-window">
+          <div class="review-toolbar">
+            <span class="review-file">
+              <Icon name="file" size={16} /> workspace.ts</span>
+            <span class="diff-tally">+4 <i>−2</i>
+            </span>
+          </div>
+          <div class="review-code">
+            <span class="review-context">export function findYourFlow() &#123;</span>
+            <span class="review-remove">
+              <i>−</i> &nbsp;return openOneMoreWindow();</span>
+            <span class="review-add">
+              <i>+</i> &nbsp;return workspace.open(&#123;</span>
+            <span class="review-add">
+              <i>+</i> &nbsp;&nbsp;&nbsp;clarity: true,</span>
+            <span class="review-add">
+              <i>+</i> &nbsp;&nbsp;&nbsp;distractions: false,</span>
+            <span class="review-add">
+              <i>+</i> &nbsp;&#125;);</span>
+            <span class="review-context">&#125;</span>
+          </div>
+          <div class="review-staged">
+            <span>
+              <Icon name="check" size={13} /> Just the changes you want.</span>
+            <span class="staged-badge">Staged</span>
+          </div>
+        </div>
+      </div>
+    </article>
+    <article class="feature-card remote-card">
+      <div class="remote-visual" aria-hidden="true">
+        <div class="machine-tile">
+          <Icon name="laptop" size={42} />
+          <span>Your Mac</span>
+        </div>
+        <div class="connection-line">
+          <i></i>
+          <i></i>
+          <i></i>
+          <span>
+            <Icon name="check" size={12} />
+          </span>
+        </div>
+        <div class="machine-tile server-tile">
+          <Icon name="server" size={38} />
+          <span>Your server</span>
+        </div>
+        <div class="remote-project">
+          <span class="project-avatar">o</span>
+          <div>
+            <strong>orbit</strong>
+            <span>studio.local · SSH</span>
+          </div>
+          <span class="connection-dot"></span>
+        </div>
+      </div>
+      <div class="feature-copy">
+        <h3>Here. There.<br />Same workspace.</h3>
+        <p>Your Mac or a machine over SSH. Review, commit, and browse history in the same familiar interface.</p>
+      </div>
+    </article>
+    <article class="feature-card cli-card">
+      <div class="cli-visual" aria-hidden="true">
+        <div class="terminal-window">
+          <div class="terminal-title">
+            <span class="terminal-dot"></span>
+            <span>Already right at home.</span>
+            <Icon name="terminal" size={15} />
+          </div>
+          <div class="terminal-body">
+            <span>
+              <b>❯</b> gh auth status</span>
+            <span class="terminal-muted">github.com</span>
+            <span>
+              <i>✓</i> Logged in as <strong>you</strong>
+            </span>
+            <span class="terminal-muted">&nbsp; Credentials managed by GitHub CLI</span>
+            <span class="terminal-prompt">
+              <b>❯</b> <i></i>
+            </span>
+          </div>
+        </div>
+        <div class="connected-pill">
+          <span class="connection-dot"></span> Connected with GitHub CLI</div>
+      </div>
+      <div class="feature-copy">
+        <h3>Pick up where<br />you’re signed in.</h3>
+        <p>Connect your existing GitHub CLI account. Your credentials stay managed by the tools you already use.</p>
+      </div>
+    </article>
+    <article class="feature-card spaces-card">
+      <div class="spaces-visual" aria-hidden="true">
+        <div class="space-pill">
+          <span class="space-dot"></span> Personal <span>⌄</span>
+        </div>
+        <div class="project-stack">
+          <div class="space-project">
+            <span class="repository-mark mark-blue">
+              <Icon name="folder" size={19} />
+            </span>
+            <div>
+              <strong>weekend-project</strong>
+              <span>A little something of your own</span>
+            </div>
+            <span class="space-branch">
+              <Icon name="branch" size={12} /> main</span>
+          </div>
+          <div class="space-project">
+            <span class="repository-mark mark-lilac">
+              <Icon name="folder" size={19} />
+            </span>
+            <div>
+              <strong>dotfiles</strong>
+              <span>Make yourself at home</span>
+            </div>
+            <span class="space-branch">
+              <Icon name="branch" size={12} /> main</span>
+          </div>
+          <div class="space-project">
+            <span class="repository-mark mark-peach">
+              <Icon name="folder" size={19} />
+            </span>
+            <div>
+              <strong>next-good-idea</strong>
+              <span>Ready when you are</span>
+            </div>
+            <span class="space-branch">
+              <Icon name="branch" size={12} /> main</span>
+          </div>
+        </div>
+      </div>
+      <div class="feature-copy">
+        <h3>A place for<br />every project.</h3>
+        <p>Keep work, side projects, and everything in between in their own spaces. Your tabs and drafts come with you.</p>
+      </div>
+    </article>
+  </div>
+</section>

@@ -1,0 +1,9 @@
+{
+  "extends": "../../packages/config/tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "types": ["bun"],
+    "noEmit": true
+  },
+  "include": ["alchemy.run.ts", "infra/**/*.ts", "tests/**/*.ts"]
+}

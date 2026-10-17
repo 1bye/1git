@@ -1,0 +1,22 @@
+{
+  "asset": "public/images/macbook-pro-m5.webp",
+  "provider": "Apple",
+  "title": "MacBook Pro M5 14-inch Space Black",
+  "source": "https://developer.apple.com/design/resources/#product-bezels",
+  "downloadUrl": "https://devimages-cdn.apple.com/design/resources/download/Bezel-MacBook-Pro-M5.dmg",
+  "license": "https://developer.apple.com/app-store/marketing/guidelines/",
+  "downloaded": "2026-10-05",
+  "sourceFile": "Bezel-MacBook-Pro-M5.dmg/PNG/MacBook Pro M5 14-inch Space Black.png",
+  "usage": "Apple Design Resources License LYL142 (06/21/2023) and Apple's marketing guidelines apply. The source PNG/PSD pack and DMG are not distributed with the website.",
+  "preparation": "Trimmed transparent canvas margins, resized to 2400 pixels wide and encoded as WebP, preserving transparency. The hero's overflow crops the left and bottom of the MacBook; the cloud wallpaper, app UI and menu bar are HTML/CSS underneath the bezel.",
+  "sourceDimensions": [3860, 2540],
+  "sourceCrop": [27, 232, 3832, 2529],
+  "dimensions": [2400, 1449],
+  "bytes": 53016,
+  "screen": {
+    "leftPercent": 10.276,
+    "topPercent": 2.438,
+    "widthPercent": 79.474,
+    "heightPercent": 85.503
+  }
+}

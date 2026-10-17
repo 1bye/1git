@@ -1,0 +1,26 @@
+{
+  "name": "@1git/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev --host 127.0.0.1",
+    "build": "astro build",
+    "preview": "astro preview --host 127.0.0.1",
+    "check-types": "astro check && tsc --noEmit -p tsconfig.infra.json",
+    "test": "bun test tests",
+    "plan": "bun run build && alchemy plan --stage prod --profile personal",
+    "deploy": "bun run build && alchemy deploy --stage prod --profile personal",
+    "deploy:preview": "bun run build && alchemy deploy --stage preview --profile personal"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.10",
+    "@effect/platform-bun": "4.0.4",
+    "@effect/platform-node": "4.0.4",
+    "@types/bun": "^1.3.5",
+    "alchemy": "2.0.0-beta.83",
+    "astro": "7.3.5",
+    "effect": "4.0.4",
+    "typescript": "^6.0.3"
+  }
+}

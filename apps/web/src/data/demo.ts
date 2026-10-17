@@ -1,0 +1,72 @@
+/** Illustrative repository content for the browser preview; no real Git operations. */
+export const demoFiles = [
+	{
+		name: "repository.ts",
+		path: "src/lib/repository.ts",
+		language: "TypeScript",
+		additions: 5,
+		deletions: 2,
+		lines: [
+			["context", 'import { Git } from "./git";'],
+			["context", ""],
+			["context", "export async function openRepository(path: string) {"],
+			["context", "  const git = new Git(path);"],
+			["context", ""],
+			["remove", "  const status = await git.status();"],
+			["remove", "  const branches = await git.branches();"],
+			["add", "  const [status, branches] = await Promise.all(["],
+			["add", "    git.status(),"],
+			["add", "    git.branches(),"],
+			["add", "  ]);"],
+			["context", ""],
+			["context", "  return { path, status, branches };"],
+			["context", "}"],
+			["add", ""],
+		],
+	},
+	{
+		name: "theme.css",
+		path: "src/styles/theme.css",
+		language: "CSS",
+		additions: 4,
+		deletions: 2,
+		lines: [
+			["context", ":root {"],
+			["context", "  color-scheme: light dark;"],
+			["context", ""],
+			["remove", "  --accent: #6688cc;"],
+			["remove", "  --radius: 8px;"],
+			["add", "  --accent: #83a6ff;"],
+			["add", "  --radius: 10px;"],
+			["add", "  --surface: light-dark(#fafafa, #202124);"],
+			["add", "  --muted: light-dark(#737578, #9da0a7);"],
+			["context", "}"],
+		],
+	},
+	{
+		name: "README.md",
+		path: "README.md",
+		language: "Markdown",
+		additions: 3,
+		deletions: 0,
+		lines: [
+			["context", "# Orbit"],
+			["context", ""],
+			["context", "A small space for your next big idea."],
+			["context", ""],
+			["add", "## Getting started"],
+			["add", ""],
+			["add", "Open the project, find your flow, make it yours."],
+		],
+	},
+] as const;
+
+/** Example history displayed when visitors switch the repository preview's view. */
+export const demoCommits = [
+	["Make room for the next idea", "a8f31d2", "Just now"],
+	["Bring the workspace together", "e09bc74", "2 hours ago"],
+	["A little polish for the sidebar", "9d3a1f0", "Yesterday"],
+	["Add project discovery", "72ba9c1", "Yesterday"],
+	["Give every project a home", "f1c06e8", "2 days ago"],
+	["Start something good", "48e2b7a", "3 days ago"],
+] as const;

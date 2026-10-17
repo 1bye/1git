@@ -9,6 +9,8 @@
   "scripts": {
     "playground": "bun run --cwd packages/git playground",
     "dev": "turbo run dev",
+    "dev:web": "turbo run dev --filter=@1git/web",
+    "build:web": "turbo run build --filter=@1git/web",
     "build": "turbo run build",
     "package:macos": "turbo run package:macos --filter=@1git/gpuix",
     "setup:signing:macos": "turbo run setup:signing:macos --filter=@1git/gpuix",

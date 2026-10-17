@@ -1,0 +1,122 @@
+---
+import Layout from "../layouts/Layout.astro";
+import Icon from "../components/Icon.astro";
+import RepositoryDemo from "../components/RepositoryDemo.astro";
+import Features from "../components/Features.astro";
+---
+
+<Layout>
+  <main id="main">
+    <section id="top" class="hero" aria-labelledby="hero-title">
+      <img class="hero-sky" src="/images/clouds-1920.webp" srcset="/images/clouds-960.webp 960w, /images/clouds-1920.webp 1920w, /images/clouds-2560.webp 2560w" sizes="100vw" width="2560" height="1442" alt="" fetchpriority="high" decoding="async" />
+      <div class="hero-shade"></div>
+      <header class="site-header">
+        <a class="brand" href="#top" aria-label="1git home">
+          <img src="/favicon.svg" width="38" height="38" alt="" />
+          <span>1git</span>
+        </a>
+        <nav aria-label="Main navigation">
+          <a href="#features">A closer look</a>
+          <a class="header-download" href="https://git.1bye.dev/download">Download <Icon name="arrow" size={15} />
+          </a>
+        </nav>
+      </header>
+      <div class="hero-copy">
+        <p class="hero-eyebrow">A native Git client. Made for your Mac.</p>
+        <h1 id="hero-title">A clearer view.<br />
+          <span>Of every change.</span>
+        </h1>
+        <p class="hero-description">Your repositories, branches, and next good idea.<br class="desktop-break" /> All in a workspace that feels like home.</p>
+        <a class="download-button" href="https://git.1bye.dev/download">
+          <svg width="18" height="21" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M17.05 12.54c.03 3.05 2.68 4.07 2.71 4.08-.02.07-.42 1.45-1.39 2.87-.84 1.23-1.71 2.46-3.08 2.48-1.34.03-1.78-.8-3.31-.8-1.53 0-2.01.77-3.28.83-1.32.05-2.32-1.33-3.17-2.55-1.73-2.5-3.06-7.07-1.28-10.15a4.93 4.93 0 0 1 4.17-2.53c1.3-.02 2.53.88 3.32.88.79 0 2.27-1.09 3.83-.93.65.03 2.49.26 3.67 1.98-.1.06-2.19 1.28-2.19 3.84ZM14.53 5.06c.7-.85 1.17-2.03 1.04-3.21-1.01.04-2.24.67-2.97 1.52-.65.75-1.22 1.94-1.06 3.1 1.13.09 2.29-.57 2.99-1.41Z" />
+          </svg> Download for macOS</a>
+        <p class="download-note">macOS 13+ · Apple Silicon · Git required</p>
+      </div>
+      <div class="hero-product">
+        <div class="macbook-preview">
+          <img class="macbook-hardware" src="/images/macbook-pro-m5.webp" width="2400" height="1449" alt="" decoding="async" />
+          <div class="macbook-display">
+            <div class="desktop-menu" aria-hidden="true">
+              <span>● &nbsp; <b>1git</b> &nbsp; File &nbsp; Edit &nbsp; View</span>
+              <span>⌘ &nbsp; Fri 17 Oct &nbsp; 9:41</span>
+            </div>
+            <div class="desktop-app">
+              <RepositoryDemo />
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+    <section class="demo-guide" aria-label="Explore the preview">
+      <div>
+        <span class="preview-label">
+          <span class="connection-dot"></span> A little look inside</span>
+        <p>Switch files. Browse history. Make yourself at home.</p>
+        <span class="sample-note">Interactive preview · sample repository</span>
+      </div>
+      <div class="machine-switcher" role="group" aria-label="Preview machine">
+        <button type="button" data-machine="This Mac" aria-pressed="true">
+          <Icon name="laptop" size={17} /> This Mac</button>
+        <button type="button" data-machine="studio.local · SSH" aria-pressed="false">
+          <Icon name="server" size={16} /> Over SSH</button>
+      </div>
+    </section>
+    <Features />
+    <section class="details" aria-labelledby="details-title">
+      <div>
+        <p class="eyebrow">Familiar tools. A fresh perspective.</p>
+        <h2 id="details-title">Your workflow,<br />with room to breathe.</h2>
+      </div>
+      <div class="details-list">
+        <div>
+          <Icon name="branch" />
+          <p>
+            <strong>Follow every branch.</strong>
+            <span>Switch branches, explore history, and give parallel work its own worktree.</span>
+          </p>
+        </div>
+        <div>
+          <Icon name="folder" />
+          <p>
+            <strong>Open your existing repositories.</strong>
+            <span>Start with the projects already on your Mac, or clone something new.</span>
+          </p>
+        </div>
+        <div>
+          <Icon name="laptop" />
+          <p>
+            <strong>Feels right on your Mac.</strong>
+            <span>A native interface, light and dark themes, and keyboard shortcuts that keep you moving.</span>
+          </p>
+        </div>
+      </div>
+    </section>
+  </main>
+  <footer class="footer">
+    <div class="footer-top">
+      <div>
+        <img src="/favicon.svg" width="46" height="46" alt="" />
+        <h2>Your next good commit<br />
+          <span>starts here.</span>
+        </h2>
+      </div>
+      <div class="footer-cta">
+        <a class="download-button download-dark" href="https://git.1bye.dev/download">Download for macOS <Icon name="arrow" size={17} />
+        </a>
+        <p class="download-note">macOS 13+ · Apple Silicon · Git required</p>
+      </div>
+    </div>
+    <div class="footer-meta">
+      <span>Made with care, by <a href="https://1bye.dev">1bye</a>.</span>
+      <a href="#top">Back to top <span aria-hidden="true">↑</span>
+      </a>
+    </div>
+    <div class="footer-wordmark" aria-hidden="true">1git<span>.</span>
+    </div>
+  </footer>
+</Layout>
+
+<script>
+  import "../scripts/hero-motion";
+</script>

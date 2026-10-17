@@ -1,0 +1,34 @@
+---
+const paths = {
+  arrow: "M5 12h14m-6-6 6 6-6 6",
+  branch: "M6 6v12m12-12v3a6 6 0 0 1-6 6H6M9 3a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm12 0a3 3 0 1 1-6 0 3 3 0 0 1 6 0ZM9 21a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z",
+  check: "m5 12 4 4L19 6",
+  chevron: "m9 5 7 7-7 7",
+  code: "m8 7-5 5 5 5m8-10 5 5-5 5m-3-13-2 16",
+  commit: "M3 12h5m8 0h5m-5 0a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z",
+  download: "M12 3v12m-5-5 5 5 5-5M5 16v5h14v-5",
+  file: "M14 2H5v20h14V7l-5-5Zm0 0v6h5",
+  folder: "M3 6h7l2 2h9v12H3V6Z",
+  globe: "M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM3 12h18m-9-9c5 5 5 13 0 18-5-5-5-13 0-18Z",
+  history: "M3 11a9 9 0 1 1 2 7M3 4v7h7m2-4v6l4 2",
+  home: "m3 10 9-7 9 7v11h-6v-7H9v7H3V10Z",
+  laptop: "M5 4h14v12H5V4Zm-3 16h20l-3-4H5l-3 4Z",
+  moon: "M20.5 13A9 9 0 0 1 11 3.5 9 9 0 1 0 20.5 13Z",
+  search: "m16 16 5 5M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z",
+  server: "M4 3h16v7H4V3Zm0 11h16v7H4v-7ZM8 6.5h.01M8 17.5h.01M12 6.5h5M12 17.5h5",
+  settings: "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8ZM9 3h6l1 3 3 1 2 5-2 5-3 1-1 3H9l-1-3-3-1-2-5 2-5 3-1 1-3Z",
+  terminal: "m5 6 6 6-6 6m8 0h6",
+} as const;
+
+interface Props {
+  name: keyof typeof paths;
+  size?: number;
+  class?: string;
+}
+
+const { name, size = 20, class: className } = Astro.props;
+---
+
+<svg class={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <path d={paths[name]} />
+</svg>

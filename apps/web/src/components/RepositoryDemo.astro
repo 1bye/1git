@@ -1,0 +1,141 @@
+---
+import Icon from "./Icon.astro";
+import { demoFiles, demoCommits } from "../data/demo";
+import "../styles/demo.css";
+---
+
+<div class="git-demo" data-repository-demo data-theme="dark">
+  <div class="git-titlebar">
+    <div class="traffic-lights" aria-hidden="true">
+      <i></i>
+      <i></i>
+      <i></i>
+    </div>
+    <div class="git-repo-tab">
+      <img src="/favicon.svg" width="17" height="17" alt="" /> orbit <span>×</span>
+    </div>
+    <span class="git-title-hint">A little space to build.</span>
+    <button class="git-theme-toggle" type="button" aria-label="Use light preview theme" aria-pressed="false" title="Change preview theme">
+      <Icon name="moon" size={16} />
+    </button>
+  </div>
+  <div class="git-workspace">
+    <aside class="git-rail" aria-hidden="true">
+      <img src="/favicon.svg" width="25" height="25" alt="" />
+      <Icon name="home" size={19} />
+      <Icon name="folder" size={19} />
+      <span class="rail-spacer"></span>
+      <Icon name="settings" size={18} />
+    </aside>
+    <div class="git-sidebar">
+      <div class="git-project-heading">
+        <span class="project-avatar">o</span>
+        <strong>orbit</strong>
+        <Icon name="chevron" size={12} />
+      </div>
+      <div class="git-machine">
+        <Icon name="laptop" size={14} />
+        <span data-machine-label>This Mac</span>
+        <span class="connection-dot"></span>
+      </div>
+      <div class="git-navigation" role="tablist" aria-label="Repository view">
+        <button id="changes-tab" type="button" role="tab" aria-selected="true" aria-controls="changes-view" data-view="changes">
+          <Icon name="code" size={16} />
+          <span>Changes</span>
+          <span class="git-count">3</span>
+        </button>
+        <button id="history-tab" type="button" role="tab" aria-selected="false" aria-controls="history-view" tabindex="-1" data-view="history">
+          <Icon name="history" size={16} />
+          <span>History</span>
+        </button>
+      </div>
+      <div class="git-sidebar-label">BRANCHES <span>+</span>
+      </div>
+      <div class="git-branch-row is-current">
+        <Icon name="branch" size={14} />main<span class="branch-dot"></span>
+      </div>
+      <div class="git-branch-row">
+        <Icon name="branch" size={14} />feature/workspace</div>
+      <div class="git-branch-row">
+        <Icon name="branch" size={14} />fix/sidebar-spacing</div>
+      <div class="git-sidebar-label remotes-label">REMOTES</div>
+      <div class="git-branch-row">
+        <Icon name="globe" size={14} />origin</div>
+      <div class="git-sidebar-bottom">
+        <span class="profile-avatar">J</span> Your workspace <span>⌘ K</span>
+      </div>
+    </div>
+    <div class="git-content">
+      <div class="git-toolbar">
+        <span>
+          <Icon name="branch" size={14} />main<small>⌄</small>
+        </span>
+        <span class="git-sync">
+          <Icon name="download" size={14} /> Fetch origin</span>
+      </div>
+      <div id="changes-view" class="git-changes-view" role="tabpanel" aria-labelledby="changes-tab">
+        <div class="git-file-list" role="tablist" aria-label="Changed files" aria-orientation="vertical">
+          <div class="git-file-heading">Working changes <span>3</span>
+          </div>
+          {demoFiles.map((file, index) => (
+          <button id={`file-tab-${index}`} type="button" role="tab" aria-selected={index === 0 ? "true" : "false"} aria-controls={`file-panel-${index}`} tabindex={index === 0 ? 0 : -1} data-file={index}>
+            <Icon name="file" size={14} />
+            <span>{file.name}<small>{file.path.split("/").slice(0, -1).join("/") || "/"}</small>
+            </span>
+            <b>M</b>
+          </button>
+          ))}
+          <div class="git-file-summary">
+            <span>3 changed files</span>
+            <span>
+              <b>+12</b> <em>−4</em>
+            </span>
+          </div>
+        </div>
+        <div class="git-diffs">
+          {demoFiles.map((file, index) => (
+          <section id={`file-panel-${index}`} class="git-diff-panel" role="tabpanel" aria-labelledby={`file-tab-${index}`} hidden={index !== 0}>
+            <header class="git-diff-heading">
+              <span>{file.name}</span>
+              <span>
+                <b>+{file.additions}</b> <em>−{file.deletions}</em>
+              </span>
+            </header>
+            <div class="git-diff-scroll" tabindex="0" role="region" aria-label={`${file.name} diff`}>
+              <div class="git-diff-hunk">@@ −1,{file.lines.length - file.additions} +1,{file.lines.length - file.deletions} @@</div>
+              <pre class="git-diff-code" aria-label={`${file.language} changes`}>{file.lines.map(([kind, line], lineIndex) => <span class={`diff-line diff-${kind}`}><span class="line-number" aria-hidden="true">{lineIndex + 1}</span><span class="line-sign" aria-hidden="true">{kind === "add" ? "+" : kind === "remove" ? "−" : " "}</span><code><span class="sr-only">{kind === "add" ? "Added: " : kind === "remove" ? "Removed: " : ""}</span>{line || " "}</code>{"\n"}</span>)}</pre>
+            </div>
+          </section>
+          ))}
+        </div>
+      </div>
+      <div id="history-view" class="git-history-view" role="tabpanel" aria-labelledby="history-tab" hidden>
+        <div class="git-history-heading">
+          <strong>A little progress, every day.</strong>
+          <span>6 commits on main</span>
+        </div>
+        {demoCommits.map(([message, hash, time], index) => (
+        <div class="git-commit-row">
+          <span class:list={["commit-node", { "is-head": index === 0 }]}></span>
+          <div>
+            <strong>{message}</strong>
+            <span>Jamie · {time}</span>
+          </div>
+          <code>{hash}</code>{index === 0 && <span class="head-label">main</span>}</div>
+        ))}
+      </div>
+      <div class="git-statusbar">
+        <span>
+          <span class="connection-dot"></span>
+          <span data-machine-label>This Mac</span>
+        </span>
+        <span>UTF-8 <span>LF</span>
+        </span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  import "../scripts/repository-demo";
+</script>
