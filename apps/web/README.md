@@ -2,9 +2,9 @@
 
 An Astro landing page alongside the native app, adapted from Taada's cloudy
 desktop, MacBook preview, spacious feature cards, and large footer wordmark.
-The app preview is HTML/CSS, with sample files, history, light/dark appearance,
-and Mac/SSH machine selection. It never reads local repositories or connects to
-GitHub or an SSH machine. Reloading resets the preview.
+The app preview uses the user's native macOS screenshot, preserving the actual
+window material and controls. Astro generates responsive WebP images, with a
+link to the full-size original. The public page never connects to GitHub or SSH.
 
 ## Development
 
@@ -67,3 +67,10 @@ Taada website. The 1git ribbon is copied from
 `docs/branding/macos-icon/Ribbon-Final.svg`. Apple bezel provenance and usage
 references are retained in `assets/macbook-source.json`. No original large
 photographs, PSDs, DMGs, or source image packs are shipped.
+
+`src/assets/1git-native-window.png` is the user's supplied 1902 × 1312 screenshot
+(`SCR-20261017-ofhm.png`). CSS frames its app window at (72, 79, 1754, 1152),
+preserving the actual macOS traffic lights, glass, grain and window border.
+Repository tabs and file names in the screenshot remain visible. No window
+chrome is recreated in HTML. To replace the screenshot, update the PNG and its
+window bounds together; the build generates optimized responsive variants.

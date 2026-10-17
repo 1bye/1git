@@ -1,28 +1,29 @@
 ---
 import Layout from "../layouts/Layout.astro";
 import Icon from "../components/Icon.astro";
-import RepositoryDemo from "../components/RepositoryDemo.astro";
+import { Image } from "astro:assets";
+import workspaceScreenshot from "../assets/1git-native-window.png";
 import Features from "../components/Features.astro";
 ---
 
 <Layout>
+  <header class="site-header" inert>
+    <div class="site-header-content">
+      <a class="brand" href="#top" aria-label="1git home">
+        <img src="/favicon.svg" width="38" height="38" alt="" />
+        <span>1git</span>
+      </a>
+      <nav aria-label="Main navigation">
+        <a class="header-download" href="https://git.1bye.dev/download">Download <Icon name="arrow" size={15} />
+        </a>
+      </nav>
+    </div>
+  </header>
   <main id="main">
     <section id="top" class="hero" aria-labelledby="hero-title">
       <img class="hero-sky" src="/images/clouds-1920.webp" srcset="/images/clouds-960.webp 960w, /images/clouds-1920.webp 1920w, /images/clouds-2560.webp 2560w" sizes="100vw" width="2560" height="1442" alt="" fetchpriority="high" decoding="async" />
       <div class="hero-shade"></div>
-      <header class="site-header">
-        <a class="brand" href="#top" aria-label="1git home">
-          <img src="/favicon.svg" width="38" height="38" alt="" />
-          <span>1git</span>
-        </a>
-        <nav aria-label="Main navigation">
-          <a href="#features">A closer look</a>
-          <a class="header-download" href="https://git.1bye.dev/download">Download <Icon name="arrow" size={15} />
-          </a>
-        </nav>
-      </header>
       <div class="hero-copy">
-        <p class="hero-eyebrow">A native Git client. Made for your Mac.</p>
         <h1 id="hero-title">A clearer view.<br />
           <span>Of every change.</span>
         </h1>
@@ -42,24 +43,12 @@ import Features from "../components/Features.astro";
               <span>⌘ &nbsp; Fri 17 Oct &nbsp; 9:41</span>
             </div>
             <div class="desktop-app">
-              <RepositoryDemo />
+              <a class="app-screenshot-link" href={workspaceScreenshot.src} target="_blank" rel="noopener" aria-label="View the full-size 1git app screenshot">
+                <Image class="app-screenshot" src={workspaceScreenshot} width={1440} widths={[960, 1440, 1902]} sizes="(max-width: 1120px) 100vw, 1200px" format="webp" quality={90} loading="eager" alt="1git's native macOS window showing repository tabs, a stash, and the changes to a Docker ignore file." />
+              </a>
             </div>
           </div>
         </div>
-      </div>
-    </section>
-    <section class="demo-guide" aria-label="Explore the preview">
-      <div>
-        <span class="preview-label">
-          <span class="connection-dot"></span> A little look inside</span>
-        <p>Switch files. Browse history. Make yourself at home.</p>
-        <span class="sample-note">Interactive preview · sample repository</span>
-      </div>
-      <div class="machine-switcher" role="group" aria-label="Preview machine">
-        <button type="button" data-machine="This Mac" aria-pressed="true">
-          <Icon name="laptop" size={17} /> This Mac</button>
-        <button type="button" data-machine="studio.local · SSH" aria-pressed="false">
-          <Icon name="server" size={16} /> Over SSH</button>
       </div>
     </section>
     <Features />
@@ -119,4 +108,5 @@ import Features from "../components/Features.astro";
 
 <script>
   import "../scripts/hero-motion";
+  import "../scripts/site-header";
 </script>
