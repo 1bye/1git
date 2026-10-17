@@ -104,6 +104,11 @@ keys. The typing caret is a CSS border sized in the same monospace units as its
 text, so it stays beyond the letters throughout the reveal. Touch screens get brief entry sequences
 for the checks, branch, tabs, AI draft, file versions, stashes, editor routes and
 keycaps.
+On pointer exit, interrupted hover artwork eases from its current frame back to
+rest over 420 ms. A quick re-entry finishes that return before replaying; tab
+close buttons stay in their own slots throughout. Existing CSS transitions handle
+space and provider tiles. Returns are cancelled when motion is paused, reduced,
+hidden or offscreen, and touch entry sequences remain independent of hover.
 An IntersectionObserver stops artwork offscreen. The pause button beside the
 section title stops all artwork motion; hidden documents and reduced-motion
 preferences also keep it still. The artwork is decorative and performs no Git,
