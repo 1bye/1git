@@ -4,14 +4,44 @@ import "../styles/site.css";
 interface Props {
   title?: string;
   description?: string;
+  noindex?: boolean;
+  structuredData?: Record<string, unknown>;
 }
 
 const {
-  title = "1git — A clearer view of every change",
-  description = "A native Git client for your Mac. Review changes, explore history, and work with repositories on your Mac or over SSH, all in one workspace.",
+  title = "1git — Native Git client for macOS",
+  description = "Review changes, stage files, and manage branches with 1git, a native Git client for macOS. Local and SSH repositories, GitHub, GitLab, and AI commit drafts.",
+  noindex = false,
+  structuredData,
 } = Astro.props;
 
 const canonical = new URL(Astro.url.pathname, Astro.site);
+const socialImage = new URL("/og.png", Astro.site);
+const socialImageAlt = "1git — A clearer view of every change. App screenshot showing repository tabs, stashes, and a file diff.";
+
+const graph = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": new URL("/#website", Astro.site).href,
+      name: "1git",
+      url: Astro.site?.href,
+      inLanguage: "en",
+    },
+    {
+      "@type": "WebPage",
+      "@id": canonical.href,
+      url: canonical.href,
+      name: title,
+      description,
+      inLanguage: "en",
+      isPartOf: { "@id": new URL("/#website", Astro.site).href },
+      ...(structuredData?.["@type"] === "FAQPage" ? structuredData : {}),
+    },
+    ...(structuredData && structuredData["@type"] !== "FAQPage" ? [structuredData] : []),
+  ],
+};
 ---
 
 <!doctype html>
@@ -22,13 +52,26 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
     <meta name="description" content={description} />
     <meta name="theme-color" content="#0e0e11" />
     <meta name="color-scheme" content="dark" />
+    <meta name="robots" content={noindex ? "noindex, follow" : "index, follow, max-image-preview:large"} />
     <meta property="og:type" content="website" />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonical} />
     <meta property="og:site_name" content="1git" />
-    <link rel="canonical" href={canonical} />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content={socialImage} />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content={socialImageAlt} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={socialImage} />
+    <meta name="twitter:image:alt" content={socialImageAlt} />
+    {!noindex && <link rel="canonical" href={canonical} />}
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    {!noindex && <script type="application/ld+json" set:html={JSON.stringify(graph).replace(/</g, "\\u003c")} />}
     <title>{title}</title>
   </head>
   <body>

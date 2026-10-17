@@ -1,0 +1,105 @@
+---
+import Layout from "../layouts/Layout.astro";
+import Icon from "../components/Icon.astro";
+
+const questions = [
+  {
+    id: "what-is-1git",
+    question: "What is 1git?",
+    answer: "1git is a native Git client for macOS, made by 1bye. Review diffs, commit selected files, manage branches and worktrees, browse commit history, and keep multiple repositories open in tabs. Its native interface is GPU rendered using GPUI and Metal.",
+  },
+  {
+    id: "requirements",
+    question: "Which Macs can run 1git?",
+    answer: "1git requires macOS 13 or later, an Apple Silicon Mac, and Git installed on your Mac. The desktop download is for macOS; Linux and Intel machines can be used as remote SSH hosts, with the requirements below.",
+  },
+  {
+    id: "accounts",
+    question: "Do I need a GitHub or GitLab account?",
+    answer: "No. You can open and work with existing Git repositories without connecting a hosting account. 1git supports optional GitHub and GitLab connections for hosting features such as browsing repositories. Git authentication stays separate and uses your Git credentials or SSH configuration.",
+  },
+  {
+    id: "github-cli",
+    question: "Can I connect with an existing GitHub CLI account?",
+    answer: "Yes. Choose GitHub CLI when adding a GitHub account. 1git detects accounts already signed in with gh and lets you choose one. GitHub CLI keeps managing the credentials; 1git does not copy its tokens into the app's credential store or change the CLI's active account.",
+  },
+  {
+    id: "ssh",
+    question: "Can I work with repositories over SSH?",
+    answer: "Yes. Add an SSH machine to browse and open its repositories in the same workspace. 1git supports Linux and macOS hosts on x64 and ARM64, with Git, an SSH command shell, gzip, and sha256sum or shasum. It installs a small helper on the remote machine, where Git operations run using that machine's identity and credentials.",
+  },
+  {
+    id: "spaces",
+    question: "What is the difference between spaces and tabs?",
+    answer: "Each repository opens in its own tab. Spaces group repositories into separate contexts, such as Work and Personal, and remember their tabs, commit drafts, and layout. The same repository can belong to several spaces without moving or copying its files.",
+  },
+  {
+    id: "ai",
+    question: "How do AI commit drafts work?",
+    answer: "AI is optional and off by default. Connect an AI provider in Settings, choose a model and default account, then request a draft for your selected changes. Generation sends context from those changes to the selected provider. The suggestion remains editable, and you review it before committing.",
+  },
+  {
+    id: "ignored-files",
+    question: "Can 1git keep history for ignored files?",
+    answer: "Yes, when you opt in for specific ignored files or folders in a local repository's settings. 1git keeps encrypted, device-local versions that you can review and restore. This history is separate from Git commits and cannot recover changes made before monitoring was enabled.",
+  },
+] as const;
+
+const structuredData = {
+  "@type": "FAQPage",
+  about: { "@id": new URL("/#app", Astro.site).href },
+  mainEntity: questions.map(({ id, question, answer }) => ({
+    "@type": "Question",
+    "@id": new URL(`/faq/#${id}`, Astro.site).href,
+    name: question,
+    acceptedAnswer: { "@type": "Answer", text: answer },
+  })),
+};
+---
+
+<Layout title="1git FAQ — macOS, SSH, accounts & AI commit drafts" description="Answers about 1git's Mac requirements, GitHub CLI and GitLab accounts, SSH repositories, spaces, AI commit drafts, and ignored-file history." structuredData={structuredData}>
+  <header class="faq-nav">
+    <a class="brand" href="/" aria-label="1git home">
+      <img src="/favicon.svg" width="32" height="32" alt="" /><span>1git</span>
+    </a>
+    <a class="header-download" href="https://git.1bye.dev/download">Download <Icon name="arrow" size={15} /></a>
+  </header>
+  <main id="main" class="faq">
+    <div class="faq-intro">
+      <p class="eyebrow">Questions &amp; answers</p>
+      <h1>A few things<br /><span>to know.</span></h1>
+      <p>Getting started with 1git, your native Git client for Mac.</p>
+    </div>
+    <div class="faq-answers">
+      {questions.map(({ id, question, answer }) => (
+        <section id={id} aria-labelledby={`${id}-title`}>
+          <h2 id={`${id}-title`}><a href={`#${id}`}>{question}</a></h2>
+          <p>{answer}</p>
+        </section>
+      ))}
+    </div>
+    <a class="faq-back" href="/">Explore 1git <Icon name="arrow" size={16} /></a>
+  </main>
+  <footer class="footer faq-footer">
+    <div class="footer-meta"><span>Made by <a href="https://1bye.dev">1bye</a>.</span><p>macOS 13+ · Apple Silicon · Git required</p></div>
+  </footer>
+</Layout>
+
+<style>
+  .faq-nav { display: flex; align-items: center; justify-content: space-between; max-width: 1088px; margin: 0 auto; padding: 24px; }
+  .faq-nav .header-download { display: inline-flex; align-items: center; gap: 8px; min-height: 34px; font-size: 13px; }
+  .faq { max-width: 728px; margin: 72px auto 0; padding: 0 24px; }
+  .faq-intro { margin-bottom: 64px; }
+  h1 { margin: 0; font-size: clamp(48px, 8vw, 76px); font-weight: 600; line-height: 1.06; letter-spacing: -.03em; }
+  h1 span { color: #adaeb8; }
+  .faq-intro > p:last-child { margin: 24px 0 0; color: #adaeb8; font-size: 17px; line-height: 1.6; }
+  .faq-answers { display: grid; gap: 38px; }
+  .faq-answers section { scroll-margin-top: 30px; }
+  h2 { margin: 0 0 10px; font-size: 21px; font-weight: 500; letter-spacing: -.015em; line-height: 1.35; }
+  h2 a:hover { color: #c5cbd6; }
+  .faq-answers p { margin: 0; color: #adaeb8; font-size: 16px; line-height: 1.75; }
+  .faq-back { display: inline-flex; align-items: center; gap: 10px; margin-top: 52px; font-size: 15px; }
+  .faq-back:hover { color: #91b9ff; }
+  .faq-footer { max-width: 728px; }
+  @media (max-width: 650px) { .faq-nav { padding: 18px; } .faq { margin-top: 48px; padding: 0 18px; } .faq-intro { margin-bottom: 44px; } h2 { font-size: 19px; } .faq-answers p { font-size: 15px; } }
+</style>

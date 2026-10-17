@@ -51,6 +51,7 @@ a:focus-visible, button:focus-visible { outline: 3px solid #91b9ff; outline-offs
 .footer .download-button { min-height: 44px; padding: 0 18px; font-size: 13px; }
 .footer-meta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px 24px; padding-top: 16px; color: #a0a0ac; font-size: 11px; line-height: 1.5; }
 .footer-meta p { margin: 0; }
+.footer-links { display: flex; flex-wrap: wrap; gap: 12px 24px; }
 .footer-meta a:hover { color: #f2f2f4; }
 .not-found { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100svh; padding: 40px 20px; text-align: center; }
 .not-found .brand { margin-bottom: 50px; }

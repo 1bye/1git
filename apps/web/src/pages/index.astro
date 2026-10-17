@@ -4,9 +4,32 @@ import Icon from "../components/Icon.astro";
 import { Image } from "astro:assets";
 import workspaceScreenshot from "../assets/1git-native-window.png";
 import Features from "../components/Features.astro";
+
+const application = {
+  "@type": "SoftwareApplication",
+  "@id": new URL("/#app", Astro.site).href,
+  name: "1git",
+  url: Astro.site?.href,
+  description: "A native Git client for macOS. Review changes, stage files, manage branches and worktrees, and work with local or SSH repositories in separate spaces and tabs.",
+  applicationCategory: "DeveloperApplication",
+  operatingSystem: "macOS 13 or later",
+  processorRequirements: "Apple Silicon",
+  softwareRequirements: "Git",
+  downloadUrl: new URL("/download", Astro.site).href,
+  screenshot: new URL(workspaceScreenshot.src, Astro.site).href,
+  image: new URL("/og.png", Astro.site).href,
+  author: { "@type": "Person", name: "1bye", url: "https://1bye.dev/" },
+  featureList: [
+    "Native GPU-rendered interface", "Review changes and commit selected files",
+    "Branches and worktrees", "Spaces and repository tabs", "Commit history",
+    "GitHub and GitLab accounts", "GitHub CLI sign-in", "Local and SSH repositories",
+    "Optional AI commit drafts", "Opt-in ignored-file history", "Multiple stashes",
+    "Editors by file type", "Keyboard shortcuts",
+  ],
+};
 ---
 
-<Layout>
+<Layout structuredData={application}>
   <header class="site-header" inert>
     <div class="site-header-content">
       <a class="brand" href="#top" aria-label="1git home">
@@ -27,7 +50,7 @@ import Features from "../components/Features.astro";
         <h1 id="hero-title">A clearer view.<br />
           <span>Of every change.</span>
         </h1>
-        <p class="hero-description">Your repositories, branches, and next good idea.<br class="desktop-break" /> All in a workspace that feels like home.</p>
+        <p class="hero-description">A native Git client for macOS.<br class="desktop-break" /> Local repositories and SSH. One focused workspace.</p>
         <a class="download-button" href="https://git.1bye.dev/download">
           <svg width="18" height="21" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
             <path d="M17.05 12.54c.03 3.05 2.68 4.07 2.71 4.08-.02.07-.42 1.45-1.39 2.87-.84 1.23-1.71 2.46-3.08 2.48-1.34.03-1.78-.8-3.31-.8-1.53 0-2.01.77-3.28.83-1.32.05-2.32-1.33-3.17-2.55-1.73-2.5-3.06-7.07-1.28-10.15a4.93 4.93 0 0 1 4.17-2.53c1.3-.02 2.53.88 3.32.88.79 0 2.27-1.09 3.83-.93.65.03 2.49.26 3.67 1.98-.1.06-2.19 1.28-2.19 3.84ZM14.53 5.06c.7-.85 1.17-2.03 1.04-3.21-1.01.04-2.24.67-2.97 1.52-.65.75-1.22 1.94-1.06 3.1 1.13.09 2.29-.57 2.99-1.41Z" />
@@ -63,7 +86,10 @@ import Features from "../components/Features.astro";
       </a>
     </div>
     <div class="footer-meta">
-      <span>Made by <a href="https://1bye.dev">1bye</a>.</span>
+      <div class="footer-links">
+        <span>Made by <a href="https://1bye.dev">1bye</a>.</span>
+        <a href="/faq/">Questions &amp; answers</a>
+      </div>
       <p>macOS 13+ · Apple Silicon · Git required</p>
     </div>
   </footer>

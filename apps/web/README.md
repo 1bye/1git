@@ -62,6 +62,33 @@ this stack: installed apps and the website rely on that origin. Production route
 behavior still needs verification after the first actual deployment; offline
 tests substitute the Cloudflare assets binding and the release origin.
 
+## Search and sharing
+
+`Layout.astro` supplies canonical production URLs, page descriptions, Open Graph
+and X large-image cards, and JSON-LD. The home page describes the actual macOS
+application with `SoftwareApplication`; no price, rating, or benchmark is invented.
+The linked `/faq/` page keeps factual answers visible in static HTML and derives
+its `FAQPage` markup from that same content. This is descriptive markup, not a
+promise of a search rich result or an AI citation. Keep answers aligned with the
+native app when capabilities change.
+
+`public/sitemap.xml` lists the two indexable pages; add new public content pages
+there when needed. `robots.txt` allows crawling and advertises that sitemap. The
+404 page is `noindex` and has no canonical or structured data. No special AI-only
+content or crawler-specific rendering is used. Search Console and Bing Webmaster
+Tools verification and sitemap submission happen separately after deployment.
+
+`src/pages/og.png.ts` renders a 1200 × 630 PNG during `astro build`, using the
+existing ribbon logo and native app screenshot, framed to the same window bounds
+as the homepage. It
+needs no runtime image service or extra dependency. Preview `/og.png` locally
+after a build, and check image dimensions, metadata URLs and FAQ answers before
+publishing. PNG is used for broad sharing-crawler compatibility.
+
+References: [Google's AI search guidance](https://developers.google.com/search/docs/appearance/ai-features),
+[SoftwareApplication](https://schema.org/SoftwareApplication), and
+[Open Graph](https://ogp.me/).
+
 ## Assets
 
 The responsive cloud WebPs and optimized MacBook bezel come from the user's
