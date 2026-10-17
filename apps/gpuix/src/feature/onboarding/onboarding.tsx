@@ -65,7 +65,7 @@ export function Onboarding({
 	const view = useRef<PublicInstance>(null);
 	const content = useRef<PublicInstance>(null);
 	const accountForm = useRef<PublicInstance>(null);
-	const connection = useAccountConnection({ accounts });
+	const connection = useAccountConnection({ accounts, preferGitHubCli: true });
 	const { setSaved, setError: setAccountError } = connection;
 	const cancelAccount = useRef(connection.cancelConnection);
 

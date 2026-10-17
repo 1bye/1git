@@ -14,11 +14,14 @@ export function useAccountConnection({
 	accounts,
 	initialForm = "list",
 	initialReconnectKey,
+	preferGitHubCli = false,
 	openLink = NativeBrowser.open,
 }: {
 	accounts: Accounts;
 	initialForm?: "list" | "connect";
 	initialReconnectKey?: string;
+	/** Preselect signed-in CLI accounts for new GitHub connections during onboarding. */
+	preferGitHubCli?: boolean;
 	openLink?: (url: string) => Promise<void>;
 }) {
 	const [saved, setSaved] = useState<SavedAccount[]>([]);
@@ -51,6 +54,13 @@ export function useAccountConnection({
 	const token = useRef("");
 	const request = useRef<AbortController | null>(null);
 	const mounted = useRef(true);
+	const methodWasChosen = useRef(false);
+	const preferCli = preferGitHubCli && !replacing;
+
+	const discoverCli =
+		form === "connect" &&
+		provider === "github" &&
+		(method === "github-cli" || preferCli);
 
 	useEffect(() => {
 		mounted.current = true;
@@ -63,8 +73,7 @@ export function useAccountConnection({
 	}, []);
 
 	useEffect(() => {
-		if (form !== "connect" || provider !== "github" || method !== "github-cli")
-			return;
+		if (!discoverCli) return;
 
 		const controller = new AbortController();
 
@@ -80,6 +89,14 @@ export function useAccountConnection({
 				if (!controller.signal.aborted) {
 					setCliAccounts(found);
 					setCliSelected(found.length === 1 ? found[0] : undefined);
+
+					if (
+						preferCli &&
+						found.length &&
+						!methodWasChosen.current &&
+						!request.current
+					)
+						setMethod("github-cli");
 				}
 			} catch (cause) {
 				if (!controller.signal.aborted)
@@ -94,7 +111,7 @@ export function useAccountConnection({
 		})();
 
 		return () => controller.abort();
-	}, [accounts, form, provider, method, cliRevision]);
+	}, [accounts, discoverCli, cliRevision, preferCli]);
 
 	const perform = useCallback(
 		async (operation: (signal: AbortSignal) => Promise<void>) => {
@@ -133,6 +150,7 @@ export function useAccountConnection({
 		) => {
 			if (request.current) return;
 
+			methodWasChosen.current = !!account;
 			setReplacing(account);
 			setProvider(account?.provider ?? selectedProvider);
 			setWebUrl(account?.webUrl ?? accountSetup[selectedProvider].host);
@@ -196,12 +214,11 @@ export function useAccountConnection({
 	}, [accounts, initialForm, initialReconnectKey, startConnection]);
 
 	const changeMethod = (next: AccountConnectionMethod) => {
-		if (
-			busy ||
-			method === next ||
-			(next === "github-cli" && provider !== "github")
-		)
-			return;
+		if (busy || (next === "github-cli" && provider !== "github")) return;
+
+		methodWasChosen.current = true;
+
+		if (method === next) return;
 
 		setMethod(next);
 		token.current = "";
@@ -222,6 +239,7 @@ export function useAccountConnection({
 	const connect = () => {
 		if (request.current) return;
 
+		methodWasChosen.current = true;
 		const credential = token.current;
 
 		token.current = "";
@@ -296,6 +314,7 @@ export function useAccountConnection({
 	const changeProvider = (value: SavedAccount["provider"]) => {
 		if (busy || replacing || value === provider) return;
 
+		methodWasChosen.current = false;
 		setProvider(value);
 		setMethod((current) => (current === "github-cli" ? "browser" : current));
 		setClientId("");

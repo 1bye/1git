@@ -1,7 +1,7 @@
 /**
  * Covers: first-run/replay setup, split account editing, theme/default preservation, explicit identity saving and repository success/cancellation.
  * Real: App, native setup/forms, session persistence and repository connection lifecycle.
- * Doubles: Git config/repository/setup, folder picker, hosting HTTP/vault and disposable account metadata.
+ * Doubles: Git config/repository/setup, folder picker, GitHub CLI, hosting HTTP/vault and disposable account metadata.
  * Requires: patched native renderer and macOS graphics; no user credentials, Git writes or network.
  */
 import { afterEach, beforeEach, expect, it, mock, spyOn } from "bun:test";
@@ -17,12 +17,14 @@ import { hostingRepositories } from "../_shared/hosting-repositories";
 import { repositorySnapshot } from "../_shared/repository-snapshot";
 import { windowOptions } from "../../src/window-options";
 import { NativeFileMenu } from "../../src/feature/repository-workspace/lib/native-file-menu";
+import type { GitHubCliAccount } from "../../src/feature/accounts/lib/github-cli";
 
 let root: TestRoot;
 let f: ReturnType<typeof hostingRepositories>;
 
 beforeEach(() => {
 	f = hostingRepositories();
+	spyOn(f.accounts, "cliAccounts").mockResolvedValue([]);
 	root = createTestRoot({
 		width: 980,
 		height: 640,
@@ -146,6 +148,137 @@ function fixture() {
 		saveSession: save,
 	};
 }
+
+it("prefers a signed-in GitHub CLI account during onboarding without connecting it", async () => {
+	const found: GitHubCliAccount[] = [
+		{ host: "github.com", username: "octocat", active: true },
+	];
+
+	const discovery = spyOn(f.accounts, "cliAccounts").mockResolvedValue(found);
+	const connect = spyOn(f.accounts, "connectCli");
+
+	root.render(<App {...fixture()} initialOnboarding="git" />);
+	await settle();
+	await click("onboarding-provider-github");
+
+	expect(
+		node("account-auth-github-cli").customProps?.["aria-description"]
+	).toBe("Selected connection method");
+	expect(
+		node("account-cli-github.com-octocat").customProps?.["aria-description"]
+	).toBe("Selected account");
+	expect(node("account-connect").customProps?.tabIndex).toBe(0);
+	expect(node("account-connect").style.opacity).not.toBe(0.45);
+	expect(discovery).toHaveBeenCalledTimes(1);
+	expect(connect).not.toHaveBeenCalled();
+	expect(f.requests).toHaveLength(0);
+
+	if (process.env.GPUIX_ONBOARDING_SCREENSHOT)
+		root.renderer.captureScreenshot(
+			`${process.env.GPUIX_ONBOARDING_SCREENSHOT}-cli.png`
+		);
+});
+
+it("preselects the CLI method with multiple accounts and requires an explicit account choice", async () => {
+	spyOn(f.accounts, "cliAccounts").mockResolvedValue([
+		{ host: "github.com", username: "first", active: true },
+		{ host: "github.com", username: "second", active: false },
+	]);
+	root.render(<App {...fixture()} initialOnboarding="git" />);
+	await settle();
+	await click("onboarding-provider-github");
+
+	expect(
+		node("account-auth-github-cli").customProps?.["aria-description"]
+	).toBe("Selected connection method");
+	expect(node("account-connect").style.opacity).toBe(0.45);
+	await click("account-cli-github.com-second");
+	expect(
+		node("account-cli-github.com-second").customProps?.["aria-description"]
+	).toBe("Selected account");
+	expect(node("account-connect").customProps?.tabIndex).toBe(0);
+	expect(f.requests).toHaveLength(0);
+});
+
+it.each(["signed out", "unavailable"])(
+	"keeps browser sign-in when GitHub CLI is %s",
+	async (state) => {
+		const discovery = spyOn(f.accounts, "cliAccounts");
+
+		if (state === "unavailable")
+			discovery.mockRejectedValue(new Error("GitHub CLI is not installed."));
+		else discovery.mockResolvedValue([]);
+
+		root.render(<App {...fixture()} initialOnboarding="git" />);
+		await settle();
+		await click("onboarding-provider-github");
+
+		expect(node("account-auth-browser").customProps?.["aria-description"]).toBe(
+			"Selected connection method"
+		);
+		expect(node("account-client-id")).toBeDefined();
+		expect(root.renderer.findByTestId("account-cli-error")).toBeUndefined();
+		expect(f.requests).toHaveLength(0);
+	}
+);
+
+it.each(["browser", "token"] as const)(
+	"preserves an explicit %s choice when CLI discovery finishes later",
+	async (method) => {
+		const discovery = Promise.withResolvers<readonly GitHubCliAccount[]>();
+
+		spyOn(f.accounts, "cliAccounts").mockReturnValue(discovery.promise);
+		root.render(<App {...fixture()} initialOnboarding="git" />);
+		await settle();
+		await click("onboarding-provider-github");
+		await click(`account-auth-${method}`);
+
+		if (method === "token") await edit("account-token", "keep-this-draft");
+
+		discovery.resolve([
+			{ host: "github.com", username: "octocat", active: true },
+		]);
+		await settle();
+
+		expect(
+			node(`account-auth-${method}`).customProps?.["aria-description"]
+		).toBe("Selected connection method");
+		expect(
+			root.renderer.findByTestId("account-cli-github.com-octocat")
+		).toBeUndefined();
+
+		if (method === "token")
+			expect(node("account-connect").customProps?.tabIndex).toBe(0);
+
+		expect(f.requests).toHaveLength(0);
+	}
+);
+
+it("ignores stale GitHub discovery after switching to GitLab", async () => {
+	const discovery = Promise.withResolvers<readonly GitHubCliAccount[]>();
+	let signal: AbortSignal | undefined;
+
+	spyOn(f.accounts, "cliAccounts").mockImplementation((current) => {
+		signal = current;
+
+		return discovery.promise;
+	});
+	root.render(<App {...fixture()} initialOnboarding="git" />);
+	await settle();
+	await click("onboarding-provider-github");
+	await click("onboarding-provider-gitlab");
+	discovery.resolve([
+		{ host: "github.com", username: "octocat", active: true },
+	]);
+	await settle();
+
+	expect(signal?.aborted).toBe(true);
+	expect(root.renderer.findByTestId("account-auth-github-cli")).toBeUndefined();
+	expect(node("account-auth-browser").customProps?.["aria-description"]).toBe(
+		"Selected connection method"
+	);
+	expect(f.requests).toHaveLength(0);
+});
 
 it.each(["light", "dark"] as const)(
 	"keeps theme selection explicit, uses compact native steps and persists skipping (%s)",
