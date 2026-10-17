@@ -2,6 +2,8 @@
 
 An Astro landing page alongside the native app, adapted from Taada's cloudy
 desktop and MacBook preview, with compact feature cards and a minimal footer.
+The website always uses a dark palette, including the navigation and 404 page,
+independently of the visitor's system appearance.
 The app preview uses the user's native macOS screenshot, preserving the actual
 window material and controls. Astro generates responsive WebP images, with a
 link to the full-size original. The public page never connects to GitHub or SSH.
@@ -75,14 +77,19 @@ Repository tabs and file names in the screenshot remain visible. No window
 chrome is recreated in HTML. To replace the screenshot, update the PNG and its
 window bounds together; the build generates optimized responsive variants.
 
-The asymmetric bento grid uses original decorative SVGs in
-`FeatureIllustration.astro` for nine existing capabilities: GPU rendering,
-commits, branches/worktrees, spaces,
-SSH, GitHub CLI, history search, stashes, and keyboard shortcuts. The renderer
+The asymmetric bento grid illustrates nine existing capabilities in
+`FeatureIllustration.astro`: GPU rendering, commits, branches/worktrees, spaces,
+SSH, GitHub CLI, history search, stashes, and keyboard shortcuts. All nine cards
+use decorative SVG artwork. The Changes illustration connects three diff strips
+to one commit. The renderer
 claim reflects the app's GPUI/Metal renderer; no benchmark or frame-rate claim
 is made. The keyboard artwork shows the app's Command+P repository picker.
-The white-and-silver artwork uses large, cropped objects, subtle surface depth,
-and small functional color accents. These are conceptual artwork, with no
-working controls, account access,
-external images, or client-side JavaScript. The hero retains the original native
-screenshot.
+The Diagram-inspired cards use a solid dark background without borders and
+small, medium-weight titles. Artwork uses flat charcoal fills, thin top-edge
+highlights, small shadows and muted functional accents; there are no gradients
+or raster illustrations in the bento.
+The processor, branch path and keycaps play
+one brief CSS animation when their cards enter view, then settle. A small
+IntersectionObserver resets them offscreen; reduced-motion preferences keep
+the artwork still. These are conceptual artwork, with no working controls,
+account access, or external images. The hero retains the original native screenshot.

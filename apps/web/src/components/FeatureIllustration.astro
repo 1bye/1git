@@ -4,107 +4,89 @@ interface Props {
 }
 
 const { feature } = Astro.props;
-const id = `feature-${feature}`;
-const silver = `url(#${id}-silver)`;
-const face = `url(#${id}-face)`;
-const edge = `url(#${id}-edge)`;
-const shadow = `url(#${id}-shadow)`;
+const shadowId = `feature-${feature}-shadow`;
+const shadow = `url(#${shadowId})`;
 ---
 
 <div class:list={["feature-illustration", `illustration-${feature}`]} aria-hidden="true">
   <svg viewBox="0 0 400 300" fill="none" focusable="false">
     <defs>
-      <linearGradient id={`${id}-silver`} x1="0" y1="0" x2="1" y2="1">
-        <stop stop-color="#fff" /><stop offset=".35" stop-color="#e7eaee" /><stop offset=".72" stop-color="#c8cdd5" /><stop offset="1" stop-color="#eef0f3" />
-      </linearGradient>
-      <linearGradient id={`${id}-face`} x1="0" y1="0" x2=".6" y2="1">
-        <stop stop-color="#fff" /><stop offset="1" stop-color="#eff1f4" />
-      </linearGradient>
-      <linearGradient id={`${id}-edge`} x1="0" y1="0" x2="0" y2="1">
-        <stop stop-color="#dce0e6" /><stop offset="1" stop-color="#adb5c1" />
-      </linearGradient>
-      <filter id={`${id}-shadow`} x="-30%" y="-30%" width="170%" height="180%">
-        <feDropShadow dx="0" dy="5" stdDeviation="4" flood-color="#515e73" flood-opacity=".12" />
+      <filter id={shadowId} x="-20%" y="-20%" width="140%" height="150%">
+        <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#000" flood-opacity=".22" />
       </filter>
     </defs>
 
     {feature === "gpu" && (
       <g transform="translate(214 160) rotate(-18)" filter={shadow}>
-        <g stroke="#aeb6c2" stroke-width="7" stroke-linecap="round">
+        <g stroke="#393941" stroke-width="6" stroke-linecap="round">
           <path d="M-62-91v-21m25 21v-21m25 21v-21m25 21v-21m25 21v-21m25 21v-21M-62 91v21m25-21v21m25-21v21m25-21v21m25-21v21m25-21v21" />
           <path d="M-91-62h-21m21 25h-21m21 25h-21m21 25h-21m21 25h-21m21 25h-21M91-62h21m-21 25h21m-21 25h21m-21 25h21m-21 25h21m-21 25h21" />
         </g>
-        <rect x="-92" y="-86" width="184" height="184" rx="28" fill={edge} stroke="#adb5c1" />
-        <rect x="-92" y="-94" width="184" height="184" rx="28" fill={silver} stroke="#fff" stroke-width="1.5" />
-        <rect x="-68" y="-70" width="136" height="136" rx="18" fill={face} stroke="#b8c0cc" />
-        <rect x="-63" y="-65" width="126" height="126" rx="14" stroke="#fff" />
-        <path d="m15-40-46 48h27l-12 35L32-8H4l11-32Z" fill="#697585" />
-        <path d="M-45 49h22m7 0h9" stroke="#c1c8d2" stroke-width="3" stroke-linecap="round" />
-        <circle cx="48" cy="48" r="3" fill="#799bbc" />
+        <rect class="surface" x="-92" y="-94" width="184" height="184" rx="23" />
+        <path class="top-edge" d="M-91-71a22 22 0 0 1 22-22H69a22 22 0 0 1 22 22" />
+        <rect x="-66" y="-68" width="132" height="132" rx="13" fill="#25252b" stroke="#35353e" />
+        <rect class="processor-pulse" x="-66" y="-68" width="132" height="132" rx="13" stroke="#8298b0" opacity="0" />
+        <path class="processor-spark" d="m15-40-46 48h27l-12 35L32-8H4l11-32Z" fill="#858591" />
+        <circle cx="48" cy="48" r="3" fill="#8193aa" />
       </g>
     )}
 
     {feature === "changes" && (
       <>
-        <g transform="translate(12 7) rotate(-11 180 155)">
-          <rect x="74" y="27" width="225" height="272" rx="22" fill="#dfe3e9" stroke="#c6cdd7" />
-          <rect x="87" y="18" width="225" height="272" rx="22" fill={silver} stroke="#d1d7e0" />
+        <g stroke="#36363f" stroke-width="2" stroke-linecap="round">
+          <path d="M244 66c57 0 34 132 66 132M244 126c39 0 23 72 66 72M244 186c26 0 30 12 66 12" />
         </g>
-        <g transform="rotate(6 219 150)" filter={shadow}>
-          <rect x="109" y="20" width="230" height="276" rx="23" fill={edge} />
-          <rect x="109" y="15" width="230" height="276" rx="23" fill={face} stroke="#fff" stroke-width="1.5" />
-          <path d="M135 45h13l7 7v19h-20V45Zm13 0v8h7" stroke="#929dab" stroke-width="2" stroke-linejoin="round" />
-          <path d="M169 50h85m-85 13h53" stroke="#ced4dc" stroke-width="5" stroke-linecap="round" />
-          <rect x="127" y="94" width="194" height="42" rx="9" fill="#f0dfdc" />
-          <path d="M139 115h11" stroke="#ad7c73" stroke-width="2.5" stroke-linecap="round" />
-          <path d="M167 115h94m9 0h22" stroke="#c39a92" stroke-width="5" stroke-linecap="round" />
-          <rect x="127" y="145" width="194" height="93" rx="9" fill="#e1ede6" />
-          <g stroke="#69947d" stroke-width="2.5" stroke-linecap="round">
-            <path d="M139 168h11m-5.5-5.5v11M139 193h11m-5.5-5.5v11M139 218h11m-5.5-5.5v11" />
-          </g>
-          <path d="M167 168h64m10 0h44m-118 25h28m10 0h81m-119 25h85" stroke="#92b5a1" stroke-width="5" stroke-linecap="round" />
-          <path d="M140 262h82m11 0h31" stroke="#d0d6de" stroke-width="4" stroke-linecap="round" />
+        <g transform="rotate(-7 174 116)" filter={shadow}>
+          <rect class="surface" x="50" y="29" width="218" height="48" rx="10" />
+          <path class="top-edge" d="M51 39a9 9 0 0 1 9-9h198a9 9 0 0 1 9 9" />
+          <rect class="surface" x="50" y="89" width="218" height="48" rx="10" />
+          <path class="top-edge" d="M51 99a9 9 0 0 1 9-9h198a9 9 0 0 1 9 9" />
+          <rect class="surface" x="50" y="149" width="218" height="48" rx="10" />
+          <path class="top-edge" d="M51 159a9 9 0 0 1 9-9h198a9 9 0 0 1 9 9" />
+          <path d="M68 53h14m-7-7v14M68 173h14m-7-7v14" stroke="#799184" stroke-width="2.5" stroke-linecap="round" />
+          <path d="M68 113h14" stroke="#a0787d" stroke-width="2.5" stroke-linecap="round" />
+          <path d="M101 53h91m10 0h33M101 173h49m11 0h55" stroke="#667b70" stroke-width="4" stroke-linecap="round" />
+          <path d="M101 113h65m11 0h58" stroke="#806266" stroke-width="4" stroke-linecap="round" />
         </g>
-        <g transform="translate(319 241)" filter={shadow}>
-          <circle cy="5" r="42" fill={edge} />
-          <circle r="42" fill={silver} stroke="#fff" stroke-width="2" />
-          <circle r="32" fill={face} stroke="#d0d7de" />
-          <path d="m-15 0 10 10 21-22" stroke="#5d8b72" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+        <g transform="rotate(8 300 219)" filter={shadow}>
+          <rect class="surface" x="230" y="169" width="136" height="104" rx="15" />
+          <path class="top-edge" d="M231 184a14 14 0 0 1 14-14h106a14 14 0 0 1 14 14" />
+          <circle cx="298" cy="221" r="17" stroke="#8c8c98" stroke-width="4" />
+          <path d="M257 221h24m34 0h24" stroke="#8c8c98" stroke-width="4" stroke-linecap="round" />
         </g>
       </>
     )}
 
     {feature === "branches" && (
       <g transform="rotate(-12 200 155)">
-        <path d="M133 290V77m0 158c0-69 145-31 145-106V56" stroke="#bcc4cf" stroke-width="15" stroke-linecap="round" />
-        <path d="M130 290V77m0 155c0-69 145-31 145-106V56" stroke="#f9fafc" stroke-width="9" stroke-linecap="round" />
+        <path d="M130 290V77m0 155c0-69 145-31 145-106V56" stroke="#393942" stroke-width="4" stroke-linecap="round" />
+        <path class="branch-signal" d="M130 290v-58c0-69 145-31 145-106V56" pathLength="100" stroke="#8b9db4" stroke-width="3" stroke-linecap="round" stroke-dasharray="8 100" stroke-dashoffset="8" opacity="0" />
         <g filter={shadow}>
-          <circle cx="132" cy="79" r="37" fill={silver} stroke="#fff" stroke-width="2" />
-          <circle cx="277" cy="56" r="37" fill={silver} stroke="#fff" stroke-width="2" />
-          <circle cx="132" cy="248" r="37" fill={silver} stroke="#fff" stroke-width="2" />
+          <circle class="surface" cx="132" cy="79" r="32" />
+          <circle class="surface" cx="277" cy="56" r="32" />
+          <circle class="surface" cx="132" cy="248" r="32" />
         </g>
-        <circle cx="132" cy="79" r="18" fill={face} stroke="#c4ccd7" />
-        <circle cx="277" cy="56" r="18" fill={face} stroke="#c4ccd7" />
-        <circle cx="132" cy="248" r="18" fill="#dce6ef" stroke="#a2b7cd" />
-        <circle cx="132" cy="248" r="7" fill="#718ea9" />
-        <path d="M126 79h12m145-23h-12" stroke="#9ba7b7" stroke-width="3" stroke-linecap="round" />
+        <path class="top-edge" d="M104 64a31 31 0 0 1 56 0M249 41a31 31 0 0 1 56 0M104 233a31 31 0 0 1 56 0" />
+        <circle cx="132" cy="79" r="7" fill="#62626e" />
+        <circle cx="277" cy="56" r="7" fill="#62626e" />
+        <circle cx="132" cy="248" r="7" fill="#8496ac" />
       </g>
     )}
 
     {feature === "history" && (
       <>
-        <path d="M0 139h400" stroke="#c4cbd6" stroke-width="3" />
-        <g fill={face} stroke="#b7c0cd" stroke-width="2">
-          <circle cx="32" cy="139" r="10" /><circle cx="103" cy="139" r="10" /><circle cx="339" cy="139" r="10" />
+        <path d="M0 139h400" stroke="#3b3b44" stroke-width="2" />
+        <g fill="#29292f" stroke="#45454f" stroke-width="1.5">
+          <circle cx="32" cy="139" r="8" /><circle cx="103" cy="139" r="8" /><circle cx="339" cy="139" r="8" />
         </g>
         <g transform="rotate(-8 211 140)" filter={shadow}>
-          <rect x="259" y="181" width="28" height="107" rx="14" transform="rotate(-43 273 195)" fill={silver} stroke="#b7c1ce" />
-          <circle cx="211" cy="139" r="79" fill={silver} stroke="#fff" stroke-width="2" />
-          <circle cx="211" cy="139" r="63" fill="#f7f8fa" stroke="#aeb9c7" stroke-width="2" />
-          <path d="M150 139h122" stroke="#bbc8d7" stroke-width="3" />
-          <circle cx="211" cy="139" r="20" fill={face} stroke="#819ab3" stroke-width="3" />
-          <circle cx="211" cy="139" r="7" fill="#819ab3" />
-          <path d="M162 118a52 52 0 0 1 59-30" stroke="#fff" stroke-width="6" stroke-linecap="round" />
+          <rect class="surface" x="259" y="181" width="25" height="107" rx="10" transform="rotate(-43 273 195)" />
+          <circle class="surface" cx="211" cy="139" r="79" />
+          <path class="top-edge" d="M144 100a78 78 0 0 1 134 0" />
+          <circle cx="211" cy="139" r="62" fill="#1e1e24" stroke="#373740" />
+          <path d="M150 139h122" stroke="#3c3c47" stroke-width="2" />
+          <circle cx="211" cy="139" r="16" fill="#29292f" stroke="#73849a" stroke-width="2" />
+          <circle cx="211" cy="139" r="5" fill="#8b9db4" />
         </g>
       </>
     )}
@@ -112,40 +94,40 @@ const shadow = `url(#${id}-shadow)`;
     {feature === "spaces" && (
       <>
         <g transform="translate(-19 29) rotate(-19 203 168)">
-          <path d="M92 88a16 16 0 0 1 16-16h62l22 23h105a16 16 0 0 1 16 16v140a16 16 0 0 1-16 16H108a16 16 0 0 1-16-16V88Z" fill={silver} stroke="#c0c8d3" />
-          <path d="M112 86h44" stroke="#91a8c3" stroke-width="5" stroke-linecap="round" />
+          <path d="M92 88a16 16 0 0 1 16-16h62l22 23h105a16 16 0 0 1 16 16v140a16 16 0 0 1-16 16H108a16 16 0 0 1-16-16V88Z" fill="#24242b" stroke="#313139" />
+          <path class="top-edge" d="M93 88a15 15 0 0 1 15-15h62l22 23h105" />
+          <path d="M112 86h44" stroke="#596976" stroke-width="4" stroke-linecap="round" />
         </g>
         <g transform="translate(25 -13) rotate(-3 203 168)">
-          <path d="M92 88a16 16 0 0 1 16-16h62l22 23h105a16 16 0 0 1 16 16v140a16 16 0 0 1-16 16H108a16 16 0 0 1-16-16V88Z" fill={silver} stroke="#c0c8d3" />
-          <path d="M112 86h44" stroke="#b4a3bd" stroke-width="5" stroke-linecap="round" />
+          <path class="surface" d="M92 88a16 16 0 0 1 16-16h62l22 23h105a16 16 0 0 1 16 16v140a16 16 0 0 1-16 16H108a16 16 0 0 1-16-16V88Z" />
+          <path class="top-edge" d="M93 88a15 15 0 0 1 15-15h62l22 23h105" />
+          <path d="M112 86h44" stroke="#6e6277" stroke-width="4" stroke-linecap="round" />
         </g>
         <g transform="translate(57 28) rotate(12 203 168)" filter={shadow}>
-          <path d="M92 88a16 16 0 0 1 16-16h62l22 23h105a16 16 0 0 1 16 16v140a16 16 0 0 1-16 16H108a16 16 0 0 1-16-16V88Z" fill={edge} stroke="#c0c8d3" />
-          <rect x="92" y="105" width="221" height="158" rx="16" fill={face} stroke="#fff" />
-          <path d="M112 86h44" stroke="#bda791" stroke-width="5" stroke-linecap="round" />
-          <path d="m125 207 10 10-10 10m21 0h16" stroke="#9ca8b8" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="M92 88a16 16 0 0 1 16-16h62l22 23h105a16 16 0 0 1 16 16v140a16 16 0 0 1-16 16H108a16 16 0 0 1-16-16V88Z" fill="#303037" stroke="#383840" />
+          <path class="top-edge" d="M93 88a15 15 0 0 1 15-15h62l22 23h105" />
+          <path d="M112 86h44" stroke="#7d7061" stroke-width="4" stroke-linecap="round" />
+          <path d="m125 207 10 10-10 10m21 0h16" stroke="#797984" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
         </g>
       </>
     )}
 
     {feature === "remote" && (
       <>
-        <path d="M126 201v41c0 23 142 23 142-9v-45" stroke="#bac3cf" stroke-width="9" stroke-linecap="round" />
-        <path d="M124 201v41c0 20 142 20 142-9v-45" stroke="#fff" stroke-width="4" stroke-linecap="round" />
+        <path d="M126 201v41c0 23 142 23 142-9v-45" stroke="#3d3d46" stroke-width="3" stroke-linecap="round" />
         <g transform="rotate(-9 126 140)" filter={shadow}>
-          <rect x="27" y="77" width="188" height="130" rx="13" fill={edge} stroke="#aeb7c4" />
-          <rect x="32" y="73" width="178" height="126" rx="10" fill={silver} stroke="#fff" />
-          <rect x="42" y="83" width="158" height="103" rx="5" fill="#e9edf2" stroke="#c1cad6" />
-          <path d="m77 119 14 14-14 14m28 0h20" stroke="#7c8a9e" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
-          <path d="M17 202h210l11 13c2 3-2 6-6 6H13c-4 0-8-3-6-6l10-13Z" fill={silver} stroke="#b5becb" />
-          <path d="M96 202h53l-4 5h-45l-4-5Z" fill="#b5becb" />
+          <rect class="surface" x="32" y="73" width="178" height="126" rx="10" />
+          <path class="top-edge" d="M33 83a9 9 0 0 1 9-9h158a9 9 0 0 1 9 9" />
+          <rect x="42" y="83" width="158" height="103" rx="5" fill="#1e1e24" stroke="#34343d" />
+          <path d="m77 119 14 14-14 14m28 0h20" stroke="#888893" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="M17 202h210l11 13c2 3-2 6-6 6H13c-4 0-8-3-6-6l10-13Z" fill="#2d2d34" stroke="#373740" />
+          <path class="top-edge" d="M18 203h208" />
         </g>
         <g transform="rotate(9 296 128)" filter={shadow}>
-          <rect x="246" y="53" width="108" height="150" rx="22" fill={edge} />
-          <rect x="240" y="46" width="108" height="150" rx="22" fill={silver} stroke="#fff" stroke-width="1.5" />
-          <rect x="253" y="61" width="82" height="120" rx="13" fill={face} stroke="#c8d0db" />
-          <path d="M269 84h50m-50 12h50m-50 12h50" stroke="#c3cbd6" stroke-width="3" stroke-linecap="round" />
-          <circle cx="294" cy="158" r="5" fill="#7a9a84" />
+          <rect class="surface" x="240" y="46" width="108" height="150" rx="18" />
+          <path class="top-edge" d="M241 64a17 17 0 0 1 17-17h72a17 17 0 0 1 17 17" />
+          <path d="M265 84h58m-58 12h58m-58 12h58" stroke="#53535e" stroke-width="3" stroke-linecap="round" />
+          <circle cx="294" cy="158" r="4" fill="#789582" />
         </g>
       </>
     )}
@@ -153,46 +135,51 @@ const shadow = `url(#${id}-shadow)`;
     {feature === "cli" && (
       <>
         <g transform="rotate(-10 183 178)" filter={shadow}>
-          <rect x="72" y="78" width="223" height="178" rx="30" fill={edge} stroke="#aeb8c5" />
-          <rect x="72" y="70" width="223" height="178" rx="30" fill={silver} stroke="#fff" stroke-width="1.5" />
-          <rect x="87" y="85" width="193" height="148" rx="19" fill={face} stroke="#bdc7d3" />
-          <path d="m110 134 17 17-17 17" stroke="#8e9bac" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
-          <text x="145" y="181" fill="#626f82" font-family="Menlo, monospace" font-size="65" font-weight="500" letter-spacing="-5">gh</text>
+          <rect class="surface" x="72" y="70" width="223" height="178" rx="24" />
+          <path class="top-edge" d="M73 94a23 23 0 0 1 23-23h175a23 23 0 0 1 23 23" />
+          <path d="m110 134 17 17-17 17" stroke="#80808e" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+          <text x="145" y="181" fill="#a0a0ad" font-family="Menlo, monospace" font-size="65" font-weight="500" letter-spacing="-5">gh</text>
         </g>
         <g transform="rotate(10 302 117)" filter={shadow}>
-          <rect x="260" y="79" width="91" height="91" rx="24" fill={edge} />
-          <rect x="260" y="74" width="91" height="91" rx="24" fill={face} stroke="#fff" stroke-width="2" />
-          <image href="/favicon.svg" x="279" y="92" width="53" height="53" />
+          <rect x="260" y="74" width="91" height="91" rx="20" fill="#303037" stroke="#383841" />
+          <path class="top-edge" d="M261 94a19 19 0 0 1 19-19h51a19 19 0 0 1 19 19" />
+          <image href="/favicon.svg" x="281" y="95" width="49" height="49" />
         </g>
-        <circle cx="330" cy="171" r="17" fill="#e2ece5" stroke="#fff" stroke-width="3" />
-        <path d="m323 171 5 5 9-10" stroke="#63876e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+        <circle cx="330" cy="171" r="15" fill="#2b3830" stroke="#3b4940" />
+        <path d="m324 171 4 4 8-9" stroke="#8fae99" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
       </>
     )}
 
     {feature === "stash" && (
       <g transform="rotate(9 200 172)">
-        <rect x="106" y="60" width="158" height="173" rx="17" transform="rotate(-16 185 146)" fill={silver} stroke="#c1cbd6" />
-        <rect x="122" y="49" width="158" height="173" rx="17" transform="rotate(-5 201 135)" fill={face} stroke="#c8d1dc" />
-        <path d="M150 78h49m-49 14h100m-100 14h80" stroke="#c2ccd7" stroke-width="5" stroke-linecap="round" />
+        <rect x="106" y="60" width="158" height="173" rx="12" transform="rotate(-16 185 146)" fill="#25252c" stroke="#36363e" />
+        <g transform="rotate(-5 201 135)">
+          <rect class="surface" x="122" y="49" width="158" height="173" rx="12" />
+          <path class="top-edge" d="M123 61a11 11 0 0 1 11-11h134a11 11 0 0 1 11 11" />
+          <path d="M150 78h49m-49 14h100m-100 14h80" stroke="#5b5b67" stroke-width="4" stroke-linecap="round" />
+        </g>
         <g filter={shadow}>
-          <path d="m101 164-23 42v63a16 16 0 0 0 16 16h212a16 16 0 0 0 16-16v-63l-23-42H101Z" fill={edge} stroke="#b9c3d0" />
-          <path d="m101 164-23 42h73l15 22h68l15-22h73l-23-42H101Z" fill={silver} stroke="#fff" />
-          <path d="M78 211h70l15 22h74l15-22h70v51a16 16 0 0 1-16 16H94a16 16 0 0 1-16-16v-51Z" fill={face} stroke="#d9dfe7" />
-          <rect x="180" y="253" width="40" height="5" rx="2.5" fill="#aebbc9" />
+          <path d="m101 164-23 42v63a16 16 0 0 0 16 16h212a16 16 0 0 0 16-16v-63l-23-42H101Z" fill="#232329" stroke="#34343c" />
+          <path d="M78 211h70l15 22h74l15-22h70v51a16 16 0 0 1-16 16H94a16 16 0 0 1-16-16v-51Z" fill="#2b2b32" />
+          <path class="top-edge" d="M79 211h69l15 22h74l15-22h69" />
+          <rect x="180" y="253" width="40" height="4" rx="2" fill="#555561" />
         </g>
       </g>
     )}
 
     {feature === "keyboard" && (
       <g transform="translate(201 165) rotate(-14)" filter={shadow}>
-        <rect x="-138" y="-58" width="126" height="136" rx="24" fill={edge} stroke="#b3bdcb" />
-        <rect x="6" y="-58" width="126" height="136" rx="24" fill={edge} stroke="#b3bdcb" />
-        <rect x="-138" y="-70" width="126" height="130" rx="24" fill={silver} stroke="#fff" stroke-width="1.5" />
-        <rect x="6" y="-70" width="126" height="130" rx="24" fill={silver} stroke="#fff" stroke-width="1.5" />
-        <rect x="-127" y="-59" width="104" height="106" rx="17" fill={face} stroke="#d9dfe7" />
-        <rect x="17" y="-59" width="104" height="106" rx="17" fill={face} stroke="#d9dfe7" />
-        <g fill="#768398" text-anchor="middle" font-size="55" font-weight="400">
-          <text x="-75" y="16">⌘</text><text x="69" y="16">P</text>
+        <rect x="-138" y="-58" width="126" height="130" rx="20" fill="#202026" />
+        <rect x="6" y="-58" width="126" height="130" rx="20" fill="#202026" />
+        <g class="key-command">
+          <rect class="surface" x="-138" y="-70" width="126" height="130" rx="20" />
+          <path class="top-edge" d="M-137-50a19 19 0 0 1 19-19h86a19 19 0 0 1 19 19" />
+          <text x="-75" y="16" fill="#9393a1" text-anchor="middle" font-size="55" font-weight="400">⌘</text>
+        </g>
+        <g class="key-picker">
+          <rect class="surface" x="6" y="-70" width="126" height="130" rx="20" />
+          <path class="top-edge" d="M7-50a19 19 0 0 1 19-19h86a19 19 0 0 1 19 19" />
+          <text x="69" y="16" fill="#9393a1" text-anchor="middle" font-size="55" font-weight="400">P</text>
         </g>
       </g>
     )}
@@ -202,4 +189,34 @@ const shadow = `url(#${id}-shadow)`;
 <style>
   .feature-illustration { position: absolute; pointer-events: none; }
   .feature-illustration > svg { display: block; width: 100%; height: 100%; overflow: visible; }
+  .surface { fill: #2b2b32; stroke: #33333b; stroke-width: 1; }
+  .top-edge { fill: none; stroke: #4a4a54; stroke-width: 1.2; stroke-linecap: round; }
+  .processor-pulse, .processor-spark { transform-box: fill-box; transform-origin: center; }
+
+  @media (prefers-reduced-motion: no-preference) {
+    :global(.feature-card[data-in-view]) .processor-pulse { animation: processor-pulse 2.4s ease-out; }
+    :global(.feature-card[data-in-view]) .processor-spark { animation: processor-spark 2.4s ease-in-out; }
+    :global(.feature-card[data-in-view]) .branch-signal { animation: branch-signal 2.8s ease-in-out; }
+    :global(.feature-card[data-in-view]) .key-command { animation: keypress 1.8s .25s ease-in-out; }
+    :global(.feature-card[data-in-view]) .key-picker { animation: keypress 1.4s .65s ease-in-out; }
+  }
+
+  @keyframes processor-pulse {
+    0%, 100% { opacity: 0; transform: scale(1); }
+    30% { opacity: .7; transform: scale(1); }
+    75% { opacity: 0; transform: scale(1.12); }
+  }
+  @keyframes processor-spark {
+    0%, 100% { transform: scale(1); }
+    35% { transform: scale(1.08); }
+  }
+  @keyframes branch-signal {
+    0%, 10% { opacity: 0; stroke-dashoffset: 8; }
+    20%, 75% { opacity: .9; }
+    90%, 100% { opacity: 0; stroke-dashoffset: -100; }
+  }
+  @keyframes keypress {
+    0%, 100% { transform: translateY(0); }
+    30%, 65% { transform: translateY(7px); }
+  }
 </style>
