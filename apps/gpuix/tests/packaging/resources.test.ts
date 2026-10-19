@@ -1,7 +1,8 @@
 /**
- * Covers: macOS icon metadata and relocatable image dependencies.
+ * Covers: macOS icon metadata, early allocator defaults/overrides and relocatable native dependencies.
  * Real: Sharp's installed native addon, copied into an isolated directory.
  * Doubles: a 1px generated image; no app window or user repository/session.
+ * Requires: Bun's macOS executable compiler and the built native addon.
  */
 import { expect, it } from "bun:test";
 import { copyFile, mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
@@ -29,7 +30,7 @@ it("links both Icon Composer and legacy icons without changing app defaults", ()
 	expect(() => bundleInfoPlist("</string>")).toThrow("numeric");
 });
 
-it("loads native modules through the compiled launcher after relocation", async () => {
+it("applies allocator defaults before loading relocated native modules, preserving overrides and arguments", async () => {
 	const directory = await mkdtemp(resolve(tmpdir(), "1git-bundle-runtime-"));
 	const contents = resolve(directory, "1git.app/Contents");
 	const resources = resolve(contents, "Resources");
@@ -73,22 +74,35 @@ it("loads native modules through the compiled launcher after relocation", async 
 
 		expect(await compile.exited).toBe(0);
 		expect(await compilerErrors).not.toContain("error:");
-		const child = Bun.spawn([executable], {
-			cwd: directory,
-			env: {
-				...process.env,
-				NAPI_RS_NATIVE_LIBRARY_PATH: "/missing/checkout.node",
-			},
-			stdout: "pipe",
-			stderr: "pipe",
-		});
 
-		const output = new Response(child.stdout).text();
-		const errors = new Response(child.stderr).text();
+		for (const [largeCache, aggressiveMadvise] of [
+			[undefined, undefined],
+			["1", undefined],
+			["1", "0"],
+		]) {
+			const child = Bun.spawn([executable, "--runtime-probe"], {
+				cwd: directory,
+				env: {
+					...process.env,
+					NAPI_RS_NATIVE_LIBRARY_PATH: "/missing/checkout.node",
+					MallocLargeCache: largeCache,
+					MallocAggressiveMadvise: aggressiveMadvise,
+					ONEGIT_EXPECT_LARGE_CACHE: largeCache ?? "0",
+					ONEGIT_EXPECT_AGGRESSIVE_MADVISE: aggressiveMadvise ?? "1",
+				},
+				stdout: "pipe",
+				stderr: "pipe",
+			});
 
-		expect(await child.exited).toBe(0);
-		expect(await output).toContain("Packaged runtime ready");
-		expect(await errors).toBe("");
+			const output = new Response(child.stdout).text();
+			const errors = new Response(child.stderr).text();
+
+			expect(await child.exited, await errors).toBe(0);
+			expect(await output).toContain(
+				`Packaged runtime ready: ${JSON.stringify({ pid: child.pid, args: ["--runtime-probe"] })}`
+			);
+			expect(await errors).toBe("");
+		}
 	} finally {
 		await rm(directory, { recursive: true, force: true });
 	}
