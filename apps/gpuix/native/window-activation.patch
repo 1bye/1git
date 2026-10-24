@@ -1,0 +1,39 @@
+diff --git a/packages/native/src/renderer.rs b/packages/native/src/renderer.rs
+--- a/packages/native/src/renderer.rs
++++ b/packages/native/src/renderer.rs
+@@ -3404,3 +3404,4 @@
+     /// Active focus/blur subscriptions keyed by element and event type.
+     pub(crate) focus_subscriptions: HashMap<(u64, String), gpui::Subscription>,
++    window_activation_subscription: Option<gpui::Subscription>,
+     /// Registry for custom element types (input, editor, diff, etc.).
+@@ -3669,3 +3670,4 @@
+             pending_focus_element: None,
+             focus_subscriptions: HashMap::new(),
++            window_activation_subscription: None,
+             custom_registry: CustomElementRegistry::with_defaults(),
+@@ -4673,3 +4675,14 @@
+         window.set_window_title(&self.window_title);
+ 
++        // GPUI owns native activation; forward transitions through the existing event bridge.
++        if self.window_activation_subscription.is_none() {
++            self.window_activation_subscription = Some(cx.observe_window_activation(
++                window,
++                |this, window, _cx| {
++                    let event = if window.is_window_active() { "windowActivated" } else { "windowDeactivated" };
++                    emit_event_full(&this.event_callback, 0, event, |_| {});
++                },
++            ));
++        }
++
+         #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+diff --git a/README.md b/README.md
+--- a/README.md
++++ b/README.md
+@@ -684,3 +684,7 @@
+ 
+ Call it again after a save and it remounts the tree on the same window.
++
++The local 1git patch forwards GPUI window activation transitions to `onEvent`
++as `windowActivated` / `windowDeactivated` (`elementId: 0`). These are native
++window transitions, not changes between focused controls inside a window.
+ 

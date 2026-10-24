@@ -1,0 +1,381 @@
+diff --git a/packages/native/src/custom_elements/diff.rs b/packages/native/src/custom_elements/diff.rs
+--- a/packages/native/src/custom_elements/diff.rs
++++ b/packages/native/src/custom_elements/diff.rs
+@@ -26,7 +26,7 @@ use gpui::{px, BorderStyle, Font, Hsla, SharedString};
+ use super::{CustomElement, CustomElementFactory, CustomRenderContext};
+ use crate::diff::{
+     annotate_word_diffs, file_notices, flatten_rows, gutter_width, parse_hunk_header, parse_patch, DiffLine, DiffRow,
+-    FileDiff, LineKind,
++    FileDiff, LineKind, split_rows,
+ };
+ use crate::renderer::emit_event_full;
+ use crate::syntax::cache::highlight_cached;
+@@ -106,6 +106,7 @@ impl FileHighlight {
+ #[derive(Default)]
+ pub struct DiffElement {
+     patch: String,
++    split: bool,
+     show_word_diff: bool,
+     scroll: bool,
+     hide_file_header: bool,
+@@ -147,6 +148,9 @@ impl DiffElement {
+         if self.hide_file_header {
+             rows.retain(|row| !matches!(row, DiffRow::FileHeader { .. }));
+         }
++        if self.split {
++            rows = split_rows(&files, rows);
++        }
+ 
+         let data = Rc::new(DiffData {
+             files,
+@@ -166,6 +170,7 @@ impl DiffElement {
+         use std::hash::{Hash, Hasher};
+         let mut hasher = std::collections::hash_map::DefaultHasher::new();
+         self.patch.hash(&mut hasher);
++        self.split.hash(&mut hasher);
+         self.show_word_diff.hash(&mut hasher);
+         self.max_lines.hash(&mut hasher);
+         self.hide_file_header.hash(&mut hasher);
+@@ -213,6 +218,15 @@ impl DiffElement {
+                         + m.diff_accent_bar_width + 2.0 * gutter_width(file, m)
+                         + m.diff_marker_width + 2.0 * m.diff_row_padding_x
+                 }
++                DiffRow::SplitLine { file, hunk, old, new } => {
++                    let file = &data.files[file as usize];
++                    let lines = &file.hunks[hunk as usize].lines;
++                    let text_width = [old, new].into_iter().flatten()
++                        .map(|line| measure(&lines[line as usize].text, &self.theme.font_mono, m.diff_text_size))
++                        .fold(0.0f32, f32::max);
++                    2.0 * (text_width + m.diff_accent_bar_width + gutter_width(file, m)
++                        + m.diff_marker_width + 2.0 * m.diff_row_padding_x) + 1.0
++                }
+                 DiffRow::HunkHeader { file, hunk } => {
+                     measure(&data.files[file as usize].hunks[hunk as usize].header,
+                         &self.theme.font_mono, m.diff_text_size) + 2.0 * m.diff_row_padding_x
+@@ -459,6 +473,7 @@ impl CustomElement for DiffElement {
+     fn set_prop(&mut self, key: &str, value: serde_json::Value) {
+         match key {
+             "patch" => self.patch = value.as_str().unwrap_or("").to_string(),
++            "mode" => self.split = value.as_str() == Some("split"),
+             "wordDiff" => self.show_word_diff = value.as_bool().unwrap_or(false),
+             "scroll" => self.scroll = value.as_bool().unwrap_or(false),
+             "showFileHeader" => self.hide_file_header = value.as_bool() == Some(false),
+@@ -557,11 +572,13 @@ impl RowContext<'_> {
+         text: String,
+         runs: Option<Vec<gpui::TextRun>>,
+         extra_wash: Option<Box<dyn Fn(&gpui::TextLayout, &mut gpui::Window)>>,
++        side: Option<bool>,
+     ) -> gpui::AnyElement {
+         // Content, not chrome: `userSelect: "none"` stops the drag, not the
+         // find. `chrome_text` cannot paint a highlight wash, so it stays for
+         // the gutter and the file header only.
+         crate::text::selectable_text(crate::text::SelectableText {
++            scope: side.map(|side| (self.element_id, side)),
+             extra_wash,
+             selectable: self.selectable,
+             highlight: self
+@@ -683,11 +700,32 @@ fn render_row(data: &DiffData, ix: usize, ctx: RowContext) -> gpui::AnyElement {
+                 spans,
+                 data.show_word_diff,
+                 gutter_width(file_diff, m),
+-                ix,
++                ix * 2,
+                 &ctx,
+                 theme,
++                None,
+             )
+         }
++        DiffRow::SplitLine { file, hunk, old, new } => {
++            let file_diff = &data.files[file as usize];
++            let lines = &file_diff.hunks[hunk as usize].lines;
++            let mut row = gpui::div().w_full().flex().flex_row().h(px(m.diff_line_height));
++            for (side, line) in [old, new].into_iter().enumerate() {
++                let mut cell = gpui::div().flex_1().min_w_0().overflow_hidden().h_full();
++                if side == 1 { cell = cell.border_l_1().border_color(theme.border); }
++                if let Some(line) = line {
++                    let line = &lines[line as usize];
++                    let spans = data.highlights.get(file as usize).and_then(|h| h.as_ref())
++                        .map(|h| h.spans_for(line)).unwrap_or(&[]);
++                    cell = cell.child(diff_line_row(line, spans, data.show_word_diff,
++                        gutter_width(file_diff, m), ix * 2 + side, &ctx, theme, Some(side == 1)));
++                } else {
++                    cell = cell.bg(theme.diff_hunk_bg);
++                }
++                row = row.child(cell);
++            }
++            row.into_any_element()
++        }
+         DiffRow::BodyPad { .. } => gpui::div()
+             .w_full()
+             .h(px(m.diff_body_bottom_pad))
+@@ -824,6 +862,7 @@ fn diff_line_row(
+     ix: usize,
+     ctx: &RowContext,
+     theme: &Theme,
++    side: Option<bool>,
+ ) -> gpui::AnyElement {
+     use gpui::prelude::*;
+ 
+@@ -956,7 +995,7 @@ fn diff_line_row(
+         });
+     }
+ 
+-    row
++    let mut row = row
+         // Accent bar: solid on +/− rows, an invisible spacer on context rows so
+         // the columns always line up.
+         .child({
+@@ -968,24 +1007,28 @@ fn diff_line_row(
+                 bar = bar.bg(color);
+             }
+             bar
+-        })
+-        .child(gutter(
++        });
++    if side != Some(true) {
++        row = row.child(gutter(
+             line.old_no,
+             if line.kind == LineKind::Del {
+                 number_color
+             } else {
+                 opacity(theme.text_faint, 0.8)
+             },
+-        ))
+-        .child(gutter(
++        ));
++    }
++    if side != Some(false) {
++        row = row.child(gutter(
+             line.new_no,
+             if line.kind == LineKind::Add {
+                 number_color
+             } else {
+                 opacity(theme.text_faint, 0.8)
+             },
+-        ))
+-        .child(
++        ));
++    }
++    row.child(
+             gpui::div()
+                 .w(px(m.diff_marker_width))
+                 .flex_none()
+@@ -1005,7 +1048,7 @@ fn diff_line_row(
+                 .font_family(theme.font_mono.clone())
+                 .text_size(px(m.diff_text_size))
+                 .whitespace_nowrap()
+-                .child(ctx.text(ix, line.text.clone(), Some(runs), word_wash)),
++                .child(ctx.text(ix, line.text.clone(), Some(runs), word_wash, side)),
+         )
+         .into_any_element()
+ }
+diff --git a/packages/native/src/diff/mod.rs b/packages/native/src/diff/mod.rs
+--- a/packages/native/src/diff/mod.rs
++++ b/packages/native/src/diff/mod.rs
+@@ -438,6 +438,13 @@ pub enum DiffRow {
+         hunk: u32,
+         line: u32,
+     },
++    /// Aligned original/revised line indices; a missing side paints an empty cell.
++    SplitLine {
++        file: u32,
++        hunk: u32,
++        old: Option<u32>,
++        new: Option<u32>,
++    },
+     /// Bottom padding under an expanded file body.
+     BodyPad {
+         file: u32,
+@@ -456,7 +463,7 @@ impl DiffRow {
+             }
+             DiffRow::Notice { .. } => metrics.diff_notice_height,
+             DiffRow::HunkHeader { .. } => metrics.diff_hunk_header_height,
+-            DiffRow::Line { .. } => metrics.diff_line_height,
++            DiffRow::Line { .. } | DiffRow::SplitLine { .. } => metrics.diff_line_height,
+             DiffRow::BodyPad { .. } => metrics.diff_body_bottom_pad,
+         }
+     }
+@@ -532,6 +539,47 @@ pub fn flatten_rows(
+     rows
+ }
+ 
++/// Pair adjacent deletion/addition runs without crossing a hunk or losing metadata.
++pub fn split_rows(files: &[FileDiff], rows: Vec<DiffRow>) -> Vec<DiffRow> {
++    let mut result = Vec::with_capacity(rows.len());
++    let mut index = 0;
++    while index < rows.len() {
++        let DiffRow::Line { file, hunk, line } = rows[index] else {
++            result.push(rows[index]);
++            index += 1;
++            continue;
++        };
++        let lines = &files[file as usize].hunks[hunk as usize].lines;
++        match lines[line as usize].kind {
++            LineKind::Context => {
++                result.push(DiffRow::SplitLine { file, hunk, old: Some(line), new: Some(line) });
++                index += 1;
++            }
++            LineKind::Meta => {
++                result.push(rows[index]);
++                index += 1;
++            }
++            _ => {
++                let mut old = Vec::new();
++                let mut new = Vec::new();
++                while let Some(DiffRow::Line { file: f, hunk: h, line: l }) = rows.get(index) {
++                    if *f != file || *h != hunk { break; }
++                    match lines[*l as usize].kind {
++                        LineKind::Del => old.push(*l),
++                        LineKind::Add => new.push(*l),
++                        _ => break,
++                    }
++                    index += 1;
++                }
++                for pair in 0..old.len().max(new.len()) {
++                    result.push(DiffRow::SplitLine { file, hunk, old: old.get(pair).copied(), new: new.get(pair).copied() });
++                }
++            }
++        }
++    }
++    result
++}
++
+ /// Line rows from `(file_ix, hunk_ix, line_ix)` to the end, skipping collapsed
+ /// files. Includes the current line.
+ fn remaining_line_rows(
+diff --git a/packages/native/src/text/paint.rs b/packages/native/src/text/paint.rs
+--- a/packages/native/src/text/paint.rs
++++ b/packages/native/src/text/paint.rs
+@@ -36,6 +36,7 @@ pub type SharedSelection = Arc<Mutex<SelectionState>>;
+ 
+ /// One painted text element, registered per frame in document order.
+ struct RegEntry {
++    scope: Option<(u64, bool)>,
+     key: Arc<str>,
+     text: SharedString,
+     layout: TextLayout,
+@@ -192,6 +193,8 @@ pub enum HighlightSource {
+ }
+ 
+ pub struct SelectableText {
++    /// An opt-in selection island; unrelated text and the other diff column are excluded.
++    pub scope: Option<(u64, bool)>,
+     /// Element that owns the run, and the run's index within it. The selection
+     /// key is derived from these, so nothing has to parse it back apart.
+     pub element_id: u64,
+@@ -231,6 +234,7 @@ impl SelectableText {
+         wash_color: Hsla,
+     ) -> Self {
+         Self {
++            scope: None,
+             element_id,
+             sub,
+             text,
+@@ -251,6 +255,7 @@ impl SelectableText {
+ /// the selection wash and registers into the frame registry.
+ pub fn selectable_text(opts: SelectableText) -> gpui::AnyElement {
+     let SelectableText {
++        scope,
+         element_id,
+         sub,
+         text,
+@@ -308,6 +313,7 @@ pub fn selectable_text(opts: SelectableText) -> gpui::AnyElement {
+             if selectable {
+                 REGISTRY.with(|r| {
+                     r.borrow_mut().push(RegEntry {
++                        scope,
+                         key: key.clone(),
+                         text: text.clone(),
+                         layout: layout.clone(),
+@@ -445,13 +451,14 @@ fn register_link_listener(
+ /// texts never share a vertical band. GPUIX lays out arbitrary React trees: a
+ /// Y-only match picks the leftmost text in a flex row no matter where the
+ /// pointer actually is.
+-fn registry_point(position: gpui::Point<gpui::Pixels>) -> Option<(usize, usize)> {
++fn registry_point(position: gpui::Point<gpui::Pixels>, scope: Option<(u64, bool)>) -> Option<(usize, usize)> {
+     REGISTRY.with(|r| {
+         let reg = r.borrow();
+         let mut contained: Option<usize> = None;
+         let mut nearest: Option<(usize, (f32, f32))> = None;
+ 
+         for (ei, entry) in reg.iter().enumerate() {
++            if scope.is_some() && entry.scope != scope { continue; }
+             let b = entry.layout.bounds();
+             if b.contains(&position) {
+                 contained = Some(ei);
+@@ -495,7 +502,7 @@ fn registry_point(position: gpui::Point<gpui::Pixels>) -> Option<(usize, usize)>
+ /// band. That is the empty start or end of the line, a gutter, or parent
+ /// padding on that row. A press above or below every line is chrome.
+ fn registry_point_on_line(position: gpui::Point<gpui::Pixels>) -> Option<(usize, usize)> {
+-    let (ei, ix) = registry_point(position)?;
++    let (ei, ix) = registry_point(position, None)?;
+     REGISTRY.with(|r| {
+         let b = r.borrow().get(ei)?.layout.bounds();
+         (position.y >= b.top() && position.y <= b.bottom()).then_some((ei, ix))
+@@ -506,15 +513,20 @@ fn registry_point_on_line(position: gpui::Point<gpui::Pixels>) -> Option<(usize,
+ fn resolve_drag(selection: &SharedSelection, head: (usize, usize)) -> bool {
+     REGISTRY.with(|r| {
+         let reg = r.borrow();
++        let mut selected = selection.lock();
++        let scope = selected.scope;
++        let head_key = &reg[head.0].key;
+         let elements: Vec<selection::RegisteredText> = reg
+             .iter()
++            .filter(|entry| scope.is_none() || entry.scope == scope)
+             .map(|e| selection::RegisteredText {
+                 key: e.key.as_ref(),
+                 text: e.text.as_ref(),
+                 group: e.group,
+             })
+             .collect();
+-        selection.lock().update_drag(&elements, head)
++        let Some(index) = elements.iter().position(|entry| entry.key == head_key.as_ref()) else { return false; };
++        selected.update_drag(&elements, (index, head.1))
+     })
+ }
+ 
+@@ -523,7 +535,8 @@ pub(crate) fn update_drag_at(
+     selection: &SharedSelection,
+     position: gpui::Point<gpui::Pixels>,
+ ) -> bool {
+-    let Some(head) = registry_point(position) else {
++    let scope = selection.lock().scope;
++    let Some(head) = registry_point(position, scope) else {
+         return false;
+     };
+     resolve_drag(selection, head)
+@@ -556,12 +569,12 @@ fn register_down_listener(window: &mut Window, selection: &SharedSelection) {
+             REGISTRY.with(|r| {
+                 r.borrow()
+                     .get(ei)
+-                    .map(|entry| (entry.key.clone(), entry.text.clone(), ix))
++                    .map(|entry| (entry.key.clone(), entry.text.clone(), ix, entry.scope))
+             })
+         });
+         let mut sel = selection.lock();
+         let was_active = sel.is_active();
+-        if let Some((key, text, ix)) = hit {
++        if let Some((key, text, ix, scope)) = hit {
+             match e.click_count {
+                 2 => {
+                     window.blur();
+@@ -577,6 +590,7 @@ fn register_down_listener(window: &mut Window, selection: &SharedSelection) {
+                 // promotes this press into a real selection.
+                 _ => sel.arm(&key, ix),
+             }
++            sel.scope = scope;
+         } else if sel.is_active() || sel.is_pending() {
+             sel.clear();
+         } else {
+diff --git a/packages/native/src/text/selection.rs b/packages/native/src/text/selection.rs
+--- a/packages/native/src/text/selection.rs
++++ b/packages/native/src/text/selection.rs
+@@ -58,6 +58,8 @@ pub struct RegisteredText<'a> {
+ /// Live selection for one renderer.
+ #[derive(Clone, Debug, Default)]
+ pub struct SelectionState {
++    /// Native split diffs constrain a drag to its original/revised column.
++    pub scope: Option<(u64, bool)>,
+     /// Element that owns the drag (where the mouse went down).
+     anchor_key: String,
+     /// Byte offset of the anchor within its element.

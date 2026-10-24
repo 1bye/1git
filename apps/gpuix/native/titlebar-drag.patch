@@ -1,0 +1,114 @@
+diff --git a/README.md b/README.md
+index d527ed5..6cc6e28 100644
+--- a/README.md
++++ b/README.md
+@@ -674,6 +674,7 @@ terminal.
+ | Option | Values | Purpose |
+ |---|---|---|
+ | `titlebarTransparent` | boolean | Hide the native titlebar so the app draws chrome under the traffic lights |
++| `appOwnsTitlebarDrag` | boolean, default `false` | macOS: deliver titlebar gestures to the app; mark empty chrome with `<div windowDrag />` to retain native moving |
+ | `windowBackground` | `"opaque"` (default), `"transparent"`, `"blurred"` | Window fill. `"blurred"` is the macOS vibrancy backdrop |
+ | `trafficLightX` / `trafficLightY` | pixels | Traffic-light origin. The chat example uses `(16, 17)` |
+ | `transparent` | boolean | Same as `windowBackground: "transparent"` when that option is unset |
+@@ -683,6 +684,13 @@ terminal.
+ 
+ Call it again after a save and it remounts the tree on the same window.
+ 
++The local 1git patch supports `<div windowDrag />` on empty chrome. It calls
++GPUI's native window-move operation synchronously on primary mouse down;
++double-click zooms the window. Keep drag regions separate from interactive
++controls. JavaScript callbacks run too late to reliably use AppKit's current
++mouse event. `appOwnsTitlebarDrag` leaves the window movable and preserves
++native Window-menu tiling. Neither setting changes tab order by itself.
++
+ ### The macOS menu bar
+ 
+ GPUIX installs the application menu bar for you, so a fresh app already answers
+diff --git a/packages/native/src/renderer.rs b/packages/native/src/renderer.rs
+index b1710c3..e5fb7dd 100644
+--- a/packages/native/src/renderer.rs
++++ b/packages/native/src/renderer.rs
+@@ -5230,6 +5230,23 @@ pub(crate) fn build_host_container(
+         }
+     }
+ 
++    // Window moves must begin synchronously while AppKit's mouse event is current.
++    if element
++        .custom_props
++        .get("windowDrag")
++        .and_then(|value| value.as_bool())
++        == Some(true)
++    {
++        el = el.on_mouse_down(gpui::MouseButton::Left, |event, window, cx| {
++            cx.stop_propagation();
++            if event.click_count == 2 {
++                window.zoom_window();
++            } else {
++                window.start_window_move();
++            }
++        });
++    }
++
+     // Wire up events.
+     // Some events (on_hover, on_aux_click) require a stateful element (.id()),
+     // which we already set above. Others (on_mouse_down, on_key_down) work
+@@ -6619,6 +6636,9 @@ pub struct WindowOptions {
+     pub transparent: Option<bool>,
+     /// Hide the native titlebar so the app can draw chrome under the traffic lights.
+     pub titlebar_transparent: Option<bool>,
++    /// Let app-owned titlebar controls receive mouse gestures. Use `windowDrag`
++    /// on empty chrome to retain native window moving. Defaults to false.
++    pub app_owns_titlebar_drag: Option<bool>,
+     /// `"opaque"` | `"transparent"` | `"blurred"`. `transparent: true` is the
+     /// same as `"transparent"` when this is unset.
+     pub window_background: Option<String>,
+@@ -6652,6 +6672,7 @@ impl Default for WindowOptions {
+             fullscreen: Some(false),
+             transparent: Some(false),
+             titlebar_transparent: Some(false),
++            app_owns_titlebar_drag: None,
+             window_background: None,
+             traffic_light_x: None,
+             traffic_light_y: None,
+@@ -6757,6 +6778,7 @@ fn to_gpui_window_options(
+             traffic_light_position,
+         }),
+         is_resizable: options.resizable.unwrap_or(true),
++        app_owns_titlebar_drag: options.app_owns_titlebar_drag.unwrap_or(false),
+         window_background,
+         window_min_size,
+         focus: options.focus.unwrap_or(true),
+@@ -6777,6 +6799,22 @@ fn to_gpui_window_options(
+     gpui_options
+ }
+ 
++#[cfg(test)]
++mod window_chrome_tests {
++    use super::*;
++
++    #[test]
++    fn titlebar_drag_ownership_is_opt_in() {
++        let options = WindowOptions::default();
++        assert!(!to_gpui_window_options(&options, Default::default()).app_owns_titlebar_drag);
++        let options = WindowOptions {
++            app_owns_titlebar_drag: Some(true),
++            ..options
++        };
++        assert!(to_gpui_window_options(&options, Default::default()).app_owns_titlebar_drag);
++    }
++}
++
+ #[cfg(test)]
+ mod highlight_cache_tests {
+     use super::*;
+diff --git a/.changeset/1git-titlebar-drag.md b/.changeset/1git-titlebar-drag.md
+new file mode 100644
+--- /dev/null
++++ b/.changeset/1git-titlebar-drag.md
+@@ -0,0 +1,6 @@
++---
++"@gpuix/native": patch
++---
++
++Local 1git patch: expose GPUI's existing app-owned titlebar option and a
++synchronous `windowDrag` host prop for empty chrome. No GPUI fork changes.

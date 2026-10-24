@@ -1,0 +1,84 @@
+diff --git a/crates/gpui/src/app.rs b/crates/gpui/src/app.rs
+--- a/crates/gpui/src/app.rs
++++ b/crates/gpui/src/app.rs
+@@ -1715,6 +1715,14 @@ impl App {
+                     .values()
+                     .filter_map(|window| {
++                        // Native apps ship test support but should draw on their display clock.
++                        #[cfg(any(test, feature = "test-support"))]
++                        if self.background_executor.dispatcher().as_test().is_none()
++                            && !cfg!(feature = "bench")
++                        {
++                            return None;
++                        }
++
+                         let window = window.as_deref()?;
+                         window.invalidator.is_dirty().then_some(window.handle)
+                     })
+                     .collect::<Vec<_>>()
+diff --git a/crates/gpui_macos/src/platform.rs b/crates/gpui_macos/src/platform.rs
+--- a/crates/gpui_macos/src/platform.rs
++++ b/crates/gpui_macos/src/platform.rs
+@@ -50,7 +50,8 @@
+ use ptr::null_mut;
+ use semver::Version;
+ use std::{
+-    cell::Cell,
++    cell::{Cell, RefCell},
++    collections::HashSet,
+     ffi::{CStr, OsStr, c_void},
+     os::{raw::c_char, unix::ffi::OsStrExt},
+     path::{Path, PathBuf},
+@@ -70,6 +71,17 @@
+ static mut APP_CLASS: *const Class = ptr::null();
+ static mut APP_DELEGATE_CLASS: *const Class = ptr::null();
+ static REGISTERED_MAC_PLATFORM: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
++
++thread_local! {
++    static EMBEDDED_PUMP_ACTIVE: Cell<bool> = const { Cell::new(false) };
++    static EMBEDDED_FRAME_VIEWS: RefCell<HashSet<usize>> = RefCell::default();
++}
++
++// Yield to the host between frames so display callbacks cannot starve JavaScript input.
++pub(crate) fn claim_embedded_frame(view: usize) -> bool {
++    !EMBEDDED_PUMP_ACTIVE.get()
++        || EMBEDDED_FRAME_VIEWS.with_borrow_mut(|views| views.insert(view))
++}
+
+ #[ctor(unsafe)]
+ unsafe fn build_classes() {
+@@ -307,7 +319,10 @@
+
+         unsafe {
+             let pool = NSAutoreleasePool::new(nil);
++            EMBEDDED_FRAME_VIEWS.with_borrow_mut(HashSet::clear);
++            EMBEDDED_PUMP_ACTIVE.set(true);
+             pump_app_nonblocking();
++            EMBEDDED_PUMP_ACTIVE.set(false);
+             pool.drain();
+         }
+
+@@ -680,7 +695,9 @@
+             let _: () = msg_send![app, sendEvent: event];
+         }
+         let _: () = msg_send![app, updateWindows];
+-        CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.0, 1);
++        // A nonzero deadline lets pending main-queue display callbacks run.
++        // Still return immediately after a source rather than waiting for vsync.
++        CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.000_001, 1);
+     }
+ }
+
+diff --git a/crates/gpui_macos/src/window.rs b/crates/gpui_macos/src/window.rs
+--- a/crates/gpui_macos/src/window.rs
++++ b/crates/gpui_macos/src/window.rs
+@@ -2999,6 +2999,9 @@
+ }
+
+ extern "C" fn step(view: *mut c_void) {
++    if !crate::platform::claim_embedded_frame(view as usize) {
++        return;
++    }
+     let view = view as id;
+     let window_state = unsafe { get_window_state(&*view) };
+     let mut lock = window_state.lock();

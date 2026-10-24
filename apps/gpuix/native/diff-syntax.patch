@@ -1,0 +1,247 @@
+diff --git a/packages/native/src/custom_elements/diff.rs b/packages/native/src/custom_elements/diff.rs
+index 9c06b26..2f36599 100644
+--- a/packages/native/src/custom_elements/diff.rs
++++ b/packages/native/src/custom_elements/diff.rs
+@@ -82,8 +82,8 @@ struct DiffData {
+ /// same string inside and outside a comment, or in two hunks with different
+ /// parser state, collapses onto whichever interpretation was seen first.
+ struct FileHighlight {
+-    old: Vec<Vec<HighlightSpan>>,
+-    new: Vec<Vec<HighlightSpan>>,
++    old: Vec<Option<Vec<HighlightSpan>>>,
++    new: Vec<Option<Vec<HighlightSpan>>>,
+ }
+ 
+ impl FileHighlight {
+@@ -91,11 +91,11 @@ impl FileHighlight {
+     /// which is what the reader is looking at.
+     fn spans_for(&self, line: &DiffLine) -> &[HighlightSpan] {
+         fn pick<'a>(
+-            lines: &'a [Vec<HighlightSpan>],
++            lines: &'a [Option<Vec<HighlightSpan>>],
+             no: Option<u32>,
+         ) -> Option<&'a [HighlightSpan]> {
+             let ix = no?.saturating_sub(1) as usize;
+-            lines.get(ix).map(Vec::as_slice)
++            lines.get(ix)?.as_deref()
+         }
+         match line.kind {
+             LineKind::Del => pick(&self.old, line.old_no),
+@@ -109,6 +109,10 @@ impl FileHighlight {
+ #[derive(Default)]
+ pub struct DiffElement {
+     patch: String,
++    patch_hash: u64,
++    /// Bounded full-context patch used only for syntax, never layout or inclusion.
++    syntax_patch: String,
++    syntax_patch_hash: u64,
+     split: bool,
+     show_word_diff: bool,
+     scroll: bool,
+@@ -203,7 +207,13 @@ impl DiffElement {
+         if self.show_word_diff {
+             annotate_word_diffs(&mut files);
+         }
+-        let highlights = files.iter().map(file_highlight).collect();
++        let syntax_files = parse_patch(&self.syntax_patch);
++        let highlights = files.iter().map(|file| {
++            let source = syntax_files.iter().find(|source| {
++                source.path == file.path && source.old_path == file.old_path
++            });
++            file_highlight(file, source)
++        }).collect();
+         let collapsed = self.collapsed.clone();
+         let mut rows = flatten_rows(&files, |path| collapsed.contains(path), self.max_lines);
+         if self.hide_file_header {
+@@ -234,7 +244,8 @@ impl DiffElement {
+     fn fingerprint_props(&self) -> u64 {
+         use std::hash::{Hash, Hasher};
+         let mut hasher = std::collections::hash_map::DefaultHasher::new();
+-        self.patch.hash(&mut hasher);
++        self.patch_hash.hash(&mut hasher);
++        self.syntax_patch_hash.hash(&mut hasher);
+         self.split.hash(&mut hasher);
+         self.show_word_diff.hash(&mut hasher);
+         self.max_lines.hash(&mut hasher);
+@@ -324,70 +335,105 @@ impl DiffElement {
+ /// for a multi-gigabyte allocation.
+ const MAX_HIGHLIGHT_LINES: usize = 200_000;
+ 
+-/// Highlight a file by parsing each side's VISIBLE lines and mapping the spans
+-/// back to their real line numbers.
+-///
+-/// Only the visible lines are joined into the parse source. Padding the gaps
+-/// between hunks with blank lines would keep indexes aligned but not parser
+-/// state, and a hunk at line 600,000 would blow past the syntax byte limit and
+-/// leave the whole file unhighlighted.
+-///
+-/// Syntax state still cannot be recovered from source the patch never contained
+-/// — a block comment that opens above the hunk will not tint it. That is
+-/// inherent to highlighting a diff, and Comet accepts the same limit.
+-fn file_highlight(file: &FileDiff) -> Option<FileHighlight> {
++/// Highlight complete versions, then retain spans only for displayed lines.
++/// The hidden patch never enters rows, word diffs or commit inclusion groups.
++fn file_highlight(file: &FileDiff, source: Option<&FileDiff>) -> Option<FileHighlight> {
+     if file.binary || file.path.is_empty() {
+         return None;
+     }
+-    let mut old_visible: Vec<(u32, &str)> = Vec::new();
+-    let mut new_visible: Vec<(u32, &str)> = Vec::new();
+-    let (mut old_max, mut new_max) = (0u32, 0u32);
+-    for hunk in &file.hunks {
+-        for line in &hunk.lines {
+-            if line.kind == LineKind::Meta {
+-                continue;
+-            }
+-            if let Some(no) = line.old_no.filter(|no| *no > 0) {
+-                old_visible.push((no, &line.text));
+-                old_max = old_max.max(no);
+-            }
+-            if let Some(no) = line.new_no.filter(|no| *no > 0) {
+-                new_visible.push((no, &line.text));
+-                new_max = new_max.max(no);
+-            }
+-        }
+-    }
+-
+     // A rename can change the extension, so each side is detected from its own
+     // path. `old.js -> new.py` must not parse the deleted JavaScript as Python.
+     let old_path = file.old_path.as_deref().unwrap_or(&file.path);
+-    let old = highlight_side(&old_visible, old_max, old_path);
+-    let new = highlight_side(&new_visible, new_max, &file.path);
++    let old = highlight_side(
++        &side_lines(file, true),
++        source.map(|file| side_lines(file, true)),
++        old_path,
++    );
++    let new = highlight_side(
++        &side_lines(file, false),
++        source.map(|file| side_lines(file, false)),
++        &file.path,
++    );
+     (!old.is_empty() || !new.is_empty()).then_some(FileHighlight { old, new })
+ }
+ 
+-/// Parse the visible lines of one side and scatter the resulting spans into a
+-/// table indexed by real line number.
+-fn highlight_side(visible: &[(u32, &str)], max_line: u32, path: &str) -> Vec<Vec<HighlightSpan>> {
++fn side_lines(file: &FileDiff, old: bool) -> Vec<(u32, &DiffLine)> {
++    file.hunks.iter().flat_map(|hunk| &hunk.lines).filter_map(|line| {
++        if line.kind == LineKind::Meta {
++            return None;
++        }
++        let no = if old { line.old_no } else { line.new_no };
++        no.filter(|no| *no > 0).map(|no| (no, line))
++    }).collect()
++}
++
++fn highlight_side(
++    visible: &[(u32, &DiffLine)],
++    source: Option<Vec<(u32, &DiffLine)>>,
++    path: &str,
++) -> Vec<Option<Vec<HighlightSpan>>> {
++    let max_line = visible.iter().map(|(no, _)| *no).max().unwrap_or(0);
+     if visible.is_empty() || max_line as usize > MAX_HIGHLIGHT_LINES {
+         return Vec::new();
+     }
+-    let source = visible
+-        .iter()
+-        .map(|(_, text)| *text)
+-        .collect::<Vec<_>>()
+-        .join("\n");
+-    let Some(document) = highlight_cached(&source, Some(path), None) else {
+-        return Vec::new();
+-    };
+-    let mut lines = vec![Vec::new(); max_line as usize];
+-    for ((number, _), spans) in visible.iter().zip(document.lines.iter()) {
+-        // `number` is 1-based and non-zero by construction above.
+-        lines[*number as usize - 1] = spans.clone();
++    let mut lines = vec![None; max_line as usize];
++    // Require complete, contiguous source from line one and unchanged visible
++    // edits. Whitespace-hidden context may differ on one side: omit its spans
++    // so the matching side can supply correctly positioned tokens instead.
++    let complete = source.filter(|source| {
++        source.len() >= max_line as usize
++            && source.len() <= MAX_HIGHLIGHT_LINES
++            && source.iter().enumerate().all(|(index, (no, _))| *no as usize == index + 1)
++            && visible.iter().all(|(no, line)| {
++                line.kind == LineKind::Context || source[*no as usize - 1].1.text == line.text
++            })
++    });
++    if let Some(source) = complete {
++        let text = source.iter()
++            .map(|(_, line)| line.text.as_str())
++            .collect::<Vec<_>>()
++            .join("\n");
++        if let Some(document) = highlight_cached(&text, Some(path), None) {
++            for (no, line) in visible {
++                let index = *no as usize - 1;
++                if source[index].1.text == line.text {
++                    lines[index] = document.lines.get(index).cloned();
++                }
++            }
++            return lines;
++        }
++    }
++    // Bounded fallback for unavailable/oversized context: never carry an
++    // unfinished import/comment across unrelated hunks as if their gap were empty.
++    let mut start = 0;
++    while start < visible.len() {
++        let mut end = start + 1;
++        while end < visible.len() && visible[end].0 == visible[end - 1].0 + 1 {
++            end += 1;
++        }
++        let run = &visible[start..end];
++        let text = run.iter()
++            .map(|(_, line)| line.text.as_str())
++            .collect::<Vec<_>>()
++            .join("\n");
++        if let Some(document) = highlight_cached(&text, Some(path), None) {
++            for ((no, _), spans) in run.iter().zip(&document.lines) {
++                lines[*no as usize - 1] = Some(spans.clone());
++            }
++        }
++        start = end;
+     }
+     lines
+ }
+ 
++/// Source strings are fingerprinted only when props arrive, not on wheel frames.
++fn source_hash(source: &str) -> u64 {
++    use std::hash::{Hash, Hasher};
++    let mut hasher = std::collections::hash_map::DefaultHasher::new();
++    source.hash(&mut hasher);
++    hasher.finish()
++}
++
+ impl CustomElement for DiffElement {
+     fn render(
+         &mut self,
+@@ -569,7 +615,18 @@ impl CustomElement for DiffElement {
+ 
+     fn set_prop(&mut self, key: &str, value: serde_json::Value) {
+         match key {
+-            "patch" => self.patch = value.as_str().unwrap_or("").to_string(),
++            "patch" => {
++                self.patch = value.as_str().unwrap_or("").to_string();
++                self.patch_hash = source_hash(&self.patch);
++            }
++            "syntaxPatch" => {
++                let source = value.as_str().filter(|source| {
++                    source.len() <= 512 * 1024
++                        && source.lines().take(MAX_HIGHLIGHT_LINES + 1).count() <= MAX_HIGHLIGHT_LINES
++                }).unwrap_or("");
++                self.syntax_patch = source.to_string();
++                self.syntax_patch_hash = source_hash(source);
++            }
+             "selectionEnabled" => self.selection_enabled = value.as_bool().unwrap_or(false),
+             "selectionDisabled" => {
+                 self.selection_disabled = value.as_bool().unwrap_or(false);
+@@ -614,6 +671,7 @@ impl CustomElement for DiffElement {
+     fn supported_props(&self) -> &'static [&'static str] {
+         &[
+             "patch",
++            "syntaxPatch",
+             "selectionEnabled",
+             "selectionDisabled",
+             "includedLines",

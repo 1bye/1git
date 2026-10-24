@@ -1,0 +1,24 @@
+diff --git a/packages/native/src/renderer.rs b/packages/native/src/renderer.rs
+--- a/packages/native/src/renderer.rs
++++ b/packages/native/src/renderer.rs
+@@ -5257,10 +5257,16 @@
+     if style.and_then(|style| style.position.as_deref()).is_none() {
+         el = el.relative();
+     }
+-    el = el.child(crate::automation::bounds_tracker(
+-        element.id,
+-        selection_start_flag(style),
+-    ));
++    // A full-size child starts inside padding/borders, not at the element's
++    // outer edge. Floating anchors need the actual painted box.
++    let bounds_id = element.id;
++    let selection_start = selection_start_flag(style);
++    el = el.on_painted(move |bounds, _, _| {
++        crate::automation::record_bounds(bounds_id, bounds);
++        if let Some(selectable) = selection_start {
++            crate::text::record_start_region(bounds, selectable);
++        }
++    });
+ 
+     if let Some(handle) = ctx.focus_handles.get(&element.id) {
+         el = el.track_focus(handle);

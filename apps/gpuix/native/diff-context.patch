@@ -1,0 +1,121 @@
+diff --git a/packages/native/src/diff/mod.rs b/packages/native/src/diff/mod.rs
+--- a/packages/native/src/diff/mod.rs
++++ b/packages/native/src/diff/mod.rs
+@@ -125,6 +125,6 @@
+ 
+ /// Parse one `@@ -a[,b] +c[,d] @@ …` header into starting line numbers.
+-fn parse_hunk_header(line: &str) -> Option<(u32, u32)> {
++pub(crate) fn parse_hunk_header(line: &str) -> Option<(u32, u32)> {
+     let rest = line.strip_prefix("@@")?;
+     let minus = rest.find('-')?;
+     let old: u32 = rest[minus + 1..]
+diff --git a/packages/native/src/custom_elements/diff.rs b/packages/native/src/custom_elements/diff.rs
+--- a/packages/native/src/custom_elements/diff.rs
++++ b/packages/native/src/custom_elements/diff.rs
+@@ -26,6 +26,6 @@
+ use super::{CustomElement, CustomElementFactory, CustomRenderContext};
+ use crate::diff::{
+-    annotate_word_diffs, file_notices, flatten_rows, gutter_width, parse_patch, DiffLine, DiffRow,
++    annotate_word_diffs, file_notices, flatten_rows, gutter_width, parse_hunk_header, parse_patch, DiffLine, DiffRow,
+     FileDiff, LineKind,
+ };
+ use crate::renderer::emit_event_full;
+@@ -342,7 +342,8 @@
+         let callback = ctx.event_callback.clone();
+         let wants_toggle = ctx.events.contains("toggleFile");
+         let wants_line_click = ctx.events.contains("lineClick");
+         let wants_show_more = ctx.events.contains("showMore");
++        let wants_expand_context = ctx.events.contains("expandContext");
+         let radius = ctx
+             .style
+             .and_then(|style| style.border_radius)
+@@ -400,7 +400,8 @@
+                         callback: &callback,
+                         wants_toggle,
+                         wants_line_click,
+                         wants_show_more,
++                        wants_expand_context,
+                         theme: &row_theme,
+                         radius,
+                     },
+@@ -426,7 +426,8 @@
+                         callback: &callback,
+                         wants_toggle,
+                         wants_line_click,
+                         wants_show_more,
++                        wants_expand_context,
+                         theme: &row_theme,
+                         radius,
+                     },
+@@ -497,8 +497,9 @@
+     fn supported_events(&self) -> &'static [&'static str] {
+         &[
+             "toggleFile",
+             "showMore",
+             "lineClick",
++            "expandContext",
+             "click",
+             "mouseEnter",
+             "mouseLeave",
+@@ -529,7 +529,8 @@
+     callback: &'a Option<crate::renderer::EventCallback>,
+     wants_toggle: bool,
+     wants_line_click: bool,
+     wants_show_more: bool,
++    wants_expand_context: bool,
+     /// Applied while rendering, never baked into `DiffData`, so a theme change
+     /// repaints without reparsing the patch.
+     theme: &'a Theme,
+@@ -617,21 +617,42 @@
+         DiffRow::HunkHeader { file, hunk } => {
+-            let header = data
+-                .files
+-                .get(file as usize)
+-                .and_then(|f| f.hunks.get(hunk as usize))
+-                .map(|h| h.header.clone())
+-                .unwrap_or_default();
+-            gpui::div()
++            let Some(file_diff) = data.files.get(file as usize) else {
++                return gpui::Empty.into_any_element();
++            };
++            let Some(section) = file_diff.hunks.get(hunk as usize) else {
++                return gpui::Empty.into_any_element();
++            };
++            let (old, new) = parse_hunk_header(&section.header).unwrap_or((0, 0));
++            let previous = hunk.checked_sub(1).and_then(|ix| file_diff.hunks.get(ix as usize));
++            let old_end = previous.and_then(|h| h.lines.iter().rev().find_map(|l| l.old_no))
++                .map(|line| line + 1).unwrap_or(1);
++            let new_end = previous.and_then(|h| h.lines.iter().rev().find_map(|l| l.new_no))
++                .map(|line| line + 1).unwrap_or(1);
++            let hidden = old.saturating_sub(old_end);
++            let expandable = ctx.wants_expand_context && hidden > 0 && hidden == new.saturating_sub(new_end);
++            let mut row = gpui::div()
++                .id(SharedString::from(format!("__gpuix_diff_context_{ix}")))
+                 .h(px(m.diff_hunk_header_height))
+                 .w_full()
+                 .flex_none()
+                 .flex()
+                 .items_center()
+                 .px(px(m.diff_row_padding_x))
+                 .bg(theme.diff_hunk_bg)
+                 .font_family(theme.font_mono.clone())
+                 .text_size(px(m.diff_text_size))
+-                .text_color(theme.text_faint)
+-                .child(crate::text::chrome_text(SharedString::from(header), None))
+-                .into_any_element()
++                .text_color(theme.text_faint);
++            if expandable {
++                let callback = ctx.callback.clone();
++                let element_id = ctx.element_id;
++                let path = file_diff.path.clone();
++                row = row.cursor_pointer()
++                    .on_click(move |_, _window, _cx| {
++                        emit_event_full(&callback, element_id, "expandContext", |p| {
++                            p.value = Some(path.clone());
++                            p.old_line = Some(old.into());
++                            p.new_line = Some(new.into());
++                        });
++                    });
++            }
++            row.child(crate::text::chrome_text(SharedString::from(section.header.clone()), None)).into_any_element()
+         }

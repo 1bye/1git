@@ -1,0 +1,67 @@
+diff --git a/crates/gpui_macos/src/context_menu.rs b/crates/gpui_macos/src/context_menu.rs
+--- a/crates/gpui_macos/src/context_menu.rs
++++ b/crates/gpui_macos/src/context_menu.rs
+@@ -4,6 +4,7 @@
+ use objc::{class, declare::ClassDecl, msg_send, sel, sel_impl};
+ use objc::runtime::{Class, Object, Sel};
+ use std::sync::OnceLock;
++use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+ 
+ extern "C" fn choose(this: &mut Object, _: Sel, sender: id) {
+     unsafe {
+@@ -12,13 +13,23 @@
+     }
+ }
+ 
++/// Resolve the owning GPUI view, not NSApplication's transient key window.
++pub fn context_menu_view(window: &gpui::Window) -> anyhow::Result<usize> {
++    let handle = HasWindowHandle::window_handle(window)
++        .map_err(|error| anyhow::anyhow!("Could not access the GPUI view: {error}"))?;
++    match handle.as_raw() {
++        RawWindowHandle::AppKit(handle) => Ok(handle.ns_view.as_ptr() as usize),
++        _ => anyhow::bail!("Context menus require an AppKit view"),
++    }
++}
++
+ /// Returns the selected item index, or -1 when dismissed. Coordinates are view-local top-left points.
++pub fn show_native_context_menu(view_address: usize, labels: &[String], enabled: &[bool], x: f64, y: f64) -> anyhow::Result<i32> {
++    show_native_context_menu_items(view_address, labels, enabled, &vec![-1; labels.len()], x, y)
+-pub fn show_native_context_menu(labels: &[String], enabled: &[bool], x: f64, y: f64) -> anyhow::Result<i32> {
+-    show_native_context_menu_items(labels, enabled, &vec![-1; labels.len()], x, y)
+ }
+ 
+ /// Parent indices must precede children; empty labels represent separators. Leaf tags keep flat action indices.
++pub fn show_native_context_menu_items(view_address: usize, labels: &[String], enabled: &[bool], parents: &[i32], x: f64, y: f64) -> anyhow::Result<i32> {
+-pub fn show_native_context_menu_items(labels: &[String], enabled: &[bool], parents: &[i32], x: f64, y: f64) -> anyhow::Result<i32> {
+     anyhow::ensure!(!labels.is_empty() && labels.len() <= 128 && labels.len() == enabled.len() && labels.len() == parents.len(), "Invalid menu items");
+     for (index, parent) in parents.iter().enumerate() {
+         anyhow::ensure!(*parent == -1 || (*parent >= 0 && (*parent as usize) < index && parents[*parent as usize] == -1 && !labels[*parent as usize].is_empty()), "Invalid menu parent");
+@@ -27,11 +38,11 @@
+     unsafe {
+         let main_thread: BOOL = msg_send![class!(NSThread), isMainThread];
+         anyhow::ensure!(main_thread == YES, "Context menus require the main thread");
++        // This address comes only from the live GPUI window's raw handle, never JavaScript.
++        let view = view_address as id;
++        anyhow::ensure!(view != nil, "No GPUI view for context menu");
++        let window: id = msg_send![view, window];
++        anyhow::ensure!(window != nil, "Context menu window has closed");
+-        let app: id = msg_send![class!(NSApplication), sharedApplication];
+-        let window: id = msg_send![app, keyWindow];
+-        anyhow::ensure!(window != nil, "No active window for context menu");
+-        let view: id = msg_send![window, contentView];
+-        anyhow::ensure!(view != nil, "No content view for context menu");
+         static TARGET: OnceLock<&'static Class> = OnceLock::new();
+         let target_class = TARGET.get_or_init(|| {
+             let mut class = ClassDecl::new("OneGitContextMenuTarget", class!(NSObject)).expect("Unique menu target class");
+diff --git a/crates/gpui_macos/src/gpui_macos.rs b/crates/gpui_macos/src/gpui_macos.rs
+--- a/crates/gpui_macos/src/gpui_macos.rs
++++ b/crates/gpui_macos/src/gpui_macos.rs
+@@ -6,7 +6,7 @@
+ 
+ mod dispatcher;
+ mod context_menu;
++pub use context_menu::{context_menu_view, show_native_context_menu, show_native_context_menu_items, confirm_file_discard, confirm_ignore_rule};
+-pub use context_menu::{show_native_context_menu, show_native_context_menu_items, confirm_file_discard, confirm_ignore_rule};
+ mod display;
+ mod display_link;
+ mod events;
