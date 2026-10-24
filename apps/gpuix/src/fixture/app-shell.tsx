@@ -159,7 +159,10 @@ export function AppShell({
 				</WorkspaceCornerContext>
 				<div style={styles.body}>
 					{theme.repositoryPattern ? (
-						<RepositoryPatternLayer pattern={theme.repositoryPattern} />
+						<RepositoryPatternLayer
+							pattern={theme.repositoryPattern}
+							seed={theme.repositoryPatternSeed}
+						/>
 					) : null}
 					{rail}
 					<div

@@ -395,9 +395,17 @@ The file selection, diff scroll, checked changes and commit message stay intact,
 and the uncovered workspace remains usable. From Home, customization returns to
 the last-used repository if its tab is still open in the current Space. Switching
 to a different repository or reopening Settings discards an unfinished draft.
-Pattern thumbnails use the current color, with **No pattern** first.
+Pattern thumbnails use the current color and preview the first three symbols along
+the rail, with **No pattern** first. **Shuffle** varies symbol order, spacing,
+rotation and size without changing the pack or color. The draft previews immediately;
+Done saves its seed with the pattern, while Escape and Back to Settings discard it.
+Layouts stay fixed through color changes, window resizing and restarts, and linked
+worktrees share the same seed. Older saved pack IDs get a deterministic seed from
+their common directory and remain readable without a session migration.
 Illustrated **Rose**, **Seaside**, **Forest**, **Cosmic**, **Meadow**, **Camping**,
 **Rainfall** and **Workshop** SVG presets add scattered themed motifs behind the chrome.
+Each longer repeating strip places every pack symbol along the narrow rail before
+repeating, so the wallpaper's variety remains visible around the opaque workspace.
 The new packs feature flowers and butterflies, camping gear, rainy weather, and
 Git and coding tools respectively. Patterns use the current repository color;
 selecting or removing a pattern never changes that color. **No pattern** removes only the

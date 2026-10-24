@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
 	useGpuixRequired,
 	useWindowSize,
@@ -11,11 +11,12 @@ import { RepositoryTheme } from "../../styles/repository-theme";
 import { RepositoryColors, repositoryColorPresets } from "./repository-colors";
 import {
 	repositoryPatternPresets,
+	RepositoryPatterns,
 	type RepositoryAppearanceOptions,
 	type RepositoryAppearanceValue,
 	type RepositoryAppearanceSection,
 } from "./repository-patterns";
-import { repositoryPatternSources } from "./pattern-artwork";
+import { RepositoryPatternArtwork } from "./pattern-artwork";
 import { RepositoryColorPicker } from "./repository-color-picker";
 import { repositoryAppearanceCancel } from "./repository-appearance-shortcut";
 
@@ -27,6 +28,7 @@ export function RepositoryAppearanceEditor({
 	name,
 	color,
 	pattern,
+	patternSeed = 0,
 	onChange,
 	onPatternChange,
 	onPreview,
@@ -80,6 +82,18 @@ export function RepositoryAppearanceEditor({
 	const preview = RepositoryTheme.create(theme, draft ?? color, pattern);
 	const pickerColor = color ?? repositoryColorPresets[0].color;
 
+	const patternPreviews = useMemo(
+		() => [
+			{ id: undefined, name: "No pattern", source: undefined },
+			...repositoryPatternPresets.map((preset) => ({
+				...preset,
+				source: RepositoryPatternArtwork.create(preset.id, patternSeed)
+					.previewSource,
+			})),
+		],
+		[patternSeed]
+	);
+
 	if (field.source !== color) setField({ source: color, text: color ?? "" });
 
 	const commit = (next: string | undefined): void => {
@@ -104,7 +118,7 @@ export function RepositoryAppearanceEditor({
 
 	const finish = (): void => {
 		if (field.text === (color ?? "")) {
-			onDone({ color, pattern });
+			onDone({ color, pattern, patternSeed });
 
 			return;
 		}
@@ -120,7 +134,7 @@ export function RepositoryAppearanceEditor({
 			return;
 		}
 
-		onDone({ color: next, pattern });
+		onDone({ color: next, pattern, patternSeed });
 	};
 
 	const controls = (
@@ -333,17 +347,41 @@ export function RepositoryAppearanceEditor({
 						flexShrink: 0,
 					}}
 				>
-					<text
-						role="heading"
-						aria-level={2}
+					<div
 						style={{
-							...typography.md,
-							fontWeight: fontWeight.medium,
-							color: tokens.colors.text,
+							display: "flex",
+							flexDirection: "row",
+							alignItems: "center",
+							justifyContent: "space-between",
 						}}
 					>
-						Pattern
-					</text>
+						<text
+							role="heading"
+							aria-level={2}
+							style={{
+								...typography.md,
+								fontWeight: fontWeight.medium,
+								color: tokens.colors.text,
+							}}
+						>
+							Pattern
+						</text>
+						<Button
+							testId="repository-pattern-shuffle"
+							tokens={tokens}
+							variant="ghost"
+							size="sm"
+							disabled={!pattern}
+							onPress={() =>
+								onPatternChange(
+									pattern,
+									RepositoryPatterns.shuffleSeed(patternSeed)
+								)
+							}
+						>
+							Shuffle
+						</Button>
+					</div>
 					<div
 						role="group"
 						aria-label="Repository pattern"
@@ -354,10 +392,7 @@ export function RepositoryAppearanceEditor({
 							gap: spacing[2],
 						}}
 					>
-						{[
-							{ id: undefined, name: "No pattern" },
-							...repositoryPatternPresets,
-						].map((preset) => {
+						{patternPreviews.map((preset) => {
 							const selected = pattern === preset.id;
 
 							return (
@@ -376,7 +411,7 @@ export function RepositoryAppearanceEditor({
 									onPress={() => onPatternChange(preset.id)}
 									style={{
 										width: 96,
-										height: 82,
+										height: 100,
 										flexDirection: "column",
 										gap: spacing[1],
 										paddingLeft: 0,
@@ -396,24 +431,25 @@ export function RepositoryAppearanceEditor({
 											flexDirection: "column",
 											position: "relative",
 											width: "100%",
-											height: 52,
+											height: 64,
 											flexShrink: 0,
 											overflow: "hidden",
 											backgroundColor: preview.colors.editorSunken2,
 											pointerEvents: "none",
 										}}
 									>
-										{preset.id ? (
+										{preset.source ? (
 											<svg
-												source={repositoryPatternSources[preset.id]}
+												testId={`repository-pattern-preview-${preset.id}`}
+												source={preset.source}
 												style={{
 													position: "absolute",
 													top: 0,
 													left: 0,
-													width: 192,
-													height: 192,
+													width: 96,
+													height: 64,
 													color: preview.colors.brand,
-													opacity: 0.5,
+													opacity: 0.75,
 													pointerEvents: "none",
 												}}
 											/>

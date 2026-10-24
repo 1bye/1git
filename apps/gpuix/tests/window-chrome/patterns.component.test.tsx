@@ -19,9 +19,9 @@ import {
 	type RepositoryPattern,
 } from "../../src/feature/repository-appearance/repository-patterns";
 import {
-	repositoryPatternSources,
+	RepositoryPatternArtwork,
 	repositoryPatternTileSize,
-	repositoryPatternCornerSources,
+	repositoryPatternTileHeight,
 	repositoryPatternCornerOffset,
 } from "../../src/feature/repository-appearance/pattern-artwork";
 
@@ -105,6 +105,7 @@ it.each([
 
 		for (const preset of repositoryPatternPresets) {
 			const patterned = await render(preset.id);
+			const artwork = RepositoryPatternArtwork.create(preset.id);
 			const first = current.renderer.findByTestId("repository-pattern-tile-0");
 			const second = current.renderer.findByTestId("repository-pattern-tile-1");
 
@@ -113,15 +114,11 @@ it.each([
 
 			expect(secondBounds?.y).toBe(64);
 
-			expect(first?.customProps?.source).toBe(
-				repositoryPatternCornerSources[preset.id]
-			);
-			expect(second?.customProps?.source).toBe(
-				repositoryPatternSources[preset.id]
-			);
+			expect(first?.customProps?.source).toBe(artwork.cornerSource);
+			expect(second?.customProps?.source).toBe(artwork.source);
 			expect(first?.style.width).toBe(repositoryPatternTileSize);
 			expect(first?.style.height).toBe(
-				repositoryPatternTileSize + repositoryPatternCornerOffset
+				repositoryPatternTileHeight + repositoryPatternCornerOffset
 			);
 			expect(first?.style.pointerEvents).toBe("none");
 			expect(

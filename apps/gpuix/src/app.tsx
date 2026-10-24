@@ -706,14 +706,25 @@ function AppContent({
 		? repositoryColors[commonDirectory]
 		: undefined;
 
-	const repositoryPattern = commonDirectory
-		? repositoryPatterns[commonDirectory]
+	const repositoryPatternSelection = commonDirectory
+		? RepositoryPatterns.selection(
+				repositoryPatterns[commonDirectory],
+				commonDirectory
+			)
+		: undefined;
+
+	const repositoryPattern = repositoryPatternSelection?.id;
+
+	const repositoryPatternSeed = commonDirectory
+		? (repositoryPatternSelection?.seed ??
+			RepositoryPatterns.defaultSeed(commonDirectory))
 		: undefined;
 
 	const repositoryAppearance = commonDirectory
 		? {
 				color: repositoryColor,
 				pattern: repositoryPattern,
+				patternSeed: repositoryPatternSeed,
 				onChange: (color: string | undefined) => {
 					if (appearanceEditing) {
 						setAppearanceEditor(
@@ -732,18 +743,28 @@ function AppContent({
 						RepositoryColors.set(choices, commonDirectory, color)
 					);
 				},
-				onPatternChange: (pattern: RepositoryPattern | undefined) => {
+				onPatternChange: (
+					pattern: RepositoryPattern | undefined,
+					seed?: number
+				) => {
 					if (appearanceEditing) {
 						setAppearanceEditor(
 							(current) =>
-								current && { ...current, draft: { ...current.draft, pattern } }
+								current && {
+									...current,
+									draft: {
+										...current.draft,
+										pattern,
+										patternSeed: seed ?? current.draft.patternSeed,
+									},
+								}
 						);
 
 						return;
 					}
 
 					setRepositoryPatterns((choices) =>
-						RepositoryPatterns.set(choices, commonDirectory, pattern)
+						RepositoryPatterns.set(choices, commonDirectory, pattern, seed)
 					);
 				},
 			}
@@ -757,16 +778,21 @@ function AppContent({
 		? appearanceEditing.draft.pattern
 		: repositoryPattern;
 
+	const displayedPatternSeed = appearanceEditing
+		? appearanceEditing.draft.patternSeed
+		: repositoryPatternSeed;
+
 	const repositoryTheme = useMemo(
 		() => ({
 			...workspaceTheme,
 			...RepositoryTheme.create(
 				workspaceTheme,
 				displayedColor,
-				displayedPattern
+				displayedPattern,
+				displayedPatternSeed
 			),
 		}),
-		[workspaceTheme, displayedColor, displayedPattern]
+		[workspaceTheme, displayedColor, displayedPattern, displayedPatternSeed]
 	);
 
 	const settingsAppearanceDirectory =
@@ -775,7 +801,10 @@ function AppContent({
 	const settingsRepositoryAppearance = settingsAppearanceDirectory
 		? {
 				color: repositoryColors[settingsAppearanceDirectory],
-				pattern: repositoryPatterns[settingsAppearanceDirectory],
+				pattern: RepositoryPatterns.selection(
+					repositoryPatterns[settingsAppearanceDirectory],
+					settingsAppearanceDirectory
+				)?.id,
 			}
 		: undefined;
 
@@ -1160,13 +1189,21 @@ function AppContent({
 
 		if (!settingsOpen) rememberWorkspaceFocus();
 
+		const selection = RepositoryPatterns.selection(
+			repositoryPatterns[repository.commonDirectory],
+			repository.commonDirectory
+		);
+
 		setAppearanceEditor({
 			commonDirectory: repository.commonDirectory,
 			name: appearanceTarget.name,
 			section,
 			draft: {
 				color: repositoryColors[repository.commonDirectory],
-				pattern: repositoryPatterns[repository.commonDirectory],
+				pattern: selection?.id,
+				patternSeed:
+					selection?.seed ??
+					RepositoryPatterns.defaultSeed(repository.commonDirectory),
 			},
 		});
 		setSettingsView(null);
@@ -1189,7 +1226,12 @@ function AppContent({
 			RepositoryColors.set(choices, directory, value.color)
 		);
 		setRepositoryPatterns((choices) =>
-			RepositoryPatterns.set(choices, directory, value.pattern)
+			RepositoryPatterns.set(
+				choices,
+				directory,
+				value.pattern,
+				value.patternSeed
+			)
 		);
 		setAppearanceEditor(undefined);
 		closeSettings();

@@ -1,9 +1,10 @@
 import { useWindowSize } from "@gpuix/react";
+import { useMemo } from "react";
 import { useAppTheme } from "../../styles/theme";
 import {
-	repositoryPatternSources,
+	RepositoryPatternArtwork,
 	repositoryPatternTileSize,
-	repositoryPatternCornerSources,
+	repositoryPatternTileHeight,
 	repositoryPatternCornerOffset,
 } from "./pattern-artwork";
 import type { RepositoryPattern } from "./repository-patterns";
@@ -11,13 +12,20 @@ import type { RepositoryPattern } from "./repository-patterns";
 /** Shared fixed-size masks behind chrome controls and opaque content. */
 export function RepositoryPatternLayer({
 	pattern,
+	seed = 0,
 }: {
 	pattern: RepositoryPattern;
+	seed?: number;
 }) {
 	const theme = useAppTheme();
 	const { width, height } = useWindowSize();
 	const columns = Math.max(1, Math.ceil(width / repositoryPatternTileSize));
-	const rows = Math.max(1, Math.ceil(height / repositoryPatternTileSize));
+	const rows = Math.max(1, Math.ceil(height / repositoryPatternTileHeight));
+
+	const artwork = useMemo(
+		() => RepositoryPatternArtwork.create(pattern, seed),
+		[pattern, seed]
+	);
 
 	return (
 		<div
@@ -39,20 +47,16 @@ export function RepositoryPatternLayer({
 					key={index}
 					testId={`repository-pattern-tile-${index}`}
 					aria-hidden
-					source={
-						index === 0
-							? repositoryPatternCornerSources[pattern]
-							: repositoryPatternSources[pattern]
-					}
+					source={index === 0 ? artwork.cornerSource : artwork.source}
 					style={{
 						position: "absolute",
 						top:
-							Math.floor(index / columns) * repositoryPatternTileSize +
+							Math.floor(index / columns) * repositoryPatternTileHeight +
 							(index === 0 ? 0 : repositoryPatternCornerOffset),
 						left: (index % columns) * repositoryPatternTileSize,
 						width: repositoryPatternTileSize,
 						height:
-							repositoryPatternTileSize +
+							repositoryPatternTileHeight +
 							(index === 0 ? repositoryPatternCornerOffset : 0),
 						color: theme.colors.brand,
 						opacity: theme.appearance === "dark" ? 0.24 : 0.18,

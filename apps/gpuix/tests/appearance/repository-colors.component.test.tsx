@@ -25,6 +25,7 @@ import { useState } from "react";
 import { RepositoryAppearanceEditor } from "../../src/feature/repository-appearance/repository-appearance-editor";
 import {
 	repositoryPatternPresets,
+	RepositoryPatterns,
 	type RepositoryPattern,
 } from "../../src/feature/repository-appearance/repository-patterns";
 import { AppThemeContext } from "../../src/styles/theme";
@@ -387,8 +388,14 @@ it.each(["light", "dark"] as const)(
 				"/test/other/.git": "#46b8b3",
 			});
 			expect(saved.at(-1)?.repositoryPatterns).toEqual({
-				"/test/project/.git": "cosmic",
+				"/test/project/.git": {
+					id: "cosmic",
+					seed: RepositoryPatterns.defaultSeed("/test/project/.git"),
+				},
 			});
+			const patternSource = node(root, "repository-pattern-tile-0").customProps
+				?.source;
+
 			await click(root, "view-changes");
 			const themed = RepositoryTheme.create(appThemes[appearance], "#a478ef");
 
@@ -486,6 +493,9 @@ it.each(["light", "dark"] as const)(
 				`fill="${themed.colors.editorSurface}"`
 			);
 			expect(node(root, "repository-pattern-layer")).toBeDefined();
+			expect(node(root, "repository-pattern-tile-0").customProps?.source).toBe(
+				patternSource
+			);
 			expect(node(root, "app-shell").style.backgroundColor).toBe(
 				themed.colors.chrome
 			);

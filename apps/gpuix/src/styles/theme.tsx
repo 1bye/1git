@@ -15,6 +15,7 @@ export interface AppTheme {
 	readonly tokens: UiTokens;
 	readonly repositoryColor?: string;
 	readonly repositoryPattern?: RepositoryPattern;
+	readonly repositoryPatternSeed?: number;
 }
 
 export const appThemes: Readonly<Record<AppAppearance, AppTheme>> = {

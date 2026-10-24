@@ -45,65 +45,133 @@ const motifs = {
 /** Fixed logical pixels keep illustrated wallpaper masks shared across colors and window sizes. */
 export const repositoryPatternTileSize = 256;
 
+/** Six rail motifs per repeat reveal every pack's symbols without a short, uniform rhythm. */
+export const repositoryPatternTileHeight = 768;
+
 /** Extra headroom for the single motif above the rail's sync control. */
 export const repositoryPatternCornerOffset = 32;
 
-// Fill the rail-visible left column first, so three-motif packs do not repeat one icon there.
-const placements = [
-	[10, 8, 36, -18],
-	[6, 160, 40, 15],
-	[108, 54, 32, 18],
-	[144, 196, 32, -15],
-	[195, 9, 38, -10],
-	[200, 124, 38, 24],
-] as const;
+const patternMotifs: Readonly<Record<RepositoryPattern, readonly string[]>> = {
+	rose: [motifs.rose, motifs.leaf, motifs.sprout],
+	seaside: [motifs.shell, motifs.bird, motifs.anchor],
+	forest: [motifs.tree, motifs.leaf, motifs.mountain, motifs.sprout],
+	cosmic: [motifs.moon, motifs.star, motifs.orbit],
+	meadow: [motifs.daisy, motifs.butterfly, motifs.sun],
+	camping: [motifs.tent, motifs.campfire, motifs.compass],
+	rainfall: [motifs.cloud, motifs.umbrella, motifs.droplet],
+	workshop: [motifs.branch, motifs.terminal, motifs.braces],
+};
 
-function tile(icons: readonly string[], cornerOffset: number): string {
-	const artwork = placements
-		.map(([x, y, size, angle], index) => {
-			const icon = icons[index % icons.length];
-			const top = index === 0 ? y - cornerOffset : y;
-
-			return `<g transform="translate(${x} ${top}) rotate(${angle} ${size / 2} ${size / 2}) scale(${size / 24})">${icon}</g>`;
-		})
-		.join("");
-
-	const height = repositoryPatternTileSize + cornerOffset;
-
-	return `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="${height}" viewBox="0 ${-cornerOffset} 256 ${height}" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round">${artwork}</svg>`;
+interface Placement {
+	readonly icon: string;
+	readonly x: number;
+	readonly y: number;
+	readonly size: number;
+	readonly angle: number;
 }
 
-function sources(
-	cornerOffset: number
-): Readonly<Record<RepositoryPattern, string>> {
-	return {
-		rose: tile(
-			[motifs.rose, motifs.leaf, motifs.rose, motifs.sprout],
-			cornerOffset
-		),
-		seaside: tile([motifs.shell, motifs.bird, motifs.anchor], cornerOffset),
-		forest: tile(
-			[motifs.tree, motifs.leaf, motifs.mountain, motifs.sprout],
-			cornerOffset
-		),
-		cosmic: tile([motifs.moon, motifs.star, motifs.orbit], cornerOffset),
-		meadow: tile([motifs.daisy, motifs.butterfly, motifs.sun], cornerOffset),
-		camping: tile([motifs.tent, motifs.campfire, motifs.compass], cornerOffset),
-		rainfall: tile(
-			[motifs.cloud, motifs.umbrella, motifs.droplet],
-			cornerOffset
-		),
-		workshop: tile(
-			[motifs.branch, motifs.terminal, motifs.braces],
-			cornerOffset
-		),
-	};
+/** Color-independent masks and a compact preview of the same rail's first three symbols. */
+export interface PatternArtwork {
+	readonly source: string;
+	readonly cornerSource: string;
+	readonly previewSource: string;
 }
 
-/** One prebuilt monochrome tile per pack; rendering tint never changes the cached SVG source. */
-export const repositoryPatternSources = sources(0);
+/** Generates bounded, deterministic SVGs; callers memoize by pack and seed, never by tint or viewport. */
+export class RepositoryPatternArtwork {
+	static create(pattern: RepositoryPattern, seed = 0): PatternArtwork {
+		let state = seed >>> 0;
 
-/** Used once at the window's upper-left corner; all remaining motifs retain their normal positions. */
-export const repositoryPatternCornerSources = sources(
-	repositoryPatternCornerOffset
-);
+		const random = (): number => {
+			state = (state + 0x6d2b79f5) >>> 0;
+			let value = Math.imul(state ^ (state >>> 15), state | 1);
+
+			value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+
+			return ((value ^ (value >>> 14)) >>> 0) / 0x100000000;
+		};
+
+		const icons = [...patternMotifs[pattern]];
+
+		for (let index = icons.length - 1; index > 0; index--) {
+			const other = Math.floor(random() * (index + 1));
+			const first = icons[index];
+			const second = icons[other];
+
+			if (first && second) {
+				icons[index] = second;
+				icons[other] = first;
+			}
+		}
+
+		const placements: Placement[] = [];
+
+		for (let column = 0; column < 3; column++) {
+			for (let row = 0; row < 6; row++) {
+				const size = Math.round((column === 0 ? 30 : 32) + random() * 6);
+
+				const x =
+					column === 0
+						? (48 - size) / 2 + Math.round(random() * 2 - 1)
+						: column * 88 + 12 + Math.round(random() * 12 - 6);
+
+				placements.push({
+					icon: icons[(row + column) % icons.length] ?? "",
+					x,
+					y:
+						row === 0 && column === 0
+							? 8
+							: row * 128 +
+								(column === 1 ? 64 : 8) +
+								Math.round(random() * 16 - 8),
+					size,
+					angle: Math.round(random() * 40 - 20),
+				});
+			}
+		}
+
+		const preview = placements
+			.slice(0, 3)
+			.map((placement, index) =>
+				RepositoryPatternArtwork.motif({
+					...placement,
+					x: 4,
+					y: 4 + index * 20,
+					size: 16,
+				})
+			)
+			.join("");
+
+		return {
+			source: RepositoryPatternArtwork.tile(placements, 0),
+			cornerSource: RepositoryPatternArtwork.tile(
+				placements,
+				repositoryPatternCornerOffset
+			),
+			previewSource: `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="64" viewBox="0 0 96 64" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="27" y="4" width="65" height="56" rx="5" fill="currentColor" fill-opacity="0.06" stroke-opacity="0.18"/><path d="M35 15h27m-27 8h44m-44 8h35m-35 8h44m-44 8h24" stroke-opacity="0.2"/>${preview}</svg>`,
+		};
+	}
+
+	private static motif({ icon, x, y, size, angle }: Placement): string {
+		return `<g transform="translate(${x} ${y}) rotate(${angle} ${size / 2} ${size / 2}) scale(${Number((size / 24).toFixed(4))})">${icon}</g>`;
+	}
+
+	private static tile(
+		placements: readonly Placement[],
+		cornerOffset: number
+	): string {
+		const artwork = placements
+			.map((placement, index) =>
+				RepositoryPatternArtwork.motif(
+					index === 0
+						? { ...placement, y: placement.y - cornerOffset }
+						: placement
+				)
+			)
+			.join("");
+
+		const height = repositoryPatternTileHeight + cornerOffset;
+
+		return `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="${height}" viewBox="0 ${-cornerOffset} 256 ${height}" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round">${artwork}</svg>`;
+	}
+}

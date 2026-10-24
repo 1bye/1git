@@ -1,7 +1,7 @@
 /**
- * Covers: real workspace customization, visible drag previews, temporary drafts, save/cancel, Settings return and the last-used repository.
+ * Covers: real workspace customization, visible color and seeded pattern drafts, save/cancel, restoration, Settings return and the last-used repository.
  * Real: App, appearance editor, native rendering/input, palette and session models.
- * Doubles: repository/diff/account/editor reads, native menu selections and session writes; no Git writes or real preferences.
+ * Doubles: repository/diff/account/editor reads, Shuffle entropy, native menu selections and session writes; no Git writes or real preferences.
  * Requires: patched native addon and macOS graphics access.
  */
 import { afterEach, expect, it, spyOn } from "bun:test";
@@ -15,7 +15,8 @@ import { Accounts } from "../../src/feature/accounts/lib/accounts";
 import { AccountStore } from "../../src/feature/accounts/lib/account-store";
 import { ExternalEditors } from "../../src/feature/editor-settings/external-editors";
 import { NativeFileMenu } from "../../src/feature/repository-workspace/lib/native-file-menu";
-import { repositoryPatternSources } from "../../src/feature/repository-appearance/pattern-artwork";
+import { RepositoryPatternArtwork } from "../../src/feature/repository-appearance/pattern-artwork";
+import { RepositoryPatterns } from "../../src/feature/repository-appearance/repository-patterns";
 import { RepositoryTheme } from "../../src/styles/repository-theme";
 import { appThemes } from "../../src/styles/theme";
 import { windowOptions } from "../../src/window-options";
@@ -89,7 +90,12 @@ async function typeHex(root: TestRoot, value: string, submit = true) {
 	expect(node(root, "repository-color-custom").customProps?.value).toBe(value);
 }
 
-async function fixture(appearance: "light" | "dark" = "dark") {
+async function fixture(
+	appearance: "light" | "dark" = "dark",
+	patterns: WorkspaceSessionDocument["repositoryPatterns"] = {
+		"/test/project/.git": "camping",
+	}
+) {
 	const root = createTestRoot({
 		width: 1180,
 		height: 820,
@@ -151,7 +157,7 @@ async function fixture(appearance: "light" | "dark" = "dark") {
 					"/test/project/.git": "#ff0000",
 					"/test/other/.git": "#46b8b3",
 				},
-				repositoryPatterns: { "/test/project/.git": "camping" },
+				repositoryPatterns: patterns,
 				tabs: [
 					{
 						id: "workspace-1",
@@ -269,7 +275,10 @@ it.each(["light", "dark"] as const)(
 		await click(root, "repository-appearance-tab-pattern");
 		await click(root, "repository-pattern-cosmic");
 		expect(node(root, "repository-pattern-tile-1").customProps?.source).toBe(
-			repositoryPatternSources.cosmic
+			RepositoryPatternArtwork.create(
+				"cosmic",
+				RepositoryPatterns.defaultSeed("/test/project/.git")
+			).source
 		);
 
 		for (const document of saved) {
@@ -301,7 +310,10 @@ it.each(["light", "dark"] as const)(
 			"/test/other/.git": "#46b8b3",
 		});
 		expect(saved.at(-1)?.repositoryPatterns).toEqual({
-			"/test/project/.git": "cosmic",
+			"/test/project/.git": {
+				id: "cosmic",
+				seed: RepositoryPatterns.defaultSeed("/test/project/.git"),
+			},
 		});
 		expect(node(root, "diff-viewport-content").id).toBe(viewport);
 		expect(root.renderer.getScrollOffset(viewport)).toEqual(scroll);
@@ -409,7 +421,10 @@ it("cancels from the workspace with Escape and returns from the editor to the sa
 		RepositoryTheme.create(appThemes.dark, "#ff0000").colors.chrome
 	);
 	expect(node(root, "repository-pattern-tile-1").customProps?.source).toBe(
-		repositoryPatternSources.camping
+		RepositoryPatternArtwork.create(
+			"camping",
+			RepositoryPatterns.defaultSeed("/test/project/.git")
+		).source
 	);
 	expect(saved.at(-1)?.repositoryColors?.["/test/project/.git"]).toBe(
 		"#ff0000"
@@ -505,4 +520,137 @@ it("restores focus to the repository gear if the original file control is remove
 	expect(root.renderer.getFocusedElementId()).toBe(
 		node(root, "rail-settings").id
 	);
+});
+
+it.each(["light", "dark"] as const)(
+	"previews Shuffle in the %s workspace, keeps its seed through color edits and saves or cancels it",
+	async (appearance) => {
+		const directory = "/test/project/.git";
+		const other = { id: "cosmic", seed: 99 } as const;
+
+		const { root, saved, menu } = await fixture(appearance, {
+			[directory]: "camping",
+			"/test/other/.git": other,
+		});
+
+		const shuffle = spyOn(RepositoryPatterns, "shuffleSeed").mockReturnValue(
+			42
+		);
+
+		restores.add(() => shuffle.mockRestore());
+		menu.mockReturnValueOnce({ kind: "appearance", section: "pattern" });
+		await click(root, "rail-settings");
+		const original = node(root, "repository-pattern-tile-0").customProps
+			?.source;
+
+		await click(root, "repository-pattern-shuffle");
+		expect(
+			node(root, "repository-pattern-tile-0").customProps?.source
+		).not.toBe(original);
+		await click(root, "repository-pattern-forest");
+		const shuffled = RepositoryPatternArtwork.create("forest", 42);
+
+		expect(node(root, "repository-pattern-tile-0").customProps?.source).toBe(
+			shuffled.cornerSource
+		);
+		expect(
+			node(root, "repository-pattern-preview-forest").customProps?.source
+		).toBe(shuffled.previewSource);
+		await click(root, "repository-appearance-tab-color");
+		await click(root, "repository-color-teal");
+		expect(node(root, "repository-pattern-tile-0").customProps?.source).toBe(
+			shuffled.cornerSource
+		);
+		await click(root, "repository-appearance-tab-pattern");
+		expect(
+			node(root, "repository-pattern-preview-forest").customProps?.source
+		).toBe(shuffled.previewSource);
+
+		for (const document of saved)
+			expect(document.repositoryPatterns?.[directory]).toBe("camping");
+
+		const screenshot = process.env.GPUIX_APPEARANCE_MODE_SCREENSHOT;
+
+		if (screenshot)
+			root.renderer.captureScreenshot(
+				`${screenshot}-patterns-${appearance}.png`
+			);
+
+		await click(root, "repository-appearance-done");
+		await settle(root, 250);
+		expect(saved.at(-1)?.repositoryPatterns).toEqual({
+			[directory]: { id: "forest", seed: 42 },
+			"/test/other/.git": other,
+		});
+		expect(saved.at(-1)?.repositoryColors?.[directory]).toBe("#46b8b3");
+		menu.mockReturnValueOnce({ kind: "appearance", section: "pattern" });
+		await click(root, "rail-settings");
+		expect(
+			node(root, "repository-pattern-preview-forest").customProps?.source
+		).toBe(shuffled.previewSource);
+		shuffle.mockReturnValue(84);
+		await click(root, "repository-pattern-shuffle");
+		expect(
+			node(root, "repository-pattern-tile-0").customProps?.source
+		).not.toBe(shuffled.cornerSource);
+		root.renderer.simulateKeystrokes("escape");
+		await settle(root, 250);
+		expect(node(root, "repository-pattern-tile-0").customProps?.source).toBe(
+			shuffled.cornerSource
+		);
+		expect(saved.at(-1)?.repositoryPatterns?.[directory]).toEqual({
+			id: "forest",
+			seed: 42,
+		});
+		menu.mockReturnValueOnce({ kind: "appearance", section: "pattern" });
+		await click(root, "rail-settings");
+		await click(root, "repository-pattern-shuffle");
+		await click(root, "repository-appearance-back");
+		await click(root, "repository-appearance-customize");
+		await click(root, "repository-appearance-tab-pattern");
+		expect(
+			node(root, "repository-pattern-preview-forest").customProps?.source
+		).toBe(shuffled.previewSource);
+		await click(root, "repository-pattern-reset");
+		const shuffles = shuffle.mock.calls.length;
+
+		await click(root, "repository-pattern-shuffle");
+		expect(shuffle).toHaveBeenCalledTimes(shuffles);
+		expect(
+			root.renderer.findByTestId("repository-pattern-layer")
+		).toBeUndefined();
+		await click(root, "repository-appearance-done");
+		await settle(root, 250);
+		expect(saved.at(-1)?.repositoryPatterns).toEqual({
+			"/test/other/.git": other,
+		});
+	}
+);
+
+it("restores a saved seed and keeps it when quick menu colors and patterns change", async () => {
+	const directory = "/test/project/.git";
+
+	const { root, saved, menu } = await fixture("dark", {
+		[directory]: { id: "forest", seed: 42 },
+	});
+
+	expect(node(root, "repository-pattern-tile-0").customProps?.source).toBe(
+		RepositoryPatternArtwork.create("forest", 42).cornerSource
+	);
+	menu.mockReturnValueOnce({ kind: "color", color: "#a478ef" });
+	await click(root, "rail-settings");
+	await settle(root, 250);
+	expect(node(root, "repository-pattern-tile-0").customProps?.source).toBe(
+		RepositoryPatternArtwork.create("forest", 42).cornerSource
+	);
+	menu.mockReturnValueOnce({ kind: "pattern", pattern: "cosmic" });
+	await click(root, "rail-settings");
+	await settle(root, 250);
+	expect(node(root, "repository-pattern-tile-0").customProps?.source).toBe(
+		RepositoryPatternArtwork.create("cosmic", 42).cornerSource
+	);
+	expect(saved.at(-1)?.repositoryPatterns?.[directory]).toEqual({
+		id: "cosmic",
+		seed: 42,
+	});
 });

@@ -43,12 +43,20 @@ export class RepositoryTheme {
 	static create(
 		base: AppTheme,
 		candidate?: string,
-		patternChoice?: RepositoryPattern
+		patternChoice?: RepositoryPattern,
+		patternSeed?: number
 	): AppTheme {
 		const color = RepositoryColors.color(candidate);
 		const pattern = RepositoryPatterns.pattern(patternChoice);
 
-		if (!color) return pattern ? { ...base, repositoryPattern: pattern } : base;
+		if (!color)
+			return pattern
+				? {
+						...base,
+						repositoryPattern: pattern,
+						repositoryPatternSeed: patternSeed,
+					}
+				: base;
 
 		const dark = base.appearance === "dark";
 
@@ -99,6 +107,7 @@ export class RepositoryTheme {
 			...base,
 			repositoryColor: color,
 			repositoryPattern: pattern,
+			repositoryPatternSeed: pattern ? patternSeed : undefined,
 			colors,
 			tokens: {
 				...base.tokens,

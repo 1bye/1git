@@ -1,5 +1,5 @@
 /**
- * Covers: validated opt-in patterns, reset, local session round trips and varied rail motifs in bounded shared SVG sources.
+ * Covers: validated seeds, legacy choices, session round trips and deterministic, varied rail artwork with matching previews.
  * Real: pattern, palette and session models; Sharp SVG rasterization.
  * Doubles: none.
  * Requires: none; no preferences, native windows or Git I/O.
@@ -11,9 +11,9 @@ import {
 	repositoryPatternPresets,
 } from "../../src/feature/repository-appearance/repository-patterns";
 import {
-	repositoryPatternSources,
+	RepositoryPatternArtwork,
 	repositoryPatternTileSize,
-	repositoryPatternCornerSources,
+	repositoryPatternTileHeight,
 	repositoryPatternCornerOffset,
 } from "../../src/feature/repository-appearance/pattern-artwork";
 import { WorkspaceSession } from "../../src/feature/workspace-tabs/lib/workspace-session";
@@ -21,7 +21,8 @@ import { WorkspaceTabsModel } from "../../src/feature/workspace-tabs/lib/workspa
 import { appThemes } from "../../src/styles/theme";
 import { RepositoryTheme } from "../../src/styles/repository-theme";
 
-const tileMotifPattern = /<g transform="translate\((\d+) [^"]+">(.*?)<\/g>/gu;
+const tileMotifPattern =
+	/<g transform="translate\((-?[\d.]+) [^"]+">(.*?)<\/g>/gu;
 
 it("accepts built-in patterns only and resets just the selected common directory", () => {
 	const choices = RepositoryPatterns.parse({
@@ -110,57 +111,68 @@ it.each(["light", "dark"] as const)(
 );
 
 it("reuses small monochrome tiles across colors rather than generating window-sized images", async () => {
-	expect(Object.keys(repositoryPatternSources).toSorted()).toEqual(
-		repositoryPatternPresets.map((preset) => preset.id).toSorted()
-	);
-	expect(new Set(Object.values(repositoryPatternSources)).size).toBe(
-		repositoryPatternPresets.length
-	);
+	expect(
+		new Set(
+			repositoryPatternPresets.map(
+				(preset) => RepositoryPatternArtwork.create(preset.id).source
+			)
+		).size
+	).toBe(repositoryPatternPresets.length);
 
 	for (const preset of repositoryPatternPresets) {
-		const source = repositoryPatternSources[preset.id];
+		const { source } = RepositoryPatternArtwork.create(preset.id);
 
 		const image = await sharp(Buffer.from(source))
 			.ensureAlpha()
 			.raw()
 			.toBuffer({ resolveWithObject: true });
 
-		expect(source.length).toBeLessThan(12000);
+		expect(source.length).toBeLessThan(24000);
 		expect(source).not.toMatch(
 			/<filter|<image|https?:\/\/(?!www\.w3\.org)|#[a-f0-9]{6}/u
 		);
 		expect(image.info.width).toBe(repositoryPatternTileSize);
-		expect(image.info.height).toBe(repositoryPatternTileSize);
+		expect(image.info.height).toBe(repositoryPatternTileHeight);
 		expect(
 			image.data.some((value, index) => index % 4 === 3 && value > 0)
 		).toBe(true);
 	}
 });
 
-it("shows different motifs in the two rail-visible positions for every pattern", () => {
+it("shows every pack's symbols on the rail and the first three in its preview", () => {
 	for (const preset of repositoryPatternPresets) {
-		for (const sources of [
-			repositoryPatternSources,
-			repositoryPatternCornerSources,
-		]) {
-			const railMotifs = [...sources[preset.id].matchAll(tileMotifPattern)]
-				.filter((match) => Number(match[1]) < 48)
-				.map((match) => match[2]);
+		for (const seed of [0, 1, 42, 0xffffffff]) {
+			const artwork = RepositoryPatternArtwork.create(preset.id, seed);
 
-			expect(railMotifs).toHaveLength(2);
-			expect(new Set(railMotifs).size).toBe(2);
+			const preview = [...artwork.previewSource.matchAll(tileMotifPattern)].map(
+				(match) => match[2]
+			);
+
+			for (const source of [artwork.source, artwork.cornerSource]) {
+				const railMotifs = [...source.matchAll(tileMotifPattern)]
+					.filter((match) => Number(match[1]) < 48)
+					.map((match) => match[2]);
+
+				expect(railMotifs).toHaveLength(6);
+				expect(new Set(railMotifs).size).toBe(preset.id === "forest" ? 4 : 3);
+				expect(preview).toEqual(railMotifs.slice(0, 3));
+
+				for (let index = 1; index < railMotifs.length; index++)
+					expect(railMotifs[index]).not.toBe(railMotifs[index - 1]);
+			}
 		}
 	}
 });
 
 it("raises only the upper-left motif while retaining every other symbol's pixels", async () => {
 	for (const preset of repositoryPatternPresets) {
-		const regular = Buffer.from(repositoryPatternSources[preset.id]);
-		const corner = Buffer.from(repositoryPatternCornerSources[preset.id]);
+		const artwork = RepositoryPatternArtwork.create(preset.id, 42);
+		const regular = Buffer.from(artwork.source);
+		const corner = Buffer.from(artwork.cornerSource);
 
 		const regions = [
-			{ left: 64, top: 0, width: 192, height: 256 },
-			{ left: 0, top: 64, width: 64, height: 192 },
+			{ left: 64, top: 0, width: 192, height: repositoryPatternTileHeight },
+			{ left: 0, top: 64, width: 64, height: repositoryPatternTileHeight - 64 },
 		];
 
 		for (const region of regions) {
@@ -193,5 +205,73 @@ it("raises only the upper-left motif while retaining every other symbol's pixels
 		expect(elevated.some((value, index) => index % 4 === 3 && value > 0)).toBe(
 			true
 		);
+	}
+});
+
+it("restores old pack IDs with stable repository-specific layouts and validates saved seeds", () => {
+	const directory = "/repo/.git";
+	const legacy = RepositoryPatterns.parse({ [directory]: "forest" });
+
+	expect(legacy[directory]).toBe("forest");
+	expect(RepositoryPatterns.selection(legacy[directory], directory)).toEqual({
+		id: "forest",
+		seed: RepositoryPatterns.defaultSeed(directory),
+	});
+	expect(RepositoryPatterns.defaultSeed(directory)).not.toBe(
+		RepositoryPatterns.defaultSeed("/other/.git")
+	);
+
+	for (const seed of [0, 42, 0xffffffff]) {
+		const choices = RepositoryPatterns.set(legacy, directory, "cosmic", seed);
+
+		const document = WorkspaceSession.parse(
+			JSON.stringify({
+				version: 1,
+				tabs: [],
+				activeId: null,
+				repositoryPatterns: choices,
+			})
+		);
+
+		expect(document.repositoryPatterns?.[directory]).toEqual({
+			id: "cosmic",
+			seed,
+		});
+		expect(
+			RepositoryPatterns.set(choices, directory, "rose")[directory]
+		).toEqual({ id: "rose", seed });
+		expect(RepositoryPatterns.set(choices, directory, undefined)).toEqual({});
+	}
+
+	for (const seed of [-1, 1.5, 0x100000000, NaN, Infinity, "42", null]) {
+		expect(RepositoryPatterns.seed(seed)).toBeUndefined();
+		expect(
+			RepositoryPatterns.parse({ [directory]: { id: "forest", seed } })
+		).toEqual({});
+	}
+
+	expect(
+		RepositoryPatterns.parse({ [directory]: { id: "unknown", seed: 42 } })
+	).toEqual({});
+	expect(() =>
+		RepositoryPatterns.set(legacy, directory, "forest", -1)
+	).toThrow();
+	expect(legacy[directory]).toBe("forest");
+});
+
+it("creates deterministic layouts and a fresh valid seed for Shuffle", () => {
+	for (const preset of repositoryPatternPresets) {
+		for (const seed of [0, 1, 42, 0xffffffff]) {
+			const artwork = RepositoryPatternArtwork.create(preset.id, seed);
+
+			expect(RepositoryPatternArtwork.create(preset.id, seed)).toEqual(artwork);
+			const shuffled = RepositoryPatterns.shuffleSeed(seed);
+
+			expect(shuffled).not.toBe(seed);
+			expect(RepositoryPatterns.seed(shuffled)).toBe(shuffled);
+			expect(
+				RepositoryPatternArtwork.create(preset.id, shuffled).source
+			).not.toBe(artwork.source);
+		}
 	}
 });

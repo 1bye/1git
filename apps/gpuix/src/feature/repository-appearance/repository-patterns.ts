@@ -11,15 +11,22 @@ export type RepositoryPattern =
 	| "rainfall"
 	| "workshop";
 
-/** Device-local wallpaper choices shared by worktrees through Git's common directory. */
+/** A built-in pack with a stable layout shared by a repository's worktrees. */
+export interface RepositoryPatternSelection {
+	readonly id: RepositoryPattern;
+	readonly seed: number;
+}
+
+/** Device-local choices; legacy pack IDs remain readable without rewriting saved preferences. */
 export type RepositoryPatternChoices = Readonly<
-	Record<string, RepositoryPattern>
+	Record<string, RepositoryPattern | RepositoryPatternSelection>
 >;
 
 /** A repository's saved appearance or an uncommitted editor draft. */
 export interface RepositoryAppearanceValue {
 	readonly color?: string;
 	readonly pattern?: RepositoryPattern;
+	readonly patternSeed?: number;
 }
 
 /** The two sections of the floating repository appearance editor. */
@@ -28,7 +35,10 @@ export type RepositoryAppearanceSection = "color" | "pattern";
 /** Appearance controls shared by the repository editor and quick settings menu. */
 export interface RepositoryAppearanceOptions extends RepositoryAppearanceValue {
 	readonly onChange: (color: string | undefined) => void;
-	readonly onPatternChange: (pattern: RepositoryPattern | undefined) => void;
+	readonly onPatternChange: (
+		pattern: RepositoryPattern | undefined,
+		seed?: number
+	) => void;
 }
 
 /** Illustrated presets with thumbnail colors only; choosing a pattern never changes the repository color. */
@@ -49,17 +59,66 @@ export class RepositoryPatterns {
 		return repositoryPatternPresets.find((preset) => preset.id === value)?.id;
 	}
 
+	static seed(value: unknown): number | undefined {
+		return typeof value === "number" &&
+			Number.isInteger(value) &&
+			value >= 0 &&
+			value <= 0xffffffff
+			? value
+			: undefined;
+	}
+
+	/** Gives older choices and newly selected packs a stable layout for this common directory. */
+	static defaultSeed(directory: string): number {
+		let seed = 2166136261;
+
+		for (const character of directory)
+			seed = Math.imul(seed ^ character.charCodeAt(0), 16777619) >>> 0;
+
+		return seed;
+	}
+
+	static shuffleSeed(current: number): number {
+		const next = crypto.getRandomValues(new Uint32Array(1))[0] ?? 0;
+
+		return next === current ? (current + 1) >>> 0 : next;
+	}
+
+	static selection(
+		value: unknown,
+		directory: string
+	): RepositoryPatternSelection | undefined {
+		const legacy = RepositoryPatterns.pattern(value);
+
+		if (legacy)
+			return { id: legacy, seed: RepositoryPatterns.defaultSeed(directory) };
+
+		if (typeof value !== "object" || value === null || Array.isArray(value))
+			return undefined;
+
+		const id = "id" in value ? RepositoryPatterns.pattern(value.id) : undefined;
+
+		const seed =
+			"seed" in value ? RepositoryPatterns.seed(value.seed) : undefined;
+
+		return id && seed !== undefined ? { id, seed } : undefined;
+	}
+
 	static parse(value: unknown): RepositoryPatternChoices {
 		if (typeof value !== "object" || value === null || Array.isArray(value))
 			return {};
 
-		const choices: Record<string, RepositoryPattern> = {};
+		const choices: Record<
+			string,
+			RepositoryPattern | RepositoryPatternSelection
+		> = {};
 
 		for (const [directory, candidate] of Object.entries(value)) {
-			const pattern = RepositoryPatterns.pattern(candidate);
+			const pattern = RepositoryPatterns.selection(candidate, directory);
 
 			if (isAbsolute(directory) && !directory.includes("\0") && pattern)
-				choices[directory] = pattern;
+				choices[directory] =
+					typeof candidate === "string" ? pattern.id : pattern;
 		}
 
 		return choices;
@@ -68,7 +127,8 @@ export class RepositoryPatterns {
 	static set(
 		choices: RepositoryPatternChoices,
 		directory: string,
-		pattern: RepositoryPattern | undefined
+		pattern: RepositoryPattern | undefined,
+		seed?: number
 	): RepositoryPatternChoices {
 		if (!isAbsolute(directory) || directory.includes("\0"))
 			throw new Error("Repository pattern requires a valid common directory.");
@@ -76,9 +136,19 @@ export class RepositoryPatterns {
 		if (pattern !== undefined && !RepositoryPatterns.pattern(pattern))
 			throw new Error("Choose a built-in repository pattern.");
 
+		if (seed !== undefined && RepositoryPatterns.seed(seed) === undefined)
+			throw new Error("Repository pattern requires an unsigned 32-bit seed.");
+
 		const next = { ...choices };
 
-		if (pattern) next[directory] = pattern;
+		if (pattern)
+			next[directory] = {
+				id: pattern,
+				seed:
+					seed ??
+					RepositoryPatterns.selection(choices[directory], directory)?.seed ??
+					RepositoryPatterns.defaultSeed(directory),
+			};
 		else delete next[directory];
 
 		return next;
