@@ -2,7 +2,8 @@ import { useAppTheme } from "../../../styles/theme";
 import { spacing, typography } from "@1git/design-tokens";
 import { Button } from "@1git/gpuix-ui/button";
 import type { CommitInfo, CommitRecoveryInput } from "@1git/git";
-import { useEffect, useState } from "react";
+import { useGpuixRequired, type NativeRenderer } from "@gpuix/react";
+import { useEffect, useMemo, useState } from "react";
 
 import { WorkspaceMenuModel } from "../../workspace-tabs/lib/workspace-menu-model";
 import { RepositoryCommit, type LastCommit } from "../lib/repository-commit";
@@ -11,6 +12,16 @@ import {
 	RepositoryWorkspaceModel,
 	type RepositoryWorkspaceState,
 } from "../lib/repository-workspace-model";
+
+const summaryLimit = 128;
+
+type CommitSummary = Pick<CommitInfo, "summary" | "committedAt">;
+
+// Only immutable commit metadata survives remounts; recovery eligibility is always reread.
+const summariesByWindow = new WeakMap<
+	NativeRenderer,
+	Map<string, CommitSummary>
+>();
 
 /** Pinned last-commit summary with backend-revalidated amend and undo actions. */
 export function RepositoryLastCommit({
@@ -26,10 +37,24 @@ export function RepositoryLastCommit({
 }) {
 	const theme = useAppTheme();
 	const { tokens: appTokens, colors: appColors } = theme;
+	const renderer = useGpuixRequired();
+
+	const summaries = useMemo(() => {
+		const existing = summariesByWindow.get(renderer);
+
+		if (existing) return existing;
+
+		const entries = new Map<string, CommitSummary>();
+
+		summariesByWindow.set(renderer, entries);
+
+		return entries;
+	}, [renderer]);
 
 	const root = state.repository?.root;
 	const head = state.repository?.head;
 	const branch = state.repository?.branchName;
+	const summaryKey = JSON.stringify([root, head]);
 
 	const key = JSON.stringify([
 		root,
@@ -64,6 +89,19 @@ export function RepositoryLastCommit({
 
 				if (controller.signal.aborted) return;
 
+				if (loaded.ok) {
+					const { summary, committedAt } = loaded.value.commit;
+
+					summaries.delete(summaryKey);
+					summaries.set(summaryKey, { summary, committedAt });
+
+					if (summaries.size > summaryLimit) {
+						const oldest = summaries.keys().next().value;
+
+						if (oldest !== undefined) summaries.delete(oldest);
+					}
+				}
+
 				setResult(
 					loaded.ok
 						? { key, value: loaded.value }
@@ -84,12 +122,17 @@ export function RepositoryLastCommit({
 		void load();
 
 		return () => controller.abort();
-	}, [root, head, branch, key, retry, readLast]);
+	}, [root, head, branch, key, retry, readLast, summaries, summaryKey]);
 
 	if (!root || !head || !branch) return null;
 
 	const last = current?.value;
-	const age = last ? WorkspaceMenuModel.commitAge(last.commit.committedAt) : "";
+
+	const commit = current?.error
+		? undefined
+		: (last?.commit ?? summaries.get(summaryKey));
+
+	const age = commit ? WorkspaceMenuModel.commitAge(commit.committedAt) : "";
 
 	const unavailable =
 		!last ||
@@ -126,30 +169,38 @@ export function RepositoryLastCommit({
 				}}
 			>
 				<text style={{ ...typography.xs, color: appTokens.colors.textMuted }}>
-					{last
+					{commit
 						? `Committed${age ? ` ${age}` : ""}`
 						: current?.error
 							? "Could not read last commit"
 							: "Last commit"}
 				</text>
-				{last ? (
-					<RepositoryCommitSubject
-						subject={last.commit.summary}
-						testId="last-commit-summary"
-					/>
-				) : (
-					<text
-						testId="last-commit-summary"
-						style={{
-							...typography.sm,
-							textOverflow: "ellipsis",
-							whiteSpace: "nowrap",
-							overflow: "hidden",
-						}}
-					>
-						{current?.error ?? ""}
-					</text>
-				)}
+				<div
+					style={{
+						display: "flex",
+						height: typography.sm.lineHeight,
+						flexShrink: 0,
+					}}
+				>
+					{commit ? (
+						<RepositoryCommitSubject
+							subject={commit.summary}
+							testId="last-commit-summary"
+						/>
+					) : (
+						<text
+							testId="last-commit-summary"
+							style={{
+								...typography.sm,
+								textOverflow: "ellipsis",
+								whiteSpace: "nowrap",
+								overflow: "hidden",
+							}}
+						>
+							{current?.error ?? ""}
+						</text>
+					)}
+				</div>
 			</div>
 			{!current?.error && !state.amend ? (
 				<Button

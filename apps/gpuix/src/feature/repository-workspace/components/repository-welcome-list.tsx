@@ -35,16 +35,18 @@ export function RepositoryWelcomeList({
 	onStar,
 	onMenu,
 	layout,
+	testIdPrefix = "welcome-",
 }: {
 	paths: readonly string[];
 	saved: ReadonlySet<string>;
 	starred: ReadonlySet<string>;
 	busy: boolean;
 	onOpen: (path: string) => void;
-	onForget: (path: string) => void;
-	onStar: (path: string) => void;
-	onMenu: ComponentProps<typeof RepositoryWelcomeRow>["onMenu"];
+	onForget?: (path: string) => void;
+	onStar?: (path: string) => void;
+	onMenu?: ComponentProps<typeof RepositoryWelcomeRow>["onMenu"];
 	layout: "tiles" | "list";
+	testIdPrefix?: string;
 }) {
 	const renderer = useGpuixRequired();
 	const avatars = use(RepositoryAvatarContext);
@@ -134,7 +136,7 @@ export function RepositoryWelcomeList({
 	return (
 		<div
 			ref={container}
-			testId="welcome-repositories-viewport"
+			testId={`${testIdPrefix}repositories-viewport`}
 			style={{
 				display: "flex",
 				flexDirection: "column",
@@ -145,7 +147,7 @@ export function RepositoryWelcomeList({
 		>
 			<virtual-list
 				ref={viewport}
-				testId="welcome-repositories"
+				testId={`${testIdPrefix}repositories`}
 				role="group"
 				aria-label="Repositories"
 				aria-description="Use the arrow keys, Home and End to move between repositories."
@@ -195,6 +197,7 @@ export function RepositoryWelcomeList({
 								.map((path, column) => (
 									<RepositoryWelcomeRow
 										key={path}
+										testIdPrefix={testIdPrefix}
 										layout={layout}
 										deferAvatar
 										path={path}

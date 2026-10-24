@@ -21,7 +21,7 @@ export const repositoryTileSize = {
 	height: 112,
 } as const;
 
-/** Keeps transient hover/focus local to one saved-repository row. */
+/** Shared repository row; management actions appear only when their callbacks are supplied. */
 export function RepositoryWelcomeRow({
 	path,
 	busy,
@@ -32,22 +32,24 @@ export function RepositoryWelcomeRow({
 	openRef,
 	onNavigate,
 	deferAvatar = false,
-	starred,
+	starred = false,
 	onStar,
 	layout = "list",
+	testIdPrefix = "welcome-",
 }: {
 	path: string;
 	busy: boolean;
 	suggested?: boolean;
 	onOpen: (path: string) => void;
-	onForget: (path: string) => void;
-	onMenu: (path: string, event: EventPayload) => Promise<void>;
+	onForget?: (path: string) => void;
+	onMenu?: (path: string, event: EventPayload) => Promise<void>;
 	openRef?: Ref<PublicInstance>;
 	onNavigate?: (event: EventPayload) => void;
 	deferAvatar?: boolean;
-	starred: boolean;
-	onStar: (path: string) => void;
+	starred?: boolean;
+	onStar?: (path: string) => void;
 	layout?: "tiles" | "list";
+	testIdPrefix?: string;
 }) {
 	const theme = useAppTheme();
 	const { tokens: appTokens } = theme;
@@ -83,7 +85,7 @@ export function RepositoryWelcomeRow({
 	return (
 		<div
 			{...hoverEvents("row")}
-			testId={`welcome-row-${path}`}
+			testId={`${testIdPrefix}row-${path}`}
 			style={{
 				position: "relative",
 				display: "flex",
@@ -118,7 +120,7 @@ export function RepositoryWelcomeRow({
 				{...focusEvents("open")}
 				tokens={appTokens}
 				variant="ghost"
-				testId={`welcome-repository-${path}`}
+				testId={`${testIdPrefix}repository-${path}`}
 				aria-label={`Open ${path}`}
 				aria-description={
 					suggested
@@ -127,9 +129,13 @@ export function RepositoryWelcomeRow({
 				}
 				disabled={busy}
 				onPress={() => onOpen(path)}
-				onContextMenu={(event) => {
-					void onMenu(path, event);
-				}}
+				onContextMenu={
+					onMenu
+						? (event) => {
+								void onMenu(path, event);
+							}
+						: undefined
+				}
 				style={{
 					height: tiled ? "100%" : 54,
 					flexDirection: tiled ? "column" : "row",
@@ -150,7 +156,7 @@ export function RepositoryWelcomeRow({
 					label={basename(path)}
 					source={{ path }}
 					deferred={deferAvatar}
-					testId={`welcome-avatar-${path}`}
+					testId={`${testIdPrefix}avatar-${path}`}
 				/>
 				<div
 					style={{
@@ -164,7 +170,7 @@ export function RepositoryWelcomeRow({
 					}}
 				>
 					<text
-						testId={`welcome-name-${path}`}
+						testId={`${testIdPrefix}name-${path}`}
 						style={{
 							...typography.md,
 							color: appTokens.colors.text,
@@ -176,7 +182,7 @@ export function RepositoryWelcomeRow({
 					</text>
 					{tiled ? null : (
 						<text
-							testId={`welcome-path-${path}`}
+							testId={`${testIdPrefix}path-${path}`}
 							style={{
 								...typography.sm,
 								color: appTokens.colors.textMuted,
@@ -204,79 +210,83 @@ export function RepositoryWelcomeRow({
 					</div>
 				)}
 			</Button>
-			<Button
-				onKeyDown={onNavigate}
-				{...hoverEvents("star")}
-				{...focusEvents("star")}
-				tokens={appTokens}
-				variant="ghost"
-				size="sm"
-				testId={`welcome-star-${path}`}
-				aria-label={`${starred ? "Unstar" : "Star"} ${path}`}
-				disabled={busy}
-				onPress={() => onStar(path)}
-				style={{
-					...(tiled
-						? { position: "absolute", top: spacing[2.5], right: spacing[2] }
-						: {}),
-					width: 26,
-					height: 26,
-					paddingLeft: 0,
-					paddingRight: 0,
-					opacity: starred || visible ? 1 : 0,
-				}}
-			>
-				<svg
-					aria-hidden
-					source={`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9Z" fill="${starred ? "currentColor" : "none"}" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/></svg>`}
+			{onStar ? (
+				<Button
+					onKeyDown={onNavigate}
+					{...hoverEvents("star")}
+					{...focusEvents("star")}
+					tokens={appTokens}
+					variant="ghost"
+					size="sm"
+					testId={`${testIdPrefix}star-${path}`}
+					aria-label={`${starred ? "Unstar" : "Star"} ${path}`}
+					disabled={busy}
+					onPress={() => onStar(path)}
 					style={{
-						width: iconSize.sm,
-						height: iconSize.sm,
-						pointerEvents: "none",
-						color: starred ? theme.colors.brand : appTokens.colors.textMuted,
+						...(tiled
+							? { position: "absolute", top: spacing[2.5], right: spacing[2] }
+							: {}),
+						width: 26,
+						height: 26,
+						paddingLeft: 0,
+						paddingRight: 0,
+						opacity: starred || visible ? 1 : 0,
 					}}
-				/>
-			</Button>
-			<Button
-				onKeyDown={onNavigate}
-				{...hoverEvents("remove")}
-				{...focusEvents("remove")}
-				tokens={appTokens}
-				variant="ghost"
-				size="sm"
-				testId={`welcome-forget-${path}`}
-				aria-label={`Remove ${path} from list`}
-				aria-description={
-					suggested
-						? "Hides this suggestion. Your repository folder is kept."
-						: "Removes only the saved entry. Your repository folder is kept."
-				}
-				disabled={busy}
-				onPress={() => onForget(path)}
-				style={{
-					...(tiled
-						? { position: "absolute", top: spacing[2.5], right: 36 }
-						: {}),
-					width: 26,
-					height: 26,
-					paddingLeft: spacing[0],
-					paddingRight: spacing[0],
-					opacity: visible ? 1 : 0,
-					visibility: busy && !visible ? "hidden" : "visible",
-				}}
-			>
-				<svg
-					testId={`welcome-forget-icon-${path}`}
-					aria-hidden
-					source={brushIcon}
+				>
+					<svg
+						aria-hidden
+						source={`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9Z" fill="${starred ? "currentColor" : "none"}" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/></svg>`}
+						style={{
+							width: iconSize.sm,
+							height: iconSize.sm,
+							pointerEvents: "none",
+							color: starred ? theme.colors.brand : appTokens.colors.textMuted,
+						}}
+					/>
+				</Button>
+			) : null}
+			{onForget ? (
+				<Button
+					onKeyDown={onNavigate}
+					{...hoverEvents("remove")}
+					{...focusEvents("remove")}
+					tokens={appTokens}
+					variant="ghost"
+					size="sm"
+					testId={`${testIdPrefix}forget-${path}`}
+					aria-label={`Remove ${path} from list`}
+					aria-description={
+						suggested
+							? "Hides this suggestion. Your repository folder is kept."
+							: "Removes only the saved entry. Your repository folder is kept."
+					}
+					disabled={busy}
+					onPress={() => onForget(path)}
 					style={{
-						width: iconSize.sm,
-						height: iconSize.sm,
-						pointerEvents: "none",
-						color: appTokens.colors.textMuted,
+						...(tiled
+							? { position: "absolute", top: spacing[2.5], right: 36 }
+							: {}),
+						width: 26,
+						height: 26,
+						paddingLeft: spacing[0],
+						paddingRight: spacing[0],
+						opacity: visible ? 1 : 0,
+						visibility: busy && !visible ? "hidden" : "visible",
 					}}
-				/>
-			</Button>
+				>
+					<svg
+						testId={`${testIdPrefix}forget-icon-${path}`}
+						aria-hidden
+						source={brushIcon}
+						style={{
+							width: iconSize.sm,
+							height: iconSize.sm,
+							pointerEvents: "none",
+							color: appTokens.colors.textMuted,
+						}}
+					/>
+				</Button>
+			) : null}
 		</div>
 	);
 }

@@ -2,7 +2,7 @@
 node_modules
 .pnp
 .pnp.js
-
+rust-gpui-migration
 # Build outputs
 dist
 build

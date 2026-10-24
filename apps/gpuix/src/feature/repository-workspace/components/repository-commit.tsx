@@ -29,6 +29,7 @@ const themedStyles = createThemedStyles(({ colors: appColors }) => {
 	const actionInset = spacing[2.5];
 	const actionHeight = 24;
 	const actionClearance = actionInset + actionHeight + spacing[2];
+	const surface = Bun.color(appColors.editorSurface, "{rgba}");
 
 	const styles = StyleSheet.create({
 		composer: {
@@ -63,7 +64,12 @@ const themedStyles = createThemedStyles(({ colors: appColors }) => {
 				type: "linear-gradient",
 				angle: 180,
 				stops: [
-					{ color: `${appColors.editorSurface}00`, position: 0 },
+					{
+						color: surface
+							? `rgba(${surface.r}, ${surface.g}, ${surface.b}, 0)`
+							: "transparent",
+						position: 0,
+					},
 					{ color: appColors.editorSurface, position: 0.8 },
 				],
 			},

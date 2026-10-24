@@ -83,7 +83,7 @@ function SettingsField({
 	onChange: (value: string) => void;
 }) {
 	const theme = useAppTheme();
-	const { muted, field } = themedStyles[theme.appearance];
+	const { muted, field } = themedStyles.get(theme);
 
 	return (
 		<div style={column}>
@@ -142,7 +142,7 @@ export function GitSettings({
 }) {
 	const theme = useAppTheme();
 	const { tokens: appTokens } = theme;
-	const { muted, heading } = themedStyles[theme.appearance];
+	const { muted, heading } = themedStyles.get(theme);
 
 	const renderer = useGpuixRequired();
 	const [data, setData] = useState<GitSettingsData | null>(null);

@@ -25,6 +25,8 @@ import { WorkspaceTabHeading } from "../workspace-tabs/components/workspace-tab"
 import type { OnboardingStep } from "../workspace-tabs/lib/workspace-session";
 import { workspaceLayout } from "../../styles/workspace-layout";
 import { useAppTheme } from "../../styles/theme";
+import type { useRepositoryDiscovery } from "../repository-discovery/use-repository-discovery";
+import { OnboardingRepositories } from "./onboarding-repositories";
 
 const steps = {
 	welcome: { title: "Welcome to 1git", number: 1 },
@@ -40,6 +42,8 @@ export function Onboarding({
 	error,
 	cloneView,
 	repositoryActions,
+	discovery,
+	onOpenRepository,
 	onStep,
 	onSkip,
 	accounts,
@@ -53,6 +57,8 @@ export function Onboarding({
 	error?: string;
 	cloneView?: ReactNode;
 	repositoryActions: ReactNode;
+	discovery: ReturnType<typeof useRepositoryDiscovery>;
+	onOpenRepository: (path: string) => void;
 	onStep: (step: OnboardingStep) => void;
 	onSkip: () => void;
 	accounts: Accounts;
@@ -258,6 +264,7 @@ export function Onboarding({
 	};
 
 	const next = step === "welcome" ? "git" : "repository";
+	const finalStep = step === "repository";
 
 	return (
 		<AppShell
@@ -348,8 +355,9 @@ export function Onboarding({
 									flexDirection: "column",
 									gap: spacing[4],
 									flexGrow: 1,
+									flexBasis: step === "repository" ? 0 : undefined,
 									minHeight: 0,
-									overflowY: "scroll",
+									overflowY: step === "repository" ? "hidden" : "scroll",
 									paddingBottom: spacing[4],
 								}}
 							>
@@ -540,9 +548,13 @@ export function Onboarding({
 												{error}
 											</text>
 										) : null}
-										<text style={muted}>
-											You can also skip setup and add a repository later.
-										</text>
+										{discovery.available ? (
+											<OnboardingRepositories
+												discovery={discovery}
+												busy={busy}
+												onOpen={onOpenRepository}
+											/>
+										) : null}
 									</>
 								)}
 							</div>
@@ -558,39 +570,37 @@ export function Onboarding({
 								}}
 							>
 								<Button
-									testId="onboarding-skip"
+									testId={finalStep ? "onboarding-back" : "onboarding-skip"}
 									tokens={tokens}
-									variant="ghost"
+									variant={finalStep ? "secondary" : "ghost"}
 									size="sm"
 									disabled={locked}
-									onPress={skip}
+									onPress={finalStep ? () => move("git") : skip}
 								>
-									Skip setup
+									{finalStep ? "Back" : "Skip setup"}
 								</Button>
 								<div style={row}>
-									{step !== "welcome" ? (
+									{step === "git" ? (
 										<Button
 											testId="onboarding-back"
 											tokens={tokens}
 											variant="secondary"
 											size="sm"
 											disabled={locked}
-											onPress={() => move(step === "git" ? "welcome" : "git")}
+											onPress={() => move("welcome")}
 										>
 											Back
 										</Button>
 									) : null}
-									{step !== "repository" ? (
-										<Button
-											testId="onboarding-next"
-											tokens={tokens}
-											size="sm"
-											disabled={locked}
-											onPress={() => move(next)}
-										>
-											Continue
-										</Button>
-									) : null}
+									<Button
+										testId="onboarding-next"
+										tokens={tokens}
+										size="sm"
+										disabled={locked}
+										onPress={() => (finalStep ? skip() : move(next))}
+									>
+										Continue
+									</Button>
 								</div>
 							</div>
 						</div>

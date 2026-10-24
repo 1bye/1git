@@ -34,7 +34,11 @@ afterEach(() => {
 	roots.clear();
 });
 
-function fixture(appearance?: "light" | "dark", commitTypeBadges?: boolean) {
+function fixture(
+	appearance?: "light" | "dark",
+	commitTypeBadges?: boolean,
+	smoothTransitions?: boolean
+) {
 	const root = createTestRoot({
 		width: 1100,
 		height: 760,
@@ -97,6 +101,7 @@ function fixture(appearance?: "light" | "dark", commitTypeBadges?: boolean) {
 				activeId: "workspace-1",
 				appearance,
 				commitTypeBadges,
+				smoothTransitions,
 			}}
 			readRepository={async () => ({ ok: true, value: snapshot })}
 			readHistory={async () => {
@@ -190,6 +195,50 @@ async function openSettings(root: TestRoot): Promise<void> {
 	}
 }
 
+it("enables smooth transitions by default and restores a saved disabled choice", async () => {
+	const { root, saved, catalog } = fixture("light");
+
+	try {
+		await settle(root);
+		await openSettings(root);
+		click(root, "settings-appearance");
+		const toggle = node(root, "appearance-smooth-transitions");
+
+		expect(toggle.customProps?.["aria-checked"]).toBe(true);
+		root.renderer.nativeSimulateKeyDown(toggle.id, "space");
+		root.renderer.nativeSimulateKeyUp(toggle.id, "space");
+		root.renderer.flush();
+		expect(
+			node(root, "appearance-smooth-transitions").customProps?.["aria-checked"]
+		).toBe(false);
+		await Bun.sleep(230);
+		root.renderer.flush();
+		expect(saved.at(-1)?.smoothTransitions).toBe(false);
+		expect(saved.at(-1)?.tabs[0]?.draft).toBe("Keep my draft");
+	} finally {
+		catalog.mockRestore();
+	}
+
+	const restored = fixture("dark", undefined, false);
+
+	try {
+		await settle(restored.root);
+		await openSettings(restored.root);
+		click(restored.root, "settings-appearance");
+		expect(
+			node(restored.root, "appearance-smooth-transitions").customProps?.[
+				"aria-checked"
+			]
+		).toBe(false);
+		click(restored.root, "appearance-smooth-transitions");
+		await Bun.sleep(230);
+		restored.root.renderer.flush();
+		expect(restored.saved.at(-1)?.smoothTransitions).toBe(true);
+	} finally {
+		restored.catalog.mockRestore();
+	}
+});
+
 it("switches in Settings without losing a draft, selected file, inclusion or diff scroll and saves the choice", async () => {
 	const { root, saved, reads, catalog, nativeAppearances } = fixture();
 
@@ -208,6 +257,7 @@ it("switches in Settings without losing a draft, selected file, inclusion or dif
 	await openSettings(root);
 	click(root, "settings-appearance");
 	click(root, "appearance-dark");
+	await Bun.sleep(220);
 	await settle(root);
 	expect(nativeAppearances).toEqual(["light", "dark"]);
 	expect(node(root, "appearance-dark").customProps?.["aria-description"]).toBe(
@@ -294,6 +344,7 @@ it("switches in Settings without losing a draft, selected file, inclusion or dif
 	click(root, "settings-appearance");
 	click(root, "appearance-light");
 	click(root, "view-changes");
+	await Bun.sleep(220);
 	await settle(root);
 	expect(nativeAppearances).toEqual(["light", "dark", "light"]);
 	expect(node(root, "filename-example.ts").style.color).toBe(

@@ -1,13 +1,14 @@
 /**
  * Covers: picking, loading/errors, refresh, tab lifetimes, keyboard focus and preview-only commits.
  * Real: App, reducers, request lifecycle and native GPUIX layout/events.
- * Doubles: native picker responses and repository reader; no live Git or OS dialog.
+ * Doubles: native picker responses, discovery cache and repository reader; no live Git or OS dialog.
  * Requires: patched GPUIX native renderer with macOS graphics access.
  */
 import { afterEach, beforeEach, expect, it, mock, spyOn } from "bun:test";
 import { createTestRoot, type TestRoot } from "@gpuix/react/testing";
 
 import { App } from "../../src/app";
+import { RepositoryDiscoveryCache } from "../../src/feature/repository-discovery/repository-discovery-cache";
 import type { RepositoryReader } from "../../src/feature/repository-workspace/lib/repository-reader";
 import type { RepositoryDiff } from "../../src/feature/repository-workspace/lib/repository-diff";
 import { windowOptions } from "../../src/window-options";
@@ -82,6 +83,8 @@ it("opens real-status rows and refreshes without staging, clearing drafts or rep
 			readDiff={readDiff}
 			readRepository={reader}
 			readHistory={emptyHistory}
+			readHistoryCount={async () => ({ ok: true, value: 0 })}
+			readTags={async () => ({ ok: true, value: [] })}
 			readStashes={async () => ({ ok: true, value: [] })}
 		/>
 	);
@@ -122,7 +125,10 @@ it("opens real-status rows and refreshes without staging, clearing drafts or rep
 	expect(reader).toHaveBeenCalledTimes(2);
 	click("view-history");
 	await settle();
-	expect(root.renderer.getAllText()).toContain("No commits yet");
+	expect(
+		element("repository-list-viewport").customProps?.["aria-description"]
+	).toBe("No commits yet");
+	expect(element("empty-list-placeholder")).toBeDefined();
 	expect(root.renderer.getAllText()).not.toContain("Sample data");
 	click("view-stashes");
 	await settle();
@@ -130,6 +136,9 @@ it("opens real-status rows and refreshes without staging, clearing drafts or rep
 });
 
 it("handles cancellation, picker failures and invalid repositories with a retry", async () => {
+	const cache = new RepositoryDiscoveryCache("/unused/discovery-cache");
+	const remember = spyOn(cache, "remember").mockImplementation(() => {});
+
 	const reader = mock<typeof RepositoryReader.read>(async () => ({
 		ok: false,
 		error: {
@@ -142,7 +151,9 @@ it("handles cancellation, picker failures and invalid repositories with a retry"
 
 	const picker = spyOn(root.renderer, "promptForPaths").mockResolvedValue(null);
 
-	root.render(<App readDiff={readDiff} readRepository={reader} />);
+	root.render(
+		<App readDiff={readDiff} readRepository={reader} discoveryCache={cache} />
+	);
 	click("open-repository");
 	await settle();
 	expect(reader).not.toHaveBeenCalled();
@@ -155,11 +166,13 @@ it("handles cancellation, picker failures and invalid repositories with a retry"
 	click("open-repository");
 	await settle();
 	expect(root.renderer.getAllText()).toContain("Not a Git repository");
+	expect(remember).not.toHaveBeenCalled();
 	reader.mockResolvedValue({ ok: true, value: repositorySnapshot() });
 	click("open-repository");
 	await settle();
 	expect(root.renderer.getAllText()).toContain("Working tree clean");
 	expect(root.renderer.findByTestId("repository-notice")).toBeUndefined();
+	expect(remember).toHaveBeenCalledWith("/test/project");
 });
 
 it("shows refresh errors alongside previous data, then repairs focus after a selected file disappears", async () => {

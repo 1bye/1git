@@ -161,7 +161,7 @@ export function AccountSetupSection({
 	children: ReactNode;
 }) {
 	const theme = useAppTheme();
-	const { title } = themedStyles[theme.appearance];
+	const { title } = themedStyles.get(theme);
 
 	return (
 		<div style={{ ...column, flexShrink: 0 }}>
@@ -186,7 +186,7 @@ function AccountSetupValue({
 }) {
 	const theme = useAppTheme();
 	const { tokens: appTokens } = theme;
-	const { detail } = themedStyles[theme.appearance];
+	const { detail } = themedStyles.get(theme);
 
 	const [result, setResult] = useState<"copying" | "copied" | "error">();
 
@@ -285,7 +285,7 @@ export function AccountConnectionGuide({
 }) {
 	const theme = useAppTheme();
 	const { tokens: appTokens } = theme;
-	const { detail } = themedStyles[theme.appearance];
+	const { detail } = themedStyles.get(theme);
 
 	const setupUrl = accountSetupUrl(
 		provider,

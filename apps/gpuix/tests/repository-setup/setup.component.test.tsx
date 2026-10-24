@@ -1,7 +1,7 @@
 /**
  * Covers: welcome row hover/focus, list scrolling/removal, setup forms, picker intent, errors and cancellation.
  * Real: App, setup lifecycle, close/tab guards and GPUIX layout/events.
- * Doubles: Git setup/read, folder picker and inactive-window focus notifications; no writes/network.
+ * Doubles: Git setup/read, discovery cache, folder picker and inactive-window focus notifications; no writes/network.
  * Requires: patched native renderer and macOS graphics access.
  */
 import { afterEach, beforeEach, expect, it, mock, spyOn } from "bun:test";
@@ -13,6 +13,7 @@ import type { WorkspaceSessionDocument } from "../../src/feature/workspace-tabs/
 import { windowOptions } from "../../src/window-options";
 import { repositorySnapshot } from "../_shared/repository-snapshot";
 import { RepositoryFileActions } from "../../src/feature/repository-workspace/lib/repository-file-actions";
+import { RepositoryDiscoveryCache } from "../../src/feature/repository-discovery/repository-discovery-cache";
 import { appThemes } from "../../src/styles/theme";
 import { hostingRepositories } from "../_shared/hosting-repositories";
 import { rmSync } from "node:fs";
@@ -476,6 +477,8 @@ it("keeps errors and offers Open for existing repositories without another write
 });
 
 it("cancels a clone, waits for Git settlement and preserves its form for retry", async () => {
+	const cache = new RepositoryDiscoveryCache("/unused/discovery-cache");
+	const remember = spyOn(cache, "remember").mockImplementation(() => {});
 	let blocked = false;
 
 	Object.assign(root.renderer, {
@@ -501,7 +504,7 @@ it("cancels a clone, waits for Git settlement and preserves its form for retry",
 		};
 	});
 
-	root.render(<App setupRepository={setup} />);
+	root.render(<App setupRepository={setup} discoveryCache={cache} />);
 	click("repository-clone");
 	await settle();
 	click("setup-url");
@@ -530,9 +533,13 @@ it("cancels a clone, waits for Git settlement and preserves its form for retry",
 	expect(root.renderer.findByTestId("setup-url")).toBeDefined();
 	expect(setup).toHaveBeenCalledTimes(1);
 	expect(blocked).toBe(false);
+	expect(remember).not.toHaveBeenCalled();
 });
 
 it("offers Open after a successful write whose read fails, without recreating", async () => {
+	const cache = new RepositoryDiscoveryCache("/unused/discovery-cache");
+	const remember = spyOn(cache, "remember").mockImplementation(() => {});
+
 	const setup = mock<typeof RepositorySetup.write>(async () => ({
 		ok: true,
 		path: "/test/project",
@@ -549,7 +556,13 @@ it("offers Open after a successful write whose read fails, without recreating", 
 	};
 
 	spyOn(root.renderer, "promptForPaths").mockResolvedValue(["/test/project"]);
-	root.render(<App setupRepository={setup} readRepository={reader} />);
+	root.render(
+		<App
+			setupRepository={setup}
+			readRepository={reader}
+			discoveryCache={cache}
+		/>
+	);
 	click("repository-create");
 	await settle();
 	click("setup-location");
@@ -557,6 +570,7 @@ it("offers Open after a successful write whose read fails, without recreating", 
 	click("setup-submit");
 	await settle();
 	expect(root.renderer.findByTestId("setup-error")).toBeDefined();
+	expect(remember).toHaveBeenCalledWith("/test/project");
 	click("setup-submit");
 	await settle();
 	expect(setup).toHaveBeenCalledTimes(1);

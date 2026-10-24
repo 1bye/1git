@@ -61,6 +61,7 @@ export interface WorkspaceSessionDocument {
 	readonly diffSettings?: DiffSettings;
 	readonly appearance?: AppAppearance;
 	readonly commitTypeBadges?: boolean;
+	readonly smoothTransitions?: boolean;
 	readonly repositoryColors?: RepositoryColorChoices;
 	readonly repositoryPatterns?: RepositoryPatternChoices;
 	readonly onboarding?: OnboardingStep;
@@ -231,6 +232,9 @@ export class WorkspaceSession {
 			...(typeof value.commitTypeBadges === "boolean"
 				? { commitTypeBadges: value.commitTypeBadges }
 				: {}),
+			...(typeof value.smoothTransitions === "boolean"
+				? { smoothTransitions: value.smoothTransitions }
+				: {}),
 			...(value.onboarding === "welcome" ||
 			value.onboarding === "git" ||
 			value.onboarding === "repository" ||
@@ -282,7 +286,8 @@ export class WorkspaceSession {
 		repositoryColors?: RepositoryColorChoices,
 		repositoryDiscovery?: RepositoryDiscoveryPreferences,
 		repositoryPatterns?: RepositoryPatternChoices,
-		repositoryLibrary?: RepositoryLibraryPreferences
+		repositoryLibrary?: RepositoryLibraryPreferences,
+		smoothTransitions?: boolean
 	): WorkspaceSessionDocument {
 		return {
 			version: 1,
@@ -301,6 +306,7 @@ export class WorkspaceSession {
 				: {}),
 			...(appearance ? { appearance } : {}),
 			...(commitTypeBadges !== undefined ? { commitTypeBadges } : {}),
+			...(smoothTransitions !== undefined ? { smoothTransitions } : {}),
 			...(onboarding ? { onboarding } : {}),
 			...(diffSettings ? { diffSettings } : {}),
 			...(repositoryDiscovery &&

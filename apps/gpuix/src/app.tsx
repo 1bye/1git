@@ -23,6 +23,7 @@ import { MachineLocation } from "./feature/machines/machine-location";
 import { MachinesPanel } from "./feature/machines/machines-panel";
 import type { RepositoryDiscoveryPreferences } from "./feature/repository-discovery/repository-discovery";
 import { RepositoryDiscovery } from "./feature/repository-discovery/repository-discovery";
+import type { RepositoryDiscoveryCache } from "./feature/repository-discovery/repository-discovery-cache";
 import { RepositoryQuickSwitcher } from "./feature/repository-discovery/repository-quick-switcher";
 import { RepositoryQuickSwitcherModel } from "./feature/repository-discovery/repository-quick-switcher-model";
 import {
@@ -139,6 +140,10 @@ export function App({
 		props.initialSession?.commitTypeBadges ?? true
 	);
 
+	const [smoothTransitions, setSmoothTransitions] = useState(
+		props.initialSession?.smoothTransitions ?? true
+	);
+
 	useLayoutEffect(() => {
 		// TestRenderer has no OS window; the production addon is pinned by native/preload.ts.
 		if (
@@ -154,8 +159,10 @@ export function App({
 			setAppearance,
 			commitTypeBadges,
 			setCommitTypeBadges,
+			smoothTransitions,
+			setSmoothTransitions,
 		}),
-		[appearance, commitTypeBadges]
+		[appearance, commitTypeBadges, smoothTransitions]
 	);
 
 	return (
@@ -215,6 +222,7 @@ function AppContent({
 	writeStash = RepositoryStashes.write,
 	watchRepository,
 	discoverRepositories,
+	discoveryCache,
 	resolveConflict = RepositoryConflicts.write,
 	openConflictEditor,
 	writeOperation = RepositoryOperation.write,
@@ -272,6 +280,7 @@ function AppContent({
 	writeStash?: typeof RepositoryStashes.write;
 	watchRepository?: typeof RepositoryWatcher.watch;
 	discoverRepositories?: typeof RepositoryDiscovery.scan;
+	discoveryCache?: RepositoryDiscoveryCache;
 	resolveConflict?: typeof RepositoryConflicts.write;
 	openConflictEditor?: typeof RepositoryConflicts.openEditor;
 	writeOperation?: typeof RepositoryOperation.write;
@@ -562,14 +571,8 @@ function AppContent({
 		repositoryColors,
 		discoveryPreferences,
 		repositoryPatterns,
-		repositoryLibrary
-	);
-
-	const connection = useRepositoryConnection(
-		state,
-		dispatch,
-		readRepository,
-		setup
+		repositoryLibrary,
+		theme.smoothTransitions
 	);
 
 	useEffect(() => {
@@ -882,26 +885,37 @@ function AppContent({
 		preview,
 	]);
 
+	const discoveryRemote = remoteMachine && !onboardingOpen;
+
 	const discovery = useRepositoryDiscovery({
+		cache: discoveryCache,
 		enabled:
-			(welcomeVisible || quickSwitcherOpen) &&
+			((!onboardingOpen && (welcomeVisible || quickSwitcherOpen)) ||
+				(onboarding === "repository" && !onboardingClone)) &&
 			!settingsOpen &&
-			!onboardingOpen &&
 			!preview &&
-			(!remoteMachine || !!machineHome),
+			(!discoveryRemote || !!machineHome),
 		scan: preview
 			? undefined
-			: remoteMachine
+			: discoveryRemote
 				? remoteScan
 				: discoverRepositories,
-		preferences: remoteMachine ? remotePreferences : discoveryPreferences,
-		onPreferencesChange: remoteMachine
+		preferences: discoveryRemote ? remotePreferences : discoveryPreferences,
+		onPreferencesChange: discoveryRemote
 			? updateRemotePreferences
 			: setDiscoveryPreferences,
-		home: remoteHome,
-		remote: remoteMachine,
-		scanHome: activeSpaceId === "default",
+		home: discoveryRemote ? remoteHome : undefined,
+		remote: discoveryRemote,
+		scanHome: onboardingOpen || activeSpaceId === "default",
 	});
+
+	const connection = useRepositoryConnection(
+		state,
+		dispatch,
+		readRepository,
+		setup,
+		discovery.remember
+	);
 
 	const quickRepositories = (() => {
 		if (!quickSwitcherOpen) return [];
@@ -1012,13 +1026,16 @@ function AppContent({
 		}, 0);
 	}, [renderer, setSettingsView]);
 
-	const onboardingTab = (): string => {
-		if (onboardingId && state.tabs.some((tab) => tab.id === onboardingId))
+	const onboardingTab = (path?: string): string => {
+		if (onboardingId && state.tabs.some((tab) => tab.id === onboardingId)) {
+			if (path) void connection.read(onboardingId, path);
+
 			return onboardingId;
+		}
 
 		const id = `workspace-${state.nextId}`;
 
-		dispatch({ type: "add" });
+		dispatch({ type: "add", path });
 		setOnboardingId(id);
 
 		return id;
@@ -1916,6 +1933,10 @@ function AppContent({
 						active={!settingsOpen}
 						busy={onboardingBusy}
 						error={onboardingWorkspace?.error ?? undefined}
+						discovery={discovery}
+						onOpenRepository={(path) => {
+							onboardingTab(path);
+						}}
 						onStep={setOnboarding}
 						onSkip={() => {
 							setOnboarding("complete");

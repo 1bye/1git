@@ -14,6 +14,7 @@ import {
 	type RepositoryDiscoveryPreferences,
 	type RepositoryDiscoveryProgress,
 } from "./repository-discovery";
+import { RepositoryDiscoveryCache } from "./repository-discovery-cache";
 
 const emptyProgress: RepositoryDiscoveryProgress = {
 	paths: [],
@@ -31,10 +32,11 @@ interface FolderScan {
 	readonly error?: string;
 }
 
-/** Per-root cached scans; navigation is free and adding a folder never restarts Home. */
+/** Reuses completed scans across navigation and restarts; explicit rescans replace cached results. */
 export function useRepositoryDiscovery({
 	enabled,
 	scan,
+	cache,
 	preferences,
 	onPreferencesChange,
 	home = homedir(),
@@ -43,6 +45,7 @@ export function useRepositoryDiscovery({
 }: {
 	enabled: boolean;
 	scan?: typeof RepositoryDiscovery.scan;
+	cache?: RepositoryDiscoveryCache;
 	preferences: RepositoryDiscoveryPreferences;
 	onPreferencesChange: Dispatch<SetStateAction<RepositoryDiscoveryPreferences>>;
 	home?: string;
@@ -60,9 +63,47 @@ export function useRepositoryDiscovery({
 	const [picking, setPicking] = useState(false);
 	const active = useRef(new Map<string, AbortController>());
 	const pending = useRef(new Map<string, AbortController>());
+	const additions = useRef(new WeakMap<AbortController, Set<string>>());
 	const started = useRef(new Set<string>());
 	const mounted = useRef(true);
 	const picker = useRef(false);
+
+	const remember = useCallback(
+		(path: string): void => {
+			if (!mounted.current) return;
+
+			cache?.remember(path);
+
+			for (const controller of [
+				...active.current.values(),
+				...pending.current.values(),
+			]) {
+				const paths = additions.current.get(controller) ?? new Set<string>();
+
+				paths.add(path);
+				additions.current.set(controller, paths);
+			}
+
+			setRuns((current) => {
+				let next: Map<string, FolderScan> | undefined;
+
+				for (const [root, run] of current) {
+					const snapshot = RepositoryDiscoveryCache.includeRepository(
+						run,
+						path
+					);
+
+					if (snapshot === run) continue;
+
+					next ??= new Map(current);
+					next.set(root, { ...run, progress: snapshot.progress });
+				}
+
+				return next ?? current;
+			});
+		},
+		[cache]
+	);
 
 	const start = useCallback(
 		(folders: readonly string[]) => {
@@ -71,6 +112,8 @@ export function useRepositoryDiscovery({
 			setPickerError(null);
 
 			for (const path of new Set(folders)) {
+				started.current.add(`${home}:${path}`);
+				cache?.remove(home, path);
 				active.current.get(path)?.abort();
 				pending.current.get(path)?.abort();
 				pending.current.set(path, new AbortController());
@@ -116,13 +159,32 @@ export function useRepositoryDiscovery({
 							if (controller.signal.aborted) return;
 
 							update({ canonicalPath });
-							const result = await scan(
-								[canonicalPath],
-								controller.signal,
-								(progress) => update({ progress })
+							const includeAdded = (
+								progress: RepositoryDiscoveryProgress
+							): RepositoryDiscoveryProgress => {
+								let snapshot = { canonicalPath, progress };
+
+								for (const path of additions.current.get(controller) ?? [])
+									snapshot = RepositoryDiscoveryCache.includeRepository(
+										snapshot,
+										path
+									);
+
+								return snapshot.progress;
+							};
+
+							const result = includeAdded(
+								await scan([canonicalPath], controller.signal, (progress) =>
+									update({ progress: includeAdded(progress) })
+								)
 							);
 
 							const unavailable = result.scanned === 0 && result.skipped > 0;
+
+							if (controller.signal.aborted || !mounted.current) return;
+
+							if (!unavailable)
+								cache?.write(home, path, { canonicalPath, progress: result });
 
 							update({
 								progress: result,
@@ -146,7 +208,7 @@ export function useRepositoryDiscovery({
 
 			pump();
 		},
-		[scan, home, remote]
+		[scan, home, remote, cache]
 	);
 
 	useEffect(() => {
@@ -156,10 +218,22 @@ export function useRepositoryDiscovery({
 			(path) => !started.current.has(`${home}:${path}`)
 		);
 
-		for (const path of roots) started.current.add(`${home}:${path}`);
+		const missing: string[] = [];
+		const cached = new Map<string, FolderScan>();
 
-		if (roots.length) start(roots);
-	}, [enabled, scan, start, preferences.folders, home, scanHome]);
+		for (const path of roots) {
+			started.current.add(`${home}:${path}`);
+			const snapshot = cache?.read(home, path);
+
+			if (snapshot)
+				cached.set(path, { ...snapshot, scope: home, status: "complete" });
+			else missing.push(path);
+		}
+
+		if (cached.size) setRuns((current) => new Map([...current, ...cached]));
+
+		if (missing.length) start(missing);
+	}, [enabled, scan, start, preferences.folders, home, scanHome, cache]);
 
 	useEffect(() => {
 		mounted.current = true;
@@ -304,6 +378,7 @@ export function useRepositoryDiscovery({
 		picking,
 		available: !!scan,
 		folders,
+		remember,
 		rescan: (folder?: string) =>
 			start(
 				folder
@@ -315,6 +390,8 @@ export function useRepositoryDiscovery({
 			active.current.get(path)?.abort();
 			pending.current.get(path)?.abort();
 			pending.current.delete(path);
+			started.current.delete(`${home}:${path}`);
+			cache?.remove(home, path);
 			setRuns((current) => {
 				const next = new Map(current);
 

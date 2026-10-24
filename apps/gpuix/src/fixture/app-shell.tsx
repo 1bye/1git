@@ -11,6 +11,7 @@ import type { PublicInstance } from "@gpuix/react";
 import { WorkspaceCornerContext } from "./workspace-corner";
 import { chromeGrainSource } from "./chrome-grain";
 import { RepositoryPatternLayer } from "../feature/repository-appearance/repository-pattern-layer";
+import { useThemeTransition } from "../styles/theme-transition";
 
 const themedStyles = createThemedStyles(({ colors: appColors }) => {
 	const styles = StyleSheet.create({
@@ -88,10 +89,12 @@ export function AppShell({
 }) {
 	const inherited = useAppTheme();
 
-	const theme = useMemo(
+	const targetTheme = useMemo(
 		() => (palette ? { ...inherited, ...palette } : inherited),
 		[inherited, palette]
 	);
+
+	const theme = useThemeTransition(targetTheme, !!inherited.smoothTransitions);
 
 	const { styles } = themedStyles.get(theme);
 

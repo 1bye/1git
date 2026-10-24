@@ -23,12 +23,13 @@ import {
 	type RepositoryWorkspaceAction,
 } from "../lib/repository-workspace-model";
 
-/** Owns native picking and cancellable reads; results always belong to the requesting tab. */
+/** Owns native picking and cancellable reads. Reports confirmed repository paths after successful reads or setup writes. */
 export function useRepositoryConnection(
 	state: WorkspaceTabsState,
 	dispatch: Dispatch<WorkspaceTabsAction>,
 	readRepository: typeof RepositoryReader.read,
-	setupRepository = RepositorySetup.write
+	setupRepository = RepositorySetup.write,
+	onRepositoryReady?: (path: string) => void
 ) {
 	const renderer = useGpuixRequired();
 	const tabs = useRef(state.tabs);
@@ -101,6 +102,8 @@ export function useRepositoryConnection(
 
 				if (request.signal.aborted) return;
 
+				if (result.ok) onRepositoryReady?.(result.value.repository.root);
+
 				send(
 					id,
 					result.ok
@@ -120,7 +123,7 @@ export function useRepositoryConnection(
 				if (requests.current.get(id) === request) requests.current.delete(id);
 			}
 		},
-		[readRepository, send]
+		[readRepository, send, onRepositoryReady]
 	);
 
 	useEffect(() => {
@@ -214,6 +217,9 @@ export function useRepositoryConnection(
 			if (!result.ok) return result;
 
 			createdPath = result.path;
+
+			if (mounted.current && !controller.signal.aborted)
+				onRepositoryReady?.(result.path);
 
 			// A successful write must not be repeated if only the subsequent read fails.
 			const loaded = await readRepository(result.path, controller.signal);

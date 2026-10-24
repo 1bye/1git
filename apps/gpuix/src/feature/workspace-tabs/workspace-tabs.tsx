@@ -18,7 +18,10 @@ import type { NativeRenderer } from "@gpuix/native/host";
 
 import { workspaceLayout as layout } from "../../styles/workspace-layout";
 import { useWorkspaceCorner } from "../../fixture/workspace-corner";
-import { WorkspaceTab } from "./components/workspace-tab";
+import {
+	WorkspaceTab,
+	WorkspaceTabSelection,
+} from "./components/workspace-tab";
 import { WorkspaceTabIcon } from "./components/workspace-tab-icon";
 import {
 	WorkspaceMenu,
@@ -395,6 +398,15 @@ export function WorkspaceTabs({
 							width: state.tabs.length * layout.tabWidth,
 						})}
 					>
+						{theme.smoothTransitions &&
+						state.activeId &&
+						activeLeft !== undefined ? (
+							<WorkspaceTabSelection
+								id={state.activeId}
+								left={activeLeft}
+								dragging={!!draggingId}
+							/>
+						) : null}
 						{positionedTabs.map(({ tab, left }) => (
 							<WorkspaceTab
 								key={tab.id}

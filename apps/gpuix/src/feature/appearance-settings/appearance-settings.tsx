@@ -7,8 +7,14 @@ import { RepositoryCommitSubject } from "../repository-workspace/components/repo
 
 /** Immediate, persistent appearance selection; previews use the same palettes as the app. */
 export function AppearanceSettings() {
-	const { appearance, tokens, commitTypeBadges, setCommitTypeBadges } =
-		useAppTheme();
+	const {
+		colors,
+		tokens,
+		commitTypeBadges,
+		setCommitTypeBadges,
+		smoothTransitions = true,
+		setSmoothTransitions,
+	} = useAppTheme();
 
 	return (
 		<div
@@ -33,6 +39,28 @@ export function AppearanceSettings() {
 				Appearance
 			</text>
 			<AppearanceChoices />
+			<div
+				style={{
+					display: "flex",
+					flexDirection: "column",
+					gap: spacing[2],
+					maxWidth: 480,
+					marginTop: spacing[2],
+				}}
+			>
+				<Checkbox
+					testId="appearance-smooth-transitions"
+					label="Smooth transitions"
+					aria-description="Slide the active tab surface and blend theme colors when switching tabs or changing appearance."
+					checked={smoothTransitions}
+					onCheckedChange={(enabled) => setSmoothTransitions?.(enabled)}
+					disabled={!setSmoothTransitions}
+					tokens={tokens}
+				/>
+				<text style={{ ...typography.sm, color: tokens.colors.textMuted }}>
+					Animate tab selection and theme colors. Turn off for instant changes.
+				</text>
+			</div>
 			<div
 				style={{
 					display: "flex",
@@ -74,7 +102,7 @@ export function AppearanceSettings() {
 						gap: spacing[2],
 						padding: spacing[3],
 						borderRadius: 4,
-						backgroundColor: appColors[appearance].editorSunken,
+						backgroundColor: colors.editorSunken,
 					}}
 				>
 					<RepositoryCommitSubject

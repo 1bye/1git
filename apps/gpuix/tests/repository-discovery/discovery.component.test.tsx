@@ -1,12 +1,13 @@
 /**
- * Covers: Home-only discovery, search counts, toolbar navigation, suggestions, opening, retry, folder selection and persistent removal.
+ * Covers: Home-only discovery, cached restarts, explicit rescans, search counts, suggestions, opening, retry and folder selection.
  * Real: App, session/discovery hooks and GPUIX native layout/input.
- * Doubles: scanner, picker, repository reads, account catalog and session save; no user folders or network.
+ * Doubles: scanner, cache storage, picker, repository reads, account catalog and session save; no user folders or network.
  * Requires: patched GPUIX renderer with macOS graphics access.
  */
 import { afterEach, beforeEach, expect, it, mock, spyOn } from "bun:test";
 import { createTestRoot, type TestRoot } from "@gpuix/react/testing";
 import { homedir } from "node:os";
+import { join } from "node:path";
 import { App } from "../../src/app";
 import { windowOptions } from "../../src/window-options";
 import { Accounts } from "../../src/feature/accounts/lib/accounts";
@@ -15,7 +16,12 @@ import {
 	RepositoryDiscovery,
 	type RepositoryDiscoveryProgress,
 } from "../../src/feature/repository-discovery/repository-discovery";
+import {
+	RepositoryDiscoveryCache,
+	type RepositoryDiscoverySnapshot,
+} from "../../src/feature/repository-discovery/repository-discovery-cache";
 import type { RepositoryReader } from "../../src/feature/repository-workspace/lib/repository-reader";
+import type { RepositorySetup } from "../../src/feature/repository-workspace/lib/repository-setup";
 import type { WorkspaceSessionDocument } from "../../src/feature/workspace-tabs/lib/workspace-session";
 import { repositorySnapshot } from "../_shared/repository-snapshot";
 
@@ -268,11 +274,7 @@ it("keeps scan metadata out of the layout and shows the repository count in the 
 	);
 	await settle();
 
-	for (const id of [
-		"discovery-summary",
-		"discovery-rescan",
-		"discovery-incomplete",
-	])
+	for (const id of ["discovery-summary", "discovery-incomplete"])
 		expect(root.renderer.findByTestId(id)).toBeUndefined();
 
 	expect(root.renderer.getAllText()).not.toContain(
@@ -438,6 +440,18 @@ it("does not scan preview or unfinished onboarding, and persists hidden suggesti
 
 it("browses physical folders, stars across groups and restores the saved view without rescanning", async () => {
 	const all = ["/Work/api", "/Personal/site", "/outside/legacy"];
+	const snapshots = new Map<string, RepositoryDiscoverySnapshot>();
+	const cache = new RepositoryDiscoveryCache("/unused/discovery-cache");
+
+	spyOn(cache, "read").mockImplementation((scope, path) =>
+		snapshots.get(JSON.stringify([scope, path]))
+	);
+	spyOn(cache, "write").mockImplementation((scope, path, snapshot) => {
+		snapshots.set(JSON.stringify([scope, path]), snapshot);
+	});
+	spyOn(cache, "remove").mockImplementation((scope, path) => {
+		snapshots.delete(JSON.stringify([scope, path]));
+	});
 
 	const scan = mock<typeof RepositoryDiscovery.scan>(async ([folder]) => ({
 		...progress,
@@ -459,6 +473,7 @@ it("browses physical folders, stars across groups and restores the saved view wi
 				repositoryDiscovery: { folders: ["/Work", "/Personal"], hidden: [] },
 			}}
 			discoverRepositories={scan}
+			discoveryCache={cache}
 			saveSession={save}
 			readRepository={read}
 		/>
@@ -511,11 +526,13 @@ it("browses physical folders, stars across groups and restores the saved view wi
 			accounts={accounts}
 			initialSession={document}
 			discoverRepositories={scan}
+			discoveryCache={cache}
 			saveSession={save}
 		/>
 	);
 	await settle();
 	expect(node("welcome-repository-/Work/api")).toBeDefined();
+	expect(scan).toHaveBeenCalledTimes(3);
 	click("welcome-view-tiles");
 	expect(node("welcome-back")).toBeDefined();
 	expect(node("welcome-repository-/Work/api")).toBeDefined();
@@ -545,6 +562,12 @@ it("browses physical folders, stars across groups and restores the saved view wi
 		root.renderer.findByTestId("welcome-repository-/Work/api")
 	).toBeUndefined();
 	expect(node("welcome-repository-/Personal/site")).toBeDefined();
+	all.push("/Personal/new-project");
+	click("discovery-rescan");
+	await settle();
+	click("welcome-folder-/Personal");
+	expect(node("welcome-repository-/Personal/new-project")).toBeDefined();
+	expect(scan).toHaveBeenCalledTimes(6);
 });
 
 it("retries unavailable folders individually and removes only tracking, retaining saved/starred repositories", async () => {
@@ -607,6 +630,240 @@ it("retries unavailable folders individually and removes only tracking, retainin
 	expect(document?.recentRepositories).toEqual(["/Volumes/Work/api"]);
 	expect(document?.repositoryLibrary?.starred).toEqual(["/Volumes/Work/api"]);
 });
+
+it("scans only uncached folders and still applies hidden suggestions to restored results", async () => {
+	const cache = new RepositoryDiscoveryCache("/unused/discovery-cache");
+
+	spyOn(cache, "read").mockImplementation((_scope, path) =>
+		path === homedir() ? { canonicalPath: path, progress } : undefined
+	);
+	spyOn(cache, "write").mockImplementation(() => {});
+	spyOn(cache, "remove").mockImplementation(() => {});
+	const scan = mock<typeof RepositoryDiscovery.scan>(async () => ({
+		...progress,
+		paths: ["/New/project"],
+	}));
+
+	root.render(
+		<App
+			accounts={accounts}
+			initialSession={{
+				...initial,
+				recentRepositories: [],
+				repositoryDiscovery: { folders: ["/New"], hidden: progress.paths },
+			}}
+			discoverRepositories={scan}
+			discoveryCache={cache}
+		/>
+	);
+	await settle();
+	expect(scan.mock.calls.map(([folders]) => folders)).toEqual([["/New"]]);
+	expect(node("welcome-search").customProps?.placeholder).toBe(
+		"Search 1 repository"
+	);
+	click("welcome-folder-/New");
+	expect(node("welcome-repository-/New/project")).toBeDefined();
+});
+
+for (const action of ["create", "clone", "open"] as const) {
+	it(`updates discovery and its persisted cache after ${action} without rescanning`, async () => {
+		const path = join(homedir(), "new-project");
+		const cache = new RepositoryDiscoveryCache("/unused/discovery-cache");
+
+		let saved: RepositoryDiscoverySnapshot = {
+			canonicalPath: homedir(),
+			progress: { ...progress, paths: [] },
+		};
+
+		spyOn(cache, "read").mockImplementation(() => saved);
+		const remember = spyOn(cache, "remember").mockImplementation(
+			(repository) => {
+				saved = RepositoryDiscoveryCache.includeRepository(saved, repository);
+			}
+		);
+
+		const scan = mock<typeof RepositoryDiscovery.scan>(async () => progress);
+
+		const setup = mock<typeof RepositorySetup.write>(async () => ({
+			ok: true,
+			path,
+		}));
+
+		const reader = mock<typeof RepositoryReader.read>(async () => {
+			const snapshot = repositorySnapshot();
+
+			return {
+				ok: true,
+				value: {
+					...snapshot,
+					repository: { ...snapshot.repository, root: path },
+				},
+			};
+		});
+
+		spyOn(root.renderer, "promptForPaths").mockResolvedValue([path]);
+		root.render(
+			<App
+				accounts={accounts}
+				initialSession={{ ...initial, recentRepositories: [] }}
+				discoverRepositories={scan}
+				discoveryCache={cache}
+				readRepository={reader}
+				setupRepository={setup}
+			/>
+		);
+		await settle();
+
+		if (action === "open") click("open-repository");
+		else {
+			click(`repository-${action}`);
+			await settle();
+
+			if (action === "clone") {
+				click("setup-url");
+				root.renderer.simulateKeystrokes("r e p o . g i t");
+				root.renderer.flush();
+			} else {
+				click("setup-location");
+				await settle();
+			}
+
+			click("setup-submit");
+		}
+
+		await settle();
+		expect(remember).toHaveBeenCalledWith(path);
+		expect(saved.progress.paths).toEqual([path]);
+		click("workspace-home");
+		click("welcome-folder-other");
+		expect(node(`welcome-repository-${path}`)).toBeDefined();
+		expect(scan).not.toHaveBeenCalled();
+		root.unmount();
+		root = createTestRoot({ width: 980, height: 640 });
+		root.renderer.clockPause();
+		root.render(
+			<App
+				accounts={accounts}
+				initialSession={{ ...initial, recentRepositories: [] }}
+				discoverRepositories={scan}
+				discoveryCache={cache}
+			/>
+		);
+		await settle();
+		click("welcome-folder-other");
+		expect(node(`welcome-repository-${path}`)).toBeDefined();
+		expect(scan).not.toHaveBeenCalled();
+	});
+}
+
+it("retains repositories opened during a scan when later progress and completion omit them", async () => {
+	const path = join(homedir(), "opened-during-scan");
+	const cache = new RepositoryDiscoveryCache("/unused/discovery-cache");
+	const pending = Promise.withResolvers<RepositoryDiscoveryProgress>();
+	let report: ((progress: RepositoryDiscoveryProgress) => void) | undefined;
+
+	spyOn(cache, "read").mockReturnValue(undefined);
+	spyOn(cache, "remove").mockImplementation(() => {});
+	spyOn(cache, "remember").mockImplementation(() => {});
+	const write = spyOn(cache, "write").mockImplementation(() => {});
+
+	const scan = mock<typeof RepositoryDiscovery.scan>(
+		async (_roots, _signal, onProgress) => {
+			report = onProgress;
+
+			return await pending.promise;
+		}
+	);
+
+	spyOn(root.renderer, "promptForPaths").mockResolvedValue([path]);
+	root.render(
+		<App
+			accounts={accounts}
+			initialSession={initial}
+			discoverRepositories={scan}
+			discoveryCache={cache}
+			readRepository={read}
+		/>
+	);
+	await settle();
+	click("open-repository");
+	await settle();
+	report?.(progress);
+	pending.resolve(progress);
+	await settle();
+
+	expect(write).toHaveBeenLastCalledWith(homedir(), homedir(), {
+		canonicalPath: homedir(),
+		progress: { ...progress, paths: [...progress.paths, path] },
+	});
+	expect(scan).toHaveBeenCalledTimes(1);
+});
+
+for (const outcome of ["cancelled", "unavailable", "failed"] as const) {
+	it(`retries ${outcome} scans after restart without caching partial results`, async () => {
+		const cache = new RepositoryDiscoveryCache("/unused/discovery-cache");
+		const pending = Promise.withResolvers<RepositoryDiscoveryProgress>();
+
+		let cached: RepositoryDiscoverySnapshot | undefined = {
+			canonicalPath: homedir(),
+			progress,
+		};
+
+		spyOn(cache, "read").mockImplementation(() => cached);
+		spyOn(cache, "remove").mockImplementation(() => {
+			cached = undefined;
+		});
+
+		const write = spyOn(cache, "write").mockImplementation(() => {});
+
+		const scan = mock<typeof RepositoryDiscovery.scan>(
+			async (_roots, _signal, report) => {
+				report(progress);
+
+				if (outcome === "failed") throw new Error("Folder unavailable");
+
+				if (outcome === "unavailable")
+					return { paths: [], scanned: 0, skipped: 1, limited: false };
+
+				return await pending.promise;
+			}
+		);
+
+		root.render(
+			<App
+				accounts={accounts}
+				initialSession={initial}
+				discoverRepositories={scan}
+				discoveryCache={cache}
+			/>
+		);
+		await settle();
+		expect(scan).not.toHaveBeenCalled();
+		click("discovery-rescan");
+		await settle();
+		root.unmount();
+		pending.resolve(progress);
+		await Bun.sleep(0);
+		expect(write).not.toHaveBeenCalled();
+		scan.mockResolvedValue(progress);
+		root = createTestRoot({ width: 980, height: 640 });
+		root.renderer.clockPause();
+		root.render(
+			<App
+				accounts={accounts}
+				initialSession={initial}
+				discoverRepositories={scan}
+				discoveryCache={cache}
+			/>
+		);
+		await settle();
+		expect(scan).toHaveBeenCalledTimes(2);
+		expect(write).toHaveBeenCalledWith(homedir(), homedir(), {
+			canonicalPath: homedir(),
+			progress,
+		});
+	});
+}
 
 it("counts the current scope and places the back arrow beside search without a folder path label", async () => {
 	const paths = ["/Work/api", "/Work/client", "/Personal/site"];

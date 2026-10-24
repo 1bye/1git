@@ -354,6 +354,29 @@ function RepositoryWelcomeContent({
 						/>
 						{busy ? "Opening…" : remote ? "Open folder" : "Open from disk"}
 					</Button>
+					{discovery?.available ? (
+						<Button
+							tokens={appTokens}
+							variant="ghost"
+							size="sm"
+							testId="discovery-rescan"
+							disabled={scanning}
+							style={{ ...styles.action, marginTop: spacing[1] }}
+							onPress={() => discovery.rescan()}
+						>
+							<svg
+								aria-hidden
+								source='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6.1 7a7 7 0 0 1 11.5-2L20 8M4 16l2.4 3A7 7 0 0 0 17.9 17"/></svg>'
+								style={{
+									width: iconSize.lg,
+									height: iconSize.lg,
+									color: appTokens.colors.textMuted,
+									pointerEvents: "none",
+								}}
+							/>
+							{scanning ? "Scanning…" : "Scan repositories"}
+						</Button>
+					) : null}
 					{error ? (
 						<text
 							role="alert"

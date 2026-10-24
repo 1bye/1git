@@ -54,6 +54,33 @@ function connectedTabSurface(tabWidth: number, color: string): string {
 	return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${paintedWidth} ${height}"><path d="${outline} Z" fill="${color}"/></svg>`;
 }
 
+/** One connected surface moves behind the tab labels while selection remains immediate. */
+export function WorkspaceTabSelection({
+	id,
+	left,
+	dragging,
+}: {
+	id: string;
+	left: number;
+	dragging: boolean;
+}) {
+	const theme = useAppTheme();
+	const { activeSurface, styles } = themedStyles.get(theme);
+
+	return (
+		<svg
+			testId={`surface-${id}`}
+			source={activeSurface}
+			style={styles.surface}
+			motion={{
+				initial: false,
+				animate: { left: left - surfaceOutset },
+				transition: { duration: dragging ? 0 : 0.24, ease: [0.22, 1, 0.36, 1] },
+			}}
+		/>
+	);
+}
+
 // Match Electron's OverflowingLabel: pause, reveal the suffix, and return on leave.
 const marquee = {
 	hoverDelay: 0.32,
@@ -381,7 +408,7 @@ export function WorkspaceTab({
 					onClick={onActivate}
 					{...hoverEvents("drag")}
 				/>
-				{active ? (
+				{active && !theme.smoothTransitions ? (
 					<svg
 						testId={`surface-${tab.id}`}
 						source={activeSurface}
@@ -511,7 +538,7 @@ function WorkspaceTabLabel({
 
 	const theme = useAppTheme();
 	const { tokens: appTokens } = theme;
-	const { styles } = themedStyles[theme.appearance];
+	const { styles } = themedStyles.get(theme);
 
 	const renderer = useGpuixRequired();
 	const viewport = useRef<PublicInstance>(null);
@@ -607,7 +634,7 @@ export function WorkspaceTabHeading({
 }) {
 	const theme = useAppTheme();
 	const { tokens: appTokens, colors: appColors } = theme;
-	const { styles } = themedStyles[theme.appearance];
+	const { styles } = themedStyles.get(theme);
 
 	return (
 		<div

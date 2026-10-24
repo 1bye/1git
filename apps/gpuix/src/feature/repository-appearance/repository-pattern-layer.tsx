@@ -1,4 +1,5 @@
 import { useWindowSize } from "@gpuix/react";
+import { spacing } from "@1git/design-tokens";
 import { useAppTheme } from "../../styles/theme";
 import {
 	repositoryPatternSources,
@@ -6,7 +7,7 @@ import {
 } from "./pattern-artwork";
 import type { RepositoryPattern } from "./repository-patterns";
 
-/** Shared fixed-size masks below chrome controls, outside the tab bar and behind opaque content. */
+/** Shared fixed-size masks behind chrome controls and opaque content. */
 export function RepositoryPatternLayer({
 	pattern,
 }: {
@@ -23,10 +24,10 @@ export function RepositoryPatternLayer({
 			aria-hidden
 			style={{
 				position: "absolute",
-				top: 0,
+				top: -spacing[8],
+				bottom: 0,
 				left: 0,
 				width: "100%",
-				height: "100%",
 				overflowX: "hidden",
 				overflowY: "hidden",
 				pointerEvents: "none",

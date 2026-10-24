@@ -22,13 +22,20 @@ import { WorkspaceTabsModel } from "../../src/feature/workspace-tabs/lib/workspa
 import { WorkspaceTabs } from "../../src/feature/workspace-tabs/workspace-tabs";
 import { workspaceLayout } from "../../src/styles/workspace-layout";
 import { windowOptions } from "../../src/window-options";
+import { AppThemeContext, appThemes } from "../../src/styles/theme";
 
 let root: TestRoot;
 let seedWorkspace: () => void;
 
 // Keep the tab strip's full-width geometry regressions independent of workspace content.
 // The integrated navigation + tab layout is exercised in repository-workspace tests.
-function App({ initialTabCount = 1 }: { initialTabCount?: number }) {
+function App({
+	initialTabCount = 1,
+	smoothTransitions = false,
+}: {
+	initialTabCount?: number;
+	smoothTransitions?: boolean;
+}) {
 	const [state, dispatch] = useReducer(
 		WorkspaceTabsModel.reduce,
 		initialTabCount,
@@ -49,10 +56,16 @@ function App({ initialTabCount = 1 }: { initialTabCount?: number }) {
 	const active = state.tabs.find((tab) => tab.id === state.activeId);
 
 	return (
-		<AppShell
-			toolbar={<WorkspaceTabs state={state} dispatch={dispatch} />}
-			workspaceLabel={active ? `${active.name} workspace` : "No workspace open"}
-		/>
+		<AppThemeContext
+			value={{ ...appThemes.light, commitTypeBadges: true, smoothTransitions }}
+		>
+			<AppShell
+				toolbar={<WorkspaceTabs state={state} dispatch={dispatch} />}
+				workspaceLabel={
+					active ? `${active.name} workspace` : "No workspace open"
+				}
+			/>
+		</AppThemeContext>
 	);
 }
 
@@ -107,6 +120,34 @@ const selectedTabs = () =>
 	Object.values(root.renderer.getA11yTree().nodes ?? {})
 		.filter((node) => node.aria?.role === "Tab" && node.aria.selected)
 		.map((node) => node.aria?.label);
+
+it("slides selection while clicks and keyboard activation take effect immediately", () => {
+	root.render(<App key="smooth-tabs" initialTabCount={3} smoothTransitions />);
+	const start = bounds("surface-workspace-1").x;
+	const first = element("workspace-1").id;
+
+	click("workspace-3");
+	root.renderer.flush();
+	expect(selectedTabs()).toEqual(["Workspace 3"]);
+	expect(bounds("surface-workspace-3").x).toBe(start);
+	advanceMotion(80);
+	expect(bounds("surface-workspace-3").x).toBeGreaterThan(start);
+	expect(bounds("surface-workspace-3").x).toBeLessThan(
+		start + workspaceLayout.tabWidth * 2
+	);
+	root.renderer.nativeSimulateKeyDown(element("workspace-3").id, "left");
+	root.renderer.flush();
+	expect(selectedTabs()).toEqual(["Workspace 2"]);
+	advanceMotion(250);
+	expect(bounds("surface-workspace-2").x).toBeCloseTo(
+		start + workspaceLayout.tabWidth
+	);
+	expect(element("workspace-1").id).toBe(first);
+	click("workspace-home");
+	root.renderer.flush();
+	expect(selectedTabs()).toEqual([]);
+	expect(root.renderer.findByTestId("surface-workspace-2")).toBeUndefined();
+});
 
 it("uses the native shell geometry and paints only the workspace opaque", () => {
 	expect(bounds("workspace-toolbar").height).toBe(

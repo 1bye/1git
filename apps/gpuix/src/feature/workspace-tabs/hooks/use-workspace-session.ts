@@ -25,7 +25,8 @@ export function useWorkspaceSession(
 	repositoryColors?: RepositoryColorChoices,
 	repositoryDiscovery?: RepositoryDiscoveryPreferences,
 	repositoryPatterns?: RepositoryPatternChoices,
-	repositoryLibrary?: RepositoryLibraryPreferences
+	repositoryLibrary?: RepositoryLibraryPreferences,
+	smoothTransitions?: boolean
 ) {
 	const content =
 		state.preview || !save
@@ -40,7 +41,8 @@ export function useWorkspaceSession(
 						repositoryColors,
 						repositoryDiscovery,
 						repositoryPatterns,
-						repositoryLibrary
+						repositoryLibrary,
+						smoothTransitions
 					)
 				);
 

@@ -46,7 +46,7 @@ export function AccountConnectionFields({
 }) {
 	const theme = useAppTheme();
 	const { tokens: appTokens } = theme;
-	const { fieldStyle, labelStyle } = themedStyles[theme.appearance];
+	const { fieldStyle, labelStyle } = themedStyles.get(theme);
 
 	const {
 		provider,

@@ -60,7 +60,7 @@ export function WorkspaceTabIcon({
 }) {
 	const theme = useAppTheme();
 	const { colors: appColors } = theme;
-	const { styles } = themedStyles[theme.appearance];
+	const { styles } = themedStyles.get(theme);
 
 	return (
 		<svg

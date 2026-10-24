@@ -176,7 +176,7 @@ export function AccountsSettings({
 	const { tokens: appTokens } = theme;
 
 	const { labelStyle, headingStyle, footerStyle, groupHeading } =
-		themedStyles[theme.appearance];
+		themedStyles.get(theme);
 
 	const renderer = useGpuixRequired();
 

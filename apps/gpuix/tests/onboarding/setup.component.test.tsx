@@ -1,12 +1,14 @@
 /**
- * Covers: first-run/replay setup, split account editing, theme/default preservation, explicit identity saving and repository success/cancellation.
+ * Covers: first-run/replay setup, account editing, theme/default preservation, identity saving, repository discovery and success/cancellation.
  * Real: App, native setup/forms, session persistence and repository connection lifecycle.
- * Doubles: Git config/repository/setup, folder picker, GitHub CLI, hosting HTTP/vault and disposable account metadata.
+ * Doubles: Git config/repository/setup, discovery scanner, folder picker, GitHub CLI, hosting HTTP/vault and disposable account metadata.
  * Requires: patched native renderer and macOS graphics; no user credentials, Git writes or network.
  */
 import { afterEach, beforeEach, expect, it, mock, spyOn } from "bun:test";
 import { rmSync } from "node:fs";
+import { homedir } from "node:os";
 import { createTestRoot, type TestRoot } from "@gpuix/react/testing";
+import { spacing } from "@1git/design-tokens";
 import { App } from "../../src/app";
 import type {
 	GitSettingsModel,
@@ -18,6 +20,11 @@ import { repositorySnapshot } from "../_shared/repository-snapshot";
 import { windowOptions } from "../../src/window-options";
 import { NativeFileMenu } from "../../src/feature/repository-workspace/lib/native-file-menu";
 import type { GitHubCliAccount } from "../../src/feature/accounts/lib/github-cli";
+import {
+	RepositoryDiscovery,
+	type RepositoryDiscoveryProgress,
+} from "../../src/feature/repository-discovery/repository-discovery";
+import type { RepositoryReader } from "../../src/feature/repository-workspace/lib/repository-reader";
 
 let root: TestRoot;
 let f: ReturnType<typeof hostingRepositories>;
@@ -72,9 +79,11 @@ async function edit(id: string, value: string) {
 	root.renderer.focusElement(node(id).id);
 	root.renderer.simulateKeystrokes("cmd-a");
 	root.renderer.simulateKeystrokes(
-		[...value]
-			.map((character) => (character === " " ? "space" : character))
-			.join(" ")
+		value
+			? [...value]
+					.map((character) => (character === " " ? "space" : character))
+					.join(" ")
+			: "backspace"
 	);
 	await settle();
 }
@@ -281,11 +290,18 @@ it("ignores stale GitHub discovery after switching to GitLab", async () => {
 });
 
 it.each(["light", "dark"] as const)(
-	"keeps theme selection explicit, uses compact native steps and persists skipping (%s)",
+	"keeps theme selection explicit and finishes setup with Continue without opening a repository (%s)",
 	async (appearance) => {
 		const props = fixture();
 
-		root.render(<App {...props} initialOnboarding="welcome" />);
+		const reader = mock<typeof RepositoryReader.read>(async () => ({
+			ok: true,
+			value: repositorySnapshot(),
+		}));
+
+		root.render(
+			<App {...props} initialOnboarding="welcome" readRepository={reader} />
+		);
 		await settle();
 		expect(root.renderer.getAllText()).toContain("1 of 3");
 		expect(root.renderer.getFocusedElementId()).toBe(
@@ -322,14 +338,26 @@ it.each(["light", "dark"] as const)(
 		expect(footer.y + footer.height).toBeLessThanOrEqual(640);
 		expect(node("onboarding-repository-create")).toBeDefined();
 		expect(node("onboarding-repository-clone")).toBeDefined();
+		expect(root.renderer.findByTestId("onboarding-skip")).toBeUndefined();
+		const back = root.renderer.getElementBounds(node("onboarding-back").id)!;
+
+		const continueButton = root.renderer.getElementBounds(
+			node("onboarding-next").id
+		)!;
+
+		expect(back.x).toBeLessThan(continueButton.x);
+		expect(node("onboarding-next").customProps?.["aria-label"]).toBe(
+			"Continue"
+		);
 
 		if (screenshot)
 			root.renderer.captureScreenshot(
 				`${screenshot}-${appearance}-repository.png`
 			);
 
-		await click("onboarding-skip");
+		await click("onboarding-next");
 		expect(root.renderer.findByTestId("onboarding-view")).toBeUndefined();
+		expect(reader).not.toHaveBeenCalled();
 		expect(props.writeGitSettings).not.toHaveBeenCalled();
 		root.render(<div />);
 		const saved = props.saveSession.mock.calls.at(-1)?.[0];
@@ -660,7 +688,7 @@ it("validates and saves identity only on explicit Save, blocks duplicate writes 
 	await click("onboarding-save-identity");
 	await click("onboarding-save-identity");
 	await click("onboarding-next");
-	await click("onboarding-skip");
+	await click("onboarding-next");
 	expect(props.writeGitSettings).toHaveBeenCalledTimes(1);
 	expect(props.writeGitSettings).toHaveBeenCalledWith(null, {
 		kind: "identity",
@@ -721,6 +749,331 @@ it("uses existing repository picking and completes only after a successful read"
 	expect(root.renderer.findByTestId("onboarding-view")).toBeUndefined();
 	root.render(<div />);
 	expect(props.saveSession.mock.calls.at(-1)?.[0].onboarding).toBe("complete");
+});
+
+it.each(["light", "dark"] as const)(
+	"starts discovery on step three, shows progressive results and opens a suggestion with the keyboard (%s)",
+	async (appearance) => {
+		const props = fixture();
+		const pending = Promise.withResolvers<RepositoryDiscoveryProgress>();
+
+		const progress: RepositoryDiscoveryProgress = {
+			paths: [
+				"/test/projects/1git",
+				"/test/projects/website",
+				"/test/work/api",
+			],
+			scanned: 30,
+			skipped: 0,
+			limited: false,
+		};
+
+		spyOn(RepositoryDiscovery, "resolveFolder").mockImplementation(
+			async (path) => path
+		);
+		const scan = mock<typeof RepositoryDiscovery.scan>(
+			async (_folders, _signal, report) => {
+				report(progress);
+
+				return await pending.promise;
+			}
+		);
+
+		const opening =
+			Promise.withResolvers<
+				Awaited<ReturnType<typeof RepositoryReader.read>>
+			>();
+
+		const reader = mock<typeof RepositoryReader.read>(
+			async () => await opening.promise
+		);
+
+		const picker = mock(async () => [] as string[]);
+
+		Object.assign(root.renderer, { promptForPaths: picker });
+		root.render(
+			<App
+				{...props}
+				initialOnboarding="welcome"
+				initialSession={{ version: 1, activeId: null, tabs: [], appearance }}
+				discoverRepositories={scan}
+				readRepository={reader}
+			/>
+		);
+		await settle();
+		expect(scan).not.toHaveBeenCalled();
+		await click("onboarding-next");
+		expect(scan).not.toHaveBeenCalled();
+		await click("onboarding-next");
+		expect(scan.mock.calls.map(([folders]) => folders)).toEqual([[homedir()]]);
+		expect(root.renderer.getAllText()).toContain("Searching… · Stop");
+		expect(
+			root.renderer.findByTestId("onboarding-discovery-status")
+		).toBeUndefined();
+		expect(node("onboarding-repository-/test/projects/1git")).toBeDefined();
+		expect(node("onboarding-avatar-/test/projects/1git")).toBeDefined();
+		expect(
+			root.renderer.findByTestId("onboarding-star-/test/projects/1git")
+		).toBeUndefined();
+		expect(
+			root.renderer.findByTestId("onboarding-forget-/test/projects/1git")
+		).toBeUndefined();
+		expect(node("onboarding-discovery-list").style.borderWidth ?? 0).toBe(0);
+		expect(root.renderer.getAllText()).not.toContain(
+			"You can also skip setup and add a repository later."
+		);
+		expect(reader).not.toHaveBeenCalled();
+		expect(
+			props.saveSession.mock.calls.at(-1)?.[0].recentRepositories ?? []
+		).toEqual([]);
+
+		if (process.env.GPUIX_ONBOARDING_SCREENSHOT)
+			root.renderer.captureScreenshot(
+				`${process.env.GPUIX_ONBOARDING_SCREENSHOT}-${appearance}-discovery.png`
+			);
+
+		pending.resolve(progress);
+		await settle();
+		expect(root.renderer.getAllText()).toContain(
+			"Repositories on this Mac (3)"
+		);
+		expect(
+			root.renderer.findByTestId("onboarding-discovery-status")
+		).toBeUndefined();
+		await click("onboarding-back");
+		await click("onboarding-next");
+		expect(scan).toHaveBeenCalledTimes(1);
+		root.renderer.focusElement(
+			node("onboarding-repository-/test/projects/1git").id
+		);
+		root.renderer.simulateKeystrokes("enter");
+		await settle();
+		expect(reader.mock.calls[0]?.[0]).toBe("/test/projects/1git");
+		expect(
+			node("onboarding-repository-/test/projects/website").customProps?.tabIndex
+		).toBeUndefined();
+		expect(node("onboarding-view")).toBeDefined();
+		expect(node("onboarding-next").customProps?.tabIndex).toBeUndefined();
+		expect(picker).not.toHaveBeenCalled();
+		opening.resolve({ ok: true, value: repositorySnapshot() });
+		await settle();
+		expect(root.renderer.findByTestId("onboarding-view")).toBeUndefined();
+		root.render(<div />);
+		expect(props.saveSession.mock.calls.at(-1)?.[0].onboarding).toBe(
+			"complete"
+		);
+	}
+);
+
+it("keeps a failed suggestion open in onboarding and supports stopping and retrying discovery", async () => {
+	const props = fixture();
+
+	const progress: RepositoryDiscoveryProgress = {
+		paths: ["/test/project"],
+		scanned: 10,
+		skipped: 0,
+		limited: false,
+	};
+
+	const scan = mock<typeof RepositoryDiscovery.scan>(
+		async (_folders, signal, report) => {
+			report(progress);
+			await new Promise<void>((resolve) =>
+				signal.addEventListener("abort", () => resolve(), { once: true })
+			);
+
+			return progress;
+		}
+	);
+
+	const reader = mock<typeof RepositoryReader.read>(async () => ({
+		ok: false,
+		error: {
+			operation: "open-repository",
+			code: "not-found",
+			retryable: true,
+			message: "Repository moved",
+		},
+	}));
+
+	root.render(
+		<App
+			{...props}
+			initialOnboarding="repository"
+			discoverRepositories={scan}
+			readRepository={reader}
+		/>
+	);
+	await settle();
+	await click("onboarding-discovery-scan");
+	expect(scan.mock.calls[0]?.[1].aborted).toBe(true);
+	expect(root.renderer.getAllText().join(" ")).toContain("Search stopped.");
+	await click("onboarding-repository-/test/project");
+	expect(root.renderer.getAllText()).toContain("Repository moved");
+	expect(node("onboarding-view")).toBeDefined();
+	scan.mockResolvedValueOnce({ ...progress, paths: [] });
+	await click("onboarding-discovery-scan");
+	expect(root.renderer.getAllText().join(" ")).toContain(
+		"No repositories found."
+	);
+	scan.mockRejectedValueOnce(new Error("Search unavailable"));
+	await click("onboarding-discovery-scan");
+	expect(root.renderer.getAllText()).toContain("Search unavailable");
+	scan.mockResolvedValueOnce({ ...progress, skipped: 2, limited: true });
+	await click("onboarding-discovery-scan");
+	expect(root.renderer.getAllText().join(" ")).not.toContain(
+		"Some folders could not be searched."
+	);
+	expect(root.renderer.getAllText()).toContain("Repositories on this Mac (1)");
+	expect(
+		root.renderer.findByTestId("onboarding-discovery-status")
+	).toBeUndefined();
+	expect(node("onboarding-repository-/test/project")).toBeDefined();
+});
+
+it("filters discovered repositories by name or path without rescanning, and clears empty results", async () => {
+	const paths = [
+		"/test/projects/1git",
+		"/test/client/website",
+		"/test/projects/api",
+	];
+
+	const scan = mock<typeof RepositoryDiscovery.scan>(async () => ({
+		paths,
+		scanned: 30,
+		skipped: 0,
+		limited: false,
+	}));
+
+	const reader = mock<typeof RepositoryReader.read>(async () => ({
+		ok: true,
+		value: repositorySnapshot(),
+	}));
+
+	root.render(
+		<App
+			{...fixture()}
+			initialOnboarding="repository"
+			discoverRepositories={scan}
+			readRepository={reader}
+		/>
+	);
+	await settle();
+	await edit("onboarding-repository-search", " WEBSITE ");
+	expect(root.renderer.getAllText()).toContain("Repositories on this Mac (1)");
+	expect(node("onboarding-repository-/test/client/website")).toBeDefined();
+	expect(
+		root.renderer.findByTestId("onboarding-repository-/test/projects/1git")
+	).toBeUndefined();
+	await edit("onboarding-repository-search", "PROJECTS/");
+	expect(root.renderer.getAllText()).toContain("Repositories on this Mac (2)");
+	expect(node("onboarding-repository-/test/projects/1git")).toBeDefined();
+	expect(node("onboarding-repository-/test/projects/api")).toBeDefined();
+	await edit("onboarding-repository-search", "missing");
+	expect(root.renderer.getAllText()).toContain("Repositories on this Mac (0)");
+	expect(root.renderer.getAllText()).toContain(
+		"No repositories match your search."
+	);
+	expect(
+		root.renderer.findByTestId("onboarding-discovery-list")
+	).toBeUndefined();
+	await edit("onboarding-repository-search", "");
+	expect(root.renderer.getAllText()).toContain("Repositories on this Mac (3)");
+	expect(node("onboarding-repository-/test/client/website")).toBeDefined();
+	expect(
+		root.renderer.findByTestId("onboarding-discovery-status")
+	).toBeUndefined();
+	expect(scan).toHaveBeenCalledTimes(1);
+	expect(reader).not.toHaveBeenCalled();
+});
+
+it("scrolls all discovery results continuously above the fixed footer with bounded rows and keyboard navigation", async () => {
+	const paths = Array.from(
+		{ length: 3000 },
+		(_, index) => `/test/project-${index}`
+	);
+
+	const scan = mock<typeof RepositoryDiscovery.scan>(async () => ({
+		paths,
+		scanned: 30,
+		skipped: 0,
+		limited: false,
+	}));
+
+	root.render(
+		<App
+			{...fixture()}
+			initialOnboarding="repository"
+			discoverRepositories={scan}
+		/>
+	);
+	await settle();
+	expect(node(`onboarding-repository-${paths[0]}`)).toBeDefined();
+	expect(
+		root.renderer.findByTestId(`onboarding-repository-${paths.at(-1)}`)
+	).toBeUndefined();
+	expect(
+		root.renderer.findByTestId("onboarding-discovery-more")
+	).toBeUndefined();
+	const list = node("onboarding-discovery-list");
+	const viewport = node("onboarding-repositories");
+	const listBounds = root.renderer.getElementBounds(list.id)!;
+
+	const footerBounds = root.renderer.getElementBounds(
+		node("onboarding-footer").id
+	)!;
+
+	expect(footerBounds.y - (listBounds.y + listBounds.height)).toBeCloseTo(
+		spacing[4],
+		0
+	);
+	root.renderer.nativeSimulateScrollWheel(
+		listBounds.x + 20,
+		listBounds.y + 20,
+		0,
+		-30_000
+	);
+	await settle();
+	expect(root.renderer.getScrollOffset(viewport.id)?.[1]).toBeLessThan(-10_000);
+	const mounted = root.renderer
+		.findByType("div")
+		.filter((element) =>
+			element.testId?.startsWith("onboarding-repository-/test/project-")
+		);
+
+	expect(mounted.length).toBeLessThan(150);
+	expect(
+		root.renderer.findByTestId(`onboarding-repository-${paths[0]}`)
+	).toBeUndefined();
+	const first = mounted[0];
+
+	if (!first) throw new Error("No repository row mounted after scrolling");
+
+	root.renderer.nativeSimulateKeyDown(first.id, "end");
+	await settle();
+	expect(node(`onboarding-repository-${paths.at(-1)}`)).toBeDefined();
+	await edit("onboarding-repository-search", "project-1234");
+	expect(node("onboarding-repository-/test/project-1234")).toBeDefined();
+	expect(
+		root.renderer.getScrollOffset(node("onboarding-repositories").id)?.[1]
+	).toBeCloseTo(0);
+	await edit("onboarding-repository-search", "");
+	expect(node(`onboarding-repository-${paths[0]}`)).toBeDefined();
+	root.renderer.nativeSimulateKeyDown(
+		node(`onboarding-repository-${paths[0]}`).id,
+		"end"
+	);
+	await settle();
+	root.renderer.nativeSimulateKeyDown(
+		node(`onboarding-repository-${paths.at(-1)}`).id,
+		"home"
+	);
+	await settle();
+	expect(node(`onboarding-repository-${paths[0]}`)).toBeDefined();
+	expect(node("onboarding-next").customProps?.tabIndex).toBe(0);
+	expect(root.renderer.getElementBounds(node("onboarding-footer").id)).toEqual(
+		footerBounds
+	);
 });
 
 it("acknowledges a successful identity save without automatically advancing or writing twice", async () => {

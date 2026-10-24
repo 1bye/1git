@@ -35,6 +35,8 @@ export const AppThemeContext = createContext<
 		readonly setAppearance?: (appearance: AppAppearance) => void;
 		readonly commitTypeBadges: boolean;
 		readonly setCommitTypeBadges?: (enabled: boolean) => void;
+		readonly smoothTransitions?: boolean;
+		readonly setSmoothTransitions?: (enabled: boolean) => void;
 	}
 >({ ...appThemes.light, commitTypeBadges: true });
 

@@ -19,6 +19,15 @@ tint over that material, never an opaque replacement.
 The connected tab silhouette keeps its shape while moving; it does not port
 the desktop's liquid shape-morphing machinery.
 
+Onboarding's third step automatically searches the local home folder and shows
+repository names and paths below the Open/Create/Clone actions. Results arrive
+progressively; Searching… · Stop and Scan again control discovery. The borderless list
+uses the shared virtual repository list to scroll continuously through all results. Opening a result
+finishes setup only after a successful read; discovery alone does not add saved
+repositories. Search filters repository names and paths locally and shows the
+matching count in the heading. The normal Open from disk picker remains available for other folders.
+The final step's Back button returns to accounts; Continue finishes setup without opening a repository.
+
 ## Spaces
 
 **Settings → Spaces → New space…** creates a named working context with one of
@@ -350,6 +359,10 @@ Settings → Appearance offers Light and Dark, with live previews and immediate 
 Light remains the default for new and older sessions. The choice is saved alongside
 diff preferences in the workspace session and restores on restart. Switching does
 not remount workspaces, clear drafts/inclusion, reload Git, or reset native diff scroll.
+
+**Smooth transitions** is enabled by default, sliding the active tab surface and
+blending theme colors. Turn it off in Appearance for instant changes; the saved
+choice is preserved across restarts.
 
 Window-local React context selects complete app, control and native diff palettes.
 Shared styles and active-tab SVGs are cached per palette, not rebuilt while scrolling.
@@ -1184,7 +1197,19 @@ disk work from this page; starting setup opens an empty tab without dismissing
 its form. Previously opened roots remain available after their tabs close and
 across restarts (up to 100, deduplicated, stored as paths in the session). Search
 matches names/paths locally; opening reads fresh Git data, and missing folders
-use the existing retry view. This list does not scan disk or import Electron data.
+use the existing retry view. Repository discovery scans Home and explicitly added
+folders once, then reuses completed results across launches. Private, versioned
+cache files live in `repository-discovery-v1/` beside `session.json`; they contain
+only discovered paths and scan metadata, never Git status or repository contents.
+Successful in-app create, clone and open actions immediately add the confirmed
+repository path to matching cached roots and the current discovery list, without
+rescanning. A successful create/clone is cached even if its following status read
+fails. Repositories opened while a scan is running are retained in its final cache.
+**Scan repositories** refreshes all roots, and a folder's **Scan again** refreshes
+that root. Newly added roots scan independently. Stopped or unavailable scans are
+retried next launch; a missing or damaged cache falls back to scanning. Repositories
+created, moved or deleted outside the app appear after an explicit rescan. Discovery
+does not import Electron data or add discovered paths to saved history.
 Right-click, Control-click or Shift+F10 on a saved repository opens the native
 menu: Open, Reveal in Finder, or Forget. Forget removes only the saved entry,
 preserving files and open tabs; the removal survives session restoration.

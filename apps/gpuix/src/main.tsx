@@ -1,9 +1,11 @@
 import { render } from "@gpuix/react";
+import { dirname, join } from "node:path";
 
 import { App } from "./app";
 import { windowOptions } from "./window-options";
 import { RepositoryWatcher } from "./feature/repository-workspace/lib/repository-watcher";
 import { RepositoryDiscovery } from "./feature/repository-discovery/repository-discovery";
+import { RepositoryDiscoveryCache } from "./feature/repository-discovery/repository-discovery-cache";
 import { WorkspaceSessionStore } from "./feature/workspace-tabs/lib/workspace-session-store";
 import { AppUpdater } from "./app-updater";
 
@@ -14,6 +16,12 @@ const session = preview
 	: new WorkspaceSessionStore(WorkspaceSessionStore.defaultPath());
 
 const restored = session?.load();
+
+const discoveryCache = session
+	? new RepositoryDiscoveryCache(
+			join(dirname(session.path), "repository-discovery-v1")
+		)
+	: undefined;
 
 render(
 	<App
@@ -33,6 +41,7 @@ render(
 		}
 		watchRepository={RepositoryWatcher.watch}
 		discoverRepositories={preview ? undefined : RepositoryDiscovery.scan}
+		discoveryCache={discoveryCache}
 	/>,
 	{
 		...windowOptions,
