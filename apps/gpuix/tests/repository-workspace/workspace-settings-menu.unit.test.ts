@@ -1,24 +1,24 @@
 /**
- * Covers: featured settings destinations, color submenu selection/reset and dismissal.
- * Real: settings menu construction and native menu serialization/selection.
+ * Covers: featured Settings destinations, a single customization action and dismissal.
+ * Real: Settings menu construction and native menu serialization/selection.
  * Doubles: AppKit tracking returns an explicit item index; no native window or preference writes.
  * Requires: none.
  */
 import { expect, it, mock } from "bun:test";
 import { WorkspaceSettingsMenu } from "../../src/feature/repository-workspace/lib/workspace-settings-menu";
 import { NativeFileMenu } from "../../src/feature/repository-workspace/lib/native-file-menu";
-import { repositoryColorPresets } from "../../src/feature/repository-appearance/repository-colors";
-import { repositoryPatternPresets } from "../../src/feature/repository-appearance/repository-patterns";
 
-it("links directly to featured pages and keeps colors in a single submenu", () => {
-	const items = WorkspaceSettingsMenu.items("#a478ef");
+it("links directly to featured Settings pages", () => {
+	const items = WorkspaceSettingsMenu.items();
 
 	const expected = [
 		["Appearance…", "appearance"],
 		["Accounts…", "accounts"],
+		["Spaces…", "spaces"],
 		["AI…", "ai"],
 		["Remotes…", "repository-remotes"],
 		["Commit identity…", "repository-identity"],
+		["Ignored file history…", "repository-ignored-history"],
 		["All Settings…", "accounts"],
 	] as const;
 
@@ -37,78 +37,39 @@ it("links directly to featured pages and keeps colors in a single submenu", () =
 			NativeFileMenu.showItems({ showContextMenuItems: bridge }, items, 40, 600)
 		).toEqual({ kind: "settings", section });
 	}
-
-	expect(items.filter((item) => "children" in item)).toHaveLength(2);
-	const submenu = items.find((item) => "children" in item);
-
-	expect(submenu?.label).toBe("Repository color");
-
-	for (const preset of repositoryColorPresets) {
-		const child = submenu?.children.find((item) =>
-			item.label.endsWith(preset.name)
-		);
-
-		expect(child?.value).toEqual({ kind: "color", color: preset.color });
-		expect(child?.label.startsWith("✓ ")).toBe(preset.color === "#a478ef");
-	}
 });
 
-it("selects illustrated patterns independently from colors and distinguishes removal from dismissal", () => {
-	const items = WorkspaceSettingsMenu.items("#e879a0", "cosmic");
+it("opens the live editor with one top-level customization action and no submenus", () => {
+	const items = WorkspaceSettingsMenu.items();
 
-	const submenu = items.find(
-		(item) => "children" in item && item.label === "Repository pattern"
+	const bridge = mock(
+		(labels: string[], enabled: boolean[], parents: number[]) => {
+			const index = labels.indexOf("Customize appearance…");
+
+			expect(index).toBeGreaterThanOrEqual(0);
+			expect(enabled[index]).toBe(true);
+			expect(parents[index]).toBe(-1);
+			expect(labels).not.toContain("Repository color");
+			expect(labels).not.toContain("Repository pattern");
+
+			return index;
+		}
 	);
 
-	if (!submenu || !("children" in submenu))
-		throw new Error("Missing pattern submenu");
+	expect(items.filter((item) => "children" in item)).toHaveLength(0);
+	expect(
+		NativeFileMenu.showItems({ showContextMenuItems: bridge }, items, 40, 600)
+	).toEqual({ kind: "appearance", section: "color" });
+});
 
-	for (const preset of repositoryPatternPresets) {
-		const child = submenu.children.find((item) =>
-			item.label.endsWith(preset.name)
-		);
+it("leaves dismissal and separators without an action", () => {
+	const items = WorkspaceSettingsMenu.items();
 
-		expect(child?.label.startsWith("✓ ")).toBe(preset.id === "cosmic");
-		expect(child?.value).toEqual({ kind: "pattern", pattern: preset.id });
-	}
-
-	for (const [label, expected] of [
-		["No pattern", { kind: "pattern", pattern: undefined }],
-		["Choose pattern…", { kind: "appearance", section: "pattern" }],
-		["Dismissed", undefined],
-	] as const) {
+	for (const label of ["Dismissed", ""]) {
 		const renderer = {
 			showContextMenuItems: (labels: string[]) => labels.indexOf(label),
 		};
 
-		expect(NativeFileMenu.showItems(renderer, items, 0, 0)).toEqual(expected);
+		expect(NativeFileMenu.showItems(renderer, items, 0, 0)).toBeUndefined();
 	}
-});
-
-it("distinguishes resetting from cancelling and routes custom colors to the live editor", () => {
-	const items = WorkspaceSettingsMenu.items(undefined);
-	let label = "✓ Default color";
-	const bridge = (labels: string[]) => labels.indexOf(label);
-	const renderer = { showContextMenuItems: bridge };
-
-	expect(NativeFileMenu.showItems(renderer, items, 0, 0)).toEqual({
-		kind: "color",
-		color: undefined,
-	});
-	label = "Custom color…";
-	expect(NativeFileMenu.showItems(renderer, items, 0, 0)).toEqual({
-		kind: "appearance",
-		section: "color",
-	});
-	label = "Dismissed";
-	expect(NativeFileMenu.showItems(renderer, items, 0, 0)).toBeUndefined();
-	label = "";
-	expect(NativeFileMenu.showItems(renderer, items, 0, 0)).toBeUndefined();
-	const custom = WorkspaceSettingsMenu.items("#123456").find(
-		(item) => "children" in item
-	);
-
-	expect(custom?.children.some((item) => item.label.startsWith("✓ "))).toBe(
-		false
-	);
 });

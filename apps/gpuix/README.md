@@ -395,10 +395,17 @@ The file selection, diff scroll, checked changes and commit message stay intact,
 and the uncovered workspace remains usable. From Home, customization returns to
 the last-used repository if its tab is still open in the current Space. Switching
 to a different repository or reopening Settings discards an unfinished draft.
-Pattern thumbnails use the current color and preview the first three symbols along
-the rail, with **No pattern** first. **Shuffle** varies symbol order, spacing,
+Pattern thumbnails use the current color and preview symbols along
+the rail, with **No pattern** first. **Adjust pattern** expands live controls for
+Scattered, Clusters and Hero layouts, plus Density, Size, Strength and Variation
+sliders. Arrow keys adjust sliders by one percent, Shift by ten, and Home/End
+select their limits. Density changes spacing continuously; Strength changes only
+opacity. **Reset adjustments** restores the defaults while retaining the pack,
+seed and color. Only the selected thumbnail follows slider adjustments.
+**Shuffle** varies symbol order, spacing,
 rotation and size without changing the pack or color. The draft previews immediately;
-Done saves its seed with the pattern, while Escape and Back to Settings discard it.
+Done saves its seed and adjustments with the pattern, while Escape and Back to
+Settings discard the draft. Shuffle retains the current adjustments.
 Layouts stay fixed through color changes, window resizing and restarts, and linked
 worktrees share the same seed. Older saved pack IDs get a deterministic seed from
 their common directory and remain readable without a session migration.
@@ -411,11 +418,9 @@ Git and coding tools respectively. Patterns use the current repository color;
 selecting or removing a pattern never changes that color. **No pattern** removes only the
 artwork. Existing sessions keep their colors and have no pattern until one is chosen.
 While a repository is active, the rail's Settings gear opens a native dropdown
-with shortcuts to Appearance, Accounts, AI, Remotes and Commit identity.
-Its **Repository color** submenu applies named presets or restores the default
-without leaving the workspace. **Repository pattern** selects a wallpaper or removes
-it in place; **Choose pattern…** and **Custom color…** open the floating editor
-on the corresponding section;
+with shortcuts to Appearance, Accounts, Spaces, AI, Remotes, Commit identity and
+Ignored file history. **Customize appearance…** opens the floating live editor,
+where Color and Pattern share one customization flow.
 **All Settings…** and Command-comma open Settings normally. Home and Settings
 keep direct gear navigation. Cancelling the menu changes nothing.
 Choices are saved only in the local session, keyed by Git's common directory so

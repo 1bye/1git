@@ -20,6 +20,7 @@ import {
 	type RepositoryPattern,
 	type RepositoryAppearanceSection,
 	type RepositoryAppearanceValue,
+	type RepositoryPatternAdjustments,
 } from "./feature/repository-appearance/repository-patterns";
 import { Machines } from "./feature/machines/machines";
 import { MachineLocation } from "./feature/machines/machine-location";
@@ -706,14 +707,19 @@ function AppContent({
 		? repositoryColors[commonDirectory]
 		: undefined;
 
-	const repositoryPatternSelection = commonDirectory
-		? RepositoryPatterns.selection(
-				repositoryPatterns[commonDirectory],
-				commonDirectory
-			)
-		: undefined;
+	const repositoryPatternSelection = useMemo(
+		() =>
+			commonDirectory
+				? RepositoryPatterns.selection(
+						repositoryPatterns[commonDirectory],
+						commonDirectory
+					)
+				: undefined,
+		[repositoryPatterns, commonDirectory]
+	);
 
 	const repositoryPattern = repositoryPatternSelection?.id;
+	const repositoryPatternAdjustments = repositoryPatternSelection?.adjustments;
 
 	const repositoryPatternSeed = commonDirectory
 		? (repositoryPatternSelection?.seed ??
@@ -725,6 +731,7 @@ function AppContent({
 				color: repositoryColor,
 				pattern: repositoryPattern,
 				patternSeed: repositoryPatternSeed,
+				patternAdjustments: repositoryPatternAdjustments,
 				onChange: (color: string | undefined) => {
 					if (appearanceEditing) {
 						setAppearanceEditor(
@@ -745,7 +752,8 @@ function AppContent({
 				},
 				onPatternChange: (
 					pattern: RepositoryPattern | undefined,
-					seed?: number
+					seed?: number,
+					adjustments?: RepositoryPatternAdjustments
 				) => {
 					if (appearanceEditing) {
 						setAppearanceEditor(
@@ -756,6 +764,8 @@ function AppContent({
 										...current.draft,
 										pattern,
 										patternSeed: seed ?? current.draft.patternSeed,
+										patternAdjustments:
+											adjustments ?? current.draft.patternAdjustments,
 									},
 								}
 						);
@@ -764,7 +774,13 @@ function AppContent({
 					}
 
 					setRepositoryPatterns((choices) =>
-						RepositoryPatterns.set(choices, commonDirectory, pattern, seed)
+						RepositoryPatterns.set(
+							choices,
+							commonDirectory,
+							pattern,
+							seed,
+							adjustments
+						)
 					);
 				},
 			}
@@ -782,6 +798,10 @@ function AppContent({
 		? appearanceEditing.draft.patternSeed
 		: repositoryPatternSeed;
 
+	const displayedPatternAdjustments = appearanceEditing
+		? appearanceEditing.draft.patternAdjustments
+		: repositoryPatternAdjustments;
+
 	const repositoryTheme = useMemo(
 		() => ({
 			...workspaceTheme,
@@ -789,10 +809,17 @@ function AppContent({
 				workspaceTheme,
 				displayedColor,
 				displayedPattern,
-				displayedPatternSeed
+				displayedPatternSeed,
+				displayedPatternAdjustments
 			),
 		}),
-		[workspaceTheme, displayedColor, displayedPattern, displayedPatternSeed]
+		[
+			workspaceTheme,
+			displayedColor,
+			displayedPattern,
+			displayedPatternSeed,
+			displayedPatternAdjustments,
+		]
 	);
 
 	const settingsAppearanceDirectory =
@@ -1204,6 +1231,7 @@ function AppContent({
 				patternSeed:
 					selection?.seed ??
 					RepositoryPatterns.defaultSeed(repository.commonDirectory),
+				patternAdjustments: selection?.adjustments,
 			},
 		});
 		setSettingsView(null);
@@ -1230,7 +1258,8 @@ function AppContent({
 				choices,
 				directory,
 				value.pattern,
-				value.patternSeed
+				value.patternSeed,
+				value.patternAdjustments
 			)
 		);
 		setAppearanceEditor(undefined);

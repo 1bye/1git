@@ -1,4 +1,8 @@
-import type { RepositoryPattern } from "./repository-patterns";
+import {
+	RepositoryPatterns,
+	type RepositoryPattern,
+	type RepositoryPatternAdjustments,
+} from "./repository-patterns";
 
 // Existing Lucide v1.28.0 motifs retain the notices in pattern-artwork.LICENSE.
 const motifs = {
@@ -70,16 +74,24 @@ interface Placement {
 	readonly angle: number;
 }
 
-/** Color-independent masks and a compact preview of the same rail's first three symbols. */
+/** Color-independent masks and a compact preview of the same rail's symbols. */
 export interface PatternArtwork {
+	readonly tileHeight: number;
 	readonly source: string;
 	readonly cornerSource: string;
 	readonly previewSource: string;
 }
 
-/** Generates bounded, deterministic SVGs; callers memoize by pack and seed, never by tint or viewport. */
+/** Generates bounded, deterministic SVGs; callers memoize by pack, seed and geometry controls, never by tint or viewport. */
 export class RepositoryPatternArtwork {
-	static create(pattern: RepositoryPattern, seed = 0): PatternArtwork {
+	static create(
+		pattern: RepositoryPattern,
+		seed = 0,
+		adjustments?: RepositoryPatternAdjustments
+	): PatternArtwork {
+		const settings = RepositoryPatterns.adjustments(adjustments);
+		const variation = settings.variation / 50;
+		const sizeScale = 0.5 + settings.size / 100;
 		let state = seed >>> 0;
 
 		const random = (): number => {
@@ -105,15 +117,41 @@ export class RepositoryPatternArtwork {
 		}
 
 		const placements: Placement[] = [];
+		const count = 6;
+
+		const tileHeight = Math.round(
+			repositoryPatternTileHeight * (1.5 - settings.density / 100)
+		);
+
+		const step = tileHeight / count;
 
 		for (let column = 0; column < 3; column++) {
-			for (let row = 0; row < 6; row++) {
-				const size = Math.round((column === 0 ? 30 : 32) + random() * 6);
+			for (let row = 0; row < count; row++) {
+				const nominalSize = (column === 0 ? 33 : 35) * sizeScale;
+
+				const emphasis =
+					settings.layout === "hero" ? (row === 0 ? 1.5 : 0.7) : 1;
+
+				const size = Math.round(
+					(nominalSize + (random() * 6 - 3) * variation * sizeScale) * emphasis
+				);
 
 				const x =
 					column === 0
-						? (48 - size) / 2 + Math.round(random() * 2 - 1)
-						: column * 88 + 12 + Math.round(random() * 12 - 6);
+						? (48 - size) / 2 + Math.round((random() * 2 - 1) * variation)
+						: column * 88 + 12 + Math.round((random() * 12 - 6) * variation);
+
+				let y = row * step + (column === 1 ? step / 2 : 8);
+
+				if (settings.layout === "clusters") {
+					const groupStep = tileHeight / Math.ceil(count / 2);
+
+					y =
+						Math.floor(row / 2) * groupStep +
+						8 +
+						(row % 2) * Math.min(groupStep / 2, nominalSize * 1.45 + 8);
+				} else if (settings.layout === "hero" && row > 0)
+					y = 96 + ((row - 1) * (tileHeight - 96)) / (count - 1);
 
 				placements.push({
 					icon: icons[(row + column) % icons.length] ?? "",
@@ -121,32 +159,43 @@ export class RepositoryPatternArtwork {
 					y:
 						row === 0 && column === 0
 							? 8
-							: row * 128 +
-								(column === 1 ? 64 : 8) +
-								Math.round(random() * 16 - 8),
+							: Math.round(y + (random() * 16 - 8) * variation),
 					size,
-					angle: Math.round(random() * 40 - 20),
+					angle: Math.round((random() * 40 - 20) * variation),
 				});
 			}
 		}
 
+		const previewCount =
+			settings.density < 25 ? 2 : settings.density > 75 ? 4 : 3;
+
 		const preview = placements
-			.slice(0, 3)
+			.slice(0, previewCount)
 			.map((placement, index) =>
 				RepositoryPatternArtwork.motif({
 					...placement,
 					x: 4,
-					y: 4 + index * 20,
-					size: 16,
+					y:
+						4 +
+						index * (60 / previewCount) -
+						(settings.layout === "clusters" && index === 1 ? 2 : 0),
+					size: Math.min(
+						60 / previewCount - 4,
+						16 *
+							sizeScale *
+							(settings.layout === "hero" ? (index === 0 ? 1.5 : 0.7) : 1)
+					),
 				})
 			)
 			.join("");
 
 		return {
-			source: RepositoryPatternArtwork.tile(placements, 0),
+			tileHeight,
+			source: RepositoryPatternArtwork.tile(placements, 0, tileHeight),
 			cornerSource: RepositoryPatternArtwork.tile(
 				placements,
-				repositoryPatternCornerOffset
+				repositoryPatternCornerOffset,
+				tileHeight
 			),
 			previewSource: `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="64" viewBox="0 0 96 64" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="27" y="4" width="65" height="56" rx="5" fill="currentColor" fill-opacity="0.06" stroke-opacity="0.18"/><path d="M35 15h27m-27 8h44m-44 8h35m-35 8h44m-44 8h24" stroke-opacity="0.2"/>${preview}</svg>`,
 		};
@@ -158,7 +207,8 @@ export class RepositoryPatternArtwork {
 
 	private static tile(
 		placements: readonly Placement[],
-		cornerOffset: number
+		cornerOffset: number,
+		tileHeight: number
 	): string {
 		const artwork = placements
 			.map((placement, index) =>
@@ -170,7 +220,7 @@ export class RepositoryPatternArtwork {
 			)
 			.join("");
 
-		const height = repositoryPatternTileHeight + cornerOffset;
+		const height = tileHeight + cornerOffset;
 
 		return `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="${height}" viewBox="0 ${-cornerOffset} 256 ${height}" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round">${artwork}</svg>`;
 	}

@@ -4,28 +4,48 @@ import { useAppTheme } from "../../styles/theme";
 import {
 	RepositoryPatternArtwork,
 	repositoryPatternTileSize,
-	repositoryPatternTileHeight,
 	repositoryPatternCornerOffset,
 } from "./pattern-artwork";
-import type { RepositoryPattern } from "./repository-patterns";
+import {
+	defaultPatternAdjustments,
+	type RepositoryPattern,
+	type RepositoryPatternAdjustments,
+} from "./repository-patterns";
 
 /** Shared fixed-size masks behind chrome controls and opaque content. */
 export function RepositoryPatternLayer({
 	pattern,
 	seed = 0,
+	adjustments = defaultPatternAdjustments,
 }: {
 	pattern: RepositoryPattern;
 	seed?: number;
+	adjustments?: RepositoryPatternAdjustments;
 }) {
 	const theme = useAppTheme();
 	const { width, height } = useWindowSize();
 	const columns = Math.max(1, Math.ceil(width / repositoryPatternTileSize));
-	const rows = Math.max(1, Math.ceil(height / repositoryPatternTileHeight));
 
 	const artwork = useMemo(
-		() => RepositoryPatternArtwork.create(pattern, seed),
-		[pattern, seed]
+		() =>
+			RepositoryPatternArtwork.create(pattern, seed, {
+				layout: adjustments.layout,
+				density: adjustments.density,
+				size: adjustments.size,
+				variation: adjustments.variation,
+				strength: 50,
+			}),
+		[
+			pattern,
+			seed,
+			adjustments.layout,
+			adjustments.density,
+			adjustments.size,
+			adjustments.variation,
+		]
 	);
+
+	const rows = Math.max(1, Math.ceil(height / artwork.tileHeight));
 
 	return (
 		<div
@@ -51,15 +71,18 @@ export function RepositoryPatternLayer({
 					style={{
 						position: "absolute",
 						top:
-							Math.floor(index / columns) * repositoryPatternTileHeight +
+							Math.floor(index / columns) * artwork.tileHeight +
 							(index === 0 ? 0 : repositoryPatternCornerOffset),
 						left: (index % columns) * repositoryPatternTileSize,
 						width: repositoryPatternTileSize,
 						height:
-							repositoryPatternTileHeight +
+							artwork.tileHeight +
 							(index === 0 ? repositoryPatternCornerOffset : 0),
 						color: theme.colors.brand,
-						opacity: theme.appearance === "dark" ? 0.24 : 0.18,
+						opacity:
+							((theme.appearance === "dark" ? 0.24 : 0.18) *
+								adjustments.strength) /
+							50,
 						pointerEvents: "none",
 					}}
 				/>

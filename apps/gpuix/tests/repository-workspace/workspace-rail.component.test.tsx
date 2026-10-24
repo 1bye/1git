@@ -415,8 +415,9 @@ it("opens featured settings from a dropdown instead of showing the color editor"
 	expect(root.renderer.findByTestId("repository-color-custom")).toBeUndefined();
 });
 
-it("dismisses without changes, handles keyboard color choices and falls back to Settings if native menus fail", async () => {
+it("dismisses without changes, opens customization by keyboard and falls back to Settings if native menus fail", async () => {
 	const onSettings = mock();
+	const onAppearance = mock();
 	const onChange = mock();
 	const menu = spyOn(NativeFileMenu, "showItems").mockReturnValue(undefined);
 
@@ -424,6 +425,7 @@ it("dismisses without changes, handles keyboard color choices and falls back to 
 		<WorkspaceRail
 			accounts={f.accounts}
 			onSettings={onSettings}
+			onAppearance={onAppearance}
 			onAddAccount={() => {}}
 			repositoryAppearance={{ onChange, onPatternChange: () => {} }}
 		/>
@@ -431,12 +433,15 @@ it("dismisses without changes, handles keyboard color choices and falls back to 
 	click("rail-settings");
 	await settle();
 	expect(onSettings).not.toHaveBeenCalled();
+	expect(onAppearance).not.toHaveBeenCalled();
 	expect(onChange).not.toHaveBeenCalled();
 	expect(root.renderer.getFocusedElementId()).toBe(element("rail-settings").id);
-	menu.mockReturnValueOnce({ kind: "color", color: "#a478ef" });
+	menu.mockReturnValueOnce({ kind: "appearance", section: "color" });
 	key("rail-settings", "space");
 	await settle();
-	expect(onChange).toHaveBeenCalledWith("#a478ef");
+	expect(onAppearance).toHaveBeenCalledWith("color");
+	expect(onChange).not.toHaveBeenCalled();
+	expect(root.renderer.getFocusedElementId()).toBe(element("rail-settings").id);
 	expect(onSettings).not.toHaveBeenCalled();
 	menu.mockImplementationOnce(() => {
 		throw new Error("No grouped menus");
@@ -444,6 +449,27 @@ it("dismisses without changes, handles keyboard color choices and falls back to 
 	key("rail-settings", "enter");
 	await settle();
 	expect(onSettings).toHaveBeenCalledTimes(1);
+});
+
+it("opens repository appearance Settings when the live editor is unavailable", async () => {
+	const onSettings = mock();
+
+	spyOn(NativeFileMenu, "showItems").mockReturnValue({
+		kind: "appearance",
+		section: "color",
+	});
+	root.render(
+		<WorkspaceRail
+			accounts={f.accounts}
+			onSettings={onSettings}
+			onAddAccount={() => {}}
+			repositoryAppearance={{ onChange: () => {}, onPatternChange: () => {} }}
+		/>
+	);
+	click("rail-settings");
+	await settle();
+
+	expect(onSettings).toHaveBeenCalledWith("repository-appearance");
 });
 
 it("reflects the Settings-owned account list immediately without remounting controls", () => {

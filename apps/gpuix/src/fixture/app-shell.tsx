@@ -162,6 +162,7 @@ export function AppShell({
 						<RepositoryPatternLayer
 							pattern={theme.repositoryPattern}
 							seed={theme.repositoryPatternSeed}
+							adjustments={theme.repositoryPatternAdjustments}
 						/>
 					) : null}
 					{rail}

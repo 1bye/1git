@@ -11,10 +11,32 @@ export type RepositoryPattern =
 	| "rainfall"
 	| "workshop";
 
+/** Composition and percentage controls for a repository's illustrated chrome. */
+export interface RepositoryPatternAdjustments {
+	readonly layout: "scattered" | "clusters" | "hero";
+	readonly density: number;
+	readonly size: number;
+	readonly strength: number;
+	readonly variation: number;
+}
+
+/** Defaults retain the existing seeded layout and restrained opacity. */
+export const defaultPatternAdjustments: RepositoryPatternAdjustments = {
+	layout: "scattered",
+	density: 50,
+	size: 50,
+	strength: 50,
+	variation: 50,
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+	typeof value === "object" && value !== null && !Array.isArray(value);
+
 /** A built-in pack with a stable layout shared by a repository's worktrees. */
 export interface RepositoryPatternSelection {
 	readonly id: RepositoryPattern;
 	readonly seed: number;
+	readonly adjustments?: RepositoryPatternAdjustments;
 }
 
 /** Device-local choices; legacy pack IDs remain readable without rewriting saved preferences. */
@@ -27,6 +49,7 @@ export interface RepositoryAppearanceValue {
 	readonly color?: string;
 	readonly pattern?: RepositoryPattern;
 	readonly patternSeed?: number;
+	readonly patternAdjustments?: RepositoryPatternAdjustments;
 }
 
 /** The two sections of the floating repository appearance editor. */
@@ -37,7 +60,8 @@ export interface RepositoryAppearanceOptions extends RepositoryAppearanceValue {
 	readonly onChange: (color: string | undefined) => void;
 	readonly onPatternChange: (
 		pattern: RepositoryPattern | undefined,
-		seed?: number
+		seed?: number,
+		adjustments?: RepositoryPatternAdjustments
 	) => void;
 }
 
@@ -55,6 +79,35 @@ export const repositoryPatternPresets = [
 
 /** Validates persisted wallpaper IDs; no arbitrary paths, SVG or remote images enter the renderer. */
 export class RepositoryPatterns {
+	static adjustments(value: unknown): RepositoryPatternAdjustments {
+		if (!isRecord(value)) return defaultPatternAdjustments;
+
+		const percent = (candidate: unknown): number =>
+			typeof candidate === "number" && Number.isFinite(candidate)
+				? Math.round(Math.max(0, Math.min(100, candidate)))
+				: 50;
+
+		return {
+			layout:
+				value.layout === "clusters" || value.layout === "hero"
+					? value.layout
+					: "scattered",
+			density: percent(value.density),
+			size: percent(value.size),
+			strength: percent(value.strength),
+			variation: percent(value.variation),
+		};
+	}
+
+	static isDefault(adjustments: RepositoryPatternAdjustments): boolean {
+		return (
+			adjustments.layout === "scattered" &&
+			adjustments.density === 50 &&
+			adjustments.size === 50 &&
+			adjustments.strength === 50 &&
+			adjustments.variation === 50
+		);
+	}
 	static pattern(value: unknown): RepositoryPattern | undefined {
 		return repositoryPatternPresets.find((preset) => preset.id === value)?.id;
 	}
@@ -101,7 +154,17 @@ export class RepositoryPatterns {
 		const seed =
 			"seed" in value ? RepositoryPatterns.seed(value.seed) : undefined;
 
-		return id && seed !== undefined ? { id, seed } : undefined;
+		if (!id || seed === undefined) return undefined;
+
+		const adjustments = RepositoryPatterns.adjustments(
+			"adjustments" in value ? value.adjustments : undefined
+		);
+
+		return {
+			id,
+			seed,
+			...(RepositoryPatterns.isDefault(adjustments) ? {} : { adjustments }),
+		};
 	}
 
 	static parse(value: unknown): RepositoryPatternChoices {
@@ -128,7 +191,8 @@ export class RepositoryPatterns {
 		choices: RepositoryPatternChoices,
 		directory: string,
 		pattern: RepositoryPattern | undefined,
-		seed?: number
+		seed?: number,
+		adjustments?: RepositoryPatternAdjustments
 	): RepositoryPatternChoices {
 		if (!isAbsolute(directory) || directory.includes("\0"))
 			throw new Error("Repository pattern requires a valid common directory.");
@@ -141,13 +205,23 @@ export class RepositoryPatterns {
 
 		const next = { ...choices };
 
+		const previous = RepositoryPatterns.selection(
+			choices[directory],
+			directory
+		);
+
+		const settings = RepositoryPatterns.adjustments(
+			adjustments ?? previous?.adjustments
+		);
+
 		if (pattern)
 			next[directory] = {
 				id: pattern,
 				seed:
-					seed ??
-					RepositoryPatterns.selection(choices[directory], directory)?.seed ??
-					RepositoryPatterns.defaultSeed(directory),
+					seed ?? previous?.seed ?? RepositoryPatterns.defaultSeed(directory),
+				...(RepositoryPatterns.isDefault(settings)
+					? {}
+					: { adjustments: settings }),
 			};
 		else delete next[directory];
 

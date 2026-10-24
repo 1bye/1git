@@ -1,5 +1,5 @@
 /**
- * Covers: validated seeds, legacy choices, session round trips and deterministic, varied rail artwork with matching previews.
+ * Covers: validated seeds and adjustments, legacy choices, session round trips and deterministic rail compositions with matching previews.
  * Real: pattern, palette and session models; Sharp SVG rasterization.
  * Doubles: none.
  * Requires: none; no preferences, native windows or Git I/O.
@@ -9,6 +9,7 @@ import sharp from "sharp";
 import {
 	RepositoryPatterns,
 	repositoryPatternPresets,
+	defaultPatternAdjustments,
 } from "../../src/feature/repository-appearance/repository-patterns";
 import {
 	RepositoryPatternArtwork,
@@ -23,6 +24,9 @@ import { RepositoryTheme } from "../../src/styles/repository-theme";
 
 const tileMotifPattern =
 	/<g transform="translate\((-?[\d.]+) [^"]+">(.*?)<\/g>/gu;
+
+const placementPattern =
+	/<g transform="translate\((-?[\d.]+) (-?[\d.]+)\) rotate\((-?[\d.]+) [^)]+\) scale\(([\d.]+)\)">/gu;
 
 it("accepts built-in patterns only and resets just the selected common directory", () => {
 	const choices = RepositoryPatterns.parse({
@@ -274,4 +278,145 @@ it("creates deterministic layouts and a fresh valid seed for Shuffle", () => {
 			).not.toBe(artwork.source);
 		}
 	}
+});
+
+it("validates adjustment fields, preserves legacy settings and round-trips saved controls", () => {
+	const directory = "/repo/.git";
+
+	const adjustments = {
+		layout: "clusters",
+		density: 80,
+		size: 65,
+		strength: 20,
+		variation: 90,
+	} as const;
+
+	const choices = RepositoryPatterns.set(
+		{},
+		directory,
+		"forest",
+		42,
+		adjustments
+	);
+
+	const captured = WorkspaceSession.capture(
+		WorkspaceTabsModel.create(0),
+		undefined,
+		"dark",
+		true,
+		"complete",
+		undefined,
+		undefined,
+		choices
+	);
+
+	const restored = WorkspaceSession.parse(JSON.stringify(captured));
+
+	expect(restored.repositoryPatterns?.[directory]).toEqual({
+		id: "forest",
+		seed: 42,
+		adjustments,
+	});
+	expect(
+		RepositoryPatterns.set(choices, directory, "cosmic", 84)[directory]
+	).toEqual({ id: "cosmic", seed: 84, adjustments });
+	expect(
+		RepositoryPatterns.set(
+			choices,
+			directory,
+			"forest",
+			42,
+			defaultPatternAdjustments
+		)[directory]
+	).toEqual({ id: "forest", seed: 42 });
+	expect(RepositoryPatterns.adjustments(undefined)).toEqual(
+		defaultPatternAdjustments
+	);
+	expect(
+		RepositoryPatterns.selection({ id: "forest", seed: 42 }, directory)
+	).toEqual({ id: "forest", seed: 42 });
+	expect(
+		RepositoryPatterns.adjustments({
+			layout: "<svg/>",
+			density: -1,
+			size: 999,
+			strength: NaN,
+			variation: "100",
+		})
+	).toEqual({ ...defaultPatternAdjustments, density: 0, size: 100 });
+	expect(
+		RepositoryPatterns.adjustments({ variation: 24.6, strength: Infinity })
+	).toEqual({ ...defaultPatternAdjustments, variation: 25 });
+});
+
+it("changes composition, density, size and irregularity predictably without baking strength into SVGs", () => {
+	const rail = (source: string) =>
+		[...source.matchAll(placementPattern)]
+			.map((match) => ({
+				x: Number(match[1]),
+				y: Number(match[2]),
+				angle: Number(match[3]),
+				scale: Number(match[4]),
+			}))
+			.filter((placement) => placement.x < 48);
+
+	const settings = { ...defaultPatternAdjustments, variation: 0 };
+	const regular = RepositoryPatternArtwork.create("cosmic", 42, settings);
+	const uniform = rail(regular.source);
+
+	const dense = rail(
+		RepositoryPatternArtwork.create("cosmic", 42, { ...settings, density: 100 })
+			.source
+	);
+
+	const sparse = rail(
+		RepositoryPatternArtwork.create("cosmic", 42, { ...settings, density: 0 })
+			.source
+	);
+
+	const large = rail(
+		RepositoryPatternArtwork.create("cosmic", 42, { ...settings, size: 100 })
+			.source
+	);
+
+	const clusters = rail(
+		RepositoryPatternArtwork.create("cosmic", 42, {
+			...settings,
+			layout: "clusters",
+		}).source
+	);
+
+	const hero = rail(
+		RepositoryPatternArtwork.create("cosmic", 42, {
+			...settings,
+			layout: "hero",
+		}).source
+	);
+
+	expect((sparse[1]?.y ?? 0) - (sparse[0]?.y ?? 0)).toBeGreaterThan(
+		(dense[1]?.y ?? 0) - (dense[0]?.y ?? 0)
+	);
+	expect(
+		RepositoryPatternArtwork.create("cosmic", 42, { ...settings, density: 51 })
+			.source
+	).not.toBe(regular.source);
+	expect(uniform.every((placement) => placement.angle === 0)).toBe(true);
+	expect(new Set(uniform.map((placement) => placement.scale)).size).toBe(1);
+	expect(large[0]?.scale).toBeGreaterThan(uniform[0]?.scale ?? 0);
+	expect((clusters[1]?.y ?? 0) - (clusters[0]?.y ?? 0)).toBeLessThan(
+		(clusters[2]?.y ?? 0) - (clusters[1]?.y ?? 0)
+	);
+	expect(hero[0]?.scale).toBeGreaterThan((hero[1]?.scale ?? 0) * 2);
+	expect(
+		RepositoryPatternArtwork.create("cosmic", 42, { ...settings, strength: 0 })
+	).toEqual(regular);
+	expect(
+		RepositoryPatternArtwork.create("cosmic", 42, {
+			...settings,
+			variation: 100,
+		}).source
+	).not.toBe(regular.source);
+	expect(RepositoryPatternArtwork.create("cosmic", 42, settings)).toEqual(
+		regular
+	);
 });

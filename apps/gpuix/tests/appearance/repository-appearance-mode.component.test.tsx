@@ -1,5 +1,5 @@
 /**
- * Covers: real workspace customization, visible color and seeded pattern drafts, save/cancel, restoration, Settings return and the last-used repository.
+ * Covers: real workspace customization, live color and pattern controls, visible keyboard/drag behavior, save/cancel, restoration and Settings return.
  * Real: App, appearance editor, native rendering/input, palette and session models.
  * Doubles: repository/diff/account/editor reads, Shuffle entropy, native menu selections and session writes; no Git writes or real preferences.
  * Requires: patched native addon and macOS graphics access.
@@ -16,7 +16,10 @@ import { AccountStore } from "../../src/feature/accounts/lib/account-store";
 import { ExternalEditors } from "../../src/feature/editor-settings/external-editors";
 import { NativeFileMenu } from "../../src/feature/repository-workspace/lib/native-file-menu";
 import { RepositoryPatternArtwork } from "../../src/feature/repository-appearance/pattern-artwork";
-import { RepositoryPatterns } from "../../src/feature/repository-appearance/repository-patterns";
+import {
+	RepositoryPatterns,
+	defaultPatternAdjustments,
+} from "../../src/feature/repository-appearance/repository-patterns";
 import { RepositoryTheme } from "../../src/styles/repository-theme";
 import { appThemes } from "../../src/styles/theme";
 import { windowOptions } from "../../src/window-options";
@@ -94,11 +97,11 @@ async function fixture(
 	appearance: "light" | "dark" = "dark",
 	patterns: WorkspaceSessionDocument["repositoryPatterns"] = {
 		"/test/project/.git": "camping",
-	}
+	},
+	size = { width: 1180, height: 820 }
 ) {
 	const root = createTestRoot({
-		width: 1180,
-		height: 820,
+		...size,
 		onKeyDown: windowOptions.onKeyDown,
 	});
 
@@ -627,30 +630,263 @@ it.each(["light", "dark"] as const)(
 	}
 );
 
-it("restores a saved seed and keeps it when quick menu colors and patterns change", async () => {
+it("restores a saved seed and keeps it when customizing colors and patterns", async () => {
 	const directory = "/test/project/.git";
 
+	const adjustments = {
+		...defaultPatternAdjustments,
+		layout: "hero",
+		size: 80,
+		strength: 30,
+	} as const;
+
 	const { root, saved, menu } = await fixture("dark", {
-		[directory]: { id: "forest", seed: 42 },
+		[directory]: { id: "forest", seed: 42, adjustments },
 	});
 
 	expect(node(root, "repository-pattern-tile-0").customProps?.source).toBe(
-		RepositoryPatternArtwork.create("forest", 42).cornerSource
+		RepositoryPatternArtwork.create("forest", 42, adjustments).cornerSource
 	);
-	menu.mockReturnValueOnce({ kind: "color", color: "#a478ef" });
+	menu.mockReturnValueOnce({ kind: "appearance", section: "color" });
 	await click(root, "rail-settings");
+	await click(root, "repository-color-violet");
 	await settle(root, 250);
 	expect(node(root, "repository-pattern-tile-0").customProps?.source).toBe(
-		RepositoryPatternArtwork.create("forest", 42).cornerSource
+		RepositoryPatternArtwork.create("forest", 42, adjustments).cornerSource
 	);
-	menu.mockReturnValueOnce({ kind: "pattern", pattern: "cosmic" });
-	await click(root, "rail-settings");
+	await click(root, "repository-appearance-tab-pattern");
+	await click(root, "repository-pattern-cosmic");
+	await click(root, "repository-appearance-done");
 	await settle(root, 250);
 	expect(node(root, "repository-pattern-tile-0").customProps?.source).toBe(
-		RepositoryPatternArtwork.create("cosmic", 42).cornerSource
+		RepositoryPatternArtwork.create("cosmic", 42, adjustments).cornerSource
 	);
 	expect(saved.at(-1)?.repositoryPatterns?.[directory]).toEqual({
 		id: "cosmic",
 		seed: 42,
+		adjustments,
 	});
+	const shuffle = spyOn(RepositoryPatterns, "shuffleSeed").mockReturnValue(84);
+
+	restores.add(() => shuffle.mockRestore());
+	menu.mockReturnValueOnce({ kind: "appearance", section: "pattern" });
+	await click(root, "rail-settings");
+	await click(root, "repository-pattern-shuffle");
+	expect(node(root, "repository-pattern-tile-0").customProps?.source).toBe(
+		RepositoryPatternArtwork.create("cosmic", 84, adjustments).cornerSource
+	);
+	await click(root, "repository-appearance-done");
+	await settle(root, 250);
+	expect(saved.at(-1)?.repositoryPatterns?.[directory]).toEqual({
+		id: "cosmic",
+		seed: 84,
+		adjustments,
+	});
+});
+
+it.each(["light", "dark"] as const)(
+	"previews all pattern controls live in a minimum %s window and saves or resets the full draft",
+	async (appearance) => {
+		const { root, saved, menu } = await fixture(appearance, undefined, {
+			width: 980,
+			height: 640,
+		});
+
+		const directory = "/test/project/.git";
+		const seed = RepositoryPatterns.defaultSeed(directory);
+
+		const original = node(root, "repository-pattern-tile-0").customProps
+			?.source;
+
+		const keyboard = async (id: string, key: string) => {
+			await settle(root);
+			root.renderer.nativeSimulateKeyDown(node(root, id).id, key);
+			await settle(root);
+		};
+
+		menu.mockReturnValueOnce({ kind: "appearance", section: "pattern" });
+		await click(root, "rail-settings");
+		const otherPreview = node(root, "repository-pattern-preview-rose")
+			.customProps?.source;
+
+		expect(
+			node(root, "repository-pattern-adjust").customProps?.["aria-expanded"]
+		).toBe(false);
+		expect(
+			root.renderer.findByTestId("repository-pattern-adjustment-controls")
+		).toBeUndefined();
+		const disclosure = bounds(root, "repository-pattern-adjust");
+
+		expect(disclosure.width).toBe(304);
+		expect(disclosure.height).toBeGreaterThanOrEqual(40);
+
+		await keyboard("repository-pattern-adjust", "enter");
+		await settle(root, 10);
+		expect(
+			node(root, "repository-pattern-adjust").customProps?.["aria-expanded"]
+		).toBe(true);
+		expect(node(root, "repository-pattern-adjustment-controls")).toBeDefined();
+		const visibleControls = bounds(root, "repository-appearance-controls");
+
+		for (const name of ["density", "size", "strength", "variation"]) {
+			const slider = bounds(root, `repository-pattern-${name}`);
+
+			expect(slider.y).toBeGreaterThanOrEqual(visibleControls.y);
+			expect(slider.y + slider.height).toBeLessThanOrEqual(
+				visibleControls.y + visibleControls.height
+			);
+		}
+
+		await keyboard("repository-pattern-layout-hero", "enter");
+		expect(
+			node(root, "repository-pattern-tile-0").customProps?.source
+		).not.toBe(original);
+		await keyboard("repository-pattern-layout-clusters", "enter");
+		await keyboard("repository-pattern-density", "home");
+		await keyboard("repository-pattern-size", "end");
+		await keyboard("repository-pattern-strength", "home");
+		expect(node(root, "repository-pattern-tile-0").style.opacity).toBe(0);
+		const geometry = node(root, "repository-pattern-tile-0").customProps
+			?.source;
+
+		await keyboard("repository-pattern-strength", "shift-right");
+		expect(node(root, "repository-pattern-tile-0").customProps?.source).toBe(
+			geometry
+		);
+		await keyboard("repository-pattern-variation", "home");
+		expect(
+			node(root, "repository-pattern-preview-rose").customProps?.source
+		).toBe(otherPreview);
+		const adjustments = {
+			layout: "clusters",
+			density: 0,
+			size: 100,
+			strength: 10,
+			variation: 0,
+		} as const;
+
+		expect(node(root, "repository-pattern-tile-0").customProps?.source).toBe(
+			RepositoryPatternArtwork.create("camping", seed, adjustments).cornerSource
+		);
+		expect(node(root, "repository-pattern-tile-0").style.opacity).toBeCloseTo(
+			(appearance === "dark" ? 0.24 : 0.18) * 0.2
+		);
+		const done = bounds(root, "repository-appearance-done");
+
+		expect(done.y + done.height).toBeLessThanOrEqual(640);
+
+		for (const document of saved)
+			expect(document.repositoryPatterns?.[directory]).toBe("camping");
+
+		const screenshot = process.env.GPUIX_APPEARANCE_MODE_SCREENSHOT;
+
+		if (screenshot)
+			root.renderer.captureScreenshot(
+				`${screenshot}-controls-${appearance}.png`
+			);
+
+		await click(root, "repository-appearance-done");
+		await settle(root, 250);
+		expect(saved.at(-1)?.repositoryPatterns?.[directory]).toEqual({
+			id: "camping",
+			seed,
+			adjustments,
+		});
+		menu.mockReturnValueOnce({ kind: "appearance", section: "pattern" });
+		await click(root, "rail-settings");
+		await keyboard("repository-pattern-adjust", "enter");
+		await settle(root, 10);
+		expect(
+			node(root, "repository-pattern-density").customProps?.["aria-valuetext"]
+		).toBe("0 percent");
+		expect(
+			node(root, "repository-pattern-size").customProps?.["aria-valuetext"]
+		).toBe("100 percent");
+		await keyboard("repository-pattern-adjustments-reset", "enter");
+		expect(node(root, "repository-pattern-tile-0").customProps?.source).toBe(
+			original
+		);
+
+		if (screenshot)
+			root.renderer.captureScreenshot(
+				`${screenshot}-controls-reset-${appearance}.png`
+			);
+
+		root.renderer.simulateKeystrokes("escape");
+		await settle(root, 250);
+		expect(node(root, "repository-pattern-tile-0").customProps?.source).toBe(
+			RepositoryPatternArtwork.create("camping", seed, adjustments).cornerSource
+		);
+		expect(saved.at(-1)?.repositoryPatterns?.[directory]).toEqual({
+			id: "camping",
+			seed,
+			adjustments,
+		});
+	}
+);
+
+it("drags pattern sliders beyond their bounds while keeping the workspace visible and the seed stable", async () => {
+	const { root, saved, menu } = await fixture();
+	const directory = await mkdtemp(join(tmpdir(), "1git-pattern-controls-"));
+
+	try {
+		menu.mockReturnValueOnce({ kind: "appearance", section: "pattern" });
+		await click(root, "rail-settings");
+		root.renderer.scrollIntoView(node(root, "repository-pattern-adjust").id);
+		await settle(root);
+		await click(root, "repository-pattern-adjust");
+		await settle(root, 20);
+		const box = bounds(root, "repository-pattern-density");
+
+		root.renderer.nativeSimulateMouseDown(
+			box.x + box.width / 2,
+			box.y + box.height / 2
+		);
+		await settle(root);
+		root.renderer.nativeSimulateMouseMove(
+			box.x + box.width + 50,
+			box.y + box.height / 2,
+			0
+		);
+		await settle(root);
+		expect(
+			node(root, "repository-pattern-density").customProps?.["aria-valuetext"]
+		).toBe("100 percent");
+		expect(node(root, "repository-pattern-drag")).toBeDefined();
+		const screenshot = join(directory, "held.png");
+
+		root.renderer.captureScreenshot(screenshot);
+		const stats = await sharp(screenshot).stats();
+
+		expect(stats.channels.some((channel) => channel.stdev > 10)).toBe(true);
+		root.renderer.nativeSimulateMouseUp(
+			box.x + box.width + 50,
+			box.y + box.height / 2
+		);
+		await settle(root);
+		expect(
+			root.renderer.findByTestId("repository-pattern-drag")
+		).toBeUndefined();
+		const seed = RepositoryPatterns.defaultSeed("/test/project/.git");
+
+		expect(node(root, "repository-pattern-tile-0").customProps?.source).toBe(
+			RepositoryPatternArtwork.create("camping", seed, {
+				...defaultPatternAdjustments,
+				density: 100,
+			}).cornerSource
+		);
+
+		for (const document of saved)
+			expect(document.repositoryPatterns?.["/test/project/.git"]).toBe(
+				"camping"
+			);
+
+		root.renderer.simulateKeystrokes("escape");
+		await settle(root, 250);
+		expect(node(root, "repository-pattern-tile-0").customProps?.source).toBe(
+			RepositoryPatternArtwork.create("camping", seed).cornerSource
+		);
+	} finally {
+		await rm(directory, { recursive: true, force: true });
+	}
 });

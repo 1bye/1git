@@ -3,6 +3,7 @@ import { RepositoryColors } from "../feature/repository-appearance/repository-co
 import {
 	RepositoryPatterns,
 	type RepositoryPattern,
+	type RepositoryPatternAdjustments,
 } from "../feature/repository-appearance/repository-patterns";
 
 /** Derives a restrained repo palette once per choice; semantic Git and syntax colors are untouched. */
@@ -44,7 +45,8 @@ export class RepositoryTheme {
 		base: AppTheme,
 		candidate?: string,
 		patternChoice?: RepositoryPattern,
-		patternSeed?: number
+		patternSeed?: number,
+		patternAdjustments?: RepositoryPatternAdjustments
 	): AppTheme {
 		const color = RepositoryColors.color(candidate);
 		const pattern = RepositoryPatterns.pattern(patternChoice);
@@ -55,6 +57,7 @@ export class RepositoryTheme {
 						...base,
 						repositoryPattern: pattern,
 						repositoryPatternSeed: patternSeed,
+						repositoryPatternAdjustments: patternAdjustments,
 					}
 				: base;
 
@@ -108,6 +111,7 @@ export class RepositoryTheme {
 			repositoryColor: color,
 			repositoryPattern: pattern,
 			repositoryPatternSeed: pattern ? patternSeed : undefined,
+			repositoryPatternAdjustments: pattern ? patternAdjustments : undefined,
 			colors,
 			tokens: {
 				...base.tokens,

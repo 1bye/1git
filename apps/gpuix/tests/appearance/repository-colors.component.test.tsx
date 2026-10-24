@@ -1,5 +1,5 @@
 /**
- * Covers: native color shortcuts, custom input/reset, worktree inheritance, matching active-tab surfaces, neutral Home/Settings and retained editing/scroll.
+ * Covers: live appearance customization, custom input/reset, worktree inheritance, matching active-tab surfaces, neutral Home/Settings and retained editing/scroll.
  * Real: App, palette/session models and GPUIX rendering/input.
  * Doubles: repositories, diffs, account catalog, editor discovery, OS menu choices and session saves; no real preferences, Git writes or accounts.
  * Requires: patched native addon and macOS graphics access.
@@ -328,10 +328,12 @@ it.each(["light", "dark"] as const)(
 
 			const tabSource = node(root, "surface-workspace-1").customProps?.source;
 
-			menu.mockReturnValueOnce({ kind: "color", color: "#a478ef" });
+			menu.mockReturnValueOnce({ kind: "appearance", section: "color" });
 			await click(root, "rail-settings");
-			menu.mockReturnValueOnce({ kind: "pattern", pattern: "rose" });
-			await click(root, "rail-settings");
+			await click(root, "repository-color-violet");
+			await click(root, "repository-appearance-tab-pattern");
+			await click(root, "repository-pattern-rose");
+			await click(root, "repository-appearance-done");
 			expect(node(root, "repository-pattern-layer").style.pointerEvents).toBe(
 				"none"
 			);
@@ -518,7 +520,7 @@ it.each(["light", "dark"] as const)(
 			expect(
 				node(root, "entry-example.ts").customProps?.["aria-selected"]
 			).toBe(true);
-			menu.mockReturnValueOnce({ kind: "color", color: undefined });
+			menu.mockReturnValueOnce({ kind: "appearance", section: "color" });
 			root.renderer.nativeSimulateKeyDown(
 				node(root, "rail-settings").id,
 				"space"
@@ -527,6 +529,9 @@ it.each(["light", "dark"] as const)(
 				node(root, "rail-settings").id,
 				"space"
 			);
+			await settle(root);
+			await click(root, "repository-color-reset");
+			await click(root, "repository-appearance-done");
 			await Bun.sleep(230);
 			await settle(root);
 			expect(node(root, "app-shell").style.backgroundColor).toBe("transparent");
@@ -539,11 +544,13 @@ it.each(["light", "dark"] as const)(
 			expect(node(root, "repository-chrome-grain").style.pointerEvents).toBe(
 				"none"
 			);
-			menu.mockReturnValueOnce({ kind: "pattern", pattern: "rose" });
+			menu.mockReturnValueOnce({ kind: "appearance", section: "color" });
 			await click(root, "rail-settings");
+			await click(root, "repository-appearance-tab-pattern");
+			await click(root, "repository-pattern-rose");
 			expect(node(root, "app-shell").style.backgroundColor).toBe("transparent");
-			menu.mockReturnValueOnce({ kind: "pattern", pattern: undefined });
-			await click(root, "rail-settings");
+			await click(root, "repository-pattern-reset");
+			await click(root, "repository-appearance-done");
 			expect(
 				root.renderer.findByTestId("repository-pattern-layer")
 			).toBeUndefined();

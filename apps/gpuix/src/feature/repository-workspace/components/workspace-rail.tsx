@@ -319,20 +319,14 @@ export function WorkspaceRail({
 			await new Promise<void>((resolve) => setTimeout(resolve, 0));
 			const choice = NativeFileMenu.showItems<WorkspaceSettingsChoice>(
 				renderer,
-				WorkspaceSettingsMenu.items(
-					theme.repositoryColor,
-					theme.repositoryPattern
-				),
+				WorkspaceSettingsMenu.items(),
 				bounds.x + bounds.width,
 				bounds.y
 			);
 
 			renderer.focusElement?.(button.id);
 
-			if (choice?.kind === "color") repositoryAppearance.onChange(choice.color);
-			else if (choice?.kind === "pattern")
-				repositoryAppearance.onPatternChange(choice.pattern);
-			else if (choice?.kind === "appearance") {
+			if (choice?.kind === "appearance") {
 				if (onAppearance) onAppearance(choice.section);
 				else onSettings("repository-appearance");
 			} else if (choice?.kind === "settings") onSettings(choice.section);

@@ -12,12 +12,14 @@ import { RepositoryColors, repositoryColorPresets } from "./repository-colors";
 import {
 	repositoryPatternPresets,
 	RepositoryPatterns,
+	defaultPatternAdjustments,
 	type RepositoryAppearanceOptions,
 	type RepositoryAppearanceValue,
 	type RepositoryAppearanceSection,
 } from "./repository-patterns";
 import { RepositoryPatternArtwork } from "./pattern-artwork";
 import { RepositoryColorPicker } from "./repository-color-picker";
+import { RepositoryPatternControls } from "./repository-pattern-controls";
 import { repositoryAppearanceCancel } from "./repository-appearance-shortcut";
 
 const editorWidth = 344;
@@ -29,6 +31,7 @@ export function RepositoryAppearanceEditor({
 	color,
 	pattern,
 	patternSeed = 0,
+	patternAdjustments = defaultPatternAdjustments,
 	onChange,
 	onPatternChange,
 	onPreview,
@@ -53,6 +56,7 @@ export function RepositoryAppearanceEditor({
 	const panel = useRef<PublicInstance>(null);
 	const initialFocus = useRef(renderer.getFocusedElementId?.());
 	const customInput = useRef<PublicInstance>(null);
+	const controlsRef = useRef<PublicInstance>(null);
 	const cancel = useRef(onCancel);
 
 	cancel.current = onCancel;
@@ -81,6 +85,7 @@ export function RepositoryAppearanceEditor({
 	const [error, setError] = useState<string>();
 	const preview = RepositoryTheme.create(theme, draft ?? color, pattern);
 	const pickerColor = color ?? repositoryColorPresets[0].color;
+	const { layout, density, size, strength, variation } = patternAdjustments;
 
 	const patternPreviews = useMemo(
 		() => [
@@ -92,6 +97,20 @@ export function RepositoryAppearanceEditor({
 			})),
 		],
 		[patternSeed]
+	);
+
+	const selectedPreview = useMemo(
+		() =>
+			pattern
+				? RepositoryPatternArtwork.create(pattern, patternSeed, {
+						layout,
+						density,
+						size,
+						variation,
+						strength: 50,
+					}).previewSource
+				: undefined,
+		[pattern, patternSeed, layout, density, size, variation]
 	);
 
 	if (field.source !== color) setField({ source: color, text: color ?? "" });
@@ -118,7 +137,7 @@ export function RepositoryAppearanceEditor({
 
 	const finish = (): void => {
 		if (field.text === (color ?? "")) {
-			onDone({ color, pattern, patternSeed });
+			onDone({ color, pattern, patternSeed, patternAdjustments });
 
 			return;
 		}
@@ -134,11 +153,12 @@ export function RepositoryAppearanceEditor({
 			return;
 		}
 
-		onDone({ color: next, pattern, patternSeed });
+		onDone({ color: next, pattern, patternSeed, patternAdjustments });
 	};
 
 	const controls = (
 		<div
+			ref={controlsRef}
 			testId="repository-appearance-controls"
 			style={{
 				display: "flex",
@@ -375,7 +395,8 @@ export function RepositoryAppearanceEditor({
 							onPress={() =>
 								onPatternChange(
 									pattern,
-									RepositoryPatterns.shuffleSeed(patternSeed)
+									RepositoryPatterns.shuffleSeed(patternSeed),
+									patternAdjustments
 								)
 							}
 						>
@@ -441,7 +462,7 @@ export function RepositoryAppearanceEditor({
 										{preset.source ? (
 											<svg
 												testId={`repository-pattern-preview-${preset.id}`}
-												source={preset.source}
+												source={selected ? selectedPreview : preset.source}
 												style={{
 													position: "absolute",
 													top: 0,
@@ -449,7 +470,9 @@ export function RepositoryAppearanceEditor({
 													width: 96,
 													height: 64,
 													color: preview.colors.brand,
-													opacity: 0.75,
+													opacity: selected
+														? Math.min(1, (0.75 * strength) / 50)
+														: 0.75,
 													pointerEvents: "none",
 												}}
 											/>
@@ -492,6 +515,14 @@ export function RepositoryAppearanceEditor({
 							);
 						})}
 					</div>
+					<RepositoryPatternControls
+						scrollContainer={controlsRef}
+						value={patternAdjustments}
+						disabled={!pattern}
+						onChange={(adjustments) =>
+							onPatternChange(pattern, patternSeed, adjustments)
+						}
+					/>
 				</div>
 			)}
 		</div>
