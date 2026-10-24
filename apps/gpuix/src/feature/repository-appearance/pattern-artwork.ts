@@ -45,6 +45,9 @@ const motifs = {
 /** Fixed logical pixels keep illustrated wallpaper masks shared across colors and window sizes. */
 export const repositoryPatternTileSize = 256;
 
+/** Extra headroom for the single motif above the rail's sync control. */
+export const repositoryPatternCornerOffset = 32;
+
 const placements = [
 	[10, 8, 36, -18],
 	[108, 54, 32, 18],
@@ -54,28 +57,52 @@ const placements = [
 	[200, 124, 38, 24],
 ] as const;
 
-function tile(icons: readonly string[]): string {
+function tile(icons: readonly string[], cornerOffset: number): string {
 	const artwork = placements
 		.map(([x, y, size, angle], index) => {
 			const icon = icons[index % icons.length];
+			const top = index === 0 ? y - cornerOffset : y;
 
-			return `<g transform="translate(${x} ${y}) rotate(${angle} ${size / 2} ${size / 2}) scale(${size / 24})">${icon}</g>`;
+			return `<g transform="translate(${x} ${top}) rotate(${angle} ${size / 2} ${size / 2}) scale(${size / 24})">${icon}</g>`;
 		})
 		.join("");
 
-	return `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round">${artwork}</svg>`;
+	const height = repositoryPatternTileSize + cornerOffset;
+
+	return `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="${height}" viewBox="0 ${-cornerOffset} 256 ${height}" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round">${artwork}</svg>`;
+}
+
+function sources(
+	cornerOffset: number
+): Readonly<Record<RepositoryPattern, string>> {
+	return {
+		rose: tile(
+			[motifs.rose, motifs.leaf, motifs.rose, motifs.sprout],
+			cornerOffset
+		),
+		seaside: tile([motifs.shell, motifs.bird, motifs.anchor], cornerOffset),
+		forest: tile(
+			[motifs.tree, motifs.leaf, motifs.mountain, motifs.sprout],
+			cornerOffset
+		),
+		cosmic: tile([motifs.moon, motifs.star, motifs.orbit], cornerOffset),
+		meadow: tile([motifs.daisy, motifs.butterfly, motifs.sun], cornerOffset),
+		camping: tile([motifs.tent, motifs.campfire, motifs.compass], cornerOffset),
+		rainfall: tile(
+			[motifs.cloud, motifs.umbrella, motifs.droplet],
+			cornerOffset
+		),
+		workshop: tile(
+			[motifs.branch, motifs.terminal, motifs.braces],
+			cornerOffset
+		),
+	};
 }
 
 /** One prebuilt monochrome tile per pack; rendering tint never changes the cached SVG source. */
-export const repositoryPatternSources: Readonly<
-	Record<RepositoryPattern, string>
-> = {
-	rose: tile([motifs.rose, motifs.leaf, motifs.rose, motifs.sprout]),
-	seaside: tile([motifs.shell, motifs.bird, motifs.anchor]),
-	forest: tile([motifs.tree, motifs.leaf, motifs.mountain, motifs.sprout]),
-	cosmic: tile([motifs.moon, motifs.star, motifs.orbit]),
-	meadow: tile([motifs.daisy, motifs.butterfly, motifs.sun]),
-	camping: tile([motifs.tent, motifs.campfire, motifs.compass]),
-	rainfall: tile([motifs.cloud, motifs.umbrella, motifs.droplet]),
-	workshop: tile([motifs.branch, motifs.terminal, motifs.braces]),
-};
+export const repositoryPatternSources = sources(0);
+
+/** Used once at the window's upper-left corner; all remaining motifs retain their normal positions. */
+export const repositoryPatternCornerSources = sources(
+	repositoryPatternCornerOffset
+);

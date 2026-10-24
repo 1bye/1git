@@ -21,6 +21,8 @@ import {
 import {
 	repositoryPatternSources,
 	repositoryPatternTileSize,
+	repositoryPatternCornerSources,
+	repositoryPatternCornerOffset,
 } from "../../src/feature/repository-appearance/pattern-artwork";
 
 let root: TestRoot | undefined;
@@ -106,12 +108,21 @@ it.each([
 			const first = current.renderer.findByTestId("repository-pattern-tile-0");
 			const second = current.renderer.findByTestId("repository-pattern-tile-1");
 
+			const secondBounds =
+				second && current.renderer.getElementBounds(second.id);
+
+			expect(secondBounds?.y).toBe(64);
+
 			expect(first?.customProps?.source).toBe(
+				repositoryPatternCornerSources[preset.id]
+			);
+			expect(second?.customProps?.source).toBe(
 				repositoryPatternSources[preset.id]
 			);
-			expect(second?.customProps?.source).toBe(first?.customProps?.source);
 			expect(first?.style.width).toBe(repositoryPatternTileSize);
-			expect(first?.style.height).toBe(repositoryPatternTileSize);
+			expect(first?.style.height).toBe(
+				repositoryPatternTileSize + repositoryPatternCornerOffset
+			);
 			expect(first?.style.pointerEvents).toBe("none");
 			expect(
 				current.renderer.findByTestId("repository-pattern-layer")?.style

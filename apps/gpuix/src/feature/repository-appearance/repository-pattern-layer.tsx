@@ -1,9 +1,10 @@
 import { useWindowSize } from "@gpuix/react";
-import { spacing } from "@1git/design-tokens";
 import { useAppTheme } from "../../styles/theme";
 import {
 	repositoryPatternSources,
 	repositoryPatternTileSize,
+	repositoryPatternCornerSources,
+	repositoryPatternCornerOffset,
 } from "./pattern-artwork";
 import type { RepositoryPattern } from "./repository-patterns";
 
@@ -24,7 +25,7 @@ export function RepositoryPatternLayer({
 			aria-hidden
 			style={{
 				position: "absolute",
-				top: -spacing[8],
+				top: -repositoryPatternCornerOffset,
 				bottom: 0,
 				left: 0,
 				width: "100%",
@@ -38,13 +39,21 @@ export function RepositoryPatternLayer({
 					key={index}
 					testId={`repository-pattern-tile-${index}`}
 					aria-hidden
-					source={repositoryPatternSources[pattern]}
+					source={
+						index === 0
+							? repositoryPatternCornerSources[pattern]
+							: repositoryPatternSources[pattern]
+					}
 					style={{
 						position: "absolute",
-						top: Math.floor(index / columns) * repositoryPatternTileSize,
+						top:
+							Math.floor(index / columns) * repositoryPatternTileSize +
+							(index === 0 ? 0 : repositoryPatternCornerOffset),
 						left: (index % columns) * repositoryPatternTileSize,
 						width: repositoryPatternTileSize,
-						height: repositoryPatternTileSize,
+						height:
+							repositoryPatternTileSize +
+							(index === 0 ? repositoryPatternCornerOffset : 0),
 						color: theme.colors.brand,
 						opacity: theme.appearance === "dark" ? 0.24 : 0.18,
 						pointerEvents: "none",

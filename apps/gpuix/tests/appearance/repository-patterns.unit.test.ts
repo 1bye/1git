@@ -13,6 +13,8 @@ import {
 import {
 	repositoryPatternSources,
 	repositoryPatternTileSize,
+	repositoryPatternCornerSources,
+	repositoryPatternCornerOffset,
 } from "../../src/feature/repository-appearance/pattern-artwork";
 import { WorkspaceSession } from "../../src/feature/workspace-tabs/lib/workspace-session";
 import { WorkspaceTabsModel } from "../../src/feature/workspace-tabs/lib/workspace-tabs-model";
@@ -130,5 +132,48 @@ it("reuses small monochrome tiles across colors rather than generating window-si
 		expect(
 			image.data.some((value, index) => index % 4 === 3 && value > 0)
 		).toBe(true);
+	}
+});
+
+it("raises only the upper-left motif while retaining every other symbol's pixels", async () => {
+	for (const preset of repositoryPatternPresets) {
+		const regular = Buffer.from(repositoryPatternSources[preset.id]);
+		const corner = Buffer.from(repositoryPatternCornerSources[preset.id]);
+
+		const regions = [
+			{ left: 64, top: 0, width: 192, height: 256 },
+			{ left: 0, top: 64, width: 64, height: 192 },
+		];
+
+		for (const region of regions) {
+			const original = await sharp(regular)
+				.extract(region)
+				.ensureAlpha()
+				.raw()
+				.toBuffer();
+
+			const unchanged = await sharp(corner)
+				.extract({ ...region, top: region.top + repositoryPatternCornerOffset })
+				.ensureAlpha()
+				.raw()
+				.toBuffer();
+
+			expect(unchanged.equals(original)).toBe(true);
+		}
+
+		const elevated = await sharp(corner)
+			.extract({
+				left: 0,
+				top: 0,
+				width: 64,
+				height: repositoryPatternCornerOffset,
+			})
+			.ensureAlpha()
+			.raw()
+			.toBuffer();
+
+		expect(elevated.some((value, index) => index % 4 === 3 && value > 0)).toBe(
+			true
+		);
 	}
 });
