@@ -1,7 +1,7 @@
 /**
  * Covers: animated tab-edge connection and rounded clipping of children and native diff rows.
  * Real: AppShell, WorkspaceTabs, DiffView, native animation, painting and screenshot pixels.
- * Doubles: sample workspace records and inline patches.
+ * Doubles: sample workspace records and inline patches; decorative grain hidden for exact clip colors.
  * Requires: patched GPUIX and macOS graphics.
  */
 import { afterEach, beforeEach, expect, it } from "bun:test";
@@ -236,6 +236,13 @@ afterEach(async () => {
 
 async function pixels() {
 	const path = join(directory, "workspace.png");
+	const grain = root.renderer.findByTestId("repository-chrome-grain");
+
+	// Check clip colors independently of the decorative noise behind the corners.
+	if (grain)
+		root.renderer.applyBatch(
+			JSON.stringify([["setStyle", grain.id, { ...grain.style, opacity: 0 }]])
+		);
 
 	root.renderer.captureScreenshot(path);
 	const { data, info } = await sharp(path)

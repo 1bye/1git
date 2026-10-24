@@ -1,5 +1,5 @@
 /**
- * Covers: visible, restrained grain on colored and neutral chrome at different window sizes; clean content and input passthrough.
+ * Covers: visible, restrained grain on colored and neutral chrome; clean content, input passthrough and cached rendering during resize.
  * Real: AppShell, repository palettes, GPUIX SVG rasterization and screenshot pixels.
  * Doubles: flat backdrops and empty toolbar/rail; no real blur, accounts, preferences or Git I/O.
  * Requires: patched native addon and macOS graphics access.
@@ -13,6 +13,7 @@ import { createTestRoot, type TestRoot } from "@gpuix/react/testing";
 import { AppShell } from "../../src/fixture/app-shell";
 import { AppThemeContext, appThemes } from "../../src/styles/theme";
 import { RepositoryTheme } from "../../src/styles/repository-theme";
+import { chromeGrainSource } from "../../src/fixture/chrome-grain";
 
 let directory: string;
 let root: TestRoot | undefined;
@@ -43,7 +44,7 @@ it.each([
 		const current = root;
 		const palette = RepositoryTheme.create(appThemes[appearance], color);
 
-		const render = async (grain: boolean) => {
+		const render = async (grain: "image" | "plain" | "original") => {
 			current.render(
 				<div
 					style={{
@@ -73,20 +74,48 @@ it.each([
 			if (!layer) throw new Error("Missing chrome grain");
 
 			// Hide only the grain for a baseline with the same palette and layout.
-			if (!grain)
+			if (grain !== "image")
 				current.renderer.applyBatch(
 					JSON.stringify([
 						["setStyle", layer.id, { ...layer.style, opacity: 0 }],
 					])
 				);
 
-			const path = join(directory, `${grain ? "grain" : "plain"}.png`);
+			if (grain === "original") {
+				if (layer.parentId === null) throw new Error("Missing grain parent");
+
+				// Insert the old mask at the same paint order, above the chrome tint.
+				const referenceId = Number.MAX_SAFE_INTEGER;
+
+				current.renderer.applyBatch(
+					JSON.stringify([
+						["createElement", referenceId, "svg"],
+						["setCustomProp", referenceId, "source", chromeGrainSource],
+						[
+							"setStyle",
+							referenceId,
+							{
+								position: "absolute",
+								top: 0,
+								left: 0,
+								width: "100%",
+								height: "100%",
+								opacity: appearance === "dark" ? 0.12 : 0.09,
+								color: appearance === "dark" ? "#ffffff" : "#000000",
+							},
+						],
+						["insertBefore", layer.parentId, referenceId, layer.id],
+					])
+				);
+			}
+
+			const path = join(directory, `${grain}.png`);
 
 			current.renderer.captureScreenshot(path);
 
-			if (grain && process.env.GPUIX_GRAIN_SCREENSHOT)
+			if (grain !== "plain" && process.env.GPUIX_GRAIN_SCREENSHOT)
 				current.renderer.captureScreenshot(
-					`${process.env.GPUIX_GRAIN_SCREENSHOT}-${appearance}-${width}-${color ?? "neutral"}.png`
+					`${process.env.GPUIX_GRAIN_SCREENSHOT}-${grain}-${appearance}-${width}-${color ?? "neutral"}.png`
 				);
 
 			return await sharp(path)
@@ -95,18 +124,19 @@ it.each([
 				.toBuffer({ resolveWithObject: true });
 		};
 
-		const textured = await render(true);
-		const plain = await render(false);
+		const textured = await render("image");
+		const plain = await render("plain");
+		const original = await render("original");
 		const scale = plain.info.width / width;
 
-		const delta = (x: number, y: number): number => {
+		const delta = (x: number, y: number, image = textured): number => {
 			const offset = (y * plain.info.width + x) * 4;
 
 			return Math.max(
 				...[0, 1, 2].map((channel) =>
 					Math.abs(
 						(plain.data[offset + channel] ?? 0) -
-							(textured.data[offset + channel] ?? 0)
+							(image.data[offset + channel] ?? 0)
 					)
 				)
 			);
@@ -116,6 +146,8 @@ it.each([
 		let total = 0;
 		let maximum = 0;
 		let count = 0;
+		let originalTotal = 0;
+		let originalChanged = 0;
 
 		for (let y = 8 * scale; y < 56 * scale; y++) {
 			for (let x = 48 * scale; x < (width - 48) * scale; x++) {
@@ -125,6 +157,12 @@ it.each([
 
 				total += difference;
 				maximum = Math.max(maximum, difference);
+				const originalDifference = delta(x, y, original);
+
+				originalTotal += originalDifference;
+
+				if (originalDifference >= 2) originalChanged++;
+
 				count++;
 			}
 		}
@@ -137,6 +175,11 @@ it.each([
 		expect(total / count).toBeLessThan(8);
 		expect(maximum).toBeGreaterThan(3);
 		expect(maximum).toBeLessThan(30);
+		process.stdout.write(
+			`Original grain: visible=${(originalChanged / count).toFixed(3)} mean=${(originalTotal / count).toFixed(2)}\n`
+		);
+		expect(Math.abs(total - originalTotal) / count).toBeLessThan(0.5);
+		expect(Math.abs(changed - originalChanged) / count).toBeLessThan(0.1);
 
 		let contentDifference = 0;
 
@@ -150,5 +193,43 @@ it.each([
 			current.renderer.findByTestId("repository-chrome-grain")?.style
 				.pointerEvents
 		).toBe("none");
-	}
+	},
+	20000
 );
+
+it("keeps grain rendering within a frame while resizing to uncached widths", () => {
+	root = createTestRoot({ width: 1440, height: 900 });
+	const current = root;
+
+	const render = (width: number): void => {
+		current.render(
+			<div style={{ width, height: 640 }}>
+				<AppThemeContext value={{ ...appThemes.dark, commitTypeBadges: true }}>
+					<AppShell
+						workspaceLabel="Resize test"
+						toolbar={<div style={{ height: 64, flexShrink: 0 }} />}
+					>
+						<div style={{ flexGrow: 1 }} />
+					</AppShell>
+				</AppThemeContext>
+			</div>
+		);
+	};
+
+	// Warm startup assets, then use widths that have never entered the SVG cache.
+	render(980);
+	const durationsMs: number[] = [];
+
+	for (let frame = 0; frame < 8; frame++) {
+		const started = performance.now();
+
+		render(1000 + frame * 13);
+		durationsMs.push(performance.now() - started);
+	}
+
+	durationsMs.sort((left, right) => left - right);
+	const medianMs = durationsMs[Math.floor(durationsMs.length / 2)];
+
+	process.stdout.write(`Grain resize median: ${medianMs?.toFixed(2)} ms\n`);
+	expect(medianMs).toBeLessThan(1000 / 60);
+});

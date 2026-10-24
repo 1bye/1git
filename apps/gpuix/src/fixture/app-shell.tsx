@@ -9,7 +9,7 @@ import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { useMemo, useState, type ReactNode, type Ref } from "react";
 import type { PublicInstance } from "@gpuix/react";
 import { WorkspaceCornerContext } from "./workspace-corner";
-import { chromeGrainSource } from "./chrome-grain";
+import { chromeGrainImages } from "./chrome-grain";
 import { RepositoryPatternLayer } from "../feature/repository-appearance/repository-pattern-layer";
 import { useThemeTransition } from "../styles/theme-transition";
 
@@ -121,21 +121,36 @@ export function AppShell({
 						: undefined
 				)}
 			>
-				<svg
+				<div
 					testId="repository-chrome-grain"
 					aria-hidden
-					source={chromeGrainSource}
 					style={{
 						position: "absolute",
 						top: 0,
 						left: 0,
 						width: "100%",
 						height: "100%",
+						display: "flex",
+						flexDirection: "column",
+						justifyContent: "center",
+						overflowX: "hidden",
+						overflowY: "hidden",
 						pointerEvents: "none",
 						opacity: theme.appearance === "dark" ? 0.12 : 0.09,
-						color: theme.appearance === "dark" ? "#ffffff" : "#000000",
 					}}
-				/>
+				>
+					{/* Match the SVG mask's width-scaled square and vertical centering. */}
+					<img
+						alt=""
+						aria-hidden
+						src={chromeGrainImages[theme.appearance]}
+						style={{
+							width: "100%",
+							flexShrink: 0,
+							pointerEvents: "none",
+						}}
+					/>
+				</div>
 				<WorkspaceCornerContext value={setRightRadius}>
 					{toolbar}
 				</WorkspaceCornerContext>
