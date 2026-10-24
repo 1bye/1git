@@ -48,12 +48,13 @@ export const repositoryPatternTileSize = 256;
 /** Extra headroom for the single motif above the rail's sync control. */
 export const repositoryPatternCornerOffset = 32;
 
+// Fill the rail-visible left column first, so three-motif packs do not repeat one icon there.
 const placements = [
 	[10, 8, 36, -18],
-	[108, 54, 32, 18],
-	[195, 9, 38, -10],
 	[6, 160, 40, 15],
+	[108, 54, 32, 18],
 	[144, 196, 32, -15],
+	[195, 9, 38, -10],
 	[200, 124, 38, 24],
 ] as const;
 

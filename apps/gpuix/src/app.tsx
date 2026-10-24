@@ -14,9 +14,12 @@ import { AppThemeContext, appThemes, useAppTheme } from "./styles/theme";
 import type { AppAppearance } from "./styles/tokens";
 import { RepositoryTheme } from "./styles/repository-theme";
 import { RepositoryColors } from "./feature/repository-appearance/repository-colors";
+import { RepositoryAppearanceEditor } from "./feature/repository-appearance/repository-appearance-editor";
 import {
 	RepositoryPatterns,
 	type RepositoryPattern,
+	type RepositoryAppearanceSection,
+	type RepositoryAppearanceValue,
 } from "./feature/repository-appearance/repository-patterns";
 import { Machines } from "./feature/machines/machines";
 import { MachineLocation } from "./feature/machines/machine-location";
@@ -652,6 +655,42 @@ function AppContent({
 	const activeTab = state.tabs.find((tab) => tab.id === state.activeId);
 	const workspace = activeTab?.workspace;
 	const commonDirectory = workspace?.repository?.commonDirectory;
+	const lastAppearanceTab = useRef<string | undefined>(undefined);
+
+	useLayoutEffect(() => {
+		if (activeTab?.workspace.repository && !activeTab.workspace.preview)
+			lastAppearanceTab.current = activeTab.id;
+	}, [activeTab]);
+
+	const appearanceTarget =
+		workspace?.repository && !workspace.preview
+			? activeTab
+			: visibleTabs.find((tab) => tab.id === lastAppearanceTab.current);
+
+	const [appearanceEditor, setAppearanceEditor] = useState<{
+		commonDirectory: string;
+		name: string;
+		section: RepositoryAppearanceSection;
+		draft: RepositoryAppearanceValue;
+		previewColor?: string;
+	}>();
+
+	const appearanceEditing =
+		appearanceEditor?.commonDirectory === commonDirectory
+			? appearanceEditor
+			: undefined;
+
+	const customizingRepository = appearanceEditing !== undefined;
+
+	const workspaceTheme = useMemo(
+		() => ({
+			...theme,
+			smoothTransitions: customizingRepository
+				? false
+				: theme.smoothTransitions,
+		}),
+		[theme, customizingRepository]
+	);
 
 	const ignoredStatus = workspace?.repository
 		? ignoredHistories.statuses[workspace.repository.root]
@@ -675,11 +714,34 @@ function AppContent({
 		? {
 				color: repositoryColor,
 				pattern: repositoryPattern,
-				onChange: (color: string | undefined) =>
+				onChange: (color: string | undefined) => {
+					if (appearanceEditing) {
+						setAppearanceEditor(
+							(current) =>
+								current && {
+									...current,
+									draft: { ...current.draft, color },
+									previewColor: undefined,
+								}
+						);
+
+						return;
+					}
+
 					setRepositoryColors((choices) =>
 						RepositoryColors.set(choices, commonDirectory, color)
-					),
+					);
+				},
 				onPatternChange: (pattern: RepositoryPattern | undefined) => {
+					if (appearanceEditing) {
+						setAppearanceEditor(
+							(current) =>
+								current && { ...current, draft: { ...current.draft, pattern } }
+						);
+
+						return;
+					}
+
 					setRepositoryPatterns((choices) =>
 						RepositoryPatterns.set(choices, commonDirectory, pattern)
 					);
@@ -687,13 +749,35 @@ function AppContent({
 			}
 		: undefined;
 
+	const displayedColor = appearanceEditing
+		? (appearanceEditing.previewColor ?? appearanceEditing.draft.color)
+		: repositoryColor;
+
+	const displayedPattern = appearanceEditing
+		? appearanceEditing.draft.pattern
+		: repositoryPattern;
+
 	const repositoryTheme = useMemo(
 		() => ({
-			...theme,
-			...RepositoryTheme.create(theme, repositoryColor, repositoryPattern),
+			...workspaceTheme,
+			...RepositoryTheme.create(
+				workspaceTheme,
+				displayedColor,
+				displayedPattern
+			),
 		}),
-		[theme, repositoryColor, repositoryPattern]
+		[workspaceTheme, displayedColor, displayedPattern]
 	);
+
+	const settingsAppearanceDirectory =
+		appearanceTarget?.workspace.repository?.commonDirectory;
+
+	const settingsRepositoryAppearance = settingsAppearanceDirectory
+		? {
+				color: repositoryColors[settingsAppearanceDirectory],
+				pattern: repositoryPatterns[settingsAppearanceDirectory],
+			}
+		: undefined;
 
 	const publishTab = state.tabs.find(
 		(tab) => tab.id === publishId && tab.workspace.repository
@@ -724,6 +808,16 @@ function AppContent({
 	);
 
 	const settingsOpen = settingsView !== null;
+
+	const editingDirectory = appearanceEditor?.commonDirectory;
+
+	useEffect(() => {
+		if (
+			editingDirectory &&
+			(settingsOpen || onboardingOpen || editingDirectory !== commonDirectory)
+		)
+			setAppearanceEditor(undefined);
+	}, [editingDirectory, commonDirectory, settingsOpen, onboardingOpen]);
 
 	const [settingsSection, setSettingsSection] =
 		useState<SettingsSection>("accounts");
@@ -981,26 +1075,41 @@ function AppContent({
 		null
 	);
 
+	const rememberWorkspaceFocus = useCallback(() => {
+		workspaceFocus.current = renderer.getFocusedElementId?.() ?? null;
+		const railView = [...railViewButtons.current].find(
+			([, button]) => button.id === workspaceFocus.current
+		)?.[0];
+
+		railFocus.current =
+			workspaceFocus.current === railSettingsButton.current?.id
+				? "settings"
+				: workspaceFocus.current === railAccountButton.current?.id
+					? "account"
+					: (railView ?? null);
+	}, [renderer]);
+
 	const openSettings = useCallback(
 		(initialForm: "list" | "connect" = "list") => {
+			setAppearanceEditor(undefined);
+
 			if (settingsOpen) return;
 
-			workspaceFocus.current = renderer.getFocusedElementId?.() ?? null;
-			const railView = [...railViewButtons.current].find(
-				([, button]) => button.id === workspaceFocus.current
-			)?.[0];
+			if (!customizingRepository) rememberWorkspaceFocus();
 
-			railFocus.current =
-				workspaceFocus.current === railSettingsButton.current?.id
-					? "settings"
-					: workspaceFocus.current === railAccountButton.current?.id
-						? "account"
-						: (railView ?? null);
 			setSettingsView(initialForm);
 			setSettingsSection("accounts");
 			setReconnectAccountKey(undefined);
 		},
-		[renderer, settingsOpen, setSettingsView]
+		[
+			settingsOpen,
+			customizingRepository,
+			rememberWorkspaceFocus,
+			setAppearanceEditor,
+			setSettingsView,
+			setSettingsSection,
+			setReconnectAccountKey,
+		]
 	);
 
 	const closeSettings = useCallback(() => {
@@ -1021,10 +1130,70 @@ function AppContent({
 					railSettingsButton.current?.id ??
 					null;
 
+			// Live customization can remove the original control by changing repository views.
+			if (target == null || !renderer.getElementBounds?.(target))
+				target = railSettingsButton.current?.id ?? null;
+
 			if (target !== null && target !== undefined)
 				renderer.focusElement?.(target);
 		}, 0);
 	}, [renderer, setSettingsView]);
+
+	const openAppearance = (
+		section: RepositoryAppearanceSection = "color"
+	): void => {
+		const repository = appearanceTarget?.workspace.repository;
+
+		if (
+			!appearanceTarget ||
+			!repository ||
+			appearanceTarget.workspace.preview ||
+			onboardingOpen
+		)
+			return;
+
+		if (appearanceEditing) {
+			setAppearanceEditor((current) => current && { ...current, section });
+
+			return;
+		}
+
+		if (!settingsOpen) rememberWorkspaceFocus();
+
+		setAppearanceEditor({
+			commonDirectory: repository.commonDirectory,
+			name: appearanceTarget.name,
+			section,
+			draft: {
+				color: repositoryColors[repository.commonDirectory],
+				pattern: repositoryPatterns[repository.commonDirectory],
+			},
+		});
+		setSettingsView(null);
+
+		if (state.activeId !== appearanceTarget.id)
+			dispatch({ type: "activate", id: appearanceTarget.id });
+	};
+
+	const cancelAppearance = (): void => {
+		setAppearanceEditor(undefined);
+		closeSettings();
+	};
+
+	const saveAppearance = (value: RepositoryAppearanceValue): void => {
+		if (!appearanceEditing) return;
+
+		const directory = appearanceEditing.commonDirectory;
+
+		setRepositoryColors((choices) =>
+			RepositoryColors.set(choices, directory, value.color)
+		);
+		setRepositoryPatterns((choices) =>
+			RepositoryPatterns.set(choices, directory, value.pattern)
+		);
+		setAppearanceEditor(undefined);
+		closeSettings();
+	};
 
 	const onboardingTab = (path?: string): string => {
 		if (onboardingId && state.tabs.some((tab) => tab.id === onboardingId)) {
@@ -1272,6 +1441,7 @@ function AppContent({
 								}
 								spaceSwitcher={spaceSwitcher}
 								repositoryAppearance={repositoryAppearance}
+								onAppearance={openAppearance}
 								settingsButtonRef={railSettingsButton}
 								accountButtonRef={railAccountButton}
 								viewButtonRefs={railViewButtons}
@@ -2138,11 +2308,43 @@ function AppContent({
 								: undefined
 						}
 						readGitSettings={readGitSettings}
-						repositoryAppearance={repositoryAppearance}
+						repositoryAppearance={settingsRepositoryAppearance}
+						repositoryAppearanceName={appearanceTarget?.name}
+						onCustomizeRepositoryAppearance={() => openAppearance()}
 						writeGitSettings={mutations.saveSettings}
 					>
 						{closeNotice}
 					</AccountsSettings>
+				) : null}
+				{appearanceEditing &&
+				repositoryAppearance &&
+				!settingsOpen &&
+				!onboardingOpen ? (
+					<RepositoryAppearanceEditor
+						key={appearanceEditing.commonDirectory}
+						name={appearanceEditing.name}
+						{...appearanceEditing.draft}
+						section={appearanceEditing.section}
+						onSectionChange={(section) =>
+							setAppearanceEditor(
+								(current) => current && { ...current, section }
+							)
+						}
+						onChange={repositoryAppearance.onChange}
+						onPatternChange={repositoryAppearance.onPatternChange}
+						onPreview={(previewColor) =>
+							setAppearanceEditor(
+								(current) => current && { ...current, previewColor }
+							)
+						}
+						onDone={saveAppearance}
+						onCancel={cancelAppearance}
+						onBack={() => {
+							setAppearanceEditor(undefined);
+							setSettingsSection("repository-appearance");
+							setSettingsView("list");
+						}}
+					/>
 				) : null}
 				{syncAccount.dialog}
 			</div>

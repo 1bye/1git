@@ -94,7 +94,10 @@ export function AppShell({
 		[inherited, palette]
 	);
 
-	const theme = useThemeTransition(targetTheme, !!inherited.smoothTransitions);
+	const theme = useThemeTransition(
+		targetTheme,
+		!!targetTheme.smoothTransitions
+	);
 
 	const { styles } = themedStyles.get(theme);
 

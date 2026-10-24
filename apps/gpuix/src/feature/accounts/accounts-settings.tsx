@@ -54,7 +54,7 @@ import type { ExternalEditors } from "../editor-settings/external-editors";
 import { AppearanceSettings } from "../appearance-settings/appearance-settings";
 import { AiSettings, type AiSettingsHandle } from "../ai/ai-settings";
 import { RepositoryAppearance } from "../repository-appearance/repository-appearance";
-import type { RepositoryAppearanceOptions } from "../repository-appearance/repository-patterns";
+import type { RepositoryAppearanceValue } from "../repository-appearance/repository-patterns";
 
 const sidebarWidth = 200;
 const contentPadding = spacing[4];
@@ -130,6 +130,8 @@ export function AccountsSettings({
 	initialSection = "accounts",
 	repositorySettings,
 	repositoryAppearance,
+	repositoryAppearanceName,
+	onCustomizeRepositoryAppearance,
 	ignoredHistory,
 	spaceSwitcher,
 	spacesSettings,
@@ -165,7 +167,9 @@ export function AccountsSettings({
 		active?: boolean;
 		onOpen?: () => void;
 	};
-	repositoryAppearance?: RepositoryAppearanceOptions;
+	repositoryAppearance?: RepositoryAppearanceValue;
+	repositoryAppearanceName?: string;
+	onCustomizeRepositoryAppearance?: () => void;
 	spaceSwitcher?: (disabled: boolean) => ReactNode;
 	spacesSettings?: ReactNode;
 	readGitSettings?: typeof GitSettingsModel.read;
@@ -511,7 +515,7 @@ export function AccountsSettings({
 							Run setup again
 						</Button>
 					) : null}
-					{repositorySettings ? (
+					{repositorySettings || repositoryAppearance ? (
 						<>
 							<text
 								testId="settings-repository-group"
@@ -523,7 +527,9 @@ export function AccountsSettings({
 							</text>
 							{(
 								[
-									["repository-remotes", "Remotes", "branch"],
+									...(repositorySettings
+										? [["repository-remotes", "Remotes", "branch"] as const]
+										: []),
 									...(repositoryAppearance
 										? [
 												[
@@ -533,7 +539,15 @@ export function AccountsSettings({
 												] as const,
 											]
 										: []),
-									["repository-identity", "Commit identity", "userCircle"],
+									...(repositorySettings
+										? [
+												[
+													"repository-identity",
+													"Commit identity",
+													"userCircle",
+												] as const,
+											]
+										: []),
 									...(ignoredHistory
 										? [
 												[
@@ -593,7 +607,9 @@ export function AccountsSettings({
 						setGitBusy(next);
 					}}
 				/>
-			) : repositorySection && !repositorySettings ? (
+			) : repositorySection &&
+			  !repositorySettings &&
+			  !(section === "repository-appearance" && repositoryAppearance) ? (
 				<StateMessage
 					artwork="repository"
 					title="Open a repository to edit its settings"
@@ -608,13 +624,14 @@ export function AccountsSettings({
 						setGitBusy(next);
 					}}
 				/>
-			) : section === "repository-appearance" &&
-			  repositorySettings &&
-			  repositoryAppearance ? (
+			) : section === "repository-appearance" && repositoryAppearance ? (
 				<RepositoryAppearance
-					key={repositorySettings.root}
+					key={repositorySettings?.root ?? repositoryAppearanceName}
 					{...repositoryAppearance}
-					name={repositorySettings.name}
+					name={
+						repositoryAppearanceName ?? repositorySettings?.name ?? "Repository"
+					}
+					onCustomize={onCustomizeRepositoryAppearance}
 				/>
 			) : section !== "accounts" ? (
 				<GitSettings

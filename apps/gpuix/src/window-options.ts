@@ -4,6 +4,7 @@ import {
 	handleSettingsNavigation,
 } from "./feature/accounts/lib/settings-shortcut";
 import { handlePopoverKeyDown } from "@1git/gpuix-ui/popover";
+import { handleRepositoryAppearanceKeyDown } from "./feature/repository-appearance/repository-appearance-shortcut";
 import { handleRepositoryFilterKeyDown } from "./feature/repository-workspace/lib/repository-filter-shortcut";
 import { handleWorkspaceKeyDown } from "./feature/repository-workspace/lib/repository-filter-shortcut";
 import { handleCloneNavigation } from "./feature/repository-workspace/lib/repository-filter-shortcut";
@@ -22,6 +23,8 @@ export const windowOptions: RenderOptions = {
 	trafficLightY: 13,
 	onKeyDown(event, renderer) {
 		if (handlePopoverKeyDown(event, renderer)) return;
+
+		if (handleRepositoryAppearanceKeyDown(event, renderer)) return;
 
 		if (handleSettingsKeyDown(event, renderer)) return;
 

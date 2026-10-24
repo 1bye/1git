@@ -33,7 +33,10 @@ import {
 	type WorkspaceSettingsChoice,
 } from "../lib/workspace-settings-menu";
 import type { SettingsSection } from "../../accounts/accounts-settings";
-import type { RepositoryAppearanceOptions } from "../../repository-appearance/repository-patterns";
+import type {
+	RepositoryAppearanceOptions,
+	RepositoryAppearanceSection,
+} from "../../repository-appearance/repository-patterns";
 import { repositoryViews, type RepositoryView } from "../types";
 
 export const workspaceRailWidth = 48;
@@ -183,6 +186,7 @@ export function WorkspaceRail({
 	preferredAccountKey,
 	onAccount,
 	onSettings,
+	onAppearance,
 	onAddAccount,
 	settingsActive = false,
 	disabled = false,
@@ -202,6 +206,7 @@ export function WorkspaceRail({
 	preferredAccountKey?: string;
 	onAccount?: (key: string) => void;
 	onSettings: (section?: SettingsSection) => void;
+	onAppearance?: (section: RepositoryAppearanceSection) => void;
 	onAddAccount: () => void;
 	settingsActive?: boolean;
 	disabled?: boolean;
@@ -327,7 +332,10 @@ export function WorkspaceRail({
 			if (choice?.kind === "color") repositoryAppearance.onChange(choice.color);
 			else if (choice?.kind === "pattern")
 				repositoryAppearance.onPatternChange(choice.pattern);
-			else if (choice?.kind === "settings") onSettings(choice.section);
+			else if (choice?.kind === "appearance") {
+				if (onAppearance) onAppearance(choice.section);
+				else onSettings("repository-appearance");
+			} else if (choice?.kind === "settings") onSettings(choice.section);
 		} catch {
 			// Settings stays reachable if this native build cannot show grouped menus.
 			onSettings();

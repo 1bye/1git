@@ -16,10 +16,17 @@ export type RepositoryPatternChoices = Readonly<
 	Record<string, RepositoryPattern>
 >;
 
-/** Appearance controls shared by the repository page and quick settings menu. */
-export interface RepositoryAppearanceOptions {
+/** A repository's saved appearance or an uncommitted editor draft. */
+export interface RepositoryAppearanceValue {
 	readonly color?: string;
 	readonly pattern?: RepositoryPattern;
+}
+
+/** The two sections of the floating repository appearance editor. */
+export type RepositoryAppearanceSection = "color" | "pattern";
+
+/** Appearance controls shared by the repository editor and quick settings menu. */
+export interface RepositoryAppearanceOptions extends RepositoryAppearanceValue {
 	readonly onChange: (color: string | undefined) => void;
 	readonly onPatternChange: (pattern: RepositoryPattern | undefined) => void;
 }

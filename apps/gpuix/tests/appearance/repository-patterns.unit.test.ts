@@ -1,5 +1,5 @@
 /**
- * Covers: validated opt-in patterns, reset, local session round trips and bounded shared SVG sources.
+ * Covers: validated opt-in patterns, reset, local session round trips and varied rail motifs in bounded shared SVG sources.
  * Real: pattern, palette and session models; Sharp SVG rasterization.
  * Doubles: none.
  * Requires: none; no preferences, native windows or Git I/O.
@@ -20,6 +20,8 @@ import { WorkspaceSession } from "../../src/feature/workspace-tabs/lib/workspace
 import { WorkspaceTabsModel } from "../../src/feature/workspace-tabs/lib/workspace-tabs-model";
 import { appThemes } from "../../src/styles/theme";
 import { RepositoryTheme } from "../../src/styles/repository-theme";
+
+const tileMotifPattern = /<g transform="translate\((\d+) [^"]+">(.*?)<\/g>/gu;
 
 it("accepts built-in patterns only and resets just the selected common directory", () => {
 	const choices = RepositoryPatterns.parse({
@@ -132,6 +134,22 @@ it("reuses small monochrome tiles across colors rather than generating window-si
 		expect(
 			image.data.some((value, index) => index % 4 === 3 && value > 0)
 		).toBe(true);
+	}
+});
+
+it("shows different motifs in the two rail-visible positions for every pattern", () => {
+	for (const preset of repositoryPatternPresets) {
+		for (const sources of [
+			repositoryPatternSources,
+			repositoryPatternCornerSources,
+		]) {
+			const railMotifs = [...sources[preset.id].matchAll(tileMotifPattern)]
+				.filter((match) => Number(match[1]) < 48)
+				.map((match) => match[2]);
+
+			expect(railMotifs).toHaveLength(2);
+			expect(new Set(railMotifs).size).toBe(2);
+		}
 	}
 });
 

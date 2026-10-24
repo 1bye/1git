@@ -22,7 +22,7 @@ import { commitInfo } from "../_shared/history-page";
 import { diffSection } from "../_shared/diff-patch";
 import { windowOptions } from "../../src/window-options";
 import { useState } from "react";
-import { RepositoryAppearance } from "../../src/feature/repository-appearance/repository-appearance";
+import { RepositoryAppearanceEditor } from "../../src/feature/repository-appearance/repository-appearance-editor";
 import {
 	repositoryPatternPresets,
 	type RepositoryPattern,
@@ -74,19 +74,35 @@ function ColorSettingsProbe({
 }) {
 	const [color, setColor] = useState<string>();
 	const [pattern, setPattern] = useState<RepositoryPattern>();
+	const [section, setSection] = useState<"color" | "pattern">("color");
 
 	return (
 		<AppThemeContext value={{ ...appThemes.dark, commitTypeBadges: true }}>
-			<RepositoryAppearance
-				name="Test repository"
-				pattern={pattern}
-				onPatternChange={setPattern}
-				color={color}
-				onChange={(next) => {
-					setColor(next);
-					changed(next);
+			<div
+				style={{
+					display: "flex",
+					flexDirection: "column",
+					width: "100%",
+					height: "100%",
 				}}
-			/>
+			>
+				<RepositoryAppearanceEditor
+					name="Test repository"
+					section={section}
+					onSectionChange={setSection}
+					onPreview={() => {}}
+					onDone={() => {}}
+					onCancel={() => {}}
+					onBack={() => {}}
+					pattern={pattern}
+					onPatternChange={setPattern}
+					color={color}
+					onChange={(next) => {
+						setColor(next);
+						changed(next);
+					}}
+				/>
+			</div>
 		</AppThemeContext>
 	);
 }
@@ -98,6 +114,12 @@ it("selects every pattern by keyboard and resets without changing the color", as
 	const changes: (string | undefined)[] = [];
 
 	root.render(<ColorSettingsProbe changed={(color) => changes.push(color)} />);
+	await settle(root);
+
+	root.renderer.nativeSimulateKeyDown(
+		node(root, "repository-appearance-tab-pattern").id,
+		"enter"
+	);
 	await settle(root);
 
 	for (const preset of repositoryPatternPresets) {
@@ -131,7 +153,7 @@ it("selects every pattern by keyboard and resets without changing the color", as
 	expect(changes).toEqual([]);
 });
 
-it("supports keyboard swatches, rejects invalid custom input and resets without writing until Apply", async () => {
+it("supports keyboard swatches, validates custom hex and resets the color draft", async () => {
 	const root = createTestRoot({ width: 760, height: 620 });
 
 	roots.add(root);
@@ -146,6 +168,13 @@ it("supports keyboard swatches, rejects invalid custom input and resets without 
 	);
 	await settle(root);
 	expect(changes).toEqual(["#46b8b3"]);
+
+	root.renderer.scrollTo(
+		node(root, "repository-appearance-controls").id,
+		0,
+		-200
+	);
+	root.renderer.flush();
 
 	for (const [input, valid] of [
 		["bad", false],
@@ -311,28 +340,22 @@ it.each(["light", "dark"] as const)(
 			expect(root.renderer.getFocusedElementId()).toBe(
 				node(root, "rail-settings").id
 			);
-			menu.mockReturnValueOnce({
-				kind: "settings",
-				section: "repository-appearance",
-			});
+			menu.mockReturnValueOnce({ kind: "appearance", section: "color" });
 			await click(root, "rail-settings");
-			expect(
-				node(root, "repository-color-violet").customProps?.["aria-description"]
-			).toBe("Selected");
-			expect(node(root, "settings-view").style.backgroundColor).toBe(
-				"transparent"
-			);
-			root.renderer.nativeSimulateKeyDown(
-				node(root, "repository-pattern-rose").id,
-				"enter"
-			);
-			await settle(root);
+			expect(root.renderer.findByTestId("settings-view")).toBeUndefined();
+			expect(node(root, "repository-appearance-editor")).toBeDefined();
 			expect(
 				node(root, "repository-color-violet").customProps?.["aria-description"]
 			).toBe("Selected");
 			expect(node(root, "repository-color-custom").customProps?.value).toBe(
 				"#a478ef"
 			);
+			await click(root, "repository-appearance-tab-pattern");
+			root.renderer.nativeSimulateKeyDown(
+				node(root, "repository-pattern-rose").id,
+				"enter"
+			);
+			await settle(root);
 			expect(
 				node(root, "repository-pattern-rose").customProps?.["aria-description"]
 			).toBe("Selected");
@@ -342,17 +365,21 @@ it.each(["light", "dark"] as const)(
 			);
 			await settle(root);
 			expect(
+				node(root, "repository-pattern-cosmic").customProps?.[
+					"aria-description"
+				]
+			).toBe("Selected");
+			await click(root, "repository-appearance-tab-color");
+			expect(
 				node(root, "repository-color-violet").customProps?.["aria-description"]
 			).toBe("Selected");
 
-			if (screenshot) {
-				root.renderer.scrollTo(node(root, "repository-appearance").id, 0, -210);
-				root.renderer.flush();
+			if (screenshot)
 				root.renderer.captureScreenshot(
-					`${screenshot}-${appearance}-settings.png`
+					`${screenshot}-${appearance}-editor.png`
 				);
-			}
 
+			await click(root, "repository-appearance-done");
 			await Bun.sleep(230);
 			root.renderer.flush();
 			expect(saved.at(-1)?.repositoryColors).toEqual({
@@ -437,6 +464,9 @@ it.each(["light", "dark"] as const)(
 			expect(draw.p90Ms).toBeLessThan(12);
 
 			await click(root, "workspace-2");
+			// Palette blending uses real time, independently of the native motion clock.
+			await Bun.sleep(230);
+			await settle(root);
 			expect(node(root, "surface-workspace-2").customProps?.source).toContain(
 				`fill="${RepositoryTheme.create(appThemes[appearance], "#46b8b3").colors.editorSurface}"`
 			);
@@ -450,6 +480,8 @@ it.each(["light", "dark"] as const)(
 				"Other draft"
 			);
 			await click(root, "workspace-3");
+			await Bun.sleep(230);
+			await settle(root);
 			expect(node(root, "surface-workspace-3").customProps?.source).toContain(
 				`fill="${themed.colors.editorSurface}"`
 			);
@@ -461,6 +493,8 @@ it.each(["light", "dark"] as const)(
 				"Linked draft"
 			);
 			await click(root, "workspace-home");
+			await Bun.sleep(230);
+			await settle(root);
 			expect(
 				root.renderer.findByTestId("repository-pattern-layer")
 			).toBeUndefined();
@@ -483,6 +517,7 @@ it.each(["light", "dark"] as const)(
 				node(root, "rail-settings").id,
 				"space"
 			);
+			await Bun.sleep(230);
 			await settle(root);
 			expect(node(root, "app-shell").style.backgroundColor).toBe("transparent");
 			expect(node(root, "commit-message").customProps?.value).toBe(

@@ -3,12 +3,14 @@ import { repositoryColorPresets } from "../../repository-appearance/repository-c
 import {
 	repositoryPatternPresets,
 	type RepositoryPattern,
+	type RepositoryAppearanceSection,
 } from "../../repository-appearance/repository-patterns";
 import type { NativeMenuItem } from "./native-file-menu";
 
 /** Only explicit menu choices can navigate settings or change the local repository accent. */
 export type WorkspaceSettingsChoice =
 	| { kind: "settings"; section: SettingsSection }
+	| { kind: "appearance"; section: RepositoryAppearanceSection }
 	| { kind: "color"; color: string | undefined }
 	| { kind: "pattern"; pattern: RepositoryPattern | undefined };
 
@@ -50,7 +52,7 @@ export class WorkspaceSettingsMenu {
 					{
 						label: "Custom color…",
 						enabled: true,
-						value: { kind: "settings", section: "repository-appearance" },
+						value: { kind: "appearance", section: "color" },
 					},
 				],
 			},
@@ -71,7 +73,7 @@ export class WorkspaceSettingsMenu {
 					{
 						label: "Choose pattern…",
 						enabled: true,
-						value: { kind: "settings", section: "repository-appearance" },
+						value: { kind: "appearance", section: "pattern" },
 					},
 				],
 			},

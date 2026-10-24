@@ -74,7 +74,7 @@ it("selects illustrated patterns independently from colors and distinguishes rem
 
 	for (const [label, expected] of [
 		["No pattern", { kind: "pattern", pattern: undefined }],
-		["Choose pattern…", { kind: "settings", section: "repository-appearance" }],
+		["Choose pattern…", { kind: "appearance", section: "pattern" }],
 		["Dismissed", undefined],
 	] as const) {
 		const renderer = {
@@ -85,7 +85,7 @@ it("selects illustrated patterns independently from colors and distinguishes rem
 	}
 });
 
-it("distinguishes resetting from cancelling and routes custom colors to the full page", () => {
+it("distinguishes resetting from cancelling and routes custom colors to the live editor", () => {
 	const items = WorkspaceSettingsMenu.items(undefined);
 	let label = "✓ Default color";
 	const bridge = (labels: string[]) => labels.indexOf(label);
@@ -97,8 +97,8 @@ it("distinguishes resetting from cancelling and routes custom colors to the full
 	});
 	label = "Custom color…";
 	expect(NativeFileMenu.showItems(renderer, items, 0, 0)).toEqual({
-		kind: "settings",
-		section: "repository-appearance",
+		kind: "appearance",
+		section: "color",
 	});
 	label = "Dismissed";
 	expect(NativeFileMenu.showItems(renderer, items, 0, 0)).toBeUndefined();

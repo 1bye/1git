@@ -384,8 +384,18 @@ on breaking prefixes. Ordinary or unrecognized messages stay untouched; selectio
 search, copying and history-editing actions always use the original Git message.
 This is presentation only: no Git metadata is changed or fetched for the badges.
 
-Settings → Repository → **Appearance** adds an opt-in workspace accent for the active
-repository: eight named swatches, a validated six-digit hex field, and Reset.
+Settings → Repository → **Appearance** → **Customize on repository** hides Settings
+and opens a small floating editor over the existing workspace. Its Color and Pattern
+sections offer eight named swatches, a circular hue/saturation picker, brightness
+slider, precise H/S/B fields, a validated six-digit hex field, Reset and pattern tiles.
+Dragging and other choices update the real repository immediately without saving
+preferences. **Done** saves the color and pattern together. **Escape** cancels;
+**Back to Settings** discards the draft and returns to the same Appearance page.
+The file selection, diff scroll, checked changes and commit message stay intact,
+and the uncovered workspace remains usable. From Home, customization returns to
+the last-used repository if its tab is still open in the current Space. Switching
+to a different repository or reopening Settings discards an unfinished draft.
+Pattern thumbnails use the current color, with **No pattern** first.
 Illustrated **Rose**, **Seaside**, **Forest**, **Cosmic**, **Meadow**, **Camping**,
 **Rainfall** and **Workshop** SVG presets add scattered themed motifs behind the chrome.
 The new packs feature flowers and butterflies, camping gear, rainy weather, and
@@ -396,7 +406,8 @@ While a repository is active, the rail's Settings gear opens a native dropdown
 with shortcuts to Appearance, Accounts, AI, Remotes and Commit identity.
 Its **Repository color** submenu applies named presets or restores the default
 without leaving the workspace. **Repository pattern** selects a wallpaper or removes
-it in place; **Choose pattern…** opens the visual preset picker. **Custom color…** opens the full appearance page;
+it in place; **Choose pattern…** and **Custom color…** open the floating editor
+on the corresponding section;
 **All Settings…** and Command-comma open Settings normally. Home and Settings
 keep direct gear navigation. Cancelling the menu changes nothing.
 Choices are saved only in the local session, keyed by Git's common directory so
