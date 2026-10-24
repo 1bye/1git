@@ -531,6 +531,29 @@ it("shows one complete file diff without changing HEAD, index content or working
 	);
 });
 
+it("previews tab-indented untracked source without a false binary notice", async () => {
+	await writeFile(join(repository, "base.txt"), "base\n");
+	await git("add", "base.txt");
+	await git("commit", "-m", "Fixture");
+	const index = await readFile(join(repository, ".git/index"));
+	const source = "export const value = {\n\tfirst: 1,\n\tsecond: 2,\n};\n";
+
+	await writeFile(join(repository, "new.ts"), source);
+
+	for (const ignoreWhitespace of [false, true]) {
+		const section = (await read("new.ts", ignoreWhitespace))[0];
+
+		expect(section?.message).toBeNull();
+		expect(section?.patch).toContain("+\tsecond: 2,");
+		expect(section?.stats).toEqual([
+			{ path: "new.ts", addedLines: 4, deletedLines: 0 },
+		]);
+	}
+
+	expect(await readFile(join(repository, ".git/index"))).toEqual(index);
+	expect(await readFile(join(repository, "new.ts"), "utf8")).toBe(source);
+});
+
 it("handles untracked and empty files on an unborn branch, deletions and pure renames", async () => {
 	await writeFile(join(repository, "new.txt"), "new content");
 	await writeFile(join(repository, "empty.txt"), "");

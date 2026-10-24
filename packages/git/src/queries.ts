@@ -614,9 +614,14 @@ const loadUntrackedPathDiff = async (
 				"--no-ext-diff",
 				"--no-textconv",
 				"--no-color",
-				...(format === "numstat" ? ["--numstat", "-z"] : ["--patch"]),
-				`--unified=${input.contextLines ?? 3}`,
-				...(input.ignoreWhitespace ? ["--ignore-all-space"] : []),
+				// --unified also enables patch output, which would corrupt numstat parsing.
+				...(format === "numstat"
+					? ["--numstat", "-z"]
+					: [
+							"--patch",
+							`--unified=${input.contextLines ?? 3}`,
+							...(input.ignoreWhitespace ? ["--ignore-all-space"] : []),
+						]),
 				"--",
 				"/dev/null",
 				path,

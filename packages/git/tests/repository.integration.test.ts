@@ -525,6 +525,33 @@ describe("GitRepository local workflow", () => {
 		expect(diff.patch).toContain("+second();");
 	});
 
+	test("keeps untracked source patches out of numeric statistics", async () => {
+		const fixture = await fixtures.create();
+		const path = "src/new.ts";
+		const source = "export const value = {\n\tfirst: 1,\n\tsecond: 2,\n};\n";
+
+		await fixture.write(path, source);
+
+		for (const kind of ["working", "changes"] as const) {
+			for (const ignoreWhitespace of [false, true]) {
+				const diff = unwrapResult(
+					await fixture.repository.getDiff({
+						target: { kind },
+						paths: [path],
+						contextLines: 64,
+						ignoreWhitespace,
+					})
+				);
+
+				expect(diff.stats).toEqual([{ path, addedLines: 4, deletedLines: 0 }]);
+				expect(diff.patch).toContain("+\tsecond: 2,");
+			}
+		}
+
+		expect(await fixture.read(path)).toBe(source);
+		expect(await fixture.git(["ls-files", "--", path])).toBe("");
+	});
+
 	test("returns a staged diff scoped to paths", async () => {
 		const fixture = await fixtures.create();
 
