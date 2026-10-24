@@ -12,7 +12,7 @@ import {
 } from "../../src/feature/machines/remote-protocol";
 import { expect, it } from "bun:test";
 import { closeSync, constants, openSync, writeSync } from "node:fs";
-import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import {
@@ -76,10 +76,22 @@ it("opens the extracted ZIP without a terminal or checkout-dependent resources",
 			resolve(output, "1git-macos-arm64.zip"),
 			directory,
 		]);
-		expect(await readFile(resolve(directory, "README.txt"), "utf8")).toContain(
-			"not Developer ID signed or notarized"
+		const readme = await readFile(resolve(directory, "README.txt"), "utf8");
+
+		const notarized = readme.includes(
+			"Developer ID signed and notarized by Apple"
+		);
+
+		expect(readme).toMatch(
+			/not Developer ID signed or notarized|Developer ID signed and notarized by Apple/u
 		);
 		await run(["codesign", "--verify", "--deep", "--strict", bundle]);
+
+		if (notarized) {
+			await run(["xcrun", "stapler", "validate", bundle]);
+			await run(["/usr/sbin/spctl", "--assess", "--type", "execute", bundle]);
+		}
+
 		const helperDirectory = resolve(
 			bundle,
 			"Contents/Resources/remote-helpers"
@@ -106,6 +118,13 @@ it("opens the extracted ZIP without a terminal or checkout-dependent resources",
 			expect(isRecord(metadata) && metadata.sha256).toBe(
 				createHash("sha256").update(gunzipSync(compressed)).digest("hex")
 			);
+
+			if (notarized && target.startsWith("darwin-")) {
+				const helper = resolve(directory, target);
+
+				await writeFile(helper, gunzipSync(compressed), { mode: 0o755 });
+				await run(["codesign", "--verify", "--strict", helper]);
+			}
 		}
 
 		await run(["mkfifo", input]);

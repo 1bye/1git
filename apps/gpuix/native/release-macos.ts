@@ -14,7 +14,7 @@ import {
 } from "./publisher-request";
 
 const usage =
-	"Usage: bun run release:macos -- --version 0.0.2 [--stage prod] [--profile name] [--dry-run]\nUses the personal Alchemy profile by default, saved stack outputs and the existing Sparkle Keychain key unless overridden; never deploys infrastructure. Dry-run builds/signs locally without loading Cloudflare credentials or accessing R2.\n";
+	"Usage: bun run release:macos -- --version 0.0.2 [--stage prod] [--profile name] [--dry-run]\nUses the personal Alchemy profile by default, saved stack outputs and the existing Sparkle Keychain key unless overridden; never deploys infrastructure. Developer ID configuration enables Apple notarization. Dry-run builds/signs locally without uploading to Apple, loading Cloudflare credentials or accessing R2.\n";
 
 /** Builds a versioned release without modifying package defaults, then publishes unless dry-run. */
 export async function releaseMacOS(
@@ -54,17 +54,24 @@ export async function releaseMacOS(
 		)
 	);
 
-	const build = Bun.spawn([process.execPath, "native/package-macos.ts"], {
-		cwd: appDirectory,
-		env: {
-			...buildEnv,
-			ONEGIT_UPDATE_FEED_URL: target.feedURL,
-			ONEGIT_UPDATE_PUBLIC_KEY: updates.publicKey,
-			ONEGIT_RELEASE_VERSION: options.version,
-		},
-		stdout: "inherit",
-		stderr: "inherit",
-	});
+	const build = Bun.spawn(
+		[
+			process.execPath,
+			"native/package-macos.ts",
+			...(options.dryRun ? ["--dry-run"] : []),
+		],
+		{
+			cwd: appDirectory,
+			env: {
+				...buildEnv,
+				ONEGIT_UPDATE_FEED_URL: target.feedURL,
+				ONEGIT_UPDATE_PUBLIC_KEY: updates.publicKey,
+				ONEGIT_RELEASE_VERSION: options.version,
+			},
+			stdout: "inherit",
+			stderr: "inherit",
+		}
+	);
 
 	if ((await build.exited) !== 0)
 		throw new Error("Release build failed. Nothing uploaded.");

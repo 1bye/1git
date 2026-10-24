@@ -10,6 +10,7 @@
       "passThroughEnv": ["CARGO_HOME", "RUSTUP_HOME", "DEVELOPER_DIR"]
     },
     "test": { "cache": false },
+    "test:signing:macos": { "dependsOn": ["^build", "build:native"] },
     "check-types": { "dependsOn": ["^build"] },
     "test:integration": { "dependsOn": ["^build"], "cache": false }
   }

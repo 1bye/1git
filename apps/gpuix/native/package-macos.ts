@@ -8,6 +8,7 @@ import {
 } from "node:fs/promises";
 import { resolve } from "node:path";
 import { createHash } from "node:crypto";
+import { parseArgs } from "node:util";
 import { appDirectory, nativeLibrary } from "./config";
 import { bundleInfoPlist, copyImageRuntime } from "./package-resources";
 import { version as developmentVersion } from "../package.json";
@@ -19,6 +20,13 @@ import { remoteHelperTargets } from "../src/feature/machines/remote-protocol";
 if (process.platform !== "darwin" || process.arch !== "arm64") {
 	throw new Error("macOS packaging currently supports Apple Silicon only.");
 }
+
+const { values } = parseArgs({
+	args: process.argv.slice(2),
+	strict: true,
+	allowPositionals: false,
+	options: { "dry-run": { type: "boolean", default: false } },
+});
 
 const run = async (command: string[]): Promise<void> => {
 	const child = Bun.spawn(command, {
@@ -44,8 +52,10 @@ const version = ReleaseVersion.parse(
 const signing = await MacSigning.load();
 
 await signing.verify();
-const sign = async (path: string): Promise<void> =>
-	await signing.sign(path, run);
+const sign = async (
+	path: string,
+	preserveEntitlements = false
+): Promise<void> => await signing.sign(path, run, { preserveEntitlements });
 
 const output = resolve(appDirectory, "build/macos");
 
@@ -148,8 +158,29 @@ try {
 	}
 
 	await sign(addon);
-	await sign(bundle);
+	await signing.sign(bundle, run, {
+		entitlements: resolve(import.meta.dir, "macos.entitlements"),
+	});
 	await run(["codesign", "--verify", "--deep", "--strict", bundle]);
+
+	if (!values["dry-run"])
+		await signing.notarize(bundle, resolve(staging, "notarization.zip"));
+
+	let securityInformation = `This beta is ${signing.certificate ? "self-signed with a stable identity" : "ad-hoc signed"}, not Developer ID signed or notarized by Apple.
+macOS may block the first launch. Only if you trust the source, after trying
+to open the app, use System Settings > Privacy & Security > Open Anyway.
+Some managed Macs do not permit this exception. Do not disable Gatekeeper.
+Apple's instructions: https://support.apple.com/en-us/102445`;
+
+	if (signing.developerID) {
+		securityInformation =
+			"This app is Developer ID signed and notarized by Apple, with a stapled ticket.";
+
+		if (values["dry-run"])
+			securityInformation =
+				"This local dry-run is Developer ID signed but NOT notarized. Do not distribute it.";
+	}
+
 	await writeFile(
 		resolve(release, "README.txt"),
 		`1git ${version} - Apple Silicon beta
@@ -163,11 +194,7 @@ Install:
 2. Move 1git.app into Applications.
 3. Open 1git.app.
 
-This beta is ${signing.certificate ? "self-signed with a stable identity" : "ad-hoc signed"}, not Developer ID signed or notarized by Apple.
-macOS may block the first launch. Only if you trust the source, after trying
-to open the app, use System Settings > Privacy & Security > Open Anyway.
-Some managed Macs do not permit this exception. Do not disable Gatekeeper.
-Apple's instructions: https://support.apple.com/en-us/102445
+${securityInformation}
 
 Accounts and preferences are stored separately on your Mac, not in this ZIP.
 AI providers receive checked changes only when you choose to generate a message.
@@ -183,7 +210,7 @@ AI providers receive checked changes only when you choose to generate a message.
 		`${hash.digest("hex")}  ${archiveName}\n`
 	);
 
-	// Replace only the generated app after every build/signing step succeeds.
+	// Replace generated outputs only after signing, notarization (when enabled), and archiving succeed.
 	await rm(destination, { recursive: true, force: true });
 	await rename(bundle, destination);
 	await rename(archive, resolve(output, archiveName));

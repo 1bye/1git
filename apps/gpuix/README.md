@@ -178,8 +178,9 @@ Outputs stay in ignored `build/macos/`; no account/session files, repository dat
 or build caches are included. Rebuilding replaces only generated outputs after
 compilation, signing and archive creation succeed.
 
-This is an **Apple Silicon beta**, self-signed after signing setup, but not Developer ID signed or
-notarized. Recipients need Git available on their Mac (for example, Apple's Command
+By default this is an **Apple Silicon beta**, self-signed after local signing setup.
+For Developer ID signing and notarization, configure the Apple account as described below.
+Recipients need Git available on their Mac (for example, Apple's Command
 Line Tools), but not Bun, Rust or Xcode to run the app. Extract the ZIP, move
 `1git.app` into Applications, and open it. For a trusted download blocked by
 Gatekeeper, follow [Apple's Open Anyway instructions](https://support.apple.com/en-us/102445)
@@ -249,6 +250,74 @@ file never falls back. Development packaging on a fresh checkout without any pin
 remains ad-hoc until setup; development package versions and update defaults do
 not change.
 
+### Developer ID signing and notarization (Bruno's Apple account)
+
+Keep both Apple accounts in Xcode. In **Xcode → Settings → Accounts**, select
+Bruno's Apple account and its Apple Developer Program team, then open **Manage
+Certificates → + → Developer ID Application**. Expo's iOS distribution certificate
+is a different certificate type and cannot be used for this macOS distribution.
+If the identity was created on another Mac, import its certificate **and private
+key** from its password-protected `.p12` backup. Do not revoke existing Expo/iOS
+certificates. See [Apple's certificate instructions](https://developer.apple.com/help/account/certificates/create-developer-id-certificates/).
+
+```sh
+security find-identity -v -p codesigning
+```
+
+Find Bruno's `Developer ID Application: … (TEAM_ID)` entry. Its 40-character
+fingerprint is the signing identity; its parenthesized 10-character identifier
+is the team ID. These select the account explicitly, independently of whichever
+Apple account is active in Xcode. An Apple Development, iPhone Distribution,
+Developer ID Installer or different-team certificate is rejected before building.
+
+Save notarization credentials once, using Bruno's Apple account email and team ID:
+
+```sh
+xcrun notarytool store-credentials "1git-bruno" \
+  --apple-id "BRUNO_APPLE_EMAIL" \
+  --team-id "BRUNO_TEAM_ID"
+```
+
+Enter Bruno's **app-specific password** at the prompt, not in a script or chat.
+The credential stays in Keychain. See [Apple's notarization credentials guide](https://developer.apple.com/documentation/technotes/tn3147-migrating-to-the-latest-notarization-tool).
+Then export all three public configuration values in the terminal running the build:
+
+```sh
+export ONEGIT_MACOS_SIGNING_IDENTITY="BRUNO_CERTIFICATE_SHA1_FINGERPRINT"
+export ONEGIT_MACOS_TEAM_ID="BRUNO_TEAM_ID"
+export ONEGIT_MACOS_NOTARY_PROFILE="1git-bruno"
+bun run package:macos
+```
+
+Replace the placeholders with actual values. Do not combine these settings with
+`ONEGIT_MACOS_ADHOC` or `ONEGIT_MACOS_SIGNING_CONFIG`. Partial or invalid settings
+fail instead of falling back to another account or the existing self-signed pin.
+Both `package:macos` and `release:macos` forward this configuration through Turbo.
+Keep the same exports when running `release:macos`; its `--profile` option selects
+an Alchemy publishing profile, independently of the Apple account.
+
+Developer ID builds use secure timestamps and hardened runtime. The main Bun
+executable receives the [runtime entitlements recommended by Bun](https://github.com/oven-sh/bun/blob/main/docs/guides/runtime/codesign-macos-executable.mdx);
+those entitlements are not applied to native libraries or Sparkle helpers.
+Sparkle's downloader retains its own upstream sandbox entitlements, following
+[Sparkle's signing guidance](https://sparkle-project.org/documentation/sandboxing/#code-signing).
+The macOS SSH helper payloads are signed before compression and checksumming.
+
+Packaging uploads a temporary app ZIP to Apple's notary service using the named
+Keychain profile, waits up to 30 minutes for `Accepted`, staples and validates
+the ticket, checks the code signature and Gatekeeper, then creates the final ZIP
+and SHA-256 checksum. Rejection, timeout or validation failure leaves previous
+package outputs intact and prevents publishing. The distributed ZIP and Sparkle
+update ZIP both contain the stapled app. No Apple password or private key is
+embedded in either artifact. The existing Sparkle Ed25519 key is unchanged.
+
+`release:macos -- --version 0.0.2 --dry-run` signs locally but skips the Apple
+upload and notarization, as well as R2 access. Its ZIP explicitly says it is not
+notarized and must not be distributed. Code signing may still contact Apple's
+timestamp service. Normal Developer ID packaging and real releases always notarize.
+Switching from the existing self-signed identity can require a one-time Keychain
+approval or account reconnect for previously saved credentials.
+
 ## macOS updates
 
 Packaged apps include pinned **Sparkle 2.10.0**, its native installer helpers and
@@ -301,8 +370,9 @@ and `https://git.1bye.dev/appcast.xml` for future builds' update feed. The origi
 `workers.dev` endpoint remains available for previously installed apps.
 
 Once the stack has been explicitly deployed and the permanent Sparkle signing
-key exists in Keychain account `dev.1git.gpuix`, run `setup:signing:macos` once to
-provision the separate stable code-signing identity:
+key exists in Keychain account `dev.1git.gpuix`, configure Developer ID signing
+above for public distribution. For self-signed local betas, run
+`setup:signing:macos` once instead to provision the stable local code-signing identity:
 
 ```sh
 bun run release:macos -- --version 0.0.2 --dry-run

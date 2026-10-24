@@ -70,7 +70,7 @@ export async function prepareSparkle(): Promise<void> {
 export async function embedSparkle(
 	contents: string,
 	run: (command: string[]) => Promise<void>,
-	sign: (path: string) => Promise<void>
+	sign: (path: string, preserveEntitlements?: boolean) => Promise<void>
 ): Promise<void> {
 	await prepareSparkle();
 	const frameworks = resolve(contents, "Frameworks");
@@ -114,7 +114,10 @@ export async function embedSparkle(
 		"Versions/B/Autoupdate",
 		"",
 	])
-		await sign(resolve(framework, path));
+		await sign(
+			resolve(framework, path),
+			path === "Versions/B/XPCServices/Downloader.xpc"
+		);
 
 	await sign(resolve(frameworks, "1git-updater.dylib"));
 }
