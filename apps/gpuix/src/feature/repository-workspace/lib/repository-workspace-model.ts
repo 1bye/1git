@@ -1199,6 +1199,36 @@ export class RepositoryWorkspaceModel {
 				? `detached ${snapshot.head.oid?.slice(0, 7) ?? "HEAD"}`
 				: (snapshot.head.branch ?? "unborn HEAD");
 
+			const includedFileIds = changes
+				.filter((entry) =>
+					!sameHistory && state.partialFiles?.[entry.id]
+						? false
+						: !sameRepository ||
+							!previous.has(entry.id) ||
+							included.has(entry.id)
+				)
+				.map((entry) => entry.id);
+
+			// Stable selections let pending work survive unrelated background refreshes.
+			const sameInclusion =
+				sameRepository &&
+				includedFileIds.length === state.includedFileIds.length &&
+				includedFileIds.every(
+					(id, index) => id === state.includedFileIds[index]
+				);
+
+			let partialFiles: RepositoryWorkspaceState["partialFiles"] = {};
+
+			if (sameHistory) {
+				const partials = Object.entries(state.partialFiles ?? {});
+				const remaining = partials.filter(([id]) => files.has(id));
+
+				partialFiles =
+					remaining.length === partials.length
+						? state.partialFiles
+						: Object.fromEntries(remaining);
+			}
+
 			return {
 				...state,
 				preview: false,
@@ -1262,22 +1292,10 @@ export class RepositoryWorkspaceModel {
 					history: retainHistory ? state.entries.history : [],
 					stashes: sameRepository ? state.entries.stashes : [],
 				},
-				partialFiles: sameHistory
-					? Object.fromEntries(
-							Object.entries(state.partialFiles ?? {}).filter(([id]) =>
-								files.has(id)
-							)
-						)
-					: {},
-				includedFileIds: changes
-					.filter((entry) =>
-						!sameHistory && state.partialFiles?.[entry.id]
-							? false
-							: !sameRepository ||
-								!previous.has(entry.id) ||
-								included.has(entry.id)
-					)
-					.map((entry) => entry.id),
+				partialFiles,
+				includedFileIds: sameInclusion
+					? state.includedFileIds
+					: includedFileIds,
 				views: {
 					...state.views,
 					stashes:

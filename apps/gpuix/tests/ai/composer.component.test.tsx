@@ -1,5 +1,5 @@
 /**
- * Covers: composer overlays and caret clearance, inline generation, replacement confirmation, draft retention and commit blocking.
+ * Covers: composer overlays and caret clearance, inline generation, automatic refresh, replacement confirmation, draft retention and commit blocking.
  * Real: native composer, generation lifecycle, workspace reducer and disposable AI settings.
  * Doubles: selected Git reads, inference, last-commit metadata and credential vault.
  * Requires: patched GPUIX renderer and macOS graphics; no network or real credentials.
@@ -158,6 +158,14 @@ function composer(message = "", appearance: "light" | "dark" = "light") {
 		settings,
 		setAppearance(next: "light" | "dark") {
 			currentAppearance = next;
+			render();
+		},
+		refresh(snapshot: ReturnType<typeof repositorySnapshot>) {
+			state = RepositoryWorkspaceModel.reduce(state, {
+				type: "loaded",
+				snapshot,
+				automatic: true,
+			});
 			render();
 		},
 		update(patch: Partial<RepositoryWorkspaceState>) {
@@ -736,6 +744,109 @@ it("aborts pending generation when the composer unmounts", async () => {
 	completion.resolve("Late message");
 	await settle();
 	expect(root.renderer.findByTestId("commit-message")).toBeUndefined();
+});
+
+it.each([
+	["reading", false],
+	["generating", false],
+	["checking", false],
+	["generating", true],
+] as const)(
+	"survives an unchanged automatic refresh of 133 files while %s (partial: %s)",
+	async (phase, partial) => {
+		const completion = Promise.withResolvers<string>();
+		let signal: AbortSignal | undefined;
+
+		const wait = async (_input: unknown, captured: AbortSignal) => {
+			signal = captured;
+
+			return await completion.promise;
+		};
+
+		const read = spyOn(CommitContext, "read");
+
+		const generate = spyOn(service, "generate").mockResolvedValue(
+			"fix: selected changes"
+		);
+
+		if (phase === "reading") read.mockImplementationOnce(wait);
+
+		if (phase === "checking")
+			read.mockResolvedValueOnce("+selected").mockImplementationOnce(wait);
+
+		if (phase === "generating")
+			generate.mockImplementationOnce(
+				async (_preferences, _patch, captured) => {
+					signal = captured;
+
+					return await completion.promise;
+				}
+			);
+
+		const snapshot = repositorySnapshot(
+			Array.from({ length: 133 }, (_, index) => changedFile(`file-${index}.ts`))
+		);
+
+		const fixture = composer();
+
+		const loaded = RepositoryWorkspaceModel.reduce(
+			RepositoryWorkspaceModel.create(),
+			{
+				type: "loaded",
+				snapshot,
+			}
+		);
+
+		fixture.update(
+			partial
+				? RepositoryWorkspaceModel.reduce(loaded, {
+						type: "include-lines",
+						id: "file-0.ts",
+						expectedPatch: "+selected",
+						includedLines: ["+:1"],
+						total: 2,
+					})
+				: loaded
+		);
+		await settle();
+		await press("ai-generate");
+		fixture.refresh(snapshot);
+		await settle();
+
+		expect(signal?.aborted).toBe(false);
+		expect(node("commit-message").customProps?.readOnly).toBe(true);
+		completion.resolve(
+			phase === "generating" ? "fix: selected changes" : "+selected"
+		);
+		await settle();
+
+		expect(node("commit-message").customProps?.value).toBe(
+			"fix: selected changes"
+		);
+		expect(root.renderer.findByTestId("ai-commit-status")).toBeUndefined();
+	}
+);
+
+it("keeps a provider failure visible after an unchanged automatic refresh", async () => {
+	spyOn(service, "generate").mockRejectedValue(
+		new Error("Provider unavailable. Try again.")
+	);
+	const fixture = composer();
+
+	await settle();
+	await press("ai-generate");
+	fixture.refresh(
+		repositorySnapshot([
+			changedFile("selected.ts"),
+			changedFile("unchecked.ts"),
+		])
+	);
+	await settle();
+
+	expect(root.renderer.getAllText()).toContain(
+		"Provider unavailable. Try again."
+	);
+	expect(node("ai-commit-status").customProps?.role).toBe("alert");
 });
 
 it.each(["draft", "files", "lines", "branch"])(

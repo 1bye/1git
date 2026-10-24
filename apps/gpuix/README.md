@@ -1160,6 +1160,8 @@ blocked until generation finishes or is cancelled. Cancellation and failure
 preserve the existing draft, and cancelled requests cannot apply late results.
 Selection/branch changes, AI preference/default changes and external draft edits
 cancel pending generation. No separate preview or **Use message** step is required.
+Unchanged background repository refreshes preserve generation and visible AI
+errors; selected diffs are still reread before applying a generated message.
 
 Only checked files and their included lines are sent, with unfiltered whitespace
 and the collection limits described above. Binary contents are omitted. The
