@@ -7,6 +7,7 @@ import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
 import { useEffect, useRef, useState } from "react";
 
 import { RepositoryLastCommit } from "./repository-last-commit";
+import { RepositoryCommitProcess } from "./repository-commit-process";
 import { commitTypeColor } from "./commit-type-colors";
 import { CommitSubject } from "../lib/commit-subject";
 import {
@@ -112,6 +113,7 @@ export function RepositoryCommit({
 	state,
 	onAction,
 	onCommit,
+	onCancel,
 	onAiSettings,
 	onUndo,
 	readLast,
@@ -119,6 +121,7 @@ export function RepositoryCommit({
 	state: RepositoryWorkspaceState;
 	onAction: (action: RepositoryWorkspaceAction) => void;
 	onCommit?: () => void;
+	onCancel?: () => void;
 	onAiSettings?: () => void;
 	onUndo?: (input: CommitRecoveryInput) => Promise<string | null>;
 	readLast?: typeof CommitReader.readLast;
@@ -225,6 +228,15 @@ export function RepositoryCommit({
 
 	return (
 		<div testId="commit-composer" style={styles.composer}>
+			{!sample &&
+			(state.commit.pending ||
+				state.commit.error ||
+				state.commit.needsReview) ? (
+				<RepositoryCommitProcess
+					commit={state.commit}
+					onCancel={state.commit.cancellable ? onCancel : undefined}
+				/>
+			) : null}
 			{state.amend ? (
 				<div
 					testId="amend-header"
@@ -340,7 +352,7 @@ export function RepositoryCommit({
 				</div>
 			</div>
 			<AiCommitStatus generation={generation} />
-			{noticeText ? (
+			{noticeText && !state.commit.error && !state.commit.needsReview ? (
 				<div
 					key={state.commit.error ?? state.commit.notice ?? "hint"}
 					ref={notice}

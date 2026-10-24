@@ -93,10 +93,15 @@ export class RustRuntime implements GitExecutionRuntime {
 					stdoutFile: input.stdoutFile,
 					indexFile: input.indexFile,
 					maxOutputBytes,
-					progress: !!progress,
+					progress: !!progress || !!input.onOutput,
 				},
 				input.signal ?? this.signal,
-				(value) => progress?.write(buffer(value))
+				(value) => {
+					const chunk = buffer(value);
+
+					progress?.write(chunk);
+					input.onOutput?.(chunk, "stderr");
+				}
 			);
 		} catch (error) {
 			if (error instanceof Error && "code" in error) {
@@ -120,6 +125,8 @@ export class RustRuntime implements GitExecutionRuntime {
 
 		const stdout = buffer(result.stdout);
 		const stderr = buffer(result.stderr);
+
+		if (stdout.length) input.onOutput?.(stdout, "stdout");
 
 		if (result.exitCode !== 0)
 			throw new GitCommandFailure(

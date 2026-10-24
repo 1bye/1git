@@ -6,6 +6,7 @@ import {
 import { MachineLocation } from "./machine-location";
 import { Machines } from "./machines";
 import { isRecord, remoteGitMethods } from "./remote-protocol";
+import { ShellEnvironment } from "../../shell-environment";
 
 /** Preserves the shared public Git contract at the validated, versioned SSH boundary. */
 export type GitRepository = LocalRepository;
@@ -97,6 +98,8 @@ export const GitRepository = {
 				)
 			);
 
+		await ShellEnvironment.shared.prepare();
+
 		return await LocalRepository.initialize(input);
 	},
 	async clone(
@@ -107,11 +110,16 @@ export const GitRepository = {
 				new Error("Clone repositories on the SSH machine, then open them here.")
 			);
 
+		await ShellEnvironment.shared.prepare();
+
 		return await LocalRepository.clone(input);
 	},
 	async open(input: OpenRepositoryInput): Promise<GitResult<LocalRepository>> {
-		if (!MachineLocation.isRemote(input.path))
+		if (!MachineLocation.isRemote(input.path)) {
+			await ShellEnvironment.shared.prepare();
+
 			return await LocalRepository.open(input);
+		}
 
 		try {
 			const remote = MachineLocation.parse(input.path);

@@ -423,8 +423,15 @@ export interface CommitInput extends GitCallOptions {
 	readonly summary: string;
 }
 
+/** Commit lifecycle and incremental output from Git and its hooks. Output is not persisted. */
+export interface GitCommitProgress {
+	readonly phase: "preparing" | "committing" | "refreshing";
+	readonly output?: string;
+}
+
 /** Commits selected contents, preserving excluded files' index entries. */
 export interface CommitFilesInput extends GitCallOptions {
+	readonly onProgress?: (progress: GitCommitProgress) => void;
 	/** Replace only the reviewed unpublished, non-merge tip. Empty paths amend its message without including staged work. */
 	readonly amend?: boolean;
 	/** Authoritative unfiltered Changes patch and selected old/new line coordinates. */

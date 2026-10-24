@@ -109,11 +109,13 @@ describe("GitProcess", () => {
 				{ mode: 0o700 }
 			);
 			let failure: unknown;
+			const output: Buffer[] = [];
 
 			try {
 				await new GitProcess({ executable }).run({
 					args: ["fetch"],
 					cwd: fixture.repositoryPath,
+					onOutput: (chunk) => output.push(chunk),
 					httpAuthentication: {
 						url: "https://example.invalid/repo.git",
 						username: "fixture-user",
@@ -130,6 +132,7 @@ describe("GitProcess", () => {
 			expect(result.code).toBe(code);
 			expect(JSON.stringify(result)).not.toContain("fixture-secret");
 			expect(failure instanceof GitCommandFailure && failure.stdout).toBe("");
+			expect(output).toHaveLength(0);
 		}
 	);
 

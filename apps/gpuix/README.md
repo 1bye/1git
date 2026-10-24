@@ -1679,9 +1679,26 @@ the Turbo build/dev tasks build dependencies first. No Electron IPC is involved.
   checkbox toggles themselves never write Git state.
 - The backend acquires the repository's index lock, prepares a temporary index,
   and uses Git's selected-path commit operation. Configured hooks and signing run
-  normally. On success it installs the updated index, retaining excluded staging.
+  normally, once through Git. On success it reconciles selected paths with the
+  actual commit, including changes restaged by formatter hooks, and installs the
+  updated index while retaining excluded staging.
   Hook/signing failures keep the original index and draft; hook programs may still
   perform their own configured filesystem side effects.
+- GUI launches asynchronously restore executable lookup from the user's interactive
+  login shell, including version-manager paths, before local Git operations start.
+  Startup runs in the user's home directory and reads only PATH from the shell;
+  shell chatter is ignored. It has a five-second limit and bounded output, with
+  inherited/system, Homebrew and user Bun paths as fallbacks. Rendering stays active.
+  Local executable paths are never sent to SSH machines.
+- The commit process panel shows preparation, hook/commit execution and refresh,
+  with live stdout/stderr, bounded output and keyboard scrolling. Hook failures and
+  uncertain outcomes stay in that panel above the message. UI updates are batched
+  so noisy hooks cannot flood React with one update per output chunk.
+  **Cancel** stops the commit's process group, escalates to termination after a
+  grace period, waits for exit and then checks HEAD before releasing locks.
+  If HEAD is unchanged, the draft and original index are retained. If a commit
+  may already exist, History review is required before retrying. Cancellation
+  does not undo filesystem changes made by hooks or bypass hooks on retry.
 - In Changes, the blue gutter selects contiguous change groups or individual added/deleted
   lines. Click the outer gutter for the group and the inner gutter for a line; Tab then
   Space/Enter also toggles a control. A partially included file has a mixed checkbox;
@@ -1724,7 +1741,8 @@ the Turbo build/dev tasks build dependencies first. No Electron IPC is involved.
   close/quit is vetoed until all open workspaces finish their operations and
   required refreshes. A blocked attempt shows window-wide progress, including
   background tabs; it never queues a later quit. Synchronization offers Stop,
-  but commits and branch changes have no unsafe force-cancel button. Dismissal
+  and the commit process panel offers cancellation with exit/HEAD checks;
+  branch changes and Undo remain protected until completion. Dismissal
   keeps working without cancelling anything. Force Quit, crashes and OS kills
   cannot be prevented. Do not hot-reload/restart development code during writes.
 - Confirmed success clears only the submitting tab's message and refreshes Changes

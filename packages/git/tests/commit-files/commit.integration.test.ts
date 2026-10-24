@@ -6,6 +6,7 @@
  */
 import { afterEach, expect, it } from "bun:test";
 import { chmod, readFile, readdir, writeFile } from "node:fs/promises";
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { GitRepository } from "../../src/repository.js";
 import {
@@ -332,6 +333,116 @@ it("leaves the exact index and HEAD intact after a rejected hook, and honors hoo
 	);
 });
 
+it("streams hook output before exit and includes changes staged by a formatter", async () => {
+	const fixture = await fixtures.create();
+
+	await fixture.write("selected.txt", "unformatted\n");
+	await fixture.write("excluded.txt", "keep staged\n");
+	await fixture.git(["add", "excluded.txt"]);
+	const hook = join(fixture.repository.info.gitDirectory, "hooks/pre-commit");
+
+	await fixture.git([
+		"config",
+		"core.hooksPath",
+		join(fixture.repository.info.gitDirectory, "hooks"),
+	]);
+	await writeFile(
+		hook,
+		"#!/bin/sh\nprintf 'formatter running\\n'\ntries=0\nwhile [ ! -f .hook-continue ]; do tries=$((tries + 1)); [ \"$tries\" -lt 100 ] || exit 1; /bin/sleep 0.01; done\nrm .hook-continue\nprintf 'checking hooks\\n' >&2\nprintf 'formatted\\n' > selected.txt\ngit add -- selected.txt\n",
+		{ mode: 0o700 }
+	);
+	const output: string[] = [];
+	const phases: string[] = [];
+
+	const result = await fixture.repository.commitFiles({
+		...(await input(fixture, ["selected.txt"])),
+		onProgress: (progress) => {
+			phases.push(progress.phase);
+
+			if (progress.output) {
+				output.push(progress.output);
+
+				if (progress.output.includes("formatter running"))
+					writeFileSync(
+						join(fixture.repositoryPath, ".hook-continue"),
+						"continue"
+					);
+			}
+		},
+	});
+
+	expect(unwrapResult(result).outcome).toBe("committed");
+	expect(output.join("")).toContain("formatter running");
+	expect(output.join("")).toContain("checking hooks");
+	expect(phases[0]).toBe("preparing");
+	expect(phases.at(-1)).toBe("refreshing");
+	expect(await fixture.git(["show", "HEAD:selected.txt"])).toBe("formatted");
+	expect(await fixture.git(["diff", "--cached", "--name-only"])).toBe(
+		"excluded.txt"
+	);
+});
+
+it.each(["pre-commit", "post-commit"] as const)(
+	"cancels a stuck %s process tree and checks HEAD before reporting the outcome",
+	async (name) => {
+		const fixture = await fixtures.create();
+
+		await fixture.write("selected.txt", "selected\n");
+		const request = await input(fixture, ["selected.txt"]);
+		const indexPath = join(fixture.repository.info.gitDirectory, "index");
+		const index = await readFile(indexPath);
+		const controller = new AbortController();
+		const hook = join(fixture.repository.info.gitDirectory, "hooks", name);
+
+		await fixture.git([
+			"config",
+			"core.hooksPath",
+			join(fixture.repository.info.gitDirectory, "hooks"),
+		]);
+		await writeFile(
+			hook,
+			"#!/bin/sh\ntrap '' TERM\nprintf 'hook waiting\\n' >&2\n/bin/sleep 60 &\nwait\n",
+			{ mode: 0o700 }
+		);
+		const result = await fixture.repository.commitFiles({
+			...request,
+			signal: controller.signal,
+			onProgress: (progress) => {
+				if (progress.output?.includes("hook waiting")) controller.abort();
+			},
+		});
+
+		expect(controller.signal.aborted).toBe(true);
+		expect(await readFile(indexPath)).toEqual(index);
+		const contents = await readdir(fixture.repository.info.gitDirectory);
+
+		expect(contents).not.toContain("index.lock");
+
+		if (name === "pre-commit") {
+			expect(result.ok).toBe(false);
+
+			if (!result.ok) expect(result.error.code).toBe("aborted");
+
+			expect(await fixture.git(["rev-parse", "HEAD"])).toBe(
+				request.expectedHead ?? ""
+			);
+			expect(contents.some((entry) => entry.startsWith("1git-commit-"))).toBe(
+				false
+			);
+		} else {
+			const committed = unwrapResult(result);
+
+			expect(committed.outcome).toBe("unknown");
+			expect(committed.oid).not.toBe(request.expectedHead);
+			expect(committed.warning).toContain("Inspect History before retrying");
+			expect(contents.some((entry) => entry.startsWith("1git-commit-"))).toBe(
+				true
+			);
+		}
+	},
+	10000
+);
+
 it("rejects partial staging, stale HEAD, broad paths, active operations and existing locks before changing the index", async () => {
 	const fixture = await fixtures.create();
 
@@ -425,7 +536,7 @@ it.each(["refresh", "outcome"] as const)(
 			executable,
 			[
 				"#!/bin/sh",
-				"if [ -f .git/fail-refresh ]; then exit 1; fi",
+				'if [ -f .git/fail-refresh ]; then for argument in "$@"; do [ "$argument" = "status" ] && exit 1; done; fi',
 				'for argument in "$@"; do',
 				'  if [ "$argument" = "commit" ]; then',
 				'    git "$@" || exit "$?"',

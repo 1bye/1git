@@ -1,4 +1,5 @@
 import { basename } from "node:path";
+import { stripVTControlCharacters } from "node:util";
 import type {
 	CommitPage,
 	CommitFilesResult,
@@ -8,6 +9,7 @@ import type {
 	RepositoryOperationState,
 	StashInfo,
 	GitTransferProgress,
+	GitCommitProgress,
 } from "@1git/git";
 
 import { sampleEntries } from "./sample-workspace";
@@ -30,6 +32,9 @@ export const revisionSplit = {
 	max: 0.75,
 	step: 0.05,
 } as const;
+
+/** Retained hook output is bounded independently of Git's process collection limit. */
+export const commitOutputLimit = 32 * 1024;
 
 /** Selection and native vertical scroll offset for one independently scrolling list. */
 export interface RepositoryListState {
@@ -101,6 +106,10 @@ export interface RepositoryWorkspaceState {
 	} | null;
 	readonly commit: {
 		readonly pending: boolean;
+		readonly progress?: GitCommitProgress["phase"];
+		readonly output?: string;
+		readonly cancelling?: boolean;
+		readonly cancellable?: boolean;
 		readonly error: string | null;
 		readonly notice: string | null;
 		readonly needsReview: boolean;
@@ -190,7 +199,9 @@ export type RepositoryWorkspaceAction =
 	| { type: "conflict-started" }
 	| { type: "conflict-finished"; snapshot?: RepositorySnapshot; error?: string }
 	| { type: "branch-finished"; snapshot?: RepositorySnapshot; error?: string }
-	| { type: "commit-started" }
+	| { type: "commit-started"; cancellable?: boolean }
+	| { type: "commit-progress"; progress: GitCommitProgress }
+	| { type: "commit-cancelling" }
 	| { type: "amend-commit"; head: string; branch: string; message: string }
 	| { type: "cancel-amend" }
 	| { type: "commit-failed"; message: string; uncertain?: boolean }
@@ -688,6 +699,7 @@ export class RepositoryWorkspaceModel {
 				loading: false,
 				commit: {
 					pending: true,
+					cancellable: action.cancellable,
 					error: null,
 					notice: null,
 					needsReview: false,
@@ -698,12 +710,35 @@ export class RepositoryWorkspaceModel {
 			return {
 				...state,
 				commit: {
+					...state.commit,
 					pending: false,
+					cancelling: false,
 					error: action.message,
 					notice: null,
 					needsReview: action.uncertain ?? false,
 				},
 			};
+
+		if (action.type === "commit-progress")
+			return state.commit.pending
+				? {
+						...state,
+						commit: {
+							...state.commit,
+							progress: action.progress.phase,
+							output: stripVTControlCharacters(
+								(state.commit.output ?? "") + (action.progress.output ?? "")
+							)
+								.replace(/\r\n?/g, "\n")
+								.slice(-commitOutputLimit),
+						},
+					}
+				: state;
+
+		if (action.type === "commit-cancelling")
+			return state.commit.pending
+				? { ...state, commit: { ...state.commit, cancelling: true } }
+				: state;
 
 		if (action.type === "commit-finished") {
 			const next = { ...state, commit: { ...state.commit, pending: false } };

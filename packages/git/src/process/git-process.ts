@@ -15,6 +15,8 @@ const authenticatedFailureDetail = (stderr: Buffer): string =>
 
 export interface GitCommandInput {
 	readonly onProgress?: (progress: GitTransferProgress) => void;
+	/** Incremental command/hook output; collection limits and process lifetime still apply. */
+	readonly onOutput?: (chunk: Buffer, stream: "stdout" | "stderr") => void;
 	readonly args: readonly string[];
 	readonly cwd: string;
 	readonly signal?: AbortSignal;
@@ -211,7 +213,11 @@ export class GitProcess {
 				stop();
 			};
 
-			const collectChunk = (target: Buffer[], chunk: Buffer): void => {
+			const collectChunk = (
+				target: Buffer[],
+				chunk: Buffer,
+				stream: "stdout" | "stderr"
+			): void => {
 				if (stopped) return;
 
 				outputBytes += chunk.byteLength;
@@ -227,14 +233,16 @@ export class GitProcess {
 				}
 
 				target.push(chunk);
+
+				if (!input.httpAuthentication) input.onOutput?.(chunk, stream);
 			};
 
 			input.signal?.addEventListener("abort", handleAbort, { once: true });
 			child.stdout?.on("data", (chunk: Buffer) =>
-				collectChunk(stdoutChunks, chunk)
+				collectChunk(stdoutChunks, chunk, "stdout")
 			);
 			child.stderr?.on("data", (chunk: Buffer) => {
-				collectChunk(stderrChunks, chunk);
+				collectChunk(stderrChunks, chunk, "stderr");
 
 				if (!stopped) progress?.write(chunk);
 			});
@@ -286,6 +294,8 @@ export class GitProcess {
 
 				resolve({ stderr, stdout });
 			});
+
+			if (input.signal?.aborted) handleAbort();
 
 			if (input.stdin === undefined) {
 				child.stdin?.end();

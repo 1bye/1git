@@ -210,8 +210,15 @@ in selected files is rejected by default. A checked-whole-file UI can explicitly
 pass `includePartialStaging: true` to include **all current edits** in each selected
 file, preserving excluded index entries. Submodules, conflicts, active operations, stale HEAD/branch,
 and paths that could include unchecked directory descendants are rejected.
-It stops honoring cancellation once index preparation starts; let it finish before
-closing its owner. Reads and writes on the same repository instance stay serialized.
+An optional `onProgress` callback receives preparation, commit/hook execution and
+refresh phases, including incremental hook stdout/stderr. An explicit `signal`
+can stop the commit subprocess and its inherited process group. The transaction
+waits for exit, checks HEAD and completes index/recovery cleanup before resolving;
+callers must keep the owner alive until then. If HEAD may have changed, the result
+is uncertain and must be reviewed before retrying. Hooks can leave filesystem
+side effects even after cancellation. Formatter-restaged selected paths are
+reconciled with the actual commit while excluded index entries are preserved.
+Reads and writes on the same repository instance stay serialized.
 
 For partial text commits, pass `partialFiles: [{ path, expectedPatch, includedLines }]`.
 Use the unfiltered `getDiff({ target: { kind: "changes" }, paths: [path] })` patch with

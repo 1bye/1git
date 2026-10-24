@@ -8,6 +8,7 @@ import {
 	writeFile,
 } from "./runtime.js";
 import { join } from "node:path";
+import { StringDecoder } from "node:string_decoder";
 
 import type {
 	CommitFilesInput,
@@ -29,6 +30,7 @@ export class SelectedCommit {
 		context: RepositoryContext,
 		input: CommitFilesInput
 	): Promise<CommitFilesResult> {
+		input.onProgress?.({ phase: "preparing" });
 		const staged = input.mode === "staged";
 
 		if (input.amend && staged)
@@ -150,8 +152,8 @@ export class SelectedCommit {
 					stdin,
 				});
 
-			// From here the transaction is not cancelled by navigation or AbortSignal.
-			// Never leave Git running while removing its temporary index.
+			// Preparation and cleanup own the index. Only the commit subprocess is cancellable;
+			// it must finish exiting before we inspect HEAD or remove recovery files.
 			try {
 				await copyFile(indexPath, indexFile);
 			} catch (error) {
@@ -270,12 +272,26 @@ export class SelectedCommit {
 					);
 			}
 
+			input.onProgress?.({ phase: "committing" });
+			const decoders = {
+				stdout: new StringDecoder("utf8"),
+				stderr: new StringDecoder("utf8"),
+			};
+
 			try {
 				await context.process.run({
 					cwd: context.repository.root,
 					indexFile: commitIndex,
 					args: commitArgs,
 					stdin: `${message}\n`,
+					signal: input.signal,
+					onOutput: input.onProgress
+						? (chunk, stream) => {
+								const output = decoders[stream].write(chunk);
+
+								if (output) input.onProgress?.({ phase: "committing", output });
+							}
+						: undefined,
 				});
 				committed = true;
 			} catch (error) {
@@ -299,11 +315,17 @@ export class SelectedCommit {
 				retainRecovery = true;
 				oid = after?.head.oid ?? null;
 				warning = `Commit outcome is uncertain. Inspect History before retrying. The original index is unchanged; recovery files are in ${directory}.`;
+			} finally {
+				const output = decoders.stdout.end() + decoders.stderr.end();
+
+				if (output) input.onProgress?.({ phase: "committing", output });
 			}
 
 			if (committed) {
 				try {
-					if (partials.length)
+					// Hooks may reformat and restage selected files. Reconcile those paths
+					// with the actual commit while leaving excluded index entries intact.
+					if (!staged && selectedPaths.length)
 						await run([
 							"--literal-pathspecs",
 							"reset",
@@ -337,6 +359,8 @@ export class SelectedCommit {
 		}
 
 		if (failure) throw failure.error;
+
+		input.onProgress?.({ phase: "refreshing" });
 
 		let snapshot: RepositorySnapshot | null = null;
 

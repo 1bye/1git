@@ -8,6 +8,9 @@ import { RepositoryDiscovery } from "./feature/repository-discovery/repository-d
 import { RepositoryDiscoveryCache } from "./feature/repository-discovery/repository-discovery-cache";
 import { WorkspaceSessionStore } from "./feature/workspace-tabs/lib/workspace-session-store";
 import { AppUpdater } from "./app-updater";
+import { ShellEnvironment } from "./shell-environment";
+
+void ShellEnvironment.shared.prepare();
 
 const preview = process.env.GPUIX_PREVIEW === "1";
 

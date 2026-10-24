@@ -1651,6 +1651,7 @@ function AppContent({
 								onCommit={() => {
 									void mutations.commit(activeTab.id);
 								}}
+								onCancelCommit={() => mutations.cancelCommit(activeTab.id)}
 								onUndoCommit={(input) =>
 									mutations.undoCommit(activeTab.id, input)
 								}

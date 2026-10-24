@@ -187,6 +187,7 @@ export function RepositoryNavigation({
 	history,
 	stashes,
 	onCommit,
+	onCancelCommit,
 	onAiSettings,
 	onUndoCommit,
 	onRevertCommit,
@@ -217,6 +218,7 @@ export function RepositoryNavigation({
 	history?: ReturnType<typeof useRepositoryHistory>;
 	stashes?: ReturnType<typeof useRepositoryStashes>;
 	onCommit?: () => void;
+	onCancelCommit?: () => void;
 	onAiSettings?: () => void;
 	onUndoCommit?: (input: CommitRecoveryInput) => Promise<string | null>;
 	onRevertCommit?: (input: RevertCommitInput) => Promise<string | null>;
@@ -911,6 +913,7 @@ export function RepositoryNavigation({
 						state={state}
 						onAction={onAction}
 						onCommit={onCommit}
+						onCancel={onCancelCommit}
 						onUndo={onUndoCommit}
 						readLast={readLastCommit}
 					/>

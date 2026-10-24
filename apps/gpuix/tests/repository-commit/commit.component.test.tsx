@@ -1,5 +1,5 @@
 /**
- * Covers: checked-file commits, last-commit undo/amend, rail Sync controls, duplicate prevention, draft/error retention and refresh.
+ * Covers: checked-file commits, hook output/cancellation, last-commit undo/amend, rail Sync controls, duplicate prevention, draft/error retention and refresh.
  * Real: App, reducers, hooks and native GPUIX events/layout.
  * Doubles: Git reads/writes and folder picker; no live repository mutations.
  * Requires: patched GPUIX renderer with macOS graphics access.
@@ -14,7 +14,7 @@ import {
 	changedFile,
 	repositorySnapshot,
 } from "../_shared/repository-snapshot";
-import { emptyHistory } from "../_shared/history-page";
+import { commitInfo, emptyHistory } from "../_shared/history-page";
 import { windowOptions } from "../../src/window-options";
 import { diffPatch, diffSection } from "../_shared/diff-patch";
 
@@ -770,6 +770,8 @@ it("commits only checked paths once, prevents edits/close while pending, clears 
 	expect(writeCommit.mock.calls[0]).toEqual([
 		"/test/project",
 		{
+			signal: expect.any(AbortSignal),
+			onProgress: expect.any(Function),
 			includePartialStaging: true,
 			paths: ["a.ts"],
 			message: "fix\n\ndetails",
@@ -809,6 +811,107 @@ it("commits only checked paths once, prevents edits/close while pending, clears 
 	expect(root.renderer.getAllText()).not.toContain("Committed bbbbbbb.");
 	expect(root.renderer.findByTestId("commit-notice-scroll")).toBeUndefined();
 });
+
+it.each(["light", "dark"] as const)(
+	"streams bounded hook output in %s mode, stays responsive and waits for cancellation cleanup before unlocking",
+	async (appearance) => {
+		const pending =
+			Promise.withResolvers<
+				Awaited<ReturnType<typeof RepositoryCommit.write>>
+			>();
+
+		const writeCommit = mock<typeof RepositoryCommit.write>(
+			() => pending.promise
+		);
+
+		root.render(
+			<App
+				initialSession={{ version: 1, tabs: [], activeId: null, appearance }}
+				readRepository={readRepository}
+				writeCommit={writeCommit}
+				readLastCommit={async () => ({
+					ok: true,
+					value: { commit: commitInfo(), undoUnavailableReason: null },
+				})}
+			/>
+		);
+		await open();
+		message();
+		click("commit-submit");
+		const input = writeCommit.mock.calls[0]?.[1];
+
+		expect(input?.signal?.aborted).toBe(false);
+		input?.onProgress?.({
+			phase: "committing",
+			output: "\u001b[32mpre-commit: running checks\u001b[0m\n",
+		});
+		await Bun.sleep(120);
+		await settle();
+		expect(root.renderer.getAllText()).toContain(
+			"Running hooks and committing…"
+		);
+		expect(root.renderer.getAllText().join("\n")).toContain(
+			"pre-commit: running checks"
+		);
+		expect(root.renderer.getAllText().join("\n")).not.toContain("\u001b");
+		input?.onProgress?.({
+			phase: "committing",
+			output: "check output\n".repeat(5000),
+		});
+		await Bun.sleep(120);
+		await settle();
+		expect(root.renderer.getAllText().join("\n").length).toBeLessThan(36000);
+		const screenshot = process.env.GPUIX_COMMIT_HOOK_SCREENSHOT;
+
+		if (screenshot)
+			root.renderer.captureScreenshot(
+				`${screenshot}-running-${appearance}.png`
+			);
+
+		click("commit-cancel");
+		expect(input?.signal?.aborted).toBe(true);
+		expect(root.renderer.getAllText()).toContain("Stopping Git and hooks…");
+		expect(node("commit-message").customProps?.readOnly).toBe(true);
+		click("commit-submit");
+		click("close-workspace-1");
+		expect(writeCommit).toHaveBeenCalledTimes(1);
+		expect(node("workspace-1")).toBeDefined();
+		pending.resolve({
+			ok: false,
+			error: {
+				code: "aborted",
+				message: "Git operation was aborted.",
+				operation: "commit",
+				retryable: false,
+			},
+		});
+		await settle();
+		expect(node("commit-message").customProps?.value).toBe("fix");
+		expect(root.renderer.getAllText().join("\n")).toContain(
+			"No commit was created"
+		);
+		expect(root.renderer.findByTestId("commit-cancel")).toBeUndefined();
+		expect(
+			root.renderer.getElementBounds(node("commit-process").id)?.y
+		).toBeLessThan(
+			root.renderer.getElementBounds(node("commit-submit").id)?.y ?? 0
+		);
+		input?.onProgress?.({
+			phase: "committing",
+			output: "late output must be ignored",
+		});
+		await Bun.sleep(120);
+		await settle();
+		expect(root.renderer.getAllText().join("\n")).not.toContain(
+			"late output must be ignored"
+		);
+
+		if (screenshot)
+			root.renderer.captureScreenshot(
+				`${screenshot}-cancelled-${appearance}.png`
+			);
+	}
+);
 
 it("retains message and inclusion after hook failures and allows an explicit retry", async () => {
 	const writeCommit = mock<typeof RepositoryCommit.write>(async () => ({

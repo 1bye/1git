@@ -17,6 +17,7 @@ import type {
 } from "../../workspace-tabs/lib/workspace-tabs-model";
 import {
 	RepositoryWorkspaceModel,
+	commitOutputLimit,
 	type RepositoryWorkspaceAction,
 } from "../lib/repository-workspace-model";
 import { RepositoryCommit } from "../lib/repository-commit";
@@ -44,6 +45,7 @@ import type {
 	ResetCommitInput,
 	ReorderCommitsInput,
 	GitTransferProgress,
+	GitCommitProgress,
 } from "@1git/git";
 import type { PublishBranchIdentity } from "../../repository-publish/repository-publish";
 import type { RemoteAccountAccess } from "../../accounts/lib/remote-accounts";
@@ -128,6 +130,8 @@ export function useRepositoryMutations(
 		new Map<string, { controller: AbortController; kind: SyncKind }>()
 	);
 
+	const commits = useRef(new Map<string, AbortController>());
+
 	useLayoutEffect(() => {
 		tabs.current = state.tabs;
 
@@ -157,7 +161,12 @@ export function useRepositoryMutations(
 						? { type: "stash-started", kind: stash }
 						: sync
 							? { type: "sync-started", kind: sync.kind }
-							: { type: operation ?? "commit-started" },
+							: operation === "commit-started"
+								? {
+										type: "commit-started",
+										cancellable: commits.current.has(repository?.root ?? ""),
+									}
+								: { type: operation ?? "commit-started" },
 				});
 		}
 	}, [state.tabs, dispatch]);
@@ -244,7 +253,7 @@ export function useRepositoryMutations(
 		pending.current.set(root, "commit-started");
 		sharedWrites.current.add(repository.commonDirectory);
 		closeProtection.block();
-		send({ type: "commit-started" });
+		send({ type: "commit-started", cancellable: !undo });
 
 		for (const tab of related())
 			if (tab.workspace.repository?.root !== root)
@@ -256,6 +265,33 @@ export function useRepositoryMutations(
 
 		let error: string | null = null;
 		let finishedAction: RepositoryWorkspaceAction;
+		const controller = new AbortController();
+		let progressTimer: ReturnType<typeof setTimeout> | undefined;
+		let phase: GitCommitProgress["phase"] = "preparing";
+		let output = "";
+		let acceptingProgress = true;
+
+		const flushProgress = (): void => {
+			if (progressTimer) clearTimeout(progressTimer);
+
+			progressTimer = undefined;
+			send({ type: "commit-progress", progress: { phase, output } });
+			output = "";
+		};
+
+		const reportProgress = (progress: GitCommitProgress): void => {
+			if (!acceptingProgress) return;
+
+			output = (output + (progress.output ?? "")).slice(-commitOutputLimit);
+			const changed = phase !== progress.phase;
+
+			phase = progress.phase;
+
+			if (changed) flushProgress();
+			else progressTimer ??= setTimeout(flushProgress, 100);
+		};
+
+		if (!undo) commits.current.set(root, controller);
 
 		try {
 			const undone = undo ? await undoCommit(root, undo) : null;
@@ -273,6 +309,8 @@ export function useRepositoryMutations(
 						}
 					: undone
 				: await writeCommit(root, {
+						signal: controller.signal,
+						onProgress: reportProgress,
 						...(workspace.amend ? { amend: true } : {}),
 						includePartialStaging: true,
 						paths: workspace.includedFileIds,
@@ -291,9 +329,12 @@ export function useRepositoryMutations(
 					});
 
 			if (!result.ok)
-				error = [result.error.message, result.error.details]
-					.filter(Boolean)
-					.join("\n");
+				error =
+					result.error.code === "aborted"
+						? "Commit cancelled. No commit was created. Your message has been kept."
+						: [result.error.message, result.error.details]
+								.filter(Boolean)
+								.join("\n");
 
 			finishedAction = result.ok
 				? {
@@ -303,9 +344,7 @@ export function useRepositoryMutations(
 					}
 				: {
 						type: "commit-failed",
-						message: [result.error.message, result.error.details]
-							.filter(Boolean)
-							.join("\n"),
+						message: error ?? result.error.message,
 						uncertain: !!undo,
 					};
 		} catch {
@@ -318,6 +357,12 @@ export function useRepositoryMutations(
 					"Could not confirm the commit outcome. Refresh and inspect History before trying again. Your message has been kept.",
 			};
 		} finally {
+			acceptingProgress = false;
+
+			if (progressTimer) clearTimeout(progressTimer);
+
+			if (output) flushProgress();
+
 			// Shared refs can affect every linked worktree, even after a failed write.
 			const refreshedWorktrees = new Map<string, RepositoryWorkspaceAction>();
 
@@ -359,6 +404,7 @@ export function useRepositoryMutations(
 				})
 			);
 			pending.current.delete(root);
+			commits.current.delete(root);
 			sharedWrites.current.delete(repository.commonDirectory);
 
 			if (mounted.current)
@@ -374,6 +420,26 @@ export function useRepositoryMutations(
 		send(finishedAction);
 
 		return error;
+	};
+
+	const cancelCommit = (id: string): void => {
+		const root = tabs.current.find((tab) => tab.id === id)?.workspace.repository
+			?.root;
+
+		const controller = root && commits.current.get(root);
+
+		if (!controller || controller.signal.aborted) return;
+
+		controller.abort();
+
+		for (const tab of tabs.current) {
+			if (tab.workspace.repository?.root === root)
+				dispatch({
+					type: "workspace",
+					id: tab.id,
+					action: { type: "commit-cancelling" },
+				});
+		}
 	};
 
 	const changeBranch = async (
@@ -1537,6 +1603,7 @@ export function useRepositoryMutations(
 		closeProtection,
 		stash,
 		commit,
+		cancelCommit,
 		undoCommit: (id: string, input: CommitRecoveryInput) => commit(id, input),
 		changeBranch,
 		createWorktree: (id: string, choice: WorktreeChoice) =>

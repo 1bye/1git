@@ -67,7 +67,11 @@ export class RepositoryCommit {
 		root: string,
 		input: CommitFilesInput
 	): Promise<GitResult<CommitFilesResult>> {
-		const opened = await GitRepository.open({ path: root });
+		input.onProgress?.({ phase: "preparing" });
+		const opened = await GitRepository.open({
+			path: root,
+			signal: input.signal,
+		});
 
 		if (!opened.ok) return opened;
 
