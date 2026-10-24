@@ -686,78 +686,92 @@ it.each([true, false])(
 	}
 );
 
-it("continues a non-stored ChatGPT tool call and requires completion of the final response", async () => {
-	const bodies: Record<string, unknown>[] = [];
+it.each(["gpt-6.1-sol", "gpt-6-luna"])(
+	"finishes a non-stored %s review of 133 files after six tool turns",
+	async (model) => {
+		const bodies: Record<string, unknown>[] = [];
 
-	const inference = new CommitHarness(
-		new PiProvider(
-			new AiHttp(async (_url, init) => {
-				bodies.push(JSON.parse(String(init?.body)));
+		const inference = new CommitHarness(
+			new PiProvider(
+				new AiHttp(async (_url, init) => {
+					bodies.push(JSON.parse(String(init?.body)));
 
-				if (bodies.length > 1) return events(responseEvents());
+					if (bodies.length > 6) return events(responseEvents());
 
-				const call = {
-					id: "fc1",
-					type: "function_call",
-					call_id: "read1",
-					name: "read_selected_diff",
-					arguments: '{"reads":[{"file":0,"page":0}]}',
-					status: "completed",
-				};
+					const call = {
+						id: `fc${bodies.length}`,
+						type: "function_call",
+						call_id: `read${bodies.length}`,
+						name: "read_selected_diff",
+						arguments: JSON.stringify({
+							reads: [{ file: bodies.length === 6 ? 132 : 0, page: 0 }],
+						}),
+						status: "completed",
+					};
 
-				return events([
-					{
-						type: "response.created",
-						response: { id: "r0", created_at: 1, model: "gpt-test" },
-					},
-					{
-						type: "response.output_item.added",
-						output_index: 0,
-						item: { ...call, arguments: "", status: "in_progress" },
-					},
-					{
-						type: "response.function_call_arguments.delta",
-						item_id: "fc1",
-						output_index: 0,
-						delta: call.arguments,
-					},
-					{
-						type: "response.function_call_arguments.done",
-						item_id: "fc1",
-						output_index: 0,
-						arguments: call.arguments,
-					},
-					{ type: "response.output_item.done", output_index: 0, item: call },
-					{
-						type: "response.completed",
-						response: {
-							id: "r0",
-							status: "completed",
-							incomplete_details: null,
-							output: [call],
-							usage: { input_tokens: 10, output_tokens: 4, total_tokens: 14 },
+					return events([
+						{
+							type: "response.created",
+							response: { id: "r0", created_at: 1, model: "gpt-test" },
 						},
-					},
-				]);
-			})
-		)
-	);
+						{
+							type: "response.output_item.added",
+							output_index: 0,
+							item: { ...call, arguments: "", status: "in_progress" },
+						},
+						{
+							type: "response.function_call_arguments.delta",
+							item_id: call.id,
+							output_index: 0,
+							delta: call.arguments,
+						},
+						{
+							type: "response.function_call_arguments.done",
+							item_id: call.id,
+							output_index: 0,
+							arguments: call.arguments,
+						},
+						{ type: "response.output_item.done", output_index: 0, item: call },
+						{
+							type: "response.completed",
+							response: {
+								id: "r0",
+								status: "completed",
+								incomplete_details: null,
+								output: [call],
+								usage: { input_tokens: 10, output_tokens: 4, total_tokens: 14 },
+							},
+						},
+					]);
+				})
+			)
+		);
 
-	const result = await inference.generate(
-		{ ...emptyAiPreferences, provider: "chatgpt", model: "gpt-6.1-sol" },
-		"synthetic-token",
-		`diff --git a/first.ts b/first.ts\n@@ -0,0 +1 @@\n+selected change\ndiff --git a/large.ts b/large.ts\n@@ -0,0 +1 @@\n+${"x".repeat(100 * 1024)}`,
-		new AbortController().signal
-	);
+		const result = await inference.generate(
+			{ ...emptyAiPreferences, provider: "chatgpt", model },
+			"synthetic-token",
+			`diff --git a/first.ts b/first.ts\n@@ -0,0 +1 @@\n+selected change\ndiff --git a/large.ts b/large.ts\n@@ -0,0 +1 @@\n+${"x".repeat(100 * 1024)}\n` +
+				Array.from(
+					{ length: 131 },
+					(_, index) =>
+						`diff --git a/feature-${index}.ts b/feature-${index}.ts\n@@ -0,0 +1 @@\n+selected ${index}\n`
+				).join(""),
+			new AbortController().signal
+		);
 
-	expect(result).toBe("fix: selected changes");
-	expect(bodies).toHaveLength(2);
+		expect(result).toBe("fix: selected changes");
+		expect(bodies).toHaveLength(7);
+		expect(JSON.stringify(bodies[0]?.input)).toContain("feature-130.ts");
 
-	for (const body of bodies) expect(body.store).toBe(false);
+		for (const body of bodies) expect(body.store).toBe(false);
 
-	expect(JSON.stringify(bodies[1]!.input)).toContain("function_call_output");
-	expect(JSON.stringify(bodies[1]!.input)).toContain("+selected change");
-});
+		expect(JSON.stringify(bodies[1]!.input)).toContain("function_call_output");
+		expect(JSON.stringify(bodies[1]!.input)).toContain("+selected change");
+		expect(JSON.stringify(bodies[6]?.input)).toContain("+selected 130");
+		expect(bodies[6]).not.toHaveProperty("tools");
+		expect(bodies[6]?.instructions).toContain("Write the commit message now");
+	}
+);
 
 it("discovers only free text models, preserves order and handles distinct OpenCode protocols", async () => {
 	const service = integration(async () =>

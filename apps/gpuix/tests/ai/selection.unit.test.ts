@@ -43,13 +43,47 @@ it("paginates all file metadata and search matches, treating regex syntax litera
 		).join("")
 	);
 
-	expect(selected.overview().files).toHaveLength(20);
-	expect(selected.overview().nextOffset).toBe(20);
-	expect(selected.overview(20).files).toHaveLength(5);
-	expect(selected.overview(20).nextOffset).toBeNull();
+	const first = selected.overview(0, 2048);
+
+	expect(Buffer.byteLength(JSON.stringify(first))).toBeLessThanOrEqual(2048);
+	expect(first.files.length).toBeGreaterThan(0);
+	expect(first.files.length).toBeLessThan(25);
+
+	if (first.nextOffset === null)
+		throw new Error("Expected another overview page.");
+
+	const last = selected.overview(first.nextOffset, 2048);
+
+	expect([...first.files, ...last.files]).toEqual([...selected.files]);
+	expect(last.nextOffset).toBeNull();
 	expect(selected.search(".*").matches).toHaveLength(12);
 	expect(selected.search(".*", 12).nextOffset).toBe(24);
 	expect(selected.search(".*", 24).matches).toHaveLength(1);
 	expect(() => selected.overview(25)).toThrow("valid");
+	expect(() => selected.overview(0, 100)).toThrow("2048 bytes");
 	expect(() => selected.search("", 0)).toThrow("literal");
+});
+
+it("keeps overview pages within their byte budget even for long Unicode file names", () => {
+	const selected = new SelectedDiff(
+		Array.from(
+			{ length: 133 },
+			(_, id) =>
+				`diff --git a/${"漢".repeat(240)}-${id} b/${id}\n@@ -0,0 +1 @@\n+selected\n`
+		).join("")
+	);
+
+	const ids: number[] = [];
+	let offset: number | null = 0;
+
+	while (offset !== null) {
+		const page = selected.overview(offset, 4096);
+
+		expect(Buffer.byteLength(JSON.stringify(page))).toBeLessThanOrEqual(4096);
+		expect(page.files.length).toBeGreaterThan(0);
+		ids.push(...page.files.map((file) => file.id));
+		offset = page.nextOffset;
+	}
+
+	expect(ids).toEqual(selected.files.map((file) => file.id));
 });

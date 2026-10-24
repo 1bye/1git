@@ -181,6 +181,72 @@ it("executes literal searches and paginated overviews without filesystem access"
 	).toHaveLength(2);
 });
 
+it("includes all 133 file overviews and reserves a final request after six review steps", async () => {
+	const bodies: {
+		messages: { role: string; content: string }[];
+		tools?: unknown[];
+	}[] = [];
+
+	const source = Array.from({ length: 133 }, (_, index) =>
+		patch(`feature-${index}.ts`, `SELECTED_${index}\n+${"x".repeat(600)}`)
+	).join("");
+
+	const result = await harness(async (_url, init) => {
+		bodies.push(JSON.parse(String(init?.body)));
+
+		return bodies.length <= 6
+			? chat("", [
+					{
+						name: "read_selected_diff",
+						args: {
+							reads: [
+								{
+									file: bodies.length === 6 ? 132 : bodies.length - 1,
+									page: 0,
+								},
+							],
+						},
+					},
+				])
+			: chat("feat: update selected features");
+	}).generate(preferences, undefined, source, new AbortController().signal);
+
+	expect(result).toBe("feat: update selected features");
+	expect(bodies).toHaveLength(7);
+	expect(JSON.stringify(bodies[0]?.messages)).toContain("feature-132.ts");
+	expect(JSON.stringify(bodies[6]?.messages)).toContain("SELECTED_132");
+	expect(bodies[6]?.tools ?? []).toHaveLength(0);
+});
+
+it("finishes from inspected evidence when a batch reaches the tool call limit", async () => {
+	let requests = 0;
+	let finalTools: unknown[] = [];
+
+	const result = await harness(async (_url, init) => {
+		requests++;
+		finalTools = JSON.parse(String(init?.body)).tools ?? [];
+
+		return requests === 1
+			? chat(
+					"",
+					Array.from({ length: 25 }, () => ({
+						name: "read_selected_diff",
+						args: { reads: [{ file: 0, page: 0 }] },
+					}))
+				)
+			: chat("fix: selected behavior");
+	}).generate(
+		preferences,
+		undefined,
+		patch("small.ts", "selected") + large,
+		new AbortController().signal
+	);
+
+	expect(result).toBe("fix: selected behavior");
+	expect(requests).toBe(2);
+	expect(finalTools).toHaveLength(0);
+});
+
 it("rejects unknown IDs, path arguments, invalid schemas and unavailable tools without returning file content", async () => {
 	const results: string[] = [];
 	let requests = 0;
@@ -246,7 +312,7 @@ it("rejects metadata-only answers and incomplete overview coverage", async () =>
 			preferences,
 			undefined,
 			large +
-				Array.from({ length: 22 }, (_, index) =>
+				Array.from({ length: 999 }, (_, index) =>
 					patch(`${index}.ts`, "selected")
 				).join(""),
 			new AbortController().signal
@@ -257,6 +323,7 @@ it("rejects metadata-only answers and incomplete overview coverage", async () =>
 it("bounds repeated reads across tool calls", async () => {
 	let calls = 0;
 	let results = "";
+	let finalTools: unknown[] = [];
 
 	await harness(async (_url, init) => {
 		const body = JSON.parse(String(init?.body));
@@ -264,6 +331,7 @@ it("bounds repeated reads across tool calls", async () => {
 		calls++;
 
 		if (calls > 1) {
+			finalTools = body.tools ?? [];
 			results = JSON.stringify(
 				body.messages.filter((item: { role: string }) => item.role === "tool")
 			);
@@ -282,6 +350,7 @@ it("bounds repeated reads across tool calls", async () => {
 
 	expect(results).toContain("detail budget reached");
 	expect(Buffer.byteLength(results)).toBeLessThan(110 * 1024);
+	expect(finalTools).toHaveLength(0);
 });
 
 it("stops an agent that continues requesting tools", async () => {
@@ -295,8 +364,8 @@ it("stops an agent that continues requesting tools", async () => {
 				{ name: "read_selected_diff", args: { reads: [{ file: 0, page: 0 }] } },
 			]);
 		}).generate(preferences, undefined, large, new AbortController().signal)
-	).rejects.toThrow("more context");
-	expect(requests).toBe(6);
+	).rejects.toThrow("draft was left unchanged");
+	expect(requests).toBe(7);
 });
 
 it("cancels active HTTP and never sends a continuation", async () => {

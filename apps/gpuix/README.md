@@ -1065,8 +1065,10 @@ window-owned vault; requests remain restricted to the selected provider's
 existing endpoint, and redirects are rejected.
 
 Small selections use one request without tools, up to 64 KiB depending on model
-context capacity. Larger selections start with paginated file metadata, line/hunk
-counts and page IDs. Pi can request up to four UTF-8-safe, 10 KiB diff pages together
+context capacity. Larger selections start with file metadata, line/hunk counts
+and page IDs. Overview pages fill up to a quarter of the context byte budget,
+so ordinary selections of hundreds of files can fit in the initial overview.
+Pi can request up to four UTF-8-safe, 10 KiB diff pages together
 with `read_selected_diff`, find literal text with `search_selected_changes`, or
 fetch remaining `changes_overview` pages. There are no preliminary per-batch
 summary requests. The model must review every file's overview and inspect some
@@ -1082,7 +1084,10 @@ context (32 MiB per Git command), replacing the former 96 KiB prompt limit.
 Conservative byte ceilings bound input without relying on a particular tokenizer:
 the model context minus an output reserve, capped at 192 KiB, with at most half
 available for tool results. Unknown model context sizes fall back to 32K. Runs
-allow at most six model requests and 24 tool calls, with a three-minute overall
+allow at most six review requests and 24 tool calls, plus one final writing
+request with tools removed when a review, tool-call or detail budget is reached.
+The final answer still requires complete overview coverage and inspected diff
+evidence. Runs retain a three-minute overall
 deadline and two-minute per-request deadline. Cancel aborts active HTTP and further
 reads. Progress reports review steps and inspection. This removes mandatory
 summarization round trips, but provider latency and model read choices still

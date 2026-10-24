@@ -88,7 +88,10 @@ export class SelectedDiff {
 	}
 
 	/** Paginated metadata keeps all selected files discoverable without overflowing small model contexts. */
-	overview(offset = 0): {
+	overview(
+		offset = 0,
+		maxBytes = 4 * 1024
+	): {
 		files: SelectedDiff["files"];
 		total: number;
 		nextOffset: number | null;
@@ -96,7 +99,29 @@ export class SelectedDiff {
 		if (!Number.isInteger(offset) || offset < 0 || offset >= this.files.length)
 			throw new Error("Choose a valid selected-file offset.");
 
-		const end = Math.min(offset + 20, this.files.length);
+		if (!Number.isInteger(maxBytes) || maxBytes < 2048)
+			throw new Error("Overview pages must allow at least 2048 bytes.");
+
+		// Reserve the envelope and a continuation offset before filling the page.
+		let bytes =
+			Buffer.byteLength(
+				JSON.stringify({
+					files: [],
+					total: this.files.length,
+					nextOffset: null,
+				})
+			) + String(this.files.length).length;
+
+		let end = offset;
+
+		for (const file of this.files.slice(offset)) {
+			const size = Buffer.byteLength(JSON.stringify(file)) + 1;
+
+			if (bytes + size > maxBytes) break;
+
+			bytes += size;
+			end++;
+		}
 
 		return {
 			files: this.files.slice(offset, end),
