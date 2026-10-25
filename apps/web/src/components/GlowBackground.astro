@@ -1,11 +1,12 @@
----
-interface Props { variant?: "hero" | "section" | "deep" }
-const { variant = "section" } = Astro.props;
----
-
-<div class="glow-background" data-glow-background data-variant={variant} aria-hidden="true">
+<div class="glow-background" data-glow-background aria-hidden="true">
   <canvas data-glow-canvas></canvas>
-  <div class="static-grain"></div>
+  <svg class="static-grain" xmlns="http://www.w3.org/2000/svg">
+    <filter id="page-grain">
+      <feTurbulence type="fractalNoise" baseFrequency=".8" numOctaves="3" stitchTiles="stitch" />
+      <feColorMatrix type="saturate" values="0" />
+    </filter>
+    <rect width="100%" height="100%" filter="url(#page-grain)" />
+  </svg>
 </div>
 
 <script>

@@ -1,6 +1,5 @@
 <div class="intro-sequence" data-intro hidden>
   <div class="intro-glow" aria-hidden="true"></div>
-  <span class="intro-word" aria-hidden="true">Introducinggggggggggggg</span>
   <span class="intro-mobile-word" aria-hidden="true">1git</span>
   <button type="button" data-skip-intro>Skip intro <span aria-hidden="true">↗</span></button>
 </div>
@@ -9,14 +8,19 @@
   const intro = document.querySelector<HTMLElement>("[data-intro]");
   const reduced = matchMedia("(prefers-reduced-motion: reduce)");
   let seen = true;
+
   try { seen = sessionStorage.getItem("1git-intro-seen") === "1"; } catch { /* Storage-disabled visitors get the settled hero. */ }
+
   if (intro && !seen && !reduced.matches && !document.documentElement.hasAttribute("data-motion-paused") && !location.hash) {
     const finish = () => { intro.hidden = true; document.documentElement.removeAttribute("data-intro-playing"); };
+
     intro.hidden = false;
     document.documentElement.setAttribute("data-intro-playing", "");
+
     try { sessionStorage.setItem("1git-intro-seen", "1"); } catch { /* The intro is still skippable when storage is unavailable. */ }
+
     intro.querySelector("button")?.addEventListener("click", finish);
-    intro.addEventListener("animationend", (event) => { if (event.target === intro || (event.target instanceof HTMLElement && event.target.classList.contains("intro-word"))) finish(); });
+    intro.addEventListener("animationend", (event) => { if (event.target === intro || (event.target instanceof HTMLElement && event.target.classList.contains("intro-glow"))) finish(); });
     // Tabbing reaches the actual page immediately; the intro never traps focus.
     document.addEventListener("keydown", (event) => { if (event.key === "Tab" || event.key === "Escape") finish(); });
     reduced.addEventListener("change", finish, { once: true });

@@ -1,21 +1,11 @@
 ---
 import { Image } from "astro:assets";
-import body from "../assets/screens/tabs-body.webp";
-import avatar from "../assets/screens/tab-avatar.webp";
-const tabs = [
-  { repository: "1git", branch: "master", badge: "99+", avatar: "photo" },
-  { repository: "pkgs", branch: "development", badge: "", avatar: "kapta" },
-  { repository: "ix-native", branch: "master", badge: "47", avatar: "kapta" },
-  { repository: "kunni · devbox-ts", branch: "main", badge: "", avatar: "letter" },
-];
+import poster from "../assets/launch/tab-drag-poster.webp";
+import animation from "../assets/launch/tab-drag.mp4?url";
 ---
-<div class="tabs-window" aria-label="Repository tabs reorder in the native window">
-  <div class="real-tab-strip">
-    {tabs.map(({repository,branch,badge,avatar: kind}) => <div class="real-tab">
-      {kind === "photo" ? <Image class="tab-avatar" src={avatar} width="16" height="16" densities={[1,2]} alt="1bye avatar on the 1git repository tab." loading="lazy" /> : <span class:list={["tab-avatar",`avatar-${kind}`]} aria-hidden="true">{kind === "kapta" ? "k." : "K"}</span>}
-      <span class="tab-label"><strong>{repository}</strong> / {branch}</span>
-      {badge && <span class="tab-count">{badge}</span>}
-    </div>)}
-  </div>
-  <Image class="tabs-window-body" src={body} width={body.width} height={body.height} widths={[640,960,1440,2143]} sizes="(max-width:650px) 94vw,60vw" format="webp" quality={88} loading="lazy" alt="Cropped native Stashes workspace and dockerignore diff beneath the four movable repository tabs." />
+<div class="tabs-window" data-tab-demo role="img" aria-label="The 1git repository tab slides past its neighbours, above a close-up of the Changes workspace.">
+  <Image class="tabs-poster" src={poster} width={poster.width} height={poster.height} widths={[640,960,1280]} sizes="(max-width:650px) 110vw,70vw" format="webp" quality={94} loading="lazy" alt="" />
+  <video data-tab-video width="1280" height="360" preload="none" muted playsinline aria-hidden="true">
+    <source src={animation} type="video/mp4" />
+  </video>
 </div>

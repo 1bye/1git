@@ -1,17 +1,15 @@
 ---
 import AppWindow from "./AppWindow.astro";
+import WindowClouds from "./WindowClouds.astro";
 // Incremental Gaussian radii combine into a smooth ramp capped at 30px.
 const blurSteps = [2, 5, 8, 12, 16, 20, 25, 30];
-const sparkle = "M12 0C12.7 8.2 15.8 11.3 24 12C15.8 12.7 12.7 15.8 12 24C11.3 15.8 8.2 12.7 0 12C8.2 11.3 11.3 8.2 12 0Z";
 ---
-<section id="top" class="hero" aria-labelledby="hero-title" data-glow-zone="hero" data-scene="intro">
-  <div class="hero-copy">
+<section id="top" class="hero" aria-labelledby="hero-title" data-scene="intro">
+  <div class="hero-copy" data-glow-anchor>
     <div class="wordmark-scene">
-      {[0,1,2,3].map((i) => <svg class={`hero-sparkle sparkle-${i}`} viewBox="0 0 24 24" aria-hidden="true"><path d={sparkle} /></svg>)}
       <p class="hero-wordmark display">1git</p>
     </div>
     <h1 id="hero-title" class="display">A clearer view.<br />Of every change.</h1>
-    <p class="hero-description">A native Git client for macOS.<br class="desktop-break" /> Local repositories and SSH. One focused workspace.</p>
     <div class="cta-row">
       <a class="download-button" href="https://git.1bye.dev/download">Download for macOS <span aria-hidden="true">↗</span></a>
     </div>
@@ -21,6 +19,7 @@ const sparkle = "M12 0C12.7 8.2 15.8 11.3 24 12C15.8 12.7 12.7 15.8 12 24C11.3 1
     <div class="hero-product">
       <AppWindow name="changes" alt="Changes view with checked files, a README diff and commit composer in the hero." eager progressive />
     </div>
+    <div class="hero-clouds"><WindowClouds /></div>
     <div class="hero-linear-blur" aria-hidden="true">
       {blurSteps.map((target,i) => {
         const previous = blurSteps[i-1] ?? 0;

@@ -9,6 +9,52 @@ export function initFeatures(): void {
 		document.hidden ||
 		document.documentElement.hasAttribute("data-motion-paused");
 
+	for (const demo of document.querySelectorAll<HTMLElement>(
+		"[data-tab-demo]"
+	)) {
+		const video = demo.querySelector<HTMLVideoElement>("[data-tab-video]");
+
+		if (!video) continue;
+
+		let settled = false;
+
+		const settle = () => {
+			settled = true;
+			video.pause();
+			demo.removeAttribute("data-playing");
+		};
+
+		const sync = () => {
+			if (paused()) settle();
+		};
+
+		video.addEventListener("playing", () => {
+			if (settled || paused()) settle();
+			else demo.setAttribute("data-playing", "");
+		});
+		video.addEventListener("ended", settle, { once: true });
+		video.addEventListener("error", settle, { once: true });
+		onceOnView(
+			demo,
+			async () => {
+				if (settled || paused()) return;
+
+				try {
+					await video.play();
+				} catch {
+					settle();
+				}
+			},
+			settle
+		);
+		new IntersectionObserver(([entry]) => {
+			if (!entry?.isIntersecting && !video.paused) settle();
+		}).observe(demo);
+		document.addEventListener("motionchange", sync);
+		document.addEventListener("visibilitychange", sync);
+		reduced.addEventListener("change", sync);
+	}
+
 	const grid = document.querySelector<HTMLElement>("[data-even-more]");
 
 	if (grid) {
@@ -183,8 +229,10 @@ export function initFeatures(): void {
 
 			if (paused()) return;
 
-			show(true);
-			later(settle, 1200);
+			replay.disabled = true;
+			demo.classList.add("is-working");
+			later(() => show(true), 120);
+			later(settle, 1320);
 		};
 
 		replay.addEventListener("click", play);

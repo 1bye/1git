@@ -6,6 +6,7 @@ html[data-scenes-ready] { scroll-snap-type: y mandatory; scroll-padding-top: 0; 
 
 .feature-block[data-scene] { display: flex; align-items: center; margin-block: 0; padding-block: clamp(96px,12svh,140px); }
 .feature-block[data-scene] > .scene-content { display: grid; grid-template-columns: .8fr 1.2fr; align-items: center; gap: 64px; }
+.feature-tabs[data-scene] > .scene-content { grid-template-columns: 1.2fr .8fr; }
 .connection-section[data-scene] { display: grid; align-items: center; margin-bottom: 0; padding-block: 100px; }
 .theme-section[data-scene] { display: grid; align-items: center; padding-block: 80px; }
 .theme-section[data-scene] h3 { margin-bottom: 36px; }
@@ -22,7 +23,6 @@ html[data-scenes-ready] { scroll-snap-type: y mandatory; scroll-padding-top: 0; 
 .hero[data-scene] .hero-copy { flex: 0 0 auto; }
 .hero[data-scene] .hero-wordmark { font-size: clamp(112px,17svh,180px); }
 .hero[data-scene] h1 { font-size: clamp(44px,5.4svh,64px); margin-top: clamp(14px,2svh,22px); }
-.hero[data-scene] .hero-description { font-size: clamp(15px,1.9svh,18px); margin: clamp(14px,2svh,22px) auto clamp(18px,2.8svh,27px); }
 .hero[data-scene] .hero-window-stage { flex: 1; min-height: calc(170px + clamp(32px,4svh,48px)); margin-top: clamp(24px,4svh,48px); padding-bottom: clamp(32px,4svh,48px); }
 .hero[data-scene] .hero-product { height: 100%; aspect-ratio: auto; }
 

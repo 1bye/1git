@@ -15,5 +15,5 @@ const widths = image ? [640, 960, 1440, 2143].filter((width) => width < image.wi
 {image ? <a class:list={["app-window", className]} href={image.src} target="_blank" rel="noopener" aria-label={`View full-size: ${alt}`}>
   <Image src={image} width={image.width} height={image.height} widths={widths} sizes={progressive ? "(max-width: 650px) 125vw, (max-width: 1100px) 90vw, 1120px" : "(max-width: 650px) 94vw, (max-width: 1100px) 90vw, 1120px"} format="webp" quality={88} loading={eager ? "eager" : "lazy"} fetchpriority={eager ? "high" : "auto"} alt={alt} />
 </a> : <div class:list={["app-window", "screen-placeholder", className]} role="img" aria-label={`${alt} — screenshot pending`} data-missing-screen={name}>
-  <span>Screenshot pending</span><strong>{name}.webp</strong><p>{alt}</p>
+  <div class="placeholder-copy"><span>Screenshot pending</span><strong>{name}.webp</strong><p>{alt}</p></div>
 </div>}

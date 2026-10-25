@@ -1,5 +1,7 @@
 ---
 import "../styles/site.css";
+import { getImage } from "astro:assets";
+import cloudWisp from "../assets/atmosphere/cloud-wide.webp";
 import GlowBackground from "../components/GlowBackground.astro";
 import { motionStorageKey } from "../scripts/motion-preference";
 
@@ -20,6 +22,7 @@ const {
 const canonical = new URL(Astro.url.pathname, Astro.site);
 const socialImage = new URL("/og.png", Astro.site);
 const socialImageAlt = "1git — A clearer view of every change. App screenshot showing repository tabs, stashes, and a file diff.";
+const cloudTexture = await getImage({ src: cloudWisp, format: "webp" });
 
 const graph = {
   "@context": "https://schema.org",
@@ -52,7 +55,7 @@ const graph = {
     <meta charset="UTF-8" />
     <script is:inline define:vars={{ motionStorageKey }}>
       try { if (localStorage.getItem(motionStorageKey) === "1") document.documentElement.setAttribute("data-motion-paused", ""); } catch { /* Storage may be unavailable. */ }
-    </script>
+</script>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={description} />
     <meta name="theme-color" content="#5a7fc2" />
@@ -80,9 +83,9 @@ const graph = {
     {!noindex && <script type="application/ld+json" set:html={JSON.stringify(graph).replace(/</g, "\\u003c")} />}
     <title>{title}</title>
   </head>
-  <body>
+  <body style={`--cloud-wisp: url('${cloudTexture.src}')`}>
     <a class="skip-link" href="#main">Skip to content</a>
-    <GlowBackground variant="hero" />
+    <GlowBackground />
     <slot />
   </body>
 </html>
