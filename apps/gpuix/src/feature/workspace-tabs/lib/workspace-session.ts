@@ -1,4 +1,8 @@
 import {
+	TypographyPreferences,
+	type AppTypography,
+} from "../../appearance-settings/app-typography";
+import {
 	WorkspaceSpaces,
 	type WorkspaceSpace,
 } from "../../spaces/workspace-spaces";
@@ -63,6 +67,7 @@ export interface WorkspaceSessionDocument {
 	readonly commitTypeBadges?: boolean;
 	readonly smoothTransitions?: boolean;
 	readonly showScrollbars?: boolean;
+	readonly typography?: AppTypography;
 	readonly repositoryColors?: RepositoryColorChoices;
 	readonly repositoryPatterns?: RepositoryPatternChoices;
 	readonly onboarding?: OnboardingStep;
@@ -235,6 +240,9 @@ export class WorkspaceSession {
 			...(typeof value.commitTypeBadges === "boolean"
 				? { commitTypeBadges: value.commitTypeBadges }
 				: {}),
+			...(value.typography === undefined
+				? {}
+				: { typography: TypographyPreferences.parse(value.typography) }),
 			...(typeof value.showScrollbars === "boolean"
 				? { showScrollbars: value.showScrollbars }
 				: {}),
@@ -294,7 +302,8 @@ export class WorkspaceSession {
 		repositoryPatterns?: RepositoryPatternChoices,
 		repositoryLibrary?: RepositoryLibraryPreferences,
 		smoothTransitions?: boolean,
-		showScrollbars?: boolean
+		showScrollbars?: boolean,
+		typography?: AppTypography
 	): WorkspaceSessionDocument {
 		return {
 			version: 1,
@@ -313,6 +322,9 @@ export class WorkspaceSession {
 				: {}),
 			...(appearance ? { appearance } : {}),
 			...(commitTypeBadges !== undefined ? { commitTypeBadges } : {}),
+			...(typography
+				? { typography: TypographyPreferences.parse(typography) }
+				: {}),
 			...(showScrollbars !== undefined ? { showScrollbars } : {}),
 			...(smoothTransitions !== undefined ? { smoothTransitions } : {}),
 			...(onboarding ? { onboarding } : {}),

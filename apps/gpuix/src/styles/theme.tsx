@@ -1,3 +1,4 @@
+import type { AppTypography } from "../feature/appearance-settings/app-typography";
 import { createContext, useContext } from "react";
 import type { UiTokens } from "@1git/gpuix-ui/tokens";
 import type {
@@ -15,6 +16,7 @@ import {
 /** A complete palette for one window, shared by application views and native controls. */
 export interface AppTheme {
 	readonly appearance: AppAppearance;
+	readonly typography?: AppTypography;
 	readonly colors: AppColors;
 	readonly tokens: UiTokens;
 	readonly repositoryColor?: string;
@@ -44,6 +46,7 @@ export const AppThemeContext = createContext<
 		readonly setCommitTypeBadges?: (enabled: boolean) => void;
 		readonly showScrollbars?: boolean;
 		readonly setShowScrollbars?: (enabled: boolean) => void;
+		readonly setTypography?: (typography: AppTypography) => void;
 		readonly smoothTransitions?: boolean;
 		readonly setSmoothTransitions?: (enabled: boolean) => void;
 	}

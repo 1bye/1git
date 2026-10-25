@@ -510,7 +510,7 @@ function RepositoryDiffContent({
 					style={{
 						flexGrow: 1,
 						minHeight: 0,
-						fontFamily: "Menlo",
+						fontFamily: theme.typography?.codeFontFamily || "Menlo",
 						...typography.sm,
 						lineHeight: typography.lg.lineHeight,
 						padding: spacing[3.5],

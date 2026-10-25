@@ -1,0 +1,43 @@
+diff --git a/packages/native/src/renderer.rs b/packages/native/src/renderer.rs
+--- a/packages/native/src/renderer.rs
++++ b/packages/native/src/renderer.rs
+@@ -4139,6 +4139,7 @@
+ pub(crate) struct Inherited {
+     /// False once an ancestor sets `userSelect: "none"`.
+     pub selectable: bool,
++    pub text_scale: f64,
+     /// Selection wash colour for this subtree.
+     pub selection_wash: gpui::Hsla,
+     /// The nearest ancestor's `highlight`, resolved. `None` in every app that
+@@ -4155,6 +4156,7 @@
+         wash.a = 0.35;
+         Self {
+             selectable: true,
++            text_scale: 1.0,
+             selection_wash: wash,
+             highlight: None,
+         }
+@@ -4962,11 +4964,23 @@
+         None
+     };
+     let style = animated_style.as_ref().or(element.style.as_deref());
++    let text_scale = element.custom_props.get("textScale")
++        .and_then(serde_json::Value::as_f64)
++        .filter(|scale| scale.is_finite() && (0.75..=1.5).contains(scale))
++        .unwrap_or(ctx.inherited.text_scale);
++    let scaled_style = (text_scale != 1.0).then(|| style.map(|style| {
++        let mut scaled = style.clone();
++        scaled.font_size = scaled.font_size.map(|size| size * text_scale);
++        scaled.line_height = scaled.line_height.map(|height| height * text_scale);
++        scaled
++    })).flatten();
++    let style = scaled_style.as_ref().or(style);
+ 
+     // Inheritable style resolves once here so both built-ins and custom
+     // elements see the same cascade.
+     let parent_inherited = ctx.inherited.clone();
+     ctx.inherited = parent_inherited.clone().descend(style);
++    ctx.inherited.text_scale = text_scale;
+ 
+     // A `highlight` here replaces any ancestor's: the nearest declaration wins,
+     // and `GroupList::collect` skips nested declarations so an ancestor never

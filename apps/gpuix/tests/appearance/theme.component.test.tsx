@@ -5,6 +5,7 @@
  * Requires: patched native addon and macOS graphics access.
  */
 import { afterEach, expect, it, spyOn } from "bun:test";
+import { flushSync, handleGpuixEvent } from "@gpuix/react";
 import { createTestRoot, type TestRoot } from "@gpuix/react/testing";
 import { App } from "../../src/app";
 import { Accounts } from "../../src/feature/accounts/lib/accounts";
@@ -575,6 +576,60 @@ it("keeps pane scrollbars off by default and saves the enabled choice", async ()
 		await Bun.sleep(230);
 		await settle(root);
 		expect(saved.at(-1)?.showScrollbars).toBe(false);
+	} finally {
+		catalog.mockRestore();
+	}
+});
+
+it("saves text size and installed fonts while retaining the draft and diff instance", async () => {
+	const { root, catalog, saved } = fixture("light", undefined, false);
+
+	try {
+		await settle(root);
+		click(root, "entry-example.ts");
+		await settle(root);
+		const content = node(root, "diff-viewport-content").id;
+
+		await openSettings(root);
+		click(root, "settings-appearance");
+		root.renderer.scrollTo(node(root, "appearance-settings").id, 0, -10000);
+		root.renderer.advanceTime(1);
+		click(root, "appearance-font-size-16");
+		await settle(root);
+
+		for (const [id, value] of [
+			["appearance-ui-font", "Helvetica Neue"],
+			["appearance-code-font", "Courier"],
+		] as const) {
+			flushSync(() =>
+				handleGpuixEvent(
+					{ elementId: node(root, id).id, eventType: "change", value },
+					root.renderer
+				)
+			);
+		}
+
+		root.renderer.scrollIntoView(node(root, "appearance-apply-fonts").id);
+		root.renderer.advanceTime(1);
+		click(root, "appearance-apply-fonts");
+		await Bun.sleep(230);
+		await settle(root);
+		expect(saved.at(-1)?.typography).toEqual({
+			fontSize: 16,
+			fontFamily: "Helvetica Neue",
+			codeFontFamily: "Courier",
+		});
+		expect(saved.at(-1)?.tabs[0]?.draft).toBe("Keep my draft");
+		click(root, "view-changes");
+		await settle(root);
+		expect(node(root, "diff-viewport-content").id).toBe(content);
+		expect(
+			node(root, "diff-viewport-content").customProps?.theme
+		).toMatchObject({
+			fontMono: "Courier",
+			fontSans: "Helvetica Neue",
+			metrics: { diffTextSize: (11 * 4) / 3 },
+		});
 	} finally {
 		catalog.mockRestore();
 	}

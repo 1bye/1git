@@ -150,6 +150,7 @@ export const scrollMetricsPatchPath = resolve(
 	import.meta.dir,
 	"scroll-metrics.patch"
 );
+export const textScalePatchPath = resolve(import.meta.dir, "text-scale.patch");
 export const nativeBuildId = createHash("sha256")
 	.update(nativeRevision)
 	.update(readFileSync(patchPath))
@@ -191,5 +192,6 @@ export const nativeBuildId = createHash("sha256")
 	.update(readFileSync(systemAppearancePatchPath))
 	.update(readFileSync(menuPlacementPlatformPatchPath))
 	.update(readFileSync(scrollMetricsPatchPath))
+	.update(readFileSync(textScalePatchPath))
 	.update(`${process.platform}-${process.arch}-release-v1`)
 	.digest("hex");

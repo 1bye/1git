@@ -69,5 +69,20 @@ export const repositoryDiffTheme = createThemedStyles((theme) => {
 			: {}),
 	};
 
+	const scale = (theme.typography?.fontSize ?? 12) / 12;
+
+	diffTheme.fontMono =
+		theme.typography?.codeFontFamily || codeTypography.fontFamily;
+
+	if (theme.typography?.fontFamily)
+		diffTheme.fontSans = theme.typography.fontFamily;
+
+	diffTheme.metrics = {
+		...diffTheme.metrics,
+		diffTextSize: codeTypography.fontSize * scale,
+		diffLineHeight: codeTypography.lineHeight * scale,
+		diffHunkHeaderHeight: 26 * scale,
+	};
+
 	return diffTheme;
 });

@@ -1,3 +1,4 @@
+import { FontSettings } from "./font-settings";
 import { fontWeight, spacing, typography } from "@1git/design-tokens";
 import { Button } from "@1git/gpuix-ui/button";
 import { Checkbox } from "@1git/gpuix-ui/checkbox";
@@ -25,6 +26,10 @@ export function AppearanceSettings() {
 				display: "flex",
 				flexDirection: "column",
 				flexGrow: 1,
+				flexShrink: 1,
+				flexBasis: 0,
+				minHeight: 0,
+				overflowY: "scroll",
 				padding: spacing[4],
 				gap: spacing[3],
 			}}
@@ -125,6 +130,7 @@ export function AppearanceSettings() {
 					/>
 				</div>
 			</div>
+			<FontSettings />
 		</div>
 	);
 }

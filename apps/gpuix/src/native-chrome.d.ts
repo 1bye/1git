@@ -16,5 +16,7 @@ declare module "@gpuix/native/host" {
 	interface HostProps {
 		/** Local native patch: synchronous native move/zoom on otherwise empty chrome. */
 		windowDrag?: boolean;
+		/** Window-local scaling for explicit text sizes, including native fields. */
+		textScale?: number;
 	}
 }

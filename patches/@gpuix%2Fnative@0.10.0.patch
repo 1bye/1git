@@ -149,3 +149,14 @@ diff --git a/dist/host.d.ts b/dist/host.d.ts
      "aria-valuetext"?: string;
      "aria-level"?: number;
      testId?: string;
+diff --git a/dist/mutations.js b/dist/mutations.js
+--- a/dist/mutations.js
++++ b/dist/mutations.js
+@@ -98,6 +98,7 @@
+     "motion",
+     "testId",
+     "windowDrag",
++    "textScale",
+     "highlight",
+     "role",
+     "aria-label",

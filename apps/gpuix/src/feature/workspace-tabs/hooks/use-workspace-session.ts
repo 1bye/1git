@@ -1,3 +1,4 @@
+import type { AppTypography } from "../../appearance-settings/app-typography";
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import {
 	WorkspaceSession,
@@ -27,7 +28,8 @@ export function useWorkspaceSession(
 	repositoryPatterns?: RepositoryPatternChoices,
 	repositoryLibrary?: RepositoryLibraryPreferences,
 	smoothTransitions?: boolean,
-	showScrollbars?: boolean
+	showScrollbars?: boolean,
+	typography?: AppTypography
 ) {
 	const content =
 		state.preview || !save
@@ -44,7 +46,8 @@ export function useWorkspaceSession(
 						repositoryPatterns,
 						repositoryLibrary,
 						smoothTransitions,
-						showScrollbars
+						showScrollbars,
+						typography
 					)
 				);
 

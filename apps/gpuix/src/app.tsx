@@ -11,6 +11,7 @@ import { SpaceManager, SpacesSettings } from "./feature/spaces/space-manager";
 import { MachineContext } from "./feature/machines/machine-context";
 import { RemoteFolderPicker } from "./feature/machines/remote-folder-picker";
 import { AppThemeContext, appThemes, useAppTheme } from "./styles/theme";
+import { TypographyPreferences } from "./feature/appearance-settings/app-typography";
 import { useSystemAppearance } from "./styles/system-appearance";
 import type { AppAppearancePreference } from "./styles/tokens";
 import { RepositoryTheme } from "./styles/repository-theme";
@@ -151,6 +152,10 @@ export function App({
 		props.initialSession?.commitTypeBadges ?? true
 	);
 
+	const [typographyPreferences, setTypography] = useState(() =>
+		TypographyPreferences.parse(props.initialSession?.typography)
+	);
+
 	const [showScrollbars, setShowScrollbars] = useState(
 		props.initialSession?.showScrollbars ?? false
 	);
@@ -172,6 +177,8 @@ export function App({
 		() => ({
 			...appThemes[appearance],
 			tokens: { ...appThemes[appearance].tokens, showScrollbars },
+			typography: typographyPreferences,
+			setTypography,
 			showScrollbars,
 			setShowScrollbars,
 			appearancePreference,
@@ -187,6 +194,7 @@ export function App({
 			commitTypeBadges,
 			smoothTransitions,
 			showScrollbars,
+			typographyPreferences,
 		]
 	);
 
@@ -598,7 +606,8 @@ function AppContent({
 		repositoryPatterns,
 		repositoryLibrary,
 		theme.smoothTransitions,
-		theme.showScrollbars
+		theme.showScrollbars,
+		theme.typography
 	);
 
 	useEffect(() => {
@@ -1508,9 +1517,11 @@ function AppContent({
 	return (
 		<RepositoryAvatarContext value={avatars}>
 			<div
+				textScale={(theme.typography?.fontSize ?? 12) / 12}
 				style={{
 					display: "flex",
 					position: "relative",
+					fontFamily: theme.typography?.fontFamily || undefined,
 					flexDirection: "column",
 					width: "100%",
 					height: "100%",
