@@ -46,6 +46,11 @@ function controlTokens(appearance: AppAppearance): UiTokens {
 
 	return {
 		focusVisible: false,
+		tooltip: {
+			background: appearance === "dark" ? "#202227eb" : "#fffffff0",
+			text: colors.editorInk,
+			border: colors.studioGlassBorder,
+		},
 		colors: {
 			...palettes[appearance],
 			background: colors.editorSurface,

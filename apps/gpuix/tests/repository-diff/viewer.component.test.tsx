@@ -129,7 +129,7 @@ const settlePanel = async (): Promise<void> => {
 	root.renderer.flush();
 };
 
-it("uses the app's inverted tooltip palette and an outlined toolbar icon for diff settings", async () => {
+it("uses the app's translucent tooltip palette and an outlined toolbar icon for diff settings", async () => {
 	root.render(
 		<div
 			style={{
@@ -160,8 +160,9 @@ it("uses the app's inverted tooltip palette and an outlined toolbar icon for dif
 	await settle();
 	expect(element("diff-settings-tooltip").customProps?.role).toBe("tooltip");
 	expect(element("diff-settings-tooltip").style).toMatchObject({
-		backgroundColor: appTokens.colors.text,
-		color: appTokens.colors.background,
+		backgroundColor: appTokens.tooltip?.background,
+		color: appTokens.tooltip?.text,
+		borderWidth: 1,
 		pointerEvents: "none",
 		borderRadius: 4,
 	});

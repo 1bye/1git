@@ -60,6 +60,12 @@ export interface UiTokens {
 	readonly layout: TokenSet<typeof densities>;
 	/** Set false to suppress control outlines while retaining native focus and keyboard behavior. */
 	readonly focusVisible?: boolean;
+	/** Optional translucent tooltip palette; controls without it retain their inverted surface. */
+	readonly tooltip?: {
+		readonly background: string;
+		readonly text: string;
+		readonly border: string;
+	};
 }
 
 /** Default values for controls without a tokens prop; not a mutable global theme. */

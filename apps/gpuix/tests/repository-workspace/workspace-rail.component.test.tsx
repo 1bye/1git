@@ -205,8 +205,8 @@ it("centers an inverted hover tooltip beside each rail button", async () => {
 		);
 		expect(tooltip.x, id).toBe(trigger.x + trigger.width + 8);
 		expect(element(`${id}-tooltip`).style).toMatchObject({
-			backgroundColor: "#111111",
-			color: "#ffffff",
+			backgroundColor: appTokens.tooltip?.background,
+			color: appTokens.tooltip?.text,
 		});
 
 		if (id === "view-history" && process.env.GPUIX_RAIL_SCREENSHOT)

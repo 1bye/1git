@@ -425,6 +425,9 @@ and keyboard activation remain intact; ordinary field borders are unchanged.
 
 ## Appearance
 
+Hover labels use a translucent, rounded surface with a subtle border and shadow,
+matching the window’s light or dark palette.
+
 Native menus are measured before opening and clamped to the owning window, so
 the bottom settings menu opens fully above the edge without hover scrolling.
 

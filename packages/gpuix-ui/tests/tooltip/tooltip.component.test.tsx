@@ -194,3 +194,38 @@ it("delays hover and cancels pending opening on mouse leave", async () => {
 	notify("mouseLeave");
 	expect(root.renderer.findByTestId("tip")).toBeUndefined();
 });
+
+it("renders a translucent tooltip without changing its role or pointer behavior", () => {
+	root.render(
+		<Tooltip open>
+			<TooltipTrigger asChild>
+				<div style={{ width: 40, height: 40 }}>Help</div>
+			</TooltipTrigger>
+			<TooltipContent
+				testId="glass"
+				tokens={{
+					colors: palettes.dark,
+					layout: densities.compact,
+					tooltip: {
+						background: "#202227eb",
+						text: "#e8eaed",
+						border: "#ffffff20",
+					},
+				}}
+			>
+				Workspace settings
+			</TooltipContent>
+		</Tooltip>
+	);
+	root.renderer.advanceTime(1);
+	const tip = elementByTestId(root.renderer, "glass");
+
+	expect(tip.style).toMatchObject({
+		backgroundColor: "#202227eb",
+		color: "#e8eaed",
+		borderWidth: 1,
+		borderColor: "#ffffff20",
+		pointerEvents: "none",
+	});
+	expect(tip.customProps?.role).toBe("tooltip");
+});

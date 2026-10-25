@@ -20,7 +20,7 @@ export type TooltipContentProps = ComponentProps<typeof PrimitiveContent> & {
 	tokens?: UiTokens;
 };
 
-/** Inverted, non-interactive tooltip surface. Native anchoring clamps it to the viewport. */
+/** Non-interactive tooltip surface with an optional glass palette. Native anchoring clamps it to the viewport. */
 export function TooltipContent({
 	tokens = defaultTokens,
 	style,
@@ -34,8 +34,21 @@ export function TooltipContent({
 			sideOffset={sideOffset}
 			style={StyleSheet.compose(
 				{
-					backgroundColor: tokens.colors.text,
-					color: tokens.colors.background,
+					backgroundColor: tokens.tooltip?.background ?? tokens.colors.text,
+					color: tokens.tooltip?.text ?? tokens.colors.background,
+					...(tokens.tooltip
+						? {
+								borderWidth: 1,
+								borderColor: tokens.tooltip.border,
+								boxShadow: {
+									offsetX: 0,
+									offsetY: 4,
+									blurRadius: 12,
+									spreadRadius: 0,
+									color: tokens.colors.shadow,
+								},
+							}
+						: {}),
 					...typography.md,
 					paddingTop: spacing[1.5],
 					paddingBottom: spacing[1.5],
