@@ -66,6 +66,16 @@ it("supports the outline presets and keeps membership when changing a space's na
 	);
 });
 
+it("navigates in saved space order and stops at the ends without wrapping", () => {
+	const spaces = create().spaces ?? [];
+
+	expect(WorkspaceSpaces.destination(spaces, "default", "next")).toBe(work);
+	expect(WorkspaceSpaces.destination(spaces, work, "previous")).toBe("default");
+	expect(WorkspaceSpaces.destination(spaces, "default", "previous")).toBeNull();
+	expect(WorkspaceSpaces.destination(spaces, work, "next")).toBeNull();
+	expect(WorkspaceSpaces.destination(spaces, "missing", "next")).toBeNull();
+});
+
 it("migrates current tabs and preferences into Default and starts a separate empty tab strip", () => {
 	let state = create();
 

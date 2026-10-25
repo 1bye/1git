@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import {
 	WorkspaceSpaces,
 	type WorkspaceSpace,
+	type SpaceDirection,
 } from "./feature/spaces/workspace-spaces";
 import { SpaceSwitcher } from "./feature/spaces/space-switcher";
 import { SpaceManager, SpacesSettings } from "./feature/spaces/space-manager";
@@ -1493,6 +1494,18 @@ function AppContent({
 		setSettingsSection("spaces");
 	};
 
+	const swipeSpace = (direction: SpaceDirection): void => {
+		if (connection.pickingId !== null) return;
+
+		const destination = WorkspaceSpaces.destination(
+			state.spaces ?? [],
+			activeSpace.id,
+			direction
+		);
+
+		if (destination) selectSpace(destination);
+	};
+
 	const spaceSwitcher = (disabled: boolean) => (
 		<SpaceSwitcher
 			disabled={disabled}
@@ -1552,6 +1565,9 @@ function AppContent({
 										: undefined
 								}
 								spaceSwitcher={spaceSwitcher}
+								onSpaceSwipe={
+									(state.spaces?.length ?? 1) > 1 ? swipeSpace : undefined
+								}
 								repositoryAppearance={repositoryAppearance}
 								onAppearance={openAppearance}
 								settingsButtonRef={railSettingsButton}
@@ -2401,6 +2417,9 @@ function AppContent({
 								: undefined
 						}
 						spaceSwitcher={spaceSwitcher}
+						onSpaceSwipe={
+							(state.spaces?.length ?? 1) > 1 ? swipeSpace : undefined
+						}
 						spacesSettings={spacesSettings}
 						onBack={closeSettings}
 						onSetup={

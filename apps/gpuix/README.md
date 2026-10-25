@@ -40,6 +40,12 @@ views. Its tooltip shows the name. Clicking opens the same native grouped dropdo
 used by Settings, with space choices, **New space…** and **Manage spaces…**. Settings
 also lets you edit names and icons without changing repository membership.
 
+With multiple spaces, swipe horizontally with two fingers anywhere over the rail:
+left selects the next space, right selects the previous one, and the ends do not
+wrap. One touch sequence switches once; inertia, vertical scrolling, mouse-wheel
+ticks and modified gestures do not switch spaces. Scrolling over lists and diffs
+keeps its normal behavior.
+
 Each space remembers its repositories, tab order, selected tab or Home, commit
 drafts, scan folders, stars, layout and selected machine across restarts. New spaces
 start with an empty tab strip and scan only explicitly added folders. Home and

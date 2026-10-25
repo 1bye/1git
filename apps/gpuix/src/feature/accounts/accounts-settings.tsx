@@ -39,6 +39,7 @@ import { workspaceLayout } from "../../styles/workspace-layout";
 import { WorkspaceTabIcon } from "../workspace-tabs/components/workspace-tab-icon";
 import { WorkspaceTabHeading } from "../workspace-tabs/components/workspace-tab";
 import type { RepositoryView } from "../repository-workspace/types";
+import type { SpaceDirection } from "../spaces/workspace-spaces";
 import { NativeClipboard } from "../../platform/clipboard";
 import {
 	GitSettings,
@@ -134,6 +135,7 @@ export function AccountsSettings({
 	onCustomizeRepositoryAppearance,
 	ignoredHistory,
 	spaceSwitcher,
+	onSpaceSwipe,
 	spacesSettings,
 	readGitSettings = GitSettingsModel.read,
 	writeGitSettings = GitSettingsModel.write,
@@ -171,6 +173,7 @@ export function AccountsSettings({
 	repositoryAppearanceName?: string;
 	onCustomizeRepositoryAppearance?: () => void;
 	spaceSwitcher?: (disabled: boolean) => ReactNode;
+	onSpaceSwipe?: (direction: SpaceDirection) => void;
 	spacesSettings?: ReactNode;
 	readGitSettings?: typeof GitSettingsModel.read;
 	writeGitSettings?: typeof GitSettingsModel.write;
@@ -302,6 +305,7 @@ export function AccountsSettings({
 							: undefined
 					}
 					spaceSwitcher={spaceSwitcher}
+					onSpaceSwipe={onSpaceSwipe}
 					accounts={accounts}
 					savedAccounts={saved}
 					preferredAccountKey={preferredAccountKey}

@@ -24,6 +24,9 @@ export interface WorkspaceSpace {
 	readonly library: RepositoryLibraryPreferences;
 }
 
+/** Space order follows the saved switcher menu; navigation stops at either end. */
+export type SpaceDirection = "previous" | "next";
+
 /** Space transitions share the tab reducer so asynchronous work retains its original owner. */
 export type WorkspaceSpaceAction =
 	| {
@@ -59,6 +62,18 @@ const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 
 /** Pure space validation, migration and tab ownership. Default stays implicit until another space exists. */
 export class WorkspaceSpaces {
+	static destination(
+		spaces: readonly WorkspaceSpace[],
+		activeId: string,
+		direction: SpaceDirection
+	): string | null {
+		const index = spaces.findIndex((space) => space.id === activeId);
+
+		if (index < 0) return null;
+
+		return spaces[index + (direction === "next" ? 1 : -1)]?.id ?? null;
+	}
+
 	static initialize(
 		state: WorkspaceTabsState,
 		discovery: RepositoryDiscoveryPreferences,

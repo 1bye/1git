@@ -2,6 +2,7 @@ import { createThemedStyles, useAppTheme } from "../../../styles/theme";
 import {
 	useRef,
 	useState,
+	useEffect,
 	type Ref,
 	type RefObject,
 	type ReactNode,
@@ -38,6 +39,8 @@ import type {
 	RepositoryAppearanceSection,
 } from "../../repository-appearance/repository-patterns";
 import { repositoryViews, type RepositoryView } from "../types";
+import { RailSpaceSwipe } from "../../spaces/rail-space-swipe";
+import type { SpaceDirection } from "../../spaces/workspace-spaces";
 
 export const workspaceRailWidth = 48;
 
@@ -200,6 +203,7 @@ export function WorkspaceRail({
 	repositoryAppearance,
 	ignoredHistory,
 	spaceSwitcher,
+	onSpaceSwipe,
 	children,
 }: {
 	ignoredHistory?: { readonly active: boolean; readonly onOpen: () => void };
@@ -225,6 +229,7 @@ export function WorkspaceRail({
 	>;
 	/** Repository-wide actions sit above the navigation group. */
 	spaceSwitcher?: (disabled: boolean) => ReactNode;
+	onSpaceSwipe?: (direction: SpaceDirection) => void;
 	children?: ReactNode;
 }) {
 	const theme = useAppTheme();
@@ -238,6 +243,12 @@ export function WorkspaceRail({
 	const settingsTracking = useRef(false);
 	const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
 	const [catalog, setCatalog] = useState(() => readCatalog(accounts));
+	const spaceSwipe = useRef(new RailSpaceSwipe());
+	const swipeEnabled = !disabled && !settingsMenuOpen && !!onSpaceSwipe;
+
+	useEffect(() => {
+		if (!swipeEnabled) spaceSwipe.current.cancel();
+	}, [swipeEnabled]);
 
 	const saved = savedAccounts ?? catalog.saved;
 
@@ -362,6 +373,29 @@ export function WorkspaceRail({
 				testId="workspace-rail"
 				role="navigation"
 				aria-label="Workspace tools"
+				onMouseLeave={
+					onSpaceSwipe ? () => spaceSwipe.current.cancel() : undefined
+				}
+				aria-description={
+					onSpaceSwipe
+						? "Swipe left or right with two fingers to switch spaces."
+						: undefined
+				}
+				onScroll={
+					onSpaceSwipe
+						? (event) => {
+								if (!swipeEnabled) {
+									spaceSwipe.current.cancel();
+
+									return;
+								}
+
+								const direction = spaceSwipe.current.update(event);
+
+								if (direction) onSpaceSwipe(direction);
+							}
+						: undefined
+				}
 				style={{
 					display: "flex",
 					flexDirection: "column",
