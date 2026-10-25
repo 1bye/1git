@@ -1,0 +1,35 @@
+---
+import Icon from "./Icon.astro";
+const columns = [
+  { title: "History", rows: [
+    {icon:"history", text:"Every commit.", detail:"At a glance."},
+    {icon:"check", text:"Review. Stage.", detail:"Commit."},
+    {icon:"file", text:"Ignored files.", detail:"Local history, too."},
+    {icon:"folder", text:"Multiple stashes.", detail:"Pick up any time."},
+  ]},
+  { title: "Branches", rows: [
+    {icon:"branch", text:"Branches & worktrees.", detail:""},
+    {icon:"code", text:"Compare branches", detail:""},
+    {icon:"globe", text:"GitHub. GitLab.", detail:"Your accounts."},
+    {icon:"terminal", text:"GitHub CLI sign-in", detail:""},
+  ]},
+  { title: "Workspace", rows: [
+    {icon:"folder", text:"Work and personal.", detail:"Separate spaces."},
+    {icon:"code", text:"Your file types.", detail:"Your choice of editor."},
+    {icon:"search", text:"Stay on your keyboard.", detail:"⌘P"},
+  ]},
+] as const;
+---
+<section class="even-more" aria-labelledby="even-more-title" data-even-more data-reveal data-glow-zone="section">
+  <h2 class="display" id="even-more-title">Even more.</h2>
+  <div class="feature-columns">
+    {columns.map(({title,rows}) => <div class="feature-column"><h3>{title}</h3>
+      {rows.map(({icon,text,detail}) => <div class="feature-row" data-feature-row data-icon={icon}><span class="icon-tile"><Icon name={icon} size={28} /></span><div>{text}{detail && <small>{detail}</small>}</div></div>)}
+    </div>)}
+  </div>
+  <div class="coming-soon">
+    <h3>Coming soon</h3>
+    <div class="coming-item"><span class="coming-label">Pull requests</span> <span class="soon-pill">SOON</span></div>
+    <div class="coming-item"><span class="coming-label">Issues</span> <span class="soon-pill">SOON</span></div>
+  </div>
+</section>

@@ -1,0 +1,21 @@
+---
+import AppWindow from "./AppWindow.astro";
+const themes = [
+  { name: "Rose", wallpaper: "clouds" },
+  { name: "Forest", wallpaper: "forest" },
+  { name: "Cosmic", wallpaper: "night-meadow" },
+  { name: "Workshop", wallpaper: "ocean" },
+];
+---
+<section class="theme-section" data-theme-cycler data-glow-zone="section" aria-labelledby="themes-title">
+  <p class="section-label">05 / Your corner of the world</p>
+  <h3 id="themes-title" class="display">Make every repo yours.</h3>
+  <div class="theme-stage">
+    {themes.map(({wallpaper},i) => <img class="theme-wallpaper" src={`/images/themes/${wallpaper}.webp`} width="1920" height="1080" loading="lazy" alt="" data-active={i === 0 ? "" : undefined} />)}
+    <AppWindow />
+  </div>
+  <div class="theme-controls" role="group" aria-label="Repository theme wallpaper preview">
+    {themes.map(({name},i) => <button type="button" aria-pressed={i === 0} data-theme-index={i}>{name}</button>)}
+  </div>
+  <p class="demo-caption">Repository wallpaper preview · native window shown in its original theme.</p>
+</section>

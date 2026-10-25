@@ -1,126 +1,19 @@
 ---
-import FeatureIllustration from "./FeatureIllustration.astro";
-
-const features = [
-  { id: "gpu", title: ["Native speed.", "GPU rendered."] },
-  { id: "changes", title: ["Review. Stage.", "Commit."] },
-  { id: "branches", title: ["Branches &", "worktrees."] },
-  { id: "spaces", title: ["Work and personal.", "Separate spaces."] },
-  { id: "tabs", title: ["Every repository.", "A tab of its own."] },
-  { id: "history", title: ["Every commit.", "At a glance."] },
-  { id: "accounts", title: ["GitHub. GitLab.", "Your accounts."] },
-  { id: "remote", title: ["Local or SSH.", "One workspace."] },
-  { id: "ai", title: ["AI commit drafts.", "Yours to refine."] },
-  { id: "ignored", title: ["Ignored files.", "Local history, too."] },
-  { id: "stash", title: ["Multiple stashes.", "Pick up any time."] },
-  { id: "editors", title: ["Your file types.", "Your choice of editor."] },
-  { id: "keyboard", title: ["Stay on", "your keyboard."] },
-] as const;
+import FeatureBlock from "./FeatureBlock.astro";
+import ConnectionLines from "./ConnectionLines.astro";
+import ThemeCycler from "./ThemeCycler.astro";
+import EvenMoreGrid from "./EvenMoreGrid.astro";
 ---
-
-<section id="features" class="features" aria-labelledby="features-title">
+<section id="features" class="features" aria-labelledby="features-title" data-glow-zone="section">
   <div class="section-intro">
+    <p class="section-label">Built for the way you work</p>
     <h2 id="features-title">Everything in its place.</h2>
-    <button class="motion-toggle" type="button" aria-label="Pause artwork animations" title="Pause artwork animations" hidden>
-      <svg class="pause-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M7 5v10m6-10v10" /></svg>
-      <svg class="play-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="m7 4 8 6-8 6Z" /></svg>
-    </button>
+    <button class="motion-toggle" type="button" data-motion-toggle aria-pressed="false" hidden>Pause motion</button>
   </div>
-  <div class="bento">
-    {features.map(({ id, title }) => (
-      <article class:list={["feature-card", `card-${id}`]}>
-        <h3>{title[0]}<br /><span>{title[1]}</span></h3>
-        <FeatureIllustration feature={id} />
-      </article>
-    ))}
-  </div>
+  <FeatureBlock variant="native" />
+  <FeatureBlock variant="tabs" />
+  <FeatureBlock variant="ai" />
+  <ConnectionLines />
+  <ThemeCycler />
+  <EvenMoreGrid />
 </section>
-
-<script>
-  import "../scripts/feature-motion";
-</script>
-
-<style>
-  .section-intro { position: relative; padding-inline: 38px; }
-  .motion-toggle { position: absolute; right: 0; top: 50%; display: grid; place-items: center; width: 30px; height: 30px; padding: 0; transform: translateY(-50%); border: 0; border-radius: 50%; background: #1e1e24; color: #aaaab6; cursor: pointer; }
-  .motion-toggle[hidden], .motion-toggle .play-icon, .motion-toggle[data-paused] .pause-icon { display: none; }
-  .motion-toggle[data-paused] .play-icon { display: block; }
-  .motion-toggle:hover { color: #ededf0; background: #292930; }
-  .motion-toggle svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
-  .bento {
-    display: grid;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-    grid-template-rows: 180px 180px 250px 240px 220px 230px;
-    grid-template-areas:
-      "gpu gpu gpu changes changes changes"
-      "branches branches branches changes changes changes"
-      "spaces spaces spaces tabs tabs tabs"
-      "history history accounts accounts remote remote"
-      "ai ai ai ignored ignored ignored"
-      "stash stash editors editors keyboard keyboard";
-    gap: 18px;
-  }
-  .feature-card { position: relative; min-width: 0; overflow: hidden; isolation: isolate; border-radius: 18px; background: #18181c; }
-  .feature-card h3 { position: relative; z-index: 1; max-width: 18ch; margin: 24px; color: #ededf0; font-size: 19px; font-weight: 500; line-height: 1.35; letter-spacing: -.015em; }
-  .feature-card h3 span { color: #adaeb8; }
-  .feature-card :global(.feature-illustration) { width: 100%; height: 100%; top: 28%; left: 0; }
-  .card-gpu { grid-area: gpu; }
-  .card-changes { grid-area: changes; }
-  .card-branches { grid-area: branches; }
-  .card-history { grid-area: history; }
-  .card-spaces { grid-area: spaces; }
-  .card-remote { grid-area: remote; }
-  .card-accounts { grid-area: accounts; }
-  .card-tabs { grid-area: tabs; }
-  .card-ai { grid-area: ai; }
-  .card-ignored { grid-area: ignored; }
-  .card-editors { grid-area: editors; }
-  .card-stash { grid-area: stash; }
-  .card-keyboard { grid-area: keyboard; }
-  .card-gpu h3 { font-size: 20px; }
-  .card-gpu :global(.feature-illustration) { top: -15%; left: 38%; width: 70%; height: 130%; }
-  .card-changes h3 { font-size: 20px; }
-  .card-changes :global(.feature-illustration) { top: 24%; left: 3%; width: 94%; height: 76%; }
-  .card-branches :global(.feature-illustration) { top: 10%; left: 38%; width: 80%; height: 105%; }
-  .card-history :global(.feature-illustration) { top: 33%; left: 0; width: 100%; height: 62%; }
-  .card-spaces :global(.feature-illustration), .card-tabs :global(.feature-illustration) { top: 30%; left: 2%; width: 96%; height: 66%; }
-  .card-remote :global(.feature-illustration) { top: 32%; left: 4%; width: 96%; height: 80%; }
-  .card-accounts :global(.feature-illustration) { top: 33%; left: 0; width: 100%; height: 62%; }
-  .card-ai :global(.feature-illustration) { top: 12%; left: 37%; width: 67%; height: 95%; }
-  .card-ignored :global(.feature-illustration) { top: 7%; left: 40%; width: 64%; height: 94%; }
-  .card-stash :global(.feature-illustration), .card-editors :global(.feature-illustration) { top: 33%; left: 0; width: 100%; height: 62%; }
-  .card-keyboard :global(.feature-illustration) { top: 16%; left: 4%; width: 105%; }
-  @media (max-width: 1000px) {
-    .bento {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      grid-template-rows: 180px 240px 240px 250px 240px 230px 240px 180px;
-      grid-template-areas:
-        "gpu gpu"
-        "changes branches"
-        "changes history"
-        "spaces tabs"
-        "accounts remote"
-        "ai ignored"
-        "stash editors"
-        "keyboard keyboard";
-    }
-    .card-gpu :global(.feature-illustration) { left: 43%; width: 55%; height: 145%; top: -26%; }
-    .card-branches :global(.feature-illustration) { left: 26%; top: 22%; }
-    .card-ai :global(.feature-illustration), .card-ignored :global(.feature-illustration) { left: 7%; top: 29%; width: 90%; height: 78%; }
-    .card-keyboard { height: 180px; }
-    .card-keyboard :global(.feature-illustration) { left: 40%; top: -15%; width: 60%; height: 125%; }
-  }
-  @media (max-width: 580px) {
-    .bento { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: none; grid-template-areas: none; gap: 14px; }
-    .feature-card { grid-area: auto; grid-column: span 2; min-height: 200px; }
-    .feature-card h3 { margin: 24px; font-size: 19px; }
-    .card-gpu :global(.feature-illustration) { left: 40%; width: 70%; height: 115%; top: 3%; }
-    .card-changes { height: 340px; }
-    .card-branches :global(.feature-illustration) { top: 7%; left: 37%; width: 80%; height: 105%; }
-    .card-spaces, .card-tabs { height: 250px; }
-    .card-history, .card-accounts, .card-stash, .card-editors { height: 240px; }
-    .card-ai, .card-ignored { height: 270px; }
-    .card-remote :global(.feature-illustration) { top: 17%; left: 35%; width: 78%; height: 100%; }
-    .card-keyboard :global(.feature-illustration) { top: 19%; left: 34%; width: 80%; height: 100%; }
-  }
-</style>

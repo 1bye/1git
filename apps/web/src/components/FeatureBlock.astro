@@ -1,0 +1,39 @@
+---
+import AppWindow from "./AppWindow.astro";
+interface Props { variant: "native" | "tabs" | "ai" }
+const { variant } = Astro.props;
+const stars = [[-40,-35],[-4,-54],[40,-40],[48,-18],[-52,2],[-28,24],[20,-64],[-64,-22]];
+const sparkle = "M12 0C12.7 8.2 15.8 11.3 24 12C15.8 12.7 12.7 15.8 12 24C11.3 15.8 8.2 12.7 0 12C8.2 11.3 11.3 8.2 12 0Z";
+---
+<article class:list={["feature-block", `feature-${variant}`]} data-reveal data-glow-zone="section">
+  <div class="feature-copy">
+    <p class="section-label">{variant === "native" ? "01 / A focused workspace" : variant === "tabs" ? "02 / In your flow" : "03 / A little assistance"}</p>
+    {variant === "native" && <><h3>Native speed.<br />GPU rendered.</h3><p>Review. Stage. Commit.</p></>}
+    {variant === "tabs" && <><h3>Every repository.<br />A tab of its own.</h3><p>Work and personal. Separate spaces.</p></>}
+    {variant === "ai" && <><h3>AI commit drafts.<br />Yours to refine.</h3><p>Review the suggestion. Make it yours.</p></>}
+  </div>
+  <div class="feature-art">
+    {variant === "native" && <AppWindow />}
+    {variant === "tabs" && <>
+      <p class="tabs-word display"><span class="sr-only">Tabs</span><span aria-hidden="true">Ta{[0,1,2,3,4,5].map((i) => <span class="extra-a" style={`--order:${i}`}>a</span>)}bs</span></p>
+      <div class="tabs-demo" aria-hidden="true"><span class="demo-tab">1git / main</span><span class="demo-tab">website / main</span><span class="demo-tab">notes / main</span></div>
+      <AppWindow />
+      <p class="demo-caption">Tab motion demonstration · real 1git window below.</p>
+    </>}
+    {variant === "ai" && <>
+      <div class="ai-demo" data-ai-demo>
+        <span class="demo-label">Changes <span aria-hidden="true">↗</span></span>
+        <div class="demo-files" aria-hidden="true">✓ &nbsp; quick-switcher.ts<br />✓ &nbsp; workspace.ts</div>
+        <p class="ai-draft" data-ai-draft><span class="commit-type">feat</span>: add quick switcher</p>
+        <div class="ai-actions">
+          <button class="ai-sparkle" type="button" aria-label="Replay AI commit draft demonstration" data-ai-replay>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d={sparkle} /></svg>
+            {stars.map(([x,y]) => <svg class="ai-star" viewBox="0 0 24 24" style={`--dx:${x}px;--dy:${y}px`} aria-hidden="true"><path d={sparkle} /></svg>)}
+          </button>
+          <button class="demo-commit" type="button" data-demo-commit>Commit 2 files</button>
+        </div>
+      </div>
+      <p class="demo-caption">Interactive demonstration. AI is optional; drafts remain editable. No changes are sent or committed here.</p>
+    </>}
+  </div>
+</article>
