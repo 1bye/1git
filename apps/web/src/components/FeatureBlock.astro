@@ -7,10 +7,9 @@ const { variant } = Astro.props;
 ---
 <article class:list={["feature-block", `feature-${variant}`]} data-reveal data-glow-zone="section">
   <div class="feature-copy">
-    <p class="section-label">{variant === "native" ? "01 / A focused workspace" : variant === "tabs" ? "02 / In your flow" : "03 / A little assistance"}</p>
     {variant === "native" && <><h3>Native speed.<br />GPU rendered.</h3><p>Smooth at any size, from one file to thousands.</p></>}
     {variant === "tabs" && <><h3>Every repository.<br />A tab of its own.</h3><p>Drag, reorder, switch with ⌘P.</p></>}
-    {variant === "ai" && <><h3>AI commit drafts.<br />Yours to refine.</h3><p>Review the suggestion. Make it yours.</p><p class="demo-caption">AI is optional. Drafts stay editable.</p></>}
+    {variant === "ai" && <><h3>AI commit drafts.<br />Yours to refine.</h3><p>Review the suggestion. Make it yours.</p></>}
   </div>
   <div class="feature-art">
     {variant === "native" && <AppWindow name="changes" alt="Native Changes workspace showing the file list, README diff and commit controls." />}

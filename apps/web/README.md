@@ -32,10 +32,9 @@ window and wallpaper frames; all four native theme captures are currently pendin
 The Tabs illustration alone uses a body crop of the existing supplied Stashes
 window with its exact tab strip rebuilt above it for motion.
 
-The Open source pill and GitHub footer link share `REPO_URL`, configured through
-`PUBLIC_REPO_URL`. Both remain disabled and labelled pending until the owner
-supplies the public URL. Set that environment variable before building; do not
-guess a repository destination.
+The GitHub footer link reads `REPO_URL`, configured through `PUBLIC_REPO_URL`.
+It remains disabled and labelled pending until the owner supplies the public URL.
+Set that environment variable before building; do not guess a repository destination.
 
 See [PR_DESCRIPTION.md](PR_DESCRIPTION.md) for the ten item changes, acceptance
 checklist, asset gaps and review evidence.

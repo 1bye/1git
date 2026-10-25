@@ -4,6 +4,12 @@ Keep the approved hero, intro, type, frosted header, SSH layout and end card.
 Apply the ten requested corrections in ten commits. Routes, FAQ, SEO/OG metadata
 and deployment configuration remain unchanged. No deployment is included.
 
+## Latest browser cleanup
+
+Remove the hero Explore button, the Built for label and all five numbered section
+labels, the short AI note, both SOON badges, the footer URL and the Open source
+pill. Keep the section headings, Coming soon heading/items, and GitHub footer link.
+
 ## Asset status
 
 No requested captures were supplied in `src/assets/screens/`. Each missing state
@@ -35,7 +41,7 @@ capture exactly; it is used nowhere else as a feature-window stand-in.
    placeholder until its native capture is supplied.
 
 5. Apply the brief’s Native-speed and Tabs sublines, remove duplicate Review /
-   Stage / Commit and all four developer captions, and keep the short AI note.
+   Stage / Commit, all four developer captions, and the short AI note.
    Move Pause animations into the footer and persist its explicit choice safely
    in localStorage. A saved pause skips intro/autoplay and shows settled content.
 
@@ -51,9 +57,9 @@ capture exactly; it is used nowhere else as a feature-window stand-in.
    File history across renames is brief-supplied copy and still needs product
    wording review; it was not present in the previous marketing copy.
 
-8. Both repository affordances share REPO_URL from PUBLIC_REPO_URL, with noopener
-   and an external arrow. The owner has not supplied a destination: both are
-   labelled URL pending and disabled rather than guessing a link or navigating to #.
+8. The GitHub footer link uses REPO_URL from PUBLIC_REPO_URL, with noopener
+   and an external arrow. Its destination is labelled pending and disabled until
+   the owner supplies the URL. The Open source pill is removed.
 
 9. Keep the real app icon and set its neighbouring header wordmark in Instrument
    Serif Italic, at icon height on desktop and mobile.
@@ -78,12 +84,13 @@ capture exactly; it is used nowhere else as a feature-window stand-in.
   progressive backdrop-filter bands are implemented. Native macOS Safari passed
   an isolated blur diagnostic; final native-image appearance remains unverified.
 - ✔ All four developer captions are gone. Native/Tabs sublines match item 5; the
-  AI note is only “AI is optional. Drafts stay editable.”
+  short AI note is also removed following the latest browser comments.
 - ✔ One tab strip, exact supplied repository labels/avatars/badges, 240ms app
   easing, centred word, and no 375px overflow. The word fits within x=90..285px.
 - ✔ Spotlight runs once, starts at 64% white, advances every 380ms, and settles
   all ten rows. Ten distinct row icons and two distinct Coming soon icons.
-- ✔ Open source and GitHub share REPO_URL and are clearly flagged pending.
+- ✔ GitHub uses REPO_URL and is clearly flagged pending; the Open source pill
+  is removed following the latest browser comments.
   Set PUBLIC_REPO_URL to the owner-supplied URL; no destination was guessed.
 - ✔ Reduced motion skips intro/autoplay and leaves all ten rows white. Saved
   Pause animations survives reload, also skips intro, and settles content.

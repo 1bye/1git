@@ -4,14 +4,9 @@ import { REPO_URL } from "./repository-link";
 <footer class="end-card" data-reveal data-glow-zone="section">
   <p class="end-wordmark display">1git</p>
   <p class="end-tagline">Every repository. One window.</p>
-  <a class="open-source-pill" href={REPO_URL} target={REPO_URL ? "_blank" : undefined} rel="noopener" role={REPO_URL ? undefined : "link"} tabindex={REPO_URL ? undefined : 0} aria-disabled={!REPO_URL} aria-label={REPO_URL ? "Open source repository, opens in a new tab" : "Open source — public repository URL pending"} title={REPO_URL ? undefined : "Public repository URL pending"} data-repo-pending={!REPO_URL || undefined}>
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 0 0-3.4 17.3l1.9-5a3 3 0 1 1 3 0l1.9 5A9 9 0 0 0 12 3Z" /></svg>
-    Open source <span aria-hidden="true">↗</span>
-  </a>
   <a class="download-button" href="https://git.1bye.dev/download">Download for macOS <span aria-hidden="true">↗</span></a>
   <div class="footer-meta">
     <div class="footer-links"><span>Made by <a href="https://1bye.dev">1bye</a>.</span><a href="/faq/">Questions &amp; answers</a><a href={REPO_URL} target={REPO_URL ? "_blank" : undefined} rel="noopener" role={REPO_URL ? undefined : "link"} tabindex={REPO_URL ? undefined : 0} aria-disabled={!REPO_URL} aria-label={REPO_URL ? "GitHub repository, opens in a new tab" : "GitHub — public repository URL pending"} title={REPO_URL ? undefined : "Public repository URL pending"} data-repo-pending={!REPO_URL || undefined}>GitHub <span aria-hidden="true">↗</span></a><button class="motion-toggle" type="button" data-motion-toggle aria-pressed="false" hidden>Pause animations</button></div>
     <p>macOS 13+ · Apple Silicon · Git required</p>
   </div>
-  <a class="end-url" href="#top">git.1bye.dev</a>
 </footer>
