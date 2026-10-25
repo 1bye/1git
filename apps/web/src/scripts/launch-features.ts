@@ -74,8 +74,8 @@ export function initFeatures(): void {
 			...section.querySelectorAll<HTMLButtonElement>("[data-theme-index]"),
 		];
 
-		const images = [
-			...section.querySelectorAll<HTMLImageElement>(".theme-wallpaper"),
+		const frames = [
+			...section.querySelectorAll<HTMLElement>("[data-theme-frame]"),
 		];
 
 		let timer = 0;
@@ -86,8 +86,13 @@ export function initFeatures(): void {
 		const select = (value: number) => {
 			index = value;
 
-			for (const [i, image] of images.entries())
-				image.toggleAttribute("data-active", i === value);
+			for (const frame of frames) {
+				const active = Number(frame.dataset.themeFrame) === value;
+
+				frame.toggleAttribute("data-active", active);
+				frame.inert = !active;
+				frame.setAttribute("aria-hidden", String(!active));
+			}
 
 			for (const [i, button] of buttons.entries())
 				button.setAttribute("aria-pressed", String(i === value));
@@ -98,7 +103,7 @@ export function initFeatures(): void {
 
 			if (visible && !paused() && !manual)
 				timer = window.setInterval(
-					() => select((index + 1) % images.length),
+					() => select((index + 1) % buttons.length),
 					800
 				);
 		};

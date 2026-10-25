@@ -20,6 +20,10 @@ SEO/OG assets, not as a feature-window stand-in.
 1. Replace repeated feature windows with named capture slots and explicit missing
    states. Supplied captures use Astro Image, dimensions and lazy responsive WebP.
 
+2. Cross-fade each wallpaper and its matching window slot together at 800ms;
+   pause offscreen, preserve manual controls and the 22% tint. Removed the old
+   wallpaper-only caption. The four missing captures are explicit placeholders.
+
 ## Acceptance checklist
 
 - ✘ No screenshot used more than twice; every alt unique and specific — named slots
