@@ -1,8 +1,11 @@
 import { lightColors } from "@1git/design-tokens";
 import { densities, palettes, type UiTokens } from "@1git/gpuix-ui/tokens";
 
-/** Explicit, window-local appearance; older sessions keep their existing light theme. */
+/** Resolved window palette, independent of the saved automatic/manual preference. */
 export type AppAppearance = "light" | "dark";
+
+/** System follows macOS automatically; explicit choices override it for this app. */
+export type AppAppearancePreference = AppAppearance | "system";
 
 export const appColors = {
 	light: {

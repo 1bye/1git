@@ -44,6 +44,8 @@ import {
 	windowAppearancePatchPath,
 	windowAppearancePlatformPatchPath,
 	workspaceShortcutsPatchPath,
+	systemAppearancePatchPath,
+	systemAppearancePlatformPatchPath,
 } from "./config";
 
 if (process.platform !== "darwin" || process.arch !== "arm64") {
@@ -132,6 +134,8 @@ if (
 		textareaViewportPatchPath,
 		textareaDecorationsPatchPath,
 		workspaceShortcutsPatchPath,
+		systemAppearancePatchPath,
+		systemAppearancePlatformPatchPath,
 	];
 
 	// Later patches can change an earlier patch's context. Unwind known patches
@@ -148,7 +152,8 @@ if (
 			patch === sidebarVibrancyPlatformPatchPath ||
 			patch === contextMenuIconsPlatformPatchPath ||
 			patch === roundedOverflowPlatformPatchPath ||
-			patch === windowAppearancePlatformPatchPath
+			patch === windowAppearancePlatformPatchPath ||
+			patch === systemAppearancePlatformPatchPath
 				? resolve(source, "zed")
 				: source;
 
@@ -174,7 +179,8 @@ if (
 			patch === sidebarVibrancyPlatformPatchPath ||
 			patch === contextMenuIconsPlatformPatchPath ||
 			patch === roundedOverflowPlatformPatchPath ||
-			patch === windowAppearancePlatformPatchPath
+			patch === windowAppearancePlatformPatchPath ||
+			patch === systemAppearancePlatformPatchPath
 				? resolve(source, "zed")
 				: source;
 

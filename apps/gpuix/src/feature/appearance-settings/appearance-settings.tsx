@@ -121,7 +121,12 @@ export function AppearanceSettings() {
 
 /** The same live theme previews for Settings and first-run setup; no defaults change on mount. */
 export function AppearanceChoices() {
-	const { appearance, tokens, setAppearance } = useAppTheme();
+	const {
+		appearance,
+		appearancePreference = appearance,
+		tokens,
+		setAppearance,
+	} = useAppTheme();
 
 	return (
 		<div
@@ -135,13 +140,15 @@ export function AppearanceChoices() {
 				maxWidth: 480,
 			}}
 		>
-			{(["light", "dark"] as const).map((choice) => (
+			{(["light", "dark", "system"] as const).map((choice) => (
 				<Button
 					key={choice}
 					tokens={tokens}
 					testId={`appearance-${choice}`}
-					aria-label={`${choice === "light" ? "Light" : "Dark"} theme`}
-					aria-description={appearance === choice ? "Selected" : undefined}
+					aria-label={`${choice === "system" ? "Auto" : choice === "light" ? "Light" : "Dark"} theme`}
+					aria-description={
+						appearancePreference === choice ? "Selected" : undefined
+					}
 					variant="secondary"
 					disabled={!setAppearance}
 					onPress={() => setAppearance?.(choice)}
@@ -155,12 +162,14 @@ export function AppearanceChoices() {
 						padding: spacing[2],
 						borderWidth: 1,
 						borderColor:
-							appearance === choice
+							appearancePreference === choice
 								? tokens.colors.accentBorder
 								: tokens.colors.border,
 					}}
 				>
-					<ThemePreview appearance={choice} />
+					<ThemePreview
+						appearance={choice === "system" ? appearance : choice}
+					/>
 					<text
 						style={{
 							...typography.md,
@@ -168,7 +177,11 @@ export function AppearanceChoices() {
 							pointerEvents: "none",
 						}}
 					>
-						{choice === "light" ? "Light" : "Dark"}
+						{choice === "system"
+							? "Auto"
+							: choice === "light"
+								? "Light"
+								: "Dark"}
 					</text>
 				</Button>
 			))}

@@ -8,6 +8,7 @@ import {
 	appColors,
 	appControlTokens,
 	type AppAppearance,
+	type AppAppearancePreference,
 	type AppColors,
 } from "./tokens";
 
@@ -37,7 +38,8 @@ export const appThemes: Readonly<Record<AppAppearance, AppTheme>> = {
 
 export const AppThemeContext = createContext<
 	AppTheme & {
-		readonly setAppearance?: (appearance: AppAppearance) => void;
+		readonly appearancePreference?: AppAppearancePreference;
+		readonly setAppearance?: (appearance: AppAppearancePreference) => void;
 		readonly commitTypeBadges: boolean;
 		readonly setCommitTypeBadges?: (enabled: boolean) => void;
 		readonly smoothTransitions?: boolean;

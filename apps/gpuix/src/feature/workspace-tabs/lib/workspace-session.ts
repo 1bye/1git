@@ -11,7 +11,7 @@ import {
 	RepositoryDiscovery,
 	type RepositoryDiscoveryPreferences,
 } from "../../repository-discovery/repository-discovery";
-import type { AppAppearance } from "../../../styles/tokens";
+import type { AppAppearancePreference } from "../../../styles/tokens";
 import {
 	RepositoryColors,
 	type RepositoryColorChoices,
@@ -59,7 +59,7 @@ export interface WorkspaceSessionDocument {
 	readonly repositoryDiscovery?: RepositoryDiscoveryPreferences;
 	readonly repositoryLibrary?: RepositoryLibraryPreferences;
 	readonly diffSettings?: DiffSettings;
-	readonly appearance?: AppAppearance;
+	readonly appearance?: AppAppearancePreference;
 	readonly commitTypeBadges?: boolean;
 	readonly smoothTransitions?: boolean;
 	readonly repositoryColors?: RepositoryColorChoices;
@@ -226,7 +226,9 @@ export class WorkspaceSession {
 				? { repositoryLibrary }
 				: {}),
 			tabs,
-			...(value.appearance === "light" || value.appearance === "dark"
+			...(value.appearance === "light" ||
+			value.appearance === "dark" ||
+			value.appearance === "system"
 				? { appearance: value.appearance }
 				: {}),
 			...(typeof value.commitTypeBadges === "boolean"
@@ -280,7 +282,7 @@ export class WorkspaceSession {
 	static capture(
 		state: WorkspaceTabsState,
 		diffSettings?: DiffSettings,
-		appearance?: AppAppearance,
+		appearance?: AppAppearancePreference,
 		commitTypeBadges?: boolean,
 		onboarding?: OnboardingStep,
 		repositoryColors?: RepositoryColorChoices,

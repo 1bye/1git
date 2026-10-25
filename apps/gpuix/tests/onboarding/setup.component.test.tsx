@@ -289,7 +289,7 @@ it("ignores stale GitHub discovery after switching to GitLab", async () => {
 	expect(f.requests).toHaveLength(0);
 });
 
-it.each(["light", "dark"] as const)(
+it.each(["light", "dark", "system"] as const)(
 	"keeps theme selection explicit and finishes setup with Continue without opening a repository (%s)",
 	async (appearance) => {
 		const props = fixture();
@@ -307,7 +307,7 @@ it.each(["light", "dark"] as const)(
 		expect(root.renderer.getFocusedElementId()).toBe(
 			node("appearance-light").id
 		);
-		expect(node("appearance-light").customProps?.["aria-description"]).toBe(
+		expect(node("appearance-system").customProps?.["aria-description"]).toBe(
 			"Selected"
 		);
 		await click(`appearance-${appearance}`);

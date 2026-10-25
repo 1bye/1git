@@ -425,8 +425,8 @@ and keyboard activation remain intact; ordinary field borders are unchanged.
 
 ## Appearance
 
-Settings → Appearance offers Light and Dark, with live previews and immediate switching.
-Light remains the default for new and older sessions. The choice is saved alongside
+Settings → Appearance offers Light, Dark and Auto, with live previews and immediate switching.
+Auto follows macOS and is the default when no preference has been saved. The choice is saved alongside
 diff preferences in the workspace session and restores on restart. Switching does
 not remount workspaces, clear drafts/inclusion, reload Git, or reset native diff scroll.
 
@@ -443,8 +443,8 @@ Syntax colors follow [GitHub Dark Default](https://github.com/primer/github-vsco
 mapped to native token kinds rather than every language-specific scope. Comments
 use a brighter Primer gray to remain readable on changed rows; diff backgrounds
 and the app's surfaces are unchanged by the syntax palette.
-The owning native window follows the selected appearance; there is no automatic
-system-theme following in this version.
+The owning native window follows the resolved palette. Auto checks the application’s
+effective macOS appearance once per second, independently of per-window overrides.
 
 Appearance also offers **Show commit type badges**, enabled by default and saved
 with the window session. History (including file history), comparison/PR commit

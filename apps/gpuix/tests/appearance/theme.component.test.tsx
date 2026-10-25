@@ -35,9 +35,10 @@ afterEach(() => {
 });
 
 function fixture(
-	appearance?: "light" | "dark",
+	appearance?: "light" | "dark" | "system",
 	commitTypeBadges?: boolean,
-	smoothTransitions?: boolean
+	smoothTransitions?: boolean,
+	initialSystemAppearance: AppAppearance = "light"
 ) {
 	const root = createTestRoot({
 		width: 1100,
@@ -48,8 +49,10 @@ function fixture(
 	roots.add(root);
 	root.renderer.clockPause();
 	const nativeAppearances: AppAppearance[] = [];
+	let systemAppearance = initialSystemAppearance;
 
 	Object.assign(root.renderer, {
+		getSystemAppearance: () => systemAppearance,
 		setWindowAppearance(appearance: AppAppearance) {
 			nativeAppearances.push(appearance);
 		},
@@ -149,6 +152,9 @@ function fixture(
 		reads: () => reads.filter((path) => path === "example.ts").length,
 		historyReads: () => historyReads,
 		nativeAppearances,
+		setSystemAppearance: (value: AppAppearance) => {
+			systemAppearance = value;
+		},
 	};
 }
 
@@ -516,4 +522,36 @@ it("supports keyboard selection without leaking appearance into another session"
 		appColors.light.chrome
 	);
 	second.catalog.mockRestore();
+});
+
+it("follows system changes in Auto, persists the preference and honors manual overrides", async () => {
+	const { root, saved, catalog, nativeAppearances, setSystemAppearance } =
+		fixture("system", undefined, false, "dark");
+
+	try {
+		await settle(root);
+		expect(nativeAppearances).toEqual(["dark"]);
+		await openSettings(root);
+		click(root, "settings-appearance");
+		expect(
+			node(root, "appearance-system").customProps?.["aria-description"]
+		).toBe("Selected");
+		setSystemAppearance("light");
+		await Bun.sleep(1050);
+		await settle(root);
+		expect(nativeAppearances.at(-1)).toBe("light");
+		expect(saved.at(-1)?.appearance).toBe("system");
+		expect(saved.at(-1)?.tabs[0]?.draft).toBe("Keep my draft");
+		click(root, "appearance-dark");
+		await settle(root);
+		await Bun.sleep(1050);
+		await settle(root);
+		expect(nativeAppearances.at(-1)).toBe("dark");
+		expect(saved.at(-1)?.appearance).toBe("dark");
+		click(root, "appearance-system");
+		await settle(root);
+		expect(nativeAppearances.at(-1)).toBe("light");
+	} finally {
+		catalog.mockRestore();
+	}
 });

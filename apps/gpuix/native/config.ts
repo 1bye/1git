@@ -134,6 +134,14 @@ export const workspaceShortcutsPatchPath = resolve(
 	import.meta.dir,
 	"workspace-shortcuts.patch"
 );
+export const systemAppearancePlatformPatchPath = resolve(
+	import.meta.dir,
+	"system-appearance-platform.patch"
+);
+export const systemAppearancePatchPath = resolve(
+	import.meta.dir,
+	"system-appearance.patch"
+);
 export const nativeBuildId = createHash("sha256")
 	.update(nativeRevision)
 	.update(readFileSync(patchPath))
@@ -171,5 +179,7 @@ export const nativeBuildId = createHash("sha256")
 	.update(readFileSync(contextMenuIconsPatchPath))
 	.update(readFileSync(contextMenuIconsPlatformPatchPath))
 	.update(readFileSync(workspaceShortcutsPatchPath))
+	.update(readFileSync(systemAppearancePlatformPatchPath))
+	.update(readFileSync(systemAppearancePatchPath))
 	.update(`${process.platform}-${process.arch}-release-v1`)
 	.digest("hex");

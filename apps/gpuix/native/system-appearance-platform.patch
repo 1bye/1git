@@ -1,0 +1,33 @@
+diff --git a/crates/gpui_macos/src/window_appearance.rs b/crates/gpui_macos/src/window_appearance.rs
+--- a/crates/gpui_macos/src/window_appearance.rs
++++ b/crates/gpui_macos/src/window_appearance.rs
+@@ -8,6 +8,17 @@
+ use objc::runtime::{BOOL, YES};
+ use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+ use std::ffi::CStr;
++
++/// Read the application's effective appearance independently of window overrides.
++pub fn system_appearance() -> gpui::WindowAppearance {
++    unsafe {
++        let app: id = msg_send![class!(NSApplication), sharedApplication];
++        let appearance: id = msg_send![app, effectiveAppearance];
++        let names: id = msg_send![class!(NSArray), arrayWithObjects: [NSAppearanceNameAqua, NSAppearanceNameDarkAqua].as_ptr() count: 2_usize];
++        let name: id = msg_send![appearance, bestMatchFromAppearancesWithNames: names];
++        if name == NSAppearanceNameDarkAqua { gpui::WindowAppearance::Dark } else { gpui::WindowAppearance::Light }
++    }
++}
+ 
+ /// Set only the owning NSWindow; its Sidebar material inherits the chosen appearance.
+ pub fn set_window_appearance(window: &gpui::Window, dark: bool) -> anyhow::Result<()> {
+diff --git a/crates/gpui_macos/src/gpui_macos.rs b/crates/gpui_macos/src/gpui_macos.rs
+--- a/crates/gpui_macos/src/gpui_macos.rs
++++ b/crates/gpui_macos/src/gpui_macos.rs
+@@ -37,7 +37,7 @@
+ mod platform;
+ mod window;
+ mod window_appearance;
+-pub use window_appearance::set_window_appearance;
++pub use window_appearance::{set_window_appearance, system_appearance};
+ 
+ use cocoa::{
+     base::{id, nil},

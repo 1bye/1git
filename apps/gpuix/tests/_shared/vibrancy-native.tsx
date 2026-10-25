@@ -158,6 +158,17 @@ assert.throws(
 
 for (const choice of ["dark", "light", "dark"] as const) {
 	Reflect.apply(setWindowAppearance, renderer, [choice]);
+	const getSystemAppearance: unknown = Reflect.get(
+		renderer,
+		"getSystemAppearance"
+	);
+
+	assert.ok(typeof getSystemAppearance === "function");
+	assert.equal(
+		Reflect.apply(getSystemAppearance, renderer, []),
+		process.argv[2] === "dark" ? "dark" : "light",
+		"system appearance must ignore the window override"
+	);
 
 	for (let frame = 0; frame < 10; frame++) {
 		assert.ok(renderer.tick(), "theme switching must preserve the live window");

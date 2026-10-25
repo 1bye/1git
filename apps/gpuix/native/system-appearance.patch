@@ -1,0 +1,20 @@
+diff --git a/packages/native/src/renderer.rs b/packages/native/src/renderer.rs
+--- a/packages/native/src/renderer.rs
++++ b/packages/native/src/renderer.rs
+@@ -1782,6 +1782,16 @@
+         ))
+     }
+ 
++    /// Read the OS preference, unaffected by an explicit per-window appearance.
++    #[cfg(target_os = "macos")]
++    #[napi]
++    pub fn get_system_appearance(&self) -> String {
++        match gpui_macos::system_appearance() {
++            gpui::WindowAppearance::Dark | gpui::WindowAppearance::VibrantDark => "dark",
++            _ => "light",
++        }.to_string()
++    }
++
+     /// Match this window's AppKit material and menus to its explicit app theme.
+     #[cfg(target_os = "macos")]
+     #[napi]

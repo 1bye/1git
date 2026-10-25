@@ -6,7 +6,7 @@ import {
 } from "../lib/workspace-session";
 import type { WorkspaceTabsState } from "../lib/workspace-tabs-model";
 import type { DiffSettings } from "../../repository-workspace/lib/repository-diff";
-import type { AppAppearance } from "../../../styles/tokens";
+import type { AppAppearancePreference } from "../../../styles/tokens";
 import { AppTermination } from "../../../app-termination";
 import type { RepositoryColorChoices } from "../../repository-appearance/repository-colors";
 import type { RepositoryDiscoveryPreferences } from "../../repository-discovery/repository-discovery";
@@ -19,7 +19,7 @@ export function useWorkspaceSession(
 	save: ((document: WorkspaceSessionDocument) => void) | undefined,
 	initialError?: string,
 	diffSettings?: DiffSettings,
-	appearance?: AppAppearance,
+	appearance?: AppAppearancePreference,
 	commitTypeBadges?: boolean,
 	onboarding?: OnboardingStep,
 	repositoryColors?: RepositoryColorChoices,

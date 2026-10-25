@@ -148,11 +148,11 @@ it("precomputes independent style values without mutating a shared palette", () 
 
 it("round-trips appearance and tolerates missing or invalid optional preferences", () => {
 	const state = WorkspaceTabsModel.create();
-	const captured = WorkspaceSession.capture(state, undefined, "dark");
+	const captured = WorkspaceSession.capture(state, undefined, "system");
 
 	expect(WorkspaceSession.parse(JSON.stringify(captured))).toEqual(captured);
 
-	for (const appearance of [undefined, "system", "future-mode", 5, null]) {
+	for (const appearance of [undefined, "future-mode", 5, null]) {
 		const parsed = WorkspaceSession.parse(
 			JSON.stringify({ ...captured, appearance })
 		);

@@ -11,7 +11,8 @@ import { SpaceManager, SpacesSettings } from "./feature/spaces/space-manager";
 import { MachineContext } from "./feature/machines/machine-context";
 import { RemoteFolderPicker } from "./feature/machines/remote-folder-picker";
 import { AppThemeContext, appThemes, useAppTheme } from "./styles/theme";
-import type { AppAppearance } from "./styles/tokens";
+import { useSystemAppearance } from "./styles/system-appearance";
+import type { AppAppearancePreference } from "./styles/tokens";
 import { RepositoryTheme } from "./styles/repository-theme";
 import { RepositoryColors } from "./feature/repository-appearance/repository-colors";
 import { RepositoryAppearanceEditor } from "./feature/repository-appearance/repository-appearance-editor";
@@ -136,9 +137,15 @@ export function App({
 }: ComponentProps<typeof AppContent> & { ai?: AiIntegration }) {
 	const renderer = useGpuixRequired();
 
-	const [appearance, setAppearance] = useState<AppAppearance>(
-		props.initialSession?.appearance ?? "light"
-	);
+	const [appearancePreference, setAppearance] =
+		useState<AppAppearancePreference>(
+			props.initialSession?.appearance ?? "system"
+		);
+
+	const systemAppearance = useSystemAppearance(renderer, appearancePreference);
+
+	const appearance =
+		appearancePreference === "system" ? systemAppearance : appearancePreference;
 
 	const [commitTypeBadges, setCommitTypeBadges] = useState(
 		props.initialSession?.commitTypeBadges ?? true
@@ -160,13 +167,14 @@ export function App({
 	const theme = useMemo(
 		() => ({
 			...appThemes[appearance],
+			appearancePreference,
 			setAppearance,
 			commitTypeBadges,
 			setCommitTypeBadges,
 			smoothTransitions,
 			setSmoothTransitions,
 		}),
-		[appearance, commitTypeBadges, smoothTransitions]
+		[appearance, appearancePreference, commitTypeBadges, smoothTransitions]
 	);
 
 	return (
@@ -569,7 +577,7 @@ function AppContent({
 		saveSession,
 		preview ? undefined : sessionError,
 		diffSettings,
-		theme.appearance,
+		theme.appearancePreference ?? theme.appearance,
 		theme.commitTypeBadges,
 		onboarding,
 		repositoryColors,
