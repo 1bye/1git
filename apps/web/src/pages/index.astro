@@ -3,7 +3,8 @@ import Layout from "../layouts/Layout.astro";
 import Hero from "../components/Hero.astro";
 import IntroSequence from "../components/IntroSequence.astro";
 import EndCard from "../components/EndCard.astro";
-import workspaceScreenshot from "../assets/1git-native-window.png";
+import workspaceScreenshot from "../assets/screens/changes.webp";
+import { REPO_URL } from "../components/repository-link";
 import Features from "../components/Features.astro";
 import "../styles/scenes.css";
 
@@ -20,7 +21,8 @@ const application = {
   downloadUrl: new URL("/download", Astro.site).href,
   screenshot: new URL(workspaceScreenshot.src, Astro.site).href,
   image: new URL("/og.png", Astro.site).href,
-  author: { "@type": "Person", name: "1bye", url: "https://1bye.dev/" },
+  author: { "@id": "https://1bye.dev/#person" },
+  sameAs: REPO_URL,
   featureList: [
     "Native GPU-rendered interface", "Review changes and commit selected files",
     "Branches and worktrees", "Spaces and repository tabs", "Commit history",
@@ -35,7 +37,7 @@ const application = {
   <IntroSequence />
   <header class="site-header" inert>
     <div class="site-header-content">
-      <a class="brand" href="#top" aria-label="1git home"><img src="/favicon.svg" width="30" height="30" alt="1git macOS application icon." /><span>1git</span></a>
+      <a class="brand" href="#top" aria-label="1git home"><span>1git</span></a>
       <nav aria-label="Main navigation"><a href="#features">Explore</a><a href="/faq/">FAQ</a><a class="header-download" href="https://git.1bye.dev/download">Download</a></nav>
     </div>
   </header>

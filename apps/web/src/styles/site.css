@@ -44,7 +44,6 @@ img { height: auto; }
 .brand { display: inline-flex; align-items: center; gap: 7px; font-weight: 600; }
 .brand img { width: 30px; height: 30px; }
 .brand span { font: italic 400 32px/1 var(--font-display); letter-spacing: -.01em; }
-.site-header .brand img, .faq-nav .brand img { width: 20px; height: 20px; }
 .site-header .brand span, .faq-nav .brand span { font-size: 24px; }
 .site-header nav { display: flex; align-items: center; gap: 2px; font-size: 13px; font-weight: 500; }
 .site-header nav a:not(.header-download) { padding: 7px 12px; border-radius: 999px; color: var(--ink-strong); transition: background 200ms var(--ease-out); }

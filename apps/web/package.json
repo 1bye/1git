@@ -9,6 +9,7 @@
     "preview": "astro preview --host 127.0.0.1",
     "check-types": "astro check && tsc --noEmit -p tsconfig.infra.json",
     "test": "bun test tests",
+    "check-seo": "bun run build && bun scripts/check-seo.ts",
     "plan": "bun run build && alchemy plan --stage prod --profile personal",
     "deploy": "bun run build && alchemy deploy --stage prod --profile personal",
     "deploy:preview": "bun run build && alchemy deploy --stage preview --profile personal"

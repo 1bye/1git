@@ -52,8 +52,23 @@ recorded in `src/assets/screens/README.md`.
   Issues remain under Coming soon.
 - “File history. Across renames.” is requested wording that still needs final
   product-copy review. No new feature, metric or testimonial was invented.
-- The public repository URL remains unresolved. GitHub is visibly disabled until
-  PUBLIC_REPO_URL is supplied; no destination was guessed.
+- The GitHub footer uses the configured public repository at `https://github.com/1bye/1git`; forks can override `PUBLIC_REPO_URL`.
+
+## Search and sharing
+
+- Link WebSite, WebPage/FAQPage, SoftwareApplication, author and sharing-image
+  entities. Match FAQ schema to its visible answers and app metadata to the
+  current Changes capture. Keep canonical URLs, sitemap and crawl permissions.
+- Replace the old dark sharing image with a static 1200×630 blue glow, cloud,
+  outlined serif lettering and Changes window. Open Graph/Twitter use the same
+  image, with dimensions, descriptive alt text and HTTPS URL.
+- Use the approved serif/clouds favicon and iOS icon. Remove header app icons.
+- Add `bun run check-seo` to build and validate metadata, schema, visible FAQ
+  answers, sitemap, robots, image paths, favicon assets and the OG image itself.
+- GEO follows [Google's AI search guidance](https://developers.google.com/search/docs/appearance/ai-features): readable, factual static HTML and ordinary SEO.
+  No hidden keyword copy, invented ratings/prices or special AI ranking markup.
+  Deployment, Search Console submission and social cache refresh remain external
+  release steps; local validation is not a claim of indexing or rich results.
 
 ## Validation
 

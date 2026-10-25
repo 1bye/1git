@@ -157,3 +157,30 @@ Instrument Serif and Inter are Latin-subset WOFF2 files derived from the same OF
 fonts used in the film. Their licenses are in `public/licenses/`. Icons reuse the
 existing local glyph set; `public/licenses/phosphor-icons.txt` is retained.
 No runtime font provider or animation dependency is needed.
+
+## Search, AI discovery and sharing
+
+The homepage and FAQ are static HTML with page-specific titles/descriptions,
+production canonical URLs, Open Graph/Twitter metadata and linked JSON-LD for
+WebSite, WebPage/FAQPage, SoftwareApplication, author and sharing image. FAQ
+answers are visible text generated from the same content as their schema.
+`robots.txt` permits crawlers; `sitemap.xml` lists only the two indexable pages.
+The 404 stays `noindex` and is excluded from the sitemap.
+
+`/og.png` is a static 1200×630 PNG using the launch film's serif lettering, blue
+glow, clouds and Changes window. It needs no browser JS, installed fonts, or
+remote image requests. Source artwork is documented in `src/assets/social/`.
+
+Run `bun run check-seo` after changing copy, metadata or sharing artwork. It builds
+and checks the actual output, including schema JSON, visible FAQ answers, local
+image paths, favicon files, the OG image dimensions and application-window crop.
+
+AI search uses the same crawlable, factual content and SEO foundations; no hidden
+keyword blocks or special AI ranking markup are added. See [Google's AI search
+guidance](https://developers.google.com/search/docs/appearance/ai-features) and
+[Open Graph](https://ogp.me/). SoftwareApplication describes the app without
+inventing reviews, ratings or prices to qualify for enhanced Google results.
+
+These checks cover the local build. After deployment, verify public responses,
+submit the sitemap in Search Console/Bing Webmaster Tools, and refresh cached
+social previews. No indexing or ranking outcome is guaranteed by metadata.

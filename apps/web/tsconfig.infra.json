@@ -5,5 +5,10 @@
     "types": ["bun"],
     "noEmit": true
   },
-  "include": ["alchemy.run.ts", "infra/**/*.ts", "tests/**/*.ts"]
+  "include": [
+    "alchemy.run.ts",
+    "infra/**/*.ts",
+    "tests/**/*.ts",
+    "scripts/**/*.ts"
+  ]
 }

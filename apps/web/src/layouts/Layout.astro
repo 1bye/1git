@@ -21,8 +21,18 @@ const {
 
 const canonical = new URL(Astro.url.pathname, Astro.site);
 const socialImage = new URL("/og.png", Astro.site);
-const socialImageAlt = "1git — A clearer view of every change. App screenshot showing repository tabs, stashes, and a file diff.";
+const socialImageAlt = "1git — A clearer view. Of every change. White serif lettering on a blue cloud glow beside the Changes window with repository tabs and a README diff.";
 const cloudTexture = await getImage({ src: cloudWisp, format: "webp" });
+const author = { "@type": "Person", "@id": "https://1bye.dev/#person", name: "1bye", url: "https://1bye.dev/" };
+const image = {
+  "@type": "ImageObject",
+  "@id": `${socialImage.href}#image`,
+  url: socialImage.href,
+  contentUrl: socialImage.href,
+  width: 1200,
+  height: 630,
+  caption: socialImageAlt,
+};
 
 const graph = {
   "@context": "https://schema.org",
@@ -33,6 +43,7 @@ const graph = {
       name: "1git",
       url: Astro.site?.href,
       inLanguage: "en",
+      publisher: { "@id": author["@id"] },
     },
     {
       "@type": "WebPage",
@@ -42,8 +53,13 @@ const graph = {
       description,
       inLanguage: "en",
       isPartOf: { "@id": new URL("/#website", Astro.site).href },
+      primaryImageOfPage: { "@id": image["@id"] },
+      about: { "@id": new URL("/#app", Astro.site).href },
+      ...(structuredData?.["@type"] === "SoftwareApplication" ? { mainEntity: { "@id": structuredData["@id"] } } : {}),
       ...(structuredData?.["@type"] === "FAQPage" ? structuredData : {}),
     },
+    author,
+    image,
     ...(structuredData && structuredData["@type"] !== "FAQPage" ? [structuredData] : []),
   ],
 };
@@ -55,12 +71,12 @@ const graph = {
     <meta charset="UTF-8" />
     <script is:inline define:vars={{ motionStorageKey }}>
       try { if (localStorage.getItem(motionStorageKey) === "1") document.documentElement.setAttribute("data-motion-paused", ""); } catch { /* Storage may be unavailable. */ }
-</script>
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={description} />
     <meta name="theme-color" content="#5a7fc2" />
     <meta name="color-scheme" content="light" />
-    <meta name="robots" content={noindex ? "noindex, follow" : "index, follow, max-image-preview:large"} />
+    <meta name="robots" content={noindex ? "noindex, follow" : "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"} />
     <meta property="og:type" content="website" />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
@@ -68,6 +84,7 @@ const graph = {
     <meta property="og:site_name" content="1git" />
     <meta property="og:locale" content="en_US" />
     <meta property="og:image" content={socialImage} />
+    <meta property="og:image:secure_url" content={socialImage} />
     <meta property="og:image:type" content="image/png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
@@ -79,7 +96,9 @@ const graph = {
     <meta name="twitter:image:alt" content={socialImageAlt} />
     {!noindex && <link rel="canonical" href={canonical} />}
     <link rel="preload" href="/fonts/instrument-serif-italic.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="64x64" href="/favicon-64.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     {!noindex && <script type="application/ld+json" set:html={JSON.stringify(graph).replace(/</g, "\\u003c")} />}
     <title>{title}</title>
   </head>
