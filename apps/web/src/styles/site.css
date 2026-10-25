@@ -21,7 +21,7 @@ img { height: auto; }
 [hidden] { display: none !important; }
 .skip-link { position: fixed; z-index: 100; top: 12px; left: 12px; padding: 14px 20px; background: var(--glow-deep); border-radius: 8px; transform: translateY(-160%); }
 .skip-link:focus { transform: translateY(0); }
-.display, .section-intro h2, .feature-copy h3, .not-found h1 { font-family: var(--font-display); font-style: italic; font-weight: 400; letter-spacing: -.01em; line-height: 1.05; }
+.display, .feature-copy h3, .not-found h1 { font-family: var(--font-display); font-style: italic; font-weight: 400; letter-spacing: -.01em; line-height: 1.05; }
 .eyebrow { color: var(--ink-label); font-size: 12px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; }
 .glow-background { --glow-y: 40vh; --glow-radius-x: 52vw; --glow-radius-y: 60vh; --zone-inner: var(--glow-inner); --zone-outer: var(--glow-outer); position: fixed; inset: 0; z-index: -1; pointer-events: none; isolation: isolate; background: radial-gradient(ellipse var(--glow-radius-x) var(--glow-radius-y) at 50% var(--glow-y),var(--zone-inner),var(--zone-outer)); }
 .glow-background[data-variant="hero"] { --zone-inner: var(--glow-inner); }
@@ -33,7 +33,7 @@ img { height: auto; }
 /* Protect text locally, leaving the pale glow edge visible between sections. */
 .hero-copy { position: relative; isolation: isolate; }
 .feature-copy, .feature-column { position: relative; }
-.hero-copy::before, .feature-copy::before, .feature-column::before, .section-intro::before, .end-card::before { content: ''; position: absolute; z-index: -1; inset: -200px; background: radial-gradient(ellipse,#183969d9 0%,#183969d9 65%,transparent 100%); filter: blur(36px); pointer-events: none; }
+.hero-copy::before, .feature-copy::before, .feature-column::before, .end-card::before { content: ''; position: absolute; z-index: -1; inset: -200px; background: radial-gradient(ellipse,#183969d9 0%,#183969d9 65%,transparent 100%); filter: blur(36px); pointer-events: none; }
 .hero-copy { max-width: 720px; }
 .hero-copy::before { inset: -60px -160px; background: radial-gradient(ellipse at 50% 80%,#183969b3 0%,#183969a6 40%,transparent 75%); }
 .end-card { isolation: isolate; }
@@ -80,12 +80,11 @@ img { height: auto; }
 .intro-glow { position: absolute; inset: -40%; background: radial-gradient(ellipse at center,var(--glow-mid),#e9eef6 75%); animation: intro-glow 2s var(--ease-accel) both; }
 .intro-mobile-word { display: none; }
 .features { position: relative; isolation: isolate; padding-top: 130px; overflow: hidden; }
-.section-intro { position: relative; max-width: 1200px; margin: 0 auto 80px; padding: 0 32px; text-align: center; }
-.section-intro::before { top: -32px; }
-.section-intro h2 { margin: 18px 0; font-size: clamp(54px,7vw,100px); }
 .motion-toggle { border: 0; padding: 0; background: transparent; color: inherit; font: inherit; text-decoration: underline; text-underline-offset: 4px; }
 .feature-block { position: relative; width: min(1200px, calc(100% - 80px)); margin: 0 auto 160px; display: grid; grid-template-columns: .8fr 1.2fr; align-items: center; gap: 64px; }
 .feature-block:nth-of-type(2n) .feature-copy { order: 2; }
+/* Keep the first text glow clear of the hero boundary after removing the title. */
+.feature-native .feature-copy::before { top: -32px; }
 .feature-copy h3 { font-size: clamp(42px,4.4vw,64px); margin: 16px 0; }
 .feature-copy p { font-size: 18px; color: var(--ink-strong); line-height: 1.6; }
 .feature-art { min-width: 0; position: relative; }
@@ -214,7 +213,6 @@ img { height: auto; }
   .hero-description { font-size: 15px; max-width: 31ch; line-height: 1.7; }
   .hero-window-stage { margin-top: 50px; }
   .hero-product { width: 125%; margin: 0 0 0 -12.5%; }
-  .section-intro::before { top: 0; }
   .download-button { min-height: 49px; padding: 0 20px; font-size: 12px; gap: 12px; }
   .download-note { font-size: 10px; }
   .desktop-break { display: none; }
@@ -228,8 +226,6 @@ img { height: auto; }
   .site-header .brand img { width: 24px; height: 24px; }
   .site-header .brand span { font-size: 26px; }
   .features { padding-top: 48px; }
-  .section-intro { padding: 0 24px; margin-bottom: 64px; }
-  .section-intro h2 { font-size: 56px; }
   .feature-block { display: flex; flex-direction: column; align-items: stretch; gap: 24px; margin-bottom: 100px; }
   .feature-block:nth-of-type(2n) .feature-copy { order: 0; }
   .feature-copy h3 { font-size: 43px; }

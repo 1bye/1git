@@ -8,7 +8,11 @@ and deployment configuration remain unchanged. No deployment is included.
 
 Remove the hero Explore button, the Built for label and all five numbered section
 labels, the short AI note, both SOON badges, the footer URL and the Open source
-pill. Keep the section headings, Coming soon heading/items, and GitHub footer link.
+pill. Keep the Coming soon heading/items and GitHub footer link.
+
+Use “Built with GPUIX (GPUI).” below Native speed, remove the visible “Everything
+in its place.” title and its layout wrapper, and rename the SSH display title to
+“Remote”. A screen-reader-only Features heading preserves the section hierarchy.
 
 ## Hero gradient blur
 
