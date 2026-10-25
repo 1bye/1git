@@ -160,3 +160,26 @@ diff --git a/dist/mutations.js b/dist/mutations.js
      "highlight",
      "role",
      "aria-label",
+diff --git a/dist/mutations.js b/dist/mutations.js
+--- a/dist/mutations.js
++++ b/dist/mutations.js
+@@ -97,6 +97,7 @@
+     "tabIndex",
+     "motion",
+     "testId",
++    "nativeScrollbar",
+     "windowDrag",
+     "textScale",
+     "highlight",
+diff --git a/dist/host.d.ts b/dist/host.d.ts
+--- a/dist/host.d.ts
++++ b/dist/host.d.ts
+@@ -346,6 +346,8 @@
+     "aria-valuetext"?: string;
+     /** Heading level, 1-based. */
+     "aria-level"?: number;
++    /** 1git: frame-synchronous native scrollbar, independent of React wheel updates. */
++    nativeScrollbar?: { targetId: number; horizontal: boolean; corner: boolean };
+     /** Stable locator id for automation. */
+     testId?: string;
+     /** Internal native animation description used by motion components. */

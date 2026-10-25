@@ -5,8 +5,8 @@
  * Requires: app native preload and macOS graphics access.
  */
 import { afterEach, expect, it } from "bun:test";
-import { useRef } from "react";
-import { flushSync, handleGpuixEvent, type PublicInstance } from "@gpuix/react";
+import { Profiler, useRef } from "react";
+import { type PublicInstance } from "@gpuix/react";
 import { createTestRoot, type TestRoot } from "@gpuix/react/testing";
 import { DiffView } from "../../src/diff-view";
 import { Scrollbars } from "../../src/scrollbar";
@@ -81,7 +81,9 @@ it("leaves scrollbars disabled by default and hides them when content fits", asy
 	expect(root.renderer.findByTestId("scrollbar-vertical")).toBeUndefined();
 	root.render(<Fixture enabled count={1} />);
 	await settle(root);
-	expect(root.renderer.findByTestId("scrollbar-vertical")).toBeUndefined();
+	const bar = root.renderer.findByTestId("scrollbar-vertical")!;
+
+	expect(root.renderer.getElementBounds(bar.id)?.height ?? 0).toBe(0);
 });
 
 it.each([false, true])(
@@ -95,62 +97,34 @@ it.each([false, true])(
 		const bar = elementByTestId(root.renderer, "scrollbar-vertical");
 		const scroller = elementByTestId(root.renderer, "scroller");
 
-		expect(bar.customProps?.["aria-valuemax"]).toBe(2800);
-		flushSync(() =>
-			handleGpuixEvent(
-				{
-					elementId: bar.id,
-					eventType: "keyDown",
-					key: "end",
-				},
-				root.renderer
+		expect(root.renderer.getScrollMetrics(scroller.id, false)?.[1]).toBe(2800);
+		expect(
+			Object.values(root.renderer.getA11yTree().nodes ?? {}).some(
+				(node) =>
+					node.aria?.role === "ScrollBar" &&
+					node.aria.label === "Vertical scroll"
 			)
-		);
+		).toBe(true);
+		root.renderer.nativeSimulateKeyDown(bar.id, "end");
 		root.renderer.advanceTime(1);
 		expect(root.renderer.getScrollOffset(scroller.id)?.[1]).toBe(-2800);
-		await settle(root);
-		flushSync(() =>
-			handleGpuixEvent(
-				{
-					elementId: bar.id,
-					eventType: "mouseDown",
-					x: 295,
-					y: 10,
-				},
-				root.renderer
-			)
-		);
+		const bounds = root.renderer.getElementBounds(bar.id)!;
+		const x = bounds.x + bounds.width / 2;
+
+		root.renderer.nativeSimulateMouseDown(x, bounds.y + 8);
 		root.renderer.advanceTime(1);
 		expect(root.renderer.getScrollOffset(scroller.id)?.[1]).toBeGreaterThan(
 			-200
 		);
-		flushSync(() =>
-			handleGpuixEvent(
-				{
-					elementId: bar.id,
-					eventType: "mouseMove",
-					x: 295,
-					y: 100,
-				},
-				root.renderer
-			)
-		);
+		root.renderer.nativeSimulateMouseMove(x, bounds.y + 100, 0);
 		root.renderer.advanceTime(1);
 		expect(root.renderer.getScrollOffset(scroller.id)?.[1]).toBeLessThan(-1000);
-		flushSync(() =>
-			handleGpuixEvent(
-				{
-					elementId: bar.id,
-					eventType: "mouseUp",
-					x: 295,
-					y: 100,
-				},
-				root.renderer
-			)
-		);
-		expect(
-			root.renderer.findByTestId("scrollbar-vertical-drag")
-		).toBeUndefined();
+		root.renderer.nativeSimulateMouseUp(x, bounds.y + 100);
+		const released = root.renderer.getScrollOffset(scroller.id)?.[1];
+
+		root.renderer.nativeSimulateMouseMove(x, bounds.y + 150);
+		root.renderer.advanceTime(1);
+		expect(root.renderer.getScrollOffset(scroller.id)?.[1]).toBe(released);
 	}
 );
 
@@ -201,8 +175,45 @@ it("anchors a split diff's horizontal scrollbar to the pane viewport", async () 
 
 	// The diff viewport includes a one-pixel border; the scrollbar stays inside it.
 	expect(
-		Math.abs(bounds.y - (viewport.y + viewport.height - 10))
+		Math.abs(bounds.y - (viewport.y + viewport.height - 9))
 	).toBeLessThanOrEqual(2);
 	root.renderer.nativeSimulateKeyDown(horizontal.id, "end");
 	expect(root.renderer.getScrollOffset(content.id)?.[0]).toBeLessThan(-100);
+});
+
+it("keeps the thumb synchronized with native wheel frames without React commits", async () => {
+	const root = createTestRoot({ width: 400, height: 300 });
+	const commits: number[] = [];
+
+	roots.add(root);
+	root.render(
+		<Profiler
+			id="scrollbars"
+			onRender={(_id, _phase, duration) => commits.push(duration)}
+		>
+			<Fixture enabled virtual />
+		</Profiler>
+	);
+	await settle(root);
+	commits.length = 0;
+	const frames: number[] = [];
+
+	for (let frame = 0; frame < 24; frame++) {
+		const start = performance.now();
+
+		root.renderer.dispatchScrollWheel(100, 80, 0, -9);
+		root.renderer.flush();
+		frames.push(performance.now() - start);
+		await Bun.sleep(16);
+	}
+
+	const p90 = frames.toSorted((a, b) => a - b)[
+		Math.floor(frames.length * 0.9)
+	]!;
+
+	process.stdout.write(
+		`Scrollbar wheel: React commits=${commits.length}, p90=${p90.toFixed(2)}ms\n`
+	);
+	expect(commits).toHaveLength(0);
+	expect(p90).toBeLessThan(16.7);
 });

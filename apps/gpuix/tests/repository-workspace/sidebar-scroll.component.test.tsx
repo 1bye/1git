@@ -1,5 +1,5 @@
 /**
- * Covers: native wheel frame cost and React work in Changes, History and Stashes sidebars.
+ * Covers: enabled pane scrollbars, native wheel frame cost and React work in Changes, History and Stashes sidebars.
  * Real: repository navigation/reducer, React Profiler and native layout/paint/events.
  * Doubles: generated repository/revision data; no Git, accounts or personal files.
  * Requires: patched release GPUIX addon and macOS graphics access.
@@ -7,6 +7,7 @@
 import { expect, it } from "bun:test";
 import { Profiler, useState } from "react";
 import { createTestRoot } from "@gpuix/react/testing";
+import { AppThemeContext, appThemes } from "../../src/styles/theme";
 import { RepositoryNavigation } from "../../src/feature/repository-workspace/components/repository-navigation";
 import { RepositoryWorkspaceModel as Model } from "../../src/feature/repository-workspace/lib/repository-workspace-model";
 import type { RepositoryView } from "../../src/feature/repository-workspace/types";
@@ -16,6 +17,12 @@ import {
 } from "../_shared/repository-snapshot";
 import { historyPage } from "../_shared/history-page";
 import { stashList } from "../_shared/stash-list";
+
+const scrollbarTheme = {
+	...appThemes.light,
+	tokens: { ...appThemes.light.tokens, showScrollbars: true },
+	commitTypeBadges: true,
+};
 
 function Sidebar({
 	view,
@@ -66,26 +73,28 @@ function Sidebar({
 	});
 
 	return (
-		<div
-			style={{
-				display: "flex",
-				flexDirection: "row",
-				width: "100%",
-				height: "100%",
-				backgroundColor: "#ffffff",
-			}}
-		>
-			<RepositoryNavigation
-				workspaceId="scroll-fixture"
-				state={state}
-				onAction={(action) => {
-					if (action.type === "scroll") onScrollSave?.(action.y);
-
-					setState((previous) => Model.reduce(previous, action));
+		<AppThemeContext value={scrollbarTheme}>
+			<div
+				style={{
+					display: "flex",
+					flexDirection: "row",
+					width: "100%",
+					height: "100%",
+					backgroundColor: "#ffffff",
 				}}
-				onRefresh={() => {}}
-			/>
-		</div>
+			>
+				<RepositoryNavigation
+					workspaceId="scroll-fixture"
+					state={state}
+					onAction={(action) => {
+						if (action.type === "scroll") onScrollSave?.(action.y);
+
+						setState((previous) => Model.reduce(previous, action));
+					}}
+					onRefresh={() => {}}
+				/>
+			</div>
+		</AppThemeContext>
 	);
 }
 

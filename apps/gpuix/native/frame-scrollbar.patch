@@ -1,0 +1,254 @@
+diff --git a/packages/native/src/custom_elements/mod.rs b/packages/native/src/custom_elements/mod.rs
+--- a/packages/native/src/custom_elements/mod.rs
++++ b/packages/native/src/custom_elements/mod.rs
+@@ -19,6 +19,7 @@
+ pub mod img;
+ pub mod input;
+ pub mod markdown;
++mod scrollbar;
+ 
+ // ── Render context ───────────────────────────────────────────────────
+ 
+@@ -331,6 +332,7 @@
+         registry.register(Box::new(code::CodeFactory));
+         registry.register(Box::new(diff::DiffFactory));
+         registry.register(Box::new(markdown::MarkdownFactory));
++        registry.register(Box::new(scrollbar::ScrollbarFactory));
+         registry
+     }
+ 
+diff --git a/packages/native/src/renderer.rs b/packages/native/src/renderer.rs
+--- a/packages/native/src/renderer.rs
++++ b/packages/native/src/renderer.rs
+@@ -191,7 +191,7 @@
+ const SELECTION_SCROLL_TICK_MS: u64 = 24;
+ 
+ /// Fixed diff panes own X while their shared virtual list owns Y.
+-fn set_pixel_scroll_offset(id: u64, x: f32, y: f32) {
++pub(crate) fn set_pixel_scroll_offset(id: u64, x: f32, y: f32) {
+     let list = VIRTUAL_LIST_STATES.with(|states| states.borrow().get(&id).cloned());
+     if let Some(state) = &list {
+         state.set_offset_from_scrollbar(gpui::point(gpui::px(0.0), gpui::px(y)));
+@@ -203,7 +203,7 @@
+     });
+ }
+ 
+-fn pixel_scroll_offset(id: u64) -> Option<[f64; 2]> {
++pub(crate) fn pixel_scroll_offset(id: u64) -> Option<[f64; 2]> {
+     let list = VIRTUAL_LIST_STATES.with(|states| {
+         states.borrow().get(&id).map(|state| state.scroll_px_offset_for_scrollbar())
+     });
+@@ -245,6 +245,15 @@
+             f32::from(bounds.origin.x) as f64, f32::from(bounds.origin.y) as f64,
+             f32::from(bounds.size.width) as f64, f32::from(bounds.size.height) as f64]
+     }))
++}
++
++/// Freeze estimated virtual-list height only for an active native thumb drag.
++pub(crate) fn set_scrollbar_dragging(id: u64, dragging: bool) {
++    VIRTUAL_LIST_STATES.with(|states| {
++        if let Some(state) = states.borrow().get(&id) {
++            if dragging { state.scrollbar_drag_started(); } else { state.scrollbar_drag_ended(); }
++        }
++    });
+ }
+ 
+ const SELECTION_SCROLL_EDGE_PX: f32 = 36.0;
+@@ -5009,7 +5018,12 @@
+         ctx.inherited.highlight = resolved.map(|(context, _)| context);
+     }
+ 
+-    let built = match element.element_type.as_str() {
++    let element_type = if element.element_type == "div" && element.custom_props.contains_key("nativeScrollbar") {
++        "scrollbar"
++    } else {
++        element.element_type.as_str()
++    };
++    let built = match element_type {
+         // `<text>` is a `<div>` that happens to carry a string. Giving it its
+         // own builder meant every interaction prop on the shared `Props` type
+         // (onClick, hover, focus, tabIndex) type-checked, registered a JS
+diff --git a/packages/native/src/custom_elements/scrollbar.rs b/packages/native/src/custom_elements/scrollbar.rs
+new file mode 100644
+--- /dev/null
++++ b/packages/native/src/custom_elements/scrollbar.rs
+@@ -0,0 +1,179 @@
++//! Scrollbar geometry and input stay on GPUI's frame loop, alongside the target scroller.
++use super::{CustomElement, CustomElementFactory, CustomRenderContext};
++use crate::renderer::{pixel_scroll_offset, scroll_metrics, set_pixel_scroll_offset, set_scrollbar_dragging};
++use gpui::{prelude::*, point, px, AnyElement, Bounds, Hsla, MouseButton, Pixels, Window};
++use std::{cell::Cell, rc::Rc};
++
++const TRACK_WIDTH: f32 = 9.0;
++const INSET: f32 = 2.0;
++
++pub struct ScrollbarFactory;
++
++impl CustomElementFactory for ScrollbarFactory {
++    fn element_type(&self) -> &str { "scrollbar" }
++    fn create(&self, _id: u64) -> Box<dyn CustomElement> { Box::new(Scrollbar::default()) }
++}
++
++#[derive(Clone, Copy)]
++struct Drag { pointer: f32, offset: f32 }
++
++#[derive(Default)]
++struct Scrollbar {
++    target: u64,
++    horizontal: bool,
++    corner: bool,
++    drag: Rc<Cell<Option<Drag>>>,
++    hovered: Rc<Cell<bool>>,
++}
++
++struct Geometry {
++    bounds: Bounds<Pixels>,
++    offset: f32,
++    maximum: f32,
++    viewport: f32,
++    thumb: f32,
++    position: f32,
++    travel: f32,
++}
++
++fn geometry(target: u64, horizontal: bool, corner: bool) -> Option<Geometry> {
++    let metrics = scroll_metrics(target, horizontal)?;
++    let [offset, maximum, x, y, width, height] = metrics.as_slice() else { return None };
++    if *maximum <= 0.0 || *width <= 0.0 || *height <= 0.0 { return None; }
++    let (offset, maximum, x, y, width, height) = (*offset as f32, *maximum as f32, *x as f32, *y as f32, *width as f32, *height as f32);
++    let viewport = if horizontal { width } else { height };
++    let length = (viewport - INSET * 2.0 - if corner { TRACK_WIDTH } else { 0.0 }).max(1.0);
++    let thumb = (length * viewport / (viewport + maximum)).max(24.0).min(length);
++    let travel = length - thumb;
++    let position = (-offset / maximum).clamp(0.0, 1.0) * travel;
++    let bounds = if horizontal {
++        Bounds::new(point(px(x + INSET), px(y + height - TRACK_WIDTH)), gpui::size(px(length), px(TRACK_WIDTH)))
++    } else {
++        Bounds::new(point(px(x + width - TRACK_WIDTH), px(y + INSET)), gpui::size(px(TRACK_WIDTH), px(length)))
++    };
++    Some(Geometry { bounds, offset, maximum, viewport, thumb, position, travel })
++}
++
++fn scroll(target: u64, horizontal: bool, offset: f32, window: &mut Window) {
++    let Some(metrics) = scroll_metrics(target, horizontal) else { return };
++    let current = pixel_scroll_offset(target).unwrap_or([0.0, 0.0]);
++    let next = offset.clamp(-(metrics[1] as f32), 0.0);
++    set_pixel_scroll_offset(target, if horizontal { next } else { current[0] as f32 }, if horizontal { current[1] as f32 } else { next });
++    window.refresh();
++}
++
++fn finish(target: u64, horizontal: bool, drag: &Cell<Option<Drag>>) {
++    if drag.take().is_some() && !horizontal { set_scrollbar_dragging(target, false); }
++}
++
++impl CustomElement for Scrollbar {
++    fn render(&mut self, ctx: CustomRenderContext, _window: &mut Window, _cx: &mut gpui::Context<crate::renderer::GpuixView>) -> AnyElement {
++        let (target, horizontal, corner, id) = (self.target, self.horizontal, self.corner, ctx.id);
++        let focus = ctx.focus_handle.cloned();
++        let label = ctx.props.get("aria-label").and_then(|value| value.as_str()).unwrap_or("Scroll").to_string();
++        let color: Hsla = ctx.style.and_then(|style| style.color.as_deref()).and_then(crate::color::parse_color_rgba).unwrap_or(gpui::rgb(0x737b88)).into();
++        let drag = self.drag.clone();
++        let hovered = self.hovered.clone();
++
++        // Resolve after the target's layout/prepaint, so the thumb follows the same frame's offset and bounds.
++        gpui::container_query(move |_, _window, _cx| {
++            let Some(g) = geometry(target, horizontal, corner) else { return gpui::Empty.into_any_element() };
++            let active = drag.get().is_some();
++            let alpha = if active { 0.65 } else if hovered.get() { 0.50 } else { 0.30 };
++            let thumb_color = color.opacity(alpha);
++            let down_drag = drag.clone();
++            let move_drag = drag.clone();
++            let up_drag = drag.clone();
++            let outside_drag = drag.clone();
++            let key_drag = drag.clone();
++            let hover_state = hovered.clone();
++            let mut bar = gpui::div()
++                .id(gpui::ElementId::Integer(id))
++                .relative().w(g.bounds.size.width).h(g.bounds.size.height).rounded_full()
++                .role(gpui::Role::ScrollBar).aria_label(label)
++                .aria_numeric_value((-g.offset) as f64).aria_min_numeric_value(0.0).aria_max_numeric_value(g.maximum as f64)
++                .aria_numeric_value_step(40.0)
++                .aria_orientation(if horizontal { gpui::Orientation::Horizontal } else { gpui::Orientation::Vertical })
++                .capture_pointer()
++                .on_hover(move |&value, window, _cx| {
++                    if hover_state.replace(value) != value { window.refresh(); }
++                })
++                .on_mouse_down(MouseButton::Left, move |event, window, cx| {
++                    let Some(g) = geometry(target, horizontal, corner) else { return };
++                    let pointer = f32::from(if horizontal { event.position.x } else { event.position.y });
++                    let local = pointer - f32::from(if horizontal { g.bounds.origin.x } else { g.bounds.origin.y });
++                    let offset = if (g.position..=g.position + g.thumb).contains(&local) { g.offset } else { -(local - g.thumb / 2.0) / g.travel.max(1.0) * g.maximum };
++                    if !horizontal { set_scrollbar_dragging(target, true); }
++                    down_drag.set(Some(Drag { pointer, offset: offset.clamp(-g.maximum, 0.0) }));
++                    scroll(target, horizontal, offset, window);
++                    cx.stop_propagation();
++                })
++                .on_mouse_move(move |event, window, cx| {
++                    let Some(start) = move_drag.get() else { return };
++                    if event.pressed_button != Some(MouseButton::Left) {
++                        finish(target, horizontal, &move_drag);
++                        window.refresh();
++                        return;
++                    }
++                    let Some(g) = geometry(target, horizontal, corner) else { return };
++                    let pointer = f32::from(if horizontal { event.position.x } else { event.position.y });
++                    if g.travel > 0.0 { scroll(target, horizontal, start.offset - (pointer - start.pointer) / g.travel * g.maximum, window); }
++                    cx.stop_propagation();
++                })
++                .on_mouse_up(MouseButton::Left, move |_, window, cx| {
++                    finish(target, horizontal, &up_drag);
++                    window.refresh();
++                    cx.stop_propagation();
++                })
++                .on_mouse_up_out(MouseButton::Left, move |_, window, _cx| {
++                    finish(target, horizontal, &outside_drag);
++                    window.refresh();
++                })
++                .on_scroll_wheel(move |event, window, cx| {
++                    let Some(g) = geometry(target, horizontal, corner) else { return };
++                    let delta = event.delta.pixel_delta(px(21.0));
++                    scroll(target, horizontal, g.offset + f32::from(if horizontal { delta.x } else { delta.y }), window);
++                    cx.stop_propagation();
++                })
++                .on_key_down(move |event, window, cx| {
++                    if event.keystroke.modifiers.modified() { return; }
++                    let Some(g) = geometry(target, horizontal, corner) else { return };
++                    let next = match event.keystroke.key.as_str() {
++                        "home" => 0.0,
++                        "end" => -g.maximum,
++                        "pageup" => g.offset + g.viewport,
++                        "pagedown" => g.offset - g.viewport,
++                        "left" if horizontal => g.offset + 40.0,
++                        "right" if horizontal => g.offset - 40.0,
++                        "up" if !horizontal => g.offset + 40.0,
++                        "down" if !horizontal => g.offset - 40.0,
++                        "escape" => { finish(target, horizontal, &key_drag); window.refresh(); return; }
++                        _ => return,
++                    };
++                    scroll(target, horizontal, next, window);
++                    cx.stop_propagation();
++                });
++            if let Some(focus) = focus { bar = bar.track_focus(&focus).tab_index(0); }
++            if active || hovered.get() { bar = bar.bg(color.opacity(0.045)); }
++            bar = crate::automation::track_own_bounds(bar, id);
++            let thumb = gpui::div().absolute().rounded_full().bg(thumb_color);
++            let thumb = if horizontal {
++                thumb.left(px(g.position)).top(px(INSET)).w(px(g.thumb)).h(px(TRACK_WIDTH - INSET * 2.0))
++            } else {
++                thumb.top(px(g.position)).left(px(INSET)).h(px(g.thumb)).w(px(TRACK_WIDTH - INSET * 2.0))
++            };
++            gpui::deferred(gpui::anchored().position(g.bounds.origin).anchor(gpui::Anchor::TopLeft).snap_to_window_with_margin(px(0.0)).child(bar.child(thumb))).with_priority(2).into_any_element()
++        }).absolute().size_0().into_any_element()
++    }
++
++    fn set_prop(&mut self, key: &str, value: serde_json::Value) {
++        if key != "nativeScrollbar" { return; }
++        finish(self.target, self.horizontal, &self.drag);
++        self.target = value.get("targetId").and_then(serde_json::Value::as_u64).unwrap_or(0);
++        self.horizontal = value.get("horizontal").and_then(serde_json::Value::as_bool).unwrap_or(false);
++        self.corner = value.get("corner").and_then(serde_json::Value::as_bool).unwrap_or(false);
++    }
++    fn supported_props(&self) -> &'static [&'static str] { &["nativeScrollbar"] }
++    fn supported_events(&self) -> &'static [&'static str] { &[] }
++    fn destroy(&mut self) { finish(self.target, self.horizontal, &self.drag); }
++}

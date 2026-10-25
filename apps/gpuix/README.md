@@ -444,7 +444,10 @@ interface and code font family names. Apply fonts or reset all text settings;
 changes preserve drafts and are saved with the session.
 
 **Show pane scrollbars** adds draggable, keyboard-operable bars to repository lists
-and diff panes. It is off by default and saved with the window session.
+and diff panes. Their thin, translucent thumbs follow the window palette; idle
+tracks stay clear. Native layout, painting and pointer handling keep the thumb
+synchronized with the pane without JavaScript polling or React updates while scrolling.
+The setting is off by default and saved with the window session.
 
 **Smooth transitions** is enabled by default, sliding the active tab surface and
 blending theme colors. Turn it off in Appearance for instant changes; the saved
