@@ -163,6 +163,10 @@ export const scrollbarVisibilityPatchPath = resolve(
 	import.meta.dir,
 	"scrollbar-visibility.patch"
 );
+export const fontFamiliesPatchPath = resolve(
+	import.meta.dir,
+	"font-families.patch"
+);
 export const nativeBuildId = createHash("sha256")
 	.update(nativeRevision)
 	.update(readFileSync(patchPath))
@@ -208,5 +212,6 @@ export const nativeBuildId = createHash("sha256")
 	.update(readFileSync(frameScrollbarPatchPath))
 	.update(readFileSync(diffTrailingContextPatchPath))
 	.update(readFileSync(scrollbarVisibilityPatchPath))
+	.update(readFileSync(fontFamiliesPatchPath))
 	.update(`${process.platform}-${process.arch}-release-v1`)
 	.digest("hex");

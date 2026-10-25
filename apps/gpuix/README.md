@@ -439,9 +439,9 @@ Auto follows macOS and is the default when no preference has been saved. The cho
 diff preferences in the workspace session and restores on restart. Switching does
 not remount workspaces, clear drafts/inclusion, reload Git, or reset native diff scroll.
 
-**Text** offers Default, Large and Larger interface/diff sizes, plus installed
-interface and code font family names. Apply fonts or reset all text settings;
-changes preserve drafts and are saved with the session.
+**Text** offers a live 10–18 pt size slider and interface/code font pickers populated
+from macOS's installed CoreText families. Font selections apply immediately; Reset
+restores the defaults. Changes preserve drafts and are saved with the session.
 
 **Show pane scrollbars** adds draggable, keyboard-operable bars to repository lists
 and diff panes. Their thin, translucent thumbs follow the window palette; idle

@@ -1,10 +1,95 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { spacing, typography, fontWeight } from "@1git/design-tokens";
 import { Button } from "@1git/gpuix-ui/button";
+import {
+	Select,
+	SelectTrigger,
+	SelectValue,
+	SelectContent,
+	SelectItem,
+} from "@1git/gpuix-ui/select";
+import { useGpuixRequired } from "@gpuix/react";
 import { useAppTheme } from "../../styles/theme";
-import { defaultTypography, TypographyPreferences } from "./app-typography";
+import { defaultTypography } from "./app-typography";
+import { InstalledFonts } from "./installed-fonts";
+import { TextSizeSlider } from "./text-size-slider";
 
-/** Live text-size selection and installed interface/code font names. */
+const systemFont = "__system-font__";
+
+function FontPicker({
+	id,
+	label,
+	value,
+	families,
+	onChange,
+}: {
+	id: string;
+	label: string;
+	value: string;
+	families: readonly string[];
+	onChange?: (value: string) => void;
+}) {
+	const { tokens } = useAppTheme();
+
+	const items = useMemo(
+		() => [
+			{ value: systemFont, label: "System font" },
+			...[...new Set([...families, ...(value ? [value] : [])])].map(
+				(family) => ({ value: family, label: family })
+			),
+		],
+		[families, value]
+	);
+
+	return (
+		<div style={{ display: "flex", flexDirection: "column", gap: spacing[2] }}>
+			<text style={{ ...typography.sm, color: tokens.colors.text }}>
+				{label}
+			</text>
+			<Select
+				value={value || systemFont}
+				items={items}
+				disabled={!onChange}
+				onValueChange={(next) => {
+					if (next) onChange?.(next === systemFont ? "" : next);
+				}}
+			>
+				<SelectTrigger
+					testId={id}
+					aria-label={label}
+					tokens={tokens}
+					style={{ width: 280 }}
+				>
+					<SelectValue tokens={tokens} />
+					<svg
+						aria-hidden
+						source='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+						style={{
+							width: 12,
+							height: 12,
+							color: tokens.colors.textMuted,
+							pointerEvents: "none",
+						}}
+					/>
+				</SelectTrigger>
+				<SelectContent tokens={tokens} testId={`${id}-options`}>
+					{items.map((item) => (
+						<SelectItem
+							key={item.value}
+							value={item.value}
+							testId={`${id}-${item.value}`}
+							tokens={tokens}
+						>
+							{item.label}
+						</SelectItem>
+					))}
+				</SelectContent>
+			</Select>
+		</div>
+	);
+}
+
+/** Installed-font pickers and a live, bounded text-size slider. */
 export function FontSettings() {
 	const {
 		tokens,
@@ -12,24 +97,21 @@ export function FontSettings() {
 		setTypography,
 	} = useAppTheme();
 
-	const [fontFamily, setFontFamily] = useState(preferences.fontFamily);
+	const renderer = useGpuixRequired();
+	const [families, setFamilies] = useState<readonly string[]>([]);
+	const [error, setError] = useState("");
 
-	const [codeFontFamily, setCodeFontFamily] = useState(
-		preferences.codeFontFamily
-	);
-
-	const fieldStyle = {
-		...typography.md,
-		height: 32,
-		width: 280,
-		paddingLeft: spacing[2],
-		paddingRight: spacing[2],
-		borderWidth: 1,
-		borderColor: tokens.colors.border,
-		borderRadius: 4,
-		color: tokens.colors.text,
-		backgroundColor: tokens.colors.field,
-	};
+	useEffect(() => {
+		try {
+			setFamilies(InstalledFonts.list(renderer));
+		} catch (cause) {
+			setError(
+				cause instanceof Error
+					? cause.message
+					: "Could not load installed fonts."
+			);
+		}
+	}, [renderer]);
 
 	return (
 		<div
@@ -51,90 +133,58 @@ export function FontSettings() {
 			>
 				Text
 			</text>
-			<div
-				role="group"
-				aria-label="Interface text size"
-				style={{ display: "flex", flexDirection: "row", gap: spacing[2] }}
+			<text
+				style={{ ...typography.sm, color: tokens.colors.text }}
+			>{`Text font size: ${preferences.fontSize} pt`}</text>
+			<TextSizeSlider
+				value={preferences.fontSize}
+				onChange={
+					setTypography
+						? (fontSize) => setTypography({ ...preferences, fontSize })
+						: undefined
+				}
+			/>
+			<FontPicker
+				id="appearance-ui-font"
+				label="Interface font"
+				value={preferences.fontFamily}
+				families={families}
+				onChange={
+					setTypography
+						? (fontFamily) => setTypography({ ...preferences, fontFamily })
+						: undefined
+				}
+			/>
+			<FontPicker
+				id="appearance-code-font"
+				label="Code font"
+				value={preferences.codeFontFamily}
+				families={families}
+				onChange={
+					setTypography
+						? (codeFontFamily) =>
+								setTypography({ ...preferences, codeFontFamily })
+						: undefined
+				}
+			/>
+			{error ? (
+				<text
+					role="status"
+					style={{ ...typography.sm, color: tokens.colors.textMuted }}
+				>
+					{error}
+				</text>
+			) : null}
+			<Button
+				testId="appearance-reset-fonts"
+				tokens={tokens}
+				variant="ghost"
+				style={{ alignSelf: "flex-start" }}
+				disabled={!setTypography}
+				onPress={() => setTypography?.(defaultTypography)}
 			>
-				{([12, 14, 16] as const).map((fontSize) => (
-					<Button
-						key={fontSize}
-						testId={`appearance-font-size-${fontSize}`}
-						tokens={tokens}
-						variant={
-							preferences.fontSize === fontSize ? "primary" : "secondary"
-						}
-						aria-label={`${fontSize} point text`}
-						aria-description={
-							preferences.fontSize === fontSize ? "Selected" : undefined
-						}
-						disabled={!setTypography}
-						onPress={() => setTypography?.({ ...preferences, fontSize })}
-					>
-						{fontSize === 12 ? "Default" : fontSize === 14 ? "Large" : "Larger"}
-					</Button>
-				))}
-			</div>
-			<text style={{ ...typography.sm, color: tokens.colors.textMuted }}>
-				Installed font family names. Leave blank to use the default. Unavailable
-				fonts use the native fallback.
-			</text>
-			<text style={{ ...typography.sm, color: tokens.colors.text }}>
-				Interface font
-			</text>
-			<input
-				testId="appearance-ui-font"
-				aria-label="Interface font"
-				value={fontFamily}
-				placeholder="System font"
-				onChange={(event) => setFontFamily(event.value ?? "")}
-				style={fieldStyle}
-			/>
-			<text style={{ ...typography.sm, color: tokens.colors.text }}>
-				Code font
-			</text>
-			<input
-				testId="appearance-code-font"
-				aria-label="Code font"
-				value={codeFontFamily}
-				placeholder="Menlo"
-				onChange={(event) => setCodeFontFamily(event.value ?? "")}
-				style={fieldStyle}
-			/>
-			<div style={{ display: "flex", flexDirection: "row", gap: spacing[2] }}>
-				<Button
-					testId="appearance-apply-fonts"
-					tokens={tokens}
-					variant="secondary"
-					disabled={!setTypography}
-					onPress={() => {
-						const next = TypographyPreferences.parse({
-							...preferences,
-							fontFamily,
-							codeFontFamily,
-						});
-
-						setFontFamily(next.fontFamily);
-						setCodeFontFamily(next.codeFontFamily);
-						setTypography?.(next);
-					}}
-				>
-					Apply fonts
-				</Button>
-				<Button
-					testId="appearance-reset-fonts"
-					tokens={tokens}
-					variant="ghost"
-					disabled={!setTypography}
-					onPress={() => {
-						setFontFamily(defaultTypography.fontFamily);
-						setCodeFontFamily(defaultTypography.codeFontFamily);
-						setTypography?.(defaultTypography);
-					}}
-				>
-					Reset text settings
-				</Button>
-			</div>
+				Reset text settings
+			</Button>
 		</div>
 	);
 }

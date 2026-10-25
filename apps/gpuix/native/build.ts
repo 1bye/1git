@@ -48,6 +48,7 @@ import {
 	frameScrollbarPatchPath,
 	diffTrailingContextPatchPath,
 	scrollbarVisibilityPatchPath,
+	fontFamiliesPatchPath,
 	scrollMetricsPatchPath,
 	menuPlacementPlatformPatchPath,
 	systemAppearancePatchPath,
@@ -148,6 +149,7 @@ if (
 		frameScrollbarPatchPath,
 		diffTrailingContextPatchPath,
 		scrollbarVisibilityPatchPath,
+		fontFamiliesPatchPath,
 	];
 
 	// Later patches can change an earlier patch's context. Unwind known patches

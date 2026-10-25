@@ -5,8 +5,8 @@
  * Requires: patched native addon and macOS graphics access.
  */
 import { afterEach, expect, it, spyOn } from "bun:test";
-import { flushSync, handleGpuixEvent } from "@gpuix/react";
 import { createTestRoot, type TestRoot } from "@gpuix/react/testing";
+import { InstalledFonts } from "../../src/feature/appearance-settings/installed-fonts";
 import { App } from "../../src/app";
 import { Accounts } from "../../src/feature/accounts/lib/accounts";
 import { AccountStore } from "../../src/feature/accounts/lib/account-store";
@@ -598,6 +598,12 @@ it.each([
 it("saves text size and installed fonts while retaining the draft and diff instance", async () => {
 	const { root, catalog, saved } = fixture("light", undefined, false);
 
+	const fontCatalog = spyOn(InstalledFonts, "list").mockReturnValue([
+		"Courier",
+		"Helvetica Neue",
+		"Menlo",
+	]);
+
 	try {
 		await settle(root);
 		click(root, "entry-example.ts");
@@ -608,24 +614,32 @@ it("saves text size and installed fonts while retaining the draft and diff insta
 		click(root, "settings-appearance");
 		root.renderer.scrollTo(node(root, "appearance-settings").id, 0, -10000);
 		root.renderer.advanceTime(1);
-		click(root, "appearance-font-size-16");
+		root.renderer.nativeSimulateKeyDown(
+			node(root, "appearance-font-size").id,
+			"end"
+		);
+		root.renderer.nativeSimulateKeyDown(
+			node(root, "appearance-font-size").id,
+			"left"
+		);
+		root.renderer.nativeSimulateKeyDown(
+			node(root, "appearance-font-size").id,
+			"left"
+		);
 		await settle(root);
 
 		for (const [id, value] of [
 			["appearance-ui-font", "Helvetica Neue"],
 			["appearance-code-font", "Courier"],
 		] as const) {
-			flushSync(() =>
-				handleGpuixEvent(
-					{ elementId: node(root, id).id, eventType: "change", value },
-					root.renderer
-				)
-			);
+			root.renderer.scrollIntoView(node(root, id).id);
+			root.renderer.advanceTime(1);
+			click(root, id);
+			await settle(root);
+			click(root, `${id}-${value}`);
+			await settle(root);
 		}
 
-		root.renderer.scrollIntoView(node(root, "appearance-apply-fonts").id);
-		root.renderer.advanceTime(1);
-		click(root, "appearance-apply-fonts");
 		await Bun.sleep(230);
 		await settle(root);
 		expect(saved.at(-1)?.typography).toEqual({
@@ -645,6 +659,7 @@ it("saves text size and installed fonts while retaining the draft and diff insta
 			metrics: { diffTextSize: (11 * 4) / 3 },
 		});
 	} finally {
+		fontCatalog.mockRestore();
 		catalog.mockRestore();
 	}
 });

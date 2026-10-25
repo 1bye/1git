@@ -192,3 +192,13 @@ diff --git a/dist/host.d.ts b/dist/host.d.ts
 +    expandAfter?: boolean;
      selectionEnabled?: boolean;
      selectionDisabled?: boolean;
+diff --git a/dist/testing.js b/dist/testing.js
+--- a/dist/testing.js
++++ b/dist/testing.js
+@@ -338,2 +338,6 @@
++    /** 1git: installed CoreText families, matching the live renderer API. */
++    getFontFamilies() {
++        return this.native.getFontFamilies();
++    }
+     /** Get the current scroll offset [x, y] or null if element is not scrollable. */
+     getScrollMetrics(elementId, horizontal) {

@@ -38,3 +38,11 @@ it("restores bounded text preferences and ignores invalid sizes or unsafe font n
 		).typography
 	).toEqual(typography);
 });
+
+it("restores every slider size and rejects out-of-range or fractional values", () => {
+	for (const fontSize of [10, 11, 13, 15, 17, 18])
+		expect(TypographyPreferences.parse({ fontSize }).fontSize).toBe(fontSize);
+
+	for (const fontSize of [9, 19, 12.5, Number.NaN, "14"])
+		expect(TypographyPreferences.parse({ fontSize }).fontSize).toBe(12);
+});

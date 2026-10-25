@@ -1,9 +1,12 @@
 /** Persistent interface text size and installed font family names; empty names use native defaults. */
 export interface AppTypography {
-	readonly fontSize: 12 | 14 | 16;
+	readonly fontSize: number;
 	readonly fontFamily: string;
 	readonly codeFontFamily: string;
 }
+
+/** Point-size range supported by native text scaling. */
+export const textSizeRange = { min: 10, max: 18 } as const;
 
 export const defaultTypography: AppTypography = {
 	fontSize: 12,
@@ -25,7 +28,11 @@ export class TypographyPreferences {
 				: fallback;
 
 		const fontSize =
-			"fontSize" in value && (value.fontSize === 14 || value.fontSize === 16)
+			"fontSize" in value &&
+			typeof value.fontSize === "number" &&
+			Number.isInteger(value.fontSize) &&
+			value.fontSize >= textSizeRange.min &&
+			value.fontSize <= textSizeRange.max
 				? value.fontSize
 				: 12;
 

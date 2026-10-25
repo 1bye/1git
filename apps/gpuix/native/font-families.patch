@@ -1,0 +1,50 @@
+--- a/packages/native/src/renderer.rs
++++ b/packages/native/src/renderer.rs
+@@ -1822,6 +1822,13 @@
+         ))
+     }
+ 
++    /// Installed CoreText families, without opening a system font panel.
++    #[cfg(target_os = "macos")]
++    #[napi]
++    pub fn get_font_families(&self) -> Vec<String> {
++        crate::installed_font_families()
++    }
++
+     /// Read the OS preference, unaffected by an explicit per-window appearance.
+     #[cfg(target_os = "macos")]
+     #[napi]
+--- a/packages/native/src/test_renderer.rs
++++ b/packages/native/src/test_renderer.rs
+@@ -1258,6 +1258,13 @@
+ 
++    /// Installed families use the same catalog as the production renderer.
++    #[cfg(target_os = "macos")]
++    #[napi]
++    pub fn get_font_families(&self) -> Vec<String> {
++        crate::installed_font_families()
++    }
++
+     /// The offscreen window size, so `useWindowSize()` reports the same numbers
+     /// under test as in a real window instead of falling back to a default.
+     #[napi]
+     pub fn get_window_size(&self) -> Result<crate::renderer::WindowSize> {
+         with_test_state(|cx, window, _view| {
+--- a/packages/native/src/lib.rs
++++ b/packages/native/src/lib.rs
+@@ -10,6 +10,15 @@
+ use napi::bindgen_prelude::*;
+ #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+ use napi_derive::napi;
++
++#[cfg(target_os = "macos")]
++fn installed_font_families() -> Vec<String> {
++    let mut families: Vec<String> = core_text::font_manager::copy_available_font_family_names()
++        .iter().map(|family| family.to_string()).filter(|family| !family.starts_with('.')).collect();
++    families.sort();
++    families.dedup();
++    families
++}
+ 
+ mod accessibility;
+ #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
