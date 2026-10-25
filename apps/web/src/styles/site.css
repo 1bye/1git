@@ -256,3 +256,8 @@ img { height: auto; }
 }
 
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+
+.screen-placeholder { aspect-ratio: 1.525; min-height: 170px; display: grid; align-content: center; justify-items: center; gap: 10px; padding: 36px 24px; text-align: center; border: 1px dashed #ffffff65; color: white; }
+.screen-placeholder > span { font-size: 11px; text-transform: uppercase; letter-spacing: .12em; color: #c9d6ef; }
+.screen-placeholder strong { font-size: clamp(14px,2vw,22px); }
+.screen-placeholder p { margin: 0; max-width: 42ch; font-size: 13px; line-height: 1.6; color: #d4dff1; }

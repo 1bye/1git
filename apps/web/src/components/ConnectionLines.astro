@@ -6,12 +6,12 @@ import AppWindow from "./AppWindow.astro";
   <h3 class="display" id="ssh-title">SSH</h3>
   <h4 class="display">Local or SSH. One workspace.</h4>
   <div class="connection-world">
-    <figure class="machine"><AppWindow /><figcaption>This Mac</figcaption></figure>
+    <figure class="machine"><AppWindow name="home-machines" alt="Home Machines view on This Mac with Devbox connected and its repositories listed." /><figcaption>This Mac</figcaption></figure>
     <svg class="connection-lines" viewBox="0 0 1000 400" preserveAspectRatio="none" fill="none" aria-hidden="true">
       {Array.from({length:11},(_,i) => <path d={`M300 ${40+i*30} C440 ${40+i*30} 430 200 500 200`} stroke={i === 3 ? "var(--line-blue)" : i === 7 ? "var(--line-green)" : "white"} stroke-width="1.3" pathLength="1" style={`--order:${i}`} />)}
       <path d="M500 200H700" stroke="white" stroke-width="1.5" pathLength="1" style="--order:11" />
     </svg>
-    <figure class="machine"><AppWindow /><figcaption>Devbox<code>ssh yurii@devbox</code></figcaption></figure>
+    <figure class="machine"><AppWindow name="devbox-remote" alt="Remote repository on Devbox with the tab labelled 1git / main · Devbox." /><figcaption>Devbox<code>ssh yurii@devbox</code></figcaption></figure>
   </div>
   <p class="demo-caption">Connection illustration · your repositories, in the same workspace.</p>
 </article>
