@@ -24,6 +24,7 @@ export interface DiffViewProps extends Pick<
 	| "onShowMore"
 	| "onLineClick"
 	| "onExpandContext"
+	| "expandAfter"
 > {
 	/** Local native extension. Coordinates are -:oldLine and +:newLine; events carry a JSON array. */
 	selectionEnabled?: boolean;

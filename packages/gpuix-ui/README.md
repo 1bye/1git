@@ -203,6 +203,7 @@ import { DiffView } from "@1git/gpuix-ui/diff-view";
 | `onShowMore` | Native event with hidden count in `event.value`; clear/increase `maxLines` to expand | — |
 | `onLineClick` | Native event with `value`, `oldLine`, `newLine` | — |
 | `onExpandContext` | Opt-in native hunk-gap action; path in `value`, hunk starts in `oldLine`/`newLine`. Caller reads context and replaces `patch`. Requires `diff-context.patch`. | — |
+| `expandAfter` | Shows a trailing expansion row in a single-file diff. Its `onExpandContext` event carries `value: "after"`. Requires `diff-trailing-context.patch`. | `false` |
 | `aria-description` | Override keyboard instructions for application-owned actions | Standard scroll/copy instructions |
 | `testId` | Viewport test ID; native content uses `${testId}-content` | — |
 

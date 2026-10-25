@@ -78,7 +78,12 @@ export function RepositoryTextDiff({
 			? (selectablePatch?.lines ?? [])
 			: [];
 
-	const [expanded, setExpanded] = useState({ snapshot, patch });
+	const [expanded, setExpanded] = useState({
+		snapshot,
+		patch,
+		endReached: false,
+	});
+
 	const [whitespacePrompt, setWhitespacePrompt] = useState<object | null>(null);
 
 	const [failure, setFailure] = useState<{
@@ -88,6 +93,14 @@ export function RepositoryTextDiff({
 
 	const pending = useRef<AbortController | null>(null);
 	const displayed = expanded.snapshot === snapshot ? expanded.patch : patch;
+	const endReached = expanded.snapshot === snapshot && expanded.endReached;
+
+	const hasAfter = useMemo(
+		() => DiffContext.hasAfter(displayed, syntaxPatch),
+		[displayed, syntaxPatch]
+	);
+
+	const expandAfter = !endReached && hasAfter;
 	const error = failure?.snapshot === snapshot ? failure.message : null;
 
 	const inclusionInstructions = !selectablePatch
@@ -111,7 +124,11 @@ export function RepositoryTextDiff({
 		}
 	}, [blocked]);
 
-	const expand = async (oldLine?: number, newLine?: number): Promise<void> => {
+	const expand = async (
+		oldLine?: number,
+		newLine?: number,
+		after = false
+	): Promise<void> => {
 		if (blocked || pending.current) return;
 
 		const controller = new AbortController();
@@ -120,9 +137,9 @@ export function RepositoryTextDiff({
 		setFailure(null);
 
 		try {
-			const request = DiffContext.request(displayed, oldLine, newLine);
+			const request = DiffContext.request(displayed, oldLine, newLine, after);
 
-			if (!request) return;
+			if (!request || (request.after && !expandAfter)) return;
 
 			const source = await RepositoryDiff.readContext(
 				root,
@@ -132,11 +149,15 @@ export function RepositoryTextDiff({
 				ignoreWhitespace
 			);
 
-			if (!controller.signal.aborted)
+			if (!controller.signal.aborted) {
+				const result = DiffContext.expand(displayed, source, request);
+
 				setExpanded({
 					snapshot,
-					patch: DiffContext.expand(displayed, source, request),
+					patch: result.patch,
+					endReached: request.after ? result.endReached : endReached,
 				});
+			}
 		} catch (cause) {
 			if (!controller.signal.aborted)
 				setFailure({
@@ -156,6 +177,7 @@ export function RepositoryTextDiff({
 			<DiffView
 				testId="diff-viewport"
 				patch={displayed}
+				expandAfter={expandAfter && !blocked}
 				syntaxPatch={syntaxPatch}
 				selectionEnabled={!!selectablePatch}
 				selectionDisabled={blocked}
@@ -206,9 +228,9 @@ export function RepositoryTextDiff({
 				theme={theme}
 				tokens={appTokens}
 				aria-label={"commit" in change ? "Committed file diff" : "File diff"}
-				aria-description={`${mode === "split" ? "Split: original on the left, revised on the right. " : "Unified. "}${inclusionInstructions}Use arrows, Page Up, Page Down, Home and End to scroll. Press E to expand 20 unchanged lines at the first remaining separator. Select text and press Command C to copy.`}
+				aria-description={`${mode === "split" ? "Split: original on the left, revised on the right. " : "Unified. "}${inclusionInstructions}Use arrows, Page Up, Page Down, Home and End to scroll. Press E to expand 20 unchanged lines at the first remaining separator or below the final change. Select text and press Command C to copy.`}
 				onExpandContext={(event) => {
-					void expand(event.oldLine, event.newLine);
+					void expand(event.oldLine, event.newLine, event.value === "after");
 				}}
 				onShortcut={(event) => {
 					if (

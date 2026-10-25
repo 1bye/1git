@@ -99,7 +99,8 @@ const imageSource = (): string => {
 const showDiff = (
 	readDiff: typeof Reader.read,
 	path = "example.ts",
-	width = 980
+	width = 980,
+	mode?: "unified" | "split"
 ): void => {
 	root.render(
 		<div
@@ -116,6 +117,11 @@ const showDiff = (
 				refreshing={false}
 				statusError={null}
 				readDiff={readDiff}
+				settings={
+					mode
+						? { mode, splitLayout: "fixed", ignoreWhitespace: false }
+						: undefined
+				}
 			/>
 		</div>
 	);
@@ -532,6 +538,87 @@ it("keeps native headers unchanged when a caller does not enable context expansi
 	expect(
 		root.renderer.getPaintedText().some((text) => text.includes("Expand"))
 	).toBe(false);
+});
+
+for (const mode of ["unified", "split"] as const) {
+	it(`reveals code below the last hunk through EOF in ${mode} view`, async () => {
+		const read = spyOn(DiffReader, "readContext").mockImplementation(
+			async (_root, _change, context) => contextPatch(context)
+		);
+
+		showDiff(
+			async () => ({
+				ok: true,
+				value: [
+					{
+						...diffSection("working", contextPatch()),
+						syntaxPatch: contextPatch(150),
+					},
+				],
+			}),
+			"example.ts",
+			980,
+			mode
+		);
+		await settle();
+		const content = element("diff-viewport-content").id;
+		const viewport = bounds("diff-viewport-content");
+		const rowCount = mode === "unified" ? 16 : 14;
+
+		for (const [step, end] of [123, 143, 150].entries()) {
+			root.renderer.scrollTo(content, 0, -Number.MAX_SAFE_INTEGER);
+			root.renderer.flush();
+			expect(root.renderer.getPaintedText()).toContain(
+				"↓ Expand 20 lines below"
+			);
+			const offset = root.renderer.getScrollOffset(content)?.[1] ?? 0;
+
+			root.renderer.nativeSimulateClick(
+				viewport.x + 100,
+				viewport.y + 2 * 26 + (rowCount + step * 20) * 20 + offset + 13
+			);
+			root.renderer.flush();
+			await settle();
+			const patch = element("diff-viewport-content").customProps?.patch;
+
+			expect(patch).toEndWith(` line ${end}\n`);
+			expect(patch).toContain("@@ -37,7 +37,7 @@");
+			expect(element("diff-viewport-content").id).toBe(content);
+		}
+
+		expect(read).toHaveBeenCalledTimes(3);
+		expect(element("diff-viewport-content").customProps?.expandAfter).toBe(
+			false
+		);
+		root.renderer.scrollTo(content, 0, -Number.MAX_SAFE_INTEGER);
+		root.renderer.flush();
+		expect(root.renderer.getPaintedText()).not.toContain(
+			"↓ Expand 20 lines below"
+		);
+	});
+}
+
+it("continues below the final hunk with keyboard E when no earlier gap remains", async () => {
+	const header =
+		"diff --git a/example.ts b/example.ts\n--- a/example.ts\n+++ b/example.ts\n";
+
+	const initial = `${header}@@ -1,4 +1,4 @@\n-before\n+after\n line 2\n line 3\n line 4\n`;
+	const full = `${header}@@ -1,24 +1,24 @@\n-before\n+after\n${Array.from({ length: 23 }, (_, index) => ` line ${index + 2}\n`).join("")}`;
+	const read = spyOn(DiffReader, "readContext").mockResolvedValue(full);
+
+	showDiff(async () => ({
+		ok: true,
+		value: [{ ...diffSection("working", initial), syntaxPatch: full }],
+	}));
+	await settle();
+	click("diff-viewport");
+	key("diff-viewport", "e");
+	await settle();
+	expect(element("diff-viewport-content").customProps?.patch).toBe(full);
+	expect(element("diff-viewport-content").customProps?.expandAfter).toBe(false);
+	key("diff-viewport", "e");
+	await settle();
+	expect(read).toHaveBeenCalledTimes(1);
 });
 
 it("resets context on a new snapshot without remounting the native diff viewport", async () => {

@@ -697,6 +697,8 @@ the choice with the window session. Old sessions default to fixed split panes.
 `native/diff-context.patch` adds an opt-in `onExpandContext` event to omitted-code
 separators. The native renderer reports the path and hunk coordinates; the app
 reads and inserts additional context, keeping native virtualization and selection.
+`native/diff-trailing-context.patch` adds an opt-in `expandAfter` row at the bottom
+of the same virtual list; its `onExpandContext` event has `value: "after"`.
 `native/diff-syntax.patch` supplies a separate `syntaxPatch` with complete,
 unfiltered context for both file versions. The Git reader fetches it alongside the
 visible patch, checks snapshot headers, and budgets it in the existing preview cache.
@@ -2126,9 +2128,10 @@ scrolling while using GPUIX's virtualized list; no additional diff library is ne
 - Click a hunk separator (`@@ … @@`) to reveal up to 20 unchanged
   lines immediately above that hunk; repeated clicks reveal the next 20. Short
   gaps reveal their remainder and adjacent hunks join when no lines remain hidden.
-  The first separator also reveals leading context. With the viewer focused,
-  **E** expands the first remaining gap. This does not expose trailing code after
-  the final hunk, which has no separator.
+  The first separator also reveals leading context. Below the final hunk,
+  **Expand 20 lines below** reveals trailing code in the same increments until
+  EOF, then disappears. With the viewer focused, **E** expands the first remaining
+  gap, then continues below the final hunk.
   Reads are on demand, deduplicated while pending, and canceled on selection or
   snapshot changes. The existing diff stays visible without a loading screen.
   Changes must still match the displayed patch; external edits require a refresh.

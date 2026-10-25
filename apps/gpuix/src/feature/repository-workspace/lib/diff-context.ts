@@ -16,25 +16,49 @@ interface Patch {
 	hunks: Hunk[];
 }
 
-/** One omitted range immediately before a displayed hunk; context is read on demand. */
+/** One omitted range before a displayed hunk or after the final hunk; context is read on demand. */
 export interface DiffContextRequest {
 	readonly oldLine: number;
 	readonly newLine: number;
 	readonly lines: number;
 	readonly contextLines: number;
+	readonly after?: boolean;
 }
 
 /** Extends only the requested gap, leaving the original changes and other gaps intact. */
 export class DiffContext {
 	private constructor() {}
 
-	/** Without coordinates, selects the first remaining gap for keyboard expansion. */
+	/** Without coordinates, selects the first remaining gap, then trailing context for keyboard expansion. */
 	static request(
 		patch: string,
 		oldLine?: number,
-		newLine?: number
+		newLine?: number,
+		after = false
 	): DiffContextRequest | null {
 		const parsed = DiffContext.parse(patch);
+
+		if (after) {
+			const last = parsed.hunks.at(-1);
+
+			if (!last || !DiffContext.hasAfter(patch)) return null;
+
+			let trailing = 0;
+
+			for (const line of last.lines.toReversed()) {
+				if (!line.startsWith(" ")) break;
+
+				trailing++;
+			}
+
+			return {
+				oldLine: last.oldLine,
+				newLine: last.newLine,
+				lines: expansionLines,
+				contextLines: trailing + expansionLines,
+				after: true,
+			};
+		}
 
 		for (const [index, hunk] of parsed.hunks.entries()) {
 			if (
@@ -67,7 +91,37 @@ export class DiffContext {
 			};
 		}
 
-		return null;
+		return oldLine === undefined && newLine === undefined
+			? DiffContext.request(patch, undefined, undefined, true)
+			: null;
+	}
+
+	/** Full syntax context supplies EOF without reading or displaying the entire file again. */
+	static hasAfter(patch: string, fullPatch?: string): boolean {
+		const current = DiffContext.parse(patch);
+		const last = current.hunks.at(-1);
+
+		if (
+			!last ||
+			last.lines.at(-1)?.startsWith("\\") ||
+			current.header.some(
+				(line) => line === "--- /dev/null" || line === "+++ /dev/null"
+			)
+		)
+			return false;
+
+		if (!fullPatch) return true;
+
+		const full = DiffContext.parse(fullPatch);
+		const end = full.hunks.at(-1);
+
+		if (!end || full.header.join("\n") !== current.header.join("\n"))
+			return true;
+
+		return (
+			end.oldLine + end.oldCount > last.oldLine + last.oldCount ||
+			end.newLine + end.newCount > last.newLine + last.newCount
+		);
 	}
 
 	/** A fresh Git patch must describe exactly the same edits before its context can be reused. */
@@ -75,7 +129,7 @@ export class DiffContext {
 		patch: string,
 		candidate: string,
 		request: DiffContextRequest
-	): string {
+	): { patch: string; endReached: boolean } {
 		const current = DiffContext.parse(patch);
 		const source = DiffContext.parse(candidate);
 
@@ -97,8 +151,16 @@ export class DiffContext {
 		if (!hunk) throw new Error("This diff section is no longer available.");
 
 		const context = new Map<number, string>();
-		const firstOld = hunk.oldLine - request.lines;
-		const firstNew = hunk.newLine - request.lines;
+
+		const firstOld = request.after
+			? hunk.oldLine + hunk.oldCount
+			: hunk.oldLine - request.lines;
+
+		const firstNew = request.after
+			? hunk.newLine + hunk.newCount
+			: hunk.newLine - request.lines;
+
+		const noNewline = new Set<number>();
 
 		for (const entry of source.hunks) {
 			let old = entry.oldLine;
@@ -109,10 +171,13 @@ export class DiffContext {
 				if (
 					line.startsWith(" ") &&
 					old >= firstOld &&
-					old < hunk.oldLine &&
+					old < firstOld + request.lines &&
 					next - firstNew === old - firstOld
 				)
 					context.set(old, line);
+
+				if (line.startsWith("\\") && context.has(old - 1))
+					noNewline.add(old - 1);
 
 				if (line.startsWith(" ") || line.startsWith("-")) old += 1;
 
@@ -122,8 +187,10 @@ export class DiffContext {
 
 		const added: string[] = [];
 
-		for (let offset = request.lines; offset > 0; offset -= 1) {
-			const line = context.get(hunk.oldLine - offset);
+		for (let offset = 0; offset < request.lines; offset += 1) {
+			const line = context.get(firstOld + offset);
+
+			if (line === undefined && request.after) break;
 
 			if (line === undefined)
 				throw new Error(
@@ -133,14 +200,29 @@ export class DiffContext {
 			added.push(line);
 		}
 
-		hunk.oldLine -= request.lines;
-		hunk.newLine -= request.lines;
-		hunk.oldCount += request.lines;
-		hunk.newCount += request.lines;
-		hunk.lines.unshift(...added);
+		const count = added.length;
+
+		const endReached =
+			!!request.after &&
+			(count < request.lines || noNewline.has(firstOld + count - 1));
+
+		if (request.after) {
+			if (noNewline.has(firstOld + count - 1))
+				added.push("\\ No newline at end of file");
+
+			hunk.lines.push(...added);
+		} else {
+			hunk.oldLine -= count;
+			hunk.newLine -= count;
+			hunk.lines.unshift(...added);
+		}
+
+		hunk.oldCount += count;
+		hunk.newCount += count;
 		const previous = current.hunks[index - 1];
 
 		if (
+			!request.after &&
 			previous &&
 			previous.oldLine + previous.oldCount === hunk.oldLine &&
 			previous.newLine + previous.newCount === hunk.newLine
@@ -171,7 +253,7 @@ export class DiffContext {
 				"This preview reached its safe size limit. Open the file in your editor to read more."
 			);
 
-		return expanded;
+		return { patch: expanded, endReached };
 	}
 
 	private static parse(patch: string): Patch {

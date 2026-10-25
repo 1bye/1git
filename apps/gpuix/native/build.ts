@@ -46,6 +46,7 @@ import {
 	workspaceShortcutsPatchPath,
 	textScalePatchPath,
 	frameScrollbarPatchPath,
+	diffTrailingContextPatchPath,
 	scrollMetricsPatchPath,
 	menuPlacementPlatformPatchPath,
 	systemAppearancePatchPath,
@@ -144,6 +145,7 @@ if (
 		systemAppearancePatchPath,
 		systemAppearancePlatformPatchPath,
 		frameScrollbarPatchPath,
+		diffTrailingContextPatchPath,
 	];
 
 	// Later patches can change an earlier patch's context. Unwind known patches

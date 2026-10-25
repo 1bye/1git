@@ -347,13 +347,34 @@ it("expands only a requested gap from real Git without writing HEAD, index, obje
 			new AbortController().signal
 		);
 
-		patch = DiffContext.expand(patch, source, request);
+		patch = DiffContext.expand(patch, source, request).patch;
 	}
 
 	expect(patch.match(/^@@ /gm)).toHaveLength(1);
 	expect(patch).toContain("@@ -37,67 +37,67 @@");
 	expect(patch).toContain(" line 44\n");
 	expect(patch).toContain(" line 96\n");
+	let complete = false;
+
+	while (!complete) {
+		const request = DiffContext.request(patch, undefined, undefined, true);
+
+		if (!request) throw new Error("Missing trailing context.");
+
+		const source = await RepositoryDiff.readContext(
+			repository,
+			change,
+			request.contextLines,
+			new AbortController().signal
+		);
+
+		const result = DiffContext.expand(patch, source, request);
+
+		patch = result.patch;
+		complete = result.endReached;
+	}
+
+	expect(patch).toEndWith(" line 150\n");
 	expect(await git("rev-parse", "HEAD")).toBe(head);
 	expect(await readFile(join(repository, ".git/index"))).toEqual(index);
 	expect(await git("count-objects", "-v")).toBe(objects);
@@ -430,13 +451,29 @@ it("expands immutable commit and range context across a rename and unequal line 
 			new AbortController().signal
 		);
 
-		const expanded = DiffContext.expand(patch, source, request);
+		const expanded = DiffContext.expand(patch, source, request).patch;
 
 		expect(expanded).toContain(" line 103\n");
 		expect(expanded).toContain("+inserted 100\n");
 		expect(expanded).toContain("+changed 119\n");
 		expect(expanded).not.toContain("unrelated working");
 		expect(expanded.match(/^@@ /gm)).toHaveLength(2);
+		const after = DiffContext.request(expanded, undefined, undefined, true);
+
+		if (!after) throw new Error("Missing committed trailing context.");
+
+		const tail = await RepositoryDiff.readContext(
+			repository,
+			selection,
+			after.contextLines,
+			new AbortController().signal
+		);
+
+		const result = DiffContext.expand(expanded, tail, after);
+
+		expect(result.patch).toContain(" line 142\n");
+		expect(result.patch).not.toContain("unrelated working");
+		expect(result.patch).toContain("@@ -97,46 +97,47 @@");
 	}
 
 	expect(await readFile(join(repository, ".git/index"))).toEqual(index);

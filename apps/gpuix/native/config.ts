@@ -155,6 +155,10 @@ export const frameScrollbarPatchPath = resolve(
 	import.meta.dir,
 	"frame-scrollbar.patch"
 );
+export const diffTrailingContextPatchPath = resolve(
+	import.meta.dir,
+	"diff-trailing-context.patch"
+);
 export const nativeBuildId = createHash("sha256")
 	.update(nativeRevision)
 	.update(readFileSync(patchPath))
@@ -198,5 +202,6 @@ export const nativeBuildId = createHash("sha256")
 	.update(readFileSync(scrollMetricsPatchPath))
 	.update(readFileSync(textScalePatchPath))
 	.update(readFileSync(frameScrollbarPatchPath))
+	.update(readFileSync(diffTrailingContextPatchPath))
 	.update(`${process.platform}-${process.arch}-release-v1`)
 	.digest("hex");

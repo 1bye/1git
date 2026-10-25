@@ -1,0 +1,95 @@
+--- a/packages/native/src/diff/mod.rs
++++ b/packages/native/src/diff/mod.rs
+@@ -445,6 +445,8 @@
+         old: Option<u32>,
+         new: Option<u32>,
+     },
++    /// On-demand context below the final hunk of a single-file viewer.
++    ContextAfter,
+     /// Bottom padding under an expanded file body.
+     BodyPad {
+         file: u32,
+@@ -462,7 +464,7 @@
+                 metrics.diff_file_header_height
+             }
+             DiffRow::Notice { .. } => metrics.diff_notice_height,
+-            DiffRow::HunkHeader { .. } => metrics.diff_hunk_header_height,
++            DiffRow::HunkHeader { .. } | DiffRow::ContextAfter => metrics.diff_hunk_header_height,
+             DiffRow::Line { .. } | DiffRow::SplitLine { .. } => metrics.diff_line_height,
+             DiffRow::BodyPad { .. } => metrics.diff_body_bottom_pad,
+         }
+--- a/packages/native/src/custom_elements/diff.rs
++++ b/packages/native/src/custom_elements/diff.rs
+@@ -117,6 +117,7 @@
+     show_word_diff: bool,
+     scroll: bool,
+     hide_file_header: bool,
++    expand_after: bool,
+     auto_width: bool,
+     split_scroll: SplitScroll,
+     /// Native shaping runs once per patch/font/layout change, never per wheel frame.
+@@ -222,6 +223,9 @@
+         if self.split {
+             rows = split_rows(&files, rows);
+         }
++        if self.expand_after && files.len() == 1 && matches!(rows.last(), Some(DiffRow::BodyPad { .. })) {
++            rows.insert(rows.len() - 1, DiffRow::ContextAfter);
++        }
+ 
+         let data = Rc::new(DiffData {
+             groups: change_groups(&files),
+@@ -250,6 +254,7 @@
+         self.show_word_diff.hash(&mut hasher);
+         self.max_lines.hash(&mut hasher);
+         self.hide_file_header.hash(&mut hasher);
++        self.expand_after.hash(&mut hasher);
+         let mut paths: Vec<&String> = self.collapsed.iter().collect();
+         paths.sort();
+         paths.hash(&mut hasher);
+@@ -639,6 +644,7 @@
+             "mode" => self.split = value.as_str() == Some("split"),
+             "wordDiff" => self.show_word_diff = value.as_bool().unwrap_or(false),
+             "scroll" => self.scroll = value.as_bool().unwrap_or(false),
++            "expandAfter" => self.expand_after = value.as_bool().unwrap_or(false),
+             "showFileHeader" => self.hide_file_header = value.as_bool() == Some(false),
+             "autoWidth" => {
+                 let auto_width = value.as_bool().unwrap_or(false);
+@@ -678,6 +684,7 @@
+             "wordDiff",
+             "scroll",
+             "showFileHeader",
++            "expandAfter",
+             "autoWidth",
+             "maxLines",
+             "collapsedPaths",
+@@ -942,6 +949,30 @@
+                 }
+             }
+             row.into_any_element()
++        }
++        DiffRow::ContextAfter => {
++            let callback = ctx.callback.clone();
++            let element_id = ctx.element_id;
++            let enabled = ctx.wants_expand_context;
++            gpui::div()
++                .id(SharedString::from(format!("__gpuix_diff_after_{ix}")))
++                .h(px(m.diff_hunk_header_height))
++                .w_full().flex_none().flex().items_center()
++                .px(px(m.diff_row_padding_x))
++                .bg(theme.diff_hunk_bg)
++                .font_family(theme.font_mono.clone())
++                .text_size(px(m.diff_text_size))
++                .text_color(theme.text_faint)
++                .cursor_pointer()
++                .on_click(move |_, _window, _cx| {
++                    if enabled {
++                        emit_event_full(&callback, element_id, "expandContext", |p| {
++                            p.value = Some("after".to_string());
++                        });
++                    }
++                })
++                .child(crate::text::chrome_text(SharedString::from("↓ Expand 20 lines below"), None))
++                .into_any_element()
+         }
+         DiffRow::BodyPad { .. } => gpui::div()
+             .w_full()

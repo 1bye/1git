@@ -183,3 +183,12 @@ diff --git a/dist/host.d.ts b/dist/host.d.ts
      /** Stable locator id for automation. */
      testId?: string;
      /** Internal native animation description used by motion components. */
+diff --git a/dist/host.d.ts b/dist/host.d.ts
+--- a/dist/host.d.ts
++++ b/dist/host.d.ts
+@@ -438,3 +438,5 @@
+     onExpandContext?: (event: EventPayload) => void;
++    /** 1git native patch: show a trailing context action in the virtual list. */
++    expandAfter?: boolean;
+     selectionEnabled?: boolean;
+     selectionDisabled?: boolean;
