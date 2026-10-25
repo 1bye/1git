@@ -157,7 +157,7 @@ export function App({
 	);
 
 	const [showScrollbars, setShowScrollbars] = useState(
-		props.initialSession?.showScrollbars ?? false
+		props.initialSession?.showScrollbars ?? true
 	);
 
 	const [smoothTransitions, setSmoothTransitions] = useState(

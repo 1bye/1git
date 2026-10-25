@@ -15,7 +15,7 @@ export function AppearanceSettings() {
 		setCommitTypeBadges,
 		smoothTransitions = true,
 		setSmoothTransitions,
-		showScrollbars = false,
+		showScrollbars = true,
 		setShowScrollbars,
 	} = useAppTheme();
 

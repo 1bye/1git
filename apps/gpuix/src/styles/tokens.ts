@@ -46,6 +46,7 @@ function controlTokens(appearance: AppAppearance): UiTokens {
 
 	return {
 		focusVisible: false,
+		showScrollbars: true,
 		tooltip: {
 			background: appearance === "dark" ? "#202227eb" : "#fffffff0",
 			text: colors.editorInk,

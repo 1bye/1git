@@ -35,6 +35,8 @@ it("keeps complete palettes and transparent fields without changing density", ()
 		Object.keys(appColors.light).sort()
 	);
 	expect(appControlTokens.dark.layout).toBe(appControlTokens.light.layout);
+	expect(appControlTokens.light.showScrollbars).toBe(true);
+	expect(appControlTokens.dark.showScrollbars).toBe(true);
 	expect(appColors.light.chrome).toBe("transparent");
 	expect(appColors.dark.chrome).toBe("transparent");
 	expect(appControlTokens.dark.colors.field).toBe("transparent");

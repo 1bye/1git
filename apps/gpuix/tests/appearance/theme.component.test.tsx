@@ -39,7 +39,8 @@ function fixture(
 	appearance?: "light" | "dark" | "system",
 	commitTypeBadges?: boolean,
 	smoothTransitions?: boolean,
-	initialSystemAppearance: AppAppearance = "light"
+	initialSystemAppearance: AppAppearance = "light",
+	showScrollbars?: boolean
 ) {
 	const root = createTestRoot({
 		width: 1100,
@@ -106,6 +107,7 @@ function fixture(
 				appearance,
 				commitTypeBadges,
 				smoothTransitions,
+				showScrollbars,
 			}}
 			readRepository={async () => ({ ok: true, value: snapshot })}
 			readHistory={async () => {
@@ -557,29 +559,41 @@ it("follows system changes in Auto, persists the preference and honors manual ov
 	}
 });
 
-it("keeps pane scrollbars off by default and saves the enabled choice", async () => {
-	const { root, catalog, saved } = fixture("light");
+it.each([
+	{ savedChoice: undefined, initial: true },
+	{ savedChoice: false, initial: false },
+])(
+	"defaults pane scrollbars on, preserves saved preferences and persists toggles (%j)",
+	async ({ savedChoice, initial }) => {
+		const { root, catalog, saved } = fixture(
+			"light",
+			undefined,
+			undefined,
+			"light",
+			savedChoice
+		);
 
-	try {
-		await settle(root);
-		await openSettings(root);
-		click(root, "settings-appearance");
-		expect(
-			node(root, "appearance-scrollbars").customProps?.["aria-checked"]
-		).toBe(false);
-		click(root, "appearance-scrollbars");
-		await Bun.sleep(230);
-		await settle(root);
-		expect(saved.at(-1)?.showScrollbars).toBe(true);
-		expect(saved.at(-1)?.tabs[0]?.draft).toBe("Keep my draft");
-		click(root, "appearance-scrollbars");
-		await Bun.sleep(230);
-		await settle(root);
-		expect(saved.at(-1)?.showScrollbars).toBe(false);
-	} finally {
-		catalog.mockRestore();
+		try {
+			await settle(root);
+			await openSettings(root);
+			click(root, "settings-appearance");
+			expect(
+				node(root, "appearance-scrollbars").customProps?.["aria-checked"]
+			).toBe(initial);
+			click(root, "appearance-scrollbars");
+			await Bun.sleep(230);
+			await settle(root);
+			expect(saved.at(-1)?.showScrollbars).toBe(!initial);
+			expect(saved.at(-1)?.tabs[0]?.draft).toBe("Keep my draft");
+			click(root, "appearance-scrollbars");
+			await Bun.sleep(230);
+			await settle(root);
+			expect(saved.at(-1)?.showScrollbars).toBe(initial);
+		} finally {
+			catalog.mockRestore();
+		}
 	}
-});
+);
 
 it("saves text size and installed fonts while retaining the draft and diff instance", async () => {
 	const { root, catalog, saved } = fixture("light", undefined, false);

@@ -447,7 +447,8 @@ changes preserve drafts and are saved with the session.
 and diff panes. Their thin, translucent thumbs follow the window palette; idle
 tracks stay clear. Native layout, painting and pointer handling keep the thumb
 synchronized with the pane without JavaScript polling or React updates while scrolling.
-The setting is off by default and saved with the window session.
+The setting is on by default and saved with the window session. A saved disabled
+choice is preserved.
 
 **Smooth transitions** is enabled by default, sliding the active tab surface and
 blending theme colors. Turn it off in Appearance for instant changes; the saved
