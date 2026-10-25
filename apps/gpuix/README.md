@@ -1531,7 +1531,8 @@ Publishing creates an empty hosted repository, adds `origin`, remembers the
 selected authentication account, then pushes only the reviewed current branch
 and establishes its upstream. Existing remotes are not overwritten. Shared
 repository locks, close protection, Stop and cross-worktree refresh apply to
-the whole transaction. Tokens remain in the credential service and transient
+the whole transaction. After success, the form closes and returns directly to
+the repository workspace. Tokens remain in the credential service and transient
 Git process environment, never in form/session state or Git config.
 
 If creation succeeds but connection/upload fails, **Retry push** uses the same

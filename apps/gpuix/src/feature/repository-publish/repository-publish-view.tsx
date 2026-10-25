@@ -161,7 +161,6 @@ export function RepositoryPublishView({
 	const [ownerVersion, setOwnerVersion] = useState(0);
 	const [busy, setBusy] = useState(false);
 	const [error, setError] = useState("");
-	const [complete, setComplete] = useState(false);
 
 	const account = catalog.saved.find(
 		(item) => AccountStore.key(item) === accountKey
@@ -179,7 +178,6 @@ export function RepositoryPublishView({
 		!locked &&
 		!uncertain &&
 		!blockedReason &&
-		!complete &&
 		!loadingOwners;
 
 	useEffect(() => {
@@ -325,7 +323,7 @@ export function RepositoryPublishView({
 
 			if (!mounted.current) return;
 
-			if (result?.ok) setComplete(true);
+			if (result?.ok) onClose();
 			else
 				setError(
 					result
@@ -396,174 +394,153 @@ export function RepositoryPublishView({
 				<div
 					style={{ ...column, maxWidth: 480, width: "100%", gap: spacing[3] }}
 				>
-					{complete ? (
-						<>
-							<StateArtwork name="repository" />
-							<text
-								testId="publish-repository-success"
-								role="status"
-								style={muted}
-							>
-								Repository published.
-							</text>
-						</>
-					) : (
-						<>
-							<div role="group" aria-label="Publishing account" style={column}>
-								{catalog.saved.map((item, index) =>
-									index % 2 === 0 ? (
-										<div key={AccountStore.key(item)} style={row}>
-											{catalog.saved.slice(index, index + 2).map((entry) => (
-												<ChoiceTile
-													key={AccountStore.key(entry)}
-													testId={`publish-account-${entry.id}`}
-													label={entry.username}
-													detail={new URL(entry.webUrl).host}
-													source={accountProviderIcons[entry.provider]}
-													disabled={draftLocked}
-													selected={AccountStore.key(entry) === accountKey}
-													onPress={() => {
-														setAccountKey(AccountStore.key(entry));
-														setError("");
-													}}
-												/>
-											))}
-										</div>
-									) : null
-								)}
-							</div>
-							{!catalog.saved.length ? (
-								<>
-									<StateArtwork name="accounts" />
-									<Button
-										tokens={appTokens}
-										variant="secondary"
-										onPress={onSettings}
-									>
-										Connect an account
-									</Button>
-								</>
-							) : null}
-							{created ? (
-								<text
-									testId="publish-created"
-									style={muted}
-								>{`Created ${created.ref.owner}/${created.ref.name}. Retry connects the existing repository and uploads this branch.`}</text>
-							) : (
-								<>
-									<div style={column}>
-										<text style={muted}>Owner</text>
-										<Select
-											value={ownerKey}
-											items={owners.map((item) => ({
-												value: item.id,
-												label: item.path,
-											}))}
-											disabled={draftLocked || loadingOwners}
-											onValueChange={(value) => {
-												if (value && !draftLocked) setOwnerKey(value);
-											}}
-										>
-											<SelectTrigger
-												testId="publish-owner"
-												aria-label="Repository owner"
-												tokens={appTokens}
-												style={{ width: "100%" }}
-											>
-												<SelectValue
-													placeholder={
-														loadingOwners ? "Loading owners…" : "Choose owner"
-													}
-													tokens={appTokens}
-												/>
-											</SelectTrigger>
-											<SelectContent tokens={appTokens}>
-												{owners.map((item) => (
-													<SelectItem
-														key={item.id}
-														value={item.id}
-														tokens={appTokens}
-														disabled={item.canCreateRepository === false}
-													>
-														{item.path}
-													</SelectItem>
-												))}
-											</SelectContent>
-										</Select>
-										{next ? (
-											<Button
-												testId="publish-more-owners"
-												tokens={appTokens}
-												variant="ghost"
-												size="sm"
-												disabled={locked || loadingOwners}
-												onPress={() => {
-													void loadMore();
-												}}
-											>
-												More owners…
-											</Button>
-										) : null}
-										{error && !owners.length && !loadingOwners ? (
-											<Button
-												testId="publish-retry-owners"
-												tokens={appTokens}
-												variant="ghost"
-												size="sm"
-												disabled={draftLocked}
-												onPress={() =>
-													setOwnerVersion((previous) => previous + 1)
-												}
-											>
-												Retry
-											</Button>
-										) : null}
-									</div>
-								</>
-							)}
-							<PublishField
-								id="publish-name"
-								label="Repository name"
-								value={name}
-								disabled={draftLocked}
-								onChange={setName}
-							/>
-							<PublishField
-								id="publish-description"
-								label="Description (optional)"
-								value={description}
-								disabled={draftLocked}
-								onChange={setDescription}
-							/>
-							<div style={column}>
-								<text style={muted}>Visibility</text>
-								<div
-									role="group"
-									aria-label="Repository visibility"
-									style={row}
-								>
-									{(["private", "public"] as const).map((value) => (
-										<Button
-											key={value}
-											testId={`publish-visibility-${value}`}
-											aria-pressed={visibility === value}
-											tokens={appTokens}
-											variant={visibility === value ? "secondary" : "ghost"}
+					<div role="group" aria-label="Publishing account" style={column}>
+						{catalog.saved.map((item, index) =>
+							index % 2 === 0 ? (
+								<div key={AccountStore.key(item)} style={row}>
+									{catalog.saved.slice(index, index + 2).map((entry) => (
+										<ChoiceTile
+											key={AccountStore.key(entry)}
+											testId={`publish-account-${entry.id}`}
+											label={entry.username}
+											detail={new URL(entry.webUrl).host}
+											source={accountProviderIcons[entry.provider]}
 											disabled={draftLocked}
-											onPress={() => setVisibility(value)}
-										>
-											{value === "private" ? "Private" : "Public"}
-										</Button>
+											selected={AccountStore.key(entry) === accountKey}
+											onPress={() => {
+												setAccountKey(AccountStore.key(entry));
+												setError("");
+											}}
+										/>
 									))}
 								</div>
+							) : null
+						)}
+					</div>
+					{!catalog.saved.length ? (
+						<>
+							<StateArtwork name="accounts" />
+							<Button
+								tokens={appTokens}
+								variant="secondary"
+								onPress={onSettings}
+							>
+								Connect an account
+							</Button>
+						</>
+					) : null}
+					{created ? (
+						<text
+							testId="publish-created"
+							style={muted}
+						>{`Created ${created.ref.owner}/${created.ref.name}. Retry connects the existing repository and uploads this branch.`}</text>
+					) : (
+						<>
+							<div style={column}>
+								<text style={muted}>Owner</text>
+								<Select
+									value={ownerKey}
+									items={owners.map((item) => ({
+										value: item.id,
+										label: item.path,
+									}))}
+									disabled={draftLocked || loadingOwners}
+									onValueChange={(value) => {
+										if (value && !draftLocked) setOwnerKey(value);
+									}}
+								>
+									<SelectTrigger
+										testId="publish-owner"
+										aria-label="Repository owner"
+										tokens={appTokens}
+										style={{ width: "100%" }}
+									>
+										<SelectValue
+											placeholder={
+												loadingOwners ? "Loading owners…" : "Choose owner"
+											}
+											tokens={appTokens}
+										/>
+									</SelectTrigger>
+									<SelectContent tokens={appTokens}>
+										{owners.map((item) => (
+											<SelectItem
+												key={item.id}
+												value={item.id}
+												tokens={appTokens}
+												disabled={item.canCreateRepository === false}
+											>
+												{item.path}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+								{next ? (
+									<Button
+										testId="publish-more-owners"
+										tokens={appTokens}
+										variant="ghost"
+										size="sm"
+										disabled={locked || loadingOwners}
+										onPress={() => {
+											void loadMore();
+										}}
+									>
+										More owners…
+									</Button>
+								) : null}
+								{error && !owners.length && !loadingOwners ? (
+									<Button
+										testId="publish-retry-owners"
+										tokens={appTokens}
+										variant="ghost"
+										size="sm"
+										disabled={draftLocked}
+										onPress={() => setOwnerVersion((previous) => previous + 1)}
+									>
+										Retry
+									</Button>
+								) : null}
 							</div>
-							<text style={muted}>
-								{visibility === "public"
-									? "Committed history will be public. Uncommitted files stay on your computer."
-									: "Only committed history is uploaded. Uncommitted files stay on your computer."}
-							</text>
 						</>
 					)}
+					<PublishField
+						id="publish-name"
+						label="Repository name"
+						value={name}
+						disabled={draftLocked}
+						onChange={setName}
+					/>
+					<PublishField
+						id="publish-description"
+						label="Description (optional)"
+						value={description}
+						disabled={draftLocked}
+						onChange={setDescription}
+					/>
+					<div style={column}>
+						<text style={muted}>Visibility</text>
+						<div role="group" aria-label="Repository visibility" style={row}>
+							{(["private", "public"] as const).map((value) => (
+								<Button
+									key={value}
+									testId={`publish-visibility-${value}`}
+									aria-pressed={visibility === value}
+									tokens={appTokens}
+									variant={visibility === value ? "secondary" : "ghost"}
+									disabled={draftLocked}
+									onPress={() => setVisibility(value)}
+								>
+									{value === "private" ? "Private" : "Public"}
+								</Button>
+							))}
+						</div>
+					</div>
+					<text style={muted}>
+						{visibility === "public"
+							? "Committed history will be public. Uncommitted files stay on your computer."
+							: "Only committed history is uploaded. Uncommitted files stay on your computer."}
+					</text>
 				</div>
 			</div>
 			<div
@@ -602,24 +579,22 @@ export function RepositoryPublishView({
 							else onClose();
 						}}
 					>
-						{busy ? "Stop" : complete ? "Done" : "Cancel"}
+						{busy ? "Stop" : "Cancel"}
 					</Button>
-					{!complete ? (
-						<Button
-							testId="publish-repository-submit"
-							tokens={appTokens}
-							disabled={!canSubmit}
-							onPress={() => {
-								void submit();
-							}}
-						>
-							{busy
-								? "Publishing…"
-								: created
-									? "Retry push"
-									: "Publish repository"}
-						</Button>
-					) : null}
+					<Button
+						testId="publish-repository-submit"
+						tokens={appTokens}
+						disabled={!canSubmit}
+						onPress={() => {
+							void submit();
+						}}
+					>
+						{busy
+							? "Publishing…"
+							: created
+								? "Retry push"
+								: "Publish repository"}
+					</Button>
 				</div>
 			</div>
 		</div>

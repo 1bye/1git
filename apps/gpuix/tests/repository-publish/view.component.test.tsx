@@ -155,7 +155,11 @@ function renderForm(
 	onSubmit: (
 		input: PublishRepositoryRequest
 	) => Promise<GitResult<SyncResult> | undefined>,
-	options: { created?: PublishedRepository; uncertain?: boolean } = {}
+	options: {
+		created?: PublishedRepository;
+		uncertain?: boolean;
+		onClose?: () => void;
+	} = {}
 ) {
 	root.render(
 		<RepositoryPublishView
@@ -164,7 +168,7 @@ function renderForm(
 			active
 			disabled={false}
 			onSubmit={onSubmit}
-			onClose={() => {}}
+			onClose={options.onClose ?? (() => {})}
 			onCancel={() => {}}
 			onSettings={() => {}}
 			created={options.created}
@@ -175,8 +179,9 @@ function renderForm(
 
 it("starts private, prefills the name, changes account/owner, and only submits on explicit Publish", async () => {
 	const submit = mock(async (_input: PublishRepositoryRequest) => success);
+	const close = mock(() => {});
 
-	renderForm(submit);
+	renderForm(submit, { onClose: close });
 	await settle();
 
 	expect(node("publish-name").customProps?.value).toBe("project");
@@ -194,7 +199,8 @@ it("starts private, prefills the name, changes account/owner, and only submits o
 	});
 	expect(
 		root.renderer.findByTestId("publish-repository-success")
-	).toBeDefined();
+	).toBeUndefined();
+	expect(close).toHaveBeenCalledTimes(1);
 });
 
 it("requires an explicit public choice and supports organization destinations", async () => {
@@ -244,12 +250,14 @@ it("recovers a failed owner read and blocks invalid names", async () => {
 
 it("uses a known receipt for Retry push and never repeats uncertain creation", async () => {
 	const submit = mock(async (_input: PublishRepositoryRequest) => failed);
+	const close = mock(() => {});
 
-	renderForm(submit, { created: receipt });
+	renderForm(submit, { created: receipt, onClose: close });
 	await settle();
 	expect(root.renderer.getAllText()).toContain("Retry push");
 	await click("publish-repository-submit");
 	expect(submit.mock.calls[0]?.[0].created).toEqual(receipt);
+	expect(close).not.toHaveBeenCalled();
 
 	root.render(
 		<RepositoryPublishView
@@ -353,7 +361,11 @@ it("places the form right of the sidebar, survives dismissal after failed push, 
 	});
 	await click("publish-repository-submit");
 	expect(write.mock.calls[1]?.[1].created).toEqual(receipt);
-	await click("publish-repository-cancel");
+	expect(node("publish-repository-view").style.visibility).toBe("hidden");
+	expect(root.renderer.getAllText()).toContain("Working tree clean");
+	expect(
+		root.renderer.findByTestId("publish-repository-success")
+	).toBeUndefined();
 	expect(node("rail-sync").customProps?.["aria-label"]).toContain(
 		"Repository published"
 	);
