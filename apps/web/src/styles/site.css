@@ -44,6 +44,7 @@ img { height: auto; }
 .site-header-content { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 10px 14px 10px 20px; border: 1px solid #ffffff38; border-radius: 999px; background: #2f529ddd; -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); box-shadow: 0 8px 32px #1e39682b; }
 .brand { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
 .brand img { width: 30px; height: 30px; }
+.brand span { font: italic 400 32px/1 var(--font-display); letter-spacing: -.01em; }
 .site-header nav { display: flex; align-items: center; gap: 22px; font-size: 13px; font-weight: 600; }
 .header-download, .download-button, .frost-button { display: inline-flex; align-items: center; justify-content: center; gap: 22px; min-height: 52px; padding: 0 26px; border: 0; border-radius: 999px; font-size: 14px; font-weight: 600; }
 .header-download { min-height: 38px; padding: 0 18px; background: white; color: var(--ink-dark); }
@@ -233,6 +234,7 @@ img { height: auto; }
   .intro-sequence { animation: mobile-cut 900ms step-end forwards; }
   .site-header nav { gap: 14px; font-size: 12px; }
   .site-header .brand img { width: 24px; height: 24px; }
+  .site-header .brand span { font-size: 26px; }
   .features { padding-top: 48px; }
   .section-intro { padding: 0 24px; margin-bottom: 64px; }
   .section-intro h2 { font-size: 56px; }

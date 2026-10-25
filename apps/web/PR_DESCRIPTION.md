@@ -55,6 +55,9 @@ capture exactly; it is used nowhere else as a feature-window stand-in.
    and an external arrow. The owner has not supplied a destination: both are
    labelled URL pending and disabled rather than guessing a link or navigating to #.
 
+9. Keep the real app icon and set its neighbouring header wordmark in Instrument
+   Serif Italic, at icon height on desktop and mobile.
+
 ## Acceptance checklist
 
 - ✘ No screenshot used more than twice; every alt unique and specific — named slots
