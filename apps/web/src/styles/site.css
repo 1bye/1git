@@ -23,14 +23,22 @@ img { height: auto; }
 .skip-link:focus { transform: translateY(0); }
 .display, .section-intro h2, .feature-copy h3, .not-found h1 { font-family: var(--font-display); font-style: italic; font-weight: 400; letter-spacing: -.01em; line-height: 1.05; }
 .eyebrow, .section-label { color: var(--ink-label); font-size: 12px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; }
-.glow-background { position: fixed; inset: 0; z-index: -1; pointer-events: none; isolation: isolate; background: radial-gradient(ellipse at 50% 44%, var(--glow-inner) 0%, var(--glow-outer) 100%); }
-.glow-background[data-variant="deep"] { background: radial-gradient(ellipse at center, var(--glow-deep), var(--glow-inner)); }
+.glow-background { --glow-y: 40vh; --glow-radius-x: 52vw; --glow-radius-y: 60vh; --zone-inner: var(--glow-inner); --zone-outer: var(--glow-outer); position: fixed; inset: 0; z-index: -1; pointer-events: none; isolation: isolate; background: radial-gradient(ellipse var(--glow-radius-x) var(--glow-radius-y) at 50% var(--glow-y),var(--zone-inner),var(--zone-outer)); }
+.glow-background[data-variant="hero"] { --zone-inner: var(--glow-inner); }
+.glow-background[data-variant="deep"] { --zone-inner: var(--glow-deep); --zone-outer: #5d80c4; }
 .glow-background canvas { display: none; width: 100%; height: 100%; }
 .glow-background[data-webgl] canvas { display: block; }
 .static-grain { position: absolute; inset: 0; opacity: .08; mix-blend-mode: overlay; background: url('/images/grain.svg'); }
 .glow-background[data-webgl] .static-grain { display: none; }
-/* Preserve the film palette beneath a blue shade: small white text needs 4.5:1 even at the pale edge. */
-.glow-readability { position: absolute; inset: 0; background: rgba(14,47,109,.62); }
+/* Protect text locally, leaving the pale glow edge visible between sections. */
+.glow-readability { display: none; }
+.hero-copy, .feature-copy, .feature-column, .section-intro { position: relative; isolation: isolate; }
+.hero-copy::before, .feature-copy::before, .feature-column::before, .section-intro::before, .end-card::before { content: ''; position: absolute; z-index: -1; inset: -200px; background: radial-gradient(ellipse,#183969d9 0%,#183969d9 65%,transparent 100%); filter: blur(36px); pointer-events: none; }
+.hero-copy { max-width: 720px; }
+.hero-copy::before { inset: -60px -160px; background: radial-gradient(ellipse at 50% 80%,#183969b3 0%,#183969a6 40%,transparent 75%); }
+.end-card { isolation: isolate; }
+.end-card::before { inset: 20px max(0px,calc((100% - 760px) / 2)); }
+.connection-section > .section-label, .theme-section > .section-label, .machine figcaption { display: inline-block; background: #183969eb; padding: 8px 16px; border-radius: 12px; }
 .site-header { position: fixed; z-index: 30; top: 18px; left: 50%; width: min(760px, calc(100% - 32px)); transform: translate(-50%, -150%); transition: transform 400ms var(--ease-out); }
 .site-header[data-floating] { transform: translate(-50%,0); }
 .site-header-content { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 10px 14px 10px 20px; border: 1px solid #ffffff38; border-radius: 999px; background: #2f529ddd; -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); box-shadow: 0 8px 32px #1e39682b; }
@@ -107,7 +115,7 @@ img { height: auto; }
 .demo-ring { position: absolute; inset: 0; border: 2px solid #7fa2e0; border-radius: inherit; pointer-events: none; animation: commit-ring 700ms var(--ease-out) both; }
 .demo-ring + .demo-ring { animation-delay: .12s; }
 .demo-caption { font-size: 12px; line-height: 1.6; color: var(--ink-strong); margin-top: 18px; }
-.connection-section { position: relative; padding: 100px max(24px,calc((100vw - 1280px) / 2)) 110px; margin-bottom: 120px; background: #143e8b40; text-align: center; }
+.connection-section { position: relative; padding: 100px max(24px,calc((100vw - 1280px) / 2)) 110px; margin-bottom: 120px; text-align: center; }
 .connection-section h3 { font-size: clamp(68px,11vw,150px); margin: 0 0 26px; }
 .connection-section h4 { font-size: clamp(32px,4vw,56px); margin: 0 0 52px; }
 .connection-world { position: relative; display: grid; grid-template-columns: 1fr 1fr; align-items: center; gap: 24%; }

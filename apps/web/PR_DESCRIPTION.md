@@ -24,6 +24,10 @@ SEO/OG assets, not as a feature-window stand-in.
    pause offscreen, preserve manual controls and the 22% tint. Removed the old
    wallpaper-only caption. The four missing captures are explicit placeholders.
 
+3. Restore per-section elliptical glow geometry as the page scrolls, with a
+   deep SSH palette (#2f58b6 → #5d80c4). Remove the page-wide blue shade; soft
+   local text scrims protect white copy while leaving light section edges visible.
+
 ## Acceptance checklist
 
 - ✘ No screenshot used more than twice; every alt unique and specific — named slots

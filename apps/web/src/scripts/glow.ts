@@ -26,21 +26,52 @@ const reduced = matchMedia("(prefers-reduced-motion: reduce)");
 if (host && canvas) {
 	let repaint = () => {};
 
+	let activeZone = document.querySelector<HTMLElement>("[data-glow-zone]");
+	const geometry = { centerY: 0.4, radiusX: 0.46, radiusY: 0.55 };
+	let geometryFrame = 0;
+
+	const updateGeometry = () => {
+		geometryFrame = 0;
+		const rect = activeZone?.getBoundingClientRect();
+		const hero = host.dataset.variant === "hero";
+		const height = Math.max(rect?.height ?? innerHeight, innerHeight * 0.65);
+
+		geometry.centerY =
+			((rect?.top ?? 0) + height * (hero ? 0.4 : 0.5)) / innerHeight;
+		geometry.radiusX = hero ? 0.46 : 0.52;
+		geometry.radiusY = (height * 0.6) / innerHeight;
+		host.style.setProperty("--glow-y", `${geometry.centerY * 100}vh`);
+		host.style.setProperty("--glow-radius-x", `${geometry.radiusX * 100}vw`);
+		host.style.setProperty("--glow-radius-y", `${geometry.radiusY * 100}vh`);
+		repaint();
+	};
+
 	const zones = new IntersectionObserver(
 		(entries) => {
 			for (const entry of entries) {
 				if (entry.isIntersecting && entry.target instanceof HTMLElement) {
-					host.dataset.variant = entry.target.dataset.glowZone ?? "section";
+					activeZone = entry.target;
+					host.dataset.variant = activeZone.dataset.glowZone ?? "section";
 				}
 			}
 
-			repaint();
+			updateGeometry();
 		},
 		{ rootMargin: "-45% 0px -45% 0px" }
 	);
 
 	for (const zone of document.querySelectorAll("[data-glow-zone]"))
 		zones.observe(zone);
+
+	window.addEventListener(
+		"scroll",
+		() => {
+			if (!geometryFrame) geometryFrame = requestAnimationFrame(updateGeometry);
+		},
+		{ passive: true }
+	);
+	window.addEventListener("resize", updateGeometry);
+	updateGeometry();
 
 	const gl = canvas.getContext("webgl", {
 		alpha: false,
@@ -121,26 +152,16 @@ if (host && canvas) {
 					}
 
 					gl.uniform1f(time, now / 1000);
-					gl.uniform2f(center, 0.5, variant === "hero" ? 0.44 : 0.5);
-					gl.uniform2f(
-						radius,
-						variant === "hero" ? 0.46 : 0.52,
-						variant === "hero" ? 0.5 : 0.55
-					);
+					gl.uniform2f(center, 0.5, geometry.centerY);
+					gl.uniform2f(radius, geometry.radiusX, geometry.radiusY);
 					gl.uniform3fv(
 						inner,
-						colors(
-							variant === "deep"
-								? "--glow-deep"
-								: variant === "hero"
-									? "--glow-mid"
-									: "--glow-inner"
-						)
+						colors(variant === "deep" ? "--glow-deep" : "--glow-inner")
 					);
 					gl.uniform3fv(
 						outer,
-						variant === "hero"
-							? [233 / 255, 238 / 255, 246 / 255]
+						variant === "deep"
+							? [93 / 255, 128 / 255, 196 / 255]
 							: colors("--glow-outer")
 					);
 					gl.drawArrays(gl.TRIANGLES, 0, 6);
