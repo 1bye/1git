@@ -257,6 +257,8 @@ export const loadHistory = async (
 	}
 
 	const args = [
+		"-c",
+		"log.showSignature=false",
 		"log",
 		"--no-decorate",
 		`--max-count=${limit + 1}`,
@@ -264,13 +266,17 @@ export const loadHistory = async (
 		`--format=${HISTORY_RECORD_SEPARATOR}${HISTORY_FORMAT}`,
 	];
 
+	if (input.topoOrder) args.push("--topo-order");
+
+	if (input.revisions) args.push(...input.revisions);
+
 	if (input.revision) {
 		args.push(input.revision);
 	}
 
 	if (input.paths && input.paths.length > 0) {
 		args.push("--", ...input.paths);
-	}
+	} else args.push("--");
 
 	const output = await context.process.run({
 		args,

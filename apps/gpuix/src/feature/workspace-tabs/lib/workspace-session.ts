@@ -119,7 +119,10 @@ export class WorkspaceSession {
 			item === null || (typeof item === "string" && !item.includes("\0"));
 
 		if (
-			(view !== "changes" && view !== "history" && view !== "stashes") ||
+			(view !== "changes" &&
+				view !== "history" &&
+				view !== "stashes" &&
+				view !== "graph") ||
 			!isSelection(changes) ||
 			!isSelection(history) ||
 			!isSelection(historyFile) ||

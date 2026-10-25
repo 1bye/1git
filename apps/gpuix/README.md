@@ -1371,7 +1371,7 @@ and the physical folder dialog still need manual checks.
   drafts survive restarts. Duplicate tabs for the same root retain separate drafts.
   Closing a tab intentionally removes it and its draft from the saved session;
   closing the window retains the remaining tabs. Successful commits save the cleared draft.
-- Each tab remembers Changes/History/Stashes, its selected changed file, commit,
+- Each tab remembers Changes/History/Stashes/Graph, its selected changed file, commit,
   stash and revision file. Paths and immutable revision IDs are checked against
   fresh data; missing revision files fall back to the first available file.
   History lazily searches its previous loaded range plus one page (up to 10,000
@@ -1552,7 +1552,7 @@ locks; no live GitHub/GitLab repository is created by tests.
 ### Remote synchronization
 
 A single control at the top of the left rail handles remote operations, separated
-from Changes/History/Stashes by a short divider. Its icon and tooltip reflect the
+from Changes/History/Stashes/Graph by a short divider. Its icon and tooltip reflect the
 current branch: Fetch when up to date, Pull for incoming commits, Push for outgoing
 commits, and a cloud-upload icon for Publish repository/branch. The upper-right
 badge shows incoming commits (`↓ N`), the lower-right outgoing commits (`↑ N`).
@@ -1663,6 +1663,18 @@ scroll out of view or Home closes. Folder tiles continue to represent scan folde
   History previews are read-only; its context menu provides confirmed Revert,
   Cherry-pick and tag actions. Stashes provides explicit create, apply and delete actions.
   Unavailable views never substitute sample records for live data.
+- **Graph** is a separate rail tab. It shows colored parent/merge lanes across local
+  branches, remote-tracking refs, tags and detached HEAD. Search the reference sidebar,
+  filter by Local/Remote/Tags, or select a ref to browse its history without checking it
+  out. Selecting a commit opens its metadata, changed files and existing read-only diff
+  preview below the graph. Close the details pane to return to the full-height graph.
+  Ref badges keep HEAD and the current/local branch or tag readable, with a `+N`
+  count for additional labels. Hover the badges or focus them on the selected commit
+  to see every full branch and tag name.
+  Commits load in 100-row pages, anchored to captured tip OIDs and topologically ordered.
+  Native scrolling and buffered rows keep long histories responsive; dense graphs can
+  scroll horizontally. Workspace refresh updates local refs; Fetch remains the explicit network
+  action. The selected rail tab is saved, while graph filters and selection are temporary.
 
 Git must be installed on PATH. The app imports the existing workspace Git package;
 the Turbo build/dev tasks build dependencies first. No Electron IPC is involved.

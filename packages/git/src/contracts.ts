@@ -410,6 +410,10 @@ export interface HistoryInput extends GitCallOptions {
 	readonly offset?: number;
 	readonly paths?: readonly string[];
 	readonly revision?: string;
+	/** Anchored tips for a multi-branch graph; mutually exclusive with revision and filePath. */
+	readonly revisions?: readonly string[];
+	/** Keeps every child before its parents, including commits with skewed clocks. */
+	readonly topoOrder?: boolean;
 	/** Literal single-file history following renames along the first-parent line. Mutually exclusive with paths. */
 	readonly filePath?: string;
 }

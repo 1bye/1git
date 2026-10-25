@@ -104,6 +104,8 @@ function RepositoryRow({
 	fileActions,
 	onContextMenu,
 	onPreviewIntent,
+	children,
+	itemHeight,
 }: {
 	entry: WorkspaceEntry;
 	selected: boolean;
@@ -118,6 +120,8 @@ function RepositoryRow({
 	fileActions?: FileMenuActions;
 	onContextMenu?: (entry: WorkspaceEntry, event: EventPayload) => void;
 	onPreviewIntent?: (entry: WorkspaceEntry | null) => void;
+	children?: ReactNode;
+	itemHeight?: number;
 }) {
 	const theme = useAppTheme();
 	const { tokens: appTokens, colors: appColors } = theme;
@@ -147,6 +151,7 @@ function RepositoryRow({
 					gap: spacing[1],
 				},
 				!!entry.detail && { height: revisionRowHeight },
+				itemHeight !== undefined && { height: itemHeight },
 				selected && styles.selected
 			)}
 		>
@@ -194,61 +199,62 @@ function RepositoryRow({
 					height: "100%",
 				}}
 			>
-				{entry.status ? (
-					<RepositoryChangeLabel entry={entry} />
-				) : (
-					<div
-						style={{
-							display: "flex",
-							flexDirection: "column",
-							flexGrow: 1,
-							minWidth: 0,
-							gap: spacing[1],
-							pointerEvents: "none",
-						}}
-					>
+				{children ??
+					(entry.status ? (
+						<RepositoryChangeLabel entry={entry} />
+					) : (
 						<div
 							style={{
 								display: "flex",
-								flexDirection: "row",
-								alignItems: "center",
+								flexDirection: "column",
+								flexGrow: 1,
+								minWidth: 0,
 								gap: spacing[1],
+								pointerEvents: "none",
 							}}
 						>
-							{"commit" in entry ? (
-								<RepositoryCommitSubject
-									subject={entry.title}
-									testId={`commit-subject-${entry.id}`}
-								/>
-							) : (
-								<text style={{ ...styles.label, flexGrow: 1 }}>
-									{entry.title}
-								</text>
-							)}
-							{entry.tags?.length ? (
-								<text
-									testId={`tags-${entry.id}`}
-									style={{
-										...typography["2xs"],
-										color: appColors.editorMuted,
-										backgroundColor: appColors.editorSunken,
-										borderRadius: radius.sm,
-										paddingLeft: spacing[1],
-										paddingRight: spacing[1],
-										flexShrink: 0,
-										maxWidth: 120,
-										overflowX: "hidden",
-										textOverflow: "ellipsis",
-										whiteSpace: "nowrap",
-									}}
-								>{`${entry.tags[0]?.name}${entry.tags.length > 1 ? ` +${entry.tags.length - 1}` : ""}`}</text>
+							<div
+								style={{
+									display: "flex",
+									flexDirection: "row",
+									alignItems: "center",
+									gap: spacing[1],
+								}}
+							>
+								{"commit" in entry ? (
+									<RepositoryCommitSubject
+										subject={entry.title}
+										testId={`commit-subject-${entry.id}`}
+									/>
+								) : (
+									<text style={{ ...styles.label, flexGrow: 1 }}>
+										{entry.title}
+									</text>
+								)}
+								{entry.tags?.length ? (
+									<text
+										testId={`tags-${entry.id}`}
+										style={{
+											...typography["2xs"],
+											color: appColors.editorMuted,
+											backgroundColor: appColors.editorSunken,
+											borderRadius: radius.sm,
+											paddingLeft: spacing[1],
+											paddingRight: spacing[1],
+											flexShrink: 0,
+											maxWidth: 120,
+											overflowX: "hidden",
+											textOverflow: "ellipsis",
+											whiteSpace: "nowrap",
+										}}
+									>{`${entry.tags[0]?.name}${entry.tags.length > 1 ? ` +${entry.tags.length - 1}` : ""}`}</text>
+								) : null}
+							</div>
+							{entry.detail ? (
+								<text style={styles.detail}>{entry.detail}</text>
 							) : null}
 						</div>
-						{entry.detail ? (
-							<text style={styles.detail}>{entry.detail}</text>
-						) : null}
-					</div>
-				)}
+					))}
 				{entry.unpushed ? (
 					<div
 						style={{
@@ -307,6 +313,8 @@ export function RepositoryList({
 	fileActions,
 	onContextMenu,
 	onPreviewIntent,
+	renderEntry,
+	itemHeight,
 }: {
 	entries: readonly WorkspaceEntry[];
 	label: string;
@@ -327,6 +335,9 @@ export function RepositoryList({
 	fileActions?: FileMenuActions;
 	onContextMenu?: (entry: WorkspaceEntry, event: EventPayload) => void;
 	onPreviewIntent?: (entry: WorkspaceEntry | null) => void;
+	/** Custom native row contents retain this list's selection, focus and virtualization. */
+	renderEntry?: (entry: WorkspaceEntry) => ReactNode;
+	itemHeight?: number;
 }) {
 	const theme = useAppTheme();
 	const { styles } = themedStyles.get(theme);
@@ -336,7 +347,10 @@ export function RepositoryList({
 	const container = useRef<PublicInstance>(null);
 	const rows = useRef(new Map<string, PublicInstance>());
 	const initialScroll = useRef(state.scrollY);
-	const rowHeight = entries[0]?.detail ? revisionRowHeight : fileRowHeight;
+
+	const rowHeight =
+		itemHeight ?? (entries[0]?.detail ? revisionRowHeight : fileRowHeight);
+
 	const windowed = entries.length > windowThreshold;
 	const window = useWindowSize();
 
@@ -553,8 +567,6 @@ export function RepositoryList({
 			? (renderer.getElementBounds?.(container.current.id)?.height ?? 0)
 			: 0;
 
-		const rowHeight = entries[0]?.detail ? revisionRowHeight : fileRowHeight;
-
 		const next = RepositoryWorkspaceModel.destination(
 			entries,
 			id,
@@ -619,6 +631,7 @@ export function RepositoryList({
 					>
 						<RepositoryRow
 							entry={entry}
+							itemHeight={itemHeight}
 							onContextMenu={onContextMenu}
 							onPreviewIntent={onPreviewIntent}
 							fileActions={
@@ -689,7 +702,9 @@ export function RepositoryList({
 								revealRow(entry.id);
 							}}
 							onKeyDown={(event) => navigate(entry.id, event)}
-						/>
+						>
+							{renderEntry?.(entry)}
+						</RepositoryRow>
 					</div>
 				))}
 			</virtual-list>

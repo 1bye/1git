@@ -68,7 +68,7 @@ function render(state: RepositoryWorkspaceState): void {
 				workspace={state}
 				view={state.view}
 				revision={
-					state.view === "changes"
+					state.view === "changes" || state.view === "graph"
 						? undefined
 						: RepositoryWorkspaceModel.revision(state, state.view)
 				}

@@ -55,7 +55,7 @@ const restored = (view: RepositoryView = "history") => {
 };
 
 it("round trips every view and selected IDs without saving Git data", () => {
-	for (const view of ["changes", "history", "stashes"] as const) {
+	for (const view of ["changes", "history", "stashes", "graph"] as const) {
 		const tabs = WorkspaceSession.restore(
 			WorkspaceSession.parse(JSON.stringify(document(view)))
 		);

@@ -19,6 +19,7 @@ import type { RemoteAccountAccess } from "../../accounts/lib/remote-accounts";
 import type { StashRequest } from "./repository-stashes";
 import type {
 	RepositoryView,
+	RepositoryListView,
 	RevisionView,
 	WorkspaceEntry,
 	WorkspaceEntries,
@@ -287,7 +288,7 @@ export type RepositoryWorkspaceAction =
 	| { type: "edit-commit-message"; value: string }
 	| {
 			type: "select";
-			view: RepositoryView;
+			view: RepositoryListView;
 			id: string;
 			mode?: "toggle" | "range" | "context";
 			visibleIds?: readonly string[];
@@ -302,7 +303,7 @@ export type RepositoryWorkspaceAction =
 			total: number;
 	  }
 	| { type: "include-all"; included: boolean }
-	| { type: "scroll"; view: RepositoryView; y: number }
+	| { type: "scroll"; view: RepositoryListView; y: number }
 	| { type: "select-revision-file"; view: RevisionView; id: string }
 	| {
 			type: "scroll-revision-files";

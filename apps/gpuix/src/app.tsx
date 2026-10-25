@@ -126,6 +126,8 @@ import { RepositoryPullRequest } from "./feature/repository-pull-request/reposit
 import { RepositoryPullRequestView } from "./feature/repository-pull-request/repository-pull-request-view";
 import { RepositoryHistorySquash } from "./feature/repository-workspace/lib/repository-history-squash";
 import { RepositoryCommitDetails } from "./feature/repository-workspace/components/repository-commit-details";
+import { RepositoryGraph } from "./feature/repository-graph/repository-graph";
+import { RepositoryGraphReader } from "./feature/repository-graph/repository-graph-reader";
 import { AiProvider } from "./feature/ai/ai-provider";
 import type { AiIntegration } from "./feature/ai/lib/ai-integration";
 import { Onboarding } from "./feature/onboarding/onboarding";
@@ -227,6 +229,8 @@ function AppContent({
 	readPullRequest,
 	readDiff = DiffReader.read,
 	readHistory = RepositoryHistory.read,
+	readGraphReferences = RepositoryGraphReader.references,
+	readGraphPage = RepositoryGraphReader.page,
 	readHistoryCount = RepositoryHistory.readCount,
 	readUnpushedCommits = RepositoryHistory.readUnpushed,
 	readCommitFiles = RepositoryHistory.readFiles,
@@ -285,6 +289,8 @@ function AppContent({
 	readPullRequest?: RepositoryPullRequest["read"];
 	readDiff?: typeof DiffReader.read;
 	readHistory?: typeof RepositoryHistory.read;
+	readGraphReferences?: typeof RepositoryGraphReader.references;
+	readGraphPage?: typeof RepositoryGraphReader.page;
 	readHistoryCount?: typeof RepositoryHistory.readCount;
 	readUnpushedCommits?: typeof RepositoryHistory.readUnpushed;
 	readCommitFiles?: typeof RepositoryHistory.readFiles;
@@ -1432,14 +1438,16 @@ function AppContent({
 	);
 
 	const revision =
-		workspace && workspace.view !== "changes"
+		workspace && (workspace.view === "history" || workspace.view === "stashes")
 			? RepositoryWorkspaceModel.revision(workspace, workspace.view)
 			: undefined;
 
 	const selectedId = workspace
 		? workspace.view === "changes"
 			? workspace.views.changes.selectedId
-			: workspace.views[workspace.view].files.selectedId
+			: workspace.view === "graph"
+				? null
+				: workspace.views[workspace.view].files.selectedId
 		: null;
 
 	const files =
@@ -1641,6 +1649,7 @@ function AppContent({
 							workspace.preview ||
 							workspace.repositoryPath) &&
 						!activeTab.comparison &&
+						workspace.view !== "graph" &&
 						!ignoredVisible ? (
 							<RepositoryNavigation
 								onAiSettings={() => {
@@ -2124,6 +2133,25 @@ function AppContent({
 							disabled={
 								workspace.loading || RepositoryWorkspaceModel.isBusy(workspace)
 							}
+						/>
+					) : activeTab &&
+					  workspace?.repository &&
+					  workspace.view === "graph" ? (
+						<RepositoryGraph
+							key={`graph:${activeTab.id}:${workspace.repository.root}`}
+							root={workspace.repository.root}
+							head={workspace.repository.head}
+							version={workspace.metadataVersion ?? 0}
+							disabled={
+								workspace.loading || RepositoryWorkspaceModel.isBusy(workspace)
+							}
+							readReferences={readGraphReferences}
+							readPage={readGraphPage}
+							readCommitFiles={readCommitFiles}
+							readDiff={readDiff}
+							previewCache={previewCache}
+							diffSettings={diffSettings}
+							onDiffSettingsChange={setDiffSettings}
 						/>
 					) : activeTab && workspace?.repository && comparison ? (
 						<RepositoryDiff

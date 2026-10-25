@@ -546,6 +546,16 @@ export class GitRepository {
 					? undefined
 					: requireRepositoryPaths([input.filePath], "get-history")[0];
 
+			const revisions = input.revisions?.map((tip) =>
+				requireRevision(tip, "Graph tip", "get-history")
+			);
+
+			if (revisions && (!revisions.length || revision || filePath))
+				throw invalidInput(
+					"get-history",
+					"Choose nonempty graph tips or a single revision/file history."
+				);
+
 			if (filePath && paths)
 				throw invalidInput(
 					"get-history",
@@ -553,7 +563,7 @@ export class GitRepository {
 				);
 
 			// Explicit revisions stay browseable even after checkout to an unborn branch.
-			if (!revision) {
+			if (!revision && !revisions) {
 				const snapshot = await loadSnapshot(this.context, false, input.signal);
 
 				if (snapshot.head.unborn) return EMPTY_HISTORY;
@@ -565,6 +575,7 @@ export class GitRepository {
 				offset,
 				paths,
 				revision,
+				revisions,
 				filePath,
 			});
 		});

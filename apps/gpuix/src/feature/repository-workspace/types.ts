@@ -13,10 +13,13 @@ export interface CommitFileSelection extends CommitFileChange {
 }
 
 /** Repository navigation views. */
-export type RepositoryView = "changes" | "history" | "stashes";
+export type RepositoryView = "changes" | "history" | "stashes" | "graph";
+
+/** Views using the workspace's ordinary revision/file lists. */
+export type RepositoryListView = Exclude<RepositoryView, "graph">;
 
 /** Views whose selected revision owns a second file list. */
-export type RevisionView = Exclude<RepositoryView, "changes">;
+export type RevisionView = Exclude<RepositoryListView, "changes">;
 
 /** File/revision presentation data, independent of the native renderer. */
 export interface WorkspaceEntry {
@@ -58,4 +61,5 @@ export const repositoryViews: readonly {
 	{ value: "changes", label: "Changes" },
 	{ value: "history", label: "History" },
 	{ value: "stashes", label: "Stashes" },
+	{ value: "graph", label: "Graph" },
 ];

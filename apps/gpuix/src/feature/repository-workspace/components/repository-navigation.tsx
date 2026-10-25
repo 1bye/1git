@@ -179,7 +179,22 @@ function emptyListMessage(state: RepositoryWorkspaceState): string {
 }
 
 /** Repository navigation contained in the workspace surface, below the full-width tab rail. */
-export function RepositoryNavigation({
+export function RepositoryNavigation(
+	props: Omit<Parameters<typeof RepositoryNavigationContent>[0], "state"> & {
+		state: RepositoryWorkspaceState;
+	}
+) {
+	if (props.state.view === "graph") return null;
+
+	return (
+		<RepositoryNavigationContent
+			{...props}
+			state={{ ...props.state, view: props.state.view }}
+		/>
+	);
+}
+
+function RepositoryNavigationContent({
 	workspaceId,
 	state,
 	onAction,
@@ -212,7 +227,9 @@ export function RepositoryNavigation({
 	onPreviewIntent,
 }: {
 	workspaceId: string;
-	state: RepositoryWorkspaceState;
+	state: RepositoryWorkspaceState & {
+		readonly view: Exclude<RepositoryWorkspaceState["view"], "graph">;
+	};
 	onAction: (action: RepositoryWorkspaceAction) => void;
 	onRefresh: () => void;
 	history?: ReturnType<typeof useRepositoryHistory>;

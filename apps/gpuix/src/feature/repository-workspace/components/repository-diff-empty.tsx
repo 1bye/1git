@@ -95,6 +95,10 @@ export function RepositoryDiffEmpty({
 	} else if (selected) {
 		heading = "Diff preview comes next";
 		hint = "This workspace uses sample data. No repository is connected.";
+	} else if (view === "graph") {
+		heading = "Open a repository to explore its graph";
+		hint =
+			"Branches, tags and commit connections appear here for a connected repository.";
 	} else if (view !== "changes") {
 		const kind = view === "history" ? "commit" : "stash";
 

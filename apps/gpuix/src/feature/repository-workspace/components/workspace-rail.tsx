@@ -50,6 +50,9 @@ const icons = {
 		'<path d="M5 3v12m14-6v12M5 9h9l-3-3m3 3-3 3"/><circle cx="5" cy="18" r="3"/><circle cx="19" cy="6" r="3"/>'
 	),
 	history: svg('<path d="M3 10a9 9 0 1 1 1 7M3 4v6h6M12 7v5l4 2"/>'),
+	graph: svg(
+		'<path d="M6 5v14M18 5v5a4 4 0 0 1-4 4H6"/><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/>'
+	),
 	stashes: svg(
 		'<rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v12h14V8M9 12h6"/>'
 	),
