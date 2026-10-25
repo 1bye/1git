@@ -24,6 +24,24 @@ const canvas = host?.querySelector<HTMLCanvasElement>("canvas");
 const reduced = matchMedia("(prefers-reduced-motion: reduce)");
 
 if (host && canvas) {
+	let repaint = () => {};
+
+	const zones = new IntersectionObserver(
+		(entries) => {
+			for (const entry of entries) {
+				if (entry.isIntersecting && entry.target instanceof HTMLElement) {
+					host.dataset.variant = entry.target.dataset.glowZone ?? "section";
+				}
+			}
+
+			repaint();
+		},
+		{ rootMargin: "-45% 0px -45% 0px" }
+	);
+
+	for (const zone of document.querySelectorAll("[data-glow-zone]"))
+		zones.observe(zone);
+
 	const gl = canvas.getContext("webgl", {
 		alpha: false,
 		antialias: false,
@@ -137,6 +155,7 @@ if (host && canvas) {
 					cancelAnimationFrame(frame);
 					const enabled =
 						!reduced.matches &&
+						heroVisible &&
 						!document.hidden &&
 						!document.documentElement.hasAttribute("data-motion-paused");
 
@@ -150,20 +169,9 @@ if (host && canvas) {
 					}
 				};
 
-				const zones = new IntersectionObserver(
-					(entries) => {
-						for (const entry of entries)
-							if (entry.isIntersecting && entry.target instanceof HTMLElement)
-								host.dataset.variant =
-									entry.target.dataset.glowZone ?? "section";
-
-						if (active) draw(performance.now() + 40);
-					},
-					{ rootMargin: "-45% 0px -45% 0px" }
-				);
-
-				for (const zone of document.querySelectorAll("[data-glow-zone]"))
-					zones.observe(zone);
+				repaint = () => {
+					if (active) draw(performance.now() + 40);
+				};
 
 				if (hero)
 					new IntersectionObserver(([entry]) => {

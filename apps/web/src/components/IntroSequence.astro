@@ -16,10 +16,9 @@
     document.documentElement.setAttribute("data-intro-playing", "");
     try { sessionStorage.setItem("1git-intro-seen", "1"); } catch { /* The intro is still skippable when storage is unavailable. */ }
     intro.querySelector("button")?.addEventListener("click", finish);
-    intro.addEventListener("animationend", (event) => { if (event.target instanceof HTMLElement && event.target.classList.contains("intro-word")) finish(); });
-    intro.addEventListener("keydown", (event) => { if (event.key === "Escape") finish(); });
+    intro.addEventListener("animationend", (event) => { if (event.target === intro || (event.target instanceof HTMLElement && event.target.classList.contains("intro-word"))) finish(); });
     // Tabbing reaches the actual page immediately; the intro never traps focus.
-    document.addEventListener("keydown", (event) => { if (event.key === "Tab") finish(); });
+    document.addEventListener("keydown", (event) => { if (event.key === "Tab" || event.key === "Escape") finish(); });
     reduced.addEventListener("change", finish, { once: true });
     setTimeout(finish, 2100);
   }

@@ -1,12 +1,34 @@
 # 1git website
 
-An Astro landing page alongside the native app, adapted from Taada's cloudy
-desktop and MacBook preview, with compact feature cards and a minimal footer.
-The website always uses a dark palette, including the navigation and 404 page,
-independently of the visitor's system appearance.
-The app preview uses the user's native macOS screenshot, preserving the actual
-window material and controls. Astro generates responsive WebP images, with a
-link to the full-size original. The public page never connects to GitHub or SSH.
+An Astro marketing site styled after the 1git launch film: a grained blue glow,
+self-hosted Instrument Serif Italic and Inter, a native window hero, and small
+vanilla TypeScript demonstrations. Existing download routing, FAQ answers,
+canonical/OG tags, and structured data stay intact. No Git, SSH, account, or AI
+operations run in the public page.
+
+The canvas uses the film's elliptical shader and 12 Hz grain seed, caps DPR at
+1.5 and rendering at 30 fps, and stops animating when the hero is offscreen or
+the document is hidden. Reduced motion and WebGL failure use a CSS gradient and
+static SVG noise. A blue shade behind content and backed frosted pills maintain
+small-copy contrast; the pale hero edge carries no body copy.
+
+`motion.ts` owns the shared easing constants and once-on-view behavior.
+`launch-features.ts` owns the local AI, theme wallpaper and reading-spotlight
+demonstrations. Pause motion stops autoplay; reduced motion skips the intro,
+settles text immediately and disables autoplay. The optional intro runs once per
+session, can be skipped or dismissed with Escape/Tab, and never makes the hero
+content depend on JavaScript.
+
+The hero floats the existing native Stashes screenshot without the MacBook frame. A
+dedicated Changes capture is still needed. Its
+lower visible area uses masked duplicate image layers with progressively stronger
+blur. Masks and filters are on separate elements for Safari. Every copy uses the
+same responsive image URLs, so no extra image downloads are introduced. The
+full-size source remains linked. Existing MacBook assets and their provenance
+are retained for historical reference but are no longer used by the page.
+
+See [PR_DESCRIPTION.md](PR_DESCRIPTION.md) for copy decisions, open asset needs,
+and review evidence.
 
 ## Development
 
@@ -79,8 +101,7 @@ content or crawler-specific rendering is used. Search Console and Bing Webmaster
 Tools verification and sitemap submission happen separately after deployment.
 
 `src/pages/og.png.ts` renders a 1200 × 630 PNG during `astro build`, using the
-existing ribbon logo and native app screenshot, framed to the same window bounds
-as the homepage. It
+existing ribbon logo and native app screenshot. Its existing framing is preserved. It
 needs no runtime image service or extra dependency. Preview `/og.png` locally
 after a build, and check image dimensions, metadata URLs and FAQ answers before
 publishing. PNG is used for broad sharing-crawler compatibility.
@@ -97,46 +118,29 @@ Taada website. The 1git ribbon is copied from
 references are retained in `assets/macbook-source.json`. No original large
 photographs, PSDs, DMGs, or source image packs are shipped.
 
-`src/assets/1git-native-window.png` is the user's supplied 1902 × 1312 screenshot
-(`SCR-20261017-ofhm.png`). CSS frames its app window at (72, 79, 1754, 1152),
-preserving the actual macOS traffic lights, glass, grain and window border.
+`src/assets/1git-native-window.png` is the user's supplied native screenshot
+(`SCR-20261017-ofhm.png`, stored at 2324 × 1602). The window bounds
+(72, 79, 1754, 1152), measured in a 1902 × 1312 reference, were scaled to the
+source image and extracted into `src/assets/launch/native-window.webp` (2143 × 1407).
+The capture shows Stashes. The crop preserves the real traffic lights, glass,
+grain and border.
 Repository tabs and file names in the screenshot remain visible. No window
 chrome is recreated in HTML. To replace the screenshot, update the PNG and its
 window bounds together; the build generates optimized responsive variants.
 
-The asymmetric bento grid illustrates thirteen existing capabilities in
-`FeatureIllustration.astro`: GPU rendering, selected changes and commits,
-branches/worktrees, spaces, repository tabs, commit history, GitHub/GitLab accounts
-and GitHub CLI, SSH, AI commit drafts, ignored-file history, multiple stashes,
-file-type editor preferences, and keyboard shortcuts. All cards use decorative SVG
-artwork. Changes shows two selected rows and an unselected row; History shows a
-commit list; Spaces groups repositories into Work and Personal contexts; Tabs
-shows separate repository tabs. AI drafts remain editable, and ignored-file history
-is opt-in for selected ignored paths. Provider glyphs reuse the app's Phosphor
-Icons under the MIT license in `public/licenses/phosphor-icons.txt`. The renderer
-claim reflects the app's GPUI/Metal renderer; no benchmark or frame-rate claim
-is made. The keyboard artwork shows the app's Command+P repository picker.
-The Diagram-inspired cards use a solid dark background without borders and
-small, medium-weight titles. Artwork uses flat charcoal fills, softly blurred CSS edge lighting, small shadows
-and muted functional accents. Editor logos are local assets: Xcode from
-[Apple Developer](https://developer.apple.com/xcode/), VS Code from its
-[official brand assets](https://code.visualstudio.com/brand), and Zed from the
-installed app icon. The remaining artwork is SVG, without gradient fills.
-Motion follows the artwork: the processor and SSH connection pulse slowly while
-visible, and History highlights its rows once on entry. Hover draws selection
-checks, traces a branch, separates spaces, switches a repository tab,
-lifts provider tiles, types an AI draft, reveals stacked file versions, inserts a new
-stash while the oldest slides out, traces editor mappings, or presses the shortcut
-keys. The typing caret is a CSS border sized in the same monospace units as its
-text, so it stays beyond the letters throughout the reveal. Touch screens get brief entry sequences
-for the checks, branch, tabs, AI draft, file versions, stashes, editor routes and
-keycaps.
-On pointer exit, interrupted hover artwork eases from its current frame back to
-rest over 420 ms. A quick re-entry finishes that return before replaying; tab
-close buttons stay in their own slots throughout. Existing CSS transitions handle
-space and provider tiles. Returns are cancelled when motion is paused, reduced,
-hidden or offscreen, and touch entry sequences remain independent of hover.
-An IntersectionObserver stops artwork offscreen. The pause button beside the
-section title stops all artwork motion; hidden documents and reduced-motion
-preferences also keep it still. The artwork is decorative and performs no Git,
-account, or AI operations. The hero retains the original native screenshot.
+The film feature composition retains the thirteen existing feature claims.
+Tabs, AI and SSH get focused native-CSS/SVG sequences; the smaller features move
+into the History/Branches/Workspace reading grid. Any interactive controls in
+those illustrations are local demonstrations. Real downloads still use the
+existing production `/download` endpoint, including from local previews.
+
+The theme section cycles the four supplied wallpapers while visible, with manual
+selection stopping autoplay. It deliberately labels this as a wallpaper preview:
+the existing native screenshot remains in its original theme until matching Rose,
+Forest, Cosmic and Workshop window captures are supplied. `Open source` uses `#`
+as explicitly requested until a public repository destination is confirmed.
+
+Instrument Serif and Inter are Latin-subset WOFF2 files derived from the same OFL
+fonts used in the film. Their licenses are in `public/licenses/`. Icons reuse the
+existing local glyph set; `public/licenses/phosphor-icons.txt` is retained.
+No runtime font provider or animation dependency is needed.

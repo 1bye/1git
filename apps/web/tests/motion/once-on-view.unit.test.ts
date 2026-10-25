@@ -24,12 +24,15 @@ afterEach(() => {
 
 function browser(reduced = false) {
 	let onChange: (() => void) | undefined;
+
 	let onIntersection:
 		| ((entries: { isIntersecting: boolean }[]) => void)
 		| undefined;
+
 	let threshold: number | number[] | undefined;
 	let observed = false;
 	let disconnected = false;
+
 	const media = {
 		matches: reduced,
 		addEventListener: (_event: string, callback: () => void) => {

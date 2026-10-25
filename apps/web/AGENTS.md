@@ -14,7 +14,11 @@ TypeScript and workspace workflow; React instructions do not apply to Astro.
 - Browser checks: desktop and 390px width; header hidden and inert on the hero,
   animated floating header past it and on returning, screenshot proportions, full-size
   image link, download links, custom 404, reduced motion and no page overflow.
-  The app screenshot is a static image supplied by the user, framed with CSS.
+  The app screenshot is a static image supplied by the user. The native window
+  crop and masked blur layers share optimized responsive assets. Test shader
+  fallback, the skippable session intro, motion pause, and the reading spotlight.
+  Theme previews currently change wallpapers; matching native theme captures
+  are still needed for window-theme crossfades.
 
 Cloud and bezel assets come from the user's Taada website; the app screenshot
 comes from the user's native macOS window capture. Retain the

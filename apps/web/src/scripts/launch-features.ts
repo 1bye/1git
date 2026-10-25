@@ -161,7 +161,17 @@ export function initFeatures(): void {
 
 			spinner.className = "demo-spinner";
 			spinner.setAttribute("aria-hidden", "true");
-			commit.replaceChildren(spinner, label);
+			const outgoing = document.createElement("span");
+
+			outgoing.className = "status-before";
+			outgoing.textContent = commit.textContent;
+			outgoing.setAttribute("aria-hidden", "true");
+			const incoming = document.createElement("span");
+
+			incoming.className = "status-label";
+			incoming.textContent = label;
+			commit.replaceChildren(spinner, incoming, outgoing);
+			later(() => outgoing.remove(), 280);
 		};
 
 		const play = () => {
