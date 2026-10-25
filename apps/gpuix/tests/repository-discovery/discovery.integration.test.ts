@@ -158,3 +158,60 @@ it("reports unavailable roots, continues scanning other roots and honors cancell
 	).rejects.toThrow();
 	expect(updates).toBe(1);
 });
+
+it("shallow search checks matching immediate children and worktrees without descending or revalidating cached paths", async () => {
+	const home = join(sandbox, "home");
+	const fresh = join(home, "Project-new");
+	const known = join(home, "project-cached");
+	const nested = join(home, "project-group", "project-deep");
+	const worktree = join(home, "project-linked");
+
+	for (const path of [
+		fresh,
+		known,
+		nested,
+		join(home, "other"),
+		join(home, "node_modules", "project-dependency"),
+	])
+		await repository(path);
+
+	await git(fresh, "commit", "--allow-empty", "-m", "Initial");
+	await git(fresh, "worktree", "add", "-b", "linked", worktree);
+	await symlink(fresh, join(home, "project-alias"));
+	// A cached path must not be revalidated, even when its marker is now invalid.
+	await rm(join(known, ".git"), { recursive: true });
+	await writeFile(join(known, ".git"), "gitdir: /missing/discovery/git\n");
+	const result = await RepositoryDiscovery.scan(
+		[home],
+		new AbortController().signal,
+		() => {},
+		{
+			shallow: true,
+			query: "PROJECT",
+			knownPaths: [known],
+		}
+	);
+
+	expect([...result.paths].sort()).toEqual([fresh, worktree].sort());
+	expect(result.scanned).toBe(4);
+	expect(result.skipped).toBe(0);
+	expect(result.limited).toBe(false);
+	const root = await RepositoryDiscovery.scan(
+		[fresh],
+		new AbortController().signal,
+		() => {},
+		{ shallow: true, query: "project-new" }
+	);
+
+	expect(root.paths).toEqual([fresh]);
+	const controller = new AbortController();
+
+	await expect(
+		RepositoryDiscovery.scan(
+			[home],
+			controller.signal,
+			() => controller.abort(),
+			{ shallow: true, query: "project" }
+		)
+	).rejects.toThrow();
+});

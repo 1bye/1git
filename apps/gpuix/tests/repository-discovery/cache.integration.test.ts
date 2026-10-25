@@ -200,3 +200,32 @@ it("retains the confirmed repository when a cached root has reached its path lim
 	expect(restored?.progress.paths).toContain("/real/work/new-project");
 	expect(restored?.progress.limited).toBe(true);
 });
+
+it("merges shallow discoveries in a batch while retaining deeper paths and completed scan metadata", () => {
+	const cache = new RepositoryDiscoveryCache(directory);
+	const deep = "/real/work/team/deep-project";
+
+	const completed = {
+		...snapshot,
+		progress: { ...snapshot.progress, paths: [deep] },
+	};
+
+	cache.write("/home", "/alias/work", completed);
+	cache.rememberAll([
+		"/real/work/new-one",
+		"/real/work/new-two",
+		"/real/work/new-one",
+		"/real/workspace/outside",
+		"relative",
+		"/invalid\0",
+	]);
+	const restarted = new RepositoryDiscoveryCache(directory);
+
+	expect(restarted.read("/home", "/alias/work")).toEqual({
+		...completed,
+		progress: {
+			...completed.progress,
+			paths: [deep, "/real/work/new-one", "/real/work/new-two"],
+		},
+	});
+});

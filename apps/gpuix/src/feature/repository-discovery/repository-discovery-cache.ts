@@ -12,7 +12,7 @@ import { isAbsolute, join, relative, sep } from "node:path";
 import { MachineLocation } from "../machines/machine-location";
 import type { RepositoryDiscoveryProgress } from "./repository-discovery";
 
-/** A completed folder scan, incrementally updated by confirmed in-app repositories. */
+/** A completed folder scan, incrementally updated by confirmed repositories and shallow searches. */
 export interface RepositoryDiscoverySnapshot {
 	readonly canonicalPath: string;
 	readonly progress: RepositoryDiscoveryProgress;
@@ -37,27 +37,49 @@ export class RepositoryDiscoveryCache {
 		snapshot: RepositoryDiscoverySnapshot,
 		path: string
 	): RepositoryDiscoverySnapshot {
-		if (
-			!validPath(path) ||
-			MachineLocation.isRemote(path) !==
-				MachineLocation.isRemote(snapshot.canonicalPath) ||
-			snapshot.progress.paths.includes(path)
-		)
-			return snapshot;
+		return RepositoryDiscoveryCache.includeRepositories(snapshot, [path]);
+	}
 
-		const suffix = relative(snapshot.canonicalPath, path);
+	/** Merge discoveries in one pass without discarding deeper cached paths or scan metadata. */
+	static includeRepositories(
+		snapshot: RepositoryDiscoverySnapshot,
+		paths: readonly string[]
+	): RepositoryDiscoverySnapshot {
+		if (!paths.length) return snapshot;
 
-		if (isAbsolute(suffix) || suffix === ".." || suffix.startsWith(`..${sep}`))
-			return snapshot;
+		const included = new Set(snapshot.progress.paths);
+		let changed = false;
 
-		const paths = [...snapshot.progress.paths, path];
+		for (const path of paths) {
+			if (
+				!validPath(path) ||
+				MachineLocation.isRemote(path) !==
+					MachineLocation.isRemote(snapshot.canonicalPath) ||
+				included.has(path)
+			)
+				continue;
+
+			const suffix = relative(snapshot.canonicalPath, path);
+
+			if (
+				isAbsolute(suffix) ||
+				suffix === ".." ||
+				suffix.startsWith(`..${sep}`)
+			)
+				continue;
+
+			included.add(path);
+			changed = true;
+		}
+
+		if (!changed) return snapshot;
 
 		return {
 			...snapshot,
 			progress: {
 				...snapshot.progress,
-				paths: paths.slice(-maxRepositories),
-				limited: snapshot.progress.limited || paths.length > maxRepositories,
+				paths: [...included].slice(-maxRepositories),
+				limited: snapshot.progress.limited || included.size > maxRepositories,
 			},
 		};
 	}
@@ -151,6 +173,13 @@ export class RepositoryDiscoveryCache {
 
 	/** Updates existing cached roots across spaces and machines without scanning repository folders. */
 	remember(repository: string): void {
+		this.rememberAll([repository]);
+	}
+
+	/** Persist a batch once per cached root, retaining the completed recursive scan. */
+	rememberAll(repositories: readonly string[]): void {
+		if (!repositories.length) return;
+
 		try {
 			for (const filename of readdirSync(this.directory)) {
 				if (!cacheFilename.test(filename)) continue;
@@ -160,9 +189,9 @@ export class RepositoryDiscoveryCache {
 
 				if (!snapshot) continue;
 
-				const next = RepositoryDiscoveryCache.includeRepository(
+				const next = RepositoryDiscoveryCache.includeRepositories(
 					snapshot,
-					repository
+					repositories
 				);
 
 				if (next !== snapshot) this.writeSnapshot(path, next);

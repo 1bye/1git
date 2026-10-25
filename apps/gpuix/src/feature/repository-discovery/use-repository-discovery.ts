@@ -1,6 +1,7 @@
 import {
 	useCallback,
 	useEffect,
+	useLayoutEffect,
 	useMemo,
 	useRef,
 	useState,
@@ -32,7 +33,7 @@ interface FolderScan {
 	readonly error?: string;
 }
 
-/** Reuses completed scans across navigation and restarts; explicit rescans replace cached results. */
+/** Reuses recursive scans; debounced shallow searches append discoveries without discarding the cache. */
 export function useRepositoryDiscovery({
 	enabled,
 	scan,
@@ -68,47 +69,132 @@ export function useRepositoryDiscovery({
 	const mounted = useRef(true);
 	const picker = useRef(false);
 
+	const latestRuns = useRef(runs);
+	const searching = useRef<AbortController | null>(null);
+	const [refreshing, setRefreshing] = useState(false);
+
+	useLayoutEffect(() => {
+		latestRuns.current = runs;
+	}, [runs]);
+
+	const includePaths = useCallback((paths: readonly string[]): void => {
+		if (!mounted.current || !paths.length) return;
+
+		for (const controller of [
+			...active.current.values(),
+			...pending.current.values(),
+		]) {
+			const added = additions.current.get(controller) ?? new Set<string>();
+
+			for (const path of paths) added.add(path);
+
+			additions.current.set(controller, added);
+		}
+
+		setRuns((current) => {
+			let next: Map<string, FolderScan> | undefined;
+
+			for (const [root, run] of current) {
+				const snapshot = RepositoryDiscoveryCache.includeRepositories(
+					run,
+					paths
+				);
+
+				if (snapshot === run) continue;
+
+				next ??= new Map(current);
+				next.set(root, { ...run, progress: snapshot.progress });
+			}
+
+			return next ?? current;
+		});
+	}, []);
+
 	const remember = useCallback(
 		(path: string): void => {
 			if (!mounted.current) return;
 
 			cache?.remember(path);
-
-			for (const controller of [
-				...active.current.values(),
-				...pending.current.values(),
-			]) {
-				const paths = additions.current.get(controller) ?? new Set<string>();
-
-				paths.add(path);
-				additions.current.set(controller, paths);
-			}
-
-			setRuns((current) => {
-				let next: Map<string, FolderScan> | undefined;
-
-				for (const [root, run] of current) {
-					const snapshot = RepositoryDiscoveryCache.includeRepository(
-						run,
-						path
-					);
-
-					if (snapshot === run) continue;
-
-					next ??= new Map(current);
-					next.set(root, { ...run, progress: snapshot.progress });
-				}
-
-				return next ?? current;
-			});
+			includePaths([path]);
 		},
-		[cache]
+		[cache, includePaths]
+	);
+
+	const refresh = useCallback(
+		async (query: string, signal: AbortSignal): Promise<void> => {
+			if (!enabled || !scan || !query.trim() || signal.aborted) return;
+
+			const folders = [
+				...new Set([...(scanHome ? [home] : []), ...preferences.folders]),
+			].filter(
+				(path) => !active.current.has(path) && !pending.current.has(path)
+			);
+
+			if (!folders.length) return;
+
+			searching.current?.abort();
+			const controller = new AbortController();
+
+			searching.current = controller;
+			const combined = AbortSignal.any([signal, controller.signal]);
+
+			setRefreshing(true);
+			setPickerError(null);
+			const knownPaths = [
+				...new Set(
+					[...latestRuns.current.values()]
+						.filter((run) => run.scope === home)
+						.flatMap((run) => run.progress.paths)
+				),
+			].slice(-5000);
+
+			const included = new Set(knownPaths);
+
+			const include = (progress: RepositoryDiscoveryProgress): void => {
+				if (combined.aborted || !mounted.current || !progress.paths.length)
+					return;
+
+				const paths = progress.paths.filter((path) => !included.has(path));
+
+				if (!paths.length) return;
+
+				for (const path of paths) included.add(path);
+
+				cache?.rememberAll(paths);
+				includePaths(paths);
+			};
+
+			try {
+				include(
+					await scan(folders, combined, include, {
+						shallow: true,
+						query,
+						knownPaths,
+					})
+				);
+			} catch (cause) {
+				if (!combined.aborted && mounted.current)
+					setPickerError(
+						cause instanceof Error
+							? cause.message
+							: "Could not check for new repositories."
+					);
+			} finally {
+				if (searching.current === controller) {
+					searching.current = null;
+
+					if (mounted.current) setRefreshing(false);
+				}
+			}
+		},
+		[enabled, scan, scanHome, home, preferences.folders, cache, includePaths]
 	);
 
 	const start = useCallback(
 		(folders: readonly string[]) => {
 			if (!scan) return;
 
+			searching.current?.abort();
 			setPickerError(null);
 
 			for (const path of new Set(folders)) {
@@ -162,15 +248,10 @@ export function useRepositoryDiscovery({
 							const includeAdded = (
 								progress: RepositoryDiscoveryProgress
 							): RepositoryDiscoveryProgress => {
-								let snapshot = { canonicalPath, progress };
-
-								for (const path of additions.current.get(controller) ?? [])
-									snapshot = RepositoryDiscoveryCache.includeRepository(
-										snapshot,
-										path
-									);
-
-								return snapshot.progress;
+								return RepositoryDiscoveryCache.includeRepositories(
+									{ canonicalPath, progress },
+									[...(additions.current.get(controller) ?? [])]
+								).progress;
 							};
 
 							const result = includeAdded(
@@ -242,6 +323,7 @@ export function useRepositoryDiscovery({
 
 		return () => {
 			mounted.current = false;
+			searching.current?.abort();
 
 			for (const controller of [...requests.values(), ...queue.values()])
 				controller.abort();
@@ -379,6 +461,8 @@ export function useRepositoryDiscovery({
 		available: !!scan,
 		folders,
 		remember,
+		refresh,
+		refreshing,
 		rescan: (folder?: string) =>
 			start(
 				folder
@@ -387,6 +471,7 @@ export function useRepositoryDiscovery({
 			),
 		chooseFolder,
 		removeFolder: (path: string) => {
+			searching.current?.abort();
 			active.current.get(path)?.abort();
 			pending.current.get(path)?.abort();
 			pending.current.delete(path);
@@ -405,6 +490,8 @@ export function useRepositoryDiscovery({
 			}));
 		},
 		stop: () => {
+			searching.current?.abort();
+
 			for (const controller of [
 				...active.current.values(),
 				...pending.current.values(),

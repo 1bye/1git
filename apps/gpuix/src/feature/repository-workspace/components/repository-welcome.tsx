@@ -162,6 +162,23 @@ function RepositoryWelcomeContent({
 	const { styles } = themedStyles.get(theme);
 
 	const [query, setQuery] = useState("");
+	const searchQuery = query.trim().toLowerCase();
+	const refresh = discovery?.refresh;
+
+	useEffect(() => {
+		if (!searchQuery || !refresh) return;
+
+		const controller = new AbortController();
+
+		const timer = setTimeout(() => {
+			void refresh(searchQuery, controller.signal);
+		}, 200);
+
+		return () => {
+			clearTimeout(timer);
+			controller.abort();
+		};
+	}, [refresh, searchQuery]);
 	const [menuError, setMenuError] = useState<string | null>(null);
 	const renderer = useGpuixRequired();
 	const window = useWindowSize();
@@ -311,11 +328,11 @@ function RepositoryWelcomeContent({
 	const scope = inFolder ? (selectedFolder?.paths ?? []) : paths;
 
 	const matches = scope.filter((path) =>
-		path.toLowerCase().includes(query.trim().toLowerCase())
+		path.toLowerCase().includes(searchQuery)
 	);
 
 	const saved = new Set(savedPaths);
-	const scanning = discovery?.status === "scanning";
+	const scanning = discovery?.status === "scanning" || discovery?.refreshing;
 
 	return (
 		<div testId="repository-welcome" style={styles.page}>

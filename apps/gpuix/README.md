@@ -1330,9 +1330,13 @@ rescanning. A successful create/clone is cached even if its following status rea
 fails. Repositories opened while a scan is running are retained in its final cache.
 **Scan repositories** refreshes all roots, and a folder's **Scan again** refreshes
 that root. Newly added roots scan independently. Stopped or unavailable scans are
-retried next launch; a missing or damaged cache falls back to scanning. Repositories
-created, moved or deleted outside the app appear after an explicit rescan. Discovery
-does not import Electron data or add discovered paths to saved history.
+retried next launch; a missing or damaged cache falls back to scanning. While searching,
+cached matches appear immediately. After a 200 ms typing pause, a shallow background
+check looks for matching repositories in each configured root and its immediate child
+folders, skipping known repositories. Newly discovered paths join the results and cache
+without replacing deeper cached paths. Changing or clearing the query cancels the check.
+An explicit rescan finds new repositories deeper in the tree and removes moved or deleted
+paths. Discovery does not import Electron data or add discovered paths to saved history.
 Right-click, Control-click or Shift+F10 on a saved repository opens the native
 menu: Open, Reveal in Finder, or Forget. Forget removes only the saved entry,
 preserving files and open tabs; the removal survives session restoration.

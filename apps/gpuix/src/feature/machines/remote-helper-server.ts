@@ -178,10 +178,37 @@ export class RemoteRepositoryService {
 			)
 				throw new Error("Invalid remote scan folders.");
 
+			if (
+				(frame.shallow !== undefined && typeof frame.shallow !== "boolean") ||
+				(frame.query !== undefined &&
+					(typeof frame.query !== "string" ||
+						frame.query.length > 4096 ||
+						frame.query.includes("\0"))) ||
+				(frame.knownPaths !== undefined &&
+					(!Array.isArray(frame.knownPaths) ||
+						frame.knownPaths.length > 5000 ||
+						!frame.knownPaths.every(
+							(path) =>
+								typeof path === "string" &&
+								isAbsolute(path) &&
+								!/[\0\r\n]/.test(path)
+						)))
+			)
+				throw new Error("Invalid remote search options.");
+
 			return await RepositoryDiscovery.scan(
 				frame.folders.length ? frame.folders : [homedir()],
 				signal,
-				progress
+				progress,
+				frame.shallow === true
+					? {
+							shallow: true,
+							query: typeof frame.query === "string" ? frame.query : "",
+							knownPaths: Array.isArray(frame.knownPaths)
+								? frame.knownPaths
+								: [],
+						}
+					: undefined
 			);
 		}
 

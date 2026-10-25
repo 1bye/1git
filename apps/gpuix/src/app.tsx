@@ -1034,8 +1034,8 @@ function AppContent({
 	);
 
 	const remoteScan = useCallback<typeof RepositoryDiscovery.scan>(
-		async (folders, signal, report) =>
-			await machines.scan(selectedMachine, folders, signal, report),
+		async (folders, signal, report, options) =>
+			await machines.scan(selectedMachine, folders, signal, report, options),
 		[machines, selectedMachine]
 	);
 

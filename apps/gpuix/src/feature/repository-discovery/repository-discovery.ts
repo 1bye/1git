@@ -1,5 +1,5 @@
 import { GitRepository } from "@1git/git";
-import { readdir, realpath } from "@1git/git/runtime";
+import { lstat, readdir, realpath } from "@1git/git/runtime";
 import { isAbsolute, join, normalize } from "node:path";
 
 /** Local discovery intent only; found repositories never become saved history automatically. */
@@ -14,6 +14,13 @@ export interface RepositoryDiscoveryProgress {
 	readonly scanned: number;
 	readonly skipped: number;
 	readonly limited: boolean;
+}
+
+/** Shallow search checks matching root/direct-child markers and skips already cached repositories. */
+export interface RepositoryDiscoveryScanOptions {
+	readonly shallow?: boolean;
+	readonly query?: string;
+	readonly knownPaths?: readonly string[];
 }
 
 const excludedFolders = new Set([
@@ -93,8 +100,19 @@ export class RepositoryDiscovery {
 	static async scan(
 		folders: readonly string[],
 		signal: AbortSignal,
-		onProgress: (progress: RepositoryDiscoveryProgress) => void
+		onProgress: (progress: RepositoryDiscoveryProgress) => void,
+		options?: RepositoryDiscoveryScanOptions
 	): Promise<RepositoryDiscoveryProgress> {
+		const roots = new Set<string>();
+		const known = new Set(options?.shallow ? options.knownPaths : []);
+
+		const query = options?.shallow
+			? (options.query ?? "").trim().toLowerCase()
+			: "";
+
+		const matches = (path: string): boolean =>
+			!known.has(path) && path.toLowerCase().includes(query);
+
 		const pending: string[] = [];
 		const queued = new Set<string>();
 		const found = new Set<string>();
@@ -118,6 +136,8 @@ export class RepositoryDiscovery {
 			try {
 				const root = await realpath(folder);
 
+				roots.add(root);
+
 				if (!queued.has(root)) {
 					queued.add(root);
 					pending.push(root);
@@ -127,7 +147,45 @@ export class RepositoryDiscovery {
 			}
 		}
 
+		const validate = async (path: string): Promise<void> => {
+			const result = await GitRepository.open({
+				path,
+				signal: AbortSignal.any([signal, AbortSignal.timeout(5_000)]),
+			});
+
+			signal.throwIfAborted();
+
+			if (result.ok && result.value.info.root === path) {
+				if (found.size < maxRepositories) found.add(path);
+				else limited = true;
+			} else skipped++;
+		};
+
 		const visit = async (path: string): Promise<void> => {
+			if (options?.shallow && !roots.has(path)) {
+				signal.throwIfAborted();
+				scanned++;
+
+				try {
+					const marker = await lstat(join(path, ".git"));
+
+					if (marker.isDirectory() || marker.isFile()) await validate(path);
+				} catch (cause) {
+					signal.throwIfAborted();
+
+					if (
+						!(
+							cause instanceof Error &&
+							"code" in cause &&
+							(cause.code === "ENOENT" || cause.code === "ENOTDIR")
+						)
+					)
+						skipped++;
+				}
+
+				return;
+			}
+
 			signal.throwIfAborted();
 			let entries;
 
@@ -143,28 +201,21 @@ export class RepositoryDiscovery {
 			signal.throwIfAborted();
 
 			if (
+				(!options?.shallow || matches(path)) &&
 				entries.some(
 					(entry) =>
 						entry.name === ".git" && (entry.isDirectory() || entry.isFile())
 				)
 			) {
-				const result = await GitRepository.open({
-					path,
-					signal: AbortSignal.any([signal, AbortSignal.timeout(5_000)]),
-				});
-
-				signal.throwIfAborted();
-
-				if (result.ok && result.value.info.root === path) {
-					if (found.size < maxRepositories) found.add(path);
-					else limited = true;
-				} else skipped++;
+				await validate(path);
 			}
 
 			for (const entry of entries) {
 				if (!entry.isDirectory() || excludedFolders.has(entry.name)) continue;
 
 				const child = join(path, entry.name);
+
+				if (options?.shallow && !matches(child)) continue;
 
 				if (queued.has(child)) continue;
 

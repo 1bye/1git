@@ -6,7 +6,10 @@ import { MachineStore, type SavedMachine } from "./machine-store";
 import { SshConnection, type MachineStatus } from "./ssh-connection";
 import { MachineLocation } from "./machine-location";
 import { isRecord } from "./remote-protocol";
-import type { RepositoryDiscoveryProgress } from "../repository-discovery/repository-discovery";
+import type {
+	RepositoryDiscoveryProgress,
+	RepositoryDiscoveryScanOptions,
+} from "../repository-discovery/repository-discovery";
 import type { MachineDirectory } from "./machine-folders";
 
 /** App-owned machine registry. Metadata, credentials and live SSH processes have separate lifetimes. */
@@ -296,7 +299,8 @@ export class Machines {
 		id: string,
 		folders: readonly string[],
 		signal: AbortSignal,
-		report: (progress: RepositoryDiscoveryProgress) => void
+		report: (progress: RepositoryDiscoveryProgress) => void,
+		options?: RepositoryDiscoveryScanOptions
 	): Promise<RepositoryDiscoveryProgress> {
 		const connection = await this.connect(id);
 
@@ -332,7 +336,21 @@ export class Machines {
 
 		return parse(
 			await connection.request(
-				{ operation: "scan", folders: roots },
+				{
+					operation: "scan",
+					folders: roots,
+					...(options?.shallow
+						? {
+								shallow: true,
+								query: options.query,
+								knownPaths: (options.knownPaths ?? []).flatMap((path) => {
+									const location = MachineLocation.parse(path);
+
+									return location?.machineId === id ? [location.path] : [];
+								}),
+							}
+						: {}),
+				},
 				signal,
 				(value) => report(parse(value))
 			)

@@ -34,6 +34,7 @@ import {
 	isRecord,
 } from "../../src/feature/machines/remote-protocol";
 import { Machines } from "../../src/feature/machines/machines";
+import { SshConnection } from "../../src/feature/machines/ssh-connection";
 import { MachineLocation } from "../../src/feature/machines/machine-location";
 import { RepositoryHistory } from "../../src/feature/repository-workspace/lib/repository-history";
 import { GitRepository } from "../../src/feature/machines/repository-access";
@@ -298,6 +299,76 @@ it("discovers repositories remotely and refuses unlisted methods and stale commi
 	]);
 
 	expect(last.stdout.trim()).toBe("Base");
+});
+
+it("shallow remote search finds only matching immediate repositories and validates its options", async () => {
+	const fresh = join(directory, "project-new");
+	const known = join(directory, "project-known");
+	const deep = join(directory, "project-group", "project-deep");
+
+	for (const path of [fresh, known, deep, join(directory, "other")]) {
+		await mkdir(path, { recursive: true });
+		await execute("git", ["init", "--initial-branch=main", path]);
+	}
+
+	const scan = await request({
+		operation: "scan",
+		folders: [directory],
+		shallow: true,
+		query: "PROJECT",
+		knownPaths: [known],
+	});
+
+	expect(isRecord(scan) && scan.paths).toEqual([fresh]);
+	expect(isRecord(scan) && scan.skipped).toBe(0);
+	const id = MachineLocation.parse(location)!.machineId;
+	const remote = (path: string) => MachineLocation.encode(id, path);
+
+	const connection = new SshConnection(
+		{
+			id,
+			name: "Helper",
+			host: "unused",
+			username: "",
+			port: null,
+			identityFile: "",
+			folders: [],
+		},
+		async () => null,
+		() => {}
+	);
+
+	spyOn(connection, "request").mockImplementation(
+		async (input, signal, report) =>
+			await service.request(input, signal, report)
+	);
+	spyOn(Machines.shared, "connect").mockResolvedValue(connection);
+	const result = await Machines.shared.scan(
+		id,
+		[location],
+		new AbortController().signal,
+		() => {},
+		{
+			shallow: true,
+			query: "project",
+			knownPaths: [
+				remote(known),
+				fresh,
+				MachineLocation.encode(crypto.randomUUID(), fresh),
+			],
+		}
+	);
+
+	expect(result.paths).toEqual([remote(fresh)]);
+
+	for (const options of [
+		{ shallow: "yes" },
+		{ query: "bad\0" },
+		{ knownPaths: ["relative"] },
+	])
+		await expect(
+			request({ operation: "scan", folders: [directory], ...options })
+		).rejects.toThrow("Invalid remote search options");
 });
 
 it("clones on the machine, offers existing checkouts, and creates guarded worktrees through application services", async () => {

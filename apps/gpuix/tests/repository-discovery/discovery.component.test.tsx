@@ -1218,3 +1218,160 @@ it("supports roving tab focus and keeps the search text when switching repositor
 	click("welcome-view-tiles");
 	expect(node("welcome-search").customProps?.value).toBe("saved");
 });
+
+it("keeps cached matches immediate and discovers a newly added repository while searching without Rescan", async () => {
+	const old = "/Work/project-old";
+	const fresh = "/Work/project-new";
+	const nested = "/Work/nested/deep-project";
+	const cache = new RepositoryDiscoveryCache("/unused/discovery-cache");
+
+	const cached: RepositoryDiscoverySnapshot = {
+		canonicalPath: "/Work",
+		progress: {
+			paths: [old, nested],
+			scanned: 100,
+			skipped: 0,
+			limited: false,
+		},
+	};
+
+	spyOn(cache, "read").mockImplementation((_scope, path) =>
+		path === "/Work"
+			? cached
+			: { canonicalPath: path, progress: { ...progress, paths: [] } }
+	);
+	spyOn(cache, "write").mockImplementation(() => {});
+	const additions = mock<(paths: readonly string[]) => void>(() => {});
+
+	spyOn(cache, "rememberAll").mockImplementation(additions);
+	const pending = Promise.withResolvers<RepositoryDiscoveryProgress>();
+
+	const scan = mock<typeof RepositoryDiscovery.scan>(
+		async (_folders, _signal, report) => {
+			report({ ...progress, paths: [fresh] });
+
+			return await pending.promise;
+		}
+	);
+
+	root.render(
+		<App
+			accounts={accounts}
+			initialSession={{
+				...initial,
+				recentRepositories: [],
+				repositoryDiscovery: { folders: ["/Work"], hidden: [] },
+			}}
+			discoverRepositories={scan}
+			discoveryCache={cache}
+		/>
+	);
+	await settle();
+	expect(scan).not.toHaveBeenCalled();
+	click("welcome-folder-/Work");
+	click("welcome-search");
+	root.renderer.simulateKeystrokes("p r o j e c t");
+	root.renderer.flush();
+	expect(node(`welcome-repository-${old}`)).toBeDefined();
+	expect(
+		root.renderer.findByTestId(`welcome-repository-${fresh}`)
+	).toBeUndefined();
+	expect(scan).not.toHaveBeenCalled();
+	await Bun.sleep(250);
+	await settle();
+	expect(scan).toHaveBeenCalledTimes(1);
+	expect(scan.mock.calls[0]?.[3]).toEqual({
+		shallow: true,
+		query: "project",
+		knownPaths: [old, nested],
+	});
+	expect(node(`welcome-repository-${fresh}`)).toBeDefined();
+	expect(node(`welcome-repository-${old}`)).toBeDefined();
+	expect(node("welcome-search").customProps?.value).toBe("project");
+	expect(additions).toHaveBeenCalledWith([fresh]);
+	pending.resolve({ ...progress, paths: [fresh] });
+	await settle();
+	click("welcome-search");
+	root.renderer.simulateKeystrokes("cmd-a backspace");
+	root.renderer.flush();
+	expect(node(`welcome-repository-${nested}`)).toBeDefined();
+	expect(additions).toHaveBeenCalledTimes(1);
+});
+
+it("debounces typing and ignores late search results after changing or clearing the query", async () => {
+	const cache = new RepositoryDiscoveryCache("/unused/discovery-cache");
+
+	spyOn(cache, "read").mockImplementation((_scope, path) => ({
+		canonicalPath: path,
+		progress: { ...progress, paths: [] },
+	}));
+	const additions = spyOn(cache, "rememberAll").mockImplementation(() => {});
+
+	const requests: {
+		signal: AbortSignal;
+		report: (value: RepositoryDiscoveryProgress) => void;
+		pending: ReturnType<
+			typeof Promise.withResolvers<RepositoryDiscoveryProgress>
+		>;
+	}[] = [];
+
+	const scan = mock<typeof RepositoryDiscovery.scan>(
+		async (_folders, signal, report) => {
+			const pending = Promise.withResolvers<RepositoryDiscoveryProgress>();
+
+			requests.push({ signal, report, pending });
+
+			return await pending.promise;
+		}
+	);
+
+	root.render(
+		<App
+			accounts={accounts}
+			initialSession={{
+				...initial,
+				recentRepositories: [],
+				repositoryDiscovery: { folders: ["/Work"], hidden: [] },
+			}}
+			discoverRepositories={scan}
+			discoveryCache={cache}
+		/>
+	);
+	await settle();
+	click("welcome-folder-/Work");
+	click("welcome-search");
+	root.renderer.simulateKeystrokes("a");
+	root.renderer.flush();
+	await Bun.sleep(50);
+	root.renderer.simulateKeystrokes("l p h a");
+	root.renderer.flush();
+	expect(scan).not.toHaveBeenCalled();
+	await Bun.sleep(250);
+	await settle();
+	expect(scan).toHaveBeenCalledTimes(1);
+	expect(scan.mock.calls[0]?.[3]?.query).toBe("alpha");
+	root.renderer.simulateKeystrokes("cmd-a b e t a");
+	root.renderer.flush();
+	await settle();
+	expect(requests[0]?.signal.aborted).toBe(true);
+	requests[0]?.report({ ...progress, paths: ["/Work/alpha-late"] });
+	requests[0]?.pending.resolve({ ...progress, paths: ["/Work/alpha-late"] });
+	await Bun.sleep(250);
+	await settle();
+	expect(scan).toHaveBeenCalledTimes(2);
+	root.renderer.simulateKeystrokes("cmd-a backspace");
+	root.renderer.flush();
+	await settle();
+	expect(requests[1]?.signal.aborted).toBe(true);
+	requests[1]?.report({ ...progress, paths: ["/Work/beta-late"] });
+	requests[1]?.pending.resolve({ ...progress, paths: ["/Work/beta-late"] });
+	await settle();
+	expect(additions).not.toHaveBeenCalled();
+	expect(
+		root.renderer.findByTestId("welcome-repository-/Work/alpha-late")
+	).toBeUndefined();
+	expect(
+		root.renderer.findByTestId("welcome-repository-/Work/beta-late")
+	).toBeUndefined();
+	expect(node("welcome-search").customProps?.value).toBe("");
+});
