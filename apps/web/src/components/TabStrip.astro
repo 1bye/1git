@@ -1,0 +1,21 @@
+---
+import { Image } from "astro:assets";
+import body from "../assets/screens/tabs-body.webp";
+import avatar from "../assets/screens/tab-avatar.webp";
+const tabs = [
+  { repository: "1git", branch: "master", badge: "99+", avatar: "photo" },
+  { repository: "pkgs", branch: "development", badge: "", avatar: "kapta" },
+  { repository: "ix-native", branch: "master", badge: "47", avatar: "kapta" },
+  { repository: "kunni · devbox-ts", branch: "main", badge: "", avatar: "letter" },
+];
+---
+<div class="tabs-window" aria-label="Repository tabs reorder in the native window">
+  <div class="real-tab-strip">
+    {tabs.map(({repository,branch,badge,avatar: kind}) => <div class="real-tab">
+      {kind === "photo" ? <Image class="tab-avatar" src={avatar} width="16" height="16" alt="1bye avatar on the 1git repository tab." loading="lazy" /> : <span class:list={["tab-avatar",`avatar-${kind}`]} aria-hidden="true">{kind === "kapta" ? "k." : "K"}</span>}
+      <span class="tab-label"><strong>{repository}</strong> / {branch}</span>
+      {badge && <span class="tab-count">{badge}</span>}
+    </div>)}
+  </div>
+  <Image class="tabs-window-body" src={body} width={body.width} height={body.height} widths={[640,960,1440,2143]} sizes="(max-width:650px) 94vw,60vw" format="webp" quality={88} loading="lazy" alt="Cropped native Stashes workspace and dockerignore diff beneath the four movable repository tabs." />
+</div>

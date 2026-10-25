@@ -88,17 +88,26 @@ img { height: auto; }
 .feature-copy p { font-size: 18px; color: var(--ink-strong); line-height: 1.6; }
 .feature-art { min-width: 0; position: relative; }
 .extra-a { display: inline-block; }
-.tabs-word { margin: 0 0 24px; font-size: clamp(60px,7vw,100px); white-space: nowrap; }
+.tabs-word { margin: 0 0 24px; text-align: center; font-size: clamp(60px,7vw,100px); white-space: nowrap; }
 .tabs-word span[aria-hidden] { display: inline-block; transform-origin: left bottom; }
 .is-visible .tabs-word .extra-a { animation: letter-pop 500ms var(--ease-spring) both; animation-delay: calc(var(--order) * 120ms); }
 .is-visible .tabs-word { animation: word-drift 1.6s var(--ease-accel) both; }
-.tabs-demo { display: flex; gap: 5px; background: #6e90c870; padding: 10px 10px 0; border-radius: 12px 12px 0 0; color: white; font-size: 12px; }
-.demo-tab { position: relative; flex: 1; border-radius: 8px 8px 0 0; padding: 13px 10px; background: #353d50; white-space: nowrap; min-width: 0; }
-.demo-tab:first-child { background: var(--app-dark); z-index: 2; }
-.is-visible .demo-tab:first-child { animation: tab-drag 1.9s var(--ease-accel) .45s both; }
-.is-visible .demo-tab:not(:first-child) { animation: tab-aside 240ms var(--ease-app) 1.1s both; }
-.is-visible .demo-tab:last-child { animation-delay: 1.65s; }
-.tabs-demo + .app-window { border-radius: 0 0 14px 14px; }
+.tabs-window { overflow: hidden; border-radius: 16px; background: var(--app-dark); box-shadow: 0 18px 42px -18px #11234d66; }
+.real-tab-strip { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 5px; padding: 10px 7px 0; background: #4a618b; }
+.real-tab { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 12px 7px; border-radius: 8px 8px 0 0; background: #4a618b; font-size: clamp(8px,1vw,12px); color: #e1e5ed; }
+.real-tab:first-child { position: relative; z-index: 2; background: #23262c; }
+.tab-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tab-label strong { font-weight: 600; }
+.tab-avatar { flex: 0 0 16px; width: 16px; height: 16px; border-radius: 3px; display: grid; place-items: center; font: 600 10px var(--font-ui); }
+.avatar-kapta { background: #191d23; } .avatar-letter { background: #526072; }
+.tab-count { margin-left: auto; padding: 2px 4px; border-radius: 3px; background: #62533b; color: #e3cfa6; font-size: 9px; }
+.tabs-window-body { display: block; width: 100%; height: auto; }
+.is-visible .real-tab:first-child { animation: real-tab-drag 240ms var(--ease-app) .8s both; }
+.is-visible .real-tab:not(:first-child) { animation: real-tab-aside 240ms var(--ease-app) .8s both; }
+@keyframes real-tab-drag { to { transform: translateX(calc(300% + 15px)); } }
+@keyframes real-tab-aside { to { transform: translateX(calc(-100% - 5px)); } }
+@media (max-width: 767px) { .tabs-word { font-size: min(12vw,70px); } }
+
 .ai-demo { position: relative; background: var(--app-dark); border-radius: 16px; padding: 26px; box-shadow: 0 18px 42px -18px #11234d66; text-align: left; }
 .demo-label { font-size: 13px; font-weight: 600; color: #cbd0da; }
 .demo-files { padding: 16px 0 18px; border-bottom: 1px solid #ffffff20; font: 12px/2 var(--font-mono); color: #aab6cc; }
@@ -187,7 +196,6 @@ img { height: auto; }
 @keyframes end-drop { from { transform: translateY(-240px); } to { transform: translateY(0); } }
 @keyframes letter-pop { from { transform: scale(0); } to { transform: scale(1); } }
 @keyframes word-drift { to { transform: translateX(-5%); } }
-@keyframes tab-drag { to { transform: translateX(200%); } }
 @keyframes tab-aside { to { transform: translateX(-100%); } }
 @keyframes ai-press { 0%,100% { transform: scale(1); } 25% { transform: scale(.78); } 65% { transform: scale(1.08); } }
 @keyframes star-burst { 0% { opacity: 1; transform: translate(0,0) scale(.3); } 100% { opacity: 0; transform: translate(var(--dx),var(--dy)) scale(1); } }
@@ -227,9 +235,9 @@ img { height: auto; }
   .feature-block:nth-of-type(2n) .feature-copy { order: 0; }
   .feature-copy h3 { font-size: 43px; }
   .feature-copy p { font-size: 16px; }
-  .tabs-word { font-size: 70px; }
-  .tabs-demo { font-size: 9px; }
-  .demo-tab { padding: 10px 5px; }
+  .real-tab { padding: 10px 4px; gap: 4px; }
+  .tab-avatar { flex-basis: 12px; width: 12px; height: 12px; }
+  .tab-count { font-size: 7px; padding: 2px; }
   .ai-demo { padding: 20px; }
   .ai-draft { font-size: 13px; }
   .connection-section { padding: 70px 24px; margin-bottom: 70px; }

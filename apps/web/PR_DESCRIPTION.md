@@ -12,8 +12,9 @@ uses a labelled placeholder, never an unrelated image. Add the files listed in
 changes, ai-composer, ai-composer-busy, home-machines, devbox-remote, theme-rose,
 theme-forest, theme-cosmic, theme-workshop. tabs-strip is optional; history is
 unused while History remains a grid row. All screenshot descriptions are specific
-to the state and placement. The original Stashes image remains only in unchanged
-SEO/OG assets, not as a feature-window stand-in.
+to the state and placement. The original Stashes image remains in unchanged SEO/OG assets. In item 6 its
+body is cropped for the Tabs illustration, whose four rebuilt tabs match that
+capture exactly; it is used nowhere else as a feature-window stand-in.
 
 ## Changes by requested item
 
@@ -37,6 +38,11 @@ SEO/OG assets, not as a feature-window stand-in.
    Stage / Commit and all four developer captions, and keep the short AI note.
    Move Pause animations into the footer and persist its explicit choice safely
    in localStorage. A saved pause skips intro/autoplay and shows settled content.
+
+6. Replace the fake strip with the capture’s four exact repository/branch tabs,
+   avatars and badges on a native body crop. Reorder with the app’s 240ms easing,
+   centre Taaaaaaabs, and fit its full word below 768px. The existing capture is
+   appropriate here because the feature demonstrates those actual tabs.
 
 ## Acceptance checklist
 
