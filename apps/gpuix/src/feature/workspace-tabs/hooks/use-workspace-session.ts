@@ -26,7 +26,8 @@ export function useWorkspaceSession(
 	repositoryDiscovery?: RepositoryDiscoveryPreferences,
 	repositoryPatterns?: RepositoryPatternChoices,
 	repositoryLibrary?: RepositoryLibraryPreferences,
-	smoothTransitions?: boolean
+	smoothTransitions?: boolean,
+	showScrollbars?: boolean
 ) {
 	const content =
 		state.preview || !save
@@ -42,7 +43,8 @@ export function useWorkspaceSession(
 						repositoryDiscovery,
 						repositoryPatterns,
 						repositoryLibrary,
-						smoothTransitions
+						smoothTransitions,
+						showScrollbars
 					)
 				);
 

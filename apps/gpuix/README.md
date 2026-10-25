@@ -436,6 +436,9 @@ Auto follows macOS and is the default when no preference has been saved. The cho
 diff preferences in the workspace session and restores on restart. Switching does
 not remount workspaces, clear drafts/inclusion, reload Git, or reset native diff scroll.
 
+**Show pane scrollbars** adds draggable, keyboard-operable bars to repository lists
+and diff panes. It is off by default and saved with the window session.
+
 **Smooth transitions** is enabled by default, sliding the active tab surface and
 blending theme colors. Turn it off in Appearance for instant changes; the saved
 choice is preserved across restarts.

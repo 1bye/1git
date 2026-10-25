@@ -555,3 +555,27 @@ it("follows system changes in Auto, persists the preference and honors manual ov
 		catalog.mockRestore();
 	}
 });
+
+it("keeps pane scrollbars off by default and saves the enabled choice", async () => {
+	const { root, catalog, saved } = fixture("light");
+
+	try {
+		await settle(root);
+		await openSettings(root);
+		click(root, "settings-appearance");
+		expect(
+			node(root, "appearance-scrollbars").customProps?.["aria-checked"]
+		).toBe(false);
+		click(root, "appearance-scrollbars");
+		await Bun.sleep(230);
+		await settle(root);
+		expect(saved.at(-1)?.showScrollbars).toBe(true);
+		expect(saved.at(-1)?.tabs[0]?.draft).toBe("Keep my draft");
+		click(root, "appearance-scrollbars");
+		await Bun.sleep(230);
+		await settle(root);
+		expect(saved.at(-1)?.showScrollbars).toBe(false);
+	} finally {
+		catalog.mockRestore();
+	}
+});

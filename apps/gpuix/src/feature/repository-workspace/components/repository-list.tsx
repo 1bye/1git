@@ -1,6 +1,7 @@
 import { createThemedStyles, useAppTheme } from "../../../styles/theme";
 import { spacing, radius, typography, fontWeight } from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
+import { Scrollbars } from "@1git/gpuix-ui/scrollbar";
 import { Checkbox } from "@1git/gpuix-ui/checkbox";
 import {
 	useGpuixRequired,
@@ -692,6 +693,11 @@ export function RepositoryList({
 					</div>
 				))}
 			</virtual-list>
+			<Scrollbars
+				vertical={viewport}
+				tokens={theme.tokens}
+				testId={`${testId}-scrollbar`}
+			/>
 		</div>
 	);
 }

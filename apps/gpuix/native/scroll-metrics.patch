@@ -1,0 +1,89 @@
+diff --git a/packages/native/src/renderer.rs b/packages/native/src/renderer.rs
+--- a/packages/native/src/renderer.rs
++++ b/packages/native/src/renderer.rs
+@@ -216,6 +216,37 @@
+         f64::from(f32::from(list.map_or(offset.y, |list| list.y))),
+     ])
+ }
++
++/// Native pixel range and viewport for ordinary scroll handles and virtual lists.
++pub(crate) fn scroll_metrics(id: u64, horizontal: bool) -> Option<Vec<f64>> {
++    if !horizontal {
++        if let Some(state) = VIRTUAL_LIST_STATES.with(|states| states.borrow().get(&id).cloned()) {
++            let bounds = state.viewport_bounds();
++            return Some(vec![f32::from(state.scroll_px_offset_for_scrollbar().y) as f64,
++                f32::from(state.max_offset_for_scrollbar().y) as f64,
++                f32::from(bounds.origin.x) as f64, f32::from(bounds.origin.y) as f64,
++                f32::from(bounds.size.width) as f64, f32::from(bounds.size.height) as f64]);
++        }
++    }
++    SCROLL_HANDLES.with(|handles| handles.borrow().get(&id).map(|handle| {
++        let mut bounds = handle.bounds();
++        // Split diff handles belong to individual rows; the virtual list owns the pane's vertical viewport.
++        if horizontal {
++            if let Some(state) = VIRTUAL_LIST_STATES.with(|states| states.borrow().get(&id).cloned()) {
++                let viewport = state.viewport_bounds();
++                bounds.origin.y = viewport.origin.y;
++                bounds.size.height = viewport.size.height;
++            }
++        }
++        let offset = handle.offset();
++        let max = handle.max_offset();
++        vec![f32::from(if horizontal { offset.x } else { offset.y }) as f64,
++            f32::from(if horizontal { max.x } else { max.y }) as f64,
++            f32::from(bounds.origin.x) as f64, f32::from(bounds.origin.y) as f64,
++            f32::from(bounds.size.width) as f64, f32::from(bounds.size.height) as f64]
++    }))
++}
++
+ const SELECTION_SCROLL_EDGE_PX: f32 = 36.0;
+ const SELECTION_SCROLL_MAX_STEP_PX: f32 = 24.0;
+ 
+@@ -2210,6 +2241,12 @@
+         Err(Error::from_reason("Unsupported operating system"))
+     }
+ 
++    /// Returns [offset, maximum, x, y, width, height] for a scrollable axis.
++    #[napi]
++    pub fn get_scroll_metrics(&self, element_id: f64, horizontal: bool) -> Result<Option<Vec<f64>>> {
++        Ok(crate::renderer::scroll_metrics(to_element_id(element_id)?, horizontal))
++    }
++
+     /// Get the current scroll offset of a scrollable element.
+     /// Returns [x, y] or null if the element has no scroll handle.
+     #[napi]
+diff --git a/packages/native/src/test_renderer.rs b/packages/native/src/test_renderer.rs
+--- a/packages/native/src/test_renderer.rs
++++ b/packages/native/src/test_renderer.rs
+@@ -998,6 +998,12 @@
+         })
+     }
+ 
++    /// Returns [offset, maximum, x, y, width, height] for a scrollable axis.
++    #[napi]
++    pub fn get_scroll_metrics(&self, element_id: f64, horizontal: bool) -> Result<Option<Vec<f64>>> {
++        Ok(crate::renderer::scroll_metrics(to_element_id(element_id)?, horizontal))
++    }
++
+     /// Get the current scroll offset of a scrollable element.
+     /// Returns [x, y] or null if the element has no scroll handle.
+     #[napi]
+diff --git a/packages/native/src/accessibility.rs b/packages/native/src/accessibility.rs
+--- a/packages/native/src/accessibility.rs
++++ b/packages/native/src/accessibility.rs
+@@ -47,6 +47,15 @@
+     }
+     if let Some(value) = string_prop(props, "aria-valuetext") {
+         el = el.aria_value(value);
++    }
++    if let Some(value) = props.get("aria-valuenow").and_then(serde_json::Value::as_f64).filter(|n| n.is_finite()) {
++        el = el.aria_numeric_value(value);
++    }
++    if let Some(value) = props.get("aria-valuemin").and_then(serde_json::Value::as_f64).filter(|n| n.is_finite()) {
++        el = el.aria_min_numeric_value(value);
++    }
++    if let Some(value) = props.get("aria-valuemax").and_then(serde_json::Value::as_f64).filter(|n| n.is_finite()) {
++        el = el.aria_max_numeric_value(value);
+     }
+     if let Some(expanded) = bool_prop(props, "aria-expanded") {
+         el = el.aria_expanded(expanded);

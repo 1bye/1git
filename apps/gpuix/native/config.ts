@@ -146,6 +146,10 @@ export const menuPlacementPlatformPatchPath = resolve(
 	import.meta.dir,
 	"menu-placement-platform.patch"
 );
+export const scrollMetricsPatchPath = resolve(
+	import.meta.dir,
+	"scroll-metrics.patch"
+);
 export const nativeBuildId = createHash("sha256")
 	.update(nativeRevision)
 	.update(readFileSync(patchPath))
@@ -186,5 +190,6 @@ export const nativeBuildId = createHash("sha256")
 	.update(readFileSync(systemAppearancePlatformPatchPath))
 	.update(readFileSync(systemAppearancePatchPath))
 	.update(readFileSync(menuPlacementPlatformPatchPath))
+	.update(readFileSync(scrollMetricsPatchPath))
 	.update(`${process.platform}-${process.arch}-release-v1`)
 	.digest("hex");

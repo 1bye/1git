@@ -84,3 +84,68 @@ index 7d0eda6cb58127462067cb9d5a442a9ea606c671..f63d3f59cdea800ddfb3fa421d7130b7
      "aria-valuetext",
      "aria-level",
  ]);
+diff --git a/dist/testing.js b/dist/testing.js
+--- a/dist/testing.js
++++ b/dist/testing.js
+@@ -336,6 +336,10 @@
+         this.native.flush();
+     }
+     /** Get the current scroll offset [x, y] or null if element is not scrollable. */
++    getScrollMetrics(elementId, horizontal) {
++        this.flush();
++        return this.native.getScrollMetrics(elementId, horizontal);
++    }
+     getScrollOffset(elementId) {
+         this.native.flush();
+         const result = this.native.getScrollOffset(elementId);
+diff --git a/dist/testing.d.ts b/dist/testing.d.ts
+--- a/dist/testing.d.ts
++++ b/dist/testing.d.ts
+@@ -169,6 +169,8 @@
+     setImage(elementId: number, bytes: Buffer | Uint8Array): void;
+     setImagePixels(elementId: number, width: number, height: number, pixels: Buffer | Uint8Array): void;
+     /** Get the current scroll offset [x, y] or null if element is not scrollable. */
++    /** 1git: native scroll offset, range and viewport for one axis. */
++    getScrollMetrics(elementId: number, horizontal: boolean): number[] | null;
+     getScrollOffset(elementId: number): [number, number] | null;
+     /** The logical scroll anchor of a `<virtual-list>`:
+      *  `[itemIndex, offsetInItemPx, viewportHeightPx]`, or null for anything
+diff --git a/dist/mutations.js b/dist/mutations.js
+--- a/dist/mutations.js
++++ b/dist/mutations.js
+@@ -106,6 +106,10 @@
+     "aria-expanded",
+     "aria-selected",
+     "aria-checked",
++    "aria-valuemin",
++    "aria-valuemax",
++    "aria-valuenow",
++    "aria-orientation",
+     "aria-valuetext",
+     "aria-level",
+ ]);
+diff --git a/dist/host.d.ts b/dist/host.d.ts
+--- a/dist/host.d.ts
++++ b/dist/host.d.ts
+@@ -339,6 +339,10 @@
+     "aria-selected"?: boolean;
+     "aria-checked"?: boolean | "mixed";
+     /** String value reported to assistive technology. */
++    "aria-valuemin"?: number;
++    "aria-valuemax"?: number;
++    "aria-valuenow"?: number;
++    "aria-orientation"?: "horizontal" | "vertical";
+     "aria-valuetext"?: string;
+     /** Heading level, 1-based. */
+     "aria-level"?: number;
+@@ -378,6 +382,10 @@
+     "aria-id"?: string;
+     "aria-expanded"?: boolean;
+     "aria-selected"?: boolean;
++    "aria-valuemin"?: number;
++    "aria-valuemax"?: number;
++    "aria-valuenow"?: number;
++    "aria-orientation"?: "horizontal" | "vertical";
+     "aria-valuetext"?: string;
+     "aria-level"?: number;
+     testId?: string;

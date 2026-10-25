@@ -151,6 +151,10 @@ export function App({
 		props.initialSession?.commitTypeBadges ?? true
 	);
 
+	const [showScrollbars, setShowScrollbars] = useState(
+		props.initialSession?.showScrollbars ?? false
+	);
+
 	const [smoothTransitions, setSmoothTransitions] = useState(
 		props.initialSession?.smoothTransitions ?? true
 	);
@@ -167,6 +171,9 @@ export function App({
 	const theme = useMemo(
 		() => ({
 			...appThemes[appearance],
+			tokens: { ...appThemes[appearance].tokens, showScrollbars },
+			showScrollbars,
+			setShowScrollbars,
 			appearancePreference,
 			setAppearance,
 			commitTypeBadges,
@@ -174,7 +181,13 @@ export function App({
 			smoothTransitions,
 			setSmoothTransitions,
 		}),
-		[appearance, appearancePreference, commitTypeBadges, smoothTransitions]
+		[
+			appearance,
+			appearancePreference,
+			commitTypeBadges,
+			smoothTransitions,
+			showScrollbars,
+		]
 	);
 
 	return (
@@ -584,7 +597,8 @@ function AppContent({
 		discoveryPreferences,
 		repositoryPatterns,
 		repositoryLibrary,
-		theme.smoothTransitions
+		theme.smoothTransitions,
+		theme.showScrollbars
 	);
 
 	useEffect(() => {

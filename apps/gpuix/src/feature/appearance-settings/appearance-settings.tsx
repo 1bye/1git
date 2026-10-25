@@ -14,6 +14,8 @@ export function AppearanceSettings() {
 		setCommitTypeBadges,
 		smoothTransitions = true,
 		setSmoothTransitions,
+		showScrollbars = false,
+		setShowScrollbars,
 	} = useAppTheme();
 
 	return (
@@ -39,6 +41,14 @@ export function AppearanceSettings() {
 				Appearance
 			</text>
 			<AppearanceChoices />
+			<Checkbox
+				testId="appearance-scrollbars"
+				label="Show pane scrollbars"
+				checked={showScrollbars}
+				onCheckedChange={(enabled) => setShowScrollbars?.(enabled)}
+				disabled={!setShowScrollbars}
+				tokens={tokens}
+			/>
 			<div
 				style={{
 					display: "flex",

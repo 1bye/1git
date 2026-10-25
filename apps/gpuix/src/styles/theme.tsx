@@ -42,6 +42,8 @@ export const AppThemeContext = createContext<
 		readonly setAppearance?: (appearance: AppAppearancePreference) => void;
 		readonly commitTypeBadges: boolean;
 		readonly setCommitTypeBadges?: (enabled: boolean) => void;
+		readonly showScrollbars?: boolean;
+		readonly setShowScrollbars?: (enabled: boolean) => void;
 		readonly smoothTransitions?: boolean;
 		readonly setSmoothTransitions?: (enabled: boolean) => void;
 	}

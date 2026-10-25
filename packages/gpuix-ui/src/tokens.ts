@@ -60,6 +60,8 @@ export interface UiTokens {
 	readonly layout: TokenSet<typeof densities>;
 	/** Set false to suppress control outlines while retaining native focus and keyboard behavior. */
 	readonly focusVisible?: boolean;
+	/** Show draggable native-range scrollbars in bounded lists and diff panes. */
+	readonly showScrollbars?: boolean;
 	/** Optional translucent tooltip palette; controls without it retain their inverted surface. */
 	readonly tooltip?: {
 		readonly background: string;

@@ -1,3 +1,4 @@
+import { Scrollbars } from "./scrollbar";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import {
 	useGpuixRequired,
@@ -173,6 +174,12 @@ export function DiffView({
 				scroll
 				theme={theme}
 				style={styles.content}
+			/>
+			<Scrollbars
+				vertical={content}
+				horizontal={fixedSplit ? content : viewport}
+				tokens={tokens}
+				testId={testId ? `${testId}-scrollbar` : undefined}
 			/>
 		</div>
 	);

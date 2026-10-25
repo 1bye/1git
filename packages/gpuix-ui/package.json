@@ -11,6 +11,7 @@
     "./diff-view": "./src/diff-view.tsx",
     "./text": "./src/text.tsx",
     "./textarea": "./src/textarea.tsx",
+    "./scrollbar": "./src/scrollbar.tsx",
     "./select": "./src/select.tsx",
     "./tooltip": "./src/tooltip.tsx",
     "./tokens": "./src/tokens.ts"

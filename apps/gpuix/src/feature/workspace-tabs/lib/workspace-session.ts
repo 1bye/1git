@@ -62,6 +62,7 @@ export interface WorkspaceSessionDocument {
 	readonly appearance?: AppAppearancePreference;
 	readonly commitTypeBadges?: boolean;
 	readonly smoothTransitions?: boolean;
+	readonly showScrollbars?: boolean;
 	readonly repositoryColors?: RepositoryColorChoices;
 	readonly repositoryPatterns?: RepositoryPatternChoices;
 	readonly onboarding?: OnboardingStep;
@@ -234,6 +235,9 @@ export class WorkspaceSession {
 			...(typeof value.commitTypeBadges === "boolean"
 				? { commitTypeBadges: value.commitTypeBadges }
 				: {}),
+			...(typeof value.showScrollbars === "boolean"
+				? { showScrollbars: value.showScrollbars }
+				: {}),
 			...(typeof value.smoothTransitions === "boolean"
 				? { smoothTransitions: value.smoothTransitions }
 				: {}),
@@ -289,7 +293,8 @@ export class WorkspaceSession {
 		repositoryDiscovery?: RepositoryDiscoveryPreferences,
 		repositoryPatterns?: RepositoryPatternChoices,
 		repositoryLibrary?: RepositoryLibraryPreferences,
-		smoothTransitions?: boolean
+		smoothTransitions?: boolean,
+		showScrollbars?: boolean
 	): WorkspaceSessionDocument {
 		return {
 			version: 1,
@@ -308,6 +313,7 @@ export class WorkspaceSession {
 				: {}),
 			...(appearance ? { appearance } : {}),
 			...(commitTypeBadges !== undefined ? { commitTypeBadges } : {}),
+			...(showScrollbars !== undefined ? { showScrollbars } : {}),
 			...(smoothTransitions !== undefined ? { smoothTransitions } : {}),
 			...(onboarding ? { onboarding } : {}),
 			...(diffSettings ? { diffSettings } : {}),
