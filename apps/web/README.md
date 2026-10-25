@@ -19,11 +19,12 @@ reading spotlight. The footer's Pause animations button persists its explicit
 choice in localStorage, safely falling back when storage is blocked. Paused or
 reduced-motion visits skip intro/autoplay and show settled, readable content.
 
-The hero crops about 58% of its window and softens the visible lower portion
-with five independently masked backdrop-filter bands. Do not mask their shared
-parent: Safari must be able to sample the underlying screenshot. The overall
-window fades into the following section. Without a supplied Changes capture,
-the same geometry contains a clearly labelled placeholder.
+The hero crops about 58% of its window. Eight vertical gradient masks blend blur
+incremental strengths that combine up to 30px over its lower portion, then feather into the following
+section. The filters sit beside the window at full page width, so they soften the
+blue glow and the window together, matching the film. Keep their parent unmasked
+so Safari can sample both. Only the window's final edge fades; the blur extends
+past it. Missing captures remain labelled placeholders under the same effect.
 
 `src/assets/screens/README.md` lists the required native captures. Astro discovers
 supplied WebP/PNG/AVIF files automatically. Missing files stay labelled rather

@@ -10,6 +10,14 @@ Remove the hero Explore button, the Built for label and all five numbered sectio
 labels, the short AI note, both SOON badges, the footer URL and the Open source
 pill. Keep the section headings, Coming soon heading/items, and GitHub footer link.
 
+## Hero gradient blur
+
+Match the film’s progressive blur across both the window and blue background.
+Eight vertically masked strengths ramp to 30px, with a soft tail below the window.
+Remove the internal window-only bands and soften the next heading’s clipped glow
+so the join has no rectangular boundary. Verified on the current placeholder in
+Chromium desktop/375px and native macOS Safari; final native capture is still pending.
+
 ## Asset status
 
 No requested captures were supplied in `src/assets/screens/`. Each missing state
@@ -35,10 +43,10 @@ capture exactly; it is used nowhere else as a feature-window stand-in.
    deep SSH palette (#2f58b6 → #5d80c4). Remove the page-wide blue shade; soft
    local text scrims protect white copy while leaving light section edges visible.
 
-4. Crop the hero to roughly 58% of the native window, with five independently
-   masked backdrop-blur bands and a fade into the background. The filter wrapper
-   is unmasked so Safari can sample the image. Changes remains a labelled
-   placeholder until its native capture is supplied.
+4. Crop the hero to roughly 58% of the native window. Full-width sibling blur
+   layers soften the window and background together through eight vertical masks
+   up to 30px, with a feathered tail into the following section. Changes remains
+   a labelled placeholder until its native capture is supplied.
 
 5. Apply the brief’s Native-speed and Tabs sublines, remove duplicate Review /
    Stage / Commit, all four developer captions, and the short AI note.
@@ -80,8 +88,8 @@ capture exactly; it is used nowhere else as a feature-window stand-in.
 - ✔ Section edges visibly lighten, SSH has the deep palette, and local scrims
   preserve AA contrast. 47 sampled text-background lines at 1440px/375px passed;
   the lowest measured ratio was 4.80:1. Future native captures need their own check.
-- ✘ The actual hero Changes screenshot is pending. Its ~58% crop, fade and five
-  progressive backdrop-filter bands are implemented. Native macOS Safari passed
+- ✘ The actual hero Changes screenshot is pending. Its ~58% crop, fade and eight
+  full-width progressive backdrop-filter layers are implemented. Native macOS Safari passed
   an isolated blur diagnostic; final native-image appearance remains unverified.
 - ✔ All four developer captions are gone. Native/Tabs sublines match item 5; the
   short AI note is also removed following the latest browser comments.

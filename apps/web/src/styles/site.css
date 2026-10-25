@@ -31,9 +31,8 @@ img { height: auto; }
 .static-grain { position: absolute; inset: 0; opacity: .08; mix-blend-mode: overlay; background: url('/images/grain.svg'); }
 .glow-background[data-webgl] .static-grain { display: none; }
 /* Protect text locally, leaving the pale glow edge visible between sections. */
-.hero-copy, .section-intro { position: relative; isolation: isolate; }
+.hero-copy { position: relative; isolation: isolate; }
 .feature-copy, .feature-column { position: relative; }
-.feature-block, .connection-section, .theme-section, .even-more { isolation: isolate; }
 .hero-copy::before, .feature-copy::before, .feature-column::before, .section-intro::before, .end-card::before { content: ''; position: absolute; z-index: -1; inset: -200px; background: radial-gradient(ellipse,#183969d9 0%,#183969d9 65%,transparent 100%); filter: blur(36px); pointer-events: none; }
 .hero-copy { max-width: 720px; }
 .hero-copy::before { inset: -60px -160px; background: radial-gradient(ellipse at 50% 80%,#183969b3 0%,#183969a6 40%,transparent 75%); }
@@ -65,22 +64,24 @@ img { height: auto; }
 .sparkle-3 { width: 14px; top: 18%; right: 22%; animation-delay: .46s; }
 .hero h1 { margin: 22px 0 0; font-size: clamp(44px,4.5vw,67px); }
 .hero-description { margin: 22px auto 27px; max-width: 620px; font-size: 18px; font-weight: 500; line-height: 1.6; color: var(--ink-strong); }
-.hero-product { position: relative; width: min(1120px,90vw); margin: 64px auto 0; aspect-ratio: 1.525 / .58; overflow: hidden; -webkit-mask-image: linear-gradient(black 72%,transparent); mask-image: linear-gradient(black 72%,transparent); animation: window-rise 1.2s var(--ease-out) both; }
+.hero-window-stage { position: relative; margin-top: 64px; padding-bottom: clamp(40px,5vw,64px); }
+.hero-product { position: relative; width: min(1120px,90vw); margin: 0 auto; aspect-ratio: 1.525 / .58; overflow: hidden; -webkit-mask-image: linear-gradient(black 88%,transparent); mask-image: linear-gradient(black 88%,transparent); animation: window-rise 1.2s var(--ease-out) both; }
 /* Crop first; the lower 30% of the visible window softens progressively. */
 .hero-product .app-window { width: 100%; height: 100%; aspect-ratio: auto; border-radius: 16px 16px 0 0; }
 .app-window { position: relative; display: block; overflow: hidden; border-radius: 16px; background: var(--app-dark); box-shadow: 0 18px 42px -18px #11234d66; }
 .app-window img { display: block; width: 100%; height: auto; }
-.progressive-blur { position: absolute; z-index: 2; inset: 0; pointer-events: none; overflow: hidden; }
-/* Each filter sees the image; masking their parent would isolate Safari's backdrop. */
-.blur-band { position: absolute; inset: 0; -webkit-backdrop-filter: blur(var(--blur)); backdrop-filter: blur(var(--blur)); -webkit-mask-image: linear-gradient(transparent var(--start),black 100%); mask-image: linear-gradient(transparent var(--start),black 100%); }
-.band-1 { --blur: 2px; --start: 60%; } .band-2 { --blur: 4px; --start: 65%; } .band-3 { --blur: 8px; --start: 70%; } .band-4 { --blur: 16px; --start: 75%; } .band-5 { --blur: 24px; --start: 80%; }
+/* Sibling filters sample the window and glow together, as in the film. */
+.hero-linear-blur { position: absolute; z-index: 1; inset: 0; pointer-events: none; }
+.blur-slice { position: absolute; inset: 0; -webkit-backdrop-filter: blur(var(--blur)); backdrop-filter: blur(var(--blur)); -webkit-mask-image: linear-gradient(to bottom,transparent var(--from),black var(--peak),black 94%,transparent); mask-image: linear-gradient(to bottom,transparent var(--from),black var(--peak),black 94%,transparent); }
+
 .intro-sequence { position: fixed; z-index: 50; inset: 0; overflow: hidden; background: var(--paper); color: var(--ink-dark); pointer-events: none; }
 .intro-sequence button { position: absolute; right: 28px; bottom: 28px; pointer-events: auto; background: white; color: var(--ink-dark); border: 1px solid #0a0a0b30; border-radius: 999px; padding: 12px 20px; }
 .intro-word { position: absolute; top: 32%; left: 25vw; white-space: nowrap; font: 600 19vw/1 var(--font-ui); letter-spacing: -.045em; animation: introducing 2s var(--ease-accel) both; }
 .intro-glow { position: absolute; inset: -40%; background: radial-gradient(ellipse at center,var(--glow-mid),#e9eef6 75%); animation: intro-glow 2s var(--ease-accel) both; }
 .intro-mobile-word { display: none; }
-.features { padding-top: 130px; overflow: hidden; }
+.features { position: relative; isolation: isolate; padding-top: 130px; overflow: hidden; }
 .section-intro { position: relative; max-width: 1200px; margin: 0 auto 80px; padding: 0 32px; text-align: center; }
+.section-intro::before { top: -32px; }
 .section-intro h2 { margin: 18px 0; font-size: clamp(54px,7vw,100px); }
 .motion-toggle { border: 0; padding: 0; background: transparent; color: inherit; font: inherit; text-decoration: underline; text-underline-offset: 4px; }
 .feature-block { position: relative; width: min(1200px, calc(100% - 80px)); margin: 0 auto 160px; display: grid; grid-template-columns: .8fr 1.2fr; align-items: center; gap: 64px; }
@@ -211,7 +212,9 @@ img { height: auto; }
   .hero-wordmark { font-size: 136px; }
   .hero h1 { font-size: 44px; }
   .hero-description { font-size: 15px; max-width: 31ch; line-height: 1.7; }
-  .hero-product { width: 125%; margin: 50px 0 0 -12.5%; }
+  .hero-window-stage { margin-top: 50px; }
+  .hero-product { width: 125%; margin: 0 0 0 -12.5%; }
+  .section-intro::before { top: 0; }
   .download-button { min-height: 49px; padding: 0 20px; font-size: 12px; gap: 12px; }
   .download-note { font-size: 10px; }
   .desktop-break { display: none; }

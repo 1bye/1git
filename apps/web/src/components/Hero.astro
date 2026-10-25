@@ -1,5 +1,7 @@
 ---
 import AppWindow from "./AppWindow.astro";
+// Incremental Gaussian radii combine into a smooth ramp capped at 30px.
+const blurSteps = [2, 5, 8, 12, 16, 20, 25, 30];
 const sparkle = "M12 0C12.7 8.2 15.8 11.3 24 12C15.8 12.7 12.7 15.8 12 24C11.3 15.8 8.2 12.7 0 12C8.2 11.3 11.3 8.2 12 0Z";
 ---
 <section id="top" class="hero" aria-labelledby="hero-title" data-glow-zone="hero">
@@ -15,7 +17,16 @@ const sparkle = "M12 0C12.7 8.2 15.8 11.3 24 12C15.8 12.7 12.7 15.8 12 24C11.3 1
     </div>
     <p class="download-note">macOS 13+ · Apple Silicon · Git required</p>
   </div>
-  <div class="hero-product">
-    <AppWindow name="changes" alt="Changes view with checked files, a README diff and commit composer in the hero." eager progressive />
+  <div class="hero-window-stage">
+    <div class="hero-product">
+      <AppWindow name="changes" alt="Changes view with checked files, a README diff and commit composer in the hero." eager progressive />
+    </div>
+    <div class="hero-linear-blur" aria-hidden="true">
+      {blurSteps.map((target,i) => {
+        const previous = blurSteps[i-1] ?? 0;
+        const radius = Math.sqrt(target * target - previous * previous);
+        return <span class="blur-slice" style={`--blur:${radius.toFixed(2)}px;--from:${47+i*5}%;--peak:${52+i*5}%`} />;
+      })}
+    </div>
   </div>
 </section>
