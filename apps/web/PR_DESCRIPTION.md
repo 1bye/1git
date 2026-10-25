@@ -51,6 +51,10 @@ capture exactly; it is used nowhere else as a feature-window stand-in.
    File history across renames is brief-supplied copy and still needs product
    wording review; it was not present in the previous marketing copy.
 
+8. Both repository affordances share REPO_URL from PUBLIC_REPO_URL, with noopener
+   and an external arrow. The owner has not supplied a destination: both are
+   labelled URL pending and disabled rather than guessing a link or navigating to #.
+
 ## Acceptance checklist
 
 - ✘ No screenshot used more than twice; every alt unique and specific — named slots
@@ -61,6 +65,7 @@ capture exactly; it is used nowhere else as a feature-window stand-in.
 - ✘ Developer captions removed and corrected copy — pending item 5.
 - ✘ One tab strip, app easing, no overflow at 375px — pending item 6.
 - ✘ Once-only spotlight, unique icons and Coming soon icons — pending item 7.
-- ✘ Repository links use REPO_URL or are flagged pending — pending item 8.
+- ✔ Open source and GitHub share REPO_URL and are explicitly pending until
+  PUBLIC_REPO_URL is supplied.
 - ✘ Reduced motion settles all content — pending final verification.
 - ✘ 1440px/375px screenshots and hero/tabs/AI/grid recording — pending evidence.

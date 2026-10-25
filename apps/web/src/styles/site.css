@@ -290,3 +290,5 @@ img { height: auto; }
 
 .connection-section h3, .connection-section h4, .theme-section h3, .even-more h2 { position: relative; isolation: isolate; }
 .connection-section h3::before, .connection-section h4::before, .theme-section h3::before, .even-more h2::before { content: ''; position: absolute; z-index: -1; inset: -60px max(0px,calc((100% - 850px) / 2)); background: radial-gradient(ellipse,#183969c9 55%,transparent 100%); filter: blur(28px); pointer-events: none; }
+
+[data-repo-pending] { cursor: help; }
