@@ -271,7 +271,15 @@ export function RepositoryColorPicker({
 	}, [dragging, renderer, cancel]);
 
 	return (
-		<div style={{ display: "flex", flexDirection: "column", gap: spacing[3] }}>
+		<div
+			style={{
+				display: "flex",
+				flexDirection: "column",
+				gap: spacing[3],
+				// Native selection otherwise arms on diff text behind the floating picker.
+				userSelect: "none",
+			}}
+		>
 			<div
 				style={{
 					display: "flex",

@@ -1,6 +1,6 @@
 /**
- * Covers: transient native wheel drags, cancellation, keyboard/numeric color entry and floating editor layout.
- * Real: appearance editor, native image rendering, input, hit testing and palettes.
+ * Covers: transient native wheel drags, background selection isolation, cancellation, keyboard/numeric color entry and floating editor layout.
+ * Real: appearance editor, native diff/image rendering, input, hit testing and palettes.
  * Doubles: in-memory appearance callbacks; no Git or preference writes.
  * Requires: patched native addon and macOS graphics access.
  */
@@ -13,6 +13,14 @@ import { RepositoryTheme } from "../../src/styles/repository-theme";
 import type { RepositoryPattern } from "../../src/feature/repository-appearance/repository-patterns";
 
 const roots = new Set<TestRoot>();
+
+const backgroundLines = Array.from(
+	{ length: 40 },
+	(_, index) =>
+		`+const background${index} = "${"selectable text ".repeat(24)}";`
+);
+
+const backgroundPatch = `diff --git a/background.ts b/background.ts\n--- a/background.ts\n+++ b/background.ts\n@@ -0,0 +1,40 @@\n${backgroundLines.join("\n")}\n`;
 
 afterEach(() => {
 	for (const root of roots) root.unmount();
@@ -53,6 +61,13 @@ function Probe({
 					).colors.editorSurface,
 				}}
 			>
+				<diff
+					patch={backgroundPatch}
+					showFileHeader={false}
+					scroll
+					theme={{ metrics: { diffLineHeight: 24, diffTextSize: 14 } }}
+					style={{ width: "100%", height: "100%", userSelect: "text" }}
+				/>
 				<RepositoryAppearanceEditor
 					name="anyway-design"
 					section={section}
@@ -137,6 +152,36 @@ it("previews a drag locally and commits once even when released outside the whee
 	expect(changes).toEqual(["#00ffff"]);
 	expect(root.renderer.findByTestId("repository-color-drag")).toBeUndefined();
 });
+
+it.each(["repository-color-wheel", "repository-color-brightness-slider"])(
+	"dragging %s does not select the diff underneath or outside the editor",
+	async (id) => {
+		const root = createTestRoot({ width: 1180, height: 850 });
+
+		roots.add(root);
+		const changes: (string | undefined)[] = [];
+
+		root.render(<Probe changed={(next) => changes.push(next)} />);
+		await settle(root);
+		const box = bounds(root, id);
+		const y = box.y + box.height / 2;
+
+		expect(root.renderer.dragSelect(100, y, 400, y + 24)).toBeTruthy();
+		root.renderer.clearSelection();
+		root.renderer.nativeSimulateMouseDown(box.x + box.width / 2, y);
+		await settle(root);
+		root.renderer.nativeSimulateMouseMove(box.x + box.width / 4, y + 4, 0);
+		await settle(root);
+		expect(root.renderer.getSelectedText()).toBeNull();
+		root.renderer.nativeSimulateMouseMove(400, y + 24, 0);
+		await settle(root);
+		expect(root.renderer.getSelectedText()).toBeNull();
+		root.renderer.nativeSimulateMouseUp(400, y + 24);
+		await settle(root);
+		expect(changes).toHaveLength(1);
+		expect(root.renderer.getSelectedText()).toBeNull();
+	}
+);
 
 it("cancels a draft on Escape or focus loss without changing saved color", async () => {
 	const root = createTestRoot({ width: 1180, height: 850 });
