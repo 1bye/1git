@@ -51,7 +51,7 @@ explain versioned downloads and GitHub release notes.
 
 The native app is developed on an Apple Silicon Mac. Install:
 
-- [Bun](https://bun.sh), using the version in `package.json` (`1.3.13`).
+- [Bun](https://bun.sh), using the version in `package.json` (`1.4.2`).
 - Git and full Xcode, selected with `xcode-select`.
 - [Rust and rustup](https://rustup.rs). The pinned GPUIX sources select their Rust toolchain.
 
@@ -61,6 +61,9 @@ cd 1git
 bun install --frozen-lockfile
 bun run dev:app
 ```
+
+Bun 1.4.2 is pinned for macOS packaging; 1.3.13 can produce compiled executables
+that fail strict signature validation.
 
 The first launch builds the workspace dependencies and patched native addon.
 It downloads pinned GPUIX sources and can take several minutes. Later launches
