@@ -20,7 +20,10 @@ TypeScript and workspace workflow; React instructions do not apply to Astro.
   Window states resolve from `src/assets/screens/`; missing files must remain
   labelled placeholders. Theme windows and wallpapers crossfade together. Verify
   persisted Pause animations, the single native-matching tab strip, and both AI
-  states. Never fill a missing state with an unrelated screenshot.
+  states. Check all eight scene stops with keyboard and wheel input, reverse
+  navigation, long mobile scenes, and snapping disabled by pause/reduced motion.
+  Scene content can transform; snap targets must retain stable layout geometry.
+  Never fill a missing state with an unrelated screenshot.
 
 Cloud and bezel assets come from the user's Taada website; the app screenshot
 comes from the user's native macOS window capture. Retain the

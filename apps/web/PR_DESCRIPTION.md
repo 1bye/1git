@@ -4,6 +4,34 @@ Keep the approved hero, intro, type, frosted header, SSH layout and end card.
 Apply the ten requested corrections in ten commits. Routes, FAQ, SEO/OG metadata
 and deployment configuration remain unchanged. No deployment is included.
 
+## Full-screen scene scrolling
+
+Following the requested full-screen snapping direction, make the hero, Native,
+Tabs, AI, Remote, Themes, Even more and end card eight separate scenes. Use the
+browser's CSS scroll snapping and a small viewport-centre controller, without
+adding GSAP. Incoming content moves up and settles; outgoing content accelerates
+away. The glow stays continuous and feature demonstrations still run once in view.
+Only the inner content transforms, preserving stable snap positions.
+
+Desktop stops at every scene. Narrow or short screens use proximity snapping so
+long content remains readable. Reduced motion and the persisted pause control
+disable snapping and show settled content. Correct glow observation to use
+height-based pixel margins; percentage IntersectionObserver margins resolve from
+width and missed sections at wide desktop sizes. No copy changes in this step.
+
+Scene validation: 15 tests pass, Astro reports no errors/warnings/hints, and the
+production build passes. Chromium checks cover all eight 1440px stops, reverse
+keyboard/wheel input, 390px long scenes, 360px overflow, persisted pause and reduced
+motion. Native macOS Safari forward/reverse snapping also passes. Actual iOS
+Safari and Firefox remain untested. Current screenshot placeholders remain visible.
+Local production Lighthouse scores are 97 Performance / 100 Accessibility on
+mobile (LCP 1.8s), and 99 / 100 on desktop (LCP 0.4s). Browser scripts total about
+4 KB gzip. These local measurements do not replace testing on a deployed origin.
+
+Scene evidence is in `site-scenes-review/` beside the earlier review directory:
+`scene-scrolling.mp4` records all eight stops; desktop/mobile screenshots and
+native Safari captures document the layout.
+
 ## Latest browser cleanup
 
 Remove the hero Explore button, the Built for label and all five numbered section
@@ -111,11 +139,11 @@ capture exactly; it is used nowhere else as a feature-window stand-in.
 
 ## Validation and open questions
 
-- Astro type check: 0 errors/warnings/hints. 12 tests pass, including blocked
+- Astro type check: 0 errors/warnings/hints. 15 tests pass, including blocked
   storage, pause/resume persistence, once-only entry, and existing routing cases.
 - Production build, targeted Oxlint/Oxfmt and `git diff --check` pass. Existing
   SEO/OG/canonical tags, JSON-LD, FAQ copy and routing infrastructure are unchanged.
-- Production Lighthouse: mobile Performance 100 / Accessibility 100, LCP 1.7s;
+- Production Lighthouse: mobile Performance 97 / Accessibility 100, LCP 1.8s;
   desktop Performance 99 / Accessibility 100, LCP 0.4s. Local measurements only.
 - Browser animation scripts total about 4 KB gzip, with no new dependency.
 - Checked Chromium at both requested widths, native macOS Safari blur, AI Stop,

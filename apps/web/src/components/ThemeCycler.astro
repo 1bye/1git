@@ -7,7 +7,8 @@ const themes = [
   { name: "Workshop", wallpaper: "ocean", screen: "theme-workshop" },
 ] as const;
 ---
-<section class="theme-section" data-theme-cycler data-glow-zone="section" aria-labelledby="themes-title">
+<section class="theme-section" data-theme-cycler data-glow-zone="section" aria-labelledby="themes-title" data-scene="themes">
+  <div class="scene-content" data-scene-motion>
   <h3 id="themes-title" class="display">Make every repo yours.</h3>
   <div class="theme-stage">
     {themes.map(({name,wallpaper},i) => <img class="theme-wallpaper" src={`/images/themes/${wallpaper}.webp`} width="1920" height="1080" loading="lazy" alt={`${name} theme wallpaper: ${wallpaper.replaceAll("-", " ")}.`} data-theme-frame={i} data-active={i === 0 ? "" : undefined} aria-hidden={i !== 0} />)}
@@ -19,5 +20,6 @@ const themes = [
   </div>
   <div class="theme-controls" role="group" aria-label="Repository themes">
     {themes.map(({name},i) => <button type="button" aria-pressed={i === 0} data-theme-index={i}>{name}</button>)}
+  </div>
   </div>
 </section>

@@ -1,3 +1,5 @@
+import { observeViewportCenter } from "./scene-motion";
+
 const vertex = `attribute vec2 position; varying vec2 uv;
 void main() { uv = position * 0.5 + 0.5; gl_Position = vec4(position, 0., 1.); }`;
 
@@ -46,7 +48,8 @@ if (host && canvas) {
 		repaint();
 	};
 
-	const zones = new IntersectionObserver(
+	observeViewportCenter(
+		[...document.querySelectorAll("[data-glow-zone]")],
 		(entries) => {
 			for (const entry of entries) {
 				if (entry.isIntersecting && entry.target instanceof HTMLElement) {
@@ -56,12 +59,8 @@ if (host && canvas) {
 			}
 
 			updateGeometry();
-		},
-		{ rootMargin: "-45% 0px -45% 0px" }
+		}
 	);
-
-	for (const zone of document.querySelectorAll("[data-glow-zone]"))
-		zones.observe(zone);
 
 	window.addEventListener(
 		"scroll",
@@ -217,5 +216,3 @@ if (host && canvas) {
 		}
 	}
 }
-
-export {};

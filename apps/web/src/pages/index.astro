@@ -6,6 +6,7 @@ import IntroSequence from "../components/IntroSequence.astro";
 import EndCard from "../components/EndCard.astro";
 import workspaceScreenshot from "../assets/1git-native-window.png";
 import Features from "../components/Features.astro";
+import "../styles/scenes.css";
 
 const application = {
   "@type": "SoftwareApplication",
@@ -50,6 +51,8 @@ const application = {
   import "../scripts/site-header";
   import { initMotion } from "../scripts/motion";
   import { initFeatures } from "../scripts/launch-features";
+  import { initScenes } from "../scripts/scene-motion";
   initMotion();
+  initScenes();
   initFeatures();
 </script>

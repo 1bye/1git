@@ -20,7 +20,8 @@ const columns = [
 ] as const;
 const coming = [{icon:"pullRequest",label:"Pull requests"},{icon:"circleDot",label:"Issues"}] as const;
 ---
-<section class="even-more" aria-labelledby="even-more-title" data-even-more data-reveal data-glow-zone="section">
+<section class="even-more" aria-labelledby="even-more-title" data-even-more data-reveal data-glow-zone="section" data-scene="more">
+  <div class="scene-content" data-scene-motion>
   <h2 class="display" id="even-more-title">Even more.</h2>
   <div class="feature-columns">
     {columns.map(({title,rows}) => <div class="feature-column"><h3>{title}</h3>
@@ -30,5 +31,6 @@ const coming = [{icon:"pullRequest",label:"Pull requests"},{icon:"circleDot",lab
   <div class="coming-soon">
     <h3>Coming soon</h3>
     {coming.map(({icon,label}) => <div class="coming-item"><span class="icon-tile"><Icon name={icon} size={24} /></span><span class="coming-label">{label}</span></div>)}
+  </div>
   </div>
 </section>

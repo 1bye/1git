@@ -43,7 +43,7 @@ export function initFeatures(): void {
 		};
 
 		onceOnView(
-			grid,
+			grid.querySelector<HTMLElement>(".feature-columns") ?? grid,
 			() => {
 				started = true;
 
@@ -121,7 +121,7 @@ export function initFeatures(): void {
 				sync();
 			},
 			{ threshold: 0.35 }
-		).observe(section);
+		).observe(section.querySelector(".theme-stage") ?? section);
 		document.addEventListener("visibilitychange", sync);
 		document.addEventListener("motionchange", sync);
 		reduced.addEventListener("change", sync);

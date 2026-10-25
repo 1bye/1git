@@ -5,7 +5,8 @@ import AiComposer from "./AiComposer.astro";
 interface Props { variant: "native" | "tabs" | "ai" }
 const { variant } = Astro.props;
 ---
-<article class:list={["feature-block", `feature-${variant}`]} data-reveal data-glow-zone="section">
+<article class:list={["feature-block", `feature-${variant}`]} data-reveal data-glow-zone="section" data-scene={variant}>
+  <div class="scene-content" data-scene-motion>
   <div class="feature-copy">
     {variant === "native" && <><h3>Native speed.<br />GPU rendered.</h3><p>Built with GPUIX (GPUI).</p></>}
     {variant === "tabs" && <><h3>Every repository.<br />A tab of its own.</h3><p>Drag, reorder, switch with ⌘P.</p></>}
@@ -18,5 +19,6 @@ const { variant } = Astro.props;
       <TabStrip />
     </>}
     {variant === "ai" && <AiComposer />}
+  </div>
   </div>
 </article>

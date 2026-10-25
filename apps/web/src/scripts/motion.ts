@@ -65,7 +65,10 @@ export function initMotion(): void {
 	for (const section of document.querySelectorAll<HTMLElement>(
 		"[data-reveal]"
 	)) {
-		onceOnView(section, () => section.classList.add("is-visible"));
+		const content =
+			section.querySelector<HTMLElement>("[data-scene-motion]") ?? section;
+
+		onceOnView(content, () => section.classList.add("is-visible"));
 	}
 
 	const toggle = document.querySelector<HTMLButtonElement>(

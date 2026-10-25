@@ -1,0 +1,58 @@
+/* Full-screen beats use the browser's scrolling and the film's existing easings. */
+html[data-scenes-ready] { scroll-snap-type: y mandatory; scroll-padding-top: 0; }
+[data-scene] { min-height: 100svh; scroll-snap-align: start; scroll-snap-stop: always; scroll-margin: 0; }
+.scene-content { position: relative; width: 100%; }
+.features[data-scene-group] { padding-top: 0; overflow: clip; }
+
+.feature-block[data-scene] { display: flex; align-items: center; margin-block: 0; padding-block: clamp(96px,12svh,140px); }
+.feature-block[data-scene] > .scene-content { display: grid; grid-template-columns: .8fr 1.2fr; align-items: center; gap: 64px; }
+.connection-section[data-scene] { display: grid; align-items: center; margin-bottom: 0; padding-block: 100px; }
+.theme-section[data-scene] { display: grid; align-items: center; padding-block: 80px; }
+.theme-section[data-scene] h3 { margin-bottom: 36px; }
+.theme-section[data-scene] .theme-stage { padding: clamp(24px,4svh,48px) 9%; }
+.theme-section[data-scene] .theme-windows { width: min(100%,calc(43svh * 1.525)); margin-inline: auto; }
+.even-more[data-scene] { display: grid; align-items: center; margin-block: 0; padding-block: 96px; }
+.even-more[data-scene] h2 { margin-bottom: 44px; font-size: clamp(72px,9svh,110px); }
+.even-more[data-scene] .coming-soon { margin-top: 44px; }
+.end-card[data-scene] { display: grid; align-items: center; padding-block: 80px; }
+.end-card[data-scene] > .scene-content { display: flex; flex-direction: column; align-items: center; }
+.end-card[data-scene] .end-wordmark { font-size: clamp(150px,21svh,230px); }
+
+.hero[data-scene] { height: 100svh; min-height: 760px; display: flex; flex-direction: column; padding-top: clamp(24px,3svh,40px); }
+.hero[data-scene] .hero-copy { flex: 0 0 auto; }
+.hero[data-scene] .hero-wordmark { font-size: clamp(112px,17svh,180px); }
+.hero[data-scene] h1 { font-size: clamp(44px,5.4svh,64px); margin-top: clamp(14px,2svh,22px); }
+.hero[data-scene] .hero-description { font-size: clamp(15px,1.9svh,18px); margin: clamp(14px,2svh,22px) auto clamp(18px,2.8svh,27px); }
+.hero[data-scene] .hero-window-stage { flex: 1; min-height: calc(170px + clamp(32px,4svh,48px)); margin-top: clamp(24px,4svh,48px); padding-bottom: clamp(32px,4svh,48px); }
+.hero[data-scene] .hero-product { height: 100%; aspect-ratio: auto; }
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-scenes-ready] [data-scene-motion] { transform: translate3d(0,64px,0) scale(.965); transition: transform 800ms var(--ease-out); }
+  [data-scenes-ready] [data-scene-state="active"] > [data-scene-motion] { transform: none; }
+  [data-scenes-ready] [data-scene-state="after"] > [data-scene-motion] { transform: translate3d(0,-48px,0) scale(.98); transition-timing-function: var(--ease-accel); }
+}
+
+@media (max-width: 767px), (max-height: 759px) {
+  html[data-scenes-ready] { scroll-snap-type: y proximity; }
+  [data-scene] { scroll-snap-stop: normal; }
+  .feature-block[data-scene] { width: calc(100% - 48px); padding-block: 100px 64px; }
+  .feature-block[data-scene] > .scene-content { display: flex; flex-direction: column; align-items: stretch; gap: 30px; }
+  .feature-block[data-scene] .feature-copy { order: 0; }
+  .connection-section[data-scene] { padding-block: 100px 64px; }
+  .theme-section[data-scene] { padding-block: 100px 64px; }
+  .theme-section[data-scene] .theme-windows { width: 100%; }
+  .even-more[data-scene] { padding-block: 100px 64px; }
+  .end-card[data-scene] { padding-block: 100px 64px; }
+  [data-scenes-ready] [data-scene-motion] { transform: translate3d(0,32px,0) scale(.985); }
+  [data-scenes-ready] [data-scene-state="after"] > [data-scene-motion] { transform: translate3d(0,-24px,0) scale(.99); }
+}
+
+@media (max-height: 759px) {
+  .hero[data-scene] { height: auto; min-height: 100svh; }
+  .hero[data-scene] .hero-window-stage { flex: none; height: 280px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-scenes-ready] { scroll-snap-type: none; scroll-behavior: auto; }
+  [data-scene-motion] { transform: none !important; transition: none !important; }
+}

@@ -1,7 +1,8 @@
 ---
 import AppWindow from "./AppWindow.astro";
 ---
-<article class="connection-section" aria-labelledby="remote-title" data-reveal data-glow-zone="deep">
+<article class="connection-section" aria-labelledby="remote-title" data-reveal data-glow-zone="deep" data-scene="remote">
+  <div class="scene-content" data-scene-motion>
   <h3 class="display" id="remote-title">Remote</h3>
   <h4 class="display">Local or SSH. One workspace.</h4>
   <div class="connection-world">
@@ -11,5 +12,6 @@ import AppWindow from "./AppWindow.astro";
       <path d="M500 200H700" stroke="white" stroke-width="1.5" pathLength="1" style="--order:11" />
     </svg>
     <figure class="machine"><AppWindow name="devbox-remote" alt="Remote repository on Devbox with the tab labelled 1git / main · Devbox." /><figcaption>Devbox<code>ssh yurii@devbox</code></figcaption></figure>
+  </div>
   </div>
 </article>

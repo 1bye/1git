@@ -14,13 +14,20 @@ SSH has its own deep palette. Local text scrims protect white copy while leaving
 lighter section edges visible.
 
 `motion.ts` owns the shared easings and once-on-view behavior.
+`scene-motion.ts` stages eight full-screen scenes with native CSS scroll snapping.
+The content moves and settles while the snap targets stay fixed in the layout.
+Desktop uses mandatory snapping; narrow or short screens use proximity snapping
+and let tall scenes scroll naturally. Pause animations and reduced motion disable
+snapping and settle every scene. No wheel interception or animation dependency is
+needed. `scenes.css` holds the scene layout and transitions.
 `launch-features.ts` owns the AI crop interaction, synchronized theme frames and
 reading spotlight. The footer's Pause animations button persists its explicit
 choice in localStorage, safely falling back when storage is blocked. Paused or
 reduced-motion visits skip intro/autoplay and show settled, readable content.
 
-The hero crops about 58% of its window. Eight vertical gradient masks blend blur
-incremental strengths that combine up to 30px over its lower portion, then feather into the following
+The hero fills one screen and crops its window to the remaining viewport space.
+Eight vertical gradient masks blend incremental blur strengths that combine up
+to 30px over its lower portion, then feather into the following
 section. The filters sit beside the window at full page width, so they soften the
 blue glow and the window together, matching the film. Keep their parent unmasked
 so Safari can sample both. Only the window's final edge fades; the blur extends
