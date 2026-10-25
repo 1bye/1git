@@ -7,7 +7,6 @@
   "ignorePatterns": [
     ".agents/**",
     "**/*.md",
-    "bts.jsonc",
     "bun.lock",
     "**/dist/**",
     "**/dev-dist/**",

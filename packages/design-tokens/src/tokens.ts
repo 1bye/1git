@@ -1,4 +1,4 @@
-/** Renderer-neutral light surfaces shared by the Electron and GPUIX shells. */
+/** Shared light surfaces for the native app and GPUIX components. */
 export const lightColors = {
 	brand: "#406bde",
 	brandForeground: "#ffffff",

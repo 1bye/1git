@@ -8,12 +8,17 @@ dist
 build
 *.tsbuildinfo
 
-# Generated files
-apps/web/src/routeTree.gen.ts
-
 # Environment variables
-.env
-.env*.local
+.env*
+!.env.example
+!.env.*.example
+
+# Private signing material
+*.p12
+*.pfx
+*.key
+*.pem
+*.mobileprovision
 
 # IDEs and editors
 .vscode/*
@@ -41,7 +46,7 @@ lerna-debug.log*
 .turbo
 .nx
 
-# Better-T-Stack
+# Deployment state
 .alchemy
 .vercel
 

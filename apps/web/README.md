@@ -46,9 +46,8 @@ window and wallpaper frames; all four native theme captures are currently pendin
 The Tabs illustration alone uses a body crop of the existing supplied Stashes
 window with its exact tab strip rebuilt above it for motion.
 
-The GitHub footer link reads `REPO_URL`, configured through `PUBLIC_REPO_URL`.
-It remains disabled and labelled pending until the owner supplies the public URL.
-Set that environment variable before building; do not guess a repository destination.
+The GitHub footer links to `https://github.com/1bye/1git` by default. Forks can
+set `PUBLIC_REPO_URL` before building to point to their own repository.
 
 See [PR_DESCRIPTION.md](PR_DESCRIPTION.md) for the ten item changes, acceptance
 checklist, asset gaps and review evidence.

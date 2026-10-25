@@ -8,7 +8,7 @@ import AnalyticsPreference from "./AnalyticsPreference.astro";
   <p class="end-tagline">Every repository. One window.</p>
   <a class="download-button" href="https://git.1bye.dev/download">Download for macOS <span aria-hidden="true">↗</span></a>
   <div class="footer-meta">
-    <div class="footer-links"><span>Made by <a href="https://1bye.dev">1bye</a>.</span><a href="/faq/">Questions &amp; answers</a><a href={REPO_URL} target={REPO_URL ? "_blank" : undefined} rel="noopener" role={REPO_URL ? undefined : "link"} tabindex={REPO_URL ? undefined : 0} aria-disabled={!REPO_URL} aria-label={REPO_URL ? "GitHub repository, opens in a new tab" : "GitHub — public repository URL pending"} title={REPO_URL ? undefined : "Public repository URL pending"} data-repo-pending={!REPO_URL || undefined}>GitHub <span aria-hidden="true">↗</span></a><button class="motion-toggle" type="button" data-motion-toggle aria-pressed="false" hidden>Pause animations</button></div>
+    <div class="footer-links"><span>Made by <a href="https://1bye.dev">1bye</a>.</span><a href="/faq/">Questions &amp; answers</a><a href={REPO_URL} target="_blank" rel="noopener" aria-label="GitHub repository, opens in a new tab">GitHub <span aria-hidden="true">↗</span></a><button class="motion-toggle" type="button" data-motion-toggle aria-pressed="false" hidden>Pause animations</button></div>
     <AnalyticsPreference />
     <p>macOS 13+ · Apple Silicon · Git required</p>
   </div>

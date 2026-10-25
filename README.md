@@ -1,127 +1,157 @@
-# 1git
+<div align="center">
+  <img src=".github/assets/banner.svg" width="100%" alt="1git — A clearer view. Of every change." />
+  <p>A native Git workspace for macOS.</p>
+  <p>Local repositories, SSH machines, worktrees, and AI commit messages in one calm workspace.</p>
 
-[Download the latest macOS app (Apple Silicon)](https://git.1bye.dev/download).
+  <p>
+    <a href="https://git.1bye.dev">Website</a> ·
+    <a href="https://git.1bye.dev/download">Download for macOS</a> ·
+    <a href="https://github.com/1bye/1git/releases">Releases</a> ·
+    <a href="CONTRIBUTING.md">Contributing</a>
+  </p>
 
-This project was created with [Better-T-Stack](https://github.com/AmanVarshney01/create-better-t-stack), a modern TypeScript stack.
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT" /></a>
+  <img src="https://img.shields.io/badge/macOS-13%2B-black" alt="macOS 13 or later" />
+  <img src="https://img.shields.io/badge/architecture-Apple%20Silicon-black" alt="Apple Silicon" />
+</div>
 
-## Features
+![1git showing a native repository workspace](apps/web/src/assets/1git-native-window.png)
 
-- **TypeScript** - For type safety and improved developer experience
-- **Oxlint and Oxfmt** - Linting and formatting
-- **Turborepo** - Optimized monorepo build system
+## A workspace for everyday Git
 
-## Getting Started
+- **Review and commit.** Inspect text and image diffs, choose files, and write commits.
+- **Explore history.** Browse commits, branches, tags, stashes, and the commit graph.
+- **Keep work organized.** Use tabs, spaces, and worktrees to move between projects.
+- **Work over SSH.** Browse repositories on macOS and Linux machines through the same workspace.
+- **Connect your accounts.** Work with GitHub and GitLab repositories and pull or merge requests.
+- **Draft with AI.** Generate commit messages with a configured provider, including local Ollama.
+- **Make it yours.** Choose themes and repository colors, icons, and artwork.
 
-First, install the dependencies:
+Built with TypeScript, React 19, Bun, and [GPUIX](https://github.com/remorses/gpuix).
+The desktop interface uses native rendering and macOS window materials.
 
-```bash
-bun install
+## Download
+
+**[Download the latest macOS beta →](https://git.1bye.dev/download)**
+
+Requires **macOS 13 or later**, an **Apple Silicon Mac**, and **Git**. Extract the
+ZIP and move `1git.app` to Applications. Bun, Rust, and Xcode are only needed to
+build from source. Intel macOS and Linux machines can be used as SSH hosts; the
+desktop download is currently Apple Silicon only.
+
+If macOS blocks a trusted download, follow [Apple's Open Anyway instructions](https://support.apple.com/en-us/102445).
+Signing and notarization depend on the build; see the [FAQ](https://git.1bye.dev/faq/).
+
+The website's `/download` link follows the current signed update feed. Installed
+release builds can check for updates through Sparkle. [Release instructions](docs/RELEASING.md)
+explain versioned downloads and GitHub release notes.
+
+## Build from source
+
+The native app is developed on an Apple Silicon Mac. Install:
+
+- [Bun](https://bun.sh), using the version in `package.json` (`1.3.13`).
+- Git and full Xcode, selected with `xcode-select`.
+- [Rust and rustup](https://rustup.rs). The pinned GPUIX sources select their Rust toolchain.
+
+```sh
+git clone https://github.com/1bye/1git.git
+cd 1git
+bun install --frozen-lockfile
+bun run dev:app
 ```
 
-Then, run the development server:
+The first launch builds the workspace dependencies and patched native addon.
+It downloads pinned GPUIX sources and can take several minutes. Later launches
+reuse that build. See [native development and packaging](apps/gpuix/README.md)
+for platform requirements and native diagnostics.
 
-```bash
-bun run dev
+To build a local app bundle:
+
+```sh
+bun run package:macos
+open apps/gpuix/build/macos/1git.app
 ```
 
-## Disposable Git playground
+Official distribution requires the maintainer's signing credentials. For a local
+build without those credentials, use `ONEGIT_MACOS_ADHOC=1 bun run package:macos`.
+See [signing setup](apps/gpuix/README.md#stable-local-signing) for the available modes.
 
-Run `bun run playground` to create a fresh set of example repositories in a
-temporary folder. No personal repository, GitHub account, or network is needed.
-Open the printed `02-compare` path in the desktop app to try branch comparison.
-The generated `START-HERE.md` includes a checklist for changes, previews, commits,
-history, stashes, worktrees, local fetch/pull/push and merge-conflict recovery.
+The website can be developed independently:
 
-Ready-made dirty repositories also cover branch switching: `06-branch-leave`
-(leave changes, return and restore, including after restart), `07-branch-bring`
-(bring changes successfully), `08-branch-conflict` (bring changes with a recoverable
-conflict), and `09-branch-remote` (bring changes to a remote tracking branch using
-the local remote). Each includes an unrelated manual stash to verify it is left
-untouched; no setup edits or hosting account are required.
-
-Every run creates a new folder and preserves older playgrounds. Once finished,
-close their app tabs and move the generated folder to Trash. Do not keep real work
-there: the operating system may clean temporary storage.
-
-Generator verification: `bun test packages/git/tests/playground.integration.test.ts`.
-
-## Git Hooks and Formatting
-
-- Run checks: `bun run check`
-
-## Project Structure
-
-```
-1git/
-├── apps/
-│   └── desktop/        # Electron + Vite + React desktop app
-└── packages/
-    ├── config/         # Shared TypeScript configuration
-    ├── git/            # Structured repository-control API
-    └── ui/             # Tailwind theme and shadcn components
+```sh
+bun run dev:web
+bun run build:web
 ```
 
-## Available Scripts
+No Cloudflare account, signing key, or hosting token is required for ordinary
+source builds, website previews, or portable tests.
 
-- `bun run dev`: Start all applications in development mode
-- `bun run build`: Build all applications
-- `bun run check-types`: Check TypeScript types across all apps
-- `bun run test`: Test all packages
-- `bun run check`: Run Oxlint and check Oxfmt formatting
-- `bun run fix`: Fix lint issues and format files
+## Development commands
 
-Run only the desktop app and build its workspace dependencies with:
+| Command | Purpose |
+| --- | --- |
+| `bun run dev:app` | Start the native app and build its prerequisites |
+| `bun run dev:web` | Start the Astro website |
+| `bun run build` | Compile the apps and shared packages |
+| `bun run check` | Run Oxlint and check Oxfmt formatting |
+| `bun run fix` | Apply lint fixes and formatting |
+| `bun run check-types` | Check app, package, and test types |
+| `bun run test:portable` | Test packages, website, and release infrastructure without graphics access |
+| `bun run test` | Run all default suites, including native UI tests |
+| `bun run playground` | Create disposable repositories for trying Git workflows |
+| `bun run package:macos` | Build a macOS app bundle and ZIP |
 
-```bash
-bun run dev --filter=@1git/desktop
+Native UI tests require macOS graphics access. Build the patched addon first with
+`bun run --cwd apps/gpuix build:native`. CI runs lint, formatting, types, builds,
+and the portable suites; native UI and signing checks run on a configured Mac.
+
+The playground uses temporary repositories and a local remote; it needs no GitHub
+account or network. Open the printed `02-compare` path in the app and follow the
+generated `START-HERE.md` for commits, branches, stashes, worktrees, and conflicts.
+Each run preserves earlier playgrounds. Close their tabs and delete the generated
+folder when finished; keep real work elsewhere.
+
+## Repository layout
+
+```text
+apps/
+  gpuix/                Native macOS app, native patches, SSH helper, packaging
+  web/                  Astro website at git.1bye.dev
+  releases/             Cloudflare downloads and signed update publishing
+packages/
+  analytics/            Anonymous analytics policy and transport
+  config/               Shared TypeScript configuration
+  design-tokens/        Shared visual scales and native theme values
+  git/                  Structured Git operations
+  gpuix-stylesheet/     Typed native styles
+  gpuix-ui/             Native React components and component playground
+  hosting/              GitHub and GitLab APIs
 ```
 
-## Renderer Git API
+The workspace packages remain `private` to prevent accidental npm publication.
+Source builds and contributions are covered by the repository's MIT license.
 
-The sandboxed renderer uses the typed preload API at `window.desktop.git`.
-Long-running calls use operation IDs instead of sending `AbortSignal` through
-Electron IPC:
+## Privacy and security
 
-```ts
-const operationId = window.desktop.git.operations.createId();
-const fetchResult = window.desktop.git.sync.fetch(
-  sessionId,
-  { remote: "origin" },
-  { operationId }
-);
+Git credentials use configured credential helpers and SSH agents. Saved app
+account secrets use macOS Keychain. Remote Git operations use credentials on the
+SSH host. AI features send selected context to the provider you configure.
 
-await window.desktop.git.operations.cancel(operationId);
-await fetchResult;
-```
+Production app and website builds collect a limited set of anonymous usage events
+by default. Disable them in **Settings → Privacy** or the website's **Anonymous
+analytics** control. Development and preview builds stay offline. See the
+[analytics policy](packages/analytics/README.md) for the exact events and limits.
 
-Repository selection uses Electron's native directory dialog in the main
-process:
+Please follow the [security policy](SECURITY.md) for vulnerabilities, and use
+[GitHub Issues](https://github.com/1bye/1git/issues) for bugs and feature requests.
 
-```ts
-const selection = await window.desktop.git.sessions.pickDirectory();
-if (selection.status === "selected") {
-	await window.desktop.git.sessions.open({ path: selection.path });
-}
-```
+## Contributing and license
 
-Recent repositories are stored in
-`app.getPath("userData")/recent-repositories.json`. The versioned file contains
-only canonical local paths and last-opened timestamps. Missing or moved paths
-are pruned and can be reopened from their new location.
+Contributions are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md) for setup,
+checks, and pull requests. Maintainers can use the [public launch checklist](docs/PUBLISHING.md)
+and [release guide](docs/RELEASING.md).
 
-Git authentication remains owned by Git credential helpers and SSH agents.
-HTTP remote URLs containing embedded usernames, tokens, or passwords are
-rejected; the desktop persistence file never stores remotes or credentials.
-
-Repository views can use `useRepositoryRefresh` to debounce refresh work after
-Git mutations and when the desktop window regains focus:
-
-```tsx
-useRepositoryRefresh(sessionId, () => {
-	void refreshSnapshotAndHistory();
-});
-```
-
-The callback is scoped to the requested session and receives the structured
-mutation or window-focus event. Continuous filesystem watching is intentionally
-deferred; focus refreshes reconcile changes made while the app was inactive.
+1git is available under the [MIT license](LICENSE). Bundled libraries, fonts,
+icons, and other third-party assets retain their own licenses; see
+[third-party notices](THIRD_PARTY_NOTICES.md).

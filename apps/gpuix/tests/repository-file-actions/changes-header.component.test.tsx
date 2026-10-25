@@ -364,7 +364,7 @@ it("keeps partial selections intact when a discard is cancelled or fails", async
 
 it("passes every path in a large change list as one confirmed batch", async () => {
 	const files = Array.from({ length: 1148 }, (_, index) =>
-		changedFile(`apps/desktop/out/Frameworks/file-${index}.pak`)
+		changedFile(`apps/gpuix/build/Frameworks/file-${index}.pak`)
 	);
 
 	const state = Model.reduce(Model.create(), {

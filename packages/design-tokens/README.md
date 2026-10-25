@@ -3,8 +3,7 @@
 One source for visual defaults: typography, leading, spacing, rounding, icon and
 control sizes, light colors, and shell measurements. Plain readonly TypeScript
 values: no React, GPUIX dependency, theme provider, or CSS-variable resolver.
-The native app and `@1git/gpuix-ui` import these values directly; Electron can
-use the generated CSS without replacing its existing Tailwind theme.
+The native app and `@1git/gpuix-ui` import these values directly.
 
 ## Native styles
 
@@ -64,7 +63,7 @@ window geometry, image aspect ratios and illustration paths remain explicit:
 they are measurements, not generic padding or typography. Do not change a virtual
 list's stride merely to match a spacing token.
 
-## Shell and CSS
+## Shell measurements
 
 ```ts
 import { lightColors, workspaceLayout } from "@1git/design-tokens";
@@ -75,21 +74,5 @@ const surface = {
 };
 ```
 
-Web consumers import the generated equivalent (already imported by `@1git/ui`):
-
-```css
-@import "@1git/design-tokens/light.css";
-
-.workspace {
-  background: var(--editor-surface);
-  border-radius: var(--workspace-surface-radius);
-}
-```
-
-Edit `src/tokens.ts`, then run `bun run --cwd packages/design-tokens generate`.
-Commit the generated CSS too. `check-types` checks it for drift without writing.
-Camel-case keys become kebab-case CSS variables; numeric measurements get `px`,
-weights stay unitless. New scale variables are namespaced (`--1git-text-md`,
-`--1git-leading-md`, `--1git-space-1-5`, `--1git-radius-lg`) so importing the sheet
-does not overwrite Tailwind's text/radius utilities. Existing color and shell
-variable names are unchanged. Web dark-mode overrides remain owned by `@1git/ui`.
+Edit `src/tokens.ts` to change shared values. Run this package's type checks and
+tests, then inspect affected native screens. Dark palettes remain in `gpuix-ui`.

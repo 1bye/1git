@@ -8,6 +8,19 @@ Use Oxlint for linting and Oxfmt for formatting. Read the installed workflow gui
 - **Fix lint and formatting**: `bun run fix`
 - **Check types**: `bun run check-types`
 
+## Active runtimes
+
+- `apps/gpuix` is the native macOS app: Bun, React 19, and GPUIX 0.10.0.
+  Start it with `bun run dev:app`; Turbo builds workspace dependencies and the
+  patched native addon. There is no browser renderer or Electron IPC layer.
+- `apps/web` is the Astro website; its own `AGENTS.md` covers browser and Worker boundaries.
+- `apps/releases` owns Cloudflare download/update infrastructure. Deployment and
+  publishing are explicit maintainer operations, separate from ordinary checks.
+- `bun run test:portable` runs suites without native graphics. `bun run test`
+  additionally requires a built native addon and macOS graphics access.
+- The desktop profile in `.agents/workflow/stacks.md` is a generic template;
+  the actual native runtime above takes precedence for this repository.
+
 ---
 
 ## Core Principles

@@ -1,11 +1,11 @@
 # Release downloads infrastructure
 
-This private workspace owns an **Alchemy-managed private R2 bucket** and a
+This workspace owns an **Alchemy-managed private R2 bucket** and a
 read-only downloads Worker and a separate signature-authenticated publisher
 Worker. The pinned SDK is `alchemy@2.0.0-beta.83` with
 `effect@4.0.4` and its platform adapters; none are shipped in the desktop app.
 Deploying this stack is separate from publishing a macOS release or deploying a
-future website.
+the website.
 
 Production downloads use `https://git.1bye.dev`. Share
 `https://git.1bye.dev/download` for the latest Apple Silicon macOS release; it
@@ -17,7 +17,7 @@ The Worker serves only `GET`/`HEAD` for `/download`, `/appcast.xml` and numeric-
 does not expose bucket listing or arbitrary keys, and has no upload endpoints or
 publisher credentials. Feeds and error responses use `Cache-Control: no-store`;
 ZIPs use a year-long immutable cache policy. Downloads do not require a user's
-GitHub, AI, or Cloudflare account. The GitHub repository stays private.
+GitHub, AI, or Cloudflare account.
 
 ## One-time setup — do not run until deployment is approved
 
@@ -51,8 +51,8 @@ GitHub, AI, or Cloudflare account. The GitHub repository stays private.
    changes. Do not delete state or rename resource IDs casually.
 
 The bucket is retained on stack removal and `forceDestroy` is disabled. There
-are no expiry rules deleting release objects. A future website should use its
-own stack/resources, not replace this downloads endpoint. Keep the endpoint
+are no expiry rules deleting release objects. The website uses its
+own stack/resources and preserves this downloads endpoint. Keep the endpoint
 stable: it is embedded in installed apps.
 
 No deployment occurs during install, type checking, build, test, macOS packaging,
@@ -188,5 +188,6 @@ restores existing generated build outputs afterward. Live Alchemy deployment,
 Cloudflare credentials/permissions, and R2 acceptance require explicitly
 approved live verification. Production verification passed for native R2
 create-once/stale-ETag checks, two simultaneous writers (200/412), and unsigned
-uploads (401). Version `0.0.2` was published on 2026-10-13 with ZIP and feed byte
-verification; subsequent releases must use a higher version, such as `0.0.3`.
+uploads (401). Check the current signed appcast before choosing a version; a new release must
+be higher than its current version. See [the release guide](../../docs/RELEASING.md)
+for GitHub release notes and source tags.

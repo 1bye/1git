@@ -1,8 +1,0 @@
-{
-  "extends": "./tsconfig.json",
-  "compilerOptions": {
-    "types": ["bun", "node"]
-  },
-  "include": ["src/renderer/src/vite-env.d.ts", "tests/**/*.ts"],
-  "exclude": ["node_modules", "dist"]
-}

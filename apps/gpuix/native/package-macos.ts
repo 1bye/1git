@@ -1,5 +1,6 @@
 import {
 	copyFile,
+	cp,
 	mkdir,
 	mkdtemp,
 	rename,
@@ -102,6 +103,17 @@ try {
 		executable,
 	]);
 	await copyFile(nativeLibrary, addon);
+	await copyFile(
+		resolve(appDirectory, "../../LICENSE"),
+		resolve(resources, "1git-LICENSE.txt")
+	);
+	await copyFile(
+		resolve(appDirectory, "../../THIRD_PARTY_NOTICES.md"),
+		resolve(resources, "THIRD_PARTY_NOTICES.md")
+	);
+	await cp(resolve(appDirectory, "LICENSES"), resolve(resources, "LICENSES"), {
+		recursive: true,
+	});
 	await copyFile(
 		resolve(
 			appDirectory,

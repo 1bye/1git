@@ -1,6 +1,6 @@
 # @1git/hosting
 
-GitHub and GitLab hosting APIs for 1git, independent of local Git and of either desktop app.
+GitHub and GitLab hosting APIs for 1git, independent of local Git and the native app.
 
 This package answers “which repositories can I access?”, “where can I create a repository?” and “how do I open a pull/merge request?”. It **does not** clone, push, run Git, change remotes, launch browsers, store accounts, or access the Keychain. GPUIX consumes account/OAuth APIs; application-owned browser and vault integration stays outside this package.
 
@@ -290,7 +290,7 @@ Optional hooks:
 
 Keep configured providers immutable and scoped to one account. Let the base class own sensitive setup in private fields; never store transport, request/response data or cursors on the provider. `createAdapter`/`createOAuthAdapter` must create fresh instances or closures. Use a unique stable `id` for persisted account identity. Add captured-wire, failure-boundary and compiled consumer tests for the new provider. `tests/consumer/provider-extension.component.test.ts` proves third providers use only public exports, including OAuth/custom remotes and isolated account instances.
 
-Migration from earlier APIs: move every host/HTTP/token setting into `new GitHubProvider(options)` or `new GitLabProvider(options)`, then call `HostingClient.create(provider)`. Move OAuth registration into the constructor's `oauth` object and call `HostingOAuth.create(provider)`. Pass configured providers directly to `parseRemote` instead of separate mapping objects. Read `client.provider.id` and remote `providerId` for metadata. Electron integration remains separate.
+Migration from earlier APIs: move every host/HTTP/token setting into `new GitHubProvider(options)` or `new GitLabProvider(options)`, then call `HostingClient.create(provider)`. Move OAuth registration into the constructor's `oauth` object and call `HostingOAuth.create(provider)`. Pass configured providers directly to `parseRemote` instead of separate mapping objects. Read `client.provider.id` and remote `providerId` for metadata. Native app integration remains separate.
 
 ## Runnable examples
 

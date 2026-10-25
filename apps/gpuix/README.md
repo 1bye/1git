@@ -17,13 +17,12 @@ bun run --cwd apps/gpuix dev
 ```
 
 Both GPUIX packages stay pinned to `0.10.0`. This app runs on Bun, React 19,
-and GPUIX, not the DOM or Electron. The window uses native macOS sidebar vibrancy
+and GPUIX. The window uses native macOS sidebar vibrancy
 and traffic lights. Titlebar and rail backgrounds stay transparent by default in both themes;
 AppKit supplies the matching light or dark blurred material, while the workspace
 uses its own opaque content surface. Optional repository colors add only a translucent
 tint over that material, never an opaque replacement.
-The connected tab silhouette keeps its shape while moving; it does not port
-the desktop's liquid shape-morphing machinery.
+The connected tab silhouette keeps its shape while moving.
 
 Onboarding's third step automatically searches the local home folder and shows
 repository names and paths below the Open/Create/Clone actions. Results arrive
@@ -262,42 +261,40 @@ file never falls back. Development packaging on a fresh checkout without any pin
 remains ad-hoc until setup; development package versions and update defaults do
 not change.
 
-### Developer ID signing and notarization (Bruno's Apple account)
+### Developer ID signing and notarization
 
-Keep both Apple accounts in Xcode. In **Xcode → Settings → Accounts**, select
-Bruno's Apple account and its Apple Developer Program team, then open **Manage
-Certificates → + → Developer ID Application**. Expo's iOS distribution certificate
-is a different certificate type and cannot be used for this macOS distribution.
+In **Xcode → Settings → Accounts**, select the release account and its Apple
+Developer Program team, then open **Manage Certificates → + → Developer ID
+Application**. An iOS distribution certificate cannot sign this macOS app.
 If the identity was created on another Mac, import its certificate **and private
-key** from its password-protected `.p12` backup. Do not revoke existing Expo/iOS
-certificates. See [Apple's certificate instructions](https://developer.apple.com/help/account/certificates/create-developer-id-certificates/).
+key** from its password-protected `.p12` backup. Keep existing certificates for other apps. See [Apple's certificate instructions](https://developer.apple.com/help/account/certificates/create-developer-id-certificates/).
 
 ```sh
 security find-identity -v -p codesigning
 ```
 
-Find Bruno's `Developer ID Application: … (TEAM_ID)` entry. Its 40-character
+Find your `Developer ID Application: … (TEAM_ID)` entry. Its 40-character
 fingerprint is the signing identity; its parenthesized 10-character identifier
 is the team ID. These select the account explicitly, independently of whichever
 Apple account is active in Xcode. An Apple Development, iPhone Distribution,
 Developer ID Installer or different-team certificate is rejected before building.
 
-Save notarization credentials once, using Bruno's Apple account email and team ID:
+Save notarization credentials once, using your release account email and team ID:
 
 ```sh
-xcrun notarytool store-credentials "1git-bruno" \
-  --apple-id "BRUNO_APPLE_EMAIL" \
-  --team-id "BRUNO_TEAM_ID"
+xcrun notarytool store-credentials "1git-notary" \
+  --apple-id "APPLE_ACCOUNT_EMAIL" \
+  --team-id "APPLE_TEAM_ID"
 ```
 
-Enter Bruno's **app-specific password** at the prompt, not in a script or chat.
+Enter your **app-specific password** at the prompt, not in a script or chat.
 The credential stays in Keychain. See [Apple's notarization credentials guide](https://developer.apple.com/documentation/technotes/tn3147-migrating-to-the-latest-notarization-tool).
 Then export all three public configuration values in the terminal running the build:
 
 ```sh
-export ONEGIT_MACOS_SIGNING_IDENTITY="BRUNO_CERTIFICATE_SHA1_FINGERPRINT"
-export ONEGIT_MACOS_TEAM_ID="BRUNO_TEAM_ID"
-export ONEGIT_MACOS_NOTARY_PROFILE="1git-bruno"
+export ONEGIT_MACOS_SIGNING_IDENTITY="CERTIFICATE_SHA1_FINGERPRINT"
+export ONEGIT_MACOS_TEAM_ID="APPLE_TEAM_ID"
+export ONEGIT_MACOS_NOTARY_PROFILE="1git-notary"
 bun run package:macos
 ```
 
@@ -333,8 +330,7 @@ approval or account reconnect for previously saved credentials.
 ## macOS updates
 
 Packaged apps include pinned **Sparkle 2.10.0**, its native installer helpers and
-an AppKit/Bun bridge. No changes to the private repository's visibility and no
-publishing are part of packaging. Development launches do not start the updater.
+an AppKit/Bun bridge. Packaging does not publish a release or change repository visibility. Development launches do not start the updater.
 Without a feed and public key, background checks stay disabled and **Check for
 Updates…** explains that this build has no published feed.
 
@@ -673,7 +669,7 @@ A zero-size anchor point prevents flex alignment and GPUI's anchor placement
 from both subtracting half the content size. The shared `@1git/gpuix-ui/tooltip`
 wraps native hover/focus behavior with an inverted, non-interactive surface.
 
-`native/sidebar-vibrancy-platform.patch` matches this app's light Electron chrome
+`native/sidebar-vibrancy-platform.patch` provides this app's light window chrome
 using AppKit's Sidebar material, behind-window blending and active state. It removes
 the GPUI fork's private-layer tint/saturation stripping. `window-appearance.patch`
 and `window-appearance-platform.patch` remove the former light-only pin and expose
@@ -1116,11 +1112,8 @@ these plain values directly into `StyleSheet.create`, e.g. `...typography.md`,
 `fontWeight.medium`, `radius.lg`, `spacing[3]`. Use `md` for body/fields, `sm` for
 secondary copy and compact rows, and `lg` for section headings. See the
 [scale guide](../../packages/design-tokens/README.md) for all names and examples.
-Virtual-list strides and other measured geometry remain separate. The package
-also generates namespaced CSS equivalents for Electron without overriding its
-existing Tailwind utilities.
-The native app currently uses the platform font; the web's Manrope font import
-does not register that font with GPUIX.
+Virtual-list strides and other measured geometry remain separate.
+The native app uses the platform font.
 
 ## AI commit messages
 
@@ -1350,7 +1343,7 @@ check looks for matching repositories in each configured root and its immediate 
 folders, skipping known repositories. Newly discovered paths join the results and cache
 without replacing deeper cached paths. Changing or clearing the query cancels the check.
 An explicit rescan finds new repositories deeper in the tree and removes moved or deleted
-paths. Discovery does not import Electron data or add discovered paths to saved history.
+paths. Discovery does not add discovered paths to saved history.
 Right-click, Control-click or Shift+F10 on a saved repository opens the native
 menu: Open, Reveal in Finder, or Forget. Forget removes only the saved entry,
 preserving files and open tabs; the removal survives session restoration.
@@ -1398,7 +1391,7 @@ and the physical folder dialog still need manual checks.
   **Retry repository**. Slow reads cannot steal the active tab; closing a restored
   tab cancels its read. Restore failures do not erase the saved root or draft.
 - On macOS the file is `~/Library/Application Support/1git-gpuix/session.json`,
-  separate from Electron's data. Windows uses `%APPDATA%/1git-gpuix/session.json`;
+  Windows uses `%APPDATA%/1git-gpuix/session.json`;
   Linux uses `$XDG_STATE_HOME/1git-gpuix/session.json` (default `~/.local/state`).
   Set `GPUIX_SESSION_PATH` to an isolated file for development/testing.
 - The versioned JSON contains local paths and **plaintext draft text**, not
@@ -1443,7 +1436,7 @@ Upstream editing is not yet exposed.
 Up/Down moves through enabled rows, Enter activates, and Escape/outside-click dismisses the menu.
 Keyboard dismissal returns focus to the tab; Tab dismisses and continues traversal.
 Inside worktree and branch-change forms, Tab moves between controls instead of dismissing them.
-This is not a port of the Electron liquid SVG morph.
+The native tab silhouette uses fixed geometry.
 
 - Switch a local branch in this working directory, or explicitly create and
   switch to a new branch based on the current HEAD.
@@ -1689,7 +1682,7 @@ scroll out of view or Home closes. Folder tiles continue to represent scan folde
   action. The selected rail tab is saved, while graph filters and selection are temporary.
 
 Git must be installed on PATH. The app imports the existing workspace Git package;
-the Turbo build/dev tasks build dependencies first. No Electron IPC is involved.
+the Turbo build/dev tasks build dependencies first. Git operations run directly through the Bun runtime.
 
 ### Automatic refresh
 

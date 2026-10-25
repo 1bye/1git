@@ -17,8 +17,6 @@
       }
     ],
     "@stylistic/padded-blocks": ["error", "never"],
-    "shadcn/no-raw-colors": "error",
-    "shadcn/no-unknown-classes": "error",
     "@stylistic/padding-line-between-statements": [
       "error",
       {
@@ -49,33 +47,5 @@
     "**/dev-dist/**",
     "**/*.gen.ts"
   ],
-  "jsPlugins": ["@stylistic/eslint-plugin", "@shadcn/lint"],
-  "settings": {
-    "shadcn": {
-      "ui": "@1git/ui/components"
-    }
-  },
-  "overrides": [
-    {
-      "files": [
-        "apps/desktop/src/renderer/src/app.tsx",
-        "apps/desktop/src/renderer/src/feature/command-lens/components/command-lens-overlay.tsx",
-        "apps/desktop/src/renderer/src/fixture/desktop-toolbar/components/workspace-tab.tsx",
-        "apps/desktop/src/renderer/src/fixture/liquid-menu/components/liquid-menu-surface.tsx",
-        "apps/desktop/src/renderer/src/fixture/repository-workspace/components/clean-state.tsx"
-      ],
-      "rules": {
-        "shadcn/no-raw-colors": "off"
-      }
-    },
-    {
-      "files": [
-        "apps/desktop/src/renderer/src/fixture/icons/components/animated-folder-open-icon.tsx",
-        "packages/ui/src/components/sonner.tsx"
-      ],
-      "rules": {
-        "shadcn/no-unknown-classes": "off"
-      }
-    }
-  ]
+  "jsPlugins": ["@stylistic/eslint-plugin"]
 }

@@ -4,12 +4,10 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/tokens.ts",
-    "./light.css": "./src/light.css"
+    ".": "./src/tokens.ts"
   },
   "scripts": {
-    "generate": "bun scripts/generate-css.ts",
-    "check-types": "tsc --noEmit && bun scripts/generate-css.ts --check",
+    "check-types": "tsc --noEmit",
     "test": "bun test tests"
   },
   "devDependencies": {
