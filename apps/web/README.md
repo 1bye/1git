@@ -184,3 +184,17 @@ inventing reviews, ratings or prices to qualify for enhanced Google results.
 These checks cover the local build. After deployment, verify public responses,
 submit the sitemap in Search Console/Bing Webmaster Tools, and refresh cached
 social previews. No indexing or ranking outcome is guaranteed by metadata.
+
+## Responsive screenshot delivery
+
+`AppWindow` keeps the source captures and WebP quality at 88, and provides
+intermediate widths so the browser can match the rendered slot and device pixel
+density. Lazy windows use native `sizes="auto"`, with explicit feature, Remote
+and Themes layout fallbacks for browsers without that support. The eager hero
+uses explicit sizes. Full-resolution image links remain available. Keep these
+fallbacks aligned with `scenes.css` when changing layout.
+
+The asset resolver imports only supported window-state filenames. Historical tab
+crops and avatars stay in source without being emitted as unused client assets.
+This pass changes image selection only; grain, blur, clouds, video and animation
+code remain intact. It does not claim a CPU, FPS or load-time improvement.

@@ -14,7 +14,7 @@ const themes = [
     {themes.map(({name,wallpaper},i) => <img class="theme-wallpaper" src={`/images/themes/${wallpaper}.webp`} width="1920" height="1080" loading="lazy" alt={`${name} theme wallpaper: ${wallpaper.replaceAll("-", " ")}.`} data-theme-frame={i} data-active={i === 0 ? "" : undefined} aria-hidden={i !== 0} />)}
     <div class="theme-windows">
       {themes.map(({name,screen},i) => <div class="theme-capture" data-theme-frame={i} data-active={i === 0 ? "" : undefined} aria-hidden={i !== 0} inert={i !== 0}>
-        <AppWindow name={screen} alt={`The same repository window in the ${name} theme, including its matching colour and pattern.`} />
+        <AppWindow name={screen} sizes="(max-width:767px) 82vw, (max-height:759px) 100vw, min(65.575svh,100vw)" alt={`The same repository window in the ${name} theme, including its matching colour and pattern.`} />
       </div>)}
     </div>
   </div>

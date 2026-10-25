@@ -7,13 +7,18 @@ interface Props {
   eager?: boolean;
   progressive?: boolean;
   class?: string;
+  sizes?: string;
 }
-const { name, alt, eager = false, progressive = false, class: className } = Astro.props;
+const { name, alt, eager = false, progressive = false, class: className, sizes: sizeOverride } = Astro.props;
 const image = screenAsset(name);
-const widths = image ? [640, 960, 1440, 2143].filter((width) => width < image.width).concat(image.width) : [];
+const widths = image ? [320, 480, 640, 800, 960, 1280, 1440].filter((width) => width < image.width).concat(image.width) : [];
+// Fallbacks mirror scenes.css for browsers without lazy-image auto sizing.
+const featureSizes = "(max-width:767px) calc(100vw - 48px), (max-height:759px) calc(100vw - 48px), (max-width:900px) calc(60vw - 67.2px), (max-width:1280px) calc(60vw - 86.4px), 682px";
+const heroSizes = "(max-width:650px) 125vw, (max-width:1244px) 90vw, 1120px";
+const sizes = sizeOverride ?? (progressive ? heroSizes : featureSizes);
 ---
 {image ? <a class:list={["app-window", className]} href={image.src} target="_blank" rel="noopener" aria-label={`View full-size: ${alt}`}>
-  <Image src={image} width={image.width} height={image.height} widths={widths} sizes={progressive ? "(max-width: 650px) 125vw, (max-width: 1100px) 90vw, 1120px" : "(max-width: 650px) 94vw, (max-width: 1100px) 90vw, 1120px"} format="webp" quality={88} loading={eager ? "eager" : "lazy"} fetchpriority={eager ? "high" : "auto"} alt={alt} />
+  <Image src={image} width={image.width} height={image.height} widths={widths} sizes={eager ? sizes : `auto, ${sizes}`} format="webp" quality={88} loading={eager ? "eager" : "lazy"} fetchpriority={eager ? "high" : "auto"} alt={alt} />
 </a> : <div class:list={["app-window", "screen-placeholder", className]} role="img" aria-label={`${alt} — screenshot pending`} data-missing-screen={name}>
   <div class="placeholder-copy"><span>Screenshot pending</span><strong>{name}.webp</strong><p>{alt}</p></div>
 </div>}

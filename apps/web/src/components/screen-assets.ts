@@ -14,7 +14,7 @@ export type ScreenName =
 	| "tabs-strip";
 
 const files = import.meta.glob<{ default: ImageMetadata }>(
-	"../assets/screens/*.{webp,png,avif}",
+	"../assets/screens/{changes,ai-composer,ai-composer-busy,history,home-machines,devbox-remote,theme-*,tabs-strip}.{webp,png,avif}",
 	{ eager: true }
 );
 
