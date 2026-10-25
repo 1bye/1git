@@ -52,7 +52,7 @@ img { height: auto; }
 .frost-button { background: linear-gradient(var(--frost),var(--frost)), #24477f; color: white; border: 1px solid #ffffff38; transition: transform 240ms var(--ease-app); }
 .cta-row { display: flex; justify-content: center; flex-wrap: wrap; gap: 12px; }
 .download-note { margin: 18px 0 0; color: var(--ink-strong); font-size: 12px; font-weight: 500; }
-.hero { position: relative; min-height: 1120px; overflow: hidden; padding-top: 46px; text-align: center; }
+.hero { position: relative; min-height: 0; overflow: hidden; padding-top: 46px; text-align: center; }
 .hero-copy { position: relative; z-index: 2; margin: auto; padding: 0 24px; }
 .wordmark-scene { position: relative; width: min(700px,100%); margin: auto; }
 .hero-wordmark { margin: 0; font-size: clamp(130px,14vw,210px); line-height: 1.15; }
@@ -64,15 +64,15 @@ img { height: auto; }
 .sparkle-3 { width: 14px; top: 18%; right: 22%; animation-delay: .46s; }
 .hero h1 { margin: 22px 0 0; font-size: clamp(44px,4.5vw,67px); }
 .hero-description { margin: 22px auto 27px; max-width: 620px; font-size: 18px; font-weight: 500; line-height: 1.6; color: var(--ink-strong); }
-.hero-product { position: relative; width: min(1120px,90vw); margin: 64px auto 0; animation: window-rise 1.2s var(--ease-out) both; }
+.hero-product { position: relative; width: min(1120px,90vw); margin: 64px auto 0; aspect-ratio: 1.525 / .58; overflow: hidden; -webkit-mask-image: linear-gradient(black 72%,transparent); mask-image: linear-gradient(black 72%,transparent); animation: window-rise 1.2s var(--ease-out) both; }
 /* Crop first; the lower 30% of the visible window softens progressively. */
-.hero-product .app-window { height: clamp(220px, 46vw, 515px); }
+.hero-product .app-window { width: 100%; height: 100%; aspect-ratio: auto; border-radius: 16px 16px 0 0; }
 .app-window { position: relative; display: block; overflow: hidden; border-radius: 16px; background: var(--app-dark); box-shadow: 0 18px 42px -18px #11234d66; }
 .app-window img { display: block; width: 100%; height: auto; }
-.progressive-blur { position: absolute; z-index: 2; inset: 0; pointer-events: none; overflow: hidden; border-radius: 0 0 16px 16px; mask-image: linear-gradient(transparent 65%,black 100%); -webkit-mask-image: linear-gradient(transparent 65%,black 100%); }
-.blur-band { position: absolute; inset: 0; width: 100%; height: 100%; mask-image: linear-gradient(transparent var(--start), black); -webkit-mask-image: linear-gradient(transparent var(--start), black); }
-.progressive-blur .blur-image { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top; filter: blur(var(--blur)); }
-.band-1 { --blur: 3px; --start: 0%; } .band-2 { --blur: 8px; --start: 18%; } .band-3 { --blur: 14px; --start: 36%; } .band-4 { --blur: 22px; --start: 54%; } .band-5 { --blur: 30px; --start: 72%; }
+.progressive-blur { position: absolute; z-index: 2; inset: 0; pointer-events: none; overflow: hidden; }
+/* Each filter sees the image; masking their parent would isolate Safari's backdrop. */
+.blur-band { position: absolute; inset: 0; -webkit-backdrop-filter: blur(var(--blur)); backdrop-filter: blur(var(--blur)); -webkit-mask-image: linear-gradient(transparent var(--start),black 100%); mask-image: linear-gradient(transparent var(--start),black 100%); }
+.band-1 { --blur: 2px; --start: 60%; } .band-2 { --blur: 4px; --start: 65%; } .band-3 { --blur: 8px; --start: 70%; } .band-4 { --blur: 16px; --start: 75%; } .band-5 { --blur: 24px; --start: 80%; }
 .intro-sequence { position: fixed; z-index: 50; inset: 0; overflow: hidden; background: var(--paper); color: var(--ink-dark); pointer-events: none; }
 .intro-sequence button { position: absolute; right: 28px; bottom: 28px; pointer-events: auto; background: white; color: var(--ink-dark); border: 1px solid #0a0a0b30; border-radius: 999px; padding: 12px 20px; }
 .intro-word { position: absolute; top: 32%; left: 25vw; white-space: nowrap; font: 600 19vw/1 var(--font-ui); letter-spacing: -.045em; animation: introducing 2s var(--ease-accel) both; }
@@ -197,14 +197,14 @@ img { height: auto; }
 @keyframes glyph-act { 0%,100% { transform: translateY(0); } 40% { transform: translateY(-5px) scale(1.1); } }
 @keyframes icon-draw { from { stroke-dashoffset: 90; } to { stroke-dashoffset: 0; } }
 @media (max-width: 900px) {
-  .hero { min-height: 940px; }
+
   .feature-block { width: calc(100% - 48px); gap: 32px; }
   .feature-columns { gap: 25px; }
   .feature-row { gap: 12px; font-size: 21px; }
   .icon-tile { flex-basis: 48px; height: 48px; border-radius: 12px; }
 }
 @media (max-width: 650px) {
-  .hero { min-height: auto; padding-top: 60px; padding-bottom: 100px; }
+  .hero { min-height: auto; padding-top: 60px; padding-bottom: 0; }
   .hero-wordmark { font-size: 136px; }
   .hero h1 { font-size: 44px; }
   .hero-description { font-size: 15px; max-width: 31ch; line-height: 1.7; }

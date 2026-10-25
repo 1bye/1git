@@ -28,6 +28,11 @@ SEO/OG assets, not as a feature-window stand-in.
    deep SSH palette (#2f58b6 → #5d80c4). Remove the page-wide blue shade; soft
    local text scrims protect white copy while leaving light section edges visible.
 
+4. Crop the hero to roughly 58% of the native window, with five independently
+   masked backdrop-blur bands and a fade into the background. The filter wrapper
+   is unmasked so Safari can sample the image. Changes remains a labelled
+   placeholder until its native capture is supplied.
+
 ## Acceptance checklist
 
 - ✘ No screenshot used more than twice; every alt unique and specific — named slots
