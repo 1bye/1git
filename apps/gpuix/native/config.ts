@@ -159,6 +159,10 @@ export const diffTrailingContextPatchPath = resolve(
 	import.meta.dir,
 	"diff-trailing-context.patch"
 );
+export const scrollbarVisibilityPatchPath = resolve(
+	import.meta.dir,
+	"scrollbar-visibility.patch"
+);
 export const nativeBuildId = createHash("sha256")
 	.update(nativeRevision)
 	.update(readFileSync(patchPath))
@@ -203,5 +207,6 @@ export const nativeBuildId = createHash("sha256")
 	.update(readFileSync(textScalePatchPath))
 	.update(readFileSync(frameScrollbarPatchPath))
 	.update(readFileSync(diffTrailingContextPatchPath))
+	.update(readFileSync(scrollbarVisibilityPatchPath))
 	.update(`${process.platform}-${process.arch}-release-v1`)
 	.digest("hex");

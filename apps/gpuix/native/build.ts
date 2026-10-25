@@ -47,6 +47,7 @@ import {
 	textScalePatchPath,
 	frameScrollbarPatchPath,
 	diffTrailingContextPatchPath,
+	scrollbarVisibilityPatchPath,
 	scrollMetricsPatchPath,
 	menuPlacementPlatformPatchPath,
 	systemAppearancePatchPath,
@@ -146,6 +147,7 @@ if (
 		systemAppearancePlatformPatchPath,
 		frameScrollbarPatchPath,
 		diffTrailingContextPatchPath,
+		scrollbarVisibilityPatchPath,
 	];
 
 	// Later patches can change an earlier patch's context. Unwind known patches

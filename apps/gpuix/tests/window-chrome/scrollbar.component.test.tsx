@@ -173,3 +173,49 @@ it.each(["light", "dark"] as const)(
 		}
 	}
 );
+
+it("does not paint a deferred scrollbar from a hidden workspace over Settings", async () => {
+	const directory = await mkdtemp(join(tmpdir(), "1git-hidden-scrollbar-"));
+	const root = createTestRoot({ width: 400, height: 300 });
+
+	const show = (hidden: boolean) =>
+		root.render(
+			<div style={{ width: 400, height: 300, backgroundColor: "#ffffff" }}>
+				<div style={{ visibility: hidden ? "hidden" : "visible" }}>
+					<Fixture appearance="light" />
+				</div>
+			</div>
+		);
+
+	try {
+		show(false);
+		root.renderer.advanceTime(1);
+		const bar = root.renderer.findByTestId("scrollbar-vertical")!;
+		const bounds = root.renderer.getElementBounds(bar.id)!;
+
+		show(true);
+		root.renderer.advanceTime(1);
+		const path = join(directory, "hidden.png");
+
+		root.renderer.captureScreenshot(path);
+		const { data, info } = await sharp(path)
+			.removeAlpha()
+			.raw()
+			.toBuffer({ resolveWithObject: true });
+
+		const scale = info.width / 400;
+
+		const index =
+			(Math.floor((bounds.y + 10) * scale) * info.width +
+				Math.floor((bounds.x + bounds.width / 2) * scale)) *
+			info.channels;
+
+		expect([...data.subarray(index, index + 3)]).toEqual([255, 255, 255]);
+		show(false);
+		root.renderer.advanceTime(1);
+		expect(root.renderer.getElementBounds(bar.id)?.height).toBeGreaterThan(100);
+	} finally {
+		root.unmount();
+		await rm(directory, { recursive: true, force: true });
+	}
+});

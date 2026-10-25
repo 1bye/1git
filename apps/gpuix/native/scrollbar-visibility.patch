@@ -1,0 +1,23 @@
+--- a/packages/native/src/renderer.rs
++++ b/packages/native/src/renderer.rs
+@@ -4965,6 +4965,20 @@
+         return gpui::Empty.into_any_element();
+     };
+ 
++    // Deferred scrollbar overlays must not escape a hidden retained ancestor.
++    if element.custom_props.contains_key("nativeScrollbar") {
++        let mut ancestor = Some(id);
++        while let Some(node) = ancestor.and_then(|id| ctx.tree.elements.get(&id)) {
++            if node.style.as_deref().is_some_and(|style| {
++                style.visibility.as_deref() == Some("hidden") || style.display.as_deref() == Some("none")
++            }) {
++                ctx.custom_registry.destroy(id);
++                return gpui::Empty.into_any_element();
++            }
++            ancestor = node.parent;
++        }
++    }
++
+     let animated_style = if element.custom_props.contains_key("motion") {
+         ctx.motion_states
+             .get(&id)
