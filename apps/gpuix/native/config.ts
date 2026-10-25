@@ -142,6 +142,10 @@ export const systemAppearancePatchPath = resolve(
 	import.meta.dir,
 	"system-appearance.patch"
 );
+export const menuPlacementPlatformPatchPath = resolve(
+	import.meta.dir,
+	"menu-placement-platform.patch"
+);
 export const nativeBuildId = createHash("sha256")
 	.update(nativeRevision)
 	.update(readFileSync(patchPath))
@@ -181,5 +185,6 @@ export const nativeBuildId = createHash("sha256")
 	.update(readFileSync(workspaceShortcutsPatchPath))
 	.update(readFileSync(systemAppearancePlatformPatchPath))
 	.update(readFileSync(systemAppearancePatchPath))
+	.update(readFileSync(menuPlacementPlatformPatchPath))
 	.update(`${process.platform}-${process.arch}-release-v1`)
 	.digest("hex");

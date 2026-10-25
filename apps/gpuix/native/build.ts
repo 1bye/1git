@@ -44,6 +44,7 @@ import {
 	windowAppearancePatchPath,
 	windowAppearancePlatformPatchPath,
 	workspaceShortcutsPatchPath,
+	menuPlacementPlatformPatchPath,
 	systemAppearancePatchPath,
 	systemAppearancePlatformPatchPath,
 } from "./config";
@@ -134,6 +135,7 @@ if (
 		textareaViewportPatchPath,
 		textareaDecorationsPatchPath,
 		workspaceShortcutsPatchPath,
+		menuPlacementPlatformPatchPath,
 		systemAppearancePatchPath,
 		systemAppearancePlatformPatchPath,
 	];
@@ -153,7 +155,8 @@ if (
 			patch === contextMenuIconsPlatformPatchPath ||
 			patch === roundedOverflowPlatformPatchPath ||
 			patch === windowAppearancePlatformPatchPath ||
-			patch === systemAppearancePlatformPatchPath
+			patch === systemAppearancePlatformPatchPath ||
+			patch === menuPlacementPlatformPatchPath
 				? resolve(source, "zed")
 				: source;
 
@@ -180,7 +183,8 @@ if (
 			patch === contextMenuIconsPlatformPatchPath ||
 			patch === roundedOverflowPlatformPatchPath ||
 			patch === windowAppearancePlatformPatchPath ||
-			patch === systemAppearancePlatformPatchPath
+			patch === systemAppearancePlatformPatchPath ||
+			patch === menuPlacementPlatformPatchPath
 				? resolve(source, "zed")
 				: source;
 

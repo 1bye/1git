@@ -1,0 +1,36 @@
+diff --git a/crates/gpui_macos/src/context_menu.rs b/crates/gpui_macos/src/context_menu.rs
+--- a/crates/gpui_macos/src/context_menu.rs
++++ b/crates/gpui_macos/src/context_menu.rs
+@@ -143,6 +143,9 @@
+         }
+         let bounds: NSRect = msg_send![view, bounds];
+         let flipped: BOOL = msg_send![view, isFlipped];
++        // AppKit otherwise pins the first row to a bottom-edge trigger and initially scrolls the rest out of view.
++        let size: NSSize = msg_send![menu, size];
++        let (x, y) = menu_origin(x, y, size.width, size.height, bounds.size.width, bounds.size.height);
+         let point = NSPoint::new(x, if flipped == YES { y } else { bounds.size.height - y });
+         let _: BOOL = msg_send![menu, popUpMenuPositioningItem: nil atLocation: point inView: view];
+         let selected = *(*target).get_ivar::<i64>("selectedIndex");
+@@ -187,3 +190,22 @@
+         Ok(response == 1001)
+     }
+ }
++
++
++/// Keep the complete menu in the owning view when it fits; AppKit handles oversized menus.
++fn menu_origin(x: f64, y: f64, width: f64, height: f64, view_width: f64, view_height: f64) -> (f64, f64) {
++    (x.clamp(0.0, (view_width - width).max(0.0)), y.clamp(0.0, (view_height - height).max(0.0)))
++}
++
++#[cfg(test)]
++mod menu_placement_tests {
++    use super::menu_origin;
++
++    #[test]
++    fn opens_bottom_menus_fully_above_the_window_edge() {
++        assert_eq!(menu_origin(40.0, 600.0, 240.0, 280.0, 980.0, 640.0), (40.0, 360.0));
++        assert_eq!(menu_origin(40.0, 50.0, 240.0, 280.0, 980.0, 640.0), (40.0, 50.0));
++        assert_eq!(menu_origin(970.0, 600.0, 240.0, 280.0, 980.0, 640.0), (740.0, 360.0));
++        assert_eq!(menu_origin(40.0, 600.0, 1200.0, 800.0, 980.0, 640.0), (0.0, 0.0));
++    }
++}

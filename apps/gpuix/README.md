@@ -425,6 +425,9 @@ and keyboard activation remain intact; ordinary field borders are unchanged.
 
 ## Appearance
 
+Native menus are measured before opening and clamped to the owning window, so
+the bottom settings menu opens fully above the edge without hover scrolling.
+
 Settings → Appearance offers Light, Dark and Auto, with live previews and immediate switching.
 Auto follows macOS and is the default when no preference has been saved. The choice is saved alongside
 diff preferences in the workspace session and restores on restart. Switching does
