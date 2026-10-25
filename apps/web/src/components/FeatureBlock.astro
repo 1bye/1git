@@ -8,8 +8,8 @@ const sparkle = "M12 0C12.7 8.2 15.8 11.3 24 12C15.8 12.7 12.7 15.8 12 24C11.3 1
 <article class:list={["feature-block", `feature-${variant}`]} data-reveal data-glow-zone="section">
   <div class="feature-copy">
     <p class="section-label">{variant === "native" ? "01 / A focused workspace" : variant === "tabs" ? "02 / In your flow" : "03 / A little assistance"}</p>
-    {variant === "native" && <><h3>Native speed.<br />GPU rendered.</h3><p>Review. Stage. Commit.</p></>}
-    {variant === "tabs" && <><h3>Every repository.<br />A tab of its own.</h3><p>Work and personal. Separate spaces.</p></>}
+    {variant === "native" && <><h3>Native speed.<br />GPU rendered.</h3><p>Smooth at any size, from one file to thousands.</p></>}
+    {variant === "tabs" && <><h3>Every repository.<br />A tab of its own.</h3><p>Drag, reorder, switch with ⌘P.</p></>}
     {variant === "ai" && <><h3>AI commit drafts.<br />Yours to refine.</h3><p>Review the suggestion. Make it yours.</p></>}
   </div>
   <div class="feature-art">
@@ -18,7 +18,6 @@ const sparkle = "M12 0C12.7 8.2 15.8 11.3 24 12C15.8 12.7 12.7 15.8 12 24C11.3 1
       <p class="tabs-word display"><span class="sr-only">Tabs</span><span aria-hidden="true">Ta{[0,1,2,3,4,5].map((i) => <span class="extra-a" style={`--order:${i}`}>a</span>)}bs</span></p>
       <div class="tabs-demo" aria-hidden="true"><span class="demo-tab">1git / main</span><span class="demo-tab">website / main</span><span class="demo-tab">notes / main</span></div>
       <AppWindow name="tabs-strip" alt="1git repository tab strip with repository names, branch labels and change counts." />
-      <p class="demo-caption">Tab motion demonstration · real 1git window below.</p>
     </>}
     {variant === "ai" && <>
       <div class="ai-demo" data-ai-demo>
@@ -33,7 +32,7 @@ const sparkle = "M12 0C12.7 8.2 15.8 11.3 24 12C15.8 12.7 12.7 15.8 12 24C11.3 1
           <button class="demo-commit" type="button" data-demo-commit>Commit 2 files</button>
         </div>
       </div>
-      <p class="demo-caption">Interactive demonstration. AI is optional; drafts remain editable. No changes are sent or committed here.</p>
+      <p class="demo-caption">AI is optional. Drafts stay editable.</p>
     </>}
   </div>
 </article>

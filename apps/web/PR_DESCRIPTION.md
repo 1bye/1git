@@ -33,6 +33,11 @@ SEO/OG assets, not as a feature-window stand-in.
    is unmasked so Safari can sample the image. Changes remains a labelled
    placeholder until its native capture is supplied.
 
+5. Apply the brief’s Native-speed and Tabs sublines, remove duplicate Review /
+   Stage / Commit and all four developer captions, and keep the short AI note.
+   Move Pause animations into the footer and persist its explicit choice safely
+   in localStorage. A saved pause skips intro/autoplay and shows settled content.
+
 ## Acceptance checklist
 
 - ✘ No screenshot used more than twice; every alt unique and specific — named slots

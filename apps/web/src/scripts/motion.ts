@@ -1,3 +1,8 @@
+import {
+	readMotionPreference,
+	writeMotionPreference,
+} from "./motion-preference";
+
 /** Shared film timing for browser motion; CSS counterparts live in site.css. */
 export const easings = {
 	accelerate: "cubic-bezier(0.333, 0, 0.667, 0)",
@@ -66,6 +71,11 @@ export function initMotion(): void {
 	);
 
 	if (toggle) {
+		const initial = readMotionPreference();
+
+		document.documentElement.toggleAttribute("data-motion-paused", initial);
+		toggle.setAttribute("aria-pressed", String(initial));
+		toggle.textContent = initial ? "Resume animations" : "Pause animations";
 		toggle.hidden = false;
 		toggle.addEventListener("click", () => {
 			const paused =
@@ -73,7 +83,8 @@ export function initMotion(): void {
 
 			document.documentElement.toggleAttribute("data-motion-paused", paused);
 			toggle.setAttribute("aria-pressed", String(paused));
-			toggle.textContent = paused ? "Resume motion" : "Pause motion";
+			toggle.textContent = paused ? "Resume animations" : "Pause animations";
+			writeMotionPreference(paused);
 			document.dispatchEvent(new Event("motionchange"));
 		});
 	}

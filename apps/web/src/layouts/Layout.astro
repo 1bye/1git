@@ -1,6 +1,7 @@
 ---
 import "../styles/site.css";
 import GlowBackground from "../components/GlowBackground.astro";
+import { motionStorageKey } from "../scripts/motion-preference";
 
 interface Props {
   title?: string;
@@ -49,6 +50,9 @@ const graph = {
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <script is:inline define:vars={{ motionStorageKey }}>
+      try { if (localStorage.getItem(motionStorageKey) === "1") document.documentElement.setAttribute("data-motion-paused", ""); } catch { /* Storage may be unavailable. */ }
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={description} />
     <meta name="theme-color" content="#5a7fc2" />

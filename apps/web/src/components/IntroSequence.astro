@@ -10,7 +10,7 @@
   const reduced = matchMedia("(prefers-reduced-motion: reduce)");
   let seen = true;
   try { seen = sessionStorage.getItem("1git-intro-seen") === "1"; } catch { /* Storage-disabled visitors get the settled hero. */ }
-  if (intro && !seen && !reduced.matches && !location.hash) {
+  if (intro && !seen && !reduced.matches && !document.documentElement.hasAttribute("data-motion-paused") && !location.hash) {
     const finish = () => { intro.hidden = true; document.documentElement.removeAttribute("data-intro-playing"); };
     intro.hidden = false;
     document.documentElement.setAttribute("data-intro-playing", "");
