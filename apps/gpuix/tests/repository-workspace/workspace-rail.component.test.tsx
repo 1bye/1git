@@ -500,3 +500,42 @@ it("reflects the Settings-owned account list immediately without remounting cont
 	);
 	expect(f.requests).toEqual([]);
 });
+
+it.each([
+	[756, 450],
+	[640, 420],
+])(
+	"keeps workspace controls reachable in a %s × %s tile",
+	async (width, height) => {
+		root.unmount();
+		root = createTestRoot({
+			width,
+			height,
+			onKeyDown: windowOptions.onKeyDown,
+		});
+		root.renderer.clockPause();
+		root.render(<App accounts={f.accounts} preview initialTabCount={2} />);
+		await settle();
+
+		for (const id of [
+			"rail-settings",
+			"rail-account",
+			"commit-message",
+			"commit-preview",
+		]) {
+			const box = bounds(id);
+
+			expect(box.x).toBeGreaterThanOrEqual(0);
+			expect(box.y).toBeGreaterThanOrEqual(0);
+			expect(box.x + box.width).toBeLessThanOrEqual(width);
+			expect(box.y + box.height).toBeLessThanOrEqual(height);
+		}
+
+		expect(bounds("workspace").width).toBeGreaterThan(550);
+
+		if (width === 756 && process.env.GPUIX_SMALL_WINDOW_SCREENSHOT)
+			root.renderer.captureScreenshot(
+				process.env.GPUIX_SMALL_WINDOW_SCREENSHOT
+			);
+	}
+);

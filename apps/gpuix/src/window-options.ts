@@ -13,8 +13,9 @@ import { handleCloneNavigation } from "./feature/repository-workspace/lib/reposi
 export const windowOptions: RenderOptions = {
 	height: 820,
 	width: 1280,
-	minWidth: 980,
-	minHeight: 640,
+	// Fit half/quarter-screen layouts requested through macOS accessibility APIs.
+	minWidth: 640,
+	minHeight: 420,
 	title: "1git",
 	titlebarTransparent: true,
 	appOwnsTitlebarDrag: true,

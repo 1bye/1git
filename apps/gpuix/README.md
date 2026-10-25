@@ -428,6 +428,9 @@ and keyboard activation remain intact; ordinary field borders are unchanged.
 Hover labels use a translucent, rounded surface with a subtle border and shadow,
 matching the window’s light or dark palette.
 
+The window can shrink to 640 × 420 points, allowing half-screen and compact
+tiles from macOS window managers. Native accessibility move/resize remains enabled.
+
 Native menus are measured before opening and clamped to the owning window, so
 the bottom settings menu opens fully above the edge without hover scrolling.
 
