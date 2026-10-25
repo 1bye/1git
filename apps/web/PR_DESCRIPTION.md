@@ -44,6 +44,13 @@ capture exactly; it is used nowhere else as a feature-window stand-in.
    centre Taaaaaaabs, and fit its full word below 768px. The existing capture is
    appropriate here because the feature demonstrates those actual tabs.
 
+7. Start the grid at 64% white, then light rows once in DOM reading order every
+   380ms. Each row has a unique meaningful icon and a draw, pop or slide action.
+   Fold CLI sign-in into accounts, add the requested file-history/renames row,
+   and give Pull requests / Issues their own tiles with individually timed entries.
+   File history across renames is brief-supplied copy and still needs product
+   wording review; it was not present in the previous marketing copy.
+
 ## Acceptance checklist
 
 - ✘ No screenshot used more than twice; every alt unique and specific — named slots

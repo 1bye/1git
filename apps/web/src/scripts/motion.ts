@@ -60,6 +60,8 @@ export function onceOnView(
 
 /** Setup is progressive enhancement: without JS all content stays readable. */
 export function initMotion(): void {
+	document.documentElement.setAttribute("data-motion-ready", "");
+
 	for (const section of document.querySelectorAll<HTMLElement>(
 		"[data-reveal]"
 	)) {
