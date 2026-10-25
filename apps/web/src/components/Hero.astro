@@ -1,0 +1,23 @@
+---
+import AppWindow from "./AppWindow.astro";
+const sparkle = "M12 0C12.7 8.2 15.8 11.3 24 12C15.8 12.7 12.7 15.8 12 24C11.3 15.8 8.2 12.7 0 12C8.2 11.3 11.3 8.2 12 0Z";
+---
+<section id="top" class="hero" aria-labelledby="hero-title" data-glow-zone="hero">
+  <div class="hero-copy">
+    <div class="wordmark-scene">
+      {[0,1,2,3].map((i) => <svg class={`hero-sparkle sparkle-${i}`} viewBox="0 0 24 24" aria-hidden="true"><path d={sparkle} /></svg>)}
+      <p class="hero-wordmark display">1git</p>
+    </div>
+    <h1 id="hero-title" class="display">A clearer view.<br />Of every change.</h1>
+    <p class="hero-description">A native Git client for macOS.<br class="desktop-break" /> Local repositories and SSH. One focused workspace.</p>
+    <div class="cta-row">
+      <a class="download-button" href="/download">Download for macOS <span aria-hidden="true">↗</span></a>
+      <a class="frost-button" href="#features">Explore 1git <span aria-hidden="true">↓</span></a>
+    </div>
+    <p class="download-note">macOS 13+ · Apple Silicon · Git required</p>
+  </div>
+  <div class="hero-product">
+    <AppWindow eager />
+    <div class="progressive-blur" aria-hidden="true">{[1,2,3,4,5].map((i) => <span class={`blur-band band-${i}`} />)}</div>
+  </div>
+</section>

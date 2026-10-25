@@ -1,5 +1,6 @@
 ---
 import "../styles/site.css";
+import GlowBackground from "../components/GlowBackground.astro";
 
 interface Props {
   title?: string;
@@ -50,8 +51,8 @@ const graph = {
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={description} />
-    <meta name="theme-color" content="#0e0e11" />
-    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#5a7fc2" />
+    <meta name="color-scheme" content="light" />
     <meta name="robots" content={noindex ? "noindex, follow" : "index, follow, max-image-preview:large"} />
     <meta property="og:type" content="website" />
     <meta property="og:title" content={title} />
@@ -70,12 +71,14 @@ const graph = {
     <meta name="twitter:image" content={socialImage} />
     <meta name="twitter:image:alt" content={socialImageAlt} />
     {!noindex && <link rel="canonical" href={canonical} />}
+    <link rel="preload" href="/fonts/instrument-serif-italic.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     {!noindex && <script type="application/ld+json" set:html={JSON.stringify(graph).replace(/</g, "\\u003c")} />}
     <title>{title}</title>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
+    <GlowBackground variant="hero" />
     <slot />
   </body>
 </html>

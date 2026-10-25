@@ -1,0 +1,10 @@
+---
+import { Image } from "astro:assets";
+import changes from "../assets/launch/changes.webp";
+import original from "../assets/1git-native-window.png";
+interface Props { eager?: boolean; class?: string }
+const { eager = false, class: className } = Astro.props;
+---
+<a class:list={["app-window", className]} href={original.src} target="_blank" rel="noopener" aria-label="View the full-size 1git app screenshot">
+  <Image src={changes} widths={[640, 960, 1440, 2143]} sizes="(max-width: 650px) 94vw, (max-width: 1100px) 90vw, 1120px" format="webp" quality={88} loading={eager ? "eager" : "lazy"} fetchpriority={eager ? "high" : "auto"} alt="1git’s native macOS Changes window with repository tabs, a stash, and a file diff." />
+</a>
