@@ -1,3 +1,4 @@
+import type { TourTips } from "../../guided-tour/guided-tour";
 import type { AppTypography } from "../../appearance-settings/app-typography";
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import {
@@ -29,7 +30,8 @@ export function useWorkspaceSession(
 	repositoryLibrary?: RepositoryLibraryPreferences,
 	smoothTransitions?: boolean,
 	showScrollbars?: boolean,
-	typography?: AppTypography
+	typography?: AppTypography,
+	tips?: TourTips
 ) {
 	const content =
 		state.preview || !save
@@ -47,7 +49,8 @@ export function useWorkspaceSession(
 						repositoryLibrary,
 						smoothTransitions,
 						showScrollbars,
-						typography
+						typography,
+						tips
 					)
 				);
 

@@ -29,9 +29,10 @@ import type { useRepositoryDiscovery } from "../repository-discovery/use-reposit
 import { OnboardingRepositories } from "./onboarding-repositories";
 
 const steps = {
-	welcome: { title: "Welcome to 1git", number: 1 },
-	git: { title: "Connect your accounts", number: 2 },
-	repository: { title: "Your first repository", number: 3 },
+	welcome: { title: "Welcome to 1git", number: 1, next: "git" },
+	git: { title: "Connect your accounts", number: 2, next: "spaces" },
+	spaces: { title: "Set up spaces", number: 3, next: "repository" },
+	repository: { title: "Your first repository", number: 4, next: "complete" },
 } as const;
 
 /** Skippable native setup. Only Save identity writes Git; account and repository work use existing flows. */
@@ -41,6 +42,8 @@ export function Onboarding({
 	busy,
 	error,
 	cloneView,
+	spacesView,
+	spaceName,
 	repositoryActions,
 	discovery,
 	onOpenRepository,
@@ -56,6 +59,8 @@ export function Onboarding({
 	busy: boolean;
 	error?: string;
 	cloneView?: ReactNode;
+	spacesView: ReactNode;
+	spaceName: string;
 	repositoryActions: ReactNode;
 	discovery: ReturnType<typeof useRepositoryDiscovery>;
 	onOpenRepository: (path: string) => void;
@@ -263,7 +268,7 @@ export function Onboarding({
 		gap: spacing[2],
 	};
 
-	const next = step === "welcome" ? "git" : "repository";
+	const next = steps[step].next;
 	const finalStep = step === "repository";
 
 	return (
@@ -344,7 +349,7 @@ export function Onboarding({
 									{steps[step].title}
 								</text>
 								<text testId="onboarding-step" style={muted}>
-									{`${steps[step].number} of 3`}
+									{`${steps[step].number} of 4`}
 								</text>
 							</div>
 							<div
@@ -527,11 +532,16 @@ export function Onboarding({
 											)}
 										</div>
 									</>
+								) : step === "spaces" ? (
+									spacesView
 								) : (
 									<>
 										<text style={muted}>
 											Open a project on your computer, clone an existing
 											repository, or create a new one.
+										</text>
+										<text testId="onboarding-repository-space" style={muted}>
+											{`Opening in ${spaceName}.`}
 										</text>
 										{repositoryActions}
 										{busy ? (
@@ -575,19 +585,27 @@ export function Onboarding({
 									variant={finalStep ? "secondary" : "ghost"}
 									size="sm"
 									disabled={locked}
-									onPress={finalStep ? () => move("git") : skip}
+									onPress={() => {
+										if (finalStep) move("spaces");
+										else if (step === "spaces") move("repository");
+										else skip();
+									}}
 								>
-									{finalStep ? "Back" : "Skip setup"}
+									{finalStep
+										? "Back"
+										: step === "spaces"
+											? "Skip for now"
+											: "Skip setup"}
 								</Button>
 								<div style={row}>
-									{step === "git" ? (
+									{step === "git" || step === "spaces" ? (
 										<Button
 											testId="onboarding-back"
 											tokens={tokens}
 											variant="secondary"
 											size="sm"
 											disabled={locked}
-											onPress={() => move("welcome")}
+											onPress={() => move(step === "git" ? "welcome" : "git")}
 										>
 											Back
 										</Button>

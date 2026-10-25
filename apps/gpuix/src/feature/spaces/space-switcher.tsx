@@ -1,4 +1,5 @@
-import { useRef, useState } from "react";
+import { setRefs } from "@gpuix/react/floating";
+import { useRef, useState, useLayoutEffect, type Ref } from "react";
 import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
 import { Button } from "@1git/gpuix-ui/button";
 import {
@@ -28,6 +29,8 @@ export function SpaceSwitcher({
 	onSelect,
 	onCreate,
 	onManage,
+	anchorRef,
+	onOpenChange,
 }: {
 	spaces: readonly WorkspaceSpace[];
 	disabled?: boolean;
@@ -35,6 +38,8 @@ export function SpaceSwitcher({
 	onSelect: (id: string) => void;
 	onCreate: () => void;
 	onManage: () => void;
+	anchorRef?: Ref<PublicInstance>;
+	onOpenChange?: (open: boolean) => void;
 }) {
 	const { tokens } = useAppTheme();
 	const renderer = useGpuixRequired();
@@ -42,6 +47,12 @@ export function SpaceSwitcher({
 	const tracking = useRef(false);
 	const [open, setOpen] = useState(false);
 	const active = spaces.find((space) => space.id === activeId);
+
+	useLayoutEffect(() => {
+		onOpenChange?.(open);
+	}, [open, onOpenChange]);
+
+	useLayoutEffect(() => () => onOpenChange?.(false), [onOpenChange]);
 
 	if (!active || spaces.length < 2) return null;
 
@@ -97,7 +108,7 @@ export function SpaceSwitcher({
 		<Tooltip open={open ? false : undefined}>
 			<TooltipTrigger asChild>
 				<Button
-					ref={button}
+					ref={(instance) => setRefs(instance, button, anchorRef)}
 					disabled={disabled}
 					tokens={tokens}
 					variant={open ? "secondary" : "ghost"}
@@ -122,7 +133,7 @@ export function SpaceSwitcher({
 				tokens={tokens}
 				side="right"
 				align="center"
-			>{`Spaces · ${active.name}`}</TooltipContent>
+			>{`Spaces · ${active.name}\nTwo-finger swipe to switch spaces`}</TooltipContent>
 		</Tooltip>
 	);
 }

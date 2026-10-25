@@ -9,7 +9,13 @@ import { WorkspaceSession } from "../../src/feature/workspace-tabs/lib/workspace
 import { WorkspaceTabsModel } from "../../src/feature/workspace-tabs/lib/workspace-tabs-model";
 
 it("round-trips setup progress and completion even with no repositories", () => {
-	for (const step of ["welcome", "git", "repository", "complete"] as const) {
+	for (const step of [
+		"welcome",
+		"git",
+		"spaces",
+		"repository",
+		"complete",
+	] as const) {
 		const document = WorkspaceSession.capture(
 			WorkspaceTabsModel.create(0),
 			undefined,

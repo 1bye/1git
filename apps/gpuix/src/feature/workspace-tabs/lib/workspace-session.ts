@@ -1,3 +1,4 @@
+import { GuidedTour, type TourTips } from "../../guided-tour/guided-tour";
 import {
 	TypographyPreferences,
 	type AppTypography,
@@ -33,7 +34,12 @@ import {
 } from "../../repository-workspace/lib/repository-diff";
 
 /** First-run progress, independent of repository history; older sessions remain complete. */
-export type OnboardingStep = "welcome" | "git" | "repository" | "complete";
+export type OnboardingStep =
+	| "welcome"
+	| "git"
+	| "spaces"
+	| "repository"
+	| "complete";
 
 /** Stable navigation intent, separate from Git data and commit inclusion. */
 interface WorkspaceNavigation {
@@ -71,6 +77,7 @@ export interface WorkspaceSessionDocument {
 	readonly repositoryColors?: RepositoryColorChoices;
 	readonly repositoryPatterns?: RepositoryPatternChoices;
 	readonly onboarding?: OnboardingStep;
+	readonly tips?: TourTips;
 }
 
 const tabIdPattern = /^workspace-([1-9]\d*)$/;
@@ -199,6 +206,7 @@ export class WorkspaceSession {
 			});
 		}
 
+		const tips = GuidedTour.parse(value.tips);
 		const diffSettings = WorkspaceSession.diffSettings(value.diffSettings);
 		const repositoryColors = RepositoryColors.parse(value.repositoryColors);
 
@@ -254,10 +262,12 @@ export class WorkspaceSession {
 				: {}),
 			...(value.onboarding === "welcome" ||
 			value.onboarding === "git" ||
+			value.onboarding === "spaces" ||
 			value.onboarding === "repository" ||
 			value.onboarding === "complete"
 				? { onboarding: value.onboarding }
 				: {}),
+			...(tips ? { tips } : {}),
 			...(diffSettings ? { diffSettings } : {}),
 			...(Object.keys(repositoryColors).length ? { repositoryColors } : {}),
 			...(Object.keys(repositoryPatterns).length ? { repositoryPatterns } : {}),
@@ -306,7 +316,8 @@ export class WorkspaceSession {
 		repositoryLibrary?: RepositoryLibraryPreferences,
 		smoothTransitions?: boolean,
 		showScrollbars?: boolean,
-		typography?: AppTypography
+		typography?: AppTypography,
+		tips?: TourTips
 	): WorkspaceSessionDocument {
 		return {
 			version: 1,
@@ -331,6 +342,7 @@ export class WorkspaceSession {
 			...(showScrollbars !== undefined ? { showScrollbars } : {}),
 			...(smoothTransitions !== undefined ? { smoothTransitions } : {}),
 			...(onboarding ? { onboarding } : {}),
+			...(tips ? { tips } : {}),
 			...(diffSettings ? { diffSettings } : {}),
 			...(repositoryDiscovery &&
 			(repositoryDiscovery.folders.length || repositoryDiscovery.hidden.length)

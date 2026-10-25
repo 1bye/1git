@@ -1,3 +1,11 @@
+import { usePopoverOpen } from "@1git/gpuix-ui/popover";
+import {
+	GuidedTour,
+	tourSteps,
+	type TourStepId,
+	type TourTips,
+} from "./feature/guided-tour/guided-tour";
+import { GuidedTourLayer } from "./feature/guided-tour/guided-tour-layer";
 import { IgnoredHistory } from "./feature/ignored-history/ignored-history";
 import { DesktopAnalytics } from "./feature/analytics/desktop-analytics";
 import { useIgnoredHistories } from "./feature/ignored-history/use-ignored-histories";
@@ -10,6 +18,7 @@ import {
 } from "./feature/spaces/workspace-spaces";
 import { SpaceSwitcher } from "./feature/spaces/space-switcher";
 import { SpaceManager, SpacesSettings } from "./feature/spaces/space-manager";
+import { OnboardingSpaces } from "./feature/onboarding/onboarding-spaces";
 import { MachineContext } from "./feature/machines/machine-context";
 import { RemoteFolderPicker } from "./feature/machines/remote-folder-picker";
 import { AppThemeContext, appThemes, useAppTheme } from "./styles/theme";
@@ -583,6 +592,59 @@ function AppContent({
 			: (initialSession?.onboarding ?? initialOnboarding ?? "complete")
 	);
 
+	const [tips, setTips] = useState<TourTips>(
+		() =>
+			initialSession?.tips ?? {
+				completed: onboarding === "complete" ? tourSteps : [],
+			}
+	);
+
+	const tabTourAnchor = useRef<PublicInstance>(null);
+	const worktreesTourAnchor = useRef<PublicInstance>(null);
+	const spaceTourAnchor = useRef<PublicInstance>(null);
+	const railTourAnchor = useRef<PublicInstance>(null);
+	const [tabMenuOpen, setTabMenuOpen] = useState(false);
+	const previousTabMenuOpen = useRef(false);
+	const [tabMenuBusy, setTabMenuBusy] = useState(false);
+	const [spaceMenuOpen, setSpaceMenuOpen] = useState(false);
+	const [railMenuOpen, setRailMenuOpen] = useState(false);
+	const popoverOpen = usePopoverOpen();
+	const activeTourStep = useRef<TourStepId | null>(null);
+
+	const completeTip = useCallback(
+		(id: TourStepId) => {
+			if (activeTourStep.current === id)
+				setTips((current) => GuidedTour.complete(current, id));
+		},
+		[setTips]
+	);
+
+	const tabMenuChanged = useCallback(
+		(open: boolean) => {
+			setTabMenuOpen(open);
+
+			if (open || previousTabMenuOpen.current)
+				completeTip(open ? "tab-menu" : "worktrees");
+
+			previousTabMenuOpen.current = open;
+		},
+		[completeTip]
+	);
+
+	const tourTabChanged = useCallback((instance: PublicInstance | null) => {
+		tabTourAnchor.current = instance;
+	}, []);
+
+	const worktreesOpened = useCallback(
+		() => completeTip("worktrees"),
+		[completeTip]
+	);
+
+	const skipTour = useCallback(
+		() => setTips((current) => GuidedTour.skip(current)),
+		[setTips]
+	);
+
 	const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
 
 	const [repositoryColors, setRepositoryColors] = useState(() =>
@@ -615,7 +677,8 @@ function AppContent({
 		repositoryLibrary,
 		theme.smoothTransitions,
 		theme.showScrollbars,
-		theme.typography
+		theme.typography,
+		tips
 	);
 
 	useEffect(() => {
@@ -1307,7 +1370,14 @@ function AppContent({
 	};
 
 	const onboardingTab = (path?: string): string => {
-		if (onboardingId && state.tabs.some((tab) => tab.id === onboardingId)) {
+		if (
+			onboardingId &&
+			state.tabs.some(
+				(tab) =>
+					tab.id === onboardingId &&
+					(tab.spaceId ?? "default") === activeSpaceId
+			)
+		) {
 			if (path) void connection.read(onboardingId, path);
 
 			return onboardingId;
@@ -1507,11 +1577,16 @@ function AppContent({
 			direction
 		);
 
-		if (destination) selectSpace(destination);
+		if (destination) {
+			selectSpace(destination);
+			completeTip("space-swipe");
+		}
 	};
 
 	const spaceSwitcher = (disabled: boolean) => (
 		<SpaceSwitcher
+			anchorRef={spaceTourAnchor}
+			onOpenChange={setSpaceMenuOpen}
 			disabled={disabled}
 			spaces={state.spaces ?? []}
 			activeId={activeSpace.id}
@@ -1539,6 +1614,30 @@ function AppContent({
 		/>
 	) : null;
 
+	const tourContext = {
+		onboardingComplete: !onboardingOpen,
+		hasRepositoryTab: !!workspace?.repository,
+		spaceCount: state.spaces?.length ?? 1,
+		blocked: false,
+	};
+
+	const pendingTip = GuidedTour.current(tips, tourContext);
+
+	tourContext.blocked =
+		preview ||
+		settingsOpen ||
+		!!spaceEditor ||
+		quickSwitcherOpen ||
+		!!folderPickerRoot ||
+		onboardingBusy ||
+		popoverOpen ||
+		spaceMenuOpen ||
+		railMenuOpen ||
+		!!appearanceEditor ||
+		!!closeNotice ||
+		(tabMenuOpen && (pendingTip !== "worktrees" || tabMenuBusy));
+	activeTourStep.current = GuidedTour.current(tips, tourContext);
+
 	return (
 		<RepositoryAvatarContext value={avatars}>
 			<div
@@ -1552,12 +1651,29 @@ function AppContent({
 					height: "100%",
 				}}
 			>
+				<GuidedTourLayer
+					tips={tips}
+					context={tourContext}
+					repositoryKey={
+						workspace?.repository
+							? `${activeTab?.id}:${workspace.repository.root}`
+							: null
+					}
+					tabAnchor={tabTourAnchor}
+					worktreesAnchor={worktreesTourAnchor}
+					spaceAnchor={spaceTourAnchor}
+					railAnchor={railTourAnchor}
+					onSkip={skipTour}
+				/>
+
 				<AppShell
 					palette={repositoryTheme}
 					hidden={settingsOpen || onboardingOpen}
 					rail={
 						settingsOpen || onboardingOpen ? undefined : (
 							<WorkspaceRail
+								tourAnchorRef={railTourAnchor}
+								onMenuOpenChange={setRailMenuOpen}
 								ignoredHistory={
 									workspace?.repository &&
 									ignoredStatus?.data?.preferences.enabled
@@ -1762,6 +1878,11 @@ function AppContent({
 					}
 					toolbar={
 						<WorkspaceTabs
+							onTourAnchor={tourTabChanged}
+							onTabMenuOpenChange={tabMenuChanged}
+							worktreesAnchorRef={worktreesTourAnchor}
+							onWorktreesOpen={worktreesOpened}
+							onMenuBusyChange={setTabMenuBusy}
 							state={{ ...state, tabs: visibleTabs }}
 							dispatch={dispatch}
 							readBranches={readBranches}
@@ -2255,6 +2376,24 @@ function AppContent({
 						step={onboarding}
 						active={!settingsOpen}
 						busy={onboardingBusy}
+						spaceName={activeSpace.name}
+						spacesView={
+							<OnboardingSpaces
+								spaces={state.spaces ?? []}
+								activeId={activeSpaceId}
+								disabled={onboardingBusy || !!spaceEditor || settingsOpen}
+								onCreate={() => setSpaceEditor({})}
+								onCreatePreset={(preset) =>
+									dispatch({
+										type: "space-create",
+										space: { id: randomUUID(), ...preset, repositories: [] },
+										discovery: discoveryPreferences,
+										library: repositoryLibrary,
+									})
+								}
+								onEdit={(space) => setSpaceEditor({ space })}
+							/>
+						}
 						error={onboardingWorkspace?.error ?? undefined}
 						discovery={discovery}
 						onOpenRepository={(path) => {
@@ -2403,6 +2542,10 @@ function AppContent({
 				) : null}
 				{settingsOpen ? (
 					<AccountsSettings
+						onReplayTips={() => {
+							setTips({ completed: [] });
+							closeSettings();
+						}}
 						ignoredHistory={
 							workspace?.repository
 								? {

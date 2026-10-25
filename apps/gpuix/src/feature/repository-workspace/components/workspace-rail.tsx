@@ -3,6 +3,7 @@ import {
 	useRef,
 	useState,
 	useEffect,
+	useLayoutEffect,
 	type Ref,
 	type RefObject,
 	type ReactNode,
@@ -203,6 +204,8 @@ export function WorkspaceRail({
 	repositoryAppearance,
 	ignoredHistory,
 	spaceSwitcher,
+	tourAnchorRef,
+	onMenuOpenChange,
 	onSpaceSwipe,
 	children,
 }: {
@@ -230,6 +233,8 @@ export function WorkspaceRail({
 	/** Repository-wide actions sit above the navigation group. */
 	spaceSwitcher?: (disabled: boolean) => ReactNode;
 	onSpaceSwipe?: (direction: SpaceDirection) => void;
+	tourAnchorRef?: Ref<PublicInstance>;
+	onMenuOpenChange?: (open: boolean) => void;
 	children?: ReactNode;
 }) {
 	const theme = useAppTheme();
@@ -249,6 +254,12 @@ export function WorkspaceRail({
 	useEffect(() => {
 		if (!swipeEnabled) spaceSwipe.current.cancel();
 	}, [swipeEnabled]);
+
+	useLayoutEffect(() => {
+		onMenuOpenChange?.(settingsMenuOpen);
+	}, [settingsMenuOpen, onMenuOpenChange]);
+
+	useLayoutEffect(() => () => onMenuOpenChange?.(false), [onMenuOpenChange]);
 
 	const saved = savedAccounts ?? catalog.saved;
 
@@ -370,6 +381,7 @@ export function WorkspaceRail({
 	return (
 		<TooltipProvider delayDuration={350}>
 			<div
+				ref={tourAnchorRef}
 				testId="workspace-rail"
 				role="navigation"
 				aria-label="Workspace tools"

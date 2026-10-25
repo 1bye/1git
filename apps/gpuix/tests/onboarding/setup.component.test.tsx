@@ -96,6 +96,7 @@ async function reveal(id: string) {
 			"onboarding-retry-identity",
 			"onboarding-identity-toggle",
 		].includes(id) &&
+		!id.startsWith("onboarding-space") &&
 		!id.startsWith("account-auth-") &&
 		!id.startsWith("onboarding-provider-") &&
 		![
@@ -303,7 +304,7 @@ it.each(["light", "dark", "system"] as const)(
 			<App {...props} initialOnboarding="welcome" readRepository={reader} />
 		);
 		await settle();
-		expect(root.renderer.getAllText()).toContain("1 of 3");
+		expect(root.renderer.getAllText()).toContain("1 of 4");
 		expect(root.renderer.getFocusedElementId()).toBe(
 			node("appearance-light").id
 		);
@@ -330,7 +331,10 @@ it.each(["light", "dark", "system"] as const)(
 			root.renderer.captureScreenshot(`${screenshot}-${appearance}-git.png`);
 
 		await click("onboarding-next");
-		expect(root.renderer.getAllText()).toContain("3 of 3");
+		expect(root.renderer.getAllText()).toContain("3 of 4");
+		expect(node("onboarding-spaces")).toBeDefined();
+		await click("onboarding-next");
+		expect(root.renderer.getAllText()).toContain("4 of 4");
 		const footer = root.renderer.getElementBounds(
 			node("onboarding-footer").id
 		)!;
@@ -383,7 +387,7 @@ it("cancels inline account setup and returns from Back without saving or losing 
 	expect(node("onboarding-account-panel")).toBeDefined();
 	expect(root.renderer.findByTestId("settings-view")).toBeUndefined();
 	await click("accounts-cancel");
-	expect(root.renderer.getAllText()).toContain("2 of 3");
+	expect(root.renderer.getAllText()).toContain("2 of 4");
 	expect(node("onboarding-name").customProps?.value).toBe("Draft Author");
 	await click("onboarding-back");
 	await click("onboarding-next");
@@ -422,7 +426,7 @@ it.each(["github", "gitlab"] as const)(
 		);
 		expect(f.requests).toHaveLength(0);
 		await click("account-connect");
-		expect(root.renderer.getAllText()).toContain("2 of 3");
+		expect(root.renderer.getAllText()).toContain("2 of 4");
 		expect(root.renderer.findByTestId("account-token")).toBeUndefined();
 		expect(node("onboarding-connected-accounts")).toBeDefined();
 		expect(root.renderer.getAllText().join("\n")).toContain("Connected");
@@ -431,7 +435,7 @@ it.each(["github", "gitlab"] as const)(
 		expect([...f.secrets.values()]).toContain("synthetic-onboarding-token");
 		expect(props.writeGitSettings).not.toHaveBeenCalled();
 		await click("onboarding-next");
-		expect(root.renderer.getAllText()).toContain("3 of 3");
+		expect(root.renderer.getAllText()).toContain("3 of 4");
 	}
 );
 
@@ -448,7 +452,7 @@ it("allows continuing or skipping without accounts and discards unsubmitted secr
 	expect(node("account-connect").style.opacity).toBe(0.45);
 	await edit("account-token", "another-secret");
 	await click("onboarding-next");
-	expect(root.renderer.getAllText()).toContain("3 of 3");
+	expect(root.renderer.getAllText()).toContain("3 of 4");
 	await click("onboarding-back");
 	expect(root.renderer.findByTestId("account-token")).toBeUndefined();
 	await click("onboarding-provider-gitlab");
@@ -507,7 +511,7 @@ it("delegates browser sign-in, pins cancellation and blocks step changes during 
 		await click(id);
 	}
 
-	expect(root.renderer.getAllText()).toContain("2 of 3");
+	expect(root.renderer.getAllText()).toContain("2 of 4");
 
 	const actions = root.renderer.getElementBounds(
 		node("onboarding-account-actions").id
@@ -666,7 +670,7 @@ it("shows connection failures safely and still permits skipping accounts", async
 	);
 	expect(node("account-connect").style.opacity).toBe(0.45);
 	await click("onboarding-next");
-	expect(root.renderer.getAllText()).toContain("3 of 3");
+	expect(root.renderer.getAllText()).toContain("3 of 4");
 	expect(props.writeGitSettings).not.toHaveBeenCalled();
 });
 
@@ -695,7 +699,7 @@ it("validates and saves identity only on explicit Save, blocks duplicate writes 
 		custom: true,
 		identity: { name: "Existing Author", email: "new@example.test" },
 	});
-	expect(root.renderer.getAllText()).toContain("2 of 3");
+	expect(root.renderer.getAllText()).toContain("2 of 4");
 	pending.resolve({
 		ok: false,
 		error: {
@@ -752,7 +756,7 @@ it("uses existing repository picking and completes only after a successful read"
 });
 
 it.each(["light", "dark"] as const)(
-	"starts discovery on step three, shows progressive results and opens a suggestion with the keyboard (%s)",
+	"starts discovery on step four, shows progressive results and opens a suggestion with the keyboard (%s)",
 	async (appearance) => {
 		const props = fixture();
 		const pending = Promise.withResolvers<RepositoryDiscoveryProgress>();
@@ -801,6 +805,8 @@ it.each(["light", "dark"] as const)(
 			/>
 		);
 		await settle();
+		expect(scan).not.toHaveBeenCalled();
+		await click("onboarding-next");
 		expect(scan).not.toHaveBeenCalled();
 		await click("onboarding-next");
 		expect(scan).not.toHaveBeenCalled();
@@ -1085,7 +1091,7 @@ it("acknowledges a successful identity save without automatically advancing or w
 	await edit("onboarding-name", "New Author");
 	await click("onboarding-save-identity");
 	expect(root.renderer.getAllText()).toContain("Git identity saved.");
-	expect(root.renderer.getAllText()).toContain("2 of 3");
+	expect(root.renderer.getAllText()).toContain("2 of 4");
 	await click("onboarding-save-identity");
 	await click("onboarding-next");
 	expect(props.writeGitSettings).toHaveBeenCalledTimes(1);
@@ -1168,7 +1174,7 @@ it("opens the existing Clone and Create forms without writing until submitted", 
 	await click("onboarding-repository-clone");
 	expect(node("repository-clone-view")).toBeDefined();
 	await click("clone-back");
-	expect(root.renderer.getAllText()).toContain("3 of 3");
+	expect(root.renderer.getAllText()).toContain("4 of 4");
 	await click("onboarding-repository-create");
 	expect(node("setup-branch").customProps?.value).toBe("main");
 	await click("setup-cancel");
@@ -1225,7 +1231,7 @@ it("resumes unfinished progress but never starts setup in sample mode", async ()
 
 	root.render(<App {...props} initialSession={document} />);
 	await settle();
-	expect(root.renderer.getAllText()).toContain("2 of 3");
+	expect(root.renderer.getAllText()).toContain("2 of 4");
 	root.render(<div />);
 	expect(props.saveSession.mock.calls.at(-1)?.[0].onboarding).toBe("git");
 	root.render(
@@ -1238,4 +1244,248 @@ it("resumes unfinished progress but never starts setup in sample mode", async ()
 	);
 	await settle();
 	expect(root.renderer.findByTestId("onboarding-view")).toBeUndefined();
+});
+
+function spacesSession(): WorkspaceSessionDocument {
+	return {
+		version: 1,
+		onboarding: "spaces",
+		activeId: null,
+		tabs: [],
+		activeSpaceId: "default",
+		spaces: ["default", "00000000-0000-4000-8000-000000000001"].map(
+			(id, index) => ({
+				id,
+				name: index === 0 ? "Work" : "Personal",
+				icon: index === 0 ? "work" : "home",
+				activeId: null,
+				repositories: [],
+				discovery: { folders: [], hidden: [] },
+				library: { starred: [], view: "tiles" },
+			})
+		),
+	};
+}
+
+it("can skip space setup without creating spaces or practicing a gesture", async () => {
+	const props = fixture();
+
+	root.render(<App {...props} initialOnboarding="spaces" />);
+	await settle();
+	expect(root.renderer.getAllText()).toContain("3 of 4");
+	expect(node("onboarding-space-edit-default")).toBeDefined();
+	expect(node("onboarding-space-preset-work")).toBeDefined();
+	expect(
+		root.renderer.findByTestId("onboarding-space-dot-default")
+	).toBeUndefined();
+	expect(root.renderer.getAllText()).toContain(
+		"You’ll learn how to switch after setup."
+	);
+	await click("onboarding-back");
+	expect(root.renderer.getAllText()).toContain("Connect your accounts");
+	await click("onboarding-next");
+	await click("onboarding-skip");
+	expect(root.renderer.getAllText()).toContain("4 of 4");
+	expect(root.renderer.getAllText()).toContain("Opening in Default.");
+	await click("onboarding-back");
+	expect(node("onboarding-spaces")).toBeDefined();
+	await click("onboarding-next");
+	await click("onboarding-next");
+	expect(root.renderer.findByTestId("onboarding-view")).toBeUndefined();
+	root.render(<div />);
+	expect(
+		props.saveSession.mock.calls.at(-1)?.[0].spaces?.map((space) => space.name)
+	).toEqual(["Default"]);
+	expect(props.writeGitSettings).not.toHaveBeenCalled();
+});
+
+it.each(["light", "dark"] as const)(
+	"edits Default and adds a preset space during %s onboarding, then resumes it",
+	async (appearance) => {
+		const props = fixture();
+
+		root.render(
+			<App
+				{...props}
+				initialOnboarding="spaces"
+				initialSession={{ version: 1, tabs: [], activeId: null, appearance }}
+			/>
+		);
+		await settle();
+		await click("onboarding-space-edit-default");
+		await edit("space-name", "Work");
+		await click("space-icon-work");
+		await click("space-editor-save");
+		expect(
+			node("onboarding-space-edit-default").customProps?.["aria-label"]
+		).toBe("Edit Work");
+		expect(
+			root.renderer.findByTestId("onboarding-space-preset-work")
+		).toBeUndefined();
+		await click("onboarding-space-create");
+		expect(root.renderer.getFocusedElementId()).toBe(node("space-name").id);
+		await click("space-editor-cancel");
+		await click("onboarding-space-preset-home");
+		expect(root.renderer.findByTestId("space-editor")).toBeUndefined();
+		expect(
+			root.renderer.findByTestId("onboarding-space-preset-home")
+		).toBeUndefined();
+		expect(root.renderer.getAllText()).toContain("Personal");
+		expect(node("onboarding-space-illustration")).toBeDefined();
+		expect(root.renderer.getAllText()).toContain(
+			"You’ll learn how to switch after setup."
+		);
+
+		if (process.env.GPUIX_ONBOARDING_SCREENSHOT)
+			root.renderer.captureScreenshot(
+				`${process.env.GPUIX_ONBOARDING_SCREENSHOT}-${appearance}-spaces.png`
+			);
+
+		root.render(<div />);
+		const saved = props.saveSession.mock.calls.at(-1)?.[0];
+
+		expect(saved?.onboarding).toBe("spaces");
+		expect(saved?.spaces?.map(({ name, icon }) => ({ name, icon }))).toEqual([
+			{ name: "Work", icon: "work" },
+			{ name: "Personal", icon: "home" },
+		]);
+		root.render(<App {...props} initialSession={saved} />);
+		await settle();
+		expect(node("onboarding-spaces")).toBeDefined();
+		expect(root.renderer.getAllText()).toContain("Personal");
+		expect(
+			node(`onboarding-space-edit-${saved?.activeSpaceId}`).customProps?.[
+				"aria-label"
+			]
+		).toBe("Edit Personal");
+		await click("onboarding-next");
+		expect(root.renderer.getAllText()).toContain("Opening in Personal.");
+	}
+);
+
+it("opens the first repository in a newly added space after returning from repository setup", async () => {
+	const props = fixture();
+	const document = spacesSession();
+
+	const reader = mock<typeof RepositoryReader.read>(async () => ({
+		ok: true,
+		value: repositorySnapshot(),
+	}));
+
+	const picker = mock(async () => [] as string[]);
+
+	Object.assign(root.renderer, { promptForPaths: picker });
+	root.render(
+		<App {...props} initialSession={document} readRepository={reader} />
+	);
+	await settle();
+	await click("onboarding-next");
+	await click("onboarding-open");
+	expect(picker).toHaveBeenCalledTimes(1);
+	await click("onboarding-back");
+	await click("onboarding-space-create");
+	await edit("space-name", "Project");
+	await click("space-editor-save");
+	await click("onboarding-next");
+	Object.assign(root.renderer, {
+		promptForPaths: mock(async () => ["/test/project"]),
+	});
+	await click("onboarding-open");
+	expect(root.renderer.findByTestId("onboarding-view")).toBeUndefined();
+	root.render(<div />);
+	const saved = props.saveSession.mock.calls.at(-1)?.[0];
+
+	const personalId = saved?.spaces?.find(
+		(space) => space.name === "Project"
+	)?.id;
+
+	expect(saved?.onboarding).toBe("complete");
+	expect(saved?.activeSpaceId).toBe(personalId);
+	expect(saved?.tabs.find((tab) => tab.path === "/test/project")?.spaceId).toBe(
+		personalId
+	);
+	expect(saved?.spaces?.[0]?.repositories).toEqual([]);
+});
+
+it.each(["light", "dark"] as const)(
+	"keeps Spaces navigation pinned and the space preview usable at the minimum window size (%s)",
+	async (appearance) => {
+		root.unmount();
+		root = createTestRoot({
+			width: 640,
+			height: 420,
+			onKeyDown: windowOptions.onKeyDown,
+		});
+		root.renderer.clockPause();
+		const props = fixture();
+
+		root.render(
+			<App
+				{...props}
+				initialSession={{
+					...spacesSession(),
+					appearance,
+					activeSpaceId: "00000000-0000-4000-8000-000000000001",
+				}}
+			/>
+		);
+		await settle();
+		await reveal("onboarding-space-illustration");
+		const footer = root.renderer.getElementBounds(
+			node("onboarding-footer").id
+		)!;
+
+		const content = root.renderer.getElementBounds(
+			node("onboarding-content").id
+		)!;
+
+		const rail = root.renderer.getElementBounds(
+			node("onboarding-space-illustration").id
+		)!;
+
+		expect(footer.y + footer.height).toBeLessThanOrEqual(420);
+		expect(rail.y).toBeGreaterThanOrEqual(content.y);
+		expect(rail.y + rail.height).toBeLessThanOrEqual(footer.y);
+
+		if (process.env.GPUIX_ONBOARDING_SCREENSHOT)
+			root.renderer.captureScreenshot(
+				`${process.env.GPUIX_ONBOARDING_SCREENSHOT}-${appearance}-spaces-small.png`
+			);
+
+		await click("onboarding-space-edit-default");
+		expect(root.renderer.getFocusedElementId()).toBe(node("space-name").id);
+		await click("space-editor-cancel");
+		await click("onboarding-skip");
+		expect(root.renderer.getAllText()).toContain("Opening in Personal.");
+		await click("onboarding-next");
+		expect(root.renderer.findByTestId("onboarding-view")).toBeUndefined();
+	}
+);
+
+it("keeps the swipe hint discoverable on the space icon after setup", async () => {
+	const props = fixture();
+
+	root.render(
+		<App
+			{...props}
+			initialSession={{ ...spacesSession(), onboarding: "complete" }}
+		/>
+	);
+	await settle();
+	const button = root.renderer.getElementBounds(node("rail-spaces").id)!;
+
+	root.renderer.nativeSimulateMouseMove(
+		button.x + button.width / 2,
+		button.y + button.height / 2
+	);
+	await Bun.sleep(400);
+	await settle();
+	expect(root.renderer.getAllText().join("\n")).toContain(
+		"Two-finger swipe to switch spaces"
+	);
+
+	if (process.env.GPUIX_ONBOARDING_SCREENSHOT)
+		root.renderer.captureScreenshot(
+			`${process.env.GPUIX_ONBOARDING_SCREENSHOT}-space-tooltip.png`
+		);
 });

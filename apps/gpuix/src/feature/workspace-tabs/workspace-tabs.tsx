@@ -13,7 +13,14 @@ import {
 	useWindowSize,
 	type PublicInstance,
 } from "@gpuix/react";
-import { useEffect, useRef, useState, type Dispatch } from "react";
+import {
+	useEffect,
+	useLayoutEffect,
+	useRef,
+	useState,
+	type Dispatch,
+	type Ref,
+} from "react";
 import type { NativeRenderer } from "@gpuix/native/host";
 
 import { workspaceLayout as layout } from "../../styles/workspace-layout";
@@ -153,9 +160,19 @@ export function WorkspaceTabs({
 	onCreateWorktree,
 	onRemoveWorktree,
 	onSettings,
+	onTourAnchor,
+	onTabMenuOpenChange,
+	worktreesAnchorRef,
+	onWorktreesOpen,
+	onMenuBusyChange,
 }: {
 	state: WorkspaceTabsState;
 	dispatch: Dispatch<WorkspaceTabsAction>;
+	onTourAnchor?: (instance: PublicInstance | null) => void;
+	onTabMenuOpenChange?: (open: boolean) => void;
+	worktreesAnchorRef?: Ref<PublicInstance>;
+	onWorktreesOpen?: () => void;
+	onMenuBusyChange?: (busy: boolean) => void;
 } & Partial<WorkspaceMenuActions>) {
 	const theme = useAppTheme();
 	const { tokens: appTokens, colors: appColors } = theme;
@@ -279,6 +296,26 @@ export function WorkspaceTabs({
 		windowWidth,
 		setRightRadius,
 	]);
+
+	useLayoutEffect(() => {
+		onTourAnchor?.(
+			state.activeId ? (frames.current.get(state.activeId) ?? null) : null
+		);
+	}, [onTourAnchor, state.activeId, state.tabs.length]);
+
+	const menuOpen = !!menuId && menuId === state.activeId;
+
+	useLayoutEffect(() => {
+		onTabMenuOpenChange?.(menuOpen);
+	}, [menuOpen, onTabMenuOpenChange]);
+
+	useLayoutEffect(
+		() => () => {
+			onTourAnchor?.(null);
+			onTabMenuOpenChange?.(false);
+		},
+		[onTourAnchor, onTabMenuOpenChange]
+	);
 
 	return (
 		<div testId="workspace-toolbar" style={styles.toolbar}>
@@ -515,6 +552,11 @@ export function WorkspaceTabs({
 										onChangeBranch={onChangeBranch}
 										onCreateWorktree={onCreateWorktree}
 										onRemoveWorktree={onRemoveWorktree}
+										worktreesAnchorRef={worktreesAnchorRef}
+										onSubmenuOpen={(group) => {
+											if (group === "worktrees") onWorktreesOpen?.();
+										}}
+										onBusyChange={onMenuBusyChange}
 										onSettings={onSettings}
 										onClose={() => {
 											setMenuId(null);

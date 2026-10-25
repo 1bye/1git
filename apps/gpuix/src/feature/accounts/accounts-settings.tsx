@@ -118,6 +118,7 @@ const themedStyles = createThemedStyles(({ tokens: appTokens }) => {
 /** Account settings are window-local. Tokens are transient refs and uncontrolled native password inputs, never renderer props. */
 export function AccountsSettings({
 	onBack,
+	onReplayTips,
 	onSetup,
 	accounts: supplied,
 	remoteAccounts,
@@ -144,6 +145,7 @@ export function AccountsSettings({
 	externalEditors,
 }: {
 	onBack: () => void;
+	onReplayTips?: () => void;
 	onSetup?: () => void;
 	accounts?: Accounts;
 	remoteAccounts?: RemoteAccounts;
@@ -611,7 +613,20 @@ export function AccountsSettings({
 			{section === "spaces" ? (
 				spacesSettings
 			) : section === "appearance" ? (
-				<AppearanceSettings />
+				<>
+					<AppearanceSettings />
+					{onReplayTips ? (
+						<Button
+							testId="settings-replay-tips"
+							tokens={appTokens}
+							variant="secondary"
+							onPress={onReplayTips}
+							style={{ alignSelf: "start", margin: spacing[4] }}
+						>
+							Show tips again
+						</Button>
+					) : null}
+				</>
 			) : section === "privacy" ? (
 				<PrivacySettings />
 			) : section === "ai" ? (

@@ -6,6 +6,8 @@ import {
 	useLayoutEffect,
 	useRef,
 	useState,
+	useSyncExternalStore,
+	useCallback,
 	cloneElement,
 	isValidElement,
 	type ReactElement,
@@ -46,6 +48,35 @@ function usePopover() {
 
 // Per-renderer lifetime: removed when the floating surface unmounts, including exit animation.
 const keyHandlers = new WeakMap<NativeRenderer, WindowKeyEventHandler[]>();
+
+const surfaces = new WeakMap<NativeRenderer, Set<object>>();
+const surfaceListeners = new WeakMap<NativeRenderer, Set<() => void>>();
+
+/** Reports mounted popover surfaces, including their exit, without taking keyboard ownership. */
+export function usePopoverOpen(): boolean {
+	const renderer = useGpuixRequired();
+
+	const subscribe = useCallback(
+		(listener: () => void) => {
+			const listeners = surfaceListeners.get(renderer) ?? new Set<() => void>();
+
+			listeners.add(listener);
+			surfaceListeners.set(renderer, listeners);
+
+			return () => {
+				listeners.delete(listener);
+			};
+		},
+		[renderer]
+	);
+
+	const snapshot = useCallback(
+		() => (surfaces.get(renderer)?.size ?? 0) > 0,
+		[renderer]
+	);
+
+	return useSyncExternalStore(subscribe, snapshot);
+}
 
 /** Call before normal window shortcuts/traversal. Returns true while a modal popover owns keyboard input. */
 export function handlePopoverKeyDown(
@@ -197,6 +228,22 @@ function PopoverSurface({
 		height: 0,
 		contentHeight: 0,
 	});
+
+	useLayoutEffect(() => {
+		const surface = {};
+		const mounted = surfaces.get(renderer) ?? new Set<object>();
+
+		mounted.add(surface);
+		surfaces.set(renderer, mounted);
+
+		for (const listener of surfaceListeners.get(renderer) ?? []) listener();
+
+		return () => {
+			mounted.delete(surface);
+
+			for (const listener of surfaceListeners.get(renderer) ?? []) listener();
+		};
+	}, [renderer]);
 
 	const centered = placement === "center";
 	const measured = geometry.contentHeight > 0;

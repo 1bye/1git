@@ -5,7 +5,7 @@ import { basename } from "node:path";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { Button } from "@1git/gpuix-ui/button";
 import { Text } from "@1git/gpuix-ui/text";
-import { FloatingLayer } from "@gpuix/react/floating";
+import { setRefs, FloatingLayer } from "@gpuix/react/floating";
 import {
 	motion,
 	useGpuixRequired,
@@ -15,9 +15,11 @@ import {
 } from "@gpuix/react";
 import {
 	useEffect,
+	useLayoutEffect,
 	useRef,
 	useState,
 	type Dispatch,
+	type Ref,
 	type ReactNode,
 	type RefObject,
 } from "react";
@@ -315,11 +317,17 @@ export function WorkspaceMenu({
 	onCreateWorktree,
 	onRemoveWorktree,
 	onSettings,
+	worktreesAnchorRef,
+	onSubmenuOpen,
+	onBusyChange,
 }: WorkspaceMenuActions & {
 	tab: WorkspaceTabRecord;
 	anchor: PublicInstance | undefined;
 	dispatch: Dispatch<WorkspaceTabsAction>;
 	onClose: () => void;
+	worktreesAnchorRef?: Ref<PublicInstance>;
+	onSubmenuOpen?: (group: Submenu) => void;
+	onBusyChange?: (busy: boolean) => void;
 }) {
 	const theme = useAppTheme();
 	const { tokens: appTokens } = theme;
@@ -386,6 +394,12 @@ export function WorkspaceMenu({
 		!creatingWorktree &&
 		!removingWorktree &&
 		!mergeSource;
+
+	useLayoutEffect(() => {
+		onBusyChange?.(!actionsVisible || busy);
+	}, [actionsVisible, busy, onBusyChange]);
+
+	useLayoutEffect(() => () => onBusyChange?.(false), [onBusyChange]);
 
 	const submenuReady = data !== null && actionsVisible;
 
@@ -551,6 +565,7 @@ export function WorkspaceMenu({
 		submenuFocus.current = focus;
 		submenuHovered.current = false;
 		setSubmenu(group);
+		onSubmenuOpen?.(group);
 
 		if (visibleSubmenu === group && focus && submenuMenu.current) {
 			submenuFocus.current = false;
@@ -1355,6 +1370,8 @@ export function WorkspaceMenu({
 								<Button
 									testId="worktrees"
 									ref={(node) => {
+										setRefs(node, worktreesAnchorRef);
+
 										if (node) rows.current.set("worktrees", node);
 										else rows.current.delete("worktrees");
 									}}

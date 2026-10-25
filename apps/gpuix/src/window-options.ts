@@ -1,3 +1,4 @@
+import { handleGuidedTourKeyDown } from "./feature/guided-tour/guided-tour-layer";
 import type { RenderOptions } from "@gpuix/react";
 import {
 	handleSettingsKeyDown,
@@ -24,6 +25,8 @@ export const windowOptions: RenderOptions = {
 	trafficLightY: 13,
 	onKeyDown(event, renderer) {
 		if (handlePopoverKeyDown(event, renderer)) return;
+
+		if (handleGuidedTourKeyDown(event, renderer)) return;
 
 		if (handleRepositoryAppearanceKeyDown(event, renderer)) return;
 
