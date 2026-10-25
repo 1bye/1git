@@ -17,5 +17,4 @@ const widths = image ? [640, 960, 1440, 2143].filter((width) => width < image.wi
   {progressive && <div class="progressive-blur" aria-hidden="true">{[1,2,3,4,5].map((i) => <span class={`blur-band band-${i}`} />)}</div>}
 </a> : <div class:list={["app-window", "screen-placeholder", className]} role="img" aria-label={`${alt} — screenshot pending`} data-missing-screen={name}>
   <span>Screenshot pending</span><strong>{name}.webp</strong><p>{alt}</p>
-  {progressive && <div class="progressive-blur" aria-hidden="true">{[1,2,3,4,5].map((i) => <span class={`blur-band band-${i}`} />)}</div>}
 </div>}

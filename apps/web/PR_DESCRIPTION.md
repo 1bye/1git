@@ -58,17 +58,66 @@ capture exactly; it is used nowhere else as a feature-window stand-in.
 9. Keep the real app icon and set its neighbouring header wordmark in Instrument
    Serif Italic, at icon height on desktop and mobile.
 
+10. Replace the bare AI card with matching busy/result crop slots and transparent,
+   labelled sparkle / Stop / Commit hit areas. Busy lasts 1.2 seconds; stop and
+   motion preferences settle it. Eight stars and two rings keep the interaction.
+   Native crops are absent, so these remain clearly labelled placeholders.
+
 ## Acceptance checklist
 
-- ✘ No screenshot used more than twice; every alt unique and specific — named slots
-  are ready, but the required native files are missing.
-- ✘ All four themes visibly re-theme the window — pending captures.
-- ✘ Section glow edges and deeper SSH world; AA edge contrast — pending validation.
-- ✘ Cropped hero with Safari progressive blur — pending validation with capture.
-- ✘ Developer captions removed and corrected copy — pending item 5.
-- ✘ One tab strip, app easing, no overflow at 375px — pending item 6.
-- ✘ Once-only spotlight, unique icons and Coming soon icons — pending item 7.
-- ✔ Open source and GitHub share REPO_URL and are explicitly pending until
-  PUBLIC_REPO_URL is supplied.
-- ✘ Reduced motion settles all content — pending final verification.
-- ✘ 1440px/375px screenshots and hero/tabs/AI/grid recording — pending evidence.
+- ✔ No screenshot is used more than twice on the page; all current image alts are
+  unique and specific. The Changes slot is used twice with placement-specific
+  descriptions. Missing states remain labelled rather than substituted.
+- ✘ The window visibly re-themes in all four themes — the paired crossfade works,
+  but `theme-rose.webp`, `theme-forest.webp`, `theme-cosmic.webp` and
+  `theme-workshop.webp` have not been supplied.
+- ✔ Section edges visibly lighten, SSH has the deep palette, and local scrims
+  preserve AA contrast. 47 sampled text-background lines at 1440px/375px passed;
+  the lowest measured ratio was 4.80:1. Future native captures need their own check.
+- ✘ The actual hero Changes screenshot is pending. Its ~58% crop, fade and five
+  progressive backdrop-filter bands are implemented. Native macOS Safari passed
+  an isolated blur diagnostic; final native-image appearance remains unverified.
+- ✔ All four developer captions are gone. Native/Tabs sublines match item 5; the
+  AI note is only “AI is optional. Drafts stay editable.”
+- ✔ One tab strip, exact supplied repository labels/avatars/badges, 240ms app
+  easing, centred word, and no 375px overflow. The word fits within x=90..285px.
+- ✔ Spotlight runs once, starts at 64% white, advances every 380ms, and settles
+  all ten rows. Ten distinct row icons and two distinct Coming soon icons.
+- ✔ Open source and GitHub share REPO_URL and are clearly flagged pending.
+  Set PUBLIC_REPO_URL to the owner-supplied URL; no destination was guessed.
+- ✔ Reduced motion skips intro/autoplay and leaves all ten rows white. Saved
+  Pause animations survives reload, also skips intro, and settles content.
+- ✔ Result screenshots at 1440px and 375px, plus a recording covering hero/intro,
+  tabs, AI and Even more. Native captures remain visibly pending in that evidence.
+
+## Validation and open questions
+
+- Astro type check: 0 errors/warnings/hints. 12 tests pass, including blocked
+  storage, pause/resume persistence, once-only entry, and existing routing cases.
+- Production build, targeted Oxlint/Oxfmt and `git diff --check` pass. Existing
+  SEO/OG/canonical tags, JSON-LD, FAQ copy and routing infrastructure are unchanged.
+- Production Lighthouse: mobile Performance 100 / Accessibility 100, LCP 1.7s;
+  desktop Performance 99 / Accessibility 100, LCP 0.4s. Local measurements only.
+- Browser animation scripts total about 4 KB gzip, with no new dependency.
+- Checked Chromium at both requested widths, native macOS Safari blur, AI Stop,
+  eight-star burst/two rings, paired autoplay/manual theme selection, pause after
+  reload, reduced motion and horizontal overflow. Firefox and actual iOS Safari
+  were not tested.
+- Supply the nine required captures listed above. AI crops must share bounds;
+  check/calibrate their transparent hit areas against the final pixels. See
+  `src/assets/screens/README.md` for expected capture geometry.
+- Supply the public repository URL. “File history. Across renames.” is requested
+  new copy and still needs product wording review; no broader capability was
+  inferred. No deployment or remote PR was created.
+
+## Review evidence
+
+Local directory:
+
+`/Users/yuriihulyk/.codex/visualizations/2026/10/24/01a16f36-f098-78e2-90ba-a2fc9c41e4fd/site-fix-review/`
+
+Open `index.html` or attach `1git-fix-review.zip` when opening the PR. Includes
+`hero-1440.jpg`, `hero-375.jpg`, `page-1440.jpg`, `page-375.jpg`, per-section
+screenshots, `hero-tabs-ai-grid.mp4`, `safari-blur-diagnostic.png`,
+`reduced-motion-375.jpg`, `contrast-report.json`, and both Lighthouse HTML/JSON
+reports. The diagnostic contains test stripes, not a substitute app screenshot.

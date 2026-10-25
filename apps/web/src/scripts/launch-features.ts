@@ -130,9 +130,11 @@ export function initFeatures(): void {
 	for (const demo of document.querySelectorAll<HTMLElement>("[data-ai-demo]")) {
 		const replay = demo.querySelector<HTMLButtonElement>("[data-ai-replay]");
 		const commit = demo.querySelector<HTMLButtonElement>("[data-demo-commit]");
-		const draft = demo.querySelector<HTMLElement>("[data-ai-draft]");
+		const stop = demo.querySelector<HTMLButtonElement>("[data-ai-stop]");
+		const status = demo.querySelector<HTMLElement>("[data-ai-status]");
+		const panels = [...demo.querySelectorAll<HTMLElement>("[data-ai-panel]")];
 
-		if (!replay || !commit || !draft) continue;
+		if (!replay || !commit || !stop || !status) continue;
 
 		const timers = new Set<number>();
 
@@ -145,38 +147,35 @@ export function initFeatures(): void {
 			timers.add(timer);
 		};
 
+		const show = (working: boolean) => {
+			const state = working ? "busy" : "result";
+
+			demo.dataset.aiState = state;
+			demo.classList.toggle("is-working", working);
+			replay.disabled = working;
+			commit.hidden = working;
+			stop.hidden = !working;
+			status.textContent = working
+				? "Writing message…"
+				: "Draft ready: feat: polish repository workspace.";
+
+			for (const panel of panels) {
+				const active = panel.dataset.aiPanel === state;
+
+				panel.toggleAttribute("data-active", active);
+				panel.inert = !active;
+				panel.setAttribute("aria-hidden", String(!active));
+			}
+		};
+
 		const settle = () => {
 			for (const timer of timers) clearTimeout(timer);
 
 			timers.clear();
-			demo.classList.remove("is-working");
-			replay.disabled = false;
-			commit.disabled = false;
-			commit.textContent = "Commit 2 files";
-			draft.replaceChildren();
-			const type = document.createElement("span");
 
-			type.className = "commit-type";
-			type.textContent = "feat";
-			draft.append(type, ": add quick switcher");
-		};
+			for (const ring of commit.querySelectorAll(".demo-ring")) ring.remove();
 
-		const status = (label: string) => {
-			const spinner = document.createElement("span");
-
-			spinner.className = "demo-spinner";
-			spinner.setAttribute("aria-hidden", "true");
-			const outgoing = document.createElement("span");
-
-			outgoing.className = "status-before";
-			outgoing.textContent = commit.textContent;
-			outgoing.setAttribute("aria-hidden", "true");
-			const incoming = document.createElement("span");
-
-			incoming.className = "status-label";
-			incoming.textContent = label;
-			commit.replaceChildren(spinner, incoming, outgoing);
-			later(() => outgoing.remove(), 280);
+			show(false);
 		};
 
 		const play = () => {
@@ -184,17 +183,12 @@ export function initFeatures(): void {
 
 			if (paused()) return;
 
-			demo.classList.add("is-working");
-			replay.disabled = true;
-			commit.disabled = true;
-			draft.textContent = "Commit message…";
-			status("Reading changes…");
-			later(() => status("Reviewing…"), 600);
-			later(() => status("Writing message…"), 1200);
-			later(settle, 1900);
+			show(true);
+			later(settle, 1200);
 		};
 
 		replay.addEventListener("click", play);
+		stop.addEventListener("click", settle);
 		commit.addEventListener("click", () => {
 			if (paused()) return;
 

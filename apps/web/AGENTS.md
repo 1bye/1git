@@ -17,8 +17,10 @@ TypeScript and workspace workflow; React instructions do not apply to Astro.
   The app screenshot is a static image supplied by the user. The native window
   crop and masked blur layers share optimized responsive assets. Test shader
   fallback, the skippable session intro, motion pause, and the reading spotlight.
-  Theme previews currently change wallpapers; matching native theme captures
-  are still needed for window-theme crossfades.
+  Window states resolve from `src/assets/screens/`; missing files must remain
+  labelled placeholders. Theme windows and wallpapers crossfade together. Verify
+  persisted Pause animations, the single native-matching tab strip, and both AI
+  states. Never fill a missing state with an unrelated screenshot.
 
 Cloud and bezel assets come from the user's Taada website; the app screenshot
 comes from the user's native macOS window capture. Retain the

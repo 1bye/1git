@@ -12,7 +12,7 @@ const tabs = [
 <div class="tabs-window" aria-label="Repository tabs reorder in the native window">
   <div class="real-tab-strip">
     {tabs.map(({repository,branch,badge,avatar: kind}) => <div class="real-tab">
-      {kind === "photo" ? <Image class="tab-avatar" src={avatar} width="16" height="16" alt="1bye avatar on the 1git repository tab." loading="lazy" /> : <span class:list={["tab-avatar",`avatar-${kind}`]} aria-hidden="true">{kind === "kapta" ? "k." : "K"}</span>}
+      {kind === "photo" ? <Image class="tab-avatar" src={avatar} width="16" height="16" densities={[1,2]} alt="1bye avatar on the 1git repository tab." loading="lazy" /> : <span class:list={["tab-avatar",`avatar-${kind}`]} aria-hidden="true">{kind === "kapta" ? "k." : "K"}</span>}
       <span class="tab-label"><strong>{repository}</strong> / {branch}</span>
       {badge && <span class="tab-count">{badge}</span>}
     </div>)}

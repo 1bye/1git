@@ -1,0 +1,23 @@
+---
+import AppWindow from "./AppWindow.astro";
+import { screenAsset } from "./screen-assets";
+const missingResult = !screenAsset("ai-composer");
+const missingBusy = !screenAsset("ai-composer-busy");
+const stars = [[-40,-35],[-4,-54],[40,-40],[48,-18],[-52,2],[-28,24],[20,-64],[-64,-22]];
+const sparkle = "M12 0C12.7 8.2 15.8 11.3 24 12C15.8 12.7 12.7 15.8 12 24C11.3 15.8 8.2 12.7 0 12C8.2 11.3 11.3 8.2 12 0Z";
+---
+<div class="ai-composer" data-ai-demo data-ai-state="result" data-missing-result={missingResult || undefined} data-missing-busy={missingBusy || undefined} aria-label="AI commit draft preview">
+  <div class="ai-crop ai-result" data-ai-panel="result" data-active>
+    <AppWindow name="ai-composer" alt="Commit composer with feat: polish repository workspace, only feat tinted green, and the Commit button." />
+  </div>
+  <div class="ai-crop ai-busy" data-ai-panel="busy" aria-hidden="true" inert>
+    <AppWindow name="ai-composer-busy" alt="The same commit composer generating a draft, with a Writing message… spinner and Stop button." />
+  </div>
+  <button class="ai-sparkle" type="button" aria-label="Preview AI commit draft" data-ai-replay>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d={sparkle} /></svg>
+    {stars.map(([x,y]) => <svg class="ai-star" viewBox="0 0 24 24" style={`--dx:${x}px;--dy:${y}px`} aria-hidden="true"><path d={sparkle} /></svg>)}
+  </button>
+  <button class="demo-commit ai-hit-area" type="button" aria-label="Preview commit confirmation rings" data-demo-commit><span class="placeholder-control" aria-hidden="true">Commit</span></button>
+  <button class="ai-stop ai-hit-area" type="button" aria-label="Stop AI draft preview" data-ai-stop hidden><span class="placeholder-control" aria-hidden="true">Stop</span></button>
+  <p class="sr-only" aria-live="polite" data-ai-status>Draft ready: feat: polish repository workspace.</p>
+</div>

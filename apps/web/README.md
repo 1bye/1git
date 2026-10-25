@@ -8,27 +8,37 @@ operations run in the public page.
 
 The canvas uses the film's elliptical shader and 12 Hz grain seed, caps DPR at
 1.5 and rendering at 30 fps, and stops animating when the hero is offscreen or
-the document is hidden. Reduced motion and WebGL failure use a CSS gradient and
-static SVG noise. A blue shade behind content and backed frosted pills maintain
-small-copy contrast; the pale hero edge carries no body copy.
+hidden. Static grain and CSS gradients take over for offscreen, reduced-motion
+and unavailable-WebGL states. The glow follows each section's centre and radius;
+SSH has its own deep palette. Local text scrims protect white copy while leaving
+lighter section edges visible.
 
-`motion.ts` owns the shared easing constants and once-on-view behavior.
-`launch-features.ts` owns the local AI, theme wallpaper and reading-spotlight
-demonstrations. Pause motion stops autoplay; reduced motion skips the intro,
-settles text immediately and disables autoplay. The optional intro runs once per
-session, can be skipped or dismissed with Escape/Tab, and never makes the hero
-content depend on JavaScript.
+`motion.ts` owns the shared easings and once-on-view behavior.
+`launch-features.ts` owns the AI crop interaction, synchronized theme frames and
+reading spotlight. The footer's Pause animations button persists its explicit
+choice in localStorage, safely falling back when storage is blocked. Paused or
+reduced-motion visits skip intro/autoplay and show settled, readable content.
 
-The hero floats the existing native Stashes screenshot without the MacBook frame. A
-dedicated Changes capture is still needed. Its
-lower visible area uses masked duplicate image layers with progressively stronger
-blur. Masks and filters are on separate elements for Safari. Every copy uses the
-same responsive image URLs, so no extra image downloads are introduced. The
-full-size source remains linked. Existing MacBook assets and their provenance
-are retained for historical reference but are no longer used by the page.
+The hero crops about 58% of its window and softens the visible lower portion
+with five independently masked backdrop-filter bands. Do not mask their shared
+parent: Safari must be able to sample the underlying screenshot. The overall
+window fades into the following section. Without a supplied Changes capture,
+the same geometry contains a clearly labelled placeholder.
 
-See [PR_DESCRIPTION.md](PR_DESCRIPTION.md) for copy decisions, open asset needs,
-and review evidence.
+`src/assets/screens/README.md` lists the required native captures. Astro discovers
+supplied WebP/PNG/AVIF files automatically. Missing files stay labelled rather
+than reusing another app state. The four theme controls switch both matching
+window and wallpaper frames; all four native theme captures are currently pending.
+The Tabs illustration alone uses a body crop of the existing supplied Stashes
+window with its exact tab strip rebuilt above it for motion.
+
+The Open source pill and GitHub footer link share `REPO_URL`, configured through
+`PUBLIC_REPO_URL`. Both remain disabled and labelled pending until the owner
+supplies the public URL. Set that environment variable before building; do not
+guess a repository destination.
+
+See [PR_DESCRIPTION.md](PR_DESCRIPTION.md) for the ten item changes, acceptance
+checklist, asset gaps and review evidence.
 
 ## Development
 
@@ -118,27 +128,18 @@ Taada website. The 1git ribbon is copied from
 references are retained in `assets/macbook-source.json`. No original large
 photographs, PSDs, DMGs, or source image packs are shipped.
 
-`src/assets/1git-native-window.png` is the user's supplied native screenshot
-(`SCR-20261017-ofhm.png`, stored at 2324 × 1602). The window bounds
-(72, 79, 1754, 1152), measured in a 1902 × 1312 reference, were scaled to the
-source image and extracted into `src/assets/launch/native-window.webp` (2143 × 1407).
-The capture shows Stashes. The crop preserves the real traffic lights, glass,
-grain and border.
-Repository tabs and file names in the screenshot remain visible. No window
-chrome is recreated in HTML. To replace the screenshot, update the PNG and its
-window bounds together; the build generates optimized responsive variants.
+`src/assets/1git-native-window.png` is the user's supplied native Stashes
+screenshot (`SCR-20261017-ofhm.png`, stored at 2324 × 1602). A cropped derivative
+is retained under `src/assets/launch/`; its body-only crop and the film's 1bye
+avatar support the accurate four-tab illustration. The original full image
+continues to serve existing OG/structured-data assets. No unrelated feature
+window uses it as a missing-state fallback.
 
-The film feature composition retains the thirteen existing feature claims.
-Tabs, AI and SSH get focused native-CSS/SVG sequences; the smaller features move
-into the History/Branches/Workspace reading grid. Any interactive controls in
-those illustrations are local demonstrations. Real downloads still use the
-existing production `/download` endpoint, including from local previews.
-
-The theme section cycles the four supplied wallpapers while visible, with manual
-selection stopping autoplay. It deliberately labels this as a wallpaper preview:
-the existing native screenshot remains in its original theme until matching Rose,
-Forest, Cosmic and Workshop window captures are supplied. `Open source` uses `#`
-as explicitly requested until a public repository destination is confirmed.
+The smaller features live in the History/Branches/Workspace reading grid, with
+unique 24-unit icons and a once-only 380ms spotlight. The AI section is a local
+busy/result crop preview with transparent, accessible hit areas; it makes no AI,
+Git, account or SSH requests. Downloads still use the existing production
+`/download` endpoint, including from local previews.
 
 Instrument Serif and Inter are Latin-subset WOFF2 files derived from the same OFL
 fonts used in the film. Their licenses are in `public/licenses/`. Icons reuse the
