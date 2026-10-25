@@ -9,10 +9,13 @@ import { RepositoryDiscoveryCache } from "./feature/repository-discovery/reposit
 import { WorkspaceSessionStore } from "./feature/workspace-tabs/lib/workspace-session-store";
 import { AppUpdater } from "./app-updater";
 import { ShellEnvironment } from "./shell-environment";
+import { DesktopAnalytics } from "./feature/analytics/desktop-analytics";
 
 void ShellEnvironment.shared.prepare();
 
 const preview = process.env.GPUIX_PREVIEW === "1";
+
+DesktopAnalytics.start(preview);
 
 const session = preview
 	? undefined

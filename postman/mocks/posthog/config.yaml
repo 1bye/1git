@@ -1,0 +1,11 @@
+version: 1
+name: posthog
+slug: posthog
+protocol: http
+port: 4910
+origin: eu.i.posthog.com
+interceptRequests: true
+scenarios:
+  - name: default
+    path: ./default.js
+    default: true

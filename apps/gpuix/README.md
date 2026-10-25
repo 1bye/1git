@@ -1,5 +1,11 @@
 # 1git GPUIX
 
+Production builds send a small set of anonymous usage events to PostHog EU by
+default. **Settings → Privacy** enables or disables collection immediately.
+No repository content or account data is collected. Identifiers stay in memory;
+preferences and counters use a separate private `analytics.json`. Development
+and preview stay offline. See [analytics policy and spending limits](../../packages/analytics/README.md).
+
 Native workspace shell, replacing the earlier component showcase. The showcase
 is still available in `packages/gpuix-ui/example`.
 

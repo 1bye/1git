@@ -1,4 +1,5 @@
 ---
+import AnalyticsPreference from "../components/AnalyticsPreference.astro";
 import Layout from "../layouts/Layout.astro";
 import Icon from "../components/Icon.astro";
 
@@ -81,6 +82,7 @@ const structuredData = {
     <a class="faq-back" href="/">Explore 1git <Icon name="arrow" size={16} /></a>
   </main>
   <footer class="footer faq-footer">
+    <div class="footer-meta"><AnalyticsPreference /></div>
     <div class="footer-meta"><span>Made by <a href="https://1bye.dev">1bye</a>.</span><p>macOS 13+ · Apple Silicon · Git required</p></div>
   </footer>
 </Layout>

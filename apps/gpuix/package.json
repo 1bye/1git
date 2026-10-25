@@ -25,6 +25,7 @@
     "test:machines:integration": "bun test tests/machines/store.integration.test.ts tests/machines/helper.integration.test.ts tests/machines/ssh.integration.test.ts"
   },
   "dependencies": {
+    "@1git/analytics": "workspace:*",
     "@1git/design-tokens": "workspace:*",
     "@1git/git": "workspace:*",
     "@1git/gpuix-stylesheet": "workspace:*",

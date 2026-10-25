@@ -1,5 +1,11 @@
 # 1git website
 
+Production on `git.1bye.dev` sends anonymous page views and download clicks to
+PostHog EU by default. Every page has an **Anonymous analytics** checkbox.
+Only preferences and event counters use localStorage; no cookies or persistent
+identity are created. Local development and preview hosts stay offline. See
+[analytics policy and spending limits](../../packages/analytics/README.md).
+
 An Astro marketing site styled after the 1git launch film: a grained blue glow,
 self-hosted Instrument Serif Italic and Inter, a native window hero, and small
 vanilla TypeScript demonstrations. Existing download routing, FAQ answers,

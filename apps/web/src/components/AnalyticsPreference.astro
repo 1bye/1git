@@ -1,0 +1,12 @@
+<label class="analytics-preference" title="Share page visits and download clicks with PostHog. No cookies, saved identity, account details or recordings.">
+  <input type="checkbox" data-analytics-toggle checked aria-describedby="analytics-description" />
+  Anonymous analytics
+</label>
+<span id="analytics-description" hidden>Enabled by default. Shares page visits and download clicks with PostHog, without cookies, saved identity, account details or recordings. PostHog receives the connection's network address. You can disable analytics here.</span>
+<span data-analytics-status role="status" hidden></span>
+
+<style>
+  .analytics-preference { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; white-space: nowrap; }
+  input { accent-color: #c8dbff; margin: 0; }
+  input:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+</style>

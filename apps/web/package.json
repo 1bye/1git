@@ -13,6 +13,9 @@
     "deploy": "bun run build && alchemy deploy --stage prod --profile personal",
     "deploy:preview": "bun run build && alchemy deploy --stage preview --profile personal"
   },
+  "dependencies": {
+    "@1git/analytics": "workspace:*"
+  },
   "devDependencies": {
     "@astrojs/check": "0.9.10",
     "@effect/platform-bun": "4.0.4",

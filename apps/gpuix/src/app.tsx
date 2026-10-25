@@ -1,4 +1,5 @@
 import { IgnoredHistory } from "./feature/ignored-history/ignored-history";
+import { DesktopAnalytics } from "./feature/analytics/desktop-analytics";
 import { useIgnoredHistories } from "./feature/ignored-history/use-ignored-histories";
 import { IgnoredHistoryView } from "./feature/ignored-history/ignored-history-view";
 import { randomUUID } from "node:crypto";
@@ -619,6 +620,7 @@ function AppContent({
 
 	useEffect(() => {
 		if (onboardingOpen && onboardingWorkspace?.repository) {
+			void DesktopAnalytics.capture({ name: "onboarding_completed" });
 			setOnboarding("complete");
 			setOnboardingClone(false);
 		}
@@ -1469,6 +1471,8 @@ function AppContent({
 
 		if (!activeTab) return;
 
+		void DesktopAnalytics.capture({ name: "feature_used", feature: view });
+
 		dispatch({
 			type: "workspace",
 			id: activeTab.id,
@@ -2258,6 +2262,7 @@ function AppContent({
 						}}
 						onStep={setOnboarding}
 						onSkip={() => {
+							void DesktopAnalytics.capture({ name: "onboarding_completed" });
 							setOnboarding("complete");
 							setOnboardingClone(false);
 						}}

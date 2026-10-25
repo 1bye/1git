@@ -1,5 +1,6 @@
 ---
 import Layout from "../layouts/Layout.astro";
+import AnalyticsPreference from "../components/AnalyticsPreference.astro";
 ---
 
 <Layout title="Page not found — 1git" description="This page could not be found. Return to 1git, the native Git client for macOS." noindex>
@@ -10,5 +11,6 @@ import Layout from "../layouts/Layout.astro";
     <h1>Nothing here.<br />Something good ahead.</h1>
     <a class="download-button" href="/">Back to 1git <span aria-hidden="true">→</span>
     </a>
+    <div class="footer-meta"><AnalyticsPreference /></div>
   </main>
 </Layout>

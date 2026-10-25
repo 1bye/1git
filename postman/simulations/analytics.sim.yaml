@@ -1,0 +1,8 @@
+simulation: analytics
+routing: path
+mocks:
+  - name: posthog
+    routeKey: posthog
+    origin:
+      - eu.i.posthog.com
+    path: postman/mocks/posthog/config.yaml

@@ -51,6 +51,7 @@
       "name": "@1git/gpuix",
       "version": "0.0.1",
       "dependencies": {
+        "@1git/analytics": "workspace:*",
         "@1git/design-tokens": "workspace:*",
         "@1git/git": "workspace:*",
         "@1git/gpuix-stylesheet": "workspace:*",
@@ -92,6 +93,9 @@
     "apps/web": {
       "name": "@1git/web",
       "version": "0.0.0",
+      "dependencies": {
+        "@1git/analytics": "workspace:*",
+      },
       "devDependencies": {
         "@astrojs/check": "0.9.10",
         "@effect/platform-bun": "4.0.4",
@@ -101,6 +105,15 @@
         "astro": "7.3.5",
         "effect": "4.0.4",
         "sharp": "0.35.4",
+        "typescript": "^6.0.3",
+      },
+    },
+    "packages/analytics": {
+      "name": "@1git/analytics",
+      "version": "0.0.1",
+      "devDependencies": {
+        "@1git/config": "workspace:*",
+        "@types/bun": "^1.3.5",
         "typescript": "^6.0.3",
       },
     },
@@ -207,6 +220,8 @@
     "@gpuix/native@0.10.0": "patches/@gpuix%2Fnative@0.10.0.patch",
   },
   "packages": {
+    "@1git/analytics": ["@1git/analytics@workspace:packages/analytics"],
+
     "@1git/config": ["@1git/config@workspace:packages/config"],
 
     "@1git/design-tokens": ["@1git/design-tokens@workspace:packages/design-tokens"],

@@ -86,3 +86,8 @@ const graph = {
     <slot />
   </body>
 </html>
+
+<script>
+  import { initializeAnalytics } from "../scripts/analytics";
+  initializeAnalytics(import.meta.env.PROD && location.origin === "https://git.1bye.dev");
+</script>

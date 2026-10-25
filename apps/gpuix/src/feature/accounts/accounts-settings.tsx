@@ -53,6 +53,7 @@ import {
 } from "../editor-settings/editor-settings";
 import type { ExternalEditors } from "../editor-settings/external-editors";
 import { AppearanceSettings } from "../appearance-settings/appearance-settings";
+import { PrivacySettings } from "../analytics/privacy-settings";
 import { AiSettings, type AiSettingsHandle } from "../ai/ai-settings";
 import { RepositoryAppearance } from "../repository-appearance/repository-appearance";
 import type { RepositoryAppearanceValue } from "../repository-appearance/repository-patterns";
@@ -72,6 +73,7 @@ export type SettingsSection =
 	| "accounts"
 	| "spaces"
 	| "appearance"
+	| "privacy"
 	| "ai"
 	| "git"
 	| "editor"
@@ -423,6 +425,23 @@ export function AccountsSettings({
 						Appearance
 					</Button>
 					<Button
+						testId="settings-privacy"
+						ref={section === "privacy" ? initialPage : undefined}
+						tokens={appTokens}
+						size="sm"
+						variant={section === "privacy" ? "secondary" : "ghost"}
+						aria-current={section === "privacy" ? "page" : undefined}
+						disabled={settingsBusy}
+						style={{ justifyContent: "flex-start" }}
+						onPress={() => {
+							clearToken();
+							setForm("list");
+							setSection("privacy");
+						}}
+					>
+						Privacy
+					</Button>
+					<Button
 						testId="settings-accounts"
 						ref={section === "accounts" ? initialPage : undefined}
 						tokens={appTokens}
@@ -593,6 +612,8 @@ export function AccountsSettings({
 				spacesSettings
 			) : section === "appearance" ? (
 				<AppearanceSettings />
+			) : section === "privacy" ? (
+				<PrivacySettings />
 			) : section === "ai" ? (
 				<AiSettings
 					ref={aiSettings}

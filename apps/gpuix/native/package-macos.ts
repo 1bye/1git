@@ -82,6 +82,8 @@ try {
 		"src/main.tsx",
 		"--target=bun",
 		"--production",
+		"--define",
+		`process.env.ONEGIT_APP_VERSION=${JSON.stringify(version)}`,
 		"--external=sharp",
 		"--outfile",
 		resolve(resources, "app.js"),
