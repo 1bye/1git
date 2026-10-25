@@ -161,7 +161,7 @@ try {
 	);
 	await run(["plutil", "-lint", resolve(contents, "Info.plist")]);
 
-	// One pinned identity signs nested code before its container; never regenerate it during a build.
+	// Apply the selected mode to nested code before its container; default ad-hoc signing needs no identity.
 	const nativeImages = new Bun.Glob("node_modules/@img/**/*.{node,dylib}");
 
 	for await (const image of nativeImages.scan({

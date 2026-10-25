@@ -21,7 +21,7 @@ export interface MacSigningOptions {
 	preserveEntitlements?: boolean;
 }
 
-/** One persistent signer for the app and nested code, independent of Sparkle's Ed25519 key. */
+/** Ad-hoc signing by default; explicit identities are separate from Sparkle's Ed25519 key. */
 export class MacSigning {
 	constructor(
 		readonly certificate: X509Certificate | null,
@@ -68,12 +68,11 @@ export class MacSigning {
 			});
 		}
 
-		if (env.ONEGIT_MACOS_ADHOC === "1") {
-			if (required)
-				throw new Error("Published releases cannot use ad-hoc signing.");
-
+		if (
+			env.ONEGIT_MACOS_ADHOC === "1" ||
+			(!required && env.ONEGIT_MACOS_SIGNING_CONFIG === undefined)
+		)
 			return new MacSigning(null);
-		}
 
 		const path = env.ONEGIT_MACOS_SIGNING_CONFIG ?? macSigningConfiguration;
 		let raw: string;
@@ -81,15 +80,6 @@ export class MacSigning {
 		try {
 			raw = await readFile(path, "utf8");
 		} catch (error) {
-			if (
-				error instanceof Error &&
-				"code" in error &&
-				error.code === "ENOENT" &&
-				!env.ONEGIT_MACOS_SIGNING_CONFIG &&
-				!required
-			)
-				return new MacSigning(null);
-
 			throw new Error(
 				"Stable macOS signing is not configured. Run setup:signing:macos; no identity was generated or changed.",
 				{ cause: error }

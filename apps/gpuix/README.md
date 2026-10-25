@@ -189,8 +189,10 @@ Outputs stay in ignored `build/macos/`; no account/session files, repository dat
 or build caches are included. Rebuilding replaces only generated outputs after
 compilation, signing and archive creation succeed.
 
-By default this is an **Apple Silicon beta**, self-signed after local signing setup.
-For Developer ID signing and notarization, configure the Apple account as described below.
+Default packaging and releases use **local ad-hoc signing**, with no Apple account,
+certificate, or notarization. Apple Silicon requires this local signature to run
+native code; it contains no signing identity or private key. Leave Apple signing
+overrides unset. Developer ID and pinned self-signed identities remain optional.
 Recipients need Git available on their Mac (for example, Apple's Command
 Line Tools), but not Bun, Rust or Xcode to run the app. Extract the ZIP, move
 `1git.app` into Applications, and open it. For a trusted download blocked by
@@ -212,8 +214,13 @@ normal foreground launching, not the inspection tool's hidden/background launch.
 
 ### Stable local signing
 
+This is optional. It can retain a consistent Keychain identity across app updates;
+ad-hoc builds can require renewed Keychain access approval or account reconnection.
+Setup does not change the default packaging mode. Opt in with the public pin:
+
 ```sh
 bun run setup:signing:macos
+export ONEGIT_MACOS_SIGNING_CONFIG="$PWD/apps/gpuix/native/macos-signing.json"
 bun run test:signing:macos
 ```
 
@@ -233,11 +240,10 @@ Mac must import that same identity. Losing or replacing it changes Keychain trus
 The certificate is valid for ten years; expiry stops builds rather than rotating
 the identity. A deliberate migration is required if it must be replaced.
 
-Packaging uses the pinned identity for the app, native libraries, Sparkle and all
+When explicitly selected, packaging uses the pinned identity for the app, native libraries, Sparkle and all
 its helpers. Its designated requirement matches the bundle identifier and exact
 signing certificate, not a version-specific executable hash. A configured but
-unavailable identity fails; publishing requires a stable identity even if the pin
-is missing. No build or release creates keys, edits trust settings, or weakens
+unavailable identity fails; default ad-hoc publishing needs no such identity. No build or release creates keys, edits trust settings, or weakens
 credential ACLs. The Sparkle Ed25519 key is separate and remains unchanged.
 
 Existing ad-hoc credentials still require a one-time **Always Allow** approval or
@@ -254,12 +260,11 @@ including replacement at the same path, must read it with all Keychain UI disabl
 It does not automate a user's real password or claim to test the **Always Allow**
 dialog on another Mac. The updater suite separately tests real Sparkle migration.
 
-For isolated local tests only, `ONEGIT_MACOS_ADHOC=1` explicitly selects the former
-ad-hoc mode. A non-dry-run release rejects it. `ONEGIT_MACOS_SIGNING_CONFIG` may
+`ONEGIT_MACOS_ADHOC=1` explicitly selects the default ad-hoc mode for packaging
+and publishing, overriding the legacy certificate-pin requirement. `ONEGIT_MACOS_SIGNING_CONFIG` may
 select a different public pin file for CI/testing; an invalid/missing explicit
-file never falls back. Development packaging on a fresh checkout without any pin
-remains ad-hoc until setup; development package versions and update defaults do
-not change.
+file never falls back. A committed pin alone does not enable certificate signing; it must be selected
+explicitly. Development package versions and update keys do not change.
 
 ### Developer ID signing and notarization
 

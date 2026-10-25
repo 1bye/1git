@@ -5,7 +5,10 @@
  * Requires: Bun only.
  */
 import { expect, it } from "bun:test";
-import { MacSigning } from "../../native/macos-signing";
+import {
+	MacSigning,
+	macSigningConfiguration,
+} from "../../native/macos-signing";
 
 const environment = {
 	ONEGIT_MACOS_SIGNING_IDENTITY: "A".repeat(40),
@@ -116,7 +119,12 @@ it("propagates upload, stapling and assessment failures instead of reporting a d
 });
 
 it("keeps existing self-signed and ad-hoc packaging offline", async () => {
-	for (const signing of [new MacSigning(null), await MacSigning.load({})]) {
+	for (const signing of [
+		new MacSigning(null),
+		await MacSigning.load({
+			ONEGIT_MACOS_SIGNING_CONFIG: macSigningConfiguration,
+		}),
+	]) {
 		await signing.notarize("/test/1git.app", "/test/archive.zip", async () => {
 			throw new Error("Local signing must not access Apple");
 		});

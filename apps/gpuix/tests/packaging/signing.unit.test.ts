@@ -76,11 +76,32 @@ it("rejects a changed certificate fingerprint instead of accepting a different s
 	).rejects.toThrow("Refusing to change");
 });
 
-it("allows explicit ad-hoc packaging for isolated tests but never for publishing", async () => {
+it("allows explicit ad-hoc releases without a certificate", async () => {
 	const env = { ONEGIT_MACOS_ADHOC: "1" };
 
 	expect((await MacSigning.load(env)).fingerprint).toBe("-");
-	await expect(MacSigning.load(env, true)).rejects.toThrow("cannot use ad-hoc");
+	expect((await MacSigning.load(env, true)).fingerprint).toBe("-");
+});
+
+it("defaults to ad-hoc packaging without reading a signing identity", async () => {
+	const signing = await MacSigning.load({});
+	const calls: string[][] = [];
+
+	expect(signing.fingerprint).toBe("-");
+	expect(signing.certificate).toBeNull();
+	expect(signing.developerID).toBeUndefined();
+	await signing.verify(async () => {
+		throw new Error("Default packaging must not query Keychain identities.");
+	});
+	await signing.notarize("/test/1git.app", "/test/app.zip", async () => {
+		throw new Error("Default packaging must not contact Apple.");
+	});
+	await signing.sign("/test/1git.app", async (args) => {
+		calls.push(args);
+	});
+	expect(calls[0]).toContain("--sign");
+	expect(calls[0]).toContain("-");
+	expect(calls[0]).toContain("--timestamp=none");
 });
 
 const developerEnvironment = {

@@ -40,7 +40,8 @@ build from source. Intel macOS and Linux machines can be used as SSH hosts; the
 desktop download is currently Apple Silicon only.
 
 If macOS blocks a trusted download, follow [Apple's Open Anyway instructions](https://support.apple.com/en-us/102445).
-Signing and notarization depend on the build; see the [FAQ](https://git.1bye.dev/faq/).
+Default builds use local ad-hoc signing and are not Developer ID signed or
+notarized. See the [FAQ](https://git.1bye.dev/faq/) for installation guidance.
 
 The website's `/download` link follows the current signed update feed. Installed
 release builds can check for updates through Sparkle. [Release instructions](docs/RELEASING.md)
@@ -73,9 +74,11 @@ bun run package:macos
 open apps/gpuix/build/macos/1git.app
 ```
 
-Official distribution requires the maintainer's signing credentials. For a local
-build without those credentials, use `ONEGIT_MACOS_ADHOC=1 bun run package:macos`.
-See [signing setup](apps/gpuix/README.md#stable-local-signing) for the available modes.
+Packaging and releases require no Apple account, certificate, or notarization.
+Apple Silicon requires a local ad-hoc signature; packaging adds it automatically
+without an identity or private key. Sparkle update archives retain their separate
+Ed25519 signatures. Existing Keychain credentials may need access approval or
+reconnection after changing signing mode.
 
 The website can be developed independently:
 

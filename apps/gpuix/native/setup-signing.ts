@@ -8,6 +8,7 @@ import {
 	writeFile,
 	type FileHandle,
 } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import {
@@ -30,7 +31,9 @@ export async function setupSigning(): Promise<void> {
 
 	try {
 		lock = await open(lockPath, "wx", 0o600);
-		let signing = await MacSigning.load({});
+		let signing = existsSync(macSigningConfiguration)
+			? await MacSigning.load({}, true)
+			: new MacSigning(null);
 
 		if (!signing.certificate) {
 			if (

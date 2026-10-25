@@ -7,7 +7,8 @@ source, deploying infrastructure, and releasing a binary are separate operations
 ## Verify a release candidate
 
 Use an Apple Silicon release Mac with full Xcode, Rust/rustup, Bun, and the
-existing signing identities. Start from a clean, reviewed commit that is pushed
+existing Sparkle update key. No Apple account, code-signing certificate, or
+notarization is required for the default release. Start from a clean, reviewed commit that is pushed
 to GitHub. Run the [contribution checks](../CONTRIBUTING.md#verification) and the
 native suites appropriate to the change, then the packaging checks:
 
@@ -16,12 +17,16 @@ bun run test:package:macos
 bun run test:updates:macos
 ```
 
-See [native signing and packaging](../apps/gpuix/README.md#macos-app-bundle) and
-[the release environment example](../apps/gpuix/.env.release.example). Maintainer
-credentials stay in Keychain or an ignored local environment file. A dry run
-builds locally but skips notarization and publication; never distribute its ZIP.
+See [native packaging](../apps/gpuix/README.md#macos-app-bundle) and
+[the release environment example](../apps/gpuix/.env.release.example). Sparkle
+credentials stay in Keychain or an ignored local environment file. The default
+uses a local ad-hoc signature, required for Apple Silicon, without a certificate
+or identity. Leave `ONEGIT_MACOS_SIGNING_IDENTITY`, `ONEGIT_MACOS_TEAM_ID`,
+`ONEGIT_MACOS_NOTARY_PROFILE`, and `ONEGIT_MACOS_SIGNING_CONFIG` unset. Explicit
+settings still opt into certificate signing. A dry run builds locally and never
+publishes; inspect its results, then use a normal release for distribution.
 
-## Publish the signed macOS build
+## Publish the macOS build
 
 Read the current version from
 [`appcast.xml`](https://git.1bye.dev/appcast.xml). Choose a strictly higher numeric
@@ -30,11 +35,13 @@ of a published release; replace it consistently before running the commands.
 
 ```sh
 bun run release:macos -- --version 0.0.21 --dry-run
-# After reviewing the build and configuring release signing:
+# After reviewing the build:
 bun run release:macos -- --version 0.0.21
 ```
 
-The release command reads saved Alchemy outputs, uploads the immutable ZIP,
+Sparkle archive/feed signatures authenticate updates independently of Apple
+code signing; keep the existing Ed25519 key. The release command reads saved
+Alchemy outputs, uploads the immutable ZIP,
 verifies its public bytes, and updates the signed feed last. It does not deploy
 infrastructure, create a Git tag, or publish a GitHub release. See the
 [release infrastructure guide](../apps/releases/README.md) for setup and recovery.
@@ -76,7 +83,8 @@ Requires macOS 13 or later and Git. Extract the ZIP and move 1git.app to Applica
 
 ## Known issues
 
-- Document any relevant limitations, signing/notarization status, and upgrade steps.
+- This release is not Developer ID signed or notarized. macOS may require Open Anyway.
+- Document any additional limitations and upgrade steps.
 ```
 
 If attaching a binary to GitHub, upload the **exact verified release ZIP** from
