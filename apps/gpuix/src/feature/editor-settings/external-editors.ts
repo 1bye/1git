@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import {
+	existsSync,
 	mkdirSync,
 	readFileSync,
 	renameSync,
@@ -313,6 +314,20 @@ export class ExternalEditors {
 		};
 	}
 
+	private async detectApplication(
+		path: string
+	): Promise<EditorApplication | null> {
+		// Missing editors are normal during discovery; avoid rejected filesystem lookups.
+		if (!existsSync(path)) return null;
+
+		try {
+			return await this.application(path);
+		} catch {
+			// Invalid bundles do not prevent discovering other editors.
+			return null;
+		}
+	}
+
 	/** Warm common applications once per window; Settings explicitly refreshes discovery. */
 	async discover(refresh = false): Promise<void> {
 		if (!refresh && this.discovery) return await this.discovery;
@@ -323,14 +338,9 @@ export class ExternalEditors {
 		this.discovery = (async () => {
 			const candidates = await Promise.all(
 				this.applicationDirectories.flatMap((directory) =>
-					applicationNames.map(async (name) => {
-						try {
-							return await this.application(join(directory, name));
-						} catch {
-							// Detection is best-effort; custom locations remain available through the native picker.
-							return null;
-						}
-					})
+					applicationNames.map((name) =>
+						this.detectApplication(join(directory, name))
+					)
 				)
 			);
 
@@ -389,15 +399,18 @@ export class ExternalEditors {
 			[...saved].map(async (path) => {
 				if (!path) return;
 
-				try {
-					this.catalog.set(path, { ...(await this.application(path)), path });
-				} catch {
-					this.catalog.set(path, {
-						path,
-						name: basename(path).replace(/\.app$/i, ""),
-						available: false,
-					});
-				}
+				const application = await this.detectApplication(path);
+
+				this.catalog.set(
+					path,
+					application
+						? { ...application, path }
+						: {
+								path,
+								name: basename(path).replace(/\.app$/i, ""),
+								available: false,
+							}
+				);
 			})
 		);
 

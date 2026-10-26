@@ -89,6 +89,39 @@ async function click(id: string) {
 	await settle();
 }
 
+it("opens Editors with a removed Cursor installation and lets the user choose another default", async () => {
+	const cursor = await editorApplication(directory, "Cursor.app");
+
+	await editors.save(cursor);
+	await rm(cursor, { recursive: true });
+	const before = await readFile(preferences, "utf8");
+
+	root.render(
+		<AccountsSettings
+			accounts={accounts}
+			externalEditors={editors}
+			initialSection="editor"
+			onBack={() => {}}
+		/>
+	);
+	await settle();
+	expect(root.renderer.getAllText()).toContain("External editor");
+	expect(root.renderer.getAllText()).toContain("Cursor");
+	expect(root.renderer.getAllText()).toContain("Unavailable");
+	expect(root.renderer.getAllText()).toContain("Zed");
+	expect(await readFile(preferences, "utf8")).toBe(before);
+	await click("editor-choice-1");
+	expect(editors.load()).toBe(cursor);
+
+	if (process.env.GPUIX_EDITOR_MISSING_SCREENSHOT)
+		root.renderer.captureScreenshot(
+			process.env.GPUIX_EDITOR_MISSING_SCREENSHOT
+		);
+
+	await click("editor-choice-0");
+	expect(editors.load()).toBeNull();
+});
+
 it("opens from Application settings, persists the choice and supports keyboard selection after reopening", async () => {
 	root.render(
 		<AccountsSettings
