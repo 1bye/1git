@@ -912,18 +912,25 @@ export class GitRepository {
 
 				const stage = input.side === "ours" ? 2 : 3;
 
-				const output = await this.context.process.run({
-					args: ["show", `:${stage}:${path}`],
-					cwd: this.info.root,
-					signal: input.signal,
-				});
+				const source = await loadFileContent(
+					this.context,
+					{ kind: "object", objectId: `:${stage}:${path}` },
+					path,
+					input.signal
+				);
 
-				const chosen = output.stdout.toString("utf8");
+				if (input.expectedSideOid && source.revision !== input.expectedSideOid)
+					throw invalidInput(
+						"stage",
+						"The indexed version changed since the preview. Refresh before choosing it."
+					);
+
+				const chosen = source.content;
 
 				if (
-					output.stdout.length > MAX_CONFLICT_TEXT_BYTES ||
+					source.sizeBytes > MAX_CONFLICT_TEXT_BYTES ||
+					source.encoding !== "utf8" ||
 					chosen.includes("\0") ||
-					!Buffer.from(chosen).equals(output.stdout) ||
 					CONFLICT_MARKER_LINE.test(chosen)
 				)
 					throw invalidInput(
@@ -931,7 +938,7 @@ export class GitRepository {
 						"Resolve binary, oversized, or nested conflicts outside this app."
 					);
 
-				await writeFile(absolute, output.stdout);
+				await writeFile(absolute, chosen);
 			} else if (CONFLICT_MARKER_LINE.test(content.content))
 				throw invalidInput(
 					"stage",

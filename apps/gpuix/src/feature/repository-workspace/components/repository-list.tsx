@@ -38,7 +38,8 @@ import {
 	type FileMenuActions,
 } from "./repository-file-menu";
 
-const fileRowHeight = 28;
+/** Shared by bounded file groups and their native list rows. */
+export const fileRowHeight = 28;
 const revisionRowHeight = 48;
 const scrollSaveDelayMs = 150;
 const windowChunkSize = 64;

@@ -11,6 +11,7 @@ import {
 } from "@1git/gpuix-ui/popover";
 
 import { RepositoryFileActions } from "../lib/repository-file-actions";
+import { repositoryConflictTheme } from "../lib/repository-conflict-theme";
 import {
 	RepositoryWorkspaceModel,
 	type RepositoryWorkspaceState,
@@ -26,12 +27,14 @@ export function RepositoryOperation({
 }) {
 	const theme = useAppTheme();
 	const { tokens: appTokens } = theme;
+	const warning = repositoryConflictTheme.get(theme).warning;
 
 	const [confirmation, setConfirmation] = useState<FinishOperationInput | null>(
 		null
 	);
 
 	const [error, setError] = useState<string | null>(null);
+	const [details, setDetails] = useState(false);
 	const repository = state.repository;
 	const operation = repository?.operation;
 
@@ -123,6 +126,7 @@ export function RepositoryOperation({
 				flexShrink: 0,
 				borderBottomWidth: 1,
 				borderColor: appTokens.colors.border,
+				backgroundColor: conflicts > 0 ? warning.wash : "transparent",
 			}}
 		>
 			{active ? (
@@ -130,11 +134,16 @@ export function RepositoryOperation({
 					<text
 						role="status"
 						testId="operation-status"
-						style={{ ...typography.sm, color: appTokens.colors.text }}
+						style={{
+							...typography.sm,
+							color: conflicts > 0 ? warning.ink : appTokens.colors.text,
+						}}
 					>
 						{state.operationMutation.pending
 							? `${title} action in progress…`
-							: `${title} in progress · ${conflicts} ${conflicts === 1 ? "conflict" : "conflicts"}`}
+							: conflicts > 0
+								? `${title} paused · ${conflicts} unresolved ${conflicts === 1 ? "file" : "files"}`
+								: `${title} in progress · ready to continue`}
 					</text>
 					<div
 						style={{ display: "flex", flexDirection: "row", gap: spacing[1.5] }}
@@ -244,6 +253,34 @@ export function RepositoryOperation({
 								</div>
 							</PopoverContent>
 						</Popover>
+						{message && conflicts > 0 ? (
+							<Popover open={details} onOpenChange={setDetails}>
+								<PopoverTrigger asChild>
+									<Button
+										testId="operation-details"
+										tokens={appTokens}
+										size="sm"
+										variant="ghost"
+									>
+										Details…
+									</Button>
+								</PopoverTrigger>
+								<PopoverContent
+									tokens={appTokens}
+									aria-label="Git operation details"
+									side="bottom"
+									align="start"
+									width={420}
+								>
+									<text
+										testId="operation-result"
+										style={{ ...typography.xs, color: appTokens.colors.text }}
+									>
+										{message}
+									</text>
+								</PopoverContent>
+							</Popover>
+						) : null}
 					</div>
 					{!conflicts && unstaged ? (
 						<text
@@ -255,14 +292,14 @@ export function RepositoryOperation({
 					) : null}
 					<text style={{ ...typography.xs, color: appTokens.colors.textMuted }}>
 						{conflicts > 0
-							? "Select each conflicted file, choose a side or edit it, then mark it resolved."
+							? `Resolve ${conflicts === 1 ? "this file" : "these files"} before continuing.`
 							: !unstaged
 								? `All conflicts resolved. Continue ${operation} when ready.`
 								: "Continue uses the confirmed resolutions and existing message."}
 					</text>
 				</>
 			) : null}
-			{message ? (
+			{message && !(active && conflicts > 0) ? (
 				<text
 					testId="operation-result"
 					role={state.operationMutation.error || error ? "alert" : "status"}

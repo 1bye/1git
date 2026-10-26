@@ -1177,6 +1177,7 @@ export function useRepositoryMutations(
 					path: string;
 					expectedContentHash: string;
 					side?: "ours" | "theirs";
+					expectedSideOid?: string;
 			  }
 	): Promise<string | null> => {
 		const workspace = tabs.current.find((tab) => tab.id === id)?.workspace;
@@ -1267,6 +1268,7 @@ export function useRepositoryMutations(
 										path: request.path,
 										expectedContentHash: request.expectedContentHash,
 										side: request.side,
+										expectedSideOid: request.expectedSideOid,
 										expectedHead: repository.head,
 										expectedBranch: repository.branchName,
 									})
@@ -1577,9 +1579,16 @@ export function useRepositoryMutations(
 			id: string,
 			path: string,
 			expectedContentHash: string,
-			side?: "ours" | "theirs"
+			side?: "ours" | "theirs",
+			expectedSideOid?: string
 		) =>
-			updateWorktree(id, { kind: "resolve", path, expectedContentHash, side }),
+			updateWorktree(id, {
+				kind: "resolve",
+				path,
+				expectedContentHash,
+				side,
+				expectedSideOid,
+			}),
 		finishOperation: (id: string, request: FinishOperationInput) =>
 			updateWorktree(id, request),
 		revertCommit: (id: string, request: RevertCommitInput) =>

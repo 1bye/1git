@@ -20,6 +20,8 @@ import {
 import { repositoryViews, type WorkspaceEntry } from "../types";
 import { RepositoryList } from "./repository-list";
 import { RepositoryFileLayoutToggle } from "./repository-file-view";
+import { RepositoryConflictFiles } from "./repository-conflict-files";
+import type { FileMenuActions } from "./repository-file-menu";
 import { EmptyListPlaceholder } from "../../../fixture/empty-list-placeholder";
 import { StateMessage } from "../../../fixture/state-message";
 import { RepositoryCommit } from "./repository-commit";
@@ -305,6 +307,13 @@ function RepositoryNavigationContent({
 			? decoratedHistory
 			: state.entries[view];
 
+	const conflictReview =
+		view === "changes" &&
+		((!!state.repository && state.repository.operation !== "normal") ||
+			state.entries.changes.some(
+				(entry) => entry.change?.recordType === "unmerged"
+			));
+
 	useEffect(() => {
 		if (!searchable) return;
 
@@ -419,6 +428,31 @@ function RepositoryNavigationContent({
 			? "No matching files"
 			: emptyListMessage(state);
 
+	const fileActions: FileMenuActions | undefined =
+		view === "changes" && state.repository && !state.preview && onDiscard
+			? {
+					root: state.repository.root,
+					head: state.repository.head,
+					branch: state.repository.branchName,
+					disabled:
+						RepositoryWorkspaceModel.isBusy(state) ||
+						state.loading ||
+						!!state.error ||
+						state.commit.needsReview,
+					canDiscard: state.repository.operation === "normal",
+					discard: onDiscard,
+					mutationError: state.operationMutation.error,
+					ignore: onIgnore,
+					include: conflictReview
+						? undefined
+						: (ids, included) =>
+								onAction({ type: "include-files", ids, included }),
+					open: openFile,
+					editors: externalEditors,
+					history: (file) => onAction({ type: "history-file", file }),
+				}
+			: undefined;
+
 	const list = (
 		<RepositoryRevert
 			state={state}
@@ -477,32 +511,7 @@ function RepositoryNavigationContent({
 						view === "history" && !state.preview ? onMenu : undefined
 					}
 					onPreviewIntent={view === "changes" ? onPreviewIntent : undefined}
-					fileActions={
-						view === "changes" &&
-						state.repository &&
-						!state.preview &&
-						onDiscard
-							? {
-									root: state.repository.root,
-									head: state.repository.head,
-									branch: state.repository.branchName,
-									disabled:
-										RepositoryWorkspaceModel.isBusy(state) ||
-										state.loading ||
-										!!state.error ||
-										state.commit.needsReview,
-									canDiscard: state.repository.operation === "normal",
-									discard: onDiscard,
-									mutationError: state.operationMutation.error,
-									ignore: onIgnore,
-									include: (ids, included) =>
-										onAction({ type: "include-files", ids, included }),
-									open: openFile,
-									editors: externalEditors,
-									history: (file) => onAction({ type: "history-file", file }),
-								}
-							: undefined
-					}
+					fileActions={fileActions}
 					label={
 						view === "changes"
 							? "Changed files"
@@ -620,7 +629,7 @@ function RepositoryNavigationContent({
 					</text>
 				) : null}
 				<div style={{ flexGrow: 1 }} />
-				{view === "changes" ? (
+				{view === "changes" && !conflictReview ? (
 					<RepositoryFileLayoutToggle testId="changes-file-layout" />
 				) : null}
 				{state.repository || state.repositoryPath ? (
@@ -847,12 +856,14 @@ function RepositoryNavigationContent({
 					/>
 				) : null}
 				{view === "changes" ? (
-					<RepositoryChangesHeader
-						state={state}
-						shown={filtering ? entries.length : undefined}
-						onAction={onAction}
-						onDiscard={onDiscard}
-					/>
+					conflictReview ? null : (
+						<RepositoryChangesHeader
+							state={state}
+							shown={filtering ? entries.length : undefined}
+							onAction={onAction}
+							onDiscard={onDiscard}
+						/>
+					)
 				) : historySearching || fileHistory ? (
 					<div style={styles.header}>
 						<text testId="repository-heading" style={styles.muted}>
@@ -862,7 +873,20 @@ function RepositoryNavigationContent({
 					</div>
 				) : null}
 				{view === "changes" ? (
-					list
+					conflictReview ? (
+						<RepositoryConflictFiles
+							key={workspaceId}
+							entries={entries}
+							state={state.views.changes}
+							fileActions={fileActions}
+							onPreviewIntent={onPreviewIntent}
+							onSelect={(id) =>
+								onAction({ type: "select", view: "changes", id })
+							}
+						/>
+					) : (
+						list
+					)
 				) : (
 					<RepositoryRevisions
 						workspaceId={workspaceId}
@@ -943,8 +967,8 @@ function RepositoryNavigationContent({
 						) : null}
 					</RepositoryRevisions>
 				)}
-				{view === "changes" &&
-				(state.preview || state.repository || state.repositoryPath) ? (
+				{conflictReview ? null : view === "changes" &&
+				  (state.preview || state.repository || state.repositoryPath) ? (
 					<RepositoryCommit
 						onAiSettings={onAiSettings}
 						state={state}

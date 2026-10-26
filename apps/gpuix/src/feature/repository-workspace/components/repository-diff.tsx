@@ -25,6 +25,7 @@ import {
 } from "./repository-image-preview";
 import { RepositoryTextDiff, type DiffInclusion } from "./repository-text-diff";
 import { RepositoryDiffSettings } from "./repository-diff-settings";
+import { RepositoryConflictPreview } from "./repository-conflict-preview";
 
 const themedStyles = createThemedStyles((theme) => {
 	const { colors: appColors } = theme;
@@ -97,7 +98,8 @@ interface RepositoryDiffProps {
 	files?: readonly WorkspaceEntry[];
 	onResolve?: (
 		hash: string,
-		side?: "ours" | "theirs"
+		side?: "ours" | "theirs",
+		expectedSideOid?: string
 	) => Promise<string | null>;
 	openConflictEditor?: typeof RepositoryConflicts.openEditor;
 	settings?: DiffSettings;
@@ -179,13 +181,6 @@ function RepositoryDiffContent({
 	const { diffTheme, styles } = themedStyles.get(theme);
 
 	const [sourcePath, setSourcePath] = useState<string | null>(null);
-	const [conflictError, setConflictError] = useState<string | null>(null);
-
-	const [resolutionSide, setResolutionSide] = useState<
-		"ours" | "theirs" | null
-	>(null);
-
-	const [acting, setActing] = useState(false);
 	const conflicted = "recordType" in change && change.recordType === "unmerged";
 
 	const section = result?.sections[0];
@@ -277,210 +272,6 @@ function RepositoryDiffContent({
 					/>
 				) : null}
 			</div>
-			{conflicted ? (
-				<div
-					style={{
-						display: "flex",
-						flexDirection: "column",
-						flexShrink: 0,
-						padding: spacing[2.5],
-						gap: spacing[1.5],
-					}}
-				>
-					<div
-						style={{
-							display: "flex",
-							flexDirection: "row",
-							alignItems: "center",
-							gap: spacing[1.5],
-						}}
-					>
-						<text
-							style={{
-								...styles.hint,
-								color: appTokens.colors.danger,
-								flexGrow: 1,
-							}}
-						>
-							Conflict · Working file
-						</text>
-						<Button
-							testId="conflict-open-editor"
-							tokens={appTokens}
-							size="sm"
-							variant="ghost"
-							disabled={refreshing || acting || !!statusError}
-							onPress={async () => {
-								setActing(true);
-								setConflictError(null);
-
-								try {
-									await openConflictEditor(root, change.path);
-								} catch (error) {
-									setConflictError(
-										error instanceof Error
-											? error.message
-											: "Could not open the text editor."
-									);
-								} finally {
-									setActing(false);
-								}
-							}}
-						>
-							Open in editor
-						</Button>
-						<Button
-							testId="conflict-refresh"
-							tokens={appTokens}
-							size="sm"
-							variant="ghost"
-							disabled={refreshing || acting || !!statusError}
-							onPress={retry}
-						>
-							Refresh preview
-						</Button>
-						<Button
-							testId="conflict-resolve"
-							tokens={appTokens}
-							size="sm"
-							disabled={
-								refreshing ||
-								acting ||
-								!!statusError ||
-								!section?.conflict ||
-								!onResolve
-							}
-							onPress={async () => {
-								if (!section?.conflict || !onResolve || acting) return;
-
-								setActing(true);
-								setConflictError(null);
-
-								try {
-									setConflictError(await onResolve(section.conflict.hash));
-								} catch {
-									setConflictError(
-										"Could not confirm resolution. Refresh before retrying."
-									);
-								} finally {
-									setActing(false);
-								}
-							}}
-						>
-							Mark resolved
-						</Button>
-					</div>
-					<div
-						style={{ display: "flex", flexDirection: "row", gap: spacing[1.5] }}
-					>
-						{(["ours", "theirs"] as const).map((side) => (
-							<Button
-								key={side}
-								testId={`conflict-use-${side}`}
-								tokens={appTokens}
-								size="sm"
-								variant="secondary"
-								disabled={
-									refreshing ||
-									acting ||
-									!!statusError ||
-									!section?.conflict ||
-									!onResolve
-								}
-								onPress={() => setResolutionSide(side)}
-							>
-								Use {side}
-							</Button>
-						))}
-					</div>
-					{resolutionSide ? (
-						<div
-							style={{
-								display: "flex",
-								flexDirection: "column",
-								gap: spacing[1.5],
-							}}
-						>
-							<text style={styles.hint}>
-								Replace the whole file with {resolutionSide} and mark it
-								resolved? Current edits to this file will be lost.
-							</text>
-							<text style={styles.hint}>
-								During rebase, ours is the branch being rebased onto; theirs is
-								the commit being replayed.
-							</text>
-							<div
-								style={{
-									display: "flex",
-									flexDirection: "row",
-									gap: spacing[1.5],
-								}}
-							>
-								<Button
-									tokens={appTokens}
-									size="sm"
-									variant="secondary"
-									disabled={acting}
-									onPress={() => setResolutionSide(null)}
-								>
-									Cancel
-								</Button>
-								<Button
-									testId="conflict-confirm-side"
-									tokens={appTokens}
-									size="sm"
-									disabled={
-										refreshing ||
-										acting ||
-										!!statusError ||
-										!section?.conflict ||
-										!onResolve
-									}
-									onPress={async () => {
-										if (!section?.conflict || !onResolve || acting) return;
-
-										setActing(true);
-										setConflictError(null);
-
-										try {
-											const error = await onResolve(
-												section.conflict.hash,
-												resolutionSide
-											);
-
-											setConflictError(error);
-
-											if (!error) setResolutionSide(null);
-										} catch {
-											setConflictError(
-												"Could not confirm resolution. Refresh before retrying."
-											);
-										} finally {
-											setActing(false);
-										}
-									}}
-								>
-									Replace and resolve
-								</Button>
-							</div>
-						</div>
-					) : null}
-					<text style={styles.hint}>
-						Edit and save the file, then refresh and review. Mark resolved
-						confirms this file’s resolution; it does not commit or continue a
-						merge/rebase.
-					</text>
-					{conflictError ? (
-						<text
-							testId="conflict-error"
-							role="alert"
-							style={{ ...styles.hint, color: appTokens.colors.danger }}
-						>
-							{conflictError}
-						</text>
-					) : null}
-				</div>
-			) : null}
 			{message ? (
 				<StateMessage
 					testId="diff-notice"
@@ -500,23 +291,16 @@ function RepositoryDiffContent({
 						</Button>
 					) : null}
 				</StateMessage>
-			) : section?.conflict ? (
-				<textarea
-					testId="conflict-content"
-					aria-label="Conflicted working file, read only"
-					value={section.conflict.text}
-					readOnly
-					tabIndex={0}
-					style={{
-						flexGrow: 1,
-						minHeight: 0,
-						fontFamily: theme.typography?.codeFontFamily || "Menlo",
-						...typography.sm,
-						lineHeight: typography.lg.lineHeight,
-						padding: spacing[3.5],
-						color: appTokens.colors.text,
-						backgroundColor: appTokens.colors.field,
-					}}
+			) : conflicted ? (
+				<RepositoryConflictPreview
+					root={root}
+					path={change.path}
+					preview={section?.conflict}
+					message={section?.message}
+					disabled={refreshing || !!statusError}
+					onResolve={onResolve}
+					openEditor={openConflictEditor}
+					onRefresh={retry}
 				/>
 			) : showImage && section?.image ? (
 				<RepositoryImagePreview comparison={section.image} path={change.path} />

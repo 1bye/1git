@@ -35,7 +35,7 @@ import {
 
 const completedDurationMs = 3000;
 
-type Panel = "status" | "publish" | "review" | null;
+type Panel = "status" | "publish" | null;
 
 /** One repository-wide entry point; existing window mutations retain credentials, locking and Git safety. */
 export function RepositorySyncButton({
@@ -59,7 +59,7 @@ export function RepositorySyncButton({
 	onCancel: () => void;
 	onPublish: () => void;
 	onRefresh: () => void;
-	onCompare: (data: WorkspaceBranches) => void;
+	onCompare: (data: WorkspaceBranches, intent?: "sync") => void;
 	onPreviewPullRequest?: () => void;
 	onAccounts: (accountKey?: string) => void;
 	onRemotes: () => void;
@@ -245,11 +245,15 @@ export function RepositorySyncButton({
 			if (!result.ok) {
 				setError(result.error.message);
 
+				if (purpose === "review") setPanel("status");
+
 				return;
 			}
 
 			if (result.value.branches.current !== repository.branchName) {
 				setError("The branch changed. Refresh before trying again.");
+
+				if (purpose === "review") setPanel("status");
 
 				return;
 			}
@@ -261,16 +265,26 @@ export function RepositorySyncButton({
 				return;
 			}
 
+			if (purpose === "review") {
+				onCompare(result.value, "sync");
+				setPanel(null);
+
+				return;
+			}
+
 			setPublication({
 				data: result.value,
 				head: repository.head,
 				branch: repository.branchName,
 			});
 		} catch (cause) {
-			if (!controller.signal.aborted)
+			if (!controller.signal.aborted) {
 				setError(
-					cause instanceof Error ? cause.message : "Could not read remotes."
+					cause instanceof Error ? cause.message : "Could not read branches."
 				);
+
+				if (purpose === "review") setPanel("status");
+			}
 		} finally {
 			if (!controller.signal.aborted) setReading(false);
 
@@ -324,7 +338,6 @@ export function RepositorySyncButton({
 				!latestState.current.sync.error &&
 				!latestState.current.error
 			) {
-				setPanel("review");
 				await loadChoices("review");
 			}
 		} catch (cause) {
@@ -551,9 +564,7 @@ export function RepositorySyncButton({
 							? "Repository access needed"
 							: panel === "publish"
 								? "Publish branch"
-								: panel === "review"
-									? "Review divergence"
-									: "Synchronization status"
+								: "Synchronization status"
 					}
 					tokens={appTokens}
 				>
@@ -590,9 +601,7 @@ export function RepositorySyncButton({
 									? "Repository access needed"
 									: panel === "publish"
 										? "Publish branch"
-										: panel === "review"
-											? "Branches have diverged"
-											: (progress ?? "Synchronization")}
+										: (progress ?? "Synchronization")}
 							</text>
 						</div>
 						<text
@@ -613,14 +622,12 @@ export function RepositorySyncButton({
 									? "Reading remotes…"
 									: panel === "publish"
 										? `Choose where to publish ${repository?.branchName ?? "this branch"}.`
-										: panel === "review"
-											? "Your branch and upstream both have new commits. Compare them or use Merge another branch in the tab menu, then sync again. Nothing was merged or force-pushed."
-											: blocked
-												? "Refresh and review this repository. Publishing and syncing require a committed branch with no ongoing Git operation."
-												: progress
-													? "The operation continues if you close this dialog."
-													: (state.sync.notice ??
-														"Remote status is up to date."))}
+										: blocked
+											? "Refresh and review this repository. Publishing and syncing require a committed branch with no ongoing Git operation."
+											: progress
+												? "The operation continues if you close this dialog."
+												: (state.sync.notice ??
+													"Remote status is up to date."))}
 						</text>
 						{fetched && !accountAccess ? (
 							<text style={{ ...typography.xs, color: appColors.editorMuted }}>
@@ -732,21 +739,6 @@ export function RepositorySyncButton({
 									}}
 								>
 									{remote ? `Publish to ${remote}` : "Publish"}
-								</Button>
-							) : panel === "review" ? (
-								<Button
-									testId="rail-sync-compare"
-									tokens={appTokens}
-									size="sm"
-									disabled={reading || busy || !!issue || !publication || stale}
-									onPress={() => {
-										if (!publication) return;
-
-										close();
-										onCompare(publication.data);
-									}}
-								>
-									Compare
 								</Button>
 							) : (
 								<>
