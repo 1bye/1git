@@ -4,6 +4,9 @@ html[data-scenes-ready] { scroll-snap-type: y mandatory; scroll-padding-top: 0; 
 .scene-content { position: relative; width: 100%; }
 .hero-product > [data-scene-window] { height: 100%; }
 .tabs-text-reveal { display: flow-root; }
+@media (max-width: 767px) {
+  .tabs-text-reveal { display: none; }
+}
 .features[data-scene-group] { padding-top: 0; overflow: clip; }
 
 .feature-block[data-scene] { display: flex; align-items: center; margin-block: 0; padding-block: clamp(96px,12svh,140px); }
