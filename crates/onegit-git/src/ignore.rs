@@ -210,8 +210,7 @@ impl Repository {
             .map_err(|error| command(error.into()))?;
 
         if created {
-            self.root_directory
-                .sync_all()
+            crate::platform::sync_directory(&self.root_directory)
                 .map_err(|error| command(error.into()))?;
         }
 

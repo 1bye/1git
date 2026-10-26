@@ -390,8 +390,8 @@ fn read_path(
         .strip_suffix(b"\n")
         .ok_or(RepositoryError::InvalidOutput)?;
 
-    let path =
-        crate::platform::path_from_git_bytes(bytes).map_err(|_| RepositoryError::InvalidOutput)?;
+    let path = crate::platform::absolute_path_from_git_bytes(bytes)
+        .map_err(|_| RepositoryError::InvalidOutput)?;
 
     if !path.is_absolute() || bytes.contains(&0) {
         return Err(RepositoryError::InvalidOutput);

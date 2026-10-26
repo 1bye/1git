@@ -40,14 +40,13 @@ use windows_sys::Win32::Security::{
 };
 use windows_sys::Win32::Storage::FileSystem::{
     CREATE_NEW, CreateFileW, FILE_ALL_ACCESS, FILE_APPEND_DATA, FILE_ATTRIBUTE_NORMAL,
-    FILE_ATTRIBUTE_REPARSE_POINT, FILE_BASIC_INFO, FILE_FLAG_BACKUP_SEMANTICS,
-    FILE_FLAG_OPEN_REPARSE_POINT, FILE_GENERIC_READ, FILE_GENERIC_WRITE, FILE_ID_INFO,
-    FILE_INFO_BY_HANDLE_CLASS, FILE_READ_ATTRIBUTES, FILE_SHARE_DELETE, FILE_SHARE_READ,
-    FILE_SHARE_WRITE, FILE_STANDARD_INFO, FileBasicInfo, FileIdInfo, FileStandardInfo,
-    GetFileInformationByHandleEx, GetFinalPathNameByHandleW, READ_CONTROL, ReOpenFile, SYNCHRONIZE,
-    WRITE_DAC,
+    FILE_ATTRIBUTE_REPARSE_POINT, FILE_ATTRIBUTE_TAG_INFO, FILE_BASIC_INFO,
+    FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_REPARSE_POINT, FILE_GENERIC_READ,
+    FILE_GENERIC_WRITE, FILE_ID_INFO, FILE_INFO_BY_HANDLE_CLASS, FILE_READ_ATTRIBUTES,
+    FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE, FILE_STANDARD_INFO, FileAttributeTagInfo,
+    FileBasicInfo, FileIdInfo, FileStandardInfo, GetFileInformationByHandleEx,
+    GetFinalPathNameByHandleW, READ_CONTROL, ReOpenFile, SYNCHRONIZE, WRITE_DAC,
 };
-use windows_sys::Win32::System::Console::{CTRL_BREAK_EVENT, GenerateConsoleCtrlEvent};
 use windows_sys::Win32::System::Diagnostics::ToolHelp::{
     CreateToolhelp32Snapshot, TH32CS_SNAPTHREAD, THREADENTRY32, Thread32First, Thread32Next,
 };
@@ -58,23 +57,44 @@ use windows_sys::Win32::System::JobObjects::{
     SetInformationJobObject, TerminateJobObject,
 };
 use windows_sys::Win32::System::Threading::{
-    CREATE_NEW_PROCESS_GROUP, CREATE_SUSPENDED, OpenThread, ResumeThread, THREAD_SUSPEND_RESUME,
+    CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW, CREATE_SUSPENDED, OpenThread, ResumeThread,
+    THREAD_SUSPEND_RESUME,
 };
 
-use super::{Access, FileState, PathEncodingError, Signal};
+use super::{Access, FileState, PathEncodingError, Signal, windows_policy};
 
 pub(crate) fn path_from_git_bytes(bytes: &[u8]) -> Result<PathBuf, PathEncodingError> {
     let text = std::str::from_utf8(bytes).map_err(|_| PathEncodingError)?;
+    let path = PathBuf::from(windows_policy::relative_git_path(text)?.as_ref());
 
-    if text.contains('\\') || !representable(text) {
+    if path.has_root()
+        || path
+            .components()
+            .any(|part| matches!(part, Component::Prefix(_)))
+    {
         return Err(PathEncodingError);
     }
 
-    Ok(text.into())
+    Ok(path)
+}
+
+pub(crate) fn absolute_path_from_git_bytes(bytes: &[u8]) -> Result<PathBuf, PathEncodingError> {
+    let text = std::str::from_utf8(bytes).map_err(|_| PathEncodingError)?;
+    let path = PathBuf::from(text);
+
+    if !path.is_absolute() || text.contains('\0') {
+        return Err(PathEncodingError);
+    }
+
+    Ok(path)
 }
 
 pub(crate) fn path_to_git_bytes(path: &OsStr) -> Result<Cow<'_, [u8]>, PathEncodingError> {
     let text = path.to_str().ok_or(PathEncodingError)?;
+    let text = text
+        .strip_prefix(".\\")
+        .filter(|tail| windows_policy::drive_prefix(tail))
+        .unwrap_or(text);
     let text = if let Some(unc) = text.strip_prefix("\\\\?\\UNC\\") {
         format!("//{unc}")
     } else {
@@ -82,49 +102,53 @@ pub(crate) fn path_to_git_bytes(path: &OsStr) -> Result<Cow<'_, [u8]>, PathEncod
     }
     .replace('\\', "/");
 
-    if !representable(&text) {
-        return Err(PathEncodingError);
-    }
-
     Ok(Cow::Owned(text.into_bytes()))
 }
 
-fn representable(text: &str) -> bool {
-    text.split('/').enumerate().all(|(index, part)| {
-        if index == 0
-            && part.len() == 2
-            && part.as_bytes()[0].is_ascii_alphabetic()
-            && part.ends_with(':')
-        {
-            return true;
-        }
-        if matches!(part, "" | "." | "..") {
-            return true;
-        }
-        if part.ends_with(['.', ' ']) || part.chars().any(|ch| ch < ' ' || "<>:\"|?*".contains(ch))
-        {
-            return false;
-        }
+fn path_error() -> io::Error {
+    io::Error::new(io::ErrorKind::InvalidInput, PathEncodingError)
+}
 
-        let stem = part
-            .split('.')
-            .next()
-            .unwrap_or("")
-            .trim_end_matches(' ')
-            .to_uppercase();
+fn validate_filesystem_path(path: &Path) -> io::Result<()> {
+    let encoded = path_to_git_bytes(path.as_os_str()).map_err(|_| path_error())?;
+    let text = std::str::from_utf8(&encoded).map_err(|_| path_error())?;
 
-        !matches!(
-            stem.as_str(),
-            "CON" | "PRN" | "AUX" | "NUL" | "CONIN$" | "CONOUT$"
-        ) && !["COM", "LPT"].iter().any(|prefix| {
-            stem.strip_prefix(prefix).is_some_and(|number| {
-                matches!(
-                    number,
-                    "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "¹" | "²" | "³"
-                )
-            })
+    for (index, part) in text.split('/').enumerate() {
+        if matches!(part, "" | "." | "..")
+            || index == 0 && part.len() == 2 && windows_policy::drive_prefix(part)
+        {
+            continue;
+        }
+        if !windows_policy::component_representable(part) {
+            return Err(path_error());
+        }
+    }
+
+    Ok(())
+}
+
+pub(crate) fn validate_relative_filesystem_path(path: &Path) -> io::Result<()> {
+    validate_filesystem_path(path)?;
+
+    if path.has_root()
+        || path.components().any(|part| {
+            matches!(
+                part,
+                Component::Prefix(_) | Component::RootDir | Component::ParentDir
+            )
         })
-    })
+    {
+        return Err(path_error());
+    }
+
+    Ok(())
+}
+
+pub(crate) fn sync_directory(_directory: &File) -> io::Result<()> {
+    // Windows: deliberately no directory fsync. NTFS journals metadata consistency,
+    // but this does not promise Unix-equivalent power-loss durability of new names.
+    // File sync_all calls remain mandatory; no extra directory write access is requested.
+    Ok(())
 }
 
 fn wide(path: &OsStr) -> io::Result<Vec<u16>> {
@@ -176,12 +200,21 @@ pub(crate) struct FileIdentity(u64, [u8; 16]);
 
 impl FileIdentity {
     pub(crate) fn from_file(file: &File) -> io::Result<Self> {
-        let info: FILE_ID_INFO = query(file, FileIdInfo)?;
+        let info: FILE_ID_INFO = query(file, FileIdInfo)
+            .map_err(|error| io::Error::new(io::ErrorKind::Unsupported, error))?;
+
+        if !windows_policy::valid_file_id(&info.FileId.Identifier) {
+            return Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                "Filesystem returned no stable 128-bit file ID",
+            ));
+        }
 
         Ok(Self(info.VolumeSerialNumber, info.FileId.Identifier))
     }
 
     pub(crate) fn from_path(path: &Path) -> io::Result<Self> {
+        validate_filesystem_path(path)?;
         let file = OpenOptions::new()
             .access_mode(FILE_READ_ATTRIBUTES)
             .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS)
@@ -221,24 +254,57 @@ pub(crate) fn is_missing_or_not_regular(error: &io::Error) -> bool {
     )
 }
 
-fn reject_reparse(file: File) -> io::Result<File> {
-    let info: FILE_BASIC_INFO = query(&file, FileBasicInfo)?;
+fn reject_name_surrogate(file: &File) -> io::Result<FILE_ATTRIBUTE_TAG_INFO> {
+    let info: FILE_ATTRIBUTE_TAG_INFO = query(file, FileAttributeTagInfo)?;
 
-    if info.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+    if info.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT != 0
+        && windows_policy::name_surrogate(info.ReparseTag)
+    {
         return Err(io::Error::from_raw_os_error(
             ERROR_STOPPED_ON_SYMLINK as i32,
         ));
     }
 
-    Ok(file)
+    Ok(info)
+}
+
+fn prepare_file(file: File, rights: u32, data_access: bool) -> io::Result<File> {
+    let info = reject_name_surrogate(&file)?;
+
+    if !data_access || info.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT == 0 {
+        return Ok(file);
+    }
+
+    let identity = FileIdentity::from_file(&file)?;
+    // SAFETY: file is a live filesystem handle; reopening by handle avoids a fresh
+    // pathname lookup. Omitting OPEN_REPARSE_POINT lets non-surrogate data filters run.
+    let handle = owned_handle(unsafe {
+        ReOpenFile(
+            file.as_raw_handle(),
+            rights,
+            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            FILE_FLAG_BACKUP_SEMANTICS,
+        )
+    })?;
+    let reopened = File::from(handle);
+    reject_name_surrogate(&reopened)?;
+
+    if FileIdentity::from_file(&reopened)? != identity {
+        return Err(io::Error::other(
+            "Reopening the data filter changed file identity",
+        ));
+    }
+
+    Ok(reopened)
 }
 
 pub(crate) fn open_directory_no_follow(path: &Path) -> io::Result<File> {
+    validate_filesystem_path(path)?;
     let file = OpenOptions::new()
         .read(true)
         .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS)
         .open(path)?;
-    let file = reject_reparse(file)?;
+    let file = prepare_file(file, FILE_GENERIC_READ, true)?;
 
     if !file.metadata()?.is_dir() {
         return Err(io::Error::from_raw_os_error(ERROR_DIRECTORY as i32));
@@ -249,6 +315,8 @@ pub(crate) fn open_directory_no_follow(path: &Path) -> io::Result<File> {
 
 // A protected OWNER RIGHTS ACL grants only the object's owner access. Each newly
 // created private entry receives it atomically, before any private bytes are written.
+// Windows: an elevated token can make Administrators the default owner; OW then
+// authorizes that privileged group, comparable to privileged root access on Unix.
 struct PrivateSecurity(PSECURITY_DESCRIPTOR);
 
 impl PrivateSecurity {
@@ -304,26 +372,19 @@ pub(crate) fn open_component(parent: &File, name: &OsStr, access: Access) -> io:
 }
 
 fn open_entry(parent: &File, name: &OsStr, access: Access, directory: bool) -> io::Result<File> {
-    if !matches!(
-        Path::new(name).components().next(),
-        Some(Component::Normal(_))
-    ) || Path::new(name).components().count() != 1
-        || name
-            .to_str()
-            .is_none_or(|name| name.contains(['/', '\\', ':']) || !representable(name))
+    if !name
+        .to_str()
+        .is_some_and(windows_policy::component_representable)
     {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "Expected one ordinary path component",
-        ));
+        return Err(path_error());
     }
-    let mut name = wide(name)?;
-    name.pop();
-    let length = u16::try_from(name.len() * 2).map_err(io::Error::other)?;
+    let mut wide_name = wide(name)?;
+    wide_name.pop();
+    let length = u16::try_from(wide_name.len() * 2).map_err(io::Error::other)?;
     let mut unicode = UNICODE_STRING {
         Length: length,
         MaximumLength: length,
-        Buffer: name.as_mut_ptr(),
+        Buffer: wide_name.as_mut_ptr(),
     };
     let private = matches!(access, Access::CreatePrivate)
         .then(PrivateSecurity::new)
@@ -332,7 +393,8 @@ fn open_entry(parent: &File, name: &OsStr, access: Access, directory: bool) -> i
         Length: size_of::<OBJECT_ATTRIBUTES>() as u32,
         RootDirectory: parent.as_raw_handle(),
         ObjectName: &mut unicode,
-        // Preserve the Git spelling; do not introduce case-insensitive aliasing here.
+        // Windows: object-manager/filesystem policy can still make this lookup case-insensitive.
+        // Verify the actual leaf spelling on the returned handle before using the entry.
         Attributes: 0,
         SecurityDescriptor: private
             .as_ref()
@@ -341,6 +403,7 @@ fn open_entry(parent: &File, name: &OsStr, access: Access, directory: bool) -> i
     };
     let rights = match access {
         Access::Read | Access::Directory => FILE_GENERIC_READ,
+        Access::Inspect => FILE_READ_ATTRIBUTES,
         Access::ReadWrite | Access::CreatePrivate => FILE_GENERIC_READ | FILE_GENERIC_WRITE,
         Access::Append { .. } => FILE_GENERIC_READ | FILE_APPEND_DATA,
     };
@@ -384,7 +447,12 @@ fn open_entry(parent: &File, name: &OsStr, access: Access, directory: bool) -> i
     }
 
     // SAFETY: NtCreateFile succeeded and transferred one uniquely owned file handle.
-    let file = reject_reparse(unsafe { File::from_raw_handle(handle) })?;
+    let file = prepare_file(
+        unsafe { File::from_raw_handle(handle) },
+        rights | SYNCHRONIZE,
+        !matches!(access, Access::Inspect),
+    )?;
+    verify_entry_name(&file, name)?;
 
     if matches!(access, Access::CreatePrivate) {
         make_private_file(&file)?;
@@ -394,6 +462,7 @@ fn open_entry(parent: &File, name: &OsStr, access: Access, directory: bool) -> i
 }
 
 pub(crate) fn create_private_file(path: &Path) -> io::Result<File> {
+    validate_filesystem_path(path)?;
     let name = wide(path.as_os_str())?;
     let security = PrivateSecurity::new()?;
     let attributes = SECURITY_ATTRIBUTES {
@@ -426,12 +495,18 @@ pub(crate) fn create_private_file(path: &Path) -> io::Result<File> {
 
 pub(crate) fn truncate_no_follow(path: &Path) -> io::Result<File> {
     // Inspect the held object before truncation, so a reparse point is never followed.
-    let file = reject_reparse(
+    validate_filesystem_path(path)?;
+    let file = prepare_file(
         OpenOptions::new()
             .write(true)
             .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT)
             .open(path)?,
+        FILE_GENERIC_WRITE,
+        true,
     )?;
+    if let Some(name) = path.file_name() {
+        verify_entry_name(&file, name)?;
+    }
 
     file.set_len(0)?;
 
@@ -553,12 +628,30 @@ pub(crate) fn make_private_file(file: &File) -> io::Result<()> {
 }
 
 pub(crate) fn validate_discard_path(root: &File, path: &Path) -> io::Result<bool> {
-    match super::open_beneath(root, path, false) {
-        Ok(file) => Ok(file.metadata()?.is_file()),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(true),
-        // Windows: final reparse points are refused too; external Git must handle them.
-        Err(error) => Err(error),
+    validate_relative_filesystem_path(path)?;
+    let mut parent = root.try_clone()?;
+    let mut components = path.components().peekable();
+
+    while let Some(component) = components.next() {
+        let Component::Normal(name) = component else {
+            return Err(path_error());
+        };
+        let last = components.peek().is_none();
+        let access = if last {
+            Access::Inspect
+        } else {
+            Access::Directory
+        };
+        match open_component(&parent, name, access) {
+            Ok(file) if last => return Ok(file.metadata()?.is_file()),
+            Ok(directory) => parent = directory,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(true),
+            // Windows: final name-surrogate links still require external Git handling.
+            Err(error) => return Err(error),
+        }
     }
+
+    Ok(true)
 }
 
 pub(crate) fn random_bytes(bytes: &mut [u8]) -> io::Result<()> {
@@ -581,7 +674,7 @@ pub(crate) fn random_bytes(bytes: &mut [u8]) -> io::Result<()> {
     Ok(())
 }
 
-fn directory_path(directory: &File) -> io::Result<PathBuf> {
+fn handle_path(directory: &File) -> io::Result<PathBuf> {
     let mut buffer = vec![0_u16; 512];
 
     loop {
@@ -608,6 +701,26 @@ fn directory_path(directory: &File) -> io::Result<PathBuf> {
     }
 }
 
+fn directory_path(directory: &File) -> io::Result<PathBuf> {
+    let path = handle_path(directory)?;
+
+    Ok(path.to_str().map_or_else(
+        || path.clone(),
+        |text| PathBuf::from(windows_policy::cwd_path(text).as_ref()),
+    ))
+}
+
+fn verify_entry_name(file: &File, requested: &OsStr) -> io::Result<()> {
+    if handle_path(file)?.file_name() != Some(requested) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Opened entry spelling differs from the requested Git path",
+        ));
+    }
+
+    Ok(())
+}
+
 pub(crate) struct OwnedChild {
     pub(crate) child: Child,
     pub(crate) finished: bool,
@@ -615,18 +728,36 @@ pub(crate) struct OwnedChild {
 }
 
 impl OwnedChild {
+    pub(crate) fn finish(&mut self, preserve_descendants: bool) -> io::Result<()> {
+        if preserve_descendants {
+            // No breakaway is allowed during execution. After an ordinary completion,
+            // disarm kill-on-close so background helpers survive, like Unix descendants.
+            let limits = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
+            // SAFETY: the live job and exact information structure/class/size agree.
+            if unsafe {
+                SetInformationJobObject(
+                    self.job.as_raw_handle(),
+                    JobObjectExtendedLimitInformation,
+                    (&limits as *const JOBOBJECT_EXTENDED_LIMIT_INFORMATION).cast(),
+                    size_of_val(&limits) as u32,
+                )
+            } == 0
+            {
+                return Err(io::Error::last_os_error());
+            }
+        }
+        self.finished = true;
+
+        Ok(())
+    }
+
     pub(crate) fn signal(&self, signal: Signal) {
-        // SAFETY: this child owns a private console process group and assigned job.
-        unsafe {
-            match signal {
-                // Windows: CTRL_BREAK requires a shared console and can be ignored/unavailable;
-                // the deadline always escalates to terminating the complete Job Object.
-                Signal::Terminate => {
-                    GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, self.child.id());
-                }
-                Signal::Kill => {
-                    TerminateJobObject(self.job.as_raw_handle(), 1);
-                }
+        // Windows: CREATE_NO_WINDOW leaves the child without a console; CTRL_BREAK
+        // cannot be delivered. Keep the shared grace period, then terminate the job.
+        if matches!(signal, Signal::Kill) {
+            // SAFETY: this uniquely owned live job contains the suspended-assigned child tree.
+            unsafe {
+                TerminateJobObject(self.job.as_raw_handle(), 1);
             }
         }
     }
@@ -639,7 +770,7 @@ impl Drop for OwnedChild {
             let _ = self.child.kill();
             let _ = self.child.wait();
         }
-        // Closing the job also terminates descendants remaining after a successful leader exit.
+        // Normal completion disarms kill-on-close; all error/cancellation paths keep it armed.
     }
 }
 
@@ -671,7 +802,7 @@ pub(crate) fn spawn(
         Some(directory) => directory_path(directory)?,
         None => cwd.to_owned(),
     });
-    command.creation_flags(CREATE_NEW_PROCESS_GROUP | CREATE_SUSPENDED);
+    command.creation_flags(CREATE_NEW_PROCESS_GROUP | CREATE_SUSPENDED | CREATE_NO_WINDOW);
     let mut owned = OwnedChild {
         child: command.spawn()?,
         finished: false,
@@ -691,6 +822,8 @@ pub(crate) fn spawn(
 }
 
 fn resume_child(child: &mut Child) -> io::Result<()> {
+    // std::Child does not expose the initial thread handle. Keep the documented
+    // ToolHelp/ResumeThread route instead of relying on undocumented NtResumeProcess.
     // SAFETY: flags request a newly allocated thread enumeration snapshot.
     let snapshot = owned_handle(unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0) })?;
     let mut entry = THREADENTRY32 {
@@ -909,20 +1042,28 @@ mod tests {
 
     #[test]
     fn unrepresentable_paths_return_encoding_errors() {
-        for bytes in [
-            b"invalid\xff".as_slice(),
-            b"NUL",
-            b"a:stream",
-            b"trailing.",
-            b"name ",
-            b"folder\\file",
-            b"line\nfeed",
-            b"embedded\0nul",
+        assert!(path_from_git_bytes(b"invalid\xff").is_err());
+        let temporary = tempfile::tempdir().unwrap();
+        let root = open_directory_no_follow(temporary.path()).unwrap();
+
+        for text in [
+            "NUL",
+            "a:stream",
+            "trailing.",
+            "name ",
+            "folder\\file",
+            "line\nfeed",
+            "embedded\0nul",
         ] {
-            assert!(path_from_git_bytes(bytes).is_err(), "{bytes:?}");
+            let error = open_component(&root, OsStr::new(text), Access::Read).unwrap_err();
+            assert_eq!(error.kind(), io::ErrorKind::InvalidInput);
+            assert!(
+                error
+                    .get_ref()
+                    .is_some_and(|source| source.is::<PathEncodingError>())
+            );
         }
         let surrogate = std::ffi::OsString::from_wide(&[0xd800]);
-
         assert!(path_to_git_bytes(&surrogate).is_err());
         assert_eq!(
             path_to_git_bytes(OsStr::new("folder\\file.txt"))
@@ -971,6 +1112,158 @@ mod tests {
         assert!(
             crate::ignore_pattern(Path::new("folder\\.git\\config"), &crate::IgnoreRule::File)
                 .is_err()
+        );
+    }
+    #[test]
+    fn status_display_accepts_reserved_names_but_file_access_returns_a_typed_error() {
+        let status = crate::parse_status(b"? aux.c\0? a:b\0").unwrap();
+        let temporary = tempfile::tempdir().unwrap();
+        let root = open_directory_no_follow(temporary.path()).unwrap();
+        assert_eq!(status.files.len(), 2);
+
+        for (change, expected) in status.files.iter().zip([b"aux.c".as_slice(), b"a:b"]) {
+            assert_eq!(
+                path_to_git_bytes(change.path.as_os_str()).unwrap().as_ref(),
+                expected
+            );
+            assert!(
+                temporary
+                    .path()
+                    .join(&change.path)
+                    .starts_with(temporary.path())
+            );
+            let error = super::super::open_beneath(&root, &change.path, false).unwrap_err();
+            assert_eq!(error.kind(), io::ErrorKind::InvalidInput);
+            assert!(
+                error
+                    .get_ref()
+                    .is_some_and(|source| source.is::<PathEncodingError>())
+            );
+        }
+        assert!(path_from_git_bytes(b"c:/outside").is_err());
+        assert!(absolute_path_from_git_bytes(b"c:/outside").is_ok());
+    }
+
+    #[test]
+    fn discard_inspection_needs_attributes_without_reading_file_data() {
+        let temporary = tempfile::tempdir().unwrap();
+        let name = temporary.path().join("held.txt");
+        std::fs::write(&name, b"kept").unwrap();
+        // Deny FILE_READ_DATA sharing. Attribute-only inspection must still succeed.
+        let _held = OpenOptions::new()
+            .read(true)
+            .share_mode(FILE_SHARE_WRITE | FILE_SHARE_DELETE)
+            .open(&name)
+            .unwrap();
+        let root = open_directory_no_follow(temporary.path()).unwrap();
+        assert!(validate_discard_path(&root, Path::new("held.txt")).unwrap());
+        assert!(open_component(&root, "held.txt".as_ref(), Access::Read).is_err());
+    }
+
+    #[test]
+    fn component_opens_reject_case_aliases_and_leave_content_unchanged() {
+        let temporary = tempfile::tempdir().unwrap();
+        std::fs::write(temporary.path().join("Exact.txt"), b"kept").unwrap();
+        let root = open_directory_no_follow(temporary.path()).unwrap();
+        assert!(open_component(&root, "Exact.txt".as_ref(), Access::Read).is_ok());
+        assert!(open_component(&root, "exact.txt".as_ref(), Access::ReadWrite).is_err());
+        assert_eq!(
+            std::fs::read(temporary.path().join("Exact.txt")).unwrap(),
+            b"kept"
+        );
+    }
+
+    #[test]
+    fn ordinary_completion_keeps_a_background_process_after_the_job_handle_closes() {
+        use std::process::Stdio;
+        use windows_sys::Win32::Foundation::WAIT_TIMEOUT;
+        use windows_sys::Win32::System::JobObjects::{
+            IsProcessInJob, JobObjectBasicProcessIdList, QueryInformationJobObject,
+        };
+        use windows_sys::Win32::System::Threading::{
+            OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_TERMINATE, TerminateProcess,
+            WaitForSingleObject,
+        };
+
+        struct BackgroundProcess(OwnedHandle);
+        impl Drop for BackgroundProcess {
+            fn drop(&mut self) {
+                // SAFETY: this test owns a handle to its fixture daemon with terminate/wait access.
+                unsafe {
+                    TerminateProcess(self.0.as_raw_handle(), 1);
+                    WaitForSingleObject(self.0.as_raw_handle(), 10_000);
+                }
+            }
+        }
+
+        #[repr(C)]
+        #[derive(Default)]
+        struct ProcessIds {
+            assigned: u32,
+            count: u32,
+            ids: [usize; 16],
+        }
+
+        let temporary = tempfile::tempdir().unwrap();
+        let mut command = Command::new("cmd.exe");
+        command
+            .args(["/D", "/C", "start \"\" /B ping -n 60 127.0.0.1 >NUL"])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+        let mut owned = spawn(&mut command, temporary.path(), None).unwrap();
+        assert!(owned.child.wait().unwrap().success());
+        owned.finish(true).unwrap();
+        // Retain cleanup on any assertion failure until the background handle is owned.
+        owned.finished = false;
+        let mut ids = ProcessIds::default();
+        // SAFETY: the live job and writable, aligned process-ID buffer agree with the class;
+        // the API receives the full buffer size and fails if it needs more than 16 entries.
+        let queried = unsafe {
+            QueryInformationJobObject(
+                owned.job.as_raw_handle(),
+                JobObjectBasicProcessIdList,
+                (&mut ids as *mut ProcessIds).cast(),
+                size_of_val(&ids) as u32,
+                null_mut(),
+            )
+        };
+        assert_ne!(queried, 0);
+        let pid = ids.ids[..ids.count as usize]
+            .iter()
+            .copied()
+            .find(|pid| *pid != owned.child.id() as usize)
+            .expect("background daemon PID");
+        // SAFETY: OpenProcess borrows no pointers and returns a new handle on success.
+        let handle = owned_handle(unsafe {
+            OpenProcess(
+                SYNCHRONIZE | PROCESS_QUERY_INFORMATION | PROCESS_TERMINATE,
+                0,
+                pid as u32,
+            )
+        })
+        .unwrap();
+        let mut in_job = 0;
+        // SAFETY: both handles are live and the output pointer is writable. Verify job
+        // membership before taking termination ownership, in case the PID was reused.
+        let queried = unsafe {
+            IsProcessInJob(
+                handle.as_raw_handle(),
+                owned.job.as_raw_handle(),
+                &mut in_job,
+            )
+        };
+        assert_ne!(queried, 0);
+        assert_ne!(in_job, 0);
+        let daemon = BackgroundProcess(handle);
+        owned.finished = true;
+        drop(owned);
+
+        // SAFETY: the daemon handle remains live; waiting observes termination without changing it.
+        let status = unsafe { WaitForSingleObject(daemon.0.as_raw_handle(), 500) };
+        assert_eq!(
+            status, WAIT_TIMEOUT,
+            "closing a normally completed job killed its daemon"
         );
     }
 }

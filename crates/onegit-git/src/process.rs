@@ -239,7 +239,8 @@ impl GitProcess {
     /// Run without terminal/editor prompts, preserving ordinary repository configuration.
     ///
     /// Cancellation/deadline/overflow sends TERM then KILL to the Unix process group,
-    /// or CTRL_BREAK then Job Object termination on Windows. CTRL_BREAK is best-effort.
+    /// or Job Object termination on Windows after the same grace period. Windows children
+    /// have no console, so graceful console signalling is unavailable.
     /// This method returns only after the leader is reaped and owned pipes are closed.
     /// Call this from a background worker, never from a GPUI render/event callback.
     pub fn run(&self, input: GitCommand<'_>) -> Result<GitOutput, GitError> {
@@ -394,7 +395,7 @@ impl GitProcess {
                 && stderr.is_none()
                 && let Some(status) = owned.child.try_wait()?
             {
-                owned.finished = true;
+                owned.finish(stopped.is_none())?;
 
                 return match stopped {
                     Some(error) => Err(error),

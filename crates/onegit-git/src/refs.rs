@@ -6,7 +6,7 @@ use std::sync::LazyLock;
 use regex::Regex;
 
 use super::{Repository, RepositoryError};
-use crate::output::{path, rows, text, trim_end};
+use crate::output::{absolute_path, rows, text, trim_end};
 use crate::{Cancellation, GitError};
 
 const BRANCH_FORMAT: &str = "%(refname)%00%(refname:short)%00%(objectname)%00%(HEAD)%00%(upstream:short)%00%(upstream:track,nobracket)%00%(committerdate:iso-strict)%00%(subject)%00%(worktreepath)%00%(upstream:remotename)%00%(upstream:remoteref)%00";
@@ -428,7 +428,7 @@ fn parse_branches(output: &[u8]) -> Result<BranchCollection, RepositoryError> {
             worktree_path: if fields[8].is_empty() {
                 None
             } else {
-                Some(path(fields[8])?)
+                Some(absolute_path(fields[8])?)
             },
         };
 
@@ -527,7 +527,7 @@ fn parse_worktrees(output: &[u8]) -> Result<Vec<Worktree>, RepositoryError> {
         let value = record.get(split + 1..).unwrap_or_default();
 
         match key {
-            b"worktree" => worktree.path = path(value)?,
+            b"worktree" => worktree.path = absolute_path(value)?,
             b"HEAD" => worktree.head_oid = Some(text(value)),
             b"branch" => {
                 worktree.branch = Some(text(value.strip_prefix(b"refs/heads/").unwrap_or(value)))

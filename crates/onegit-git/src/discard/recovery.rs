@@ -215,8 +215,8 @@ impl Recovery {
         check_cancelled(cancellation)?;
         write_file(&self.directory, c"recovery.json", manifest.as_bytes())?;
         write_file(&self.directory, c"README.txt", INSTRUCTIONS.as_bytes())?;
-        self.directory.sync_all()?;
-        self.parent.sync_all()?;
+        crate::platform::sync_directory(&self.directory)?;
+        crate::platform::sync_directory(&self.parent)?;
         self.complete = true;
 
         Ok(())

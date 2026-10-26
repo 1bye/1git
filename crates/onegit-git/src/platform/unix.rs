@@ -18,6 +18,20 @@ pub(crate) fn path_from_git_bytes(bytes: &[u8]) -> Result<PathBuf, super::PathEn
     Ok(OsString::from_vec(bytes.to_vec()).into())
 }
 
+pub(crate) fn absolute_path_from_git_bytes(
+    bytes: &[u8],
+) -> Result<PathBuf, super::PathEncodingError> {
+    path_from_git_bytes(bytes)
+}
+
+pub(crate) fn validate_relative_filesystem_path(_path: &Path) -> io::Result<()> {
+    Ok(())
+}
+
+pub(crate) fn sync_directory(file: &File) -> io::Result<()> {
+    file.sync_all()
+}
+
 pub(crate) fn path_to_git_bytes(path: &OsStr) -> Result<Cow<'_, [u8]>, super::PathEncodingError> {
     Ok(Cow::Borrowed(path.as_bytes()))
 }
@@ -275,6 +289,12 @@ pub(crate) struct OwnedChild {
 }
 
 impl OwnedChild {
+    pub(crate) fn finish(&mut self, _preserve_descendants: bool) -> io::Result<()> {
+        self.finished = true;
+
+        Ok(())
+    }
+
     pub(crate) fn signal(&self, signal: super::Signal) {
         let signal = match signal {
             super::Signal::Terminate => libc::SIGTERM,

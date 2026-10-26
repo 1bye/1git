@@ -173,6 +173,7 @@ impl Repository {
             ));
         }
 
+        crate::platform::validate_relative_filesystem_path(requested)?;
         let resolved = fs::canonicalize(self.info.root.join(requested))?;
 
         let relative = resolved

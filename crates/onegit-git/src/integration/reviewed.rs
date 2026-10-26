@@ -441,6 +441,8 @@ impl Repository {
         let mut existing = BTreeSet::new();
 
         for candidate in &candidates {
+            crate::platform::validate_relative_filesystem_path(candidate)
+                .map_err(|error| before(error.into()))?;
             check_cancelled(cancellation).map_err(|error| before(error.into()))?;
 
             for ancestor in candidate

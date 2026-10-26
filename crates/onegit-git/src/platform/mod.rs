@@ -31,8 +31,12 @@ impl std::error::Error for PathEncodingError {}
 pub(crate) enum Access {
     Read,
     ReadWrite,
+    #[cfg(windows)]
+    Inspect,
     Directory,
-    Append { create: bool },
+    Append {
+        create: bool,
+    },
     CreatePrivate,
 }
 
@@ -62,6 +66,8 @@ impl FileState {
 
 // Writable access applies only to the final component, without creating or truncating it.
 pub(crate) fn open_beneath(root: &File, relative: &Path, writable: bool) -> io::Result<File> {
+    validate_relative_filesystem_path(relative)?;
+
     let mut parent = None;
     let mut components = relative.components().peekable();
 
@@ -157,5 +163,181 @@ mod tests {
             fs::read(temporary.path().join("private")).unwrap(),
             b"preserved"
         );
+    }
+}
+
+// Pure Windows policy is compiled into Unix unit tests too; it has no native calls.
+#[cfg(any(windows, test))]
+mod windows_policy {
+    use super::PathEncodingError;
+    use std::borrow::Cow;
+
+    pub(super) fn relative_git_path(text: &str) -> Result<Cow<'_, str>, PathEncodingError> {
+        if text.starts_with(['/', '\\']) || text.contains('\0') {
+            return Err(PathEncodingError);
+        }
+
+        if drive_prefix(text) {
+            if text.len() == 2
+                || text
+                    .as_bytes()
+                    .get(2)
+                    .is_some_and(|byte| matches!(byte, b'/' | b'\\'))
+            {
+                return Err(PathEncodingError);
+            }
+            // `a:b` is a legal Git name but a Windows drive-relative path. Keep it
+            // displayable behind a CurDir guard; filesystem access rejects its colon.
+            return Ok(Cow::Owned(format!(".\\{text}")));
+        }
+
+        Ok(Cow::Borrowed(text))
+    }
+
+    pub(super) fn drive_prefix(text: &str) -> bool {
+        text.as_bytes().first().is_some_and(u8::is_ascii_alphabetic)
+            && text.as_bytes().get(1) == Some(&b':')
+    }
+
+    pub(super) fn component_representable(part: &str) -> bool {
+        if matches!(part, "" | "." | "..") {
+            return false;
+        }
+        if part.ends_with(['.', ' '])
+            || part
+                .chars()
+                .any(|ch| ch < ' ' || "<>:\"|?*\\/".contains(ch))
+        {
+            return false;
+        }
+        let stem = part
+            .split('.')
+            .next()
+            .unwrap_or("")
+            .trim_end_matches(' ')
+            .to_uppercase();
+
+        !matches!(
+            stem.as_str(),
+            "CON" | "PRN" | "AUX" | "NUL" | "CONIN$" | "CONOUT$"
+        ) && !["COM", "LPT"].iter().any(|prefix| {
+            stem.strip_prefix(prefix).is_some_and(|number| {
+                matches!(
+                    number,
+                    "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "¹" | "²" | "³"
+                )
+            })
+        })
+    }
+
+    pub(super) fn cwd_path(text: &str) -> Cow<'_, str> {
+        let plain = if let Some(unc) = text.strip_prefix("\\\\?\\UNC\\") {
+            Cow::Owned(format!("\\\\{unc}"))
+        } else if let Some(dos) = text
+            .strip_prefix("\\\\?\\")
+            .filter(|dos| drive_prefix(dos) && dos.as_bytes().get(2) == Some(&b'\\'))
+        {
+            Cow::Borrowed(dos)
+        } else {
+            return Cow::Borrowed(text);
+        };
+        let compatible = plain.encode_utf16().count() < 260
+            && plain.split('\\').enumerate().all(|(index, part)| {
+                part.is_empty()
+                    || index == 0 && drive_prefix(part) && part.len() == 2
+                    || component_representable(part) && part.encode_utf16().count() <= 255
+            });
+
+        if compatible {
+            plain
+        } else {
+            Cow::Borrowed(text)
+        }
+    }
+
+    pub(super) fn name_surrogate(tag: u32) -> bool {
+        tag & 0x2000_0000 != 0
+    }
+
+    pub(super) fn valid_file_id(id: &[u8; 16]) -> bool {
+        id.iter().any(|byte| *byte != 0)
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn display_names_are_separate_from_filesystem_representability() {
+            for name in ["aux.c", "con.h", "a:b", "trailing.", "name ", "tab\tname"] {
+                assert!(relative_git_path(name).is_ok(), "{name}");
+                assert!(!component_representable(name), "{name}");
+            }
+            assert!(component_representable("été.txt"));
+        }
+
+        #[test]
+        fn relative_decode_rejects_roots_and_guards_drive_relative_display_names() {
+            for name in [
+                "c:/x",
+                "C:\\x",
+                "c:",
+                "/x",
+                "\\x",
+                "//server/share/x",
+                "\\\\?\\C:\\x",
+            ] {
+                assert!(relative_git_path(name).is_err(), "{name}");
+            }
+            assert_eq!(relative_git_path("a:b").unwrap(), ".\\a:b");
+        }
+
+        #[test]
+        fn cwd_conversion_preserves_verbatim_only_semantics_and_long_paths() {
+            assert_eq!(cwd_path("\\\\?\\C:\\repo"), "C:\\repo");
+            assert_eq!(
+                cwd_path("\\\\?\\UNC\\server\\share\\repo"),
+                "\\\\server\\share\\repo"
+            );
+            assert_eq!(cwd_path("C:\\repo"), "C:\\repo");
+            for path in [
+                "\\\\?\\C:\\name.",
+                "\\\\?\\C:\\name ",
+                "\\\\?\\C:\\a\\..\\b",
+                "\\\\?\\C:\\aux.c",
+                "\\\\?\\Volume{guid}\\repo",
+            ] {
+                assert_eq!(cwd_path(path), path);
+            }
+            let limit = format!(
+                "\\\\?\\C:\\{}\\{}\\{}",
+                "a".repeat(100),
+                "b".repeat(100),
+                "c".repeat(55)
+            );
+            assert_eq!(cwd_path(&limit), limit);
+            let long = format!("\\\\?\\C:\\{}", "a".repeat(256));
+            assert_eq!(cwd_path(&long), long);
+            let boundary = format!("\\\\?\\C:\\{}", "é".repeat(256));
+            assert_eq!(cwd_path(&boundary), boundary);
+        }
+
+        #[test]
+        fn reparse_policy_distinguishes_links_from_data_filters() {
+            for tag in [0xa000_000c, 0xa000_0003] {
+                assert!(name_surrogate(tag));
+            }
+            for tag in [0, 0x9000_001a, 0x9000_101a, 0x8000_0017, 0x8000_0013] {
+                assert!(!name_surrogate(tag));
+            }
+        }
+
+        #[test]
+        fn zero_file_ids_cannot_claim_an_identity() {
+            assert!(!valid_file_id(&[0; 16]));
+            let mut id = [0; 16];
+            id[15] = 1;
+            assert!(valid_file_id(&id));
+        }
     }
 }

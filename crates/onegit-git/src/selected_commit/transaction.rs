@@ -186,7 +186,7 @@ impl Repository {
             }
         }
 
-        let index_path = crate::platform::path_from_git_bytes(&bytes)
+        let index_path = crate::platform::absolute_path_from_git_bytes(&bytes)
             .map_err(|_| before(RepositoryError::InvalidOutput))?;
 
         if !index_path.is_absolute() {
@@ -766,6 +766,9 @@ fn selected_paths(
 
 fn check_file_paths(root: &Path, paths: &[PathBuf]) -> Result<(), CommitError> {
     for path in paths {
+        crate::platform::validate_relative_filesystem_path(path)
+            .map_err(|error| before(error.into()))?;
+
         match fs::symlink_metadata(root.join(path)) {
             Ok(metadata) if metadata.is_dir() => {
                 return Err(CommitError::invalid(
