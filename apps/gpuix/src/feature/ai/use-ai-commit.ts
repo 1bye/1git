@@ -5,6 +5,8 @@ import {
 } from "../repository-workspace/lib/repository-workspace-model";
 import { useAi } from "./ai-provider";
 import { CommitContext } from "./lib/commit-context";
+import { AiSettingsStore } from "./lib/ai-settings-store";
+import { aiProviderNames } from "./ai-provider-icons";
 
 /** Composer-local generation. A completed, rechecked suggestion replaces the draft in one update. */
 export function useAiCommit({
@@ -26,7 +28,9 @@ export function useAiCommit({
 	const head = state.repository?.head;
 
 	const configured =
-		!!preferences?.provider && !!preferences.model && !ai?.error;
+		!!preferences?.provider &&
+		(AiSettingsStore.isCli(preferences.provider) || !!preferences.model) &&
+		!ai?.error;
 
 	const blocked =
 		state.preview ||
@@ -143,8 +147,10 @@ export function useAiCommit({
 		busy: progress !== null,
 		progress,
 		error,
-		provider: preferences?.provider === "chatgpt" ? "ChatGPT" : "OpenCode",
-		model: preferences?.model,
+		provider: preferences?.provider
+			? aiProviderNames[preferences.provider]
+			: "AI",
+		model: preferences?.model || "CLI default",
 		request() {
 			if (pending.current || blocked || !configured) return;
 

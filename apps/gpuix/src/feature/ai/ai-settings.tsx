@@ -22,7 +22,11 @@ import { WorkspaceTabIcon } from "../workspace-tabs/components/workspace-tab-ico
 import { useAi } from "./ai-provider";
 import { aiProviderIcons, aiProviderNames } from "./ai-provider-icons";
 import { AiConnectionEditor } from "./ai-connection-editor";
-import { emptyAiPreferences, type AiConnection } from "./lib/ai-settings-store";
+import {
+	AiSettingsStore,
+	emptyAiPreferences,
+	type AiConnection,
+} from "./lib/ai-settings-store";
 
 /** Settings keyboard navigation closes the connection editor before leaving AI settings. */
 export interface AiSettingsHandle {
@@ -285,7 +289,7 @@ function AiSettingsPanel({
 								testId="ai-empty"
 								artwork="accounts"
 								title="No AI accounts added."
-								description="Add OpenCode or ChatGPT, then choose a default for commit messages."
+								description="Add an AI account or local CLI agent, then choose a default for commit messages."
 							/>
 						) : null}
 						{ai.configuration.connections.map((connection) => (
@@ -337,9 +341,7 @@ function AiSettingsPanel({
 											</text>
 										) : null}
 									</div>
-									<text
-										style={muted}
-									>{`${connection.provider === "chatgpt" ? connection.chatgpt?.email || "ChatGPT · Sign-in required" : `OpenCode · ${connection.opencodeMode === "free" ? "Free" : connection.opencodeMode === "go" ? "Go" : "Zen"}`} · ${connection.model || "Choose a model"}`}</text>
+									<text style={muted}>{connectionDescription(connection)}</text>
 								</div>
 								<div style={{ ...row, gap: spacing[1] }}>
 									<AiRowAction
@@ -349,7 +351,8 @@ function AiSettingsPanel({
 											locked ||
 											!!editing ||
 											ai.configuration.defaultId === connection.id ||
-											!connection.model
+											(!AiSettingsStore.isCli(connection.provider) &&
+												!connection.model)
 										}
 										onPress={() => setDefault(connection.id)}
 										icon="check"
@@ -362,7 +365,8 @@ function AiSettingsPanel({
 										source={accountActionIcons.reconnect}
 									/>
 									{connection.provider === "chatgpt" ||
-									connection.opencodeMode !== "free" ? (
+									(connection.provider === "opencode" &&
+										connection.opencodeMode !== "free") ? (
 										<AiRowAction
 											testId={`ai-reconnect-${connection.id}`}
 											label={`Reconnect ${connection.label}`}
@@ -420,8 +424,11 @@ function AiSettingsPanel({
 							style={{ ...typography.md, color: tokens.colors.text }}
 						>{`Remove ${removing?.label ?? "connection"}?`}</text>
 						<text style={muted}>
-							Remove this connection and its saved credentials from this device.
-							Removing the default turns AI off.
+							{`${
+								removing && AiSettingsStore.isCli(removing.provider)
+									? "Remove this connection from 1git. Your CLI login is kept."
+									: "Remove this connection and its saved credentials from this device."
+							} Removing the default turns AI off.`}
 						</text>
 						{error ? (
 							<text
@@ -458,6 +465,18 @@ function AiSettingsPanel({
 			</Popover>
 		</div>
 	);
+}
+
+function connectionDescription(connection: AiConnection): string {
+	if (AiSettingsStore.isCli(connection.provider))
+		return `${aiProviderNames[connection.provider]} · ${connection.model || "CLI default"}`;
+
+	const account =
+		connection.provider === "chatgpt"
+			? connection.chatgpt?.email || "ChatGPT · Sign-in required"
+			: `OpenCode · ${connection.opencodeMode === "free" ? "Free" : connection.opencodeMode === "go" ? "Go" : "Zen"}`;
+
+	return `${account} · ${connection.model || "Choose a model"}`;
 }
 
 function AiRowAction({

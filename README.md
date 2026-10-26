@@ -24,11 +24,36 @@
 - **Keep work organized.** Use tabs, spaces, and worktrees to move between projects.
 - **Work over SSH.** Browse repositories on macOS and Linux machines through the same workspace.
 - **Connect your accounts.** Work with GitHub and GitLab repositories and pull or merge requests.
-- **Draft with AI.** Generate commit messages with a configured provider, including local Ollama.
+- **Draft with AI.** Generate commit messages with OpenCode, ChatGPT, or your installed Claude Code and Codex CLI.
 - **Make it yours.** Choose themes and repository colors, icons, and artwork.
 
 Built with TypeScript, React 19, Bun, and [GPUIX](https://github.com/remorses/gpuix).
 The desktop interface uses native rendering and macOS window materials.
+
+ChatGPT offers **CLI** (the default, using Codex) and **Login** connection tiles.
+Existing connections retain their selected method.
+
+For CLI commit messages, install and sign in to Claude Code (`claude auth login`)
+or Codex (`codex login`), then add it in **Settings → AI**. Choose a model from
+the dropdown, or select **Use CLI default**. Both agents report their available
+models and per-model effort options. **Effort** initially selects Medium when
+supported, otherwise the model's reported default. **Provider default** inherits
+the agent's settings, as does **Use CLI default**. Unknown capabilities never
+produce guessed effort options. Direct API accounts use their live model list
+with capability metadata from the bundled Pi catalog where available.
+**Advanced** contains custom model
+entry and an optional executable path for installations outside the usual search paths.
+**Test agent** sends a synthetic diff to verify the connection using your CLI account.
+1git reuses the CLI's authentication without copying its credentials. Generation
+uses the checked files and selected lines, with tools and hooks restricted, and
+only updates the commit draft. CLI requests currently support up to 64 KiB of
+selected changes; larger selections can use an API connection.
+
+Run `bun run --cwd apps/gpuix test:ai:process` for subprocess regression tests.
+`bun run --cwd apps/gpuix test:ai:cli` explicitly tests both installed agents
+against their real providers and uses their signed-in accounts. Optional
+`GPUIX_CLAUDE_PATH`, `GPUIX_CODEX_PATH`, and `GPUIX_CODEX_MODEL` variables select
+test executables or a Codex model without changing the CLI configuration.
 
 ## Download
 

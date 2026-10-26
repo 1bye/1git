@@ -203,6 +203,35 @@ it("starts on the first AI click and places the checked-selection result directl
 	expect(fixture.commit).not.toHaveBeenCalled();
 });
 
+it.each(["claude-code", "codex"] as const)(
+	"generates with %s using its default model and rechecks the selection",
+	async (provider) => {
+		service.store.save({
+			connections: [{ ...configured, provider, model: "" }],
+			defaultId: configured.id,
+		});
+		const generate = spyOn(service.cli, "generate").mockResolvedValue(
+			"fix: checked changes"
+		);
+
+		const read = spyOn(CommitContext, "read");
+		const fixture = composer();
+
+		await settle();
+		await press("ai-generate");
+		expect(generate).toHaveBeenCalledWith(
+			expect.objectContaining({ provider, model: "" }),
+			"+selected",
+			expect.any(AbortSignal)
+		);
+		expect(read).toHaveBeenCalledTimes(2);
+		expect(node("commit-message").customProps?.value).toBe(
+			"fix: checked changes"
+		);
+		expect(fixture.commit).not.toHaveBeenCalled();
+	}
+);
+
 it.each(["light", "dark"] as const)(
 	"paints the commit type and muted scope parentheses while keeping Unicode editing native (%s)",
 	async (appearance) => {

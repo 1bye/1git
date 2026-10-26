@@ -7,13 +7,17 @@ import {
 	statSync,
 	writeFileSync,
 } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join } from "node:path";
 import { WorkspaceSessionStore } from "../../workspace-tabs/lib/workspace-session-store";
+import { isEffort } from "./ai-model";
 
 /** Non-secret AI preferences, separate from existing appearance and Git defaults. */
 export interface AiPreferences {
 	readonly id?: string;
-	readonly provider: "opencode" | "chatgpt" | null;
+	readonly provider: "opencode" | "chatgpt" | "claude-code" | "codex" | null;
+	readonly executable?: string;
+	/** Native provider value. Empty inherits provider settings; absent prefers Medium when supported. */
+	readonly effort?: string;
 	readonly opencodeMode: "zen" | "go" | "free";
 	readonly model: string;
 	readonly instructions: string;
@@ -29,7 +33,7 @@ export interface AiPreferences {
 export interface AiConnection extends AiPreferences {
 	readonly id: string;
 	readonly label: string;
-	readonly provider: "opencode" | "chatgpt";
+	readonly provider: Exclude<AiPreferences["provider"], null>;
 }
 
 /** Window-wide connection list and explicit generation default; null keeps AI off. */
@@ -56,6 +60,13 @@ const maxBytes = 64 * 1024;
 
 /** Atomic private metadata only; secrets are explicitly excluded from serialization. */
 export class AiSettingsStore {
+	/** CLI connections own authentication and may use their configured default model. */
+	static isCli(
+		provider: AiPreferences["provider"]
+	): provider is "claude-code" | "codex" {
+		return provider === "claude-code" || provider === "codex";
+	}
+
 	constructor(
 		readonly path = join(
 			dirname(WorkspaceSessionStore.defaultPath()),
@@ -142,7 +153,9 @@ export class AiSettingsStore {
 			!("provider" in value) ||
 			(value.provider !== null &&
 				value.provider !== "opencode" &&
-				value.provider !== "chatgpt") ||
+				value.provider !== "chatgpt" &&
+				value.provider !== "claude-code" &&
+				value.provider !== "codex") ||
 			!("opencodeMode" in value) ||
 			(value.opencodeMode !== "zen" &&
 				value.opencodeMode !== "go" &&
@@ -160,6 +173,27 @@ export class AiSettingsStore {
 		let hostId: string | undefined;
 		let id: string | undefined;
 		let chatgpt: AiPreferences["chatgpt"];
+		let executable: string | undefined;
+		const effort = "effort" in value ? value.effort : undefined;
+
+		if (effort !== undefined && effort !== "" && !isEffort(effort))
+			throw new Error("Invalid AI effort value.");
+
+		if (
+			"executable" in value &&
+			value.executable !== undefined &&
+			value.executable !== ""
+		) {
+			if (
+				typeof value.executable !== "string" ||
+				!isAbsolute(value.executable) ||
+				value.executable.length > 4096 ||
+				/\p{Cc}/u.test(value.executable)
+			)
+				throw new Error("Enter an absolute path to the agent executable.");
+
+			if (AiSettingsStore.isCli(value.provider)) executable = value.executable;
+		}
 
 		if ("id" in value && value.id !== undefined) {
 			if (
@@ -224,6 +258,8 @@ export class AiSettingsStore {
 			instructions: value.instructions,
 			...(hostId ? { hostId } : {}),
 			...(chatgpt ? { chatgpt } : {}),
+			...(executable ? { executable } : {}),
+			...(typeof effort === "string" ? { effort } : {}),
 		};
 	}
 
@@ -260,6 +296,10 @@ export class AiSettingsStore {
 			model: preferences.model,
 			instructions: preferences.instructions,
 			...(preferences.chatgpt ? { chatgpt: preferences.chatgpt } : {}),
+			...(preferences.executable ? { executable: preferences.executable } : {}),
+			...(preferences.effort !== undefined
+				? { effort: preferences.effort }
+				: {}),
 		};
 	}
 

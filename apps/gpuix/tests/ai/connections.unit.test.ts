@@ -111,6 +111,44 @@ it("keeps AI off when adding a Free profile until a default is explicitly select
 	expect(AiSettingsStore.selected(service.store.load()).id).toBe(free.id);
 });
 
+it.each(["claude-code", "codex"] as const)(
+	"saves, generates and removes %s without 1git credentials or a required model",
+	async (provider) => {
+		const connection = {
+			...first,
+			provider,
+			model: "",
+			executable: "/opt/tools/agent",
+		};
+
+		spyOn(service.cli, "check").mockResolvedValue("CLI 1.0");
+		spyOn(service.cli, "generate").mockResolvedValue("fix: selected changes");
+		const models = [{ value: "test-model", label: "Test model" }];
+
+		spyOn(service.cli, "models").mockResolvedValue(models);
+		await service.saveConnection(connection, "", false, signal());
+		expect(service.store.load().defaultId).toBeNull();
+		service.setDefault(connection.id);
+		expect(AiSettingsStore.selected(service.store.load())).toMatchObject(
+			connection
+		);
+		expect(await service.models(connection, signal())).toEqual(models);
+		expect(await service.generate(connection, "+selected", signal())).toBe(
+			"fix: selected changes"
+		);
+		expect(service.cli.generate).toHaveBeenCalledWith(
+			AiSettingsStore.parse(connection),
+			"+selected",
+			expect.any(AbortSignal)
+		);
+		expect(await service.disconnect(connection, signal())).toContain(
+			"remains signed in"
+		);
+		expect(service.store.load().defaultId).toBeNull();
+		expect(credentials.size).toBe(0);
+	}
+);
+
 it("restores an existing key if saving preferences fails, and never writes metadata after cancellation", async () => {
 	await service.saveConnection(first, "old-key", true, signal());
 	const saved = service.store.load();
