@@ -12,6 +12,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useAppTheme } from "../../styles/theme";
 import { StateMessage } from "../../fixture/state-message";
 import { RepositoryList } from "../repository-workspace/components/repository-list";
+import { RepositoryFileLayoutToggle } from "../repository-workspace/components/repository-file-view";
 import { RepositoryHistory } from "../repository-workspace/lib/repository-history";
 import { RepositoryCommitDetails } from "../repository-workspace/components/repository-commit-details";
 import { RepositoryDiff } from "../repository-workspace/components/repository-diff";
@@ -52,6 +53,7 @@ const row = {
 } as const;
 
 type Readers = {
+	fileTreeScope?: string;
 	readReferences?: typeof RepositoryGraphReader.references;
 	readPage?: typeof RepositoryGraphReader.page;
 	readCommitFiles?: typeof RepositoryHistory.readFiles;
@@ -658,6 +660,7 @@ function GraphCommitFiles({
 	previewCache,
 	diffSettings,
 	onDiffSettingsChange,
+	fileTreeScope,
 }: { root: string; commit: CommitInfo } & Readers) {
 	const { colors, tokens } = useAppTheme();
 	const window = useWindowSize();
@@ -720,16 +723,27 @@ function GraphCommitFiles({
 					borderColor: colors.editorHairline,
 				}}
 			>
-				<text
+				<div
 					style={{
-						...typography.xs,
-						color: colors.editorMuted,
+						...row,
+						alignItems: "center",
+						flexWrap: "wrap",
+						justifyContent: "space-between",
 						padding: spacing[2],
 						flexShrink: 0,
 					}}
-				>{`Changed files · ${files.length}`}</text>
+				>
+					<text
+						style={{ ...typography.xs, color: colors.editorMuted }}
+					>{`Changed files · ${files.length}`}</text>
+					<RepositoryFileLayoutToggle testId="graph-file-layout" />
+				</div>
 				<RepositoryList
 					testId="graph-files"
+					fileTree={{
+						scope: JSON.stringify([fileTreeScope, root, "graph"]),
+						owner: commit.oid,
+					}}
 					label="Commit files"
 					entries={files}
 					emptyMessage={

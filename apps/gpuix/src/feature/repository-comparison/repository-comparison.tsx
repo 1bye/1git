@@ -25,6 +25,7 @@ import {
 import type { RepositoryPreviewCache } from "../repository-workspace/lib/repository-preview-cache";
 import { RepositoryDiff } from "../repository-workspace/components/repository-diff";
 import { RepositoryList } from "../repository-workspace/components/repository-list";
+import { RepositoryFileLayoutToggle } from "../repository-workspace/components/repository-file-view";
 import type { WorkspaceEntry } from "../repository-workspace/types";
 import { ComparisonArtwork } from "../../fixture/comparison-artwork";
 import { StateMessage } from "../../fixture/state-message";
@@ -133,6 +134,7 @@ const themedStyles = createThemedStyles(({ tokens: appTokens }) => {
 });
 
 type Readers = {
+	fileTreeScope?: string;
 	readComparison?: typeof Reader.read;
 	readHistory?: typeof RepositoryHistory.read;
 	readCommitFiles?: typeof RepositoryHistory.readFiles;
@@ -386,6 +388,7 @@ function ComparisonResults({
 	previewCache,
 	diffSettings,
 	onDiffSettingsChange,
+	fileTreeScope,
 }: { request: ComparisonRequest; base: string; head: string } & Readers) {
 	const theme = useAppTheme();
 	const { tokens: appTokens } = theme;
@@ -589,12 +592,37 @@ function ComparisonResults({
 							}}
 						/>
 					</div>
-					<Text tokens={appTokens} style={styles.label}>
-						{commit ? "Commit files" : "Changed files"} · {files.length}
-					</Text>
+					<div
+						style={{
+							display: "flex",
+							flexDirection: "row",
+							alignItems: "center",
+							justifyContent: "space-between",
+							paddingLeft: spacing[3.5],
+							paddingRight: spacing[3],
+							height: 28,
+							flexShrink: 0,
+						}}
+					>
+						<Text
+							tokens={appTokens}
+							style={{ ...typography.xs, color: appTokens.colors.textMuted }}
+						>
+							{commit ? "Commit files" : "Changed files"} · {files.length}
+						</Text>
+						<RepositoryFileLayoutToggle testId="comparison-file-layout" />
+					</div>
 					<RepositoryList
 						key={commit ?? "all"}
 						testId="comparison-files"
+						fileTree={{
+							owner: JSON.stringify([base, head, commit]),
+							scope: JSON.stringify([
+								fileTreeScope,
+								request.root,
+								"comparison",
+							]),
+						}}
 						entries={files}
 						label="Comparison files"
 						emptyMessage={

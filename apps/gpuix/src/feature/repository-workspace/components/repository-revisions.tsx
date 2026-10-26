@@ -16,6 +16,7 @@ import {
 } from "../lib/repository-workspace-model";
 import type { RevisionView, WorkspaceEntry } from "../types";
 import { RepositoryList } from "./repository-list";
+import { RepositoryFileLayoutToggle } from "./repository-file-view";
 import type { FileMenuActions } from "./repository-file-menu";
 import { RepositoryReadNotice } from "./repository-read-notice";
 import { EmptyListPlaceholder } from "../../../fixture/empty-list-placeholder";
@@ -65,6 +66,7 @@ const themedStyles = createThemedStyles(({ colors: appColors }) => {
 /** Stacked revision/files navigation with a keyboard-accessible split and read-only saved-file menus. */
 export function RepositoryRevisions({
 	view,
+	workspaceId,
 	state,
 	onAction,
 	children,
@@ -74,6 +76,7 @@ export function RepositoryRevisions({
 	fileActions,
 }: {
 	view: RevisionView;
+	workspaceId?: string;
 	state: RepositoryWorkspaceState;
 	onAction: (action: RepositoryWorkspaceAction) => void;
 	children: ReactNode;
@@ -246,9 +249,19 @@ export function RepositoryRevisions({
 					<text style={styles.muted}>
 						{view === "history" ? "Changed files" : "Stashed files"}
 					</text>
-					{revision ? (
-						<text style={styles.muted}>{revision.files.length}</text>
-					) : null}
+					<div
+						style={{
+							display: "flex",
+							flexDirection: "row",
+							alignItems: "center",
+							gap: spacing[2],
+						}}
+					>
+						{revision ? (
+							<text style={styles.muted}>{revision.files.length}</text>
+						) : null}
+						<RepositoryFileLayoutToggle testId="revision-file-layout" />
+					</div>
 				</div>
 				<RepositoryList
 					fileActions={fileActions}
@@ -261,6 +274,10 @@ export function RepositoryRevisions({
 							: "Files in selected stash"
 					}
 					entries={revision?.files ?? []}
+					fileTree={{
+						owner: revision?.id,
+						scope: JSON.stringify([workspaceId, state.repository?.root, view]),
+					}}
 					state={current.files}
 					emptyContent={
 						emptyView ? (

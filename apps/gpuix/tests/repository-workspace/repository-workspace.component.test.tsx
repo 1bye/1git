@@ -820,6 +820,10 @@ it("supports arrow-key rail selection and entry/exit with Tab", () => {
 	);
 	root.renderer.simulateKeystrokes("tab");
 	root.renderer.flush();
+	expect(root.renderer.getFocusedElementId()).toBe(
+		element("revision-file-layout").id
+	);
+	key("revision-file-layout", "tab");
 	notifyListFocus();
 	expect(root.renderer.getFocusedElementId()).toBe(
 		element("repository-list-scrollbar-vertical").id
@@ -885,6 +889,10 @@ it("navigates revision files by keyboard and scrolls each pane independently, pr
 		element("revision-divider").id
 	);
 	key("revision-divider", "tab");
+	expect(root.renderer.getFocusedElementId()).toBe(
+		element("revision-file-layout").id
+	);
+	key("revision-file-layout", "tab");
 	expect(root.renderer.getFocusedElementId()).toBe(
 		element("entry-src/app.tsx").id
 	);
@@ -1009,6 +1017,10 @@ it("reveals the remembered row when keyboard focus returns after scrolling it of
 	key("rail-settings", "tab");
 	expect(root.renderer.getFocusedElementId()).toBe(element("rail-account").id);
 	key("rail-account", "tab");
+	expect(root.renderer.getFocusedElementId()).toBe(
+		element("changes-file-layout").id
+	);
+	key("changes-file-layout", "tab");
 	expect(root.renderer.getFocusedElementId()).toBe(
 		element("filter-changes").id
 	);
