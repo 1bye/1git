@@ -561,8 +561,11 @@ linked worktrees share them; closing a tab does not discard the choice. Existing
 sessions and repositories without a color retain the default palette.
 The repo palette tints native-blurred chrome, controls, selection surfaces and a
 faint content wash. The deterministic grain is rasterized once into shared light/dark
-lossless WebP textures, which the GPU scales during resize instead of rasterizing a new
-window-sized SVG mask. Fine grain remains visible on colored and neutral windows,
+1000 × 1000 lossless WebP tiles. A 4 × 4 grid preserves the original texture density
+and centered square while reducing decoded pixels from 122 MiB to under 8 MiB
+for both appearances combined. The GPU scales these shared tiles during resize
+instead of rasterizing a new window-sized SVG mask. Fine grain remains visible
+on colored and neutral windows,
 including Home and Settings, beneath chrome
 controls, never over code. Its density and light/dark opacity keep
 it readable over the blur without animation, filters or an input target.

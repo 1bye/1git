@@ -4,8 +4,12 @@ import sharp from "sharp";
 const pixels: string[] = [];
 const grainPointCount = 1600;
 const grainArtworkSize = 2048;
-const grainTextureSize = 4000;
+const grainTextureSize = 1000;
 const svgDefaultDensityDpi = 72;
+
+/** Repeat a quarter-width tile at the original full-square pixel density. */
+export const chromeGrainTileCount = 4;
+
 let seed = 17;
 
 // Dense enough to remain visible when the mask is downsampled on Retina displays.
@@ -23,14 +27,22 @@ for (let index = 0; index < grainPointCount; index++) {
 	);
 }
 
+const grainSource = (size: number): string =>
+	`<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" preserveAspectRatio="none"><defs><pattern id="grain" width="64" height="64" patternUnits="userSpaceOnUse">${pixels.join("")}</pattern></defs><rect width="${size}" height="${size}" fill="url(#grain)"/></svg>`;
+
 /** Static grain for transparent chrome only; opaque editor surfaces cover it. */
-export const chromeGrainSource = `<svg xmlns="http://www.w3.org/2000/svg" width="${grainArtworkSize}" height="${grainArtworkSize}" viewBox="0 0 ${grainArtworkSize} ${grainArtworkSize}" preserveAspectRatio="none"><defs><pattern id="grain" width="64" height="64" patternUnits="userSpaceOnUse">${pixels.join("")}</pattern></defs><rect width="${grainArtworkSize}" height="${grainArtworkSize}" fill="url(#grain)"/></svg>`;
+export const chromeGrainSource = grainSource(grainArtworkSize);
 
 const createGrainImages = async () => {
-	const { data, info } = await sharp(Buffer.from(chromeGrainSource), {
-		// Fractional source pixels retain the original mask's antialiased grain.
-		density: (grainTextureSize / grainArtworkSize) * svgDefaultDensityDpi,
-	})
+	const { data, info } = await sharp(
+		Buffer.from(grainSource(grainArtworkSize / chromeGrainTileCount)),
+		{
+			// Fractional source pixels retain the original mask's antialiased grain.
+			density:
+				((grainTextureSize * chromeGrainTileCount) / grainArtworkSize) *
+				svgDefaultDensityDpi,
+		}
+	)
 		.ensureAlpha()
 		.raw()
 		.toBuffer({ resolveWithObject: true });
@@ -58,5 +70,5 @@ const createGrainImages = async () => {
 	} as const;
 };
 
-/** Rasterized once at startup; resizing only scales the retained textures. */
+/** Two shared 1000 × 1000 tiles; resizing scales their grid without decoding new textures. */
 export const chromeGrainImages = await createGrainImages();
