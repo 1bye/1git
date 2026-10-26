@@ -72,7 +72,7 @@ diff --git a/packages/native/src/custom_elements/scrollbar.rs b/packages/native/
 new file mode 100644
 --- /dev/null
 +++ b/packages/native/src/custom_elements/scrollbar.rs
-@@ -0,0 +1,179 @@
+@@ -0,0 +1,180 @@
 +//! Scrollbar geometry and input stay on GPUI's frame loop, alongside the target scroller.
 +use super::{CustomElement, CustomElementFactory, CustomRenderContext};
 +use crate::renderer::{pixel_scroll_offset, scroll_metrics, set_pixel_scroll_offset, set_scrollbar_dragging};
@@ -237,7 +237,8 @@ new file mode 100644
 +            } else {
 +                thumb.top(px(g.position)).left(px(INSET)).h(px(g.thumb)).w(px(TRACK_WIDTH - INSET * 2.0))
 +            };
-+            gpui::deferred(gpui::anchored().position(g.bounds.origin).anchor(gpui::Anchor::TopLeft).snap_to_window_with_margin(px(0.0)).child(bar.child(thumb))).with_priority(2).into_any_element()
++            // Pane chrome stays below floating controls (priority 1 and above).
++            gpui::deferred(gpui::anchored().position(g.bounds.origin).anchor(gpui::Anchor::TopLeft).snap_to_window_with_margin(px(0.0)).child(bar.child(thumb))).with_priority(0).into_any_element()
 +        }).absolute().size_0().into_any_element()
 +    }
 +

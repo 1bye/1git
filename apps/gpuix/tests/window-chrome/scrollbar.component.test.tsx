@@ -1,11 +1,11 @@
 /**
- * Covers: light/dark scrollbar contrast, transparent idle tracks and same-frame thumb movement.
+ * Covers: light/dark scrollbar contrast, same-frame thumb movement, hidden ancestors and floating menu occlusion.
  * Real: app palettes, native scrollbar painting, virtual scrolling and screenshot pixels.
  * Doubles: generated rows; no repositories or user preferences.
  * Requires: patched native addon and macOS graphics access.
  */
 import { expect, it } from "bun:test";
-import { useRef } from "react";
+import { useRef, type ReactNode } from "react";
 import { createTestRoot } from "@gpuix/react/testing";
 import type { PublicInstance } from "@gpuix/react";
 import { Scrollbars } from "@1git/gpuix-ui/scrollbar";
@@ -16,7 +16,13 @@ import sharp from "sharp";
 import { appThemes } from "../../src/styles/theme";
 import type { AppAppearance } from "../../src/styles/tokens";
 
-function Fixture({ appearance }: { appearance: AppAppearance }) {
+function Fixture({
+	appearance,
+	children,
+}: {
+	appearance: AppAppearance;
+	children?: ReactNode;
+}) {
 	const target = useRef<PublicInstance>(null);
 	const theme = appThemes[appearance];
 
@@ -63,6 +69,7 @@ function Fixture({ appearance }: { appearance: AppAppearance }) {
 				vertical={target}
 				tokens={{ ...theme.tokens, showScrollbars: true }}
 			/>
+			{children}
 		</div>
 	);
 }
@@ -167,6 +174,87 @@ it.each(["light", "dark"] as const)(
 				root.renderer.captureScreenshot(
 					`${process.env.GPUIX_SCROLLBAR_SCREENSHOT}-${appearance}.png`
 				);
+		} finally {
+			root.unmount();
+			await rm(directory, { recursive: true, force: true });
+		}
+	}
+);
+
+it.each(["light", "dark"] as const)(
+	"keeps pane scrollbars below a floating tab menu and routes input to the menu (%s)",
+	async (appearance) => {
+		const directory = await mkdtemp(join(tmpdir(), "1git-covered-scrollbar-"));
+		const root = createTestRoot({ width: 400, height: 300 });
+		let clicks = 0;
+
+		try {
+			root.render(<Fixture appearance={appearance} />);
+			root.renderer.advanceTime(1);
+			const bar = root.renderer.findByTestId("scrollbar-vertical")!;
+			const bounds = root.renderer.getElementBounds(bar.id)!;
+			const list = root.renderer.findByTestId("list")!;
+			const x = bounds.x + bounds.width / 2;
+			const y = bounds.y + 10;
+			const offset = root.renderer.getScrollOffset(list.id)![1];
+
+			root.render(
+				<Fixture appearance={appearance}>
+					<anchored
+						deferred
+						priority={1}
+						occlude
+						position={{ x: 0, y: 0 }}
+						anchor="topLeft"
+						snapMargin={0}
+					>
+						<div
+							onClick={() => {
+								clicks++;
+							}}
+							style={{
+								width: 400,
+								height: 300,
+								backgroundColor: appThemes[appearance].tokens.colors.overlay,
+							}}
+						/>
+					</anchored>
+				</Fixture>
+			);
+			root.renderer.advanceTime(1);
+			const path = join(directory, "covered.png");
+
+			root.renderer.captureScreenshot(path);
+			const { data, info } = await sharp(path)
+				.removeAlpha()
+				.raw()
+				.toBuffer({ resolveWithObject: true });
+
+			const scale = info.width / 400;
+
+			const index =
+				(Math.floor(y * scale) * info.width + Math.floor(x * scale)) *
+				info.channels;
+
+			const background = [1, 3, 5].map((offset) =>
+				Number.parseInt(
+					appThemes[appearance].tokens.colors.overlay.slice(offset, offset + 2),
+					16
+				)
+			);
+
+			// Pixels at the thumb must belong entirely to the opaque menu above it.
+			expect([...data.subarray(index, index + 3)]).toEqual(background);
+			root.renderer.nativeSimulateClick(x, y);
+			root.renderer.flush();
+			expect(clicks).toBe(1);
+			root.renderer.nativeSimulateScrollWheel(x, y, 0, -120);
+			expect(root.renderer.getScrollOffset(list.id)![1]).toBe(offset);
+
+			root.render(<Fixture appearance={appearance} />);
+			root.renderer.advanceTime(1);
+			root.renderer.nativeSimulateScrollWheel(x, y, 0, -120);
+			expect(root.renderer.getScrollOffset(list.id)![1]).toBeLessThan(offset!);
 		} finally {
 			root.unmount();
 			await rm(directory, { recursive: true, force: true });

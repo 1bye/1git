@@ -1,23 +1,38 @@
 ---
-import AppWindow from "./AppWindow.astro";
-import { screenAsset } from "./screen-assets";
-const missingResult = !screenAsset("ai-composer");
-const missingBusy = !screenAsset("ai-composer-busy");
+import "../styles/commit-composer.css";
 const stars = [[-40,-35],[-4,-54],[40,-40],[48,-18],[-52,2],[-28,24],[20,-64],[-64,-22]];
 const sparkle = "M12 0C12.7 8.2 15.8 11.3 24 12C15.8 12.7 12.7 15.8 12 24C11.3 15.8 8.2 12.7 0 12C8.2 11.3 11.3 8.2 12 0Z";
 ---
-<div class="ai-composer" data-ai-demo data-ai-state="result" data-missing-result={missingResult || undefined} data-missing-busy={missingBusy || undefined} aria-label="AI commit draft preview">
-  <div class="ai-crop ai-result" data-ai-panel="result" data-active>
-    <AppWindow name="ai-composer" alt="Commit composer with feat: polish repository workspace, only feat tinted green, and the Commit button." />
+<div class="ai-composer" data-ai-demo data-ai-state="result" role="group" aria-label="Interactive commit composer demo">
+  <div class="composer-main">
+    <div class="composer-editor">
+      <div class="composer-highlight" aria-hidden="true" data-message-highlight><span class="composer-type" data-message-type>feat</span><span data-message-rest>: polish repository workspace</span></div>
+      <label for="ai-commit-message" class="sr-only">Commit message</label>
+      <textarea id="ai-commit-message" class="composer-message" data-commit-message spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="Commit message…">feat: polish repository workspace</textarea>
+    </div>
+    <div class="composer-actions">
+      <div class="composer-ai-slot">
+      <button class="ai-sparkle composer-icon-button" type="button" aria-label="Generate AI commit draft" data-ai-replay disabled>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m10 3 2.5 6.5L19 12l-6.5 2.5L10 21l-2.5-6.5L1 12l6.5-2.5Z"/><path d="m19 1 1 3 3 1-3 1-1 3-1-3-3-1 3-1Z"/></svg>
+        {stars.map(([x,y]) => <svg class="ai-star" viewBox="0 0 24 24" style={`--dx:${x}px;--dy:${y}px`} aria-hidden="true"><path d={sparkle} /></svg>)}
+      </button>
+      <button class="ai-stop composer-icon-button" type="button" aria-label="Stop generating draft" data-ai-stop hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
+      </button>
+      </div>
+      <button class="composer-commit" type="button" data-demo-commit aria-keyshortcuts="Meta+Enter Control+Enter" disabled>
+        <span class="composer-spinner" data-ai-spinner aria-hidden="true" hidden></span>
+        <span data-commit-label>Commit 162 files</span>
+      </button>
+    </div>
   </div>
-  <div class="ai-crop ai-busy" data-ai-panel="busy" aria-hidden="true" inert>
-    <AppWindow name="ai-composer-busy" alt="The same commit composer generating a draft, with a Writing message… spinner and Stop button." />
+  <div class="composer-history">
+    <div class="composer-last-copy">
+      <p class="composer-caption" data-last-caption>Committed 21 minutes ago</p>
+      <p class="composer-subject"><span class="composer-type" data-last-type>feat</span><span data-last-subject>(session) preserve compatible saved intent</span></p>
+    </div>
+    <button class="composer-history-button" type="button" data-demo-amend aria-pressed="false" disabled>Amend</button>
+    <button class="composer-history-button" type="button" data-demo-undo disabled>Undo</button>
   </div>
-  <button class="ai-sparkle" type="button" aria-label="Preview AI commit draft" data-ai-replay>
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m10 3 2.5 6.5L19 12l-6.5 2.5L10 21l-2.5-6.5L1 12l6.5-2.5Z"/><path d="m19 1 1 3 3 1-3 1-1 3-1-3-3-1 3-1Z"/></svg>
-    {stars.map(([x,y]) => <svg class="ai-star" viewBox="0 0 24 24" style={`--dx:${x}px;--dy:${y}px`} aria-hidden="true"><path d={sparkle} /></svg>)}
-  </button>
-  <button class="demo-commit ai-hit-area" type="button" aria-label="Preview commit confirmation rings" data-demo-commit><span class="placeholder-control" aria-hidden="true">Commit</span></button>
-  <button class="ai-stop ai-hit-area" type="button" aria-label="Stop AI draft preview" data-ai-stop hidden><span class="placeholder-control" aria-hidden="true">Stop</span></button>
-  <p class="sr-only" aria-live="polite" data-ai-status>Draft ready: feat: polish repository workspace.</p>
+  <p class="sr-only" role="status" data-ai-status>Draft ready. Edit the message or generate another draft.</p>
 </div>

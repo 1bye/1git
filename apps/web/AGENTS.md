@@ -16,11 +16,12 @@ TypeScript and workspace workflow; React instructions do not apply to Astro.
   image link, download links, custom 404, reduced motion and no page overflow.
   The app screenshot is a static image supplied by the user. The native window
   crop and masked blur layers share optimized responsive assets. Test shader
-  fallback, the skippable session intro, motion pause, and the reading spotlight.
+  fallback, direct hero entry without an intro, and motion pause.
   Window states resolve from `src/assets/screens/`; missing files must remain
   labelled placeholders. Theme windows and wallpapers crossfade together. Verify
-  persisted Pause animations, the single native-matching tab strip, and both AI
-  states. Check all eight scene stops with keyboard and wheel input, reverse
+  persisted Pause animations, the single native-matching tab strip, and the HTML
+  composer's editing, generation/Stop, Commit/Undo and Amend controls. Check all
+  eight scene stops with keyboard and wheel input, reverse
   navigation, long mobile scenes, and snapping disabled by pause/reduced motion.
   Scene content can transform; snap targets must retain stable layout geometry.
   Never fill a missing state with an unrelated screenshot.

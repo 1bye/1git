@@ -1,3 +1,5 @@
+import { onceOnView } from "./motion";
+
 export type SceneState = "before" | "active" | "after";
 
 /** Keep long scenes active while their content crosses the viewport centre. */
@@ -48,7 +50,7 @@ export function observeViewportCenter(
 	};
 }
 
-/** Native snapping owns scrolling; this controller only stages scene content. */
+/** Desktop scenes snap; compact layouts reveal content once during natural scrolling. */
 export function initScenes(): void {
 	const scenes = [...document.querySelectorAll<HTMLElement>("[data-scene]")];
 
@@ -56,25 +58,35 @@ export function initScenes(): void {
 
 	const root = document.documentElement;
 	const reduced = matchMedia("(prefers-reduced-motion: reduce)");
+	const compact = matchMedia("(max-width: 767px), (max-height: 759px)");
+
+	for (const actor of document.querySelectorAll<HTMLElement>(
+		"[data-scene-text], [data-scene-window]"
+	)) {
+		onceOnView(actor, () => actor.setAttribute("data-scene-entered", ""));
+	}
 
 	const sync = () => {
 		const enabled =
 			!reduced.matches && !root.hasAttribute("data-motion-paused");
 
-		root.toggleAttribute("data-scenes-ready", enabled);
+		root.toggleAttribute("data-scenes-ready", enabled && !compact.matches);
+		root.toggleAttribute("data-flow-ready", enabled && compact.matches);
 
 		for (const scene of scenes) {
 			const { top, bottom } = scene.getBoundingClientRect();
 
-			scene.dataset.sceneState = enabled
-				? sceneState(top, bottom, innerHeight / 2)
-				: "active";
+			scene.dataset.sceneState =
+				enabled && !compact.matches
+					? sceneState(top, bottom, innerHeight / 2)
+					: "active";
 		}
 	};
 
 	observeViewportCenter(scenes, sync);
 	document.addEventListener("motionchange", sync);
 	reduced.addEventListener("change", sync);
+	compact.addEventListener("change", sync);
 	window.addEventListener("resize", sync);
 	sync();
 }

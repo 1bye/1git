@@ -24,14 +24,14 @@ uses its own opaque content surface. Optional repository colors add only a trans
 tint over that material, never an opaque replacement.
 The connected tab silhouette keeps its shape while moving.
 
-Onboarding's third step automatically searches the local home folder and shows
+Onboarding's fourth step automatically searches the local home folder and shows
 repository names and paths below the Open/Create/Clone actions. Results arrive
 progressively; Searching… · Stop and Scan again control discovery. The borderless list
 uses the shared virtual repository list to scroll continuously through all results. Opening a result
 finishes setup only after a successful read; discovery alone does not add saved
 repositories. Search filters repository names and paths locally and shows the
 matching count in the heading. The normal Open from disk picker remains available for other folders.
-The final step's Back button returns to accounts; Continue finishes setup without opening a repository.
+The final step's Back button returns to spaces; Continue finishes setup without opening a repository.
 
 ## Spaces
 
@@ -284,7 +284,12 @@ is the team ID. These select the account explicitly, independently of whichever
 Apple account is active in Xcode. An Apple Development, iPhone Distribution,
 Developer ID Installer or different-team certificate is rejected before building.
 
-Save notarization credentials once, using your release account email and team ID:
+Notarization is optional. Leave `ONEGIT_MACOS_NOTARY_PROFILE` unset or empty to
+build and publish a Developer ID signed app without contacting the notary service.
+These releases do not need an app-specific password. macOS may block downloaded
+apps until users choose **Open Anyway**, as described in [Apple's guidance](https://support.apple.com/en-us/102445).
+
+To enable notarization later, save credentials once using your release account email and team ID:
 
 ```sh
 xcrun notarytool store-credentials "1git-notary" \
@@ -294,18 +299,21 @@ xcrun notarytool store-credentials "1git-notary" \
 
 Enter your **app-specific password** at the prompt, not in a script or chat.
 The credential stays in Keychain. See [Apple's notarization credentials guide](https://developer.apple.com/documentation/technotes/tn3147-migrating-to-the-latest-notarization-tool).
-Then export all three public configuration values in the terminal running the build:
+Export the public signing values in the terminal running the build. The profile
+below is empty for signing-only releases; set it to `1git-notary` to also notarize:
 
 ```sh
 export ONEGIT_MACOS_SIGNING_IDENTITY="CERTIFICATE_SHA1_FINGERPRINT"
 export ONEGIT_MACOS_TEAM_ID="APPLE_TEAM_ID"
-export ONEGIT_MACOS_NOTARY_PROFILE="1git-notary"
+export ONEGIT_MACOS_NOTARY_PROFILE=""
 bun run package:macos
 ```
 
 Replace the placeholders with actual values. Do not combine these settings with
-`ONEGIT_MACOS_ADHOC` or `ONEGIT_MACOS_SIGNING_CONFIG`. Partial or invalid settings
-fail instead of falling back to another account or the existing self-signed pin.
+`ONEGIT_MACOS_ADHOC` or `ONEGIT_MACOS_SIGNING_CONFIG`. Missing or invalid signing
+identity/team settings fail instead of falling back to another account or the
+existing self-signed pin. A nonempty notarization profile must have a valid name;
+missing or denied credentials then fail instead of silently skipping notarization.
 Both `package:macos` and `release:macos` forward this configuration through Turbo.
 Keep the same exports when running `release:macos`; its `--profile` option selects
 an Alchemy publishing profile, independently of the Apple account.
@@ -317,18 +325,21 @@ Sparkle's downloader retains its own upstream sandbox entitlements, following
 [Sparkle's signing guidance](https://sparkle-project.org/documentation/sandboxing/#code-signing).
 The macOS SSH helper payloads are signed before compression and checksumming.
 
-Packaging uploads a temporary app ZIP to Apple's notary service using the named
+With a nonempty profile, packaging uploads a temporary app ZIP to Apple's notary service using the named
 Keychain profile, waits up to 30 minutes for `Accepted`, staples and validates
 the ticket, checks the code signature and Gatekeeper, then creates the final ZIP
 and SHA-256 checksum. Rejection, timeout or validation failure leaves previous
 package outputs intact and prevents publishing. The distributed ZIP and Sparkle
 update ZIP both contain the stapled app. No Apple password or private key is
-embedded in either artifact. The existing Sparkle Ed25519 key is unchanged.
+embedded in either artifact. Without a profile, packaging still verifies code
+signatures and builds the normal distribution/update ZIPs, labelled as signed but
+not notarized. The existing Sparkle Ed25519 key is unchanged.
 
 `release:macos -- --version 0.0.2 --dry-run` signs locally but skips the Apple
 upload and notarization, as well as R2 access. Its ZIP explicitly says it is not
 notarized and must not be distributed. Code signing may still contact Apple's
-timestamp service. Normal Developer ID packaging and real releases always notarize.
+timestamp service. Normal packaging and real releases notarize only when a
+nonempty `ONEGIT_MACOS_NOTARY_PROFILE` is configured.
 Switching from the existing self-signed identity can require a one-time Keychain
 approval or account reconnect for previously saved credentials.
 
@@ -460,6 +471,8 @@ restores the defaults. Changes preserve drafts and are saved with the session.
 and diff panes. Their thin, translucent thumbs follow the window palette; idle
 tracks stay clear. Native layout, painting and pointer handling keep the thumb
 synchronized with the pane without JavaScript polling or React updates while scrolling.
+Pane bars paint below floating controls, so tab menus cover them and receive pointer
+input without scrolling the pane underneath.
 The setting is on by default and saved with the window session. A saved disabled
 choice is preserved.
 
@@ -587,9 +600,9 @@ version supports local repositories; SSH repositories are not monitored.
 
 ## Onboarding
 
-A fresh launch without a saved session starts a skippable three-step setup:
+A fresh launch without a saved session starts a skippable four-step setup:
 live Light/Dark previews, optional hosting accounts with secondary commit
-identity, and Open/Clone/Create repository tiles. Existing session files
+identity, optional spaces, and Open/Clone/Create repository tiles. Existing session files
 without setup metadata are treated as complete, even with no recent repositories;
 invalid sessions retain the existing recovery behavior instead of starting setup.
 Progress and completion are saved separately from repository navigation in the
@@ -607,6 +620,11 @@ requests start only after an explicit sign-in/connect.
 Commit identity is a secondary, expandable section, prefilled read-only from
 global configuration. Only **Save identity** updates computer-wide Git settings;
 Continue, Back, Skip, and account connection never save identity edits.
+Step 3 can rename Default, choose icons, and add spaces through the existing editor.
+With two or more spaces, a miniature rail teaches two-finger horizontal swipes;
+arrows offer the same switch for mouse and keyboard users. Practice is optional:
+Continue and **Skip for now** both advance to repository setup. The selected space
+receives the first repository. The rail's space tooltip also reminds users of the gesture.
 Repository setup uses the existing picker, Clone view, and Create form, with
 their cancellation/error and duplicate-write protections. Successful repository
 loading completes onboarding; merely choosing an action or cancelling does not.

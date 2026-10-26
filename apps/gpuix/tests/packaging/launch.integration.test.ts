@@ -78,12 +78,16 @@ it("opens the extracted ZIP without a terminal or checkout-dependent resources",
 		]);
 		const readme = await readFile(resolve(directory, "README.txt"), "utf8");
 
+		const developerIDSigned = readme.includes(
+			"This app is Developer ID signed"
+		);
+
 		const notarized = readme.includes(
 			"Developer ID signed and notarized by Apple"
 		);
 
 		expect(readme).toMatch(
-			/not Developer ID signed or notarized|Developer ID signed and notarized by Apple/u
+			/not Developer ID signed or notarized|Developer ID signed (?:and notarized|but has not been notarized) by Apple/u
 		);
 		await run(["codesign", "--verify", "--deep", "--strict", bundle]);
 
@@ -119,7 +123,7 @@ it("opens the extracted ZIP without a terminal or checkout-dependent resources",
 				createHash("sha256").update(gunzipSync(compressed)).digest("hex")
 			);
 
-			if (notarized && target.startsWith("darwin-")) {
+			if (developerIDSigned && target.startsWith("darwin-")) {
 				const helper = resolve(directory, target);
 
 				await writeFile(helper, gunzipSync(compressed), { mode: 0o755 });

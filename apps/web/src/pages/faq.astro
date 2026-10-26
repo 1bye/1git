@@ -1,6 +1,7 @@
 ---
 import AnalyticsPreference from "../components/AnalyticsPreference.astro";
 import Layout from "../layouts/Layout.astro";
+import ButtonHover from "../components/ButtonHover.astro";
 import Icon from "../components/Icon.astro";
 
 const questions = [
@@ -63,7 +64,7 @@ const structuredData = {
     <a class="brand" href="/" aria-label="1git home">
       <span>1git</span>
     </a>
-    <a class="header-download" href="https://git.1bye.dev/download">Download</a>
+    <a class="header-download" href="https://git.1bye.dev/download">Download <ButtonHover kind="download" /></a>
   </header>
   <main id="main" class="faq">
     <div class="faq-intro">

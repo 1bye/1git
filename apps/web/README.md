@@ -1,7 +1,8 @@
 # 1git website
 
 Production on `git.1bye.dev` sends anonymous page views and download clicks to
-PostHog EU by default. Every page has an **Anonymous analytics** checkbox.
+PostHog EU by default. The FAQ page has an **Anonymous analytics** checkbox,
+reachable from the homepage footer's **Questions & answers** link.
 Only preferences and event counters use localStorage; no cookies or persistent
 identity are created. Local development and preview hosts stay offline. See
 [analytics policy and spending limits](../../packages/analytics/README.md).
@@ -22,14 +23,28 @@ lighter section edges visible.
 `motion.ts` owns the shared easings and once-on-view behavior.
 `scene-motion.ts` stages eight full-screen scenes with native CSS scroll snapping.
 The content moves and settles while the snap targets stay fixed in the layout.
-Desktop uses mandatory snapping; narrow or short screens use proximity snapping
-and let tall scenes scroll naturally. Pause animations and reduced motion disable
+Desktop uses mandatory snapping. Narrow or short screens use natural scrolling,
+content-sized sections and once-per-item blur entrances; returning or resizing
+the browser toolbar keeps revealed content visible. Pause and reduced motion disable
 snapping and settle every scene. No wheel interception or animation dependency is
 needed. `scenes.css` holds the scene layout and transitions.
-`launch-features.ts` owns the AI crop interaction, synchronized theme frames and
-reading spotlight. The footer's Pause animations button persists its explicit
-choice in localStorage, safely falling back when storage is blocked. Paused or
-reduced-motion visits skip intro/autoplay and show settled, readable content.
+`launch-features.ts` owns tab playback, commit-composer setup and synchronized
+theme frames. The homepage footer omits motion and analytics controls.
+Previously saved motion preferences remain in localStorage. Paused or
+reduced-motion visits skip autoplay and show settled, readable content. The page
+opens directly on the hero; there is no intro overlay or skip control. The floating
+header stays hidden and inert while the hero intersects the viewport, including
+edge contact when scrolling back.
+The floating header and FAQ nav use a translucent blue glass tint.
+Navigation hover adds only a slight highlight; the lighter Download pill uses
+white text. Check readability independently of the section below.
+
+The fixed glow covers `100lvh` (with a `100vh` fallback), including the area mobile
+browser controls reveal while scrolling. The WebGL drawing buffer measures the
+background host rather than `innerHeight`, which can still report the smaller
+viewport. Keep the shader's center in viewport coordinates and retain the 1.5 DPR
+cap. Check expanded/collapsed browser controls and the static reduced-motion glow
+when changing canvas sizing, especially near the hero/Native speed boundary.
 
 The hero fills one screen and crops its window to the remaining viewport space.
 Eight vertical gradient masks blend incremental blur strengths that combine up
@@ -148,7 +163,7 @@ continues to serve existing OG/structured-data assets. No unrelated feature
 window uses it as a missing-state fallback.
 
 The smaller features live in the History/Branches/Workspace reading grid, with
-unique 24-unit icons and a once-only 380ms spotlight. The AI section is a local
+unique 24-unit icons and shared blur reveals. The AI section is a local
 busy/result crop preview with transparent, accessible hit areas; it makes no AI,
 Git, account or SSH requests. Downloads still use the existing production
 `/download` endpoint, including from local previews.
@@ -198,3 +213,48 @@ The asset resolver imports only supported window-state filenames. Historical tab
 crops and avatars stay in source without being emitted as unused client assets.
 This pass changes image selection only; grain, blur, clouds, video and animation
 code remain intact. It does not claim a CPU, FPS or load-time improvement.
+
+
+## Section blur entrances
+
+`data-scene-text` and `data-scene-window` use the existing scene controller's
+active/before/after states. CSS reveals headlines, supporting copy and window
+art in a short stagger, replaying on section re-entry. Text resolves from 28px
+blur over 760ms; windows use 8px over 860ms. The hero starts immediately.
+Existing tab motion and AI interactions stay on their original elements.
+Feature rows reveal together with full-brightness text.
+
+Finished actors retain a zero blur to avoid a compositor flash and clear their transform; no persistent
+`will-change` or animation library is added. Pause and reduced motion keep every
+actor readable, and focused window links immediately settle. Text stays in the
+static HTML. Test entrance/settle, reverse navigation, header visibility, focus, pause,
+and reduced motion after changing this choreography.
+
+On compact layouts, `data-flow-ready` and `data-scene-entered` apply a shorter
+520ms reveal as each item enters view. The remote diagram uses a dedicated vertical
+SVG in the grid between window edges. The first machine label sits above its
+window and the second below, so neither interrupts the connection. Check endpoint
+alignment, partial/reverse scrolling, toolbar resize and 360–767px widths.
+On desktop, the SVG is anchored inside the source window, centered with equal
+top/bottom insets. Its width spans the 24% grid gap and the two 40px figure insets;
+keep those values paired when changing the layout. Both windows align at the top.
+The former green thread is white; the blue accent remains.
+
+## Interactive commit composer
+
+`AiComposer.astro` and `commit-composer.css` recreate the film's composer in HTML.
+The labelled textarea mirrors its plain text into an aria-hidden highlight layer;
+only `feat` is tinted. Text is assigned with `textContent`, never parsed as HTML.
+Buttons have at least 44px touch targets and the editor stays at least 16px on phones.
+
+`commit-composer.ts` binds the controls to the in-memory `CommitDraft` state.
+Generate runs three progress stages and Stop retains the current draft. Commit
+updates the displayed history; Undo restores it and returns the message to the
+editor. Amend toggles the previous message into the editor while preserving the
+unfinished draft. ⌘/Ctrl+Enter commits. No Git or AI requests are sent, and edits
+are not stored. Generation is user-triggered and reduced motion completes it
+immediately. Hiding the tab or pausing motion cancels pending timers.
+
+Verify editing/multiline input, generation/Stop, empty-message disabling,
+Commit/Undo, Amend/cancel, keyboard use and mobile layout. Interacting with the
+composer settles its entrance so moving focus cannot restart the blur.

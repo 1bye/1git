@@ -24,6 +24,7 @@ const socialImage = new URL("/og.png", Astro.site);
 const socialImageAlt = "1git — A clearer view. Of every change. White serif lettering on a blue cloud glow beside the Changes window with repository tabs and a README diff.";
 const cloudTexture = await getImage({ src: cloudWisp, format: "webp" });
 const author = { "@type": "Person", "@id": "https://1bye.dev/#person", name: "1bye", url: "https://1bye.dev/" };
+
 const image = {
   "@type": "ImageObject",
   "@id": `${socialImage.href}#image`,
@@ -71,7 +72,7 @@ const graph = {
     <meta charset="UTF-8" />
     <script is:inline define:vars={{ motionStorageKey }}>
       try { if (localStorage.getItem(motionStorageKey) === "1") document.documentElement.setAttribute("data-motion-paused", ""); } catch { /* Storage may be unavailable. */ }
-    </script>
+</script>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={description} />
     <meta name="theme-color" content="#5a7fc2" />

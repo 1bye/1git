@@ -1,5 +1,6 @@
 ---
 import AppWindow from "./AppWindow.astro";
+import WindowClouds from "./WindowClouds.astro";
 const themes = [
   { name: "Rose", wallpaper: "clouds", screen: "theme-rose" },
   { name: "Forest", wallpaper: "forest", screen: "theme-forest" },
@@ -9,7 +10,8 @@ const themes = [
 ---
 <section class="theme-section" data-theme-cycler aria-labelledby="themes-title" data-scene="themes">
   <div class="scene-content" data-scene-motion>
-  <h3 id="themes-title" class="display">Make every repo yours.</h3>
+  <h3 data-scene-text id="themes-title" class="display">Make every repo yours.</h3>
+  <div class="cloud-frame" data-scene-window>
   <div class="theme-stage">
     {themes.map(({name,wallpaper},i) => <img class="theme-wallpaper" src={`/images/themes/${wallpaper}.webp`} width="1920" height="1080" loading="lazy" alt={`${name} theme wallpaper: ${wallpaper.replaceAll("-", " ")}.`} data-theme-frame={i} data-active={i === 0 ? "" : undefined} aria-hidden={i !== 0} />)}
     <div class="theme-windows">
@@ -18,8 +20,16 @@ const themes = [
       </div>)}
     </div>
   </div>
-  <div class="theme-controls" role="group" aria-label="Repository themes">
+  <WindowClouds />
+  </div>
+  <div class="theme-controls" role="group" aria-label="Repository themes" data-pill-scenes>
+    <svg class="pill-scenes" aria-hidden="true"></svg>
     {themes.map(({name},i) => <button type="button" aria-pressed={i === 0} data-theme-index={i}>{name}</button>)}
   </div>
   </div>
 </section>
+
+<script>
+  import { initPillScenes } from "../scripts/theme-pill-scenes";
+  initPillScenes();
+</script>

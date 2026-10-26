@@ -131,3 +131,25 @@ it("keeps existing self-signed and ad-hoc packaging offline", async () => {
 		expect(signing.developerID).toBeUndefined();
 	}
 });
+
+it("skips Apple submission, stapling and Gatekeeper assessment for signed-only releases", async () => {
+	for (const profile of [undefined, ""]) {
+		const signing = await MacSigning.load(
+			{ ...environment, ONEGIT_MACOS_NOTARY_PROFILE: profile },
+			true
+		);
+
+		let nativeCommands = 0;
+
+		await signing.notarize("/test/1git.app", "/test/archive.zip", async () => {
+			nativeCommands++;
+
+			throw new Error(
+				"Signed-only releases must not access the notary service"
+			);
+		});
+
+		expect(nativeCommands).toBe(0);
+		expect(signing.developerID?.teamID).toBe("BRUNO12345");
+	}
+});

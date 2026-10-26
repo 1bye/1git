@@ -180,15 +180,21 @@ try {
 	if (!values["dry-run"])
 		await signing.notarize(bundle, resolve(staging, "notarization.zip"));
 
-	let securityInformation = `This beta is ${signing.certificate ? "self-signed with a stable identity" : "ad-hoc signed"}, not Developer ID signed or notarized by Apple.
-macOS may block the first launch. Only if you trust the source, after trying
+	const gatekeeperInformation = `macOS may block the first launch. Only if you trust the source, after trying
 to open the app, use System Settings > Privacy & Security > Open Anyway.
 Some managed Macs do not permit this exception. Do not disable Gatekeeper.
 Apple's instructions: https://support.apple.com/en-us/102445`;
 
+	let securityInformation = `This beta is ${signing.certificate ? "self-signed with a stable identity" : "ad-hoc signed"}, not Developer ID signed or notarized by Apple.
+${gatekeeperInformation}`;
+
 	if (signing.developerID) {
-		securityInformation =
-			"This app is Developer ID signed and notarized by Apple, with a stapled ticket.";
+		securityInformation = `This app is Developer ID signed but has not been notarized by Apple.
+${gatekeeperInformation}`;
+
+		if (signing.developerID.notaryProfile)
+			securityInformation =
+				"This app is Developer ID signed and notarized by Apple, with a stapled ticket.";
 
 		if (values["dry-run"])
 			securityInformation =

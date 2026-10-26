@@ -9,17 +9,17 @@ const { variant } = Astro.props;
 <article class:list={["feature-block", `feature-${variant}`]} data-reveal data-scene={variant}>
   <div class="scene-content" data-scene-motion>
   <div class="feature-copy" data-glow-anchor>
-    {variant === "native" && <><h3>Native speed.<br />GPU rendered.</h3><p>Built with GPUIX (GPUI).</p></>}
-    {variant === "tabs" && <><h3>Every repository.<br />A tab of its own.</h3><p>Drag, reorder, switch with ⌘P.</p></>}
-    {variant === "ai" && <><h3>AI commit drafts.<br />Yours to refine.</h3><p>Review the suggestion. Make it yours.</p></>}
+    {variant === "native" && <><h3 data-scene-text>Native speed.<br />GPU rendered.</h3><p data-scene-text style="--scene-delay:100ms">Built with GPUIX (GPUI).</p></>}
+    {variant === "tabs" && <><h3 data-scene-text>Every repository.<br />A tab of its own.</h3><p data-scene-text style="--scene-delay:100ms">Drag, reorder, switch with ⌘P.</p></>}
+    {variant === "ai" && <><h3 data-scene-text>AI commit drafts.<br />Yours to refine.</h3><p data-scene-text style="--scene-delay:100ms">Review the suggestion. Make it yours.</p></>}
   </div>
   <div class="feature-art">
-    {variant === "native" && <div class="cloud-frame"><AppWindow name="changes" alt="Native Changes workspace showing the file list, README diff and commit controls." /><WindowClouds /></div>}
+    {variant === "native" && <div class="cloud-frame" data-scene-window><AppWindow name="changes" alt="Native Changes workspace showing the file list, README diff and commit controls." /><WindowClouds /></div>}
     {variant === "tabs" && <>
-      <p class="tabs-word display"><span class="sr-only">Tabs</span><span aria-hidden="true">Ta{[0,1,2,3,4,5].map((i) => <span class="extra-a" style={`--order:${i}`}>a</span>)}bs</span></p>
-      <div class="cloud-frame"><TabStrip /><WindowClouds /></div>
+      <div class="tabs-text-reveal" data-scene-text><p class="tabs-word display"><span class="sr-only">Tabs</span><span aria-hidden="true">Ta{[0,1,2,3,4,5].map((i) => <span class="extra-a" style={`--order:${i}`}>a</span>)}bs</span></p></div>
+      <div class="cloud-frame" data-scene-window><TabStrip /><WindowClouds /></div>
     </>}
-    {variant === "ai" && <div class="cloud-frame"><AiComposer /><WindowClouds /></div>}
+    {variant === "ai" && <div class="cloud-frame" data-scene-window><AiComposer /><WindowClouds /></div>}
   </div>
   </div>
 </article>

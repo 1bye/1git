@@ -397,6 +397,7 @@ export function AccountsSettings({
 								setSection("spaces");
 							}}
 						>
+							<WorkspaceTabIcon name="layers" testId="settings-spaces-icon" />
 							Spaces
 						</Button>
 					) : null}
@@ -441,6 +442,7 @@ export function AccountsSettings({
 							setSection("privacy");
 						}}
 					>
+						<WorkspaceTabIcon name="shield" testId="settings-privacy-icon" />
 						Privacy
 					</Button>
 					<Button

@@ -1,23 +1,31 @@
 ---
 import AppWindow from "./AppWindow.astro";
+import ButtonHover from "./ButtonHover.astro";
 import WindowClouds from "./WindowClouds.astro";
+import { REPO_URL } from "./repository-link";
 // Incremental Gaussian radii combine into a smooth ramp capped at 30px.
 const blurSteps = [2, 5, 8, 12, 16, 20, 25, 30];
 ---
 <section id="top" class="hero" aria-labelledby="hero-title" data-scene="intro">
   <div class="hero-copy" data-glow-anchor>
     <div class="wordmark-scene">
-      <p class="hero-wordmark display">1git</p>
+      <p class="hero-wordmark display" data-scene-text>1git</p>
     </div>
-    <h1 id="hero-title" class="display">A clearer view.<br />Of every change.</h1>
-    <div class="cta-row">
-      <a class="download-button" href="https://git.1bye.dev/download">Download for macOS <span aria-hidden="true">↗</span></a>
+    <h1 id="hero-title" class="display" data-scene-text style="--scene-delay:100ms">A clearer view.<br />Of every change.</h1>
+    <div class="cta-row" data-scene-text style="--scene-delay:200ms">
+      <a class="download-button" href="https://git.1bye.dev/download">Download for macOS <ButtonHover kind="download" /></a>
+      <a class="github-button" href={REPO_URL} target="_blank" rel="noopener" aria-label="GitHub repository, opens in a new tab">
+        GitHub
+        <ButtonHover kind="github" />
+      </a>
     </div>
-    <p class="download-note">macOS 13+ · Apple Silicon · Git required</p>
+    <p class="download-note" data-scene-text style="--scene-delay:300ms">macOS 13+ · Apple Silicon · Git required</p>
   </div>
   <div class="hero-window-stage">
     <div class="hero-product">
-      <AppWindow name="changes" alt="Changes view with checked files, a README diff and commit composer in the hero." eager progressive />
+      <div data-scene-window>
+        <AppWindow name="changes" alt="Changes view with checked files, a README diff and commit composer in the hero." eager progressive />
+      </div>
     </div>
     <div class="hero-clouds"><WindowClouds /></div>
     <div class="hero-linear-blur" aria-hidden="true">

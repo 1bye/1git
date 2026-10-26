@@ -66,8 +66,9 @@ export function PrivacySettings({
 					maxWidth: 480,
 				}}
 			>
-				Help improve 1git by sharing app launches, version and workspace feature
-				usage with PostHog. Enabled by default; you can change this at any time.
+				Help improve 1git by sharing app launches, version and onboarding
+				completion with PostHog. Enabled by default; you can change this at any
+				time.
 			</text>
 			<text
 				style={{

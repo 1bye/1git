@@ -135,7 +135,7 @@ it("rejects incomplete, malformed or conflicting Developer ID settings without a
 		},
 		{ ...developerEnvironment, ONEGIT_MACOS_SIGNING_IDENTITY: "" },
 		{ ...developerEnvironment, ONEGIT_MACOS_TEAM_ID: "wrong" },
-		{ ...developerEnvironment, ONEGIT_MACOS_NOTARY_PROFILE: "" },
+		{ ...developerEnvironment, ONEGIT_MACOS_NOTARY_PROFILE: "invalid profile" },
 		{ ...developerEnvironment, ONEGIT_MACOS_ADHOC: "1" },
 		{ ...developerEnvironment, ONEGIT_MACOS_SIGNING_CONFIG: "" },
 		{
@@ -144,6 +144,21 @@ it("rejects incomplete, malformed or conflicting Developer ID settings without a
 		},
 	])
 		await expect(MacSigning.load(env)).rejects.toThrow("Developer ID");
+});
+
+it("allows signed releases without a notarization profile while preserving Bruno's identity", async () => {
+	for (const profile of [undefined, ""]) {
+		const signing = await MacSigning.load(
+			{ ...developerEnvironment, ONEGIT_MACOS_NOTARY_PROFILE: profile },
+			true
+		);
+
+		expect(signing.fingerprint).toBe(
+			developerEnvironment.ONEGIT_MACOS_SIGNING_IDENTITY.toUpperCase()
+		);
+		expect(signing.developerID?.teamID).toBe("BRUNO12345");
+		expect(signing.developerID?.notaryProfile).toBeUndefined();
+	}
 });
 
 it("requires the selected fingerprint to be a usable Developer ID Application certificate from Bruno's team", async () => {

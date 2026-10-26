@@ -66,7 +66,7 @@ test("defaults on and sends only approved anonymous properties to EU ingestion",
 	const client = create();
 
 	const event = {
-		name: "feature_used",
+		name: "app_started",
 		feature: "history",
 		email: "secret@example.com",
 		repository: "/private/work",
@@ -83,14 +83,13 @@ test("defaults on and sends only approved anonymous properties to EU ingestion",
 	});
 	expect(payload(requests[0]?.init)).toEqual({
 		api_key: expect.stringMatching(/^phc_/u),
-		event: "feature_used",
+		event: "app_started",
 		distinct_id: expect.stringMatching(
 			/^[a-f0-9]{8}-[a-f0-9]{4}-7[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/u
 		),
 		timestamp: "2026-10-01T12:00:00.000Z",
 		properties: {
 			source: "desktop",
-			feature: "history",
 			app_version: "1.2.3",
 			$process_person_profile: false,
 			$geoip_disable: true,
@@ -103,6 +102,21 @@ test("defaults on and sends only approved anonymous properties to EU ingestion",
 	);
 	expect(JSON.stringify(requests)).not.toContain("secret@example.com");
 	expect(JSON.stringify(requests)).not.toContain("/private/work");
+});
+
+test("rejects removed feature events without sending or reserving quota", async () => {
+	for (const source of ["desktop", "website"] as const) {
+		const { create, requests, storage } = fixture();
+		const client = create({ source });
+		const removed = { name: "feature_used", feature: "history" } as const;
+
+		// @ts-expect-error Removed events must fail both type and runtime checks.
+		const captured = await client.capture(removed);
+
+		expect(captured).toBe(false);
+		expect(requests).toHaveLength(0);
+		expect(storage.read()).toBeNull();
+	}
 });
 
 test("website capture has canonical page URLs and rejects desktop events", async () => {
@@ -144,7 +158,7 @@ test("deduplicates events within a session and rotates the identity after 30 min
 
 	await client.capture({ name: "app_started" });
 	expect(await client.capture({ name: "app_started" })).toBe(false);
-	await client.capture({ name: "feature_used", feature: "history" });
+	await client.capture({ name: "onboarding_completed" });
 	expect(payload(requests[0]?.init).distinct_id).toBe(
 		payload(requests[1]?.init).distinct_id
 	);

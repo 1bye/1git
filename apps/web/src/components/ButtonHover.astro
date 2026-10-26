@@ -1,0 +1,20 @@
+---
+import Icon from "./Icon.astro";
+import { shapes } from "../scripts/pill-shapes";
+
+interface Props {
+  kind: "github" | "download";
+}
+
+const { kind } = Astro.props;
+const sparklePath = `M${shapes.sparkle.map(([x, y]) => `${x.toFixed(3)} ${y.toFixed(3)}`).join("L")}Z`;
+---
+
+<span class={`button-scene ${kind}-scene`} aria-hidden="true">
+  <span class={`button-piece ${kind === "github" ? "github-branch" : "download-cloud"}`}>
+    {kind === "github" ? <Icon name="gitBranch" size={44} /> : <svg viewBox="0 0 32 24" fill="currentColor" focusable="false"><path d="M8 20a6 6 0 0 1-.8-11.95 9 9 0 0 1 17.45 1.2A5.5 5.5 0 1 1 25 20Z" /></svg>}
+  </span>
+  {[1, 2, 3].map((star) => <span class={`button-piece button-star ${kind}-star-${star}`}>
+    <svg viewBox="-1 -1 2 2" focusable="false"><path d={sparklePath} /></svg>
+  </span>)}
+</span>

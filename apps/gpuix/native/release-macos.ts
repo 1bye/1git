@@ -14,7 +14,7 @@ import {
 } from "./publisher-request";
 
 const usage =
-	"Usage: bun run release:macos -- --version 0.0.2 [--stage prod] [--profile name] [--dry-run]\nUses the personal Alchemy profile by default, saved stack outputs and the existing Sparkle Keychain key unless overridden; never deploys infrastructure. Defaults to local ad-hoc signing without an Apple account or certificate. Developer ID configuration enables Apple notarization. Dry-run builds locally without uploading to Apple, loading Cloudflare credentials or accessing R2.\n";
+	"Usage: bun run release:macos -- --version 0.0.2 [--stage prod] [--profile name] [--dry-run]\nUses the personal Alchemy profile by default, saved stack outputs and the existing Sparkle Keychain key unless overridden; never deploys infrastructure. Defaults to local ad-hoc signing without an Apple account or certificate. ONEGIT_MACOS_NOTARY_PROFILE optionally enables Apple notarization; unset or empty signs only. Dry-run builds locally without uploading to Apple, loading Cloudflare credentials or accessing R2.\n";
 
 /** Builds a versioned release without modifying package defaults, then publishes unless dry-run. */
 export async function releaseMacOS(

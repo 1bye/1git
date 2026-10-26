@@ -2098,6 +2098,9 @@ it.each(["light", "dark"] as const)(
 			/>
 		);
 		await settle();
+		// Palette transitions use wall time, independently of the paused native clock.
+		await Bun.sleep(220);
+		await settle();
 		await menu();
 		const palette = RepositoryTheme.create(appThemes[appearance], color);
 

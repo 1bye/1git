@@ -104,8 +104,13 @@ if (host) {
 	// Without animation the CSS gradient jumps straight to the current scene.
 	const settle = () => step(1);
 
-	addEventListener("scroll", settle, { passive: true });
-	addEventListener("resize", settle);
+	const settleWhenStatic = () => {
+		// The render loop already eases the moving glow; scroll must not bypass it.
+		if (!host.hasAttribute("data-webgl")) settle();
+	};
+
+	addEventListener("scroll", settleWhenStatic, { passive: true });
+	addEventListener("resize", settleWhenStatic);
 	settle();
 
 	const gl = canvas?.getContext("webgl", {
@@ -187,8 +192,9 @@ if (host) {
 						outerColor = colors("--atmosphere-outer");
 
 					const dpr = Math.min(devicePixelRatio, 1.5);
-					const width = Math.round(innerWidth * dpr);
-					const height = Math.round(innerHeight * dpr);
+					// The fixed surface can exceed innerHeight while browser controls move.
+					const width = Math.round(host.clientWidth * dpr);
+					const height = Math.round(host.clientHeight * dpr);
 
 					if (canvas.width !== width || canvas.height !== height) {
 						canvas.width = width;

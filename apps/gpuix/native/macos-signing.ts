@@ -12,7 +12,7 @@ export const macSigningConfiguration = resolve(
 interface DeveloperIDConfiguration {
 	fingerprint: string;
 	teamID: string;
-	notaryProfile: string;
+	notaryProfile?: string;
 }
 
 /** Executable entitlements are separate from the metadata retained on Sparkle's downloader. */
@@ -34,7 +34,7 @@ export class MacSigning {
 	): Promise<MacSigning> {
 		const identity = env.ONEGIT_MACOS_SIGNING_IDENTITY;
 		const teamID = env.ONEGIT_MACOS_TEAM_ID;
-		const notaryProfile = env.ONEGIT_MACOS_NOTARY_PROFILE;
+		const notaryProfile = env.ONEGIT_MACOS_NOTARY_PROFILE || undefined;
 
 		if (
 			identity !== undefined ||
@@ -54,17 +54,17 @@ export class MacSigning {
 				!/^[A-Fa-f0-9]{40}$/u.test(identity) ||
 				!teamID ||
 				!/^[A-Z0-9]{10}$/u.test(teamID) ||
-				!notaryProfile ||
-				!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u.test(notaryProfile)
+				(notaryProfile !== undefined &&
+					!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u.test(notaryProfile))
 			)
 				throw new Error(
-					"Developer ID signing requires ONEGIT_MACOS_SIGNING_IDENTITY (40-character certificate fingerprint), ONEGIT_MACOS_TEAM_ID (10-character Apple team ID), and ONEGIT_MACOS_NOTARY_PROFILE (Keychain profile name, using letters, numbers, dots, underscores or hyphens)."
+					"Developer ID signing requires ONEGIT_MACOS_SIGNING_IDENTITY (40-character certificate fingerprint) and ONEGIT_MACOS_TEAM_ID (10-character Apple team ID). Optional ONEGIT_MACOS_NOTARY_PROFILE enables notarization and must use letters, numbers, dots, underscores or hyphens."
 				);
 
 			return new MacSigning(null, {
 				fingerprint: identity.toUpperCase(),
 				teamID,
-				notaryProfile,
+				...(notaryProfile ? { notaryProfile } : {}),
 			});
 		}
 
@@ -188,7 +188,7 @@ export class MacSigning {
 			);
 	}
 
-	/** Submits a temporary ZIP, then staples and assesses the app before its distribution ZIP is created. */
+	/** With a configured profile, submits a temporary ZIP and validates the stapled app; otherwise leaves signing-only releases untouched. */
 	async notarize(
 		bundle: string,
 		archive: string,
@@ -197,7 +197,7 @@ export class MacSigning {
 			timeoutMs
 		) => signingCommand(args, process.env, timeoutMs)
 	): Promise<void> {
-		if (!this.developerID) return;
+		if (!this.developerID?.notaryProfile) return;
 
 		const { notaryProfile } = this.developerID;
 

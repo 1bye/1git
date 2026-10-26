@@ -5,15 +5,16 @@ The checked-in token in `src/configuration.ts` is a public ingestion token, not 
 personal API key. It grants no access to stored data or account settings.
 
 Analytics is on by default in production. GPUIX exposes **Settings → Privacy →
-Share anonymous usage statistics**. Every website page has an **Anonymous
-analytics** checkbox. Preferences are independent between the app and browser.
+Share anonymous usage statistics**. The website FAQ has an **Anonymous
+analytics** checkbox, reachable through **Questions & answers** in the homepage
+footer. Preferences are independent between the app and browser.
 Development, GPUIX preview, website previews and automated tests stay offline.
 
 ## Collected events
 
 | Source | Events | Allowed metadata |
 | --- | --- | --- |
-| Desktop | `app_started`, `onboarding_completed`, `feature_used` | Release version; feature enum: changes, history, stashes, graph |
+| Desktop | `app_started`, `onboarding_completed` | Release version |
 | Website | `$pageview`, `download_clicked` | Fixed canonical URL for home, FAQ or not-found; no actual unknown paths |
 
 Every event carries `source`, a random in-memory UUIDv7, an event timestamp,

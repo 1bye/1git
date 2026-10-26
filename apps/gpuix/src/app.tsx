@@ -1541,8 +1541,6 @@ function AppContent({
 
 		if (!activeTab) return;
 
-		void DesktopAnalytics.capture({ name: "feature_used", feature: view });
-
 		dispatch({
 			type: "workspace",
 			id: activeTab.id,

@@ -6,6 +6,7 @@
  */
 import { afterEach, expect, test } from "bun:test";
 import {
+	initScenes,
 	observeViewportCenter,
 	sceneState,
 } from "../../src/scripts/scene-motion";
@@ -28,6 +29,100 @@ afterEach(() => {
 	}
 
 	saved.clear();
+});
+
+test("phone reveals stay readable through scrolling and browser-bar resizes", () => {
+	const rootAttributes = new Set<string>();
+	const entered = new Set<string>();
+	const changes = new Map<string, () => void>();
+
+	const observers: {
+		callback: IntersectionObserverCallback;
+		targets: Element[];
+	}[] = [];
+
+	const compact = {
+		matches: true,
+		addEventListener: (_: string, callback: () => void) =>
+			changes.set("compact", callback),
+	};
+
+	const reduced = { matches: false, addEventListener: () => {} };
+
+	const actor = {
+		offsetHeight: 200,
+		setAttribute: (name: string) => entered.add(name),
+	};
+
+	let top = 100;
+	let resize: (() => void) | undefined;
+
+	const scenes = [0, 1].map(() => ({
+		dataset: {} as Record<string, string>,
+		getBoundingClientRect: () => ({ top, bottom: top + 500 }),
+	}));
+
+	install("innerHeight", 844);
+	install("matchMedia", (query: string) =>
+		query.includes("prefers-reduced-motion") ? reduced : compact
+	);
+	install("window", {
+		addEventListener: (_: string, callback: () => void) => {
+			resize = callback;
+		},
+	});
+	install("document", {
+		documentElement: {
+			hasAttribute: (name: string) => rootAttributes.has(name),
+			toggleAttribute: (name: string, enabled: boolean) =>
+				enabled ? rootAttributes.add(name) : rootAttributes.delete(name),
+		},
+		querySelectorAll: (selector: string) =>
+			selector === "[data-scene]" ? scenes : [actor],
+		addEventListener: () => {},
+	});
+	install(
+		"IntersectionObserver",
+		class {
+			readonly state: (typeof observers)[number];
+			constructor(callback: IntersectionObserverCallback) {
+				this.state = { callback, targets: [] };
+				observers.push(this.state);
+			}
+			observe(target: Element): void {
+				this.state.targets.push(target);
+			}
+			disconnect(): void {}
+		}
+	);
+
+	initScenes();
+	expect(rootAttributes.has("data-scenes-ready")).toBe(false);
+	expect(rootAttributes.has("data-flow-ready")).toBe(true);
+	const actorObserver = observers.find((observer) =>
+		observer.targets.includes(actor as unknown as Element)
+	);
+
+	expect(actorObserver).toBeDefined();
+	actorObserver?.callback(
+		[{ isIntersecting: true } as IntersectionObserverEntry],
+		{} as IntersectionObserver
+	);
+	expect(entered.has("data-scene-entered")).toBe(true);
+	// A toolbar resize and scrolling past the section must not hide or restart its content.
+	top = -1000;
+	resize?.();
+	expect(scenes.every((scene) => scene.dataset.sceneState === "active")).toBe(
+		true
+	);
+	expect(entered.has("data-scene-entered")).toBe(true);
+	compact.matches = false;
+	changes.get("compact")?.();
+	expect(rootAttributes.has("data-flow-ready")).toBe(false);
+	expect(rootAttributes.has("data-scenes-ready")).toBe(true);
+	expect(scenes.every((scene) => scene.dataset.sceneState === "after")).toBe(
+		true
+	);
 });
 
 test("scenes enter at the viewport centre and leave at their bottom edge", () => {

@@ -1,7 +1,7 @@
 ---
 import Layout from "../layouts/Layout.astro";
 import Hero from "../components/Hero.astro";
-import IntroSequence from "../components/IntroSequence.astro";
+import ButtonHover from "../components/ButtonHover.astro";
 import EndCard from "../components/EndCard.astro";
 import workspaceScreenshot from "../assets/screens/changes.webp";
 import { REPO_URL } from "../components/repository-link";
@@ -34,11 +34,10 @@ const application = {
 ---
 
 <Layout structuredData={application}>
-  <IntroSequence />
   <header class="site-header" inert>
     <div class="site-header-content">
       <a class="brand" href="#top" aria-label="1git home"><span>1git</span></a>
-      <nav aria-label="Main navigation"><a href="#features">Explore</a><a href="/faq/">FAQ</a><a class="header-download" href="https://git.1bye.dev/download">Download</a></nav>
+      <nav aria-label="Main navigation"><a href="#features">Explore</a><a href="/faq/">FAQ</a><a class="header-download" href="https://git.1bye.dev/download">Download <ButtonHover kind="download" /></a></nav>
     </div>
   </header>
   <main id="main">

@@ -2,36 +2,36 @@
 import Icon from "./Icon.astro";
 const columns = [
   { title: "History", rows: [
-    {icon:"history", action:"draw", text:"Every commit.", detail:"At a glance."},
-    {icon:"lock", action:"pop", text:"Ignored files.", detail:"Local history, too."},
-    {icon:"archive", action:"slide", text:"Multiple stashes.", detail:"Pick up any time."},
-    {icon:"fileArrow", action:"draw", text:"File history.", detail:"Across renames."},
+    {icon:"history", text:"Every commit.", detail:"At a glance."},
+    {icon:"lock", text:"Ignored files.", detail:"Local history, too."},
+    {icon:"archive", text:"Multiple stashes.", detail:"Pick up any time."},
+    {icon:"fileArrow", text:"File history.", detail:"Across renames."},
   ]},
   { title: "Branches", rows: [
-    {icon:"gitBranch", action:"draw", text:"Branches & worktrees.", detail:""},
-    {icon:"compare", action:"slide", text:"Compare branches", detail:""},
-    {icon:"accounts", action:"pop", text:"Your accounts.", detail:"GitHub, GitLab, GitHub CLI"},
+    {icon:"gitBranch", text:"Branches & worktrees.", detail:""},
+    {icon:"compare", text:"Compare branches", detail:""},
+    {icon:"accounts", text:"Your accounts.", detail:"GitHub, GitLab, GitHub CLI"},
   ]},
   { title: "Workspace", rows: [
-    {icon:"spaces", action:"slide", text:"Work and personal.", detail:"Separate spaces."},
-    {icon:"fileCode", action:"draw", text:"Your file types.", detail:"Your choice of editor."},
-    {icon:"command", action:"draw", text:"Stay on your keyboard.", detail:"⌘P"},
+    {icon:"spaces", text:"Work and personal.", detail:"Separate spaces."},
+    {icon:"fileCode", text:"Your file types.", detail:"Your choice of editor."},
+    {icon:"command", text:"Stay on your keyboard.", detail:"⌘P"},
   ]},
 ] as const;
 
 const coming = [{icon:"pullRequest",label:"Pull requests"},{icon:"circleDot",label:"Issues"}] as const;
 ---
-<section class="even-more" aria-labelledby="even-more-title" data-even-more data-reveal data-scene="more">
+<section class="even-more" aria-labelledby="even-more-title" data-reveal data-scene="more">
   <div class="scene-content" data-scene-motion>
-  <h2 class="display" id="even-more-title">Even more.</h2>
+  <h2 data-scene-text class="display" id="even-more-title">Even more.</h2>
   <div class="feature-columns">
-    {columns.map(({title,rows}) => <div class="feature-column"><h3>{title}</h3>
-      {rows.map(({icon,action,text,detail}) => <div class="feature-row" data-feature-row data-spotlight="waiting" data-icon={icon} data-action={action}><span class="icon-tile"><Icon name={icon} size={24} /></span><div>{text}{detail && <small>{detail}</small>}</div></div>)}
+    {columns.map(({title,rows}) => <div class="feature-column"><h3 data-scene-text style="--scene-delay:120ms">{title}</h3>
+      {rows.map(({icon,text,detail}) => <div class="feature-row" data-scene-text style="--scene-delay:200ms" data-icon={icon}><span class="icon-tile"><Icon name={icon} size={24} /></span><div>{text}{detail && <small>{detail}</small>}</div></div>)}
     </div>)}
   </div>
   <div class="coming-soon">
-    <h3>Coming soon</h3>
-    {coming.map(({icon,label}) => <div class="coming-item"><span class="icon-tile"><Icon name={icon} size={24} /></span><span class="coming-label">{label}</span></div>)}
+    <h3 data-scene-text style="--scene-delay:180ms">Coming soon</h3>
+    {coming.map(({icon,label}) => <div class="coming-item" data-scene-text style="--scene-delay:200ms"><span class="icon-tile"><Icon name={icon} size={24} /></span><span class="coming-label">{label}</span></div>)}
   </div>
   </div>
 </section>

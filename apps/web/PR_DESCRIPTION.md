@@ -9,22 +9,30 @@ editable launch-film UI, as requested by the owner.
 
 - Self-host Instrument Serif Italic and Inter. Use a reusable blue glow with
   fine animated grain, a static fallback, and cloud wisps around window edges.
-- Keep the skippable, once-per-session glow intro; remove “Introducing”. The
+  Cover the large mobile viewport and size the shader buffer to its actual surface
+  so collapsing browser controls cannot expose a flat blue strip below the canvas.
+- Open directly on the hero, with no intro overlay or skip button. The
   hero includes the wordmark, Download CTA and real rendered Changes window.
+  Hide the floating header whenever the hero intersects the viewport, including
+  edge contact on reverse scroll, and keep hidden navigation inert.
+  Give the header a blue glass surface with readable contrast over pale sections,
+  a restrained link hover and dark text on its lighter Download pill.
   Eight masked backdrop-blur layers progressively soften the lower window.
 - Use native CSS snapping across eight scenes with incoming/outgoing content
-  motion. Narrow or short screens use proximity snapping for long content.
+  motion. Narrow or short screens use natural scrolling, content-sized sections
+  and once-per-item entrances, keeping revealed content visible when scrolling back.
   Reduced motion and the persisted pause control settle content and disable
   autoplay and snapping.
 - Play the film’s native tab drag once in one cropped window, keeping tab and
   content proportions aligned. Show only a shallow Changes preview below the
   strip, with a final-state poster for reduced motion, pause and playback failure.
-  The AI composer has matching result/busy renders, aligned sparkle/Stop/Commit
-  controls, a short press, eight stars and two confirmation rings. These are
-  local demonstrations; they do not invoke AI or perform Git operations.
+  The AI composer uses real HTML matching the film, with an editable highlighted
+  textarea and working Generate/Stop, Commit, Amend and Undo controls. Keep the
+  press, eight stars, progress spinner and two confirmation rings. It is an
+  in-memory demonstration and does not invoke AI or perform Git operations.
 - Draw the Remote connection lines once. Crossfade each of Rose, Forest, Cosmic
   and Workshop with its matching window and wallpaper. Preserve manual selection.
-- Run the Even more reading spotlight once and settle every row to full white.
+- Reveal the Even more feature rows together using the shared blur entrance.
   Finish with the wordmark, tagline, Download CTA and existing footer links.
 
 ## Window assets
@@ -34,11 +42,11 @@ rendered with Altavinci Desktop MCP in a separate capture project. The film
 source was not changed. Full windows are 1920×1261; AI close-ups are 1240×768.
 All active window slots are populated. Astro supplies responsive WebP variants,
 explicit image dimensions, eager hero loading and lazy loading below the fold.
-The full-size image links remain available.
+The full-size image links remain available for screenshot windows.
 
-These are still renders of the owner-selected film UI, rather than live native
-screenshots. The AI crops preserve identical bounds, and their hit areas are
-calibrated to the captured controls. Source props and capture geometry are
+The screenshot windows are still renders of the owner-selected film UI. The
+commit composer uses native HTML controls, with the film's copy, colors and
+proportions. Source props and capture geometry for the remaining images are
 recorded in `src/assets/screens/README.md`.
 
 ## Copy changes and open questions
@@ -53,6 +61,22 @@ recorded in `src/assets/screens/README.md`.
 - “File history. Across renames.” is requested wording that still needs final
   product-copy review. No new feature, metric or testimonial was invented.
 - The GitHub footer uses the configured public repository at `https://github.com/1bye/1git`; forks can override `PUBLIC_REPO_URL`.
+
+## Section entrances
+
+Text resolves from a short blur with staggered supporting lines, followed by a
+softer window reveal. Existing scene states trigger each entrance and replay it
+on return on desktop. Compact layouts reveal each item once over 520ms. CSS retains
+a zero-blur layer at rest to prevent a finishing flash, preserves the existing tab/AI/grid
+animations, and settles for pause, reduced motion and focused window links.
+The hero reveal starts immediately without an intro overlay.
+
+The mobile remote diagram has its own vertical connector fitted between the
+actual window edges, with labels outside the connection. Section padding is
+consistent and no longer reserves an empty screen beneath short content.
+
+Checked desktop, 390px and 360px layouts, reverse entry, header visibility, sharp settled
+content, pause and reduced motion. Safari/Firefox have not been rechecked.
 
 ## Search and sharing
 

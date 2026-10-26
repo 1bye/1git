@@ -4,10 +4,6 @@ import { analyticsLimits, posthogConfiguration } from "./configuration";
 export type AnalyticsEvent =
 	| { name: "app_started" | "onboarding_completed" }
 	| {
-			name: "feature_used";
-			feature: "changes" | "history" | "stashes" | "graph";
-	  }
-	| {
 			name: "$pageview" | "download_clicked";
 			page: "home" | "faq" | "not_found";
 	  };
@@ -220,12 +216,6 @@ export class AnonymousAnalytics {
 
 			if (event.name === "app_started" || event.name === "onboarding_completed")
 				return properties;
-
-			if (
-				event.name === "feature_used" &&
-				["changes", "history", "stashes", "graph"].includes(event.feature)
-			)
-				return { ...properties, feature: event.feature };
 
 			return null;
 		}
