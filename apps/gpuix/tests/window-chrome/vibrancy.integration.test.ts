@@ -14,7 +14,7 @@ it.each([
 	["light", "#a478ef"],
 	["dark", "#a478ef"],
 ] as const)(
-	"keeps native blur over %s application appearance with repo color %s",
+	"keeps native blur over %s window appearance with repo color %s",
 	(appearance, color) => {
 		const output = execFileSync(
 			process.execPath,

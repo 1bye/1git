@@ -207,8 +207,8 @@ it("keeps an unavailable repository and editable draft, then retries its saved p
 		<App initialSession={initial} readRepository={reader} saveSession={save} />
 	);
 	await settle();
-	expect(root.renderer.getAllText()).toContain("Repository unavailable");
-	expect(root.renderer.getAllText()).toContain("/test/project");
+	expect(root.renderer.getAllText()).toContain("Could not read repository");
+	expect(reader).toHaveBeenCalledWith("/test/project", expect.any(AbortSignal));
 	expect(node("commit-message").customProps?.value).toBe("Main draft");
 	await Bun.sleep(240);
 	root.renderer.flush();
@@ -224,7 +224,7 @@ it("keeps an unavailable repository and editable draft, then retries its saved p
 	await settle();
 	expect(reader.mock.calls[1]?.[0]).toBe("/test/project");
 	expect(node("commit-message").customProps?.value).toBe("recovered");
-	expect(root.renderer.getAllText()).not.toContain("Repository unavailable");
+	expect(root.renderer.getAllText()).not.toContain("Could not read repository");
 	root.render(<div />);
 	expect(save.mock.calls.at(-1)?.[0].tabs[0]).toMatchObject({
 		path: "/test/project",
