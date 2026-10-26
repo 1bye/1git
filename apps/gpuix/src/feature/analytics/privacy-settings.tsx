@@ -1,11 +1,10 @@
 import { Checkbox } from "@1git/gpuix-ui/checkbox";
 import { useState } from "react";
 import { useAppTheme } from "../../styles/theme";
-import {
-	SettingsPage,
-	SettingsSection,
-	settingsStyles,
-} from "../settings/settings-layout";
+import { SettingsPage, settingsStyles } from "../settings/settings-layout";
+import { SettingsGroup, SettingsGroupRow } from "../settings/settings-group";
+import { WorkspaceTabIcon } from "../workspace-tabs/components/workspace-tab-icon";
+import { spacing } from "@1git/design-tokens";
 import { DesktopAnalytics } from "./desktop-analytics";
 import type { AnonymousAnalytics } from "@1git/analytics/client";
 
@@ -22,64 +21,103 @@ export function PrivacySettings({
 	const [error, setError] = useState<string | null>(null);
 
 	return (
-		<SettingsPage testId="privacy-settings" title="Privacy">
-			<SettingsSection>
-				<Checkbox
-					testId="analytics-enabled"
+		<SettingsPage testId="privacy-settings" title="Privacy" width="single">
+			<SettingsGroup
+				testId="privacy-usage"
+				title="Usage statistics"
+				icon="shield"
+			>
+				<SettingsGroupRow
 					label="Share anonymous usage statistics"
-					checked={enabled}
-					tokens={tokens}
-					onCheckedChange={(next) => {
-						try {
-							analytics.setEnabled(next);
-							setError(null);
-						} catch (failure) {
-							setError(
-								failure instanceof Error
-									? failure.message
-									: "Could not save your analytics preference."
-							);
-						}
+					description="Help improve 1git with a small set of anonymous usage events. Enabled by default."
+					trailing={
+						<Checkbox
+							testId="analytics-enabled"
+							aria-label="Share anonymous usage statistics"
+							checked={enabled}
+							tokens={tokens}
+							onCheckedChange={(next) => {
+								try {
+									analytics.setEnabled(next);
+									setError(null);
+								} catch (failure) {
+									setError(
+										failure instanceof Error
+											? failure.message
+											: "Could not save your analytics preference."
+									);
+								}
 
-						setEnabled(analytics.enabled);
-					}}
+								setEnabled(analytics.enabled);
+							}}
+						/>
+					}
 				/>
-				<text
-					style={{
-						...styles.description,
-					}}
-				>
-					Help improve 1git by sharing app launches, version and onboarding
-					completion with PostHog. Enabled by default; you can change this at
-					any time.
-				</text>
-				<text
-					style={{
-						...styles.description,
-					}}
-				>
-					No repository names, paths, code, commit messages or account details.
-					Random identifiers stay in memory and rotate. No session recordings or
-					automatic click tracking.
-				</text>
-				<text
-					style={{
-						...styles.description,
-					}}
-				>
-					Disabling stops new events and cancels pending requests. Events
-					already received by PostHog remain there.
-				</text>
-				{error ? (
+			</SettingsGroup>
+			<SettingsGroup
+				testId="privacy-data"
+				title="What's sent"
+				icon="history"
+				footer="Random identifiers stay in memory and rotate. No session recordings or automatic click tracking. Disabling stops new events and cancels pending requests. Events already received by PostHog remain there."
+			>
+				<div role="group" aria-label="Sent">
 					<text
-						testId="analytics-preference-error"
-						role="alert"
-						style={styles.error}
+						role="heading"
+						aria-level={3}
+						style={{
+							...styles.navGroup,
+							padding: spacing[3],
+							paddingLeft: spacing[4],
+						}}
 					>
-						{error}
+						Sent
 					</text>
-				) : null}
-			</SettingsSection>
+					{["App launches", "App version", "Onboarding completion"].map(
+						(label) => (
+							<SettingsGroupRow
+								key={label}
+								label={label}
+								leading={<WorkspaceTabIcon name="check" />}
+							/>
+						)
+					)}
+				</div>
+				<div role="group" aria-label="Never sent">
+					<text
+						role="heading"
+						aria-level={3}
+						style={{
+							...styles.navGroup,
+							padding: spacing[3],
+							paddingLeft: spacing[4],
+						}}
+					>
+						Never sent
+					</text>
+					{[
+						"Repository names",
+						"Paths",
+						"Code",
+						"Commit messages",
+						"Account details",
+					].map((label) => (
+						<SettingsGroupRow
+							key={label}
+							label={label}
+							leading={<WorkspaceTabIcon name="shield" />}
+						/>
+					))}
+				</div>
+			</SettingsGroup>
+			{error ? (
+				<text
+					testId="analytics-preference-error"
+					role="alert"
+					style={styles.error}
+				>
+					{error}
+				</text>
+			) : null}
 		</SettingsPage>
 	);
 }
