@@ -587,7 +587,8 @@ function RepositoryWelcomeContent({
 						) : matches.length > 0 ? (
 							<RepositoryWelcomeList
 								layout={library.view}
-								key={`${library.view}:${library.folder}:${query}`}
+								key={`${library.view}:${library.folder}`}
+								query={query}
 								paths={matches}
 								saved={saved}
 								starred={starred}
