@@ -102,6 +102,11 @@ it("opens from Application settings, persists the choice and supports keyboard s
 	expect(root.renderer.getAllText()).toContain("External editor");
 	expect(root.renderer.getAllText()).toContain("System default");
 	expect(root.renderer.getAllText()).toContain("Zed");
+	expect(
+		node("editor-choice-icon-1").children.map(
+			(id) => root.renderer.getElement(id)?.type
+		)
+	).toContain("svg");
 	await click("editor-choice-1");
 	expect(editors.load()).toBe(zed);
 

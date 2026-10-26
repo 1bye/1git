@@ -5,6 +5,7 @@ import { useGpuixRequired } from "@gpuix/react";
 import { useEffect, useRef, useState } from "react";
 
 import { SettingsPanel, settingsStyles } from "../settings/settings-layout";
+import { SettingsGroup } from "../settings/settings-group";
 import { EditorChoices } from "./editor-choices";
 import {
 	ExternalEditors,
@@ -132,37 +133,33 @@ export function EditorRuleEditor({
 						}}
 					/>
 					<text style={{ ...styles.description }}>.ts, .tsx, Dockerfile</text>
-					<div
-						style={{
-							display: "flex",
-							flexDirection: "row",
-							alignItems: "center",
-							justifyContent: "space-between",
-							gap: spacing[2],
-							flexShrink: 0,
-						}}
+					<SettingsGroup
+						title="Application"
+						icon="pencil"
+						action={
+							<Button
+								testId="editor-rule-choose-application"
+								tokens={appTokens}
+								variant="secondary"
+								size="sm"
+								disabled={busy}
+								onPress={() => {
+									void submit(true);
+								}}
+							>
+								Choose application…
+							</Button>
+						}
 					>
-						<text style={styles.label}>Application</text>
-						<Button
-							testId="editor-rule-choose-application"
-							tokens={appTokens}
-							variant="secondary"
-							size="sm"
+						<EditorChoices
+							prefix="editor-rule-choice"
+							applications={choices}
+							selected={application}
 							disabled={busy}
-							onPress={() => {
-								void submit(true);
-							}}
-						>
-							Choose application…
-						</Button>
-					</div>
-					<EditorChoices
-						prefix="editor-rule-choice"
-						applications={choices}
-						selected={application}
-						disabled={busy}
-						onChoose={setApplication}
-					/>
+							onChoose={setApplication}
+						/>
+					</SettingsGroup>
+
 					{error ? (
 						<text
 							testId="editor-rule-error"

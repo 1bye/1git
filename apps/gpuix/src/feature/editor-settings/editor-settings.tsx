@@ -13,10 +13,15 @@ import {
 import { accountActionIcons } from "../accounts/account-list";
 import {
 	SettingsPage,
-	SettingsSection,
 	SettingsSplit,
 	settingsStyles,
 } from "../settings/settings-layout";
+import {
+	SettingsGroup,
+	SettingsGroupRow,
+	SettingsGroupEmpty,
+} from "../settings/settings-group";
+import { WorkspaceTabIcon } from "../workspace-tabs/components/workspace-tab-icon";
 import { EditorChoices } from "./editor-choices";
 import { EditorRuleEditor } from "./editor-rule-editor";
 import { ExternalEditors, type EditorRule } from "./external-editors";
@@ -53,15 +58,6 @@ export function EditorSettings({
 	const mounted = useRef(false);
 	const returnFocus = useRef<number | null>(null);
 	const locked = busy || !options || editing !== null;
-
-	const row = {
-		display: "flex",
-		flexDirection: "row",
-		alignItems: "center",
-		justifyContent: "space-between",
-		gap: spacing[2],
-		flexShrink: 0,
-	};
 
 	useImperativeHandle(
 		ref,
@@ -172,22 +168,8 @@ export function EditorSettings({
 					testId="editor-settings-page"
 					scrollTestId="editor-settings-scroll"
 					title="External editor"
-					action={
-						<Button
-							testId="editor-choose-application"
-							tokens={appTokens}
-							variant="secondary"
-							size="sm"
-							disabled={locked}
-							onPress={() => {
-								void choose(undefined);
-							}}
-						>
-							Choose application…
-						</Button>
-					}
 				>
-					<SettingsSection title="Default editor">
+					<SettingsGroup title="Default editor" icon="pencil">
 						<EditorChoices
 							applications={options?.applications ?? []}
 							selected={options?.selected ?? null}
@@ -196,9 +178,19 @@ export function EditorSettings({
 								void choose(path);
 							}}
 						/>
-					</SettingsSection>
-					<SettingsSection
-						title="File type defaults"
+						<SettingsGroupRow
+							testId="editor-choose-application"
+							label="Other application…"
+							leading={<WorkspaceTabIcon name="add" />}
+							disabled={locked}
+							onPress={() => {
+								void choose(undefined);
+							}}
+						/>
+					</SettingsGroup>
+					<SettingsGroup
+						title="File type rules"
+						icon="layers"
 						action={
 							<Button
 								testId="editor-rule-add"
@@ -213,94 +205,79 @@ export function EditorSettings({
 						}
 					>
 						{!options?.rules.length ? (
-							<text style={{ ...styles.description }}>
+							<SettingsGroupEmpty>
 								All files use the default editor.
-							</text>
+							</SettingsGroupEmpty>
 						) : null}
 						{options?.rules.map((rule) => (
-							<div key={rule.id} testId={`editor-rule-${rule.id}`} style={row}>
-								<div
-									style={{
-										display: "flex",
-										flexDirection: "column",
-										gap: spacing[1],
-										flexGrow: 1,
-										minWidth: 0,
-									}}
-								>
-									<text
+							<SettingsGroupRow
+								key={rule.id}
+								testId={`editor-rule-${rule.id}`}
+								label={`${rule.patterns.join(", ")} → ${rule.application ? (options.applications.find((app) => app.path === rule.application)?.name ?? "Unavailable application") : "System default"}`}
+								disabled={locked}
+								onPress={() => edit(rule)}
+								trailing={
+									<div
 										style={{
-											...styles.label,
-											textOverflow: "ellipsis",
-											whiteSpace: "nowrap",
+											display: "flex",
+											flexDirection: "row",
+											gap: spacing[2],
 										}}
 									>
-										{rule.patterns.join(", ")}
-									</text>
-									<text
-										style={{
-											...styles.description,
-										}}
-									>
-										{rule.application
-											? (options.applications.find(
-													(app) => app.path === rule.application
-												)?.name ?? "Unavailable application")
-											: "System default"}
-									</text>
-								</div>
-								<Button
-									testId={`editor-rule-edit-${rule.id}`}
-									aria-label={`Edit ${rule.patterns.join(", ")}`}
-									tokens={appTokens}
-									variant="ghost"
-									size="sm"
-									disabled={locked}
-									onPress={() => edit(rule)}
-								>
-									<svg
-										source={accountActionIcons.reconnect}
-										style={{
-											width: 16,
-											height: 16,
-											color: appTokens.colors.textMuted,
-											pointerEvents: "none",
-										}}
-									/>
-								</Button>
-								<Button
-									testId={`editor-rule-remove-${rule.id}`}
-									aria-label={`Remove ${rule.patterns.join(", ")}`}
-									tokens={appTokens}
-									variant="ghost"
-									size="sm"
-									disabled={locked}
-									onPress={() => {
-										void choose(null, rule.id);
-									}}
-								>
-									<svg
-										source={accountActionIcons.remove}
-										style={{
-											width: 16,
-											height: 16,
-											color: appTokens.colors.danger,
-											pointerEvents: "none",
-										}}
-									/>
-								</Button>
-							</div>
+										<Button
+											testId={`editor-rule-edit-${rule.id}`}
+											aria-label={`Edit ${rule.patterns.join(", ")}`}
+											tokens={appTokens}
+											variant="ghost"
+											size="sm"
+											disabled={locked}
+											onPress={() => edit(rule)}
+										>
+											<svg
+												source={accountActionIcons.reconnect}
+												style={{
+													width: 16,
+													height: 16,
+													color: appTokens.colors.textMuted,
+													pointerEvents: "none",
+												}}
+											/>
+										</Button>
+										<Button
+											testId={`editor-rule-remove-${rule.id}`}
+											aria-label={`Remove ${rule.patterns.join(", ")}`}
+											tokens={appTokens}
+											variant="ghost"
+											size="sm"
+											disabled={locked}
+											onPress={() => {
+												void choose(null, rule.id);
+											}}
+										>
+											<svg
+												source={accountActionIcons.remove}
+												style={{
+													width: 16,
+													height: 16,
+													color: appTokens.colors.danger,
+													pointerEvents: "none",
+												}}
+											/>
+										</Button>
+									</div>
+								}
+							/>
 						))}
-						{error ? (
-							<text
-								testId="editor-settings-error"
-								role="alert"
-								style={{ ...styles.error }}
-							>
-								{error}
-							</text>
-						) : null}
-					</SettingsSection>
+					</SettingsGroup>
+					{error ? (
+						<text
+							testId="editor-settings-error"
+							role="alert"
+							style={{ ...styles.error }}
+						>
+							{error}
+						</text>
+					) : null}
 				</SettingsPage>
 			}
 			panel={

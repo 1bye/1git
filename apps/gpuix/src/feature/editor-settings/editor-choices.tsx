@@ -1,11 +1,10 @@
 import { useAppTheme } from "../../styles/theme";
-import { spacing, typography } from "@1git/design-tokens";
-import { Button } from "@1git/gpuix-ui/button";
-
+import { SettingsGroupRow } from "../settings/settings-group";
 import { WorkspaceTabIcon } from "../workspace-tabs/components/workspace-tab-icon";
+import { EditorApplicationIcon } from "./editor-application-icon";
 import type { EditorApplication } from "./external-editors";
 
-/** Shared keyboard-activatable application choices for overall defaults and rule drafts. */
+/** Keyboard-activatable editor rows for overall defaults and private rule drafts. */
 export function EditorChoices({
 	applications,
 	selected,
@@ -19,57 +18,41 @@ export function EditorChoices({
 	prefix?: string;
 	onChoose: (path: string | null) => void;
 }) {
-	const theme = useAppTheme();
-	const { tokens: appTokens } = theme;
+	const { tokens } = useAppTheme();
 
 	return (
 		<div
 			role="group"
 			aria-label="Editor"
-			style={{ display: "flex", flexDirection: "column", gap: spacing[1] }}
+			style={{ display: "flex", flexDirection: "column" }}
 		>
 			{[
 				{ path: null, name: "System default", available: true },
 				...applications,
 			].map((app, index) => (
-				<Button
+				<SettingsGroupRow
 					key={app.path ?? "system"}
 					testId={`${prefix}-${index}`}
-					aria-label={app.name}
+					label={app.name}
+					description={!app.available ? "Unavailable" : undefined}
+					leading={
+						<EditorApplicationIcon
+							application={app.path ? { ...app, path: app.path } : undefined}
+							testId={`${prefix}-icon-${index}`}
+						/>
+					}
+					selected={selected === app.path}
 					aria-description={
 						selected === app.path ? "Selected editor" : undefined
 					}
-					tokens={appTokens}
-					size="sm"
-					variant={selected === app.path ? "secondary" : "ghost"}
 					disabled={disabled || !app.available}
 					onPress={() => onChoose(app.path)}
-					style={{ justifyContent: "flex-start" }}
-				>
-					<text
-						style={{
-							...typography.md,
-							color: appTokens.colors.text,
-							flexGrow: 1,
-							minWidth: 0,
-							whiteSpace: "nowrap",
-							textOverflow: "ellipsis",
-							pointerEvents: "none",
-						}}
-					>
-						{app.name}
-					</text>
-					{!app.available ? (
-						<text
-							style={{ ...typography.xs, color: appTokens.colors.textMuted }}
-						>
-							Unavailable
-						</text>
-					) : null}
-					{selected === app.path ? (
-						<WorkspaceTabIcon name="check" color={appTokens.colors.focusRing} />
-					) : null}
-				</Button>
+					trailing={
+						selected === app.path ? (
+							<WorkspaceTabIcon name="check" color={tokens.colors.focusRing} />
+						) : undefined
+					}
+				/>
 			))}
 		</div>
 	);

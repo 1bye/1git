@@ -111,6 +111,7 @@ export function SettingsGroup({
 
 /** A divided list row; its main target and trailing controls activate independently. */
 export function SettingsGroupRow({
+	"aria-description": accessibleDescription,
 	leading,
 	label,
 	description,
@@ -121,6 +122,7 @@ export function SettingsGroupRow({
 	disabled = false,
 	testId,
 }: {
+	"aria-description"?: string;
 	leading?: ReactNode;
 	label: ReactNode;
 	description?: ReactNode;
@@ -163,7 +165,9 @@ export function SettingsGroupRow({
 				testId={onPress ? testId : undefined}
 				role={onPress ? "button" : undefined}
 				aria-label={onPress && typeof label === "string" ? label : undefined}
-				aria-description={selected ? "Selected" : undefined}
+				aria-description={
+					accessibleDescription ?? (selected ? "Selected" : undefined)
+				}
 				aria-disabled={disabled || undefined}
 				tabIndex={interactive ? 0 : undefined}
 				style={{
