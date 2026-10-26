@@ -469,12 +469,53 @@ it("refreshes divergence for review without silently merging, pushing or committ
 	expect(root.renderer.findByTestId("rail-sync-dialog")).toBeUndefined();
 });
 
-it("requires explicit remote selection and confirmation, and Escape never publishes", async () => {
+it("preselects the only remote and publishes only after confirmation", async () => {
+	await open();
+	click("rail-sync");
+	await settle();
+
+	expect(node("publish-remote-origin").customProps?.["aria-label"]).toBe(
+		"origin, selected"
+	);
+	expect(root.renderer.getAllText()).toContain("Publish to origin");
+	expect(sync).not.toHaveBeenCalled();
+
+	const screenshot = process.env.GPUIX_PUBLISH_BRANCH_SCREENSHOT;
+
+	if (screenshot) root.renderer.captureScreenshot(screenshot);
+
+	root.renderer.simulateKeystrokes("escape");
+	await settle();
+	expect(root.renderer.findByTestId("rail-sync-dialog")).toBeUndefined();
+	expect(sync).not.toHaveBeenCalled();
+
+	click("rail-sync");
+	await settle();
+	root.renderer.focusElement(node("confirm-publish").id);
+	root.renderer.simulateKeystrokes("enter");
+	await settle();
+	expect(sync).toHaveBeenCalledTimes(1);
+	expect(sync.mock.calls[0]?.[1]).toEqual({
+		kind: "publish",
+		remote: "origin",
+		remoteRef: "refs/heads/main",
+		expectedHead: snapshot.head.oid ?? "",
+		expectedBranch: "main",
+	});
+});
+
+it("requires selection with multiple remotes and confirmation, and Escape never publishes", async () => {
 	remotes = [remote, { ...remote, name: "upstream" }];
 	await open();
 	click("rail-sync");
 	await settle();
 	expect(node("rail-sync").customProps?.["aria-label"]).toBe("Publish branch");
+	expect(node("publish-remote-origin").customProps?.["aria-label"]).toBe(
+		"origin"
+	);
+	expect(node("publish-remote-upstream").customProps?.["aria-label"]).toBe(
+		"upstream"
+	);
 	click("confirm-publish");
 	expect(sync).not.toHaveBeenCalled();
 	click("publish-remote-upstream");
@@ -505,6 +546,9 @@ it("rejects multiple push URLs and stale branch choices without writing", async 
 	await open();
 	click("rail-sync");
 	await settle();
+	expect(node("publish-remote-origin").customProps?.["aria-label"]).toBe(
+		"origin"
+	);
 	click("publish-remote-origin");
 	click("confirm-publish");
 	expect(sync).not.toHaveBeenCalled();

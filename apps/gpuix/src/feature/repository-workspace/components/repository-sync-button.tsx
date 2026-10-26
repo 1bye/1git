@@ -266,6 +266,13 @@ export function RepositorySyncButton({
 				head: repository.head,
 				branch: repository.branchName,
 			});
+			const [onlyRemote] = result.value.remotes;
+
+			if (
+				result.value.remotes.length === 1 &&
+				onlyRemote?.pushUrls.length === 1
+			)
+				setRemote(onlyRemote.name);
 		} catch (cause) {
 			if (!controller.signal.aborted)
 				setError(
@@ -544,7 +551,7 @@ export function RepositorySyncButton({
 			>
 				<PopoverContent
 					placement="center"
-					width={accountAccess ? 400 : 340}
+					width={accountAccess || panel === "publish" ? 400 : 340}
 					testId="rail-sync-dialog"
 					aria-label={
 						accountAccess
@@ -561,8 +568,9 @@ export function RepositorySyncButton({
 						style={{
 							display: "flex",
 							flexDirection: "column",
-							gap: accountAccess ? spacing[3] : spacing[2],
-							padding: accountAccess ? spacing[2] : 0,
+							gap:
+								accountAccess || panel === "publish" ? spacing[3] : spacing[2],
+							padding: accountAccess || panel === "publish" ? spacing[2] : 0,
 						}}
 					>
 						<div
@@ -629,12 +637,14 @@ export function RepositorySyncButton({
 						) : null}
 						{panel === "publish" && publication ? (
 							<div
+								role="group"
+								aria-label="Remote destination"
 								style={{
 									display: "flex",
 									flexDirection: "column",
 									maxHeight: 180,
 									overflowY: "scroll",
-									gap: spacing[1],
+									gap: spacing[2],
 								}}
 							>
 								{publication.data.remotes.map((item) => (
@@ -646,9 +656,34 @@ export function RepositorySyncButton({
 										variant={remote === item.name ? "secondary" : "ghost"}
 										size="sm"
 										disabled={busy || item.pushUrls.length !== 1}
+										style={{
+											height: 40,
+											justifyContent: "space-between",
+											paddingLeft: spacing[3],
+											paddingRight: spacing[3],
+											borderColor:
+												remote === item.name
+													? appTokens.colors.accentBorder
+													: appTokens.colors.border,
+										}}
 										onPress={() => setRemote(item.name)}
 									>
-										{item.name}
+										<text
+											style={{
+												...typography.sm,
+												color: appColors.editorInk,
+												flexShrink: 1,
+												minWidth: 0,
+												textOverflow: "ellipsis",
+												whiteSpace: "nowrap",
+												pointerEvents: "none",
+											}}
+										>
+											{item.name}
+										</text>
+										{remote === item.name ? (
+											<WorkspaceTabIcon name="check" color={appColors.brand} />
+										) : null}
 									</Button>
 								))}
 								{stale ? (
