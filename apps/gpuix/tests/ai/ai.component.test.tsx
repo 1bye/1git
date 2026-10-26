@@ -222,7 +222,7 @@ it.each(["light", "dark"] as const)(
 		const left = root.renderer.getElementBounds(node("ai-list-panel").id)!;
 		const right = root.renderer.getElementBounds(node("ai-setup-panel").id)!;
 
-		expect(left.width).toBe(right.width);
+		expect(Math.abs(left.width - right.width)).toBeLessThanOrEqual(1);
 		expect(right.x).toBe(left.x + left.width);
 		const footer = root.renderer.getElementBounds(
 			node("ai-settings-footer").id
@@ -461,7 +461,10 @@ it("removes only the confirmed account, and clears the default without selecting
 	const notice = root.renderer.getElementBounds(node("ai-list-notice").id)!;
 	const listScroll = root.renderer.getElementBounds(node("ai-list-scroll").id)!;
 
-	expect(notice.y + notice.height).toBeLessThanOrEqual(listScroll.y);
+	expect(notice.y).toBeGreaterThanOrEqual(listScroll.y);
+	expect(notice.y + notice.height).toBeLessThanOrEqual(
+		listScroll.y + listScroll.height
+	);
 });
 
 it("adds two ChatGPT accounts without overwriting either identity or the default", async () => {

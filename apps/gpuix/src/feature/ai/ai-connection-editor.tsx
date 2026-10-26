@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { fontWeight, radius, spacing, typography } from "@1git/design-tokens";
+import { radius, spacing, typography } from "@1git/design-tokens";
 import { Button } from "@1git/gpuix-ui/button";
 import { Checkbox } from "@1git/gpuix-ui/checkbox";
 import { Textarea } from "@1git/gpuix-ui/textarea";
@@ -20,6 +20,7 @@ import {
 } from "./ai-provider-icons";
 import type { AiConnection } from "./lib/ai-settings-store";
 import type { AiModel } from "./lib/ai-integration";
+import { SettingsPanel, settingsStyles } from "../settings/settings-layout";
 import { cavemanCommitPreset } from "./lib/caveman-commit-preset";
 
 /** Scoped account editor. Closing cancels reads; secret input stays in an uncontrolled password field and ref. */
@@ -38,7 +39,9 @@ export function AiConnectionEditor({
 	onBusy: (busy: boolean) => void;
 	onClose: () => void;
 }) {
-	const { tokens } = useAppTheme();
+	const theme = useAppTheme();
+	const { tokens } = theme;
+	const styles = settingsStyles.get(theme);
 	const [draft, setDraft] = useState(initial);
 
 	const [useDefault, setUseDefault] = useState(
@@ -84,13 +87,12 @@ export function AiConnectionEditor({
 		minHeight: 0,
 	};
 
-	const label = { ...typography.md, color: tokens.colors.textMuted };
+	const label = styles.label;
 
 	const field = {
 		width: "100%",
 		height: tokens.layout.controlHeight,
-		...typography.md,
-		color: tokens.colors.text,
+		...styles.label,
 		backgroundColor: "transparent",
 		borderWidth: 1,
 		borderColor: tokens.colors.border,
@@ -241,51 +243,14 @@ export function AiConnectionEditor({
 		});
 
 	return (
-		<div
+		<SettingsPanel
 			testId="ai-setup-panel"
-			role="region"
-			aria-label={saved ? "Configure AI account" : "Add AI account"}
-			style={{
-				...column,
-				flexGrow: 1,
-				flexBasis: 0,
-				borderLeftWidth: 1,
-				borderColor: tokens.colors.border,
-			}}
-		>
-			<div style={{ padding: spacing[4], flexShrink: 0 }}>
-				<text
-					role="heading"
-					aria-level={2}
-					style={{
-						...typography.lg,
-						fontWeight: fontWeight.medium,
-						color: tokens.colors.text,
-					}}
-				>
-					{saved ? "Configure account" : "Add account"}
-				</text>
-			</div>
-			<div
-				testId="ai-settings-scroll"
-				style={{
-					...column,
-					flexGrow: 1,
-					overflowY: "scroll",
-					paddingLeft: spacing[4],
-					paddingRight: spacing[4],
-					paddingBottom: spacing[4],
-				}}
-			>
-				<div
-					style={{
-						...column,
-						gap: spacing[3.5],
-						width: "100%",
-						maxWidth: 480,
-						flexShrink: 0,
-					}}
-				>
+			scrollTestId="ai-settings-scroll"
+			footerTestId="ai-settings-footer"
+			title={saved ? "Configure account" : "Add account"}
+			label={saved ? "Configure AI account" : "Add AI account"}
+			body={
+				<>
 					<text style={label}>Provider</text>
 					<div
 						role="group"
@@ -433,9 +398,7 @@ export function AiConnectionEditor({
 									</Button>
 								</div>
 							) : null}
-							<text
-								style={{ ...typography.sm, color: tokens.colors.textMuted }}
-							>
+							<text style={{ ...styles.description }}>
 								{free
 									? "OpenCode may restrict keyless access from other apps. Some free models may retain prompts or use them for training; avoid sensitive code."
 									: mode === "go"
@@ -487,7 +450,7 @@ export function AiConnectionEditor({
 							<text
 								testId="ai-models-loading"
 								role="status"
-								style={{ ...typography.sm, color: tokens.colors.textMuted }}
+								style={{ ...styles.description }}
 							>
 								Loading models…
 							</text>
@@ -611,62 +574,51 @@ export function AiConnectionEditor({
 						disabled={busy}
 						tokens={tokens}
 					/>
-				</div>
-			</div>
-			<div
-				testId="ai-settings-footer"
-				style={{
-					...column,
-					gap: spacing[2],
-					padding: spacing[4],
-					paddingTop: spacing[3],
-					paddingBottom: spacing[3],
-					borderTopWidth: 1,
-					borderColor: tokens.colors.border,
-					flexShrink: 0,
-				}}
-			>
-				{error ? (
-					<text
-						testId="ai-settings-notice"
-						role="alert"
-						style={{ ...typography.sm, color: tokens.colors.danger }}
-					>
-						{error}
-					</text>
-				) : null}
-				<div
-					style={{
-						...row,
-						justifyContent: "space-between",
-						maxWidth: 480,
-						width: "100%",
-					}}
-				>
-					<Button
-						testId="ai-cancel-editor"
-						tokens={tokens}
-						size="sm"
-						variant="secondary"
-						disabled={busy && !authorizing}
-						onPress={() => {
-							if (pending.current) pending.current.abort();
-							else onClose();
+				</>
+			}
+			footer={
+				<>
+					{error ? (
+						<text
+							testId="ai-settings-notice"
+							role="alert"
+							style={{ ...styles.error }}
+						>
+							{error}
+						</text>
+					) : null}
+					<div
+						style={{
+							...row,
+							justifyContent: "space-between",
+							width: "100%",
 						}}
 					>
-						{authorizing ? "Cancel sign-in" : "Cancel"}
-					</Button>
-					<Button
-						testId="ai-save-preferences"
-						tokens={tokens}
-						size="sm"
-						disabled={busy || !draft.model || !draft.label.trim() || !canLoad}
-						onPress={save}
-					>
-						Save preferences
-					</Button>
-				</div>
-			</div>
-		</div>
+						<Button
+							testId="ai-cancel-editor"
+							tokens={tokens}
+							size="sm"
+							variant="secondary"
+							disabled={busy && !authorizing}
+							onPress={() => {
+								if (pending.current) pending.current.abort();
+								else onClose();
+							}}
+						>
+							{authorizing ? "Cancel sign-in" : "Cancel"}
+						</Button>
+						<Button
+							testId="ai-save-preferences"
+							tokens={tokens}
+							size="sm"
+							disabled={busy || !draft.model || !draft.label.trim() || !canLoad}
+							onPress={save}
+						>
+							Save preferences
+						</Button>
+					</div>
+				</>
+			}
+		/>
 	);
 }
