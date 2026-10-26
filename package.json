@@ -33,6 +33,9 @@
     "test:release:transport": "turbo run test:release:transport --filter=@1git/gpuix",
     "test:release:macos": "turbo run test:release:macos --filter=@1git/gpuix",
     "deploy:updates": "turbo run deploy:updates --filter=@1git/releases --",
+    "changeset": "changeset",
+    "changeset:status": "changeset status",
+    "changeset:version": "changeset version && bun install --lockfile-only",
     "check-types": "turbo run check-types",
     "test": "turbo run test",
     "test:portable": "turbo run test --filter=!@1git/gpuix --filter=!@1git/gpuix-ui",
@@ -45,6 +48,7 @@
   },
   "devDependencies": {
     "@1git/config": "workspace:*",
+    "@changesets/cli": "3.0.3",
     "@stylistic/eslint-plugin": "5.10.0",
     "@types/node": "^22.20.1",
     "lefthook": "latest",

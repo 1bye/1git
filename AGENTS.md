@@ -21,6 +21,33 @@ Use Oxlint for linting and Oxfmt for formatting. Read the installed workflow gui
 - The desktop profile in `.agents/workflow/stacks.md` is a generic template;
   the actual native runtime above takes precedence for this repository.
 
+## Changesets and releases
+
+- For each releasable bug fix, feature, performance improvement, or breaking
+  change, add a focused `.changeset/*.md` file with the code change. If this task
+  already has a pending changeset, update it instead of adding a duplicate.
+- Use `patch` for fixes, `minor` for features, and `major` for breaking changes.
+  Select package names from their manifests. Include `@1git/gpuix` whenever a
+  change needs a desktop release, including fixes in its internal dependencies;
+  also include the internal packages changed by the task.
+- Use the noninteractive CLI from the repository root, for example:
+  `bun run changeset --patch @1git/gpuix,@1git/git --message "Fix repository loading after reconnecting."`
+  Use `--minor` or `--major` as appropriate; comma-separated package names share
+  a bump type. Write a concise user-facing summary of the problem and result.
+- Documentation-only, test-only, and tooling changes, or refactors with no
+  released behavior change, can omit a changeset. Do not add empty changesets
+  just to satisfy status. Preserve unrelated pending changesets.
+- Run `bun run changeset:status --verbose` after adding or updating a note and
+  check its packages and bump types. In the final response, name the changeset
+  file or briefly explain why this task does not need one.
+- During ordinary development, leave package versions and `CHANGELOG.md` files
+  for release preparation. Run `bun run changeset:version` only when preparing
+  a release requested by the user; it consumes all pending changesets.
+- For release work, follow [the release guide](docs/RELEASING.md), including the
+  first app-version alignment with the published feed. Preparing versions and a
+  dry run does not itself authorize binary publication, deployment, or pushing
+  tags. Perform those operations when the user's release request includes them.
+
 ---
 
 ## Core Principles

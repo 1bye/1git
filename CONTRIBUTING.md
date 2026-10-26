@@ -29,6 +29,13 @@ explain why the local patches exist.
 - Update documentation when setup, commands, or visible behavior changes.
 - Use Oxlint and Oxfmt; avoid unrelated formatting changes.
 
+For a change that needs a release, run `bun run changeset`, select the affected
+workspace packages, and commit the generated release note with your change.
+Use patch for fixes, minor for features, and major for breaking changes. Include
+`@1git/gpuix` when an internal package change also needs a desktop app release.
+Documentation, tests, and tooling changes can omit a changeset. See the
+[Changesets workflow](.changeset/README.md) for CLI requirements and commands.
+
 ## Verification
 
 ```sh
