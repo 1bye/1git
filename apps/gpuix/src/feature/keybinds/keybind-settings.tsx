@@ -1,11 +1,11 @@
-import { useLayoutEffect, useState, type ReactNode } from "react";
-import { useGpuixRequired, type StyleDesc } from "@gpuix/react";
+import { useLayoutEffect, useState } from "react";
+import { useGpuixRequired } from "@gpuix/react";
 import {
 	SettingsPage,
 	SettingsSection,
-	settingsLayout,
 	settingsStyles,
 } from "../settings/settings-layout";
+import { SettingsGroup, SettingsGroupRow } from "../settings/settings-group";
 import { Button } from "@1git/gpuix-ui/button";
 import {
 	Popover,
@@ -14,7 +14,6 @@ import {
 } from "@1git/gpuix-ui/popover";
 import { radius, spacing } from "@1git/design-tokens";
 import { useAppTheme } from "../../styles/theme";
-import { WorkspaceTabIcon } from "../workspace-tabs/components/workspace-tab-icon";
 import { useKeybinds } from "./keybind-context";
 import {
 	Keybinds,
@@ -38,17 +37,6 @@ export function KeybindSettings() {
 			`${command.label} ${command.group} ${command.description ?? ""} ${Keybinds.bindings(command, overrides).map(Keybinds.format).join(" ")} ${Keybinds.binding(command, overrides)}`
 		)
 	);
-
-	const rowStyle: StyleDesc = {
-		display: "flex",
-		flexDirection: "column",
-		paddingTop: spacing[1.5],
-		paddingBottom: spacing[1.5],
-		paddingLeft: spacing[4],
-		paddingRight: spacing[4],
-		borderTopWidth: 1,
-		borderColor: tokens.colors.surface,
-	};
 
 	return (
 		<SettingsPage
@@ -96,13 +84,17 @@ export function KeybindSettings() {
 					const rows = commands.filter((command) => command.group === group);
 
 					return rows.length ? (
-						<KeybindSection key={group} title={group} count={rows.length}>
+						<SettingsGroup
+							key={group}
+							title={group}
+							icon={sectionIcons[group]}
+							label={`${group} shortcuts`}
+							meta={`${rows.length} ${rows.length === 1 ? "shortcut" : "shortcuts"}`}
+						>
 							{rows.map((command) => (
-								<div key={command.id} style={rowStyle}>
-									<KeybindRow command={command} />
-								</div>
+								<KeybindRow key={command.id} command={command} />
 							))}
-						</KeybindSection>
+						</SettingsGroup>
 					) : null;
 				}
 			)}
@@ -118,75 +110,9 @@ export function KeybindSettings() {
 const sectionIcons = {
 	Application: "keyboard",
 	Spaces: "layers",
-	Tabs: "layers",
+	Tabs: "tabs",
 	Repository: "branch",
 } as const;
-
-function KeybindSection({
-	title,
-	count,
-	children,
-}: {
-	title: keyof typeof sectionIcons;
-	count: number;
-	children: ReactNode;
-}) {
-	const theme = useAppTheme();
-	const { tokens } = theme;
-	const styles = settingsStyles.get(theme);
-
-	return (
-		<div
-			role="group"
-			aria-label={`${title} shortcuts`}
-			style={{
-				display: "flex",
-				flexDirection: "column",
-				flexShrink: 0,
-				marginBottom: settingsLayout.sectionGap,
-				borderWidth: 1,
-				borderColor: tokens.colors.border,
-				borderRadius: radius.lg,
-				backgroundColor: tokens.colors.background,
-			}}
-		>
-			<div
-				style={{
-					display: "flex",
-					flexDirection: "row",
-					alignItems: "center",
-					gap: spacing[2],
-					padding: spacing[3],
-					paddingLeft: spacing[4],
-					paddingRight: spacing[4],
-					backgroundColor: tokens.colors.surface,
-					borderTopLeftRadius: radius.lg,
-					borderTopRightRadius: radius.lg,
-				}}
-			>
-				<WorkspaceTabIcon
-					name={sectionIcons[title]}
-					size={16}
-					color={tokens.colors.textMuted}
-				/>
-				<text
-					role="heading"
-					aria-level={2}
-					style={{
-						...styles.sectionTitle,
-						flexGrow: 1,
-					}}
-				>
-					{title}
-				</text>
-				<text
-					style={{ ...styles.description }}
-				>{`${count} ${count === 1 ? "shortcut" : "shortcuts"}`}</text>
-			</div>
-			{children}
-		</div>
-	);
-}
 
 function KeybindRow({ command }: { command: KeybindCommand }) {
 	const renderer = useGpuixRequired();
@@ -248,167 +174,160 @@ function KeybindRow({ command }: { command: KeybindCommand }) {
 	};
 
 	return (
-		<div style={{ display: "flex", flexDirection: "column", gap: spacing[1] }}>
-			<div
-				style={{
-					display: "flex",
-					flexDirection: "row",
-					alignItems: "center",
-					gap: spacing[3],
-				}}
-			>
-				<div
-					style={{
-						display: "flex",
-						flexDirection: "column",
-						flexGrow: 1,
-						flexShrink: 1,
-					}}
-				>
-					<text style={{ ...styles.label }}>{command.label}</text>
-					{command.description ? (
-						<text style={{ ...styles.description }}>{command.description}</text>
-					) : null}
-				</div>
-				{command.fixed ? (
-					<text style={{ ...styles.description }}>{label}</text>
-				) : (
-					<Popover
-						open={open}
-						onOpenChange={(next) => {
-							setCandidate(undefined);
-							setResetError(null);
-							setOpen(next);
+		<>
+			<SettingsGroupRow
+				label={command.label}
+				description={command.description}
+				trailing={
+					<div
+						style={{
+							display: "flex",
+							flexDirection: "row",
+							alignItems: "center",
+							gap: spacing[3],
 						}}
 					>
-						<PopoverTrigger asChild>
-							<Button
-								testId={`keybind-edit-${command.id}`}
-								tokens={tokens}
-								size="sm"
-								variant="secondary"
-								disabled={!setOverrides}
-								aria-label={`Change shortcut for ${command.label}`}
-								style={{ minWidth: 80 }}
-							>
-								{label}
-							</Button>
-						</PopoverTrigger>
-						<PopoverContent
-							tokens={tokens}
-							placement="center"
-							width={430}
-							testId="keybind-recorder"
-							aria-label={`Change ${command.label} shortcut`}
-						>
-							<div
-								style={{
-									display: "flex",
-									flexDirection: "column",
-									gap: spacing[3],
+						{command.fixed ? (
+							<text style={{ ...styles.description }}>{label}</text>
+						) : (
+							<Popover
+								open={open}
+								onOpenChange={(next) => {
+									setCandidate(undefined);
+									setResetError(null);
+									setOpen(next);
 								}}
 							>
-								<text
-									role="heading"
-									aria-level={2}
-									style={{ ...styles.sectionTitle }}
-								>
-									{command.label}
-								</text>
-								<text style={{ ...styles.description }}>
-									Press a shortcut, then Save. Include Command, Control, or
-									Option. Escape cancels.
-								</text>
-								<div
-									tabIndex={0}
-									autoFocus
-									testId="keybind-recording"
-									role="group"
-									aria-label="Shortcut recorder"
-									style={{
-										padding: spacing[4],
-										borderWidth: 1,
-										borderColor: tokens.colors.border,
-										borderRadius: radius.md,
-										alignItems: "center",
-									}}
-								>
-									<text style={{ ...styles.sectionTitle }}>
-										{candidate
-											? Keybinds.format(candidate)
-											: "Press a shortcut…"}
-									</text>
-								</div>
-								{error ? (
-									<text
-										role="alert"
-										testId="keybind-error"
-										style={{ ...styles.error }}
-									>
-										{error}
-									</text>
-								) : null}
-								<div
-									style={{
-										display: "flex",
-										flexDirection: "row",
-										justifyContent: "flex-end",
-										gap: spacing[2],
-									}}
-								>
+								<PopoverTrigger asChild>
 									<Button
+										testId={`keybind-edit-${command.id}`}
 										tokens={tokens}
 										size="sm"
 										variant="secondary"
-										testId="keybind-cancel"
-										onPress={() => setOpen(false)}
+										disabled={!setOverrides}
+										aria-label={`Change shortcut for ${command.label}`}
+										style={{ minWidth: 80 }}
 									>
-										Cancel
+										{label}
 									</Button>
-									<Button
-										tokens={tokens}
-										size="sm"
-										testId="keybind-save"
-										disabled={!candidate || !!error}
-										onPress={() => {
-											if (candidate && !error) save(candidate);
+								</PopoverTrigger>
+								<PopoverContent
+									tokens={tokens}
+									placement="center"
+									width={430}
+									testId="keybind-recorder"
+									aria-label={`Change ${command.label} shortcut`}
+								>
+									<div
+										style={{
+											display: "flex",
+											flexDirection: "column",
+											gap: spacing[3],
 										}}
 									>
-										Save
-									</Button>
-								</div>
-							</div>
-						</PopoverContent>
-					</Popover>
-				)}
-				{overrides[command.id] ? (
-					<Button
-						tokens={tokens}
-						size="sm"
-						variant="ghost"
-						testId={`keybind-reset-${command.id}`}
-						aria-label={`Reset ${command.label} shortcut`}
-						onPress={() => {
-							const failure = Keybinds.error(
-								overrides,
-								command.id,
-								command.key
-							);
+										<text
+											role="heading"
+											aria-level={2}
+											style={{ ...styles.sectionTitle }}
+										>
+											{command.label}
+										</text>
+										<text style={{ ...styles.description }}>
+											Press a shortcut, then Save. Include Command, Control, or
+											Option. Escape cancels.
+										</text>
+										<div
+											tabIndex={0}
+											autoFocus
+											testId="keybind-recording"
+											role="group"
+											aria-label="Shortcut recorder"
+											style={{
+												padding: spacing[4],
+												borderWidth: 1,
+												borderColor: tokens.colors.border,
+												borderRadius: radius.md,
+												alignItems: "center",
+											}}
+										>
+											<text style={{ ...styles.sectionTitle }}>
+												{candidate
+													? Keybinds.format(candidate)
+													: "Press a shortcut…"}
+											</text>
+										</div>
+										{error ? (
+											<text
+												role="alert"
+												testId="keybind-error"
+												style={{ ...styles.error }}
+											>
+												{error}
+											</text>
+										) : null}
+										<div
+											style={{
+												display: "flex",
+												flexDirection: "row",
+												justifyContent: "flex-end",
+												gap: spacing[2],
+											}}
+										>
+											<Button
+												tokens={tokens}
+												size="sm"
+												variant="secondary"
+												testId="keybind-cancel"
+												onPress={() => setOpen(false)}
+											>
+												Cancel
+											</Button>
+											<Button
+												tokens={tokens}
+												size="sm"
+												testId="keybind-save"
+												disabled={!candidate || !!error}
+												onPress={() => {
+													if (candidate && !error) save(candidate);
+												}}
+											>
+												Save
+											</Button>
+										</div>
+									</div>
+								</PopoverContent>
+							</Popover>
+						)}
+						{overrides[command.id] ? (
+							<Button
+								tokens={tokens}
+								size="sm"
+								variant="ghost"
+								testId={`keybind-reset-${command.id}`}
+								aria-label={`Reset ${command.label} shortcut`}
+								onPress={() => {
+									const failure = Keybinds.error(
+										overrides,
+										command.id,
+										command.key
+									);
 
-							setResetError(failure);
+									setResetError(failure);
 
-							if (!failure) save(command.key);
-						}}
-					>
-						Reset
-					</Button>
-				) : null}
-			</div>
+									if (!failure) save(command.key);
+								}}
+							>
+								Reset
+							</Button>
+						) : null}
+					</div>
+				}
+			/>
 			{resetError ? (
 				<text role="alert" style={{ ...styles.error }}>
 					{resetError}
 				</text>
 			) : null}
-		</div>
+		</>
 	);
 }

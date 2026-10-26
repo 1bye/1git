@@ -3,6 +3,9 @@ import type { PublicInstance } from "@gpuix/react";
 import type { ReactElement, ReactNode, Ref } from "react";
 import { createThemedStyles, useAppTheme } from "../../styles/theme";
 
+// Main add/create actions belong in secondary page-header buttons; group actions stay in their card.
+// Primary buttons submit panel forms. Edit items in side panels; popovers only confirm destructive actions.
+
 /** Shared sizing for Settings pages and their nested forms. */
 export const settingsLayout = {
 	padding: spacing[4],
@@ -12,6 +15,7 @@ export const settingsLayout = {
 	rowGap: spacing[3],
 	labelGap: spacing[1],
 	width: 480,
+	singleWidth: 560,
 	wideWidth: 760,
 } as const;
 
@@ -89,7 +93,7 @@ export function SettingsPage({
 	title: string;
 	description?: ReactNode;
 	action?: ReactNode;
-	width?: "default" | "wide";
+	width?: "default" | "single" | "wide";
 	testId: string;
 	scrollTestId?: string;
 	headerTestId?: string;
@@ -100,7 +104,11 @@ export function SettingsPage({
 	const styles = settingsStyles.get(useAppTheme());
 
 	const maxWidth =
-		(width === "wide" ? settingsLayout.wideWidth : settingsLayout.width) +
+		{
+			default: settingsLayout.width,
+			single: settingsLayout.singleWidth,
+			wide: settingsLayout.wideWidth,
+		}[width] +
 		settingsLayout.padding * 2;
 
 	const header = (
@@ -252,7 +260,7 @@ type SettingsPanelProps = {
 	description?: ReactNode;
 	label: string;
 	body: ReactNode;
-	footer: ReactNode;
+	footer?: ReactNode;
 	testId?: string;
 	headerTestId?: string;
 	titleTestId?: string;
@@ -331,18 +339,41 @@ export function SettingsPanel({
 					{body}
 				</div>
 			</div>
-			<div testId={footerTestId} style={styles.footer}>
-				<div
-					style={{
-						...styles.column,
-						width: "100%",
-						maxWidth: settingsLayout.width,
-					}}
-				>
-					{footer}
+			{footer ? (
+				<div testId={footerTestId} style={styles.footer}>
+					<div
+						style={{
+							...styles.column,
+							width: "100%",
+							maxWidth: settingsLayout.width,
+						}}
+					>
+						{footer}
+					</div>
 				</div>
-			</div>
+			) : null}
 		</div>
+	);
+}
+
+/** A settings-only preview; it shares editor chrome without form actions. */
+export function SettingsPreview({
+	children,
+	description,
+	testId = "settings-preview",
+}: {
+	children: ReactNode;
+	description?: ReactNode;
+	testId?: string;
+}) {
+	return (
+		<SettingsPanel
+			testId={testId}
+			title="Preview"
+			label="Preview"
+			description={description}
+			body={children}
+		/>
 	);
 }
 
