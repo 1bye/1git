@@ -1296,6 +1296,7 @@ function AppContent({
 	);
 
 	const closeSettings = useCallback(() => {
+		setSpaceEditor(undefined);
 		setSettingsView(null);
 		const focused = workspaceFocus.current;
 
@@ -1320,7 +1321,7 @@ function AppContent({
 			if (target !== null && target !== undefined)
 				renderer.focusElement?.(target);
 		}, 0);
-	}, [renderer, setSettingsView]);
+	}, [renderer, setSettingsView, setSpaceEditor]);
 
 	const openAppearance = (
 		section: RepositoryAppearanceSection = "color"
@@ -1643,13 +1644,38 @@ function AppContent({
 			spaces={state.spaces ?? []}
 			activeId={activeSpace.id}
 			onSelect={selectSpace}
-			onCreate={() => setSpaceEditor({})}
+			onCreate={() => {
+				manageSpaces();
+				setSpaceEditor({});
+			}}
 			onManage={manageSpaces}
 		/>
 	);
 
 	const spacesSettings = (
 		<SpacesSettings
+			editor={spaceEditor}
+			onCancel={() => setSpaceEditor(undefined)}
+			onSave={(value) => {
+				if (spaceEditor?.space)
+					dispatch({ type: "space-edit", id: spaceEditor.space.id, ...value });
+				else
+					dispatch({
+						type: "space-create",
+						space: { id: randomUUID(), ...value, repositories: [] },
+						discovery: discoveryPreferences,
+						library: repositoryLibrary,
+					});
+
+				setSpaceEditor(undefined);
+			}}
+			tabCounts={Object.fromEntries(
+				(state.spaces ?? []).map((space) => [
+					space.id,
+					state.tabs.filter((tab) => (tab.spaceId ?? "default") === space.id)
+						.length,
+				])
+			)}
 			spaces={state.spaces ?? []}
 			activeId={activeSpace.id}
 			onCreate={() => setSpaceEditor({})}
@@ -2567,8 +2593,9 @@ function AppContent({
 						) : null}
 					</Onboarding>
 				) : null}
-				{spaceEditor ? (
+				{spaceEditor && onboardingOpen ? (
 					<SpaceManager
+						presentation="dialog"
 						key={spaceEditor.space?.id ?? "new"}
 						space={spaceEditor.space}
 						onClose={() => setSpaceEditor(undefined)}

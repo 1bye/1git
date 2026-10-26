@@ -4,7 +4,7 @@ import { iconSize, typography } from "@1git/design-tokens";
 import { spaceIconPresets } from "./space-icons";
 
 /** Shared outline icons; older saved emoji choices remain renderable. */
-export function SpaceSymbol({ icon }: { icon: string }) {
+export function SpaceSymbol({ icon, color }: { icon: string; color?: string }) {
 	const { tokens } = useAppTheme();
 	const path = spaceIconPresets.find((preset) => preset.id === icon)?.paths;
 
@@ -14,7 +14,7 @@ export function SpaceSymbol({ icon }: { icon: string }) {
 			style={{
 				width: iconSize.lg,
 				height: iconSize.lg,
-				color: tokens.colors.textMuted,
+				color: color ?? tokens.colors.textMuted,
 				pointerEvents: "none",
 			}}
 		/>

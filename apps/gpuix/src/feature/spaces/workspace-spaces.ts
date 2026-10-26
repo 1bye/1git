@@ -18,6 +18,7 @@ export interface WorkspaceSpace {
 	readonly id: string;
 	readonly name: string;
 	readonly icon: string;
+	readonly color?: string;
 	readonly activeId: string | null;
 	readonly repositories: readonly string[];
 	readonly discovery: RepositoryDiscoveryPreferences;
@@ -31,7 +32,10 @@ export type SpaceDirection = "previous" | "next";
 export type WorkspaceSpaceAction =
 	| {
 			type: "space-create";
-			space: Pick<WorkspaceSpace, "id" | "name" | "icon" | "repositories">;
+			space: Pick<
+				WorkspaceSpace,
+				"id" | "name" | "icon" | "color" | "repositories"
+			>;
 			discovery: RepositoryDiscoveryPreferences;
 			library: RepositoryLibraryPreferences;
 	  }
@@ -42,6 +46,7 @@ export type WorkspaceSpaceAction =
 			id: string;
 			name: string;
 			icon: string;
+			color?: string;
 	  }
 	| {
 			type: "space-preferences";
@@ -105,6 +110,12 @@ export class WorkspaceSpaces {
 						},
 					],
 				};
+	}
+
+	static color(value: unknown): string | undefined {
+		return typeof value === "string" && /^#[a-f0-9]{6}$/iu.test(value)
+			? value.toLowerCase()
+			: undefined;
 	}
 
 	static validIcon(icon: string): boolean {
@@ -174,6 +185,9 @@ export class WorkspaceSpaces {
 				id: record.id,
 				name: record.name.trim(),
 				icon: record.icon,
+				...(this.color(record.color)
+					? { color: this.color(record.color) }
+					: {}),
 				activeId: record.activeId,
 				repositories: this.paths(record.repositories),
 				discovery: RepositoryDiscovery.preferences(record.discovery),
@@ -229,6 +243,7 @@ export class WorkspaceSpaces {
 					{
 						...action.space,
 						name: action.space.name.trim(),
+						color: this.color(action.space.color),
 						repositories: this.paths(action.space.repositories),
 						activeId: null,
 						discovery: { folders: [], hidden: [] },
@@ -307,6 +322,7 @@ export class WorkspaceSpaces {
 								...space,
 								name: action.name.trim(),
 								icon: action.icon,
+								color: this.color(action.color),
 							}
 						: {
 								...space,

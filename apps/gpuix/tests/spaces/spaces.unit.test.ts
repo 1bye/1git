@@ -326,3 +326,31 @@ it("validates names, one emoji grapheme and saved ownership before accepting a s
 		)
 	).toThrow("workspace");
 });
+
+it("persists optional space colours and drops invalid legacy colour values", () => {
+	const updated = WorkspaceTabsModel.reduce(create(), {
+		type: "space-edit",
+		id: work,
+		name: "Work",
+		icon: "work",
+		color: "#A478EF",
+	});
+
+	const document = WorkspaceSession.parse(
+		JSON.stringify(WorkspaceSession.capture(updated))
+	);
+
+	expect(document.spaces?.find((space) => space.id === work)?.color).toBe(
+		"#a478ef"
+	);
+	const corrupt = {
+		...document,
+		spaces: document.spaces?.map((space) => ({ ...space, color: "invalid" })),
+	};
+
+	expect(
+		WorkspaceSession.parse(JSON.stringify(corrupt)).spaces?.every(
+			(space) => space.color === undefined
+		)
+	).toBe(true);
+});

@@ -129,7 +129,7 @@ export function SpaceSwitcher({
 						paddingRight: 0,
 					}}
 				>
-					<SpaceSymbol icon={active.icon} />
+					<SpaceSymbol icon={active.icon} color={active.color} />
 				</Button>
 			</TooltipTrigger>
 			<TooltipContent

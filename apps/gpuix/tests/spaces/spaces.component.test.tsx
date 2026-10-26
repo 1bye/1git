@@ -110,7 +110,7 @@ afterEach(() => {
 });
 
 for (const appearance of ["light", "dark"] as const) {
-	it(`creates an icon space above Settings and restores separate tabs/drafts after a ${appearance} restart`, async () => {
+	it(`creates an icon space beside Settings and restores separate tabs/drafts after a ${appearance} restart`, async () => {
 		root.render(
 			<App
 				accounts={accounts}
@@ -150,7 +150,7 @@ for (const appearance of ["light", "dark"] as const) {
 		const editor = bounds("space-editor");
 
 		expect(editor.y).toBeGreaterThanOrEqual(12);
-		expect(editor.y + editor.height).toBeLessThanOrEqual(628);
+		expect(editor.y + editor.height).toBeLessThanOrEqual(640);
 
 		if (process.env.GPUIX_SPACES_SCREENSHOT)
 			root.renderer.captureScreenshot(
@@ -160,6 +160,9 @@ for (const appearance of ["light", "dark"] as const) {
 		click("space-editor-save");
 		await settle();
 		expect(root.renderer.findByTestId("space-editor")).toBeUndefined();
+		expect(node("settings-view")).toBeDefined();
+		root.renderer.simulateKeystrokes("escape");
+		await settle();
 		expect(node("rail-spaces").customProps?.["aria-label"]).toBe(
 			"Spaces: Personal"
 		);
@@ -269,6 +272,8 @@ it("confirms space deletion, supports keyboard cancellation and preserves drafts
 	click("settings-spaces");
 	await settle();
 	expect(root.renderer.findByTestId("space-delete-default")).toBeUndefined();
+	click(`space-edit-${workId}`);
+	await settle();
 	click(`space-delete-${workId}`);
 	await settle();
 	expect(latest().spaces).toHaveLength(2);
@@ -596,4 +601,50 @@ it("does not switch with one space or a disabled rail", async () => {
 	railPhase("started");
 	railMove(-60);
 	expect(onSwipe).toHaveBeenCalledWith("next");
+});
+
+it("cancels a space panel before leaving Settings and persists its colour only on Save", async () => {
+	root.render(
+		<App
+			accounts={accounts}
+			saveSession={save}
+			initialSession={{ version: 1, tabs: [], activeId: null }}
+		/>
+	);
+	await settle();
+	root.renderer.simulateKeystrokes("cmd-,");
+	await settle();
+	click("settings-spaces");
+	click("space-create");
+	await settle();
+	enter("space-name", "Projects");
+	click("space-color-a478ef");
+	click("space-editor-save");
+	await settle();
+	const space = latest().spaces?.find((item) => item.name === "Projects");
+
+	if (!space) throw new Error("Missing saved space");
+
+	expect(space.color).toBe("#a478ef");
+	expect(root.renderer.getFocusedElementId()).toBe(node("space-create").id);
+	click(`space-edit-${space.id}`);
+	await settle();
+	enter("space-name", "Unsaved");
+	root.renderer.simulateKeystrokes("escape");
+	await settle();
+	expect(root.renderer.findByTestId("space-editor")).toBeUndefined();
+	expect(node("settings-view")).toBeDefined();
+	expect(root.renderer.getFocusedElementId()).toBe(
+		node(`space-edit-${space.id}`).id
+	);
+	expect(latest().spaces?.find((item) => item.id === space.id)?.name).toBe(
+		"Projects"
+	);
+	click(`space-edit-${space.id}`);
+	await settle();
+	click("settings-privacy");
+	await settle();
+	click("settings-spaces");
+	await settle();
+	expect(root.renderer.findByTestId("space-editor")).toBeUndefined();
 });

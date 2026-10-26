@@ -120,6 +120,8 @@ test.each(["light", "dark"] as const)(
 						ignoredHistory={{ history, repository, onRefresh: async () => {} }}
 						spacesSettings={
 							<SpacesSettings
+								onCancel={() => {}}
+								onSave={() => {}}
 								spaces={[
 									{
 										id: "default",

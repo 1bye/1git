@@ -295,6 +295,7 @@ export function SettingsPanel({
 			aria-label={label}
 			style={{
 				...styles.pane,
+				height: "100%",
 				borderLeftWidth: 1,
 				borderColor: theme.tokens.colors.border,
 			}}

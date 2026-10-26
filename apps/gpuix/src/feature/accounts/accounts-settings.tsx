@@ -7,11 +7,13 @@ import type { IgnoredHistoryStatus } from "../ignored-history/use-ignored-histor
 import { createThemedStyles, useAppTheme } from "../../styles/theme";
 import { spacing } from "@1git/design-tokens";
 import {
+	cloneElement,
 	useCallback,
 	useEffect,
 	useRef,
 	useState,
 	type ReactNode,
+	type ReactElement,
 	type ComponentProps,
 	type Ref,
 } from "react";
@@ -60,6 +62,7 @@ import {
 	SettingsSplit,
 	settingsStyles,
 } from "../settings/settings-layout";
+import type { SpacesSettingsHandle } from "../spaces/space-manager";
 import { AppearanceSettings } from "../appearance-settings/appearance-settings";
 import { PrivacySettings } from "../analytics/privacy-settings";
 import { KeybindSettings } from "../keybinds/keybind-settings";
@@ -267,7 +270,7 @@ export function AccountsSettings({
 	onCustomizeRepositoryAppearance?: () => void;
 	spaceSwitcher?: (disabled: boolean) => ReactNode;
 	onSpaceSwipe?: (direction: SpaceDirection) => void;
-	spacesSettings?: ReactNode;
+	spacesSettings?: ReactElement<{ ref?: Ref<SpacesSettingsHandle> }>;
 	readGitSettings?: typeof GitSettingsModel.read;
 	writeGitSettings?: typeof GitSettingsModel.write;
 	externalEditors?: ExternalEditors;
@@ -328,6 +331,7 @@ export function AccountsSettings({
 	const [section, setSection] = useState(initialSection);
 	const [gitBusy, setGitBusy] = useState(false);
 	const gitBusyRef = useRef(false);
+	const spacesEditor = useRef<SpacesSettingsHandle | null>(null);
 	const gitSettings = useRef<GitSettingsHandle | null>(null);
 	const editorSettings = useRef<EditorSettingsHandle | null>(null);
 	const aiSettings = useRef<AiSettingsHandle | null>(null);
@@ -361,6 +365,8 @@ export function AccountsSettings({
 			scope: () => view.current?.id ?? null,
 			back: () => {
 				if (gitBusyRef.current) return;
+
+				if (spacesEditor.current?.cancelEditor()) return;
 
 				if (gitSettings.current?.cancelEditor()) return;
 
@@ -526,7 +532,9 @@ export function AccountsSettings({
 		>
 			{children}
 			{section === "spaces" ? (
-				spacesSettings
+				spacesSettings ? (
+					cloneElement(spacesSettings, { ref: spacesEditor })
+				) : null
 			) : section === "appearance" ? (
 				<AppearanceSettings
 					onReplayTips={onReplayTips}
