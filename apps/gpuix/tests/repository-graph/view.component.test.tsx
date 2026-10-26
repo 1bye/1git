@@ -189,6 +189,24 @@ async function open(): Promise<void> {
 	await settle();
 }
 
+it("switches Graph file navigation to a read-only tree without changing commit navigation", async () => {
+	show();
+	await open();
+	click(`entry-${commits[0]!.oid}`);
+	await settle();
+	click("graph-file-layout");
+	expect(element("graph-files-viewport").customProps?.role).toBe("tree");
+	expect(element("graph-commits-viewport").customProps?.role).toBe("listbox");
+	expect(root.renderer.findByTestId("include-folder:src/")).toBeUndefined();
+	click("entry-folder:src/");
+	expect(root.renderer.findByTestId("entry-src/file-0.ts")).toBeUndefined();
+	expect(element("diff-header")).toBeDefined();
+	click("view-changes");
+	expect(element("changes-file-layout").customProps?.["aria-label"]).toBe(
+		"Switch to list view"
+	);
+});
+
 for (const appearance of ["light", "dark"] as const) {
 	it(`opens a separate ${appearance} Graph rail tab and inspects commit files without replacing History`, async () => {
 		show(appearance);

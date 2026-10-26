@@ -7,6 +7,8 @@ import { afterEach, beforeEach, expect, it, mock } from "bun:test";
 import { createTestRoot, type TestRoot } from "@gpuix/react/testing";
 import type { CommitInfo } from "@1git/git";
 import { RepositoryComparison } from "../../src/feature/repository-comparison/repository-comparison";
+import { RepositoryFileViewProvider } from "../../src/feature/repository-workspace/components/repository-file-view";
+import type { RepositoryFileLayout } from "../../src/feature/repository-workspace/lib/repository-file-tree";
 import {
 	RepositoryComparison as Reader,
 	type ComparisonRequest,
@@ -105,7 +107,10 @@ const click = (id: string): void => {
 	root.renderer.flush();
 };
 
-const show = (reader: typeof Reader.read = readComparison): void => {
+const show = (
+	reader: typeof Reader.read = readComparison,
+	layout: RepositoryFileLayout = "list"
+): void => {
 	root.render(
 		<div
 			style={{
@@ -116,14 +121,16 @@ const show = (reader: typeof Reader.read = readComparison): void => {
 				backgroundColor: "#ffffff",
 			}}
 		>
-			<RepositoryComparison
-				request={request}
-				onClose={close}
-				readComparison={reader}
-				readHistory={readHistory}
-				readCommitFiles={readFiles}
-				readDiff={readDiff}
-			/>
+			<RepositoryFileViewProvider initialLayout={layout}>
+				<RepositoryComparison
+					request={request}
+					onClose={close}
+					readComparison={reader}
+					readHistory={readHistory}
+					readCommitFiles={readFiles}
+					readDiff={readDiff}
+				/>
+			</RepositoryFileViewProvider>
 		</div>
 	);
 };
@@ -134,6 +141,39 @@ const choose = async (branch: string): Promise<void> => {
 	click(`compare-option-${branch}`);
 	await settle();
 };
+
+it("uses read-only file trees for comparisons and keeps incoming commits flat", async () => {
+	show(
+		async (_root, base, head) => ({
+			ok: true,
+			value: {
+				base,
+				head,
+				mergeBase: "ancestor",
+				files: [
+					{ ...file, path: "src/a.ts" },
+					{ ...file, path: "src/b.ts" },
+				],
+			},
+		}),
+		"tree"
+	);
+	await choose("feature");
+	expect(
+		root.renderer.findByTestId("comparison-files-viewport")?.customProps?.role
+	).toBe("tree");
+	expect(
+		root.renderer.findByTestId("comparison-commits-viewport")?.customProps?.role
+	).toBe("listbox");
+	expect(root.renderer.findByTestId("include-folder:src/")).toBeUndefined();
+	click("entry-folder:src/");
+	expect(root.renderer.findByTestId("entry-src/a.ts")).toBeUndefined();
+	click("comparison-file-layout");
+	expect(root.renderer.findByTestId("entry-src/a.ts")).toBeDefined();
+	expect(
+		root.renderer.findByTestId("comparison-files-viewport")?.customProps?.role
+	).toBe("listbox");
+});
 
 it("retains the sidebar and shows vector artwork while waiting for a branch", async () => {
 	show();

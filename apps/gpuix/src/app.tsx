@@ -88,6 +88,10 @@ import {
 import { useWorkspaceSession } from "./feature/workspace-tabs/hooks/use-workspace-session";
 
 import { RepositoryNavigation } from "./feature/repository-workspace/components/repository-navigation";
+import {
+	RepositoryFileViewProvider,
+	useRepositoryFileLayout,
+} from "./feature/repository-workspace/components/repository-file-view";
 import { RepositoryFileActions } from "./feature/repository-workspace/lib/repository-file-actions";
 import { RepositoryDiffEmpty } from "./feature/repository-workspace/components/repository-diff-empty";
 import { RepositoryDiff } from "./feature/repository-workspace/components/repository-diff";
@@ -213,11 +217,15 @@ export function App({
 
 	return (
 		<AppThemeContext value={theme}>
-			<AiProvider service={ai}>
-				<MachineContext value={props.machines ?? Machines.shared}>
-					<AppContent {...props} />
-				</MachineContext>
-			</AiProvider>
+			<RepositoryFileViewProvider
+				initialLayout={props.initialSession?.fileListLayout}
+			>
+				<AiProvider service={ai}>
+					<MachineContext value={props.machines ?? Machines.shared}>
+						<AppContent {...props} />
+					</MachineContext>
+				</AiProvider>
+			</RepositoryFileViewProvider>
 		</AppThemeContext>
 	);
 }
@@ -663,6 +671,8 @@ function AppContent({
 		(tab) => tab.id === onboardingId
 	)?.workspace;
 
+	const { layout: fileListLayout } = useRepositoryFileLayout();
+
 	const session = useWorkspaceSession(
 		state,
 		saveSession,
@@ -678,7 +688,8 @@ function AppContent({
 		theme.smoothTransitions,
 		theme.showScrollbars,
 		theme.typography,
-		tips
+		tips,
+		fileListLayout
 	);
 
 	useEffect(() => {
@@ -2188,6 +2199,7 @@ function AppContent({
 						/>
 					) : activeTab?.comparison?.intent === "pull-request" && workspace ? (
 						<RepositoryPullRequestView
+							fileTreeScope={activeTab.id}
 							key={`${activeTab.id}:pull-request`}
 							root={activeTab.comparison.root}
 							state={workspace}
@@ -2207,6 +2219,7 @@ function AppContent({
 						/>
 					) : activeTab?.comparison ? (
 						<RepositoryComparison
+							fileTreeScope={activeTab.id}
 							key={activeTab.id}
 							request={activeTab.comparison}
 							readComparison={readComparison}
@@ -2277,6 +2290,7 @@ function AppContent({
 					  workspace?.repository &&
 					  workspace.view === "graph" ? (
 						<RepositoryGraph
+							fileTreeScope={activeTab.id}
 							key={`graph:${activeTab.id}:${workspace.repository.root}`}
 							root={workspace.repository.root}
 							head={workspace.repository.head}

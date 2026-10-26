@@ -19,6 +19,7 @@ import {
 } from "../lib/repository-workspace-model";
 import { repositoryViews, type WorkspaceEntry } from "../types";
 import { RepositoryList } from "./repository-list";
+import { RepositoryFileLayoutToggle } from "./repository-file-view";
 import { EmptyListPlaceholder } from "../../../fixture/empty-list-placeholder";
 import { StateMessage } from "../../../fixture/state-message";
 import { RepositoryCommit } from "./repository-commit";
@@ -457,6 +458,21 @@ function RepositoryNavigationContent({
 						fileHistory?.revision,
 					])}
 					entries={entries}
+					fileTree={
+						view === "changes"
+							? {
+									scope: JSON.stringify([
+										workspaceId,
+										state.repository?.root,
+										"changes",
+									]),
+									allEntries: state.entries.changes,
+									filtering,
+									onInclude: (ids, included) =>
+										onAction({ type: "include-files", ids, included }),
+								}
+							: undefined
+					}
 					onContextMenu={
 						view === "history" && !state.preview ? onMenu : undefined
 					}
@@ -542,15 +558,15 @@ function RepositoryNavigationContent({
 								}
 							: undefined
 					}
-					onSelect={(id, mode) =>
+					onSelect={(id, mode, visibleIds) =>
 						onAction({
 							type: "select",
 							view,
 							id,
 							mode,
-							visibleIds: filtering
-								? entries.map((entry) => entry.id)
-								: undefined,
+							visibleIds:
+								visibleIds ??
+								(filtering ? entries.map((entry) => entry.id) : undefined),
 						})
 					}
 					onScroll={(y) => onAction({ type: "scroll", view, y })}
@@ -604,6 +620,9 @@ function RepositoryNavigationContent({
 					</text>
 				) : null}
 				<div style={{ flexGrow: 1 }} />
+				{view === "changes" ? (
+					<RepositoryFileLayoutToggle testId="changes-file-layout" />
+				) : null}
 				{state.repository || state.repositoryPath ? (
 					<Button
 						testId="refresh-repository"
@@ -846,6 +865,7 @@ function RepositoryNavigationContent({
 					list
 				) : (
 					<RepositoryRevisions
+						workspaceId={workspaceId}
 						fileActions={
 							state.repository && !state.preview
 								? {

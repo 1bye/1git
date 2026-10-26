@@ -10,6 +10,22 @@ import { WorkspaceTabsModel } from "../../src/feature/workspace-tabs/lib/workspa
 import { repositorySnapshot } from "../_shared/repository-snapshot";
 import { commitInfo, historyPage } from "../_shared/history-page";
 
+it("validates the optional file layout without invalidating older sessions", () => {
+	const document = WorkspaceSession.capture(WorkspaceTabsModel.create());
+
+	for (const fileListLayout of ["list", "tree"] as const)
+		expect(
+			WorkspaceSession.parse(JSON.stringify({ ...document, fileListLayout }))
+				.fileListLayout
+		).toBe(fileListLayout);
+
+	for (const fileListLayout of [undefined, null, "unknown", true])
+		expect(
+			WorkspaceSession.parse(JSON.stringify({ ...document, fileListLayout }))
+				.fileListLayout
+		).toBeUndefined();
+});
+
 it("persists discovery scope and hidden suggestions without saving scan results or changing older sessions", () => {
 	const state = WorkspaceTabsModel.create();
 	const preferences = { folders: ["/Volumes/Work"], hidden: ["/test/hidden"] };
