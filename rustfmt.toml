@@ -1,0 +1,5 @@
+# From 1bye/workflow f62c7d7dcdf3ffd9b77de95a523544a0c688bb9b; stable options only.
+max_width = 100
+hard_tabs = false
+tab_spaces = 4
+newline_style = "Unix"

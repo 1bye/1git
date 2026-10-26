@@ -1,0 +1,46 @@
+[workspace]
+members = ["crates/onegit-app", "crates/onegit-git", "crates/onegit-ui"]
+exclude = ["apps/gpuix/native/remote-helper"]
+resolver = "3"
+
+[workspace.package]
+version = "0.0.1"
+edition = "2024"
+rust-version = "1.95"
+publish = false
+
+[workspace.dependencies]
+onegit-git = { path = "crates/onegit-git" }
+onegit-ui = { path = "crates/onegit-ui" }
+# Local checkout until Rake is pushed; switch to a pinned git rev afterwards.
+rake = { path = "../rake/crates/rake" }
+# Must match the GPUI CE revision Rake pins so both resolve to one crate.
+gpui = { package = "gpui_ce", git = "https://github.com/gpui-ce/gpui-ce", rev = "99109e3a77ddadbcb46cba8567e779a651600608", default-features = false }
+libc = "=0.2.191"
+tempfile = "=3.27.0"
+serde_json = "=1.0.154"
+sha2 = "=0.10.9"
+regex = "=1.13.1"
+base64 = "=0.22.1"
+url = "=2.5.8"
+chrono = { version = "=0.4.45", default-features = false, features = ["std"] }
+
+[workspace.lints.rust]
+missing_docs = "warn"
+unsafe_op_in_unsafe_fn = "deny"
+
+[workspace.lints.clippy]
+dbg_macro = "warn"
+todo = "warn"
+undocumented_unsafe_blocks = "warn"
+
+[workspace.metadata.dylint]
+libraries = [{ git = "https://github.com/1bye/workflow", rev = "f62c7d7dcdf3ffd9b77de95a523544a0c688bb9b", pattern = "rust/spacing" }]
+
+[profile.dev]
+debug = 0
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true

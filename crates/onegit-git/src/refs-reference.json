@@ -1,0 +1,326 @@
+{
+  "sources": [
+    {
+      "source": "packages/git/src/parsers/refs.ts",
+      "sha256": "03dc752b2c85344ad115fb8ac1891f48ac0264ce06483010fbbc256c39813441"
+    },
+    {
+      "source": "packages/git/src/parsers/worktrees.ts",
+      "sha256": "3ad7a2e1a50a9ab6f832ec8e4f493561e0cf772c0eb587ad00d052cd77250e39"
+    }
+  ],
+  "scope": "Legacy valid parser outputs; native ref fields add a trailing NUL sentinel for newline-safe record framing.",
+  "cases": [
+    {
+      "kind": "branches",
+      "input": "refs/heads/main\u0000main\u0000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u0000*\u0000\u0000\u00002026-01-02T03:04:05Z\u0000Initial\u0000/repo\u0000\u0000\u0000\n",
+      "expected": {
+        "branches": [
+          {
+            "ahead": 0,
+            "behind": 0,
+            "checkedOut": true,
+            "committedAt": "2026-01-02T03:04:05Z",
+            "fullName": "refs/heads/main",
+            "name": "main",
+            "oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "remote": null,
+            "summary": "Initial",
+            "type": "local",
+            "upstream": null,
+            "worktreePath": "/repo",
+            "upstreamRemote": null,
+            "upstreamRef": null
+          }
+        ],
+        "current": "main"
+      }
+    },
+    {
+      "kind": "branches",
+      "input": "refs/heads/linked\u0000linked\u0000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u0000 \u0000\u0000\u00002026-01-02T03:04:05Z\u0000Linked\u0000/repo-linked\u0000\u0000\u0000\n",
+      "expected": {
+        "branches": [
+          {
+            "ahead": 0,
+            "behind": 0,
+            "checkedOut": false,
+            "committedAt": "2026-01-02T03:04:05Z",
+            "fullName": "refs/heads/linked",
+            "name": "linked",
+            "oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "remote": null,
+            "summary": "Linked",
+            "type": "local",
+            "upstream": null,
+            "worktreePath": "/repo-linked",
+            "upstreamRemote": null,
+            "upstreamRef": null
+          }
+        ],
+        "current": null
+      }
+    },
+    {
+      "kind": "branches",
+      "input": "refs/heads/main\u0000main\u0000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u0000*\u0000origin/main\u0000ahead 2, behind 5\u00002026-01-02T03:04:05Z\u0000Sync\u0000\u0000\u0000\u0000\n",
+      "expected": {
+        "branches": [
+          {
+            "ahead": 2,
+            "behind": 5,
+            "checkedOut": true,
+            "committedAt": "2026-01-02T03:04:05Z",
+            "fullName": "refs/heads/main",
+            "name": "main",
+            "oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "remote": null,
+            "summary": "Sync",
+            "type": "local",
+            "upstream": "origin/main",
+            "worktreePath": null,
+            "upstreamRemote": null,
+            "upstreamRef": null
+          }
+        ],
+        "current": "main"
+      }
+    },
+    {
+      "kind": "branches",
+      "input": "refs/heads/main\u0000main\u0000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u0000*\u0000origin/main\u0000ahead 7\u0000\u0000\u0000\u0000\u0000\u0000\n",
+      "expected": {
+        "branches": [
+          {
+            "ahead": 7,
+            "behind": 0,
+            "checkedOut": true,
+            "committedAt": null,
+            "fullName": "refs/heads/main",
+            "name": "main",
+            "oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "remote": null,
+            "summary": "",
+            "type": "local",
+            "upstream": "origin/main",
+            "worktreePath": null,
+            "upstreamRemote": null,
+            "upstreamRef": null
+          }
+        ],
+        "current": "main"
+      }
+    },
+    {
+      "kind": "branches",
+      "input": "refs/heads/topic/ui\u0000topic/ui\u0000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u0000*\u0000custom/tracking/ui\u0000ahead 1\u0000\u0000\u0000/repo\u0000team/upstream\u0000refs/heads/release/ui\u0000\n",
+      "expected": {
+        "branches": [
+          {
+            "ahead": 1,
+            "behind": 0,
+            "checkedOut": true,
+            "committedAt": null,
+            "fullName": "refs/heads/topic/ui",
+            "name": "topic/ui",
+            "oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "remote": null,
+            "summary": "",
+            "type": "local",
+            "upstream": "custom/tracking/ui",
+            "worktreePath": "/repo",
+            "upstreamRemote": "team/upstream",
+            "upstreamRef": "refs/heads/release/ui"
+          }
+        ],
+        "current": "topic/ui"
+      }
+    },
+    {
+      "kind": "branches",
+      "input": "refs/remotes/upstream/feature\u0000upstream/feature\u0000bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\u0000 \u0000\u0000\u0000\u0000Topic\u0000\u0000\u0000\u0000\n",
+      "expected": {
+        "branches": [
+          {
+            "ahead": 0,
+            "behind": 0,
+            "checkedOut": false,
+            "committedAt": null,
+            "fullName": "refs/remotes/upstream/feature",
+            "name": "upstream/feature",
+            "oid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "remote": "upstream",
+            "summary": "Topic",
+            "type": "remote",
+            "upstream": null,
+            "worktreePath": null,
+            "upstreamRemote": null,
+            "upstreamRef": null
+          }
+        ],
+        "current": null
+      }
+    },
+    {
+      "kind": "branches",
+      "input": "refs/remotes/origin/HEAD\u0000origin/HEAD\u0000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u0000 \u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\n",
+      "expected": {
+        "branches": [],
+        "current": null
+      }
+    },
+    {
+      "kind": "tags",
+      "input": "v1\u0000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u0000commit\u0000\u0000\u0000Release\u0000\n",
+      "expected": [
+        {
+          "createdAt": null,
+          "message": "Release",
+          "name": "v1",
+          "oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "targetOid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "type": "lightweight"
+        }
+      ]
+    },
+    {
+      "kind": "tags",
+      "input": "v2\u0000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u0000tag\u0000bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\u00002026-01-02T03:04:05Z\u0000Major\u0000\n",
+      "expected": [
+        {
+          "createdAt": "2026-01-02T03:04:05Z",
+          "message": "Major",
+          "name": "v2",
+          "oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "targetOid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "type": "annotated"
+        }
+      ]
+    },
+    {
+      "kind": "stashes",
+      "input": "stash@{0}\u0000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00002026-01-02T03:04:05Z\u0000First\u0000\n",
+      "expected": [
+        {
+          "createdAt": "2026-01-02T03:04:05Z",
+          "oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "reference": "stash@{0}",
+          "summary": "First"
+        }
+      ]
+    },
+    {
+      "kind": "stashes",
+      "input": "stash@{0}\u0000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00002026-01-02T03:04:05Z\u0000First\u0000\nstash@{1}\u0000bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\u00002026-01-02T03:04:05Z\u0000Second\u0000\n",
+      "expected": [
+        {
+          "createdAt": "2026-01-02T03:04:05Z",
+          "oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "reference": "stash@{0}",
+          "summary": "First"
+        },
+        {
+          "createdAt": "2026-01-02T03:04:05Z",
+          "oid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "reference": "stash@{1}",
+          "summary": "Second"
+        }
+      ]
+    },
+    {
+      "kind": "worktrees",
+      "input": "worktree /tmp/repository\u0000HEAD aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u0000branch refs/heads/main\u0000\u0000",
+      "expected": [
+        {
+          "branch": "main",
+          "detached": false,
+          "headOid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "locked": false,
+          "lockReason": null,
+          "path": "/tmp/repository",
+          "prunable": false,
+          "pruneReason": null
+        }
+      ]
+    },
+    {
+      "kind": "worktrees",
+      "input": "worktree /tmp/detached\u0000HEAD aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u0000detached\u0000\u0000",
+      "expected": [
+        {
+          "branch": null,
+          "detached": true,
+          "headOid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "locked": false,
+          "lockReason": null,
+          "path": "/tmp/detached",
+          "prunable": false,
+          "pruneReason": null
+        }
+      ]
+    },
+    {
+      "kind": "worktrees",
+      "input": "worktree /tmp/locked\u0000HEAD aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u0000locked external drive\u0000\u0000",
+      "expected": [
+        {
+          "branch": null,
+          "detached": false,
+          "headOid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "locked": true,
+          "lockReason": "external drive",
+          "path": "/tmp/locked",
+          "prunable": false,
+          "pruneReason": null
+        }
+      ]
+    },
+    {
+      "kind": "worktrees",
+      "input": "worktree /tmp/stale\u0000HEAD aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u0000prunable gitdir file points to non-existent location\u0000\u0000",
+      "expected": [
+        {
+          "branch": null,
+          "detached": false,
+          "headOid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "locked": false,
+          "lockReason": null,
+          "path": "/tmp/stale",
+          "prunable": true,
+          "pruneReason": "gitdir file points to non-existent location"
+        }
+      ]
+    },
+    {
+      "kind": "worktrees",
+      "input": "worktree /tmp/one\u0000HEAD aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u0000branch refs/heads/main\u0000\u0000worktree /tmp/two\u0000HEAD aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u0000detached\u0000\u0000",
+      "expected": [
+        {
+          "branch": "main",
+          "detached": false,
+          "headOid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "locked": false,
+          "lockReason": null,
+          "path": "/tmp/one",
+          "prunable": false,
+          "pruneReason": null
+        },
+        {
+          "branch": null,
+          "detached": true,
+          "headOid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "locked": false,
+          "lockReason": null,
+          "path": "/tmp/two",
+          "prunable": false,
+          "pruneReason": null
+        }
+      ]
+    },
+    {
+      "kind": "worktrees",
+      "input": "HEAD aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u0000detached\u0000\u0000",
+      "expected": []
+    }
+  ]
+}

@@ -1,0 +1,143 @@
+{
+  "source": "packages/git/src/repository.ts",
+  "source_sha256": "3bb7d187e669ead2410b0054e0ac85534fce8721b73ea4cdedd6c1d4718c6a00",
+  "literal": "/^(?:<{3,}|>{3,}|={3,}|\\|{3,})(?:[ \\t].*)?\\r?$/m",
+  "cases": [
+    {
+      "text": "",
+      "markers": false
+    },
+    {
+      "text": "resolved\n",
+      "markers": false
+    },
+    {
+      "text": "<<<<<<< HEAD\nours\n=======\ntheirs\n>>>>>>> topic\n",
+      "markers": true
+    },
+    {
+      "text": "<<<",
+      "markers": true
+    },
+    {
+      "text": "<<",
+      "markers": false
+    },
+    {
+      "text": "<<<<",
+      "markers": true
+    },
+    {
+      "text": ">>> ours",
+      "markers": true
+    },
+    {
+      "text": "===\tchoice",
+      "markers": true
+    },
+    {
+      "text": "||| base",
+      "markers": true
+    },
+    {
+      "text": "||||",
+      "markers": true
+    },
+    {
+      "text": "<<<<<HEAD",
+      "markers": false
+    },
+    {
+      "text": "====x",
+      "markers": false
+    },
+    {
+      "text": " ||| base",
+      "markers": false
+    },
+    {
+      "text": "prefix <<<",
+      "markers": false
+    },
+    {
+      "text": "<<<\rnext",
+      "markers": true
+    },
+    {
+      "text": "resolved\r===\rnext",
+      "markers": true
+    },
+    {
+      "text": "resolved >>> topic",
+      "markers": true
+    },
+    {
+      "text": "resolved ||| base",
+      "markers": true
+    },
+    {
+      "text": "resolved<<<<<<< HEAD",
+      "markers": false
+    },
+    {
+      "text": "<<< text",
+      "markers": true
+    },
+    {
+      "text": "﻿<<<<<<< HEAD",
+      "markers": false
+    },
+    {
+      "text": "<<<<<<<\r\nresolved",
+      "markers": true
+    },
+    {
+      "text": "<<<\t",
+      "markers": true
+    },
+    {
+      "text": "<<<  details",
+      "markers": true
+    },
+    {
+      "text": "<<<\u000bother",
+      "markers": false
+    },
+    {
+      "text": "<<< other",
+      "markers": false
+    },
+    {
+      "text": "<<<<>",
+      "markers": false
+    },
+    {
+      "text": "<<<<\t>",
+      "markers": true
+    },
+    {
+      "text": "===\n",
+      "markers": true
+    },
+    {
+      "text": "====\r\n",
+      "markers": true
+    },
+    {
+      "text": "||||||| ancestor\n",
+      "markers": true
+    },
+    {
+      "text": " >>> resolved",
+      "markers": true
+    },
+    {
+      "text": "text\n<<< rest",
+      "markers": true
+    },
+    {
+      "text": "\nresolved\n<<<\r\n",
+      "markers": true
+    }
+  ]
+}

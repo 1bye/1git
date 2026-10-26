@@ -1,0 +1,425 @@
+{
+  "source": "packages/git/src/result.ts",
+  "source_sha256": "30e0a82d116fc14f8be6d850edbf99128bb03cf67e0cbe293715ad78e6b6663c",
+  "cases": [
+    {
+      "stderr": "Authentication failed",
+      "stdout": "",
+      "expected": {
+        "code": "authentication-required",
+        "details": "Authentication failed",
+        "exitCode": 128,
+        "message": "Git authentication is required.",
+        "operation": "fetch",
+        "retryable": true
+      }
+    },
+    {
+      "stderr": "Could not read username",
+      "stdout": "",
+      "expected": {
+        "code": "authentication-required",
+        "details": "Could not read username",
+        "exitCode": 128,
+        "message": "Git authentication is required.",
+        "operation": "fetch",
+        "retryable": true
+      }
+    },
+    {
+      "stderr": "Permission denied",
+      "stdout": "",
+      "expected": {
+        "code": "authentication-required",
+        "details": "Permission denied",
+        "exitCode": 128,
+        "message": "Git authentication is required.",
+        "operation": "fetch",
+        "retryable": true
+      }
+    },
+    {
+      "stderr": "terminal prompts disabled",
+      "stdout": "",
+      "expected": {
+        "code": "authentication-required",
+        "details": "terminal prompts disabled",
+        "exitCode": 128,
+        "message": "Git authentication is required.",
+        "operation": "fetch",
+        "retryable": true
+      }
+    },
+    {
+      "stderr": "Repository not found",
+      "stdout": "",
+      "expected": {
+        "code": "authentication-required",
+        "details": "Repository not found",
+        "exitCode": 128,
+        "message": "Git authentication is required.",
+        "operation": "fetch",
+        "retryable": true
+      }
+    },
+    {
+      "stderr": "CONFLICT (content)",
+      "stdout": "",
+      "expected": {
+        "code": "conflict",
+        "details": "CONFLICT (content)",
+        "exitCode": 128,
+        "message": "Git operation \"fetch\" stopped because of conflicts.",
+        "operation": "fetch",
+        "retryable": false
+      }
+    },
+    {
+      "stderr": "needs merge",
+      "stdout": "",
+      "expected": {
+        "code": "conflict",
+        "details": "needs merge",
+        "exitCode": 128,
+        "message": "Git operation \"fetch\" stopped because of conflicts.",
+        "operation": "fetch",
+        "retryable": false
+      }
+    },
+    {
+      "stderr": "unmerged files",
+      "stdout": "",
+      "expected": {
+        "code": "conflict",
+        "details": "unmerged files",
+        "exitCode": 128,
+        "message": "Git operation \"fetch\" stopped because of conflicts.",
+        "operation": "fetch",
+        "retryable": false
+      }
+    },
+    {
+      "stderr": "resolve your current index first",
+      "stdout": "",
+      "expected": {
+        "code": "conflict",
+        "details": "resolve your current index first",
+        "exitCode": 128,
+        "message": "Git operation \"fetch\" stopped because of conflicts.",
+        "operation": "fetch",
+        "retryable": false
+      }
+    },
+    {
+      "stderr": "local changes to files would be overwritten",
+      "stdout": "",
+      "expected": {
+        "code": "dirty-worktree",
+        "details": "local changes to files would be overwritten",
+        "exitCode": 128,
+        "message": "Git operation \"fetch\" requires a clean working tree.",
+        "operation": "fetch",
+        "retryable": false
+      }
+    },
+    {
+      "stderr": "working tree is not clean",
+      "stdout": "",
+      "expected": {
+        "code": "dirty-worktree",
+        "details": "working tree is not clean",
+        "exitCode": 128,
+        "message": "Git operation \"fetch\" requires a clean working tree.",
+        "operation": "fetch",
+        "retryable": false
+      }
+    },
+    {
+      "stderr": "unstaged changes",
+      "stdout": "",
+      "expected": {
+        "code": "dirty-worktree",
+        "details": "unstaged changes",
+        "exitCode": 128,
+        "message": "Git operation \"fetch\" requires a clean working tree.",
+        "operation": "fetch",
+        "retryable": false
+      }
+    },
+    {
+      "stderr": "would be overwritten by merge",
+      "stdout": "",
+      "expected": {
+        "code": "dirty-worktree",
+        "details": "would be overwritten by merge",
+        "exitCode": 128,
+        "message": "Git operation \"fetch\" requires a clean working tree.",
+        "operation": "fetch",
+        "retryable": false
+      }
+    },
+    {
+      "stderr": "invalid reference",
+      "stdout": "",
+      "expected": {
+        "code": "invalid-reference",
+        "details": "invalid reference",
+        "exitCode": 128,
+        "message": "Git operation \"fetch\" received an invalid revision or ref.",
+        "operation": "fetch",
+        "retryable": false
+      }
+    },
+    {
+      "stderr": "not a valid object name",
+      "stdout": "",
+      "expected": {
+        "code": "invalid-reference",
+        "details": "not a valid object name",
+        "exitCode": 128,
+        "message": "Git operation \"fetch\" received an invalid revision or ref.",
+        "operation": "fetch",
+        "retryable": false
+      }
+    },
+    {
+      "stderr": "not a valid branch name",
+      "stdout": "",
+      "expected": {
+        "code": "invalid-reference",
+        "details": "not a valid branch name",
+        "exitCode": 128,
+        "message": "Git operation \"fetch\" received an invalid revision or ref.",
+        "operation": "fetch",
+        "retryable": false
+      }
+    },
+    {
+      "stderr": "unknown revision",
+      "stdout": "",
+      "expected": {
+        "code": "invalid-reference",
+        "details": "unknown revision",
+        "exitCode": 128,
+        "message": "Git operation \"fetch\" received an invalid revision or ref.",
+        "operation": "fetch",
+        "retryable": false
+      }
+    },
+    {
+      "stderr": "bad revision",
+      "stdout": "",
+      "expected": {
+        "code": "invalid-reference",
+        "details": "bad revision",
+        "exitCode": 128,
+        "message": "Git operation \"fetch\" received an invalid revision or ref.",
+        "operation": "fetch",
+        "retryable": false
+      }
+    },
+    {
+      "stderr": "invalid upstream",
+      "stdout": "",
+      "expected": {
+        "code": "invalid-reference",
+        "details": "invalid upstream",
+        "exitCode": 128,
+        "message": "Git operation \"fetch\" received an invalid revision or ref.",
+        "operation": "fetch",
+        "retryable": false
+      }
+    },
+    {
+      "stderr": "already exists",
+      "stdout": "",
+      "expected": {
+        "code": "already-exists",
+        "details": "already exists",
+        "exitCode": 128,
+        "message": "Git operation \"fetch\" failed.",
+        "operation": "fetch",
+        "retryable": false
+      }
+    },
+    {
+      "stderr": "already checked out",
+      "stdout": "",
+      "expected": {
+        "code": "already-exists",
+        "details": "already checked out",
+        "exitCode": 128,
+        "message": "Git operation \"fetch\" failed.",
+        "operation": "fetch",
+        "retryable": false
+      }
+    },
+    {
+      "stderr": "cannot create index.lock",
+      "stdout": "",
+      "expected": {
+        "code": "repository-locked",
+        "details": "cannot create index.lock",
+        "exitCode": 128,
+        "message": "The repository is locked by another Git process.",
+        "operation": "fetch",
+        "retryable": true
+      }
+    },
+    {
+      "stderr": "another git process seems to be running",
+      "stdout": "",
+      "expected": {
+        "code": "repository-locked",
+        "details": "another git process seems to be running",
+        "exitCode": 128,
+        "message": "The repository is locked by another Git process.",
+        "operation": "fetch",
+        "retryable": true
+      }
+    },
+    {
+      "stderr": "unable to create '/fixture/refs.lock'",
+      "stdout": "",
+      "expected": {
+        "code": "repository-locked",
+        "details": "unable to create '/fixture/refs.lock'",
+        "exitCode": 128,
+        "message": "The repository is locked by another Git process.",
+        "operation": "fetch",
+        "retryable": true
+      }
+    },
+    {
+      "stderr": "operation not permitted",
+      "stdout": "",
+      "expected": {
+        "code": "permission-denied",
+        "details": "operation not permitted",
+        "exitCode": 128,
+        "message": "Git operation \"fetch\" failed.",
+        "operation": "fetch",
+        "retryable": false
+      }
+    },
+    {
+      "stderr": "not a git repository",
+      "stdout": "",
+      "expected": {
+        "code": "not-a-repository",
+        "details": "not a git repository",
+        "exitCode": 128,
+        "message": "Git operation \"fetch\" failed.",
+        "operation": "fetch",
+        "retryable": false
+      }
+    },
+    {
+      "stderr": "not found",
+      "stdout": "",
+      "expected": {
+        "code": "not-found",
+        "details": "not found",
+        "exitCode": 128,
+        "message": "Git operation \"fetch\" failed.",
+        "operation": "fetch",
+        "retryable": false
+      }
+    },
+    {
+      "stderr": "no such remote",
+      "stdout": "",
+      "expected": {
+        "code": "not-found",
+        "details": "no such remote",
+        "exitCode": 128,
+        "message": "Git operation \"fetch\" failed.",
+        "operation": "fetch",
+        "retryable": false
+      }
+    },
+    {
+      "stderr": "no stash entries found",
+      "stdout": "",
+      "expected": {
+        "code": "not-found",
+        "details": "no stash entries found",
+        "exitCode": 128,
+        "message": "Git operation \"fetch\" failed.",
+        "operation": "fetch",
+        "retryable": false
+      }
+    },
+    {
+      "stderr": "SSL certificate problem",
+      "stdout": "fixture stdout",
+      "expected": {
+        "code": "command-failed",
+        "details": "SSL certificate problem\nfixture stdout",
+        "exitCode": 128,
+        "message": "Git operation \"fetch\" failed.",
+        "operation": "fetch",
+        "retryable": false
+      }
+    },
+    {
+      "stderr": "authentication failed and conflict",
+      "stdout": "",
+      "expected": {
+        "code": "authentication-required",
+        "details": "authentication failed and conflict",
+        "exitCode": 128,
+        "message": "Git authentication is required.",
+        "operation": "fetch",
+        "retryable": true
+      }
+    },
+    {
+      "stderr": "already exists index.lock",
+      "stdout": "",
+      "expected": {
+        "code": "already-exists",
+        "details": "already exists index.lock",
+        "exitCode": 128,
+        "message": "Git operation \"fetch\" failed.",
+        "operation": "fetch",
+        "retryable": false
+      }
+    },
+    {
+      "stderr": "  \n  ",
+      "stdout": "",
+      "expected": {
+        "code": "command-failed",
+        "exitCode": 128,
+        "message": "Git operation \"fetch\" failed.",
+        "operation": "fetch",
+        "retryable": false
+      }
+    },
+    {
+      "stderr": "fatal: https://fixture-user:fixture-password@example.invalid/repo.git authentication failed",
+      "stdout": "",
+      "expected": {
+        "code": "authentication-required",
+        "details": "fatal: https://fixture-user:***@example.invalid/repo.git authentication failed",
+        "exitCode": 128,
+        "message": "Git authentication is required.",
+        "operation": "fetch",
+        "retryable": true
+      }
+    },
+    {
+      "stderr": "bounded xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "stdout": "",
+      "expected": {
+        "code": "command-failed",
+        "details": "bounded xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "exitCode": 128,
+        "message": "Git operation \"fetch\" failed.",
+        "operation": "fetch",
+        "retryable": false
+      }
+    }
+  ]
+}

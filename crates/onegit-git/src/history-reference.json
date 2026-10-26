@@ -1,0 +1,220 @@
+{
+  "sources": [
+    {
+      "source": "packages/git/src/parsers/history.ts",
+      "sha256": "a90248e477795d588364daded342bea9220888bd1cb8d6d16716f4fb34622fea"
+    },
+    {
+      "source": "packages/git/src/parsers/diff.ts",
+      "sha256": "6faf168275c53fdfd6a06aa113fd5339c572a9263ff2a849bf69ef75304b8b79"
+    }
+  ],
+  "scope": "Legacy metadata/raw-diff parser outputs; native history uses NUL fields in place of control record/field separators.",
+  "cases": [
+    {
+      "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u0000\u0000Ada\u0000ada@example.invalid\u00002026-01-02T03:04:05Z\u0000Grace\u0000grace@example.invalid\u00002026-01-02T03:04:05Z\u0000feat: parser\u0000Detailed body\n\u0000\n",
+      "expected": [
+        {
+          "author": {
+            "email": "ada@example.invalid",
+            "name": "Ada"
+          },
+          "authoredAt": "2026-01-02T03:04:05Z",
+          "body": "Detailed body",
+          "committedAt": "2026-01-02T03:04:05Z",
+          "committer": {
+            "email": "grace@example.invalid",
+            "name": "Grace"
+          },
+          "oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "parentOids": [],
+          "summary": "feat: parser"
+        }
+      ]
+    },
+    {
+      "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u0000bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb cccccccccccccccccccccccccccccccccccccccc\u0000A\u0000a@x\u00002026-01-02T03:04:05Z\u0000C\u0000c@x\u00002026-01-02T03:04:05Z\u0000merge\u0000merge\u0000\n",
+      "expected": [
+        {
+          "author": {
+            "email": "a@x",
+            "name": "A"
+          },
+          "authoredAt": "2026-01-02T03:04:05Z",
+          "body": "merge",
+          "committedAt": "2026-01-02T03:04:05Z",
+          "committer": {
+            "email": "c@x",
+            "name": "C"
+          },
+          "oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "parentOids": [
+            "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "cccccccccccccccccccccccccccccccccccccccc"
+          ],
+          "summary": "merge"
+        }
+      ]
+    },
+    {
+      "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u0000\u0000A\u0000a@x\u00002026-01-02T03:04:05Z\u0000A\u0000a@x\u00002026-01-02T03:04:05Z\u0000summary\u0000line one\n\nline two\n\n\u0000\n",
+      "expected": [
+        {
+          "author": {
+            "email": "a@x",
+            "name": "A"
+          },
+          "authoredAt": "2026-01-02T03:04:05Z",
+          "body": "line one\n\nline two",
+          "committedAt": "2026-01-02T03:04:05Z",
+          "committer": {
+            "email": "a@x",
+            "name": "A"
+          },
+          "oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "parentOids": [],
+          "summary": "summary"
+        }
+      ]
+    },
+    {
+      "input": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\u0000\u0000A\u0000a@x\u00002026-01-02T03:04:05Z\u0000A\u0000a@x\u00002026-01-02T03:04:05Z\u0000summary\u0000before\u001fafter\u0000\n",
+      "expected": [
+        {
+          "author": {
+            "email": "a@x",
+            "name": "A"
+          },
+          "authoredAt": "2026-01-02T03:04:05Z",
+          "body": "before\u001fafter",
+          "committedAt": "2026-01-02T03:04:05Z",
+          "committer": {
+            "email": "a@x",
+            "name": "A"
+          },
+          "oid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "parentOids": [],
+          "summary": "summary"
+        }
+      ]
+    },
+    {
+      "input": "cccccccccccccccccccccccccccccccccccccccc\u0000\u0000A\u0000a@x\u00002026-01-02T03:04:05Z\u0000A\u0000a@x\u00002026-01-02T03:04:05Z\u0000summary\u0000retained﻿\n\u0000\n",
+      "expected": [
+        {
+          "author": {
+            "email": "a@x",
+            "name": "A"
+          },
+          "authoredAt": "2026-01-02T03:04:05Z",
+          "body": "retained",
+          "committedAt": "2026-01-02T03:04:05Z",
+          "committer": {
+            "email": "a@x",
+            "name": "A"
+          },
+          "oid": "cccccccccccccccccccccccccccccccccccccccc",
+          "parentOids": [],
+          "summary": "summary"
+        }
+      ]
+    }
+  ],
+  "rawCases": [
+    {
+      "input": ":000000 100644 0000000000000000000000000000000000000000 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa A\u0000new\t\nfile\u0000",
+      "expected": [
+        {
+          "path": "new\t\nfile",
+          "status": "A",
+          "beforeOid": "0000000000000000000000000000000000000000",
+          "afterOid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      ]
+    },
+    {
+      "input": ":100644 100644 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb M\u0000modified\u0000",
+      "expected": [
+        {
+          "path": "modified",
+          "status": "M",
+          "beforeOid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "afterOid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        }
+      ]
+    },
+    {
+      "input": ":100644 000000 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa 0000000000000000000000000000000000000000 D\u0000deleted\u0000",
+      "expected": [
+        {
+          "path": "deleted",
+          "status": "D",
+          "beforeOid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "afterOid": "0000000000000000000000000000000000000000"
+        }
+      ]
+    },
+    {
+      "input": ":100644 100644 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa R100\u0000old\npath\u0000new\npath\u0000",
+      "expected": [
+        {
+          "path": "new\npath",
+          "status": "R",
+          "beforeOid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "afterOid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "originalPath": "old\npath"
+        }
+      ]
+    },
+    {
+      "input": ":100644 100644 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa C100\u0000source\u0000target\u0000",
+      "expected": [
+        {
+          "path": "target",
+          "status": "C",
+          "beforeOid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "afterOid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "originalPath": "source"
+        }
+      ]
+    },
+    {
+      "input": ":100644 120000 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb T\u0000type\u0000",
+      "expected": [
+        {
+          "path": "type",
+          "status": "T",
+          "beforeOid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "afterOid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        }
+      ]
+    }
+  ],
+  "whitespace": [
+    {
+      "input": "",
+      "trim": "",
+      "trimEnd": ""
+    },
+    {
+      "input": "x",
+      "trim": "x",
+      "trimEnd": "x"
+    },
+    {
+      "input": "﻿x﻿",
+      "trim": "x",
+      "trimEnd": "﻿x"
+    },
+    {
+      "input": "\t\r\nx\n\r\t",
+      "trim": "x",
+      "trimEnd": "\t\r\nx"
+    },
+    {
+      "input": " x　",
+      "trim": "x",
+      "trimEnd": " x"
+    }
+  ]
+}

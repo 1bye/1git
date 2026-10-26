@@ -1,0 +1,259 @@
+{
+  "source": "packages/git/src/parsers/status.ts",
+  "baseline": "9a2ca63136b6c91f1984ed48bf04eed191ebbd13",
+  "cases": [
+    {
+      "name": "empty",
+      "input": "",
+      "expected": {
+        "files": [],
+        "head": {
+          "ahead": 0,
+          "behind": 0,
+          "branch": null,
+          "detached": false,
+          "oid": null,
+          "unborn": true,
+          "upstream": null
+        },
+        "stashCount": 0
+      }
+    },
+    {
+      "name": "tracking",
+      "input": "# branch.oid aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u0000# branch.head feature/parser\u0000# branch.upstream origin/feature/parser\u0000# branch.ab +12 -3\u0000# stash 4\u0000",
+      "expected": {
+        "files": [],
+        "head": {
+          "ahead": 12,
+          "behind": 3,
+          "branch": "feature/parser",
+          "detached": false,
+          "oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "unborn": false,
+          "upstream": "origin/feature/parser"
+        },
+        "stashCount": 4
+      }
+    },
+    {
+      "name": "unborn",
+      "input": "# branch.oid (initial)\u0000# branch.head main\u0000",
+      "expected": {
+        "files": [],
+        "head": {
+          "ahead": 0,
+          "behind": 0,
+          "branch": "main",
+          "detached": false,
+          "oid": null,
+          "unborn": true,
+          "upstream": null
+        },
+        "stashCount": 0
+      }
+    },
+    {
+      "name": "detached",
+      "input": "# branch.oid aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u0000# branch.head (detached)\u0000",
+      "expected": {
+        "files": [],
+        "head": {
+          "ahead": 0,
+          "behind": 0,
+          "branch": null,
+          "detached": true,
+          "oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "unborn": false,
+          "upstream": null
+        },
+        "stashCount": 0
+      }
+    },
+    {
+      "name": "ordinary",
+      "input": "1 AM N... 100644 100644 100644 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb source file.ts\u0000",
+      "expected": {
+        "files": [
+          {
+            "headOid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "indexOid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "indexStatus": "added",
+            "path": "source file.ts",
+            "recordType": "ordinary",
+            "submodule": "N...",
+            "worktreeStatus": "modified"
+          }
+        ],
+        "head": {
+          "ahead": 0,
+          "behind": 0,
+          "branch": null,
+          "detached": false,
+          "oid": null,
+          "unborn": true,
+          "upstream": null
+        },
+        "stashCount": 0
+      }
+    },
+    {
+      "name": "deletion-type",
+      "input": "1 DT N... 100644 000000 120000 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb script\u0000",
+      "expected": {
+        "files": [
+          {
+            "headOid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "indexOid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "indexStatus": "deleted",
+            "path": "script",
+            "recordType": "ordinary",
+            "submodule": "N...",
+            "worktreeStatus": "type-changed"
+          }
+        ],
+        "head": {
+          "ahead": 0,
+          "behind": 0,
+          "branch": null,
+          "detached": false,
+          "oid": null,
+          "unborn": true,
+          "upstream": null
+        },
+        "stashCount": 0
+      }
+    },
+    {
+      "name": "rename",
+      "input": "2 R. N... 100644 100644 100644 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb R087 new name.ts\u0000old name.ts\u0000",
+      "expected": {
+        "files": [
+          {
+            "headOid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "indexOid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "indexStatus": "renamed",
+            "originalPath": "old name.ts",
+            "path": "new name.ts",
+            "recordType": "renamed",
+            "renameScore": 87,
+            "submodule": "N...",
+            "worktreeStatus": "unmodified"
+          }
+        ],
+        "head": {
+          "ahead": 0,
+          "behind": 0,
+          "branch": null,
+          "detached": false,
+          "oid": null,
+          "unborn": true,
+          "upstream": null
+        },
+        "stashCount": 0
+      }
+    },
+    {
+      "name": "unmerged",
+      "input": "u UU N... 100644 100644 100644 100644 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa conflicted.ts\u0000",
+      "expected": {
+        "files": [
+          {
+            "indexStatus": "unmerged",
+            "path": "conflicted.ts",
+            "recordType": "unmerged",
+            "submodule": "N...",
+            "worktreeStatus": "unmerged"
+          }
+        ],
+        "head": {
+          "ahead": 0,
+          "behind": 0,
+          "branch": null,
+          "detached": false,
+          "oid": null,
+          "unborn": true,
+          "upstream": null
+        },
+        "stashCount": 0
+      }
+    },
+    {
+      "name": "unicode",
+      "input": "? docs/été notes.md\u0000",
+      "expected": {
+        "files": [
+          {
+            "indexStatus": "unmodified",
+            "path": "docs/été notes.md",
+            "recordType": "untracked",
+            "submodule": "N...",
+            "worktreeStatus": "untracked"
+          }
+        ],
+        "head": {
+          "ahead": 0,
+          "behind": 0,
+          "branch": null,
+          "detached": false,
+          "oid": null,
+          "unborn": true,
+          "upstream": null
+        },
+        "stashCount": 0
+      }
+    },
+    {
+      "name": "newline",
+      "input": "? unusual\nname.txt\u0000",
+      "expected": {
+        "files": [
+          {
+            "indexStatus": "unmodified",
+            "path": "unusual\nname.txt",
+            "recordType": "untracked",
+            "submodule": "N...",
+            "worktreeStatus": "untracked"
+          }
+        ],
+        "head": {
+          "ahead": 0,
+          "behind": 0,
+          "branch": null,
+          "detached": false,
+          "oid": null,
+          "unborn": true,
+          "upstream": null
+        },
+        "stashCount": 0
+      }
+    },
+    {
+      "name": "ignored",
+      "input": "! build/output.js\u0000",
+      "expected": {
+        "files": [
+          {
+            "indexStatus": "unmodified",
+            "path": "build/output.js",
+            "recordType": "ignored",
+            "submodule": "N...",
+            "worktreeStatus": "ignored"
+          }
+        ],
+        "head": {
+          "ahead": 0,
+          "behind": 0,
+          "branch": null,
+          "detached": false,
+          "oid": null,
+          "unborn": true,
+          "upstream": null
+        },
+        "stashCount": 0
+      }
+    }
+  ],
+  "source_sha256": "20c4718d28dce17d7604e1f446d85cf1ec90e19c8078ad7fbc7973ef11360fb9",
+  "scope": "All 11 valid cases from status-parser.test.ts; malformed-output behavior is tracked separately in scenarios.tsv."
+}

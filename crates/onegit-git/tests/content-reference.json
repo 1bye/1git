@@ -1,0 +1,127 @@
+{
+  "source": "packages/git/src/queries.ts",
+  "source_sha256": "ec446a37b5754fbd436f9f6723318efbc75e35dedf889bf1a3cd88bcffb792d9",
+  "scope": "Old file-content loader with real working files and a static Git blob response; checks representation/bytes only.",
+  "cases": [
+    {
+      "kind": "working",
+      "path": "file-0",
+      "bytesHex": "",
+      "expected": {
+        "content": "",
+        "encoding": "utf8",
+        "path": "file-0",
+        "revision": "WORKTREE",
+        "sizeBytes": 0
+      }
+    },
+    {
+      "kind": "object",
+      "path": "file-0",
+      "bytesHex": "",
+      "expected": {
+        "content": "",
+        "encoding": "utf8",
+        "path": "file-0",
+        "revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sizeBytes": 0
+      }
+    },
+    {
+      "kind": "working",
+      "path": "file-1",
+      "bytesHex": "efbbbfe697a5e69cace8aa9e0d0a",
+      "expected": {
+        "content": "﻿日本語\r\n",
+        "encoding": "utf8",
+        "path": "file-1",
+        "revision": "WORKTREE",
+        "sizeBytes": 14
+      }
+    },
+    {
+      "kind": "object",
+      "path": "file-1",
+      "bytesHex": "efbbbfe697a5e69cace8aa9e0d0a",
+      "expected": {
+        "content": "﻿日本語\r\n",
+        "encoding": "utf8",
+        "path": "file-1",
+        "revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sizeBytes": 14
+      }
+    },
+    {
+      "kind": "working",
+      "path": "file-2",
+      "bytesHex": "68656c6c6f00776f726c64",
+      "expected": {
+        "content": "hello\u0000world",
+        "encoding": "utf8",
+        "path": "file-2",
+        "revision": "WORKTREE",
+        "sizeBytes": 11
+      }
+    },
+    {
+      "kind": "object",
+      "path": "file-2",
+      "bytesHex": "68656c6c6f00776f726c64",
+      "expected": {
+        "content": "hello\u0000world",
+        "encoding": "utf8",
+        "path": "file-2",
+        "revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sizeBytes": 11
+      }
+    },
+    {
+      "kind": "working",
+      "path": "file-3",
+      "bytesHex": "ff00fe",
+      "expected": {
+        "content": "/wD+",
+        "encoding": "base64",
+        "path": "file-3",
+        "revision": "WORKTREE",
+        "sizeBytes": 3
+      }
+    },
+    {
+      "kind": "object",
+      "path": "file-3",
+      "bytesHex": "ff00fe",
+      "expected": {
+        "content": "/wD+",
+        "encoding": "base64",
+        "path": "file-3",
+        "revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sizeBytes": 3
+      }
+    },
+    {
+      "kind": "working",
+      "path": "file-4",
+      "bytesHex": "c3a90d0a6c696e650a",
+      "expected": {
+        "content": "é\r\nline\n",
+        "encoding": "utf8",
+        "path": "file-4",
+        "revision": "WORKTREE",
+        "sizeBytes": 9
+      }
+    },
+    {
+      "kind": "object",
+      "path": "file-4",
+      "bytesHex": "c3a90d0a6c696e650a",
+      "expected": {
+        "content": "é\r\nline\n",
+        "encoding": "utf8",
+        "path": "file-4",
+        "revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sizeBytes": 9
+      }
+    }
+  ]
+}

@@ -1,0 +1,276 @@
+{
+  "cases": [
+    {
+      "kind": "mixed",
+      "paths": [
+        "tracked[1].txt",
+        "new[1].bin"
+      ],
+      "patches": {
+        "staged": "ZGlmZiAtLWdpdCBhL3RyYWNrZWRbMV0udHh0IGIvdHJhY2tlZFsxXS50eHQKaW5kZXggZGY5NjdiOTZhNTc5ZTQ1YTE4YjgyNTE3MzJkMTY4MDRiMmU1NmE1NS4uMTlkOWNjODU4NGFjMmM3ZGNmNTdkMjY4MDM3NWU4MGYwOTlkYzQ4MSAxMDA2NDQKLS0tIGEvdHJhY2tlZFsxXS50eHQKKysrIGIvdHJhY2tlZFsxXS50eHQKQEAgLTEgKzEgQEAKLWJhc2UKK3N0YWdlZAo=",
+        "working": "ZGlmZiAtLWdpdCBhL3RyYWNrZWRbMV0udHh0IGIvdHJhY2tlZFsxXS50eHQKaW5kZXggMTlkOWNjODU4NGFjMmM3ZGNmNTdkMjY4MDM3NWU4MGYwOTlkYzQ4MS4uZDI2YjMzZGFlYTFlZDk4MjNhMTg5OTkyYmJhMzhmYmM5MTM0ODNjMSAxMDA2NDQKLS0tIGEvdHJhY2tlZFsxXS50eHQKKysrIGIvdHJhY2tlZFsxXS50eHQKQEAgLTEgKzEgQEAKLXN0YWdlZAord29ya2luZwpkaWZmIC0tZ2l0IGEvbmV3WzFdLmJpbiBiL25ld1sxXS5iaW4KbmV3IGZpbGUgbW9kZSAxMDA2NDQKaW5kZXggMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMC4uYTczM2QzN2FlY2QxZWZjOWY0YTg3YTgzNzNmYzhkNzNhNmNhYTY2OQpHSVQgYmluYXJ5IHBhdGNoCmxpdGVyYWwgNApMY21aUXp7NFdkdTB2R2BsCgpsaXRlcmFsIDAKSGNtVj9kMDAwMDEKCg=="
+      },
+      "instructions": "Recovery patches preserve staged and unstaged changes separately. Keep this folder. In the original repository, first review current changes and recovery.json. Apply non-empty staged.patch twice: git apply --cached, then git apply. Finally apply non-empty working.patch with git apply. Use --check before each command. Never force or reset if a patch fails. Patches may contain private file contents.\n",
+      "manifest": {
+        "root": "$ROOT",
+        "head": "$HEAD",
+        "paths": [
+          "tracked[1].txt",
+          "new[1].bin"
+        ],
+        "createdAt": "$UTC"
+      },
+      "prior": [
+        {
+          "path": "tracked[1].txt",
+          "working": {
+            "kind": "file",
+            "bytes": "d29ya2luZwo="
+          },
+          "staged": "c3RhZ2VkCg=="
+        },
+        {
+          "path": "new[1].bin",
+          "working": {
+            "kind": "file",
+            "bytes": "AAH/Ew=="
+          },
+          "staged": ""
+        }
+      ],
+      "after": [
+        {
+          "path": "tracked[1].txt",
+          "working": {
+            "kind": "file",
+            "bytes": "YmFzZQo="
+          },
+          "staged": "YmFzZQo="
+        },
+        {
+          "path": "new[1].bin",
+          "working": {
+            "kind": "missing"
+          },
+          "staged": ""
+        }
+      ],
+      "undone": [
+        {
+          "path": "tracked[1].txt",
+          "working": {
+            "kind": "file",
+            "bytes": "d29ya2luZwo="
+          },
+          "staged": "c3RhZ2VkCg=="
+        },
+        {
+          "path": "new[1].bin",
+          "working": {
+            "kind": "file",
+            "bytes": "AAH/Ew=="
+          },
+          "staged": ""
+        }
+      ],
+      "undoTokenV4": true,
+      "ttl15000": true,
+      "remaining": [
+        "excluded.txt"
+      ],
+      "headUnchanged": true
+    },
+    {
+      "kind": "links",
+      "paths": [
+        "tracked-link",
+        "link [1]\n\"rose\u2603"
+      ],
+      "patches": {
+        "staged": "ZGlmZiAtLWdpdCBhL3RyYWNrZWQtbGluayBiL3RyYWNrZWQtbGluawppbmRleCBiOTY1MzdhNmU5OWE3ZTgwZTAyZWE2MDQ5ZmEzZTAwNDcwMGQ5MmQ2Li4xOGUzYjBlOWY2YjM1ZDllODhlMDI5ZDBkODAyZDRhNDc1ZWRiOTYxIDEyMDAwMAotLS0gYS90cmFja2VkLWxpbmsKKysrIGIvdHJhY2tlZC1saW5rCkBAIC0xICsxIEBACi1iYXNlLXRhcmdldApcIE5vIG5ld2xpbmUgYXQgZW5kIG9mIGZpbGUKK3N0YWdlZC10YXJnZXQKXCBObyBuZXdsaW5lIGF0IGVuZCBvZiBmaWxlCg==",
+        "working": "ZGlmZiAtLWdpdCBhL3RyYWNrZWQtbGluayBiL3RyYWNrZWQtbGluawppbmRleCAxOGUzYjBlOWY2YjM1ZDllODhlMDI5ZDBkODAyZDRhNDc1ZWRiOTYxLi42MTg0ZTExN2UwOTQ3MmExYzM2YzE3ZjM2MjdmYjRjODM0ZWRmZjNmIDEyMDAwMAotLS0gYS90cmFja2VkLWxpbmsKKysrIGIvdHJhY2tlZC1saW5rCkBAIC0xICsxIEBACi1zdGFnZWQtdGFyZ2V0ClwgTm8gbmV3bGluZSBhdCBlbmQgb2YgZmlsZQord29ya2luZy10YXJnZXQKXCBObyBuZXdsaW5lIGF0IGVuZCBvZiBmaWxlCmRpZmYgLS1naXQgImEvbGluayBbMV1cblwicm9zZeKYgyIgImIvbGluayBbMV1cblwicm9zZeKYgyIKbmV3IGZpbGUgbW9kZSAxMjAwMDAKaW5kZXggMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMC4uZDg0N2Y5MWZjYWRhNTcyMDhhYjFiODA1ZWNlY2YwM2FhOTU0ZjgyZgotLS0gL2Rldi9udWxsCisrKyAiYi9saW5rIFsxXVxuXCJyb3Nl4piDIgkKQEAgLTAsMCArMSwyIEBACittaXNzaW5nCisidGFyZ2V0ClwgTm8gbmV3bGluZSBhdCBlbmQgb2YgZmlsZQo="
+      },
+      "instructions": "Recovery patches preserve staged and unstaged changes separately. Keep this folder. In the original repository, first review current changes and recovery.json. Apply non-empty staged.patch twice: git apply --cached, then git apply. Finally apply non-empty working.patch with git apply. Use --check before each command. Never force or reset if a patch fails. Patches may contain private file contents.\n",
+      "manifest": {
+        "root": "$ROOT",
+        "head": "$HEAD",
+        "paths": [
+          "tracked-link",
+          "link [1]\n\"rose\u2603"
+        ],
+        "createdAt": "$UTC"
+      },
+      "prior": [
+        {
+          "path": "tracked-link",
+          "working": {
+            "kind": "link",
+            "target": "working-target"
+          },
+          "staged": "c3RhZ2VkLXRhcmdldA=="
+        },
+        {
+          "path": "link [1]\n\"rose\u2603",
+          "working": {
+            "kind": "link",
+            "target": "missing\n\"target"
+          },
+          "staged": ""
+        }
+      ],
+      "after": [
+        {
+          "path": "tracked-link",
+          "working": {
+            "kind": "link",
+            "target": "base-target"
+          },
+          "staged": "YmFzZS10YXJnZXQ="
+        },
+        {
+          "path": "link [1]\n\"rose\u2603",
+          "working": {
+            "kind": "missing"
+          },
+          "staged": ""
+        }
+      ],
+      "undone": [
+        {
+          "path": "tracked-link",
+          "working": {
+            "kind": "link",
+            "target": "working-target"
+          },
+          "staged": "c3RhZ2VkLXRhcmdldA=="
+        },
+        {
+          "path": "link [1]\n\"rose\u2603",
+          "working": {
+            "kind": "link",
+            "target": "missing\n\"target"
+          },
+          "staged": ""
+        }
+      ],
+      "undoTokenV4": true,
+      "ttl15000": true,
+      "remaining": [
+        "excluded.txt"
+      ],
+      "headUnchanged": true
+    },
+    {
+      "kind": "deleted-parent",
+      "paths": [
+        "nested/link"
+      ],
+      "patches": {
+        "staged": "",
+        "working": "ZGlmZiAtLWdpdCBhL25lc3RlZC9saW5rIGIvbmVzdGVkL2xpbmsKZGVsZXRlZCBmaWxlIG1vZGUgMTIwMDAwCmluZGV4IDMyZDQ2ZWU4ODNiNThkNmEzODNlZWQwNmViOThmMzNhYTY1MzBkZWQuLjAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAKLS0tIGEvbmVzdGVkL2xpbmsKKysrIC9kZXYvbnVsbApAQCAtMSArMCwwIEBACi0uLi9SRUFETUUubWQKXCBObyBuZXdsaW5lIGF0IGVuZCBvZiBmaWxlCg=="
+      },
+      "instructions": "Recovery patches preserve staged and unstaged changes separately. Keep this folder. In the original repository, first review current changes and recovery.json. Apply non-empty staged.patch twice: git apply --cached, then git apply. Finally apply non-empty working.patch with git apply. Use --check before each command. Never force or reset if a patch fails. Patches may contain private file contents.\n",
+      "manifest": {
+        "root": "$ROOT",
+        "head": "$HEAD",
+        "paths": [
+          "nested/link"
+        ],
+        "createdAt": "$UTC"
+      },
+      "prior": [
+        {
+          "path": "nested/link",
+          "working": {
+            "kind": "missing"
+          },
+          "staged": "Li4vUkVBRE1FLm1k"
+        }
+      ],
+      "after": [
+        {
+          "path": "nested/link",
+          "working": {
+            "kind": "link",
+            "target": "../README.md"
+          },
+          "staged": "Li4vUkVBRE1FLm1k"
+        }
+      ],
+      "undone": [
+        {
+          "path": "nested/link",
+          "working": {
+            "kind": "missing"
+          },
+          "staged": "Li4vUkVBRE1FLm1k"
+        }
+      ],
+      "undoTokenV4": true,
+      "ttl15000": true,
+      "remaining": [
+        "excluded.txt"
+      ],
+      "headUnchanged": true
+    },
+    {
+      "kind": "unborn",
+      "paths": [
+        "new.txt"
+      ],
+      "patches": {
+        "staged": "ZGlmZiAtLWdpdCBhL25ldy50eHQgYi9uZXcudHh0Cm5ldyBmaWxlIG1vZGUgMTAwNjQ0CmluZGV4IDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAuLjE5ZDljYzg1ODRhYzJjN2RjZjU3ZDI2ODAzNzVlODBmMDk5ZGM0ODEKLS0tIC9kZXYvbnVsbAorKysgYi9uZXcudHh0CkBAIC0wLDAgKzEgQEAKK3N0YWdlZAo=",
+        "working": "ZGlmZiAtLWdpdCBhL25ldy50eHQgYi9uZXcudHh0CmluZGV4IDE5ZDljYzg1ODRhYzJjN2RjZjU3ZDI2ODAzNzVlODBmMDk5ZGM0ODEuLmQyNmIzM2RhZWExZWQ5ODIzYTE4OTk5MmJiYTM4ZmJjOTEzNDgzYzEgMTAwNjQ0Ci0tLSBhL25ldy50eHQKKysrIGIvbmV3LnR4dApAQCAtMSArMSBAQAotc3RhZ2VkCit3b3JraW5nCg=="
+      },
+      "instructions": "Recovery patches preserve staged and unstaged changes separately. Keep this folder. In the original repository, first review current changes and recovery.json. Apply non-empty staged.patch twice: git apply --cached, then git apply. Finally apply non-empty working.patch with git apply. Use --check before each command. Never force or reset if a patch fails. Patches may contain private file contents.\n",
+      "manifest": {
+        "root": "$ROOT",
+        "head": null,
+        "paths": [
+          "new.txt"
+        ],
+        "createdAt": "$UTC"
+      },
+      "prior": [
+        {
+          "path": "new.txt",
+          "working": {
+            "kind": "file",
+            "bytes": "d29ya2luZwo="
+          },
+          "staged": "c3RhZ2VkCg=="
+        }
+      ],
+      "after": [
+        {
+          "path": "new.txt",
+          "working": {
+            "kind": "missing"
+          },
+          "staged": null
+        }
+      ],
+      "undone": [
+        {
+          "path": "new.txt",
+          "working": {
+            "kind": "file",
+            "bytes": "d29ya2luZwo="
+          },
+          "staged": "c3RhZ2VkCg=="
+        }
+      ],
+      "undoTokenV4": true,
+      "ttl15000": true,
+      "remaining": [
+        "excluded.txt"
+      ],
+      "headUnchanged": true
+    }
+  ],
+  "source_sha256": {
+    "packages/git/src/repository.ts": "3bb7d187e669ead2410b0054e0ac85534fce8721b73ea4cdedd6c1d4718c6a00",
+    "packages/git/src/process/git-process.ts": "0b4ba72c1e356a2cba045d4fc9cf17894af9a4cc746cc7016c91a70134602f3f",
+    "apps/gpuix/src/feature/repository-workspace/lib/repository-file-actions.ts": "e4eb891c1e3fe98a8367d87cda6a30e27964144d13c20a19aa3526e694d1e094"
+  }
+}

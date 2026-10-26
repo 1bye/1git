@@ -1,0 +1,1538 @@
+{
+  "cases": [
+    {
+      "path": "a.txt",
+      "rule": {
+        "kind": "file"
+      },
+      "extension": ".txt",
+      "folders": [],
+      "pattern": "/a.txt",
+      "rejected": false
+    },
+    {
+      "path": "a.txt",
+      "rule": {
+        "kind": "extension"
+      },
+      "extension": ".txt",
+      "folders": [],
+      "pattern": "*.txt",
+      "rejected": false
+    },
+    {
+      "path": "a.txt",
+      "rule": {
+        "kind": "folder",
+        "path": "unrelated"
+      },
+      "extension": ".txt",
+      "folders": [],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "src/cache/a.txt",
+      "rule": {
+        "kind": "file"
+      },
+      "extension": ".txt",
+      "folders": [
+        "src/cache",
+        "src"
+      ],
+      "pattern": "/src/cache/a.txt",
+      "rejected": false
+    },
+    {
+      "path": "src/cache/a.txt",
+      "rule": {
+        "kind": "extension"
+      },
+      "extension": ".txt",
+      "folders": [
+        "src/cache",
+        "src"
+      ],
+      "pattern": "*.txt",
+      "rejected": false
+    },
+    {
+      "path": "src/cache/a.txt",
+      "rule": {
+        "kind": "folder",
+        "path": "src/cache"
+      },
+      "extension": ".txt",
+      "folders": [
+        "src/cache",
+        "src"
+      ],
+      "pattern": "/src/cache/",
+      "rejected": false
+    },
+    {
+      "path": "src/cache/a.txt",
+      "rule": {
+        "kind": "folder",
+        "path": "src"
+      },
+      "extension": ".txt",
+      "folders": [
+        "src/cache",
+        "src"
+      ],
+      "pattern": "/src/",
+      "rejected": false
+    },
+    {
+      "path": "src/cache/a.txt",
+      "rule": {
+        "kind": "folder",
+        "path": "unrelated"
+      },
+      "extension": ".txt",
+      "folders": [
+        "src/cache",
+        "src"
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "src/#file[1]*?!\\ .tsx ",
+      "rule": {
+        "kind": "file"
+      },
+      "extension": ".tsx ",
+      "folders": [
+        "src"
+      ],
+      "pattern": "/src/\\#file\\[1\\]\\*\\?\\!\\\\\\ .tsx\\ ",
+      "rejected": false
+    },
+    {
+      "path": "src/#file[1]*?!\\ .tsx ",
+      "rule": {
+        "kind": "extension"
+      },
+      "extension": ".tsx ",
+      "folders": [
+        "src"
+      ],
+      "pattern": "*.tsx\\ ",
+      "rejected": false
+    },
+    {
+      "path": "src/#file[1]*?!\\ .tsx ",
+      "rule": {
+        "kind": "folder",
+        "path": "src"
+      },
+      "extension": ".tsx ",
+      "folders": [
+        "src"
+      ],
+      "pattern": "/src/",
+      "rejected": false
+    },
+    {
+      "path": "src/#file[1]*?!\\ .tsx ",
+      "rule": {
+        "kind": "folder",
+        "path": "unrelated"
+      },
+      "extension": ".tsx ",
+      "folders": [
+        "src"
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "-file",
+      "rule": {
+        "kind": "file"
+      },
+      "extension": null,
+      "folders": [],
+      "pattern": "/-file",
+      "rejected": false
+    },
+    {
+      "path": "-file",
+      "rule": {
+        "kind": "extension"
+      },
+      "extension": null,
+      "folders": [],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "-file",
+      "rule": {
+        "kind": "folder",
+        "path": "unrelated"
+      },
+      "extension": null,
+      "folders": [],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": ":(glob)*.ts",
+      "rule": {
+        "kind": "file"
+      },
+      "extension": ".ts",
+      "folders": [],
+      "pattern": "/:(glob)\\*.ts",
+      "rejected": false
+    },
+    {
+      "path": ":(glob)*.ts",
+      "rule": {
+        "kind": "extension"
+      },
+      "extension": ".ts",
+      "folders": [],
+      "pattern": "*.ts",
+      "rejected": false
+    },
+    {
+      "path": ":(glob)*.ts",
+      "rule": {
+        "kind": "folder",
+        "path": "unrelated"
+      },
+      "extension": ".ts",
+      "folders": [],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": ".env",
+      "rule": {
+        "kind": "file"
+      },
+      "extension": null,
+      "folders": [],
+      "pattern": "/.env",
+      "rejected": false
+    },
+    {
+      "path": ".env",
+      "rule": {
+        "kind": "extension"
+      },
+      "extension": null,
+      "folders": [],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": ".env",
+      "rule": {
+        "kind": "folder",
+        "path": "unrelated"
+      },
+      "extension": null,
+      "folders": [],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": ".env.local",
+      "rule": {
+        "kind": "file"
+      },
+      "extension": ".local",
+      "folders": [],
+      "pattern": "/.env.local",
+      "rejected": false
+    },
+    {
+      "path": ".env.local",
+      "rule": {
+        "kind": "extension"
+      },
+      "extension": ".local",
+      "folders": [],
+      "pattern": "*.local",
+      "rejected": false
+    },
+    {
+      "path": ".env.local",
+      "rule": {
+        "kind": "folder",
+        "path": "unrelated"
+      },
+      "extension": ".local",
+      "folders": [],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "a.",
+      "rule": {
+        "kind": "file"
+      },
+      "extension": null,
+      "folders": [],
+      "pattern": "/a.",
+      "rejected": false
+    },
+    {
+      "path": "a.",
+      "rule": {
+        "kind": "extension"
+      },
+      "extension": null,
+      "folders": [],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "a.",
+      "rule": {
+        "kind": "folder",
+        "path": "unrelated"
+      },
+      "extension": null,
+      "folders": [],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "a..",
+      "rule": {
+        "kind": "file"
+      },
+      "extension": null,
+      "folders": [],
+      "pattern": "/a..",
+      "rejected": false
+    },
+    {
+      "path": "a..",
+      "rule": {
+        "kind": "extension"
+      },
+      "extension": null,
+      "folders": [],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "a..",
+      "rule": {
+        "kind": "folder",
+        "path": "unrelated"
+      },
+      "extension": null,
+      "folders": [],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "a.b.c",
+      "rule": {
+        "kind": "file"
+      },
+      "extension": ".c",
+      "folders": [],
+      "pattern": "/a.b.c",
+      "rejected": false
+    },
+    {
+      "path": "a.b.c",
+      "rule": {
+        "kind": "extension"
+      },
+      "extension": ".c",
+      "folders": [],
+      "pattern": "*.c",
+      "rejected": false
+    },
+    {
+      "path": "a.b.c",
+      "rule": {
+        "kind": "folder",
+        "path": "unrelated"
+      },
+      "extension": ".c",
+      "folders": [],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "\u00e9t\u00e9/\ud83e\udd80.rs",
+      "rule": {
+        "kind": "file"
+      },
+      "extension": ".rs",
+      "folders": [
+        "\u00e9t\u00e9"
+      ],
+      "pattern": "/\u00e9t\u00e9/\ud83e\udd80.rs",
+      "rejected": false
+    },
+    {
+      "path": "\u00e9t\u00e9/\ud83e\udd80.rs",
+      "rule": {
+        "kind": "extension"
+      },
+      "extension": ".rs",
+      "folders": [
+        "\u00e9t\u00e9"
+      ],
+      "pattern": "*.rs",
+      "rejected": false
+    },
+    {
+      "path": "\u00e9t\u00e9/\ud83e\udd80.rs",
+      "rule": {
+        "kind": "folder",
+        "path": "\u00e9t\u00e9"
+      },
+      "extension": ".rs",
+      "folders": [
+        "\u00e9t\u00e9"
+      ],
+      "pattern": "/\u00e9t\u00e9/",
+      "rejected": false
+    },
+    {
+      "path": "\u00e9t\u00e9/\ud83e\udd80.rs",
+      "rule": {
+        "kind": "folder",
+        "path": "unrelated"
+      },
+      "extension": ".rs",
+      "folders": [
+        "\u00e9t\u00e9"
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "tabs\t/form\f/vertical\u000b.txt",
+      "rule": {
+        "kind": "file"
+      },
+      "extension": ".txt",
+      "folders": [
+        "tabs\t/form\f",
+        "tabs\t"
+      ],
+      "pattern": "/tabs\t/form\f/vertical\u000b.txt",
+      "rejected": false
+    },
+    {
+      "path": "tabs\t/form\f/vertical\u000b.txt",
+      "rule": {
+        "kind": "extension"
+      },
+      "extension": ".txt",
+      "folders": [
+        "tabs\t/form\f",
+        "tabs\t"
+      ],
+      "pattern": "*.txt",
+      "rejected": false
+    },
+    {
+      "path": "tabs\t/form\f/vertical\u000b.txt",
+      "rule": {
+        "kind": "folder",
+        "path": "tabs\t/form\f"
+      },
+      "extension": ".txt",
+      "folders": [
+        "tabs\t/form\f",
+        "tabs\t"
+      ],
+      "pattern": "/tabs\t/form\f/",
+      "rejected": false
+    },
+    {
+      "path": "tabs\t/form\f/vertical\u000b.txt",
+      "rule": {
+        "kind": "folder",
+        "path": "tabs\t"
+      },
+      "extension": ".txt",
+      "folders": [
+        "tabs\t/form\f",
+        "tabs\t"
+      ],
+      "pattern": "/tabs\t/",
+      "rejected": false
+    },
+    {
+      "path": "tabs\t/form\f/vertical\u000b.txt",
+      "rule": {
+        "kind": "folder",
+        "path": "unrelated"
+      },
+      "extension": ".txt",
+      "folders": [
+        "tabs\t/form\f",
+        "tabs\t"
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "a\u2028b.txt",
+      "rule": {
+        "kind": "file"
+      },
+      "extension": ".txt",
+      "folders": [],
+      "pattern": "/a\u2028b.txt",
+      "rejected": false
+    },
+    {
+      "path": "a\u2028b.txt",
+      "rule": {
+        "kind": "extension"
+      },
+      "extension": ".txt",
+      "folders": [],
+      "pattern": "*.txt",
+      "rejected": false
+    },
+    {
+      "path": "a\u2028b.txt",
+      "rule": {
+        "kind": "folder",
+        "path": "unrelated"
+      },
+      "extension": ".txt",
+      "folders": [],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "a\ufeff.txt",
+      "rule": {
+        "kind": "file"
+      },
+      "extension": ".txt",
+      "folders": [],
+      "pattern": "/a\ufeff.txt",
+      "rejected": false
+    },
+    {
+      "path": "a\ufeff.txt",
+      "rule": {
+        "kind": "extension"
+      },
+      "extension": ".txt",
+      "folders": [],
+      "pattern": "*.txt",
+      "rejected": false
+    },
+    {
+      "path": "a\ufeff.txt",
+      "rule": {
+        "kind": "folder",
+        "path": "unrelated"
+      },
+      "extension": ".txt",
+      "folders": [],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "C:\\cache\\a.txt",
+      "rule": {
+        "kind": "file"
+      },
+      "extension": ".txt",
+      "folders": [],
+      "pattern": "/C:\\\\cache\\\\a.txt",
+      "rejected": false
+    },
+    {
+      "path": "C:\\cache\\a.txt",
+      "rule": {
+        "kind": "extension"
+      },
+      "extension": ".txt",
+      "folders": [],
+      "pattern": "*.txt",
+      "rejected": false
+    },
+    {
+      "path": "C:\\cache\\a.txt",
+      "rule": {
+        "kind": "folder",
+        "path": "unrelated"
+      },
+      "extension": ".txt",
+      "folders": [],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "~cache/a.txt",
+      "rule": {
+        "kind": "file"
+      },
+      "extension": ".txt",
+      "folders": [
+        "~cache"
+      ],
+      "pattern": "/~cache/a.txt",
+      "rejected": false
+    },
+    {
+      "path": "~cache/a.txt",
+      "rule": {
+        "kind": "extension"
+      },
+      "extension": ".txt",
+      "folders": [
+        "~cache"
+      ],
+      "pattern": "*.txt",
+      "rejected": false
+    },
+    {
+      "path": "~cache/a.txt",
+      "rule": {
+        "kind": "folder",
+        "path": "~cache"
+      },
+      "extension": ".txt",
+      "folders": [
+        "~cache"
+      ],
+      "pattern": "/~cache/",
+      "rejected": false
+    },
+    {
+      "path": "~cache/a.txt",
+      "rule": {
+        "kind": "folder",
+        "path": "unrelated"
+      },
+      "extension": ".txt",
+      "folders": [
+        "~cache"
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "a+b(1){2}.txt",
+      "rule": {
+        "kind": "file"
+      },
+      "extension": ".txt",
+      "folders": [],
+      "pattern": "/a+b(1){2}.txt",
+      "rejected": false
+    },
+    {
+      "path": "a+b(1){2}.txt",
+      "rule": {
+        "kind": "extension"
+      },
+      "extension": ".txt",
+      "folders": [],
+      "pattern": "*.txt",
+      "rejected": false
+    },
+    {
+      "path": "a+b(1){2}.txt",
+      "rule": {
+        "kind": "folder",
+        "path": "unrelated"
+      },
+      "extension": ".txt",
+      "folders": [],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "a\ufffd.txt",
+      "rule": {
+        "kind": "file"
+      },
+      "extension": ".txt",
+      "folders": [],
+      "pattern": "/a\ufffd.txt",
+      "rejected": false
+    },
+    {
+      "path": "a\ufffd.txt",
+      "rule": {
+        "kind": "extension"
+      },
+      "extension": ".txt",
+      "folders": [],
+      "pattern": "*.txt",
+      "rejected": false
+    },
+    {
+      "path": "a\ufffd.txt",
+      "rule": {
+        "kind": "folder",
+        "path": "unrelated"
+      },
+      "extension": ".txt",
+      "folders": [],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "",
+      "rule": {
+        "kind": "file"
+      },
+      "extension": null,
+      "folders": [],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "",
+      "rule": {
+        "kind": "extension"
+      },
+      "extension": null,
+      "folders": [],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "",
+      "rule": {
+        "kind": "folder",
+        "path": "unrelated"
+      },
+      "extension": null,
+      "folders": [],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "/absolute.txt",
+      "rule": {
+        "kind": "file"
+      },
+      "extension": ".txt",
+      "folders": [
+        ""
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "/absolute.txt",
+      "rule": {
+        "kind": "extension"
+      },
+      "extension": ".txt",
+      "folders": [
+        ""
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "/absolute.txt",
+      "rule": {
+        "kind": "folder",
+        "path": ""
+      },
+      "extension": ".txt",
+      "folders": [
+        ""
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "/absolute.txt",
+      "rule": {
+        "kind": "folder",
+        "path": "unrelated"
+      },
+      "extension": ".txt",
+      "folders": [
+        ""
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "//server/a.txt",
+      "rule": {
+        "kind": "file"
+      },
+      "extension": ".txt",
+      "folders": [
+        "//server",
+        "/",
+        ""
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "//server/a.txt",
+      "rule": {
+        "kind": "extension"
+      },
+      "extension": ".txt",
+      "folders": [
+        "//server",
+        "/",
+        ""
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "//server/a.txt",
+      "rule": {
+        "kind": "folder",
+        "path": "//server"
+      },
+      "extension": ".txt",
+      "folders": [
+        "//server",
+        "/",
+        ""
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "//server/a.txt",
+      "rule": {
+        "kind": "folder",
+        "path": "/"
+      },
+      "extension": ".txt",
+      "folders": [
+        "//server",
+        "/",
+        ""
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "//server/a.txt",
+      "rule": {
+        "kind": "folder",
+        "path": ""
+      },
+      "extension": ".txt",
+      "folders": [
+        "//server",
+        "/",
+        ""
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "//server/a.txt",
+      "rule": {
+        "kind": "folder",
+        "path": "unrelated"
+      },
+      "extension": ".txt",
+      "folders": [
+        "//server",
+        "/",
+        ""
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "../outside",
+      "rule": {
+        "kind": "file"
+      },
+      "extension": null,
+      "folders": [
+        ".."
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "../outside",
+      "rule": {
+        "kind": "extension"
+      },
+      "extension": null,
+      "folders": [
+        ".."
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "../outside",
+      "rule": {
+        "kind": "folder",
+        "path": ".."
+      },
+      "extension": null,
+      "folders": [
+        ".."
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "../outside",
+      "rule": {
+        "kind": "folder",
+        "path": "unrelated"
+      },
+      "extension": null,
+      "folders": [
+        ".."
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "a/../b.txt",
+      "rule": {
+        "kind": "file"
+      },
+      "extension": ".txt",
+      "folders": [
+        "a/..",
+        "a"
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "a/../b.txt",
+      "rule": {
+        "kind": "extension"
+      },
+      "extension": ".txt",
+      "folders": [
+        "a/..",
+        "a"
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "a/../b.txt",
+      "rule": {
+        "kind": "folder",
+        "path": "a/.."
+      },
+      "extension": ".txt",
+      "folders": [
+        "a/..",
+        "a"
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "a/../b.txt",
+      "rule": {
+        "kind": "folder",
+        "path": "a"
+      },
+      "extension": ".txt",
+      "folders": [
+        "a/..",
+        "a"
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "a/../b.txt",
+      "rule": {
+        "kind": "folder",
+        "path": "unrelated"
+      },
+      "extension": ".txt",
+      "folders": [
+        "a/..",
+        "a"
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "./a.txt",
+      "rule": {
+        "kind": "file"
+      },
+      "extension": ".txt",
+      "folders": [
+        "."
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "./a.txt",
+      "rule": {
+        "kind": "extension"
+      },
+      "extension": ".txt",
+      "folders": [
+        "."
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "./a.txt",
+      "rule": {
+        "kind": "folder",
+        "path": "."
+      },
+      "extension": ".txt",
+      "folders": [
+        "."
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "./a.txt",
+      "rule": {
+        "kind": "folder",
+        "path": "unrelated"
+      },
+      "extension": ".txt",
+      "folders": [
+        "."
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "a/./b.txt",
+      "rule": {
+        "kind": "file"
+      },
+      "extension": ".txt",
+      "folders": [
+        "a/.",
+        "a"
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "a/./b.txt",
+      "rule": {
+        "kind": "extension"
+      },
+      "extension": ".txt",
+      "folders": [
+        "a/.",
+        "a"
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "a/./b.txt",
+      "rule": {
+        "kind": "folder",
+        "path": "a/."
+      },
+      "extension": ".txt",
+      "folders": [
+        "a/.",
+        "a"
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "a/./b.txt",
+      "rule": {
+        "kind": "folder",
+        "path": "a"
+      },
+      "extension": ".txt",
+      "folders": [
+        "a/.",
+        "a"
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "a/./b.txt",
+      "rule": {
+        "kind": "folder",
+        "path": "unrelated"
+      },
+      "extension": ".txt",
+      "folders": [
+        "a/.",
+        "a"
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "a//b.txt",
+      "rule": {
+        "kind": "file"
+      },
+      "extension": ".txt",
+      "folders": [
+        "a/",
+        "a"
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "a//b.txt",
+      "rule": {
+        "kind": "extension"
+      },
+      "extension": ".txt",
+      "folders": [
+        "a/",
+        "a"
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "a//b.txt",
+      "rule": {
+        "kind": "folder",
+        "path": "a/"
+      },
+      "extension": ".txt",
+      "folders": [
+        "a/",
+        "a"
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "a//b.txt",
+      "rule": {
+        "kind": "folder",
+        "path": "a"
+      },
+      "extension": ".txt",
+      "folders": [
+        "a/",
+        "a"
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "a//b.txt",
+      "rule": {
+        "kind": "folder",
+        "path": "unrelated"
+      },
+      "extension": ".txt",
+      "folders": [
+        "a/",
+        "a"
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "a/",
+      "rule": {
+        "kind": "file"
+      },
+      "extension": null,
+      "folders": [
+        "a"
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "a/",
+      "rule": {
+        "kind": "extension"
+      },
+      "extension": null,
+      "folders": [
+        "a"
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "a/",
+      "rule": {
+        "kind": "folder",
+        "path": "a"
+      },
+      "extension": null,
+      "folders": [
+        "a"
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "a/",
+      "rule": {
+        "kind": "folder",
+        "path": "unrelated"
+      },
+      "extension": null,
+      "folders": [
+        "a"
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": ".git/config",
+      "rule": {
+        "kind": "file"
+      },
+      "extension": null,
+      "folders": [
+        ".git"
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": ".git/config",
+      "rule": {
+        "kind": "extension"
+      },
+      "extension": null,
+      "folders": [
+        ".git"
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": ".git/config",
+      "rule": {
+        "kind": "folder",
+        "path": ".git"
+      },
+      "extension": null,
+      "folders": [
+        ".git"
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": ".git/config",
+      "rule": {
+        "kind": "folder",
+        "path": "unrelated"
+      },
+      "extension": null,
+      "folders": [
+        ".git"
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "a/.git/x",
+      "rule": {
+        "kind": "file"
+      },
+      "extension": null,
+      "folders": [
+        "a/.git",
+        "a"
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "a/.git/x",
+      "rule": {
+        "kind": "extension"
+      },
+      "extension": null,
+      "folders": [
+        "a/.git",
+        "a"
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "a/.git/x",
+      "rule": {
+        "kind": "folder",
+        "path": "a/.git"
+      },
+      "extension": null,
+      "folders": [
+        "a/.git",
+        "a"
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "a/.git/x",
+      "rule": {
+        "kind": "folder",
+        "path": "a"
+      },
+      "extension": null,
+      "folders": [
+        "a/.git",
+        "a"
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "a/.git/x",
+      "rule": {
+        "kind": "folder",
+        "path": "unrelated"
+      },
+      "extension": null,
+      "folders": [
+        "a/.git",
+        "a"
+      ],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "a\nb.txt",
+      "rule": {
+        "kind": "file"
+      },
+      "extension": ".txt",
+      "folders": [],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "a\nb.txt",
+      "rule": {
+        "kind": "extension"
+      },
+      "extension": ".txt",
+      "folders": [],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "a\nb.txt",
+      "rule": {
+        "kind": "folder",
+        "path": "unrelated"
+      },
+      "extension": ".txt",
+      "folders": [],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "a\rb.txt",
+      "rule": {
+        "kind": "file"
+      },
+      "extension": ".txt",
+      "folders": [],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "a\rb.txt",
+      "rule": {
+        "kind": "extension"
+      },
+      "extension": ".txt",
+      "folders": [],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "a\rb.txt",
+      "rule": {
+        "kind": "folder",
+        "path": "unrelated"
+      },
+      "extension": ".txt",
+      "folders": [],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "a\u0000b.txt",
+      "rule": {
+        "kind": "file"
+      },
+      "extension": ".txt",
+      "folders": [],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "a\u0000b.txt",
+      "rule": {
+        "kind": "extension"
+      },
+      "extension": ".txt",
+      "folders": [],
+      "pattern": null,
+      "rejected": true
+    },
+    {
+      "path": "a\u0000b.txt",
+      "rule": {
+        "kind": "folder",
+        "path": "unrelated"
+      },
+      "extension": ".txt",
+      "folders": [],
+      "pattern": null,
+      "rejected": true
+    }
+  ],
+  "appends": [
+    {
+      "name": "empty",
+      "path": "tracked.txt",
+      "before": "",
+      "pattern": "/tracked.txt",
+      "after": "L3RyYWNrZWQudHh0Cg=="
+    },
+    {
+      "name": "lf-missing-final",
+      "path": "tracked.txt",
+      "before": "IyBjb21tZW50CioubG9n",
+      "pattern": "/tracked.txt",
+      "after": "IyBjb21tZW50CioubG9nCi90cmFja2VkLnR4dAo="
+    },
+    {
+      "name": "crlf-missing-final",
+      "path": "tracked.txt",
+      "before": "IyBjb21tZW50DQoqLmxvZw==",
+      "pattern": "/tracked.txt",
+      "after": "IyBjb21tZW50DQoqLmxvZw0KL3RyYWNrZWQudHh0DQo="
+    },
+    {
+      "name": "crlf-final",
+      "path": "tracked.txt",
+      "before": "IyBjb21tZW50DQo=",
+      "pattern": "/tracked.txt",
+      "after": "IyBjb21tZW50DQovdHJhY2tlZC50eHQNCg=="
+    },
+    {
+      "name": "cr-only",
+      "path": "tracked.txt",
+      "before": "IyBjb21tZW50DQ==",
+      "pattern": "/tracked.txt",
+      "after": "IyBjb21tZW50DQovdHJhY2tlZC50eHQK"
+    },
+    {
+      "name": "last-rule",
+      "path": "tracked.txt",
+      "before": "L3RyYWNrZWQudHh0Cg==",
+      "pattern": "/tracked.txt",
+      "after": "L3RyYWNrZWQudHh0Cg=="
+    },
+    {
+      "name": "last-rule-blank-lines",
+      "path": "tracked.txt",
+      "before": "L3RyYWNrZWQudHh0DQoNCgo=",
+      "pattern": "/tracked.txt",
+      "after": "L3RyYWNrZWQudHh0DQoNCgo="
+    },
+    {
+      "name": "last-rule-cr-only",
+      "path": "tracked.txt",
+      "before": "L3RyYWNrZWQudHh0DQ==",
+      "pattern": "/tracked.txt",
+      "after": "L3RyYWNrZWQudHh0DQovdHJhY2tlZC50eHQK"
+    },
+    {
+      "name": "negation",
+      "path": "tracked.txt",
+      "before": "L3RyYWNrZWQudHh0CiEvdHJhY2tlZC50eHQK",
+      "pattern": "/tracked.txt",
+      "after": "L3RyYWNrZWQudHh0CiEvdHJhY2tlZC50eHQKL3RyYWNrZWQudHh0Cg=="
+    },
+    {
+      "name": "earlier-rule",
+      "path": "tracked.txt",
+      "before": "L3RyYWNrZWQudHh0CioubG9nCg==",
+      "pattern": "/tracked.txt",
+      "after": "L3RyYWNrZWQudHh0CioubG9nCi90cmFja2VkLnR4dAo="
+    },
+    {
+      "name": "mixed-newlines",
+      "path": "tracked.txt",
+      "before": "YQ0KYgo=",
+      "pattern": "/tracked.txt",
+      "after": "YQ0KYgovdHJhY2tlZC50eHQNCg=="
+    },
+    {
+      "name": "bom",
+      "path": "tracked.txt",
+      "before": "77u/IyBleGlzdGluZw==",
+      "pattern": "/tracked.txt",
+      "after": "77u/IyBleGlzdGluZwovdHJhY2tlZC50eHQK"
+    },
+    {
+      "name": "nul",
+      "path": "tracked.txt",
+      "before": "IyBleGlzdGluZwAK",
+      "pattern": "/tracked.txt",
+      "after": "IyBleGlzdGluZwAKL3RyYWNrZWQudHh0Cg=="
+    },
+    {
+      "name": "invalid-utf8",
+      "path": "tracked.txt",
+      "before": "IyD/wK8K",
+      "pattern": "/tracked.txt",
+      "after": "IyD/wK8KL3RyYWNrZWQudHh0Cg=="
+    },
+    {
+      "name": "lossy-last-rule",
+      "path": "\ufffd.txt",
+      "before": "L/8udHh0Cg==",
+      "pattern": "/\ufffd.txt",
+      "after": "L/8udHh0Cg=="
+    }
+  ],
+  "source_sha256": {
+    "packages/git/src/ignore.ts": "d8e3ab3d018704be3ad2a110aae5d8d7f555184cd3d89fd347606c93ee81fa76",
+    "packages/git/src/validation.ts": "9147f07730c4dafe93013cd497d6b7f99f149a9ceaeb1dbc3dcc378fa8414ca7"
+  }
+}

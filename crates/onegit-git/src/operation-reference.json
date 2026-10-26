@@ -1,0 +1,68 @@
+{
+  "source": "packages/git/src/queries.ts",
+  "source_sha256": "ec446a37b5754fbd436f9f6723318efbc75e35dedf889bf1a3cd88bcffb792d9",
+  "scope": "Old loadSnapshot with real marker files and a static porcelain Git response; tests metadata state/tokens only.",
+  "cases": [
+    {
+      "name": "normal",
+      "files": {},
+      "operation": "normal",
+      "token": null
+    },
+    {
+      "name": "merge",
+      "files": {
+        "MERGE_HEAD": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n",
+        "ORIG_HEAD": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n"
+      },
+      "operation": "merge",
+      "token": "22f27b300439a3d8c3de8584e23b4acc940095a4dd3b6e0f3ece7a05227604ff"
+    },
+    {
+      "name": "squash-merge",
+      "files": {
+        "SQUASH_MSG": "fixture squash\n",
+        "ORIG_HEAD": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n"
+      },
+      "operation": "squash-merge",
+      "token": "6782ad541813011fd2935339150867881e1bde5a30771ac85ca77b7d04b88732"
+    },
+    {
+      "name": "cherry-pick",
+      "files": {
+        "CHERRY_PICK_HEAD": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n",
+        "sequencer/head": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n",
+        "sequencer/todo": "pick fixture\n",
+        "sequencer/opts": "[options]\n"
+      },
+      "operation": "cherry-pick",
+      "token": "907b787f41317c08bdf2e6c84d95bad0e0af030f168002c3250cc58d65613ee5"
+    },
+    {
+      "name": "revert",
+      "files": {
+        "REVERT_HEAD": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n",
+        "sequencer/head": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n",
+        "sequencer/todo": "revert fixture\n",
+        "sequencer/opts": "[options]\n"
+      },
+      "operation": "revert",
+      "token": "59ec0ec4e5604d1c21a017abc22344bb4aadd8fb1a2c6da13e510b7d93b3ab95"
+    },
+    {
+      "name": "rebase",
+      "files": {
+        "MERGE_HEAD": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n",
+        "rebase-merge/head-name": "refs/heads/main\n",
+        "rebase-merge/orig-head": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n",
+        "rebase-merge/onto": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n",
+        "rebase-merge/stopped-sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n",
+        "rebase-merge/msgnum": "1\n",
+        "rebase-apply/next": "2\n",
+        "rebase-apply/last": "3\n"
+      },
+      "operation": "rebase",
+      "token": "6a66d42cf4420a4b1cd76483951cefd12147b1256b93dd5318987da013c495b3"
+    }
+  ]
+}

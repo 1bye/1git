@@ -1,0 +1,530 @@
+{
+  "source": "packages/git/src/queries.ts",
+  "source_sha256": "ec446a37b5754fbd436f9f6723318efbc75e35dedf889bf1a3cd88bcffb792d9",
+  "scope": "Real old GitRepository.getDiff results in isolated local repositories; no services.",
+  "cases": [
+    {
+      "name": "mixed-working",
+      "steps": [
+        {
+          "kind": "write",
+          "path": "file",
+          "content": "one\ntwo\n"
+        },
+        {
+          "kind": "git",
+          "args": [
+            "add",
+            "--all"
+          ]
+        },
+        {
+          "kind": "git",
+          "args": [
+            "commit",
+            "-m",
+            "initial"
+          ]
+        },
+        {
+          "kind": "write",
+          "path": "file",
+          "content": "one\nstaged\n"
+        },
+        {
+          "kind": "git",
+          "args": [
+            "add",
+            "--",
+            "file"
+          ]
+        },
+        {
+          "kind": "write",
+          "path": "file",
+          "content": "one\nworking-final\n"
+        },
+        {
+          "kind": "write",
+          "path": "untracked",
+          "content": "new\n"
+        }
+      ],
+      "options": {
+        "target": {
+          "kind": "working"
+        }
+      },
+      "expected": {
+        "patch": "diff --git a/file b/file\nindex c7847ad..a5b1bf2 100644\n--- a/file\n+++ b/file\n@@ -1,2 +1,2 @@\n one\n-staged\n+working-final\n\ndiff --git a/untracked b/untracked\nnew file mode 100644\nindex 0000000..3e75765\n--- /dev/null\n+++ b/untracked\n@@ -0,0 +1 @@\n+new\n",
+        "stats": [
+          {
+            "addedLines": 1,
+            "deletedLines": 1,
+            "path": "file"
+          },
+          {
+            "path": "untracked",
+            "addedLines": 1,
+            "deletedLines": 0
+          }
+        ],
+        "target": {
+          "kind": "working"
+        }
+      }
+    },
+    {
+      "name": "mixed-staged",
+      "steps": [
+        {
+          "kind": "write",
+          "path": "file",
+          "content": "one\ntwo\n"
+        },
+        {
+          "kind": "git",
+          "args": [
+            "add",
+            "--all"
+          ]
+        },
+        {
+          "kind": "git",
+          "args": [
+            "commit",
+            "-m",
+            "initial"
+          ]
+        },
+        {
+          "kind": "write",
+          "path": "file",
+          "content": "one\nstaged\n"
+        },
+        {
+          "kind": "git",
+          "args": [
+            "add",
+            "--",
+            "file"
+          ]
+        },
+        {
+          "kind": "write",
+          "path": "file",
+          "content": "one\nworking-final\n"
+        },
+        {
+          "kind": "write",
+          "path": "untracked",
+          "content": "new\n"
+        }
+      ],
+      "options": {
+        "target": {
+          "kind": "staged"
+        }
+      },
+      "expected": {
+        "patch": "diff --git a/file b/file\nindex 814f4a4..c7847ad 100644\n--- a/file\n+++ b/file\n@@ -1,2 +1,2 @@\n one\n-two\n+staged\n",
+        "stats": [
+          {
+            "addedLines": 1,
+            "deletedLines": 1,
+            "path": "file"
+          }
+        ],
+        "target": {
+          "kind": "staged"
+        }
+      }
+    },
+    {
+      "name": "mixed-changes",
+      "steps": [
+        {
+          "kind": "write",
+          "path": "file",
+          "content": "one\ntwo\n"
+        },
+        {
+          "kind": "git",
+          "args": [
+            "add",
+            "--all"
+          ]
+        },
+        {
+          "kind": "git",
+          "args": [
+            "commit",
+            "-m",
+            "initial"
+          ]
+        },
+        {
+          "kind": "write",
+          "path": "file",
+          "content": "one\nstaged\n"
+        },
+        {
+          "kind": "git",
+          "args": [
+            "add",
+            "--",
+            "file"
+          ]
+        },
+        {
+          "kind": "write",
+          "path": "file",
+          "content": "one\nworking-final\n"
+        },
+        {
+          "kind": "write",
+          "path": "untracked",
+          "content": "new\n"
+        }
+      ],
+      "options": {
+        "target": {
+          "kind": "changes"
+        }
+      },
+      "expected": {
+        "patch": "diff --git a/file b/file\nindex 814f4a4..a5b1bf2 100644\n--- a/file\n+++ b/file\n@@ -1,2 +1,2 @@\n one\n-two\n+working-final\n\ndiff --git a/untracked b/untracked\nnew file mode 100644\nindex 0000000..3e75765\n--- /dev/null\n+++ b/untracked\n@@ -0,0 +1 @@\n+new\n",
+        "stats": [
+          {
+            "addedLines": 1,
+            "deletedLines": 1,
+            "path": "file"
+          },
+          {
+            "path": "untracked",
+            "addedLines": 1,
+            "deletedLines": 0
+          }
+        ],
+        "target": {
+          "kind": "changes"
+        }
+      }
+    },
+    {
+      "name": "unborn-changes",
+      "steps": [
+        {
+          "kind": "write",
+          "path": "added",
+          "content": "added\n"
+        },
+        {
+          "kind": "git",
+          "args": [
+            "add",
+            "--",
+            "added"
+          ]
+        },
+        {
+          "kind": "write",
+          "path": "extra",
+          "content": "extra\n"
+        }
+      ],
+      "options": {
+        "target": {
+          "kind": "changes"
+        }
+      },
+      "expected": {
+        "patch": "diff --git a/added b/added\nnew file mode 100644\nindex 0000000..d5f7fc3\n--- /dev/null\n+++ b/added\n@@ -0,0 +1 @@\n+added\n\ndiff --git a/extra b/extra\nnew file mode 100644\nindex 0000000..0f22871\n--- /dev/null\n+++ b/extra\n@@ -0,0 +1 @@\n+extra\n",
+        "stats": [
+          {
+            "path": "added",
+            "addedLines": 1,
+            "deletedLines": 0
+          },
+          {
+            "path": "extra",
+            "addedLines": 1,
+            "deletedLines": 0
+          }
+        ],
+        "target": {
+          "kind": "changes"
+        }
+      }
+    },
+    {
+      "name": "root-commit",
+      "steps": [
+        {
+          "kind": "write",
+          "path": "file",
+          "content": "one\ntwo\n"
+        },
+        {
+          "kind": "git",
+          "args": [
+            "add",
+            "--all"
+          ]
+        },
+        {
+          "kind": "git",
+          "args": [
+            "commit",
+            "-m",
+            "initial"
+          ]
+        }
+      ],
+      "options": {
+        "target": {
+          "kind": "commit",
+          "revision": "HEAD"
+        }
+      },
+      "expected": {
+        "patch": "diff --git a/file b/file\nnew file mode 100644\nindex 0000000..814f4a4\n--- /dev/null\n+++ b/file\n@@ -0,0 +1,2 @@\n+one\n+two\n",
+        "stats": [
+          {
+            "addedLines": 2,
+            "deletedLines": 0,
+            "path": "file"
+          }
+        ],
+        "target": {
+          "kind": "commit",
+          "revision": "HEAD"
+        }
+      }
+    },
+    {
+      "name": "range",
+      "steps": [
+        {
+          "kind": "write",
+          "path": "file",
+          "content": "one\ntwo\n"
+        },
+        {
+          "kind": "git",
+          "args": [
+            "add",
+            "--all"
+          ]
+        },
+        {
+          "kind": "git",
+          "args": [
+            "commit",
+            "-m",
+            "initial"
+          ]
+        },
+        {
+          "kind": "write",
+          "path": "file",
+          "content": "second\n"
+        },
+        {
+          "kind": "git",
+          "args": [
+            "add",
+            "--all"
+          ]
+        },
+        {
+          "kind": "git",
+          "args": [
+            "commit",
+            "-m",
+            "second"
+          ]
+        }
+      ],
+      "options": {
+        "target": {
+          "kind": "range",
+          "base": "HEAD~1",
+          "head": "HEAD",
+          "mergeBase": false
+        }
+      },
+      "expected": {
+        "patch": "diff --git a/file b/file\nindex 814f4a4..e019be0 100644\n--- a/file\n+++ b/file\n@@ -1,2 +1 @@\n-one\n-two\n+second\n",
+        "stats": [
+          {
+            "addedLines": 1,
+            "deletedLines": 2,
+            "path": "file"
+          }
+        ],
+        "target": {
+          "kind": "range",
+          "base": "HEAD~1",
+          "head": "HEAD",
+          "mergeBase": false
+        }
+      }
+    },
+    {
+      "name": "whitespace",
+      "steps": [
+        {
+          "kind": "write",
+          "path": "file",
+          "content": "one\ntwo\n"
+        },
+        {
+          "kind": "git",
+          "args": [
+            "add",
+            "--all"
+          ]
+        },
+        {
+          "kind": "git",
+          "args": [
+            "commit",
+            "-m",
+            "initial"
+          ]
+        },
+        {
+          "kind": "write",
+          "path": "file",
+          "content": "one \ntwo\n"
+        }
+      ],
+      "options": {
+        "target": {
+          "kind": "working"
+        },
+        "ignoreWhitespace": true
+      },
+      "expected": {
+        "patch": "",
+        "stats": [
+          {
+            "addedLines": 1,
+            "deletedLines": 1,
+            "path": "file"
+          }
+        ],
+        "target": {
+          "kind": "working"
+        }
+      }
+    },
+    {
+      "name": "literal-filter",
+      "steps": [
+        {
+          "kind": "write",
+          "path": "file",
+          "content": "one\ntwo\n"
+        },
+        {
+          "kind": "git",
+          "args": [
+            "add",
+            "--all"
+          ]
+        },
+        {
+          "kind": "git",
+          "args": [
+            "commit",
+            "-m",
+            "initial"
+          ]
+        },
+        {
+          "kind": "write",
+          "path": "literal*",
+          "content": "chosen\n"
+        },
+        {
+          "kind": "write",
+          "path": "literal-other",
+          "content": "excluded\n"
+        }
+      ],
+      "options": {
+        "target": {
+          "kind": "working"
+        },
+        "paths": [
+          "literal*"
+        ]
+      },
+      "expected": {
+        "patch": "diff --git a/literal* b/literal*\nnew file mode 100644\nindex 0000000..08455bb\n--- /dev/null\n+++ b/literal*\n@@ -0,0 +1 @@\n+chosen\n",
+        "stats": [
+          {
+            "path": "literal*",
+            "addedLines": 1,
+            "deletedLines": 0
+          }
+        ],
+        "target": {
+          "kind": "working"
+        }
+      }
+    },
+    {
+      "name": "large",
+      "steps": [
+        {
+          "kind": "write",
+          "path": "file",
+          "content": "one\ntwo\n"
+        },
+        {
+          "kind": "git",
+          "args": [
+            "add",
+            "--all"
+          ]
+        },
+        {
+          "kind": "git",
+          "args": [
+            "commit",
+            "-m",
+            "initial"
+          ]
+        },
+        {
+          "kind": "write",
+          "path": "file",
+          "content": "largelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelargelarge\n"
+        }
+      ],
+      "maxOutputBytes": 2048,
+      "options": {
+        "target": {
+          "kind": "changes"
+        }
+      },
+      "expected": {
+        "patch": "",
+        "patchOmittedReason": "too-large",
+        "stats": [
+          {
+            "addedLines": 1,
+            "deletedLines": 2,
+            "path": "file"
+          }
+        ],
+        "target": {
+          "kind": "changes"
+        }
+      }
+    }
+  ]
+}
