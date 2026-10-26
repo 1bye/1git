@@ -1,6 +1,6 @@
 {
   "name": "@1git/gpuix",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "private": true,
   "description": "Native GPUIX workspace shell for 1git",
   "type": "module",
