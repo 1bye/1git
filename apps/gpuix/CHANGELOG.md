@@ -14,6 +14,7 @@
 
 ### Patch Changes
 
+- 535dddf: Preserve History and Stashes file-list scroll positions when switching tabs, and keep file and folder label animations off React's scrolling path.
 - 8cf56d3: Add Changesets to collect release notes, manage workspace versions, and guide agents through desktop release preparation.
 - b0dc484: Show scrollbars in Settings pages, editor panels and navigation when Pane scrollbars is enabled. Keep headers and form actions fixed while scrolling.
 - 299b8b3: Fix repository search flickering by preserving grid columns while filtering and returning results to the top.
