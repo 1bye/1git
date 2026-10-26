@@ -24,6 +24,12 @@ pub(crate) fn absolute_path_from_git_bytes(
     path_from_git_bytes(bytes)
 }
 
+pub(crate) const GRACEFUL_TERMINATION: bool = true;
+
+pub(crate) fn validate_path_argument(_path: &Path) -> io::Result<()> {
+    Ok(())
+}
+
 pub(crate) fn validate_relative_filesystem_path(_path: &Path) -> io::Result<()> {
     Ok(())
 }

@@ -45,7 +45,7 @@ use windows_sys::Win32::Storage::FileSystem::{
     FILE_GENERIC_WRITE, FILE_ID_INFO, FILE_INFO_BY_HANDLE_CLASS, FILE_READ_ATTRIBUTES,
     FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE, FILE_STANDARD_INFO, FileAttributeTagInfo,
     FileBasicInfo, FileIdInfo, FileStandardInfo, GetFileInformationByHandleEx,
-    GetFinalPathNameByHandleW, READ_CONTROL, ReOpenFile, SYNCHRONIZE, WRITE_DAC,
+    GetFinalPathNameByHandleW, READ_CONTROL, ReOpenFile, SYNCHRONIZE, VOLUME_NAME_NONE, WRITE_DAC,
 };
 use windows_sys::Win32::System::Diagnostics::ToolHelp::{
     CreateToolhelp32Snapshot, TH32CS_SNAPTHREAD, THREADENTRY32, Thread32First, Thread32Next,
@@ -91,25 +91,34 @@ pub(crate) fn absolute_path_from_git_bytes(bytes: &[u8]) -> Result<PathBuf, Path
 
 pub(crate) fn path_to_git_bytes(path: &OsStr) -> Result<Cow<'_, [u8]>, PathEncodingError> {
     let text = path.to_str().ok_or(PathEncodingError)?;
-    let text = text
-        .strip_prefix(".\\")
-        .filter(|tail| windows_policy::drive_prefix(tail))
-        .unwrap_or(text);
-    let text = if let Some(unc) = text.strip_prefix("\\\\?\\UNC\\") {
-        format!("//{unc}")
-    } else {
-        text.strip_prefix("\\\\?\\").unwrap_or(text).to_owned()
-    }
-    .replace('\\', "/");
-
-    Ok(Cow::Owned(text.into_bytes()))
+    Ok(Cow::Owned(
+        windows_policy::git_path_text(text)?
+            .into_owned()
+            .into_bytes(),
+    ))
 }
 
 fn path_error() -> io::Error {
     io::Error::new(io::ErrorKind::InvalidInput, PathEncodingError)
 }
 
+pub(crate) const GRACEFUL_TERMINATION: bool = false;
+
+pub(crate) fn validate_path_argument(path: &Path) -> io::Result<()> {
+    // Windows: private Git escapes are display/transport values, never native file names
+    // or direct Git argv. Refuse them before a command could select an unrelated entry.
+    if path
+        .to_str()
+        .is_some_and(|text| text.contains(windows_policy::GIT_ESCAPE))
+    {
+        return Err(path_error());
+    }
+
+    Ok(())
+}
+
 fn validate_filesystem_path(path: &Path) -> io::Result<()> {
+    validate_path_argument(path)?;
     let encoded = path_to_git_bytes(path.as_os_str()).map_err(|_| path_error())?;
     let text = std::str::from_utf8(&encoded).map_err(|_| path_error())?;
 
@@ -674,7 +683,7 @@ pub(crate) fn random_bytes(bytes: &mut [u8]) -> io::Result<()> {
     Ok(())
 }
 
-fn handle_path(directory: &File) -> io::Result<PathBuf> {
+fn handle_path(directory: &File, volume: u32) -> io::Result<PathBuf> {
     let mut buffer = vec![0_u16; 512];
 
     loop {
@@ -684,7 +693,7 @@ fn handle_path(directory: &File) -> io::Result<PathBuf> {
                 directory.as_raw_handle(),
                 buffer.as_mut_ptr(),
                 buffer.len() as u32,
-                0,
+                volume,
             )
         } as usize;
 
@@ -702,7 +711,7 @@ fn handle_path(directory: &File) -> io::Result<PathBuf> {
 }
 
 fn directory_path(directory: &File) -> io::Result<PathBuf> {
-    let path = handle_path(directory)?;
+    let path = handle_path(directory, 0)?;
 
     Ok(path.to_str().map_or_else(
         || path.clone(),
@@ -711,14 +720,9 @@ fn directory_path(directory: &File) -> io::Result<PathBuf> {
 }
 
 fn verify_entry_name(file: &File, requested: &OsStr) -> io::Result<()> {
-    if handle_path(file)?.file_name() != Some(requested) {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "Opened entry spelling differs from the requested Git path",
-        ));
-    }
-
-    Ok(())
+    windows_policy::verified_entry_name(
+        handle_path(file, VOLUME_NAME_NONE).map(|path| path.file_name() == Some(requested)),
+    )
 }
 
 pub(crate) struct OwnedChild {
@@ -731,19 +735,18 @@ impl OwnedChild {
     pub(crate) fn finish(&mut self, preserve_descendants: bool) -> io::Result<()> {
         if preserve_descendants {
             // No breakaway is allowed during execution. After an ordinary completion,
-            // disarm kill-on-close so background helpers survive, like Unix descendants.
+            // attempt to disarm kill-on-close so background helpers can survive.
             let limits = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
+            // Windows: disarming is best-effort after Git has finished. Failure may
+            // terminate descendants when the job closes, but must not replace Git's result.
             // SAFETY: the live job and exact information structure/class/size agree.
-            if unsafe {
+            unsafe {
                 SetInformationJobObject(
                     self.job.as_raw_handle(),
                     JobObjectExtendedLimitInformation,
                     (&limits as *const JOBOBJECT_EXTENDED_LIMIT_INFORMATION).cast(),
                     size_of_val(&limits) as u32,
-                )
-            } == 0
-            {
-                return Err(io::Error::last_os_error());
+                );
             }
         }
         self.finished = true;
@@ -753,7 +756,7 @@ impl OwnedChild {
 
     pub(crate) fn signal(&self, signal: Signal) {
         // Windows: CREATE_NO_WINDOW leaves the child without a console; CTRL_BREAK
-        // cannot be delivered. Keep the shared grace period, then terminate the job.
+        // cannot be delivered. The shared runner skips the Unix grace period and kills the job.
         if matches!(signal, Signal::Kill) {
             // SAFETY: this uniquely owned live job contains the suspended-assigned child tree.
             unsafe {
@@ -770,7 +773,7 @@ impl Drop for OwnedChild {
             let _ = self.child.kill();
             let _ = self.child.wait();
         }
-        // Normal completion disarms kill-on-close; all error/cancellation paths keep it armed.
+        // Normal completion attempts to disarm kill-on-close; cancellation keeps it armed.
     }
 }
 
@@ -1265,5 +1268,120 @@ mod tests {
             status, WAIT_TIMEOUT,
             "closing a normally completed job killed its daemon"
         );
+    }
+    #[test]
+    fn backslash_git_names_are_lossless_distinct_and_never_native_file_arguments() {
+        use std::collections::{BTreeSet, HashSet};
+        let literal = path_from_git_bytes(b"folder\\file").unwrap();
+        let separated = path_from_git_bytes(b"folder/file").unwrap();
+        let escape_literal = path_from_git_bytes("folder\u{e000}bfile".as_bytes()).unwrap();
+        assert_eq!(
+            path_to_git_bytes(literal.as_os_str()).unwrap().as_ref(),
+            b"folder\\file"
+        );
+        assert_eq!(crate::output::path(b"folder\\file").unwrap(), literal);
+        assert_ne!(literal, separated);
+        assert_ne!(literal, escape_literal);
+        assert_eq!(
+            HashSet::from([literal.clone(), separated.clone(), escape_literal.clone()]).len(),
+            3
+        );
+        assert_eq!(
+            BTreeSet::from([literal.clone(), separated.clone(), escape_literal]).len(),
+            3
+        );
+        assert!(crate::validation::require_paths([literal.as_path()]).is_err());
+        assert!(crate::validation::require_paths([separated.as_path()]).is_ok());
+        for name in [b"\\x".as_slice(), b"C:\\x", b"\\\\?\\C:\\x"] {
+            let path = path_from_git_bytes(name).unwrap();
+            assert!(!path.has_root());
+            assert!(
+                !path
+                    .components()
+                    .any(|part| matches!(part, Component::Prefix(_)))
+            );
+            assert_eq!(path_to_git_bytes(path.as_os_str()).unwrap().as_ref(), name);
+            assert!(validate_relative_filesystem_path(&path).is_err());
+        }
+        assert!(crate::output::absolute_path(b"C:\\repo").is_ok());
+
+        let temporary = tempfile::tempdir().unwrap();
+        std::fs::create_dir(temporary.path().join("folder")).unwrap();
+        std::fs::write(temporary.path().join("folder/file"), b"kept").unwrap();
+        let root = open_directory_no_follow(temporary.path()).unwrap();
+        let error = super::super::open_beneath(&root, &literal, false).unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::InvalidInput);
+        assert!(
+            error
+                .get_ref()
+                .is_some_and(|source| source.is::<PathEncodingError>())
+        );
+        assert!(super::super::open_beneath(&root, &separated, false).is_ok());
+        assert_eq!(
+            std::fs::read(temporary.path().join("folder/file")).unwrap(),
+            b"kept"
+        );
+    }
+
+    #[test]
+    fn status_keeps_backslash_entries_and_ordinary_entries_without_deduplication() {
+        let status =
+            crate::parse_status(b"? folder\\file\0? folder/file\0? ordinary.txt\0").unwrap();
+        assert_eq!(status.files.len(), 3);
+        for (change, expected) in
+            status
+                .files
+                .iter()
+                .zip([b"folder\\file".as_slice(), b"folder/file", b"ordinary.txt"])
+        {
+            assert_eq!(
+                path_to_git_bytes(change.path.as_os_str()).unwrap().as_ref(),
+                expected
+            );
+        }
+        assert_ne!(status.files[0].path, status.files[1].path);
+    }
+
+    #[test]
+    fn drive_like_names_use_the_same_guard_in_all_relative_decoders() {
+        let native = path_from_git_bytes(b"a:b").unwrap();
+        let output = crate::output::path(b"a:b").unwrap();
+        let status = crate::parse_status(b"? a:b\0").unwrap();
+        assert_eq!(native, output);
+        assert_eq!(native, status.files[0].path);
+        assert_eq!(native.as_os_str(), OsStr::new(".\\a:b"));
+        assert!(!native.has_root());
+        assert!(
+            !native
+                .components()
+                .any(|part| matches!(part, Component::Prefix(_)))
+        );
+        assert_eq!(
+            path_to_git_bytes(native.as_os_str()).unwrap().as_ref(),
+            b"a:b"
+        );
+    }
+
+    #[test]
+    fn a_job_disarm_failure_cannot_replace_a_completed_git_result() {
+        use std::process::Stdio;
+        use windows_sys::Win32::System::Threading::CreateEventW;
+        let temporary = tempfile::tempdir().unwrap();
+        let mut command = Command::new("cmd.exe");
+        command
+            .args(["/D", "/C", "exit 0"])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+        let mut owned = spawn(&mut command, temporary.path(), None).unwrap();
+        let status = owned.child.wait().unwrap();
+        assert!(status.success());
+        // SAFETY: null attributes/name create a uniquely owned unnamed event handle.
+        let event = owned_handle(unsafe { CreateEventW(null(), 0, 0, null()) }).unwrap();
+        // A real event is safe to close but fails the Job Object API's handle-type check.
+        let _job = std::mem::replace(&mut owned.job, event);
+        assert!(owned.finish(true).is_ok());
+        assert!(owned.finished);
+        assert!(status.success());
     }
 }

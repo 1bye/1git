@@ -239,8 +239,7 @@ impl GitProcess {
     /// Run without terminal/editor prompts, preserving ordinary repository configuration.
     ///
     /// Cancellation/deadline/overflow sends TERM then KILL to the Unix process group,
-    /// or Job Object termination on Windows after the same grace period. Windows children
-    /// have no console, so graceful console signalling is unavailable.
+    /// or immediate Job Object termination on Windows, where console signalling is unavailable.
     /// This method returns only after the leader is reaped and owned pipes are closed.
     /// Call this from a background worker, never from a GPUI render/event callback.
     pub fn run(&self, input: GitCommand<'_>) -> Result<GitOutput, GitError> {
@@ -378,12 +377,12 @@ impl GitProcess {
                     Instant::now()
                 });
 
-                if began.elapsed() >= TERMINATE_GRACE {
+                if !platform::GRACEFUL_TERMINATION || began.elapsed() >= TERMINATE_GRACE {
                     owned.signal(platform::Signal::Kill);
                 }
 
                 // Keep the leader unreaped during the grace period so its group ID cannot be reused.
-                if began.elapsed() < TERMINATE_GRACE {
+                if platform::GRACEFUL_TERMINATION && began.elapsed() < TERMINATE_GRACE {
                     thread::sleep(POLL_INTERVAL);
 
                     continue;

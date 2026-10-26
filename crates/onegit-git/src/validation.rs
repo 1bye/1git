@@ -21,6 +21,7 @@ pub(crate) fn require_paths<'a>(
 
     for path in paths {
         any = true;
+        crate::platform::validate_path_argument(path).map_err(|_| RepositoryError::InvalidPath)?;
 
         if path.as_os_str().is_empty()
             || crate::platform::path_to_git_bytes(path.as_os_str())

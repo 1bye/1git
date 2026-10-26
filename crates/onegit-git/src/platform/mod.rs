@@ -172,26 +172,111 @@ mod windows_policy {
     use super::PathEncodingError;
     use std::borrow::Cow;
 
+    // Escape the marker itself as well, so a real private-use character cannot
+    // alias an encoded backslash. Both escapes stay inside one native component.
+    pub(super) const GIT_ESCAPE: char = '\u{e000}';
+
     pub(super) fn relative_git_path(text: &str) -> Result<Cow<'_, str>, PathEncodingError> {
-        if text.starts_with(['/', '\\']) || text.contains('\0') {
+        if text.contains('\0') || text.split('/').any(|part| matches!(part, "" | "." | "..")) {
             return Err(PathEncodingError);
         }
 
-        if drive_prefix(text) {
-            if text.len() == 2
-                || text
-                    .as_bytes()
-                    .get(2)
-                    .is_some_and(|byte| matches!(byte, b'/' | b'\\'))
-            {
-                return Err(PathEncodingError);
-            }
-            // `a:b` is a legal Git name but a Windows drive-relative path. Keep it
-            // displayable behind a CurDir guard; filesystem access rejects its colon.
-            return Ok(Cow::Owned(format!(".\\{text}")));
+        if drive_prefix(text) && (text.len() == 2 || text.as_bytes().get(2) == Some(&b'/')) {
+            return Err(PathEncodingError);
         }
 
-        Ok(Cow::Borrowed(text))
+        let mut encoded = if text.contains(['\\', GIT_ESCAPE]) {
+            let mut encoded = String::with_capacity(text.len());
+            for character in text.chars() {
+                match character {
+                    '\\' => {
+                        encoded.push(GIT_ESCAPE);
+                        encoded.push('b');
+                    }
+                    GIT_ESCAPE => {
+                        encoded.push(GIT_ESCAPE);
+                        encoded.push('e');
+                    }
+                    _ => encoded.push(character),
+                }
+            }
+            Cow::Owned(encoded)
+        } else {
+            Cow::Borrowed(text)
+        };
+
+        if drive_prefix(&encoded) {
+            // Windows: PathBuf cannot hold a literal drive-like name without a guard.
+            // All relative decoders share this representation; Git-byte encoding removes it.
+            encoded = Cow::Owned(format!(".\\{encoded}"));
+        }
+
+        Ok(encoded)
+    }
+
+    pub(super) fn git_path_text(path: &str) -> Result<Cow<'_, str>, PathEncodingError> {
+        let text = path
+            .strip_prefix(".\\")
+            .filter(|tail| drive_prefix(tail))
+            .unwrap_or(path);
+        let normalized = if let Some(unc) = text.strip_prefix("\\\\?\\UNC\\") {
+            Cow::Owned(format!("//{}", unc.replace('\\', "/")))
+        } else {
+            let text = text.strip_prefix("\\\\?\\").unwrap_or(text);
+            if text.contains('\\') {
+                Cow::Owned(text.replace('\\', "/"))
+            } else {
+                Cow::Borrowed(text)
+            }
+        };
+
+        if !normalized.contains(GIT_ESCAPE) {
+            return Ok(normalized);
+        }
+
+        let mut decoded = String::with_capacity(normalized.len());
+        let mut characters = normalized.chars();
+        while let Some(character) = characters.next() {
+            if character != GIT_ESCAPE {
+                decoded.push(character);
+                continue;
+            }
+            match characters.next() {
+                Some('b') => decoded.push('\\'),
+                Some('e') => decoded.push(GIT_ESCAPE),
+                _ => return Err(PathEncodingError),
+            }
+        }
+
+        Ok(Cow::Owned(decoded))
+    }
+
+    #[derive(Debug)]
+    struct EntryNameVerificationError(std::io::Error);
+
+    impl std::fmt::Display for EntryNameVerificationError {
+        fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(formatter, "Cannot verify the opened entry name: {}", self.0)
+        }
+    }
+
+    impl std::error::Error for EntryNameVerificationError {
+        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+            Some(&self.0)
+        }
+    }
+
+    pub(super) fn verified_entry_name(result: std::io::Result<bool>) -> std::io::Result<()> {
+        // A failed query is not proof of absence. In particular, never let a native
+        // PATH_NOT_FOUND from name verification reach discard's missing-entry branch.
+        match result {
+            Ok(true) => Ok(()),
+            Ok(false) => Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Opened entry spelling differs from the requested Git path",
+            )),
+            Err(error) => Err(std::io::Error::other(EntryNameVerificationError(error))),
+        }
     }
 
     pub(super) fn drive_prefix(text: &str) -> bool {
@@ -200,7 +285,7 @@ mod windows_policy {
     }
 
     pub(super) fn component_representable(part: &str) -> bool {
-        if matches!(part, "" | "." | "..") {
+        if matches!(part, "" | "." | "..") || part.contains(GIT_ESCAPE) {
             return false;
         }
         if part.ends_with(['.', ' '])
@@ -278,15 +363,7 @@ mod windows_policy {
 
         #[test]
         fn relative_decode_rejects_roots_and_guards_drive_relative_display_names() {
-            for name in [
-                "c:/x",
-                "C:\\x",
-                "c:",
-                "/x",
-                "\\x",
-                "//server/share/x",
-                "\\\\?\\C:\\x",
-            ] {
+            for name in ["c:/x", "c:", "/x", "//server/share/x"] {
                 assert!(relative_git_path(name).is_err(), "{name}");
             }
             assert_eq!(relative_git_path("a:b").unwrap(), ".\\a:b");
@@ -338,6 +415,92 @@ mod windows_policy {
             let mut id = [0; 16];
             id[15] = 1;
             assert!(valid_file_id(&id));
+        }
+        #[test]
+        fn backslashes_and_the_escape_character_round_trip_without_aliasing() {
+            let names = [
+                "folder\\file",
+                "folder/file",
+                "\\file",
+                "C:\\file",
+                "folder\u{e000}bfile",
+                "folder\u{e000}file",
+                ".\\a:b",
+                "a:b",
+            ];
+            let mut components = std::collections::HashMap::new();
+            for name in names {
+                let encoded = relative_git_path(name).unwrap();
+                assert_eq!(git_path_text(&encoded).unwrap(), name);
+                let key: Vec<_> = encoded
+                    .split(['/', '\\'])
+                    .filter(|part| !matches!(*part, "" | "."))
+                    .map(str::to_owned)
+                    .collect();
+                assert!(components.insert(key, name).is_none(), "{name}");
+            }
+            assert!(!component_representable(
+                &relative_git_path("folder\\file").unwrap()
+            ));
+            assert!(!component_representable(
+                &relative_git_path("folder\u{e000}file").unwrap()
+            ));
+        }
+
+        #[test]
+        fn short_git_names_have_injective_native_components_and_lossless_encoding() {
+            let parts = ["", "a", ":", ".", "/", "\\", "\u{e000}", "b", "e"];
+            let mut components = std::collections::HashMap::new();
+            for first in parts {
+                for second in parts {
+                    for third in parts {
+                        let name = format!("{first}{second}{third}");
+                        let Ok(encoded) = relative_git_path(&name) else {
+                            continue;
+                        };
+                        assert_eq!(git_path_text(&encoded).unwrap(), name);
+                        let key: Vec<_> = encoded
+                            .split(['/', '\\'])
+                            .filter(|part| !matches!(*part, "" | "."))
+                            .map(str::to_owned)
+                            .collect();
+                        if let Some(previous) = components.insert(key, name.clone()) {
+                            assert_eq!(previous, name);
+                        }
+                    }
+                }
+            }
+            for invalid in [
+                "",
+                ".",
+                "..",
+                "folder//file",
+                "folder/./file",
+                "folder/../file",
+            ] {
+                assert!(relative_git_path(invalid).is_err(), "{invalid}");
+            }
+            for invalid in ["\u{e000}", "name\u{e000}x"] {
+                assert!(git_path_text(invalid).is_err());
+            }
+        }
+
+        #[test]
+        fn entry_name_query_failures_cannot_be_mistaken_for_missing_entries() {
+            for kind in [
+                std::io::ErrorKind::NotFound,
+                std::io::ErrorKind::PermissionDenied,
+                std::io::ErrorKind::Unsupported,
+            ] {
+                let error = verified_entry_name(Err(kind.into())).unwrap_err();
+                assert_eq!(error.kind(), std::io::ErrorKind::Other);
+                assert!(error.get_ref().unwrap().source().is_some());
+            }
+            assert!(verified_entry_name(Ok(true)).is_ok());
+            assert_eq!(
+                verified_entry_name(Ok(false)).unwrap_err().kind(),
+                std::io::ErrorKind::InvalidInput
+            );
         }
     }
 }
