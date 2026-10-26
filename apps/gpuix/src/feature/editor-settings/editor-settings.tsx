@@ -169,7 +169,7 @@ export function EditorSettings({
 					scrollTestId="editor-settings-scroll"
 					title="External editor"
 				>
-					<SettingsGroup title="Default editor" icon="pencil">
+					<SettingsGroup title="Default editor">
 						<EditorChoices
 							applications={options?.applications ?? []}
 							selected={options?.selected ?? null}
@@ -190,7 +190,6 @@ export function EditorSettings({
 					</SettingsGroup>
 					<SettingsGroup
 						title="File type rules"
-						icon="layers"
 						action={
 							<Button
 								testId="editor-rule-add"

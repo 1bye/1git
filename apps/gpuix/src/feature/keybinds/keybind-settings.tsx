@@ -87,7 +87,6 @@ export function KeybindSettings() {
 						<SettingsGroup
 							key={group}
 							title={group}
-							icon={sectionIcons[group]}
 							label={`${group} shortcuts`}
 							meta={`${rows.length} ${rows.length === 1 ? "shortcut" : "shortcuts"}`}
 						>
@@ -106,13 +105,6 @@ export function KeybindSettings() {
 		</SettingsPage>
 	);
 }
-
-const sectionIcons = {
-	Application: "keyboard",
-	Spaces: "layers",
-	Tabs: "tabs",
-	Repository: "branch",
-} as const;
 
 function KeybindRow({ command }: { command: KeybindCommand }) {
 	const renderer = useGpuixRequired();

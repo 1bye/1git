@@ -36,6 +36,8 @@ export interface EditorApplication {
 	readonly path: string;
 	readonly name: string;
 	readonly available: boolean;
+	/** Changes when an installed bundle is replaced; never persisted as a preference. */
+	readonly iconRevision?: string;
 }
 
 /** Extensions (leading dot) and exact filenames sharing one app-wide default. */
@@ -277,7 +279,9 @@ export class ExternalEditors {
 
 		ExternalEditors.requireApplicationPath(canonical);
 
-		if (!(await stat(canonical)).isDirectory())
+		const bundle = await stat(canonical);
+
+		if (!bundle.isDirectory())
 			throw new Error("Choose a macOS application (.app).");
 
 		const info = join(canonical, "Contents", "Info.plist");
@@ -305,6 +309,7 @@ export class ExternalEditors {
 			path: canonical,
 			name: basename(canonical).replace(/\.app$/i, ""),
 			available: true,
+			iconRevision: `${bundle.ino}:${bundle.mtimeMs}:${metadata.ino}:${metadata.mtimeMs}:${metadata.size}`,
 		};
 	}
 

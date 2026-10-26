@@ -236,9 +236,7 @@ it.each(["light", "dark"] as const)(
 		expect(
 			root.renderer.findByTestId("repository-color-preview")
 		).toBeUndefined();
-		expect(
-			root.renderer.findByTestId("repository-color-wheel")
-		).toBeUndefined();
+		expect(root.renderer.findByTestId("repository-color-wheel")).toBeDefined();
 		await click(root, "repository-appearance-customize");
 		expect(root.renderer.findByTestId("settings-view")).toBeUndefined();
 		expect(node(root, "repository-appearance-editor")).toBeDefined();
@@ -891,7 +889,7 @@ it("drags pattern sliders beyond their bounds while keeping the workspace visibl
 	}
 });
 
-it("applies quick Settings colours without losing the saved pattern or leaving Settings", async () => {
+it("applies Settings colours without losing the saved pattern or leaving Settings", async () => {
 	const { root, saved } = await fixture("dark", {
 		"/test/project/.git": {
 			id: "cosmic",
@@ -904,8 +902,14 @@ it("applies quick Settings colours without losing the saved pattern or leaving S
 	await settle(root);
 	await click(root, "settings-repository-appearance");
 	expect(node(root, "repository-appearance-preview")).toBeDefined();
-	await click(root, "repository-appearance-color-violet");
+	const previousColor = node(root, "repository-appearance-preview").style
+		.backgroundColor;
+
+	await click(root, "repository-color-violet");
 	await settle(root, 250);
+	expect(
+		node(root, "repository-appearance-preview").style.backgroundColor
+	).not.toBe(previousColor);
 	expect(node(root, "settings-view")).toBeDefined();
 	expect(saved.at(-1)?.repositoryColors?.["/test/project/.git"]).toBe(
 		"#a478ef"
@@ -916,11 +920,9 @@ it("applies quick Settings colours without losing the saved pattern or leaving S
 		adjustments: { ...defaultPatternAdjustments, strength: 70 },
 	});
 	expect(
-		node(root, "repository-appearance-color-violet").customProps?.[
-			"aria-description"
-		]
+		node(root, "repository-color-violet").customProps?.["aria-description"]
 	).toBe("Selected");
-	await click(root, "repository-appearance-color-default");
+	await click(root, "repository-color-reset");
 	await settle(root, 250);
 	expect(
 		saved.at(-1)?.repositoryColors?.["/test/project/.git"]
@@ -929,3 +931,199 @@ it("applies quick Settings colours without losing the saved pattern or leaving S
 		saved.at(-1)?.repositoryPatterns?.["/test/project/.git"]
 	).toMatchObject({ id: "cosmic", seed: 123 });
 });
+
+it.each(["light", "dark"] as const)(
+	"edits full appearance controls inside minimum-width %s Settings and opens the live editor from Preview",
+	async (appearance) => {
+		const commonDirectory = "/test/project/.git";
+
+		const { root, saved, reads, diffReads } = await fixture(
+			appearance,
+			{
+				[commonDirectory]: {
+					id: "cosmic",
+					seed: 123,
+					adjustments: { ...defaultPatternAdjustments, strength: 70 },
+				},
+			},
+			{ width: 640, height: 820 }
+		);
+
+		root.renderer.simulateKeystrokes("cmd-,");
+		await settle(root);
+		await click(root, "settings-repository-appearance");
+		await settle(root, 250);
+		const repositoryReads = reads.length;
+		const initialDiffReads = diffReads.length;
+
+		const reveal = async (id: string) => {
+			const scroll = node(root, "repository-appearance-scroll").id;
+
+			const viewport = bounds(root, "repository-appearance-scroll");
+			const target = bounds(root, id);
+
+			if (
+				target.y >= viewport.y &&
+				target.y + target.height <= viewport.y + viewport.height
+			)
+				return;
+
+			const offset = root.renderer.getScrollOffset(scroll)?.[1] ?? 0;
+
+			root.renderer.scrollTo(scroll, 0, offset - (target.y - viewport.y - 8));
+			await settle(root);
+		};
+
+		const type = async (id: string, value: string, submit = true) => {
+			await reveal(id);
+			await click(root, id);
+			root.renderer.simulateKeystrokes("cmd-a");
+			root.renderer.simulateKeystrokes([...value].join(" "));
+
+			if (submit) root.renderer.simulateKeystrokes("enter");
+
+			await settle(root, 250);
+		};
+
+		const color = () => saved.at(-1)?.repositoryColors?.[commonDirectory];
+
+		const previewColor = () =>
+			node(root, "repository-appearance-preview").style.backgroundColor;
+
+		const savedPattern = () =>
+			saved.at(-1)?.repositoryPatterns?.[commonDirectory];
+
+		await type("repository-color-custom", "invalid");
+		expect(
+			node(root, "repository-color-custom").customProps?.["aria-invalid"]
+		).toBe(true);
+		await click(root, "repository-appearance-customize");
+		expect(node(root, "settings-view")).toBeDefined();
+		const originalColor = color();
+
+		await type("repository-color-custom", "#2488cc", false);
+		expect(previewColor()).toBe(
+			RepositoryTheme.create(appThemes[appearance], "#2488cc").colors.chrome
+		);
+		expect(color()).toBe(originalColor);
+		root.renderer.simulateKeystrokes("enter");
+		await settle(root, 250);
+		expect(color()).toBe("#2488cc");
+		expect(savedPattern()).toMatchObject({
+			id: "cosmic",
+			seed: 123,
+			adjustments: { strength: 70 },
+		});
+
+		await type("repository-color-hue", "180");
+		expect(node(root, "repository-color-hue").customProps?.value).toBe("180");
+		expect(color()).not.toBe("#2488cc");
+		const committedColor = color();
+		const committedPreview = previewColor();
+		const saveCount = saved.length;
+
+		await reveal("repository-color-wheel");
+		const wheel = bounds(root, "repository-color-wheel");
+
+		root.renderer.nativeSimulateMouseDown(
+			wheel.x + wheel.width * 0.75,
+			wheel.y + wheel.height * 0.25
+		);
+		await settle(root, 250);
+		expect(previewColor()).not.toBe(committedPreview);
+		expect(saved).toHaveLength(saveCount);
+		root.renderer.nativeSimulateKeyDown(
+			node(root, "repository-color-wheel").id,
+			"escape"
+		);
+		root.renderer.nativeSimulateMouseUp(
+			wheel.x + wheel.width / 2,
+			wheel.y + wheel.height / 2
+		);
+		await settle(root, 250);
+		expect(previewColor()).toBe(committedPreview);
+		expect(color()).toBe(committedColor);
+		expect(node(root, "settings-view")).toBeDefined();
+
+		await reveal("repository-appearance-tab-pattern");
+		await click(root, "repository-appearance-tab-pattern");
+		await reveal("repository-pattern-forest");
+		await click(root, "repository-pattern-forest");
+		await settle(root, 250);
+		expect(savedPattern()).toMatchObject({
+			id: "forest",
+			seed: 123,
+			adjustments: { strength: 70 },
+		});
+		expect(color()).toBe(committedColor);
+		const shuffle = spyOn(RepositoryPatterns, "shuffleSeed").mockReturnValue(
+			987
+		);
+
+		restores.add(() => shuffle.mockRestore());
+		await reveal("repository-pattern-shuffle");
+		await click(root, "repository-pattern-shuffle");
+		await reveal("repository-pattern-adjust");
+		await click(root, "repository-pattern-adjust");
+		await settle(root, 20);
+		await reveal("repository-pattern-density");
+		await click(root, "repository-pattern-density");
+		root.renderer.simulateKeystrokes("end");
+		await settle(root, 250);
+		expect(savedPattern()).toMatchObject({
+			id: "forest",
+			seed: 987,
+			adjustments: { density: 100, strength: 70 },
+		});
+		const slider = bounds(root, "repository-pattern-density");
+		const pane = bounds(root, "repository-appearance-scroll");
+
+		expect(slider.x + slider.width).toBeLessThanOrEqual(pane.x + pane.width);
+		await reveal("repository-pattern-layout-clusters");
+		await click(root, "repository-pattern-layout-clusters");
+		await settle(root, 250);
+		expect(savedPattern()).toMatchObject({
+			id: "forest",
+			seed: 987,
+			adjustments: { layout: "clusters", density: 100 },
+		});
+		expect(reads).toHaveLength(repositoryReads);
+		expect(diffReads).toHaveLength(initialDiffReads);
+
+		const screenshots = process.env.GPUIX_SETTINGS_LAYOUT_SCREENSHOTS;
+
+		if (screenshots)
+			root.renderer.captureScreenshot(
+				join(screenshots, `${appearance}-640-repository-pattern-controls.png`)
+			);
+
+		const action = bounds(root, "repository-appearance-customize");
+		const preview = bounds(root, "repository-appearance-preview");
+
+		expect(action.x).toBeGreaterThanOrEqual(preview.x);
+		expect(action.y).toBeGreaterThanOrEqual(preview.y + preview.height);
+		await reveal("repository-appearance-tab-color");
+		await click(root, "repository-appearance-tab-color");
+		await type("repository-color-custom", "#cc8844", false);
+		expect(color()).toBe(committedColor);
+		await click(root, "repository-appearance-customize");
+		expect(root.renderer.findByTestId("settings-view")).toBeUndefined();
+		expect(node(root, "repository-appearance-editor")).toBeDefined();
+		expect(node(root, "repository-color-custom").customProps?.value).toBe(
+			"#cc8844"
+		);
+		await click(root, "repository-appearance-tab-pattern");
+		expect(
+			node(root, "repository-pattern-forest").customProps?.["aria-description"]
+		).toBe("Selected");
+		root.renderer.simulateKeystrokes("escape");
+		await settle(root, 250);
+		expect(color()).toBe(committedColor);
+		expect(savedPattern()).toMatchObject({
+			id: "forest",
+			seed: 987,
+			adjustments: { layout: "clusters", density: 100 },
+		});
+	},
+	60000
+);

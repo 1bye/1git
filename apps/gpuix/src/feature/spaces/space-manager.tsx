@@ -115,7 +115,6 @@ export function SpacesSettings({
 				>
 					<SettingsGroup
 						title="Spaces"
-						icon="layers"
 						meta={`${spaces.length} ${spaces.length === 1 ? "space" : "spaces"}`}
 						footer={`Switch spaces with ${Keybinds.label("previous-space", overrides)} / ${Keybinds.label("next-space", overrides)}`}
 					>

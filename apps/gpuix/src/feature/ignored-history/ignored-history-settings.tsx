@@ -231,7 +231,7 @@ export function IgnoredHistorySettings({
 							</text>
 						) : (
 							<>
-								<SettingsGroup title="Capture" icon="shield">
+								<SettingsGroup title="Capture">
 									<SettingsGroupRow
 										label="Enable history for this repository"
 										description="Capture runs while this repository is open. Turning history off keeps saved versions."
@@ -251,7 +251,6 @@ export function IgnoredHistorySettings({
 								</SettingsGroup>
 								<SettingsGroup
 									title="Status"
-									icon="history"
 									action={
 										<Button
 											testId="ignored-history-open"
@@ -278,7 +277,6 @@ export function IgnoredHistorySettings({
 								</SettingsGroup>
 								<SettingsGroup
 									title="Protected paths"
-									icon="layers"
 									meta={`${preferences.paths.length} paths`}
 									action={
 										<Button
@@ -342,7 +340,6 @@ export function IgnoredHistorySettings({
 								</SettingsGroup>
 								<SettingsGroup
 									title="History limits"
-									icon="history"
 									action={
 										<Button
 											testId="ignored-history-edit-limits"

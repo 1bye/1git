@@ -106,7 +106,7 @@ it("opens from Application settings, persists the choice and supports keyboard s
 		node("editor-choice-icon-1").children.map(
 			(id) => root.renderer.getElement(id)?.type
 		)
-	).toContain("svg");
+	).toContain("img");
 	await click("editor-choice-1");
 	expect(editors.load()).toBe(zed);
 

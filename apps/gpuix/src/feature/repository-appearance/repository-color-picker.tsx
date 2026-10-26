@@ -16,11 +16,12 @@ import {
 import { radius, spacing, typography } from "@1git/design-tokens";
 import { useAppTheme } from "../../styles/theme";
 import { ColorWheel, type WheelColor } from "./color-wheel";
+import { repositoryAppearanceCancel } from "./repository-appearance-shortcut";
 
-const wheelSize = 192;
-const imageSize = wheelSize * 2;
+const defaultWheelSize = 192;
+const imageSize = defaultWheelSize * 2;
 const thumbSize = 16;
-const sliderWidth = wheelSize + spacing[4] + 80;
+const defaultWidth = defaultWheelSize + spacing[4] + 80;
 
 function ColorThumb({
 	color,
@@ -68,11 +69,13 @@ function ColorChannel({
 	value,
 	maximum,
 	onChange,
+	disabled,
 }: {
 	label: string;
 	value: number;
 	maximum: number;
 	onChange: (value: number) => void;
+	disabled: boolean;
 }) {
 	const { tokens } = useAppTheme();
 	const rounded = Math.round(value);
@@ -88,7 +91,12 @@ function ColorChannel({
 	const apply = (): void => {
 		const next = Number(field.text);
 
-		if (field.text.trim() && Number.isFinite(next) && next !== rounded)
+		if (
+			!disabled &&
+			field.text.trim() &&
+			Number.isFinite(next) &&
+			next !== rounded
+		)
 			onChange(Math.max(0, Math.min(maximum, next)));
 
 		setField({ source: rounded, text: String(rounded) });
@@ -101,6 +109,8 @@ function ColorChannel({
 				flexDirection: "column",
 				gap: spacing[1],
 				width: 80,
+				flexShrink: 1,
+				minWidth: 0,
 			}}
 		>
 			<text style={{ ...typography.xs, color: tokens.colors.textMuted }}>
@@ -111,6 +121,8 @@ function ColorChannel({
 				aria-label={label}
 				aria-description={`Enter a number from 0 to ${maximum}.`}
 				value={field.text}
+				readOnly={disabled}
+				tabIndex={disabled ? -1 : 0}
 				onChange={(event) =>
 					setField({ source: rounded, text: event.value ?? "" })
 				}
@@ -136,18 +148,32 @@ export function RepositoryColorPicker({
 	value,
 	onPreview,
 	onCommit,
+	disabled = false,
 }: {
 	value: string;
 	onPreview: (color: string | undefined) => void;
 	onCommit: (color: string) => void;
+	disabled?: boolean;
 }) {
 	const { tokens } = useAppTheme();
 	const renderer = useGpuixRequired();
 	const window = useWindowSize();
+	const container = useRef<PublicInstance>(null);
+	const [availableWidth, setAvailableWidth] = useState(defaultWidth);
+	const wheelSize = Math.min(defaultWheelSize, availableWidth);
+	const sliderWidth = Math.min(defaultWidth, availableWidth);
+	const stacked = availableWidth < defaultWidth;
 	const image = useRef<ImgInstance>(null);
 	const wheel = useRef<PublicInstance>(null);
 	const slider = useRef<PublicInstance>(null);
 	const pixels = useMemo(() => ColorWheel.pixels(imageSize), []);
+
+	useLayoutEffect(() => {
+		const bounds =
+			container.current && renderer.getElementBounds?.(container.current.id);
+
+		if (bounds && bounds.width > 0) setAvailableWidth(bounds.width);
+	}, [renderer, window.width]);
 
 	const [selection, setSelection] = useState({
 		source: value,
@@ -227,7 +253,7 @@ export function RepositoryColorPicker({
 	};
 
 	const start = (kind: "wheel" | "brightness", event: EventPayload): void => {
-		if (event.button !== 0) return;
+		if (disabled || event.button !== 0) return;
 
 		const node = kind === "wheel" ? wheel.current : slider.current;
 		const bounds = node && renderer.getElementBounds?.(node.id);
@@ -256,26 +282,55 @@ export function RepositoryColorPicker({
 		else cancel();
 	};
 
+	const cancelDrag = useRef(cancel);
+
+	cancelDrag.current = cancel;
+
 	useEffect(() => {
 		if (!dragging) return;
+
+		const previousCancel = repositoryAppearanceCancel.get(renderer);
+		const cancelActiveDrag = () => cancelDrag.current();
+
+		repositoryAppearanceCancel.set(renderer, cancelActiveDrag);
 
 		// Native programmatic focus changes do not always emit blur on a div.
 		const timer = setInterval(() => {
 			const current = gesture.current;
 			const target = current?.kind === "wheel" ? wheel.current : slider.current;
 
-			if (target && renderer.getFocusedElementId?.() !== target.id) cancel();
+			if (target && renderer.getFocusedElementId?.() !== target.id)
+				cancelDrag.current();
 		}, 32);
 
-		return () => clearInterval(timer);
-	}, [dragging, renderer, cancel]);
+		return () => {
+			clearInterval(timer);
+
+			// Native target and window key events arrive separately for the same Escape.
+			queueMicrotask(() => {
+				if (repositoryAppearanceCancel.get(renderer) !== cancelActiveDrag)
+					return;
+
+				if (previousCancel)
+					repositoryAppearanceCancel.set(renderer, previousCancel);
+				else repositoryAppearanceCancel.delete(renderer);
+			});
+		};
+	}, [dragging, renderer]);
 
 	return (
 		<div
+			ref={container}
+			testId="repository-color-picker"
+			aria-disabled={disabled}
 			style={{
 				display: "flex",
 				flexDirection: "column",
 				gap: spacing[3],
+				width: "100%",
+				maxWidth: defaultWidth,
+				minWidth: 0,
+				opacity: disabled ? 0.5 : 1,
 				// Native selection otherwise arms on diff text behind the floating picker.
 				userSelect: "none",
 			}}
@@ -284,6 +339,7 @@ export function RepositoryColorPicker({
 				style={{
 					display: "flex",
 					flexDirection: "row",
+					flexWrap: "wrap",
 					alignItems: "center",
 					gap: spacing[4],
 				}}
@@ -295,7 +351,7 @@ export function RepositoryColorPicker({
 					aria-label="Color wheel"
 					aria-description="Click or drag to choose a color. Left and Right change hue; Up and Down change saturation. Escape cancels a drag. Hue, Saturation and Brightness fields allow exact values."
 					aria-valuetext={`Hue ${Math.round(color.hue)} degrees, saturation ${Math.round(color.saturation * 100)} percent`}
-					tabIndex={0}
+					tabIndex={disabled ? -1 : 0}
 					onFocus={() => setFocused("wheel")}
 					onBlur={() => {
 						setFocused(undefined);
@@ -312,6 +368,7 @@ export function RepositoryColorPicker({
 						}
 
 						if (
+							disabled ||
 							gesture.current ||
 							event.modifiers?.cmd ||
 							event.modifiers?.ctrl ||
@@ -404,15 +461,23 @@ export function RepositoryColorPicker({
 					/>
 				</div>
 				<div
-					style={{ display: "flex", flexDirection: "column", gap: spacing[2] }}
+					style={{
+						display: "flex",
+						flexDirection: stacked ? "row" : "column",
+						flexWrap: "wrap",
+						width: stacked ? "100%" : 80,
+						gap: spacing[2],
+					}}
 				>
 					<ColorChannel
+						disabled={disabled}
 						label="Hue"
 						value={color.hue}
 						maximum={360}
 						onChange={(hue) => commit({ ...color, hue })}
 					/>
 					<ColorChannel
+						disabled={disabled}
 						label="Saturation"
 						value={color.saturation * 100}
 						maximum={100}
@@ -421,6 +486,7 @@ export function RepositoryColorPicker({
 						}
 					/>
 					<ColorChannel
+						disabled={disabled}
 						label="Brightness"
 						value={color.brightness * 100}
 						maximum={100}
@@ -437,7 +503,7 @@ export function RepositoryColorPicker({
 				aria-label="Brightness"
 				aria-valuetext={`${Math.round(color.brightness * 100)} percent`}
 				aria-description="Left and Right adjust brightness. Home sets black; End sets full brightness."
-				tabIndex={0}
+				tabIndex={disabled ? -1 : 0}
 				onFocus={() => setFocused("brightness")}
 				onBlur={() => {
 					setFocused(undefined);
@@ -454,6 +520,7 @@ export function RepositoryColorPicker({
 					}
 
 					if (
+						disabled ||
 						gesture.current ||
 						event.modifiers?.cmd ||
 						event.modifiers?.ctrl ||

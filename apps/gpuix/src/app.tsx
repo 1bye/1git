@@ -1330,7 +1330,8 @@ function AppContent({
 	}, [renderer, setSettingsView, setSpaceEditor]);
 
 	const openAppearance = (
-		section: RepositoryAppearanceSection = "color"
+		section: RepositoryAppearanceSection = "color",
+		draft?: RepositoryAppearanceValue
 	): void => {
 		const repository = appearanceTarget?.workspace.repository;
 
@@ -1359,7 +1360,7 @@ function AppContent({
 			commonDirectory: repository.commonDirectory,
 			name: appearanceTarget.name,
 			section,
-			draft: {
+			draft: draft ?? {
 				color: repositoryColors[repository.commonDirectory],
 				pattern: selection?.id,
 				patternSeed:
@@ -2701,7 +2702,9 @@ function AppContent({
 						readGitSettings={readGitSettings}
 						repositoryAppearance={settingsRepositoryAppearance}
 						repositoryAppearanceName={appearanceTarget?.name}
-						onCustomizeRepositoryAppearance={() => openAppearance()}
+						onCustomizeRepositoryAppearance={(draft) =>
+							openAppearance("color", draft)
+						}
 						onChangeRepositoryAppearance={
 							settingsAppearanceDirectory
 								? (value) =>

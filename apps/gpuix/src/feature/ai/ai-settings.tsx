@@ -239,7 +239,6 @@ function AiSettingsPanel({
 						) : null}
 						<SettingsGroup
 							title="Connections"
-							icon="sparkle"
 							meta={`${ai.configuration.connections.length} connections`}
 						>
 							{!ai.configuration.connections.length ? (

@@ -1,5 +1,5 @@
 diff --git a/dist/host.d.ts b/dist/host.d.ts
-index cc6b7ef..19445b8 100644
+index cc6b7ef926c5c3122fff6107341913364a215710..4cf4dbb297f14702ef225002277cf4c9895d05b4 100644
 --- a/dist/host.d.ts
 +++ b/dist/host.d.ts
 @@ -223,6 +223,11 @@ export interface GpuixTheme {
@@ -79,8 +79,17 @@ index cc6b7ef..19445b8 100644
      /** A unified git patch (the output of `git diff`). */
      patch?: string;
      /** Highlight the words that changed inside paired +/- lines. */
+@@ -468,7 +506,7 @@ export type WindowSizeHost = Pick<GpuixRenderer, "getWindowSize">;
+ export type WindowInsetsHost = Pick<GpuixRenderer, "getWindowInsets">;
+ export type SelectionHost = Pick<GpuixRenderer, "getSelectedText">;
+ /** `applyBatch` plus the live renderer methods a host may also expose. */
+-export type NativeRenderer = MutationHost & Partial<Pick<GpuixRenderer, "focusElement" | "focusNext" | "focusPrevious" | "getFocusedElementId" | "focusNextWithin" | "focusPreviousWithin" | "blur" | "setWindowKeyEvents" | "setWindowSelectionChange" | "getElementBounds" | "scrollTo" | "scrollToItem" | "scrollIntoView" | "setImage" | "setImagePixels" | "getScrollOffset" | "getListScrollTop" | "getSelectedText" | "clearSelection" | "getPaintedHighlights" | "getWindowSize" | "getWindowInsets" | "setWindowTitle" | "promptForPaths" | "activateWindow" | "minimizeWindow" | "zoomWindow" | "toggleFullscreen" | "setDebugFrameOverlay" | "getDebugFrameOverlay" | "cycleDebugFrameOverlay" | "resetDebugFrameOverlayStats" | "getDebugFrameOverlayStats">>;
++export type NativeRenderer = MutationHost & Partial<Pick<GpuixRenderer, "getApplicationIcon" | "focusElement" | "focusNext" | "focusPrevious" | "getFocusedElementId" | "focusNextWithin" | "focusPreviousWithin" | "blur" | "setWindowKeyEvents" | "setWindowSelectionChange" | "getElementBounds" | "scrollTo" | "scrollToItem" | "scrollIntoView" | "setImage" | "setImagePixels" | "getScrollOffset" | "getListScrollTop" | "getSelectedText" | "clearSelection" | "getPaintedHighlights" | "getWindowSize" | "getWindowInsets" | "setWindowTitle" | "promptForPaths" | "activateWindow" | "minimizeWindow" | "zoomWindow" | "toggleFullscreen" | "setDebugFrameOverlay" | "getDebugFrameOverlay" | "cycleDebugFrameOverlay" | "resetDebugFrameOverlayStats" | "getDebugFrameOverlayStats">>;
+ /** Commit-phase mutation facade shared by framework adapters. */
+ export interface MutationRenderer {
+     createElement(id: number, elementType: string): void;
 diff --git a/dist/mutations.js b/dist/mutations.js
-index 7d0eda6..f3d32a3 100644
+index 7d0eda6cb58127462067cb9d5a442a9ea606c671..f3d32a3b8ad8defb00bb389ac9b251c3358bbb53 100644
 --- a/dist/mutations.js
 +++ b/dist/mutations.js
 @@ -60,6 +60,8 @@ export const EVENT_PROPS = [
@@ -115,10 +124,19 @@ index 7d0eda6..f3d32a3 100644
      "aria-level",
  ]);
 diff --git a/dist/testing.d.ts b/dist/testing.d.ts
-index d303f8c..ecb2724 100644
+index d303f8cd9a63e44b7dd59c129a878e6d74bcfcde..064456caee6fbcb5cbbf399d6d92b11d3d0513a5 100644
 --- a/dist/testing.d.ts
 +++ b/dist/testing.d.ts
-@@ -169,6 +169,8 @@ export declare class TestRenderer implements NativeRenderer {
+@@ -150,6 +150,8 @@ export declare class TestRenderer implements NativeRenderer {
+     getFocusedElementId(): number | null;
+     focusNextWithin(elementId: number): void;
+     focusPreviousWithin(elementId: number): void;
++    /** 1git: a bounded PNG for an installed macOS application, or null. */
++    getApplicationIcon(path: string): Buffer | null;
+     /** The offscreen window size, so `useWindowSize()` works under test. */
+     getWindowSize(): {
+         width: number;
+@@ -169,6 +171,8 @@ export declare class TestRenderer implements NativeRenderer {
      setImage(elementId: number, bytes: Buffer | Uint8Array): void;
      setImagePixels(elementId: number, width: number, height: number, pixels: Buffer | Uint8Array): void;
      /** Get the current scroll offset [x, y] or null if element is not scrollable. */
@@ -128,13 +146,17 @@ index d303f8c..ecb2724 100644
      /** The logical scroll anchor of a `<virtual-list>`:
       *  `[itemIndex, offsetInItemPx, viewportHeightPx]`, or null for anything
 diff --git a/dist/testing.js b/dist/testing.js
-index fb14e5e..f7fb6f4 100644
+index fb14e5ee95bd9d32fa8bca800dfe1be016cbed0f..25a13b496e25b2a7c5908efc869a113a91fdac4c 100644
 --- a/dist/testing.js
 +++ b/dist/testing.js
-@@ -335,7 +335,15 @@ export class TestRenderer {
+@@ -335,7 +335,19 @@ export class TestRenderer {
          this.native.setImagePixels(elementId, width, height, pixels);
          this.native.flush();
      }
++    /** 1git: actual application artwork from the same AppKit bridge as the live renderer. */
++    getApplicationIcon(path) {
++        return this.native.getApplicationIcon(path);
++    }
 +    /** 1git: installed CoreText families, matching the live renderer API. */
 +    getFontFamilies() {
 +        return this.native.getFontFamilies();
@@ -147,3 +169,23 @@ index fb14e5e..f7fb6f4 100644
      getScrollOffset(elementId) {
          this.native.flush();
          const result = this.native.getScrollOffset(elementId);
+diff --git a/index.d.ts b/index.d.ts
+index 2ec4b84d0cad37c2d57585af3abaec2478518728..086ecb06ca4e41555f78ca776a800393b0ef8373 100644
+--- a/index.d.ts
++++ b/index.d.ts
+@@ -76,6 +76,8 @@ export declare class GpuixRenderer {
+    * wrong place on every window that was not exactly that size.
+    */
+   getWindowSize(): WindowSize
++  /** 1git: a bounded PNG for an installed macOS application, or null. */
++  getApplicationIcon(path: string): Buffer | null
+   getWindowInsets(): WindowInsets
+   /** `"hidden"` | `"minimal"` | `"full"`. Paints into the scene after layout. */
+   setDebugFrameOverlay(mode: string): string
+@@ -414,4 +416,6 @@ export declare class TestGpuixRenderer {
+    * under test as in a real window instead of falling back to a default.
+    */
+   getWindowSize(): WindowSize
++  /** 1git: a bounded PNG for an installed macOS application, or null. */
++  getApplicationIcon(path: string): Buffer | null
+ }

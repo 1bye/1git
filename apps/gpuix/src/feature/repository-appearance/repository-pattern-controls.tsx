@@ -160,7 +160,8 @@ function PatternSlider({
 					display: "flex",
 					flexDirection: "column",
 					justifyContent: "center",
-					width: sliderWidth,
+					width: "100%",
+					maxWidth: sliderWidth,
 					height: 24,
 					borderRadius: radius.full,
 					borderWidth: focused ? 1 : 0,
@@ -183,7 +184,7 @@ function PatternSlider({
 						style={{
 							width: `${value}%`,
 							height: 5,
-							backgroundColor: tokens.colors.onAccent,
+							backgroundColor: tokens.colors.focusRing,
 							borderRadius: radius.full,
 							pointerEvents: "none",
 						}}
@@ -194,16 +195,28 @@ function PatternSlider({
 					style={{
 						position: "absolute",
 						top: 5,
-						left: ((sliderWidth - thumbSize) * value) / 100,
-						width: thumbSize,
-						height: thumbSize,
-						borderRadius: radius.full,
-						backgroundColor: tokens.colors.onAccent,
-						borderWidth: 2,
-						borderColor: tokens.colors.overlay,
+						left: 0,
+						right: 0,
+						display: "flex",
+						flexDirection: "row",
 						pointerEvents: "none",
 					}}
-				/>
+				>
+					<div style={{ flexGrow: value, flexBasis: 0 }} />
+					<div
+						style={{
+							width: thumbSize,
+							height: thumbSize,
+							flexShrink: 0,
+							borderRadius: radius.full,
+							backgroundColor: tokens.colors.focusRing,
+							borderWidth: 2,
+							borderColor: tokens.colors.overlay,
+							pointerEvents: "none",
+						}}
+					/>
+					<div style={{ flexGrow: 100 - value, flexBasis: 0 }} />
+				</div>
 			</div>
 			{dragging ? (
 				<anchored
@@ -276,7 +289,8 @@ export function RepositoryPatternControls({
 				disabled={disabled}
 				onPress={() => setExpanded(!expanded)}
 				style={{
-					width: sliderWidth,
+					width: "100%",
+					maxWidth: sliderWidth,
 					height: 40,
 					justifyContent: "space-between",
 					paddingLeft: spacing[3],
@@ -301,7 +315,8 @@ export function RepositoryPatternControls({
 						display: "flex",
 						flexDirection: "column",
 						gap: spacing[3],
-						width: sliderWidth,
+						width: "100%",
+						maxWidth: sliderWidth,
 						flexShrink: 0,
 					}}
 				>
@@ -318,7 +333,12 @@ export function RepositoryPatternControls({
 						<div
 							role="group"
 							aria-label="Pattern layout"
-							style={{ display: "flex", flexDirection: "row", gap: spacing[1] }}
+							style={{
+								display: "flex",
+								flexDirection: "row",
+								flexWrap: "wrap",
+								gap: spacing[1],
+							}}
 						>
 							{(["scattered", "clusters", "hero"] as const).map((layout) => (
 								<Button
@@ -332,10 +352,9 @@ export function RepositoryPatternControls({
 										value.layout === layout ? "Selected" : undefined
 									}
 									onPress={() => onChange({ ...value, layout })}
-									style={{ flexGrow: 1, minWidth: 0 }}
+									style={{ flexGrow: 1, flexBasis: 80, minWidth: 0 }}
 								>
-									{layout[0]?.toUpperCase()}
-									{layout.slice(1)}
+									{`${layout[0]?.toUpperCase()}${layout.slice(1)}`}
 								</Button>
 							))}
 						</div>

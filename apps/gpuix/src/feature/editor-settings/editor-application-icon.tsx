@@ -1,10 +1,13 @@
+import { useEffect, useState } from "react";
+import { useGpuixRequired } from "@gpuix/react";
+import { ApplicationIcons } from "./application-icons";
 import { radius, spacing } from "@1git/design-tokens";
 import { useAppTheme } from "../../styles/theme";
 import { settingsStyles } from "../settings/settings-layout";
 import { WorkspaceTabIcon } from "../workspace-tabs/components/workspace-tab-icon";
 import type { EditorApplication } from "./external-editors";
 
-// Small bundled glyphs avoid filesystem/image work while scrolling editor choices.
+// Bundled glyphs remain available when a native icon cannot be read.
 const glyphs: Readonly<Record<string, { paths: string; color?: string }>> = {
 	"zed.app": { paths: '<path d="M4 5h16L4 19h16M4 10V5m16 9v5"/>' },
 	"visual studio code.app": {
@@ -42,7 +45,7 @@ const glyphs: Readonly<Record<string, { paths: string; color?: string }>> = {
 	},
 };
 
-/** Decorative bundled editor glyphs, with a monogram for custom applications. */
+/** Real installed application icons, with bundled glyphs and monograms as fallbacks. */
 export function EditorApplicationIcon({
 	application,
 	testId,
@@ -51,6 +54,27 @@ export function EditorApplicationIcon({
 	testId?: string;
 }) {
 	const theme = useAppTheme();
+	const renderer = useGpuixRequired();
+	const path = application?.available ? application.path : undefined;
+	const revision = application?.iconRevision;
+
+	const [icon, setIcon] = useState<{
+		path: string;
+		revision?: string;
+		source: string;
+	}>();
+
+	useEffect(() => {
+		const source = path
+			? ApplicationIcons.load(renderer, path, revision)
+			: undefined;
+
+		setIcon(path && source ? { path, revision, source } : undefined);
+	}, [renderer, path, revision]);
+	const source =
+		icon?.path === path && icon?.revision === revision
+			? icon?.source
+			: undefined;
 
 	const glyph = application
 		? glyphs[application.path.split("/").at(-1)?.toLowerCase() ?? ""]
@@ -67,13 +91,21 @@ export function EditorApplicationIcon({
 				display: "flex",
 				alignItems: "center",
 				justifyContent: "center",
-				backgroundColor: theme.tokens.colors.surface,
+				backgroundColor: source ? undefined : theme.tokens.colors.surface,
 				borderRadius: radius.lg,
-				padding: spacing[1],
+				padding: source ? 0 : spacing[1],
 				pointerEvents: "none",
 			}}
 		>
-			{!application ? (
+			{source ? (
+				<img
+					testId={testId ? `${testId}-image` : undefined}
+					src={source}
+					alt=""
+					objectFit="contain"
+					style={{ width: 28, height: 28, pointerEvents: "none" }}
+				/>
+			) : !application ? (
 				<WorkspaceTabIcon name="pencil" size={18} />
 			) : glyph ? (
 				<svg

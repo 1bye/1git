@@ -271,7 +271,7 @@ export function AccountsSettings({
 	};
 	repositoryAppearance?: RepositoryAppearanceValue;
 	repositoryAppearanceName?: string;
-	onCustomizeRepositoryAppearance?: () => void;
+	onCustomizeRepositoryAppearance?: (value: RepositoryAppearanceValue) => void;
 	onChangeRepositoryAppearance?: (value: RepositoryAppearanceValue) => void;
 	spaceSwitcher?: (disabled: boolean) => ReactNode;
 	onSpaceSwipe?: (direction: SpaceDirection) => void;

@@ -49,6 +49,8 @@ import {
 	diffTrailingContextPatchPath,
 	scrollbarVisibilityPatchPath,
 	fontFamiliesPatchPath,
+	applicationIconsPatchPath,
+	applicationIconsPlatformPatchPath,
 	scrollMetricsPatchPath,
 	menuPlacementPlatformPatchPath,
 	systemAppearancePatchPath,
@@ -150,6 +152,8 @@ if (
 		diffTrailingContextPatchPath,
 		scrollbarVisibilityPatchPath,
 		fontFamiliesPatchPath,
+		applicationIconsPatchPath,
+		applicationIconsPlatformPatchPath,
 	];
 
 	// Later patches can change an earlier patch's context. Unwind known patches
@@ -168,7 +172,8 @@ if (
 			patch === roundedOverflowPlatformPatchPath ||
 			patch === windowAppearancePlatformPatchPath ||
 			patch === systemAppearancePlatformPatchPath ||
-			patch === menuPlacementPlatformPatchPath
+			patch === menuPlacementPlatformPatchPath ||
+			patch === applicationIconsPlatformPatchPath
 				? resolve(source, "zed")
 				: source;
 
@@ -196,7 +201,8 @@ if (
 			patch === roundedOverflowPlatformPatchPath ||
 			patch === windowAppearancePlatformPatchPath ||
 			patch === systemAppearancePlatformPatchPath ||
-			patch === menuPlacementPlatformPatchPath
+			patch === menuPlacementPlatformPatchPath ||
+			patch === applicationIconsPlatformPatchPath
 				? resolve(source, "zed")
 				: source;
 

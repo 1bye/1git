@@ -1,0 +1,102 @@
+diff --git a/crates/gpui_macos/src/application_icons.rs b/crates/gpui_macos/src/application_icons.rs
+new file mode 100644
+--- /dev/null
++++ b/crates/gpui_macos/src/application_icons.rs
+@@ -0,0 +1,85 @@
++use cocoa::base::{id, nil, NO, YES};
++use cocoa::foundation::{NSAutoreleasePool, NSPoint, NSRect, NSSize};
++use objc::{class, msg_send, sel, sel_impl};
++
++struct IconAutoreleasePool(id);
++impl Drop for IconAutoreleasePool {
++    fn drop(&mut self) {
++        unsafe {
++            self.0.drain();
++        }
++    }
++}
++
++/// Rasterize an installed application's real icon without launching it or changing shared NSImages.
++/// Callers cache the small PNG against the bundle's metadata revision.
++pub fn application_icon_png(path: &str) -> anyhow::Result<Option<Vec<u8>>> {
++    let application = std::path::Path::new(path);
++    if path.is_empty()
++        || path.len() > 4096
++        || path.contains(['\0', '\r', '\n'])
++        || !application.is_absolute()
++        || !application
++            .extension()
++            .is_some_and(|ext| ext.eq_ignore_ascii_case("app"))
++        || path.split('/').any(|part| part == "." || part == "..")
++        || !std::fs::metadata(application).is_ok_and(|metadata| metadata.is_dir())
++        || !std::fs::metadata(application.join("Contents/Info.plist"))
++            .is_ok_and(|metadata| metadata.is_file() && metadata.len() <= 1024 * 1024)
++    {
++        return Ok(None);
++    }
++
++    unsafe {
++        let main_thread: cocoa::base::BOOL = msg_send![class!(NSThread), isMainThread];
++        anyhow::ensure!(
++            main_thread == YES,
++            "Application icons require the main thread"
++        );
++        let _pool = IconAutoreleasePool(NSAutoreleasePool::new(nil));
++        let workspace: id = msg_send![class!(NSWorkspace), sharedWorkspace];
++        let image: id = msg_send![workspace, iconForFile: crate::ns_string(path)];
++        if image == nil {
++            return Ok(None);
++        }
++
++        // Fixed 2x pixels for the 28pt Settings row, with alpha and no filesystem output.
++        let bitmap: id = msg_send![class!(NSBitmapImageRep), alloc];
++        let bitmap: id = msg_send![bitmap,
++            initWithBitmapDataPlanes: std::ptr::null_mut::<*mut u8>()
++            pixelsWide: 64_isize pixelsHigh: 64_isize
++            bitsPerSample: 8_isize samplesPerPixel: 4_isize
++            hasAlpha: YES isPlanar: NO
++            colorSpaceName: crate::ns_string("NSCalibratedRGBColorSpace")
++            bytesPerRow: 256_isize bitsPerPixel: 32_isize];
++        if bitmap == nil {
++            return Ok(None);
++        }
++        let bitmap = objc::rc::StrongPtr::new(bitmap);
++        let context: id =
++            msg_send![class!(NSGraphicsContext), graphicsContextWithBitmapImageRep: *bitmap];
++        if context == nil {
++            return Ok(None);
++        }
++
++        let _: () = msg_send![class!(NSGraphicsContext), saveGraphicsState];
++        let _: () = msg_send![class!(NSGraphicsContext), setCurrentContext: context];
++        let _: cocoa::base::BOOL = msg_send![image,
++            drawInRect: NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(64.0, 64.0))
++            fromRect: NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(0.0, 0.0))
++            operation: 1_usize fraction: 1.0_f64 respectFlipped: NO hints: nil];
++        let _: () = msg_send![class!(NSGraphicsContext), restoreGraphicsState];
++
++        let properties: id = msg_send![class!(NSDictionary), dictionary];
++        let png: id = msg_send![*bitmap, representationUsingType: 4_usize properties: properties];
++        if png == nil {
++            return Ok(None);
++        }
++        let length: usize = msg_send![png, length];
++        let bytes: *const u8 = msg_send![png, bytes];
++        if bytes.is_null() || length == 0 || length > 256 * 1024 {
++            return Ok(None);
++        }
++        Ok(Some(std::slice::from_raw_parts(bytes, length).to_vec()))
++    }
++}
+diff --git a/crates/gpui_macos/src/gpui_macos.rs b/crates/gpui_macos/src/gpui_macos.rs
+--- a/crates/gpui_macos/src/gpui_macos.rs
++++ b/crates/gpui_macos/src/gpui_macos.rs
+@@ -5,6 +5,8 @@
+ //! an origin at the bottom left of the main display.
+ 
+ mod dispatcher;
++mod application_icons;
++pub use application_icons::application_icon_png;
+ mod context_menu;
+ pub use context_menu::{context_menu_view, show_native_context_menu, show_native_context_menu_items, confirm_file_discard, confirm_ignore_rule};
+ #[cfg(any(test, feature = "test-support"))]

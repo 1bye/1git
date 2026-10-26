@@ -135,7 +135,6 @@ export function EditorRuleEditor({
 					<text style={{ ...styles.description }}>.ts, .tsx, Dockerfile</text>
 					<SettingsGroup
 						title="Application"
-						icon="pencil"
 						action={
 							<Button
 								testId="editor-rule-choose-application"

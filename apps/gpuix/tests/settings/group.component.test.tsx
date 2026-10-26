@@ -26,7 +26,7 @@ test("keeps row activation separate from trailing actions and gives previews a s
 			<SettingsSplit
 				list={
 					<SettingsPage title="Example" testId="page">
-						<SettingsGroup title="Items" icon="layers">
+						<SettingsGroup title="Items">
 							<SettingsGroupRow
 								testId="row"
 								label="Item"

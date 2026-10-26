@@ -1,14 +1,6 @@
 import { radius, spacing } from "@1git/design-tokens";
-import {
-	useEffect,
-	useRef,
-	useState,
-	type ComponentProps,
-	type ReactElement,
-	type ReactNode,
-} from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createThemedStyles, useAppTheme } from "../../styles/theme";
-import { WorkspaceTabIcon } from "../workspace-tabs/components/workspace-tab-icon";
 import { settingsLayout, settingsStyles } from "./settings-layout";
 
 const groupStyles = createThemedStyles(
@@ -59,7 +51,6 @@ const groupStyles = createThemedStyles(
 /** A Settings list card with a tinted heading, related actions and an optional hint. */
 export function SettingsGroup({
 	title,
-	icon,
 	meta,
 	action,
 	label = title,
@@ -68,7 +59,6 @@ export function SettingsGroup({
 	children,
 }: {
 	title: string;
-	icon?: ComponentProps<typeof WorkspaceTabIcon>["name"] | ReactElement;
 	meta?: ReactNode;
 	action?: ReactNode;
 	label?: string;
@@ -92,11 +82,6 @@ export function SettingsGroup({
 			}}
 		>
 			<div style={groups.header}>
-				{typeof icon === "string" ? (
-					<WorkspaceTabIcon name={icon} size={16} />
-				) : (
-					icon
-				)}
 				<text
 					role="heading"
 					aria-level={2}

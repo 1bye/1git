@@ -1,21 +1,22 @@
-# Native editor icons follow-up
+# Native editor icons
 
-Settings currently uses bundled editor glyphs and a monogram for custom apps.
-The existing `native/context-menu-icons-platform.patch` already validates app
-bundle paths and caches `NSWorkspace iconForFile:` images, but those `NSImage`
-values only reach AppKit menu items. They are not exposed as PNG data to React.
+External editor choices display 64×64 transparent PNGs from macOS
+`NSWorkspace iconForFile:`, at 28 points. The AppKit bridge runs on the main thread
+and draws into a separate bitmap without resizing LaunchServices' shared image.
+It validates local `.app` paths and never launches an application or writes an
+image to disk. Both production and test renderers expose the same bridge.
 
-A native Settings icon implementation needs more than that lookup: a main-thread
-PNG conversion/export in GPUI macOS, renderer and test-renderer NAPI methods,
-TypeScript host types, and a bounded image cache/display path. Keep that work
-separate from the Settings layout changes rather than extending the native
-runtime solely for these small decorative glyphs.
+The React component requests icons after mounting. A bounded cache holds at most
+64 images per renderer, keyed by application path and bundle metadata revision.
+Refreshing editor discovery rereads the bundle and Info.plist metadata so replacing
+or reinstalling an application invalidates its cached image. Missing applications,
+failed lookups and unavailable native support use the bundled glyph or monogram.
 
-For a future implementation, reuse the menu path validation and AppKit cache;
-return a small PNG without resizing the shared LaunchServices image. Test custom
-bundles, unavailable applications, cache invalidation after reinstall, and both
-native app and test-renderer paths. Fall back to the bundled glyph or monogram
-when reading an icon fails. No network lookup is needed.
+The system default varies by file type. `ExternalEditors` delegates that choice
+to macOS, so its row keeps the generic editor glyph instead of implying one app
+is the default for every file.
 
-The system default varies by file type. `ExternalEditors` currently delegates
-that choice to macOS and cannot report one resolved application for all files.
+Native coverage checks installed and custom applications, PNG bounds and alpha,
+invalid paths, replacement at the same path, image rendering in both themes and
+fallbacks. The custom fixture generates its own `.icns` artwork with `iconutil`;
+its executable is never run.

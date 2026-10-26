@@ -1,6 +1,6 @@
 import type { NativeRenderer, WindowKeyEventHandler } from "@gpuix/react";
 
-/** One window's temporary appearance editor; Escape also works from the live workspace. */
+/** One window's active color drag or temporary editor; Escape cancels the innermost operation. */
 export const repositoryAppearanceCancel = new WeakMap<
 	NativeRenderer,
 	() => void

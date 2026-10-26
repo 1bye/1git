@@ -22,11 +22,7 @@ export function PrivacySettings({
 
 	return (
 		<SettingsPage testId="privacy-settings" title="Privacy" width="single">
-			<SettingsGroup
-				testId="privacy-usage"
-				title="Usage statistics"
-				icon="shield"
-			>
+			<SettingsGroup testId="privacy-usage" title="Usage statistics">
 				<SettingsGroupRow
 					label="Share anonymous usage statistics"
 					description="Help improve 1git with a small set of anonymous usage events. Enabled by default."
@@ -57,7 +53,6 @@ export function PrivacySettings({
 			<SettingsGroup
 				testId="privacy-data"
 				title="What's sent"
-				icon="history"
 				footer="Random identifiers stay in memory and rotate. No session recordings or automatic click tracking. Disabling stops new events and cancels pending requests. Events already received by PostHog remain there."
 			>
 				<div role="group" aria-label="Sent">

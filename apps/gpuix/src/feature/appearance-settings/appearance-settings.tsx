@@ -46,13 +46,13 @@ export function AppearanceSettings({
 					scrollTestId="appearance-settings-scroll"
 					title="Appearance"
 				>
-					<SettingsGroup title="Theme" icon="palette">
+					<SettingsGroup title="Theme">
 						<div style={{ padding: spacing[3] }}>
 							<AppearanceChoices />
 						</div>
 					</SettingsGroup>
 					<FontSettings />
-					<SettingsGroup title="Interface" icon="tabs">
+					<SettingsGroup title="Interface">
 						<SettingsGroupRow
 							label="Pane scrollbars"
 							description="Show scrollbars in lists, previews and output panes."
@@ -83,7 +83,7 @@ export function AppearanceSettings({
 							}
 						/>
 					</SettingsGroup>
-					<SettingsGroup title="Commit messages" icon="branch">
+					<SettingsGroup title="Commit messages">
 						<SettingsGroupRow
 							label="Commit type badges"
 							description="Compact labels for feat, fix, refactor and other conventional prefixes. Original messages are unchanged."
@@ -101,7 +101,7 @@ export function AppearanceSettings({
 						/>
 					</SettingsGroup>
 					{onReplayTips || onSetup ? (
-						<SettingsGroup title="Help" icon="sparkle">
+						<SettingsGroup title="Help">
 							{onReplayTips ? (
 								<SettingsGroupRow
 									label="Guided tips"
@@ -291,7 +291,7 @@ export function AppearanceChoices() {
 					aria-description={
 						appearancePreference === choice ? "Selected" : undefined
 					}
-					variant="secondary"
+					variant="ghost"
 					disabled={!setAppearance}
 					onPress={() => setAppearance?.(choice)}
 					style={{
@@ -302,11 +302,9 @@ export function AppearanceChoices() {
 						flexDirection: "column",
 						gap: spacing[2],
 						padding: spacing[2],
-						borderWidth: 1,
-						borderColor:
-							appearancePreference === choice
-								? tokens.colors.accentBorder
-								: tokens.colors.border,
+						backgroundColor: "transparent",
+						hover: { backgroundColor: "transparent" },
+						active: { backgroundColor: "transparent" },
 					}}
 				>
 					<ThemePreview
@@ -315,6 +313,10 @@ export function AppearanceChoices() {
 					<text
 						style={{
 							...styles.label,
+							color:
+								appearancePreference === choice
+									? tokens.colors.focusRing
+									: tokens.colors.text,
 							pointerEvents: "none",
 						}}
 					>

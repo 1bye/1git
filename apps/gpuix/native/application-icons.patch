@@ -1,0 +1,38 @@
+diff --git a/packages/native/src/renderer.rs b/packages/native/src/renderer.rs
+--- a/packages/native/src/renderer.rs
++++ b/packages/native/src/renderer.rs
+@@ -1822,6 +1822,15 @@
+         ))
+     }
+ 
++    /// Return a bounded AppKit PNG without launching the application.
++    #[cfg(target_os = "macos")]
++    #[napi]
++    pub fn get_application_icon(&self, path: String) -> Result<Option<Buffer>> {
++        gpui_macos::application_icon_png(&path)
++            .map(|image| image.map(Buffer::from))
++            .map_err(|error| Error::from_reason(error.to_string()))
++    }
++
+     /// Installed CoreText families, without opening a system font panel.
+     #[cfg(target_os = "macos")]
+     #[napi]
+diff --git a/packages/native/src/test_renderer.rs b/packages/native/src/test_renderer.rs
+--- a/packages/native/src/test_renderer.rs
++++ b/packages/native/src/test_renderer.rs
+@@ -1256,6 +1256,15 @@
+         self.tree.lock().unwrap().root_id.map(|id| id as f64)
+     }
+ 
++    /// Return a bounded AppKit PNG without launching the application.
++    #[cfg(target_os = "macos")]
++    #[napi]
++    pub fn get_application_icon(&self, path: String) -> Result<Option<Buffer>> {
++        gpui_macos::application_icon_png(&path)
++            .map(|image| image.map(Buffer::from))
++            .map_err(|error| Error::from_reason(error.to_string()))
++    }
++
+     /// Installed families use the same catalog as the production renderer.
+     #[cfg(target_os = "macos")]
+     #[napi]

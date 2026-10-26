@@ -122,7 +122,6 @@ export function FontSettings() {
 	return (
 		<SettingsGroup
 			title="Text"
-			icon="keyboard"
 			action={
 				<Button
 					testId="appearance-reset-fonts"

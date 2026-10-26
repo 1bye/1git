@@ -106,7 +106,12 @@ it("accepts a custom application and passes its literal path as an argument, not
 	await editors.save(custom);
 
 	expect((await editors.options()).applications).toEqual([
-		{ path: custom, name: "My Editor ' ; $()", available: true },
+		{
+			path: custom,
+			name: "My Editor ' ; $()",
+			available: true,
+			iconRevision: expect.any(String),
+		},
 	]);
 	await editors.open(file);
 	expect(launches).toEqual([["-a", custom, file]]);

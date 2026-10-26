@@ -85,6 +85,7 @@ export function SettingsPage({
 	width = "default",
 	testId,
 	scrollTestId,
+	scrollRef,
 	headerTestId,
 	titleTestId,
 	descriptionTestId,
@@ -96,6 +97,7 @@ export function SettingsPage({
 	width?: "default" | "single" | "wide";
 	testId: string;
 	scrollTestId?: string;
+	scrollRef?: Ref<PublicInstance>;
 	headerTestId?: string;
 	titleTestId?: string;
 	descriptionTestId?: string;
@@ -142,6 +144,7 @@ export function SettingsPage({
 	// Native scrollIntoView reveals a direct scroll child; keep sections outside a page-sized wrapper.
 	const body = (
 		<div
+			ref={scrollRef}
 			testId={scrollTestId ?? testId}
 			style={{
 				...styles.pane,

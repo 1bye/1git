@@ -508,7 +508,6 @@ export function GitSettings({
 									<SettingsGroup
 										testId="identity-summary"
 										title="Identity"
-										icon="userCircle"
 										footer={data.identityReadOnlyReason || undefined}
 									>
 										<SettingsGroupRow
@@ -570,7 +569,6 @@ export function GitSettings({
 									<SettingsGroup
 										testId="remotes-list"
 										title="Remotes"
-										icon="network"
 										meta={`${data.remotes.length} ${data.remotes.length === 1 ? "remote" : "remotes"}`}
 									>
 										{!data.remotes.length ? (

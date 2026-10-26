@@ -44,7 +44,6 @@ export function AccountList({
 	return (
 		<SettingsGroup
 			title="Connected accounts"
-			icon="userCircle"
 			meta={`${accounts.length} ${accounts.length === 1 ? "account" : "accounts"}`}
 		>
 			{!accounts.length ? (

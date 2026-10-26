@@ -158,7 +158,9 @@ test.each([
 							},
 						})}
 						repositoryAppearance={{}}
-						repositoryAppearanceName="Example"
+						repositoryAppearanceName="Example repository with a long name"
+						onCustomizeRepositoryAppearance={() => {}}
+						onChangeRepositoryAppearance={() => {}}
 						ignoredHistory={{ history, repository, onRefresh: async () => {} }}
 						spacesSettings={<SpaceFixture />}
 					/>
@@ -230,6 +232,71 @@ test.each([
 
 			expect(bounds?.height).toBeGreaterThan(300);
 			capture(section);
+
+			if (section === "repository-appearance") {
+				const controls = root.renderer.getElementBounds(
+					node("repository-appearance-controls").id
+				)!;
+
+				const preview = root.renderer.getElementBounds(
+					node("repository-appearance-preview-panel").id
+				)!;
+
+				const workspace = root.renderer.getElementBounds(
+					node("repository-appearance-preview").id
+				)!;
+
+				expect(preview.x).toBeGreaterThanOrEqual(controls.x + controls.width);
+				expect(workspace.x).toBeGreaterThan(preview.x);
+				expect(preview.height).toBeGreaterThan(500);
+
+				const customize = root.renderer.getElementBounds(
+					node("repository-appearance-customize").id
+				)!;
+
+				const wheel = root.renderer.getElementBounds(
+					node("repository-color-wheel").id
+				)!;
+
+				expect(customize.x).toBeGreaterThanOrEqual(preview.x);
+				expect(customize.y).toBeGreaterThanOrEqual(
+					workspace.y + workspace.height
+				);
+				expect(customize.x + customize.width).toBeLessThanOrEqual(
+					preview.x + preview.width
+				);
+				expect(wheel.x + wheel.width).toBeLessThanOrEqual(
+					controls.x + controls.width
+				);
+
+				const part = (name: string) =>
+					root.renderer.getElementBounds(
+						node(`repository-appearance-preview-${name}`).id
+					)!;
+
+				const lights = part("traffic-lights");
+				const tab = part("tab");
+				const label = part("tab-label");
+				const rail = part("rail");
+				const files = part("files");
+				const diff = part("diff");
+				const commit = part("commit");
+
+				expect(lights.width).toBeGreaterThan(0);
+				expect(lights.x + lights.width).toBeLessThan(tab.x);
+				expect(lights.y + lights.height).toBeLessThanOrEqual(rail.y);
+				expect(tab.y + tab.height).toBeLessThanOrEqual(files.y);
+				expect(label.height).toBeLessThanOrEqual(tab.height);
+				expect(rail.x + rail.width).toBeLessThanOrEqual(files.x);
+				expect(files.x + files.width).toBeLessThanOrEqual(diff.x);
+				expect(files.width).toBeGreaterThan(60);
+				expect(diff.width).toBeGreaterThan(60);
+				expect(diff.x + diff.width).toBeLessThanOrEqual(
+					workspace.x + workspace.width
+				);
+				expect(commit.y).toBeGreaterThan(files.y + files.height / 2);
+				expect(commit.x + commit.width).toBeLessThanOrEqual(diff.x);
+			}
 
 			if (section === "appearance") {
 				for (const id of [
