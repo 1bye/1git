@@ -1,9 +1,10 @@
 # Linux port (work in progress)
 
-Status: scaffolding landed on branch `linux-port`, commit `feat(linux)`.
-This is **not** a finished, runnable Linux app yet. The TypeScript side
-builds and type-checks on Linux; the native GUI build has not been run
-to a window yet (see "Not yet verified").
+Status: first Linux window achieved on branch `linux-port`.
+The native addon builds on Linux and `bun run dev:app` opens a real
+1git window (see "Verified"). This is still not a finished product:
+the window was verified under Xvfb on Ubuntu 24.04, not yet on a real
+GNOME X11/Wayland desktop, and the TODO list below still stands.
 
 ## Why this port is plausible
 
@@ -62,6 +63,18 @@ The blockers were 1git's own macOS gates, not the engine:
   Editor catalog discovery is still macOS-only (see TODO).
 - `src/window-options.ts`: no blurred background or traffic lights on
   Linux; the compositor's native decorations are used.
+- `native/macos-napi-methods-linux.patch` (Linux only, applied last):
+  moves five macOS-only `#[napi]` methods (`get_font_families`,
+  `get_system_appearance`, `set_window_appearance`, `set_close_blocked`,
+  `take_close_requested`) out of the main `GpuixRenderer` impl into a
+  macOS-only impl block. napi-derive registers `cfg`'d methods from
+  the main impl even on Linux, where their callbacks do not exist,
+  so the addon failed to compile without this move (five `E0425`
+  errors). A `cfg_attr` workaround was tried first and did not work.
+  On Linux those five methods are absent, and the TS callers already
+  guard them with `"method" in renderer` (system appearance falls back
+  to light, close protection and font list are unavailable, window
+  appearance is skipped). macOS keeps the original patch stack.
 - Changeset: `.changeset/linux-port-initial.md` (`@1git/gpuix`, minor).
 
 ## Ubuntu 20.04: the floor, and the build rule
@@ -94,7 +107,7 @@ Runtime dependencies for the tarball (to install, not bundle):
 (X11), plus the desktop's Wayland/X11 libraries and a Vulkan driver
 (or Mesa lavapipe for software rendering).
 
-## Verified in this session (Ubuntu 24.04, no display, no Rust)
+## Verified in this session (Ubuntu 24.04, Xvfb, Rust 1.97.1)
 
 - `bun install --frozen-lockfile`: ok (616 packages).
 - `bun run build` (turbo, all 5 tasks): ok.
@@ -104,15 +117,35 @@ Runtime dependencies for the tarball (to install, not bundle):
   clipboard on a machine with no wl-copy/xclip/xsel now fails with the
   intended "install wl-clipboard or xclip" message instead of a raw
   spawn error.
+- **Native build:** `bun run --cwd apps/gpuix build:native` succeeds
+  and writes a 51 MB `apps/gpuix/.cache/native/gpuix-native.node`.
+  System deps needed: Rust 1.97.1 (rustup, pinned by GPUIX),
+  `libx11-xcb-dev`, `libxkbcommon-x11-dev`, `libxcb*-dev`,
+  `libwayland-dev`, `libfontconfig-dev`, `libvulkan1`,
+  `mesa-vulkan-drivers`. Two environment traps, both hit in this
+  session and worth knowing: (a) this VM's egress proxy credential
+  rotates on every new exec session, so a `cargo fetch` that shares
+  its session with later commands stalls on downloads; fetch once in
+  a single session, then build with `CARGO_NET_OFFLINE=true`.
+  (b) VM whole-machine replacements wipe the apt layer (this session
+  lost `mesa-vulkan-drivers` and the `-dev` symlinks mid-build, which
+  surfaced as `rust-lld: unable to find library -lxkbcommon-x11` and
+  as a Vulkan surface failure); reinstall the deps after a
+  replacement, before rebuilding.
+- **First window:** `DISPLAY=:99 bun --preload ./native/preload.ts
+  --hot src/main.tsx` under Xvfb (1920x1080) opens a 1280x820 window
+  titled "1git" with the real onboarding flow: "Welcome to 1git",
+  Light/Dark/Auto cards, step 1 of 4, "Skip setup" / "Continue".
+  Rendering uses llvmpipe (Mesa software Vulkan, no GPU in this VM).
+  Non-fatal log line under Xvfb: `Found no xinput mouse pointers`
+  (Xvfb has no input devices; a real desktop has them).
+  Screenshot: `~/workspace/your_files/1git-linux-first-window.png`.
 
 ## Not yet verified / TODO
 
-1. **Native build and first window.** Install Rust (GPUIX pins
-   1.97.1 in its `rust-toolchain.toml`) and the GPUI Linux system
-   libraries, then run `bun run --cwd apps/gpuix build:native` and
-   `bun run dev:app` under Xvfb and then on a real GNOME X11 and
-   Wayland session. Expect Vulkan/fontconfig issues to surface here
-   first. This is the main remaining risk.
+1. **Real desktop run.** The window was verified under Xvfb only.
+   Next: run on a real GNOME X11 session and a Wayland session,
+   including mouse/keyboard input, window resize, and HiDPI.
 2. **Cmd -> Ctrl sweep.** Many handlers already accept `cmd || ctrl`,
    but pure `cmd` checks (quick switcher, Cmd-click, settings
    shortcuts) will not fire on Linux, where GPUI reports the Super key

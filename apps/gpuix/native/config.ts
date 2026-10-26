@@ -167,6 +167,15 @@ export const fontFamiliesPatchPath = resolve(
 	import.meta.dir,
 	"font-families.patch"
 );
+// Linux only: moves five macOS-only #[napi] methods out of the main
+// GpuixRenderer impl into a macOS-only impl block. napi-derive registers
+// cfg'd methods from the main impl even on Linux, where their callbacks
+// do not exist, so the Linux addon fails to compile without this move.
+// TS callers already guard these methods with `"method" in renderer`.
+export const macosNapiMethodsPatchPath = resolve(
+	import.meta.dir,
+	"macos-napi-methods-linux.patch"
+);
 export const nativeBuildId = createHash("sha256")
 	.update(nativeRevision)
 	.update(readFileSync(patchPath))
@@ -213,5 +222,6 @@ export const nativeBuildId = createHash("sha256")
 	.update(readFileSync(diffTrailingContextPatchPath))
 	.update(readFileSync(scrollbarVisibilityPatchPath))
 	.update(readFileSync(fontFamiliesPatchPath))
+	.update(readFileSync(macosNapiMethodsPatchPath))
 	.update(`${process.platform}-${process.arch}-release-v1`)
 	.digest("hex");

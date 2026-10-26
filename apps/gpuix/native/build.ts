@@ -53,6 +53,7 @@ import {
 	menuPlacementPlatformPatchPath,
 	systemAppearancePatchPath,
 	systemAppearancePlatformPatchPath,
+	macosNapiMethodsPatchPath,
 } from "./config";
 
 const supportedNativeBuild =
@@ -159,6 +160,12 @@ if (
 		diffTrailingContextPatchPath,
 		scrollbarVisibilityPatchPath,
 		fontFamiliesPatchPath,
+		// Linux only, applied last: moves five macOS-only #[napi] methods
+		// out of the main GpuixRenderer impl. napi-derive registers cfg'd
+		// methods from the main impl even where their callbacks do not
+		// exist, so without this the Linux addon does not compile.
+		// macOS keeps the original patch stack unchanged.
+		...(process.platform === "linux" ? [macosNapiMethodsPatchPath] : []),
 	];
 
 	// Later patches can change an earlier patch's context. Unwind known patches

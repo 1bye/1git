@@ -1,0 +1,119 @@
+--- a/packages/native/src/renderer.rs
++++ b/packages/native/src/renderer.rs
+@@ -1191,19 +1191,7 @@
+         }
+     }
+ 
+-    /// Synchronous native veto; set before starting a protected operation.
+-    #[cfg(target_os = "macos")]
+-    #[napi]
+-    pub fn set_close_blocked(&self, blocked: bool) {
+-        self.close_protection.0.lock().unwrap().0 = blocked;
+-    }
+ 
+-    /// Consume a blocked close/quit attempt without queuing a later quit.
+-    #[cfg(target_os = "macos")]
+-    #[napi]
+-    pub fn take_close_requested(&self) -> bool {
+-        std::mem::take(&mut self.close_protection.0.lock().unwrap().1)
+-    }
+ 
+     /// Initialize GPUI using the native event-loop architecture for this OS.
+     #[napi]
+@@ -1822,39 +1810,8 @@
+         ))
+     }
+ 
+-    /// Installed CoreText families, without opening a system font panel.
+-    #[cfg(target_os = "macos")]
+-    #[napi]
+-    pub fn get_font_families(&self) -> Vec<String> {
+-        crate::installed_font_families()
+-    }
+ 
+-    /// Read the OS preference, unaffected by an explicit per-window appearance.
+-    #[cfg(target_os = "macos")]
+-    #[napi]
+-    pub fn get_system_appearance(&self) -> String {
+-        match gpui_macos::system_appearance() {
+-            gpui::WindowAppearance::Dark | gpui::WindowAppearance::VibrantDark => "dark",
+-            _ => "light",
+-        }.to_string()
+-    }
+ 
+-    /// Match this window's AppKit material and menus to its explicit app theme.
+-    #[cfg(target_os = "macos")]
+-    #[napi]
+-    pub fn set_window_appearance(&self, appearance: String) -> Result<()> {
+-        let dark = match appearance.as_str() {
+-            "light" => false,
+-            "dark" => true,
+-            _ => return Err(Error::from_reason("Window appearance must be light or dark")),
+-        };
+-        update_window_without_view(|window, _cx| -> Result<()> {
+-            gpui_macos::set_window_appearance(window, dark)
+-                .map_err(|error| Error::from_reason(error.to_string()))?;
+-            window.refresh();
+-            Ok(())
+-        })?
+-    }
+ 
+     #[napi]
+     pub fn set_window_title(&self, title: String) -> Result<()> {
+@@ -7546,3 +7503,56 @@
+         }
+     }
+ }
++
++#[cfg(target_os = "macos")]
++#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
++#[napi]
++impl GpuixRenderer {
++    /// Synchronous native veto; set before starting a protected operation.
++    #[cfg(target_os = "macos")]
++    #[napi]
++    pub fn set_close_blocked(&self, blocked: bool) {
++        self.close_protection.0.lock().unwrap().0 = blocked;
++    }
++
++    /// Consume a blocked close/quit attempt without queuing a later quit.
++    #[cfg(target_os = "macos")]
++    #[napi]
++    pub fn take_close_requested(&self) -> bool {
++        std::mem::take(&mut self.close_protection.0.lock().unwrap().1)
++    }
++
++    /// Installed CoreText families, without opening a system font panel.
++    #[cfg(target_os = "macos")]
++    #[napi]
++    pub fn get_font_families(&self) -> Vec<String> {
++        crate::installed_font_families()
++    }
++
++    /// Read the OS preference, unaffected by an explicit per-window appearance.
++    #[cfg(target_os = "macos")]
++    #[napi]
++    pub fn get_system_appearance(&self) -> String {
++        match gpui_macos::system_appearance() {
++            gpui::WindowAppearance::Dark | gpui::WindowAppearance::VibrantDark => "dark",
++            _ => "light",
++        }.to_string()
++    }
++
++    /// Match this window's AppKit material and menus to its explicit app theme.
++    #[cfg(target_os = "macos")]
++    #[napi]
++    pub fn set_window_appearance(&self, appearance: String) -> Result<()> {
++        let dark = match appearance.as_str() {
++            "light" => false,
++            "dark" => true,
++            _ => return Err(Error::from_reason("Window appearance must be light or dark")),
++        };
++        update_window_without_view(|window, _cx| -> Result<()> {
++            gpui_macos::set_window_appearance(window, dark)
++                .map_err(|error| Error::from_reason(error.to_string()))?;
++            window.refresh();
++            Ok(())
++        })?
++    }
++}
