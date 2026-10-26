@@ -54,6 +54,7 @@ import {
 import type { ExternalEditors } from "../editor-settings/external-editors";
 import { AppearanceSettings } from "../appearance-settings/appearance-settings";
 import { PrivacySettings } from "../analytics/privacy-settings";
+import { KeybindSettings } from "../keybinds/keybind-settings";
 import { AiSettings, type AiSettingsHandle } from "../ai/ai-settings";
 import { RepositoryAppearance } from "../repository-appearance/repository-appearance";
 import type { RepositoryAppearanceValue } from "../repository-appearance/repository-patterns";
@@ -74,6 +75,7 @@ export type SettingsSection =
 	| "spaces"
 	| "appearance"
 	| "privacy"
+	| "keybinds"
 	| "ai"
 	| "git"
 	| "editor"
@@ -365,6 +367,8 @@ export function AccountsSettings({
 					style={{
 						display: "flex",
 						flexDirection: "column",
+						minHeight: 0,
+						overflowY: "scroll",
 						width: sidebarWidth,
 						flexShrink: 0,
 						padding: spacing[2],
@@ -426,6 +430,24 @@ export function AccountsSettings({
 							}}
 						/>
 						Appearance
+					</Button>
+					<Button
+						testId="settings-keybinds"
+						ref={section === "keybinds" ? initialPage : undefined}
+						tokens={appTokens}
+						size="sm"
+						variant={section === "keybinds" ? "secondary" : "ghost"}
+						aria-current={section === "keybinds" ? "page" : undefined}
+						disabled={settingsBusy}
+						style={{ justifyContent: "flex-start" }}
+						onPress={() => {
+							clearToken();
+							setForm("list");
+							setSection("keybinds");
+						}}
+					>
+						<WorkspaceTabIcon name="keyboard" />
+						Keybinds
 					</Button>
 					<Button
 						testId="settings-privacy"
@@ -629,6 +651,8 @@ export function AccountsSettings({
 						</Button>
 					) : null}
 				</>
+			) : section === "keybinds" ? (
+				<KeybindSettings />
 			) : section === "privacy" ? (
 				<PrivacySettings />
 			) : section === "ai" ? (

@@ -16,6 +16,8 @@ import {
 import type { WorkspaceSpace } from "./workspace-spaces";
 import { SpaceSymbol } from "./space-symbol";
 import { spaceIconPresets } from "./space-icons";
+import { Keybinds } from "../keybinds/keybinds";
+import { useKeybinds } from "../keybinds/keybind-context";
 
 type SpaceChoice =
 	| { kind: "select"; id: string }
@@ -42,6 +44,7 @@ export function SpaceSwitcher({
 	onOpenChange?: (open: boolean) => void;
 }) {
 	const { tokens } = useAppTheme();
+	const { overrides } = useKeybinds();
 	const renderer = useGpuixRequired();
 	const button = useRef<PublicInstance>(null);
 	const tracking = useRef(false);
@@ -133,7 +136,7 @@ export function SpaceSwitcher({
 				tokens={tokens}
 				side="right"
 				align="center"
-			>{`Spaces · ${active.name}\nTwo-finger swipe to switch spaces`}</TooltipContent>
+			>{`Spaces · ${active.name}\n${Keybinds.label("previous-space", overrides)} / ${Keybinds.label("next-space", overrides)} to switch spaces\nTwo-finger swipe on the rail`}</TooltipContent>
 		</Tooltip>
 	);
 }

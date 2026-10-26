@@ -9,6 +9,7 @@ import { handleRepositoryAppearanceKeyDown } from "./feature/repository-appearan
 import { handleRepositoryFilterKeyDown } from "./feature/repository-workspace/lib/repository-filter-shortcut";
 import { handleWorkspaceKeyDown } from "./feature/repository-workspace/lib/repository-filter-shortcut";
 import { handleCloneNavigation } from "./feature/repository-workspace/lib/repository-filter-shortcut";
+import { keybindRecordings } from "./feature/keybinds/keybinds";
 
 /** Native window chrome and keyboard traversal; application content stays transparent around the workspace. */
 export const windowOptions: RenderOptions = {
@@ -24,6 +25,8 @@ export const windowOptions: RenderOptions = {
 	trafficLightX: 16,
 	trafficLightY: 13,
 	onKeyDown(event, renderer) {
+		if (keybindRecordings.get(renderer)?.(event)) return;
+
 		if (handlePopoverKeyDown(event, renderer)) return;
 
 		if (handleGuidedTourKeyDown(event, renderer)) return;

@@ -1,4 +1,5 @@
 import type { TourTips } from "../../guided-tour/guided-tour";
+import type { KeybindOverrides } from "../../keybinds/keybinds";
 import type { AppTypography } from "../../appearance-settings/app-typography";
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import {
@@ -31,7 +32,8 @@ export function useWorkspaceSession(
 	smoothTransitions?: boolean,
 	showScrollbars?: boolean,
 	typography?: AppTypography,
-	tips?: TourTips
+	tips?: TourTips,
+	keybinds?: KeybindOverrides
 ) {
 	const content =
 		state.preview || !save
@@ -50,7 +52,8 @@ export function useWorkspaceSession(
 						smoothTransitions,
 						showScrollbars,
 						typography,
-						tips
+						tips,
+						keybinds
 					)
 				);
 

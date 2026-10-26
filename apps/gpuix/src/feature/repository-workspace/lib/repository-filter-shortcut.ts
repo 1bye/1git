@@ -1,4 +1,22 @@
 import type { NativeRenderer, WindowKeyEventHandler } from "@gpuix/react";
+import { Keybinds } from "../../keybinds/keybinds";
+
+const workspaceCommands: Readonly<Record<string, string>> = {
+	"quick-open": "p",
+	open: "o",
+	refresh: "r",
+	"close-tab": "w",
+	"previous-tab": "left",
+	"next-tab": "right",
+	"previous-space": "previous-space",
+	"next-space": "next-space",
+	...Object.fromEntries(
+		["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((number) => [
+			`tab-${number}`,
+			number,
+		])
+	),
+};
 
 /** App-owned window actions, registered only while the app is mounted. */
 export const workspaceShortcuts = new WeakMap<
@@ -17,25 +35,21 @@ export function handleCloneNavigation(
 ): boolean {
 	const navigation = cloneNavigation.get(renderer);
 
-	if (
-		!navigation ||
-		event.isHeld ||
-		event.modifiers?.alt ||
-		event.modifiers?.shift
-	)
-		return false;
+	if (!navigation || event.isHeld) return false;
 
 	if (
 		event.key === "escape" &&
 		!event.modifiers?.cmd &&
-		!event.modifiers?.ctrl
+		!event.modifiers?.ctrl &&
+		!event.modifiers?.alt &&
+		!event.modifiers?.shift
 	) {
 		navigation.back();
 
 		return true;
 	}
 
-	if (event.key === "f" && (event.modifiers?.cmd || event.modifiers?.ctrl)) {
+	if (Keybinds.matches(event, "find", renderer)) {
 		navigation.search();
 
 		return true;
@@ -48,38 +62,18 @@ export function handleWorkspaceKeyDown(
 	...[event, renderer]: Parameters<WindowKeyEventHandler>
 ): boolean {
 	if (
-		!event.modifiers?.cmd ||
-		event.modifiers.shift ||
-		event.modifiers.alt ||
-		event.modifiers.ctrl ||
-		event.isHeld
+		event.isHeld ||
+		(!event.modifiers?.cmd && !event.modifiers?.ctrl && !event.modifiers?.alt)
 	)
 		return false;
 
-	const key = event.key ?? "";
+	const command = Object.entries(workspaceCommands).find(([id]) =>
+		Keybinds.matches(event, id, renderer)
+	);
 
-	if (
-		![
-			"p",
-			"o",
-			"r",
-			"w",
-			"left",
-			"right",
-			"1",
-			"2",
-			"3",
-			"4",
-			"5",
-			"6",
-			"7",
-			"8",
-			"9",
-		].includes(key)
-	)
-		return false;
+	if (!command) return false;
 
-	workspaceShortcuts.get(renderer)?.(key);
+	workspaceShortcuts.get(renderer)?.(command[1]);
 
 	return true;
 }
@@ -100,15 +94,7 @@ export function handleRepositoryFilterKeyDown(
 		!event.modifiers?.ctrl &&
 		!event.modifiers?.alt;
 
-	if (
-		!escape &&
-		(event.key !== "f" ||
-			!event.modifiers?.cmd ||
-			event.modifiers?.shift ||
-			event.modifiers?.alt ||
-			event.modifiers?.ctrl)
-	)
-		return false;
+	if (!escape && !Keybinds.matches(event, "find", renderer)) return false;
 
 	const open = repositoryFilterShortcuts.get(renderer);
 

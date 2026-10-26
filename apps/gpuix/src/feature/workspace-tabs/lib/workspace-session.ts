@@ -1,4 +1,5 @@
 import { GuidedTour, type TourTips } from "../../guided-tour/guided-tour";
+import { Keybinds, type KeybindOverrides } from "../../keybinds/keybinds";
 import {
 	TypographyPreferences,
 	type AppTypography,
@@ -78,6 +79,7 @@ export interface WorkspaceSessionDocument {
 	readonly repositoryPatterns?: RepositoryPatternChoices;
 	readonly onboarding?: OnboardingStep;
 	readonly tips?: TourTips;
+	readonly keybinds?: KeybindOverrides;
 }
 
 const tabIdPattern = /^workspace-([1-9]\d*)$/;
@@ -268,6 +270,9 @@ export class WorkspaceSession {
 				? { onboarding: value.onboarding }
 				: {}),
 			...(tips ? { tips } : {}),
+			...(value.keybinds === undefined
+				? {}
+				: { keybinds: Keybinds.parse(value.keybinds) }),
 			...(diffSettings ? { diffSettings } : {}),
 			...(Object.keys(repositoryColors).length ? { repositoryColors } : {}),
 			...(Object.keys(repositoryPatterns).length ? { repositoryPatterns } : {}),
@@ -317,7 +322,8 @@ export class WorkspaceSession {
 		smoothTransitions?: boolean,
 		showScrollbars?: boolean,
 		typography?: AppTypography,
-		tips?: TourTips
+		tips?: TourTips,
+		keybinds?: KeybindOverrides
 	): WorkspaceSessionDocument {
 		return {
 			version: 1,
@@ -343,6 +349,7 @@ export class WorkspaceSession {
 			...(smoothTransitions !== undefined ? { smoothTransitions } : {}),
 			...(onboarding ? { onboarding } : {}),
 			...(tips ? { tips } : {}),
+			...(keybinds && Object.keys(keybinds).length ? { keybinds } : {}),
 			...(diffSettings ? { diffSettings } : {}),
 			...(repositoryDiscovery &&
 			(repositoryDiscovery.folders.length || repositoryDiscovery.hidden.length)

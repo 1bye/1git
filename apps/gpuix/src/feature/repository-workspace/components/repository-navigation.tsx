@@ -11,6 +11,8 @@ import { Button } from "@1git/gpuix-ui/button";
 import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { repositoryFilterShortcuts } from "../lib/repository-filter-shortcut";
+import { Keybinds } from "../../keybinds/keybinds";
+import { useKeybinds } from "../../keybinds/keybind-context";
 
 import {
 	RepositoryWorkspaceModel,
@@ -264,6 +266,7 @@ function RepositoryNavigationContent({
 	const { styles } = themedStyles.get(theme);
 
 	const renderer = useGpuixRequired();
+	const { overrides } = useKeybinds();
 	const { view } = state;
 	const [filterOpen, setFilterOpen] = useState(false);
 	const [query, setQuery] = useState("");
@@ -639,8 +642,8 @@ function RepositoryNavigationContent({
 						testId={view === "history" ? "filter-history" : "filter-changes"}
 						aria-label={
 							view === "history"
-								? "Search history (Command F)"
-								: "Search changed files (Command F)"
+								? `Search history (${Keybinds.label("find", overrides)})`
+								: `Search changed files (${Keybinds.label("find", overrides)})`
 						}
 						aria-expanded={filterOpen || historySearching}
 						variant="ghost"

@@ -447,6 +447,22 @@ The app disables focus outlines through its shared native UI tokens and custom
 row/tab styling. Arrow/Tab navigation, selection backgrounds, caret visibility,
 and keyboard activation remain intact; ordinary field borders are unchanged.
 
+## Keybinds
+
+Open **Settings → Keybinds** to search application, Space, tab, and repository
+shortcuts. Click an editable shortcut, press the new combination, and select
+**Save**. Conflicting bindings and reserved editing/system keys are rejected.
+**Reset** restores one action; **Restore defaults** restores all actions.
+
+Use **Control–Command–Left/Right** to move to the previous/next Space in saved
+order, stopping at either end. Customize both shortcuts in the **Spaces** section.
+
+Custom bindings apply immediately to this window and persist with its saved
+session. Space, tab and repository commands, filtering (including clone search), commit
+submission, and diff context expansion support customization. Commit and diff
+actions still require their respective controls to have focus. The macOS
+Settings menu shortcut, standard text editing, and control navigation stay fixed.
+
 ## Appearance
 
 Hover labels use a translucent, rounded surface with a subtle border and shadow,

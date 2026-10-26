@@ -7,6 +7,8 @@ import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
 import { useEffect, useRef, useState } from "react";
 
 import { RepositoryLastCommit } from "./repository-last-commit";
+import { Keybinds } from "../../keybinds/keybinds";
+import { useKeybinds } from "../../keybinds/keybind-context";
 import { RepositoryCommitProcess } from "./repository-commit-process";
 import { commitTypeColor } from "./commit-type-colors";
 import { CommitSubject } from "../lib/commit-subject";
@@ -172,6 +174,8 @@ export function RepositoryCommit({
 	const notice = useRef<PublicInstance>(null);
 	const messageInput = useRef<PublicInstance>(null);
 	const renderer = useGpuixRequired();
+	const { overrides } = useKeybinds();
+	const commitShortcut = Keybinds.label("commit", overrides);
 
 	const generation = useAiCommit({
 		state,
@@ -281,8 +285,8 @@ export function RepositoryCommit({
 					aria-label="Commit message"
 					aria-description={
 						sample
-							? "First line is the summary. Add a blank line for optional details. Command Enter previews; no commit is created."
-							: `First line is the summary. Add a blank line for an optional description. Command Enter: ${label}.`
+							? `First line is the summary. Add a blank line for optional details. ${commitShortcut} previews; no commit is created.`
+							: `First line is the summary. Add a blank line for an optional description. ${commitShortcut}: ${label}.`
 					}
 					placeholder="Commit message…"
 					textColorRanges={textColorRanges}
@@ -305,15 +309,7 @@ export function RepositoryCommit({
 					tokens={appTokens}
 					style={styles.editor}
 					onKeyDown={(event) => {
-						if (
-							event.key === "enter" &&
-							event.modifiers?.cmd &&
-							!event.modifiers.ctrl &&
-							!event.modifiers.alt &&
-							!event.modifiers.shift &&
-							!event.isHeld
-						)
-							submit();
+						if (Keybinds.matches(event, "commit", renderer)) submit();
 					}}
 				/>
 				<div testId="commit-actions-fade" style={styles.fade} />

@@ -18,6 +18,11 @@ import {
 } from "./feature/spaces/workspace-spaces";
 import { SpaceSwitcher } from "./feature/spaces/space-switcher";
 import { SpaceManager, SpacesSettings } from "./feature/spaces/space-manager";
+import { Keybinds } from "./feature/keybinds/keybinds";
+import {
+	KeybindContext,
+	useKeybinds,
+} from "./feature/keybinds/keybind-context";
 import { OnboardingSpaces } from "./feature/onboarding/onboarding-spaces";
 import { MachineContext } from "./feature/machines/machine-context";
 import { RemoteFolderPicker } from "./feature/machines/remote-folder-picker";
@@ -151,6 +156,20 @@ export function App({
 }: ComponentProps<typeof AppContent> & { ai?: AiIntegration }) {
 	const renderer = useGpuixRequired();
 
+	const [keybindOverrides, setKeybindOverrides] = useState(() =>
+		Keybinds.parse(props.initialSession?.keybinds)
+	);
+
+	const keybindContext = useMemo(
+		() => ({ overrides: keybindOverrides, setOverrides: setKeybindOverrides }),
+		[keybindOverrides]
+	);
+
+	useLayoutEffect(
+		() => Keybinds.register(renderer, keybindOverrides),
+		[renderer, keybindOverrides]
+	);
+
 	const [appearancePreference, setAppearance] =
 		useState<AppAppearancePreference>(
 			props.initialSession?.appearance ?? "system"
@@ -212,13 +231,15 @@ export function App({
 	);
 
 	return (
-		<AppThemeContext value={theme}>
-			<AiProvider service={ai}>
-				<MachineContext value={props.machines ?? Machines.shared}>
-					<AppContent {...props} />
-				</MachineContext>
-			</AiProvider>
-		</AppThemeContext>
+		<KeybindContext value={keybindContext}>
+			<AppThemeContext value={theme}>
+				<AiProvider service={ai}>
+					<MachineContext value={props.machines ?? Machines.shared}>
+						<AppContent {...props} />
+					</MachineContext>
+				</AiProvider>
+			</AppThemeContext>
+		</KeybindContext>
 	);
 }
 
@@ -663,6 +684,8 @@ function AppContent({
 		(tab) => tab.id === onboardingId
 	)?.workspace;
 
+	const { overrides: keybindOverrides } = useKeybinds();
+
 	const session = useWorkspaceSession(
 		state,
 		saveSession,
@@ -678,7 +701,8 @@ function AppContent({
 		theme.smoothTransitions,
 		theme.showScrollbars,
 		theme.typography,
-		tips
+		tips,
+		keybindOverrides
 	);
 
 	useEffect(() => {
@@ -1416,9 +1440,57 @@ function AppContent({
 		};
 	}, [renderer, openSettings]);
 
+	const selectSpace = useCallback(
+		(id: string) => {
+			setQuickSwitcherOpen(false);
+			setFolderPickerRoot(undefined);
+			setMachineError(null);
+			setSettingsView(null);
+			dispatch({ type: "space-select", id });
+		},
+		[
+			setQuickSwitcherOpen,
+			setFolderPickerRoot,
+			setMachineError,
+			setSettingsView,
+			dispatch,
+		]
+	);
+
+	const moveSpace = useCallback(
+		(direction: SpaceDirection): boolean => {
+			if (onboardingOpen || connection.pickingId !== null) return false;
+
+			const destination = WorkspaceSpaces.destination(
+				state.spaces ?? [],
+				activeSpaceId,
+				direction
+			);
+
+			if (!destination) return false;
+
+			selectSpace(destination);
+
+			return true;
+		},
+		[
+			onboardingOpen,
+			connection.pickingId,
+			state.spaces,
+			activeSpaceId,
+			selectSpace,
+		]
+	);
+
 	useEffect(() => {
 		workspaceShortcuts.set(renderer, (key) => {
 			if (onboardingOpen) return;
+
+			if (key === "previous-space" || key === "next-space") {
+				moveSpace(key === "previous-space" ? "previous" : "next");
+
+				return;
+			}
 
 			if (key === "p") {
 				if (!settingsOpen && connection.pickingId === null)
@@ -1475,6 +1547,7 @@ function AppContent({
 		};
 	}, [
 		renderer,
+		moveSpace,
 		state.tabs,
 		visibleTabs,
 		state.nextId,
@@ -1553,32 +1626,13 @@ function AppContent({
 		}
 	};
 
-	const selectSpace = (id: string) => {
-		setQuickSwitcherOpen(false);
-		setFolderPickerRoot(undefined);
-		setMachineError(null);
-		setSettingsView(null);
-		dispatch({ type: "space-select", id });
-	};
-
 	const manageSpaces = () => {
 		openSettings();
 		setSettingsSection("spaces");
 	};
 
 	const swipeSpace = (direction: SpaceDirection): void => {
-		if (connection.pickingId !== null) return;
-
-		const destination = WorkspaceSpaces.destination(
-			state.spaces ?? [],
-			activeSpace.id,
-			direction
-		);
-
-		if (destination) {
-			selectSpace(destination);
-			completeTip("space-swipe");
-		}
+		if (moveSpace(direction)) completeTip("space-swipe");
 	};
 
 	const spaceSwitcher = (disabled: boolean) => (

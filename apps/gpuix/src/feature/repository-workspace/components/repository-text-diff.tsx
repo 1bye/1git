@@ -3,11 +3,13 @@ import { spacing, typography } from "@1git/design-tokens";
 import { DiffView } from "@1git/gpuix-ui/diff-view";
 import { Button } from "@1git/gpuix-ui/button";
 import { Popover, PopoverContent } from "@1git/gpuix-ui/popover";
-import type { GpuixTheme } from "@gpuix/react";
+import { useGpuixRequired, type GpuixTheme } from "@gpuix/react";
 import { PartialPatch } from "@1git/git";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { DiffContext } from "../lib/diff-context";
+import { Keybinds } from "../../keybinds/keybinds";
+import { useKeybinds } from "../../keybinds/keybind-context";
 import { RepositoryDiff, type DiffSelection } from "../lib/repository-diff";
 
 export interface DiffInclusion {
@@ -52,6 +54,8 @@ export function RepositoryTextDiff({
 	onShowWhitespace: () => void;
 }) {
 	const { tokens: appTokens } = useAppTheme();
+	const renderer = useGpuixRequired();
+	const { overrides } = useKeybinds();
 
 	const inclusionEnabled = !!inclusion;
 
@@ -228,18 +232,12 @@ export function RepositoryTextDiff({
 				theme={theme}
 				tokens={appTokens}
 				aria-label={"commit" in change ? "Committed file diff" : "File diff"}
-				aria-description={`${mode === "split" ? "Split: original on the left, revised on the right. " : "Unified. "}${inclusionInstructions}Use arrows, Page Up, Page Down, Home and End to scroll. Press E to expand 20 unchanged lines at the first remaining separator or below the final change. Select text and press Command C to copy.`}
+				aria-description={`${mode === "split" ? "Split: original on the left, revised on the right. " : "Unified. "}${inclusionInstructions}Use arrows, Page Up, Page Down, Home and End to scroll. Press ${Keybinds.label("expand-diff", overrides)} to expand 20 unchanged lines at the first remaining separator or below the final change. Select text and press Command C to copy.`}
 				onExpandContext={(event) => {
 					void expand(event.oldLine, event.newLine, event.value === "after");
 				}}
 				onShortcut={(event) => {
-					if (
-						event.key !== "e" ||
-						event.modifiers?.cmd ||
-						event.modifiers?.ctrl ||
-						event.modifiers?.alt
-					)
-						return false;
+					if (!Keybinds.matches(event, "expand-diff", renderer)) return false;
 
 					void expand();
 

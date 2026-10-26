@@ -18,6 +18,7 @@ import { SpaceManager } from "../../src/feature/spaces/space-manager";
 import { repositorySnapshot } from "../_shared/repository-snapshot";
 import { windowOptions } from "../../src/window-options";
 import { WorkspaceRail } from "../../src/feature/repository-workspace/components/workspace-rail";
+import type { KeybindOverrides } from "../../src/feature/keybinds/keybinds";
 
 let root: TestRoot;
 let accounts: Accounts;
@@ -338,7 +339,7 @@ const spaceIds = [
 	"00000000-0000-4000-8000-000000000002",
 ] as const;
 
-function showSwipeSpaces(count = 3): void {
+function showSwipeSpaces(count = 3, keybinds?: KeybindOverrides): void {
 	root.render(
 		<App
 			accounts={accounts}
@@ -347,6 +348,7 @@ function showSwipeSpaces(count = 3): void {
 			saveSession={save}
 			initialSession={{
 				version: 1,
+				keybinds,
 				activeId: "workspace-1",
 				activeSpaceId: "default",
 				spaces: spaceIds.slice(0, count).map((id, index) => ({
@@ -368,6 +370,72 @@ function showSwipeSpaces(count = 3): void {
 		/>
 	);
 }
+
+it("switches spaces with Control Command arrows from the draft editor and stops at the ends", async () => {
+	showSwipeSpaces();
+	await settle();
+	click("commit-message");
+	root.renderer.simulateKeystrokes("ctrl-cmd-left");
+	await settle();
+	expect(latest().activeSpaceId).toBe("default");
+	root.renderer.simulateKeystrokes("ctrl-cmd-right");
+	await settle();
+	expect(latest().activeSpaceId).toBe(spaceIds[1]);
+	expect(node("commit-message").customProps?.value).toBe("Draft 1");
+	root.renderer.simulateKeystrokes("ctrl-cmd-right");
+	await settle();
+	expect(latest().activeSpaceId).toBe(spaceIds[2]);
+	root.renderer.simulateKeystrokes("ctrl-cmd-right");
+	await settle();
+	expect(latest().activeSpaceId).toBe(spaceIds[2]);
+	root.renderer.simulateKeystrokes("ctrl-cmd-left");
+	await settle();
+	expect(latest().activeSpaceId).toBe(spaceIds[1]);
+	expect(node("commit-message").customProps?.value).toBe("Draft 1");
+	expect(latest().tabs.map((tab) => tab.draft)).toEqual([
+		"Draft 0",
+		"Draft 1",
+		"Draft 2",
+	]);
+});
+
+it("uses custom space shortcuts and does not switch behind a modal or Settings", async () => {
+	const keybinds = {
+		"previous-space": "ctrl-shift-p",
+		"next-space": "ctrl-shift-n",
+	};
+
+	showSwipeSpaces(3, keybinds);
+	await settle();
+	root.renderer.simulateKeystrokes("ctrl-cmd-right");
+	await settle();
+	expect(latest().activeSpaceId).toBe("default");
+	root.renderer.simulateKeystrokes("ctrl-shift-n");
+	await settle();
+	expect(latest().activeSpaceId).toBe(spaceIds[1]);
+	expect(latest().keybinds).toEqual(keybinds);
+	root.renderer.simulateKeystrokes("cmd-,");
+	await settle();
+	root.renderer.simulateKeystrokes("ctrl-shift-n");
+	await settle();
+	expect(node("settings-view")).toBeDefined();
+	expect(latest().activeSpaceId).toBe(spaceIds[1]);
+	click("settings-spaces");
+	click("space-create");
+	await settle();
+	root.renderer.simulateKeystrokes("ctrl-shift-n");
+	await settle();
+	expect(node("space-editor")).toBeDefined();
+	expect(latest().activeSpaceId).toBe(spaceIds[1]);
+	root.renderer.simulateKeystrokes("escape");
+	await settle();
+	root.renderer.simulateKeystrokes("escape");
+	await settle();
+	root.renderer.simulateKeystrokes("ctrl-shift-p");
+	await settle();
+	expect(latest().activeSpaceId).toBe("default");
+	expect(node("commit-message").customProps?.value).toBe("Draft 0");
+}, 10000);
 
 function railPhase(phase: string, extra: Partial<EventPayload> = {}): void {
 	flushSync(() =>
