@@ -1,6 +1,8 @@
 import { fontWeight, spacing, typography } from "@1git/design-tokens";
 import type { PublicInstance } from "@gpuix/react";
-import type { ReactElement, ReactNode, Ref } from "react";
+import { useRef, type ReactElement, type ReactNode, type Ref } from "react";
+import { setRefs } from "@gpuix/react/floating";
+import { Scrollbars } from "@1git/gpuix-ui/scrollbar";
 import { createThemedStyles, useAppTheme } from "../../styles/theme";
 
 // Main add/create actions belong in secondary page-header buttons; group actions stay in their card.
@@ -103,7 +105,9 @@ export function SettingsPage({
 	descriptionTestId?: string;
 	children: ReactNode;
 }) {
-	const styles = settingsStyles.get(useAppTheme());
+	const theme = useAppTheme();
+	const styles = settingsStyles.get(theme);
+	const scroll = useRef<PublicInstance>(null);
 
 	const maxWidth =
 		{
@@ -143,21 +147,28 @@ export function SettingsPage({
 
 	// Native scrollIntoView reveals a direct scroll child; keep sections outside a page-sized wrapper.
 	const body = (
-		<div
-			ref={scrollRef}
-			testId={scrollTestId ?? testId}
-			style={{
-				...styles.pane,
-				overflowY: "scroll",
-				padding: settingsLayout.padding,
-				paddingTop: scrollTestId ? 0 : settingsLayout.padding,
-				width: "100%",
-				maxWidth,
-			}}
-		>
-			{scrollTestId ? null : header}
-			{children}
-		</div>
+		<>
+			<div
+				ref={(node) => setRefs(node, scroll, scrollRef)}
+				testId={scrollTestId ?? testId}
+				style={{
+					...styles.pane,
+					overflowY: "scroll",
+					padding: settingsLayout.padding,
+					paddingTop: scrollTestId ? 0 : settingsLayout.padding,
+					width: "100%",
+					maxWidth,
+				}}
+			>
+				{scrollTestId ? null : header}
+				{children}
+			</div>
+			<Scrollbars
+				vertical={scroll}
+				tokens={theme.tokens}
+				testId={`${scrollTestId ?? testId}-scrollbar`}
+			/>
+		</>
 	);
 
 	return scrollTestId ? (
@@ -289,6 +300,7 @@ export function SettingsPanel({
 }: SettingsPanelProps) {
 	const theme = useAppTheme();
 	const styles = settingsStyles.get(theme);
+	const scroll = useRef<PublicInstance>(null);
 
 	return (
 		<div
@@ -324,6 +336,7 @@ export function SettingsPanel({
 				) : null}
 			</div>
 			<div
+				ref={scroll}
 				testId={scrollTestId}
 				style={{
 					...styles.pane,
@@ -343,6 +356,11 @@ export function SettingsPanel({
 					{body}
 				</div>
 			</div>
+			<Scrollbars
+				vertical={scroll}
+				tokens={theme.tokens}
+				testId={`${scrollTestId ?? testId ?? "settings-panel"}-scrollbar`}
+			/>
 			{footer ? (
 				<div testId={footerTestId} style={styles.footer}>
 					<div

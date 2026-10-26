@@ -21,6 +21,7 @@ import {
 	type Ref,
 } from "react";
 import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
+import { Scrollbars } from "@1git/gpuix-ui/scrollbar";
 import { Button } from "@1git/gpuix-ui/button";
 import { Popover, PopoverContent } from "@1git/gpuix-ui/popover";
 import { AppShell } from "../../fixture/app-shell";
@@ -356,6 +357,7 @@ export function AccountsSettings({
 	const mounted = useRef(true);
 	const view = useRef<PublicInstance | null>(null);
 	const initialPage = useRef<PublicInstance | null>(null);
+	const navigation = useRef<PublicInstance>(null);
 	const addButton = useRef<PublicInstance | null>(null);
 
 	useEffect(() => {
@@ -483,63 +485,74 @@ export function AccountsSettings({
 				</div>
 			}
 			navigation={
-				<div
-					testId="settings-navigation"
-					style={{
-						display: "flex",
-						flexDirection: "column",
-						minHeight: 0,
-						overflowY: "scroll",
-						width: sidebarWidth,
-						flexShrink: 0,
-						padding: spacing[2],
-						gap: spacing[1.5],
-						borderRightWidth: 1,
-						borderColor: appTokens.colors.border,
-					}}
-				>
-					{(["application", "repository"] as const).map((group) => {
-						const pages = availablePages.filter((item) => item.group === group);
+				<>
+					<div
+						ref={navigation}
+						testId="settings-navigation"
+						style={{
+							display: "flex",
+							flexDirection: "column",
+							minHeight: 0,
+							overflowY: "scroll",
+							width: sidebarWidth,
+							flexShrink: 0,
+							padding: spacing[2],
+							gap: spacing[1.5],
+							borderRightWidth: 1,
+							borderColor: appTokens.colors.border,
+						}}
+					>
+						{(["application", "repository"] as const).map((group) => {
+							const pages = availablePages.filter(
+								(item) => item.group === group
+							);
 
-						return pages.length ? (
-							<div
-								key={group}
-								style={{
-									display: "flex",
-									flexDirection: "column",
-									gap: spacing[1.5],
-									flexShrink: 0,
-								}}
-							>
-								<text
-									testId={`settings-${group}-group`}
-									role="heading"
-									aria-level={2}
+							return pages.length ? (
+								<div
+									key={group}
 									style={{
-										...groupHeading,
-										marginTop: group === "repository" ? spacing[5] : spacing[3],
+										display: "flex",
+										flexDirection: "column",
+										gap: spacing[1.5],
+										flexShrink: 0,
 									}}
 								>
-									{group === "application" ? "Application" : "Repository"}
-								</text>
-								{pages.map((item) => (
-									<SettingsNavButton
-										key={item.section}
-										item={item}
-										ref={section === item.section ? initialPage : undefined}
-										active={section === item.section}
-										disabled={settingsBusy}
-										onSelect={(next) => {
-											clearToken();
-											setForm("list");
-											setSection(next);
+									<text
+										testId={`settings-${group}-group`}
+										role="heading"
+										aria-level={2}
+										style={{
+											...groupHeading,
+											marginTop:
+												group === "repository" ? spacing[5] : spacing[3],
 										}}
-									/>
-								))}
-							</div>
-						) : null;
-					})}
-				</div>
+									>
+										{group === "application" ? "Application" : "Repository"}
+									</text>
+									{pages.map((item) => (
+										<SettingsNavButton
+											key={item.section}
+											item={item}
+											ref={section === item.section ? initialPage : undefined}
+											active={section === item.section}
+											disabled={settingsBusy}
+											onSelect={(next) => {
+												clearToken();
+												setForm("list");
+												setSection(next);
+											}}
+										/>
+									))}
+								</div>
+							) : null;
+						})}
+					</div>
+					<Scrollbars
+						vertical={navigation}
+						tokens={appTokens}
+						testId="settings-navigation-scrollbar"
+					/>
+				</>
 			}
 		>
 			{children}

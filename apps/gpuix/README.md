@@ -483,8 +483,9 @@ not remount workspaces, clear drafts/inclusion, reload Git, or reset native diff
 from macOS's installed CoreText families. Font selections apply immediately; Reset
 restores the defaults. Changes preserve drafts and are saved with the session.
 
-**Show pane scrollbars** adds draggable, keyboard-operable bars to repository lists
-and diff panes. Their thin, translucent thumbs follow the window palette; idle
+**Show pane scrollbars** adds draggable, keyboard-operable bars to repository lists,
+diff panes, Settings pages, editor panels and Settings navigation. Their thin,
+translucent thumbs follow the window palette; idle
 tracks stay clear. Native layout, painting and pointer handling keep the thumb
 synchronized with the pane without JavaScript polling or React updates while scrolling.
 Pane bars paint below floating controls, so tab menus cover them and receive pointer
