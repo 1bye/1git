@@ -8,10 +8,17 @@ import {
 	type Ref,
 } from "react";
 import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
-import { spacing, typography, radius, fontWeight } from "@1git/design-tokens";
+import { spacing, radius } from "@1git/design-tokens";
 import { Button } from "@1git/gpuix-ui/button";
 import { Popover, PopoverContent } from "@1git/gpuix-ui/popover";
 
+import {
+	SettingsPage,
+	SettingsSection,
+	SettingsPanel,
+	SettingsSplit,
+	settingsStyles,
+} from "../settings/settings-layout";
 import { accountActionIcons } from "../accounts/account-list";
 import { StateArtwork } from "../../fixture/state-artwork";
 import { ChoiceTile } from "../../fixture/choice-tile";
@@ -42,19 +49,13 @@ const row = {
 	flexShrink: 0,
 };
 
-const themedStyles = createThemedStyles(({ tokens: appTokens }) => {
-	const muted = { ...typography.md, color: appTokens.colors.textMuted };
-
-	const heading = {
-		...typography.lg,
-		fontWeight: fontWeight.medium,
-		color: appTokens.colors.text,
-	};
+const themedStyles = createThemedStyles((theme) => {
+	const { tokens: appTokens } = theme;
+	const styles = settingsStyles.get(theme);
 
 	const field = {
 		height: appTokens.layout.controlHeight,
-		...typography.md,
-		color: appTokens.colors.text,
+		...styles.label,
 		backgroundColor: "transparent",
 		borderWidth: 1,
 		borderColor: appTokens.colors.border,
@@ -64,7 +65,7 @@ const themedStyles = createThemedStyles(({ tokens: appTokens }) => {
 		flexShrink: 0,
 	};
 
-	return { muted, heading, field };
+	return { field };
 });
 
 function SettingsField({
@@ -83,11 +84,12 @@ function SettingsField({
 	onChange: (value: string) => void;
 }) {
 	const theme = useAppTheme();
-	const { muted, field } = themedStyles.get(theme);
+	const { field } = themedStyles.get(theme);
+	const styles = settingsStyles.get(theme);
 
 	return (
 		<div style={column}>
-			<text style={muted}>{label}</text>
+			<text style={styles.label}>{label}</text>
 			<input
 				ref={ref}
 				testId={id}
@@ -142,7 +144,8 @@ export function GitSettings({
 }) {
 	const theme = useAppTheme();
 	const { tokens: appTokens } = theme;
-	const { muted, heading } = themedStyles.get(theme);
+	const styles = settingsStyles.get(theme);
+	const muted = styles.description;
 
 	const renderer = useGpuixRequired();
 	const [data, setData] = useState<GitSettingsData | null>(null);
@@ -456,474 +459,246 @@ export function GitSettings({
 	];
 
 	return (
-		<div
+		<SettingsSplit
 			testId={root ? "repository-settings" : "git-settings"}
-			style={{
-				display: "flex",
-				flexDirection: "row",
-				flexGrow: 1,
-				minHeight: 0,
-				minWidth: 0,
-			}}
-		>
-			<div
-				testId="git-settings-scroll"
-				style={{
-					display: "flex",
-					flexDirection: "column",
-					width: editing ? "50%" : "100%",
-					flexGrow: editing ? 0 : 1,
-					flexShrink: 0,
-					minWidth: 0,
-					minHeight: 0,
-					overflowY: "scroll",
-					padding: spacing[4],
-				}}
-			>
-				<div
-					style={{ ...column, maxWidth: 480, width: "100%", gap: spacing[5] }}
-				>
-					<div style={{ ...row, justifyContent: "space-between" }}>
-						<text
-							testId="git-settings-heading"
-							role="heading"
-							aria-level={1}
-							style={heading}
-						>
-							{page === "remotes" ? "Remotes" : "Commit identity"}
-						</text>
-						{root && page === "remotes" && data ? (
-							<Button
-								testId="remote-add"
-								tokens={appTokens}
-								variant="secondary"
-								size="sm"
-								disabled={locked || editing !== null}
-								onPress={() => {
-									returnFocus.current =
-										renderer.getFocusedElementId?.() ?? null;
-									setRemoteName("");
-									setRemoteUrl("");
-									setRemoteChoices({});
-									setEditing("add");
-									setError(null);
-									setStatus(null);
-								}}
-							>
-								Add remote
-							</Button>
-						) : null}
-						{page === "identity" && data ? (
-							<Button
-								testId="identity-edit"
-								tokens={appTokens}
-								variant="secondary"
-								size="sm"
-								disabled={identityLocked || editing !== null}
-								onPress={() => {
-									returnFocus.current =
-										renderer.getFocusedElementId?.() ?? null;
-									apply(data);
-									setEditing("identity");
-									setError(null);
-									setStatus(null);
-								}}
-							>
-								Edit
-							</Button>
-						) : null}
-					</div>
-					{!data && !error ? (
-						<div style={column}>
-							<StateArtwork name="loading" compact />
-							<text style={muted}>Reading Git settings…</text>
-						</div>
-					) : null}
-					{!data && error ? <StateArtwork name="error" compact /> : null}
-					{data ? (
-						<>
-							{page === "identity" ? (
-								<div
-									testId="identity-summary"
-									style={{ ...column, gap: spacing[1] }}
-								>
-									<text
-										style={{ ...typography.md, color: appTokens.colors.text }}
-									>
-										{data.identity.name || "Name not configured"}
-									</text>
-									<text style={muted}>
-										{data.identity.email || "Email not configured"}
-									</text>
-									{root && !data.custom ? (
-										<text style={muted}>Default identity</text>
-									) : null}
-									{data.identityReadOnlyReason ? (
-										<text style={muted}>{data.identityReadOnlyReason}</text>
-									) : null}
-								</div>
-							) : null}
-							{root && page === "remotes" ? (
-								<div
-									style={{
-										...column,
-										gap: spacing[3],
+			list={
+				<SettingsPage
+					testId="git-settings-page"
+					scrollTestId="git-settings-scroll"
+					title={page === "remotes" ? "Remotes" : "Commit identity"}
+					titleTestId="git-settings-heading"
+					action={
+						<div style={row}>
+							{root && page === "remotes" && data ? (
+								<Button
+									testId="remote-add"
+									tokens={appTokens}
+									variant="secondary"
+									size="sm"
+									disabled={locked || editing !== null}
+									onPress={() => {
+										returnFocus.current =
+											renderer.getFocusedElementId?.() ?? null;
+										setRemoteName("");
+										setRemoteUrl("");
+										setRemoteChoices({});
+										setEditing("add");
+										setError(null);
+										setStatus(null);
 									}}
 								>
-									{!data.remotes.length ? (
-										<div
-											testId="remotes-empty"
-											style={{
-												...column,
-												alignItems: "center",
-												padding: spacing[4],
-											}}
-										>
-											<StateArtwork name="repository" />
-											<text style={muted}>No remotes configured.</text>
-										</div>
-									) : null}
-									{data.remotes.map((remote) => (
-										<div
-											key={remote.name}
-											testId={`remote-${remote.name}`}
-											style={{ ...row, gap: spacing[3] }}
-										>
-											<RemoteProviderIcon
-												testId={`remote-provider-${remote.name}`}
-												url={remote.fetchUrls[0] ?? ""}
-												accounts={accounts}
-											/>
+									Add remote
+								</Button>
+							) : null}
+							{page === "identity" && data ? (
+								<Button
+									testId="identity-edit"
+									tokens={appTokens}
+									variant="secondary"
+									size="sm"
+									disabled={identityLocked || editing !== null}
+									onPress={() => {
+										returnFocus.current =
+											renderer.getFocusedElementId?.() ?? null;
+										apply(data);
+										setEditing("identity");
+										setError(null);
+										setStatus(null);
+									}}
+								>
+									Edit
+								</Button>
+							) : null}
+						</div>
+					}
+				>
+					<SettingsSection>
+						{!data && !error ? (
+							<div style={column}>
+								<StateArtwork name="loading" compact />
+								<text style={muted}>Reading Git settings…</text>
+							</div>
+						) : null}
+						{!data && error ? <StateArtwork name="error" compact /> : null}
+						{data ? (
+							<>
+								{page === "identity" ? (
+									<div
+										testId="identity-summary"
+										style={{ ...column, gap: spacing[1] }}
+									>
+										<text style={{ ...styles.label }}>
+											{data.identity.name || "Name not configured"}
+										</text>
+										<text style={muted}>
+											{data.identity.email || "Email not configured"}
+										</text>
+										{root && !data.custom ? (
+											<text style={muted}>Default identity</text>
+										) : null}
+										{data.identityReadOnlyReason ? (
+											<text style={muted}>{data.identityReadOnlyReason}</text>
+										) : null}
+									</div>
+								) : null}
+								{root && page === "remotes" ? (
+									<div
+										style={{
+											...column,
+											gap: spacing[3],
+										}}
+									>
+										{!data.remotes.length ? (
 											<div
+												testId="remotes-empty"
 												style={{
 													...column,
-													flexGrow: 1,
-													flexShrink: 1,
-													minWidth: 0,
-													gap: spacing[1],
+													alignItems: "center",
+													padding: spacing[4],
 												}}
 											>
-												<text
-													style={{
-														...typography.md,
-														color: appTokens.colors.text,
-													}}
-												>
-													{remote.name}
-												</text>
-												<text
-													style={{
-														...muted,
-														overflowX: "hidden",
-														textOverflow: "ellipsis",
-													}}
-												>
-													{remote.fetchUrls.join(", ")}
-												</text>
-												{remote.pushUrls.join() !== remote.fetchUrls.join() ? (
-													<text
-														style={muted}
-													>{`Push: ${remote.pushUrls.join(", ")}`}</text>
-												) : null}
-												{remoteAccounts && commonDirectory
-													? [
-															...new Set([
-																...remote.fetchUrls,
-																...remote.pushUrls,
-															]),
-														]
-															.filter((url) => url.startsWith("https://"))
-															.map((url) => (
-																<RemoteAccount
-																	key={`${commonDirectory}:${remote.name}:${url}:${accountRevision}`}
-																	bindings={remoteAccounts}
-																	directory={commonDirectory}
-																	label={
-																		remote.fetchUrls.includes(url) &&
-																		remote.pushUrls.includes(url)
-																			? "Account"
-																			: remote.fetchUrls.includes(url)
-																				? "Fetch account"
-																				: "Push account"
-																	}
-																	remote={remote.name}
-																	url={url}
-																/>
-															))
-													: null}
+												<StateArtwork name="repository" />
+												<text style={muted}>No remotes configured.</text>
 											</div>
-											<Button
-												testId={`remote-edit-${remote.name}`}
-												tokens={appTokens}
-												variant="ghost"
-												size="sm"
-												aria-label={`Edit ${remote.name}`}
-												disabled={
-													locked ||
-													editing !== null ||
-													(remote.fetchUrls.length !== 1 && !remoteAccounts)
-												}
-												onPress={() => {
-													returnFocus.current =
-														renderer.getFocusedElementId?.() ?? null;
-													setRemoteName(remote.name);
-													setRemoteUrl(remote.fetchUrls[0] ?? "");
-													setRemoteChoices({});
-													setEditing(
-														remote.fetchUrls.length === 1 ? "edit" : "account"
-													);
-													setError(null);
-													setStatus(null);
-												}}
+										) : null}
+										{data.remotes.map((remote) => (
+											<div
+												key={remote.name}
+												testId={`remote-${remote.name}`}
+												style={{ ...row, gap: spacing[3] }}
 											>
-												<svg
-													source={accountActionIcons.reconnect}
-													style={{
-														width: 14,
-														height: 14,
-														color: appTokens.colors.textMuted,
-													}}
+												<RemoteProviderIcon
+													testId={`remote-provider-${remote.name}`}
+													url={remote.fetchUrls[0] ?? ""}
+													accounts={accounts}
 												/>
-											</Button>
-											<Button
-												testId={`remote-remove-${remote.name}`}
-												tokens={appTokens}
-												variant="ghost"
-												size="sm"
-												aria-label={`Remove ${remote.name}`}
-												disabled={locked || editing !== null}
-												onPress={() => {
-													setRemoving(remote.name);
-													setError(null);
-												}}
-											>
-												<svg
-													source={accountActionIcons.remove}
+												<div
 													style={{
-														width: 14,
-														height: 14,
-														color: appTokens.colors.danger,
+														...column,
+														flexGrow: 1,
+														flexShrink: 1,
+														minWidth: 0,
+														gap: spacing[1],
 													}}
-												/>
-											</Button>
-										</div>
-									))}
-									{data.remotes.some(
-										(remote) => remote.fetchUrls.length !== 1
-									) ? (
-										<text style={muted}>
-											Remotes with multiple fetch URLs must be edited in Git
-											directly.
-										</text>
-									) : null}
-								</div>
-							) : null}
-						</>
-					) : null}
-					{error && !editing ? (
-						<text
-							testId="git-settings-error"
-							role="alert"
-							style={{ ...muted, color: appTokens.colors.danger }}
-						>
-							{error}
-						</text>
-					) : null}
-					{status ? (
-						<text testId="git-settings-status" role="status" style={muted}>
-							{status}
-						</text>
-					) : null}
-				</div>
-			</div>
-			{editing ? (
-				<div
-					ref={editor}
-					testId={editing === "identity" ? "identity-editor" : "remote-editor"}
-					role="region"
-					aria-label={
-						editing === "identity"
-							? "Edit commit identity"
-							: editing === "add"
-								? "Add remote"
-								: "Edit remote"
-					}
-					style={{
-						...column,
-						gap: 0,
-						flexGrow: 1,
-						flexBasis: 0,
-						minWidth: 0,
-						minHeight: 0,
-						borderLeftWidth: 1,
-						borderColor: appTokens.colors.border,
-					}}
-				>
-					<text
-						role="heading"
-						aria-level={2}
-						style={{ ...heading, padding: spacing[4] }}
-					>
-						{editing === "identity"
-							? "Edit commit identity"
-							: editing === "add"
-								? "Add remote"
-								: "Edit remote"}
-					</text>
-					<div
-						testId="git-settings-editor-scroll"
-						style={{
-							...column,
-							flexGrow: 1,
-							flexShrink: 1,
-							minHeight: 0,
-							overflowY: "scroll",
-							paddingLeft: spacing[4],
-							paddingRight: spacing[4],
-							paddingBottom: spacing[4],
-						}}
-					>
-						<div
-							style={{
-								...column,
-								gap: spacing[3],
-								width: "100%",
-								maxWidth: 480,
-							}}
-						>
-							{editing === "identity" ? (
-								<>
-									<div role="group" aria-label="Identity source" style={column}>
-										{choices.map((choice, index) =>
-											index % 2 === 0 ? (
-												<div key={choice.key} style={row}>
-													{choices.slice(index, index + 2).map((item) => (
-														<ChoiceTile
-															key={item.key}
-															testId={`identity-${item.account ? `account-${item.key}` : item.key}`}
-															label={item.label}
-															source={item.source}
-															detail={item.detail}
-															accessibleName={`${item.label}, ${item.detail}`}
-															selected={identitySource === item.key}
-															disabled={
-																identityLocked ||
-																(!!item.account && !readAccountIdentity)
-															}
-															onPress={() => {
-																if (item.account) {
-																	void chooseAccount(item.account);
-
-																	return;
-																}
-
-																stopIdentityRequest();
-																setIdentitySource(item.key);
-																setCustom(item.key !== "default");
-																setError(null);
-															}}
-														/>
-													))}
+												>
+													<text
+														style={{
+															...styles.label,
+														}}
+													>
+														{remote.name}
+													</text>
+													<text
+														style={{
+															...muted,
+															overflowX: "hidden",
+															textOverflow: "ellipsis",
+														}}
+													>
+														{remote.fetchUrls.join(", ")}
+													</text>
+													{remote.pushUrls.join() !==
+													remote.fetchUrls.join() ? (
+														<text
+															style={muted}
+														>{`Push: ${remote.pushUrls.join(", ")}`}</text>
+													) : null}
+													{remoteAccounts && commonDirectory
+														? [
+																...new Set([
+																	...remote.fetchUrls,
+																	...remote.pushUrls,
+																]),
+															]
+																.filter((url) => url.startsWith("https://"))
+																.map((url) => (
+																	<RemoteAccount
+																		key={`${commonDirectory}:${remote.name}:${url}:${accountRevision}`}
+																		bindings={remoteAccounts}
+																		directory={commonDirectory}
+																		label={
+																			remote.fetchUrls.includes(url) &&
+																			remote.pushUrls.includes(url)
+																				? "Account"
+																				: remote.fetchUrls.includes(url)
+																					? "Fetch account"
+																					: "Push account"
+																		}
+																		remote={remote.name}
+																		url={url}
+																	/>
+																))
+														: null}
 												</div>
-											) : null
-										)}
+												<Button
+													testId={`remote-edit-${remote.name}`}
+													tokens={appTokens}
+													variant="ghost"
+													size="sm"
+													aria-label={`Edit ${remote.name}`}
+													disabled={
+														locked ||
+														editing !== null ||
+														(remote.fetchUrls.length !== 1 && !remoteAccounts)
+													}
+													onPress={() => {
+														returnFocus.current =
+															renderer.getFocusedElementId?.() ?? null;
+														setRemoteName(remote.name);
+														setRemoteUrl(remote.fetchUrls[0] ?? "");
+														setRemoteChoices({});
+														setEditing(
+															remote.fetchUrls.length === 1 ? "edit" : "account"
+														);
+														setError(null);
+														setStatus(null);
+													}}
+												>
+													<svg
+														source={accountActionIcons.reconnect}
+														style={{
+															width: 14,
+															height: 14,
+															color: appTokens.colors.textMuted,
+														}}
+													/>
+												</Button>
+												<Button
+													testId={`remote-remove-${remote.name}`}
+													tokens={appTokens}
+													variant="ghost"
+													size="sm"
+													aria-label={`Remove ${remote.name}`}
+													disabled={locked || editing !== null}
+													onPress={() => {
+														setRemoving(remote.name);
+														setError(null);
+													}}
+												>
+													<svg
+														source={accountActionIcons.remove}
+														style={{
+															width: 14,
+															height: 14,
+															color: appTokens.colors.danger,
+														}}
+													/>
+												</Button>
+											</div>
+										))}
+										{data.remotes.some(
+											(remote) => remote.fetchUrls.length !== 1
+										) ? (
+											<text style={muted}>
+												Remotes with multiple fetch URLs must be edited in Git
+												directly.
+											</text>
+										) : null}
 									</div>
-									{identitySource !== "default" ? (
-										<>
-											<SettingsField
-												id="identity-name"
-												label="Name"
-												value={name}
-												disabled={identityLocked || loadingIdentity}
-												onChange={setName}
-											/>
-											<SettingsField
-												id="identity-email"
-												label="Commit email"
-												value={email}
-												disabled={identityLocked || loadingIdentity}
-												onChange={setEmail}
-											/>
-										</>
-									) : null}
-									{loadingIdentity ? (
-										<text
-											testId="identity-account-status"
-											role="status"
-											style={muted}
-										>
-											Reading account identity…
-										</text>
-									) : identitySource !== "custom" &&
-									  identitySource !== "default" &&
-									  !email ? (
-										<text
-											testId="identity-account-status"
-											role="status"
-											style={muted}
-										>
-											Enter a commit email for this account.
-										</text>
-									) : null}
-								</>
-							) : (
-								<>
-									<SettingsField
-										id="remote-name"
-										label="Remote name"
-										value={remoteName}
-										disabled={locked || editing !== "add"}
-										onChange={setRemoteName}
-									/>
-									<SettingsField
-										ref={remoteUrlField}
-										id="remote-url"
-										label="Remote URL"
-										value={remoteUrl}
-										disabled={locked || editing === "account"}
-										onChange={setRemoteUrl}
-									/>
-									{remoteAccounts && commonDirectory
-										? accountUrls.map((url) => (
-												<RemoteAccount
-													key={`${remoteName}:${url}:${accountRevision}`}
-													bindings={remoteAccounts}
-													directory={commonDirectory}
-													remote={remoteName.trim()}
-													url={url}
-													label={
-														accountUrls.length > 1
-															? `Account: ${url}`
-															: "Authentication"
-													}
-													value={remoteChoices[url]}
-													disabled={locked}
-													onChange={(value) =>
-														setRemoteChoices((previous) => ({
-															...previous,
-															[url]: value,
-														}))
-													}
-												/>
-											))
-										: null}
-								</>
-							)}
-						</div>
-					</div>
-					<div
-						testId="git-settings-editor-footer"
-						style={{
-							...column,
-							paddingTop: spacing[3],
-							paddingBottom: spacing[3],
-							paddingLeft: spacing[4],
-							paddingRight: spacing[4],
-							borderTopWidth: 1,
-							borderColor: appTokens.colors.border,
-						}}
-					>
-						{error ? (
+								) : null}
+							</>
+						) : null}
+						{error && !editing ? (
 							<text
 								testId="git-settings-error"
 								role="alert"
@@ -932,67 +707,245 @@ export function GitSettings({
 								{error}
 							</text>
 						) : null}
-						<div
-							style={{
-								...row,
-								justifyContent: "space-between",
-								width: "100%",
-								maxWidth: 480,
-							}}
-						>
-							<Button
-								testId={
-									editing === "identity" ? "identity-cancel" : "remote-cancel"
-								}
-								tokens={appTokens}
-								variant="secondary"
-								size="sm"
-								disabled={busy}
-								onPress={cancelEditor}
-							>
-								Cancel
-							</Button>
-							<Button
-								testId={
-									editing === "identity" ? "identity-save" : "remote-save"
-								}
-								tokens={appTokens}
-								size="sm"
-								disabled={
-									editing === "identity"
-										? identityLocked ||
-											loadingIdentity ||
-											!identityChanged ||
-											(custom && (!name.trim() || !email.trim()))
-										: locked ||
-											!remoteName.trim() ||
-											!remoteUrl.trim() ||
-											(editing === "account" &&
-												!Object.keys(remoteChoices).length)
-								}
-								onPress={() => {
-									void save(
-										editing === "identity"
-											? { kind: "identity", custom, identity: { name, email } }
-											: {
-													kind:
-														editing === "add" ? "add-remote" : "edit-remote",
-													name: remoteName,
-													url: remoteUrl,
-												}
-									);
-								}}
-							>
-								{busy
-									? "Saving…"
-									: editing === "identity"
-										? "Save identity"
-										: "Save remote"}
-							</Button>
-						</div>
-					</div>
-				</div>
-			) : null}
+						{status ? (
+							<text testId="git-settings-status" role="status" style={muted}>
+								{status}
+							</text>
+						) : null}
+					</SettingsSection>
+				</SettingsPage>
+			}
+			panel={
+				editing ? (
+					<SettingsPanel
+						ref={editor}
+						testId={
+							editing === "identity" ? "identity-editor" : "remote-editor"
+						}
+						title={
+							editing === "identity"
+								? "Edit commit identity"
+								: editing === "add"
+									? "Add remote"
+									: "Edit remote"
+						}
+						label={
+							editing === "identity"
+								? "Edit commit identity"
+								: editing === "add"
+									? "Add remote"
+									: "Edit remote"
+						}
+						scrollTestId="git-settings-editor-scroll"
+						footerTestId="git-settings-editor-footer"
+						body={
+							<>
+								{editing === "identity" ? (
+									<>
+										<div
+											role="group"
+											aria-label="Identity source"
+											style={column}
+										>
+											{choices.map((choice, index) =>
+												index % 2 === 0 ? (
+													<div key={choice.key} style={row}>
+														{choices.slice(index, index + 2).map((item) => (
+															<ChoiceTile
+																key={item.key}
+																testId={`identity-${item.account ? `account-${item.key}` : item.key}`}
+																label={item.label}
+																source={item.source}
+																detail={item.detail}
+																accessibleName={`${item.label}, ${item.detail}`}
+																selected={identitySource === item.key}
+																disabled={
+																	identityLocked ||
+																	(!!item.account && !readAccountIdentity)
+																}
+																onPress={() => {
+																	if (item.account) {
+																		void chooseAccount(item.account);
+
+																		return;
+																	}
+
+																	stopIdentityRequest();
+																	setIdentitySource(item.key);
+																	setCustom(item.key !== "default");
+																	setError(null);
+																}}
+															/>
+														))}
+													</div>
+												) : null
+											)}
+										</div>
+										{identitySource !== "default" ? (
+											<>
+												<SettingsField
+													id="identity-name"
+													label="Name"
+													value={name}
+													disabled={identityLocked || loadingIdentity}
+													onChange={setName}
+												/>
+												<SettingsField
+													id="identity-email"
+													label="Commit email"
+													value={email}
+													disabled={identityLocked || loadingIdentity}
+													onChange={setEmail}
+												/>
+											</>
+										) : null}
+										{loadingIdentity ? (
+											<text
+												testId="identity-account-status"
+												role="status"
+												style={muted}
+											>
+												Reading account identity…
+											</text>
+										) : identitySource !== "custom" &&
+										  identitySource !== "default" &&
+										  !email ? (
+											<text
+												testId="identity-account-status"
+												role="status"
+												style={muted}
+											>
+												Enter a commit email for this account.
+											</text>
+										) : null}
+									</>
+								) : (
+									<>
+										<SettingsField
+											id="remote-name"
+											label="Remote name"
+											value={remoteName}
+											disabled={locked || editing !== "add"}
+											onChange={setRemoteName}
+										/>
+										<SettingsField
+											ref={remoteUrlField}
+											id="remote-url"
+											label="Remote URL"
+											value={remoteUrl}
+											disabled={locked || editing === "account"}
+											onChange={setRemoteUrl}
+										/>
+										{remoteAccounts && commonDirectory
+											? accountUrls.map((url) => (
+													<RemoteAccount
+														key={`${remoteName}:${url}:${accountRevision}`}
+														bindings={remoteAccounts}
+														directory={commonDirectory}
+														remote={remoteName.trim()}
+														url={url}
+														label={
+															accountUrls.length > 1
+																? `Account: ${url}`
+																: "Authentication"
+														}
+														value={remoteChoices[url]}
+														disabled={locked}
+														onChange={(value) =>
+															setRemoteChoices((previous) => ({
+																...previous,
+																[url]: value,
+															}))
+														}
+													/>
+												))
+											: null}
+									</>
+								)}
+							</>
+						}
+						footer={
+							<>
+								{error ? (
+									<text
+										testId="git-settings-error"
+										role="alert"
+										style={{ ...muted, color: appTokens.colors.danger }}
+									>
+										{error}
+									</text>
+								) : null}
+								<div
+									style={{
+										...row,
+										justifyContent: "space-between",
+										width: "100%",
+									}}
+								>
+									<Button
+										testId={
+											editing === "identity"
+												? "identity-cancel"
+												: "remote-cancel"
+										}
+										tokens={appTokens}
+										variant="secondary"
+										size="sm"
+										disabled={busy}
+										onPress={cancelEditor}
+									>
+										Cancel
+									</Button>
+									<Button
+										testId={
+											editing === "identity" ? "identity-save" : "remote-save"
+										}
+										tokens={appTokens}
+										size="sm"
+										disabled={
+											editing === "identity"
+												? identityLocked ||
+													loadingIdentity ||
+													!identityChanged ||
+													(custom && (!name.trim() || !email.trim()))
+												: locked ||
+													!remoteName.trim() ||
+													!remoteUrl.trim() ||
+													(editing === "account" &&
+														!Object.keys(remoteChoices).length)
+										}
+										onPress={() => {
+											void save(
+												editing === "identity"
+													? {
+															kind: "identity",
+															custom,
+															identity: { name, email },
+														}
+													: {
+															kind:
+																editing === "add"
+																	? "add-remote"
+																	: "edit-remote",
+															name: remoteName,
+															url: remoteUrl,
+														}
+											);
+										}}
+									>
+										{busy
+											? "Saving…"
+											: editing === "identity"
+												? "Save identity"
+												: "Save remote"}
+									</Button>
+								</div>
+							</>
+						}
+					/>
+				) : null
+			}
+		>
 			<Popover
 				open={removing !== null}
 				modal
@@ -1012,7 +965,7 @@ export function GitSettings({
 						<text
 							role="heading"
 							aria-level={2}
-							style={heading}
+							style={styles.sectionTitle}
 						>{`Remove ${removing ?? "remote"}?`}</text>
 						<text style={muted}>
 							Removes the connection, its remote-tracking references and
@@ -1054,6 +1007,6 @@ export function GitSettings({
 					</div>
 				</PopoverContent>
 			</Popover>
-		</div>
+		</SettingsSplit>
 	);
 }

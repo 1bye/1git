@@ -57,6 +57,7 @@ test("shares equal panes and keeps editor actions outside its scrolling body", (
 	const panel = bounds("panel");
 
 	expect(Math.abs(page.width - panel.width)).toBeLessThanOrEqual(1);
+	expect(panel.height).toBe(500);
 	const footer = bounds("footer");
 
 	expect(footer.y + footer.height).toBeLessThanOrEqual(500);

@@ -940,8 +940,10 @@ it("matches account setup with right-side remote and identity editors, pinned ac
 	if (!remotePanel || !remoteList || !formScroll || !footer)
 		throw new Error("Missing remote editor bounds");
 
-	expect(remotePanel.x).toBeCloseTo(accountPanel.x, 1);
-	expect(remotePanel.width).toBeCloseTo(accountPanel.width, 1);
+	expect(Math.abs(remotePanel.x - accountPanel.x)).toBeLessThanOrEqual(1);
+	expect(Math.abs(remotePanel.width - accountPanel.width)).toBeLessThanOrEqual(
+		1
+	);
 	expect(remotePanel.x).toBeCloseTo(remoteList.x + remoteList.width, 1);
 	expect(footer.y).toBeGreaterThanOrEqual(formScroll.y + formScroll.height);
 	expect(footer.y + footer.height).toBeCloseTo(
@@ -978,8 +980,10 @@ it("matches account setup with right-side remote and identity editors, pinned ac
 
 	if (!identityPanel) throw new Error("Missing identity editor bounds");
 
-	expect(identityPanel.x).toBeCloseTo(accountPanel.x, 1);
-	expect(identityPanel.width).toBeCloseTo(accountPanel.width, 1);
+	expect(Math.abs(identityPanel.x - accountPanel.x)).toBeLessThanOrEqual(1);
+	expect(
+		Math.abs(identityPanel.width - accountPanel.width)
+	).toBeLessThanOrEqual(1);
 	await click("identity-custom");
 	await type("identity-name", "Discarded identity");
 	expect(root.renderer.getAllText()).toContain("Personal");

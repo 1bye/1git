@@ -8,6 +8,7 @@ import { AccountStore, type SavedAccount } from "../accounts/lib/account-store";
 import type { RemoteAccounts } from "../accounts/lib/remote-accounts";
 import { accountProviderIcons } from "../accounts/account-provider-icons";
 import { accountActionIcons } from "../accounts/account-list";
+import { settingsStyles } from "../settings/settings-layout";
 import { ChoiceTile } from "../../fixture/choice-tile";
 
 import { WorkspaceTabIcon } from "../workspace-tabs/components/workspace-tab-icon";
@@ -95,6 +96,7 @@ export function RemoteAccount({
 }) {
 	const theme = useAppTheme();
 	const { tokens: appTokens } = theme;
+	const styles = settingsStyles.get(theme);
 
 	const [state] = useState(() => {
 		try {
@@ -174,9 +176,7 @@ export function RemoteAccount({
 					aria-label={label}
 					style={{ display: "flex", flexDirection: "column", gap: spacing[2] }}
 				>
-					<text style={{ ...typography.sm, color: appTokens.colors.textMuted }}>
-						{label}
-					</text>
+					<text style={{ ...styles.description }}>{label}</text>
 					{choices.map((item, index) =>
 						index % 2 === 0 ? (
 							<div
@@ -205,7 +205,7 @@ export function RemoteAccount({
 						) : null
 					)}
 					{unavailable ? (
-						<text style={{ ...typography.sm, color: appTokens.colors.danger }}>
+						<text style={{ ...styles.error }}>
 							Account unavailable. Choose another account.
 						</text>
 					) : null}
@@ -223,9 +223,7 @@ export function RemoteAccount({
 					}}
 				>
 					{label !== "Account" ? (
-						<text
-							style={{ ...typography.sm, color: appTokens.colors.textMuted }}
-						>{`${label}:`}</text>
+						<text style={{ ...styles.description }}>{`${label}:`}</text>
 					) : null}
 					<text
 						style={{
@@ -238,19 +236,12 @@ export function RemoteAccount({
 						{name}
 					</text>
 					{choice === "automatic" ? (
-						<text
-							style={{ ...typography.xs, color: appTokens.colors.textMuted }}
-						>
-							Automatic
-						</text>
+						<text style={{ ...styles.description }}>Automatic</text>
 					) : null}
 				</div>
 			)}
 			{state.error ? (
-				<text
-					role="alert"
-					style={{ ...typography.sm, color: appTokens.colors.danger }}
-				>
+				<text role="alert" style={{ ...styles.error }}>
 					{state.error}
 				</text>
 			) : null}

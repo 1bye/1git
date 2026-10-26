@@ -1,5 +1,6 @@
 import { fontWeight, spacing, typography } from "@1git/design-tokens";
-import type { ReactElement, ReactNode } from "react";
+import type { PublicInstance } from "@gpuix/react";
+import type { ReactElement, ReactNode, Ref } from "react";
 import { createThemedStyles, useAppTheme } from "../../styles/theme";
 
 /** Shared sizing for Settings pages and their nested forms. */
@@ -228,6 +229,7 @@ export function SettingsRow({
 }
 
 type SettingsPanelProps = {
+	ref?: Ref<PublicInstance>;
 	title: string;
 	description?: ReactNode;
 	label: string;
@@ -243,6 +245,7 @@ type SettingsPanelProps = {
 
 /** Shared editor chrome; stateful editors keep ownership of their draft and focus. */
 export function SettingsPanel({
+	ref,
 	title,
 	description,
 	label,
@@ -260,6 +263,7 @@ export function SettingsPanel({
 
 	return (
 		<div
+			ref={ref}
 			testId={testId}
 			role="region"
 			aria-label={label}
@@ -319,19 +323,30 @@ export function SettingsPanel({
 /** Equal-width list and editor panes with independently scrolling content. */
 export function SettingsSplit({
 	list,
+	children,
 	panel,
 	testId,
 }: {
 	list: ReactNode;
+	children?: ReactNode;
 	panel?: SettingsPanelProps | ReactElement | null;
 	testId?: string;
 }) {
 	const styles = settingsStyles.get(useAppTheme());
 
 	return (
-		<div testId={testId} style={{ ...styles.pane, flexDirection: "row" }}>
+		<div
+			testId={testId}
+			style={{
+				...styles.pane,
+				flexDirection: "row",
+				height: "100%",
+				flexBasis: undefined,
+			}}
+		>
 			<div style={styles.pane}>{list}</div>
 			{panel ? "body" in panel ? <SettingsPanel {...panel} /> : panel : null}
+			{children}
 		</div>
 	);
 }
