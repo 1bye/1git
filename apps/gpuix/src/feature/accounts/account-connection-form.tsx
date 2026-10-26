@@ -1,8 +1,9 @@
-import { fontWeight, radius, spacing, typography } from "@1git/design-tokens";
+import { radius, spacing, typography } from "@1git/design-tokens";
 import { Button } from "@1git/gpuix-ui/button";
 import { Checkbox } from "@1git/gpuix-ui/checkbox";
 import type { StyleDesc } from "@gpuix/react";
 import type { ReactNode } from "react";
+import { settingsLayout, settingsStyles } from "../settings/settings-layout";
 import { NativeClipboard } from "../../platform/clipboard";
 import { createThemedStyles, useAppTheme } from "../../styles/theme";
 import { WorkspaceTabIcon } from "../workspace-tabs/components/workspace-tab-icon";
@@ -16,28 +17,32 @@ import { accountSetup, accountSetupUrl } from "./lib/account-setup";
 import { GitHubCliAccounts } from "./github-cli-accounts";
 import type { AccountConnection } from "./use-account-connection";
 
-const themedStyles = createThemedStyles(({ tokens }) => ({
-	fieldStyle: {
-		height: tokens.layout.controlHeight,
-		...typography.md,
-		color: tokens.colors.text,
-		backgroundColor: "transparent",
-		borderWidth: 1,
-		borderRadius: radius.md,
-		borderColor: tokens.colors.border,
-		paddingLeft: spacing[2.5],
-		paddingRight: spacing[2.5],
-		flexShrink: 0,
-	},
-	labelStyle: { ...typography.md, color: tokens.colors.textMuted },
-}));
+const themedStyles = createThemedStyles((theme) => {
+	const { tokens } = theme;
+	const styles = settingsStyles.get(theme);
+
+	return {
+		fieldStyle: {
+			height: tokens.layout.controlHeight,
+			...styles.label,
+			backgroundColor: "transparent",
+			borderWidth: 1,
+			borderRadius: radius.md,
+			borderColor: tokens.colors.border,
+			paddingLeft: spacing[2.5],
+			paddingRight: spacing[2.5],
+			flexShrink: 0,
+		},
+		labelStyle: styles.label,
+	};
+});
 
 /** Same authentication controls in Settings and onboarding, with a composed provider picker. */
 export function AccountConnectionFields({
 	connection,
 	providerChoices,
 	copyText = NativeClipboard.write,
-	maxWidth = 480,
+	maxWidth = settingsLayout.width,
 }: {
 	connection: AccountConnection;
 	providerChoices?: ReactNode;
@@ -132,7 +137,6 @@ export function AccountConnectionFields({
 								style={{
 									...labelStyle,
 									color: appTokens.colors.text,
-									fontWeight: fontWeight.medium,
 								}}
 							>
 								Access token
@@ -149,7 +153,7 @@ export function AccountConnectionFields({
 								style={fieldStyle}
 								onChange={(event) => setToken(event.value ?? "")}
 							/>
-							<text style={{ ...labelStyle, ...typography.sm }}>
+							<text style={{ ...settingsStyles.get(theme).description }}>
 								{process.platform === "darwin"
 									? "Stored securely in macOS Keychain."
 									: "Stored securely in the OS credential store."}
@@ -168,7 +172,6 @@ export function AccountConnectionFields({
 								style={{
 									...labelStyle,
 									color: appTokens.colors.text,
-									fontWeight: fontWeight.medium,
 								}}
 							>
 								{provider === "github" ? "Client ID" : "Application ID"}
@@ -185,7 +188,7 @@ export function AccountConnectionFields({
 								}
 								onChange={(event) => setClientId(event.value ?? "")}
 							/>
-							<text style={{ ...labelStyle, ...typography.sm }}>
+							<text style={{ ...settingsStyles.get(theme).description }}>
 								Use the public ID, not the client secret.
 							</text>
 						</div>
@@ -199,7 +202,7 @@ export function AccountConnectionFields({
 							disabled={busy}
 							onCheckedChange={setRepositoryAccess}
 						/>
-						<text style={{ ...labelStyle, ...typography.sm }}>
+						<text style={{ ...settingsStyles.get(theme).description }}>
 							{repositoryAccess
 								? provider === "github"
 									? "GitHub OAuth's repo scope grants read and write access. For selected repositories with read-only access, use a fine-grained token instead."
@@ -247,7 +250,7 @@ export function AccountConnectionFields({
 					{!advanced &&
 					webUrl.replace(/\/+$/u, "") !== accountSetup[provider].host ? (
 						<text
-							style={{ ...labelStyle, ...typography.sm }}
+							style={{ ...settingsStyles.get(theme).description }}
 						>{`Host: ${webUrl}`}</text>
 					) : null}
 					{advanced ? (
@@ -268,7 +271,7 @@ export function AccountConnectionFields({
 								style={fieldStyle}
 								onChange={(event) => setWebUrl(event.value ?? "")}
 							/>
-							<text style={{ ...labelStyle, ...typography.sm }}>
+							<text style={{ ...settingsStyles.get(theme).description }}>
 								For GitHub Enterprise or self-managed GitLab. Register on this
 								host.
 							</text>
@@ -303,7 +306,7 @@ export function AccountConnectionActions({
 	maxWidth?: StyleDesc["maxWidth"];
 }) {
 	const { tokens: appTokens } = useAppTheme();
-	const labelStyle = { ...typography.md, color: appTokens.colors.textMuted };
+	const styles = settingsStyles.get(useAppTheme());
 
 	const {
 		error,
@@ -328,11 +331,7 @@ export function AccountConnectionActions({
 			}}
 		>
 			{error ? (
-				<text
-					role="alert"
-					testId="accounts-error"
-					style={{ ...labelStyle, color: appTokens.colors.danger }}
-				>
+				<text role="alert" testId="accounts-error" style={{ ...styles.error }}>
 					{error}
 				</text>
 			) : null}

@@ -19,9 +19,16 @@ test("shares equal panes and keeps editor actions outside its scrolling body", (
 	root.render(
 		<SettingsSplit
 			list={
-				<SettingsPage title="Preferences" testId="page">
+				<SettingsPage
+					title="Preferences"
+					testId="page"
+					scrollTestId="page-scroll"
+					headerTestId="page-header"
+				>
 					<SettingsSection title="Options">
-						<text>Option</text>
+						<div style={{ height: 1200, flexShrink: 0 }}>
+							<text>Option</text>
+						</div>
 					</SettingsSection>
 				</SettingsPage>
 			}
@@ -68,4 +75,12 @@ test("shares equal panes and keeps editor actions outside its scrolling body", (
 	root.renderer.scrollTo(scroll.id, 0, -900);
 	root.renderer.flush();
 	expect(bounds("footer")).toEqual(footer);
+	const header = bounds("page-header");
+	const pageScroll = root.renderer.findByTestId("page-scroll");
+
+	if (!pageScroll) throw new Error("Missing list scroll");
+
+	root.renderer.scrollTo(pageScroll.id, 0, -900);
+	root.renderer.flush();
+	expect(bounds("page-header")).toEqual(header);
 });

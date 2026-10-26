@@ -5,7 +5,7 @@ import type {
 } from "../ignored-history/ignored-history";
 import type { IgnoredHistoryStatus } from "../ignored-history/use-ignored-histories";
 import { createThemedStyles, useAppTheme } from "../../styles/theme";
-import { typography, spacing, fontWeight } from "@1git/design-tokens";
+import { spacing } from "@1git/design-tokens";
 import {
 	useCallback,
 	useEffect,
@@ -52,6 +52,12 @@ import {
 	type EditorSettingsHandle,
 } from "../editor-settings/editor-settings";
 import type { ExternalEditors } from "../editor-settings/external-editors";
+import {
+	SettingsPage,
+	SettingsSection as SettingsLayoutSection,
+	SettingsSplit,
+	settingsStyles,
+} from "../settings/settings-layout";
 import { AppearanceSettings } from "../appearance-settings/appearance-settings";
 import { PrivacySettings } from "../analytics/privacy-settings";
 import { KeybindSettings } from "../keybinds/keybind-settings";
@@ -60,8 +66,6 @@ import { RepositoryAppearance } from "../repository-appearance/repository-appear
 import type { RepositoryAppearanceValue } from "../repository-appearance/repository-patterns";
 
 const sidebarWidth = 200;
-const contentPadding = spacing[4];
-const sectionMaxWidth = 480;
 
 // Clear the traffic lights and keep the tab, including its curved shoulder, over the sidebar.
 const titleInset = workspaceLayout.desktopTitlebarControlsWidth;
@@ -84,38 +88,13 @@ export type SettingsSection =
 	| "repository-appearance"
 	| "repository-identity";
 
-const themedStyles = createThemedStyles(({ tokens: appTokens }) => {
-	const labelStyle = { ...typography.md, color: appTokens.colors.textMuted };
-
-	const headingStyle = {
-		...typography.lg,
-		fontWeight: fontWeight.medium,
-		color: appTokens.colors.text,
-	};
-
-	const footerStyle = {
-		display: "flex",
-		flexDirection: "column",
-		flexShrink: 0,
-		gap: spacing[2],
-		paddingTop: spacing[3],
-		paddingBottom: spacing[3],
-		paddingLeft: contentPadding,
-		paddingRight: contentPadding,
-		borderTopWidth: 1,
-		borderColor: appTokens.colors.border,
-	};
-
-	const groupHeading = {
-		...typography.xs,
-		fontWeight: fontWeight.medium,
-		color: appTokens.colors.textMuted,
+const themedStyles = createThemedStyles((theme) => ({
+	groupHeading: {
+		...settingsStyles.get(theme).navGroup,
 		paddingLeft: spacing[2.5],
 		marginTop: spacing[3],
-	};
-
-	return { labelStyle, headingStyle, footerStyle, groupHeading };
-});
+	},
+}));
 
 /** Account settings are window-local. Tokens are transient refs and uncontrolled native password inputs, never renderer props. */
 export function AccountsSettings({
@@ -188,8 +167,8 @@ export function AccountsSettings({
 	const theme = useAppTheme();
 	const { tokens: appTokens } = theme;
 
-	const { labelStyle, headingStyle, footerStyle, groupHeading } =
-		themedStyles.get(theme);
+	const { groupHeading } = themedStyles.get(theme);
+	const styles = settingsStyles.get(theme);
 
 	const renderer = useGpuixRequired();
 
@@ -696,56 +675,18 @@ export function AccountsSettings({
 				/>
 			) : (
 				<>
-					<div
+					<SettingsSplit
 						testId="accounts-settings"
-						style={{
-							display: "flex",
-							flexDirection: "row",
-							flexGrow: 1,
-							minHeight: 0,
-							minWidth: 0,
-						}}
-					>
-						<div
-							testId="accounts-list-panel"
-							style={{
-								display: "flex",
-								flexDirection: "column",
-								width: form === "connect" ? "50%" : "100%",
-								flexGrow: form === "connect" ? 0 : 1,
-								flexShrink: 0,
-								minHeight: 0,
-							}}
-						>
-							<div
-								style={{
-									display: "flex",
-									flexDirection: "column",
-									gap: spacing[1],
-									width: "100%",
-									maxWidth: sectionMaxWidth + contentPadding * 2,
-									padding: contentPadding,
-									flexShrink: 0,
-								}}
-							>
-								<div
-									testId="accounts-list-header"
-									style={{
-										display: "flex",
-										flexDirection: "row",
-										alignItems: "center",
-										justifyContent: "space-between",
-										gap: spacing[3],
-									}}
-								>
-									<text
-										testId="accounts-heading"
-										role="heading"
-										aria-level={1}
-										style={headingStyle}
-									>
-										Accounts
-									</text>
+						list={
+							<SettingsPage
+								testId="accounts-list-panel"
+								scrollTestId="accounts-list-scroll"
+								headerTestId="accounts-list-header"
+								title="Accounts"
+								titleTestId="accounts-heading"
+								description="Connected hosting accounts."
+								descriptionTestId="accounts-description"
+								action={
 									<Button
 										testId="account-add"
 										ref={addButton}
@@ -756,44 +697,18 @@ export function AccountsSettings({
 									>
 										Add account
 									</Button>
-								</div>
-								<text testId="accounts-description" style={labelStyle}>
-									Connected hosting accounts.
-								</text>
-								{error && form === "list" && !removing ? (
-									<text
-										role="alert"
-										testId="accounts-error"
-										style={{ ...labelStyle, color: appTokens.colors.danger }}
-									>
-										{error}
-									</text>
-								) : null}
-							</div>
-							<div
-								testId="accounts-list-scroll"
-								style={{
-									display: "flex",
-									flexDirection: "column",
-									flexGrow: 1,
-									minHeight: 0,
-									overflowY: "scroll",
-									paddingLeft: contentPadding,
-									paddingRight: contentPadding,
-									paddingBottom: contentPadding,
-								}}
+								}
 							>
-								<div
-									testId="accounts-list-content"
-									style={{
-										display: "flex",
-										flexDirection: "column",
-										width: "100%",
-										maxWidth: sectionMaxWidth,
-										flexGrow: 1,
-										flexShrink: 0,
-									}}
-								>
+								<SettingsLayoutSection testId="accounts-list-content">
+									{error && form === "list" && !removing ? (
+										<text
+											role="alert"
+											testId="accounts-error"
+											style={{ ...styles.error }}
+										>
+											{error}
+										</text>
+									) : null}
 									<AccountList
 										accounts={saved}
 										status={status}
@@ -815,69 +730,32 @@ export function AccountsSettings({
 											setRemoving(account);
 										}}
 									/>
-								</div>
-							</div>
-						</div>
-						{form === "connect" ? (
-							<div
-								testId="account-setup-panel"
-								role="region"
-								aria-label={replacing ? "Reconnect account" : "Add account"}
-								style={{
-									display: "flex",
-									flexDirection: "column",
-									flexGrow: 1,
-									flexBasis: 0,
-									minWidth: 0,
-									minHeight: 0,
-									borderLeftWidth: 1,
-									borderColor: appTokens.colors.border,
-								}}
-							>
-								<div
-									style={{
-										display: "flex",
-										flexDirection: "column",
-										gap: spacing[1],
-										width: "100%",
-										maxWidth: sectionMaxWidth + contentPadding * 2,
-										padding: contentPadding,
-										flexShrink: 0,
-									}}
-								>
-									<text
-										testId="account-setup-heading"
-										role="heading"
-										aria-level={2}
-										style={headingStyle}
-									>
-										{replacing ? "Reconnect account" : "Add account"}
-									</text>
-									<text style={labelStyle}>Git credentials stay separate.</text>
-								</div>
-								<div
-									testId="account-setup-scroll"
-									style={{
-										flexGrow: 1,
-										minHeight: 0,
-										minWidth: 0,
-										overflowY: "scroll",
-										paddingLeft: contentPadding,
-										paddingRight: contentPadding,
-										paddingBottom: contentPadding,
-									}}
-								>
-									<AccountConnectionFields
-										connection={connection}
-										copyText={copyText}
-									/>
-								</div>
-								<div testId="account-setup-footer" style={footerStyle}>
-									<AccountConnectionActions connection={connection} />
-								</div>
-							</div>
-						) : null}
-					</div>
+								</SettingsLayoutSection>
+							</SettingsPage>
+						}
+						panel={
+							form === "connect"
+								? {
+										testId: "account-setup-panel",
+										titleTestId: "account-setup-heading",
+										title: replacing ? "Reconnect account" : "Add account",
+										label: replacing ? "Reconnect account" : "Add account",
+										description: "Git credentials stay separate.",
+										scrollTestId: "account-setup-scroll",
+										footerTestId: "account-setup-footer",
+										body: (
+											<AccountConnectionFields
+												connection={connection}
+												copyText={copyText}
+											/>
+										),
+										footer: (
+											<AccountConnectionActions connection={connection} />
+										),
+									}
+								: undefined
+						}
+					/>
 					<Popover
 						open={removing !== undefined}
 						onOpenChange={(open) => {
@@ -904,26 +782,21 @@ export function AccountsSettings({
 									padding: spacing[1],
 								}}
 							>
-								<text role="heading" aria-level={2} style={headingStyle}>
+								<text role="heading" aria-level={2} style={styles.sectionTitle}>
 									Remove account?
 								</text>
 								{removing && removingHost ? (
-									<text
-										style={{ ...typography.md, color: appTokens.colors.text }}
-									>
+									<text style={{ ...styles.label }}>
 										{`${removing.username} · ${accountSetup[removing.provider].name} · ${removingHost.host}${removingHost.pathname === "/" ? "" : removingHost.pathname}`}
 									</text>
 								) : null}
-								<text style={labelStyle}>
+								<text style={styles.description}>
 									{removing?.credentialSource === "github-cli"
 										? "Removes this connection from 1git. You stay signed in to GitHub CLI."
 										: `Removes this account and its saved credentials from 1git. Your ${removing ? accountSetup[removing.provider].name : "hosting"} account and repositories stay unchanged.`}
 								</text>
 								{error ? (
-									<text
-										role="alert"
-										style={{ ...labelStyle, color: appTokens.colors.danger }}
-									>
+									<text role="alert" style={{ ...styles.error }}>
 										{error}
 									</text>
 								) : null}

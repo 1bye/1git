@@ -1,5 +1,6 @@
-import { createThemedStyles, useAppTheme } from "../../styles/theme";
-import { spacing, typography, fontWeight, radius } from "@1git/design-tokens";
+import { settingsStyles } from "../settings/settings-layout";
+import { useAppTheme } from "../../styles/theme";
+import { spacing, radius } from "@1git/design-tokens";
 import { ChoiceTile as AccountChoiceTile } from "../../fixture/choice-tile";
 import { Button } from "@1git/gpuix-ui/button";
 import { useState, type ReactNode } from "react";
@@ -25,18 +26,6 @@ const icons = {
 };
 
 const column = { display: "flex", flexDirection: "column", gap: spacing[1.5] };
-
-const themedStyles = createThemedStyles(({ tokens: appTokens }) => {
-	const detail = { ...typography.sm, color: appTokens.colors.textMuted };
-
-	const title = {
-		...typography.md,
-		color: appTokens.colors.text,
-		fontWeight: fontWeight.medium,
-	};
-
-	return { detail, title };
-});
 
 /** Small, keyboard-activatable provider cells; unsupported providers open a contribution/request draft. */
 export function AccountProviderChoices({
@@ -161,7 +150,7 @@ export function AccountSetupSection({
 	children: ReactNode;
 }) {
 	const theme = useAppTheme();
-	const { title } = themedStyles.get(theme);
+	const { label: title } = settingsStyles.get(theme);
 
 	return (
 		<div style={{ ...column, flexShrink: 0 }}>
@@ -186,7 +175,7 @@ function AccountSetupValue({
 }) {
 	const theme = useAppTheme();
 	const { tokens: appTokens } = theme;
-	const { detail } = themedStyles.get(theme);
+	const { description: detail } = settingsStyles.get(theme);
 
 	const [result, setResult] = useState<"copying" | "copied" | "error">();
 
@@ -285,7 +274,7 @@ export function AccountConnectionGuide({
 }) {
 	const theme = useAppTheme();
 	const { tokens: appTokens } = theme;
-	const { detail } = themedStyles.get(theme);
+	const { description: detail } = settingsStyles.get(theme);
 
 	const setupUrl = accountSetupUrl(
 		provider,

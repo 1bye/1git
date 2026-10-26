@@ -99,55 +99,73 @@ export function SettingsPage({
 }) {
 	const styles = settingsStyles.get(useAppTheme());
 
+	const maxWidth =
+		(width === "wide" ? settingsLayout.wideWidth : settingsLayout.width) +
+		settingsLayout.padding * 2;
+
+	const header = (
+		<div
+			style={{
+				...styles.column,
+				gap: settingsLayout.titleGap,
+				marginBottom: scrollTestId ? 0 : settingsLayout.headerGap,
+			}}
+			testId={headerTestId}
+		>
+			<div style={styles.header}>
+				<text
+					testId={titleTestId}
+					role="heading"
+					aria-level={1}
+					style={styles.title}
+				>
+					{title}
+				</text>
+				{action}
+			</div>
+			{description ? (
+				<text testId={descriptionTestId} style={styles.description}>
+					{description}
+				</text>
+			) : null}
+		</div>
+	);
+
 	// Native scrollIntoView reveals a direct scroll child; keep sections outside a page-sized wrapper.
-	const scroll = (
+	const body = (
 		<div
 			testId={scrollTestId ?? testId}
 			style={{
 				...styles.pane,
 				overflowY: "scroll",
 				padding: settingsLayout.padding,
+				paddingTop: scrollTestId ? 0 : settingsLayout.padding,
 				width: "100%",
-				maxWidth:
-					(width === "wide" ? settingsLayout.wideWidth : settingsLayout.width) +
-					settingsLayout.padding * 2,
+				maxWidth,
 			}}
 		>
-			<div
-				style={{
-					...styles.column,
-					gap: settingsLayout.titleGap,
-					marginBottom: settingsLayout.headerGap,
-				}}
-				testId={headerTestId}
-			>
-				<div style={styles.header}>
-					<text
-						testId={titleTestId}
-						role="heading"
-						aria-level={1}
-						style={styles.title}
-					>
-						{title}
-					</text>
-					{action}
-				</div>
-				{description ? (
-					<text testId={descriptionTestId} style={styles.description}>
-						{description}
-					</text>
-				) : null}
-			</div>
+			{scrollTestId ? null : header}
 			{children}
 		</div>
 	);
 
 	return scrollTestId ? (
 		<div testId={testId} style={styles.pane}>
-			{scroll}
+			<div
+				style={{
+					...styles.column,
+					padding: settingsLayout.padding,
+					paddingBottom: settingsLayout.headerGap,
+					width: "100%",
+					maxWidth,
+				}}
+			>
+				{header}
+			</div>
+			{body}
 		</div>
 	) : (
-		scroll
+		body
 	);
 }
 

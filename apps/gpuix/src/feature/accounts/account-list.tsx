@@ -1,5 +1,6 @@
+import { settingsStyles } from "../settings/settings-layout";
 import { useAppTheme } from "../../styles/theme";
-import { spacing, typography, fontWeight, iconSize } from "@1git/design-tokens";
+import { spacing, iconSize } from "@1git/design-tokens";
 import { Button } from "@1git/gpuix-ui/button";
 
 import { AccountStore, type SavedAccount } from "./lib/account-store";
@@ -37,6 +38,7 @@ export function AccountList({
 }) {
 	const theme = useAppTheme();
 	const { tokens: appTokens } = theme;
+	const styles = settingsStyles.get(theme);
 
 	return (
 		<div
@@ -74,17 +76,14 @@ export function AccountList({
 							role="heading"
 							aria-level={2}
 							style={{
-								...typography.lg,
-								fontWeight: fontWeight.medium,
-								color: appTokens.colors.text,
+								...styles.sectionTitle,
 							}}
 						>
 							No accounts connected.
 						</text>
 						<text
 							style={{
-								...typography.sm,
-								color: appTokens.colors.textMuted,
+								...styles.description,
 								textAlign: "center",
 							}}
 						>
@@ -149,15 +148,12 @@ export function AccountList({
 								minWidth: 0,
 							}}
 						>
-							<text
-								testId={`account-name-${key}`}
-								style={{ ...typography.md, color: appTokens.colors.text }}
-							>
+							<text testId={`account-name-${key}`} style={{ ...styles.label }}>
 								{account.username}
 							</text>
 							<text
 								testId={`account-status-${key}`}
-								style={{ ...typography.sm, color: appTokens.colors.textMuted }}
+								style={{ ...styles.description }}
 							>
 								{`${host.host}${host.pathname === "/" ? "" : host.pathname} · ${account.credentialSource === "github-cli" ? "GitHub CLI · " : ""}${status[key] ?? "Not checked"}`}
 							</text>
