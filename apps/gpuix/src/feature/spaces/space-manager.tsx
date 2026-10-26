@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useGpuixRequired } from "@gpuix/react";
 import { Button } from "@1git/gpuix-ui/button";
-import { Popover, PopoverContent } from "@1git/gpuix-ui/popover";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "@1git/gpuix-ui/popover";
 import { spacing, typography, radius } from "@1git/design-tokens";
 import { useAppTheme } from "../../styles/theme";
 import {
@@ -14,21 +18,26 @@ import { WorkspaceSpaces, type WorkspaceSpace } from "./workspace-spaces";
 import { spaceIconPresets, spaceIcons } from "./space-icons";
 import { SpaceSymbol } from "./space-symbol";
 
-/** Application settings entry; creating and editing spaces never changes repositories on disk. */
+/** Application settings entry; deleting a custom space preserves its work in Default. */
 export function SpacesSettings({
 	spaces,
 	activeId,
 	onCreate,
 	onEdit,
 	onSelect,
+	onDelete,
 }: {
 	spaces: readonly WorkspaceSpace[];
 	activeId: string;
 	onCreate: () => void;
 	onEdit: (space: WorkspaceSpace) => void;
 	onSelect: (id: string) => void;
+	onDelete: (id: string) => void;
 }) {
 	const { tokens } = useAppTheme();
+
+	const defaultName =
+		spaces.find((space) => space.id === "default")?.name ?? "Default";
 
 	return (
 		<div
@@ -96,6 +105,13 @@ export function SpacesSettings({
 					>
 						{space.id === activeId ? "Current" : "Switch"}
 					</Button>
+					{space.id !== "default" ? (
+						<SpaceDelete
+							space={space}
+							defaultName={defaultName}
+							onDelete={onDelete}
+						/>
+					) : null}
 				</div>
 			))}
 			<Button
@@ -110,6 +126,85 @@ export function SpacesSettings({
 				New space…
 			</Button>
 		</div>
+	);
+}
+
+function SpaceDelete({
+	space,
+	defaultName,
+	onDelete,
+}: {
+	space: WorkspaceSpace;
+	defaultName: string;
+	onDelete: (id: string) => void;
+}) {
+	const { tokens } = useAppTheme();
+	const [open, setOpen] = useState(false);
+
+	return (
+		<Popover open={open} onOpenChange={setOpen}>
+			<PopoverTrigger asChild>
+				<Button
+					tokens={tokens}
+					size="sm"
+					variant="ghost"
+					textStyle={{ color: tokens.colors.danger }}
+					testId={`space-delete-${space.id}`}
+					aria-label={`Delete ${space.name} space`}
+				>
+					Delete…
+				</Button>
+			</PopoverTrigger>
+			<PopoverContent
+				tokens={tokens}
+				placement="center"
+				width={440}
+				testId="space-delete-dialog"
+				aria-label={`Delete ${space.name} space`}
+			>
+				<div
+					style={{ display: "flex", flexDirection: "column", gap: spacing[3] }}
+				>
+					<text
+						role="heading"
+						aria-level={2}
+						style={{ ...typography.lg, color: tokens.colors.text }}
+					>
+						{`Delete ${space.name}?`}
+					</text>
+					<text style={{ ...typography.md, color: tokens.colors.textMuted }}>
+						{`Repositories, open tabs, and drafts will move to ${defaultName}.`}
+					</text>
+					<div
+						style={{
+							display: "flex",
+							flexDirection: "row",
+							justifyContent: "flex-end",
+							gap: spacing[2],
+						}}
+					>
+						<Button
+							tokens={tokens}
+							size="sm"
+							variant="secondary"
+							autoFocus
+							testId="space-delete-cancel"
+							onPress={() => setOpen(false)}
+						>
+							Cancel
+						</Button>
+						<Button
+							tokens={tokens}
+							size="sm"
+							testId="space-delete-confirm"
+							onPress={() => onDelete(space.id)}
+						>
+							Delete space
+						</Button>
+					</div>
+				</div>
+			</PopoverContent>
+		</Popover>
 	);
 }
 

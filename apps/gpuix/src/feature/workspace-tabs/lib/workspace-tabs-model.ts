@@ -92,6 +92,7 @@ export class WorkspaceTabsModel {
 			action.type === "space-create" ||
 			action.type === "space-select" ||
 			action.type === "space-edit" ||
+			action.type === "space-delete" ||
 			action.type === "space-preferences"
 		)
 			return WorkspaceSpaces.reduce(state, action);
@@ -151,7 +152,15 @@ export class WorkspaceTabsModel {
 		}
 
 		if (action.type === "open-worktree") {
-			const owner = action.spaceId ?? state.activeSpaceId ?? "default";
+			const requestedOwner = action.spaceId ?? state.activeSpaceId ?? "default";
+
+			// Worktree creation may finish after its originating space was deleted.
+			const owner =
+				state.spaces &&
+				!state.spaces.some((space) => space.id === requestedOwner)
+					? "default"
+					: requestedOwner;
+
 			const visible = owner === (state.activeSpaceId ?? "default");
 
 			const existing = state.tabs.find(

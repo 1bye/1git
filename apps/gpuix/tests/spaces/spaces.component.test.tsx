@@ -1,5 +1,5 @@
 /**
- * Covers: space creation, rail/menu/swipe navigation, isolated repository opening, draft restoration and restart.
+ * Covers: space creation/deletion, rail/menu/swipe navigation, isolated repository opening, draft restoration and restart.
  * Real: App, space/session models, shared controls and native layout/keyboard events.
  * Doubles: account catalog, repository reads, native menu/picker tracking, trackpad phase boundaries and session writes; no user data or network.
  * Requires: patched GPUIX renderer and macOS graphics access.
@@ -252,11 +252,91 @@ it("validates the name and cancels icon edits without saving", async () => {
 	expect(saved).not.toHaveBeenCalled();
 });
 
+it("confirms space deletion, supports keyboard cancellation and preserves drafts after restart", async () => {
+	showSwipeSpaces(2);
+	await settle();
+	const workId = spaceIds[1];
+
+	spyOn(NativeFileMenu, "showItems").mockReturnValue({
+		kind: "select",
+		id: workId,
+	});
+	click("rail-spaces");
+	await settle();
+	root.renderer.simulateKeystrokes("cmd-,");
+	await settle();
+	click("settings-spaces");
+	await settle();
+	expect(root.renderer.findByTestId("space-delete-default")).toBeUndefined();
+	click(`space-delete-${workId}`);
+	await settle();
+	expect(latest().spaces).toHaveLength(2);
+	expect(root.renderer.getAllText()).toContain("Delete Work?");
+	expect(root.renderer.getAllText()).toContain(
+		"Repositories, open tabs, and drafts will move to Default."
+	);
+	expect(root.renderer.getFocusedElementId()).toBe(
+		node("space-delete-cancel").id
+	);
+	root.renderer.simulateKeystrokes("enter");
+	await settle();
+	expect(root.renderer.findByTestId("space-delete-dialog")).toBeUndefined();
+	expect(latest().spaces).toHaveLength(2);
+	expect(root.renderer.getFocusedElementId()).toBe(
+		node(`space-delete-${workId}`).id
+	);
+	click(`space-delete-${workId}`);
+	await settle();
+	root.renderer.simulateKeystrokes("escape");
+	await settle();
+	expect(root.renderer.findByTestId("space-delete-dialog")).toBeUndefined();
+	expect(latest().activeSpaceId).toBe(workId);
+	click(`space-delete-${workId}`);
+	await settle();
+
+	if (process.env.GPUIX_SPACES_DELETE_SCREENSHOT)
+		root.renderer.captureScreenshot(process.env.GPUIX_SPACES_DELETE_SCREENSHOT);
+
+	click("space-delete-confirm");
+	await settle();
+	expect(root.renderer.findByTestId("space-delete-dialog")).toBeUndefined();
+	expect(root.renderer.findByTestId(`space-delete-${workId}`)).toBeUndefined();
+	const document = latest();
+
+	expect(document.spaces?.map((space) => space.id)).toEqual(["default"]);
+	expect(document.activeSpaceId).toBe("default");
+	expect(document.activeId).toBe("workspace-2");
+	expect(document.tabs.map((tab) => tab.spaceId)).toEqual([
+		"default",
+		"default",
+	]);
+	expect(document.tabs.map((tab) => tab.draft)).toEqual(["Draft 0", "Draft 1"]);
+	root.unmount();
+	root = createTestRoot({
+		width: 980,
+		height: 640,
+		onKeyDown: windowOptions.onKeyDown,
+	});
+	root.renderer.clockPause();
+	root.render(
+		<App
+			accounts={accounts}
+			readRepository={read}
+			discoverRepositories={scan}
+			saveSession={save}
+			initialSession={document}
+		/>
+	);
+	await settle();
+	expect(root.renderer.findByTestId("rail-spaces")).toBeUndefined();
+	expect(node("commit-message").customProps?.value).toBe("Draft 1");
+}, 15000);
+
 const spaceIds = [
 	"default",
 	"00000000-0000-4000-8000-000000000001",
 	"00000000-0000-4000-8000-000000000002",
-];
+] as const;
 
 function showSwipeSpaces(count = 3): void {
 	root.render(

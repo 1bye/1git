@@ -36,6 +36,7 @@ export type WorkspaceSpaceAction =
 			library: RepositoryLibraryPreferences;
 	  }
 	| { type: "space-select"; id: string }
+	| { type: "space-delete"; id: string }
 	| {
 			type: "space-edit";
 			id: string;
@@ -240,6 +241,34 @@ export class WorkspaceSpaces {
 		const target = state.spaces?.find((space) => space.id === action.id);
 
 		if (!target) return state;
+
+		if (action.type === "space-delete") {
+			if (target.id === "default") return state;
+
+			const deletingActive = target.id === state.activeSpaceId;
+
+			return {
+				...state,
+				activeSpaceId: deletingActive ? "default" : state.activeSpaceId,
+				tabs: state.tabs.map((tab) =>
+					tab.spaceId === target.id ? { ...tab, spaceId: "default" } : tab
+				),
+				spaces: state.spaces
+					?.filter((space) => space.id !== target.id)
+					.map((space) =>
+						space.id === "default"
+							? {
+									...space,
+									activeId: deletingActive ? state.activeId : space.activeId,
+									repositories: this.paths([
+										...space.repositories,
+										...target.repositories,
+									]),
+								}
+							: space
+					),
+			};
+		}
 
 		if (action.type === "space-select") {
 			if (action.id === (state.activeSpaceId ?? "default")) return state;

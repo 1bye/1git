@@ -1601,6 +1601,7 @@ function AppContent({
 			onCreate={() => setSpaceEditor({})}
 			onEdit={(space) => setSpaceEditor({ space })}
 			onSelect={selectSpace}
+			onDelete={(id) => dispatch({ type: "space-delete", id })}
 		/>
 	);
 
