@@ -12,6 +12,8 @@ import {
 	useRef,
 	useState,
 	type ReactNode,
+	type ComponentProps,
+	type Ref,
 } from "react";
 import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
 import { Button } from "@1git/gpuix-ui/button";
@@ -28,7 +30,7 @@ import {
 } from "./account-connection-form";
 import { useAccountConnection } from "./use-account-connection";
 import { accountSetup } from "./lib/account-setup";
-import { AccountList, accountActionIcons } from "./account-list";
+import { AccountList } from "./account-list";
 import { NativeBrowser } from "../../platform/browser";
 import { Accounts } from "./lib/accounts";
 import type { RemoteAccounts } from "./lib/remote-accounts";
@@ -88,6 +90,112 @@ export type SettingsSection =
 	| "repository-appearance"
 	| "repository-identity";
 
+interface SettingsNavItem {
+	section: SettingsSection;
+	label: string;
+	icon: ComponentProps<typeof WorkspaceTabIcon>["name"];
+	group: "application" | "repository";
+}
+const settingsPages = [
+	{ section: "spaces", label: "Spaces", icon: "layers", group: "application" },
+	{
+		section: "appearance",
+		label: "Appearance",
+		icon: "contrast",
+		group: "application",
+	},
+	{
+		section: "keybinds",
+		label: "Keybinds",
+		icon: "keyboard",
+		group: "application",
+	},
+	{
+		section: "privacy",
+		label: "Privacy",
+		icon: "shield",
+		group: "application",
+	},
+	{
+		section: "accounts",
+		label: "Accounts",
+		icon: "userCircle",
+		group: "application",
+	},
+	{
+		section: "git",
+		label: "Commit identity",
+		icon: "branch",
+		group: "application",
+	},
+	{
+		section: "editor",
+		label: "External editor",
+		icon: "pencil",
+		group: "application",
+	},
+	{ section: "ai", label: "AI", icon: "sparkle", group: "application" },
+	{
+		section: "repository-remotes",
+		label: "Remotes",
+		icon: "network",
+		group: "repository",
+	},
+	{
+		section: "repository-appearance",
+		label: "Appearance",
+		icon: "palette",
+		group: "repository",
+	},
+	{
+		section: "repository-identity",
+		label: "Commit identity",
+		icon: "idCard",
+		group: "repository",
+	},
+	{
+		section: "repository-ignored-history",
+		label: "Ignored file history",
+		icon: "history",
+		group: "repository",
+	},
+] as const satisfies readonly SettingsNavItem[];
+
+function SettingsNavButton({
+	item,
+	active,
+	disabled,
+	onSelect,
+	ref,
+}: {
+	item: SettingsNavItem;
+	active: boolean;
+	disabled: boolean;
+	onSelect: (section: SettingsSection) => void;
+	ref?: Ref<PublicInstance>;
+}) {
+	const { tokens } = useAppTheme();
+
+	return (
+		<Button
+			testId={`settings-${item.section}`}
+			ref={ref}
+			tokens={tokens}
+			size="sm"
+			variant={active ? "secondary" : "ghost"}
+			aria-current={active ? "page" : undefined}
+			disabled={disabled}
+			style={{ justifyContent: "flex-start" }}
+			onPress={() => onSelect(item.section)}
+		>
+			<WorkspaceTabIcon
+				name={item.icon}
+				testId={`settings-${item.section}-icon`}
+			/>
+			{item.label}
+		</Button>
+	);
+}
 const themedStyles = createThemedStyles((theme) => ({
 	groupHeading: {
 		...settingsStyles.get(theme).navGroup,
@@ -271,6 +379,22 @@ export function AccountsSettings({
 
 	const removingHost = removing ? new URL(removing.webUrl) : undefined;
 
+	const availablePages = settingsPages.filter((item) => {
+		switch (item.section) {
+			case "spaces":
+				return !!spacesSettings;
+			case "repository-remotes":
+			case "repository-identity":
+				return !!repositorySettings;
+			case "repository-appearance":
+				return !!repositoryAppearance;
+			case "repository-ignored-history":
+				return !!ignoredHistory;
+			default:
+				return true;
+		}
+	});
+
 	return (
 		<AppShell
 			testId="settings-view"
@@ -356,246 +480,47 @@ export function AccountsSettings({
 						borderColor: appTokens.colors.border,
 					}}
 				>
-					<text
-						testId="settings-application-group"
-						role="heading"
-						aria-level={2}
-						style={groupHeading}
-					>
-						Application
-					</text>
-					{spacesSettings ? (
-						<Button
-							testId="settings-spaces"
-							ref={section === "spaces" ? initialPage : undefined}
-							tokens={appTokens}
-							size="sm"
-							variant={section === "spaces" ? "secondary" : "ghost"}
-							aria-current={section === "spaces" ? "page" : undefined}
-							disabled={settingsBusy}
-							style={{ justifyContent: "flex-start" }}
-							onPress={() => {
-								clearToken();
-								setForm("list");
-								setSection("spaces");
-							}}
-						>
-							<WorkspaceTabIcon name="layers" testId="settings-spaces-icon" />
-							Spaces
-						</Button>
-					) : null}
-					<Button
-						testId="settings-appearance"
-						ref={section === "appearance" ? initialPage : undefined}
-						tokens={appTokens}
-						size="sm"
-						variant={section === "appearance" ? "secondary" : "ghost"}
-						aria-current={section === "appearance" ? "page" : undefined}
-						disabled={settingsBusy}
-						style={{ justifyContent: "flex-start" }}
-						onPress={() => {
-							clearToken();
-							setForm("list");
-							setSection("appearance");
-						}}
-					>
-						<svg
-							source='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25"><circle cx="12" cy="12" r="8"/><path d="M12 4v16M12 4a8 8 0 0 1 0 16Z" fill="currentColor" stroke="none"/></svg>'
-							style={{
-								width: 14,
-								height: 14,
-								color: appTokens.colors.textMuted,
-								pointerEvents: "none",
-							}}
-						/>
-						Appearance
-					</Button>
-					<Button
-						testId="settings-keybinds"
-						ref={section === "keybinds" ? initialPage : undefined}
-						tokens={appTokens}
-						size="sm"
-						variant={section === "keybinds" ? "secondary" : "ghost"}
-						aria-current={section === "keybinds" ? "page" : undefined}
-						disabled={settingsBusy}
-						style={{ justifyContent: "flex-start" }}
-						onPress={() => {
-							clearToken();
-							setForm("list");
-							setSection("keybinds");
-						}}
-					>
-						<WorkspaceTabIcon name="keyboard" />
-						Keybinds
-					</Button>
-					<Button
-						testId="settings-privacy"
-						ref={section === "privacy" ? initialPage : undefined}
-						tokens={appTokens}
-						size="sm"
-						variant={section === "privacy" ? "secondary" : "ghost"}
-						aria-current={section === "privacy" ? "page" : undefined}
-						disabled={settingsBusy}
-						style={{ justifyContent: "flex-start" }}
-						onPress={() => {
-							clearToken();
-							setForm("list");
-							setSection("privacy");
-						}}
-					>
-						<WorkspaceTabIcon name="shield" testId="settings-privacy-icon" />
-						Privacy
-					</Button>
-					<Button
-						testId="settings-accounts"
-						ref={section === "accounts" ? initialPage : undefined}
-						tokens={appTokens}
-						size="sm"
-						variant={section === "accounts" ? "secondary" : "ghost"}
-						aria-current={section === "accounts" ? "page" : undefined}
-						disabled={settingsBusy}
-						onPress={() => {
-							clearToken();
-							setSection("accounts");
-							setForm("list");
-						}}
-						style={{ justifyContent: "flex-start" }}
-					>
-						<WorkspaceTabIcon
-							name="userCircle"
-							testId="settings-accounts-icon"
-						/>
-						Accounts
-					</Button>
-					<Button
-						testId="settings-git"
-						ref={section === "git" ? initialPage : undefined}
-						tokens={appTokens}
-						size="sm"
-						variant={section === "git" ? "secondary" : "ghost"}
-						aria-current={section === "git" ? "page" : undefined}
-						disabled={settingsBusy}
-						style={{ justifyContent: "flex-start" }}
-						onPress={() => {
-							clearToken();
-							setForm("list");
-							setSection("git");
-						}}
-					>
-						<WorkspaceTabIcon name="branch" />
-						Commit identity
-					</Button>
-					<Button
-						testId="settings-editor"
-						ref={section === "editor" ? initialPage : undefined}
-						tokens={appTokens}
-						size="sm"
-						variant={section === "editor" ? "secondary" : "ghost"}
-						aria-current={section === "editor" ? "page" : undefined}
-						disabled={settingsBusy}
-						style={{ justifyContent: "flex-start" }}
-						onPress={() => {
-							clearToken();
-							setForm("list");
-							setSection("editor");
-						}}
-					>
-						<svg
-							source={accountActionIcons.reconnect}
-							style={{
-								width: 14,
-								height: 14,
-								color: appTokens.colors.textMuted,
-								pointerEvents: "none",
-							}}
-						/>
-						External editor
-					</Button>
-					<Button
-						testId="settings-ai"
-						ref={section === "ai" ? initialPage : undefined}
-						tokens={appTokens}
-						size="sm"
-						variant={section === "ai" ? "secondary" : "ghost"}
-						aria-current={section === "ai" ? "page" : undefined}
-						disabled={settingsBusy}
-						style={{ justifyContent: "flex-start" }}
-						onPress={() => {
-							clearToken();
-							setForm("list");
-							setSection("ai");
-						}}
-					>
-						<WorkspaceTabIcon name="sparkle" />
-						AI
-					</Button>
+					{(["application", "repository"] as const).map((group) => {
+						const pages = availablePages.filter((item) => item.group === group);
 
-					{repositorySettings || repositoryAppearance ? (
-						<>
-							<text
-								testId="settings-repository-group"
-								role="heading"
-								aria-level={2}
-								style={{ ...groupHeading, marginTop: spacing[5] }}
+						return pages.length ? (
+							<div
+								key={group}
+								style={{
+									display: "flex",
+									flexDirection: "column",
+									gap: spacing[1.5],
+									flexShrink: 0,
+								}}
 							>
-								Repository
-							</text>
-							{(
-								[
-									...(repositorySettings
-										? [["repository-remotes", "Remotes", "branch"] as const]
-										: []),
-									...(repositoryAppearance
-										? [
-												[
-													"repository-appearance",
-													"Appearance",
-													"sparkle",
-												] as const,
-											]
-										: []),
-									...(repositorySettings
-										? [
-												[
-													"repository-identity",
-													"Commit identity",
-													"userCircle",
-												] as const,
-											]
-										: []),
-									...(ignoredHistory
-										? [
-												[
-													"repository-ignored-history",
-													"Ignored file history",
-													"check",
-												] as const,
-											]
-										: []),
-								] as const
-							).map(([next, label, icon]) => (
-								<Button
-									key={next}
-									ref={section === next ? initialPage : undefined}
-									testId={`settings-${next}`}
-									tokens={appTokens}
-									size="sm"
-									variant={section === next ? "secondary" : "ghost"}
-									aria-current={section === next ? "page" : undefined}
-									disabled={settingsBusy}
-									style={{ justifyContent: "flex-start" }}
-									onPress={() => {
-										clearToken();
-										setForm("list");
-										setSection(next);
+								<text
+									testId={`settings-${group}-group`}
+									role="heading"
+									aria-level={2}
+									style={{
+										...groupHeading,
+										marginTop: group === "repository" ? spacing[5] : spacing[3],
 									}}
 								>
-									<WorkspaceTabIcon name={icon} />
-									{label}
-								</Button>
-							))}
-						</>
-					) : null}
+									{group === "application" ? "Application" : "Repository"}
+								</text>
+								{pages.map((item) => (
+									<SettingsNavButton
+										key={item.section}
+										item={item}
+										ref={section === item.section ? initialPage : undefined}
+										active={section === item.section}
+										disabled={settingsBusy}
+										onSelect={(next) => {
+											clearToken();
+											setForm("list");
+											setSection(next);
+										}}
+									/>
+								))}
+							</div>
+						) : null;
+					})}
 				</div>
 			}
 		>

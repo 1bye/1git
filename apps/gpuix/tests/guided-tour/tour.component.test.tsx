@@ -292,6 +292,9 @@ it("pauses for Settings and replays from Appearance", async () => {
 	root.renderer.simulateKeystrokes("cmd-,");
 	await settle();
 	await click("settings-appearance");
+	root.renderer.scrollIntoView(node("settings-replay-tips").id);
+	root.renderer.advanceTime(1);
+	await settle();
 	await click("settings-replay-tips");
 	expect(node("tour-step-tab-menu")).toBeDefined();
 	root.render(<div />);

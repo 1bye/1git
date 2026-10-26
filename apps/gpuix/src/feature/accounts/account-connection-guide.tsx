@@ -1,4 +1,4 @@
-import { settingsStyles } from "../settings/settings-layout";
+import { settingsLayout, settingsStyles } from "../settings/settings-layout";
 import { useAppTheme } from "../../styles/theme";
 import { spacing, radius } from "@1git/design-tokens";
 import { ChoiceTile as AccountChoiceTile } from "../../fixture/choice-tile";
@@ -25,7 +25,11 @@ const icons = {
 		'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path d="M138,180a10,10,0,1,1-10-10A10,10,0,0,1,138,180ZM128,74c-21,0-38,15.25-38,34v4a6,6,0,0,0,12,0v-4c0-12.13,11.66-22,26-22s26,9.87,26,22-11.66,22-26,22a6,6,0,0,0-6,6v8a6,6,0,0,0,12,0v-2.42c18.11-2.58,32-16.66,32-33.58C166,89.25,149,74,128,74Zm102,54A102,102,0,1,1,128,26,102.12,102.12,0,0,1,230,128Zm-12,0a90,90,0,1,0-90,90A90.1,90.1,0,0,0,218,128Z"/></svg>',
 };
 
-const column = { display: "flex", flexDirection: "column", gap: spacing[1.5] };
+const column = {
+	display: "flex",
+	flexDirection: "column",
+	gap: settingsLayout.labelGap,
+};
 
 /** Small, keyboard-activatable provider cells; unsupported providers open a contribution/request draft. */
 export function AccountProviderChoices({
@@ -192,7 +196,7 @@ function AccountSetupValue({
 
 	return (
 		<div style={{ ...column, gap: spacing[1] }}>
-			<text style={detail}>{label}</text>
+			<text style={settingsStyles.get(theme).label}>{label}</text>
 			<div
 				style={{
 					display: "flex",
@@ -286,7 +290,10 @@ export function AccountConnectionGuide({
 	const name = accountSetup[provider].name;
 
 	return (
-		<div testId="account-setup-guide" style={{ ...column, gap: spacing[3.5] }}>
+		<div
+			testId="account-setup-guide"
+			style={{ ...column, gap: settingsLayout.rowGap }}
+		>
 			<AccountSetupSection label={manual ? "Token setup" : "Application setup"}>
 				<div
 					style={{

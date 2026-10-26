@@ -59,6 +59,7 @@ export function RepositoryAppearance({
 				</div>
 				<Button
 					testId="repository-appearance-customize"
+					style={{ alignSelf: "flex-start" }}
 					tokens={tokens}
 					onPress={onCustomize}
 					disabled={!onCustomize}

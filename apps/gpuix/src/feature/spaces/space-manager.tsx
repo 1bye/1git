@@ -274,7 +274,7 @@ export function SpaceManager({
 					>
 						{space ? "Edit space" : "New space"}
 					</text>
-					<text style={{ ...styles.description }}>Name</text>
+					<text style={styles.label}>Name</text>
 					<input
 						testId="space-name"
 						aria-label="Space name"
@@ -298,7 +298,7 @@ export function SpaceManager({
 							if (event.key === "enter") save();
 						}}
 					/>
-					<text style={{ ...styles.description }}>Icon</text>
+					<text style={styles.label}>Icon</text>
 					<TooltipProvider delayDuration={350}>
 						<div
 							testId="space-icons"

@@ -82,7 +82,7 @@ export function AccountConnectionFields({
 			style={{
 				display: "flex",
 				flexDirection: "column",
-				gap: spacing[3.5],
+				gap: settingsLayout.rowGap,
 				width: "100%",
 				maxWidth,
 				flexShrink: 0,
@@ -300,7 +300,7 @@ export function AccountConnectionFields({
 /** Keep actions outside the scrollable form so cancellation is always accessible. */
 export function AccountConnectionActions({
 	connection,
-	maxWidth = 480,
+	maxWidth = settingsLayout.width,
 }: {
 	connection: AccountConnection;
 	maxWidth?: StyleDesc["maxWidth"];

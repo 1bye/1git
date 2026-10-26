@@ -332,7 +332,15 @@ export function SettingsPanel({
 				</div>
 			</div>
 			<div testId={footerTestId} style={styles.footer}>
-				{footer}
+				<div
+					style={{
+						...styles.column,
+						width: "100%",
+						maxWidth: settingsLayout.width,
+					}}
+				>
+					{footer}
+				</div>
 			</div>
 		</div>
 	);

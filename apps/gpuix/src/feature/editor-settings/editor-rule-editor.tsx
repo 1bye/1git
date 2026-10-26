@@ -142,7 +142,7 @@ export function EditorRuleEditor({
 							flexShrink: 0,
 						}}
 					>
-						<text style={{ ...styles.description }}>Application</text>
+						<text style={styles.label}>Application</text>
 						<Button
 							testId="editor-rule-choose-application"
 							tokens={appTokens}

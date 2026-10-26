@@ -176,7 +176,7 @@ export function RemoteAccount({
 					aria-label={label}
 					style={{ display: "flex", flexDirection: "column", gap: spacing[2] }}
 				>
-					<text style={{ ...styles.description }}>{label}</text>
+					<text style={styles.label}>{label}</text>
 					{choices.map((item, index) =>
 						index % 2 === 0 ? (
 							<div
