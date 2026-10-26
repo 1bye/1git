@@ -1,4 +1,7 @@
-import { IgnoredHistorySettings } from "../ignored-history/ignored-history-settings";
+import {
+	IgnoredHistorySettings,
+	type IgnoredHistorySettingsHandle,
+} from "../ignored-history/ignored-history-settings";
 import type {
 	IgnoredHistory,
 	IgnoredRepository,
@@ -332,6 +335,7 @@ export function AccountsSettings({
 	const [gitBusy, setGitBusy] = useState(false);
 	const gitBusyRef = useRef(false);
 	const spacesEditor = useRef<SpacesSettingsHandle | null>(null);
+	const ignoredSettings = useRef<IgnoredHistorySettingsHandle | null>(null);
 	const gitSettings = useRef<GitSettingsHandle | null>(null);
 	const editorSettings = useRef<EditorSettingsHandle | null>(null);
 	const aiSettings = useRef<AiSettingsHandle | null>(null);
@@ -367,6 +371,8 @@ export function AccountsSettings({
 				if (gitBusyRef.current) return;
 
 				if (spacesEditor.current?.cancelEditor()) return;
+
+				if (ignoredSettings.current?.cancelEditor()) return;
 
 				if (gitSettings.current?.cancelEditor()) return;
 
@@ -572,6 +578,7 @@ export function AccountsSettings({
 				/>
 			) : section === "repository-ignored-history" && ignoredHistory ? (
 				<IgnoredHistorySettings
+					ref={ignoredSettings}
 					key={ignoredHistory.repository.root}
 					{...ignoredHistory}
 					disabled={repositorySettings?.disabled}

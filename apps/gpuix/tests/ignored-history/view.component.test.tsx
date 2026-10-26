@@ -6,6 +6,7 @@
  */
 import { afterEach, expect, it, spyOn } from "bun:test";
 import { createTestRoot, type TestRoot } from "@gpuix/react/testing";
+import { windowOptions } from "../../src/window-options";
 import { App } from "../../src/app";
 import { Accounts } from "../../src/feature/accounts/lib/accounts";
 import { AccountStore } from "../../src/feature/accounts/lib/account-store";
@@ -144,7 +145,11 @@ it.each([
 		});
 
 		try {
-			root = createTestRoot({ width, height: 900 });
+			root = createTestRoot({
+				width,
+				height: 900,
+				onKeyDown: windowOptions.onKeyDown,
+			});
 			root.render(
 				<App
 					accounts={accounts}
@@ -180,30 +185,23 @@ it.each([
 				width
 			);
 
-			for (const id of [
-				"ignored-history-paths",
-				"ignored-history-budget",
-				"ignored-history-versions",
-			]) {
-				const bounds = root.renderer.getElementBounds(node(id).id);
-
-				expect(bounds).toBeDefined();
-				expect(bounds?.x).toBeGreaterThanOrEqual(formBounds?.x ?? 0);
-				expect(bounds?.width).toBeLessThanOrEqual(formBounds?.width ?? 0);
-			}
-
-			root.renderer.nativeSimulateKeyDown(
-				node("ignored-history-enabled").id,
-				"space"
-			);
-			root.renderer.nativeSimulateKeyUp(
-				node("ignored-history-enabled").id,
-				"space"
-			);
+			await press("ignored-history-add-path");
+			expect(node("ignored-history-editor")).toBeDefined();
 			root.renderer.nativeSimulateKeystrokes(
 				node("ignored-history-paths").id,
-				"cmd-a . e n v enter p r i v a t e - c o n f i g"
+				"p r i v a t e - c o n f i g"
 			);
+			await settle();
+			await press("ignored-history-add");
+			expect(configure).toHaveBeenCalledTimes(1);
+			expect(configure.mock.calls[0]?.[1]).toMatchObject({
+				enabled: false,
+				paths: [".env", "private-config"],
+			});
+			expect(
+				root.renderer.findByTestId("ignored-history-editor")
+			).toBeUndefined();
+			await press("ignored-history-edit-limits");
 			root.renderer.nativeSimulateKeystrokes(
 				node("ignored-history-budget").id,
 				"cmd-a 2 5 6"
@@ -213,14 +211,41 @@ it.each([
 				"cmd-a 1 0"
 			);
 			await settle();
-			await press("ignored-history-save");
-			expect(configure).toHaveBeenCalledTimes(1);
-			expect(configure.mock.calls[0]?.[1]).toMatchObject({
+			await press("ignored-history-save-limits");
+			expect(configure).toHaveBeenCalledTimes(2);
+			root.renderer.nativeSimulateKeyDown(
+				node("ignored-history-enabled").id,
+				"space"
+			);
+			root.renderer.nativeSimulateKeyUp(
+				node("ignored-history-enabled").id,
+				"space"
+			);
+			await settle();
+			expect(configure).toHaveBeenCalledTimes(3);
+			expect(configure.mock.calls[2]?.[1]).toMatchObject({
 				enabled: true,
 				paths: [".env", "private-config"],
 				budgetBytes: 256 * 1024 ** 2,
 				maxVersions: 10,
 			});
+			expect(
+				root.renderer.findByTestId("ignored-history-save")
+			).toBeUndefined();
+			await press("ignored-history-add-path");
+			root.renderer.nativeSimulateKeystrokes(
+				node("ignored-history-paths").id,
+				"u n s a v e d"
+			);
+			root.renderer.simulateKeystrokes("escape");
+			await settle();
+			expect(
+				root.renderer.findByTestId("ignored-history-editor")
+			).toBeUndefined();
+			expect(root.renderer.getFocusedElementId()).toBe(
+				node("ignored-history-add-path").id
+			);
+			expect(configure).toHaveBeenCalledTimes(3);
 
 			if (process.env.GPUIX_IGNORED_SCREENSHOT)
 				root.renderer.captureScreenshot(
