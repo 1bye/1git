@@ -12,15 +12,26 @@ export class NativeBrowser {
 		if (url.protocol !== "https:" || url.username || url.password || url.hash)
 			throw new Error("Invalid browser URL.");
 
-		if (process.platform !== "darwin")
-			throw new Error("Opening the browser is currently supported on macOS.");
+		const command =
+			process.platform === "darwin"
+				? ["/usr/bin/open", url.href]
+				: process.platform === "linux"
+					? ["xdg-open", url.href]
+					: null;
 
-		const child = Bun.spawn(["/usr/bin/open", url.href], {
-			stdout: "ignore",
-			stderr: "ignore",
-		});
+		if (!command)
+			throw new Error("Opening the browser is not supported on this platform.");
 
-		if ((await child.exited) !== 0)
+		try {
+			const child = Bun.spawn(command, {
+				stdout: "ignore",
+				stderr: "ignore",
+			});
+
+			if ((await child.exited) !== 0)
+				throw new Error("Could not open the browser. Try again.");
+		} catch {
 			throw new Error("Could not open the browser. Try again.");
+		}
 	}
 }

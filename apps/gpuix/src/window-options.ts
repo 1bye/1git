@@ -10,7 +10,9 @@ import { handleRepositoryFilterKeyDown } from "./feature/repository-workspace/li
 import { handleWorkspaceKeyDown } from "./feature/repository-workspace/lib/repository-filter-shortcut";
 import { handleCloneNavigation } from "./feature/repository-workspace/lib/repository-filter-shortcut";
 
-/** Native window chrome and keyboard traversal; application content stays transparent around the workspace. */
+/** Native window chrome and keyboard traversal. On Linux there is no AppKit
+ *  vibrancy or traffic-light chrome, so the window keeps the compositor's
+ *  native decorations and an opaque background instead of the macOS look. */
 export const windowOptions: RenderOptions = {
 	height: 820,
 	width: 1280,
@@ -18,11 +20,15 @@ export const windowOptions: RenderOptions = {
 	minWidth: 640,
 	minHeight: 420,
 	title: "1git",
-	titlebarTransparent: true,
-	appOwnsTitlebarDrag: true,
-	windowBackground: "blurred",
-	trafficLightX: 16,
-	trafficLightY: 13,
+	...(process.platform === "darwin"
+		? {
+				titlebarTransparent: true,
+				appOwnsTitlebarDrag: true,
+				windowBackground: "blurred",
+				trafficLightX: 16,
+				trafficLightY: 13,
+			}
+		: {}),
 	onKeyDown(event, renderer) {
 		if (handlePopoverKeyDown(event, renderer)) return;
 

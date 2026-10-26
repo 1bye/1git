@@ -133,6 +133,39 @@ export class SshConnection {
 
 		if (saved) return saved;
 
+		// Linux has no osascript. zenity (GNOME, usually preinstalled on
+		// Ubuntu) provides the equivalent out-of-process dialog; a missing
+		// zenity or a cancelled dialog fails the SSH attempt, it never
+		// silently falls back to another credential source.
+		if (process.platform === "linux") {
+			if (confirmation) {
+				await execute(
+					"zenity",
+					["--question", "--title=1git SSH", `--text=${text}`],
+					{
+						signal: this.controller.signal,
+						maxBuffer: 16384,
+					}
+				);
+
+				return "yes";
+			}
+
+			const result = await execute(
+				"zenity",
+				["--password", "--title=1git SSH", `--text=${text}`],
+				{
+					signal: this.controller.signal,
+					maxBuffer: 16384,
+				}
+			);
+
+			return result.stdout.replace(/\r?\n$/, "");
+		}
+
+		if (process.platform !== "darwin")
+			throw new Error("SSH prompts are not supported on this platform.");
+
 		const script = confirmation
 			? 'on run argv\ndisplay dialog (item 1 of argv) buttons {"Cancel", "Trust host"} default button "Cancel" with title "1git SSH"\nreturn "yes"\nend run'
 			: 'on run argv\nset answer to display dialog (item 1 of argv) default answer "" with hidden answer buttons {"Cancel", "Connect"} default button "Connect" with title "1git SSH"\nreturn text returned of answer\nend run';

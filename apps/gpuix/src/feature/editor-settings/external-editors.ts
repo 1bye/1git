@@ -515,9 +515,6 @@ export class ExternalEditors {
 
 	/** Re-read the preference for each explicit file open. An unavailable choice fails instead of silently launching another app. */
 	async open(absolute: string, override?: string | null): Promise<void> {
-		if (process.platform !== "darwin")
-			throw new Error("Open in editor currently requires macOS.");
-
 		if (
 			!isAbsolute(absolute) ||
 			(await realpath(absolute)) !== absolute ||
@@ -526,6 +523,19 @@ export class ExternalEditors {
 			throw new Error(
 				"Only existing regular files can be opened in an editor."
 			);
+
+		// Linux has no .app catalog yet (see LINUX-PORT.md). An explicit
+		// executable path is run directly; otherwise the default handler
+		// (xdg-open) is used. Catalog discovery for code/cursor/zed is TODO.
+		if (process.platform === "linux") {
+			if (override) await this.run(override, [absolute]);
+			else await this.run("xdg-open", [absolute]);
+
+			return;
+		}
+
+		if (process.platform !== "darwin")
+			throw new Error("Open in editor currently requires macOS.");
 
 		const selected =
 			override === undefined

@@ -30,6 +30,34 @@ export const copyImageRuntime = async (resources: string): Promise<void> => {
 	}
 };
 
+/** Linux counterpart of copyImageRuntime: the glibc (not musl) sharp runtime
+ *  for the build host's architecture. Ubuntu 20.04 is glibc, so the
+ *  linuxmusl packages must not be substituted here. */
+export const copyImageRuntimeLinux = async (
+	resources: string,
+	arch: string
+): Promise<void> => {
+	const linuxPackages = [
+		"sharp",
+		`@img/sharp-linux-${arch}`,
+		`@img/sharp-libvips-linux-${arch}`,
+		"@img/colour",
+		"detect-libc",
+		"semver",
+	] as const;
+
+	for (const name of linuxPackages) {
+		const manifest = sharpRequire.resolve(`${name}/package.json`);
+		const destination = resolve(resources, "node_modules", name);
+
+		await mkdir(dirname(destination), { recursive: true });
+		await cp(dirname(manifest), destination, {
+			recursive: true,
+			dereference: true,
+		});
+	}
+};
+
 export const bundleInfoPlist = (
 	version: string,
 	updates?: UpdateConfiguration

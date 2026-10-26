@@ -55,11 +55,20 @@ import {
 	systemAppearancePlatformPatchPath,
 } from "./config";
 
-if (process.platform !== "darwin" || process.arch !== "arm64") {
+const supportedNativeBuild =
+	(process.platform === "darwin" && process.arch === "arm64") ||
+	(process.platform === "linux" && ["x64", "arm64"].includes(process.arch));
+
+if (!supportedNativeBuild) {
 	throw new Error(
-		"The local GPUIX build currently supports Apple Silicon macOS only."
+		"The local GPUIX build currently supports Apple Silicon macOS and Linux x64/arm64 only."
 	);
 }
+
+// The *-platform patches that target crates/gpui_macos still apply cleanly
+// on Linux (those source files exist in the checkout); they are simply not
+// compiled into the Linux addon. Keeping the full patch stack avoids a
+// second, diverging patch set for Linux.
 
 const source = resolve(appDirectory, ".cache/native-source");
 
@@ -229,7 +238,10 @@ if (
 		resolve(source, "packages/native")
 	);
 	await copyFile(
-		resolve(source, "packages/native/target/release/libgpuix_native.dylib"),
+		resolve(
+			source,
+			`packages/native/target/release/libgpuix_native.${process.platform === "darwin" ? "dylib" : "so"}`
+		),
 		`${nativeLibrary}.tmp`
 	);
 	await rename(`${nativeLibrary}.tmp`, nativeLibrary);

@@ -1,16 +1,39 @@
-/** Shared macOS text clipboard boundary. Values travel through stdin, never shell commands. */
+/** Shared text clipboard boundary. Values travel through stdin, never shell commands. */
 export class NativeClipboard {
 	static async write(value: string): Promise<void> {
-		if (process.platform !== "darwin")
-			throw new Error("Clipboard copying is currently supported on macOS.");
+		// Wayland first, then X11. Each candidate is tried in order; a missing
+		// binary exits non-zero and falls through to the next one.
+		const commands =
+			process.platform === "darwin"
+				? [["/usr/bin/pbcopy"]]
+				: process.platform === "linux"
+					? [
+							["wl-copy"],
+							["xclip", "-selection", "clipboard"],
+							["xsel", "--clipboard", "--input"],
+						]
+					: [];
 
-		const child = Bun.spawn(["/usr/bin/pbcopy"], {
-			stdin: new TextEncoder().encode(value),
-			stdout: "ignore",
-			stderr: "ignore",
-		});
+		if (!commands.length)
+			throw new Error("Clipboard copying is not supported on this platform.");
 
-		if ((await child.exited) !== 0)
-			throw new Error("Could not copy to the clipboard.");
+		for (const command of commands) {
+			try {
+				const child = Bun.spawn(command, {
+					stdin: new TextEncoder().encode(value),
+					stdout: "ignore",
+					stderr: "ignore",
+				});
+
+				if ((await child.exited) === 0) return;
+			} catch {
+				// Bun.spawn throws when the binary is missing; try the next one.
+				continue;
+			}
+		}
+
+		throw new Error(
+			"Could not copy to the clipboard. On Linux, install wl-clipboard (Wayland) or xclip (X11)."
+		);
 	}
 }

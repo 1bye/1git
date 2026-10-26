@@ -24,6 +24,7 @@
     "build:web": "turbo run build --filter=@1git/web",
     "build": "turbo run build",
     "package:macos": "turbo run package:macos --filter=@1git/gpuix",
+    "package:linux": "turbo run package:linux --filter=@1git/gpuix",
     "setup:signing:macos": "turbo run setup:signing:macos --filter=@1git/gpuix",
     "test:signing:macos": "turbo run test:signing:macos --filter=@1git/gpuix",
     "test:package:macos": "turbo run test:package:macos --filter=@1git/gpuix",

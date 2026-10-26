@@ -29,6 +29,26 @@ import { ExternalEditors } from "../../editor-settings/external-editors";
 import type { CommitFileSelection } from "../types";
 
 const execute = promisify(execFile);
+
+/** Open a file or folder with the OS default handler. No shell interpolation. */
+async function openWithDefaultApp(absolute: string): Promise<void> {
+	if (process.platform === "darwin")
+		await execute("/usr/bin/open", [absolute], { timeout: 10_000 });
+	else if (process.platform === "linux")
+		await execute("xdg-open", [absolute], { timeout: 10_000 });
+	else throw new Error("Opening files is not supported on this platform.");
+}
+
+/** Reveal a path in the OS file manager. xdg-open has no -R equivalent, so
+ *  on Linux opening the parent folder is the closest match. */
+async function revealInFileManager(absolute: string): Promise<void> {
+	if (process.platform === "darwin")
+		await execute("/usr/bin/open", ["-R", absolute], { timeout: 10_000 });
+	else if (process.platform === "linux")
+		await execute("xdg-open", [join(absolute, "..")], { timeout: 10_000 });
+	else throw new Error("Revealing files is not supported on this platform.");
+}
+
 const nullObjectId = /^0+$/u;
 const objectId = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/iu;
 
@@ -103,7 +123,7 @@ export class RepositoryFileActions {
 			);
 
 			if (kind === "editor") await editors.open(absolute, application);
-			else await execute("/usr/bin/open", [absolute], { timeout: 10_000 });
+			else await openWithDefaultApp(absolute);
 		} catch (cause) {
 			await rm(directory, { recursive: true, force: true });
 
@@ -121,7 +141,7 @@ export class RepositoryFileActions {
 
 		const path = await realpath(directory);
 
-		await execute("/usr/bin/open", ["-R", path], { timeout: 10_000 });
+		await openWithDefaultApp(path);
 	}
 
 	static async revealRecovery(directory: string) {
@@ -130,7 +150,7 @@ export class RepositoryFileActions {
 				`Recovery files are on your SSH machine: ${MachineLocation.display(directory)}`
 			);
 
-		await execute("/usr/bin/open", [directory], { timeout: 10_000 });
+		await openWithDefaultApp(directory);
 	}
 	static async open(
 		root: string,
@@ -197,11 +217,8 @@ export class RepositoryFileActions {
 				"Only existing regular files inside the repository can be opened or revealed."
 			);
 
-		await execute(
-			"/usr/bin/open",
-			kind === "finder" ? ["-R", absolute] : [absolute],
-			{ timeout: 10_000 }
-		);
+		if (kind === "finder") await revealInFileManager(absolute);
+		else await openWithDefaultApp(absolute);
 	}
 
 	static async ignore(root: string, request: FileIgnoreRequest) {

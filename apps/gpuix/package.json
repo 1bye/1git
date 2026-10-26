@@ -10,6 +10,7 @@
     "setup:signing:macos": "bun native/setup-signing.ts",
     "test:signing:macos": "bun test tests/packaging/signing.integration.test.ts tests/packaging/hardened-runtime.integration.test.ts",
     "package:macos": "bun native/package-macos.ts",
+    "package:linux": "bun native/package-linux.ts",
     "test:package:macos": "bun test tests/packaging/launch.integration.test.ts",
     "test:updates:macos": "bun test tests/updater/install.integration.test.ts tests/updater/lifecycle.integration.test.ts tests/updater/preparation.integration.test.ts",
     "prepare:updates:macos": "bun native/prepare-updates.ts",
