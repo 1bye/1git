@@ -179,7 +179,7 @@ it("leaves the index and working files untouched if a streamed backup cannot be 
 	await git("add", "a.txt");
 	await writeFile(join(root, "a.txt"), "working\n");
 	const originalIndex = await readFile(join(root, ".git/index"));
-	const filesystem = await import("node:fs/promises");
+	const filesystem = await import("@1git/git/runtime");
 	const originalOpen = filesystem.open;
 
 	spyOn(filesystem, "open").mockImplementation(async (...args) => {
@@ -194,6 +194,11 @@ it("leaves the index and working files untouched if a streamed backup cannot be 
 	});
 	const result = await discard("a.txt");
 
+	expect(filesystem.open).toHaveBeenCalledWith(
+		join(root, ".git/recovery/working.patch"),
+		"wx",
+		0o600
+	);
 	expect(result.ok).toBe(false);
 	expect(await readFile(join(root, ".git/index"))).toEqual(originalIndex);
 	expect(await readFile(join(root, "a.txt"), "utf8")).toBe("working\n");

@@ -371,7 +371,9 @@ it.each(["publish", "push"] as const)(
 				expectedHead: head,
 				expectedBranch: "feature/ui",
 			}),
-			expect.any(AbortSignal)
+			expect.any(AbortSignal),
+			undefined,
+			expect.any(Function)
 		);
 		expect(browser).not.toHaveBeenCalled();
 		expect(root.renderer.getPaintedText().join(" ")).toContain(

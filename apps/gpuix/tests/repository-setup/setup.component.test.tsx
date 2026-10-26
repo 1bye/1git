@@ -183,6 +183,9 @@ for (const appearance of ["light", "dark"] as const) {
 		await settle();
 		click("welcome-view-list");
 		click("welcome-folder-other");
+		click("welcome-search");
+		root.renderer.nativeSimulateMouseMove(0, 0);
+		root.renderer.flush();
 		const action = () =>
 			root.renderer.findByTestId("welcome-forget-/test/project");
 
@@ -650,9 +653,12 @@ it("searches remembered repositories after closing all tabs and reopens without 
 	root.renderer.flush();
 	click("welcome-view-list");
 	click("welcome-folder-other");
+	await settle();
+	const readsBeforeOpening = reader.mock.calls.length;
+
 	click("welcome-repository-/test/project");
 	await settle();
-	expect(reader).toHaveBeenCalledTimes(2);
+	expect(reader).toHaveBeenCalledTimes(readsBeforeOpening + 1);
 	expect(picker).not.toHaveBeenCalled();
 	expect(root.renderer.findByTestId("commit-composer")).toBeDefined();
 });

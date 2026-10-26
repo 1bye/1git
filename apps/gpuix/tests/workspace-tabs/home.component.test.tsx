@@ -106,9 +106,14 @@ function tabCount() {
 	return Object.values(root.renderer.getA11yTree().nodes ?? {}).filter(
 		(item) =>
 			item.aria?.role === "Tab" &&
-			!["Changes", "History", "Stashes", "Tile view", "List view"].includes(
-				item.aria.label ?? ""
-			)
+			![
+				"Changes",
+				"History",
+				"Stashes",
+				"Graph",
+				"Tile view",
+				"List view",
+			].includes(item.aria.label ?? "")
 	).length;
 }
 
@@ -284,7 +289,9 @@ it("preserves tabs, drafts, checked files and selection and reuses an already-op
 	expect(node("include-a.ts").customProps?.["aria-checked"]).toBe(false);
 	expect(node("entry-a.ts").customProps?.["aria-selected"]).toBe(true);
 	expect(tabCount()).toBe(2);
-	expect(read).toHaveBeenCalledTimes(2);
+	expect(
+		read.mock.calls.filter(([path]) => path === "/test/project")
+	).toHaveLength(1);
 	click("workspace-home");
 	click("welcome-repository-/test/third");
 	await settle();

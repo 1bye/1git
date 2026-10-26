@@ -63,6 +63,8 @@ const pump = async (): Promise<void> => {
 
 try {
 	await pump();
+	renderer.activateWindow();
+	await pump();
 	assert.ok(scrollId, "scroll surface must be mounted");
 
 	const bounds = renderer.getElementBounds(scrollId);
@@ -77,7 +79,7 @@ try {
 			bounds.x + 100,
 			bounds.y + 80,
 			0,
-			commitEditor ? 8 : -8
+			commitEditor && event % 2 === 0 ? 8 : -8
 		);
 	}
 
@@ -99,12 +101,10 @@ try {
 	for (let burst = 0; burst < 4; burst++) {
 		const frames = renderer.getDebugFrameOverlayStats().frames;
 
-		renderer.simulateScrollWheel(
-			bounds.x + 100,
-			bounds.y + 80,
-			0,
-			commitEditor ? 8 : -8
-		);
+		// A textarea can start at either scroll boundary after following its caret.
+		for (const delta of commitEditor ? [8, -8] : [-8])
+			renderer.simulateScrollWheel(bounds.x + 100, bounds.y + 80, 0, delta);
+
 		await pump();
 		assert.ok(
 			renderer.getDebugFrameOverlayStats().frames > frames,
