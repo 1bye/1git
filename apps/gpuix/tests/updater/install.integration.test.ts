@@ -134,6 +134,34 @@ for (const mode of [
 						? new MacSigning(null)
 						: signing;
 
+				// Copied Developer ID helpers must match this disposable host's signer.
+				// Otherwise XPC rejects the fixture before it can test installation.
+				const framework = resolve(contents, "Frameworks/Sparkle.framework");
+
+				for (const path of [
+					"Versions/B/XPCServices/Downloader.xpc",
+					"Versions/B/XPCServices/Installer.xpc",
+					"Versions/B/Updater.app",
+					"Versions/B/Autoupdate",
+					"",
+				])
+					await signer.sign(
+						resolve(framework, path),
+						async (args) => {
+							await run(args);
+						},
+						{
+							preserveEntitlements:
+								path === "Versions/B/XPCServices/Downloader.xpc",
+						}
+					);
+
+				await signer.sign(
+					resolve(contents, "Frameworks/1git-updater.dylib"),
+					async (args) => {
+						await run(args);
+					}
+				);
 				await signer.sign(app, async (args) => {
 					await run(args);
 				});
