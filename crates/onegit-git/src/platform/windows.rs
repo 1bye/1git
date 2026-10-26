@@ -64,29 +64,29 @@ use windows_sys::Win32::System::Threading::{
 use super::{Access, FileState, PathEncodingError, Signal, windows_policy};
 
 pub(crate) fn native_path_from_git_bytes(bytes: &[u8]) -> Result<PathBuf, PathEncodingError> {
-    let text = std::str::from_utf8(bytes).map_err(|_| PathEncodingError)?;
+    let text = std::str::from_utf8(bytes).map_err(|_| PathEncodingError::UNREPRESENTABLE)?;
     Ok(PathBuf::from(windows_policy::native_git_path(text)?))
 }
 
 pub(crate) fn git_argument(bytes: &[u8]) -> Result<OsString, PathEncodingError> {
     Ok(OsString::from(
-        std::str::from_utf8(bytes).map_err(|_| PathEncodingError)?,
+        std::str::from_utf8(bytes).map_err(|_| PathEncodingError::UNREPRESENTABLE)?,
     ))
 }
 
 pub(crate) fn absolute_path_from_git_bytes(bytes: &[u8]) -> Result<PathBuf, PathEncodingError> {
-    let text = std::str::from_utf8(bytes).map_err(|_| PathEncodingError)?;
+    let text = std::str::from_utf8(bytes).map_err(|_| PathEncodingError::UNREPRESENTABLE)?;
     let path = PathBuf::from(text);
 
     if !path.is_absolute() || text.contains('\0') {
-        return Err(PathEncodingError);
+        return Err(PathEncodingError::UNREPRESENTABLE);
     }
 
     Ok(path)
 }
 
 pub(crate) fn path_to_git_bytes(path: &OsStr) -> Result<Cow<'_, [u8]>, PathEncodingError> {
-    let text = path.to_str().ok_or(PathEncodingError)?;
+    let text = path.to_str().ok_or(PathEncodingError::UNREPRESENTABLE)?;
     let text = if let Some(unc) = text.strip_prefix("\\\\?\\UNC\\") {
         format!("//{unc}")
     } else {
@@ -98,7 +98,10 @@ pub(crate) fn path_to_git_bytes(path: &OsStr) -> Result<Cow<'_, [u8]>, PathEncod
 }
 
 fn path_error() -> io::Error {
-    io::Error::new(io::ErrorKind::InvalidInput, PathEncodingError)
+    io::Error::new(
+        io::ErrorKind::InvalidInput,
+        PathEncodingError::UNREPRESENTABLE,
+    )
 }
 
 pub(crate) const GRACEFUL_TERMINATION: bool = false;
@@ -1268,7 +1271,19 @@ mod tests {
         let separated = GitPath::new(b"folder/file").unwrap();
         let unicode = GitPath::new("folder\u{e000}bfile").unwrap();
         assert_eq!(literal.as_bytes(), b"folder\\file");
-        assert_eq!(literal.to_argument().unwrap(), OsStr::new("folder\\file"));
+        let error = literal.to_argument().unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::InvalidInput);
+        assert!(
+            error
+                .get_ref()
+                .is_some_and(|cause| cause.is::<PathEncodingError>())
+        );
+        assert!(literal.pathspec_bytes().is_err());
+        assert!(
+            error
+                .to_string()
+                .contains("Git for Windows cannot address this file name")
+        );
         assert_eq!(crate::output::path(b"folder\\file").unwrap(), literal);
         assert_ne!(literal, separated);
         assert_ne!(literal, unicode);
@@ -1280,7 +1295,7 @@ mod tests {
             BTreeSet::from([literal.clone(), separated.clone(), unicode.clone()]).len(),
             3
         );
-        assert!(crate::validation::require_paths([&literal]).is_ok());
+        assert!(crate::validation::require_paths([&literal]).is_err());
         assert!(crate::validation::require_paths([&separated]).is_ok());
         assert!(unicode.to_native().is_ok());
         for name in [b"\\x".as_slice(), b"C:\\x", b"\\\\?\\C:\\x"] {

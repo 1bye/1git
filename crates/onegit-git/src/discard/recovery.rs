@@ -293,12 +293,7 @@ impl Repository {
                     .tempdir()?;
 
                 let index = temporary.path().join("index");
-                let mut input = Vec::new();
-
-                for path in &untracked {
-                    input.extend_from_slice(path.as_bytes());
-                    input.push(0);
-                }
+                let input = crate::git_path::pathspec_list(&untracked)?;
 
                 let prepare = (|| {
                     self.discard_index_command(
@@ -413,10 +408,7 @@ pub(super) fn validate_paths(paths: &[GitPath]) -> Result<(), RepositoryError> {
             "Recovery metadata requires UTF-8 repository paths.",
         ))?;
 
-        if text
-            .split('/')
-            .any(|part| matches!(part, "" | "." | ".." | ".git"))
-        {
+        if text.split('/').any(|part| matches!(part, "" | "." | "..")) {
             return Err(RepositoryError::InvalidInput(
                 "Choose an ordinary literal repository-relative path.",
             ));
@@ -575,7 +567,7 @@ mod windows_tests {
             "folder\\.\\file",
         ] {
             let path = GitPath::new(path).unwrap();
-            assert!(validate_paths(std::slice::from_ref(&path)).is_ok());
+            assert!(validate_paths(std::slice::from_ref(&path)).is_err());
             assert!(path.to_native().is_err());
         }
 

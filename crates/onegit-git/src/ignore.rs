@@ -70,11 +70,7 @@ pub fn ignore_pattern(path: &GitPath, rule: &IgnoreRule) -> Result<String, Repos
         "Ignore rules require a UTF-8 repository path.",
     ))?;
 
-    if path.contains(['\r', '\n'])
-        || path
-            .split('/')
-            .any(|part| matches!(part, "" | "." | ".." | ".git"))
-    {
+    if path.contains(['\r', '\n']) || path.split('/').any(|part| matches!(part, "" | "." | "..")) {
         return Err(RepositoryError::InvalidInput(
             "Choose an ordinary repository-relative path without line breaks.",
         ));

@@ -78,9 +78,10 @@ Rake dependencies. Unix wrappers keep the original operations and behavior.
 - **Git names and native names are separate.** `GitPath` can display and compare
   `aux.c`, `a:b`, literal backslashes, control bytes and trailing-dot/space names.
   Windows native conversion rejects unrepresentable names before a filesystem
-  join/open. Git argument conversion retains literal UTF-8 spelling independently
-  of native filename validation; non-UTF-8 argv on Windows returns the typed path
-  error. Native user-supplied folders never pass through a Git-name decoder.
+  join/open. Git command selection also refuses literal backslashes before argv
+  or NUL-list encoding, because Git for Windows would normalize them to slashes.
+  Other UTF-8 spelling remains literal; non-UTF-8 argv on Windows returns the typed
+  path error. Native user-supplied folders never pass through a Git-name decoder.
 - **Network/SMB and FAT are unsupported for identity guarantees.** They have not
   been runtime-validated and may return unsupported, zero, changing or reused
   IDs. Queries that fail or return zero are refused explicitly. A server returning
@@ -120,11 +121,89 @@ Rake dependencies. Unix wrappers keep the original operations and behavior.
 
 | Finding | Disposition |
 | --- | --- |
-| A. Backslash splitting/collisions | Fixed with bytewise `GitPath` identity, direct Git-byte arguments, and typed rejection before native filesystem access. |
+| A. Backslash splitting/collisions | `GitPath` retains exact identity/display. Windows actions now refuse backslashes at the shared argv/NUL pathspec boundary as well as at native filesystem conversion; global literal mode alone does not prevent Git normalization. |
 | B. Drive-letter name verification | Fixed using `VOLUME_NAME_NONE`; query errors are distinct from absence and retain their cause. |
 | C. Unavailable graceful termination | Fixed: Windows reports no graceful termination and skips the delay. Unix timing is unchanged. |
 | D. Completed result replaced by disarm error | Fixed: best-effort disarm marks the child finished and preserves Git's result; descendant-termination risk is documented. |
 | E. Visible drive guard | Fixed by the breaking `GitPath` API: labels show drive-like names literally and require no native guard. |
+
+## Windows pathspec boundary and metadata guard
+
+The refusal approach keeps the public `GitPath` API, its exact bytes, equality and
+labels unchanged. `GitPath::pathspec_bytes` applies `platform::git_pathspec` before
+`to_argument` builds an argv value or `pathspec_list` builds a NUL-separated list.
+`require_paths` also runs that check at action preflight. On Windows, any literal
+backslash returns `InvalidInput` carrying `PathEncodingError` with the message
+“Git for Windows cannot address this file name without rewriting it”. The private
+error type now carries a static reason; no public error variant or API was added.
+Commit validation retains that cause instead of replacing it with a generic
+invalid-path message. Native conversion remains a separate check.
+
+On Unix the check returns the same borrowed bytes; argument conversion, NUL entry
+order/terminators and global `--literal-pathspecs` flags stay unchanged. On every
+OS, parsing/listing status, diff stats and history still retains exact Git names.
+The only new Unix selection restriction is the requested case-insensitive `.git`
+guard. A refusal never filters an entry out of a listing.
+
+### Git source basis (pinned v2.51.0)
+
+- [`init_pathspec_item`, pathspec.c:481–503](https://github.com/git/git/blob/v2.51.0/pathspec.c#L481-L503)
+  takes the normalization branch without top magic, even in literal mode.
+  [`prefix_path_gently`, setup.c:124–150](https://github.com/git/git/blob/v2.51.0/setup.c#L124-L150)
+  calls [`normalize_path_copy_len`, path.c:1215–1282](https://github.com/git/git/blob/v2.51.0/path.c#L1215-L1282),
+  which copies either Windows separator as `/`. Windows
+  [`is_dir_sep`, compat/win32/path-utils.h:9](https://github.com/git/git/blob/v2.51.0/compat/win32/path-utils.h#L9)
+  aliases [`is_xplatform_dir_sep`, git-compat-util.h:182–185](https://github.com/git/git/blob/v2.51.0/git-compat-util.h#L182-L185).
+- [`parse_pathspec_file`, pathspec.c:688–722](https://github.com/git/git/blob/v2.51.0/pathspec.c#L688-L722)
+  collects NUL-delimited entries and passes them to `parse_pathspec`. Thus the
+  selected-commit files and discard's `add --intent-to-add` stdin need the same
+  guard as argv. NUL quoting preserves record boundaries, not filename identity.
+- Object names are a distinct Git code path: `get_oid_with_context_1` uses
+  [`resolve_relative_path`, object-name.c:2004–2015](https://github.com/git/git/blob/v2.51.0/object-name.c#L2004-L2015)
+  only for `./` or `../`, then passes tree names to
+  [`get_tree_entry`, object-name.c:2141–2154](https://github.com/git/git/blob/v2.51.0/object-name.c#L2141-L2154).
+  Index-stage names use [`index_name_pos`, object-name.c:2086–2114](https://github.com/git/git/blob/v2.51.0/object-name.c#L2086-L2114).
+  These branches do not themselves demonstrate pathspec normalization for our
+  validated relative names. This change nevertheless applies the same conservative
+  Windows refusal to both `revision:path` and `:stage:path`, as requested, rather
+  than creating a second addressing contract without Windows runtime evidence.
+- [`is_ntfs_dotgit`, path.c:1510–1544](https://github.com/git/git/blob/v2.51.0/path.c#L1510-L1544)
+  is the basis for the pure Windows alias predicate. It is applied regardless of
+  local `core.protectNTFS` configuration.
+
+### Audited command and validation call sites
+
+The existing argv call sites inherit the new check through `to_argument`; they do
+not need per-command escaping or changed flags. Both previous raw NUL builders
+were replaced with the shared encoder.
+
+| Call site | Protected input |
+| --- | --- |
+| `mutations::change_index` | Stage and unstage `-- <path>` arguments. |
+| `history::history`, `history::file_history` | Path filters and rename-follow selection. |
+| `diff::add_paths` | Diff and temporary-index/ls-files filters. |
+| `diff::untracked_diff` | No-index file argument; the native sentinel stays separate. |
+| `conflicts::resolve_conflict`, `conflicts::conflict_side` | Add pathspec and `:2:path` / `:3:path` object selection. |
+| `content::file_content` | `revision:path` object selection. |
+| `discard::recovery::diff_args` | Recovery patch diff pathspecs. |
+| `discard::recovery::capture_discard` | NUL stdin for `add --intent-to-add --pathspec-from-file=- --pathspec-file-nul`; these are pathspecs, not index-info records. |
+| `integration::reviewed::protect_ignored_integration` | Literal `ls-files --others --ignored --exclude-standard` pathspecs. |
+| `selected_commit::transaction::commit_selected_files` | NUL pathspec file shared by `commit --only` and partial-index `reset`; the original list builder was removed. |
+| `selected_commit::transaction::add_commit_paths` | NUL stdin for private-index `add --all`. |
+| `selected_commit::transaction::validate` | Preserve typed pathspec refusal before native checks/index locks. |
+| `validation::require_paths` | Action preflight uses the same pathspec check and metadata predicate. |
+| `ignore::ignore_pattern`, `discard::recovery::validate_paths` | Delegate metadata checks to `require_paths`; remove duplicate case-sensitive `.git` checks. |
+
+### Metadata-name rules
+
+Every Git component is compared ASCII-case-insensitively with `.git` on all OSes,
+so `.GIT/config`, `.Git/hooks/x` and nested variants are refused. Windows additionally
+matches the `is_ntfs_dotgit` rules: `.git` and `git~1` case variants followed by only
+dots/spaces, an ADS colon suffix, a separator boundary or end-of-name are aliases.
+This includes `.git.`, `.git `, `.git::$INDEX_ALLOCATION`, all other `.git` ADS,
+`GIT~1`, `git~1. ` and `git~1:stream`. Backslashes anywhere are independently
+refused as command selectors. `.gitignore`, `.github/x`, `foo.git` and `git~10`
+are not aliases. The same guard serves ignore-pattern validation.
 
 ## GitPath API and migration inventory
 
@@ -164,8 +243,10 @@ serde-facing path-type convention. No dependencies were added.
 Methods consuming/returning these records retain their operation contracts;
 status, diff, history, conflict and integration parsers construct `GitPath` directly
 from output bytes. Pathspec argv uses byte-preserving platform argument conversion;
-NUL-separated stdin uses `as_bytes()` directly. Neither goes through a native path.
-`require_paths` accepts `GitPath`, rejects empty selections and `.git` components;
+NUL-separated stdin/file lists use the shared checked `pathspec_list` encoder.
+Neither goes through a native path. `require_paths` accepts `GitPath`, rejects empty
+selections, ASCII-case variants of `.git`, Windows NTFS aliases and Windows
+backslash pathspecs;
 constructor validation prevents NUL/root/dot/parent traversal and negative depth.
 
 ### Public native paths deliberately retained
@@ -216,7 +297,7 @@ rejection for invalid paths that can no longer be represented as request values.
 The staged-mode ignored selection uses `.git/ignored-in-staged-mode`, a structurally
 valid but operation-invalid name, to retain the original ignored-selection assertion.
 
-## Verification (macOS, 2026-10-26)
+## GitPath migration verification (macOS, 2026-10-26)
 
 The non-UTF-8 Unix end-to-end regression uses a real committed Git index/tree
 name, reads it from status, stages its deletion and checks the exact cached name
@@ -263,6 +344,29 @@ No Windows runtime test was possible; Linux was cross-compiled/linted only.
 Formatting was restricted to this crate; the main checkout and Rake were not
 edited. No serde convention or dependency was added. No changeset is needed for
 this unreleased crate.
+
+## Pathspec verification (macOS, 2026-10-26)
+
+| Command | Result |
+| --- | --- |
+| `cargo fmt -p onegit-git --check` | Passed |
+| `cargo clippy --workspace --all-targets --locked -- -D warnings` | Passed |
+| `cargo clippy -p onegit-git --all-targets --target x86_64-pc-windows-msvc --locked -- -D warnings` | Passed |
+| `cargo clippy -p onegit-git --all-targets --target x86_64-unknown-linux-gnu --locked -- -D warnings` | Passed |
+| `cargo test -p onegit-git --locked` | 265 passed including doctests; 0 failed/ignored |
+
+All 260 existing macOS test names remain. Five added tests cover the pure Windows
+pathspec policy, pure NTFS alias policy, Unix argv/NUL byte preservation, shared
+case-insensitive metadata guard, and host-specific alias enforcement. Two additional
+Windows-only tests cover the typed argv/NUL encoder error and real fixture requests
+for stage, unstage, commit, discard, filtered reads and object-name reads. The fixture
+also checks that ordinary slash names still stage, commit and discard and that refused
+requests leave the slash-named neighbor/index/HEAD unchanged without a backup.
+
+Windows tests were compiled and linted, not executed: no Windows runtime test was
+possible. Linux was cross-compiled/linted only. All 43 OS-specific source references
+remain in `src/platform/`. `git diff --check` passed. No public API, dependency,
+changeset, main-checkout or Rake source changes were needed; the crate is unreleased.
 
 ## API references
 

@@ -316,7 +316,9 @@ impl Repository {
             let mut file = crate::platform::create_private_file(&path_file)
                 .map_err(|error| before(error.into()))?;
 
-            file.write_all(&path_bytes(&selected))
+            let pathspecs =
+                crate::git_path::pathspec_list(&selected).map_err(|error| before(error.into()))?;
+            file.write_all(&pathspecs)
                 .map_err(|error| before(error.into()))?;
             drop(file);
             self.check_write_identity().map_err(before)?;
@@ -479,7 +481,7 @@ impl Repository {
                 "--pathspec-file-nul",
             ],
             Some(index),
-            &path_bytes(paths),
+            &crate::git_path::pathspec_list(paths)?,
         )?;
 
         Ok(())
@@ -534,17 +536,6 @@ fn exact(a: &GitPath, b: &GitPath) -> bool {
     a == b
 }
 
-fn path_bytes(paths: &[GitPath]) -> Vec<u8> {
-    let mut bytes = Vec::new();
-
-    for path in paths {
-        bytes.extend_from_slice(path.as_bytes());
-        bytes.push(0);
-    }
-
-    bytes
-}
-
 fn trim(value: &str) -> &str {
     value.trim_matches(|ch|matches!(ch,'\u{0009}'..='\u{000d}'|'\u{0020}'|'\u{00a0}'|'\u{1680}'|'\u{2000}'..='\u{200a}'|'\u{2028}'|'\u{2029}'|'\u{202f}'|'\u{205f}'|'\u{3000}'|'\u{feff}'))
 }
@@ -571,7 +562,10 @@ fn validate(input: &CommitFiles) -> Result<Vec<GitPath>, CommitError> {
         }
 
         for path in &input.paths {
-            if crate::validation::require_paths([path]).is_err() {
+            if let Err(error) = crate::validation::require_paths([path]) {
+                if !matches!(error, RepositoryError::InvalidPath) {
+                    return Err(before(error));
+                }
                 return Err(CommitError::invalid(
                     ErrorCode::InvalidPath,
                     &format!(

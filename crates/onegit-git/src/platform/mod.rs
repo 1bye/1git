@@ -17,15 +17,38 @@ pub(crate) use windows::*;
 compile_error!("onegit-git requires a Unix or Windows host with a native Git executable");
 
 #[derive(Debug)]
-pub(crate) struct PathEncodingError;
+pub(crate) struct PathEncodingError(&'static str);
+
+#[cfg(any(windows, test))]
+impl PathEncodingError {
+    const UNREPRESENTABLE: Self = Self("Git path cannot be represented on this platform");
+    const WINDOWS_PATHSPEC: Self =
+        Self("Git for Windows cannot address this file name without rewriting it");
+}
 
 impl fmt::Display for PathEncodingError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("Git path cannot be represented on this platform")
+        f.write_str(self.0)
     }
 }
 
 impl std::error::Error for PathEncodingError {}
+
+pub(crate) fn git_pathspec(bytes: &[u8]) -> Result<&[u8], PathEncodingError> {
+    #[cfg(windows)]
+    windows_policy::git_pathspec(bytes)?;
+    Ok(bytes)
+}
+
+pub(crate) fn is_git_directory_component(component: &[u8]) -> bool {
+    if component.eq_ignore_ascii_case(b".git") {
+        return true;
+    }
+    #[cfg(windows)]
+    return windows_policy::is_ntfs_dotgit(component);
+    #[cfg(not(windows))]
+    false
+}
 
 #[derive(Clone, Copy)]
 pub(crate) enum Access {
@@ -172,6 +195,41 @@ mod windows_policy {
     use super::PathEncodingError;
     use std::borrow::Cow;
 
+    pub(super) fn git_pathspec(bytes: &[u8]) -> Result<&[u8], PathEncodingError> {
+        // Windows: literal pathspecs still normalize backslashes, including NUL lists.
+        if bytes.contains(&b'\\') {
+            Err(PathEncodingError::WINDOWS_PATHSPEC)
+        } else {
+            Ok(bytes)
+        }
+    }
+
+    // Match Git v2.51.0 path.c:is_ntfs_dotgit, including ADS and short-name suffixes.
+    pub(super) fn is_ntfs_dotgit(component: &[u8]) -> bool {
+        let suffix = if component
+            .get(..4)
+            .is_some_and(|prefix| prefix.eq_ignore_ascii_case(b".git"))
+        {
+            &component[4..]
+        } else if component
+            .get(..5)
+            .is_some_and(|prefix| prefix.eq_ignore_ascii_case(b"git~1"))
+        {
+            &component[5..]
+        } else {
+            return false;
+        };
+
+        for byte in suffix {
+            match byte {
+                0 | b'/' | b'\\' | b':' => return true,
+                b'.' | b' ' => {}
+                _ => return false,
+            }
+        }
+        true
+    }
+
     pub(super) fn native_git_path(text: &str) -> Result<&str, PathEncodingError> {
         if text
             .strip_suffix('/')
@@ -181,7 +239,7 @@ mod windows_policy {
         {
             Ok(text)
         } else {
-            Err(PathEncodingError)
+            Err(PathEncodingError::UNREPRESENTABLE)
         }
     }
 
@@ -285,6 +343,66 @@ mod windows_policy {
     #[cfg(test)]
     mod tests {
         use super::*;
+
+        #[test]
+        fn pathspec_policy_refuses_every_literal_backslash_without_changing_other_bytes() {
+            for name in [
+                b"folder\\file".as_slice(),
+                b"\\leading",
+                b"trailing\\",
+                b"a/\\b",
+                b"C:\\file",
+            ] {
+                let error = git_pathspec(name).unwrap_err();
+                assert_eq!(
+                    error.to_string(),
+                    "Git for Windows cannot address this file name without rewriting it"
+                );
+            }
+            for name in [
+                b"folder/file".as_slice(),
+                b"ordinary",
+                b"a:b",
+                b"aux.c",
+                b"literal*",
+                b"non-utf8-\xff",
+            ] {
+                assert_eq!(git_pathspec(name).unwrap(), name);
+            }
+        }
+
+        #[test]
+        fn ntfs_dotgit_matches_git_aliases_without_catching_adjacent_names() {
+            for name in [
+                b".git".as_slice(),
+                b".GIT",
+                b".Git...  ",
+                b".git ",
+                b".git::$INDEX_ALLOCATION",
+                b".git:any-stream",
+                b"GIT~1",
+                b"git~1. ",
+                b"GiT~1:stream",
+                b".git\\config",
+                b".git/config",
+            ] {
+                assert!(is_ntfs_dotgit(name), "{name:?}");
+            }
+            for name in [
+                b"".as_slice(),
+                b".gi",
+                b".gitignore",
+                b".github",
+                b"foo.git",
+                b".gitx.",
+                b"git~10",
+                b"git~2",
+                b"git~1suffix",
+                b".git .suffix",
+            ] {
+                assert!(!is_ntfs_dotgit(name), "{name:?}");
+            }
+        }
 
         #[test]
         fn display_names_are_separate_from_filesystem_representability() {

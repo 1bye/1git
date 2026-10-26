@@ -93,10 +93,24 @@ impl GitPath {
             .map_err(|error| io::Error::new(io::ErrorKind::InvalidInput, error))
     }
 
-    pub(crate) fn to_argument(&self) -> io::Result<OsString> {
-        crate::platform::git_argument(self.as_bytes())
+    pub(crate) fn pathspec_bytes(&self) -> io::Result<&[u8]> {
+        crate::platform::git_pathspec(self.as_bytes())
             .map_err(|error| io::Error::new(io::ErrorKind::InvalidInput, error))
     }
+
+    pub(crate) fn to_argument(&self) -> io::Result<OsString> {
+        crate::platform::git_argument(self.pathspec_bytes()?)
+            .map_err(|error| io::Error::new(io::ErrorKind::InvalidInput, error))
+    }
+}
+
+pub(crate) fn pathspec_list(paths: &[GitPath]) -> io::Result<Vec<u8>> {
+    let mut bytes = Vec::new();
+    for path in paths {
+        bytes.extend_from_slice(path.pathspec_bytes()?);
+        bytes.push(0);
+    }
+    Ok(bytes)
 }
 
 impl TryFrom<&str> for GitPath {
@@ -194,6 +208,55 @@ mod tests {
         assert_eq!(directory.parent(), Some(b"folder".as_slice()));
         assert_eq!(directory.components().count(), 2);
         assert_ne!(directory, GitPath::new(b"folder/sub").unwrap());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn unix_pathspec_arguments_and_nul_lists_keep_literal_names_byte_for_byte() {
+        let names = [
+            b"folder\\file".as_slice(),
+            b"folder/file",
+            b"ordinary",
+            b"literal*",
+            b"non-utf8-\xff",
+        ];
+        let paths: Vec<_> = names
+            .iter()
+            .map(|name| GitPath::new(name).unwrap())
+            .collect();
+        for (path, name) in paths.iter().zip(names) {
+            assert_eq!(path.to_argument().unwrap().as_encoded_bytes(), name);
+            assert_eq!(path.pathspec_bytes().unwrap(), name);
+        }
+        assert_eq!(
+            pathspec_list(&paths).unwrap(),
+            b"folder\\file\0folder/file\0ordinary\0literal*\0non-utf8-\xff\0"
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn argv_and_nul_lists_refuse_backslashes_with_the_same_typed_error() {
+        let path = GitPath::new(b"folder\\file").unwrap();
+        for error in [
+            path.to_argument().unwrap_err(),
+            pathspec_list(&[path]).unwrap_err(),
+        ] {
+            assert_eq!(error.kind(), io::ErrorKind::InvalidInput);
+            assert!(
+                error
+                    .get_ref()
+                    .is_some_and(|cause| cause.is::<crate::platform::PathEncodingError>())
+            );
+            assert!(
+                error
+                    .to_string()
+                    .contains("Git for Windows cannot address this file name")
+            );
+        }
+        let path = GitPath::new(b"folder/file").unwrap();
+        assert_eq!(path.to_argument().unwrap(), OsString::from("folder/file"));
+        assert_eq!(pathspec_list(&[path]).unwrap(), b"folder/file\0");
     }
 
     #[cfg(windows)]
