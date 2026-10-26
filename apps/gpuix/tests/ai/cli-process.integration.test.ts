@@ -1,7 +1,7 @@
 /**
  * Covers: shell-free stdin, CLI protocols, safety flags, defaults, errors, limits and process-group cancellation.
  * Real: Bun child processes, CLI adapter and disposable files.
- * Doubles: executable scripts stand in for both agents; no model calls or actual credentials.
+ * Doubles: agent executables and an injected stdin-write failure; no model calls or actual credentials.
  * Requires: Bun on macOS or Linux; writable temporary storage.
  */
 import { afterEach, beforeEach, expect, it } from "bun:test";
@@ -205,6 +205,70 @@ it("cancels a stalled model catalog request and removes its temporary directory"
 	expect(existsSync(captured.cwd)).toBe(false);
 	expect(() => process.kill(captured.pid, 0)).toThrow();
 });
+
+it.each(["claude-code", "codex"] as const)(
+	"handles %s cancellation during the initial stdin write without an unhandled rejection",
+	async (provider) => {
+		const preferences = await modelFixture(
+			"/* Stay pending until cancelled. */",
+			provider
+		);
+
+		const runner = join(directory, "cancel-write.ts");
+
+		const moduleUrl = new URL(
+			"../../src/feature/ai/lib/cli-agent.ts",
+			import.meta.url
+		).href;
+
+		await writeFile(
+			runner,
+			`
+const { ChildProcess } = require("node:child_process");
+const realSpawn = ChildProcess.prototype.spawn;
+const controller = new AbortController();
+const unhandled = [];
+let pid;
+let cwd;
+process.on("unhandledRejection", error => unhandled.push(String(error)));
+ChildProcess.prototype.spawn = function(options) {
+ const result = realSpawn.call(this, options);
+ pid = this.pid;
+ cwd = options.cwd;
+ this.stdin.write = () => {
+  controller.abort();
+  throw new Error("The input stream closed during cancellation.");
+ };
+ return result;
+};
+const { CliAgent } = await import(${JSON.stringify(moduleUrl)});
+const outcome = await new CliAgent().models(${JSON.stringify(preferences)}, controller.signal).then(() => "unexpected success", error => String(error));
+await Bun.sleep(1100);
+console.info(JSON.stringify({unhandled, outcome, pid, cwd}));
+process.exit(0);
+`
+		);
+		const child = Bun.spawn([process.execPath, runner], {
+			stdout: "pipe",
+			stderr: "pipe",
+		});
+
+		const [output, errors, code] = await Promise.all([
+			new Response(child.stdout).text(),
+			new Response(child.stderr).text(),
+			child.exited,
+		]);
+
+		const captured = JSON.parse(output);
+
+		expect(captured.unhandled).toEqual([]);
+		expect(code).toBe(0);
+		expect(errors).toBe("");
+		expect(captured.outcome).toContain("cancelled");
+		expect(existsSync(captured.cwd)).toBe(false);
+		expect(() => process.kill(captured.pid, 0)).toThrow();
+	}
+);
 
 const success =
 	'console.info(JSON.stringify({type:"result",subtype:"success",is_error:false,result:"fix: handle empty greetings"}));';

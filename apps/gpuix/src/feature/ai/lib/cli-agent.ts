@@ -664,7 +664,8 @@ export class CliAgent {
 			detached: true,
 		});
 
-		const completion = Promise.withResolvers<string>();
+		// Closing stdin can throw before its completion is awaited. Reject only from the guarded request below.
+		const completion = Promise.withResolvers<void>();
 		const chunks: Buffer[] = [];
 		let bytes = 0;
 		let failure: Error | undefined;
@@ -775,24 +776,35 @@ export class CliAgent {
 			)
 		);
 		child.once("close", (code) => {
-			if (failure) completion.reject(failure);
-			else if (code !== 0 && !complete)
-				completion.reject(
-					new Error(
-						"The agent failed. Check its login and model in your terminal, or update the CLI. Your draft was left unchanged."
-					)
+			if (!failure && code !== 0 && !complete)
+				failure = new Error(
+					"The agent failed. Check its login and model in your terminal, or update the CLI. Your draft was left unchanged."
 				);
-			else completion.resolve(Buffer.concat(chunks).toString("utf8"));
+
+			completion.resolve();
 		});
-		signal.addEventListener("abort", abort, { once: true });
-
-		if (signal.aborted) abort();
-
-		if (onLine) child.stdin.write(input);
-		else child.stdin.end(input);
 
 		try {
-			return await completion.promise;
+			signal.addEventListener("abort", abort, { once: true });
+
+			if (signal.aborted) abort();
+
+			try {
+				if (onLine) child.stdin.write(input);
+				else child.stdin.end(input);
+			} catch {
+				stop(
+					new Error(
+						"Could not send selected changes to the agent. Your draft was left unchanged."
+					)
+				);
+			}
+
+			await completion.promise;
+
+			if (failure) throw failure;
+
+			return Buffer.concat(chunks).toString("utf8");
 		} finally {
 			clearTimeout(timer);
 			clearTimeout(killTimer);
