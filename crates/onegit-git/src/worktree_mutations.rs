@@ -4,7 +4,6 @@ use super::{Repository, RepositoryError, Worktree, WriteError, WritePhase, check
 use crate::Cancellation;
 use crate::validation::require_revision;
 use std::ffi::OsString;
-use std::os::unix::ffi::OsStrExt;
 use std::path::{Component, Path, PathBuf};
 
 #[path = "worktree_mutations/reviewed.rs"]
@@ -76,7 +75,11 @@ fn text(value: &str) -> Result<(), RepositoryError> {
 }
 
 fn absolute(path: &Path) -> Result<OsString, RepositoryError> {
-    if path.as_os_str().is_empty() || path.as_os_str().as_bytes().contains(&0) {
+    if path.as_os_str().is_empty()
+        || crate::platform::path_to_git_bytes(path.as_os_str())
+            .map_err(|_| RepositoryError::InvalidPath)?
+            .contains(&0)
+    {
         return Err(RepositoryError::InvalidPath);
     }
 

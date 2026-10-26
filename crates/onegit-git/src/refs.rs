@@ -428,7 +428,7 @@ fn parse_branches(output: &[u8]) -> Result<BranchCollection, RepositoryError> {
             worktree_path: if fields[8].is_empty() {
                 None
             } else {
-                Some(path(fields[8]))
+                Some(path(fields[8])?)
             },
         };
 
@@ -527,7 +527,7 @@ fn parse_worktrees(output: &[u8]) -> Result<Vec<Worktree>, RepositoryError> {
         let value = record.get(split + 1..).unwrap_or_default();
 
         match key {
-            b"worktree" => worktree.path = path(value),
+            b"worktree" => worktree.path = path(value)?,
             b"HEAD" => worktree.head_oid = Some(text(value)),
             b"branch" => {
                 worktree.branch = Some(text(value.strip_prefix(b"refs/heads/").unwrap_or(value)))

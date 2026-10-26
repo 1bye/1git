@@ -272,6 +272,7 @@ fn linked_worktrees_use_their_own_index_and_detached_commits_remain_supported() 
 }
 
 #[test]
+#[cfg(unix)]
 fn external_head_directory_and_partial_patch_changes_are_rechecked_before_commit() {
     for change in ["head", "directory", "partial"] {
         let fixture = Fixture::new();

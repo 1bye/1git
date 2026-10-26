@@ -4,7 +4,6 @@
 use std::ffi::OsString;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom, Write};
-use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 
 use sha2::{Digest, Sha256};
@@ -202,15 +201,15 @@ impl Repository {
         request: &ResolveConflict,
         cancellation: Option<&Cancellation>,
     ) -> Result<(), RepositoryError> {
-        let metadata = file.metadata()?;
+        let state = crate::platform::file_state(file)?;
 
-        if !metadata.is_file() || (request.side.is_some() && metadata.nlink() != 1) {
+        if !state.regular || (request.side.is_some() && state.links != 1) {
             return Err(RepositoryError::InvalidInput(
                 "Resolve linked and non-regular files using Git outside this app.",
             ));
         }
 
-        if metadata.len() > MAX_TEXT_BYTES as u64 {
+        if state.length > MAX_TEXT_BYTES as u64 {
             return Err(RepositoryError::InvalidInput(UNSUPPORTED));
         }
 
@@ -254,14 +253,12 @@ impl Repository {
     }
 
     fn check_conflict_path(&self, held: &File, path: &Path) -> Result<(), RepositoryError> {
-        let current = self
-            .open_working_file(path, false)
-            .map_err(path_error)?
-            .metadata()?;
+        let current = self.open_working_file(path, false).map_err(path_error)?;
 
-        let held = held.metadata()?;
-
-        if !current.is_file() || current.dev() != held.dev() || current.ino() != held.ino() {
+        if !current.metadata()?.is_file()
+            || crate::platform::FileIdentity::from_file(&current)?
+                != crate::platform::FileIdentity::from_file(held)?
+        {
             return Err(RepositoryError::InvalidInput(CHANGED));
         }
 
@@ -315,12 +312,7 @@ fn supported(text: &str) -> bool {
 
 fn path_error(error: RepositoryError) -> RepositoryError {
     match error {
-        RepositoryError::Io(error)
-            if matches!(
-                error.raw_os_error(),
-                Some(libc::ELOOP | libc::ENOENT | libc::ENOTDIR | libc::EISDIR)
-            ) =>
-        {
+        RepositoryError::Io(error) if crate::platform::is_missing_or_not_regular(&error) => {
             RepositoryError::InvalidInput(
                 "Resolve symbolic links, deleted and non-regular files using Git outside this app.",
             )
@@ -356,10 +348,8 @@ fn has_markers(text: &str) -> bool {
 mod tests {
     #[test]
     fn marker_lines_match_the_frozen_actual_typescript_expression() {
-        let reference: serde_json::Value = serde_json::from_str(include_str!(
-            "../fixtures/conflict-resolution.json"
-        ))
-        .unwrap();
+        let reference: serde_json::Value =
+            serde_json::from_str(include_str!("../fixtures/conflict-resolution.json")).unwrap();
 
         for case in reference["cases"].as_array().unwrap() {
             let text = case["text"].as_str().unwrap();

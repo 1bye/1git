@@ -10,10 +10,8 @@ use std::path::PathBuf;
 
 #[test]
 fn matches_every_actual_source_partial_patch_outcome() {
-    let reference: Value = serde_json::from_str(include_str!(
-        "../fixtures/partial-patch.json"
-    ))
-    .unwrap();
+    let reference: Value =
+        serde_json::from_str(include_str!("../fixtures/partial-patch.json")).unwrap();
 
     let mut selections = 0;
 

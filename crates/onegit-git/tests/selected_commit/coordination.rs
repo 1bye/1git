@@ -1,7 +1,11 @@
+#[cfg(unix)]
 use super::*;
+#[cfg(unix)]
 use onegit_git::{Cancellation, ErrorCode, RepositoryCoordinator};
+#[cfg(unix)]
 use std::time::{Duration, Instant};
 
+#[cfg(unix)]
 fn wait_until(predicate: impl Fn() -> bool) -> bool {
     let deadline = Instant::now() + Duration::from_secs(5);
 
@@ -17,6 +21,7 @@ fn wait_until(predicate: impl Fn() -> bool) -> bool {
 }
 
 #[test]
+#[cfg(unix)]
 fn preparation_and_final_refresh_own_the_queue_and_ignore_late_cancellation() {
     for phase in ["preparation", "refresh"] {
         let fixture = Fixture::new();

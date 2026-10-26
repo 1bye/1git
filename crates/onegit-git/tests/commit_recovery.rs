@@ -7,12 +7,14 @@ mod common;
 
 use common::{Fixture, files_under};
 
-use onegit_git::{
-    BranchIdentity, Cancellation, ErrorCode, GitCommand, GitProcess, Repository, WritePhase,
-};
+#[cfg(unix)]
+use onegit_git::GitProcess;
+use onegit_git::{BranchIdentity, Cancellation, ErrorCode, GitCommand, Repository, WritePhase};
 
 use std::fs;
-use std::path::{Path, PathBuf};
+#[cfg(unix)]
+use std::path::Path;
+use std::path::PathBuf;
 
 #[path = "commit_recovery/outcomes.rs"]
 mod outcomes;
@@ -60,13 +62,16 @@ fn unchanged_working(fixture: &Fixture) -> impl FnOnce() {
     }
 }
 
+#[cfg(unix)]
 fn executable(path: &Path, script: &str) {
-    use std::os::unix::fs::PermissionsExt;
+    #[cfg(unix)]
+    use common::PermissionsExt;
 
     fs::write(path, script).unwrap();
     fs::set_permissions(path, fs::Permissions::from_mode(0o700)).unwrap();
 }
 
+#[cfg(unix)]
 fn process(fixture: &Fixture, executable: impl Into<PathBuf>) -> GitProcess {
     GitProcess::new(executable, 64 * 1024 * 1024).with_environment([
         ("GIT_CONFIG_GLOBAL".into(), "/dev/null".into()),
@@ -87,7 +92,7 @@ fn undo_keeps_files_mtimes_symlinks_index_other_refs_and_full_message() {
     fixture.write("excluded.txt", "staged\n");
     fixture.git_os(["add".into(), "--".into(), "excluded.txt".into()]);
     fixture.write("excluded.txt", "working\n");
-    std::os::unix::fs::symlink("a.txt", fixture.root.join("alias")).unwrap();
+    common::symlink("a.txt", fixture.root.join("alias")).unwrap();
     fixture.git(&["update-ref", "refs/heads/other", &tip]);
     let repository = open(&fixture);
     let expected = review(&repository);

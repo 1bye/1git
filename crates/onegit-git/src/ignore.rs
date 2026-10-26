@@ -1,10 +1,8 @@
 //! Literal, reviewed append-only .gitignore edits. The session's common-directory
 //! guard owns preflight, descriptor-bound append, durable sync and result refresh.
 
-use std::fs::{File, Metadata};
+use std::fs::File;
 use std::io::{Read, Write};
-use std::os::fd::{AsRawFd, FromRawFd};
-use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 
 use super::{
@@ -68,9 +66,11 @@ pub fn ignore_folders(path: &str) -> Vec<&str> {
 /// unrelated folder scopes and extension requests without an extension. No filesystem I/O.
 pub fn ignore_pattern(path: &Path, rule: &IgnoreRule) -> Result<String, RepositoryError> {
     require_paths([path])?;
-    let path = path.to_str().ok_or(RepositoryError::InvalidInput(
-        "Ignore rules require a UTF-8 repository path.",
-    ))?;
+    let encoded = crate::platform::path_to_git_bytes(path.as_os_str())
+        .map_err(|_| RepositoryError::InvalidPath)?;
+    let path = std::str::from_utf8(&encoded).map_err(|_| {
+        RepositoryError::InvalidInput("Ignore rules require a UTF-8 repository path.")
+    })?;
 
     if path.contains(['\r', '\n'])
         || path
@@ -148,14 +148,13 @@ impl Repository {
             Err(error) => return Err(before(error)),
         };
 
-        let metadata = existing
+        let state = existing
             .as_ref()
-            .map(File::metadata)
+            .map(crate::platform::file_state)
             .transpose()
             .map_err(|error| before(error.into()))?;
-
-        if let Some(metadata) = metadata.as_ref() {
-            validate_file(metadata).map_err(before)?;
+        if let Some(state) = state.as_ref() {
+            validate_file(state).map_err(before)?;
         }
 
         // Git status reads .gitignore too; reject a FIFO/device before asking Git to read it.
@@ -175,12 +174,9 @@ impl Repository {
         if let Some(file) = existing.as_ref() {
             self.check_ignore_path(file).map_err(before)?;
 
-            if !same_metadata(
-                metadata
-                    .as_ref()
-                    .expect("existing file has captured metadata"),
-                &file.metadata().map_err(|error| before(error.into()))?,
-            ) {
+            if state.as_ref()
+                != Some(&crate::platform::file_state(file).map_err(|error| before(error.into()))?)
+            {
                 return Err(before(RepositoryError::InvalidInput(CHANGED)));
             }
         }
@@ -259,46 +255,26 @@ impl Repository {
     }
 
     fn open_ignore(&self, create: bool) -> Result<File, RepositoryError> {
-        let flags = libc::O_RDWR
-            | libc::O_APPEND
-            | libc::O_NOFOLLOW
-            | libc::O_NONBLOCK
-            | libc::O_CLOEXEC
-            | if create {
-                libc::O_CREAT | libc::O_EXCL
-            } else {
-                0
-            };
-
-        // SAFETY: root_directory owns a live dir fd and the name is static/NUL-terminated.
-        // O_NOFOLLOW refuses links; O_EXCL creates only a previously absent entry.
-        let fd = unsafe {
-            libc::openat(
-                self.root_directory.as_raw_fd(),
-                c".gitignore".as_ptr(),
-                flags,
-                0o644,
-            )
-        };
-
-        if fd < 0 {
-            return Err(std::io::Error::last_os_error().into());
-        }
-
-        // SAFETY: successful openat returned a new fd owned exclusively by this File.
-        Ok(unsafe { File::from_raw_fd(fd) })
+        Ok(crate::platform::open_component(
+            &self.root_directory,
+            ".gitignore".as_ref(),
+            crate::platform::Access::Append { create },
+        )?)
     }
 
     fn check_ignore_path(&self, held: &File) -> Result<(), RepositoryError> {
         self.check_write_identity()?;
-        let current = self.open_ignore(false)?.metadata()?;
-        let held = held.metadata()?;
+        let current = self.open_ignore(false)?;
 
-        if !current.is_file() || current.nlink() != 1 {
+        let state = crate::platform::file_state(&current)?;
+
+        if !state.regular || state.links != 1 {
             return Err(RepositoryError::InvalidInput(UNSUPPORTED));
         }
 
-        if current.dev() != held.dev() || current.ino() != held.ino() {
+        if crate::platform::FileIdentity::from_file(&current)?
+            != crate::platform::FileIdentity::from_file(held)?
+        {
             return Err(RepositoryError::InvalidInput(CHANGED));
         }
 
@@ -306,24 +282,12 @@ impl Repository {
     }
 }
 
-fn validate_file(metadata: &Metadata) -> Result<(), RepositoryError> {
-    if !metadata.is_file() || metadata.nlink() != 1 || metadata.len() > MAX_IGNORE_BYTES {
+fn validate_file(state: &crate::platform::FileState) -> Result<(), RepositoryError> {
+    if !state.regular || state.links != 1 || state.length > MAX_IGNORE_BYTES {
         return Err(RepositoryError::InvalidInput(UNSUPPORTED));
     }
 
     Ok(())
-}
-
-fn same_metadata(before: &Metadata, after: &Metadata) -> bool {
-    before.dev() == after.dev()
-        && before.ino() == after.ino()
-        && before.len() == after.len()
-        && before.nlink() == after.nlink()
-        && before.mode() == after.mode()
-        && before.mtime() == after.mtime()
-        && before.mtime_nsec() == after.mtime_nsec()
-        && before.ctime() == after.ctime()
-        && before.ctime_nsec() == after.ctime_nsec()
 }
 
 fn read_content(

@@ -2,12 +2,18 @@
 //! Real: POSIX argv, literal stdin/output pipes, deadlines and cancellation.
 //! Doubles: disposable executable scripts only; no native app/network/user configuration.
 //! Requires: POSIX shell and temporary storage.
+#![cfg(unix)]
+#![cfg_attr(windows, allow(missing_docs))]
 
+mod common;
+
+#[cfg(unix)]
+use common::PermissionsExt;
 use onegit_git::{Cancellation, GitError, ToolCommand, execute_tool};
 use std::fs;
-use std::os::unix::fs::PermissionsExt;
 use std::time::{Duration, Instant};
 
+#[cfg(unix)]
 fn script(root: &std::path::Path, body: &str) -> std::path::PathBuf {
     let path = root.join("tool-fixture");
 
@@ -18,6 +24,7 @@ fn script(root: &std::path::Path, body: &str) -> std::path::PathBuf {
 }
 
 #[test]
+#[cfg(unix)]
 fn native_helper_receives_only_literal_arguments_and_empty_stdin() {
     let root = tempfile::tempdir().unwrap();
 
@@ -40,6 +47,7 @@ fn native_helper_receives_only_literal_arguments_and_empty_stdin() {
 }
 
 #[test]
+#[cfg(unix)]
 fn native_helper_pumps_exact_binary_stdin_without_shell_or_git_decoration() {
     let root = tempfile::tempdir().unwrap();
     let executable = script(root.path(), "printf '%s' \"$#\" > argument-count\n/bin/cat");
@@ -61,6 +69,7 @@ fn native_helper_pumps_exact_binary_stdin_without_shell_or_git_decoration() {
 }
 
 #[test]
+#[cfg(unix)]
 fn native_helper_output_overflow_is_bounded_and_reaped() {
     let root = tempfile::tempdir().unwrap();
 
@@ -83,6 +92,7 @@ fn native_helper_output_overflow_is_bounded_and_reaped() {
 }
 
 #[test]
+#[cfg(unix)]
 fn native_helper_deadline_cleans_a_term_ignoring_process_group() {
     let root = tempfile::tempdir().unwrap();
     let executable = script(root.path(), "trap '' TERM\nsleep 20 &\nwait");
@@ -96,6 +106,7 @@ fn native_helper_deadline_cleans_a_term_ignoring_process_group() {
 }
 
 #[test]
+#[cfg(unix)]
 fn native_helper_cancellation_joins_owned_backpressured_stdin_and_output_pipes() {
     let root = tempfile::tempdir().unwrap();
     let executable = script(root.path(), "trap '' TERM\ntouch entered\nsleep 20 &\nwait");

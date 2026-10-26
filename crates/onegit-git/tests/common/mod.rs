@@ -1,4 +1,5 @@
 //! Isolated local Git fixtures shared by consumer suites.
+#![allow(dead_code)]
 
 use std::collections::BTreeMap;
 use std::ffi::OsString;
@@ -16,7 +17,11 @@ pub struct Fixture {
 impl Fixture {
     pub fn new() -> Self {
         let temporary = tempfile::tempdir().unwrap();
-        let root = temporary.path().join("repository été\n ");
+        let root = temporary.path().join(if cfg!(unix) {
+            "repository été\n "
+        } else {
+            "repository été"
+        });
 
         fs::create_dir(&root).unwrap();
 
@@ -33,11 +38,25 @@ impl Fixture {
 
     pub fn process_with_limit(&self, limit: usize) -> GitProcess {
         GitProcess::new("git", limit).with_environment([
-            ("GIT_CONFIG_GLOBAL".into(), "/dev/null".into()),
+            (
+                "GIT_CONFIG_GLOBAL".into(),
+                if cfg!(windows) {
+                    "NUL".into()
+                } else {
+                    "/dev/null".into()
+                },
+            ),
             ("GIT_CONFIG_NOSYSTEM".into(), "1".into()),
             ("GIT_CONFIG_COUNT".into(), "2".into()),
             ("GIT_CONFIG_KEY_0".into(), "core.hooksPath".into()),
-            ("GIT_CONFIG_VALUE_0".into(), "/dev/null".into()),
+            (
+                "GIT_CONFIG_VALUE_0".into(),
+                if cfg!(windows) {
+                    "NUL".into()
+                } else {
+                    "/dev/null".into()
+                },
+            ),
             ("GIT_CONFIG_KEY_1".into(), "commit.gpgsign".into()),
             ("GIT_CONFIG_VALUE_1".into(), "false".into()),
             ("GIT_AUTHOR_NAME".into(), "Fixture".into()),
@@ -98,3 +117,14 @@ pub fn files_under(root: &Path) -> BTreeMap<PathBuf, (Vec<u8>, std::time::System
 
     entries
 }
+
+#[cfg(unix)]
+mod unix;
+#[cfg(windows)]
+mod windows;
+#[cfg(unix)]
+#[allow(unused_imports)]
+pub use unix::*;
+#[cfg(windows)]
+#[allow(unused_imports)]
+pub use windows::*;

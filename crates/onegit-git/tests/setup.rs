@@ -5,16 +5,21 @@
 
 mod common;
 
+#[cfg(unix)]
+use common::PermissionsExt;
 use std::fs;
-use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
+#[cfg(unix)]
 use std::thread;
+#[cfg(unix)]
 use std::time::{Duration, Instant};
 
 use common::{Fixture, files_under};
 
+#[cfg(unix)]
+use onegit_git::GitProcess;
 use onegit_git::{
-    Cancellation, CloneOptions, GitError, GitProcess, HistoryOptions, Repository, RepositoryError,
+    Cancellation, CloneOptions, GitError, HistoryOptions, Repository, RepositoryError,
 };
 
 #[test]
@@ -199,6 +204,7 @@ fn rejects_nonempty_clone_destinations_and_invalid_input_without_deleting_files(
 }
 
 #[test]
+#[cfg(unix)]
 fn cancellation_retains_partial_clone_files_after_owned_process_cleanup() {
     let fixture = Fixture::new();
     let executable = fixture.temporary.path().join("stalled-git");

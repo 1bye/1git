@@ -3882,6 +3882,7 @@ dependencies = [
  "sha2",
  "tempfile",
  "url",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

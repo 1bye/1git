@@ -8,14 +8,20 @@ mod common;
 use common::Fixture;
 
 use onegit_git::{
-    BranchIdentity, Cancellation, ConflictSide, GitCommand, GitError, GitProcess, OperationState,
-    Repository, RepositoryCoordinator, ResolveConflict, WritePhase,
+    BranchIdentity, Cancellation, ConflictSide, GitCommand, OperationState, Repository,
+    ResolveConflict, WritePhase,
 };
+#[cfg(unix)]
+use onegit_git::{GitError, GitProcess, RepositoryCoordinator};
 
+#[cfg(unix)]
+use common::PermissionsExt;
+use common::symlink;
 use std::fs;
-use std::os::unix::fs::{PermissionsExt, symlink};
 use std::path::Path;
+#[cfg(unix)]
 use std::sync::{Arc, mpsc};
+#[cfg(unix)]
 use std::time::{Duration, Instant};
 
 fn paused(path: &str) -> (Fixture, Repository) {
@@ -53,6 +59,7 @@ fn request(repository: &Repository, path: &str, side: Option<ConflictSide>) -> R
     }
 }
 
+#[cfg(unix)]
 fn wrapper(fixture: &Fixture, body: &str) -> GitProcess {
     let path = fixture.temporary.path().join("git-wrapper");
 
@@ -74,6 +81,7 @@ fn wrapper(fixture: &Fixture, body: &str) -> GitProcess {
     ])
 }
 
+#[cfg(unix)]
 fn wait_file(path: &Path) {
     let deadline = Instant::now() + Duration::from_secs(5);
 
@@ -157,6 +165,7 @@ fn preview_boundaries_distinguish_unsupported_text_errors_and_cancellation() {
 }
 
 #[test]
+#[cfg(unix)]
 fn whole_file_sides_preserve_unrelated_index_working_bytes_and_operation_identity() {
     for side in [ConflictSide::Ours, ConflictSide::Theirs] {
         let (fixture, repository) = paused("shared");
@@ -419,6 +428,7 @@ fn nested_binary_and_oversized_index_sides_are_refused_before_replacing_working_
 }
 
 #[test]
+#[cfg(unix)]
 fn editor_or_symlink_changes_during_side_reads_are_rechecked_without_redirecting_writes() {
     for replace in [
         "printf 'late edits\\n' > shared",
@@ -498,6 +508,7 @@ fn manual_and_side_resolutions_keep_ordinary_git_clean_filters_without_staging_a
 }
 
 #[test]
+#[cfg(unix)]
 fn cancellation_during_side_read_reaps_the_command_and_preserves_the_resolution() {
     let (fixture, repository) = paused("shared");
     let request = request(&repository, "shared", Some(ConflictSide::Theirs));
@@ -530,6 +541,7 @@ fn cancellation_during_side_read_reaps_the_command_and_preserves_the_resolution(
 }
 
 #[test]
+#[cfg(unix)]
 fn failed_add_keeps_explicit_replacement_and_never_continues_or_replays() {
     let (fixture, repository) = paused("shared");
     let request = request(&repository, "shared", Some(ConflictSide::Theirs));
@@ -554,6 +566,7 @@ fn failed_add_keeps_explicit_replacement_and_never_continues_or_replays() {
 }
 
 #[test]
+#[cfg(unix)]
 fn successful_add_followed_by_failed_status_reports_refresh_without_replaying_or_rollback() {
     let (fixture, repository) = paused("shared");
 
@@ -582,6 +595,7 @@ fn successful_add_followed_by_failed_status_reports_refresh_without_replaying_or
 }
 
 #[test]
+#[cfg(unix)]
 fn common_directory_queue_covers_final_status_and_related_reads() {
     let (fixture, _) = paused("shared");
     let related = fixture.temporary.path().join("linked");

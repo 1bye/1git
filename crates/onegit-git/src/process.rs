@@ -1,16 +1,17 @@
-//! Owns each Git process group, its pipes, cancellation and bounded output.
+//! Owns each Git process tree, its pipes, cancellation and bounded output.
 
 use std::ffi::OsString;
 use std::fs::File;
 use std::io::{self, Read, Write};
-use std::os::fd::{AsRawFd, FromRawFd};
-use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, ExitStatus, Stdio};
+use std::process::{Command, ExitStatus, Stdio};
+
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
+
+use crate::platform;
 
 const DEFAULT_MAX_OUTPUT_BYTES: usize = 64 * 1024 * 1024;
 const TERMINATE_GRACE: Duration = Duration::from_secs(2);
@@ -54,7 +55,7 @@ impl<'a> ToolCommand<'a> {
     }
 }
 
-/// Run a native helper through the same owned pipes/process-group cleanup used for Git.
+/// Run a native helper through the same owned pipes/process-tree cleanup used for Git.
 /// The existing typed process output and errors are shared; no Git formatting/options,
 /// editor, pager, prompt, locale or index overrides are added to this invocation.
 pub fn execute_tool(input: ToolCommand<'_>) -> Result<GitOutput, GitError> {
@@ -89,7 +90,8 @@ pub struct GitCommand<'a> {
     /// Repository or operation working directory.
     pub cwd: &'a Path,
     /// Optional opened directory to pin the child working directory across path replacement.
-    /// When supplied, `cwd` is a label; the child uses this descriptor instead of looking it up.
+    /// When supplied, `cwd` is a label. Unix uses the descriptor directly; Windows resolves
+    /// the handle to a pathname before spawn, leaving a residual rename/replacement race.
     pub directory: Option<&'a File>,
     /// Exact arguments, including option terminators required by the operation.
     pub args: Vec<OsString>,
@@ -194,7 +196,7 @@ impl From<io::Error> for GitError {
     }
 }
 
-/// Blocking POSIX Git runner. Repository operations own validation above this layer.
+/// Blocking native Git runner. Repository operations own validation above this layer.
 /// Cloning copies execution configuration; it does not share or start a child process.
 #[derive(Clone)]
 pub struct GitProcess {
@@ -236,7 +238,8 @@ impl GitProcess {
 
     /// Run without terminal/editor prompts, preserving ordinary repository configuration.
     ///
-    /// Cancellation/deadline/overflow sends TERM then KILL to the private process group.
+    /// Cancellation/deadline/overflow sends TERM then KILL to the Unix process group,
+    /// or CTRL_BREAK then Job Object termination on Windows. CTRL_BREAK is best-effort.
     /// This method returns only after the leader is reaped and owned pipes are closed.
     /// Call this from a background worker, never from a GPUI render/event callback.
     pub fn run(&self, input: GitCommand<'_>) -> Result<GitOutput, GitError> {
@@ -289,63 +292,39 @@ impl GitProcess {
         }
 
         command
-            .process_group(0)
             .stdin(input.stdin_file.map_or_else(Stdio::piped, Stdio::from))
             .stdout(input.stdout_file.map_or_else(Stdio::piped, Stdio::from))
             .stderr(Stdio::piped());
-
-        // The child remaps stdin/stdout/stderr before pre_exec. Duplicate above those
-        // descriptors even if the caller opened its directory while standard I/O was closed.
-        let pinned_directory = input.directory.map(duplicate_directory).transpose()?;
-
-        if let Some(directory) = pinned_directory.as_ref() {
-            let descriptor = directory.as_raw_fd();
-
-            // SAFETY: the borrowed File stays open through spawn. fchdir is async-signal-safe,
-            // and this child-only hook performs no allocation, locking or parent-state mutation.
-            unsafe {
-                command.pre_exec(move || {
-                    if libc::fchdir(descriptor) == -1 {
-                        return Err(io::Error::last_os_error());
-                    }
-
-                    Ok(())
-                });
-            }
-        } else {
-            command.current_dir(input.cwd);
-        }
 
         if let Some(index) = input.index_file {
             command.env("GIT_INDEX_FILE", index);
         }
 
-        let child = command.spawn().map_err(|error| match error.kind() {
-            io::ErrorKind::NotFound => GitError::GitNotFound(error),
-            _ => GitError::Io(error),
-        })?;
+        let mut owned = platform::spawn(&mut command, input.cwd, input.directory).map_err(
+            |error| match error.kind() {
+                io::ErrorKind::NotFound => GitError::GitNotFound(error),
+                _ => GitError::Io(error),
+            },
+        )?;
 
-        drop(pinned_directory);
-
-        let mut owned = OwnedChild {
-            child,
-            finished: false,
-        };
-
-        let mut stdin = owned.child.stdin.take();
-        let mut stdout = owned.child.stdout.take();
-        let mut stderr = owned.child.stderr.take();
-
-        for fd in [
-            stdin.as_ref().map(AsRawFd::as_raw_fd),
-            stdout.as_ref().map(AsRawFd::as_raw_fd),
-            stderr.as_ref().map(AsRawFd::as_raw_fd),
-        ]
-        .into_iter()
-        .flatten()
-        {
-            nonblocking(fd)?;
-        }
+        let mut stdin = owned
+            .child
+            .stdin
+            .take()
+            .map(platform::input_pipe)
+            .transpose()?;
+        let mut stdout = owned
+            .child
+            .stdout
+            .take()
+            .map(platform::output_pipe)
+            .transpose()?;
+        let mut stderr = owned
+            .child
+            .stderr
+            .take()
+            .map(platform::output_pipe)
+            .transpose()?;
 
         let mut output = GitOutput::default();
         let mut written = 0;
@@ -393,13 +372,13 @@ impl GitProcess {
                 stderr.take();
 
                 let began = *stop_time.get_or_insert_with(|| {
-                    owned.signal(libc::SIGTERM);
+                    owned.signal(platform::Signal::Terminate);
 
                     Instant::now()
                 });
 
                 if began.elapsed() >= TERMINATE_GRACE {
-                    owned.signal(libc::SIGKILL);
+                    owned.signal(platform::Signal::Kill);
                 }
 
                 // Keep the leader unreaped during the grace period so its group ID cannot be reused.
@@ -431,66 +410,7 @@ impl GitProcess {
     }
 }
 
-fn duplicate_directory(file: &File) -> io::Result<File> {
-    // SAFETY: fcntl borrows a live descriptor and atomically creates a distinct owned
-    // descriptor >= 3 with close-on-exec. A negative result creates no descriptor.
-    let descriptor = unsafe { libc::fcntl(file.as_raw_fd(), libc::F_DUPFD_CLOEXEC, 3) };
-
-    if descriptor == -1 {
-        return Err(io::Error::last_os_error());
-    }
-
-    // SAFETY: this successful fcntl result has one owner, transferred into File exactly once.
-    Ok(unsafe { File::from_raw_fd(descriptor) })
-}
-
-struct OwnedChild {
-    child: Child,
-    finished: bool,
-}
-
-impl OwnedChild {
-    fn signal(&self, signal: i32) {
-        // SAFETY: Command::process_group(0) created this private group; the ID fits pid_t.
-        unsafe {
-            libc::kill(-(self.child.id() as libc::pid_t), signal);
-        }
-    }
-}
-
-impl Drop for OwnedChild {
-    fn drop(&mut self) {
-        if !self.finished {
-            self.signal(libc::SIGKILL);
-            let _ = self.child.wait();
-        }
-    }
-}
-
-fn nonblocking(fd: i32) -> io::Result<()> {
-    // SAFETY: fd belongs to a live owned pipe; fcntl changes only its nonblocking flag.
-    let result = unsafe {
-        let flags = libc::fcntl(fd, libc::F_GETFL);
-
-        if flags < 0 {
-            -1
-        } else {
-            libc::fcntl(fd, libc::F_SETFL, flags | libc::O_NONBLOCK)
-        }
-    };
-
-    if result < 0 {
-        return Err(io::Error::last_os_error());
-    }
-
-    Ok(())
-}
-
-fn pump_stdin(
-    pipe: &mut Option<std::process::ChildStdin>,
-    bytes: &[u8],
-    written: &mut usize,
-) -> io::Result<()> {
+fn pump_stdin<W: Write>(pipe: &mut Option<W>, bytes: &[u8], written: &mut usize) -> io::Result<()> {
     if *written == bytes.len() {
         pipe.take();
 

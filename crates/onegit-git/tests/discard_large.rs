@@ -6,11 +6,11 @@
 mod common;
 
 use common::Fixture;
+use common::symlink;
 use onegit_git::{BranchIdentity, DiscardFiles, DiscardRecovery, Repository};
 use sha2::{Digest, Sha256};
 use std::fs::{self, File};
 use std::io::{Read, Write};
-use std::os::unix::fs::symlink;
 use std::path::Path;
 
 fn large_file(path: &Path) -> [u8; 32] {

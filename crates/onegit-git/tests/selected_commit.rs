@@ -48,8 +48,10 @@ fn process(fixture: &Fixture, executable: impl Into<PathBuf>) -> GitProcess {
     ])
 }
 
+#[cfg(unix)]
 fn executable(path: &std::path::Path, script: &str) {
-    use std::os::unix::fs::PermissionsExt;
+    #[cfg(unix)]
+    use common::PermissionsExt;
 
     fs::write(path, script).unwrap();
     fs::set_permissions(path, fs::Permissions::from_mode(0o700)).unwrap();

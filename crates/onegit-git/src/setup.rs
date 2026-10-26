@@ -2,7 +2,6 @@
 
 use std::ffi::OsString;
 use std::fs;
-use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 
 use url::Url;
@@ -128,7 +127,11 @@ impl Repository {
 }
 
 fn require_destination(path: &Path) -> Result<(), RepositoryError> {
-    if path.as_os_str().is_empty() || path.as_os_str().as_bytes().contains(&0) {
+    if path.as_os_str().is_empty()
+        || crate::platform::path_to_git_bytes(path.as_os_str())
+            .map_err(|_| RepositoryError::InvalidPath)?
+            .contains(&0)
+    {
         return Err(RepositoryError::InvalidPath);
     }
 

@@ -1,6 +1,5 @@
 //! Shared validation for revision arguments and literal repository-relative paths.
 
-use std::os::unix::ffi::OsStrExt;
 use std::path::{Component, Path};
 
 use crate::RepositoryError;
@@ -23,7 +22,11 @@ pub(crate) fn require_paths<'a>(
     for path in paths {
         any = true;
 
-        if path.as_os_str().is_empty() || path.as_os_str().as_bytes().contains(&0) {
+        if path.as_os_str().is_empty()
+            || crate::platform::path_to_git_bytes(path.as_os_str())
+                .map_err(|_| RepositoryError::InvalidPath)?
+                .contains(&0)
+        {
             return Err(RepositoryError::InvalidPath);
         }
 

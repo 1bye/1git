@@ -1,12 +1,9 @@
 //! Bounded file previews, with descriptor-relative access beneath the opened working tree.
 
-use std::ffi::{CString, OsString};
+use std::ffi::OsString;
 use std::fs::{self, File};
-use std::io::{self, Read};
-use std::os::fd::{AsRawFd, FromRawFd};
-use std::os::unix::ffi::OsStrExt;
-use std::os::unix::fs::MetadataExt;
-use std::path::{Component, Path, PathBuf};
+use std::io::Read;
+use std::path::{Path, PathBuf};
 
 use super::{Repository, RepositoryError};
 use crate::output::{text, trim};
@@ -166,11 +163,10 @@ impl Repository {
         cancellation: Option<&Cancellation>,
     ) -> Result<Vec<u8>, RepositoryError> {
         let root_metadata = fs::symlink_metadata(&self.info.root)?;
-        let held_metadata = self.root_directory.metadata()?;
 
         if !root_metadata.is_dir()
-            || root_metadata.dev() != held_metadata.dev()
-            || root_metadata.ino() != held_metadata.ino()
+            || crate::platform::FileIdentity::from_path(&self.info.root)?
+                != crate::platform::FileIdentity::from_file(&self.root_directory)?
         {
             return Err(RepositoryError::InvalidInput(
                 "Repository directory changed; reopen it before previewing files",
@@ -220,47 +216,22 @@ impl Repository {
         relative: &Path,
         writable: bool,
     ) -> Result<File, RepositoryError> {
-        let mut parent: Option<File> = None;
-        let mut components = relative.components().peekable();
-
-        while let Some(component) = components.next() {
-            let Component::Normal(name) = component else {
-                return Err(RepositoryError::PathOutsideRepository);
-            };
-
-            let name = CString::new(name.as_bytes()).map_err(|_| RepositoryError::InvalidPath)?;
-            let directory = parent.as_ref().unwrap_or(&self.root_directory);
-            let last = components.peek().is_none();
-
-            let flags = if last && writable {
-                libc::O_RDWR
-            } else {
-                libc::O_RDONLY
-            } | libc::O_CLOEXEC
-                | libc::O_NOFOLLOW
-                | libc::O_NONBLOCK
-                | if last { 0 } else { libc::O_DIRECTORY };
-
-            // SAFETY: directory owns a live dir fd, name is one NUL-terminated component,
-            // and no-follow flags prevent traversing a substituted symlink. Writable
-            // access is requested only for the final file, without creating/truncating it.
-            let fd = unsafe { libc::openat(directory.as_raw_fd(), name.as_ptr(), flags) };
-
-            if fd < 0 {
-                return Err(io::Error::last_os_error().into());
-            }
-
-            // SAFETY: successful openat returned a new fd, whose sole owner is this File.
-            let file = unsafe { File::from_raw_fd(fd) };
-
-            if last {
-                return Ok(file);
-            }
-
-            parent = Some(file);
+        if relative.as_os_str().is_empty() {
+            return Err(RepositoryError::NotAFile);
         }
 
-        Err(RepositoryError::NotAFile)
+        if relative
+            .components()
+            .any(|component| !matches!(component, std::path::Component::Normal(_)))
+        {
+            return Err(RepositoryError::PathOutsideRepository);
+        }
+
+        Ok(crate::platform::open_beneath(
+            &self.root_directory,
+            relative,
+            writable,
+        )?)
     }
 }
 
@@ -276,8 +247,8 @@ fn preview_size(size: u64) -> Result<(), GitError> {
 
 #[cfg(test)]
 mod tests {
+    use crate::platform::symlink;
     use std::fs;
-    use std::os::unix::fs::symlink;
 
     use crate::{GitCommand, GitProcess, Repository};
 

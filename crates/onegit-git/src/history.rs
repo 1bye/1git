@@ -593,8 +593,8 @@ fn raw_file<'a>(
     };
 
     Ok(CommitFile {
-        path: path(current),
-        original_path: renamed.then(|| path(first)),
+        path: path(current)?,
+        original_path: renamed.then(|| path(first)).transpose()?,
         status,
         before_oid: capture[1].into(),
         after_oid: capture[2].into(),

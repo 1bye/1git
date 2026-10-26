@@ -3,14 +3,16 @@
 //! Doubles: one malformed-output executable; Git configuration is isolated per child.
 //! Requires: Git and temporary storage; no network, user configuration or credentials.
 
+#[cfg(unix)]
+use common::PermissionsExt;
+use common::symlink;
 use std::ffi::OsString;
 use std::fs;
-use std::os::unix::fs::{PermissionsExt, symlink};
 use std::path::Path;
 
-use onegit_git::{
-    Cancellation, FileStatus, GitError, GitProcess, OperationState, Repository, RepositoryError,
-};
+#[cfg(unix)]
+use onegit_git::GitProcess;
+use onegit_git::{Cancellation, FileStatus, GitError, OperationState, Repository, RepositoryError};
 
 mod common;
 
@@ -194,6 +196,7 @@ fn snapshot_cancellation_is_an_error_instead_of_a_clean_tree() {
 }
 
 #[test]
+#[cfg(unix)]
 fn malformed_git_output_cannot_become_a_successful_clean_snapshot() {
     let fixture = Fixture::new();
     let executable = fixture.temporary.path().join("malformed-git");

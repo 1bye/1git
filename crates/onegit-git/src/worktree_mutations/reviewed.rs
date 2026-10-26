@@ -80,7 +80,11 @@ fn source(
 }
 
 fn destination(path: &Path) -> Result<PathBuf, WriteError> {
-    if !path.is_absolute() || path.as_os_str().as_bytes().contains(&0) {
+    if !path.is_absolute()
+        || crate::platform::path_to_git_bytes(path.as_os_str())
+            .map_err(|_| failure(WritePhase::BeforeCommand, RepositoryError::InvalidPath))?
+            .contains(&0)
+    {
         return Err(conflict("Choose an absolute destination path."));
     }
 

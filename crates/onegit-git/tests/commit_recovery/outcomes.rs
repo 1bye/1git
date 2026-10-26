@@ -1,5 +1,7 @@
+#[cfg(unix)]
 use super::*;
 
+#[cfg(unix)]
 fn competing_tip(fixture: &Fixture) -> String {
     fixture.git(&["checkout", "-b", "other"]);
     fixture.write("other.txt", "other\n");
@@ -12,6 +14,7 @@ fn competing_tip(fixture: &Fixture) -> String {
 }
 
 #[test]
+#[cfg(unix)]
 fn failed_compare_and_swap_cannot_create_a_partial_recovery_ref() {
     let fixture = Fixture::new();
 
@@ -50,6 +53,7 @@ exec git "$@"
 }
 
 #[test]
+#[cfg(unix)]
 fn missing_ack_is_command_error_even_when_branch_moved_and_recovery_survives() {
     let fixture = Fixture::new();
     let (parent, tip) = base_and_tip(&fixture);
@@ -81,6 +85,7 @@ exec git "$@"
 }
 
 #[test]
+#[cfg(unix)]
 fn acknowledged_undo_with_failed_refresh_keeps_message_and_recovery_warning() {
     let fixture = Fixture::new();
     let (parent, tip) = base_and_tip(&fixture);
@@ -112,6 +117,7 @@ exec git "$@"
 }
 
 #[test]
+#[cfg(unix)]
 fn acknowledged_undo_reports_external_branch_change_without_losing_recovery_or_message() {
     let fixture = Fixture::new();
     let (_, tip) = base_and_tip(&fixture);
@@ -153,6 +159,7 @@ exec git "$@"
 }
 
 #[test]
+#[cfg(unix)]
 fn replaced_directory_after_install_returns_warning_without_reading_the_new_directory() {
     let fixture = Fixture::new();
     let (parent, tip) = base_and_tip(&fixture);
@@ -209,6 +216,7 @@ exec git "$@"
 }
 
 #[test]
+#[cfg(unix)]
 fn cancellation_after_install_starts_cannot_interrupt_transaction_or_release_queued_reads_early() {
     use std::sync::{Arc, mpsc};
     use std::time::{Duration, Instant};

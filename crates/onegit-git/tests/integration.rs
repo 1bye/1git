@@ -8,15 +8,20 @@ mod common;
 use common::{Fixture, files_under};
 
 use onegit_git::{
-    BranchIdentity, Cancellation, FastForward, FinishKind, FinishOperation, GitCommand, GitProcess,
+    BranchIdentity, Cancellation, FastForward, FinishKind, FinishOperation, GitCommand,
     IntegrationKind, IntegrationRequest, MergeOptions, OperationState, RebaseOptions, Repository,
-    RepositoryCoordinator, WritePhase,
+    WritePhase,
 };
+#[cfg(unix)]
+use onegit_git::{GitProcess, RepositoryCoordinator};
 
+#[cfg(unix)]
+use common::PermissionsExt;
 use std::fs;
-use std::os::unix::fs::PermissionsExt;
+#[cfg(unix)]
 use std::time::{Duration, Instant};
 
+#[cfg(unix)]
 fn wrapped_process(fixture: &Fixture, body: &str) -> GitProcess {
     let path = fixture.temporary.path().join("git-wrapper");
 
@@ -41,6 +46,7 @@ fn wrapped_process(fixture: &Fixture, body: &str) -> GitProcess {
     ])
 }
 
+#[cfg(unix)]
 fn wait_file(path: &std::path::Path) {
     let deadline = Instant::now() + Duration::from_secs(5);
 
@@ -514,6 +520,7 @@ fn refuses_published_ancestors_and_merge_history_before_creating_backup_refs() {
 }
 
 #[test]
+#[cfg(unix)]
 fn hook_failure_preserves_staged_squash_and_reviewed_message_for_explicit_continue() {
     let (fixture, _) = fixture();
 
@@ -703,7 +710,7 @@ fn rebase_refuses_ignored_directory_parent_file_and_symlink_collisions() {
                 fixture.write("collision/inside", "local work\n");
             }
             1 => fixture.write("collision", "local work\n"),
-            _ => std::os::unix::fs::symlink(&outside, fixture.root.join("collision")).unwrap(),
+            _ => common::symlink(&outside, fixture.root.join("collision")).unwrap(),
         }
 
         let request = review(&repository, IntegrationKind::Rebase);
@@ -914,6 +921,7 @@ fn reviewed_finish_recovers_external_cherry_pick_and_revert_and_refuses_changed_
 }
 
 #[test]
+#[cfg(unix)]
 fn integration_never_follows_a_target_ref_that_moves_after_review() {
     for kind in [
         IntegrationKind::Merge,
@@ -957,6 +965,7 @@ fn integration_never_follows_a_target_ref_that_moves_after_review() {
 }
 
 #[test]
+#[cfg(unix)]
 fn ambiguous_command_and_refresh_failures_are_not_replayed_or_cleaned_up() {
     for refresh in [false, true] {
         let (fixture, repository) = fixture();
@@ -1041,6 +1050,7 @@ case " $* " in *" merge "*) printf 'merge\n' >> '{}'; git "$@" || exit $?; {}; e
 }
 
 #[test]
+#[cfg(unix)]
 fn canceled_squash_still_retains_its_reviewed_message_for_restart_recovery() {
     let (fixture, repository) = fixture();
 
@@ -1092,6 +1102,7 @@ fn canceled_squash_still_retains_its_reviewed_message_for_restart_recovery() {
 }
 
 #[test]
+#[cfg(unix)]
 fn related_worktree_writes_wait_through_integration_result_refresh() {
     let (fixture, _) = fixture();
 

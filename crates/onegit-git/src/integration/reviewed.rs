@@ -5,8 +5,6 @@ use crate::repository::mutations::recovery_id;
 use crate::repository::{Branch, BranchKind, BranchMutation};
 use std::collections::BTreeSet;
 use std::io::Write;
-use std::os::unix::ffi::OsStringExt;
-use std::os::unix::fs::OpenOptionsExt;
 use std::path::PathBuf;
 
 /// Integration mode selected in a reviewed branch dialog.
@@ -240,12 +238,10 @@ impl Repository {
             if self.reviewed_squash_pending(request)? {
                 self.check_write_identity()
                     .map_err(|error| failure(WritePhase::Refresh, error))?;
-                let mut marker = fs::OpenOptions::new()
-                    .write(true)
-                    .truncate(true)
-                    .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
-                    .open(self.info.git_directory.join("SQUASH_MSG"))
-                    .map_err(|error| failure(WritePhase::Refresh, error))?;
+                let mut marker = crate::platform::truncate_no_follow(
+                    &self.info.git_directory.join("SQUASH_MSG"),
+                )
+                .map_err(|error| failure(WritePhase::Refresh, error))?;
 
                 marker
                     .write_all(message.as_ref().unwrap().as_bytes())
@@ -537,7 +533,8 @@ fn js_whitespace(character: char) -> bool {
 }
 
 fn path(bytes: &[u8]) -> Result<PathBuf, WriteError> {
-    let path = PathBuf::from(OsString::from_vec(bytes.to_vec()));
+    let path = crate::platform::path_from_git_bytes(bytes)
+        .map_err(|_| failure(WritePhase::BeforeCommand, RepositoryError::InvalidOutput))?;
 
     crate::validation::require_paths([path.as_path()])
         .map_err(|error| failure(WritePhase::BeforeCommand, error))?;

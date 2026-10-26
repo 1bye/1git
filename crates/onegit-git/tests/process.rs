@@ -3,11 +3,19 @@
 //! Doubles: shell executables that reproduce noisy or stalled Git helpers.
 //! Requires: Git, /bin/sh and writable temporary storage; no network or user credentials.
 
+mod common;
+
+#[cfg(unix)]
+use common::PermissionsExt;
 use std::fs::{self, File};
+#[cfg(unix)]
 use std::io::{Seek, SeekFrom};
-use std::os::unix::fs::PermissionsExt;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+#[cfg(unix)]
+use std::path::PathBuf;
+#[cfg(unix)]
 use std::thread;
+#[cfg(unix)]
 use std::time::{Duration, Instant};
 
 use onegit_git::{Cancellation, GitCommand, GitError, GitOutput, GitProcess};
@@ -41,6 +49,7 @@ impl Fixture {
         GitProcess::default().run(self.command(args)).unwrap()
     }
 
+    #[cfg(unix)]
     fn script(&self, body: &str) -> PathBuf {
         let path = self.path().join("git-fixture");
 
@@ -98,6 +107,7 @@ fn streams_a_held_file_past_the_output_cap_without_reopening_a_substituted_path(
 }
 
 #[test]
+#[cfg(unix)]
 fn streams_from_the_current_file_offset_and_rejects_two_input_sources_before_spawn() {
     let fixture = Fixture::new();
     let path = fixture.path().join("input");
@@ -128,6 +138,7 @@ fn streams_from_the_current_file_offset_and_rejects_two_input_sources_before_spa
 }
 
 #[test]
+#[cfg(unix)]
 fn streams_file_to_file_while_stderr_overflow_still_cleans_up_the_process_group() {
     let fixture = Fixture::new();
     let path = fixture.path().join("input");
@@ -150,6 +161,7 @@ fn streams_file_to_file_while_stderr_overflow_still_cleans_up_the_process_group(
 }
 
 #[test]
+#[cfg(unix)]
 fn passes_metacharacters_literally_and_preserves_exit_diagnostics() {
     let fixture = Fixture::new();
     let script = fixture.script("printf '%s' \"$5\"; printf 'fixture failure' >&2; exit 23");
@@ -170,6 +182,7 @@ fn passes_metacharacters_literally_and_preserves_exit_diagnostics() {
 }
 
 #[test]
+#[cfg(unix)]
 fn bounds_stdout_and_stderr_together() {
     let fixture = Fixture::new();
     let script = fixture.script("printf '%033d' 0; printf '%033d' 0 >&2");
@@ -197,6 +210,7 @@ fn per_command_output_limits_can_only_tighten_the_runner_limit() {
 }
 
 #[test]
+#[cfg(unix)]
 fn streams_stdout_to_a_file_while_bounding_stderr() {
     let fixture = Fixture::new();
     let script = fixture.script("printf '%131072d' 0; printf 'ok' >&2");
@@ -258,6 +272,7 @@ fn reports_missing_git_and_cancellation_before_spawn() {
 }
 
 #[test]
+#[cfg(unix)]
 fn cancellation_stops_term_ignoring_helpers_before_returning() {
     let fixture = Fixture::new();
     let script = fixture.script("trap '' TERM; sleep 60 &\necho $! > helper-pid\nwait");
@@ -283,6 +298,7 @@ fn cancellation_stops_term_ignoring_helpers_before_returning() {
 }
 
 #[test]
+#[cfg(unix)]
 fn deadline_cleans_up_helpers_after_the_leader_exits() {
     let fixture = Fixture::new();
     let script = fixture.script("sleep 60 &\necho $! > helper-pid\nexit 0");
@@ -299,6 +315,7 @@ fn deadline_cleans_up_helpers_after_the_leader_exits() {
     assert_process_gone(helper);
 }
 
+#[cfg(unix)]
 fn wait_for_pid(path: &Path) -> i32 {
     let start = Instant::now();
 
@@ -317,6 +334,7 @@ fn wait_for_pid(path: &Path) -> i32 {
     }
 }
 
+#[cfg(unix)]
 fn assert_process_gone(pid: i32) {
     let start = Instant::now();
 

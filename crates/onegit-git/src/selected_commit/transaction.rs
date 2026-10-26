@@ -8,10 +8,8 @@ use crate::{
 
 use std::collections::HashSet;
 use std::ffi::{OsStr, OsString};
-use std::fs::{self, File, OpenOptions};
+use std::fs::{self, File};
 use std::io::{self, Seek, SeekFrom, Write};
-use std::os::unix::ffi::{OsStrExt, OsStringExt};
-use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
@@ -19,7 +17,7 @@ struct Transaction {
     index_path: PathBuf,
     lock_path: PathBuf,
     lock: File,
-    lock_identity: (u64, u64),
+    lock_identity: crate::platform::FileIdentity,
     owns_lock: bool,
     directory: Option<TempDir>,
     retain: bool,
@@ -32,24 +30,19 @@ impl Transaction {
         lock_name.push(".lock");
         let lock_path = PathBuf::from(lock_name);
 
-        let lock = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .mode(0o600)
-            .open(&lock_path)
-            .map_err(|error| {
-                if error.kind() == io::ErrorKind::AlreadyExists {
-                    CommitError::invalid(
-                        ErrorCode::RepositoryLocked,
-                        "The repository is locked by another Git process.",
-                    )
-                } else {
-                    before(error.into())
-                }
-            })?;
+        let lock = crate::platform::create_private_file(&lock_path).map_err(|error| {
+            if error.kind() == io::ErrorKind::AlreadyExists {
+                CommitError::invalid(
+                    ErrorCode::RepositoryLocked,
+                    "The repository is locked by another Git process.",
+                )
+            } else {
+                before(error.into())
+            }
+        })?;
 
-        let metadata = match lock.metadata() {
-            Ok(metadata) => metadata,
+        let lock_identity = match crate::platform::FileIdentity::from_file(&lock) {
+            Ok(identity) => identity,
             Err(error) => {
                 let _ = fs::remove_file(&lock_path);
 
@@ -61,7 +54,7 @@ impl Transaction {
             index_path,
             lock_path,
             lock,
-            lock_identity: (metadata.dev(), metadata.ino()),
+            lock_identity,
             owns_lock: true,
             directory: None,
             retain: false,
@@ -71,7 +64,9 @@ impl Transaction {
     fn check_lock(&self) -> io::Result<()> {
         let metadata = fs::symlink_metadata(&self.lock_path)?;
 
-        if !metadata.is_file() || (metadata.dev(), metadata.ino()) != self.lock_identity {
+        if !metadata.is_file()
+            || crate::platform::FileIdentity::from_path(&self.lock_path)? != self.lock_identity
+        {
             return Err(io::Error::other("The owned index lock changed."));
         }
 
@@ -191,7 +186,8 @@ impl Repository {
             }
         }
 
-        let index_path = PathBuf::from(OsString::from_vec(bytes));
+        let index_path = crate::platform::path_from_git_bytes(&bytes)
+            .map_err(|_| before(RepositoryError::InvalidOutput))?;
 
         if !index_path.is_absolute() {
             return Err(before(RepositoryError::InvalidOutput));
@@ -319,14 +315,10 @@ impl Repository {
                 }
             }
 
-            let mut file = OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .mode(0o600)
-                .open(&path_file)
+            let mut file = crate::platform::create_private_file(&path_file)
                 .map_err(|error| before(error.into()))?;
 
-            file.write_all(&path_bytes(&selected))
+            file.write_all(&path_bytes(&selected).map_err(before)?)
                 .map_err(|error| before(error.into()))?;
             drop(file);
             self.check_write_identity().map_err(before)?;
@@ -489,7 +481,7 @@ impl Repository {
                 "--pathspec-file-nul",
             ],
             Some(index),
-            &path_bytes(paths),
+            &path_bytes(paths)?,
         )?;
 
         Ok(())
@@ -544,11 +536,18 @@ fn exact(a: &Path, b: &Path) -> bool {
     a.as_os_str() == b.as_os_str()
 }
 
-fn path_bytes(paths: &[PathBuf]) -> Vec<u8> {
-    paths
-        .iter()
-        .flat_map(|path| path.as_os_str().as_bytes().iter().copied().chain([0]))
-        .collect()
+fn path_bytes(paths: &[PathBuf]) -> Result<Vec<u8>, RepositoryError> {
+    let mut bytes = Vec::new();
+
+    for path in paths {
+        bytes.extend_from_slice(
+            &crate::platform::path_to_git_bytes(path.as_os_str())
+                .map_err(|_| RepositoryError::InvalidPath)?,
+        );
+        bytes.push(0);
+    }
+
+    Ok(bytes)
 }
 
 fn trim(value: &str) -> &str {
@@ -577,7 +576,11 @@ fn validate(input: &CommitFiles) -> Result<Vec<PathBuf>, CommitError> {
         }
 
         for path in &input.paths {
-            if path.as_os_str().is_empty() || path.as_os_str().as_bytes().contains(&0) {
+            if path.as_os_str().is_empty()
+                || crate::platform::path_to_git_bytes(path.as_os_str())
+                    .map_err(|_| before(RepositoryError::InvalidPath))?
+                    .contains(&0)
+            {
                 return Err(CommitError::invalid(
                     ErrorCode::InvalidInput,
                     "Repository path must be non-empty and contain no NUL.",

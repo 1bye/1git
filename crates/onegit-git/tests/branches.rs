@@ -9,13 +9,17 @@ use common::{Fixture, files_under};
 
 use onegit_git::{
     BranchAction, BranchChanges, BranchError, BranchIdentity, BranchKind, BranchRequest,
-    Cancellation, CreateBranch, ErrorCode, Failure, FileStatus, GitProcess, Operation, Repository,
-    RepositoryCoordinator, RepositoryError, WritePhase,
+    Cancellation, CreateBranch, ErrorCode, Failure, Operation, Repository, WritePhase,
 };
+#[cfg(unix)]
+use onegit_git::{FileStatus, GitProcess, RepositoryCoordinator, RepositoryError};
 
+#[cfg(unix)]
+use common::PermissionsExt;
 use std::fs;
-use std::os::unix::fs::PermissionsExt;
+#[cfg(unix)]
 use std::sync::{Arc, mpsc};
+#[cfg(unix)]
 use std::time::{Duration, Instant};
 
 fn fixture() -> Fixture {
@@ -161,6 +165,7 @@ fn refuses_dirty_submodule_switching_before_creating_a_recovery_stash() {
 }
 
 #[test]
+#[cfg(unix)]
 fn branch_failures_redact_diagnostics_and_never_promise_retention_after_uncertain_cleanup() {
     let fixture = fixture();
 
@@ -275,6 +280,7 @@ fn refuses_remote_tracking_name_collisions_and_other_worktree_renames_without_wr
 }
 
 #[test]
+#[cfg(unix)]
 fn a_successful_checkout_hook_cannot_make_a_later_restore_refusal_look_like_no_write_occurred() {
     let fixture = fixture();
     let hooks = fixture.temporary.path().join("hooks");
@@ -336,6 +342,7 @@ fn mixed(fixture: &Fixture) -> Vec<u8> {
     fixture.git(&["ls-files", "--stage"])
 }
 
+#[cfg(unix)]
 fn wrapper(fixture: &Fixture, body: &str) -> GitProcess {
     let path = fixture.temporary.path().join("git-wrapper");
 
@@ -568,6 +575,7 @@ fn keeps_a_destination_owned_backup_and_real_conflicts_when_bring_cannot_apply()
 }
 
 #[test]
+#[cfg(unix)]
 fn keeps_saved_work_after_a_checkout_hook_changes_the_destination_and_fails() {
     let fixture = fixture();
     let hooks = fixture.temporary.path().join("hooks");
@@ -1016,6 +1024,7 @@ fn cancellation_and_root_replacement_fail_before_branch_writes() {
 }
 
 #[test]
+#[cfg(unix)]
 fn reports_post_command_refresh_failure_without_replaying_or_undoing_a_created_branch() {
     let fixture = fixture();
     let marker = fixture.temporary.path().join("created");
@@ -1049,6 +1058,7 @@ exec git "$@""#,
 }
 
 #[test]
+#[cfg(unix)]
 fn keeps_restored_backup_until_every_result_read_and_cleanup_succeeds() {
     for fail in ["status", "branches", "drop"] {
         let fixture = fixture();
@@ -1101,6 +1111,7 @@ exec git "$@""#).with_environment([("ONEGIT_APPLIED".into(), applied.into_os_str
 }
 
 #[test]
+#[cfg(unix)]
 fn re_resolves_only_the_immutable_backup_after_another_stash_moves_its_selector() {
     let fixture = fixture();
 
@@ -1142,6 +1153,7 @@ exec git "$@""#).with_environment([("ONEGIT_MANUAL".into(), manual.trim().into()
     );
 }
 
+#[cfg(unix)]
 fn wait_until(predicate: impl Fn() -> bool) {
     let until = Instant::now() + Duration::from_secs(5);
 
@@ -1152,6 +1164,7 @@ fn wait_until(predicate: impl Fn() -> bool) {
 }
 
 #[test]
+#[cfg(unix)]
 fn holds_the_common_directory_queue_through_backup_switch_restore_cleanup_and_refresh() {
     let fixture = fixture();
     let linked = fixture.temporary.path().join("linked");

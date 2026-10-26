@@ -3,9 +3,12 @@
 //! Doubles: synthetic malformed/status records for boundary cases.
 //! Requires: Git and temporary storage; no network, user configuration or credentials.
 
+mod common;
+
+#[cfg(unix)]
+use common::OsStrExt;
 use std::ffi::OsString;
 use std::fs;
-use std::os::unix::ffi::OsStrExt;
 use std::path::PathBuf;
 use std::process::{Command, Output};
 
@@ -128,6 +131,7 @@ fn parses_unborn_and_detached_heads_and_tracking_headers() {
 }
 
 #[test]
+#[cfg(unix)]
 fn preserves_non_utf8_and_control_characters_in_rename_names() {
     let oid = "1".repeat(40);
 

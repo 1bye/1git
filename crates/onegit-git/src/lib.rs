@@ -6,6 +6,7 @@
 mod failure;
 mod output;
 mod partial_patch;
+mod platform;
 mod process;
 mod repository;
 mod status;

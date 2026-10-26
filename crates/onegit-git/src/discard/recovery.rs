@@ -1,14 +1,10 @@
 //! Private recovery files, streamed capture and literal no-follow filesystem checks.
 
 use std::collections::HashSet;
-use std::ffi::{CStr, CString, OsString};
-use std::fs::{self, File, OpenOptions};
+use std::ffi::{CStr, OsString};
+use std::fs::{self, File};
 use std::io::{Read, Seek, SeekFrom, Write};
-use std::mem::MaybeUninit;
-use std::os::fd::{AsRawFd, FromRawFd};
-use std::os::unix::ffi::OsStrExt;
-use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use chrono::{DateTime, SecondsFormat, Utc};
@@ -81,21 +77,12 @@ impl Recovery {
                 let parent_path =
                     fs::canonicalize(path.parent().ok_or(RepositoryError::InvalidPath)?)?;
 
-                let parent = open_directory(&parent_path)?;
+                let parent = crate::platform::open_directory_no_follow(&parent_path)?;
 
-                let name = CString::new(
-                    path.file_name()
-                        .ok_or(RepositoryError::InvalidPath)?
-                        .as_bytes(),
-                )
-                .map_err(|_| RepositoryError::InvalidPath)?;
-
-                // SAFETY: parent owns a live dir fd; name is one validated NUL-terminated leaf.
-                if unsafe { libc::mkdirat(parent.as_raw_fd(), name.as_ptr(), 0o700) } != 0 {
-                    return Err(std::io::Error::last_os_error().into());
-                }
-
-                let directory = open_at(&parent, &name, libc::O_RDONLY | libc::O_DIRECTORY, 0)?;
+                let directory = crate::platform::create_private_directory(
+                    &parent,
+                    path.file_name().ok_or(RepositoryError::InvalidPath)?,
+                )?;
 
                 (
                     parent_path.join(path.file_name().ok_or(RepositoryError::InvalidPath)?),
@@ -109,8 +96,10 @@ impl Recovery {
                     .tempdir()?;
 
                 let path = fs::canonicalize(temporary.path())?;
-                let parent = open_directory(path.parent().ok_or(RepositoryError::InvalidPath)?)?;
-                let directory = open_directory(&path)?;
+                let parent = crate::platform::open_directory_no_follow(
+                    path.parent().ok_or(RepositoryError::InvalidPath)?,
+                )?;
+                let directory = crate::platform::open_directory_no_follow(&path)?;
 
                 let _ = temporary.keep();
 
@@ -118,7 +107,7 @@ impl Recovery {
             }
         };
 
-        directory.set_permissions(fs::Permissions::from_mode(0o700))?;
+        crate::platform::make_private_directory(&directory)?;
         let staged = create_file(&directory, c"staged.patch")?;
         let working = create_file(&directory, c"working.patch")?;
 
@@ -139,12 +128,11 @@ impl Recovery {
 
     pub fn check_identity(&self) -> Result<(), RepositoryError> {
         let named = fs::symlink_metadata(&self.path)?;
-        let held = self.directory.metadata()?;
 
         if !named.is_dir()
-            || named.dev() != held.dev()
-            || named.ino() != held.ino()
-            || named.permissions().mode() & 0o077 != 0
+            || crate::platform::FileIdentity::from_path(&self.path)?
+                != crate::platform::FileIdentity::from_file(&self.directory)?
+            || !crate::platform::is_private_directory(&self.directory)?
         {
             return Err(RepositoryError::InvalidInput(
                 "Recovery directory changed. Inspect the backup before continuing.",
@@ -155,13 +143,17 @@ impl Recovery {
             (c"staged.patch", &self.staged),
             (c"working.patch", &self.working),
         ] {
-            let named = open_at(&self.directory, name, libc::O_RDONLY, 0)?.metadata()?;
-            let held = patch.file.metadata()?;
+            let entry = crate::platform::open_component(
+                &self.directory,
+                name.to_str().map_err(std::io::Error::other)?.as_ref(),
+                crate::platform::Access::Read,
+            )?;
+            let named = entry.metadata()?;
 
             if !named.is_file()
-                || named.nlink() != 1
-                || named.dev() != held.dev()
-                || named.ino() != held.ino()
+                || crate::platform::file_state(&entry)?.links != 1
+                || crate::platform::FileIdentity::from_file(&entry)?
+                    != crate::platform::FileIdentity::from_file(&patch.file)?
             {
                 return Err(RepositoryError::InvalidInput(
                     "Recovery patch entry changed. Inspect the backup before continuing.",
@@ -303,7 +295,10 @@ impl Repository {
                 let mut input = Vec::new();
 
                 for path in &untracked {
-                    input.extend_from_slice(path.as_os_str().as_bytes());
+                    input.extend_from_slice(
+                        &crate::platform::path_to_git_bytes(path.as_os_str())
+                            .map_err(|_| RepositoryError::InvalidPath)?,
+                    );
                     input.push(0);
                 }
 
@@ -401,56 +396,10 @@ impl Repository {
         self.check_write_identity()?;
 
         for path in paths {
-            let mut parent = self.root_directory.try_clone()?;
-            let mut components = path.components().peekable();
-
-            while let Some(component) = components.next() {
-                let Component::Normal(name) = component else {
-                    return Err(RepositoryError::PathOutsideRepository);
-                };
-
-                let name =
-                    CString::new(name.as_bytes()).map_err(|_| RepositoryError::InvalidPath)?;
-
-                if components.peek().is_some() {
-                    match open_at(&parent, &name, libc::O_RDONLY | libc::O_DIRECTORY, 0) {
-                        Ok(directory) => parent = directory,
-                        Err(error) if error.kind() == std::io::ErrorKind::NotFound => break,
-                        Err(error) => return Err(error.into()),
-                    }
-                } else {
-                    let mut metadata = MaybeUninit::<libc::stat>::uninit();
-
-                    // SAFETY: live parent fd and NUL-terminated leaf; fstatat writes a stat
-                    // only on success. AT_SYMLINK_NOFOLLOW inspects the link itself.
-                    let result = unsafe {
-                        libc::fstatat(
-                            parent.as_raw_fd(),
-                            name.as_ptr(),
-                            metadata.as_mut_ptr(),
-                            libc::AT_SYMLINK_NOFOLLOW,
-                        )
-                    };
-
-                    if result != 0 {
-                        let error = std::io::Error::last_os_error();
-
-                        if error.kind() == std::io::ErrorKind::NotFound {
-                            break;
-                        }
-
-                        return Err(error.into());
-                    }
-
-                    // SAFETY: successful fstatat initialized the complete stat value.
-                    let mode = unsafe { metadata.assume_init() }.st_mode & libc::S_IFMT;
-
-                    if !matches!(mode, libc::S_IFREG | libc::S_IFLNK) {
-                        return Err(RepositoryError::InvalidInput(
-                            "Non-regular files require external Git handling.",
-                        ));
-                    }
-                }
+            if !crate::platform::validate_discard_path(&self.root_directory, path)? {
+                return Err(RepositoryError::InvalidInput(
+                    "Non-regular files require external Git handling.",
+                ));
             }
         }
 
@@ -462,9 +411,11 @@ pub(super) fn validate_paths(paths: &[PathBuf]) -> Result<(), RepositoryError> {
     require_paths(paths.iter().map(PathBuf::as_path))?;
 
     for path in paths {
-        let text = path.to_str().ok_or(RepositoryError::InvalidInput(
-            "Recovery metadata requires UTF-8 repository paths.",
-        ))?;
+        let encoded = crate::platform::path_to_git_bytes(path.as_os_str())
+            .map_err(|_| RepositoryError::InvalidPath)?;
+        let text = std::str::from_utf8(&encoded).map_err(|_| {
+            RepositoryError::InvalidInput("Recovery metadata requires UTF-8 repository paths.")
+        })?;
 
         if text
             .split('/')
@@ -522,47 +473,14 @@ fn discard_args(args: Vec<OsString>, private_index: bool) -> Vec<OsString> {
     prefix
 }
 
-fn open_at(
-    directory: &File,
-    name: &CStr,
-    flags: libc::c_int,
-    mode: libc::mode_t,
-) -> std::io::Result<File> {
-    // SAFETY: the caller supplies a live dir fd and one NUL-terminated leaf. No-follow,
-    // close-on-exec and nonblocking flags prevent link traversal and FIFO open hangs.
-    let descriptor = unsafe {
-        libc::openat(
-            directory.as_raw_fd(),
-            name.as_ptr(),
-            flags | libc::O_NOFOLLOW | libc::O_CLOEXEC | libc::O_NONBLOCK,
-            mode as libc::c_uint,
-        )
-    };
-
-    if descriptor < 0 {
-        return Err(std::io::Error::last_os_error());
-    }
-
-    // SAFETY: successful openat returned a new descriptor owned exclusively by this File.
-    Ok(unsafe { File::from_raw_fd(descriptor) })
-}
-
-fn open_directory(path: &Path) -> std::io::Result<File> {
-    OpenOptions::new()
-        .read(true)
-        .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW)
-        .open(path)
-}
-
 fn create_file(directory: &File, name: &CStr) -> std::io::Result<File> {
-    let file = open_at(
+    let file = crate::platform::open_component(
         directory,
-        name,
-        libc::O_RDWR | libc::O_CREAT | libc::O_EXCL,
-        0o600,
+        name.to_str().map_err(std::io::Error::other)?.as_ref(),
+        crate::platform::Access::CreatePrivate,
     )?;
 
-    file.set_permissions(fs::Permissions::from_mode(0o600))?;
+    crate::platform::make_private_file(&file)?;
 
     Ok(file)
 }
@@ -579,9 +497,9 @@ fn hash_file(
     file: &mut File,
     cancellation: Option<&Cancellation>,
 ) -> Result<[u8; 32], RepositoryError> {
-    let before = file.metadata()?;
+    let state = crate::platform::file_state(file)?;
 
-    if !before.is_file() || before.nlink() != 1 {
+    if !state.regular || state.links != 1 {
         return Err(RepositoryError::InvalidInput(
             "Recovery patches must remain ordinary private files without hard links.",
         ));
@@ -590,7 +508,7 @@ fn hash_file(
     file.seek(SeekFrom::Start(0))?;
     let mut hash = Sha256::new();
     let mut buffer = [0; 8192];
-    let mut remaining = before.len();
+    let mut remaining = state.length;
 
     while remaining > 0 {
         check_cancelled(cancellation)?;
@@ -609,14 +527,7 @@ fn hash_file(
         remaining -= count as u64;
     }
 
-    let after = file.metadata()?;
-
-    if before.len() != after.len()
-        || before.mtime() != after.mtime()
-        || before.mtime_nsec() != after.mtime_nsec()
-        || before.ctime() != after.ctime()
-        || before.ctime_nsec() != after.ctime_nsec()
-    {
+    if !state.contents_unchanged(&crate::platform::file_state(file)?) {
         return Err(RepositoryError::InvalidInput(
             "Recovery patch changed while being read.",
         ));
@@ -647,4 +558,23 @@ pub(super) fn iso_time(time: SystemTime) -> Result<String, RepositoryError> {
     )?;
 
     Ok(date.to_rfc3339_opts(SecondsFormat::Millis, true))
+}
+
+#[cfg(all(test, windows))]
+mod windows_tests {
+    use super::validate_paths;
+    use std::path::PathBuf;
+
+    #[test]
+    fn native_separators_cannot_hide_git_or_parent_components() {
+        for path in [
+            "folder\\.git\\config",
+            "folder\\..\\file",
+            "folder\\.\\file",
+        ] {
+            assert!(validate_paths(&[PathBuf::from(path)]).is_err());
+        }
+
+        assert!(validate_paths(&[PathBuf::from("folder\\file.txt")]).is_ok());
+    }
 }

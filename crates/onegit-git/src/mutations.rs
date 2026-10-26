@@ -3,7 +3,6 @@
 
 use std::collections::HashMap;
 use std::fs;
-use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Condvar, Mutex, Weak};
 
@@ -277,9 +276,11 @@ impl Repository {
 
     pub(super) fn check_write_identity(&self) -> Result<(), RepositoryError> {
         let current = fs::symlink_metadata(&self.info.root)?;
-        let held = self.root_directory.metadata()?;
 
-        if !current.is_dir() || current.dev() != held.dev() || current.ino() != held.ino() {
+        if !current.is_dir()
+            || crate::platform::FileIdentity::from_path(&self.info.root)?
+                != crate::platform::FileIdentity::from_file(&self.root_directory)?
+        {
             return Err(RepositoryError::InvalidInput(
                 "Repository directory changed; reopen it before writing",
             ));
@@ -291,11 +292,9 @@ impl Repository {
 
 // Compatible v4 identifiers for durable managed branch/rebase recovery records.
 pub(super) fn recovery_id() -> std::io::Result<String> {
-    use std::io::Read;
-
     let mut bytes = [0_u8; 16];
 
-    std::fs::File::open("/dev/urandom")?.read_exact(&mut bytes)?;
+    crate::platform::random_bytes(&mut bytes)?;
     bytes[6] = (bytes[6] & 0x0f) | 0x40;
     bytes[8] = (bytes[8] & 0x3f) | 0x80;
     let digits = b"0123456789abcdef";

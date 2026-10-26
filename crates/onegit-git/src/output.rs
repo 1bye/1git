@@ -1,7 +1,5 @@
 //! Git output framing and text compatibility, shared by native metadata readers.
 
-use std::ffi::OsString;
-use std::os::unix::ffi::OsStringExt;
 use std::path::PathBuf;
 
 use crate::RepositoryError;
@@ -54,6 +52,6 @@ pub(crate) fn text(bytes: &[u8]) -> String {
     String::from_utf8_lossy(bytes).into_owned()
 }
 
-pub(crate) fn path(bytes: &[u8]) -> PathBuf {
-    OsString::from_vec(bytes.to_vec()).into()
+pub(crate) fn path(bytes: &[u8]) -> Result<PathBuf, RepositoryError> {
+    crate::platform::path_from_git_bytes(bytes).map_err(|_| RepositoryError::InvalidOutput)
 }

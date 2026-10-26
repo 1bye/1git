@@ -5,21 +5,29 @@
 
 mod common;
 
+#[cfg(unix)]
+use common::PermissionsExt;
 use std::collections::BTreeSet;
 use std::fs;
-use std::os::unix::fs::PermissionsExt;
-use std::path::{Path, PathBuf};
+#[cfg(unix)]
+use std::path::Path;
+use std::path::PathBuf;
+#[cfg(unix)]
 use std::sync::{Arc, mpsc};
+#[cfg(unix)]
 use std::time::{Duration, Instant};
 
 use common::{Fixture, files_under};
 
 use onegit_git::{
-    Cancellation, ErrorCode, Failure, FileStatus, GitCommand, GitError, GitProcess, Operation,
-    Repository, RepositoryCoordinator, RepositoryError, WritePhase,
+    Cancellation, ErrorCode, Failure, FileStatus, GitCommand, GitError, Operation, Repository,
+    RepositoryError, WritePhase,
 };
+#[cfg(unix)]
+use onegit_git::{GitProcess, RepositoryCoordinator};
 
 #[test]
+#[cfg(unix)]
 fn every_public_query_waits_for_the_prior_write_barrier() {
     let fixture = Fixture::new();
 
@@ -159,6 +167,7 @@ fn staged(repository: &Repository) -> BTreeSet<PathBuf> {
         .collect()
 }
 
+#[cfg(unix)]
 fn process(fixture: &Fixture, script: &Path) -> GitProcess {
     GitProcess::new(script, 64 * 1024 * 1024).with_environment([
         ("GIT_CONFIG_GLOBAL".into(), "/dev/null".into()),
@@ -173,6 +182,7 @@ fn process(fixture: &Fixture, script: &Path) -> GitProcess {
     ])
 }
 
+#[cfg(unix)]
 fn script(fixture: &Fixture, text: &str) -> PathBuf {
     let path = fixture.temporary.path().join("git-wrapper");
 
@@ -307,6 +317,7 @@ fn rejects_invalid_cancelled_and_foreign_locked_writes_without_changing_files() 
 }
 
 #[test]
+#[cfg(unix)]
 fn distinguishes_a_successful_index_write_from_a_failed_post_write_snapshot() {
     let fixture = Fixture::new();
 
@@ -373,6 +384,7 @@ fn pins_process_cwd_and_rejects_a_replaced_repository_before_writing() {
     assert_eq!(files_under(&fixture.root), before);
 }
 
+#[cfg(unix)]
 fn wait_until(description: &str, predicate: impl Fn() -> bool) {
     let deadline = Instant::now() + Duration::from_secs(5);
 
@@ -383,6 +395,7 @@ fn wait_until(description: &str, predicate: impl Fn() -> bool) {
 }
 
 #[test]
+#[cfg(unix)]
 fn serializes_alias_and_linked_worktree_writes_and_reads_while_other_repositories_proceed() {
     let fixture = Fixture::new();
 
@@ -438,7 +451,7 @@ exec git "$@""#,
 
     let alias = fixture.temporary.path().join("alias");
 
-    std::os::unix::fs::symlink(&fixture.root, &alias).unwrap();
+    common::symlink(&fixture.root, &alias).unwrap();
     let second = coordinator.open(&alias, configured("B"), None).unwrap();
     let third = coordinator.open(&linked, configured("C"), None).unwrap();
     let common = first.info().common_directory.clone();
@@ -501,6 +514,7 @@ exec git "$@""#,
 }
 
 #[test]
+#[cfg(unix)]
 fn retains_the_queue_through_post_write_refresh_and_skips_a_cancelled_queued_command() {
     let fixture = Fixture::new();
 
@@ -594,6 +608,7 @@ exec git "$@""#,
 }
 
 #[test]
+#[cfg(unix)]
 fn cancellation_holds_coordination_until_owned_term_ignoring_processes_are_reaped() {
     let fixture = Fixture::new();
 

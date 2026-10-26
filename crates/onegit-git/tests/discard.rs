@@ -10,17 +10,23 @@ use base64::engine::general_purpose::STANDARD;
 use common::Fixture;
 
 use onegit_git::{
-    BranchIdentity, Cancellation, DiscardFiles, DiscardRecovery, GitCommand, GitError, GitProcess,
-    Repository, RepositoryCoordinator, RepositoryError, WritePhase,
+    BranchIdentity, DiscardFiles, DiscardRecovery, GitCommand, GitError, Repository, WritePhase,
 };
+#[cfg(unix)]
+use onegit_git::{Cancellation, GitProcess, RepositoryCoordinator, RepositoryError};
 
+#[cfg(unix)]
+use common::PermissionsExt;
+use common::symlink;
 #[cfg(target_os = "macos")]
 use onegit_git::{ToolCommand, execute_tool};
 use std::fs;
-use std::os::unix::fs::{PermissionsExt, symlink};
 use std::path::{Path, PathBuf};
+#[cfg(unix)]
 use std::sync::{Arc, mpsc};
-use std::time::{Duration, Instant};
+use std::time::Duration;
+#[cfg(unix)]
+use std::time::Instant;
 
 fn setup() -> (Fixture, Repository) {
     let fixture = Fixture::new();
@@ -51,6 +57,7 @@ fn mixed(fixture: &Fixture) {
     fixture.write("keep.txt", "keep\n");
 }
 
+#[cfg(unix)]
 fn wrapper(fixture: &Fixture, body: &str) -> GitProcess {
     let executable = fixture.temporary.path().join("git-wrapper");
 
@@ -72,6 +79,7 @@ fn wrapper(fixture: &Fixture, body: &str) -> GitProcess {
     ])
 }
 
+#[cfg(unix)]
 fn wait_file(path: &Path) {
     let deadline = Instant::now() + Duration::from_secs(5);
 
@@ -108,10 +116,8 @@ fn captured_paths(fixture: &Fixture, paths: &[String]) -> serde_json::Value {
 
 #[test]
 fn exact_recovery_patches_instructions_and_transitions_match_the_actual_source() {
-    let reference: serde_json::Value = serde_json::from_str(include_str!(
-        "../fixtures/discard-recovery.json"
-    ))
-    .unwrap();
+    let reference: serde_json::Value =
+        serde_json::from_str(include_str!("../fixtures/discard-recovery.json")).unwrap();
 
     for case in reference["cases"].as_array().unwrap() {
         let kind = case["kind"].as_str().unwrap();
@@ -231,6 +237,7 @@ fn exact_recovery_patches_instructions_and_transitions_match_the_actual_source()
 }
 
 #[test]
+#[cfg(unix)]
 fn discards_and_undoes_mixed_selected_states_without_touching_excluded_data() {
     let (fixture, repository) = setup();
 
@@ -599,6 +606,7 @@ fn backup_creation_failure_never_overwrites_existing_or_missing_parent_destinati
 }
 
 #[test]
+#[cfg(unix)]
 fn staged_apply_failures_compensate_without_losing_the_original_error_or_backup() {
     for target in ["worktree", "index"] {
         let (fixture, _) = setup();
@@ -706,6 +714,7 @@ fn tampered_recovery_is_refused_before_undo_changes_any_repository_data() {
 }
 
 #[test]
+#[cfg(unix)]
 fn cancellation_during_streamed_capture_keeps_partial_backup_without_destructive_steps() {
     let (fixture, _) = setup();
 
@@ -752,6 +761,7 @@ done"#,
 }
 
 #[test]
+#[cfg(unix)]
 fn common_directory_queue_spans_discard_result_refresh_and_read_barriers() {
     let (fixture, _) = setup();
 
@@ -873,6 +883,7 @@ fn reviewed_renames_type_changes_and_unmerged_files_are_refused_as_a_whole_batch
 }
 
 #[test]
+#[cfg(unix)]
 fn lower_request_uses_private_disk_recovery_and_newest_success_replaces_only_the_token() {
     let (fixture, repository) = setup();
 
@@ -946,6 +957,7 @@ fn expiration_refuses_undo_and_keeps_the_complete_backup() {
 }
 
 #[test]
+#[cfg(unix)]
 fn failed_compensation_keeps_the_original_error_and_reports_its_own_failure() {
     let (fixture, _) = setup();
 
@@ -991,6 +1003,7 @@ fi"#,
 }
 
 #[test]
+#[cfg(unix)]
 fn refresh_failure_retains_completed_discard_and_the_manual_recovery_files() {
     let (fixture, _) = setup();
 
@@ -1029,6 +1042,7 @@ fi"#,
 
 #[cfg(target_os = "macos")]
 #[test]
+#[cfg(unix)]
 fn a_real_fsync_error_stops_before_discard_and_retains_only_partial_recovery() {
     if std::env::var("ONEGIT_DISCARD_FSYNC_CHILD").as_deref() != Ok("isolated-child") {
         let temporary = tempfile::tempdir().unwrap();
@@ -1225,6 +1239,7 @@ fn replaced_recovery_entries_are_rejected_even_when_the_old_descriptor_has_valid
 }
 
 #[test]
+#[cfg(unix)]
 fn branch_change_after_complete_backup_is_refused_without_reversing_working_data() {
     let (fixture, _) = setup();
 
@@ -1257,6 +1272,7 @@ fi"#,
 }
 
 #[test]
+#[cfg(unix)]
 fn cancellation_after_apply_preserves_discard_and_joins_the_refresh_worker() {
     let (fixture, _) = setup();
 

@@ -12,8 +12,8 @@ use onegit_git::{
     WritePhase,
 };
 
+use common::symlink;
 use std::fs;
-use std::os::unix::fs::symlink;
 use std::path::{Path, PathBuf};
 
 fn fixture() -> (Fixture, Repository) {
@@ -570,8 +570,10 @@ fn refuses_operation_markers_unborn_source_and_pre_cancellation() {
 }
 
 #[test]
+#[cfg(unix)]
 fn holds_the_shared_queue_through_created_checkout_metadata_and_source_refresh() {
-    use std::os::unix::fs::PermissionsExt;
+    #[cfg(unix)]
+    use common::PermissionsExt;
     use std::sync::Arc;
     use std::time::{Duration, Instant};
     let (fixture, _) = fixture();

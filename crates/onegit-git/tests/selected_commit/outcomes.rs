@@ -1,8 +1,11 @@
 use super::*;
+#[cfg(unix)]
 use onegit_git::{GitCommand, GitError, RepositoryError, WritePhase};
+#[cfg(unix)]
 use std::error::Error;
 
 #[test]
+#[cfg(unix)]
 fn real_hooks_run_for_whole_partial_and_amend_commits_and_preserve_original_errors() {
     for kind in ["whole", "partial", "amend"] {
         let fixture = Fixture::new();
@@ -80,6 +83,7 @@ fn real_hooks_run_for_whole_partial_and_amend_commits_and_preserve_original_erro
 }
 
 #[test]
+#[cfg(unix)]
 fn post_write_refresh_or_process_failures_return_review_warnings_without_a_retryable_error() {
     for kind in ["refresh", "outcome", "unreadable-outcome"] {
         let fixture = Fixture::new();
@@ -153,6 +157,7 @@ fn post_write_refresh_or_process_failures_return_review_warnings_without_a_retry
 }
 
 #[test]
+#[cfg(unix)]
 fn post_commit_lock_replacement_is_never_overwritten_and_retains_recovery_index() {
     let fixture = Fixture::new();
 
@@ -197,6 +202,7 @@ fn post_commit_lock_replacement_is_never_overwritten_and_retains_recovery_index(
 }
 
 #[test]
+#[cfg(unix)]
 fn repository_signing_configuration_is_honored_without_using_a_real_key() {
     let fixture = Fixture::new();
 

@@ -8,12 +8,13 @@ mod common;
 
 use common::{Fixture, files_under};
 
-use onegit_git::{
-    Cancellation, CreateWorktree, GitProcess, Repository, RepositoryError, WritePhase,
-};
+#[cfg(unix)]
+use onegit_git::GitProcess;
+use onegit_git::{Cancellation, CreateWorktree, Repository, RepositoryError, WritePhase};
 
+#[cfg(unix)]
+use common::PermissionsExt;
 use std::fs;
-use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
 fn fixture() -> (Fixture, Repository) {
@@ -358,6 +359,7 @@ fn refuses_occupied_branch_unless_force_is_explicit_and_keeps_existing_destinati
 }
 
 #[test]
+#[cfg(unix)]
 fn result_read_failure_keeps_the_created_worktree_without_automatic_replay_or_cleanup() {
     let (fixture, _) = fixture();
     let executable = path(&fixture, "git-wrapper");
@@ -432,6 +434,7 @@ fn relative_literal_paths_resolve_from_process_directory_without_shell_interpret
 }
 
 #[test]
+#[cfg(unix)]
 fn ambiguous_nonzero_exit_preserves_real_git_effects_and_does_not_replay_or_remove_them() {
     let (fixture, _) = fixture();
     let executable = path(&fixture, "git-wrapper");

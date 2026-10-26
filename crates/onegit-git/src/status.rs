@@ -1,7 +1,5 @@
 //! Parses porcelain v2 snapshots without quoting or decoding repository paths.
 
-use std::ffi::OsString;
-use std::os::unix::ffi::OsStringExt;
 use std::path::PathBuf;
 
 /// One side of an index/worktree change.
@@ -287,7 +285,7 @@ fn path(bytes: &[u8]) -> Result<PathBuf, StatusParseError> {
         return Err(StatusParseError);
     }
 
-    Ok(OsString::from_vec(bytes.to_vec()).into())
+    crate::platform::path_from_git_bytes(bytes).map_err(|_| StatusParseError)
 }
 
 fn object_id(bytes: &[u8]) -> Result<String, StatusParseError> {

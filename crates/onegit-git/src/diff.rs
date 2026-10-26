@@ -276,7 +276,7 @@ impl Repository {
                     .split(|byte| *byte == 0)
                     .filter(|bytes| !bytes.is_empty())
                 {
-                    let file = path(bytes);
+                    let file = path(bytes)?;
                     let part = self.untracked_diff(&file, options, false, cancellation)?;
                     let count = self.untracked_diff(&file, options, true, cancellation)?;
 
@@ -472,13 +472,13 @@ fn parse_stats(bytes: &[u8]) -> Result<Vec<DiffStat>, RepositoryError> {
                 .filter(|path| !path.is_empty())
                 .ok_or(RepositoryError::InvalidOutput)?;
 
-            (Some(path(original)), current)
+            (Some(path(original)?), current)
         } else {
             (None, inline)
         };
 
         stats.push(DiffStat {
-            path: path(current),
+            path: path(current)?,
             original_path,
             added_lines,
             deleted_lines,
@@ -506,15 +506,21 @@ fn count(bytes: &[u8]) -> Result<Option<u64>, RepositoryError> {
 
 #[cfg(test)]
 mod tests {
-    use std::os::unix::ffi::OsStrExt;
 
+    #[cfg(unix)]
     use super::parse_stats;
 
+    #[cfg(unix)]
     #[test]
     fn numstat_preserves_tab_newline_and_non_utf8_paths_and_rejects_partial_records() {
         let stats = parse_stats(b"12\t3\tname\t\n\xff\0-\t-\timage\0").unwrap();
 
-        assert_eq!(stats[0].path.as_os_str().as_bytes(), b"name\t\n\xff");
+        assert_eq!(
+            crate::platform::path_to_git_bytes(stats[0].path.as_os_str())
+                .unwrap()
+                .as_ref(),
+            b"name\t\n\xff"
+        );
         assert_eq!(
             (stats[0].added_lines, stats[0].deleted_lines),
             (Some(12), Some(3))

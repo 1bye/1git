@@ -4,8 +4,7 @@
 //! Requires: none.
 
 use std::io;
-use std::os::unix::process::ExitStatusExt;
-use std::process::ExitStatus;
+mod common;
 
 use onegit_git::{
     ErrorCode, Failure, GitError, GitOutput, Operation, RepositoryError, StatusParseError,
@@ -19,7 +18,7 @@ fn matches_all_frozen_legacy_command_failures() {
 
     for case in reference["cases"].as_array().unwrap() {
         let error = GitError::CommandFailed {
-            status: ExitStatus::from_raw(128 << 8),
+            status: common::exit_status(128),
             output: GitOutput {
                 stdout: case["stdout"].as_str().unwrap().as_bytes().to_vec(),
                 stderr: case["stderr"].as_str().unwrap().as_bytes().to_vec(),
@@ -98,7 +97,7 @@ fn preserves_process_and_validation_categories_without_marking_them_retryable() 
 #[test]
 fn bounds_unicode_diagnostics_in_utf16_units_without_splitting_a_character() {
     let error = GitError::CommandFailed {
-        status: ExitStatus::from_raw(1 << 8),
+        status: common::exit_status(1),
         output: GitOutput {
             stdout: Vec::new(),
             stderr: format!("x{}", "😀".repeat(3000)).into_bytes(),

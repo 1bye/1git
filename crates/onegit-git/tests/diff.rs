@@ -5,9 +5,9 @@
 
 mod common;
 
+use common::symlink;
 use std::collections::BTreeMap;
 use std::fs;
-use std::os::unix::fs::symlink;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 

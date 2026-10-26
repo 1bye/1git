@@ -5,22 +5,34 @@
 
 mod common;
 
+#[cfg(unix)]
 use base64::Engine;
+#[cfg(unix)]
 use base64::engine::general_purpose::STANDARD;
 use common::Fixture;
 
 use onegit_git::{
-    BranchIdentity, Cancellation, FileStatus, GitCommand, GitError, GitProcess, IgnoreFile,
-    IgnoreRule, OperationState, Repository, RepositoryCoordinator, RepositoryError, WritePhase,
-    ignore_extension, ignore_folders, ignore_pattern,
+    BranchIdentity, Cancellation, FileStatus, GitCommand, GitError, IgnoreFile, IgnoreRule,
+    OperationState, Repository, RepositoryError, WritePhase, ignore_extension, ignore_folders,
+    ignore_pattern,
 };
+#[cfg(unix)]
+use onegit_git::{GitProcess, RepositoryCoordinator};
 
-use std::ffi::{CString, OsString};
+#[cfg(unix)]
+use common::PermissionsExt;
+#[cfg(unix)]
+use common::symlink;
+#[cfg(unix)]
+use common::{OsStrExt, OsStringExt};
+#[cfg(unix)]
+use std::ffi::CString;
+use std::ffi::OsString;
 use std::fs;
-use std::os::unix::ffi::{OsStrExt, OsStringExt};
-use std::os::unix::fs::{PermissionsExt, symlink};
 use std::path::Path;
+#[cfg(unix)]
 use std::sync::{Arc, mpsc};
+#[cfg(unix)]
 use std::time::{Duration, Instant};
 
 fn request(repository: &Repository, path: &str, rule: IgnoreRule) -> IgnoreFile {
@@ -43,6 +55,7 @@ fn selected() -> (Fixture, Repository, IgnoreFile) {
     (fixture, repository, request)
 }
 
+#[cfg(unix)]
 fn wrapper(fixture: &Fixture, body: &str) -> GitProcess {
     let path = fixture.temporary.path().join("git-wrapper");
 
@@ -66,6 +79,7 @@ fn wrapper(fixture: &Fixture, body: &str) -> GitProcess {
     ])
 }
 
+#[cfg(unix)]
 fn wait_file(path: &Path) {
     let deadline = Instant::now() + Duration::from_secs(5);
 
@@ -77,10 +91,8 @@ fn wait_file(path: &Path) {
 
 #[test]
 fn public_suggestions_and_patterns_match_all_actual_typescript_cases() {
-    let reference: serde_json::Value = serde_json::from_str(include_str!(
-        "../fixtures/ignore-rules.json"
-    ))
-    .unwrap();
+    let reference: serde_json::Value =
+        serde_json::from_str(include_str!("../fixtures/ignore-rules.json")).unwrap();
 
     for case in reference["cases"].as_array().unwrap() {
         let path = case["path"].as_str().unwrap();
@@ -113,11 +125,10 @@ fn public_suggestions_and_patterns_match_all_actual_typescript_cases() {
 }
 
 #[test]
+#[cfg(unix)]
 fn public_append_matches_frozen_source_bytes_and_keeps_mode_and_index() {
-    let reference: serde_json::Value = serde_json::from_str(include_str!(
-        "../fixtures/ignore-rules.json"
-    ))
-    .unwrap();
+    let reference: serde_json::Value =
+        serde_json::from_str(include_str!("../fixtures/ignore-rules.json")).unwrap();
 
     for case in reference["appends"].as_array().unwrap() {
         let fixture = Fixture::new();
@@ -307,6 +318,7 @@ fn unborn_and_detached_reviews_keep_head_and_index_unchanged() {
 }
 
 #[test]
+#[cfg(unix)]
 fn stale_head_branch_missing_selection_and_invalid_inputs_do_not_create_ignore_file() {
     let (fixture, repository, valid) = selected();
     let mut stale_head = valid.clone();
@@ -400,6 +412,7 @@ fn conflicting_selected_file_is_rejected_without_touching_resolution_or_ignore_d
 }
 
 #[test]
+#[cfg(unix)]
 fn refuses_symlink_hardlink_directory_fifo_and_oversized_ignore_files() {
     for kind in [
         "symlink",
@@ -495,6 +508,7 @@ fn cancelled_request_and_replaced_root_never_write_the_old_or_substituted_direct
 }
 
 #[test]
+#[cfg(unix)]
 fn second_preflight_detects_selected_file_and_branch_changes_before_creation() {
     for action in [
         "git restore -- selected.txt",
@@ -521,6 +535,7 @@ fi"#
 }
 
 #[test]
+#[cfg(unix)]
 fn concurrent_append_replacement_links_and_creation_are_preserved_and_not_replayed() {
     for (existing, action, expected) in [
         (
@@ -587,6 +602,7 @@ fi"#
 }
 
 #[test]
+#[cfg(unix)]
 fn successful_append_with_failed_refresh_retains_exact_bytes_and_reports_refresh_phase() {
     let (fixture, _, request) = selected();
 
@@ -616,6 +632,7 @@ fi"#,
 }
 
 #[test]
+#[cfg(unix)]
 fn partial_append_reports_command_phase_and_preserves_the_existing_prefix() {
     if std::env::var_os("ONEGIT_IGNORE_WRITE_LIMIT").is_none() {
         let output = std::process::Command::new(std::env::current_exe().unwrap())
@@ -667,6 +684,7 @@ fn partial_append_reports_command_phase_and_preserves_the_existing_prefix() {
 }
 
 #[test]
+#[cfg(unix)]
 fn cancellation_during_post_append_refresh_keeps_the_append_and_joins_the_worker() {
     let (fixture, _, request) = selected();
 
@@ -700,6 +718,7 @@ fi"#,
 }
 
 #[test]
+#[cfg(unix)]
 fn shared_queue_keeps_a_later_index_write_and_reader_behind_ignore_refresh() {
     let (fixture, _, request) = selected();
 

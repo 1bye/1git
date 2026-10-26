@@ -1,10 +1,8 @@
 //! Owns the identity and read operations of one local working tree.
 
 use std::ffi::OsString;
-use std::fs::{self, File, OpenOptions};
+use std::fs::{self, File};
 use std::io::{self, Read};
-use std::os::unix::ffi::{OsStrExt, OsStringExt};
-use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
@@ -256,7 +254,11 @@ impl Repository {
         process: GitProcess,
         cancellation: Option<&Cancellation>,
     ) -> Result<Self, RepositoryError> {
-        if path.as_os_str().is_empty() || path.as_os_str().as_bytes().contains(&0) {
+        if path.as_os_str().is_empty()
+            || crate::platform::path_to_git_bytes(path.as_os_str())
+                .map_err(|_| RepositoryError::InvalidPath)?
+                .contains(&0)
+        {
             return Err(RepositoryError::InvalidPath);
         }
 
@@ -287,10 +289,7 @@ impl Repository {
             root,
         };
 
-        let root_directory = OpenOptions::new()
-            .read(true)
-            .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW)
-            .open(&info.root)?;
+        let root_directory = crate::platform::open_directory_no_follow(&info.root)?;
 
         Ok(Self {
             info,
@@ -391,7 +390,8 @@ fn read_path(
         .strip_suffix(b"\n")
         .ok_or(RepositoryError::InvalidOutput)?;
 
-    let path = PathBuf::from(OsString::from_vec(bytes.to_vec()));
+    let path =
+        crate::platform::path_from_git_bytes(bytes).map_err(|_| RepositoryError::InvalidOutput)?;
 
     if !path.is_absolute() || bytes.contains(&0) {
         return Err(RepositoryError::InvalidOutput);
