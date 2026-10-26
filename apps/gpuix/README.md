@@ -1592,9 +1592,15 @@ accessible label. Counts come from the last known remote refs, not live polling.
 - Pull/Push reuse authenticated, guarded upstream sync: fetch first, fast-forward
   incoming commits only, then push to the exact tracking destination without force,
   mirrors, tags, automatic commits or stashes. Incoming changes require a clean tree.
-- If both counts are nonzero, the control fetches and opens a review dialog.
-  It offers Compare and points to Merge or rebase in the tab menu; it never
-  silently merges, rebases or force-pushes.
+- If both counts are nonzero, the control fetches and opens a populated sync review
+  against the configured upstream. Incoming/Outgoing switch between each side's
+  commits and changes since their common ancestor. Merge and Rebase each show an
+  button-anchored confirmation pinned to both reviewed tips; dirty or stale workspaces
+  remain reviewable with an explanation of what must be resolved before writing.
+  Escape cancels the confirmation, then leaves the review. Conflicts open Changes
+  with its existing Continue/Abort controls. Successful integration returns directly
+  to Changes. Push remains a separate action on the rail using the refreshed count
+  and exact upstream destination; nothing silently integrates, pushes or force-pushes.
 - Without remotes, the control opens the existing right-side Publish repository
   form. Without an upstream, it opens Publish branch: explicitly choose a remote
   with a single push URL and confirm. Changing HEAD/branch invalidates the choice;
@@ -2266,11 +2272,24 @@ hot reload cannot replace a loaded addon. This bridge is macOS-only.
 
 ### Manual conflict resolution
 
-- Conflicted Changes rows show a red status icon and **Conflict** label. Selecting
-  one shows the read-only working file, including its conflict markers.
-- **Open in editor** uses the same file-type rules and overall **External editor**
+- Changes groups unresolved files above other changes, with an amber **Unresolved**
+  badge. Commit-inclusion controls and the ordinary draft editor are hidden while
+  reviewing an active operation; the draft is retained for returning to normal work.
+- Selecting a conflict opens an aligned split diff: the selected indexed version
+  on the left, and the unchanged working result, including markers, on the right.
+  Both columns share vertical scrolling, with syntax highlighting, original line
+  numbers and highlighted changes. Unchanged gaps start collapsed; clicking a hunk
+  header or trailing context action expands them from the already-read text.
+- Switch **Current** / **Incoming** to compare either source with the same result.
+  Rebase sources are labelled **Upstream version** and **Replayed commit**. Versions
+  come from index stages 2/3, not reconstructed conflict-marker text. Missing, binary
+  or oversized sources show an explanation instead of a partial preview.
+- The result header shows the remaining conflict-block count. **Mark resolved** is
+  disabled while marker lines remain. **Use this version…** requires whole-file
+  replacement confirmation pinned to the reviewed content hash and indexed blob.
+- **Open editor** uses the same file-type rules and overall **External editor**
   preference (macOS's default text editor until changed), never a repository-provided shell command.
-  Save edits there, then **Refresh preview**.
+  Save edits there, then **Refresh**.
 - **Mark resolved** stages only the reviewed file. It rechecks HEAD/branch,
   conflict status, regular-file safety, UTF-8 content, remaining marker lines,
   and the preview's content hash. It does not commit, continue/abort a merge or
@@ -2287,7 +2306,8 @@ hot reload cannot replace a loaded addon. This bridge is macOS-only.
 
 ### Merge, squash merge, rebase, revert and cherry-pick completion
 
-- Changes shows the active merge/squash merge/rebase/revert/cherry-pick, conflict count, **Continue** and **Abort…**.
+- Changes shows a compact amber pause state for unresolved conflicts, **Continue**
+  and **Abort…**. Raw Git diagnostics are available in **Details…**.
 - Continue uses Git's staged resolutions and existing message, retaining hooks
   and signing. It never stages files or uses the commit-inclusion checkboxes.
   Unresolved conflicts or unstaged tracked edits block continuation.

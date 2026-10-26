@@ -155,8 +155,13 @@ export function RepositoryDiffEmpty({
 					? "Select a file to inspect"
 					: "Working tree clean";
 
-			hint =
-				"Choose a file to inspect its diff. Check the whole files you want to commit.";
+			hint = workspace.entries.changes.some(
+				(entry) => entry.change?.recordType === "unmerged"
+			)
+				? "Choose a conflicted file to compare its versions and review the working result."
+				: workspace.repository.operation !== "normal"
+					? "Choose a file to review before continuing the Git operation."
+					: "Choose a file to inspect its diff. Check the whole files you want to commit.";
 		}
 	}
 

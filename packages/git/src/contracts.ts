@@ -554,6 +554,8 @@ export interface StageInput extends GitCallOptions {
 export interface ResolveConflictInput extends GitCallOptions {
 	/** Omit to stage manual edits; choosing a side replaces the whole file after UI confirmation. */
 	readonly side?: "ours" | "theirs";
+	/** When choosing a displayed indexed version, reject a changed stage before replacing the working file. */
+	readonly expectedSideOid?: string;
 	readonly path: string;
 	readonly expectedHead: string | null;
 	readonly expectedBranch: string | null;

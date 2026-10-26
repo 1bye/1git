@@ -1205,7 +1205,15 @@ it("disables retained conflict actions while another file is pending and never r
 							patch: "",
 							stats: [],
 							message: null,
-							conflict: { hash: "a hash", text: "a content" },
+							conflict: {
+								hash: "a hash",
+								text: "a content",
+								ours: {
+									text: "original",
+									label: "Current · main",
+									revision: "ours-blob",
+								},
+							},
 						},
 					],
 				})
@@ -1238,7 +1246,9 @@ it("disables retained conflict actions while another file is pending and never r
 	await settle();
 	render("b.txt");
 	await settle();
-	expect(element("conflict-content").customProps?.value).toBe("a content");
+	expect(element("conflict-content-content").customProps?.patch).toContain(
+		"+a content"
+	);
 	click("conflict-resolve");
 	expect(resolve).not.toHaveBeenCalled();
 	pending.resolve({

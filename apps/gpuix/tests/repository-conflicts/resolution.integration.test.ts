@@ -76,6 +76,16 @@ it("shows conflict markers and refuses to stage them", async () => {
 	const value = await preview();
 
 	expect(value.text).toContain("<<<<<<< HEAD");
+	expect(value.ours).toMatchObject({
+		text: "ours\n",
+		label: "Current · main",
+		revision: await git("rev-parse", ":2:file.txt"),
+	});
+	expect(value.theirs).toMatchObject({
+		text: "theirs\n",
+		label: `Incoming · ${(await git("rev-parse", "MERGE_HEAD")).slice(0, 7)}`,
+		revision: await git("rev-parse", ":3:file.txt"),
+	});
 	const before = await git("ls-files", "--stage");
 	const result = await resolve(value.hash);
 
@@ -83,6 +93,64 @@ it("shows conflict markers and refuses to stage them", async () => {
 
 	if (!result.ok) expect(result.error.message).toContain("markers remain");
 
+	expect(await git("ls-files", "--stage")).toBe(before);
+});
+
+it("labels rebase sources by their actual roles without changing the working conflict", async () => {
+	await git("merge", "--abort");
+	await expect(git("rebase", "other")).rejects.toThrow();
+	const before = await git("ls-files", "--stage");
+	const value = await preview();
+
+	expect(value.ours).toMatchObject({
+		text: "theirs\n",
+		label: "Upstream version",
+	});
+	expect(value.theirs).toMatchObject({
+		text: "ours\n",
+		label: `Replayed commit · ${head.slice(0, 7)}`,
+	});
+	expect(await git("ls-files", "--stage")).toBe(before);
+});
+
+it("rejects a changed indexed source before replacing the working file", async () => {
+	const value = await preview();
+
+	await writeFile(join(root, "replacement.txt"), "changed indexed source\n");
+	const oid = await git("hash-object", "-w", "replacement.txt");
+
+	await new Promise<void>((resolve, reject) => {
+		const child = execFile(
+			"git",
+			["update-index", "--index-info"],
+			{
+				cwd: root,
+				env: {
+					...process.env,
+					GIT_CONFIG_NOSYSTEM: "1",
+					GIT_CONFIG_GLOBAL: "/dev/null",
+				},
+			},
+			(error) => (error ? reject(error) : resolve())
+		);
+
+		child.stdin?.end(`100644 ${oid} 2\tfile.txt\n`);
+	});
+	const before = await git("ls-files", "--stage");
+
+	const result = await RepositoryConflicts.write(root, {
+		path: "file.txt",
+		side: "ours",
+		expectedSideOid: value.ours?.revision,
+		expectedHead: head,
+		expectedBranch: "main",
+		expectedContentHash: value.hash,
+	});
+
+	expect(!result.ok && result.error.message).toContain(
+		"indexed version changed"
+	);
+	expect((await preview()).text).toBe(value.text);
 	expect(await git("ls-files", "--stage")).toBe(before);
 });
 

@@ -136,6 +136,7 @@ import { WorkspaceRail } from "./feature/repository-workspace/components/workspa
 import { RepositorySyncButton } from "./feature/repository-workspace/components/repository-sync-button";
 import type { RepositoryView } from "./feature/repository-workspace/types";
 import { RepositoryComparison } from "./feature/repository-comparison/repository-comparison";
+import { RepositorySyncReview } from "./feature/repository-comparison/repository-sync-review";
 import { RepositoryComparison as ComparisonReader } from "./feature/repository-comparison/lib/repository-comparison";
 import { RepositoryPullRequest } from "./feature/repository-pull-request/repository-pull-request";
 import { RepositoryPullRequestView } from "./feature/repository-pull-request/repository-pull-request-view";
@@ -1745,7 +1746,7 @@ function AppContent({
 												workspace.repository.commonDirectory
 											)
 										}
-										onCompare={(data) => {
+										onCompare={(data, intent) => {
 											const repository = workspace.repository;
 
 											if (!repository?.head) return;
@@ -1753,16 +1754,26 @@ function AppContent({
 											dispatch({
 												type: "compare",
 												id: activeTab.id,
-												comparison: {
-													root: repository.root,
-													base: repository.head,
-													baseName: repository.branchName ?? "HEAD",
-													branches: data.branches.branches.map((item) => ({
-														value: item.fullName,
-														label: item.name,
-														oid: item.oid,
-													})),
-												},
+												comparison:
+													intent === "sync" && repository.branchName
+														? ComparisonReader.syncRequest(
+																repository.root,
+																repository.head,
+																repository.branchName,
+																data
+															)
+														: {
+																root: repository.root,
+																base: repository.head,
+																baseName: repository.branchName ?? "HEAD",
+																branches: data.branches.branches.map(
+																	(item) => ({
+																		value: item.fullName,
+																		label: item.name,
+																		oid: item.oid,
+																	})
+																),
+															},
 											});
 										}}
 										onPreviewPullRequest={() => {
@@ -2217,6 +2228,24 @@ function AppContent({
 							diffSettings={diffSettings}
 							onDiffSettingsChange={setDiffSettings}
 						/>
+					) : activeTab?.comparison?.intent === "sync" && workspace ? (
+						<RepositorySyncReview
+							fileTreeScope={activeTab.id}
+							key={`${activeTab.id}:${activeTab.comparison.base}:${activeTab.comparison.incoming}:${activeTab.comparison.branches.map((branch) => branch.oid).join(":")}`}
+							request={activeTab.comparison}
+							state={workspace}
+							onClose={() => dispatch({ type: "compare", id: activeTab.id })}
+							onIntegrate={(choice) =>
+								mutations.changeBranch(activeTab.id, choice)
+							}
+							readComparison={readComparison}
+							readHistory={readHistory}
+							readCommitFiles={readCommitFiles}
+							readDiff={readDiff}
+							previewCache={previewCache}
+							diffSettings={diffSettings}
+							onDiffSettingsChange={setDiffSettings}
+						/>
 					) : activeTab?.comparison ? (
 						<RepositoryComparison
 							fileTreeScope={activeTab.id}
@@ -2344,8 +2373,14 @@ function AppContent({
 							}
 							statusError={workspace.error}
 							readDiff={readDiff}
-							onResolve={(hash, side) =>
-								mutations.resolve(activeTab.id, comparison.path, hash, side)
+							onResolve={(hash, side, expectedSideOid) =>
+								mutations.resolve(
+									activeTab.id,
+									comparison.path,
+									hash,
+									side,
+									expectedSideOid
+								)
 							}
 							openConflictEditor={launchConflict}
 						/>
