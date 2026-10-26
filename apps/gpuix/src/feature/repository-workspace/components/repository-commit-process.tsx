@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
 import {
 	radius,
@@ -7,7 +7,15 @@ import {
 	codeTypography,
 } from "@1git/design-tokens";
 import { Button } from "@1git/gpuix-ui/button";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "@1git/gpuix-ui/tooltip";
 import { useAppTheme } from "../../../styles/theme";
+import { NativeClipboard } from "../../../platform/clipboard";
+import { WorkspaceTabIcon } from "../../workspace-tabs/components/workspace-tab-icon";
 import type { RepositoryWorkspaceState } from "../lib/repository-workspace-model";
 
 const phases = {
@@ -42,12 +50,32 @@ export function RepositoryCommitProcess({
 	commit: RepositoryWorkspaceState["commit"];
 	onCancel?: () => void;
 }) {
-	const { tokens } = useAppTheme();
+	const { tokens, colors } = useAppTheme();
 	const renderer = useGpuixRequired();
 	const log = useRef<PublicInstance>(null);
 	const problem = commit.error ?? (commit.needsReview ? commit.notice : null);
+	const content = [problem, commit.output].filter(Boolean).join("\n\n");
+
+	const [copyResult, setCopyResult] = useState<{
+		content: string;
+		status: "copying" | "copied" | "error";
+	}>();
+
+	const copyStatus =
+		copyResult?.content === content ? copyResult.status : undefined;
 
 	const status = commitStatus(commit);
+
+	const copy = async (): Promise<void> => {
+		setCopyResult({ content, status: "copying" });
+
+		try {
+			await NativeClipboard.write(content);
+			setCopyResult({ content, status: "copied" });
+		} catch {
+			setCopyResult({ content, status: "error" });
+		}
+	};
 
 	useEffect(() => {
 		if (!commit.pending) {
@@ -86,6 +114,7 @@ export function RepositoryCommitProcess({
 				style={{
 					display: "flex",
 					flexDirection: "row",
+					flexWrap: "wrap",
 					alignItems: "center",
 					gap: spacing[2],
 				}}
@@ -93,10 +122,62 @@ export function RepositoryCommitProcess({
 				<text
 					testId="commit-process-status"
 					role="status"
-					style={{ ...typography.sm, color: tokens.colors.text, flexGrow: 1 }}
+					style={{
+						...typography.sm,
+						color: tokens.colors.text,
+						flexGrow: 1,
+						flexBasis: 100,
+						minWidth: 80,
+					}}
 				>
 					{status}
 				</text>
+				{content ? (
+					<TooltipProvider>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button
+									testId="commit-output-copy"
+									aria-label="Copy Git and hook output"
+									aria-description={
+										copyStatus === "copied"
+											? "Copied to clipboard"
+											: "Copy all output, including text outside the visible log."
+									}
+									tokens={tokens}
+									variant="ghost"
+									size="sm"
+									style={{
+										width: tokens.layout.smallControlHeight,
+										paddingLeft: 0,
+										paddingRight: 0,
+									}}
+									disabled={copyResult?.status === "copying"}
+									onPress={() => {
+										void copy();
+									}}
+								>
+									<WorkspaceTabIcon
+										name={copyStatus === "copied" ? "check" : "copy"}
+										color={
+											copyStatus === "copied"
+												? colors.success
+												: tokens.colors.textMuted
+										}
+									/>
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent
+								testId="commit-output-copy-tooltip"
+								tokens={tokens}
+								side="bottom"
+								align="end"
+							>
+								{copyStatus === "copied" ? "Copied" : "Copy output"}
+							</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
+				) : null}
 				{commit.pending && onCancel ? (
 					<Button
 						testId="commit-cancel"
@@ -111,13 +192,21 @@ export function RepositoryCommitProcess({
 					</Button>
 				) : null}
 			</div>
+			{copyStatus === "error" ? (
+				<text
+					role="alert"
+					style={{ ...typography.xs, color: tokens.colors.danger }}
+				>
+					Could not copy output. Try again.
+				</text>
+			) : null}
 			{commit.output || problem ? (
 				<div
 					ref={log}
 					testId="commit-notice-scroll"
 					tabIndex={0}
 					aria-label="Git and hook output"
-					aria-description="Use arrow keys or Page Up and Page Down to read all output."
+					aria-description="Select text or use Copy to copy all output. Use arrow keys or Page Up and Page Down to read all output."
 					style={{
 						display: "flex",
 						flexDirection: "column",
@@ -125,6 +214,7 @@ export function RepositoryCommitProcess({
 						overflowY: "scroll",
 						overflowX: "hidden",
 						flexShrink: 0,
+						userSelect: "text",
 					}}
 					onKeyDown={(event) => {
 						if (
