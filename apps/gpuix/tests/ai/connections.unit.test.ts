@@ -5,7 +5,7 @@
  * Requires: Bun and temporary storage; no graphics, real sign-in or network.
  */
 import { afterEach, beforeEach, expect, it, mock, spyOn } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { AiIntegration } from "../../src/feature/ai/lib/ai-integration";
@@ -101,6 +101,54 @@ it("stores independent OpenCode keys and instructions, and removes only the sele
 	expect(credentials.size).toBe(0);
 });
 
+it("stores API headers only in the selected account's vault entry and preserves them on metadata edits", async () => {
+	const api = {
+		...first,
+		provider: "api" as const,
+		api: {
+			protocol: "openai-chat" as const,
+			baseUrl: "https://gateway.example/v1",
+		},
+		model: "org/custom-model",
+		effort: "medium",
+	};
+
+	const headers = JSON.stringify([
+		{ name: "Authorization", value: "Bearer synthetic-secret" },
+		{ name: "X-Extra-Key", value: "synthetic-extra" },
+	]);
+
+	await service.saveConnection(api, headers, true, signal());
+	await service.saveConnection(
+		{ ...api, label: "Renamed" },
+		"",
+		true,
+		signal()
+	);
+	await service.saveConnection(
+		{ ...api, id: second.id, label: "Other API" },
+		"[]",
+		false,
+		signal()
+	);
+
+	expect(readFileSync(service.store.path, "utf8")).not.toContain("synthetic");
+	expect(
+		credentials.get(AiSettingsStore.credentialKey("api", "", api.id))
+	).toContain("synthetic-secret");
+	expect(
+		credentials.get(AiSettingsStore.credentialKey("api", "", second.id))
+	).toBe("[]");
+	expect(AiSettingsStore.selected(service.store.load()).effort).toBe("medium");
+	await service.disconnect(api, signal());
+	expect(
+		credentials.has(AiSettingsStore.credentialKey("api", "", api.id))
+	).toBe(false);
+	expect(
+		credentials.has(AiSettingsStore.credentialKey("api", "", second.id))
+	).toBe(true);
+});
+
 it("keeps AI off when adding a Free profile until a default is explicitly selected", async () => {
 	const free = { ...first, opencodeMode: "free" as const, model: "big-pickle" };
 
@@ -110,6 +158,44 @@ it("keeps AI off when adding a Free profile until a default is explicitly select
 	service.setDefault(free.id);
 	expect(AiSettingsStore.selected(service.store.load()).id).toBe(free.id);
 });
+
+it.each(["claude-code", "codex"] as const)(
+	"saves, generates and removes %s without 1git credentials or a required model",
+	async (provider) => {
+		const connection = {
+			...first,
+			provider,
+			model: "",
+			executable: "/opt/tools/agent",
+		};
+
+		spyOn(service.cli, "check").mockResolvedValue("CLI 1.0");
+		spyOn(service.cli, "generate").mockResolvedValue("fix: selected changes");
+		const models = [{ value: "test-model", label: "Test model" }];
+
+		spyOn(service.cli, "models").mockResolvedValue(models);
+		await service.saveConnection(connection, "", false, signal());
+		expect(service.store.load().defaultId).toBeNull();
+		service.setDefault(connection.id);
+		expect(AiSettingsStore.selected(service.store.load())).toMatchObject(
+			connection
+		);
+		expect(await service.models(connection, signal())).toEqual(models);
+		expect(await service.generate(connection, "+selected", signal())).toBe(
+			"fix: selected changes"
+		);
+		expect(service.cli.generate).toHaveBeenCalledWith(
+			AiSettingsStore.parse(connection),
+			"+selected",
+			expect.any(AbortSignal)
+		);
+		expect(await service.disconnect(connection, signal())).toContain(
+			"remains signed in"
+		);
+		expect(service.store.load().defaultId).toBeNull();
+		expect(credentials.size).toBe(0);
+	}
+);
 
 it("restores an existing key if saving preferences fails, and never writes metadata after cancellation", async () => {
 	await service.saveConnection(first, "old-key", true, signal());

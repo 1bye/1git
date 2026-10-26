@@ -10,6 +10,37 @@ import { WorkspaceTabsModel } from "../../src/feature/workspace-tabs/lib/workspa
 import { repositorySnapshot } from "../_shared/repository-snapshot";
 import { commitInfo, historyPage } from "../_shared/history-page";
 
+it("captures keybinds and the file layout together without losing either preference", () => {
+	const args: Parameters<typeof WorkspaceSession.capture> = [
+		WorkspaceTabsModel.create(),
+	];
+
+	args[13] = { "quick-open": "cmd-k" };
+	args[14] = "tree";
+	const saved = WorkspaceSession.parse(
+		JSON.stringify(WorkspaceSession.capture(...args))
+	);
+
+	expect(saved.keybinds).toEqual({ "quick-open": "cmd-k" });
+	expect(saved.fileListLayout).toBe("tree");
+});
+
+it("validates the optional file layout without invalidating older sessions", () => {
+	const document = WorkspaceSession.capture(WorkspaceTabsModel.create());
+
+	for (const fileListLayout of ["list", "tree"] as const)
+		expect(
+			WorkspaceSession.parse(JSON.stringify({ ...document, fileListLayout }))
+				.fileListLayout
+		).toBe(fileListLayout);
+
+	for (const fileListLayout of [undefined, null, "unknown", true])
+		expect(
+			WorkspaceSession.parse(JSON.stringify({ ...document, fileListLayout }))
+				.fileListLayout
+		).toBeUndefined();
+});
+
 it("persists discovery scope and hidden suggestions without saving scan results or changing older sessions", () => {
 	const state = WorkspaceTabsModel.create();
 	const preferences = { folders: ["/Volumes/Work"], hidden: ["/test/hidden"] };

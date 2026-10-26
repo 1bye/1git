@@ -1,3 +1,4 @@
+import { OverflowingLabel } from "../../../fixture/overflowing-label";
 import { MachineContext } from "../../machines/machine-context";
 import { createThemedStyles, useAppTheme } from "../../../styles/theme";
 import {
@@ -9,20 +10,8 @@ import {
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { Button } from "@1git/gpuix-ui/button";
 import { Text } from "@1git/gpuix-ui/text";
-import {
-	motion,
-	useGpuixRequired,
-	type EventPayload,
-	type PublicInstance,
-} from "@gpuix/react";
-import {
-	useContext,
-	useLayoutEffect,
-	useRef,
-	useState,
-	type Ref,
-	type ReactNode,
-} from "react";
+import { motion, type EventPayload, type PublicInstance } from "@gpuix/react";
+import { useContext, useRef, useState, type Ref, type ReactNode } from "react";
 
 import { workspaceLayout as layout } from "../../../styles/workspace-layout";
 import { MachineLocation } from "../../machines/machine-location";
@@ -81,16 +70,6 @@ export function WorkspaceTabSelection({
 	);
 }
 
-// Match Electron's OverflowingLabel: pause, reveal the suffix, and return on leave.
-const marquee = {
-	hoverDelay: 0.32,
-	minDuration: 0.7,
-	maxDuration: 2.2,
-	pixelsPerSecond: 48,
-	returnDuration: 0.22,
-	overflowTolerance: 1,
-} as const;
-
 const themedStyles = createThemedStyles(({ colors: appColors, appearance }) => {
 	const activeSurface = connectedTabSurface(width, appColors.editorSurface);
 
@@ -148,22 +127,6 @@ const themedStyles = createThemedStyles(({ colors: appColors, appearance }) => {
 			borderColor: "transparent",
 			borderRadius: cornerRadius.md,
 			cursor: "pointer",
-		},
-		label: {
-			display: "flex",
-			flexDirection: "row",
-			alignItems: "center",
-			flexShrink: 1,
-			minWidth: 0,
-			overflow: "hidden",
-			whiteSpace: "nowrap",
-		},
-		labelTrack: {
-			position: "relative",
-			display: "flex",
-			flexDirection: "row",
-			alignItems: "center",
-			flexShrink: 0,
 		},
 		name: (active: boolean) => ({
 			flexShrink: 1,
@@ -540,31 +503,6 @@ function WorkspaceTabLabel({
 	const { tokens: appTokens } = theme;
 	const { styles } = themedStyles.get(theme);
 
-	const renderer = useGpuixRequired();
-	const viewport = useRef<PublicInstance>(null);
-	const track = useRef<PublicInstance>(null);
-	const [overflow, setOverflow] = useState(0);
-
-	useLayoutEffect(() => {
-		if (!reveal || !viewport.current || !track.current) return;
-
-		const viewportBounds = renderer.getElementBounds?.(viewport.current.id);
-		const trackBounds = renderer.getElementBounds?.(track.current.id);
-
-		if (!viewportBounds || !trackBounds) return;
-
-		const difference = trackBounds.width - viewportBounds.width;
-
-		setOverflow(
-			difference > marquee.overflowTolerance ? Math.ceil(difference) : 0
-		);
-	}, [renderer, reveal, tab.name, tab.branch]);
-
-	const duration = Math.min(
-		marquee.maxDuration,
-		Math.max(marquee.minDuration, overflow / marquee.pixelsPerSecond)
-	);
-
 	return (
 		<>
 			<RepositoryAvatar
@@ -582,38 +520,30 @@ function WorkspaceTabLabel({
 						: undefined
 				}
 			/>
-			<div ref={viewport} testId={`label-${id}`} style={styles.label}>
-				<motion.div
-					ref={track}
-					style={styles.labelTrack}
-					initial={false}
-					animate={{ left: reveal ? -overflow : 0 }}
-					transition={
-						reveal
-							? { duration, delay: marquee.hoverDelay, ease: "linear" }
-							: { duration: marquee.returnDuration, ease: [0.22, 1, 0.36, 1] }
-					}
+			<OverflowingLabel
+				testId={`label-${id}`}
+				reveal={reveal}
+				contentKey={JSON.stringify([tab.name, machineName, tab.branch])}
+			>
+				<Text
+					testId={`name-${id}`}
+					tokens={appTokens}
+					style={StyleSheet.compose(styles.name(active), {
+						flexShrink: 0,
+						textOverflow: undefined,
+					})}
 				>
+					{tab.name}
+					{machineName ? ` · ${machineName}` : ""}
+				</Text>
+				{tab.branch ? (
 					<Text
-						testId={`name-${id}`}
+						testId={`branch-${id}`}
 						tokens={appTokens}
-						style={StyleSheet.compose(styles.name(active), {
-							flexShrink: 0,
-							textOverflow: undefined,
-						})}
-					>
-						{tab.name}
-						{machineName ? ` · ${machineName}` : ""}
-					</Text>
-					{tab.branch ? (
-						<Text
-							testId={`branch-${id}`}
-							tokens={appTokens}
-							style={styles.branch}
-						>{` / ${tab.branch}`}</Text>
-					) : null}
-				</motion.div>
-			</div>
+						style={styles.branch}
+					>{` / ${tab.branch}`}</Text>
+				) : null}
+			</OverflowingLabel>
 		</>
 	);
 }

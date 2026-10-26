@@ -3,6 +3,7 @@ import { spacing, radius, typography, fontWeight } from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { Scrollbars } from "@1git/gpuix-ui/scrollbar";
 import { Checkbox } from "@1git/gpuix-ui/checkbox";
+import { OverflowingLabel } from "../../../fixture/overflowing-label";
 import {
 	useGpuixRequired,
 	useWindowSize,
@@ -10,7 +11,7 @@ import {
 	type PublicInstance,
 } from "@gpuix/react";
 import {
-	useEffect,
+	useCallback,
 	useLayoutEffect,
 	useMemo,
 	useRef,
@@ -23,6 +24,11 @@ import {
 	type RepositoryListState,
 } from "../lib/repository-workspace-model";
 import type { WorkspaceEntry } from "../types";
+import {
+	RepositoryFileTree,
+	type RepositoryFileTreeRow,
+} from "../lib/repository-file-tree";
+import { useRepositoryFileView } from "./repository-file-view";
 import { RepositoryChangeLabel } from "./repository-change-details";
 import { RepositoryCommitSubject } from "./repository-commit-subject";
 import { WorkspaceTabIcon } from "../../workspace-tabs/components/workspace-tab-icon";
@@ -32,7 +38,8 @@ import {
 	type FileMenuActions,
 } from "./repository-file-menu";
 
-const fileRowHeight = 28;
+/** Shared by bounded file groups and their native list rows. */
+export const fileRowHeight = 28;
 const revisionRowHeight = 48;
 const scrollSaveDelayMs = 150;
 const windowChunkSize = 64;
@@ -50,6 +57,7 @@ const themedStyles = createThemedStyles(({ colors: appColors }) => {
 		},
 		row: {
 			display: "flex",
+			width: "100%",
 			flexDirection: "row",
 			alignItems: "center",
 			gap: spacing[2],
@@ -106,6 +114,7 @@ function RepositoryRow({
 	onPreviewIntent,
 	children,
 	itemHeight,
+	treeDepth,
 }: {
 	entry: WorkspaceEntry;
 	selected: boolean;
@@ -122,10 +131,13 @@ function RepositoryRow({
 	onPreviewIntent?: (entry: WorkspaceEntry | null) => void;
 	children?: ReactNode;
 	itemHeight?: number;
+	treeDepth?: number;
 }) {
 	const theme = useAppTheme();
 	const { tokens: appTokens, colors: appColors } = theme;
 	const { styles } = themedStyles.get(theme);
+	const [hovered, setHovered] = useState(false);
+	const [focused, setFocused] = useState(false);
 
 	const description = [
 		entry.detail,
@@ -140,9 +152,23 @@ function RepositoryRow({
 	const row = (onMenu?: (event: EventPayload) => void) => (
 		<div
 			role={onInclude ? "row" : "presentation"}
+			aria-level={
+				onInclude && treeDepth !== undefined ? treeDepth + 1 : undefined
+			}
+			aria-selected={
+				onInclude && treeDepth !== undefined ? selected : undefined
+			}
 			testId={`row-${entry.id}`}
-			onMouseEnter={onPreviewIntent ? () => onPreviewIntent(entry) : undefined}
-			onMouseLeave={onPreviewIntent ? () => onPreviewIntent(null) : undefined}
+			onMouseEnter={() => {
+				if (entry.status) setHovered(true);
+
+				onPreviewIntent?.(entry);
+			}}
+			onMouseLeave={() => {
+				if (entry.status) setHovered(false);
+
+				onPreviewIntent?.(null);
+			}}
 			style={StyleSheet.compose(
 				styles.row,
 				!!entry.status && {
@@ -152,13 +178,25 @@ function RepositoryRow({
 				},
 				!!entry.detail && { height: revisionRowHeight },
 				itemHeight !== undefined && { height: itemHeight },
+				treeDepth !== undefined && {
+					paddingLeft: spacing[2] + treeDepth * spacing[4],
+				},
 				selected && styles.selected
 			)}
 		>
 			<div
 				ref={rowRef}
 				testId={`entry-${entry.id}`}
-				role={onInclude ? "gridcell" : "option"}
+				role={
+					onInclude
+						? "gridcell"
+						: treeDepth !== undefined
+							? "treeitem"
+							: "option"
+				}
+				aria-level={
+					!onInclude && treeDepth !== undefined ? treeDepth + 1 : undefined
+				}
 				aria-label={
 					entry.status
 						? `${entry.title}, ${entry.statusDescription ?? (entry.status === "A" ? "added" : entry.status === "D" ? "deleted" : "modified")}`
@@ -175,10 +213,14 @@ function RepositoryRow({
 					if (event.button === 2 || event.isRightClick) onMenu?.(event);
 				}}
 				onFocus={() => {
+					if (entry.status) setFocused(true);
+
 					onPreviewIntent?.(entry);
 					onReveal();
 				}}
 				onBlur={() => {
+					if (entry.status) setFocused(false);
+
 					onPreviewIntent?.(null);
 				}}
 				onKeyDown={(event) => {
@@ -201,7 +243,11 @@ function RepositoryRow({
 			>
 				{children ??
 					(entry.status ? (
-						<RepositoryChangeLabel entry={entry} />
+						<RepositoryChangeLabel
+							entry={entry}
+							showDirectory={treeDepth === undefined}
+							reveal={hovered || focused}
+						/>
 					) : (
 						<div
 							style={{
@@ -277,7 +323,11 @@ function RepositoryRow({
 						onCheckedChange={onInclude}
 						tokens={appTokens}
 						tabIndex={tabbable ? 0 : -1}
-						onFocus={onReveal}
+						onFocus={() => {
+							setFocused(true);
+							onReveal();
+						}}
+						onBlur={() => setFocused(false)}
 						onKeyDown={(event) => {
 							if (event.key !== "space" && event.key !== "enter")
 								onKeyDown(event);
@@ -294,6 +344,138 @@ function RepositoryRow({
 		</RepositoryFileMenu>
 	) : (
 		row(onContextMenu ? (event) => onContextMenu(entry, event) : undefined)
+	);
+}
+
+function RepositoryFolderRow({
+	node,
+	expanded,
+	tabbable,
+	rowRef,
+	onToggle,
+	onReveal,
+	onKeyDown,
+	included,
+	onInclude,
+	disabled,
+}: {
+	node: Extract<RepositoryFileTreeRow, { kind: "folder" }>;
+	expanded: boolean;
+	tabbable: boolean;
+	rowRef: (node: PublicInstance | null) => void;
+	onToggle: () => void;
+	onReveal: () => void;
+	onKeyDown: (event: EventPayload) => void;
+	included: boolean | "indeterminate";
+	onInclude?: (included: boolean) => void;
+	disabled?: boolean;
+}) {
+	const theme = useAppTheme();
+	const { styles } = themedStyles.get(theme);
+	const [focused, setFocused] = useState(false);
+	const [hovered, setHovered] = useState(false);
+
+	return (
+		<div
+			role={onInclude ? "row" : "presentation"}
+			onMouseEnter={() => setHovered(true)}
+			onMouseLeave={() => setHovered(false)}
+			aria-level={onInclude ? node.depth + 1 : undefined}
+			aria-expanded={onInclude ? expanded : undefined}
+			style={{
+				...styles.row,
+				borderColor: focused ? theme.colors.brand : "transparent",
+				borderRadius: radius.sm,
+				paddingLeft: spacing[2] + node.depth * spacing[4],
+				paddingRight: spacing[1],
+				gap: spacing[1],
+			}}
+		>
+			<div
+				ref={rowRef}
+				testId={`entry-${node.id}`}
+				role={onInclude ? "gridcell" : "treeitem"}
+				aria-label={`${node.path}, ${node.fileIds.length} changed files`}
+				aria-expanded={expanded}
+				aria-level={onInclude ? undefined : node.depth + 1}
+				tabIndex={tabbable ? 0 : -1}
+				onClick={onToggle}
+				onFocus={() => {
+					setFocused(true);
+					onReveal();
+				}}
+				onBlur={() => setFocused(false)}
+				onKeyDown={onKeyDown}
+				style={{
+					display: "flex",
+					flexDirection: "row",
+					alignItems: "center",
+					gap: spacing[1.5],
+					flexGrow: 1,
+					minWidth: 0,
+					height: "100%",
+				}}
+			>
+				<WorkspaceTabIcon
+					name={expanded ? "caretDown" : "caretRight"}
+					size={12}
+				/>
+				<WorkspaceTabIcon name="folder" size={12} />
+				<OverflowingLabel
+					testId={`folder-label-${node.id}`}
+					reveal={hovered || focused}
+					contentKey={node.name}
+					style={{ flexGrow: 1, flexBasis: 0 }}
+				>
+					<text
+						testId={`folder-name-${node.id}`}
+						style={{
+							...styles.label,
+							color: theme.colors.editorMuted,
+							flexGrow: 1,
+							flexShrink: 0,
+							textOverflow: undefined,
+							overflowX: undefined,
+						}}
+					>
+						{node.name}
+					</text>
+				</OverflowingLabel>
+				<text
+					testId={`folder-count-${node.id}`}
+					style={{
+						...typography.xs,
+						color: theme.colors.editorFaint,
+						flexShrink: 0,
+						pointerEvents: "none",
+					}}
+				>
+					{node.fileIds.length}
+				</text>
+			</div>
+			{onInclude ? (
+				<div role="gridcell" style={{ flexShrink: 0 }}>
+					<Checkbox
+						testId={`include-${node.id}`}
+						aria-label={`Include all ${node.fileIds.length} changed files under ${node.path} in commit`}
+						checked={included}
+						disabled={disabled}
+						tokens={theme.tokens}
+						tabIndex={tabbable ? 0 : -1}
+						onCheckedChange={onInclude}
+						onFocus={() => {
+							setFocused(true);
+							onReveal();
+						}}
+						onBlur={() => setFocused(false)}
+						onKeyDown={(event) => {
+							if (event.key !== "space" && event.key !== "enter")
+								onKeyDown(event);
+						}}
+					/>
+				</div>
+			) : null}
+		</div>
 	);
 }
 
@@ -315,6 +497,7 @@ export function RepositoryList({
 	onPreviewIntent,
 	renderEntry,
 	itemHeight,
+	fileTree,
 }: {
 	entries: readonly WorkspaceEntry[];
 	label: string;
@@ -329,7 +512,11 @@ export function RepositoryList({
 		onChange: (id: string, included: boolean) => void;
 	};
 	multiselect?: boolean;
-	onSelect: (id: string, mode?: "toggle" | "range" | "context") => void;
+	onSelect: (
+		id: string,
+		mode?: "toggle" | "range" | "context",
+		visibleIds?: readonly string[]
+	) => void;
 	onScroll: (y: number) => void;
 	onEndReached?: () => void;
 	fileActions?: FileMenuActions;
@@ -338,9 +525,57 @@ export function RepositoryList({
 	/** Custom native row contents retain this list's selection, focus and virtualization. */
 	renderEntry?: (entry: WorkspaceEntry) => ReactNode;
 	itemHeight?: number;
+	/** Only file panes opt in; revision lists retain their chronological ordering. */
+	fileTree?: {
+		scope: string;
+		owner?: string;
+		allEntries?: readonly WorkspaceEntry[];
+		filtering?: boolean;
+		onInclude?: (ids: readonly string[], included: boolean) => void;
+	};
 }) {
 	const theme = useAppTheme();
 	const { styles } = themedStyles.get(theme);
+
+	const { layout, collapsed, toggle, reveal } = useRepositoryFileView(
+		fileTree?.scope
+	);
+
+	const treeEnabled = !!fileTree && layout === "tree";
+	const treeAvailable = !!fileTree;
+	const sourceEntries = fileTree?.allEntries ?? entries;
+
+	const treeNodes = useMemo(
+		() => (treeEnabled ? RepositoryFileTree.build(sourceEntries) : []),
+		[sourceEntries, treeEnabled]
+	);
+
+	const filtering = !!fileTree?.filtering;
+
+	const matches = useMemo(
+		() => (filtering ? new Set(entries.map((entry) => entry.id)) : undefined),
+		[entries, filtering]
+	);
+
+	const displayRows = useMemo<readonly RepositoryFileTreeRow[]>(
+		() =>
+			treeEnabled
+				? RepositoryFileTree.rows(treeNodes, collapsed, matches)
+				: entries.map((entry) => ({
+						kind: "file",
+						id: entry.id,
+						entry,
+						depth: 0,
+						parentId: null,
+					})),
+		[treeEnabled, treeNodes, collapsed, matches, entries]
+	);
+
+	const visibleFileIds = useMemo(
+		() =>
+			displayRows.filter((node) => node.kind === "file").map((node) => node.id),
+		[displayRows]
+	);
 
 	const renderer = useGpuixRequired();
 	const viewport = useRef<PublicInstance>(null);
@@ -351,7 +586,7 @@ export function RepositoryList({
 	const rowHeight =
 		itemHeight ?? (entries[0]?.detail ? revisionRowHeight : fileRowHeight);
 
-	const windowed = entries.length > windowThreshold;
+	const windowed = displayRows.length > windowThreshold;
 	const window = useWindowSize();
 
 	const windowSize = Math.max(
@@ -369,12 +604,12 @@ export function RepositoryList({
 	);
 
 	const start = windowed
-		? Math.min(windowStart, Math.max(0, entries.length - windowSize))
+		? Math.min(windowStart, Math.max(0, displayRows.length - windowSize))
 		: 0;
 
 	const end = windowed
-		? Math.min(entries.length, start + windowSize)
-		: entries.length;
+		? Math.min(displayRows.length, start + windowSize)
+		: displayRows.length;
 
 	const pendingFocus = useRef<{ id: string; y: number } | null>(null);
 	const backwardTab = useRef(false);
@@ -415,19 +650,52 @@ export function RepositoryList({
 	}, [renderer]);
 	const includedIds = useMemo(() => new Set(inclusion?.ids), [inclusion?.ids]);
 
+	const partialIds = useMemo(
+		() => new Set(inclusion?.partialIds),
+		[inclusion?.partialIds]
+	);
+
 	const selectedIds = useMemo(
 		() => new Set(state.selectedIds),
 		[state.selectedIds]
 	);
 
-	const [focusId, setFocusId] = useState(state.selectedId ?? entries[0]?.id);
+	const [focusId, setFocusId] = useState(
+		state.selectedId ?? displayRows[0]?.id
+	);
 
-	const tabbableId = entries.some((entry) => entry.id === focusId)
+	const tabbableId = displayRows.some((entry) => entry.id === focusId)
 		? focusId
-		: (entries.find((entry) => entry.id === state.selectedId)?.id ??
-			entries[0]?.id);
+		: (displayRows.find((entry) => entry.id === state.selectedId)?.id ??
+			displayRows[0]?.id);
 
-	useEffect(() => {
+	const selectedPath = sourceEntries.find(
+		(entry) => entry.id === state.selectedId
+	);
+
+	const pathToReveal = selectedPath
+		? RepositoryFileTree.path(selectedPath)
+		: null;
+
+	const pendingReveal = useRef<string | null>(null);
+	const previousLayout = useRef(treeEnabled);
+	const treeOwner = fileTree?.owner ?? "";
+
+	useLayoutEffect(() => {
+		if (treeEnabled && pathToReveal)
+			reveal(pathToReveal, treeOwner, previousLayout.current !== treeEnabled);
+
+		if (treeAvailable) pendingReveal.current = state.selectedId;
+	}, [
+		treeEnabled,
+		pathToReveal,
+		state.selectedId,
+		reveal,
+		treeAvailable,
+		treeOwner,
+	]);
+
+	useLayoutEffect(() => {
 		if (viewport.current)
 			renderer.scrollTo?.(viewport.current.id, 0, initialScroll.current);
 	}, [renderer]);
@@ -463,35 +731,57 @@ export function RepositoryList({
 			scrollCallback.current(renderer.getScrollOffset?.(node.id)?.[1] ?? 0);
 		}, scrollSaveDelayMs);
 
-		if (anchor && last >= entries.length - 3) onEndReached?.();
+		if (anchor && last >= displayRows.length - 3) onEndReached?.();
 	};
 
-	const revealRow = (id: string, previousY?: number): void => {
-		const node = viewport.current;
+	const revealRow = useCallback(
+		(id: string, previousY?: number): void => {
+			const node = viewport.current;
 
-		const box =
-			container.current && renderer.getElementBounds?.(container.current.id);
+			const box =
+				container.current && renderer.getElementBounds?.(container.current.id);
 
-		const index = entries.findIndex((entry) => entry.id === id);
+			const index = displayRows.findIndex((entry) => entry.id === id);
 
-		if (!node || !box || index < 0) return;
+			if (!node || !box || index < 0) return;
 
-		const top = -(previousY ?? renderer.getScrollOffset?.(node.id)?.[1] ?? 0);
-		const height = renderer.getListScrollTop?.(node.id)?.[2] ?? box.height;
-		const targetTop = index * rowHeight;
+			const top = -(previousY ?? renderer.getScrollOffset?.(node.id)?.[1] ?? 0);
+			const height = renderer.getListScrollTop?.(node.id)?.[2] ?? box.height;
+			const targetTop = index * rowHeight;
 
-		const nextTop =
-			targetTop < top
-				? targetTop
-				: Math.max(top, targetTop + rowHeight - height);
+			const nextTop =
+				targetTop < top
+					? targetTop
+					: Math.max(top, targetTop + rowHeight - height);
 
-		const anchor = Math.floor(nextTop / rowHeight);
+			const anchor = Math.floor(nextTop / rowHeight);
 
-		// Override native focus's top anchor with the smallest scroll that reveals the row.
-		renderer.scrollToItem?.(node.id, anchor, nextTop - anchor * rowHeight);
-	};
+			// Override native focus's top anchor with the smallest scroll that reveals the row.
+			renderer.scrollToItem?.(node.id, anchor, nextTop - anchor * rowHeight);
+		},
+		[displayRows, renderer, rowHeight]
+	);
 
 	useLayoutEffect(() => {
+		if (pendingReveal.current) {
+			const index = displayRows.findIndex(
+				(node) => node.id === pendingReveal.current
+			);
+
+			if (index >= 0) {
+				revealRow(pendingReveal.current);
+
+				if (windowed) setWindowStart(Math.max(0, index - windowChunkSize));
+
+				pendingReveal.current = null;
+			}
+		}
+
+		if (previousLayout.current !== treeEnabled) {
+			previousLayout.current = treeEnabled;
+			setFocusId(state.selectedId ?? displayRows[0]?.id);
+		}
+
 		const pending = pendingFocus.current;
 		const row = pending && rows.current.get(pending.id);
 
@@ -500,7 +790,16 @@ export function RepositoryList({
 			renderer.focusElement?.(row.id);
 			revealRow(pending.id, pending.y);
 		}
-	});
+	}, [
+		displayRows,
+		end,
+		renderer,
+		revealRow,
+		start,
+		state.selectedId,
+		treeEnabled,
+		windowed,
+	]);
 
 	const focusRow = (id: string): void => {
 		const row = rows.current.get(id);
@@ -510,7 +809,7 @@ export function RepositoryList({
 			: 0;
 
 		if (!row) {
-			const index = entries.findIndex((entry) => entry.id === id);
+			const index = displayRows.findIndex((entry) => entry.id === id);
 
 			if (!windowed || index < 0) return;
 
@@ -525,7 +824,9 @@ export function RepositoryList({
 	};
 
 	const select = (id: string, mode?: "toggle" | "range" | "context"): void => {
-		onSelect(id, mode);
+		if (displayRows.find((node) => node.id === id)?.kind === "file")
+			onSelect(id, mode, treeEnabled ? visibleFileIds : undefined);
+
 		setFocusId(id);
 		focusRow(id);
 	};
@@ -542,6 +843,54 @@ export function RepositoryList({
 			return;
 
 		const key = event.key ?? "";
+		const node = displayRows.find((row) => row.id === id);
+
+		if (treeEnabled && node) {
+			const expanded =
+				node.kind === "folder" &&
+				(filtering || !node.paths.some((path) => collapsed.has(path)));
+
+			if (key === "left") {
+				if (node.kind === "folder" && expanded && !filtering)
+					toggle(node.paths);
+				else if (node.parentId) select(node.parentId);
+
+				return;
+			}
+
+			if (key === "right") {
+				if (node.kind === "folder") {
+					if (!expanded) toggle(node.paths);
+					else {
+						const child = displayRows[displayRows.indexOf(node) + 1];
+
+						if (child?.parentId === node.id) select(child.id);
+					}
+				}
+
+				return;
+			}
+
+			if (node.kind === "folder" && (key === "enter" || key === "space")) {
+				if (
+					key === "space" &&
+					inclusion &&
+					fileTree?.onInclude &&
+					!inclusion.disabled
+				)
+					fileTree.onInclude(
+						node.fileIds,
+						RepositoryFileTree.inclusion(
+							node.fileIds,
+							includedIds,
+							partialIds
+						) !== true
+					);
+				else if (!filtering) toggle(node.paths);
+
+				return;
+			}
+		}
 
 		if (key === "enter" || key === "space") {
 			if (
@@ -568,7 +917,7 @@ export function RepositoryList({
 			: 0;
 
 		const next = RepositoryWorkspaceModel.destination(
-			entries,
+			displayRows,
 			id,
 			key,
 			Math.max(1, Math.floor(height / rowHeight) - 1)
@@ -582,7 +931,15 @@ export function RepositoryList({
 			ref={container}
 			testId={`${testId}-viewport`}
 			style={{ ...styles.viewport, paddingBottom: spacing[1.5] }}
-			role={inclusion ? "grid" : "listbox"}
+			role={
+				treeEnabled
+					? inclusion
+						? "treegrid"
+						: "tree"
+					: inclusion
+						? "grid"
+						: "listbox"
+			}
 			aria-label={label}
 			aria-multiselectable={!!inclusion || multiselect}
 			aria-description={entries.length === 0 ? emptyMessage : undefined}
@@ -600,11 +957,13 @@ export function RepositoryList({
 				role="presentation"
 				{...(windowed
 					? {
-							itemCount: entries.length,
+							itemCount: displayRows.length,
 							estimatedItemHeight: rowHeight,
 							windowStart: start,
 						}
-					: { estimatedItemHeight: entries.length ? rowHeight : undefined })}
+					: {
+							estimatedItemHeight: displayRows.length ? rowHeight : undefined,
+						})}
 				overdraw={rowHeight * 2}
 				onVisibleRange={saveScroll}
 				style={styles.viewport}
@@ -620,93 +979,133 @@ export function RepositoryList({
 						)}
 					</div>
 				) : null}
-				{entries.slice(start, end).map((entry) => (
-					<div
-						key={entry.id}
-						style={{
-							height: rowHeight,
-							paddingLeft: spacing[1.5],
-							paddingRight: spacing[1.5],
-						}}
-					>
-						<RepositoryRow
-							entry={entry}
-							itemHeight={itemHeight}
-							onContextMenu={onContextMenu}
-							onPreviewIntent={onPreviewIntent}
-							fileActions={
-								fileActions
-									? {
-											...fileActions,
-											selection: (id) => {
-												const ids =
-													state.selectedIds ??
-													(state.selectedId ? [state.selectedId] : []);
+				{displayRows.slice(start, end).map((node) => {
+					const tabbable =
+						tabbableId === node.id ||
+						(node.id === displayRows[start]?.id &&
+							!displayRows
+								.slice(start, end)
+								.some((item) => item.id === tabbableId));
 
-												if (ids.includes(id)) {
-													const selection = new Set(ids);
+					const rowRef = (element: PublicInstance | null): void => {
+						if (element) rows.current.set(node.id, element);
+						else rows.current.delete(node.id);
+					};
 
-													return entries.filter((item) =>
-														selection.has(item.id)
-													);
-												}
+					const onReveal = (): void => {
+						setFocusId(node.id);
+						revealRow(node.id);
+					};
 
-												select(id, "context");
+					const entry = node.kind === "file" ? node.entry : null;
 
-												return [entry];
-											},
-										}
-									: undefined
-							}
-							selected={
-								(inclusion || multiselect) && state.selectedIds
-									? selectedIds.has(entry.id)
-									: state.selectedId === entry.id
-							}
-							included={
-								inclusion?.partialIds?.includes(entry.id)
-									? "indeterminate"
-									: includedIds.has(entry.id)
-							}
-							inclusionDisabled={inclusion?.disabled}
-							onInclude={
-								inclusion
-									? (included) => inclusion.onChange(entry.id, included)
-									: undefined
-							}
-							tabbable={
-								tabbableId === entry.id ||
-								(entry.id === entries[start]?.id &&
-									!entries
-										.slice(start, end)
-										.some((item) => item.id === tabbableId))
-							}
-							rowRef={(node) => {
-								if (node) rows.current.set(entry.id, node);
-								else rows.current.delete(entry.id);
+					return (
+						<div
+							key={node.id}
+							style={{
+								height: rowHeight,
+								paddingLeft: spacing[1.5],
+								paddingRight: spacing[1.5],
 							}}
-							onSelect={(event) =>
-								select(
-									entry.id,
-									inclusion || multiselect
-										? event.modifiers?.shift
-											? "range"
-											: event.modifiers?.cmd
-												? "toggle"
-												: undefined
-										: undefined
-								)
-							}
-							onReveal={() => {
-								setFocusId(entry.id);
-								revealRow(entry.id);
-							}}
-							onKeyDown={(event) => navigate(entry.id, event)}
 						>
-							{renderEntry?.(entry)}
-						</RepositoryRow>
-					</div>
-				))}
+							{node.kind === "folder" ? (
+								<RepositoryFolderRow
+									node={node}
+									expanded={
+										filtering || !node.paths.some((path) => collapsed.has(path))
+									}
+									tabbable={tabbable}
+									rowRef={rowRef}
+									onReveal={onReveal}
+									onToggle={() => {
+										select(node.id);
+
+										if (!filtering) toggle(node.paths);
+									}}
+									onKeyDown={(event) => navigate(node.id, event)}
+									included={RepositoryFileTree.inclusion(
+										node.fileIds,
+										includedIds,
+										partialIds
+									)}
+									disabled={inclusion?.disabled}
+									onInclude={
+										inclusion && fileTree?.onInclude
+											? (included) =>
+													fileTree.onInclude?.(node.fileIds, included)
+											: undefined
+									}
+								/>
+							) : entry ? (
+								<RepositoryRow
+									entry={entry}
+									treeDepth={treeEnabled ? node.depth : undefined}
+									itemHeight={itemHeight}
+									onContextMenu={onContextMenu}
+									onPreviewIntent={onPreviewIntent}
+									fileActions={
+										fileActions
+											? {
+													...fileActions,
+													selection: (id) => {
+														const ids =
+															state.selectedIds ??
+															(state.selectedId ? [state.selectedId] : []);
+
+														if (ids.includes(id)) {
+															const selection = new Set(ids);
+
+															return entries.filter((item) =>
+																selection.has(item.id)
+															);
+														}
+
+														select(id, "context");
+
+														return [entry];
+													},
+												}
+											: undefined
+									}
+									selected={
+										(inclusion || multiselect) && state.selectedIds
+											? selectedIds.has(entry.id)
+											: state.selectedId === entry.id
+									}
+									included={
+										inclusion?.partialIds?.includes(entry.id)
+											? "indeterminate"
+											: includedIds.has(entry.id)
+									}
+									inclusionDisabled={inclusion?.disabled}
+									onInclude={
+										inclusion
+											? (included) => inclusion.onChange(entry.id, included)
+											: undefined
+									}
+									tabbable={tabbable}
+									rowRef={rowRef}
+									onSelect={(event) =>
+										select(
+											entry.id,
+											inclusion || multiselect
+												? event.modifiers?.shift
+													? "range"
+													: event.modifiers?.cmd
+														? "toggle"
+														: undefined
+												: undefined
+										)
+									}
+									onReveal={onReveal}
+									onKeyDown={(event) => navigate(entry.id, event)}
+								>
+									{renderEntry?.(entry)}
+								</RepositoryRow>
+							) : null}
+						</div>
+					);
+				})}
 			</virtual-list>
 			<Scrollbars
 				vertical={viewport}

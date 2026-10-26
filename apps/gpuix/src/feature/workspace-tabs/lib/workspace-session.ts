@@ -1,5 +1,6 @@
 import { GuidedTour, type TourTips } from "../../guided-tour/guided-tour";
 import { Keybinds, type KeybindOverrides } from "../../keybinds/keybinds";
+import type { RepositoryFileLayout } from "../../repository-workspace/lib/repository-file-tree";
 import {
 	TypographyPreferences,
 	type AppTypography,
@@ -70,6 +71,7 @@ export interface WorkspaceSessionDocument {
 	readonly repositoryDiscovery?: RepositoryDiscoveryPreferences;
 	readonly repositoryLibrary?: RepositoryLibraryPreferences;
 	readonly diffSettings?: DiffSettings;
+	readonly fileListLayout?: RepositoryFileLayout;
 	readonly appearance?: AppAppearancePreference;
 	readonly commitTypeBadges?: boolean;
 	readonly smoothTransitions?: boolean;
@@ -259,6 +261,9 @@ export class WorkspaceSession {
 			...(typeof value.showScrollbars === "boolean"
 				? { showScrollbars: value.showScrollbars }
 				: {}),
+			...(value.fileListLayout === "list" || value.fileListLayout === "tree"
+				? { fileListLayout: value.fileListLayout }
+				: {}),
 			...(typeof value.smoothTransitions === "boolean"
 				? { smoothTransitions: value.smoothTransitions }
 				: {}),
@@ -323,10 +328,12 @@ export class WorkspaceSession {
 		showScrollbars?: boolean,
 		typography?: AppTypography,
 		tips?: TourTips,
-		keybinds?: KeybindOverrides
+		keybinds?: KeybindOverrides,
+		fileListLayout?: RepositoryFileLayout
 	): WorkspaceSessionDocument {
 		return {
 			version: 1,
+			...(fileListLayout ? { fileListLayout } : {}),
 			...(state.spaces
 				? {
 						spaces: state.spaces.map((space) =>

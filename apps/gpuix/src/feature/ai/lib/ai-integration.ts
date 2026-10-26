@@ -11,12 +11,11 @@ import { AiHttp } from "./ai-http";
 import { PiProvider } from "./pi-provider";
 import { CommitHarness } from "./commit-harness";
 import { ChatGptAuthorization } from "./chatgpt-authorization";
+import { CliAgent } from "./cli-agent";
+import type { AiModel } from "./ai-model";
+import { CustomApi } from "./custom-api";
 
-/** Public model choices contain no credentials and preserve provider ordering. */
-export interface AiModel {
-	readonly value: string;
-	readonly label: string;
-}
+export type { AiModel } from "./ai-model";
 
 /** Window-owned AI boundary; refresh coordination stays local and saved secrets stay in its vault. */
 export class AiIntegration {
@@ -27,12 +26,15 @@ export class AiIntegration {
 		readonly store: AiSettingsStore,
 		private readonly vault: CredentialVault,
 		private readonly http = new AiHttp(),
-		authorization?: ChatGptAuthorization
+		authorization?: ChatGptAuthorization,
+		readonly cli = new CliAgent()
 	) {
 		this.authorization = authorization ?? new ChatGptAuthorization(http);
 	}
 
 	async hasCredentials(preferences: AiPreferences): Promise<boolean> {
+		if (AiSettingsStore.isCli(preferences.provider)) return false;
+
 		return (
 			!!preferences.provider && !!(await this.vault.read(this.key(preferences)))
 		);
@@ -92,7 +94,8 @@ export class AiIntegration {
 
 		if (
 			id &&
-			(!connection?.model ||
+			(!connection ||
+				(!AiSettingsStore.isCli(connection.provider) && !connection.model) ||
 				(connection.provider === "chatgpt" && !connection.chatgpt))
 		)
 			throw new Error("Configure this connection's sign-in and model first.");
@@ -107,22 +110,36 @@ export class AiIntegration {
 		signal: AbortSignal
 	): Promise<void> {
 		const connection = AiSettingsStore.connection(input);
+		const cli = AiSettingsStore.isCli(connection.provider);
 
-		if (!connection.model)
+		const credential =
+			connection.provider === "api"
+				? CustomApi.credential(
+						apiKey || (await this.vault.read(this.key(connection))) || "[]"
+					)
+				: apiKey;
+
+		if (!connection.model && !cli)
 			throw new Error("Choose a model before saving this connection.");
 
 		if (
 			apiKey &&
+			connection.provider !== "api" &&
 			(connection.provider !== "opencode" ||
 				apiKey.length > 8192 ||
 				/[\s\p{Cc}]/u.test(apiKey))
 		)
 			throw new Error("Enter a valid OpenCode API key.");
 
-		await this.refreshing.get(this.key(connection))?.catch(() => undefined);
+		if (cli) await this.cli.check(connection, signal);
+		else
+			await this.refreshing.get(this.key(connection))?.catch(() => undefined);
+
 		signal.throwIfAborted();
 
 		if (
+			!cli &&
+			connection.provider !== "api" &&
 			!apiKey &&
 			!(
 				connection.provider === "opencode" && connection.opencodeMode === "free"
@@ -154,8 +171,8 @@ export class AiIntegration {
 			};
 		};
 
-		if (apiKey)
-			await this.persistCredential(connection, apiKey, update, signal);
+		if (credential)
+			await this.persistCredential(connection, credential, update, signal);
 		else {
 			signal.throwIfAborted();
 			this.store.save(update(this.store.load()));
@@ -239,19 +256,23 @@ export class AiIntegration {
 		preferences: AiConnection,
 		signal: AbortSignal
 	): Promise<string> {
-		await this.refreshing.get(this.key(preferences))?.catch(() => undefined);
+		const cli = AiSettingsStore.isCli(preferences.provider);
+
+		if (!cli)
+			await this.refreshing.get(this.key(preferences))?.catch(() => undefined);
+
 		signal.throwIfAborted();
 
 		const provider = preferences.provider;
 
 		if (!provider) return "AI is disabled.";
 
-		const key = this.key(preferences);
+		const key = cli ? null : this.key(preferences);
 
 		let notice =
 			"Disconnected. Saved credentials were removed from this device.";
 
-		if (provider === "chatgpt" && preferences.chatgpt) {
+		if (key && provider === "chatgpt" && preferences.chatgpt) {
 			const raw = await this.vault.read(key);
 
 			if (raw) {
@@ -267,7 +288,9 @@ export class AiIntegration {
 			}
 		}
 
-		await this.vault.delete(key);
+		if (key) await this.vault.delete(key);
+		else notice = "Connection removed. Your agent remains signed in.";
+
 		const current = this.store.load();
 
 		this.store.save({
@@ -286,6 +309,11 @@ export class AiIntegration {
 		preferences: AiPreferences,
 		signal: AbortSignal
 	): Promise<AiModel[]> {
+		if (preferences.provider === "api") return [];
+
+		if (AiSettingsStore.isCli(preferences.provider))
+			return await this.cli.models(preferences, signal);
+
 		// Free discovery is public even when the OS vault is unavailable.
 		const credential =
 			preferences.provider === "opencode" && preferences.opencodeMode === "free"
@@ -317,6 +345,7 @@ export class AiIntegration {
 
 		const models: AiModel[] = [];
 		const seen = new Set<string>();
+		const catalog = await PiProvider.catalog(preferences);
 
 		for (const item of items) {
 			if (!item || typeof item !== "object") continue;
@@ -351,6 +380,7 @@ export class AiIntegration {
 			models.push({
 				value: id,
 				label: typeof name === "string" ? name.slice(0, 256) : id,
+				...PiProvider.capabilities(catalog.find((model) => model.id === id)),
 			});
 		}
 
@@ -374,6 +404,13 @@ export class AiIntegration {
 			);
 
 		const checked = AiSettingsStore.parse(preferences);
+
+		if (AiSettingsStore.isCli(checked.provider)) {
+			onProgress?.("Waiting for your local agent…");
+
+			return await this.cli.generate(checked, patch, signal);
+		}
+
 		const credential = await this.credential(checked, signal);
 
 		return await new CommitHarness(new PiProvider(this.http)).generate(
@@ -407,6 +444,8 @@ export class AiIntegration {
 
 		if (!raw)
 			throw new Error("No AI credentials saved. Connect in Settings → AI.");
+
+		if (preferences.provider === "api") return CustomApi.credential(raw);
 
 		if (preferences.provider === "opencode") {
 			if (raw.length > 8192 || /[\s\p{Cc}]/u.test(raw))
@@ -455,7 +494,7 @@ export class AiIntegration {
 	}
 
 	private key(preferences: AiPreferences): string {
-		if (!preferences.provider)
+		if (!preferences.provider || AiSettingsStore.isCli(preferences.provider))
 			throw new Error("Select an AI connection in Settings → AI.");
 
 		return AiSettingsStore.credentialKey(

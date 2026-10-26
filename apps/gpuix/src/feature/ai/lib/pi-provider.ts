@@ -1,8 +1,27 @@
 import { randomUUID } from "node:crypto";
 import type { StreamFn } from "@earendil-works/pi-agent-core";
-import type { Model } from "@earendil-works/pi-ai";
+import {
+	getSupportedThinkingLevels,
+	type Api,
+	type Model,
+} from "@earendil-works/pi-ai";
 import type { AiPreferences } from "./ai-settings-store";
 import { AiHttp, type AiFetch } from "./ai-http";
+import { effortLabel, modelEffort, type AiModel } from "./ai-model";
+import { CustomApi } from "./custom-api";
+
+function nativeEffort(
+	value: string
+): value is "minimal" | "low" | "medium" | "high" | "xhigh" | "max" {
+	return (
+		value === "minimal" ||
+		value === "low" ||
+		value === "medium" ||
+		value === "high" ||
+		value === "xhigh" ||
+		value === "max"
+	);
+}
 
 type CommitApi =
 	| "openai-responses"
@@ -13,7 +32,70 @@ type CommitApi =
 export class PiProvider {
 	constructor(private readonly http: AiHttp) {}
 
+	/** Metadata enriches the account's live list; it never adds models to that list. */
+	static async catalog(preferences: AiPreferences): Promise<Model<Api>[]> {
+		if (preferences.provider === "api") return [];
+
+		const catalog =
+			preferences.provider === "chatgpt"
+				? (await import("@earendil-works/pi-ai/providers/openai.models"))
+						.OPENAI_MODELS
+				: preferences.opencodeMode === "go"
+					? (await import("@earendil-works/pi-ai/providers/opencode-go.models"))
+							.OPENCODE_GO_MODELS
+					: (await import("@earendil-works/pi-ai/providers/opencode.models"))
+							.OPENCODE_MODELS;
+
+		return Object.values(catalog);
+	}
+
+	static capabilities(model: Model<Api> | undefined): Pick<AiModel, "effort"> {
+		if (!model) return {};
+
+		if (!model.reasoning) return { effort: { source: "catalog", levels: [] } };
+
+		// Budget-based thinking is not an effort selector. Only expose native effort controls.
+		const adaptive =
+			model.compat &&
+			"forceAdaptiveThinking" in model.compat &&
+			model.compat.forceAdaptiveThinking === true;
+
+		if (model.api === "anthropic-messages" && !adaptive) return {};
+
+		if (model.api !== "anthropic-messages" && !model.thinkingLevelMap)
+			return {};
+
+		if (
+			model.api !== "anthropic-messages" &&
+			model.api !== "openai-responses" &&
+			model.api !== "openai-completions"
+		)
+			return {};
+
+		const values = getSupportedThinkingLevels(model)
+			.filter((level) => level !== "off")
+			.map(
+				(level) =>
+					model.thinkingLevelMap?.[level] ??
+					(model.api === "anthropic-messages" && level === "minimal"
+						? "low"
+						: level)
+			);
+
+		return {
+			effort: {
+				source: "catalog",
+				levels: [...new Set(values)]
+					.filter(nativeEffort)
+					.map((value) => ({ value, label: effortLabel(value) })),
+			},
+		};
+	}
+
 	static base(preferences: AiPreferences): string {
+		if (preferences.provider === "api")
+			return CustomApi.configuration(preferences.api).baseUrl;
+
 		if (preferences.provider === "chatgpt") return "https://api.openai.com/v1";
 
 		return preferences.opencodeMode === "go"
@@ -53,8 +135,18 @@ export class PiProvider {
 		stream: StreamFn;
 		failure: () => string;
 	}> {
-		const protocol =
-			preferences.provider === "chatgpt"
+		const custom =
+			preferences.provider === "api"
+				? CustomApi.configuration(preferences.api)
+				: undefined;
+
+		const protocol = custom
+			? custom.protocol === "anthropic"
+				? "messages"
+				: custom.protocol === "openai-responses"
+					? "responses"
+					: "chat"
+			: preferences.provider === "chatgpt"
 				? "responses"
 				: PiProvider.protocol(preferences.model, preferences.opencodeMode);
 
@@ -76,24 +168,34 @@ export class PiProvider {
 		if (!credential && !anonymous)
 			throw new Error("No AI credentials saved. Connect in Settings → AI.");
 
-		const catalog =
-			preferences.provider === "chatgpt"
-				? (await import("@earendil-works/pi-ai/providers/openai.models"))
-						.OPENAI_MODELS
-				: preferences.opencodeMode === "go"
-					? (await import("@earendil-works/pi-ai/providers/opencode-go.models"))
-							.OPENCODE_GO_MODELS
-					: (await import("@earendil-works/pi-ai/providers/opencode.models"))
-							.OPENCODE_MODELS;
+		const catalog = await PiProvider.catalog(preferences);
+		const known = catalog.find((item) => item.id === preferences.model);
 
-		const known = Object.values(catalog).find(
-			(item) => item.id === preferences.model
-		);
+		const effort = custom
+			? (preferences.effort ?? "")
+			: modelEffort(
+					{
+						value: preferences.model,
+						label: preferences.model,
+						...PiProvider.capabilities(known),
+					},
+					preferences.effort
+				);
+
+		const reasoning = !custom && nativeEffort(effort) ? effort : undefined;
+
+		const customHeaders = custom
+			? CustomApi.headers(credential ?? "[]")
+			: undefined;
 
 		const model: Model<CommitApi> = {
 			id: preferences.model,
 			name: preferences.model,
-			provider: preferences.provider === "chatgpt" ? "openai" : "opencode",
+			provider: custom
+				? "1git-api"
+				: preferences.provider === "chatgpt"
+					? "openai"
+					: "opencode",
 			api:
 				protocol === "responses"
 					? "openai-responses"
@@ -102,8 +204,7 @@ export class PiProvider {
 						: "openai-completions",
 			baseUrl: PiProvider.base(preferences),
 			input: ["text"],
-			// Leave provider reasoning defaults unchanged; do not invent capabilities for dynamic models.
-			reasoning: false,
+			reasoning: reasoning !== undefined,
 			contextWindow: known?.contextWindow ?? 32_768,
 			maxTokens: Math.min(known?.maxTokens ?? 2048, 2048),
 			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
@@ -151,9 +252,14 @@ export class PiProvider {
 				const endpoint = protocol === "chat" ? "chat/completions" : protocol;
 				const destination = `${model.baseUrl}/${endpoint}`;
 
+				const sdkDestination =
+					protocol === "messages"
+						? `${model.baseUrl.replace(/\/v1$/u, "")}/v1/messages`
+						: destination;
+
 				if (
-					url !== destination &&
-					!(protocol === "messages" && url === `${destination}?beta=true`)
+					url !== sdkDestination &&
+					!(protocol === "messages" && url === `${sdkDestination}?beta=true`)
 				)
 					throw new Error("Unexpected AI request destination.");
 
@@ -163,7 +269,10 @@ export class PiProvider {
 				headers.delete("authorization");
 				headers.delete("x-api-key");
 
-				if (credential) headers.set("authorization", `Bearer ${credential}`);
+				if (customHeaders) {
+					for (const [name, value] of customHeaders) headers.set(name, value);
+				} else if (credential)
+					headers.set("authorization", `Bearer ${credential}`);
 
 				headers.set("user-agent", "1git/0.0.1");
 
@@ -217,7 +326,7 @@ export class PiProvider {
 			};
 
 			const request = {
-				apiKey: credential ?? "1git-anonymous",
+				apiKey: custom ? "1git-custom-api" : (credential ?? "1git-anonymous"),
 				fetch: Object.assign(fetch, {
 					preconnect: globalThis.fetch.preconnect,
 				}),
@@ -226,6 +335,12 @@ export class PiProvider {
 				timeoutMs: 120_000,
 				maxTokens: model.maxTokens,
 				cacheRetention: "none" as const,
+				...(custom
+					? {
+							onPayload: (payload: unknown) =>
+								CustomApi.payload(custom, preferences.effort, payload),
+						}
+					: {}),
 			};
 
 			if (responses)
@@ -234,6 +349,7 @@ export class PiProvider {
 					context,
 					{
 						...request,
+						reasoningEffort: reasoning,
 						onPayload: (payload) => {
 							if (
 								!payload ||
@@ -243,7 +359,7 @@ export class PiProvider {
 							)
 								throw new Error("Invalid Responses request.");
 
-							return {
+							const requestPayload = {
 								...payload,
 								instructions: getCurrentSystemPrompt(context.messages),
 								input: payload.input.filter(
@@ -256,7 +372,13 @@ export class PiProvider {
 										)
 								),
 								store: false,
+								// Stateless Responses continuations need encrypted reasoning alongside tool results.
+								...(custom ? { include: ["reasoning.encrypted_content"] } : {}),
 							};
+
+							return custom
+								? CustomApi.payload(custom, preferences.effort, requestPayload)
+								: requestPayload;
 						},
 					}
 				);
@@ -268,10 +390,15 @@ export class PiProvider {
 						...model,
 						baseUrl: model.baseUrl.replace(/\/v1$/u, ""),
 						api: "anthropic-messages",
-						compat: undefined,
+						compat: reasoning ? { forceAdaptiveThinking: true } : undefined,
 					},
 					context,
-					request
+					{
+						...request,
+						...(reasoning && reasoning !== "minimal"
+							? { thinkingEnabled: true, effort: reasoning }
+							: {}),
+					}
 				);
 
 			// The adapter is selected before the agent starts; this branch always has the chat module.
@@ -281,10 +408,14 @@ export class PiProvider {
 				{
 					...model,
 					api: "openai-completions",
-					compat: { supportsDeveloperRole: false, supportsStore: false },
+					compat: {
+						...(known?.api === "openai-completions" ? known.compat : {}),
+						supportsDeveloperRole: false,
+						supportsStore: false,
+					},
 				},
 				context,
-				request
+				{ ...request, reasoningEffort: reasoning }
 			);
 		};
 

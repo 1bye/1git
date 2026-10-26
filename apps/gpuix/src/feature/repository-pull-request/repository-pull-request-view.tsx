@@ -20,6 +20,7 @@ import {
 type ComparisonProps = Pick<
 	Parameters<typeof RepositoryComparison>[0],
 	| "readComparison"
+	| "fileTreeScope"
 	| "readHistory"
 	| "readCommitFiles"
 	| "readDiff"

@@ -1,4 +1,5 @@
 import { createTestRoot } from "@gpuix/react/testing";
+import { TestGpuixRenderer } from "@gpuix/native";
 import { App } from "../../src/app";
 import { WorkspaceSessionStore } from "../../src/feature/workspace-tabs/lib/workspace-session-store";
 import { repositorySnapshot } from "./repository-snapshot";
@@ -29,5 +30,12 @@ if (!message) throw new Error("Missing draft editor.");
 root.renderer.focusElement(message.id);
 root.renderer.simulateKeystrokes("cmd-a e x i t");
 root.renderer.flush();
+const dispose: unknown = Reflect.get(TestGpuixRenderer, "disposeCurrent");
+
+if (typeof dispose !== "function")
+	throw new Error("Missing native test-session teardown patch.");
+
+// Dispose the test window after the app's exit autosave, before Rust TLS teardown.
+process.once("exit", () => dispose());
 // GPUIX's normal window-close path calls process.exit; deliberately bypass the autosave timer and unmount.
 process.exit(0);

@@ -39,6 +39,53 @@ const choices = [
 	{ value: "step-5-preview-free", label: "Step Free" },
 ];
 
+const cliChoices = {
+	"claude-code": [
+		{
+			value: "sonnet",
+			label: "Sonnet",
+			effort: {
+				source: "cli" as const,
+				levels: [
+					{ value: "low", label: "Low" },
+					{ value: "medium", label: "Medium" },
+					{ value: "high", label: "High" },
+					{ value: "max", label: "Max" },
+				],
+			},
+		},
+		{
+			value: "opus",
+			label: "Opus",
+			effort: { source: "cli" as const, levels: [] },
+		},
+	],
+	codex: [
+		{
+			value: "gpt-6-luna",
+			label: "GPT-6 Luna",
+			effort: {
+				source: "cli" as const,
+				levels: [
+					{ value: "low", label: "Low" },
+					{ value: "medium", label: "Medium" },
+					{ value: "high", label: "High" },
+					{ value: "xhigh", label: "Extra high" },
+				],
+			},
+		},
+		{
+			value: "gpt-6.1-sol",
+			label: "GPT-6.1 Sol",
+			effort: {
+				source: "cli" as const,
+				levels: [{ value: "high", label: "High" }],
+				default: "high",
+			},
+		},
+	],
+};
+
 beforeEach(() => {
 	directory = mkdtempSync(join(tmpdir(), "1git-ai-ui-"));
 	credentials = new Map();
@@ -51,7 +98,11 @@ beforeEach(() => {
 			credentials.delete(key);
 		},
 	});
-	spyOn(service, "models").mockResolvedValue(choices);
+	spyOn(service, "models").mockImplementation(async (preferences) =>
+		AiSettingsStore.isCli(preferences.provider)
+			? cliChoices[preferences.provider]
+			: choices
+	);
 	root = createTestRoot({
 		width: 980,
 		height: 720,
@@ -134,6 +185,7 @@ function settings() {
 					flexDirection: "column",
 					height: "100%",
 					minHeight: 0,
+					backgroundColor: "#ffffff",
 				}}
 			>
 				<AiSettings openLink={async () => undefined} />
@@ -154,6 +206,377 @@ async function addFree(label: string, makeDefault = false) {
 
 	return service.store.load().connections.find((item) => item.label === label)!;
 }
+
+it.each([
+	{ protocol: "openai-chat", steps: 0 },
+	{ protocol: "openai-responses", steps: 1 },
+	{ protocol: "anthropic", steps: 2 },
+] as const)(
+	"configures $protocol with manual model/effort and vault-only auth headers",
+	async ({ protocol, steps }) => {
+		settings();
+		await press("ai-add");
+		await press("ai-provider-api");
+
+		if (steps) {
+			await press("ai-api-format");
+
+			for (let step = 0; step < steps; step++) {
+				root.renderer.simulateKeystrokes("down");
+				await settle();
+			}
+
+			root.renderer.simulateKeystrokes("enter");
+			await settle();
+		}
+
+		await type("ai-api-url", "https://gateway.example/custom/v1");
+		await type("ai-api-header-name-0", "X-API-Key");
+		await type("ai-api-header-value-0", "synthetic-secret");
+		await press("ai-api-header-add");
+		await type("ai-api-header-name-1", "X-Gateway-Key");
+		await type("ai-api-header-value-1", "synthetic-extra");
+		expect(node("ai-api-header-value-0").customProps?.type).toBe("password");
+		await type("ai-api-model", "org/custom-model");
+		await type("ai-api-effort", "high");
+		await press("ai-use-default");
+
+		if (process.env.GPUIX_AI_API_SCREENSHOT)
+			root.renderer.captureScreenshot(
+				`${process.env.GPUIX_AI_API_SCREENSHOT}-${protocol}.png`
+			);
+
+		await press("ai-save-preferences");
+		const selected = AiSettingsStore.selected(service.store.load());
+
+		expect(selected.api).toEqual({
+			protocol,
+			baseUrl: "https://gateway.example/custom/v1",
+		});
+		expect(selected.model).toBe("org/custom-model");
+		expect(selected.effort).toBe("high");
+		expect(JSON.stringify(service.store.load())).not.toContain("synthetic");
+		const key = AiSettingsStore.credentialKey("api", "", selected.id);
+
+		expect(JSON.parse(credentials.get(key) ?? "")).toEqual([
+			{ name: "x-api-key", value: "synthetic-secret" },
+			{ name: "x-gateway-key", value: "synthetic-extra" },
+		]);
+		await press(`ai-edit-${selected.id}`);
+		expect(root.renderer.findByTestId("ai-api-header-value-0")).toBeUndefined();
+		expect(root.renderer.getAllText()).toContain("Headers saved securely.");
+		await type("ai-api-effort", "max");
+		await press("ai-save-preferences");
+		expect(credentials.get(key)).toContain("synthetic-secret");
+		expect(AiSettingsStore.selected(service.store.load()).effort).toBe("max");
+		await press(`ai-edit-${selected.id}`);
+		await press("ai-api-replace-headers");
+		await type("ai-api-header-value-0", "discarded-secret");
+		await press("ai-cancel-editor");
+		expect(credentials.get(key)).not.toContain("discarded-secret");
+	}
+);
+
+it("groups ChatGPT connection methods with CLI selected by default and keyboard-accessible Login", async () => {
+	settings();
+	await press("ai-add");
+	await press("ai-provider-chatgpt");
+	expect(root.renderer.findByTestId("ai-provider-codex")).toBeUndefined();
+	expect(node("ai-cli-test")).toBeDefined();
+	expect(root.renderer.findByTestId("ai-chatgpt-connect")).toBeUndefined();
+	expect(root.renderer.getAllText()).toContain("Use CLI default");
+	const cli = root.renderer.getElementBounds(node("ai-chatgpt-mode-cli").id)!;
+
+	const login = root.renderer.getElementBounds(
+		node("ai-chatgpt-mode-login").id
+	)!;
+
+	const provider = root.renderer.getElementBounds(
+		node("ai-provider-chatgpt").id
+	)!;
+
+	expect(cli.y).toBe(login.y);
+	expect(cli.y).toBeGreaterThan(provider.y + provider.height);
+	expect(Math.abs(cli.width - login.width)).toBeLessThanOrEqual(1);
+	await type("ai-account-name", "MyAssistant");
+	await press("ai-cli-advanced");
+	await type("ai-cli-executable", "/tmp/custom-codex");
+	await press("ai-cli-advanced");
+	root.renderer.focusElement(node("ai-chatgpt-mode-login").id);
+	root.renderer.simulateKeystrokes("enter");
+	await settle();
+	expect(node("ai-chatgpt-connect")).toBeDefined();
+	expect(root.renderer.findByTestId("ai-cli-test")).toBeUndefined();
+	expect(node("ai-account-name").customProps?.value).toBe("MyAssistant");
+	await press("ai-provider-chatgpt");
+	expect(node("ai-chatgpt-connect")).toBeDefined();
+	root.renderer.nativeSimulateKeyDown(node("ai-chatgpt-mode-cli").id, "space");
+	root.renderer.nativeSimulateKeyUp(node("ai-chatgpt-mode-cli").id, "space");
+	await settle();
+	expect(node("ai-cli-test")).toBeDefined();
+	await press("ai-cli-advanced");
+	expect(node("ai-cli-executable").customProps?.value).toBe("");
+	expect(service.store.load().connections).toHaveLength(0);
+});
+
+it.each(["chatgpt", "codex"] as const)(
+	"reopens a saved %s connection in its existing mode without changing its identity",
+	async (provider) => {
+		const connection = {
+			...configured,
+			provider,
+			model: provider === "codex" ? "" : configured.model,
+		};
+
+		service.store.save({ connections: [connection], defaultId: connection.id });
+		settings();
+		await press(`ai-edit-${connection.id}`);
+		expect(root.renderer.findByTestId("ai-provider-codex")).toBeUndefined();
+		expect(
+			node(provider === "codex" ? "ai-cli-test" : "ai-chatgpt-connect")
+		).toBeDefined();
+		await press(
+			provider === "codex" ? "ai-chatgpt-mode-login" : "ai-chatgpt-mode-cli"
+		);
+		expect(
+			node(provider === "codex" ? "ai-cli-test" : "ai-chatgpt-connect")
+		).toBeDefined();
+		expect(service.store.load()).toEqual({
+			connections: [connection],
+			defaultId: connection.id,
+		});
+	}
+);
+
+it("ignores a late CLI catalog after switching ChatGPT to Login", async () => {
+	const obsolete = Promise.withResolvers<typeof choices>();
+	let signal: AbortSignal | undefined;
+
+	spyOn(service, "hasCredentials").mockResolvedValue(true);
+	spyOn(service, "models").mockImplementation(
+		async (preferences, requestSignal) => {
+			if (preferences.provider === "codex") {
+				signal = requestSignal;
+
+				return await obsolete.promise;
+			}
+
+			return choices;
+		}
+	);
+	settings();
+	await press("ai-add");
+	await press("ai-provider-chatgpt");
+	await press("ai-chatgpt-mode-login");
+	expect(signal?.aborted).toBe(true);
+	obsolete.resolve([{ value: "old-cli-model", label: "Old CLI model" }]);
+	await settle();
+	await press("ai-model");
+	expect(root.renderer.getAllText()).toContain("Big Pickle");
+	expect(root.renderer.getAllText()).not.toContain("Old CLI model");
+});
+
+it("keeps provider switching usable when cancelled CLI catalogs reject during effect cleanup", async () => {
+	const requests: AbortSignal[] = [];
+
+	spyOn(service, "models").mockImplementation(async (preferences, signal) => {
+		if (!AiSettingsStore.isCli(preferences.provider)) return choices;
+
+		requests.push(signal);
+
+		return await new Promise<typeof choices>((_resolve, reject) => {
+			signal.addEventListener(
+				"abort",
+				() => reject(new Error("Agent request cancelled.")),
+				{ once: true }
+			);
+		});
+	});
+	settings();
+	await press("ai-add");
+
+	for (const provider of [
+		"chatgpt",
+		"claude-code",
+		"api",
+		"chatgpt",
+		"claude-code",
+		"opencode",
+	])
+		await press(`ai-provider-${provider}`);
+
+	expect(requests.length).toBeGreaterThanOrEqual(4);
+	expect(requests.every((signal) => signal.aborted)).toBe(true);
+	expect(root.renderer.findByTestId("ai-models-error")).toBeUndefined();
+	expect(root.renderer.getAllText()).not.toContain("Uncaught runtime errors:");
+	await press("ai-model");
+	expect(root.renderer.getAllText()).toContain("Big Pickle");
+});
+
+it.each(["claude-code", "codex"] as const)(
+	"configures and tests %s with its CLI default and collapsed Advanced options",
+	async (provider) => {
+		spyOn(service.cli, "check").mockResolvedValue("CLI 1.0");
+		spyOn(service.cli, "generate").mockResolvedValue("fix: update greeting");
+		settings();
+		await press("ai-add");
+
+		await press(`ai-provider-${provider === "codex" ? "chatgpt" : provider}`);
+		expect(node("ai-model")).toBeDefined();
+		expect(root.renderer.findByTestId("ai-cli-model")).toBeUndefined();
+		expect(root.renderer.findByTestId("ai-cli-executable")).toBeUndefined();
+		expect(root.renderer.findByTestId("ai-chatgpt-connect")).toBeUndefined();
+		expect(root.renderer.findByTestId("ai-api-key")).toBeUndefined();
+
+		if (process.env.GPUIX_AI_CLI_SCREENSHOT)
+			root.renderer.captureScreenshot(
+				`${process.env.GPUIX_AI_CLI_SCREENSHOT}-${provider}.png`
+			);
+
+		await press("ai-cli-test");
+		expect(root.renderer.getAllText().join(" ")).toContain("Connection works.");
+		expect(service.cli.generate).toHaveBeenCalledTimes(1);
+		await press("ai-cli-advanced");
+		expect(node("ai-cli-executable")).toBeDefined();
+		await type("ai-cli-executable", "/tmp/custom-agent");
+		await press("ai-cli-advanced");
+		expect(root.renderer.findByTestId("ai-cli-executable")).toBeUndefined();
+		await press("ai-use-default");
+		await press("ai-save-preferences");
+		const saved = AiSettingsStore.selected(service.store.load());
+
+		expect(saved.provider).toBe(provider);
+		expect(saved.model).toBe("");
+		expect(saved.effort).toBe("");
+		expect(saved.executable).toBe("/tmp/custom-agent");
+		expect(root.renderer.findByTestId("ai-setup-panel")).toBeUndefined();
+		expect(root.renderer.getAllText().join(" ")).toContain("CLI default");
+	}
+);
+
+it.each(["claude-code", "codex"] as const)(
+	"defaults %s effort to Medium and saves a keyboard-selected High",
+	async (provider) => {
+		spyOn(service.cli, "check").mockResolvedValue("CLI 1.0");
+		settings();
+		await press("ai-add");
+		await press(`ai-provider-${provider === "codex" ? "chatgpt" : provider}`);
+		expect(root.renderer.getAllText()).toContain("Provider default");
+		await press("ai-model");
+		root.renderer.simulateKeystrokes("down enter");
+		await settle();
+		expect(root.renderer.getAllText()).toContain("Medium");
+		await press("ai-effort");
+
+		if (process.env.GPUIX_AI_CLI_SCREENSHOT)
+			root.renderer.captureScreenshot(
+				`${process.env.GPUIX_AI_CLI_SCREENSHOT}-${provider}-effort.png`
+			);
+
+		root.renderer.simulateKeystrokes("down enter");
+		await settle();
+		await press("ai-save-preferences");
+		const connection = service.store.load().connections[0];
+
+		expect(connection?.effort).toBe("high");
+		await press(`ai-edit-${connection?.id}`);
+		expect(root.renderer.getAllText()).toContain("High");
+	}
+);
+
+it.each(["claude-code", "codex"] as const)(
+	"selects and persists a %s model with keyboard navigation",
+	async (provider) => {
+		spyOn(service.cli, "check").mockResolvedValue("CLI 1.0");
+		settings();
+		await press("ai-add");
+		await press(`ai-provider-${provider === "codex" ? "chatgpt" : provider}`);
+		await press("ai-model");
+
+		if (process.env.GPUIX_AI_CLI_SCREENSHOT)
+			root.renderer.captureScreenshot(
+				`${process.env.GPUIX_AI_CLI_SCREENSHOT}-${provider}-models.png`
+			);
+
+		root.renderer.simulateKeystrokes("down enter");
+		await settle();
+		await press("ai-save-preferences");
+		expect(service.store.load().connections[0]?.model).toBe(
+			cliChoices[provider][0]?.value
+		);
+	}
+);
+
+it.each(["claude-code", "codex"] as const)(
+	"updates %s effort when the model changes and inherits effort for the CLI default",
+	async (provider) => {
+		settings();
+		await press("ai-add");
+		await press(`ai-provider-${provider === "codex" ? "chatgpt" : provider}`);
+		await press("ai-model");
+		root.renderer.simulateKeystrokes("down enter");
+		await settle();
+		await press("ai-effort");
+		const text = root.renderer.getAllText();
+
+		expect(text).toContain(provider === "claude-code" ? "Max" : "Extra high");
+		expect(text).not.toContain(
+			provider === "claude-code" ? "Extra high" : "Max"
+		);
+		root.renderer.simulateKeystrokes("escape");
+		await settle();
+		await press("ai-model");
+		root.renderer.simulateKeystrokes("down enter");
+		await settle();
+
+		if (provider === "claude-code")
+			expect(root.renderer.findByTestId("ai-effort")).toBeUndefined();
+		else {
+			expect(root.renderer.getAllText()).toContain("High");
+			expect(root.renderer.getAllText()).not.toContain("Medium");
+		}
+
+		await press("ai-model");
+		root.renderer.simulateKeystrokes("up up enter");
+		await settle();
+		expect(root.renderer.getAllText()).toContain("Provider default");
+	}
+);
+
+it("preserves a custom model in the dropdown and allows editing it in Advanced", async () => {
+	const connection: AiConnection = {
+		...configured,
+		provider: "claude-code",
+		model: "custom-model",
+	};
+
+	spyOn(service.cli, "check").mockResolvedValue("CLI 1.0");
+	service.store.save({ connections: [connection], defaultId: connection.id });
+	settings();
+	await press(`ai-edit-${connection.id}`);
+	expect(root.renderer.getAllText()).toContain("custom-model");
+	expect(root.renderer.findByTestId("ai-cli-model")).toBeUndefined();
+	await press("ai-cli-advanced");
+	await type("ai-cli-model", "another-model");
+	await press("ai-save-preferences");
+	expect(service.store.load().connections[0]?.model).toBe("another-model");
+});
+
+it("keeps the CLI default and custom model usable when model discovery fails", async () => {
+	spyOn(service.cli, "check").mockResolvedValue("CLI 1.0");
+	spyOn(service, "models").mockRejectedValue(
+		new Error("Could not load Codex models.")
+	);
+	settings();
+	await press("ai-add");
+	await press("ai-provider-chatgpt");
+	expect(node("ai-models-error")).toBeDefined();
+	expect(root.renderer.getAllText()).toContain("Use CLI default");
+	await press("ai-cli-advanced");
+	await type("ai-cli-model", "custom-model");
+	await press("ai-save-preferences");
+	expect(service.store.load().connections[0]?.model).toBe("custom-model");
+});
 
 it.each(["light", "dark"] as const)(
 	"shows the account list and matching split setup with a pinned footer (%s)",
@@ -497,6 +920,7 @@ it("adds two ChatGPT accounts without overwriting either identity or the default
 	for (const label of ["Personal", "Work"]) {
 		await press("ai-add");
 		await press("ai-provider-chatgpt");
+		await press("ai-chatgpt-mode-login");
 		await type("ai-account-name", label);
 		await press("ai-chatgpt-connect");
 		await press("ai-model");

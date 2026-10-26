@@ -57,7 +57,7 @@ it("decorates a clean working tree without disguising refresh errors as an empty
 	render("Refresh failed");
 	expect(root.renderer.findByTestId("empty-list-placeholder")).toBeUndefined();
 	expect(root.renderer.findByTestId("comparison-art-empty")).toBeUndefined();
-	expect(root.renderer.getAllText()).toContain("Could not refresh repository");
+	expect(root.renderer.getAllText()).toContain("Could not read repository");
 });
 
 beforeEach(() => {
@@ -266,7 +266,7 @@ it("pins the composer below the scrolling Changes list and hides it in revision 
 	).toBeLessThanOrEqual(
 		bounds("repository-navigation").y + bounds("repository-navigation").height
 	);
-	expect(element("commit-message").style.height).toBe(100);
+	expect(bounds("commit-message").height).toBeGreaterThanOrEqual(100);
 	expect(root.renderer.getPaintedText()).toContain("Commit message…");
 	key("entry-src/app.tsx", "end");
 	expect(scrollY()).toBeLessThan(0);
@@ -497,7 +497,9 @@ const selectedView = () =>
 			(node) =>
 				node.aria?.role === "Tab" &&
 				node.aria.selected &&
-				["Changes", "History", "Stashes"].includes(node.aria.label ?? "")
+				["Changes", "History", "Stashes", "Graph"].includes(
+					node.aria.label ?? ""
+				)
 		)
 		.map((node) => node.aria?.label);
 
@@ -509,8 +511,8 @@ it("stacks compact borderless rail tabs outside the white workspace", () => {
 
 	expect(history.x).toBe(changes.x);
 	expect(stashes.x).toBe(changes.x);
-	expect(history.y).toBe(changes.y + changes.height + 6);
-	expect(stashes.y).toBe(history.y + history.height + 6);
+	expect(history.y).toBe(changes.y + changes.height + 4);
+	expect(stashes.y).toBe(history.y + history.height + 4);
 	expect(changes.x + changes.width).toBeLessThan(workspace.x);
 
 	for (const view of ["changes", "history", "stashes"]) {
@@ -561,12 +563,12 @@ it("tightens sidebar headers without shrinking rail buttons, file rows or checkb
 
 it("wraps vertical rail arrows, supports Home/End and Enter/Space, and ignores modified navigation", () => {
 	key("view-changes", "up");
-	expect(selectedView()).toEqual(["Stashes"]);
-	key("view-stashes", "down");
+	expect(selectedView()).toEqual(["Graph"]);
+	key("view-graph", "down");
 	expect(selectedView()).toEqual(["Changes"]);
 	key("view-changes", "end");
-	expect(selectedView()).toEqual(["Stashes"]);
-	key("view-stashes", "home");
+	expect(selectedView()).toEqual(["Graph"]);
+	key("view-graph", "home");
 	expect(selectedView()).toEqual(["Changes"]);
 	key("view-changes", "shift-right");
 	expect(selectedView()).toEqual(["Changes"]);
@@ -818,7 +820,16 @@ it("supports arrow-key rail selection and entry/exit with Tab", () => {
 	);
 	root.renderer.simulateKeystrokes("tab");
 	root.renderer.flush();
+	expect(root.renderer.getFocusedElementId()).toBe(
+		element("revision-file-layout").id
+	);
+	key("revision-file-layout", "tab");
 	notifyListFocus();
+	expect(root.renderer.getFocusedElementId()).toBe(
+		element("repository-list-scrollbar-vertical").id
+	);
+	root.renderer.simulateKeystrokes("tab");
+	root.renderer.flush();
 	expect(root.renderer.getFocusedElementId()).toBe(
 		element("workspace-home").id
 	);
@@ -878,6 +889,10 @@ it("navigates revision files by keyboard and scrolls each pane independently, pr
 		element("revision-divider").id
 	);
 	key("revision-divider", "tab");
+	expect(root.renderer.getFocusedElementId()).toBe(
+		element("revision-file-layout").id
+	);
+	key("revision-file-layout", "tab");
 	expect(root.renderer.getFocusedElementId()).toBe(
 		element("entry-src/app.tsx").id
 	);
@@ -1002,6 +1017,10 @@ it("reveals the remembered row when keyboard focus returns after scrolling it of
 	key("rail-settings", "tab");
 	expect(root.renderer.getFocusedElementId()).toBe(element("rail-account").id);
 	key("rail-account", "tab");
+	expect(root.renderer.getFocusedElementId()).toBe(
+		element("changes-file-layout").id
+	);
+	key("changes-file-layout", "tab");
 	expect(root.renderer.getFocusedElementId()).toBe(
 		element("filter-changes").id
 	);

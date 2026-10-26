@@ -1510,10 +1510,16 @@ export class RepositoryWorkspaceModel {
 
 		if (action.type === "select") {
 			if (action.view === "changes" || action.view === "history") {
-				const visible = action.visibleIds ? new Set(action.visibleIds) : null;
+				const byId = new Map(
+					state.entries[action.view].map((entry) => [entry.id, entry])
+				);
 
-				const entries = visible
-					? state.entries[action.view].filter((entry) => visible.has(entry.id))
+				const entries = action.visibleIds
+					? [...new Set(action.visibleIds)].flatMap((id) => {
+							const entry = byId.get(id);
+
+							return entry ? [entry] : [];
+						})
 					: state.entries[action.view];
 
 				if (!entries.some((entry) => entry.id === action.id)) return state;
@@ -1632,7 +1638,7 @@ export class RepositoryWorkspaceModel {
 	}
 
 	static destination(
-		entries: readonly WorkspaceEntry[],
+		entries: readonly { readonly id: string }[],
 		id: string,
 		key: string,
 		pageSize: number

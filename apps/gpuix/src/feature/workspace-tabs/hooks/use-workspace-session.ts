@@ -1,5 +1,6 @@
 import type { TourTips } from "../../guided-tour/guided-tour";
 import type { KeybindOverrides } from "../../keybinds/keybinds";
+import type { RepositoryFileLayout } from "../../repository-workspace/lib/repository-file-tree";
 import type { AppTypography } from "../../appearance-settings/app-typography";
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import {
@@ -33,7 +34,8 @@ export function useWorkspaceSession(
 	showScrollbars?: boolean,
 	typography?: AppTypography,
 	tips?: TourTips,
-	keybinds?: KeybindOverrides
+	keybinds?: KeybindOverrides,
+	fileListLayout?: RepositoryFileLayout
 ) {
 	const content =
 		state.preview || !save
@@ -53,7 +55,8 @@ export function useWorkspaceSession(
 						showScrollbars,
 						typography,
 						tips,
-						keybinds
+						keybinds,
+						fileListLayout
 					)
 				);
 

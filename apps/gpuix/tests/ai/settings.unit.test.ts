@@ -137,3 +137,53 @@ it("rejects corrupt, duplicate or dangling selections without replacing the orig
 	).toThrow("Invalid AI preferences");
 	expect(readFileSync(store.path, "utf8")).toBe("invalid-secret-content");
 });
+
+it.each(["claude-code", "codex"] as const)(
+	"persists %s with its default model and optional executable without credentials",
+	(provider) => {
+		const cli = {
+			...connection,
+			provider,
+			model: "",
+			executable: "/opt/tools/agent with spaces",
+		};
+
+		store.save({ connections: [cli], defaultId: cli.id });
+		expect(AiSettingsStore.selected(store.load())).toMatchObject(cli);
+		expect(() =>
+			AiSettingsStore.connection({ ...cli, executable: "agent --flag" })
+		).toThrow("absolute path");
+		expect(() =>
+			AiSettingsStore.connection({ ...cli, executable: "/tmp/agent\ncommand" })
+		).toThrow("absolute path");
+	}
+);
+
+it.each(["claude-code", "codex"] as const)(
+	"preserves unset %s effort until capabilities are known and persists native effort",
+	(provider) => {
+		const cli = { ...connection, provider, model: "" };
+
+		const original = JSON.stringify({
+			version: 2,
+			connections: [cli],
+			defaultId: cli.id,
+		});
+
+		writeFileSync(store.path, original);
+		expect(AiSettingsStore.selected(store.load()).effort).toBeUndefined();
+		expect(readFileSync(store.path, "utf8")).toBe(original);
+		const high = AiSettingsStore.connection({ ...cli, effort: "xhigh" });
+
+		store.save({ connections: [high], defaultId: cli.id });
+		expect(AiSettingsStore.selected(store.load()).effort).toBe("xhigh");
+		store.save({
+			connections: [AiSettingsStore.connection({ ...cli, effort: "" })],
+			defaultId: cli.id,
+		});
+		expect(AiSettingsStore.selected(store.load()).effort).toBe("");
+		expect(() =>
+			AiSettingsStore.connection({ ...cli, effort: 'high";bad' })
+		).toThrow("effort");
+	}
+);

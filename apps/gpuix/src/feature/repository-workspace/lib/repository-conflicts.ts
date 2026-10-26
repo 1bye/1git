@@ -1,43 +1,116 @@
 import { createHash } from "node:crypto";
 import { realpath, stat } from "node:fs/promises";
 import { resolve, relative } from "node:path";
-import { type ResolveConflictInput } from "@1git/git";
+import {
+	type FileContent,
+	type GitResult,
+	type ResolveConflictInput,
+} from "@1git/git";
 import { GitRepository } from "../../machines/repository-access";
 import { ExternalEditors } from "../../editor-settings/external-editors";
 import { MachineLocation } from "../../machines/machine-location";
+
+/** Indexed versions stay distinct from the editable working result, including during rebase. */
+export interface ConflictSource {
+	readonly text: string | null;
+	readonly label: string;
+	readonly revision?: string;
+	readonly description?: string;
+}
+
+export interface ConflictPreview {
+	readonly text: string;
+	readonly hash: string;
+	readonly ours?: ConflictSource;
+	readonly theirs?: ConflictSource;
+}
+
+const supported = (value: FileContent): boolean =>
+	value.encoding === "utf8" &&
+	!value.content.includes("\0") &&
+	value.sizeBytes <= 512 * 1024;
 
 /** Conflict preview and explicitly requested resolution; never continues Git operations. */
 export class RepositoryConflicts {
 	private constructor() {}
 
-	static async read(root: string, path: string, signal: AbortSignal) {
+	static async read(
+		root: string,
+		path: string,
+		signal: AbortSignal
+	): Promise<GitResult<ConflictPreview | null>> {
 		const opened = await GitRepository.open({ path: root, signal });
 
 		if (!opened.ok) return opened;
 
-		const content = await opened.value.getFileContent({
-			path,
-			source: { kind: "working" },
-			signal,
-		});
+		const repository = opened.value;
+
+		const [content, ours, theirs, snapshot] = await Promise.all([
+			repository.getFileContent({ path, source: { kind: "working" }, signal }),
+			repository.getFileContent({
+				path,
+				source: { kind: "object", objectId: `:2:${path}` },
+				signal,
+			}),
+			repository.getFileContent({
+				path,
+				source: { kind: "object", objectId: `:3:${path}` },
+				signal,
+			}),
+			repository.getSnapshot({ signal }),
+		]);
 
 		if (!content.ok) return content;
 
-		const value = content.value;
+		if (!supported(content.value)) return { ok: true, value: null };
 
-		const supported =
-			value.encoding === "utf8" &&
-			!value.content.includes("\0") &&
-			value.sizeBytes <= 512 * 1024;
+		const operation = snapshot.ok ? snapshot.value.operationState : undefined;
+
+		const ref =
+			operation === "rebase"
+				? "REBASE_HEAD"
+				: operation === "merge"
+					? "MERGE_HEAD"
+					: operation === "cherry-pick"
+						? "CHERRY_PICK_HEAD"
+						: operation === "revert"
+							? "REVERT_HEAD"
+							: null;
+
+		const incoming = ref ? await repository.getCommit(ref, { signal }) : null;
+		const branch = snapshot.ok ? snapshot.value.head.branch : null;
+
+		const source = (
+			result: GitResult<FileContent>,
+			label: string,
+			description: string
+		): ConflictSource => ({
+			text: result.ok && supported(result.value) ? result.value.content : null,
+			label,
+			revision: result.ok ? result.value.revision : undefined,
+			description,
+		});
 
 		return {
 			ok: true as const,
-			value: supported
-				? {
-						text: value.content,
-						hash: createHash("sha256").update(value.content).digest("hex"),
-					}
-				: null,
+			value: {
+				text: content.value.content,
+				hash: createHash("sha256").update(content.value.content).digest("hex"),
+				ours: source(
+					ours,
+					operation === "rebase"
+						? "Upstream version"
+						: `Current${branch ? ` · ${branch}` : " · HEAD"}`,
+					operation === "rebase"
+						? "The version being rebased onto"
+						: "The current branch’s indexed version"
+				),
+				theirs: source(
+					theirs,
+					`${operation === "rebase" ? "Replayed commit" : "Incoming"}${incoming?.ok ? ` · ${incoming.value.oid.slice(0, 7)}` : ""}`,
+					incoming?.ok ? incoming.value.summary : "The other indexed version"
+				),
+			},
 		};
 	}
 

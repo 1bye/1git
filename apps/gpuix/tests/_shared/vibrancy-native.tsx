@@ -82,6 +82,21 @@ const applicationAppearance = send(
 );
 
 send(app, "setAppearance:", applicationAppearance);
+const setWindowAppearance: unknown = Reflect.get(
+	renderer,
+	"setWindowAppearance"
+);
+
+assert.ok(
+	typeof setWindowAppearance === "function",
+	"native appearance patch must be present"
+);
+assert.throws(
+	() => Reflect.apply(setWindowAppearance, renderer, ["invalid"]),
+	/light or dark/
+);
+// App normally sets the window theme; this probe renders AppShell directly.
+Reflect.apply(setWindowAppearance, renderer, [process.argv[2]]);
 render(
 	<AppThemeContext
 		value={{
@@ -139,21 +154,7 @@ assert.equal(
 	process.argv[2] === "dark"
 		? "NSAppearanceNameVibrantDark"
 		: "NSAppearanceNameVibrantLight",
-	"the native backdrop must inherit appearance instead of pinning itself to light"
-);
-
-const setWindowAppearance: unknown = Reflect.get(
-	renderer,
-	"setWindowAppearance"
-);
-
-assert.ok(
-	typeof setWindowAppearance === "function",
-	"native appearance patch must be present"
-);
-assert.throws(
-	() => Reflect.apply(setWindowAppearance, renderer, ["invalid"]),
-	/light or dark/
+	"the native backdrop must inherit the selected window appearance"
 );
 
 for (const choice of ["dark", "light", "dark"] as const) {

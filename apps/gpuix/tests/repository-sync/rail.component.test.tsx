@@ -12,6 +12,10 @@ import { Accounts } from "../../src/feature/accounts/lib/accounts";
 import { AccountStore } from "../../src/feature/accounts/lib/account-store";
 import { RepositoryBranches } from "../../src/feature/workspace-tabs/lib/repository-branches";
 import { RepositorySync } from "../../src/feature/repository-workspace/lib/repository-sync";
+import { RepositoryComparison } from "../../src/feature/repository-comparison/lib/repository-comparison";
+import { RepositoryHistory } from "../../src/feature/repository-workspace/lib/repository-history";
+import { RepositoryDiff } from "../../src/feature/repository-workspace/lib/repository-diff";
+import { diffPatch } from "../_shared/diff-patch";
 import { GitSettingsModel } from "../../src/feature/git-settings/git-settings-model";
 import { appTokens } from "../../src/styles/tokens";
 import {
@@ -57,7 +61,27 @@ const readBranches = mock<typeof RepositoryBranches.read>(async () => ({
 							remote: null,
 							summary: "",
 							upstream: snapshot.head.upstream,
+							upstreamRemote: snapshot.head.upstream ? "origin" : null,
+							upstreamRef: snapshot.head.upstream ? "refs/heads/main" : null,
 						},
+						...(snapshot.head.upstream
+							? [
+									{
+										name: snapshot.head.upstream,
+										fullName: `refs/remotes/${snapshot.head.upstream}`,
+										oid: "remote-tip",
+										checkedOut: false,
+										type: "remote" as const,
+										worktreePath: null,
+										ahead: 0,
+										behind: 0,
+										committedAt: null,
+										remote: "origin",
+										summary: "Incoming work",
+										upstream: null,
+									},
+								]
+							: []),
 					]
 				: [],
 		},
@@ -99,6 +123,31 @@ const readSnapshot = async (path: string) => ({
 			: snapshot,
 });
 
+const readComparison = mock<typeof RepositoryComparison.read>(
+	async (_root, base, head) => ({
+		ok: true,
+		value: { base, head, mergeBase: "ancestor", files: [] },
+	})
+);
+
+const readHistory = mock<typeof RepositoryHistory.read>(async () => ({
+	ok: true,
+	value: { commits: [], hasMore: false, nextOffset: null },
+}));
+
+const readDiff = mock<typeof RepositoryDiff.read>(async () => ({
+	ok: true,
+	value: [],
+}));
+
+const writeBranch = mock<typeof RepositoryBranches.write>(async () => ({
+	ok: true,
+	value: {
+		branches: { current: snapshot.head.branch, branches: [] },
+		snapshot,
+	},
+}));
+
 const read = mock<typeof RepositoryReader.read>(readSnapshot);
 
 const commit = mock<typeof RepositoryCommit.write>(async () => {
@@ -138,6 +187,10 @@ beforeEach(() => {
 	read.mockImplementation(readSnapshot);
 	commit.mockClear();
 	readBranches.mockClear();
+	readComparison.mockClear();
+	readHistory.mockClear();
+	readDiff.mockClear();
+	writeBranch.mockClear();
 	fetch.mockClear();
 	sync.mockClear();
 	accounts = new Accounts(new AccountStore("/unused/accounts.json"), {
@@ -194,6 +247,9 @@ async function open() {
 			accounts={accounts}
 			readRepository={read}
 			readBranches={readBranches}
+			readComparison={readComparison}
+			readHistory={readHistory}
+			writeBranch={writeBranch}
 			fetchRepository={fetch}
 			writeSyncRepository={sync}
 			writeCommit={commit}
@@ -214,7 +270,7 @@ async function open() {
 					retryable: false,
 				},
 			})}
-			readDiff={async () => ({ ok: true, value: [] })}
+			readDiff={readDiff}
 		/>
 	);
 	await settle();
@@ -444,12 +500,69 @@ it.each(["incoming", "outgoing"] as const)(
 	}
 );
 
-it("refreshes divergence for review without silently merging, pushing or committing", async () => {
+it("opens the fetched upstream directly and reviews both directions without writing", async () => {
 	snapshot = {
 		...snapshot,
 		head: { ...snapshot.head, upstream: "origin/main", ahead: 2, behind: 3 },
 	};
 	await open();
+
+	for (const count of [3, 2, 3]) {
+		readComparison.mockImplementationOnce(async (_root, base, head) => ({
+			ok: true,
+			value: {
+				base,
+				head,
+				mergeBase: "ancestor",
+				files: [
+					{
+						path: "sync.ts",
+						status: "M",
+						beforeOid: "before",
+						afterOid: "after",
+					},
+				],
+			},
+		}));
+		readHistory.mockImplementationOnce(async (_root, revision) => ({
+			ok: true,
+			value: {
+				commits: Array.from({ length: count }, (_, index) => ({
+					oid: `${revision}-${index}`,
+					summary:
+						[
+							"Keep upstream changes visible",
+							"Improve branch synchronization",
+							"Preserve repository drafts",
+						][index] ?? "Local changes",
+					body: "",
+					parentOids: ["ancestor"],
+					authoredAt: "2026-10-26T10:00:00Z",
+					committedAt: "2026-10-26T10:00:00Z",
+					author: { name: "Developer", email: "developer@example.invalid" },
+					committer: { name: "Developer", email: "developer@example.invalid" },
+				})),
+				hasMore: false,
+				nextOffset: null,
+			},
+		}));
+		readDiff.mockImplementationOnce(async () => ({
+			ok: true,
+			value: [
+				{
+					target: "commit",
+					patch: diffPatch(
+						"sync.ts",
+						"const reviewUpstream = true;",
+						"const reviewUpstream = false;"
+					),
+					stats: [],
+					message: null,
+				},
+			],
+		}));
+	}
+
 	click("rail-sync");
 	await settle();
 
@@ -457,8 +570,51 @@ it("refreshes divergence for review without silently merging, pushing or committ
 	expect(readBranches).toHaveBeenCalledTimes(1);
 	expect(sync).not.toHaveBeenCalled();
 	expect(commit).not.toHaveBeenCalled();
-	expect(root.renderer.getAllText()).toContain("Branches have diverged");
-	expect(node("rail-sync-compare")).toBeDefined();
+	expect(root.renderer.getAllText()).not.toContain(
+		"Review changes before syncing"
+	);
+	expect(root.renderer.findByTestId("sync-review-notice")).toBeUndefined();
+	const toolbar = bounds("comparison-toolbar");
+
+	for (const id of ["sync-review-merge", "sync-review-rebase"]) {
+		const action = bounds(id);
+
+		expect(action.y).toBeGreaterThanOrEqual(toolbar.y);
+		expect(action.y + action.height).toBeLessThanOrEqual(
+			toolbar.y + toolbar.height
+		);
+	}
+
+	expect(node("sync-review")).toBeDefined();
+	expect(root.renderer.findByTestId("rail-sync-dialog")).toBeUndefined();
+	expect(root.renderer.findByTestId("comparison-branch")).toBeUndefined();
+	expect(root.renderer.findByTestId("preview-pull-request")).toBeUndefined();
+	expect(readComparison.mock.calls[0]?.slice(0, 3)).toEqual([
+		"/test/project",
+		snapshot.head.oid ?? "",
+		"remote-tip",
+	]);
+	click("sync-review-outgoing");
+	await settle();
+	expect(readComparison.mock.calls.at(-1)?.slice(0, 3)).toEqual([
+		"/test/project",
+		"remote-tip",
+		snapshot.head.oid ?? "",
+	]);
+	expect(readHistory.mock.calls.at(-1)?.[1]).toBe(
+		`remote-tip..${snapshot.head.oid}`
+	);
+	expect(root.renderer.getAllText().join(" ")).toContain("Outgoing commits");
+	click("sync-review-incoming");
+	await settle();
+	expect(root.renderer.getAllText()).toContain("sync.ts");
+	expect(root.renderer.getAllText()).toContain("Keep upstream changes visible");
+	click("sync-review-merge");
+	await settle();
+	root.renderer.simulateKeystrokes("escape");
+	await settle();
+	expect(root.renderer.findByTestId("sync-review-confirm")).toBeUndefined();
+	expect(writeBranch).not.toHaveBeenCalled();
 	expect(root.renderer.findByTestId("rail-sync-tooltip")).toBeUndefined();
 	const screenshot = process.env.GPUIX_RAIL_REVIEW_SCREENSHOT;
 
@@ -466,7 +622,236 @@ it("refreshes divergence for review without silently merging, pushing or committ
 
 	root.renderer.simulateKeystrokes("escape");
 	await settle();
-	expect(root.renderer.findByTestId("rail-sync-dialog")).toBeUndefined();
+	expect(root.renderer.findByTestId("sync-review")).toBeUndefined();
+});
+
+it.each(["merge", "rebase"] as const)(
+	"confirms %s in a header popup, then returns to Changes without pushing",
+	async (kind) => {
+		snapshot = {
+			...snapshot,
+			head: { ...snapshot.head, upstream: "origin/main", ahead: 6, behind: 2 },
+		};
+		const reviewedHead = snapshot.head.oid;
+
+		writeBranch.mockImplementationOnce(async () => {
+			snapshot = {
+				...snapshot,
+				head: {
+					...snapshot.head,
+					oid: "integrated-tip",
+					ahead: kind === "merge" ? 7 : 6,
+					behind: 0,
+				},
+			};
+
+			return {
+				ok: true,
+				value: { branches: { current: "main", branches: [] }, snapshot },
+			};
+		});
+		await open();
+		click("rail-sync");
+		await settle();
+		const comparisonBefore = bounds("comparison-body");
+
+		click(`sync-review-${kind}`);
+		await settle();
+		expect(writeBranch).not.toHaveBeenCalled();
+		expect(node(`sync-review-${kind}-confirmation`)).toBeDefined();
+		expect(bounds("comparison-body")).toEqual(comparisonBefore);
+		expect(root.renderer.getAllText().join(" ")).toContain(
+			"Push separately when you’re ready."
+		);
+		click("sync-review-confirm");
+		await settle();
+		expect(writeBranch.mock.calls[0]).toEqual([
+			"/test/project",
+			{
+				kind,
+				name: "refs/remotes/origin/main",
+				expectedTarget: "remote-tip",
+				reviewedSource: { head: reviewedHead, branch: "main" },
+				expectedHead: reviewedHead,
+				expectedBranch: "main",
+			},
+		]);
+		expect(sync).not.toHaveBeenCalled();
+		expect(root.renderer.findByTestId("sync-review")).toBeUndefined();
+		expect(node("repository-navigation")).toBeDefined();
+		expect(node("view-changes").customProps?.["aria-selected"]).toBe(true);
+		expect(root.renderer.findByTestId("sync-review-result")).toBeUndefined();
+		expect(root.renderer.getAllText()).not.toContain("Ready to push");
+		const screenshot = process.env.GPUIX_SYNC_RESULT_SCREENSHOT;
+
+		if (screenshot && kind === "merge")
+			root.renderer.captureScreenshot(screenshot);
+
+		sync.mockImplementationOnce(async () => {
+			snapshot = { ...snapshot, head: { ...snapshot.head, ahead: 0 } };
+
+			return {
+				ok: true,
+				value: {
+					operation: "push",
+					remote: "origin",
+					branch: "main",
+					snapshot,
+				},
+			};
+		});
+		click("rail-sync");
+		await settle();
+		expect(sync.mock.calls[0]?.[1]).toMatchObject({
+			kind: "sync",
+			expectedHead: "integrated-tip",
+		});
+		expect(root.renderer.findByTestId("sync-review")).toBeUndefined();
+	}
+);
+
+it("keeps a dirty tree reviewable while explaining why integration is disabled", async () => {
+	snapshot = {
+		...repositorySnapshot([changedFile("draft.txt")]),
+		remoteCount: 1,
+		head: { ...snapshot.head, upstream: "origin/main", ahead: 2, behind: 3 },
+	};
+	await open();
+	click("rail-sync");
+	await settle();
+	expect(node("sync-review")).toBeDefined();
+	expect(root.renderer.getAllText().join(" ")).toContain(
+		"Commit or stash your changes before merging or rebasing."
+	);
+	click("sync-review-merge");
+	await settle();
+	expect(root.renderer.findByTestId("sync-review-confirm")).toBeUndefined();
+	expect(writeBranch).not.toHaveBeenCalled();
+	click("sync-review-outgoing");
+	await settle();
+	expect(root.renderer.getAllText().join(" ")).toContain("Outgoing commits");
+});
+
+it("opens Changes when a confirmed merge stops with conflicts", async () => {
+	snapshot = {
+		...snapshot,
+		head: { ...snapshot.head, upstream: "origin/main", ahead: 2, behind: 3 },
+	};
+	writeBranch.mockImplementationOnce(async () => {
+		snapshot = {
+			...snapshot,
+			operationState: "merge",
+			files: [changedFile("conflict.txt", { recordType: "unmerged" })],
+		};
+
+		return {
+			ok: false,
+			error: {
+				code: "conflict",
+				operation: "merge",
+				message: "Resolve conflicts in Changes.",
+				retryable: false,
+			},
+		};
+	});
+	await open();
+	click("rail-sync");
+	await settle();
+	click("sync-review-merge");
+	await settle();
+	click("sync-review-confirm");
+	await settle();
+	expect(root.renderer.findByTestId("sync-review")).toBeUndefined();
+	expect(root.renderer.getAllText().join(" ")).toContain("Abort");
+	expect(root.renderer.findByTestId("operation-result")).toBeUndefined();
+	click("operation-details");
+	await settle();
+	expect(root.renderer.findByTestId("operation-result")).toBeDefined();
+	expect(sync).not.toHaveBeenCalled();
+});
+
+it("keeps rejected integration visible and allows returning to merge review", async () => {
+	snapshot = {
+		...snapshot,
+		head: { ...snapshot.head, upstream: "origin/main", ahead: 2, behind: 3 },
+	};
+	writeBranch.mockImplementationOnce(async () => ({
+		ok: false,
+		error: {
+			code: "conflict",
+			operation: "rebase",
+			message: "Published commits cannot be rebased.",
+			retryable: false,
+		},
+	}));
+	await open();
+	click("rail-sync");
+	await settle();
+	click("sync-review-rebase");
+	await settle();
+	click("sync-review-confirm");
+	await settle();
+	expect(root.renderer.getAllText()).toContain(
+		"Published commits cannot be rebased."
+	);
+	expect(node("sync-review")).toBeDefined();
+	click("sync-review-cancel");
+	await settle();
+	click("sync-review-merge");
+	await settle();
+	expect(root.renderer.getAllText().join(" ")).toContain(
+		"keeping both histories"
+	);
+	expect(writeBranch).toHaveBeenCalledTimes(1);
+	expect(sync).not.toHaveBeenCalled();
+});
+
+it("keeps the review and its actions inside the minimum window with long branch names", async () => {
+	root.unmount();
+	root = createTestRoot({
+		width: 640,
+		height: 420,
+		onKeyDown: windowOptions.onKeyDown,
+	});
+	root.renderer.clockPause();
+	spyOn(root.renderer, "promptForPaths").mockResolvedValue(["/test/project"]);
+	snapshot = {
+		...snapshot,
+		head: {
+			...snapshot.head,
+			branch: "feature/long-local-branch-name",
+			upstream: "origin/feature/long-upstream-branch-name",
+			ahead: 2,
+			behind: 3,
+		},
+	};
+	await open();
+	click("rail-sync");
+	await settle();
+
+	for (const id of [
+		"comparison-toolbar",
+		"sync-review-branches",
+		"sync-review-merge",
+		"sync-review-rebase",
+		"sync-review-outgoing",
+	]) {
+		const box = bounds(id);
+
+		expect(box.x).toBeGreaterThanOrEqual(0);
+		expect(box.x + box.width).toBeLessThanOrEqual(640);
+		expect(box.y + box.height).toBeLessThanOrEqual(420);
+	}
+
+	click("sync-review-merge");
+	await settle();
+	const confirm = bounds("sync-review-confirm");
+
+	expect(confirm.y + confirm.height).toBeLessThanOrEqual(420);
+	expect(writeBranch).not.toHaveBeenCalled();
+	const screenshot = process.env.GPUIX_SYNC_SMALL_SCREENSHOT;
+
+	if (screenshot) root.renderer.captureScreenshot(screenshot);
 });
 
 it("preselects the only remote and publishes only after confirmation", async () => {

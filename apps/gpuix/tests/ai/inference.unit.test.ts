@@ -118,6 +118,64 @@ const responseEvents = (completed = true) => [
 		: []),
 ];
 
+it.each([
+	{ model: "gpt-5.2", effort: "xhigh", expected: "xhigh" },
+	{ model: "gpt-5.2", effort: undefined, expected: "medium" },
+	{ model: "gpt-5.2", effort: "", expected: undefined },
+	{ model: "gpt-unknown", effort: "xhigh", expected: undefined },
+])(
+	"sends native API effort only for a known compatible model ($model, $effort)",
+	async ({ model, effort, expected }) => {
+		let body: Record<string, unknown> | undefined;
+
+		const service = integration(async (_url, init) => {
+			body = JSON.parse(String(init?.body));
+
+			return events(responseEvents());
+		});
+
+		await service.generate(
+			{
+				...emptyAiPreferences,
+				provider: "opencode",
+				opencodeMode: "zen",
+				model,
+				effort,
+			},
+			"+checked",
+			new AbortController().signal
+		);
+
+		expect(body?.reasoning).toEqual(
+			expected ? { effort: expected, summary: "auto" } : undefined
+		);
+	}
+);
+
+it("enriches only models returned by the account and keeps unknown capabilities unknown", async () => {
+	const service = integration(async () =>
+		Response.json({ data: [{ id: "gpt-5.2" }, { id: "unknown-model" }] })
+	);
+
+	const models = await service.models(
+		{ ...emptyAiPreferences, provider: "opencode", opencodeMode: "zen" },
+		new AbortController().signal
+	);
+
+	expect(models.map((model) => model.value)).toEqual([
+		"gpt-5.2",
+		"unknown-model",
+	]);
+	expect(models[0]?.effort?.source).toBe("catalog");
+	expect(models[0]?.effort?.levels.map((level) => level.value)).toEqual([
+		"low",
+		"medium",
+		"high",
+		"xhigh",
+	]);
+	expect(models[1]?.effort).toBeUndefined();
+});
+
 it("reuses one approved ChatGPT credential across model discovery and repeated generations", async () => {
 	const account = {
 		clientId: "oaiapp_test",
@@ -946,7 +1004,10 @@ it("serializes ChatGPT refresh, reuses rotated credentials and clears them on di
 	]);
 
 	expect(refreshes).toBe(1);
-	expect(results[0]).toEqual([{ value: "gpt-6.1-sol", label: "GPT 6.1 Sol" }]);
+	expect(results[0]?.map(({ value, label }) => ({ value, label }))).toEqual([
+		{ value: "gpt-6.1-sol", label: "GPT 6.1 Sol" },
+	]);
+	expect(results[0]?.[0]?.effort?.source).toBe("catalog");
 	expect([...credentials.values()][0]).toContain("rotated");
 	expect(
 		await service.models(preferences, new AbortController().signal)

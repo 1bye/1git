@@ -25,10 +25,10 @@ import {
 import type { RepositoryPreviewCache } from "../repository-workspace/lib/repository-preview-cache";
 import { RepositoryDiff } from "../repository-workspace/components/repository-diff";
 import { RepositoryList } from "../repository-workspace/components/repository-list";
+import { RepositoryFileLayoutToggle } from "../repository-workspace/components/repository-file-view";
 import type { WorkspaceEntry } from "../repository-workspace/types";
 import { ComparisonArtwork } from "../../fixture/comparison-artwork";
 import { StateMessage } from "../../fixture/state-message";
-import { EmptyListPlaceholder } from "../../fixture/empty-list-placeholder";
 
 const themedStyles = createThemedStyles(({ tokens: appTokens }) => {
 	const styles = StyleSheet.create({
@@ -132,7 +132,8 @@ const themedStyles = createThemedStyles(({ tokens: appTokens }) => {
 	return { styles };
 });
 
-type Readers = {
+export type ComparisonReaders = {
+	fileTreeScope?: string;
 	readComparison?: typeof Reader.read;
 	readHistory?: typeof RepositoryHistory.read;
 	readCommitFiles?: typeof RepositoryHistory.readFiles;
@@ -159,12 +160,16 @@ export function RepositoryComparison({
 	}) => ReactNode;
 	notice?: ReactNode;
 	backActions?: ReactNode;
-} & Readers) {
+} & ComparisonReaders) {
 	const theme = useAppTheme();
 	const { tokens: appTokens } = theme;
 	const { styles } = themedStyles.get(theme);
 
 	const [branch, setBranch] = useState(request.incoming ?? "");
+
+	const [direction, setDirection] = useState<"incoming" | "outgoing">(
+		"incoming"
+	);
 
 	const initialBase = request.branches.find(
 		(item) => item.label === request.baseName && item.oid === request.base
@@ -188,12 +193,19 @@ export function RepositoryComparison({
 	return (
 		<div testId="branch-comparison" style={styles.root}>
 			<div testId="comparison-toolbar" style={styles.toolbar}>
-				<div style={styles.back}>
+				<div
+					style={
+						request.intent === "sync"
+							? { ...styles.back, width: "auto" }
+							: styles.back
+					}
+				>
 					<Button
 						testId="close-comparison"
 						tokens={appTokens}
 						variant="secondary"
 						size="sm"
+						autoFocus={request.intent === "sync"}
 						onPress={onClose}
 					>
 						Back
@@ -202,64 +214,85 @@ export function RepositoryComparison({
 				</div>
 				<div style={styles.controls}>
 					<div testId="comparison-branch-pair" style={styles.branchPair}>
-						<ComparisonBranchPicker
-							side="base"
-							value={base}
-							options={
-								request.intent === "pull-request"
-									? options.filter((item) => item.value !== request.incoming)
-									: options
-							}
-							onChange={setBase}
-						/>
-						<ComparisonArtwork name="direction" />
-						{request.intent === "pull-request" ? (
+						{request.intent === "sync" ? (
 							<Text
-								testId="pull-request-source"
-								aria-label={`Source branch ${selected?.label ?? ""}`}
+								testId="sync-review-branches"
 								tokens={appTokens}
 								style={{
 									...typography.sm,
-									width: 160,
-									minWidth: 80,
+									minWidth: 0,
 									flexShrink: 1,
-									whiteSpace: "nowrap",
 									overflow: "hidden",
+									whiteSpace: "nowrap",
 									textOverflow: "ellipsis",
 								}}
 							>
-								{selected?.label}
+								{request.baseName} · {selected?.label}
 							</Text>
 						) : (
-							<ComparisonBranchPicker
-								side="incoming"
-								value={branch}
-								options={options}
-								onChange={setBranch}
-							/>
+							<>
+								<ComparisonBranchPicker
+									side="base"
+									value={base}
+									options={
+										request.intent === "pull-request"
+											? options.filter(
+													(item) => item.value !== request.incoming
+												)
+											: options
+									}
+									onChange={setBase}
+								/>
+								<ComparisonArtwork name="direction" />
+								{request.intent === "pull-request" ? (
+									<Text
+										testId="pull-request-source"
+										aria-label={`Source branch ${selected?.label ?? ""}`}
+										tokens={appTokens}
+										style={{
+											...typography.sm,
+											width: 160,
+											minWidth: 80,
+											flexShrink: 1,
+											whiteSpace: "nowrap",
+											overflow: "hidden",
+											textOverflow: "ellipsis",
+										}}
+									>
+										{selected?.label}
+									</Text>
+								) : (
+									<ComparisonBranchPicker
+										side="incoming"
+										value={branch}
+										options={options}
+										onChange={setBranch}
+									/>
+								)}
+								{request.intent !== "pull-request" ? (
+									<Button
+										testId="swap-comparison"
+										aria-label="Swap base and incoming branches"
+										tokens={appTokens}
+										variant="ghost"
+										size="sm"
+										disabled={!selected}
+										style={{
+											width: 28,
+											flexShrink: 0,
+											paddingLeft: spacing[0],
+											paddingRight: spacing[0],
+										}}
+										onPress={() => {
+											setBase(branch);
+											setBranch(base);
+										}}
+									>
+										<ComparisonArtwork name="swap" />
+									</Button>
+								) : null}
+							</>
 						)}
-						{request.intent !== "pull-request" ? (
-							<Button
-								testId="swap-comparison"
-								aria-label="Swap base and incoming branches"
-								tokens={appTokens}
-								variant="ghost"
-								size="sm"
-								disabled={!selected}
-								style={{
-									width: 28,
-									flexShrink: 0,
-									paddingLeft: spacing[0],
-									paddingRight: spacing[0],
-								}}
-								onPress={() => {
-									setBase(branch);
-									setBranch(base);
-								}}
-							>
-								<ComparisonArtwork name="swap" />
-							</Button>
-						) : null}
 					</div>
 				</div>
 				{children ? (
@@ -269,12 +302,36 @@ export function RepositoryComparison({
 				) : null}
 			</div>
 			{notice}
+			{request.intent === "sync" ? (
+				<div
+					role="group"
+					aria-label="Changes to review"
+					style={{ ...styles.toolbar, padding: spacing[2], gap: spacing[1] }}
+				>
+					{(["incoming", "outgoing"] as const).map((side) => (
+						<Button
+							key={side}
+							testId={`sync-review-${side}`}
+							tokens={appTokens}
+							size="sm"
+							variant={direction === side ? "secondary" : "ghost"}
+							aria-label={`${side === "incoming" ? `Incoming changes, ${request.behind} commits` : `Outgoing changes, ${request.ahead} commits`}${direction === side ? ", selected" : ""}`}
+							onPress={() => setDirection(side)}
+						>
+							{side === "incoming"
+								? `Incoming · ${request.behind}`
+								: `Outgoing · ${request.ahead}`}
+						</Button>
+					))}
+				</div>
+			) : null}
 			{selected && selectedBase.oid ? (
 				<ComparisonResults
-					key={`${request.root}:${selectedBase.oid}:${selected.value}:${selected.oid}`}
+					key={`${request.root}:${selectedBase.oid}:${selected.value}:${selected.oid}:${direction}`}
 					request={request}
-					base={selectedBase.oid}
-					head={selected.oid}
+					base={direction === "incoming" ? selectedBase.oid : selected.oid}
+					head={direction === "incoming" ? selected.oid : selectedBase.oid}
+					direction={direction}
 					{...readers}
 				/>
 			) : (
@@ -284,12 +341,16 @@ export function RepositoryComparison({
 							<Text tokens={appTokens} style={styles.label}>
 								Incoming commits
 							</Text>
-							<EmptyListPlaceholder />
+							<Text tokens={appTokens} style={styles.label}>
+								Choose branches to see commits.
+							</Text>
 						</div>
 						<Text tokens={appTokens} style={styles.label}>
 							Changed files
 						</Text>
-						<EmptyListPlaceholder />
+						<Text tokens={appTokens} style={styles.label}>
+							Choose branches to see files.
+						</Text>
 					</div>
 					<div testId="comparison-preview" style={styles.preview}>
 						<div testId="comparison-empty" style={styles.empty}>
@@ -379,6 +440,7 @@ function ComparisonResults({
 	request,
 	base,
 	head,
+	direction,
 	readComparison = Reader.read,
 	readHistory = RepositoryHistory.read,
 	readCommitFiles = RepositoryHistory.readFiles,
@@ -386,10 +448,19 @@ function ComparisonResults({
 	previewCache,
 	diffSettings,
 	onDiffSettingsChange,
-}: { request: ComparisonRequest; base: string; head: string } & Readers) {
+	fileTreeScope,
+}: {
+	request: ComparisonRequest;
+	base: string;
+	head: string;
+	direction: "incoming" | "outgoing";
+} & ComparisonReaders) {
 	const theme = useAppTheme();
 	const { tokens: appTokens } = theme;
 	const { styles } = themedStyles.get(theme);
+
+	const commitsLabel =
+		direction === "incoming" ? "Incoming commits" : "Outgoing commits";
 
 	const [comparison, setComparison] = useState<BranchComparison | null>(null);
 	const [page, setPage] = useState<CommitPage | null>(null);
@@ -548,7 +619,7 @@ function ComparisonResults({
 				<div testId="comparison-sidebar" style={styles.sidebar}>
 					<div testId="comparison-commit-pane" style={styles.commits}>
 						<Text tokens={appTokens} style={styles.label}>
-							Incoming commits
+							{commitsLabel}
 							{page
 								? ` · ${page.commits.length}${page.hasMore ? "+" : ""}`
 								: ""}
@@ -556,11 +627,15 @@ function ComparisonResults({
 						<RepositoryList
 							testId="comparison-commits"
 							entries={page?.commits.map(RepositoryHistory.entry) ?? []}
-							label="Incoming commits"
-							emptyMessage={page ? "No incoming commits" : "Loading commits…"}
+							label={commitsLabel}
+							emptyMessage={
+								page ? `No ${direction} commits` : "Loading commits…"
+							}
 							emptyContent={
 								page && !error ? (
-									<EmptyListPlaceholder />
+									<Text tokens={appTokens} style={styles.label}>
+										No {direction} commits.
+									</Text>
 								) : (
 									<StateMessage
 										compact
@@ -589,12 +664,37 @@ function ComparisonResults({
 							}}
 						/>
 					</div>
-					<Text tokens={appTokens} style={styles.label}>
-						{commit ? "Commit files" : "Changed files"} · {files.length}
-					</Text>
+					<div
+						style={{
+							display: "flex",
+							flexDirection: "row",
+							alignItems: "center",
+							justifyContent: "space-between",
+							paddingLeft: spacing[3.5],
+							paddingRight: spacing[3],
+							height: 28,
+							flexShrink: 0,
+						}}
+					>
+						<Text
+							tokens={appTokens}
+							style={{ ...typography.xs, color: appTokens.colors.textMuted }}
+						>
+							{commit ? "Commit files" : "Changed files"} · {files.length}
+						</Text>
+						<RepositoryFileLayoutToggle testId="comparison-file-layout" />
+					</div>
 					<RepositoryList
 						key={commit ?? "all"}
 						testId="comparison-files"
+						fileTree={{
+							owner: JSON.stringify([base, head, commit]),
+							scope: JSON.stringify([
+								fileTreeScope,
+								request.root,
+								"comparison",
+							]),
+						}}
 						entries={files}
 						label="Comparison files"
 						emptyMessage={
@@ -602,7 +702,9 @@ function ComparisonResults({
 						}
 						emptyContent={
 							!fileError && !filesLoading && !error ? (
-								<EmptyListPlaceholder />
+								<Text tokens={appTokens} style={styles.label}>
+									No file changes.
+								</Text>
 							) : (
 								<StateMessage
 									compact
@@ -660,6 +762,7 @@ function ComparisonResults({
 						/>
 					) : (
 						<StateMessage
+							compact
 							artwork={
 								error || fileError
 									? "error"

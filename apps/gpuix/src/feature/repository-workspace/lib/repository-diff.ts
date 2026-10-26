@@ -2,7 +2,10 @@ import { type FileChange, type FileDiff, type GitResult } from "@1git/git";
 import { GitRepository } from "../../machines/repository-access";
 
 import { imageLimits } from "./image-preview";
-import { RepositoryConflicts } from "./repository-conflicts";
+import {
+	RepositoryConflicts,
+	type ConflictPreview,
+} from "./repository-conflicts";
 import type { CommitFileSelection } from "../types";
 import {
 	RepositoryImage,
@@ -41,7 +44,7 @@ export interface RepositoryDiffSection {
 	readonly stats: FileDiff["stats"];
 	readonly message: string | null;
 	readonly image?: RepositoryImageComparison;
-	readonly conflict?: { readonly text: string; readonly hash: string };
+	readonly conflict?: ConflictPreview;
 }
 
 const combinedPatch = /^(?:diff --(?:cc|combined) |@@@)/m;

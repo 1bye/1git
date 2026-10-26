@@ -83,6 +83,49 @@ const read: typeof RepositoryReader.read = async (path) => {
 	};
 };
 
+it("restores and saves the file layout across all file panes", async () => {
+	const save = mock<(document: WorkspaceSessionDocument) => void>(() => {});
+
+	root.render(
+		<App
+			initialSession={{
+				...session(),
+				fileListLayout: "tree",
+				onboarding: "complete",
+			}}
+			readRepository={read}
+			saveSession={save}
+		/>
+	);
+	await settle();
+	await settle();
+	expect(node("changes-file-layout").customProps?.["aria-description"]).toBe(
+		"Current layout: Tree view"
+	);
+	const toggle = root.renderer.getElementBounds(node("changes-file-layout").id);
+	const refresh = root.renderer.getElementBounds(node("refresh-repository").id);
+	const search = root.renderer.getElementBounds(node("filter-changes").id);
+
+	expect(toggle?.width).toBe(26);
+	expect(toggle?.y).toBe(refresh?.y);
+	expect(toggle?.y).toBe(search?.y);
+	expect((toggle?.x ?? 0) + (toggle?.width ?? 0)).toBeLessThanOrEqual(
+		refresh?.x ?? 0
+	);
+	expect((refresh?.x ?? 0) + (refresh?.width ?? 0)).toBeLessThanOrEqual(
+		search?.x ?? 0
+	);
+	expect(node("repository-list-viewport").customProps?.role).toBe("treegrid");
+	click("changes-file-layout");
+	await Bun.sleep(250);
+	root.renderer.flush();
+	expect(save.mock.calls.at(-1)?.[0].fileListLayout).toBe("list");
+	click("changes-file-layout");
+	await Bun.sleep(250);
+	root.renderer.flush();
+	expect(save.mock.calls.at(-1)?.[0].fileListLayout).toBe("tree");
+});
+
 it("restores History, loads the saved older commit and its selected file before saving navigation", async () => {
 	const commit = commitInfo(60).oid;
 	const save = mock<(document: WorkspaceSessionDocument) => void>(() => {});
@@ -207,8 +250,8 @@ it("keeps an unavailable repository and editable draft, then retries its saved p
 		<App initialSession={initial} readRepository={reader} saveSession={save} />
 	);
 	await settle();
-	expect(root.renderer.getAllText()).toContain("Repository unavailable");
-	expect(root.renderer.getAllText()).toContain("/test/project");
+	expect(root.renderer.getAllText()).toContain("Could not read repository");
+	expect(reader).toHaveBeenCalledWith("/test/project", expect.any(AbortSignal));
 	expect(node("commit-message").customProps?.value).toBe("Main draft");
 	await Bun.sleep(240);
 	root.renderer.flush();
@@ -224,7 +267,7 @@ it("keeps an unavailable repository and editable draft, then retries its saved p
 	await settle();
 	expect(reader.mock.calls[1]?.[0]).toBe("/test/project");
 	expect(node("commit-message").customProps?.value).toBe("recovered");
-	expect(root.renderer.getAllText()).not.toContain("Repository unavailable");
+	expect(root.renderer.getAllText()).not.toContain("Could not read repository");
 	root.render(<div />);
 	expect(save.mock.calls.at(-1)?.[0].tabs[0]).toMatchObject({
 		path: "/test/project",

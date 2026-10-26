@@ -1,5 +1,5 @@
 /**
- * Covers: immutable incoming ranges, file identities, diffs and read-only behavior.
+ * Covers: immutable incoming/outgoing ranges, fetched upstream selection, file identities, diffs and read-only behavior.
  * Real: app readers, shared Git boundary and disposable Git repositories.
  * Doubles: none. Requires: Git and writable temporary storage; no network.
  */
@@ -12,6 +12,7 @@ import { promisify } from "node:util";
 import { RepositoryComparison } from "../../src/feature/repository-comparison/lib/repository-comparison";
 import { RepositoryHistory } from "../../src/feature/repository-workspace/lib/repository-history";
 import { RepositoryDiff } from "../../src/feature/repository-workspace/lib/repository-diff";
+import { RepositoryBranches } from "../../src/feature/workspace-tabs/lib/repository-branches";
 
 const execute = promisify(execFile);
 let root: string;
@@ -55,6 +56,65 @@ beforeEach(async () => {
 });
 afterEach(async () => {
 	await rm(root, { recursive: true, force: true });
+});
+
+it("builds a sync review from real tracking metadata and reads both sides without integrating", async () => {
+	await git("checkout", "-b", "incoming");
+	await writeFile(join(root, "remote-only.txt"), "incoming work\n");
+	await git("add", ".");
+	await git("commit", "-m", "Incoming work");
+	const remoteTip = await git("rev-parse", "HEAD");
+
+	await git("checkout", "main");
+	await writeFile(join(root, "local-only.txt"), "outgoing work\n");
+	await git("add", ".");
+	await git("commit", "-m", "Outgoing work");
+	const localTip = await git("rev-parse", "HEAD");
+
+	await git("remote", "add", "second", root);
+	await git("update-ref", "refs/remotes/second/release/next", remoteTip);
+	await git("config", "branch.main.remote", "second");
+	await git("config", "branch.main.merge", "refs/heads/release/next");
+	const branches = await RepositoryBranches.read(root, signal());
+
+	if (!branches.ok) throw new Error(branches.error.message);
+
+	const request = RepositoryComparison.syncRequest(
+		root,
+		localTip,
+		"main",
+		branches.value
+	);
+
+	const incoming = await RepositoryComparison.read(
+		root,
+		request.base,
+		remoteTip,
+		signal()
+	);
+
+	const outgoing = await RepositoryComparison.read(
+		root,
+		remoteTip,
+		request.base,
+		signal()
+	);
+
+	expect(request).toMatchObject({
+		incoming: "refs/remotes/second/release/next",
+		remote: "second",
+		remoteRef: "refs/heads/release/next",
+		ahead: 1,
+		behind: 1,
+	});
+	expect(incoming.ok && incoming.value.files.map((file) => file.path)).toEqual([
+		"remote-only.txt",
+	]);
+	expect(outgoing.ok && outgoing.value.files.map((file) => file.path)).toEqual([
+		"local-only.txt",
+	]);
+	expect(await git("rev-parse", "HEAD")).toBe(localTip);
+	expect(await git("status", "--porcelain=v1")).toBe("");
 });
 
 it("uses the common ancestor, excludes base-only commits, and preserves dirty staging", async () => {

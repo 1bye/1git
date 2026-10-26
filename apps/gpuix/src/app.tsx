@@ -93,6 +93,10 @@ import {
 import { useWorkspaceSession } from "./feature/workspace-tabs/hooks/use-workspace-session";
 
 import { RepositoryNavigation } from "./feature/repository-workspace/components/repository-navigation";
+import {
+	RepositoryFileViewProvider,
+	useRepositoryFileLayout,
+} from "./feature/repository-workspace/components/repository-file-view";
 import { RepositoryFileActions } from "./feature/repository-workspace/lib/repository-file-actions";
 import { RepositoryDiffEmpty } from "./feature/repository-workspace/components/repository-diff-empty";
 import { RepositoryDiff } from "./feature/repository-workspace/components/repository-diff";
@@ -137,6 +141,7 @@ import { WorkspaceRail } from "./feature/repository-workspace/components/workspa
 import { RepositorySyncButton } from "./feature/repository-workspace/components/repository-sync-button";
 import type { RepositoryView } from "./feature/repository-workspace/types";
 import { RepositoryComparison } from "./feature/repository-comparison/repository-comparison";
+import { RepositorySyncReview } from "./feature/repository-comparison/repository-sync-review";
 import { RepositoryComparison as ComparisonReader } from "./feature/repository-comparison/lib/repository-comparison";
 import { RepositoryPullRequest } from "./feature/repository-pull-request/repository-pull-request";
 import { RepositoryPullRequestView } from "./feature/repository-pull-request/repository-pull-request-view";
@@ -233,11 +238,15 @@ export function App({
 	return (
 		<KeybindContext value={keybindContext}>
 			<AppThemeContext value={theme}>
-				<AiProvider service={ai}>
-					<MachineContext value={props.machines ?? Machines.shared}>
-						<AppContent {...props} />
-					</MachineContext>
-				</AiProvider>
+				<RepositoryFileViewProvider
+					initialLayout={props.initialSession?.fileListLayout}
+				>
+					<AiProvider service={ai}>
+						<MachineContext value={props.machines ?? Machines.shared}>
+							<AppContent {...props} />
+						</MachineContext>
+					</AiProvider>
+				</RepositoryFileViewProvider>
 			</AppThemeContext>
 		</KeybindContext>
 	);
@@ -685,6 +694,7 @@ function AppContent({
 	)?.workspace;
 
 	const { overrides: keybindOverrides } = useKeybinds();
+	const { layout: fileListLayout } = useRepositoryFileLayout();
 
 	const session = useWorkspaceSession(
 		state,
@@ -702,7 +712,8 @@ function AppContent({
 		theme.showScrollbars,
 		theme.typography,
 		tips,
-		keybindOverrides
+		keybindOverrides,
+		fileListLayout
 	);
 
 	useEffect(() => {
@@ -1827,7 +1838,7 @@ function AppContent({
 												workspace.repository.commonDirectory
 											)
 										}
-										onCompare={(data) => {
+										onCompare={(data, intent) => {
 											const repository = workspace.repository;
 
 											if (!repository?.head) return;
@@ -1835,16 +1846,26 @@ function AppContent({
 											dispatch({
 												type: "compare",
 												id: activeTab.id,
-												comparison: {
-													root: repository.root,
-													base: repository.head,
-													baseName: repository.branchName ?? "HEAD",
-													branches: data.branches.branches.map((item) => ({
-														value: item.fullName,
-														label: item.name,
-														oid: item.oid,
-													})),
-												},
+												comparison:
+													intent === "sync" && repository.branchName
+														? ComparisonReader.syncRequest(
+																repository.root,
+																repository.head,
+																repository.branchName,
+																data
+															)
+														: {
+																root: repository.root,
+																base: repository.head,
+																baseName: repository.branchName ?? "HEAD",
+																branches: data.branches.branches.map(
+																	(item) => ({
+																		value: item.fullName,
+																		label: item.name,
+																		oid: item.oid,
+																	})
+																),
+															},
 											});
 										}}
 										onPreviewPullRequest={() => {
@@ -2281,6 +2302,7 @@ function AppContent({
 						/>
 					) : activeTab?.comparison?.intent === "pull-request" && workspace ? (
 						<RepositoryPullRequestView
+							fileTreeScope={activeTab.id}
 							key={`${activeTab.id}:pull-request`}
 							root={activeTab.comparison.root}
 							state={workspace}
@@ -2298,8 +2320,27 @@ function AppContent({
 							diffSettings={diffSettings}
 							onDiffSettingsChange={setDiffSettings}
 						/>
+					) : activeTab?.comparison?.intent === "sync" && workspace ? (
+						<RepositorySyncReview
+							fileTreeScope={activeTab.id}
+							key={`${activeTab.id}:${activeTab.comparison.base}:${activeTab.comparison.incoming}:${activeTab.comparison.branches.map((branch) => branch.oid).join(":")}`}
+							request={activeTab.comparison}
+							state={workspace}
+							onClose={() => dispatch({ type: "compare", id: activeTab.id })}
+							onIntegrate={(choice) =>
+								mutations.changeBranch(activeTab.id, choice)
+							}
+							readComparison={readComparison}
+							readHistory={readHistory}
+							readCommitFiles={readCommitFiles}
+							readDiff={readDiff}
+							previewCache={previewCache}
+							diffSettings={diffSettings}
+							onDiffSettingsChange={setDiffSettings}
+						/>
 					) : activeTab?.comparison ? (
 						<RepositoryComparison
+							fileTreeScope={activeTab.id}
 							key={activeTab.id}
 							request={activeTab.comparison}
 							readComparison={readComparison}
@@ -2370,6 +2411,7 @@ function AppContent({
 					  workspace?.repository &&
 					  workspace.view === "graph" ? (
 						<RepositoryGraph
+							fileTreeScope={activeTab.id}
 							key={`graph:${activeTab.id}:${workspace.repository.root}`}
 							root={workspace.repository.root}
 							head={workspace.repository.head}
@@ -2423,8 +2465,14 @@ function AppContent({
 							}
 							statusError={workspace.error}
 							readDiff={readDiff}
-							onResolve={(hash, side) =>
-								mutations.resolve(activeTab.id, comparison.path, hash, side)
+							onResolve={(hash, side, expectedSideOid) =>
+								mutations.resolve(
+									activeTab.id,
+									comparison.path,
+									hash,
+									side,
+									expectedSideOid
+								)
 							}
 							openConflictEditor={launchConflict}
 						/>
