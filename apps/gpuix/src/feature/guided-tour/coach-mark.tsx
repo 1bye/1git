@@ -144,7 +144,8 @@ export function CoachMark({
 							height: "100%",
 							borderRadius: radius.lg,
 							borderWidth: 2,
-							borderColor: anchorTokens.colors.accent,
+							borderColor:
+								appearance === "dark" ? "#ffffff" : anchorTokens.colors.accent,
 							pointerEvents: "none",
 							opacity: smoothTransitions ? undefined : 0.7,
 						}}
