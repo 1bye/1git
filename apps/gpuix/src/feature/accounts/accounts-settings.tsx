@@ -756,6 +756,8 @@ export function AccountsSettings({
 										Cancel
 									</Button>
 									<Button
+										variant="secondary"
+										textStyle={{ color: appTokens.colors.danger }}
 										testId="account-remove-confirm"
 										size="sm"
 										tokens={appTokens}

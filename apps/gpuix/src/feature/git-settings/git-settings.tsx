@@ -19,6 +19,7 @@ import {
 	SettingsSplit,
 	settingsStyles,
 } from "../settings/settings-layout";
+import { SettingsGroup, SettingsGroupRow } from "../settings/settings-group";
 import { accountActionIcons } from "../accounts/account-list";
 import { StateArtwork } from "../../fixture/state-artwork";
 import { ChoiceTile } from "../../fixture/choice-tile";
@@ -490,25 +491,6 @@ export function GitSettings({
 									Add remote
 								</Button>
 							) : null}
-							{page === "identity" && data ? (
-								<Button
-									testId="identity-edit"
-									tokens={appTokens}
-									variant="secondary"
-									size="sm"
-									disabled={identityLocked || editing !== null}
-									onPress={() => {
-										returnFocus.current =
-											renderer.getFocusedElementId?.() ?? null;
-										apply(data);
-										setEditing("identity");
-										setError(null);
-										setStatus(null);
-									}}
-								>
-									Edit
-								</Button>
-							) : null}
 						</div>
 					}
 				>
@@ -523,30 +505,73 @@ export function GitSettings({
 						{data ? (
 							<>
 								{page === "identity" ? (
-									<div
+									<SettingsGroup
 										testId="identity-summary"
-										style={{ ...column, gap: spacing[1] }}
+										title="Identity"
+										icon="userCircle"
+										footer={data.identityReadOnlyReason || undefined}
 									>
-										<text style={{ ...styles.label }}>
-											{data.identity.name || "Name not configured"}
-										</text>
-										<text style={muted}>
-											{data.identity.email || "Email not configured"}
-										</text>
-										{root && !data.custom ? (
-											<text style={muted}>Default identity</text>
-										) : null}
-										{data.identityReadOnlyReason ? (
-											<text style={muted}>{data.identityReadOnlyReason}</text>
-										) : null}
-									</div>
+										<SettingsGroupRow
+											leading={
+												<div
+													aria-hidden
+													style={{
+														width: 32,
+														height: 32,
+														flexShrink: 0,
+														display: "flex",
+														alignItems: "center",
+														justifyContent: "center",
+														borderRadius: radius.full,
+														backgroundColor: appTokens.colors.surface,
+													}}
+												>
+													<text style={styles.sectionTitle}>
+														{data.identity.name
+															?.trim()
+															.split(/\s+/u)
+															.slice(0, 2)
+															.map((part) => Array.from(part)[0])
+															.join("")
+															.toUpperCase() || "?"}
+													</text>
+												</div>
+											}
+											label={data.identity.name || "Name not configured"}
+											description={
+												data.identity.email || "Email not configured"
+											}
+											badge={
+												root && !data.custom ? "Default identity" : undefined
+											}
+											trailing={
+												<Button
+													testId="identity-edit"
+													tokens={appTokens}
+													variant="secondary"
+													size="sm"
+													disabled={identityLocked || editing !== null}
+													onPress={() => {
+														returnFocus.current =
+															renderer.getFocusedElementId?.() ?? null;
+														apply(data);
+														setEditing("identity");
+														setError(null);
+														setStatus(null);
+													}}
+												>
+													Edit
+												</Button>
+											}
+										/>
+									</SettingsGroup>
 								) : null}
 								{root && page === "remotes" ? (
-									<div
-										style={{
-											...column,
-											gap: spacing[3],
-										}}
+									<SettingsGroup
+										testId="remotes-list"
+										title="Remotes"
+										icon="network"
+										meta={`${data.remotes.length} ${data.remotes.length === 1 ? "remote" : "remotes"}`}
 									>
 										{!data.remotes.length ? (
 											<div
@@ -562,129 +587,138 @@ export function GitSettings({
 											</div>
 										) : null}
 										{data.remotes.map((remote) => (
-											<div
+											<SettingsGroupRow
 												key={remote.name}
 												testId={`remote-${remote.name}`}
-												style={{ ...row, gap: spacing[3] }}
-											>
-												<RemoteProviderIcon
-													testId={`remote-provider-${remote.name}`}
-													url={remote.fetchUrls[0] ?? ""}
-													accounts={accounts}
-												/>
-												<div
-													style={{
-														...column,
-														flexGrow: 1,
-														flexShrink: 1,
-														minWidth: 0,
-														gap: spacing[1],
-													}}
-												>
-													<text
+												leading={
+													<RemoteProviderIcon
+														testId={`remote-provider-${remote.name}`}
+														url={remote.fetchUrls[0] ?? ""}
+														accounts={accounts}
+													/>
+												}
+												label={
+													<div
 														style={{
-															...styles.label,
+															...column,
+
+															flexShrink: 1,
+															minWidth: 0,
+															gap: spacing[1],
 														}}
 													>
-														{remote.name}
-													</text>
-													<text
-														style={{
-															...muted,
-															overflowX: "hidden",
-															textOverflow: "ellipsis",
-														}}
-													>
-														{remote.fetchUrls.join(", ")}
-													</text>
-													{remote.pushUrls.join() !==
-													remote.fetchUrls.join() ? (
 														<text
-															style={muted}
-														>{`Push: ${remote.pushUrls.join(", ")}`}</text>
-													) : null}
-													{remoteAccounts && commonDirectory
-														? [
-																...new Set([
-																	...remote.fetchUrls,
-																	...remote.pushUrls,
-																]),
-															]
-																.filter((url) => url.startsWith("https://"))
-																.map((url) => (
-																	<RemoteAccount
-																		key={`${commonDirectory}:${remote.name}:${url}:${accountRevision}`}
-																		bindings={remoteAccounts}
-																		directory={commonDirectory}
-																		label={
-																			remote.fetchUrls.includes(url) &&
-																			remote.pushUrls.includes(url)
-																				? "Account"
-																				: remote.fetchUrls.includes(url)
-																					? "Fetch account"
-																					: "Push account"
-																		}
-																		remote={remote.name}
-																		url={url}
-																	/>
-																))
-														: null}
-												</div>
-												<Button
-													testId={`remote-edit-${remote.name}`}
-													tokens={appTokens}
-													variant="ghost"
-													size="sm"
-													aria-label={`Edit ${remote.name}`}
-													disabled={
-														locked ||
-														editing !== null ||
-														(remote.fetchUrls.length !== 1 && !remoteAccounts)
-													}
-													onPress={() => {
-														returnFocus.current =
-															renderer.getFocusedElementId?.() ?? null;
-														setRemoteName(remote.name);
-														setRemoteUrl(remote.fetchUrls[0] ?? "");
-														setRemoteChoices({});
-														setEditing(
-															remote.fetchUrls.length === 1 ? "edit" : "account"
-														);
-														setError(null);
-														setStatus(null);
-													}}
-												>
-													<svg
-														source={accountActionIcons.reconnect}
-														style={{
-															width: 14,
-															height: 14,
-															color: appTokens.colors.textMuted,
-														}}
-													/>
-												</Button>
-												<Button
-													testId={`remote-remove-${remote.name}`}
-													tokens={appTokens}
-													variant="ghost"
-													size="sm"
-													aria-label={`Remove ${remote.name}`}
-													disabled={locked || editing !== null}
-													onPress={() => {
-														setRemoving(remote.name);
-														setError(null);
-													}}
-												>
-													<svg
-														source={accountActionIcons.remove}
-														style={{
-															width: 14,
-															height: 14,
-															color: appTokens.colors.danger,
-														}}
-													/>
-												</Button>
-											</div>
+															style={{
+																...styles.label,
+															}}
+														>
+															{remote.name}
+														</text>
+														<text
+															style={{
+																...muted,
+																overflowX: "hidden",
+																textOverflow: "ellipsis",
+															}}
+														>
+															{remote.fetchUrls.join(", ")}
+														</text>
+														{remote.pushUrls.join() !==
+														remote.fetchUrls.join() ? (
+															<text
+																style={muted}
+															>{`Push: ${remote.pushUrls.join(", ")}`}</text>
+														) : null}
+														{remoteAccounts && commonDirectory
+															? [
+																	...new Set([
+																		...remote.fetchUrls,
+																		...remote.pushUrls,
+																	]),
+																]
+																	.filter((url) => url.startsWith("https://"))
+																	.map((url) => (
+																		<RemoteAccount
+																			key={`${commonDirectory}:${remote.name}:${url}:${accountRevision}`}
+																			bindings={remoteAccounts}
+																			directory={commonDirectory}
+																			label={
+																				remote.fetchUrls.includes(url) &&
+																				remote.pushUrls.includes(url)
+																					? "Account"
+																					: remote.fetchUrls.includes(url)
+																						? "Fetch account"
+																						: "Push account"
+																			}
+																			remote={remote.name}
+																			url={url}
+																		/>
+																	))
+															: null}
+													</div>
+												}
+												trailing={
+													<div style={row}>
+														<Button
+															testId={`remote-edit-${remote.name}`}
+															tokens={appTokens}
+															variant="ghost"
+															size="sm"
+															aria-label={`Edit ${remote.name}`}
+															disabled={
+																locked ||
+																editing !== null ||
+																(remote.fetchUrls.length !== 1 &&
+																	!remoteAccounts)
+															}
+															onPress={() => {
+																returnFocus.current =
+																	renderer.getFocusedElementId?.() ?? null;
+																setRemoteName(remote.name);
+																setRemoteUrl(remote.fetchUrls[0] ?? "");
+																setRemoteChoices({});
+																setEditing(
+																	remote.fetchUrls.length === 1
+																		? "edit"
+																		: "account"
+																);
+																setError(null);
+																setStatus(null);
+															}}
+														>
+															<svg
+																source={accountActionIcons.reconnect}
+																style={{
+																	width: 14,
+																	height: 14,
+																	color: appTokens.colors.textMuted,
+																}}
+															/>
+														</Button>
+														<Button
+															testId={`remote-remove-${remote.name}`}
+															tokens={appTokens}
+															variant="ghost"
+															size="sm"
+															aria-label={`Remove ${remote.name}`}
+															disabled={locked || editing !== null}
+															onPress={() => {
+																setRemoving(remote.name);
+																setError(null);
+															}}
+														>
+															<svg
+																source={accountActionIcons.remove}
+																style={{
+																	width: 14,
+																	height: 14,
+																	color: appTokens.colors.danger,
+																}}
+															/>
+														</Button>
+													</div>
+												}
+											/>
 										))}
 										{data.remotes.some(
 											(remote) => remote.fetchUrls.length !== 1
@@ -694,7 +728,7 @@ export function GitSettings({
 												directly.
 											</text>
 										) : null}
-									</div>
+									</SettingsGroup>
 								) : null}
 							</>
 						) : null}
@@ -992,6 +1026,8 @@ export function GitSettings({
 								Cancel
 							</Button>
 							<Button
+								variant="secondary"
+								textStyle={{ color: appTokens.colors.danger }}
 								testId="remote-remove-confirm"
 								tokens={appTokens}
 								size="sm"

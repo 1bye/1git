@@ -1,5 +1,6 @@
 import { radius, spacing } from "@1git/design-tokens";
 import {
+	useEffect,
 	useRef,
 	useState,
 	type ComponentProps,
@@ -140,16 +141,34 @@ export function SettingsGroupRow({
 	const armed = useRef(false);
 	const interactive = !!onPress && !disabled;
 
+	useEffect(() => {
+		if (!interactive) armed.current = false;
+	}, [interactive]);
+
 	const content = (
 		<>
 			{leading}
 			<div style={{ ...styles.column, flexGrow: 1, flexShrink: 1, gap: 0 }}>
-				<text style={styles.label}>{label}</text>
+				{typeof label === "string" || typeof label === "number" ? (
+					<text style={styles.label}>{label}</text>
+				) : (
+					label
+				)}
 				{description ? (
-					<text style={styles.description}>{description}</text>
+					typeof description === "string" || typeof description === "number" ? (
+						<text style={styles.description}>{description}</text>
+					) : (
+						description
+					)
 				) : null}
 			</div>
-			{badge ? <text style={styles.description}>{badge}</text> : null}
+			{badge ? (
+				typeof badge === "string" || typeof badge === "number" ? (
+					<text style={styles.description}>{badge}</text>
+				) : (
+					badge
+				)
+			) : null}
 		</>
 	);
 
@@ -184,36 +203,46 @@ export function SettingsGroupRow({
 					borderRadius: radius.md,
 					opacity: disabled ? 0.45 : 1,
 				}}
-				onFocus={() => setFocused(true)}
-				onBlur={() => {
-					setFocused(false);
-					armed.current = false;
-				}}
-				onClick={() => {
-					if (interactive) onPress?.();
-				}}
-				onKeyDown={(event) => {
-					if (
-						!interactive ||
-						event.isHeld ||
-						event.modifiers?.cmd ||
-						event.modifiers?.ctrl ||
-						event.modifiers?.alt
-					)
-						return;
+				onFocus={onPress ? () => setFocused(true) : undefined}
+				onBlur={
+					onPress
+						? () => {
+								setFocused(false);
+								armed.current = false;
+							}
+						: undefined
+				}
+				onClick={interactive ? onPress : undefined}
+				onKeyDown={
+					interactive
+						? (event) => {
+								if (
+									!interactive ||
+									event.isHeld ||
+									event.modifiers?.cmd ||
+									event.modifiers?.ctrl ||
+									event.modifiers?.alt
+								)
+									return;
 
-					if (event.key === "enter") onPress?.();
-					else if (event.key === "space") armed.current = true;
-				}}
-				onKeyUp={(event) => {
-					if (event.key !== "space") return;
+								if (event.key === "enter") onPress?.();
+								else if (event.key === "space") armed.current = true;
+							}
+						: undefined
+				}
+				onKeyUp={
+					interactive
+						? (event) => {
+								if (event.key !== "space") return;
 
-					const activate = armed.current;
+								const activate = armed.current;
 
-					armed.current = false;
+								armed.current = false;
 
-					if (interactive && activate) onPress?.();
-				}}
+								if (interactive && activate) onPress?.();
+							}
+						: undefined
+				}
 			>
 				{content}
 			</div>

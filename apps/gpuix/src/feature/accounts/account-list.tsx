@@ -1,3 +1,4 @@
+import { SettingsGroup, SettingsGroupRow } from "../settings/settings-group";
 import { settingsStyles } from "../settings/settings-layout";
 import { useAppTheme } from "../../styles/theme";
 import { spacing, iconSize } from "@1git/design-tokens";
@@ -41,14 +42,10 @@ export function AccountList({
 	const styles = settingsStyles.get(theme);
 
 	return (
-		<div
-			style={{
-				display: "flex",
-				flexDirection: "column",
-				gap: spacing[5],
-				flexGrow: 1,
-				flexShrink: 0,
-			}}
+		<SettingsGroup
+			title="Connected accounts"
+			icon="userCircle"
+			meta={`${accounts.length} ${accounts.length === 1 ? "account" : "accounts"}`}
 		>
 			{!accounts.length ? (
 				<div
@@ -117,87 +114,95 @@ export function AccountList({
 						testId={`account-${key}`}
 						role="group"
 						aria-label={`${account.username} · ${accountSetup[account.provider].name}`}
-						style={{
-							display: "flex",
-							flexDirection: "row",
-							alignItems: "center",
-							gap: spacing[3],
-							flexShrink: 0,
-						}}
+						style={{ display: "flex", flexDirection: "column", flexShrink: 0 }}
 					>
-						<svg
-							testId={`account-provider-icon-${key}`}
-							aria-hidden
-							source={accountProviderIcons[account.provider]}
-							style={{
-								width: 22,
-								height: 22,
-								flexShrink: 0,
-								color: appTokens.colors.textMuted,
-								pointerEvents: "none",
-							}}
-						/>
-						<div
-							testId={`account-info-${key}`}
-							style={{
-								display: "flex",
-								flexDirection: "column",
-								gap: spacing[0.5],
-								flexGrow: 1,
-								flexBasis: 0,
-								minWidth: 0,
-							}}
-						>
-							<text testId={`account-name-${key}`} style={{ ...styles.label }}>
-								{account.username}
-							</text>
-							<text
-								testId={`account-status-${key}`}
-								style={{ ...styles.description }}
-							>
-								{`${host.host}${host.pathname === "/" ? "" : host.pathname} · ${account.credentialSource === "github-cli" ? "GitHub CLI · " : ""}${status[key] ?? "Not checked"}`}
-							</text>
-						</div>
-						<div
-							style={{ display: "flex", flexDirection: "row", gap: spacing[1] }}
-						>
-							{actions.map((action) => (
-								<Button
-									key={action.name}
-									size="sm"
-									variant="ghost"
-									tokens={appTokens}
-									disabled={disabled}
-									aria-label={action.label}
-									testId={`account-${action.name}-${key}`}
+						<SettingsGroupRow
+							leading={
+								<svg
+									testId={`account-provider-icon-${key}`}
+									aria-hidden
+									source={accountProviderIcons[account.provider]}
 									style={{
-										width: 26,
-										height: 26,
-										paddingLeft: spacing[0],
-										paddingRight: spacing[0],
+										width: 22,
+										height: 22,
+										flexShrink: 0,
+										color: appTokens.colors.textMuted,
+										pointerEvents: "none",
 									}}
-									onPress={() => action.onPress(account)}
+								/>
+							}
+							label={
+								<div
+									testId={`account-info-${key}`}
+									style={{
+										display: "flex",
+										flexDirection: "column",
+										gap: spacing[0.5],
+
+										minWidth: 0,
+									}}
 								>
-									<svg
-										testId={`account-${action.name}-icon-${key}`}
-										aria-hidden
-										source={actionIcons[action.name]}
-										style={{
-											width: iconSize.sm,
-											height: iconSize.sm,
-											pointerEvents: "none",
-											color:
-												action.name === "remove"
-													? appTokens.colors.danger
-													: appTokens.colors.textMuted,
-										}}
-									/>
-								</Button>
-							))}
-						</div>
+									<text
+										testId={`account-name-${key}`}
+										style={{ ...styles.label }}
+									>
+										{account.username}
+									</text>
+									<text
+										testId={`account-status-${key}`}
+										style={{ ...styles.description }}
+									>
+										{`${host.host}${host.pathname === "/" ? "" : host.pathname} · ${account.credentialSource === "github-cli" ? "GitHub CLI · " : ""}${status[key] ?? "Not checked"}`}
+									</text>
+								</div>
+							}
+							trailing={
+								<div
+									style={{
+										display: "flex",
+										flexDirection: "row",
+										gap: spacing[1],
+									}}
+								>
+									{actions.map((action) => (
+										<Button
+											key={action.name}
+											size="sm"
+											variant="ghost"
+											tokens={appTokens}
+											disabled={disabled}
+											aria-label={action.label}
+											testId={`account-${action.name}-${key}`}
+											style={{
+												width: 26,
+												height: 26,
+												paddingLeft: spacing[0],
+												paddingRight: spacing[0],
+											}}
+											onPress={() => action.onPress(account)}
+										>
+											<svg
+												testId={`account-${action.name}-icon-${key}`}
+												aria-hidden
+												source={actionIcons[action.name]}
+												style={{
+													width: iconSize.sm,
+													height: iconSize.sm,
+													pointerEvents: "none",
+													color:
+														action.name === "remove"
+															? appTokens.colors.danger
+															: appTokens.colors.textMuted,
+												}}
+											/>
+										</Button>
+									))}
+								</div>
+							}
+						/>
 					</div>
 				);
 			})}
-		</div>
+		</SettingsGroup>
 	);
 }

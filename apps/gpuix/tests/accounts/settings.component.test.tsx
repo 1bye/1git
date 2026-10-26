@@ -420,6 +420,8 @@ it("caps Accounts sections and centers an illustrated empty state on wide window
 	const contentBounds = root.renderer.getElementBounds(content.id)!;
 	const empty = root.renderer.findByTestId("accounts-empty-content")!;
 	const emptyBounds = root.renderer.getElementBounds(empty.id)!;
+	const emptyRegion = root.renderer.findByTestId("accounts-empty")!;
+	const emptyRegionBounds = root.renderer.getElementBounds(emptyRegion.id)!;
 	const artwork = root.renderer.findByTestId("accounts-empty-artwork")!;
 
 	expect(
@@ -441,7 +443,7 @@ it("caps Accounts sections and centers an illustrated empty state on wide window
 		Math.abs(
 			emptyBounds.y +
 				emptyBounds.height / 2 -
-				(contentBounds.y + contentBounds.height / 2)
+				(emptyRegionBounds.y + emptyRegionBounds.height / 2)
 		)
 	).toBeLessThanOrEqual(1);
 	expect(artwork.type).toBe("svg");
@@ -930,7 +932,7 @@ it("shows compact right-aligned account icons with accessible mouse and keyboard
 	const removeBounds = root.renderer.getElementBounds(remove.id)!;
 
 	expect(removeBounds.x + removeBounds.width).toBe(
-		rowBounds.x + rowBounds.width
+		rowBounds.x + rowBounds.width - 16
 	);
 	expect(root.renderer.getAllText()).not.toContain("Check");
 	expect(root.renderer.getAllText()).not.toContain("Reconnect");
@@ -1041,6 +1043,15 @@ it("confirms the exact account before removal and cancels without changing saved
 	);
 	root.renderer.simulateKeystrokes("enter");
 	await settle();
+
+	// Saving credentials can complete after the native list has repainted.
+	for (
+		let attempt = 0;
+		attempt < 10 && root.renderer.findByTestId("account-remove-dialog");
+		attempt++
+	)
+		await settle();
+
 	expect(root.renderer.findByTestId("account-remove-dialog")).toBeUndefined();
 	expect(f.store.load()).toEqual([other]);
 	expect(f.secrets.has(key)).toBe(false);

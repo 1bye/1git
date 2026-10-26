@@ -22,6 +22,7 @@ import {
 	settingsStyles,
 } from "../settings/settings-layout";
 import { NativeBrowser } from "../../platform/browser";
+import { SettingsGroup, SettingsGroupRow } from "../settings/settings-group";
 import { StateMessage } from "../../fixture/state-message";
 import { accountActionIcons } from "../accounts/account-list";
 import { WorkspaceTabIcon } from "../workspace-tabs/components/workspace-tab-icon";
@@ -236,107 +237,127 @@ function AiSettingsPanel({
 								{notice}
 							</text>
 						) : null}
-						{!ai.configuration.connections.length ? (
-							<StateMessage
-								testId="ai-empty"
-								artwork="accounts"
-								title="No AI accounts added."
-								description="Add OpenCode or ChatGPT, then choose a default for commit messages."
-							/>
-						) : null}
-						{ai.configuration.connections.map((connection) => (
-							<div
-								key={connection.id}
-								testId={`ai-account-${connection.id}`}
-								role="group"
-								aria-label={`${connection.label} · ${aiProviderNames[connection.provider]}`}
-								style={{ ...row, gap: spacing[3] }}
-							>
-								<svg
-									source={aiProviderIcons[connection.provider]}
-									aria-hidden
-									style={{
-										width: 22,
-										height: 22,
-										color: tokens.colors.textMuted,
-										flexShrink: 0,
-										pointerEvents: "none",
-									}}
+						<SettingsGroup
+							title="Connections"
+							icon="sparkle"
+							meta={`${ai.configuration.connections.length} connections`}
+						>
+							{!ai.configuration.connections.length ? (
+								<StateMessage
+									testId="ai-empty"
+									artwork="accounts"
+									title="No AI accounts added."
+									description="Add OpenCode or ChatGPT, then choose a default for commit messages."
 								/>
+							) : null}
+							{ai.configuration.connections.map((connection) => (
 								<div
+									key={connection.id}
+									testId={`ai-account-${connection.id}`}
+									role="group"
+									aria-label={`${connection.label} · ${aiProviderNames[connection.provider]}`}
 									style={{
-										...column,
-										gap: spacing[0.5],
-										flexGrow: 1,
-										flexBasis: 0,
+										display: "flex",
+										flexDirection: "column",
+										flexShrink: 0,
 									}}
 								>
-									<div style={{ ...row, flexWrap: "wrap", gap: spacing[1] }}>
-										<text style={{ ...styles.label }}>{connection.label}</text>
-										{ai.configuration.defaultId === connection.id ? (
-											<text
-												testId={`ai-default-badge-${connection.id}`}
+									<SettingsGroupRow
+										leading={
+											<svg
+												source={aiProviderIcons[connection.provider]}
+												aria-hidden
 												style={{
-													...typography.xs,
-													color: tokens.colors.onAccent,
-													backgroundColor: tokens.colors.accent,
-													paddingLeft: spacing[1],
-													paddingRight: spacing[1],
-													borderRadius: radius.sm,
+													width: 22,
+													height: 22,
+													color: tokens.colors.textMuted,
+													flexShrink: 0,
+													pointerEvents: "none",
+												}}
+											/>
+										}
+										label={
+											<div
+												style={{
+													...column,
+													gap: spacing[0.5],
 												}}
 											>
-												Default
-											</text>
-										) : null}
-									</div>
-									<text
-										style={muted}
-									>{`${connection.provider === "chatgpt" ? connection.chatgpt?.email || "ChatGPT · Sign-in required" : `OpenCode · ${connection.opencodeMode === "free" ? "Free" : connection.opencodeMode === "go" ? "Go" : "Zen"}`} · ${connection.model || "Choose a model"}`}</text>
-								</div>
-								<div style={{ ...row, gap: spacing[1] }}>
-									<AiRowAction
-										testId={`ai-default-${connection.id}`}
-										label={`Use ${connection.label} as default`}
-										disabled={
-											locked ||
-											!!editing ||
-											ai.configuration.defaultId === connection.id ||
-											!connection.model
+												<div
+													style={{ ...row, flexWrap: "wrap", gap: spacing[1] }}
+												>
+													<text style={{ ...styles.label }}>
+														{connection.label}
+													</text>
+													{ai.configuration.defaultId === connection.id ? (
+														<text
+															testId={`ai-default-badge-${connection.id}`}
+															style={{
+																...typography.xs,
+																color: tokens.colors.onAccent,
+																backgroundColor: tokens.colors.accent,
+																paddingLeft: spacing[1],
+																paddingRight: spacing[1],
+																borderRadius: radius.sm,
+															}}
+														>
+															Default
+														</text>
+													) : null}
+												</div>
+												<text
+													style={muted}
+												>{`${connection.provider === "chatgpt" ? connection.chatgpt?.email || "ChatGPT · Sign-in required" : `OpenCode · ${connection.opencodeMode === "free" ? "Free" : connection.opencodeMode === "go" ? "Go" : "Zen"}`} · ${connection.model || "Choose a model"}`}</text>
+											</div>
 										}
-										onPress={() => setDefault(connection.id)}
-										icon="check"
-									/>
-									<AiRowAction
-										testId={`ai-edit-${connection.id}`}
-										label={`Configure ${connection.label}`}
-										disabled={locked || !!editing}
-										onPress={() => openEditor(connection)}
-										source={accountActionIcons.reconnect}
-									/>
-									{connection.provider === "chatgpt" ||
-									connection.opencodeMode !== "free" ? (
-										<AiRowAction
-											testId={`ai-reconnect-${connection.id}`}
-											label={`Reconnect ${connection.label}`}
-											disabled={locked || !!editing}
-											onPress={() => openEditor(connection, true)}
-											icon="sync"
-										/>
-									) : null}
-									<AiRowAction
-										testId={`ai-remove-${connection.id}`}
-										label={`Remove ${connection.label}`}
-										disabled={locked || !!editing}
-										onPress={() => {
-											setError(null);
-											setRemoving(connection);
-										}}
-										source={accountActionIcons.remove}
-										danger
+										trailing={
+											<div style={{ ...row, gap: spacing[1] }}>
+												<AiRowAction
+													testId={`ai-default-${connection.id}`}
+													label={`Use ${connection.label} as default`}
+													disabled={
+														locked ||
+														!!editing ||
+														ai.configuration.defaultId === connection.id ||
+														!connection.model
+													}
+													onPress={() => setDefault(connection.id)}
+													icon="check"
+												/>
+												<AiRowAction
+													testId={`ai-edit-${connection.id}`}
+													label={`Configure ${connection.label}`}
+													disabled={locked || !!editing}
+													onPress={() => openEditor(connection)}
+													source={accountActionIcons.reconnect}
+												/>
+												{connection.provider === "chatgpt" ||
+												connection.opencodeMode !== "free" ? (
+													<AiRowAction
+														testId={`ai-reconnect-${connection.id}`}
+														label={`Reconnect ${connection.label}`}
+														disabled={locked || !!editing}
+														onPress={() => openEditor(connection, true)}
+														icon="sync"
+													/>
+												) : null}
+												<AiRowAction
+													testId={`ai-remove-${connection.id}`}
+													label={`Remove ${connection.label}`}
+													disabled={locked || !!editing}
+													onPress={() => {
+														setError(null);
+														setRemoving(connection);
+													}}
+													source={accountActionIcons.remove}
+													danger
+												/>
+											</div>
+										}
 									/>
 								</div>
-							</div>
-						))}
+							))}
+						</SettingsGroup>
 					</SettingsSection>
 				</SettingsPage>
 			}
@@ -399,6 +420,8 @@ function AiSettingsPanel({
 								Cancel
 							</Button>
 							<Button
+								variant="secondary"
+								textStyle={{ color: tokens.colors.danger }}
 								testId="ai-disconnect-confirm"
 								tokens={tokens}
 								size="sm"
