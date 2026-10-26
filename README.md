@@ -1,5 +1,5 @@
 <div align="center">
-  <img src=".github/assets/banner.svg" width="100%" alt="1git — A clearer view. Of every change." />
+  <img src=".github/assets/banner.svg" width="100%" alt="1git — A clearer view. Of every change. A native macOS workspace showing changed files, a code diff, and the commit composer." />
   <p>A native Git workspace for macOS.</p>
 
   <p>
@@ -13,8 +13,6 @@
   <img src="https://img.shields.io/badge/macOS-13%2B-black" alt="macOS 13 or later" />
   <img src="https://img.shields.io/badge/architecture-Apple%20Silicon-black" alt="Apple Silicon" />
 </div>
-
-![1git showing a native repository workspace](apps/web/src/assets/1git-native-window.png)
 
 ## Features
 

@@ -17,12 +17,23 @@ welcome in [GitHub Issues](https://github.com/1bye/1git/issues).
 
 ## 🚧 Next
 
-- Settings redesign: consistent layouts and richer list views
+- Best-in-class UX: polish every flow, starting with the Settings redesign, onboarding etc.
+- Issues and pull requests: browse, create, and review them in the app
+- [ACP](https://agentclientprotocol.com) support for AI agents
 - Developer ID signing and notarization
 - Larger AI selections for CLI providers (beyond 64 KiB)
 
 ## 🔭 Later
 
-- Intel and Universal macOS builds
-- Linux and Windows desktop apps
-- More Git hosting providers
+- Port to Rust [GPUI](https://www.gpui.rs) (likely with gpui-fast, gpui-motion, and rake)
+- Multiple platforms: Intel and Universal macOS builds, Linux, and Windows
+- More Git hosting providers (Forge, Trylle, Git Cafe etc.)
+- Interactive rebase: reorder, squash, and edit commits visually
+- Blame and per-file history
+- AI review: explain a diff or flag risky changes before committing
+- Better conflict resolution
+- Command palette for every action
+- Three-way merge conflict editor
+- Git LFS and submodule support
+- CI status on branches and pull requests
+- Localization
