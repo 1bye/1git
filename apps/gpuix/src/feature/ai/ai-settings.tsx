@@ -365,6 +365,7 @@ function AiSettingsPanel({
 										source={accountActionIcons.reconnect}
 									/>
 									{connection.provider === "chatgpt" ||
+									connection.provider === "api" ||
 									(connection.provider === "opencode" &&
 										connection.opencodeMode !== "free") ? (
 										<AiRowAction
@@ -468,6 +469,9 @@ function AiSettingsPanel({
 }
 
 function connectionDescription(connection: AiConnection): string {
+	if (connection.provider === "api")
+		return `API · ${connection.api?.protocol === "anthropic" ? "Claude" : "OpenAI"} · ${connection.model || "Choose a model"}`;
+
 	if (AiSettingsStore.isCli(connection.provider))
 		return `${aiProviderNames[connection.provider]} · ${connection.model || "CLI default"}`;
 

@@ -207,6 +207,76 @@ async function addFree(label: string, makeDefault = false) {
 	return service.store.load().connections.find((item) => item.label === label)!;
 }
 
+it.each([
+	{ protocol: "openai-chat", steps: 0 },
+	{ protocol: "openai-responses", steps: 1 },
+	{ protocol: "anthropic", steps: 2 },
+] as const)(
+	"configures $protocol with manual model/effort and vault-only auth headers",
+	async ({ protocol, steps }) => {
+		settings();
+		await press("ai-add");
+		await press("ai-provider-api");
+
+		if (steps) {
+			await press("ai-api-format");
+
+			for (let step = 0; step < steps; step++) {
+				root.renderer.simulateKeystrokes("down");
+				await settle();
+			}
+
+			root.renderer.simulateKeystrokes("enter");
+			await settle();
+		}
+
+		await type("ai-api-url", "https://gateway.example/custom/v1");
+		await type("ai-api-header-name-0", "X-API-Key");
+		await type("ai-api-header-value-0", "synthetic-secret");
+		await press("ai-api-header-add");
+		await type("ai-api-header-name-1", "X-Gateway-Key");
+		await type("ai-api-header-value-1", "synthetic-extra");
+		expect(node("ai-api-header-value-0").customProps?.type).toBe("password");
+		await type("ai-api-model", "org/custom-model");
+		await type("ai-api-effort", "high");
+		await press("ai-use-default");
+
+		if (process.env.GPUIX_AI_API_SCREENSHOT)
+			root.renderer.captureScreenshot(
+				`${process.env.GPUIX_AI_API_SCREENSHOT}-${protocol}.png`
+			);
+
+		await press("ai-save-preferences");
+		const selected = AiSettingsStore.selected(service.store.load());
+
+		expect(selected.api).toEqual({
+			protocol,
+			baseUrl: "https://gateway.example/custom/v1",
+		});
+		expect(selected.model).toBe("org/custom-model");
+		expect(selected.effort).toBe("high");
+		expect(JSON.stringify(service.store.load())).not.toContain("synthetic");
+		const key = AiSettingsStore.credentialKey("api", "", selected.id);
+
+		expect(JSON.parse(credentials.get(key) ?? "")).toEqual([
+			{ name: "x-api-key", value: "synthetic-secret" },
+			{ name: "x-gateway-key", value: "synthetic-extra" },
+		]);
+		await press(`ai-edit-${selected.id}`);
+		expect(root.renderer.findByTestId("ai-api-header-value-0")).toBeUndefined();
+		expect(root.renderer.getAllText()).toContain("Headers saved securely.");
+		await type("ai-api-effort", "max");
+		await press("ai-save-preferences");
+		expect(credentials.get(key)).toContain("synthetic-secret");
+		expect(AiSettingsStore.selected(service.store.load()).effort).toBe("max");
+		await press(`ai-edit-${selected.id}`);
+		await press("ai-api-replace-headers");
+		await type("ai-api-header-value-0", "discarded-secret");
+		await press("ai-cancel-editor");
+		expect(credentials.get(key)).not.toContain("discarded-secret");
+	}
+);
+
 it("groups ChatGPT connection methods with CLI selected by default and keyboard-accessible Login", async () => {
 	settings();
 	await press("ai-add");
@@ -304,6 +374,43 @@ it("ignores a late CLI catalog after switching ChatGPT to Login", async () => {
 	await press("ai-model");
 	expect(root.renderer.getAllText()).toContain("Big Pickle");
 	expect(root.renderer.getAllText()).not.toContain("Old CLI model");
+});
+
+it("keeps provider switching usable when cancelled CLI catalogs reject during effect cleanup", async () => {
+	const requests: AbortSignal[] = [];
+
+	spyOn(service, "models").mockImplementation(async (preferences, signal) => {
+		if (!AiSettingsStore.isCli(preferences.provider)) return choices;
+
+		requests.push(signal);
+
+		return await new Promise<typeof choices>((_resolve, reject) => {
+			signal.addEventListener(
+				"abort",
+				() => reject(new Error("Agent request cancelled.")),
+				{ once: true }
+			);
+		});
+	});
+	settings();
+	await press("ai-add");
+
+	for (const provider of [
+		"chatgpt",
+		"claude-code",
+		"api",
+		"chatgpt",
+		"claude-code",
+		"opencode",
+	])
+		await press(`ai-provider-${provider}`);
+
+	expect(requests.length).toBeGreaterThanOrEqual(4);
+	expect(requests.every((signal) => signal.aborted)).toBe(true);
+	expect(root.renderer.findByTestId("ai-models-error")).toBeUndefined();
+	expect(root.renderer.getAllText()).not.toContain("Uncaught runtime errors:");
+	await press("ai-model");
+	expect(root.renderer.getAllText()).toContain("Big Pickle");
 });
 
 it.each(["claude-code", "codex"] as const)(

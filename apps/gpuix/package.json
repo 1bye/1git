@@ -11,6 +11,7 @@
     "test:signing:macos": "bun test tests/packaging/signing.integration.test.ts tests/packaging/hardened-runtime.integration.test.ts",
     "test:ai:cli": "GPUIX_AI_CLI_SMOKE=1 bun test tests/ai/cli-live.integration.test.ts",
     "test:ai:process": "bun test tests/ai/cli-process.integration.test.ts",
+    "test:ai:api": "bun test tests/ai/api-http.integration.test.ts",
     "package:macos": "bun native/package-macos.ts",
     "test:package:macos": "bun test tests/packaging/launch.integration.test.ts",
     "test:updates:macos": "bun test tests/updater/install.integration.test.ts tests/updater/lifecycle.integration.test.ts tests/updater/preparation.integration.test.ts",

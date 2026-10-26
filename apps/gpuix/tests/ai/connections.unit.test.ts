@@ -5,7 +5,7 @@
  * Requires: Bun and temporary storage; no graphics, real sign-in or network.
  */
 import { afterEach, beforeEach, expect, it, mock, spyOn } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { AiIntegration } from "../../src/feature/ai/lib/ai-integration";
@@ -99,6 +99,54 @@ it("stores independent OpenCode keys and instructions, and removes only the sele
 	await service.disconnect(second, signal());
 	expect(service.store.load()).toEqual({ connections: [], defaultId: null });
 	expect(credentials.size).toBe(0);
+});
+
+it("stores API headers only in the selected account's vault entry and preserves them on metadata edits", async () => {
+	const api = {
+		...first,
+		provider: "api" as const,
+		api: {
+			protocol: "openai-chat" as const,
+			baseUrl: "https://gateway.example/v1",
+		},
+		model: "org/custom-model",
+		effort: "medium",
+	};
+
+	const headers = JSON.stringify([
+		{ name: "Authorization", value: "Bearer synthetic-secret" },
+		{ name: "X-Extra-Key", value: "synthetic-extra" },
+	]);
+
+	await service.saveConnection(api, headers, true, signal());
+	await service.saveConnection(
+		{ ...api, label: "Renamed" },
+		"",
+		true,
+		signal()
+	);
+	await service.saveConnection(
+		{ ...api, id: second.id, label: "Other API" },
+		"[]",
+		false,
+		signal()
+	);
+
+	expect(readFileSync(service.store.path, "utf8")).not.toContain("synthetic");
+	expect(
+		credentials.get(AiSettingsStore.credentialKey("api", "", api.id))
+	).toContain("synthetic-secret");
+	expect(
+		credentials.get(AiSettingsStore.credentialKey("api", "", second.id))
+	).toBe("[]");
+	expect(AiSettingsStore.selected(service.store.load()).effort).toBe("medium");
+	await service.disconnect(api, signal());
+	expect(
+		credentials.has(AiSettingsStore.credentialKey("api", "", api.id))
+	).toBe(false);
+	expect(
+		credentials.has(AiSettingsStore.credentialKey("api", "", second.id))
+	).toBe(true);
 });
 
 it("keeps AI off when adding a Free profile until a default is explicitly selected", async () => {

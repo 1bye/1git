@@ -13,6 +13,7 @@ import { CommitHarness } from "./commit-harness";
 import { ChatGptAuthorization } from "./chatgpt-authorization";
 import { CliAgent } from "./cli-agent";
 import type { AiModel } from "./ai-model";
+import { CustomApi } from "./custom-api";
 
 export type { AiModel } from "./ai-model";
 
@@ -111,11 +112,19 @@ export class AiIntegration {
 		const connection = AiSettingsStore.connection(input);
 		const cli = AiSettingsStore.isCli(connection.provider);
 
+		const credential =
+			connection.provider === "api"
+				? CustomApi.credential(
+						apiKey || (await this.vault.read(this.key(connection))) || "[]"
+					)
+				: apiKey;
+
 		if (!connection.model && !cli)
 			throw new Error("Choose a model before saving this connection.");
 
 		if (
 			apiKey &&
+			connection.provider !== "api" &&
 			(connection.provider !== "opencode" ||
 				apiKey.length > 8192 ||
 				/[\s\p{Cc}]/u.test(apiKey))
@@ -130,6 +139,7 @@ export class AiIntegration {
 
 		if (
 			!cli &&
+			connection.provider !== "api" &&
 			!apiKey &&
 			!(
 				connection.provider === "opencode" && connection.opencodeMode === "free"
@@ -161,8 +171,8 @@ export class AiIntegration {
 			};
 		};
 
-		if (apiKey)
-			await this.persistCredential(connection, apiKey, update, signal);
+		if (credential)
+			await this.persistCredential(connection, credential, update, signal);
 		else {
 			signal.throwIfAborted();
 			this.store.save(update(this.store.load()));
@@ -299,6 +309,8 @@ export class AiIntegration {
 		preferences: AiPreferences,
 		signal: AbortSignal
 	): Promise<AiModel[]> {
+		if (preferences.provider === "api") return [];
+
 		if (AiSettingsStore.isCli(preferences.provider))
 			return await this.cli.models(preferences, signal);
 
@@ -432,6 +444,8 @@ export class AiIntegration {
 
 		if (!raw)
 			throw new Error("No AI credentials saved. Connect in Settings → AI.");
+
+		if (preferences.provider === "api") return CustomApi.credential(raw);
 
 		if (preferences.provider === "opencode") {
 			if (raw.length > 8192 || /[\s\p{Cc}]/u.test(raw))

@@ -1,0 +1,6 @@
+simulation: ai-api
+routing: path
+mocks:
+  - name: ai-api
+    routeKey: ai-api
+    path: postman/mocks/ai-api/config.yaml

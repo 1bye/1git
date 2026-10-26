@@ -22,6 +22,7 @@ import {
 import { AiSettingsStore, type AiConnection } from "./lib/ai-settings-store";
 import { findModel, modelEffort, type AiModel } from "./lib/ai-model";
 import { cavemanCommitPreset } from "./lib/caveman-commit-preset";
+import { AiApiFields } from "./ai-api-fields";
 
 // GPUIX's keyboard selection requires a nonempty option value. Persist defaults as empty strings.
 const defaultOption = "1git:default";
@@ -79,7 +80,7 @@ export function AiConnectionEditor({
 	const executable = draft.executable;
 	const free = provider === "opencode" && mode === "free";
 	const cli = AiSettingsStore.isCli(provider);
-	const canLoad = cli || free || connected === true;
+	const canLoad = provider === "api" || cli || free || connected === true;
 	const saved = ai.configuration.connections.some((item) => item.id === id);
 	const modelChoices = models.slice();
 	const selectedModel = findModel(models, draft.model);
@@ -92,7 +93,10 @@ export function AiConnectionEditor({
 
 	const effectiveDraft = {
 		...draft,
-		effort: effort || (draft.effort === undefined && !cli ? undefined : ""),
+		effort:
+			provider === "api"
+				? draft.effort
+				: effort || (draft.effort === undefined && !cli ? undefined : ""),
 	};
 
 	if (cli)
@@ -184,7 +188,7 @@ export function AiConnectionEditor({
 		setModelError(null);
 		setLoading(false);
 
-		if (!canLoad || busy) return;
+		if (provider === "api" || !canLoad || busy) return;
 
 		const controller = new AbortController();
 
@@ -255,6 +259,10 @@ export function AiConnectionEditor({
 					: aiProviderNames[target],
 			model: "",
 			chatgpt: undefined,
+			api:
+				target === "api"
+					? { protocol: "openai-chat", baseUrl: "https://api.openai.com/v1" }
+					: undefined,
 			executable: undefined,
 			effort: undefined,
 		});
@@ -304,7 +312,12 @@ export function AiConnectionEditor({
 
 	const save = () =>
 		void run(async (signal) => {
-			await service.saveConnection(effectiveDraft, "", useDefault, signal);
+			await service.saveConnection(
+				effectiveDraft,
+				provider === "api" ? key.current : "",
+				useDefault,
+				signal
+			);
 			ai.reload();
 
 			if (mounted.current) onClose();
@@ -362,23 +375,25 @@ export function AiConnectionEditor({
 						aria-label="AI provider"
 						style={{ ...row, gap: spacing[2], height: 64 }}
 					>
-						{(["opencode", "chatgpt", "claude-code"] as const).map((target) => (
-							<ChoiceTile
-								key={target}
-								testId={`ai-provider-${target}`}
-								label={aiProviderNames[target]}
-								source={aiProviderIcons[target]}
-								selected={
-									target === "chatgpt" ? chatgptProvider : provider === target
-								}
-								disabled={busy || saved}
-								onPress={() => {
-									if (target === "chatgpt" && chatgptProvider) return;
+						{(["opencode", "chatgpt", "claude-code", "api"] as const).map(
+							(target) => (
+								<ChoiceTile
+									key={target}
+									testId={`ai-provider-${target}`}
+									label={aiProviderNames[target]}
+									source={aiProviderIcons[target]}
+									selected={
+										target === "chatgpt" ? chatgptProvider : provider === target
+									}
+									disabled={busy || saved}
+									onPress={() => {
+										if (target === "chatgpt" && chatgptProvider) return;
 
-									selectProvider(target === "chatgpt" ? "codex" : target);
-								}}
-							/>
-						))}
+										selectProvider(target === "chatgpt" ? "codex" : target);
+									}}
+								/>
+							)
+						)}
 					</div>
 					{chatgptProvider ? (
 						<>
@@ -531,6 +546,18 @@ export function AiConnectionEditor({
 										: "Zen uses your OpenCode balance. Generation may incur charges."}
 							</text>
 						</>
+					) : provider === "api" ? (
+						<AiApiFields
+							key={id}
+							draft={draft}
+							onChange={setDraft}
+							onHeadersChange={(raw) => {
+								key.current = raw;
+							}}
+							connected={connected === true}
+							reconnect={reconnect}
+							busy={busy}
+						/>
 					) : cli ? (
 						<div style={{ ...row, justifyContent: "space-between" }}>
 							<text style={label}>
@@ -599,137 +626,145 @@ export function AiConnectionEditor({
 							</div>
 						</>
 					)}
-					<div style={{ ...row, justifyContent: "space-between" }}>
-						<text style={label}>Model</text>
-						{loading ? (
-							<text
-								testId="ai-models-loading"
-								role="status"
-								style={{ ...typography.sm, color: tokens.colors.textMuted }}
-							>
-								Loading models…
-							</text>
-						) : null}
-					</div>
-					<Select
-						key={`${provider}:${mode}:${canLoad}`}
-						value={
-							cli ? draft.model || defaultOption : draft.model || undefined
-						}
-						onValueChange={(value) => {
-							setNotice(null);
-							setDraft({
-								...draft,
-								model: cli && value === defaultOption ? "" : value,
-							});
-						}}
-						items={modelChoices}
-						disabled={busy || (!cli && (loading || !models.length))}
-					>
-						<SelectTrigger
-							testId="ai-model"
-							aria-label="AI model"
-							tokens={tokens}
-							style={{ width: "100%" }}
-						>
-							<SelectValue
-								placeholder={
-									canLoad ? "Choose a model" : "Connect to load models"
-								}
-								tokens={tokens}
-							/>
-						</SelectTrigger>
-						<SelectContent tokens={tokens}>
-							{modelChoices.map((model) => (
-								<SelectItem
-									key={model.value}
-									value={model.value}
-									tokens={tokens}
-								>
-									{model.label}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
-					{modelError ? (
-						<div style={{ ...row, alignItems: "flex-start" }}>
-							<text
-								testId="ai-models-error"
-								role="alert"
-								style={{
-									...label,
-									color: tokens.colors.danger,
-									flexGrow: 1,
-									flexBasis: 0,
-									minWidth: 0,
-								}}
-							>
-								{modelError}
-							</text>
-							<Button
-								testId="ai-models-retry"
-								tokens={tokens}
-								size="sm"
-								variant="ghost"
-								disabled={busy}
-								onPress={() => setModelVersion((value) => value + 1)}
-							>
-								Retry
-							</Button>
-						</div>
-					) : null}
-					{selectedModel?.effort?.levels.length !== 0 ? (
+					{provider !== "api" ? (
 						<>
-							<text style={label}>Effort</text>
+							<div style={{ ...row, justifyContent: "space-between" }}>
+								<text style={label}>Model</text>
+								{loading ? (
+									<text
+										testId="ai-models-loading"
+										role="status"
+										style={{ ...typography.sm, color: tokens.colors.textMuted }}
+									>
+										Loading models…
+									</text>
+								) : null}
+							</div>
 							<Select
-								value={effort || defaultOption}
-								items={effortChoices}
-								disabled={busy || loading || !selectedModel?.effort}
+								key={`${provider}:${mode}:${canLoad}`}
+								value={
+									cli ? draft.model || defaultOption : draft.model || undefined
+								}
 								onValueChange={(value) => {
-									const choice = effortChoices.find(
-										(item) => item.value === value
-									);
-
-									if (!choice) return;
-
 									setNotice(null);
 									setDraft({
 										...draft,
-										effort: choice.value === defaultOption ? "" : choice.value,
+										model: cli && value === defaultOption ? "" : value,
 									});
 								}}
+								items={modelChoices}
+								disabled={busy || (!cli && (loading || !models.length))}
 							>
 								<SelectTrigger
-									testId="ai-effort"
-									aria-label="AI effort"
+									testId="ai-model"
+									aria-label="AI model"
 									tokens={tokens}
 									style={{ width: "100%" }}
 								>
-									<SelectValue tokens={tokens} />
+									<SelectValue
+										placeholder={
+											canLoad ? "Choose a model" : "Connect to load models"
+										}
+										tokens={tokens}
+									/>
 								</SelectTrigger>
 								<SelectContent tokens={tokens}>
-									{effortChoices.map((choice) => (
+									{modelChoices.map((model) => (
 										<SelectItem
-											key={choice.value}
-											value={choice.value}
+											key={model.value}
+											value={model.value}
 											tokens={tokens}
 										>
-											{choice.label}
+											{model.label}
 										</SelectItem>
 									))}
 								</SelectContent>
 							</Select>
-							{!selectedModel?.effort ||
-							selectedModel.effort.source === "catalog" ? (
-								<text
-									style={{ ...typography.sm, color: tokens.colors.textMuted }}
-								>
-									{!selectedModel?.effort
-										? cli && !draft.model
-											? "Uses your CLI's configured effort."
-											: "Effort options are unavailable for this model."
-										: "Effort options are based on the model catalog."}
-								</text>
+							{modelError ? (
+								<div style={{ ...row, alignItems: "flex-start" }}>
+									<text
+										testId="ai-models-error"
+										role="alert"
+										style={{
+											...label,
+											color: tokens.colors.danger,
+											flexGrow: 1,
+											flexBasis: 0,
+											minWidth: 0,
+										}}
+									>
+										{modelError}
+									</text>
+									<Button
+										testId="ai-models-retry"
+										tokens={tokens}
+										size="sm"
+										variant="ghost"
+										disabled={busy}
+										onPress={() => setModelVersion((value) => value + 1)}
+									>
+										Retry
+									</Button>
+								</div>
+							) : null}
+							{selectedModel?.effort?.levels.length !== 0 ? (
+								<>
+									<text style={label}>Effort</text>
+									<Select
+										value={effort || defaultOption}
+										items={effortChoices}
+										disabled={busy || loading || !selectedModel?.effort}
+										onValueChange={(value) => {
+											const choice = effortChoices.find(
+												(item) => item.value === value
+											);
+
+											if (!choice) return;
+
+											setNotice(null);
+											setDraft({
+												...draft,
+												effort:
+													choice.value === defaultOption ? "" : choice.value,
+											});
+										}}
+									>
+										<SelectTrigger
+											testId="ai-effort"
+											aria-label="AI effort"
+											tokens={tokens}
+											style={{ width: "100%" }}
+										>
+											<SelectValue tokens={tokens} />
+										</SelectTrigger>
+										<SelectContent tokens={tokens}>
+											{effortChoices.map((choice) => (
+												<SelectItem
+													key={choice.value}
+													value={choice.value}
+													tokens={tokens}
+												>
+													{choice.label}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+									{!selectedModel?.effort ||
+									selectedModel.effort.source === "catalog" ? (
+										<text
+											style={{
+												...typography.sm,
+												color: tokens.colors.textMuted,
+											}}
+										>
+											{!selectedModel?.effort
+												? cli && !draft.model
+													? "Uses your CLI's configured effort."
+													: "Effort options are unavailable for this model."
+												: "Effort options are based on the model catalog."}
+										</text>
+									) : null}
+								</>
 							) : null}
 						</>
 					) : null}

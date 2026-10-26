@@ -33,6 +33,15 @@ The desktop interface uses native rendering and macOS window materials.
 ChatGPT offers **CLI** (the default, using Codex) and **Login** connection tiles.
 Existing connections retain their selected method.
 
+For a custom endpoint, choose **API** in **Settings → AI**. Select OpenAI Chat
+Completions, OpenAI Responses, or Claude Messages, then enter the base URL
+(including any `/v1` path), model ID, and optional native effort value. The app
+appends the selected format's endpoint. Add auth headers such as `Authorization`
+with a `Bearer …` value or `x-api-key`; their values are masked and saved only
+in the OS credential store. Remove all headers for an unauthenticated endpoint.
+Leaving effort blank uses the provider's default. Models and effort are manual
+for custom endpoints, so a model-list API is not required.
+
 For CLI commit messages, install and sign in to Claude Code (`claude auth login`)
 or Codex (`codex login`), then add it in **Settings → AI**. Choose a model from
 the dropdown, or select **Use CLI default**. Both agents report their available
@@ -54,6 +63,9 @@ Run `bun run --cwd apps/gpuix test:ai:process` for subprocess regression tests.
 against their real providers and uses their signed-in accounts. Optional
 `GPUIX_CLAUDE_PATH`, `GPUIX_CODEX_PATH`, and `GPUIX_CODEX_MODEL` variables select
 test executables or a Codex model without changing the CLI configuration.
+
+Custom API HTTP tests use the local [API simulation](postman/simulations/ai-api.context.md)
+and `GPUIX_AI_API_TEST_URL=http://localhost:PORT/ai-api/v1 bun run --cwd apps/gpuix test:ai:api`.
 
 ## Download
 

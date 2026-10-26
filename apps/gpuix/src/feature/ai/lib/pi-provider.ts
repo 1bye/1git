@@ -8,6 +8,7 @@ import {
 import type { AiPreferences } from "./ai-settings-store";
 import { AiHttp, type AiFetch } from "./ai-http";
 import { effortLabel, modelEffort, type AiModel } from "./ai-model";
+import { CustomApi } from "./custom-api";
 
 function nativeEffort(
 	value: string
@@ -33,6 +34,8 @@ export class PiProvider {
 
 	/** Metadata enriches the account's live list; it never adds models to that list. */
 	static async catalog(preferences: AiPreferences): Promise<Model<Api>[]> {
+		if (preferences.provider === "api") return [];
+
 		const catalog =
 			preferences.provider === "chatgpt"
 				? (await import("@earendil-works/pi-ai/providers/openai.models"))
@@ -90,6 +93,9 @@ export class PiProvider {
 	}
 
 	static base(preferences: AiPreferences): string {
+		if (preferences.provider === "api")
+			return CustomApi.configuration(preferences.api).baseUrl;
+
 		if (preferences.provider === "chatgpt") return "https://api.openai.com/v1";
 
 		return preferences.opencodeMode === "go"
@@ -129,8 +135,18 @@ export class PiProvider {
 		stream: StreamFn;
 		failure: () => string;
 	}> {
-		const protocol =
-			preferences.provider === "chatgpt"
+		const custom =
+			preferences.provider === "api"
+				? CustomApi.configuration(preferences.api)
+				: undefined;
+
+		const protocol = custom
+			? custom.protocol === "anthropic"
+				? "messages"
+				: custom.protocol === "openai-responses"
+					? "responses"
+					: "chat"
+			: preferences.provider === "chatgpt"
 				? "responses"
 				: PiProvider.protocol(preferences.model, preferences.opencodeMode);
 
@@ -155,21 +171,31 @@ export class PiProvider {
 		const catalog = await PiProvider.catalog(preferences);
 		const known = catalog.find((item) => item.id === preferences.model);
 
-		const effort = modelEffort(
-			{
-				value: preferences.model,
-				label: preferences.model,
-				...PiProvider.capabilities(known),
-			},
-			preferences.effort
-		);
+		const effort = custom
+			? (preferences.effort ?? "")
+			: modelEffort(
+					{
+						value: preferences.model,
+						label: preferences.model,
+						...PiProvider.capabilities(known),
+					},
+					preferences.effort
+				);
 
-		const reasoning = nativeEffort(effort) ? effort : undefined;
+		const reasoning = !custom && nativeEffort(effort) ? effort : undefined;
+
+		const customHeaders = custom
+			? CustomApi.headers(credential ?? "[]")
+			: undefined;
 
 		const model: Model<CommitApi> = {
 			id: preferences.model,
 			name: preferences.model,
-			provider: preferences.provider === "chatgpt" ? "openai" : "opencode",
+			provider: custom
+				? "1git-api"
+				: preferences.provider === "chatgpt"
+					? "openai"
+					: "opencode",
 			api:
 				protocol === "responses"
 					? "openai-responses"
@@ -226,9 +252,14 @@ export class PiProvider {
 				const endpoint = protocol === "chat" ? "chat/completions" : protocol;
 				const destination = `${model.baseUrl}/${endpoint}`;
 
+				const sdkDestination =
+					protocol === "messages"
+						? `${model.baseUrl.replace(/\/v1$/u, "")}/v1/messages`
+						: destination;
+
 				if (
-					url !== destination &&
-					!(protocol === "messages" && url === `${destination}?beta=true`)
+					url !== sdkDestination &&
+					!(protocol === "messages" && url === `${sdkDestination}?beta=true`)
 				)
 					throw new Error("Unexpected AI request destination.");
 
@@ -238,7 +269,10 @@ export class PiProvider {
 				headers.delete("authorization");
 				headers.delete("x-api-key");
 
-				if (credential) headers.set("authorization", `Bearer ${credential}`);
+				if (customHeaders) {
+					for (const [name, value] of customHeaders) headers.set(name, value);
+				} else if (credential)
+					headers.set("authorization", `Bearer ${credential}`);
 
 				headers.set("user-agent", "1git/0.0.1");
 
@@ -292,7 +326,7 @@ export class PiProvider {
 			};
 
 			const request = {
-				apiKey: credential ?? "1git-anonymous",
+				apiKey: custom ? "1git-custom-api" : (credential ?? "1git-anonymous"),
 				fetch: Object.assign(fetch, {
 					preconnect: globalThis.fetch.preconnect,
 				}),
@@ -301,6 +335,12 @@ export class PiProvider {
 				timeoutMs: 120_000,
 				maxTokens: model.maxTokens,
 				cacheRetention: "none" as const,
+				...(custom
+					? {
+							onPayload: (payload: unknown) =>
+								CustomApi.payload(custom, preferences.effort, payload),
+						}
+					: {}),
 			};
 
 			if (responses)
@@ -319,7 +359,7 @@ export class PiProvider {
 							)
 								throw new Error("Invalid Responses request.");
 
-							return {
+							const requestPayload = {
 								...payload,
 								instructions: getCurrentSystemPrompt(context.messages),
 								input: payload.input.filter(
@@ -332,7 +372,13 @@ export class PiProvider {
 										)
 								),
 								store: false,
+								// Stateless Responses continuations need encrypted reasoning alongside tool results.
+								...(custom ? { include: ["reasoning.encrypted_content"] } : {}),
 							};
+
+							return custom
+								? CustomApi.payload(custom, preferences.effort, requestPayload)
+								: requestPayload;
 						},
 					}
 				);

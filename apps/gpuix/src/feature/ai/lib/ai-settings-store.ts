@@ -10,11 +10,19 @@ import {
 import { dirname, isAbsolute, join } from "node:path";
 import { WorkspaceSessionStore } from "../../workspace-tabs/lib/workspace-session-store";
 import { isEffort } from "./ai-model";
+import { CustomApi, type CustomApiConfiguration } from "./custom-api";
 
 /** Non-secret AI preferences, separate from existing appearance and Git defaults. */
 export interface AiPreferences {
 	readonly id?: string;
-	readonly provider: "opencode" | "chatgpt" | "claude-code" | "codex" | null;
+	readonly provider:
+		| "opencode"
+		| "chatgpt"
+		| "claude-code"
+		| "codex"
+		| "api"
+		| null;
+	readonly api?: CustomApiConfiguration;
 	readonly executable?: string;
 	/** Native provider value. Empty inherits provider settings; absent prefers Medium when supported. */
 	readonly effort?: string;
@@ -75,7 +83,7 @@ export class AiSettingsStore {
 	) {}
 
 	static credentialKey(
-		provider: "opencode" | "chatgpt",
+		provider: "opencode" | "chatgpt" | "api",
 		clientId = "",
 		id?: string
 	): string {
@@ -155,7 +163,8 @@ export class AiSettingsStore {
 				value.provider !== "opencode" &&
 				value.provider !== "chatgpt" &&
 				value.provider !== "claude-code" &&
-				value.provider !== "codex") ||
+				value.provider !== "codex" &&
+				value.provider !== "api") ||
 			!("opencodeMode" in value) ||
 			(value.opencodeMode !== "zen" &&
 				value.opencodeMode !== "go" &&
@@ -174,6 +183,12 @@ export class AiSettingsStore {
 		let id: string | undefined;
 		let chatgpt: AiPreferences["chatgpt"];
 		let executable: string | undefined;
+
+		const api =
+			value.provider === "api"
+				? CustomApi.configuration("api" in value ? value.api : undefined)
+				: undefined;
+
 		const effort = "effort" in value ? value.effort : undefined;
 
 		if (effort !== undefined && effort !== "" && !isEffort(effort))
@@ -260,6 +275,7 @@ export class AiSettingsStore {
 			...(chatgpt ? { chatgpt } : {}),
 			...(executable ? { executable } : {}),
 			...(typeof effort === "string" ? { effort } : {}),
+			...(api ? { api } : {}),
 		};
 	}
 
@@ -297,6 +313,7 @@ export class AiSettingsStore {
 			instructions: preferences.instructions,
 			...(preferences.chatgpt ? { chatgpt: preferences.chatgpt } : {}),
 			...(preferences.executable ? { executable: preferences.executable } : {}),
+			...(preferences.api ? { api: preferences.api } : {}),
 			...(preferences.effort !== undefined
 				? { effort: preferences.effort }
 				: {}),
