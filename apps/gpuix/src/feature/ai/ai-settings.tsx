@@ -209,13 +209,14 @@ function AiSettingsPanel({
 								</Button>
 							) : null}
 							<Button
+								variant="secondary"
 								testId="ai-add"
 								tokens={tokens}
 								size="sm"
 								disabled={locked || !!editing}
 								onPress={() => openEditor()}
 							>
-								Add account
+								Add connection
 							</Button>
 						</div>
 					}

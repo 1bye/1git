@@ -613,6 +613,7 @@ export function AccountsSettings({
 								descriptionTestId="accounts-description"
 								action={
 									<Button
+										variant="secondary"
 										testId="account-add"
 										ref={addButton}
 										size="sm"
