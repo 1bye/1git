@@ -21,7 +21,7 @@ use common::symlink;
 #[cfg(target_os = "macos")]
 use onegit_git::{ToolCommand, execute_tool};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 #[cfg(unix)]
 use std::sync::{Arc, mpsc};
 use std::time::Duration;
@@ -40,7 +40,7 @@ fn setup() -> (Fixture, Repository) {
 
 fn review(fixture: &Fixture, repository: &Repository, paths: &[&str]) -> DiscardFiles {
     DiscardFiles {
-        paths: paths.iter().map(PathBuf::from).collect(),
+        paths: paths.iter().map(common::git_path).collect(),
         allow_destructive: true,
         recovery: Some(DiscardRecovery {
             directory: fixture.temporary.path().join("recovery"),
@@ -254,9 +254,12 @@ fn discards_and_undoes_mixed_selected_states_without_touching_excluded_data() {
     assert_eq!(fixture.git(&["show", ":selected.txt"]), b"base\n");
     assert!(!fixture.root.join("new[1].bin").exists());
     assert_eq!(result.snapshot.status.files.len(), 1);
-    assert_eq!(result.snapshot.status.files[0].path, Path::new("keep.txt"));
+    assert_eq!(
+        result.snapshot.status.files[0].path,
+        common::git_path("keep.txt")
+    );
     assert!(result.recovery.complete);
-    assert_eq!(result.undo.path, Path::new("selected.txt"));
+    assert_eq!(result.undo.path, common::git_path("selected.txt"));
     assert_eq!(result.undo.token.len(), 36);
     assert_eq!(result.undo.token.as_bytes()[14], b'4');
     assert!(result.undo.expires_at.ends_with('Z'));
@@ -495,16 +498,14 @@ fn preflight_refuses_entire_stale_or_unsupported_batches_without_creating_backup
     cases.push(branch);
     let mut missing = valid.clone();
 
-    missing.paths.push("missing.txt".into());
+    missing.paths.push("missing.txt".try_into().unwrap());
     cases.push(missing);
-    let mut escape = valid.clone();
-
-    escape.paths.push("../outside".into());
-    cases.push(escape);
-    let mut normalized = valid.clone();
-
-    normalized.paths = vec!["./selected.txt".into()];
-    cases.push(normalized);
+    for path in ["../outside", "./selected.txt"] {
+        assert!(onegit_git::GitPath::new(path).is_err());
+    }
+    let mut metadata = valid.clone();
+    metadata.paths = vec![common::git_path(".git/config")];
+    cases.push(metadata);
     let before = common::files_under(&fixture.root);
 
     for request in cases {
@@ -799,7 +800,7 @@ fi"#,
     let writer = Arc::clone(&second);
 
     let queued = std::thread::spawn(move || {
-        let result = writer.stage(&["keep.txt".into()], None);
+        let result = writer.stage(&["keep.txt".try_into().unwrap()], None);
 
         sent.send(()).unwrap();
 
@@ -889,7 +890,10 @@ fn lower_request_uses_private_disk_recovery_and_newest_success_replaces_only_the
 
     fixture.write("selected.txt", "first\n");
     let request = DiscardFiles {
-        paths: vec!["selected.txt".into(), "selected.txt".into()],
+        paths: vec![
+            "selected.txt".try_into().unwrap(),
+            "selected.txt".try_into().unwrap(),
+        ],
         allow_destructive: true,
         recovery: None,
     };
@@ -1182,7 +1186,7 @@ fn lower_requests_preserve_rename_and_type_change_undo_semantics() {
         };
 
         let request = DiscardFiles {
-            paths: vec![path.into()],
+            paths: vec![path.try_into().unwrap()],
             allow_destructive: true,
             recovery: None,
         };

@@ -49,7 +49,7 @@ fn hash_file(path: &Path) -> [u8; 32] {
 fn request(
     fixture: &Fixture,
     repository: &Repository,
-    paths: Vec<std::path::PathBuf>,
+    paths: Vec<onegit_git::GitPath>,
 ) -> DiscardFiles {
     DiscardFiles {
         paths,
@@ -79,7 +79,11 @@ fn streamed_untracked_binary_patch_exceeds_capture_cap_and_preserves_the_real_in
 
     let result = repository
         .discard_files(
-            &request(&fixture, &repository, vec!["large[1].bin".into()]),
+            &request(
+                &fixture,
+                &repository,
+                vec!["large[1].bin".try_into().unwrap()],
+            ),
             None,
         )
         .unwrap();
@@ -123,7 +127,11 @@ fn separate_large_staged_and_working_patches_restore_distinct_states_with_undo()
 
     let result = repository
         .discard_files(
-            &request(&fixture, &repository, vec!["large-staged.bin".into()]),
+            &request(
+                &fixture,
+                &repository,
+                vec!["large-staged.bin".try_into().unwrap()],
+            ),
             None,
         )
         .unwrap();
@@ -166,7 +174,7 @@ fn discards_and_recovers_all_1148_bundle_files_links_and_empty_files_without_ind
         let path = format!("{bundle}/Resources/locale-{index}.pak");
 
         fixture.write(&path, &format!("file {index}\n"));
-        paths.push(path.into());
+        paths.push(common::git_path(path));
     }
 
     let binary = format!("{framework}/Versions/A/Example");
@@ -179,10 +187,10 @@ fn discards_and_recovers_all_1148_bundle_files_links_and_empty_files_without_ind
     symlink("A", fixture.root.join(&current)).unwrap();
     symlink("Versions/Current/Example", fixture.root.join(&link)).unwrap();
     paths.extend([
-        binary.clone().into(),
-        empty.clone().into(),
-        current.clone().into(),
-        link.clone().into(),
+        common::git_path(&binary),
+        common::git_path(&empty),
+        common::git_path(&current),
+        common::git_path(&link),
     ]);
     assert_eq!(paths.len(), 1148);
     let index = fs::read(fixture.root.join(".git/index")).unwrap();

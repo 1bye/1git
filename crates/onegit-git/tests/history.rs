@@ -6,7 +6,6 @@
 mod common;
 
 use std::fs;
-use std::path::{Path, PathBuf};
 
 use common::{Fixture, files_under};
 
@@ -155,7 +154,7 @@ fn follows_renames_across_pages_without_treating_path_contents_as_record_headers
                 HistoryOptions {
                     limit: 1,
                     offset,
-                    file_path: Some(Path::new(&current)),
+                    file_path: Some(&common::git_path(&current)),
                     ..Default::default()
                 },
                 None,
@@ -176,12 +175,12 @@ fn follows_renames_across_pages_without_treating_path_contents_as_record_headers
     );
     let rename = commits[1].history_file.as_ref().unwrap();
 
-    assert_eq!(rename.original_path.as_deref(), Some(Path::new(old)));
-    assert_eq!(rename.path, Path::new(&current));
+    assert_eq!(rename.original_path.as_ref(), Some(&common::git_path(old)));
+    assert_eq!(rename.path, common::git_path(&current));
     assert_eq!(rename.status, FileStatus::Renamed);
     assert_eq!(
         commits[2].history_file.as_ref().unwrap().path,
-        Path::new(old)
+        common::git_path(old)
     );
 }
 
@@ -195,7 +194,7 @@ fn reads_root_and_renamed_file_identities_and_uses_literal_history_filters() {
     fixture.commit("other");
 
     let repository = Repository::open(&fixture.root, fixture.process(), None).unwrap();
-    let paths = [PathBuf::from("literal*")];
+    let paths = [common::git_path("literal*")];
 
     let history = repository
         .history(
@@ -226,10 +225,10 @@ fn reads_root_and_renamed_file_identities_and_uses_literal_history_filters() {
 
     assert_eq!(files[0].status, FileStatus::Renamed);
     assert_eq!(
-        files[0].original_path.as_deref(),
-        Some(Path::new("literal*"))
+        files[0].original_path.as_ref(),
+        Some(&common::git_path("literal*"))
     );
-    assert_eq!(files[0].path, Path::new("renamed\t\nfile"));
+    assert_eq!(files[0].path, common::git_path("renamed\t\nfile"));
     assert_eq!(files[0].before_oid, files[0].after_oid);
 }
 
@@ -301,7 +300,7 @@ fn anchors_branch_comparisons_and_rejects_unrelated_history() {
     assert_eq!(comparison.base, base);
     assert_eq!(comparison.head, head);
     assert_eq!(comparison.merge_base, base);
-    assert_eq!(comparison.files[0].path, Path::new("incoming"));
+    assert_eq!(comparison.files[0].path, common::git_path("incoming"));
 
     fixture.git(&["checkout", "--orphan", "unrelated"]);
     fixture.write("other", "unrelated\n");
@@ -348,18 +347,7 @@ fn validates_history_inputs_and_preserves_all_files_during_reads() {
         Err(RepositoryError::InvalidInput(_))
     ));
 
-    let unsafe_paths = [PathBuf::from("../outside")];
-
-    assert!(matches!(
-        repository.history(
-            HistoryOptions {
-                paths: Some(&unsafe_paths),
-                ..Default::default()
-            },
-            None
-        ),
-        Err(RepositoryError::PathOutsideRepository)
-    ));
+    assert!(onegit_git::GitPath::new("../outside").is_err());
 
     let cancellation = Cancellation::default();
 

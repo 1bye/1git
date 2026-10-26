@@ -20,11 +20,11 @@ use onegit_git::{
 use onegit_git::{GitProcess, RepositoryCoordinator};
 
 #[cfg(unix)]
+use common::OsStrExt;
+#[cfg(unix)]
 use common::PermissionsExt;
 #[cfg(unix)]
 use common::symlink;
-#[cfg(unix)]
-use common::{OsStrExt, OsStringExt};
 #[cfg(unix)]
 use std::ffi::CString;
 use std::ffi::OsString;
@@ -37,7 +37,7 @@ use std::time::{Duration, Instant};
 
 fn request(repository: &Repository, path: &str, rule: IgnoreRule) -> IgnoreFile {
     IgnoreFile {
-        path: path.into(),
+        path: path.try_into().unwrap(),
         rule,
         expected: BranchIdentity::from_snapshot(&repository.snapshot(false, None).unwrap()),
     }
@@ -110,7 +110,10 @@ fn public_suggestions_and_patterns_match_all_actual_typescript_cases() {
             case["folders"],
             "{case}"
         );
-        let actual = ignore_pattern(Path::new(path), &rule);
+        let actual = match onegit_git::GitPath::new(path) {
+            Ok(path) => ignore_pattern(&path, &rule),
+            Err(_) => Err(RepositoryError::InvalidPath),
+        };
 
         assert_eq!(
             actual.is_err(),
@@ -203,7 +206,7 @@ fn literal_rule_ignores_only_the_exact_path_and_keeps_all_working_bytes() {
             .status
             .files
             .iter()
-            .any(|file| file.path == Path::new("src/file1.tsx"))
+            .any(|file| file.path == common::git_path("src/file1.tsx"))
     );
     let input = format!("{path}\0");
     let mut command = GitCommand::new(&fixture.root, ["check-ignore", "-z", "--stdin"]);
@@ -312,7 +315,10 @@ fn unborn_and_detached_reviews_keep_head_and_index_unchanged() {
 
         assert_eq!(BranchIdentity::from_snapshot(&snapshot), request.expected);
         assert_eq!(snapshot.status.files.len(), 1);
-        assert_eq!(snapshot.status.files[0].path, Path::new(".gitignore"));
+        assert_eq!(
+            snapshot.status.files[0].path,
+            common::git_path(".gitignore")
+        );
         assert_eq!(common::files_under(&fixture.root.join(".git")), before);
     }
 }
@@ -329,13 +335,13 @@ fn stale_head_branch_missing_selection_and_invalid_inputs_do_not_create_ignore_f
     stale_branch.expected.branch = Some("other".into());
     let mut absent = valid.clone();
 
-    absent.path = "absent".into();
+    absent.path = "absent".try_into().unwrap();
     let mut invalid = valid.clone();
 
-    invalid.path = "a\n*.txt".into();
+    invalid.path = "a\n*.txt".try_into().unwrap();
     let mut non_utf8 = valid.clone();
 
-    non_utf8.path = OsString::from_vec(vec![b'x', 255]).into();
+    non_utf8.path = common::git_path([b'x', 255]);
     let mut unrelated = valid.clone();
 
     unrelated.rule = IgnoreRule::Folder("elsewhere".into());
@@ -749,7 +755,7 @@ fi"#,
     let writer = Arc::clone(&second);
 
     let second_worker = std::thread::spawn(move || {
-        let result = writer.stage(&["selected.txt".into()], None);
+        let result = writer.stage(&["selected.txt".try_into().unwrap()], None);
 
         finished.send(()).unwrap();
 

@@ -1,7 +1,8 @@
 //! Patch/stat previews. Changes owns a temporary index and never stages working content.
 
+use crate::GitPath;
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use super::{Repository, RepositoryError};
 use crate::output::{path, text, trim};
@@ -35,7 +36,7 @@ pub struct DiffOptions<'a> {
     /// Requested source.
     pub target: DiffTarget,
     /// Optional non-empty repository-relative path filter.
-    pub paths: Option<&'a [PathBuf]>,
+    pub paths: Option<&'a [GitPath]>,
     /// Unified context, from 0 through i32::MAX.
     pub context_lines: u32,
     /// Ignore whitespace in the patch; statistics retain the legacy unfiltered counts.
@@ -58,9 +59,9 @@ impl DiffOptions<'_> {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DiffStat {
     /// Current path.
-    pub path: PathBuf,
+    pub path: GitPath,
     /// Original name for rename/copy stats.
-    pub original_path: Option<PathBuf>,
+    pub original_path: Option<GitPath>,
     /// Added line count, absent for binary data.
     pub added_lines: Option<u64>,
     /// Deleted line count, absent for binary data.
@@ -113,7 +114,7 @@ impl Repository {
         }
 
         if let Some(paths) = options.paths {
-            require_paths(paths.iter().map(PathBuf::as_path))?;
+            require_paths(paths.iter())?;
         }
 
         match &options.target {
@@ -173,7 +174,7 @@ impl Repository {
                     "-z".into(),
                 ];
 
-                add_paths(&mut args, options.paths);
+                add_paths(&mut args, options.paths)?;
 
                 let entries = self.diff_run(args, None, &[], cancellation)?;
 
@@ -226,18 +227,18 @@ impl Repository {
         cancellation: Option<&Cancellation>,
     ) -> Result<FileDiff, RepositoryError> {
         let counts = self.diff_run(
-            diff_arguments(options, true, head),
+            diff_arguments(options, true, head)?,
             index,
             &[],
             cancellation,
         )?;
 
-        let stats = parse_stats(&counts.stdout)?;
+        let stats = parse_stats(&counts.stdout, None)?;
         let tracked_stats = stats.clone();
 
         let result = (|| {
             let patch = self.diff_run(
-                diff_arguments(options, false, head),
+                diff_arguments(options, false, head)?,
                 index,
                 &[],
                 cancellation,
@@ -263,7 +264,7 @@ impl Repository {
                     "-z".into(),
                 ];
 
-                add_paths(&mut args, options.paths);
+                add_paths(&mut args, options.paths)?;
 
                 let output = self.diff_run(args, index, &[], cancellation)?;
 
@@ -282,11 +283,7 @@ impl Repository {
 
                     append_patch(&mut patch, &text(&part), self.process.output_limit())?;
 
-                    for mut stat in parse_stats(&count)? {
-                        stat.path = file.clone();
-                        stat.original_path = None;
-                        stats.push(stat);
-                    }
+                    stats.extend(parse_stats(&count, Some(&file))?);
                 }
             }
 
@@ -312,7 +309,7 @@ impl Repository {
 
     fn untracked_diff(
         &self,
-        file: &Path,
+        file: &GitPath,
         options: &DiffOptions<'_>,
         counts: bool,
         cancellation: Option<&Cancellation>,
@@ -340,7 +337,7 @@ impl Repository {
             args.push("--ignore-all-space".into());
         }
 
-        args.extend(["--".into(), "/dev/null".into(), file.as_os_str().to_owned()]);
+        args.extend(["--".into(), "/dev/null".into(), file.to_argument()?]);
 
         match self.diff_run(args, None, &[], cancellation) {
             Ok(output) => Ok(output.stdout),
@@ -354,7 +351,11 @@ impl Repository {
     }
 }
 
-fn diff_arguments(options: &DiffOptions<'_>, counts: bool, head: Option<&str>) -> Vec<OsString> {
+fn diff_arguments(
+    options: &DiffOptions<'_>,
+    counts: bool,
+    head: Option<&str>,
+) -> Result<Vec<OsString>, RepositoryError> {
     let commit = matches!(options.target, DiffTarget::Commit(_));
 
     let mut args: Vec<OsString> = [
@@ -409,17 +410,21 @@ fn diff_arguments(options: &DiffOptions<'_>, counts: bool, head: Option<&str>) -
         DiffTarget::Working => {}
     }
 
-    add_paths(&mut args, options.paths);
+    add_paths(&mut args, options.paths)?;
 
-    args
+    Ok(args)
 }
 
-fn add_paths(args: &mut Vec<OsString>, paths: Option<&[PathBuf]>) {
+fn add_paths(args: &mut Vec<OsString>, paths: Option<&[GitPath]>) -> Result<(), RepositoryError> {
     args.push("--".into());
 
     if let Some(paths) = paths {
-        args.extend(paths.iter().map(|path| path.as_os_str().to_owned()));
+        for path in paths {
+            args.push(path.to_argument()?);
+        }
     }
+
+    Ok(())
 }
 
 fn append_patch(output: &mut String, patch: &str, limit: usize) -> Result<(), GitError> {
@@ -443,7 +448,10 @@ fn append_patch(output: &mut String, patch: &str, limit: usize) -> Result<(), Gi
     Ok(())
 }
 
-fn parse_stats(bytes: &[u8]) -> Result<Vec<DiffStat>, RepositoryError> {
+fn parse_stats(
+    bytes: &[u8],
+    untracked: Option<&GitPath>,
+) -> Result<Vec<DiffStat>, RepositoryError> {
     if !bytes.is_empty() && !bytes.ends_with(&[0]) {
         return Err(RepositoryError::InvalidOutput);
     }
@@ -472,14 +480,23 @@ fn parse_stats(bytes: &[u8]) -> Result<Vec<DiffStat>, RepositoryError> {
                 .filter(|path| !path.is_empty())
                 .ok_or(RepositoryError::InvalidOutput)?;
 
-            (Some(path(original)?), current)
+            (Some(original), current)
         } else {
             (None, inline)
         };
 
         stats.push(DiffStat {
-            path: path(current)?,
-            original_path,
+            // No-index output can name the native /dev/null sentinel. The caller
+            // already knows the exact selected Git name for untracked counts.
+            path: match untracked {
+                Some(file) => file.clone(),
+                None => path(current)?,
+            },
+            original_path: if untracked.is_some() {
+                None
+            } else {
+                original_path.map(path).transpose()?
+            },
             added_lines,
             deleted_lines,
         });
@@ -507,26 +524,39 @@ fn count(bytes: &[u8]) -> Result<Option<u64>, RepositoryError> {
 #[cfg(test)]
 mod tests {
 
-    #[cfg(unix)]
     use super::parse_stats;
 
-    #[cfg(unix)]
     #[test]
     fn numstat_preserves_tab_newline_and_non_utf8_paths_and_rejects_partial_records() {
-        let stats = parse_stats(b"12\t3\tname\t\n\xff\0-\t-\timage\0").unwrap();
+        let stats = parse_stats(b"12\t3\tname\t\n\xff\0-\t-\timage\0", None).unwrap();
 
-        assert_eq!(
-            crate::platform::path_to_git_bytes(stats[0].path.as_os_str())
-                .unwrap()
-                .as_ref(),
-            b"name\t\n\xff"
-        );
+        assert_eq!(stats[0].path.as_bytes(), b"name\t\n\xff");
         assert_eq!(
             (stats[0].added_lines, stats[0].deleted_lines),
             (Some(12), Some(3))
         );
         assert_eq!((stats[1].added_lines, stats[1].deleted_lines), (None, None));
-        assert!(parse_stats(b"1\t2\t\0only-old\0").is_err());
-        assert!(parse_stats(b"1\t2\tmissing-terminator").is_err());
+        assert!(parse_stats(b"1\t2\t\0only-old\0", None).is_err());
+        assert!(parse_stats(b"1\t2\tmissing-terminator", None).is_err());
+    }
+
+    #[test]
+    fn numstat_keeps_reserved_colon_and_literal_backslash_git_names() {
+        let stats = parse_stats(b"1\t2\taux.c\0-\t-\ta:b\0", None).unwrap();
+        assert_eq!(stats[0].path.as_bytes(), b"aux.c");
+        assert_eq!(stats[1].path.as_bytes(), b"a:b");
+        let renamed = parse_stats(b"1\t0\t\0folder\\file\0folder/file\0", None).unwrap();
+        assert_eq!(
+            renamed[0].original_path.as_ref().unwrap().as_bytes(),
+            b"folder\\file"
+        );
+        assert_eq!(renamed[0].path.as_bytes(), b"folder/file");
+        assert_ne!(renamed[0].original_path.as_ref().unwrap(), &renamed[0].path);
+        let literal = parse_stats(b"1\t0\tfolder\\file\0", None).unwrap();
+        assert_eq!(literal[0].path.as_bytes(), b"folder\\file");
+        let selected = crate::GitPath::new(b"folder\\file").unwrap();
+        let untracked = parse_stats(b"1\t0\t\0/dev/null\0folder\\file\0", Some(&selected)).unwrap();
+        assert_eq!(untracked[0].path, selected);
+        assert_eq!(untracked[0].original_path, None);
     }
 }

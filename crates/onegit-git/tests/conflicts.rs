@@ -18,6 +18,7 @@ use onegit_git::{GitError, GitProcess, RepositoryCoordinator};
 use common::PermissionsExt;
 use common::symlink;
 use std::fs;
+#[cfg(unix)]
 use std::path::Path;
 #[cfg(unix)]
 use std::sync::{Arc, mpsc};
@@ -48,10 +49,10 @@ fn paused(path: &str) -> (Fixture, Repository) {
 
 fn request(repository: &Repository, path: &str, side: Option<ConflictSide>) -> ResolveConflict {
     ResolveConflict {
-        path: path.into(),
+        path: path.try_into().unwrap(),
         expected: BranchIdentity::from_snapshot(&repository.snapshot(false, None).unwrap()),
         content_hash: repository
-            .conflict_preview(Path::new(path), None)
+            .conflict_preview(&common::git_path(path), None)
             .unwrap()
             .unwrap()
             .content_hash,
@@ -105,7 +106,7 @@ fn previews_preserve_exact_text_hash_and_never_change_git_or_working_bytes() {
     let files_before = common::files_under(&fixture.root);
 
     let preview = repository
-        .conflict_preview(Path::new("shared"), None)
+        .conflict_preview(&common::git_path("shared"), None)
         .unwrap()
         .unwrap();
 
@@ -132,7 +133,7 @@ fn preview_boundaries_distinguish_unsupported_text_errors_and_cancellation() {
         fs::write(fixture.root.join("shared"), bytes).unwrap();
         assert!(
             repository
-                .conflict_preview(Path::new("shared"), None)
+                .conflict_preview(&common::git_path("shared"), None)
                 .unwrap()
                 .is_none()
         );
@@ -141,7 +142,7 @@ fn preview_boundaries_distinguish_unsupported_text_errors_and_cancellation() {
     fixture.write("shared", &"x".repeat(512 * 1024));
     assert_eq!(
         repository
-            .conflict_preview(Path::new("shared"), None)
+            .conflict_preview(&common::git_path("shared"), None)
             .unwrap()
             .unwrap()
             .text
@@ -151,7 +152,7 @@ fn preview_boundaries_distinguish_unsupported_text_errors_and_cancellation() {
     fixture.write("shared", &"x".repeat(10 * 1024 * 1024 + 1));
     assert!(
         repository
-            .conflict_preview(Path::new("shared"), None)
+            .conflict_preview(&common::git_path("shared"), None)
             .is_err()
     );
     let cancellation = Cancellation::default();
@@ -159,7 +160,7 @@ fn preview_boundaries_distinguish_unsupported_text_errors_and_cancellation() {
     cancellation.cancel();
     assert!(
         repository
-            .conflict_preview(Path::new("shared"), Some(&cancellation))
+            .conflict_preview(&common::git_path("shared"), Some(&cancellation))
             .is_err()
     );
 }

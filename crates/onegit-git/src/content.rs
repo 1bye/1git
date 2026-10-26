@@ -1,9 +1,10 @@
 //! Bounded file previews, with descriptor-relative access beneath the opened working tree.
 
+use crate::GitPath;
 use std::ffi::OsString;
 use std::fs::{self, File};
 use std::io::Read;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use super::{Repository, RepositoryError};
 use crate::output::{text, trim};
@@ -46,7 +47,7 @@ pub enum FileSource<'a> {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FileContent {
     /// Requested repository-relative path, preserving exact Unix bytes.
-    pub path: PathBuf,
+    pub path: GitPath,
     /// WORKTREE for current content, otherwise the resolved blob object ID.
     pub revision: String,
     /// Exact decoded text or original binary bytes.
@@ -70,7 +71,7 @@ impl Repository {
     pub fn file_content(
         &self,
         source: FileSource<'_>,
-        requested: &Path,
+        requested: &GitPath,
         cancellation: Option<&Cancellation>,
     ) -> Result<FileContent, RepositoryError> {
         self.mutations.wait_for_pending();
@@ -88,7 +89,7 @@ impl Repository {
                 let mut object = OsString::from(revision);
 
                 object.push(":");
-                object.push(requested);
+                object.push(requested.to_argument()?);
 
                 self.blob(&object, cancellation)?
             }
@@ -105,7 +106,7 @@ impl Repository {
         };
 
         Ok(FileContent {
-            path: requested.into(),
+            path: requested.clone(),
             revision,
             content,
         })
@@ -159,7 +160,7 @@ impl Repository {
 
     fn working_file(
         &self,
-        requested: &Path,
+        requested: &GitPath,
         cancellation: Option<&Cancellation>,
     ) -> Result<Vec<u8>, RepositoryError> {
         let root_metadata = fs::symlink_metadata(&self.info.root)?;
@@ -173,8 +174,7 @@ impl Repository {
             ));
         }
 
-        crate::platform::validate_relative_filesystem_path(requested)?;
-        let resolved = fs::canonicalize(self.info.root.join(requested))?;
+        let resolved = fs::canonicalize(self.info.root.join(requested.to_native()?))?;
 
         let relative = resolved
             .strip_prefix(&self.info.root)
@@ -209,10 +209,18 @@ impl Repository {
     }
 
     fn open_preview(&self, relative: &Path) -> Result<File, RepositoryError> {
-        self.open_working_file(relative, false)
+        self.open_native_working_file(relative, false)
     }
 
     pub(super) fn open_working_file(
+        &self,
+        relative: &GitPath,
+        writable: bool,
+    ) -> Result<File, RepositoryError> {
+        self.open_native_working_file(&relative.to_native()?, writable)
+    }
+
+    fn open_native_working_file(
         &self,
         relative: &Path,
         writable: bool,

@@ -1,6 +1,7 @@
 //! Disk-backed discard and short-lived undo. The repository session owns its latest
 //! undo token; private recovery files outlive the session, expiry and all failures.
 
+use crate::GitPath;
 mod patches;
 mod recovery;
 
@@ -28,7 +29,7 @@ pub struct DiscardRecovery {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DiscardFiles {
     /// Exact selected paths, with duplicate entries permitted.
-    pub paths: Vec<PathBuf>,
+    pub paths: Vec<GitPath>,
     /// Mandatory explicit permission for the destructive steps.
     pub allow_destructive: bool,
     /// Reviewed app preflight. None uses a private persistent OS-temporary backup.
@@ -51,7 +52,7 @@ pub struct DiscardUndo {
     /// Compatible UUIDv4, independent of the recovery directory name.
     pub token: String,
     /// First selected file in snapshot order.
-    pub path: PathBuf,
+    pub path: GitPath,
     /// UTC ISO-8601 milliseconds, matching the existing wire representation.
     pub expires_at: String,
 }

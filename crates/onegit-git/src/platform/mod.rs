@@ -110,7 +110,7 @@ mod tests {
     #[test]
     fn unicode_paths_round_trip_without_loss() {
         let bytes = "folder/été 文件.txt".as_bytes();
-        let path = path_from_git_bytes(bytes).unwrap();
+        let path = crate::GitPath::new(bytes).unwrap().to_native().unwrap();
 
         assert_eq!(path_to_git_bytes(path.as_os_str()).unwrap().as_ref(), bytes);
     }
@@ -119,7 +119,7 @@ mod tests {
     #[test]
     fn unix_git_paths_preserve_non_utf8_and_control_bytes() {
         let bytes = b"folder/tab\tnewline\n\xff";
-        let path = path_from_git_bytes(bytes).unwrap();
+        let path = crate::GitPath::new(bytes).unwrap().to_native().unwrap();
 
         assert_eq!(path_to_git_bytes(path.as_os_str()).unwrap().as_ref(), bytes);
     }
@@ -172,83 +172,17 @@ mod windows_policy {
     use super::PathEncodingError;
     use std::borrow::Cow;
 
-    // Escape the marker itself as well, so a real private-use character cannot
-    // alias an encoded backslash. Both escapes stay inside one native component.
-    pub(super) const GIT_ESCAPE: char = '\u{e000}';
-
-    pub(super) fn relative_git_path(text: &str) -> Result<Cow<'_, str>, PathEncodingError> {
-        if text.contains('\0') || text.split('/').any(|part| matches!(part, "" | "." | "..")) {
-            return Err(PathEncodingError);
-        }
-
-        if drive_prefix(text) && (text.len() == 2 || text.as_bytes().get(2) == Some(&b'/')) {
-            return Err(PathEncodingError);
-        }
-
-        let mut encoded = if text.contains(['\\', GIT_ESCAPE]) {
-            let mut encoded = String::with_capacity(text.len());
-            for character in text.chars() {
-                match character {
-                    '\\' => {
-                        encoded.push(GIT_ESCAPE);
-                        encoded.push('b');
-                    }
-                    GIT_ESCAPE => {
-                        encoded.push(GIT_ESCAPE);
-                        encoded.push('e');
-                    }
-                    _ => encoded.push(character),
-                }
-            }
-            Cow::Owned(encoded)
+    pub(super) fn native_git_path(text: &str) -> Result<&str, PathEncodingError> {
+        if text
+            .strip_suffix('/')
+            .unwrap_or(text)
+            .split('/')
+            .all(component_representable)
+        {
+            Ok(text)
         } else {
-            Cow::Borrowed(text)
-        };
-
-        if drive_prefix(&encoded) {
-            // Windows: PathBuf cannot hold a literal drive-like name without a guard.
-            // All relative decoders share this representation; Git-byte encoding removes it.
-            encoded = Cow::Owned(format!(".\\{encoded}"));
+            Err(PathEncodingError)
         }
-
-        Ok(encoded)
-    }
-
-    pub(super) fn git_path_text(path: &str) -> Result<Cow<'_, str>, PathEncodingError> {
-        let text = path
-            .strip_prefix(".\\")
-            .filter(|tail| drive_prefix(tail))
-            .unwrap_or(path);
-        let normalized = if let Some(unc) = text.strip_prefix("\\\\?\\UNC\\") {
-            Cow::Owned(format!("//{}", unc.replace('\\', "/")))
-        } else {
-            let text = text.strip_prefix("\\\\?\\").unwrap_or(text);
-            if text.contains('\\') {
-                Cow::Owned(text.replace('\\', "/"))
-            } else {
-                Cow::Borrowed(text)
-            }
-        };
-
-        if !normalized.contains(GIT_ESCAPE) {
-            return Ok(normalized);
-        }
-
-        let mut decoded = String::with_capacity(normalized.len());
-        let mut characters = normalized.chars();
-        while let Some(character) = characters.next() {
-            if character != GIT_ESCAPE {
-                decoded.push(character);
-                continue;
-            }
-            match characters.next() {
-                Some('b') => decoded.push('\\'),
-                Some('e') => decoded.push(GIT_ESCAPE),
-                _ => return Err(PathEncodingError),
-            }
-        }
-
-        Ok(Cow::Owned(decoded))
     }
 
     #[derive(Debug)]
@@ -285,7 +219,7 @@ mod windows_policy {
     }
 
     pub(super) fn component_representable(part: &str) -> bool {
-        if matches!(part, "" | "." | "..") || part.contains(GIT_ESCAPE) {
+        if matches!(part, "" | "." | "..") {
             return false;
         }
         if part.ends_with(['.', ' '])
@@ -355,18 +289,10 @@ mod windows_policy {
         #[test]
         fn display_names_are_separate_from_filesystem_representability() {
             for name in ["aux.c", "con.h", "a:b", "trailing.", "name ", "tab\tname"] {
-                assert!(relative_git_path(name).is_ok(), "{name}");
+                assert!(crate::GitPath::new(name).is_ok(), "{name}");
                 assert!(!component_representable(name), "{name}");
             }
             assert!(component_representable("été.txt"));
-        }
-
-        #[test]
-        fn relative_decode_rejects_roots_and_guards_drive_relative_display_names() {
-            for name in ["c:/x", "c:", "/x", "//server/share/x"] {
-                assert!(relative_git_path(name).is_err(), "{name}");
-            }
-            assert_eq!(relative_git_path("a:b").unwrap(), ".\\a:b");
         }
 
         #[test]
@@ -416,74 +342,6 @@ mod windows_policy {
             id[15] = 1;
             assert!(valid_file_id(&id));
         }
-        #[test]
-        fn backslashes_and_the_escape_character_round_trip_without_aliasing() {
-            let names = [
-                "folder\\file",
-                "folder/file",
-                "\\file",
-                "C:\\file",
-                "folder\u{e000}bfile",
-                "folder\u{e000}file",
-                ".\\a:b",
-                "a:b",
-            ];
-            let mut components = std::collections::HashMap::new();
-            for name in names {
-                let encoded = relative_git_path(name).unwrap();
-                assert_eq!(git_path_text(&encoded).unwrap(), name);
-                let key: Vec<_> = encoded
-                    .split(['/', '\\'])
-                    .filter(|part| !matches!(*part, "" | "."))
-                    .map(str::to_owned)
-                    .collect();
-                assert!(components.insert(key, name).is_none(), "{name}");
-            }
-            assert!(!component_representable(
-                &relative_git_path("folder\\file").unwrap()
-            ));
-            assert!(!component_representable(
-                &relative_git_path("folder\u{e000}file").unwrap()
-            ));
-        }
-
-        #[test]
-        fn short_git_names_have_injective_native_components_and_lossless_encoding() {
-            let parts = ["", "a", ":", ".", "/", "\\", "\u{e000}", "b", "e"];
-            let mut components = std::collections::HashMap::new();
-            for first in parts {
-                for second in parts {
-                    for third in parts {
-                        let name = format!("{first}{second}{third}");
-                        let Ok(encoded) = relative_git_path(&name) else {
-                            continue;
-                        };
-                        assert_eq!(git_path_text(&encoded).unwrap(), name);
-                        let key: Vec<_> = encoded
-                            .split(['/', '\\'])
-                            .filter(|part| !matches!(*part, "" | "."))
-                            .map(str::to_owned)
-                            .collect();
-                        if let Some(previous) = components.insert(key, name.clone()) {
-                            assert_eq!(previous, name);
-                        }
-                    }
-                }
-            }
-            for invalid in [
-                "",
-                ".",
-                "..",
-                "folder//file",
-                "folder/./file",
-                "folder/../file",
-            ] {
-                assert!(relative_git_path(invalid).is_err(), "{invalid}");
-            }
-            for invalid in ["\u{e000}", "name\u{e000}x"] {
-                assert!(git_path_text(invalid).is_err());
-            }
-        }
 
         #[test]
         fn entry_name_query_failures_cannot_be_mistaken_for_missing_entries() {
@@ -500,6 +358,27 @@ mod windows_policy {
             assert_eq!(
                 verified_entry_name(Ok(false)).unwrap_err().kind(),
                 std::io::ErrorKind::InvalidInput
+            );
+        }
+        #[test]
+        fn native_git_paths_reject_unrepresentable_components_without_transport_escapes() {
+            for path in [
+                "c:/x",
+                "C:\\x",
+                "c:",
+                "/x",
+                "\\x",
+                "//server/share/x",
+                "\\\\?\\C:\\x",
+                "a:b",
+                "folder\\file",
+                "aux.c",
+            ] {
+                assert!(native_git_path(path).is_err(), "{path}");
+            }
+            assert_eq!(
+                native_git_path("folder/file.txt").unwrap(),
+                "folder/file.txt"
             );
         }
     }

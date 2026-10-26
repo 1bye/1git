@@ -100,7 +100,7 @@ fn reads_fresh_mixed_state_without_writing_the_index_files_or_refs() {
         .status
         .files
         .iter()
-        .find(|file| file.path == Path::new("tracked"))
+        .find(|file| file.path == common::git_path("tracked"))
         .unwrap();
 
     assert_eq!(tracked.index_status, FileStatus::Modified);

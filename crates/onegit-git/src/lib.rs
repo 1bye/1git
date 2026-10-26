@@ -1,9 +1,13 @@
 //! Git CLI execution and repository rules, independent of GPUI and a JavaScript runtime.
 //!
+//! Repository-relative names use [`GitPath`] with exact Git bytes; repository roots and
+//! destinations remain native filesystem paths.
+//!
 //! Execution is blocking: callers must run it on an owned background worker, retain its
 //! cancellation handle and observe completion before cleaning up indexes or write locks.
 
 mod failure;
+mod git_path;
 mod output;
 mod partial_patch;
 mod platform;
@@ -13,6 +17,7 @@ mod status;
 mod validation;
 
 pub use failure::{ErrorCode, Failure, Operation};
+pub use git_path::{GitPath, GitPathError};
 pub use partial_patch::{PartialPatch, PartialPatchError};
 
 pub use process::{

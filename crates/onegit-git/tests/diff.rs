@@ -65,10 +65,10 @@ fn matches_frozen_legacy_diff_service_results_without_modifying_repositories() {
             other => panic!("unknown reference target {other}"),
         };
 
-        let paths: Option<Vec<PathBuf>> = input["paths"].as_array().map(|paths| {
+        let paths: Option<Vec<onegit_git::GitPath>> = input["paths"].as_array().map(|paths| {
             paths
                 .iter()
-                .map(|path| PathBuf::from(path.as_str().unwrap()))
+                .map(|path| common::git_path(path.as_str().unwrap()))
                 .collect()
         });
 
@@ -145,18 +145,18 @@ fn preserves_binary_and_renamed_paths_and_never_runs_external_converters() {
     let renamed = diff
         .stats
         .iter()
-        .find(|stat| stat.path == Path::new("new\t\nname"))
+        .find(|stat| stat.path == common::git_path("new\t\nname"))
         .unwrap();
 
     let binary = diff
         .stats
         .iter()
-        .find(|stat| stat.path == Path::new("binary"))
+        .find(|stat| stat.path == common::git_path("binary"))
         .unwrap();
 
     assert_eq!(
-        renamed.original_path.as_deref(),
-        Some(Path::new("old\t\nname"))
+        renamed.original_path.as_ref(),
+        Some(&common::git_path("old\t\nname"))
     );
     assert_eq!(renamed.added_lines, Some(1));
     assert!(binary.added_lines.is_none());

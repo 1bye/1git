@@ -11,6 +11,7 @@ use std::collections::BTreeSet;
 use std::fs;
 #[cfg(unix)]
 use std::path::Path;
+#[cfg(unix)]
 use std::path::PathBuf;
 #[cfg(unix)]
 use std::sync::{Arc, mpsc};
@@ -103,8 +104,12 @@ exec git "$@""#,
             repo.unpushed_commits(&[], None).unwrap();
         },
         |repo| {
-            repo.file_content(onegit_git::FileSource::Working, Path::new("base"), None)
-                .unwrap();
+            repo.file_content(
+                onegit_git::FileSource::Working,
+                &common::git_path("base"),
+                None,
+            )
+            .unwrap();
         },
         |repo| {
             repo.diff(
@@ -152,7 +157,7 @@ exec git "$@""#,
     });
 }
 
-fn staged(repository: &Repository) -> BTreeSet<PathBuf> {
+fn staged(repository: &Repository) -> BTreeSet<onegit_git::GitPath> {
     repository
         .snapshot(false, None)
         .unwrap()
@@ -208,14 +213,22 @@ fn stages_and_unstages_selected_paths_without_touching_working_bytes_or_other_st
     let other = fixture.git(&["ls-files", "--stage", "--", "two"]);
 
     repository
-        .stage(&["one".into(), "one".into()], None)
+        .stage(
+            &["one".try_into().unwrap(), "one".try_into().unwrap()],
+            None,
+        )
         .unwrap();
     assert_eq!(
         staged(&repository),
-        BTreeSet::from(["one".into(), "two".into()])
+        BTreeSet::from(["one".try_into().unwrap(), "two".try_into().unwrap()])
     );
-    repository.unstage(&["one".into()], None).unwrap();
-    assert_eq!(staged(&repository), BTreeSet::from(["two".into()]));
+    repository
+        .unstage(&["one".try_into().unwrap()], None)
+        .unwrap();
+    assert_eq!(
+        staged(&repository),
+        BTreeSet::from(["two".try_into().unwrap()])
+    );
     assert_eq!(fixture.git(&["ls-files", "--stage", "--", "two"]), other);
     let after = files_under(&fixture.root);
 
@@ -233,8 +246,13 @@ fn handles_all_and_selected_unstaging_on_unborn_and_committed_branches() {
     let repository = Repository::open(&fixture.root, fixture.process(), None).unwrap();
 
     assert!(repository.stage_all(None).unwrap().status.head.is_unborn());
-    repository.unstage(&["one".into()], None).unwrap();
-    assert_eq!(staged(&repository), BTreeSet::from(["two".into()]));
+    repository
+        .unstage(&["one".try_into().unwrap()], None)
+        .unwrap();
+    assert_eq!(
+        staged(&repository),
+        BTreeSet::from(["two".try_into().unwrap()])
+    );
     repository.unstage_all(None).unwrap();
     assert!(staged(&repository).is_empty());
     fixture.commit("initial");
@@ -258,9 +276,12 @@ fn treats_magic_globs_options_unicode_and_control_characters_as_literal_paths() 
     fixture.write("other-unselected", "keep unstaged\n");
     let repository = Repository::open(&fixture.root, fixture.process(), None).unwrap();
 
-    repository.stage(&["*".into()], None).unwrap();
-    assert_eq!(staged(&repository), BTreeSet::from(["*".into()]));
-    let paths: Vec<_> = names.iter().map(PathBuf::from).collect();
+    repository.stage(&["*".try_into().unwrap()], None).unwrap();
+    assert_eq!(
+        staged(&repository),
+        BTreeSet::from(["*".try_into().unwrap()])
+    );
+    let paths: Vec<_> = names.iter().map(common::git_path).collect();
 
     repository.stage(&paths, None).unwrap();
     assert_eq!(staged(&repository), paths.iter().cloned().collect());
@@ -278,12 +299,10 @@ fn rejects_invalid_cancelled_and_foreign_locked_writes_without_changing_files() 
     let repository = Repository::open(&fixture.root, fixture.process(), None).unwrap();
     let before = files_under(&fixture.root);
 
-    for paths in [
-        vec![],
-        vec![PathBuf::from("../outside")],
-        vec![fixture.root.join("one")],
-        vec![PathBuf::from("nul\0name")],
-    ] {
+    for path in ["../outside", "/absolute", "nul\0name"] {
+        assert!(onegit_git::GitPath::new(path).is_err());
+    }
+    for paths in [vec![], vec![common::git_path(".git/config")]] {
         let error = repository.stage(&paths, None).unwrap_err();
 
         assert_eq!(error.phase, WritePhase::BeforeCommand);
@@ -457,15 +476,15 @@ exec git "$@""#,
     let common = first.info().common_directory.clone();
 
     std::thread::scope(|scope| {
-        let a = scope.spawn(|| first.stage(&["one".into()], None));
+        let a = scope.spawn(|| first.stage(&["one".try_into().unwrap()], None));
 
         wait_until("first writer did not start", || marker.exists());
-        let b = scope.spawn(|| second.stage(&["two".into()], None));
+        let b = scope.spawn(|| second.stage(&["two".try_into().unwrap()], None));
 
         wait_until("second writer did not queue", || {
             coordinator.pending_writes(&common) == 2
         });
-        let c = scope.spawn(|| third.stage(&["three".into()], None));
+        let c = scope.spawn(|| third.stage(&["three".try_into().unwrap()], None));
 
         wait_until("related worktree writer did not queue", || {
             coordinator.pending_writes(&common) == 3
@@ -510,7 +529,10 @@ exec git "$@""#,
     });
     assert_eq!(fs::read_to_string(log).unwrap(), "A\nB\nC\n");
     assert_eq!(coordinator.pending_writes(&common), 0);
-    assert_eq!(staged(&third), BTreeSet::from(["three".into()]));
+    assert_eq!(
+        staged(&third),
+        BTreeSet::from(["three".try_into().unwrap()])
+    );
 }
 
 #[test]
@@ -572,17 +594,17 @@ exec git "$@""#,
     let cancellation = Cancellation::default();
 
     std::thread::scope(|scope| {
-        let a = scope.spawn(|| first.stage(&["one".into()], None));
+        let a = scope.spawn(|| first.stage(&["one".try_into().unwrap()], None));
 
         wait_until("successful add did not enter refresh", || marker.exists());
         assert_eq!(fixture.git(&["ls-files", "--", "one"]), b"one\n");
-        let b = scope.spawn(|| second.stage(&["two".into()], Some(&cancellation)));
+        let b = scope.spawn(|| second.stage(&["two".try_into().unwrap()], Some(&cancellation)));
 
         wait_until("second writer not queued", || {
             coordinator.pending_writes(&common) == 2
         });
         cancellation.cancel();
-        let c = scope.spawn(|| third.stage(&["two".into()], None));
+        let c = scope.spawn(|| third.stage(&["two".try_into().unwrap()], None));
 
         wait_until("third writer not queued", || {
             coordinator.pending_writes(&common) == 3
@@ -604,7 +626,10 @@ exec git "$@""#,
         c.join().unwrap().unwrap();
     });
     assert_eq!(fs::read_to_string(log).unwrap(), "A\nC\n");
-    assert_eq!(staged(&first), BTreeSet::from(["one".into(), "two".into()]));
+    assert_eq!(
+        staged(&first),
+        BTreeSet::from(["one".try_into().unwrap(), "two".try_into().unwrap()])
+    );
 }
 
 #[test]

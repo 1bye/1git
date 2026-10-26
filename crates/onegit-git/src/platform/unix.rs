@@ -14,21 +14,19 @@ use std::process::{Child, ChildStdin, Command};
 
 use super::{Access, FileState};
 
-pub(crate) fn path_from_git_bytes(bytes: &[u8]) -> Result<PathBuf, super::PathEncodingError> {
+pub(crate) fn native_path_from_git_bytes(
+    bytes: &[u8],
+) -> Result<PathBuf, super::PathEncodingError> {
     Ok(OsString::from_vec(bytes.to_vec()).into())
 }
 
 pub(crate) fn absolute_path_from_git_bytes(
     bytes: &[u8],
 ) -> Result<PathBuf, super::PathEncodingError> {
-    path_from_git_bytes(bytes)
+    native_path_from_git_bytes(bytes)
 }
 
 pub(crate) const GRACEFUL_TERMINATION: bool = true;
-
-pub(crate) fn validate_path_argument(_path: &Path) -> io::Result<()> {
-    Ok(())
-}
 
 pub(crate) fn validate_relative_filesystem_path(_path: &Path) -> io::Result<()> {
     Ok(())
@@ -36,6 +34,10 @@ pub(crate) fn validate_relative_filesystem_path(_path: &Path) -> io::Result<()> 
 
 pub(crate) fn sync_directory(file: &File) -> io::Result<()> {
     file.sync_all()
+}
+
+pub(crate) fn git_argument(bytes: &[u8]) -> Result<OsString, super::PathEncodingError> {
+    Ok(OsString::from_vec(bytes.to_vec()))
 }
 
 pub(crate) fn path_to_git_bytes(path: &OsStr) -> Result<Cow<'_, [u8]>, super::PathEncodingError> {

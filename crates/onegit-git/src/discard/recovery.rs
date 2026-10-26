@@ -1,5 +1,6 @@
 //! Private recovery files, streamed capture and literal no-follow filesystem checks.
 
+use crate::GitPath;
 use std::collections::HashSet;
 use std::ffi::{CStr, OsString};
 use std::fs::{self, File};
@@ -58,14 +59,14 @@ pub(super) struct Recovery {
     pub path: PathBuf,
     parent: File,
     directory: File,
-    pub paths: Vec<PathBuf>,
+    pub paths: Vec<GitPath>,
     pub staged: Patch,
     pub working: Patch,
     complete: bool,
 }
 
 impl Recovery {
-    fn create(destination: Option<&Path>, paths: Vec<PathBuf>) -> Result<Self, RepositoryError> {
+    fn create(destination: Option<&Path>, paths: Vec<GitPath>) -> Result<Self, RepositoryError> {
         let (path, parent, directory) = match destination {
             Some(path) => {
                 if !path.is_absolute() || path.file_name().is_none() {
@@ -268,14 +269,14 @@ impl Repository {
 
             self.capture_discard_patch(
                 &mut backup.staged.file,
-                diff_args(Some(head), &backup.paths, false),
+                diff_args(Some(head), &backup.paths, false)?,
                 None,
                 &[],
                 cancellation,
             )?;
             self.capture_discard_patch(
                 &mut backup.working.file,
-                diff_args(None, &backup.paths, false),
+                diff_args(None, &backup.paths, false)?,
                 None,
                 &[],
                 cancellation,
@@ -295,10 +296,7 @@ impl Repository {
                 let mut input = Vec::new();
 
                 for path in &untracked {
-                    input.extend_from_slice(
-                        &crate::platform::path_to_git_bytes(path.as_os_str())
-                            .map_err(|_| RepositoryError::InvalidPath)?,
-                    );
+                    input.extend_from_slice(path.as_bytes());
                     input.push(0);
                 }
 
@@ -324,7 +322,7 @@ impl Repository {
 
                     self.capture_discard_patch(
                         &mut backup.working.file,
-                        diff_args(None, &[], true),
+                        diff_args(None, &[], true)?,
                         Some(&index),
                         &[],
                         cancellation,
@@ -392,11 +390,11 @@ impl Repository {
         Ok(())
     }
 
-    pub(super) fn validate_discard_files(&self, paths: &[PathBuf]) -> Result<(), RepositoryError> {
+    pub(super) fn validate_discard_files(&self, paths: &[GitPath]) -> Result<(), RepositoryError> {
         self.check_write_identity()?;
 
         for path in paths {
-            if !crate::platform::validate_discard_path(&self.root_directory, path)? {
+            if !crate::platform::validate_discard_path(&self.root_directory, &path.to_native()?)? {
                 return Err(RepositoryError::InvalidInput(
                     "Non-regular files require external Git handling.",
                 ));
@@ -407,15 +405,13 @@ impl Repository {
     }
 }
 
-pub(super) fn validate_paths(paths: &[PathBuf]) -> Result<(), RepositoryError> {
-    require_paths(paths.iter().map(PathBuf::as_path))?;
+pub(super) fn validate_paths(paths: &[GitPath]) -> Result<(), RepositoryError> {
+    require_paths(paths.iter())?;
 
     for path in paths {
-        let encoded = crate::platform::path_to_git_bytes(path.as_os_str())
-            .map_err(|_| RepositoryError::InvalidPath)?;
-        let text = std::str::from_utf8(&encoded).map_err(|_| {
-            RepositoryError::InvalidInput("Recovery metadata requires UTF-8 repository paths.")
-        })?;
+        let text = path.to_str().ok_or(RepositoryError::InvalidInput(
+            "Recovery metadata requires UTF-8 repository paths.",
+        ))?;
 
         if text
             .split('/')
@@ -430,7 +426,11 @@ pub(super) fn validate_paths(paths: &[PathBuf]) -> Result<(), RepositoryError> {
     Ok(())
 }
 
-fn diff_args(head: Option<&str>, paths: &[PathBuf], untracked: bool) -> Vec<OsString> {
+fn diff_args(
+    head: Option<&str>,
+    paths: &[GitPath],
+    untracked: bool,
+) -> Result<Vec<OsString>, RepositoryError> {
     let mut args: Vec<OsString> = [
         "diff",
         "--no-textconv",
@@ -452,9 +452,11 @@ fn diff_args(head: Option<&str>, paths: &[PathBuf], untracked: bool) -> Vec<OsSt
     }
 
     args.push("--".into());
-    args.extend(paths.iter().map(|path| path.as_os_str().to_owned()));
+    for path in paths {
+        args.push(path.to_argument()?);
+    }
 
-    args
+    Ok(args)
 }
 
 fn discard_args(args: Vec<OsString>, private_index: bool) -> Vec<OsString> {
@@ -563,7 +565,7 @@ pub(super) fn iso_time(time: SystemTime) -> Result<String, RepositoryError> {
 #[cfg(all(test, windows))]
 mod windows_tests {
     use super::validate_paths;
-    use std::path::PathBuf;
+    use crate::GitPath;
 
     #[test]
     fn native_separators_cannot_hide_git_or_parent_components() {
@@ -572,9 +574,15 @@ mod windows_tests {
             "folder\\..\\file",
             "folder\\.\\file",
         ] {
-            assert!(validate_paths(&[PathBuf::from(path)]).is_err());
+            let path = GitPath::new(path).unwrap();
+            assert!(validate_paths(std::slice::from_ref(&path)).is_ok());
+            assert!(path.to_native().is_err());
         }
 
-        assert!(validate_paths(&[PathBuf::from("folder\\file.txt")]).is_ok());
+        let path = GitPath::new("folder/file.txt").unwrap();
+        assert!(validate_paths(std::slice::from_ref(&path)).is_ok());
+        assert!(path.to_native().is_ok());
+        assert!(validate_paths(&[GitPath::new("folder/.git/config").unwrap()]).is_err());
+        assert!(GitPath::new("folder/../file").is_err());
     }
 }

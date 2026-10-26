@@ -1,8 +1,8 @@
 //! Owned selected/staged commits and reviewed unpublished-tip recovery.
 
 use super::{BranchIdentity, RepositoryError, Snapshot, WritePhase};
+use crate::GitPath;
 use crate::{ErrorCode, Failure, Operation};
-use std::path::PathBuf;
 
 mod review;
 mod transaction;
@@ -22,7 +22,7 @@ pub enum CommitMode {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PartialCommitFile {
     /// Exact repository-relative spelling of the selected file.
-    pub path: PathBuf,
+    pub path: GitPath,
     /// Unfiltered HEAD-to-current patch, rechecked before applying and committing.
     pub expected_patch: String,
     /// Stable coordinates supplied by [`crate::PartialPatch`].
@@ -33,7 +33,7 @@ pub struct PartialCommitFile {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CommitFiles {
     /// Selected literal paths; staged mode ignores this array.
-    pub paths: Vec<PathBuf>,
+    pub paths: Vec<GitPath>,
     /// Original summary/body; execution applies the Source's whitespace policy.
     pub message: String,
     /// Displayed HEAD/branch, including unborn and detached states.
@@ -52,7 +52,7 @@ pub struct CommitFiles {
 impl CommitFiles {
     /// Freeze ordinary whole-file intent from an already displayed snapshot.
     /// This constructor performs no I/O; execution still rechecks the review.
-    pub fn new(paths: Vec<PathBuf>, message: String, snapshot: &Snapshot) -> Self {
+    pub fn new(paths: Vec<GitPath>, message: String, snapshot: &Snapshot) -> Self {
         Self {
             paths,
             message,

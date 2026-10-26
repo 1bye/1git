@@ -1,7 +1,6 @@
 //! Parses porcelain v2 snapshots without quoting or decoding repository paths.
 
-use std::path::PathBuf;
-
+use crate::GitPath;
 /// One side of an index/worktree change.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum FileStatus {
@@ -42,13 +41,13 @@ pub enum RecordType {
     Ignored,
 }
 
-/// Owned path state. `PathBuf` preserves tabs, newlines and non-UTF-8 Unix names.
+/// Owned path state. `GitPath` preserves tabs, newlines and non-UTF-8 Unix names.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FileChange {
     /// Current repository-relative path.
-    pub path: PathBuf,
+    pub path: GitPath,
     /// Source name for a rename or copy.
-    pub original_path: Option<PathBuf>,
+    pub original_path: Option<GitPath>,
     /// Porcelain record category.
     pub record_type: RecordType,
     /// Index relative to HEAD.
@@ -280,12 +279,12 @@ fn text(bytes: &[u8]) -> Result<String, StatusParseError> {
         .map_err(|_| StatusParseError)
 }
 
-fn path(bytes: &[u8]) -> Result<PathBuf, StatusParseError> {
+fn path(bytes: &[u8]) -> Result<GitPath, StatusParseError> {
     if bytes.is_empty() {
         return Err(StatusParseError);
     }
 
-    crate::platform::path_from_git_bytes(bytes).map_err(|_| StatusParseError)
+    GitPath::new(bytes).map_err(|_| StatusParseError)
 }
 
 fn object_id(bytes: &[u8]) -> Result<String, StatusParseError> {

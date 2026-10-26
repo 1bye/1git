@@ -1,10 +1,10 @@
 //! Reviewed text conflict resolution. The common-directory guard spans preflight,
 //! an optional descriptor-bound whole-file replacement, literal staging and fresh state.
 
+use crate::GitPath;
 use std::ffi::OsString;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom, Write};
-use std::path::{Path, PathBuf};
 
 use sha2::{Digest, Sha256};
 
@@ -45,7 +45,7 @@ pub enum ConflictSide {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ResolveConflict {
     /// Exact repository-relative path, never a Git pathspec pattern.
-    pub path: PathBuf,
+    pub path: GitPath,
     /// HEAD and branch shown with the reviewed preview; detached branch is None.
     pub expected: BranchIdentity,
     /// SHA-256 from the displayed [`ConflictPreview`].
@@ -63,7 +63,7 @@ impl Repository {
     /// the ordinary reader, but [`Self::resolve_conflict`] refuses symbolic-link paths.
     pub fn conflict_preview(
         &self,
-        path: &Path,
+        path: &GitPath,
         cancellation: Option<&Cancellation>,
     ) -> Result<Option<ConflictPreview>, RepositoryError> {
         let content = self.file_content(FileSource::Working, path, cancellation)?;
@@ -105,7 +105,7 @@ impl Repository {
         };
 
         check_cancelled(cancellation).map_err(|error| before(error.into()))?;
-        require_paths([request.path.as_path()]).map_err(before)?;
+        require_paths([&request.path]).map_err(before)?;
         self.check_conflict(request, cancellation).map_err(before)?;
         let mut file = self
             .open_working_file(&request.path, request.side.is_some())
@@ -150,7 +150,10 @@ impl Repository {
                 OsString::from("--literal-pathspecs"),
                 "add".into(),
                 "--".into(),
-                request.path.as_os_str().to_owned(),
+                request
+                    .path
+                    .to_argument()
+                    .map_err(|error| before(error.into()))?,
             ],
         );
 
@@ -252,7 +255,7 @@ impl Repository {
         Ok(())
     }
 
-    fn check_conflict_path(&self, held: &File, path: &Path) -> Result<(), RepositoryError> {
+    fn check_conflict_path(&self, held: &File, path: &GitPath) -> Result<(), RepositoryError> {
         let current = self.open_working_file(path, false).map_err(path_error)?;
 
         if !current.metadata()?.is_file()
@@ -267,7 +270,7 @@ impl Repository {
 
     fn conflict_side(
         &self,
-        path: &Path,
+        path: &GitPath,
         side: ConflictSide,
         cancellation: Option<&Cancellation>,
     ) -> Result<String, RepositoryError> {
@@ -277,7 +280,7 @@ impl Repository {
             ":3:"
         });
 
-        object.push(path);
+        object.push(path.to_argument()?);
         let mut command = GitCommand::new(
             &self.info.root,
             [OsString::from("cat-file"), "blob".into(), object],

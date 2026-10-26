@@ -6,7 +6,6 @@ use common::{Fixture, files_under};
 use onegit_git::{DiffOptions, DiffTarget, GitCommand, PartialPatch, Repository};
 use serde_json::Value;
 use std::fs;
-use std::path::PathBuf;
 
 #[test]
 fn matches_every_actual_source_partial_patch_outcome() {
@@ -123,7 +122,7 @@ fn generated_patches_apply_only_selected_lines_to_an_isolated_git_index() {
 
         working_before.retain(|path, _| !path.starts_with(".git"));
         let repository = Repository::open(&fixture.root, fixture.process(), None).unwrap();
-        let paths = [PathBuf::from("file")];
+        let paths = [common::git_path("file")];
         let mut options = DiffOptions::new(DiffTarget::Changes);
 
         options.paths = Some(&paths);

@@ -5,11 +5,9 @@
 
 mod common;
 
-#[cfg(unix)]
-use common::OsStrExt;
 use std::ffi::OsString;
 use std::fs;
-use std::path::PathBuf;
+
 use std::process::{Command, Output};
 
 use onegit_git::{FileStatus, RecordType, parse_status};
@@ -143,14 +141,9 @@ fn preserves_non_utf8_and_control_characters_in_rename_names() {
     let status = parse_status(&bytes).unwrap();
     let renamed = &status.files[0];
 
-    assert_eq!(renamed.path.as_os_str().as_bytes(), b"dest \t\n\xff");
+    assert_eq!(renamed.path.as_bytes(), b"dest \t\n\xff");
     assert_eq!(
-        renamed
-            .original_path
-            .as_ref()
-            .unwrap()
-            .as_os_str()
-            .as_bytes(),
+        renamed.original_path.as_ref().unwrap().as_bytes(),
         b"old \n\t\xfe"
     );
     assert_eq!(renamed.index_status, FileStatus::Renamed);
@@ -227,7 +220,7 @@ fn matches_real_git_for_mixed_staged_unstaged_renamed_untracked_and_ignored_file
     let mixed = status
         .files
         .iter()
-        .find(|file| file.path == std::path::Path::new("mixed"))
+        .find(|file| file.path == common::git_path("mixed"))
         .unwrap();
 
     assert_eq!(
@@ -242,23 +235,19 @@ fn matches_real_git_for_mixed_staged_unstaged_renamed_untracked_and_ignored_file
         .unwrap();
 
     assert_eq!(
-        renamed.original_path.as_deref(),
-        Some(std::path::Path::new("rename source"))
+        renamed.original_path.as_ref(),
+        Some(&common::git_path("rename source"))
     );
-    assert_eq!(renamed.path, PathBuf::from("renamed\t\nfile"));
+    assert_eq!(renamed.path, common::git_path("renamed\t\nfile"));
     assert_eq!(renamed.rename_score, Some(100));
+    assert!(status.files.iter().any(|file| file.path.as_bytes()
+        == odd_name.to_str().unwrap().as_bytes()
+        && file.worktree_status == FileStatus::Untracked));
     assert!(
         status
             .files
             .iter()
-            .any(|file| file.path.as_os_str() == odd_name.as_os_str()
-                && file.worktree_status == FileStatus::Untracked)
-    );
-    assert!(
-        status
-            .files
-            .iter()
-            .any(|file| file.path == std::path::Path::new("ignored")
+            .any(|file| file.path == common::git_path("ignored")
                 && file.worktree_status == FileStatus::Ignored)
     );
     assert_eq!(
@@ -357,4 +346,77 @@ impl Fixture {
         self.git(&["add", "--all"]);
         self.git(&["commit", "-m", subject]);
     }
+}
+
+#[test]
+fn status_keeps_reserved_colon_and_literal_backslash_git_names() {
+    let status =
+        parse_status(b"? aux.c\0? a:b\0? folder\\file\0? folder/file\0! ignored/\0").unwrap();
+    let names: Vec<_> = status
+        .files
+        .iter()
+        .map(|change| change.path.as_bytes())
+        .collect();
+    assert_eq!(
+        names,
+        vec![
+            b"aux.c".as_slice(),
+            b"a:b",
+            b"folder\\file",
+            b"folder/file",
+            b"ignored/"
+        ]
+    );
+    assert_ne!(status.files[2].path, status.files[3].path);
+}
+
+#[cfg(unix)]
+#[test]
+fn non_utf8_name_round_trips_from_status_to_staging() {
+    use common::Fixture;
+    use onegit_git::{FileSource, GitCommand, Repository};
+
+    let fixture = Fixture::new();
+    let name = b"literal\\non-utf8-\xff";
+    fixture.write("blob-source", "exact contents\n");
+    let oid = fixture.git(&["hash-object", "-w", "blob-source"]);
+    fs::remove_file(fixture.root.join("blob-source")).unwrap();
+    let oid = std::str::from_utf8(&oid).unwrap().trim();
+    let index_info = [format!("100644 {oid}\t").as_bytes(), name, b"\0"].concat();
+    let mut command = GitCommand::new(&fixture.root, ["update-index", "-z", "--index-info"]);
+    command.stdin = &index_info;
+    fixture.process().run(command).unwrap();
+    // APFS refuses non-UTF-8 filesystem names. A real committed Git index name
+    // exercises the same raw status -> argv -> staged path flow on every Unix.
+    fixture.git(&["commit", "-m", "raw-byte tree name"]);
+    let repository = Repository::open(&fixture.root, fixture.process(), None).unwrap();
+    let snapshot = repository.snapshot(false, None).unwrap();
+    let path = snapshot
+        .status
+        .files
+        .iter()
+        .find(|change| change.path.as_bytes() == name)
+        .unwrap()
+        .path
+        .clone();
+    assert_eq!(path.to_str(), None);
+    assert_eq!(
+        snapshot.status.files[0].worktree_status,
+        FileStatus::Deleted
+    );
+    repository.stage(std::slice::from_ref(&path), None).unwrap();
+    assert_eq!(
+        fixture.git(&["diff", "--cached", "--name-only", "-z"]),
+        [name.as_slice(), b"\0"].concat()
+    );
+    assert!(fixture.git(&["ls-files", "-z"]).is_empty());
+    let committed = repository
+        .file_content(FileSource::Revision("HEAD"), &path, None)
+        .unwrap();
+    assert_eq!(committed.path, path);
+    assert_eq!(committed.content.as_bytes(), b"exact contents\n");
+    let snapshot = repository.snapshot(false, None).unwrap();
+    assert_eq!(snapshot.status.files.len(), 1);
+    assert_eq!(snapshot.status.files[0].path, path);
+    assert_eq!(snapshot.status.files[0].index_status, FileStatus::Deleted);
 }

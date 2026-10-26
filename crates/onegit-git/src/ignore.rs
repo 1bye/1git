@@ -1,9 +1,9 @@
 //! Literal, reviewed append-only .gitignore edits. The session's common-directory
 //! guard owns preflight, descriptor-bound append, durable sync and result refresh.
 
+use crate::GitPath;
 use std::fs::File;
 use std::io::{Read, Write};
-use std::path::{Path, PathBuf};
 
 use super::{
     BranchIdentity, OperationState, Repository, RepositoryError, Snapshot, WriteError, WritePhase,
@@ -35,7 +35,7 @@ pub enum IgnoreRule {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct IgnoreFile {
     /// Exact repository-relative spelling; no line breaks or .git components.
-    pub path: PathBuf,
+    pub path: GitPath,
     /// Scope displayed in the confirmation.
     pub rule: IgnoreRule,
     /// HEAD/branch displayed when the action was reviewed; None OID permits unborn HEAD.
@@ -64,13 +64,11 @@ pub fn ignore_folders(path: &str) -> Vec<&str> {
 ///
 /// Rejects empty/absolute/non-UTF-8 paths, NUL/CR/LF, empty/dot/parent/.git components,
 /// unrelated folder scopes and extension requests without an extension. No filesystem I/O.
-pub fn ignore_pattern(path: &Path, rule: &IgnoreRule) -> Result<String, RepositoryError> {
+pub fn ignore_pattern(path: &GitPath, rule: &IgnoreRule) -> Result<String, RepositoryError> {
     require_paths([path])?;
-    let encoded = crate::platform::path_to_git_bytes(path.as_os_str())
-        .map_err(|_| RepositoryError::InvalidPath)?;
-    let path = std::str::from_utf8(&encoded).map_err(|_| {
-        RepositoryError::InvalidInput("Ignore rules require a UTF-8 repository path.")
-    })?;
+    let path = path.to_str().ok_or(RepositoryError::InvalidInput(
+        "Ignore rules require a UTF-8 repository path.",
+    ))?;
 
     if path.contains(['\r', '\n'])
         || path

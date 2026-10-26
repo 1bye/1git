@@ -1,4 +1,5 @@
 use super::{CommitError, CommitFiles, CommitMode, CommitOutcome, CommitResult, PartialCommitFile};
+use crate::GitPath;
 
 use crate::{
     BranchIdentity, Cancellation, DiffOptions, DiffTarget, ErrorCode, FileStatus, GitCommand,
@@ -7,7 +8,7 @@ use crate::{
 };
 
 use std::collections::HashSet;
-use std::ffi::{OsStr, OsString};
+use std::ffi::OsString;
 use std::fs::{self, File};
 use std::io::{self, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
@@ -144,7 +145,7 @@ impl Repository {
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let repository = Repository::open(std::path::Path::new("/local/repository"), GitProcess::default(), None)?;
     /// let reviewed = repository.snapshot(false, None)?;
-    /// let input = CommitFiles::new(vec!["selected.txt".into()], "Save selected work".into(), &reviewed);
+    /// let input = CommitFiles::new(vec!["selected.txt".try_into()?], "Save selected work".into(), &reviewed);
     /// let result = repository.commit_selected_files(&input, None)?;
     /// match result.outcome {
     ///     CommitOutcome::Committed if result.warning.is_none() => assert!(result.oid.is_some()),
@@ -215,11 +216,8 @@ impl Repository {
                 check_file_paths(&self.info.root, &selected)?;
             }
 
-            let partial_paths: HashSet<_> = input
-                .partial_files
-                .iter()
-                .map(|file| file.path.as_os_str())
-                .collect();
+            let partial_paths: HashSet<_> =
+                input.partial_files.iter().map(|file| &file.path).collect();
 
             let stage_paths: Vec<_> = snapshot
                 .status
@@ -227,7 +225,7 @@ impl Repository {
                 .iter()
                 .filter(|file| {
                     paths.iter().any(|path| exact(path, &file.path))
-                        && !partial_paths.contains(file.path.as_os_str())
+                        && !partial_paths.contains(&file.path)
                         && file.index_status != FileStatus::Deleted
                 })
                 .flat_map(|file| {
@@ -289,7 +287,7 @@ impl Repository {
                 .map_err(before)?;
                 let whole: Vec<_> = selected
                     .iter()
-                    .filter(|path| !partial_paths.contains(path.as_os_str()))
+                    .filter(|path| !partial_paths.contains(path))
                     .cloned()
                     .collect();
 
@@ -318,7 +316,7 @@ impl Repository {
             let mut file = crate::platform::create_private_file(&path_file)
                 .map_err(|error| before(error.into()))?;
 
-            file.write_all(&path_bytes(&selected).map_err(before)?)
+            file.write_all(&path_bytes(&selected))
                 .map_err(|error| before(error.into()))?;
             drop(file);
             self.check_write_identity().map_err(before)?;
@@ -471,7 +469,7 @@ impl Repository {
         Ok(self.process.run(command)?)
     }
 
-    fn add_commit_paths(&self, index: &Path, paths: &[PathBuf]) -> Result<(), RepositoryError> {
+    fn add_commit_paths(&self, index: &Path, paths: &[GitPath]) -> Result<(), RepositoryError> {
         self.commit_run(
             [
                 "--literal-pathspecs",
@@ -481,7 +479,7 @@ impl Repository {
                 "--pathspec-file-nul",
             ],
             Some(index),
-            &path_bytes(paths)?,
+            &path_bytes(paths),
         )?;
 
         Ok(())
@@ -532,29 +530,26 @@ fn before(error: RepositoryError) -> CommitError {
     CommitError::repository(WritePhase::BeforeCommand, error)
 }
 
-fn exact(a: &Path, b: &Path) -> bool {
-    a.as_os_str() == b.as_os_str()
+fn exact(a: &GitPath, b: &GitPath) -> bool {
+    a == b
 }
 
-fn path_bytes(paths: &[PathBuf]) -> Result<Vec<u8>, RepositoryError> {
+fn path_bytes(paths: &[GitPath]) -> Vec<u8> {
     let mut bytes = Vec::new();
 
     for path in paths {
-        bytes.extend_from_slice(
-            &crate::platform::path_to_git_bytes(path.as_os_str())
-                .map_err(|_| RepositoryError::InvalidPath)?,
-        );
+        bytes.extend_from_slice(path.as_bytes());
         bytes.push(0);
     }
 
-    Ok(bytes)
+    bytes
 }
 
 fn trim(value: &str) -> &str {
     value.trim_matches(|ch|matches!(ch,'\u{0009}'..='\u{000d}'|'\u{0020}'|'\u{00a0}'|'\u{1680}'|'\u{2000}'..='\u{200a}'|'\u{2028}'|'\u{2029}'|'\u{202f}'|'\u{205f}'|'\u{3000}'|'\u{feff}'))
 }
 
-fn validate(input: &CommitFiles) -> Result<Vec<PathBuf>, CommitError> {
+fn validate(input: &CommitFiles) -> Result<Vec<GitPath>, CommitError> {
     let staged = input.mode == CommitMode::Staged;
 
     if input.amend && staged {
@@ -576,18 +571,7 @@ fn validate(input: &CommitFiles) -> Result<Vec<PathBuf>, CommitError> {
         }
 
         for path in &input.paths {
-            if path.as_os_str().is_empty()
-                || crate::platform::path_to_git_bytes(path.as_os_str())
-                    .map_err(|_| before(RepositoryError::InvalidPath))?
-                    .contains(&0)
-            {
-                return Err(CommitError::invalid(
-                    ErrorCode::InvalidInput,
-                    "Repository path must be non-empty and contain no NUL.",
-                ));
-            }
-
-            if crate::validation::require_paths([path.as_path()]).is_err() {
+            if crate::validation::require_paths([path]).is_err() {
                 return Err(CommitError::invalid(
                     ErrorCode::InvalidPath,
                     &format!(
@@ -597,17 +581,13 @@ fn validate(input: &CommitFiles) -> Result<Vec<PathBuf>, CommitError> {
                 ));
             }
 
-            if seen.insert(path.as_os_str()) {
+            if seen.insert(path) {
                 paths.push(path.clone());
             }
         }
     }
 
-    let partials: HashSet<&OsStr> = input
-        .partial_files
-        .iter()
-        .map(|file| file.path.as_os_str())
-        .collect();
+    let partials: HashSet<&GitPath> = input.partial_files.iter().map(|file| &file.path).collect();
 
     if partials.len() != input.partial_files.len()
         || input
@@ -644,8 +624,8 @@ fn validate(input: &CommitFiles) -> Result<Vec<PathBuf>, CommitError> {
 fn selected_paths(
     snapshot: &Snapshot,
     input: &CommitFiles,
-    paths: &[PathBuf],
-) -> Result<Vec<PathBuf>, CommitError> {
+    paths: &[GitPath],
+) -> Result<Vec<GitPath>, CommitError> {
     if snapshot.status.head.oid != input.expected.oid
         || snapshot.status.head.branch != input.expected.branch
     {
@@ -733,7 +713,7 @@ fn selected_paths(
             ));
         }
 
-        if seen.insert(file.path.as_os_str()) {
+        if seen.insert(&file.path) {
             selected.push(file.path.clone());
         }
 
@@ -755,7 +735,7 @@ fn selected_paths(
                 ));
             }
 
-            if seen.insert(original.as_os_str()) {
+            if seen.insert(original) {
                 selected.push(original.clone());
             }
         }
@@ -764,12 +744,11 @@ fn selected_paths(
     Ok(selected)
 }
 
-fn check_file_paths(root: &Path, paths: &[PathBuf]) -> Result<(), CommitError> {
+fn check_file_paths(root: &Path, paths: &[GitPath]) -> Result<(), CommitError> {
     for path in paths {
-        crate::platform::validate_relative_filesystem_path(path)
-            .map_err(|error| before(error.into()))?;
+        let native = path.to_native().map_err(|error| before(error.into()))?;
 
-        match fs::symlink_metadata(root.join(path)) {
+        match fs::symlink_metadata(root.join(native)) {
             Ok(metadata) if metadata.is_dir() => {
                 return Err(CommitError::invalid(
                     ErrorCode::InvalidInput,

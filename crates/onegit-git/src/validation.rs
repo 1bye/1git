@@ -1,6 +1,6 @@
 //! Shared validation for revision arguments and literal repository-relative paths.
 
-use std::path::{Component, Path};
+use crate::GitPath;
 
 use crate::RepositoryError;
 
@@ -15,40 +15,14 @@ pub(crate) fn require_revision(revision: &str) -> Result<(), RepositoryError> {
 }
 
 pub(crate) fn require_paths<'a>(
-    paths: impl IntoIterator<Item = &'a Path>,
+    paths: impl IntoIterator<Item = &'a GitPath>,
 ) -> Result<(), RepositoryError> {
     let mut any = false;
 
     for path in paths {
         any = true;
-        crate::platform::validate_path_argument(path).map_err(|_| RepositoryError::InvalidPath)?;
-
-        if path.as_os_str().is_empty()
-            || crate::platform::path_to_git_bytes(path.as_os_str())
-                .map_err(|_| RepositoryError::InvalidPath)?
-                .contains(&0)
-        {
+        if path.components().any(|part| part == b".git") {
             return Err(RepositoryError::InvalidPath);
-        }
-
-        let mut depth = 0;
-
-        if path.is_absolute() {
-            return Err(RepositoryError::PathOutsideRepository);
-        }
-
-        for component in path.components() {
-            match component {
-                Component::ParentDir if depth == 0 => {
-                    return Err(RepositoryError::PathOutsideRepository);
-                }
-                Component::ParentDir => depth -= 1,
-                Component::Normal(_) => depth += 1,
-                Component::CurDir => {}
-                Component::RootDir | Component::Prefix(_) => {
-                    return Err(RepositoryError::PathOutsideRepository);
-                }
-            }
         }
     }
 

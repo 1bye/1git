@@ -1,8 +1,8 @@
 //! Read-only history, committed file identities and publication metadata.
 
+use crate::GitPath;
 use std::collections::{HashMap, HashSet};
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
 use regex::Regex;
@@ -33,9 +33,9 @@ pub struct Identity {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CommitFile {
     /// Path after this change (original path for a deletion).
-    pub path: PathBuf,
+    pub path: GitPath,
     /// Source path for rename/copy.
-    pub original_path: Option<PathBuf>,
+    pub original_path: Option<GitPath>,
     /// Added/deleted/modified/renamed/copied/type-changed status.
     pub status: FileStatus,
     /// Before blob, or the zero object for additions.
@@ -87,9 +87,9 @@ pub struct HistoryOptions<'a> {
     /// Explicit commit-ish; remains browseable from an unborn checked-out branch.
     pub revision: Option<&'a str>,
     /// Literal repository-relative path filters; cannot accompany file_path.
-    pub paths: Option<&'a [PathBuf]>,
+    pub paths: Option<&'a [GitPath]>,
     /// One literal path whose history follows renames, first parent only.
-    pub file_path: Option<&'a Path>,
+    pub file_path: Option<&'a GitPath>,
 }
 
 impl Default for HistoryOptions<'_> {
@@ -138,7 +138,7 @@ impl Repository {
         }
 
         if let Some(paths) = options.paths {
-            require_paths(paths.iter().map(PathBuf::as_path))?;
+            require_paths(paths.iter())?;
         }
 
         if let Some(path) = options.file_path {
@@ -179,7 +179,9 @@ impl Repository {
         args.push("--".into());
 
         if let Some(paths) = options.paths {
-            args.extend(paths.iter().map(|path| path.as_os_str().to_owned()));
+            for path in paths {
+                args.push(path.to_argument()?);
+            }
         }
 
         let output = self.run(args, cancellation)?;
@@ -415,7 +417,7 @@ impl Repository {
 
     fn file_history(
         &self,
-        file: &Path,
+        file: &GitPath,
         options: &HistoryOptions<'_>,
         cancellation: Option<&Cancellation>,
     ) -> Result<CommitPage, RepositoryError> {
@@ -443,7 +445,7 @@ impl Repository {
             format!("--max-count={}", options.offset + options.limit as u64 + 1).into(),
             options.revision.unwrap_or("HEAD").into(),
             "--".into(),
-            file.as_os_str().to_owned(),
+            file.to_argument()?,
         ])
         .collect();
 

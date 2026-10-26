@@ -111,7 +111,7 @@ fn explicit_complete_files_preserve_unchecked_staging_in_all_five_source_cases()
                 .iter()
                 .map(|file| file.path.clone())
                 .collect::<Vec<_>>(),
-            vec![PathBuf::from("excluded")],
+            vec![common::git_path("excluded")],
             "{kind}"
         );
         working();
@@ -149,10 +149,7 @@ fn preflight_refusals_preserve_head_and_exact_index_and_never_remove_a_foreign_l
     invalids.push(stale);
 
     for path in [".", "../outside", "file/../file", "./file", "file//"] {
-        let mut invalid = allowed.clone();
-
-        invalid.paths = vec![path.into()];
-        invalids.push(invalid);
+        assert!(onegit_git::GitPath::new(path).is_err());
     }
 
     for message in ["\nMissing summary", " \nBody", "\0message", "\u{feff}"] {

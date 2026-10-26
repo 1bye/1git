@@ -1,7 +1,7 @@
 //! Windows handle-relative filesystem and Job Object process ownership.
 
 use std::borrow::Cow;
-use std::ffi::OsStr;
+use std::ffi::{OsStr, OsString};
 use std::fs::{File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::mem::{size_of, size_of_val};
@@ -63,19 +63,15 @@ use windows_sys::Win32::System::Threading::{
 
 use super::{Access, FileState, PathEncodingError, Signal, windows_policy};
 
-pub(crate) fn path_from_git_bytes(bytes: &[u8]) -> Result<PathBuf, PathEncodingError> {
+pub(crate) fn native_path_from_git_bytes(bytes: &[u8]) -> Result<PathBuf, PathEncodingError> {
     let text = std::str::from_utf8(bytes).map_err(|_| PathEncodingError)?;
-    let path = PathBuf::from(windows_policy::relative_git_path(text)?.as_ref());
+    Ok(PathBuf::from(windows_policy::native_git_path(text)?))
+}
 
-    if path.has_root()
-        || path
-            .components()
-            .any(|part| matches!(part, Component::Prefix(_)))
-    {
-        return Err(PathEncodingError);
-    }
-
-    Ok(path)
+pub(crate) fn git_argument(bytes: &[u8]) -> Result<OsString, PathEncodingError> {
+    Ok(OsString::from(
+        std::str::from_utf8(bytes).map_err(|_| PathEncodingError)?,
+    ))
 }
 
 pub(crate) fn absolute_path_from_git_bytes(bytes: &[u8]) -> Result<PathBuf, PathEncodingError> {
@@ -91,11 +87,14 @@ pub(crate) fn absolute_path_from_git_bytes(bytes: &[u8]) -> Result<PathBuf, Path
 
 pub(crate) fn path_to_git_bytes(path: &OsStr) -> Result<Cow<'_, [u8]>, PathEncodingError> {
     let text = path.to_str().ok_or(PathEncodingError)?;
-    Ok(Cow::Owned(
-        windows_policy::git_path_text(text)?
-            .into_owned()
-            .into_bytes(),
-    ))
+    let text = if let Some(unc) = text.strip_prefix("\\\\?\\UNC\\") {
+        format!("//{unc}")
+    } else {
+        text.strip_prefix("\\\\?\\").unwrap_or(text).to_owned()
+    }
+    .replace('\\', "/");
+
+    Ok(Cow::Owned(text.into_bytes()))
 }
 
 fn path_error() -> io::Error {
@@ -104,21 +103,7 @@ fn path_error() -> io::Error {
 
 pub(crate) const GRACEFUL_TERMINATION: bool = false;
 
-pub(crate) fn validate_path_argument(path: &Path) -> io::Result<()> {
-    // Windows: private Git escapes are display/transport values, never native file names
-    // or direct Git argv. Refuse them before a command could select an unrelated entry.
-    if path
-        .to_str()
-        .is_some_and(|text| text.contains(windows_policy::GIT_ESCAPE))
-    {
-        return Err(path_error());
-    }
-
-    Ok(())
-}
-
 fn validate_filesystem_path(path: &Path) -> io::Result<()> {
-    validate_path_argument(path)?;
     let encoded = path_to_git_bytes(path.as_os_str()).map_err(|_| path_error())?;
     let text = std::str::from_utf8(&encoded).map_err(|_| path_error())?;
 
@@ -1045,7 +1030,12 @@ mod tests {
 
     #[test]
     fn unrepresentable_paths_return_encoding_errors() {
-        assert!(path_from_git_bytes(b"invalid\xff").is_err());
+        assert!(
+            crate::GitPath::new(b"invalid\xff")
+                .unwrap()
+                .to_native()
+                .is_err()
+        );
         let temporary = tempfile::tempdir().unwrap();
         let root = open_directory_no_follow(temporary.path()).unwrap();
 
@@ -1109,33 +1099,29 @@ mod tests {
     #[test]
     fn ignore_patterns_use_git_separators_and_reject_native_git_components() {
         assert_eq!(
-            crate::ignore_pattern(Path::new("folder\\file.txt"), &crate::IgnoreRule::File).unwrap(),
+            crate::ignore_pattern(
+                &crate::GitPath::new("folder/file.txt").unwrap(),
+                &crate::IgnoreRule::File
+            )
+            .unwrap(),
             "/folder/file.txt"
         );
         assert!(
-            crate::ignore_pattern(Path::new("folder\\.git\\config"), &crate::IgnoreRule::File)
-                .is_err()
+            crate::ignore_pattern(
+                &crate::GitPath::new("folder/.git/config").unwrap(),
+                &crate::IgnoreRule::File
+            )
+            .is_err()
         );
     }
     #[test]
     fn status_display_accepts_reserved_names_but_file_access_returns_a_typed_error() {
         let status = crate::parse_status(b"? aux.c\0? a:b\0").unwrap();
-        let temporary = tempfile::tempdir().unwrap();
-        let root = open_directory_no_follow(temporary.path()).unwrap();
         assert_eq!(status.files.len(), 2);
 
         for (change, expected) in status.files.iter().zip([b"aux.c".as_slice(), b"a:b"]) {
-            assert_eq!(
-                path_to_git_bytes(change.path.as_os_str()).unwrap().as_ref(),
-                expected
-            );
-            assert!(
-                temporary
-                    .path()
-                    .join(&change.path)
-                    .starts_with(temporary.path())
-            );
-            let error = super::super::open_beneath(&root, &change.path, false).unwrap_err();
+            assert_eq!(change.path.as_bytes(), expected);
+            let error = change.path.to_native().unwrap_err();
             assert_eq!(error.kind(), io::ErrorKind::InvalidInput);
             assert!(
                 error
@@ -1143,7 +1129,12 @@ mod tests {
                     .is_some_and(|source| source.is::<PathEncodingError>())
             );
         }
-        assert!(path_from_git_bytes(b"c:/outside").is_err());
+        assert!(
+            crate::GitPath::new(b"c:/outside")
+                .unwrap()
+                .to_native()
+                .is_err()
+        );
         assert!(absolute_path_from_git_bytes(b"c:/outside").is_ok());
     }
 
@@ -1271,52 +1262,45 @@ mod tests {
     }
     #[test]
     fn backslash_git_names_are_lossless_distinct_and_never_native_file_arguments() {
+        use crate::GitPath;
         use std::collections::{BTreeSet, HashSet};
-        let literal = path_from_git_bytes(b"folder\\file").unwrap();
-        let separated = path_from_git_bytes(b"folder/file").unwrap();
-        let escape_literal = path_from_git_bytes("folder\u{e000}bfile".as_bytes()).unwrap();
-        assert_eq!(
-            path_to_git_bytes(literal.as_os_str()).unwrap().as_ref(),
-            b"folder\\file"
-        );
+        let literal = GitPath::new(b"folder\\file").unwrap();
+        let separated = GitPath::new(b"folder/file").unwrap();
+        let unicode = GitPath::new("folder\u{e000}bfile").unwrap();
+        assert_eq!(literal.as_bytes(), b"folder\\file");
+        assert_eq!(literal.to_argument().unwrap(), OsStr::new("folder\\file"));
         assert_eq!(crate::output::path(b"folder\\file").unwrap(), literal);
         assert_ne!(literal, separated);
-        assert_ne!(literal, escape_literal);
+        assert_ne!(literal, unicode);
         assert_eq!(
-            HashSet::from([literal.clone(), separated.clone(), escape_literal.clone()]).len(),
+            HashSet::from([literal.clone(), separated.clone(), unicode.clone()]).len(),
             3
         );
         assert_eq!(
-            BTreeSet::from([literal.clone(), separated.clone(), escape_literal]).len(),
+            BTreeSet::from([literal.clone(), separated.clone(), unicode.clone()]).len(),
             3
         );
-        assert!(crate::validation::require_paths([literal.as_path()]).is_err());
-        assert!(crate::validation::require_paths([separated.as_path()]).is_ok());
+        assert!(crate::validation::require_paths([&literal]).is_ok());
+        assert!(crate::validation::require_paths([&separated]).is_ok());
+        assert!(unicode.to_native().is_ok());
         for name in [b"\\x".as_slice(), b"C:\\x", b"\\\\?\\C:\\x"] {
-            let path = path_from_git_bytes(name).unwrap();
-            assert!(!path.has_root());
-            assert!(
-                !path
-                    .components()
-                    .any(|part| matches!(part, Component::Prefix(_)))
-            );
-            assert_eq!(path_to_git_bytes(path.as_os_str()).unwrap().as_ref(), name);
-            assert!(validate_relative_filesystem_path(&path).is_err());
+            let path = GitPath::new(name).unwrap();
+            assert_eq!(path.as_bytes(), name);
+            assert!(path.to_native().is_err());
         }
         assert!(crate::output::absolute_path(b"C:\\repo").is_ok());
-
         let temporary = tempfile::tempdir().unwrap();
         std::fs::create_dir(temporary.path().join("folder")).unwrap();
         std::fs::write(temporary.path().join("folder/file"), b"kept").unwrap();
-        let root = open_directory_no_follow(temporary.path()).unwrap();
-        let error = super::super::open_beneath(&root, &literal, false).unwrap_err();
+        let error = literal.to_native().unwrap_err();
         assert_eq!(error.kind(), io::ErrorKind::InvalidInput);
         assert!(
             error
                 .get_ref()
                 .is_some_and(|source| source.is::<PathEncodingError>())
         );
-        assert!(super::super::open_beneath(&root, &separated, false).is_ok());
+        let root = open_directory_no_follow(temporary.path()).unwrap();
+        assert!(super::super::open_beneath(&root, &separated.to_native().unwrap(), false).is_ok());
         assert_eq!(
             std::fs::read(temporary.path().join("folder/file")).unwrap(),
             b"kept"
@@ -1334,32 +1318,9 @@ mod tests {
                 .iter()
                 .zip([b"folder\\file".as_slice(), b"folder/file", b"ordinary.txt"])
         {
-            assert_eq!(
-                path_to_git_bytes(change.path.as_os_str()).unwrap().as_ref(),
-                expected
-            );
+            assert_eq!(change.path.as_bytes(), expected);
         }
         assert_ne!(status.files[0].path, status.files[1].path);
-    }
-
-    #[test]
-    fn drive_like_names_use_the_same_guard_in_all_relative_decoders() {
-        let native = path_from_git_bytes(b"a:b").unwrap();
-        let output = crate::output::path(b"a:b").unwrap();
-        let status = crate::parse_status(b"? a:b\0").unwrap();
-        assert_eq!(native, output);
-        assert_eq!(native, status.files[0].path);
-        assert_eq!(native.as_os_str(), OsStr::new(".\\a:b"));
-        assert!(!native.has_root());
-        assert!(
-            !native
-                .components()
-                .any(|part| matches!(part, Component::Prefix(_)))
-        );
-        assert_eq!(
-            path_to_git_bytes(native.as_os_str()).unwrap().as_ref(),
-            b"a:b"
-        );
     }
 
     #[test]

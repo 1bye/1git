@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 
-use crate::RepositoryError;
+use crate::{GitPath, RepositoryError};
 
 /// Match the legacy JavaScript text boundary, retaining complete Unicode characters.
 fn whitespace(character: char) -> bool {
@@ -52,8 +52,8 @@ pub(crate) fn text(bytes: &[u8]) -> String {
     String::from_utf8_lossy(bytes).into_owned()
 }
 
-pub(crate) fn path(bytes: &[u8]) -> Result<PathBuf, RepositoryError> {
-    crate::platform::path_from_git_bytes(bytes).map_err(|_| RepositoryError::InvalidOutput)
+pub(crate) fn path(bytes: &[u8]) -> Result<GitPath, RepositoryError> {
+    GitPath::new(bytes).map_err(|_| RepositoryError::InvalidOutput)
 }
 
 pub(crate) fn absolute_path(bytes: &[u8]) -> Result<PathBuf, RepositoryError> {

@@ -1,9 +1,8 @@
 //! Checked patch application and the source's explicit staged-step compensation.
 //! Held file input pins the captured payload; it is never reopened by patch pathname.
 
-use std::path::PathBuf;
-
 use super::recovery::{Patch, Recovery};
+use crate::GitPath;
 use crate::repository::{Repository, RepositoryError, WriteError, WritePhase};
 use crate::{Cancellation, GitCommand};
 
@@ -206,7 +205,7 @@ impl Repository {
     fn apply_saved_patch(
         &self,
         patch: &mut Patch,
-        paths: &[PathBuf],
+        paths: &[GitPath],
         mode: PatchMode,
         cancellation: Option<&Cancellation>,
         mutated: &mut bool,

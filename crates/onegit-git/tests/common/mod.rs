@@ -128,3 +128,8 @@ pub use unix::*;
 #[cfg(windows)]
 #[allow(unused_imports)]
 pub use windows::*;
+
+/// Construct a validated Git name for fixtures, without native-path interpretation.
+pub fn git_path(value: impl AsRef<[u8]>) -> onegit_git::GitPath {
+    onegit_git::GitPath::new(value).expect("fixture uses a valid Git path")
+}

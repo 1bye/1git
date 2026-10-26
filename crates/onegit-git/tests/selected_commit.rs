@@ -59,13 +59,13 @@ fn executable(path: &std::path::Path, script: &str) {
 
 fn partial_request(repository: &Repository, path: &str, keys: &[&str]) -> CommitFiles {
     let mut input = request(repository, &[path]);
-    let paths = [PathBuf::from(path)];
+    let paths = [common::git_path(path)];
     let mut options = DiffOptions::new(DiffTarget::Changes);
 
     options.paths = Some(&paths);
     input.include_partial_staging = true;
     input.partial_files.push(PartialCommitFile {
-        path: path.into(),
+        path: path.try_into().unwrap(),
         expected_patch: repository.diff(options, None).unwrap().patch,
         included_lines: keys.iter().map(|key| (*key).to_owned()).collect(),
     });
@@ -79,7 +79,7 @@ fn open(fixture: &Fixture) -> Repository {
 
 fn request(repository: &Repository, paths: &[&str]) -> CommitFiles {
     CommitFiles::new(
-        paths.iter().map(PathBuf::from).collect(),
+        paths.iter().map(common::git_path).collect(),
         "Selected files\n\nKeep excluded work staged.".to_owned(),
         &repository.snapshot(false, None).unwrap(),
     )
@@ -163,7 +163,7 @@ fn commits_checked_files_and_keeps_excluded_staging_and_working_bytes() {
             .iter()
             .map(|file| file.path.clone())
             .collect::<Vec<_>>(),
-        vec![PathBuf::from("excluded")]
+        vec![common::git_path("excluded")]
     );
     assert_eq!(
         fixture.git(&["show", "HEAD:new [file]\t\n:name.txt"]),
@@ -198,12 +198,12 @@ fn commits_reviewed_lines_and_whole_files_without_including_other_edits() {
     let mut input = request(&repository, &["partial", "whole"]);
 
     input.include_partial_staging = true;
-    let paths = [PathBuf::from("partial")];
+    let paths = [common::git_path("partial")];
     let mut options = DiffOptions::new(DiffTarget::Changes);
 
     options.paths = Some(&paths);
     input.partial_files.push(PartialCommitFile {
-        path: "partial".into(),
+        path: "partial".try_into().unwrap(),
         expected_patch: repository.diff(options, None).unwrap().patch,
         included_lines: vec!["-:1".into(), "+:1".into()],
     });
@@ -241,7 +241,7 @@ fn staged_mode_ignores_checkbox_paths_and_keeps_current_working_edits() {
     fixture.git(&["add", "file"]);
     fixture.write("file", "working\n");
     let repository = open(&fixture);
-    let mut input = request(&repository, &["../ignored-in-staged-mode"]);
+    let mut input = request(&repository, &[".git/ignored-in-staged-mode"]);
 
     input.mode = CommitMode::Staged;
     let assert_working = unchanged_working(&fixture);

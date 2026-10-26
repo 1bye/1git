@@ -87,7 +87,9 @@ exec git "$@"
             let reached = wait_until(|| entered.exists());
 
             cancellation.cancel();
-            let next = scope.spawn(|| second.stage(&["queued".into()], Some(&queued_cancellation)));
+            let next = scope.spawn(|| {
+                second.stage(&["queued".try_into().unwrap()], Some(&queued_cancellation))
+            });
             let queued = wait_until(|| coordinator.pending_writes(&common) == 2);
 
             queued_cancellation.cancel();

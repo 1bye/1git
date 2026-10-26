@@ -1,11 +1,11 @@
 //! Clean, tip-pinned integration and persistent rebase/squash recovery.
 
 use super::*;
+use crate::GitPath;
 use crate::repository::mutations::recovery_id;
 use crate::repository::{Branch, BranchKind, BranchMutation};
 use std::collections::BTreeSet;
 use std::io::Write;
-use std::path::PathBuf;
 
 /// Integration mode selected in a reviewed branch dialog.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -441,17 +441,16 @@ impl Repository {
         let mut existing = BTreeSet::new();
 
         for candidate in &candidates {
-            crate::platform::validate_relative_filesystem_path(candidate)
-                .map_err(|error| before(error.into()))?;
             check_cancelled(cancellation).map_err(|error| before(error.into()))?;
+            let mut bytes = candidate.as_bytes();
 
-            for ancestor in candidate
-                .ancestors()
-                .take_while(|path| !path.as_os_str().is_empty())
-            {
-                match fs::symlink_metadata(self.info.root.join(ancestor)) {
-                    Ok(metadata) if ancestor == candidate || !metadata.is_dir() => {
-                        existing.insert(ancestor.to_path_buf());
+            loop {
+                let ancestor = GitPath::new(bytes)
+                    .map_err(|_| invalid("Git returned invalid integration history paths."))?;
+                let native = ancestor.to_native().map_err(|error| before(error.into()))?;
+                match fs::symlink_metadata(self.info.root.join(native)) {
+                    Ok(metadata) if &ancestor == candidate || !metadata.is_dir() => {
+                        existing.insert(ancestor);
                     }
                     Ok(_) => {}
                     Err(error)
@@ -461,6 +460,11 @@ impl Repository {
                         ) => {}
                     Err(error) => return Err(before(error.into())),
                 }
+
+                let Some(end) = bytes.iter().rposition(|byte| *byte == b'/') else {
+                    break;
+                };
+                bytes = &bytes[..end];
             }
         }
 
@@ -472,7 +476,7 @@ impl Repository {
             let mut bytes = 0;
 
             while end < existing.len() {
-                let next = existing[end].as_os_str().len() + 1;
+                let next = existing[end].as_bytes().len() + 1;
 
                 if end > start && (bytes + next > 16 * 1024 || end - start >= 256) {
                     break;
@@ -495,11 +499,9 @@ impl Repository {
             .map(Into::into)
             .collect();
 
-            args.extend(
-                existing[start..end]
-                    .iter()
-                    .map(|path| path.as_os_str().to_owned()),
-            );
+            for path in &existing[start..end] {
+                args.push(path.to_argument().map_err(|error| before(error.into()))?);
+            }
             let output = self.run(args, cancellation).map_err(before)?;
 
             if !output.stdout.is_empty() {
@@ -534,16 +536,16 @@ fn js_whitespace(character: char) -> bool {
     matches!(character, '\u{9}'..='\u{d}' | ' ' | '\u{a0}' | '\u{1680}' | '\u{2000}'..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' | '\u{205f}' | '\u{3000}' | '\u{feff}')
 }
 
-fn path(bytes: &[u8]) -> Result<PathBuf, WriteError> {
-    let path = crate::platform::path_from_git_bytes(bytes)
+fn path(bytes: &[u8]) -> Result<GitPath, WriteError> {
+    let path = GitPath::new(bytes)
         .map_err(|_| failure(WritePhase::BeforeCommand, RepositoryError::InvalidOutput))?;
 
-    crate::validation::require_paths([path.as_path()])
+    crate::validation::require_paths([&path])
         .map_err(|error| failure(WritePhase::BeforeCommand, error))?;
 
     Ok(path)
 }
 
-fn paths(output: &[u8]) -> Result<Vec<PathBuf>, WriteError> {
+fn paths(output: &[u8]) -> Result<Vec<GitPath>, WriteError> {
     nul_fields(output)?.into_iter().map(path).collect()
 }

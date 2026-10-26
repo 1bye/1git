@@ -7,7 +7,6 @@ mod common;
 
 use common::symlink;
 use std::fs;
-use std::path::Path;
 
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use common::{Fixture, files_under};
@@ -35,7 +34,7 @@ fn matches_frozen_legacy_content_encodings_and_byte_lengths() {
     let repository = Repository::open(&fixture.root, fixture.process(), None).unwrap();
 
     for case in reference["cases"].as_array().unwrap() {
-        let path = Path::new(case["path"].as_str().unwrap());
+        let path = common::git_path(case["path"].as_str().unwrap());
 
         let source = if case["kind"] == "working" {
             FileSource::Working
@@ -43,7 +42,7 @@ fn matches_frozen_legacy_content_encodings_and_byte_lengths() {
             FileSource::Revision("HEAD")
         };
 
-        let content = repository.file_content(source, path, None).unwrap();
+        let content = repository.file_content(source, &path, None).unwrap();
 
         let (encoded, encoding) = match &content.content {
             FileData::Utf8(text) => (text.clone(), "utf8"),
@@ -70,7 +69,7 @@ fn reads_exact_utf8_bom_binary_and_empty_working_files() {
         fs::write(fixture.root.join(name), bytes).unwrap();
 
         let content = repository
-            .file_content(FileSource::Working, Path::new(name), None)
+            .file_content(FileSource::Working, &common::git_path(name), None)
             .unwrap();
 
         assert_eq!(content.content.as_bytes(), bytes);
@@ -92,7 +91,11 @@ fn revision_and_object_previews_resolve_immutable_blobs_with_exact_path_labels()
     let before_committed = files_under(&fixture.root);
 
     let committed = repository
-        .file_content(FileSource::Revision("HEAD"), Path::new("file\t\n*"), None)
+        .file_content(
+            FileSource::Revision("HEAD"),
+            &common::git_path("file\t\n*"),
+            None,
+        )
         .unwrap();
 
     assert_eq!(files_under(&fixture.root), before_committed);
@@ -103,21 +106,21 @@ fn revision_and_object_previews_resolve_immutable_blobs_with_exact_path_labels()
     let object = repository
         .file_content(
             FileSource::Object(&committed.revision),
-            Path::new("path label"),
+            &common::git_path("path label"),
             None,
         )
         .unwrap();
 
     let current = repository
-        .file_content(FileSource::Working, Path::new("file\t\n*"), None)
+        .file_content(FileSource::Working, &common::git_path("file\t\n*"), None)
         .unwrap();
 
     assert_eq!(object.content.as_bytes(), b"committed\n");
     assert_eq!(committed.revision, object.revision);
-    assert_eq!(object.path, Path::new("path label"));
+    assert_eq!(object.path, common::git_path("path label"));
     assert_eq!(current.content.as_bytes(), b"working\n");
     assert!(matches!(
-        repository.file_content(FileSource::Object("HEAD"), Path::new("file"), None),
+        repository.file_content(FileSource::Object("HEAD"), &common::git_path("file"), None),
         Err(RepositoryError::NotAFile)
     ));
     assert_eq!(files_under(&fixture.root), before);
@@ -139,23 +142,20 @@ fn allows_internal_symlinks_and_rejects_escapes_directories_and_replaced_roots()
 
     assert_eq!(
         repository
-            .file_content(FileSource::Working, Path::new("inside-link"), None)
+            .file_content(FileSource::Working, &common::git_path("inside-link"), None)
             .unwrap()
             .content
             .as_bytes(),
         b"inside\n"
     );
     assert!(matches!(
-        repository.file_content(FileSource::Working, Path::new("outside-link"), None),
+        repository.file_content(FileSource::Working, &common::git_path("outside-link"), None),
         Err(RepositoryError::PathOutsideRepository)
     ));
+    assert!(onegit_git::GitPath::new("../outside").is_err());
     assert!(matches!(
-        repository.file_content(FileSource::Working, Path::new("../outside"), None),
-        Err(RepositoryError::PathOutsideRepository)
-    ));
-    assert!(matches!(
-        repository.file_content(FileSource::Working, Path::new(".git"), None),
-        Err(RepositoryError::NotAFile)
+        repository.file_content(FileSource::Working, &common::git_path(".git"), None),
+        Err(RepositoryError::InvalidPath)
     ));
 
     fs::rename(&fixture.root, fixture.temporary.path().join("old-root")).unwrap();
@@ -163,7 +163,7 @@ fn allows_internal_symlinks_and_rejects_escapes_directories_and_replaced_roots()
     fs::write(fixture.root.join("file"), "replacement").unwrap();
 
     assert!(matches!(
-        repository.file_content(FileSource::Working, Path::new("file"), None),
+        repository.file_content(FileSource::Working, &common::git_path("file"), None),
         Err(RepositoryError::InvalidInput(_))
     ));
 }
@@ -180,14 +180,18 @@ fn enforces_the_preview_limit_on_working_and_committed_sources_and_honors_cancel
 
     assert_eq!(
         repository
-            .file_content(FileSource::Working, Path::new("large"), None)
+            .file_content(FileSource::Working, &common::git_path("large"), None)
             .unwrap()
             .size_bytes(),
         boundary.len()
     );
     assert_eq!(
         repository
-            .file_content(FileSource::Revision("HEAD"), Path::new("large"), None)
+            .file_content(
+                FileSource::Revision("HEAD"),
+                &common::git_path("large"),
+                None
+            )
             .unwrap()
             .size_bytes(),
         boundary.len()
@@ -200,11 +204,15 @@ fn enforces_the_preview_limit_on_working_and_committed_sources_and_honors_cancel
     fixture.commit("over boundary");
 
     assert!(matches!(
-        repository.file_content(FileSource::Working, Path::new("large"), None),
+        repository.file_content(FileSource::Working, &common::git_path("large"), None),
         Err(RepositoryError::Git(GitError::OutputTooLarge { .. }))
     ));
     assert!(matches!(
-        repository.file_content(FileSource::Revision("HEAD"), Path::new("large"), None),
+        repository.file_content(
+            FileSource::Revision("HEAD"),
+            &common::git_path("large"),
+            None
+        ),
         Err(RepositoryError::Git(GitError::OutputTooLarge { .. }))
     ));
 
@@ -213,7 +221,11 @@ fn enforces_the_preview_limit_on_working_and_committed_sources_and_honors_cancel
     cancellation.cancel();
 
     assert!(matches!(
-        repository.file_content(FileSource::Working, Path::new("large"), Some(&cancellation)),
+        repository.file_content(
+            FileSource::Working,
+            &common::git_path("large"),
+            Some(&cancellation)
+        ),
         Err(RepositoryError::Git(GitError::Cancelled))
     ));
 }

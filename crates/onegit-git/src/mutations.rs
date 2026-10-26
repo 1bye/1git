@@ -1,6 +1,7 @@
 //! FIFO application mutations, shared explicitly across canonical related worktrees.
 //! The guard spans command cleanup and post-write refresh; external Git is not excluded.
 
+use crate::GitPath;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -165,7 +166,7 @@ impl Repository {
     /// Calls on this session (or a shared coordinator) execute in FIFO order.
     pub fn stage(
         &self,
-        paths: &[PathBuf],
+        paths: &[GitPath],
         cancellation: Option<&Cancellation>,
     ) -> Result<Snapshot, WriteError> {
         self.change_index(Some(paths), false, cancellation)
@@ -179,7 +180,7 @@ impl Repository {
     /// Unstage exact paths without changing their working contents, including an unborn branch.
     pub fn unstage(
         &self,
-        paths: &[PathBuf],
+        paths: &[GitPath],
         cancellation: Option<&Cancellation>,
     ) -> Result<Snapshot, WriteError> {
         self.change_index(Some(paths), true, cancellation)
@@ -192,7 +193,7 @@ impl Repository {
 
     fn change_index(
         &self,
-        paths: Option<&[PathBuf]>,
+        paths: Option<&[GitPath]>,
         unstage: bool,
         cancellation: Option<&Cancellation>,
     ) -> Result<Snapshot, WriteError> {
@@ -207,7 +208,7 @@ impl Repository {
         self.check_write_identity().map_err(before)?;
 
         if let Some(paths) = paths {
-            require_paths(paths.iter().map(PathBuf::as_path)).map_err(before)?;
+            require_paths(paths.iter()).map_err(before)?;
         }
 
         let unborn = if unstage {
@@ -245,7 +246,7 @@ impl Repository {
 
             for path in paths {
                 if seen.insert(path) {
-                    args.push(path.as_os_str().to_owned());
+                    args.push(path.to_argument().map_err(|error| before(error.into()))?);
                 }
             }
         } else if !unstage {
