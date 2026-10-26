@@ -77,6 +77,7 @@ export interface WorkspaceSessionDocument {
 	readonly autoIncludeChanges?: boolean;
 	readonly smoothTransitions?: boolean;
 	readonly showScrollbars?: boolean;
+	readonly showGrain?: boolean;
 	readonly typography?: AppTypography;
 	readonly repositoryColors?: RepositoryColorChoices;
 	readonly repositoryPatterns?: RepositoryPatternChoices;
@@ -262,6 +263,9 @@ export class WorkspaceSession {
 			...(value.typography === undefined
 				? {}
 				: { typography: TypographyPreferences.parse(value.typography) }),
+			...(typeof value.showGrain === "boolean"
+				? { showGrain: value.showGrain }
+				: {}),
 			...(typeof value.showScrollbars === "boolean"
 				? { showScrollbars: value.showScrollbars }
 				: {}),
@@ -333,7 +337,8 @@ export class WorkspaceSession {
 		typography?: AppTypography,
 		tips?: TourTips,
 		keybinds?: KeybindOverrides,
-		fileListLayout?: RepositoryFileLayout
+		fileListLayout?: RepositoryFileLayout,
+		showGrain?: boolean
 	): WorkspaceSessionDocument {
 		return {
 			version: 1,
@@ -358,6 +363,7 @@ export class WorkspaceSession {
 				? { typography: TypographyPreferences.parse(typography) }
 				: {}),
 			...(showScrollbars !== undefined ? { showScrollbars } : {}),
+			...(showGrain !== undefined ? { showGrain } : {}),
 			...(smoothTransitions !== undefined ? { smoothTransitions } : {}),
 			...(onboarding ? { onboarding } : {}),
 			...(tips ? { tips } : {}),

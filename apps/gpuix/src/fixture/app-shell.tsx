@@ -124,36 +124,38 @@ export function AppShell({
 						: undefined
 				)}
 			>
-				<div
-					testId="repository-chrome-grain"
-					aria-hidden
-					style={{
-						position: "absolute",
-						top: 0,
-						left: 0,
-						width: "100%",
-						height: "100%",
-						display: "flex",
-						flexDirection: "column",
-						justifyContent: "center",
-						overflowX: "hidden",
-						overflowY: "hidden",
-						pointerEvents: "none",
-						opacity: theme.appearance === "dark" ? 0.12 : 0.09,
-					}}
-				>
-					{/* Match the SVG mask's width-scaled square and vertical centering. */}
-					<img
-						alt=""
+				{theme.showGrain !== false ? (
+					<div
+						testId="repository-chrome-grain"
 						aria-hidden
-						src={chromeGrainImages[theme.appearance]}
 						style={{
+							position: "absolute",
+							top: 0,
+							left: 0,
 							width: "100%",
-							flexShrink: 0,
+							height: "100%",
+							display: "flex",
+							flexDirection: "column",
+							justifyContent: "center",
+							overflowX: "hidden",
+							overflowY: "hidden",
 							pointerEvents: "none",
+							opacity: theme.appearance === "dark" ? 0.12 : 0.09,
 						}}
-					/>
-				</div>
+					>
+						{/* Match the SVG mask's width-scaled square and vertical centering. */}
+						<img
+							alt=""
+							aria-hidden
+							src={chromeGrainImages[theme.appearance]}
+							style={{
+								width: "100%",
+								flexShrink: 0,
+								pointerEvents: "none",
+							}}
+						/>
+					</div>
+				) : null}
 				<WorkspaceCornerContext value={setRightRadius}>
 					{toolbar}
 				</WorkspaceCornerContext>

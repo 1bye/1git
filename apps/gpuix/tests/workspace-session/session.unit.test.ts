@@ -10,6 +10,32 @@ import { WorkspaceTabsModel } from "../../src/feature/workspace-tabs/lib/workspa
 import { repositorySnapshot } from "../_shared/repository-snapshot";
 import { commitInfo, historyPage } from "../_shared/history-page";
 
+it("round-trips grain visibility and ignores invalid saved choices without losing tabs", () => {
+	const args: Parameters<typeof WorkspaceSession.capture> = [
+		WorkspaceTabsModel.create(),
+	];
+
+	for (const enabled of [true, false]) {
+		args[15] = enabled;
+		const saved = WorkspaceSession.parse(
+			JSON.stringify(WorkspaceSession.capture(...args))
+		);
+
+		expect(saved.showGrain).toBe(enabled);
+	}
+
+	const document = WorkspaceSession.capture(args[0]);
+
+	for (const showGrain of [undefined, null, "false", 0, {}]) {
+		const parsed = WorkspaceSession.parse(
+			JSON.stringify({ ...document, showGrain })
+		);
+
+		expect(parsed.showGrain).toBeUndefined();
+		expect(parsed.tabs).toEqual(document.tabs);
+	}
+});
+
 it.each([false, true])(
 	"persists automatic inclusion across restart (enabled: %s)",
 	(enabled) => {

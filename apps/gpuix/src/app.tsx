@@ -193,6 +193,10 @@ export function App({
 		TypographyPreferences.parse(props.initialSession?.typography)
 	);
 
+	const [showGrain, setShowGrain] = useState(
+		props.initialSession?.showGrain ?? true
+	);
+
 	const [showScrollbars, setShowScrollbars] = useState(
 		props.initialSession?.showScrollbars ?? true
 	);
@@ -216,6 +220,8 @@ export function App({
 			tokens: { ...appThemes[appearance].tokens, showScrollbars },
 			typography: typographyPreferences,
 			setTypography,
+			showGrain,
+			setShowGrain,
 			showScrollbars,
 			setShowScrollbars,
 			appearancePreference,
@@ -230,6 +236,7 @@ export function App({
 			appearancePreference,
 			commitTypeBadges,
 			smoothTransitions,
+			showGrain,
 			showScrollbars,
 			typographyPreferences,
 		]
@@ -713,7 +720,8 @@ function AppContent({
 		theme.typography,
 		tips,
 		keybindOverrides,
-		fileListLayout
+		fileListLayout,
+		theme.showGrain
 	);
 
 	useEffect(() => {

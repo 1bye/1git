@@ -565,6 +565,8 @@ window-sized SVG mask. Fine grain remains visible on colored and neutral windows
 including Home and Settings, beneath chrome
 controls, never over code. Its density and light/dark opacity keep
 it readable over the blur without animation, filters or an input target.
+**Settings → Appearance → Grain texture** turns it on or off immediately across
+the window. Grain defaults on, and the choice is saved with the session.
 Illustrations repeat one fixed 256 × 256 SVG tile per preset, shared across colors
 and window sizes rather than rasterizing a window-sized wallpaper. The layer ignores
 pointer input, is hidden from accessibility, and leaves the native blurred material

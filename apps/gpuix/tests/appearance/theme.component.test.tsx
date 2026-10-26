@@ -40,7 +40,8 @@ function fixture(
 	commitTypeBadges?: boolean,
 	smoothTransitions?: boolean,
 	initialSystemAppearance: AppAppearance = "light",
-	showScrollbars?: boolean
+	showScrollbars?: boolean,
+	showGrain?: boolean
 ) {
 	const root = createTestRoot({
 		width: 1100,
@@ -108,6 +109,7 @@ function fixture(
 				commitTypeBadges,
 				smoothTransitions,
 				showScrollbars,
+				showGrain,
 			}}
 			readRepository={async () => ({ ok: true, value: snapshot })}
 			readHistory={async () => {
@@ -593,6 +595,76 @@ it.each([
 			await Bun.sleep(230);
 			await settle(root);
 			expect(saved.at(-1)?.showScrollbars).toBe(initial);
+		} finally {
+			catalog.mockRestore();
+		}
+	}
+);
+
+it.each([
+	{ appearance: "light", savedChoice: undefined, initial: true },
+	{ appearance: "dark", savedChoice: undefined, initial: true },
+	{ appearance: "light", savedChoice: false, initial: false },
+	{ appearance: "dark", savedChoice: false, initial: false },
+] as const)(
+	"defaults grain on, restores its saved choice and toggles it without resetting the workspace (%j)",
+	async ({ appearance, savedChoice, initial }) => {
+		const { root, catalog, saved } = fixture(
+			appearance,
+			undefined,
+			false,
+			"light",
+			undefined,
+			savedChoice
+		);
+
+		try {
+			await settle(root);
+			expect(!!root.renderer.findByTestId("repository-chrome-grain")).toBe(
+				initial
+			);
+			click(root, "entry-example.ts");
+			await settle(root);
+			const content = node(root, "diff-viewport-content").id;
+
+			await openSettings(root);
+			click(root, "settings-appearance");
+			expect(node(root, "appearance-grain").customProps?.["aria-checked"]).toBe(
+				initial
+			);
+			click(root, "appearance-grain");
+			await Bun.sleep(230);
+			await settle(root);
+			expect(saved.at(-1)?.showGrain).toBe(!initial);
+			expect(!!root.renderer.findByTestId("repository-chrome-grain")).toBe(
+				!initial
+			);
+
+			if (process.env.GPUIX_GRAIN_SETTINGS_SCREENSHOT && initial)
+				root.renderer.captureScreenshot(
+					`${process.env.GPUIX_GRAIN_SETTINGS_SCREENSHOT}-${appearance}.png`
+				);
+
+			root.renderer.nativeSimulateKeyDown(
+				node(root, "appearance-grain").id,
+				"space"
+			);
+			root.renderer.nativeSimulateKeyUp(
+				node(root, "appearance-grain").id,
+				"space"
+			);
+			await Bun.sleep(230);
+			await settle(root);
+			expect(saved.at(-1)?.showGrain).toBe(initial);
+			expect(!!root.renderer.findByTestId("repository-chrome-grain")).toBe(
+				initial
+			);
+			click(root, "view-changes");
+			await settle(root);
+			expect(node(root, "diff-viewport-content").id).toBe(content);
+			expect(node(root, "commit-message").customProps?.value).toBe(
+				"Keep my draft"
+			);
 		} finally {
 			catalog.mockRestore();
 		}

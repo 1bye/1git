@@ -35,6 +35,8 @@ export function AppearanceSettings({
 		setSmoothTransitions,
 		showScrollbars = true,
 		setShowScrollbars,
+		showGrain = true,
+		setShowGrain,
 	} = theme;
 
 	return (
@@ -53,6 +55,21 @@ export function AppearanceSettings({
 					</SettingsGroup>
 					<FontSettings />
 					<SettingsGroup title="Interface">
+						<SettingsGroupRow
+							label="Grain texture"
+							description="Add a subtle grain texture to window chrome."
+							trailing={
+								<Checkbox
+									testId="appearance-grain"
+									aria-label="Grain texture"
+									checked={showGrain}
+									onCheckedChange={(enabled) => setShowGrain?.(enabled)}
+									disabled={!setShowGrain}
+									tokens={tokens}
+								/>
+							}
+						/>
+
 						<SettingsGroupRow
 							label="Pane scrollbars"
 							description="Show scrollbars in lists, previews and output panes."

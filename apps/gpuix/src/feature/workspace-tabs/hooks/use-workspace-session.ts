@@ -35,7 +35,8 @@ export function useWorkspaceSession(
 	typography?: AppTypography,
 	tips?: TourTips,
 	keybinds?: KeybindOverrides,
-	fileListLayout?: RepositoryFileLayout
+	fileListLayout?: RepositoryFileLayout,
+	showGrain?: boolean
 ) {
 	const content =
 		state.preview || !save
@@ -56,7 +57,8 @@ export function useWorkspaceSession(
 						typography,
 						tips,
 						keybinds,
-						fileListLayout
+						fileListLayout,
+						showGrain
 					)
 				);
 
