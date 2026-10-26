@@ -160,10 +160,12 @@ Runtime dependencies for the tarball (to install, not bundle):
 
 ## Not yet verified / TODO
 
-1. **Real desktop run.** The window was verified under Xvfb only
-   (dev build and packaged tarball alike). Next: run on a real
-   GNOME X11 session and a Wayland session, including
-   mouse/keyboard input, window resize, and HiDPI.
+1. **Real desktop run.** Xvfb verification done (dev build and
+   packaged tarball alike). User-verified 2026-10-26 on a real
+   Ubuntu 24.04 machine with the packaged tarball: window opens,
+   mouse input normal, window resize works. Still untested on a
+   real machine: Wayland vs X11 session type (not recorded),
+   keyboard shortcuts (see Cmd -> Ctrl below), and HiDPI.
 2. **Ubuntu 20.04 build.** Rebuild `build:native` and
    `package:linux` on a 20.04 host/container and verify the
    tarball's glibc ceiling is 2.31 before claiming 20.04 support.
@@ -191,6 +193,8 @@ Runtime dependencies for the tarball (to install, not bundle):
 9. **Tests.** The vibrancy, traffic-light, signing, notarization and
    macOS launch integration suites are macOS-only; they need Linux
    equivalents or explicit skips, not silent passes.
-10. **Push decision.** This branch lives only in this workspace.
-   Nothing has been pushed to `1bye/1git` and no PR has been opened;
-   pushing upstream or forking is a separate decision for the user.
+10. **Push status.** Pushed 2026-10-26 to the user's fork
+   `wuqingwei/1git`, branch `linux-port` (3 commits: scaffolding,
+   native build + first window, Linux tarball packaging). Upstream
+   `origin` (`1bye/1git`) was not touched and no PR has been opened.
+   Remote `wuqingwei` in this worktree points at the fork.
