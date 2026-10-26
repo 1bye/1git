@@ -1,5 +1,5 @@
 /**
- * Covers: compact branch/change/tracking details, themes, tile/list layouts and visible-only Home reads.
+ * Covers: compact status details, themes, stable search layouts, scroll resets and visible-only Home reads.
  * Real: Home library, bounded overview queue and native GPUIX layout/input.
  * Doubles: Git snapshots and open actions; no user files, accounts or SSH requests.
  * Requires: patched GPUIX renderer with macOS graphics access.
@@ -231,6 +231,96 @@ it("limits status reads to the visible part of a large repository list", async (
 	await settle();
 	expect(read.mock.calls.some(([path]) => path === paths[999])).toBe(true);
 });
+
+it("keeps the measured tile columns on each search edit", async () => {
+	const paths = [
+		"/projects/alpha-one",
+		"/projects/alpha-two",
+		"/projects/beta",
+	];
+
+	root.render(
+		<Welcome
+			paths={paths}
+			read={async () => ({ ok: true, value: repositorySnapshot() })}
+			onOpen={() => {}}
+			folder="other"
+		/>
+	);
+	await settle();
+	root.renderer.focusElement(node("welcome-search").id);
+
+	// Inspect the first frame of every edit, before the deferred width measurement.
+	for (const keystrokes of ["a", "l", "p", "backspace", "cmd-a backspace"]) {
+		root.renderer.simulateKeystrokes(keystrokes);
+		root.renderer.flush();
+		const first = root.renderer.getElementBounds(
+			node(`welcome-row-${paths[0]}`).id
+		)!;
+
+		const second = root.renderer.getElementBounds(
+			node(`welcome-row-${paths[1]}`).id
+		)!;
+
+		expect(second.y).toBe(first.y);
+		expect(second.x).toBeGreaterThan(first.x);
+		await settle();
+	}
+});
+
+for (const view of ["tiles", "list"] as const) {
+	it(`returns scrolled ${view} search results to the first repository`, async () => {
+		const paths = Array.from(
+			{ length: 300 },
+			(_, index) => `/projects/alpha-${String(index).padStart(3, "0")}`
+		);
+
+		root.render(
+			<Welcome
+				paths={paths}
+				read={async () => ({ ok: true, value: repositorySnapshot() })}
+				onOpen={() => {}}
+				folder="other"
+				view={view}
+			/>
+		);
+		await settle();
+		root.renderer.focusElement(node(`welcome-repository-${paths[0]}`).id);
+		root.renderer.simulateKeystrokes("end");
+		root.renderer.flush();
+		await settle();
+		expect(
+			root.renderer.getListScrollTop(node("welcome-repositories").id)?.[0]
+		).toBeGreaterThan(40);
+		root.renderer.focusElement(node("welcome-search").id);
+
+		for (const keystrokes of [
+			"a",
+			"cmd-a a l p h a - 0 0",
+			"cmd-a backspace",
+		]) {
+			root.renderer.simulateKeystrokes(keystrokes);
+			root.renderer.flush();
+			const list = node("welcome-repositories");
+
+			const first = root.renderer.getElementBounds(
+				node(`welcome-row-${paths[0]}`).id
+			)!;
+
+			const viewport = root.renderer.getElementBounds(
+				node("welcome-repositories-viewport").id
+			)!;
+
+			expect(root.renderer.getListScrollTop(list.id)?.slice(0, 2)).toEqual([
+				0, 0,
+			]);
+			expect(list.customProps?.windowStart).toBe(0);
+			expect(first.y).toBe(viewport.y);
+			expect(first.height).toBeGreaterThan(0);
+			await settle();
+		}
+	});
+}
 
 it("loads only visible starred repositories and follows their scroll viewport", async () => {
 	const paths = Array.from(

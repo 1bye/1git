@@ -35,6 +35,7 @@ export function RepositoryWelcomeList({
 	onStar,
 	onMenu,
 	layout,
+	query = "",
 	testIdPrefix = "welcome-",
 }: {
 	paths: readonly string[];
@@ -46,6 +47,7 @@ export function RepositoryWelcomeList({
 	onStar?: (path: string) => void;
 	onMenu?: ComponentProps<typeof RepositoryWelcomeRow>["onMenu"];
 	layout: "tiles" | "list";
+	query?: string;
 	testIdPrefix?: string;
 }) {
 	const renderer = useGpuixRequired();
@@ -59,6 +61,14 @@ export function RepositoryWelcomeList({
 	const [windowStart, setWindowStart] = useState(0);
 	const [columns, setColumns] = useState(1);
 	const columnCount = layout === "tiles" ? columns : 1;
+
+	useLayoutEffect(() => {
+		// Reset search scrolling without discarding the measured grid width.
+		focus.current = null;
+		setWindowStart(0);
+
+		if (viewport.current) renderer.scrollToItem?.(viewport.current.id, 0, 0);
+	}, [query, renderer]);
 
 	const rowHeight =
 		layout === "tiles" ? repositoryTileSize.height + tileGap : 58;

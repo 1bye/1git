@@ -325,6 +325,8 @@ export class GitProcess {
 					GIT_TERMINAL_PROMPT: "0",
 					LANG: "C",
 					LC_ALL: "C",
+					// Keep the app's GPUIX binding override out of native tools in Git hooks.
+					NAPI_RS_NATIVE_LIBRARY_PATH: undefined,
 					PAGER: "cat",
 				},
 				shell: false,
