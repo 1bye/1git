@@ -1209,7 +1209,7 @@ it("leaves older sessions alone, offers replay in Settings and preserves the act
 	});
 	await click("rail-settings");
 	await click("settings-appearance");
-	root.renderer.scrollTo(node("appearance-settings").id, 0, -10000);
+	root.renderer.scrollTo(node("appearance-settings-scroll").id, 0, -10000);
 	await settle();
 	await click("settings-run-setup");
 	expect(node("onboarding-view")).toBeDefined();

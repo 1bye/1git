@@ -247,6 +247,8 @@ export function RepositoryAppearance({
 									width: 28,
 									height: 28,
 									padding: 0,
+									paddingLeft: 0,
+									paddingRight: 0,
 									borderWidth: 2,
 									borderColor:
 										color === preset.color

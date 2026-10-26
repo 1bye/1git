@@ -5,6 +5,10 @@
  * Doubles: disposable stores, account catalog, editor discovery and Git/model reads.
  * Requires: built native addon and macOS graphics access; no network or user preferences.
  */
+import { useState, type Ref } from "react";
+import { windowOptions } from "../../src/window-options";
+import type { SpacesSettingsHandle } from "../../src/feature/spaces/space-manager";
+import type { WorkspaceSpace } from "../../src/feature/spaces/workspace-spaces";
 import { afterEach, expect, test, spyOn, mock } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
@@ -21,6 +25,35 @@ import { AiSettingsStore } from "../../src/feature/ai/lib/ai-settings-store";
 import { IgnoredHistory } from "../../src/feature/ignored-history/ignored-history";
 import { SpacesSettings } from "../../src/feature/spaces/space-manager";
 
+function SpaceFixture({ ref }: { ref?: Ref<SpacesSettingsHandle> }) {
+	const [editor, setEditor] = useState<{ space?: WorkspaceSpace }>();
+
+	return (
+		<SpacesSettings
+			ref={ref}
+			editor={editor}
+			onCancel={() => setEditor(undefined)}
+			onSave={() => setEditor(undefined)}
+			spaces={[
+				{
+					id: "default",
+					name: "Default",
+					icon: "layers",
+					activeId: null,
+					repositories: [],
+					discovery: { folders: [], hidden: [] },
+					library: { starred: [], view: "tiles" },
+				},
+			]}
+			activeId="default"
+			onCreate={() => setEditor({})}
+			onEdit={(space) => setEditor({ space })}
+			onSelect={() => {}}
+			onDelete={() => {}}
+		/>
+	);
+}
+
 const roots: ReturnType<typeof createTestRoot>[] = [];
 const directories: string[] = [];
 
@@ -35,13 +68,22 @@ afterEach(() => {
 	mock.restore();
 });
 
-test.each(["light", "dark"] as const)(
-	"opens every Settings page and editor in %s",
-	async (appearance) => {
+test.each([
+	["light", 1080],
+	["dark", 1080],
+	["light", 720],
+	["dark", 720],
+] as const)(
+	"opens every Settings page and editor in %s at %dpx",
+	async (appearance, width) => {
 		const directory = mkdtempSync(join(tmpdir(), "1git-settings-layout-"));
 
 		directories.push(directory);
-		const root = createTestRoot({ width: 1080, height: 760 });
+		const root = createTestRoot({
+			width,
+			height: 760,
+			onKeyDown: windowOptions.onKeyDown,
+		});
 
 		roots.push(root);
 		root.renderer.clockPause();
@@ -118,28 +160,7 @@ test.each(["light", "dark"] as const)(
 						repositoryAppearance={{}}
 						repositoryAppearanceName="Example"
 						ignoredHistory={{ history, repository, onRefresh: async () => {} }}
-						spacesSettings={
-							<SpacesSettings
-								onCancel={() => {}}
-								onSave={() => {}}
-								spaces={[
-									{
-										id: "default",
-										name: "Default",
-										icon: "layers",
-										activeId: null,
-										repositories: [],
-										discovery: { folders: [], hidden: [] },
-										library: { starred: [], view: "tiles" },
-									},
-								]}
-								activeId="default"
-								onCreate={() => {}}
-								onEdit={() => {}}
-								onSelect={() => {}}
-								onDelete={() => {}}
-							/>
-						}
+						spacesSettings={<SpaceFixture />}
 					/>
 				</AiProvider>
 			</AppThemeContext>
@@ -163,7 +184,8 @@ test.each(["light", "dark"] as const)(
 		};
 
 		const press = async (id: string) => {
-			root.renderer.nativeSimulateKeyDown(node(id).id, "enter");
+			root.renderer.focusElement(node(id).id);
+			root.renderer.simulateKeystrokes("enter");
 			await settle();
 		};
 
@@ -172,7 +194,7 @@ test.each(["light", "dark"] as const)(
 
 			if (output)
 				root.renderer.captureScreenshot(
-					join(output, `${appearance}-${name}.png`)
+					join(output, `${appearance}-${width}-${name}.png`)
 				);
 		};
 
@@ -210,48 +232,54 @@ test.each(["light", "dark"] as const)(
 			capture(section);
 
 			if (section === "appearance") {
-				root.renderer.scrollTo(node(page).id, 0, -10000);
+				for (const id of [
+					"appearance-ui-font-row",
+					"appearance-code-font-row",
+				]) {
+					expect(
+						root.renderer.getElementBounds(node(id).id)!.height
+					).toBeLessThan(100);
+				}
+
+				root.renderer.scrollTo(
+					node("appearance-settings-scroll").id,
+					0,
+					-10000
+				);
 				await settle();
 				capture("appearance-help");
 			}
 		}
 
-		for (const [section, open, panel, footer, cancel] of [
+		for (const [section, open, panel, footer] of [
+			["spaces", "space-create", "space-editor", "space-editor-footer"],
+			[
+				"repository-ignored-history",
+				"ignored-history-add-path",
+				"ignored-history-editor",
+				"ignored-history-editor-footer",
+			],
+			[
+				"repository-ignored-history",
+				"ignored-history-edit-limits",
+				"ignored-history-editor",
+				"ignored-history-editor-footer",
+			],
 			[
 				"accounts",
 				"account-add",
 				"account-setup-panel",
 				"account-setup-footer",
-				"accounts-cancel",
 			],
-			[
-				"git",
-				"identity-edit",
-				"identity-editor",
-				"git-settings-editor-footer",
-				"identity-cancel",
-			],
+			["git", "identity-edit", "identity-editor", "git-settings-editor-footer"],
 			[
 				"repository-remotes",
 				"remote-add",
 				"remote-editor",
 				"git-settings-editor-footer",
-				"remote-cancel",
 			],
-			[
-				"editor",
-				"editor-rule-add",
-				"editor-rule-editor",
-				"editor-rule-footer",
-				"editor-rule-cancel",
-			],
-			[
-				"ai",
-				"ai-add",
-				"ai-setup-panel",
-				"ai-settings-footer",
-				"ai-cancel-editor",
-			],
+			["editor", "editor-rule-add", "editor-rule-editor", "editor-rule-footer"],
+			["ai", "ai-add", "ai-setup-panel", "ai-settings-footer"],
 		] as const) {
 			await press(`settings-${section}`);
 			await press(open);
@@ -261,7 +289,8 @@ test.each(["light", "dark"] as const)(
 			expect(pane.height).toBeGreaterThan(500);
 			expect(actions.y + actions.height).toBeCloseTo(pane.y + pane.height, 0);
 			capture(`${section}-editor`);
-			await press(cancel);
+			root.renderer.simulateKeystrokes("escape");
+			await settle();
 			expect(root.renderer.findByTestId(panel)).toBeUndefined();
 		}
 	}

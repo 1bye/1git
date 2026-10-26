@@ -87,7 +87,7 @@ it("keeps font controls scrollable at the minimum window height", () => {
 				</div>
 			</AppThemeContext>
 		);
-		const settings = root.renderer.findByTestId("appearance-settings")!;
+		const settings = root.renderer.findByTestId("appearance-settings-scroll")!;
 		const apply = root.renderer.findByTestId("appearance-reset-fonts")!;
 
 		expect(

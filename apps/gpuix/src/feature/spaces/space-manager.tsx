@@ -462,6 +462,8 @@ export function SpaceManager({
 						onPress={() => setColor(preset.color)}
 						style={{
 							width: 28,
+							paddingLeft: 0,
+							paddingRight: 0,
 							height: 28,
 							padding: 3,
 							borderColor:

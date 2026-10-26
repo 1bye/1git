@@ -9,11 +9,9 @@ import {
 } from "@1git/gpuix-ui/select";
 import { useGpuixRequired } from "@gpuix/react";
 import { useAppTheme } from "../../styles/theme";
-import {
-	SettingsSection,
-	SettingsRow,
-	settingsStyles,
-} from "../settings/settings-layout";
+import { settingsStyles } from "../settings/settings-layout";
+import { SettingsGroup, SettingsGroupRow } from "../settings/settings-group";
+import { spacing } from "@1git/design-tokens";
 import { defaultTypography } from "./app-typography";
 import { InstalledFonts } from "./installed-fonts";
 import { TextSizeSlider } from "./text-size-slider";
@@ -47,9 +45,10 @@ function FontPicker({
 	);
 
 	return (
-		<SettingsRow
+		<SettingsGroupRow
+			testId={`${id}-row`}
 			label={label}
-			control={
+			trailing={
 				<Select
 					value={value || systemFont}
 					items={items}
@@ -62,7 +61,7 @@ function FontPicker({
 						testId={id}
 						aria-label={label}
 						tokens={tokens}
-						style={{ width: 280 }}
+						style={{ width: 140 }}
 					>
 						<SelectValue tokens={tokens} />
 						<svg
@@ -121,18 +120,50 @@ export function FontSettings() {
 	}, [renderer]);
 
 	return (
-		<SettingsSection title="Text">
-			<text
-				style={{ ...styles.label }}
-			>{`Text font size: ${preferences.fontSize} pt`}</text>
-			<TextSizeSlider
-				value={preferences.fontSize}
-				onChange={
-					setTypography
-						? (fontSize) => setTypography({ ...preferences, fontSize })
-						: undefined
+		<SettingsGroup
+			title="Text"
+			icon="keyboard"
+			action={
+				<Button
+					testId="appearance-reset-fonts"
+					tokens={tokens}
+					variant="secondary"
+					size="sm"
+					disabled={!setTypography}
+					onPress={() => setTypography?.(defaultTypography)}
+				>
+					Reset
+				</Button>
+			}
+		>
+			<SettingsGroupRow
+				label="Font size"
+				trailing={
+					<div
+						style={{
+							display: "flex",
+							flexDirection: "row",
+							alignItems: "center",
+							gap: spacing[1],
+						}}
+					>
+						<TextSizeSlider
+							width={100}
+							value={preferences.fontSize}
+							onChange={
+								setTypography
+									? (fontSize) => setTypography({ ...preferences, fontSize })
+									: undefined
+							}
+						/>
+						<text
+							testId="appearance-font-size-value"
+							style={styles.description}
+						>{`${preferences.fontSize} pt`}</text>
+					</div>
 				}
 			/>
+
 			<FontPicker
 				id="appearance-ui-font"
 				label="Interface font"
@@ -161,16 +192,6 @@ export function FontSettings() {
 					{error}
 				</text>
 			) : null}
-			<Button
-				testId="appearance-reset-fonts"
-				tokens={tokens}
-				variant="ghost"
-				style={{ alignSelf: "flex-start" }}
-				disabled={!setTypography}
-				onPress={() => setTypography?.(defaultTypography)}
-			>
-				Reset text settings
-			</Button>
-		</SettingsSection>
+		</SettingsGroup>
 	);
 }

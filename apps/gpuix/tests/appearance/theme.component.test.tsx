@@ -421,6 +421,10 @@ it("toggles and persists commit badges in Appearance without reloading history o
 
 		await openSettings(root);
 		click(root, "settings-appearance");
+		root.renderer.scrollIntoView(
+			node(root, "appearance-commit-type-badges").id
+		);
+		root.renderer.advanceTime(1);
 		click(root, "appearance-commit-type-badges");
 		await Bun.sleep(230);
 		root.renderer.flush();
@@ -612,7 +616,11 @@ it("saves text size and installed fonts while retaining the draft and diff insta
 
 		await openSettings(root);
 		click(root, "settings-appearance");
-		root.renderer.scrollTo(node(root, "appearance-settings").id, 0, -10000);
+		root.renderer.scrollTo(
+			node(root, "appearance-settings-scroll").id,
+			0,
+			-10000
+		);
 		root.renderer.advanceTime(1);
 		root.renderer.nativeSimulateKeyDown(
 			node(root, "appearance-font-size").id,

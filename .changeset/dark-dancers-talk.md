@@ -2,4 +2,4 @@
 "@1git/gpuix": patch
 ---
 
-Make Settings pages use consistent layout, text sizes and spacing.
+Redesign Settings pages with grouped lists, side-panel editors and live previews.

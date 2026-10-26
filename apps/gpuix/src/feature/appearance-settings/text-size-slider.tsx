@@ -8,15 +8,16 @@ import {
 import { useAppTheme } from "../../styles/theme";
 import { textSizeRange } from "./app-typography";
 
-const width = 280;
 const thumbSize = 16;
 
 /** Live point-size adjustment with pointer dragging and native keyboard focus. */
 export function TextSizeSlider({
 	value,
 	onChange,
+	width = 280,
 }: {
 	value: number;
+	width?: number;
 	onChange?: (value: number) => void;
 }) {
 	const renderer = useGpuixRequired();

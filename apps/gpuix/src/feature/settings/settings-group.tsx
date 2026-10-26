@@ -25,6 +25,7 @@ const groupStyles = createThemedStyles(
 				backgroundColor: tokens.colors.background,
 			},
 			header: {
+				flexWrap: "wrap",
 				display: "flex",
 				flexDirection: "row",
 				alignItems: "center",
@@ -38,6 +39,7 @@ const groupStyles = createThemedStyles(
 				flexShrink: 0,
 			},
 			row: {
+				flexWrap: "wrap",
 				display: "flex",
 				flexDirection: "row",
 				alignItems: "center",
@@ -78,7 +80,44 @@ export function SettingsGroup({
 	const styles = settingsStyles.get(theme);
 	const groups = groupStyles.get(theme);
 
-	return (
+	// Footerless cards need no extra native flex parent around every list row.
+	const card = (
+		<div
+			testId={testId}
+			role="group"
+			aria-label={label}
+			style={{
+				...groups.card,
+				marginBottom: footer ? 0 : settingsLayout.sectionGap,
+			}}
+		>
+			<div style={groups.header}>
+				{typeof icon === "string" ? (
+					<WorkspaceTabIcon name={icon} size={16} />
+				) : (
+					icon
+				)}
+				<text
+					role="heading"
+					aria-level={2}
+					style={{
+						...styles.sectionTitle,
+						flexGrow: 1,
+						flexBasis: 80,
+						minWidth: 0,
+						flexShrink: 1,
+					}}
+				>
+					{title}
+				</text>
+				{meta ? <text style={styles.description}>{meta}</text> : null}
+				{action}
+			</div>
+			{children}
+		</div>
+	);
+
+	return footer ? (
 		<div
 			style={{
 				...styles.column,
@@ -86,33 +125,20 @@ export function SettingsGroup({
 				marginBottom: settingsLayout.sectionGap,
 			}}
 		>
-			<div testId={testId} role="group" aria-label={label} style={groups.card}>
-				<div style={groups.header}>
-					{typeof icon === "string" ? (
-						<WorkspaceTabIcon name={icon} size={16} />
-					) : (
-						icon
-					)}
-					<text
-						role="heading"
-						aria-level={2}
-						style={{ ...styles.sectionTitle, flexGrow: 1 }}
-					>
-						{title}
-					</text>
-					{meta ? <text style={styles.description}>{meta}</text> : null}
-					{action}
-				</div>
-				{children}
-			</div>
-			{footer ? <text style={styles.description}>{footer}</text> : null}
+			{card}
+			<text style={styles.description}>{footer}</text>
 		</div>
+	) : (
+		card
 	);
 }
 
 /** A divided list row; its main target and trailing controls activate independently. */
 export function SettingsGroupRow({
 	"aria-description": accessibleDescription,
+	"aria-label": accessibleLabel,
+	role,
+	contentTestId,
 	leading,
 	label,
 	description,
@@ -124,6 +150,9 @@ export function SettingsGroupRow({
 	testId,
 }: {
 	"aria-description"?: string;
+	"aria-label"?: string;
+	role?: "group";
+	contentTestId?: string;
 	leading?: ReactNode;
 	label: ReactNode;
 	description?: ReactNode;
@@ -148,7 +177,17 @@ export function SettingsGroupRow({
 	const content = (
 		<>
 			{leading}
-			<div style={{ ...styles.column, flexGrow: 1, flexShrink: 1, gap: 0 }}>
+			<div
+				testId={contentTestId}
+				style={{
+					...styles.column,
+					flexGrow: 1,
+					flexShrink: 1,
+					flexBasis: 90,
+					minWidth: 90,
+					gap: 0,
+				}}
+			>
 				{typeof label === "string" || typeof label === "number" ? (
 					<text style={styles.label}>{label}</text>
 				) : (
@@ -175,77 +214,86 @@ export function SettingsGroupRow({
 	return (
 		<div
 			testId={onPress ? undefined : testId}
+			role={role}
+			aria-label={role ? accessibleLabel : undefined}
 			style={{
 				...groups.row,
 				backgroundColor: selected ? theme.tokens.colors.selected : undefined,
 			}}
 		>
-			<div
-				testId={onPress ? testId : undefined}
-				role={onPress ? "button" : undefined}
-				aria-label={onPress && typeof label === "string" ? label : undefined}
-				aria-description={
-					accessibleDescription ?? (selected ? "Selected" : undefined)
-				}
-				aria-disabled={disabled || undefined}
-				tabIndex={interactive ? 0 : undefined}
-				style={{
-					display: "flex",
-					flexDirection: "row",
-					alignItems: "center",
-					gap: settingsLayout.rowGap,
-					flexGrow: 1,
-					flexShrink: 1,
-					minWidth: 0,
-					cursor: interactive ? "pointer" : undefined,
-					borderWidth: onPress ? 1 : 0,
-					borderColor: focused ? theme.tokens.colors.focusRing : "transparent",
-					borderRadius: radius.md,
-					opacity: disabled ? 0.45 : 1,
-				}}
-				onFocus={onPress ? () => setFocused(true) : undefined}
-				onBlur={
-					onPress
-						? () => {
-								setFocused(false);
-								armed.current = false;
-							}
-						: undefined
-				}
-				onClick={interactive ? onPress : undefined}
-				onKeyDown={
-					interactive
-						? (event) => {
-								if (
-									!interactive ||
-									event.isHeld ||
-									event.modifiers?.cmd ||
-									event.modifiers?.ctrl ||
-									event.modifiers?.alt
-								)
-									return;
+			{/* Static rows stay flat to avoid repeated native flex measurement in long lists. */}
+			{onPress ? (
+				<div
+					testId={testId}
+					role="button"
+					aria-label={
+						accessibleLabel ?? (typeof label === "string" ? label : undefined)
+					}
+					aria-description={
+						accessibleDescription ?? (selected ? "Selected" : undefined)
+					}
+					aria-disabled={disabled || undefined}
+					tabIndex={interactive ? 0 : undefined}
+					style={{
+						display: "flex",
+						flexDirection: "row",
+						alignItems: "center",
+						gap: settingsLayout.rowGap,
+						flexGrow: 1,
+						flexBasis: 128,
+						flexWrap: "wrap",
+						flexShrink: 1,
+						minWidth: 100,
+						cursor: interactive ? "pointer" : undefined,
+						borderWidth: 1,
+						borderColor: focused
+							? theme.tokens.colors.focusRing
+							: "transparent",
+						borderRadius: radius.md,
+						opacity: disabled ? 0.45 : 1,
+					}}
+					onFocus={() => setFocused(true)}
+					onBlur={() => {
+						setFocused(false);
+						armed.current = false;
+					}}
+					onClick={interactive ? onPress : undefined}
+					onKeyDown={
+						interactive
+							? (event) => {
+									if (
+										!interactive ||
+										event.isHeld ||
+										event.modifiers?.cmd ||
+										event.modifiers?.ctrl ||
+										event.modifiers?.alt
+									)
+										return;
 
-								if (event.key === "enter") onPress?.();
-								else if (event.key === "space") armed.current = true;
-							}
-						: undefined
-				}
-				onKeyUp={
-					interactive
-						? (event) => {
-								if (event.key !== "space") return;
+									if (event.key === "enter") onPress?.();
+									else if (event.key === "space") armed.current = true;
+								}
+							: undefined
+					}
+					onKeyUp={
+						interactive
+							? (event) => {
+									if (event.key !== "space") return;
 
-								const activate = armed.current;
+									const activate = armed.current;
 
-								armed.current = false;
+									armed.current = false;
 
-								if (interactive && activate) onPress?.();
-							}
-						: undefined
-				}
-			>
-				{content}
-			</div>
+									if (interactive && activate) onPress?.();
+								}
+							: undefined
+					}
+				>
+					{content}
+				</div>
+			) : (
+				content
+			)}
 			{trailing}
 		</div>
 	);
@@ -263,7 +311,15 @@ export function SettingsGroupEmpty({
 
 	return (
 		<div testId={testId} style={groupStyles.get(theme).row}>
-			<text style={settingsStyles.get(theme).description}>{children}</text>
+			<text
+				style={{
+					...settingsStyles.get(theme).description,
+					flexShrink: 1,
+					minWidth: 0,
+				}}
+			>
+				{children}
+			</text>
 		</div>
 	);
 }
