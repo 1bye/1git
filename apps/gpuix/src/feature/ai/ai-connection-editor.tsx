@@ -11,6 +11,7 @@ import {
 	SelectValue,
 } from "@1git/gpuix-ui/select";
 import { ChoiceTile } from "../../fixture/choice-tile";
+import { WorkspaceTabIcon } from "../workspace-tabs/components/workspace-tab-icon";
 import { useAppTheme } from "../../styles/theme";
 import { useAi } from "./ai-provider";
 import {
@@ -18,9 +19,13 @@ import {
 	aiProviderNames,
 	opencodePlanIcons,
 } from "./ai-provider-icons";
-import type { AiConnection } from "./lib/ai-settings-store";
-import type { AiModel } from "./lib/ai-integration";
+import { AiSettingsStore, type AiConnection } from "./lib/ai-settings-store";
+import { findModel, modelEffort, type AiModel } from "./lib/ai-model";
 import { cavemanCommitPreset } from "./lib/caveman-commit-preset";
+import { AiApiFields } from "./ai-api-fields";
+
+// GPUIX's keyboard selection requires a nonempty option value. Persist defaults as empty strings.
+const defaultOption = "1git:default";
 
 /** Scoped account editor. Closing cancels reads; secret input stays in an uncontrolled password field and ref. */
 export function AiConnectionEditor({
@@ -40,6 +45,7 @@ export function AiConnectionEditor({
 }) {
 	const { tokens } = useAppTheme();
 	const [draft, setDraft] = useState(initial);
+	const [advanced, setAdvanced] = useState(false);
 
 	const [useDefault, setUseDefault] = useState(
 		ai.configuration.defaultId === initial.id
@@ -52,8 +58,13 @@ export function AiConnectionEditor({
 	const [loading, setLoading] = useState(false);
 	const [modelError, setModelError] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
+	const [notice, setNotice] = useState<string | null>(null);
 	const [busy, setBusy] = useState(false);
-	const [authorizing, setAuthorizing] = useState(false);
+
+	const [pendingAction, setPendingAction] = useState<"sign-in" | "test" | null>(
+		null
+	);
+
 	const [editingKey, setEditingKey] = useState(reconnect);
 	const [hasKey, setHasKey] = useState(false);
 	const [keyVersion, setKeyVersion] = useState(0);
@@ -62,12 +73,41 @@ export function AiConnectionEditor({
 	const mounted = useRef(true);
 	const service = ai.service;
 	const provider = draft.provider;
+	const chatgptProvider = provider === "chatgpt" || provider === "codex";
 	const mode = draft.opencodeMode;
 	const account = draft.chatgpt;
 	const id = draft.id;
+	const executable = draft.executable;
 	const free = provider === "opencode" && mode === "free";
-	const canLoad = free || connected === true;
+	const cli = AiSettingsStore.isCli(provider);
+	const canLoad = provider === "api" || cli || free || connected === true;
 	const saved = ai.configuration.connections.some((item) => item.id === id);
+	const modelChoices = models.slice();
+	const selectedModel = findModel(models, draft.model);
+	const effort = modelEffort(selectedModel, draft.effort);
+
+	const effortChoices = [
+		{ value: defaultOption, label: "Provider default" },
+		...(selectedModel?.effort?.levels ?? []),
+	];
+
+	const effectiveDraft = {
+		...draft,
+		effort:
+			provider === "api"
+				? draft.effort
+				: effort || (draft.effort === undefined && !cli ? undefined : ""),
+	};
+
+	if (cli)
+		modelChoices.unshift({ value: defaultOption, label: "Use CLI default" });
+
+	if (
+		draft.model &&
+		!models.some((item) => item.value === draft.model) &&
+		(cli || !models.length)
+	)
+		modelChoices.push({ value: draft.model, label: draft.model });
 
 	const row = {
 		display: "flex",
@@ -112,7 +152,7 @@ export function AiConnectionEditor({
 	useEffect(() => {
 		let cancelled = false;
 
-		if (free) {
+		if (free || cli) {
 			setConnected(false);
 
 			return;
@@ -142,13 +182,13 @@ export function AiConnectionEditor({
 		return () => {
 			cancelled = true;
 		};
-	}, [service, initial, id, provider, account, free, credentialVersion]);
+	}, [service, initial, id, provider, account, free, cli, credentialVersion]);
 	useEffect(() => {
 		setModels([]);
 		setModelError(null);
 		setLoading(false);
 
-		if (!canLoad || busy) return;
+		if (provider === "api" || !canLoad || busy) return;
 
 		const controller = new AbortController();
 
@@ -156,7 +196,14 @@ export function AiConnectionEditor({
 		void (async () => {
 			try {
 				const result = await service.models(
-					{ ...initial, id, provider, opencodeMode: mode, chatgpt: account },
+					{
+						...initial,
+						id,
+						provider,
+						opencodeMode: mode,
+						chatgpt: account,
+						executable,
+					},
 					controller.signal
 				);
 
@@ -183,6 +230,7 @@ export function AiConnectionEditor({
 		busy,
 		credentialVersion,
 		modelVersion,
+		executable,
 	]);
 
 	const clearKey = () => {
@@ -191,9 +239,38 @@ export function AiConnectionEditor({
 		setKeyVersion((value) => value + 1);
 	};
 
+	const selectProvider = (target: AiConnection["provider"]) => {
+		if (busy || saved || target === provider) return;
+
+		const sameChatgpt =
+			chatgptProvider && (target === "chatgpt" || target === "codex");
+
+		clearKey();
+		setEditingKey(false);
+		setError(null);
+		setNotice(null);
+		setAdvanced(false);
+		setDraft({
+			...draft,
+			provider: target,
+			label:
+				sameChatgpt && draft.label !== aiProviderNames[provider]
+					? draft.label
+					: aiProviderNames[target],
+			model: "",
+			chatgpt: undefined,
+			api:
+				target === "api"
+					? { protocol: "openai-chat", baseUrl: "https://api.openai.com/v1" }
+					: undefined,
+			executable: undefined,
+			effort: undefined,
+		});
+	};
+
 	const run = async (
 		action: (signal: AbortSignal) => Promise<void>,
-		authorization = false
+		actionKind: "sign-in" | "test" | null = null
 	) => {
 		if (pending.current) return;
 
@@ -201,9 +278,10 @@ export function AiConnectionEditor({
 
 		pending.current = controller;
 		setBusy(true);
-		setAuthorizing(authorization);
+		setPendingAction(actionKind);
 		onBusy(true);
 		setError(null);
+		setNotice(null);
 
 		try {
 			await action(controller.signal);
@@ -220,7 +298,7 @@ export function AiConnectionEditor({
 
 			if (mounted.current) {
 				setBusy(false);
-				setAuthorizing(false);
+				setPendingAction(null);
 			}
 		}
 	};
@@ -234,7 +312,12 @@ export function AiConnectionEditor({
 
 	const save = () =>
 		void run(async (signal) => {
-			await service.saveConnection(draft, "", useDefault, signal);
+			await service.saveConnection(
+				effectiveDraft,
+				provider === "api" ? key.current : "",
+				useDefault,
+				signal
+			);
 			ai.reload();
 
 			if (mounted.current) onClose();
@@ -292,31 +375,51 @@ export function AiConnectionEditor({
 						aria-label="AI provider"
 						style={{ ...row, gap: spacing[2], height: 64 }}
 					>
-						{(["opencode", "chatgpt"] as const).map((target) => (
-							<ChoiceTile
-								key={target}
-								testId={`ai-provider-${target}`}
-								label={aiProviderNames[target]}
-								source={aiProviderIcons[target]}
-								selected={provider === target}
-								disabled={busy || saved}
-								onPress={() => {
-									if (target === provider) return;
+						{(["opencode", "chatgpt", "claude-code", "api"] as const).map(
+							(target) => (
+								<ChoiceTile
+									key={target}
+									testId={`ai-provider-${target}`}
+									label={aiProviderNames[target]}
+									source={aiProviderIcons[target]}
+									selected={
+										target === "chatgpt" ? chatgptProvider : provider === target
+									}
+									disabled={busy || saved}
+									onPress={() => {
+										if (target === "chatgpt" && chatgptProvider) return;
 
-									clearKey();
-									setEditingKey(false);
-									setError(null);
-									setDraft({
-										...draft,
-										provider: target,
-										label: aiProviderNames[target],
-										model: "",
-										chatgpt: undefined,
-									});
-								}}
-							/>
-						))}
+										selectProvider(target === "chatgpt" ? "codex" : target);
+									}}
+								/>
+							)
+						)}
 					</div>
+					{chatgptProvider ? (
+						<>
+							<text style={label}>Connection</text>
+							<div
+								role="group"
+								aria-label="ChatGPT connection method"
+								style={{ ...row, height: 64 }}
+							>
+								{(["codex", "chatgpt"] as const).map((target) => (
+									<ChoiceTile
+										key={target}
+										testId={`ai-chatgpt-mode-${target === "codex" ? "cli" : "login"}`}
+										label={target === "codex" ? "CLI" : "Login"}
+										source={aiProviderIcons[target]}
+										selected={provider === target}
+										accessibleName={
+											target === "codex" ? "ChatGPT CLI" : "ChatGPT Login"
+										}
+										disabled={busy || saved}
+										onPress={() => selectProvider(target)}
+									/>
+								))}
+							</div>
+						</>
+					) : null}
 					<text style={label}>Name</text>
 					<input
 						testId="ai-account-name"
@@ -443,6 +546,48 @@ export function AiConnectionEditor({
 										: "Zen uses your OpenCode balance. Generation may incur charges."}
 							</text>
 						</>
+					) : provider === "api" ? (
+						<AiApiFields
+							key={id}
+							draft={draft}
+							onChange={setDraft}
+							onHeadersChange={(raw) => {
+								key.current = raw;
+							}}
+							connected={connected === true}
+							reconnect={reconnect}
+							busy={busy}
+						/>
+					) : cli ? (
+						<div style={{ ...row, justifyContent: "space-between" }}>
+							<text style={label}>
+								{`Uses your ${aiProviderNames[provider]} sign-in.`}
+							</text>
+							<Button
+								testId="ai-cli-test"
+								aria-description="Tests your CLI account with a small example diff."
+								tokens={tokens}
+								size="sm"
+								variant="secondary"
+								disabled={busy}
+								onPress={() =>
+									void run(async (signal) => {
+										const version = await service.cli.check(draft, signal);
+
+										await service.generate(
+											effectiveDraft,
+											"diff --git a/example.txt b/example.txt\n--- a/example.txt\n+++ b/example.txt\n@@ -1 +1 @@\n-Hello\n+Hello world\n",
+											signal
+										);
+
+										if (mounted.current)
+											setNotice(`${version} · Connection works.`);
+									}, "test")
+								}
+							>
+								Test agent
+							</Button>
+						</div>
 					) : (
 						<>
 							{account ? (
@@ -473,7 +618,7 @@ export function AiConnectionEditor({
 												setDraft(result);
 												connectedNow();
 											}
-										}, true)
+										}, "sign-in")
 									}
 								>
 									{account ? "Reconnect ChatGPT" : "Continue with ChatGPT"}
@@ -481,82 +626,147 @@ export function AiConnectionEditor({
 							</div>
 						</>
 					)}
-					<div style={{ ...row, justifyContent: "space-between" }}>
-						<text style={label}>Model</text>
-						{loading ? (
-							<text
-								testId="ai-models-loading"
-								role="status"
-								style={{ ...typography.sm, color: tokens.colors.textMuted }}
-							>
-								Loading models…
-							</text>
-						) : null}
-					</div>
-					<Select
-						key={`${provider}:${mode}:${canLoad}`}
-						value={draft.model || undefined}
-						onValueChange={(model) => setDraft({ ...draft, model })}
-						items={
-							models.length
-								? models
-								: draft.model
-									? [{ value: draft.model, label: draft.model }]
-									: []
-						}
-						disabled={busy || loading || !models.length}
-					>
-						<SelectTrigger
-							testId="ai-model"
-							aria-label="AI model"
-							tokens={tokens}
-							style={{ width: "100%" }}
-						>
-							<SelectValue
-								placeholder={
-									canLoad ? "Choose a model" : "Connect to load models"
+					{provider !== "api" ? (
+						<>
+							<div style={{ ...row, justifyContent: "space-between" }}>
+								<text style={label}>Model</text>
+								{loading ? (
+									<text
+										testId="ai-models-loading"
+										role="status"
+										style={{ ...typography.sm, color: tokens.colors.textMuted }}
+									>
+										Loading models…
+									</text>
+								) : null}
+							</div>
+							<Select
+								key={`${provider}:${mode}:${canLoad}`}
+								value={
+									cli ? draft.model || defaultOption : draft.model || undefined
 								}
-								tokens={tokens}
-							/>
-						</SelectTrigger>
-						<SelectContent tokens={tokens}>
-							{models.map((model) => (
-								<SelectItem
-									key={model.value}
-									value={model.value}
-									tokens={tokens}
-								>
-									{model.label}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
-					{modelError ? (
-						<div style={{ ...row, alignItems: "flex-start" }}>
-							<text
-								testId="ai-models-error"
-								role="alert"
-								style={{
-									...label,
-									color: tokens.colors.danger,
-									flexGrow: 1,
-									flexBasis: 0,
-									minWidth: 0,
+								onValueChange={(value) => {
+									setNotice(null);
+									setDraft({
+										...draft,
+										model: cli && value === defaultOption ? "" : value,
+									});
 								}}
+								items={modelChoices}
+								disabled={busy || (!cli && (loading || !models.length))}
 							>
-								{modelError}
-							</text>
-							<Button
-								testId="ai-models-retry"
-								tokens={tokens}
-								size="sm"
-								variant="ghost"
-								disabled={busy}
-								onPress={() => setModelVersion((value) => value + 1)}
-							>
-								Retry
-							</Button>
-						</div>
+								<SelectTrigger
+									testId="ai-model"
+									aria-label="AI model"
+									tokens={tokens}
+									style={{ width: "100%" }}
+								>
+									<SelectValue
+										placeholder={
+											canLoad ? "Choose a model" : "Connect to load models"
+										}
+										tokens={tokens}
+									/>
+								</SelectTrigger>
+								<SelectContent tokens={tokens}>
+									{modelChoices.map((model) => (
+										<SelectItem
+											key={model.value}
+											value={model.value}
+											tokens={tokens}
+										>
+											{model.label}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+							{modelError ? (
+								<div style={{ ...row, alignItems: "flex-start" }}>
+									<text
+										testId="ai-models-error"
+										role="alert"
+										style={{
+											...label,
+											color: tokens.colors.danger,
+											flexGrow: 1,
+											flexBasis: 0,
+											minWidth: 0,
+										}}
+									>
+										{modelError}
+									</text>
+									<Button
+										testId="ai-models-retry"
+										tokens={tokens}
+										size="sm"
+										variant="ghost"
+										disabled={busy}
+										onPress={() => setModelVersion((value) => value + 1)}
+									>
+										Retry
+									</Button>
+								</div>
+							) : null}
+							{selectedModel?.effort?.levels.length !== 0 ? (
+								<>
+									<text style={label}>Effort</text>
+									<Select
+										value={effort || defaultOption}
+										items={effortChoices}
+										disabled={busy || loading || !selectedModel?.effort}
+										onValueChange={(value) => {
+											const choice = effortChoices.find(
+												(item) => item.value === value
+											);
+
+											if (!choice) return;
+
+											setNotice(null);
+											setDraft({
+												...draft,
+												effort:
+													choice.value === defaultOption ? "" : choice.value,
+											});
+										}}
+									>
+										<SelectTrigger
+											testId="ai-effort"
+											aria-label="AI effort"
+											tokens={tokens}
+											style={{ width: "100%" }}
+										>
+											<SelectValue tokens={tokens} />
+										</SelectTrigger>
+										<SelectContent tokens={tokens}>
+											{effortChoices.map((choice) => (
+												<SelectItem
+													key={choice.value}
+													value={choice.value}
+													tokens={tokens}
+												>
+													{choice.label}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+									{!selectedModel?.effort ||
+									selectedModel.effort.source === "catalog" ? (
+										<text
+											style={{
+												...typography.sm,
+												color: tokens.colors.textMuted,
+											}}
+										>
+											{!selectedModel?.effort
+												? cli && !draft.model
+													? "Uses your CLI's configured effort."
+													: "Effort options are unavailable for this model."
+												: "Effort options are based on the model catalog."}
+										</text>
+									) : null}
+								</>
+							) : null}
+						</>
 					) : null}
 					<text style={label}>Commit instructions</text>
 					<div style={{ ...column, gap: spacing[2], flexShrink: 0 }}>
@@ -611,6 +821,58 @@ export function AiConnectionEditor({
 						disabled={busy}
 						tokens={tokens}
 					/>
+					{cli ? (
+						<>
+							<Button
+								testId="ai-cli-advanced"
+								tokens={tokens}
+								size="sm"
+								variant="ghost"
+								aria-expanded={advanced}
+								disabled={busy}
+								style={{ alignSelf: "flex-start", paddingLeft: 0 }}
+								onPress={() => setAdvanced(!advanced)}
+							>
+								<WorkspaceTabIcon
+									name={advanced ? "caretDown" : "caretRight"}
+								/>
+								Advanced
+							</Button>
+							{advanced ? (
+								<div style={{ ...column, gap: spacing[2], flexShrink: 0 }}>
+									<text style={label}>Executable path</text>
+									<input
+										testId="ai-cli-executable"
+										aria-label="Agent executable path"
+										value={draft.executable ?? ""}
+										placeholder={`Auto-detect ${provider === "codex" ? "codex" : "claude"}`}
+										readOnly={busy}
+										onChange={(event) => {
+											setNotice(null);
+											setDraft({ ...draft, executable: event.value ?? "" });
+										}}
+										style={field}
+									/>
+									<text style={label}>Custom model</text>
+									<input
+										testId="ai-cli-model"
+										aria-label="Custom agent model"
+										value={draft.model}
+										placeholder="Use CLI default"
+										readOnly={busy}
+										onChange={(event) => {
+											setNotice(null);
+											setDraft({ ...draft, model: event.value ?? "" });
+										}}
+										style={field}
+									/>
+									<text
+										style={{ ...typography.sm, color: tokens.colors.textMuted }}
+									>{`Sign in with ${provider === "codex" ? "codex login" : "claude auth login"} in your terminal. Test agent sends an example diff. CLI generation supports up to 64 KiB of selected changes.`}</text>
+								</div>
+							) : null}
+						</>
+					) : null}
 				</div>
 			</div>
 			<div
@@ -635,6 +897,15 @@ export function AiConnectionEditor({
 						{error}
 					</text>
 				) : null}
+				{notice ? (
+					<text
+						testId="ai-cli-notice"
+						role="status"
+						style={{ ...typography.sm, color: tokens.colors.textMuted }}
+					>
+						{notice}
+					</text>
+				) : null}
 				<div
 					style={{
 						...row,
@@ -648,19 +919,25 @@ export function AiConnectionEditor({
 						tokens={tokens}
 						size="sm"
 						variant="secondary"
-						disabled={busy && !authorizing}
+						disabled={busy && !pendingAction}
 						onPress={() => {
 							if (pending.current) pending.current.abort();
 							else onClose();
 						}}
 					>
-						{authorizing ? "Cancel sign-in" : "Cancel"}
+						{pendingAction === "sign-in"
+							? "Cancel sign-in"
+							: pendingAction === "test"
+								? "Cancel test"
+								: "Cancel"}
 					</Button>
 					<Button
 						testId="ai-save-preferences"
 						tokens={tokens}
 						size="sm"
-						disabled={busy || !draft.model || !draft.label.trim() || !canLoad}
+						disabled={
+							busy || (!cli && !draft.model) || !draft.label.trim() || !canLoad
+						}
 						onPress={save}
 					>
 						Save preferences
