@@ -1473,10 +1473,12 @@ it.each(["merge", "squash-merge", "rebase"] as const)(
 		expect(element("view-changes").customProps?.["aria-selected"]).toBe(true);
 		expect(writeBranch).toHaveBeenCalledTimes(1);
 		expect(root.renderer.getAllText()).toContain(
-			`${kind === "rebase" ? "Rebase" : kind === "squash-merge" ? "Squash merge" : "Merge"} in progress · 1 conflict`
+			`${kind === "rebase" ? "Rebase" : kind === "squash-merge" ? "Squash merge" : "Merge"} paused · 1 unresolved file`
 		);
 		expect(element("operation-continue")).toBeDefined();
 		expect(element("operation-abort")).toBeDefined();
+		click("operation-details");
+		await settle();
 		expect(root.renderer.getAllText()).toContain("Merge has conflicts");
 		expect(readRepository).toHaveBeenCalledTimes(2);
 	}

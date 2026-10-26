@@ -16,6 +16,10 @@ bun run --cwd apps/gpuix build:native
 bun run --cwd apps/gpuix dev
 ```
 
+`bun run --cwd apps/gpuix test` gives native component journeys a 30-second
+per-test limit, including full Settings and onboarding flows. Scrolling tests
+retain their separate frame-time and React-render budgets.
+
 Both GPUIX packages stay pinned to `0.10.0`. This app runs on Bun, React 19,
 and GPUIX. The window uses native macOS sidebar vibrancy
 and traffic lights. Titlebar and rail backgrounds stay transparent by default in both themes;

@@ -4,7 +4,7 @@
  * Doubles: generated repository/revision data; no Git, accounts or personal files.
  * Requires: patched release GPUIX addon and macOS graphics access.
  */
-import { expect, it } from "bun:test";
+import { afterEach, expect, it, mock } from "bun:test";
 import { Profiler, useState } from "react";
 import { createTestRoot } from "@gpuix/react/testing";
 import { AppThemeContext, appThemes } from "../../src/styles/theme";
@@ -17,12 +17,18 @@ import {
 } from "../_shared/repository-snapshot";
 import { historyPage } from "../_shared/history-page";
 import { stashList } from "../_shared/stash-list";
+import { prepareNativeInputFrames } from "../_shared/native-input-frame";
 
 const scrollbarTheme = {
 	...appThemes.light,
 	tokens: { ...appThemes.light.tokens, showScrollbars: true },
 	commitTypeBadges: true,
 };
+
+// Match the live renderer's 8ms frame loop; exclude idle time from measured work.
+const frameIntervalMs = 8;
+
+afterEach(() => mock.restore());
 
 function Sidebar({
 	view,
@@ -100,7 +106,7 @@ function Sidebar({
 
 for (const view of ["changes", "history", "stashes"] as const) {
 	for (const count of [30, 300, 3000]) {
-		it(`keeps ${view} wheel scrolling within budget with ${count} items`, () => {
+		it(`keeps ${view} wheel scrolling within budget with ${count} items`, async () => {
 			const root = createTestRoot({ width: 980, height: 720 });
 			const commits: number[] = [];
 
@@ -120,6 +126,8 @@ for (const view of ["changes", "history", "stashes"] as const) {
 
 				if (!list || !box) throw new Error("Missing sidebar viewport");
 
+				const flushInputChanges = prepareNativeInputFrames(root);
+
 				commits.length = 0;
 				root.renderer.resetDebugFrameOverlayStats();
 				const frames: number[] = [];
@@ -128,8 +136,11 @@ for (const view of ["changes", "history", "stashes"] as const) {
 					const start = performance.now();
 
 					root.renderer.dispatchScrollWheel(box.x + 80, box.y + 40, 0, -12);
-					root.renderer.flush();
-					frames.push(performance.now() - start);
+					flushInputChanges();
+					const elapsed = performance.now() - start;
+
+					frames.push(elapsed);
+					await Bun.sleep(Math.max(0, frameIntervalMs - elapsed));
 				}
 
 				const draw = root.renderer.getDebugFrameOverlayStats();
@@ -188,6 +199,8 @@ for (const view of ["changes", "history", "stashes"] as const) {
 
 			if (!list || !box) throw new Error("Missing sidebar viewport");
 
+			const flushInputChanges = prepareNativeInputFrames(root);
+
 			commits.length = 0;
 			const frames: number[] = [];
 
@@ -195,8 +208,11 @@ for (const view of ["changes", "history", "stashes"] as const) {
 				const start = performance.now();
 
 				root.renderer.dispatchScrollWheel(box.x + 80, box.y + 40, 0, -48);
-				root.renderer.flush();
-				frames.push(performance.now() - start);
+				flushInputChanges();
+				const elapsed = performance.now() - start;
+
+				frames.push(elapsed);
+				await Bun.sleep(Math.max(0, frameIntervalMs - elapsed));
 
 				if (tick % 12 !== 0) continue;
 

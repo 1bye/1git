@@ -19,6 +19,25 @@ diff --git a/packages/native/src/renderer.rs b/packages/native/src/renderer.rs
 +            crate::text::record_start_region(bounds, selectable);
 +        }
 +    });
- 
+
      if let Some(handle) = ctx.focus_handles.get(&element.id) {
          el = el.track_focus(handle);
+diff --git a/packages/native/src/test_renderer.rs b/packages/native/src/test_renderer.rs
+--- a/packages/native/src/test_renderer.rs
++++ b/packages/native/src/test_renderer.rs
+@@ -1158,7 +1158,13 @@
+     /// Last painted bounds for an element, or null if it was not painted.
+     #[napi]
+-    pub fn get_element_bounds(&self, id: f64) -> Result<Option<crate::renderer::ElementBounds>> {
++    pub fn get_element_bounds(
++        &self,
++        id: f64,
++        refresh: Option<bool>,
++    ) -> Result<Option<crate::renderer::ElementBounds>> {
+         let id = to_element_id(id)?;
+-        self.flush()?;
++        if refresh.unwrap_or(true) {
++            self.flush()?;
++        }
+         Ok(crate::automation::get_bounds(id).map(crate::renderer::ElementBounds::from_painted))
+     }

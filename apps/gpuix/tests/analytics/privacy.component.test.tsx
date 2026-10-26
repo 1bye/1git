@@ -12,6 +12,7 @@ import { createTestRoot, type TestRoot } from "@gpuix/react/testing";
 import { AnonymousAnalytics } from "@1git/analytics/client";
 import { PrivacySettings } from "../../src/feature/analytics/privacy-settings";
 import { AnalyticsFileStorage } from "../../src/feature/analytics/desktop-analytics";
+import { SettingsSplit } from "../../src/feature/settings/settings-layout";
 
 let directory: string;
 let root: TestRoot;
@@ -35,7 +36,7 @@ test("Space toggles analytics off and on, preserving the choice across a new cli
 		storage,
 	});
 
-	root.render(<PrivacySettings analytics={client} />);
+	root.render(<SettingsSplit list={<PrivacySettings analytics={client} />} />);
 	root.renderer.flush();
 	const checkbox = root.renderer.findByTestId("analytics-enabled");
 
@@ -79,7 +80,7 @@ test("failed preference persistence leaves the checkbox off with a visible error
 		},
 	});
 
-	root.render(<PrivacySettings analytics={client} />);
+	root.render(<SettingsSplit list={<PrivacySettings analytics={client} />} />);
 	root.renderer.flush();
 	const checkbox = root.renderer.findByTestId("analytics-enabled");
 
@@ -91,6 +92,9 @@ test("failed preference persistence leaves the checkbox off with a visible error
 
 	expect(client.enabled).toBe(false);
 	expect(
-		root.renderer.findByTestId("analytics-preference-error")
-	).not.toBeNull();
+		root.renderer.findByTestId("analytics-preference-error")?.customProps?.role
+	).toBe("alert");
+	expect(root.renderer.getAllText()).toContain(
+		"Could not save your analytics preference. Analytics is off for this session."
+	);
 });

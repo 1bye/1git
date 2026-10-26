@@ -3,7 +3,10 @@ import { spacing, radius, typography, fontWeight } from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { Scrollbars } from "@1git/gpuix-ui/scrollbar";
 import { Checkbox } from "@1git/gpuix-ui/checkbox";
-import { OverflowingLabel } from "../../../fixture/overflowing-label";
+import {
+	OverflowingLabel,
+	type OverflowingLabelHandle,
+} from "../../../fixture/overflowing-label";
 import {
 	useGpuixRequired,
 	useWindowSize,
@@ -136,8 +139,9 @@ function RepositoryRow({
 	const theme = useAppTheme();
 	const { tokens: appTokens, colors: appColors } = theme;
 	const { styles } = themedStyles.get(theme);
-	const [hovered, setHovered] = useState(false);
-	const [focused, setFocused] = useState(false);
+	const hovered = useRef(false);
+	const focused = useRef(false);
+	const label = useRef<OverflowingLabelHandle>(null);
 
 	const description = [
 		entry.detail,
@@ -160,12 +164,14 @@ function RepositoryRow({
 			}
 			testId={`row-${entry.id}`}
 			onMouseEnter={() => {
-				if (entry.status) setHovered(true);
+				hovered.current = true;
+				label.current?.setRevealed(true);
 
 				onPreviewIntent?.(entry);
 			}}
 			onMouseLeave={() => {
-				if (entry.status) setHovered(false);
+				hovered.current = false;
+				label.current?.setRevealed(focused.current);
 
 				onPreviewIntent?.(null);
 			}}
@@ -213,13 +219,15 @@ function RepositoryRow({
 					if (event.button === 2 || event.isRightClick) onMenu?.(event);
 				}}
 				onFocus={() => {
-					if (entry.status) setFocused(true);
+					focused.current = true;
+					label.current?.setRevealed(true);
 
 					onPreviewIntent?.(entry);
 					onReveal();
 				}}
 				onBlur={() => {
-					if (entry.status) setFocused(false);
+					focused.current = false;
+					label.current?.setRevealed(hovered.current);
 
 					onPreviewIntent?.(null);
 				}}
@@ -244,9 +252,9 @@ function RepositoryRow({
 				{children ??
 					(entry.status ? (
 						<RepositoryChangeLabel
+							ref={label}
 							entry={entry}
 							showDirectory={treeDepth === undefined}
-							reveal={hovered || focused}
 						/>
 					) : (
 						<div
@@ -324,10 +332,14 @@ function RepositoryRow({
 						tokens={appTokens}
 						tabIndex={tabbable ? 0 : -1}
 						onFocus={() => {
-							setFocused(true);
+							focused.current = true;
+							label.current?.setRevealed(true);
 							onReveal();
 						}}
-						onBlur={() => setFocused(false)}
+						onBlur={() => {
+							focused.current = false;
+							label.current?.setRevealed(hovered.current);
+						}}
 						onKeyDown={(event) => {
 							if (event.key !== "space" && event.key !== "enter")
 								onKeyDown(event);
@@ -373,13 +385,20 @@ function RepositoryFolderRow({
 	const theme = useAppTheme();
 	const { styles } = themedStyles.get(theme);
 	const [focused, setFocused] = useState(false);
-	const [hovered, setHovered] = useState(false);
+	const hovered = useRef(false);
+	const label = useRef<OverflowingLabelHandle>(null);
 
 	return (
 		<div
 			role={onInclude ? "row" : "presentation"}
-			onMouseEnter={() => setHovered(true)}
-			onMouseLeave={() => setHovered(false)}
+			onMouseEnter={() => {
+				hovered.current = true;
+				label.current?.setRevealed(true);
+			}}
+			onMouseLeave={() => {
+				hovered.current = false;
+				label.current?.setRevealed(focused);
+			}}
 			aria-level={onInclude ? node.depth + 1 : undefined}
 			aria-expanded={onInclude ? expanded : undefined}
 			style={{
@@ -402,9 +421,13 @@ function RepositoryFolderRow({
 				onClick={onToggle}
 				onFocus={() => {
 					setFocused(true);
+					label.current?.setRevealed(true);
 					onReveal();
 				}}
-				onBlur={() => setFocused(false)}
+				onBlur={() => {
+					setFocused(false);
+					label.current?.setRevealed(hovered.current);
+				}}
 				onKeyDown={onKeyDown}
 				style={{
 					display: "flex",
@@ -422,8 +445,8 @@ function RepositoryFolderRow({
 				/>
 				<WorkspaceTabIcon name="folder" size={12} />
 				<OverflowingLabel
+					ref={label}
 					testId={`folder-label-${node.id}`}
-					reveal={hovered || focused}
 					contentKey={node.name}
 					style={{ flexGrow: 1, flexBasis: 0 }}
 				>
@@ -582,6 +605,7 @@ export function RepositoryList({
 	const container = useRef<PublicInstance>(null);
 	const rows = useRef(new Map<string, PublicInstance>());
 	const initialScroll = useRef(state.scrollY);
+	const restoringScroll = useRef(state.scrollY !== 0);
 
 	const rowHeight =
 		itemHeight ?? (entries[0]?.detail ? revisionRowHeight : fileRowHeight);
@@ -685,7 +709,14 @@ export function RepositoryList({
 		if (treeEnabled && pathToReveal)
 			reveal(pathToReveal, treeOwner, previousLayout.current !== treeEnabled);
 
-		if (treeAvailable) pendingReveal.current = state.selectedId;
+		// A remounted pane restores its saved position before following new selections.
+		if (
+			treeAvailable &&
+			(!restoringScroll.current || previousLayout.current !== treeEnabled)
+		)
+			pendingReveal.current = state.selectedId;
+
+		restoringScroll.current = false;
 	}, [
 		treeEnabled,
 		pathToReveal,

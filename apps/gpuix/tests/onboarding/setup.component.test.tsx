@@ -1484,7 +1484,7 @@ it("keeps the swipe hint discoverable on the space icon after setup", async () =
 	await Bun.sleep(400);
 	await settle();
 	expect(root.renderer.getAllText().join("\n")).toContain(
-		"Two-finger swipe to switch spaces"
+		"Two-finger swipe on the rail"
 	);
 
 	if (process.env.GPUIX_ONBOARDING_SCREENSHOT)

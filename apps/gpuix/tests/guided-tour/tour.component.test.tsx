@@ -355,6 +355,9 @@ it("defers the swipe with one space and teaches it alone after creating a second
 	await settle();
 	await click("space-editor-save");
 	await settle();
+	expect(root.renderer.findByTestId("tour-coach-mark")).toBeUndefined();
+	root.renderer.simulateKeystrokes("escape");
+	await settle();
 	expect(node("tour-step-space-swipe")).toBeDefined();
 	expect(root.renderer.getAllText()).toContain("1 of 1");
 	swipe(70);

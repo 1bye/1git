@@ -414,7 +414,9 @@ it("protects every linked tab through the write and refresh, then exposes Contin
 	refresh.resolve({ ok: true, value: snapshot });
 	await settle();
 	expect(blocked).toBe(false);
-	expect(text("operation-status")).toContain("Cherry-pick in progress");
+	expect(text("operation-status")).toBe(
+		"Cherry-pick paused · 1 unresolved file"
+	);
 	click("operation-continue");
 	expect(finish).not.toHaveBeenCalled();
 	click("operation-abort");

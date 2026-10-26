@@ -1,7 +1,11 @@
 import { createThemedStyles, useAppTheme } from "../../../styles/theme";
 import { spacing, typography, fontWeight, iconSize } from "@1git/design-tokens";
 import { StyleSheet } from "@1git/gpuix-stylesheet";
-import { OverflowingLabel } from "../../../fixture/overflowing-label";
+import {
+	OverflowingLabel,
+	type OverflowingLabelHandle,
+} from "../../../fixture/overflowing-label";
+import type { Ref } from "react";
 
 import type { WorkspaceEntry } from "../types";
 import { repositoryConflictTheme } from "../lib/repository-conflict-theme";
@@ -56,10 +60,12 @@ const themedStyles = createThemedStyles(({ colors: appColors }) => {
 
 /** Filename-first identity for changed files; the full path remains in the row's accessible label. */
 export function RepositoryChangeLabel({
+	ref,
 	entry,
 	showDirectory = true,
 	reveal = false,
 }: {
+	ref?: Ref<OverflowingLabelHandle>;
 	entry: WorkspaceEntry;
 	showDirectory?: boolean;
 	reveal?: boolean;
@@ -94,6 +100,7 @@ export function RepositoryChangeLabel({
 				}}
 			/>
 			<OverflowingLabel
+				ref={ref}
 				testId={`identity-${entry.id}`}
 				reveal={reveal}
 				contentKey={JSON.stringify([entry.title, showDirectory])}

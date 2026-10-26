@@ -19,7 +19,7 @@
   "scripts": {
     "check-types": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json && tsc --noEmit -p example/tsconfig.json",
     "example": "bun --hot example/main.tsx",
-    "test": "bun test"
+    "test": "bun test --preload ../../apps/gpuix/native/preload.ts"
   },
   "dependencies": {
     "@1git/design-tokens": "workspace:*",

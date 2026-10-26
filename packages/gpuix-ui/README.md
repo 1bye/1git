@@ -45,7 +45,8 @@ across a full-width block.
 
 Centered placement requires the local `native/anchored-center.patch` in the
 GPUIX app's addon. Build it with `bun run --cwd apps/gpuix build:native` and use
-the app's native preload. Test the shared component from the workspace root:
+the app's native preload. `bun run --cwd packages/gpuix-ui test` loads that
+preload for the full controls suite. Test the shared component from the workspace root:
 
 ```sh
 bun test --preload ./apps/gpuix/native/preload.ts packages/gpuix-ui/tests/tooltip
