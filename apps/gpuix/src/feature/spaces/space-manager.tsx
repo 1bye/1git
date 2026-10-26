@@ -6,7 +6,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "@1git/gpuix-ui/popover";
-import { spacing, typography, radius } from "@1git/design-tokens";
+import { spacing, radius } from "@1git/design-tokens";
 import { useAppTheme } from "../../styles/theme";
 import {
 	Tooltip,
@@ -14,6 +14,11 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@1git/gpuix-ui/tooltip";
+import {
+	SettingsPage,
+	SettingsSection,
+	settingsStyles,
+} from "../settings/settings-layout";
 import { WorkspaceSpaces, type WorkspaceSpace } from "./workspace-spaces";
 import { spaceIconPresets, spaceIcons } from "./space-icons";
 import { SpaceSymbol } from "./space-symbol";
@@ -34,98 +39,83 @@ export function SpacesSettings({
 	onSelect: (id: string) => void;
 	onDelete: (id: string) => void;
 }) {
-	const { tokens } = useAppTheme();
+	const theme = useAppTheme();
+	const { tokens } = theme;
+	const styles = settingsStyles.get(theme);
 
 	const defaultName =
 		spaces.find((space) => space.id === "default")?.name ?? "Default";
 
 	return (
-		<div
+		<SettingsPage
 			testId="spaces-settings"
-			style={{
-				display: "flex",
-				flexDirection: "column",
-				gap: spacing[4],
-				padding: spacing[6],
-				flexGrow: 1,
-				minHeight: 0,
-				overflowY: "scroll",
-			}}
+			title="Spaces"
+			description="Keep separate repositories and tabs for each part of your day."
 		>
-			<text
-				role="heading"
-				aria-level={1}
-				style={{ ...typography.lg, color: tokens.colors.text }}
-			>
-				Spaces
-			</text>
-			<text style={{ ...typography.md, color: tokens.colors.textMuted }}>
-				Keep separate repositories and tabs for each part of your day.
-			</text>
-			{spaces.map((space) => (
-				<div
-					key={space.id}
-					style={{
-						display: "flex",
-						flexDirection: "row",
-						alignItems: "center",
-						gap: spacing[3],
-						maxWidth: 520,
-					}}
-				>
-					<SpaceSymbol icon={space.icon} />
-					<text
+			<SettingsSection>
+				{spaces.map((space) => (
+					<div
+						key={space.id}
 						style={{
-							...typography.md,
-							color: tokens.colors.text,
-							flexGrow: 1,
-							minWidth: 0,
-							textOverflow: "ellipsis",
-							whiteSpace: "nowrap",
+							display: "flex",
+							flexDirection: "row",
+							alignItems: "center",
+							gap: spacing[3],
 						}}
 					>
-						{space.name}
-					</text>
-					<Button
-						tokens={tokens}
-						size="sm"
-						variant="ghost"
-						testId={`space-edit-${space.id}`}
-						onPress={() => onEdit(space)}
-					>
-						Edit…
-					</Button>
-					<Button
-						tokens={tokens}
-						size="sm"
-						variant="secondary"
-						testId={`space-select-${space.id}`}
-						disabled={space.id === activeId}
-						onPress={() => onSelect(space.id)}
-					>
-						{space.id === activeId ? "Current" : "Switch"}
-					</Button>
-					{space.id !== "default" ? (
-						<SpaceDelete
-							space={space}
-							defaultName={defaultName}
-							onDelete={onDelete}
-						/>
-					) : null}
-				</div>
-			))}
-			<Button
-				tokens={tokens}
-				size="sm"
-				variant="secondary"
-				testId="space-create"
-				disabled={spaces.length >= 50}
-				style={{ alignSelf: "flex-start" }}
-				onPress={onCreate}
-			>
-				New space…
-			</Button>
-		</div>
+						<SpaceSymbol icon={space.icon} />
+						<text
+							style={{
+								...styles.label,
+								flexGrow: 1,
+								minWidth: 0,
+								textOverflow: "ellipsis",
+								whiteSpace: "nowrap",
+							}}
+						>
+							{space.name}
+						</text>
+						<Button
+							tokens={tokens}
+							size="sm"
+							variant="ghost"
+							testId={`space-edit-${space.id}`}
+							onPress={() => onEdit(space)}
+						>
+							Edit…
+						</Button>
+						<Button
+							tokens={tokens}
+							size="sm"
+							variant="secondary"
+							testId={`space-select-${space.id}`}
+							disabled={space.id === activeId}
+							onPress={() => onSelect(space.id)}
+						>
+							{space.id === activeId ? "Current" : "Switch"}
+						</Button>
+						{space.id !== "default" ? (
+							<SpaceDelete
+								space={space}
+								defaultName={defaultName}
+								onDelete={onDelete}
+							/>
+						) : null}
+					</div>
+				))}
+				<Button
+					tokens={tokens}
+					size="sm"
+					variant="secondary"
+					testId="space-create"
+					disabled={spaces.length >= 50}
+					style={{ alignSelf: "flex-start" }}
+					onPress={onCreate}
+				>
+					New space…
+				</Button>
+			</SettingsSection>
+		</SettingsPage>
 	);
 }
 
@@ -138,7 +128,9 @@ function SpaceDelete({
 	defaultName: string;
 	onDelete: (id: string) => void;
 }) {
-	const { tokens } = useAppTheme();
+	const theme = useAppTheme();
+	const { tokens } = theme;
+	const styles = settingsStyles.get(theme);
 	const [open, setOpen] = useState(false);
 
 	return (
@@ -168,11 +160,11 @@ function SpaceDelete({
 					<text
 						role="heading"
 						aria-level={2}
-						style={{ ...typography.lg, color: tokens.colors.text }}
+						style={{ ...styles.sectionTitle }}
 					>
 						{`Delete ${space.name}?`}
 					</text>
-					<text style={{ ...typography.md, color: tokens.colors.textMuted }}>
+					<text style={{ ...styles.description }}>
 						{`Repositories, open tabs, and drafts will move to ${defaultName}.`}
 					</text>
 					<div
@@ -218,7 +210,9 @@ export function SpaceManager({
 	onSave: (value: Pick<WorkspaceSpace, "name" | "icon">) => void;
 	onClose: () => void;
 }) {
-	const { tokens } = useAppTheme();
+	const theme = useAppTheme();
+	const { tokens } = theme;
+	const styles = settingsStyles.get(theme);
 	const renderer = useGpuixRequired();
 	const previousFocus = useRef(renderer.getFocusedElementId?.());
 	const [name, setName] = useState(space?.name ?? "");
@@ -276,13 +270,11 @@ export function SpaceManager({
 					<text
 						role="heading"
 						aria-level={2}
-						style={{ ...typography.lg, color: tokens.colors.text }}
+						style={{ ...styles.sectionTitle }}
 					>
 						{space ? "Edit space" : "New space"}
 					</text>
-					<text style={{ ...typography.sm, color: tokens.colors.textMuted }}>
-						Name
-					</text>
+					<text style={{ ...styles.description }}>Name</text>
 					<input
 						testId="space-name"
 						aria-label="Space name"
@@ -291,7 +283,7 @@ export function SpaceManager({
 						value={name}
 						placeholder="Work, Personal…"
 						style={{
-							...typography.md,
+							...styles.label,
 							height: 30,
 							paddingLeft: spacing[2],
 							paddingRight: spacing[2],
@@ -306,9 +298,7 @@ export function SpaceManager({
 							if (event.key === "enter") save();
 						}}
 					/>
-					<text style={{ ...typography.sm, color: tokens.colors.textMuted }}>
-						Icon
-					</text>
+					<text style={{ ...styles.description }}>Icon</text>
 					<TooltipProvider delayDuration={350}>
 						<div
 							testId="space-icons"
@@ -351,10 +341,7 @@ export function SpaceManager({
 						</div>
 					</TooltipProvider>
 					{error ? (
-						<text
-							role="alert"
-							style={{ ...typography.sm, color: tokens.colors.danger }}
-						>
+						<text role="alert" style={{ ...styles.error }}>
 							{error}
 						</text>
 					) : null}

@@ -1,12 +1,18 @@
 import { useLayoutEffect, useState, type ReactNode } from "react";
 import { useGpuixRequired, type StyleDesc } from "@gpuix/react";
+import {
+	SettingsPage,
+	SettingsSection,
+	settingsLayout,
+	settingsStyles,
+} from "../settings/settings-layout";
 import { Button } from "@1git/gpuix-ui/button";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
 } from "@1git/gpuix-ui/popover";
-import { fontWeight, radius, spacing, typography } from "@1git/design-tokens";
+import { radius, spacing } from "@1git/design-tokens";
 import { useAppTheme } from "../../styles/theme";
 import { WorkspaceTabIcon } from "../workspace-tabs/components/workspace-tab-icon";
 import { useKeybinds } from "./keybind-context";
@@ -19,7 +25,9 @@ import {
 
 /** Searchable app shortcuts and window-local customization, persisted with the workspace session. */
 export function KeybindSettings() {
-	const { tokens } = useAppTheme();
+	const theme = useAppTheme();
+	const { tokens } = theme;
+	const styles = settingsStyles.get(theme);
 	const { overrides, setOverrides } = useKeybinds();
 	const [query, setQuery] = useState("");
 	const search = query.trim().toLowerCase();
@@ -43,40 +51,12 @@ export function KeybindSettings() {
 	};
 
 	return (
-		<div
+		<SettingsPage
 			testId="keybinds-settings"
-			style={{
-				display: "flex",
-				flexDirection: "column",
-				flexGrow: 1,
-				minHeight: 0,
-				overflowY: "scroll",
-				padding: spacing[6],
-				gap: spacing[3],
-			}}
-		>
-			<div
-				style={{
-					display: "flex",
-					flexDirection: "row",
-					alignItems: "center",
-					gap: spacing[3],
-					maxWidth: 760,
-					flexShrink: 0,
-				}}
-			>
-				<text
-					role="heading"
-					aria-level={1}
-					style={{
-						...typography.lg,
-						fontWeight: fontWeight.medium,
-						color: tokens.colors.text,
-						flexGrow: 1,
-					}}
-				>
-					Keybinds
-				</text>
+			title="Keybinds"
+			width="wide"
+			description="Click a shortcut to change it. Changes apply immediately and are saved for this window."
+			action={
 				<Button
 					tokens={tokens}
 					size="sm"
@@ -87,32 +67,30 @@ export function KeybindSettings() {
 				>
 					Restore defaults
 				</Button>
-			</div>
-			<text style={{ ...typography.md, color: tokens.colors.textMuted }}>
-				Click a shortcut to change it. Changes apply immediately and are saved
-				for this window.
-			</text>
-			<input
-				testId="keybinds-search"
-				aria-label="Search keybinds"
-				placeholder="Find an action or shortcut…"
-				value={query}
-				tabIndex={0}
-				onChange={(event) => setQuery(event.value ?? "")}
-				style={{
-					...typography.md,
-					height: 30,
-					flexShrink: 0,
-					maxWidth: 760,
-					paddingLeft: spacing[2],
-					paddingRight: spacing[2],
-					borderWidth: 1,
-					borderColor: tokens.colors.border,
-					borderRadius: radius.md,
-					color: tokens.colors.text,
-					backgroundColor: "transparent",
-				}}
-			/>
+			}
+		>
+			<SettingsSection>
+				<input
+					testId="keybinds-search"
+					aria-label="Search keybinds"
+					placeholder="Find an action or shortcut…"
+					value={query}
+					tabIndex={0}
+					onChange={(event) => setQuery(event.value ?? "")}
+					style={{
+						...styles.label,
+						height: 30,
+						flexShrink: 0,
+						paddingLeft: spacing[2],
+						paddingRight: spacing[2],
+						borderWidth: 1,
+						borderColor: tokens.colors.border,
+						borderRadius: radius.md,
+						color: tokens.colors.text,
+						backgroundColor: "transparent",
+					}}
+				/>
+			</SettingsSection>
 			{(["Application", "Spaces", "Tabs", "Repository"] as const).map(
 				(group) => {
 					const rows = commands.filter((command) => command.group === group);
@@ -129,14 +107,11 @@ export function KeybindSettings() {
 				}
 			)}
 			{!commands.length ? (
-				<text
-					role="status"
-					style={{ ...typography.md, color: tokens.colors.textMuted }}
-				>
+				<text role="status" style={{ ...styles.description }}>
 					No matching keybinds.
 				</text>
 			) : null}
-		</div>
+		</SettingsPage>
 	);
 }
 
@@ -156,7 +131,9 @@ function KeybindSection({
 	count: number;
 	children: ReactNode;
 }) {
-	const { tokens } = useAppTheme();
+	const theme = useAppTheme();
+	const { tokens } = theme;
+	const styles = settingsStyles.get(theme);
 
 	return (
 		<div
@@ -165,9 +142,8 @@ function KeybindSection({
 			style={{
 				display: "flex",
 				flexDirection: "column",
-				maxWidth: 760,
 				flexShrink: 0,
-				marginTop: spacing[2],
+				marginBottom: settingsLayout.sectionGap,
 				borderWidth: 1,
 				borderColor: tokens.colors.border,
 				borderRadius: radius.lg,
@@ -197,16 +173,14 @@ function KeybindSection({
 					role="heading"
 					aria-level={2}
 					style={{
-						...typography.md,
-						fontWeight: fontWeight.semibold,
-						color: tokens.colors.text,
+						...styles.sectionTitle,
 						flexGrow: 1,
 					}}
 				>
 					{title}
 				</text>
 				<text
-					style={{ ...typography.xs, color: tokens.colors.textMuted }}
+					style={{ ...styles.description }}
 				>{`${count} ${count === 1 ? "shortcut" : "shortcuts"}`}</text>
 			</div>
 			{children}
@@ -216,7 +190,9 @@ function KeybindSection({
 
 function KeybindRow({ command }: { command: KeybindCommand }) {
 	const renderer = useGpuixRequired();
-	const { tokens } = useAppTheme();
+	const theme = useAppTheme();
+	const { tokens } = theme;
+	const styles = settingsStyles.get(theme);
 	const { overrides, setOverrides } = useKeybinds();
 	const [open, setOpen] = useState(false);
 	const [candidate, setCandidate] = useState<string>();
@@ -289,19 +265,13 @@ function KeybindRow({ command }: { command: KeybindCommand }) {
 						flexShrink: 1,
 					}}
 				>
-					<text style={{ ...typography.md, color: tokens.colors.text }}>
-						{command.label}
-					</text>
+					<text style={{ ...styles.label }}>{command.label}</text>
 					{command.description ? (
-						<text style={{ ...typography.sm, color: tokens.colors.textMuted }}>
-							{command.description}
-						</text>
+						<text style={{ ...styles.description }}>{command.description}</text>
 					) : null}
 				</div>
 				{command.fixed ? (
-					<text style={{ ...typography.sm, color: tokens.colors.textMuted }}>
-						{label}
-					</text>
+					<text style={{ ...styles.description }}>{label}</text>
 				) : (
 					<Popover
 						open={open}
@@ -341,13 +311,11 @@ function KeybindRow({ command }: { command: KeybindCommand }) {
 								<text
 									role="heading"
 									aria-level={2}
-									style={{ ...typography.lg, color: tokens.colors.text }}
+									style={{ ...styles.sectionTitle }}
 								>
 									{command.label}
 								</text>
-								<text
-									style={{ ...typography.md, color: tokens.colors.textMuted }}
-								>
+								<text style={{ ...styles.description }}>
 									Press a shortcut, then Save. Include Command, Control, or
 									Option. Escape cancels.
 								</text>
@@ -365,7 +333,7 @@ function KeybindRow({ command }: { command: KeybindCommand }) {
 										alignItems: "center",
 									}}
 								>
-									<text style={{ ...typography.lg, color: tokens.colors.text }}>
+									<text style={{ ...styles.sectionTitle }}>
 										{candidate
 											? Keybinds.format(candidate)
 											: "Press a shortcut…"}
@@ -375,7 +343,7 @@ function KeybindRow({ command }: { command: KeybindCommand }) {
 									<text
 										role="alert"
 										testId="keybind-error"
-										style={{ ...typography.sm, color: tokens.colors.danger }}
+										style={{ ...styles.error }}
 									>
 										{error}
 									</text>
@@ -437,10 +405,7 @@ function KeybindRow({ command }: { command: KeybindCommand }) {
 				) : null}
 			</div>
 			{resetError ? (
-				<text
-					role="alert"
-					style={{ ...typography.sm, color: tokens.colors.danger }}
-				>
+				<text role="alert" style={{ ...styles.error }}>
 					{resetError}
 				</text>
 			) : null}

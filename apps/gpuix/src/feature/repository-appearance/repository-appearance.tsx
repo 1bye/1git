@@ -1,4 +1,9 @@
-import { fontWeight, radius, spacing, typography } from "@1git/design-tokens";
+import { radius, spacing } from "@1git/design-tokens";
+import {
+	SettingsPage,
+	SettingsSection,
+	settingsStyles,
+} from "../settings/settings-layout";
 import { Button } from "@1git/gpuix-ui/button";
 import { useAppTheme } from "../../styles/theme";
 import {
@@ -13,49 +18,21 @@ export function RepositoryAppearance({
 	pattern,
 	onCustomize,
 }: { name: string; onCustomize?: () => void } & RepositoryAppearanceValue) {
-	const { tokens, colors } = useAppTheme();
+	const theme = useAppTheme();
+	const { tokens, colors } = theme;
+	const styles = settingsStyles.get(theme);
 
 	const patternName =
 		repositoryPatternPresets.find((preset) => preset.id === pattern)?.name ??
 		"No pattern";
 
 	return (
-		<div
+		<SettingsPage
 			testId="repository-appearance"
-			style={{
-				display: "flex",
-				flexDirection: "column",
-				flexGrow: 1,
-				minHeight: 0,
-				overflowY: "scroll",
-				padding: spacing[5],
-				gap: spacing[3],
-			}}
+			title="Repository appearance"
+			description={`Customize ${name} while looking at your actual workspace.`}
 		>
-			<text
-				role="heading"
-				aria-level={1}
-				style={{
-					...typography.lg,
-					fontWeight: fontWeight.medium,
-					color: tokens.colors.text,
-				}}
-			>
-				Repository appearance
-			</text>
-			<text
-				style={{ ...typography.sm, color: tokens.colors.textMuted }}
-			>{`Customize ${name} while looking at your actual workspace.`}</text>
-			<div
-				style={{
-					display: "flex",
-					flexDirection: "column",
-					alignItems: "flex-start",
-					gap: spacing[4],
-					marginTop: spacing[2],
-					maxWidth: 480,
-				}}
-			>
+			<SettingsSection>
 				<div
 					style={{
 						display: "flex",
@@ -77,7 +54,7 @@ export function RepositoryAppearance({
 						}}
 					/>
 					<text
-						style={{ ...typography.sm, color: tokens.colors.text }}
+						style={{ ...styles.label }}
 					>{`${color ?? "Default color"} · ${patternName}`}</text>
 				</div>
 				<Button
@@ -88,12 +65,12 @@ export function RepositoryAppearance({
 				>
 					Customize on repository
 				</Button>
-				<text style={{ ...typography.sm, color: tokens.colors.textMuted }}>
+				<text style={{ ...styles.description }}>
 					Settings steps aside while you choose a color or pattern. Done saves
 					your changes; Escape cancels. Saved on this device and shared by this
 					repository’s worktrees.
 				</text>
-			</div>
-		</div>
+			</SettingsSection>
+		</SettingsPage>
 	);
 }

@@ -1,16 +1,16 @@
 import { isAbsolute, relative, sep } from "node:path";
 import { useEffect, useRef, useState } from "react";
 import { useGpuixRequired } from "@gpuix/react";
+import {
+	SettingsPage,
+	SettingsSection,
+	settingsLayout,
+	settingsStyles,
+} from "../settings/settings-layout";
 import { Button } from "@1git/gpuix-ui/button";
 import { Checkbox } from "@1git/gpuix-ui/checkbox";
 import { Textarea } from "@1git/gpuix-ui/textarea";
-import {
-	codeTypography,
-	fontWeight,
-	radius,
-	spacing,
-	typography,
-} from "@1git/design-tokens";
+import { codeTypography, radius, spacing } from "@1git/design-tokens";
 import { useAppTheme } from "../../styles/theme";
 import {
 	IgnoredHistory,
@@ -35,7 +35,9 @@ export function IgnoredHistorySettings({
 	onRefresh: () => Promise<void>;
 	onBusy: (busy: boolean) => void;
 }) {
-	const { tokens } = useAppTheme();
+	const theme = useAppTheme();
+	const { tokens } = theme;
+	const styles = settingsStyles.get(theme);
 	const renderer = useGpuixRequired();
 	const preferences = status?.data?.preferences ?? defaultIgnoredPreferences;
 	const savedPaths = preferences.paths.join("\n");
@@ -92,9 +94,8 @@ export function IgnoredHistorySettings({
 		}
 	};
 
-	const textStyle = { ...typography.md, color: tokens.colors.text };
-	const muted = { ...typography.sm, color: tokens.colors.textMuted };
-	const label = { ...textStyle, fontWeight: fontWeight.medium };
+	const textStyle = styles.label;
+	const muted = { ...styles.description };
 	const locked = busy || disabled;
 
 	const column = {
@@ -102,7 +103,7 @@ export function IgnoredHistorySettings({
 		flexDirection: "column",
 		minWidth: 0,
 		flexShrink: 0,
-		gap: spacing[2],
+		gap: settingsLayout.rowGap,
 	} as const;
 
 	const row = {
@@ -111,13 +112,6 @@ export function IgnoredHistorySettings({
 		alignItems: "center",
 		gap: spacing[3],
 	} as const;
-
-	const section = {
-		...column,
-		paddingTop: spacing[4],
-		borderTopWidth: 1,
-		borderColor: tokens.colors.border,
-	};
 
 	const fieldStyle = {
 		...textStyle,
@@ -133,33 +127,15 @@ export function IgnoredHistorySettings({
 	} as const;
 
 	return (
-		<div
+		<SettingsPage
 			testId="ignored-history-settings"
-			style={{
-				...column,
-				flexGrow: 1,
-				flexShrink: 1,
-				minHeight: 0,
-				overflowY: "scroll",
-				padding: spacing[4],
-			}}
+			title="Ignored file history"
+			description="Encrypted local versions of selected Git-ignored files and folders."
 		>
 			<div
 				testId="ignored-history-settings-form"
-				style={{ ...column, width: "100%", maxWidth: 480, gap: spacing[4] }}
+				style={{ ...styles.column, gap: 0 }}
 			>
-				<div style={{ ...column, gap: spacing[1] }}>
-					<text
-						role="heading"
-						aria-level={1}
-						style={{ ...label, ...typography.lg }}
-					>
-						Ignored file history
-					</text>
-					<text style={muted}>
-						Encrypted local versions of selected Git-ignored files and folders.
-					</text>
-				</div>
 				{!isAbsolute(repository.root) ? (
 					<text style={muted}>
 						Available for local repositories. SSH repositories are not
@@ -167,7 +143,13 @@ export function IgnoredHistorySettings({
 					</text>
 				) : (
 					<>
-						<div style={{ ...column, gap: spacing[1] }}>
+						<div
+							style={{
+								...column,
+								gap: settingsLayout.labelGap,
+								marginBottom: settingsLayout.sectionGap,
+							}}
+						>
 							<Checkbox
 								testId="ignored-history-enabled"
 								checked={enabled}
@@ -182,11 +164,9 @@ export function IgnoredHistorySettings({
 								open.
 							</text>
 						</div>
-						<div style={section}>
-							<div style={{ ...row, justifyContent: "space-between" }}>
-								<text role="heading" aria-level={2} style={label}>
-									Files and folders
-								</text>
+						<SettingsSection
+							title="Files and folders"
+							action={
 								<Button
 									testId="ignored-history-browse"
 									tokens={tokens}
@@ -238,7 +218,8 @@ export function IgnoredHistorySettings({
 								>
 									Browse…
 								</Button>
-							</div>
+							}
+						>
 							<Textarea
 								testId="ignored-history-paths"
 								aria-label="Monitored ignored files and folders"
@@ -264,11 +245,8 @@ export function IgnoredHistorySettings({
 								ignored files. Tracked files, Git metadata and links are
 								excluded.
 							</text>
-						</div>
-						<div style={section}>
-							<text role="heading" aria-level={2} style={label}>
-								History limits
-							</text>
+						</SettingsSection>
+						<SettingsSection title="History limits">
 							<div
 								style={{ ...row, alignItems: "flex-start", gap: spacing[4] }}
 							>
@@ -280,7 +258,7 @@ export function IgnoredHistorySettings({
 										gap: spacing[1.5],
 									}}
 								>
-									<text style={muted}>Storage budget (MiB)</text>
+									<text style={styles.label}>Storage budget (MiB)</text>
 									<input
 										testId="ignored-history-budget"
 										aria-label="History storage budget in MiB"
@@ -302,7 +280,7 @@ export function IgnoredHistorySettings({
 										gap: spacing[1.5],
 									}}
 								>
-									<text style={muted}>Versions per file</text>
+									<text style={styles.label}>Versions per file</text>
 									<input
 										testId="ignored-history-versions"
 										aria-label="Retained versions per file"
@@ -321,8 +299,8 @@ export function IgnoredHistorySettings({
 								Accepted baselines are kept separately. Turning history off
 								keeps saved versions.
 							</text>
-						</div>
-						<div style={section}>
+						</SettingsSection>
+						<SettingsSection>
 							<div
 								style={{
 									...row,
@@ -388,15 +366,15 @@ export function IgnoredHistorySettings({
 								worktrees share settings and keep separate histories. Use
 								dedicated backup tools for live databases.
 							</text>
-						</div>
+						</SettingsSection>
 					</>
 				)}
 				{error || status?.error ? (
-					<text role="alert" style={{ ...muted, color: tokens.colors.danger }}>
+					<text role="alert" style={{ ...styles.error }}>
 						{error ?? status?.error}
 					</text>
 				) : null}
 			</div>
-		</div>
+		</SettingsPage>
 	);
 }
