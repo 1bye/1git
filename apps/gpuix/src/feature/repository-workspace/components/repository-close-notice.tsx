@@ -40,16 +40,52 @@ export function RepositoryCloseNotice({
 	return (
 		<div
 			testId="close-protection-notice"
-			style={{ padding: spacing[3], gap: spacing[1.5], flexShrink: 0 }}
+			style={{
+				display: "flex",
+				flexDirection: "column",
+				paddingLeft: spacing[3],
+				paddingRight: spacing[3],
+				paddingTop: spacing[2],
+				paddingBottom: spacing[2],
+				gap: spacing[1],
+				flexShrink: 0,
+				borderBottomWidth: 1,
+				borderColor: appTokens.colors.border,
+			}}
 		>
-			<text
-				role="alert"
-				style={{ ...typography.md, color: appTokens.colors.text }}
+			<div
+				style={{
+					display: "flex",
+					flexDirection: "row",
+					alignItems: "center",
+					gap: spacing[2],
+					minWidth: 0,
+				}}
 			>
-				{operations.length
-					? "Git is still working. Keep this window open until it finishes."
-					: "Git operations have finished. Review the results; you can close the window now."}
-			</text>
+				<text
+					role="alert"
+					style={{
+						...typography.sm,
+						color: appTokens.colors.text,
+						flexGrow: 1,
+						minWidth: 0,
+						whiteSpace: "normal",
+					}}
+				>
+					{operations.length
+						? "Git is still working. Keep this window open until it finishes."
+						: "Git operations have finished. Review the results; you can close the window now."}
+				</text>
+				<Button
+					testId="close-keep-working"
+					tokens={appTokens}
+					size="sm"
+					variant="ghost"
+					onPress={onDismiss}
+				>
+					{operations.length ? "Keep working" : "Dismiss"}
+				</Button>
+			</div>
 			{operations.map(({ id, name, workspace }) => (
 				<div
 					key={id}
@@ -60,7 +96,15 @@ export function RepositoryCloseNotice({
 						gap: spacing[2],
 					}}
 				>
-					<text style={{ ...typography.sm, color: appTokens.colors.textMuted }}>
+					<text
+						style={{
+							...typography.sm,
+							color: appTokens.colors.textMuted,
+							flexGrow: 1,
+							minWidth: 0,
+							whiteSpace: "normal",
+						}}
+					>
 						{`${name} · ${
 							workspace.commit.pending
 								? "Committing…"
@@ -89,22 +133,17 @@ export function RepositoryCloseNotice({
 				</div>
 			))}
 			{operations.some(({ workspace }) => workspace.sync.pending) ? (
-				<text style={{ ...typography.sm, color: appTokens.colors.textMuted }}>
+				<text
+					style={{
+						...typography.xs,
+						color: appTokens.colors.textMuted,
+						whiteSpace: "normal",
+					}}
+				>
 					Stopping may not undo remote changes. The window stays open until
 					status is refreshed.
 				</text>
 			) : null}
-			<div style={{ display: "flex", flexDirection: "row" }}>
-				<Button
-					testId="close-keep-working"
-					tokens={appTokens}
-					size="sm"
-					variant="ghost"
-					onPress={onDismiss}
-				>
-					{operations.length ? "Keep working" : "Dismiss"}
-				</Button>
-			</div>
 		</div>
 	);
 }
