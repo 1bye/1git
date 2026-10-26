@@ -9,6 +9,7 @@ import {
 } from "react";
 import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
 import { spacing, radius } from "@1git/design-tokens";
+import { Checkbox } from "@1git/gpuix-ui/checkbox";
 import { Button } from "@1git/gpuix-ui/button";
 import { Popover, PopoverContent } from "@1git/gpuix-ui/popover";
 
@@ -121,6 +122,8 @@ export function GitSettings({
 	disabled = false,
 	read = GitSettingsModel.read,
 	write = GitSettingsModel.write,
+	autoIncludeChanges = false,
+	onAutoIncludeChanges,
 	accounts = [],
 	remoteAccounts,
 	readAccountIdentity,
@@ -141,6 +144,8 @@ export function GitSettings({
 		root: string | null,
 		request: GitSettingsRequest
 	) => Promise<GitResult<GitSettingsData>>;
+	autoIncludeChanges?: boolean;
+	onAutoIncludeChanges?: (enabled: boolean) => void;
 	onBusy: (busy: boolean) => void;
 }) {
 	const theme = useAppTheme();
@@ -466,7 +471,9 @@ export function GitSettings({
 				<SettingsPage
 					testId="git-settings-page"
 					scrollTestId="git-settings-scroll"
-					title={page === "remotes" ? "Remotes" : "Commit identity"}
+					title={
+						page === "remotes" ? "Remotes" : root ? "Commit identity" : "Git"
+					}
 					titleTestId="git-settings-heading"
 					action={
 						<div style={row}>
@@ -495,6 +502,26 @@ export function GitSettings({
 					}
 				>
 					<SettingsSection>
+						{!root && page === "identity" ? (
+							<SettingsGroup title="Committing">
+								<SettingsGroupRow
+									label="Automatically include changed files"
+									description="Include all changed files in your next commit automatically."
+									trailing={
+										<Checkbox
+											testId="git-auto-include-changes"
+											aria-label="Automatically include changed files"
+											checked={autoIncludeChanges}
+											onCheckedChange={(enabled) =>
+												onAutoIncludeChanges?.(enabled)
+											}
+											disabled={disabled || !onAutoIncludeChanges}
+											tokens={appTokens}
+										/>
+									}
+								/>
+							</SettingsGroup>
+						) : null}
 						{!data && !error ? (
 							<div style={column}>
 								<StateArtwork name="loading" compact />

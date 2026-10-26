@@ -94,7 +94,11 @@ async function settle() {
 
 it("keeps the commit button and editor fixed when a delayed summary or error appears", async () => {
 	const pending = Promise.withResolvers<Response>();
-	const state = workspace();
+
+	const state = RepositoryWorkspaceModel.reduce(workspace(), {
+		type: "include-all",
+		included: true,
+	});
 
 	show("initial", state, async () => pending.promise);
 	const loading = geometry();

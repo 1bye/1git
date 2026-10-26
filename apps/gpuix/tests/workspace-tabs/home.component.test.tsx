@@ -286,7 +286,7 @@ it("preserves tabs, drafts, checked files and selection and reuses an already-op
 	click("welcome-repository-/test/project");
 	await settle();
 	expect(node("commit-message").customProps?.value).toBe("Keep draft");
-	expect(node("include-a.ts").customProps?.["aria-checked"]).toBe(false);
+	expect(node("include-a.ts").customProps?.["aria-checked"]).toBe(true);
 	expect(node("entry-a.ts").customProps?.["aria-selected"]).toBe(true);
 	expect(tabCount()).toBe(2);
 	expect(

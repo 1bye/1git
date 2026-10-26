@@ -31,11 +31,13 @@ export interface WorkspaceTabsState {
 	readonly activeId: string | null;
 	readonly nextId: number;
 	readonly recentRepositories?: readonly string[];
+	readonly autoIncludeChanges?: boolean;
 }
 
 /** Tab mutations are independent of the renderer and never perform filesystem work. */
 export type WorkspaceTabsAction =
 	| WorkspaceSpaceAction
+	| { type: "auto-include-changes"; enabled: boolean }
 	| { type: "home" }
 	| { type: "add"; path?: string }
 	| { type: "forget-repository"; path: string }
@@ -107,6 +109,9 @@ export class WorkspaceTabsModel {
 		state: WorkspaceTabsState,
 		action: Exclude<WorkspaceTabsAction, WorkspaceSpaceAction>
 	): WorkspaceTabsState {
+		if (action.type === "auto-include-changes")
+			return { ...state, autoIncludeChanges: action.enabled };
+
 		if (action.type === "home")
 			return state.activeId === null ? state : { ...state, activeId: null };
 
@@ -174,7 +179,8 @@ export class WorkspaceTabsModel {
 
 			const workspace = RepositoryWorkspaceModel.reduce(
 				RepositoryWorkspaceModel.create(),
-				{ type: "loaded", snapshot: action.snapshot }
+				{ type: "loaded", snapshot: action.snapshot },
+				state.autoIncludeChanges
 			);
 
 			const tab: WorkspaceTabRecord = {
@@ -237,7 +243,8 @@ export class WorkspaceTabsModel {
 
 			const workspace = RepositoryWorkspaceModel.reduce(
 				tab.workspace,
-				action.action
+				action.action,
+				state.autoIncludeChanges
 			);
 
 			if (workspace === tab.workspace) return state;

@@ -477,6 +477,7 @@ it("offers only checked-file commits and never submits with all checkboxes clear
 const open = async (): Promise<void> => {
 	click("open-repository");
 	await settle();
+	click("include-all");
 };
 
 it("keeps the rail Sync separate from the composer and preserves the draft", async () => {

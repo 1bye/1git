@@ -130,7 +130,7 @@ const settingsPages = [
 	},
 	{
 		section: "git",
-		label: "Commit identity",
+		label: "Git",
 		icon: "branch",
 		group: "application",
 	},
@@ -238,6 +238,8 @@ export function AccountsSettings({
 	spacesSettings,
 	readGitSettings = GitSettingsModel.read,
 	writeGitSettings = GitSettingsModel.write,
+	autoIncludeChanges = false,
+	onAutoIncludeChanges,
 	externalEditors,
 }: {
 	onBack: () => void;
@@ -278,6 +280,8 @@ export function AccountsSettings({
 	spacesSettings?: ReactElement<{ ref?: Ref<SpacesSettingsHandle> }>;
 	readGitSettings?: typeof GitSettingsModel.read;
 	writeGitSettings?: typeof GitSettingsModel.write;
+	autoIncludeChanges?: boolean;
+	onAutoIncludeChanges?: (enabled: boolean) => void;
 	externalEditors?: ExternalEditors;
 }) {
 	const theme = useAppTheme();
@@ -608,6 +612,8 @@ export function AccountsSettings({
 					disabled={repositorySection && repositorySettings?.disabled}
 					read={readGitSettings}
 					write={writeGitSettings}
+					autoIncludeChanges={autoIncludeChanges}
+					onAutoIncludeChanges={onAutoIncludeChanges}
 					accounts={saved}
 					remoteAccounts={remoteAccounts}
 					readAccountIdentity={readAccountIdentity}

@@ -10,6 +10,37 @@ import { WorkspaceTabsModel } from "../../src/feature/workspace-tabs/lib/workspa
 import { repositorySnapshot } from "../_shared/repository-snapshot";
 import { commitInfo, historyPage } from "../_shared/history-page";
 
+it.each([false, true])(
+	"persists automatic inclusion across restart (enabled: %s)",
+	(enabled) => {
+		const state = WorkspaceTabsModel.reduce(WorkspaceTabsModel.create(0), {
+			type: "auto-include-changes",
+			enabled,
+		});
+
+		const document = WorkspaceSession.parse(
+			JSON.stringify(WorkspaceSession.capture(state))
+		);
+
+		expect(document.autoIncludeChanges).toBe(enabled);
+		expect(WorkspaceSession.restore(document).autoIncludeChanges).toBe(enabled);
+	}
+);
+
+it("defaults older sessions and invalid automatic-inclusion preferences to off", () => {
+	const document = WorkspaceSession.capture(WorkspaceTabsModel.create(0));
+
+	for (const autoIncludeChanges of [undefined, null, "true", 1]) {
+		const restored = WorkspaceSession.restore(
+			WorkspaceSession.parse(
+				JSON.stringify({ ...document, autoIncludeChanges })
+			)
+		);
+
+		expect(restored.autoIncludeChanges).toBe(false);
+	}
+});
+
 it("captures keybinds and the file layout together without losing either preference", () => {
 	const args: Parameters<typeof WorkspaceSession.capture> = [
 		WorkspaceTabsModel.create(),

@@ -1310,7 +1310,7 @@ it("cancels stale selection reads, refreshes the selected path and never reloads
 	await settle();
 	expect(root.renderer.getPaintedText()).toContain("second file");
 	expect(root.renderer.getPaintedText()).not.toContain("stale first file");
-	click("include-b.ts");
+	click("include-a.ts");
 	click("commit-message");
 	root.renderer.simulateKeystrokes("d r a f t");
 	root.renderer.flush();

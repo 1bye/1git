@@ -255,7 +255,7 @@ it("switches in Settings without losing a draft, selected file, inclusion or dif
 	expect(nativeAppearances).toEqual(["light"]);
 	click(root, "entry-example.ts");
 	await settle(root);
-	click(root, "include-other.ts");
+	click(root, "include-example.ts");
 	const content = node(root, "diff-viewport-content").id;
 
 	root.renderer.scrollTo(content, 0, -420);

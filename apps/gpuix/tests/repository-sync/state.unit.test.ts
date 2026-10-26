@@ -22,8 +22,8 @@ it("blocks competing updates while fetching and preserves drafts, inclusion and 
 	state = Model.reduce(state, { type: "edit-commit-message", value: "Draft" });
 	state = Model.reduce(state, {
 		type: "include-file",
-		id: "b.ts",
-		included: false,
+		id: "a.ts",
+		included: true,
 	});
 	state = Model.reduce(state, {
 		type: "commit-failed",

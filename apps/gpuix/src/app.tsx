@@ -2747,6 +2747,10 @@ function AppContent({
 									}
 								: undefined
 						}
+						autoIncludeChanges={state.autoIncludeChanges ?? false}
+						onAutoIncludeChanges={(enabled) =>
+							dispatch({ type: "auto-include-changes", enabled })
+						}
 						readGitSettings={readGitSettings}
 						repositoryAppearance={settingsRepositoryAppearance}
 						repositoryAppearanceName={appearanceTarget?.name}

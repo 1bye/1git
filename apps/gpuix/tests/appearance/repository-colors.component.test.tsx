@@ -314,7 +314,7 @@ it.each(["light", "dark"] as const)(
 			await settle(root);
 			expect(node(root, "app-shell").style.backgroundColor).toBe("transparent");
 			await click(root, "entry-example.ts");
-			await click(root, "include-other.ts");
+			await click(root, "include-example.ts");
 			const viewport = node(root, "diff-viewport-content").id;
 
 			root.renderer.scrollTo(viewport, 0, -420);

@@ -450,6 +450,7 @@ it("persists the cleared draft after a confirmed commit without replaying the wr
 	);
 	await settle();
 	expect(write).not.toHaveBeenCalled();
+	click("include-fresh.ts");
 	click("commit-submit");
 	await settle();
 	await settle();

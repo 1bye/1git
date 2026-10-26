@@ -218,6 +218,8 @@ it("confirms the clicked historical commit, cancels without writing, and refresh
 	const push = mock<typeof RepositorySync.pushTag>();
 
 	renderApp({ readHistory: pages, createTag: create, pushTag: push });
+	await settle();
+	click("include-dirty.txt");
 	await openHistory();
 	click(`entry-${commitInfo(2).oid}`);
 	await openMenu();

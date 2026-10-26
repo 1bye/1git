@@ -74,6 +74,7 @@ export interface WorkspaceSessionDocument {
 	readonly fileListLayout?: RepositoryFileLayout;
 	readonly appearance?: AppAppearancePreference;
 	readonly commitTypeBadges?: boolean;
+	readonly autoIncludeChanges?: boolean;
 	readonly smoothTransitions?: boolean;
 	readonly showScrollbars?: boolean;
 	readonly typography?: AppTypography;
@@ -252,6 +253,9 @@ export class WorkspaceSession {
 			value.appearance === "system"
 				? { appearance: value.appearance }
 				: {}),
+			...(typeof value.autoIncludeChanges === "boolean"
+				? { autoIncludeChanges: value.autoIncludeChanges }
+				: {}),
 			...(typeof value.commitTypeBadges === "boolean"
 				? { commitTypeBadges: value.commitTypeBadges }
 				: {}),
@@ -333,6 +337,7 @@ export class WorkspaceSession {
 	): WorkspaceSessionDocument {
 		return {
 			version: 1,
+			autoIncludeChanges: state.autoIncludeChanges ?? false,
 			...(fileListLayout ? { fileListLayout } : {}),
 			...(state.spaces
 				? {
@@ -405,6 +410,7 @@ export class WorkspaceSession {
 	static restore(document: WorkspaceSessionDocument): WorkspaceTabsState {
 		return {
 			preview: false,
+			autoIncludeChanges: document.autoIncludeChanges ?? false,
 			...(document.spaces
 				? {
 						spaces: document.spaces,

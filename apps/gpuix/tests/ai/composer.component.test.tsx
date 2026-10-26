@@ -835,7 +835,10 @@ it.each([
 						includedLines: ["+:1"],
 						total: 2,
 					})
-				: loaded
+				: RepositoryWorkspaceModel.reduce(loaded, {
+						type: "include-all",
+						included: true,
+					})
 		);
 		await settle();
 		await press("ai-generate");

@@ -14,6 +14,88 @@ import {
 	repositorySnapshot,
 } from "../_shared/repository-snapshot";
 
+it("leaves all files unchecked when opening a repository by default", () => {
+	const snapshot = repositorySnapshot([changedFile("first.ts")]);
+
+	const state = Model.reduce(Model.create(), { type: "loaded", snapshot });
+
+	expect(state.entries.changes.length).toBeGreaterThan(0);
+	expect(state.includedFileIds).toEqual([]);
+});
+
+it("preserves manual inclusion and leaves newly appearing files unchecked on refresh", () => {
+	const snapshot = repositorySnapshot([changedFile("first.ts")]);
+
+	let state = Model.reduce(Model.create(), { type: "loaded", snapshot });
+	const selected = state.entries.changes[0]?.id;
+
+	if (!selected) throw new Error("Expected a changed file");
+
+	state = Model.reduce(state, {
+		type: "include-file",
+		id: selected,
+		included: true,
+	});
+	const refreshed = Model.reduce(state, {
+		type: "loaded",
+		snapshot: {
+			...snapshot,
+			files: [...snapshot.files, changedFile("new.ts")],
+		},
+		automatic: true,
+	});
+
+	expect(refreshed.includedFileIds).toEqual([selected]);
+});
+
+it.each([false, true])(
+	"applies automatic inclusion to new worktrees and operation refreshes (enabled: %s)",
+	(enabled) => {
+		const snapshot = repositorySnapshot([changedFile("first.ts")]);
+
+		let tabs = Tabs.reduce(Tabs.create(0), {
+			type: "auto-include-changes",
+			enabled,
+		});
+
+		tabs = Tabs.reduce(tabs, { type: "open-worktree", snapshot });
+		const tab = tabs.tabs[0];
+
+		if (!tab) throw new Error("Expected an open worktree");
+
+		expect(tab.workspace.includedFileIds).toEqual(enabled ? ["first.ts"] : []);
+		tabs = Tabs.reduce(tabs, {
+			type: "workspace",
+			id: tab.id,
+			action: { type: "include-file", id: "first.ts", included: false },
+		});
+		const before = tabs.tabs[0]?.workspace;
+
+		tabs = Tabs.reduce(tabs, {
+			type: "auto-include-changes",
+			enabled: !enabled,
+		});
+		expect(tabs.tabs[0]?.workspace).toBe(before);
+		tabs = Tabs.reduce(tabs, { type: "auto-include-changes", enabled });
+		tabs = Tabs.reduce(tabs, {
+			type: "workspace",
+			id: tab.id,
+			action: {
+				type: "sync-finished",
+				error: null,
+				fetchedAt: null,
+				snapshot: repositorySnapshot([
+					changedFile("first.ts"),
+					changedFile("new.ts"),
+				]),
+			},
+		});
+		expect(tabs.tabs[0]?.workspace.includedFileIds).toEqual(
+			enabled ? ["new.ts"] : []
+		);
+	}
+);
+
 it("retains branch totals through filters and automatic file refreshes, but invalidates them on explicit refresh or HEAD changes", () => {
 	const snapshot = repositorySnapshot();
 	const loaded = Model.reduce(Model.create(), { type: "loaded", snapshot });
@@ -231,7 +313,7 @@ it("uses one checkbox and complete file metadata for an externally removed and r
 	});
 
 	expect(state.entries.changes).toHaveLength(1);
-	expect(state.includedFileIds).toEqual(["file.txt"]);
+	expect(state.includedFileIds).toEqual([]);
 	expect(state.entries.changes[0]?.change).toMatchObject({
 		headOid: "original",
 		worktreeStatus: "modified",
@@ -375,7 +457,7 @@ it("preserves draft text verbatim and requires a first-line summary and included
 	).toBe(value);
 });
 
-it("includes every changed file initially and changes inclusion independently of viewed files", () => {
+it("includes sample files in the preview and changes inclusion independently of viewed files", () => {
 	const initial = Model.create(true);
 
 	const state = Model.reduce(initial, {

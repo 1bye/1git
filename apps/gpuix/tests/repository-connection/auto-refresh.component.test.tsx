@@ -173,7 +173,7 @@ it("updates unchanged-status file contents without remounting the scrolled diff 
 	await settle(350);
 	click("entry-a.ts");
 	await settle();
-	click("include-b.ts");
+	click("include-a.ts");
 	click("commit-message");
 	root.renderer.simulateKeystrokes("d r a f t");
 	root.renderer.flush();
@@ -310,6 +310,7 @@ it("cancels background reads during commits and does not clear uncertain-outcome
 	);
 	click("open-repository");
 	await settle(350);
+	click("include-a.ts");
 	click("commit-message");
 	root.renderer.simulateKeystrokes("s a v e");
 	root.renderer.flush();

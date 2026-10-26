@@ -61,7 +61,10 @@ function Harness({
 		WorkspaceTabsModel.reduce,
 		undefined,
 		() => {
-			let initial = WorkspaceTabsModel.create(2);
+			let initial = WorkspaceTabsModel.reduce(WorkspaceTabsModel.create(2), {
+				type: "auto-include-changes",
+				enabled: true,
+			});
 
 			for (const id of ["workspace-1", "workspace-2"]) {
 				const snapshot = repositorySnapshot([changedFile("a.ts")]);

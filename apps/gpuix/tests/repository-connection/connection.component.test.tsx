@@ -116,9 +116,9 @@ it("opens real-status rows and refreshes without staging, clearing drafts or rep
 	});
 	click("refresh-repository");
 	await settle();
-	expect(element("include-src/a.ts").customProps?.["aria-checked"]).toBe(false);
+	expect(element("include-src/a.ts").customProps?.["aria-checked"]).toBe(true);
 	expect(element("include-src/new.ts").customProps?.["aria-checked"]).toBe(
-		true
+		false
 	);
 	expect(element("entry-src/a.ts").customProps?.["aria-selected"]).toBe(true);
 	expect(element("commit-message").customProps?.value).toBe("hi");

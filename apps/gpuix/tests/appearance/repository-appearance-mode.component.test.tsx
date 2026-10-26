@@ -293,7 +293,7 @@ it.each(["light", "dark"] as const)(
 		await click(root, "include-other.ts");
 		expect(node(root, "repository-appearance-editor")).toBeDefined();
 		expect(node(root, "include-other.ts").customProps?.["aria-checked"]).toBe(
-			false
+			true
 		);
 		await click(root, "repository-appearance-tab-color");
 		const screenshot = process.env.GPUIX_APPEARANCE_MODE_SCREENSHOT;

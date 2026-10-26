@@ -24,7 +24,7 @@ it("starts empty unless sample preview is explicitly requested", () => {
 	expect(Model.create(true).entries.changes.length).toBeGreaterThan(0);
 });
 
-it("reconciles paths without losing exclusions, selected files, scroll or drafts", () => {
+it("reconciles paths without losing manual inclusion, selected files, scroll or drafts", () => {
 	let state = Model.reduce(Model.create(), {
 		type: "loaded",
 		snapshot: repositorySnapshot([
@@ -36,7 +36,7 @@ it("reconciles paths without losing exclusions, selected files, scroll or drafts
 	state = Model.reduce(state, {
 		type: "include-file",
 		id: "src/keep.ts",
-		included: false,
+		included: true,
 	});
 	state = Model.reduce(state, {
 		type: "select",
@@ -59,7 +59,7 @@ it("reconciles paths without losing exclusions, selected files, scroll or drafts
 		]),
 	});
 
-	expect(state.includedFileIds).toEqual(["new file.ts"]);
+	expect(state.includedFileIds).toEqual(["src/keep.ts"]);
 	expect(state.views.changes).toEqual({
 		selectedId: "src/keep.ts",
 		selectedIds: ["src/keep.ts"],
@@ -136,7 +136,7 @@ it("retains both index and worktree status, conflicts, renames, copies and type 
 	expect(state.entries.changes[1]?.statusDescription).toContain(
 		"renamed from old.ts"
 	);
-	expect(state.includedFileIds).toHaveLength(6);
+	expect(state.includedFileIds).toEqual([]);
 });
 
 it("updates the requesting tab metadata for unborn and detached HEAD without moving activation", () => {

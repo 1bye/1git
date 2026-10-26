@@ -443,7 +443,7 @@ it("fetches by keyboard and refreshes partial tracking while retaining draft, se
 		};
 	});
 	await open();
-	click("include-b.ts");
+	click("include-a.ts");
 	click("entry-b.ts");
 	click("commit-message");
 	root.renderer.simulateKeystrokes("d r a f t");

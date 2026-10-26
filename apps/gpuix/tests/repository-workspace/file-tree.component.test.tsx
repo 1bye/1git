@@ -41,7 +41,10 @@ function Pane({
 	initialSelectedId?: string;
 }) {
 	const [state, dispatch] = useReducer(
-		Model.reduce,
+		(
+			state: RepositoryWorkspaceState,
+			action: Parameters<typeof Model.reduce>[1]
+		) => Model.reduce(state, action),
 		undefined,
 		(): RepositoryWorkspaceState => ({
 			...Model.create(),

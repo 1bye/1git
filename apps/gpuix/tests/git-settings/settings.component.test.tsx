@@ -26,6 +26,7 @@ import type { CommitIdentity } from "@1git/hosting/contracts";
 import { appTokens } from "../../src/styles/tokens";
 import { Accounts } from "../../src/feature/accounts/lib/accounts";
 import { NativeFileMenu } from "../../src/feature/repository-workspace/lib/native-file-menu";
+import type { WorkspaceSessionDocument } from "../../src/feature/workspace-tabs/lib/workspace-session";
 
 let root: TestRoot;
 let data: GitSettingsData;
@@ -391,6 +392,108 @@ it("keeps account choices scrollable and footer actions visible in a minimum-hei
 		custom: true,
 		identity: { name: "account-0", email: "account-0@example.invalid" },
 	});
+});
+
+it.each([false, true])(
+	"restores automatic inclusion before loading saved repositories (enabled: %s)",
+	async (enabled) => {
+		root.render(
+			<App
+				initialSession={{
+					version: 1,
+					tabs: [{ id: "workspace-1", path: "/test/project", draft: "" }],
+					activeId: "workspace-1",
+					autoIncludeChanges: enabled,
+				}}
+				readRepository={async () => ({
+					ok: true,
+					value: repositorySnapshot([changedFile("a.ts")]),
+				})}
+				readDiff={async () => ({ ok: true, value: [] })}
+				readGitSettings={read}
+				writeGitSettings={write}
+			/>
+		);
+		await settle();
+
+		expect(node("include-a.ts").customProps?.["aria-checked"]).toBe(enabled);
+		await click("rail-settings");
+		await click("settings-git");
+		expect(node("git-auto-include-changes").customProps?.["aria-checked"]).toBe(
+			enabled
+		);
+		expect(write).not.toHaveBeenCalled();
+	}
+);
+
+it("defaults automatic inclusion off, saves the toggle and only applies it to future files", async () => {
+	let snapshot = repositorySnapshot([changedFile("a.ts"), changedFile("b.ts")]);
+	const save = mock<(document: WorkspaceSessionDocument) => void>(() => {});
+
+	spyOn(root.renderer, "promptForPaths").mockResolvedValue(["/test/project"]);
+	root.render(
+		<App
+			readRepository={async () => ({ ok: true, value: snapshot })}
+			readDiff={async () => ({ ok: true, value: [] })}
+			readGitSettings={read}
+			writeGitSettings={write}
+			saveSession={save}
+		/>
+	);
+	await settle();
+	await click("open-repository");
+	expect(node("include-a.ts").customProps?.["aria-checked"]).toBe(false);
+	expect(node("include-b.ts").customProps?.["aria-checked"]).toBe(false);
+	await click("include-a.ts");
+	await click("rail-settings");
+	await click("settings-git");
+	expect(node("git-auto-include-changes").customProps?.["aria-checked"]).toBe(
+		false
+	);
+
+	if (process.env.GPUIX_AUTO_INCLUDE_SCREENSHOT)
+		root.renderer.captureScreenshot(process.env.GPUIX_AUTO_INCLUDE_SCREENSHOT);
+
+	await click("git-auto-include-changes");
+	expect(node("git-auto-include-changes").customProps?.["aria-checked"]).toBe(
+		true
+	);
+	await Bun.sleep(250);
+	root.renderer.flush();
+	expect(save.mock.calls.at(-1)?.[0].autoIncludeChanges).toBe(true);
+	expect(write).not.toHaveBeenCalled();
+
+	root.renderer.simulateKeystrokes("escape");
+	await settle();
+	expect(node("include-a.ts").customProps?.["aria-checked"]).toBe(true);
+	expect(node("include-b.ts").customProps?.["aria-checked"]).toBe(false);
+	snapshot = repositorySnapshot([...snapshot.files, changedFile("c.ts")]);
+	await click("refresh-repository");
+	expect(node("include-c.ts").customProps?.["aria-checked"]).toBe(true);
+	expect(node("include-b.ts").customProps?.["aria-checked"]).toBe(false);
+	await click("rail-settings");
+	await click("settings-git");
+	root.renderer.nativeSimulateKeyDown(
+		node("git-auto-include-changes").id,
+		"space"
+	);
+	root.renderer.nativeSimulateKeyUp(
+		node("git-auto-include-changes").id,
+		"space"
+	);
+	await settle();
+	expect(node("git-auto-include-changes").customProps?.["aria-checked"]).toBe(
+		false
+	);
+	root.renderer.simulateKeystrokes("escape");
+	await settle();
+	snapshot = repositorySnapshot([...snapshot.files, changedFile("d.ts")]);
+	await click("refresh-repository");
+	expect(node("include-d.ts").customProps?.["aria-checked"]).toBe(false);
+	expect(node("include-a.ts").customProps?.["aria-checked"]).toBe(true);
+	expect(node("include-c.ts").customProps?.["aria-checked"]).toBe(true);
+	await click("include-all");
+	expect(node("include-d.ts").customProps?.["aria-checked"]).toBe(true);
 });
 
 it("opens Git in app Settings and saves a computer-wide identity only on explicit Save", async () => {

@@ -464,7 +464,8 @@ export class RepositoryWorkspaceModel {
 
 	static reduce(
 		state: RepositoryWorkspaceState,
-		action: RepositoryWorkspaceAction
+		action: RepositoryWorkspaceAction,
+		autoIncludeChanges = false
 	): RepositoryWorkspaceState {
 		if (action.type === "stash-started")
 			return {
@@ -484,11 +485,15 @@ export class RepositoryWorkspaceModel {
 			};
 
 			const refreshed = action.snapshot
-				? RepositoryWorkspaceModel.reduce(next, {
-						type: "loaded",
-						snapshot: action.snapshot,
-						automatic: true,
-					})
+				? RepositoryWorkspaceModel.reduce(
+						next,
+						{
+							type: "loaded",
+							snapshot: action.snapshot,
+							automatic: true,
+						},
+						autoIncludeChanges
+					)
 				: next;
 
 			return {
@@ -563,11 +568,15 @@ export class RepositoryWorkspaceModel {
 			};
 
 			const refreshed = action.snapshot
-				? RepositoryWorkspaceModel.reduce(next, {
-						type: "loaded",
-						snapshot: action.snapshot,
-						automatic: true,
-					})
+				? RepositoryWorkspaceModel.reduce(
+						next,
+						{
+							type: "loaded",
+							snapshot: action.snapshot,
+							automatic: true,
+						},
+						autoIncludeChanges
+					)
 				: next;
 
 			return action.refreshError
@@ -594,11 +603,15 @@ export class RepositoryWorkspaceModel {
 			};
 
 			const refreshed = action.snapshot
-				? RepositoryWorkspaceModel.reduce(next, {
-						type: "loaded",
-						snapshot: action.snapshot,
-						automatic: true,
-					})
+				? RepositoryWorkspaceModel.reduce(
+						next,
+						{
+							type: "loaded",
+							snapshot: action.snapshot,
+							automatic: true,
+						},
+						autoIncludeChanges
+					)
 				: next;
 
 			return action.refreshError
@@ -613,11 +626,15 @@ export class RepositoryWorkspaceModel {
 			const next = { ...state, conflictPending: false };
 
 			return action.snapshot
-				? RepositoryWorkspaceModel.reduce(next, {
-						type: "loaded",
-						snapshot: action.snapshot,
-						automatic: true,
-					})
+				? RepositoryWorkspaceModel.reduce(
+						next,
+						{
+							type: "loaded",
+							snapshot: action.snapshot,
+							automatic: true,
+						},
+						autoIncludeChanges
+					)
 				: {
 						...next,
 						error:
@@ -649,10 +666,14 @@ export class RepositoryWorkspaceModel {
 			};
 
 			return action.snapshot
-				? RepositoryWorkspaceModel.reduce(next, {
-						type: "loaded",
-						snapshot: action.snapshot,
-					})
+				? RepositoryWorkspaceModel.reduce(
+						next,
+						{
+							type: "loaded",
+							snapshot: action.snapshot,
+						},
+						autoIncludeChanges
+					)
 				: {
 						...next,
 						error:
@@ -745,10 +766,14 @@ export class RepositoryWorkspaceModel {
 			const next = { ...state, commit: { ...state.commit, pending: false } };
 
 			const refreshed = action.result.snapshot
-				? RepositoryWorkspaceModel.reduce(next, {
-						type: "loaded",
-						snapshot: action.result.snapshot,
-					})
+				? RepositoryWorkspaceModel.reduce(
+						next,
+						{
+							type: "loaded",
+							snapshot: action.result.snapshot,
+						},
+						autoIncludeChanges
+					)
 				: next;
 
 			const confirmed = action.result.outcome === "committed";
@@ -1201,13 +1226,13 @@ export class RepositoryWorkspaceModel {
 				: (snapshot.head.branch ?? "unborn HEAD");
 
 			const includedFileIds = changes
-				.filter((entry) =>
-					!sameHistory && state.partialFiles?.[entry.id]
-						? false
-						: !sameRepository ||
-							!previous.has(entry.id) ||
-							included.has(entry.id)
-				)
+				.filter((entry) => {
+					if (!sameHistory && state.partialFiles?.[entry.id]) return false;
+
+					return sameRepository && previous.has(entry.id)
+						? included.has(entry.id)
+						: autoIncludeChanges;
+				})
 				.map((entry) => entry.id);
 
 			// Stable selections let pending work survive unrelated background refreshes.

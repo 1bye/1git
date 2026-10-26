@@ -247,7 +247,7 @@ it.each(["header", "file"] as const)(
 			/>
 		);
 		await settle();
-		await click("include-b.txt");
+		await click("include-a.txt");
 		confirmed = true;
 		choice = source === "header" ? "Discard all changes…" : "Discard Changes…";
 		await click(source === "header" ? "repository-heading" : "entry-a.txt", 2);

@@ -1702,8 +1702,12 @@ scroll out of view or Home closes. Folder tiles continue to represent scan folde
   retain both index and worktree status. A clean tree has an explicit empty state.
 - External edits refresh automatically; the refresh icon remains available.
   Refresh retains the draft, selected path, and existing checkbox choices;
-  removed paths disappear and new paths start included. On failure the previous
+  removed paths disappear and new paths start unchecked. On failure the previous
   data stays visible with a stale-data notice.
+- Files start unchecked when opening a repository. **Settings → Git → Automatically
+  include changed files** opts into including all files on open and newly appearing
+  files on refresh. The preference defaults off and is saved with the session;
+  changing it leaves existing choices intact. **Select all** remains available.
 - Reads belong to their original tab, even after switching/reordering. Closing a
   tab or unmounting cancels pending reads and ignores late picker/read results.
 - **Checkboxes select changes for the next commit, not Git staging.** Toggling
