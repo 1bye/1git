@@ -1,5 +1,10 @@
+import {
+	SettingsPage,
+	SettingsSection,
+	settingsStyles,
+} from "../settings/settings-layout";
 import { FontSettings } from "./font-settings";
-import { fontWeight, spacing, typography } from "@1git/design-tokens";
+import { spacing } from "@1git/design-tokens";
 import { Button } from "@1git/gpuix-ui/button";
 import { Checkbox } from "@1git/gpuix-ui/checkbox";
 import { useAppTheme } from "../../styles/theme";
@@ -7,7 +12,18 @@ import { appColors, type AppAppearance } from "../../styles/tokens";
 import { RepositoryCommitSubject } from "../repository-workspace/components/repository-commit-subject";
 
 /** Immediate, persistent appearance selection; previews use the same palettes as the app. */
-export function AppearanceSettings() {
+export function AppearanceSettings({
+	onReplayTips,
+	onSetup,
+	busy = false,
+}: {
+	onReplayTips?: () => void;
+	onSetup?: () => void;
+	busy?: boolean;
+}) {
+	const theme = useAppTheme();
+	const styles = settingsStyles.get(theme);
+
 	const {
 		colors,
 		tokens,
@@ -20,82 +36,40 @@ export function AppearanceSettings() {
 	} = useAppTheme();
 
 	return (
-		<div
-			testId="appearance-settings"
-			style={{
-				display: "flex",
-				flexDirection: "column",
-				flexGrow: 1,
-				flexShrink: 1,
-				flexBasis: 0,
-				minHeight: 0,
-				overflowY: "scroll",
-				padding: spacing[4],
-				gap: spacing[3],
-			}}
-		>
-			<text
-				role="heading"
-				aria-level={1}
-				style={{
-					...typography.lg,
-					fontWeight: fontWeight.medium,
-					color: tokens.colors.text,
-				}}
-			>
-				Appearance
-			</text>
-			<AppearanceChoices />
-			<Checkbox
-				testId="appearance-scrollbars"
-				label="Show pane scrollbars"
-				checked={showScrollbars}
-				onCheckedChange={(enabled) => setShowScrollbars?.(enabled)}
-				disabled={!setShowScrollbars}
-				tokens={tokens}
-			/>
-			<div
-				style={{
-					display: "flex",
-					flexDirection: "column",
-					gap: spacing[2],
-					maxWidth: 480,
-					marginTop: spacing[2],
-				}}
-			>
+		<SettingsPage testId="appearance-settings" title="Appearance">
+			<SettingsSection>
+				<AppearanceChoices />
 				<Checkbox
-					testId="appearance-smooth-transitions"
-					label="Smooth transitions"
-					aria-description="Slide the active tab surface and blend theme colors when switching tabs or changing appearance."
-					checked={smoothTransitions}
-					onCheckedChange={(enabled) => setSmoothTransitions?.(enabled)}
-					disabled={!setSmoothTransitions}
+					testId="appearance-scrollbars"
+					label="Show pane scrollbars"
+					checked={showScrollbars}
+					onCheckedChange={(enabled) => setShowScrollbars?.(enabled)}
+					disabled={!setShowScrollbars}
 					tokens={tokens}
 				/>
-				<text style={{ ...typography.sm, color: tokens.colors.textMuted }}>
-					Animate tab selection and theme colors. Turn off for instant changes.
-				</text>
-			</div>
-			<div
-				style={{
-					display: "flex",
-					flexDirection: "column",
-					gap: spacing[2],
-					maxWidth: 480,
-					marginTop: spacing[2],
-				}}
-			>
-				<text
-					role="heading"
-					aria-level={2}
+				<div
 					style={{
-						...typography.md,
-						fontWeight: fontWeight.medium,
-						color: tokens.colors.text,
+						display: "flex",
+						flexDirection: "column",
+						gap: spacing[2],
 					}}
 				>
-					Commit messages
-				</text>
+					<Checkbox
+						testId="appearance-smooth-transitions"
+						label="Smooth transitions"
+						aria-description="Slide the active tab surface and blend theme colors when switching tabs or changing appearance."
+						checked={smoothTransitions}
+						onCheckedChange={(enabled) => setSmoothTransitions?.(enabled)}
+						disabled={!setSmoothTransitions}
+						tokens={tokens}
+					/>
+					<text style={{ ...styles.description }}>
+						Animate tab selection and theme colors. Turn off for instant
+						changes.
+					</text>
+				</div>
+			</SettingsSection>
+			<SettingsSection title="Commit messages">
 				<Checkbox
 					testId="appearance-commit-type-badges"
 					label="Show commit type badges"
@@ -105,7 +79,7 @@ export function AppearanceSettings() {
 					disabled={!setCommitTypeBadges}
 					tokens={tokens}
 				/>
-				<text style={{ ...typography.sm, color: tokens.colors.textMuted }}>
+				<text style={{ ...styles.description }}>
 					Compact labels for feat, fix, refactor and other conventional
 					prefixes.
 				</text>
@@ -129,14 +103,43 @@ export function AppearanceSettings() {
 						testId="appearance-commit-preview-refactor"
 					/>
 				</div>
-			</div>
+			</SettingsSection>
 			<FontSettings />
-		</div>
+			{onReplayTips || onSetup ? (
+				<SettingsSection title="Help">
+					{onReplayTips ? (
+						<Button
+							testId="settings-replay-tips"
+							tokens={tokens}
+							variant="secondary"
+							onPress={onReplayTips}
+							style={{ alignSelf: "flex-start" }}
+						>
+							Show tips again
+						</Button>
+					) : null}
+					{onSetup ? (
+						<Button
+							testId="settings-run-setup"
+							tokens={tokens}
+							variant="secondary"
+							disabled={busy}
+							onPress={onSetup}
+							style={{ alignSelf: "flex-start" }}
+						>
+							Run setup again
+						</Button>
+					) : null}
+				</SettingsSection>
+			) : null}
+		</SettingsPage>
 	);
 }
 
 /** The same live theme previews for Settings and first-run setup; no defaults change on mount. */
 export function AppearanceChoices() {
+	const styles = settingsStyles.get(useAppTheme());
+
 	const {
 		appearance,
 		appearancePreference = appearance,
@@ -153,7 +156,6 @@ export function AppearanceChoices() {
 				flexDirection: "row",
 				gap: spacing[2],
 				width: "100%",
-				maxWidth: 480,
 			}}
 		>
 			{(["light", "dark", "system"] as const).map((choice) => (
@@ -188,8 +190,7 @@ export function AppearanceChoices() {
 					/>
 					<text
 						style={{
-							...typography.md,
-							color: tokens.colors.text,
+							...styles.label,
 							pointerEvents: "none",
 						}}
 					>

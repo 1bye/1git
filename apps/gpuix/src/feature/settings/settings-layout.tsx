@@ -98,54 +98,55 @@ export function SettingsPage({
 }) {
 	const styles = settingsStyles.get(useAppTheme());
 
-	return (
-		<div testId={testId} style={styles.pane}>
+	// Native scrollIntoView reveals a direct scroll child; keep sections outside a page-sized wrapper.
+	const scroll = (
+		<div
+			testId={scrollTestId ?? testId}
+			style={{
+				...styles.pane,
+				overflowY: "scroll",
+				padding: settingsLayout.padding,
+				width: "100%",
+				maxWidth:
+					(width === "wide" ? settingsLayout.wideWidth : settingsLayout.width) +
+					settingsLayout.padding * 2,
+			}}
+		>
 			<div
-				testId={scrollTestId}
 				style={{
-					...styles.pane,
-					overflowY: "scroll",
-					padding: settingsLayout.padding,
+					...styles.column,
+					gap: settingsLayout.titleGap,
+					marginBottom: settingsLayout.headerGap,
 				}}
+				testId={headerTestId}
 			>
-				<div
-					style={{
-						...styles.column,
-						width: "100%",
-						maxWidth:
-							width === "wide"
-								? settingsLayout.wideWidth
-								: settingsLayout.width,
-						gap: settingsLayout.headerGap,
-					}}
-				>
-					<div
-						testId={headerTestId}
-						style={{ ...styles.column, gap: settingsLayout.titleGap }}
+				<div style={styles.header}>
+					<text
+						testId={titleTestId}
+						role="heading"
+						aria-level={1}
+						style={styles.title}
 					>
-						<div style={styles.header}>
-							<text
-								testId={titleTestId}
-								role="heading"
-								aria-level={1}
-								style={styles.title}
-							>
-								{title}
-							</text>
-							{action}
-						</div>
-						{description ? (
-							<text testId={descriptionTestId} style={styles.description}>
-								{description}
-							</text>
-						) : null}
-					</div>
-					<div style={{ ...styles.column, gap: settingsLayout.sectionGap }}>
-						{children}
-					</div>
+						{title}
+					</text>
+					{action}
 				</div>
+				{description ? (
+					<text testId={descriptionTestId} style={styles.description}>
+						{description}
+					</text>
+				) : null}
 			</div>
+			{children}
 		</div>
+	);
+
+	return scrollTestId ? (
+		<div testId={testId} style={styles.pane}>
+			{scroll}
+		</div>
+	) : (
+		scroll
 	);
 }
 
@@ -166,7 +167,10 @@ export function SettingsSection({
 	const styles = settingsStyles.get(useAppTheme());
 
 	return (
-		<div testId={testId} style={styles.column}>
+		<div
+			testId={testId}
+			style={{ ...styles.column, marginBottom: settingsLayout.sectionGap }}
+		>
 			{title || action || description ? (
 				<div style={{ ...styles.column, gap: settingsLayout.titleGap }}>
 					{title || action ? (

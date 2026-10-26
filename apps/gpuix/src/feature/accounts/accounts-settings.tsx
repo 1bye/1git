@@ -550,20 +550,7 @@ export function AccountsSettings({
 						<WorkspaceTabIcon name="sparkle" />
 						AI
 					</Button>
-					{onSetup ? (
-						<Button
-							testId="settings-run-setup"
-							tokens={appTokens}
-							size="sm"
-							variant="ghost"
-							disabled={settingsBusy}
-							style={{ justifyContent: "flex-start", marginTop: spacing[3] }}
-							onPress={onSetup}
-						>
-							<WorkspaceTabIcon name="home" />
-							Run setup again
-						</Button>
-					) : null}
+
 					{repositorySettings || repositoryAppearance ? (
 						<>
 							<text
@@ -637,20 +624,11 @@ export function AccountsSettings({
 			{section === "spaces" ? (
 				spacesSettings
 			) : section === "appearance" ? (
-				<>
-					<AppearanceSettings />
-					{onReplayTips ? (
-						<Button
-							testId="settings-replay-tips"
-							tokens={appTokens}
-							variant="secondary"
-							onPress={onReplayTips}
-							style={{ alignSelf: "start", margin: spacing[4] }}
-						>
-							Show tips again
-						</Button>
-					) : null}
-				</>
+				<AppearanceSettings
+					onReplayTips={onReplayTips}
+					onSetup={onSetup}
+					busy={settingsBusy}
+				/>
 			) : section === "keybinds" ? (
 				<KeybindSettings />
 			) : section === "privacy" ? (
