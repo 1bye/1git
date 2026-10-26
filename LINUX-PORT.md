@@ -140,36 +140,57 @@ Runtime dependencies for the tarball (to install, not bundle):
   Non-fatal log line under Xvfb: `Found no xinput mouse pointers`
   (Xvfb has no input devices; a real desktop has them).
   Screenshot: `~/workspace/your_files/1git-linux-first-window.png`.
+- **Packaged tarball (2026-10-26):** `bun run --cwd apps/gpuix
+  package:linux` produces `build/linux/1git-linux-x64.tar.gz`
+  (76 MB, sha256 `10a7ceb4…bfb`). Contents: `bin/1git` (Bun
+  compiled, 105 MB), `Frameworks/gpuix-native.node` (51 MB),
+  `Resources/app.js`, sharp Linux runtime, and Linux remote
+  helpers only. Two packaging fixes landed with it:
+  `package-linux.ts` now builds/copies only `linux-*` remote
+  helpers (the darwin helpers cannot be cross-built from Linux),
+  and the tarball README states the real glibc floor (see below).
+  The extracted copy was smoke-tested under Xvfb and opens the
+  same Welcome screen as the dev build.
+- **glibc floor, verified by symbol scan:** `gpuix-native.node`
+  requires up to `GLIBC_2.39`, so this development tarball runs on
+  Ubuntu 24.04+ only, **not** on 20.04 (glibc 2.31), despite the
+  original 20.04 target. A 20.04 tarball must be built on 20.04
+  itself; that is still pending and is the main blocker for the
+  stated minimum version.
 
 ## Not yet verified / TODO
 
-1. **Real desktop run.** The window was verified under Xvfb only.
-   Next: run on a real GNOME X11 session and a Wayland session,
-   including mouse/keyboard input, window resize, and HiDPI.
-2. **Cmd -> Ctrl sweep.** Many handlers already accept `cmd || ctrl`,
+1. **Real desktop run.** The window was verified under Xvfb only
+   (dev build and packaged tarball alike). Next: run on a real
+   GNOME X11 session and a Wayland session, including
+   mouse/keyboard input, window resize, and HiDPI.
+2. **Ubuntu 20.04 build.** Rebuild `build:native` and
+   `package:linux` on a 20.04 host/container and verify the
+   tarball's glibc ceiling is 2.31 before claiming 20.04 support.
+3. **Cmd -> Ctrl sweep.** Many handlers already accept `cmd || ctrl`,
    but pure `cmd` checks (quick switcher, Cmd-click, settings
    shortcuts) will not fire on Linux, where GPUI reports the Super key
    as `cmd`. Map them to Ctrl on Linux, file by file, with tests.
-3. **Editor catalog on Linux.** Discover `code`, `cursor`, `zed`,
+4. **Editor catalog on Linux.** Discover `code`, `cursor`, `zed`,
    `subl` from PATH and `.desktop` files; the current Linux branch
    only handles an explicit executable path or the default handler.
-4. **File-menu labels and icons.** "Reveal in Finder" and the
+5. **File-menu labels and icons.** "Reveal in Finder" and the
    Finder.app icon path are still macOS strings; rename to the file
    manager on Linux and drop the Finder icon lookup.
-5. **Credentials.** Account secrets go through GPUI's
+6. **Credentials.** Account secrets go through GPUI's
    `read/write_credentials` (added by `accounts.patch`). Verify it
    against GNOME Keyring and KWallet on Linux, and decide the
    fallback for headless/no-keyring machines. Do not silently fall
    back to plaintext.
-6. **Updater.** Sparkle is macOS-only. Either ship Linux with no
+7. **Updater.** Sparkle is macOS-only. Either ship Linux with no
    auto-updater (v1, documented in the tarball README) or adopt
    GPUIX's GitHub-Releases `checkUpdate` flow.
-7. **Packaging.** The tarball is a stopgap. A `.deb` (or AppImage via
+8. **Packaging.** The tarball is a stopgap. A `.deb` (or AppImage via
    `cargo-packager`, as GPUIX upstream does) with a real `.desktop`
    file and icon is the proper distribution format.
-8. **Tests.** The vibrancy, traffic-light, signing, notarization and
+9. **Tests.** The vibrancy, traffic-light, signing, notarization and
    macOS launch integration suites are macOS-only; they need Linux
    equivalents or explicit skips, not silent passes.
-9. **Push decision.** This branch lives only in this workspace.
+10. **Push decision.** This branch lives only in this workspace.
    Nothing has been pushed to `1bye/1git` and no PR has been opened;
    pushing upstream or forking is a separate decision for the user.

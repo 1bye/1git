@@ -110,10 +110,23 @@ try {
 		resolve(resources, "RepositoryPatterns.LICENSE")
 	);
 	await copyImageRuntimeLinux(resources, arch);
-	await run([process.execPath, "run", "native/build-remote-helpers.ts"]);
+	// Linux tarball ships Linux remote helpers only: the darwin helpers
+	// cannot be cross-built from Linux (no Apple SDK/linker here). A
+	// Linux client can therefore deploy helpers to Linux remotes only
+	// in this build; macOS remotes need the macOS build's helpers.
+	const linuxHelperTargets = remoteHelperTargets.filter((target) =>
+		target.startsWith("linux-")
+	);
+
+	await run([
+		process.execPath,
+		"run",
+		"native/build-remote-helpers.ts",
+		...linuxHelperTargets,
+	]);
 	await mkdir(resolve(resources, "remote-helpers"));
 
-	for (const target of remoteHelperTargets) {
+	for (const target of linuxHelperTargets) {
 		for (const extension of ["gz", "json"]) {
 			await copyFile(
 				resolve(appDirectory, `build/remote-helpers/${target}.${extension}`),
@@ -138,10 +151,15 @@ Terminal=false
 		resolve(root, "README.txt"),
 		`1git ${version} - Linux beta
 
-Requirements: Ubuntu 20.04 or later (glibc 2.31+), x86_64 or ARM64,
-a Wayland or X11 session, Git, and xdg-utils. For SSH host prompts,
-install zenity. For clipboard, install wl-clipboard (Wayland) or
-xclip (X11). Bun, Rust and Xcode are not needed to run this app.
+Requirements: a Wayland or X11 session, Git, and xdg-utils. For SSH
+host prompts, install zenity. For clipboard, install wl-clipboard
+(Wayland) or xclip (X11). Bun, Rust and Xcode are not needed to
+run this app.
+
+glibc floor: this development build was made on Ubuntu 24.04 and
+needs glibc 2.39 or newer, so it runs on Ubuntu 24.04+ but NOT on
+20.04. A 20.04-compatible build must be built on Ubuntu 20.04
+itself (see LINUX-PORT.md); that is still pending.
 
 Install:
 1. Extract this archive, e.g. to /opt/1git.
