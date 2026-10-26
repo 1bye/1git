@@ -1,5 +1,5 @@
 import { useAppTheme } from "../../styles/theme";
-import { fontWeight, spacing, typography } from "@1git/design-tokens";
+import { spacing } from "@1git/design-tokens";
 import { Button } from "@1git/gpuix-ui/button";
 import { useGpuixRequired } from "@gpuix/react";
 import {
@@ -11,6 +11,12 @@ import {
 } from "react";
 
 import { accountActionIcons } from "../accounts/account-list";
+import {
+	SettingsPage,
+	SettingsSection,
+	SettingsSplit,
+	settingsStyles,
+} from "../settings/settings-layout";
 import { EditorChoices } from "./editor-choices";
 import { EditorRuleEditor } from "./editor-rule-editor";
 import { ExternalEditors, type EditorRule } from "./external-editors";
@@ -32,6 +38,7 @@ export function EditorSettings({
 }) {
 	const theme = useAppTheme();
 	const { tokens: appTokens } = theme;
+	const styles = settingsStyles.get(theme);
 
 	const renderer = useGpuixRequired();
 	const [editors] = useState(() => supplied ?? new ExternalEditors());
@@ -46,12 +53,6 @@ export function EditorSettings({
 	const mounted = useRef(false);
 	const returnFocus = useRef<number | null>(null);
 	const locked = busy || !options || editing !== null;
-
-	const heading = {
-		...typography.lg,
-		fontWeight: fontWeight.medium,
-		color: appTokens.colors.text,
-	};
 
 	const row = {
 		display: "flex",
@@ -164,43 +165,14 @@ export function EditorSettings({
 	};
 
 	return (
-		<div
+		<SettingsSplit
 			testId="editor-settings"
-			style={{
-				display: "flex",
-				flexDirection: "row",
-				flexGrow: 1,
-				minHeight: 0,
-				minWidth: 0,
-			}}
-		>
-			<div
-				testId="editor-settings-scroll"
-				style={{
-					display: "flex",
-					flexDirection: "column",
-					width: editing ? "50%" : "100%",
-					flexGrow: editing ? 0 : 1,
-					minWidth: 0,
-					minHeight: 0,
-					overflowY: "scroll",
-					padding: spacing[4],
-				}}
-			>
-				<div
-					style={{
-						display: "flex",
-						flexDirection: "column",
-						maxWidth: 480,
-						width: "100%",
-						gap: spacing[3],
-						flexShrink: 0,
-					}}
-				>
-					<div style={row}>
-						<text role="heading" aria-level={1} style={heading}>
-							External editor
-						</text>
+			list={
+				<SettingsPage
+					testId="editor-settings-page"
+					scrollTestId="editor-settings-scroll"
+					title="External editor"
+					action={
 						<Button
 							testId="editor-choose-application"
 							tokens={appTokens}
@@ -213,146 +185,145 @@ export function EditorSettings({
 						>
 							Choose application…
 						</Button>
-					</div>
-					<text style={{ ...typography.sm, color: appTokens.colors.textMuted }}>
-						Default editor
-					</text>
-					<EditorChoices
-						applications={options?.applications ?? []}
-						selected={options?.selected ?? null}
-						disabled={locked}
-						onChoose={(path) => {
-							void choose(path);
+					}
+				>
+					<SettingsSection title="Default editor">
+						<EditorChoices
+							applications={options?.applications ?? []}
+							selected={options?.selected ?? null}
+							disabled={locked}
+							onChoose={(path) => {
+								void choose(path);
+							}}
+						/>
+					</SettingsSection>
+					<SettingsSection
+						title="File type defaults"
+						action={
+							<Button
+								testId="editor-rule-add"
+								tokens={appTokens}
+								variant="secondary"
+								size="sm"
+								disabled={locked}
+								onPress={() => edit("add")}
+							>
+								Add rule
+							</Button>
+						}
+					>
+						{!options?.rules.length ? (
+							<text style={{ ...styles.description }}>
+								All files use the default editor.
+							</text>
+						) : null}
+						{options?.rules.map((rule) => (
+							<div key={rule.id} testId={`editor-rule-${rule.id}`} style={row}>
+								<div
+									style={{
+										display: "flex",
+										flexDirection: "column",
+										gap: spacing[1],
+										flexGrow: 1,
+										minWidth: 0,
+									}}
+								>
+									<text
+										style={{
+											...styles.label,
+											textOverflow: "ellipsis",
+											whiteSpace: "nowrap",
+										}}
+									>
+										{rule.patterns.join(", ")}
+									</text>
+									<text
+										style={{
+											...styles.description,
+										}}
+									>
+										{rule.application
+											? (options.applications.find(
+													(app) => app.path === rule.application
+												)?.name ?? "Unavailable application")
+											: "System default"}
+									</text>
+								</div>
+								<Button
+									testId={`editor-rule-edit-${rule.id}`}
+									aria-label={`Edit ${rule.patterns.join(", ")}`}
+									tokens={appTokens}
+									variant="ghost"
+									size="sm"
+									disabled={locked}
+									onPress={() => edit(rule)}
+								>
+									<svg
+										source={accountActionIcons.reconnect}
+										style={{
+											width: 16,
+											height: 16,
+											color: appTokens.colors.textMuted,
+											pointerEvents: "none",
+										}}
+									/>
+								</Button>
+								<Button
+									testId={`editor-rule-remove-${rule.id}`}
+									aria-label={`Remove ${rule.patterns.join(", ")}`}
+									tokens={appTokens}
+									variant="ghost"
+									size="sm"
+									disabled={locked}
+									onPress={() => {
+										void choose(null, rule.id);
+									}}
+								>
+									<svg
+										source={accountActionIcons.remove}
+										style={{
+											width: 16,
+											height: 16,
+											color: appTokens.colors.danger,
+											pointerEvents: "none",
+										}}
+									/>
+								</Button>
+							</div>
+						))}
+						{error ? (
+							<text
+								testId="editor-settings-error"
+								role="alert"
+								style={{ ...styles.error }}
+							>
+								{error}
+							</text>
+						) : null}
+					</SettingsSection>
+				</SettingsPage>
+			}
+			panel={
+				editing && options ? (
+					<EditorRuleEditor
+						key={editing === "add" ? "add" : editing.id}
+						rule={editing === "add" ? null : editing}
+						applications={options.applications}
+						editors={editors}
+						onBusy={setLocked}
+						onCancel={() => setEditing(null)}
+						onSave={async (id, patterns, application) => {
+							await editors.saveRule(id, patterns, application);
+							const next = await editors.options();
+
+							if (mounted.current) {
+								setOptions(next);
+								setEditing(null);
+							}
 						}}
 					/>
-					<div style={{ ...row, marginTop: spacing[4] }}>
-						<text role="heading" aria-level={2} style={heading}>
-							File type defaults
-						</text>
-						<Button
-							testId="editor-rule-add"
-							tokens={appTokens}
-							variant="secondary"
-							size="sm"
-							disabled={locked}
-							onPress={() => edit("add")}
-						>
-							Add rule
-						</Button>
-					</div>
-					{!options?.rules.length ? (
-						<text
-							style={{ ...typography.sm, color: appTokens.colors.textMuted }}
-						>
-							All files use the default editor.
-						</text>
-					) : null}
-					{options?.rules.map((rule) => (
-						<div key={rule.id} testId={`editor-rule-${rule.id}`} style={row}>
-							<div
-								style={{
-									display: "flex",
-									flexDirection: "column",
-									gap: spacing[1],
-									flexGrow: 1,
-									minWidth: 0,
-								}}
-							>
-								<text
-									style={{
-										...typography.md,
-										color: appTokens.colors.text,
-										textOverflow: "ellipsis",
-										whiteSpace: "nowrap",
-									}}
-								>
-									{rule.patterns.join(", ")}
-								</text>
-								<text
-									style={{
-										...typography.sm,
-										color: appTokens.colors.textMuted,
-									}}
-								>
-									{rule.application
-										? (options.applications.find(
-												(app) => app.path === rule.application
-											)?.name ?? "Unavailable application")
-										: "System default"}
-								</text>
-							</div>
-							<Button
-								testId={`editor-rule-edit-${rule.id}`}
-								aria-label={`Edit ${rule.patterns.join(", ")}`}
-								tokens={appTokens}
-								variant="ghost"
-								size="sm"
-								disabled={locked}
-								onPress={() => edit(rule)}
-							>
-								<svg
-									source={accountActionIcons.reconnect}
-									style={{
-										width: 16,
-										height: 16,
-										color: appTokens.colors.textMuted,
-										pointerEvents: "none",
-									}}
-								/>
-							</Button>
-							<Button
-								testId={`editor-rule-remove-${rule.id}`}
-								aria-label={`Remove ${rule.patterns.join(", ")}`}
-								tokens={appTokens}
-								variant="ghost"
-								size="sm"
-								disabled={locked}
-								onPress={() => {
-									void choose(null, rule.id);
-								}}
-							>
-								<svg
-									source={accountActionIcons.remove}
-									style={{
-										width: 16,
-										height: 16,
-										color: appTokens.colors.danger,
-										pointerEvents: "none",
-									}}
-								/>
-							</Button>
-						</div>
-					))}
-					{error ? (
-						<text
-							testId="editor-settings-error"
-							role="alert"
-							style={{ ...typography.sm, color: appTokens.colors.danger }}
-						>
-							{error}
-						</text>
-					) : null}
-				</div>
-			</div>
-			{editing && options ? (
-				<EditorRuleEditor
-					key={editing === "add" ? "add" : editing.id}
-					rule={editing === "add" ? null : editing}
-					applications={options.applications}
-					editors={editors}
-					onBusy={setLocked}
-					onCancel={() => setEditing(null)}
-					onSave={async (id, patterns, application) => {
-						await editors.saveRule(id, patterns, application);
-						const next = await editors.options();
-
-						if (mounted.current) {
-							setOptions(next);
-							setEditing(null);
-						}
-					}}
-				/>
-			) : null}
-		</div>
+				) : null
+			}
+		/>
 	);
 }
