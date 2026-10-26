@@ -952,13 +952,19 @@ function AppContent({
 	const settingsAppearanceDirectory =
 		appearanceTarget?.workspace.repository?.commonDirectory;
 
+	const settingsPattern = settingsAppearanceDirectory
+		? RepositoryPatterns.selection(
+				repositoryPatterns[settingsAppearanceDirectory],
+				settingsAppearanceDirectory
+			)
+		: undefined;
+
 	const settingsRepositoryAppearance = settingsAppearanceDirectory
 		? {
 				color: repositoryColors[settingsAppearanceDirectory],
-				pattern: RepositoryPatterns.selection(
-					repositoryPatterns[settingsAppearanceDirectory],
-					settingsAppearanceDirectory
-				)?.id,
+				pattern: settingsPattern?.id,
+				patternSeed: settingsPattern?.seed,
+				patternAdjustments: settingsPattern?.adjustments,
 			}
 		: undefined;
 
@@ -1373,11 +1379,10 @@ function AppContent({
 		closeSettings();
 	};
 
-	const saveAppearance = (value: RepositoryAppearanceValue): void => {
-		if (!appearanceEditing) return;
-
-		const directory = appearanceEditing.commonDirectory;
-
+	const applyRepositoryAppearance = (
+		directory: string,
+		value: RepositoryAppearanceValue
+	): void => {
 		setRepositoryColors((choices) =>
 			RepositoryColors.set(choices, directory, value.color)
 		);
@@ -1390,6 +1395,12 @@ function AppContent({
 				value.patternAdjustments
 			)
 		);
+	};
+
+	const saveAppearance = (value: RepositoryAppearanceValue): void => {
+		if (!appearanceEditing) return;
+
+		applyRepositoryAppearance(appearanceEditing.commonDirectory, value);
 		setAppearanceEditor(undefined);
 		closeSettings();
 	};
@@ -2691,6 +2702,15 @@ function AppContent({
 						repositoryAppearance={settingsRepositoryAppearance}
 						repositoryAppearanceName={appearanceTarget?.name}
 						onCustomizeRepositoryAppearance={() => openAppearance()}
+						onChangeRepositoryAppearance={
+							settingsAppearanceDirectory
+								? (value) =>
+										applyRepositoryAppearance(
+											settingsAppearanceDirectory,
+											value
+										)
+								: undefined
+						}
 						writeGitSettings={mutations.saveSettings}
 					>
 						{closeNotice}

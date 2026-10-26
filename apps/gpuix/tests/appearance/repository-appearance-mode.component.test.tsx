@@ -890,3 +890,42 @@ it("drags pattern sliders beyond their bounds while keeping the workspace visibl
 		await rm(directory, { recursive: true, force: true });
 	}
 });
+
+it("applies quick Settings colours without losing the saved pattern or leaving Settings", async () => {
+	const { root, saved } = await fixture("dark", {
+		"/test/project/.git": {
+			id: "cosmic",
+			seed: 123,
+			adjustments: { ...defaultPatternAdjustments, strength: 70 },
+		},
+	});
+
+	root.renderer.simulateKeystrokes("cmd-,");
+	await settle(root);
+	await click(root, "settings-repository-appearance");
+	expect(node(root, "repository-appearance-preview")).toBeDefined();
+	await click(root, "repository-appearance-color-violet");
+	await settle(root, 250);
+	expect(node(root, "settings-view")).toBeDefined();
+	expect(saved.at(-1)?.repositoryColors?.["/test/project/.git"]).toBe(
+		"#a478ef"
+	);
+	expect(saved.at(-1)?.repositoryPatterns?.["/test/project/.git"]).toEqual({
+		id: "cosmic",
+		seed: 123,
+		adjustments: { ...defaultPatternAdjustments, strength: 70 },
+	});
+	expect(
+		node(root, "repository-appearance-color-violet").customProps?.[
+			"aria-description"
+		]
+	).toBe("Selected");
+	await click(root, "repository-appearance-color-default");
+	await settle(root, 250);
+	expect(
+		saved.at(-1)?.repositoryColors?.["/test/project/.git"]
+	).toBeUndefined();
+	expect(
+		saved.at(-1)?.repositoryPatterns?.["/test/project/.git"]
+	).toMatchObject({ id: "cosmic", seed: 123 });
+});

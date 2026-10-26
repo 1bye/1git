@@ -231,6 +231,7 @@ export function AccountsSettings({
 	repositoryAppearance,
 	repositoryAppearanceName,
 	onCustomizeRepositoryAppearance,
+	onChangeRepositoryAppearance,
 	ignoredHistory,
 	spaceSwitcher,
 	onSpaceSwipe,
@@ -271,6 +272,7 @@ export function AccountsSettings({
 	repositoryAppearance?: RepositoryAppearanceValue;
 	repositoryAppearanceName?: string;
 	onCustomizeRepositoryAppearance?: () => void;
+	onChangeRepositoryAppearance?: (value: RepositoryAppearanceValue) => void;
 	spaceSwitcher?: (disabled: boolean) => ReactNode;
 	onSpaceSwipe?: (direction: SpaceDirection) => void;
 	spacesSettings?: ReactElement<{ ref?: Ref<SpacesSettingsHandle> }>;
@@ -595,6 +597,7 @@ export function AccountsSettings({
 						repositoryAppearanceName ?? repositorySettings?.name ?? "Repository"
 					}
 					onCustomize={onCustomizeRepositoryAppearance}
+					onChange={onChangeRepositoryAppearance}
 				/>
 			) : section !== "accounts" ? (
 				<GitSettings
