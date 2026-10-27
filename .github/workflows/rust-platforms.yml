@@ -1,0 +1,98 @@
+name: Rust platforms (manual)
+
+# Manual only: runs onegit-git's tests on real Linux, Windows and macOS machines.
+# GitHub offers "Run workflow" only once this file is on the default branch; it can then
+# run against any branch, for example:
+#   gh workflow run rust-platforms.yml --ref rust/gpui -f platforms=windows
+on:
+  workflow_dispatch:
+    inputs:
+      platforms:
+        description: Platforms to test
+        type: choice
+        options: [all, linux, windows, macos]
+        default: all
+      test_filter:
+        description: Optional test name filter passed to cargo test
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rust-platforms-${{ github.ref }}-${{ inputs.platforms }}
+  cancel-in-progress: true
+
+jobs:
+  onegit-git:
+    name: onegit-git (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    # Git process startup is much slower on Windows.
+    timeout-minutes: ${{ matrix.os == 'windows-latest' && 45 || 30 }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(inputs.platforms == 'all' && '["ubuntu-latest","windows-latest","macos-latest"]' || inputs.platforms == 'linux' && '["ubuntu-latest"]' || inputs.platforms == 'windows' && '["windows-latest"]' || '["macos-latest"]') }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      # Before checkout, so the sources keep LF endings and deep paths check out. Most tests
+      # isolate Git configuration themselves; this covers the rest and the checkout.
+      - name: Configure Git for Windows
+        if: runner.os == 'Windows'
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.longpaths true
+          git config --global core.symlinks true
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      # Installs the toolchain pinned in rust-toolchain.toml.
+      - name: Install Rust
+        run: |
+          rustup toolchain install
+          rustup show active-toolchain
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+      - name: Show tool versions
+        run: |
+          git --version
+          cargo --version
+      # Several tests create symlinks. GitHub's Windows runners are administrators, so this
+      # normally works; fail loudly here instead of letting those tests fail obscurely.
+      - name: Check symlink creation
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $target = Join-Path $env:RUNNER_TEMP 'symlink-target.txt'
+          $link = Join-Path $env:RUNNER_TEMP 'symlink-probe.txt'
+          Set-Content -Path $target -Value 'probe'
+          New-Item -ItemType SymbolicLink -Path $link -Target $target -ErrorAction Stop | Out-Null
+          if (-not ((Get-Item $link).Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+            throw 'Symlink creation did not produce a reparse point; symlink tests cannot run.'
+          }
+      - name: Test
+        env:
+          TEST_FILTER: ${{ inputs.test_filter }}
+        run: |
+          mkdir -p ci-output
+          args=(test -p onegit-git --locked)
+          if [ -n "$TEST_FILTER" ]; then
+            args+=(-- "$TEST_FILTER")
+          fi
+          cargo "${args[@]}" 2>&1 | tee ci-output/test.txt
+      - name: Clippy
+        if: ${{ !cancelled() }}
+        run: |
+          mkdir -p ci-output
+          cargo clippy -p onegit-git --all-targets --locked -- -D warnings 2>&1 | tee ci-output/clippy.txt
+      - name: Upload output
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: onegit-git-${{ matrix.os }}
+          path: ci-output/
+          if-no-files-found: ignore
