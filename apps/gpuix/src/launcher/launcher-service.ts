@@ -97,6 +97,7 @@ export type LauncherRequestHandler = (request: LauncherRequest) => void;
 export class LauncherService {
 	private server?: Server;
 	private ownsSocket = false;
+	private startPromise?: Promise<boolean>;
 
 	constructor(
 		readonly socketPath = defaultLauncherSocketPath(),
@@ -108,6 +109,22 @@ export class LauncherService {
 	}
 
 	async start(): Promise<boolean> {
+		if (this.server) return true;
+
+		if (this.startPromise) return await this.startPromise;
+
+		const startPromise = this.startInternal();
+
+		this.startPromise = startPromise;
+
+		try {
+			return await startPromise;
+		} finally {
+			if (this.startPromise === startPromise) this.startPromise = undefined;
+		}
+	}
+
+	private async startInternal(): Promise<boolean> {
 		if (this.server) return true;
 
 		const directory = dirname(this.socketPath);

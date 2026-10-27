@@ -222,6 +222,16 @@ it("reuses one launcher runtime across module re-evaluation", async () => {
 	await first.service.stop();
 });
 
+it("shares in-flight startup across hot re-evaluation", async () => {
+	const directory = await tempDirectory("1git-launcher-start-race-");
+	const service = trackedService(join(directory, "launcher.sock"));
+
+	expect(await Promise.all([service.start(), service.start()])).toEqual([
+		true,
+		true,
+	]);
+});
+
 it("preserves the owner when a competing service stops", async () => {
 	const directory = await tempDirectory("1git-launcher-owner-");
 	const socketPath = join(directory, "launcher.sock");
