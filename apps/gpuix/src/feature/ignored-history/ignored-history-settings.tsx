@@ -62,6 +62,7 @@ function latestCapture(
 /** Immediate repository preferences, with private drafts for path and limit changes. */
 export function IgnoredHistorySettings({
 	ref,
+	active = true,
 	repository,
 	history,
 	status,
@@ -71,6 +72,7 @@ export function IgnoredHistorySettings({
 	onOpen,
 }: {
 	ref?: Ref<IgnoredHistorySettingsHandle>;
+	active?: boolean;
 	repository: IgnoredRepository;
 	history: IgnoredHistory;
 	status?: IgnoredHistoryStatus;
@@ -127,6 +129,8 @@ export function IgnoredHistorySettings({
 
 	useImperativeHandle(ref, () => ({ cancelEditor }), [cancelEditor]);
 	useEffect(() => {
+		if (!active) return;
+
 		const timer = setTimeout(() => {
 			if (editing && panel.current)
 				renderer.focusNextWithin?.(panel.current.id);
@@ -143,7 +147,7 @@ export function IgnoredHistorySettings({
 		}, 0);
 
 		return () => clearTimeout(timer);
-	}, [editing, renderer]);
+	}, [active, editing, renderer]);
 
 	const run: RunHistoryAction = async (action) => {
 		if (pending.current || disabled || !local) return false;

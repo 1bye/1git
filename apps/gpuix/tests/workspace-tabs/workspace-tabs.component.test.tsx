@@ -991,5 +991,5 @@ it("renders empty and Settings tabs, then closes the Settings singleton", () => 
 	root.renderer.flush();
 
 	expect(root.renderer.findByTestId("workspace-2")).toBeUndefined();
-	expect(selectedTabs()).toEqual(["New tab"]);
+	expect(selectedTabs()).toEqual(["Welcome"]);
 });

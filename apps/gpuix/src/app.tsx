@@ -843,6 +843,7 @@ function AppContent({
 
 	const activeTab = state.tabs.find((tab) => tab.id === state.activeId);
 	const workspace = activeTab?.workspace;
+	const settingsTab = state.tabs.find((tab) => tab.kind === "settings");
 	const settingsOpen = activeTab?.kind === "settings";
 	const settingsContextId = useRef<string | null>(null);
 	const settingsOriginFocus = useRef<number | null>(null);
@@ -851,11 +852,7 @@ function AppContent({
 	const appearanceSettingsButton = useRef<PublicInstance | null>(null);
 
 	const settingsContextTab =
-		state.tabs.find(
-			(tab) =>
-				tab.id === settingsContextId.current &&
-				(tab.spaceId ?? "default") === activeSpaceId
-		) ??
+		state.tabs.find((tab) => tab.id === settingsContextId.current) ??
 		(settingsOpen
 			? (visibleTabs.find(
 					(tab) =>
@@ -873,11 +870,7 @@ function AppContent({
 	useEffect(() => {
 		if (
 			settingsContextId.current &&
-			!state.tabs.some(
-				(tab) =>
-					tab.id === settingsContextId.current &&
-					(tab.spaceId ?? "default") === activeSpaceId
-			)
+			!state.tabs.some((tab) => tab.id === settingsContextId.current)
 		)
 			settingsContextId.current = null;
 
@@ -1065,7 +1058,7 @@ function AppContent({
 	);
 
 	const settingsAppearanceDirectory = (
-		settingsOpen
+		settingsTab
 			? settingsContextWorkspace?.repository
 			: appearanceTarget?.workspace.repository
 	)?.commonDirectory;
@@ -1887,7 +1880,7 @@ function AppContent({
 			return;
 		}
 
-		if (activeSpaceId !== requestSpaceId) return;
+		if (activeSpaceIdRef.current !== requestSpaceId) return;
 
 		if (onboardingOpen) {
 			onboardingTab(request.path);
@@ -2298,8 +2291,10 @@ function AppContent({
 		(tabMenuOpen && (pendingTip !== "worktrees" || tabMenuBusy));
 	activeTourStep.current = GuidedTour.current(tips, tourContext);
 
-	const settingsContent = settingsOpen ? (
+	const settingsContent = settingsTab ? (
 		<AccountsSettings
+			key={settingsTab.id}
+			active={settingsOpen}
 			onReplayTips={() => {
 				setTips({ completed: [] });
 				closeSettings();
@@ -3197,13 +3192,14 @@ function AppContent({
 							/>
 						)}
 					</div>
-					{settingsOpen ? settingsContent : null}
+					{settingsContent}
 				</AppShell>
 				<RepositoryQuickSwitcher
 					key={quickSwitcherSession}
 					open={quickSwitcherOpen}
 					items={quickRepositories}
 					actions={paletteActions}
+					settingsFirst={settingsOpen || !workspace?.repository}
 					overviews={repositoryOverviews}
 					error={paletteActionError}
 					onClose={() => setQuickSwitcherOpen(false)}

@@ -238,7 +238,7 @@ it("keeps repository navigation in Settings and returns to the chosen view", asy
 
 	click("view-stashes");
 	await settle();
-	expect(root.renderer.findByTestId("settings-view")).toBeUndefined();
+	expect(element("settings-view").style.visibility).toBe("hidden");
 	expect(element("workspace-2").id).toBe(settingsTabId);
 	expect(element("view-stashes").customProps?.["aria-selected"]).toBe(true);
 	expect(root.renderer.getFocusedElementId()).toBe(element("view-stashes").id);
@@ -273,10 +273,12 @@ it("routes tab shortcuts while Settings is active", async () => {
 	await settle();
 	const emptyTab = element("workspace-3");
 
-	expect(emptyTab.customProps?.["aria-label"]).toBe("New tab");
+	expect(emptyTab.customProps?.["aria-label"]).toBe("Welcome");
 	root.renderer.simulateKeystrokes("escape");
 	await settle();
 	root.renderer.simulateKeystrokes("cmd-p");
+	await settle();
+	root.renderer.simulateKeystrokes("r e c e n t");
 	await settle();
 	click("quick-repository-/test/recent");
 	await settle();
@@ -298,7 +300,7 @@ it("opens a new tab instead of loading Settings for Open and ignores Refresh", a
 	await settle();
 
 	expect(element("workspace-2").customProps?.["aria-label"]).toBe("Settings");
-	expect(element("workspace-3").customProps?.["aria-label"]).toBe("New tab");
+	expect(element("workspace-3").customProps?.["aria-label"]).toBe("Welcome");
 	root.renderer.simulateKeystrokes("cmd-r");
 	await settle();
 	expect(element("workspace-2").customProps?.["aria-label"]).toBe("Settings");

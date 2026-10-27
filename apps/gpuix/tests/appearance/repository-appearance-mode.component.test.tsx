@@ -43,8 +43,31 @@ afterEach(() => {
 	restores.clear();
 });
 
+function isInside(root: TestRoot, id: number, ancestorId: number): boolean {
+	let parentId: number | null = id;
+
+	while (parentId !== null) {
+		if (parentId === ancestorId) return true;
+
+		parentId = root.renderer.getElement(parentId)?.parentId ?? null;
+	}
+
+	return false;
+}
+
 function node(root: TestRoot, id: string) {
-	const element = root.renderer.findByTestId(id);
+	let element = root.renderer.findByTestId(id);
+	const editor = root.renderer.findByTestId("repository-appearance-editor");
+
+	// Prefer live editor controls over their retained Settings counterparts.
+	if (element && editor)
+		element =
+			root.renderer
+				.findByType(element.type)
+				.find(
+					(candidate) =>
+						candidate.testId === id && isInside(root, candidate.id, editor.id)
+				) ?? element;
 
 	if (!element) throw new Error(`Missing ${id}`);
 
@@ -238,7 +261,7 @@ it.each(["light", "dark"] as const)(
 		).toBeUndefined();
 		expect(root.renderer.findByTestId("repository-color-wheel")).toBeDefined();
 		await click(root, "repository-appearance-customize");
-		expect(root.renderer.findByTestId("settings-view")).toBeUndefined();
+		expect(node(root, "settings-view").style.visibility).toBe("hidden");
 		expect(node(root, "repository-appearance-editor")).toBeDefined();
 		expect(node(root, "app-shell").style.visibility).not.toBe("hidden");
 		expect(node(root, "diff-viewport-content").id).toBe(viewport);
@@ -617,9 +640,17 @@ it.each(["light", "dark"] as const)(
 
 		await click(root, "repository-pattern-shuffle");
 		expect(shuffle).toHaveBeenCalledTimes(shuffles);
-		expect(
-			root.renderer.findByTestId("repository-pattern-layer")
-		).toBeUndefined();
+
+		const settings = node(root, "settings-view");
+
+		const layers = root.renderer
+			.findByType("div")
+			.filter((element) => element.testId === "repository-pattern-layer");
+
+		expect(settings.style.visibility).toBe("hidden");
+		expect(layers.every((layer) => isInside(root, layer.id, settings.id))).toBe(
+			true
+		);
 		await click(root, "repository-appearance-done");
 		await settle(root, 250);
 		expect(saved.at(-1)?.repositoryPatterns).toEqual({
@@ -1107,7 +1138,7 @@ it.each(["light", "dark"] as const)(
 		await type("repository-color-custom", "#cc8844", false);
 		expect(color()).toBe(committedColor);
 		await click(root, "repository-appearance-customize");
-		expect(root.renderer.findByTestId("settings-view")).toBeUndefined();
+		expect(node(root, "settings-view").style.visibility).toBe("hidden");
 		expect(node(root, "repository-appearance-editor")).toBeDefined();
 		expect(node(root, "repository-color-custom").customProps?.value).toBe(
 			"#cc8844"

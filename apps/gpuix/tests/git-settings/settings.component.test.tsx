@@ -1,5 +1,5 @@
 /**
- * Covers: global identity, repository overrides, explicit remote saves/removal, failures and workspace locks.
+ * Covers: global identity, repository overrides, explicit remote saves/removal, failures, workspace locks and Settings drafts/saves across tabs and spaces.
  * Real: App/settings components, reducer, native controls, layout and keyboard.
  * Doubles: Git reads/writes and path picker; never modifies a user's Git config or contacts a remote.
  * Requires: built native addon and graphics access.
@@ -537,6 +537,148 @@ it("opens Git in app Settings and saves a computer-wide identity only on explici
 	root.renderer.simulateKeystrokes("escape");
 	await settle();
 	expect(root.renderer.findByTestId("git-settings")).toBeUndefined();
+});
+
+it("keeps an unsaved Settings identity draft when switching tabs and ignores background Escape", async () => {
+	data = { ...data, custom: true };
+
+	root.render(
+		<App initialTabCount={1} readGitSettings={read} writeGitSettings={write} />
+	);
+	await settle();
+	await click("rail-settings");
+	await click("settings-git");
+	await click("identity-edit");
+	await type("identity-name", "Work-draft");
+	const editorId = node("identity-editor").id;
+
+	root.renderer.simulateKeystrokes("cmd-1");
+	await settle();
+	expect(node("workspace-1").customProps?.["aria-selected"]).toBe(true);
+	expect(node("settings-view").style.visibility).toBe("hidden");
+	root.renderer.simulateKeystrokes("escape");
+	await settle();
+	root.renderer.simulateKeystrokes("cmd-2");
+	await settle();
+
+	expect(node("workspace-2").customProps?.["aria-selected"]).toBe(true);
+	expect(node("identity-editor").id).toBe(editorId);
+	expect(node("identity-name").customProps?.value).toBe("Work-draft");
+	expect(write).not.toHaveBeenCalled();
+	await click("identity-save");
+	expect(write).toHaveBeenCalledWith(null, {
+		kind: "identity",
+		custom: true,
+		identity: { name: "Work-draft", email: "personal@example.invalid" },
+	});
+	root.renderer.simulateKeystrokes("cmd-w");
+	await settle();
+	expect(root.renderer.findByTestId("settings-view")).toBeUndefined();
+});
+
+it("keeps a background Settings save busy and does not move focus when it completes", async () => {
+	const pending = Promise.withResolvers<Awaited<ReturnType<typeof write>>>();
+
+	data = { ...data, custom: true };
+	write.mockImplementation(async () => await pending.promise);
+	root.render(
+		<App initialTabCount={1} readGitSettings={read} writeGitSettings={write} />
+	);
+	await settle();
+	await click("rail-settings");
+	await click("settings-git");
+	await click("identity-edit");
+	await type("identity-name", "Work");
+	await click("identity-save");
+	root.renderer.simulateKeystrokes("cmd-1");
+	await settle();
+
+	await click("close-workspace-2");
+	expect(node("workspace-2")).toBeDefined();
+	const focus = root.renderer.getFocusedElementId();
+
+	pending.resolve({
+		ok: true,
+		value: {
+			...data,
+			custom: true,
+			identity: { ...data.identity, name: "Work" },
+		},
+	});
+	await settle();
+
+	expect(node("workspace-1").customProps?.["aria-selected"]).toBe(true);
+	expect(root.renderer.getFocusedElementId()).toBe(focus);
+	root.renderer.simulateKeystrokes("cmd-2");
+	await settle();
+	expect(root.renderer.getAllText()).toContain("Identity saved.");
+	expect(root.renderer.findByTestId("identity-editor")).toBeUndefined();
+	root.renderer.simulateKeystrokes("cmd-w");
+	await settle();
+	expect(root.renderer.findByTestId("settings-view")).toBeUndefined();
+});
+
+it("retains the repository Settings draft and its context across space switches", async () => {
+	const snapshot = repositorySnapshot();
+
+	data = { ...data, custom: true };
+	root.render(
+		<App
+			initialSession={{
+				version: 1,
+				activeId: "workspace-1",
+				activeSpaceId: "default",
+				tabs: [{ id: "workspace-1", path: "/test/project", draft: "" }],
+				spaces: [
+					{
+						id: "default",
+						name: "Default",
+						icon: "layers",
+						activeId: "workspace-1",
+						repositories: [],
+						discovery: { folders: [], hidden: [] },
+						library: { starred: [], view: "tiles" },
+					},
+					{
+						id: "00000000-0000-4000-8000-000000000001",
+						name: "Work",
+						icon: "work",
+						activeId: null,
+						repositories: [],
+						discovery: { folders: [], hidden: [] },
+						library: { starred: [], view: "tiles" },
+					},
+				],
+			}}
+			readRepository={async () => ({ ok: true, value: snapshot })}
+			readDiff={async () => ({ ok: true, value: [] })}
+			readGitSettings={read}
+			writeGitSettings={write}
+		/>
+	);
+	await settle();
+	await click("rail-settings");
+	await click("settings-repository-identity");
+	await click("identity-edit");
+	await type("identity-name", "Repository-draft");
+	const editorId = node("identity-editor").id;
+
+	root.renderer.simulateKeystrokes("ctrl-cmd-right");
+	await settle();
+	expect(root.renderer.findByTestId("workspace-2")).toBeUndefined();
+	expect(node("settings-view").style.visibility).toBe("hidden");
+	root.renderer.simulateKeystrokes("ctrl-cmd-left");
+	await settle();
+
+	expect(node("workspace-2").customProps?.["aria-selected"]).toBe(true);
+	expect(node("identity-editor").id).toBe(editorId);
+	expect(node("identity-name").customProps?.value).toBe("Repository-draft");
+	await click("identity-save");
+	expect(write).toHaveBeenCalledWith("/test/project", {
+		kind: "identity",
+		custom: true,
+		identity: { name: "Repository-draft", email: "personal@example.invalid" },
+	});
 });
 
 it("uses inherited identity until selected, saves an override, and can return to Git defaults", async () => {

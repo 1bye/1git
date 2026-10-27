@@ -117,6 +117,7 @@ export interface GitSettingsHandle {
 /** Author settings and explicit remote editors; loading a pane never writes to Git. */
 export function GitSettings({
 	ref,
+	active = true,
 	root,
 	page = "identity",
 	disabled = false,
@@ -130,6 +131,7 @@ export function GitSettings({
 	onBusy,
 }: {
 	ref?: Ref<GitSettingsHandle>;
+	active?: boolean;
 	root: string | null;
 	page?: "identity" | "remotes";
 	disabled?: boolean;
@@ -243,6 +245,8 @@ export function GitSettings({
 	useImperativeHandle(ref, () => ({ cancelEditor }), [cancelEditor]);
 
 	useEffect(() => {
+		if (!active) return;
+
 		const focus = setTimeout(() => {
 			if (editing === "edit" && remoteUrlField.current)
 				renderer.focusElement?.(remoteUrlField.current.id);
@@ -255,7 +259,7 @@ export function GitSettings({
 		}, 0);
 
 		return () => clearTimeout(focus);
-	}, [editing, renderer]);
+	}, [active, editing, renderer]);
 
 	useEffect(() => {
 		mounted.current = true;

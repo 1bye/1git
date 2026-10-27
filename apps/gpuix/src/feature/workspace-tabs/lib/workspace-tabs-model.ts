@@ -74,7 +74,7 @@ export class WorkspaceTabsModel {
 				{
 					kind: preview ? "repository" : "empty",
 					id: "workspace-1",
-					name: preview ? "1git" : "New tab",
+					name: preview ? "1git" : "Welcome",
 					branch: preview ? "main" : undefined,
 					workspace: RepositoryWorkspaceModel.create(preview),
 				},
@@ -301,9 +301,9 @@ export class WorkspaceTabsModel {
 				name:
 					action.path && kind === "repository"
 						? basename(action.path)
-						: action.kind === "empty"
-							? "New tab"
-							: `Workspace ${state.nextId}`,
+						: state.preview && kind === "repository"
+							? `Workspace ${state.nextId}`
+							: "Welcome",
 				workspace: {
 					...RepositoryWorkspaceModel.create(
 						state.preview && kind === "repository"

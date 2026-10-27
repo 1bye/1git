@@ -457,7 +457,7 @@ it("uses custom space shortcuts and only blocks switching behind a modal", async
 	await settle();
 	root.renderer.simulateKeystrokes("ctrl-shift-n");
 	await settle();
-	expect(root.renderer.findByTestId("settings-view")).toBeUndefined();
+	expect(node("settings-view").style.visibility).toBe("hidden");
 	expect(latest().activeSpaceId).toBe(spaceIds[2]);
 	root.renderer.simulateKeystrokes("ctrl-shift-p");
 	await settle();
@@ -600,7 +600,7 @@ it("uses the Settings rail and cannot switch twice when it returns to a workspac
 	railPhase("started");
 	railMove(-60);
 	await settle();
-	expect(root.renderer.findByTestId("settings-view")).toBeUndefined();
+	expect(node("settings-view").style.visibility).toBe("hidden");
 	expect(node("rail-spaces").customProps?.["aria-label"]).toBe("Spaces: Work");
 	railMove(-200);
 	await settle();

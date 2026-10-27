@@ -1156,7 +1156,7 @@ it.each(["accounts", "remotes"] as const)(
 		expect(sync).toHaveBeenCalledTimes(1);
 		click("view-changes");
 		await settle();
-		expect(root.renderer.findByTestId("accounts-settings")).toBeUndefined();
+		expect(node("settings-view").style.visibility).toBe("hidden");
 		click("rail-sync");
 		await settle();
 		expect(sync).toHaveBeenCalledTimes(2);

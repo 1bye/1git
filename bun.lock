@@ -18,7 +18,7 @@
     },
     "apps/gpuix": {
       "name": "@1git/gpuix",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "dependencies": {
         "@1git/analytics": "workspace:*",
         "@1git/design-tokens": "workspace:*",

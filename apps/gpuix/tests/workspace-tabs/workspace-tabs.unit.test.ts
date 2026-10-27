@@ -108,6 +108,7 @@ it("adds unique tabs without mutating the input and keeps the active tab on an i
 
 	expect(initial.tabs).toHaveLength(1);
 	expect(added.tabs).toHaveLength(2);
+	expect(added.tabs[1]?.name).toBe("Welcome");
 	expect(closed.activeId).toBe("workspace-2");
 	expect(Model.reduce(closed, { type: "add" }).activeId).toBe("workspace-3");
 });
@@ -135,7 +136,7 @@ it("creates empty tabs, fills the selected tab, and keeps one settings tab per s
 	let state = Model.create(0);
 
 	state = Model.reduce(state, { type: "add", kind: "empty" });
-	expect(state.tabs[0]).toMatchObject({ kind: "empty", name: "New tab" });
+	expect(state.tabs[0]).toMatchObject({ kind: "empty", name: "Welcome" });
 
 	state = Model.reduce(state, {
 		type: "fill",

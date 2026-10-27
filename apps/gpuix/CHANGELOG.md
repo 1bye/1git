@@ -1,5 +1,16 @@
 # @1git/gpuix
 
+## 0.1.1
+
+### Patch Changes
+
+- ede17a1: Add a single-instance 1git command launcher for local paths, keeping failed requests from opening tabs in a different space after navigation.
+- d085376: Fetch the active repository before refreshing with Command-R.
+- 70d9173: Add Welcome and Settings workspace tabs with session migration, preserving Settings drafts and pending saves when switching tabs or spaces. Fix the Settings gear and Welcome scan icons.
+- cb08b45: Keep clone repository browsing responsive for accounts with thousands of repositories and include a scrollbar for browsing the full list.
+- 7e7d1aa: Add an action-first command palette with Settings commands first in Settings and after repositories in repository tabs, matching action icons, compact repository rows, cached status summaries, keyboard navigation across all results, and scrolling that keeps selected commands visible. Remove the command palette shortcut footer.
+- e4a046f: Allow CLI AI agents to generate commit messages for large selections.
+
 ## 0.1.0
 
 ### Minor Changes

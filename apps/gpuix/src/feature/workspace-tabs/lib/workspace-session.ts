@@ -487,7 +487,7 @@ export class WorkspaceSession {
 							? "Settings"
 							: repositoryPath
 								? basename(repositoryPath)
-								: "New tab",
+								: "Welcome",
 					workspace: {
 						...RepositoryWorkspaceModel.create(),
 						repositoryPath,

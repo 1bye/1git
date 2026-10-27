@@ -83,26 +83,8 @@ interface SettingsNavItem {
 	icon: ComponentProps<typeof WorkspaceTabIcon>["name"];
 	group: "application" | "repository";
 }
-const settingsIcons: Record<SettingsSection, SettingsNavItem["icon"]> = {
-	application: "settings",
-	spaces: "layers",
-	appearance: "contrast",
-	keybinds: "keyboard",
-	privacy: "shield",
-	accounts: "userCircle",
-	git: "branch",
-	editor: "pencil",
-	ai: "sparkle",
-	"repository-remotes": "network",
-	"repository-appearance": "palette",
-	"repository-identity": "idCard",
-	"repository-ignored-history": "history",
-};
-
-export const settingsPages = settingsPagesMetadata.map((page) => ({
-	...page,
-	icon: settingsIcons[page.section],
-})) satisfies readonly SettingsNavItem[];
+export const settingsPages =
+	settingsPagesMetadata satisfies readonly SettingsNavItem[];
 
 function SettingsNavButton({
 	item,
@@ -149,6 +131,7 @@ const themedStyles = createThemedStyles((theme) => ({
 
 /** Account settings are window-local. Tokens are transient refs and uncontrolled native password inputs, never renderer props. */
 export function AccountsSettings({
+	active = true,
 	onBack,
 	onReplayTips,
 	onSetup,
@@ -179,6 +162,8 @@ export function AccountsSettings({
 	applicationSettingsIntent,
 	onApplicationSettingsIntentConsumed,
 }: {
+	/** Background Settings tabs retain drafts and requests without owning keyboard input. */
+	active?: boolean;
 	onBack: () => void;
 	onReplayTips?: () => void;
 	onSetup?: () => void;
@@ -317,17 +302,27 @@ export function AccountsSettings({
 
 	useEffect(() => {
 		mounted.current = true;
+
+		return () => {
+			mounted.current = false;
+		};
+	}, []);
+
+	useEffect(() => {
+		if (!active) return;
+
 		const focus = setTimeout(() => {
 			if (initialPage.current) renderer.focusElement?.(initialPage.current.id);
 		}, 0);
 
 		return () => {
 			clearTimeout(focus);
-			mounted.current = false;
 		};
-	}, [renderer]);
+	}, [active, renderer]);
 
 	useEffect(() => {
+		if (!active) return;
+
 		settingsNavigation.set(renderer, {
 			back: () => {
 				if (gitBusyRef.current) return;
@@ -349,7 +344,7 @@ export function AccountsSettings({
 		return () => {
 			settingsNavigation.delete(renderer);
 		};
-	}, [renderer, onBack, cancelConnection]);
+	}, [active, renderer, onBack, cancelConnection]);
 
 	const removingHost = removing ? new URL(removing.webUrl) : undefined;
 
@@ -372,6 +367,7 @@ export function AccountsSettings({
 	return (
 		<div
 			testId="settings-view"
+			aria-hidden={!active || undefined}
 			style={{
 				display: "flex",
 				flexDirection: "row",
@@ -381,6 +377,15 @@ export function AccountsSettings({
 				width: "100%",
 				height: "100%",
 				backgroundColor: "transparent",
+				...(!active
+					? {
+							position: "absolute",
+							top: 0,
+							left: 0,
+							visibility: "hidden",
+							pointerEvents: "none",
+						}
+					: {}),
 			}}
 		>
 			<div
@@ -491,6 +496,7 @@ export function AccountsSettings({
 				) : section === "editor" ? (
 					<EditorSettings
 						ref={editorSettings}
+						active={active}
 						editors={externalEditors}
 						onBusy={(next) => {
 							gitBusyRef.current = next;
@@ -509,6 +515,7 @@ export function AccountsSettings({
 						ref={ignoredSettings}
 						key={ignoredHistory.repository.root}
 						{...ignoredHistory}
+						active={active}
 						disabled={repositorySettings?.disabled}
 						onBusy={(next) => {
 							gitBusyRef.current = next;
@@ -530,6 +537,7 @@ export function AccountsSettings({
 				) : section !== "accounts" ? (
 					<GitSettings
 						ref={gitSettings}
+						active={active}
 						key={section}
 						page={section === "repository-remotes" ? "remotes" : "identity"}
 						root={repositorySection ? (repositorySettings?.root ?? null) : null}
@@ -631,7 +639,7 @@ export function AccountsSettings({
 							}
 						/>
 						<Popover
-							open={removing !== undefined}
+							open={active && removing !== undefined}
 							onOpenChange={(open) => {
 								if (!open && !busy) {
 									setRemoving(undefined);

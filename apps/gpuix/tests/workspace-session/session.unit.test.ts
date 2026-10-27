@@ -141,7 +141,7 @@ it("restores kindless pathless placeholders as empty tabs even with legacy state
 	expect(document.tabs[0]?.navigation).toBeUndefined();
 	expect(WorkspaceSession.restore(document).tabs[0]).toMatchObject({
 		kind: "empty",
-		name: "New tab",
+		name: "Welcome",
 		workspace: {
 			repositoryPath: null,
 			commitMessage: "Keep placeholder draft",
@@ -150,10 +150,10 @@ it("restores kindless pathless placeholders as empty tabs even with legacy state
 	});
 });
 
-it("seeds the non-preview app with an empty New tab", () => {
+it("seeds the non-preview app with an empty Welcome tab", () => {
 	expect(WorkspaceTabsModel.create().tabs[0]).toMatchObject({
 		kind: "empty",
-		name: "New tab",
+		name: "Welcome",
 	});
 	expect(WorkspaceTabsModel.create(1, true).tabs[0]).toMatchObject({
 		kind: "repository",

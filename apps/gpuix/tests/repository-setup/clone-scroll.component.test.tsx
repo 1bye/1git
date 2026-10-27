@@ -1,5 +1,5 @@
 /**
- * Covers: bounded native clone-list scrolling, selection and fixed footer at large list sizes.
+ * Covers: bounded native clone-list scrolling, scrollbar input, selection and fixed footer at large list sizes.
  * Real: App, React and native GPUIX layout/paint/wheel events.
  * Doubles: disposable account metadata/vault and provider repositories; no live accounts.
  * Requires: patched release native addon and macOS graphics access.
@@ -86,6 +86,19 @@ for (const count of [30, 300, 3000]) {
 
 			if (!list || !footer || !firstBounds)
 				throw new Error("Missing clone list layout");
+
+			expect(
+				root.renderer.findByTestId("workspace-1")?.customProps?.["aria-label"]
+			).toBe("Welcome");
+			const scrollbar = root.renderer.findByTestId(
+				"clone-repositories-scrollbar-vertical"
+			);
+
+			if (!scrollbar) throw new Error("Missing clone scrollbar");
+
+			expect(
+				root.renderer.getElementBounds(scrollbar.id)?.height
+			).toBeGreaterThan(0);
 
 			const final = root.renderer.findByTestId(`clone-repository-${count - 1}`);
 
@@ -182,7 +195,20 @@ for (const count of [30, 300, 3000]) {
 				expect(repositories.mock.calls.length).toBe(requestsBefore);
 			}
 
-			root.renderer.scrollToItem(list.id, count - 1, 0);
+			if (count === 3000) {
+				const bar = root.renderer.getElementBounds(scrollbar.id);
+
+				if (!bar) throw new Error("Missing scrollbar bounds");
+
+				root.renderer.nativeSimulateClick(
+					bar.x + bar.width / 2,
+					bar.y + bar.height - 3
+				);
+			} else root.renderer.nativeSimulateKeyDown(scrollbar.id, "end");
+
+			root.renderer.advanceTime(1);
+			root.renderer.flush();
+			root.renderer.dispatchNativeEvents();
 			root.renderer.flush();
 			const last = root.renderer.findByTestId(`clone-repository-${count - 1}`);
 

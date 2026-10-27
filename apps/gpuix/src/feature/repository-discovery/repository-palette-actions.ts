@@ -1,3 +1,4 @@
+import type { WorkspaceTabIconName } from "../workspace-tabs/components/workspace-tab-icon";
 import {
 	keybindCommands,
 	Keybinds,
@@ -28,41 +29,66 @@ export type RepositoryPaletteActionId =
 export interface RepositoryPaletteAction {
 	readonly id: RepositoryPaletteActionId;
 	readonly label: string;
+	readonly icon: WorkspaceTabIconName;
 	readonly hint: string;
 	readonly enabled: boolean;
 	readonly settingsSection?: SettingsSection;
 }
 
 interface ActionDefinition {
+	readonly group?: "application" | "repository";
 	readonly id: Exclude<RepositoryPaletteActionId, `settings:${string}`>;
 	readonly label: string;
+	readonly icon: WorkspaceTabIconName;
 	readonly keybind?: string;
 	readonly hint?: string;
 }
 
 const actionDefinitions: readonly ActionDefinition[] = [
-	{ id: "fetch", label: "Fetch", keybind: "refresh" },
-	{ id: "pull", label: "Pull" },
-	{ id: "push", label: "Push" },
-	{ id: "new-branch", label: "New branch" },
-	{ id: "switch-branch", label: "Switch branch" },
-	{ id: "stash", label: "Stash" },
-	{ id: "external-editor", label: "Open in external editor" },
-	{ id: "finder", label: "Reveal in Finder" },
-	{ id: "copy-path", label: "Copy path" },
+	{
+		id: "settings",
+		icon: "settings",
+		group: "application",
+		label: "Open Settings",
+		keybind: "settings",
+	},
+	{
+		id: "new-tab",
+		icon: "add",
+		group: "application",
+		label: "New tab",
+		keybind: "new-tab",
+	},
+	{
+		id: "close-tab",
+		icon: "close",
+		group: "application",
+		label: "Close tab",
+		keybind: "close-tab",
+	},
+	{ id: "fetch", icon: "sync", label: "Fetch", keybind: "refresh" },
+	{ id: "pull", icon: "pull", label: "Pull" },
+	{ id: "push", icon: "push", label: "Push" },
+	{ id: "new-branch", icon: "branch", label: "New branch" },
+	{ id: "switch-branch", icon: "branch", label: "Switch branch" },
+	{ id: "stash", icon: "archive", label: "Stash" },
+	{ id: "external-editor", icon: "pencil", label: "Open in external editor" },
+	{ id: "finder", icon: "folder", label: "Reveal in Finder" },
+	{ id: "copy-path", icon: "copy", label: "Copy path" },
 	{
 		id: "install-launcher",
+		icon: "terminal",
+		group: "application",
 		label: "Install 1git command",
 		hint: "Packaged app only",
 	},
 	{
 		id: "uninstall-launcher",
+		icon: "terminal",
+		group: "application",
 		label: "Uninstall 1git command",
 		hint: "Packaged app only",
 	},
-	{ id: "new-tab", label: "New tab", keybind: "new-tab" },
-	{ id: "close-tab", label: "Close tab", keybind: "close-tab" },
-	{ id: "settings", label: "Open Settings", keybind: "settings" },
 ];
 
 function isActionEnabled(
@@ -118,27 +144,35 @@ export function repositoryPaletteActions(
 	overrides: KeybindOverrides,
 	context: RepositoryPaletteActionContext
 ): readonly RepositoryPaletteAction[] {
-	const actions = actionDefinitions.map((definition) => ({
-		id: definition.id,
-		label: definition.keybind
-			? commandLabel(definition.keybind, definition.label)
-			: definition.label,
-		hint: definition.keybind
-			? Keybinds.label(definition.keybind, overrides)
-			: (definition.hint ?? ""),
-		enabled: isActionEnabled(definition.id, context),
-	})) satisfies readonly RepositoryPaletteAction[];
+	return (["application", "repository"] as const).flatMap((group) => {
+		const actions = actionDefinitions
+			.filter((definition) => (definition.group ?? "repository") === group)
+			.map((definition) => ({
+				icon: definition.icon,
+				id: definition.id,
+				label: definition.keybind
+					? commandLabel(definition.keybind, definition.label)
+					: definition.label,
+				hint: definition.keybind
+					? Keybinds.label(definition.keybind, overrides)
+					: (definition.hint ?? ""),
+				enabled: isActionEnabled(definition.id, context),
+			})) satisfies readonly RepositoryPaletteAction[];
 
-	return [
-		...actions,
-		...settingsPagesMetadata.map((page) => ({
-			id: `settings:${page.section}` as const,
-			label: `Settings · ${page.group === "repository" ? "Repository " : ""}${page.label}`,
-			hint: "",
-			enabled: page.group === "application" || context.hasRepository,
-			settingsSection: page.section,
-		})),
-	];
+		return [
+			...actions,
+			...settingsPagesMetadata
+				.filter((page) => page.group === group)
+				.map((page) => ({
+					icon: page.icon,
+					id: `settings:${page.section}` as const,
+					label: `Settings · ${page.group === "repository" ? "Repository " : ""}${page.label}`,
+					hint: "",
+					enabled: page.group === "application" || context.hasRepository,
+					settingsSection: page.section,
+				})),
+		];
+	});
 }
 
 /** Action search intentionally mirrors repository search while keeping disabled commands visible. */

@@ -1,0 +1,101 @@
+--- a/packages/native/src/renderer.rs
++++ b/packages/native/src/renderer.rs
+@@ -245,6 +245,19 @@
+             f32::from(bounds.origin.x) as f64, f32::from(bounds.origin.y) as f64,
+             f32::from(bounds.size.width) as f64, f32::from(bounds.size.height) as f64]
+     }))
++}
++
++/// Notify windowed JS rows after a native scrollbar changes the logical anchor.
++pub(crate) fn notify_virtual_list_scroll(id: u64, callback: &Option<EventCallback>) {
++    let index = VIRTUAL_LIST_STATES.with(|states| {
++        states.borrow().get(&id).map(|state| state.logical_scroll_top().item_ix)
++    });
++    if let Some(index) = index {
++        emit_event_full(callback, id, "visibleRange", |payload| {
++            payload.start_index = Some(index as f64);
++            payload.end_index = Some((index + 1) as f64);
++        });
++    }
+ }
+ 
+ /// Freeze estimated virtual-list height only for an active native thumb drag.
+--- a/packages/native/src/custom_elements/scrollbar.rs
++++ b/packages/native/src/custom_elements/scrollbar.rs
+@@ -1,6 +1,6 @@
+ //! Scrollbar geometry and input stay on GPUI's frame loop, alongside the target scroller.
+ use super::{CustomElement, CustomElementFactory, CustomRenderContext};
+-use crate::renderer::{pixel_scroll_offset, scroll_metrics, set_pixel_scroll_offset, set_scrollbar_dragging};
++use crate::renderer::{pixel_scroll_offset, scroll_metrics, set_pixel_scroll_offset, set_scrollbar_dragging, notify_virtual_list_scroll, EventCallback};
+ use gpui::{prelude::*, point, px, AnyElement, Bounds, Hsla, MouseButton, Pixels, Window};
+ use std::{cell::Cell, rc::Rc};
+ 
+@@ -54,11 +54,12 @@
+     Some(Geometry { bounds, offset, maximum, viewport, thumb, position, travel })
+ }
+ 
+-fn scroll(target: u64, horizontal: bool, offset: f32, window: &mut Window) {
++fn scroll(target: u64, horizontal: bool, offset: f32, window: &mut Window, callback: &Option<EventCallback>) {
+     let Some(metrics) = scroll_metrics(target, horizontal) else { return };
+     let current = pixel_scroll_offset(target).unwrap_or([0.0, 0.0]);
+     let next = offset.clamp(-(metrics[1] as f32), 0.0);
+     set_pixel_scroll_offset(target, if horizontal { next } else { current[0] as f32 }, if horizontal { current[1] as f32 } else { next });
++    if !horizontal { notify_virtual_list_scroll(target, callback); }
+     window.refresh();
+ }
+ 
+@@ -69,6 +70,7 @@
+ impl CustomElement for Scrollbar {
+     fn render(&mut self, ctx: CustomRenderContext, _window: &mut Window, _cx: &mut gpui::Context<crate::renderer::GpuixView>) -> AnyElement {
+         let (target, horizontal, corner, id) = (self.target, self.horizontal, self.corner, ctx.id);
++        let callback = ctx.event_callback.clone();
+         let focus = ctx.focus_handle.cloned();
+         let label = ctx.props.get("aria-label").and_then(|value| value.as_str()).unwrap_or("Scroll").to_string();
+         let color: Hsla = ctx.style.and_then(|style| style.color.as_deref()).and_then(crate::color::parse_color_rgba).unwrap_or(gpui::rgb(0x737b88)).into();
+@@ -87,6 +89,10 @@
+             let outside_drag = drag.clone();
+             let key_drag = drag.clone();
+             let hover_state = hovered.clone();
++            let down_callback = callback.clone();
++            let move_callback = callback.clone();
++            let wheel_callback = callback.clone();
++            let key_callback = callback.clone();
+             let mut bar = gpui::div()
+                 .id(gpui::ElementId::Integer(id))
+                 .relative().w(g.bounds.size.width).h(g.bounds.size.height).rounded_full()
+@@ -105,7 +111,7 @@
+                     let offset = if (g.position..=g.position + g.thumb).contains(&local) { g.offset } else { -(local - g.thumb / 2.0) / g.travel.max(1.0) * g.maximum };
+                     if !horizontal { set_scrollbar_dragging(target, true); }
+                     down_drag.set(Some(Drag { pointer, offset: offset.clamp(-g.maximum, 0.0) }));
+-                    scroll(target, horizontal, offset, window);
++                    scroll(target, horizontal, offset, window, &down_callback);
+                     cx.stop_propagation();
+                 })
+                 .on_mouse_move(move |event, window, cx| {
+@@ -117,7 +123,7 @@
+                     }
+                     let Some(g) = geometry(target, horizontal, corner) else { return };
+                     let pointer = f32::from(if horizontal { event.position.x } else { event.position.y });
+-                    if g.travel > 0.0 { scroll(target, horizontal, start.offset - (pointer - start.pointer) / g.travel * g.maximum, window); }
++                    if g.travel > 0.0 { scroll(target, horizontal, start.offset - (pointer - start.pointer) / g.travel * g.maximum, window, &move_callback); }
+                     cx.stop_propagation();
+                 })
+                 .on_mouse_up(MouseButton::Left, move |_, window, cx| {
+@@ -132,7 +138,7 @@
+                 .on_scroll_wheel(move |event, window, cx| {
+                     let Some(g) = geometry(target, horizontal, corner) else { return };
+                     let delta = event.delta.pixel_delta(px(21.0));
+-                    scroll(target, horizontal, g.offset + f32::from(if horizontal { delta.x } else { delta.y }), window);
++                    scroll(target, horizontal, g.offset + f32::from(if horizontal { delta.x } else { delta.y }), window, &wheel_callback);
+                     cx.stop_propagation();
+                 })
+                 .on_key_down(move |event, window, cx| {
+@@ -150,7 +156,7 @@
+                         "escape" => { finish(target, horizontal, &key_drag); window.refresh(); return; }
+                         _ => return,
+                     };
+-                    scroll(target, horizontal, next, window);
++                    scroll(target, horizontal, next, window, &key_callback);
+                     cx.stop_propagation();
+                 });
+             if let Some(focus) = focus { bar = bar.track_focus(&focus).tab_index(0); }

@@ -82,6 +82,36 @@ it("keeps actions discoverable while disabling repository work on Home", () => {
 		}
 	);
 
+	expect(actions[0]).toMatchObject({ id: "settings", icon: "settings" });
+	expect(
+		searchRepositoryPaletteActions(actions, "new").map((item) => item.id)
+	).toEqual(["new-tab", "new-branch"]);
+	const fetchIndex = actions.findIndex((item) => item.id === "fetch");
+
+	for (const id of [
+		"new-tab",
+		"close-tab",
+		"install-launcher",
+		"uninstall-launcher",
+		"settings:application",
+		"settings:accounts",
+		"settings:ai",
+	]) {
+		expect(actions.findIndex((item) => item.id === id)).toBeLessThan(
+			fetchIndex
+		);
+	}
+
+	expect(
+		actions.findIndex((item) => item.id === "settings:repository-remotes")
+	).toBeGreaterThan(fetchIndex);
+	expect(
+		actions.find((item) => item.id === "settings:repository-remotes")?.enabled
+	).toBe(false);
+	expect(actions.find((item) => item.id === "stash")?.icon).toBe("archive");
+	expect(actions.find((item) => item.id === "settings:accounts")?.icon).toBe(
+		"userCircle"
+	);
 	expect(actions.find((item) => item.id === "fetch")?.enabled).toBe(false);
 	expect(actions.find((item) => item.id === "settings")?.enabled).toBe(true);
 	expect(actions.find((item) => item.id === "install-launcher")?.enabled).toBe(

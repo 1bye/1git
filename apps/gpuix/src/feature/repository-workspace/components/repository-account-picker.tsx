@@ -16,6 +16,7 @@ import {
 	type PublicInstance,
 } from "@gpuix/react";
 import { Button } from "@1git/gpuix-ui/button";
+import { Scrollbars } from "@1git/gpuix-ui/scrollbar";
 import {
 	Popover,
 	PopoverTrigger,
@@ -365,152 +366,160 @@ export function RepositoryAccountPicker({
 				</Popover>
 			</div>
 			{displayed.length ? (
-				<virtual-list
-					ref={viewport}
-					onVisibleRange={updateViewport}
-					testId="clone-repositories"
-					role="group"
-					aria-label="Repositories"
-					itemCount={rowCount}
-					windowStart={start}
-					estimatedItemHeight={repositoryRowStride}
-					overdraw={repositoryRowStride}
-					style={{
-						flexGrow: 1,
-						minHeight: 0,
-					}}
-				>
-					{displayed.slice(start, end).map((item, offset) => (
-						<div
-							key={item.id}
-							style={{
-								display: "flex",
-								flexDirection: "column",
-								height: repositoryRowStride,
-								paddingBottom: repositoryRowGap,
-							}}
-						>
-							<Button
-								ref={(row) => {
-									if (row) rows.current.set(item.id, row);
-									else rows.current.delete(item.id);
-								}}
-								testId={`clone-repository-${item.id}`}
-								tokens={appTokens}
-								size="sm"
-								variant={selected?.id === item.id ? "secondary" : "ghost"}
-								aria-label={`${item.ref.owner}/${item.ref.name}`}
-								aria-description={
-									selected?.id === item.id ? "Selected repository" : undefined
-								}
-								aria-pressed={selected?.id === item.id}
-								disabled={loading}
-								onPress={() => onSelect({ account, repository: item })}
-								onKeyDown={(event) => {
-									if (
-										loading ||
-										event.modifiers?.cmd ||
-										event.modifiers?.ctrl ||
-										event.modifiers?.alt
-									)
-										return;
-
-									const index = start + offset;
-
-									const destinations: Readonly<Record<string, number>> = {
-										home: 0,
-										end: displayed.length - 1,
-										up: index - 1,
-										down: index + 1,
-									};
-
-									const destination = destinations[event.key ?? ""];
-
-									if (destination === undefined) return;
-
-									pendingFocus.current = Math.max(
-										0,
-										Math.min(displayed.length - 1, destination)
-									);
-
-									if (reveal(pendingFocus.current)) pendingFocus.current = null;
-									else
-										setWindowStart(
-											Math.max(0, pendingFocus.current - windowChunkSize)
-										);
-								}}
+				<>
+					<virtual-list
+						ref={viewport}
+						onVisibleRange={updateViewport}
+						testId="clone-repositories"
+						role="group"
+						aria-label="Repositories"
+						itemCount={rowCount}
+						windowStart={start}
+						estimatedItemHeight={repositoryRowStride}
+						overdraw={repositoryRowStride}
+						style={{
+							flexGrow: 1,
+							minHeight: 0,
+						}}
+					>
+						{displayed.slice(start, end).map((item, offset) => (
+							<div
+								key={item.id}
 								style={{
-									height: repositoryRowHeight,
-									flexDirection: "row",
-									alignItems: "center",
-									justifyContent: "center",
-									gap: spacing[2.5],
-									paddingLeft: spacing[3],
-									paddingRight: spacing[3],
+									display: "flex",
+									flexDirection: "column",
+									height: repositoryRowStride,
+									paddingBottom: repositoryRowGap,
 								}}
 							>
-								<RepositoryAvatar
-									deferred
-									label={item.ref.owner}
-									source={{
-										remote: item.browserUrl,
-										avatarUrl: item.avatarUrl,
+								<Button
+									ref={(row) => {
+										if (row) rows.current.set(item.id, row);
+										else rows.current.delete(item.id);
 									}}
-									testId={`clone-avatar-${item.id}`}
-								/>
-								<div
+									testId={`clone-repository-${item.id}`}
+									tokens={appTokens}
+									size="sm"
+									variant={selected?.id === item.id ? "secondary" : "ghost"}
+									aria-label={`${item.ref.owner}/${item.ref.name}`}
+									aria-description={
+										selected?.id === item.id ? "Selected repository" : undefined
+									}
+									aria-pressed={selected?.id === item.id}
+									disabled={loading}
+									onPress={() => onSelect({ account, repository: item })}
+									onKeyDown={(event) => {
+										if (
+											loading ||
+											event.modifiers?.cmd ||
+											event.modifiers?.ctrl ||
+											event.modifiers?.alt
+										)
+											return;
+
+										const index = start + offset;
+
+										const destinations: Readonly<Record<string, number>> = {
+											home: 0,
+											end: displayed.length - 1,
+											up: index - 1,
+											down: index + 1,
+										};
+
+										const destination = destinations[event.key ?? ""];
+
+										if (destination === undefined) return;
+
+										pendingFocus.current = Math.max(
+											0,
+											Math.min(displayed.length - 1, destination)
+										);
+
+										if (reveal(pendingFocus.current))
+											pendingFocus.current = null;
+										else
+											setWindowStart(
+												Math.max(0, pendingFocus.current - windowChunkSize)
+											);
+									}}
 									style={{
-										display: "flex",
-										flexDirection: "column",
-										gap: spacing[0.75],
-										flexGrow: 1,
-										minWidth: 0,
-										pointerEvents: "none",
+										height: repositoryRowHeight,
+										flexDirection: "row",
+										alignItems: "center",
+										justifyContent: "center",
+										gap: spacing[2.5],
+										paddingLeft: spacing[3],
+										paddingRight: spacing[3],
 									}}
 								>
-									<text
-										testId={`clone-repository-name-${item.id}`}
+									<RepositoryAvatar
+										deferred
+										label={item.ref.owner}
+										source={{
+											remote: item.browserUrl,
+											avatarUrl: item.avatarUrl,
+										}}
+										testId={`clone-avatar-${item.id}`}
+									/>
+									<div
 										style={{
-											...rowText,
-											...typography.md,
-											color: appTokens.colors.text,
+											display: "flex",
+											flexDirection: "column",
+											gap: spacing[0.75],
+											flexGrow: 1,
+											minWidth: 0,
+											pointerEvents: "none",
 										}}
 									>
-										{`${item.ref.owner}/${item.ref.name}`}
-									</text>
-									<text
-										testId={`clone-repository-description-${item.id}`}
-										style={{ ...hint, ...rowText }}
-									>
-										{`${visibilityLabels[item.visibility]}${item.description ? ` · ${item.description}` : ""}`}
-									</text>
-								</div>
+										<text
+											testId={`clone-repository-name-${item.id}`}
+											style={{
+												...rowText,
+												...typography.md,
+												color: appTokens.colors.text,
+											}}
+										>
+											{`${item.ref.owner}/${item.ref.name}`}
+										</text>
+										<text
+											testId={`clone-repository-description-${item.id}`}
+											style={{ ...hint, ...rowText }}
+										>
+											{`${visibilityLabels[item.visibility]}${item.description ? ` · ${item.description}` : ""}`}
+										</text>
+									</div>
+								</Button>
+							</div>
+						))}
+						{loading && end > displayed.length ? (
+							<text
+								role="status"
+								style={{ ...hint, height: repositoryRowStride }}
+							>
+								Loading repositories…
+							</text>
+						) : null}
+						{next && !loading && end > displayed.length ? (
+							<Button
+								testId="clone-more"
+								tokens={appTokens}
+								size="sm"
+								variant="ghost"
+								style={{ height: repositoryRowStride }}
+								onPress={() => {
+									void more();
+								}}
+							>
+								Load more
 							</Button>
-						</div>
-					))}
-					{loading && end > displayed.length ? (
-						<text
-							role="status"
-							style={{ ...hint, height: repositoryRowStride }}
-						>
-							Loading repositories…
-						</text>
-					) : null}
-					{next && !loading && end > displayed.length ? (
-						<Button
-							testId="clone-more"
-							tokens={appTokens}
-							size="sm"
-							variant="ghost"
-							style={{ height: repositoryRowStride }}
-							onPress={() => {
-								void more();
-							}}
-						>
-							Load more
-						</Button>
-					) : null}
-				</virtual-list>
+						) : null}
+					</virtual-list>
+					<Scrollbars
+						vertical={viewport}
+						tokens={appTokens}
+						testId="clone-repositories-scrollbar"
+					/>
+				</>
 			) : (
 				<StateMessage
 					testId={error ? "clone-browse-error" : "clone-browse-state"}

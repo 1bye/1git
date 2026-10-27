@@ -224,17 +224,17 @@ it("opens with Command P, keeps search focused, wraps selection and restores foc
 	expect(root.renderer.getFocusedElementId()).toBe(
 		element("quick-switcher-search").id
 	);
-	expect(
-		element("quick-repository-/test/recent").customProps?.["aria-selected"]
-	).toBe(true);
+	expect(element("quick-action-settings").customProps?.["aria-selected"]).toBe(
+		true
+	);
 	await key("up");
 	expect(
 		element("quick-repository-/test/older").customProps?.["aria-selected"]
 	).toBe(true);
 	await key("down");
-	expect(
-		element("quick-repository-/test/recent").customProps?.["aria-selected"]
-	).toBe(true);
+	expect(element("quick-action-settings").customProps?.["aria-selected"]).toBe(
+		true
+	);
 	await key("escape");
 	expect(root.renderer.findByTestId("quick-switcher")).toBeUndefined();
 	expect(root.renderer.getFocusedElementId()).toBe(focused);
@@ -272,15 +272,15 @@ it("handles native arrow key presses directly in the focused search field", asyn
 	root.renderer.nativeSimulateKeyUp(input, "down");
 	await settle();
 	expect(
-		element(`quick-repository-${remote}`).customProps?.["aria-selected"]
+		element("quick-action-settings:application").customProps?.["aria-selected"]
 	).toBe(true);
 	expect(root.renderer.getFocusedElementId()).toBe(input);
 	root.renderer.nativeSimulateKeyDown(input, "up");
 	root.renderer.nativeSimulateKeyUp(input, "up");
 	await settle();
-	expect(
-		element("quick-repository-/test/recent").customProps?.["aria-selected"]
-	).toBe(true);
+	expect(element("quick-action-settings").customProps?.["aria-selected"]).toBe(
+		true
+	);
 });
 
 it("focuses search even when native controls are not ready for the dialog's initial focus traversal", async () => {
@@ -293,7 +293,7 @@ it("focuses search even when native controls are not ready for the dialog's init
 	);
 	await key("down");
 	expect(
-		element(`quick-repository-${remote}`).customProps?.["aria-selected"]
+		element("quick-action-settings:application").customProps?.["aria-selected"]
 	).toBe(true);
 });
 
@@ -380,7 +380,7 @@ it("renders a bounded window and navigates to a result beyond the first window",
 	expect(opened).toBe("/test/repo-4999");
 });
 
-it("keeps repositories ahead of commands and exposes disabled actions with rebound hints", async () => {
+it("puts commands first, renders compact repository rows and exposes disabled actions with rebound hints", async () => {
 	const actions = repositoryPaletteActions(
 		{ refresh: "alt-r" },
 		{
@@ -424,14 +424,222 @@ it("keeps repositories ahead of commands and exposes disabled actions with rebou
 		element("quick-action-fetch").id
 	);
 
-	expect(repositoryBounds?.y).toBeLessThan(actionBounds?.y ?? 0);
+	expect(actionBounds?.y).toBeLessThan(repositoryBounds?.y ?? 0);
+	expect(repositoryBounds?.height).toBe(48);
+	expect(element("quick-avatar-/test/repository").style.width).toBe(24);
+	expect(element("quick-action-new-tab").customProps?.["aria-selected"]).toBe(
+		true
+	);
 	expect(element("quick-action-fetch").style.opacity).toBe(0.5);
+	const fetchIcon = element("quick-action-icon-fetch").customProps?.source;
+	const newTabIcon = element("quick-action-icon-new-tab").customProps?.source;
+
+	expect(fetchIcon).toContain("<svg");
+	expect(newTabIcon).toContain("<svg");
+	expect(fetchIcon).not.toBe(newTabIcon);
 	expect(root.renderer.getAllText().join(" ")).toContain("⌥R");
 
 	await key(">");
 	await key("n e w");
 	await key("enter");
 	expect(selectedAction).toBe("new-tab");
+});
+
+it.each([true, false])(
+	"places Settings around repositories for settingsFirst=%s",
+	async (settingsFirst) => {
+		const actions = repositoryPaletteActions(
+			{},
+			{
+				hasRepository: true,
+				canFetch: true,
+				canBranch: true,
+				canSynchronize: true,
+				canStash: true,
+				canReveal: true,
+				canClose: true,
+			}
+		).filter((action) =>
+			["settings", "settings:application", "fetch"].includes(action.id)
+		);
+
+		root.render(
+			<RepositoryQuickSwitcher
+				open
+				settingsFirst={settingsFirst}
+				items={RepositoryQuickSwitcherModel.catalog(
+					["/test/project"],
+					[],
+					() => "Mac"
+				)}
+				actions={actions}
+				onClose={() => {}}
+				onOpen={() => {}}
+			/>
+		);
+		await settle();
+		const order = settingsFirst
+			? [
+					"quick-action-settings",
+					"quick-action-settings:application",
+					"quick-action-fetch",
+					"quick-repository-/test/project",
+				]
+			: [
+					"quick-action-fetch",
+					"quick-repository-/test/project",
+					"quick-action-settings",
+					"quick-action-settings:application",
+				];
+
+		for (const id of order) {
+			expect(element(id).customProps?.["aria-selected"]).toBe(true);
+			await key("down");
+		}
+
+		expect(element(order[0]!).customProps?.["aria-selected"]).toBe(true);
+		await key(">");
+		expect(
+			element(settingsFirst ? "quick-action-settings" : "quick-action-fetch")
+				.customProps?.["aria-selected"]
+		).toBe(true);
+		expect(
+			root.renderer.findByTestId("quick-repository-/test/project")
+		).toBeUndefined();
+	}
+);
+
+it("changes Settings priority when switching from a repository to Settings", async () => {
+	await render({
+		tabs: [{ id: "workspace-1", path: "/test/project", draft: "" }],
+		activeId: "workspace-1",
+	});
+	await key("cmd-p");
+	expect(element("quick-action-new-tab").customProps?.["aria-selected"]).toBe(
+		true
+	);
+	await key("up");
+	expect(
+		element("quick-action-settings:repository-ignored-history").customProps?.[
+			"aria-selected"
+		]
+	).toBe(true);
+	await key("escape");
+	await key("cmd-,");
+	await key("cmd-p");
+	expect(element("quick-action-settings").customProps?.["aria-selected"]).toBe(
+		true
+	);
+	await key("down");
+	expect(
+		element("quick-action-settings:application").customProps?.["aria-selected"]
+	).toBe(true);
+});
+
+it("navigates and wraps across repositories and commands in the same list", async () => {
+	let selectedAction: string | undefined;
+
+	root.render(
+		<RepositoryQuickSwitcher
+			open
+			items={RepositoryQuickSwitcherModel.catalog(
+				["/test/project"],
+				[],
+				() => "Mac"
+			)}
+			actions={[
+				{
+					id: "new-tab",
+					icon: "add",
+					label: "New tab",
+					hint: "",
+					enabled: true,
+				},
+			]}
+			onClose={() => {}}
+			onOpen={() => {}}
+			onAction={(id) => {
+				selectedAction = id;
+			}}
+		/>
+	);
+	await settle();
+	expect(element("quick-action-new-tab").customProps?.["aria-selected"]).toBe(
+		true
+	);
+	await key("down");
+	expect(
+		element("quick-repository-/test/project").customProps?.["aria-selected"]
+	).toBe(true);
+	await key("down");
+	expect(element("quick-action-new-tab").customProps?.["aria-selected"]).toBe(
+		true
+	);
+	await key("up");
+	expect(
+		element("quick-repository-/test/project").customProps?.["aria-selected"]
+	).toBe(true);
+	await key("down");
+	await key("enter");
+	expect(selectedAction).toBe("new-tab");
+});
+
+it("scrolls keyboard-selected commands into view without moving search focus", async () => {
+	const actions = repositoryPaletteActions(
+		{},
+		{
+			hasRepository: true,
+			canFetch: true,
+			canBranch: true,
+			canSynchronize: true,
+			canStash: true,
+			canReveal: true,
+			canClose: true,
+		}
+	).filter((action) => action.id !== "settings" && !action.settingsSection);
+
+	let selectedAction: string | undefined;
+
+	root.render(
+		<RepositoryQuickSwitcher
+			open
+			items={[]}
+			actions={actions}
+			onClose={() => {}}
+			onOpen={() => {}}
+			onAction={(id) => {
+				selectedAction = id;
+			}}
+		/>
+	);
+	await settle();
+	await key(">");
+
+	for (const _action of actions.slice(
+		0,
+		actions.findIndex((action) => action.id === "copy-path")
+	))
+		await key("down");
+
+	const list = element("quick-switcher-results");
+	const selected = element("quick-action-copy-path");
+	const anchor = root.renderer.getListScrollTop(list.id)!;
+
+	const selectedIndex = actions.findIndex(
+		(action) => action.id === "copy-path"
+	);
+
+	expect(selected.customProps?.["aria-selected"]).toBe(true);
+	expect(anchor[0]).toBeGreaterThan(0);
+	expect(anchor[0]).toBeLessThanOrEqual(selectedIndex);
+	expect((selectedIndex - anchor[0] + 1) * 48 - anchor[1]).toBeLessThanOrEqual(
+		anchor[2]
+	);
+	expect(root.renderer.getFocusedElementId()).toBe(
+		element("quick-switcher-search").id
+	);
+	await key("enter");
+	expect(selectedAction).toBe("copy-path");
 });
 
 it("reuses a visible overview after closing and reopening the palette", async () => {
@@ -590,7 +798,7 @@ it("routes branch commands into the existing branch forms", async () => {
 
 	await key("cmd-p");
 	await key(">");
-	await key("n e w");
+	await key("n e w space b r a n c h");
 	await key("enter");
 	await settle();
 	expect(element("workspace-menu")).toBeDefined();
@@ -752,6 +960,7 @@ it("opens a clicked repository and reports a failed read without replacing the p
 		};
 	});
 	await key("cmd-p");
+	await key("r e c e n t");
 	await click("quick-repository-/test/recent");
 	expect(root.renderer.getAllText().join("\n")).toContain(
 		"Checkout no longer exists"

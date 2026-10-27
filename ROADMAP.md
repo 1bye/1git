@@ -22,6 +22,8 @@ welcome in [GitHub Issues](https://github.com/1bye/1git/issues).
 - [ACP](https://agentclientprotocol.com) support for AI agents
 - Developer ID signing and notarization
 - Larger AI selections for CLI providers (beyond 64 KiB)
+- Periodic background Git fetch with a configurable interval to keep remote branches
+  and ahead/behind counts current, without automatically pulling or merging
 
 ## 🔭 Later
 

@@ -1,3 +1,4 @@
+import { WorkspaceTabIcon } from "../workspace-tabs/components/workspace-tab-icon";
 import {
 	useCallback,
 	useEffect,
@@ -30,7 +31,8 @@ import {
 } from "./repository-overviews";
 import { RepositoryAvatar } from "../repository-workspace/components/repository-avatar";
 
-const rowHeight = 68;
+const rowHeight = 48;
+const visibleRows = 9;
 const windowSize = 64;
 
 type PaletteResult =
@@ -42,6 +44,7 @@ export function RepositoryQuickSwitcher({
 	open,
 	items,
 	actions = [],
+	settingsFirst = true,
 	overviews,
 	error,
 	onClose,
@@ -51,6 +54,7 @@ export function RepositoryQuickSwitcher({
 	open: boolean;
 	items: readonly QuickRepository[];
 	actions?: readonly RepositoryPaletteAction[];
+	settingsFirst?: boolean;
 	overviews?: RepositoryOverviews;
 	error?: string | null;
 	onClose: () => void;
@@ -68,7 +72,7 @@ export function RepositoryQuickSwitcher({
 		>
 			<PopoverContent
 				testId="quick-switcher"
-				aria-label="Switch repository"
+				aria-label="Find actions or repositories"
 				placement="center"
 				width={640}
 				tokens={tokens}
@@ -76,6 +80,7 @@ export function RepositoryQuickSwitcher({
 				<QuickSwitcherContent
 					items={items}
 					actions={actions}
+					settingsFirst={settingsFirst}
 					overviews={overviews}
 					error={error}
 					onClose={onClose}
@@ -90,6 +95,7 @@ export function RepositoryQuickSwitcher({
 function QuickSwitcherContent({
 	items,
 	actions,
+	settingsFirst,
 	overviews,
 	error,
 	onClose,
@@ -98,6 +104,7 @@ function QuickSwitcherContent({
 }: {
 	items: readonly QuickRepository[];
 	actions: readonly RepositoryPaletteAction[];
+	settingsFirst: boolean;
 	overviews?: RepositoryOverviews;
 	error?: string | null;
 	onClose: () => void;
@@ -129,8 +136,18 @@ function QuickSwitcherContent({
 			(item) => ({ kind: "action" as const, item })
 		);
 
-		return [...repositories, ...commands];
-	}, [actionOnly, actions, items, searchQuery]);
+		const settings = commands.filter(
+			({ item }) => item.id === "settings" || item.settingsSection
+		);
+
+		const otherCommands = commands.filter(
+			({ item }) => item.id !== "settings" && !item.settingsSection
+		);
+
+		return settingsFirst
+			? [...settings, ...otherCommands, ...repositories]
+			: [...otherCommands, ...repositories, ...settings];
+	}, [actionOnly, actions, items, searchQuery, settingsFirst]);
 
 	const selected = Math.max(
 		0,
@@ -138,9 +155,7 @@ function QuickSwitcherContent({
 	);
 
 	const active = results[selected];
-
-	const activePath =
-		active?.kind === "repository" ? active.item.path : undefined;
+	const activeKey = active ? resultKey(active) : null;
 
 	const end = Math.min(results.length, start + windowSize);
 
@@ -168,9 +183,9 @@ function QuickSwitcherContent({
 	}, [renderer]);
 
 	useLayoutEffect(() => {
-		if (viewport.current && activePath)
+		if (viewport.current && activeKey)
 			renderer.scrollToItem?.(viewport.current.id, selected, 0);
-	}, [renderer, selected, activePath]);
+	}, [renderer, selected, activeKey]);
 
 	const choose = (result: PaletteResult): void => {
 		if (result.kind === "action" && !result.item.enabled) return;
@@ -192,22 +207,9 @@ function QuickSwitcherContent({
 			return;
 
 		if ((event.key === "down" || event.key === "up") && results.length) {
-			const repositoryIndexes = results.flatMap((result, index) =>
-				result.kind === "repository" ? [index] : []
-			);
-
-			const indexes =
-				actionOnly || repositoryIndexes.length === 0
-					? results.map((_result, index) => index)
-					: repositoryIndexes;
-
-			const current = Math.max(0, indexes.indexOf(selected));
-
 			const index =
-				indexes[
-					(current + (event.key === "down" ? 1 : -1) + indexes.length) %
-						indexes.length
-				] ?? 0;
+				(selected + (event.key === "down" ? 1 : -1) + results.length) %
+				results.length;
 
 			setSelectedKey(results[index] ? resultKey(results[index]) : null);
 			setStart(Math.max(0, index - Math.floor(windowSize / 2)));
@@ -247,12 +249,12 @@ function QuickSwitcherContent({
 					ref={search}
 					testId="quick-switcher-search"
 					role="combobox"
-					aria-label="Search repositories and actions"
+					aria-label="Search actions and repositories"
 					aria-expanded
 					aria-controls="quick-switcher-results"
 					aria-activedescendant={active ? resultTestId(active) : undefined}
 					tabIndex={0}
-					placeholder="Search repositories, actions, paths, or machines…"
+					placeholder="Search actions, repositories, paths, or machines…"
 					value={query}
 					onKeyDown={navigate}
 					onSubmit={() => {
@@ -293,7 +295,7 @@ function QuickSwitcherContent({
 					testId="quick-switcher-results"
 					aria-id="quick-switcher-results"
 					role="listbox"
-					aria-label="Repositories"
+					aria-label="Actions and repositories"
 					itemCount={results.length}
 					estimatedItemHeight={rowHeight}
 					windowStart={start}
@@ -305,11 +307,11 @@ function QuickSwitcherContent({
 
 						const first = anchor?.[0] ?? 0;
 
-						if (first < start || first + 8 > end)
+						if (first < start || first + visibleRows + 1 > end)
 							setStart(Math.max(0, first - 16));
 					}}
 					style={{
-						height: 7 * rowHeight,
+						height: visibleRows * rowHeight,
 						flexShrink: 0,
 					}}
 				>
@@ -347,14 +349,14 @@ function QuickSwitcherContent({
 								<RepositoryAvatar
 									label={result.item.name}
 									source={{ path: result.item.path }}
-									size={32}
+									size={24}
 									testId={`quick-avatar-${result.item.path}`}
 								/>
 							) : (
 								<div
 									style={{
-										width: 32,
-										height: 32,
+										width: 24,
+										height: 24,
 										flexShrink: 0,
 										alignItems: "center",
 										justifyContent: "center",
@@ -362,11 +364,12 @@ function QuickSwitcherContent({
 										backgroundColor: tokens.colors.field,
 									}}
 								>
-									<text
-										style={{ ...typography.sm, color: tokens.colors.textMuted }}
-									>
-										⌘
-									</text>
+									<WorkspaceTabIcon
+										name={result.item.icon}
+										testId={`quick-action-icon-${result.item.id}`}
+										size={18}
+										color={tokens.colors.textMuted}
+									/>
 								</div>
 							)}
 							<div
@@ -379,35 +382,47 @@ function QuickSwitcherContent({
 									pointerEvents: "none",
 								}}
 							>
-								<text
+								<div
 									style={{
-										...typography.sm,
-										color: tokens.colors.text,
-										whiteSpace: "nowrap",
-										textOverflow: "ellipsis",
+										display: "flex",
+										flexDirection: "row",
+										alignItems: "center",
+										gap: spacing[2],
+										minWidth: 0,
 									}}
 								>
-									{result.kind === "repository"
-										? result.item.name
-										: result.item.label}
-								</text>
-								{result.kind === "repository" ? (
-									<>
+									<text
+										style={{
+											...typography.sm,
+											color: tokens.colors.text,
+											whiteSpace: "nowrap",
+											textOverflow: "ellipsis",
+											minWidth: 0,
+											flexShrink: 1,
+										}}
+									>
+										{result.kind === "repository"
+											? result.item.name
+											: result.item.label}
+									</text>
+									{result.kind === "repository" ? (
 										<QuickRepositoryStatus
 											item={result.item}
 											overviews={overviews}
 										/>
-										<text
-											style={{
-												...typography["2xs"],
-												color: tokens.colors.textMuted,
-												whiteSpace: "nowrap",
-												textOverflow: "ellipsis",
-											}}
-										>
-											{`${result.item.machine} · ${result.item.displayPath}`}
-										</text>
-									</>
+									) : null}
+								</div>
+								{result.kind === "repository" ? (
+									<text
+										style={{
+											...typography["2xs"],
+											color: tokens.colors.textMuted,
+											whiteSpace: "nowrap",
+											textOverflow: "ellipsis",
+										}}
+									>
+										{`${result.item.machine} · ${result.item.displayPath}`}
+									</text>
 								) : (
 									<text
 										style={{
@@ -443,7 +458,7 @@ function QuickSwitcherContent({
 						...typography.sm,
 						color: tokens.colors.textMuted,
 						padding: spacing[4],
-						height: 7 * rowHeight,
+						height: visibleRows * rowHeight,
 					}}
 				>
 					{items.length || actions.length
@@ -451,15 +466,6 @@ function QuickSwitcherContent({
 						: "No repositories yet. Open one from disk or add an SSH machine on Home."}
 				</text>
 			)}
-			<text
-				style={{
-					...typography.xs,
-					color: tokens.colors.textMuted,
-					padding: spacing[2],
-				}}
-			>
-				↑ ↓ Navigate ↵ Open Esc Close
-			</text>
 		</div>
 	);
 }
@@ -535,6 +541,8 @@ function QuickRepositoryStatus({
 				color: tokens.colors.textMuted,
 				whiteSpace: "nowrap",
 				textOverflow: "ellipsis",
+				minWidth: 0,
+				flexShrink: 1,
 				pointerEvents: "none",
 			}}
 		>

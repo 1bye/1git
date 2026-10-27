@@ -34,10 +34,12 @@ export interface EditorSettingsHandle {
 /** Immediate overall default and explicitly saved file-type overrides, sharing one application catalog. */
 export function EditorSettings({
 	ref,
+	active = true,
 	editors: supplied,
 	onBusy,
 }: {
 	ref?: Ref<EditorSettingsHandle>;
+	active?: boolean;
 	editors?: ExternalEditors;
 	onBusy: (busy: boolean) => void;
 }) {
@@ -73,7 +75,7 @@ export function EditorSettings({
 		[editing]
 	);
 	useEffect(() => {
-		if (editing || returnFocus.current === null) return;
+		if (!active || editing || returnFocus.current === null) return;
 
 		const focus = returnFocus.current;
 		const timer = setTimeout(() => renderer.focusElement?.(focus), 0);
@@ -81,7 +83,7 @@ export function EditorSettings({
 		returnFocus.current = null;
 
 		return () => clearTimeout(timer);
-	}, [editing, renderer]);
+	}, [active, editing, renderer]);
 	useEffect(() => {
 		mounted.current = true;
 		void (async () => {
