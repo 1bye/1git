@@ -17,6 +17,7 @@ import { embedSparkle, updateConfiguration } from "./sparkle";
 import { ReleaseVersion } from "./release-options";
 import { MacSigning } from "./macos-signing";
 import { remoteHelperTargets } from "../src/feature/machines/remote-protocol";
+import { launcherScript } from "../src/launcher/launcher-script";
 
 if (process.platform !== "darwin" || process.arch !== "arm64") {
 	throw new Error("macOS packaging currently supports Apple Silicon only.");
@@ -76,6 +77,9 @@ try {
 	await mkdir(resources, { recursive: true });
 	await mkdir(resolve(contents, "MacOS"));
 	await mkdir(resolve(contents, "Frameworks"));
+	await writeFile(resolve(resources, "1git-launcher"), launcherScript, {
+		mode: 0o755,
+	});
 
 	await run([
 		process.execPath,
