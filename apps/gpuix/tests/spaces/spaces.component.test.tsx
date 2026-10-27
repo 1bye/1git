@@ -170,7 +170,7 @@ for (const appearance of ["light", "dark"] as const) {
 			bounds("rail-settings").y -
 				bounds("rail-spaces").y -
 				bounds("rail-spaces").height
-		).toBe(4);
+		).toBe(5);
 		expect(root.renderer.findByTestId("workspace-1")).toBeUndefined();
 		const personalId = latest().activeSpaceId!;
 
@@ -312,11 +312,24 @@ it("confirms space deletion, supports keyboard cancellation and preserves drafts
 	expect(document.spaces?.map((space) => space.id)).toEqual(["default"]);
 	expect(document.activeSpaceId).toBe("default");
 	expect(document.activeId).toBe("workspace-2");
-	expect(document.tabs.map((tab) => tab.spaceId)).toEqual([
+	const repositoryTabs = document.tabs.filter(
+		(tab) => tab.kind === "repository"
+	);
+
+	expect(repositoryTabs.map((tab) => tab.spaceId)).toEqual([
 		"default",
 		"default",
 	]);
-	expect(document.tabs.map((tab) => tab.draft)).toEqual(["Draft 0", "Draft 1"]);
+	expect(repositoryTabs.map((tab) => tab.draft)).toEqual([
+		"Draft 0",
+		"Draft 1",
+	]);
+	expect(document.tabs.filter((tab) => tab.kind === "settings")).toHaveLength(
+		1
+	);
+	expect(document.tabs.find((tab) => tab.kind === "settings")?.spaceId).toBe(
+		"default"
+	);
 	root.unmount();
 	root = createTestRoot({
 		width: 980,
@@ -404,7 +417,7 @@ it("switches spaces with Control Command arrows from the draft editor and stops 
 	]);
 });
 
-it("uses custom space shortcuts and does not switch behind a modal or Settings", async () => {
+it("uses custom space shortcuts and only blocks switching behind a modal", async () => {
 	const keybinds = {
 		"previous-space": "ctrl-shift-p",
 		"next-space": "ctrl-shift-n",
@@ -422,6 +435,10 @@ it("uses custom space shortcuts and does not switch behind a modal or Settings",
 	root.renderer.simulateKeystrokes("cmd-,");
 	await settle();
 	root.renderer.simulateKeystrokes("ctrl-shift-n");
+	await settle();
+	expect(root.renderer.findByTestId("settings-view")).toBeUndefined();
+	expect(latest().activeSpaceId).toBe(spaceIds[2]);
+	root.renderer.simulateKeystrokes("ctrl-shift-p");
 	await settle();
 	expect(node("settings-view")).toBeDefined();
 	expect(latest().activeSpaceId).toBe(spaceIds[1]);
