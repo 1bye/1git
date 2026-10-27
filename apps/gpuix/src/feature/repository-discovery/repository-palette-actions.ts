@@ -1,4 +1,8 @@
-import { Keybinds, type KeybindOverrides } from "../keybinds/keybinds";
+import {
+	keybindCommands,
+	Keybinds,
+	type KeybindOverrides,
+} from "../keybinds/keybinds";
 import {
 	settingsPagesMetadata,
 	type SettingsSection,
@@ -48,6 +52,40 @@ const actionDefinitions: readonly ActionDefinition[] = [
 	{ id: "settings", label: "Open Settings", keybind: "settings" },
 ];
 
+function isActionEnabled(
+	id: ActionDefinition["id"],
+	context: RepositoryPaletteActionContext
+): boolean {
+	switch (id) {
+		case "new-tab":
+		case "settings":
+			return true;
+		case "close-tab":
+			return context.canClose;
+		case "external-editor":
+		case "finder":
+			return context.canReveal;
+		case "stash":
+			return context.canStash;
+		case "pull":
+		case "push":
+			return context.canSynchronize;
+		case "fetch":
+			return context.canFetch;
+		case "new-branch":
+		case "switch-branch":
+			return context.canBranch;
+		case "copy-path":
+			return context.canReveal;
+	}
+}
+
+function commandLabel(id: string, fallback: string): string {
+	return (
+		keybindCommands.find((command) => command.id === id)?.label ?? fallback
+	);
+}
+
 export interface RepositoryPaletteActionContext {
 	readonly hasRepository: boolean;
 	readonly canFetch: boolean;
@@ -65,29 +103,13 @@ export function repositoryPaletteActions(
 ): readonly RepositoryPaletteAction[] {
 	const actions = actionDefinitions.map((definition) => ({
 		id: definition.id,
-		label: definition.label,
+		label: definition.keybind
+			? commandLabel(definition.keybind, definition.label)
+			: definition.label,
 		hint: definition.keybind
 			? Keybinds.label(definition.keybind, overrides)
 			: "",
-		enabled:
-			definition.id === "new-tab" || definition.id === "settings"
-				? true
-				: definition.id === "close-tab"
-					? context.canClose
-					: definition.id === "finder"
-						? context.canReveal
-						: definition.id === "external-editor"
-							? context.canReveal
-							: definition.id === "stash"
-								? context.canStash
-								: definition.id === "pull" || definition.id === "push"
-									? context.canSynchronize
-									: definition.id === "fetch"
-										? context.canFetch
-										: definition.id === "new-branch" ||
-											  definition.id === "switch-branch"
-											? context.canBranch
-											: context.hasRepository,
+		enabled: isActionEnabled(definition.id, context),
 	})) satisfies readonly RepositoryPaletteAction[];
 
 	return [

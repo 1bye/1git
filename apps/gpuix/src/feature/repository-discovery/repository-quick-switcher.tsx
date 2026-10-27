@@ -112,10 +112,10 @@ function QuickSwitcherContent({
 	const [selectedKey, setSelectedKey] = useState<string | null>(null);
 	const [start, setStart] = useState(0);
 
-	const actionOnly =
-		query.trimStart().startsWith(">") && !query.trimStart().startsWith(">>");
+	const trimmedQuery = query.trimStart();
+	const actionOnly = trimmedQuery.startsWith(">");
 
-	const searchQuery = actionOnly ? query.trimStart().slice(1) : query;
+	const searchQuery = actionOnly ? trimmedQuery.slice(1) : query;
 
 	const results = useMemo<readonly PaletteResult[]>(() => {
 		const repositories = actionOnly

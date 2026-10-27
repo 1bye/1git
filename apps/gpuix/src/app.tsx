@@ -690,6 +690,7 @@ function AppContent({
 	);
 
 	const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
+	const [quickSwitcherSession, setQuickSwitcherSession] = useState(0);
 	const quickSwitcherTarget = useRef<string | null>(null);
 
 	const [paletteActionError, setPaletteActionError] = useState<string | null>(
@@ -701,7 +702,12 @@ function AppContent({
 		intent: "new" | "switch";
 	} | null>(null);
 
-	const [stashCreateRequest, setStashCreateRequest] = useState(0);
+	const stashRequestSequence = useRef(0);
+
+	const [stashCreateRequest, setStashCreateRequest] = useState<{
+		id: string;
+		sequence: number;
+	} | null>(null);
 
 	useEffect(() => {
 		if (!quickSwitcherOpen) quickSwitcherTarget.current = null;
@@ -1328,8 +1334,8 @@ function AppContent({
 	);
 
 	const repositoryOverviews = useMemo(
-		() => new RepositoryOverviews(RepositoryReader.read, canReadOverview),
-		[canReadOverview]
+		() => new RepositoryOverviews(readRepository, canReadOverview),
+		[canReadOverview, readRepository]
 	);
 
 	useEffect(() => {
@@ -1442,6 +1448,7 @@ function AppContent({
 
 				quickSwitcherTarget.current = target;
 				dispatch({ type: "add", kind: "empty" });
+				setQuickSwitcherSession((session) => session + 1);
 				setQuickSwitcherOpen(true);
 
 				return;
@@ -1489,7 +1496,18 @@ function AppContent({
 
 				if (!choice) throw new Error("This branch has no configured upstream.");
 
-				const error = await mutations.synchronize(activeTab.id, choice);
+				if (!repository.head || !repository.branchName)
+					throw new Error("This branch is not ready to synchronize.");
+
+				const error = await mutations.synchronize(
+					activeTab.id,
+					choice,
+					undefined,
+					{
+						expectedHead: repository.head,
+						expectedBranch: repository.branchName,
+					}
+				);
 
 				if (error) throw new Error(error);
 			};
@@ -1521,7 +1539,10 @@ function AppContent({
 
 					return;
 				case "stash":
-					setStashCreateRequest((request) => request + 1);
+					setStashCreateRequest({
+						id: activeTab.id,
+						sequence: ++stashRequestSequence.current,
+					});
 					dispatch({
 						type: "workspace",
 						id: activeTab.id,
@@ -1767,6 +1788,7 @@ function AppContent({
 				quickSwitcherTarget.current =
 					activeTab?.kind === "empty" ? activeTab.id : null;
 				setPaletteActionError(null);
+				setQuickSwitcherSession((session) => session + 1);
 				setQuickSwitcherOpen(true);
 
 				return;
@@ -1780,6 +1802,7 @@ function AppContent({
 				quickSwitcherTarget.current = id;
 				dispatch({ type: "add", kind: "empty" });
 				setPaletteActionError(null);
+				setQuickSwitcherSession((session) => session + 1);
 				setQuickSwitcherOpen(true);
 
 				return;
@@ -2311,7 +2334,12 @@ function AppContent({
 								state={workspace}
 								history={history}
 								stashes={stashes}
-								stashCreateRequest={stashCreateRequest}
+								stashCreateRequest={
+									stashCreateRequest?.id === activeTab.id
+										? stashCreateRequest.sequence
+										: undefined
+								}
+								onStashCreateRequestHandled={() => setStashCreateRequest(null)}
 								onCommit={() => {
 									void mutations.commit(activeTab.id);
 								}}
@@ -2873,6 +2901,7 @@ function AppContent({
 					)}
 				</AppShell>
 				<RepositoryQuickSwitcher
+					key={quickSwitcherSession}
 					open={quickSwitcherOpen}
 					items={quickRepositories}
 					actions={paletteActions}

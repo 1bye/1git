@@ -50,12 +50,14 @@ export function RepositoryStashActions({
 	state,
 	placement,
 	createRequest,
+	onCreateRequestHandled,
 	onWrite,
 }: {
 	state: RepositoryWorkspaceState;
 	placement: "create" | "selection";
 	/** Incremented by command actions to open the existing New stash form. */
 	createRequest?: number;
+	onCreateRequestHandled?: () => void;
 	onWrite: (request: StashWriteRequest) => Promise<boolean>;
 }) {
 	const theme = useAppTheme();
@@ -100,11 +102,13 @@ export function RepositoryStashActions({
 			},
 			title: "",
 		});
+		onCreateRequestHandled?.();
 	}, [
 		createRequest,
 		disabled,
 		identity.expectedBranch,
 		identity.expectedHead,
+		onCreateRequestHandled,
 		placement,
 	]);
 
