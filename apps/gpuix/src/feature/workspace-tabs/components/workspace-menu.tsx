@@ -320,6 +320,8 @@ export function WorkspaceMenu({
 	worktreesAnchorRef,
 	onSubmenuOpen,
 	onBusyChange,
+	branchIntent,
+	onBranchIntentHandled,
 }: WorkspaceMenuActions & {
 	tab: WorkspaceTabRecord;
 	anchor: PublicInstance | undefined;
@@ -328,6 +330,8 @@ export function WorkspaceMenu({
 	worktreesAnchorRef?: Ref<PublicInstance>;
 	onSubmenuOpen?: (group: Submenu) => void;
 	onBusyChange?: (busy: boolean) => void;
+	branchIntent?: "new" | "switch";
+	onBranchIntentHandled?: () => void;
 }) {
 	const theme = useAppTheme();
 	const { tokens: appTokens } = theme;
@@ -486,6 +490,17 @@ export function WorkspaceMenu({
 	);
 
 	const canCreate = !busy && !blocked && data !== null;
+
+	useEffect(() => {
+		if (!branchIntent || !data) return;
+
+		if (branchIntent === "new" && canCreate) {
+			setSubmenu("new");
+			onSubmenuOpen?.("new");
+		}
+
+		onBranchIntentHandled?.();
+	}, [branchIntent, canCreate, data, onBranchIntentHandled, onSubmenuOpen]);
 
 	const mergeBranches =
 		data?.branches.branches.filter(

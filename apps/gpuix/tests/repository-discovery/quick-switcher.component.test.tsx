@@ -6,6 +6,8 @@
  */
 import { afterEach, beforeEach, expect, it, mock, spyOn } from "bun:test";
 import { createTestRoot, type TestRoot } from "@gpuix/react/testing";
+import type { ComponentProps } from "react";
+import type { RepositorySnapshot } from "@1git/git";
 import { App } from "../../src/app";
 import { windowOptions } from "../../src/window-options";
 import { appThemes } from "../../src/styles/theme";
@@ -17,9 +19,16 @@ import { MachineLocation } from "../../src/feature/machines/machine-location";
 import { RepositoryDiscovery } from "../../src/feature/repository-discovery/repository-discovery";
 import { RepositoryQuickSwitcher } from "../../src/feature/repository-discovery/repository-quick-switcher";
 import { RepositoryQuickSwitcherModel } from "../../src/feature/repository-discovery/repository-quick-switcher-model";
+import { RepositoryOverviews } from "../../src/feature/repository-discovery/repository-overviews";
+import { repositoryPaletteActions } from "../../src/feature/repository-discovery/repository-palette-actions";
 import { RepositoryAvatars } from "../../src/feature/repository-workspace/lib/repository-avatars";
+import { RepositoryBranches } from "../../src/feature/workspace-tabs/lib/repository-branches";
+import { RepositorySync } from "../../src/feature/repository-workspace/lib/repository-sync";
 import { commitInfo } from "../_shared/history-page";
-import { repositorySnapshot } from "../_shared/repository-snapshot";
+import {
+	changedFile,
+	repositorySnapshot,
+} from "../_shared/repository-snapshot";
 import type { WorkspaceSessionDocument } from "../../src/feature/workspace-tabs/lib/workspace-session";
 
 let root: TestRoot;
@@ -86,7 +95,11 @@ async function click(id: string): Promise<void> {
 
 async function render(
 	session: Partial<WorkspaceSessionDocument> = {},
-	discovered: readonly string[] = []
+	discovered: readonly string[] = [],
+	overrides: Partial<ComponentProps<typeof App>> = {},
+	baseSnapshot: RepositorySnapshot & {
+		readonly remoteCount?: number;
+	} = repositorySnapshot()
 ) {
 	const accounts = new Accounts(
 		new AccountStore("/unused/quick-switcher-accounts.json"),
@@ -115,7 +128,7 @@ async function render(
 			folders: [],
 		},
 	]);
-	const snapshot = repositorySnapshot();
+	const snapshot = baseSnapshot;
 
 	const read = mock(async (path: string) => ({
 		ok: true as const,
@@ -155,11 +168,50 @@ async function render(
 				ok: true,
 				value: { commit: commitInfo(), undoUnavailableReason: "No commits" },
 			})}
+			{...overrides}
 		/>
 	);
 	await settle();
 
-	return { read, scan };
+	return { read, scan, snapshot };
+}
+
+function branchReview(snapshot: RepositorySnapshot) {
+	const head = snapshot.head.oid ?? "1234567890abcdef";
+
+	return {
+		branches: {
+			current: "main",
+			branches: [
+				{
+					name: "main",
+					fullName: "refs/heads/main",
+					oid: head,
+					checkedOut: true,
+					type: "local" as const,
+					worktreePath: "/test/project",
+					ahead: snapshot.head.ahead,
+					behind: snapshot.head.behind,
+					committedAt: null,
+					remote: null,
+					summary: "",
+					upstream: "origin/main",
+					upstreamRemote: "origin",
+					upstreamRef: "refs/heads/main",
+				},
+			],
+		},
+		remotes: [
+			{
+				name: "origin",
+				defaultBranch: "main",
+				fetchUrls: ["https://example.test/repo.git"],
+				pushUrls: ["https://example.test/repo.git"],
+			},
+		],
+		worktrees: [],
+		savedChanges: [],
+	};
 }
 
 it("opens with Command P, keeps search focused, wraps selection and restores focus on Escape", async () => {
@@ -254,14 +306,17 @@ it("reactivates an already open repository without duplicating or rereading it",
 		activeId: "workspace-2",
 	});
 
-	const reads = read.mock.calls.length;
+	const projectReads = () =>
+		read.mock.calls.filter(([path]) => path === "/test/project").length;
+
+	const reads = projectReads();
 
 	await key("cmd-p");
 	await key("p r o j e c t");
 	await key("enter");
 	expect(element("workspace-1").customProps?.["aria-selected"]).toBe(true);
 	expect(root.renderer.findByTestId("workspace-3")).toBeUndefined();
-	expect(read.mock.calls).toHaveLength(reads);
+	expect(projectReads()).toBe(reads);
 });
 
 it("includes discovered and starred repositories, and keeps the menu stationary for no matches", async () => {
@@ -325,6 +380,305 @@ it("renders a bounded window and navigates to a result beyond the first window",
 	expect(opened).toBe("/test/repo-4999");
 });
 
+it("keeps repositories ahead of commands and exposes disabled actions with rebound hints", async () => {
+	const actions = repositoryPaletteActions(
+		{ refresh: "alt-r" },
+		{
+			hasRepository: false,
+			canFetch: false,
+			canBranch: false,
+			canSynchronize: false,
+			canStash: false,
+			canReveal: false,
+			canClose: false,
+		}
+	);
+
+	let selectedAction: string | undefined;
+
+	root.render(
+		<RepositoryQuickSwitcher
+			open
+			items={RepositoryQuickSwitcherModel.catalog(
+				["/test/repository"],
+				[],
+				() => "Mac"
+			)}
+			actions={actions.filter((action) =>
+				["fetch", "new-tab"].includes(action.id)
+			)}
+			onClose={() => {}}
+			onOpen={() => {}}
+			onAction={(id) => {
+				selectedAction = id;
+			}}
+		/>
+	);
+	await settle();
+
+	const repositoryBounds = root.renderer.getElementBounds(
+		element("quick-repository-/test/repository").id
+	);
+
+	const actionBounds = root.renderer.getElementBounds(
+		element("quick-action-fetch").id
+	);
+
+	expect(repositoryBounds?.y).toBeLessThan(actionBounds?.y ?? 0);
+	expect(element("quick-action-fetch").style.opacity).toBe(0.5);
+	expect(root.renderer.getAllText().join(" ")).toContain("⌥R");
+
+	await key(">");
+	await key("n e w");
+	await key("enter");
+	expect(selectedAction).toBe("new-tab");
+});
+
+it("reuses a visible overview after closing and reopening the palette", async () => {
+	const read = mock(async () => ({
+		ok: true as const,
+		value: repositorySnapshot([changedFile("src/index.ts")]),
+	}));
+
+	const overviews = new RepositoryOverviews(read, () => true);
+
+	root.render(
+		<RepositoryQuickSwitcher
+			open
+			items={RepositoryQuickSwitcherModel.catalog(
+				["/test/repository"],
+				[],
+				() => "Mac"
+			)}
+			overviews={overviews}
+			onClose={() => {}}
+			onOpen={() => {}}
+		/>
+	);
+	await settle();
+	expect(read).toHaveBeenCalledTimes(1);
+	await key("r e p o");
+	expect(read).toHaveBeenCalledTimes(1);
+
+	root.render(
+		<RepositoryQuickSwitcher
+			open={false}
+			items={[]}
+			overviews={overviews}
+			onClose={() => {}}
+			onOpen={() => {}}
+		/>
+	);
+	await settle();
+	root.render(
+		<RepositoryQuickSwitcher
+			open
+			items={RepositoryQuickSwitcherModel.catalog(
+				["/test/repository"],
+				[],
+				() => "Mac"
+			)}
+			overviews={overviews}
+			onClose={() => {}}
+			onOpen={() => {}}
+		/>
+	);
+	await settle();
+	expect(read).toHaveBeenCalledTimes(1);
+	overviews.dispose();
+});
+
+it("dispatches pull and push as separate reviewed upstream requests", async () => {
+	const baseSnapshot = {
+		...repositorySnapshot(),
+		head: {
+			...repositorySnapshot().head,
+			upstream: "origin/main",
+			ahead: 1,
+			behind: 2,
+		},
+		remoteCount: 1,
+	};
+
+	const readBranches = mock<typeof RepositoryBranches.read>(async () => ({
+		ok: true,
+		value: branchReview(baseSnapshot),
+	}));
+
+	const writeSyncRepository = mock<typeof RepositorySync.write>(
+		async (_root, input) => ({
+			ok: true,
+			value: {
+				operation: input.kind === "pull" ? "pull" : "push",
+				remote: input.kind === "sync" ? null : input.remote,
+				branch: "main",
+				snapshot: baseSnapshot,
+			},
+		})
+	);
+
+	await render(
+		{
+			tabs: [{ id: "workspace-1", path: "/test/project", draft: "" }],
+			activeId: "workspace-1",
+		},
+		[],
+		{ readBranches, writeSyncRepository },
+		baseSnapshot
+	);
+
+	await key("cmd-p");
+	await key(">");
+	await key("p u l l");
+	await key("enter");
+	await settle();
+	await settle();
+
+	const pullCall = writeSyncRepository.mock.calls.find(
+		([, input]) => input.kind === "pull"
+	);
+
+	expect(pullCall?.[0]).toBe("/test/project");
+	expect(pullCall?.[1]).toMatchObject({
+		kind: "pull",
+		remote: "origin",
+		remoteRef: "refs/heads/main",
+		expectedHead: baseSnapshot.head.oid,
+		expectedBranch: "main",
+	});
+
+	await key("cmd-p");
+	await key(">");
+	await key("p u s h");
+	await key("enter");
+	await settle();
+	await settle();
+
+	const pushCall = writeSyncRepository.mock.calls.find(
+		([, input]) => input.kind === "push"
+	);
+
+	expect(pushCall?.[0]).toBe("/test/project");
+	expect(pushCall?.[1]).toMatchObject({
+		kind: "push",
+		remote: "origin",
+		remoteRef: "refs/heads/main",
+		expectedHead: baseSnapshot.head.oid,
+		expectedBranch: "main",
+	});
+});
+
+it("routes branch commands into the existing branch forms", async () => {
+	const baseSnapshot = { ...repositorySnapshot(), remoteCount: 1 };
+
+	const readBranches = mock<typeof RepositoryBranches.read>(async () => ({
+		ok: true,
+		value: branchReview(baseSnapshot),
+	}));
+
+	await render(
+		{
+			tabs: [{ id: "workspace-1", path: "/test/project", draft: "" }],
+			activeId: "workspace-1",
+		},
+		[],
+		{
+			readBranches,
+		},
+		baseSnapshot
+	);
+
+	await key("cmd-p");
+	await key(">");
+	await key("n e w");
+	await key("enter");
+	await settle();
+	expect(element("workspace-menu")).toBeDefined();
+	expect(element("new-actions")).toBeDefined();
+	expect(element("create-branch")).toBeDefined();
+
+	await key("escape");
+	await key("escape");
+	await key("cmd-p");
+	await key(">");
+	await key("s w i t c h");
+	await key("enter");
+	await settle();
+	expect(element("workspace-menu")).toBeDefined();
+	expect(element("branch-main")).toBeDefined();
+});
+
+it("opens stash creation once and does not replay it after cancellation and navigation", async () => {
+	const baseSnapshot = {
+		...repositorySnapshot([changedFile("src/index.ts")]),
+		remoteCount: 1,
+	};
+
+	const readBranches = mock<typeof RepositoryBranches.read>(async () => ({
+		ok: true,
+		value: branchReview(baseSnapshot),
+	}));
+
+	await render(
+		{
+			tabs: [{ id: "workspace-1", path: "/test/project", draft: "" }],
+			activeId: "workspace-1",
+		},
+		[],
+		{
+			readBranches,
+			readStashes: async () => ({ ok: true, value: [] }),
+			readStashFiles: async () => ({ ok: true, value: [] }),
+		},
+		baseSnapshot
+	);
+
+	await key("cmd-p");
+	await key(">");
+	await key("s t a s h");
+	await key("enter");
+	await settle();
+	expect(element("stash-create")).toBeDefined();
+	expect(element("stash-message")).toBeDefined();
+
+	await click("stash-cancel");
+	expect(root.renderer.findByTestId("stash-message")).toBeUndefined();
+	await click("view-changes");
+	await click("workspace-home");
+	await click("workspace-1");
+	await settle();
+	expect(root.renderer.findByTestId("stash-message")).toBeUndefined();
+
+	await key("cmd-p");
+	await key(">");
+	await key("s t a s h");
+	await key("enter");
+	await settle();
+	expect(element("stash-message")).toBeDefined();
+});
+
+it("opens a fresh target palette for New tab before filling that tab", async () => {
+	const { read } = await render({
+		tabs: [{ id: "workspace-1", path: "/test/project", draft: "" }],
+		activeId: "workspace-1",
+	});
+
+	await key("cmd-p");
+	await key(">");
+	await key("t a b");
+	await key("enter");
+	await settle();
+	expect(element("workspace-2")).toBeDefined();
+	expect(element("quick-switcher-search").customProps?.value).toBe("");
+	await key("r e c e n t");
+	await key("enter");
+	await settle();
+
+	expect(root.renderer.findByTestId("quick-switcher")).toBeUndefined();
+	expect(read.mock.calls.some(([path]) => path === "/test/recent")).toBe(true);
+	expect(element("workspace-2")).toBeDefined();
+});
+
 it.each(["light", "dark"] as const)(
 	"fits the minimum window and keeps keyboard focus inside the %s switcher",
 	async (appearance) => {
@@ -377,12 +731,26 @@ it.each(["light", "dark"] as const)(
 );
 
 it("opens a clicked repository and reports a failed read without replacing the previous draft", async () => {
-	const { read } = await render({
+	const { read, snapshot } = await render({
 		tabs: [{ id: "workspace-1", path: "/test/project", draft: "Keep my work" }],
 		activeId: "workspace-1",
 	});
 
-	read.mockRejectedValueOnce(new Error("Checkout no longer exists"));
+	read.mockImplementation(async (path) => {
+		if (path === "/test/recent") throw new Error("Checkout no longer exists");
+
+		return {
+			ok: true as const,
+			value: {
+				...snapshot,
+				repository: {
+					...snapshot.repository,
+					root: path,
+					commonDirectory: `${path}/.git`,
+				},
+			},
+		};
+	});
 	await key("cmd-p");
 	await click("quick-repository-/test/recent");
 	expect(root.renderer.getAllText().join("\n")).toContain(
