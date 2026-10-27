@@ -1565,12 +1565,16 @@ function AppContent({
 			} else if (
 				activeTab &&
 				workspace &&
+				workspace.repository &&
 				!RepositoryWorkspaceModel.isBusy(workspace)
 			) {
 				if (key === "w") dispatch({ type: "close", id: activeTab.id });
 
-				if (key === "r" && !workspace.loading)
-					void connection.refresh(activeTab.id);
+				if (key === "r" && !workspace.loading) {
+					if (workspace.repository.remoteCount === 0)
+						void connection.refresh(activeTab.id);
+					else void mutations.fetch(activeTab.id);
+				}
 			}
 		});
 
@@ -1585,6 +1589,7 @@ function AppContent({
 		state.nextId,
 		activeTab,
 		workspace,
+		mutations,
 		connection,
 		onboardingOpen,
 		settingsOpen,

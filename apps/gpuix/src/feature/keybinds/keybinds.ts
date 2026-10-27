@@ -20,7 +20,7 @@ export const keybindCommands: readonly KeybindCommand[] = [
 	{ id: "open", label: "Open repository", group: "Application", key: "cmd-o" },
 	{
 		id: "refresh",
-		label: "Refresh repository",
+		label: "Fetch repository",
 		group: "Application",
 		key: "cmd-r",
 	},
