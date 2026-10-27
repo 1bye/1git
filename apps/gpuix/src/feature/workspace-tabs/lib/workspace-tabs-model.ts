@@ -72,9 +72,9 @@ export class WorkspaceTabsModel {
 			preview,
 			tabs: [
 				{
-					kind: preview ? "repository" : "empty",
+					kind: "repository",
 					id: "workspace-1",
-					name: preview ? "1git" : "New tab",
+					name: preview ? "1git" : "Open repository",
 					branch: preview ? "main" : undefined,
 					workspace: RepositoryWorkspaceModel.create(preview),
 				},
@@ -131,6 +131,13 @@ export class WorkspaceTabsModel {
 							? { ...tab, spaceId: owner }
 							: tab
 					),
+					spaces: state.spaces?.map((space) =>
+						space.id === owner
+							? { ...space, activeId: existing.id }
+							: space.activeId === existing.id
+								? { ...space, activeId: null }
+								: space
+					),
 					activeId: existing.id,
 				};
 
@@ -145,6 +152,9 @@ export class WorkspaceTabsModel {
 			return {
 				...state,
 				tabs: [...state.tabs, tab],
+				spaces: state.spaces?.map((space) =>
+					space.id === owner ? { ...space, activeId: tab.id } : space
+				),
 				activeId: tab.id,
 				nextId: state.nextId + 1,
 			};
@@ -271,22 +281,26 @@ export class WorkspaceTabsModel {
 		}
 
 		if (action.type === "add") {
+			if (action.kind === "settings")
+				return WorkspaceTabsModel.reduce(state, { type: "open-settings" });
+
 			const kind = action.kind ?? "repository";
 
 			const tab = {
 				kind,
 				...(state.spaces ? { spaceId: state.activeSpaceId ?? "default" } : {}),
 				id: `workspace-${state.nextId}`,
-				name: action.path
-					? basename(action.path)
-					: action.kind === "empty"
-						? "New tab"
-						: kind === "settings"
-							? "Settings"
+				name:
+					action.path && kind === "repository"
+						? basename(action.path)
+						: action.kind === "empty"
+							? "New tab"
 							: `Workspace ${state.nextId}`,
 				workspace: {
-					...RepositoryWorkspaceModel.create(state.preview),
-					...(action.path
+					...RepositoryWorkspaceModel.create(
+						state.preview && kind === "repository"
+					),
+					...(action.path && kind === "repository"
 						? { repositoryPath: action.path, loading: true }
 						: {}),
 				},
@@ -340,6 +354,10 @@ export class WorkspaceTabsModel {
 					item.id === tab.id
 						? {
 								...tab,
+								kind:
+									item.kind === "empty" && workspace.repository
+										? "repository"
+										: item.kind,
 								workspace,
 								name: workspace.repository?.name ?? tab.name,
 								branch: workspace.repository?.branch ?? tab.branch,

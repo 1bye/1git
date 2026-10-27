@@ -67,6 +67,48 @@ it("defaults older sessions and invalid automatic-inclusion preferences to off",
 	}
 });
 
+it("migrates non-repository tabs without restoring repository paths or navigation", () => {
+	const document = WorkspaceSession.capture(WorkspaceTabsModel.create(0));
+
+	const parsed = WorkspaceSession.parse(
+		JSON.stringify({
+			...document,
+			tabs: [
+				{
+					id: "workspace-1",
+					kind: "empty",
+					path: "/should-not-open",
+					draft: "stale draft",
+					navigation: {
+						view: "history",
+						changes: null,
+						history: "oid",
+						historyFile: null,
+						historyLimit: 100,
+						stashes: null,
+						stashFile: null,
+					},
+				},
+				{
+					id: "workspace-2",
+					kind: "settings",
+					path: "/also-should-not-open",
+					draft: "stale draft",
+				},
+			],
+			activeId: "workspace-1",
+		})
+	);
+
+	expect(parsed.tabs).toMatchObject([
+		{ id: "workspace-1", kind: "empty", path: null, draft: "" },
+		{ id: "workspace-2", kind: "settings", path: null, draft: "" },
+	]);
+	expect(
+		WorkspaceSession.restore(parsed).tabs[0]?.workspace.repositoryPath
+	).toBe(null);
+});
+
 it("captures keybinds and the file layout together without losing either preference", () => {
 	const args: Parameters<typeof WorkspaceSession.capture> = [
 		WorkspaceTabsModel.create(),

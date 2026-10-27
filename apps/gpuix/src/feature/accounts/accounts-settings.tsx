@@ -219,8 +219,10 @@ export function AccountsSettings({
 	accounts: supplied,
 	remoteAccounts,
 	children,
+	embedded = false,
 	initialForm = "list",
 	initialReconnectKey,
+	onFormChange,
 	openLink = NativeBrowser.open,
 	copyText = NativeClipboard.write,
 	preferredAccountKey,
@@ -228,6 +230,7 @@ export function AccountsSettings({
 	repositoryView,
 	onRepositoryView,
 	initialSection = "accounts",
+	onSectionChange,
 	repositorySettings,
 	repositoryAppearance,
 	repositoryAppearanceName,
@@ -249,8 +252,11 @@ export function AccountsSettings({
 	accounts?: Accounts;
 	remoteAccounts?: RemoteAccounts;
 	children?: ReactNode;
+	/** Render the settings page inside the active workspace tab surface. */
+	embedded?: boolean;
 	/** Clone's Add account entry opens setup immediately; normal Settings starts with the list. */
 	initialForm?: "list" | "connect";
+	onFormChange?: (form: "list" | "connect") => void;
 	/** A user-requested recovery opens this account's existing reconnect form, without authorizing it. */
 	initialReconnectKey?: string;
 	/** System-browser boundary; native tests capture setup links without opening a real account. */
@@ -263,6 +269,7 @@ export function AccountsSettings({
 	repositoryView?: RepositoryView;
 	onRepositoryView?: (view: RepositoryView) => void;
 	initialSection?: SettingsSection;
+	onSectionChange?: (section: SettingsSection) => void;
 	repositorySettings?: { root: string; name: string; disabled: boolean };
 	ignoredHistory?: {
 		history: IgnoredHistory;
@@ -326,6 +333,10 @@ export function AccountsSettings({
 		cancelConnection,
 	} = connection;
 
+	useEffect(() => {
+		onFormChange?.(form);
+	}, [form, onFormChange]);
+
 	const readAccountIdentity = useCallback(
 		(account: SavedAccount, signal: AbortSignal) =>
 			accounts.commitIdentity(account, signal),
@@ -339,6 +350,16 @@ export function AccountsSettings({
 	}, [accounts, initialForm, initialReconnectKey]);
 
 	const [section, setSection] = useState(initialSection);
+
+	const changeSection = (next: SettingsSection): void => {
+		setSection(next);
+		onSectionChange?.(next);
+	};
+
+	useEffect(() => {
+		setSection(initialSection);
+	}, [initialSection]);
+
 	const [gitBusy, setGitBusy] = useState(false);
 	const gitBusyRef = useRef(false);
 	const spacesEditor = useRef<SpacesSettingsHandle | null>(null);
@@ -417,50 +438,53 @@ export function AccountsSettings({
 
 	return (
 		<AppShell
+			embedded={embedded}
 			testId="settings-view"
 			ref={view}
 			workspaceLabel="Settings"
 			rail={
-				<WorkspaceRail
-					ignoredHistory={
-						ignoredHistory?.status?.data?.preferences.enabled &&
-						ignoredHistory.onOpen
-							? {
-									active: ignoredHistory.active ?? false,
-									onOpen: () => {
-										if (!settingsBusy) ignoredHistory.onOpen?.();
-									},
-								}
-							: undefined
-					}
-					spaceSwitcher={spaceSwitcher}
-					onSpaceSwipe={onSpaceSwipe}
-					accounts={accounts}
-					savedAccounts={saved}
-					preferredAccountKey={preferredAccountKey}
-					onAccount={onAccount}
-					settingsActive
-					disabled={settingsBusy}
-					view={repositoryView}
-					onView={(next) => {
-						if (!connection.isPending() && !gitBusyRef.current)
-							onRepositoryView?.(next);
-					}}
-					onSettings={() => {
-						if (settingsBusy) return;
-
-						clearToken();
-						setError(undefined);
-						setForm("list");
-						setSection("accounts");
-					}}
-					onAddAccount={() => {
-						if (!settingsBusy) {
-							setSection("accounts");
-							startConnection();
+				embedded ? undefined : (
+					<WorkspaceRail
+						ignoredHistory={
+							ignoredHistory?.status?.data?.preferences.enabled &&
+							ignoredHistory.onOpen
+								? {
+										active: ignoredHistory.active ?? false,
+										onOpen: () => {
+											if (!settingsBusy) ignoredHistory.onOpen?.();
+										},
+									}
+								: undefined
 						}
-					}}
-				/>
+						spaceSwitcher={spaceSwitcher}
+						onSpaceSwipe={onSpaceSwipe}
+						accounts={accounts}
+						savedAccounts={saved}
+						preferredAccountKey={preferredAccountKey}
+						onAccount={onAccount}
+						settingsActive
+						disabled={settingsBusy}
+						view={repositoryView}
+						onView={(next) => {
+							if (!connection.isPending() && !gitBusyRef.current)
+								onRepositoryView?.(next);
+						}}
+						onSettings={() => {
+							if (settingsBusy) return;
+
+							clearToken();
+							setError(undefined);
+							setForm("list");
+							changeSection("accounts");
+						}}
+						onAddAccount={() => {
+							if (!settingsBusy) {
+								changeSection("accounts");
+								startConnection();
+							}
+						}}
+					/>
+				)
 			}
 			toolbar={
 				<div
@@ -539,7 +563,7 @@ export function AccountsSettings({
 											onSelect={(next) => {
 												clearToken();
 												setForm("list");
-												setSection(next);
+												changeSection(next);
 											}}
 										/>
 									))}

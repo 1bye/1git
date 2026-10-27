@@ -189,7 +189,9 @@ export class WorkspaceSession {
 
 			const kind =
 				tab.kind === undefined
-					? tab.path === null
+					? tab.path === null &&
+						tab.draft === "" &&
+						tab.navigation === undefined
 						? "empty"
 						: "repository"
 					: tab.kind;
@@ -212,6 +214,16 @@ export class WorkspaceSession {
 			)
 				throw new Error("The saved session contains an invalid workspace.");
 
+			const path: string | null =
+				kind === "repository" && typeof tab.path === "string" ? tab.path : null;
+
+			const draft = kind === "repository" ? String(tab.draft) : "";
+
+			const navigation =
+				kind === "repository"
+					? WorkspaceSession.navigation(tab.navigation)
+					: undefined;
+
 			ids.add(tab.id);
 			tabs.push({
 				id: tab.id,
@@ -222,11 +234,20 @@ export class WorkspaceSession {
 								typeof tab.spaceId === "string" ? tab.spaceId : "default",
 						}
 					: {}),
-				path: tab.path,
-				draft: tab.draft,
-				navigation: WorkspaceSession.navigation(tab.navigation),
+				path,
+				draft,
+				...(navigation ? { navigation } : {}),
 			});
 		}
+
+		const settingsId = tabs.find((tab) => tab.kind === "settings")?.id;
+
+		const normalizedTabs = tabs.filter(
+			(tab) => tab.kind !== "settings" || tab.id === settingsId
+		);
+
+		const tabsInSpace = (spaceId: string) =>
+			normalizedTabs.filter((tab) => (tab.spaceId ?? "default") === spaceId);
 
 		const tips = GuidedTour.parse(value.tips);
 		const diffSettings = WorkspaceSession.diffSettings(value.diffSettings);
@@ -250,13 +271,11 @@ export class WorkspaceSession {
 				? {
 						spaces: spaces.map((space) => ({
 							...space,
-							activeId: tabs.some(
-								(tab) =>
-									tab.id === space.activeId &&
-									(tab.spaceId ?? "default") === space.id
+							activeId: tabsInSpace(space.id).some(
+								(tab) => tab.id === space.activeId
 							)
 								? space.activeId
-								: null,
+								: (tabsInSpace(space.id)[0]?.id ?? null),
 						})),
 						activeSpaceId,
 					}
@@ -264,7 +283,7 @@ export class WorkspaceSession {
 			...(!RepositoryLibrary.isDefault(repositoryLibrary)
 				? { repositoryLibrary }
 				: {}),
-			tabs,
+			tabs: normalizedTabs,
 			...(value.appearance === "light" ||
 			value.appearance === "dark" ||
 			value.appearance === "system"
@@ -327,14 +346,15 @@ export class WorkspaceSession {
 				value.activeId === null
 					? null
 					: typeof value.activeId === "string" &&
-						  tabs.some(
+						  normalizedTabs.some(
 								(tab) =>
 									tab.id === value.activeId &&
 									(tab.spaceId ?? "default") === activeSpaceId
 						  )
 						? value.activeId
-						: (tabs.find((tab) => (tab.spaceId ?? "default") === activeSpaceId)
-								?.id ?? null),
+						: (normalizedTabs.find(
+								(tab) => (tab.spaceId ?? "default") === activeSpaceId
+							)?.id ?? null),
 		};
 	}
 
@@ -402,29 +422,40 @@ export class WorkspaceSession {
 				id,
 				kind,
 				...(spaceId ? { spaceId } : {}),
-				path: workspace.repository?.root ?? workspace.repositoryPath,
-				draft: workspace.amend?.previousMessage ?? workspace.commitMessage,
-				navigation: {
-					view: workspace.view,
-					changes: workspace.views.changes.selectedId,
-					// File history is temporary navigation; restore the full list's selection after restart.
-					history: workspace.history.file
-						? (workspace.history.normal?.view.selectedId ?? null)
-						: workspace.views.history.selectedId,
-					historyFile: workspace.history.file
-						? (workspace.history.normal?.view.files.selectedId ?? null)
-						: workspace.views.history.files.selectedId,
-					historyLimit:
-						workspace.restoreHistoryLimit ??
-						Math.min(
-							historyRestoreMaxRows,
-							(workspace.history.file
-								? (workspace.history.normal?.entries.length ?? 0)
-								: workspace.entries.history.length) + historyRestoreExtraRows
-						),
-					stashes: workspace.views.stashes.selectedId,
-					stashFile: workspace.views.stashes.files.selectedId,
-				},
+				path:
+					kind === "repository"
+						? (workspace.repository?.root ?? workspace.repositoryPath)
+						: null,
+				draft:
+					kind === "repository"
+						? (workspace.amend?.previousMessage ?? workspace.commitMessage)
+						: "",
+				...(kind === "repository"
+					? {
+							navigation: {
+								view: workspace.view,
+								changes: workspace.views.changes.selectedId,
+								// File history is temporary navigation; restore the full list's selection after restart.
+								history: workspace.history.file
+									? (workspace.history.normal?.view.selectedId ?? null)
+									: workspace.views.history.selectedId,
+								historyFile: workspace.history.file
+									? (workspace.history.normal?.view.files.selectedId ?? null)
+									: workspace.views.history.files.selectedId,
+								historyLimit:
+									workspace.restoreHistoryLimit ??
+									Math.min(
+										historyRestoreMaxRows,
+										(workspace.history.file
+											? (workspace.history.normal?.entries.length ?? 0)
+											: workspace.entries.history.length) +
+											historyRestoreExtraRows
+									),
+								stashes: workspace.views.stashes.selectedId,
+								stashFile: workspace.views.stashes.files.selectedId,
+							},
+						}
+					: {}),
 			})),
 			activeId: state.activeId,
 		};
@@ -436,7 +467,10 @@ export class WorkspaceSession {
 		const tabs = document.tabs
 			.filter((tab) => tab.kind !== "settings" || tab.id === settingsId)
 			.map(({ id, kind: savedKind, spaceId, path, draft, navigation }) => {
-				const kind = savedKind ?? (path ? "repository" : "empty");
+				const kind =
+					savedKind ?? (path || draft || navigation ? "repository" : "empty");
+
+				const repositoryPath = kind === "repository" ? path : null;
 
 				return {
 					id,
@@ -445,44 +479,66 @@ export class WorkspaceSession {
 					name:
 						kind === "settings"
 							? "Settings"
-							: path
-								? basename(path)
+							: repositoryPath
+								? basename(repositoryPath)
 								: "New tab",
 					workspace: {
 						...RepositoryWorkspaceModel.create(),
-						repositoryPath: path,
-						loading: path !== null,
-						commitMessage: draft,
-						...(navigation
+						repositoryPath,
+						loading: repositoryPath !== null,
+						commitMessage: kind === "repository" ? draft : "",
+						...(kind === "repository" && navigation
 							? WorkspaceSession.restoreNavigation(navigation)
 							: {}),
 					},
 				};
 			});
 
+		const spaces = document.spaces?.map((space) => {
+			const owned = tabs.filter(
+				(tab) => (tab.spaceId ?? "default") === space.id
+			);
+
+			return {
+				...space,
+				activeId: owned.some((tab) => tab.id === space.activeId)
+					? space.activeId
+					: (owned[0]?.id ?? null),
+			};
+		});
+
+		const activeSpaceId = document.activeSpaceId ?? "default";
+
+		const activeTabs = tabs.filter(
+			(tab) => (tab.spaceId ?? "default") === activeSpaceId
+		);
+
+		const activeId =
+			document.activeId === null
+				? null
+				: activeTabs.some((tab) => tab.id === document.activeId)
+					? document.activeId
+					: (activeTabs[0]?.id ?? null);
+
 		return {
 			preview: false,
 			autoIncludeChanges: document.autoIncludeChanges ?? false,
-			...(document.spaces
+			...(spaces
 				? {
-						spaces: document.spaces,
-						activeSpaceId: document.activeSpaceId ?? "default",
+						spaces,
+						activeSpaceId,
 					}
 				: {}),
 			recentRepositories: [
 				...new Set(
 					document.recentRepositories ??
-						document.tabs.flatMap((tab) => (tab.path ? [tab.path] : []))
+						document.tabs.flatMap((tab) =>
+							tab.kind === "repository" && tab.path ? [tab.path] : []
+						)
 				),
 			].slice(0, 100),
 			tabs,
-			activeId:
-				document.activeId &&
-				document.tabs.some(
-					(tab) => tab.id === document.activeId && tab.kind === "settings"
-				)
-					? (settingsId ?? document.activeId)
-					: document.activeId,
+			activeId,
 			nextId: document.tabs.reduce(
 				(next, tab) =>
 					Math.max(next, Number(tab.id.slice("workspace-".length)) + 1),

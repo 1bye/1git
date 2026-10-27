@@ -173,7 +173,12 @@ export function useRepositoryConnection(
 			if (mounted.current) setPickingId(null);
 		}
 
-		if (path) await read(id, path);
+		if (path) {
+			if (tabs.current.find((tab) => tab.id === id)?.kind === "empty")
+				dispatch({ type: "fill", id, path });
+
+			await read(id, path);
+		}
 	};
 
 	const refresh = async (id: string): Promise<void> => {

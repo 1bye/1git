@@ -683,6 +683,11 @@ function AppContent({
 	);
 
 	const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
+	const quickSwitcherTarget = useRef<string | null>(null);
+
+	useEffect(() => {
+		if (!quickSwitcherOpen) quickSwitcherTarget.current = null;
+	}, [quickSwitcherOpen]);
 
 	const [repositoryColors, setRepositoryColors] = useState(() =>
 		RepositoryColors.parse(initialSession?.repositoryColors)
@@ -801,6 +806,24 @@ function AppContent({
 
 	const activeTab = state.tabs.find((tab) => tab.id === state.activeId);
 	const workspace = activeTab?.workspace;
+	const settingsOpen = activeTab?.kind === "settings";
+	const settingsContextId = useRef<string | null>(null);
+	const settingsOriginFocus = useRef<number | null>(null);
+
+	const settingsContextTab =
+		state.tabs.find((tab) => tab.id === settingsContextId.current) ??
+		(settingsOpen
+			? state.tabs.find((tab) => tab.kind === "repository")
+			: undefined);
+
+	const settingsContextWorkspace = settingsContextTab?.workspace;
+
+	useEffect(() => {
+		if (!settingsOpen || settingsContextId.current) return;
+
+		settingsContextId.current =
+			state.tabs.find((tab) => tab.kind === "repository")?.id ?? null;
+	}, [settingsOpen, state.tabs]);
 	const commonDirectory = workspace?.repository?.commonDirectory;
 	const lastAppearanceTab = useRef<string | undefined>(undefined);
 
@@ -810,8 +833,11 @@ function AppContent({
 	}, [activeTab]);
 
 	const appearanceTarget =
-		workspace?.repository && !workspace.preview
-			? activeTab
+		(settingsOpen ? settingsContextWorkspace : workspace)?.repository &&
+		!(settingsOpen ? settingsContextWorkspace : workspace)?.preview
+			? settingsOpen
+				? settingsContextTab
+				: activeTab
 			: visibleTabs.find((tab) => tab.id === lastAppearanceTab.current);
 
 	const [appearanceEditor, setAppearanceEditor] = useState<{
@@ -968,8 +994,11 @@ function AppContent({
 		]
 	);
 
-	const settingsAppearanceDirectory =
-		appearanceTarget?.workspace.repository?.commonDirectory;
+	const settingsAppearanceDirectory = (
+		settingsOpen
+			? settingsContextWorkspace?.repository
+			: appearanceTarget?.workspace.repository
+	)?.commonDirectory;
 
 	const settingsPattern = settingsAppearanceDirectory
 		? RepositoryPatterns.selection(
@@ -1011,18 +1040,14 @@ function AppContent({
 		);
 	}, [previewCache, state.tabs]);
 
-	const [settingsView, setSettingsView] = useState<"list" | "connect" | null>(
-		null
-	);
-
-	const settingsOpen = settingsView !== null;
+	const [settingsForm, setSettingsForm] = useState<"list" | "connect">("list");
 
 	const editingDirectory = appearanceEditor?.commonDirectory;
 
 	useEffect(() => {
 		if (
 			editingDirectory &&
-			(settingsOpen || onboardingOpen || editingDirectory !== commonDirectory)
+			(onboardingOpen || editingDirectory !== commonDirectory)
 		)
 			setAppearanceEditor(undefined);
 	}, [editingDirectory, commonDirectory, settingsOpen, onboardingOpen]);
@@ -1219,6 +1244,16 @@ function AppContent({
 		discovery.remember
 	);
 
+	const readTabRepository = useCallback(
+		(id: string, path: string): void => {
+			if (state.tabs.find((tab) => tab.id === id)?.kind === "empty")
+				dispatch({ type: "fill", id, path });
+
+			void connection.read(id, path);
+		},
+		[connection, dispatch, state.tabs]
+	);
+
 	const quickRepositories = (() => {
 		if (!quickSwitcherOpen) return [];
 
@@ -1274,47 +1309,35 @@ function AppContent({
 		[machines]
 	);
 
-	const workspaceFocus = useRef<number | null>(null);
-	const railSettingsButton = useRef<PublicInstance>(null);
-	const railAccountButton = useRef<PublicInstance>(null);
-	const railViewButtons = useRef(new Map<RepositoryView, PublicInstance>());
-
-	const railFocus = useRef<"settings" | "account" | RepositoryView | null>(
-		null
-	);
-
-	const rememberWorkspaceFocus = useCallback(() => {
-		workspaceFocus.current = renderer.getFocusedElementId?.() ?? null;
-		const railView = [...railViewButtons.current].find(
-			([, button]) => button.id === workspaceFocus.current
-		)?.[0];
-
-		railFocus.current =
-			workspaceFocus.current === railSettingsButton.current?.id
-				? "settings"
-				: workspaceFocus.current === railAccountButton.current?.id
-					? "account"
-					: (railView ?? null);
-	}, [renderer]);
-
 	const openSettings = useCallback(
 		(initialForm: "list" | "connect" = "list") => {
 			setAppearanceEditor(undefined);
 
-			if (settingsOpen) return;
+			const existingSettings = WorkspaceTabsModel.settingsId(state);
 
-			if (!customizingRepository) rememberWorkspaceFocus();
+			if (!existingSettings)
+				settingsOriginFocus.current = renderer.getFocusedElementId?.() ?? null;
 
-			setSettingsView(initialForm);
-			setSettingsSection("accounts");
-			setReconnectAccountKey(undefined);
+			if (activeTab?.kind === "repository")
+				settingsContextId.current = activeTab.id;
+			else if (!settingsOpen) settingsContextId.current = null;
+
+			if (initialForm === "connect") {
+				setSettingsForm(initialForm);
+				setSettingsSection("accounts");
+				setReconnectAccountKey(undefined);
+			}
+
+			dispatch({ type: "open-settings", form: initialForm });
 		},
 		[
+			activeTab,
+			dispatch,
+			renderer,
+			state,
 			settingsOpen,
-			customizingRepository,
-			rememberWorkspaceFocus,
 			setAppearanceEditor,
-			setSettingsView,
+			setSettingsForm,
 			setSettingsSection,
 			setReconnectAccountKey,
 		]
@@ -1322,31 +1345,19 @@ function AppContent({
 
 	const closeSettings = useCallback(() => {
 		setSpaceEditor(undefined);
-		setSettingsView(null);
-		const focused = workspaceFocus.current;
+		const id = WorkspaceTabsModel.settingsId(state);
 
+		if (!id) return;
+
+		dispatch({ type: "close", id });
+		const target = settingsOriginFocus.current;
+
+		settingsOriginFocus.current = null;
 		setTimeout(() => {
-			let target = focused;
-			const railTarget = railFocus.current;
-
-			if (railTarget === "settings")
-				target = railSettingsButton.current?.id ?? null;
-			else if (railTarget === "account")
-				target = railAccountButton.current?.id ?? null;
-			else if (railTarget)
-				target =
-					railViewButtons.current.get(railTarget)?.id ??
-					railSettingsButton.current?.id ??
-					null;
-
-			// Live customization can remove the original control by changing repository views.
-			if (target == null || !renderer.getElementBounds?.(target))
-				target = railSettingsButton.current?.id ?? null;
-
-			if (target !== null && target !== undefined)
+			if (target !== null && renderer.getElementBounds?.(target))
 				renderer.focusElement?.(target);
 		}, 0);
-	}, [renderer, setSettingsView, setSpaceEditor]);
+	}, [dispatch, renderer, setSpaceEditor, state]);
 
 	const openAppearance = (
 		section: RepositoryAppearanceSection = "color",
@@ -1368,8 +1379,6 @@ function AppContent({
 			return;
 		}
 
-		if (!settingsOpen) rememberWorkspaceFocus();
-
 		const selection = RepositoryPatterns.selection(
 			repositoryPatterns[repository.commonDirectory],
 			repository.commonDirectory
@@ -1388,7 +1397,8 @@ function AppContent({
 				patternAdjustments: selection?.adjustments,
 			},
 		});
-		setSettingsView(null);
+
+		if (settingsOpen) closeSettings();
 
 		if (state.activeId !== appearanceTarget.id)
 			dispatch({ type: "activate", id: appearanceTarget.id });
@@ -1434,7 +1444,7 @@ function AppContent({
 					(tab.spaceId ?? "default") === activeSpaceId
 			)
 		) {
-			if (path) void connection.read(onboardingId, path);
+			if (path) readTabRepository(onboardingId, path);
 
 			return onboardingId;
 		}
@@ -1477,14 +1487,19 @@ function AppContent({
 			setQuickSwitcherOpen(false);
 			setFolderPickerRoot(undefined);
 			setMachineError(null);
-			setSettingsView(null);
+
+			if (settingsOpen) closeSettings();
+
+			setSettingsForm("list");
 			dispatch({ type: "space-select", id });
 		},
 		[
 			setQuickSwitcherOpen,
 			setFolderPickerRoot,
 			setMachineError,
-			setSettingsView,
+			settingsOpen,
+			closeSettings,
+			setSettingsForm,
 			dispatch,
 		]
 	);
@@ -1525,8 +1540,23 @@ function AppContent({
 			}
 
 			if (key === "p") {
-				if (!settingsOpen && connection.pickingId === null)
-					setQuickSwitcherOpen(true);
+				if (connection.pickingId !== null) return;
+
+				quickSwitcherTarget.current =
+					activeTab?.kind === "empty" ? activeTab.id : null;
+				setQuickSwitcherOpen(true);
+
+				return;
+			}
+
+			if (key === "t") {
+				if (connection.pickingId !== null) return;
+
+				const id = `workspace-${state.nextId}`;
+
+				quickSwitcherTarget.current = id;
+				dispatch({ type: "add", kind: "empty" });
+				setQuickSwitcherOpen(true);
 
 				return;
 			}
@@ -1634,28 +1664,39 @@ function AppContent({
 	const selected = files?.find((file) => file.id === selectedId);
 	const comparison = selected?.change ?? selected?.commitFile;
 
-	const repositoryView =
-		workspace &&
-		(workspace.repository || workspace.preview || workspace.repositoryPath) &&
-		!activeTab?.comparison
+	const settingsRepositoryView =
+		settingsContextWorkspace &&
+		(settingsContextWorkspace.repository ||
+			settingsContextWorkspace.preview ||
+			settingsContextWorkspace.repositoryPath) &&
+		!settingsContextTab?.comparison
+			? settingsContextWorkspace.view
+			: undefined;
+
+	const repositoryView = settingsOpen
+		? settingsRepositoryView
+		: workspace &&
+			  (workspace.repository ||
+					workspace.preview ||
+					workspace.repositoryPath) &&
+			  !activeTab?.comparison
 			? workspace.view
 			: undefined;
 
 	const selectRepositoryView = (view: RepositoryView) => {
 		setIgnoredRoot(null);
 
-		if (!activeTab) return;
+		const target = settingsOpen ? settingsContextTab : activeTab;
+
+		if (!target) return;
 
 		dispatch({
 			type: "workspace",
-			id: activeTab.id,
+			id: target.id,
 			action: { type: "view", view },
 		});
 
-		if (settingsOpen) {
-			railFocus.current = view;
-			closeSettings();
-		}
+		if (settingsOpen) dispatch({ type: "activate", id: target.id });
 	};
 
 	const manageSpaces = () => {
@@ -1733,6 +1774,13 @@ function AppContent({
 
 	const pendingTip = GuidedTour.current(tips, tourContext);
 
+	const settingsIgnoredRepository =
+		settingsContextWorkspace?.repository ?? workspace?.repository;
+
+	const settingsIgnoredStatus = settingsContextWorkspace?.repository
+		? ignoredHistories.statuses[settingsContextWorkspace.repository.root]
+		: ignoredStatus;
+
 	tourContext.blocked =
 		preview ||
 		settingsOpen ||
@@ -1747,6 +1795,96 @@ function AppContent({
 		!!closeNotice ||
 		(tabMenuOpen && (pendingTip !== "worktrees" || tabMenuBusy));
 	activeTourStep.current = GuidedTour.current(tips, tourContext);
+
+	const settingsContent = settingsOpen ? (
+		<AccountsSettings
+			embedded
+			onReplayTips={() => {
+				setTips({ completed: [] });
+				closeSettings();
+			}}
+			ignoredHistory={
+				settingsIgnoredRepository
+					? {
+							repository: settingsIgnoredRepository,
+							history: ignoredHistory,
+							status: settingsIgnoredStatus,
+							active: settingsContextWorkspace
+								? ignoredRoot === settingsIgnoredRepository.root
+								: ignoredVisible,
+							onOpen: () => {
+								setIgnoredRoot(settingsIgnoredRepository.root);
+								closeSettings();
+							},
+							onRefresh: () =>
+								ignoredHistories.refresh(settingsIgnoredRepository.root),
+						}
+					: undefined
+			}
+			spaceSwitcher={spaceSwitcher}
+			onSpaceSwipe={(state.spaces?.length ?? 1) > 1 ? swipeSpace : undefined}
+			spacesSettings={spacesSettings}
+			onBack={closeSettings}
+			onSetup={
+				!preview &&
+				!state.tabs.some(
+					(tab) =>
+						tab.workspace.loading ||
+						RepositoryWorkspaceModel.isBusy(tab.workspace)
+				)
+					? () => {
+							closeSettings();
+							setOnboardingId(null);
+							setOnboardingClone(false);
+							setOnboarding("welcome");
+						}
+					: undefined
+			}
+			accounts={accounts}
+			externalEditors={externalEditors}
+			initialForm={settingsForm}
+			onFormChange={setSettingsForm}
+			initialReconnectKey={reconnectAccountKey}
+			remoteAccounts={remoteAccounts}
+			preferredAccountKey={preferredAccountKey}
+			onAccount={setPreferredAccountKey}
+			repositoryView={repositoryView}
+			onRepositoryView={selectRepositoryView}
+			initialSection={settingsSection}
+			onSectionChange={setSettingsSection}
+			repositorySettings={
+				settingsContextWorkspace?.repository
+					? {
+							root: settingsContextWorkspace.repository.root,
+							name: settingsContextTab?.name ?? "Repository",
+							disabled:
+								settingsContextWorkspace.loading ||
+								!!settingsContextWorkspace.error ||
+								RepositoryWorkspaceModel.isBusy(settingsContextWorkspace),
+						}
+					: undefined
+			}
+			autoIncludeChanges={state.autoIncludeChanges ?? false}
+			onAutoIncludeChanges={(enabled) =>
+				dispatch({ type: "auto-include-changes", enabled })
+			}
+			readGitSettings={readGitSettings}
+			repositoryAppearance={settingsRepositoryAppearance}
+			repositoryAppearanceName={appearanceTarget?.name}
+			onCustomizeRepositoryAppearance={(draft) =>
+				openAppearance("color", draft)
+			}
+			onChangeRepositoryAppearance={
+				settingsAppearanceDirectory
+					? (value) =>
+							applyRepositoryAppearance(settingsAppearanceDirectory, value)
+					: undefined
+			}
+			writeGitSettings={mutations.saveSettings}
+		>
+			{closeNotice}
+		</AccountsSettings>
+	) : null;
 
 	return (
 		<RepositoryAvatarContext value={avatars}>
@@ -1778,9 +1916,9 @@ function AppContent({
 
 				<AppShell
 					palette={repositoryTheme}
-					hidden={settingsOpen || onboardingOpen}
+					hidden={onboardingOpen}
 					rail={
-						settingsOpen || onboardingOpen ? undefined : (
+						onboardingOpen ? undefined : (
 							<WorkspaceRail
 								tourAnchorRef={railTourAnchor}
 								onMenuOpenChange={setRailMenuOpen}
@@ -1800,16 +1938,15 @@ function AppContent({
 								}
 								repositoryAppearance={repositoryAppearance}
 								onAppearance={openAppearance}
-								settingsButtonRef={railSettingsButton}
-								accountButtonRef={railAccountButton}
-								viewButtonRefs={railViewButtons}
 								accounts={accounts}
 								preferredAccountKey={preferredAccountKey}
 								onAccount={setPreferredAccountKey}
-								onSettings={(section = "accounts") => {
+								onSettings={(section) => {
 									openSettings();
-									setSettingsSection(section);
+
+									if (section) setSettingsSection(section);
 								}}
+								settingsActive={settingsOpen}
 								onAddAccount={() => openSettings("connect")}
 								view={repositoryView}
 								onView={selectRepositoryView}
@@ -2017,6 +2154,7 @@ function AppContent({
 						/>
 					}
 					workspaceLabel={activeTab ? `${activeTab.name} workspace` : "Home"}
+					overlay={settingsContent}
 				>
 					{publishTab && publishRepository ? (
 						<RepositoryPublishView
@@ -2134,7 +2272,7 @@ function AppContent({
 								);
 
 								if (existing) dispatch({ type: "activate", id: existing.id });
-								else if (activeTab) void connection.read(activeTab.id, path);
+								else if (activeTab) readTabRepository(activeTab.id, path);
 								else dispatch({ type: "add", path });
 							}}
 						/>
@@ -2160,7 +2298,7 @@ function AppContent({
 							}
 							onCancel={() => connection.cancelSetup(cloneTab.id)}
 							onOpen={(path) => {
-								void connection.read(cloneTab.id, path);
+								readTabRepository(cloneTab.id, path);
 							}}
 							onSettings={openSettings}
 							onAddAccount={() => openSettings("connect")}
@@ -2246,7 +2384,7 @@ function AppContent({
 								);
 
 								if (existing) dispatch({ type: "activate", id: existing.id });
-								else if (activeTab) void connection.read(activeTab.id, path);
+								else if (activeTab) readTabRepository(activeTab.id, path);
 								else dispatch({ type: "add", path });
 							}}
 							actions={
@@ -2303,7 +2441,7 @@ function AppContent({
 										if (activeTab) connection.cancelSetup(activeTab.id);
 									}}
 									onOpen={(path) => {
-										if (activeTab) void connection.read(activeTab.id, path);
+										if (activeTab) readTabRepository(activeTab.id, path);
 									}}
 								/>
 							}
@@ -2507,6 +2645,9 @@ function AppContent({
 					items={quickRepositories}
 					onClose={() => setQuickSwitcherOpen(false)}
 					onOpen={(path) => {
+						const targetId = quickSwitcherTarget.current;
+
+						quickSwitcherTarget.current = null;
 						const existing = visibleTabs.find(
 							(tab) =>
 								!tab.comparison &&
@@ -2514,7 +2655,14 @@ function AppContent({
 									tab.workspace.repositoryPath) === path
 						);
 
-						if (existing) dispatch({ type: "activate", id: existing.id });
+						if (
+							targetId &&
+							visibleTabs.some(
+								(tab) => tab.id === targetId && tab.kind === "empty"
+							)
+						)
+							readTabRepository(targetId, path);
+						else if (existing) dispatch({ type: "activate", id: existing.id });
 						else dispatch({ type: "add", path });
 					}}
 				/>
@@ -2573,7 +2721,7 @@ function AppContent({
 										if (onboardingId) connection.cancelSetup(onboardingId);
 									}}
 									onOpen={(path) => {
-										void connection.read(onboardingTab(), path);
+										readTabRepository(onboardingTab(), path);
 									}}
 									onSettings={openSettings}
 									onAddAccount={() => openSettings("connect")}
@@ -2640,7 +2788,7 @@ function AppContent({
 										if (onboardingId) connection.cancelSetup(onboardingId);
 									}}
 									onOpen={(path) => {
-										void connection.read(onboardingTab(), path);
+										readTabRepository(onboardingTab(), path);
 									}}
 								/>
 							</div>
@@ -2681,103 +2829,12 @@ function AppContent({
 									discovery: discoveryPreferences,
 									library: repositoryLibrary,
 								});
-								setSettingsView(null);
+								setSettingsForm("list");
 							}
 
 							setSpaceEditor(undefined);
 						}}
 					/>
-				) : null}
-				{settingsOpen ? (
-					<AccountsSettings
-						onReplayTips={() => {
-							setTips({ completed: [] });
-							closeSettings();
-						}}
-						ignoredHistory={
-							workspace?.repository
-								? {
-										repository: workspace.repository,
-										history: ignoredHistory,
-										status: ignoredStatus,
-										active: ignoredVisible,
-										onOpen: () => {
-											setIgnoredRoot(workspace.repository?.root ?? null);
-											closeSettings();
-										},
-										onRefresh: () =>
-											ignoredHistories.refresh(
-												workspace.repository?.root ?? ""
-											),
-									}
-								: undefined
-						}
-						spaceSwitcher={spaceSwitcher}
-						onSpaceSwipe={
-							(state.spaces?.length ?? 1) > 1 ? swipeSpace : undefined
-						}
-						spacesSettings={spacesSettings}
-						onBack={closeSettings}
-						onSetup={
-							!preview &&
-							!state.tabs.some(
-								(tab) =>
-									tab.workspace.loading ||
-									RepositoryWorkspaceModel.isBusy(tab.workspace)
-							)
-								? () => {
-										closeSettings();
-										setOnboardingId(null);
-										setOnboardingClone(false);
-										setOnboarding("welcome");
-									}
-								: undefined
-						}
-						accounts={accounts}
-						externalEditors={externalEditors}
-						initialForm={settingsView ?? "list"}
-						initialReconnectKey={reconnectAccountKey}
-						remoteAccounts={remoteAccounts}
-						preferredAccountKey={preferredAccountKey}
-						onAccount={setPreferredAccountKey}
-						repositoryView={repositoryView}
-						onRepositoryView={selectRepositoryView}
-						initialSection={settingsSection}
-						repositorySettings={
-							workspace?.repository
-								? {
-										root: workspace.repository.root,
-										name: activeTab?.name ?? "Repository",
-										disabled:
-											workspace.loading ||
-											!!workspace.error ||
-											RepositoryWorkspaceModel.isBusy(workspace),
-									}
-								: undefined
-						}
-						autoIncludeChanges={state.autoIncludeChanges ?? false}
-						onAutoIncludeChanges={(enabled) =>
-							dispatch({ type: "auto-include-changes", enabled })
-						}
-						readGitSettings={readGitSettings}
-						repositoryAppearance={settingsRepositoryAppearance}
-						repositoryAppearanceName={appearanceTarget?.name}
-						onCustomizeRepositoryAppearance={(draft) =>
-							openAppearance("color", draft)
-						}
-						onChangeRepositoryAppearance={
-							settingsAppearanceDirectory
-								? (value) =>
-										applyRepositoryAppearance(
-											settingsAppearanceDirectory,
-											value
-										)
-								: undefined
-						}
-						writeGitSettings={mutations.saveSettings}
-					>
-						{closeNotice}
-					</AccountsSettings>
 				) : null}
 				{appearanceEditing &&
 				repositoryAppearance &&
@@ -2805,7 +2862,7 @@ function AppContent({
 						onBack={() => {
 							setAppearanceEditor(undefined);
 							setSettingsSection("repository-appearance");
-							setSettingsView("list");
+							setSettingsForm("list");
 						}}
 					/>
 				) : null}
