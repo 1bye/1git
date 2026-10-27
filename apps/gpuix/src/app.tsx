@@ -2385,7 +2385,7 @@ function AppContent({
 								history={history}
 								stashes={stashes}
 								stashCreateRequest={
-									stashCreateRequest?.id === activeTab.id
+									!settingsOpen && stashCreateRequest?.id === contentTab.id
 										? stashCreateRequest.sequence
 										: undefined
 								}
@@ -2471,8 +2471,13 @@ function AppContent({
 				>
 					<div
 						aria-hidden={settingsOpen || undefined}
-						style={
-							settingsOpen
+						style={{
+							display: "flex",
+							flexDirection: "column",
+							flexGrow: 1,
+							minWidth: 0,
+							minHeight: 0,
+							...(settingsOpen
 								? {
 										position: "absolute",
 										top: 0,
@@ -2482,8 +2487,8 @@ function AppContent({
 										visibility: "hidden",
 										pointerEvents: "none",
 									}
-								: undefined
-						}
+								: {}),
+						}}
 					>
 						{publishTab && publishRepository ? (
 							<RepositoryPublishView

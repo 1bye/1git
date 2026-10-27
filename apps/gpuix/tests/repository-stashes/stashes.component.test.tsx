@@ -180,7 +180,9 @@ it("automatically previews fresh and cached stash files without stealing keyboar
 	);
 	expect(list).not.toHaveBeenCalled();
 	await openStashes();
-	await waitFor(() => !!root.renderer.findByTestId("diff-viewport"));
+	await waitFor(() =>
+		root.renderer.getPaintedText().includes("const saved = true;")
+	);
 	expect(root.renderer.getAllText()).toContain("(12)");
 	expect(element("entry-src/file-0.ts").customProps?.["aria-selected"]).toBe(
 		true
