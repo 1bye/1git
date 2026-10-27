@@ -4,12 +4,17 @@ import {
 	use,
 	useCallback,
 	useEffect,
+	useLayoutEffect,
 	useMemo,
 	useRef,
 	useState,
 	type Ref,
 } from "react";
-import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
+import {
+	useGpuixRequired,
+	useWindowSize,
+	type PublicInstance,
+} from "@gpuix/react";
 import { Button } from "@1git/gpuix-ui/button";
 import {
 	Popover,
@@ -33,6 +38,7 @@ const column = { display: "flex", flexDirection: "column", gap: spacing[1.5] };
 const repositoryRowHeight = 52;
 const repositoryRowGap = 2;
 const repositoryRowStride = repositoryRowHeight + repositoryRowGap;
+const windowChunkSize = 40;
 
 const rowText = {
 	minWidth: 0,
@@ -87,7 +93,11 @@ export function RepositoryAccountPicker({
 
 	const avatars = use(RepositoryAvatarContext);
 	const renderer = useGpuixRequired();
+	const window = useWindowSize();
 	const viewport = useRef<PublicInstance>(null);
+	const rows = useRef(new Map<string, PublicInstance>());
+	const pendingFocus = useRef<number | null>(null);
+	const [windowStart, setWindowStart] = useState(0);
 	const [query, setQuery] = useState("");
 	const [permissionOpen, setPermissionOpen] = useState(false);
 	const [retry, setRetry] = useState(0);
@@ -108,10 +118,16 @@ export function RepositoryAccountPicker({
 		[items, selected]
 	);
 
-	// Native viewport notifications schedule only visible artwork, without React scroll state.
-	const preloadAvatars = useCallback((): void => {
-		if (!avatars) return;
+	const rowCount = displayed.length + (loading || next ? 1 : 0);
 
+	const windowSize =
+		Math.ceil(window.height / repositoryRowStride) + windowChunkSize * 2;
+
+	const start = Math.min(windowStart, Math.max(0, rowCount - windowSize));
+	const end = Math.min(rowCount, start + windowSize);
+
+	// Buffer rows in chunks so native drawing never scans an entire account's controls.
+	const updateViewport = useCallback((): void => {
 		const anchor = viewport.current
 			? renderer.getListScrollTop?.(viewport.current.id)
 			: undefined;
@@ -123,17 +139,47 @@ export function RepositoryAccountPicker({
 				3
 			: 12;
 
+		if (first < start || first + count > end - windowChunkSize / 2)
+			setWindowStart(
+				Math.max(
+					0,
+					Math.floor(first / windowChunkSize) * windowChunkSize -
+						windowChunkSize
+				)
+			);
+
 		for (const item of displayed.slice(first, first + count)) {
-			void avatars.load({ remote: item.browserUrl, avatarUrl: item.avatarUrl });
+			void avatars?.load({
+				remote: item.browserUrl,
+				avatarUrl: item.avatarUrl,
+			});
 		}
-	}, [avatars, displayed, renderer]);
+	}, [avatars, displayed, end, renderer, start]);
+
+	const reveal = (index: number): boolean => {
+		const item = displayed[index];
+		const row = item && rows.current.get(item.id);
+
+		if (!row || !viewport.current) return false;
+
+		renderer.focusElement?.(row.id);
+		renderer.scrollToItem?.(viewport.current.id, index, 0);
+
+		return true;
+	};
+
+	useLayoutEffect(() => {
+		const index = pendingFocus.current;
+
+		if (index !== null && reveal(index)) pendingFocus.current = null;
+	});
 
 	useEffect(() => {
 		// The initial viewport can paint before native range notifications are registered.
-		const timer = setTimeout(preloadAvatars, 0);
+		const timer = setTimeout(updateViewport, 0);
 
 		return () => clearTimeout(timer);
-	}, [preloadAvatars]);
+	}, [updateViewport]);
 
 	useEffect(() => {
 		if (!account) return;
@@ -141,6 +187,8 @@ export function RepositoryAccountPicker({
 		const controller = new AbortController();
 
 		request.current = controller;
+		pendingFocus.current = null;
+		setWindowStart(0);
 		setItems([]);
 		setNext(null);
 		setLoading(true);
@@ -319,10 +367,12 @@ export function RepositoryAccountPicker({
 			{displayed.length ? (
 				<virtual-list
 					ref={viewport}
-					onVisibleRange={preloadAvatars}
+					onVisibleRange={updateViewport}
 					testId="clone-repositories"
 					role="group"
 					aria-label="Repositories"
+					itemCount={rowCount}
+					windowStart={start}
 					estimatedItemHeight={repositoryRowStride}
 					overdraw={repositoryRowStride}
 					style={{
@@ -330,7 +380,7 @@ export function RepositoryAccountPicker({
 						minHeight: 0,
 					}}
 				>
-					{displayed.map((item) => (
+					{displayed.slice(start, end).map((item, offset) => (
 						<div
 							key={item.id}
 							style={{
@@ -341,6 +391,10 @@ export function RepositoryAccountPicker({
 							}}
 						>
 							<Button
+								ref={(row) => {
+									if (row) rows.current.set(item.id, row);
+									else rows.current.delete(item.id);
+								}}
 								testId={`clone-repository-${item.id}`}
 								tokens={appTokens}
 								size="sm"
@@ -352,6 +406,39 @@ export function RepositoryAccountPicker({
 								aria-pressed={selected?.id === item.id}
 								disabled={loading}
 								onPress={() => onSelect({ account, repository: item })}
+								onKeyDown={(event) => {
+									if (
+										loading ||
+										event.modifiers?.cmd ||
+										event.modifiers?.ctrl ||
+										event.modifiers?.alt
+									)
+										return;
+
+									const index = start + offset;
+
+									const destinations: Readonly<Record<string, number>> = {
+										home: 0,
+										end: displayed.length - 1,
+										up: index - 1,
+										down: index + 1,
+									};
+
+									const destination = destinations[event.key ?? ""];
+
+									if (destination === undefined) return;
+
+									pendingFocus.current = Math.max(
+										0,
+										Math.min(displayed.length - 1, destination)
+									);
+
+									if (reveal(pendingFocus.current)) pendingFocus.current = null;
+									else
+										setWindowStart(
+											Math.max(0, pendingFocus.current - windowChunkSize)
+										);
+								}}
 								style={{
 									height: repositoryRowHeight,
 									flexDirection: "row",
@@ -401,17 +488,21 @@ export function RepositoryAccountPicker({
 							</Button>
 						</div>
 					))}
-					{loading ? (
-						<text role="status" style={hint}>
+					{loading && end > displayed.length ? (
+						<text
+							role="status"
+							style={{ ...hint, height: repositoryRowStride }}
+						>
 							Loading repositories…
 						</text>
 					) : null}
-					{next && !loading ? (
+					{next && !loading && end > displayed.length ? (
 						<Button
 							testId="clone-more"
 							tokens={appTokens}
 							size="sm"
 							variant="ghost"
+							style={{ height: repositoryRowStride }}
 							onPress={() => {
 								void more();
 							}}

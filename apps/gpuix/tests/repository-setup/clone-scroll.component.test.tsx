@@ -50,7 +50,7 @@ for (const count of [30, 300, 3000]) {
 
 			const repositories = spyOn(f.accounts, "repositories").mockResolvedValue({
 				...page,
-				next: null,
+				next: count === 3000 ? "next-page" : null,
 				items: Array.from({ length: count }, (_, index) => ({
 					...template,
 					id: String(index),
@@ -87,16 +87,25 @@ for (const count of [30, 300, 3000]) {
 			if (!list || !footer || !firstBounds)
 				throw new Error("Missing clone list layout");
 
+			const final = root.renderer.findByTestId(`clone-repository-${count - 1}`);
+
+			if (count === 3000) {
+				expect(final).toBeUndefined();
+				expect(root.renderer.findByTestId("clone-more")).toBeUndefined();
+				expect(
+					root.renderer.findByTestId("clone-repository-1000")
+				).toBeUndefined();
+			} else {
+				expect(
+					final ? root.renderer.getElementBounds(final.id) : null
+				).toBeNull();
+			}
+
 			expect(root.renderer.findByTestId("clone-avatar-0-image")).toBeDefined();
 			expect(downloads).toBe(1);
 
 			const footerBefore = root.renderer.getElementBounds(footer.id);
 			const requestsBefore = repositories.mock.calls.length;
-			const final = root.renderer.findByTestId(`clone-repository-${count - 1}`);
-
-			if (!final) throw new Error("Missing final repository");
-
-			expect(root.renderer.getElementBounds(final.id)).toBeNull();
 
 			root.renderer.resetDebugFrameOverlayStats();
 
@@ -135,7 +144,45 @@ for (const count of [30, 300, 3000]) {
 					"aria-description"
 				]
 			).toBe("Selected repository");
-			root.renderer.scrollTo(list.id, 0, -(count - 1) * 54);
+
+			if (count === 3000) {
+				root.renderer.resetDebugFrameOverlayStats();
+
+				for (let tick = 0; tick < 40; tick++)
+					root.renderer.dispatchScrollWheel(
+						firstBounds.x + 20,
+						firstBounds.y + 15,
+						0,
+						-240
+					);
+
+				const shifted = root.renderer.getDebugFrameOverlayStats();
+
+				process.stdout.write(
+					`clone ${count} repositories across buffered windows: native draw p90=${shifted.p90Ms?.toFixed(2)}ms max=${shifted.maxMs?.toFixed(2)}ms\n`
+				);
+				expect(shifted.samples).toBeGreaterThanOrEqual(40);
+				expect(shifted.p90Ms).toBeLessThan(12);
+				expect(
+					root.renderer.findByTestId("clone-repository-0")
+				).toBeUndefined();
+				const firstVisible = root.renderer.getListScrollTop(list.id)?.[0];
+
+				const painted = root.renderer.findByTestId(
+					`clone-repository-${firstVisible}`
+				);
+
+				const paintedBounds =
+					painted && root.renderer.getElementBounds(painted.id);
+
+				expect(firstVisible).toBeGreaterThan(100);
+				expect(paintedBounds).toBeDefined();
+				expect(paintedBounds).not.toBeNull();
+				expect(root.renderer.getElementBounds(footer.id)).toEqual(footerBefore);
+				expect(repositories.mock.calls.length).toBe(requestsBefore);
+			}
+
+			root.renderer.scrollToItem(list.id, count - 1, 0);
 			root.renderer.flush();
 			const last = root.renderer.findByTestId(`clone-repository-${count - 1}`);
 
@@ -150,7 +197,27 @@ for (const count of [30, 300, 3000]) {
 			expect(lastBounds.y + lastBounds.height).toBeLessThanOrEqual(
 				footerBefore?.y ?? 720
 			);
-			root.renderer.nativeSimulateKeyDown(final.id, "enter");
+
+			if (!last) throw new Error("Missing final repository");
+
+			if (count === 3000)
+				expect(root.renderer.findByTestId("clone-more")).toBeDefined();
+
+			root.renderer.nativeSimulateKeyDown(last.id, "home");
+			root.renderer.flush();
+			const home = root.renderer.findByTestId("clone-repository-0");
+
+			if (!home) throw new Error("Missing first repository after Home");
+
+			expect(root.renderer.getFocusedElementId()).toBe(home.id);
+			root.renderer.nativeSimulateKeyDown(home.id, "end");
+			root.renderer.flush();
+			const end = root.renderer.findByTestId(`clone-repository-${count - 1}`);
+
+			if (!end) throw new Error("Missing final repository after End");
+
+			expect(root.renderer.getFocusedElementId()).toBe(end.id);
+			root.renderer.nativeSimulateKeyDown(end.id, "enter");
 			root.renderer.flush();
 			expect(
 				root.renderer.findByTestId(`clone-repository-${count - 1}`)
