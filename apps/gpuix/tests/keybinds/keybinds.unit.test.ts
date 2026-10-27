@@ -21,6 +21,12 @@ it("uses unique defaults and accepts each editable command's default", () => {
 	}
 });
 
+it("labels Command-R as fetching the repository", () => {
+	const command = keybindCommands.find((item) => item.id === "refresh");
+
+	expect(command?.label).toBe("Fetch repository");
+});
+
 it("formats native modifier order, arrows, punctuation and a literal hyphen", () => {
 	expect(
 		Keybinds.fromEvent({
