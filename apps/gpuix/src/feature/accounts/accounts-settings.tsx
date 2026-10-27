@@ -73,6 +73,12 @@ import { KeybindSettings } from "../keybinds/keybind-settings";
 import { AiSettings, type AiSettingsHandle } from "../ai/ai-settings";
 import { RepositoryAppearance } from "../repository-appearance/repository-appearance";
 import type { RepositoryAppearanceValue } from "../repository-appearance/repository-patterns";
+import {
+	settingsPagesMetadata,
+	type SettingsSection,
+} from "../settings/settings-metadata";
+
+export type { SettingsSection } from "../settings/settings-metadata";
 
 const sidebarWidth = 200;
 
@@ -82,91 +88,31 @@ const titleInset = workspaceLayout.desktopTitlebarControlsWidth;
 const settingsTitleWidth =
 	workspaceRailWidth + sidebarWidth - titleInset - spacing[4];
 
-/** Settings pages distinguish application defaults from the active repository's configuration. */
-export type SettingsSection =
-	| "accounts"
-	| "spaces"
-	| "appearance"
-	| "privacy"
-	| "keybinds"
-	| "ai"
-	| "git"
-	| "editor"
-	| "repository-remotes"
-	| "repository-ignored-history"
-	| "repository-appearance"
-	| "repository-identity";
-
-interface SettingsNavItem {
+export interface SettingsNavItem {
 	section: SettingsSection;
 	label: string;
 	icon: ComponentProps<typeof WorkspaceTabIcon>["name"];
 	group: "application" | "repository";
 }
-const settingsPages = [
-	{ section: "spaces", label: "Spaces", icon: "layers", group: "application" },
-	{
-		section: "appearance",
-		label: "Appearance",
-		icon: "contrast",
-		group: "application",
-	},
-	{
-		section: "keybinds",
-		label: "Keybinds",
-		icon: "keyboard",
-		group: "application",
-	},
-	{
-		section: "privacy",
-		label: "Privacy",
-		icon: "shield",
-		group: "application",
-	},
-	{
-		section: "accounts",
-		label: "Accounts",
-		icon: "userCircle",
-		group: "application",
-	},
-	{
-		section: "git",
-		label: "Git",
-		icon: "branch",
-		group: "application",
-	},
-	{
-		section: "editor",
-		label: "External editor",
-		icon: "pencil",
-		group: "application",
-	},
-	{ section: "ai", label: "AI", icon: "sparkle", group: "application" },
-	{
-		section: "repository-remotes",
-		label: "Remotes",
-		icon: "network",
-		group: "repository",
-	},
-	{
-		section: "repository-appearance",
-		label: "Appearance",
-		icon: "palette",
-		group: "repository",
-	},
-	{
-		section: "repository-identity",
-		label: "Commit identity",
-		icon: "idCard",
-		group: "repository",
-	},
-	{
-		section: "repository-ignored-history",
-		label: "Ignored file history",
-		icon: "history",
-		group: "repository",
-	},
-] as const satisfies readonly SettingsNavItem[];
+const settingsIcons: Record<SettingsSection, SettingsNavItem["icon"]> = {
+	spaces: "layers",
+	appearance: "contrast",
+	keybinds: "keyboard",
+	privacy: "shield",
+	accounts: "userCircle",
+	git: "branch",
+	editor: "pencil",
+	ai: "sparkle",
+	"repository-remotes": "network",
+	"repository-appearance": "palette",
+	"repository-identity": "idCard",
+	"repository-ignored-history": "history",
+};
+
+export const settingsPages = settingsPagesMetadata.map((page) => ({
+	...page,
+	icon: settingsIcons[page.section],
+})) satisfies readonly SettingsNavItem[];
 
 function SettingsNavButton({
 	item,

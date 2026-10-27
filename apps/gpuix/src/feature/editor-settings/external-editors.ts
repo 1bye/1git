@@ -568,4 +568,24 @@ export class ExternalEditors {
 			application ? ["-a", application.path, absolute] : ["-t", absolute]
 		);
 	}
+
+	/** Opens a repository folder in the configured editor, preserving the same preference validation as file actions. */
+	async openDirectory(directory: string): Promise<void> {
+		if (process.platform !== "darwin")
+			throw new Error("Open in editor currently requires macOS.");
+
+		const absolute = await realpath(directory);
+
+		if (!(await stat(absolute)).isDirectory())
+			throw new Error("Only directories can be opened in an editor.");
+
+		const selected = ExternalEditors.resolve(absolute, this.preferences());
+
+		if (!selected)
+			throw new Error("Choose an external editor in Settings before opening.");
+
+		const application = await this.application(selected);
+
+		await this.run("/usr/bin/open", ["-a", application.path, absolute]);
+	}
 }

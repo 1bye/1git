@@ -1,9 +1,18 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+	useCallback,
+	useEffect,
+	useLayoutEffect,
+	useMemo,
+	useRef,
+	useState,
+	useSyncExternalStore,
+} from "react";
 import {
 	useGpuixRequired,
 	type EventPayload,
 	type PublicInstance,
 } from "@gpuix/react";
+import { Keybinds } from "../keybinds/keybinds";
 import { Popover, PopoverContent } from "@1git/gpuix-ui/popover";
 import { radius, spacing, typography } from "@1git/design-tokens";
 import { useAppTheme } from "../../styles/theme";
@@ -11,21 +20,42 @@ import {
 	RepositoryQuickSwitcherModel,
 	type QuickRepository,
 } from "./repository-quick-switcher-model";
+import {
+	searchRepositoryPaletteActions,
+	type RepositoryPaletteAction,
+} from "./repository-palette-actions";
+import {
+	RepositoryOverviews,
+	type RepositoryOverviewState,
+} from "./repository-overviews";
+import { RepositoryAvatar } from "../repository-workspace/components/repository-avatar";
 
-const rowHeight = 56;
+const rowHeight = 68;
 const windowSize = 64;
+
+type PaletteResult =
+	| { readonly kind: "repository"; readonly item: QuickRepository }
+	| { readonly kind: "action"; readonly item: RepositoryPaletteAction };
 
 /** Window-owned repository switcher; opening a result never replaces the current checkout. */
 export function RepositoryQuickSwitcher({
 	open,
 	items,
+	actions = [],
+	overviews,
+	error,
 	onClose,
 	onOpen,
+	onAction,
 }: {
 	open: boolean;
 	items: readonly QuickRepository[];
+	actions?: readonly RepositoryPaletteAction[];
+	overviews?: RepositoryOverviews;
+	error?: string | null;
 	onClose: () => void;
 	onOpen: (path: string) => void;
+	onAction?: (id: RepositoryPaletteAction["id"]) => void;
 }) {
 	const { tokens } = useAppTheme();
 
@@ -43,7 +73,15 @@ export function RepositoryQuickSwitcher({
 				width={640}
 				tokens={tokens}
 			>
-				<QuickSwitcherContent items={items} onClose={onClose} onOpen={onOpen} />
+				<QuickSwitcherContent
+					items={items}
+					actions={actions}
+					overviews={overviews}
+					error={error}
+					onClose={onClose}
+					onOpen={onOpen}
+					onAction={onAction}
+				/>
 			</PopoverContent>
 		</Popover>
 	);
@@ -51,34 +89,74 @@ export function RepositoryQuickSwitcher({
 
 function QuickSwitcherContent({
 	items,
+	actions,
+	overviews,
+	error,
 	onClose,
 	onOpen,
+	onAction,
 }: {
 	items: readonly QuickRepository[];
+	actions: readonly RepositoryPaletteAction[];
+	overviews?: RepositoryOverviews;
+	error?: string | null;
 	onClose: () => void;
 	onOpen: (path: string) => void;
+	onAction?: (id: RepositoryPaletteAction["id"]) => void;
 }) {
 	const { tokens } = useAppTheme();
 	const renderer = useGpuixRequired();
 	const search = useRef<PublicInstance>(null);
 	const viewport = useRef<PublicInstance>(null);
 	const [query, setQuery] = useState("");
-	const [selectedPath, setSelectedPath] = useState<string | null>(null);
+	const [selectedKey, setSelectedKey] = useState<string | null>(null);
 	const [start, setStart] = useState(0);
 
-	const results = useMemo(
-		() => RepositoryQuickSwitcherModel.search(items, query),
-		[items, query]
-	);
+	const actionOnly =
+		query.trimStart().startsWith(">") && !query.trimStart().startsWith(">>");
+
+	const searchQuery = actionOnly ? query.trimStart().slice(1) : query;
+
+	const results = useMemo<readonly PaletteResult[]>(() => {
+		const repositories = actionOnly
+			? []
+			: RepositoryQuickSwitcherModel.search(items, searchQuery).map((item) => ({
+					kind: "repository" as const,
+					item,
+				}));
+
+		const commands = searchRepositoryPaletteActions(actions, searchQuery).map(
+			(item) => ({ kind: "action" as const, item })
+		);
+
+		return [...repositories, ...commands];
+	}, [actionOnly, actions, items, searchQuery]);
 
 	const selected = Math.max(
 		0,
-		results.findIndex((item) => item.path === selectedPath)
+		results.findIndex((result) => resultKey(result) === selectedKey)
 	);
 
 	const active = results[selected];
-	const activePath = active?.path;
+
+	const activePath =
+		active?.kind === "repository" ? active.item.path : undefined;
+
 	const end = Math.min(results.length, start + windowSize);
+
+	useEffect(() => {
+		if (!overviews) return;
+
+		overviews.setVisible(
+			results
+				.slice(start, end)
+				.flatMap((result) =>
+					result.kind === "repository" ? [result.item.path] : []
+				)
+		);
+
+		return () => overviews.setVisible([]);
+	}, [end, overviews, results, start]);
 
 	useEffect(() => {
 		// Native controls may not exist during the dialog's first focus traversal.
@@ -94,20 +172,17 @@ function QuickSwitcherContent({
 			renderer.scrollToItem?.(viewport.current.id, selected, 0);
 	}, [renderer, selected, activePath]);
 
-	const choose = (path: string): void => {
+	const choose = (result: PaletteResult): void => {
+		if (result.kind === "action" && !result.item.enabled) return;
+
 		onClose();
-		onOpen(path);
+
+		if (result.kind === "repository") onOpen(result.item.path);
+		else onAction?.(result.item.id);
 	};
 
 	const navigate = (event: EventPayload): void => {
-		if (
-			event.key === "p" &&
-			event.modifiers?.cmd &&
-			!event.modifiers.shift &&
-			!event.modifiers.alt &&
-			!event.modifiers.ctrl &&
-			!event.isHeld
-		) {
+		if (Keybinds.matches(event, "quick-open", renderer)) {
 			onClose();
 
 			return;
@@ -117,11 +192,24 @@ function QuickSwitcherContent({
 			return;
 
 		if ((event.key === "down" || event.key === "up") && results.length) {
-			const index =
-				(selected + (event.key === "down" ? 1 : -1) + results.length) %
-				results.length;
+			const repositoryIndexes = results.flatMap((result, index) =>
+				result.kind === "repository" ? [index] : []
+			);
 
-			setSelectedPath(results[index]?.path ?? null);
+			const indexes =
+				actionOnly || repositoryIndexes.length === 0
+					? results.map((_result, index) => index)
+					: repositoryIndexes;
+
+			const current = Math.max(0, indexes.indexOf(selected));
+
+			const index =
+				indexes[
+					(current + (event.key === "down" ? 1 : -1) + indexes.length) %
+						indexes.length
+				] ?? 0;
+
+			setSelectedKey(results[index] ? resultKey(results[index]) : null);
 			setStart(Math.max(0, index - Math.floor(windowSize / 2)));
 		}
 	};
@@ -159,22 +247,20 @@ function QuickSwitcherContent({
 					ref={search}
 					testId="quick-switcher-search"
 					role="combobox"
-					aria-label="Search repositories"
+					aria-label="Search repositories and actions"
 					aria-expanded
 					aria-controls="quick-switcher-results"
-					aria-activedescendant={
-						active ? `quick-repository-${active.path}` : undefined
-					}
+					aria-activedescendant={active ? resultTestId(active) : undefined}
 					tabIndex={0}
-					placeholder="Search repositories, paths, or machines…"
+					placeholder="Search repositories, actions, paths, or machines…"
 					value={query}
 					onKeyDown={navigate}
 					onSubmit={() => {
-						if (active) choose(active.path);
+						if (active) choose(active);
 					}}
 					onChange={(event) => {
 						setQuery(event.value ?? "");
-						setSelectedPath(null);
+						setSelectedKey(null);
 						setStart(0);
 					}}
 					style={{
@@ -191,6 +277,15 @@ function QuickSwitcherContent({
 					}}
 				/>
 			</div>
+			{error ? (
+				<text
+					testId="quick-switcher-error"
+					role="alert"
+					style={{ ...typography.xs, color: tokens.colors.danger }}
+				>
+					{error}
+				</text>
+			) : null}
 			{results.length ? (
 				<virtual-list
 					key={query}
@@ -218,16 +313,17 @@ function QuickSwitcherContent({
 						flexShrink: 0,
 					}}
 				>
-					{results.slice(start, end).map((item, offset) => (
+					{results.slice(start, end).map((result, offset) => (
 						<div
-							key={item.path}
-							testId={`quick-repository-${item.path}`}
-							aria-id={`quick-repository-${item.path}`}
+							key={resultKey(result)}
+							testId={resultTestId(result)}
+							aria-id={resultTestId(result)}
 							role="option"
 							aria-selected={start + offset === selected}
-							aria-label={`${item.name}, ${item.machine}, ${item.displayPath}${item.open ? ", open" : ""}`}
+							aria-disabled={result.kind === "action" && !result.item.enabled}
+							aria-label={resultLabel(result)}
 							tabIndex={-1}
-							onClick={() => choose(item.path)}
+							onClick={() => choose(result)}
 							style={{
 								height: rowHeight,
 								display: "flex",
@@ -241,10 +337,38 @@ function QuickSwitcherContent({
 									start + offset === selected
 										? tokens.colors.surface
 										: "transparent",
+								opacity:
+									result.kind === "action" && !result.item.enabled ? 0.5 : 1,
 								hover: { backgroundColor: tokens.colors.surfaceHover },
 								cursor: "pointer",
 							}}
 						>
+							{result.kind === "repository" ? (
+								<RepositoryAvatar
+									label={result.item.name}
+									source={{ path: result.item.path }}
+									size={32}
+									testId={`quick-avatar-${result.item.path}`}
+								/>
+							) : (
+								<div
+									style={{
+										width: 32,
+										height: 32,
+										flexShrink: 0,
+										alignItems: "center",
+										justifyContent: "center",
+										borderRadius: radius.md,
+										backgroundColor: tokens.colors.field,
+									}}
+								>
+									<text
+										style={{ ...typography.sm, color: tokens.colors.textMuted }}
+									>
+										⌘
+									</text>
+								</div>
+							)}
 							<div
 								style={{
 									display: "flex",
@@ -263,20 +387,41 @@ function QuickSwitcherContent({
 										textOverflow: "ellipsis",
 									}}
 								>
-									{`${item.name}${item.branch ? ` / ${item.branch}` : ""}`}
+									{result.kind === "repository"
+										? result.item.name
+										: result.item.label}
 								</text>
-								<text
-									style={{
-										...typography.xs,
-										color: tokens.colors.textMuted,
-										whiteSpace: "nowrap",
-										textOverflow: "ellipsis",
-									}}
-								>
-									{`${item.machine} · ${item.displayPath}`}
-								</text>
+								{result.kind === "repository" ? (
+									<>
+										<QuickRepositoryStatus
+											item={result.item}
+											overviews={overviews}
+										/>
+										<text
+											style={{
+												...typography["2xs"],
+												color: tokens.colors.textMuted,
+												whiteSpace: "nowrap",
+												textOverflow: "ellipsis",
+											}}
+										>
+											{`${result.item.machine} · ${result.item.displayPath}`}
+										</text>
+									</>
+								) : (
+									<text
+										style={{
+											...typography.xs,
+											color: tokens.colors.textMuted,
+											whiteSpace: "nowrap",
+											textOverflow: "ellipsis",
+										}}
+									>
+										{`${result.item.hint ? `${result.item.hint} · ` : ""}${result.item.id.startsWith("settings:") ? "Settings" : "Command"}`}
+									</text>
+								)}
 							</div>
-							{item.open ? (
+							{result.kind === "repository" && result.item.open ? (
 								<text
 									style={{
 										...typography.xs,
@@ -301,8 +446,8 @@ function QuickSwitcherContent({
 						height: 7 * rowHeight,
 					}}
 				>
-					{items.length
-						? "No matching repositories."
+					{items.length || actions.length
+						? "No matching repositories or actions."
 						: "No repositories yet. Open one from disk or add an SSH machine on Home."}
 				</text>
 			)}
@@ -316,5 +461,84 @@ function QuickSwitcherContent({
 				↑ ↓ Navigate ↵ Open Esc Close
 			</text>
 		</div>
+	);
+}
+
+function resultKey(result: PaletteResult): string {
+	return result.kind === "repository"
+		? `repository:${result.item.path}`
+		: `action:${result.item.id}`;
+}
+
+function resultTestId(result: PaletteResult): string {
+	return result.kind === "repository"
+		? `quick-repository-${result.item.path}`
+		: `quick-action-${result.item.id}`;
+}
+
+function resultLabel(result: PaletteResult): string {
+	if (result.kind === "action")
+		return `${result.item.label}${result.item.enabled ? "" : ", unavailable"}`;
+
+	return `${result.item.name}, ${result.item.machine}, ${result.item.displayPath}${result.item.open ? ", open" : ""}`;
+}
+
+function QuickRepositoryStatus({
+	item,
+	overviews,
+}: {
+	item: QuickRepository;
+	overviews?: RepositoryOverviews;
+}) {
+	const { tokens } = useAppTheme();
+
+	const subscribe = useCallback(
+		(listener: () => void) =>
+			overviews?.subscribe(item.path, listener) ?? (() => {}),
+		[overviews, item.path]
+	);
+
+	const snapshot = useCallback(
+		(): RepositoryOverviewState | null => overviews?.read(item.path) ?? null,
+		[overviews, item.path]
+	);
+
+	const state = useSyncExternalStore(subscribe, snapshot);
+
+	const detail = (() => {
+		if (!state)
+			return item.branch ? `Branch ${item.branch}` : "Checking status…";
+
+		if (state.status === "loading")
+			return item.branch
+				? `Branch ${item.branch} · Checking status…`
+				: "Checking status…";
+
+		if (state.status === "unavailable")
+			return item.branch
+				? `Branch ${item.branch} · Status unavailable`
+				: "Status unavailable";
+
+		const { branch, changes, ahead, behind } = state.value;
+
+		const sync =
+			ahead === null || behind === null ? "" : ` · ↓${behind} ↑${ahead}`;
+
+		return `Branch ${branch} · ${changes ? `${changes} changed` : "Clean"}${sync}`;
+	})();
+
+	return (
+		<text
+			testId={`quick-status-${item.path}`}
+			style={{
+				...typography.xs,
+				color: tokens.colors.textMuted,
+				whiteSpace: "nowrap",
+				textOverflow: "ellipsis",
+				pointerEvents: "none",
+			}}
+		>
+			{detail}
+		</text>
 	);
 }

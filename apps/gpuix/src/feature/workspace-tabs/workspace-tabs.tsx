@@ -165,6 +165,9 @@ export function WorkspaceTabs({
 	worktreesAnchorRef,
 	onWorktreesOpen,
 	onMenuBusyChange,
+	openMenuFor,
+	onOpenMenuFor,
+	branchIntent,
 }: {
 	state: WorkspaceTabsState;
 	dispatch: Dispatch<WorkspaceTabsAction>;
@@ -173,6 +176,10 @@ export function WorkspaceTabs({
 	worktreesAnchorRef?: Ref<PublicInstance>;
 	onWorktreesOpen?: () => void;
 	onMenuBusyChange?: (busy: boolean) => void;
+	/** Request the existing branch/worktree menu from a command action. */
+	openMenuFor?: string | null;
+	onOpenMenuFor?: () => void;
+	branchIntent?: "new" | "switch";
 } & Partial<WorkspaceMenuActions>) {
 	const theme = useAppTheme();
 	const { tokens: appTokens, colors: appColors } = theme;
@@ -326,6 +333,13 @@ export function WorkspaceTabs({
 		},
 		[onTourAnchor, onTabMenuOpenChange]
 	);
+
+	useEffect(() => {
+		if (!openMenuFor || !state.tabs.some((tab) => tab.id === openMenuFor))
+			return;
+
+		setMenuId(openMenuFor);
+	}, [openMenuFor, state.tabs]);
 
 	return (
 		<div testId="workspace-toolbar" style={styles.toolbar}>
@@ -570,6 +584,12 @@ export function WorkspaceTabs({
 										onSubmenuOpen={(group) => {
 											if (group === "worktrees") onWorktreesOpen?.();
 										}}
+										branchIntent={
+											branchIntent && tab.id === openMenuFor
+												? branchIntent
+												: undefined
+										}
+										onBranchIntentHandled={onOpenMenuFor}
 										onBusyChange={onMenuBusyChange}
 										onSettings={onSettings}
 										onClose={() => {
