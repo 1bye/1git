@@ -5,7 +5,7 @@
  * Requires: a local filesystem with Unix-domain socket support.
  */
 import { afterEach, expect, it } from "bun:test";
-import { lstat, mkdir, readlink, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readlink, rm, stat, writeFile } from "node:fs/promises";
 import { realpath } from "node:fs/promises";
 import { mkdtemp } from "node:fs/promises";
 import {
@@ -15,7 +15,7 @@ import {
 	type Socket,
 } from "node:net";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import {
 	installLauncher,
 	uninstallLauncher,
@@ -162,7 +162,7 @@ const writeFragments = (
 
 it("hands requests to the running process and cleans up its socket", async () => {
 	const directory = await tempDirectory("1git-launcher-socket-");
-	const socketPath = join(directory, "launcher.sock");
+	const socketPath = join(directory, "private", "launcher.sock");
 	const received: string[] = [];
 
 	const service = trackedService(socketPath, (request) => {
@@ -170,6 +170,7 @@ it("hands requests to the running process and cleans up its socket", async () =>
 	});
 
 	expect(await service.start()).toBe(true);
+	expect((await stat(dirname(socketPath))).mode & 0o777).toBe(0o700);
 	expect(
 		await sendLauncherRequest(parseLauncherArguments([directory]), socketPath)
 	).toBe(true);
@@ -208,6 +209,19 @@ it("lets only one concurrent startup claim a missing socket", async () => {
 	expect(results.filter((result) => !result)).toHaveLength(1);
 	await first.stop();
 	await second.stop();
+});
+
+it("reclaims a lock only after its recorded owner exits", async () => {
+	const directory = await tempDirectory("1git-launcher-lock-");
+	const socketPath = join(directory, "launcher.sock");
+	const lockPath = `${socketPath}.lock`;
+
+	await writeFile(lockPath, "999999999\n");
+
+	const service = trackedService(socketPath);
+
+	expect(await service.start()).toBe(true);
+	await service.stop();
 });
 
 it("removes stale sockets and accepts fragmented requests", async () => {

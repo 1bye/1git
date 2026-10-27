@@ -61,6 +61,10 @@ import type { SpacesSettingsHandle } from "../spaces/space-manager";
 import { AppearanceSettings } from "../appearance-settings/appearance-settings";
 import { PrivacySettings } from "../analytics/privacy-settings";
 import { KeybindSettings } from "../keybinds/keybind-settings";
+import {
+	ApplicationSettings,
+	type ApplicationLauncherIntent,
+} from "../settings/application-settings";
 import { AiSettings, type AiSettingsHandle } from "../ai/ai-settings";
 import { RepositoryAppearance } from "../repository-appearance/repository-appearance";
 import type { RepositoryAppearanceValue } from "../repository-appearance/repository-patterns";
@@ -80,6 +84,7 @@ interface SettingsNavItem {
 	group: "application" | "repository";
 }
 const settingsIcons: Record<SettingsSection, SettingsNavItem["icon"]> = {
+	application: "settings",
 	spaces: "layers",
 	appearance: "contrast",
 	keybinds: "keyboard",
@@ -170,6 +175,9 @@ export function AccountsSettings({
 	autoIncludeChanges = false,
 	onAutoIncludeChanges,
 	externalEditors,
+	applicationSettings,
+	applicationSettingsIntent,
+	onApplicationSettingsIntentConsumed,
 }: {
 	onBack: () => void;
 	onReplayTips?: () => void;
@@ -208,6 +216,9 @@ export function AccountsSettings({
 	autoIncludeChanges?: boolean;
 	onAutoIncludeChanges?: (enabled: boolean) => void;
 	externalEditors?: ExternalEditors;
+	applicationSettings?: ReactElement;
+	applicationSettingsIntent?: ApplicationLauncherIntent;
+	onApplicationSettingsIntentConsumed?: () => void;
 }) {
 	const theme = useAppTheme();
 	const { tokens: appTokens } = theme;
@@ -278,13 +289,14 @@ export function AccountsSettings({
 	}, [initialSection]);
 
 	const [gitBusy, setGitBusy] = useState(false);
+	const [applicationBusy, setApplicationBusy] = useState(false);
 	const gitBusyRef = useRef(false);
 	const spacesEditor = useRef<SpacesSettingsHandle | null>(null);
 	const ignoredSettings = useRef<IgnoredHistorySettingsHandle | null>(null);
 	const gitSettings = useRef<GitSettingsHandle | null>(null);
 	const editorSettings = useRef<EditorSettingsHandle | null>(null);
 	const aiSettings = useRef<AiSettingsHandle | null>(null);
-	const settingsBusy = busy || gitBusy;
+	const settingsBusy = busy || gitBusy || applicationBusy;
 
 	useEffect(() => {
 		onBusyChange?.(settingsBusy);
@@ -445,7 +457,15 @@ export function AccountsSettings({
 				}}
 			>
 				{children}
-				{section === "spaces" ? (
+				{section === "application" ? (
+					(applicationSettings ?? (
+						<ApplicationSettings
+							intent={applicationSettingsIntent}
+							onIntentConsumed={onApplicationSettingsIntentConsumed}
+							onBusyChange={setApplicationBusy}
+						/>
+					))
+				) : section === "spaces" ? (
 					spacesSettings ? (
 						cloneElement(spacesSettings, { ref: spacesEditor })
 					) : null

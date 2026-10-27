@@ -32,6 +32,29 @@ export interface LauncherInstallOptions {
 	readonly targetDirectory: string;
 }
 
+export type LauncherLinkStatus = "missing" | "installed" | "different";
+
+export const launcherLinkStatus = async ({
+	bundlePath,
+	targetDirectory,
+}: LauncherInstallOptions): Promise<LauncherLinkStatus> => {
+	const source = bundleLauncherPath(resolve(bundlePath));
+	const target = join(resolve(targetDirectory), launcherName);
+
+	try {
+		const info = await lstat(target);
+
+		if (!info.isSymbolicLink()) return "different";
+
+		return (await readlink(target)) === source ? "installed" : "different";
+	} catch (error) {
+		if (error instanceof Error && "code" in error && error.code === "ENOENT")
+			return "missing";
+
+		throw error;
+	}
+};
+
 /** AppleScript source used only after the user explicitly accepts macOS authorization. */
 export const administratorInstallScript = `on run argv
 set sourcePath to item 1 of argv

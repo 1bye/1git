@@ -1,7 +1,10 @@
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { sendLauncherRequest } from "../src/launcher/launcher-service";
-import { parseLauncherArguments } from "../src/launcher/launcher-protocol";
+import {
+	launcherValidationFallbackExitCode,
+	parseLauncherArguments,
+} from "../src/launcher/launcher-protocol";
 
 // libmalloc reads these at process startup; replace the bootstrap before loading the app.
 if (
@@ -36,6 +39,7 @@ process.env.GPUIX_REMOTE_HELPERS_DIR = resolve(
 );
 
 if (process.env.ONEGIT_LAUNCHER_MODE === "1") {
+	const validationOnly = process.env.ONEGIT_LAUNCHER_VALIDATE === "1";
 	let request: ReturnType<typeof parseLauncherArguments>;
 
 	try {
@@ -48,6 +52,8 @@ if (process.env.ONEGIT_LAUNCHER_MODE === "1") {
 	}
 
 	if (await sendLauncherRequest(request)) process.exit(0);
+
+	if (validationOnly) process.exit(launcherValidationFallbackExitCode);
 }
 
 await import(pathToFileURL(resolve(contents, "Resources/app.js")).href);

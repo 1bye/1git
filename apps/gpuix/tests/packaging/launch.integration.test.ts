@@ -12,7 +12,14 @@ import {
 } from "../../src/feature/machines/remote-protocol";
 import { expect, it } from "bun:test";
 import { closeSync, constants, openSync, writeSync } from "node:fs";
-import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import {
+	mkdtemp,
+	readFile,
+	readdir,
+	rm,
+	stat,
+	writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import sharp from "sharp";
@@ -102,6 +109,13 @@ it("opens the extracted ZIP without a terminal or checkout-dependent resources",
 			"Contents/Resources/remote-helpers"
 		);
 
+		const launcher = resolve(bundle, "Contents/Resources/1git-launcher");
+
+		expect(await readFile(launcher, "utf8")).toContain(
+			"ONEGIT_LAUNCHER_MODE=1"
+		);
+		expect((await stat(launcher)).mode & 0o777).toBe(0o755);
+
 		expect((await readdir(helperDirectory)).sort()).toEqual(
 			remoteHelperTargets
 				.flatMap((target) => [`${target}.gz`, `${target}.json`])
@@ -153,6 +167,8 @@ it("opens the extracted ZIP without a terminal or checkout-dependent resources",
 			"GPUIX_PREVIEW=0",
 			"--env",
 			"GPUIX_BACKGROUND=0",
+			"--env",
+			`GPUIX_LAUNCHER_SOCKET=${resolve(directory, "launcher.sock")}`,
 		]);
 
 		const responses = new Map<number, AutomationResponse>();

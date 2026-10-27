@@ -19,6 +19,9 @@ import { parseLauncherArguments } from "./launcher/launcher-protocol";
 
 void ShellEnvironment.shared.prepare();
 
+const subscribeLauncherRequests =
+	launcherRequests.subscribe.bind(launcherRequests);
+
 const preview = process.env.GPUIX_PREVIEW === "1";
 
 const launcherRequest: ReturnType<typeof parseLauncherArguments> = (() => {
@@ -98,6 +101,7 @@ render(
 		watchRepository={RepositoryWatcher.watch}
 		discoverRepositories={preview ? undefined : RepositoryDiscovery.scan}
 		discoveryCache={discoveryCache}
+		subscribeLauncherRequests={preview ? undefined : subscribeLauncherRequests}
 	/>,
 	{
 		...windowOptions,

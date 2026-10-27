@@ -1,4 +1,13 @@
-import { chmod, lstat, mkdir, open, rm, stat } from "node:fs/promises";
+import {
+	chmod,
+	lstat,
+	mkdir,
+	open,
+	readFile,
+	rm,
+	stat,
+	type FileHandle,
+} from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import {
@@ -97,7 +106,10 @@ export class LauncherService {
 	async start(): Promise<boolean> {
 		if (this.server) return true;
 
-		await mkdir(dirname(this.socketPath), { recursive: true, mode: 0o700 });
+		const directory = dirname(this.socketPath);
+
+		await mkdir(directory, { recursive: true, mode: 0o700 });
+		await chmod(directory, 0o700);
 
 		return await withStartupLock(this.socketPath, async () => {
 			const state = await inspectSocket(this.socketPath);
@@ -267,12 +279,30 @@ const withStartupLock = async <Result>(
 ): Promise<Result> => {
 	const lockPath = `${socketPath}.lock`;
 	const deadline = Date.now() + startupLockTimeoutMs;
-	let lock;
+	let lock: FileHandle | undefined;
+	let lockIdentity: { dev: number; ino: number } | undefined;
 
 	while (!lock) {
 		try {
-			lock = await open(lockPath, "wx", 0o600);
-			await lock.writeFile(`${process.pid}\n`);
+			const candidate = await open(lockPath, "wx", 0o600);
+			let candidateIdentity: { dev: number; ino: number } | undefined;
+
+			try {
+				const identity = await candidate.stat();
+
+				candidateIdentity = { dev: identity.dev, ino: identity.ino };
+				await candidate.writeFile(`${process.pid}\n`);
+
+				lock = candidate;
+				lockIdentity = candidateIdentity;
+			} catch (error) {
+				await candidate.close();
+
+				if (candidateIdentity)
+					await removeLockIfUnchanged(lockPath, candidateIdentity);
+
+				throw error;
+			}
 		} catch (error) {
 			if (
 				!(error instanceof Error && "code" in error && error.code === "EEXIST")
@@ -281,9 +311,24 @@ const withStartupLock = async <Result>(
 
 			try {
 				const lockInfo = await stat(lockPath);
+				let ownerPid: number | undefined;
 
-				if (Date.now() - lockInfo.mtimeMs > startupLockTimeoutMs)
-					await rm(lockPath, { force: true });
+				try {
+					const value = (await readFile(lockPath, "utf8")).trim();
+					const parsed = Number(value);
+
+					if (Number.isSafeInteger(parsed) && parsed > 0) ownerPid = parsed;
+				} catch {
+					// A lock being written is still owned; wait for its writer.
+				}
+
+				const ownerAlive = ownerPid !== undefined && isProcessAlive(ownerPid);
+				const expired = Date.now() - lockInfo.mtimeMs > startupLockTimeoutMs;
+
+				if (ownerPid !== undefined && !ownerAlive)
+					await removeLockIfUnchanged(lockPath, lockInfo);
+				else if (ownerPid === undefined && expired)
+					await removeLockIfUnchanged(lockPath, lockInfo);
 				else if (Date.now() < deadline)
 					await new Promise((resolve) =>
 						setTimeout(resolve, startupLockRetryMs)
@@ -309,6 +354,32 @@ const withStartupLock = async <Result>(
 		return await callback();
 	} finally {
 		await lock.close();
-		await rm(lockPath, { force: true });
+
+		if (lockIdentity) await removeLockIfUnchanged(lockPath, lockIdentity);
+	}
+};
+
+const isProcessAlive = (pid: number): boolean => {
+	try {
+		process.kill(pid, 0);
+
+		return true;
+	} catch (error) {
+		return error instanceof Error && "code" in error && error.code === "EPERM";
+	}
+};
+
+const removeLockIfUnchanged = async (
+	lockPath: string,
+	identity: { dev: number; ino: number }
+): Promise<void> => {
+	try {
+		const current = await stat(lockPath);
+
+		if (current.dev === identity.dev && current.ino === identity.ino)
+			await rm(lockPath, { force: true });
+	} catch (error) {
+		if (!(error instanceof Error && "code" in error && error.code === "ENOENT"))
+			throw error;
 	}
 };

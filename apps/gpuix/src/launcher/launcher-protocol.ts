@@ -4,6 +4,8 @@ import { isAbsolute, resolve } from "node:path";
 /** The launcher protocol is deliberately tiny so a shell launcher can hand off to a running app. */
 export const launcherProtocolVersion = 1 as const;
 export const launcherMaxPathBytes = 4096;
+/** Shell launchers use this status to distinguish validation from first startup. */
+export const launcherValidationFallbackExitCode = 10;
 
 export interface LauncherRequest {
 	readonly version: typeof launcherProtocolVersion;
