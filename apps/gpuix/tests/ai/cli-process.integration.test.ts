@@ -593,6 +593,31 @@ ${reply}`,
 	}
 );
 
+it("allows bounded Codex MCP tool output for large selections", async () => {
+	const preferences = await fixture(
+		`const page = "x".repeat(64 * 1024);
+for (let index = 0; index < 32; index++)
+ console.info(JSON.stringify({type:"item.completed",item:{type:"mcp_tool_call",id:"call-"+index,server:"1git-selected-changes",tool:"read_selected_changes",status:"completed",result:{content:[{type:"text",text:page}]}}}));
+console.info(JSON.stringify({type:"item.completed",item:{type:"agent_message",text:"fix: handle large selections"}}));
+console.info(JSON.stringify({type:"turn.completed"}));`,
+		"codex"
+	);
+
+	const patch = `diff --git a/file b/file\n@@ -1 +1 @@\n+${"x".repeat(2 * 1024 * 1024)}\n`;
+
+	const message = await new CliAgent().generate(
+		preferences,
+		patch,
+		new AbortController().signal
+	);
+
+	const captured = JSON.parse(await readFile(record, "utf8"));
+
+	expect(message).toBe("fix: handle large selections");
+	expect(captured.input).not.toContain(patch);
+	expect(existsSync(captured.cwd)).toBe(false);
+});
+
 it("rejects input above the bounded CLI file limit and cancelled requests before invoking an executable", async () => {
 	const preferences = await fixture(success);
 	const controller = new AbortController();
