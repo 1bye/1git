@@ -331,7 +331,8 @@ it("keeps account choices scrollable and footer actions visible in a minimum-hei
 		onKeyDown: windowOptions.onKeyDown,
 	});
 	root.renderer.clockPause();
-	const saved = Array.from({ length: 7 }, (_value, index) => ({
+	// Keep the editor overflowing with the extra space available inside a tab.
+	const saved = Array.from({ length: 11 }, (_value, index) => ({
 		...identityAccount,
 		id: String(index),
 		username: `account-${index}`,

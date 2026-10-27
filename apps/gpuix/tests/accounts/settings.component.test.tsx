@@ -520,7 +520,7 @@ it("keeps compact content beside Settings navigation", async () => {
 	expect(headingBounds.x).toBeGreaterThan(navigationBounds.x);
 	expect(
 		root.renderer.getElementBounds(header.id)!.y - navigationBounds.y
-	).toBe(8);
+	).toBe(16);
 	expect(root.renderer.getElementBounds(content.id)!.x).toBe(headingBounds.x);
 });
 
@@ -1045,12 +1045,12 @@ it("blocks removal dismissal while saving and preserves a failed account for ret
 	await settle();
 	click("account-remove-confirm");
 	await settle();
-	const close = root.renderer.findByTestId("close-workspace-2")!;
+	const close = root.renderer.findByTestId("close-workspace-1")!;
 
 	expect(close.customProps?.tabIndex).toBeUndefined();
 	expect(close.style.opacity).toBe(0.45);
 	root.renderer.nativeSimulateKeyDown(close.id, "enter");
-	click("close-workspace-2");
+	click("close-workspace-1");
 	root.renderer.simulateKeystrokes("escape");
 	root.renderer.nativeSimulateClick(5, 5);
 	click("account-remove-cancel");
@@ -1062,7 +1062,7 @@ it("blocks removal dismissal while saving and preserves a failed account for ret
 	pending.resolve();
 	await settle();
 	expect(
-		root.renderer.findByTestId("close-workspace-2")?.customProps?.tabIndex
+		root.renderer.findByTestId("close-workspace-1")?.customProps?.tabIndex
 	).toBe(0);
 	expect(root.renderer.getAllText()).toContain(
 		"Could not remove saved credential."
