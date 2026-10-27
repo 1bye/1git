@@ -135,7 +135,15 @@ export class WorkspaceTabsModel {
 						space.id === owner
 							? { ...space, activeId: existing.id }
 							: space.activeId === existing.id
-								? { ...space, activeId: null }
+								? {
+										...space,
+										activeId:
+											state.tabs.find(
+												(tab) =>
+													tab.id !== existing.id &&
+													(tab.spaceId ?? "default") === space.id
+											)?.id ?? null,
+									}
 								: space
 					),
 					activeId: existing.id,

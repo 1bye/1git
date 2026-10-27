@@ -1943,6 +1943,8 @@ function AppContent({
 
 	const selectSpace = useCallback(
 		(id: string) => {
+			if (spaceEditor) return;
+
 			setQuickSwitcherOpen(false);
 			setFolderPickerRoot(undefined);
 			setMachineError(null);
@@ -1955,6 +1957,7 @@ function AppContent({
 			setQuickSwitcherOpen,
 			setFolderPickerRoot,
 			setMachineError,
+			spaceEditor,
 			settingsOpen,
 			setSettingsForm,
 			dispatch,
@@ -1963,7 +1966,8 @@ function AppContent({
 
 	const moveSpace = useCallback(
 		(direction: SpaceDirection): boolean => {
-			if (onboardingOpen || connection.pickingId !== null) return false;
+			if (onboardingOpen || spaceEditor || connection.pickingId !== null)
+				return false;
 
 			const destination = WorkspaceSpaces.destination(
 				state.spaces ?? [],
@@ -1979,6 +1983,7 @@ function AppContent({
 		},
 		[
 			onboardingOpen,
+			spaceEditor,
 			connection.pickingId,
 			state.spaces,
 			activeSpaceId,
