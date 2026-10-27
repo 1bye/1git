@@ -85,6 +85,23 @@ function latest() {
 	return WorkspaceSession.parse(JSON.stringify(document));
 }
 
+async function latestWhen(
+	predicate: (document: WorkspaceSessionDocument) => boolean
+): Promise<WorkspaceSessionDocument> {
+	const deadline = Date.now() + 3000;
+
+	while (Date.now() < deadline) {
+		const document = save.mock.calls.at(-1)?.[0];
+
+		if (document && predicate(document))
+			return WorkspaceSession.parse(JSON.stringify(document));
+
+		await Bun.sleep(10);
+	}
+
+	throw new Error("Session save did not reach the expected state.");
+}
+
 beforeEach(() => {
 	root = createTestRoot({
 		width: 980,
@@ -210,7 +227,11 @@ for (const appearance of ["light", "dark"] as const) {
 		click("rail-spaces");
 		await settle();
 		expect(node("commit-message").customProps?.value).toBe("Personal draft");
-		const document = latest();
+		const document = await latestWhen(
+			(saved) =>
+				saved.activeSpaceId === personalId &&
+				saved.tabs.some((tab) => tab.draft === "Personal draft")
+		);
 
 		expect(
 			document.spaces?.find((space) => space.id === personalId)
