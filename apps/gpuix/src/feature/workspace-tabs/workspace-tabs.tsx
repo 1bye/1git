@@ -449,7 +449,11 @@ export function WorkspaceTabs({
 								key={tab.id}
 								tab={tab}
 								active={state.activeId === tab.id}
-								menuAvailable={!!tab.workspace.repository && !!onChangeBranch}
+								menuAvailable={
+									tab.kind === "repository" &&
+									!!tab.workspace.repository &&
+									!!onChangeBranch
+								}
 								menuOpen={menuId === tab.id && state.activeId === tab.id}
 								onDismissMenu={() => setMenuId(null)}
 								onPointerDown={onPointerDown}

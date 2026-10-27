@@ -28,7 +28,10 @@ import {
 	type RepositoryPatternChoices,
 } from "../../repository-appearance/repository-patterns";
 import { RepositoryWorkspaceModel } from "../../repository-workspace/lib/repository-workspace-model";
-import type { WorkspaceTabsState } from "./workspace-tabs-model";
+import type {
+	WorkspaceTabKind,
+	WorkspaceTabsState,
+} from "./workspace-tabs-model";
 import type { RepositoryView } from "../../repository-workspace/types";
 import {
 	defaultDiffSettings,
@@ -61,6 +64,8 @@ export interface WorkspaceSessionDocument {
 	readonly activeSpaceId?: string;
 	readonly tabs: readonly {
 		readonly id: string;
+		/** Added in-place so sessions written before tab kinds remain readable. */
+		readonly kind?: WorkspaceTabKind;
 		readonly spaceId?: string;
 		readonly path: string | null;
 		readonly draft: string;
@@ -179,8 +184,17 @@ export class WorkspaceSession {
 		const ids = new Set<string>();
 
 		for (const tab of value.tabs) {
+			if (!isRecord(tab))
+				throw new Error("The saved session contains an invalid workspace.");
+
+			const kind =
+				tab.kind === undefined
+					? tab.path === null
+						? "empty"
+						: "repository"
+					: tab.kind;
+
 			if (
-				!isRecord(tab) ||
 				typeof tab.id !== "string" ||
 				!tabIdPattern.test(tab.id) ||
 				!Number.isSafeInteger(Number(tab.id.slice("workspace-".length)) + 1) ||
@@ -193,13 +207,15 @@ export class WorkspaceSession {
 					(typeof tab.path === "string" &&
 						isAbsolute(tab.path) &&
 						!tab.path.includes("\0"))
-				)
+				) ||
+				(kind !== "repository" && kind !== "empty" && kind !== "settings")
 			)
 				throw new Error("The saved session contains an invalid workspace.");
 
 			ids.add(tab.id);
 			tabs.push({
 				id: tab.id,
+				kind,
 				...(spaces
 					? {
 							spaceId:
@@ -382,8 +398,9 @@ export class WorkspaceSession {
 			...(state.recentRepositories !== undefined
 				? { recentRepositories: state.recentRepositories }
 				: {}),
-			tabs: state.tabs.map(({ id, spaceId, workspace }) => ({
+			tabs: state.tabs.map(({ id, kind, spaceId, workspace }) => ({
 				id,
+				kind,
 				...(spaceId ? { spaceId } : {}),
 				path: workspace.repository?.root ?? workspace.repositoryPath,
 				draft: workspace.amend?.previousMessage ?? workspace.commitMessage,
@@ -414,6 +431,35 @@ export class WorkspaceSession {
 	}
 
 	static restore(document: WorkspaceSessionDocument): WorkspaceTabsState {
+		const settingsId = document.tabs.find((tab) => tab.kind === "settings")?.id;
+
+		const tabs = document.tabs
+			.filter((tab) => tab.kind !== "settings" || tab.id === settingsId)
+			.map(({ id, kind: savedKind, spaceId, path, draft, navigation }) => {
+				const kind = savedKind ?? (path ? "repository" : "empty");
+
+				return {
+					id,
+					kind,
+					...(spaceId ? { spaceId } : {}),
+					name:
+						kind === "settings"
+							? "Settings"
+							: path
+								? basename(path)
+								: "New tab",
+					workspace: {
+						...RepositoryWorkspaceModel.create(),
+						repositoryPath: path,
+						loading: path !== null,
+						commitMessage: draft,
+						...(navigation
+							? WorkspaceSession.restoreNavigation(navigation)
+							: {}),
+					},
+				};
+			});
+
 		return {
 			preview: false,
 			autoIncludeChanges: document.autoIncludeChanges ?? false,
@@ -429,19 +475,14 @@ export class WorkspaceSession {
 						document.tabs.flatMap((tab) => (tab.path ? [tab.path] : []))
 				),
 			].slice(0, 100),
-			tabs: document.tabs.map(({ id, spaceId, path, draft, navigation }) => ({
-				id,
-				...(spaceId ? { spaceId } : {}),
-				name: path ? basename(path) : "Open repository",
-				workspace: {
-					...RepositoryWorkspaceModel.create(),
-					repositoryPath: path,
-					loading: path !== null,
-					commitMessage: draft,
-					...(navigation ? WorkspaceSession.restoreNavigation(navigation) : {}),
-				},
-			})),
-			activeId: document.activeId,
+			tabs,
+			activeId:
+				document.activeId &&
+				document.tabs.some(
+					(tab) => tab.id === document.activeId && tab.kind === "settings"
+				)
+					? (settingsId ?? document.activeId)
+					: document.activeId,
 			nextId: document.tabs.reduce(
 				(next, tab) =>
 					Math.max(next, Number(tab.id.slice("workspace-".length)) + 1),

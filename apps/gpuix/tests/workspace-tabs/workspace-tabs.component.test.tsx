@@ -439,6 +439,7 @@ it("clips the full repository and branch track clear of the close target", () =>
 				preview: true,
 				tabs: [
 					{
+						kind: "repository",
 						id: "long",
 						name,
 						branch,

@@ -505,21 +505,29 @@ function WorkspaceTabLabel({
 
 	return (
 		<>
-			<RepositoryAvatar
-				testId={`avatar-${id}`}
-				label={tab.name}
-				size={layout.tabAvatarSize}
-				source={
-					tab.workspace.repository?.root || tab.workspace.repositoryPath
-						? {
-								path:
-									tab.workspace.repository?.root ??
-									tab.workspace.repositoryPath ??
-									"",
-							}
-						: undefined
-				}
-			/>
+			{tab.kind === "settings" || tab.kind === "empty" ? (
+				<WorkspaceTabIcon
+					name={tab.kind === "settings" ? "settings" : "tabs"}
+					testId={`avatar-${id}`}
+					size={layout.tabAvatarSize}
+				/>
+			) : (
+				<RepositoryAvatar
+					testId={`avatar-${id}`}
+					label={tab.name}
+					size={layout.tabAvatarSize}
+					source={
+						tab.workspace.repository?.root || tab.workspace.repositoryPath
+							? {
+									path:
+										tab.workspace.repository?.root ??
+										tab.workspace.repositoryPath ??
+										"",
+								}
+							: undefined
+					}
+				/>
+			)}
 			<OverflowingLabel
 				testId={`label-${id}`}
 				reveal={reveal}

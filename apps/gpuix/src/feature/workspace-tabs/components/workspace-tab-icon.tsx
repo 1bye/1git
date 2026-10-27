@@ -6,6 +6,8 @@ import { StyleSheet } from "@1git/gpuix-stylesheet";
 const sources = {
 	copy: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="1"/><path d="M16 8V4H4v12h4"/></svg>',
 	tabs: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 9h20M9 4v5"/></svg>',
+	settings:
+		'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 1.2 1.8 2.2.3.8 2.1 2 1 .1 2.2 1.7 1.5-1.1 1.9.5 2.2-1.9 1.1-.5 2.2-2.2.5-1.1 1.9-2.2-.5-1.9-1.1-2.2.5-1.5-1.7-1.9-1.1.8-2.2-1-2.2-2.1-.8 2.1-2.2.3L12 3Z"/><circle cx="12" cy="12" r="3"/></svg>',
 	// App-drawn Settings glyphs share the light stroke of the workspace controls.
 	contrast:
 		'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 4v16M12 4a8 8 0 0 1 0 16Z" fill="currentColor" stroke="none"/></svg>',
