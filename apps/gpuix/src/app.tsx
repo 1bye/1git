@@ -2145,7 +2145,12 @@ function AppContent({
 			accounts={accounts}
 			externalEditors={externalEditors}
 			initialForm={settingsForm}
-			onFormChange={setSettingsForm}
+			onFormChange={(form) => {
+				if (form === "list" && settingsForm === "connect")
+					setReconnectAccountKey(undefined);
+
+				setSettingsForm(form);
+			}}
 			onBusyChange={setSettingsBusy}
 			initialReconnectKey={reconnectAccountKey}
 			remoteAccounts={remoteAccounts}
