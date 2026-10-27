@@ -426,6 +426,11 @@ it("toggles and persists commit badges in Appearance without reloading history o
 		root.renderer.scrollIntoView(
 			node(root, "appearance-commit-type-badges").id
 		);
+		root.renderer.scrollTo(
+			node(root, "appearance-settings-scroll").id,
+			0,
+			-10000
+		);
 		root.renderer.advanceTime(1);
 		click(root, "appearance-commit-type-badges");
 		await Bun.sleep(230);

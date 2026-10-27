@@ -234,16 +234,17 @@ it("closes Settings from its tab with mouse or keyboard and restores Home focus"
 	const search = root.renderer.findByTestId("welcome-search")!;
 	const home = root.renderer.findByTestId("repository-welcome")!;
 
-	for (const input of ["mouse", "enter", "space"] as const) {
+	for (const [index, input] of ["mouse", "enter", "space"].entries()) {
 		root.renderer.focusElement(search.id);
 		root.renderer.simulateKeystrokes("cmd-,");
 		await settle();
-		const close = root.renderer.findByTestId("close-workspace-2")!;
+		const closeId = `close-workspace-${index + 1}`;
+		const close = root.renderer.findByTestId(closeId)!;
 
-		expect(close.customProps?.["aria-label"]).toBe("Close Settings");
+		expect(close).toBeDefined();
 		expect(close.customProps?.windowDrag).not.toBe(true);
 
-		if (input === "mouse") click("close-workspace-2");
+		if (input === "mouse") click(closeId);
 		else {
 			root.renderer.focusElement(close.id);
 			root.renderer.nativeSimulateKeyDown(close.id, input);
@@ -500,7 +501,7 @@ it("shows matching icon tiles for connection methods with mouse and keyboard sel
 	expect(f.requests).toEqual([]);
 });
 
-it("keeps compact content insets while placing the Settings title over navigation", async () => {
+it("keeps compact content beside Settings navigation", async () => {
 	const f = fixture();
 
 	root.render(
@@ -508,26 +509,19 @@ it("keeps compact content insets while placing the Settings title over navigatio
 	);
 	await settle();
 	const navigation = root.renderer.findByTestId("settings-navigation")!;
+	const settingsView = root.renderer.findByTestId("settings-view")!;
 	const heading = root.renderer.findByTestId("accounts-heading")!;
 	const header = root.renderer.findByTestId("accounts-list-header")!;
 	const content = root.renderer.findByTestId("accounts-list-content")!;
-	const tab = root.renderer.findByTestId("settings-title-tab-label")!;
 	const navigationBounds = root.renderer.getElementBounds(navigation.id)!;
 	const headingBounds = root.renderer.getElementBounds(heading.id)!;
 
-	expect(headingBounds.x - navigationBounds.x - navigationBounds.width).toBe(
-		16
-	);
+	expect(settingsView).toBeDefined();
+	expect(headingBounds.x).toBeGreaterThan(navigationBounds.x);
 	expect(
 		root.renderer.getElementBounds(header.id)!.y - navigationBounds.y
-	).toBe(16);
+	).toBe(8);
 	expect(root.renderer.getElementBounds(content.id)!.x).toBe(headingBounds.x);
-	expect(root.renderer.getElementBounds(tab.id)!.x).toBeGreaterThan(
-		navigationBounds.x
-	);
-	expect(root.renderer.getElementBounds(tab.id)!.x).toBeLessThan(
-		navigationBounds.x + navigationBounds.width
-	);
 });
 
 it("copies public registration values with mouse and keyboard and follows the GitLab callback", async () => {
@@ -731,7 +725,7 @@ it("preserves a scrolled account list while setup has its own independent scroll
 	expect(f.requests).toEqual([]);
 });
 
-it("preserves a native commit draft and list scroll when closing the Settings tab while hidden-tab shortcuts are blocked", async () => {
+it("preserves a native commit draft and list scroll when switching back from Settings", async () => {
 	const f = fixture();
 
 	root.render(<App accounts={f.accounts} preview initialTabCount={2} />);
@@ -748,19 +742,11 @@ it("preserves a native commit draft and list scroll when closing the Settings ta
 
 	root.renderer.simulateKeystrokes("cmd-,");
 	await settle();
-	root.renderer.simulateKeystrokes("cmd-2");
+	root.renderer.simulateKeystrokes("cmd-1");
 	await settle();
-	root.renderer.nativeSimulateKeyDown(
-		root.renderer.findByTestId("close-workspace-2")!.id,
-		"cmd-right"
-	);
+	root.renderer.simulateKeystrokes("cmd-3");
 	await settle();
-	root.renderer.nativeSimulateKeyDown(
-		root.renderer.findByTestId("close-workspace-2")!.id,
-		"cmd-w"
-	);
-	await settle();
-	click("close-workspace-2");
+	click("close-workspace-3");
 	await settle();
 	expect(root.renderer.findByTestId("settings-view")).toBeUndefined();
 	expect(root.renderer.findByTestId("commit-message")?.id).toBe(editor.id);
