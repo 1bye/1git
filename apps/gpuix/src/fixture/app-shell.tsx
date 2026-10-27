@@ -78,7 +78,9 @@ export function AppShell({
 	navigation,
 	rail,
 	children,
+	overlay,
 	hidden = false,
+	embedded = false,
 	testId = "app-shell",
 	ref,
 	palette,
@@ -88,7 +90,10 @@ export function AppShell({
 	navigation?: ReactNode;
 	rail?: ReactNode;
 	children?: ReactNode;
+	overlay?: ReactNode;
 	hidden?: boolean;
+	/** Omits the native toolbar/chrome when this shell is rendered inside a workspace tab. */
+	embedded?: boolean;
 	testId?: string;
 	ref?: Ref<PublicInstance>;
 	/** Scopes repo colors to the workspace; neutral toolbars may provide their own theme. */
@@ -120,6 +125,13 @@ export function AppShell({
 				aria-hidden={hidden || undefined}
 				style={StyleSheet.compose(
 					styles.root,
+					embedded
+						? {
+								flexGrow: 1,
+								minHeight: 0,
+								backgroundColor: "transparent",
+							}
+						: undefined,
 					hidden
 						? {
 								position: "absolute",
@@ -191,9 +203,11 @@ export function AppShell({
 						</div>
 					</div>
 				) : null}
-				<WorkspaceCornerContext value={setRightRadius}>
-					{toolbar}
-				</WorkspaceCornerContext>
+				{embedded ? null : (
+					<WorkspaceCornerContext value={setRightRadius}>
+						{toolbar}
+					</WorkspaceCornerContext>
+				)}
 				<div style={styles.body}>
 					{theme.repositoryPattern ? (
 						<RepositoryPatternLayer
@@ -218,7 +232,27 @@ export function AppShell({
 						)}
 					>
 						{navigation}
-						<div style={styles.content}>{children}</div>
+						<div
+							style={StyleSheet.compose(
+								styles.content,
+								overlay ? { position: "relative" } : undefined
+							)}
+						>
+							{children}
+							{overlay ? (
+								<div
+									style={{
+										position: "absolute",
+										top: 0,
+										right: 0,
+										bottom: 0,
+										left: 0,
+									}}
+								>
+									{overlay}
+								</div>
+							) : null}
+						</div>
 					</div>
 				</div>
 			</div>

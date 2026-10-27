@@ -130,6 +130,33 @@ it("seeds a multi-tab preview and supports starting on Home without placeholder 
 	}
 });
 
+it("creates empty tabs, fills the selected tab, and keeps one settings tab per space", () => {
+	let state = Model.create(0);
+
+	state = Model.reduce(state, { type: "add", kind: "empty" });
+	expect(state.tabs[0]).toMatchObject({ kind: "empty", name: "New tab" });
+
+	state = Model.reduce(state, {
+		type: "fill",
+		id: "workspace-1",
+		path: "/test/project",
+	});
+	expect(state.tabs[0]).toMatchObject({
+		kind: "repository",
+		name: "project",
+		workspace: { repositoryPath: "/test/project", loading: true },
+	});
+
+	state = Model.reduce(state, { type: "open-settings" });
+	state = Model.reduce(state, { type: "open-settings", section: "appearance" });
+	expect(state.tabs.filter((tab) => tab.kind === "settings")).toHaveLength(1);
+	expect(state.activeId).toBe("workspace-2");
+
+	const closed = Model.reduce(state, { type: "close", id: "workspace-2" });
+
+	expect(closed.tabs.every((tab) => tab.kind !== "settings")).toBe(true);
+});
+
 it("closes to the right, then left, then empty, and can reopen from empty", () => {
 	let state = Model.reduce(Model.reduce(Model.create(), { type: "add" }), {
 		type: "add",

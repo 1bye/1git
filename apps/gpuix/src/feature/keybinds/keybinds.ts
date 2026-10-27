@@ -25,6 +25,12 @@ export const keybindCommands: readonly KeybindCommand[] = [
 		key: "cmd-r",
 	},
 	{
+		id: "new-tab",
+		label: "New tab",
+		group: "Tabs",
+		key: "cmd-t",
+	},
+	{
 		id: "previous-space",
 		label: "Previous space",
 		group: "Spaces",

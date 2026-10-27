@@ -254,6 +254,12 @@ export function WorkspaceRail({
 		const button = buttons.current.get(next);
 
 		if (button) renderer.focusElement?.(button.id);
+
+		setTimeout(() => {
+			const current = buttons.current.get(next);
+
+			if (current) renderer.focusElement?.(current.id);
+		}, 0);
 	};
 
 	const chooseAccount = () => {

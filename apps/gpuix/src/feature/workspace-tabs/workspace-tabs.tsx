@@ -186,6 +186,7 @@ export function WorkspaceTabs({
 	const rail = useRef<PublicInstance>(null);
 	const homeButton = useRef<PublicInstance>(null);
 	const focusRequested = useRef(false);
+	const previousActiveId = useRef(state.activeId);
 	const [menuId, setMenuId] = useState<string | null>(null);
 	const [scrolled, setScrolled] = useState(false);
 	const clipInset = scrolled ? homeScrollInset : 0;
@@ -231,6 +232,15 @@ export function WorkspaceTabs({
 	};
 
 	useEffect(() => {
+		if (previousActiveId.current !== state.activeId) {
+			previousActiveId.current = state.activeId;
+			const target = state.activeId
+				? tabs.current.get(state.activeId)
+				: homeButton.current;
+
+			if (target) renderer.focusElement?.(target.id);
+		}
+
 		if (focusRequested.current) {
 			focusRequested.current = false;
 			const target = state.activeId
@@ -449,7 +459,11 @@ export function WorkspaceTabs({
 								key={tab.id}
 								tab={tab}
 								active={state.activeId === tab.id}
-								menuAvailable={!!tab.workspace.repository && !!onChangeBranch}
+								menuAvailable={
+									tab.kind === "repository" &&
+									!!tab.workspace.repository &&
+									!!onChangeBranch
+								}
 								menuOpen={menuId === tab.id && state.activeId === tab.id}
 								onDismissMenu={() => setMenuId(null)}
 								onPointerDown={onPointerDown}
