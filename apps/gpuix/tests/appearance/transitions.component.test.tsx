@@ -1,10 +1,10 @@
 /**
  * Covers: theme blending, interrupted switches, disabling motion and retained mounted content.
  * Real: AppShell, theme hook, React and native rendering.
- * Doubles: explicit in-memory themes; no user settings or Git reads/writes.
+ * Doubles: explicit in-memory themes and transition time; no user settings or Git reads/writes.
  * Requires: patched native addon and macOS graphics access.
  */
-import { afterEach, expect, it } from "bun:test";
+import { afterEach, beforeEach, expect, it, mock, spyOn } from "bun:test";
 import { createTestRoot, type TestRoot } from "@gpuix/react/testing";
 import { AppShell } from "../../src/fixture/app-shell";
 import {
@@ -15,10 +15,17 @@ import {
 import type { AppAppearance } from "../../src/styles/tokens";
 
 let root: TestRoot | undefined;
+let nowMs = 0;
+
+beforeEach(() => {
+	nowMs = 0;
+	spyOn(performance, "now").mockImplementation(() => nowMs);
+});
 
 afterEach(() => {
 	root?.unmount();
 	root = undefined;
+	mock.restore();
 });
 
 function Probe() {
@@ -57,14 +64,33 @@ function surface(testRoot: TestRoot): string | undefined {
 	return typeof color === "string" ? color : undefined;
 }
 
+async function waitForSurface(
+	testRoot: TestRoot,
+	predicate: (color: string | undefined) => boolean
+): Promise<void> {
+	const deadline = Date.now() + 1000;
+
+	while (Date.now() < deadline) {
+		await Bun.sleep(10);
+		testRoot.renderer.flush();
+
+		if (predicate(surface(testRoot))) return;
+	}
+
+	throw new Error("The theme transition did not reach its expected color.");
+}
+
 it("shows intermediate background and text colors without remounting content", async () => {
 	const testRoot = show("light");
 	const text = testRoot.renderer.findByTestId("palette-text");
 
 	show("dark");
 	expect(surface(testRoot)).toBe(appThemes.light.colors.editorSurface);
-	await Bun.sleep(65);
-	testRoot.renderer.flush();
+	nowMs = 65;
+	await waitForSurface(
+		testRoot,
+		(color) => color !== appThemes.light.colors.editorSurface
+	);
 	const intermediate = surface(testRoot);
 
 	expect(intermediate).not.toBe(appThemes.light.colors.editorSurface);
@@ -72,8 +98,11 @@ it("shows intermediate background and text colors without remounting content", a
 	expect(testRoot.renderer.findByTestId("palette-text")?.style.color).not.toBe(
 		appThemes.dark.tokens.colors.text
 	);
-	await Bun.sleep(220);
-	testRoot.renderer.flush();
+	nowMs = 285;
+	await waitForSurface(
+		testRoot,
+		(color) => color === appThemes.dark.colors.editorSurface
+	);
 	expect(surface(testRoot)).toBe(appThemes.dark.colors.editorSurface);
 	expect(testRoot.renderer.findByTestId("palette-text")?.style.color).toBe(
 		appThemes.dark.tokens.colors.text
@@ -85,18 +114,22 @@ it("continues a reversed transition from its visible colors and snaps when disab
 	const testRoot = show("light");
 
 	show("dark");
-	await Bun.sleep(65);
-	testRoot.renderer.flush();
+	nowMs = 65;
+	await waitForSurface(
+		testRoot,
+		(color) => color !== appThemes.light.colors.editorSurface
+	);
 	const intermediate = surface(testRoot);
 
 	show("light");
 	expect(surface(testRoot)).toBe(intermediate);
-	await Bun.sleep(40);
-	testRoot.renderer.flush();
+	nowMs = 105;
+	await waitForSurface(testRoot, (color) => color !== intermediate);
 	expect(surface(testRoot)).not.toBe(intermediate);
 	show("dark", false);
 	expect(surface(testRoot)).toBe(appThemes.dark.colors.editorSurface);
-	await Bun.sleep(220);
+	nowMs = 325;
+	await Bun.sleep(32);
 	testRoot.renderer.flush();
 	expect(surface(testRoot)).toBe(appThemes.dark.colors.editorSurface);
 });
