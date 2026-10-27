@@ -1,5 +1,6 @@
 /** Settings navigation metadata shared by Settings and command surfaces without importing UI modules. */
 export type SettingsSection =
+	| "application"
 	| "spaces"
 	| "appearance"
 	| "keybinds"
@@ -14,6 +15,7 @@ export type SettingsSection =
 	| "repository-identity";
 
 export const settingsPagesMetadata = [
+	{ section: "application", label: "Application", group: "application" },
 	{ section: "spaces", label: "Spaces", group: "application" },
 	{ section: "appearance", label: "Appearance", group: "application" },
 	{ section: "keybinds", label: "Keybinds", group: "application" },

@@ -202,6 +202,7 @@ test.each([
 
 		await settle();
 		const pages = [
+			["application", "application-settings"],
 			["spaces", "spaces-settings"],
 			["appearance", "appearance-settings"],
 			["keybinds", "keybinds-settings"],
@@ -232,6 +233,13 @@ test.each([
 
 			expect(bounds?.height).toBeGreaterThan(300);
 			capture(section);
+
+			if (section === "application") {
+				await press("application-install-user");
+				expect(root.renderer.getAllText().join(" ")).toContain(
+					"available only in a packaged app"
+				);
+			}
 
 			if (section === "repository-appearance") {
 				const controls = root.renderer.getElementBounds(

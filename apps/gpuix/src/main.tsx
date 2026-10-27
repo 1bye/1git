@@ -10,10 +10,63 @@ import { WorkspaceSessionStore } from "./feature/workspace-tabs/lib/workspace-se
 import { AppUpdater } from "./app-updater";
 import { ShellEnvironment } from "./shell-environment";
 import { DesktopAnalytics } from "./feature/analytics/desktop-analytics";
+import {
+	LauncherService,
+	launcherRequests,
+	sendLauncherRequest,
+} from "./launcher/launcher-service";
+import { parseLauncherArguments } from "./launcher/launcher-protocol";
 
 void ShellEnvironment.shared.prepare();
 
+const subscribeLauncherRequests =
+	launcherRequests.subscribe.bind(launcherRequests);
+
 const preview = process.env.GPUIX_PREVIEW === "1";
+
+const launcherRequest: ReturnType<typeof parseLauncherArguments> = (() => {
+	try {
+		return parseLauncherArguments(
+			process.argv.slice(2),
+			process.env.ONEGIT_LAUNCHER_CWD ?? process.cwd()
+		);
+	} catch (error: unknown) {
+		process.stderr.write(
+			`1git launcher: ${error instanceof Error ? error.message : String(error)}\n`
+		);
+		process.exit(2);
+	}
+})();
+
+const launcher = preview
+	? undefined
+	: new LauncherService(undefined, (request) =>
+			launcherRequests.enqueue(request)
+		);
+
+if (!preview) {
+	if (launcherRequest.path !== undefined)
+		launcherRequests.enqueue(launcherRequest);
+
+	try {
+		const started = await launcher?.start();
+
+		if (!started) {
+			if (!(await sendLauncherRequest(launcherRequest))) {
+				throw new Error(
+					"The running 1git instance did not accept the launch request."
+				);
+			}
+
+			process.exit(0);
+		}
+	} catch (error: unknown) {
+		process.stderr.write(
+			`1git launcher unavailable: ${error instanceof Error ? error.message : String(error)}\n`
+		);
+		process.exit(1);
+	}
+}
 
 DesktopAnalytics.start(preview);
 
@@ -48,6 +101,7 @@ render(
 		watchRepository={RepositoryWatcher.watch}
 		discoverRepositories={preview ? undefined : RepositoryDiscovery.scan}
 		discoveryCache={discoveryCache}
+		subscribeLauncherRequests={preview ? undefined : subscribeLauncherRequests}
 	/>,
 	{
 		...windowOptions,

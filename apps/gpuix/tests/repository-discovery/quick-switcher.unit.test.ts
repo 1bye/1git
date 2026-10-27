@@ -84,12 +84,39 @@ it("keeps actions discoverable while disabling repository work on Home", () => {
 
 	expect(actions.find((item) => item.id === "fetch")?.enabled).toBe(false);
 	expect(actions.find((item) => item.id === "settings")?.enabled).toBe(true);
+	expect(actions.find((item) => item.id === "install-launcher")?.enabled).toBe(
+		false
+	);
 	expect(actions.find((item) => item.id === "settings:accounts")?.enabled).toBe(
 		true
 	);
 	expect(
 		searchRepositoryPaletteActions(actions, "new branch").map((item) => item.id)
 	).toEqual(["new-branch"]);
+});
+
+it("enables packaged command installation actions when a bundle is available", () => {
+	const actions = repositoryPaletteActions(
+		{},
+		{
+			hasRepository: true,
+			canFetch: false,
+			canBranch: false,
+			canSynchronize: false,
+			canStash: false,
+			canReveal: false,
+			canClose: false,
+			launcherAvailable: true,
+		}
+	);
+
+	expect(actions.find((item) => item.id === "install-launcher")).toMatchObject({
+		enabled: true,
+		hint: "Packaged app only",
+	});
+	expect(
+		actions.find((item) => item.id === "uninstall-launcher")?.enabled
+	).toBe(true);
 });
 
 it("keeps Pull and Push as explicit upstream operations", () => {

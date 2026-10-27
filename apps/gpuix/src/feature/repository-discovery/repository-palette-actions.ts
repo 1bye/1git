@@ -18,6 +18,8 @@ export type RepositoryPaletteActionId =
 	| "external-editor"
 	| "finder"
 	| "copy-path"
+	| "install-launcher"
+	| "uninstall-launcher"
 	| "new-tab"
 	| "close-tab"
 	| "settings"
@@ -35,6 +37,7 @@ interface ActionDefinition {
 	readonly id: Exclude<RepositoryPaletteActionId, `settings:${string}`>;
 	readonly label: string;
 	readonly keybind?: string;
+	readonly hint?: string;
 }
 
 const actionDefinitions: readonly ActionDefinition[] = [
@@ -47,6 +50,16 @@ const actionDefinitions: readonly ActionDefinition[] = [
 	{ id: "external-editor", label: "Open in external editor" },
 	{ id: "finder", label: "Reveal in Finder" },
 	{ id: "copy-path", label: "Copy path" },
+	{
+		id: "install-launcher",
+		label: "Install 1git command",
+		hint: "Packaged app only",
+	},
+	{
+		id: "uninstall-launcher",
+		label: "Uninstall 1git command",
+		hint: "Packaged app only",
+	},
 	{ id: "new-tab", label: "New tab", keybind: "new-tab" },
 	{ id: "close-tab", label: "Close tab", keybind: "close-tab" },
 	{ id: "settings", label: "Open Settings", keybind: "settings" },
@@ -60,6 +73,9 @@ function isActionEnabled(
 		case "new-tab":
 		case "settings":
 			return true;
+		case "install-launcher":
+		case "uninstall-launcher":
+			return context.launcherAvailable === true;
 		case "close-tab":
 			return context.canClose;
 		case "external-editor":
@@ -94,6 +110,7 @@ export interface RepositoryPaletteActionContext {
 	readonly canStash: boolean;
 	readonly canReveal: boolean;
 	readonly canClose: boolean;
+	readonly launcherAvailable?: boolean;
 }
 
 /** The command-palette registry is shared by rendering and dispatch, so labels and hints cannot drift. */
@@ -108,7 +125,7 @@ export function repositoryPaletteActions(
 			: definition.label,
 		hint: definition.keybind
 			? Keybinds.label(definition.keybind, overrides)
-			: "",
+			: (definition.hint ?? ""),
 		enabled: isActionEnabled(definition.id, context),
 	})) satisfies readonly RepositoryPaletteAction[];
 

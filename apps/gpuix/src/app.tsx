@@ -92,6 +92,10 @@ import { settingsShortcuts } from "./feature/accounts/lib/settings-shortcut";
 import { useGpuixRequired, type PublicInstance } from "@gpuix/react";
 import { workspaceShortcuts } from "./feature/repository-workspace/lib/repository-filter-shortcut";
 import { Button } from "@1git/gpuix-ui/button";
+import { applicationBundlePath } from "./launcher/launcher-installation";
+import type { LauncherRequestHandler } from "./launcher/launcher-service";
+import type { LauncherRequest } from "./launcher/launcher-protocol";
+import type { ApplicationLauncherIntent } from "./feature/settings/application-settings";
 
 import {
 	WorkspaceSession,
@@ -325,6 +329,7 @@ function AppContent({
 	machines: suppliedMachines,
 	readGitSettings = GitSettingsModel.read,
 	writeGitSettings = GitSettingsModel.write,
+	subscribeLauncherRequests,
 }: {
 	ignoredHistory?: IgnoredHistory;
 	machines?: Machines;
@@ -384,6 +389,8 @@ function AppContent({
 	externalEditors?: ExternalEditors;
 	readGitSettings?: typeof GitSettingsModel.read;
 	writeGitSettings?: typeof GitSettingsModel.write;
+	/** Process-owned launcher subscription; tests provide isolated queues. */
+	subscribeLauncherRequests?: (listener: LauncherRequestHandler) => () => void;
 }) {
 	const theme = useAppTheme();
 	const { tokens: appTokens } = theme;
@@ -591,6 +598,9 @@ function AppContent({
 	);
 
 	const visibleTabs = WorkspaceSpaces.tabs(state);
+	const allTabsRef = useRef(state.tabs);
+
+	allTabsRef.current = state.tabs;
 
 	const activeSpace = useMemo(() => {
 		const space = WorkspaceSpaces.current(state);
@@ -602,6 +612,9 @@ function AppContent({
 	}, [state]);
 
 	const activeSpaceId = activeSpace.id;
+	const activeSpaceIdRef = useRef(activeSpaceId);
+
+	activeSpaceIdRef.current = activeSpaceId;
 	const discoveryPreferences = activeSpace.discovery;
 	const repositoryLibrary = activeSpace.library;
 	const selectedMachine = repositoryLibrary.machine ?? "local";
@@ -1106,6 +1119,9 @@ function AppContent({
 	const [settingsSection, setSettingsSection] =
 		useState<SettingsSection>("accounts");
 
+	const [applicationSettingsIntent, setApplicationSettingsIntent] =
+		useState<ApplicationLauncherIntent>();
+
 	const [reconnectAccountKey, setReconnectAccountKey] = useState<string>();
 
 	const [preferredAccountKey, setPreferredAccountKey] = useState<string>();
@@ -1416,6 +1432,7 @@ function AppContent({
 					!!activeTab &&
 					!!workspace &&
 					!RepositoryWorkspaceModel.isBusy(workspace),
+				launcherAvailable: applicationBundlePath() !== undefined,
 			}),
 		[activeTab, keybindOverrides, workspace]
 	);
@@ -1489,6 +1506,16 @@ function AppContent({
 
 			if (id === "settings") {
 				openSettings();
+
+				return;
+			}
+
+			if (id === "install-launcher" || id === "uninstall-launcher") {
+				setApplicationSettingsIntent(
+					id === "install-launcher" ? "install" : "uninstall"
+				);
+				openSettings();
+				setSettingsSection("application");
 
 				return;
 			}
@@ -1606,6 +1633,7 @@ function AppContent({
 			openSettings,
 			reportPaletteActionError,
 			readBranches,
+			setApplicationSettingsIntent,
 			setQuickSwitcherOpen,
 			setSettingsSection,
 			state.nextId,
@@ -1616,6 +1644,7 @@ function AppContent({
 	const closeSettings = useCallback(() => {
 		if (settingsBusy) return;
 
+		setApplicationSettingsIntent(undefined);
 		setSpaceEditor(undefined);
 		const id = WorkspaceTabsModel.settingsId(state);
 
@@ -1635,7 +1664,14 @@ function AppContent({
 			if (target !== null && renderer.getElementBounds?.(target))
 				renderer.focusElement?.(target);
 		}, 0);
-	}, [dispatch, renderer, setSpaceEditor, settingsBusy, state]);
+	}, [
+		dispatch,
+		renderer,
+		setApplicationSettingsIntent,
+		setSpaceEditor,
+		settingsBusy,
+		state,
+	]);
 
 	const openAppearance = (
 		section: RepositoryAppearanceSection = "color",
@@ -1713,27 +1749,146 @@ function AppContent({
 		closeSettings();
 	};
 
-	const onboardingTab = (path?: string): string => {
-		if (
-			onboardingId &&
-			state.tabs.some(
-				(tab) =>
-					tab.id === onboardingId &&
-					(tab.spaceId ?? "default") === activeSpaceId
-			)
-		) {
-			if (path) readTabRepository(onboardingId, path);
+	const onboardingTab = useCallback(
+		(path?: string): string => {
+			if (
+				onboardingId &&
+				state.tabs.some(
+					(tab) =>
+						tab.id === onboardingId &&
+						(tab.spaceId ?? "default") === activeSpaceId
+				)
+			) {
+				if (path) readTabRepository(onboardingId, path);
 
-			return onboardingId;
+				return onboardingId;
+			}
+
+			const id = `workspace-${state.nextId}`;
+
+			dispatch({ type: "add", path });
+			setOnboardingId(id);
+
+			return id;
+		},
+		[
+			activeSpaceId,
+			dispatch,
+			onboardingId,
+			readTabRepository,
+			setOnboardingId,
+			state.nextId,
+			state.tabs,
+		]
+	);
+
+	const launcherMountedRef = useRef(false);
+
+	const openLauncherRequest = async (
+		request: LauncherRequest,
+		signal: AbortSignal,
+		requestSpaceId: string
+	): Promise<void> => {
+		if (signal.aborted || !launcherMountedRef.current) return;
+
+		renderer.activateWindow?.();
+
+		if (request.path === undefined) return;
+
+		let opened: Awaited<ReturnType<typeof readRepository>> | undefined;
+
+		try {
+			opened = await readRepository(request.path, signal);
+		} catch {
+			opened = undefined;
 		}
 
-		const id = `workspace-${state.nextId}`;
+		if (signal.aborted || !launcherMountedRef.current) return;
 
-		dispatch({ type: "add", path });
-		setOnboardingId(id);
+		if (opened?.ok) {
+			const root = opened.value.repository.root;
 
-		return id;
+			const existing = allTabsRef.current.find(
+				(tab) =>
+					!tab.comparison &&
+					(tab.workspace.repository?.root ?? tab.workspace.repositoryPath) ===
+						root
+			);
+
+			if (existing) {
+				const owner = existing.spaceId ?? "default";
+
+				dispatch({ type: "space-select", id: owner });
+
+				dispatch({ type: "activate", id: existing.id });
+			} else
+				dispatch({
+					type: "open-worktree",
+					snapshot: opened.value,
+					spaceId: requestSpaceId,
+				});
+
+			setOnboarding("complete");
+			setOnboardingId(null);
+			setOnboardingClone(false);
+
+			return;
+		}
+
+		if (activeSpaceId !== requestSpaceId) return;
+
+		if (onboardingOpen) {
+			onboardingTab(request.path);
+			setOnboarding("repository");
+
+			return;
+		}
+
+		if (activeTab?.kind === "empty")
+			readTabRepository(activeTab.id, request.path);
+		else dispatch({ type: "add", path: request.path });
 	};
+
+	const openLauncherRequestRef = useRef(openLauncherRequest);
+
+	openLauncherRequestRef.current = openLauncherRequest;
+	const launcherRequestTail = useRef(Promise.resolve());
+
+	useEffect(() => {
+		if (preview || !subscribeLauncherRequests) return;
+
+		launcherMountedRef.current = true;
+		const controller = new AbortController();
+
+		const unsubscribe = subscribeLauncherRequests((request) => {
+			const requestSpaceId = activeSpaceIdRef.current ?? "default";
+
+			launcherRequestTail.current = launcherRequestTail.current
+				.then(() =>
+					openLauncherRequestRef.current(
+						request,
+						controller.signal,
+						requestSpaceId
+					)
+				)
+				.catch((error: unknown) => {
+					if (controller.signal.aborted || !launcherMountedRef.current) return;
+
+					setPaletteActionError(
+						error instanceof Error
+							? error.message
+							: "Could not open the requested repository."
+					);
+					setQuickSwitcherOpen(true);
+				});
+		});
+
+		return () => {
+			launcherMountedRef.current = false;
+			controller.abort();
+			unsubscribe();
+		};
+	}, [preview, subscribeLauncherRequests]);
 
 	const onboardingBusy =
 		connection.pickingId !== null ||
@@ -2156,6 +2311,10 @@ function AppContent({
 			remoteAccounts={remoteAccounts}
 			initialSection={settingsSection}
 			onSectionChange={setSettingsSection}
+			applicationSettingsIntent={applicationSettingsIntent}
+			onApplicationSettingsIntentConsumed={() =>
+				setApplicationSettingsIntent(undefined)
+			}
 			repositorySettings={
 				settingsContextWorkspace?.repository
 					? {

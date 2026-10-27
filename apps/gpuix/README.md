@@ -16,6 +16,26 @@ bun run --cwd apps/gpuix build:native
 bun run --cwd apps/gpuix dev
 ```
 
+## Command-line launcher
+
+The packaged app includes a `1git` launcher for opening or focusing the running
+app from a terminal. `1git` opens the app, while `1git .` and `1git /path/to/project`
+open the selected local path. Existing app instances receive the request through
+a per-user Unix socket; a first launch starts the app with the path as its argument.
+Paths that are not repositories continue through the app's normal setup flow.
+
+Install or remove the command from **Settings → Application**. Installation first
+offers `/usr/local/bin` with the macOS administrator prompt, then
+`~/.local/bin` when no administrator access is available. The installed command is
+a symlink to the launcher script inside the app bundle and does not copy the app.
+If you use the per-user location, ensure `~/.local/bin` is on your shell's `PATH`
+(for example, `export PATH="$HOME/.local/bin:$PATH"`).
+
+Development accepts the same argument: `bun run dev:app -- /path/to/project`.
+Relative paths resolve from the directory where that command is run, even though
+Turbo starts the app task from `apps/gpuix`.
+Only local filesystem paths are accepted; URLs and other remote inputs are rejected.
+
 `bun run --cwd apps/gpuix test` gives native component journeys a 30-second
 per-test limit, including full Settings and onboarding flows. Scrolling tests
 retain their separate frame-time and React-render budgets.
