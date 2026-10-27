@@ -7,6 +7,11 @@
 import { expect, it } from "bun:test";
 import { RepositoryQuickSwitcherModel as Switcher } from "../../src/feature/repository-discovery/repository-quick-switcher-model";
 import { MachineLocation } from "../../src/feature/machines/machine-location";
+import {
+	repositoryPaletteActions,
+	searchRepositoryPaletteActions,
+} from "../../src/feature/repository-discovery/repository-palette-actions";
+import { repositoryPaletteSyncChoice } from "../../src/feature/repository-discovery/repository-palette-sync";
 
 it("deduplicates in recent order while preserving identical paths on different machines", () => {
 	const remote = MachineLocation.encode(
@@ -61,4 +66,52 @@ it("ranks exact names ahead of prefixes, substrings and directory matches", () =
 	]);
 	expect(Switcher.search(items, "missing")).toEqual([]);
 	expect(Switcher.search(items, "alpha test")).toHaveLength(4);
+});
+
+it("keeps actions discoverable while disabling repository work on Home", () => {
+	const actions = repositoryPaletteActions(
+		{},
+		{
+			hasRepository: false,
+			canFetch: false,
+			canBranch: false,
+			canSynchronize: false,
+			canStash: false,
+			canReveal: false,
+			canClose: false,
+		}
+	);
+
+	expect(actions.find((item) => item.id === "fetch")?.enabled).toBe(false);
+	expect(actions.find((item) => item.id === "settings")?.enabled).toBe(true);
+	expect(actions.find((item) => item.id === "settings:accounts")?.enabled).toBe(
+		true
+	);
+	expect(
+		searchRepositoryPaletteActions(actions, "new branch").map((item) => item.id)
+	).toEqual(["new-branch"]);
+});
+
+it("keeps Pull and Push as explicit upstream operations", () => {
+	const branch = {
+		upstreamRemote: "origin",
+		upstreamRef: "refs/heads/main",
+	};
+
+	expect(repositoryPaletteSyncChoice("pull", branch)).toEqual({
+		kind: "pull",
+		remote: "origin",
+		remoteRef: "refs/heads/main",
+	});
+	expect(repositoryPaletteSyncChoice("push", branch)).toEqual({
+		kind: "push",
+		remote: "origin",
+		remoteRef: "refs/heads/main",
+	});
+	expect(
+		repositoryPaletteSyncChoice("pull", {
+			upstreamRemote: null,
+			upstreamRef: null,
+		})
+	).toBeNull();
 });

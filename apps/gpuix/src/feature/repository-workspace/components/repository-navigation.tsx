@@ -210,6 +210,8 @@ function RepositoryNavigationContent({
 	onRefresh,
 	history,
 	stashes,
+	stashCreateRequest,
+	onStashCreateRequestHandled,
 	onCommit,
 	onCancelCommit,
 	onAiSettings,
@@ -244,6 +246,8 @@ function RepositoryNavigationContent({
 	onRefresh: () => void;
 	history?: ReturnType<typeof useRepositoryHistory>;
 	stashes?: ReturnType<typeof useRepositoryStashes>;
+	stashCreateRequest?: number;
+	onStashCreateRequestHandled?: () => void;
 	onCommit?: () => void;
 	onCancelCommit?: () => void;
 	onAiSettings?: () => void;
@@ -954,6 +958,8 @@ function RepositoryNavigationContent({
 								<RepositoryStashActions
 									state={state}
 									placement="create"
+									createRequest={stashCreateRequest}
+									onCreateRequestHandled={onStashCreateRequestHandled}
 									onWrite={onStash}
 								/>
 							</div>

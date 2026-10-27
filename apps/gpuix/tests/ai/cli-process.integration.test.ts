@@ -504,17 +504,133 @@ it.each([
 	).rejects.toThrow("completed commit message");
 });
 
-it("rejects oversized input and cancelled requests before invoking an executable", async () => {
+it.each(["claude-code", "codex"] as const)(
+	"puts large %s selections in a read-only temporary file",
+	async (provider) => {
+		const reply =
+			provider === "claude-code"
+				? success
+				: 'console.info(JSON.stringify({type:"item.completed",item:{type:"agent_message",text:"fix: handle empty greetings"}})); console.info(JSON.stringify({type:"turn.completed"}));';
+
+		const readerProbe =
+			provider === "codex"
+				? `const readerArg = args.find(value => value.startsWith("mcp_servers.1git-selected.url="));
+const readerUrl = JSON.parse(readerArg.slice("mcp_servers.1git-selected.url=".length));
+const callReader = async body => (await fetch(readerUrl, {method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify(body)})).json();
+const readerInit = await callReader({jsonrpc:"2.0",id:1,method:"initialize"});
+const readerTools = await callReader({jsonrpc:"2.0",id:2,method:"tools/list"});
+const readerOverview = await callReader({jsonrpc:"2.0",id:3,method:"tools/call",params:{name:"read_selected_overview",arguments:{}}});
+const readerPage = await callReader({jsonrpc:"2.0",id:4,method:"tools/call",params:{name:"read_selected_changes",arguments:{offset:0}}});
+const readerInvalid = await callReader({jsonrpc:"2.0",id:5,method:"tools/call",params:{name:"read_selected_changes",arguments:{offset:"bad"}}});
+const readerUnknown = await callReader({jsonrpc:"2.0",id:6,method:"tools/call",params:{name:"unknown",arguments:{}}});
+const invalidReaderUrl = new URL(readerUrl);
+invalidReaderUrl.searchParams.set("token", "invalid");
+const unauthorizedReader = (await fetch(invalidReaderUrl, {method:"POST", headers:{"content-type":"application/json"}, body:"{}"})).status;
+const readerCapture = JSON.parse(await Bun.file(record).text());
+await Bun.write(record, JSON.stringify({...readerCapture, reader:{readerInit, readerTools, readerOverview, readerPage, readerInvalid, readerUnknown, unauthorizedReader}}));
+`
+				: "";
+
+		const preferences = await fixture(
+			`const captured = JSON.parse(await Bun.file(record).text());
+const patchFile = await Bun.file("selected-changes.patch").bytes();
+const overview = await Bun.file("selected-changes-overview.json").text();
+await Bun.write(record, JSON.stringify({...captured, patchBytes: patchFile.byteLength, overview}));
+${readerProbe}
+${reply}`,
+			provider
+		);
+
+		const patch = `diff --git a/file b/file\n--- a/file\n+++ b/file\n@@ -1 +1 @@\n-${"x".repeat(64)}\n+${"y".repeat(64 * 1024)}\n`;
+
+		const message = await new CliAgent().generate(
+			preferences,
+			patch,
+			new AbortController().signal
+		);
+
+		const captured = JSON.parse(await readFile(record, "utf8"));
+
+		expect(message).toBe("fix: handle empty greetings");
+		expect(captured.patchBytes).toBe(Buffer.byteLength(patch));
+		expect(captured.input).toContain("selected-changes-overview.json");
+		expect(captured.input).not.toContain(patch);
+		expect(JSON.parse(captured.overview).files[0].added).toBe(1);
+		expect(existsSync(captured.cwd)).toBe(false);
+
+		if (provider === "claude-code") {
+			expect(captured.args).toContain("--restricted");
+			expect(captured.args).toContain("Read");
+		} else {
+			expect(captured.args).toContain("read-only");
+			expect(captured.args).toContain("features.shell_tool=false");
+			expect(captured.args).toContain("features.unified_exec=false");
+			expect(captured.args).toContain("mcp_servers.1git-selected.enabled=true");
+			expect(captured.args).toContain(
+				"mcp_servers.1git-selected.required=true"
+			);
+			expect(captured.args.join(" ")).toMatch(/127\.0\.0\.1:\d+\/mcp\?token=/u);
+			expect(captured.reader.readerInit.result.serverInfo.name).toBe(
+				"1git-selected-changes"
+			);
+			expect(captured.reader.readerTools.result.tools).toHaveLength(2);
+			expect(
+				captured.reader.readerTools.result.tools.every(
+					(tool: { annotations?: { readOnlyHint?: boolean } }) =>
+						tool.annotations?.readOnlyHint === true
+				)
+			).toBe(true);
+			expect(captured.reader.readerOverview.result.content[0].text).toContain(
+				"file"
+			);
+			expect(captured.reader.readerPage.result.content[0].text).toContain(
+				"diff --git"
+			);
+			expect(captured.reader.readerInvalid.result.isError).toBe(true);
+			expect(captured.reader.readerUnknown.result.isError).toBe(true);
+			expect(captured.reader.unauthorizedReader).toBe(404);
+		}
+	}
+);
+
+it("allows bounded Codex MCP tool output for large selections", async () => {
+	const preferences = await fixture(
+		`const page = JSON.stringify({offset:0,nextOffset:1,text:String.fromCharCode(34,92).repeat(24 * 1024)});
+for (let index = 0; index < 96; index++)
+ console.info(JSON.stringify({type:"item.completed",item:{type:"mcp_tool_call",id:"call-"+index,server:"1git-selected-changes",tool:"read_selected_changes",status:"completed",result:{content:[{type:"text",text:page}]}}}));
+console.info(JSON.stringify({type:"item.completed",item:{type:"agent_message",text:"fix: handle large selections"}}));
+console.info(JSON.stringify({type:"turn.completed"}));`,
+		"codex"
+	);
+
+	const patch = `diff --git a/file b/file\n@@ -1 +1 @@\n+${String.fromCharCode(34, 92).repeat(4 * 1024 * 1024 - 128)}\n`;
+
+	expect(Buffer.byteLength(patch)).toBeLessThanOrEqual(8 * 1024 * 1024);
+
+	const message = await new CliAgent().generate(
+		preferences,
+		patch,
+		new AbortController().signal
+	);
+
+	const captured = JSON.parse(await readFile(record, "utf8"));
+
+	expect(message).toBe("fix: handle large selections");
+	expect(captured.input).not.toContain(patch);
+	expect(existsSync(captured.cwd)).toBe(false);
+});
+
+it("rejects input above the bounded CLI file limit and cancelled requests before invoking an executable", async () => {
 	const preferences = await fixture(success);
 	const controller = new AbortController();
 
 	await expect(
 		new CliAgent().generate(
 			preferences,
-			"x".repeat(64 * 1024 + 1),
+			"x".repeat(8 * 1024 * 1024 + 1),
 			controller.signal
 		)
-	).rejects.toThrow("64 KiB");
+	).rejects.toThrow("8 MiB");
 	controller.abort();
 	await expect(
 		new CliAgent().generate(preferences, "+selected", controller.signal)
@@ -536,6 +652,31 @@ it("times out a stalled agent and cleans its temporary cwd", async () => {
 
 	expect(existsSync(captured.cwd)).toBe(false);
 	expect(() => process.kill(captured.pid, 0)).toThrow();
+});
+
+it("stops the Codex reader when a large request times out", async () => {
+	const preferences = await fixture("setInterval(() => {}, 1000);", "codex");
+	const patch = `diff --git a/file b/file\n@@ -1 +1 @@\n+${"x".repeat(64 * 1024)}\n`;
+
+	await expect(
+		new CliAgent(1000).generate(
+			preferences,
+			patch,
+			new AbortController().signal
+		)
+	).rejects.toThrow("timed out");
+
+	const captured = JSON.parse(await readFile(record, "utf8"));
+
+	const readerArg = captured.args.find((value: string) =>
+		value.startsWith("mcp_servers.1git-selected.url=")
+	);
+
+	const readerUrl = JSON.parse(
+		readerArg.slice("mcp_servers.1git-selected.url=".length)
+	);
+
+	await expect(fetch(readerUrl)).rejects.toThrow();
 });
 
 it("reports rate limits promptly without waiting for the CLI's retry backoff", async () => {

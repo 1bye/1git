@@ -48,6 +48,12 @@ import { RepositoryDiscovery } from "./feature/repository-discovery/repository-d
 import type { RepositoryDiscoveryCache } from "./feature/repository-discovery/repository-discovery-cache";
 import { RepositoryQuickSwitcher } from "./feature/repository-discovery/repository-quick-switcher";
 import { RepositoryQuickSwitcherModel } from "./feature/repository-discovery/repository-quick-switcher-model";
+import { RepositoryOverviews } from "./feature/repository-discovery/repository-overviews";
+import {
+	repositoryPaletteActions,
+	type RepositoryPaletteActionId,
+} from "./feature/repository-discovery/repository-palette-actions";
+import { repositoryPaletteSyncChoice } from "./feature/repository-discovery/repository-palette-sync";
 import {
 	RepositoryLibrary,
 	type RepositoryLibraryPreferences,
@@ -70,6 +76,7 @@ import { RepositoryPreviewCache } from "./feature/repository-workspace/lib/repos
 import { RepositoryAvatars } from "./feature/repository-workspace/lib/repository-avatars";
 import { RepositoryAvatarCache } from "./feature/repository-workspace/lib/repository-avatar-cache";
 import { RepositoryAvatarContext } from "./feature/repository-workspace/components/repository-avatar";
+import { NativeClipboard } from "./platform/clipboard";
 import {
 	AccountsSettings,
 	type SettingsSection,
@@ -683,7 +690,24 @@ function AppContent({
 	);
 
 	const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
+	const [quickSwitcherSession, setQuickSwitcherSession] = useState(0);
 	const quickSwitcherTarget = useRef<string | null>(null);
+
+	const [paletteActionError, setPaletteActionError] = useState<string | null>(
+		null
+	);
+
+	const [workspaceMenuRequest, setWorkspaceMenuRequest] = useState<{
+		id: string;
+		intent: "new" | "switch";
+	} | null>(null);
+
+	const stashRequestSequence = useRef(0);
+
+	const [stashCreateRequest, setStashCreateRequest] = useState<{
+		id: string;
+		sequence: number;
+	} | null>(null);
 
 	useEffect(() => {
 		if (!quickSwitcherOpen) quickSwitcherTarget.current = null;
@@ -1336,6 +1360,66 @@ function AppContent({
 		[machines]
 	);
 
+	const repositoryOverviews = useMemo(
+		() => new RepositoryOverviews(readRepository, canReadOverview),
+		[canReadOverview, readRepository]
+	);
+
+	useEffect(() => {
+		repositoryOverviews.setOpen(
+			state.tabs
+				.filter((tab) => tab.kind === "repository")
+				.map((tab) => tab.workspace)
+		);
+	}, [repositoryOverviews, state.tabs]);
+
+	useEffect(() => () => repositoryOverviews.dispose(), [repositoryOverviews]);
+
+	const paletteActions = useMemo(
+		() =>
+			repositoryPaletteActions(keybindOverrides, {
+				hasRepository:
+					activeTab?.kind === "repository" &&
+					!!workspace?.repository &&
+					!workspace.preview,
+				canFetch:
+					activeTab?.kind === "repository" &&
+					!!workspace?.repository &&
+					!workspace.preview &&
+					!workspace.loading &&
+					!workspace.error &&
+					!RepositoryWorkspaceModel.isBusy(workspace),
+				canBranch:
+					activeTab?.kind === "repository" &&
+					!!workspace?.repository &&
+					!workspace.preview &&
+					!workspace.loading &&
+					!workspace.error &&
+					!RepositoryWorkspaceModel.isBusy(workspace),
+				canSynchronize:
+					activeTab?.kind === "repository" &&
+					!!workspace?.repository &&
+					RepositoryWorkspaceModel.canSync(workspace),
+				canStash:
+					activeTab?.kind === "repository" &&
+					!!workspace?.repository &&
+					!workspace.preview &&
+					!workspace.loading &&
+					!workspace.error &&
+					workspace.entries.changes.length > 0 &&
+					!RepositoryWorkspaceModel.isBusy(workspace),
+				canReveal:
+					activeTab?.kind === "repository" &&
+					!!workspace?.repository &&
+					!MachineLocation.isRemote(workspace.repository.root),
+				canClose:
+					!!activeTab &&
+					!!workspace &&
+					!RepositoryWorkspaceModel.isBusy(workspace),
+			}),
+		[activeTab, keybindOverrides, workspace]
+	);
+
 	const openSettings = useCallback(
 		(initialForm: "list" | "connect" = "list") => {
 			setAppearanceEditor(undefined);
@@ -1367,6 +1451,165 @@ function AppContent({
 			setSettingsForm,
 			setSettingsSection,
 			setReconnectAccountKey,
+		]
+	);
+
+	const reportPaletteActionError = useCallback(
+		(cause: unknown): void => {
+			setPaletteActionError(
+				cause instanceof Error
+					? cause.message
+					: "The command could not be completed."
+			);
+			setQuickSwitcherOpen(true);
+		},
+		[setQuickSwitcherOpen, setPaletteActionError]
+	);
+
+	const runPaletteAction = useCallback(
+		(id: RepositoryPaletteActionId): void => {
+			setQuickSwitcherOpen(false);
+
+			if (id === "new-tab") {
+				const target = `workspace-${state.nextId}`;
+
+				quickSwitcherTarget.current = target;
+				dispatch({ type: "add", kind: "empty" });
+				setQuickSwitcherSession((session) => session + 1);
+				setQuickSwitcherOpen(true);
+
+				return;
+			}
+
+			if (id === "close-tab") {
+				if (activeTab) dispatch({ type: "close", id: activeTab.id });
+
+				return;
+			}
+
+			if (id === "settings") {
+				openSettings();
+
+				return;
+			}
+
+			if (id.startsWith("settings:")) {
+				openSettings();
+				setSettingsSection(id.slice("settings:".length) as SettingsSection);
+
+				return;
+			}
+
+			const repository = workspace?.repository;
+
+			if (!activeTab || activeTab.kind !== "repository" || !repository) return;
+
+			const syncExplicit = async (kind: "pull" | "push"): Promise<void> => {
+				const result = await readBranches(
+					repository.root,
+					new AbortController().signal
+				);
+
+				if (!result.ok) throw new Error(result.error.message);
+
+				const current = result.value.branches.branches.find(
+					(branch) =>
+						branch.type === "local" &&
+						branch.checkedOut &&
+						branch.name === repository.branchName
+				);
+
+				const choice = current && repositoryPaletteSyncChoice(kind, current);
+
+				if (!choice) throw new Error("This branch has no configured upstream.");
+
+				if (!repository.head || !repository.branchName)
+					throw new Error("This branch is not ready to synchronize.");
+
+				const error = await mutations.synchronize(
+					activeTab.id,
+					choice,
+					undefined,
+					{
+						expectedHead: repository.head,
+						expectedBranch: repository.branchName,
+					}
+				);
+
+				if (error) throw new Error(error);
+			};
+
+			switch (id) {
+				case "fetch":
+					void (
+						repository.remoteCount === 0
+							? connection.refresh(activeTab.id)
+							: mutations.fetch(activeTab.id)
+					)
+						.then((error) => {
+							if (error) throw new Error(error);
+						})
+						.catch(reportPaletteActionError);
+
+					return;
+				case "pull":
+				case "push":
+					void syncExplicit(id).catch(reportPaletteActionError);
+
+					return;
+				case "new-branch":
+				case "switch-branch":
+					setWorkspaceMenuRequest({
+						id: activeTab.id,
+						intent: id === "new-branch" ? "new" : "switch",
+					});
+
+					return;
+				case "stash":
+					setStashCreateRequest({
+						id: activeTab.id,
+						sequence: ++stashRequestSequence.current,
+					});
+					dispatch({
+						type: "workspace",
+						id: activeTab.id,
+						action: { type: "view", view: "stashes" },
+					});
+
+					return;
+				case "external-editor":
+					void externalEditors
+						.openDirectory(repository.root)
+						.catch(reportPaletteActionError);
+
+					return;
+				case "finder":
+					void RepositoryFileActions.revealRepository(repository.root).catch(
+						reportPaletteActionError
+					);
+
+					return;
+				case "copy-path":
+					void NativeClipboard.write(repository.root).catch(
+						reportPaletteActionError
+					);
+
+					return;
+			}
+		},
+		[
+			activeTab,
+			connection,
+			dispatch,
+			externalEditors,
+			mutations,
+			openSettings,
+			reportPaletteActionError,
+			readBranches,
+			setQuickSwitcherOpen,
+			setSettingsSection,
+			state.nextId,
+			workspace,
 		]
 	);
 
@@ -1579,6 +1822,8 @@ function AppContent({
 
 				quickSwitcherTarget.current =
 					activeTab?.kind === "empty" ? activeTab.id : null;
+				setPaletteActionError(null);
+				setQuickSwitcherSession((session) => session + 1);
 				setQuickSwitcherOpen(true);
 
 				return;
@@ -1591,6 +1836,8 @@ function AppContent({
 
 				quickSwitcherTarget.current = id;
 				dispatch({ type: "add", kind: "empty" });
+				setPaletteActionError(null);
+				setQuickSwitcherSession((session) => session + 1);
 				setQuickSwitcherOpen(true);
 
 				return;
@@ -1644,9 +1891,13 @@ function AppContent({
 				if (
 					key === "r" &&
 					activeTab.kind === "repository" &&
-					!workspace.loading
-				)
-					void connection.refresh(activeTab.id);
+					!workspace.loading &&
+					workspace.repository
+				) {
+					if (workspace.repository.remoteCount === 0)
+						void connection.refresh(activeTab.id);
+					else void mutations.fetch(activeTab.id);
+				}
 			}
 		});
 
@@ -1661,6 +1912,7 @@ function AppContent({
 		state.nextId,
 		activeTab,
 		workspace,
+		mutations,
 		connection,
 		onboardingOpen,
 		settingsOpen,
@@ -1893,7 +2145,12 @@ function AppContent({
 			accounts={accounts}
 			externalEditors={externalEditors}
 			initialForm={settingsForm}
-			onFormChange={setSettingsForm}
+			onFormChange={(form) => {
+				if (form === "list" && settingsForm === "connect")
+					setReconnectAccountKey(undefined);
+
+				setSettingsForm(form);
+			}}
 			onBusyChange={setSettingsBusy}
 			initialReconnectKey={reconnectAccountKey}
 			remoteAccounts={remoteAccounts}
@@ -2132,6 +2389,12 @@ function AppContent({
 								hidden={settingsOpen}
 								history={history}
 								stashes={stashes}
+								stashCreateRequest={
+									!settingsOpen && stashCreateRequest?.id === contentTab.id
+										? stashCreateRequest.sequence
+										: undefined
+								}
+								onStashCreateRequestHandled={() => setStashCreateRequest(null)}
 								onCommit={() => {
 									void mutations.commit(contentTab.id);
 								}}
@@ -2195,6 +2458,9 @@ function AppContent({
 								settingsBusy ? WorkspaceTabsModel.settingsId(state) : undefined
 							}
 							onCloseSettings={closeSettings}
+							openMenuFor={workspaceMenuRequest?.id}
+							branchIntent={workspaceMenuRequest?.intent}
+							onOpenMenuFor={() => setWorkspaceMenuRequest(null)}
 							readBranches={readBranches}
 							readRepository={readRepository}
 							onChangeBranch={mutations.changeBranch}
@@ -2210,8 +2476,13 @@ function AppContent({
 				>
 					<div
 						aria-hidden={settingsOpen || undefined}
-						style={
-							settingsOpen
+						style={{
+							display: "flex",
+							flexDirection: "column",
+							flexGrow: 1,
+							minWidth: 0,
+							minHeight: 0,
+							...(settingsOpen
 								? {
 										position: "absolute",
 										top: 0,
@@ -2221,8 +2492,8 @@ function AppContent({
 										visibility: "hidden",
 										pointerEvents: "none",
 									}
-								: undefined
-						}
+								: {}),
+						}}
 					>
 						{publishTab && publishRepository ? (
 							<RepositoryPublishView
@@ -2727,9 +2998,14 @@ function AppContent({
 					{settingsOpen ? settingsContent : null}
 				</AppShell>
 				<RepositoryQuickSwitcher
+					key={quickSwitcherSession}
 					open={quickSwitcherOpen}
 					items={quickRepositories}
+					actions={paletteActions}
+					overviews={repositoryOverviews}
+					error={paletteActionError}
 					onClose={() => setQuickSwitcherOpen(false)}
+					onAction={runPaletteAction}
 					onOpen={(path) => {
 						const targetId = quickSwitcherTarget.current;
 

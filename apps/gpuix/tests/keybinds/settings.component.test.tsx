@@ -139,7 +139,7 @@ it("lists and searches app shortcuts without standard navigation or editing refe
 		);
 
 	expect(node("keybinds-settings")).toBeDefined();
-	expect(root.renderer.getAllText()).toContain("Find repository");
+	expect(root.renderer.getAllText()).toContain("Find repository or action");
 
 	for (const heading of ["Navigation", "Text editing", "macOS"])
 		expect(root.renderer.getAllText()).not.toContain(heading);

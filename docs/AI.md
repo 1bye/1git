@@ -36,8 +36,11 @@ diff to verify the connection using your CLI account.
 
 1git reuses the CLI's authentication without copying its credentials.
 Generation uses the checked files and selected lines, with tools and hooks
-restricted, and only updates the commit draft. CLI requests currently support up
-to 64 KiB of selected changes; larger selections can use an API connection.
+restricted, and only updates the commit draft. CLI requests support up to 8 MiB
+of selected changes. Selections up to 64 KiB go directly in the prompt; larger
+selections use a private temporary patch and a compact overview, with read-only
+access restricted to those selected changes. Temporary files are removed when
+generation finishes, fails, or is cancelled.
 
 ## Tests
 
