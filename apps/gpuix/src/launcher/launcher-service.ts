@@ -18,6 +18,7 @@ const launcherDirectory = "1git-gpuix";
 const socketName = "launcher.sock";
 const response = '{"ok":true}\n';
 const requestTimeoutMs = 2_000;
+const socketProbeTimeoutMs = 400;
 
 export const defaultLauncherSocketPath = (): string => {
 	if (process.env.GPUIX_LAUNCHER_SOCKET)
@@ -67,6 +68,7 @@ const inspectSocket = async (
 			resolve(state);
 		};
 
+		socket.setTimeout(socketProbeTimeoutMs, () => finish("stale"));
 		socket.once("connect", () => finish("active"));
 		socket.once("error", (error: NodeJS.ErrnoException) => {
 			finish(
@@ -146,6 +148,7 @@ export class LauncherService {
 		let buffer = "";
 		let handled = false;
 
+		socket.on("error", () => closeQuietly(socket));
 		socket.setTimeout(requestTimeoutMs, () => closeQuietly(socket));
 
 		socket.setEncoding("utf8");
@@ -188,6 +191,7 @@ export const sendLauncherRequest = async (
 	await new Promise((resolve) => {
 		const socket = createConnection({ path: socketPath });
 		let settled = false;
+		let buffer = "";
 		let timer: ReturnType<typeof setTimeout>;
 
 		const finish = (result: boolean) => {
@@ -202,10 +206,20 @@ export const sendLauncherRequest = async (
 		timer = setTimeout(() => finish(false), timeoutMs);
 
 		socket.once("connect", () => socket.write(encodeLauncherRequest(request)));
-		socket.once("data", (chunk: Buffer | string) => {
-			const message = chunk.toString().trim();
+		socket.on("data", (chunk: Buffer | string) => {
+			buffer += chunk.toString();
 
-			finish(message === response.trim());
+			if (Buffer.byteLength(buffer, "utf8") > response.length + 32) {
+				finish(false);
+
+				return;
+			}
+
+			const newline = buffer.indexOf("\n");
+
+			if (newline < 0) return;
+
+			finish(buffer.slice(0, newline).trim() === response.trim());
 		});
 		socket.once("error", () => finish(false));
 	});

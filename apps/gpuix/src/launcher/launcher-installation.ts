@@ -127,4 +127,51 @@ end run`;
 	}
 };
 
+/** Remove a system link through the same administrator prompt, after checking its target. */
+export const uninstallLauncherWithPrivilegePrompt = async (
+	options: LauncherInstallOptions
+): Promise<boolean> => {
+	try {
+		return await uninstallLauncher(options);
+	} catch (error) {
+		if (
+			process.platform !== "darwin" ||
+			options.targetDirectory !== systemLauncherDirectory ||
+			!(error instanceof Error && "code" in error && error.code === "EACCES")
+		)
+			throw error;
+
+		const source = bundleLauncherPath(resolve(options.bundlePath));
+		const target = join(resolve(options.targetDirectory), launcherName);
+		const sourceArg = `quoted form of sourcePath`;
+		const targetArg = `quoted form of targetPath`;
+
+		const script = `on run argv
+set sourcePath to item 1 of argv
+set targetPath to item 2 of argv
+set command to "/usr/bin/test "$(/usr/bin/readlink " & ${targetArg} & ")" = " & ${sourceArg} & " && /bin/rm " & ${targetArg}
+do shell script command with administrator privileges
+return "removed"
+end run`;
+
+		const child = Bun.spawn(
+			["/usr/bin/osascript", "-e", script, source, target],
+			{
+				stdout: "pipe",
+				stderr: "pipe",
+			}
+		);
+
+		const errors = await new Response(child.stderr).text();
+
+		if ((await child.exited) !== 0) {
+			if (errors.includes("No such file")) return false;
+
+			throw new Error(errors.trim() || "Could not remove the 1git command.");
+		}
+
+		return true;
+	}
+};
+
 export { launcherScript };

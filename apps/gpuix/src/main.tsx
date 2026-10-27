@@ -46,13 +46,19 @@ if (!preview) {
 		const started = await launcher?.start();
 
 		if (!started) {
-			await sendLauncherRequest(launcherRequest);
+			if (!(await sendLauncherRequest(launcherRequest))) {
+				throw new Error(
+					"The running 1git instance did not accept the launch request."
+				);
+			}
+
 			process.exit(0);
 		}
 	} catch (error: unknown) {
 		process.stderr.write(
 			`1git launcher unavailable: ${error instanceof Error ? error.message : String(error)}\n`
 		);
+		process.exit(1);
 	}
 }
 
