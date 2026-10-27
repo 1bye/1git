@@ -252,7 +252,7 @@ it.each([
 					`${process.env.GPUIX_IGNORED_SCREENSHOT}-settings-${appearance}-${width}.png`
 				);
 
-			await press("settings-title-tab-close");
+			await press("close-workspace-2");
 			expect(node("view-ignored")).toBeDefined();
 			const stashBounds = root.renderer.getElementBounds(
 				node("view-stashes").id

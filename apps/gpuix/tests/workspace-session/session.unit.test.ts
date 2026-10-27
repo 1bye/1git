@@ -67,6 +67,48 @@ it("defaults older sessions and invalid automatic-inclusion preferences to off",
 	}
 });
 
+it("migrates non-repository tabs without restoring repository paths or navigation", () => {
+	const document = WorkspaceSession.capture(WorkspaceTabsModel.create(0));
+
+	const parsed = WorkspaceSession.parse(
+		JSON.stringify({
+			...document,
+			tabs: [
+				{
+					id: "workspace-1",
+					kind: "empty",
+					path: "/should-not-open",
+					draft: "stale draft",
+					navigation: {
+						view: "history",
+						changes: null,
+						history: "oid",
+						historyFile: null,
+						historyLimit: 100,
+						stashes: null,
+						stashFile: null,
+					},
+				},
+				{
+					id: "workspace-2",
+					kind: "settings",
+					path: "/also-should-not-open",
+					draft: "stale draft",
+				},
+			],
+			activeId: "workspace-1",
+		})
+	);
+
+	expect(parsed.tabs).toMatchObject([
+		{ id: "workspace-1", kind: "empty", path: null, draft: "" },
+		{ id: "workspace-2", kind: "settings", path: null, draft: "" },
+	]);
+	expect(
+		WorkspaceSession.restore(parsed).tabs[0]?.workspace.repositoryPath
+	).toBe(null);
+});
+
 it("captures keybinds and the file layout together without losing either preference", () => {
 	const args: Parameters<typeof WorkspaceSession.capture> = [
 		WorkspaceTabsModel.create(),
@@ -382,6 +424,57 @@ it("round-trips Home selection while retaining repository tabs and drafts", () =
 	expect(restored.tabs).toHaveLength(1);
 	expect(restored.tabs[0]?.workspace.commitMessage).toBe("Keep draft");
 	expect(WorkspaceSession.capture(restored).activeId).toBeNull();
+});
+
+it("migrates older sessions to repository and empty tab kinds", () => {
+	const document = WorkspaceSession.parse(
+		JSON.stringify({
+			version: 1,
+			tabs: [
+				{ id: "workspace-1", path: "/test/project", draft: "keep" },
+				{ id: "workspace-2", path: null, draft: "" },
+			],
+			activeId: "workspace-2",
+		})
+	);
+
+	expect(document.tabs.map((tab) => tab.kind)).toEqual(["repository", "empty"]);
+	expect(
+		WorkspaceSession.restore(document).tabs.map((tab) => tab.kind)
+	).toEqual(["repository", "empty"]);
+});
+
+it("round-trips a settings tab without turning it into a repository", () => {
+	const state = WorkspaceTabsModel.reduce(WorkspaceTabsModel.create(0), {
+		type: "open-settings",
+	});
+
+	const restored = WorkspaceSession.restore(
+		WorkspaceSession.parse(JSON.stringify(WorkspaceSession.capture(state)))
+	);
+
+	expect(restored.tabs[0]?.kind).toBe("settings");
+	expect(restored.tabs[0]?.name).toBe("Settings");
+});
+
+it("restores only one Settings tab when an old session contains duplicates", () => {
+	const document = WorkspaceSession.parse(
+		JSON.stringify({
+			version: 1,
+			tabs: [
+				{ id: "workspace-1", kind: "settings", path: null, draft: "" },
+				{ id: "workspace-2", kind: "settings", path: null, draft: "" },
+			],
+			activeId: "workspace-2",
+		})
+	);
+
+	const restored = WorkspaceSession.restore(document);
+
+	expect(restored.tabs.filter((tab) => tab.kind === "settings")).toHaveLength(
+		1
+	);
+	expect(restored.activeId).toBe("workspace-1");
 });
 
 it("preserves empty tabs and an intentionally empty session", () => {

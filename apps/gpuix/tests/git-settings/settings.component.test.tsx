@@ -331,7 +331,8 @@ it("keeps account choices scrollable and footer actions visible in a minimum-hei
 		onKeyDown: windowOptions.onKeyDown,
 	});
 	root.renderer.clockPause();
-	const saved = Array.from({ length: 7 }, (_value, index) => ({
+	// Keep the editor overflowing with the extra space available inside a tab.
+	const saved = Array.from({ length: 11 }, (_value, index) => ({
 		...identityAccount,
 		id: String(index),
 		username: `account-${index}`,
@@ -719,10 +720,8 @@ it("opens repository settings from its tab, blocks duplicate saves and Escape un
 	await type("identity-name", "Work");
 	await click("identity-save");
 	await click("identity-save");
-	expect(
-		node("settings-title-tab-close").customProps?.tabIndex
-	).toBeUndefined();
-	await click("settings-title-tab-close");
+	expect(node("close-workspace-2").customProps?.tabIndex).toBeUndefined();
+	await click("close-workspace-2");
 	root.renderer.simulateKeystrokes("escape");
 	await settle();
 	expect(write).toHaveBeenCalledTimes(1);
@@ -734,8 +733,8 @@ it("opens repository settings from its tab, blocks duplicate saves and Escape un
 
 	release();
 	await settle();
-	expect(node("settings-title-tab-close").customProps?.tabIndex).toBe(0);
-	await click("settings-title-tab-close");
+	expect(node("close-workspace-2").customProps?.tabIndex).toBe(0);
+	await click("close-workspace-2");
 	await settle();
 	expect(root.renderer.findByTestId("settings-view")).toBeUndefined();
 	expect(node("commit-message").customProps?.value).toBe("draft");

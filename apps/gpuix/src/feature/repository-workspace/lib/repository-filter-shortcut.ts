@@ -5,6 +5,7 @@ const workspaceCommands: Readonly<Record<string, string>> = {
 	"quick-open": "p",
 	open: "o",
 	refresh: "r",
+	"new-tab": "t",
 	"close-tab": "w",
 	"previous-tab": "left",
 	"next-tab": "right",

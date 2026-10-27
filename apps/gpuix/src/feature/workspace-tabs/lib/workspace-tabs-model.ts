@@ -12,8 +12,12 @@ import {
 	type RepositoryWorkspaceAction,
 } from "../../repository-workspace/lib/repository-workspace-model";
 
+/** The content kind rendered by a workspace tab. */
+export type WorkspaceTabKind = "repository" | "empty" | "settings";
+
 /** A workspace tab with presentation state and optional live repository metadata. */
 export interface WorkspaceTabRecord {
+	readonly kind: WorkspaceTabKind;
 	readonly spaceId?: string;
 	readonly comparison?: ComparisonRequest;
 	readonly id: string;
@@ -39,7 +43,9 @@ export type WorkspaceTabsAction =
 	| WorkspaceSpaceAction
 	| { type: "auto-include-changes"; enabled: boolean }
 	| { type: "home" }
-	| { type: "add"; path?: string }
+	| { type: "add"; path?: string; kind?: WorkspaceTabKind }
+	| { type: "open-settings"; section?: string; form?: "list" | "connect" }
+	| { type: "fill"; id: string; path: string }
 	| { type: "forget-repository"; path: string }
 	| { type: "open-worktree"; snapshot: RepositorySnapshot; spaceId?: string }
 	| { type: "worktree-removed"; path: string }
@@ -66,6 +72,7 @@ export class WorkspaceTabsModel {
 			preview,
 			tabs: [
 				{
+					kind: "repository",
 					id: "workspace-1",
 					name: preview ? "1git" : "Open repository",
 					branch: preview ? "main" : undefined,
@@ -111,6 +118,75 @@ export class WorkspaceTabsModel {
 	): WorkspaceTabsState {
 		if (action.type === "auto-include-changes")
 			return { ...state, autoIncludeChanges: action.enabled };
+
+		if (action.type === "open-settings") {
+			const owner = state.activeSpaceId ?? "default";
+			const existing = state.tabs.find((tab) => tab.kind === "settings");
+
+			if (existing)
+				return {
+					...state,
+					tabs: state.tabs.map((tab) =>
+						tab.id === existing.id && state.spaces
+							? { ...tab, spaceId: owner }
+							: tab
+					),
+					spaces: state.spaces?.map((space) =>
+						space.id === owner
+							? { ...space, activeId: existing.id }
+							: space.activeId === existing.id
+								? { ...space, activeId: null }
+								: space
+					),
+					activeId: existing.id,
+				};
+
+			const tab: WorkspaceTabRecord = {
+				kind: "settings",
+				...(state.spaces ? { spaceId: owner } : {}),
+				id: `workspace-${state.nextId}`,
+				name: "Settings",
+				workspace: RepositoryWorkspaceModel.create(),
+			};
+
+			return {
+				...state,
+				tabs: [...state.tabs, tab],
+				spaces: state.spaces?.map((space) =>
+					space.id === owner ? { ...space, activeId: tab.id } : space
+				),
+				activeId: tab.id,
+				nextId: state.nextId + 1,
+			};
+		}
+
+		if (action.type === "fill") {
+			const index = state.tabs.findIndex((tab) => tab.id === action.id);
+
+			if (index < 0) return state;
+
+			const tab = state.tabs[index];
+
+			if (!tab || tab.kind !== "empty") return state;
+
+			return {
+				...state,
+				tabs: state.tabs.map((item) =>
+					item.id === action.id
+						? {
+								...item,
+								kind: "repository",
+								name: basename(action.path),
+								workspace: {
+									...item.workspace,
+									repositoryPath: action.path,
+									loading: true,
+								},
+							}
+						: item
+				),
+			};
+		}
 
 		if (action.type === "home")
 			return state.activeId === null ? state : { ...state, activeId: null };
@@ -184,6 +260,7 @@ export class WorkspaceTabsModel {
 			);
 
 			const tab: WorkspaceTabRecord = {
+				kind: "repository",
 				...(state.spaces ? { spaceId: owner } : {}),
 				id: `workspace-${state.nextId}`,
 				name: workspace.repository?.name ?? "Workspace",
@@ -204,13 +281,26 @@ export class WorkspaceTabsModel {
 		}
 
 		if (action.type === "add") {
+			if (action.kind === "settings")
+				return WorkspaceTabsModel.reduce(state, { type: "open-settings" });
+
+			const kind = action.kind ?? "repository";
+
 			const tab = {
+				kind,
 				...(state.spaces ? { spaceId: state.activeSpaceId ?? "default" } : {}),
 				id: `workspace-${state.nextId}`,
-				name: action.path ? basename(action.path) : `Workspace ${state.nextId}`,
+				name:
+					action.path && kind === "repository"
+						? basename(action.path)
+						: action.kind === "empty"
+							? "New tab"
+							: `Workspace ${state.nextId}`,
 				workspace: {
-					...RepositoryWorkspaceModel.create(state.preview),
-					...(action.path
+					...RepositoryWorkspaceModel.create(
+						state.preview && kind === "repository"
+					),
+					...(action.path && kind === "repository"
 						? { repositoryPath: action.path, loading: true }
 						: {}),
 				},
@@ -264,6 +354,10 @@ export class WorkspaceTabsModel {
 					item.id === tab.id
 						? {
 								...tab,
+								kind:
+									item.kind === "empty" && workspace.repository
+										? "repository"
+										: item.kind,
 								workspace,
 								name: workspace.repository?.name ?? tab.name,
 								branch: workspace.repository?.branch ?? tab.branch,
@@ -338,6 +432,20 @@ export class WorkspaceTabsModel {
 		return path
 			? [path, ...paths.filter((item) => item !== path)].slice(0, 100)
 			: paths;
+	}
+
+	/** Returns the current space's singleton Settings tab, when one exists. */
+	static settingsId(state: WorkspaceTabsState): string | undefined {
+		return state.tabs.find((tab) => tab.kind === "settings")?.id;
+	}
+
+	/** Returns the current space's empty tab that a repository picker can fill. */
+	static emptyId(state: WorkspaceTabsState): string | undefined {
+		return state.tabs.find(
+			(tab) =>
+				tab.kind === "empty" &&
+				(tab.spaceId ?? "default") === (state.activeSpaceId ?? "default")
+		)?.id;
 	}
 
 	static destination(

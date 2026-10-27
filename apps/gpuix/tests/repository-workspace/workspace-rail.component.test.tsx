@@ -132,6 +132,9 @@ it("shows accessible tooltips on keyboard focus and preserves focus when returni
 	key("view-history", "cmd-,");
 	await settle();
 	expect(element("settings-view")).toBeDefined();
+	expect(element("workspace-toolbar")).toBeDefined();
+	expect(element("workspace-2").customProps?.["aria-label"]).toBe("Settings");
+	expect(element("workspace-2").customProps?.["aria-selected"]).toBe(true);
 	root.renderer.simulateKeystrokes("escape");
 	await settle();
 	expect(root.renderer.getFocusedElementId()).toBe(element("view-history").id);
@@ -225,6 +228,10 @@ it("keeps repository navigation in Settings and returns to the chosen view", asy
 	root.render(<App accounts={f.accounts} preview />);
 	click("rail-settings");
 	await settle();
+	click("settings-appearance");
+	await settle();
+	expect(element("appearance-settings")).toBeDefined();
+	const settingsTabId = element("workspace-2").id;
 
 	for (const id of ["view-changes", "view-history", "view-stashes"])
 		expect(element(id)).toBeDefined();
@@ -232,8 +239,69 @@ it("keeps repository navigation in Settings and returns to the chosen view", asy
 	click("view-stashes");
 	await settle();
 	expect(root.renderer.findByTestId("settings-view")).toBeUndefined();
+	expect(element("workspace-2").id).toBe(settingsTabId);
 	expect(element("view-stashes").customProps?.["aria-selected"]).toBe(true);
 	expect(root.renderer.getFocusedElementId()).toBe(element("view-stashes").id);
+	click("rail-settings");
+	await settle();
+	expect(element("appearance-settings")).toBeDefined();
+});
+
+it("routes tab shortcuts while Settings is active", async () => {
+	root.render(
+		<App
+			accounts={f.accounts}
+			initialSession={{
+				version: 1,
+				tabs: [
+					{
+						id: "workspace-1",
+						kind: "repository",
+						path: null,
+						draft: "",
+					},
+				],
+				activeId: "workspace-1",
+				recentRepositories: ["/test/recent"],
+			}}
+		/>
+	);
+	click("rail-settings");
+	await settle();
+
+	root.renderer.simulateKeystrokes("cmd-t");
+	await settle();
+	const emptyTab = element("workspace-3");
+
+	expect(emptyTab.customProps?.["aria-label"]).toBe("New tab");
+	root.renderer.simulateKeystrokes("escape");
+	await settle();
+	root.renderer.simulateKeystrokes("cmd-p");
+	await settle();
+	click("quick-repository-/test/recent");
+	await settle();
+	expect(element("workspace-3").customProps?.["aria-label"]).toBe("recent");
+	root.renderer.simulateKeystrokes("cmd-2");
+	await settle();
+	expect(root.renderer.findByTestId("settings-view")).toBeDefined();
+	root.renderer.simulateKeystrokes("cmd-w");
+	await settle();
+	expect(root.renderer.findByTestId("settings-view")).toBeUndefined();
+});
+
+it("opens a new tab instead of loading Settings for Open and ignores Refresh", async () => {
+	root.render(<App accounts={f.accounts} preview />);
+	click("rail-settings");
+	await settle();
+
+	root.renderer.simulateKeystrokes("cmd-o");
+	await settle();
+
+	expect(element("workspace-2").customProps?.["aria-label"]).toBe("Settings");
+	expect(element("workspace-3").customProps?.["aria-label"]).toBe("New tab");
+	root.renderer.simulateKeystrokes("cmd-r");
+	await settle();
+	expect(element("workspace-2").customProps?.["aria-label"]).toBe("Settings");
 });
 
 it("switches the clone default through public account metadata without accessing credentials", async () => {

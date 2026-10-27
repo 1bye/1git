@@ -277,9 +277,9 @@ it("switches in Settings without losing a draft, selected file, inclusion or dif
 	expect(node(root, "settings-view").style.backgroundColor).toBe(
 		appColors.dark.chrome
 	);
-	expect(
-		node(root, "settings-title-tab-surface").customProps?.source
-	).toContain(appColors.dark.editorSurface);
+	expect(node(root, "surface-workspace-2").customProps?.source).toContain(
+		appColors.dark.editorSurface
+	);
 	await Bun.sleep(230);
 	root.renderer.flush();
 	expect(saved.at(-1)?.appearance).toBe("dark");
@@ -425,6 +425,11 @@ it("toggles and persists commit badges in Appearance without reloading history o
 		click(root, "settings-appearance");
 		root.renderer.scrollIntoView(
 			node(root, "appearance-commit-type-badges").id
+		);
+		root.renderer.scrollTo(
+			node(root, "appearance-settings-scroll").id,
+			0,
+			-10000
 		);
 		root.renderer.advanceTime(1);
 		click(root, "appearance-commit-type-badges");

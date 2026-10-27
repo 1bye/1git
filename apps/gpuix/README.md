@@ -478,6 +478,14 @@ shortcuts. Click an editable shortcut, press the new combination, and select
 **Save**. Conflicting bindings and reserved editing/system keys are rejected.
 **Reset** restores one action; **Restore defaults** restores all actions.
 
+**Command–R** fetches the active repository, then refreshes its local state.
+Repositories without remotes refresh locally. **Command–T** opens an empty tab
+with the repository palette focused; choosing a repository fills that tab.
+**Command–P** opens the repository and action palette; prefix the search with
+`>` to show actions only. **Command–Comma** opens or focuses the single Settings
+tab. Settings and empty tabs use the same close and navigation shortcuts as
+repository tabs.
+
 Use **Control–Command–Left/Right** to move to the previous/next Space in saved
 order, stopping at either end. Customize both shortcuts in the **Spaces** section.
 

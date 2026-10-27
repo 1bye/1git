@@ -35,6 +35,7 @@ const themedStyles = createThemedStyles(({ colors: appColors }) => {
 			userSelect: "none",
 		},
 		content: {
+			position: "relative",
 			display: "flex",
 			flexDirection: "column",
 			flexGrow: 1,

@@ -13,16 +13,22 @@ export const keybindCommands: readonly KeybindCommand[] = [
 	},
 	{
 		id: "quick-open",
-		label: "Find repository",
+		label: "Find repository or action",
 		group: "Application",
 		key: "cmd-p",
 	},
 	{ id: "open", label: "Open repository", group: "Application", key: "cmd-o" },
 	{
 		id: "refresh",
-		label: "Refresh repository",
+		label: "Fetch repository",
 		group: "Application",
 		key: "cmd-r",
+	},
+	{
+		id: "new-tab",
+		label: "New tab",
+		group: "Tabs",
+		key: "cmd-t",
 	},
 	{
 		id: "previous-space",
@@ -38,7 +44,7 @@ export const keybindCommands: readonly KeybindCommand[] = [
 	},
 	{
 		id: "close-tab",
-		label: "Close repository tab",
+		label: "Close tab",
 		group: "Tabs",
 		key: "cmd-w",
 	},

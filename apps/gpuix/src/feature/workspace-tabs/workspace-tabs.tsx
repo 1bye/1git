@@ -165,6 +165,11 @@ export function WorkspaceTabs({
 	worktreesAnchorRef,
 	onWorktreesOpen,
 	onMenuBusyChange,
+	closeDisabledId,
+	onCloseSettings,
+	openMenuFor,
+	onOpenMenuFor,
+	branchIntent,
 }: {
 	state: WorkspaceTabsState;
 	dispatch: Dispatch<WorkspaceTabsAction>;
@@ -173,6 +178,12 @@ export function WorkspaceTabs({
 	worktreesAnchorRef?: Ref<PublicInstance>;
 	onWorktreesOpen?: () => void;
 	onMenuBusyChange?: (busy: boolean) => void;
+	closeDisabledId?: string;
+	onCloseSettings?: () => void;
+	/** Request the existing branch/worktree menu from a command action. */
+	openMenuFor?: string | null;
+	onOpenMenuFor?: () => void;
+	branchIntent?: "new" | "switch";
 } & Partial<WorkspaceMenuActions>) {
 	const theme = useAppTheme();
 	const { tokens: appTokens, colors: appColors } = theme;
@@ -186,6 +197,7 @@ export function WorkspaceTabs({
 	const rail = useRef<PublicInstance>(null);
 	const homeButton = useRef<PublicInstance>(null);
 	const focusRequested = useRef(false);
+	const previousActiveId = useRef(state.activeId);
 	const [menuId, setMenuId] = useState<string | null>(null);
 	const [scrolled, setScrolled] = useState(false);
 	const clipInset = scrolled ? homeScrollInset : 0;
@@ -231,6 +243,15 @@ export function WorkspaceTabs({
 	};
 
 	useEffect(() => {
+		if (previousActiveId.current !== state.activeId) {
+			previousActiveId.current = state.activeId;
+			const target = state.activeId
+				? tabs.current.get(state.activeId)
+				: homeButton.current;
+
+			if (target) renderer.focusElement?.(target.id);
+		}
+
 		if (focusRequested.current) {
 			focusRequested.current = false;
 			const target = state.activeId
@@ -316,6 +337,13 @@ export function WorkspaceTabs({
 		},
 		[onTourAnchor, onTabMenuOpenChange]
 	);
+
+	useEffect(() => {
+		if (!openMenuFor || !state.tabs.some((tab) => tab.id === openMenuFor))
+			return;
+
+		setMenuId(openMenuFor);
+	}, [openMenuFor, state.tabs]);
 
 	return (
 		<div testId="workspace-toolbar" style={styles.toolbar}>
@@ -449,7 +477,11 @@ export function WorkspaceTabs({
 								key={tab.id}
 								tab={tab}
 								active={state.activeId === tab.id}
-								menuAvailable={!!tab.workspace.repository && !!onChangeBranch}
+								menuAvailable={
+									tab.kind === "repository" &&
+									!!tab.workspace.repository &&
+									!!onChangeBranch
+								}
 								menuOpen={menuId === tab.id && state.activeId === tab.id}
 								onDismissMenu={() => setMenuId(null)}
 								onPointerDown={onPointerDown}
@@ -494,12 +526,20 @@ export function WorkspaceTabs({
 
 									focusTab(tab.id);
 								}}
+								closeDisabled={closeDisabledId === tab.id}
 								onClose={() => {
 									if (
+										closeDisabledId === tab.id ||
 										drag.shouldSuppressClick() ||
 										RepositoryWorkspaceModel.isBusy(tab.workspace)
 									)
 										return;
+
+									if (tab.kind === "settings" && onCloseSettings) {
+										onCloseSettings();
+
+										return;
+									}
 
 									focusRequested.current = true;
 									setMenuId(null);
@@ -556,6 +596,12 @@ export function WorkspaceTabs({
 										onSubmenuOpen={(group) => {
 											if (group === "worktrees") onWorktreesOpen?.();
 										}}
+										branchIntent={
+											branchIntent && tab.id === openMenuFor
+												? branchIntent
+												: undefined
+										}
+										onBranchIntentHandled={onOpenMenuFor}
 										onBusyChange={onMenuBusyChange}
 										onSettings={onSettings}
 										onClose={() => {

@@ -69,6 +69,35 @@ function App({
 	);
 }
 
+function KindJourneyApp() {
+	const [state, dispatch] = useReducer(
+		WorkspaceTabsModel.reduce,
+		WorkspaceTabsModel.create(0, true)
+	);
+
+	useEffect(() => {
+		flushSync(() => {
+			dispatch({ type: "add", kind: "empty" });
+			dispatch({ type: "open-settings" });
+		});
+	}, []);
+
+	return (
+		<AppThemeContext
+			value={{
+				...appThemes.light,
+				commitTypeBadges: true,
+				smoothTransitions: false,
+			}}
+		>
+			<AppShell
+				toolbar={<WorkspaceTabs state={state} dispatch={dispatch} />}
+				workspaceLabel="Workspace tabs"
+			/>
+		</AppThemeContext>
+	);
+}
+
 beforeEach(() => {
 	root = createTestRoot({
 		width: 980,
@@ -439,6 +468,7 @@ it("clips the full repository and branch track clear of the close target", () =>
 				preview: true,
 				tabs: [
 					{
+						kind: "repository",
 						id: "long",
 						name,
 						branch,
@@ -946,4 +976,20 @@ it("keeps the outline hidden and cancels Space activation after blur", () => {
 	root.renderer.nativeSimulateKeyUp(first.id, "space");
 	expect(selectedTabs()).toEqual(["Workspace 2"]);
 	expect(element("workspace-1").style.borderColor).toBe("transparent");
+});
+
+it("renders empty and Settings tabs, then closes the Settings singleton", () => {
+	root.render(<KindJourneyApp />);
+	root.renderer.flush();
+
+	expect(element("avatar-workspace-1")).toBeDefined();
+	expect(element("avatar-workspace-2")).toBeDefined();
+	expect(element("workspace-2").customProps?.["aria-label"]).toBe("Settings");
+	expect(selectedTabs()).toEqual(["Settings"]);
+
+	click("close-workspace-2");
+	root.renderer.flush();
+
+	expect(root.renderer.findByTestId("workspace-2")).toBeUndefined();
+	expect(selectedTabs()).toEqual(["New tab"]);
 });

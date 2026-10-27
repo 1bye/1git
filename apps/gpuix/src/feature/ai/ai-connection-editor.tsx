@@ -831,7 +831,7 @@ export function AiConnectionEditor({
 									/>
 									<text
 										style={{ ...typography.sm, color: tokens.colors.textMuted }}
-									>{`Sign in with ${provider === "codex" ? "codex login" : "claude auth login"} in your terminal. Test agent sends an example diff. CLI generation supports up to 64 KiB of selected changes.`}</text>
+									>{`Sign in with ${provider === "codex" ? "codex login" : "claude auth login"} in your terminal. Test agent sends an example diff. CLI generation supports selected changes up to 8 MiB.`}</text>
 								</div>
 							) : null}
 						</>
