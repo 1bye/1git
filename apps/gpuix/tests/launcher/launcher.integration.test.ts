@@ -4,11 +4,16 @@
  * Doubles: a local fake socket server for acknowledgement edge cases.
  * Requires: a local filesystem with Unix-domain socket support.
  */
-import { expect, it } from "bun:test";
-import { lstat, mkdir, readlink, writeFile } from "node:fs/promises";
+import { afterEach, expect, it } from "bun:test";
+import { lstat, mkdir, readlink, rm, writeFile } from "node:fs/promises";
 import { realpath } from "node:fs/promises";
 import { mkdtemp } from "node:fs/promises";
-import { createConnection, createServer, type Server } from "node:net";
+import {
+	createConnection,
+	createServer,
+	type Server,
+	type Socket,
+} from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -48,6 +53,91 @@ const close = (server: Server): Promise<void> => {
 	});
 };
 
+const directories = new Set<string>();
+const services = new Set<LauncherService>();
+const servers = new Set<Server>();
+const staleProcesses = new Set<ReturnType<typeof Bun.spawn>>();
+
+const tempDirectory = async (prefix: string): Promise<string> => {
+	const directory = await mkdtemp(join(tmpdir(), prefix));
+
+	directories.add(directory);
+
+	return directory;
+};
+
+const trackedService = (
+	...args: ConstructorParameters<typeof LauncherService>
+): LauncherService => {
+	const service = new LauncherService(...args);
+
+	services.add(service);
+
+	return service;
+};
+
+const trackedServer = (listener: (socket: Socket) => void): Server => {
+	const server = createServer(listener);
+
+	servers.add(server);
+
+	return server;
+};
+
+const createStaleSocket = async (
+	path: string
+): Promise<ReturnType<typeof Bun.spawn>> => {
+	const code =
+		'import { createServer } from "node:net"; const server = createServer(); server.listen(process.argv[1]); setInterval(() => {}, 1000);';
+
+	const child = Bun.spawn([process.execPath, "-e", code, path], {
+		stdout: "ignore",
+		stderr: "pipe",
+	});
+
+	staleProcesses.add(child);
+
+	for (let attempt = 0; attempt < 100; attempt += 1) {
+		try {
+			if ((await lstat(path)).isSocket()) return child;
+		} catch {
+			// The helper has not bound its endpoint yet.
+		}
+
+		await Bun.sleep(10);
+	}
+
+	child.kill("SIGKILL");
+	await child.exited;
+	staleProcesses.delete(child);
+
+	throw new Error("Could not create a stale launcher socket.");
+};
+
+afterEach(async () => {
+	for (const service of services) await service.stop();
+
+	services.clear();
+
+	for (const child of staleProcesses) {
+		child.kill("SIGKILL");
+		await child.exited;
+	}
+
+	staleProcesses.clear();
+
+	for (const server of servers) {
+		if (server.listening) await close(server);
+	}
+
+	servers.clear();
+
+	for (const directory of directories)
+		await rm(directory, { recursive: true, force: true });
+
+	directories.clear();
+});
+
 const writeFragments = (
 	path: string,
 	fragments: readonly string[]
@@ -71,11 +161,11 @@ const writeFragments = (
 	});
 
 it("hands requests to the running process and cleans up its socket", async () => {
-	const directory = await mkdtemp(join(tmpdir(), "1git-launcher-socket-"));
+	const directory = await tempDirectory("1git-launcher-socket-");
 	const socketPath = join(directory, "launcher.sock");
 	const received: string[] = [];
 
-	const service = new LauncherService(socketPath, (request) => {
+	const service = trackedService(socketPath, (request) => {
 		if (request.path) received.push(request.path);
 	});
 
@@ -93,10 +183,10 @@ it("hands requests to the running process and cleans up its socket", async () =>
 });
 
 it("preserves the owner when a competing service stops", async () => {
-	const directory = await mkdtemp(join(tmpdir(), "1git-launcher-owner-"));
+	const directory = await tempDirectory("1git-launcher-owner-");
 	const socketPath = join(directory, "launcher.sock");
-	const owner = new LauncherService(socketPath);
-	const contender = new LauncherService(socketPath);
+	const owner = trackedService(socketPath);
+	const contender = trackedService(socketPath);
 
 	expect(await owner.start()).toBe(true);
 	expect(await contender.start()).toBe(false);
@@ -108,10 +198,10 @@ it("preserves the owner when a competing service stops", async () => {
 });
 
 it("lets only one concurrent startup claim a missing socket", async () => {
-	const directory = await mkdtemp(join(tmpdir(), "1git-launcher-race-"));
+	const directory = await tempDirectory("1git-launcher-race-");
 	const socketPath = join(directory, "launcher.sock");
-	const first = new LauncherService(socketPath);
-	const second = new LauncherService(socketPath);
+	const first = trackedService(socketPath);
+	const second = trackedService(socketPath);
 	const results = await Promise.all([first.start(), second.start()]);
 
 	expect(results.filter(Boolean)).toHaveLength(1);
@@ -121,16 +211,18 @@ it("lets only one concurrent startup claim a missing socket", async () => {
 });
 
 it("removes stale sockets and accepts fragmented requests", async () => {
-	const directory = await mkdtemp(join(tmpdir(), "1git-launcher-fragment-"));
+	const directory = await tempDirectory("1git-launcher-fragment-");
 	const socketPath = join(directory, "launcher.sock");
-	const stale = createServer();
+	const stale = await createStaleSocket(socketPath);
 
-	await listen(stale, socketPath);
-	await close(stale);
+	expect((await lstat(socketPath)).isSocket()).toBe(true);
+	stale.kill("SIGKILL");
+	await stale.exited;
+	staleProcesses.delete(stale);
 
 	const received: string[] = [];
 
-	const service = new LauncherService(socketPath, (request) => {
+	const service = trackedService(socketPath, (request) => {
 		if (request.path) received.push(request.path);
 	});
 
@@ -149,11 +241,11 @@ it("removes stale sockets and accepts fragmented requests", async () => {
 });
 
 it("rejects malformed and oversized frames without dispatching them", async () => {
-	const directory = await mkdtemp(join(tmpdir(), "1git-launcher-invalid-"));
+	const directory = await tempDirectory("1git-launcher-invalid-");
 	const socketPath = join(directory, "launcher.sock");
 	let received = 0;
 
-	const service = new LauncherService(socketPath, () => {
+	const service = trackedService(socketPath, () => {
 		received += 1;
 	});
 
@@ -174,10 +266,10 @@ it("rejects malformed and oversized frames without dispatching them", async () =
 });
 
 it("waits for complete acknowledgements and rejects negative ones", async () => {
-	const directory = await mkdtemp(join(tmpdir(), "1git-launcher-ack-"));
+	const directory = await tempDirectory("1git-launcher-ack-");
 	const socketPath = join(directory, "launcher.sock");
 
-	const fragmented = createServer((socket) => {
+	const fragmented = trackedServer((socket) => {
 		socket.write('{"ok":');
 		setTimeout(() => socket.end("true}\n"), 5);
 	});
@@ -190,7 +282,7 @@ it("waits for complete acknowledgements and rejects negative ones", async () => 
 	await close(fragmented);
 
 	const negativePath = join(directory, "negative.sock");
-	const negative = createServer((socket) => socket.end('{"ok":false}\n'));
+	const negative = trackedServer((socket) => socket.end('{"ok":false}\n'));
 
 	await listen(negative, negativePath);
 	expect(
@@ -201,7 +293,7 @@ it("waits for complete acknowledgements and rejects negative ones", async () => 
 });
 
 it("installs and removes only its own launcher link", async () => {
-	const directory = await mkdtemp(join(tmpdir(), "1git-launcher-install-"));
+	const directory = await tempDirectory("1git-launcher-install-");
 	const bundle = join(directory, "1git.app");
 	const source = join(bundle, "Contents", "Resources", "1git-launcher");
 	const targetDirectory = join(directory, "bin");

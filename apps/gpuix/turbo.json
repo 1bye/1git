@@ -3,7 +3,11 @@
   "tasks": {
     "dev": {
       "dependsOn": ["^build", "build:native"],
-      "passThroughEnv": ["GPUIX_BACKGROUND", "GPUIX_PREVIEW"]
+      "passThroughEnv": [
+        "GPUIX_BACKGROUND",
+        "GPUIX_PREVIEW",
+        "ONEGIT_LAUNCHER_CWD"
+      ]
     },
     "build:native": {
       "cache": false,

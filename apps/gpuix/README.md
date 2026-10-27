@@ -28,8 +28,12 @@ Install or remove the command from **Settings → Application**. Installation fi
 offers `/usr/local/bin` with the macOS administrator prompt, then
 `~/.local/bin` when no administrator access is available. The installed command is
 a symlink to the launcher script inside the app bundle and does not copy the app.
+If you use the per-user location, ensure `~/.local/bin` is on your shell's `PATH`
+(for example, `export PATH="$HOME/.local/bin:$PATH"`).
 
 Development accepts the same argument: `bun run dev:app -- /path/to/project`.
+Relative paths resolve from the directory where that command is run, even though
+Turbo starts the app task from `apps/gpuix`.
 Only local filesystem paths are accepted; URLs and other remote inputs are rejected.
 
 `bun run --cwd apps/gpuix test` gives native component journeys a 30-second

@@ -32,6 +32,27 @@ export interface LauncherInstallOptions {
 	readonly targetDirectory: string;
 }
 
+/** AppleScript source used only after the user explicitly accepts macOS authorization. */
+export const administratorInstallScript = `on run argv
+set sourcePath to item 1 of argv
+set targetPath to item 2 of argv
+set targetDirectory to item 3 of argv
+set command to "/bin/mkdir -p " & quoted form of targetDirectory & " && /bin/ln -s " & quoted form of sourcePath & " " & quoted form of targetPath
+do shell script command with administrator privileges
+return targetPath
+end run`;
+
+/** Verifies the symlink target as root before removing it. */
+export const administratorUninstallScript = `on run argv
+set sourcePath to item 1 of argv
+set targetPath to item 2 of argv
+set targetArg to quoted form of targetPath
+set sourceArg to quoted form of sourcePath
+set command to "/usr/bin/test " & quote & "$(/usr/bin/readlink " & targetArg & ")" & quote & " = " & sourceArg & " && /bin/rm " & targetArg
+do shell script command with administrator privileges
+return "removed"
+end run`;
+
 /** Install only a symlink to our own bundle script; never replace an unrelated executable. */
 export const installLauncher = async ({
 	bundlePath,
@@ -108,14 +129,15 @@ export const installLauncherWithPrivilegePrompt = async (
 		const source = bundleLauncherPath(resolve(options.bundlePath));
 		const target = join(resolve(options.targetDirectory), launcherName);
 
-		const script = `on run argv
-set sourcePath to item 1 of argv
-set targetPath to item 2 of argv
-do shell script "/bin/ln -s " & quoted form of sourcePath & " " & quoted form of targetPath with administrator privileges
-end run`;
-
 		const child = Bun.spawn(
-			["/usr/bin/osascript", "-e", script, source, target],
+			[
+				"/usr/bin/osascript",
+				"-e",
+				administratorInstallScript,
+				source,
+				target,
+				resolve(options.targetDirectory),
+			],
 			{
 				stdout: "pipe",
 				stderr: "pipe",
@@ -151,19 +173,15 @@ export const uninstallLauncherWithPrivilegePrompt = async (
 
 		const source = bundleLauncherPath(resolve(options.bundlePath));
 		const target = join(resolve(options.targetDirectory), launcherName);
-		const sourceArg = `quoted form of sourcePath`;
-		const targetArg = `quoted form of targetPath`;
-
-		const script = `on run argv
-set sourcePath to item 1 of argv
-set targetPath to item 2 of argv
-set command to "/usr/bin/test "$(/usr/bin/readlink " & ${targetArg} & ")" = " & ${sourceArg} & " && /bin/rm " & ${targetArg}
-do shell script command with administrator privileges
-return "removed"
-end run`;
 
 		const child = Bun.spawn(
-			["/usr/bin/osascript", "-e", script, source, target],
+			[
+				"/usr/bin/osascript",
+				"-e",
+				administratorUninstallScript,
+				source,
+				target,
+			],
 			{
 				stdout: "pipe",
 				stderr: "pipe",

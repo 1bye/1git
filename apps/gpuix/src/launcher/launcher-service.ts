@@ -1,4 +1,4 @@
-import { chmod, lstat, mkdir, rm } from "node:fs/promises";
+import { chmod, lstat, mkdir, open, rm, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import {
@@ -19,6 +19,8 @@ const socketName = "launcher.sock";
 const response = '{"ok":true}\n';
 const requestTimeoutMs = 2_000;
 const socketProbeTimeoutMs = 400;
+const startupLockTimeoutMs = 5_000;
+const startupLockRetryMs = 10;
 
 export const defaultLauncherSocketPath = (): string => {
 	if (process.env.GPUIX_LAUNCHER_SOCKET)
@@ -95,13 +97,20 @@ export class LauncherService {
 	async start(): Promise<boolean> {
 		if (this.server) return true;
 
-		const state = await inspectSocket(this.socketPath);
-
-		if (state === "active") return false;
-
-		if (state === "stale") await rm(this.socketPath, { force: true });
-
 		await mkdir(dirname(this.socketPath), { recursive: true, mode: 0o700 });
+
+		return await withStartupLock(this.socketPath, async () => {
+			const state = await inspectSocket(this.socketPath);
+
+			if (state === "active") return false;
+
+			if (state === "stale") await rm(this.socketPath, { force: true });
+
+			return await this.bind();
+		});
+	}
+
+	private async bind(): Promise<boolean> {
 		const server = createServer((socket) => this.handleConnection(socket));
 
 		this.server = server;
@@ -251,3 +260,55 @@ export class LauncherRequestQueue {
 }
 
 export const launcherRequests = new LauncherRequestQueue();
+
+const withStartupLock = async <Result>(
+	socketPath: string,
+	callback: () => Promise<Result>
+): Promise<Result> => {
+	const lockPath = `${socketPath}.lock`;
+	const deadline = Date.now() + startupLockTimeoutMs;
+	let lock;
+
+	while (!lock) {
+		try {
+			lock = await open(lockPath, "wx", 0o600);
+			await lock.writeFile(`${process.pid}\n`);
+		} catch (error) {
+			if (
+				!(error instanceof Error && "code" in error && error.code === "EEXIST")
+			)
+				throw error;
+
+			try {
+				const lockInfo = await stat(lockPath);
+
+				if (Date.now() - lockInfo.mtimeMs > startupLockTimeoutMs)
+					await rm(lockPath, { force: true });
+				else if (Date.now() < deadline)
+					await new Promise((resolve) =>
+						setTimeout(resolve, startupLockRetryMs)
+					);
+				else
+					throw new Error(
+						"Another 1git process is claiming the launcher socket."
+					);
+			} catch (lockError) {
+				if (
+					lockError instanceof Error &&
+					"code" in lockError &&
+					lockError.code === "ENOENT"
+				)
+					continue;
+
+				throw lockError;
+			}
+		}
+	}
+
+	try {
+		return await callback();
+	} finally {
+		await lock.close();
+		await rm(lockPath, { force: true });
+	}
+};

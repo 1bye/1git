@@ -19,7 +19,7 @@
   "scripts": {
     "playground": "bun run --cwd packages/git playground",
     "dev": "turbo run dev",
-    "dev:app": "turbo run dev --filter=@1git/gpuix",
+    "dev:app": "ONEGIT_LAUNCHER_CWD=\"$PWD\" turbo run dev --filter=@1git/gpuix",
     "dev:web": "turbo run dev --filter=@1git/web",
     "build:web": "turbo run build --filter=@1git/web",
     "build": "turbo run build",

@@ -23,7 +23,10 @@ const preview = process.env.GPUIX_PREVIEW === "1";
 
 const launcherRequest: ReturnType<typeof parseLauncherArguments> = (() => {
 	try {
-		return parseLauncherArguments(process.argv.slice(2));
+		return parseLauncherArguments(
+			process.argv.slice(2),
+			process.env.ONEGIT_LAUNCHER_CWD ?? process.cwd()
+		);
 	} catch (error: unknown) {
 		process.stderr.write(
 			`1git launcher: ${error instanceof Error ? error.message : String(error)}\n`
