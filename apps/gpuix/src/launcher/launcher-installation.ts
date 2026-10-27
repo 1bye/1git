@@ -97,7 +97,11 @@ export const installLauncherWithPrivilegePrompt = async (
 		if (
 			process.platform !== "darwin" ||
 			options.targetDirectory !== systemLauncherDirectory ||
-			!(error instanceof Error && "code" in error && error.code === "EACCES")
+			!(
+				error instanceof Error &&
+				"code" in error &&
+				(error.code === "EACCES" || error.code === "EPERM")
+			)
 		)
 			throw error;
 
@@ -137,7 +141,11 @@ export const uninstallLauncherWithPrivilegePrompt = async (
 		if (
 			process.platform !== "darwin" ||
 			options.targetDirectory !== systemLauncherDirectory ||
-			!(error instanceof Error && "code" in error && error.code === "EACCES")
+			!(
+				error instanceof Error &&
+				"code" in error &&
+				(error.code === "EACCES" || error.code === "EPERM")
+			)
 		)
 			throw error;
 
