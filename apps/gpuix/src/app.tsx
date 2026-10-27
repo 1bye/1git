@@ -1565,12 +1565,11 @@ function AppContent({
 			} else if (
 				activeTab &&
 				workspace &&
-				workspace.repository &&
 				!RepositoryWorkspaceModel.isBusy(workspace)
 			) {
 				if (key === "w") dispatch({ type: "close", id: activeTab.id });
 
-				if (key === "r" && !workspace.loading) {
+				if (key === "r" && !workspace.loading && workspace.repository) {
 					if (workspace.repository.remoteCount === 0)
 						void connection.refresh(activeTab.id);
 					else void mutations.fetch(activeTab.id);
