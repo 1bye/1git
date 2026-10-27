@@ -26,8 +26,8 @@ const directInputBytes = 64 * 1024;
 const maxInputBytes = 8 * 1024 * 1024;
 const overviewBytes = 16 * 1024;
 const maxOutputBytes = 1024 * 1024;
-// JSON-escaped MCP pages can be roughly twice the patch size; leave the normal output budget for framing.
-const maxLargeCodexOutputBytes = maxInputBytes * 2 + maxOutputBytes;
+// MCP page JSON is nested inside the Codex event JSON; reserve the worst-case escaped size plus framing.
+const maxLargeCodexOutputBytes = maxInputBytes * 8 + maxOutputBytes;
 const maxOutputLineBytes = 256 * 1024;
 
 const instructions =
