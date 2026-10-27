@@ -289,6 +289,21 @@ it("routes tab shortcuts while Settings is active", async () => {
 	expect(root.renderer.findByTestId("settings-view")).toBeUndefined();
 });
 
+it("opens a new tab instead of loading Settings for Open and ignores Refresh", async () => {
+	root.render(<App accounts={f.accounts} preview />);
+	click("rail-settings");
+	await settle();
+
+	root.renderer.simulateKeystrokes("cmd-o");
+	await settle();
+
+	expect(element("workspace-2").customProps?.["aria-label"]).toBe("Settings");
+	expect(element("workspace-3").customProps?.["aria-label"]).toBe("New tab");
+	root.renderer.simulateKeystrokes("cmd-r");
+	await settle();
+	expect(element("workspace-2").customProps?.["aria-label"]).toBe("Settings");
+});
+
 it("switches the clone default through public account metadata without accessing credentials", async () => {
 	const metadata = spyOn(f.accounts, "load");
 	const secrets = [...f.secrets];

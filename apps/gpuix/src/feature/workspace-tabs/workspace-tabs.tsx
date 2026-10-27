@@ -165,6 +165,8 @@ export function WorkspaceTabs({
 	worktreesAnchorRef,
 	onWorktreesOpen,
 	onMenuBusyChange,
+	closeDisabledId,
+	onCloseSettings,
 }: {
 	state: WorkspaceTabsState;
 	dispatch: Dispatch<WorkspaceTabsAction>;
@@ -173,6 +175,8 @@ export function WorkspaceTabs({
 	worktreesAnchorRef?: Ref<PublicInstance>;
 	onWorktreesOpen?: () => void;
 	onMenuBusyChange?: (busy: boolean) => void;
+	closeDisabledId?: string;
+	onCloseSettings?: () => void;
 } & Partial<WorkspaceMenuActions>) {
 	const theme = useAppTheme();
 	const { tokens: appTokens, colors: appColors } = theme;
@@ -508,12 +512,20 @@ export function WorkspaceTabs({
 
 									focusTab(tab.id);
 								}}
+								closeDisabled={closeDisabledId === tab.id}
 								onClose={() => {
 									if (
+										closeDisabledId === tab.id ||
 										drag.shouldSuppressClick() ||
 										RepositoryWorkspaceModel.isBusy(tab.workspace)
 									)
 										return;
+
+									if (tab.kind === "settings" && onCloseSettings) {
+										onCloseSettings();
+
+										return;
+									}
 
 									focusRequested.current = true;
 									setMenuId(null);

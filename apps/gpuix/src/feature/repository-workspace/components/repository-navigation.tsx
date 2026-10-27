@@ -187,14 +187,18 @@ function emptyListMessage(state: RepositoryWorkspaceState): string {
 export function RepositoryNavigation(
 	props: Omit<Parameters<typeof RepositoryNavigationContent>[0], "state"> & {
 		state: RepositoryWorkspaceState;
+		hidden?: boolean;
 	}
 ) {
 	if (props.state.view === "graph") return null;
 
+	const { hidden, ...contentProps } = props;
+
 	return (
 		<RepositoryNavigationContent
-			{...props}
+			{...contentProps}
 			state={{ ...props.state, view: props.state.view }}
+			hidden={hidden}
 		/>
 	);
 }
@@ -230,6 +234,7 @@ function RepositoryNavigationContent({
 	openFile,
 	externalEditors,
 	onPreviewIntent,
+	hidden,
 }: {
 	workspaceId: string;
 	state: RepositoryWorkspaceState & {
@@ -263,6 +268,7 @@ function RepositoryNavigationContent({
 	openFile?: typeof RepositoryFileActions.open;
 	externalEditors?: ExternalEditors;
 	onPreviewIntent?: (entry: WorkspaceEntry | null) => void;
+	hidden?: boolean;
 }) {
 	const theme = useAppTheme();
 	const { tokens: appTokens, colors: appColors } = theme;
@@ -318,7 +324,7 @@ function RepositoryNavigationContent({
 			));
 
 	useEffect(() => {
-		if (!searchable) return;
+		if (hidden || !searchable) return;
 
 		repositoryFilterShortcuts.set(renderer, (close) => {
 			if (close) {
@@ -346,7 +352,15 @@ function RepositoryNavigationContent({
 		return () => {
 			repositoryFilterShortcuts.delete(renderer);
 		};
-	}, [renderer, view, filterOpen, searchable, historySearching, onAction]);
+	}, [
+		renderer,
+		view,
+		filterOpen,
+		searchable,
+		historySearching,
+		onAction,
+		hidden,
+	]);
 	useLayoutEffect(() => {
 		if (filterOpen && searchable && filterInput.current)
 			renderer.focusElement?.(filterInput.current.id);
@@ -597,7 +611,21 @@ function RepositoryNavigationContent({
 			testId="repository-navigation"
 			role="navigation"
 			aria-label="Repository navigation"
-			style={styles.navigation}
+			aria-hidden={hidden || undefined}
+			style={StyleSheet.compose(
+				styles.navigation,
+				hidden
+					? {
+							position: "absolute",
+							top: 0,
+							bottom: 0,
+							left: 0,
+							width: 0,
+							visibility: "hidden",
+							pointerEvents: "none",
+						}
+					: undefined
+			)}
 		>
 			<div testId="repository-views" style={styles.toolbar}>
 				<text

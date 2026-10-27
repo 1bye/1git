@@ -811,20 +811,46 @@ function AppContent({
 	const settingsOriginFocus = useRef<number | null>(null);
 
 	const settingsContextTab =
-		state.tabs.find((tab) => tab.id === settingsContextId.current) ??
+		state.tabs.find(
+			(tab) =>
+				tab.id === settingsContextId.current &&
+				(tab.spaceId ?? "default") === activeSpaceId
+		) ??
 		(settingsOpen
-			? state.tabs.find((tab) => tab.kind === "repository")
+			? state.tabs.find(
+					(tab) =>
+						tab.kind === "repository" &&
+						(tab.spaceId ?? "default") === activeSpaceId
+				)
 			: undefined);
 
 	const settingsContextWorkspace = settingsContextTab?.workspace;
+	// Settings is a real tab, but its repository context remains mounted as the
+	// content owner so native editors and diff scroll state keep their identity.
+	const contentTab = settingsOpen ? settingsContextTab : activeTab;
+	const contentWorkspace = settingsOpen ? settingsContextWorkspace : workspace;
 
 	useEffect(() => {
+		if (
+			settingsContextId.current &&
+			!state.tabs.some(
+				(tab) =>
+					tab.id === settingsContextId.current &&
+					(tab.spaceId ?? "default") === activeSpaceId
+			)
+		)
+			settingsContextId.current = null;
+
 		if (!settingsOpen || settingsContextId.current) return;
 
 		settingsContextId.current =
-			state.tabs.find((tab) => tab.kind === "repository")?.id ?? null;
-	}, [settingsOpen, state.tabs]);
-	const commonDirectory = workspace?.repository?.commonDirectory;
+			state.tabs.find(
+				(tab) =>
+					tab.kind === "repository" &&
+					(tab.spaceId ?? "default") === activeSpaceId
+			)?.id ?? null;
+	}, [activeSpaceId, settingsOpen, state.tabs]);
+	const commonDirectory = contentWorkspace?.repository?.commonDirectory;
 	const lastAppearanceTab = useRef<string | undefined>(undefined);
 
 	useLayoutEffect(() => {
@@ -865,15 +891,15 @@ function AppContent({
 		[theme, customizingRepository]
 	);
 
-	const ignoredStatus = workspace?.repository
-		? ignoredHistories.statuses[workspace.repository.root]
+	const ignoredStatus = contentWorkspace?.repository
+		? ignoredHistories.statuses[contentWorkspace.repository.root]
 		: undefined;
 
 	const ignoredVisible =
-		!!workspace?.repository &&
-		ignoredRoot === workspace.repository.root &&
+		!!contentWorkspace?.repository &&
+		ignoredRoot === contentWorkspace.repository.root &&
 		!!ignoredStatus?.data?.preferences.enabled &&
-		!activeTab?.comparison;
+		!contentTab?.comparison;
 
 	const repositoryColor = commonDirectory
 		? repositoryColors[commonDirectory]
@@ -1041,6 +1067,7 @@ function AppContent({
 	}, [previewCache, state.tabs]);
 
 	const [settingsForm, setSettingsForm] = useState<"list" | "connect">("list");
+	const [settingsBusy, setSettingsBusy] = useState(false);
 
 	const editingDirectory = appearanceEditor?.commonDirectory;
 
@@ -1079,9 +1106,9 @@ function AppContent({
 	const welcomeVisible =
 		!publishingVisible &&
 		!(cloneTab && activeTab?.id === cloneTab.id) &&
-		!workspace?.preview &&
-		!workspace?.repository &&
-		!workspace?.repositoryPath;
+		!contentWorkspace?.preview &&
+		!contentWorkspace?.repository &&
+		!contentWorkspace?.repositoryPath;
 
 	const remoteMachine = selectedMachine !== "local";
 
@@ -1344,12 +1371,20 @@ function AppContent({
 	);
 
 	const closeSettings = useCallback(() => {
+		if (settingsBusy) return;
+
 		setSpaceEditor(undefined);
 		const id = WorkspaceTabsModel.settingsId(state);
 
 		if (!id) return;
 
+		const contextId = settingsContextId.current;
+
 		dispatch({ type: "close", id });
+
+		if (contextId && state.tabs.some((tab) => tab.id === contextId))
+			dispatch({ type: "activate", id: contextId });
+
 		const target = settingsOriginFocus.current;
 
 		settingsOriginFocus.current = null;
@@ -1357,7 +1392,7 @@ function AppContent({
 			if (target !== null && renderer.getElementBounds?.(target))
 				renderer.focusElement?.(target);
 		}, 0);
-	}, [dispatch, renderer, setSpaceEditor, state]);
+	}, [dispatch, renderer, setSpaceEditor, settingsBusy, state]);
 
 	const openAppearance = (
 		section: RepositoryAppearanceSection = "color",
@@ -1584,12 +1619,16 @@ function AppContent({
 			if (key === "o") {
 				if (connection.pickingId !== null) return;
 
-				const id =
-					activeTab && !workspace?.repository
-						? activeTab.id
-						: `workspace-${state.nextId}`;
+				const reuseTab =
+					activeTab && activeTab.kind !== "settings" && !workspace?.repository;
 
-				if (id !== activeTab?.id) dispatch({ type: "add" });
+				const id = reuseTab ? activeTab.id : `workspace-${state.nextId}`;
+
+				if (id !== activeTab?.id)
+					dispatch({
+						type: "add",
+						kind: activeTab?.kind === "settings" ? "empty" : undefined,
+					});
 
 				void connection.open(id);
 			} else if (
@@ -1597,9 +1636,17 @@ function AppContent({
 				workspace &&
 				!RepositoryWorkspaceModel.isBusy(workspace)
 			) {
-				if (key === "w") dispatch({ type: "close", id: activeTab.id });
+				if (key === "w") {
+					if (activeTab.kind === "settings") closeSettings();
+					else dispatch({ type: "close", id: activeTab.id });
+				}
 
-				if (key === "r" && !workspace.loading && workspace.repository) {
+				if (
+					key === "r" &&
+					activeTab.kind === "repository" &&
+					!workspace.loading &&
+					workspace.repository
+				) {
 					if (workspace.repository.remoteCount === 0)
 						void connection.refresh(activeTab.id);
 					else void mutations.fetch(activeTab.id);
@@ -1622,6 +1669,7 @@ function AppContent({
 		connection,
 		onboardingOpen,
 		settingsOpen,
+		closeSettings,
 	]);
 
 	const workspaceAction = useCallback(
@@ -1631,8 +1679,8 @@ function AppContent({
 	);
 
 	const history = useRepositoryHistory(
-		activeTab?.id,
-		workspace,
+		contentTab?.id,
+		contentWorkspace,
 		workspaceAction,
 		readHistory,
 		readCommitFiles,
@@ -1642,28 +1690,34 @@ function AppContent({
 	);
 
 	const stashes = useRepositoryStashes(
-		activeTab?.id,
-		workspace,
+		contentTab?.id,
+		contentWorkspace,
 		workspaceAction,
 		readStashes,
 		readStashFiles
 	);
 
 	const revision =
-		workspace && (workspace.view === "history" || workspace.view === "stashes")
-			? RepositoryWorkspaceModel.revision(workspace, workspace.view)
+		contentWorkspace &&
+		(contentWorkspace.view === "history" || contentWorkspace.view === "stashes")
+			? RepositoryWorkspaceModel.revision(
+					contentWorkspace,
+					contentWorkspace.view
+				)
 			: undefined;
 
-	const selectedId = workspace
-		? workspace.view === "changes"
-			? workspace.views.changes.selectedId
-			: workspace.view === "graph"
+	const selectedId = contentWorkspace
+		? contentWorkspace.view === "changes"
+			? contentWorkspace.views.changes.selectedId
+			: contentWorkspace.view === "graph"
 				? null
-				: workspace.views[workspace.view].files.selectedId
+				: contentWorkspace.views[contentWorkspace.view].files.selectedId
 		: null;
 
 	const files =
-		workspace?.view === "changes" ? workspace.entries.changes : revision?.files;
+		contentWorkspace?.view === "changes"
+			? contentWorkspace.entries.changes
+			: revision?.files;
 
 	const selected = files?.find((file) => file.id === selectedId);
 	const comparison = selected?.change ?? selected?.commitFile;
@@ -1679,12 +1733,12 @@ function AppContent({
 
 	const repositoryView = settingsOpen
 		? settingsRepositoryView
-		: workspace &&
-			  (workspace.repository ||
-					workspace.preview ||
-					workspace.repositoryPath) &&
-			  !activeTab?.comparison
-			? workspace.view
+		: contentWorkspace &&
+			  (contentWorkspace.repository ||
+					contentWorkspace.preview ||
+					contentWorkspace.repositoryPath) &&
+			  !contentTab?.comparison
+			? contentWorkspace.view
 			: undefined;
 
 	const selectRepositoryView = (view: RepositoryView) => {
@@ -1802,7 +1856,6 @@ function AppContent({
 
 	const settingsContent = settingsOpen ? (
 		<AccountsSettings
-			embedded
 			onReplayTips={() => {
 				setTips({ completed: [] });
 				closeSettings();
@@ -1825,8 +1878,6 @@ function AppContent({
 						}
 					: undefined
 			}
-			spaceSwitcher={spaceSwitcher}
-			onSpaceSwipe={(state.spaces?.length ?? 1) > 1 ? swipeSpace : undefined}
 			spacesSettings={spacesSettings}
 			onBack={closeSettings}
 			onSetup={
@@ -1848,12 +1899,9 @@ function AppContent({
 			externalEditors={externalEditors}
 			initialForm={settingsForm}
 			onFormChange={setSettingsForm}
+			onBusyChange={setSettingsBusy}
 			initialReconnectKey={reconnectAccountKey}
 			remoteAccounts={remoteAccounts}
-			preferredAccountKey={preferredAccountKey}
-			onAccount={setPreferredAccountKey}
-			repositoryView={repositoryView}
-			onRepositoryView={selectRepositoryView}
 			initialSection={settingsSection}
 			onSectionChange={setSettingsSection}
 			repositorySettings={
@@ -1920,7 +1968,7 @@ function AppContent({
 
 				<AppShell
 					palette={repositoryTheme}
-					hidden={onboardingOpen}
+					hidden={onboardingOpen && !settingsOpen}
 					rail={
 						onboardingOpen ? undefined : (
 							<WorkspaceRail
@@ -1943,6 +1991,7 @@ function AppContent({
 								repositoryAppearance={repositoryAppearance}
 								onAppearance={openAppearance}
 								accounts={accounts}
+								disabled={settingsBusy}
 								preferredAccountKey={preferredAccountKey}
 								onAccount={setPreferredAccountKey}
 								onSettings={(section) => {
@@ -2040,13 +2089,13 @@ function AppContent({
 						)
 					}
 					navigation={
-						activeTab &&
-						workspace &&
-						(workspace.repository ||
-							workspace.preview ||
-							workspace.repositoryPath) &&
-						!activeTab.comparison &&
-						workspace.view !== "graph" &&
+						contentTab &&
+						contentWorkspace &&
+						(contentWorkspace.repository ||
+							contentWorkspace.preview ||
+							contentWorkspace.repositoryPath) &&
+						!contentTab.comparison &&
+						contentWorkspace.view !== "graph" &&
 						!ignoredVisible ? (
 							<RepositoryNavigation
 								onAiSettings={() => {
@@ -2055,13 +2104,13 @@ function AppContent({
 								}}
 								onPreviewIntent={(entry) => {
 									const change = entry?.change ?? entry?.commitFile;
-									const repository = workspace.repository;
+									const repository = contentWorkspace.repository;
 
 									const available =
 										repository &&
-										!workspace.loading &&
-										!workspace.error &&
-										!RepositoryWorkspaceModel.isBusy(workspace);
+										!contentWorkspace.loading &&
+										!contentWorkspace.error &&
+										!RepositoryWorkspaceModel.isBusy(contentWorkspace);
 
 									previewCache.intent(
 										change && available
@@ -2077,41 +2126,42 @@ function AppContent({
 								openFile={launchFile}
 								externalEditors={externalEditors}
 								onDiscard={(request) =>
-									mutations.discardFile(activeTab.id, request)
+									mutations.discardFile(contentTab.id, request)
 								}
 								onIgnore={(request) =>
-									mutations.ignoreFile(activeTab.id, request)
+									mutations.ignoreFile(contentTab.id, request)
 								}
-								key={activeTab.id}
-								workspaceId={activeTab.id}
-								state={workspace}
+								key={contentTab.id}
+								workspaceId={contentTab.id}
+								state={contentWorkspace}
+								hidden={settingsOpen}
 								history={history}
 								stashes={stashes}
 								onCommit={() => {
-									void mutations.commit(activeTab.id);
+									void mutations.commit(contentTab.id);
 								}}
-								onCancelCommit={() => mutations.cancelCommit(activeTab.id)}
+								onCancelCommit={() => mutations.cancelCommit(contentTab.id)}
 								onUndoCommit={(input) =>
-									mutations.undoCommit(activeTab.id, input)
+									mutations.undoCommit(contentTab.id, input)
 								}
 								onRevertCommit={(input) =>
-									mutations.revertCommit(activeTab.id, input)
+									mutations.revertCommit(contentTab.id, input)
 								}
 								onCherryPickCommit={(input) =>
-									mutations.cherryPickCommit(activeTab.id, input)
+									mutations.cherryPickCommit(contentTab.id, input)
 								}
 								onCreateTag={(input) =>
-									mutations.createTag(activeTab.id, input)
+									mutations.createTag(contentTab.id, input)
 								}
-								onPushTag={(input) => mutations.pushTag(activeTab.id, input)}
+								onPushTag={(input) => mutations.pushTag(contentTab.id, input)}
 								onSquash={(input) =>
-									mutations.squashCommits(activeTab.id, input)
+									mutations.squashCommits(contentTab.id, input)
 								}
 								readSquash={readSquash}
-								onReset={(input) => mutations.resetCommit(activeTab.id, input)}
+								onReset={(input) => mutations.resetCommit(contentTab.id, input)}
 								readReset={readReset}
 								onReorder={(input) =>
-									mutations.reorderCommits(activeTab.id, input)
+									mutations.reorderCommits(contentTab.id, input)
 								}
 								readReorder={readReorder}
 								readBranches={readBranches}
@@ -2124,15 +2174,15 @@ function AppContent({
 									)
 								}
 								readLastCommit={readLastCommit}
-								onStash={(request) => mutations.stash(activeTab.id, request)}
+								onStash={(request) => mutations.stash(contentTab.id, request)}
 								onOperation={(request) =>
-									mutations.finishOperation(activeTab.id, request)
+									mutations.finishOperation(contentTab.id, request)
 								}
 								onRefresh={() => {
-									void connection.refresh(activeTab.id);
+									void connection.refresh(contentTab.id);
 								}}
 								onAction={(action) =>
-									dispatch({ type: "workspace", id: activeTab.id, action })
+									dispatch({ type: "workspace", id: contentTab.id, action })
 								}
 							/>
 						) : undefined
@@ -2146,6 +2196,10 @@ function AppContent({
 							onMenuBusyChange={setTabMenuBusy}
 							state={{ ...state, tabs: visibleTabs }}
 							dispatch={dispatch}
+							closeDisabledId={
+								settingsBusy ? WorkspaceTabsModel.settingsId(state) : undefined
+							}
+							onCloseSettings={closeSettings}
 							readBranches={readBranches}
 							readRepository={readRepository}
 							onChangeBranch={mutations.changeBranch}
@@ -2158,491 +2212,524 @@ function AppContent({
 						/>
 					}
 					workspaceLabel={activeTab ? `${activeTab.name} workspace` : "Home"}
-					overlay={settingsContent}
 				>
-					{publishTab && publishRepository ? (
-						<RepositoryPublishView
-							key={publishTab.id}
-							accounts={accounts}
-							name={publishRepository.name}
-							active={publishingVisible && !settingsOpen}
-							disabled={
-								publishTab.workspace.loading ||
-								!!publishTab.workspace.error ||
-								RepositoryWorkspaceModel.isBusy(publishTab.workspace)
-							}
-							created={published.get(publishRepository.commonDirectory)}
-							uncertain={uncertainPublications.has(
-								publishRepository.commonDirectory
-							)}
-							blockedReason={
-								!publishRepository.head
-									? "Create your first commit before publishing."
-									: !publishRepository.branchName
-										? "Switch to a branch before publishing."
-										: publishRepository.operation !== "normal"
-											? "Finish the current Git operation before publishing."
-											: publishTab.workspace.commit.needsReview
-												? "Refresh and review this repository before publishing."
-												: undefined
-							}
-							preferredAccountKey={preferredAccountKey}
-							onSubmit={async (request) => {
-								const result = await mutations.publishRepository(
-									publishTab.id,
-									(root, identity, signal, onProgress) =>
-										publisher.write(
-											root,
-											request,
-											identity,
-											signal,
-											(receipt) =>
-												setPublished((previous) =>
-													new Map(previous).set(
-														receipt.commonDirectory,
-														receipt
-													)
-												),
-											() =>
-												setUncertainPublications((previous) =>
-													new Set(previous).add(
-														publishRepository.commonDirectory
-													)
-												),
-											onProgress
-										)
-								);
-
-								if (result?.ok) {
-									setPublished((previous) => {
-										const next = new Map(previous);
-
-										next.delete(publishRepository.commonDirectory);
-
-										return next;
-									});
-									void avatars.invalidate(publishRepository.root);
+					<div
+						aria-hidden={settingsOpen || undefined}
+						style={
+							settingsOpen
+								? {
+										position: "absolute",
+										top: 0,
+										right: 0,
+										bottom: 0,
+										left: 0,
+										visibility: "hidden",
+										pointerEvents: "none",
+									}
+								: undefined
+						}
+					>
+						{publishTab && publishRepository ? (
+							<RepositoryPublishView
+								key={publishTab.id}
+								accounts={accounts}
+								name={publishRepository.name}
+								active={publishingVisible && !settingsOpen}
+								disabled={
+									publishTab.workspace.loading ||
+									!!publishTab.workspace.error ||
+									RepositoryWorkspaceModel.isBusy(publishTab.workspace)
 								}
+								created={published.get(publishRepository.commonDirectory)}
+								uncertain={uncertainPublications.has(
+									publishRepository.commonDirectory
+								)}
+								blockedReason={
+									!publishRepository.head
+										? "Create your first commit before publishing."
+										: !publishRepository.branchName
+											? "Switch to a branch before publishing."
+											: publishRepository.operation !== "normal"
+												? "Finish the current Git operation before publishing."
+												: publishTab.workspace.commit.needsReview
+													? "Refresh and review this repository before publishing."
+													: undefined
+								}
+								preferredAccountKey={preferredAccountKey}
+								onSubmit={async (request) => {
+									const result = await mutations.publishRepository(
+										publishTab.id,
+										(root, identity, signal, onProgress) =>
+											publisher.write(
+												root,
+												request,
+												identity,
+												signal,
+												(receipt) =>
+													setPublished((previous) =>
+														new Map(previous).set(
+															receipt.commonDirectory,
+															receipt
+														)
+													),
+												() =>
+													setUncertainPublications((previous) =>
+														new Set(previous).add(
+															publishRepository.commonDirectory
+														)
+													),
+												onProgress
+											)
+									);
 
-								return result;
-							}}
-							onClose={() => setPublishOpen(false)}
-							onCancel={() => mutations.cancelSync(publishTab.id)}
-							onSettings={() => openSettings("connect")}
-						/>
-					) : null}
-					{settingsOpen ? null : closeNotice}
-					{session.error ? (
-						<div
-							style={{
-								padding: spacing[2.5],
-								flexShrink: 0,
-								gap: spacing[1.5],
-							}}
-						>
-							<text
-								testId="session-notice"
-								role="alert"
+									if (result?.ok) {
+										setPublished((previous) => {
+											const next = new Map(previous);
+
+											next.delete(publishRepository.commonDirectory);
+
+											return next;
+										});
+										void avatars.invalidate(publishRepository.root);
+									}
+
+									return result;
+								}}
+								onClose={() => setPublishOpen(false)}
+								onCancel={() => mutations.cancelSync(publishTab.id)}
+								onSettings={() => openSettings("connect")}
+							/>
+						) : null}
+						{settingsOpen ? null : closeNotice}
+						{session.error ? (
+							<div
 								style={{
-									...typography.sm,
-									color: appTokens.colors.textMuted,
+									padding: spacing[2.5],
+									flexShrink: 0,
+									gap: spacing[1.5],
 								}}
 							>
-								{session.error}
-							</text>
-							{saveSession ? (
-								<Button
-									testId="retry-session-save"
-									tokens={appTokens}
-									size="sm"
-									variant="ghost"
-									onPress={session.retry}
+								<text
+									testId="session-notice"
+									role="alert"
+									style={{
+										...typography.sm,
+										color: appTokens.colors.textMuted,
+									}}
 								>
-									Retry saving session
-								</Button>
-							) : null}
-						</div>
-					) : null}
-					{folderPickerRoot ? (
-						<RemoteFolderPicker
-							location={folderPickerRoot}
-							title="Open repository"
-							confirmLabel="Open folder"
-							onClose={() => setFolderPickerRoot(undefined)}
-							onSelect={(path) => {
-								setFolderPickerRoot(undefined);
-								const existing = visibleTabs.find(
-									(tab) => tab.workspace.repository?.root === path
-								);
+									{session.error}
+								</text>
+								{saveSession ? (
+									<Button
+										testId="retry-session-save"
+										tokens={appTokens}
+										size="sm"
+										variant="ghost"
+										onPress={session.retry}
+									>
+										Retry saving session
+									</Button>
+								) : null}
+							</div>
+						) : null}
+						{folderPickerRoot ? (
+							<RemoteFolderPicker
+								location={folderPickerRoot}
+								title="Open repository"
+								confirmLabel="Open folder"
+								onClose={() => setFolderPickerRoot(undefined)}
+								onSelect={(path) => {
+									setFolderPickerRoot(undefined);
+									const existing = visibleTabs.find(
+										(tab) => tab.workspace.repository?.root === path
+									);
 
-								if (existing) dispatch({ type: "activate", id: existing.id });
-								else if (activeTab) readTabRepository(activeTab.id, path);
-								else dispatch({ type: "add", path });
-							}}
-						/>
-					) : null}
-					{cloneTab ? (
-						<RepositoryCloneView
-							key={cloneTab.id}
-							machine={cloneMachine}
-							accounts={accounts}
-							preferredAccountKey={preferredAccountKey}
-							active={activeTab?.id === cloneTab.id && !settingsOpen}
-							disabled={
-								connection.pickingId !== null ||
-								cloneTab.workspace.loading ||
-								RepositoryWorkspaceModel.isBusy(cloneTab.workspace)
-							}
-							onSubmit={(request) =>
-								connection.setup(
-									cloneTab.id,
-									request,
-									mutations.closeProtection.block
-								)
-							}
-							onCancel={() => connection.cancelSetup(cloneTab.id)}
-							onOpen={(path) => {
-								readTabRepository(cloneTab.id, path);
-							}}
-							onSettings={openSettings}
-							onAddAccount={() => openSettings("connect")}
-							onBack={() => {
-								setCloneId(null);
-								setTimeout(() => {
-									const trigger = cloneTrigger.current;
+									if (existing) dispatch({ type: "activate", id: existing.id });
+									else if (activeTab) readTabRepository(activeTab.id, path);
+									else dispatch({ type: "add", path });
+								}}
+							/>
+						) : null}
+						{cloneTab ? (
+							<RepositoryCloneView
+								key={cloneTab.id}
+								machine={cloneMachine}
+								accounts={accounts}
+								preferredAccountKey={preferredAccountKey}
+								active={activeTab?.id === cloneTab.id && !settingsOpen}
+								disabled={
+									connection.pickingId !== null ||
+									cloneTab.workspace.loading ||
+									RepositoryWorkspaceModel.isBusy(cloneTab.workspace)
+								}
+								onSubmit={(request) =>
+									connection.setup(
+										cloneTab.id,
+										request,
+										mutations.closeProtection.block
+									)
+								}
+								onCancel={() => connection.cancelSetup(cloneTab.id)}
+								onOpen={(path) => {
+									readTabRepository(cloneTab.id, path);
+								}}
+								onSettings={openSettings}
+								onAddAccount={() => openSettings("connect")}
+								onBack={() => {
+									setCloneId(null);
+									setTimeout(() => {
+										const trigger = cloneTrigger.current;
 
-									if (trigger) renderer.focusElement?.(trigger.id);
-								}, 0);
-							}}
-						/>
-					) : null}
-					{!publishingVisible &&
-					!(cloneTab && activeTab?.id === cloneTab.id) &&
-					!activeTab?.comparison &&
-					workspace?.view === "history" &&
-					revision?.commit ? (
-						<RepositoryCommitDetails
-							key={`commit-details:${activeTab?.id}:${workspace.repository?.root}:${revision.id}`}
-							commit={revision.commit}
-							tags={history.tags}
-						/>
-					) : null}
-					{publishingVisible ||
-					(cloneTab &&
-						activeTab?.id === cloneTab.id) ? null : welcomeVisible ? (
-						<RepositoryWelcome
-							key={activeSpaceId}
-							readRepository={readRepository}
-							canReadRepository={canReadOverview}
-							openWorkspaces={visibleTabs
-								.filter((tab) => !tab.comparison)
-								.map((tab) => tab.workspace)}
-							paths={welcomePaths}
-							remote={remoteMachine}
-							machines={
-								!preview ? (
-									<MachinesPanel
-										service={machines}
-										selected={selectedMachine}
-										onConnected={() => discovery.rescan()}
-										onSelect={(id) => {
-											setMachineError(null);
-											setRepositoryLibrary((current) => ({
-												...current,
-												folder: undefined,
-												machine: id === "local" ? undefined : id,
-											}));
+										if (trigger) renderer.focusElement?.(trigger.id);
+									}, 0);
+								}}
+							/>
+						) : null}
+						{!publishingVisible &&
+						!(cloneTab && contentTab?.id === cloneTab.id) &&
+						!contentTab?.comparison &&
+						contentWorkspace?.view === "history" &&
+						revision?.commit ? (
+							<RepositoryCommitDetails
+								key={`commit-details:${contentTab?.id}:${contentWorkspace.repository?.root}:${revision.id}`}
+								commit={revision.commit}
+								tags={history.tags}
+							/>
+						) : null}
+						{publishingVisible ||
+						(cloneTab &&
+							contentTab?.id === cloneTab.id) ? null : welcomeVisible ? (
+							<RepositoryWelcome
+								key={activeSpaceId}
+								readRepository={readRepository}
+								canReadRepository={canReadOverview}
+								openWorkspaces={visibleTabs
+									.filter((tab) => !tab.comparison)
+									.map((tab) => tab.workspace)}
+								paths={welcomePaths}
+								remote={remoteMachine}
+								machines={
+									!preview ? (
+										<MachinesPanel
+											service={machines}
+											selected={selectedMachine}
+											onConnected={() => discovery.rescan()}
+											onSelect={(id) => {
+												setMachineError(null);
+												setRepositoryLibrary((current) => ({
+													...current,
+													folder: undefined,
+													machine: id === "local" ? undefined : id,
+												}));
+											}}
+										/>
+									) : undefined
+								}
+								library={repositoryLibrary}
+								onLibraryChange={setRepositoryLibrary}
+								savedPaths={activeSpace.repositories}
+								discovery={discovery.available ? discovery : undefined}
+								onForget={(path) => {
+									discovery.hide(path);
+									setRepositoryLibrary((current) =>
+										RepositoryLibrary.star(current, path, false)
+									);
+									dispatch({ type: "forget-repository", path });
+								}}
+								busy={
+									connection.pickingId !== null || !!contentWorkspace?.loading
+								}
+								error={machineError ?? contentWorkspace?.error}
+								onOpen={() => {
+									if (remoteHome) {
+										setFolderPickerRoot(remoteHome);
+
+										return;
+									}
+
+									const id = contentTab?.id ?? `workspace-${state.nextId}`;
+
+									if (!contentTab) dispatch({ type: "add" });
+
+									void connection.open(id);
+								}}
+								onOpenRecent={(path) => {
+									const existing = visibleTabs.find(
+										(tab) => tab.workspace.repository?.root === path
+									);
+
+									if (existing) dispatch({ type: "activate", id: existing.id });
+									else if (contentTab) readTabRepository(contentTab.id, path);
+									else dispatch({ type: "add", path });
+								}}
+								actions={
+									<RepositorySetupActions
+										machineRoot={remoteHome}
+										cloneRef={cloneTrigger}
+										onClone={() => {
+											if (
+												cloneTab &&
+												RepositoryWorkspaceModel.isBusy(cloneTab.workspace)
+											) {
+												dispatch({ type: "activate", id: cloneTab.id });
+
+												return;
+											}
+
+											const id = contentTab?.id ?? `workspace-${state.nextId}`;
+
+											if (!contentTab) dispatch({ type: "add" });
+
+											setCloneMachine(
+												selectedSavedMachine && machineHome
+													? {
+															id: selectedSavedMachine.id,
+															name: selectedSavedMachine.name,
+															home: machineHome,
+														}
+													: undefined
+											);
+											setCloneId(id);
+										}}
+										onBegin={() => {
+											if (!contentTab) dispatch({ type: "add" });
+										}}
+										disabled={
+											(remoteMachine && !machineHome) ||
+											connection.pickingId !== null ||
+											!!contentWorkspace?.loading ||
+											(!!contentWorkspace &&
+												RepositoryWorkspaceModel.isBusy(contentWorkspace))
+										}
+										onSubmit={(request) =>
+											contentTab
+												? connection.setup(
+														contentTab.id,
+														request,
+														mutations.closeProtection.block
+													)
+												: Promise.resolve({
+														ok: false,
+														message: "Open a workspace first.",
+													})
+										}
+										onCancel={() => {
+											if (contentTab) connection.cancelSetup(contentTab.id);
+										}}
+										onOpen={(path) => {
+											if (contentTab) readTabRepository(contentTab.id, path);
 										}}
 									/>
-								) : undefined
-							}
-							library={repositoryLibrary}
-							onLibraryChange={setRepositoryLibrary}
-							savedPaths={activeSpace.repositories}
-							discovery={discovery.available ? discovery : undefined}
-							onForget={(path) => {
-								discovery.hide(path);
-								setRepositoryLibrary((current) =>
-									RepositoryLibrary.star(current, path, false)
-								);
-								dispatch({ type: "forget-repository", path });
-							}}
-							busy={connection.pickingId !== null || !!workspace?.loading}
-							error={machineError ?? workspace?.error}
-							onOpen={() => {
-								if (remoteHome) {
-									setFolderPickerRoot(remoteHome);
-
-									return;
 								}
-
-								const id = activeTab?.id ?? `workspace-${state.nextId}`;
-
-								if (!activeTab) dispatch({ type: "add" });
-
-								void connection.open(id);
-							}}
-							onOpenRecent={(path) => {
-								const existing = visibleTabs.find(
-									(tab) => tab.workspace.repository?.root === path
-								);
-
-								if (existing) dispatch({ type: "activate", id: existing.id });
-								else if (activeTab) readTabRepository(activeTab.id, path);
-								else dispatch({ type: "add", path });
-							}}
-							actions={
-								<RepositorySetupActions
-									machineRoot={remoteHome}
-									cloneRef={cloneTrigger}
-									onClone={() => {
-										if (
-											cloneTab &&
-											RepositoryWorkspaceModel.isBusy(cloneTab.workspace)
-										) {
-											dispatch({ type: "activate", id: cloneTab.id });
-
-											return;
-										}
-
-										const id = activeTab?.id ?? `workspace-${state.nextId}`;
-
-										if (!activeTab) dispatch({ type: "add" });
-
-										setCloneMachine(
-											selectedSavedMachine && machineHome
-												? {
-														id: selectedSavedMachine.id,
-														name: selectedSavedMachine.name,
-														home: machineHome,
-													}
-												: undefined
-										);
-										setCloneId(id);
-									}}
-									onBegin={() => {
-										if (!activeTab) dispatch({ type: "add" });
-									}}
-									disabled={
-										(remoteMachine && !machineHome) ||
-										connection.pickingId !== null ||
-										!!workspace?.loading ||
-										(!!workspace && RepositoryWorkspaceModel.isBusy(workspace))
-									}
-									onSubmit={(request) =>
-										activeTab
-											? connection.setup(
-													activeTab.id,
-													request,
-													mutations.closeProtection.block
-												)
-											: Promise.resolve({
-													ok: false,
-													message: "Open a workspace first.",
-												})
-									}
-									onCancel={() => {
-										if (activeTab) connection.cancelSetup(activeTab.id);
-									}}
-									onOpen={(path) => {
-										if (activeTab) readTabRepository(activeTab.id, path);
-									}}
-								/>
-							}
-						/>
-					) : activeTab?.comparison?.intent === "pull-request" && workspace ? (
-						<RepositoryPullRequestView
-							fileTreeScope={activeTab.id}
-							key={`${activeTab.id}:pull-request`}
-							root={activeTab.comparison.root}
-							state={workspace}
-							read={readReview}
-							onFetch={() => mutations.fetch(activeTab.id)}
-							onSync={(choice, identity) =>
-								mutations.synchronize(activeTab.id, choice, undefined, identity)
-							}
-							onClose={() => dispatch({ type: "compare", id: activeTab.id })}
-							readComparison={readComparison}
-							readHistory={readHistory}
-							readCommitFiles={readCommitFiles}
-							readDiff={readDiff}
-							previewCache={previewCache}
-							diffSettings={diffSettings}
-							onDiffSettingsChange={setDiffSettings}
-						/>
-					) : activeTab?.comparison?.intent === "sync" && workspace ? (
-						<RepositorySyncReview
-							fileTreeScope={activeTab.id}
-							key={`${activeTab.id}:${activeTab.comparison.base}:${activeTab.comparison.incoming}:${activeTab.comparison.branches.map((branch) => branch.oid).join(":")}`}
-							request={activeTab.comparison}
-							state={workspace}
-							onClose={() => dispatch({ type: "compare", id: activeTab.id })}
-							onIntegrate={(choice) =>
-								mutations.changeBranch(activeTab.id, choice)
-							}
-							readComparison={readComparison}
-							readHistory={readHistory}
-							readCommitFiles={readCommitFiles}
-							readDiff={readDiff}
-							previewCache={previewCache}
-							diffSettings={diffSettings}
-							onDiffSettingsChange={setDiffSettings}
-						/>
-					) : activeTab?.comparison ? (
-						<RepositoryComparison
-							fileTreeScope={activeTab.id}
-							key={activeTab.id}
-							request={activeTab.comparison}
-							readComparison={readComparison}
-							readHistory={readHistory}
-							readCommitFiles={readCommitFiles}
-							readDiff={readDiff}
-							previewCache={previewCache}
-							diffSettings={diffSettings}
-							onDiffSettingsChange={setDiffSettings}
-							onClose={() => dispatch({ type: "compare", id: activeTab.id })}
-						>
-							{workspace?.repository && !workspace.preview
-								? () => (
-										<Button
-											testId="preview-pull-request"
-											tokens={appTokens}
-											variant="secondary"
-											size="sm"
-											disabled={
-												workspace.loading ||
-												RepositoryWorkspaceModel.isBusy(workspace) ||
-												!!workspace.error ||
-												workspace.repository?.operation !== "normal" ||
-												!workspace.repository?.head ||
-												!workspace.repository.branchName ||
-												workspace.repository.remoteCount === 0
-											}
-											onPress={() => {
-												const request = activeTab.comparison;
-
-												if (!request) return;
-
-												dispatch({
-													type: "compare",
-													id: activeTab.id,
-													comparison: {
-														...request,
-														intent: "pull-request",
-													},
-												});
-											}}
-										>
-											Preview pull request…
-										</Button>
+							/>
+						) : contentTab?.comparison?.intent === "pull-request" &&
+						  contentWorkspace ? (
+							<RepositoryPullRequestView
+								fileTreeScope={contentTab.id}
+								key={`${contentTab.id}:pull-request`}
+								root={contentTab.comparison.root}
+								state={contentWorkspace}
+								read={readReview}
+								onFetch={() => mutations.fetch(contentTab.id)}
+								onSync={(choice, identity) =>
+									mutations.synchronize(
+										contentTab.id,
+										choice,
+										undefined,
+										identity
 									)
-								: undefined}
-						</RepositoryComparison>
-					) : ignoredVisible && workspace?.repository ? (
-						<IgnoredHistoryView
-							key={`ignored:${workspace.repository.root}`}
-							repository={workspace.repository}
-							history={ignoredHistory}
-							status={ignoredStatus}
-							onRefresh={() =>
-								ignoredHistories.refresh(workspace.repository?.root ?? "")
-							}
-							onSettings={() => {
-								openSettings();
-								setSettingsSection("repository-ignored-history");
-							}}
-							settings={diffSettings}
-							onSettingsChange={setDiffSettings}
-							disabled={
-								workspace.loading || RepositoryWorkspaceModel.isBusy(workspace)
-							}
-						/>
-					) : activeTab &&
-					  workspace?.repository &&
-					  workspace.view === "graph" ? (
-						<RepositoryGraph
-							fileTreeScope={activeTab.id}
-							key={`graph:${activeTab.id}:${workspace.repository.root}`}
-							root={workspace.repository.root}
-							head={workspace.repository.head}
-							version={workspace.metadataVersion ?? 0}
-							disabled={
-								workspace.loading || RepositoryWorkspaceModel.isBusy(workspace)
-							}
-							readReferences={readGraphReferences}
-							readPage={readGraphPage}
-							readCommitFiles={readCommitFiles}
-							readDiff={readDiff}
-							previewCache={previewCache}
-							diffSettings={diffSettings}
-							onDiffSettingsChange={setDiffSettings}
-						/>
-					) : activeTab && workspace?.repository && comparison ? (
-						<RepositoryDiff
-							key={`${activeTab.id}:${workspace.repository.root}:${revision?.id ?? "changes"}`}
-							root={workspace.repository.root}
-							change={comparison}
-							inclusion={
-								workspace.view === "changes" &&
-								workspace.repository.operation === "normal"
-									? {
-											included: workspace.includedFileIds.includes(
-												comparison.path
-											),
-											selection: workspace.partialFiles?.[comparison.path],
-											onChange: (expectedPatch, includedLines, total) =>
-												dispatch({
-													type: "workspace",
-													id: activeTab.id,
-													action: {
-														type: "include-lines",
-														id: comparison.path,
-														expectedPatch,
-														includedLines,
-														total,
-													},
-												}),
-										}
-									: undefined
-							}
-							cache={previewCache}
-							settings={diffSettings}
-							onSettingsChange={setDiffSettings}
-							version={workspace.repository}
-							files={files}
-							refreshing={
-								workspace.loading || RepositoryWorkspaceModel.isBusy(workspace)
-							}
-							statusError={workspace.error}
-							readDiff={readDiff}
-							onResolve={(hash, side, expectedSideOid) =>
-								mutations.resolve(
-									activeTab.id,
-									comparison.path,
-									hash,
-									side,
-									expectedSideOid
-								)
-							}
-							openConflictEditor={launchConflict}
-						/>
-					) : (
-						<RepositoryDiffEmpty
-							selected={selected}
-							revision={revision}
-							view={workspace?.view}
-							hasWorkspace={!!activeTab}
-							workspace={workspace}
-							picking={connection.pickingId !== null}
-							onOpen={() => {
-								if (!activeTab) return;
+								}
+								onClose={() => dispatch({ type: "compare", id: contentTab.id })}
+								readComparison={readComparison}
+								readHistory={readHistory}
+								readCommitFiles={readCommitFiles}
+								readDiff={readDiff}
+								previewCache={previewCache}
+								diffSettings={diffSettings}
+								onDiffSettingsChange={setDiffSettings}
+							/>
+						) : contentTab?.comparison?.intent === "sync" &&
+						  contentWorkspace ? (
+							<RepositorySyncReview
+								fileTreeScope={contentTab.id}
+								key={`${contentTab.id}:${contentTab.comparison.base}:${contentTab.comparison.incoming}:${contentTab.comparison.branches.map((branch) => branch.oid).join(":")}`}
+								request={contentTab.comparison}
+								state={contentWorkspace}
+								onClose={() => dispatch({ type: "compare", id: contentTab.id })}
+								onIntegrate={(choice) =>
+									mutations.changeBranch(contentTab.id, choice)
+								}
+								readComparison={readComparison}
+								readHistory={readHistory}
+								readCommitFiles={readCommitFiles}
+								readDiff={readDiff}
+								previewCache={previewCache}
+								diffSettings={diffSettings}
+								onDiffSettingsChange={setDiffSettings}
+							/>
+						) : contentTab?.comparison ? (
+							<RepositoryComparison
+								fileTreeScope={contentTab.id}
+								key={contentTab.id}
+								request={contentTab.comparison}
+								readComparison={readComparison}
+								readHistory={readHistory}
+								readCommitFiles={readCommitFiles}
+								readDiff={readDiff}
+								previewCache={previewCache}
+								diffSettings={diffSettings}
+								onDiffSettingsChange={setDiffSettings}
+								onClose={() => dispatch({ type: "compare", id: contentTab.id })}
+							>
+								{contentWorkspace?.repository && !contentWorkspace.preview
+									? () => (
+											<Button
+												testId="preview-pull-request"
+												tokens={appTokens}
+												variant="secondary"
+												size="sm"
+												disabled={
+													contentWorkspace.loading ||
+													RepositoryWorkspaceModel.isBusy(contentWorkspace) ||
+													!!contentWorkspace.error ||
+													contentWorkspace.repository?.operation !== "normal" ||
+													!contentWorkspace.repository?.head ||
+													!contentWorkspace.repository.branchName ||
+													contentWorkspace.repository.remoteCount === 0
+												}
+												onPress={() => {
+													const request = contentTab.comparison;
 
-								if (workspace?.repositoryPath)
-									void connection.refresh(activeTab.id);
-								else void connection.open(activeTab.id);
-							}}
-						/>
-					)}
+													if (!request) return;
+
+													dispatch({
+														type: "compare",
+														id: contentTab.id,
+														comparison: {
+															...request,
+															intent: "pull-request",
+														},
+													});
+												}}
+											>
+												Preview pull request…
+											</Button>
+										)
+									: undefined}
+							</RepositoryComparison>
+						) : ignoredVisible && contentWorkspace?.repository ? (
+							<IgnoredHistoryView
+								key={`ignored:${contentWorkspace.repository.root}`}
+								repository={contentWorkspace.repository}
+								history={ignoredHistory}
+								status={ignoredStatus}
+								onRefresh={() =>
+									ignoredHistories.refresh(
+										contentWorkspace.repository?.root ?? ""
+									)
+								}
+								onSettings={() => {
+									openSettings();
+									setSettingsSection("repository-ignored-history");
+								}}
+								settings={diffSettings}
+								onSettingsChange={setDiffSettings}
+								disabled={
+									contentWorkspace.loading ||
+									RepositoryWorkspaceModel.isBusy(contentWorkspace)
+								}
+							/>
+						) : contentTab &&
+						  contentWorkspace?.repository &&
+						  contentWorkspace.view === "graph" ? (
+							<RepositoryGraph
+								fileTreeScope={contentTab.id}
+								key={`graph:${contentTab.id}:${contentWorkspace.repository.root}`}
+								root={contentWorkspace.repository.root}
+								head={contentWorkspace.repository.head}
+								version={contentWorkspace.metadataVersion ?? 0}
+								disabled={
+									contentWorkspace.loading ||
+									RepositoryWorkspaceModel.isBusy(contentWorkspace)
+								}
+								readReferences={readGraphReferences}
+								readPage={readGraphPage}
+								readCommitFiles={readCommitFiles}
+								readDiff={readDiff}
+								previewCache={previewCache}
+								diffSettings={diffSettings}
+								onDiffSettingsChange={setDiffSettings}
+							/>
+						) : contentTab && contentWorkspace?.repository && comparison ? (
+							<RepositoryDiff
+								key={`${contentTab.id}:${contentWorkspace.repository.root}:${revision?.id ?? "changes"}`}
+								root={contentWorkspace.repository.root}
+								change={comparison}
+								inclusion={
+									contentWorkspace.view === "changes" &&
+									contentWorkspace.repository.operation === "normal"
+										? {
+												included: contentWorkspace.includedFileIds.includes(
+													comparison.path
+												),
+												selection:
+													contentWorkspace.partialFiles?.[comparison.path],
+												onChange: (expectedPatch, includedLines, total) =>
+													dispatch({
+														type: "workspace",
+														id: contentTab.id,
+														action: {
+															type: "include-lines",
+															id: comparison.path,
+															expectedPatch,
+															includedLines,
+															total,
+														},
+													}),
+											}
+										: undefined
+								}
+								cache={previewCache}
+								settings={diffSettings}
+								onSettingsChange={setDiffSettings}
+								version={contentWorkspace.repository}
+								files={files}
+								refreshing={
+									contentWorkspace.loading ||
+									RepositoryWorkspaceModel.isBusy(contentWorkspace)
+								}
+								statusError={contentWorkspace.error}
+								readDiff={readDiff}
+								onResolve={(hash, side, expectedSideOid) =>
+									mutations.resolve(
+										contentTab.id,
+										comparison.path,
+										hash,
+										side,
+										expectedSideOid
+									)
+								}
+								openConflictEditor={launchConflict}
+							/>
+						) : (
+							<RepositoryDiffEmpty
+								selected={selected}
+								revision={revision}
+								view={contentWorkspace?.view}
+								hasWorkspace={!!contentTab}
+								workspace={contentWorkspace}
+								picking={connection.pickingId !== null}
+								onOpen={() => {
+									if (!contentTab) return;
+
+									if (contentWorkspace?.repositoryPath)
+										void connection.refresh(contentTab.id);
+									else void connection.open(contentTab.id);
+								}}
+							/>
+						)}
+					</div>
+					{settingsOpen ? settingsContent : null}
 				</AppShell>
 				<RepositoryQuickSwitcher
 					open={quickSwitcherOpen}

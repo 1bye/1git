@@ -205,6 +205,7 @@ interface WorkspaceTabProps {
 	frameRef?: (instance: PublicInstance | null) => void;
 	onActivate: () => void;
 	onClose: () => void;
+	closeDisabled?: boolean;
 	onNavigate: (key: string) => void;
 	onReorder: (key: string) => void;
 }
@@ -230,6 +231,7 @@ export function WorkspaceTab({
 	frameRef,
 	onActivate,
 	onClose,
+	closeDisabled = false,
 	onNavigate,
 	onReorder,
 }: WorkspaceTabProps) {
@@ -331,7 +333,8 @@ export function WorkspaceTab({
 
 		if (event.key === "space") spaceArmed.current = true;
 
-		if (event.key === "backspace" || event.key === "delete") onClose();
+		if (!closeDisabled && (event.key === "backspace" || event.key === "delete"))
+			onClose();
 	};
 
 	return (
@@ -450,7 +453,9 @@ export function WorkspaceTab({
 						<Button
 							testId={`close-${tab.id}`}
 							aria-label={`Close ${label}`}
-							disabled={RepositoryWorkspaceModel.isBusy(tab.workspace)}
+							disabled={
+								closeDisabled || RepositoryWorkspaceModel.isBusy(tab.workspace)
+							}
 							tokens={appTokens}
 							variant="ghost"
 							size="sm"

@@ -2,10 +2,10 @@ import type { NativeRenderer, WindowKeyEventHandler } from "@gpuix/react";
 
 /** One window's Settings action, removed on unmount. */
 export const settingsShortcuts = new WeakMap<NativeRenderer, () => void>();
-/** While Settings replaces the workspace, do not route commands to hidden repositories. */
+/** Settings owns Escape while its tab is active. */
 export const settingsNavigation = new WeakMap<
 	NativeRenderer,
-	{ back: () => void; scope: () => number | null }
+	{ back: () => void }
 >();
 
 export function handleSettingsNavigation(
