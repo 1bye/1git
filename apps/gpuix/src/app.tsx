@@ -846,6 +846,9 @@ function AppContent({
 	const settingsOpen = activeTab?.kind === "settings";
 	const settingsContextId = useRef<string | null>(null);
 	const settingsOriginFocus = useRef<number | null>(null);
+	const lastAppearanceTab = useRef<string | undefined>(undefined);
+	const appearanceOriginFocus = useRef<number | null>(null);
+	const appearanceSettingsButton = useRef<PublicInstance | null>(null);
 
 	const settingsContextTab =
 		state.tabs.find(
@@ -854,11 +857,11 @@ function AppContent({
 				(tab.spaceId ?? "default") === activeSpaceId
 		) ??
 		(settingsOpen
-			? state.tabs.find(
+			? (visibleTabs.find(
 					(tab) =>
-						tab.kind === "repository" &&
-						(tab.spaceId ?? "default") === activeSpaceId
-				)
+						tab.id === lastAppearanceTab.current && tab.kind === "repository"
+				) ??
+				[...visibleTabs].reverse().find((tab) => tab.kind === "repository"))
 			: undefined);
 
 	const settingsContextWorkspace = settingsContextTab?.workspace;
@@ -881,14 +884,18 @@ function AppContent({
 		if (!settingsOpen || settingsContextId.current) return;
 
 		settingsContextId.current =
-			state.tabs.find(
+			visibleTabs.find(
+				(tab) =>
+					tab.id === lastAppearanceTab.current && tab.kind === "repository"
+			)?.id ??
+			visibleTabs.find(
 				(tab) =>
 					tab.kind === "repository" &&
 					(tab.spaceId ?? "default") === activeSpaceId
-			)?.id ?? null;
-	}, [activeSpaceId, settingsOpen, state.tabs]);
+			)?.id ??
+			null;
+	}, [activeSpaceId, settingsOpen, state.tabs, visibleTabs]);
 	const commonDirectory = contentWorkspace?.repository?.commonDirectory;
-	const lastAppearanceTab = useRef<string | undefined>(undefined);
 
 	useLayoutEffect(() => {
 		if (activeTab?.workspace.repository && !activeTab.workspace.preview)
@@ -1673,6 +1680,27 @@ function AppContent({
 		state,
 	]);
 
+	const restoreAppearanceFocus = useCallback(() => {
+		const target = appearanceOriginFocus.current;
+
+		appearanceOriginFocus.current = null;
+		setTimeout(() => {
+			if (target !== null && renderer.getElementBounds?.(target)) {
+				renderer.focusElement?.(target);
+
+				return;
+			}
+
+			if (appearanceSettingsButton.current)
+				renderer.focusElement?.(appearanceSettingsButton.current.id);
+		}, 0);
+	}, [renderer]);
+
+	const returnFromAppearance = useCallback(() => {
+		setAppearanceEditor(undefined);
+		restoreAppearanceFocus();
+	}, [restoreAppearanceFocus, setAppearanceEditor]);
+
 	const openAppearance = (
 		section: RepositoryAppearanceSection = "color",
 		draft?: RepositoryAppearanceValue
@@ -1693,6 +1721,8 @@ function AppContent({
 			return;
 		}
 
+		appearanceOriginFocus.current = renderer.getFocusedElementId?.() ?? null;
+
 		const selection = RepositoryPatterns.selection(
 			repositoryPatterns[repository.commonDirectory],
 			repository.commonDirectory
@@ -1712,15 +1742,12 @@ function AppContent({
 			},
 		});
 
-		if (settingsOpen) closeSettings();
-
 		if (state.activeId !== appearanceTarget.id)
 			dispatch({ type: "activate", id: appearanceTarget.id });
 	};
 
 	const cancelAppearance = (): void => {
-		setAppearanceEditor(undefined);
-		closeSettings();
+		returnFromAppearance();
 	};
 
 	const applyRepositoryAppearance = (
@@ -1745,8 +1772,7 @@ function AppContent({
 		if (!appearanceEditing) return;
 
 		applyRepositoryAppearance(appearanceEditing.commonDirectory, value);
-		setAppearanceEditor(undefined);
-		closeSettings();
+		returnFromAppearance();
 	};
 
 	const onboardingTab = useCallback(
@@ -1921,9 +1947,8 @@ function AppContent({
 			setFolderPickerRoot(undefined);
 			setMachineError(null);
 
-			if (settingsOpen) closeSettings();
+			if (!settingsOpen) setSettingsForm("list");
 
-			setSettingsForm("list");
 			dispatch({ type: "space-select", id });
 		},
 		[
@@ -1931,7 +1956,6 @@ function AppContent({
 			setFolderPickerRoot,
 			setMachineError,
 			settingsOpen,
-			closeSettings,
 			setSettingsForm,
 			dispatch,
 		]
@@ -2191,13 +2215,16 @@ function AppContent({
 			onSave={(value) => {
 				if (spaceEditor?.space)
 					dispatch({ type: "space-edit", id: spaceEditor.space.id, ...value });
-				else
+				else {
 					dispatch({
 						type: "space-create",
 						space: { id: randomUUID(), ...value, repositories: [] },
 						discovery: discoveryPreferences,
 						library: repositoryLibrary,
 					});
+
+					if (settingsOpen) dispatch({ type: "open-settings" });
+				}
 
 				setSpaceEditor(undefined);
 			}}
@@ -2402,6 +2429,7 @@ function AppContent({
 								repositoryAppearance={repositoryAppearance}
 								onAppearance={openAppearance}
 								accounts={accounts}
+								settingsButtonRef={appearanceSettingsButton}
 								disabled={settingsBusy}
 								preferredAccountKey={preferredAccountKey}
 								onAccount={setPreferredAccountKey}
@@ -3382,6 +3410,7 @@ function AppContent({
 						onCancel={cancelAppearance}
 						onBack={() => {
 							setAppearanceEditor(undefined);
+							openSettings("list");
 							setSettingsSection("repository-appearance");
 							setSettingsForm("list");
 						}}
