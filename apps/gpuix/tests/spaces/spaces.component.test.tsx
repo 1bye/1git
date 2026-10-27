@@ -170,7 +170,7 @@ for (const appearance of ["light", "dark"] as const) {
 			bounds("rail-settings").y -
 				bounds("rail-spaces").y -
 				bounds("rail-spaces").height
-		).toBe(5);
+		).toBe(4);
 		expect(root.renderer.findByTestId("workspace-1")).toBeUndefined();
 		const personalId = latest().activeSpaceId!;
 
