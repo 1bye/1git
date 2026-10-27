@@ -20,7 +20,7 @@ it("starts empty unless sample preview is explicitly requested", () => {
 		stashes: [],
 	});
 	expect(Model.create().includedFileIds).toEqual([]);
-	expect(Tabs.create().tabs[0]?.name).toBe("Open repository");
+	expect(Tabs.create().tabs[0]?.name).toBe("New tab");
 	expect(Model.create(true).entries.changes.length).toBeGreaterThan(0);
 });
 

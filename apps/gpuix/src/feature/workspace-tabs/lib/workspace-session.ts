@@ -164,6 +164,15 @@ export class WorkspaceSession {
 		};
 	}
 
+	private static tabKind(
+		savedKind: unknown,
+		path: string | null
+	): WorkspaceTabKind {
+		if (savedKind === "settings" || savedKind === "empty") return savedKind;
+
+		return typeof path === "string" ? "repository" : "empty";
+	}
+
 	static parse(content: string): WorkspaceSessionDocument {
 		const value: unknown = JSON.parse(content);
 
@@ -187,14 +196,7 @@ export class WorkspaceSession {
 			if (!isRecord(tab))
 				throw new Error("The saved session contains an invalid workspace.");
 
-			const kind =
-				tab.kind === undefined
-					? tab.path === null &&
-						tab.draft === "" &&
-						tab.navigation === undefined
-						? "empty"
-						: "repository"
-					: tab.kind;
+			const savedKind = tab.kind;
 
 			if (
 				typeof tab.id !== "string" ||
@@ -210,14 +212,19 @@ export class WorkspaceSession {
 						isAbsolute(tab.path) &&
 						!tab.path.includes("\0"))
 				) ||
-				(kind !== "repository" && kind !== "empty" && kind !== "settings")
+				(savedKind !== undefined &&
+					savedKind !== "repository" &&
+					savedKind !== "empty" &&
+					savedKind !== "settings")
 			)
 				throw new Error("The saved session contains an invalid workspace.");
+
+			const kind = WorkspaceSession.tabKind(savedKind, tab.path);
 
 			const path: string | null =
 				kind === "repository" && typeof tab.path === "string" ? tab.path : null;
 
-			const draft = kind === "repository" ? String(tab.draft) : "";
+			const draft = kind === "settings" ? "" : String(tab.draft);
 
 			const navigation =
 				kind === "repository"
@@ -427,9 +434,9 @@ export class WorkspaceSession {
 						? (workspace.repository?.root ?? workspace.repositoryPath)
 						: null,
 				draft:
-					kind === "repository"
-						? (workspace.amend?.previousMessage ?? workspace.commitMessage)
-						: "",
+					kind === "settings"
+						? ""
+						: (workspace.amend?.previousMessage ?? workspace.commitMessage),
 				...(kind === "repository"
 					? {
 							navigation: {
@@ -467,8 +474,7 @@ export class WorkspaceSession {
 		const tabs = document.tabs
 			.filter((tab) => tab.kind !== "settings" || tab.id === settingsId)
 			.map(({ id, kind: savedKind, spaceId, path, draft, navigation }) => {
-				const kind =
-					savedKind ?? (path || draft || navigation ? "repository" : "empty");
+				const kind = WorkspaceSession.tabKind(savedKind, path);
 
 				const repositoryPath = kind === "repository" ? path : null;
 
@@ -486,7 +492,7 @@ export class WorkspaceSession {
 						...RepositoryWorkspaceModel.create(),
 						repositoryPath,
 						loading: repositoryPath !== null,
-						commitMessage: kind === "repository" ? draft : "",
+						commitMessage: kind === "settings" ? "" : draft,
 						...(kind === "repository" && navigation
 							? WorkspaceSession.restoreNavigation(navigation)
 							: {}),

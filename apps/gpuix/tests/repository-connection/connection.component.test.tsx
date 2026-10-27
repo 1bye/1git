@@ -216,7 +216,7 @@ it("keeps pending reads attached to their tab and cancels them on close", async 
 	);
 	click("open-repository");
 	await settle();
-	expect(root.renderer.getAllText()).toContain("Opening…");
+	expect(root.renderer.getAllText()).toContain("Reading repository…");
 	expect(element("open-repository").customProps?.tabIndex).toBeUndefined();
 	click("workspace-2");
 	expect(root.renderer.getAllText()).not.toContain("Reading repository…");

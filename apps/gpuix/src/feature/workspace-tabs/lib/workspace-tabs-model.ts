@@ -72,9 +72,9 @@ export class WorkspaceTabsModel {
 			preview,
 			tabs: [
 				{
-					kind: "repository",
+					kind: preview ? "repository" : "empty",
 					id: "workspace-1",
-					name: preview ? "1git" : "Open repository",
+					name: preview ? "1git" : "New tab",
 					branch: preview ? "main" : undefined,
 					workspace: RepositoryWorkspaceModel.create(preview),
 				},
@@ -442,7 +442,7 @@ export class WorkspaceTabsModel {
 			: paths;
 	}
 
-	/** Returns the current space's singleton Settings tab, when one exists. */
+	/** Returns the global singleton Settings tab, when one exists. */
 	static settingsId(state: WorkspaceTabsState): string | undefined {
 		return state.tabs.find((tab) => tab.kind === "settings")?.id;
 	}

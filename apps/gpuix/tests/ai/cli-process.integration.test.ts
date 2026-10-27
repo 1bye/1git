@@ -521,13 +521,16 @@ const readerInit = await callReader({jsonrpc:"2.0",id:1,method:"initialize"});
 const readerTools = await callReader({jsonrpc:"2.0",id:2,method:"tools/list"});
 const readerOverview = await callReader({jsonrpc:"2.0",id:3,method:"tools/call",params:{name:"read_selected_overview",arguments:{}}});
 const readerPage = await callReader({jsonrpc:"2.0",id:4,method:"tools/call",params:{name:"read_selected_changes",arguments:{offset:0}}});
-const readerInvalid = await callReader({jsonrpc:"2.0",id:5,method:"tools/call",params:{name:"read_selected_changes",arguments:{offset:"bad"}}});
-const readerUnknown = await callReader({jsonrpc:"2.0",id:6,method:"tools/call",params:{name:"unknown",arguments:{}}});
+const firstPage = JSON.parse(readerPage.result.content[0].text);
+const readerNext = await callReader({jsonrpc:"2.0",id:5,method:"tools/call",params:{name:"read_selected_changes",arguments:{offset:firstPage.nextOffset}}});
+const secondPage = JSON.parse(readerNext.result.content[0].text);
+const readerInvalid = await callReader({jsonrpc:"2.0",id:6,method:"tools/call",params:{name:"read_selected_changes",arguments:{offset:"bad"}}});
+const readerUnknown = await callReader({jsonrpc:"2.0",id:7,method:"tools/call",params:{name:"unknown",arguments:{}}});
 const invalidReaderUrl = new URL(readerUrl);
 invalidReaderUrl.searchParams.set("token", "invalid");
 const unauthorizedReader = (await fetch(invalidReaderUrl, {method:"POST", headers:{"content-type":"application/json"}, body:"{}"})).status;
 const readerCapture = JSON.parse(await Bun.file(record).text());
-await Bun.write(record, JSON.stringify({...readerCapture, reader:{readerInit, readerTools, readerOverview, readerPage, readerInvalid, readerUnknown, unauthorizedReader}}));
+await Bun.write(record, JSON.stringify({...readerCapture, reader:{readerInit, readerTools, readerOverview, readerPage, readerNext, readerInvalid, readerUnknown, unauthorizedReader, roundTrip:firstPage.text+secondPage.text}}));
 `
 				: "";
 
@@ -541,7 +544,7 @@ ${reply}`,
 			provider
 		);
 
-		const patch = `diff --git a/file b/file\n--- a/file\n+++ b/file\n@@ -1 +1 @@\n-${"x".repeat(64)}\n+${"y".repeat(64 * 1024)}\n`;
+		const patch = `diff --git a/file b/file\n--- a/file\n+++ b/file\n@@ -1 +1 @@\n-${"x".repeat(64)}\n+${"😀".repeat(32 * 1024)}\n`;
 
 		const message = await new CliAgent().generate(
 			preferences,
@@ -586,6 +589,7 @@ ${reply}`,
 			expect(captured.reader.readerPage.result.content[0].text).toContain(
 				"diff --git"
 			);
+			expect(captured.reader.roundTrip).toBe(patch);
 			expect(captured.reader.readerInvalid.result.isError).toBe(true);
 			expect(captured.reader.readerUnknown.result.isError).toBe(true);
 			expect(captured.reader.unauthorizedReader).toBe(404);
@@ -595,8 +599,8 @@ ${reply}`,
 
 it("allows bounded Codex MCP tool output for large selections", async () => {
 	const preferences = await fixture(
-		`const page = JSON.stringify({offset:0,nextOffset:1,text:String.fromCharCode(34,92).repeat(24 * 1024)});
-for (let index = 0; index < 96; index++)
+		`const page = JSON.stringify({offset:0,nextOffset:1,text:String.fromCharCode(34,92).repeat(48 * 1024)});
+	for (let index = 0; index < 8; index++)
  console.info(JSON.stringify({type:"item.completed",item:{type:"mcp_tool_call",id:"call-"+index,server:"1git-selected-changes",tool:"read_selected_changes",status:"completed",result:{content:[{type:"text",text:page}]}}}));
 console.info(JSON.stringify({type:"item.completed",item:{type:"agent_message",text:"fix: handle large selections"}}));
 console.info(JSON.stringify({type:"turn.completed"}));`,

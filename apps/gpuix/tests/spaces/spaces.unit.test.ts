@@ -120,6 +120,30 @@ it("deletes the active space while preserving its repositories, tabs and drafts 
 	]);
 });
 
+it("keeps the actually active repository tab when deleting its active space", () => {
+	let state = WorkspaceTabsModel.reduce(create(), {
+		type: "add",
+		path: "/test/company",
+	});
+
+	state = WorkspaceTabsModel.reduce(state, {
+		type: "add",
+		path: "/test/company-second",
+	});
+
+	state = WorkspaceTabsModel.reduce(state, {
+		type: "activate",
+		id: "workspace-4",
+	});
+
+	const deleted = WorkspaceTabsModel.reduce(state, {
+		type: "space-delete",
+		id: work,
+	});
+
+	expect(deleted.activeId).toBe("workspace-4");
+});
+
 it("deletes an inactive space without changing the current selection or duplicating repository membership", () => {
 	let state = WorkspaceTabsModel.reduce(create(), {
 		type: "add",

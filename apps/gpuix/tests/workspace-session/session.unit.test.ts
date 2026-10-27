@@ -101,12 +101,64 @@ it("migrates non-repository tabs without restoring repository paths or navigatio
 	);
 
 	expect(parsed.tabs).toMatchObject([
-		{ id: "workspace-1", kind: "empty", path: null, draft: "" },
+		{ id: "workspace-1", kind: "empty", path: null, draft: "stale draft" },
 		{ id: "workspace-2", kind: "settings", path: null, draft: "" },
 	]);
 	expect(
 		WorkspaceSession.restore(parsed).tabs[0]?.workspace.repositoryPath
 	).toBe(null);
+});
+
+it("restores kindless pathless placeholders as empty tabs even with legacy state", () => {
+	const document = WorkspaceSession.parse(
+		JSON.stringify({
+			version: 1,
+			tabs: [
+				{
+					id: "workspace-1",
+					path: null,
+					draft: "Keep placeholder draft",
+					navigation: {
+						view: "history",
+						changes: null,
+						history: "oid",
+						historyFile: null,
+						historyLimit: 100,
+						stashes: null,
+						stashFile: null,
+					},
+				},
+			],
+			activeId: "workspace-1",
+		})
+	);
+
+	expect(document.tabs[0]).toMatchObject({
+		kind: "empty",
+		path: null,
+		draft: "Keep placeholder draft",
+	});
+	expect(document.tabs[0]?.navigation).toBeUndefined();
+	expect(WorkspaceSession.restore(document).tabs[0]).toMatchObject({
+		kind: "empty",
+		name: "New tab",
+		workspace: {
+			repositoryPath: null,
+			commitMessage: "Keep placeholder draft",
+			loading: false,
+		},
+	});
+});
+
+it("seeds the non-preview app with an empty New tab", () => {
+	expect(WorkspaceTabsModel.create().tabs[0]).toMatchObject({
+		kind: "empty",
+		name: "New tab",
+	});
+	expect(WorkspaceTabsModel.create(1, true).tabs[0]).toMatchObject({
+		kind: "repository",
+		name: "1git",
+	});
 });
 
 it("captures keybinds and the file layout together without losing either preference", () => {

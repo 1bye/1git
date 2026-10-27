@@ -266,12 +266,22 @@ export class WorkspaceSpaces {
 				(space) => space.id === "default"
 			);
 
+			const activeRepositoryId = state.tabs.find(
+				(tab) =>
+					tab.id === state.activeId &&
+					tab.spaceId === target.id &&
+					tab.kind !== "settings"
+			)?.id;
+
 			const movedRepositoryId = state.tabs.find(
 				(tab) => tab.spaceId === target.id && tab.kind !== "settings"
 			)?.id;
 
 			const fallbackActiveId =
-				movedRepositoryId ?? defaultSpace?.activeId ?? null;
+				activeRepositoryId ??
+				movedRepositoryId ??
+				defaultSpace?.activeId ??
+				null;
 
 			return {
 				...state,

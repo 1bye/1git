@@ -37,6 +37,7 @@ it("removes restored worktree tabs and drafts from the saved session after confi
 		activeId: "workspace-2",
 		tabs: initial.tabs.map((tab, index) => ({
 			...tab,
+			kind: "repository" as const,
 			workspace: {
 				...tab.workspace,
 				repositoryPath: index === 0 ? "/main" : "/linked",
