@@ -135,6 +135,54 @@ it("refreshes locally without fetching when the repository has no remotes", asyn
 	expect(events).toEqual(["read", "read"]);
 });
 
+it("shows a fetch error from Command-R in synchronization controls", async () => {
+	const readRepository = mock<typeof RepositoryReader.read>(async () => ({
+		ok: true,
+		value: loaded(1),
+	}));
+
+	const fetchRepository = mock<typeof RepositorySync.fetch>(async () => ({
+		ok: false,
+		error: {
+			code: "command-failed",
+			operation: "fetch",
+			message: "Fetch failed",
+			retryable: false,
+		},
+	}));
+
+	root.render(
+		<App
+			initialSession={session()}
+			readRepository={readRepository}
+			fetchRepository={fetchRepository}
+		/>
+	);
+	await settle();
+
+	sendRefresh();
+	await settle();
+
+	expect(fetchRepository).toHaveBeenCalledTimes(1);
+	expect(root.renderer.findByTestId("quick-switcher")).toBeUndefined();
+	const syncButton = root.renderer.findByTestId("rail-sync");
+
+	if (!syncButton) throw new Error("Missing rail sync button");
+
+	const bounds = root.renderer.getElementBounds(syncButton.id);
+
+	if (!bounds) throw new Error("Missing rail sync bounds");
+
+	root.renderer.nativeSimulateClick(
+		bounds.x + bounds.width / 2,
+		bounds.y + bounds.height / 2
+	);
+	await settle();
+
+	expect(root.renderer.findByTestId("rail-sync-message")).toBeDefined();
+	expect(root.renderer.getAllText()).toContain("Fetch failed");
+});
+
 it("does not start a second fetch while busy", async () => {
 	const pending =
 		Promise.withResolvers<Awaited<ReturnType<typeof RepositorySync.fetch>>>();

@@ -100,8 +100,12 @@ export class LauncherService {
 
 	constructor(
 		readonly socketPath = defaultLauncherSocketPath(),
-		private readonly onRequest?: LauncherRequestHandler
+		private onRequest?: LauncherRequestHandler
 	) {}
+
+	setRequestHandler(handler?: LauncherRequestHandler): void {
+		this.onRequest = handler;
+	}
 
 	async start(): Promise<boolean> {
 		if (this.server) return true;
@@ -270,8 +274,6 @@ export class LauncherRequestQueue {
 		return () => this.listeners.delete(listener);
 	}
 }
-
-export const launcherRequests = new LauncherRequestQueue();
 
 const withStartupLock = async <Result>(
 	socketPath: string,

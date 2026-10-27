@@ -10,19 +10,19 @@ import { WorkspaceSessionStore } from "./feature/workspace-tabs/lib/workspace-se
 import { AppUpdater } from "./app-updater";
 import { ShellEnvironment } from "./shell-environment";
 import { DesktopAnalytics } from "./feature/analytics/desktop-analytics";
-import {
-	LauncherService,
-	launcherRequests,
-	sendLauncherRequest,
-} from "./launcher/launcher-service";
+import { sendLauncherRequest } from "./launcher/launcher-service";
+import { getLauncherRuntime } from "./launcher/launcher-runtime";
 import { parseLauncherArguments } from "./launcher/launcher-protocol";
 
 void ShellEnvironment.shared.prepare();
 
-const subscribeLauncherRequests =
-	launcherRequests.subscribe.bind(launcherRequests);
-
 const preview = process.env.GPUIX_PREVIEW === "1";
+
+const launcherRuntime = preview ? undefined : getLauncherRuntime();
+const launcherRequests = launcherRuntime?.requests;
+
+const subscribeLauncherRequests =
+	launcherRequests?.subscribe.bind(launcherRequests);
 
 const launcherRequest: ReturnType<typeof parseLauncherArguments> = (() => {
 	try {
@@ -38,18 +38,12 @@ const launcherRequest: ReturnType<typeof parseLauncherArguments> = (() => {
 	}
 })();
 
-const launcher = preview
-	? undefined
-	: new LauncherService(undefined, (request) =>
-			launcherRequests.enqueue(request)
-		);
-
 if (!preview) {
 	if (launcherRequest.path !== undefined)
-		launcherRequests.enqueue(launcherRequest);
+		launcherRequests?.enqueue(launcherRequest);
 
 	try {
-		const started = await launcher?.start();
+		const started = await launcherRuntime?.service.start();
 
 		if (!started) {
 			if (!(await sendLauncherRequest(launcherRequest))) {

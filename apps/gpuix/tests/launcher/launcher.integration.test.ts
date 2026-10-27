@@ -25,6 +25,7 @@ import {
 	LauncherService,
 	sendLauncherRequest,
 } from "../../src/launcher/launcher-service";
+import { getLauncherRuntime } from "../../src/launcher/launcher-runtime";
 import { parseLauncherArguments } from "../../src/launcher/launcher-protocol";
 
 const listen = (server: Server, path: string): Promise<void> =>
@@ -181,6 +182,33 @@ it("hands requests to the running process and cleans up its socket", async () =>
 	expect(
 		await sendLauncherRequest(parseLauncherArguments([]), socketPath, 20)
 	).toBe(false);
+});
+
+it("reuses one launcher runtime across module re-evaluation", async () => {
+	const directory = await tempDirectory("1git-launcher-runtime-");
+	const socketPath = join(directory, "launcher.sock");
+	const received: string[] = [];
+	const first = getLauncherRuntime(socketPath);
+
+	const unsubscribe = first.requests.subscribe((request) => {
+		if (request.path) received.push(request.path);
+	});
+
+	expect(await first.service.start()).toBe(true);
+
+	const second = getLauncherRuntime(socketPath);
+
+	expect(second.service).toBe(first.service);
+	expect(second.requests).toBe(first.requests);
+	expect(await second.service.start()).toBe(true);
+	expect(
+		await sendLauncherRequest(parseLauncherArguments([directory]), socketPath)
+	).toBe(true);
+	await Bun.sleep(10);
+	expect(received).toEqual([await realpath(directory)]);
+
+	unsubscribe();
+	await first.service.stop();
 });
 
 it("preserves the owner when a competing service stops", async () => {

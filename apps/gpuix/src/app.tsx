@@ -1438,10 +1438,11 @@ function AppContent({
 				canClose:
 					!!activeTab &&
 					!!workspace &&
+					!settingsBusy &&
 					!RepositoryWorkspaceModel.isBusy(workspace),
 				launcherAvailable: applicationBundlePath() !== undefined,
 			}),
-		[activeTab, keybindOverrides, workspace]
+		[activeTab, keybindOverrides, settingsBusy, workspace]
 	);
 
 	const openSettings = useCallback(
@@ -1478,6 +1479,51 @@ function AppContent({
 		]
 	);
 
+	const closeSettings = useCallback(() => {
+		if (settingsBusy) return;
+
+		setApplicationSettingsIntent(undefined);
+		setSpaceEditor(undefined);
+		const id = WorkspaceTabsModel.settingsId(state);
+
+		if (!id) return;
+
+		const contextId = settingsContextId.current;
+
+		dispatch({ type: "close", id });
+
+		if (contextId && state.tabs.some((tab) => tab.id === contextId))
+			dispatch({ type: "activate", id: contextId });
+
+		const target = settingsOriginFocus.current;
+
+		settingsOriginFocus.current = null;
+		setTimeout(() => {
+			if (target !== null && renderer.getElementBounds?.(target))
+				renderer.focusElement?.(target);
+		}, 0);
+	}, [
+		dispatch,
+		renderer,
+		setApplicationSettingsIntent,
+		setSpaceEditor,
+		settingsBusy,
+		state,
+	]);
+
+	const closeActiveTab = useCallback((): void => {
+		if (
+			!activeTab ||
+			!workspace ||
+			settingsBusy ||
+			RepositoryWorkspaceModel.isBusy(workspace)
+		)
+			return;
+
+		if (activeTab.kind === "settings") closeSettings();
+		else dispatch({ type: "close", id: activeTab.id });
+	}, [activeTab, closeSettings, dispatch, settingsBusy, workspace]);
+
 	const reportPaletteActionError = useCallback(
 		(cause: unknown): void => {
 			setPaletteActionError(
@@ -1489,6 +1535,25 @@ function AppContent({
 		},
 		[setQuickSwitcherOpen, setPaletteActionError]
 	);
+
+	const fetchActiveRepository = useCallback(async (): Promise<void> => {
+		if (
+			activeTab?.kind !== "repository" ||
+			!workspace?.repository ||
+			workspace.preview ||
+			workspace.loading ||
+			RepositoryWorkspaceModel.isBusy(workspace)
+		)
+			return;
+
+		if (workspace.repository.remoteCount === 0) {
+			await connection.refresh(activeTab.id);
+
+			return;
+		}
+
+		await mutations.fetch(activeTab.id);
+	}, [activeTab, connection, mutations, workspace]);
 
 	const runPaletteAction = useCallback(
 		(id: RepositoryPaletteActionId): void => {
@@ -1506,7 +1571,7 @@ function AppContent({
 			}
 
 			if (id === "close-tab") {
-				if (activeTab) dispatch({ type: "close", id: activeTab.id });
+				closeActiveTab();
 
 				return;
 			}
@@ -1575,15 +1640,7 @@ function AppContent({
 
 			switch (id) {
 				case "fetch":
-					void (
-						repository.remoteCount === 0
-							? connection.refresh(activeTab.id)
-							: mutations.fetch(activeTab.id)
-					)
-						.then((error) => {
-							if (error) throw new Error(error);
-						})
-						.catch(reportPaletteActionError);
+					void fetchActiveRepository();
 
 					return;
 				case "pull":
@@ -1633,9 +1690,10 @@ function AppContent({
 		},
 		[
 			activeTab,
-			connection,
+			closeActiveTab,
 			dispatch,
 			externalEditors,
+			fetchActiveRepository,
 			mutations,
 			openSettings,
 			reportPaletteActionError,
@@ -1647,38 +1705,6 @@ function AppContent({
 			workspace,
 		]
 	);
-
-	const closeSettings = useCallback(() => {
-		if (settingsBusy) return;
-
-		setApplicationSettingsIntent(undefined);
-		setSpaceEditor(undefined);
-		const id = WorkspaceTabsModel.settingsId(state);
-
-		if (!id) return;
-
-		const contextId = settingsContextId.current;
-
-		dispatch({ type: "close", id });
-
-		if (contextId && state.tabs.some((tab) => tab.id === contextId))
-			dispatch({ type: "activate", id: contextId });
-
-		const target = settingsOriginFocus.current;
-
-		settingsOriginFocus.current = null;
-		setTimeout(() => {
-			if (target !== null && renderer.getElementBounds?.(target))
-				renderer.focusElement?.(target);
-		}, 0);
-	}, [
-		dispatch,
-		renderer,
-		setApplicationSettingsIntent,
-		setSpaceEditor,
-		settingsBusy,
-		state,
-	]);
 
 	const restoreAppearanceFocus = useCallback(() => {
 		const target = appearanceOriginFocus.current;
@@ -2062,26 +2088,10 @@ function AppContent({
 					});
 
 				void connection.open(id);
-			} else if (
-				activeTab &&
-				workspace &&
-				!RepositoryWorkspaceModel.isBusy(workspace)
-			) {
-				if (key === "w") {
-					if (activeTab.kind === "settings") closeSettings();
-					else dispatch({ type: "close", id: activeTab.id });
-				}
+			} else if (activeTab && workspace) {
+				if (key === "w") closeActiveTab();
 
-				if (
-					key === "r" &&
-					activeTab.kind === "repository" &&
-					!workspace.loading &&
-					workspace.repository
-				) {
-					if (workspace.repository.remoteCount === 0)
-						void connection.refresh(activeTab.id);
-					else void mutations.fetch(activeTab.id);
-				}
+				if (key === "r") void fetchActiveRepository();
 			}
 		});
 
@@ -2096,11 +2106,11 @@ function AppContent({
 		state.nextId,
 		activeTab,
 		workspace,
-		mutations,
 		connection,
 		onboardingOpen,
 		settingsOpen,
-		closeSettings,
+		closeActiveTab,
+		fetchActiveRepository,
 	]);
 
 	const workspaceAction = useCallback(
