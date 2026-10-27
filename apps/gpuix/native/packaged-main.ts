@@ -3,6 +3,7 @@ import { pathToFileURL } from "node:url";
 import { sendLauncherRequest } from "../src/launcher/launcher-service";
 import {
 	launcherValidationFallbackExitCode,
+	launcherPathOutputMarker,
 	parseLauncherArguments,
 } from "../src/launcher/launcher-protocol";
 
@@ -53,7 +54,12 @@ if (process.env.ONEGIT_LAUNCHER_MODE === "1") {
 
 	if (await sendLauncherRequest(request)) process.exit(0);
 
-	if (validationOnly) process.exit(launcherValidationFallbackExitCode);
+	if (validationOnly) {
+		if (process.env.ONEGIT_LAUNCHER_PRINT_PATH === "1" && request.path)
+			process.stdout.write(`${request.path}${launcherPathOutputMarker}`);
+
+		process.exit(launcherValidationFallbackExitCode);
+	}
 }
 
 await import(pathToFileURL(resolve(contents, "Resources/app.js")).href);

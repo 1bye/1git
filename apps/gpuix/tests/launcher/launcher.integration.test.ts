@@ -5,7 +5,15 @@
  * Requires: a local filesystem with Unix-domain socket support.
  */
 import { afterEach, expect, it } from "bun:test";
-import { lstat, mkdir, readlink, rm, stat, writeFile } from "node:fs/promises";
+import {
+	lstat,
+	mkdir,
+	readFile,
+	readlink,
+	rm,
+	stat,
+	writeFile,
+} from "node:fs/promises";
 import { realpath } from "node:fs/promises";
 import { mkdtemp } from "node:fs/promises";
 import {
@@ -26,7 +34,10 @@ import {
 	sendLauncherRequest,
 } from "../../src/launcher/launcher-service";
 import { getLauncherRuntime } from "../../src/launcher/launcher-runtime";
-import { parseLauncherArguments } from "../../src/launcher/launcher-protocol";
+import {
+	launcherPathOutputMarker,
+	parseLauncherArguments,
+} from "../../src/launcher/launcher-protocol";
 
 const listen = (server: Server, path: string): Promise<void> =>
 	new Promise((resolve, reject) => {
@@ -332,6 +343,97 @@ it("waits for complete acknowledgements and rejects negative ones", async () => 
 	).toBe(false);
 	await new Promise((resolve) => setTimeout(resolve, 20));
 	await close(negative);
+});
+
+it("uses LaunchServices and waits for a delayed socket without respawning", async () => {
+	const directory = await tempDirectory("1git-launcher-cold-start-");
+	const bundle = join(directory, "1git.app");
+	const contents = join(bundle, "Contents");
+	const executable = join(contents, "MacOS", "1git");
+	const launcher = join(contents, "Resources", "1git-launcher");
+	const openStub = join(directory, "open");
+	const binder = join(directory, "bind-socket.mjs");
+	const recorder = join(directory, "record-open.mjs");
+	const socketPath = join(directory, "launcher.sock");
+	const openArguments = join(directory, "open-arguments.txt");
+	const validationArguments = join(directory, "validation-arguments.txt");
+	const inputPath = join(directory, "repo\n");
+
+	await mkdir(join(contents, "MacOS"), { recursive: true });
+	await mkdir(join(contents, "Resources"), { recursive: true });
+	await mkdir(inputPath);
+	await writeFile(
+		executable,
+		`#!/bin/sh
+printf '%s\\n' "$*" >> "$LAUNCHER_VALIDATION_ARGUMENTS"
+if [ "\${ONEGIT_LAUNCHER_VALIDATE:-0}" = 1 ]; then
+  if [ "\${ONEGIT_LAUNCHER_PRINT_PATH:-0}" = 1 ]; then
+    printf '%s${launcherPathOutputMarker}' "$LAUNCHER_CANONICAL_PATH"
+  fi
+  exit 10
+fi
+exit 0
+`,
+		{ mode: 0o755 }
+	);
+	await writeFile(
+		binder,
+		`import { createServer } from "node:net";
+const server = createServer();
+setTimeout(() => {
+  server.listen(process.argv[2], () => setTimeout(() => server.close(), 500));
+}, 3000);
+`
+	);
+	await writeFile(
+		recorder,
+		`import { writeFile } from "node:fs/promises";
+await writeFile(process.argv[2], JSON.stringify(process.argv.slice(3)));
+`
+	);
+	await writeFile(
+		openStub,
+		`#!/bin/sh
+"$LAUNCHER_RUNTIME" "$LAUNCHER_RECORDER" "$LAUNCHER_OPEN_ARGUMENTS" "$@"
+"$LAUNCHER_RUNTIME" "$LAUNCHER_BINDER" "$LAUNCHER_SOCKET" >/dev/null 2>&1 &
+`,
+		{ mode: 0o755 }
+	);
+	await writeFile(
+		launcher,
+		launcherScript.replace(
+			'openCommand="/usr/bin/open"',
+			`openCommand="${openStub}"`
+		),
+		{ mode: 0o755 }
+	);
+
+	const child = Bun.spawn(["/bin/sh", launcher, "repo"], {
+		cwd: directory,
+		env: {
+			...Bun.env,
+			GPUIX_LAUNCHER_SOCKET: socketPath,
+			LAUNCHER_BINDER: binder,
+			LAUNCHER_CANONICAL_PATH: inputPath,
+			LAUNCHER_RECORDER: recorder,
+			LAUNCHER_OPEN_ARGUMENTS: openArguments,
+			LAUNCHER_RUNTIME: process.execPath,
+			LAUNCHER_SOCKET: socketPath,
+			LAUNCHER_VALIDATION_ARGUMENTS: validationArguments,
+		},
+		stdout: "pipe",
+		stderr: "pipe",
+	});
+
+	expect(await child.exited).toBe(0);
+	expect(JSON.parse(await readFile(openArguments, "utf8"))).toEqual([
+		"-a",
+		bundle,
+		"--args",
+		inputPath,
+	]);
+	expect((await readFile(validationArguments, "utf8")).trim()).toBe("repo");
+	await Bun.sleep(700);
 });
 
 it("installs and removes only its own launcher link", async () => {

@@ -6,6 +6,8 @@ export const launcherProtocolVersion = 1 as const;
 export const launcherMaxPathBytes = 4096;
 /** Shell launchers use this status to distinguish validation from first startup. */
 export const launcherValidationFallbackExitCode = 10;
+/** Internal stdout framing for canonical paths returned by packaged validation. */
+export const launcherPathOutputMarker = "__1git_launcher_path_end__";
 
 export interface LauncherRequest {
 	readonly version: typeof launcherProtocolVersion;
