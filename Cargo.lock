@@ -4461,6 +4461,7 @@ checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
 [[package]]
 name = "rake"
 version = "0.1.0"
+source = "git+https://github.com/1bye/rake?rev=4c93b20a950e5722dac1d5c22a65f256a0a6e5e8#4c93b20a950e5722dac1d5c22a65f256a0a6e5e8"
 dependencies = [
  "anyhow",
  "async-compat",
@@ -4494,6 +4495,7 @@ dependencies = [
 [[package]]
 name = "rake-macros"
 version = "0.1.0"
+source = "git+https://github.com/1bye/rake?rev=4c93b20a950e5722dac1d5c22a65f256a0a6e5e8#4c93b20a950e5722dac1d5c22a65f256a0a6e5e8"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
