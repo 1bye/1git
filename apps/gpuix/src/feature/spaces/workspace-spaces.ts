@@ -262,9 +262,21 @@ export class WorkspaceSpaces {
 
 			const deletingActive = target.id === state.activeSpaceId;
 
+			const defaultSpace = state.spaces?.find(
+				(space) => space.id === "default"
+			);
+
+			const movedRepositoryId = state.tabs.find(
+				(tab) => tab.spaceId === target.id && tab.kind !== "settings"
+			)?.id;
+
+			const fallbackActiveId =
+				movedRepositoryId ?? defaultSpace?.activeId ?? null;
+
 			return {
 				...state,
 				activeSpaceId: deletingActive ? "default" : state.activeSpaceId,
+				activeId: deletingActive ? fallbackActiveId : state.activeId,
 				tabs: state.tabs.map((tab) =>
 					tab.spaceId === target.id ? { ...tab, spaceId: "default" } : tab
 				),
@@ -274,7 +286,7 @@ export class WorkspaceSpaces {
 						space.id === "default"
 							? {
 									...space,
-									activeId: deletingActive ? state.activeId : space.activeId,
+									activeId: deletingActive ? fallbackActiveId : space.activeId,
 									repositories: this.paths([
 										...space.repositories,
 										...target.repositories,
