@@ -1,7 +1,7 @@
 /**
  * Covers: compact width-capped Accounts, Settings tab close/focus restoration, illustrated empty state, public setup copying, split setup, pinned actions, preserved workspace state, token masking, icon actions, confirmed removal and keyboard navigation.
  * Real: App, Accounts, providers, disposable metadata file and native layout/editing/accessibility.
- * Doubles: HTTP, credential vault and clipboard writes; no real account, token or network.
+ * Doubles: HTTP, browser handoff, credential vault and clipboard writes; no real account, token or network.
  * Requires: built local native addon and macOS graphics access.
  */
 import { afterEach, beforeEach, expect, it } from "bun:test";
@@ -84,7 +84,8 @@ function fixture(
 	status = 200,
 	device = false,
 	beforeDelete?: (key: string) => Promise<void>,
-	cli?: GitHubCli
+	cli?: GitHubCli,
+	open = async (): Promise<void> => undefined
 ) {
 	const store = new AccountStore(join(directory, "accounts.json"));
 	const secrets = new Map<string, string>();
@@ -139,7 +140,7 @@ function fixture(
 			},
 		},
 		http,
-		new AccountAuthorization(http, async () => undefined),
+		new AccountAuthorization(http, open),
 		cli
 	);
 
@@ -758,7 +759,8 @@ it("preserves a native commit draft and list scroll when switching back from Set
 });
 
 it("shows only the public device code, authorizes through the browser flow and stores the OAuth pair securely", async () => {
-	const f = fixture(200, true);
+	const browser = Promise.withResolvers<void>();
+	const f = fixture(200, true, undefined, undefined, () => browser.promise);
 
 	root.render(<App accounts={f.accounts} />);
 	await settle();
@@ -773,6 +775,7 @@ it("shows only the public device code, authorizes through the browser flow and s
 	await settle();
 	expect(root.renderer.getPaintedText().join("\n")).toContain("ABCD-EFGH");
 	expect(JSON.stringify(root.renderer.toJSON())).not.toContain("never-render");
+	browser.resolve();
 	await Bun.sleep(1100);
 	await settle();
 	expect(root.renderer.getAllText()).toContain("tester");
@@ -783,7 +786,8 @@ it("shows only the public device code, authorizes through the browser flow and s
 });
 
 it("cancels a pending device sign-in without storing an account", async () => {
-	const f = fixture(200, true);
+	const browser = Promise.withResolvers<void>();
+	const f = fixture(200, true, undefined, undefined, () => browser.promise);
 
 	root.render(<App accounts={f.accounts} preview />);
 	await settle();
@@ -807,6 +811,7 @@ it("cancels a pending device sign-in without storing an account", async () => {
 	expect(root.renderer.findByTestId("settings-view")).toBeDefined();
 	expect(root.renderer.findByTestId("account-device-code")).toBeDefined();
 	click("accounts-cancel");
+	browser.resolve();
 	await settle();
 	expect(root.renderer.findByTestId("account-device-code")).toBeUndefined();
 	expect(f.secrets.size).toBe(0);
