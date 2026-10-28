@@ -2,10 +2,21 @@
 import { Image } from "astro:assets";
 import poster from "../assets/launch/tab-drag-poster.webp";
 import animation from "../assets/launch/tab-drag.mp4?url";
+
+const blurSteps = [2, 5, 8, 12, 16, 20, 25, 30];
 ---
+<div class="tabs-stage">
 <div class="tabs-window" data-tab-demo role="img" aria-label="The 1git repository tab slides past its neighbours, above a close-up of the Changes workspace.">
   <Image class="tabs-poster" src={poster} width={poster.width} height={poster.height} widths={[640,960,1280]} sizes="(max-width:650px) 110vw,70vw" format="webp" quality={94} loading="lazy" alt="" />
   <video data-tab-video width="1280" height="360" preload="none" muted playsinline aria-hidden="true">
     <source src={animation} type="video/mp4" />
   </video>
+</div>
+<div class="tabs-bottom-blur" aria-hidden="true">
+  {blurSteps.map((target,i) => {
+    const previous = blurSteps[i-1] ?? 0;
+    const radius = Math.sqrt(target * target - previous * previous);
+    return <span class="blur-slice" style={`--blur:${radius.toFixed(2)}px;--from:${45+i*5}%;--peak:${50+i*5}%`} />;
+  })}
+</div>
 </div>

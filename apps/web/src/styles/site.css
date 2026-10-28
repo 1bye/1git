@@ -148,7 +148,11 @@ img { height: auto; }
 .tabs-word span[aria-hidden] { display: inline-block; transform-origin: left bottom; }
 .is-visible .tabs-word .extra-a { animation: letter-pop 500ms var(--ease-spring) both; animation-delay: calc(var(--order) * 120ms); }
 .is-visible .tabs-word { animation: word-drift 1.6s var(--ease-accel) both; }
-.tabs-window { position: relative; isolation: isolate; overflow: hidden; aspect-ratio: 32 / 9; border-radius: 12px 12px 0 0; background: var(--app-dark); box-shadow: 0 28px 70px -40px #1b376a59; mask-image: linear-gradient(#000 72%,transparent); -webkit-mask-image: linear-gradient(#000 72%,transparent); }
+.tabs-stage { position: relative; }
+.tabs-bottom-blur { position: absolute; z-index: 1; inset: 0 0 -24px; pointer-events: none; }
+/* Taper each filter too, so stacked blur cannot rebuild a dark lower edge. */
+.tabs-bottom-blur .blur-slice { -webkit-mask-image: linear-gradient(to bottom,transparent var(--from),black var(--peak)),linear-gradient(black 45%,#00000080 72%,transparent); mask-image: linear-gradient(to bottom,transparent var(--from),black var(--peak)),linear-gradient(black 45%,#00000080 72%,transparent); -webkit-mask-composite: source-in; mask-composite: intersect; }
+.tabs-window { position: relative; isolation: isolate; overflow: hidden; aspect-ratio: 32 / 9; border-radius: 12px 12px 0 0; background: var(--app-dark); box-shadow: 0 28px 70px -40px #1b376a59; mask-image: linear-gradient(black 50%,#000000d7 64%,#00000080 78%,#00000028 90%,transparent); -webkit-mask-image: linear-gradient(black 50%,#000000d7 64%,#00000080 78%,#00000028 90%,transparent); }
 .tabs-poster, .tabs-window video { display: block; width: 100%; height: 100%; object-fit: cover; transform: scale(1.15); transform-origin: 65% top; }
 .tabs-window video { position: absolute; inset: 0; visibility: hidden; }
 .tabs-window[data-playing] video { visibility: visible; }
