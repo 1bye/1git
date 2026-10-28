@@ -17,6 +17,7 @@ welcome in [GitHub Issues](https://github.com/1bye/1git/issues).
 
 ## 🚧 Next
 
+- Customizable noise patterns for the app's appearance
 - Best-in-class UX: polish every flow, starting with the Settings redesign, onboarding etc.
 - Issues and pull requests: browse, create, and review them in the app
 - [ACP](https://agentclientprotocol.com) support for AI agents
