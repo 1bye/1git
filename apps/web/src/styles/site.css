@@ -170,14 +170,18 @@ img { height: auto; }
 .is-visible .connection-lines path { animation: line-draw 1s var(--ease-out) both; animation-delay: calc(var(--order) * 85ms); }
 .theme-section { position: relative; text-align: center; padding: 60px 0 120px; }
 .theme-section h3 { font-size: clamp(55px,7vw,100px); margin: 0 24px 44px; }
-.theme-section .cloud-frame { width: min(1240px,100%); margin-inline: auto; }
-.theme-stage { position: relative; padding: 70px 9%; width: min(1240px,100%); margin: auto; isolation: isolate; overflow: hidden; border-radius: 22px; }
+.theme-section .cloud-frame { --edge-width: clamp(48px,12vw,180px); --edge-fade-stops: transparent, #00000028 calc(var(--edge-width) * .25), #00000080 calc(var(--edge-width) * .5), #000000d7 calc(var(--edge-width) * .75), black var(--edge-width), black calc(100% - var(--edge-width)), #000000d7 calc(100% - var(--edge-width) * .75), #00000080 calc(100% - var(--edge-width) * .5), #00000028 calc(100% - var(--edge-width) * .25), transparent; --edge-fade-x: linear-gradient(to right,var(--edge-fade-stops)); --edge-fade-y: linear-gradient(to bottom,var(--edge-fade-stops)); width: min(1240px,100%); margin-inline: auto; }
+/* Ease the wider fade at both ends so the sky has no visible rectangular seam. */
+.theme-stage { position: relative; padding: 70px 9%; width: min(1240px,100%); margin: auto; isolation: isolate; overflow: hidden; border-radius: 22px; -webkit-mask-image: var(--edge-fade-x),var(--edge-fade-y); mask-image: var(--edge-fade-x),var(--edge-fade-y); -webkit-mask-composite: source-in; mask-composite: intersect; }
 .theme-wallpaper { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: -2; opacity: 0; transition: opacity 500ms var(--ease-out); }
 .theme-wallpaper[data-active], .theme-capture[data-active] { opacity: 1; }
 .theme-windows { display: grid; position: relative; }
 .theme-capture { grid-area: 1 / 1; opacity: 0; transition: opacity 500ms var(--ease-out); }
 .theme-capture:not([data-active]) { pointer-events: none; }
 .theme-stage::after { content: ''; position: absolute; inset: 0; z-index: -1; background: #00000038; }
+/* Combine both edge pairs in each layer so corners share the same 30px cap. */
+.theme-edge-blur { position: absolute; z-index: 1; inset: 0; pointer-events: none; }
+.theme-edge-blur .blur-slice { --edge-solid: calc(var(--edge-width) * var(--solid)); --edge-fade: calc(var(--edge-width) * var(--fade)); -webkit-mask-image: var(--edge-fade-x),var(--edge-fade-y),linear-gradient(to right,black var(--edge-solid),transparent var(--edge-fade),transparent calc(100% - var(--edge-fade)),black calc(100% - var(--edge-solid))), linear-gradient(to bottom,black var(--edge-solid),transparent var(--edge-fade),transparent calc(100% - var(--edge-fade)),black calc(100% - var(--edge-solid))); mask-image: var(--edge-fade-x),var(--edge-fade-y),linear-gradient(to right,black var(--edge-solid),transparent var(--edge-fade),transparent calc(100% - var(--edge-fade)),black calc(100% - var(--edge-solid))), linear-gradient(to bottom,black var(--edge-solid),transparent var(--edge-fade),transparent calc(100% - var(--edge-fade)),black calc(100% - var(--edge-solid))); -webkit-mask-composite: source-in,source-in,source-over; mask-composite: intersect,intersect,add; }
 .theme-controls { display: flex; gap: 40px; justify-content: center; flex-wrap: wrap; margin: 64px 24px 0; }
 .theme-controls button { position: relative; isolation: isolate; padding: 14px 30px; border: 0; border-radius: 999px; background: var(--frost); color: var(--ink); font-size: 15px; font-weight: 600; transition: background 250ms var(--ease-out), color 250ms var(--ease-out); }
 .theme-controls button[aria-pressed="false"]:hover { background: #ffffff40; }
