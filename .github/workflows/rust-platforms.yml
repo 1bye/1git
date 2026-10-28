@@ -57,10 +57,14 @@ jobs:
           rustup toolchain install
           rustup show active-toolchain
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+      - uses: taiki-e/install-action@5488ac5a951645ce95062214902ac4b6bc1a1037 # v2
+        with:
+          tool: cargo-nextest
       - name: Show tool versions
         run: |
           git --version
           cargo --version
+          cargo nextest --version
       # Several tests create symlinks. GitHub's Windows runners are administrators, so this
       # normally works; fail loudly here instead of letting those tests fail obscurely.
       - name: Check symlink creation
@@ -74,21 +78,32 @@ jobs:
           if (-not ((Get-Item $link).Attributes -band [IO.FileAttributes]::ReparsePoint)) {
             throw 'Symlink creation did not produce a reparse point; symlink tests cannot run.'
           }
+      # nextest runs every test binary, prints failures as they happen, and kills a hung
+      # test (.config/nextest.toml) instead of letting it stall the job.
       - name: Test
+        timeout-minutes: ${{ matrix.os == 'windows-latest' && 35 || 20 }}
         env:
           TEST_FILTER: ${{ inputs.test_filter }}
         run: |
           mkdir -p ci-output
-          args=(test -p onegit-git --locked)
+          args=(nextest run -p onegit-git --locked --profile ci)
           if [ -n "$TEST_FILTER" ]; then
-            args+=(-- "$TEST_FILTER")
+            args+=("$TEST_FILTER")
           fi
           cargo "${args[@]}" 2>&1 | tee ci-output/test.txt
+      - name: Doctests
+        if: ${{ !cancelled() && inputs.test_filter == '' }}
+        timeout-minutes: 10
+        run: |
+          mkdir -p ci-output
+          cargo test -p onegit-git --locked --doc 2>&1 | tee ci-output/doctest.txt
       - name: Clippy
         if: ${{ !cancelled() }}
+        timeout-minutes: 10
         run: |
           mkdir -p ci-output
           cargo clippy -p onegit-git --all-targets --locked -- -D warnings 2>&1 | tee ci-output/clippy.txt
+      # A step that hits its timeout fails, so this also keeps output from a timed-out run.
       - name: Upload output
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
