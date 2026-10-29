@@ -1,6 +1,6 @@
 /**
- * Covers: single-commit replay onto a reviewed branch, dirty/stale/occupied/merge guards, hooks and conflict recovery.
- * Real: app History/operation/conflict boundaries, Git backend and disposable repositories.
+ * Covers: single-commit replay from History/Graph onto a reviewed branch, dirty/stale/occupied/merge guards, hooks and conflict recovery.
+ * Real: app graph reader/History/operation/conflict boundaries, Git backend and disposable repositories.
  * Doubles: none.
  * Requires: local Git and temporary storage; no network or graphics.
  */
@@ -26,6 +26,7 @@ import {
 import { RepositoryHistory } from "../../src/feature/repository-workspace/lib/repository-history";
 import { RepositoryOperation } from "../../src/feature/repository-workspace/lib/repository-operation";
 import { RepositoryConflicts } from "../../src/feature/repository-workspace/lib/repository-conflicts";
+import { RepositoryGraphReader } from "../../src/feature/repository-graph/repository-graph-reader";
 
 const execute = promisify(execFile);
 let directory: string;
@@ -139,6 +140,61 @@ it("switches to the destination and copies only the selected commit without rewr
 	expect(await git("status", "--porcelain")).toBe("");
 });
 
+it("cherry-picks a Graph commit from another branch without moving the viewed or source branch", async () => {
+	await git("checkout", "-b", "reviewer", base);
+	await writeFile(join(root, "reviewer.txt"), "keep viewed branch work\n");
+	await git("add", ".");
+	await git("commit", "-m", "Viewed branch work");
+	const reviewedHead = await git("rev-parse", "HEAD");
+	const signal = new AbortController().signal;
+
+	const refs = await RepositoryGraphReader.references(
+		root,
+		reviewedHead,
+		signal
+	);
+
+	if (!refs.ok) throw new Error(refs.error.message);
+
+	const graph = await RepositoryGraphReader.page(
+		root,
+		refs.value.references.map((ref) => ref.oid),
+		0,
+		signal
+	);
+
+	if (!graph.ok) throw new Error(graph.error.message);
+
+	const selected = graph.value.commits.find((item) => item.oid === commit);
+
+	if (!selected)
+		throw new Error("Missing commit from the other branch in Graph");
+
+	const result = await RepositoryHistory.cherryPick(root, {
+		...request(),
+		commit: selected.oid,
+		expectedHead: reviewedHead,
+		expectedBranch: "reviewer",
+	});
+
+	expect(result.ok).toBe(true);
+	expect(await git("branch", "--show-current")).toBe("destination");
+	expect(await git("rev-parse", "HEAD^")).toBe(destination);
+	expect(await git("rev-parse", "reviewer")).toBe(reviewedHead);
+	expect(await git("rev-parse", "main")).toBe(head);
+	expect(await git("show", "HEAD:a.txt")).toBe("selected change");
+	expect(await git("show", "HEAD:destination.txt")).toBe(
+		"keep destination work"
+	);
+	expect(await git("ls-tree", "--name-only", "HEAD")).not.toContain(
+		"later.txt"
+	);
+	expect(await git("ls-tree", "--name-only", "HEAD")).not.toContain(
+		"reviewer.txt"
+	);
+	expect(await git("status", "--porcelain")).toBe("");
+});
+
 for (const dirty of ["unstaged", "staged", "untracked"] as const) {
 	it(`preserves ${dirty} work and does not switch branches`, async () => {
 		const path = dirty === "untracked" ? "keep.txt" : "a.txt";
@@ -159,16 +215,30 @@ for (const dirty of ["unstaged", "staged", "untracked"] as const) {
 	});
 }
 
-it("rejects stale tips, arbitrary or option-like commits, same/unknown branches and detached HEAD before switching", async () => {
+it("rejects stale tips, invalid commit objects, same/unknown branches and detached HEAD before switching", async () => {
 	const intent = request();
 
+	await git(
+		"-c",
+		"tag.gpgSign=false",
+		"tag",
+		"-a",
+		"source-tag",
+		"-m",
+		"Source",
+		commit
+	);
 	await git("update-ref", "refs/heads/destination", base);
 	expect((await RepositoryHistory.cherryPick(root, intent)).ok).toBe(false);
 	await git("update-ref", "refs/heads/destination", destination);
 
 	for (const invalid of [
-		{ commit: destination },
+		{ commit: "HEAD" },
 		{ commit: "--abort" },
+		{ commit: "0".repeat(40) },
+		{ commit: await git("rev-parse", "HEAD^{tree}") },
+		{ commit: await git("rev-parse", "HEAD:a.txt") },
+		{ commit: await git("rev-parse", "source-tag") },
 		{ targetBranch: "main", expectedTarget: head },
 		{ targetBranch: "missing" },
 		{ targetBranch: "--detach" },

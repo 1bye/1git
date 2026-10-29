@@ -1,6 +1,6 @@
 /**
- * Covers: local annotated tag creation/reading, explicit single-tag publication and push-account routing/permission failures.
- * Real: app Git boundaries and disposable repositories/local bare remote.
+ * Covers: local annotated tag creation/reading, Graph commits from other refs, explicit single-tag publication and push-account routing/permission failures.
+ * Real: app graph/Git boundaries and disposable repositories/local bare remote.
  * Doubles: HTTP push result and account token lookup only in authentication scenarios; no provider acceptance claimed.
  * Requires: Git and temporary storage; no network, vault or user repository access.
  */
@@ -16,6 +16,7 @@ import { RepositorySync } from "../../src/feature/repository-workspace/lib/repos
 import { RemoteAccounts } from "../../src/feature/accounts/lib/remote-accounts";
 import { Accounts } from "../../src/feature/accounts/lib/accounts";
 import { AccountStore } from "../../src/feature/accounts/lib/account-store";
+import { RepositoryGraphReader } from "../../src/feature/repository-graph/repository-graph-reader";
 
 const execute = promisify(execFile);
 let directory: string;
@@ -123,6 +124,69 @@ it("creates locally, reads annotated and lightweight labels, and pushes only aft
 	expect(await git("rev-parse", "HEAD")).toBe(head);
 	expect(await git("status", "--porcelain")).toBe("?? dirty.txt");
 });
+
+it.each(["local", "remote", "tag"] as const)(
+	"creates a release tag on a Graph commit reachable only from another %s ref",
+	async (kind) => {
+		await git("checkout", "-b", "feature");
+		await writeFile(join(root, "feature.txt"), "selected feature work\n");
+		await git("add", ".");
+		await git("commit", "-m", "Feature work");
+		const feature = await git("rev-parse", "HEAD");
+
+		await git("checkout", "main");
+		await writeFile(join(root, "main.txt"), "viewed branch work\n");
+		await git("add", ".");
+		await git("commit", "-m", "Viewed branch work");
+		head = await git("rev-parse", "HEAD");
+
+		if (kind === "remote")
+			await git("update-ref", "refs/remotes/origin/feature", feature);
+
+		if (kind === "tag") await git("tag", "feature-source", feature);
+
+		if (kind !== "local") await git("branch", "-D", "feature");
+
+		const refs = await RepositoryGraphReader.references(root, head, signal());
+
+		if (!refs.ok) throw new Error(refs.error.message);
+
+		const page = await RepositoryGraphReader.page(
+			root,
+			refs.value.references.map((ref) => ref.oid),
+			0,
+			signal()
+		);
+
+		if (!page.ok) throw new Error(page.error.message);
+
+		const selected = page.value.commits.find(
+			(commit) => commit.oid === feature
+		);
+
+		if (!selected)
+			throw new Error("Missing commit from the other ref in Graph");
+
+		await writeFile(join(root, "keep.txt"), "untracked stays\n");
+		const result = await RepositoryTags.create(root, {
+			name: "feature-v1",
+			message: "Feature release",
+			commit: selected.oid,
+			expectedHead: head,
+			expectedBranch: "main",
+		});
+
+		expect(result.ok).toBe(true);
+		expect(await git("rev-parse", "feature-v1^{commit}")).toBe(feature);
+		expect(await git("cat-file", "-t", "feature-v1")).toBe("tag");
+		expect(await git("branch", "--show-current")).toBe("main");
+		expect(await git("rev-parse", "HEAD")).toBe(head);
+		expect(await git("status", "--porcelain")).toBe("?? keep.txt");
+		expect(
+			await git("--git-dir", remote, "for-each-ref", "--format=%(refname)")
+		).toBe("");
+	}
+);
 
 it("uses the push destination's account, not the fetch destination, without storing the credential", async () => {
 	const request = await create();

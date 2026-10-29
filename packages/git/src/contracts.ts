@@ -730,7 +730,7 @@ export interface RevertCommitInput extends GitCallOptions {
 	readonly expectedBranch: string;
 }
 
-/** Copies one historical commit onto a reviewed local branch, switching only from a clean source. */
+/** Copies one exact selected commit onto a reviewed local branch, switching only from a clean source. */
 export interface CherryPickCommitInput extends GitCallOptions {
 	readonly commit: string;
 	readonly expectedHead: string;
@@ -746,7 +746,7 @@ export interface CreateTagInput extends GitCallOptions {
 	readonly revision?: string;
 }
 
-/** Annotated release tag at an exact reviewed historical commit, without changing the index or publishing. */
+/** Annotated release tag at an exact selected commit, without changing the index or publishing. */
 export interface CreateReleaseTagInput extends GitCallOptions {
 	readonly name: string;
 	readonly message: string;

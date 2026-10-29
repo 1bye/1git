@@ -2098,21 +2098,9 @@ export class GitRepository {
 					"Cherry-picking a merge commit requires a mainline parent. Use an external Git tool."
 				);
 
-			// The selected commit must still belong to the reviewed History, not an arbitrary ref.
-			try {
-				await this.run(
-					["merge-base", "--is-ancestor", input.commit, input.expectedHead],
-					input.signal
-				);
-			} catch (error) {
-				if (error instanceof GitCommandFailure && error.exitCode === 1)
-					throw invalidInput(
-						"cherry-pick",
-						"The commit is no longer in this branch's history. Refresh and review History again."
-					);
-
-				throw error;
-			}
+			// Graph selections may come from any ref; only an exact commit object is valid.
+			if (commit.oid !== input.commit)
+				throw invalidInput("cherry-pick", "Select an exact commit.");
 
 			let alreadyIncluded = true;
 

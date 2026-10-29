@@ -86,22 +86,6 @@ export class TagOperations {
 				"Select an exact commit from History before tagging."
 			);
 
-		try {
-			await context.process.run({
-				args: ["merge-base", "--is-ancestor", input.commit, input.expectedHead],
-				cwd: context.repository.root,
-				signal: input.signal,
-			});
-		} catch (cause) {
-			if (cause instanceof GitCommandFailure && cause.exitCode === 1)
-				throw invalidInput(
-					"create-tag",
-					"The selected commit is no longer in the reviewed History. Refresh before tagging."
-				);
-
-			throw cause;
-		}
-
 		const tags = await loadTags(context, input.signal);
 
 		if (tags.some((tag) => tag.name === input.name))
