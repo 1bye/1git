@@ -1096,7 +1096,7 @@ export function WorkspaceMenu({
 			style={{
 				width: windowSize.width,
 				height: windowSize.height,
-				backgroundColor: "rgba(0, 0, 0, 0.32)",
+				backgroundColor: "rgba(0, 0, 0, 0.40)",
 				pointerEvents: "auto",
 			}}
 		>
