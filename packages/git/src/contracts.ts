@@ -25,6 +25,7 @@ export type GitErrorCode =
 /** Public operations used for progress, errors, and application telemetry. */
 export type GitOperation =
 	| "abort-cherry-pick"
+	| "abort-am"
 	| "abort-merge"
 	| "abort-rebase"
 	| "abort-squash-merge"
@@ -37,6 +38,7 @@ export type GitOperation =
 	| "clone-repository"
 	| "commit"
 	| "continue-cherry-pick"
+	| "continue-am"
 	| "continue-merge"
 	| "continue-rebase"
 	| "continue-squash-merge"
@@ -143,6 +145,7 @@ export interface HeadState {
 
 /** High-level repository operation currently represented by Git metadata. */
 export type RepositoryOperationState =
+	| "am"
 	| "cherry-pick"
 	| "merge"
 	| "normal"
@@ -186,7 +189,7 @@ export interface RepositorySnapshot {
 	readonly files: readonly FileChange[];
 	readonly head: HeadState;
 	readonly operationState: RepositoryOperationState;
-	/** Fingerprint of active merge/rebase/revert metadata, used to reject stale operation actions. */
+	/** Fingerprint of active Git operation metadata, used to reject stale operation actions. */
 	readonly operationToken?: string;
 	readonly repository: RepositoryInfo;
 	readonly stashCount: number;
@@ -382,12 +385,16 @@ export interface OpenRepositoryInput extends GitCallOptions {
 }
 
 export interface InitializeRepositoryInput extends GitCallOptions {
+	/** Keep setup relative to a pre-created parent; never recreate it if its pathname disappears. */
+	readonly requireExistingParent?: boolean;
 	readonly initialBranch?: string;
 	readonly path: string;
 	readonly runtime?: GitRuntimeOptions;
 }
 
 export interface CloneRepositoryInput extends GitCallOptions {
+	/** Keep setup relative to a pre-created parent; never recreate it if its pathname disappears. */
+	readonly requireExistingParent?: boolean;
 	readonly branch?: string;
 	readonly depth?: number;
 	readonly path: string;
@@ -566,6 +573,7 @@ export interface ResolveConflictInput extends GitCallOptions {
 export interface FinishOperationInput extends GitCallOptions {
 	readonly kind: "continue" | "abort";
 	readonly expectedOperation:
+		| "am"
 		| "merge"
 		| "rebase"
 		| "revert"
@@ -681,6 +689,8 @@ export interface SetUpstreamInput extends GitCallOptions {
 }
 
 export interface MergeInput extends GitCallOptions {
+	readonly expectedHead?: string | null;
+	readonly expectedBranch?: string | null;
 	readonly fastForward?: "allow" | "only" | "prevent";
 	readonly message?: string;
 	readonly revision: string;
@@ -720,7 +730,7 @@ export interface RevertCommitInput extends GitCallOptions {
 	readonly expectedBranch: string;
 }
 
-/** Copies one historical commit onto a reviewed local branch, switching only from a clean source. */
+/** Copies one exact selected commit onto a reviewed local branch, switching only from a clean source. */
 export interface CherryPickCommitInput extends GitCallOptions {
 	readonly commit: string;
 	readonly expectedHead: string;
@@ -736,7 +746,7 @@ export interface CreateTagInput extends GitCallOptions {
 	readonly revision?: string;
 }
 
-/** Annotated release tag at an exact reviewed historical commit, without changing the index or publishing. */
+/** Annotated release tag at an exact selected commit, without changing the index or publishing. */
 export interface CreateReleaseTagInput extends GitCallOptions {
 	readonly name: string;
 	readonly message: string;
@@ -842,6 +852,8 @@ export interface StashReferenceInput extends GitCallOptions {
 
 export interface DropStashInput extends GitCallOptions {
 	readonly reference: string;
+	/** Immutable selection checked under Git's stash lock; unsupported reference backends fail safely. */
+	readonly expectedOid?: string;
 }
 
 export interface CreateWorktreeInput extends GitCallOptions {

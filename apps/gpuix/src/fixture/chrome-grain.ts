@@ -4,11 +4,11 @@ import sharp from "sharp";
 const pixels: string[] = [];
 const grainPointCount = 1600;
 const grainArtworkSize = 2048;
-const grainTextureSize = 1000;
+const grainTextureSize = 500;
 const svgDefaultDensityDpi = 72;
 
-/** Repeat a quarter-width tile at the original full-square pixel density. */
-export const chromeGrainTileCount = 4;
+/** Repeat an eighth-width tile at the original full-square pixel density. */
+export const chromeGrainTileCount = 8;
 
 let seed = 17;
 
@@ -70,5 +70,5 @@ const createGrainImages = async () => {
 	} as const;
 };
 
-/** Two shared 1000 × 1000 tiles; resizing scales their grid without decoding new textures. */
+/** Two shared 500 × 500 tiles; resizing scales their grid without decoding new textures. */
 export const chromeGrainImages = await createGrainImages();

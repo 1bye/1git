@@ -2,13 +2,25 @@ import { spacing, typography } from "@1git/design-tokens";
 import type { CommitInfo, CommitPage } from "@1git/git";
 import { Button } from "@1git/gpuix-ui/button";
 import { Scrollbars } from "@1git/gpuix-ui/scrollbar";
-import { TooltipProvider } from "@1git/gpuix-ui/tooltip";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "@1git/gpuix-ui/tooltip";
 import {
 	useGpuixRequired,
 	useWindowSize,
 	type PublicInstance,
+	type EventPayload,
 } from "@gpuix/react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+	type ComponentProps,
+} from "react";
 import { useAppTheme } from "../../styles/theme";
 import { StateMessage } from "../../fixture/state-message";
 import { RepositoryList } from "../repository-workspace/components/repository-list";
@@ -34,6 +46,14 @@ import {
 	graphColumnWidths,
 } from "./graph-commit-row";
 
+import { ResizableSidebar } from "../../fixture/resizable-sidebar";
+import { sidebarWidthLimits } from "../repository-workspace/lib/sidebar-widths";
+import { RepositoryRevert } from "../repository-workspace/components/repository-revert";
+import { NativeFileMenu } from "../repository-workspace/lib/native-file-menu";
+import { GraphDetailsDivider } from "./graph-details-divider";
+import { GraphBranchForm } from "./graph-branch-form";
+import { workspaceRailWidth } from "../repository-workspace/components/workspace-rail";
+
 const column = {
 	display: "flex",
 	flexDirection: "column",
@@ -52,6 +72,25 @@ const row = {
 	minHeight: 0,
 } as const;
 
+type HistoryActions = Pick<
+	ComponentProps<typeof RepositoryRevert>,
+	| "state"
+	| "onWrite"
+	| "onCherryPick"
+	| "onReset"
+	| "readReset"
+	| "onCreateTag"
+	| "onPushTag"
+	| "readBranches"
+	| "readCommitLink"
+	| "onFinished"
+>;
+type CommitMenuHandler = (
+	entry: WorkspaceEntry,
+	event: EventPayload,
+	commit?: CommitInfo
+) => void;
+
 type Readers = {
 	fileTreeScope?: string;
 	readReferences?: typeof RepositoryGraphReader.references;
@@ -63,12 +102,16 @@ type Readers = {
 	onDiffSettingsChange?: (settings: DiffSettings) => void;
 };
 
-/** Separate rail workspace for repository topology; all branch/ref interactions are read-only. */
+/** Repository topology with resizable commit inspection and reviewed branch creation. */
 export function RepositoryGraph({
 	root,
 	head,
 	version,
 	disabled = false,
+	sidebarWidth = sidebarWidthLimits.graph.default,
+	onSidebarWidthChange,
+	onCreateBranch,
+	historyActions,
 	readReferences = RepositoryGraphReader.references,
 	...readers
 }: {
@@ -76,12 +119,15 @@ export function RepositoryGraph({
 	head: string | null;
 	version: number;
 	disabled?: boolean;
+	sidebarWidth?: number;
+	onSidebarWidthChange?: (width: number) => void;
+	onCreateBranch?: (name: string, oid: string) => Promise<string | null>;
+	historyActions?: HistoryActions;
 } & Readers) {
 	const { colors, tokens } = useAppTheme();
 	const renderer = useGpuixRequired();
-	const search = useRef<PublicInstance>(null);
 	const window = useWindowSize();
-	const sidebarWidth = window.width < 850 ? 190 : 230;
+	const search = useRef<PublicInstance>(null);
 	const [result, setResult] = useState<GraphReferences | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [loading, setLoading] = useState(true);
@@ -90,6 +136,21 @@ export function RepositoryGraph({
 	const [reference, setReference] = useState<string | null>(null);
 	const [kind, setKind] = useState("all");
 	const [scrollY, setScrollY] = useState(0);
+	const [splitRatio, setSplitRatio] = useState(0.52);
+	const [filesWidth, setFilesWidth] = useState(window.width < 850 ? 150 : 220);
+	const [branchCommit, setBranchCommit] = useState<CommitInfo | null>(null);
+	const [notice, setNotice] = useState<string | null>(null);
+
+	const branchDisabled =
+		disabled ||
+		(historyActions !== undefined &&
+			historyActions.state.repository?.operation !== "normal");
+
+	const createBranch = onCreateBranch
+		? (commit: CommitInfo) => {
+				if (!branchDisabled) setBranchCommit(commit);
+			}
+		: undefined;
 
 	useEffect(() => {
 		if (disabled) return;
@@ -151,6 +212,40 @@ export function RepositoryGraph({
 	const entries = references.map((ref) => ({ id: ref.id, title: ref.name }));
 	const byId = new Map(references.map((ref) => [ref.id, ref]));
 
+	const renderResults = (onCommitMenu?: CommitMenuHandler) =>
+		result ? (
+			<GraphResults
+				key={JSON.stringify(tips)}
+				root={root}
+				tips={tips}
+				references={result}
+				disabled={disabled}
+				splitRatio={splitRatio}
+				onSplitRatioChange={setSplitRatio}
+				filesWidth={filesWidth}
+				filesMaxWidth={Math.max(
+					120,
+					Math.min(
+						420,
+						window.width -
+							Math.min(sidebarWidth, window.width / 2) -
+							workspaceRailWidth -
+							160
+					)
+				)}
+				onFilesWidthChange={setFilesWidth}
+				onCreateBranch={createBranch}
+				branchDisabled={branchDisabled}
+				onCommitMenu={onCommitMenu}
+				{...readers}
+			/>
+		) : (
+			<StateMessage
+				artwork={error ? "error" : "loading"}
+				title={error ? "Could not load graph" : "Loading graph…"}
+			/>
+		);
+
 	return (
 		<TooltipProvider delayDuration={350}>
 			<div
@@ -159,6 +254,43 @@ export function RepositoryGraph({
 				aria-label="Repository graph"
 				style={{ ...column, width: "100%", height: "100%" }}
 			>
+				{branchCommit && onCreateBranch ? (
+					<GraphBranchForm
+						commit={branchCommit}
+						branchNames={
+							result?.references
+								.filter((ref) => ref.kind === "local")
+								.map((ref) => ref.name) ?? []
+						}
+						disabled={branchDisabled}
+						onCreate={async (name, oid) => {
+							if (branchDisabled)
+								return "Finish the current Git operation before creating a branch.";
+
+							const message = await onCreateBranch(name, oid);
+
+							if (!message) {
+								setNotice(`Created ${name} at ${oid.slice(0, 7)}.`);
+								setRetry((value) => value + 1);
+							}
+
+							return message;
+						}}
+						onClose={() => setBranchCommit(null)}
+					/>
+				) : null}
+				{notice ? (
+					<text
+						role="status"
+						style={{
+							...typography.sm,
+							color: colors.editorMuted,
+							padding: spacing[2],
+						}}
+					>
+						{notice}
+					</text>
+				) : null}
 				{error ? (
 					<div
 						style={{
@@ -185,17 +317,13 @@ export function RepositoryGraph({
 					</div>
 				) : null}
 				<div style={{ ...row, flexGrow: 1, flexBasis: 0 }}>
-					<div
+					<ResizableSidebar
 						testId="graph-sidebar"
-						style={{
-							...column,
-							flexGrow: 0,
-							flexBasis: sidebarWidth,
-							width: sidebarWidth,
-							flexShrink: 0,
-							borderRightWidth: 1,
-							borderColor: colors.editorHairline,
-						}}
+						label="Branches and tags"
+						width={sidebarWidth}
+						onWidthChange={onSidebarWidthChange}
+						minWidth={sidebarWidthLimits.graph.min}
+						maxWidth={sidebarWidthLimits.graph.max}
 					>
 						<div
 							style={{
@@ -328,21 +456,19 @@ export function RepositoryGraph({
 								);
 							}}
 						/>
-					</div>
-					{result ? (
-						<GraphResults
-							key={JSON.stringify(tips)}
-							root={root}
-							tips={tips}
-							references={result}
-							disabled={disabled}
-							{...readers}
-						/>
+					</ResizableSidebar>
+					{historyActions ? (
+						<div style={column}>
+							<RepositoryRevert
+								{...historyActions}
+								tags={result?.tags}
+								onCreateBranch={createBranch}
+							>
+								{renderResults}
+							</RepositoryRevert>
+						</div>
 					) : (
-						<StateMessage
-							artwork={error ? "error" : "loading"}
-							title={error ? "Could not load graph" : "Loading graph…"}
-						/>
+						renderResults()
 					)}
 				</div>
 			</div>
@@ -355,6 +481,14 @@ function GraphResults({
 	tips,
 	references,
 	disabled,
+	branchDisabled,
+	splitRatio,
+	onSplitRatioChange,
+	filesWidth,
+	filesMaxWidth,
+	onFilesWidthChange,
+	onCreateBranch,
+	onCommitMenu,
 	readPage = RepositoryGraphReader.page,
 	...readers
 }: {
@@ -362,9 +496,19 @@ function GraphResults({
 	tips: readonly string[];
 	references: GraphReferences;
 	disabled: boolean;
+	branchDisabled: boolean;
+	splitRatio: number;
+	onSplitRatioChange: (ratio: number) => void;
+	filesWidth: number;
+	filesMaxWidth: number;
+	onFilesWidthChange: (width: number) => void;
+	onCreateBranch?: (commit: CommitInfo) => void;
+	onCommitMenu?: CommitMenuHandler;
 } & Readers) {
 	const { colors, tokens, typography: fonts } = useAppTheme();
 	const window = useWindowSize();
+	const renderer = useGpuixRequired();
+	const container = useRef<PublicInstance>(null);
 	const columns = graphColumnWidths(window.width, fonts?.fontSize);
 	const horizontal = useRef<PublicInstance>(null);
 	const metadata = useRef<PublicInstance>(null);
@@ -469,8 +613,11 @@ function GraphResults({
 	};
 
 	return (
-		<div style={column}>
-			<div testId="graph-commit-pane" style={{ ...column }}>
+		<div ref={container} style={column}>
+			<div
+				testId="graph-commit-pane"
+				style={{ ...column, flexGrow: selected ? splitRatio : 1 }}
+			>
 				<div
 					style={{
 						...row,
@@ -567,6 +714,39 @@ function GraphResults({
 							}
 							state={{ selectedId, scrollY }}
 							onSelect={setSelectedId}
+							onContextMenu={(entry, event) => {
+								const commit = byId.get(entry.id)?.commit;
+
+								if (!commit) return;
+
+								if (onCommitMenu) {
+									onCommitMenu(entry, event, commit);
+
+									return;
+								}
+
+								if (!onCreateBranch) return;
+
+								try {
+									const box = renderer.getElementBounds?.(event.elementId);
+
+									const choice = NativeFileMenu.show(
+										renderer,
+										["Create branch here…"],
+										[!branchDisabled],
+										event.x ?? box?.x ?? 0,
+										event.y ?? box?.y ?? 0
+									);
+
+									if (choice === 0 && !branchDisabled) onCreateBranch(commit);
+								} catch (cause) {
+									setError(
+										cause instanceof Error
+											? cause.message
+											: "Could not open commit actions."
+									);
+								}
+							}}
 							onScroll={setScrollY}
 							onEndReached={loadMore}
 							itemHeight={graphRowHeight}
@@ -594,59 +774,85 @@ function GraphResults({
 				/>
 			</div>
 			{selected ? (
-				<div
-					testId="graph-details-pane"
-					style={{
-						...column,
-						flexGrow: 0,
-						flexBasis: undefined,
-						height: "48%",
-						minHeight: 180,
-						borderTopWidth: 1,
-						borderColor: colors.editorHairline,
-					}}
-				>
-					<div style={{ ...row, alignItems: "center", flexShrink: 0 }}>
-						<div
-							ref={metadata}
-							style={{
-								...column,
-								flexBasis: undefined,
-								flexGrow: 1,
-								maxHeight: window.height < 560 ? 80 : 120,
-								overflowY: "scroll",
-							}}
-						>
-							<RepositoryCommitDetails
-								key={selected.oid}
-								commit={selected}
-								tags={references.tags}
-							/>
-						</div>
-						<Scrollbars
-							vertical={metadata}
-							tokens={tokens}
-							testId="graph-metadata-scrollbar"
-						/>
-						<Button
-							testId="graph-close-details"
-							aria-label="Close commit details"
-							tokens={tokens}
-							size="sm"
-							variant="ghost"
-							style={{ marginRight: spacing[2] }}
-							onPress={() => setSelectedId(null)}
-						>
-							×
-						</Button>
-					</div>
-					<GraphCommitFiles
-						key={selected.oid}
-						root={root}
-						commit={selected}
-						{...readers}
+				<>
+					<GraphDetailsDivider
+						container={container}
+						ratio={splitRatio}
+						onChange={onSplitRatioChange}
 					/>
-				</div>
+					<div
+						testId="graph-details-pane"
+						style={{
+							...column,
+							flexGrow: 1 - splitRatio,
+							minHeight: Math.min(180, window.height / 3),
+						}}
+					>
+						<div style={{ ...row, alignItems: "center", flexShrink: 0 }}>
+							<div
+								ref={metadata}
+								style={{
+									...column,
+									flexBasis: undefined,
+									flexGrow: 1,
+									maxHeight: window.height < 560 ? 80 : 120,
+									overflowY: "scroll",
+								}}
+							>
+								<RepositoryCommitDetails
+									key={selected.oid}
+									commit={selected}
+									tags={references.tags}
+								/>
+							</div>
+							<Scrollbars
+								vertical={metadata}
+								tokens={tokens}
+								testId="graph-metadata-scrollbar"
+							/>
+							{onCreateBranch ? (
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<Button
+											testId="graph-new-branch"
+											aria-label="Create branch here"
+											tokens={tokens}
+											size="sm"
+											variant="ghost"
+											disabled={branchDisabled}
+											onPress={() => onCreateBranch(selected)}
+										>
+											{window.width < 850 ? "+" : "New Branch…"}
+										</Button>
+									</TooltipTrigger>
+									<TooltipContent tokens={tokens}>
+										Create branch here
+									</TooltipContent>
+								</Tooltip>
+							) : null}
+							<Button
+								testId="graph-close-details"
+								aria-label="Close commit details"
+								tokens={tokens}
+								size="sm"
+								variant="ghost"
+								style={{ marginRight: spacing[2] }}
+								onPress={() => setSelectedId(null)}
+							>
+								×
+							</Button>
+						</div>
+						<GraphCommitFiles
+							key={selected.oid}
+							root={root}
+							commit={selected}
+							filesWidth={filesWidth}
+							filesMaxWidth={filesMaxWidth}
+							onFilesWidthChange={onFilesWidthChange}
+							{...readers}
+						/>
+					</div>
+				</>
 			) : null}
 		</div>
 	);
@@ -661,10 +867,17 @@ function GraphCommitFiles({
 	diffSettings,
 	onDiffSettingsChange,
 	fileTreeScope,
-}: { root: string; commit: CommitInfo } & Readers) {
+	filesWidth,
+	filesMaxWidth,
+	onFilesWidthChange,
+}: {
+	root: string;
+	commit: CommitInfo;
+	filesWidth: number;
+	filesMaxWidth: number;
+	onFilesWidthChange: (width: number) => void;
+} & Readers) {
 	const { colors, tokens } = useAppTheme();
-	const window = useWindowSize();
-	const fileListWidth = window.width < 850 ? 150 : 220;
 	const [files, setFiles] = useState<readonly WorkspaceEntry[]>([]);
 	const [selectedId, setSelectedId] = useState<string | null>(null);
 	const [scrollY, setScrollY] = useState(0);
@@ -712,16 +925,13 @@ function GraphCommitFiles({
 
 	return (
 		<div style={{ ...row, flexGrow: 1, flexBasis: 0 }}>
-			<div
-				style={{
-					...column,
-					flexGrow: 0,
-					flexBasis: fileListWidth,
-					width: fileListWidth,
-					flexShrink: 0,
-					borderRightWidth: 1,
-					borderColor: colors.editorHairline,
-				}}
+			<ResizableSidebar
+				testId="graph-files-sidebar"
+				label="Changed files"
+				width={filesWidth}
+				onWidthChange={onFilesWidthChange}
+				minWidth={120}
+				maxWidth={filesMaxWidth}
 			>
 				<div
 					style={{
@@ -763,7 +973,7 @@ function GraphCommitFiles({
 						Retry files
 					</Button>
 				) : null}
-			</div>
+			</ResizableSidebar>
 			<div style={column}>
 				{selected && !loading && !error ? (
 					<RepositoryDiff

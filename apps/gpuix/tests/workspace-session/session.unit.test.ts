@@ -9,6 +9,78 @@ import { WorkspaceSession } from "../../src/feature/workspace-tabs/lib/workspace
 import { WorkspaceTabsModel } from "../../src/feature/workspace-tabs/lib/workspace-tabs-model";
 import { repositorySnapshot } from "../_shared/repository-snapshot";
 import { commitInfo, historyPage } from "../_shared/history-page";
+import { GrainPreferences } from "../../src/feature/appearance-settings/grain-settings";
+
+it("persists grain choices independently of visibility and defaults invalid or older choices", () => {
+	const args: Parameters<typeof WorkspaceSession.capture> = [
+		WorkspaceTabsModel.create(),
+	];
+
+	args[15] = false;
+	args[17] = { pattern: "coarse", strength: "strong" };
+	const document = WorkspaceSession.parse(
+		JSON.stringify(WorkspaceSession.capture(...args))
+	);
+
+	expect(document.grainSettings).toEqual({
+		pattern: "coarse",
+		strength: "strong",
+	});
+	expect(document.showGrain).toBe(false);
+	expect(WorkspaceSession.capture(args[0]).grainSettings).toBeUndefined();
+
+	for (const value of [
+		null,
+		[],
+		"fine",
+		{ pattern: "external.svg", strength: Infinity },
+	])
+		expect(GrainPreferences.parse(value)).toEqual({
+			pattern: "classic",
+			strength: "balanced",
+		});
+
+	expect(
+		GrainPreferences.parse({ pattern: "fine", strength: "invalid" })
+	).toEqual({ pattern: "fine", strength: "balanced" });
+});
+
+it("round-trips sidebar widths and validates optional widths without losing tabs", () => {
+	const args: Parameters<typeof WorkspaceSession.capture> = [
+		WorkspaceTabsModel.create(),
+	];
+
+	args[16] = { files: 380, graph: 280 };
+	const document = WorkspaceSession.capture(...args);
+	const restored = WorkspaceSession.parse(JSON.stringify(document));
+
+	expect(restored.sidebarWidths).toEqual({ files: 380, graph: 280 });
+	expect(restored.tabs).toEqual(document.tabs);
+	expect(
+		WorkspaceSession.parse(
+			JSON.stringify({
+				...document,
+				sidebarWidths: { files: -1, graph: 10000 },
+			})
+		).sidebarWidths
+	).toEqual({ files: 240, graph: 420 });
+
+	for (const sidebarWidths of [
+		null,
+		"wide",
+		{},
+		{ files: "380", graph: null },
+	]) {
+		const parsed = WorkspaceSession.parse(
+			JSON.stringify({ ...document, sidebarWidths })
+		);
+
+		expect(parsed.sidebarWidths).toEqual({ files: 310, graph: 230 });
+		expect(parsed.tabs).toEqual(document.tabs);
+	}
+
+	expect(WorkspaceSession.capture(args[0]).sidebarWidths).toBeUndefined();
+});
 
 it("round-trips grain visibility and ignores invalid saved choices without losing tabs", () => {
 	const args: Parameters<typeof WorkspaceSession.capture> = [

@@ -134,6 +134,47 @@ const scrollY = () =>
 const checked = (testId: string) =>
 	element(testId).customProps?.["aria-checked"];
 
+it("resizes file navigation across views and tabs, captures dragging outside the divider, and cancels with Escape", () => {
+	root.renderer.flush();
+	const dividerId = "repository-navigation-divider";
+	const divider = bounds(dividerId);
+	const x = divider.x + divider.width / 2;
+	const y = divider.y + 200;
+
+	root.renderer.nativeSimulateMouseDown(x, y);
+	root.renderer.nativeSimulateMouseMove(x + 80, y + 100, 0);
+	root.renderer.flush();
+	expect(bounds("repository-navigation").width).toBe(390);
+	root.renderer.nativeSimulateMouseUp(x + 80, y + 100);
+	root.renderer.flush();
+	changeView("history");
+	expect(bounds("repository-navigation").width).toBe(390);
+	click("workspace-2");
+	expect(bounds("repository-navigation").width).toBe(390);
+
+	const moved = bounds(dividerId);
+
+	root.renderer.nativeSimulateMouseDown(moved.x + 2, y);
+	root.renderer.nativeSimulateMouseMove(moved.x - 70, y, 0);
+	root.renderer.flush();
+	key(dividerId, "escape");
+	root.renderer.nativeSimulateMouseUp(moved.x - 70, y);
+	root.renderer.flush();
+	expect(bounds("repository-navigation").width).toBe(390);
+	key(dividerId, "home");
+	key(dividerId, "left");
+	expect(bounds("repository-navigation").width).toBe(240);
+	key(dividerId, "end");
+	key(dividerId, "right");
+	expect(bounds("repository-navigation").width).toBe(490);
+	key(dividerId, "left");
+	expect(bounds("repository-navigation").width).toBe(480);
+	expect(element(dividerId).customProps?.["aria-valuenow"]).toBe(480);
+
+	if (process.env.GPUIX_SIDEBAR_SCREENSHOT)
+		root.renderer.captureScreenshot(process.env.GPUIX_SIDEBAR_SCREENSHOT);
+});
+
 it("switches and closes workspaces with Command shortcuts and toggles a focused file with Space", async () => {
 	await Bun.sleep(20);
 	key("entry-src/app.tsx", "space");
@@ -825,6 +866,10 @@ it("supports arrow-key rail selection and entry/exit with Tab", () => {
 	);
 	key("revision-file-layout", "tab");
 	notifyListFocus();
+	expect(root.renderer.getFocusedElementId()).toBe(
+		element("repository-navigation-divider").id
+	);
+	key("repository-navigation-divider", "tab");
 	expect(root.renderer.getFocusedElementId()).toBe(
 		element("repository-list-scrollbar-vertical").id
 	);

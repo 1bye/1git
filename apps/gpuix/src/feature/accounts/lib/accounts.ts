@@ -20,6 +20,7 @@ import { type GitResult, type GitHttpAuthentication } from "@1git/git";
 import { GitRepository } from "../../machines/repository-access";
 import type { CredentialVault } from "./native-credentials";
 import { GitHubCli, type GitHubCliAccount } from "./github-cli";
+import { RemoteAccounts } from "./remote-accounts";
 import {
 	AccountAuthorization,
 	type BrowserConnection,
@@ -284,7 +285,7 @@ export class Accounts {
 			const remote = parseRemote(url, [provider]);
 
 			if (
-				!url.startsWith("https://") ||
+				!RemoteAccounts.isHttps(url) ||
 				!remote.ok ||
 				remote.value.providerId !== account.provider ||
 				remote.value.host !== new URL(account.webUrl).host ||
@@ -417,7 +418,8 @@ export class Accounts {
 		account: SavedAccount,
 		ref: RepositoryRef,
 		path: string,
-		signal: AbortSignal
+		signal: AbortSignal,
+		requireExistingParent = false
 	): Promise<GitResult<GitRepository>> {
 		return this.mutate(async () => {
 			const credential = await this.verifiedCredential(account, signal);
@@ -464,6 +466,7 @@ export class Accounts {
 
 			return await GitRepository.clone({
 				path,
+				...(requireExistingParent ? { requireExistingParent: true } : {}),
 				remoteUrl: remote,
 				signal,
 				httpAuthentication: {

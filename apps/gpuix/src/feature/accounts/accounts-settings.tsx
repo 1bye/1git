@@ -58,6 +58,7 @@ import {
 	settingsStyles,
 } from "../settings/settings-layout";
 import type { SpacesSettingsHandle } from "../spaces/space-manager";
+import { HelpSettings } from "../settings/help-settings";
 import { AppearanceSettings } from "../appearance-settings/appearance-settings";
 import { PrivacySettings } from "../analytics/privacy-settings";
 import { KeybindSettings } from "../keybinds/keybind-settings";
@@ -475,10 +476,13 @@ export function AccountsSettings({
 						cloneElement(spacesSettings, { ref: spacesEditor })
 					) : null
 				) : section === "appearance" ? (
-					<AppearanceSettings
+					<AppearanceSettings />
+				) : section === "help" ? (
+					<HelpSettings
 						onReplayTips={onReplayTips}
 						onSetup={onSetup}
 						busy={settingsBusy}
+						openLink={openLink}
 					/>
 				) : section === "keybinds" ? (
 					<KeybindSettings />

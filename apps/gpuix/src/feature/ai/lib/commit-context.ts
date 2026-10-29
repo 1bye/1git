@@ -6,6 +6,7 @@ import {
 } from "../../repository-workspace/lib/repository-workspace-model";
 
 const maxBytes = 16 * 1024 * 1024;
+const filesPerBatch = 16;
 
 /** Read-only AI context uses commit inclusion, not the viewed file, staging, or whitespace-filtered display. */
 export class CommitContext {
@@ -51,35 +52,77 @@ export class CommitContext {
 				"The branch changed. Refresh the repository before generating a message."
 			);
 
-		const patches: string[] = [];
-		let bytes = 0;
+		const entries = new Map(
+			state.entries.changes.map((entry) => [entry.id, entry])
+		);
 
-		for (const id of state.includedFileIds) {
-			signal.throwIfAborted();
-			const change = state.entries.changes.find(
-				(entry) => entry.id === id
-			)?.change;
+		const selected = state.includedFileIds.map((id) => {
+			const change = entries.get(id)?.change;
 
 			if (!change)
 				throw new Error(
 					"Selected files changed. Refresh the repository and try again."
 				);
 
+			return { change, partial: state.partialFiles?.[id] };
+		});
+
+		const patches: string[] = [];
+		let bytes = 0;
+
+		for (let offset = 0; offset < selected.length;) {
+			signal.throwIfAborted();
+			const batch = [selected[offset++]!];
+
+			// Partial patches must remain canonical per file for stale-selection checks.
+			if (!batch[0]!.partial) {
+				while (
+					offset < selected.length &&
+					batch.length < filesPerBatch &&
+					!selected[offset]!.partial
+				)
+					batch.push(selected[offset++]!);
+			}
+
+			const paths = new Set(
+				batch.flatMap(({ change }) =>
+					change.originalPath
+						? [change.originalPath, change.path]
+						: [change.path]
+				)
+			);
+
 			const result = await opened.value.getDiff({
 				target: { kind: "changes" },
-				paths: change.originalPath
-					? [change.originalPath, change.path]
-					: [change.path],
+				paths: [...paths],
 				ignoreWhitespace: false,
 				signal,
 			});
 
 			if (!result.ok || result.value.patchOmittedReason)
 				throw new Error(
-					`Could not read the selected diff for ${change.path}. Refresh and try again (local limit: 32 MiB per Git command).`
+					"Could not read the selected diff. Refresh and try again (local limit: 32 MiB per Git command)."
 				);
 
-			const partial = state.partialFiles?.[id];
+			if (
+				result.value.stats.some(
+					(stat) =>
+						!paths.has(stat.path) ||
+						(stat.originalPath && !paths.has(stat.originalPath))
+				) ||
+				batch.some(
+					({ change }) =>
+						!result.value.stats.some(
+							(stat) =>
+								stat.path === change.path || stat.originalPath === change.path
+						)
+				)
+			)
+				throw new Error(
+					"Selected files changed. Refresh the repository and try again."
+				);
+
+			const partial = batch[0]!.partial;
 			const raw = result.value.patch;
 
 			if (partial && partial.expectedPatch !== raw)
@@ -87,21 +130,15 @@ export class CommitContext {
 					"Selected lines changed on disk. Refresh and review your selection before generating."
 				);
 
-			const patch = partial
+			// Git's patch format omits binary contents; it only names the changed binary paths.
+			const context = partial
 				? new PartialPatch(raw).select(partial.includedLines)
 				: raw;
 
-			if (!patch.trim())
+			if (!context.trim())
 				throw new Error(
 					"A selected file no longer has changes. Refresh and try again."
 				);
-
-			// Binary contents never leave the machine; describe only the path/status already in the file list.
-			const context = result.value.stats.some(
-				(stat) => stat.addedLines === null || stat.deletedLines === null
-			)
-				? `diff --git ${JSON.stringify(change.originalPath ?? change.path)} ${JSON.stringify(change.path)}\nBinary file ${JSON.stringify(change.path)}; contents omitted.\n`
-				: patch;
 
 			bytes += Buffer.byteLength(context);
 

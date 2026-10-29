@@ -38,6 +38,15 @@ import {
 	type DiffSettings,
 } from "../../repository-workspace/lib/repository-diff";
 
+import {
+	GrainPreferences,
+	type GrainSettings,
+} from "../../appearance-settings/grain-settings";
+import {
+	SidebarWidthPreferences,
+	type SidebarWidths,
+} from "../../repository-workspace/lib/sidebar-widths";
+
 /** First-run progress, independent of repository history; older sessions remain complete. */
 export type OnboardingStep =
 	| "welcome"
@@ -77,12 +86,14 @@ export interface WorkspaceSessionDocument {
 	readonly repositoryLibrary?: RepositoryLibraryPreferences;
 	readonly diffSettings?: DiffSettings;
 	readonly fileListLayout?: RepositoryFileLayout;
+	readonly sidebarWidths?: SidebarWidths;
 	readonly appearance?: AppAppearancePreference;
 	readonly commitTypeBadges?: boolean;
 	readonly autoIncludeChanges?: boolean;
 	readonly smoothTransitions?: boolean;
 	readonly showScrollbars?: boolean;
 	readonly showGrain?: boolean;
+	readonly grainSettings?: GrainSettings;
 	readonly typography?: AppTypography;
 	readonly repositoryColors?: RepositoryColorChoices;
 	readonly repositoryPatterns?: RepositoryPatternChoices;
@@ -302,9 +313,17 @@ export class WorkspaceSession {
 			...(typeof value.commitTypeBadges === "boolean"
 				? { commitTypeBadges: value.commitTypeBadges }
 				: {}),
+			...(value.sidebarWidths === undefined
+				? {}
+				: {
+						sidebarWidths: SidebarWidthPreferences.parse(value.sidebarWidths),
+					}),
 			...(value.typography === undefined
 				? {}
 				: { typography: TypographyPreferences.parse(value.typography) }),
+			...(value.grainSettings === undefined
+				? {}
+				: { grainSettings: GrainPreferences.parse(value.grainSettings) }),
 			...(typeof value.showGrain === "boolean"
 				? { showGrain: value.showGrain }
 				: {}),
@@ -381,12 +400,17 @@ export class WorkspaceSession {
 		tips?: TourTips,
 		keybinds?: KeybindOverrides,
 		fileListLayout?: RepositoryFileLayout,
-		showGrain?: boolean
+		showGrain?: boolean,
+		sidebarWidths?: SidebarWidths,
+		grainSettings?: GrainSettings
 	): WorkspaceSessionDocument {
 		return {
 			version: 1,
 			autoIncludeChanges: state.autoIncludeChanges ?? false,
 			...(fileListLayout ? { fileListLayout } : {}),
+			...(sidebarWidths
+				? { sidebarWidths: SidebarWidthPreferences.parse(sidebarWidths) }
+				: {}),
 			...(state.spaces
 				? {
 						spaces: state.spaces.map((space) =>
@@ -407,6 +431,9 @@ export class WorkspaceSession {
 				: {}),
 			...(showScrollbars !== undefined ? { showScrollbars } : {}),
 			...(showGrain !== undefined ? { showGrain } : {}),
+			...(grainSettings
+				? { grainSettings: GrainPreferences.parse(grainSettings) }
+				: {}),
 			...(smoothTransitions !== undefined ? { smoothTransitions } : {}),
 			...(onboarding ? { onboarding } : {}),
 			...(tips ? { tips } : {}),

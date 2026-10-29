@@ -39,9 +39,21 @@ export function RepositoryOperation({
 	const operation = repository?.operation;
 
 	const operationName =
-		operation === "squash-merge" ? "squash merge" : operation;
+		operation === "squash-merge"
+			? "squash merge"
+			: operation === "am"
+				? "mailbox application"
+				: operation;
+
+	const confirmationName =
+		confirmation?.expectedOperation === "squash-merge"
+			? "squash merge"
+			: confirmation?.expectedOperation === "am"
+				? "mailbox application"
+				: confirmation?.expectedOperation;
 
 	const active =
+		operation === "am" ||
 		operation === "merge" ||
 		operation === "rebase" ||
 		operation === "squash-merge" ||
@@ -71,15 +83,17 @@ export function RepositoryOperation({
 	);
 
 	const title =
-		operation === "merge"
-			? "Merge"
-			: operation === "rebase"
-				? "Rebase"
-				: operation === "squash-merge"
-					? "Squash merge"
-					: operation === "cherry-pick"
-						? "Cherry-pick"
-						: "Revert";
+		operation === "am"
+			? "Mailbox application"
+			: operation === "merge"
+				? "Merge"
+				: operation === "rebase"
+					? "Rebase"
+					: operation === "squash-merge"
+						? "Squash merge"
+						: operation === "cherry-pick"
+							? "Cherry-pick"
+							: "Revert";
 
 	const request = (
 		kind: FinishOperationInput["kind"]
@@ -197,7 +211,7 @@ export function RepositoryOperation({
 									<text
 										style={{ ...typography.sm, color: appTokens.colors.text }}
 									>
-										{`Abort ${confirmation?.expectedOperation === "squash-merge" ? "squash merge" : confirmation?.expectedOperation}?`}
+										{`Abort ${confirmationName}?`}
 									</text>
 									<text
 										style={{
@@ -236,7 +250,7 @@ export function RepositoryOperation({
 												void submit(confirmation);
 											}}
 										>
-											{`Abort ${confirmation?.expectedOperation === "squash-merge" ? "squash merge" : confirmation?.expectedOperation}`}
+											{`Abort ${confirmationName}`}
 										</Button>
 									</div>
 									{error ? (
@@ -294,7 +308,7 @@ export function RepositoryOperation({
 						{conflicts > 0
 							? `Resolve ${conflicts === 1 ? "this file" : "these files"} before continuing.`
 							: !unstaged
-								? `All conflicts resolved. Continue ${operation} when ready.`
+								? `All conflicts resolved. Continue ${operationName} when ready.`
 								: "Continue uses the confirmed resolutions and existing message."}
 					</text>
 				</>

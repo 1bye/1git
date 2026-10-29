@@ -15,7 +15,7 @@ html[data-scenes-ready] { scroll-snap-type: y mandatory; scroll-padding-top: 0; 
 .connection-section[data-scene] { display: grid; align-items: center; margin-bottom: 0; padding-block: 100px; }
 .theme-section[data-scene] { display: grid; align-items: center; padding-block: 80px; }
 .theme-section[data-scene] h3 { margin-bottom: 36px; }
-.theme-section[data-scene] .theme-stage { padding: clamp(24px,4svh,48px) 9%; }
+.theme-section[data-scene] .theme-stage { padding: clamp(64px,10svh,120px) 9%; }
 .theme-section[data-scene] .theme-windows { width: min(100%,calc(43svh * 1.525)); margin-inline: auto; }
 .even-more[data-scene] { display: grid; align-items: center; margin-block: 0; padding-block: 96px; }
 .even-more[data-scene] h2 { margin-bottom: 44px; font-size: clamp(72px,9svh,110px); }
@@ -88,7 +88,7 @@ html[data-scenes-ready] { scroll-snap-type: y mandatory; scroll-padding-top: 0; 
   .theme-section[data-scene] { padding-block: 56px; }
   .theme-section[data-scene] h3 { margin-bottom: 32px; font-size: clamp(44px,11vw,60px); }
   .theme-section[data-scene] .cloud-frame { width: calc(100% - 48px); }
-  .theme-section[data-scene] .theme-stage { padding: 24px 6%; border-radius: 16px; }
+  .theme-section[data-scene] .theme-stage { padding: 56px 6%; border-radius: 16px; }
   .theme-section[data-scene] .theme-windows { width: 100%; }
   .theme-controls { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 32px 28px; max-width: 300px; margin: 44px auto 0; }
   .theme-controls button { min-height: 44px; padding: 12px 20px; font-size: 13px; }

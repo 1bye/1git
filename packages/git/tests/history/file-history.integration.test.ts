@@ -14,6 +14,33 @@ const fixtures = new RepositoryFixtures();
 
 afterEach(async () => await fixtures.cleanup());
 
+it("filters ordinary history by exact filenames instead of Git pathspec patterns", async () => {
+	const fixture = await fixtures.create();
+	const paths = ["[id].txt", ":(glob)*.txt"];
+
+	for (const path of [...paths, "i.txt"]) await fixture.write(path, "base\n");
+
+	const wanted = await fixture.commitAll("Add files");
+
+	await fixture.write("i.txt", "unrelated edit\n");
+	await fixture.commitAll("Other file");
+	const head = await fixture.git(["rev-parse", "HEAD"]);
+	const index = await fixture.git(["write-tree"]);
+
+	for (const path of paths) {
+		const result = unwrapResult(
+			await fixture.repository.getHistory({ paths: [path], limit: 1 })
+		);
+
+		expect(result.commits.map((commit) => commit.oid)).toEqual([wanted]);
+		expect(result.hasMore).toBe(false);
+	}
+
+	expect(await fixture.git(["rev-parse", "HEAD"])).toBe(head);
+	expect(await fixture.git(["write-tree"])).toBe(index);
+	expect(await fixture.git(["status", "--porcelain"])).toBe("");
+});
+
 it("follows renames through paginated edits and deletion without changing HEAD, index or files", async () => {
 	const fixture = await fixtures.create();
 	const oldPath = "old\tname\n\x1e.txt";

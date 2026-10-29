@@ -44,7 +44,7 @@ const session = {
 
 const snapshot = (
 	conflicts = false,
-	operation: "merge" | "squash-merge" | "rebase" = "merge"
+	operation: "merge" | "squash-merge" | "rebase" | "am" = "merge"
 ): RepositorySnapshot => ({
 	...repositorySnapshot(
 		conflicts
@@ -84,7 +84,7 @@ const click = (id: string) => {
 	root.renderer.flush();
 };
 
-it.each(["merge", "squash-merge", "rebase"] as const)(
+it.each(["merge", "squash-merge", "rebase", "am"] as const)(
 	"requires abort confirmation and never continues with unresolved conflicts (%s)",
 	async (operation) => {
 		const write = mock<typeof RepositoryOperation.write>(async () => ({
@@ -103,6 +103,16 @@ it.each(["merge", "squash-merge", "rebase"] as const)(
 			/>
 		);
 		await settle();
+
+		if (operation === "am") {
+			expect(root.renderer.getAllText().join(" ")).toContain(
+				"Mailbox application paused"
+			);
+			expect(root.renderer.getAllText().join(" ")).toContain(
+				"Continue mailbox application"
+			);
+		}
+
 		click("operation-continue");
 		expect(write).not.toHaveBeenCalled();
 		click("operation-abort");

@@ -1,3 +1,4 @@
+import type { GrainSettings } from "../feature/appearance-settings/grain-settings";
 import type { AppTypography } from "../feature/appearance-settings/app-typography";
 import { createContext, useContext } from "react";
 import type { UiTokens } from "@1git/gpuix-ui/tokens";
@@ -44,6 +45,8 @@ export const AppThemeContext = createContext<
 		readonly setAppearance?: (appearance: AppAppearancePreference) => void;
 		readonly commitTypeBadges: boolean;
 		readonly setCommitTypeBadges?: (enabled: boolean) => void;
+		readonly grainSettings?: GrainSettings;
+		readonly setGrainSettings?: (settings: GrainSettings) => void;
 		readonly showGrain?: boolean;
 		readonly setShowGrain?: (enabled: boolean) => void;
 		readonly showScrollbars?: boolean;

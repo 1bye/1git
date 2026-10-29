@@ -22,6 +22,7 @@ it("projects changed paths once, distinguishes missing upstreams and names detac
 	const snapshot = repositorySnapshot([
 		changedFile("a", { indexStatus: "modified" }),
 		changedFile("b", { recordType: "untracked" }),
+		changedFile("b", { indexStatus: "deleted" }),
 		changedFile("ignored", { recordType: "ignored" }),
 	]);
 
@@ -49,6 +50,36 @@ it("projects changed paths once, distinguishes missing upstreams and names detac
 			head: { ...snapshot.head, unborn: true, oid: null, branch: "new" },
 		}).branch
 	).toBe("new");
+});
+
+it("keeps the count stable when a repository with a recreated staged deletion is opened", async () => {
+	const snapshot = repositorySnapshot([
+		changedFile("recreated.txt", { indexStatus: "deleted" }),
+		changedFile("recreated.txt", { recordType: "untracked" }),
+	]);
+
+	const service = new RepositoryOverviews(
+		async () => ({ ok: true, value: snapshot }),
+		() => true
+	);
+
+	service.setVisible([snapshot.repository.root]);
+	await settle();
+	expect(service.read(snapshot.repository.root)).toMatchObject({
+		status: "ready",
+		value: { changes: 1 },
+	});
+	service.setOpen([
+		RepositoryWorkspaceModel.reduce(RepositoryWorkspaceModel.create(), {
+			type: "loaded",
+			snapshot,
+		}),
+	]);
+	expect(service.read(snapshot.repository.root)).toMatchObject({
+		status: "ready",
+		value: { changes: 1 },
+	});
+	service.dispose();
 });
 
 it("limits concurrent reads, cancels offscreen work and ignores late completions after leaving Home", async () => {

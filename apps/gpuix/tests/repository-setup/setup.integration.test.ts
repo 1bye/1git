@@ -4,13 +4,17 @@
  * Doubles: none.
  * Requires: Git and writable temporary storage; no hosted remote or credentials.
  */
-import { afterEach, beforeEach, expect, it } from "bun:test";
+import { afterEach, beforeEach, expect, it, spyOn } from "bun:test";
+import { GitProcess } from "@1git/git/process";
 import { execFileSync } from "node:child_process";
 import {
+	chmod,
 	mkdir,
 	mkdtemp,
 	readFile,
 	realpath,
+	rename,
+	readdir,
 	rm,
 	symlink,
 	writeFile,
@@ -132,6 +136,12 @@ it("rejects nested destinations, symlinks, invalid branches and pre-cancelled wr
 	).toMatchObject({ ok: false });
 	expect(
 		await RepositorySetup.write(
+			{ kind: "create", path: `${link}/`, branch: "main" },
+			signal()
+		)
+	).toMatchObject({ ok: false });
+	expect(
+		await RepositorySetup.write(
 			{ kind: "create", path: join(directory, "bad"), branch: "bad name" },
 			signal()
 		)
@@ -164,4 +174,126 @@ it("rejects embedded HTTP credentials before cloning", async () => {
 		ok: false,
 		message: expect.stringContaining("credentials"),
 	});
+});
+
+it("initializes a writable project even when its parent directory is read-only", async () => {
+	const parent = join(directory, "readonly-parent");
+	const path = join(parent, "project");
+
+	await mkdir(path, { recursive: true });
+	await writeFile(join(path, "keep.txt"), "project data\n");
+	await chmod(parent, 0o555);
+
+	try {
+		expect(
+			await RepositorySetup.write(
+				{ kind: "create", path, branch: "main" },
+				signal()
+			)
+		).toEqual({ ok: true, path });
+		expect(await readFile(join(path, "keep.txt"), "utf8")).toBe(
+			"project data\n"
+		);
+		expect((await readdir(path)).sort()).toEqual([".git", "keep.txt"]);
+	} finally {
+		await chmod(parent, 0o700);
+	}
+});
+
+it.each(["create", "clone"] as const)(
+	"does not redirect %s into a symlink substituted after validation",
+	async (kind) => {
+		const source = join(directory, "source");
+
+		if (kind === "clone") {
+			await RepositorySetup.write(
+				{ kind: "create", path: source, branch: "main" },
+				signal()
+			);
+		}
+
+		const path = join(directory, "selected");
+		const moved = join(directory, "original");
+		const outside = join(directory, "outside");
+
+		await mkdir(path);
+		await mkdir(outside);
+
+		if (kind === "create")
+			await writeFile(join(outside, "keep.txt"), "outside data\n");
+
+		const run = GitProcess.prototype.run;
+		let swapped = false;
+
+		const execute = spyOn(GitProcess.prototype, "run").mockImplementation(
+			async function (this: GitProcess, input) {
+				if (
+					!swapped &&
+					input.args[0] === (kind === "create" ? "init" : "clone")
+				) {
+					swapped = true;
+					await rename(path, moved);
+					await symlink(outside, path);
+				}
+
+				return await run.call(this, input);
+			}
+		);
+
+		try {
+			const result = await RepositorySetup.write(
+				kind === "create"
+					? { kind, path, branch: "main" }
+					: { kind, path, remoteUrl: source },
+				signal()
+			);
+
+			expect(swapped).toBe(true);
+			expect(result.ok).toBe(false);
+			expect(await readdir(outside)).toEqual(
+				kind === "create" ? ["keep.txt"] : []
+			);
+			expect(await Bun.file(join(moved, ".git/HEAD")).exists()).toBe(false);
+
+			if (kind === "create")
+				expect(await readFile(join(outside, "keep.txt"), "utf8")).toBe(
+					"outside data\n"
+				);
+		} finally {
+			execute.mockRestore();
+		}
+	}
+);
+
+it("preserves a repository created by another process while setup is preparing", async () => {
+	const path = join(directory, "selected");
+
+	await mkdir(path);
+	const run = GitProcess.prototype.run;
+	let inserted = false;
+
+	const execute = spyOn(GitProcess.prototype, "run").mockImplementation(
+		async function (this: GitProcess, input) {
+			if (!inserted && input.args[0] === "init") {
+				inserted = true;
+				execFileSync("git", ["init", "--initial-branch=external", path]);
+			}
+
+			return await run.call(this, input);
+		}
+	);
+
+	try {
+		const result = await RepositorySetup.write(
+			{ kind: "create", path, branch: "main" },
+			signal()
+		);
+
+		expect(result.ok).toBe(false);
+		expect(await readFile(join(path, ".git/HEAD"), "utf8")).toBe(
+			"ref: refs/heads/external\n"
+		);
+	} finally {
+		execute.mockRestore();
+	}
 });

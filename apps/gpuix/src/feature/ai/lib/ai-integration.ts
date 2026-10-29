@@ -112,12 +112,25 @@ export class AiIntegration {
 		const connection = AiSettingsStore.connection(input);
 		const cli = AiSettingsStore.isCli(connection.provider);
 
-		const credential =
-			connection.provider === "api"
-				? CustomApi.credential(
-						apiKey || (await this.vault.read(this.key(connection))) || "[]"
-					)
-				: apiKey;
+		let credential = apiKey;
+
+		if (connection.provider === "api") {
+			const baseUrl = CustomApi.configuration(connection.api).baseUrl;
+
+			const legacyBaseUrl = this.store
+				.load()
+				.connections.find((item) => item.id === connection.id)?.api?.baseUrl;
+
+			const saved = apiKey ? null : await this.vault.read(this.key(connection));
+
+			const headers =
+				apiKey ||
+				(saved
+					? CustomApi.readCredential(saved, baseUrl, legacyBaseUrl)
+					: "[]");
+
+			credential = CustomApi.bindCredential(headers, baseUrl);
+		}
 
 		if (!connection.model && !cli)
 			throw new Error("Choose a model before saving this connection.");
@@ -433,6 +446,14 @@ export class AiIntegration {
 
 		const key = this.key(preferences);
 
+		const legacyBaseUrl =
+			preferences.provider === "api"
+				? this.store
+						.load()
+						.connections.find((item) => item.id === preferences.id)?.api
+						?.baseUrl
+				: undefined;
+
 		const raw = await this.vault.read(key);
 
 		if (
@@ -445,7 +466,12 @@ export class AiIntegration {
 		if (!raw)
 			throw new Error("No AI credentials saved. Connect in Settings → AI.");
 
-		if (preferences.provider === "api") return CustomApi.credential(raw);
+		if (preferences.provider === "api")
+			return CustomApi.readCredential(
+				raw,
+				CustomApi.configuration(preferences.api).baseUrl,
+				legacyBaseUrl
+			);
 
 		if (preferences.provider === "opencode") {
 			if (raw.length > 8192 || /[\s\p{Cc}]/u.test(raw))

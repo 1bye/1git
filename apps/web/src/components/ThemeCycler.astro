@@ -1,6 +1,9 @@
 ---
 import AppWindow from "./AppWindow.astro";
 import WindowClouds from "./WindowClouds.astro";
+
+const blurSteps = [2, 5, 8, 12, 16, 20, 25, 30];
+
 const themes = [
   { name: "Rose", wallpaper: "clouds", screen: "theme-rose" },
   { name: "Forest", wallpaper: "forest", screen: "theme-forest" },
@@ -19,6 +22,13 @@ const themes = [
         <AppWindow name={screen} sizes="(max-width:767px) 82vw, (max-height:759px) 100vw, min(65.575svh,100vw)" alt={`The same repository window in the ${name} theme, including its matching colour and pattern.`} />
       </div>)}
     </div>
+  </div>
+  <div class="theme-edge-blur" aria-hidden="true">
+      {blurSteps.map((target,i) => {
+        const previous = blurSteps[i-1] ?? 0;
+        const radius = Math.sqrt(target * target - previous * previous);
+        return <span class="blur-slice" style={`--blur:${radius.toFixed(2)}px;--solid:${(7-i)/8};--fade:${(8-i)/8}`} />;
+      })}
   </div>
   <WindowClouds />
   </div>

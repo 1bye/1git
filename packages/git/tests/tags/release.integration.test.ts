@@ -173,7 +173,7 @@ it("never replaces duplicate tags and rejects invalid names, revision expression
 	expect(unwrapResult(await fixture.repository.getTags())).toHaveLength(1);
 });
 
-it("rejects stale HEAD/branch, in-progress operations and commits outside the reviewed History", async () => {
+it("rejects stale HEAD/branch, in-progress operations and missing commits", async () => {
 	const fixture = await createFixture();
 	const request = await createRequest(fixture);
 
@@ -186,7 +186,7 @@ it("rejects stale HEAD/branch, in-progress operations and commits outside the re
 	for (const input of [
 		{ ...request, expectedHead: unrelated },
 		{ ...request, expectedBranch: "other" },
-		{ ...request, commit: unrelated },
+		{ ...request, commit: "0".repeat(40) },
 	])
 		expect((await fixture.repository.createReleaseTag(input)).ok).toBe(false);
 

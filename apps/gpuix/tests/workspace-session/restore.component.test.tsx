@@ -83,6 +83,74 @@ const read: typeof RepositoryReader.read = async (path) => {
 	};
 };
 
+it("saves resized sidebar widths and restores them after restarting the app", async () => {
+	const save = mock<(document: WorkspaceSessionDocument) => void>(() => {});
+
+	root.render(
+		<App
+			initialSession={{
+				...session(),
+				sidebarWidths: { files: 370, graph: 290 },
+			}}
+			readRepository={read}
+			saveSession={save}
+		/>
+	);
+	await settle();
+	await settle();
+	expect(
+		root.renderer.getElementBounds(node("repository-navigation").id)?.width
+	).toBe(370);
+	root.renderer.nativeSimulateKeyDown(
+		node("repository-navigation-divider").id,
+		"right"
+	);
+	root.renderer.flush();
+	await Bun.sleep(250);
+	const saved = save.mock.calls.at(-1)?.[0];
+
+	expect(saved?.sidebarWidths).toEqual({ files: 380, graph: 290 });
+	root.render(
+		<App key="restarted" initialSession={saved} readRepository={read} />
+	);
+	await settle();
+	await settle();
+	expect(
+		root.renderer.getElementBounds(node("repository-navigation").id)?.width
+	).toBe(380);
+});
+
+it("bounds a saved sidebar in a compact window without overwriting its preferred width", async () => {
+	root.unmount();
+	root = createTestRoot({
+		width: 640,
+		height: 500,
+		onKeyDown: windowOptions.onKeyDown,
+	});
+	const save = mock<(document: WorkspaceSessionDocument) => void>(() => {});
+
+	root.render(
+		<App
+			initialSession={{
+				...session(),
+				sidebarWidths: { files: 600, graph: 420 },
+			}}
+			readRepository={read}
+			saveSession={save}
+		/>
+	);
+	await settle();
+	await settle();
+	expect(
+		root.renderer.getElementBounds(node("repository-navigation").id)?.width
+	).toBe(320);
+	await Bun.sleep(250);
+	expect(save.mock.calls.at(-1)?.[0].sidebarWidths).toEqual({
+		files: 600,
+		graph: 420,
+	});
+});
+
 it("restores and saves the file layout across all file panes", async () => {
 	const save = mock<(document: WorkspaceSessionDocument) => void>(() => {});
 
@@ -208,8 +276,8 @@ it("restores order and the active tab immediately, reads each saved root and kee
 		root.renderer.getElementBounds(node("workspace-1").id)?.x ?? 0
 	);
 	expect(reader.mock.calls.map(([path]) => path)).toEqual([
-		"/test/linked",
 		"/test/project",
+		"/test/linked",
 	]);
 	expect(save).not.toHaveBeenCalled();
 	main.resolve(await read("/test/project", new AbortController().signal));
@@ -357,9 +425,13 @@ it("cancels restored reads when tabs close or the app unmounts and ignores late 
 	);
 	await settle();
 	click("close-workspace-3");
-	expect(reader.mock.calls[0]?.[1].aborted).toBe(true);
+	expect(
+		reader.mock.calls.find(([path]) => path === "/test/linked")?.[1].aborted
+	).toBe(true);
 	root.render(<div />);
-	expect(reader.mock.calls[1]?.[1].aborted).toBe(true);
+	expect(
+		reader.mock.calls.find(([path]) => path === "/test/project")?.[1].aborted
+	).toBe(true);
 	pending.resolve(await read("/test/linked", new AbortController().signal));
 	await settle();
 	expect(root.renderer.getAllText()).toEqual([]);

@@ -61,12 +61,20 @@ const authenticatedEnvironment = (
 		["http.sslVerify", "true"],
 		["protocol.allow", "never"],
 		["protocol.https.allow", "always"],
+		// Git's transport name retains scheme case, even though HTTPS URLs are case-insensitive.
+		[`protocol.${input.url.slice(0, input.url.indexOf(":"))}.allow`, "always"],
 		["http.extraHeader", ""],
 		[
 			`http.${input.url}.extraHeader`,
 			`Authorization: Basic ${Buffer.from(`${input.username}:${input.password}`).toString("base64")}`,
 		],
 	];
+
+	const normalizedUrl = input.url.replace(/^https:/iu, "https:");
+
+	// Scope scheme normalization to the reviewed URL; case-sensitive systems have no git-remote-HTTPS helper.
+	if (normalizedUrl !== input.url)
+		settings.push([`url.${normalizedUrl}.insteadOf`, input.url]);
 
 	if (isolateCloneConfiguration) {
 		env.GIT_CONFIG_GLOBAL = nullFile;
@@ -135,7 +143,8 @@ export interface GitProcessOptions {
  */
 export class GitProcess {
 	private readonly executable: string;
-	private readonly maxOutputBytes: number;
+	/** Aggregate readers use the same byte ceiling as an individual command. */
+	readonly maxOutputBytes: number;
 
 	constructor(options: GitProcessOptions = {}) {
 		this.executable = options.executable ?? "git";

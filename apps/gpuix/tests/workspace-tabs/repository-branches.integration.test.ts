@@ -4,7 +4,9 @@
  * Doubles: none.
  * Requires: Git on PATH and writable temporary storage; no network or existing repository.
  */
-import { afterEach, beforeEach, expect, it } from "bun:test";
+import { afterEach, beforeEach, expect, it, spyOn } from "bun:test";
+import { GitRepository } from "@1git/git";
+import { GitProcess } from "@1git/git/process";
 import { execFile } from "node:child_process";
 import {
 	chmod,
@@ -112,6 +114,73 @@ const mergeBranch = async (
 		expectedHead: await git("rev-parse", "HEAD"),
 		expectedBranch: await git("branch", "--show-current"),
 	});
+
+it("rejects a checkout after the app's review but before the merge mutation", async () => {
+	await git("switch", "feature/ui");
+	await git("commit", "--allow-empty", "-m", "Feature");
+	await git("switch", "main");
+	await git("branch", "other");
+	const main = await git("rev-parse", "main");
+	const original = GitRepository.prototype.merge;
+
+	const merge = spyOn(GitRepository.prototype, "merge").mockImplementation(
+		async function (this: GitRepository, input) {
+			await git("switch", "other");
+
+			return await original.call(this, input);
+		}
+	);
+
+	try {
+		const result = await mergeBranch();
+
+		expect(result.ok).toBe(false);
+		expect(await git("rev-parse", "main")).toBe(main);
+		expect(await git("rev-parse", "other")).toBe(main);
+		await expect(lstat(join(repository, ".git/index.lock"))).rejects.toThrow();
+	} finally {
+		merge.mockRestore();
+	}
+});
+
+it("blocks an external checkout during the merge and installs its index", async () => {
+	await git("switch", "feature/ui");
+	await writeFile(join(repository, "feature.txt"), "feature\n");
+	await git("add", ".");
+	await git("commit", "-m", "Feature");
+	await git("switch", "main");
+	await git("branch", "other");
+	const other = await git("rev-parse", "other");
+	const original = GitProcess.prototype.run;
+	let checkoutBlocked = false;
+
+	const run = spyOn(GitProcess.prototype, "run").mockImplementation(
+		async function (this: GitProcess, input) {
+			if (input.args[0] === "merge") {
+				try {
+					await git("switch", "other");
+				} catch {
+					checkoutBlocked = true;
+				}
+			}
+
+			return await original.call(this, input);
+		}
+	);
+
+	try {
+		const result = await mergeBranch();
+
+		expect(result.ok).toBe(true);
+		expect(checkoutBlocked).toBe(true);
+		expect(await git("branch", "--show-current")).toBe("main");
+		expect(await git("rev-parse", "other")).toBe(other);
+		expect(await git("status", "--porcelain")).toBe("");
+		await expect(lstat(join(repository, ".git/index.lock"))).rejects.toThrow();
+	} finally {
+		run.mockRestore();
+	}
+});
 
 it("merges a reviewed branch by fast-forward without switching or deleting it", async () => {
 	await git("switch", "feature/ui");
@@ -304,6 +373,67 @@ it("lists branches, switches and creates a branch without changing committed con
 	expect(created.ok && created.value.snapshot.head.branch).toBe("new/branch");
 	expect(await git("status", "--porcelain")).toBe("");
 	expect(await readFile(join(repository, "file.txt"), "utf8")).toBe("base\n");
+});
+
+it("creates a branch at an exact older commit while preserving dirty work and the current branch", async () => {
+	const target = await git("rev-parse", "HEAD");
+
+	await writeFile(join(repository, "file.txt"), "second commit\n");
+	await git("add", "file.txt");
+	await git("commit", "-m", "Second");
+	const head = await git("rev-parse", "HEAD");
+
+	await writeFile(join(repository, "file.txt"), "staged work\n");
+	await git("add", "file.txt");
+	await writeFile(join(repository, "file.txt"), "unstaged work\n");
+	await writeFile(join(repository, "untracked.txt"), "keep me\n");
+	const status = await git("status", "--porcelain");
+	const index = await git("diff", "--cached");
+
+	const request = {
+		kind: "create-at" as const,
+		name: "graph/topic",
+		expectedTarget: target,
+		expectedHead: head,
+		expectedBranch: "main",
+	};
+
+	const result = await writeBranch(repository, request);
+
+	expect(result.ok).toBe(true);
+	expect(await git("rev-parse", "graph/topic")).toBe(target);
+	expect(await git("rev-parse", "HEAD")).toBe(head);
+	expect(await git("branch", "--show-current")).toBe("main");
+	expect(await git("status", "--porcelain")).toBe(status);
+	expect(await git("diff", "--cached")).toBe(index);
+	expect(await readFile(join(repository, "file.txt"), "utf8")).toBe(
+		"unstaged work\n"
+	);
+	expect(
+		(await writeBranch(repository, { ...request, expectedTarget: head })).ok
+	).toBe(false);
+	expect(await git("rev-parse", "graph/topic")).toBe(target);
+
+	for (const expectedTarget of [undefined, "HEAD", "--all", "a".repeat(40)])
+		expect(
+			(
+				await writeBranch(repository, {
+					...request,
+					name: "invalid-target",
+					expectedTarget,
+				})
+			).ok
+		).toBe(false);
+
+	expect(
+		(
+			await writeBranch(repository, {
+				...request,
+				name: "stale",
+				expectedHead: target,
+			})
+		).ok
+	).toBe(false);
 });
 
 it("leaves tracked and untracked changes on the source branch in a durable stash", async () => {

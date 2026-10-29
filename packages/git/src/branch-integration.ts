@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
-import { readFile, rm, writeFile } from "./runtime.js";
+import { copyFile, open, readFile, rename, rm, writeFile } from "./runtime.js";
 import { join } from "node:path";
 import type {
 	BranchIntegrationInput,
 	FinishOperationInput,
+	MergeInput,
 	RepositorySnapshot,
 } from "./contracts.js";
 import type { RepositoryContext } from "./internal.js";
@@ -14,6 +15,109 @@ import { requireText } from "./validation.js";
 /** Reviewed branch integration; squash uses Git's own pending message so recovery survives restart. */
 export class BranchIntegration {
 	private constructor() {}
+
+	/** Hold the working index lock so another checkout cannot change the merge destination. */
+	static async merge(
+		context: RepositoryContext,
+		input: MergeInput,
+		args: readonly string[]
+	): Promise<RepositorySnapshot> {
+		const indexPath = join(context.repository.gitDirectory, "index");
+		const lockPath = `${indexPath}.lock`;
+
+		const lock = await open(lockPath, "wx").catch((cause: unknown) => {
+			if (cause instanceof Error && "code" in cause && cause.code === "EEXIST")
+				throw invalidInput(
+					"merge",
+					"Another Git process has locked the index.",
+					"repository-locked"
+				);
+
+			throw cause;
+		});
+
+		let ownsLock = true;
+		let started = false;
+
+		try {
+			await lock.close();
+			const before = await loadSnapshot(context, false, input.signal);
+
+			if (
+				(input.expectedHead !== undefined &&
+					before.head.oid !== input.expectedHead) ||
+				(input.expectedBranch !== undefined &&
+					before.head.branch !== input.expectedBranch)
+			)
+				throw invalidInput(
+					"merge",
+					"The branch changed. Refresh and review the merge again."
+				);
+
+			try {
+				await copyFile(indexPath, lockPath);
+			} catch (cause) {
+				if (
+					!(
+						cause instanceof Error &&
+						"code" in cause &&
+						cause.code === "ENOENT"
+					)
+				)
+					throw cause;
+
+				await context.process.run({
+					args: ["read-tree", "--empty"],
+					cwd: context.repository.root,
+					indexFile: lockPath,
+				});
+			}
+
+			// Git owns index.lock.lock; index.lock continues to exclude other checkouts.
+			started = true;
+			let failure: { cause: unknown } | undefined;
+
+			try {
+				await context.process.run({
+					args,
+					cwd: context.repository.root,
+					indexFile: lockPath,
+					signal: input.signal,
+				});
+			} catch (cause) {
+				failure = { cause };
+			}
+
+			try {
+				// Read metadata directly so cancellation cannot prevent transaction cleanup.
+				const head = (
+					await readFile(join(context.repository.gitDirectory, "HEAD"), "utf8")
+				).trim();
+
+				if (
+					before.head.branch
+						? head !== `ref: refs/heads/${before.head.branch}`
+						: head.startsWith("ref: ")
+				)
+					throw new Error("The merge destination changed.");
+
+				// Preserve Git's conflict stages even when merge exits with a conflict or cancellation.
+				await rename(lockPath, indexPath);
+				ownsLock = false;
+			} catch {
+				throw invalidInput(
+					"merge",
+					`Merge could not be finalized. Inspect History, the working tree and recovery index at ${lockPath} before continuing.`
+				);
+			}
+
+			if (failure) throw failure.cause;
+
+			return await loadSnapshot(context);
+		} finally {
+			if (ownsLock && !started) await rm(lockPath, { force: true });
+		}
+	}
 
 	static async run(
 		context: RepositoryContext,

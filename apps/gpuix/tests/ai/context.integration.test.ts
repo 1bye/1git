@@ -4,7 +4,7 @@
  * Doubles: none.
  * Requires: Git and writable temporary storage; no network, credentials or graphics.
  */
-import { afterEach, beforeEach, expect, it } from "bun:test";
+import { afterEach, beforeEach, expect, it, spyOn } from "bun:test";
 import { execFile } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -72,6 +72,39 @@ async function state() {
 		}),
 	};
 }
+
+it("collects selected tracked and untracked filenames containing tabs", async () => {
+	const tracked = "tracked\tfile.txt";
+	const untracked = "new\tfile.txt";
+
+	await writeFile(join(directory, tracked), "before\n");
+	await git("add", tracked);
+	await git("commit", "-m", "Tabbed filename");
+	await writeFile(join(directory, tracked), "tracked-selection\n");
+	await writeFile(join(directory, untracked), "new-selection\n");
+	const captured = await state();
+	const index = await readFile(join(directory, ".git/index"));
+
+	const diff = await captured.repository.getDiff({
+		target: { kind: "changes" },
+		paths: [tracked, untracked],
+	});
+
+	if (!diff.ok) throw new Error(diff.error.message);
+
+	expect(diff.value.stats.map((stat) => stat.path)).toEqual([
+		tracked,
+		untracked,
+	]);
+	const patch = await CommitContext.read(
+		{ ...captured.state, includedFileIds: [tracked, untracked] },
+		new AbortController().signal
+	);
+
+	expect(patch).toContain("+tracked-selection");
+	expect(patch).toContain("+new-selection");
+	expect(await readFile(join(directory, ".git/index"))).toEqual(index);
+});
 
 it("sends only selected changes including untracked files, without changing the index or working files", async () => {
 	await writeFile(join(directory, "selected.txt"), "one\nchanged\nthree\n");
@@ -143,15 +176,62 @@ it("rejects a changed branch and cancellation before collecting a prompt", async
 	const captured = await state();
 
 	await git("commit", "--allow-empty", "-m", "New tip");
+	const input = { ...captured.state, includedFileIds: ["selected.txt"] };
+
 	await expect(
-		CommitContext.read(captured.state, new AbortController().signal)
+		CommitContext.read(input, new AbortController().signal)
 	).rejects.toThrow("branch changed");
 	const cancelled = new AbortController();
 
 	cancelled.abort();
-	await expect(
-		CommitContext.read(captured.state, cancelled.signal)
-	).rejects.toThrow();
+	await expect(CommitContext.read(input, cancelled.signal)).rejects.toThrow();
+});
+
+it("collects large file selections in bounded batches without exposing binary contents", async () => {
+	const paths = Array.from({ length: 100 }, (_, index) => `file-${index}.txt`);
+
+	await Promise.all(
+		paths.map(
+			async (path) => await writeFile(join(directory, path), "before\n")
+		)
+	);
+	await writeFile(
+		join(directory, 'binary "π".dat'),
+		Buffer.from("\0PRIVATE_BINARY_BEFORE")
+	);
+	await git("add", ".");
+	await git("commit", "-m", "Many files");
+	await Promise.all(
+		paths.map(
+			async (path) => await writeFile(join(directory, path), `after-${path}\n`)
+		)
+	);
+	await writeFile(
+		join(directory, 'binary "π".dat'),
+		Buffer.from("\0PRIVATE_BINARY_AFTER")
+	);
+	const captured = await state();
+	const diff = spyOn(GitRepository.prototype, "getDiff");
+
+	try {
+		const patch = await CommitContext.read(
+			{
+				...captured.state,
+				includedFileIds: captured.state.entries.changes.map(
+					(entry) => entry.id
+				),
+			},
+			new AbortController().signal
+		);
+
+		for (const path of paths) expect(patch).toContain(`+after-${path}`);
+
+		expect(patch).toContain("Binary files");
+		expect(patch).not.toContain("PRIVATE_BINARY");
+		expect(diff.mock.calls.length).toBeLessThan(10);
+	} finally {
+		diff.mockRestore();
+	}
 });
 
 it("collects a diff beyond the previous Git output limit and isolates a partial selection before paging", async () => {

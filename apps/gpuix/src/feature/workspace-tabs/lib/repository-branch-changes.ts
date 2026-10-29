@@ -178,7 +178,10 @@ export class RepositoryBranchChanges {
 				"Changes restored, but backup cleanup could not be confirmed. Inspect Stashes."
 			);
 
-		const dropped = await repository.dropStash({ reference: target.reference });
+		const dropped = await repository.dropStash({
+			reference: target.reference,
+			expectedOid: target.oid,
+		});
 
 		if (!dropped.ok)
 			return this.fail(

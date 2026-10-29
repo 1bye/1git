@@ -117,6 +117,45 @@ it.each(["openai-chat", "openai-responses", "anthropic"] as const)(
 	}
 );
 
+it("requires new headers before generating through a replacement API origin", async () => {
+	const replacement = connection("openai-chat");
+
+	const original = {
+		...replacement,
+		api: {
+			protocol: "anthropic" as const,
+			baseUrl: "https://old-provider.invalid/v1",
+		},
+	};
+
+	const signal = AbortSignal.timeout(15_000);
+
+	await service.saveConnection(
+		original,
+		JSON.stringify([{ name: "x-api-key", value: "old-secret-never-sent" }]),
+		true,
+		signal
+	);
+	await expect(
+		service.saveConnection(replacement, "", true, signal)
+	).rejects.toThrow("server changed");
+	await expect(
+		service.generate(replacement, "+selected", signal)
+	).rejects.toThrow("server changed");
+	await service.saveConnection(
+		replacement,
+		JSON.stringify([
+			{ name: "Authorization", value: "Bearer synthetic-api-secret" },
+			{ name: "X-Gateway-Token", value: "synthetic-gateway-secret" },
+		]),
+		true,
+		signal
+	);
+	expect(
+		await service.generate(replacement, "+handle empty greetings", signal)
+	).toBe("fix: handle empty greetings");
+});
+
 it("sanitizes provider failures over real HTTP", async () => {
 	const preferences = { ...connection("openai-chat"), model: "server-error" };
 	const signal = AbortSignal.timeout(15_000);

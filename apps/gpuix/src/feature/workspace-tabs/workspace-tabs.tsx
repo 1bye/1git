@@ -170,6 +170,7 @@ export function WorkspaceTabs({
 	openMenuFor,
 	onOpenMenuFor,
 	branchIntent,
+	onCreateBranchOpen,
 }: {
 	state: WorkspaceTabsState;
 	dispatch: Dispatch<WorkspaceTabsAction>;
@@ -184,6 +185,7 @@ export function WorkspaceTabs({
 	openMenuFor?: string | null;
 	onOpenMenuFor?: () => void;
 	branchIntent?: "new" | "switch";
+	onCreateBranchOpen?: () => void;
 } & Partial<WorkspaceMenuActions>) {
 	const theme = useAppTheme();
 	const { tokens: appTokens, colors: appColors } = theme;
@@ -593,6 +595,7 @@ export function WorkspaceTabs({
 										onCreateWorktree={onCreateWorktree}
 										onRemoveWorktree={onRemoveWorktree}
 										worktreesAnchorRef={worktreesAnchorRef}
+										onCreateBranchOpen={onCreateBranchOpen}
 										onSubmenuOpen={(group) => {
 											if (group === "worktrees") onWorktreesOpen?.();
 										}}

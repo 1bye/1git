@@ -1,5 +1,5 @@
 /**
- * Covers: multi-file merge/rebase resolution, continuation, abort recovery, stale intent and unstaged-change guards.
+ * Covers: multi-file merge/rebase/mailbox resolution, continuation, abort recovery, stale intent and unstaged-change guards.
  * Real: Git/backend and disposable local repositories.
  * Doubles: none.
  * Requires: Git and temporary storage; no network or graphics.
@@ -77,7 +77,9 @@ const request = async (
 	const value = await snapshot();
 
 	if (
-		(value.operationState !== "merge" && value.operationState !== "rebase") ||
+		(value.operationState !== "merge" &&
+			value.operationState !== "rebase" &&
+			value.operationState !== "am") ||
 		!value.operationToken
 	)
 		throw new Error("Missing operation identity");
@@ -91,10 +93,20 @@ const request = async (
 	};
 };
 
-for (const operation of ["merge", "rebase"] as const) {
+async function startOperation(operation: "merge" | "rebase" | "am") {
+	if (operation !== "am") return await git(operation, "other");
+
+	const patch = join(root, ".git", "fixture.patch");
+
+	await writeFile(patch, await git("format-patch", "-1", "--stdout", "other"));
+
+	return await git("am", "--3way", patch);
+}
+
+for (const operation of ["merge", "rebase", "am"] as const) {
 	it(`resolves multiple files then continues ${operation}, preserving untracked work`, async () => {
 		await addSecondConflict();
-		await expect(git(operation, "other")).rejects.toThrow();
+		await expect(startOperation(operation)).rejects.toThrow();
 		await writeFile(join(root, "keep.txt"), "untracked stays\n");
 		expect(
 			(await snapshot()).files.filter((file) => file.recordType === "unmerged")
@@ -114,7 +126,7 @@ for (const operation of ["merge", "rebase"] as const) {
 		expect(result.ok).toBe(true);
 		expect((await snapshot()).operationState).toBe("normal");
 		expect(await git("show", "HEAD:a.txt")).toBe(
-			operation === "merge" ? "other" : "main"
+			operation === "rebase" ? "main" : "other"
 		);
 		expect(await git("show", "HEAD:b.txt")).toBe("manually resolved");
 		expect(await git("ls-files", "--unmerged")).toBe("");
@@ -124,7 +136,7 @@ for (const operation of ["merge", "rebase"] as const) {
 	});
 	it(`aborts a partly resolved ${operation} and restores the original branch and files`, async () => {
 		await addSecondConflict();
-		await expect(git(operation, "other")).rejects.toThrow();
+		await expect(startOperation(operation)).rejects.toThrow();
 		await resolveFile("a.txt", "theirs");
 		await writeFile(join(root, "b.txt"), "unfinished manual resolution\n");
 		await writeFile(join(root, "keep.txt"), "untracked stays\n");
@@ -145,7 +157,7 @@ for (const operation of ["merge", "rebase"] as const) {
 		expect(await git("ls-files", "--unmerged")).toBe("");
 	});
 	it(`continues ${operation} using staged resolutions and the existing message`, async () => {
-		await expect(git(operation, "other")).rejects.toThrow();
+		await expect(startOperation(operation)).rejects.toThrow();
 		const intent = await request("continue");
 
 		expect((await RepositoryOperation.write(root, intent)).ok).toBe(false);
@@ -161,11 +173,11 @@ for (const operation of ["merge", "rebase"] as const) {
 			"untracked stays\n"
 		);
 		expect(await git("log", "-1", "--format=%s")).toContain(
-			operation === "merge" ? "Merge" : "Main"
+			operation === "merge" ? "Merge" : operation === "am" ? "Other" : "Main"
 		);
 	});
 	it(`aborts ${operation} only with the reviewed identity`, async () => {
-		await expect(git(operation, "other")).rejects.toThrow();
+		await expect(startOperation(operation)).rejects.toThrow();
 		const intent = await request("abort");
 
 		expect(

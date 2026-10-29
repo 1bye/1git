@@ -75,7 +75,14 @@ export const parseDiffStats = (
 			continue;
 		}
 
-		const [added, deleted, inlinePath] = header.split("\t");
+		const firstTab = header.indexOf("\t");
+		const secondTab = header.indexOf("\t", firstTab + 1);
+
+		if (firstTab < 0 || secondTab < 0) continue;
+
+		const added = header.slice(0, firstTab);
+		const deleted = header.slice(firstTab + 1, secondTab);
+		const inlinePath = header.slice(secondTab + 1);
 
 		if (inlinePath) {
 			stats.push({

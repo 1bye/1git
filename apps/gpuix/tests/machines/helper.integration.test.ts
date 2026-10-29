@@ -1,7 +1,7 @@
 /**
  * Covers: helper discovery, folder browsing/setup, worktrees, remote reads/diffs/commits, stale-write guards and rejected RPC methods.
  * Real: helper process, JSON protocol, application repository services, Git and isolated working trees.
- * Doubles: SSH channel (requests use the actual helper's stdin/stdout); no saved machines or credentials.
+ * Doubles: SSH channel and timed symlink replacement; requests use actual helper stdin/stdout, without credentials.
  * Requires: Rust, Bun, Git and writable temporary storage.
  */
 import {
@@ -22,9 +22,13 @@ import {
 	mkdir,
 	mkdtemp,
 	writeFile,
+	readFile,
 	rm,
 	realpath,
+	rename,
+	readdir,
 	symlink,
+	unlink,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -42,6 +46,8 @@ import { RepositoryFileActions } from "../../src/feature/repository-workspace/li
 import { RepositoryReader } from "../../src/feature/repository-workspace/lib/repository-reader";
 import { RepositoryCommit } from "../../src/feature/repository-workspace/lib/repository-commit";
 import { RepositoryDiff } from "../../src/feature/repository-workspace/lib/repository-diff";
+import { RepositoryConflicts } from "../../src/feature/repository-workspace/lib/repository-conflicts";
+import { RepositoryStashes } from "../../src/feature/repository-workspace/lib/repository-stashes";
 import { RepositorySetup } from "../../src/feature/repository-workspace/lib/repository-setup";
 import { RepositoryWorktrees } from "../../src/feature/workspace-tabs/lib/repository-worktrees";
 
@@ -190,6 +196,194 @@ afterEach(async () => {
 	child?.stdin.end();
 	child?.kill();
 	await rm(directory, { recursive: true, force: true });
+});
+
+it.each(["create", "clone"] as const)(
+	"rejects a replaced remote %s destination without writing into its symlink target",
+	async (kind) => {
+		const root = await realpath(
+			await mkdtemp(join(tmpdir(), "1git-helper-setup-"))
+		);
+
+		const target = join(root, "selected");
+		const moved = join(root, "original");
+		const outside = join(root, "outside");
+		const remote = MachineLocation.parse(location);
+
+		if (!remote) throw new Error("Expected test machine");
+
+		await mkdir(target);
+		await mkdir(outside);
+		const original = RustRuntime.prototype.git;
+		let swapped = false;
+
+		const git = spyOn(RustRuntime.prototype, "git").mockImplementation(
+			async function (this: RustRuntime, input, limit) {
+				if (
+					!swapped &&
+					input.args[0] === (kind === "create" ? "init" : "clone")
+				) {
+					swapped = true;
+					await rename(target, moved);
+					await symlink(outside, target);
+				}
+
+				return await original.call(this, input, limit);
+			}
+		);
+
+		try {
+			const path = MachineLocation.encode(remote.machineId, target);
+
+			const result = await RepositorySetup.write(
+				kind === "create"
+					? { kind, path, branch: "main" }
+					: { kind, path, remoteUrl: directory },
+				new AbortController().signal
+			);
+
+			expect(result.ok).toBe(false);
+			expect(swapped).toBe(true);
+			expect(await readdir(outside)).toEqual([]);
+			expect(await Bun.file(join(moved, ".git/HEAD")).exists()).toBe(false);
+		} finally {
+			git.mockRestore();
+			await rm(root, { recursive: true, force: true });
+		}
+	}
+);
+
+it("deletes only the reviewed remote stash through the helper, including the final entry", async () => {
+	const git = async (...args: string[]) =>
+		(
+			await execute("git", ["-C", directory, ...args], {
+				env: {
+					...process.env,
+					GIT_CONFIG_GLOBAL: "/dev/null",
+					GIT_CONFIG_NOSYSTEM: "1",
+				},
+			})
+		).stdout.trimEnd();
+
+	const identity = {
+		expectedHead: await git("rev-parse", "HEAD"),
+		expectedBranch: "main",
+	};
+
+	await git("stash", "push", "-u", "-m", "First");
+	const first = await git("rev-parse", "refs/stash");
+
+	await writeFile(
+		join(directory, "file with spaces.txt"),
+		"Second saved version\n"
+	);
+	await git("stash", "push", "-m", "Second");
+	const second = await git("rev-parse", "refs/stash");
+
+	const removed = await RepositoryStashes.write(location, {
+		kind: "delete",
+		oid: first,
+		...identity,
+	});
+
+	if (!removed.ok) throw new Error(removed.error.message);
+
+	expect(await git("stash", "list", "--format=%H")).toBe(second);
+	expect(await git("stash", "show", "-p", "stash@{0}")).toContain(
+		"+Second saved version"
+	);
+	const last = await RepositoryStashes.write(location, {
+		kind: "delete",
+		oid: second,
+		...identity,
+	});
+
+	if (!last.ok) throw new Error(last.error.message);
+
+	expect(await git("stash", "list")).toBe("");
+	expect(await git("rev-parse", "HEAD")).toBe(identity.expectedHead);
+	expect(await git("status", "--porcelain")).toBe("");
+});
+
+it("resolves through the real helper without following a symlink swapped at the final write", async () => {
+	const git = async (...args: string[]) =>
+		(
+			await execute("git", ["-C", directory, ...args], {
+				env: {
+					...process.env,
+					GIT_CONFIG_GLOBAL: "/dev/null",
+					GIT_CONFIG_NOSYSTEM: "1",
+				},
+			})
+		).stdout.trimEnd();
+
+	const path = "file with spaces.txt";
+	const absolute = join(directory, path);
+
+	await git("add", ".");
+	await git("commit", "-m", "Prepare conflict");
+	await git("checkout", "-b", "incoming");
+	await writeFile(absolute, "theirs\n");
+	await git("commit", "-am", "Incoming");
+	await git("checkout", "main");
+	await writeFile(absolute, "ours\n");
+	await git("commit", "-am", "Current");
+	await expect(git("merge", "incoming")).rejects.toThrow();
+	const preview = await RepositoryConflicts.read(
+		location,
+		path,
+		new AbortController().signal
+	);
+
+	if (!preview.ok || !preview.value)
+		throw new Error("Expected conflict preview");
+
+	const outsideDirectory = await mkdtemp(
+		join(tmpdir(), "1git-helper-outside-")
+	);
+
+	const outside = join(outsideDirectory, "private.txt");
+
+	await writeFile(outside, "outside data\n");
+	const original = RustRuntime.prototype.files;
+	let swapped = false;
+
+	const files = spyOn(RustRuntime.prototype, "files").mockImplementation(
+		async function (this: RustRuntime, method, args) {
+			if (
+				!swapped &&
+				((method === "writeFile" && args[0] === absolute) ||
+					(method === "rename" && args[1] === absolute))
+			) {
+				swapped = true;
+				await unlink(absolute);
+				await symlink(outside, absolute);
+			}
+
+			return await original.call(this, method, args);
+		}
+	);
+
+	try {
+		const result = await RepositoryConflicts.write(location, {
+			path,
+			side: "ours",
+			expectedHead: await git("rev-parse", "HEAD"),
+			expectedBranch: "main",
+			expectedContentHash: preview.value.hash,
+			expectedSideOid: preview.value.ours?.revision,
+		});
+
+		expect(swapped).toBe(true);
+		expect(result.ok).toBe(true);
+		expect(await readFile(outside, "utf8")).toBe("outside data\n");
+		expect(await readFile(absolute, "utf8")).toBe("ours\n");
+		expect(await git("show", `:${path}`)).toBe("ours");
+		expect(await git("ls-files", "--unmerged")).toBe("");
+	} finally {
+		files.mockRestore();
+		await rm(outsideDirectory, { recursive: true, force: true });
+	}
 });
 
 it("opens a remote checkout, renders its diff and commits only the selected files through existing services", async () => {

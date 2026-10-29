@@ -1,5 +1,5 @@
 /** Ordered actions taught on the real workspace controls. */
-export const tourSteps = ["tab-menu", "worktrees", "space-swipe"] as const;
+export const tourSteps = ["tab-menu", "create-branch", "space-swipe"] as const;
 
 /** Stable identifiers are the only tour data stored in a session. */
 export type TourStepId = (typeof tourSteps)[number];
@@ -33,10 +33,15 @@ export class GuidedTour {
 		)
 			return undefined;
 
+		// Keep previously completed tours complete when replacing the worktree lesson.
 		const completed = record.completed;
 
 		return {
-			completed: tourSteps.filter((id) => completed.includes(id)),
+			completed: tourSteps.filter(
+				(id) =>
+					completed.includes(id) ||
+					(id === "create-branch" && completed.includes("worktrees"))
+			),
 			...(record.dismissed !== undefined
 				? { dismissed: record.dismissed }
 				: {}),

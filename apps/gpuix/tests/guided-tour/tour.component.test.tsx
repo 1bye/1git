@@ -140,11 +140,13 @@ async function start(props = fixture(), document = session()) {
 	return props;
 }
 async function closeMenu() {
-	const bounds = root.renderer.getElementBounds(node("workspace-1").id)!;
+	const bounds = root.renderer.getElementBounds(
+		node("workspace-menu-backdrop").id
+	)!;
 
 	root.renderer.nativeSimulateClick(
-		bounds.x + bounds.width + 320,
-		bounds.y + 250
+		bounds.x + bounds.width - 4,
+		bounds.y + bounds.height - 4
 	);
 	await settle();
 }
@@ -179,7 +181,7 @@ function swipe(deltaX = -70) {
 }
 
 it.each(["light", "dark"] as const)(
-	"teaches real tabs, worktrees and a rail swipe in %s appearance",
+	"teaches branch discovery, optional creation and a rail swipe in %s appearance",
 	async (appearance) => {
 		const props = fixture();
 
@@ -191,7 +193,7 @@ it.each(["light", "dark"] as const)(
 		advance();
 		await settle();
 		expect(node("tour-step-tab-menu")).toBeDefined();
-		const tab = root.renderer.getElementBounds(node("workspace-1").id)!;
+		const tab = root.renderer.getElementBounds(node("rail-branches").id)!;
 
 		const ring = root.renderer.getElementBounds(node("tour-target-ring").id)!;
 
@@ -200,29 +202,31 @@ it.each(["light", "dark"] as const)(
 
 		if (process.env.GPUIX_ONBOARDING_SCREENSHOT)
 			root.renderer.captureScreenshot(
-				`${process.env.GPUIX_ONBOARDING_SCREENSHOT}-${appearance}-tour-tabs.png`
+				`${process.env.GPUIX_ONBOARDING_SCREENSHOT}-${appearance}-tour-branches.png`
 			);
 
-		await click("workspace-1");
+		await click("rail-branches");
 		expect(node("workspace-menu")).toBeDefined();
-		expect(node("tour-step-worktrees")).toBeDefined();
+		expect(node("tour-step-create-branch")).toBeDefined();
 		await Bun.sleep(40);
 		await settle();
-		const worktrees = root.renderer.getElementBounds(node("worktrees").id)!;
+		const createButton = root.renderer.getElementBounds(
+			node("create-branch").id
+		)!;
 
-		const worktreesRing = root.renderer.getElementBounds(
+		const createRing = root.renderer.getElementBounds(
 			node("tour-target-ring").id
 		)!;
 
-		expect(worktreesRing.y).toBeCloseTo(worktrees.y - 3);
+		expect(createRing.y).toBeCloseTo(createButton.y - 3);
 
 		if (process.env.GPUIX_ONBOARDING_SCREENSHOT)
 			root.renderer.captureScreenshot(
-				`${process.env.GPUIX_ONBOARDING_SCREENSHOT}-${appearance}-tour-worktrees.png`
+				`${process.env.GPUIX_ONBOARDING_SCREENSHOT}-${appearance}-tour-create-branch.png`
 			);
 
-		await click("worktrees");
-		expect(node("workspace-worktrees")).toBeDefined();
+		await click("create-branch");
+		expect(node("create-branch")).toBeDefined();
 		expect(root.renderer.findByTestId("tour-coach-mark")).toBeUndefined();
 		await closeMenu();
 		expect(node("tour-step-space-swipe")).toBeDefined();
@@ -235,6 +239,9 @@ it.each(["light", "dark"] as const)(
 		swipe();
 		await settle();
 		expect(node("tour-confirmation")).toBeDefined();
+		expect(root.renderer.getAllText()).toContain(
+			"Replay tips from Settings → Help."
+		);
 		expect(root.renderer.findByTestId("tour-step-space-swipe")).toBeUndefined();
 		advance(3100);
 		await settle();
@@ -260,26 +267,26 @@ it("skips and persists every remaining tip, including across remounts", async ()
 });
 
 it.each(["enter", "space"])(
-	"opens tabs with %s and Escape skips without stealing focus",
+	"opens branches with %s and Escape skips without stealing focus",
 	async (key) => {
 		await start();
-		root.renderer.focusElement(node("workspace-1").id);
-		root.renderer.nativeSimulateKeyDown(node("workspace-1").id, key);
+		root.renderer.focusElement(node("rail-branches").id);
+		root.renderer.nativeSimulateKeyDown(node("rail-branches").id, key);
 
 		if (key === "space")
-			root.renderer.nativeSimulateKeyUp(node("workspace-1").id, key);
+			root.renderer.nativeSimulateKeyUp(node("rail-branches").id, key);
 
 		await settle();
 		advance(250);
 		await settle();
-		expect(node("tour-step-worktrees")).toBeDefined();
+		expect(node("tour-step-create-branch")).toBeDefined();
 		root.renderer.simulateKeystrokes("escape");
 		await settle();
 		expect(root.renderer.findByTestId("tour-coach-mark")).toBeUndefined();
 	}
 );
 
-it("pauses for Settings and replays from Appearance", async () => {
+it("pauses for Settings and replays from Help", async () => {
 	const props = await start();
 
 	root.renderer.simulateKeystrokes("cmd-,");
@@ -291,7 +298,7 @@ it("pauses for Settings and replays from Appearance", async () => {
 	await click("tour-skip");
 	root.renderer.simulateKeystrokes("cmd-,");
 	await settle();
-	await click("settings-appearance");
+	await click("settings-help");
 	root.renderer.scrollIntoView(node("settings-replay-tips").id);
 	root.renderer.advanceTime(1);
 	await settle();
@@ -339,8 +346,8 @@ it("defers the swipe with one space and teaches it alone after creating a second
 	const props = await start(fixture(), session(1));
 
 	expect(root.renderer.getAllText()).toContain("1 of 2");
-	await click("workspace-1");
-	expect(node("tour-step-worktrees")).toBeDefined();
+	await click("rail-branches");
+	expect(node("tour-step-create-branch")).toBeDefined();
 	await closeMenu();
 	expect(node("tour-confirmation")).toBeDefined();
 	advance(3100);
@@ -368,20 +375,20 @@ it("defers the swipe with one space and teaches it alone after creating a second
 	);
 });
 
-it("resumes a saved worktrees step without silently completing it on mount", async () => {
+it("resumes a saved branch creation step without silently completing it on mount", async () => {
 	const props = await start(fixture(), {
 		...session(),
 		tips: { completed: ["tab-menu"] },
 	});
 
-	expect(node("tour-step-worktrees")).toBeDefined();
+	expect(node("tour-step-create-branch")).toBeDefined();
 	root.render(<div />);
 	expect(props.saveSession.mock.calls.at(-1)?.[0].tips?.completed).toEqual([
 		"tab-menu",
 	]);
 });
 
-it("keeps the worktrees target clickable at the minimum window size", async () => {
+it("keeps the new branch target clickable at the minimum window size", async () => {
 	root.unmount();
 	root = createTestRoot({
 		width: 640,
@@ -390,10 +397,10 @@ it("keeps the worktrees target clickable at the minimum window size", async () =
 	});
 	root.renderer.clockPause();
 	await start();
-	await click("workspace-1");
+	await click("rail-branches");
 	await Bun.sleep(40);
 	await settle();
-	const trigger = root.renderer.getElementBounds(node("worktrees").id)!;
+	const trigger = root.renderer.getElementBounds(node("create-branch").id)!;
 	const coach = root.renderer.getElementBounds(node("tour-coach-mark").id)!;
 
 	expect(
@@ -404,8 +411,8 @@ it("keeps the worktrees target clickable at the minimum window size", async () =
 	).toBe(true);
 	expect(coach.x + coach.width).toBeLessThanOrEqual(640);
 	expect(coach.y + coach.height).toBeLessThanOrEqual(420);
-	await click("worktrees");
-	expect(node("workspace-worktrees")).toBeDefined();
+	await click("create-branch");
+	expect(node("create-branch")).toBeDefined();
 });
 
 it("pauses for a nested workspace popover until its exit has finished", async () => {

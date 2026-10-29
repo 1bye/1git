@@ -7,22 +7,31 @@
 import { afterEach, beforeEach, expect, it, mock, spyOn } from "bun:test";
 import { createTestRoot, type TestRoot } from "@gpuix/react/testing";
 import { flushSync, handleGpuixEvent } from "@gpuix/react";
+import type { ComponentProps } from "react";
 import { App } from "../../src/app";
 import { RepositoryGraph } from "../../src/feature/repository-graph/repository-graph";
 import type {
 	GraphReferences,
 	RepositoryGraphReader,
 } from "../../src/feature/repository-graph/repository-graph-reader";
-import type { RepositoryHistory } from "../../src/feature/repository-workspace/lib/repository-history";
+import { RepositoryHistory } from "../../src/feature/repository-workspace/lib/repository-history";
+import type { RepositoryTags } from "../../src/feature/repository-workspace/lib/repository-tags";
+import type { RepositorySync } from "../../src/feature/repository-workspace/lib/repository-sync";
 import {
 	commitInfo,
 	committedFiles,
 	historyPage,
 } from "../_shared/history-page";
 import { repositorySnapshot } from "../_shared/repository-snapshot";
+import { changedFile } from "../_shared/repository-snapshot";
 import { diffPatch } from "../_shared/diff-patch";
+import type { RepositoryBranches } from "../../src/feature/workspace-tabs/lib/repository-branches";
+import { NativeFileMenu } from "../../src/feature/repository-workspace/lib/native-file-menu";
 
 let root: TestRoot;
+let menuChoice: string;
+let menuLabels: string[];
+let menuEnabled: boolean[];
 
 const commits = [
 	{
@@ -104,6 +113,14 @@ const readFiles = mock<typeof RepositoryHistory.readFiles>(
 	async (_root, commit) => ({ ok: true, value: committedFiles(commit, 3) })
 );
 
+const writeBranch = mock<typeof RepositoryBranches.write>(async () => ({
+	ok: true,
+	value: {
+		branches: { current: "main", branches: [] },
+		snapshot: repositorySnapshot(),
+	},
+}));
+
 beforeEach(() => {
 	root = createTestRoot({ width: 1280, height: 800 });
 	root.renderer.clockPause();
@@ -111,6 +128,19 @@ beforeEach(() => {
 	readReferences.mockClear();
 	readPage.mockClear();
 	readFiles.mockClear();
+	writeBranch.mockClear();
+	menuChoice = "";
+	menuLabels = [];
+	menuEnabled = [];
+	spyOn(RepositoryHistory, "readCommitLink").mockResolvedValue(null);
+	Object.assign(root.renderer, {
+		showContextMenuItems(labels: string[], enabled: boolean[]) {
+			menuLabels = labels;
+			menuEnabled = enabled;
+
+			return labels.indexOf(menuChoice);
+		},
+	});
 });
 afterEach(() => {
 	root.unmount();
@@ -146,7 +176,11 @@ async function settle(): Promise<void> {
 		root.renderer.flush();
 	}
 }
-function show(appearance: "light" | "dark" = "light", fontSize = 12): void {
+function show(
+	appearance: "light" | "dark" = "light",
+	fontSize = 12,
+	props: ComponentProps<typeof App> = {}
+): void {
 	root.render(
 		<App
 			initialSession={{
@@ -158,6 +192,7 @@ function show(appearance: "light" | "dark" = "light", fontSize = 12): void {
 			}}
 			readRepository={async () => ({ ok: true, value: repositorySnapshot() })}
 			readGraphReferences={readReferences}
+			writeBranch={writeBranch}
 			readGraphPage={readPage}
 			readCommitFiles={readFiles}
 			readDiff={async (_root, file) => ({
@@ -179,6 +214,7 @@ function show(appearance: "light" | "dark" = "light", fontSize = 12): void {
 				ok: true,
 				value: { commit: commitInfo(), undoUnavailableReason: null },
 			})}
+			{...props}
 		/>
 	);
 }
@@ -188,6 +224,23 @@ async function open(): Promise<void> {
 	click("view-graph");
 	await settle();
 }
+
+it("disables graph branch creation during an unfinished Git operation", async () => {
+	show("light", 12, {
+		readRepository: async () => ({
+			ok: true,
+			value: { ...repositorySnapshot(), operationState: "merge" },
+		}),
+	});
+	await open();
+	click(`entry-${commits[0]!.oid}`);
+	await settle();
+
+	expect(element("graph-new-branch").customProps?.tabIndex).toBeUndefined();
+	click("graph-new-branch");
+	expect(root.renderer.findByTestId("graph-branch-dialog")).toBeUndefined();
+	expect(writeBranch).not.toHaveBeenCalled();
+});
 
 it("switches Graph file navigation to a read-only tree without changing commit navigation", async () => {
 	show();
@@ -205,6 +258,36 @@ it("switches Graph file navigation to a read-only tree without changing commit n
 	expect(element("changes-file-layout").customProps?.["aria-label"]).toBe(
 		"Switch to list view"
 	);
+});
+
+it("resizes the branch sidebar with the mouse and keyboard and remembers its width after leaving Graph", async () => {
+	show();
+	await open();
+	const divider = bounds("graph-sidebar-divider");
+	const x = divider.x + divider.width / 2;
+	const y = divider.y + 200;
+
+	root.renderer.nativeSimulateMouseDown(x, y);
+	root.renderer.nativeSimulateMouseMove(x + 70, y + 80, 0);
+	root.renderer.nativeSimulateMouseUp(x + 70, y + 80);
+	root.renderer.flush();
+	expect(bounds("graph-sidebar").width).toBe(300);
+	click("view-history");
+	click("view-graph");
+	await settle();
+	expect(bounds("graph-sidebar").width).toBe(300);
+	root.renderer.nativeSimulateKeyDown(
+		element("graph-sidebar-divider").id,
+		"home"
+	);
+	root.renderer.flush();
+	expect(bounds("graph-sidebar").width).toBe(180);
+	root.renderer.nativeSimulateKeyDown(
+		element("graph-sidebar-divider").id,
+		"end"
+	);
+	root.renderer.flush();
+	expect(bounds("graph-sidebar").width).toBe(420);
 });
 
 for (const appearance of ["light", "dark"] as const) {
@@ -256,6 +339,411 @@ for (const appearance of ["light", "dark"] as const) {
 		expect(element("view-graph").customProps?.["aria-selected"]).toBe(true);
 	});
 }
+
+it("resizes details and changed files without rereading Git and retains sizes across commit selection", async () => {
+	show();
+	await open();
+	click(`entry-${commits[0]!.oid}`);
+	await settle();
+	const start = bounds("graph-details-pane").height;
+	const divider = bounds("graph-details-divider");
+	const x = divider.x + 40;
+	const y = divider.y + divider.height / 2;
+	const reads = [readPage.mock.calls.length, readFiles.mock.calls.length];
+
+	root.renderer.nativeSimulateMouseDown(x, y);
+	root.renderer.nativeSimulateMouseMove(x + 40, y - 90, 0);
+	root.renderer.nativeSimulateMouseUp(x + 40, y - 90);
+	root.renderer.flush();
+	expect(bounds("graph-details-pane").height).toBeCloseTo(start + 90, 0);
+	const files = bounds("graph-files-sidebar-divider");
+
+	root.renderer.nativeSimulateMouseDown(files.x + 3, files.y + 30);
+	root.renderer.nativeSimulateMouseMove(files.x + 63, files.y + 60, 0);
+	root.renderer.nativeSimulateMouseUp(files.x + 63, files.y + 60);
+	root.renderer.flush();
+	expect(bounds("graph-files-sidebar").width).toBe(280);
+	expect([readPage.mock.calls.length, readFiles.mock.calls.length]).toEqual(
+		reads
+	);
+	const resized = bounds("graph-details-pane").height;
+
+	click(`entry-${commits[1]!.oid}`);
+	await settle();
+	expect(bounds("graph-details-pane").height).toBeCloseTo(resized, 0);
+	expect(bounds("graph-files-sidebar").width).toBe(280);
+	click("graph-close-details");
+	click(`entry-${commits[0]!.oid}`);
+	await settle();
+	expect(bounds("graph-details-pane").height).toBeCloseTo(resized, 0);
+	expect(bounds("graph-files-sidebar").width).toBe(280);
+	const handle = bounds("graph-details-divider");
+
+	root.renderer.nativeSimulateMouseDown(handle.x + 30, handle.y + 4);
+	root.renderer.nativeSimulateMouseMove(handle.x + 30, handle.y + 44, 0);
+	root.renderer.nativeSimulateKeyDown(
+		element("graph-details-divider").id,
+		"escape"
+	);
+	root.renderer.nativeSimulateMouseUp(handle.x + 30, handle.y + 44);
+	root.renderer.flush();
+	expect(bounds("graph-details-pane").height).toBeCloseTo(resized, 0);
+	root.renderer.nativeSimulateKeyDown(
+		element("graph-details-divider").id,
+		"up"
+	);
+	root.renderer.flush();
+	expect(bounds("graph-details-pane").height).toBeGreaterThan(resized);
+	root.renderer.nativeSimulateKeyDown(
+		element("graph-files-sidebar-divider").id,
+		"left"
+	);
+	root.renderer.flush();
+	expect(bounds("graph-files-sidebar").width).toBe(270);
+});
+
+it("creates a branch at the reviewed graph commit without switching or altering files", async () => {
+	show();
+	await open();
+	click(`entry-${commits[2]!.oid}`);
+	await settle();
+	click("graph-new-branch");
+	await settle();
+	root.renderer.clockFastForward(250);
+	await settle();
+	expect(element("graph-branch-dialog")).toBeDefined();
+	expect(root.renderer.getFocusedElementId()).toBe(
+		element("graph-branch-name").id
+	);
+
+	if (process.env.GPUIX_GRAPH_SCREENSHOT)
+		root.renderer.captureScreenshot(
+			`${process.env.GPUIX_GRAPH_SCREENSHOT}-branch-dialog.png`
+		);
+
+	root.renderer.simulateKeystrokes("m a i n");
+	await settle();
+	expect(root.renderer.getAllText()).toContain(
+		"This branch already exists. Choose another name."
+	);
+	click("graph-branch-create");
+	expect(writeBranch).not.toHaveBeenCalled();
+	click("graph-branch-name");
+	root.renderer.simulateKeystrokes("cmd-a g r a p h / t o p i c");
+	await settle();
+	root.renderer.simulateKeystrokes("enter");
+	await settle();
+	expect(writeBranch).toHaveBeenCalledTimes(1);
+	expect(writeBranch.mock.calls[0]?.[1]).toMatchObject({
+		kind: "create-at",
+		name: "graph/topic",
+		expectedTarget: commits[2]!.oid,
+	});
+	expect(root.renderer.findByTestId("graph-branch-dialog")).toBeUndefined();
+	expect(root.renderer.getAllText()).toContain(
+		`Created graph/topic at ${commits[2]!.oid.slice(0, 7)}.`
+	);
+	expect(element("rail-branches").customProps?.["aria-label"]).toBe(
+		"Branches · main"
+	);
+	expect(element("view-graph").customProps?.["aria-selected"]).toBe(true);
+});
+
+it("offers branch creation from a commit context menu and retains failures for correction", async () => {
+	const menu = spyOn(NativeFileMenu, "showItems").mockReturnValue(
+		"create-branch"
+	);
+
+	writeBranch.mockImplementationOnce(async () => ({
+		ok: false,
+		error: {
+			code: "conflict",
+			operation: "create-branch",
+			retryable: false,
+			message: "Branch already exists on disk.",
+		},
+	}));
+	show();
+	await open();
+	root.renderer.nativeSimulateKeyDown(
+		element(`entry-${commits[1]!.oid}`).id,
+		"shift-f10"
+	);
+	await settle();
+	expect(menu).toHaveBeenCalled();
+	expect(element("graph-branch-dialog")).toBeDefined();
+	root.renderer.simulateKeystrokes("t o p i c");
+	await settle();
+	click("graph-branch-create");
+	await settle();
+	expect(root.renderer.getAllText()).toContain(
+		"Branch already exists on disk."
+	);
+	expect(element("graph-branch-dialog")).toBeDefined();
+	click("graph-branch-cancel");
+	await settle();
+	expect(root.renderer.findByTestId("graph-branch-dialog")).toBeUndefined();
+});
+
+const graphActions = [
+	{
+		choice: "Revert commit…",
+		dialog: "revert-dialog",
+		cancel: "revert-cancel",
+		confirm: "revert-confirm",
+		kind: "revert",
+	},
+	{
+		choice: "Cherry-pick commit…",
+		dialog: "cherry-pick-dialog",
+		cancel: "cherry-pick-cancel",
+		confirm: "cherry-pick-confirm",
+		kind: "cherry",
+	},
+	{
+		choice: "Reset to commit…",
+		dialog: "reset-dialog",
+		cancel: "reset-cancel",
+		confirm: "reset-confirm",
+		kind: "reset",
+	},
+	{
+		choice: "Create tag…",
+		dialog: "tag-dialog",
+		cancel: "tag-cancel",
+		confirm: "tag-confirm",
+		kind: "tag",
+	},
+] as const;
+
+async function commitMenu(choice: string, index = 1): Promise<void> {
+	menuChoice = choice;
+	root.renderer.nativeSimulateKeyDown(
+		element(`entry-${commits[index]!.oid}`).id,
+		"shift-f10"
+	);
+	await settle();
+	root.renderer.clockFastForward(250);
+	await settle();
+}
+
+it.each([...graphActions])(
+	"reviews, cancels, and confirms $kind using the clicked graph commit",
+	async (action) => {
+		const revert = mock<typeof RepositoryHistory.revert>(async () => ({
+			ok: true,
+			value: repositorySnapshot(),
+		}));
+
+		const cherry = mock<typeof RepositoryHistory.cherryPick>(async () => ({
+			ok: true,
+			value: repositorySnapshot(),
+		}));
+
+		const reset = mock<typeof RepositoryHistory.reset>(async () => ({
+			ok: true,
+			value: {
+				snapshot: repositorySnapshot(),
+				recoveryRef: "refs/1git/reset/test",
+				warning: null,
+			},
+		}));
+
+		const tag = mock<typeof RepositoryTags.create>(async () => ({
+			ok: true,
+			value: repositorySnapshot(),
+		}));
+
+		const writers = { revert, cherry, reset, tag };
+
+		show("light", 12, {
+			revertCommit: revert,
+			cherryPickCommit: cherry,
+			resetCommit: reset,
+			createTag: tag,
+			readReset: async () => ({
+				ok: true,
+				value: { target: commits[1]!, commitCount: 2 },
+			}),
+			readBranches: async () => ({
+				ok: true,
+				value: {
+					branches: {
+						current: "main",
+						branches: [
+							{
+								name: "destination",
+								fullName: "refs/heads/destination",
+								oid: "b".repeat(40),
+								checkedOut: false,
+								type: "local",
+								worktreePath: null,
+								ahead: 0,
+								behind: 0,
+								committedAt: null,
+								remote: null,
+								summary: "",
+								upstream: null,
+							},
+						],
+					},
+					worktrees: [],
+					remotes: [],
+				},
+			}),
+		});
+		await open();
+		click(`entry-${commits[2]!.oid}`);
+		await settle();
+		await commitMenu(action.choice);
+
+		for (const item of graphActions) expect(menuLabels).toContain(item.choice);
+
+		expect(menuLabels).toContain("Create branch here…");
+		expect(menuEnabled[menuLabels.indexOf(action.choice)]).toBe(true);
+		expect(element(action.dialog)).toBeDefined();
+
+		if (process.env.GPUIX_GRAPH_ACTIONS_SCREENSHOT)
+			root.renderer.captureScreenshot(
+				`${process.env.GPUIX_GRAPH_ACTIONS_SCREENSHOT}-${action.kind}.png`
+			);
+
+		for (const writer of Object.values(writers))
+			expect(writer).not.toHaveBeenCalled();
+
+		click(action.cancel);
+		await settle();
+		root.renderer.clockFastForward(250);
+		await settle();
+		root.renderer.advanceTime(1);
+		await settle();
+		expect(root.renderer.findByTestId(action.dialog)).toBeUndefined();
+		expect(element("view-graph").customProps?.["aria-selected"]).toBe(true);
+		await commitMenu(action.choice);
+
+		if (action.kind === "tag") {
+			click("tag-name");
+			root.renderer.simulateKeystrokes("v 1 . 2 . 3");
+			await settle();
+		} else if (action.kind === "cherry") {
+			click("entry-cherry-pick-refs/heads/destination");
+			await settle();
+		}
+
+		click(action.confirm);
+		await settle();
+		expect(writers[action.kind]).toHaveBeenCalledTimes(1);
+		expect(writers[action.kind].mock.calls[0]?.[1]).toMatchObject({
+			[action.kind === "reset" ? "target" : "commit"]: commits[1]!.oid,
+			expectedHead: repositorySnapshot().head.oid,
+			expectedBranch: "main",
+		});
+		expect(root.renderer.findByTestId(action.dialog)).toBeUndefined();
+		expect(
+			element(action.kind === "tag" ? "view-graph" : "view-changes")
+				.customProps?.["aria-selected"]
+		).toBe(true);
+	}
+);
+
+it("pushes a graph tag only after choosing and confirming its exact remote destination", async () => {
+	const tag = {
+		name: "v2.0.0",
+		oid: "e".repeat(40),
+		targetOid: commits[1]!.oid,
+		type: "annotated" as const,
+		createdAt: null,
+		message: "Release",
+	};
+
+	const push = mock<typeof RepositorySync.pushTag>(async () => ({
+		ok: true,
+		value: {
+			name: tag.name,
+			oid: tag.oid,
+			remote: "origin",
+			snapshot: repositorySnapshot(),
+		},
+	}));
+
+	readReferences.mockImplementationOnce(async () => ({
+		ok: true,
+		value: { ...references, tags: [tag] },
+	}));
+	show("light", 12, {
+		pushTag: push,
+		readBranches: async () => ({
+			ok: true,
+			value: {
+				branches: { current: "main", branches: [] },
+				worktrees: [],
+				remotes: [
+					{
+						name: "origin",
+						defaultBranch: null,
+						fetchUrls: ["https://github.com/team/repo.git"],
+						pushUrls: ["git@github.com:team/repo.git"],
+					},
+				],
+			},
+		}),
+	});
+	await open();
+	await commitMenu(tag.name);
+	expect(menuLabels).toContain("Push tag…");
+	expect(element("tag-dialog")).toBeDefined();
+	click("tag-confirm");
+	expect(push).not.toHaveBeenCalled();
+	click("tag-remote");
+	await settle();
+	click("tag-remote-origin");
+	await settle();
+	click("tag-confirm");
+	await settle();
+	expect(push).toHaveBeenCalledTimes(1);
+	expect(push.mock.calls[0]?.[1]).toMatchObject({
+		name: tag.name,
+		expectedOid: tag.oid,
+		expectedTarget: tag.targetOid,
+		remote: "origin",
+		expectedUrl: "git@github.com:team/repo.git",
+		expectedHead: repositorySnapshot().head.oid,
+		expectedBranch: "main",
+	});
+	expect(root.renderer.findByTestId("tag-dialog")).toBeUndefined();
+	expect(element("view-graph").customProps?.["aria-selected"]).toBe(true);
+});
+
+it("retains History guards for dirty work and merge commits while allowing metadata actions", async () => {
+	show("light", 12, {
+		readRepository: async () => ({
+			ok: true,
+			value: repositorySnapshot([changedFile("dirty.txt")]),
+		}),
+	});
+	await open();
+	await commitMenu("Revert commit…");
+
+	for (const choice of [
+		"Revert commit…",
+		"Cherry-pick commit…",
+		"Reset to commit…",
+	])
+		expect(menuEnabled[menuLabels.indexOf(choice)]).toBe(false);
+
+	for (const choice of ["Create tag…", "Create branch here…"])
+		expect(menuEnabled[menuLabels.indexOf(choice)]).toBe(true);
+
+	expect(root.renderer.findByTestId("revert-dialog")).toBeUndefined();
+	root.render(<div />);
+	await settle();
+	show();
+	await open();
+	await commitMenu("Cherry-pick commit…", 0);
+	expect(menuEnabled[menuLabels.indexOf("Cherry-pick commit…")]).toBe(false);
+	expect(menuEnabled[menuLabels.indexOf("Revert commit…")]).toBe(false);
+	expect(root.renderer.findByTestId("cherry-pick-dialog")).toBeUndefined();
+});
 
 it("searches branch/tag names and filters history by the exact selected ref tip", async () => {
 	show();

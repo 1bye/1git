@@ -1,10 +1,13 @@
 /**
  * Covers: saved previews, explicit stash create/apply/delete, fresh identity checks, conflicts and data preservation.
  * Real: shared Git backend, stash/diff readers, Sharp and disposable Git repositories.
- * Doubles: none.
+ * Doubles: scheduling hooks around Git calls for concurrent external stash writes.
  * Requires: Git, Sharp and writable temporary storage; no network or graphics.
  */
-import { afterEach, beforeEach, expect, it } from "bun:test";
+import { afterEach, beforeEach, expect, it, spyOn } from "bun:test";
+import { GitRepository } from "@1git/git";
+import { GitProcess } from "@1git/git/process";
+import { existsSync } from "node:fs";
 import { execFile } from "node:child_process";
 import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -72,6 +75,143 @@ const files = async (oid: string) => {
 
 	return result.value;
 };
+
+async function stashFixture() {
+	await writeFile(join(repository, "a.txt"), "base\n");
+	await git("add", ".");
+	await git("commit", "-m", "Base");
+	const identity = {
+		expectedHead: await git("rev-parse", "HEAD"),
+		expectedBranch: "main",
+	};
+
+	await writeFile(join(repository, "a.txt"), "first\n");
+	await git("stash", "push", "-m", "First");
+	const first = await git("rev-parse", "refs/stash");
+
+	return { identity, first };
+}
+
+it("deletes only the reviewed stash when another client inserts one after the app lookup", async () => {
+	const { identity, first } = await stashFixture();
+	const original = GitRepository.prototype.dropStash;
+	let inserted = "";
+
+	const drop = spyOn(GitRepository.prototype, "dropStash").mockImplementation(
+		async function (this: GitRepository, input) {
+			await writeFile(join(repository, "a.txt"), "second\n");
+			await git("stash", "push", "-m", "Concurrent");
+			inserted = await git("rev-parse", "refs/stash");
+
+			return await original.call(this, input);
+		}
+	);
+
+	try {
+		const result = await RepositoryStashes.write(repository, {
+			kind: "delete",
+			oid: first,
+			...identity,
+		});
+
+		expect(result.ok).toBe(true);
+		expect(await git("stash", "list", "--format=%H")).toBe(inserted);
+		expect(await git("stash", "show", "-p", inserted)).toContain("+second");
+	} finally {
+		drop.mockRestore();
+	}
+});
+
+it("holds Git's stash lock through identity lookup and removes the last packed stash safely", async () => {
+	const { identity, first } = await stashFixture();
+
+	await git("pack-refs", "--all", "--prune");
+	const original = GitProcess.prototype.run;
+	let checked = false;
+	let blocked = false;
+
+	const run = spyOn(GitProcess.prototype, "run").mockImplementation(
+		async function (this: GitProcess, input) {
+			if (
+				!checked &&
+				input.args[0] === "stash" &&
+				input.args[1] === "list" &&
+				existsSync(join(repository, ".git/refs/stash.lock"))
+			) {
+				checked = true;
+
+				try {
+					await git("stash", "store", "-m", "Concurrent", first);
+				} catch {
+					blocked = true;
+				}
+			}
+
+			return await original.call(this, input);
+		}
+	);
+
+	try {
+		const result = await RepositoryStashes.write(repository, {
+			kind: "delete",
+			oid: first,
+			...identity,
+		});
+
+		expect(result.ok).toBe(true);
+		expect(checked).toBe(true);
+		expect(blocked).toBe(true);
+		expect(await git("stash", "list")).toBe("");
+		await expect(git("rev-parse", "--verify", "refs/stash")).rejects.toThrow();
+		expect(await git("rev-parse", "HEAD")).toBe(identity.expectedHead);
+		expect(existsSync(join(repository, ".git/refs/stash.lock"))).toBe(false);
+	} finally {
+		run.mockRestore();
+	}
+});
+
+it("preserves a new stash inserted while cleaning up the final reviewed entry", async () => {
+	const { identity, first } = await stashFixture();
+
+	await writeFile(join(repository, "a.txt"), "concurrent saved work\n");
+	const second = await git("stash", "create");
+
+	await git("restore", "a.txt");
+	const original = GitProcess.prototype.run;
+	let inserted = false;
+
+	const run = spyOn(GitProcess.prototype, "run").mockImplementation(
+		async function (this: GitProcess, input) {
+			if (
+				!inserted &&
+				input.args[0] === "update-ref" &&
+				input.args.includes("refs/stash")
+			) {
+				inserted = true;
+				await git("stash", "store", "-m", "Concurrent", second);
+			}
+
+			return await original.call(this, input);
+		}
+	);
+
+	try {
+		const result = await RepositoryStashes.write(repository, {
+			kind: "delete",
+			oid: first,
+			...identity,
+		});
+
+		expect(result.ok).toBe(true);
+		expect(inserted).toBe(true);
+		expect(await git("stash", "list", "--format=%H")).toBe(second);
+		expect(await git("stash", "show", "-p", second)).toContain(
+			"+concurrent saved work"
+		);
+	} finally {
+		run.mockRestore();
+	}
+});
 
 it("creates all tracked changes, opts into untracked files, and applies without removing the stash", async () => {
 	await writeFile(join(repository, "a.txt"), "base\n");

@@ -4,9 +4,21 @@
  * Doubles: none.
  * Requires: Git and writable temporary storage; no network or graphics.
  */
-import { afterEach, beforeEach, expect, it } from "bun:test";
+import { afterEach, beforeEach, expect, it, spyOn } from "bun:test";
+import { GitProcess } from "@1git/git/process";
 import { execFile } from "node:child_process";
-import { mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import {
+	chmod,
+	mkdtemp,
+	readFile,
+	readdir,
+	realpath,
+	rm,
+	stat,
+	symlink,
+	unlink,
+	writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -71,6 +83,124 @@ const resolve = async (hash: string, expectedHead = head) =>
 		expectedBranch: "main",
 		expectedContentHash: hash,
 	});
+
+it("resolves a bracketed filename without staging a matching unrelated conflict", async () => {
+	await git("merge", "--abort");
+
+	for (const path of ["[id].txt", "i.txt"])
+		await writeFile(join(root, path), "base\n");
+
+	await git("add", ".");
+	await git("commit", "-m", "Route files");
+	await git("checkout", "-b", "routes");
+
+	for (const path of ["[id].txt", "i.txt"])
+		await writeFile(join(root, path), "incoming\n");
+
+	await git("commit", "-am", "Incoming routes");
+	await git("checkout", "main");
+
+	for (const path of ["[id].txt", "i.txt"])
+		await writeFile(join(root, path), "current\n");
+
+	await git("commit", "-am", "Current routes");
+	await expect(git("merge", "routes")).rejects.toThrow();
+	const otherStages = await git("ls-files", "--unmerged", "--", "i.txt");
+
+	const value = await RepositoryConflicts.read(
+		root,
+		"[id].txt",
+		new AbortController().signal
+	);
+
+	if (!value.ok || !value.value) throw new Error("Expected text conflict");
+
+	const result = await RepositoryConflicts.write(root, {
+		path: "[id].txt",
+		side: "ours",
+		expectedHead: await git("rev-parse", "HEAD"),
+		expectedBranch: "main",
+		expectedContentHash: value.value.hash,
+	});
+
+	expect(result.ok).toBe(true);
+	expect(await git("ls-files", "--unmerged", "--", "i.txt")).toBe(otherStages);
+	expect(
+		await git("--literal-pathspecs", "ls-files", "--unmerged", "--", "[id].txt")
+	).toBe("");
+	expect(await readFile(join(root, "i.txt"), "utf8")).toContain("<<<<<<<");
+});
+
+it("never overwrites an outside target when the conflict file becomes a symlink after review", async () => {
+	const outsideDirectory = await mkdtemp(
+		join(tmpdir(), "1git-conflict-outside-")
+	);
+
+	const outside = join(outsideDirectory, "private.txt");
+	const value = await preview();
+	const index = await git("ls-files", "--stage");
+
+	await writeFile(outside, "outside data\n");
+	const original = GitProcess.prototype.run;
+	let swapped = false;
+
+	const run = spyOn(GitProcess.prototype, "run").mockImplementation(
+		async function (this: GitProcess, input) {
+			if (
+				!swapped &&
+				input.args[0] === "cat-file" &&
+				input.args[1] === "blob"
+			) {
+				swapped = true;
+				await unlink(join(root, "file.txt"));
+				await symlink(outside, join(root, "file.txt"));
+			}
+
+			return await original.call(this, input);
+		}
+	);
+
+	try {
+		const result = await RepositoryConflicts.write(root, {
+			path: "file.txt",
+			side: "ours",
+			expectedSideOid: value.ours?.revision,
+			expectedHead: head,
+			expectedBranch: "main",
+			expectedContentHash: value.hash,
+		});
+
+		expect(swapped).toBe(true);
+		expect(await readFile(outside, "utf8")).toBe("outside data\n");
+		expect(result.ok).toBe(false);
+		expect(await git("ls-files", "--stage")).toBe(index);
+		expect(
+			(await readdir(root)).some((name) => name.startsWith(".1git-conflict-"))
+		).toBe(false);
+	} finally {
+		run.mockRestore();
+		await rm(outsideDirectory, { recursive: true, force: true });
+	}
+});
+
+it("preserves file permissions and removes temporary files after choosing a side", async () => {
+	await chmod(join(root, "file.txt"), 0o775);
+	const value = await preview();
+
+	const result = await RepositoryConflicts.write(root, {
+		path: "file.txt",
+		side: "theirs",
+		expectedHead: head,
+		expectedBranch: "main",
+		expectedContentHash: value.hash,
+	});
+
+	expect(result.ok).toBe(true);
+	expect((await stat(join(root, "file.txt"))).mode & 0o777).toBe(0o775);
+	expect(
+		(await readdir(root)).some((name) => name.startsWith(".1git-conflict-"))
+	).toBe(false);
+});
 
 it("shows conflict markers and refuses to stage them", async () => {
 	const value = await preview();

@@ -17,6 +17,9 @@ import type { RepositoryDiscoveryPreferences } from "../../repository-discovery/
 import type { RepositoryPatternChoices } from "../../repository-appearance/repository-patterns";
 import type { RepositoryLibraryPreferences } from "../../repository-discovery/repository-library";
 
+import type { GrainSettings } from "../../appearance-settings/grain-settings";
+import type { SidebarWidths } from "../../repository-workspace/lib/sidebar-widths";
+
 /** Saves only changed session intent; flushes the latest rendered draft on unmount and normal process exit. */
 export function useWorkspaceSession(
 	state: WorkspaceTabsState,
@@ -36,7 +39,9 @@ export function useWorkspaceSession(
 	tips?: TourTips,
 	keybinds?: KeybindOverrides,
 	fileListLayout?: RepositoryFileLayout,
-	showGrain?: boolean
+	showGrain?: boolean,
+	sidebarWidths?: SidebarWidths,
+	grainSettings?: GrainSettings
 ) {
 	const content =
 		state.preview || !save
@@ -58,7 +63,9 @@ export function useWorkspaceSession(
 						tips,
 						keybinds,
 						fileListLayout,
-						showGrain
+						showGrain,
+						sidebarWidths,
+						grainSettings
 					)
 				);
 

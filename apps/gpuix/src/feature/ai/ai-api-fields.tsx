@@ -10,7 +10,7 @@ import {
 } from "@1git/gpuix-ui/select";
 import { useAppTheme } from "../../styles/theme";
 import type { AiConnection } from "./lib/ai-settings-store";
-import type { CustomApiConfiguration } from "./lib/custom-api";
+import { CustomApi, type CustomApiConfiguration } from "./lib/custom-api";
 
 const formats = [
 	{ value: "openai-chat", label: "OpenAI Chat Completions" },
@@ -53,6 +53,8 @@ export function AiApiFields({
 
 	const nextId = useRef(1);
 	const values = useRef(new Map<number, string>());
+	const [headerVersion, setHeaderVersion] = useState(0);
+	const [destinationChanged, setDestinationChanged] = useState(false);
 	const label = { ...typography.md, color: tokens.colors.textMuted };
 
 	const row = {
@@ -115,7 +117,29 @@ export function AiApiFields({
 				},
 			]);
 
-		onChange({ ...draft, api: { protocol, baseUrl } });
+		updateConfiguration({ protocol, baseUrl });
+	};
+
+	const updateConfiguration = (next: CustomApiConfiguration) => {
+		if (
+			CustomApi.origin(next.baseUrl) !== CustomApi.origin(configuration.baseUrl)
+		) {
+			setDestinationChanged(
+				destinationChanged || connected || values.current.size > 0
+			);
+			values.current.clear();
+			setRows([
+				{
+					id: rows[0]?.id ?? nextId.current++,
+					name: next.protocol === "anthropic" ? "x-api-key" : "Authorization",
+				},
+			]);
+			setHeaderVersion((value) => value + 1);
+			setReplacing(true);
+			onHeadersChange("");
+		}
+
+		onChange({ ...draft, api: next });
 	};
 
 	return (
@@ -155,12 +179,9 @@ export function AiApiFields({
 				placeholder="https://your-provider.example/v1"
 				readOnly={busy}
 				onChange={(event) =>
-					onChange({
-						...draft,
-						api: {
-							...configuration,
-							baseUrl: (event.value ?? "").slice(0, 2048),
-						},
+					updateConfiguration({
+						...configuration,
+						baseUrl: (event.value ?? "").slice(0, 2048),
 					})
 				}
 				style={field}
@@ -185,6 +206,15 @@ export function AiApiFields({
 					</Button>
 				) : null}
 			</div>
+			{destinationChanged ? (
+				<text
+					role="status"
+					style={{ ...typography.sm, color: tokens.colors.textMuted }}
+				>
+					Server changed. Enter headers for this server, or remove all headers
+					for anonymous access.
+				</text>
+			) : null}
 			{connected && !replacing ? (
 				<div style={row}>
 					<text style={label}>Headers saved securely.</text>
@@ -224,6 +254,7 @@ export function AiApiFields({
 								style={{ ...field, width: 132 }}
 							/>
 							<input
+								key={headerVersion}
 								testId={`ai-api-header-value-${header.id}`}
 								aria-label={`Auth header ${header.id + 1} value`}
 								type="password"

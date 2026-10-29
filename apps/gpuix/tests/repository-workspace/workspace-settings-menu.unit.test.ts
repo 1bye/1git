@@ -16,6 +16,7 @@ it("links directly to featured Settings pages", () => {
 		["Accounts…", "accounts"],
 		["Spaces…", "spaces"],
 		["AI…", "ai"],
+		["Help…", "help"],
 		["Remotes…", "repository-remotes"],
 		["Commit identity…", "repository-identity"],
 		["Ignored file history…", "repository-ignored-history"],

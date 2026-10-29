@@ -21,7 +21,7 @@ export type RepositorySetupResult =
 	| { ok: true; path: string }
 	| { ok: false; message: string; openPath?: string };
 
-/** Validates destinations and delegates setup to the existing Git boundary. Never deletes folders. */
+/** Validates destinations and delegates setup without removing existing user files or folders. */
 export class RepositorySetup {
 	private constructor() {}
 

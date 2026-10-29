@@ -3,9 +3,12 @@ use base64::{Engine, engine::general_purpose::STANDARD as B64};
 use serde_json::{Value, json};
 use std::{
     collections::HashMap,
+    ffi::CString,
     fs::{self, File, OpenOptions},
     io::{self, BufRead, Read, Write},
+    os::fd::AsRawFd,
     os::unix::{
+        ffi::OsStrExt,
         fs::{DirBuilderExt, MetadataExt, OpenOptionsExt},
         process::CommandExt,
     },
@@ -100,8 +103,62 @@ fn bounded_read(mut input: impl Read) -> Result<Vec<u8>> {
     Ok(data)
 }
 
+// Open the destination without following links, then install relative to that descriptor.
+// Exclusive renames preserve entries created concurrently by another process.
+fn install_directory(v: &Value) -> Result<Value> {
+    let source = path(v, "path")?;
+    let destination = OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_DIRECTORY)
+        .open(path(v, "destination")?)?;
+    let metadata = destination.metadata()?;
+    if v["identity"]["dev"].as_u64() != Some(metadata.dev())
+        || v["identity"]["ino"].as_u64() != Some(metadata.ino())
+    {
+        return Err(invalid("The destination folder changed during setup"));
+    }
+    for entry in fs::read_dir(source)? {
+        let entry = entry?;
+        let from = CString::new(entry.path().as_os_str().as_bytes())
+            .map_err(|_| invalid("Invalid source filename"))?;
+        let to = CString::new(entry.file_name().as_bytes())
+            .map_err(|_| invalid("Invalid destination filename"))?;
+        // SAFETY: strings remain live, the directory descriptor is owned for the entire loop,
+        // and both platform calls reject existing entries rather than following/replacing them.
+        let result = unsafe {
+            #[cfg(target_os = "macos")]
+            {
+                libc::renameatx_np(
+                    libc::AT_FDCWD,
+                    from.as_ptr(),
+                    destination.as_raw_fd(),
+                    to.as_ptr(),
+                    libc::RENAME_EXCL,
+                )
+            }
+            #[cfg(target_os = "linux")]
+            {
+                libc::renameat2(
+                    libc::AT_FDCWD,
+                    from.as_ptr(),
+                    destination.as_raw_fd(),
+                    to.as_ptr(),
+                    libc::RENAME_NOREPLACE,
+                )
+            }
+        };
+        if result != 0 {
+            return Err(io::Error::last_os_error().into());
+        }
+    }
+    Ok(Value::Null)
+}
+
 fn filesystem(v: &Value, files: &Files, next: &AtomicU64) -> Result<Value> {
     let method = text(v, "method")?;
+    if method == "installDirectory" {
+        return install_directory(v);
+    }
     if method.starts_with("handle-") {
         let id = v["handle"]
             .as_u64()

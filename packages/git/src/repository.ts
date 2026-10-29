@@ -3,16 +3,18 @@ export { GitIdentity, type GitIdentityValues } from "./identity.js";
 export { GitIgnore } from "./ignore.js";
 export { PartialPatch } from "./partial-patch.js";
 import {
+	copyFile,
 	mkdir,
 	mkdtemp,
 	open,
 	realpath,
+	rename,
 	rm,
 	stat,
 	lstat,
 	writeFile,
 } from "./runtime.js";
-import { dirname, resolve, join } from "node:path";
+import { basename, dirname, resolve, join } from "node:path";
 
 import type {
 	AddRemoteInput,
@@ -111,6 +113,7 @@ import type {
 import { selectHunkPatch } from "./hunk-patch.js";
 import { SelectedCommit } from "./selected-commit.js";
 import { BranchIntegration } from "./branch-integration.js";
+import { StashDeletion } from "./stash-deletion.js";
 import { TagOperations } from "./tag-operations.js";
 import { CommitRecovery } from "./commit-recovery.js";
 import { HistoryRewrite } from "./history-rewrite.js";
@@ -387,7 +390,9 @@ export class GitRepository {
 			requireText(input.path, "Repository path", "initialize-repository");
 			const targetPath = resolve(input.path);
 
-			await mkdir(dirname(targetPath), { recursive: true });
+			if (!input.requireExistingParent)
+				await mkdir(dirname(targetPath), { recursive: true });
+
 			const process = new GitProcess(processOptions(input));
 			const args = ["init"];
 
@@ -400,7 +405,7 @@ export class GitRepository {
 				args.push(`--initial-branch=${input.initialBranch}`);
 			}
 
-			args.push("--", targetPath);
+			args.push("--", basename(targetPath) || ".");
 			await process.run({
 				args,
 				cwd: dirname(targetPath),
@@ -460,7 +465,9 @@ export class GitRepository {
 
 			const targetPath = resolve(input.path);
 
-			await mkdir(dirname(targetPath), { recursive: true });
+			if (!input.requireExistingParent)
+				await mkdir(dirname(targetPath), { recursive: true });
+
 			const process = new GitProcess(processOptions(input));
 			const args = ["clone"];
 
@@ -484,7 +491,7 @@ export class GitRepository {
 				args.push("--recurse-submodules");
 			}
 
-			args.push("--", input.remoteUrl, targetPath);
+			args.push("--", input.remoteUrl, basename(targetPath) || ".");
 			await process.run({
 				args,
 				cwd: dirname(targetPath),
@@ -938,14 +945,53 @@ export class GitRepository {
 						"Resolve binary, oversized, or nested conflicts outside this app."
 					);
 
-				await writeFile(absolute, chosen);
+				const directory = await mkdtemp(
+					join(dirname(absolute), ".1git-conflict-")
+				);
+
+				try {
+					const info = await lstat(absolute);
+
+					if (!info.isFile() || (await realpath(absolute)) !== absolute)
+						throw invalidInput(
+							"stage",
+							"The file changed since the preview. Refresh and review it before resolving."
+						);
+
+					const replacement = join(directory, "resolved");
+
+					await copyFile(absolute, replacement);
+					await writeFile(replacement, chosen);
+					const latest = await loadFileContent(
+						this.context,
+						{ kind: "working" },
+						path,
+						input.signal
+					);
+
+					if (
+						createHash("sha256").update(latest.content).digest("hex") !==
+							input.expectedContentHash ||
+						(await realpath(dirname(absolute))) !== dirname(absolute)
+					)
+						throw invalidInput(
+							"stage",
+							"The file changed since the preview. Refresh and review it before resolving."
+						);
+
+					input.signal?.throwIfAborted();
+					// Atomic replacement replaces a final symlink itself instead of writing through it.
+					await rename(replacement, absolute);
+				} finally {
+					await rm(directory, { recursive: true, force: true });
+				}
 			} else if (CONFLICT_MARKER_LINE.test(content.content))
 				throw invalidInput(
 					"stage",
 					"Conflict markers remain. Edit and save the file, then refresh before marking resolved."
 				);
 
-			await this.run(["add", "--", path], input.signal);
+			await this.run(["--literal-pathspecs", "add", "--", path], input.signal);
 
 			return await loadSnapshot(this.context, false, input.signal);
 		});
@@ -956,7 +1002,10 @@ export class GitRepository {
 		return await this.mutate("stage", input.signal, async () => {
 			const paths = requireRepositoryPaths(input.paths, "stage");
 
-			await this.run(["add", "--", ...paths], input.signal);
+			await this.run(
+				["--literal-pathspecs", "add", "--", ...paths],
+				input.signal
+			);
 
 			return await loadSnapshot(this.context, false, input.signal);
 		});
@@ -1423,11 +1472,21 @@ export class GitRepository {
 
 			if (snapshot.head.unborn) {
 				await this.run(
-					["rm", "--cached", "--ignore-unmatch", "--", ...paths],
+					[
+						"--literal-pathspecs",
+						"rm",
+						"--cached",
+						"--ignore-unmatch",
+						"--",
+						...paths,
+					],
 					input.signal
 				);
 			} else {
-				await this.run(["restore", "--staged", "--", ...paths], input.signal);
+				await this.run(
+					["--literal-pathspecs", "restore", "--staged", "--", ...paths],
+					input.signal
+				);
 			}
 
 			return await loadSnapshot(this.context, false, input.signal);
@@ -1467,7 +1526,7 @@ export class GitRepository {
 				);
 			}
 
-			const args = ["restore"];
+			const args = ["--literal-pathspecs", "restore"];
 
 			if (input.source) {
 				args.push(
@@ -1819,9 +1878,8 @@ export class GitRepository {
 			}
 
 			args.push(requireRevision(input.revision, "Revision", "merge"));
-			await this.run(args, input.signal);
 
-			return await loadSnapshot(this.context, false, input.signal);
+			return await BranchIntegration.merge(this.context, input, args);
 		});
 	}
 
@@ -2040,21 +2098,9 @@ export class GitRepository {
 					"Cherry-picking a merge commit requires a mainline parent. Use an external Git tool."
 				);
 
-			// The selected commit must still belong to the reviewed History, not an arbitrary ref.
-			try {
-				await this.run(
-					["merge-base", "--is-ancestor", input.commit, input.expectedHead],
-					input.signal
-				);
-			} catch (error) {
-				if (error instanceof GitCommandFailure && error.exitCode === 1)
-					throw invalidInput(
-						"cherry-pick",
-						"The commit is no longer in this branch's history. Refresh and review History again."
-					);
-
-				throw error;
-			}
+			// Graph selections may come from any ref; only an exact commit object is valid.
+			if (commit.oid !== input.commit)
+				throw invalidInput("cherry-pick", "Select an exact commit.");
 
 			let alreadyIncluded = true;
 
@@ -2515,7 +2561,12 @@ export class GitRepository {
 			}
 
 			if (input.paths) {
-				args.push("--", ...requireRepositoryPaths(input.paths, "stash"));
+				args.push(
+					"--",
+					...requireRepositoryPaths(input.paths, "stash").map(
+						(path) => `:(literal)${path}`
+					)
+				);
 			}
 
 			await this.run(args, input.signal);
@@ -2549,7 +2600,9 @@ export class GitRepository {
 				"drop-stash"
 			);
 
-			await this.run(["stash", "drop", reference], input.signal);
+			if (input.expectedOid !== undefined)
+				await StashDeletion.run(this.context, input.expectedOid);
+			else await this.run(["stash", "drop", reference], input.signal);
 
 			return await loadStashes(this.context, input.signal);
 		});

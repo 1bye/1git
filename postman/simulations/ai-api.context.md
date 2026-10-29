@@ -37,4 +37,10 @@ reached the member, including the expected 503 and 302; the redirect trap stayed
 2026-10-26: CLI 1.75.0 served eight POST requests: six successful authenticated
 or anonymous generations, one 503, and one 302. The redirect trap received no
 traffic. All eight integration tests passed; the sole member served all calls.
+2026-10-29: CLI 1.75.0, checkout 7b9b708e with uncommitted origin-binding fixes:
+all nine `apps/gpuix/tests/ai/api-http.integration.test.ts` checks passed. The
+member served seven successful POSTs plus the expected 503 and 302. A changed
+origin was rejected before generation until replacement headers were supplied;
+the redirect trap received no traffic. This verifies caller behavior against
+the local stand-in, not real provider authentication or model compatibility.
 <!-- end:observations -->

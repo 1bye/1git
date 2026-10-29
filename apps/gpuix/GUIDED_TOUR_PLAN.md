@@ -1,5 +1,13 @@
 # Plan: in-app guided tour for tabs and space swipes (apps/gpuix)
 
+> Current behavior: the introductory tour points to **Branches** in the left
+> rail, then **New Branch**, with creation optional and safe to
+> cancel. The current branch appears in the rail tooltip and branch panel.
+> Worktrees remain available in the branch panel but are no longer an introductory lesson. Saved
+> completion of the former worktree lesson migrates to the branch-creation lesson.
+> Guided tips and first-run setup can be replayed from **Settings → Help**.
+> The original worktree-first proposal below is retained as design history.
+
 ## Problem
 
 New users miss two interactions that text in onboarding doesn't explain:

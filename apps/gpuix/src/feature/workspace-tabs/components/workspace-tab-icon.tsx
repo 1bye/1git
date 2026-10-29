@@ -14,6 +14,7 @@ const sources = {
 	settings:
 		'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"><path d="M19.39 8.94L19.88 10.61L21.85 10.26L21.85 13.74L19.88 13.39L19.39 15.06L19.39 15.06L18.55 16.59L20.19 17.74L17.74 20.19L16.59 18.55L15.06 19.39L15.06 19.39L13.39 19.88L13.74 21.85L10.26 21.85L10.61 19.88L8.94 19.39L8.94 19.39L7.41 18.55L6.26 20.19L3.81 17.74L5.45 16.59L4.61 15.06L4.61 15.06L4.12 13.39L2.15 13.74L2.15 10.26L4.12 10.61L4.61 8.94L4.61 8.94L5.45 7.41L3.81 6.26L6.26 3.81L7.41 5.45L8.94 4.61L8.94 4.61L10.61 4.12L10.26 2.15L13.74 2.15L13.39 4.12L15.06 4.61L15.06 4.61L16.59 5.45L17.74 3.81L20.19 6.26L18.55 7.41L19.39 8.94Z"/><circle cx="12" cy="12" r="3"/></svg>',
 	// App-drawn Settings glyphs share the light stroke of the workspace controls.
+	help: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9 9a3 3 0 0 1 6 0c0 2-3 2-3 4m0 3h.01"/></svg>',
 	contrast:
 		'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 4v16M12 4a8 8 0 0 1 0 16Z" fill="currentColor" stroke="none"/></svg>',
 	pencil:

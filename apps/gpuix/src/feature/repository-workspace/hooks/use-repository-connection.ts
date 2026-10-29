@@ -3,6 +3,7 @@ import {
 	useCallback,
 	useEffect,
 	useLayoutEffect,
+	useMemo,
 	useRef,
 	useState,
 	type Dispatch,
@@ -13,6 +14,7 @@ import type {
 	WorkspaceTabsState,
 } from "../../workspace-tabs/lib/workspace-tabs-model";
 import { RepositoryReader } from "../lib/repository-reader";
+import { RepositoryReadQueue } from "../lib/repository-read-queue";
 import {
 	RepositorySetup,
 	type RepositorySetupRequest,
@@ -32,6 +34,12 @@ export function useRepositoryConnection(
 	onRepositoryReady?: (path: string) => void
 ) {
 	const renderer = useGpuixRequired();
+
+	const queue = useMemo(
+		() => new RepositoryReadQueue(readRepository),
+		[readRepository]
+	);
+
 	const tabs = useRef(state.tabs);
 	const requests = useRef(new Map<string, AbortController>());
 	const mounted = useRef(true);
@@ -98,7 +106,7 @@ export function useRepositoryConnection(
 			send(id, { type: "loading" });
 
 			try {
-				const result = await readRepository(path, request.signal);
+				const result = await queue.read(path, request.signal);
 
 				if (request.signal.aborted) return;
 
@@ -123,11 +131,20 @@ export function useRepositoryConnection(
 				if (requests.current.get(id) === request) requests.current.delete(id);
 			}
 		},
-		[readRepository, send, onRepositoryReady]
+		[queue, send, onRepositoryReady]
 	);
 
 	useEffect(() => {
-		for (const tab of tabs.current) {
+		const active = tabs.current.find((tab) => tab.id === state.activeId);
+
+		const ordered = active
+			? [active, ...tabs.current.filter((tab) => tab !== active)]
+			: tabs.current;
+
+		if (active?.workspace.repositoryPath)
+			queue.prioritize(active.workspace.repositoryPath);
+
+		for (const tab of ordered) {
 			const workspace = tab.workspace;
 
 			if (
@@ -138,7 +155,7 @@ export function useRepositoryConnection(
 			)
 				void read(tab.id, workspace.repositoryPath);
 		}
-	}, [read, state.tabs]);
+	}, [read, state.tabs, state.activeId, queue]);
 
 	const open = async (id: string): Promise<void> => {
 		if (picking.current || setups.current.has(id)) return;

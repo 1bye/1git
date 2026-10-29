@@ -183,56 +183,61 @@ it("reports safe permission/expired/removed/identity errors without cloning", as
 	await expect(f.accounts.repositories(account, "")).rejects.toThrow();
 });
 
-it("re-resolves clone URLs and rejects unexpected hosts, paths and credentials", async () => {
-	const f = fixture();
+it.each([false, true])(
+	"re-resolves clone URLs and rejects unexpected hosts, paths and credentials (prepared parent: %s)",
+	async (requireExistingParent) => {
+		const f = fixture();
 
-	const clone = spyOn(GitRepository, "clone").mockResolvedValue({
-		ok: false,
-		error: {
-			code: "aborted",
-			message: "Fixture clone",
-			operation: "clone-repository",
-			retryable: false,
-		},
-	});
+		const clone = spyOn(GitRepository, "clone").mockResolvedValue({
+			ok: false,
+			error: {
+				code: "aborted",
+				message: "Fixture clone",
+				operation: "clone-repository",
+				retryable: false,
+			},
+		});
 
-	const signal = new AbortController().signal;
+		const signal = new AbortController().signal;
 
-	for (const remote of [
-		"https://evil.example/tester/project.git",
-		"https://github.com/tester/other.git",
-		"https://token@github.com/tester/project.git",
-		"https://github.com/tester/project.git?token=secret",
-	]) {
-		f.remote(remote);
-		await expect(
-			f.accounts.clone(
-				f.saved[0]!,
-				{ owner: "tester", name: "project" },
-				"/unused",
-				signal
-			)
-		).rejects.toThrow();
+		for (const remote of [
+			"https://evil.example/tester/project.git",
+			"https://github.com/tester/other.git",
+			"https://token@github.com/tester/project.git",
+			"https://github.com/tester/project.git?token=secret",
+		]) {
+			f.remote(remote);
+			await expect(
+				f.accounts.clone(
+					f.saved[0]!,
+					{ owner: "tester", name: "project" },
+					"/unused",
+					signal
+				)
+			).rejects.toThrow();
+		}
+
+		expect(clone).not.toHaveBeenCalled();
+		f.remote("https://github.com/tester/project.git");
+		await f.accounts.clone(
+			f.saved[0]!,
+			{ owner: "tester", name: "project" },
+			"/unused",
+			signal,
+			requireExistingParent
+		);
+		expect(clone).toHaveBeenCalledWith({
+			path: "/unused",
+			...(requireExistingParent ? { requireExistingParent: true } : {}),
+			remoteUrl: "https://github.com/tester/project.git",
+			signal,
+			httpAuthentication: {
+				username: "x-access-token",
+				password: "fixture-github-token",
+			},
+		});
 	}
-
-	expect(clone).not.toHaveBeenCalled();
-	f.remote("https://github.com/tester/project.git");
-	await f.accounts.clone(
-		f.saved[0]!,
-		{ owner: "tester", name: "project" },
-		"/unused",
-		signal
-	);
-	expect(clone).toHaveBeenCalledWith({
-		path: "/unused",
-		remoteUrl: "https://github.com/tester/project.git",
-		signal,
-		httpAuthentication: {
-			username: "x-access-token",
-			password: "fixture-github-token",
-		},
-	});
-});
+);
 
 it("passes cancellation and rejects invalid queries before fetching", async () => {
 	const f = fixture();

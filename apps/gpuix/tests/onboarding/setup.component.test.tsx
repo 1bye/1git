@@ -1208,8 +1208,8 @@ it("leaves older sessions alone, offers replay in Settings and preserves the act
 		section: "accounts",
 	});
 	await click("rail-settings");
-	await click("settings-appearance");
-	root.renderer.scrollTo(node("appearance-settings-scroll").id, 0, -10000);
+	await click("settings-help");
+	root.renderer.scrollTo(node("help-settings-scroll").id, 0, -10000);
 	await settle();
 	await click("settings-run-setup");
 	expect(node("onboarding-view")).toBeDefined();

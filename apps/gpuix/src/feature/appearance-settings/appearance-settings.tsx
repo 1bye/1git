@@ -5,6 +5,7 @@ import {
 	settingsStyles,
 } from "../settings/settings-layout";
 import { SettingsGroup, SettingsGroupRow } from "../settings/settings-group";
+import { GrainControls } from "./grain-controls";
 import { FontSettings } from "./font-settings";
 import { codeTypography, radius, spacing } from "@1git/design-tokens";
 import { Button } from "@1git/gpuix-ui/button";
@@ -16,15 +17,7 @@ import { repositoryDiffTheme } from "../repository-workspace/lib/repository-diff
 import { defaultTypography } from "./app-typography";
 
 /** Immediate appearance settings with a repository-free, live workspace preview. */
-export function AppearanceSettings({
-	onReplayTips,
-	onSetup,
-	busy = false,
-}: {
-	onReplayTips?: () => void;
-	onSetup?: () => void;
-	busy?: boolean;
-}) {
+export function AppearanceSettings() {
 	const theme = useAppTheme();
 
 	const {
@@ -35,8 +28,6 @@ export function AppearanceSettings({
 		setSmoothTransitions,
 		showScrollbars = true,
 		setShowScrollbars,
-		showGrain = true,
-		setShowGrain,
 	} = theme;
 
 	return (
@@ -54,22 +45,8 @@ export function AppearanceSettings({
 						</div>
 					</SettingsGroup>
 					<FontSettings />
+					<GrainControls />
 					<SettingsGroup title="Interface">
-						<SettingsGroupRow
-							label="Grain texture"
-							description="Add a subtle grain texture to window chrome."
-							trailing={
-								<Checkbox
-									testId="appearance-grain"
-									aria-label="Grain texture"
-									checked={showGrain}
-									onCheckedChange={(enabled) => setShowGrain?.(enabled)}
-									disabled={!setShowGrain}
-									tokens={tokens}
-								/>
-							}
-						/>
-
 						<SettingsGroupRow
 							label="Pane scrollbars"
 							description="Show scrollbars in lists, previews and output panes."
@@ -117,44 +94,6 @@ export function AppearanceSettings({
 							}
 						/>
 					</SettingsGroup>
-					{onReplayTips || onSetup ? (
-						<SettingsGroup title="Help">
-							{onReplayTips ? (
-								<SettingsGroupRow
-									label="Guided tips"
-									description="Rediscover shortcuts and workspace features."
-									trailing={
-										<Button
-											testId="settings-replay-tips"
-											tokens={tokens}
-											variant="secondary"
-											size="sm"
-											onPress={onReplayTips}
-										>
-											Show again
-										</Button>
-									}
-								/>
-							) : null}
-							{onSetup ? (
-								<SettingsGroupRow
-									label="First-run setup"
-									trailing={
-										<Button
-											testId="settings-run-setup"
-											tokens={tokens}
-											variant="secondary"
-											size="sm"
-											disabled={busy}
-											onPress={onSetup}
-										>
-											Run setup again
-										</Button>
-									}
-								/>
-							) : null}
-						</SettingsGroup>
-					) : null}
 				</SettingsPage>
 			}
 			panel={<AppearancePreview />}

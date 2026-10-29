@@ -420,7 +420,7 @@ function PopoverSurface({
 						width: "100%",
 						height: "100%",
 						backgroundColor: state.modal
-							? "rgba(0, 0, 0, 0.28)"
+							? "rgba(0, 0, 0, 0.36)"
 							: "transparent",
 					}}
 				/>

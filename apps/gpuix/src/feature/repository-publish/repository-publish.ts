@@ -16,7 +16,7 @@ import {
 	type SavedAccount,
 } from "../accounts/lib/account-store";
 import type { Accounts } from "../accounts/lib/accounts";
-import type { RemoteAccounts } from "../accounts/lib/remote-accounts";
+import { RemoteAccounts } from "../accounts/lib/remote-accounts";
 
 /** Public recovery receipt. Creation is never repeated once this receipt has been delivered. */
 export interface PublishedRepository {
@@ -200,7 +200,7 @@ export class RepositoryPublish {
 			const parsed = parseRemote(url, [provider]);
 
 			if (
-				!url.startsWith("https://") ||
+				!RemoteAccounts.isHttps(url) ||
 				!parsed.ok ||
 				parsed.value.providerId !== input.account.provider ||
 				parsed.value.host !== new URL(input.account.webUrl).host ||

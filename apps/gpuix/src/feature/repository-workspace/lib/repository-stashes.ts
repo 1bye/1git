@@ -130,7 +130,10 @@ export class RepositoryStashes {
 		const result =
 			request.kind === "apply"
 				? await repository.applyStash({ reference: stash.oid })
-				: await repository.dropStash({ reference: stash.reference });
+				: await repository.dropStash({
+						reference: stash.reference,
+						expectedOid: stash.oid,
+					});
 
 		return result.ok ? { ok: true, value: undefined } : result;
 	}

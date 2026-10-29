@@ -29,7 +29,10 @@ afterEach(async () => {
 async function fixture(
 	source: string,
 	provider: "claude-code" | "codex" = "claude-code",
-	levels: readonly string[] = ["low", "medium", "high", "xhigh", "max"]
+	levels: readonly string[] = ["low", "medium", "high", "xhigh", "max"],
+	servers: unknown = [
+		{ name: "example-server", enabled: true, transport: { type: "stdio" } },
+	]
 ): Promise<AiPreferences> {
 	const executable = join(directory, "agent with spaces");
 
@@ -38,7 +41,7 @@ async function fixture(
 		`#!/usr/bin/env bun
 const args = process.argv.slice(2);
 if (args.includes("--version")) { console.info("fixture CLI 1.0"); process.exit(0); }
-if (args[0] === "mcp") { console.info(JSON.stringify([{name:"example-server",enabled:true,transport:{type:"stdio"}}])); process.exit(0); }
+if (args[0] === "mcp") { console.info(JSON.stringify(${JSON.stringify(servers)})); process.exit(0); }
 if (args[0] === "app-server" || args.includes("--input-format")) {
  const { createInterface } = await import("node:readline");
  const levels = ${JSON.stringify(levels)};
@@ -88,6 +91,41 @@ for await (const line of createInterface({input:process.stdin})) {
 
 	return { ...emptyAiPreferences, provider, executable };
 }
+
+it("accepts dotted and quoted Codex MCP names while disabling their transports", async () => {
+	const names = ["foo.bar", 'quoted"server\\name'];
+
+	const preferences = await fixture(
+		'console.info(JSON.stringify({type:"item.completed",item:{type:"agent_message",text:"fix: preserve filenames"}})); console.info(JSON.stringify({type:"turn.completed"}));',
+		"codex",
+		[],
+		[
+			{ name: names[0], enabled: true, transport: { type: "stdio" } },
+			{ name: names[1], enabled: true, transport: { type: "streamable_http" } },
+		]
+	);
+
+	const message = await new CliAgent().generate(
+		preferences,
+		"+selected",
+		new AbortController().signal
+	);
+
+	const captured = JSON.parse(await readFile(record, "utf8"));
+
+	const override = captured.args.find((value: string) =>
+		value.startsWith("mcp_servers=")
+	);
+
+	expect(message).toBe("fix: preserve filenames");
+	expect(Bun.TOML.parse(override)).toEqual({
+		mcp_servers: {
+			[names[0]!]: { enabled: false, command: "/usr/bin/false" },
+			[names[1]!]: { enabled: false, url: "http://127.0.0.1:1" },
+		},
+	});
+	expect(captured.args).toContain("features.shell_tool=false");
+});
 
 it("reads Claude aliases, resolved IDs and model-specific effort from initialization without sending a prompt", async () => {
 	const preferences = await modelFixture(
@@ -320,9 +358,15 @@ console.info(JSON.stringify({type:"turn.completed"}));`;
 			expect(captured.args).toContain("read-only");
 			expect(captured.args).toContain("features.shell_tool=false");
 			expect(captured.args).toContain("features.hooks=false");
-			expect(captured.args).toContain(
-				"mcp_servers.example-server.enabled=false"
+			const override = captured.args.find((value: string) =>
+				value.startsWith("mcp_servers=")
 			);
+
+			expect(Bun.TOML.parse(override)).toEqual({
+				mcp_servers: {
+					"example-server": { enabled: false, command: "/usr/bin/false" },
+				},
+			});
 		}
 	}
 );
@@ -596,6 +640,58 @@ ${reply}`,
 		}
 	}
 );
+
+it("avoids enabled and disabled MCP names when adding the large-selection reader", async () => {
+	const preferences = await fixture(
+		`const readerArg = args.find(value => value.startsWith("mcp_servers.1git-selected-2.url="));
+if (!readerArg) throw new Error("Missing collision-free reader");
+const readerUrl = JSON.parse(readerArg.slice("mcp_servers.1git-selected-2.url=".length));
+const response = await fetch(readerUrl, {method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({jsonrpc:"2.0",id:1,method:"tools/call",params:{name:"read_selected_changes",arguments:{offset:0}}})});
+const page = await response.json();
+if (!page.result.content[0].text.includes("diff --git")) throw new Error("Reader did not return selected changes");
+console.info(JSON.stringify({type:"item.completed",item:{type:"agent_message",text:"fix: avoid reader collisions"}}));
+console.info(JSON.stringify({type:"turn.completed"}));`,
+		"codex",
+		[],
+		[
+			{ name: "1git-selected", enabled: true, transport: { type: "stdio" } },
+			{ name: "1git-selected-1", enabled: false, transport: { type: "stdio" } },
+		]
+	);
+
+	const patch = `diff --git a/file b/file\n@@ -1 +1 @@\n+${"x".repeat(70 * 1024)}\n`;
+
+	const message = await new CliAgent().generate(
+		preferences,
+		patch,
+		new AbortController().signal
+	);
+
+	const captured = JSON.parse(await readFile(record, "utf8"));
+
+	const override = captured.args.find((value: string) =>
+		value.startsWith("mcp_servers=")
+	);
+
+	expect(message).toBe("fix: avoid reader collisions");
+	expect(Bun.TOML.parse(override)).toEqual({
+		mcp_servers: {
+			"1git-selected": { enabled: false, command: "/usr/bin/false" },
+		},
+	});
+	expect(captured.args).toContain("mcp_servers.1git-selected-2.enabled=true");
+	expect(captured.args).toContain("mcp_servers.1git-selected-2.required=true");
+	expect(
+		captured.args.some((value: string) =>
+			value.startsWith("mcp_servers.1git-selected.url=")
+		)
+	).toBe(false);
+	expect(
+		captured.args.some((value: string) =>
+			value.startsWith("mcp_servers.1git-selected-1.url=")
+		)
+	).toBe(false);
+});
 
 it("allows bounded Codex MCP tool output for large selections", async () => {
 	const preferences = await fixture(

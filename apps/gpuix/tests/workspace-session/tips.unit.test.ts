@@ -13,7 +13,7 @@ it("round trips completed and dismissed tour state without modifying older docum
 		WorkspaceTabsModel.create(),
 	];
 
-	args[12] = { completed: ["tab-menu", "worktrees"], dismissed: false };
+	args[12] = { completed: ["tab-menu", "create-branch"], dismissed: false };
 	const captured = WorkspaceSession.capture(...args);
 
 	expect(WorkspaceSession.parse(JSON.stringify(captured)).tips).toEqual(
