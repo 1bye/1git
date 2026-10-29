@@ -66,6 +66,19 @@ pub(super) struct Recovery {
 }
 
 impl Recovery {
+    pub(super) fn from_hunk(
+        root: &Path,
+        head: Option<&str>,
+        path: GitPath,
+        patch: &[u8],
+        cancellation: Option<&Cancellation>,
+    ) -> Result<Self, RepositoryError> {
+        let mut backup = Self::create(None, vec![path])?;
+        backup.working.file.write_all(patch)?;
+        backup.finish(root, head, cancellation)?;
+        Ok(backup)
+    }
+
     fn create(destination: Option<&Path>, paths: Vec<GitPath>) -> Result<Self, RepositoryError> {
         let (path, parent, directory) = match destination {
             Some(path) => {

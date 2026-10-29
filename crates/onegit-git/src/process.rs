@@ -12,6 +12,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use crate::platform;
+use crate::{HttpAuthentication, OutputStream, TransferProgress};
 
 const DEFAULT_MAX_OUTPUT_BYTES: usize = 64 * 1024 * 1024;
 const TERMINATE_GRACE: Duration = Duration::from_secs(2);
@@ -111,6 +112,15 @@ pub struct GitCommand<'a> {
     pub timeout: Option<Duration>,
     /// Explicit child-only overrides, also used to isolate fixture configuration.
     pub environment: Vec<(OsString, OsString)>,
+    /// One-shot HTTPS credentials, cleared from errors and never stored in this runner.
+    pub http_authentication: Option<&'a HttpAuthentication<'a>>,
+    /// Ignore inherited Git configuration/templates when cloning with account credentials.
+    pub isolate_clone_configuration: bool,
+    /// Incremental bounded output; suppressed for authenticated invocations.
+    /// Observer panics cannot interrupt owned process cleanup.
+    pub on_output: Option<crate::OutputObserver<'a>>,
+    /// Sanitized, bounded Git transfer progress from stderr.
+    pub on_progress: Option<&'a dyn Fn(TransferProgress)>,
     /// Optional stricter operation cap; cannot increase the runner's captured-output limit.
     pub max_output_bytes: Option<usize>,
 }
@@ -129,6 +139,10 @@ impl<'a> GitCommand<'a> {
             cancellation: None,
             timeout: None,
             environment: Vec::new(),
+            http_authentication: None,
+            isolate_clone_configuration: false,
+            on_output: None,
+            on_progress: None,
             max_output_bytes: None,
         }
     }
@@ -278,7 +292,18 @@ impl GitProcess {
         command
             .args(&input.args)
             .envs(self.environment.iter().map(|(key, value)| (key, value)))
-            .envs(input.environment);
+            .envs(input.environment.iter().map(|(key, value)| (key, value)));
+
+        if let Some(auth) = input.http_authentication {
+            auth.apply(
+                &mut command,
+                self.environment
+                    .iter()
+                    .chain(input.environment.iter())
+                    .map(|(k, _)| k.clone()),
+                input.isolate_clone_configuration,
+            )?;
+        }
 
         if git_settings {
             command
@@ -326,13 +351,16 @@ impl GitProcess {
             .map(platform::output_pipe)
             .transpose()?;
 
+        let mut progress = input.on_progress.map(crate::progress::Progress::new);
         let mut output = GitOutput::default();
         let mut written = 0;
         let mut stopped = None;
         let mut stop_time = None;
 
         loop {
-            let previous_bytes = written + output.stdout.len() + output.stderr.len();
+            let previous_stdout = output.stdout.len();
+            let previous_stderr = output.stderr.len();
+            let previous_bytes = written + previous_stdout + previous_stderr;
 
             let reason = if input.cancellation.is_some_and(Cancellation::is_cancelled) {
                 Some(GitError::Cancelled)
@@ -363,6 +391,24 @@ impl GitProcess {
                     stopped = Some(GitError::OutputTooLarge {
                         limit: max_output_bytes,
                     });
+                }
+            }
+
+            if let Some(parser) = progress.as_mut() {
+                parser.write(&output.stderr[previous_stderr..]);
+            }
+            if input.http_authentication.is_none()
+                && let Some(observer) = input.on_output
+            {
+                for (stream, bytes) in [
+                    (OutputStream::Stdout, &output.stdout[previous_stdout..]),
+                    (OutputStream::Stderr, &output.stderr[previous_stderr..]),
+                ] {
+                    if !bytes.is_empty() {
+                        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                            observer(stream, bytes)
+                        }));
+                    }
                 }
             }
 
@@ -398,12 +444,22 @@ impl GitProcess {
                 && let Some(status) = owned.child.try_wait()?
             {
                 owned.finish(stopped.is_none())?;
+                if let Some(parser) = progress.as_mut() {
+                    parser.finish();
+                }
 
-                return match stopped {
+                let result = match stopped {
                     Some(error) => Err(error),
                     None if status.success() => Ok(output),
                     None => Err(GitError::CommandFailed { status, output }),
                 };
+                return result.map_err(|error| {
+                    if input.http_authentication.is_some() {
+                        crate::authentication::sanitized(error)
+                    } else {
+                        error
+                    }
+                });
             }
 
             if written + output.stdout.len() + output.stderr.len() == previous_bytes {

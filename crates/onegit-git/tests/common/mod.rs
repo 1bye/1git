@@ -170,3 +170,21 @@ fn git_native_argument(argument: OsString) -> OsString {
     }
     argument
 }
+
+/// Install an ordinary executable Git hook in the disposable fixture.
+pub fn install_hook(fixture: &Fixture, name: &str, script: &str) {
+    let path = fixture.root.join(".git/hooks").join(name);
+    fs::write(&path, script).unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(path, fs::Permissions::from_mode(0o700)).unwrap();
+    }
+}
+impl Fixture {
+    /// Enable relative hooks for tests while retaining the fixture's isolated environment.
+    pub fn process_with_hooks(&self) -> GitProcess {
+        self.process()
+            .with_environment([("GIT_CONFIG_VALUE_0".into(), ".git/hooks".into())])
+    }
+}

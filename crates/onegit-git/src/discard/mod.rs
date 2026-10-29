@@ -2,7 +2,9 @@
 //! undo token; private recovery files outlive the session, expiry and all failures.
 
 use crate::GitPath;
+mod hunk;
 mod patches;
+pub use hunk::{ChangeHunk, HunkAction, HunkResult, select_hunk_patch};
 mod recovery;
 
 use std::collections::HashSet;

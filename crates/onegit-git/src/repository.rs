@@ -28,6 +28,34 @@ mod diff;
 #[path = "setup.rs"]
 mod setup;
 
+#[path = "history_rewrite.rs"]
+mod history_rewrite;
+pub use history_rewrite::{
+    HistoryRange, HistoryRewritePlan, HistoryRewriteResult, ReorderCommits, ResetCommit,
+    ResetCommitPlan, ResetCommitResult, SquashCommits,
+};
+
+#[path = "network.rs"]
+mod network;
+pub use network::{
+    CreateReleaseTag, FetchOptions, PullOptions, PullStrategy, PushOptions, PushTag, SyncBranch,
+    SyncKind, SyncOperation, SyncResult, TagPushResult,
+};
+
+#[path = "sequences.rs"]
+mod sequences;
+pub use sequences::{
+    CherryPickCommit, CommitIndex, IndexCommitResult, ReplayCommit, RevertOptions,
+};
+
+#[path = "metadata_writes.rs"]
+mod metadata_writes;
+
+pub use metadata_writes::{
+    AddRemote, CreateTag, ResetMode, ResetOptions, RestoreOptions, SetRemoteUrl, StashOptions,
+    StashReference,
+};
+
 #[path = "mutations.rs"]
 mod mutations;
 
@@ -48,6 +76,7 @@ mod ignore;
 
 #[path = "discard/mod.rs"]
 mod discard;
+pub use discard::{ChangeHunk, HunkAction, HunkResult, select_hunk_patch};
 
 #[path = "selected_commit/mod.rs"]
 mod selected_commit;
@@ -161,6 +190,10 @@ pub enum RepositoryError {
     InvalidInput(&'static str),
     /// Reviewed state or requested action conflicts with the current repository.
     Conflict(String),
+    /// A clean-worktree workflow found local changes; no automatic stash/discard is permitted.
+    DirtyWorktree,
+    /// An existing Git index lock belongs to another operation.
+    RepositoryLocked,
     /// Bare repositories have no usable working tree.
     BareRepository,
     /// Git did not return the expected single path or boolean.
@@ -182,6 +215,10 @@ impl std::fmt::Display for RepositoryError {
             Self::BareRepository => f.write_str("Bare repositories do not have a working tree"),
             Self::InvalidInput(message) => f.write_str(message),
             Self::Conflict(message) => f.write_str(message),
+            Self::DirtyWorktree => f.write_str(
+                "Commit or stash your changes before pulling. Nothing has been changed.",
+            ),
+            Self::RepositoryLocked => f.write_str("Another Git process has locked the index."),
             Self::NotAFile => f.write_str("The requested preview source is not a file"),
             Self::PathOutsideRepository => {
                 f.write_str("Repository path must stay within the repository")

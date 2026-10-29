@@ -12,7 +12,8 @@ use crate::output::{path, rows, text, trim_end};
 use crate::validation::{full_oid, require_paths, require_revision};
 use crate::{Cancellation, FileStatus, GitCommand, GitError};
 
-const HISTORY_FORMAT: &str = "%H%x00%P%x00%an%x00%ae%x00%aI%x00%cn%x00%ce%x00%cI%x00%s%x00%B%x00";
+pub(super) const HISTORY_FORMAT: &str =
+    "%H%x00%P%x00%an%x00%ae%x00%aI%x00%cn%x00%ce%x00%cI%x00%s%x00%B%x00";
 const MAX_SAFE_INTEGER: u64 = 9_007_199_254_740_991;
 
 static RAW_HEADER: LazyLock<Regex> = LazyLock::new(|| {
@@ -506,7 +507,7 @@ impl Repository {
     }
 }
 
-fn parse_history(bytes: &[u8]) -> Result<Vec<CommitInfo>, RepositoryError> {
+pub(super) fn parse_history(bytes: &[u8]) -> Result<Vec<CommitInfo>, RepositoryError> {
     rows(bytes, 10)?
         .into_iter()
         .map(|fields| {

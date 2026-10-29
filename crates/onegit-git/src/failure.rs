@@ -134,6 +134,12 @@ impl Failure {
             RepositoryError::InvalidInput(message) => {
                 Self::invalid(operation, ErrorCode::InvalidInput, message)
             }
+            RepositoryError::DirtyWorktree => {
+                Self::invalid(operation, ErrorCode::DirtyWorktree, &error.to_string())
+            }
+            RepositoryError::RepositoryLocked => {
+                Self::invalid(operation, ErrorCode::RepositoryLocked, &error.to_string())
+            }
             RepositoryError::Conflict(message) => {
                 Self::invalid(operation, ErrorCode::Conflict, message)
             }

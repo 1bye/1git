@@ -735,3 +735,44 @@ exec git "$@""#,
 
     assert_eq!(coordinator.pending_writes(&common), 0);
 }
+
+#[test]
+fn streams_literal_bulk_selections_beyond_windows_argv_limits_including_unborn_unstage() {
+    let f = Fixture::new();
+    let paths: Vec<onegit_git::GitPath> = (0..600)
+        .map(|i| {
+            let name = format!(
+                "literal-selection-abcdefghijklmnopqrstuvwxyz-abcdefghijklmnopqrstuvwxyz-[{i:04}]"
+            );
+            f.write(&name, "value");
+            onegit_git::GitPath::new(name.as_bytes()).unwrap()
+        })
+        .collect();
+    assert!(paths.iter().map(|p| p.as_bytes().len() + 3).sum::<usize>() > 32_767);
+    let r = Repository::open(&f.root, f.process(), None).unwrap();
+    r.stage(&paths, None).unwrap();
+    assert_eq!(
+        f.git(&["ls-files", "-z"])
+            .split(|b| *b == 0)
+            .filter(|s| !s.is_empty())
+            .count(),
+        600
+    );
+    r.unstage(&paths, None).unwrap();
+    assert!(f.git(&["ls-files"]).is_empty());
+    r.stage_all(None).unwrap();
+    r.commit_index(
+        onegit_git::CommitIndex {
+            summary: "Base",
+            ..Default::default()
+        },
+        None,
+    )
+    .unwrap();
+    for path in &paths {
+        std::fs::write(f.root.join(path.to_str().unwrap()), "changed").unwrap();
+    }
+    r.stage(&paths, None).unwrap();
+    r.unstage(&paths, None).unwrap();
+    assert!(f.git(&["diff", "--cached"]).is_empty());
+}

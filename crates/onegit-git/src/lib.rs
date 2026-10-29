@@ -6,15 +6,23 @@
 //! Execution is blocking: callers must run it on an owned background worker, retain its
 //! cancellation handle and observe completion before cleaning up indexes or write locks.
 
+mod authentication;
 mod failure;
 mod git_path;
 mod output;
 mod partial_patch;
 mod platform;
 mod process;
+mod progress;
 mod repository;
 mod status;
 mod validation;
+
+pub use authentication::HttpAuthentication;
+pub use progress::{
+    CommitObserver, CommitPhase, CommitProgress, OutputObserver, OutputStream, TransferPhase,
+    TransferProgress,
+};
 
 pub use failure::{ErrorCode, Failure, Operation};
 pub use git_path::{GitPath, GitPathError};
@@ -25,18 +33,24 @@ pub use process::{
 };
 
 pub use repository::{
-    Branch, BranchAction, BranchChanges, BranchCollection, BranchComparison, BranchError,
-    BranchIdentity, BranchKind, BranchMutation, BranchRequest, CloneOptions, CommitError,
-    CommitFile, CommitFiles, CommitInfo, CommitMode, CommitOutcome, CommitPage, CommitResult,
-    ConfigScope, ConfigValue, ConflictPreview, ConflictSide, CreateBranch, CreateWorktree,
-    DiffOptions, DiffStat, DiffTarget, DiscardError, DiscardFiles, DiscardRecovery, DiscardResult,
-    DiscardUndo, FastForward, FileContent, FileData, FileDiff, FileSource, FinishKind,
-    FinishOperation, HistoryOptions, Identity, IgnoreFile, IgnoreRule, IntegrationKind,
+    AddRemote, Branch, BranchAction, BranchChanges, BranchCollection, BranchComparison,
+    BranchError, BranchIdentity, BranchKind, BranchMutation, BranchRequest, ChangeHunk,
+    CherryPickCommit, CloneOptions, CommitError, CommitFile, CommitFiles, CommitIndex, CommitInfo,
+    CommitMode, CommitOutcome, CommitPage, CommitResult, ConfigScope, ConfigValue, ConflictPreview,
+    ConflictSide, CreateBranch, CreateReleaseTag, CreateTag, CreateWorktree, DiffOptions, DiffStat,
+    DiffTarget, DiscardError, DiscardFiles, DiscardRecovery, DiscardResult, DiscardUndo,
+    FastForward, FetchOptions, FileContent, FileData, FileDiff, FileSource, FinishKind,
+    FinishOperation, HistoryOptions, HistoryRange, HistoryRewritePlan, HistoryRewriteResult,
+    HunkAction, HunkResult, Identity, IgnoreFile, IgnoreRule, IndexCommitResult, IntegrationKind,
     IntegrationRequest, MergeOptions, OperationState, PartialCommitFile, PatchOmission,
-    RebaseOptions, RecoveryBackup, Remote, Repository, RepositoryCoordinator, RepositoryError,
-    RepositoryInfo, ResolveConflict, SavedBranchChanges, Snapshot, Stash, Tag, TagKind,
-    UndoCommitResult, Worktree, WorktreeBranch, WorktreeMutation, WorktreeRequest, WriteError,
-    WritePhase, ignore_extension, ignore_folders, ignore_pattern,
+    PullOptions, PullStrategy, PushOptions, PushTag, RebaseOptions, RecoveryBackup, Remote,
+    ReorderCommits, ReplayCommit, Repository, RepositoryCoordinator, RepositoryError,
+    RepositoryInfo, ResetCommit, ResetCommitPlan, ResetCommitResult, ResetMode, ResetOptions,
+    ResolveConflict, RestoreOptions, RevertOptions, SavedBranchChanges, SetRemoteUrl, Snapshot,
+    SquashCommits, Stash, StashOptions, StashReference, SyncBranch, SyncKind, SyncOperation,
+    SyncResult, Tag, TagKind, TagPushResult, UndoCommitResult, Worktree, WorktreeBranch,
+    WorktreeMutation, WorktreeRequest, WriteError, WritePhase, ignore_extension, ignore_folders,
+    ignore_pattern, select_hunk_patch,
 };
 
 pub use status::{

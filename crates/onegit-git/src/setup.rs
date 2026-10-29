@@ -13,7 +13,7 @@ use crate::{Cancellation, GitCommand, GitProcess};
 const MAX_DEPTH: u64 = 9_007_199_254_740_991;
 
 /// Clone through Git's configured transport/credential helpers, without embedding HTTP credentials.
-/// One-shot account authentication is a separate execution capability, still being ported.
+/// Optional one-shot account credentials are scoped to the exact HTTPS destination.
 pub struct CloneOptions<'a> {
     /// Credential-free remote URL or Git-supported local/SSH source.
     pub remote: &'a str,
@@ -25,6 +25,10 @@ pub struct CloneOptions<'a> {
     pub depth: Option<u64>,
     /// Whether explicitly requested submodules should be cloned too.
     pub recurse_submodules: bool,
+    /// Optional transient account credentials; authenticated recursive cloning is refused.
+    pub authentication: Option<&'a crate::HttpAuthentication<'a>>,
+    /// Sanitized phase-local transfer progress; observer panics cannot stop cleanup.
+    pub on_progress: Option<&'a dyn Fn(crate::TransferProgress)>,
 }
 
 impl<'a> CloneOptions<'a> {
@@ -36,6 +40,8 @@ impl<'a> CloneOptions<'a> {
             branch: None,
             depth: None,
             recurse_submodules: false,
+            authentication: None,
+            on_progress: None,
         }
     }
 }
@@ -85,9 +91,20 @@ impl Repository {
     ) -> Result<Self, RepositoryError> {
         require_destination(options.destination)?;
         require_remote(options.remote)?;
+        if let Some(auth) = options.authentication {
+            auth.validate_for(&[options.remote.into()])?;
+            if options.recurse_submodules {
+                return Err(RepositoryError::InvalidInput(
+                    "Authenticated submodule recursion is not supported.",
+                ));
+            }
+        }
         super::check_cancelled(cancellation)?;
 
         let mut args = vec![OsString::from("clone")];
+        if options.on_progress.is_some() {
+            args.push("--progress".into());
+        }
 
         if let Some(branch) = options.branch.filter(|branch| !branch.is_empty()) {
             require_revision(branch)?;
@@ -119,6 +136,9 @@ impl Repository {
         let mut command = GitCommand::new(parent, args);
 
         command.cancellation = cancellation;
+        command.http_authentication = options.authentication;
+        command.isolate_clone_configuration = options.authentication.is_some();
+        command.on_progress = options.on_progress;
 
         process.run(command)?;
 

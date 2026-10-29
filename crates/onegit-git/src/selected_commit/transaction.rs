@@ -163,10 +163,23 @@ impl Repository {
         input: &CommitFiles,
         cancellation: Option<&Cancellation>,
     ) -> Result<CommitResult, CommitError> {
+        self.commit_selected_files_with_progress(input, None, cancellation)
+    }
+
+    /// Commit selected contents with incremental lifecycle/hook output on the owned worker.
+    /// Observer panics cannot interrupt commit installation or process/index cleanup.
+    /// Late cancellation retains the existing transaction contract described by commit_selected_files.
+    pub fn commit_selected_files_with_progress(
+        &self,
+        input: &CommitFiles,
+        observer: Option<crate::CommitObserver<'_>>,
+        cancellation: Option<&Cancellation>,
+    ) -> Result<CommitResult, CommitError> {
         let _write = self.mutations.enter();
 
         super::super::check_cancelled(cancellation).map_err(|error| before(error.into()))?;
         self.check_write_identity().map_err(before)?;
+        crate::progress::commit_event(observer, crate::CommitPhase::Preparing, None);
         let paths = validate(input)?;
         let message = trim(&input.message);
 
@@ -361,7 +374,16 @@ impl Repository {
                 }
             }
 
-            match self.commit_run(args, Some(&commit_index), format!("{message}\n").as_bytes()) {
+            crate::progress::commit_event(observer, crate::CommitPhase::Committing, None);
+            let output_observer = |_, bytes: &[u8]| {
+                crate::progress::commit_event(observer, crate::CommitPhase::Committing, Some(bytes))
+            };
+            match self.commit_run_observed(
+                args,
+                Some(&commit_index),
+                format!("{message}\n").as_bytes(),
+                observer.map(|_| &output_observer as &dyn Fn(crate::OutputStream, &[u8])),
+            ) {
                 Ok(_) => committed = true,
                 Err(error) => {
                     let after = self.snapshot_uncoordinated(false, None).ok();
@@ -438,6 +460,7 @@ impl Repository {
         }
 
         execution?;
+        crate::progress::commit_event(observer, crate::CommitPhase::Refreshing, None);
         let snapshot = match self.snapshot_uncoordinated(false, None) {
             Ok(snapshot) => {
                 oid = snapshot.status.head.oid.clone();
@@ -465,10 +488,21 @@ impl Repository {
         index: Option<&Path>,
         stdin: &[u8],
     ) -> Result<GitOutput, RepositoryError> {
+        self.commit_run_observed(args, index, stdin, None)
+    }
+
+    fn commit_run_observed(
+        &self,
+        args: impl IntoIterator<Item = impl Into<OsString>>,
+        index: Option<&Path>,
+        stdin: &[u8],
+        observer: Option<crate::OutputObserver<'_>>,
+    ) -> Result<GitOutput, RepositoryError> {
         let mut command = GitCommand::new(&self.info.root, args);
 
         command.directory = Some(&self.root_directory);
         command.index_file = index;
+        command.on_output = observer;
         command.stdin = stdin;
 
         Ok(self.process.run(command)?)

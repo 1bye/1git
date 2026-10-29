@@ -60,7 +60,7 @@ static TRACKING: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(ahead|behind) (\d+)").expect("literal tracking pattern is valid")
 });
 
-static CONFIG_KEY: LazyLock<Regex> = LazyLock::new(|| {
+pub(super) static CONFIG_KEY: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"^[A-Za-z][A-Za-z0-9-]*(?:\.[A-Za-z0-9-]+)+$")
         .expect("literal config key pattern is valid")
 });
@@ -251,6 +251,13 @@ impl Repository {
     /// List local tags in creator-date order.
     pub fn tags(&self, cancellation: Option<&Cancellation>) -> Result<Vec<Tag>, RepositoryError> {
         self.mutations.wait_for_pending();
+        self.tags_uncoordinated(cancellation)
+    }
+
+    pub(super) fn tags_uncoordinated(
+        &self,
+        cancellation: Option<&Cancellation>,
+    ) -> Result<Vec<Tag>, RepositoryError> {
         let format = format!("--format={TAG_FORMAT}");
 
         let output = self.run(
@@ -310,6 +317,13 @@ impl Repository {
         cancellation: Option<&Cancellation>,
     ) -> Result<Vec<Remote>, RepositoryError> {
         self.mutations.wait_for_pending();
+        self.remotes_uncoordinated(cancellation)
+    }
+
+    pub(super) fn remotes_uncoordinated(
+        &self,
+        cancellation: Option<&Cancellation>,
+    ) -> Result<Vec<Remote>, RepositoryError> {
         let names = self.run(["remote"], cancellation)?;
         let mut remotes = Vec::new();
 

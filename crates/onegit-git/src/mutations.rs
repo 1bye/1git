@@ -240,13 +240,17 @@ impl Repository {
             vec!["--literal-pathspecs".into(), "add".into()]
         };
 
+        let mut input = Vec::new();
         if let Some(paths) = paths {
-            args.push("--".into());
+            args.extend([
+                "--pathspec-from-file=-".into(),
+                "--pathspec-file-nul".into(),
+            ]);
             let mut seen = std::collections::HashSet::new();
-
             for path in paths {
                 if seen.insert(path) {
-                    args.push(path.to_argument().map_err(|error| before(error.into()))?);
+                    input.extend_from_slice(path.pathspec_bytes().map_err(|e| before(e.into()))?);
+                    input.push(0);
                 }
             }
         } else if !unstage {
@@ -261,6 +265,7 @@ impl Repository {
         let mut command = GitCommand::new(&self.info.root, args);
 
         command.directory = Some(&self.root_directory);
+        command.stdin = &input;
         command.cancellation = cancellation;
         self.process.run(command).map_err(|error| WriteError {
             phase: WritePhase::Command,
