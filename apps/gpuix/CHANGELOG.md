@@ -1,5 +1,45 @@
 # @1git/gpuix
 
+## 0.1.2
+
+### Minor Changes
+
+- 7a1675c: Make branches easier to find with a left-rail branch panel, the current branch highlighted in the rail panel, branch search, and direct New Worktree and New Branch actions. Focus branch search immediately on opening the panel, with a visible keyboard highlight and arrow-key navigation through matching branches and Enter to select. Keep publishing and sync first in the rail, followed by Branches. Teach finding and creating branches in the introductory tour before advanced workflows.
+
+  Remove the duplicate sidebar divider while preserving its drag target and keyboard focus indicator.
+
+  Show a centered, illustrated empty state with a helpful hint when branch search has no matches.
+- b180696: Resize graph commit details and changed-file panels, and create local branches at selected commits without switching branches or changing working files.
+
+  Use the existing History confirmations to cherry-pick, revert, reset, and create or push tags directly from graph commits, with the same operation guards and conflict recovery.
+- b58c269: Add a dedicated Help settings tab for guided tips, first-run setup, and GitHub issue and project links. Keep Appearance focused on visual preferences.
+- a450ccc: Resize repository file lists and the graph's branch and tag sidebar by dragging their edges or using the keyboard. Sidebar widths are remembered across tabs and app restarts.
+
+  Choose Fine, Classic or Coarse chrome grain and adjust its strength in Appearance settings. All choices share smaller textures, reducing decoded grain texture memory by 75% while retaining the Classic appearance and fast resizing.
+
+### Patch Changes
+
+- e4b4eba: Prevent conflict resolution from following replaced symlinks and reuse SSH connections during concurrent reconnects. Support dotted Codex MCP names and filenames containing tabs when generating AI commit messages.
+- 53d6a39: Fix Graph tag creation and cherry-picking for commits from other branches, remote refs, and tags while preserving repository and destination checks.
+- 8d3468c: Darken dialog and branch-menu backdrops to make foreground controls stand out more clearly.
+- 5b7f333: Protect reviewed merges from concurrent checkouts and preserve SSH passwords if removing a machine fails. Improve remote file cancellation, batch AI context collection, limit and share restored repository reads, and disable graph branch creation during unfinished Git operations.
+- d87006f: - Target exact filenames when resolving conflicts, staging, unstaging, restoring, or stashing selected files.
+  - Delete only the reviewed stash during concurrent Git updates, including branch backup cleanup. Safely refuse deletion for unsupported reference formats.
+  - Prevent background SSH requests from racing machine settings, removal, or disconnection.
+  - Update the source branch when refreshing a pull-request preview after switching branches.
+  - Avoid collisions with configured Codex MCP servers when reading large selections.
+- 7b9b708: Keep repository setup bound to the selected folder during concurrent filesystem changes, support connected accounts for mixed-case HTTPS remotes, and treat history path filters as literal filenames.
+- f12a0a4: Prevent custom API headers from being reused with another server, correctly continue and abort git am conflicts, and count changed file paths once on Home.
+- Updated dependencies [e4b4eba]
+- Updated dependencies [53d6a39]
+- Updated dependencies [8d3468c]
+- Updated dependencies [5b7f333]
+- Updated dependencies [d87006f]
+- Updated dependencies [7b9b708]
+- Updated dependencies [f12a0a4]
+  - @1git/git@0.0.2
+  - @1git/gpuix-ui@0.0.2
+
 ## 0.1.1
 
 ### Patch Changes

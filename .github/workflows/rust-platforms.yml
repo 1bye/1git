@@ -15,7 +15,7 @@ on:
       test_filter:
         description: Optional test name filter passed to cargo test
         type: string
-        default: ''
+        default: ""
 
 permissions:
   contents: read

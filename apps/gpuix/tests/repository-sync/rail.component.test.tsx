@@ -278,7 +278,7 @@ async function open() {
 	await settle();
 }
 
-it("places separate incoming/outgoing badges above Changes and removes duplicate controls", async () => {
+it("places separate incoming/outgoing badges above Branches and Changes and removes duplicate controls", async () => {
 	snapshot = {
 		...snapshot,
 		head: { ...snapshot.head, upstream: "origin/main", ahead: 3, behind: 2 },
@@ -291,6 +291,7 @@ it("places separate incoming/outgoing badges above Changes and removes duplicate
 		bounds("rail-sync-outgoing").y
 	);
 	const button = bounds("rail-sync");
+	const branches = bounds("rail-branches");
 	const separator = bounds("rail-sync-separator");
 	const changes = bounds("view-changes");
 	const incoming = bounds("rail-sync-incoming");
@@ -300,7 +301,8 @@ it("places separate incoming/outgoing badges above Changes and removes duplicate
 		lightColors.editorHairlineStrong
 	);
 	expect(separator).toMatchObject({ width: 20, height: 1 });
-	expect(separator.y - button.y - button.height).toBe(4);
+	expect(branches.y - button.y - button.height).toBe(4);
+	expect(separator.y - branches.y - branches.height).toBe(4);
 	expect(changes.y - separator.y - separator.height).toBe(4);
 	expect(incoming.y).toBeGreaterThanOrEqual(bounds("workspace-rail").y);
 	expect(outgoing.y + outgoing.height).toBeLessThanOrEqual(separator.y);
@@ -396,8 +398,12 @@ it("fetches an up-to-date branch without extra branch reads or committing files"
 	expect(root.renderer.findByTestId("rail-sync-incoming")).toBeUndefined();
 	expect(root.renderer.findByTestId("rail-sync-outgoing")).toBeUndefined();
 	const button = bounds("rail-sync");
+	const branches = bounds("rail-branches");
 
-	expect(bounds("rail-sync-separator").y - button.y - button.height).toBe(4);
+	expect(branches.y - button.y - button.height).toBe(4);
+	expect(bounds("rail-sync-separator").y - branches.y - branches.height).toBe(
+		4
+	);
 	click("rail-sync");
 	await settle();
 	expect(fetch).toHaveBeenCalledTimes(1);

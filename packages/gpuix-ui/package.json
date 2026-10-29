@@ -1,6 +1,6 @@
 {
   "name": "@1git/gpuix-ui",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "private": true,
   "description": "Styled React controls for GPUIX",
   "type": "module",
