@@ -90,3 +90,32 @@ it("checks linked-worktree markers rather than the main worktree and preserves r
 		"merge"
 	);
 });
+
+it("distinguishes mailbox application from apply-backend rebase in linked worktrees", async () => {
+	const fixture = await fixtures.create();
+	const linked = fixture.path("linked");
+
+	await fixture.git(["worktree", "add", "-b", "linked", linked]);
+	const repository = unwrapResult(await GitRepository.open({ path: linked }));
+	const directory = join(repository.info.gitDirectory, "rebase-apply");
+
+	await mkdir(directory);
+	await writeFile(join(directory, "rebasing"), "");
+	expect(unwrapResult(await repository.getSnapshot()).operationState).toBe(
+		"rebase"
+	);
+	await rm(join(directory, "rebasing"));
+	await writeFile(join(directory, "applying"), "");
+	await writeFile(join(directory, "patch"), "first mailbox patch\n");
+	const snapshot = unwrapResult(await repository.getSnapshot());
+
+	expect(snapshot.operationState).toBe("am");
+	expect(snapshot.operationToken).toMatch(/^[a-f0-9]{64}$/);
+	await writeFile(join(directory, "patch"), "replacement mailbox patch\n");
+	expect(unwrapResult(await repository.getSnapshot()).operationToken).not.toBe(
+		snapshot.operationToken
+	);
+	expect(
+		unwrapResult(await fixture.repository.getSnapshot()).operationState
+	).toBe("normal");
+});

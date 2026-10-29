@@ -10,6 +10,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { AiIntegration } from "../../src/feature/ai/lib/ai-integration";
 import { AiHttp, type AiFetch } from "../../src/feature/ai/lib/ai-http";
+import { CustomApi } from "../../src/feature/ai/lib/custom-api";
 import {
 	AiSettingsStore,
 	emptyAiPreferences,
@@ -137,7 +138,10 @@ it("stores API headers only in the selected account's vault entry and preserves 
 		credentials.get(AiSettingsStore.credentialKey("api", "", api.id))
 	).toContain("synthetic-secret");
 	expect(
-		credentials.get(AiSettingsStore.credentialKey("api", "", second.id))
+		CustomApi.readCredential(
+			credentials.get(AiSettingsStore.credentialKey("api", "", second.id))!,
+			api.api.baseUrl
+		)
 	).toBe("[]");
 	expect(AiSettingsStore.selected(service.store.load()).effort).toBe("medium");
 	await service.disconnect(api, signal());
@@ -147,6 +151,131 @@ it("stores API headers only in the selected account's vault entry and preserves 
 	expect(
 		credentials.has(AiSettingsStore.credentialKey("api", "", second.id))
 	).toBe(true);
+});
+
+it.each([false, true])(
+	"does not reuse API secrets across origins, including legacy vault entries (%s)",
+	async (legacy) => {
+		const original: AiConnection = {
+			...first,
+			provider: "api",
+			model: "custom",
+			api: { protocol: "anthropic", baseUrl: "https://api.anthropic.com/v1" },
+		};
+
+		const changed: AiConnection = {
+			...original,
+			api: { protocol: "openai-chat", baseUrl: "https://api.openai.com/v1" },
+		};
+
+		const key = AiSettingsStore.credentialKey("api", "", original.id);
+
+		const headers = JSON.stringify([
+			{ name: "x-api-key", value: "synthetic-old-secret" },
+		]);
+
+		const fetch = mock<AiFetch>(async () => {
+			throw new Error("Unexpected network request");
+		});
+
+		service = integration(fetch);
+		await service.saveConnection(original, headers, true, signal());
+
+		if (legacy) credentials.set(key, headers);
+
+		const saved = credentials.get(key);
+
+		await expect(
+			service.saveConnection(changed, "", true, signal())
+		).rejects.toThrow("server changed");
+		await expect(
+			service.generate(changed, "+selected", signal())
+		).rejects.toThrow("server changed");
+		expect(fetch).not.toHaveBeenCalled();
+		expect(credentials.get(key)).toBe(saved);
+		expect(AiSettingsStore.selected(service.store.load()).api).toEqual(
+			original.api
+		);
+
+		// Paths and API formats on the same server preserve existing credentials and upgrade legacy entries.
+		const sameServer = {
+			...changed,
+			api: {
+				protocol: "openai-chat" as const,
+				baseUrl: "https://api.anthropic.com/custom/v2",
+			},
+		};
+
+		await service.saveConnection(sameServer, "", true, signal());
+		expect(
+			CustomApi.readCredential(credentials.get(key)!, sameServer.api.baseUrl)
+		).toContain("synthetic-old-secret");
+		await service.saveConnection(
+			changed,
+			JSON.stringify([
+				{ name: "Authorization", value: "Bearer synthetic-new-secret" },
+			]),
+			true,
+			signal()
+		);
+		// The vault is written before metadata during saves; stale metadata must not bypass origin binding.
+		service.store.save({ connections: [original], defaultId: original.id });
+		await expect(
+			service.generate(original, "+selected", signal())
+		).rejects.toThrow("server changed");
+		expect(fetch).not.toHaveBeenCalled();
+		expect(credentials.get(key)).not.toContain("synthetic-old-secret");
+		await service.saveConnection(original, "[]", true, signal());
+		expect(
+			CustomApi.readCredential(credentials.get(key)!, original.api!.baseUrl)
+		).toBe("[]");
+	}
+);
+
+it("checks legacy credential origins captured before an asynchronous vault read", async () => {
+	const original: AiConnection = {
+		...first,
+		provider: "api",
+		model: "custom",
+		api: { protocol: "openai-chat", baseUrl: "https://old.example/v1" },
+	};
+
+	const changed: AiConnection = {
+		...original,
+		api: { protocol: "openai-chat", baseUrl: "https://new.example/v1" },
+	};
+
+	service.store.save({ connections: [original], defaultId: original.id });
+	const pending = Promise.withResolvers<string | null>();
+
+	const fetch = mock<AiFetch>(async () => {
+		throw new Error("Unexpected network request");
+	});
+
+	const reader = new AiIntegration(
+		service.store,
+		{
+			read: async () => await pending.promise,
+			write: async () => undefined,
+			delete: async () => undefined,
+		},
+		new AiHttp(fetch)
+	);
+
+	const generation = reader.generate(changed, "+selected", signal());
+
+	// Simulate a save completing while the old vault read is outstanding.
+	await service.saveConnection(
+		changed,
+		JSON.stringify([{ name: "Authorization", value: "new-secret" }]),
+		true,
+		signal()
+	);
+	pending.resolve(
+		JSON.stringify([{ name: "Authorization", value: "old-secret" }])
+	);
+	await expect(generation).rejects.toThrow("server changed");
+	expect(fetch).not.toHaveBeenCalled();
 });
 
 it("keeps AI off when adding a Free profile until a default is explicitly selected", async () => {

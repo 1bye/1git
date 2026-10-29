@@ -70,7 +70,12 @@ const loadOperationState = async (
 			markers.map(async (marker) => await exists(join(gitDirectory, marker)))
 		);
 
-	if (rebaseMerge || rebaseApply) return "rebase";
+	if (rebaseMerge) return "rebase";
+
+	if (rebaseApply)
+		return (await exists(join(gitDirectory, "rebase-apply", "applying")))
+			? "am"
+			: "rebase";
 
 	if (merge) return "merge";
 
@@ -92,24 +97,38 @@ const operationToken = async (
 	const files =
 		operation === "merge" || operation === "squash-merge"
 			? [operation === "merge" ? "MERGE_HEAD" : "SQUASH_MSG", "ORIG_HEAD"]
-			: operation === "revert" || operation === "cherry-pick"
+			: operation === "am"
 				? [
-						operation === "revert" ? "REVERT_HEAD" : "CHERRY_PICK_HEAD",
-						"sequencer/head",
-						"sequencer/todo",
-						"sequencer/opts",
-					]
-				: ["rebase-merge", "rebase-apply"].flatMap((folder) =>
-						[
-							"head-name",
-							"orig-head",
-							"onto",
-							"stopped-sha",
-							"msgnum",
+						"ORIG_HEAD",
+						...[
+							"applying",
+							"original-commit",
+							"abort-safety",
 							"next",
 							"last",
-						].map((name) => `${folder}/${name}`)
-					);
+							"author-script",
+							"final-commit",
+							"patch",
+						].map((name) => `rebase-apply/${name}`),
+					]
+				: operation === "revert" || operation === "cherry-pick"
+					? [
+							operation === "revert" ? "REVERT_HEAD" : "CHERRY_PICK_HEAD",
+							"sequencer/head",
+							"sequencer/todo",
+							"sequencer/opts",
+						]
+					: ["rebase-merge", "rebase-apply"].flatMap((folder) =>
+							[
+								"head-name",
+								"orig-head",
+								"onto",
+								"stopped-sha",
+								"msgnum",
+								"next",
+								"last",
+							].map((name) => `${folder}/${name}`)
+						);
 
 	const hash = createHash("sha256").update(operation);
 
@@ -119,7 +138,16 @@ const operationToken = async (
 		if (!(await exists(path))) continue;
 
 		try {
-			hash.update(file).update(await readFile(path));
+			if (operation === "am" && file === "rebase-apply/patch") {
+				// Patch bodies can be large; their file identity and modification metadata guard a replaced mailbox.
+				const metadata = await stat(path);
+
+				hash
+					.update(file)
+					.update(
+						`${metadata.dev}:${metadata.ino}:${metadata.size}:${metadata.mtimeMs}`
+					);
+			} else hash.update(file).update(await readFile(path));
 		} catch (error) {
 			if (
 				!(error instanceof Error && "code" in error && error.code === "ENOENT")

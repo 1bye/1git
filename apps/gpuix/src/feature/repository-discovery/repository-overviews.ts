@@ -41,8 +41,11 @@ export class RepositoryOverviews {
 			branch: snapshot.head.detached
 				? `detached ${snapshot.head.oid?.slice(0, 7) ?? "HEAD"}`
 				: (snapshot.head.branch ?? "unborn HEAD"),
-			changes: snapshot.files.filter((file) => file.recordType !== "ignored")
-				.length,
+			changes: new Set(
+				snapshot.files
+					.filter((file) => file.recordType !== "ignored")
+					.map((file) => file.path)
+			).size,
 			ahead: snapshot.head.upstream ? snapshot.head.ahead : null,
 			behind: snapshot.head.upstream ? snapshot.head.behind : null,
 		};

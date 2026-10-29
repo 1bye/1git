@@ -173,7 +173,12 @@ async function press(id: string) {
 }
 async function type(id: string, value: string) {
 	await press(id);
-	root.renderer.simulateKeystrokes(`cmd-a ${value.split("").join(" ")}`);
+	root.renderer.simulateKeystrokes(
+		`cmd-a ${value
+			.split("")
+			.map((character) => (character === " " ? "space" : character))
+			.join(" ")}`
+	);
 	await settle();
 }
 function settings() {
@@ -258,10 +263,13 @@ it.each([
 		expect(JSON.stringify(service.store.load())).not.toContain("synthetic");
 		const key = AiSettingsStore.credentialKey("api", "", selected.id);
 
-		expect(JSON.parse(credentials.get(key) ?? "")).toEqual([
-			{ name: "x-api-key", value: "synthetic-secret" },
-			{ name: "x-gateway-key", value: "synthetic-extra" },
-		]);
+		expect(JSON.parse(credentials.get(key) ?? "")).toEqual({
+			origin: "https://gateway.example",
+			headers: [
+				{ name: "x-api-key", value: "synthetic-secret" },
+				{ name: "x-gateway-key", value: "synthetic-extra" },
+			],
+		});
 		await press(`ai-edit-${selected.id}`);
 		expect(root.renderer.findByTestId("ai-api-header-value-0")).toBeUndefined();
 		expect(root.renderer.getAllText()).toContain("Headers saved securely.");
@@ -276,6 +284,74 @@ it.each([
 		expect(credentials.get(key)).not.toContain("discarded-secret");
 	}
 );
+
+it("requires replacement headers after switching a saved Claude endpoint to OpenAI", async () => {
+	const connection: AiConnection = {
+		...configured,
+		provider: "api",
+		model: "custom",
+		api: { protocol: "anthropic", baseUrl: "https://api.anthropic.com/v1" },
+	};
+
+	await service.saveConnection(
+		connection,
+		JSON.stringify([{ name: "x-api-key", value: "synthetic-claude-secret" }]),
+		true,
+		new AbortController().signal
+	);
+	const key = AiSettingsStore.credentialKey("api", "", connection.id);
+	const saved = credentials.get(key);
+
+	settings();
+	await settle();
+	await press(`ai-edit-${connection.id}`);
+	await press("ai-api-format");
+	root.renderer.simulateKeystrokes("up up enter");
+	await settle();
+	expect(node("ai-api-url").customProps?.value).toBe(
+		"https://api.openai.com/v1"
+	);
+	expect(node("ai-api-header-value-0")).toBeDefined();
+	expect(root.renderer.getAllText().join(" ")).toContain("Server changed.");
+	await press("ai-save-preferences");
+	expect(root.renderer.getAllText().join(" ")).toContain(
+		"The API server changed."
+	);
+	expect(credentials.get(key)).toBe(saved);
+	expect(AiSettingsStore.selected(service.store.load()).api).toEqual(
+		connection.api
+	);
+	await type("ai-api-header-value-0", "Bearer synthetic-openai-secret");
+	await press("ai-save-preferences");
+	expect(AiSettingsStore.selected(service.store.load()).api?.baseUrl).toBe(
+		"https://api.openai.com/v1"
+	);
+	expect(JSON.parse(credentials.get(key)!)).toEqual({
+		origin: "https://api.openai.com",
+		headers: [
+			{ name: "authorization", value: "Bearer synthetic-openai-secret" },
+		],
+	});
+});
+
+it("clears unsaved headers when changing the API server and allows explicitly anonymous access", async () => {
+	settings();
+	await press("ai-add");
+	await press("ai-provider-api");
+	await type("ai-api-header-value-0", "synthetic-unsaved-secret");
+	await type("ai-api-url", "https://another.example/v1");
+	await type("ai-api-model", "custom");
+	await press("ai-api-header-remove-0");
+	await press("ai-save-preferences");
+	const connection = service.store.load().connections[0]!;
+
+	expect(connection.api?.baseUrl).toBe("https://another.example/v1");
+	expect(
+		JSON.parse(
+			credentials.get(AiSettingsStore.credentialKey("api", "", connection.id))!
+		)
+	).toEqual({ origin: "https://another.example", headers: [] });
+});
 
 it("groups ChatGPT connection methods with CLI selected by default and keyboard-accessible Login", async () => {
 	settings();

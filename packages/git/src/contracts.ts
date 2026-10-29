@@ -25,6 +25,7 @@ export type GitErrorCode =
 /** Public operations used for progress, errors, and application telemetry. */
 export type GitOperation =
 	| "abort-cherry-pick"
+	| "abort-am"
 	| "abort-merge"
 	| "abort-rebase"
 	| "abort-squash-merge"
@@ -37,6 +38,7 @@ export type GitOperation =
 	| "clone-repository"
 	| "commit"
 	| "continue-cherry-pick"
+	| "continue-am"
 	| "continue-merge"
 	| "continue-rebase"
 	| "continue-squash-merge"
@@ -143,6 +145,7 @@ export interface HeadState {
 
 /** High-level repository operation currently represented by Git metadata. */
 export type RepositoryOperationState =
+	| "am"
 	| "cherry-pick"
 	| "merge"
 	| "normal"
@@ -186,7 +189,7 @@ export interface RepositorySnapshot {
 	readonly files: readonly FileChange[];
 	readonly head: HeadState;
 	readonly operationState: RepositoryOperationState;
-	/** Fingerprint of active merge/rebase/revert metadata, used to reject stale operation actions. */
+	/** Fingerprint of active Git operation metadata, used to reject stale operation actions. */
 	readonly operationToken?: string;
 	readonly repository: RepositoryInfo;
 	readonly stashCount: number;
@@ -570,6 +573,7 @@ export interface ResolveConflictInput extends GitCallOptions {
 export interface FinishOperationInput extends GitCallOptions {
 	readonly kind: "continue" | "abort";
 	readonly expectedOperation:
+		| "am"
 		| "merge"
 		| "rebase"
 		| "revert"

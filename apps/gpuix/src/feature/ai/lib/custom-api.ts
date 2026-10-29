@@ -6,6 +6,66 @@ export interface CustomApiConfiguration {
 
 /** Validates custom destinations and vault-only header values without echoing secrets. */
 export class CustomApi {
+	/** Origin comparisons allow paths and API formats to change without transferring headers to another server. */
+	static origin(baseUrl: string | undefined): string | null {
+		return baseUrl && URL.canParse(baseUrl) ? new URL(baseUrl).origin : null;
+	}
+
+	/** New vault entries bind headers to their destination, independently of mutable connection metadata. */
+	static bindCredential(raw: string, baseUrl: string): string {
+		const origin = CustomApi.origin(baseUrl);
+
+		if (!origin) throw new Error("Enter a valid API base URL.");
+
+		return JSON.stringify({
+			origin,
+			headers: JSON.parse(CustomApi.credential(raw)),
+		});
+	}
+
+	/** Legacy header arrays can only be reused for the origin saved before the vault read began. */
+	static readCredential(
+		raw: string,
+		baseUrl: string,
+		legacyBaseUrl?: string
+	): string {
+		let value: unknown;
+
+		try {
+			value = raw.length <= 65_536 ? JSON.parse(raw) : null;
+		} catch {
+			value = null;
+		}
+
+		const legacy = Array.isArray(value);
+
+		const origin = legacy
+			? CustomApi.origin(legacyBaseUrl)
+			: value && typeof value === "object" && "origin" in value
+				? value.origin
+				: null;
+
+		const headers = legacy
+			? value
+			: value && typeof value === "object" && "headers" in value
+				? value.headers
+				: null;
+
+		if (!Array.isArray(headers))
+			throw new Error(
+				"Invalid saved API headers. Replace them in Settings → AI."
+			);
+
+		const credential = CustomApi.credential(JSON.stringify(headers));
+
+		if (headers.length && origin !== CustomApi.origin(baseUrl))
+			throw new Error(
+				"The API server changed. Enter headers for this server, or remove all headers for anonymous access."
+			);
+
+		return credential;
+	}
+
 	static configuration(value: unknown): CustomApiConfiguration {
 		if (
 			!value ||
