@@ -510,11 +510,6 @@ fn hash_file(
     cancellation: Option<&Cancellation>,
 ) -> Result<[u8; 32], RepositoryError> {
     let state = crate::platform::file_state(file)?;
-    let started = std::time::Instant::now();
-    let ci_trace = cfg!(debug_assertions) && std::env::var_os("GITHUB_ACTIONS").is_some();
-    if ci_trace {
-        eprintln!("CI timing: hash {} bytes", state.length);
-    }
 
     if !state.regular || state.links != 1 {
         return Err(RepositoryError::InvalidInput(
@@ -550,9 +545,6 @@ fn hash_file(
         ));
     }
 
-    if ci_trace {
-        eprintln!("CI timing: hash finished after {:?}", started.elapsed());
-    }
     Ok(hash.finalize().into())
 }
 

@@ -381,9 +381,18 @@ Cancellation kills the owned job before pipe workers are joined.
 Recovery capture splits large Windows path selections into batches with a 12 KiB
 path-argument budget, leaving room below the Windows command-line limit. Multi-batch
 capture disables rename detection so each batch produces independent add/delete
-patches. Unix keeps its original single command and rename behavior. Debug builds
-optimize SHA-256 because recovery repeatedly verifies large binary patches; the
-54 MiB stress fixtures and five-minute per-test timeout remain unchanged.
+patches. Unix keeps its original single command and rename behavior.
+
+Timing diagnostics on the real Windows runner measured each 54 MiB binary
+`git apply` at about 82 seconds; hashing its 73 MB patch took less than 0.1 seconds.
+The staged/working discard-and-undo test performs eight applies. Its five-minute
+budget therefore expired during valid work. Only the two Windows binary stress
+tests now have a 15-minute budget; every other test keeps five minutes. Both full
+54 MiB fixtures, patches above 64 MiB and all recovery/index assertions remain.
+[Git's binary parser](https://github.com/git-for-windows/git/blob/main/apply.c)
+reallocates the decoded buffer for each base85 line; its Windows allocation cost
+is outside this crate. Production patch verification and compensation are unchanged.
+Temporary command/hash timing diagnostics were removed.
 
 Fixtures use representable Windows names, portable file URLs, system randomness,
 and native directory/link operations. Unix retains hostile-name and exact-byte

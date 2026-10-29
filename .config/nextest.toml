@@ -6,3 +6,11 @@ fail-fast = false
 failure-output = "immediate-final"
 # Kill a test that runs longer than 5 minutes and report it as a timeout.
 slow-timeout = { period = "60s", terminate-after = 5 }
+
+# Real Windows profiling: each 54 MiB binary git apply takes about 82 seconds;
+# the staged/working discard-and-undo test performs eight applies. Retain the
+# full >64 MiB patches and every check, with a bounded budget for these two tests.
+[[profile.ci.overrides]]
+platform = 'cfg(windows)'
+filter = 'binary(discard_large) & (test(separate_large_staged_and_working_patches_restore_distinct_states_with_undo) | test(streamed_untracked_binary_patch_exceeds_capture_cap_and_preserves_the_real_index))'
+slow-timeout = { period = "60s", terminate-after = 15 }

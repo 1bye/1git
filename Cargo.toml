@@ -47,7 +47,3 @@ debug = 0
 lto = "thin"
 codegen-units = 1
 strip = true
-
-# Recovery verifies large binary patches repeatedly, including during debug tests.
-[profile.dev.package.sha2]
-opt-level = 3

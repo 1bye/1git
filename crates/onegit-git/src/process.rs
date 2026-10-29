@@ -269,10 +269,6 @@ impl GitProcess {
         }
 
         let start = Instant::now();
-        let ci_trace = cfg!(debug_assertions) && std::env::var_os("GITHUB_ACTIONS").is_some();
-        if ci_trace {
-            eprintln!("CI timing: start {:?}", input.args);
-        }
         let mut command = Command::new(&self.executable);
 
         if git_settings {
@@ -402,9 +398,6 @@ impl GitProcess {
                 && let Some(status) = owned.child.try_wait()?
             {
                 owned.finish(stopped.is_none())?;
-                if ci_trace {
-                    eprintln!("CI timing: command finished after {:?}", start.elapsed());
-                }
 
                 return match stopped {
                     Some(error) => Err(error),
