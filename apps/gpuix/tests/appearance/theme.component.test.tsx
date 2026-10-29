@@ -41,7 +41,8 @@ function fixture(
 	smoothTransitions?: boolean,
 	initialSystemAppearance: AppAppearance = "light",
 	showScrollbars?: boolean,
-	showGrain?: boolean
+	showGrain?: boolean,
+	grainSettings?: WorkspaceSessionDocument["grainSettings"]
 ) {
 	const root = createTestRoot({
 		width: 1100,
@@ -110,6 +111,7 @@ function fixture(
 				smoothTransitions,
 				showScrollbars,
 				showGrain,
+				grainSettings,
 			}}
 			readRepository={async () => ({ ok: true, value: snapshot })}
 			readHistory={async () => {
@@ -172,6 +174,8 @@ function node(root: TestRoot, testId: string) {
 }
 
 function click(root: TestRoot, testId: string): void {
+	root.renderer.scrollIntoView(node(root, testId).id);
+	root.renderer.advanceTime(1);
 	const bounds = root.renderer.getElementBounds(node(root, testId).id);
 
 	if (!bounds) throw new Error(`Missing bounds for ${testId}`);
@@ -745,6 +749,74 @@ it("saves text size and installed fonts while retaining the draft and diff insta
 		});
 	} finally {
 		fontCatalog.mockRestore();
+		catalog.mockRestore();
+	}
+});
+
+it("restores grain choices, updates and saves both pickers, and retains them while grain is hidden", async () => {
+	const { root, catalog, saved } = fixture(
+		"light",
+		undefined,
+		false,
+		"light",
+		undefined,
+		true,
+		{ pattern: "coarse", strength: "strong" }
+	);
+
+	try {
+		await settle(root);
+		await openSettings(root);
+		click(root, "settings-appearance");
+		expect(root.renderer.getAllText()).toContain("Coarse");
+		expect(root.renderer.getAllText()).toContain("Strong");
+
+		for (const [key, value] of [
+			["pattern", "fine"],
+			["strength", "subtle"],
+		] as const) {
+			const id = `appearance-grain-${key}`;
+
+			root.renderer.scrollIntoView(node(root, id).id);
+			root.renderer.advanceTime(1);
+			click(root, id);
+			await settle(root);
+			click(root, `${id}-${value}`);
+			await settle(root);
+		}
+
+		await Bun.sleep(230);
+		await settle(root);
+		expect(saved.at(-1)?.grainSettings).toEqual({
+			pattern: "fine",
+			strength: "subtle",
+		});
+		expect(node(root, "repository-chrome-grain").style.opacity).toBe(0.045);
+		root.renderer.scrollIntoView(node(root, "appearance-grain").id);
+		root.renderer.advanceTime(1);
+		click(root, "appearance-grain");
+		await Bun.sleep(230);
+		await settle(root);
+		expect(saved.at(-1)?.showGrain).toBe(false);
+		expect(saved.at(-1)?.grainSettings).toEqual({
+			pattern: "fine",
+			strength: "subtle",
+		});
+		click(root, "appearance-grain-pattern");
+		await settle(root);
+		expect(
+			root.renderer.findByTestId("appearance-grain-pattern-options")
+		).toBeUndefined();
+		click(root, "appearance-grain");
+		await settle(root);
+		expect(node(root, "repository-chrome-grain").style.opacity).toBe(0.045);
+		expect(node(root, "commit-message").customProps?.value).toBe(
+			"Keep my draft"
+		);
+
+		if (process.env.GPUIX_NOISE_SCREENSHOT)
+			root.renderer.captureScreenshot(process.env.GPUIX_NOISE_SCREENSHOT);
+	} finally {
 		catalog.mockRestore();
 	}
 });

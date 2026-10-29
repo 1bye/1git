@@ -14,16 +14,16 @@ welcome in [GitHub Issues](https://github.com/1bye/1git/issues).
 - Sync and conflict review
 - Themes, repository colors, icons, and artwork
 - Automatic updates
+- Developer ID signing and notarization
+- Customizable noise patterns for the app's appearance
+- Larger AI selections for CLI providers (beyond 64 KiB)
+- Resizable left columns for repository navigation and file lists
 
 ## 🚧 Next
 
-- Customizable noise patterns for the app's appearance
-- Resizable left columns for repository navigation and file lists
 - Best-in-class UX: polish every flow, starting with the Settings redesign, onboarding etc.
 - Issues and pull requests: browse, create, and review them in the app
 - [ACP](https://agentclientprotocol.com) support for AI agents
-- Developer ID signing and notarization
-- Larger AI selections for CLI providers (beyond 64 KiB)
 - Periodic background Git fetch with a configurable interval to keep remote branches
   and ahead/behind counts current, without automatically pulling or merging
 

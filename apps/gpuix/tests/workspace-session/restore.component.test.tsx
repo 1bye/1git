@@ -83,6 +83,74 @@ const read: typeof RepositoryReader.read = async (path) => {
 	};
 };
 
+it("saves resized sidebar widths and restores them after restarting the app", async () => {
+	const save = mock<(document: WorkspaceSessionDocument) => void>(() => {});
+
+	root.render(
+		<App
+			initialSession={{
+				...session(),
+				sidebarWidths: { files: 370, graph: 290 },
+			}}
+			readRepository={read}
+			saveSession={save}
+		/>
+	);
+	await settle();
+	await settle();
+	expect(
+		root.renderer.getElementBounds(node("repository-navigation").id)?.width
+	).toBe(370);
+	root.renderer.nativeSimulateKeyDown(
+		node("repository-navigation-divider").id,
+		"right"
+	);
+	root.renderer.flush();
+	await Bun.sleep(250);
+	const saved = save.mock.calls.at(-1)?.[0];
+
+	expect(saved?.sidebarWidths).toEqual({ files: 380, graph: 290 });
+	root.render(
+		<App key="restarted" initialSession={saved} readRepository={read} />
+	);
+	await settle();
+	await settle();
+	expect(
+		root.renderer.getElementBounds(node("repository-navigation").id)?.width
+	).toBe(380);
+});
+
+it("bounds a saved sidebar in a compact window without overwriting its preferred width", async () => {
+	root.unmount();
+	root = createTestRoot({
+		width: 640,
+		height: 500,
+		onKeyDown: windowOptions.onKeyDown,
+	});
+	const save = mock<(document: WorkspaceSessionDocument) => void>(() => {});
+
+	root.render(
+		<App
+			initialSession={{
+				...session(),
+				sidebarWidths: { files: 600, graph: 420 },
+			}}
+			readRepository={read}
+			saveSession={save}
+		/>
+	);
+	await settle();
+	await settle();
+	expect(
+		root.renderer.getElementBounds(node("repository-navigation").id)?.width
+	).toBe(320);
+	await Bun.sleep(250);
+	expect(save.mock.calls.at(-1)?.[0].sidebarWidths).toEqual({
+		files: 600,
+		graph: 420,
+	});
+});
+
 it("restores and saves the file layout across all file panes", async () => {
 	const save = mock<(document: WorkspaceSessionDocument) => void>(() => {});
 

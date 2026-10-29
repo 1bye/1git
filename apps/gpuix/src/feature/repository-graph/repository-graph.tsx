@@ -34,6 +34,9 @@ import {
 	graphColumnWidths,
 } from "./graph-commit-row";
 
+import { ResizableSidebar } from "../../fixture/resizable-sidebar";
+import { sidebarWidthLimits } from "../repository-workspace/lib/sidebar-widths";
+
 const column = {
 	display: "flex",
 	flexDirection: "column",
@@ -69,6 +72,8 @@ export function RepositoryGraph({
 	head,
 	version,
 	disabled = false,
+	sidebarWidth = sidebarWidthLimits.graph.default,
+	onSidebarWidthChange,
 	readReferences = RepositoryGraphReader.references,
 	...readers
 }: {
@@ -76,12 +81,12 @@ export function RepositoryGraph({
 	head: string | null;
 	version: number;
 	disabled?: boolean;
+	sidebarWidth?: number;
+	onSidebarWidthChange?: (width: number) => void;
 } & Readers) {
 	const { colors, tokens } = useAppTheme();
 	const renderer = useGpuixRequired();
 	const search = useRef<PublicInstance>(null);
-	const window = useWindowSize();
-	const sidebarWidth = window.width < 850 ? 190 : 230;
 	const [result, setResult] = useState<GraphReferences | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [loading, setLoading] = useState(true);
@@ -185,17 +190,13 @@ export function RepositoryGraph({
 					</div>
 				) : null}
 				<div style={{ ...row, flexGrow: 1, flexBasis: 0 }}>
-					<div
+					<ResizableSidebar
 						testId="graph-sidebar"
-						style={{
-							...column,
-							flexGrow: 0,
-							flexBasis: sidebarWidth,
-							width: sidebarWidth,
-							flexShrink: 0,
-							borderRightWidth: 1,
-							borderColor: colors.editorHairline,
-						}}
+						label="Branches and tags"
+						width={sidebarWidth}
+						onWidthChange={onSidebarWidthChange}
+						minWidth={sidebarWidthLimits.graph.min}
+						maxWidth={sidebarWidthLimits.graph.max}
 					>
 						<div
 							style={{
@@ -328,7 +329,7 @@ export function RepositoryGraph({
 								);
 							}}
 						/>
-					</div>
+					</ResizableSidebar>
 					{result ? (
 						<GraphResults
 							key={JSON.stringify(tips)}

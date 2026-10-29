@@ -158,6 +158,8 @@ import { RepositoryPullRequest } from "./feature/repository-pull-request/reposit
 import { RepositoryPullRequestView } from "./feature/repository-pull-request/repository-pull-request-view";
 import { RepositoryHistorySquash } from "./feature/repository-workspace/lib/repository-history-squash";
 import { RepositoryCommitDetails } from "./feature/repository-workspace/components/repository-commit-details";
+import { GrainPreferences } from "./feature/appearance-settings/grain-settings";
+import { SidebarWidthPreferences } from "./feature/repository-workspace/lib/sidebar-widths";
 import { RepositoryGraph } from "./feature/repository-graph/repository-graph";
 import { RepositoryGraphReader } from "./feature/repository-graph/repository-graph-reader";
 import { AiProvider } from "./feature/ai/ai-provider";
@@ -204,6 +206,10 @@ export function App({
 		TypographyPreferences.parse(props.initialSession?.typography)
 	);
 
+	const [grainSettings, setGrainSettings] = useState(() =>
+		GrainPreferences.parse(props.initialSession?.grainSettings)
+	);
+
 	const [showGrain, setShowGrain] = useState(
 		props.initialSession?.showGrain ?? true
 	);
@@ -233,6 +239,8 @@ export function App({
 			setTypography,
 			showGrain,
 			setShowGrain,
+			grainSettings,
+			setGrainSettings,
 			showScrollbars,
 			setShowScrollbars,
 			appearancePreference,
@@ -248,6 +256,7 @@ export function App({
 			commitTypeBadges,
 			smoothTransitions,
 			showGrain,
+			grainSettings,
 			showScrollbars,
 			typographyPreferences,
 		]
@@ -745,6 +754,10 @@ function AppContent({
 	const { overrides: keybindOverrides } = useKeybinds();
 	const { layout: fileListLayout } = useRepositoryFileLayout();
 
+	const [sidebarWidths, setSidebarWidths] = useState(() =>
+		SidebarWidthPreferences.parse(initialSession?.sidebarWidths)
+	);
+
 	const session = useWorkspaceSession(
 		state,
 		saveSession,
@@ -763,7 +776,9 @@ function AppContent({
 		tips,
 		keybindOverrides,
 		fileListLayout,
-		theme.showGrain
+		theme.showGrain,
+		sidebarWidths,
+		theme.grainSettings
 	);
 
 	useEffect(() => {
@@ -2547,6 +2562,10 @@ function AppContent({
 						contentWorkspace.view !== "graph" &&
 						!ignoredVisible ? (
 							<RepositoryNavigation
+								sidebarWidth={sidebarWidths.files}
+								onSidebarWidthChange={(files) =>
+									setSidebarWidths((previous) => ({ ...previous, files }))
+								}
 								onAiSettings={() => {
 									openSettings();
 									setSettingsSection("ai");
@@ -3106,6 +3125,10 @@ function AppContent({
 						  contentWorkspace?.repository &&
 						  contentWorkspace.view === "graph" ? (
 							<RepositoryGraph
+								sidebarWidth={sidebarWidths.graph}
+								onSidebarWidthChange={(graph) =>
+									setSidebarWidths((previous) => ({ ...previous, graph }))
+								}
 								fileTreeScope={contentTab.id}
 								key={`graph:${contentTab.id}:${contentWorkspace.repository.root}`}
 								root={contentWorkspace.repository.root}

@@ -60,20 +60,14 @@ import type {
 import type { ExternalEditors } from "../../editor-settings/external-editors";
 import type { RepositoryHistorySquash } from "../lib/repository-history-squash";
 
+import { ResizableSidebar } from "../../../fixture/resizable-sidebar";
+import { sidebarWidthLimits } from "../lib/sidebar-widths";
+
 const sidebarBorderWidth = 1;
 const revisionCountFormat = new Intl.NumberFormat();
 
 const themedStyles = createThemedStyles(({ colors: appColors }) => {
 	const styles = StyleSheet.create({
-		navigation: {
-			display: "flex",
-			flexDirection: "column",
-			width: 310,
-			flexShrink: 0,
-			minHeight: 0,
-			borderRightWidth: sidebarBorderWidth,
-			borderColor: appColors.editorHairline,
-		},
 		toolbar: {
 			display: "flex",
 			flexDirection: "row",
@@ -236,6 +230,8 @@ function RepositoryNavigationContent({
 	openFile,
 	externalEditors,
 	onPreviewIntent,
+	sidebarWidth = sidebarWidthLimits.files.default,
+	onSidebarWidthChange,
 	hidden,
 }: {
 	workspaceId: string;
@@ -273,6 +269,8 @@ function RepositoryNavigationContent({
 	externalEditors?: ExternalEditors;
 	onPreviewIntent?: (entry: WorkspaceEntry | null) => void;
 	hidden?: boolean;
+	sidebarWidth?: number;
+	onSidebarWidthChange?: (width: number) => void;
 }) {
 	const theme = useAppTheme();
 	const { tokens: appTokens, colors: appColors } = theme;
@@ -611,25 +609,14 @@ function RepositoryNavigationContent({
 	);
 
 	return (
-		<div
+		<ResizableSidebar
 			testId="repository-navigation"
-			role="navigation"
-			aria-label="Repository navigation"
-			aria-hidden={hidden || undefined}
-			style={StyleSheet.compose(
-				styles.navigation,
-				hidden
-					? {
-							position: "absolute",
-							top: 0,
-							bottom: 0,
-							left: 0,
-							width: 0,
-							visibility: "hidden",
-							pointerEvents: "none",
-						}
-					: undefined
-			)}
+			label="Repository navigation"
+			width={sidebarWidth}
+			onWidthChange={onSidebarWidthChange}
+			minWidth={sidebarWidthLimits.files.min}
+			maxWidth={sidebarWidthLimits.files.max}
+			hidden={hidden}
 		>
 			<div testId="repository-views" style={styles.toolbar}>
 				<text
@@ -1028,6 +1015,6 @@ function RepositoryNavigationContent({
 					</div>
 				)}
 			</div>
-		</div>
+		</ResizableSidebar>
 	);
 }

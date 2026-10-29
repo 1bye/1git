@@ -207,6 +207,36 @@ it("switches Graph file navigation to a read-only tree without changing commit n
 	);
 });
 
+it("resizes the branch sidebar with the mouse and keyboard and remembers its width after leaving Graph", async () => {
+	show();
+	await open();
+	const divider = bounds("graph-sidebar-divider");
+	const x = divider.x + divider.width / 2;
+	const y = divider.y + 200;
+
+	root.renderer.nativeSimulateMouseDown(x, y);
+	root.renderer.nativeSimulateMouseMove(x + 70, y + 80, 0);
+	root.renderer.nativeSimulateMouseUp(x + 70, y + 80);
+	root.renderer.flush();
+	expect(bounds("graph-sidebar").width).toBe(300);
+	click("view-history");
+	click("view-graph");
+	await settle();
+	expect(bounds("graph-sidebar").width).toBe(300);
+	root.renderer.nativeSimulateKeyDown(
+		element("graph-sidebar-divider").id,
+		"home"
+	);
+	root.renderer.flush();
+	expect(bounds("graph-sidebar").width).toBe(180);
+	root.renderer.nativeSimulateKeyDown(
+		element("graph-sidebar-divider").id,
+		"end"
+	);
+	root.renderer.flush();
+	expect(bounds("graph-sidebar").width).toBe(420);
+});
+
 for (const appearance of ["light", "dark"] as const) {
 	it(`opens a separate ${appearance} Graph rail tab and inspects commit files without replacing History`, async () => {
 		show(appearance);

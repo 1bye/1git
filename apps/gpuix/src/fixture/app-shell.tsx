@@ -9,16 +9,22 @@ import { StyleSheet } from "@1git/gpuix-stylesheet";
 import { useMemo, useState, type ReactNode, type Ref } from "react";
 import type { PublicInstance } from "@gpuix/react";
 import { WorkspaceCornerContext } from "./workspace-corner";
-import { chromeGrainImages, chromeGrainTileCount } from "./chrome-grain";
+import { chromeGrainImages } from "./chrome-grain";
 import { RepositoryPatternLayer } from "../feature/repository-appearance/repository-pattern-layer";
 import { useThemeTransition } from "../styles/theme-transition";
 
-const grainTiles = Array.from(
-	{ length: chromeGrainTileCount },
-	(_, tile) => tile
-);
+import {
+	defaultGrainSettings,
+	grainPatterns,
+	grainStrengths,
+} from "../feature/appearance-settings/grain-settings";
 
-const grainTileWidth = `${100 / chromeGrainTileCount}%` as const;
+const grainTiles = new Map(
+	grainPatterns.map(({ value, tiles }) => [
+		value,
+		Array.from({ length: tiles }, (_, index) => index),
+	])
+);
 
 const themedStyles = createThemedStyles(({ colors: appColors }) => {
 	const styles = StyleSheet.create({
@@ -108,6 +114,15 @@ export function AppShell({
 	);
 
 	const { styles } = themedStyles.get(theme);
+	const grain = theme.grainSettings ?? defaultGrainSettings;
+
+	const tiles =
+		grainTiles.get(grain.pattern) ?? grainTiles.get("classic") ?? [];
+
+	const grainTileWidth = `${100 / tiles.length}%` as const;
+
+	const strength =
+		grainStrengths.find(({ value }) => value === grain.strength)?.opacity ?? 1;
 
 	const [rightRadius, setRightRadius] = useState<number>(
 		workspaceLayout.workspaceSurfaceRadius
@@ -148,7 +163,7 @@ export function AppShell({
 							overflowX: "hidden",
 							overflowY: "hidden",
 							pointerEvents: "none",
-							opacity: theme.appearance === "dark" ? 0.12 : 0.09,
+							opacity: (theme.appearance === "dark" ? 0.12 : 0.09) * strength,
 						}}
 					>
 						{/* Match the SVG mask's width-scaled square and vertical centering. */}
@@ -161,7 +176,7 @@ export function AppShell({
 								pointerEvents: "none",
 							}}
 						>
-							{grainTiles.map((row) => (
+							{tiles.map((row) => (
 								<div
 									key={row}
 									style={{
@@ -172,7 +187,7 @@ export function AppShell({
 										pointerEvents: "none",
 									}}
 								>
-									{grainTiles.map((column) => (
+									{tiles.map((column) => (
 										<img
 											key={column}
 											alt=""

@@ -13,6 +13,7 @@ import { createTestRoot, type TestRoot } from "@gpuix/react/testing";
 import { AppShell } from "../../src/fixture/app-shell";
 import { AppThemeContext, appThemes } from "../../src/styles/theme";
 import { RepositoryTheme } from "../../src/styles/repository-theme";
+import { grainPatterns } from "../../src/feature/appearance-settings/grain-settings";
 import {
 	chromeGrainImages,
 	chromeGrainSource,
@@ -31,7 +32,7 @@ afterEach(async () => {
 	await rm(directory, { recursive: true, force: true });
 });
 
-it("bounds both decoded grain textures to 8 MiB together", async () => {
+it("bounds all grain choices to two shared textures below 2 MiB together", async () => {
 	let decodedBytes = 0;
 
 	for (const source of Object.values(chromeGrainImages)) {
@@ -43,7 +44,64 @@ it("bounds both decoded grain textures to 8 MiB together", async () => {
 	}
 
 	expect(decodedBytes).toBeGreaterThan(0);
-	expect(decodedBytes).toBeLessThanOrEqual(8 * 1024 * 1024);
+	expect(decodedBytes).toBeLessThanOrEqual(2 * 1024 * 1024);
+	process.stdout.write(
+		`Decoded grain textures: ${decodedBytes} bytes (previously 8000000)\n`
+	);
+});
+
+it("shares the same images across every pattern and strength without covering or intercepting content", () => {
+	root = createTestRoot({ width: 980, height: 640 });
+	const current = root;
+	const sources = new Set<unknown>();
+	const widths: number[] = [];
+
+	for (const { value: pattern } of grainPatterns) {
+		for (const appearance of ["light", "dark"] as const) {
+			for (const strength of ["subtle", "strong"] as const) {
+				current.render(
+					<AppThemeContext
+						value={{
+							...appThemes[appearance],
+							commitTypeBadges: true,
+							grainSettings: { pattern, strength },
+						}}
+					>
+						<AppShell
+							workspaceLabel="Grain choices"
+							toolbar={<div style={{ height: 64 }} />}
+						>
+							<div testId="opaque-grain-content" style={{ flexGrow: 1 }} />
+						</AppShell>
+					</AppThemeContext>
+				);
+				const images = current.renderer.findByType("img");
+
+				for (const image of images) {
+					const source = image.customProps?.src;
+
+					sources.add(source);
+					expect(source).toBe(chromeGrainImages[appearance]);
+					expect(image.style.pointerEvents).toBe("none");
+				}
+
+				const layer = current.renderer.findByTestId("repository-chrome-grain");
+
+				expect(layer?.style.opacity).toBeCloseTo(
+					(appearance === "light" ? 0.09 : 0.12) *
+						(strength === "subtle" ? 0.5 : 1.5)
+				);
+				const first = images[0];
+
+				if (!first) throw new Error("Missing grain texture");
+
+				widths.push(current.renderer.getElementBounds(first.id)?.width ?? 0);
+			}
+		}
+	}
+
+	expect(sources.size).toBe(2);
+	expect(new Set(widths).size).toBe(3);
 });
 
 it.each([
@@ -270,39 +328,50 @@ it.each([
 	20000
 );
 
-it("keeps grain rendering within a frame while resizing to uncached widths", () => {
-	root = createTestRoot({ width: 1440, height: 900 });
-	const current = root;
+it.each([...grainPatterns])(
+	"keeps $value grain rendering within a frame while resizing to uncached widths",
+	({ value: pattern }) => {
+		root = createTestRoot({ width: 1440, height: 900 });
+		const current = root;
 
-	const render = (width: number): void => {
-		current.render(
-			<div style={{ width, height: 640 }}>
-				<AppThemeContext value={{ ...appThemes.dark, commitTypeBadges: true }}>
-					<AppShell
-						workspaceLabel="Resize test"
-						toolbar={<div style={{ height: 64, flexShrink: 0 }} />}
+		const render = (width: number): void => {
+			current.render(
+				<div style={{ width, height: 640 }}>
+					<AppThemeContext
+						value={{
+							...appThemes.dark,
+							commitTypeBadges: true,
+							grainSettings: { pattern, strength: "balanced" },
+						}}
 					>
-						<div style={{ flexGrow: 1 }} />
-					</AppShell>
-				</AppThemeContext>
-			</div>
+						<AppShell
+							workspaceLabel="Resize test"
+							toolbar={<div style={{ height: 64, flexShrink: 0 }} />}
+						>
+							<div style={{ flexGrow: 1 }} />
+						</AppShell>
+					</AppThemeContext>
+				</div>
+			);
+		};
+
+		// Warm startup assets, then use widths that have never entered the SVG cache.
+		render(980);
+		const durationsMs: number[] = [];
+
+		for (let frame = 0; frame < 8; frame++) {
+			const started = performance.now();
+
+			render(1000 + frame * 13);
+			durationsMs.push(performance.now() - started);
+		}
+
+		durationsMs.sort((left, right) => left - right);
+		const medianMs = durationsMs[Math.floor(durationsMs.length / 2)];
+
+		process.stdout.write(
+			`${pattern} grain resize median: ${medianMs?.toFixed(2)} ms\n`
 		);
-	};
-
-	// Warm startup assets, then use widths that have never entered the SVG cache.
-	render(980);
-	const durationsMs: number[] = [];
-
-	for (let frame = 0; frame < 8; frame++) {
-		const started = performance.now();
-
-		render(1000 + frame * 13);
-		durationsMs.push(performance.now() - started);
+		expect(medianMs).toBeLessThan(1000 / 60);
 	}
-
-	durationsMs.sort((left, right) => left - right);
-	const medianMs = durationsMs[Math.floor(durationsMs.length / 2)];
-
-	process.stdout.write(`Grain resize median: ${medianMs?.toFixed(2)} ms\n`);
-	expect(medianMs).toBeLessThan(1000 / 60);
-});
+);
