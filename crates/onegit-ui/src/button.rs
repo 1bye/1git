@@ -95,6 +95,8 @@ pub struct Button {
     pub icon: Option<IconName>,
     /// Optional accessible name overriding the visible label.
     pub accessibility_label: Option<SharedString>,
+    /// Optional retained focus target, for dialog initial focus or programmatic focus.
+    pub focus: Option<gpui::FocusHandle>,
     /// Optional activation callback; availability is enforced before dispatch.
     pub on_press: Option<PressHandler>,
 }
@@ -112,6 +114,7 @@ impl Button {
             state: ControlState::Enabled,
             icon: None,
             accessibility_label: None,
+            focus: None,
             on_press: None,
         }
     }
@@ -148,7 +151,13 @@ impl std::fmt::Debug for Button {
 }
 
 impl RenderOnce for Button {
-    fn render(self, _: &mut gpui::Window, _: &mut gpui::App) -> impl IntoElement {
+    fn render(self, window: &mut gpui::Window, cx: &mut gpui::App) -> impl IntoElement {
+        let focus = self.focus.clone().unwrap_or_else(|| {
+            window
+                .use_keyed_state(self.id.clone(), cx, |_, cx| cx.focus_handle())
+                .read(cx)
+                .clone()
+        });
         let theme = Theme::current();
         let enabled = self.state.is_interactive();
         let busy = self.state == ControlState::Busy;
@@ -235,7 +244,7 @@ impl RenderOnce for Button {
                 enabled,
                 move |paint| {
                     rake::view! {
-                        <button id={self.id} disabled={!enabled} aria-label={label}
+                        <button id={self.id} focus={&focus} disabled={!enabled} aria-label={label}
                             aria-description={if busy { "In progress" } else { "" }}
                             class="flex flex-row items-center justify-center gap-1.5 shrink-0 min-w-0 max-w-[100%] font-medium"
                             style={|s| focusable(s).w(dimensions.width).h(dimensions.height)

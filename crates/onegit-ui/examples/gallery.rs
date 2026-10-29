@@ -1,11 +1,12 @@
 //! Native component workbench. All actions update sample state; no Git calls are made.
 use onegit_ui::{
     Appearance, Button, ButtonTone, ButtonVariant, CheckState, Checkbox, ControlSize, ControlState,
-    DropdownMenu, Icon, IconButton, IconName, IconSize, InputAvailability, InputEvent, InputState,
-    InputValidation, ListRow, MenuAlignment, MenuEntry, MenuItem, Pane, RowSelection, SearchField,
-    Text, TextArea, TextInput, TextRole, TextTone, Theme, Tooltip,
+    Dialog, DialogAvailability, DialogDismissal, DialogHost, DialogHostState, DialogKind,
+    DialogState, DropdownMenu, Icon, IconButton, IconName, IconSize, InputAvailability, InputEvent,
+    InputState, InputValidation, ListRow, MenuAlignment, MenuEntry, MenuItem, Pane, RowSelection,
+    SearchField, Text, TextArea, TextInput, TextRole, TextTone, Theme, Tooltip,
 };
-use rake::gpui::{self, Context, FocusHandle, ScrollHandle, Window, prelude::*, px};
+use rake::gpui::{self, Context, FocusHandle, Focusable, ScrollHandle, Window, prelude::*, px};
 
 rake::theme!(Theme);
 
@@ -18,6 +19,7 @@ enum Section {
     Typography,
     Inputs,
     Overlays,
+    Dialogs,
 }
 
 struct Gallery {
@@ -39,6 +41,16 @@ struct Gallery {
     submissions: usize,
     current_branch: usize,
     last_file_action: String,
+    dialogs: DialogHostState,
+    create_dialog: gpui::Entity<DialogState>,
+    discard_dialog: gpui::Entity<DialogState>,
+    new_branch: gpui::Entity<InputState>,
+    discard_cancel: FocusHandle,
+    create_attempted: bool,
+    slow_dialogs: bool,
+    dialog_busy: bool,
+    dialog_result: String,
+    dialog_task: Option<gpui::Task<()>>,
     _input_subscriptions: Vec<gpui::Subscription>,
 }
 
@@ -60,7 +72,11 @@ impl Gallery {
         let validation = cx.new(|cx| InputState::new("feature branch", window, cx));
         let readonly = cx.new(|cx| InputState::new("main", window, cx));
         let disabled_input = cx.new(|cx| InputState::new("Waiting for a repository", window, cx));
-        let subscriptions = [&branch, &search, &message, &validation]
+        let dialogs = DialogHostState::new(cx);
+        let create_dialog = dialogs.dialog(cx);
+        let discard_dialog = dialogs.dialog(cx);
+        let new_branch = cx.new(|cx| InputState::new("", window, cx));
+        let mut subscriptions: Vec<_> = [&branch, &search, &message, &validation]
             .into_iter()
             .map(|input| {
                 cx.subscribe(input, |this, _, event, cx| {
@@ -71,7 +87,27 @@ impl Gallery {
                 })
             })
             .collect();
+        subscriptions.push(cx.subscribe_in(
+            &new_branch,
+            window,
+            |this: &mut Self, _, event, window, cx| {
+                if *event == InputEvent::Submitted && this.create_dialog.read(cx).is_open() {
+                    this.create_branch(window, cx);
+                }
+                cx.notify();
+            },
+        ));
         Self {
+            dialogs,
+            create_dialog,
+            discard_dialog,
+            new_branch,
+            discard_cancel: cx.focus_handle(),
+            create_attempted: false,
+            slow_dialogs: false,
+            dialog_busy: false,
+            dialog_result: "No dialog action completed".into(),
+            dialog_task: None,
             branch,
             search,
             message,
@@ -91,6 +127,146 @@ impl Gallery {
             activations: 0,
             busy: false,
             expanded: false,
+        }
+    }
+
+    fn branch_error(&self, cx: &gpui::App) -> Option<&'static str> {
+        let name = self.new_branch.read(cx).text();
+        if name.is_empty() {
+            Some("Enter a branch name.")
+        } else if name.chars().any(char::is_whitespace) {
+            Some("Use a name without spaces.")
+        } else if ["main", "feature/native-ui"].contains(&name) {
+            Some("That sample branch already exists.")
+        } else {
+            None
+        }
+    }
+    fn open_create(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.create_attempted = false;
+        self.create_dialog.update(cx, |state, cx| {
+            state.open(window, cx);
+        });
+        cx.notify();
+    }
+    fn create_branch(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.dialog_busy {
+            return;
+        }
+        self.create_attempted = true;
+        if self.branch_error(cx).is_some() {
+            window.focus(&self.new_branch.read(cx).focus_handle(cx), cx);
+            cx.notify();
+            return;
+        }
+        let name = self.new_branch.read(cx).text().to_owned();
+        if self.slow_dialogs {
+            self.dialog_busy = true;
+            self.dialog_task = Some(cx.spawn_in(window, async move |this, cx| {
+                cx.background_executor()
+                    .timer(std::time::Duration::from_millis(900))
+                    .await;
+                let _ = this.update_in(cx, |this, window, cx| this.finish_create(name, window, cx));
+            }));
+        } else {
+            self.finish_create(name, window, cx);
+        }
+        cx.notify();
+    }
+    fn finish_create(&mut self, name: String, window: &mut Window, cx: &mut Context<Self>) {
+        self.dialog_busy = false;
+        self.dialog_result = format!("Created sample branch: {name}");
+        self.create_dialog.update(cx, |state, cx| {
+            state.close(window, cx);
+        });
+        cx.notify();
+    }
+    fn discard_changes(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.dialog_busy {
+            return;
+        }
+        if self.slow_dialogs {
+            self.dialog_busy = true;
+            self.dialog_task = Some(cx.spawn_in(window, async move |this, cx| {
+                cx.background_executor()
+                    .timer(std::time::Duration::from_millis(900))
+                    .await;
+                let _ = this.update_in(cx, |this, window, cx| this.finish_discard(window, cx));
+            }));
+        } else {
+            self.finish_discard(window, cx);
+        }
+        cx.notify();
+    }
+    fn finish_discard(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.dialog_busy = false;
+        self.dialog_result = "Discarded changes in 2 sample files".into();
+        self.discard_dialog.update(cx, |state, cx| {
+            state.close(window, cx);
+        });
+        cx.notify();
+    }
+    fn dialog_examples(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
+        rake::view! {
+            <Pane header={Some(rake::view!{<Text role={TextRole::Title} {..Text::new("title","Dialogs")}/>}.into_any_element())} {..Pane::new("dialogs")}>
+                <Text tone={TextTone::Muted} {..Text::new("intro","Focused forms and clear confirmations. These examples use sample values only.")}/>
+                <div class="flex flex-row flex-wrap gap-2">
+                    <Button icon={Some(IconName::Plus)} on_press={Some(Box::new(cx.listener(|this,_,window,cx|this.open_create(window,cx))))} {..Button::new("create","Create branch")}/>
+                    <Button tone={ButtonTone::Danger} on_press={Some(Box::new(cx.listener(|this,_,window,cx|{this.discard_dialog.update(cx,|state,cx|{state.open(window,cx);});})))} {..Button::new("discard","Discard changes…")}/>
+                </div>
+                <Checkbox checked={if self.slow_dialogs{CheckState::Checked}else{CheckState::Unchecked}}
+                    on_change={Some(Box::new(cx.listener(|this,value:&CheckState,_,cx|{this.slow_dialogs=*value==CheckState::Checked;cx.notify();})))} {..Checkbox::new("slow-dialog","Simulate a slow operation")}/>
+                <Text role={TextRole::Caption} tone={TextTone::Muted} {..Text::new("result",self.dialog_result.clone())}/>
+                <Text role={TextRole::Caption} tone={TextTone::Muted} {..Text::new("help","Tab stays inside the dialog. Escape cancels, and closing returns focus to the opener.")}/>
+            </Pane>
+        }
+    }
+    fn create_modal(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
+        let busy = self.dialog_busy;
+        let error = self.branch_error(cx);
+        let footer=rake::view! {
+            <div class="flex flex-row flex-wrap items-center gap-2">
+                <Button state={if busy{ControlState::Disabled}else{ControlState::Enabled}} on_press={Some(Box::new(cx.listener(|this,_,window,cx|{this.create_dialog.update(cx,|state,cx|{state.close(window,cx);});})))} {..Button::new("cancel","Cancel")}/>
+                <Button variant={ButtonVariant::Primary} state={if busy{ControlState::Busy}else if self.new_branch.read(cx).text().is_empty(){ControlState::Disabled}else{ControlState::Enabled}}
+                    on_press={Some(Box::new(cx.listener(|this,_,window,cx|this.create_branch(window,cx))))} {..Button::new("create",if busy{"Creating…"}else{"Create branch"})}/>
+            </div>
+        }.into_any_element();
+        rake::view! {
+            <Dialog description={Some("Create a branch from the current commit on main.".into())} footer={Some(footer)}
+                dismissal={DialogDismissal::EscapeAndOutside} availability={if busy{DialogAvailability::Busy}else{DialogAvailability::Ready}}
+                initial_focus={Some(self.new_branch.read(cx).focus_handle(cx))} {..Dialog::new("create-modal",&self.create_dialog,"Create branch")}>
+                <TextInput placeholder={"feature/my-change".into()} description={Some("Use a unique name without spaces.".into())}
+                    validation={if self.create_attempted {error.map_or(InputValidation::Valid,|message|InputValidation::Invalid(message.into()))}else{InputValidation::Valid}}
+                    availability={if busy{InputAvailability::ReadOnly}else{InputAvailability::Enabled}}
+                    {..TextInput::new("branch-name",&self.new_branch,"Branch name")}/>
+                <Text role={TextRole::Caption} tone={TextTone::Muted} {..Text::new("base","Starting point: main · a1b2c3d")}/>
+            </Dialog>
+        }
+    }
+    fn discard_modal(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
+        let busy = self.dialog_busy;
+        let footer=rake::view! {
+            <div class="flex flex-row flex-wrap items-center gap-2">
+                <Button focus={Some(self.discard_cancel.clone())} state={if busy{ControlState::Disabled}else{ControlState::Enabled}}
+                    on_press={Some(Box::new(cx.listener(|this,_,window,cx|{this.discard_dialog.update(cx,|state,cx|{state.close(window,cx);});})))} {..Button::new("cancel","Keep changes")}/>
+                <Button variant={ButtonVariant::Primary} tone={ButtonTone::Danger} state={if busy{ControlState::Busy}else{ControlState::Enabled}}
+                    on_press={Some(Box::new(cx.listener(|this,_,window,cx|this.discard_changes(window,cx))))} {..Button::new("discard",if busy{"Discarding…"}else{"Discard changes"})}/>
+            </div>
+        }.into_any_element();
+        rake::view! {
+            <Dialog kind={DialogKind::Confirmation} description={Some("Discard uncommitted changes in these 2 files?".into())} footer={Some(footer)}
+                initial_focus={Some(self.discard_cancel.clone())} availability={if busy{DialogAvailability::Busy}else{DialogAvailability::Ready}}
+                {..Dialog::new("discard-modal",&self.discard_dialog,"Discard changes?")}>
+                <div class="flex flex-col gap-2 rounded-control bg-surface-sunken p-3">
+                    for (index,(name,summary)) in [("theme.rs","+24 −8"),("button.rs","+12 −3")].into_iter().enumerate(){
+                        <div id={("file",index)} class="flex flex-row items-center gap-2">
+                            <Icon {..Icon::new("icon",IconName::File)}/><Text {..Text::new("name",name)}/>
+                            <Text role={TextRole::Caption} tone={TextTone::Muted} {..Text::new("summary",summary)}/>
+                        </div>
+                    }
+                </div>
+                <Text tone={TextTone::Danger} {..Text::new("warning","Discarded edits cannot be recovered by 1git.")}/>
+            </Dialog>
         }
     }
 
@@ -415,12 +591,12 @@ impl Render for Gallery {
             2
         };
         let item_count: u16 = match self.section {
-            Section::Overview => 8,
+            Section::Overview => 9,
             Section::Actions | Section::Inputs | Section::Overlays => 2,
-            Section::Selection | Section::Typography => 1,
+            Section::Selection | Section::Typography | Section::Dialogs => 1,
         };
         let rows = item_count.div_ceil(columns);
-        rake::view! {
+        let body = rake::view! {
             <main class="size-full flex flex-col bg-background text-ink" focus={&self.focus} tab-navigation={true}>
                 <header class="flex flex-row items-center justify-between gap-4 px-6 py-4 border-b-1 border-line">
                     <div class="flex flex-col gap-1">
@@ -437,7 +613,7 @@ impl Render for Gallery {
                     </div>
                 </header>
                 <nav class="flex flex-row flex-wrap gap-1 px-6 py-3">
-                    for (index,(section,label)) in [(Section::Overview,"Overview"),(Section::Actions,"Actions"),(Section::Selection,"Selection"),(Section::Typography,"Typography"),(Section::Inputs,"Inputs"),(Section::Overlays,"Menus & hints")].into_iter().enumerate() {
+                    for (index,(section,label)) in [(Section::Overview,"Overview"),(Section::Actions,"Actions"),(Section::Selection,"Selection"),(Section::Typography,"Typography"),(Section::Inputs,"Inputs"),(Section::Overlays,"Menus & hints"),(Section::Dialogs,"Dialogs")].into_iter().enumerate() {
                         <Button id={("section",index).into()}
                             variant={if self.section==section {ButtonVariant::Secondary} else {ButtonVariant::Ghost}}
                             on_press={Some(Box::new(cx.listener(move |this,_,_,cx|{
@@ -452,6 +628,7 @@ impl Render for Gallery {
                         if matches!(self.section,Section::Overview|Section::Typography) { {self.typography()} }
                         if matches!(self.section,Section::Overview|Section::Inputs) { {self.inputs(cx)} {self.input_states(cx)} }
                         if matches!(self.section,Section::Overview|Section::Overlays) { {self.menus(cx)} {self.tooltips(cx)} }
+                        if matches!(self.section,Section::Overview|Section::Dialogs) {{self.dialog_examples(cx)}}
                     </div>
                 </div>
                 <footer class="px-6 py-2 border-t-1 border-line">
@@ -459,6 +636,12 @@ impl Render for Gallery {
                         {..Text::new("footer","1git components · 24 / 28 / 34 px controls · keyboard focus always visible")}/>
                 </footer>
             </main>
+        }.into_any_element();
+        rake::view! {
+            <DialogHost state={self.dialogs.clone()} body={body}>
+                {self.create_modal(cx)}
+                {self.discard_modal(cx)}
+            </DialogHost>
         }
     }
 }

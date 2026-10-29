@@ -68,6 +68,7 @@ requires an ID, and direct loop-root components must also have an explicit `id` 
 | `TextArea` | Soft-wrapped multiline editing, visible rows and vertical scrolling |
 | `Tooltip` | Delayed hover or immediate focus hint, optional shortcut caption, Escape dismissal |
 | `DropdownMenu` | Branch choices and actions, icons, shortcut captions, separators, disabled/danger states |
+| `Dialog` | Standard/confirmation modal, title/description, body/footer, initial focus, busy and dismissal policies |
 
 `ControlState::{Enabled, Disabled, Busy}` prevents contradictory availability flags.
 Busy actions retain their label and show a work glyph; no percentage or completion
@@ -198,6 +199,86 @@ There is no continuous overlay timer or transition loop. Trigger resizing reuses
 same 120 ms measured animation as buttons; focus, selection and dismissal are immediate.
 The **Menus & hints** gallery demonstrates branch choices and file actions on local
 sample state. It performs no repository mutations.
+
+## Dialogs
+
+Create one `DialogHostState` in the window owner and one retained `DialogState`
+entity for each logical dialog. Mount `DialogHost` at the window root. Put the
+normal application view and its background key contexts in `body`; mount dialogs
+as sibling children. The host hides the background from assistive technology,
+blocks pointer interaction with a scrim, and contains keyboard focus in the modal.
+Only one dialog is open per host: opening another replaces the first and inherits
+its original return-focus target. This is a replacement flow, not a nested dialog stack.
+
+```no_run
+use onegit_ui::{Button, Dialog, DialogHost, DialogHostState, DialogState};
+use rake::gpui::{Context, Entity, IntoElement};
+
+fn retained<T: 'static>(cx: &mut Context<T>) -> (DialogHostState, Entity<DialogState>) {
+    let host = DialogHostState::new(cx);
+    let dialog = host.dialog(cx);
+    (host, dialog)
+}
+
+fn content(host: &DialogHostState, dialog: &Entity<DialogState>) -> impl IntoElement {
+    let open = dialog.clone();
+    let close = dialog.clone();
+    let body = rake::view! {
+        <Button on_press={Some(Box::new(move |_, window, cx| {
+            open.update(cx, |state, cx| { state.open(window, cx); });
+        }))} {..Button::new("open", "Create branch")}/>
+    }.into_any_element();
+    let footer = rake::view! {
+        <Button on_press={Some(Box::new(move |_, window, cx| {
+            close.update(cx, |state, cx| { state.close(window, cx); });
+        }))} {..Button::new("cancel", "Cancel")}/>
+    }.into_any_element();
+    rake::view! {
+        <DialogHost state={host.clone()} body={body}>
+            <Dialog footer={Some(footer)} {..Dialog::new("create", dialog, "Create branch")}>
+                <p>"Your retained input or form goes here."</p>
+            </Dialog>
+        </DialogHost>
+    }
+}
+```
+
+Keep dialogs mounted while the host exists; closed dialogs render no surface.
+Removing a mounted open dialog closes it during frame reconciliation.
+`DialogEvent::Closed` fires once per open-to-closed transition, including replacement
+or unmount. The host automatically redraws its owner when modal state changes;
+subscribe separately only for application lifecycle reactions. Values, validation
+and asynchronous work remain application-owned. Closing never starts or cancels work.
+
+`initial_focus` may target a retained input's `Focusable::focus_handle(...)` or a
+`Button`'s optional `focus` handle. After mount, the dialog focuses that target if
+present, otherwise its first focusable control. Confirmations should start on the
+safe action, such as **Keep changes**. Tab and Shift+Tab wrap, including when a child
+moves focus directly; a modal with no controls keeps focus on its surface. Child
+controls get the first opportunity to handle keys, so Escape closes an open dropdown
+before it closes the dialog. Closing restores a still-mounted opener, or the host's
+mounted application fallback if the opener disappeared. Theme changes preserve focus
+and retained form state.
+
+`DialogKind::Confirmation` announces an alert dialog; footer buttons independently
+choose their semantic tone. `DialogDismissal::Escape` is the default: Escape and the
+close button dismiss while outside clicks are consumed. `EscapeAndOutside` also
+allows outside-click dismissal; `Explicit` hides the close button and requires an
+application-owned action. `DialogAvailability::Busy` suppresses all incidental
+dismissal and announces busy state. The application also disables its Cancel/action
+buttons and input editing while work is pending. Explicit `DialogState::close` remains
+available to complete or recover from work.
+
+The panel defaults to 440 logical pixels and is capped to the window with 16-pixel
+margins. The body scrolls independently of the header and footer. Presentation uses
+the same compact typography, borders, corners and palette as the other controls.
+Opening, focus changes and dismissal are immediate; buttons retain their existing
+fast feedback and size animations. No dialog polling loop or animation timer runs.
+
+The **Dialogs** gallery includes Create branch validation and a Discard changes
+confirmation for two sample files. **Simulate a slow operation** demonstrates busy
+states with a short local delay. These examples never modify a repository; their
+simple branch-name checks demonstrate UI validation rather than Git's full ref rules.
 
 ## Motion
 
