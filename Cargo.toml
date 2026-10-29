@@ -20,6 +20,7 @@ rake = { git = "https://github.com/1bye/rake", rev = "6c643cedd195898d4d6297f61b
 # Must match the GPUI CE revision Rake pins so both resolve to one crate.
 gpui = { package = "gpui_ce", git = "https://github.com/gpui-ce/gpui-ce", rev = "99109e3a77ddadbcb46cba8567e779a651600608", default-features = false }
 gpui-ce-motion = { version = "=0.4.0", default-features = false }
+unicode-segmentation = "=1.13.3"
 libc = "=0.2.191"
 tempfile = "=3.27.0"
 serde_json = "=1.0.154"

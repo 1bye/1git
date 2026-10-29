@@ -63,6 +63,9 @@ requires an ID, and direct loop-root components must also have an explicit `id` 
 | `Checkbox` | Unchecked/checked/mixed, optional visible label, controlled change callback |
 | `ListRow` | Label/description, leading/trailing slots, independent selection and activation |
 | `Pane` | Header/body/footer slots and standard or edge-to-edge body padding |
+| `TextInput` | Single-line editing, label, placeholder, description, validation, sizes |
+| `SearchField` | Single-line search, search glyph, undoable clear action, Escape to clear |
+| `TextArea` | Soft-wrapped multiline editing, visible rows and vertical scrolling |
 
 `ControlState::{Enabled, Disabled, Busy}` prevents contradictory availability flags.
 Busy actions retain their label and show a work glyph; no percentage or completion
@@ -75,6 +78,64 @@ Checkbox changes request a value through `on_change`; the owner updates its stat
 and calls `cx.notify()`. Mixed toggles to checked. `ListRow` puts interactive slots
 beside its main button, so checking a file does not activate the viewed row. Slot
 controls own their availability independently of the row's main action.
+
+## Native inputs
+
+Create one `Entity<InputState>` per logical field outside render and retain it in
+the owner. A state belongs to its construction window and must be mounted in only
+one field at a time. Selection, composition, scroll position and undo history live
+in that entity, so ordinary rerenders and theme changes preserve editing state.
+Install `Theme` before creating the state, as for other components.
+
+```no_run
+use onegit_ui::{InputState, TextInput};
+use rake::gpui::{App, AppContext, Entity, IntoElement, Window};
+
+fn create_field(window: &mut Window, cx: &mut App) -> Entity<InputState> {
+    cx.new(|cx| InputState::new("feature/native-inputs", window, cx))
+}
+
+fn field(state: &Entity<InputState>) -> impl IntoElement {
+    rake::view! {
+        <TextInput placeholder={"feature/my-change".into()}
+            {..TextInput::new("branch", state, "Branch name")}/>
+    }
+}
+```
+
+`SearchField::new` and `TextArea::new` take the same identity, state and label.
+All three expose `show_label`, `placeholder`, `description`, `size`, `availability`
+and `validation`. Labels remain accessible when hidden. `TextArea` also exposes
+`rows` (default five, minimum one). The application supplies
+`InputValidation::Invalid(message)`; validation never blocks editing.
+
+Subscribe once with `cx.subscribe(&state, |owner, state, event, cx| ...)`, and retain
+the subscription. `InputEvent::Changed` means the value changed, including native
+composition updates; read `state.read(cx).text()` for the value.
+`InputEvent::Submitted` means Enter in a single-line field or Cmd+Enter on macOS /
+Ctrl+Enter on Windows and Linux in a text area. Enter adds a line in `TextArea`.
+Submission is suppressed while an IME is accepting a candidate.
+
+Navigation, Shift selection, word/line movement, mouse selection, clipboard and
+undo/redo share the same Unicode buffer. Arrow movement and deletion respect
+extended graphemes such as composed accents and family emoji. Native IME queries
+use UTF-16 ranges; application `selection()` / `select(...)` use UTF-8 byte offsets.
+Undo retains up to 100 edits; one composition transaction is one undo step.
+`set_text(...)` replaces the application value and resets history;
+`clear(...)` is an undoable user edit. Single-line fields convert pasted or
+programmatically supplied line breaks to spaces; text areas preserve them.
+
+`InputAvailability::ReadOnly` permits focus, selection and copying, while
+`Disabled` blocks editing and skips Tab. Search clearing is disabled in either
+state. Escape clears a non-empty editable search; an empty search leaves Escape to
+its parent. The clear action returns focus to the editor. Multiline fields scroll
+and wrap at the available width; the active caret is kept visible. Only the focused
+field in the active window runs a caret timer. Text, caret and selection updates
+are immediate, independent of decorative animation settings.
+
+The **Inputs** gallery section includes live filtering, a commit message, submit
+counts, validation, read-only and disabled examples, and a reset action. These are
+local sample values. Inputs are designed for short form text and commit messages.
 
 ## Motion
 
@@ -143,6 +204,6 @@ exercise real component rendering and pointer/keyboard dispatch with a doubled
 window/text/GPU backend; they do not establish native screen-reader behavior.
 The gallery provides the native appearance and interaction check.
 
-Text editing/IME, menus, popovers, dialogs, split panes and virtualized diff/history
-views are subsequent slices. No changeset is needed for this unreleased Rust crate
+Menus, popovers, dialogs, split panes and virtualized diff/history views are
+subsequent slices. No changeset is needed for this unreleased Rust crate
 (`publish = false`).

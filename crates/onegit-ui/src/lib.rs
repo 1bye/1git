@@ -9,6 +9,7 @@
 mod button;
 mod checkbox;
 mod icon;
+mod input;
 mod list_row;
 mod motion;
 mod pane;
@@ -20,6 +21,9 @@ pub use button::{
 };
 pub use checkbox::{CheckHandler, CheckState, Checkbox};
 pub use icon::{Icon, IconName, IconSize};
+pub use input::{
+    InputAvailability, InputEvent, InputState, InputValidation, SearchField, TextArea, TextInput,
+};
 pub use list_row::{ListRow, RowSelection};
 pub use pane::{Pane, PanePadding};
 pub use text::{Text, TextRole, TextTone};

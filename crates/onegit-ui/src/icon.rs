@@ -13,6 +13,8 @@ pub enum IconName {
     Close,
     /// Refresh/retry.
     Refresh,
+    /// Search or filter.
+    Search,
     /// Expand a menu.
     ChevronDown,
     /// Source branch.
@@ -165,6 +167,10 @@ fn paint_icon(name: IconName, bounds: gpui::Bounds<gpui::Pixels>, window: &mut g
                 &position,
                 &[(6., 21.), (18., 21.), (18., 17.), (9., 7.), (9., 3.)],
             );
+        }
+        IconName::Search => {
+            circle(&mut path, &position, (10., 10.), 6.);
+            stroke(&mut path, &position, &[(14.5, 14.5), (21., 21.)]);
         }
         IconName::Sun => {
             circle(&mut path, &position, (12., 12.), 4.);

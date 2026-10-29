@@ -1,8 +1,9 @@
 //! Native component workbench. All actions update sample state; no Git calls are made.
 use onegit_ui::{
     Appearance, Button, ButtonTone, ButtonVariant, CheckState, Checkbox, ControlSize, ControlState,
-    Icon, IconButton, IconName, IconSize, ListRow, Pane, RowSelection, Text, TextRole, TextTone,
-    Theme,
+    Icon, IconButton, IconName, IconSize, InputAvailability, InputEvent, InputState,
+    InputValidation, ListRow, Pane, RowSelection, SearchField, Text, TextArea, TextInput, TextRole,
+    TextTone, Theme,
 };
 use rake::gpui::{self, Context, FocusHandle, ScrollHandle, Window, prelude::*, px};
 
@@ -15,6 +16,7 @@ enum Section {
     Actions,
     Selection,
     Typography,
+    Inputs,
 }
 
 struct Gallery {
@@ -27,6 +29,14 @@ struct Gallery {
     activations: usize,
     busy: bool,
     expanded: bool,
+    branch: gpui::Entity<InputState>,
+    search: gpui::Entity<InputState>,
+    message: gpui::Entity<InputState>,
+    validation: gpui::Entity<InputState>,
+    readonly: gpui::Entity<InputState>,
+    disabled_input: gpui::Entity<InputState>,
+    submissions: usize,
+    _input_subscriptions: Vec<gpui::Subscription>,
 }
 
 impl Gallery {
@@ -35,7 +45,38 @@ impl Gallery {
         let focus = cx.focus_handle();
         window.focus(&focus, cx);
         window.activate_window();
+        let branch = cx.new(|cx| InputState::new("feature/native-inputs", window, cx));
+        let search = cx.new(|cx| InputState::new("", window, cx));
+        let message = cx.new(|cx| {
+            InputState::new(
+                "Refine native inputs\n\nKeep editing state stable while the appearance changes.",
+                window,
+                cx,
+            )
+        });
+        let validation = cx.new(|cx| InputState::new("feature branch", window, cx));
+        let readonly = cx.new(|cx| InputState::new("main", window, cx));
+        let disabled_input = cx.new(|cx| InputState::new("Waiting for a repository", window, cx));
+        let subscriptions = [&branch, &search, &message, &validation]
+            .into_iter()
+            .map(|input| {
+                cx.subscribe(input, |this, _, event, cx| {
+                    if *event == InputEvent::Submitted {
+                        this.submissions += 1;
+                    }
+                    cx.notify();
+                })
+            })
+            .collect();
         Self {
+            branch,
+            search,
+            message,
+            validation,
+            readonly,
+            disabled_input,
+            submissions: 0,
+            _input_subscriptions: subscriptions,
             appearance: Appearance::Dark,
             section: Section::Overview,
             focus,
@@ -188,6 +229,64 @@ impl Gallery {
         }
     }
 
+    fn inputs(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
+        let query = self.search.read(cx).text().to_lowercase();
+        let names = ["theme.rs", "button.rs", "日本語 · café.rs"];
+        let matched: Vec<_> = names
+            .into_iter()
+            .filter(|name| name.to_lowercase().contains(&query))
+            .collect();
+        let characters = unicode_segmentation::UnicodeSegmentation::graphemes(
+            self.message.read(cx).text(),
+            true,
+        )
+        .count();
+        rake::view! {
+            <Pane header={Some(rake::view! {<Text role={TextRole::Title} {..Text::new("title","Text & search")}/>}.into_any_element())}
+                {..Pane::new("inputs")}>
+                <TextInput placeholder={"feature/native-inputs".into()} description={Some("Native selection, clipboard, undo and composition.".into())}
+                    {..TextInput::new("branch",&self.branch,"Branch name")}/>
+                <SearchField placeholder={"Filter sample files…".into()} {..SearchField::new("search",&self.search,"Search files")}/>
+                <div class="flex flex-col gap-1">
+                    for (index,name) in matched.iter().enumerate() {
+                        <Text id={("result",index).into()} {..Text::new("result",*name)}/>
+                    }
+                    if matched.is_empty() {<Text tone={TextTone::Muted} {..Text::new("empty","No matching files")}/>}
+                </div>
+                <TextArea rows={5} placeholder={"Describe the change and why it helps…".into()}
+                    {..TextArea::new("message",&self.message,"Commit message")}/>
+                <Text role={TextRole::Caption} tone={TextTone::Muted}
+                    {..Text::new("input-status",format!("{characters} characters · {} submissions",self.submissions))}/>
+                <Text role={TextRole::Caption} tone={TextTone::Muted}
+                    {..Text::new("input-help",if cfg!(target_os="macos") {"Enter submits a single-line field. ⌘Enter submits a message; Enter adds a line."} else {"Enter submits a single-line field. Ctrl+Enter submits a message; Enter adds a line."})}/>
+            </Pane>
+        }
+    }
+
+    fn input_states(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
+        let invalid = self.validation.read(cx).text().contains(' ');
+        rake::view! {
+            <Pane header={Some(rake::view! {<Text role={TextRole::Title} {..Text::new("title","Input states")}/>}.into_any_element())}
+                {..Pane::new("input-states")}>
+                <TextInput validation={if invalid {InputValidation::Invalid("Use a branch name without spaces.".into())}else{InputValidation::Valid}}
+                    description={Some("Fix the space to clear this example error.".into())}
+                    {..TextInput::new("validation",&self.validation,"Branch validation")}/>
+                <TextInput size={ControlSize::Small} availability={InputAvailability::ReadOnly}
+                    description={Some("Read-only text remains selectable and copyable.".into())}
+                    {..TextInput::new("readonly",&self.readonly,"Default branch")}/>
+                <TextInput availability={InputAvailability::Disabled}
+                    {..TextInput::new("disabled-input",&self.disabled_input,"Repository remote")}/>
+                <Button on_press={Some(Box::new(cx.listener(|this,_,_,cx| {
+                    this.branch.update(cx,|state,cx|state.set_text("feature/native-inputs",cx));
+                    this.search.update(cx,|state,cx|state.set_text("",cx));
+                    this.message.update(cx,|state,cx|state.set_text("Refine native inputs\n\nKeep editing state stable while the appearance changes.",cx));
+                    this.validation.update(cx,|state,cx|state.set_text("feature branch",cx));
+                    this.submissions=0;cx.notify();
+                })))} {..Button::new("reset-inputs","Reset input examples")}/>
+            </Pane>
+        }
+    }
+
     fn typography(&mut self) -> impl IntoElement {
         rake::view! {
             <Pane header={Some(rake::view! { <Text role={TextRole::Title} {..Text::new("title","Type & symbols")}/> }.into_any_element())}
@@ -203,7 +302,7 @@ impl Gallery {
                     <Text tone={TextTone::Warning} {..Text::new("warning","Needs review")}/>
                 </div>
                 <div class="flex flex-row flex-wrap items-center gap-4">
-                    for (index,name) in [IconName::Branch,IconName::File,IconName::Folder,IconName::Refresh,IconName::Plus,IconName::Check,IconName::Working,IconName::Minus,IconName::Close,IconName::ChevronDown,IconName::Sun].into_iter().enumerate() {
+                    for (index,name) in [IconName::Branch,IconName::File,IconName::Folder,IconName::Refresh,IconName::Plus,IconName::Check,IconName::Working,IconName::Search,IconName::Minus,IconName::Close,IconName::ChevronDown,IconName::Sun].into_iter().enumerate() {
                         <span id={("icon",index)}>
                             <Icon size={IconSize::Large} label={Some(format!("{name:?}").into())} {..Icon::new("glyph",name)}/>
                         </span>
@@ -221,6 +320,12 @@ impl Render for Gallery {
         } else {
             2
         };
+        let item_count: u16 = match self.section {
+            Section::Overview => 6,
+            Section::Actions | Section::Inputs => 2,
+            Section::Selection | Section::Typography => 1,
+        };
+        let rows = item_count.div_ceil(columns);
         rake::view! {
             <main class="size-full flex flex-col bg-background text-ink" focus={&self.focus} tab-navigation={true}>
                 <header class="flex flex-row items-center justify-between gap-4 px-6 py-4 border-b-1 border-line">
@@ -238,7 +343,7 @@ impl Render for Gallery {
                     </div>
                 </header>
                 <nav class="flex flex-row flex-wrap gap-1 px-6 py-3">
-                    for (index,(section,label)) in [(Section::Overview,"Overview"),(Section::Actions,"Actions"),(Section::Selection,"Selection"),(Section::Typography,"Typography")].into_iter().enumerate() {
+                    for (index,(section,label)) in [(Section::Overview,"Overview"),(Section::Actions,"Actions"),(Section::Selection,"Selection"),(Section::Typography,"Typography"),(Section::Inputs,"Inputs")].into_iter().enumerate() {
                         <Button id={("section",index).into()}
                             variant={if self.section==section {ButtonVariant::Secondary} else {ButtonVariant::Ghost}}
                             on_press={Some(Box::new(cx.listener(move |this,_,_,cx|{
@@ -247,10 +352,11 @@ impl Render for Gallery {
                     }
                 </nav>
                 <div class="flex-1 min-h-0 overflow-y-scroll px-6 pb-6" scroll={&self.scroll}>
-                    <div class="grid gap-4" style={|s|s.grid_cols(columns)}>
+                    <div class="grid gap-4 shrink-0" style={|s|s.grid_cols(columns).grid_rows_max_content(rows)}>
                         if matches!(self.section,Section::Overview|Section::Actions) { {self.actions(cx)} {self.states(cx)} }
                         if matches!(self.section,Section::Overview|Section::Selection) { {self.selection(cx)} }
                         if matches!(self.section,Section::Overview|Section::Typography) { {self.typography()} }
+                        if matches!(self.section,Section::Overview|Section::Inputs) { {self.inputs(cx)} {self.input_states(cx)} }
                     </div>
                 </div>
                 <footer class="px-6 py-2 border-t-1 border-line">

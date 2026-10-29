@@ -3947,6 +3947,7 @@ version = "0.0.1"
 dependencies = [
  "gpui-ce-motion",
  "rake",
+ "unicode-segmentation",
 ]
 
 [[package]]
